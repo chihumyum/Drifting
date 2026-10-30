@@ -1,7 +1,7 @@
 {
   "kind": "hosted-client-http-sqlite",
-  "generatedAt": "2026-10-30T14:44:43.408Z",
-  "sourceSha256": "5862e2fc48fd9b0d55343679bec2432caccca085724a26e4442edb95f31f7e8b",
+  "generatedAt": "2026-10-30T15:43:11.841Z",
+  "sourceSha256": "0e9a6e1670c7e2307487c80f1944ac0c39005c401a96e24dba210db91b489f21",
   "status": "passed",
   "synthetic": true,
   "serviceProtocol": "hosted-object-v1",
@@ -283,6 +283,22 @@
       "status": "passed"
     },
     {
+      "name": "reader comments on the sticky-note rail pins open reader comments of the project, newest on top, and leaves others alone",
+      "status": "passed"
+    },
+    {
+      "name": "reader comments on the sticky-note rail pins a comment that arrives later, but not one the author took off the rail",
+      "status": "passed"
+    },
+    {
+      "name": "reader comment notifications notifies once per shared entity with the reader and comment, or the count",
+      "status": "passed"
+    },
+    {
+      "name": "reader comment notifications shortens a long comment",
+      "status": "passed"
+    },
+    {
       "name": "share link inbox imports readers' comments once as anchored external notes and acknowledges them",
       "status": "passed"
     },
@@ -292,6 +308,46 @@
     },
     {
       "name": "share links against the Hosted service publishes the entity copy, imports readers' comments, reports resolutions and stops sharing",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler waits for cancelled provider callbacks before changing local ownership",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler uses a trailing two-second local-commit debounce",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler runs globally single-flight and round-robins before rerunning one SyncGeneration",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler cancels the active network lane offline and resumes queued SyncGenerations immediately online",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler supports delayed retry, foreground polling, and immediate self-publish pull",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler adapts polling per SyncGeneration without accelerating idle projects",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler removes poll-only work on blur and rebuilds an idle deadline on focus",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler keeps Retry-After as a hard floor for every queued wake trigger",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler coalesces missed foreground intervals after a long single-flight cycle",
+      "status": "passed"
+    },
+    {
+      "name": "fullJitterBackoffMs starts at one second, caps at five minutes, and respects Retry-After",
       "status": "passed"
     },
     {
@@ -420,46 +476,6 @@
     },
     {
       "name": "leaving sign-in cancels before the library is connected",
-      "status": "passed"
-    },
-    {
-      "name": "SyncScheduler waits for cancelled provider callbacks before changing local ownership",
-      "status": "passed"
-    },
-    {
-      "name": "SyncScheduler uses a trailing two-second local-commit debounce",
-      "status": "passed"
-    },
-    {
-      "name": "SyncScheduler runs globally single-flight and round-robins before rerunning one SyncGeneration",
-      "status": "passed"
-    },
-    {
-      "name": "SyncScheduler cancels the active network lane offline and resumes queued SyncGenerations immediately online",
-      "status": "passed"
-    },
-    {
-      "name": "SyncScheduler supports delayed retry, foreground polling, and immediate self-publish pull",
-      "status": "passed"
-    },
-    {
-      "name": "SyncScheduler adapts polling per SyncGeneration without accelerating idle projects",
-      "status": "passed"
-    },
-    {
-      "name": "SyncScheduler removes poll-only work on blur and rebuilds an idle deadline on focus",
-      "status": "passed"
-    },
-    {
-      "name": "SyncScheduler keeps Retry-After as a hard floor for every queued wake trigger",
-      "status": "passed"
-    },
-    {
-      "name": "SyncScheduler coalesces missed foreground intervals after a long single-flight cycle",
-      "status": "passed"
-    },
-    {
-      "name": "fullJitterBackoffMs starts at one second, caps at five minutes, and respects Retry-After",
       "status": "passed"
     },
     {

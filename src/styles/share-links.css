@@ -11,3 +11,21 @@
 .share-link__meta { flex: 1; min-width: 0; font-family: var(--font-mono); font-size: var(--ui-font-caption, 11px); color: var(--ui-text-muted, hsl(var(--ink-4))); }
 .share-link__feedback { margin: 0; font-size: var(--ui-font-secondary, 12px); color: var(--ui-text-muted, hsl(var(--ink-3))); }
 .share-link__feedback[role='alert'] { color: hsl(var(--destructive)); }
+
+/* The account's share links (ShareLinksDialog): grouped by project, one row
+   per link with its mark and title, version, comments switch, copy and stop. */
+.share-list { display: flex; flex-direction: column; gap: 16px; min-height: 120px; }
+.share-list__placeholder { min-height: 160px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--ui-text-muted, hsl(var(--ink-3))); font-size: var(--ui-font-secondary, 12px); }
+.share-list__group { display: flex; flex-direction: column; gap: 4px; }
+.share-list__project { margin: 0 0 2px; font-family: var(--font-structure, var(--font-sans)); font-size: var(--ui-font-caption, 11px); font-weight: 500; letter-spacing: 0.02em; color: var(--ui-text-muted, hsl(var(--ink-3))); }
+.share-list__rows { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.share-list__row { display: flex; align-items: center; gap: 8px; min-height: 34px; padding: 0 2px; border-bottom: 0.5px solid hsl(var(--rule)); }
+.share-list__row:last-child { border-bottom: 0; }
+.share-list__open { flex: 1; min-width: 0; display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; background: none; color: hsl(var(--ink-1)); font: inherit; font-size: var(--ui-font-primary, 13px); text-align: start; }
+button.share-list__open { cursor: pointer; }
+button.share-list__open:hover .share-list__title,
+button.share-list__open:focus-visible .share-list__title { text-decoration: underline; text-decoration-color: hsl(var(--ink-4)); text-underline-offset: 3px; }
+button.share-list__open:focus-visible { outline: none; }
+.share-list__title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.share-list__meta { flex: none; font-family: var(--font-mono); font-size: var(--ui-font-caption, 11px); color: var(--ui-text-muted, hsl(var(--ink-4))); }
+.share-list__meta [role='alert'] { color: hsl(var(--destructive)); }

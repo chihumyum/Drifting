@@ -195,8 +195,14 @@ export function ProjectRuntimeProvider({
     if (bootState.key !== bootKey || bootState.status !== 'ready' || APP_CONFIG.LOCAL_ONLY_MODE) return;
     let cancelled = false;
     let dispose: (() => void) | undefined;
-    void import('../../features/share-links/share-link-publisher').then(module => {
-      if (!cancelled) dispose = module.installShareLinkPublisher(projectId);
+    void Promise.all([
+      import('../../features/share-links/share-link-publisher'),
+      import('../../features/share-links/reader-comment-rail'),
+    ]).then(([publisher, rail]) => {
+      if (cancelled) return;
+      const stopPublisher = publisher.installShareLinkPublisher(projectId);
+      const stopRail = rail.installReaderCommentRail(projectId);
+      dispose = () => { stopRail(); stopPublisher(); };
     });
     return () => { cancelled = true; dispose?.(); };
   }, [bootKey, bootState.key, bootState.status, projectId]);

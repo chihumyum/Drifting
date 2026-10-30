@@ -31,7 +31,8 @@ vi.mock('./share-link-api', () => ({
   },
 }));
 
-import { applyShareInbox, isShareLinkComment } from './share-inbox';
+import { applyShareInbox } from './share-inbox';
+import { isShareLinkComment } from './share-comment';
 
 const cleanups: (() => Promise<void>)[] = [];
 afterEach(async () => { for (const close of cleanups.splice(0).reverse()) await close(); });
@@ -71,7 +72,7 @@ describe('share link inbox', () => {
     cleanups.push(async () => events.off('sync:project-changed', listener));
 
     const first = await applyShareInbox(inbox({ comments: [remote('reader-1'), remote('elsewhere', 'not-restored-here')] }));
-    expect(first).toEqual({ imported: 1, withdrawn: 0, statusesReported: 0 });
+    expect(first).toEqual({ imported: 1, withdrawn: 0, statusesReported: 0, arrived: [remote('reader-1')] });
     const imported = await row('reader-1');
     expect(imported).toMatchObject({
       projectId: INPUT.projectId, kind: 'note', targetKind: 'node', targetId: 'chapter', targetBlockId: 'block-1',
@@ -86,7 +87,7 @@ describe('share link inbox', () => {
     expect(changed).toEqual([INPUT.projectId]);
 
     // A second device that read the inbox before the acknowledgement writes nothing new.
-    await applyShareInbox(inbox({ comments: [remote('reader-1')] }));
+    expect((await applyShareInbox(inbox({ comments: [remote('reader-1')] }))).arrived).toEqual([]);
     expect(mocks.sync).toHaveLength(1);
     expect(mocks.acknowledged[mocks.acknowledged.length - 1]).toEqual([['reader-1'], []]);
   });
@@ -108,7 +109,7 @@ describe('share link inbox', () => {
       ],
       imported: ['kept', 'resolved', 'converted', 'already-deleted'].map(id => ({ id, projectId: INPUT.projectId, status: 'open' as const })),
     }));
-    expect(result).toEqual({ imported: 0, withdrawn: 2, statusesReported: 2 });
+    expect(result).toEqual({ imported: 0, withdrawn: 2, statusesReported: 2, arrived: [] });
     expect(await row('withdrawn')).toBeUndefined();
     expect(await row('kept')).toBeDefined();
     expect(mocks.sync).toEqual([[INPUT.projectId, 'comment', 'delete', 'withdrawn', INPUT.projectId]]);
