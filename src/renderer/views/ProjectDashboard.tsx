@@ -1,1184 +1,799 @@
-import { useCallback, useMemo, useState, memo } from 'react';
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type RefObject,
+} from 'react';
 import { useTranslation } from 'react-i18next';
-import { FilterChip } from '../components/ui/FilterChip';
-import { useDataStoreFields } from '../store/use-data-store-fields';
-import { useStoryline } from '../usecase/useStoryline';
+import { useDataStore } from '../store/data-store';
 import { useProject } from '../usecase/useProject';
-import { useElementCategory } from '../usecase/useElementCategory';
 import { useAuthStore } from '../store/auth';
 import { useProjectStore } from '../store/project-store';
 import { useUiStore } from '../store/ui-store';
+import { useShortcutsStore } from '../store/shortcuts-store';
+import { useProjectCheckinStore } from '../store/project-checkin-store';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
 import { useRecentEntitiesStore } from '../store/recent-entities-store';
 import { useWritingStatsStore, deriveWritingStats } from '../store/writing-stats-store';
+import { useEditorSurfaceLifecycle } from '../components/editor/editor-surface-lifecycle-context';
 import { KvEditor } from '../components/editor/KvEditor';
 import { ProjectMemoryEditor } from '../features/agent/ProjectMemoryEditor';
-import { ProjectAgentHome } from '../features/agent/ProjectAgentHome';
-import { revealDesktopAgentView } from '../store/desktop-agent-navigation';
+import { HomeCreateFloat, HomeCreateTiles } from '../shells/desktop/project-home/HomeCreate';
+import { lastHomeCreateKind, useHomeCreate } from '../shells/desktop/project-home/useHomeCreate';
+import { HomeAgentFloat, HomeAgentFlow } from '../shells/desktop/project-home/HomeAgent';
+import { useHomeAgent } from '../shells/desktop/project-home/useHomeAgent';
 import {
   canonicalWordCount,
   deriveStatus,
   isChapter,
+  isDrift,
   sumCanonicalChapterWordCounts,
   type BookNode,
 } from '../domain/book-node';
-import { getPlatformRuntime } from '../platform/runtime';
-import loglevel from 'loglevel';
-import '../../styles/dashboard.css';
+import { formatAccelerator } from '../lib/shortcuts';
 import { BrushIcon } from '../components/ui/BrushIcon';
+import { EmptyState } from '../components/ui/EmptyState';
+import { GlassSlider } from '../components/ui/GlassSlider';
 import { KindMark } from '../components/ui/KindMark';
+import { Switch } from '../components/ui/Switch';
+import '../../styles/dashboard.css';
 
-const log = loglevel.getLogger('ProjectDashboard');
-type DashboardView = 'overview' | 'structure';
+type HomeView = 'overview' | 'settings';
+type Floating = 'new' | 'agent' | null;
 
-const STORY_TOKENS = [
-  '--story-1',
-  '--story-2',
-  '--story-3',
-  '--story-4',
-  '--story-5',
-  '--story-6',
-] as const;
+/** Where a floating section rests above the foot of the page (dashboard.css). */
+const FLOAT_INSET = 26;
 
-function hashToToken(id: string): string {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) h = (h + id.charCodeAt(i) * (i + 7)) >>> 0;
-  return STORY_TOKENS[h % STORY_TOKENS.length];
+function relativeTime(iso: string | number, locale: string): string {
+  const then = typeof iso === 'number' ? iso : new Date(iso).getTime();
+  const seconds = Math.max(0, Math.round((Date.now() - then) / 1000));
+  const zh = locale.startsWith('zh');
+  if (seconds < 60) return zh ? '刚刚' : 'just now';
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return zh ? `${minutes} 分钟前` : `${minutes} min ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return zh ? `${hours} 小时前` : `${hours} hr ago`;
+  const days = Math.round(hours / 24);
+  if (days < 30) return zh ? `${days} 天前` : `${days} days ago`;
+  return new Date(then).toLocaleDateString(locale);
 }
 
-/** Resolve a stored color (hex / css color) or fall back to a hashed story token. */
-function resolveColor(rawColor: string | undefined, fallbackKey: string): string {
-  if (rawColor && rawColor.trim().length > 0) return rawColor;
-  return `hsl(var(${hashToToken(fallbackKey)}))`;
-}
-
-function isZh(locale: string): boolean {
-  return locale.startsWith('zh');
-}
-
-function formatRelativeTime(iso: string, locale: string): string {
-  const then = new Date(iso).getTime();
-  const now = Date.now();
-  const diffSec = Math.max(0, Math.round((now - then) / 1000));
-  const zh = isZh(locale);
-  if (diffSec < 60) return zh ? '刚刚' : 'just now';
-  const diffMin = Math.round(diffSec / 60);
-  if (diffMin < 60) return zh ? `${diffMin} 分钟前` : `${diffMin} min ago`;
-  const diffHr = Math.round(diffMin / 60);
-  if (diffHr < 24) return zh ? `${diffHr} 小时前` : `${diffHr} hr ago`;
-  const diffDay = Math.round(diffHr / 24);
-  if (diffDay < 30) return zh ? `${diffDay} 天前` : `${diffDay} days ago`;
-  return new Date(iso).toLocaleDateString(locale);
-}
-
-interface ProjectProfileEditorProps {
-  summary: string;
-  onPersist: (nextSummary: string) => void;
-}
-
-function ProjectProfileEditor({ summary, onPersist }: ProjectProfileEditorProps) {
-  const { t } = useTranslation();
-  const [draft, setDraft] = useState(summary);
-  const [draftDirty, setDraftDirty] = useState(false);
-  const [syncedSummary, setSyncedSummary] = useState(summary);
-  if (syncedSummary !== summary) {
-    setSyncedSummary(summary);
-    if (!draftDirty) setDraft(summary);
+/** 86,000 → 「8.6 万」 / 「86k」. */
+function shortWords(count: number, locale: string): string {
+  if (locale.startsWith('zh')) {
+    return count >= 10000 ? `${(count / 10000).toFixed(1).replace(/\.0$/, '')} 万` : count.toLocaleString(locale);
   }
+  return count >= 1000 ? `${(count / 1000).toFixed(1).replace(/\.0$/, '')}k` : count.toLocaleString(locale);
+}
 
-  const persistDraft = () => {
-    setDraftDirty(false);
-    const nextSummary = draft.trim();
-    if (nextSummary !== summary) onPersist(nextSummary);
+/**
+ * Project Home on the desktop: the page the stage shows when no tab is
+ * active, one page-white plane like the editors. Its flow is the work (the
+ * title and counts, where to continue, the whole book), then the create row,
+ * then the Agent; 设定 is the other view. Arriving from the dock's + (or ⌘N)
+ * floats the create row at the foot of the page, any other arrival floats the
+ * Agent, each a leaner set of its own; once the page is scrolled to where that
+ * section sits, the floating set fades out for the one in the flow and stays
+ * gone until the next arrival. A section already in view never floats.
+ */
+export const ProjectDashboard = memo(function ProjectDashboard() {
+  const { t } = useTranslation();
+  const { projectId } = useProjectNavigation();
+  const { isVisible } = useEditorSurfaceLifecycle();
+  const currentProject = useProjectStore((s) => s.currentProject);
+  const projects = useProjectStore((s) => s.projects);
+  const projectName = currentProject?.name ?? projects.find((p) => p.id === projectId)?.name ?? '';
+  const create = useHomeCreate();
+  const { hush } = create;
+  const agent = useHomeAgent(projectId ?? '', projectName);
+
+  const [view, setView] = useState<HomeView>('overview');
+  const [floating, setFloating] = useState<Floating>(null);
+  // Read by scroll and resize handlers; written beside every setFloating.
+  const floatingRef = useRef<Floating>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const newRef = useRef<HTMLElement | null>(null);
+  const agentRef = useRef<HTMLElement | null>(null);
+  const floatRef = useRef<HTMLDivElement | null>(null);
+  const agentInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const memoryRef = useRef<HTMLElement | null>(null);
+
+  /** Lands a floating section once its place in the flow is in view. */
+  const dock = useCallback(() => {
+    const kind = floatingRef.current;
+    const scroller = scrollRef.current;
+    const section = kind === 'new' ? newRef.current : kind === 'agent' ? agentRef.current : null;
+    if (!kind || !scroller || !section) return;
+    const limit = scroller.getBoundingClientRect().bottom - FLOAT_INSET;
+    if (section.getBoundingClientRect().bottom > limit + 0.5) return;
+    const hadFocus = Boolean(floatRef.current?.contains(document.activeElement));
+    floatingRef.current = null;
+    setFloating(null);
+    if (!hadFocus) return;
+    // The section in the flow is already laid out under its floating set.
+    if (kind === 'agent') {
+      const input = agentInputRef.current;
+      input?.focus({ preventScroll: true });
+      input?.setSelectionRange(input.value.length, input.value.length);
+      return;
+    }
+    newRef.current
+      ?.querySelector<HTMLButtonElement>(`[data-kind="${lastHomeCreateKind()}"] [data-home-kind]`)
+      ?.focus({ preventScroll: true });
+  }, []);
+
+  // Every arrival starts at the top with one section floating: the create row
+  // after the dock's + or ⌘N, otherwise the Agent.
+  const entry = useUiStore((s) => s.projectHomeEntry);
+  const consumedSeq = useRef(entry.seq);
+  const arrivedFromPlus = useRef(false);
+  const wasVisible = useRef(false);
+  const [arrival, setArrival] = useState(0);
+  useLayoutEffect(() => {
+    const fresh = entry.seq !== consumedSeq.current;
+    const arrived = isVisible && (!wasVisible.current || fresh);
+    wasVisible.current = isVisible;
+    if (!arrived) return;
+    consumedSeq.current = entry.seq;
+    const intent = fresh ? entry.intent : 'home';
+    arrivedFromPlus.current = intent === 'new';
+    setView('overview');
+    const next: Floating = intent === 'new' ? 'new' : 'agent';
+    floatingRef.current = next;
+    setFloating(next);
+    scrollRef.current?.scrollTo({ top: 0 });
+    setArrival((n) => n + 1);
+  }, [entry.intent, entry.seq, isVisible]);
+
+  useLayoutEffect(() => {
+    if (arrival === 0) return;
+    dock();
+    if (!arrivedFromPlus.current) return;
+    // After the dock's + the focus waits on the kind used last, floating or
+    // not; it stays quiet and opens nothing until the author moves it.
+    const scope = floatingRef.current === 'new' ? floatRef.current : newRef.current;
+    const kind = scope?.querySelector<HTMLButtonElement>(`[data-kind="${lastHomeCreateKind()}"] [data-home-kind]`);
+    if (!kind) return;
+    hush();
+    kind.focus({ preventScroll: true });
+  }, [arrival, dock, hush]);
+
+  useEffect(() => {
+    const scroller = scrollRef.current;
+    if (!scroller || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => dock());
+    observer.observe(scroller);
+    return () => observer.disconnect();
+  }, [dock]);
+
+  const showView = (next: HomeView) => {
+    floatingRef.current = null;
+    setFloating(null);
+    setView(next);
+  };
+
+  const openMemory = () => {
+    showView('settings');
+    requestAnimationFrame(() => memoryRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' }));
   };
 
   return (
-    <div className="dash-profile">
-      <label className="dash-profile__field">
-        <textarea
-          className="dash-profile__textarea"
-          value={draft}
-          onChange={(e) => {
-            setDraftDirty(true);
-            setDraft(e.target.value);
-          }}
-          onBlur={persistDraft}
-          placeholder={t('dashboard.profilePlaceholder')}
-          rows={5}
-        />
-      </label>
+    <div className="dash-stage">
+      <div className="dash" ref={scrollRef} onScroll={dock}>
+        <div className="dash__inner">
+          <HomeTitle view={view} onView={showView} />
+          {view === 'overview' ? (
+            <>
+              <HomeWork />
+              <section
+                ref={newRef}
+                className={`dash-sec dash-sec--create${floating === 'new' ? ' is-ghost' : ''}`}
+                aria-hidden={floating === 'new' || undefined}
+              >
+                <CreateHead />
+                <HomeCreateTiles model={create} />
+              </section>
+              {projectId && (
+                <section
+                  ref={agentRef}
+                  className={`dash-sec dash-sec--agent${floating === 'agent' ? ' is-ghost' : ''}`}
+                  aria-hidden={floating === 'agent' || undefined}
+                >
+                  <HomeAgentFlow agent={agent} inputRef={agentInputRef} onOpenMemory={openMemory} />
+                </section>
+              )}
+            </>
+          ) : (
+            <HomeSettings memoryRef={memoryRef} />
+          )}
+        </div>
+      </div>
+      {floating && (
+        <div
+          ref={floatRef}
+          className={`dash-float dash-float--${floating}`}
+          aria-label={floating === 'new' ? t('projectHome.create.title') : t('projectAgent.title')}
+          role="region"
+        >
+          {floating === 'new' ? <HomeCreateFloat model={create} /> : <HomeAgentFloat agent={agent} />}
+        </div>
+      )}
+      {create.dialog}
+    </div>
+  );
+});
+
+function CreateHead() {
+  const { t } = useTranslation();
+  const accelerator = useShortcutsStore((state) => state.bindings.newEntity);
+  return (
+    <div className="dash-sec__head">
+      <h2 className="dash-sec__title">{t('projectHome.create.title')}</h2>
+      <span className="dash-sec__spacer" />
+      <span className="dash-ro">{formatAccelerator(accelerator)}</span>
     </div>
   );
 }
 
-export interface ProjectDashboardProps {
-  onOpenProjectView?: (view: 'graph' | 'element' | 'memo-material') => void;
-}
-
-export const ProjectDashboard = memo(function ProjectDashboard({ onOpenProjectView }: ProjectDashboardProps = {}) {
+function HomeTitle({ view, onView }: { view: HomeView; onView: (view: HomeView) => void }) {
   const { t, i18n } = useTranslation();
-  const { projectId, openEntity, navigateToAllChapters } = useProjectNavigation();
+  const { projectId } = useProjectNavigation();
   const userId = useAuthStore((state) => state.user?.id);
   const currentProject = useProjectStore((s) => s.currentProject);
   const projects = useProjectStore((s) => s.projects);
-  const {
-    storylines,
-    bookElements,
-    bookElementCategories,
-    bookNodes,
-    storylineNodeMapping,
-    primaryStorylineByNode,
-  } = useDataStoreFields(
-    'storylines',
-    'bookElements',
-    'bookElementCategories',
-    'bookNodes',
-    'storylineNodeMapping',
-    'primaryStorylineByNode',
-  );
-  const recentItems = useRecentEntitiesStore((s) => s.items);
-  const setActiveSuperView = useUiStore((s) => s.setActiveSuperView);
-  const appVersion = getPlatformRuntime().appInfo?.version ?? '0.1.0';
-
-  // Writing plan + per-day stats are stored alongside settings (localStorage)
-  // so they survive app restarts but don't require a SQLite migration.
+  const { updateProject } = useProject({ userId: userId ?? '' });
+  const storylines = useDataStore((s) => s.storylines);
+  const bookElements = useDataStore((s) => s.bookElements);
+  const bookNodes = useDataStore((s) => s.bookNodes);
   const writingHistory = useWritingStatsStore((s) => s.history[projectId ?? ''] ?? undefined);
-  const writingPlans = useWritingStatsStore((s) => s.plans);
+  const plan = useWritingStatsStore((s) => (projectId ? s.plans[projectId] : undefined));
+  const projectTarget = plan?.projectWordTarget ?? 120000;
+  const dailyGoal = plan?.dailyWordGoal ?? 1500;
+
+  const chapters = useMemo(() => bookNodes.filter(isChapter), [bookNodes]);
+  const total = useMemo(() => sumCanonicalChapterWordCounts(chapters), [chapters]);
+  const stats = useMemo(() => deriveWritingStats(writingHistory, total.count), [writingHistory, total.count]);
+
+  const editableId = currentProject?.id ?? projectId ?? null;
+  const name = currentProject?.name ?? projects.find((p) => p.id === projectId)?.name ?? '';
+  const [draft, setDraft] = useState('');
+  const [editing, setEditing] = useState(false);
+  const [composing, setComposing] = useState(false);
+  const commitName = async () => {
+    const next = draft.trim();
+    // Persist before leaving edit mode, so the old name never flashes back
+    // while the write lands.
+    if (editableId && next && next !== name) await updateProject(editableId, { name: next });
+    setEditing(false);
+  };
+
+  const since = currentProject?.createdAt
+    ? new Date(currentProject.createdAt).toLocaleDateString(i18n.language, { year: 'numeric', month: 'long' })
+    : null;
+  const words = !total.ready
+    ? t('common.counting')
+    : projectTarget > 0
+      ? t('projectHome.wordsOfTarget', {
+          words: shortWords(total.count, i18n.language),
+          target: shortWords(projectTarget, i18n.language),
+        })
+      : t('projectHome.words', { words: shortWords(total.count, i18n.language) });
+  const progress = total.ready && projectTarget > 0 ? Math.min(100, (total.count / projectTarget) * 100) : 0;
+
+  return (
+    <header className="dash-title">
+      <div className="dash-title__top">
+        <div className="dash-title__main">
+          <p className="dash-ro">
+            {since ? t('projectHome.since', { date: since }) : t('projectHome.kicker')}
+          </p>
+          <input
+            type="text"
+            className="dash-title__name"
+            value={editing ? draft : name}
+            readOnly={!editableId}
+            placeholder="Drifting"
+            aria-label={t('dashboard.hero.projectName')}
+            title={t('dashboard.hero.renameProject')}
+            onFocus={() => {
+              setDraft(name);
+              setEditing(true);
+            }}
+            onChange={(e) => setDraft(e.target.value)}
+            onCompositionStart={() => setComposing(true)}
+            onCompositionEnd={(e) => {
+              setComposing(false);
+              setDraft(e.currentTarget.value);
+            }}
+            onBlur={() => {
+              if (composing) setEditing(false);
+              else void commitName();
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !composing) {
+                e.preventDefault();
+                e.currentTarget.blur();
+              }
+              if (e.key === 'Escape') {
+                setDraft(name);
+                e.currentTarget.blur();
+              }
+            }}
+          />
+        </div>
+        <GlassSlider
+          className="dash-title__views"
+          ariaLabel={t('projectHome.kicker')}
+          value={view}
+          onChange={onView}
+          options={[
+            { value: 'overview', label: t('projectHome.views.overview') },
+            { value: 'settings', label: t('projectHome.views.settings') },
+          ]}
+        />
+      </div>
+      {view === 'overview' && (
+        <div className="dash-title__readouts">
+          <p className="dash-ro">
+            {t('projectHome.readout', {
+              chapters: chapters.length,
+              storylines: storylines.length,
+              elements: bookElements.length,
+            })}
+            {' · '}
+            {words}
+          </p>
+          <div className="dash-progress">
+            {projectTarget > 0 && (
+              <span className="sand-track dash-progress__track">
+                <span className="sand-stroke" style={{ width: `${progress}%` }} />
+              </span>
+            )}
+            <span className="dash-ro">
+              {total.ready
+                ? dailyGoal > 0
+                  ? t('projectHome.today', {
+                      today: stats.todayWords.toLocaleString(i18n.language),
+                      goal: dailyGoal.toLocaleString(i18n.language),
+                      streak: stats.streakDays,
+                    })
+                  : t('projectHome.todayNoGoal', {
+                      today: stats.todayWords.toLocaleString(i18n.language),
+                      streak: stats.streakDays,
+                    })
+                : t('common.counting')}
+            </span>
+          </div>
+        </div>
+      )}
+    </header>
+  );
+}
+
+function HomeWork() {
+  const { t, i18n } = useTranslation();
+  const { projectId, openEntity, navigateToAllChapters } = useProjectNavigation();
+  const setActiveSuperView = useUiStore((s) => s.setActiveSuperView);
+  const storylines = useDataStore((s) => s.storylines);
+  const bookNodes = useDataStore((s) => s.bookNodes);
+  const bookElements = useDataStore((s) => s.bookElements);
+  const categories = useDataStore((s) => s.bookElementCategories);
+  const mapping = useDataStore((s) => s.storylineNodeMapping);
+  const primaryStorylineByNode = useDataStore((s) => s.primaryStorylineByNode);
+  const recentItems = useRecentEntitiesStore((s) => s.items);
+
+  const storylineOf = useCallback(
+    (node: BookNode) => {
+      const id = primaryStorylineByNode[node.id] ?? null;
+      return id ? (storylines.find((s) => s.id === id) ?? null) : null;
+    },
+    [primaryStorylineByNode, storylines],
+  );
+
+  const recents = useMemo(() => {
+    const items = recentItems
+      .filter((item) => item.projectId === projectId)
+      .sort((a, b) => b.usedAt - a.usedAt);
+    const resolved: Array<
+      | { kind: 'node'; node: BookNode; usedAt: number }
+      | { kind: 'element'; id: string; name: string; color?: string; usedAt: number }
+    > = [];
+    for (const item of items) {
+      if (item.entityType === 'node') {
+        const node = bookNodes.find((n) => n.id === item.entityId);
+        if (node) resolved.push({ kind: 'node', node, usedAt: item.usedAt });
+      } else {
+        const element = bookElements.find((e) => e.id === item.entityId);
+        if (!element) continue;
+        const category = categories.find((c) => c.id === element.categoryId);
+        resolved.push({
+          kind: 'element',
+          id: element.id,
+          name: element.name,
+          color: category?.color?.trim() || undefined,
+          usedAt: item.usedAt,
+        });
+      }
+    }
+    return resolved;
+  }, [bookElements, bookNodes, categories, projectId, recentItems]);
+
+  // Where to continue: the chapter or drift opened last, else the chapter
+  // touched last.
+  const continueNode = useMemo(() => {
+    const recent = recents.find((item) => item.kind === 'node');
+    if (recent?.kind === 'node') return recent.node;
+    return [...bookNodes].filter(isChapter).sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1))[0] ?? null;
+  }, [bookNodes, recents]);
+  const others = recents
+    .filter((item) => !(item.kind === 'node' && item.node.id === continueNode?.id))
+    .slice(0, 3);
+
+  const storylineRows = useMemo(
+    () =>
+      [...storylines]
+        .sort((a, b) => a.orderKey - b.orderKey)
+        .map((storyline) => {
+          const nodes = (mapping[storyline.id] ?? [])
+            .map((id) => bookNodes.find((n) => n.id === id))
+            .filter((n): n is BookNode => Boolean(n) && isChapter(n as BookNode));
+          const done = nodes.filter((n) => deriveStatus(n) === 'done').length;
+          const counts = nodes.map(canonicalWordCount);
+          const words = counts.every((c) => c != null)
+            ? counts.reduce<number>((sum, c) => sum + (c ?? 0), 0)
+            : null;
+          return { storyline, total: nodes.length, done, words, color: storyline.color || 'hsl(var(--ink-4))' };
+        }),
+    [bookNodes, mapping, storylines],
+  );
+
+  const continueStoryline = continueNode ? storylineOf(continueNode) : null;
+  const continueWords = continueNode ? canonicalWordCount(continueNode) : null;
+
+  return (
+    <>
+      <section className="dash-sec">
+        <div className="dash-sec__head">
+          <h2 className="dash-sec__title">{t('projectHome.continue.title')}</h2>
+          <span className="dash-sec__spacer" />
+          <button type="button" className="dash-text-button" onClick={() => navigateToAllChapters()}>
+            <KindMark kind="all" />
+            {t('dashboard.actions.allChapters')}
+          </button>
+        </div>
+        {continueNode ? (
+          <button
+            type="button"
+            className="sand-cell dash-continue"
+            style={{ '--cell-c': continueStoryline?.color || undefined } as CSSProperties}
+            onClick={() => openEntity({ entityType: 'node', id: continueNode.id })}
+          >
+            <span className="dash-continue__head">
+              <KindMark
+                kind={isDrift(continueNode) ? 'drift' : 'chapter'}
+                seed={continueNode.id}
+                color={continueStoryline?.color || undefined}
+              />
+              <span className="dash-continue__title">{continueNode.title || t('common.untitled')}</span>
+              <span className="dash-sec__spacer" />
+              {continueStoryline && (
+                <KindMark kind="storyline" color={continueStoryline.color || 'hsl(var(--ink-4))'} />
+              )}
+              <span className="dash-ro">
+                {[
+                  continueStoryline?.name,
+                  relativeTime(continueNode.updatedAt, i18n.language),
+                  continueWords != null ? t('dashboard.wordCount', { count: continueWords.toLocaleString() }) : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </span>
+            </span>
+            {continueNode.summary && <span className="dash-continue__summary">{continueNode.summary}</span>}
+            <i className="cell-ring" aria-hidden="true" />
+          </button>
+        ) : (
+          <EmptyState mark="chapter" message={t('projectHome.continue.empty')} />
+        )}
+        {others.length > 0 && (
+          <div className="dash-cells">
+            {others.map((item) =>
+              item.kind === 'node' ? (
+                <button
+                  key={item.node.id}
+                  type="button"
+                  className="sand-cell dash-cell"
+                  style={{ '--cell-c': storylineOf(item.node)?.color || undefined } as CSSProperties}
+                  onClick={() => openEntity({ entityType: 'node', id: item.node.id })}
+                >
+                  <KindMark
+                    kind={isDrift(item.node) ? 'drift' : 'chapter'}
+                    seed={item.node.id}
+                    color={storylineOf(item.node)?.color || undefined}
+                  />
+                  <span className="dash-cell__name">{item.node.title || t('common.untitled')}</span>
+                  <span className="dash-ro">{relativeTime(item.usedAt, i18n.language)}</span>
+                  <i className="cell-ring" aria-hidden="true" />
+                </button>
+              ) : (
+                <button
+                  key={item.id}
+                  type="button"
+                  className="sand-cell dash-cell"
+                  style={{ '--cell-c': item.color } as CSSProperties}
+                  onClick={() => openEntity({ entityType: 'element', id: item.id })}
+                >
+                  <KindMark kind="element" color={item.color} />
+                  <span className="dash-cell__name">{item.name || t('common.untitled')}</span>
+                  <span className="dash-ro">{relativeTime(item.usedAt, i18n.language)}</span>
+                  <i className="cell-ring" aria-hidden="true" />
+                </button>
+              ),
+            )}
+          </div>
+        )}
+      </section>
+
+      <section className="dash-sec">
+        <div className="dash-sec__head">
+          <h2 className="dash-sec__title">{t('projectHome.book.title')}</h2>
+          <span className="dash-sec__spacer" />
+          <button type="button" className="dash-text-button" onClick={() => setActiveSuperView('graph')}>
+            <BrushIcon name="branch" size={13} inline />
+            {t('dashboard.actions.storyGraph')}
+          </button>
+          <button type="button" className="dash-text-button" onClick={() => setActiveSuperView('element')}>
+            <KindMark kind="element" />
+            {t('dashboard.actions.elementOverview')}
+          </button>
+        </div>
+        {storylineRows.length > 0 ? (
+          <div className="dash-lines">
+            {storylineRows.map(({ storyline, total, done, words, color }) => (
+              <button
+                key={storyline.id}
+                type="button"
+                className="sand-cell dash-line"
+                style={{ '--cell-c': color } as CSSProperties}
+                onClick={() => openEntity({ entityType: 'storyline', id: storyline.id })}
+              >
+                <KindMark kind="storyline" color={color} />
+                <span className="dash-line__name">{storyline.name || t('common.untitled')}</span>
+                <span className="sand-track dash-line__track">
+                  <span
+                    className="sand-stroke"
+                    style={{ width: `${total ? (done / total) * 100 : 0}%`, '--sand-c': color } as CSSProperties}
+                  />
+                </span>
+                <span className="dash-ro dash-line__count">
+                  {t('projectHome.book.storylineCount', { done, total })}
+                  {words != null && ` · ${t('projectHome.words', { words: shortWords(words, i18n.language) })}`}
+                </span>
+                <i className="cell-ring" aria-hidden="true" />
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className="ui-section-empty">{t('projectHome.book.noStorylines')}</p>
+        )}
+        {categories.length > 0 && (
+          <div className="dash-cells">
+            {[...categories]
+              .sort((a, b) => a.name.localeCompare(b.name))
+              .map((category) => {
+                const color = category.color?.trim() || undefined;
+                return (
+                  <button
+                    key={category.id}
+                    type="button"
+                    className="sand-cell dash-cell"
+                    style={{ '--cell-c': color } as CSSProperties}
+                    onClick={() => openEntity({ entityType: 'category', id: category.id })}
+                  >
+                    <KindMark kind="category" color={color} />
+                    <span className="dash-cell__name">{category.name}</span>
+                    <span className="dash-ro">
+                      {bookElements.filter((element) => element.categoryId === category.id).length}
+                    </span>
+                    <i className="cell-ring" aria-hidden="true" />
+                  </button>
+                );
+              })}
+          </div>
+        )}
+      </section>
+    </>
+  );
+}
+
+function ProfileEditor({ summary, onPersist }: { summary: string; onPersist: (next: string) => void }) {
+  const { t } = useTranslation();
+  const [draft, setDraft] = useState(summary);
+  const [dirty, setDirty] = useState(false);
+  const [synced, setSynced] = useState(summary);
+  if (synced !== summary) {
+    setSynced(summary);
+    if (!dirty) setDraft(summary);
+  }
+  return (
+    <label className="ui-field ui-field--area glass glass--rest glass--field dash-profile">
+      <textarea
+        value={draft}
+        rows={4}
+        placeholder={t('dashboard.profilePlaceholder')}
+        aria-label={t('dashboard.sections.projectProfile')}
+        onChange={(e) => {
+          setDirty(true);
+          setDraft(e.target.value);
+        }}
+        onBlur={() => {
+          setDirty(false);
+          const next = draft.trim();
+          if (next !== summary) onPersist(next);
+        }}
+      />
+    </label>
+  );
+}
+
+function HomeSettings({ memoryRef }: { memoryRef: RefObject<HTMLElement | null> }) {
+  const { t, i18n } = useTranslation();
+  const { projectId } = useProjectNavigation();
+  const userId = useAuthStore((state) => state.user?.id);
+  const currentProject = useProjectStore((s) => s.currentProject);
+  const { updateProject } = useProject({ userId: userId ?? '' });
+  const bookNodes = useDataStore((s) => s.bookNodes);
+  const writingHistory = useWritingStatsStore((s) => s.history[projectId ?? ''] ?? undefined);
+  const plan = useWritingStatsStore((s) => (projectId ? s.plans[projectId] : undefined));
   const setProjectWordTarget = useWritingStatsStore((s) => s.setProjectWordTarget);
   const setDailyWordGoal = useWritingStatsStore((s) => s.setDailyWordGoal);
-  const projectPlan = projectId
-    ? (writingPlans[projectId] ?? { projectWordTarget: 120000, dailyWordGoal: 1500 })
-    : { projectWordTarget: 120000, dailyWordGoal: 1500 };
+  const checkinEnabled = useProjectCheckinStore((s) => s.enabled);
+  const setCheckinEnabled = useProjectCheckinStore((s) => s.setEnabled);
+  const projectTarget = plan?.projectWordTarget ?? 120000;
+  const dailyGoal = plan?.dailyWordGoal ?? 1500;
+  const total = useMemo(() => sumCanonicalChapterWordCounts(bookNodes.filter(isChapter)), [bookNodes]);
+  const stats = useMemo(() => deriveWritingStats(writingHistory, total.count), [writingHistory, total.count]);
 
-  const { createStoryline } = useStoryline({
-    projectId: projectId ?? '',
-    userId: userId ?? '',
-  });
-  const { updateProject } = useProject({ userId: userId ?? '' });
-  const { createCategory } = useElementCategory({
-    projectId: projectId ?? '',
-    userId: userId ?? '',
-  });
-
-  // Project-level KV / template KV editors. Both write through updateProject
-  // which short-circuits no-op writes inside the usecase, so we can hand the
-  // raw JSON back without guarding here.
-  const commitProjectKv = useCallback(
-    (nextJson: string) => {
-      if (!currentProject || nextJson === currentProject.kvJson) return;
-      void updateProject(currentProject.id, {
-        name: currentProject.name,
-        summary: currentProject.summary,
-        kvJson: nextJson,
-        storylineTemplateKvJson: currentProject.storylineTemplateKvJson,
-      });
-    },
-    [currentProject, updateProject],
-  );
-  const commitStorylineTemplateKv = useCallback(
-    (nextJson: string) => {
-      if (!currentProject || nextJson === currentProject.storylineTemplateKvJson) return;
+  const update = useCallback(
+    (patch: { summary?: string; kvJson?: string; storylineTemplateKvJson?: string }) => {
+      if (!currentProject) return;
       void updateProject(currentProject.id, {
         name: currentProject.name,
         summary: currentProject.summary,
         kvJson: currentProject.kvJson,
-        storylineTemplateKvJson: nextJson,
+        storylineTemplateKvJson: currentProject.storylineTemplateKvJson,
+        ...patch,
       });
     },
     [currentProject, updateProject],
   );
-  const commitProjectSummary = useCallback(
-    (nextSummary: string) => {
-      if (!currentProject || nextSummary === currentProject.summary) return;
-      void updateProject(currentProject.id, { summary: nextSummary });
-    },
-    [currentProject, updateProject],
-  );
 
-  const [chip, setChip] = useState<'all' | 'draft' | 'todo' | 'done'>('all');
-  const [dashboardView, setDashboardView] = useState<DashboardView>('overview');
-
-  // ─── Hero / aggregate stats ────────────────────────────
-  // Dashboard treats drift nodes as out-of-band (they live in their own
-  // panel) — filter before counting so totals match what the storylines
-  // grid actually shows.
-  const chapterNodes = useMemo(() => bookNodes.filter(isChapter), [bookNodes]);
-  const totalNodes = chapterNodes.length;
-  const totalWordsMetric = useMemo(
-    () => sumCanonicalChapterWordCounts(chapterNodes),
-    [chapterNodes],
-  );
-  const totalWc = totalWordsMetric.count;
-  const metricsReady = totalWordsMetric.ready;
-  const targetWc = projectPlan.projectWordTarget || 0;
-
-  const nodeStatuses = useMemo(() => chapterNodes.map((n) => deriveStatus(n)), [chapterNodes]);
-  const doneNodes = nodeStatuses.filter((s) => s === 'done').length;
-  const draftNodes = nodeStatuses.filter((s) => s === 'draft').length;
-  const todoNodes = nodeStatuses.filter((s) => s === 'todo').length;
-  const donePct = totalNodes ? Math.round((doneNodes / totalNodes) * 100) : 0;
-  const draftPctTtl = totalNodes ? Math.round(((doneNodes + draftNodes) / totalNodes) * 100) : 0;
-
-  // ─── Writing stats (today / week / streak) ─────────────
-  const writingStats = useMemo(
-    () => deriveWritingStats(writingHistory, totalWc),
-    [writingHistory, totalWc],
-  );
-  const dailyGoal = projectPlan.dailyWordGoal || 0;
-  const todayGoalPct =
-    metricsReady && dailyGoal > 0 ? Math.min(100, (writingStats.todayWords / dailyGoal) * 100) : 0;
-  const projectGoalPct =
-    metricsReady && targetWc > 0 ? Math.min(100, (totalWc / targetWc) * 100) : 0;
-  const storageFooter = t('dashboard.footer.localReady');
-
-  // ─── Continue card — most recent node ──────────────────
-  const continueNode = useMemo(() => {
-    const recentNodeIds = recentItems
-      .filter((r) => r.projectId === projectId && r.entityType === 'node')
-      .map((r) => r.entityId);
-    for (const id of recentNodeIds) {
-      const node = bookNodes.find((n) => n.id === id);
-      if (node) return node;
-    }
-    // Fallback: first node we have any data on.
-    return bookNodes[0] ?? null;
-  }, [recentItems, bookNodes, projectId]);
-
-  const continueStoryline = useMemo(() => {
-    if (!continueNode) return null;
-    const slId = primaryStorylineByNode[continueNode.id] ?? null;
-    return slId ? (storylines.find((s) => s.id === slId) ?? null) : null;
-  }, [continueNode, primaryStorylineByNode, storylines]);
-
-  const continueStorylineColor = continueStoryline
-    ? resolveColor(continueStoryline.color, continueStoryline.id)
-    : 'hsl(var(--accent))';
-
-  // ─── Per-storyline stats ───────────────────────────────
-  const storylineStats = useMemo(
-    () =>
-      storylines.map((s, index) => {
-        const nodeIds = storylineNodeMapping[s.id] || [];
-        const sNodes = nodeIds
-          .map((nid) => bookNodes.find((n) => n.id === nid))
-          .filter((n): n is NonNullable<typeof n> => Boolean(n));
-        const done = sNodes.filter((n) => deriveStatus(n) === 'done').length;
-        const draft = sNodes.filter((n) => deriveStatus(n) === 'draft').length;
-        const todo = sNodes.length - done - draft;
-        const wordCounts = sNodes.filter(isChapter).map(canonicalWordCount);
-        const wc = wordCounts.every((value) => value != null)
-          ? wordCounts.reduce<number>((sum, value) => sum + (value ?? 0), 0)
-          : null;
-        return {
-          s,
-          index,
-          sNodes,
-          done,
-          draft,
-          todo,
-          total: sNodes.length,
-          wc,
-          color: resolveColor(s.color, s.id),
-        };
-      }),
-    [storylines, storylineNodeMapping, bookNodes],
-  );
-
-  const visibleStorylineStats = useMemo(
-    () =>
-      storylineStats
-        .map((row) => ({
-          ...row,
-          visibleNodes:
-            chip === 'all' ? row.sNodes : row.sNodes.filter((node) => deriveStatus(node) === chip),
-        }))
-        .filter((row) => chip === 'all' || row.visibleNodes.length > 0),
-    [chip, storylineStats],
-  );
-
-  // ─── Filter chips ──────────────────────────────────────
-  const chips: { id: typeof chip; label: string; count: number }[] = [
-    { id: 'all', label: t('dashboard.chips.all'), count: totalNodes },
-    { id: 'draft', label: t('dashboard.chips.draft'), count: draftNodes },
-    { id: 'todo', label: t('dashboard.chips.todo'), count: todoNodes },
-    { id: 'done', label: t('dashboard.chips.done'), count: doneNodes },
-  ];
-
-  // ─── Derived hero meta ─────────────────────────────────
-  // The hero title doubles as an inline rename field — mirrors the storyline
-  // editor's name pattern (controlled draft + IME composition guard).
-  const editableProjectId = currentProject?.id ?? projectId ?? null;
-  const currentProjectName =
-    currentProject?.name ?? projects.find((p) => p.id === projectId)?.name ?? '';
-  const [nameDraft, setNameDraft] = useState('');
-  const [isEditingName, setIsEditingName] = useState(false);
-  const [isComposingName, setIsComposingName] = useState(false);
-  const displayedName = isEditingName ? nameDraft : currentProjectName;
-
-  const commitName = async () => {
-    const next = nameDraft.trim();
-    // Persist BEFORE leaving edit mode. If we dropped out of editing first,
-    // `displayedName` would briefly fall back to the stale `currentProjectName`
-    // (the store hasn't taken the write yet) and the title would flash the old
-    // name until the async update lands. Awaiting keeps the draft on screen
-    // until the store holds the new value, so the swap is seamless.
-    if (editableProjectId && next && next !== currentProjectName) {
-      await updateProject(editableProjectId, { name: next });
-    }
-    setIsEditingName(false);
-  };
-
-  const heroProjectSummary = currentProject?.summary;
-  const lastTouchedNode = useMemo(() => {
-    if (!bookNodes.length) return null;
-    return [...bookNodes].sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1))[0];
-  }, [bookNodes]);
-  const lastTouchedRel = lastTouchedNode
-    ? formatRelativeTime(lastTouchedNode.updatedAt, i18n.language)
-    : '—';
-  const lastTouchedTitle = lastTouchedNode?.title || '—';
-  const projectSinceLabel = currentProject?.createdAt
-    ? new Date(currentProject.createdAt).toLocaleDateString(undefined, {
-        year: 'numeric',
-        month: 'short',
-      })
-    : '—';
-
-  const handleCreateStoryline = async () => {
-    try {
-      const newStoryline = await createStoryline({
-        name: 'Untitled Storyline',
-        summary: '',
-      });
-      openEntity({ entityType: 'storyline', id: newStoryline.id }, { preview: false });
-    } catch (e) {
-      log.error('Failed to create storyline', e);
-    }
-  };
-
-  const handleCreateCategory = async () => {
-    try {
-      const created = await createCategory({});
-      openEntity({ entityType: 'category', id: created.id }, { preview: false });
-    } catch (e) {
-      log.error('Failed to create element category', e);
-    }
-  };
-
-  const openStoryGraph = () =>
-    onOpenProjectView ? onOpenProjectView('graph') : setActiveSuperView('graph');
-  const openElementOverview = () =>
-    onOpenProjectView ? onOpenProjectView('element') : setActiveSuperView('element');
-  const openAllChapters = () => navigateToAllChapters();
-
-  const todayDateLabel = new Date().toLocaleDateString(i18n.language, {
-    month: 'long',
-    day: 'numeric',
-    weekday: 'long',
-  });
-
-  // Recent activity feed — derived from the most-recently-updated chapter
-  // nodes (drifts excluded; they have their own panel). Acts as a "what did
-  // I last touch" surface until a proper activity log lands.
-  const recentActivity = useMemo(() => {
-    return [...chapterNodes]
-      .sort((a: BookNode, b: BookNode) => (a.updatedAt < b.updatedAt ? 1 : -1))
-      .slice(0, 6)
-      .map((n) => {
-        const primaryId = primaryStorylineByNode[n.id] ?? null;
-        const sl = primaryId ? storylines.find((s) => s.id === primaryId) : undefined;
-        return {
-          id: n.id,
-          dateLabel: formatRelativeTime(n.updatedAt, i18n.language),
-          mark: '',
-          desc: n.title || 'Untitled',
-          tail: sl ? ` · ${sl.name}` : '',
-          meta:
-            canonicalWordCount(n) == null
-              ? t('common.counting')
-              : canonicalWordCount(n)! > 0
-                ? t('dashboard.wordCount', { count: canonicalWordCount(n)!.toLocaleString() })
-                : t('dashboard.chips.draft'),
-          metaCls: ((canonicalWordCount(n) ?? 0) > 0 ? 'pos' : 'neg') as 'pos' | 'neg',
-          accent: sl ? resolveColor(sl.color, sl.id) : 'hsl(var(--accent))',
-        };
-      });
-  }, [chapterNodes, primaryStorylineByNode, storylines, i18n.language, t]);
+  if (!projectId || !currentProject) return null;
+  const projectPct = total.ready && projectTarget > 0 ? Math.min(100, (total.count / projectTarget) * 100) : 0;
+  const todayPct = total.ready && dailyGoal > 0 ? Math.min(100, (stats.todayWords / dailyGoal) * 100) : 0;
 
   return (
-    <div className="dash">
-      <div className="dash__inner">
-        {/* ════════ HERO ════════ */}
-        <header className="dash-hero">
-          <div>
-            <div className="dash-hero__kicker">
-              <span className="dash-hero__kicker-dot"></span>
-              <span>{t('dashboard.hero.projectHome')}</span>
-              <span className="dash-hero__kicker-sep">·</span>
-              <span>{t('dashboard.hero.draft')}</span>
-              <span className="dash-hero__kicker-sep">·</span>
-              <span>{t('dashboard.hero.since', { date: projectSinceLabel })}</span>
-            </div>
-
-            <input
-              type="text"
-              className="dash-hero__title dash-hero__title-input"
-              value={displayedName}
-              readOnly={!editableProjectId}
-              placeholder="Drifting"
-              aria-label={t('dashboard.hero.projectName')}
-              title={t('dashboard.hero.renameProject')}
-              onFocus={() => {
-                setNameDraft(currentProjectName);
-                setIsEditingName(true);
-              }}
-              onChange={(e) => setNameDraft(e.target.value)}
-              onCompositionStart={() => setIsComposingName(true)}
-              onCompositionEnd={(e) => {
-                setIsComposingName(false);
-                setNameDraft(e.currentTarget.value);
-              }}
-              onBlur={() => {
-                if (isComposingName) setIsEditingName(false);
-                else void commitName();
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !isComposingName) {
-                  e.preventDefault();
-                  e.currentTarget.blur();
-                }
-                if (e.key === 'Escape') {
-                  setNameDraft(currentProjectName);
-                  e.currentTarget.blur();
-                }
-              }}
-            />
-
-            {heroProjectSummary && <p className="dash-hero__sub">{heroProjectSummary}</p>}
-
-            <div className="dash-hero__meta">
-              <div className="dash-hero__metric">
-                <span className="dash-hero__metric-k">{t('dashboard.metrics.storylines')}</span>
-                <span className="dash-hero__metric-v">{storylines.length}</span>
-              </div>
-              <div className="dash-hero__metric">
-                <span className="dash-hero__metric-k">{t('dashboard.metrics.nodes')}</span>
-                <span className="dash-hero__metric-v">
-                  {totalNodes}
-                  <em>{t('common.chapters')}</em>
-                </span>
-              </div>
-              <div className="dash-hero__metric">
-                <span className="dash-hero__metric-k">{t('dashboard.metrics.elements')}</span>
-                <span className="dash-hero__metric-v">
-                  {bookElements.length}
-                  <em>
-                    · {bookElementCategories.length} {t('common.categoriesUnit')}
-                  </em>
-                </span>
-              </div>
-              <div className="dash-hero__metric">
-                <span className="dash-hero__metric-k">{t('dashboard.metrics.words')}</span>
-                <span className="dash-hero__metric-v">
-                  {metricsReady ? (
-                    <>
-                      {(totalWc / 1000).toFixed(1)}
-                      <em>k{targetWc > 0 ? ` / ${(targetWc / 1000).toFixed(0)}k` : ''}</em>
-                    </>
-                  ) : (
-                    t('common.counting')
-                  )}
-                </span>
-              </div>
-              <div className="dash-hero__metric">
-                <span className="dash-hero__metric-k">{t('dashboard.metrics.lastTouched')}</span>
-                <span className="dash-hero__metric-v">
-                  {lastTouchedRel}
-                  <em>· {lastTouchedTitle}</em>
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div className="dash-hero__aside">
-            <div
-              className="dash-hero__progress"
-              style={
-                {
-                  '--p-done': `${donePct}%`,
-                  '--p-with-draft': `${draftPctTtl}%`,
-                } as React.CSSProperties
-              }
-            >
-              <div className="dash-hero__progress-inner">
-                <span className="dash-hero__progress-pct">
-                  {donePct}
-                  <em>%</em>
-                </span>
-                <span className="dash-hero__progress-k">{t('dashboard.chips.done')}</span>
-              </div>
-            </div>
-            <div className="dash-hero__btns">
-              <button className="dash-hero__btn" onClick={openStoryGraph}>
-                <BrushIcon name="branch" size={16} />
-                {t('dashboard.actions.storyGraph')}
-              </button>
-              <button className="dash-hero__btn" onClick={openElementOverview}>
-                <KindMark kind="element" />
-                {t('dashboard.actions.elementOverview')}
-              </button>
-              <button className="dash-hero__btn" onClick={openAllChapters}>
-                <span aria-hidden="true" style={{ fontSize: 15, lineHeight: 1 }}>☰</span>
-                {t('dashboard.actions.allChapters')}
-              </button>
-              <button
-                className="dash-hero__btn dash-hero__btn--primary"
-                onClick={() =>
-                  continueNode
-                    ? openEntity({ entityType: 'node', id: continueNode.id })
-                    : openAllChapters()
-                }
-              >
-                {t('dashboard.continue.resume')}
-              </button>
-            </div>
-          </div>
-        </header>
-
-        <div className="dash-view-tabs" role="tablist" aria-label={t('dashboard.hero.projectHome')}>
-          {(
-            [
-              ['overview', isZh(i18n.language) ? '概览' : 'Overview', 'ov-folding'],
-              ['structure', isZh(i18n.language) ? '结构与设定' : 'Structure', 'toc-raked'],
-            ] as const
-          ).map(([id, label, icon]) => (
-            <button
-              key={id}
-              type="button"
-              role="tab"
-              aria-selected={dashboardView === id}
-              className={`dash-view-tab${dashboardView === id ? ' dash-view-tab--active' : ''}`}
-              onClick={() => setDashboardView(id)}
-            >
-              <BrushIcon name={icon} size={16} />
-              {label}
-            </button>
-          ))}
-          <button
-            type="button"
-            className="dash-view-tabs__settings"
-            onClick={() => setDashboardView('structure')}
-          >
-            <BrushIcon name="dharma-wheel" size={16} />
-            {isZh(i18n.language) ? '项目设置' : 'Project settings'}
-          </button>
+    <>
+      <section className="dash-sec">
+        <div className="dash-sec__head">
+          <BrushIcon name="dharma-wheel" size={15} />
+          <h2 className="dash-sec__title">{t('dashboard.sections.writingPlan')}</h2>
         </div>
-
-        {dashboardView === 'overview' && (
-          <>
-            {/* ════════ AGENT ════════
-                A conversation entry about the whole project, plus the cards
-                the check-in prepared from recent changes. */}
-            {editableProjectId && (
-              <section className="dash-section dash-section--agent">
-                <div className="dash-section__head">
-                  <div className="dash-section__title">
-                    <BrushIcon name="shikigami" size={18} className="dash-section__title-mark" />
-                    <span className="dash-section__title-cn">{t('projectAgent.title')}</span>
-                    <span className="dash-section__title-en">{t('projectAgent.titleShort')}</span>
-                  </div>
-                </div>
-                <ProjectAgentHome
-                  projectId={editableProjectId}
-                  projectName={currentProjectName}
-                  openAgent={revealDesktopAgentView}
-                />
-              </section>
-            )}
-
-            {/* Chapter filters apply to the storyline chapter sequence below. */}
-            <div className="dash-chips">
-              {chips.map((c) => (
-                <FilterChip
-                  key={c.id}
-                  active={chip === c.id}
-                  count={`· ${c.count}`}
-                  onClick={() => setChip(c.id)}
-                >
-                  {c.label}
-                </FilterChip>
-              ))}
-            </div>
-
-            {/* ════════ ROW 1 — CONTINUE + TODAY ════════ */}
-            <div className="dash-row">
-              {/* CONTINUE */}
-              {continueNode ? (
-                <article
-                  className="dash-continue"
-                  style={{ '--c-color': continueStorylineColor } as React.CSSProperties}
-                  onClick={() => openEntity({ entityType: 'node', id: continueNode.id })}
-                >
-                  <div className="dash-continue__kicker">
-                    <span>{t('dashboard.continue.kicker')}</span>
-                    <span style={{ color: 'hsl(var(--ink-5))' }}>·</span>
-                    <em>{formatRelativeTime(continueNode.updatedAt, i18n.language)}</em>
-                  </div>
-                  <div className="dash-continue__path">
-                    {continueStoryline ? `${continueStoryline.name} · ` : ''}§
-                    {String(continueNode.bookOrder || 1).padStart(2, '0')}
-                  </div>
-                  <h2 className="dash-continue__title">{continueNode.title || 'Untitled'}</h2>
-                  {continueNode.summary && (
-                    <div className="dash-continue__sub">{continueNode.summary}</div>
-                  )}
-                  {/* TODO: snippet currently re-uses summary; pull first paragraph from node content once exposed. */}
-                  <p className="dash-continue__snippet">
-                    {continueNode.summary || t('dashboard.continue.noBody')}
-                  </p>
-                  <div className="dash-continue__foot">
-                    <div className="dash-continue__meta">
-                      <span>
-                        <b>
-                          {canonicalWordCount(continueNode)?.toLocaleString() ??
-                            t('common.counting')}
-                        </b>
-                        {canonicalWordCount(continueNode) != null && (
-                          <span style={{ color: 'hsl(var(--ink-4))' }}>{t('common.words')}</span>
-                        )}
-                      </span>
-                      {/* TODO: revisions count not yet tracked. */}
-                      <span>
-                        <b>—</b>
-                        {t('dashboard.continue.revisions')}
-                      </span>
-                    </div>
-                    <div className="dash-continue__resume">
-                      {t('dashboard.continue.resume')}
-                      <BrushIcon name="arrow-forward" size={13} className="dash-continue__resume-arrow" />
-                    </div>
-                  </div>
-                </article>
-              ) : (
-                <article className="dash-continue" style={{ cursor: 'default' }}>
-                  <div className="dash-continue__kicker">
-                    <span>{t('dashboard.continue.kicker')}</span>
-                  </div>
-                  <div className="dash-continue__path">{t('dashboard.continue.noChapters')}</div>
-                  <h2 className="dash-continue__title">{t('dashboard.continue.emptyTitle')}</h2>
-                  <div className="dash-continue__sub">{t('dashboard.continue.emptySub')}</div>
-                  <div className="dash-continue__foot">
-                    <div className="dash-continue__resume" onClick={handleCreateStoryline}>
-                      {t('dashboard.actions.newStoryline')}
-                      <BrushIcon name="arrow-forward" size={13} className="dash-continue__resume-arrow" />
-                    </div>
-                  </div>
-                </article>
-              )}
-
-              {/* TODAY */}
-              <aside className="dash-today">
-                <div className="dash-today__kicker">{t('dashboard.today.kicker')}</div>
-                <div className="dash-today__date">{todayDateLabel}</div>
-                <div className="dash-today__main">
-                  <span className="dash-today__big">
-                    {metricsReady ? writingStats.todayWords.toLocaleString() : t('common.counting')}
-                  </span>
-                  <span className="dash-today__unit">{t('common.words')}</span>
-                </div>
-                <div className="dash-today__goal">
-                  {t('dashboard.today.goal')} <b>{dailyGoal.toLocaleString()}</b>{' '}
-                  {t('common.words')}
-                </div>
-                <div className="dash-today__bar">
-                  <div className="dash-today__bar-fill" style={{ width: `${todayGoalPct}%` }}></div>
-                </div>
-                <div className="dash-today__streak">
-                  <div className="dash-today__streak-cell">
-                    <span className="dash-today__streak-k">{t('dashboard.today.streak')}</span>
-                    <span className="dash-today__streak-v">
-                      {metricsReady ? writingStats.streakDays : '—'}
-                      <em>{t('common.days')}</em>
-                    </span>
-                  </div>
-                  <div className="dash-today__streak-cell">
-                    <span className="dash-today__streak-k">{t('dashboard.today.week')}</span>
-                    <span className="dash-today__streak-v">
-                      {metricsReady ? (writingStats.weekWords / 1000).toFixed(1) : '—'}
-                      <em>k{t('common.words')}</em>
-                    </span>
-                  </div>
-                  <div className="dash-today__streak-cell">
-                    <span className="dash-today__streak-k">{t('dashboard.today.month')}</span>
-                    <span className="dash-today__streak-v">
-                      {metricsReady ? writingStats.monthDaysWritten : '—'}
-                      <em>{t('common.days')}</em>
-                    </span>
-                  </div>
-                </div>
-              </aside>
-            </div>
-
-            {/* ════════ STORYLINES ════════ */}
-            <section className="dash-section">
-              <div className="dash-section__head">
-                <div className="dash-section__title">
-                  <KindMark kind="storyline" color="hsl(var(--accent))" className="dash-section__title-mark" />
-                  <span className="dash-section__title-cn">
-                    {t('dashboard.sections.storylines')}
-                  </span>
-                  <span className="dash-section__title-en">
-                    {t('dashboard.sections.storylinesShort')}
-                  </span>
-                  <span className="dash-section__count">
-                    · <em>{storylines.length}</em> {t('common.storylinesUnit')} /{' '}
-                    <em>{totalNodes}</em> {t('common.chapters')} /{' '}
-                    <em>
-                      {metricsReady ? `${(totalWc / 1000).toFixed(1)}k` : t('common.counting')}
-                    </em>{' '}
-                    {metricsReady ? t('common.words') : ''}
-                  </span>
-                </div>
-                <div className="dash-section__actions">
-                  <button className="dash-section__btn" onClick={openStoryGraph}>
-                    <BrushIcon name="branch" size={15} /> {t('dashboard.actions.storyGraph')}
-                  </button>
-                  <button className="dash-section__btn" onClick={openAllChapters}>
-                    <span aria-hidden="true" style={{ fontSize: 14, lineHeight: 1 }}>☰</span> {t('dashboard.actions.allChapters')}
-                  </button>
-                  <button
-                    className="dash-section__btn dash-section__btn--accent"
-                    onClick={handleCreateStoryline}
-                  >
-                    <BrushIcon name="plus" size={15} /> {t('dashboard.actions.newStoryline')}
-                  </button>
-                </div>
-              </div>
-
-              <div className="dash-tracks">
-                {visibleStorylineStats.map(
-                  ({ s, index, visibleNodes, done, draft, total, wc, color }) => {
-                    const trackDonePct = total ? (done / total) * 100 : 0;
-                    const trackDraftPct = total ? (draft / total) * 100 : 0;
-                    return (
-                      <div
-                        key={s.id}
-                        className="dash-track"
-                        style={{ '--s-color': color } as React.CSSProperties}
-                        onClick={() => openEntity({ entityType: 'storyline', id: s.id })}
-                      >
-                        <div className="dash-track__no">
-                          {(index + 1).toString().padStart(2, '0')}
-                        </div>
-
-                        <div className="dash-track__name">
-                          <div className="dash-track__name-main">
-                            <span>{s.name || 'Untitled Storyline'}</span>
-                          </div>
-                          <div className="dash-track__name-sub">
-                            {s.summary
-                              ? s.summary
-                              : t('dashboard.storylineSummary', {
-                                  total,
-                                  done,
-                                  draft,
-                                  todo: total - done - draft,
-                                })}
-                          </div>
-                        </div>
-
-                        <div
-                          className="dash-track__chapters"
-                          title={t('dashboard.chaptersTitle', { count: total })}
-                        >
-                          {visibleNodes.map((n) => {
-                            const status = deriveStatus(n);
-                            const isActive = n.id === continueNode?.id;
-                            return (
-                              <span
-                                key={n.id}
-                                className={`dash-track__ch dash-track__ch--${status} ${
-                                  isActive ? 'dash-track__ch--active' : ''
-                                }`}
-                                title={`§${n.bookOrder} · ${n.title} · ${status}`}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  openEntity({ entityType: 'node', id: n.id });
-                                }}
-                              ></span>
-                            );
-                          })}
-                        </div>
-
-                        <div className="dash-track__bar-wrap">
-                          <div className="dash-track__bar-label">
-                            <span>
-                              <b>
-                                {done}/{total}
-                              </b>{' '}
-                              {t('common.chapters')}
-                            </span>
-                            <span>{Math.round(trackDonePct)}%</span>
-                          </div>
-                          <div className="dash-track__bar">
-                            <div
-                              className="dash-track__bar-done"
-                              style={{ width: `${trackDonePct}%` }}
-                            ></div>
-                            <div
-                              className="dash-track__bar-draft"
-                              style={{ left: `${trackDonePct}%`, width: `${trackDraftPct}%` }}
-                            ></div>
-                          </div>
-                        </div>
-
-                        <div className="dash-track__wc">
-                          <span className="dash-track__wc-v">
-                            {wc == null ? t('common.counting') : (wc / 1000).toFixed(1)}
-                            {wc != null && <em>k</em>}
-                          </span>
-                          <span className="dash-track__wc-k">{t('dashboard.wordsLabel')}</span>
-                        </div>
-                      </div>
-                    );
-                  },
-                )}
-
-                <div className="dash-track dash-track--new" onClick={handleCreateStoryline}>
-                  <span className="dash-track--new-glyph">
-                    <BrushIcon name="plus" size={16} />
-                  </span>
-                  <span>{t('dashboard.actions.newStorylineLong')}</span>
-                </div>
-              </div>
-            </section>
-
-            {/* ════════ ELEMENT CATEGORIES + ACTIVITY ════════ */}
-            <div className="dash-row dash-row--2">
-              {/* Element categories */}
-              <section className="dash-section" style={{ marginBottom: 0 }}>
-                <div className="dash-section__head">
-                  <div className="dash-section__title">
-                    <KindMark kind="element" color="hsl(var(--accent))" className="dash-section__title-mark" />
-                    <span className="dash-section__title-cn">
-                      {t('dashboard.sections.elementCategories')}
-                    </span>
-                    <span className="dash-section__title-en">
-                      {t('dashboard.sections.elementCategoriesShort')}
-                    </span>
-                    <span className="dash-section__count">
-                      · <em>{bookElementCategories.length}</em> {t('common.categoriesUnit')} /{' '}
-                      <em>{bookElements.length}</em> {t('common.itemsUnit')}
-                    </span>
-                  </div>
-                  <div className="dash-section__actions">
-                    <button
-                      className="dash-section__btn dash-section__btn--accent"
-                      onClick={handleCreateCategory}
-                    >
-                      <BrushIcon name="plus" size={15} /> {t('dashboard.actions.newCategory')}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="dash-cats">
-                  {bookElementCategories.map((c) => {
-                    const cEls = bookElements.filter((e) => e.categoryId === c.id);
-                    const samples = cEls.slice(0, 3).map((e) => e.name);
-                    const more = Math.max(0, cEls.length - 3);
-                    const catColor = resolveColor(c.color, c.id);
-                    return (
-                      <div
-                        key={c.id}
-                        className="dash-cat"
-                        style={{ '--c-color': catColor } as React.CSSProperties}
-                        onClick={() => openEntity({ entityType: 'category', id: c.id })}
-                      >
-                        <div className="dash-cat__head">
-                          <span className="dash-cat__dot"></span>
-                          <span className="dash-cat__name">{c.name}</span>
-                          <span className="dash-cat__count">
-                            <b>{cEls.length}</b>
-                          </span>
-                        </div>
-                        <div className="dash-cat__samples">
-                          {samples.length === 0 ? (
-                            <span className="dash-cat__samples-empty">
-                              — {t('dashboard.empty.noElements')} —
-                            </span>
-                          ) : (
-                            samples.map((nm, i) => (
-                              <span key={i}>
-                                {i > 0 && <span className="dash-cat__samples-sep">·</span>}
-                                <span>{nm || 'Untitled'}</span>
-                              </span>
-                            ))
-                          )}
-                          {more > 0 && <span className="dash-cat__samples-more">+{more}</span>}
-                        </div>
-                      </div>
-                    );
-                  })}
-                  <div className="dash-cat dash-cat--new" onClick={handleCreateCategory}>
-                    <span className="dash-cat--new__glyph">
-                      <BrushIcon name="plus" size={16} />
-                    </span>
-                    <span>{t('dashboard.actions.newCategory')}</span>
-                  </div>
-                </div>
-              </section>
-
-              {/* Recent activity */}
-              <section className="dash-section" style={{ marginBottom: 0 }}>
-                <div className="dash-section__head">
-                  <div className="dash-section__title">
-                    <BrushIcon name="tea" size={18} className="dash-section__title-mark" />
-                    <span className="dash-section__title-cn">{t('dashboard.sections.recent')}</span>
-                    <span className="dash-section__title-en">
-                      {t('dashboard.sections.recentShort')}
-                    </span>
-                    <span className="dash-section__count">
-                      · <em>{recentActivity.length}</em> {t('common.itemsUnit')}
-                    </span>
-                  </div>
-                  <div className="dash-section__actions">
-                    <button className="dash-section__btn" onClick={openAllChapters}>
-                      {t('dashboard.actions.allChapters')} <BrushIcon name="arrow-forward" size={10} inline />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="dash-act">
-                  {recentActivity.length === 0 ? (
-                    <div className="dash-act-row" style={{ gridTemplateColumns: '1fr' }}>
-                      <span className="dash-cat__samples-empty">
-                        — {t('dashboard.empty.noActivity')} —
-                      </span>
-                    </div>
-                  ) : (
-                    recentActivity.map((r) => (
-                      <div
-                        key={r.id}
-                        className="dash-act-row"
-                        style={{ '--a-color': r.accent } as React.CSSProperties}
-                        onClick={() => openEntity({ entityType: 'node', id: r.id })}
-                      >
-                        <div className="dash-act-row__date">
-                          <b>{r.dateLabel}</b>
-                        </div>
-                        <div className="dash-act-row__desc">
-                          <span className="dash-act-row__desc-mark">{r.mark}</span>
-                          <span className="dash-act-row__desc-main">{r.desc}</span>
-                          <span className="dash-act-row__desc-tail">{r.tail}</span>
-                        </div>
-                        <div className={`dash-act-row__meta dash-act-row__meta--${r.metaCls}`}>
-                          {r.meta}
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </section>
-            </div>
-          </>
-        )}
-
-        {/* ════════ WRITING PLAN ════════
-            Per-project goals (project word target + daily quota). Both are
-            stored in writing-stats-store (localStorage), independent of
-            the Project model, so a fresh project picks reasonable defaults
-            without a DB migration. */}
-        {dashboardView === 'structure' && projectId && (
-          <section className="dash-section">
-            <div className="dash-section__head">
-              <div className="dash-section__title">
-                <BrushIcon name="dharma-wheel" size={18} className="dash-section__title-mark" />
-                <span className="dash-section__title-cn">
-                  {t('dashboard.sections.writingPlan')}
-                </span>
-                <span className="dash-section__title-en">
-                  {t('dashboard.sections.writingPlanShort')}
-                </span>
-                <span className="dash-section__count">
-                  · {t('dashboard.plan.project')}{' '}
-                  <em>{metricsReady ? `${(totalWc / 1000).toFixed(1)}k` : t('common.counting')}</em>
-                  {targetWc > 0 ? ` / ${(targetWc / 1000).toFixed(0)}k` : ''} {t('common.words')}
-                </span>
-              </div>
-            </div>
-
-            <div className="dash-plan">
-              <label className="dash-plan__field">
-                <span className="dash-plan__label">{t('dashboard.plan.projectTarget')}</span>
-                <span className="dash-plan__input-wrap">
-                  <input
-                    type="number"
-                    min={0}
-                    step={1000}
-                    className="dash-plan__input"
-                    value={projectPlan.projectWordTarget}
-                    onChange={(e) => setProjectWordTarget(projectId, Number(e.target.value) || 0)}
-                  />
-                  <span className="dash-plan__unit">{t('common.words')}</span>
-                </span>
-                <span className="dash-plan__hint">{t('dashboard.plan.projectHint')}</span>
-              </label>
-
-              <label className="dash-plan__field">
-                <span className="dash-plan__label">{t('dashboard.plan.dailyTarget')}</span>
-                <span className="dash-plan__input-wrap">
-                  <input
-                    type="number"
-                    min={0}
-                    step={100}
-                    className="dash-plan__input"
-                    value={projectPlan.dailyWordGoal}
-                    onChange={(e) => setDailyWordGoal(projectId, Number(e.target.value) || 0)}
-                  />
-                  <span className="dash-plan__unit">{t('dashboard.plan.wordsPerDay')}</span>
-                </span>
-                <span className="dash-plan__hint">{t('dashboard.plan.dailyHint')}</span>
-              </label>
-
-              <div className="dash-plan__progress">
-                <div className="dash-plan__progress-row">
-                  <span className="dash-plan__progress-k">
-                    {t('dashboard.plan.projectProgress')}
-                  </span>
-                  <span className="dash-plan__progress-v">
-                    {!metricsReady
-                      ? t('common.counting')
-                      : targetWc > 0
-                        ? `${projectGoalPct.toFixed(1)}%`
-                        : t('dashboard.plan.noProjectGoal')}
-                  </span>
-                </div>
-                <div className="dash-plan__bar">
-                  <div
-                    className="dash-plan__bar-fill"
-                    style={{ width: `${projectGoalPct}%` }}
-                  ></div>
-                </div>
-                <div className="dash-plan__progress-row">
-                  <span className="dash-plan__progress-k">{t('dashboard.plan.todayProgress')}</span>
-                  <span className="dash-plan__progress-v">
-                    {!metricsReady
-                      ? t('common.counting')
-                      : dailyGoal > 0
-                        ? `${writingStats.todayWords.toLocaleString()} / ${dailyGoal.toLocaleString()}`
-                        : t('dashboard.plan.noDailyGoal')}
-                  </span>
-                </div>
-                <div className="dash-plan__bar">
-                  <div
-                    className="dash-plan__bar-fill dash-plan__bar-fill--day"
-                    style={{ width: `${todayGoalPct}%` }}
-                  ></div>
-                </div>
-              </div>
-            </div>
-          </section>
-        )}
-
-        {/* ════════ PROJECT PROFILE ════════ */}
-        {dashboardView === 'structure' && currentProject && (
-          <section className="dash-section">
-            <div className="dash-section__head">
-              <div className="dash-section__title">
-                <BrushIcon name="open-book" size={18} className="dash-section__title-mark" />
-                <span className="dash-section__title-cn">
-                  {t('dashboard.sections.projectProfile')}
-                </span>
-                <span className="dash-section__title-en">
-                  {t('dashboard.sections.projectProfileShort')}
-                </span>
-              </div>
-            </div>
-            <ProjectProfileEditor
-              key={`project-profile-${currentProject.id}:${currentProject.summary}`}
-              summary={currentProject.summary}
-              onPersist={commitProjectSummary}
+        <div className="dash-plan">
+          <span className="dash-plan__label">{t('projectHome.settings.projectTarget')}</span>
+          <label className="ui-field ui-field--mono ui-field--sm glass glass--rest glass--field glass--small">
+            <input
+              type="number"
+              min={0}
+              step={1000}
+              value={projectTarget}
+              aria-label={t('projectHome.settings.projectTarget')}
+              onChange={(e) => setProjectWordTarget(projectId, Number(e.target.value) || 0)}
             />
-          </section>
-        )}
+            <span className="ui-field__meta">{t('common.words')}</span>
+          </label>
+          <span className="dash-plan__readout">
+            <span className="sand-track dash-plan__track">
+              <span className="sand-stroke" style={{ width: `${projectPct}%` }} />
+            </span>
+            <span className="dash-ro">
+              {total.ready ? `${shortWords(total.count, i18n.language)} · ${projectPct.toFixed(0)}%` : t('common.counting')}
+            </span>
+          </span>
+          <span className="dash-plan__label">{t('projectHome.settings.dailyGoal')}</span>
+          <label className="ui-field ui-field--mono ui-field--sm glass glass--rest glass--field glass--small">
+            <input
+              type="number"
+              min={0}
+              step={100}
+              value={dailyGoal}
+              aria-label={t('projectHome.settings.dailyGoal')}
+              onChange={(e) => setDailyWordGoal(projectId, Number(e.target.value) || 0)}
+            />
+            <span className="ui-field__meta">{t('dashboard.plan.wordsPerDay')}</span>
+          </label>
+          <span className="dash-plan__readout">
+            <span className="sand-track dash-plan__track">
+              <span className="sand-stroke" style={{ width: `${todayPct}%` }} />
+            </span>
+            <span className="dash-ro">
+              {total.ready ? t('projectHome.todayShort', { today: stats.todayWords.toLocaleString(i18n.language) }) : t('common.counting')}
+            </span>
+          </span>
+        </div>
+      </section>
 
-        {/* ════════ PROJECT KV ════════
-            Project-level facts (own KV) and the storyline template KV new
-            storylines inherit. Mirrors the same KvEditor used on storyline /
-            element / category, plumbed through updateProject. */}
-        {dashboardView === 'structure' && currentProject && (
-          <div className="dash-row dash-row--2">
-            <section className="dash-section" style={{ marginBottom: 0 }}>
-              <div className="dash-section__head">
-                <div className="dash-section__title">
-                  <BrushIcon name="dharma-wheel" size={18} className="dash-section__title-mark" />
-                  <span className="dash-section__title-cn">
-                    {t('dashboard.sections.projectFacts')}
-                  </span>
-                  <span className="dash-section__title-en">
-                    {t('dashboard.sections.projectFactsShort')}
-                  </span>
-                </div>
-              </div>
-              <div style={{ padding: '0 4px' }}>
-                <KvEditor
-                  key={`proj-kv-${currentProject.id}`}
-                  valueJson={currentProject.kvJson}
-                  onPersist={commitProjectKv}
-                  emptyHint={`— ${t('dashboard.empty.noFields')} —`}
-                />
-              </div>
-            </section>
+      <section className="dash-sec">
+        <div className="dash-sec__head">
+          <BrushIcon name="open-book" size={15} />
+          <h2 className="dash-sec__title">{t('dashboard.sections.projectProfile')}</h2>
+        </div>
+        <ProfileEditor
+          key={`profile-${currentProject.id}`}
+          summary={currentProject.summary}
+          onPersist={(summary) => update({ summary })}
+        />
+      </section>
 
-            <section className="dash-section" style={{ marginBottom: 0 }}>
-              <div className="dash-section__head">
-                <div className="dash-section__title">
-                  <BrushIcon name="bamboo" size={18} className="dash-section__title-mark" />
-                  <span className="dash-section__title-cn">
-                    {t('dashboard.sections.storylineTemplate')}
-                  </span>
-                  <span className="dash-section__title-en">
-                    {t('dashboard.sections.storylineTemplateShort')}
-                  </span>
-                </div>
-              </div>
-              <div style={{ padding: '0 4px' }}>
-                <KvEditor
-                  key={`proj-sl-tpl-${currentProject.id}`}
-                  valueJson={currentProject.storylineTemplateKvJson}
-                  onPersist={commitStorylineTemplateKv}
-                  variant="template"
-                  emptyHint={`— ${t('dashboard.empty.noTemplateFields')} —`}
-                />
-              </div>
-            </section>
-          </div>
-        )}
+      <section className="dash-sec">
+        <div className="dash-sec__head">
+          <BrushIcon name="dharma-wheel" size={15} />
+          <h2 className="dash-sec__title">{t('dashboard.sections.projectFacts')}</h2>
+        </div>
+        <KvEditor
+          key={`project-kv-${currentProject.id}`}
+          valueJson={currentProject.kvJson}
+          onPersist={(kvJson) => {
+            if (kvJson !== currentProject.kvJson) update({ kvJson });
+          }}
+          emptyHint={t('dashboard.empty.noFields')}
+        />
+      </section>
 
-        {/* ════════ PROJECT MEMORY ════════
-            PROJECT_MEMORY.md: the author's thoughts and standing instructions,
-            shared with every Agent conversation. Book truth stays above. */}
-        {dashboardView === 'structure' && currentProject && (
-          <section className="dash-section">
-            <div className="dash-section__head">
-              <div className="dash-section__title">
-                <BrushIcon name="knots" size={18} className="dash-section__title-mark" />
-                <span className="dash-section__title-cn">{t('projectMemory.title')}</span>
-                <span className="dash-section__title-en">PROJECT_MEMORY.md</span>
-              </div>
-            </div>
-            <div style={{ padding: '0 4px' }}>
-              <ProjectMemoryEditor projectId={currentProject.id} />
-            </div>
-          </section>
-        )}
+      <section className="dash-sec">
+        <div className="dash-sec__head">
+          <BrushIcon name="bamboo" size={15} />
+          <h2 className="dash-sec__title">{t('dashboard.sections.storylineTemplate')}</h2>
+        </div>
+        <KvEditor
+          key={`project-storyline-template-${currentProject.id}`}
+          valueJson={currentProject.storylineTemplateKvJson}
+          onPersist={(storylineTemplateKvJson) => {
+            if (storylineTemplateKvJson !== currentProject.storylineTemplateKvJson) {
+              update({ storylineTemplateKvJson });
+            }
+          }}
+          variant="template"
+          emptyHint={t('dashboard.empty.noTemplateFields')}
+        />
+      </section>
 
-        {/* ════════ FOOTER ════════ */}
-        <footer className="dash-foot">
-          <span>Drifting · v{appVersion} · alpha</span>
-          <span>{storageFooter}</span>
-        </footer>
-      </div>
-    </div>
+      <section className="dash-sec">
+        <div className="dash-sec__head">
+          <BrushIcon name="shikigami" size={15} />
+          <h2 className="dash-sec__title">{t('projectHome.settings.checkin')}</h2>
+          <span className="dash-sec__spacer" />
+          <Switch
+            size="sm"
+            checked={checkinEnabled}
+            onCheckedChange={setCheckinEnabled}
+            aria-label={t('projectHome.settings.checkin')}
+          />
+        </div>
+      </section>
+
+      <section className="dash-sec" ref={memoryRef}>
+        <div className="dash-sec__head">
+          <BrushIcon name="knots" size={15} />
+          <h2 className="dash-sec__title">{t('projectMemory.title')}</h2>
+        </div>
+        <ProjectMemoryEditor projectId={currentProject.id} />
+      </section>
+    </>
   );
-});
+}

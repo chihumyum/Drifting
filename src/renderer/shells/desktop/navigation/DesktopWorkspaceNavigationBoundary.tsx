@@ -11,8 +11,6 @@ import { focusedLeafOf, tabKey, useUiStore } from '../../../store/ui-store';
 import { workspaceUrlFor } from '../../../features/workspace/navigation/workspace-route';
 import { useDesktopTabCloseTransition } from './DesktopTabCloseTransition';
 import { DesktopTabCloseContext } from './DesktopTabCloseContext';
-import { useDesktopCreateCompletionTransition } from './DesktopCreateCompletionTransition';
-import { DesktopCreateCompletionContext } from './DesktopCreateCompletionContext';
 import { useCloseButtonReturnsToShelf } from './useCloseButtonReturnsToShelf';
 
 interface DesktopWorkspaceNavigationBoundaryProps {
@@ -37,14 +35,13 @@ export function DesktopWorkspaceNavigationBoundary({
   const { navigator, navigate } = useDesktopWorkspaceNavigator(projectId);
   const location = useLocation();
   const closeWorkspaceTab = useDesktopTabCloseTransition({ projectId, navigator, navigate });
-  const completeCreateTab = useDesktopCreateCompletionTransition({ projectId, navigate });
 
   useLayoutEffect(() => {
     const entry = location.state as { projectEntry?: unknown } | null;
     if (entry?.projectEntry !== 'resume-last-content') return;
     const project = useUiStore.getState().tabsByProject[projectId];
     const resume = project?.openTabs.find(
-      (tab) => tabKey(tab) === project.lastActiveContentTabKey && tab.kind !== 'create',
+      (tab) => tabKey(tab) === project.lastActiveContentTabKey,
     );
     const leaf = resume ? focusedLeafOf(resume) : null;
     const url = leaf ? workspaceUrlFor(projectId, leaf) : null;
@@ -74,11 +71,9 @@ export function DesktopWorkspaceNavigationBoundary({
 
   return (
     <WorkspaceNavigationProvider navigator={navigator}>
-      <DesktopCreateCompletionContext.Provider value={completeCreateTab}>
-        <DesktopTabCloseContext.Provider value={closeWorkspaceTab}>
-          {children}
-        </DesktopTabCloseContext.Provider>
-      </DesktopCreateCompletionContext.Provider>
+      <DesktopTabCloseContext.Provider value={closeWorkspaceTab}>
+        {children}
+      </DesktopTabCloseContext.Provider>
     </WorkspaceNavigationProvider>
   );
 }

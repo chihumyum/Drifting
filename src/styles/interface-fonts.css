@@ -29,7 +29,8 @@ html[data-shell-mode='desktop'] :is(
   .left-sb-group-header__frame-label,
   .btl-rail__name,
   .page__scene-title,
-  .refs-section__title
+  .refs-section__title,
+  .dash-sec__title
 ) {
   font-family: var(--font-structure);
   font-style: normal;

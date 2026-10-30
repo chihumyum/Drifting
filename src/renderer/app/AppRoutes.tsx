@@ -102,7 +102,8 @@ export function AppRoutes() {
           }
         />
         <Route path="home" element={<Navigate to=".." replace />} />
-        <Route path="new" element={null} />
+        {/* The retired 新建… tab lived at /new; creating now happens on Home. */}
+        <Route path="new" element={<Navigate to=".." replace />} />
         <Route path="editor" element={<Navigate to=".." replace />} />
         <Route
           path="editor/all"

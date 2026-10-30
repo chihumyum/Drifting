@@ -11,6 +11,7 @@ export type ShortcutActionId =
   | 'prevTab'
   | 'nextTab'
   | 'toggleBottomTimeline'
+  | 'newEntity'
   | 'closeProject';
 
 export interface ShortcutActionDef {
@@ -74,6 +75,12 @@ export const SHORTCUT_ACTIONS: ShortcutActionDef[] = [
     label: 'Toggle bottom timeline',
     description: 'Show or hide the bottom timeline',
     defaultAccelerator: 'Mod+J',
+  },
+  {
+    id: 'newEntity',
+    label: 'New',
+    description: 'Open Project Home with its create row in reach',
+    defaultAccelerator: 'Mod+N',
   },
   {
     id: 'closeProject',
