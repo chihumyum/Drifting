@@ -425,6 +425,30 @@ describe('isolated worktree development', () => {
     expect(seed.mock.calls[1][0]).toMatchObject({ preset: 'lite', databasePath: path.join(litePlan.manifest.databaseDirectory, LOCAL_LIBRARY_DATABASE) });
     expect(litePlan.manifest.profileId).not.toBe(plan.manifest.profileId);
     expect(seededArguments(['--lite'])).toEqual(['--instance', LITE_SEED_INSTANCE]);
+
+    // An Agent debug launch opens the seeded project directly.
+    await runSeededDev(['--lite', '--agent-debug'], { root, baseEnvironment: {}, seed, checkPort, launch, output: () => undefined });
+    expect(launch.mock.calls[launch.mock.calls.length - 1]![0]).toEqual([
+      '--agent-debug', '--instance', LITE_SEED_INSTANCE, '--agent-debug-project', 'synthetic-project',
+    ]);
+  });
+
+  it('hands the renderer the loopback Agent debug broker only on explicit opt-in', () => {
+    const root = fixture();
+    expect(parseWorktreeArguments(['--agent-debug']).agentDebug).toBe(true);
+    expect(parseWorktreeArguments(['--agent-debug-project', 'p-1'])).toMatchObject({ agentDebug: true, agentDebugProjectId: 'p-1' });
+    expect(() => parseWorktreeArguments(['--agent-debug-project', 'a b'])).toThrow(/project id/);
+    const ordinary = createWorktreePlan({ root, baseEnvironment: { VITE_DRIFTING_AGENT_DEBUG_URL: 'http://127.0.0.1:4317' } });
+    const debug = createWorktreePlan({ root, baseEnvironment: {}, agentDebug: true, agentDebugProjectId: 'p-1' });
+    expect(Object.keys(ordinary.environment).filter((key) => key.startsWith('VITE_DRIFTING_AGENT_DEBUG'))).toEqual([]);
+    expect(debug.environment).toMatchObject({
+      VITE_DRIFTING_AGENT_DEBUG_URL: 'http://127.0.0.1:4317',
+      VITE_DRIFTING_AGENT_DEBUG_PROJECT_ID: 'p-1',
+    });
+    expect(debug.tauriConfig.app.security.devCsp).toMatch(/connect-src [^;]*http:\/\/127\.0\.0\.1:4317/);
+    expect(debug.manifest.agentDebug).toEqual({ url: 'http://127.0.0.1:4317', projectId: 'p-1' });
+    expect(debug.manifest.profileId).toBe(ordinary.manifest.profileId);
+    expect(() => createWorktreePlan({ root, agentDebug: true, releasePerf: true, baseEnvironment: {} })).toThrow(/development instance/);
   });
 
   it('resolves native asset roots per platform and keeps instances separate', () => {

@@ -55,7 +55,7 @@ export async function seedDevelopmentDatabase(input: {
   const stagingPath = `${input.databasePath}.seed-${uuidv7()}.db`;
   try {
     const existing = await original.client.select({ id: ProjectTable.id }).from(ProjectTable).limit(1);
-    if (existing.length > 0) return { seeded: false, databasePath: input.databasePath, projectId: null };
+    if (existing.length > 0) return { seeded: false, databasePath: input.databasePath, projectId: existing[0]!.id };
     // Publish only a completed seed. Preserve settings in an existing empty
     // library, and leave that library usable if any of the many writes fails.
     await backup(original.gateway.database, stagingPath);

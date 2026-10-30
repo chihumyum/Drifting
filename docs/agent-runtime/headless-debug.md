@@ -198,7 +198,22 @@ VITE_DRIFTING_AGENT_DEBUG_URL=http://127.0.0.1:4317 \
 ```
 
 The optional project variable routes the DEV renderer directly to the target;
-no setup click is needed. The bridge starts only after that project's real
+no setup click is needed.
+
+In a linked worktree, run the broker against that worktree's isolated profile
+instead of the daily library (the launcher strips inherited `VITE_*` values,
+so use its flag rather than the variables above):
+
+```bash
+pnpm agent:debug:server
+pnpm dev:seed:lite --no-watch --agent-debug   # opens the seeded project
+pnpm dev:worktree --no-watch --agent-debug-project <project-id>
+```
+
+The broker accepts renderer origins on any loopback port, since each worktree
+profile serves its renderer on a port derived from the checkout. Combine with
+`--frontend-debug` to change settings (for example the Agent provider) through
+`pnpm drifting frontend evaluate`. The bridge starts only after that project's real
 renderer boot has completed. Without it, open the target project once in the
 App as usual.
 

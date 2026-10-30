@@ -68,6 +68,7 @@ export async function runSeededDev(args = process.argv.slice(2), {
     output(usage);
     return;
   }
+  let seededProjectId = null;
   if (options.printConfig) {
     const plan = createWorktreePlan({ root, baseEnvironment, ...options });
     output(JSON.stringify({ ...plan.manifest, seedPreset: preset, seedRecipeVersion: 2 }, null, 2));
@@ -84,8 +85,15 @@ export async function runSeededDev(args = process.argv.slice(2), {
     output(result.seeded
       ? `Seeded a synthetic project into instance "${options.instance}".`
       : `Instance "${options.instance}" already has a library; launching it as it is.`);
+    seededProjectId = result.projectId ?? null;
   }
-  await launch(launchArguments, { root, baseEnvironment });
+  await launch(
+    // An Agent debug launch opens the seeded project directly.
+    options.agentDebug && !options.agentDebugProjectId && seededProjectId
+      ? [...launchArguments, '--agent-debug-project', seededProjectId]
+      : launchArguments,
+    { root, baseEnvironment },
+  );
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === scriptPath) {
