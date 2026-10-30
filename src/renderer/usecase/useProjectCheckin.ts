@@ -13,6 +13,7 @@ import {
   EMPTY_PROJECT_CHECKIN,
   type StoredCheckinCard,
 } from '../store/project-checkin-store';
+import { useProjectOrganizeStore } from '../store/project-organize-store';
 import { useSettingsStore } from '../store/settings-store';
 
 /** Projects whose open was already stamped during this app run. */
@@ -21,8 +22,11 @@ const openedThisRun = new Set<string>();
 export async function maybeRunProjectCheckin(
   projectId: string,
   projectName: string,
-  options: { force?: boolean } = {},
+  /** `afterOrganize`: the organize pass that deferred this check-in finished. */
+  options: { force?: boolean; afterOrganize?: boolean } = {},
 ): Promise<void> {
+  // An organize pass in flight hands over to the check-in when it settles.
+  if (!options.force && useProjectOrganizeStore.getState().active[projectId]) return;
   const store = useProjectCheckinStore.getState();
   const now = new Date();
   let previousOpenedAt = readProjectCheckin(projectId).lastOpenedAt;
@@ -35,6 +39,7 @@ export async function maybeRunProjectCheckin(
     enabled: store.enabled,
     running: Boolean(useProjectCheckinStore.getState().running[projectId]),
     force: options.force === true,
+    afterOrganize: options.afterOrganize === true,
     record: readProjectCheckin(projectId),
     previousOpenedAt,
     hasChangesSince: (sinceIso) => hasCheckinDelta(projectId, sinceIso),
@@ -159,10 +164,22 @@ export function useProjectCheckin(projectId: string | null, projectName: string)
 
   useEffect(() => {
     if (!projectId) return;
-    const check = () => void maybeRunProjectCheckin(projectId, projectName);
+    // A macrotask later, so an organize pass claimed by the same return
+    // (whose listeners run after these) defers this check-in.
+    const timers = new Set<number>();
+    const check = () => {
+      const timer = window.setTimeout(() => {
+        timers.delete(timer);
+        void maybeRunProjectCheckin(projectId, projectName);
+      }, 0);
+      timers.add(timer);
+    };
     check();
     window.addEventListener('focus', check);
-    return () => window.removeEventListener('focus', check);
+    return () => {
+      window.removeEventListener('focus', check);
+      for (const timer of timers) window.clearTimeout(timer);
+    };
   }, [projectId, projectName]);
 
   const runNow = useCallback(() => {

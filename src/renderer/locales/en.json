@@ -1309,6 +1309,9 @@
     "clear": "Clear",
     "empty": "No notifications",
     "remove": "Remove",
+    "organize": {
+      "source": "Agent"
+    },
     "cloudSync": {
       "source": "Cloud sync",
       "syncing": "Syncing…",
@@ -3375,7 +3378,27 @@
     "settings": {
       "projectTarget": "Book target",
       "dailyGoal": "Daily goal",
-      "checkin": "Daily check-in"
+      "checkin": "Daily check-in",
+      "organize": "Auto-organize"
+    }
+  },
+  "organize": {
+    "notify": {
+      "running": "Organizing what you wrote last time",
+      "completed": "Organized what you wrote last time",
+      "failed": "Organizing didn't finish",
+      "interrupted": "Organizing was interrupted"
+    },
+    "counts": {
+      "created_one": "{{count}} new element",
+      "created_other": "{{count}} new elements",
+      "updated_one": "{{count}} element updated",
+      "updated_other": "{{count}} elements updated",
+      "patches_one": "{{count}} change",
+      "patches_other": "{{count}} changes",
+      "relations_one": "{{count}} relation",
+      "relations_other": "{{count}} relations",
+      "none": "Nothing to organize"
     }
   },
   "projectAgent": {
