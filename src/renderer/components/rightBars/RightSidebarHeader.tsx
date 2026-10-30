@@ -3,7 +3,7 @@ import { useUiStore } from '../../store/ui-store';
 import type { RightSidebarTab, SidebarPaneId } from '../../lib/sidebar-tabs';
 import { SidebarSplitButton } from '../SidebarSplitButton';
 import { RIGHT_SIDEBAR_TABS } from '../../lib/sidebar-tabs';
-import { PanelTab, PanelTabRowEdges, PanelTabTray } from '../ui/PanelTabs';
+import { PanelTab, PanelTabLabel, PanelTabRowEdges, PanelTabTray } from '../ui/PanelTabs';
 import { useSidebarTabMinimumWidth } from '../../hooks/useSidebarTabMinimumWidth';
 import { SidebarHeaderChrome, SidebarToggleSlot } from '../workspaceChrome/WindowControlButtons';
 import { getPlatformRuntime } from '../../platform/runtime';
@@ -36,7 +36,7 @@ export function RightSidebarHeader({ paneId, activeTab, windowChrome = false }: 
           return (
             <PanelTab key={tab} active={activeTab === tab}
               onClick={() => toggleTab(paneId, tab)} typography="label" aria-label={label} title={label}>
-              <span data-panel-tab-label>{label}</span>
+              <PanelTabLabel>{label}</PanelTabLabel>
             </PanelTab>
           );
         })}
