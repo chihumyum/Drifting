@@ -8,6 +8,7 @@ import {
   isNotNull,
   isNull,
   like,
+  lte,
   max,
   or,
   sql,
@@ -44,6 +45,7 @@ import {
 } from '../domain/agent-runtime-long-task';
 import { getDb, type DbExecutor } from '../lib/db';
 import {
+  AgentRuntimeEventTable,
   AgentRuntimeTurnTable,
   BookNodeTable,
   AgentRuntimeTaskCommandTable,
@@ -668,7 +670,9 @@ function collectTaskWriteEvidenceIdentity(
         identity.ids.add(candidate);
       }
     }
-    for (const key of ['title', 'category', 'targetName']) {
+    // An element change names the chapter it happened in and a relation
+    // its two ends: those writes are anchored to those objects too.
+    for (const key of ['title', 'category', 'targetName', 'sourceChapter', 'fromName', 'toName', 'from', 'to']) {
       const candidate = row[key];
       if (typeof candidate === 'string' && candidate.trim()) {
         identity.names.add(stableTaskText(candidate));
@@ -748,6 +752,69 @@ function writeEvidenceMatchesStepTarget(
     }
     return normalized.includes(keyword) || keyword.includes(normalized);
   });
+}
+
+function describeTaskWriteEvidence(evidence: DurableTaskStepReviewRow): string {
+  const identity = collectTaskWriteEvidenceIdentity(evidence);
+  const where = identity.paths[0]?.join('/') ?? [...identity.names][0];
+  return where ? `${evidence.effectToolName} ${where}` : evidence.effectToolName;
+}
+
+/** Continuation slices one author request may span before its checklist appears. */
+const MAX_REQUEST_SLICES = 64;
+
+/**
+ * When the author's current request began: the latest turn at or before
+ * `turnId` that an author prompt, not a runtime continuation, started. A
+ * checklist created in a later continuation slice can then adopt writes an
+ * earlier slice saved for the same request; a new author request starts afresh.
+ */
+async function authorRequestBoundaryAt(
+  executor: DbExecutor,
+  sessionId: string,
+  turnId: string,
+): Promise<string | null> {
+  const [creation] = await executor
+    .select({ ordinal: AgentRuntimeTurnTable.ordinal, acceptedAt: AgentRuntimeTurnTable.acceptedAt })
+    .from(AgentRuntimeTurnTable)
+    .where(and(eq(AgentRuntimeTurnTable.id, turnId), eq(AgentRuntimeTurnTable.sessionId, sessionId)))
+    .limit(1);
+  if (!creation) return null;
+  const turns = await executor
+    .select({ id: AgentRuntimeTurnTable.id, acceptedAt: AgentRuntimeTurnTable.acceptedAt })
+    .from(AgentRuntimeTurnTable)
+    .where(
+      and(
+        eq(AgentRuntimeTurnTable.sessionId, sessionId),
+        lte(AgentRuntimeTurnTable.ordinal, creation.ordinal),
+      ),
+    )
+    .orderBy(desc(AgentRuntimeTurnTable.ordinal))
+    .limit(MAX_REQUEST_SLICES);
+  const started = await executor
+    .select({ turnId: AgentRuntimeEventTable.turnId, payloadJson: AgentRuntimeEventTable.payloadJson })
+    .from(AgentRuntimeEventTable)
+    .where(
+      and(
+        eq(AgentRuntimeEventTable.sessionId, sessionId),
+        eq(AgentRuntimeEventTable.eventType, 'turn_started'),
+        inArray(
+          AgentRuntimeEventTable.turnId,
+          turns.map((turn) => turn.id),
+        ),
+      ),
+    );
+  const continuations = new Set(
+    started
+      .filter(
+        (row) =>
+          evidenceRecord(parseEvidenceJson(row.payloadJson)?.event)?.promptSource ===
+          'runtime_continuation',
+      )
+      .map((row) => row.turnId),
+  );
+  const request = turns.find((turn) => !continuations.has(turn.id)) ?? turns[turns.length - 1];
+  return request?.acceptedAt ?? creation.acceptedAt;
 }
 
 function authoredTaskTargetName(
@@ -1567,9 +1634,22 @@ export function createAgentRuntimeLongTaskRepository(
       });
       if (reviewEvidence?.acceptedTargetEvidence) return resultRef;
     }
+    const unclaimed = candidateRefs
+      .filter((ref) => !claimedResultRefs.has(ref))
+      .map((ref) => evidenceById.get(ref))
+      .filter((evidence): evidence is DurableTaskStepReviewRow => evidence !== undefined)
+      .slice(0, 8)
+      .map(describeTaskWriteEvidence);
+    const target = step.target ? `${step.target.kind} "${step.target.name}"` : 'no named target';
     throw new AgentRuntimeLongTaskConflictError(
       'TASK_WRITE_EVIDENCE_INVALID',
-      `Task step "${step.id}" has no unclaimed accepted durable workspace write for its exact target during this task.`,
+      [
+        `Item ${step.ordinal + 1} "${step.title}" targets ${target} and has no unclaimed saved change for it during this task.`,
+        unclaimed.length > 0
+          ? `Saved changes no item has claimed: ${unclaimed.join('; ')}.`
+          : 'No unclaimed change has been saved during this task.',
+        'An edit item completes from a saved change to its own target or anchored to it (an element change recorded at that chapter, a relation to it). Work saved to other objects belongs to items for those objects: add them with append_steps and complete those.',
+      ].join(' '),
     );
   };
 
@@ -2032,17 +2112,8 @@ export function createAgentRuntimeLongTaskRepository(
                 );
               }
             }
-            const creationTurnRows = await tx
-              .select({ acceptedAt: AgentRuntimeTurnTable.acceptedAt })
-              .from(AgentRuntimeTurnTable)
-              .where(
-                and(
-                  eq(AgentRuntimeTurnTable.id, provenance.turnId),
-                  eq(AgentRuntimeTurnTable.sessionId, provenance.sessionId),
-                ),
-              )
-              .limit(1);
-            const taskEvidenceBoundaryAt = creationTurnRows[0]?.acceptedAt ?? at;
+            const taskEvidenceBoundaryAt =
+              (await authorRequestBoundaryAt(tx, provenance.sessionId, provenance.turnId)) ?? at;
             const openRows = await tx
               .select({ id: AgentRuntimeTaskTable.id })
               .from(AgentRuntimeTaskTable)

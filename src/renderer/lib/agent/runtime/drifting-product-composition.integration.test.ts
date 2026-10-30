@@ -2069,4 +2069,156 @@ describe.sequential('Drifting Agent product composition', () => {
     await harness.runTurn('turn-plan-resume', 'Continue the same whole-book task.', 2);
     harness.driver.assertExhausted();
   });
+  it('completes a chapter item from an element change recorded at that chapter and explains a mismatch', async () => {
+    const results: string[] = [];
+    const captureResults = (request: { context: { messages: readonly unknown[] } }) => {
+      results.length = 0;
+      for (const message of request.context.messages) results.push(JSON.stringify(message));
+    };
+    harness = await ProductAgentHarness.create([
+      {
+        name: 'create the checklist',
+        steps: toolCallSteps('plan', 'update_task_plan', {
+          operation: 'create',
+          scopeKind: 'explicit_targets',
+          objective: '整理 Chapter One 新出现的设定',
+          steps: [
+            { title: '新建人物黑鳍', target: { kind: 'element', name: '黑鳍' } },
+            { title: '整理 Chapter One 的设定', target: { kind: 'chapter', name: NODE_TITLE } },
+          ],
+        }),
+      },
+      {
+        name: 'create the element',
+        steps: toolCallSteps('create-element', 'create_element', {
+          category: 'People',
+          name: '黑鳍',
+          summary: '盐场监工。',
+          body: '脸上有烧伤疤的盐场监工。',
+        }),
+      },
+      {
+        name: 'complete the chapter item too early',
+        steps: toolCallSteps('chapter-early', 'update_task_step', { step: 2, status: 'completed' }),
+      },
+      {
+        name: 'record the change at the chapter',
+        expectRequest: captureResults,
+        steps: toolCallSteps('patch', 'create_element_patch', {
+          element: '黑鳍',
+          title: '到港',
+          body: '天亮前划小船靠岸。',
+          sourceChapter: NODE_TITLE,
+        }),
+      },
+      {
+        name: 'complete the chapter item',
+        steps: toolCallSteps('chapter-done', 'update_task_step', { step: 2, status: 'completed' }),
+      },
+      {
+        name: 'complete the element item',
+        steps: toolCallSteps('element-done', 'update_task_step', { step: 1, status: 'completed' }),
+      },
+      { name: 'finish', steps: finalSteps('整理好了。') },
+    ]);
+    await harness.runTurn('turn-organize', '整理设定');
+
+    const mismatch = results.find((message) => message.includes('TASK_WRITE_EVIDENCE_INVALID'));
+    expect(mismatch).toContain('Item 2');
+    expect(mismatch).toContain('chapter \\"Chapter One\\"');
+    expect(mismatch).toContain('create_element elements/people/黑鳍/body.md');
+    expect(mismatch).toContain('append_steps');
+    expect(
+      harness.rows(
+        "SELECT title, status, result_ref FROM agent_runtime_task_step ORDER BY ordinal",
+      ),
+    ).toEqual([
+      expect.objectContaining({ status: 'completed', result_ref: expect.stringContaining(':create-element') }),
+      expect.objectContaining({ status: 'completed', result_ref: expect.stringContaining(':patch') }),
+    ]);
+    expect(harness.scalar("SELECT count(*) FROM agent_runtime_task WHERE status = 'completed'")).toBe(1);
+    harness.driver.assertExhausted();
+  });
+
+  it('adopts writes saved earlier in the same request but not from an earlier request', async () => {
+    harness = await ProductAgentHarness.create([
+      {
+        name: 'save before any checklist',
+        steps: toolCallSteps('create-element', 'create_element', {
+          category: 'People',
+          name: '黑鳍',
+          summary: '盐场监工。',
+          body: '脸上有烧伤疤的盐场监工。',
+        }),
+      },
+      { name: 'end the first slice', steps: finalSteps('先建好了黑鳍。') },
+      {
+        name: 'create the checklist in a continuation slice',
+        steps: toolCallSteps('plan', 'update_task_plan', {
+          operation: 'create',
+          scopeKind: 'explicit_targets',
+          objective: '整理 Chapter One 新出现的设定',
+          steps: [
+            { title: '新建人物黑鳍', target: { kind: 'element', name: '黑鳍' } },
+            { title: '更新 Fixture Element', target: { kind: 'element', name: 'Fixture Element' } },
+          ],
+        }),
+      },
+      {
+        name: 'adopt the earlier slice write',
+        steps: toolCallSteps('adopt', 'update_task_step', { step: 1, status: 'completed' }),
+      },
+      { name: 'end the continuation slice', steps: finalSteps('黑鳍已登记。') },
+    ]);
+    await harness.runTurn('turn-request', '整理设定');
+    const continued = await harness.composition.transport.start({
+      prompt: '继续完成清单。',
+      promptSource: 'runtime_continuation',
+      turnId: 'turn-continuation',
+      route: { kind: 'chat', projectId: PROJECT_ID, conversationId: CONVERSATION_ID },
+      toolSearch: 'off',
+      thinking: 'off',
+    });
+    expect(continued).toEqual({ ok: true, value: undefined });
+    await waitForDone(harness.events, 2);
+    expect(
+      harness.rows("SELECT status, result_ref FROM agent_runtime_task_step ORDER BY ordinal")[0],
+    ).toMatchObject({ status: 'completed', result_ref: expect.stringContaining(':create-element') });
+    harness.driver.assertExhausted();
+  });
+
+  it('does not let a checklist from a new author request claim an earlier request write', async () => {
+    harness = await ProductAgentHarness.create([
+      {
+        name: 'save in the first request',
+        steps: toolCallSteps('create-element', 'create_element', {
+          category: 'People',
+          name: '黑鳍',
+          summary: '盐场监工。',
+          body: '脸上有烧伤疤的盐场监工。',
+        }),
+      },
+      { name: 'end the first request', steps: finalSteps('先建好了黑鳍。') },
+      {
+        name: 'create the checklist in a new request',
+        steps: toolCallSteps('plan', 'update_task_plan', {
+          operation: 'create',
+          scopeKind: 'explicit_targets',
+          objective: '整理 Chapter One 新出现的设定',
+          steps: [{ title: '新建人物黑鳍', target: { kind: 'element', name: '黑鳍' } }],
+        }),
+      },
+      {
+        name: 'try the earlier request write',
+        steps: toolCallSteps('claim', 'update_task_step', { step: 1, status: 'completed' }),
+      },
+      { name: 'end the second request', steps: finalSteps('还没有这一轮的写入。') },
+    ]);
+    await harness.runTurn('turn-first-request', '先建黑鳍');
+    await harness.runTurn('turn-second-request', '整理设定', 2);
+    expect(
+      harness.rows("SELECT status FROM agent_runtime_task_step ORDER BY ordinal")[0],
+    ).toMatchObject({ status: 'pending' });
+    harness.driver.assertExhausted();
+  });
 });
