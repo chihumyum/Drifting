@@ -30,7 +30,8 @@ describe('workspace surface language acceptance', () => {
     // The dock runs along the paper's top; the timeline toggle rests in the
     // paper's lower-right corner, so it rides above the one optional dock
     // under the paper, which slides in its own drawer and holds the Bottom
-    // Timeline or the plot planner, never both. The word count is gone.
+    // Timeline or the plot planner, never both. The word count lives in the
+    // account cell at the left sidebar foot, not on the desk.
     const stage = block(centerColumn, 'className="workspace-stage desktop-workspace-stage"', '</div>');
     expect(stage).toContain('<WorkspaceTabDock />');
     expect(stage).toContain('<StageTimelineToggle />');
@@ -106,6 +107,32 @@ describe('workspace surface language acceptance', () => {
     expect(rightHeader).not.toContain('Account');
     expect(account).toContain('<NotificationPill opens="up" />');
     expect(account).toContain('placement="top-start"');
+    // The account menu is a glass pill only as wide as the avatar and the
+    // name; the word counts take the room between it and Project Home, follow
+    // the focused document and draw today's words against the daily goal.
+    const tally = source('src/renderer/components/workspaceChrome/WorkspaceWordTally.tsx');
+    const shell = source('src/styles/desktop-shell.css');
+    expect(account).toContain('className="sidebar-account-cell__account glass"');
+    expect(account.indexOf('<WorkspaceWordTally />')).toBeGreaterThan(account.indexOf('sidebar-account-cell__name'));
+    expect(account.indexOf('<WorkspaceWordTally />')).toBeLessThan(account.indexOf('<GhostIconButton'));
+    expect(tally).toContain('deriveStatusWordMetric({');
+    expect(tally).toContain('focusedLeafOf(activeTab)');
+    expect(tally).toContain('dailyGoalProgress(todayWords, dailyWordGoal)');
+    expect(tally).toContain('className="sand-stroke sidebar-account-cell__goal"');
+    expect(tally).not.toContain('glass');
+    const pill = block(shell, '.sidebar-account-cell__account {', '}');
+    expect(pill).toContain('flex: 0 1 auto;');
+    expect(pill).toContain('border-radius: 999px;');
+    expect(block(shell, '.sidebar-account-cell__name {', '}')).toContain('max-width: 6em;');
+    // The name has priority: the counts take what is left and a count that
+    // does not fit wraps out of sight whole, today's first.
+    const tallyStyle = block(shell, '.sidebar-account-cell__tally {', '}');
+    expect(tallyStyle).toContain('flex: 1 1 0;');
+    expect(tallyStyle).toContain('flex-wrap: wrap;');
+    expect(tallyStyle).toContain('overflow: hidden;');
+    expect(tallyStyle).toContain('font-family: var(--font-mono);');
+    expect(tallyStyle).toContain('color: var(--ui-text-muted, hsl(var(--ink-4)));');
+    expect(block(shell, '.sidebar-account-cell__tally::before {', '}')).toContain('width: 0;');
     expect(userMenu).toContain("placement = 'bottom-end'");
     expect(notification).toContain("opens === 'up'");
 
@@ -989,7 +1016,7 @@ describe('workspace surface language acceptance', () => {
     expect(doc).toContain('**时间线开关在稿纸右下角**');
     expect(doc).toContain('**全书视图在对应实体旁边**');
     expect(doc).toContain('**稿纸的操作留在稿纸上**');
-    expect(doc).toContain('**字数暂时移除**');
+    expect(doc).toContain('**字数在账户 cell 里**');
     expect(doc).toContain('## Sand and glass');
     expect(doc).toContain('**玻璃是手按的东西**');
     expect(doc).toContain('**砂笔是作者留下的痕迹**');

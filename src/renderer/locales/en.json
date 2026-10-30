@@ -1109,8 +1109,6 @@
     "childChanges": "Unviewed child Agent changes"
   },
   "bottomStatusBar": {
-    "metricsPending": "Counting prose",
-    "todayPending": "Counting today's words",
     "workspaceViews": "Workspace views",
     "projectHome": "Project home",
     "allChapters": "Whole book",
@@ -1120,12 +1118,6 @@
     "timeline": "Timeline",
     "expandTimeline": "Expand Storyline Timeline",
     "collapseTimeline": "Collapse Storyline Timeline",
-    "statusLine": "Editor status",
-    "currentWords": "Current {{formatted}} words",
-    "selectedWords": "Selected {{formatted}} words",
-    "storylineWords": "Storyline {{formatted}} words",
-    "projectWords": "Book {{formatted}} words",
-    "todayWords": "Today {{formatted}} words",
     "storageLocal": "On-device",
     "storage": {
       "local": "On-device",
@@ -1137,6 +1129,18 @@
       "offline": "Hosted paused offline",
       "attention": "Hosted needs attention"
     }
+  },
+  "workspaceWordTally": {
+    "selection": "Selected",
+    "chapter": "Chapter",
+    "drift": "Idea",
+    "storyline": "Storyline",
+    "book": "Book",
+    "today": "Today",
+    "counting": "counting",
+    "part": "{{label}} {{formatted}} words",
+    "todayPart": "Today +{{formatted}} words",
+    "todayGoalPart": "Today +{{formatted}} words (goal {{goal}})"
   },
   "nodeHoverPreview": {
     "noSummary": "No summary"

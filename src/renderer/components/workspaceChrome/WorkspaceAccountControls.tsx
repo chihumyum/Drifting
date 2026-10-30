@@ -10,12 +10,14 @@ import { useAuthStore } from '../../store/auth';
 import { NotificationPill } from '../notifications/NotificationPill';
 import { UserMenu } from '../topBars/UserMenu';
 import { AccountAvatar } from '../ui/AccountAvatar';
+import { WorkspaceWordTally } from './WorkspaceWordTally';
 
 /**
  * The account and the remaining workspace-wide controls live in one cell at
  * the foot of the left sidebar, shown only while that sidebar is open: the
- * account menu, Project Home and notifications. The account menu and the
- * notification center open upward from it.
+ * account menu (a glass pill only as wide as the avatar and the name), the
+ * word counts in the room after it, Project Home and notifications. The
+ * account menu and the notification center open upward from it.
  */
 export function WorkspaceAccountCell() {
   const { t } = useTranslation();
@@ -33,7 +35,7 @@ export function WorkspaceAccountCell() {
       <button
         ref={triggerRef}
         type="button"
-        className="sidebar-account-cell__account"
+        className="sidebar-account-cell__account glass"
         title={displayName}
         aria-haspopup="dialog"
         aria-expanded={menuOpen}
@@ -44,6 +46,7 @@ export function WorkspaceAccountCell() {
         </span>
         <span className="sidebar-account-cell__name">{displayName}</span>
       </button>
+      <WorkspaceWordTally />
       <GhostIconButton
         glass="round"
         aria-pressed={homeActive}
