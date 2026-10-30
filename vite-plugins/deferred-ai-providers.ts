@@ -3,7 +3,6 @@ import { deferredEntryPlugin } from './deferred-entry';
 
 const entries = [
   { name: 'openai-providers', file: 'openai-compatible-runtime', exported: 'loadOpenAICode' },
-  { name: 'google-provider', file: 'google-runtime', exported: 'loadGoogleCode' },
 ] as const;
 
 /** Keep ordinary imports for Node/SSR; browser retries get fresh module-map keys. */

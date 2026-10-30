@@ -37,7 +37,7 @@ General Agent 默认不设置单次或累计输出上限；摘要压缩也不再
 
 - General Agent 的 `agentProvider + agentModel + reasoning` 只在右侧对话框的 composer 配置菜单中选择。设置页保留 Agent memory、MCP 和 usage 等持久管理面。
 - standalone Shadow CI、Element Arc 与 Goal Evolve 已于 2026-08-05 移除；它们不再拥有 provider route 或独立凭据消费者。
-- Copilot（元素抽取、元素补丁建议、滚动段落摘要、⇧⌘I 内联编辑与内联「问」）已于 2026-10-30 退役，主动 AI 功能改由 Agent 承担。它的 `copilot*` 偏好由设置迁移 v32 删除；Google 只被 Copilot 使用，随之从设置页和 `BYOKProvider` 中移除，已存的 `byok.google` Keychain 条目不再读取。退役前最后一个提交打了 tag `copilot-retired-2026-10-30`。
+- Copilot（元素抽取、元素补丁建议、滚动段落摘要、⇧⌘I 内联编辑与内联「问」）已于 2026-10-30 退役，主动 AI 功能改由 Agent 承担。它的 `copilot*` 偏好由设置迁移 v32 删除；Google 只被 Copilot 使用，随之从设置页、`BYOKProvider`、provider 适配器和 `@google/genai` 依赖中移除，已存的 `byok.google` Keychain 条目不再读取。退役前最后一个提交打了 tag `copilot-retired-2026-10-30`。
 
 General Agent 当前认证 DeepSeek、Anthropic、OpenAI 三种多轮 tool protocol，另有复用 OpenAI Responses 契约的实验性 `openai-codex` 订阅路由。
 

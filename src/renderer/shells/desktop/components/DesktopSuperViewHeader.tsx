@@ -1,4 +1,5 @@
 import { useSuperViewPreloadIntent } from '../../../features/graph/deferred-graph-modules';
+import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { SuperViewHeader, type SuperViewHeaderProps } from '../../../components/SuperViewHeader';
 import { GlassSlider } from '../../../components/ui/GlassSlider';
@@ -13,10 +14,13 @@ import { PUSH_EASING, SUPER_VIEW_PUSH_MS } from '../../../lib/motion';
 const SWITCH_TRAVEL = { ms: SUPER_VIEW_PUSH_MS, easing: PUSH_EASING };
 
 /** Desktop-owned Super View navigation; the shared header stays store-free. */
-export function DesktopSuperViewHeader(props: Omit<SuperViewHeaderProps, 'navigationSlot'>) {
+export function DesktopSuperViewHeader(props: Omit<SuperViewHeaderProps, 'navigationSlot'> & {
+  /** The view's own line controls, first in the relation menu (全部). */
+  relationMenuLead?: ReactNode;
+}) {
   const { t } = useTranslation();
   const { active: activeSuperView, setActive: setActiveSuperView } = useSuperViewNavigation();
-  const { rightSlot, ...headerProps } = props;
+  const { rightSlot, relationMenuLead, ...headerProps } = props;
   const graphIntent = useSuperViewPreloadIntent('graph');
   const elementIntent = useSuperViewPreloadIntent('element');
   const memoIntent = useSuperViewPreloadIntent('memo-material');
@@ -71,7 +75,7 @@ export function DesktopSuperViewHeader(props: Omit<SuperViewHeaderProps, 'naviga
         rightSlot != null || relationCanvas ? (
           <>
             {rightSlot}
-            {relationCanvas && <DesktopSuperViewRelationControl canvas={relationCanvas} />}
+            {relationCanvas && <DesktopSuperViewRelationControl canvas={relationCanvas} lead={relationMenuLead} />}
           </>
         ) : undefined
       }

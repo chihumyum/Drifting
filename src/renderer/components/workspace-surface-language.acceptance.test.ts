@@ -1001,7 +1001,7 @@ describe('workspace surface language acceptance', () => {
     );
 
     expect(header).toContain("activeSuperView === 'element' || activeSuperView === 'graph'");
-    expect(header).toContain('<DesktopSuperViewRelationControl canvas={relationCanvas} />');
+    expect(header).toContain('<DesktopSuperViewRelationControl canvas={relationCanvas} lead={relationMenuLead} />');
     expect(relationControl).toContain('<RelationKindMenu');
     expect(relationControl).toContain('relationTypeGroups={{');
     expect(storyGraph).not.toContain('<RelationKindMenu');

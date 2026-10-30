@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties, type RefObject } from 'react';
+import { useMemo, useState, type CSSProperties, type ReactNode, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ALL_ENTITY_KINDS,
@@ -64,6 +64,8 @@ export interface RelationKindMenuProps {
   updateRelationType?: (id: string, definition: EntityRelationTypeDefinition) => Promise<unknown>;
   deleteRelationType?: (id: string) => Promise<unknown>;
   dismissOnEscape?: boolean;
+  /** A canvas's own line controls, above the relation-type filters. */
+  lead?: ReactNode;
 }
 
 export function RelationTypeEditor({
@@ -371,6 +373,7 @@ export function RelationKindMenu({
   updateRelationType,
   deleteRelationType,
   dismissOnEscape = true,
+  lead,
 }: RelationKindMenuProps) {
   const { t } = useTranslation();
   const presentRelationType = useRelationTypePresentation();
@@ -647,6 +650,8 @@ export function RelationKindMenu({
           })}
         </span>
       </div>
+
+      {lead}
 
       <section className="relation-kind-menu__section">
         <div className="relation-kind-menu__section-label">{t('edgeKindManager.filterLabel')}</div>
