@@ -58,7 +58,7 @@ export async function runGraphDriftCardScenarios() {
             </SuperViewNavigationProvider></SuperViewRelationUiProvider>
           </WorkspaceNavigationProvider></MemoryRouter>));
           await pause(700);
-          const toggle = host.querySelector<HTMLButtonElement>(view === 'graph' ? '.graph-head__unplaced > button' : '.super-element-toggle, [data-super-element-toggle="focus"]')!;
+          const toggle = host.querySelector<HTMLButtonElement>(view === 'graph' ? '.graph-head__unplaced > button' : '[data-se-lines]')!;
           resetWork(); for (let index = 0; index < 20; index++) flushSync(() => toggle.click());
           const closedWork = { ...graphDriftWork };
           resetWork(); flushSync(() => host.querySelector<HTMLButtonElement>('.drift-panel__tab')!.click());

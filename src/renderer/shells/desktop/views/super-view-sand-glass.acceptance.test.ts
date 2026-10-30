@@ -307,10 +307,11 @@ describe('Super View sand and glass acceptance', () => {
     expect(popover).toContain('<KindMark kind="storyline" color={color} />');
   });
 
-  it('frames the element overview in sand and draws its band as a small timeline', () => {
+  it('draws the element overview in sand, its band kept for the paused mobile shell', () => {
     const view = source('src/renderer/shells/desktop/views/DesktopSuperElementView.tsx');
     expect(view).toContain("import '../../../../styles/super-element.css';");
-    expect(view).toContain('data-super-element-toggle="focus"');
+    // The desktop islands (element-isles.acceptance.test.ts) dropped 聚焦 and 粘带.
+    expect(view).not.toContain('data-super-element-toggle');
     expect(view).toContain('className="super-view-head__hint"');
     expect(view).toContain('className="relation-pair"');
     for (const anchor of ['m-super-view-link-mode', 'beginSuperViewPinch', "touchAction: 'none'", "'[data-super-card]'"]) {

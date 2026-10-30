@@ -47,6 +47,19 @@ export interface CategoryBoxProps {
   onPreviewLeave?: () => void;
   /** Desktop sand-and-glass presentation; false keeps the mobile look. */
   desktop?: boolean;
+  // Desktop islands only (element-isles-model.ts):
+  /** Elements that recede: outside the focused one's neighbourhood, or not found by the search. */
+  dimmedElementIds?: ReadonlySet<string> | null;
+  /** Elements left out while only one element's neighbourhood is shown. */
+  hiddenElementIds?: ReadonlySet<string> | null;
+  /** 0–1 per element, how large its mark is from far away; absent = never mentioned. */
+  markWeights?: ReadonlyMap<string, number> | null;
+  /** An element is being dragged over this island to join it. */
+  dropTarget?: boolean;
+  /** The element being dragged away: its place stays faint until it lands. */
+  draggingElementId?: string | null;
+  /** The author has moved this island by hand. */
+  pinnedLabel?: string | null;
 }
 
 function CategoryBox({
@@ -62,6 +75,12 @@ function CategoryBox({
   onCategoryPreviewEnter,
   onPreviewLeave,
   desktop = false,
+  dimmedElementIds,
+  hiddenElementIds,
+  markWeights,
+  dropTarget = false,
+  draggingElementId,
+  pinnedLabel,
 }: CategoryBoxProps) {
   const { t } = useTranslation();
   const { category, groups, widthCells, heightCells, totalElements } = model;
@@ -118,6 +137,7 @@ function CategoryBox({
         // The open card is drawn round with the brush; its neighbours hold
         // a still ring; the source of a new relation holds the pressed ring.
         const isFocused = focusedElementId === element.id;
+        const weight = markWeights?.get(element.id);
         return (
           <SandCell
             key={element.id}
@@ -130,10 +150,20 @@ function CategoryBox({
               'se-card',
               isFocusLit && !isFocused ? 'is-on' : '',
               isLinkSource ? 'is-held' : '',
+              markWeights && weight === undefined ? 'is-unmentioned' : '',
+              dimmedElementIds?.has(element.id) && !isFocused ? 'is-dim' : '',
+              hiddenElementIds?.has(element.id) ? 'is-gone' : '',
+              draggingElementId === element.id ? 'is-lifted' : '',
             ]
               .filter(Boolean)
               .join(' ')}
-            style={{ left: left + 3, top: top + 3, width: width - 6, height: height - 6 }}
+            style={{
+              left: left + 3,
+              top: top + 3,
+              width: width - 6,
+              height: height - 6,
+              ...(weight !== undefined ? { '--se-weight': weight.toFixed(3) } : null),
+            } as CSSProperties}
             onClick={handleClick}
             onMouseEnter={(e) => onElementPreviewEnter?.(element, e.currentTarget)}
             onMouseLeave={() => onPreviewLeave?.()}
@@ -233,7 +263,8 @@ function CategoryBox({
   if (desktop) {
     return (
       <div
-        className="se-category"
+        className={dropTarget ? 'se-category is-drop' : 'se-category'}
+        data-se-category={model.categoryId}
         style={
           {
             left: placement.gridX * CELL_W + CATEGORY_GAP_X / 2,
@@ -249,6 +280,7 @@ function CategoryBox({
           <KindMark kind="category" color={category?.color} />
           <span className="se-category__name">{categoryName}</span>
           <span className="se-category__count">{totalElements}</span>
+          {pinnedLabel && <span className="se-category__pinned">{pinnedLabel}</span>}
         </button>
 
         {namedGroups.map((g) => (
