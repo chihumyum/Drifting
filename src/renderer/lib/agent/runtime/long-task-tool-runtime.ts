@@ -10,6 +10,7 @@ import type {
   AgentRuntimeTaskStepStatus,
   AgentRuntimeTaskTargetKind,
 } from '../../../domain/agent-runtime-long-task';
+import { isOpenAgentRuntimeTaskStatus } from '../../../domain/agent-runtime-long-task';
 import {
   AgentRuntimeLongTaskConflictError,
   createAgentRuntimeLongTaskRepository,
@@ -802,19 +803,30 @@ export function projectAgentLongTaskPlanForProvider(
   };
 }
 
+const STATUS_LABELS: Record<string, string> = {
+  active: '进行中',
+  paused: '已暂停',
+  blocked: '受阻',
+  completed: '已完成',
+  failed: '失败',
+  pending: '待处理',
+  in_progress: '进行中',
+  retired: '已移出当前作品',
+};
+
+/** Why a finished checklist cannot be updated, and what to do instead. */
+function endedPlanNote(plan: AgentRuntimeTaskPlan): string {
+  const current = plan.steps.filter((step) => step.status !== 'retired');
+  const completed = current.filter((step) => step.status === 'completed').length;
+  const ended = plan.task.status === 'completed' ? '已经完成' : '已经以失败结束';
+  return `任务清单「${plan.task.objective}」${ended}（${completed}/${current.length} 已完成），不能再修改。不要再更新它：剩下的事直接做完，或为剩下的事另建一份清单，然后向作者汇报。`;
+}
+
 function taskPlanModelData(
   projection: ReturnType<typeof projectAgentLongTaskPlanForProvider>,
+  notes: readonly string[] = [],
 ): string {
-  const statusLabel: Record<string, string> = {
-    active: '进行中',
-    paused: '已暂停',
-    blocked: '受阻',
-    completed: '已完成',
-    failed: '失败',
-    pending: '待处理',
-    in_progress: '进行中',
-    retired: '已移出当前作品',
-  };
+  const statusLabel = STATUS_LABELS;
   const lines = [
     `任务清单：${projection.task.objective}`,
     `状态：${statusLabel[projection.task.status] ?? projection.task.status}`,
@@ -847,6 +859,7 @@ function taskPlanModelData(
       ...projection.activeConstraints.map((constraint) => `- ${constraint.body}`),
     );
   }
+  lines.push(...notes);
   return lines.join('\n');
 }
 
@@ -1057,14 +1070,21 @@ export class AgentLongTaskToolRuntime implements AgentToolRuntime {
           : await this.repository.getOpenPlan(scope);
         throwIfAgentAborted(request.signal);
         if (!plan) {
+          const latest = input.taskId ? null : await this.repository.getLatestPlan(scope);
+          const ended = latest && !isOpenAgentRuntimeTaskStatus(latest.task.status) ? latest : null;
           return {
             ok: true,
             data: {
               schemaVersion: 1,
               task: null,
               message: 'No matching durable task plan exists.',
+              ...(ended
+                ? { latestTask: { objective: ended.task.objective, status: ended.task.status } }
+                : {}),
             },
-            modelData: '当前没有进行中的任务清单。',
+            modelData: ended
+              ? `当前没有进行中的任务清单。${endedPlanNote(ended)}`
+              : '当前没有进行中的任务清单。',
           };
         }
         const manifestState = await this.repository.getChapterManifestState(scope, plan.task.id);
@@ -1111,6 +1131,16 @@ export class AgentLongTaskToolRuntime implements AgentToolRuntime {
             }
           : {}),
       });
+      const mergedSteps = (result.mergedSteps ?? []).flatMap((merge) => {
+        const step = result.plan.steps.find((candidate) => candidate.id === merge.stepId);
+        return step
+          ? [{ requestedTitle: merge.requestedTitle, item: step.ordinal + 1, title: step.title, status: step.status }]
+          : [];
+      });
+      const mergeNotes = mergedSteps.map(
+        (merge) =>
+          `「${merge.requestedTitle}」没有另加：第 ${merge.item} 项「${merge.title}」（${STATUS_LABELS[merge.status] ?? merge.status}）已经是同一目标，需要时更新那一项。`,
+      );
       // Do not observe abort after commit: the write is durable and must return
       // its committed result to the runtime scheduler.
       return {
@@ -1118,6 +1148,7 @@ export class AgentLongTaskToolRuntime implements AgentToolRuntime {
         data: {
           replayed: result.outcome === 'duplicate',
           ...projection,
+          ...(mergedSteps.length > 0 ? { mergedSteps } : {}),
           ...(result.changedStepId ? { changedStepId: result.changedStepId } : {}),
           ...(result.changedConstraintId
             ? {
@@ -1128,7 +1159,7 @@ export class AgentLongTaskToolRuntime implements AgentToolRuntime {
             ? { manifestReconciliation: result.manifestReconciliation }
             : {}),
         },
-        modelData: taskPlanModelData(projection),
+        modelData: taskPlanModelData(projection, mergeNotes),
       };
     } catch (error) {
       if (isAgentAbort(error, request.signal)) throw error;
@@ -1241,7 +1272,13 @@ export class AgentLongTaskToolRuntime implements AgentToolRuntime {
       ? await this.repository.getPlan(scope, taskId)
       : await this.repository.getOpenPlan(scope);
     if (!plan) {
-      throw new AgentRuntimeLongTaskConflictError('TASK_NOT_FOUND', '当前没有可更新的任务清单。');
+      const latest = taskId ? null : await this.repository.getLatestPlan(scope);
+      throw new AgentRuntimeLongTaskConflictError(
+        'TASK_NOT_FOUND',
+        latest && !isOpenAgentRuntimeTaskStatus(latest.task.status)
+          ? endedPlanNote(latest)
+          : '当前没有可更新的任务清单。',
+      );
     }
     return {
       taskId: taskId ?? plan.task.id,

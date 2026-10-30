@@ -17,6 +17,7 @@ import type {
   AgentRuntimeTaskCommand,
   AgentRuntimeTaskCommandProvenance,
   AgentRuntimeTaskCommandResult,
+  AgentRuntimeTaskMergedStep,
   AgentRuntimeTaskChapterManifestSeed,
   AgentRuntimeTaskChapterManifestState,
   AgentRuntimeTaskManifestReconciliationResult,
@@ -1648,7 +1649,8 @@ export function createAgentRuntimeLongTaskRepository(
         unclaimed.length > 0
           ? `Saved changes no item has claimed: ${unclaimed.join('; ')}.`
           : 'No unclaimed change has been saved during this task.',
-        'An edit item completes from a saved change to its own target or anchored to it (an element change recorded at that chapter, a relation to it). Work saved to other objects belongs to items for those objects: add them with append_steps and complete those.',
+        'Each saved change completes only one item. To complete this one, save one more change to its target or anchored to it (for a chapter: an element change recorded at that chapter, or a relation to it), then mark it completed again.',
+        'Only work that belongs to other objects goes into new items with append_steps. Keep the checklist open while work can still be saved.',
       ].join(' '),
     );
   };
@@ -2078,6 +2080,7 @@ export function createAgentRuntimeLongTaskRepository(
           let changedStepId: string | undefined;
           let changedConstraintId: string | undefined;
           let manifestReconciliation: AgentRuntimeTaskManifestReconciliationResult | undefined;
+          const mergedSteps: AgentRuntimeTaskMergedStep[] = [];
 
           if (command.toolName === 'update_task_plan' && command.operation === 'create') {
             const workKind = command.workKind ?? 'edit';
@@ -2184,9 +2187,20 @@ export function createAgentRuntimeLongTaskRepository(
                 const knownStepKeys = new Set(
                   plan.steps.flatMap((step) => stableTaskStepKeys(step, plan.task.workKind)),
                 );
+                const existingStepByKey = new Map(
+                  plan.steps.flatMap((step) =>
+                    stableTaskStepKeys(step, plan.task.workKind).map((key) => [key, step.id] as const),
+                  ),
+                );
                 const uniqueSteps = command.steps.filter((step) => {
                   const keys = stableTaskStepKeys(step, plan.task.workKind);
-                  if (keys.some((key) => knownStepKeys.has(key))) return false;
+                  if (keys.some((key) => knownStepKeys.has(key))) {
+                    // Tell the caller which existing step absorbed it, so it
+                    // does not look for a step that was never added.
+                    const stepId = keys.map((key) => existingStepByKey.get(key)).find(Boolean);
+                    if (stepId) mergedSteps.push({ requestedTitle: step.title, stepId });
+                    return false;
+                  }
                   for (const key of keys) knownStepKeys.add(key);
                   return true;
                 });
@@ -2527,6 +2541,7 @@ export function createAgentRuntimeLongTaskRepository(
             outcome: 'inserted',
             plan: persistedPlan,
             ...(changedStepId ? { changedStepId } : {}),
+            ...(mergedSteps.length > 0 ? { mergedSteps } : {}),
             ...(changedConstraintId ? { changedConstraintId } : {}),
             ...(manifestReconciliation ? { manifestReconciliation } : {}),
           };
