@@ -768,3 +768,27 @@ describe('Anthropic image input', () => {
     expect(content[1]).toMatchObject({ type: 'text', text: '这是什么？' });
   });
 });
+
+describe('Anthropic default fetch', () => {
+  it('calls the global fetch on the window, as WebKit requires', async () => {
+    const original = globalThis.fetch;
+    let called = false;
+    globalThis.fetch = function (this: unknown) {
+      if (this !== undefined && this !== globalThis) {
+        throw new TypeError('Can only call Window.fetch on instances of Window');
+      }
+      called = true;
+      return Promise.resolve(new Response(sse([
+        { type: 'message_start', message: { usage: { input_tokens: 1 } } },
+        { type: 'message_delta', delta: { stop_reason: 'end_turn' }, usage: { output_tokens: 1 } },
+        { type: 'message_stop' },
+      ])));
+    } as typeof fetch;
+    try {
+      await collect(new AnthropicMessagesAgentDriver({ apiKey: 'test' }), request({ tools: [] }));
+      expect(called).toBe(true);
+    } finally {
+      globalThis.fetch = original;
+    }
+  });
+});

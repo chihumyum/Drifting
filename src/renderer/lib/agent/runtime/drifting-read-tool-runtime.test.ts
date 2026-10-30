@@ -129,6 +129,9 @@ describe('DriftingReadToolRuntime', () => {
     expect(readResult?.validateInput({ resultRef: 'ref', limit: 16_001 })).toEqual(
       expect.objectContaining({ ok: false }),
     );
+    // Defaults are applied at execution: the validated call must equal the
+    // model's raw arguments, or the finished turn fails recovery.
+    expect(readResult?.validateInput({ resultRef: 'ref' })).toEqual({ ok: true, value: { resultRef: 'ref' } });
     expect(askUser?.validateInput({ prompt: '' })).toEqual(expect.objectContaining({ ok: false }));
     expect(askUser?.validateInput({ prompt: 'Which ending do you prefer?' })).toEqual({
       ok: true,

@@ -1154,14 +1154,10 @@ function resultPageDefinition(): AgentToolDefinition {
           error: formatSchemaErrors(schema, input),
         };
       }
-      return {
-        ok: true,
-        value: {
-          resultRef: input.resultRef,
-          offset: input.offset ?? 0,
-          limit: input.limit ?? MAX_RESULT_PAGE_CHARS,
-        },
-      };
+      // Pass the call through as written: execution applies the offset and
+      // limit defaults. Filling them in here made the stored arguments differ
+      // from the model's raw arguments, which recovery rejects as corrupt.
+      return { ok: true, value: input };
     },
   };
 }

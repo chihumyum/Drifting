@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { AgentModelRequest, AgentModelStreamEvent } from '../types';
-import { OpenAIResponsesAgentDriver } from './openai-responses-driver';
+import { OpenAIResponsesAgentDriver, promptCacheKey } from './openai-responses-driver';
 import { setCodexModelCatalog } from '../agent-provider-contract';
 
 function request(overrides: Partial<AgentModelRequest> = {}): AgentModelRequest {
@@ -926,5 +926,38 @@ describe('OpenAI Responses image input', () => {
       { type: 'input_text', text: '这是什么？' },
       { type: 'input_image', image_url: 'data:image/jpeg;base64,AAAA', detail: 'high' },
     ]);
+  });
+});
+
+describe('OpenAI prompt cache key', () => {
+  it('keeps chat session keys and bounds long internal ids to 64 characters', () => {
+    const chat = 'session-d827c184-7f8b-4998-9850-cfe9977e01e6';
+    expect(promptCacheKey(chat)).toBe(`drifting-agent:${chat}`);
+    const checkin = promptCacheKey('project-checkin:01a18dd9-18f6-723c-9c67-281a5c3ba14c');
+    expect(checkin.length).toBeLessThanOrEqual(64);
+    expect(checkin).toBe(promptCacheKey('project-checkin:01a18dd9-18f6-723c-9c67-281a5c3ba14c'));
+    expect(checkin).not.toBe(promptCacheKey('project-checkin:01a18dd9-18f6-723c-9c67-281a5c3ba14d'));
+  });
+});
+
+describe('OpenAI Responses default fetch', () => {
+  it('calls the global fetch on the window, as WebKit requires', async () => {
+    const original = globalThis.fetch;
+    const calls: unknown[] = [];
+    globalThis.fetch = function (this: unknown, input: RequestInfo | URL) {
+      if (this !== undefined && this !== globalThis) {
+        throw new TypeError('Can only call Window.fetch on instances of Window');
+      }
+      calls.push(input);
+      return Promise.resolve(new Response(sse([
+        { type: 'response.completed', response: { status: 'completed', output: [], usage: { input_tokens: 1, output_tokens: 1 } } },
+      ])));
+    } as typeof fetch;
+    try {
+      await collect(new OpenAIResponsesAgentDriver({ apiKey: 'test' }), request({ tools: [] }));
+      expect(calls).toEqual(['https://api.openai.com/v1/responses']);
+    } finally {
+      globalThis.fetch = original;
+    }
   });
 });

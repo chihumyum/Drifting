@@ -88,7 +88,9 @@ export class OpenAIResponsesAgentDriver implements AgentModelDriver {
       context: resolveAgentProviderContextProfile(this.provider, this.defaultModel),
     };
     this.endpoint = options.endpoint ?? 'https://api.openai.com/v1/responses';
-    this.fetchImpl = options.fetch ?? fetch;
+    // Never store the global fetch as a method: WebKit rejects it unless it is
+    // called on the window ("Can only call Window.fetch on instances of Window").
+    this.fetchImpl = options.fetch ?? ((input, init) => fetch(input, init));
     this.transport = options.transport;
     this.providerAttemptRetry = options.providerAttemptRetry ?? DEFAULT_PROVIDER_ATTEMPT_RETRY;
   }
@@ -163,7 +165,7 @@ export class OpenAIResponsesAgentDriver implements AgentModelDriver {
       // OpenAI prefix caching is automatic; the key only routes requests that
       // share this session's stable instructions/tools/history prefix to the
       // same cache shard so hits stay likely under load.
-      prompt_cache_key: `drifting-agent:${request.sessionId}`,
+      prompt_cache_key: promptCacheKey(request.sessionId),
       reasoning: {
         effort,
         ...(reasoningEnabled && modelOption.responses?.supportsSummary !== false
@@ -693,6 +695,25 @@ function requireSourceIds(sourceIds: readonly string[], label: string): void {
   ) {
     throw new AgentModelDriverError(`The planned ${label} has invalid provenance.`);
   }
+}
+
+/**
+ * OpenAI accepts at most 64 characters. A chat session's key fits as is, so its
+ * cache routing never changes; longer internal ids (a check-in, a vision call)
+ * get a stable digest instead of a rejected request.
+ */
+export function promptCacheKey(sessionId: string): string {
+  const key = `drifting-agent:${sessionId}`;
+  if (key.length <= 64) return key;
+  // FNV-1a over UTF-16 code units, as two 32-bit halves: stable and synchronous.
+  let high = 0x811c9dc5;
+  let low = 0x01000193;
+  for (let index = 0; index < sessionId.length; index += 1) {
+    const code = sessionId.charCodeAt(index);
+    high = Math.imul(high ^ code, 0x01000193) >>> 0;
+    low = Math.imul(low ^ code ^ (high >>> 7), 0x01000193) >>> 0;
+  }
+  return `drifting-agent:${high.toString(16).padStart(8, '0')}${low.toString(16).padStart(8, '0')}`;
 }
 
 function projectToolResult(result: AgentToolResultBlock): string {
