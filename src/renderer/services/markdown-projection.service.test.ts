@@ -5,6 +5,10 @@ const fixture = vi.hoisted(() => ({
   committed: (_event: { projectId: string }) => undefined as void,
   read: vi.fn(), build: vi.fn(), flush: vi.fn(), write: vi.fn(), info: vi.fn(), remove: vi.fn(), setOutputRoot: vi.fn(),
   known: new Map<string, string>(), disposeRenderer: vi.fn(),
+  mirror: {
+    scan: vi.fn(), prepare: vi.fn(), settle: vi.fn(), dispose: vi.fn(),
+    exclusive: <T,>(work: () => Promise<T>) => work(),
+  },
 }));
 vi.mock('../platform', () => ({ platform: { markdownProjection: { info: fixture.info, write: fixture.write, remove: fixture.remove, setOutputRoot: fixture.setOutputRoot } } }));
 vi.mock('../lib/db', () => ({ getDbIfInitialized: () => fixture.database }));
@@ -14,11 +18,12 @@ vi.mock('../sync/journal/authored-transaction', () => ({ onAuthoredChangeCommitt
 } }));
 vi.mock('./yjs-local-durability.service', () => ({ flushAllOpenYjsDocuments: fixture.flush }));
 vi.mock('./export/relational-markdown.local-source', () => ({ readLocalRelationalMarkdownSource: fixture.read }));
+vi.mock('./markdown-mirror/mirror', () => ({ createMarkdownMirror: () => fixture.mirror }));
 vi.mock('./export/markdown-projection-client', () => ({ createMarkdownProjectionRenderer: () => ({
   knownProseVersions: () => fixture.known, render: fixture.build, dispose: fixture.disposeRenderer,
 }) }));
 import {
-  createProjectionWorker, installMarkdownProjection, PROJECTION_MAX_WAIT_MS, PROJECTION_QUIET_MS,
+  createProjectionWorker, installMarkdownProjection, MIRROR_SCAN_MS, PROJECTION_MAX_WAIT_MS, PROJECTION_QUIET_MS,
   refreshMarkdownProjection, setMarkdownProjectionOutputRoot,
 } from './markdown-projection.service';
 import { getMarkdownProjectionStatus } from './markdown-projection-status';
@@ -30,11 +35,14 @@ beforeEach(() => {
   fixture.composing = false;
   vi.clearAllMocks();
   fixture.setOutputRoot.mockReset();
-  fixture.info.mockResolvedValue({ directory: '/synthetic/projection', generatedAt: null, readOnly: true, reverseSync: false });
-  fixture.write.mockResolvedValue({ directory: '/synthetic/projection', generatedAt: '2026-10-02T00:00:00Z', readOnly: true, reverseSync: false });
+  fixture.info.mockResolvedValue({ directory: '/synthetic/projection', generatedAt: null, readOnly: false, reverseSync: true });
+  fixture.write.mockResolvedValue({ directory: '/synthetic/projection', generatedAt: '2026-10-02T00:00:00Z', readOnly: false, reverseSync: true });
   fixture.read.mockResolvedValue({ books: [{ project: { id: 'synthetic' } }], proseByDocId: new Map() });
   fixture.build.mockResolvedValue({ entries: [{ path: 'README.md', text: 'Read-only' }], documentCount: 1, assets: [], documents: [] });
   fixture.flush.mockResolvedValue(undefined);
+  fixture.mirror.scan.mockResolvedValue({ merged: 0, issues: [] });
+  fixture.mirror.prepare.mockResolvedValue({ entries: [], renders: [] });
+  fixture.mirror.settle.mockResolvedValue(undefined);
 });
 
 afterEach(() => vi.useRealTimers());
@@ -61,7 +69,7 @@ describe('Markdown projection scheduling', () => {
     vi.useFakeTimers();
     fixture.info.mockImplementationOnce(async () => {
       fixture.composing = true;
-      return { directory: '/synthetic/projection', readOnly: true, reverseSync: false };
+      return { directory: '/synthetic/projection', readOnly: false, reverseSync: true };
     });
     const dispose = installMarkdownProjection('synthetic');
     try {
@@ -76,8 +84,10 @@ describe('Markdown projection scheduling', () => {
   it('drains an active capture, persists the location, and refreshes there without overlap', async () => {
     vi.useFakeTimers();
     let finishWrite!: () => void;
-    fixture.write.mockImplementationOnce(() => new Promise<void>(resolve => { finishWrite = resolve; }));
-    const nextInfo = { directory: '/synthetic/custom/markdown-projections/project', customRoot: '/synthetic/custom', generatedAt: null, readOnly: true, reverseSync: false };
+    fixture.write.mockImplementationOnce(() => new Promise(resolve => {
+      finishWrite = () => resolve({ directory: '/synthetic/projection', generatedAt: null, readOnly: false, reverseSync: true, conflicts: [], preserved: [] });
+    }));
+    const nextInfo = { directory: '/synthetic/custom/markdown-projections/project', customRoot: '/synthetic/custom', generatedAt: null, readOnly: false, reverseSync: true };
     fixture.setOutputRoot.mockImplementation(async () => {
       fixture.info.mockResolvedValue(nextInfo);
       fixture.write.mockResolvedValue({ ...nextInfo, generatedAt: '2026-10-03T00:00:00Z' });
@@ -120,7 +130,7 @@ describe('Markdown projection scheduling', () => {
     const dispose = installMarkdownProjection('synthetic');
     try {
       await vi.advanceTimersByTimeAsync(0);
-      const nextInfo = { directory: '/synthetic/custom/projection', customRoot: '/synthetic/custom', generatedAt: null, readOnly: true, reverseSync: false };
+      const nextInfo = { directory: '/synthetic/custom/projection', customRoot: '/synthetic/custom', generatedAt: null, readOnly: false, reverseSync: true };
       fixture.setOutputRoot.mockResolvedValue(nextInfo);
       fixture.info.mockResolvedValue(nextInfo);
       fixture.write.mockRejectedValueOnce(new Error('disk full')).mockResolvedValue(nextInfo);
@@ -140,7 +150,7 @@ describe('Markdown projection scheduling', () => {
       expect(fixture.read).toHaveBeenCalledWith('synthetic', { knownProseVersions: fixture.known });
       expect(fixture.write).toHaveBeenCalledOnce();
       expect(fixture.flush.mock.invocationCallOrder[0]).toBeLessThan(fixture.read.mock.invocationCallOrder[0]!);
-      expect(getMarkdownProjectionStatus('synthetic')).toMatchObject({ state: 'ready', readOnly: true, reverseSync: false });
+      expect(getMarkdownProjectionStatus('synthetic')).toMatchObject({ state: 'ready', readOnly: false, reverseSync: true });
       fixture.committed({ projectId: 'other' });
       await vi.advanceTimersByTimeAsync(PROJECTION_QUIET_MS);
       expect(fixture.write).toHaveBeenCalledOnce();
@@ -223,7 +233,7 @@ describe('Markdown projection scheduling', () => {
     await vi.advanceTimersByTimeAsync(0);
     let finish!: () => void;
     fixture.write.mockImplementationOnce(() => new Promise(resolve => {
-      finish = () => resolve({ directory: '/synthetic/projection', generatedAt: '2026-10-02T00:00:01Z', readOnly: true, reverseSync: false });
+      finish = () => resolve({ directory: '/synthetic/projection', generatedAt: '2026-10-02T00:00:01Z', readOnly: false, reverseSync: true });
     }));
     fixture.committed({ projectId: 'synthetic' });
     const closing = first();
@@ -258,6 +268,67 @@ describe('Markdown projection scheduling', () => {
       await flushMarkdownProjections();
       expect(fixture.write).toHaveBeenCalledTimes(4);
     } finally { await dispose(); }
+  });
+
+  it('merges edited files first, writes authored files guarded, and retries a conflict', async () => {
+    vi.useFakeTimers();
+    const order: string[] = [];
+    fixture.mirror.scan.mockImplementation(async (_directory: string, options: { force?: boolean }) => {
+      order.push(`scan:${options.force ? 'force' : 'stat'}`);
+      return { merged: 0, issues: [{ path: '正文/002 晨雾.md', reason: 'frontmatter' }] };
+    });
+    fixture.read.mockImplementation(async () => { order.push('capture'); return { books: [{ project: { id: 'synthetic' } }], proseByDocId: new Map() }; });
+    fixture.build.mockResolvedValue({
+      entries: [{ path: '开始阅读.md', text: 'home' }, { path: '正文/001 雨夜.md', text: 'generated' }],
+      documentCount: 2, assets: [], documents: [{ key: 'node:c1', path: '正文/001 雨夜.md', title: '雨夜', anchor: null, sourceVersion: null }],
+    });
+    const authored = { path: '正文/001 雨夜.md', text: 'authored', authored: true, expectedSha256: 'a'.repeat(64) };
+    fixture.mirror.prepare.mockResolvedValue({ entries: [authored], renders: [{ docId: 'node-content:c1' }] });
+    fixture.write
+      .mockResolvedValueOnce({ directory: '/synthetic/projection', generatedAt: 'one', readOnly: false, reverseSync: true, conflicts: ['正文/001 雨夜.md'], preserved: [] })
+      .mockResolvedValue({ directory: '/synthetic/projection', generatedAt: 'two', readOnly: false, reverseSync: true, conflicts: [], preserved: ['正文/003 旧稿.md'] });
+    const dispose = installMarkdownProjection('synthetic');
+    try {
+      await vi.advanceTimersByTimeAsync(0);
+      expect(order).toEqual(['scan:force', 'capture']);
+      expect(fixture.write.mock.calls[0]![2]).toEqual([{ path: '开始阅读.md', text: 'home' }, authored]);
+      expect(fixture.mirror.settle).toHaveBeenCalledWith([{ docId: 'node-content:c1' }], '/synthetic/projection', expect.objectContaining({ conflicts: ['正文/001 雨夜.md'] }));
+      expect(getMarkdownProjectionStatus('synthetic')).toMatchObject({ mirrorIssues: [{ path: '正文/002 晨雾.md', reason: 'frontmatter' }] });
+      // The conflicted file is merged and written on the next pass.
+      await vi.advanceTimersByTimeAsync(PROJECTION_QUIET_MS);
+      // Polling scans run meanwhile; the capture still scans right before it reads.
+      expect(order.filter(step => step === 'capture')).toHaveLength(2);
+      expect(order.slice(-2)).toEqual(['scan:stat', 'capture']);
+      expect(fixture.write).toHaveBeenCalledTimes(2);
+      expect(getMarkdownProjectionStatus('synthetic')).toMatchObject({ preserved: ['正文/003 旧稿.md'], reverseSync: true });
+    } finally { await dispose(); }
+  });
+
+  it('looks for edits made elsewhere only while the window is visible', async () => {
+    vi.useFakeTimers();
+    let visibility = 'visible';
+    vi.stubGlobal('document', { get visibilityState() { return visibility; } });
+    fixture.mirror.scan.mockResolvedValue({ merged: 0, issues: [] });
+    const dispose = installMarkdownProjection('synthetic');
+    try {
+      await vi.advanceTimersByTimeAsync(0);
+      expect(fixture.mirror.scan).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(MIRROR_SCAN_MS);
+      expect(fixture.mirror.scan).toHaveBeenCalledTimes(2);
+      visibility = 'hidden';
+      await vi.advanceTimersByTimeAsync(MIRROR_SCAN_MS * 3);
+      expect(fixture.mirror.scan).toHaveBeenCalledTimes(2);
+      // A merged edit schedules the write-back like any authored change.
+      visibility = 'visible';
+      fixture.mirror.scan.mockResolvedValueOnce({ merged: 1, issues: [] });
+      await vi.advanceTimersByTimeAsync(MIRROR_SCAN_MS);
+      expect(fixture.write).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(PROJECTION_QUIET_MS);
+      expect(fixture.write).toHaveBeenCalledTimes(2);
+    } finally {
+      await dispose();
+      vi.unstubAllGlobals();
+    }
   });
 
   it('reports failure and allows a later refresh without blocking the author', async () => {

@@ -1,11 +1,12 @@
 {
   "kind": "markdown-projection-settings-browser",
-  "generatedAt": "2026-10-29T14:22:43.347Z",
-  "sourceSha256": "443fbd875eb1c61bd2244d01194ff51b04c9cc3daba90502bccbc60d5fec956d",
+  "generatedAt": "2026-10-30T17:25:32.595Z",
+  "sourceSha256": "de6f882291f0de4ba95894e0f5af997af4b0a9e9d993a44e55ea15ce768e0851",
   "status": "passed",
   "synthetic": true,
   "checks": [
     "MCP shows a projection hint without directory controls",
+    "an edited file that cannot merge and preserved copies are reported",
     "canceling folder selection preserves the current output",
     "choose, refresh and reset use the current project and update the shown path",
     "a failed folder change shows an error and preserves the previous path",

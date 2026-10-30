@@ -2,18 +2,18 @@
   "protocol": "drifting.sync.domain-manifest",
   "version": 1,
   "schemaSource": "src/renderer/schema/drizzle.ts",
-  "schemaSha256": "d33af5be4382c41e09d801b7eb8de6489a429563a56022ef79f8c01521493f2b",
+  "schemaSha256": "b9cd7217055fb13993eb9c1bbd396a97c7aeab0ea491eab6c787a2a59fd50f0a",
   "gate": "Every Drizzle table and column must have one explicit class and non-empty reason.",
   "summary": {
-    "tableCount": 97,
-    "fieldCount": 1006,
+    "tableCount": 98,
+    "fieldCount": 1018,
     "includedTableCount": 27,
-    "excludedTableCount": 70,
+    "excludedTableCount": 71,
     "classCounts": {
       "authored": 176,
       "crdt": 10,
       "derived": 94,
-      "device-local": 370,
+      "device-local": 382,
       "secret": 5,
       "transport": 332,
       "extension": 19
@@ -3773,6 +3773,86 @@
           "classification": "derived",
           "disposition": "exclude",
           "reason": "Projection of the winning change-set clock; it is rebuilt locally and is not merge authority."
+        }
+      ]
+    },
+    {
+      "table": "markdown_mirror_file",
+      "scope": "project-direct",
+      "disposition": "exclude",
+      "reason": "The Markdown folder ledger describes files on one device and merges their edits into Yjs locally.",
+      "fields": [
+        {
+          "field": "base_fields_json",
+          "classification": "device-local",
+          "disposition": "exclude",
+          "reason": "Folder paths, file hashes and the Yjs state each file was rendered from exist only on this device."
+        },
+        {
+          "field": "base_state",
+          "classification": "device-local",
+          "disposition": "exclude",
+          "reason": "Folder paths, file hashes and the Yjs state each file was rendered from exist only on this device."
+        },
+        {
+          "field": "directory",
+          "classification": "device-local",
+          "disposition": "exclude",
+          "reason": "Folder paths, file hashes and the Yjs state each file was rendered from exist only on this device."
+        },
+        {
+          "field": "document_id",
+          "classification": "device-local",
+          "disposition": "exclude",
+          "reason": "Folder paths, file hashes and the Yjs state each file was rendered from exist only on this device."
+        },
+        {
+          "field": "file_sha256",
+          "classification": "device-local",
+          "disposition": "exclude",
+          "reason": "Folder paths, file hashes and the Yjs state each file was rendered from exist only on this device."
+        },
+        {
+          "field": "path",
+          "classification": "device-local",
+          "disposition": "exclude",
+          "reason": "Folder paths, file hashes and the Yjs state each file was rendered from exist only on this device."
+        },
+        {
+          "field": "pending_fields_json",
+          "classification": "device-local",
+          "disposition": "exclude",
+          "reason": "Folder paths, file hashes and the Yjs state each file was rendered from exist only on this device."
+        },
+        {
+          "field": "pending_path",
+          "classification": "device-local",
+          "disposition": "exclude",
+          "reason": "Folder paths, file hashes and the Yjs state each file was rendered from exist only on this device."
+        },
+        {
+          "field": "pending_sha256",
+          "classification": "device-local",
+          "disposition": "exclude",
+          "reason": "Folder paths, file hashes and the Yjs state each file was rendered from exist only on this device."
+        },
+        {
+          "field": "pending_state",
+          "classification": "device-local",
+          "disposition": "exclude",
+          "reason": "Folder paths, file hashes and the Yjs state each file was rendered from exist only on this device."
+        },
+        {
+          "field": "project_id",
+          "classification": "device-local",
+          "disposition": "exclude",
+          "reason": "Folder paths, file hashes and the Yjs state each file was rendered from exist only on this device."
+        },
+        {
+          "field": "updated_at",
+          "classification": "device-local",
+          "disposition": "exclude",
+          "reason": "Folder paths, file hashes and the Yjs state each file was rendered from exist only on this device."
         }
       ]
     },

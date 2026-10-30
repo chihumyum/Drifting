@@ -222,6 +222,7 @@ pub fn run() {
             markdown_projection::markdown_projection_set_output_root,
             markdown_projection::markdown_projection_remove,
             markdown_projection::markdown_projection_write,
+            markdown_projection::markdown_projection_read,
             mcp_server::mcp_server_list,
             mcp_server::mcp_server_create,
             mcp_server::mcp_server_connect,

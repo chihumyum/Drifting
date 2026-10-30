@@ -2207,6 +2207,38 @@ export const EntitySnapshotHistoryTable = sqliteTable(
   ],
 );
 
+/**
+ * Device-local ledger for the project Markdown folder (docs/markdown-mirror.md).
+ * Each authored file records the Yjs state whose rendering it holds, so an
+ * edit made in another editor merges as a peer that last synced at that state.
+ * `pending*` is a write not yet confirmed: a crash between writing the file and
+ * confirming it must not read Drifting's own bytes back as an external edit.
+ * Rows describe one folder on one device and are never synced.
+ */
+export const MarkdownMirrorFileTable = sqliteTable(
+  'markdown_mirror_file',
+  {
+    projectId: text('project_id')
+      .notNull()
+      .references(() => ProjectTable.id, { onDelete: 'cascade' }),
+    docId: text('document_id').notNull(),
+    directory: text('directory').notNull(),
+    path: text('path').notNull(),
+    fileSha256: text('file_sha256').notNull(),
+    baseState: blob('base_state').notNull(),
+    baseFieldsJson: text('base_fields_json').notNull(),
+    pendingSha256: text('pending_sha256'),
+    pendingPath: text('pending_path'),
+    pendingState: blob('pending_state'),
+    pendingFieldsJson: text('pending_fields_json'),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.projectId, t.docId] }),
+    index('idx_markdown_mirror_file_document').on(t.docId),
+  ],
+);
+
 export const yjsUpdates = sqliteTable(
   'yjs_updates',
   {

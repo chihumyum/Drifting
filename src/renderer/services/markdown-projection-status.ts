@@ -3,6 +3,10 @@ import type { MarkdownProjectionInfo } from '../platform/contracts';
 export type MarkdownProjectionStatus = Partial<MarkdownProjectionInfo> & {
   state: 'pending' | 'ready' | 'error';
   error?: string;
+  /** Authored files edited outside Drifting that could not be merged, and why. */
+  mirrorIssues?: { path: string; reason: string }[];
+  /** Edited files kept under `.drifting/preserved` by the last write. */
+  preserved?: string[];
 };
 const statuses = new Map<string, MarkdownProjectionStatus>();
 const listeners = new Set<() => void>();
@@ -14,7 +18,7 @@ export function subscribeMarkdownProjectionStatus(listener: () => void): () => v
   listeners.add(listener);
   return () => { listeners.delete(listener); };
 }
-export function publishMarkdownProjectionStatus(projectId: string, value: MarkdownProjectionStatus) {
+export function publishMarkdownProjectionStatus(projectId: string, value: Partial<MarkdownProjectionStatus>) {
   // An undefined field clears it. Drop the key: the status is returned by
   // get_project_overview, and durable Agent payloads reject undefined.
   const next: Record<string, unknown> = { ...statuses.get(projectId), ...value };

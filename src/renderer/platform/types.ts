@@ -4,6 +4,10 @@ import type {
   MarkdownProjectionInfo,
   MarkdownProjectionAsset,
   MarkdownProjectionDocument,
+  MarkdownProjectionEntry,
+  MarkdownProjectionReadRequest,
+  MarkdownProjectionReadResult,
+  MarkdownProjectionWriteResult,
   AppUpdateDownloadEvent,
   AppUpdateMetadata,
   AppInfo,
@@ -343,7 +347,8 @@ export interface PlatformApi {
     info(projectId: string): Promise<MarkdownProjectionInfo>;
     pickOutputRoot(title: string): Promise<string | null>;
     setOutputRoot(projectId: string, customRoot: string | null): Promise<MarkdownProjectionInfo>;
-    write(projectId: string, generatedAt: string, entries: { path: string; text: string }[], assets: MarkdownProjectionAsset[], documents: MarkdownProjectionDocument[]): Promise<MarkdownProjectionInfo>;
+    write(projectId: string, generatedAt: string, entries: MarkdownProjectionEntry[], assets: MarkdownProjectionAsset[], documents: MarkdownProjectionDocument[]): Promise<MarkdownProjectionWriteResult>;
+    read(projectId: string, requests: MarkdownProjectionReadRequest[]): Promise<MarkdownProjectionReadResult[]>;
   };
   readonly mcpServer: McpServerPlatformApi;
   readonly mcpStdio: McpStdioPlatformApi;

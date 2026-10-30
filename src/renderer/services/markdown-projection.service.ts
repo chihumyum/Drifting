@@ -11,6 +11,7 @@ import { flushPendingAtomicSyncTransactions } from './atomic-sync-transaction-tr
 import { flushAllOpenYjsDocuments } from './yjs-local-durability.service';
 import { readLocalRelationalMarkdownSource } from './export/relational-markdown.local-source';
 import { createMarkdownProjectionRenderer } from './export/markdown-projection-client';
+import { createMarkdownMirror, type MirrorScanResult } from './markdown-mirror/mirror';
 
 const workers = new Map<string, ReturnType<typeof createProjectionWorker>>();
 
@@ -20,6 +21,8 @@ export const PROJECTION_QUIET_MS = 5000;
 export const PROJECTION_MAX_WAIT_MS = 30_000;
 /** How soon a capture deferred for an IME composition checks again. */
 const PROJECTION_DEFER_MS = 1000;
+/** How often a visible window looks for chapters edited in another editor. */
+export const MIRROR_SCAN_MS = 1500;
 
 /**
  * Coalesce commits until the author pauses, bounded by a maximum wait, so
@@ -97,7 +100,15 @@ export function installMarkdownProjection(projectId: string): () => Promise<void
   };
   const database = getDbIfInitialized();
   const active = () => !disposed && getDbIfInitialized() === database;
-  publish(projectId, { state: 'pending', readOnly: true, reverseSync: false });
+  // Chapters and drifts are two-way: edits made in another editor merge back.
+  const mirror = createMarkdownMirror(projectId);
+  let hashedOnce = false;
+  const scanMirror = async (directory: string, force: boolean): Promise<MirrorScanResult> => {
+    const result = await mirror.scan(directory, { force });
+    if (active()) publish(projectId, { mirrorIssues: result.issues });
+    return result;
+  };
+  publish(projectId, { state: 'pending', readOnly: false, reverseSync: true });
   const shouldDefer = () => Boolean(getActiveEditor()?.view.composing);
   // A capture still running for this project, e.g. the final one of a close.
   // Waiting for it keeps an older capture from publishing over a newer one.
@@ -117,23 +128,40 @@ export function installMarkdownProjection(projectId: string): () => Promise<void
     if (!active()) return;
     publish(projectId, { ...info, state: 'pending' });
     if (yieldToComposition()) return;
-    await stage('flush-prose', flushAllOpenYjsDocuments);
-    if (!active()) return;
-    if (yieldToComposition()) return;
-    await stage('flush-assets', flushPendingAssetPersistence);
-    if (!active()) return;
-    if (yieldToComposition()) return;
-    const source = await stage('capture', () => readLocalRelationalMarkdownSource(projectId, { knownProseVersions: renderer.knownProseVersions() }));
-    if (!active()) return;
-    if (yieldToComposition()) return;
-    if (source.books.length !== 1) throw new Error('Projection project no longer exists');
-    const capturedAt = new Date();
-    const { entries, assets, documents } = await stage('render-worker', () => renderer.render(source, capturedAt, controller.signal));
-    if (!active()) return;
-    if (yieldToComposition()) return;
-    const result = await stage('publish', () => platform.markdownProjection.write(projectId, capturedAt.toISOString(), entries, assets, documents));
-    lastFailed = false;
-    if (active()) publish(projectId, { ...result, state: 'ready', error: undefined });
+    // Scans and captures take turns, so the ledger never sees them interleave.
+    await mirror.exclusive(async () => {
+      // Edits made in another editor merge first, so this capture includes them.
+      const force = !hashedOnce;
+      await stage('mirror-scan', () => scanMirror(info.directory, force));
+      hashedOnce = true;
+      if (!active()) return;
+      if (yieldToComposition()) return;
+      await stage('flush-prose', flushAllOpenYjsDocuments);
+      if (!active()) return;
+      if (yieldToComposition()) return;
+      await stage('flush-assets', flushPendingAssetPersistence);
+      if (!active()) return;
+      if (yieldToComposition()) return;
+      const source = await stage('capture', () => readLocalRelationalMarkdownSource(projectId, { knownProseVersions: renderer.knownProseVersions() }));
+      if (!active()) return;
+      if (yieldToComposition()) return;
+      if (source.books.length !== 1) throw new Error('Projection project no longer exists');
+      const capturedAt = new Date();
+      const { entries, assets, documents } = await stage('render-worker', () => renderer.render(source, capturedAt, controller.signal));
+      if (!active()) return;
+      if (yieldToComposition()) return;
+      const authored = await stage('mirror-prepare', () => mirror.prepare(source, documents, info.directory));
+      const byPath = new Map(authored.entries.map(entry => [entry.path, entry]));
+      const published = entries.map(entry => byPath.get(entry.path) ?? entry);
+      const result = await stage('publish', () => platform.markdownProjection.write(projectId, capturedAt.toISOString(), published, assets, documents));
+      await mirror.settle(authored.renders, info.directory, result);
+      lastFailed = false;
+      // A native build from before two-way files reports neither list.
+      const { conflicts = [], preserved = [], ...written } = result;
+      if (active()) publish(projectId, { ...written, state: 'ready', error: undefined, ...(preserved.length ? { preserved } : {}) });
+      // A file changed on disk while this capture ran: merge it, then write.
+      if (conflicts.length) worker.request();
+    });
   }, error => {
     lastFailed = true;
     if (active()) publish(projectId, { state: 'error', error: error instanceof Error ? error.message : String(error) });
@@ -151,10 +179,29 @@ export function installMarkdownProjection(projectId: string): () => Promise<void
   });
   events.on('sync:project-changed', changed);
   events.on('sync:projects-restored', restored);
+  // While the window is visible, look for chapters edited in another editor.
+  // A merge commits like any authored change, which schedules the write-back.
+  let polling = false;
+  const poll = () => {
+    const directory = getMarkdownProjectionStatus(projectId)?.directory;
+    if (polling || !active() || !directory || !hashedOnce) return;
+    if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+    polling = true;
+    void mirror.exclusive(() => scanMirror(directory, false)).then(result => {
+      if (result.merged) worker.request();
+    }).catch(error => {
+      if (active()) publish(projectId, { error: error instanceof Error ? error.message : String(error) });
+    }).finally(() => { polling = false; });
+  };
+  const pollTimer = setInterval(poll, MIRROR_SCAN_MS);
+  const windowTarget = typeof window !== 'undefined' ? window : undefined;
+  windowTarget?.addEventListener('focus', poll);
   worker.request();
   void worker.flush(false);
   return () => {
     closing = true;
+    clearInterval(pollTimer);
+    windowTarget?.removeEventListener('focus', poll);
     // Closing the project publishes what was written since the last capture,
     // then releases the renderer. The last keystrokes commit only as the
     // editors unmount, so keep listening until their saves land. Until the
@@ -172,6 +219,7 @@ export function installMarkdownProjection(projectId: string): () => Promise<void
       disposed = true;
       controller.abort();
       renderer.dispose();
+      mirror.dispose();
       unregisterFlush();
       worker.dispose();
       if (workers.get(projectId) === worker) workers.delete(projectId);

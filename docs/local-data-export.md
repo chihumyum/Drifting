@@ -1,6 +1,11 @@
 # Local relational Markdown export
 
-## Automatic read-only project projection
+## Automatic project Markdown folder
+
+Chapter and drift files are two-way: edits saved in any editor merge back into
+Drifting while it runs, and edits made while it was closed merge when the project
+opens. Every other file is generated and read-only. The merge model, ledger and
+safeguards are in [Markdown folder two-way sync](markdown-mirror.md).
 
 The Tauri desktop client maintains one project-scoped directory. **Settings →
 Sync & Data → Local data → Local Markdown projection** shows its actual path,
@@ -64,15 +69,16 @@ the authoritative incremental Yjs save path is independent of this deferral.
 .drifting/manifest.json
 ```
 
-The directory is designed for readers. Every chapter, drift, element and
-storyline is one complete named document containing its summary, prose and
-related links. There are no per-entity ID folders or `index.md`/`prose.md` pairs.
-The home page shows the project title, capture time, read-only notice and entry
+The directory is designed for readers. Every element and storyline is one
+complete named document containing its summary, prose and related links. Every
+chapter and drift is one editable file: frontmatter with `drifting-id`, writing
+status and summary, then the prose. There are no per-entity ID folders or `index.md`/`prose.md` pairs.
+The home page shows the project title, capture time, which files are editable and entry
 links. The chapter directory follows reading order, with summaries and writing
 status; chapters are numbered and grouped using the existing act boundaries.
 Pre-act chapters remain unassigned, and empty acts have their own guide. Drift
 folders use existing drift groups, and element folders use existing categories.
-Scene/beat/note headings retain their hierarchy below the chapter heading.
+Scene/beat/note headings are `#`, `##` and `###`; the file name is the title.
 Comments and TODOs are collected by target in `注释与待办.md`, with links from
 related documents.
 
@@ -84,7 +90,8 @@ order rather than the authored floating-point timeline coordinate. Rename,
 reorder or grouping changes can change paths: every capture rebuilds all internal
 links, while external hand-written links are not guaranteed to survive.
 
-Reader-facing YAML contains alias lists and writing status only. The hidden
+Reader-facing YAML contains alias lists and writing status; chapter and drift
+files add `drifting-id` and the summary, and keep other properties verbatim. The hidden
 `.drifting/manifest.json` stores generation time, content hashes and a `documents`
 identity map (`key`, `path`, `title`, `anchor`, canonical `sourceVersion`).
 `anchor` is always `null` and is kept only for manifest schema 3 compatibility;
@@ -119,11 +126,12 @@ managed files change, and settings report the error. Attachments share the
 20,000-file/256-MiB generation limit with Markdown. Manual ZIP export below retains
 its existing text-only scope.
 
-**This is a read-only, one-way projection. There is no reverse sync.** Editing
-files never updates Drifting; a refresh can overwrite edits. Use Drifting or its
-authorized domain tools to change content. No file watcher or Markdown import
-feeds these files back into SQLite/Yjs. On Unix, generated files are mode 0400
-and created directories are mode 0700. This is not a boundary against the same
+**Only chapter and drift files sync back.** A refresh overwrites edits to every
+other file. Creating, deleting, renaming or moving files is not synced: a deleted
+chapter file is generated again. Drifting never replaces chapter or drift bytes it
+has not read; an edit it cannot merge is kept under `.drifting/preserved`. On
+Unix, chapter and drift files are mode 0600, generated files are mode 0400 and
+created directories are mode 0700. This is not a boundary against the same
 OS user deliberately changing permissions. The projection omits CRDT history,
 runtime records and full database metadata; it is not a lossless backup.
 
@@ -157,10 +165,11 @@ and legacy manifests, and prunes only empty managed folders. Unmanaged files and
 Obsidian configuration remain. Existing projections upgrade on the next successful refresh
 without changing the output path or deleting user files.
 
-MCP settings retain one line pointing external Agents to the read-only projection
+MCP settings retain one line pointing external Agents to the Markdown folder
 and its settings location. MCP initialization, projection settings, the directory
-README and the shared project overview state the read-only/no-reverse-sync
-restriction. The path is local to the computer running Drifting. External file
+README and the shared project overview state that chapter and drift files are
+two-way, merge as the author's own edits without Agent review, and that every
+other file is read-only. The path is local to the computer running Drifting. External file
 reads do not satisfy the MCP session's read-before-write requirement. New MCP
 connections resolve the saved output preference; existing connections can query
 `get_project_overview` for the updated directory and generation status.

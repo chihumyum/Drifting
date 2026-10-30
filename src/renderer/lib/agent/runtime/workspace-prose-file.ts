@@ -599,9 +599,34 @@ export async function planWorkspaceProseFileWrite(input: {
   idempotencyKey: string;
   locations?: LocationResolver;
 }): Promise<YjsProseOperation> {
+  const desiredBlocks = await planWorkspaceProseFileBlocks(input);
+  return operationForDesiredBlocks(input.blocks, desiredBlocks);
+}
+
+/**
+ * The complete block list a virtual prose file asks for. Existing blocks keep
+ * their identity (ids, attributes, opaque marks) wherever their text still
+ * exists; only new paragraphs receive deterministic ids. Surviving blocks
+ * keep their relative order.
+ *
+ * `matchRendered` matches a block whose rendering is unchanged even when the
+ * prose schema no longer accepts its type, so a file that was only read back
+ * never rewrites it.
+ */
+export async function planWorkspaceProseFileBlocks(input: {
+  blocks: readonly YjsProseBlock[];
+  content: string;
+  idempotencyKey: string;
+  locations?: LocationResolver;
+  matchRendered?: boolean;
+}): Promise<YjsProseBlock[]> {
   const { locations } = input;
   const requestedBlocks = parseAgentProseMarkdown(input.content);
-  const beforeKeys = input.blocks.map((block) => workspaceProseBlockMatchKey(block, locations));
+  const beforeKeys = input.blocks.map((block) =>
+    input.matchRendered
+      ? `allowed:${renderWorkspaceProseBlock(block, locations)}`
+      : workspaceProseBlockMatchKey(block, locations),
+  );
   const requestedKeys = requestedBlocks.map(agentMarkdownBlockMatchKey);
   const exactPairs = longestCommonSubsequencePairs(beforeKeys, requestedKeys);
   const desiredBlocks: YjsProseBlock[] = [];
@@ -615,14 +640,26 @@ export async function planWorkspaceProseFileWrite(input: {
   ]) {
     const oldGap = input.blocks.slice(oldCursor, oldMatch);
     const newGap = requestedBlocks.slice(newCursor, newMatch);
-    const paired = Math.min(oldGap.length, newGap.length);
-    for (let index = 0; index < paired; index += 1) {
-      desiredBlocks.push(blockWithAgentMarkdown(oldGap[index]!, newGap[index]!, locations));
-    }
-    for (let index = paired; index < newGap.length; index += 1) {
+    // Positional pairing reuses an old block for whatever text now stands in
+    // its place. A rendered match only keeps an identity for a block whose
+    // text is still recognisably the same paragraph.
+    const pairs = input.matchRendered
+      ? similarGapPairs(
+          oldGap.map((block) => renderWorkspaceProseBlock(block, locations)),
+          newGap.map(renderAgentProseMarkdownBlock),
+        )
+      : new Map(
+          Array.from({ length: Math.min(oldGap.length, newGap.length) }, (_, index) => [index, index]),
+        );
+    for (const [index, block] of newGap.entries()) {
+      const old = [...pairs].find(([, paired]) => paired === index)?.[0];
+      if (old !== undefined) {
+        desiredBlocks.push(blockWithAgentMarkdown(oldGap[old]!, block, locations));
+        continue;
+      }
       desiredBlocks.push(
         await newBlockFromAgentMarkdown(
-          newGap[index]!,
+          block,
           await deterministicBlockId(input.idempotencyKey, inserted),
           locations,
         ),
@@ -635,40 +672,89 @@ export async function planWorkspaceProseFileWrite(input: {
     oldCursor = oldMatch + 1;
     newCursor = newMatch + 1;
   }
+  return desiredBlocks;
+}
 
-  if (input.blocks.length === 0) {
+/** Share of character bigrams two renderings must have in common to be one paragraph. */
+const SIMILAR_BLOCK_DICE = 0.3;
+
+function bigrams(value: string): Map<string, number> {
+  const points = Array.from(value);
+  const result = new Map<string, number>();
+  for (let index = 0; index + 1 < points.length; index += 1) {
+    const pair = points[index]! + points[index + 1]!;
+    result.set(pair, (result.get(pair) ?? 0) + 1);
+  }
+  return result;
+}
+
+function similarBlocks(left: string, right: string): boolean {
+  if (left === right) return true;
+  const a = bigrams(left);
+  const b = bigrams(right);
+  let total = 0;
+  let shared = 0;
+  for (const count of a.values()) total += count;
+  for (const [pair, count] of b) {
+    total += count;
+    shared += Math.min(count, a.get(pair) ?? 0);
+  }
+  return total > 0 && (2 * shared) / total >= SIMILAR_BLOCK_DICE;
+}
+
+/** Order-preserving pairs (old index → new index) of similar gap blocks. */
+function similarGapPairs(before: readonly string[], after: readonly string[]): Map<number, number> {
+  const pairs = new Map<number, number>();
+  let next = 0;
+  for (const [index, rendered] of before.entries()) {
+    for (let candidate = next; candidate < after.length; candidate += 1) {
+      if (similarBlocks(rendered, after[candidate]!)) {
+        pairs.set(index, candidate);
+        next = candidate + 1;
+        break;
+      }
+    }
+  }
+  return pairs;
+}
+
+function operationForDesiredBlocks(
+  blocks: readonly YjsProseBlock[],
+  desiredBlocks: YjsProseBlock[],
+): YjsProseOperation {
+  if (blocks.length === 0) {
     return { kind: 'insert', afterBlockId: null, blocks: desiredBlocks };
   }
 
   let prefix = 0;
   while (
-    prefix < input.blocks.length &&
+    prefix < blocks.length &&
     prefix < desiredBlocks.length &&
-    blocksEqual(input.blocks[prefix]!, desiredBlocks[prefix]!)
+    blocksEqual(blocks[prefix]!, desiredBlocks[prefix]!)
   ) {
     prefix += 1;
   }
   let suffix = 0;
   while (
-    suffix < input.blocks.length - prefix &&
+    suffix < blocks.length - prefix &&
     suffix < desiredBlocks.length - prefix &&
     blocksEqual(
-      input.blocks[input.blocks.length - 1 - suffix]!,
+      blocks[blocks.length - 1 - suffix]!,
       desiredBlocks[desiredBlocks.length - 1 - suffix]!,
     )
   ) {
     suffix += 1;
   }
 
-  const oldChanged = input.blocks.slice(prefix, input.blocks.length - suffix);
+  const oldChanged = blocks.slice(prefix, blocks.length - suffix);
   const newChanged = desiredBlocks.slice(prefix, desiredBlocks.length - suffix);
   if (oldChanged.length === 0) {
     return {
-      kind: prefix === input.blocks.length ? 'append' : 'insert',
-      ...(prefix === input.blocks.length
+      kind: prefix === blocks.length ? 'append' : 'insert',
+      ...(prefix === blocks.length
         ? { blocks: newChanged }
         : {
-            afterBlockId: prefix === 0 ? null : input.blocks[prefix - 1]!.id,
+            afterBlockId: prefix === 0 ? null : blocks[prefix - 1]!.id,
             blocks: newChanged,
           }),
     } as YjsProseOperation;
@@ -1211,26 +1297,45 @@ function makeBlock(
   };
 }
 
+/**
+ * Equal leading and trailing blocks pair up before the quadratic table, so a
+ * local edit to a long manuscript only tables the changed middle.
+ */
 function longestCommonSubsequencePairs(
   before: readonly string[],
   after: readonly string[],
 ): Array<[number, number]> {
-  const width = after.length + 1;
-  const table = new Uint32Array((before.length + 1) * width);
-  for (let left = before.length - 1; left >= 0; left -= 1) {
-    for (let right = after.length - 1; right >= 0; right -= 1) {
+  let prefix = 0;
+  while (prefix < before.length && prefix < after.length && before[prefix] === after[prefix]) {
+    prefix += 1;
+  }
+  let suffix = 0;
+  while (
+    suffix < before.length - prefix &&
+    suffix < after.length - prefix &&
+    before[before.length - 1 - suffix] === after[after.length - 1 - suffix]
+  ) {
+    suffix += 1;
+  }
+  const middleBefore = before.slice(prefix, before.length - suffix);
+  const middleAfter = after.slice(prefix, after.length - suffix);
+  const width = middleAfter.length + 1;
+  const table = new Uint32Array((middleBefore.length + 1) * width);
+  for (let left = middleBefore.length - 1; left >= 0; left -= 1) {
+    for (let right = middleAfter.length - 1; right >= 0; right -= 1) {
       table[left * width + right] =
-        before[left] === after[right]
+        middleBefore[left] === middleAfter[right]
           ? 1 + table[(left + 1) * width + right + 1]!
           : Math.max(table[(left + 1) * width + right]!, table[left * width + right + 1]!);
     }
   }
   const pairs: Array<[number, number]> = [];
+  for (let index = 0; index < prefix; index += 1) pairs.push([index, index]);
   let left = 0;
   let right = 0;
-  while (left < before.length && right < after.length) {
-    if (before[left] === after[right]) {
-      pairs.push([left, right]);
+  while (left < middleBefore.length && right < middleAfter.length) {
+    if (middleBefore[left] === middleAfter[right]) {
+      pairs.push([prefix + left, prefix + right]);
       left += 1;
       right += 1;
     } else if (table[(left + 1) * width + right]! >= table[left * width + right + 1]!) {
@@ -1238,6 +1343,9 @@ function longestCommonSubsequencePairs(
     } else {
       right += 1;
     }
+  }
+  for (let index = suffix; index > 0; index -= 1) {
+    pairs.push([before.length - index, after.length - index]);
   }
   return pairs;
 }
