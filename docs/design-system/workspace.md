@@ -83,4 +83,4 @@
 - macOS 红绿灯固定为 `x: 18, y: 22`，基础配置、macOS 覆盖配置与运行时校正必须保持一致。窗口控件行高 `42px`（`--window-titlebar-height`），同排图标按钮高 `26px` 并通过 `align-items: center` 共用中心线；`y: 22` 是针对原生 overlay 坐标系校准后的偏移。macOS leading inset 固定为 `94px`：左上角的固定开关从这里开始，左栏展开时第一个半栏的 Tab 行也从这里开始并在开关下留出空位。侧栏开关是 `28px` 圆形玻璃，与红绿灯、Dock 共用窗口控件行的中线。
 - Project Home 自己拥有垂直滚动：`.dash` 必须以 `width/height: 100%` 受当前 shell 约束，并使用 `overflow-y: auto`。桌面 Home 保留完整 workspace chrome，但不绘制 Tab 外观；移动 Home 是 paper row 之外的独立 safe-area surface，仅增加项目级 Back、paper overview 和继续当前 paper 入口。隐藏的只是 scrollbar chrome，不是滚动能力。
 - 移动端仍保留安全区 padding。侧栏保持 overlay 行为，但表面角色与桌面一致。
-- Super View 仍是覆盖整个窗口的 overlay，带自己的 header、返回与切换器。
+- Super View 仍是覆盖整个窗口的 overlay，带自己的 header、返回与切换器：四边贴齐窗口，底边也不留 inset。打开期间被盖住的整个工作区（`DesktopWorkspace` 的根，含侧栏、账户 cell 的主页按钮与两角的侧栏开关）是 `inert` 的，指针、焦点与按键都进不去，也不在无障碍树里（`useInertUnderSuperView`，直接订阅 store，不让工作区重渲染）；打开前焦点在工作区里（比如正在写的稿纸），关闭后若焦点无处可去就还给它。
