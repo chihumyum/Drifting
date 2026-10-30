@@ -15,7 +15,7 @@ pnpm perf:stress --compare a.json b.json # 对比两份报告的核心指标
    - 打开项目、打开两万字章节、空闲；
    - 末尾打字、中段打字、滚动；
    - 展开侧栏后再打字、切换侧栏面板；
-   - 打开 12 个标签，并在侧栏开、关两种状态下各切换 12 次；
+   - 打开 12 个标签，并在侧栏开、关两种状态下各切换 12 次，再把收起的侧栏展开一次、收起；
    - 全局搜索、通览全书、三个 Super View、关闭全部标签。
 3. 每段操作前后，记录原生进程和 WebContent 进程的 CPU 时间与 RSS。
 4. 最后点应用菜单的「退出」，确保退出前的保存流程也被计入。
@@ -92,10 +92,17 @@ pnpm perf:stress --compare a.json b.json # 对比两份报告的核心指标
 
 ## 进展
 
-- 第 2 项（打字时的 CPU）：见[打字写入路径](keystroke-write-path.md)。每次按键的写入在 Node 中从 50 ms 降到 10 ms；release 构建锁屏测量下，打字的 WebContent CPU 约降三分之一。
-- 第 1 项（标签与侧栏）：见[切换编辑器标签与展开侧栏](editor-tab-switch.md)。
-  - 已去掉切换途中的强制排版和章节面板的整列重绘；
-  - 已让打开过的侧栏面板保持挂载。
-- 尚未完成：
-  - 用 `--foreground` 重测帧数据；
-  - 关掉最后一个标签、打开项目、Super View 首次打开。
+2026-10-30 下午，用 `--release --foreground` 对比修复前 `df251d31` 和修复后 `af91ba0b`，各跑三遍。原始数据：[acceptance/optimization-foreground-2026-10-30.json](acceptance/optimization-foreground-2026-10-30.json)。
+
+- **第 2 项（打字时的 CPU）**：见[打字写入路径](keystroke-write-path.md)。
+  - WebContent 从 73–75% 降到 31–33%，原生进程从 30–32% 降到 14–15%；
+  - 峰值原生内存从约 355 MB 降到约 275 MB。
+- **第 1 项（标签与侧栏）**：见[切换编辑器标签](editor-tab-switch.md)。
+  - 切换的帧时间没有可测的变化；
+  - 关闭后保留侧栏面板的尝试没有加快再次展开，已撤回；
+  - `perf:stress` 新增"关闭后再展开侧栏"一段：再次展开约 90 ms，首次约 170 ms。
+- **仍未处理**：
+  - 切换时新表面的样式、合成层和绘制；
+  - 关掉最后一个标签（约 300 ms）；
+  - 打开项目；
+  - Super View 首次打开（130–220 ms）。

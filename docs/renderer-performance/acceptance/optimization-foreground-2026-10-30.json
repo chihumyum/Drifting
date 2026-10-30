@@ -1,0 +1,274 @@
+{
+  "schemaVersion": 1,
+  "command": "pnpm perf:stress --release --foreground --wait-idle 20",
+  "recordedAt": "2026-10-30",
+  "conditions": "Window frontmost, display kept awake with caffeinate -d -i, no input during runs; another WebContent process outside the app (a browser tab) used about one core throughout, as in the original baseline.",
+  "before": "df251d31",
+  "after": "af91ba0b",
+  "runs": [
+    {
+      "label": "fgb1",
+      "commit": "df251d31",
+      "webContentCandidates": 1,
+      "typing": {
+        "keys": 90,
+        "seconds": 17.1,
+        "webCpuSeconds": 8.92,
+        "nativeCpuSeconds": 3.39,
+        "keyToSecondFrameP95Ms": 31
+      },
+      "switchTabs": {
+        "sidebarsOpen": {
+          "p50": 80,
+          "p95": 122
+        },
+        "sidebarsClosed": {
+          "p50": 57,
+          "p95": 84,
+          "worstFrameP50": 49
+        }
+      },
+      "openSidebarsWorstFrame": {
+        "left": 165,
+        "right": 189
+      },
+      "reopenSidebarsWorstFrame": {
+        "left": null,
+        "right": null
+      },
+      "closeTabs": {
+        "p50": 85,
+        "lastMs": 323
+      },
+      "superViewsWorstFrame": {
+        "storyGraph": 136,
+        "elementPanorama": 219,
+        "materialWorkbench": 186
+      },
+      "peakRssMB": {
+        "native": 355,
+        "web": 1573
+      }
+    },
+    {
+      "label": "fgn1",
+      "commit": "af91ba0b",
+      "webContentCandidates": 1,
+      "typing": {
+        "keys": 90,
+        "seconds": 17.1,
+        "webCpuSeconds": 4.97,
+        "nativeCpuSeconds": 2.44,
+        "keyToSecondFrameP95Ms": 27
+      },
+      "switchTabs": {
+        "sidebarsOpen": {
+          "p50": 80,
+          "p95": 129
+        },
+        "sidebarsClosed": {
+          "p50": 62,
+          "p95": 95,
+          "worstFrameP50": 54
+        }
+      },
+      "openSidebarsWorstFrame": {
+        "left": 177,
+        "right": 180
+      },
+      "reopenSidebarsWorstFrame": {
+        "left": null,
+        "right": null
+      },
+      "closeTabs": {
+        "p50": 85,
+        "lastMs": 306
+      },
+      "superViewsWorstFrame": {
+        "storyGraph": 123,
+        "elementPanorama": 205,
+        "materialWorkbench": 181
+      },
+      "peakRssMB": {
+        "native": 272,
+        "web": 1480
+      }
+    },
+    {
+      "label": "fgb2",
+      "commit": "df251d31",
+      "webContentCandidates": 1,
+      "typing": {
+        "keys": 90,
+        "seconds": 17.0,
+        "webCpuSeconds": 9.18,
+        "nativeCpuSeconds": 3.39,
+        "keyToSecondFrameP95Ms": 30
+      },
+      "switchTabs": {
+        "sidebarsOpen": {
+          "p50": 78,
+          "p95": 115
+        },
+        "sidebarsClosed": {
+          "p50": 57,
+          "p95": 97,
+          "worstFrameP50": 50
+        }
+      },
+      "openSidebarsWorstFrame": {
+        "left": 165,
+        "right": 177
+      },
+      "reopenSidebarsWorstFrame": {
+        "left": null,
+        "right": null
+      },
+      "closeTabs": {
+        "p50": 86,
+        "lastMs": 312
+      },
+      "superViewsWorstFrame": {
+        "storyGraph": 129,
+        "elementPanorama": 197,
+        "materialWorkbench": 185
+      },
+      "peakRssMB": {
+        "native": 355,
+        "web": 1614
+      }
+    },
+    {
+      "label": "fgn2",
+      "commit": "af91ba0b",
+      "webContentCandidates": 1,
+      "typing": {
+        "keys": 90,
+        "seconds": 17.1,
+        "webCpuSeconds": 4.97,
+        "nativeCpuSeconds": 2.43,
+        "keyToSecondFrameP95Ms": 27
+      },
+      "switchTabs": {
+        "sidebarsOpen": {
+          "p50": 75,
+          "p95": 98
+        },
+        "sidebarsClosed": {
+          "p50": 56,
+          "p95": 97,
+          "worstFrameP50": 50
+        }
+      },
+      "openSidebarsWorstFrame": {
+        "left": 168,
+        "right": 180
+      },
+      "reopenSidebarsWorstFrame": {
+        "left": null,
+        "right": null
+      },
+      "closeTabs": {
+        "p50": 91,
+        "lastMs": 296
+      },
+      "superViewsWorstFrame": {
+        "storyGraph": 136,
+        "elementPanorama": 204,
+        "materialWorkbench": 180
+      },
+      "peakRssMB": {
+        "native": 274,
+        "web": 1508
+      }
+    },
+    {
+      "label": "rob1",
+      "commit": "df251d31",
+      "webContentCandidates": 1,
+      "typing": {
+        "keys": 90,
+        "seconds": 17.1,
+        "webCpuSeconds": 9.45,
+        "nativeCpuSeconds": 3.54,
+        "keyToSecondFrameP95Ms": 28
+      },
+      "switchTabs": {
+        "sidebarsOpen": {
+          "p50": 85,
+          "p95": 118
+        },
+        "sidebarsClosed": {
+          "p50": 58,
+          "p95": 97,
+          "worstFrameP50": 50
+        }
+      },
+      "openSidebarsWorstFrame": {
+        "left": 167,
+        "right": 191
+      },
+      "reopenSidebarsWorstFrame": {
+        "left": 93,
+        "right": 54
+      },
+      "closeTabs": {
+        "p50": 88,
+        "lastMs": 314
+      },
+      "superViewsWorstFrame": {
+        "storyGraph": 135,
+        "elementPanorama": 214,
+        "materialWorkbench": 186
+      },
+      "peakRssMB": {
+        "native": 364,
+        "web": 1607
+      }
+    },
+    {
+      "label": "ron1",
+      "commit": "af91ba0b",
+      "webContentCandidates": 1,
+      "typing": {
+        "keys": 90,
+        "seconds": 17.1,
+        "webCpuSeconds": 5.13,
+        "nativeCpuSeconds": 2.55,
+        "keyToSecondFrameP95Ms": 27
+      },
+      "switchTabs": {
+        "sidebarsOpen": {
+          "p50": 85,
+          "p95": 120
+        },
+        "sidebarsClosed": {
+          "p50": 57,
+          "p95": 92,
+          "worstFrameP50": 51
+        }
+      },
+      "openSidebarsWorstFrame": {
+        "left": 169,
+        "right": 191
+      },
+      "reopenSidebarsWorstFrame": {
+        "left": 94,
+        "right": 105
+      },
+      "closeTabs": {
+        "p50": 87,
+        "lastMs": 320
+      },
+      "superViewsWorstFrame": {
+        "storyGraph": 136,
+        "elementPanorama": 205,
+        "materialWorkbench": 183
+      },
+      "peakRssMB": {
+        "native": 277,
+        "web": 1444
+      }
+    }
+  ]
+}

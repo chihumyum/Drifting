@@ -61,6 +61,9 @@ const JOURNEYS: ReadonlyArray<readonly [string, string, Record<string, unknown>?
   ['switch-tabs-sidebars', 'switchTabs', { count: 12 }],
   ['close-sidebars', 'sidebars', { open: false }],
   ['switch-tabs', 'switchTabs', { count: 12 }],
+  // Opening a sidebar again after it was closed, its panels already built once.
+  ['reopen-sidebars', 'sidebars', { open: true }],
+  ['close-sidebars-again', 'sidebars', { open: false }],
   ['global-search', 'search', { query: '修船厂', moves: 10 }],
   ['whole-book', 'wholeBook'],
   ['super-views', 'superViews'],
@@ -330,6 +333,7 @@ function headline(report: { journeys: Journey[] }): Array<[string, string]> {
     ['typing CPU native / web', `${pct('type-end', 'native')} / ${pct('type-end', 'web')}`],
     ['scroll chapter worst frame', ms(at('scroll-chapter', 'frames', 'max'))],
     ['open left / right sidebar worst frame', `${ms(at('open-sidebars', '展开左侧栏', 'frames', 'max'))} / ${ms(at('open-sidebars', '展开右侧栏', 'frames', 'max'))}`],
+    ['reopen left / right sidebar worst frame', `${ms(at('reopen-sidebars', '展开左侧栏', 'frames', 'max'))} / ${ms(at('reopen-sidebars', '展开右侧栏', 'frames', 'max'))}`],
     ['open tab p50 / last three', `${ms(at('open-12-tabs', 'visibleMs', 'p50'))} / ${((at('open-12-tabs', 'last') as unknown[] | undefined) ?? []).map(ms).join(', ')}`],
     ['switch tab p50 / p95 (sidebars open)', `${ms(at('switch-tabs-sidebars', 'visibleMs', 'p50'))} / ${ms(at('switch-tabs-sidebars', 'visibleMs', 'p95'))}`],
     ['switch tab p50 / p95 (sidebars closed)', `${ms(at('switch-tabs', 'visibleMs', 'p50'))} / ${ms(at('switch-tabs', 'visibleMs', 'p95'))}`],
