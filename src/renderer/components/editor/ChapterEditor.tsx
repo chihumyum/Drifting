@@ -31,8 +31,7 @@ import {
   patchRequestFromComment,
   type PatchCreateRequest,
 } from './patch-create-request';
-import { CopilotEditorMount } from '../copilot/CopilotEditorMount';
-import { CopilotInlinePopover } from '../copilot/CopilotInlinePopover';
+import { TodoAutoParseMount } from './TodoAutoParseMount';
 import { useEditorSurfaceLifecycle } from './editor-surface-lifecycle-context';
 import { consumeChapterTitleFocus } from '../../features/editor/chapter-title-focus';
 const log = loglevel.getLogger('ChapterEditor');
@@ -208,7 +207,6 @@ export function ChapterEditor({
     selectionKey,
     onAddCommentRequest,
     onAddPatchRequest: handleAddPatchRequest,
-    enableInlineCopilot: true,
     // Never allow a fallback non-Yjs editor while the shared document is
     // loading or has failed replay: those edits would have no durable owner.
     editable: Boolean(ydoc) && !readOnly,
@@ -469,14 +467,10 @@ export function ChapterEditor({
         onClose={() => setPatchRequest(null)}
       />
 
-      {/* Headless mount — runs Copilot capabilities (element-candidate, element-patch) on debounced edits */}
+      {/* Headless mount — projects typed TODO markers into todo comments */}
       {ready && isVisible && isCommandActive && !readOnly && !ydocError && (
-        <CopilotEditorMount editor={editor} projectId={projectId} nodeId={nodeId} />
+        <TodoAutoParseMount editor={editor} projectId={projectId} nodeId={nodeId} />
       )}
-
-      {/* Cmd+Shift+I inline-Copilot popover (input box + capability menu). Renders
-          only for the canonical editable command surface and its project/node. */}
-      {ready && isVisible && isCommandActive && !readOnly && !ydocError && <CopilotInlinePopover editor={editor} nodeId={nodeId} projectId={projectId} />}
     </div>
   );
 }

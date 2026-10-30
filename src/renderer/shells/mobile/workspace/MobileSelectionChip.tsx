@@ -3,7 +3,7 @@ import { Ellipsis } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 /** Touch cannot raise the DOM `contextmenu` event, so the editor's shared
- * selection menu (格式/批注/补丁/Copilot, built in useEntityEditor) is
+ * selection menu (格式/批注/补丁, built in useEntityEditor) is
  * unreachable on mobile — the system edit menu takes over instead. This chip
  * floats beside any editable-paper selection and synthesizes that exact
  * `contextmenu` event at the selection, so both shells run one menu path. */

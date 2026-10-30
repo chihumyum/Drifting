@@ -35,7 +35,14 @@
     "stopping": "Stopping…",
     "failed": "That did not finish. Check the connection and try again.",
     "reauth": "Your sign-in expired. Sign in again and retry.",
-    "readerBadge": "Reader"
+    "readerBadge": "Reader",
+    "listTitle": "Share links",
+    "listLoading": "Loading share links…",
+    "listEmpty": "Nothing is shared yet",
+    "otherProject": "Not on this device",
+    "open": "Open",
+    "view": "View",
+    "count": "{{count}} shared"
   },
   "sidebarLayout": {
     "split": "Restore two columns"
@@ -80,7 +87,7 @@
     "title": "Welcome to Drifting Alpha",
     "intro": "Start writing without an account. Projects and prose are saved on this device first.",
     "localData": "No Drifting account is required. Projects, prose, relationships, Trash, and history are stored in the app's local data directory.",
-    "byok": "Copilot and General Agent are Experimental and BYOK-only. Requests, costs, retention, training terms, and output risk follow the model provider you select; API keys remain in the system Keychain.",
+    "byok": "General Agent is Experimental and BYOK-only. Requests, costs, retention, training terms, and output risk follow the model provider you select; API keys remain in the system Keychain.",
     "crashReports": "The app sends sanitized errors and key operational diagnostics, never manuscript content. You can turn this off in Settings → Privacy.",
     "settingsHint": "Continue locally to create your first project and start writing.",
     "accountAction": "Sign in / sign up and sync",
@@ -114,7 +121,6 @@
       "editor": "Editor",
       "language": "Language",
       "models": "Models & API",
-      "copilot": "Copilot · Experimental",
       "agent": "General Agent · Experimental",
       "keys": "Keyboard",
       "sync": "Sync & Data",
@@ -630,23 +636,21 @@
     "models": {
       "kicker": "MODEL PROVIDERS",
       "title": "Manage every AI credential in one place.",
-      "sub": "Each provider has one global API key. Copilot and General Agent reference it instead of saving separate copies.",
+      "sub": "Each provider has one global API key. General Agent references it instead of saving a separate copy.",
       "sidebarMeta": "BYOK · local Keychain",
       "credentialsTitle": "Provider credentials",
       "credentialsDesc": "Keys are written only to the system Keychain, never localStorage or preference sync. Each feature can still choose its own provider and model.",
       "providers": {
-        "deepseek": "Shared by Copilot and General Agent.",
-        "anthropic": "Shared by Copilot and General Agent.",
-        "openai": "Shared by Copilot and General Agent.",
+        "deepseek": "Used by General Agent.",
+        "anthropic": "Used by General Agent.",
+        "openai": "Used by General Agent.",
         "openaiCodex": "Experimental: General Agent can run GPT-5.6 on your own ChatGPT subscription through OpenAI's Codex device sign-in. OpenAI offers no third-party contract for this path, so it is unsupported and may stop working without notice; usage counts against your ChatGPT plan.",
-        "google": "Currently available to Copilot; its key is still managed here.",
         "dashscope": "Used only for voice-input transcription (Qwen3-ASR). Create an API key in the Alibaba Cloud Bailian console."
       },
       "speechTitle": "Voice transcription",
       "speechDesc": "The transcription credential for voice input, separate from the chat providers above. Transcription carries this project's element and setting names to correct proper nouns; requests go directly from this device to Bailian and the key lives only in the system keychain."
     },
     "ai": {
-      "routing": "AI routing",
       "tierTitle": "Capability tier",
       "byokTitle": "Bring your own key · BYOK",
       "modelTitle": "Model",
@@ -711,95 +715,6 @@
       "pasteCode": "Paste authorization code:",
       "verifying": "Verifying…",
       "submit": "Submit"
-    },
-    "copilot": {
-      "kicker": "COPILOT · EXPERIMENTAL",
-      "title": "Give the small work to a quiet experimental assistant.",
-      "sub": "Experimental BYOK completion, extraction, polishing, and other structured prose tasks. Review every output; provider costs, privacy, retention, training terms, and output risk apply.",
-      "keyPrivacy": "Keys are managed centrally under Models & API.",
-      "routingDesc": "Copilot stores only its provider and model choice; the API key comes from the global Keychain credential.",
-      "providerDesc": "Model provider used by Copilot calls.",
-      "aiModes": {
-        "hosted": {
-          "name": "Hosted",
-          "desc": "Use Drifting routing and quota out of the box. Pick a capability tier above."
-        },
-        "byok": {
-          "name": "BYOK",
-          "desc": "Call with your own key. Pick provider, model, and key below; it does not use hosted quota."
-        }
-      },
-      "tiers": {
-        "lite": {
-          "name": "Lite",
-          "desc": "Speed first. Short suggestions, extraction, and high-throughput tasks."
-        },
-        "standard": {
-          "name": "Standard",
-          "desc": "Daily default. Enough for structure, continuity, and polishing."
-        },
-        "pro": {
-          "name": "Deep",
-          "desc": "Long context and long-task reasoning. Slower, steadier."
-        }
-      },
-      "tierNote": "These are capability tiers; the server chooses the concrete model by tier, so model names are not shown here. Use BYOK to pin a specific model.",
-      "providers": {
-        "deepseek": "The provider used after BYOK is selected. Fill your DeepSeek key here.",
-        "anthropic": "Claude Opus / Sonnet / Haiku. Drifting bills through your key and quota.",
-        "openai": "GPT-family models.",
-        "google": "Gemini 2.5 Pro / Flash for long-context cases."
-      },
-      "providerDefault": "Provider default (blank)",
-      "customModel": "Custom…",
-      "modelIdPlaceholder": "Enter full model id",
-      "byokWarningPrefix": "Current BYOK provider \"{{provider}}\" has no connected key; ",
-      "byokWarningStrong": "AI calls will fail",
-      "byokWarningSuffix": ". Add that provider's key under Models & API.",
-      "byokModel": "Pinned model",
-      "byokModelDesc": "Model to use under the current provider. Blank uses Drifting's local default for that provider; choose Custom to enter an id outside the list.",
-      "switchesTitle": "Switches",
-      "autoTrigger": "Auto trigger",
-      "autoTriggerDesc": "Run tasks in the background after edit debounce. When off, tasks run only when manually triggered.",
-      "enableInDrift": "Enable in idea editors",
-      "enableInDriftDesc": "Ideas hold free-form drafts. Copilot stays off in idea editors by default; enable it to run the same tasks as in chapter editors.",
-      "summaryTitle": "Paragraph summaries",
-      "generateSummaries": "Generate paragraph summaries",
-      "generateSummariesDesc": "After any task fires, unsummarized blocks that reach the threshold trigger one summary call. Summaries become context for later tasks and improve patch recall; off means no summaries are generated or injected.",
-      "summaryThreshold": "Summary threshold",
-      "summaryThresholdDesc": "Generate a summary after {{count}} unsummarized blocks. Higher saves tokens; lower updates more often.",
-      "blocks": "{{count}} blocks",
-      "tasksTitle": "Automatic tasks",
-      "tasksDesc": "Each task has its own switch and trigger rhythm. Low debounce fits lightweight recognition; high debounce fits heavier analysis such as patch proposals.",
-      "tasks": {
-        "elementExtract": {
-          "label": "Element extraction",
-          "desc": "Extract people, places, and objects from the manuscript"
-        },
-        "elementPatch": {
-          "label": "Element patch suggestions",
-          "desc": "Detect state changes for existing people or places and draft patch proposals"
-        }
-      },
-      "outputLang": "Output language",
-      "outputLangDesc": "Copilot generation language for this project",
-      "outputLangOptions": {
-        "auto": "Follow manuscript",
-        "zh-CN": "Simplified Chinese",
-        "zh-TW": "Traditional Chinese",
-        "en": "English",
-        "ja": "Japanese",
-        "ko": "Korean",
-        "fr": "French"
-      },
-      "debounceTitle": "How long after you stop typing before auto-triggering",
-      "moreSettings": "More settings…",
-      "notLive": "Not live",
-      "triggerRhythm": "Trigger rhythm",
-      "afterStopPrefix": "After",
-      "afterStopSuffix": "idle",
-      "resetTaskDefaultTitle": "Restore this task's built-in default",
-      "resetDefault": "Reset default"
     },
     "agent": {
       "kicker": "GENERAL AGENT · EXPERIMENTAL",
@@ -1422,6 +1337,11 @@
       "minutesAgo": "{{count}} min ago",
       "hoursAgo": "{{count}} hr ago",
       "daysAgo": "{{count}} days ago"
+    },
+    "shareComments": {
+      "source": "Reader comment",
+      "count": "{{count}} new comments",
+      "single": "{{name}}: {{body}}"
     }
   },
   "userMenu": {
@@ -2612,71 +2532,6 @@
       "deleteAllEdges": "Delete all relations for this node ({{count}})"
     }
   },
-  "copilotInline": {
-    "groups": {
-      "selection": "Selected text",
-      "cursor": "At cursor",
-      "chapter": "This chapter"
-    },
-    "actions": {
-      "inlineSelection": "Edit selected text",
-      "inlineCursor": "Local edit",
-      "ask": "Ask",
-      "chapterSummary": "Generate chapter summary",
-      "stop": "Stop",
-      "send": "Send",
-      "close": "Close",
-      "accept": "Accept",
-      "rewrite": "Rewrite",
-      "discard": "Discard"
-    },
-    "tasks": {
-      "elementExtract": "Extract elements",
-      "elementPatch": "Suggest element patches"
-    },
-    "input": {
-      "placeholder": "Enter an edit request or question…",
-      "hint": "↑/↓ select · ⏎ run"
-    },
-    "status": {
-      "offOneShot": "Off · run once",
-      "generating": "Generating…",
-      "editing": "Editing…",
-      "thinking": "Thinking…"
-    },
-    "chapter": {
-      "written": "Chapter summary generated",
-      "skippedNonempty": "This chapter already has a summary; not overwritten",
-      "noSections": "No section summaries to combine",
-      "failed": "Generation failed"
-    },
-    "chat": {
-      "you": "You",
-      "assistant": "Copilot",
-      "generatingPlaceholder": "Answer is generating…",
-      "followupPlaceholder": "Follow up… (⏎ send, ⇧⏎ newline)"
-    },
-    "result": {
-      "noChange": "The model did not change the selected content.",
-      "preview": "Change preview",
-      "changeCount": "{{count}} changes",
-      "heading": "Heading",
-      "paragraph": "Paragraph {{index}}"
-    },
-    "refused": {
-      "title": "Not run",
-      "forceTitle": "Allow new content for this run only (quality may drop without full context)",
-      "force": "Run once",
-      "changeInstruction": "Change instruction"
-    },
-    "error": {
-      "title": "Something went wrong",
-      "retry": "Retry"
-    },
-    "errors": {
-      "selectionChanged": "The target text changed, so the edit cannot be applied. Close this panel and select the text again."
-    }
-  },
   "referencesPanel": {
     "loading": "Loading…",
     "updateFailed": "References could not be updated. Retrying…",
@@ -2849,8 +2704,6 @@
       "open": "open"
     },
     "card": {
-      "copilotSuggestion": "Copilot suggestion",
-      "copilotSuggestionWithKind": "Copilot suggestion ({{kind}})",
       "emptyComment": "Empty comment"
     },
     "original": {
@@ -3000,8 +2853,7 @@
     "contextMenu": {
       "format": "Format",
       "addComment": "Add comment",
-      "addPatch": "New patch",
-      "copilot": "Revise with Copilot"
+      "addPatch": "New patch"
     }
   },
   "elementCardPopover": {
@@ -3044,7 +2896,8 @@
       "far": "Far",
       "mid": "Mid",
       "near": "Near",
-      "lines": "Together",
+      "lines": "Same paragraph",
+      "linesSection": "Automatic lines",
       "linesTitle": "A sand line joins two elements mentioned in the same paragraph of a chapter",
       "threshold": "Paragraphs together, at least",
       "atLeast": "≥{{count}}",
@@ -3052,6 +2905,19 @@
       "newElement": "New element here",
       "unpin": "Back to automatic layout",
       "pinned": "Pinned",
+      "island": {
+        "openInTab": "Open in a tab",
+        "collapse": "Back to card",
+        "resize": "Drag to resize the island",
+        "fold": "Fold",
+        "unfold": "Unfold",
+        "categoryMeta": "{{count}} elements",
+        "mentions": "{{count}} mentions",
+        "unmentioned": "Not in the prose",
+        "mostMentioned": "Most mentioned first",
+        "element": "Element",
+        "category": "Category"
+      },
       "detail": {
         "meta": "{{category}} · {{count}} mentions",
         "appearance": "Appears",

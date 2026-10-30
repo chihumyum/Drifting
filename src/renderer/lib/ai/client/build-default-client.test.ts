@@ -4,7 +4,6 @@ import type { BYOKProvider } from '../../byok-keychain';
 import {
   buildDirectBYOKClient,
   buildGeneralAgentClient,
-  isProxyTransport,
 } from './build-default-client';
 
 describe('direct BYOK client factory', () => {
@@ -16,14 +15,9 @@ describe('direct BYOK client factory', () => {
     ['deepseek', 'deepseek'],
     ['anthropic', 'anthropic'],
     ['openai', 'openai'],
-    ['google', 'google-ai-studio'],
   ] as const)('builds the explicitly selected %s adapter', (provider, providerId) => {
     const client = buildDirectBYOKClient(provider as BYOKProvider, 'synthetic-test-key');
     expect(client.providerId).toBe(providerId);
-  });
-
-  it('does not enable the hosted proxy in the default local-only build', () => {
-    expect(isProxyTransport()).toBe(false);
   });
 
   it('rejects General Agent provider construction before reading credentials while offline', async () => {

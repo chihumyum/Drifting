@@ -4,13 +4,7 @@ import {
   type ElementPatch,
   type UpdatePatchInput,
 } from '../sqlite-repo/element-patch-repo';
-import {
-  createBlockSectionRepository,
-  type CreateBlockSectionInput,
-  type UpdateBlockSectionInput,
-} from '../sqlite-repo/block-section-repo';
 import type { DbExecutor } from '../lib/db';
-import type { BlockSection } from '../domain/block-section';
 import type { BookElement } from '../domain/book-element';
 import type { Comment } from '../domain/comment';
 import type { Project } from '../domain/project';
@@ -436,50 +430,5 @@ export async function deleteElementPatchWithSync(
   await runAtomic(projectId, async (tx, sync) => {
     await createElementPatchRepository(tx).delete(id);
     await sync('elementPatch', 'softDelete', id, projectId);
-  });
-}
-
-export async function createBlockSectionWithSync(
-  input: CreateBlockSectionInput,
-): Promise<BlockSection> {
-  return runDerivedTransaction('copilot.block-section-create', (tx) =>
-    createBlockSectionRepository(tx).create(input),
-  );
-}
-
-export async function updateBlockSectionWithSync(
-  _projectId: string,
-  id: string,
-  updates: UpdateBlockSectionInput,
-): Promise<BlockSection | null> {
-  return runDerivedTransaction('copilot.block-section-update', (tx) =>
-    createBlockSectionRepository(tx).update(id, updates),
-  );
-}
-
-export async function deleteBlockSectionsWithSync(
-  _projectId: string,
-  ids: string[],
-): Promise<void> {
-  if (ids.length === 0) return;
-  await runDerivedTransaction('copilot.block-section-delete', async (tx) => {
-    const repo = createBlockSectionRepository(tx);
-    for (const id of ids) {
-      await repo.delete(id);
-    }
-  });
-}
-
-export async function replaceBlockSectionsWithSync(
-  input: CreateBlockSectionInput,
-  replacedIds: string[],
-): Promise<BlockSection> {
-  return runDerivedTransaction('copilot.block-section-replace', async (tx) => {
-    const repo = createBlockSectionRepository(tx);
-    const created = await repo.create(input);
-    for (const id of replacedIds) {
-      await repo.delete(id);
-    }
-    return created;
   });
 }

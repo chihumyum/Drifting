@@ -450,10 +450,12 @@ html:not([data-shell-mode='mobile']) .se-band__name.sand-cell {
   pointer-events: none;
 }
 
-/* ── The focused element ──────────────────────────────────────────── */
-/* A lifted piece of desk at the canvas's right edge (the menu surface
-   tokens), no lines inside; its rows are menu rows. */
-.se-detail {
+/* ── The floating island ──────────────────────────────────────────── */
+/* The prototype's B: a lifted piece of desk inset from the canvas's edges,
+   rounded, no glass. A small card at the top right; grown, a full-height
+   sheet holding the workspace's own editor, its left edge dragged for width
+   (SuperElementIsland). */
+.se-island {
   position: absolute;
   top: 16px;
   right: 16px;
@@ -461,15 +463,197 @@ html:not([data-shell-mode='mobile']) .se-band__name.sand-cell {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 10px;
   width: 300px;
   max-height: calc(100% - 32px);
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--menu-surface-bg);
+  box-shadow:
+    0 0 0 0.5px hsl(var(--ink-1) / 0.14),
+    0 28px 60px -26px hsl(var(--shadow-ink) / 0.5);
+  /* The canvas grabs and never selects; the island's editor does both. */
+  cursor: auto;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.se-island--sheet {
+  top: 12px;
+  right: 12px;
+  bottom: 12px;
+  max-height: none;
+  border-radius: 14px;
+}
+
+.se-island.is-resizing {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* The left edge: a hairline that bleeds glass while it is dragged. */
+.se-island__edge {
+  position: absolute;
+  top: 14px;
+  bottom: 14px;
+  left: -4px;
+  z-index: 3;
+  width: 9px;
+  cursor: col-resize;
+}
+
+.se-island__edge-flow {
+  left: 4px;
+  --flow-gx: -40px;
+}
+
+.se-island__head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  height: 46px;
+  padding: 0 10px 0 16px;
+  color: hsl(var(--ink-1));
+  font: 600 14px/1 var(--font-sans);
+  white-space: nowrap;
+}
+
+.se-island__head > .kind-mark {
+  flex: none;
+}
+
+.se-island__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.se-island__kind {
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font: 400 11px/1 var(--font-mono);
+}
+
+.se-island.is-compact .se-island__kind,
+.se-island.is-compact .se-island__open {
+  display: none;
+}
+
+.se-island__spacer {
+  flex: 1;
+  min-width: 0;
+}
+
+.se-island__close {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: hsl(var(--ink-3));
+  cursor: pointer;
+}
+
+.se-island__close:hover {
+  color: hsl(var(--ink-1));
+}
+
+/* The overview's own facts above the editor; folds away to one line. */
+.se-island__strip {
+  position: relative;
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 7px;
+  padding: 0 16px 12px;
+}
+
+.se-island__strip.is-folded {
+  padding-bottom: 6px;
+}
+
+.se-island__fold {
+  position: absolute;
+  top: -2px;
+  right: 12px;
+  height: 20px;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font: 400 12px/1 var(--font-sans);
+  cursor: pointer;
+}
+
+.se-island__strip.is-folded .se-island__fold {
+  position: static;
+  align-self: flex-end;
+}
+
+.se-island__fold:hover {
+  color: hsl(var(--ink-1));
+}
+
+.se-strip__row {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  padding-right: 48px;
+}
+
+.se-strip__ticks {
+  flex: 1;
+  min-width: 0;
+  min-height: 16px;
+}
+
+.se-strip__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+
+.se-strip__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: hsl(var(--ink-2));
+  font: 400 12px/1 var(--font-sans);
+  cursor: pointer;
+}
+
+.se-strip__chip:hover {
+  color: hsl(var(--ink-1));
+}
+
+/* The workspace's own editor, on its paper, filling the rest. */
+.se-island__body {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  margin: 0 8px 8px;
+  overflow: hidden;
+  border-radius: 9px;
+  background: hsl(var(--paper));
+  box-shadow: 0 0 0 0.5px hsl(var(--ink-1) / 0.1);
+}
+
+/* The small card's content. */
+.se-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
   overflow: auto;
   padding: 16px 16px 12px;
-  border-radius: var(--menu-surface-radius);
-  background: var(--menu-surface-bg);
-  box-shadow: var(--menu-surface-shadow);
-  cursor: default;
 }
 
 .se-detail__head {
@@ -611,4 +795,16 @@ html:not([data-shell-mode='mobile']) .se-band__name.sand-cell {
 .se-find {
   width: 168px;
   min-height: 26px;
+}
+
+/* 正文同段 in the relation menu (全部): the automatic lines' switch and
+   threshold on one row, what they draw in a line below. */
+.se-lines-section__row {
+  align-items: center;
+}
+
+.se-lines-section__hint {
+  padding: 2px 14px 8px;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  font-size: var(--ui-font-secondary, 12px);
 }

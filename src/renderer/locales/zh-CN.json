@@ -35,7 +35,14 @@
     "stopping": "正在停止…",
     "failed": "操作没有完成，请检查网络后重试。",
     "reauth": "登录已过期，请重新登录后再试。",
-    "readerBadge": "读者"
+    "readerBadge": "读者",
+    "listTitle": "分享链接",
+    "listLoading": "正在读取分享链接…",
+    "listEmpty": "还没有分享的内容",
+    "otherProject": "不在本机的作品",
+    "open": "打开",
+    "view": "查看",
+    "count": "{{count}} 项"
   },
   "sidebarLayout": {
     "split": "恢复双栏"
@@ -80,7 +87,7 @@
     "title": "欢迎使用 Drifting Alpha",
     "intro": "无需账号也能开始写作。项目与正文会先保存在这台设备上。",
     "localData": "无需 Drifting 账号；项目、正文、关系、回收站与历史记录都保存在应用的本地数据目录。",
-    "byok": "Copilot 与 General Agent 均为 Experimental 且只支持 BYOK。请求、费用、留存、训练条款与输出风险由你选择的模型服务商决定；API Key 只留在系统 Keychain。",
+    "byok": "General Agent 为 Experimental 且只支持 BYOK。请求、费用、留存、训练条款与输出风险由你选择的模型服务商决定；API Key 只留在系统 Keychain。",
     "crashReports": "应用会自动发送不含正文的错误与关键操作诊断，方便排查故障；可以在 设置 → 隐私 中关闭。",
     "settingsHint": "继续本地模式即可创建第一个项目，开始写作。",
     "accountAction": "登录 / 注册并同步",
@@ -114,7 +121,6 @@
       "editor": "编辑器",
       "language": "语言",
       "models": "模型与 API",
-      "copilot": "Copilot · Experimental",
       "agent": "General Agent · Experimental",
       "keys": "快捷键",
       "sync": "同步与数据",
@@ -630,23 +636,21 @@
     "models": {
       "kicker": "模型服务 · PROVIDERS",
       "title": "所有 AI 凭据，只在这里管理。",
-      "sub": "每个 provider 保存一条全局 API Key；Copilot 和 General Agent 只引用它，不再各自保存副本。",
+      "sub": "每个 provider 保存一条全局 API Key；General Agent 只引用它，不另存副本。",
       "sidebarMeta": "BYOK · 本机 Keychain",
       "credentialsTitle": "Provider 凭据",
       "credentialsDesc": "密钥仅写入本机系统 Keychain，不进入 localStorage 或偏好同步。不同功能可以各自选择 provider 与模型。",
       "providers": {
-        "deepseek": "可供 Copilot 与 General Agent 共用。",
-        "anthropic": "可供 Copilot 与 General Agent 共用。",
-        "openai": "可供 Copilot 与 General Agent 共用。",
+        "deepseek": "供 General Agent 使用。",
+        "anthropic": "供 General Agent 使用。",
+        "openai": "供 General Agent 使用。",
         "openaiCodex": "实验性：General Agent 可通过 OpenAI 的 Codex 设备登录，用你自己的 ChatGPT 订阅运行 GPT-5.6。OpenAI 未对第三方应用开放此路径，因此不受支持、可能随时失效；用量计入你的 ChatGPT 套餐。",
-        "google": "当前可供 Copilot 使用；密钥仍在这里统一管理。",
         "dashscope": "仅用于语音输入转写（Qwen3-ASR）。在阿里云百炼控制台创建 API Key 后填入。"
       },
       "speechTitle": "语音转写",
       "speechDesc": "语音输入的转写凭据，独立于上方对话模型。转写会携带本项目的要素与设定名以纠正专有名词；请求从本机直连百炼，Key 仅存系统钥匙串。"
     },
     "ai": {
-      "routing": "AI 调用方式",
       "tierTitle": "能力档位",
       "byokTitle": "自带密钥 · BYOK",
       "modelTitle": "模型",
@@ -711,95 +715,6 @@
       "pasteCode": "粘贴授权 code：",
       "verifying": "验证中…",
       "submit": "提交"
-    },
-    "copilot": {
-      "kicker": "COPILOT · EXPERIMENTAL",
-      "title": "把琐事交给一位安静的实验性副手。",
-      "sub": "Experimental BYOK 补全、实体抽取、润色等结构化任务。请检查每次输出；费用、隐私、留存、训练条款与输出风险由所选 provider 决定。",
-      "keyPrivacy": "密钥统一在「模型与 API」管理。",
-      "routingDesc": "Copilot 只保存自己的 provider 与模型选择，API Key 引用全局 Keychain 凭据。",
-      "providerDesc": "选择 Copilot 调用的模型服务商。",
-      "aiModes": {
-        "hosted": {
-          "name": "托管",
-          "desc": "走 Drifting 的通道与额度，开箱即用。只需在上方选一个能力档位。"
-        },
-        "byok": {
-          "name": "自带 Key",
-          "desc": "用你自己的 Key 调用（在下方选 provider、填模型与 Key），不计入托管额度。"
-        }
-      },
-      "tiers": {
-        "lite": {
-          "name": "轻量",
-          "desc": "速度优先。短建议、实体抽取等高吞吐任务。"
-        },
-        "standard": {
-          "name": "标准",
-          "desc": "日常默认。结构、连贯、润色都够用。"
-        },
-        "pro": {
-          "name": "深思",
-          "desc": "长上下文、长任务推理。慢一点，更稳。"
-        }
-      },
-      "tierNote": "档位是「能力档」，具体模型由服务端按档位选择（所以这里不显示模型名）。想精确指定某个模型，请改用「自带 Key」。",
-      "providers": {
-        "deepseek": "选「自带 Key」后实际调用的 provider。在此填入你的 DeepSeek Key。",
-        "anthropic": "Claude Opus / Sonnet / Haiku。Drifting 通过你的密钥按你的额度计费。",
-        "openai": "GPT 系列模型。",
-        "google": "Gemini 2.5 Pro / Flash · 长上下文场景。"
-      },
-      "providerDefault": "provider 默认（留空）",
-      "customModel": "自定义…",
-      "modelIdPlaceholder": "输入完整 model id",
-      "byokWarningPrefix": "当前 BYOK provider「{{provider}}」未连接密钥 —— ",
-      "byokWarningStrong": "AI 调用会直接失败",
-      "byokWarningSuffix": "。请前往「模型与 API」填写该 provider 的密钥。",
-      "byokModel": "指定模型",
-      "byokModelDesc": "当前 provider 下要用的模型（留空 = 使用 Drifting 在本地配置的该 provider 默认模型；列表外的可选「自定义…」手填 id）。",
-      "switchesTitle": "开关",
-      "autoTrigger": "自动触发",
-      "autoTriggerDesc": "编辑时按 debounce 自动后台运行 task。关闭后只在你手动触发（⇧⌘I / 选中文本后的「Copilot 修改」）时运行。",
-      "enableInDrift": "在构想编辑器中启用",
-      "enableInDriftDesc": "构想用于自由记录创作草稿，默认不打扰。关闭时 Copilot 只在章节编辑器里工作；开启后构想编辑器也会执行同样的任务。",
-      "summaryTitle": "段落概要",
-      "generateSummaries": "生成段落概要",
-      "generateSummariesDesc": "任何 task 触发后，若未被概要的 block 累积到阈值，会发一次概要调用。概要会作为后续 task 的上下文，提升 patch 召回；关闭则不生成、不注入。",
-      "summaryThreshold": "概要阈值",
-      "summaryThresholdDesc": "攒够 {{count}} 个未概要的 block 后再生成一段。值越大越省 token；值越小概要越频繁。",
-      "blocks": "{{count}} 块",
-      "tasksTitle": "自动任务",
-      "tasksDesc": "每个 task 都能独立开关和调触发节奏。低 debounce 适合轻量识别（如实体抽取），高 debounce 适合重型分析（如 patch 提议）。",
-      "tasks": {
-        "elementExtract": {
-          "label": "要素抽取",
-          "desc": "从手稿中抽取人物 / 地点 / 物件"
-        },
-        "elementPatch": {
-          "label": "要素补丁建议",
-          "desc": "从段落里发现已有人物 / 地点的状态变化，生成 patch 提案"
-        }
-      },
-      "outputLang": "输出语言",
-      "outputLangDesc": "本项目 Copilot 生成语言",
-      "outputLangOptions": {
-        "auto": "跟随手稿",
-        "zh-CN": "简体中文",
-        "zh-TW": "繁體中文",
-        "en": "English",
-        "ja": "日本語",
-        "ko": "한국어",
-        "fr": "Français"
-      },
-      "debounceTitle": "停笔多久后自动触发",
-      "moreSettings": "更多设置…",
-      "notLive": "未上线",
-      "triggerRhythm": "触发节奏",
-      "afterStopPrefix": "停笔",
-      "afterStopSuffix": "后触发",
-      "resetTaskDefaultTitle": "恢复该 task 的内置默认值",
-      "resetDefault": "重置默认"
     },
     "agent": {
       "kicker": "GENERAL AGENT · EXPERIMENTAL",
@@ -1422,6 +1337,11 @@
       "minutesAgo": "{{count}} 分钟前",
       "hoursAgo": "{{count}} 小时前",
       "daysAgo": "{{count}} 天前"
+    },
+    "shareComments": {
+      "source": "读者评论",
+      "count": "{{count}} 条新评论",
+      "single": "{{name}}：{{body}}"
     }
   },
   "userMenu": {
@@ -2607,71 +2527,6 @@
       "deleteAllEdges": "删除此节点的所有关联 ({{count}})"
     }
   },
-  "copilotInline": {
-    "groups": {
-      "selection": "对选中的文本触发",
-      "cursor": "在光标处触发",
-      "chapter": "本章节触发"
-    },
-    "actions": {
-      "inlineSelection": "局部文本修改",
-      "inlineCursor": "局部修改",
-      "ask": "问",
-      "chapterSummary": "生成章节摘要",
-      "stop": "停止",
-      "send": "发送",
-      "close": "关闭",
-      "accept": "接受",
-      "rewrite": "重写",
-      "discard": "放弃"
-    },
-    "tasks": {
-      "elementExtract": "要素抽取",
-      "elementPatch": "要素补丁建议"
-    },
-    "input": {
-      "placeholder": "输入修改要求 / 问题…",
-      "hint": "↑/↓ 选择 · ⏎ 执行"
-    },
-    "status": {
-      "offOneShot": "已关闭 · 单次运行",
-      "generating": "生成中…",
-      "editing": "正在修改……",
-      "thinking": "正在思考……"
-    },
-    "chapter": {
-      "written": "已生成章节摘要",
-      "skippedNonempty": "本章已有摘要，未覆盖",
-      "noSections": "暂无段落摘要可汇总",
-      "failed": "生成失败"
-    },
-    "chat": {
-      "you": "你",
-      "assistant": "副手",
-      "generatingPlaceholder": "回答生成中…",
-      "followupPlaceholder": "追问…（⏎ 发送，⇧⏎ 换行）"
-    },
-    "result": {
-      "noChange": "模型未对所选内容作出修改。",
-      "preview": "改动预览",
-      "changeCount": "共 {{count}} 处改动",
-      "heading": "标题",
-      "paragraph": "第 {{index}} 段"
-    },
-    "refused": {
-      "title": "未执行",
-      "forceTitle": "仅本次允许生成新内容（缺少全局上下文，质量可能下降）",
-      "force": "本次执行",
-      "changeInstruction": "换个指令"
-    },
-    "error": {
-      "title": "出错了",
-      "retry": "重试"
-    },
-    "errors": {
-      "selectionChanged": "目标正文已发生变化，无法应用修改。请关闭后重新选择文本。"
-    }
-  },
   "referencesPanel": {
     "loading": "加载中…",
     "updateFailed": "引用列表暂未更新，正在重试。",
@@ -2844,8 +2699,6 @@
       "open": "open"
     },
     "card": {
-      "copilotSuggestion": "Copilot 建议",
-      "copilotSuggestionWithKind": "Copilot 建议 ({{kind}})",
       "emptyComment": "空批注"
     },
     "original": {
@@ -2995,8 +2848,7 @@
     "contextMenu": {
       "format": "格式",
       "addComment": "添加批注",
-      "addPatch": "新建补丁",
-      "copilot": "Copilot 修改"
+      "addPatch": "新建补丁"
     }
   },
   "elementCardPopover": {
@@ -3039,7 +2891,8 @@
       "far": "远",
       "mid": "中",
       "near": "近",
-      "lines": "同段",
+      "lines": "正文同段",
+      "linesSection": "自动连线",
       "linesTitle": "两个要素在同一章的同一段里都被提到，就连一条砂线",
       "threshold": "同段至少几次",
       "atLeast": "≥{{count}}",
@@ -3047,6 +2900,19 @@
       "newElement": "在这里新建要素",
       "unpin": "恢复自动排布",
       "pinned": "已固定",
+      "island": {
+        "openInTab": "在标签页中打开",
+        "collapse": "收成小卡",
+        "resize": "拖动调整浮岛宽度",
+        "fold": "收起",
+        "unfold": "展开",
+        "categoryMeta": "{{count}} 个要素",
+        "mentions": "{{count}} 处",
+        "unmentioned": "未出场",
+        "mostMentioned": "提及最多的在前",
+        "element": "要素",
+        "category": "类目"
+      },
       "detail": {
         "meta": "{{category}} · 提及 {{count}} 处",
         "appearance": "出场",

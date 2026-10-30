@@ -61,11 +61,34 @@ describe('workspace window-control row', () => {
       /width:\s*26px;[\s\S]*height:\s*26px;/,
     );
 
-    const expectedPosition = { x: 18, y: 22 };
+    // y: 23 puts the 14px buttons' centre on the 21px line (measured in a real window).
+    const expectedPosition = { x: 18, y: 23 };
     expect(baseConfig.app.windows[0]?.trafficLightPosition).toEqual(expectedPosition);
     expect(macConfig.app.windows[0]?.trafficLightPosition).toEqual(expectedPosition);
-    expect(appEffects).toContain('.setTrafficLightPosition({ x: 18, y: 22 })');
-    expect(doc).toContain('macOS 红绿灯固定为 `x: 18, y: 22`');
+    expect(appEffects).toContain('.setTrafficLightPosition({ x: 18, y: 23 })');
+    expect(doc).toContain('macOS 红绿灯固定为 `x: 18, y: 23`');
+  });
+
+  it('settles Chinese tab labels onto the window-control line', () => {
+    const tabs = source('src/renderer/components/ui/PanelTabs.tsx');
+    const fontsCss = source('src/styles/interface-fonts.css');
+    const doc = designSystemDocs();
+
+    // Both sidebars' tab rows render their words through the shared label.
+    for (const header of [
+      'src/renderer/components/leftBars/LeftSidebarHeader.tsx',
+      'src/renderer/components/rightBars/RightSidebarHeader.tsx',
+    ]) {
+      const text = source(header);
+      expect(text).toContain('<PanelTabLabel>{label}</PanelTabLabel>');
+      expect(text).not.toContain('<span data-panel-tab-label>');
+    }
+    expect(tabs).toContain("data-script={CJK_TEXT.test(children) ? 'cjk' : undefined}");
+    // Newsreader sets the line; the fallback ideographs drop by 0.15em onto it.
+    expect(
+      cssBlock(fontsCss, ".workspace-panel-tab-row [data-panel-tab-label][data-script='cjk'] {"),
+    ).toMatch(/position:\s*relative;[\s\S]*top:\s*0\.15em;/);
+    expect(doc).toContain('下移 `0.15em`');
   });
 
   it('keeps the window draggable without a title bar', () => {

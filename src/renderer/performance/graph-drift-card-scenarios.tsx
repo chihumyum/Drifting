@@ -58,9 +58,15 @@ export async function runGraphDriftCardScenarios() {
             </SuperViewNavigationProvider></SuperViewRelationUiProvider>
           </WorkspaceNavigationProvider></MemoryRouter>));
           await pause(700);
-          const toggle = host.querySelector<HTMLButtonElement>(view === 'graph' ? '.graph-head__unplaced > button' : '[data-se-lines]')!;
+          // Super Element's whole-canvas toggle (正文同段) is in the relation menu.
+          const relationMenu = host.querySelector<HTMLButtonElement>('.relation-kind-menu-anchor > button')!;
+          if (view !== 'graph') flushSync(() => relationMenu.click());
+          const toggle = view === 'graph'
+            ? host.querySelector<HTMLButtonElement>('.graph-head__unplaced > button')!
+            : document.querySelector<HTMLButtonElement>('[data-se-lines]')!;
           resetWork(); for (let index = 0; index < 20; index++) flushSync(() => toggle.click());
           const closedWork = { ...graphDriftWork };
+          if (view !== 'graph') flushSync(() => relationMenu.click());
           resetWork(); flushSync(() => host.querySelector<HTMLButtonElement>('.drift-panel__tab')!.click());
           await pause(700); const mountWork = { ...graphDriftWork };
           const cards = [...host.querySelectorAll<HTMLElement>('.drift-card')];

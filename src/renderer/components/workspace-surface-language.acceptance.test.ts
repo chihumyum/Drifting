@@ -78,7 +78,6 @@ describe('workspace surface language acceptance', () => {
     const minimum = source('src/renderer/hooks/useSidebarTabMinimumWidth.ts');
     const userMenu = source('src/renderer/components/topBars/UserMenu.tsx');
     const notification = source('src/renderer/components/notifications/NotificationPill.tsx');
-    const copilot = source('src/renderer/components/copilot/CopilotBottomMenu.tsx');
 
     // Each toggle is one round glass button fixed in its window corner; the
     // sidebar slides in and out underneath it. The desk strip only drags.
@@ -136,13 +135,9 @@ describe('workspace surface language acceptance', () => {
     expect(userMenu).toContain("placement = 'bottom-end'");
     expect(notification).toContain("opens === 'up'");
 
-    expect(userMenu).toContain("setActiveSettingsPage('copilot')");
-    expect(userMenu).not.toContain("setActiveSettingsPage('shadow')");
-    expect(userMenu).toContain('<CopilotQuickSettings');
-    expect(userMenu).not.toContain('<ShadowQuickSettings');
-    expect(userMenu).toContain('dismissOnEscape={activeSettingsPage === null}');
-    expect(copilot).toContain('export function CopilotQuickSettings');
-    expect(copilot).not.toContain('<GhostIconButton');
+    // Copilot and Shadow are retired: the account menu opens no quick-settings page.
+    expect(userMenu).not.toContain('QuickSettings');
+    expect(userMenu).not.toContain('setActiveSettingsPage');
     expect(notification).not.toContain('e.currentTarget.style.background');
     // The account beside Home and the bell is glass too: no brightening wash
     // under the pointer, its rim flows instead and stands while its menu is open.
@@ -1006,7 +1001,7 @@ describe('workspace surface language acceptance', () => {
     );
 
     expect(header).toContain("activeSuperView === 'element' || activeSuperView === 'graph'");
-    expect(header).toContain('<DesktopSuperViewRelationControl canvas={relationCanvas} />');
+    expect(header).toContain('<DesktopSuperViewRelationControl canvas={relationCanvas} lead={relationMenuLead} />');
     expect(relationControl).toContain('<RelationKindMenu');
     expect(relationControl).toContain('relationTypeGroups={{');
     expect(storyGraph).not.toContain('<RelationKindMenu');
@@ -1151,7 +1146,7 @@ describe('workspace surface language acceptance', () => {
     expect(dock).not.toContain('<svg');
     expect(topTimeline).toContain('<BrushIcon name="plus" />');
     expect(userMenu).not.toContain("from 'lucide-react'");
-    for (const name of ['jizo', 'wen', 'dharma-wheel', 'movable-type', 'case-dew', 'books']) {
+    for (const name of ['wen', 'dharma-wheel', 'movable-type', 'case-dew', 'books']) {
       expect(userMenu).toContain(`<BrushIcon name="${name}" size={13} />`);
     }
     expect(userMenu).toContain("name={themeMode === 'light' ? 'enso' : themeMode === 'dark' ? 'ink-disc' : 'taiji'}");

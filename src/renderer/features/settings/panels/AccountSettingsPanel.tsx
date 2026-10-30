@@ -17,6 +17,8 @@ import {
   type SettingsRegisterRef,
 } from '../SettingsPrimitives';
 import { settingsOnDesktop } from '../settings-on-desktop';
+import { useShareLinkStore } from '../../share-links/share-link-store';
+import { useShareLinksDialogStore } from '../../share-links/share-links-dialog-store';
 
 export function AccountPanel({ registerRef }: { registerRef: SettingsRegisterRef }) {
   const { t } = useTranslation();
@@ -94,6 +96,7 @@ export function AccountPanel({ registerRef }: { registerRef: SettingsRegisterRef
           }
         />
         {user && <HostedAccountDetails key={user.id} user={user} disabled={busy || !accountReady} />}
+        {user && accountReady && <ShareLinksRow />}
         <SettingsSectionHeader title={t('settings.hosted.sync_title')} />
         <SettingsRow
           label={t(connected ? 'settings.hosted.enabled' : 'settings.hosted.disabled')}
@@ -221,5 +224,25 @@ export function AccountPanel({ registerRef }: { registerRef: SettingsRegisterRef
         {message && <p role="status" className="set-account-message">{message}</p>}
       </div>
     </section>
+  );
+}
+
+/** The account's share links: how many, and the list (features/share-links). */
+function ShareLinksRow() {
+  const { t } = useTranslation();
+  const count = useShareLinkStore((state) => state.shares.length);
+  useEffect(() => {
+    void useShareLinkStore.getState().refresh(60_000).catch(() => undefined);
+  }, []);
+  return (
+    <SettingsRow
+      label={t('shareLink.listTitle')}
+      desc={t('shareLink.count', { count })}
+      control={
+        <SettingsButton onClick={() => useShareLinksDialogStore.getState().show()}>
+          {t('shareLink.view')}
+        </SettingsButton>
+      }
+    />
   );
 }

@@ -64,7 +64,7 @@ function AppearanceEffects() {
     const runtime = getPlatformRuntime();
     if (!runtime.isMacDesktop || !runtime.desktopWindowControls) return;
     void platform.window
-      .setTrafficLightPosition({ x: 18, y: 22 })
+      .setTrafficLightPosition({ x: 18, y: 23 })
       .catch((error) => log.warn('Native window-control positioning is unavailable:', error));
   }, []);
 

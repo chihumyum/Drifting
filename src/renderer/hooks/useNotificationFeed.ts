@@ -1,5 +1,4 @@
 import { useEffect } from 'react';
-import { events } from '../lib/events';
 import { useTranslation } from 'react-i18next';
 import { useNotificationStore } from '../store/notification-store';
 import { useProjectStore } from '../store/project-store';
@@ -52,18 +51,12 @@ function phaseKey(status: SyncGenerationRuntimeStatus): string {
 }
 
 /**
- * Wires Copilot lifecycle events and sanitized Hosted transfer progress
- * into the shared notification store. One sync cycle stays one row from its
+ * Wires sanitized Hosted transfer progress into the shared notification
+ * store. One sync cycle stays one row from its
  * first material transfer through completion, cancellation, or failure.
  */
 export function useNotificationFeed(): void {
   const { t, i18n } = useTranslation();
-
-  useEffect(() => {
-    const ingest = useNotificationStore.getState().ingest;
-    events.on('ai-task', ingest);
-    return () => events.off('ai-task', ingest);
-  }, []);
 
   useEffect(() => {
     const active = new Map<

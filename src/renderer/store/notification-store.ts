@@ -1,7 +1,6 @@
 /**
- * Global task notification feed. Copilot emits an `ai-task` event while the
- * sync feed projects sanitized Hosted runtime progress. Both are
- * ingested into a capped, newest-first history that backs two surfaces:
+ * Global task notification feed. The sync feed projects sanitized Hosted
+ * runtime progress into a capped, newest-first history that backs two surfaces:
  *   - the Dynamic-Island PILL in the topbar (shows the in-flight task, or the
  *     most-recent result for a few seconds, else an unread-count bell), and
  *   - the NOTIFICATION CENTER dropdown (the full recent history, reopenable).
@@ -12,10 +11,19 @@
  * mobile can project the same sanitized transfer lifecycle independently.
  */
 import { create } from 'zustand';
-import type { AiTaskEvent, AiTaskOutcome, AiTaskSource } from '../lib/events';
 
 export type NotificationState = 'running' | 'completed' | 'failed' | 'stopped';
-export type AppNotificationSource = AiTaskSource | 'hosted-sync' | 'agent-organize';
+/** `share-comment`: readers commented on something the author shares (features/share-links). */
+export type AppNotificationSource = 'hosted-sync' | 'share-comment' | 'agent-organize';
+
+/** What a notification opens: an entity in a project, wherever the author is. */
+export interface AppNotificationTarget {
+  projectId: string;
+  entityType: 'node' | 'element' | 'storyline' | 'category';
+  id: string;
+}
+/** Tints the completed banner. */
+export type NotificationOutcome = 'clean' | 'issues' | 'ok' | 'error';
 
 export interface AppNotificationProgress {
   /** Null means the total is still being discovered. */
@@ -26,9 +34,21 @@ export interface AppNotificationProgress {
   totalObjects: number;
 }
 
-export interface AppNotificationEvent extends Omit<AiTaskEvent, 'source'> {
+/** One task lifecycle signal; `id` is stable across started → completed/failed. */
+export interface AppNotificationEvent {
+  id: string;
   source: AppNotificationSource;
+  state: 'started' | 'completed' | 'failed' | 'stopped';
+  title: string;
+  detail?: string;
+  /** For click-to-navigate, when applicable. */
+  chapterId?: string;
+  outcome?: NotificationOutcome;
+  count?: number;
+  error?: string;
+  at: number;
   progress?: AppNotificationProgress;
+  target?: AppNotificationTarget;
   /** Clicking the row opens this project's Home. */
   projectHomeId?: string;
 }
@@ -40,8 +60,9 @@ export interface AppNotification {
   title: string;
   detail?: string;
   chapterId?: string;
+  target?: AppNotificationTarget;
   projectHomeId?: string;
-  outcome?: AiTaskOutcome;
+  outcome?: NotificationOutcome;
   count?: number;
   error?: string;
   progress?: AppNotificationProgress;
@@ -91,6 +112,7 @@ export const useNotificationStore = create<NotificationStore>((set) => ({
           title: e.title || existing.title,
           detail: e.detail ?? existing.detail,
           chapterId: e.chapterId ?? existing.chapterId,
+          target: e.target ?? existing.target,
           projectHomeId: e.projectHomeId ?? existing.projectHomeId,
           outcome: e.outcome ?? existing.outcome,
           count: e.count ?? existing.count,
@@ -110,6 +132,7 @@ export const useNotificationStore = create<NotificationStore>((set) => ({
         title: e.title,
         detail: e.detail,
         chapterId: e.chapterId,
+        target: e.target,
         projectHomeId: e.projectHomeId,
         outcome: e.outcome,
         count: e.count,

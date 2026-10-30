@@ -56,18 +56,23 @@ export async function runSuperElementCardScenarios() {
         const nodes = [...host.querySelectorAll<HTMLElement>('[data-super-card="node"]')];
         // The desktop islands have no chapter band, so no chapter cards.
         if (cards.length !== elements || nodes.length !== 0) throw new Error('Full graph fixture did not mount every card.');
-        // The header toggle that reaches every card: the islands' 同段 lines.
-        const focus = host.querySelector<HTMLButtonElement>('[data-se-lines]')!;
+        // The toggle that reaches every card: the islands' 正文同段 lines,
+        // first in the relation menu (全部).
+        const relationMenu = host.querySelector<HTMLButtonElement>('.relation-kind-menu-anchor > button')!;
+        flushSync(() => relationMenu.click());
+        const focus = document.querySelector<HTMLButtonElement>('[data-se-lines]')!;
         resetWork(); const started = performance.now();
         for (let index = 0; index < 20; index++) flushSync(() => focus.click());
         const focusMs = performance.now() - started; const focusWork = { ...superElementCardWork };
+        const focusModeReturned = focus.getAttribute('aria-pressed') === 'true';
+        flushSync(() => relationMenu.click());
         const viewport = host.querySelector<HTMLElement>('.super-view-body')!;
         resetWork();
         for (let index = 0; index < 100; index++) viewport.dispatchEvent(new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaX: 1, deltaY: 1 }));
         await pause(150); const wheelWork = { ...superElementCardWork };
         const checks = {
           allCardsRetained: cards.every(card => card.isConnected) && nodes.every(node => node.isConnected),
-          focusModeReturned: focus.getAttribute('aria-pressed') === 'true',
+          focusModeReturned,
           shiftSelectsSource: false, shiftClearsSource: false, elementPairUsesLatestSource: false,
           renameUpdatesCard: false, categoryNavigation: false,
         };
@@ -91,8 +96,11 @@ export async function runSuperElementCardScenarios() {
         }
         flushSync(() => useDataStore.setState({ bookElements: fixture.bookElements.map((element, index) => index === 0 ? { ...element, name: 'Synthetic renamed card' } : element) }));
         checks.renameUpdatesCard = first.textContent?.includes('Synthetic renamed card') === true;
+        // A category opens as the island's card; its 在标签页中打开 leaves for the tab.
         const category = host.querySelector<HTMLButtonElement>('button[title="Synthetic category 0"]')!;
         flushSync(() => category.click());
+        const openInTab = host.querySelector<HTMLButtonElement>('.se-island [data-se-open-tab]');
+        if (openInTab) flushSync(() => openInTab.click());
         checks.categoryNavigation = opened.length === 1 && opened[0].entityType === 'category' && opened[0].id === 'card-category-0' && closed === 1;
         if (Object.values(checks).some(value => !value)) throw new Error(`Full graph card behavior failed: ${JSON.stringify(checks)}`);
         measurements.push({ elements, categories: 8, chapters: 20, fixtureHash, focusToggles: 20, wheelEvents: 100, focusMs, focusWork, wheelWork, checks });

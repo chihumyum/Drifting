@@ -1,10 +1,10 @@
 /**
  * Block Section — rolling summary of a contiguous block range in one chapter.
  *
- * Produced by the Copilot framework when uncovered blocks accumulate past a
- * threshold (see lib/copilot/produce-block-section-summary). Consumed by
- * every capability via `baseContext.priorSections` for cheap recent-context
- * recall without re-feeding raw prose.
+ * The retired Copilot produced these ('copilot-rolling') as cheap recent
+ * context. Nothing produces or reads them now; the synced table, repository
+ * and existing rows are kept because the table is part of the published
+ * schema and the sync domain.
  *
  * Validity model (per-block hashes, post PR D-1):
  *   - `blockHashes` stores each covered block's text hash at write time.
@@ -28,7 +28,7 @@ export interface BlockSection {
    */
   blockHashes: Record<string, string>;
   summary: string;
-  /** 'copilot-rolling' for now; 'reverse-outline' / 'manual' coming later. */
+  /** 'copilot-rolling' rows come from the retired Copilot. */
   source: BlockSectionSource;
   createdAt: string;
   updatedAt: string;

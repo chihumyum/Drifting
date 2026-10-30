@@ -9,7 +9,6 @@
  * commit a real key — and never ship a production build with one set.
  *
  * Looked up per provider (first match wins):
- *   google    →  VITE_GOOGLE_AI_API_KEY  |  VITE_GEMINI_API_KEY
  *   anthropic →  VITE_ANTHROPIC_API_KEY
  *   openai    →  VITE_OPENAI_API_KEY
  *   deepseek  →  VITE_DEEPSEEK_AI_API_KEY  |  VITE_DEEPSEEK_API_KEY
@@ -46,8 +45,6 @@ export function readEnvApiKey(provider: BYOKProvider): string | undefined {
 
 function envNames(provider: BYOKProvider): string[] {
   switch (provider) {
-    case 'google':
-      return ['VITE_GOOGLE_AI_API_KEY', 'VITE_GEMINI_API_KEY'];
     case 'anthropic':
       return ['VITE_ANTHROPIC_API_KEY'];
     case 'openai':

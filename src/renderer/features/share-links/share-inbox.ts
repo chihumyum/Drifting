@@ -13,6 +13,7 @@ import { deleteEntityRelationsInTransaction } from '../../usecase/entity-relatio
 import { withAtomicSyncTransaction } from '../../usecase/sync-helpers';
 import { shareLinkApi, type ShareInbox, type ShareInboxComment } from './share-link-api';
 import { useShareLinkStore } from './share-link-store';
+import type { ShareCommentMetadata } from './share-comment';
 
 /** How old the cached link list may be before an inbox pass reloads it. */
 const SHARE_LIST_MAX_AGE_MS = 5 * 60_000;
@@ -21,21 +22,10 @@ export interface ShareInboxResult {
   imported: number;
   withdrawn: number;
   statusesReported: number;
+  /** Comments this pass wrote into the library, for the author's notification. */
+  arrived: ShareInboxComment[];
 }
 
-/** Metadata that marks a comment as a reader's comment from a share link. */
-export interface ShareCommentMetadata {
-  shareLink: { shareId: string };
-}
-
-export function isShareLinkComment(comment: Pick<Comment, 'authorKind' | 'metadataJson'>): boolean {
-  if (comment.authorKind !== 'external' || !comment.metadataJson) return false;
-  try {
-    return Boolean((JSON.parse(comment.metadataJson) as Partial<ShareCommentMetadata>).shareLink);
-  } catch {
-    return false;
-  }
-}
 
 export function inboxCommentToComment(remote: ShareInboxComment, now: string): Comment {
   const { anchor } = remote;
@@ -117,13 +107,15 @@ export async function applyShareInbox(inbox: ShareInbox): Promise<ShareInboxResu
   const existing = await localStatuses([...inbox.comments, ...inbox.withdrawals].map(item => item.id));
   const imported: string[] = [];
   const withdrawn: string[] = [];
+  const arrived: ShareInboxComment[] = [];
   const changed = new Set<string>();
   const now = new Date().toISOString();
 
   for (const [projectId, comments] of byProject(inbox.comments)) {
     // A project this device has not restored yet is left for a device that has it.
     if (!local.has(projectId)) continue;
-    const fresh = comments.filter(comment => !existing.has(comment.id)).map(comment => inboxCommentToComment(comment, now));
+    const incoming = comments.filter(comment => !existing.has(comment.id));
+    const fresh = incoming.map(comment => inboxCommentToComment(comment, now));
     if (fresh.length) {
       await withAtomicSyncTransaction(projectId, async (tx, sync) => {
         const repository = createCommentRepository(projectId, tx);
@@ -133,6 +125,7 @@ export async function applyShareInbox(inbox: ShareInbox): Promise<ShareInboxResu
         }
       });
       changed.add(projectId);
+      arrived.push(...incoming);
     }
     imported.push(...comments.map(comment => comment.id));
   }
@@ -168,7 +161,7 @@ export async function applyShareInbox(inbox: ShareInbox): Promise<ShareInboxResu
   if (updates.length) await shareLinkApi.setStatuses(updates);
 
   for (const projectId of changed) events.emit('sync:project-changed', { projectId, projectionImpact: 'workspace' });
-  return { imported: imported.length, withdrawn: withdrawn.length, statusesReported: updates.length };
+  return { imported: imported.length, withdrawn: withdrawn.length, statusesReported: updates.length, arrived };
 }
 
 /** One inbox pass. Accounts without share links make no inbox request. */

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { isDrift } from '../../../domain/book-node';
 import {
@@ -16,7 +16,11 @@ import { RelationKindMenu } from '../../../components/ui/RelationKindMenu';
 import { defaultRelationTypeColor } from '../../../components/ui/relation-type-color';
 import { getPlatformRuntime } from '../../../platform/runtime';
 
-export function DesktopSuperViewRelationControl({ canvas }: { canvas: SuperViewRelationCanvas }) {
+export function DesktopSuperViewRelationControl({ canvas, lead }: {
+  canvas: SuperViewRelationCanvas;
+  /** The canvas's own line controls, first in the 全部 menu. */
+  lead?: ReactNode;
+}) {
   const { t } = useTranslation();
   const { projectId } = useProjectNavigation();
   const presentRelationType = useRelationTypePresentation();
@@ -139,6 +143,7 @@ export function DesktopSuperViewRelationControl({ canvas }: { canvas: SuperViewR
           createRelationType={relationTypeUsecases.createRelationType}
           updateRelationType={relationTypeUsecases.updateRelationType}
           deleteRelationType={relationTypeUsecases.deleteRelationType}
+          lead={lead}
         />
       </div>
     </>

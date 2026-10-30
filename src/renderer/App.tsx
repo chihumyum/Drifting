@@ -3,6 +3,7 @@ import type { ErrorInfo, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { PreAlphaOnboardingDialog } from './components/modals/PreAlphaOnboardingDialog';
 import { AuthDialogHost } from './features/auth/AuthDialog';
+import { ShareLinksDialogHost } from './features/share-links/ShareLinksDialogHost';
 import loglevel from 'loglevel';
 import { AppEffects } from './app/effects/AppEffects';
 import { LocationDeepLinkEffects } from './app/effects/LocationDeepLinkEffects';
@@ -75,6 +76,7 @@ function AppContents() {
       <PreAlphaOnboardingDialog />
       <AppRoutes />
       <AuthDialogHost />
+      <ShareLinksDialogHost />
     </>
   );
 }

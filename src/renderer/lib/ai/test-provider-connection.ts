@@ -14,7 +14,7 @@ import { canUseByokProvider } from '../config';
 import { platform } from '../../platform';
 import { buildDirectBYOKClient } from './client/build-default-client';
 import type { LLMClient } from './client/llm-client';
-import { COPILOT_DEFAULT_MODEL_BY_PROVIDER } from './copilot-route';
+import { agentProviderOption } from '../agent/runtime/agent-provider-contract';
 import { AIError } from './types';
 
 export interface TestProviderConnectionOptions {
@@ -32,7 +32,7 @@ export interface TestProviderConnectionDependencies {
 }
 
 const DEFAULT_DEPENDENCIES: TestProviderConnectionDependencies = {
-  // The same order as the Agent and Copilot: a development key first.
+  // The same order as the Agent: a development key first.
   hasKey: async (provider) => Boolean(readEnvApiKey(provider)) || byokKeychain.has(provider),
   getKey: async (provider) => readEnvApiKey(provider) ?? byokKeychain.get(provider),
   buildClient: (provider, apiKey, model) =>
@@ -53,7 +53,7 @@ export async function testByokProviderConnection(
   }
 
   const model =
-    options.model?.trim() || COPILOT_DEFAULT_MODEL_BY_PROVIDER[provider];
+    options.model?.trim() || agentProviderOption(provider).models[0]!.value;
   const signal = options.signal ?? new AbortController().signal;
   if (!(await dependencies.hasKey(provider))) {
     throw new AIError('auth', `No ${provider} key is configured.`);

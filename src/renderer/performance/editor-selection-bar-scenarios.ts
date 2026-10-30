@@ -10,7 +10,7 @@ import { closeHistory } from '@tiptap/pm/history';
 import { EditorSelectionBar, type EditorSelectionBarOptions } from '../features/editor/editor-selection-bar';
 
 function ensure(value: unknown, message: string): void { if (!value) throw new Error(message); }
-const labels = { format: 'Synthetic format', addComment: 'Synthetic comment', addPatch: 'Synthetic patch', copilot: 'Synthetic copilot' };
+const labels = { format: 'Synthetic format', addComment: 'Synthetic comment', addPatch: 'Synthetic patch' };
 
 async function runCollaborativeFormats() {
   const doc = new Y.Doc(); const paragraph = new Y.XmlElement('paragraph');

@@ -224,7 +224,7 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
       // Let every open editor retroactively link prose that already mentioned
       // this element before it existed. Auto-detect only fires on freshly-typed
       // text, so without this, earlier blocks stay unlinked. Covers all creation
-      // paths (Copilot element-candidate, @-picker create, manual add) since
+      // paths (Agent tools, @-picker create, manual add) since
       // they all funnel through here.
       events.emit('element:element-created', { element: created });
       return created;

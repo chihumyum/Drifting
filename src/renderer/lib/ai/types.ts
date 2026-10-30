@@ -1,24 +1,12 @@
 /**
  * Shared AI types — provider-agnostic shape used across every layer of the
- * substrate. The provider adapter (e.g. `providers/google.ts`) is the only
+ * substrate. The provider adapter (e.g. `providers/openai.ts`) is the only
  * place that knows what the underlying SDK's request/response shape looks
  * like; everything above L1 talks in these types.
  *
  * Keep this file free of runtime dependencies (no Zod, no SDK imports) so
  * cross-process consumers can import types without pulling the world in.
  */
-
-/**
- * Model id. Typed as a union of known Gemini models plus an open-ended
- * string so feature code can pin to a specific model without TypeScript
- * blocking unknown ids — Google will release new models faster than we
- * update this union.
- */
-export type GoogleModel =
-  | 'gemini-2.5-pro'
-  | 'gemini-2.5-flash'
-  | 'gemini-2.5-flash-lite'
-  | (string & {});
 
 export type AIFeatureId = string;
 export type AIReasoningEffort = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max' | 'ultra';
@@ -39,7 +27,7 @@ export interface AIMessage {
 /**
  * A "virtual tool" used purely as a typed JSON-output channel. We never let
  * the model actually execute anything in Phase 0/1 — function calling is the
- * cleanest way to get structured output out of Gemini.
+ * cleanest way to get structured output out of a model.
  */
 export interface AITool {
   name: string;
@@ -49,7 +37,8 @@ export interface AITool {
 }
 
 export interface AICompletionRequest {
-  model: GoogleModel;
+  /** Provider-native model id. */
+  model: string;
   system?: string;
   messages: AIMessage[];
   tools?: AITool[];
@@ -111,7 +100,7 @@ export interface AIToolCall {
 export interface AIUsage {
   inputTokens: number;
   outputTokens: number;
-  /** Tokens served from Gemini context cache, if any. */
+  /** Tokens served from the provider's prompt cache, if any. */
   cachedTokens?: number;
 }
 
