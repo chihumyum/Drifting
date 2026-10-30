@@ -222,7 +222,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project', placeme
                   label={t('shareLink.listTitle')}
                   onClick={() => {
                     useShareLinksDialogStore.getState().show();
-                    handleClose();
+                    onClose();
                   }}
                 />
               )}
@@ -255,7 +255,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project', placeme
                 label={t('shareLink.listTitle')}
                 onClick={() => {
                   useShareLinksDialogStore.getState().show();
-                  handleClose();
+                  onClose();
                 }}
               />
             )}
