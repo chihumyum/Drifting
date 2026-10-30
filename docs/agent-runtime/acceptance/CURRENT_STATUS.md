@@ -102,7 +102,16 @@ pnpm agent:capabilities:check
   timeline and plot grids are workbench scopes
   ([domain CRUD protocol §10](../domain-crud-transaction-protocol.md)); PDFs
   are read by text layer and images or scanned pages through `view_material`
-  ([material workbench](../../material-workbench.md)).
+  ([material workbench](../../material-workbench.md)). Live acceptance on
+  2026-10-31 (isolated lite seed, `--agent-debug`): DeepSeek V4 Flash filed
+  and renamed materials, appended to and created notes, split the book into
+  acts, moved a chapter, placed timeline items and markers, and filled a plot
+  grid from the chapter; GPT-5.6 Terra read a PDF text layer and transcribed
+  an image through `view_material`. It surfaced and fixed: renderer `fetch`
+  stored as a method (broke Anthropic and API-key OpenAI in WebKit),
+  `prompt_cache_key` over 64 characters (one-shot calls and check-ins on
+  OpenAI), `read_tool_result` defaults that failed turn recovery, and the
+  debug broker rejecting worktree renderer ports.
 - During an author-requested write task, General Agent may leave a concise,
   evidence-backed incidental finding as an existing Comment/TODO on the
   relevant authored object. This is opportunistic, not a background scan: it

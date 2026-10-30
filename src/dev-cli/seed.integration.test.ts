@@ -120,7 +120,8 @@ describe('development seed', () => {
     } finally { database.close(); }
 
     const again = await seedDevelopmentDatabase({ databasePath, appLocalDataDirectory, preset: 'lite' });
-    expect(again).toEqual({ seeded: false, databasePath, projectId: null });
+    // A later run reports the library's existing project, for launchers that open it.
+    expect(again).toEqual({ seeded: false, databasePath, projectId: first.projectId });
     const reopened = new DatabaseSync(databasePath, { readOnly: true });
     try {
       expect(reopened.prepare('SELECT name FROM project').get()).toEqual({ name: '开发者已经改过的示例' });

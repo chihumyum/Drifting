@@ -17,6 +17,8 @@ const scriptPath = fileURLToPath(import.meta.url);
 const defaultRoot = path.resolve(path.dirname(scriptPath), '..');
 const instancePattern = /^[a-z0-9][a-z0-9-]{0,39}$/;
 
+const AGENT_DEBUG_URL = 'http://127.0.0.1:4317';
+
 export function parseWorktreeArguments(args) {
   const options = { instance: 'default', printConfig: false, noWatch: false, help: false };
   for (let index = 0; index < args.length; index += 1) {
@@ -30,11 +32,16 @@ export function parseWorktreeArguments(args) {
     else if (argument === '--build-app') options.buildApp = true;
     else if (argument === '--frontend-debug') options.frontendDebug = true;
     else if (argument === '--release-perf') options.releasePerf = true;
-    else if (argument === '--instance' || argument === '--port') {
+    else if (argument === '--agent-debug') options.agentDebug = true;
+    else if (argument === '--instance' || argument === '--port' || argument === '--agent-debug-project') {
       const value = args[++index];
       if (!value || value.startsWith('-')) throw new Error(`${argument} requires a value`);
       if (argument === '--instance') options.instance = value;
-      else {
+      else if (argument === '--agent-debug-project') {
+        if (!/^[\w-]{1,128}$/u.test(value)) throw new Error('--agent-debug-project must be a project id');
+        options.agentDebug = true;
+        options.agentDebugProjectId = value;
+      } else {
         if (!/^\d+$/.test(value)) throw new Error('--port must be an integer');
         options.port = Number(value);
       }
@@ -96,12 +103,14 @@ export function readDesktopFrontendDebugSession(worktreeRoot) {
 
 export function createWorktreePlan({
   root = defaultRoot, instance = 'default', port, noWatch = false, online = false, buildApp = false, performanceAudit = false,
-  frontendDebug = false, releasePerf = false, baseEnvironment = process.env, platform = process.platform,
+  frontendDebug = false, releasePerf = false, agentDebug = false, agentDebugProjectId,
+  baseEnvironment = process.env, platform = process.platform,
 } = {}) {
   if (!instancePattern.test(instance)) throw new Error('Invalid worktree instance name');
   if (buildApp && platform !== 'darwin') throw new Error('--build-app currently supports macOS only');
   if (performanceAudit && buildApp) throw new Error('--performance-audit requires a Vite development instance');
   if (frontendDebug && buildApp) throw new Error('--frontend-debug requires a Vite development instance');
+  if (agentDebug && (buildApp || releasePerf)) throw new Error('--agent-debug requires a Vite development instance');
   if (releasePerf && (buildApp || performanceAudit || online)) {
     throw new Error('--release-perf measures a local-only instance; it cannot be combined with --build-app, --performance-audit or --online');
   }
@@ -159,6 +168,12 @@ export function createWorktreePlan({
   if (releasePerf) environment.DRIFTING_PERF_BUILD = '1';
   // Only this explicit opt-in may hand the renderer a debug bridge endpoint;
   // the token stays in the environment and never reaches the manifest.
+  // The loopback Agent debug broker (`pnpm agent:debug:server`, port 4317 in
+  // every dev CSP); the project id routes the renderer straight to it.
+  if (agentDebug) Object.assign(environment, {
+    VITE_DRIFTING_AGENT_DEBUG_URL: AGENT_DEBUG_URL,
+    ...(agentDebugProjectId ? { VITE_DRIFTING_AGENT_DEBUG_PROJECT_ID: agentDebugProjectId } : {}),
+  });
   if (debugSession) Object.assign(environment, {
     VITE_DRIFTING_FRONTEND_DEBUG: '1',
     VITE_DRIFTING_FRONTEND_DEBUG_TRANSPORT: debugSession.transport,
@@ -230,6 +245,7 @@ export default async env => mergeConfig(await (typeof base === 'function' ? base
     mode: online ? 'hosted' : 'local-only', ...(online ? { serviceOrigin: origin } : {}), configPath,
     ...(performanceAudit ? { performanceAudit: true, performanceAuditDirectory: path.join(profileDirectory, 'performance-audit') } : {}),
     ...(debugSession ? { frontendDebug: { transport: debugSession.transport, url: debugSession.url } } : {}),
+    ...(agentDebug ? { agentDebug: { url: AGENT_DEBUG_URL, ...(agentDebugProjectId ? { projectId: agentDebugProjectId } : {}) } } : {}),
     ...(releasePerf ? { releasePerf: true } : {}),
     ...(buildApp ? { buildApp: true, frontendDirectory,
       appBundlePath: path.join(cargoTargetDirectory, 'debug', 'bundle', 'macos', `Drifting Test ${profileId}.app`) } : {}),
@@ -258,7 +274,7 @@ export async function runWorktreeDev(args = process.argv.slice(2), {
 } = {}) {
   const options = parseWorktreeArguments(args);
   if (options.help) {
-    output('Usage: pnpm dev:worktree [--instance <name>] [--port <number>] [--no-watch] [--performance-audit] [--frontend-debug] [--release-perf] [--online] [--build-app] [--print-config]\nLocal-only by default; --online selects the configured Hosted service in a separate profile. --performance-audit collects bounded development telemetry in the private profile. --frontend-debug connects the renderer to the desktop Frontend Debug daemon running in this checkout. --release-perf runs the same instance as a Rust release build with a production renderer bundle, for performance measurement only. --build-app builds an isolated macOS Debug .app without launching it. --print-config emits JSON without launching or creating files.');
+    output('Usage: pnpm dev:worktree [--instance <name>] [--port <number>] [--no-watch] [--performance-audit] [--frontend-debug] [--agent-debug] [--agent-debug-project <id>] [--release-perf] [--online] [--build-app] [--print-config]\nLocal-only by default; --online selects the configured Hosted service in a separate profile. --performance-audit collects bounded development telemetry in the private profile. --frontend-debug connects the renderer to the desktop Frontend Debug daemon running in this checkout. --agent-debug connects the renderer to the loopback Agent debug broker (pnpm agent:debug:server); --agent-debug-project also opens that project. --release-perf runs the same instance as a Rust release build with a production renderer bundle, for performance measurement only. --build-app builds an isolated macOS Debug .app without launching it. --print-config emits JSON without launching or creating files.');
     return;
   }
   const plan = createWorktreePlan({ root, baseEnvironment, ...options });

@@ -33,7 +33,8 @@ export class AnthropicProvider implements LLMProvider {
     this.apiKey = config.apiKey;
     this.defaultModel = config.defaultModel ?? 'claude-sonnet-5';
     this.endpoint = config.endpoint ?? 'https://api.anthropic.com/v1/messages';
-    this.fetchImpl = config.fetch ?? fetch;
+    // Called as a method below; WebKit requires fetch to be called on the window.
+    this.fetchImpl = config.fetch ?? ((input, init) => fetch(input, init));
   }
 
   async complete(request: AICompletionRequest): Promise<AICompletionResponse> {

@@ -296,7 +296,7 @@ const createMaterialFolder: WorkbenchCommand<MaterialLibraryState> = {
     const path = parentPath ? `${parentPath}/${name}` : name;
     return {
       arguments: { name, parentFolderId },
-      path: `/materials/${path}/`,
+      path: `/material-folders/${path}`,
       changeSummary: `新建素材文件夹「${path}」`,
     };
   },
@@ -335,7 +335,7 @@ const updateMaterialFolder: WorkbenchCommand<MaterialLibraryState> = {
     const after = parentPath ? `${parentPath}/${name}` : name;
     return {
       arguments: { folderId, name, parentFolderId },
-      path: `/materials/${after}/`,
+      path: `/material-folders/${after}`,
       changeSummary: before === after ? `更新素材文件夹「${after}」` : `素材文件夹「${before}」改为「${after}」`,
     };
   },
@@ -370,7 +370,7 @@ const deleteMaterialFolder: WorkbenchCommand<MaterialLibraryState> = {
     const parent = state.folders.find((entry) => entry.id === folderId)!.parentFolderId;
     return {
       arguments: { folderId },
-      path: `/materials/${path}/`,
+      path: `/material-folders/${path}`,
       changeSummary: `删除素材文件夹「${path}」，其中的子文件夹和素材移到${folderDisplay(materialFolderLabel(state, projectId, parent))}`,
     };
   },

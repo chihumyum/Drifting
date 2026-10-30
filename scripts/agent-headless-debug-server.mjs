@@ -9,11 +9,13 @@ const MAX_BODY_BYTES = 1_048_576;
 const MAX_TURN_TIMEOUT_MS = 12 * 60 * 60 * 1_000;
 const WATCH_HEARTBEAT_MS = 1_000;
 const TERMINAL_EVENT_TYPES = new Set(['bridge_completed', 'bridge_failed']);
-const ALLOWED_RENDERER_ORIGINS = new Set([
-  'http://localhost:5173',
-  'http://127.0.0.1:5173',
-  'tauri://localhost',
-]);
+// Worktree profiles serve their renderer on a port derived from the checkout,
+// so any loopback port is a renderer origin, as for the Frontend Debug daemon.
+const LOOPBACK_RENDERER_ORIGIN = /^http:\/\/(?:localhost|127\.0\.0\.1):\d{1,5}$/u;
+
+function isAllowedRendererOrigin(origin) {
+  return origin === 'tauri://localhost' || LOOPBACK_RENDERER_ORIGIN.test(origin);
+}
 
 function parseArgs(argv) {
   const options = { host: DEFAULT_HOST, port: DEFAULT_PORT };
@@ -52,7 +54,7 @@ function usage() {
 function setCors(request, response) {
   const origin = request.headers.origin;
   if (!origin) return true;
-  if (!ALLOWED_RENDERER_ORIGINS.has(origin)) return false;
+  if (!isAllowedRendererOrigin(origin)) return false;
   response.setHeader('Access-Control-Allow-Origin', origin);
   response.setHeader('Vary', 'Origin');
   response.setHeader('Access-Control-Allow-Headers', 'content-type');

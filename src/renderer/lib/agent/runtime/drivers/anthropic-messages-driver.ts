@@ -79,7 +79,9 @@ export class AnthropicMessagesAgentDriver implements AgentModelDriver {
       context: resolveAgentProviderContextProfile('anthropic', this.defaultModel),
     } as const;
     this.endpoint = options.endpoint ?? 'https://api.anthropic.com/v1/messages';
-    this.fetchImpl = options.fetch ?? fetch;
+    // Never store the global fetch as a method: WebKit rejects it unless it is
+    // called on the window ("Can only call Window.fetch on instances of Window").
+    this.fetchImpl = options.fetch ?? ((input, init) => fetch(input, init));
     this.providerAttemptRetry = options.providerAttemptRetry ?? DEFAULT_PROVIDER_ATTEMPT_RETRY;
   }
 

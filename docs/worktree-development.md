@@ -138,6 +138,16 @@ start that worktree's isolated profile instead, exactly as
 in their own worktrees at once. `DRIFTING_DEV_SHARED_PROFILE=1 pnpm dev` keeps
 the shared profile deliberately.
 
+## Agent debug broker
+
+`--agent-debug` hands the renderer the loopback Agent debug broker
+(`pnpm agent:debug:server`, `http://127.0.0.1:4317`, already in every
+development CSP); `--agent-debug-project <id>` also opens that project, and
+`pnpm dev:seed --agent-debug` passes the seeded project's id by itself. The
+manifest records the broker as `agentDebug`. Neither flag works with
+`--build-app` or `--release-perf`. See
+[agent-runtime/headless-debug.md](agent-runtime/headless-debug.md).
+
 ## Agent keys in development
 
 Every profile has its own Keychain service, so a fresh worktree or instance

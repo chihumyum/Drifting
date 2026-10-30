@@ -65,6 +65,14 @@ export function describeWorkspaceDomainTarget(path: string): string {
       return namedTarget('项目记忆', stripExtension(segments[1]));
     case 'materials':
       return namedTarget('素材', stripExtension(segments[1]));
+    case 'material-folders':
+      return namedTarget('素材文件夹', segments.slice(1).join('/'));
+    case 'structure':
+      return namedTarget('幕', segments[2]);
+    case 'timeline':
+      return segments[1] === 'markers'
+        ? namedTarget('时间刻度', segments[2])
+        : `叙事时间线上的${namedTarget('', segments[1])}`;
     case 'project':
       return field === 'facts.json' ? '项目规则' : '项目信息';
     default:
@@ -177,6 +185,7 @@ function describeNodeField(kind: '章节' | '构想', name: string | undefined, 
     'prose.md': '正文',
     'summary.md': '摘要',
     'title.txt': '标题',
+    'plot-grid.md': '的情节表',
   });
 }
 

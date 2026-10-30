@@ -173,13 +173,17 @@ export class DriftingAgentModelDriver implements AgentModelDriver {
         });
       }
       if (!this.hasLegacyClientOverride() && provider === 'openai') {
-        if (isTauriRuntime()) {
+        // A development profile's .env key (scripts/dev-agent-keys.mjs) comes
+        // before the Keychain, as for every provider; the native transport
+        // reads only the Keychain. Builds never carry an env key.
+        const developmentKey = await new EnvCredentialsProvider().getApiKey('openai').catch(() => null);
+        if (isTauriRuntime() && !developmentKey) {
           return new OpenAIResponsesAgentDriver({
             defaultModel: model,
             transport: platform.openAIResponses,
           });
         }
-        const apiKey = await createCredentialChain().getApiKey('openai');
+        const apiKey = developmentKey ?? (await createCredentialChain().getApiKey('openai'));
         return new OpenAIResponsesAgentDriver({ apiKey, defaultModel: model });
       }
       const client: AgentCompletionClient | LLMClient = this.hasLegacyClientOverride()

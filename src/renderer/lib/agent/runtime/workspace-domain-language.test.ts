@@ -15,6 +15,11 @@ describe('workspace domain language', () => {
       '要素「维娅」设定',
     );
     expect(describeWorkspaceDomainTarget('/relations/师徒.json')).toBe('实体关系「师徒」');
+    expect(describeWorkspaceDomainTarget('/material-folders/调研/待核实')).toBe('素材文件夹「调研/待核实」');
+    expect(describeWorkspaceDomainTarget('/structure/acts/起')).toBe('幕「起」');
+    expect(describeWorkspaceDomainTarget('/timeline/第一章')).toBe('叙事时间线上的「第一章」');
+    expect(describeWorkspaceDomainTarget('/timeline/markers/1937 年冬')).toBe('时间刻度「1937 年冬」');
+    expect(describeWorkspaceDomainTarget('/chapters/第一章/plot-grid.md')).toBe('章节「第一章」的情节表');
   });
 
   it('returns a domain confirmation without paths, ids, review state, or serialization details', () => {
