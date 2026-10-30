@@ -59,6 +59,8 @@ export function ElementTemplateEditor({ templateJson, onPersist, placeholder }: 
     // the empty-editor placeholder for one frame on every category/storyline
     // mount before replacing it with the real template.
     content: initialContent,
+    // Its base styles load once with the app (styles/tiptap-base.css).
+    injectCSS: false,
     editorProps: {
       attributes: {
         class: 'prose max-w-none focus:outline-none',
