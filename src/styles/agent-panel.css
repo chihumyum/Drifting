@@ -939,19 +939,19 @@
 }
 
 /* Its menus: round glass buttons in one glass pill, like the manuscript's
-   toolbar (.editor-bar). */
+   toolbar (.editor-bar): the same round size, the same even padding. */
 .agt-composer__tray {
   display: flex;
   align-items: center;
   gap: 2px;
-  padding: 3px;
-  border-radius: 18px;
+  padding: var(--glass-tray-padding);
+  border-radius: calc(var(--glass-round-size) / 2 + var(--glass-tray-padding));
   background: var(--glass-fill);
   --glass-rim: 12px;
 }
 .agt-composer__tray .agt-cfg {
-  width: 28px;
-  height: 28px;
+  width: var(--glass-round-size);
+  height: var(--glass-round-size);
   border-radius: 50%;
 }
 .agt-composer__tray .agt-cfg:hover,
@@ -966,13 +966,14 @@
   animation: none;
 }
 
-/* Stop, steer and send: single round glass buttons. Stop is the resting line
-   of a secondary button; steer and send are the accent's primary glass. */
+/* Stop, steer and send: single round glass buttons of the shared size. Stop
+   is the resting line of a secondary button; steer and send are the accent's
+   primary glass. */
 .agt-round {
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
+  width: var(--glass-round-size);
+  height: var(--glass-round-size);
   padding: 0;
   border: 0;
   background: transparent;
@@ -980,6 +981,11 @@
   cursor: pointer;
 }
 .agt-round:hover:not(:disabled) { color: hsl(var(--ink-1)); }
+/* Every round glass icon here is the shared icon size (materials.css). */
+:is(.agt-composer__tray .agt-cfg, .agt-round) > .brush-icon {
+  width: var(--glass-round-icon);
+  height: var(--glass-round-icon);
+}
 .agt-round:disabled { cursor: default; }
 
 /* A text button made of glass (a card's actions, the setup hint). */

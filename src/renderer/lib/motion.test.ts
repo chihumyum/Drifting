@@ -29,11 +29,14 @@ describe('motion vocabulary', () => {
     expect(ms(cssValue('motion-loading-delay'))).toBe(240);
     expect(ms(cssValue('motion-sand-fade'))).toBe(motion.SAND_FADE_MS);
     expect(ms(cssValue('motion-sand-shift'))).toBe(motion.SAND_SHIFT_MS);
+    expect(ms(cssValue('motion-dock-pill'))).toBe(motion.DOCK_PILL_MS);
+    expect(cssValue('motion-dock-pill-ease')).toBe(motion.DOCK_PILL_EASING);
   });
 
   it('keeps the values the design system names', () => {
     expect([motion.STRUCTURAL_MS, motion.PUSH_MS, motion.PUSH_OUTLINE_FADE_MS, motion.SPRING_K, motion.SPRING_MS])
       .toEqual([420, 265, 340, 150, 520]);
+    expect([motion.DOCK_PILL_MS, motion.DOCK_PILL_EASING]).toEqual([340, 'cubic-bezier(0.3, 0.7, 0.2, 1)']);
     expect([motion.WAVE_BASE_MS, motion.WAVE_PER_ITEM_MS, motion.WAVE_MAX_ITEMS, motion.WAVE_SETTLE_MS])
       .toEqual([230, 70, 4, 300]);
     expect([motion.SAND_DRAW_MS, motion.SAND_DRAW_PER_LINE_MS, motion.SAND_FADE_MS, motion.SAND_SHIFT_MS])

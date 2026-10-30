@@ -50,6 +50,13 @@ export function weightedEasing() {
   return weighted;
 }
 
+// Dock pill: a dock mark grows into its pill, and a closed pill folds back
+// to a mark's width and fades where it stood, over DOCK_PILL_MS; the
+// neighbours that make room or close the gap move on the same curve and land
+// with it.
+export const DOCK_PILL_MS = 340;
+export const DOCK_PILL_EASING = 'cubic-bezier(0.3, 0.7, 0.2, 1)';
+
 // Water wave: a selection flows from the old item to the new one, taking a
 // little longer for each item it crosses (up to WAVE_MAX_ITEMS), then fades.
 export const WAVE_BASE_MS = 230;

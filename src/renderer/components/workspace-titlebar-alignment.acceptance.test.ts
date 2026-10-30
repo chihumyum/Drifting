@@ -52,7 +52,7 @@ describe('workspace window-control row', () => {
       cssBlock(desktopCss, '.workspace-sidebar-toggles[data-leading-inset] .workspace-sidebar-toggle--left {'),
     ).toContain('left: var(--window-header-leading-inset);');
     expect(cssBlock(desktopCss, '.workspace-sidebar-toggle {')).toContain(
-      'top: calc((var(--window-titlebar-height) - 28px) / 2);',
+      'top: calc((var(--window-titlebar-height) - var(--glass-round-size)) / 2);',
     );
     expect(cssBlock(desktopCss, '.workspace-window-strip {')).toMatch(
       /height:\s*var\(--window-titlebar-height\);[\s\S]*align-items:\s*center;|align-items:\s*center;[\s\S]*height:\s*var\(--window-titlebar-height\);/,

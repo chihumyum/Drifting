@@ -68,7 +68,7 @@ export function ElementImageEntry({
         {imageUrl ? (
           <img className="editor-bar__thumb" src={imageUrl} alt="" />
         ) : (
-          <BrushIcon name="image" size={14} />
+          <BrushIcon name="image" />
         )}
         {generating ? (
           <span className="editor-bar__spinner" aria-hidden>

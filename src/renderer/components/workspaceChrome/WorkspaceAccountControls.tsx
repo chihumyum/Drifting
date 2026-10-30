@@ -33,7 +33,7 @@ export function WorkspaceAccountCell() {
       <button
         ref={triggerRef}
         type="button"
-        className="sidebar-account-cell__account"
+        className="sidebar-account-cell__account glass glass--small"
         title={displayName}
         aria-haspopup="dialog"
         aria-expanded={menuOpen}

@@ -361,7 +361,7 @@ export function LeftSidebarSubHeader({ panel: activeLeftPanel }: { panel: LeftSi
             setActiveSuperView('none');
             navigateToAllChapters();
           }}
-          icon={<BrushIcon name="ov-folding" size={15} />}
+          icon={<BrushIcon name="ov-folding" />}
         />
       );
     }
@@ -374,7 +374,7 @@ export function LeftSidebarSubHeader({ panel: activeLeftPanel }: { panel: LeftSi
           title={t('bottomStatusBar.elements')}
           aria-label={t('bottomStatusBar.elements')}
           onClick={() => setActiveSuperView('element')}
-          icon={<BrushIcon name="ov-iceberg" size={15} />}
+          icon={<BrushIcon name="ov-iceberg" />}
         />
       );
     }

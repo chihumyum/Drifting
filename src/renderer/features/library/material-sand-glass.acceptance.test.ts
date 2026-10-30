@@ -97,7 +97,7 @@ describe('materials in sand and glass on the desktop', () => {
     expect(editor).toContain("className={`material-comments${glass ? ' material-comments--flat' : ''}`}");
     expect(editor).toContain('material-seal');
     expect(stage).toContain('className="material-stage__pager-bar"');
-    expect(stage).toContain('<BrushIcon name="chevron-left" size={14} />');
+    expect(stage).toContain('<BrushIcon name="chevron-left" />');
     expect(lightbox).toContain("className={`material-lightbox${glass ? ' material-lightbox--desk' : ''}`}");
     expect(lightbox).toContain('glass="round"');
 

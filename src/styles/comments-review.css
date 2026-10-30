@@ -797,7 +797,7 @@ html[data-shell-mode='desktop'] .snapshot-modal__close:hover {
   flex-direction: row;
   align-items: center;
   gap: 2px;
-  padding: 4px;
+  padding: var(--glass-tray-padding);
   border-radius: 20px;
   --glass-rim: 12px;
   background: var(--glass-fill);
@@ -841,10 +841,10 @@ html[data-shell-mode='desktop'] .snapshot-modal__close:hover {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  height: 28px;
+  height: var(--glass-pill-height);
   padding: 0 12px;
   border: 0;
-  border-radius: 14px;
+  border-radius: calc(var(--glass-pill-height) / 2);
   background: transparent;
   color: inherit;
   font: inherit;
@@ -859,8 +859,8 @@ html[data-shell-mode='desktop'] .snapshot-modal__close:hover {
 .editor-selection-bar__format {
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: var(--glass-round-size);
+  height: var(--glass-round-size);
   padding: 0;
   border: 0;
   border-radius: 50%;
@@ -1075,6 +1075,13 @@ html[data-shell-mode='mobile'] .editor-selection-bar.glass::before {
   left: 12px;
   max-width: calc(100% - 14px);
   text-align: left;
+}
+/* On the desktop the paper runs up under the window-control row, where the
+   dock's pills sit centred on the traffic-light line. The rail starts at the
+   pills' lower edge, so its first entry sits right under them instead of on
+   their line. */
+html[data-shell-mode='desktop'] .editor__toc-rail--edge {
+  top: calc((var(--window-titlebar-height) + var(--glass-pill-height)) / 2);
 }
 /* A distant omission restores nearby real TOC tags on hover/focus. This is a
    compact traversal aid, not a magnification animation or the retired panel:

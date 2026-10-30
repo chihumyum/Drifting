@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Component, useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useDataStore } from '../../../store/data-store';
@@ -22,6 +22,7 @@ import {
 import { isProjectHomePathname } from '../../../features/workspace/navigation/workspace-route';
 import { useDesktopTabClose } from '../../../shells/desktop/navigation/DesktopTabCloseContext';
 import { useGlassWave } from '../../../hooks/useGlassWave';
+import { captureDock, createDockLeaveState, playDockLeave, stopDockLeave, type DockSnapshot } from './dock-leave';
 
 // Floor: absolute survival width — chrome (icon + close) just fits, label
 // area collapses. Tabs may dip below this only if their idealW is naturally
@@ -38,9 +39,11 @@ const TAB_MAX_WIDTH = 320;
 // glass inset inside the slot, so the visible gap lives inside each slot.
 const TAB_GAP = 0;
 // The lock before the pills and the create button after them stay put while
-// the pills scroll; each takes a 30px round button and a 5px gap.
-const TAB_STRIP_START_PADDING = 35;
-const TAB_STRIP_END_PADDING = 35;
+// the pills scroll; each takes a round glass button (`--glass-round-size`,
+// materials.css) and a 5px gap.
+const DOCK_ROUND_GLASS_SIZE = 28;
+const TAB_STRIP_START_PADDING = DOCK_ROUND_GLASS_SIZE + 5;
+const TAB_STRIP_END_PADDING = DOCK_ROUND_GLASS_SIZE + 5;
 // A split slot carries two sub-labels and reads as ~1.6 leaf tabs wide.
 const SPLIT_WEIGHT = 1.6;
 
@@ -112,6 +115,7 @@ export function TopTimeline({ expanded = true, leading }: {
   const promoteTab = useUiStore((s) => s.promoteTab);
   const selectPresentation = useMemo(() => createTopTabPresentationSelector(projectId, openTabs), [projectId, openTabs]);
   const presentation = useDataStore(selectPresentation);
+  const tabKeys = useMemo(() => openTabs.map(tabKey), [openTabs]);
 
   // The active tab paints its own static rectangular state. The container ref
   // remains the authority for width allocation, drag/drop and scrolling.
@@ -320,6 +324,7 @@ export function TopTimeline({ expanded = true, leading }: {
   // own, where their flowing rims and the selection wave stop repainting.
   return (
     <>
+    <DockLeaveMotion container={containerRef} tabKeys={tabKeys} expanded={expanded} />
     {expanded && leading}
     <div
       ref={containerRef}
@@ -460,6 +465,42 @@ export function TopTimeline({ expanded = true, leading }: {
       </button>}
     </>
   );
+}
+
+/**
+ * Closing a tab animates like opening one (dock-leave.ts). React removes the
+ * closed pill in the same commit that moves its neighbours, so where they all
+ * stood has to be read before the DOM changes: a class component's
+ * getSnapshotBeforeUpdate is the one hook that runs then. After the commit
+ * the closed pill folds away and the rest slide together. Changing between
+ * marks and pills is a change of form, not a close, and moves nothing here.
+ */
+class DockLeaveMotion extends Component<{
+  container: RefObject<HTMLDivElement | null>;
+  tabKeys: readonly string[];
+  expanded: boolean;
+}> {
+  private readonly motion = createDockLeaveState();
+
+  getSnapshotBeforeUpdate(previous: Readonly<DockLeaveMotion['props']>): DockSnapshot | null {
+    const container = this.props.container.current;
+    if (!container || previous.expanded !== this.props.expanded || previous.tabKeys === this.props.tabKeys) return null;
+    return captureDock(container, new Set(this.props.tabKeys));
+  }
+
+  componentDidUpdate(previous: Readonly<DockLeaveMotion['props']>, _state: unknown, snapshot: DockSnapshot | null) {
+    if (previous.expanded !== this.props.expanded) stopDockLeave(this.motion);
+    const container = this.props.container.current;
+    if (snapshot && container) playDockLeave(container, snapshot, this.motion);
+  }
+
+  componentWillUnmount() {
+    stopDockLeave(this.motion);
+  }
+
+  render() {
+    return null;
+  }
 }
 
 function CreateTabSlot({

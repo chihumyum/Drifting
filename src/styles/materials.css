@@ -32,6 +32,20 @@
   --motion-sand-shift: 0.24s;
   /* How long a wait runs before its loading mark shows. */
   --motion-loading-delay: 240ms;
+  /* A dock mark grows into its pill, a closed pill folds away, and the
+     neighbours that make room or close the gap land with it. */
+  --motion-dock-pill: 340ms;
+  --motion-dock-pill-ease: cubic-bezier(0.3, 0.7, 0.2, 1);
+
+  /* Sizes of glass controls (docs/design-system/materials.md, "尺寸"): every
+     round glass icon button has one diameter and one icon size, centred; a
+     glass pill in a row with them (a Dock pill) is as tall as they are; a
+     long pill that holds them (the paper's toolbar, the Agent composer's
+     tray) pads them evenly, so it stands one padding taller on each side. */
+  --glass-round-size: 28px;
+  --glass-round-icon: 16px;
+  --glass-pill-height: var(--glass-round-size);
+  --glass-tray-padding: 4px;
 
   --glass-clear: #b4b6ae;
   /* Floating glass: the paper shows through, faintly enough to keep labels readable. */

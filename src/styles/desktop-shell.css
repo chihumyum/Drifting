@@ -191,7 +191,7 @@
 
 .workspace-sidebar-toggle {
   position: absolute;
-  top: calc((var(--window-titlebar-height) - 28px) / 2);
+  top: calc((var(--window-titlebar-height) - var(--glass-round-size)) / 2);
   pointer-events: auto;
   transition:
     background var(--motion-glass-bleed) ease-out,
@@ -224,8 +224,8 @@
 
 .sidebar-toggle-slot {
   display: block;
-  width: 28px;
-  height: 28px;
+  width: var(--glass-round-size);
+  height: var(--glass-round-size);
 }
 
 .workspace-panel-tab-row.workspace-panel-tab-row--window {
@@ -383,9 +383,11 @@
   text-align: left;
 }
 
+/* The account is glass like the round buttons beside it, not a wash: hidden
+   at rest, its rim flows under the pointer and stands still while its menu
+   is open (materials.css). */
 .sidebar-account-cell__account:hover,
 .sidebar-account-cell__account[aria-expanded='true'] {
-  background: var(--workspace-cell-hover-bg);
   color: hsl(var(--ink-1));
 }
 
@@ -458,7 +460,7 @@
 }
 
 .workspace-tab-dock .top-timeline-container.is-expanded {
-  height: 38px;
+  height: calc(var(--glass-pill-height) + 8px);
   padding: 4px;
 }
 
@@ -509,17 +511,18 @@
 }
 
 /* Expanded pills: each slot stays contiguous for reorder geometry and draws
-   its glass inset by 2.5px, so the visible gap lives inside the slot. The
-   rim shows at rest (glass--rest), flows under the pointer and is pressed on
-   the current tab. */
+   its glass inset by 2.5px, so the visible gap lives inside the slot. A pill
+   is as tall as the round glass of the lock and the plus either side of it
+   (materials.css sizes). The rim shows at rest (glass--rest), flows under the
+   pointer and is pressed on the current tab. */
 .workspace-tab-dock .app-tab,
 .workspace-tab-dock .app-tab.is-active,
 .workspace-tab-dock .app-tab--create,
 .workspace-tab-dock .app-tab--create.is-active {
-  height: 30px !important;
+  height: var(--glass-pill-height) !important;
   border: 0;
   background: transparent;
-  animation: dock-pill-grow 0.34s cubic-bezier(0.3, 0.7, 0.2, 1) backwards;
+  animation: dock-pill-grow var(--motion-dock-pill) var(--motion-dock-pill-ease) backwards;
 }
 
 .workspace-tab-dock .app-tab.glass {
@@ -570,6 +573,18 @@
 .app-tab--drag-ghost,
 .app-tab--drag-ghost * {
   animation: none !important;
+}
+
+/* A closed tab on its way out (dock-leave.ts): a still copy of its pill or
+   mark folds away where it stood while its neighbours close the gap. It
+   replays none of the arriving animations and takes no pointer. */
+.dock-slot-leaving,
+.dock-slot-leaving * {
+  animation: none !important;
+}
+
+.dock-slot-leaving {
+  pointer-events: none;
 }
 
 .app-tab--drag-ghost {
@@ -648,9 +663,9 @@
   pointer-events: auto;
   display: grid;
   flex-shrink: 0;
-  width: 30px;
-  min-width: 30px;
-  height: 30px;
+  width: var(--glass-round-size);
+  min-width: var(--glass-round-size);
+  height: var(--glass-round-size);
   padding: 0;
   border: 0;
   border-radius: 50%;
@@ -661,6 +676,12 @@
   cursor: pointer;
   place-items: center;
   animation: dock-control-in 0.3s cubic-bezier(0.3, 0.7, 0.2, 1) backwards 0.08s;
+}
+
+.workspace-tab-dock__lock > .brush-icon,
+.workspace-tab-dock .top-timeline-create-button > .brush-icon {
+  width: var(--glass-round-icon);
+  height: var(--glass-round-icon);
 }
 
 .workspace-tab-dock__lock {
@@ -689,19 +710,18 @@
    The Bottom Timeline toggle is its own round glass button; to its right,
    separate, the editor's toolbar is one horizontal glass pill
    (`.editor-corner` in index.css). With no editor showing, the stage keeps
-   the toggle alone in the same corner. */
+   the toggle alone in the same corner. The toggle is round glass of the
+   shared size, as big as the buttons inside the toolbar beside it; alone it
+   keeps the toolbar's middle line (one tray padding above the corner). */
 .workspace-timeline-toggle--stage.ghost-icon-button {
   position: absolute;
   z-index: 20;
   right: 16px;
-  bottom: 16px;
+  bottom: calc(16px + var(--glass-tray-padding));
 }
 
 .workspace-timeline-toggle.ghost-icon-button {
   flex-shrink: 0;
-  width: 36px;
-  height: 36px;
-  --glass-rim: 10px;
   background: var(--glass-fill);
   -webkit-backdrop-filter: blur(1.6px);
   backdrop-filter: blur(1.6px);

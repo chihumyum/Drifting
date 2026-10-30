@@ -1332,7 +1332,7 @@ export function DesktopBottomTimeline({
               title={t('bottomStatusBar.storyGraph')}
               aria-label={t('bottomStatusBar.storyGraph')}
               onClick={() => setActiveSuperView('graph')}
-              icon={<BrushIcon name="fullscreen" size={14} />}
+              icon={<BrushIcon name="fullscreen" />}
             />
           )}
         </>}

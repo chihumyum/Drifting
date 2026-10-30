@@ -132,6 +132,12 @@ describe('semantic outline rail acceptance wiring', () => {
       /\.editor__toc-rail--edge \.editor__toc-tag,[\s\S]*?left:\s*12px;/,
     );
     expect(semanticRailCss).toContain('.editor__toc-rail.is-active .editor__toc-labels');
+    // On the desktop the rail starts at the dock pills' lower edge (they sit
+    // centred on the window-control row), so its first entry sits right
+    // under them, never on their line.
+    expect(semanticRailCss).toMatch(
+      /html\[data-shell-mode='desktop'\] \.editor__toc-rail--edge \{\s*top: calc\(\(var\(--window-titlebar-height\) \+ var\(--glass-pill-height\)\) \/ 2\);\s*\}/,
+    );
     expect(semanticRailCss).not.toContain('.editor__toc-track');
     expect(semanticRailCss).not.toContain('.editor__toc-viewport-range');
     expect(semanticRailCss).not.toContain('.editor__toc-thumb');

@@ -900,14 +900,15 @@ html[data-shell-mode='mobile'] .app-mid {
   gap: 8px;
 }
 .editor-bar {
-  /* The document's own controls: one horizontal glass pill. */
+  /* The document's own controls: one horizontal glass pill, its round glass
+     buttons padded evenly (materials.css sizes). */
   position: relative;
   display: flex;
   flex-direction: row;
   align-items: center;
   gap: 2px;
-  padding: 4px;
-  border-radius: 18px;
+  padding: var(--glass-tray-padding);
+  border-radius: calc(var(--glass-round-size) / 2 + var(--glass-tray-padding));
   --glass-rim: 12px;
   background: var(--glass-fill);
   -webkit-backdrop-filter: blur(1.6px);
@@ -923,8 +924,8 @@ html[data-shell-mode='mobile'] .app-mid {
 .editor-bar__icon {
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: var(--glass-round-size);
+  height: var(--glass-round-size);
   padding: 0;
   border: 0;
   border-radius: 50%;
@@ -933,6 +934,10 @@ html[data-shell-mode='mobile'] .app-mid {
   cursor: pointer;
   position: relative;
   transition: color 0.12s ease-out;
+}
+.editor-bar__icon > .brush-icon {
+  width: var(--glass-round-icon);
+  height: var(--glass-round-icon);
 }
 .editor-bar__icon:hover,
 .editor-bar__icon--active {

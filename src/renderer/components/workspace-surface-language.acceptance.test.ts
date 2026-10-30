@@ -117,6 +117,12 @@ describe('workspace surface language acceptance', () => {
     expect(copilot).toContain('export function CopilotQuickSettings');
     expect(copilot).not.toContain('<GhostIconButton');
     expect(notification).not.toContain('e.currentTarget.style.background');
+    // The account beside Home and the bell is glass too: no brightening wash
+    // under the pointer, its rim flows instead and stands while its menu is open.
+    expect(account).toContain('className="sidebar-account-cell__account glass glass--small"');
+    const shellCss = source('src/styles/desktop-shell.css');
+    expect(block(shellCss, '.sidebar-account-cell__account:hover,', '}')).not.toContain('background');
+    expect(block(shellCss, '.sidebar-account-cell__account {', '}')).toContain('background: transparent;');
     expect(existsSync(resolve(process.cwd(), 'src/renderer/components/ShadowQuickMenu.tsx'))).toBe(
       false,
     );
@@ -150,6 +156,20 @@ describe('workspace surface language acceptance', () => {
     expect(topTimeline).toContain('if (!expanded) {');
     expect(topTimeline).toContain("data-preview={isPreview ? 'true' : undefined}");
     expect(topTimeline).not.toContain('event.currentTarget.style.background');
+    // A closed pill leaves the way a new one arrives: where everything stood
+    // is read before React removes it, then the pill folds away and its
+    // neighbours, the lock and the plus slide together on the dock pill's
+    // duration and curve; with reduced motion nothing moves.
+    const leave = source('src/renderer/components/topBars/TopTimeline/dock-leave.ts');
+    expect(topTimeline).toContain('<DockLeaveMotion container={containerRef} tabKeys={tabKeys} expanded={expanded} />');
+    expect(topTimeline).toContain('getSnapshotBeforeUpdate(');
+    expect(topTimeline).toContain('return captureDock(container, new Set(this.props.tabKeys));');
+    expect(leave).toContain("import { DOCK_PILL_EASING, DOCK_PILL_MS } from '../../../lib/motion';");
+    expect(leave).toContain("if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;");
+    expect(leave).toContain('{ duration: DOCK_PILL_MS, easing: DOCK_PILL_EASING }');
+    const dockCss = source('src/styles/desktop-shell.css');
+    expect(dockCss).toContain('animation: dock-pill-grow var(--motion-dock-pill) var(--motion-dock-pill-ease) backwards;');
+    expect(block(dockCss, '.dock-slot-leaving,\n.dock-slot-leaving * {', '}')).toContain('animation: none !important;');
 
     // All Chapters and the element overview open from the left panel headers.
     expect(subheader).toContain("title={t('bottomStatusBar.allChapters')}");
@@ -157,8 +177,8 @@ describe('workspace surface language acceptance', () => {
     expect(subheader).toContain("title={t('bottomStatusBar.elements')}");
     expect(subheader).toContain("onClick={() => setActiveSuperView('element')}");
     // Entries to whole-book views are round glass with brush icons.
-    expect(subheader).toContain('<BrushIcon name="ov-folding" size={15} />');
-    expect(subheader).toContain('<BrushIcon name="ov-iceberg" size={15} />');
+    expect(subheader).toContain('<BrushIcon name="ov-folding" />');
+    expect(subheader).toContain('<BrushIcon name="ov-iceberg" />');
     // No icon from an outside set is left on the desktop: Iconoir's page-flip
     // was the last, and nothing used it.
     expect(existsSync(resolve(process.cwd(), 'src/renderer/components/ui/icons/IconoirPageFlip.tsx'))).toBe(false);
@@ -213,6 +233,86 @@ describe('workspace surface language acceptance', () => {
       expect(text, view).not.toContain('EditorCrumb');
       expect(text, view).not.toContain('</EditorTopBar>');
     }
+  });
+
+  it('gives every round glass icon button one size, and the dock pills the same height', () => {
+    const materials = source('src/styles/materials.css');
+    const controls = source('src/styles/ui-controls.css');
+    const indexCss = source('src/styles/index.css');
+    const shell = source('src/styles/desktop-shell.css');
+    const agent = source('src/styles/agent-panel.css');
+    const review = source('src/styles/comments-review.css');
+    const topTimeline = source('src/renderer/components/topBars/TopTimeline/TopTimeline.tsx');
+    const root = block(materials, ':root {', '}');
+    expect(root).toContain('--glass-round-size: 28px;');
+    expect(root).toContain('--glass-round-icon: 16px;');
+    expect(root).toContain('--glass-pill-height: var(--glass-round-size);');
+    expect(root).toContain('--glass-tray-padding: 4px;');
+
+    // One diameter: the shared GhostIconButton (sidebar toggles, Home, the
+    // bell, the timeline toggle, the story graph entry), the paper's tools
+    // (and the material stage that reuses them), the dock's lock and plus,
+    // the Agent composer's buttons, the selection bar's formats, the settings
+    // and Super View backs and the idea tray's close.
+    const sized: Array<[string, string]> = [
+      [controls, '\n.ghost-icon-button--glass.glass--round {'],
+      [indexCss, '.editor-bar__icon {'],
+      [shell, '.workspace-tab-dock__lock,\n.workspace-tab-dock .top-timeline-create-button {'],
+      [agent, '.agt-composer__tray .agt-cfg {'],
+      [agent, '.agt-round {'],
+      [review, '.editor-selection-bar__format {'],
+      [source('src/styles/settings.css'), ":where(html:not([data-shell-mode='mobile'])) .set-head__back {"],
+      [source('src/styles/super-view-header.css'), '.super-view-head__back.glass--round {'],
+      [source('src/styles/drift-panel.css'), '.drift-panel__close {'],
+    ];
+    for (const [css, selector] of sized) {
+      const rule = block(css, selector, '}');
+      expect(rule, selector).toContain('width: var(--glass-round-size);');
+      expect(rule, selector).toContain('height: var(--glass-round-size);');
+    }
+    // One icon size inside them, whatever size a button asks its icon for.
+    for (const [css, selector] of [
+      [controls, '\n.ghost-icon-button--glass.glass--round > .brush-icon {'],
+      [indexCss, '.editor-bar__icon > .brush-icon {'],
+      [shell, '.workspace-tab-dock__lock > .brush-icon,'],
+      [agent, ':is(.agt-composer__tray .agt-cfg, .agt-round) > .brush-icon {'],
+    ] as Array<[string, string]>) {
+      expect(block(css, selector, '}'), selector).toContain('width: var(--glass-round-icon);');
+    }
+    expect(source('src/renderer/features/editor/editor-selection-bar.ts')).toContain(
+      "glyph.style.setProperty('--brush-icon-size', 'var(--glass-round-icon)');",
+    );
+    // The timeline toggle is as big as the toolbar's buttons beside it, and
+    // alone on the stage it keeps the toolbar's middle line.
+    expect(block(shell, '.workspace-timeline-toggle.ghost-icon-button {', '}')).not.toMatch(/width|height|--glass-rim/);
+    expect(block(shell, '.workspace-timeline-toggle--stage.ghost-icon-button {', '}')).toContain(
+      'bottom: calc(16px + var(--glass-tray-padding));',
+    );
+    // Long pills that hold round buttons pad them evenly.
+    expect(block(indexCss, '.editor-bar {', '}')).toContain('padding: var(--glass-tray-padding);');
+    expect(block(agent, '.agt-composer__tray {', '}')).toContain('padding: var(--glass-tray-padding);');
+    // A dock pill is as tall as the lock and the plus either side of it; the
+    // strip reserves their width from the same size.
+    expect(block(shell, '.workspace-tab-dock .app-tab--create.is-active {', '}')).toContain(
+      'height: var(--glass-pill-height) !important;',
+    );
+    expect(block(shell, '.workspace-tab-dock .top-timeline-container.is-expanded {', '}')).toContain(
+      'height: calc(var(--glass-pill-height) + 8px);',
+    );
+    expect(block(review, '.editor-selection-bar__item {', '}')).toContain('height: var(--glass-pill-height);');
+    expect(topTimeline).toContain(`const DOCK_ROUND_GLASS_SIZE = ${root.match(/--glass-round-size: (\d+)px;/)?.[1]};`);
+    expect(block(shell, '.workspace-sidebar-toggle {', '}')).toContain(
+      'top: calc((var(--window-titlebar-height) - var(--glass-round-size)) / 2);',
+    );
+    // The one family of another size: the whole-book entries ride the panel
+    // header's documented scale, filling the room inside the row's padding.
+    expect(
+      block(controls, "html[data-shell-mode='desktop'] .workspace-panel-header-row .ghost-icon-button--glass.glass--round {", '}'),
+    ).toContain('width: calc(var(--ui-control-height) - 2px);');
+    // No round glass button in the Agent composer or the dock asks for its own icon size.
+    const panel = source('src/renderer/features/agent/desktop/DesktopAgentPanel.tsx');
+    expect(block(panel, '<div className="agt-composer__spacer" />', '</div>')).not.toMatch(/<BrushIcon[^>]*size=/);
+    expect(source('src/renderer/components/workspaceChrome/WorkspaceTabDock.tsx')).not.toMatch(/<BrushIcon[^>]*size=/);
   });
 
   it('keeps macOS and cross-platform workspace chrome on one opaque grey plane', () => {
@@ -796,7 +896,7 @@ describe('workspace surface language acceptance', () => {
     expect(settings).toContain('<BrushIcon name="arrow-back" size={16} />');
     expect(settings).not.toContain("t('settings.title_en')");
     expect(settings).not.toContain("t('settings.esc_close')");
-    expect(driftPanel).toContain('<BrushIcon name="close" size={14} />');
+    expect(driftPanel).toContain('<BrushIcon name="close" />');
     expect(driftPanel).not.toContain('>×<');
     expect(block(driftCss, '.drift-panel__close {', '.drift-panel.is-open')).toContain(
       'border-radius: 50%;',
@@ -992,7 +1092,7 @@ describe('workspace surface language acceptance', () => {
     expect(chapterEnd).toContain("icon: 'sprout'");
     expect(chapterEnd).toContain("icon: 'shikigami'");
     expect(chapterEnd).toContain('<BrushIcon name={item.icon} size={14} />');
-    expect(dock).toContain("<BrushIcon name={locked ? 'lock-shut' : 'lock-open'} size={14} />");
+    expect(dock).toContain("<BrushIcon name={locked ? 'lock-shut' : 'lock-open'} />");
     expect(dock).not.toContain('<svg');
     expect(topTimeline).toContain('<BrushIcon name="plus" />');
     expect(userMenu).not.toContain("from 'lucide-react'");
@@ -1169,9 +1269,9 @@ describe('workspace surface language acceptance', () => {
     expect(panel).toContain('part="button"');
     expect(panel).toContain('part="status"');
     expect(panel).toContain('className="agt-round glass glass--rest glass--round"');
-    expect(panel).toContain('<BrushIcon name="stop" size={12} />');
-    expect(panel).toContain("<BrushIcon name={pendingControl?.status === 'waiting_user' ? 'lift' : 'lift-bent'} size={17} />");
-    expect(panel).toContain('<BrushIcon name="lift" size={17} />');
+    expect(panel).toContain('<BrushIcon name="stop" />');
+    expect(panel).toContain("<BrushIcon name={pendingControl?.status === 'waiting_user' ? 'lift' : 'lift-bent'} />");
+    expect(panel).toContain('<BrushIcon name="lift" />');
     expect(panel).not.toContain('agt-send');
     expect(block(agentCss, '.agt-composer.agt-composer--glass {', '}')).toContain('border-radius: 16px;');
     expect(block(agentCss, '.agt-composer--glass .agt-composer__bar {', '}')).toContain('border-top: 0;');

@@ -69,8 +69,8 @@
   pointer-events: none;
   display: grid;
   place-items: center;
-  width: 26px;
-  height: 26px;
+  width: var(--glass-round-size);
+  height: var(--glass-round-size);
   margin-bottom: 6px;
   background: var(--glass-fill);
   -webkit-backdrop-filter: blur(1.6px);
@@ -100,6 +100,10 @@
 }
 .drift-panel__close:hover {
   color: hsl(var(--ink-1));
+}
+.drift-panel__close > .brush-icon {
+  width: var(--glass-round-icon);
+  height: var(--glass-round-icon);
 }
 
 /* Panel slides as a single hand. Starts below the viewport edge so

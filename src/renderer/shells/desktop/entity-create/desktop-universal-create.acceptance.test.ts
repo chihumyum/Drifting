@@ -35,8 +35,8 @@ describe('desktop universal create acceptance', () => {
     expect(topTimeline).toContain('navigate(`/project/${projectId}/new`);');
     expect(topTimeline).not.toContain('aria-pressed={openTabs.some');
     expect(topTimeline).toContain('{expanded && <button');
-    expect(topTimeline).toContain('const TAB_STRIP_START_PADDING = 35;');
-    expect(topTimeline).toContain('const TAB_STRIP_END_PADDING = 35;');
+    expect(topTimeline).toContain('const TAB_STRIP_START_PADDING = DOCK_ROUND_GLASS_SIZE + 5;');
+    expect(topTimeline).toContain('const TAB_STRIP_END_PADDING = DOCK_ROUND_GLASS_SIZE + 5;');
     expect(topTimeline).toContain('paddingLeft: 0');
     expect(topTimeline).toContain(
       'containerWidth - TAB_STRIP_START_PADDING - TAB_STRIP_END_PADDING - totalGaps',

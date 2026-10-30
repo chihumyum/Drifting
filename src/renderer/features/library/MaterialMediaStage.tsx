@@ -267,7 +267,7 @@ export function PdfMediaStage({
               onClick={() => setPage(pageNumber - 1)}
               disabled={pageNumber <= 1}
             >
-              <BrushIcon name="chevron-left" size={14} />
+              <BrushIcon name="chevron-left" />
             </button>
             <span className="material-stage__page">
               {pageNumber} / {pageCount}
@@ -280,7 +280,7 @@ export function PdfMediaStage({
               onClick={() => setPage(pageNumber + 1)}
               disabled={pageNumber >= pageCount}
             >
-              <BrushIcon name="chevron-right" size={14} />
+              <BrushIcon name="chevron-right" />
             </button>
           </div>
         </div>

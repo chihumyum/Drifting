@@ -145,6 +145,15 @@
   color: hsl(var(--ink-1));
   background: hsl(var(--rule));
 }
+/* Desktop: round glass of the shared size (materials.css). */
+.super-view-head__back.glass--round {
+  width: var(--glass-round-size);
+  height: var(--glass-round-size);
+}
+.super-view-head__back.glass--round > .brush-icon {
+  width: var(--glass-round-icon);
+  height: var(--glass-round-icon);
+}
 .super-view-head__switcher {
   display: inline-flex;
   align-items: center;
