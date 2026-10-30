@@ -32,6 +32,12 @@ export const APP_CONFIG = {
     (runtimeViteEnv.VITE_API_BASE_URL as string | undefined) ||
     (runtimeViteEnv.VITE_API_URL as string | undefined) ||
     'http://localhost:3000',
+  // Share-link reader pages (src/share-web). Production serves them from the
+  // Hosted origin; development runs the reader's own Vite server.
+  SHARE_WEB_ORIGIN:
+    (runtimeViteEnv.VITE_SHARE_WEB_ORIGIN as string | undefined) ||
+    (runtimeViteEnv.VITE_API_BASE_URL as string | undefined) ||
+    'http://localhost:3000',
 
   // Operators enabling account flows must provide their own consumer terms.
   TERMS_URL: (runtimeViteEnv.VITE_TERMS_URL as string | undefined) || '',

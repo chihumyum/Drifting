@@ -19,6 +19,28 @@
     "saved": "Markdown saved",
     "failed": "Could not complete the action. Please retry or select and copy the text."
   },
+  "shareLink": {
+    "dialogTitle": "Share",
+    "title": "Share link",
+    "signedOut": "Sign in to Hosted to create a reading link. Signed-in readers can comment, and their comments come back here.",
+    "signIn": "Sign in",
+    "unavailable": "Hosted is not reachable right now; share links are available once it reconnects.",
+    "createHint": "Anyone with the link can read. Signed-in readers can comment, and their comments arrive as comments on this text.",
+    "liveHint": "As you keep writing, the shared page updates a few seconds after you pause.",
+    "create": "Create share link",
+    "creating": "Creating…",
+    "url": "Share link",
+    "copy": "Copy link",
+    "copied": "Link copied",
+    "allowComments": "Allow comments",
+    "revision": "Version {{revision}}",
+    "stop": "Stop sharing",
+    "confirmStop": "Stop? The link will stop working",
+    "stopping": "Stopping…",
+    "failed": "That did not finish. Check the connection and try again.",
+    "reauth": "Your sign-in expired. Sign in again and retry.",
+    "readerBadge": "Reader"
+  },
   "sidebarLayout": {
     "split": "Restore two columns"
   },

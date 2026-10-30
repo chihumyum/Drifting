@@ -12,6 +12,7 @@ node_modules
 .pnpm-store
 # Build outputs
 dist
+dist-share-web
 dist-ssr
 out
 .vite
