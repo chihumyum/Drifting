@@ -232,6 +232,25 @@ describe('Bottom Timeline head, rails and the drift panel in sand and glass', ()
     expect(css).not.toContain('.drift-card__num');
   });
 
+  it('tints a dragged chapter with the lane it is over, from the colour the lanes already use', () => {
+    const timeline = source('src/renderer/shells/desktop/views/DesktopBottomTimeline.tsx');
+    const drag = source('src/renderer/features/graph/chapter-lane-drag.ts');
+    const css = source('src/styles/bottom-timeline.css');
+
+    // One source for a lane's chapter colour: the slab at rest and the slab in the hand.
+    expect(timeline).toContain('const clipColor = laneClipColor(storylineId);');
+    expect(timeline).toContain('laneColor: fromDrawer || isMobilePresentation ? undefined : laneClipColor,');
+    // Written on the ghost alone, once per change of lane: no render, nothing on <html>.
+    expect(drag).toContain('if (lane === tintedLane) return;');
+    expect(drag).toContain("ghost.style.setProperty('--glass-cc', color ?? ownColor.glass);");
+    expect(drag).not.toContain('documentElement.style');
+    expect(drag).not.toContain('sourceElement.style.setProperty');
+    expect(block(css, '.chapter-lane-pointer-ghost.btl-clip.glass::before {', '}')).toContain(
+      'transition: box-shadow var(--motion-glass-bleed) ease-out;',
+    );
+    expect(designSystemDocs()).toContain('拖到别的泳道上方时（吸附过去的那一刻），这一块的玻璃边就换成那条泳道的故事线颜色');
+  });
+
   it('documents the timeline head, rails and the drift panel', () => {
     const docs = designSystemDocs();
     expect(docs).toContain('`actrail--glass`');
