@@ -12,6 +12,7 @@ import type { AnchoredPopoverPlacement } from '../ui/anchored-popover-position';
 import { CopilotQuickSettings } from '../copilot/CopilotBottomMenu';
 import { getPlatformRuntime } from '../../platform/runtime';
 import { hostedAccountSettingsEnabled } from '../../features/settings/hosted-settings-policy';
+import { useShareLinksDialogStore } from '../../features/share-links/share-links-dialog-store';
 import { useOpenSignIn } from '../../features/auth/auth-dialog-store';
 import { AccountAvatar } from '../ui/AccountAvatar';
 import { BrushIcon } from '../ui/BrushIcon';
@@ -38,6 +39,8 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project', placeme
   const canSignOut = hostedStatus === 'connected' || hostedStatus === 'offline' || hostedStatus === 'checking';
   const logout = useAuthStore((s) => s.logout);
   const accountSettingsEnabled = hostedAccountSettingsEnabled();
+  // Share links belong to the signed-in Hosted account.
+  const shareLinksEnabled = accountSettingsEnabled && canSignOut;
   // Read the persisted mode (light/dark/system) — NOT the resolved ui-store
   // theme. The menu has to drive themeMode so that "跟随系统" actually
   // sticks; the resolver in App.tsx then writes back to ui-store.theme.
@@ -293,6 +296,16 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project', placeme
         {scope === 'project' && (
           <MenuGroup last>
             <>
+              {shareLinksEnabled && (
+                <MenuItem
+                  icon={<BrushIcon name="share" size={13} />}
+                  label={t('shareLink.listTitle')}
+                  onClick={() => {
+                    useShareLinksDialogStore.getState().show();
+                    handleClose();
+                  }}
+                />
+              )}
               <MenuItem
                 icon={<BrushIcon name="case-dew" size={13} />}
                 label={t('userMenu.import')}
@@ -316,6 +329,16 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project', placeme
 
         {scope === 'shelf' && accountSettingsEnabled && (
           <MenuGroup last>
+            {shareLinksEnabled && (
+              <MenuItem
+                icon={<BrushIcon name="share" size={13} />}
+                label={t('shareLink.listTitle')}
+                onClick={() => {
+                  useShareLinksDialogStore.getState().show();
+                  handleClose();
+                }}
+              />
+            )}
             <MenuItem
               icon={<BrushIcon name={canSignOut ? 'gate-out' : 'gate-in'} size={13} />}
               label={signingOut ? t('userMenu.signingOut') : t(canSignOut ? 'userMenu.signOut' : 'settings.hosted.sign_in_sync')}

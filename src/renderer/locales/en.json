@@ -35,7 +35,14 @@
     "stopping": "Stopping…",
     "failed": "That did not finish. Check the connection and try again.",
     "reauth": "Your sign-in expired. Sign in again and retry.",
-    "readerBadge": "Reader"
+    "readerBadge": "Reader",
+    "listTitle": "Share links",
+    "listLoading": "Loading share links…",
+    "listEmpty": "Nothing is shared yet",
+    "otherProject": "Not on this device",
+    "open": "Open",
+    "view": "View",
+    "count": "{{count}} shared"
   },
   "sidebarLayout": {
     "split": "Restore two columns"
@@ -1419,6 +1426,11 @@
       "minutesAgo": "{{count}} min ago",
       "hoursAgo": "{{count}} hr ago",
       "daysAgo": "{{count}} days ago"
+    },
+    "shareComments": {
+      "source": "Reader comment",
+      "count": "{{count}} new comments",
+      "single": "{{name}}: {{body}}"
     }
   },
   "userMenu": {

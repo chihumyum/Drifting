@@ -118,15 +118,15 @@ describe.skipIf(!origin)('share links against the Hosted service', () => {
       expect(response.status).toBe(201);
       return (await response.json()) as { id: string };
     }));
-    expect(await syncShareInbox()).toEqual({ imported: 2, withdrawn: 0, statusesReported: 0 });
+    expect(await syncShareInbox()).toMatchObject({ imported: 2, withdrawn: 0, statusesReported: 0 });
     const [row] = await getDb().select().from(CommentTable).where(eq(CommentTable.id, posted[0]!.id));
     expect(row).toMatchObject({ projectId: INPUT.projectId, targetKind: 'node', targetId: 'chapter', authorKind: 'external', authorName: '合成读者' });
     expect(JSON.parse(row!.anchorJson).textAnchor.text).toBe('Synthetic');
-    expect(await syncShareInbox()).toEqual({ imported: 0, withdrawn: 0, statusesReported: 0 });
+    expect(await syncShareInbox()).toEqual({ imported: 0, withdrawn: 0, statusesReported: 0, arrived: [] });
 
     await getDb().update(CommentTable).set({ status: 'resolved' }).where(eq(CommentTable.id, posted[0]!.id));
     await reader(audience.token, `${link.token}/comments/${posted[1]!.id}`, { method: 'DELETE' });
-    expect(await syncShareInbox()).toEqual({ imported: 0, withdrawn: 1, statusesReported: 1 });
+    expect(await syncShareInbox()).toEqual({ imported: 0, withdrawn: 1, statusesReported: 1, arrived: [] });
     expect(await getDb().select().from(CommentTable).where(eq(CommentTable.id, posted[1]!.id))).toEqual([]);
     const after = await (await reader(audience.token, link.token)).json() as { comments: { id: string; status: string }[] };
     expect(after.comments).toEqual([expect.objectContaining({ id: posted[0]!.id, status: 'resolved' })]);

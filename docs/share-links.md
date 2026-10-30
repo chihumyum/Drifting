@@ -37,7 +37,12 @@ The account's display name is shown to readers as the sharer.
   service; comments already imported stay in the library.
 - **Link list.** The service owns the account's links;
   `share-link-store.ts` caches them per account and replaces the cache on
-  account change.
+  account change. **Share links** in the user menu (project and bookshelf)
+  and **Settings → Account → Share links → View** open one dialog
+  (`ShareLinksDialog.tsx`, mounted once at the app root) listing every link
+  grouped by project: the entity's mark and title (opening it, in whichever
+  project), its version, the comments switch, copy and two-step stop. Links of
+  projects not on this device are grouped apart and do not open.
 - **Republishing.** `share-link-publisher.ts` runs per open project. After
   authored commits or remote changes it waits for the author to pause (the
   Markdown projection's worker: 5 s quiet, 30 s at most, deferred during IME
@@ -73,9 +78,20 @@ every 5 minutes). Each pass (`share-inbox.ts`):
    with what readers see; resolved and converted comments show as resolved,
    reopened ones as open.
 
-Review cards and sticky notes label these comments `读者 · <name>`. Like the
-author's own comments, they appear in Review and on the page, not
-automatically in the sticky-note rail.
+Review cards and sticky notes label these comments `读者 · <name>`.
+
+**On the page at once.** While a project is open (`reader-comment-rail.ts`),
+every open reader comment goes on its entity's sticky-note rail, which opens:
+the ones already there when the project opens and each that arrives, imported
+here or synced from another device, newest on top. The rail's membership is
+session UI, so each is pinned once per session; one the author takes off stays
+off until the project opens again. Resolved ones are not pinned.
+
+**Notification.** Each inbox pass that imports comments posts one notification
+per shared entity in the notification center (`share-comment-notifications.ts`):
+the entity's title and `reader: comment`, or the count, in the comment colour.
+It opens the entity, in whichever project it is. Only the device that imports
+a comment notifies; another device receives the comment through sync.
 
 ## Reader page
 
@@ -145,6 +161,10 @@ the service's `CORS_ORIGINS` for sign-in and share requests.
   against a local service — publish with a linked entity and the folio,
   identical hashes, reader comment, import, resolution and reopening,
   withdrawal, stop sharing.
+- `src/renderer/features/share-links/reader-comment-rail.test.ts`: open reader
+  comments pinned per entity, newest on top, once per session; others left alone.
+- `src/renderer/features/share-links/share-comment-notifications.test.ts`: one
+  notification per shared entity, reader and excerpt or count, entity target.
 - `pnpm hosted:acceptance` includes these suites in
   [`hosted-sync/acceptance/client.json`](hosted-sync/acceptance/client.json).
 - Manual end-to-end run (2026-10-30): local Docker service, an isolated

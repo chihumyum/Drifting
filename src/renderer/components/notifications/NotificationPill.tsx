@@ -9,6 +9,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
+import { workspaceUrlFor } from '../../features/workspace/navigation/workspace-route';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { BrushIcon } from '../ui/BrushIcon';
 import { Button } from '../ui/Button';
@@ -22,8 +24,12 @@ const FLASH_MS = 1800; // how long the result icon shows in the circle after the
 type FlashResult = {
   state: 'completed' | 'failed' | 'stopped';
   outcome: string | undefined;
+  source: AppNotification['source'];
   id: number;
 } | null;
+
+/** A reader's comment speaks in the comment colour with its own mark. */
+const COMMENT_INK = 'hsl(var(--comment))';
 
 /** Fixed-position edges of the notification center. */
 type Anchor = { top: number; right: number } | { bottom: number; left: number };
@@ -54,10 +60,16 @@ function sourceLabel(
   n: AppNotification,
   t: (key: string, options?: Record<string, unknown>) => string,
 ): string {
+  if (n.source === 'share-comment') return t('notifications.shareComments.source');
   return n.source === 'hosted-sync' ? t('notifications.cloudSync.source') : 'Copilot';
 }
 
+function sourceMark(n: AppNotification) {
+  return n.source === 'hosted-sync' ? 'cloud' : n.source === 'share-comment' ? 'comment' : 'shikigami';
+}
+
 function SourceIcon({ n, size = 14 }: { n: AppNotification; size?: number }) {
+  if (n.source === 'share-comment') return <BrushIcon name="comment" size={size} />;
   if (n.state === 'running') {
     return (
       <BrushIcon name="loader" size={size} className="ui-spin" />
@@ -70,6 +82,7 @@ function SourceIcon({ n, size = 14 }: { n: AppNotification; size?: number }) {
 }
 
 function flashToneColor(r: NonNullable<FlashResult>): string {
+  if (r.source === 'share-comment') return COMMENT_INK;
   if (r.state === 'stopped') return 'hsl(var(--ink-3))';
   if (r.state === 'failed') return 'hsl(var(--destructive))';
   if (r.outcome === 'issues') return 'hsl(32 80% 44%)';
@@ -77,6 +90,7 @@ function flashToneColor(r: NonNullable<FlashResult>): string {
 }
 
 function FlashIcon({ result }: { result: NonNullable<FlashResult> }) {
+  if (result.source === 'share-comment') return <BrushIcon name="comment" size={15} />;
   if (result.state === 'stopped') return <BrushIcon name="status-stopped" size={15} />;
   if (result.state === 'failed') return <BrushIcon name="status-warning" size={15} />;
   if (result.outcome === 'issues') return <BrushIcon name="status-warning" size={15} />;
@@ -85,6 +99,7 @@ function FlashIcon({ result }: { result: NonNullable<FlashResult> }) {
 
 // Foreground color for a notification's state/outcome.
 function toneColor(n: AppNotification): string {
+  if (n.source === 'share-comment') return COMMENT_INK;
   if (n.state === 'running') return 'hsl(var(--ink-2))';
   if (n.state === 'stopped') return 'hsl(var(--ink-3))';
   if (n.state === 'failed') return 'hsl(var(--destructive))';
@@ -121,6 +136,7 @@ export function NotificationPill({ opens = 'down' }: {
       setFlashResult({
         state: head.state as 'completed' | 'failed' | 'stopped',
         outcome: head.outcome,
+        source: head.source,
         id: Date.now(),
       });
     } else {
@@ -246,9 +262,17 @@ function NotificationCenter({
   const clear = useNotificationStore((s) => s.clear);
   const setCenterOpen = useNotificationStore((s) => s.setCenterOpen);
   const { navigateToNode } = useProjectNavigation();
+  const navigate = useNavigate();
 
   const onRowClick = (n: AppNotification) => {
-    if (n.chapterId) {
+    // A target may be in another project: open it by its workspace URL.
+    const url = n.target
+      ? workspaceUrlFor(n.target.projectId, { entityType: n.target.entityType, id: n.target.id })
+      : null;
+    if (url) {
+      navigate(url);
+      setCenterOpen(false);
+    } else if (n.chapterId) {
       navigateToNode(n.chapterId);
       setCenterOpen(false);
     }
@@ -281,7 +305,7 @@ function NotificationCenter({
                 'menu-surface__item',
                 'notification-row',
                 n.read ? '' : 'is-unread',
-                n.chapterId ? '' : 'is-static',
+                n.chapterId || n.target ? '' : 'is-static',
               ]
                 .filter(Boolean)
                 .join(' ')}
@@ -292,7 +316,7 @@ function NotificationCenter({
               <div className="notification-row__body">
                 <div className="notification-row__meta">
                   <span className="notification-row__source">
-                    <BrushIcon name={n.source === 'hosted-sync' ? 'cloud' : 'shikigami'} size={12} />
+                    <BrushIcon name={sourceMark(n)} size={12} />
                     {sourceLabel(n, t)}
                   </span>
                   <span className="notification-row__time">{relTime(n.updatedAt, now, t)}</span>

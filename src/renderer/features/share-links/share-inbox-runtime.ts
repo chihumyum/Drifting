@@ -3,7 +3,8 @@ import { events } from '../../lib/events';
 import { platform } from '../../platform';
 import { SyncGenerationProvisionSupervisor } from '../../sync/provision/supervisor';
 import { syncShareInbox } from './share-inbox';
-import { canShareLinks } from './share-link-store';
+import { canShareLinks, useShareLinkStore } from './share-link-store';
+import { notifyReaderComments } from './share-comment-notifications';
 
 /** Readers' comments arrive within this long while Drifting is in front. */
 export const SHARE_INBOX_FOREGROUND_MS = 15_000;
@@ -20,7 +21,11 @@ export function installShareInboxRuntime(): () => void {
     canUseProvider: () => getDbIfInitialized() !== null && canShareLinks(),
     async runOnce(signal) {
       lastRunAt = Date.now();
-      await syncShareInbox(signal);
+      const result = await syncShareInbox(signal);
+      if (result?.arrived.length) {
+        const shares = useShareLinkStore.getState().shares;
+        notifyReaderComments(result.arrived, shareId => shares.find(link => link.id === shareId)?.title ?? null);
+      }
     },
     onError(error) {
       console.warn('[share-links] Inbox will retry', error);
