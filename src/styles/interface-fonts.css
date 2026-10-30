@@ -40,6 +40,15 @@ html[data-shell-mode='desktop'] :is(
   text-transform: none;
 }
 
+/* Newsreader sets the tab's line, and Noto Serif SC ideographs centre about
+   0.15em higher on it than Latin words do. A Chinese tab label drops by that
+   much, so the words sit on the window-control line (y = 21px) with the
+   traffic lights and the sidebar toggles. */
+html[data-shell-mode='desktop'] .workspace-panel-tab-row [data-panel-tab-label][data-script='cjk'] {
+  position: relative;
+  top: 0.15em;
+}
+
 /* GroupHeaderCell's inline styles are retained as the mobile fallback. */
 html[data-shell-mode='desktop'] .left-sb-group-header__name {
   font-family: var(--font-structure) !important;
