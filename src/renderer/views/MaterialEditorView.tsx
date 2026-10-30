@@ -530,19 +530,19 @@ function MaterialMediaPage({ item, projectId, userId, onUpdate }: MaterialPagePr
                     setPending(null);
                   }}
                 >
-                  <BrushIcon name="comment-plus" size={15} />
+                  <BrushIcon name="comment-plus" />
                 </button>
                 <button type="button" className="editor-bar__icon glass glass--round" title={t('materialEditor.zoomOut')} aria-label={t('materialEditor.zoomOut')} onClick={() => zoomPan.zoomBy(1 / 1.25)}>
-                  <BrushIcon name="minus" size={14} />
+                  <BrushIcon name="minus" />
                 </button>
                 <button type="button" className="material-stage__zoom glass" title={t('materialEditor.zoomReset')} onClick={() => zoomPan.reset()}>
                   {Math.round(zoomPan.viewport.scale * 100)}%
                 </button>
                 <button type="button" className="editor-bar__icon glass glass--round" title={t('materialEditor.zoomIn')} aria-label={t('materialEditor.zoomIn')} onClick={() => zoomPan.zoomBy(1.25)}>
-                  <BrushIcon name="plus" size={14} />
+                  <BrushIcon name="plus" />
                 </button>
                 <button type="button" className="editor-bar__icon glass glass--round" title={t('memoMaterial.preview.fullscreen')} aria-label={t('memoMaterial.preview.fullscreen')} onClick={() => setLightboxOpen(true)}>
-                  <BrushIcon name="fullscreen" size={14} />
+                  <BrushIcon name="fullscreen" />
                 </button>
               </div>
               {drawing && <div className="material-stage__caption">{t('materialEditor.regions.drawHint')}</div>}
@@ -583,7 +583,7 @@ function MaterialMediaPage({ item, projectId, userId, onUpdate }: MaterialPagePr
             aria-label={t('materialEditor.regions.listLabel')}
           >
             {comments.length === 0 ? (
-              <div className="material-comments__empty">{t('materialEditor.regions.empty')}</div>
+              <div className="material-comments__empty ui-section-empty">{t('materialEditor.regions.empty')}</div>
             ) : (
               comments.map(({ comment, region }, index) => (
                 <div

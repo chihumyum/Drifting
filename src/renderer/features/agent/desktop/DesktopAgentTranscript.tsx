@@ -190,7 +190,7 @@ export const DesktopAgentTranscript = memo(forwardRef<AgentTranscriptHandle, { c
             onClick={jumpToBottom}
             title={t('agentPanel.jumpLatest')}
           >
-            <BrushIcon name="arrow-down" size={13} inline />
+            <BrushIcon name="arrow-down" style={{ '--brush-icon-size': 'var(--glass-round-icon)' } as React.CSSProperties} />
           </button>
         )}
       </div>
@@ -235,8 +235,8 @@ const jumpBtn: React.CSSProperties = {
   right: 12,
   display: 'grid',
   placeItems: 'center',
-  width: 28,
-  height: 28,
+  width: 'var(--glass-round-size)',
+  height: 'var(--glass-round-size)',
   padding: 0,
   border: 0,
   background: 'var(--glass-fill)',

@@ -66,7 +66,7 @@ export function WorkspaceTabDock() {
               title={lockLabel}
               onClick={toggleLocked}
             >
-              <BrushIcon name={locked ? 'lock-shut' : 'lock-open'} size={14} />
+              <BrushIcon name={locked ? 'lock-shut' : 'lock-open'} />
             </button>
           )}
         />

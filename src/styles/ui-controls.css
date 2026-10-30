@@ -38,6 +38,16 @@ html[data-shell-mode='desktop'] .workspace-panel-header-row .ghost-icon-button {
   zoom: var(--panel-header-scale);
 }
 
+/* The round glass entry to a whole-book view rides that scale like the
+   header's other icon buttons, so it is the one round glass that is not the
+   shared size: before the scale it fills the room inside the row's padding
+   (32.5px drawn at the standard text size), so a panel with one is exactly
+   as tall as a panel without. Its icon is the shared one, scaled with it. */
+html[data-shell-mode='desktop'] .workspace-panel-header-row .ghost-icon-button--glass.glass--round {
+  width: calc(var(--ui-control-height) - 2px);
+  height: calc(var(--ui-control-height) - 2px);
+}
+
 /* A collapsed slider's options open on body, outside the header, and keep
    its size there. */
 html[data-shell-mode='desktop'] :is(.workspace-panel-header-row, .glass-slider-popover) :is(.glass-slider__option, .scope-toggle) {
@@ -445,6 +455,19 @@ html[data-shell-mode='desktop'] :is(.leftbar-tab-tray, .rightbar-tab-tray) > .ap
 
 .ghost-icon-button--glass[aria-pressed='true'] {
   color: hsl(var(--ink-1));
+}
+
+/* Round glass is one size wherever it stands (materials.css): the diameter
+   and the icon come from the shared tokens, whatever size the button asks
+   for, and the icon sits in the middle. */
+.ghost-icon-button--glass.glass--round {
+  width: var(--glass-round-size);
+  height: var(--glass-round-size);
+}
+
+.ghost-icon-button--glass.glass--round > .brush-icon {
+  width: var(--glass-round-icon);
+  height: var(--glass-round-icon);
 }
 
 .context-menu-surface {
@@ -2087,6 +2110,22 @@ html:not([data-shell-mode='mobile']) .empty-state--compact {
 
 .empty-state__action {
   margin-top: 2px;
+}
+
+/* Desktop: the one line an empty section of a structured editor says (no
+   fields, no patches, nothing for this filter, no mentions). Every editor
+   writes it the same way: index type (mono, from interface-fonts.css), the
+   caption size, centred, upright and unforced case. The paused mobile shell
+   keeps each consumer's own fallback. */
+html:not([data-shell-mode='mobile']) .ui-section-empty {
+  margin: 0;
+  padding: 12px 8px;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  font-size: var(--ui-font-caption, 11px);
+  font-style: normal;
+  line-height: var(--ui-line-caption, 16px);
+  text-align: center;
+  text-wrap: balance;
 }
 
 /* Only the tab strip uses this full-width half-pixel hairline. Panel headers

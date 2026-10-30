@@ -48,6 +48,22 @@ describe('ElementPanel compact text index', () => {
     expect(zh.leftSidebar.sort.elementDisplayGroup).toBeUndefined();
   });
 
+  it('shows the expand/collapse-all toggle as a folding fan, since it does both', () => {
+    const subheader = source('src/renderer/components/leftBars/LeftSidebarSubHeader.tsx');
+    const panel = source('src/renderer/components/leftBars/ElementPanel.tsx');
+    const en = JSON.parse(source('src/renderer/locales/en.json'));
+    const zh = JSON.parse(source('src/renderer/locales/zh-CN.json'));
+    const toggle = block(subheader, "<SubIconBtn title={t('leftSidebar.actions.collapseAll')}", '</SubIconBtn>');
+
+    // One press opens every type, the next folds them all: a fan, not a minus.
+    expect(panel).toContain('if (prev.size === 0) return new Set(bookElementCategories.map((c) => c.id));');
+    expect(toggle).toContain('<BrushIcon name="folding-fan" size={11} />');
+    expect(toggle).not.toContain('name="minus"');
+    expect(en.leftSidebar.actions.collapseAll).toBe('Expand or collapse all');
+    expect(zh.leftSidebar.actions.collapseAll).toBe('展开／折叠全部');
+    expect(designSystemDocs()).toContain('展开／折叠全部＝开扇');
+  });
+
   it('renders complete names in a content-shaped wrapping flex flow with no portrait path', () => {
     const panel = source('src/renderer/components/leftBars/ElementPanel.tsx');
     const tile = source('src/renderer/components/ui/ElementIdentityTile.tsx');

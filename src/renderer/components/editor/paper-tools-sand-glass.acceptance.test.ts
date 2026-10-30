@@ -82,7 +82,7 @@ describe('the manuscript tools in sand and glass', () => {
     expect(pill).toContain('animation: editor-selection-bar-in 0.16s');
     expect(pill).not.toContain('box-shadow');
     expect(pill).not.toContain('--menu-surface');
-    expect(rule(css, '.editor-selection-bar__item')).toContain('border-radius: 14px;');
+    expect(rule(css, '.editor-selection-bar__item')).toContain('border-radius: calc(var(--glass-pill-height) / 2);');
     expect(rule(css, '.editor-selection-bar__format')).toContain('border-radius: 50%;');
     expect(rule(css, '.editor-selection-bar__formats.is-open')).toContain('visibility: visible;');
     // Small glass takes the dense patch (`glass--small`, `glass--round`); the

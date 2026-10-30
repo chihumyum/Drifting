@@ -1690,7 +1690,13 @@ html[data-shell-mode='mobile'] .set-overlay {
   background: transparent;
 }
 :where(html:not([data-shell-mode='mobile'])) .set-head__back {
+  width: var(--glass-round-size);
+  height: var(--glass-round-size);
   color: hsl(var(--ink-3));
+}
+:where(html:not([data-shell-mode='mobile'])) .set-head__back > .brush-icon {
+  width: var(--glass-round-icon);
+  height: var(--glass-round-icon);
 }
 :where(html:not([data-shell-mode='mobile'])) .set-head__back:hover {
   color: hsl(var(--ink-1));

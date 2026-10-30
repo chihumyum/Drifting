@@ -446,7 +446,7 @@ function DesktopAgentPanelContent({ projectId }: { projectId: string }) {
                   title={t('agentPanel.composer.stopAfterToolTitle')}
                   aria-label={t('agentPanel.composer.stop')}
                 >
-                  <BrushIcon name="stop" size={12} />
+                  <BrushIcon name="stop" />
                 </button>
                 {running && (
                   <button
@@ -466,7 +466,7 @@ function DesktopAgentPanelContent({ projectId }: { projectId: string }) {
                       : t('agentPanel.composer.steer')}
                   >
                     {/* Answering is sending; steering joins the running task. */}
-                    <BrushIcon name={pendingControl?.status === 'waiting_user' ? 'lift' : 'lift-bent'} size={17} />
+                    <BrushIcon name={pendingControl?.status === 'waiting_user' ? 'lift' : 'lift-bent'} />
                   </button>
                 )}
               </>
@@ -479,7 +479,7 @@ function DesktopAgentPanelContent({ projectId }: { projectId: string }) {
                 title={t('agentPanel.composer.send')}
                 aria-label={t('agentPanel.composer.send')}
               >
-                <BrushIcon name="lift" size={17} />
+                <BrushIcon name="lift" />
               </button>
             )}
           </div>

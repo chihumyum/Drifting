@@ -195,7 +195,7 @@ export class EditorSelectionBar {
         // The same brush glyph as BrushIcon renders, built by hand outside React.
         const glyph = document.createElement('i'); glyph.setAttribute('aria-hidden', 'true');
         glyph.className = `brush-icon brush-icon--${FORMAT_GLYPHS[item.id] ?? 'fmt-paragraph'}`;
-        glyph.style.setProperty('--brush-icon-size', '16px');
+        glyph.style.setProperty('--brush-icon-size', 'var(--glass-round-icon)');
         element.appendChild(glyph);
         element.addEventListener('mousedown', event => event.preventDefault());
         element.addEventListener('click', () => invoke(() => item.run(this.editor)));

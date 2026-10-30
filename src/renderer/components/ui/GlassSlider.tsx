@@ -10,6 +10,7 @@ import {
 import { trackGlassFlow } from '../../lib/glass-flow';
 import { OPTIONS_CLOSE_MS, SPRING_MS, weightedEasing } from '../../lib/motion';
 import { AnchoredPopover } from './AnchoredPopover';
+import { leaveSliderGlass, takeSliderGlass, type SliderGlassRect } from './glass-slider-handoff';
 
 export interface GlassSliderOption<T extends string> {
   value: T;
@@ -33,6 +34,13 @@ interface GlassSliderProps<T extends string> {
   collapsed?: boolean;
   /** Reports the width the options need side by side, collapsed or not. */
   onNaturalWidth?: (width: number) => void;
+  /**
+   * Shared by sliders that replace one another in one commit, like the view
+   * switch each Super View draws in its own header: the new slider picks the
+   * glass up where the old one left it and slides on to its own choice
+   * (`glass-slider-handoff.ts`). Side by side only; collapsed ignores it.
+   */
+  handoff?: string;
 }
 
 /**
@@ -87,12 +95,17 @@ function GlassSliderTrack<T extends string>({
   className = '',
   orientation = 'horizontal',
   measure,
+  handoff,
 }: GlassSliderProps<T> & { measure?: ReactNode }) {
   const vertical = orientation === 'vertical';
   const trackRef = useRef<HTMLDivElement | null>(null);
-  const [thumb, setThumb] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const [thumb, setThumb] = useState<SliderGlassRect | null>(null);
   // The first placement lands without motion; later changes slide.
   const [placed, setPlaced] = useState(false);
+  // Where a slider this one replaced left its glass (`handoff`). It is drawn
+  // there until the first placement, so that placement slides on from it.
+  const [handedFrom, setHandedFrom] = useState<SliderGlassRect | null>(null);
+  const shown = !placed && handedFrom ? handedFrom : thumb;
   // Callers often build `options` inline. Keying on their values keeps a
   // parent's unrelated re-render from forcing a synchronous layout here;
   // label and size changes reach the track through its ResizeObserver.
@@ -126,17 +139,52 @@ function GlassSliderTrack<T extends string>({
   // the distance it slides (--flow, lib/glass-flow.ts) and stops when it lands.
   const thumbRef = useRef<HTMLElement | null>(null);
   const slidFrom = useRef<number | null>(null);
+  // Where the glass is drawn and when it last set off, for a handoff.
+  const glassAt = useRef<{ rect: SliderGlassRect | null; setOff: number }>({ rect: null, setOff: -Infinity });
   useEffect(() => {
     const track = trackRef.current;
     const element = thumbRef.current;
-    if (!thumb || !track || !element) return;
+    if (!shown || !track || !element) return;
     if (!track.style.getPropertyValue('--flow')) track.style.setProperty('--flow', '0');
-    const at = vertical ? thumb.y : thumb.x;
+    const at = vertical ? shown.y : shown.x;
     if (placed && slidFrom.current !== null && slidFrom.current !== at) {
+      glassAt.current.setOff = performance.now();
       trackGlassFlow(track, () => (vertical ? element.getBoundingClientRect().top : element.getBoundingClientRect().left));
     }
     slidFrom.current = at;
-  }, [thumb, placed, vertical]);
+    glassAt.current.rect = shown;
+  }, [shown, placed, vertical]);
+
+  // Hand the glass over between sliders that replace one another. Only one
+  // still mid-slide is measured; at rest it is where it was last drawn.
+  const tookHandoff = useRef(false);
+  useLayoutEffect(() => {
+    const track = trackRef.current;
+    const element = thumbRef.current;
+    const drawn = glassAt.current;
+    if (!handoff || !track || !element) return undefined;
+    // Like a measurement, this is read in the commit that replaced the old
+    // slider and drawn before paint; only the first run may take it.
+    const pickUp = () => {
+      const handed = takeSliderGlass(handoff);
+      if (handed) setHandedFrom(handed);
+    };
+    if (!tookHandoff.current) {
+      tookHandoff.current = true;
+      pickUp();
+    }
+    return () => {
+      const { rect, setOff } = drawn;
+      if (!rect) return;
+      if (performance.now() - setOff >= SPRING_MS) {
+        leaveSliderGlass(handoff, rect);
+        return;
+      }
+      const from = track.getBoundingClientRect();
+      const glass = element.getBoundingClientRect();
+      leaveSliderGlass(handoff, { x: glass.left - from.left, y: glass.top - from.top, w: glass.width, h: glass.height });
+    };
+  }, [handoff]);
 
   const choose = (index: number) => {
     const next = options[(index + options.length) % options.length];
@@ -165,10 +213,10 @@ function GlassSliderTrack<T extends string>({
       onKeyDown={handleKeyDown}
       style={
         {
-          '--slider-x': `${thumb?.x ?? 0}px`,
-          '--slider-y': `${thumb?.y ?? 0}px`,
-          '--slider-w': `${thumb?.w ?? 0}px`,
-          '--slider-h': `${thumb?.h ?? 0}px`,
+          '--slider-x': `${shown?.x ?? 0}px`,
+          '--slider-y': `${shown?.y ?? 0}px`,
+          '--slider-w': `${shown?.w ?? 0}px`,
+          '--slider-h': `${shown?.h ?? 0}px`,
           // The weight of the bottom timeline's glass clips: the weighted
           // spring the dock's tabs use (lib/motion.ts).
           '--slider-ms': `${SPRING_MS}ms`,
@@ -176,7 +224,7 @@ function GlassSliderTrack<T extends string>({
         } as CSSProperties
       }
     >
-      <i ref={thumbRef} aria-hidden="true" className="glass-slider__thumb glass is-on" data-visible={thumb ? 'true' : undefined} />
+      <i ref={thumbRef} aria-hidden="true" className="glass-slider__thumb glass is-on" data-visible={shown ? 'true' : undefined} />
       {options.map((option, index) => (
         <button
           key={option.value}

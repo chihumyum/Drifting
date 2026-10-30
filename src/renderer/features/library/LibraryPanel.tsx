@@ -306,7 +306,7 @@ function Toolbar({
             title={t('bottomStatusBar.todoLibrary')}
             aria-label={t('bottomStatusBar.todoLibrary')}
             onClick={onOpenWorkbench}
-            icon={<BrushIcon name="lib-curio" size={15} />}
+            icon={<BrushIcon name="lib-curio" />}
           />
         )}
         {onNewFolder && (

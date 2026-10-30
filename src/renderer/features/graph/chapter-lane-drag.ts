@@ -92,6 +92,14 @@ interface StartChapterLanePointerDragInput {
    * is in. `rows` returns the row boxes in window coordinates, top to bottom.
    */
   weighted?: { rows: () => DOMRect[] };
+  /**
+   * The colour a lane gives the chapters in it. While dragged, the ghost wears
+   * the colour of the lane it would drop on (`--glass-cc` and `--clip-color`)
+   * from the moment it is over that lane, and its own again off every lane;
+   * the source is never touched, so a cancel shows the original. Written on
+   * the ghost only, once per change of lane, never per frame.
+   */
+  laneColor?: (storylineId: string) => string;
   mobileTouch?: {
     onMenu: () => void;
     scrollContainer: HTMLElement | null;
@@ -146,6 +154,7 @@ export function startChapterLanePointerDrag({
   onDrop,
   onDragEnd,
   weighted,
+  laneColor,
   mobileTouch,
 }: StartChapterLanePointerDragInput): ChapterLanePointerDragHandle {
   const threshold = pointerType === 'touch' ? 6 : 3;
@@ -184,6 +193,26 @@ export function startChapterLanePointerDrag({
     if (!menuTimer) return;
     window.clearTimeout(menuTimer);
     menuTimer = 0;
+  };
+
+  // The lane whose colour the ghost wears (undefined: not tinted yet).
+  let tintedLane: string | null | undefined;
+  const ownColor = laneColor
+    ? {
+        glass: sourceElement.style.getPropertyValue('--glass-cc'),
+        clip: sourceElement.style.getPropertyValue('--clip-color'),
+      }
+    : null;
+  /** Where the drag would drop now; the ghost takes that lane's colour. */
+  const aim = (next: ChapterLanePointerTarget | null) => {
+    target = next;
+    if (!ghost || !laneColor || !ownColor) return;
+    const lane = next?.storylineId ?? null;
+    if (lane === tintedLane) return;
+    tintedLane = lane;
+    const color = lane === null ? null : laneColor(lane);
+    ghost.style.setProperty('--glass-cc', color ?? ownColor.glass);
+    ghost.style.setProperty('--clip-color', color ?? ownColor.clip);
   };
 
   // Weighted slab state: the row it is in, and a spring body per axis.
@@ -258,7 +287,7 @@ export function startChapterLanePointerDrag({
     frame = 0;
     if (!ghost) return;
     if (weighted) {
-      target = targetAt(pendingClientX, pendingClientY);
+      aim(targetAt(pendingClientX, pendingClientY));
       if (!springFrame) springFrame = window.requestAnimationFrame(stepSpring);
       return;
     }
@@ -288,11 +317,11 @@ export function startChapterLanePointerDrag({
         if (autoscrollAxis === 'y') scrollContainer.scrollTop += delta;
         else scrollContainer.scrollLeft += delta;
       }
-      target = resolveTarget(pendingClientX, pendingClientY);
+      aim(resolveTarget(pendingClientX, pendingClientY));
       if (delta !== 0) frame = window.requestAnimationFrame(paintDrag);
       return;
     }
-    target = resolveTarget(pendingClientX, pendingClientY);
+    aim(resolveTarget(pendingClientX, pendingClientY));
   };
   const schedulePaint = (clientX: number, clientY: number) => {
     pendingClientX = clientX;
@@ -367,7 +396,7 @@ export function startChapterLanePointerDrag({
     if (dragging) {
       if (frame) window.cancelAnimationFrame(frame);
       frame = 0;
-      target = targetAt(event.clientX, event.clientY);
+      aim(targetAt(event.clientX, event.clientY));
     }
     stopListening();
     if (!dragging) {

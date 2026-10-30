@@ -95,7 +95,7 @@ export function PatchesSection({ elementId, projectId }: PatchesSectionProps) {
         </button>
       </div>
       {patches.length === 0 ? (
-        <div className="refs-empty">
+        <div className="refs-empty ui-section-empty">
           {t('patchesSection.empty')}
         </div>
       ) : (

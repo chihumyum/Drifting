@@ -107,6 +107,9 @@ function readPersistedView(): TimelineView {
   return v === 'narrative' ? 'narrative' : 'book';
 }
 
+/** The glass of a chapter in a lane with no storyline colour (本书 / 未归属). */
+const SYNTHETIC_LANE_CLIP_COLOR = '#2D4A6B';
+
 // Synthetic lane sentinels. These never hit the DB — they're virtual lanes
 // for the two edge cases the storyline rendering needs to handle:
 //   • DEFAULT_LANE_ID: project has zero storylines (single-lane writing mode).
@@ -455,6 +458,11 @@ export function DesktopBottomTimeline({
 
   const unplacedBtnRef = useRef<HTMLButtonElement>(null);
 
+  // A chapter's glass is its lane's storyline colour; the synthetic lanes
+  // (本书 / 未归属) have none of their own and share one. A dragged slab
+  // takes the colour of the lane it is over from the same source.
+  const laneClipColor = (laneId: string) => storylineById.get(laneId)?.color || SYNTHETIC_LANE_CLIP_COLOR;
+
   const startNodePointerDrag = (
     event: React.PointerEvent<HTMLElement>,
     node: TimelineNode,
@@ -510,6 +518,8 @@ export function DesktopBottomTimeline({
           (row) => row.getBoundingClientRect(),
         ),
       },
+      // Over another lane the slab's glass is already that lane's colour.
+      laneColor: fromDrawer || isMobilePresentation ? undefined : laneClipColor,
       onDragStart: () => {
         touchMenuCleanupRef.current?.();
         suppressPointerClickRef.current = true;
@@ -673,12 +683,11 @@ export function DesktopBottomTimeline({
   ]);
 
   const renderNodeCard = (node: TimelineNode, storylineId: string) => {
-    const storyline = storylineById.get(storylineId);
     const isSelected = (isMobilePresentation ? nodeId : (selectedNodeUiId ?? nodeId)) === node.id;
     // Synthetic lanes (本书 / 未归属) host nodes that have no real primary
     // storyline — the lane itself is the visible "primary". Skipping the
     // primary check ensures these tiles render; clip color falls back to
-    // the synthetic lane's color below.
+    // the synthetic lanes' shared color (laneClipColor).
     const isSyntheticLane = storylineId === DEFAULT_LANE_ID || storylineId === UNAFFILIATED_LANE_ID;
     const isPrimary = isSyntheticLane || isPrimaryStorylineForNode(node, storylineId);
 
@@ -687,8 +696,7 @@ export function DesktopBottomTimeline({
     const order = orderOf(node);
     if (order === null) return null;
 
-    const defaultColor = '#2D4A6B';
-    const clipColor = storyline?.color || defaultColor;
+    const clipColor = laneClipColor(storylineId);
     const leftPosition = orderToPosition(order);
     // Mutually-exclusive author-facing status classes.
     const status = node.writingStatus;
@@ -1332,7 +1340,7 @@ export function DesktopBottomTimeline({
               title={t('bottomStatusBar.storyGraph')}
               aria-label={t('bottomStatusBar.storyGraph')}
               onClick={() => setActiveSuperView('graph')}
-              icon={<BrushIcon name="fullscreen" size={14} />}
+              icon={<BrushIcon name="fullscreen" />}
             />
           )}
         </>}

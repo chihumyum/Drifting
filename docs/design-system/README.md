@@ -38,6 +38,7 @@
 - 砂笔的六种用途：实体记号（`KindMark`）、选中时画出的框（`SandFrame`）、按钮和菜单里的图标（`BrushIcon`）、统计面板的读数（`.sand-stroke`）、书架封面上故事线的流带（`lib/sand-cover.ts`），以及正文里作者留下的痕迹：批注锚点是逐行的一道干笔荧光，实体链接是一道同色的干笔下划线（2026-10-29，见 [materials.md](materials.md) 的「砂笔进正文」）。Agent 的改动不用砂笔：原地覆盖的揭示，写完新增绿、改写紫的墨字留到作者的指针停在上面（见 [components.md](components.md)）。
 - 动效词汇：结构性开合、重冰推进、有重量的弹簧、水波、玻璃流动、砂笔画出，各有固定的时长与曲线，定义在一个共享模块（`lib/motion.ts` 与同值的 `--motion-*` CSS 自定义属性，见 [motion.md](motion.md)）。
 - 小块玻璃的纹理取样：矮的控件（`.glass--small`，圆形玻璃同样）固定取稠密的那块，大块玻璃留在轮换上（见 [materials.md](materials.md) 的「纹理取样」）。
+- 玻璃控件的尺寸（2026-10-30）：圆形玻璃图标按钮只有一个直径与一个图标尺寸，Dock 药丸和两端的锁、`+` 一样高，装圆形按钮的长药丸四边同一个留白，都来自 `materials.css` 的尺寸令牌；只有面板 header 的全书视图入口随 header 放大（见 [materials.md](materials.md) 的「尺寸」）。
 - 深色主题逐项复核过（2026-10-29）：第一批全部表面，加上 Panel Tab 方块、筛选滑块、Header 外框流动、Dock 药丸与 Agent 面板。由此改了三处：浮起投影改用 `--shadow-ink`（深色是黑，不再是近白的墨色，见 [surfaces.md](surfaces.md)），有颜色的内晕在深色下往白里提 45%，开关轨道改取稠密纹理（见 [materials.md](materials.md)）。第二批的 Super View、设置页与书架由各自的迁移复核。
 - 交互约定：悬停卡承接所有对象操作，没有自绘右键菜单，在空白处双击新建。
 - 第二层控件：Chip 只指一组里各自独立开关的小件（多选），是范围开关那一族的玻璃；只能选一个的用多选一，两态的用范围开关；指向实体的引用、数量与状态字是平的（见 [components.md](components.md) 的「Chip」）。

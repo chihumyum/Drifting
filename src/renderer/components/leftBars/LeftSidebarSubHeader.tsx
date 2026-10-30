@@ -361,7 +361,7 @@ export function LeftSidebarSubHeader({ panel: activeLeftPanel }: { panel: LeftSi
             setActiveSuperView('none');
             navigateToAllChapters();
           }}
-          icon={<BrushIcon name="ov-folding" size={15} />}
+          icon={<BrushIcon name="ov-folding" />}
         />
       );
     }
@@ -374,7 +374,7 @@ export function LeftSidebarSubHeader({ panel: activeLeftPanel }: { panel: LeftSi
           title={t('bottomStatusBar.elements')}
           aria-label={t('bottomStatusBar.elements')}
           onClick={() => setActiveSuperView('element')}
-          icon={<BrushIcon name="ov-iceberg" size={15} />}
+          icon={<BrushIcon name="ov-iceberg" />}
         />
       );
     }
@@ -461,12 +461,13 @@ export function LeftSidebarSubHeader({ panel: activeLeftPanel }: { panel: LeftSi
       )}
       <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
         {renderOverview()}
-        {/* "折叠全部" applies to panels with collapsible groups (要素 类目 and,
-            now that drifts can be grouped into folders, 构想分组). The 章节 panel
-            toggles its storyline lanes individually, so it's excluded. */}
+        {/* "展开／折叠全部" applies to panels with collapsible groups (要素 类目
+            and, now that drifts can be grouped into folders, 构想分组). The 章节
+            panel toggles its storyline lanes individually, so it's excluded.
+            One press opens every group or folds them all, like a folding fan. */}
         {(activeLeftPanel === 'elements' || activeLeftPanel === 'drift') && (
           <SubIconBtn title={t('leftSidebar.actions.collapseAll')} onClick={collapseAll}>
-            <BrushIcon name="minus" size={11} />
+            <BrushIcon name="folding-fan" size={11} />
           </SubIconBtn>
         )}
         <SubIconBtn

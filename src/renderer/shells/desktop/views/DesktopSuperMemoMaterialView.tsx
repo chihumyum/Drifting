@@ -77,7 +77,7 @@ function look(
  * Global TODO & Library workbench — the project-wide counterpart to the
  * per-entity MemoMaterialPanel in the right sidebar.
  *
- * Layout (full-screen above BottomStatusBar, same shell as StoryGraphView /
+ * Layout (covering the whole window, same shell as StoryGraphView /
  * SuperElementView):
  *  ┌── header (back · Super tabs · stats · search) ─────────┐
  *  ├──────────┬────────────────────────────────────────────┤

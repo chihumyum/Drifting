@@ -32,6 +32,20 @@
   --motion-sand-shift: 0.24s;
   /* How long a wait runs before its loading mark shows. */
   --motion-loading-delay: 240ms;
+  /* A dock mark grows into its pill, a closed pill folds away, and the
+     neighbours that make room or close the gap land with it. */
+  --motion-dock-pill: 340ms;
+  --motion-dock-pill-ease: cubic-bezier(0.3, 0.7, 0.2, 1);
+
+  /* Sizes of glass controls (docs/design-system/materials.md, "尺寸"): every
+     round glass icon button has one diameter and one icon size, centred; a
+     glass pill in a row with them (a Dock pill) is as tall as they are; a
+     long pill that holds them (the paper's toolbar, the Agent composer's
+     tray) pads them evenly, so it stands one padding taller on each side. */
+  --glass-round-size: 28px;
+  --glass-round-icon: 16px;
+  --glass-pill-height: var(--glass-round-size);
+  --glass-tray-padding: 4px;
 
   --glass-clear: #b4b6ae;
   /* Floating glass: the paper shows through, faintly enough to keep labels readable. */
@@ -342,7 +356,10 @@
  * A hairline at rest. While its panel slides open, closes or is dragged
  * wider, the owner sets --flow (distance travelled, px) and --flowa (0–1,
  * how fast) on an ancestor with `.is-moving`; the line then carries flowing
- * glass that runs and stops with the panel, and fades out whole after. */
+ * glass that runs and stops with the panel, and fades out whole after. An
+ * owner inside that panel (the seam between a sidebar's two columns) writes
+ * --flow-inner/--flowa-inner instead: the line shows the stronger and runs by
+ * both, so the inner owner bleeds only its own lines and hides nobody's. */
 .flow-line {
   position: absolute;
   z-index: 5;
@@ -357,7 +374,7 @@
   mask-image: var(--glass-texture);
   -webkit-mask-size: 150px 150px;
   mask-size: 150px 150px;
-  opacity: calc(var(--flowa, 0) * 0.8);
+  opacity: calc(max(var(--flowa, 0), var(--flowa-inner, 0)) * 0.8);
   transition: opacity var(--motion-flow-fade) ease-out;
 }
 
@@ -370,8 +387,8 @@
   top: -1px;
   height: 3px;
   background: linear-gradient(to bottom, transparent, var(--flow-glass), transparent);
-  -webkit-mask-position: calc(var(--flow, 0) * 1.2px + var(--flow-gx, 0px)) var(--flow-gy, 0px);
-  mask-position: calc(var(--flow, 0) * 1.2px + var(--flow-gx, 0px)) var(--flow-gy, 0px);
+  -webkit-mask-position: calc((var(--flow, 0) + var(--flow-inner, 0)) * 1.2px + var(--flow-gx, 0px)) var(--flow-gy, 0px);
+  mask-position: calc((var(--flow, 0) + var(--flow-inner, 0)) * 1.2px + var(--flow-gx, 0px)) var(--flow-gy, 0px);
 }
 
 .flow-line--v { top: 0; bottom: 0; width: 1px; }
@@ -381,8 +398,8 @@
   left: -1px;
   width: 3px;
   background: linear-gradient(to right, transparent, var(--flow-glass), transparent);
-  -webkit-mask-position: var(--flow-gx, 0px) calc(var(--flow, 0) * 1.6px + var(--flow-gy, 0px));
-  mask-position: var(--flow-gx, 0px) calc(var(--flow, 0) * 1.6px + var(--flow-gy, 0px));
+  -webkit-mask-position: var(--flow-gx, 0px) calc((var(--flow, 0) + var(--flow-inner, 0)) * 1.6px + var(--flow-gy, 0px));
+  mask-position: var(--flow-gx, 0px) calc((var(--flow, 0) + var(--flow-inner, 0)) * 1.6px + var(--flow-gy, 0px));
 }
 
 /* ── Sand ───────────────────────────────────────────────────────────
@@ -681,6 +698,7 @@
 .brush-icon--locate { -webkit-mask-image: url('../assets/design/icons/locate.png'); mask-image: url('../assets/design/icons/locate.png'); }
 .brush-icon--new-storyline { -webkit-mask-image: url('../assets/design/icons/new-storyline.png'); mask-image: url('../assets/design/icons/new-storyline.png'); }
 .brush-icon--new-category { -webkit-mask-image: url('../assets/design/icons/new-category.png'); mask-image: url('../assets/design/icons/new-category.png'); }
+.brush-icon--folding-fan { -webkit-mask-image: url('../assets/design/icons/folding-fan.png'); mask-image: url('../assets/design/icons/folding-fan.png'); }
 .brush-icon--arrow-down { -webkit-mask-image: url('../assets/design/icons/arrow-down.png'); mask-image: url('../assets/design/icons/arrow-down.png'); }
 .brush-icon--arrow-out { -webkit-mask-image: url('../assets/design/icons/arrow-out.png'); mask-image: url('../assets/design/icons/arrow-out.png'); }
 .brush-icon--arrow-in { -webkit-mask-image: url('../assets/design/icons/arrow-in.png'); mask-image: url('../assets/design/icons/arrow-in.png'); }

@@ -94,7 +94,7 @@ export function DriftPanel({
               title={t('driftPanel.collapseTitle', { label: resolvedTabLabel })}
               aria-label={t('driftPanel.collapseTitle', { label: resolvedTabLabel })}
             >
-              <BrushIcon name="close" size={14} />
+              <BrushIcon name="close" />
             </button>
             <div className="drift-panel__panel" aria-hidden={panelAriaHidden}>
               <div className="drift-panel__hand" ref={handRef} {...handDragHandlers}>

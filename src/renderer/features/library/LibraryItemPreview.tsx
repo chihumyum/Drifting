@@ -86,7 +86,7 @@ export function LibraryItemFullscreenPreview({
           glass="round"
           size="lg"
           className="material-lightbox__close"
-          icon={<BrushIcon name="close" size={14} />}
+          icon={<BrushIcon name="close" />}
           aria-label={t('common.close')}
           title={t('common.close')}
           onClick={(event) => {

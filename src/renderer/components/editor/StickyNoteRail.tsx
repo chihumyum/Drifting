@@ -202,7 +202,7 @@ export function StickyNoteRail({
             size="lg"
             glass="round"
             className="glass--rest"
-            icon={<BrushIcon name="layers" size={15} />}
+            icon={<BrushIcon name="layers" />}
             onClick={() => rail.setLayout(stacked ? 'expanded' : 'stacked')}
             aria-pressed={stacked}
             title={t('reviewPanel.stackSticky')}
@@ -222,7 +222,7 @@ export function StickyNoteRail({
             size={glass ? 'lg' : 'sm'}
             glass={glass ? 'round' : undefined}
             className={glass ? 'glass--rest' : undefined}
-            icon={<BrushIcon name="close" size={glass ? 13 : 12} />}
+            icon={<BrushIcon name="close" size={glass ? undefined : 12} />}
             onClick={rail.clear}
             title={t('reviewPanel.clearSticky')}
             aria-label={t('reviewPanel.clearSticky')}
