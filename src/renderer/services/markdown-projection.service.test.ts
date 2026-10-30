@@ -29,9 +29,12 @@ import {
 import { getMarkdownProjectionStatus } from './markdown-projection-status';
 import { flushMarkdownProjections } from './markdown-projection-lifecycle';
 import { events } from '../lib/events';
+import { useDataStore } from '../store/data-store';
+import { useNotificationStore } from '../store/notification-store';
 
 beforeEach(() => {
   fixture.database = {};
+  useNotificationStore.setState({ items: [], centerOpen: false });
   fixture.composing = false;
   vi.clearAllMocks();
   fixture.setOutputRoot.mockReset();
@@ -272,10 +275,11 @@ describe('Markdown projection scheduling', () => {
 
   it('merges edited files first, writes authored files guarded, and retries a conflict', async () => {
     vi.useFakeTimers();
+    useDataStore.setState({ bookNodes: [{ id: 'c2', projectId: 'synthetic', title: '晨雾' }] } as never);
     const order: string[] = [];
     fixture.mirror.scan.mockImplementation(async (_directory: string, options: { force?: boolean }) => {
       order.push(`scan:${options.force ? 'force' : 'stat'}`);
-      return { merged: 0, issues: [{ path: '正文/002 晨雾.md', reason: 'frontmatter' }] };
+      return { merged: 0, issues: [{ path: '正文/002 晨雾.md', reason: 'frontmatter', docId: 'node-content:c2' }] };
     });
     fixture.read.mockImplementation(async () => { order.push('capture'); return { books: [{ project: { id: 'synthetic' } }], proseByDocId: new Map() }; });
     fixture.build.mockResolvedValue({
@@ -294,6 +298,10 @@ describe('Markdown projection scheduling', () => {
       expect(fixture.write.mock.calls[0]![2]).toEqual([{ path: '开始阅读.md', text: 'home' }, authored]);
       expect(fixture.mirror.settle).toHaveBeenCalledWith([{ docId: 'node-content:c1' }], '/synthetic/projection', expect.objectContaining({ conflicts: ['正文/001 雨夜.md'] }));
       expect(getMarkdownProjectionStatus('synthetic')).toMatchObject({ mirrorIssues: [{ path: '正文/002 晨雾.md', reason: 'frontmatter' }] });
+      expect(useNotificationStore.getState().items.filter(item => item.source === 'markdown-folder')).toMatchObject([{
+        id: 'markdown-folder:synthetic:正文/002 晨雾.md', state: 'failed', title: '晨雾',
+        target: { projectId: 'synthetic', entityType: 'node', id: 'c2' },
+      }]);
       // The conflicted file is merged and written on the next pass.
       await vi.advanceTimersByTimeAsync(PROJECTION_QUIET_MS);
       // Polling scans run meanwhile; the capture still scans right before it reads.
@@ -301,6 +309,10 @@ describe('Markdown projection scheduling', () => {
       expect(order.slice(-2)).toEqual(['scan:stat', 'capture']);
       expect(fixture.write).toHaveBeenCalledTimes(2);
       expect(getMarkdownProjectionStatus('synthetic')).toMatchObject({ preserved: ['正文/003 旧稿.md'], reverseSync: true });
+      const folder = useNotificationStore.getState().items.filter(item => item.source === 'markdown-folder');
+      // Notified once, not on every scan; the preserved copy is its own row.
+      expect(folder.map(item => item.state)).toEqual(['completed', 'failed']);
+      expect(folder[0]).toMatchObject({ outcome: 'issues' });
     } finally { await dispose(); }
   });
 

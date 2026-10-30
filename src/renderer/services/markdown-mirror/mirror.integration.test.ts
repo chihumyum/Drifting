@@ -16,7 +16,7 @@ import {
 import type { DbClient } from '../../lib/db';
 import { proseDocId } from '../../lib/yjs-doc-id';
 import type { MarkdownProjectionReadRequest, MarkdownProjectionWriteResult } from '../../platform/contracts';
-import { BookNodeTable, NodeContentTable, ProjectTable } from '../../schema/drizzle';
+import { BookNodeTable, CommentTable, NodeContentTable, ProjectTable } from '../../schema/drizzle';
 import { createMarkdownMirrorRepository } from '../../sqlite-repo/markdown-mirror-repo';
 import { createYjsRepository } from '../../sqlite-repo/yjs-repo';
 import type { LocalRelationalMarkdownSource } from '../export/relational-markdown.local-source';
@@ -203,7 +203,7 @@ describe('Markdown folder ledger', () => {
     const mirror = createMarkdownMirror(PROJECT_ID);
     await capture(db, mirror);
     editOnDisk((text) => text.replace('林岚推开门。', ''));
-    expect(await mirror.scan(DIRECTORY)).toEqual({ merged: 0, issues: [{ path: FILE_PATH, reason: 'empty' }] });
+    expect(await mirror.scan(DIRECTORY)).toEqual({ merged: 0, issues: [{ path: FILE_PATH, reason: 'empty', docId: DOC_ID }] });
     // The next write keeps the emptied file aside (native) and restores it.
     const next = await capture(db, mirror);
     expect(next.prepared.entries[0]!.expectedSha256).toBeNull();
@@ -217,11 +217,34 @@ describe('Markdown folder ledger', () => {
     const blocked = await capture(db, mirror);
     expect(blocked.conflicts).toEqual([FILE_PATH]);
     expect(disk.get(FILE_PATH)!.text).toBe(broken);
-    expect((await mirror.scan(DIRECTORY)).issues).toEqual([{ path: FILE_PATH, reason: 'frontmatter' }]);
+    expect((await mirror.scan(DIRECTORY)).issues).toEqual([{ path: FILE_PATH, reason: 'frontmatter', docId: DOC_ID }]);
     editOnDisk((text) => text.replace('摘要: "未闭合', '摘要: ""'));
     await capture(db, mirror);
     expect(disk.get(FILE_PATH)!.text.endsWith('\n林岚推开门。雨很大。\n')).toBe(true);
     expect((await mirror.scan(DIRECTORY)).issues).toEqual([]);
+  });
+
+  it('leaves one TODO on a paragraph both sides changed at the same spot', async () => {
+    const db = await setup();
+    const mirror = createMarkdownMirror(PROJECT_ID);
+    await capture(db, mirror);
+    await typeInDrifting(db, '雨很大。');
+    editOnDisk((text) => text.replace('林岚推开门。', '林岚推开门。风很冷。'));
+    expect((await mirror.scan(DIRECTORY)).merged).toBe(1);
+    const todos = async () => (await db.select().from(CommentTable)).map((row) => ({
+      kind: row.kind, targetId: row.targetId, targetBlockId: row.targetBlockId, status: row.status,
+      authorKind: row.authorKind, metadata: JSON.parse(row.metadataJson ?? '{}'),
+    }));
+    expect(await todos()).toEqual([{
+      kind: 'todo', targetId: NODE_ID, targetBlockId: 'p1', status: 'open', authorKind: 'external',
+      metadata: { markdownFolder: { path: FILE_PATH } },
+    }]);
+    // The same paragraph colliding again keeps its one open card.
+    await capture(db, mirror);
+    await typeInDrifting(db, '夜深了。');
+    editOnDisk((text) => text.replace(/。\n$/u, '。灯灭了。\n'));
+    expect((await mirror.scan(DIRECTORY)).merged).toBe(1);
+    expect(await todos()).toHaveLength(1);
   });
 
   it('leaves a file edited during a write for the next scan and keeps both edits', async () => {

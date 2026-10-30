@@ -11,7 +11,10 @@ import { flushPendingAtomicSyncTransactions } from './atomic-sync-transaction-tr
 import { flushAllOpenYjsDocuments } from './yjs-local-durability.service';
 import { readLocalRelationalMarkdownSource } from './export/relational-markdown.local-source';
 import { createMarkdownProjectionRenderer } from './export/markdown-projection-client';
-import { createMarkdownMirror, type MirrorScanResult } from './markdown-mirror/mirror';
+import { createMarkdownMirror, type MirrorIssue, type MirrorScanResult } from './markdown-mirror/mirror';
+import { i18next } from '../lib/i18n';
+import { useDataStore } from '../store/data-store';
+import { useNotificationStore } from '../store/notification-store';
 
 const workers = new Map<string, ReturnType<typeof createProjectionWorker>>();
 
@@ -103,9 +106,42 @@ export function installMarkdownProjection(projectId: string): () => Promise<void
   // Chapters and drifts are two-way: edits made in another editor merge back.
   const mirror = createMarkdownMirror(projectId);
   let hashedOnce = false;
+  // A file that could not merge is a notification until it merges or changes
+  // reason; the settings panel lists the same issues.
+  const notified = new Map<string, string>();
+  const notificationId = (path: string) => `markdown-folder:${projectId}:${path}`;
+  const notifyIssues = (issues: readonly MirrorIssue[]) => {
+    const { ingest, remove } = useNotificationStore.getState();
+    const current = new Map(issues.map(issue => [issue.path, issue.reason]));
+    for (const [path, reason] of notified) {
+      if (current.get(path) === reason) continue;
+      remove(notificationId(path));
+      notified.delete(path);
+    }
+    for (const issue of issues) {
+      if (notified.has(issue.path)) continue;
+      const nodeId = issue.docId.startsWith('node-content:') ? issue.docId.slice('node-content:'.length) : null;
+      const title = nodeId ? useDataStore.getState().bookNodes.find(node => node.id === nodeId)?.title : undefined;
+      ingest({
+        id: notificationId(issue.path),
+        source: 'markdown-folder',
+        state: 'failed',
+        title: title || issue.path,
+        error: i18next.t(`notifications.markdownFolder.issue.${issue.reason}`, {
+          defaultValue: i18next.t('notifications.markdownFolder.issue.unreadable'),
+        }),
+        at: Date.now(),
+        ...(nodeId ? { target: { projectId, entityType: 'node' as const, id: nodeId } } : {}),
+      });
+      notified.set(issue.path, issue.reason);
+    }
+  };
   const scanMirror = async (directory: string, force: boolean): Promise<MirrorScanResult> => {
     const result = await mirror.scan(directory, { force });
-    if (active()) publish(projectId, { mirrorIssues: result.issues });
+    if (active()) {
+      publish(projectId, { mirrorIssues: result.issues });
+      notifyIssues(result.issues);
+    }
     return result;
   };
   publish(projectId, { state: 'pending', readOnly: false, reverseSync: true });
@@ -159,6 +195,16 @@ export function installMarkdownProjection(projectId: string): () => Promise<void
       // A native build from before two-way files reports neither list.
       const { conflicts = [], preserved = [], ...written } = result;
       if (active()) publish(projectId, { ...written, state: 'ready', error: undefined, ...(preserved.length ? { preserved } : {}) });
+      if (active() && preserved.length) {
+        useNotificationStore.getState().ingest({
+          id: `markdown-folder:${projectId}:preserved:${capturedAt.toISOString()}`,
+          source: 'markdown-folder',
+          state: 'completed',
+          outcome: 'issues',
+          title: i18next.t('notifications.markdownFolder.preserved', { count: preserved.length }),
+          at: Date.now(),
+        });
+      }
       // A file changed on disk while this capture ran: merge it, then write.
       if (conflicts.length) worker.request();
     });

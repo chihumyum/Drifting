@@ -27,6 +27,7 @@ const files = [
   'src/renderer/services/markdown-mirror/reconcile-yjs.ts',
   'src/renderer/services/markdown-mirror/ingest.ts',
   'src/renderer/services/markdown-mirror/mirror.ts',
+  'src/renderer/services/markdown-mirror/overlap-todo.ts',
   'src/renderer/services/markdown-projection.service.ts',
   'src/renderer/sqlite-repo/markdown-mirror-repo.ts',
   'src/renderer/lib/agent/runtime/workspace-prose-file.ts',

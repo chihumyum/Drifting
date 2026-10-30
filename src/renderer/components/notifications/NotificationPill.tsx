@@ -58,6 +58,7 @@ function relTime(
 
 function sourceLabel(n: AppNotification, t: (key: string, options?: Record<string, unknown>) => string): string {
   if (n.source === 'agent-organize') return t('notifications.organize.source');
+  if (n.source === 'markdown-folder') return t('notifications.markdownFolder.source');
   return t(n.source === 'share-comment' ? 'notifications.shareComments.source' : 'notifications.cloudSync.source');
 }
 
@@ -316,7 +317,7 @@ function NotificationCenter({
                 <div className="notification-row__meta">
                   <span className="notification-row__source">
                     <BrushIcon
-                      name={n.source === 'share-comment' ? 'comment' : n.source === 'agent-organize' ? 'shikigami' : 'cloud'}
+                      name={n.source === 'share-comment' ? 'comment' : n.source === 'agent-organize' ? 'shikigami' : n.source === 'markdown-folder' ? 'both-ways' : 'cloud'}
                       size={12}
                     />
                     {sourceLabel(n, t)}
