@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { TabPromotionSuppressedContext } from './tab-promotion-context';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import {
@@ -1846,9 +1847,10 @@ export function useChapterInFront(projectId: string | undefined | null): boolean
 }
 
 export function usePromoteCurrentTab(projectId: string | undefined | null): () => void {
+  const suppressed = useContext(TabPromotionSuppressedContext);
   return useCallback(() => {
-    if (projectId) useUiStore.getState().promoteTab(projectId);
-  }, [projectId]);
+    if (projectId && !suppressed) useUiStore.getState().promoteTab(projectId);
+  }, [projectId, suppressed]);
 }
 
 // Grace period for edit-triggered promotion. Yjs sync, doc rehydration, and

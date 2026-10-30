@@ -145,7 +145,6 @@ describe('the element overview as category islands', () => {
     expect(css).toMatch(/\.super-view-body\[data-se-lod='far'\] \.se-card__name \{\s*display: none;/);
     expect(css).toMatch(/\.super-view-body\[data-se-lod='near'\] \.se-card__summary \{\s*display: -webkit-box;/);
     expect(css).toMatch(/\.se-card\.sand-cell\.is-dim \{\s*opacity: 0\.2;/);
-    expect(css).toMatch(/\.se-detail \{[^}]*background: var\(--menu-surface-bg\);[^}]*box-shadow: var\(--menu-surface-shadow\);/);
   });
 
   it('is written down as the islands', () => {

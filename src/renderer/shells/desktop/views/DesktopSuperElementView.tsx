@@ -43,7 +43,11 @@ import { useBookElement } from '../../../usecase/useBookElement';
 import { useElementCategory } from '../../../usecase/useElementCategory';
 import { GlassSlider } from '../../../components/ui/GlassSlider';
 import { FilterChip } from '../../../components/ui/FilterChip';
-import { ElementIsleDetail } from '../components/ElementIsleDetail';
+import { CategoryIsleDetail, CategoryIsleStrip, ElementIsleDetail, ElementIsleStrip } from '../components/ElementIsleDetail';
+import { SuperElementIsland } from '../components/SuperElementIsland';
+import { readIslandWidth } from '../components/super-element-island-width';
+import { ElementEditorView } from '../../../views/ElementEditorView';
+import { CategoryEditorView } from '../../../views/CategoryEditorView';
 import { useDriftGroup } from '../../../usecase/useDriftGroup';
 import { findById } from '../../../lib/immutable-id-index';
 import {
@@ -173,6 +177,18 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
   const [linesOn, setLinesOn] = useState(true);
   const [lineThreshold, setLineThreshold] = useState(2);
   const [findQuery, setFindQuery] = useState('');
+  // The floating island (SuperElementIsland) holds the focused element or a
+  // clicked category: a small card first, 编辑 grows it into the sheet with
+  // the workspace's own editor, at the width the author last dragged it to.
+  const [isleCategory, setIsleCategory] = useState<string | null>(null);
+  const [islandMode, setIslandMode] = useState<'peek' | 'sheet'>('peek');
+  const [islandWidth, setIslandWidth] = useState(readIslandWidth);
+  const closeIsland = useCallback(() => {
+    setIsleFocus(null);
+    setIsleCategory(null);
+    setIsolated(false);
+    setIslandMode('peek');
+  }, []);
 
   // Click-focus neighborhood: while an element's popover is open, the
   // elements it shares an edge with — and those edges — light up so the
@@ -343,10 +359,19 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
       {
         id: `isle-focus:${isleFocus ?? ''}`,
         active: !mobileShell && isleFocus !== null,
-        onEscape: () => {
-          setIsleFocus(null);
-          setIsolated(false);
-        },
+        onEscape: closeIsland,
+      },
+      {
+        id: `isle-category:${isleCategory ?? ''}`,
+        active: !mobileShell && isleCategory !== null,
+        onEscape: closeIsland,
+      },
+      {
+        // After the focus layers so a subject switched inside the sheet is
+        // still collapsed back to its card before the island closes.
+        id: `island-sheet:${isleFocus ?? isleCategory ?? ''}`,
+        active: !mobileShell && islandMode === 'sheet' && (isleFocus !== null || isleCategory !== null),
+        onEscape: () => setIslandMode('peek'),
       },
       {
         id: 'drift-panel',
@@ -962,6 +987,8 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
     const viewport = viewportRef.current;
     if (!viewport) return;
     const onWheel = (e: WheelEvent) => {
+      // The island's editor scrolls itself.
+      if ((e.target as Element | null)?.closest?.('[data-super-modal]')) return;
       if (e.ctrlKey || e.metaKey) {
         // ⌘/Ctrl + wheel → zoom around cursor. Trackpad pinch-zoom on
         // macOS dispatches wheel with ctrlKey=true regardless of physical
@@ -1358,7 +1385,10 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
       //   • drift node    → NodeCardPopover (same two-tier UX, for nodes)
       //   • chapter pill  → no-op (band is read-only per design)
       if (kind === 'element' && !mobileShell) {
-        setIsleFocus((current) => (current === id ? null : id));
+        // The sheet stays open and turns to the clicked element; the card
+        // toggles.
+        setIsleFocus((current) => (current === id && islandMode === 'peek' ? null : id));
+        setIsleCategory(null);
         setIsolated(false);
       } else if (kind === 'element') {
         setActivePopover({
@@ -1382,7 +1412,7 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
         });
       }
     },
-    [driftIds, linkSource, mobileLinkMode, hoverDismiss, mobileShell],
+    [driftIds, linkSource, mobileLinkMode, hoverDismiss, mobileShell, islandMode],
   );
 
   const handleNodeClick = useCallback<ChapterBandProps['onNodeClick']>((node, rect, opts) => {
@@ -1394,9 +1424,15 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
   }, [handleEntityClick]);
   const handleCategoryClick = useCallback<CategoryBoxProps['onCategoryClick']>(id => {
     if (dragEndedAtRef.current > performance.now() - 250) return;
+    if (!mobileShell) {
+      setIsleCategory((current) => (current === id && islandMode === 'peek' ? null : id));
+      setIsleFocus(null);
+      setIsolated(false);
+      return;
+    }
     openEntity({ entityType: 'category', id });
     close();
-  }, [openEntity, close]);
+  }, [openEntity, close, mobileShell, islandMode]);
   const handleStorylineClick = useCallback<NonNullable<ChapterBandProps['onStorylineClick']>>(id => {
     hoverDismiss();
     openEntity({ entityType: 'storyline', id });
@@ -1603,8 +1639,48 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
     setPan({ x: viewport.clientWidth / 2 - center.x * target, y: viewport.clientHeight / 2 - center.y * target });
     setZoom(target);
     setIsleFocus(id);
+    setIsleCategory(null);
     setIsolated(false);
   }, [elementCenters]);
+  // The island's subject stays in the canvas left of the island: when it
+  // sits under the sheet (or the card) or off screen, the canvas slides it
+  // into the middle of what is left. `sheetRatio` is null for the card.
+  const revealBesideIsland = useCallback((subject: { kind: 'element' | 'category'; id: string }, sheetRatio: number | null) => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    let x: number;
+    let y: number;
+    if (subject.kind === 'element') {
+      const center = elementCenters.get(subject.id);
+      if (!center) return;
+      x = center.x * zoomRef.current + panRef.current.x;
+      y = center.y * zoomRef.current + panRef.current.y;
+    } else {
+      const box = worldRef.current
+        ?.querySelector(`[data-se-category="${CSS.escape(subject.id)}"]`)
+        ?.getBoundingClientRect();
+      if (!box) return;
+      const area = viewport.getBoundingClientRect();
+      x = box.left + box.width / 2 - area.left;
+      y = box.top - area.top + Math.min(box.height, viewport.clientHeight) / 2;
+    }
+    const free = sheetRatio === null
+      ? viewport.clientWidth - 332
+      : viewport.clientWidth * (1 - sheetRatio) - 12;
+    const margin = 48;
+    const insideX = x > margin && x < free - margin;
+    const insideY = y > margin && y < viewport.clientHeight - margin;
+    if (insideX && insideY) return;
+    setPan({
+      x: panRef.current.x + (insideX ? 0 : free / 2 - x),
+      y: panRef.current.y + (insideY ? 0 : viewport.clientHeight / 2 - y),
+    });
+  }, [elementCenters]);
+  const focusIsleElement = useCallback((id: string) => {
+    setIsleFocus(id);
+    setIsleCategory(null);
+    revealBesideIsland({ kind: 'element', id }, islandMode === 'sheet' ? islandWidth : null);
+  }, [revealBesideIsland, islandMode, islandWidth]);
   const hoveredElementId = hoverPreview?.data.kind === 'element' ? hoverPreview.data.id : null;
   const activeIsleElement = mobileShell ? null : (carried?.id ?? hoveredElementId ?? isleFocus);
   const isleChapters = useMemo(
@@ -1638,7 +1714,7 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
           incoming,
           otherName: relationEndpointLabel(otherKind, otherId),
           otherMark: entityMark(otherKind, otherId),
-          onSelect: otherKind === 'element' ? () => setIsleFocus(otherId) : undefined,
+          onSelect: otherKind === 'element' ? () => focusIsleElement(otherId) : undefined,
         };
       });
     return {
@@ -1651,6 +1727,31 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
       relations,
     };
   })();
+  const isleCategoryDetail = (() => {
+    if (mobileShell || isleFocus || !isleCategory) return null;
+    const category = findById(bookElementCategories, isleCategory);
+    if (!category) return null;
+    const members = bookElements
+      .filter((element) => element.categoryId === category.id)
+      .map((element) => ({ id: element.id, name: element.name, mentions: mentionGraph?.elements.get(element.id)?.mentions ?? 0 }))
+      .sort((a, b) => b.mentions - a.mentions);
+    return { category, members };
+  })();
+  const islandSubject = isleDetail
+    ? { kind: 'element' as const, id: isleDetail.element.id }
+    : isleCategoryDetail
+      ? { kind: 'category' as const, id: isleCategoryDetail.category.id }
+      : null;
+  const growIsland = () => {
+    if (!islandSubject) return;
+    setIslandMode('sheet');
+    revealBesideIsland(islandSubject, islandWidth);
+  };
+  const openIslandInTab = () => {
+    if (!islandSubject) return;
+    openEntity({ entityType: islandSubject.kind, id: islandSubject.id });
+    close();
+  };
 
   return (
     <SuperViewShell className="super-element-overlay">
@@ -1661,6 +1762,34 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
           elements: bookElements.length,
         })}
         onBack={close}
+        relationMenuLead={mobileShell ? undefined : (
+          // The automatic sand lines live with the relation filters: two
+          // elements mentioned in one paragraph of a chapter, at least
+          // `lineThreshold` times.
+          <section className="relation-kind-menu__section se-lines-section">
+            <div className="relation-kind-menu__section-label">{t('superElement.isles.linesSection')}</div>
+            <div className="relation-kind-menu__chips se-lines-section__row">
+              <FilterChip
+                look="glass"
+                size="sm"
+                data-se-lines=""
+                active={linesOn}
+                markerColor="hsl(var(--ink-3))"
+                count={isleLines.length}
+                onClick={() => setLinesOn((value) => !value)}
+              >
+                {t('superElement.isles.lines')}
+              </FilterChip>
+              <GlassSlider
+                ariaLabel={t('superElement.isles.threshold')}
+                value={String(lineThreshold)}
+                onChange={(value) => setLineThreshold(Number(value))}
+                options={['1', '2', '3'].map((value) => ({ value, label: t('superElement.isles.atLeast', { count: Number(value) }) }))}
+              />
+            </div>
+            <div className="se-lines-section__hint">{t('superElement.isles.linesTitle')}</div>
+          </section>
+        )}
         rightSlot={
           <>
             {mobileShell && (
@@ -1769,23 +1898,6 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
                   value={lod}
                   onChange={goToDistance}
                   options={(['far', 'mid', 'near'] as const).map((value) => ({ value, label: t(`superElement.isles.${value}`) }))}
-                />
-                <FilterChip
-                  look="glass"
-                  data-se-lines=""
-                  active={linesOn}
-                  markerColor="hsl(var(--ink-3))"
-                  count={isleLines.length}
-                  title={t('superElement.isles.linesTitle')}
-                  onClick={() => setLinesOn((value) => !value)}
-                >
-                  {t('superElement.isles.lines')}
-                </FilterChip>
-                <GlassSlider
-                  ariaLabel={t('superElement.isles.threshold')}
-                  value={String(lineThreshold)}
-                  onChange={(value) => setLineThreshold(Number(value))}
-                  options={['1', '2', '3'].map((value) => ({ value, label: t('superElement.isles.atLeast', { count: Number(value) }) }))}
                 />
                 <Button variant="ghost" size="sm" onClick={resetView} title={t('superElement.resetTitle')}>
                   <BrushIcon name="rotate" size={13} />
@@ -2055,31 +2167,71 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
           </div>
         )}
 
-        {isleDetail && projectId && (
-          <ElementIsleDetail
-            name={isleDetail.element.name}
-            summary={isleDetail.element.summary ?? ''}
-            categoryName={isleDetail.categoryName}
-            color={isleDetail.color}
-            mentions={isleDetail.mentions}
-            ticks={isleDetail.ticks}
-            companions={isleDetail.companions}
-            relations={isleDetail.relations}
-            isolated={isolated}
-            onIsolate={() => setIsolated((value) => !value)}
-            onFocus={(id) => setIsleFocus(id)}
-            onEdit={(anchor) => setActivePopover({
-              elementId: isleDetail.element.id,
-              anchor: { left: anchor.left, top: anchor.top, width: anchor.width, height: 0 },
-            })}
-            onOpen={() => {
-              openEntity({ entityType: 'element', id: isleDetail.element.id });
-              close();
+        {islandSubject && projectId && (
+          <SuperElementIsland
+            mode={islandMode}
+            title={isleDetail ? (
+              <>
+                <KindMark kind="element" color={isleDetail.color} />
+                <span className="se-island__name">{isleDetail.element.name}</span>
+              </>
+            ) : isleCategoryDetail && (
+              <>
+                <KindMark kind="category" color={isleCategoryDetail.category.color} />
+                <span className="se-island__name">{isleCategoryDetail.category.name}</span>
+              </>
+            )}
+            kindLabel={isleDetail
+              ? `${t('superElement.isles.island.element')} · ${isleDetail.categoryName}`
+              : t('superElement.isles.island.category')}
+            peek={isleDetail ? (
+              <ElementIsleDetail
+                name={isleDetail.element.name}
+                summary={isleDetail.element.summary ?? ''}
+                categoryName={isleDetail.categoryName}
+                color={isleDetail.color}
+                mentions={isleDetail.mentions}
+                ticks={isleDetail.ticks}
+                companions={isleDetail.companions}
+                relations={isleDetail.relations}
+                isolated={isolated}
+                onIsolate={() => setIsolated((value) => !value)}
+                onFocus={focusIsleElement}
+                onEdit={growIsland}
+                onOpen={openIslandInTab}
+                onClose={closeIsland}
+              />
+            ) : isleCategoryDetail && (
+              <CategoryIsleDetail
+                name={isleCategoryDetail.category.name}
+                color={isleCategoryDetail.category.color}
+                members={isleCategoryDetail.members}
+                onFocus={focusIsleElement}
+                onEdit={growIsland}
+                onOpen={openIslandInTab}
+                onClose={closeIsland}
+              />
+            )}
+            strip={isleDetail ? (
+              <ElementIsleStrip ticks={isleDetail.ticks} companions={isleDetail.companions} onFocus={focusIsleElement} />
+            ) : isleCategoryDetail && (
+              <CategoryIsleStrip
+                color={isleCategoryDetail.category.color}
+                members={isleCategoryDetail.members}
+                onFocus={focusIsleElement}
+              />
+            )}
+            editor={islandSubject.kind === 'element'
+              ? <ElementEditorView key={islandSubject.id} elementIdOverride={islandSubject.id} />
+              : <CategoryEditorView key={islandSubject.id} categoryIdOverride={islandSubject.id} />}
+            widthRatio={islandWidth}
+            onWidthRatio={(ratio) => {
+              setIslandWidth(ratio);
+              revealBesideIsland(islandSubject, ratio);
             }}
-            onClose={() => {
-              setIsleFocus(null);
-              setIsolated(false);
-            }}
+            onCollapse={() => setIslandMode('peek')}
+            onClose={closeIsland}
+            onOpenInTab={openIslandInTab}
           />
         )}
 

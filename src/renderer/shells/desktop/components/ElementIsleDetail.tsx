@@ -1,4 +1,4 @@
-import { useRef, type CSSProperties } from 'react';
+import type { CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../../../components/ui/Button';
 import { BrushIcon } from '../../../components/ui/BrushIcon';
@@ -30,14 +30,15 @@ export interface ElementIsleDetailProps {
   isolated: boolean;
   onIsolate: () => void;
   onFocus: (elementId: string) => void;
-  onEdit: (anchor: DOMRect) => void;
+  /** Grow the card into the island's editor. */
+  onEdit: () => void;
   onOpen: () => void;
   onClose: () => void;
 }
 
 /**
- * The focused element on the islands: a lifted piece of desk at the
- * canvas's right edge. Its appearance strip is one stroke of sand per
+ * The focused element on the islands, as the island's small card
+ * (SuperElementIsland). Its appearance strip is one stroke of sand per
  * chapter in book order, in the colour of that chapter's storyline and as
  * dense as the element is mentioned there; who it is mentioned with most
  * and the relations drawn to it follow, each one a way to move the focus.
@@ -47,11 +48,10 @@ export function ElementIsleDetail({
   isolated, onIsolate, onFocus, onEdit, onOpen, onClose,
 }: ElementIsleDetailProps) {
   const { t } = useTranslation();
-  const ref = useRef<HTMLElement | null>(null);
   const appearance = isleAppearance(ticks);
   const most = ticks.reduce((max, tick) => Math.max(max, tick.count), 1);
   return (
-    <aside ref={ref} className="se-detail" aria-label={name} data-super-modal>
+    <div className="se-detail" aria-label={name}>
       <div className="se-detail__head">
         <KindMark kind="element" color={color} />
         <div className="se-detail__title">
@@ -140,20 +140,148 @@ export function ElementIsleDetail({
         <Button variant="ghost" size="sm" onClick={onIsolate}>
           {isolated ? t('superElement.isles.detail.showAll') : t('superElement.isles.detail.isolate')}
         </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => {
-            const rect = ref.current?.getBoundingClientRect();
-            if (rect) onEdit(rect);
-          }}
-        >
+        <Button variant="ghost" size="sm" data-se-open-tab="" onClick={onOpen}>
+          {t('superElement.isles.island.openInTab')}
+        </Button>
+        <Button variant="primary" size="sm" onClick={onEdit}>
           {t('superElement.isles.detail.edit')}
         </Button>
-        <Button variant="primary" size="sm" onClick={onOpen}>
-          {t('nodeCardPopover.openInEditor')}
+      </div>
+    </div>
+  );
+}
+
+/** The element's facts above its editor in the island: the appearance strip and who it is mentioned with. */
+export function ElementIsleStrip({ ticks, companions, onFocus }: {
+  ticks: readonly IsleTick[];
+  companions: ElementIsleDetailProps['companions'];
+  onFocus: (elementId: string) => void;
+}) {
+  const { t } = useTranslation();
+  const appearance = isleAppearance(ticks);
+  const most = ticks.reduce((max, tick) => Math.max(max, tick.count), 1);
+  return (
+    <>
+      <div className="se-strip__row">
+        <span className="se-detail__label">{t('superElement.isles.detail.appearance')}</span>
+        <div className={ticks.length > 40 ? 'se-detail__ticks se-strip__ticks is-dense' : 'se-detail__ticks se-strip__ticks'} role="list">
+          {ticks.map((tick) => (
+            <span
+              key={tick.chapterId}
+              role="listitem"
+              title={tick.count > 0
+                ? t('superElement.isles.detail.tick', { section: isleSection(tick.number), title: tick.title, count: tick.count })
+                : t('superElement.isles.detail.tickAbsent', { section: isleSection(tick.number), title: tick.title })}
+              className={tick.count > 0 ? 'se-detail__tick' : 'se-detail__tick is-absent'}
+              style={tick.count > 0 ? ({
+                '--tick-c': tick.color ?? 'hsl(var(--ink-3))',
+                '--tick-h': `${Math.round(5 + (tick.count / most) * 9)}px`,
+                '--tick-o': (0.45 + (tick.count / most) * 0.55).toFixed(2),
+              } as CSSProperties) : undefined}
+            />
+          ))}
+        </div>
+      </div>
+      <div className="se-detail__meta">
+        {appearance.appeared > 0
+          ? t('superElement.isles.detail.appeared', {
+            appeared: appearance.appeared,
+            total: appearance.total,
+            first: isleSection(appearance.first ?? 0),
+            last: isleSection(appearance.last ?? 0),
+            gap: appearance.longestGap,
+          })
+          : t('superElement.isles.detail.never')}
+      </div>
+      {companions.length > 0 && (
+        <div className="se-strip__chips">
+          {companions.map((companion) => (
+            <button key={companion.id} type="button" className="se-strip__chip" onClick={() => onFocus(companion.id)}>
+              <KindMark kind="element" color={companion.color} />
+              <span>{companion.name}</span>
+              <span className="se-detail__row-count">{t('superElement.isles.detail.times', { count: companion.count })}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+/** A category as the island's small card: its elements, most mentioned first. */
+export function CategoryIsleDetail({ name, color, members, onFocus, onEdit, onOpen, onClose }: {
+  name: string;
+  color: string | undefined;
+  members: readonly { id: string; name: string; mentions: number }[];
+  onFocus: (elementId: string) => void;
+  onEdit: () => void;
+  onOpen: () => void;
+  onClose: () => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <div className="se-detail" aria-label={name}>
+      <div className="se-detail__head">
+        <KindMark kind="category" color={color} />
+        <div className="se-detail__title">
+          <div className="se-detail__name">{name}</div>
+          <div className="se-detail__meta">{t('superElement.isles.island.categoryMeta', { count: members.length })}</div>
+        </div>
+        <button type="button" className="se-detail__close" aria-label={t('superElement.isles.detail.close')} onClick={onClose}>
+          <BrushIcon name="close" size={13} />
+        </button>
+      </div>
+      {members.length > 0 && (
+        <div className="se-detail__rows">
+          {members.slice(0, 8).map((member) => (
+            <button key={member.id} type="button" className="menu-surface__item se-detail__row" onClick={() => onFocus(member.id)}>
+              <KindMark kind="element" color={color} />
+              <span className="se-detail__row-name">{member.name}</span>
+              <span className="se-detail__row-count">
+                {member.mentions > 0 ? t('superElement.isles.island.mentions', { count: member.mentions }) : t('superElement.isles.island.unmentioned')}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="se-detail__foot">
+        <Button variant="ghost" size="sm" data-se-open-tab="" onClick={onOpen}>
+          {t('superElement.isles.island.openInTab')}
+        </Button>
+        <Button variant="primary" size="sm" onClick={onEdit}>
+          {t('superElement.isles.detail.edit')}
         </Button>
       </div>
-    </aside>
+    </div>
+  );
+}
+
+/** A category's facts above its editor in the island: its elements, most mentioned first. */
+export function CategoryIsleStrip({ color, members, onFocus }: {
+  color: string | undefined;
+  members: readonly { id: string; name: string; mentions: number }[];
+  onFocus: (elementId: string) => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <>
+      <div className="se-strip__row">
+        <span className="se-detail__label">{t('superElement.isles.island.categoryMeta', { count: members.length })}</span>
+        <span className="se-detail__meta">{t('superElement.isles.island.mostMentioned')}</span>
+      </div>
+      {members.length > 0 && (
+        <div className="se-strip__chips">
+          {members.slice(0, 12).map((member) => (
+            <button key={member.id} type="button" className="se-strip__chip" onClick={() => onFocus(member.id)}>
+              <KindMark kind="element" color={color} />
+              <span>{member.name}</span>
+              {member.mentions > 0 && (
+                <span className="se-detail__row-count">{t('superElement.isles.island.mentions', { count: member.mentions })}</span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </>
   );
 }
