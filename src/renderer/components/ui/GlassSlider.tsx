@@ -41,6 +41,13 @@ interface GlassSliderProps<T extends string> {
    * (`glass-slider-handoff.ts`). Side by side only; collapsed ignores it.
    */
   handoff?: string;
+  /**
+   * How the glass travels to a new choice. By default the weighted spring;
+   * a slider that switches what a push brings in (the Super View switch)
+   * rides that push instead, so the glass lands with it, as the block under
+   * a sidebar's panel tabs does.
+   */
+  travel?: { ms: number; easing: string };
 }
 
 /**
@@ -96,6 +103,7 @@ function GlassSliderTrack<T extends string>({
   orientation = 'horizontal',
   measure,
   handoff,
+  travel,
 }: GlassSliderProps<T> & { measure?: ReactNode }) {
   const vertical = orientation === 'vertical';
   const trackRef = useRef<HTMLDivElement | null>(null);
@@ -158,6 +166,11 @@ function GlassSliderTrack<T extends string>({
   // Hand the glass over between sliders that replace one another. Only one
   // still mid-slide is measured; at rest it is where it was last drawn.
   const tookHandoff = useRef(false);
+  // How long a slide takes, read when this slider leaves its glass behind.
+  const travelMs = useRef(SPRING_MS);
+  useLayoutEffect(() => {
+    travelMs.current = travel?.ms ?? SPRING_MS;
+  });
   useLayoutEffect(() => {
     const track = trackRef.current;
     const element = thumbRef.current;
@@ -176,7 +189,7 @@ function GlassSliderTrack<T extends string>({
     return () => {
       const { rect, setOff } = drawn;
       if (!rect) return;
-      if (performance.now() - setOff >= SPRING_MS) {
+      if (performance.now() - setOff >= travelMs.current) {
         leaveSliderGlass(handoff, rect);
         return;
       }
@@ -219,8 +232,8 @@ function GlassSliderTrack<T extends string>({
           '--slider-h': `${shown?.h ?? 0}px`,
           // The weight of the bottom timeline's glass clips: the weighted
           // spring the dock's tabs use (lib/motion.ts).
-          '--slider-ms': `${SPRING_MS}ms`,
-          '--slider-ease': weightedEasing(),
+          '--slider-ms': `${travel?.ms ?? SPRING_MS}ms`,
+          '--slider-ease': travel?.easing ?? weightedEasing(),
         } as CSSProperties
       }
     >

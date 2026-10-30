@@ -66,7 +66,7 @@ describe('switching Super Views pushes the block under the header', () => {
     expect(host).not.toMatch(/activeSuperView === '(graph|element|memo-material)'/u);
 
     const stage = source('src/renderer/shells/desktop/DesktopSuperViewStage.tsx');
-    for (const name of ['PUSH_MS', 'PUSH_EASING', 'PUSH_OUTLINE_FADE_MS', 'planSidebarPush', 'trackGlassFlow', 'chooseSuperView']) {
+    for (const name of ['SUPER_VIEW_PUSH_MS', 'PUSH_EASING', 'PUSH_OUTLINE_FADE_MS', 'planSidebarPush', 'trackGlassFlow', 'chooseSuperView']) {
       expect(stage).toContain(name);
     }
     // A view still loading is replaced mid-push and joins where its shell was.

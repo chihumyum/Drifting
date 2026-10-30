@@ -36,7 +36,7 @@ export async function runTabReorderScenario(manual = false) {
   };
   const translation = i18next.createInstance();
   await translation.init({ lng: 'en', resources: { en: { translation: { topTimeline: {
-    untitled: { chapter: 'Chapter' }, newTab: 'New tab', newEntity: 'Create', closeTab: 'Close',
+    untitled: { chapter: 'Chapter' }, newEntity: 'Create', closeTab: 'Close',
   } } } } });
   const navigator: WorkspaceNavigator = { projectId, open() {}, activate() {}, showProjectHome() {}, leaveDeletedTarget() {} };
   const a = leaf('a'), b = leaf('b'), c = leaf('c');
@@ -156,16 +156,9 @@ export async function runTabReorderScenario(manual = false) {
     event(document.body, 'drop', left.left + 200, left.bottom + 100); end(); await wait(SETTLE_MS);
     check('external-drop-retains-editor-payload', received === 'node:b' && writes === 0 && clean());
 
-    flushSync(() => useUiStore.getState().openCreateTab(projectId)); await wait();
-    const create = useUiStore.getState().tabsByProject[projectId].openTabs.slice(-1)[0]!;
-    const createRect = el(tabKey(create)).getBoundingClientRect();
-    event(el(tabKey(create)), 'dragstart', createRect.left + 20, midY(createRect));
-    check('create-cannot-start-drag', !strip().dataset.tabReordering);
-    event(el('node:b').querySelector('button')!, 'dragstart', createRect.left, createRect.top);
+    const closeRect = el('node:b').getBoundingClientRect();
+    event(el('node:b').querySelector('button')!, 'dragstart', closeRect.left, closeRect.top);
     check('close-button-cannot-start-drag', !strip().dataset.tabReordering);
-    await start('node:b');
-    event(strip(), 'drop', Math.min(createRect.right - 5, strip().getBoundingClientRect().right - 5), midY(createRect)); end(); await wait(SETTLE_MS);
-    check('create-stays-last', useUiStore.getState().tabsByProject[projectId].openTabs.slice(-1)[0]?.kind === 'create');
 
     host.style.width = '300px'; setTabs(Array.from({ length: 12 }, (_, i) => leaf(`scroll-${i}`))); await wait();
     await start('node:scroll-0');

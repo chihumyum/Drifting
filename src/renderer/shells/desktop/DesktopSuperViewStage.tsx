@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ComponentType } from 'react';
 import { SuperViewLeavingContext } from '../../components/super-view-leaving';
 import { trackGlassFlow } from '../../lib/glass-flow';
-import { PUSH_EASING, PUSH_MS, PUSH_OUTLINE_FADE_MS } from '../../lib/motion';
+import { PUSH_EASING, PUSH_OUTLINE_FADE_MS, SUPER_VIEW_PUSH_MS } from '../../lib/motion';
 import { planSidebarPush } from '../../lib/sidebar-push';
 import { SUPER_VIEW_OPTIONS, type SuperViewId } from './super-view-options';
 import { chooseSuperView, type SuperViewStage } from './super-view-stage-model';
@@ -34,7 +34,7 @@ function cancelPush(element: Element) {
  */
 function startPush(part: HTMLElement, frames: Keyframe[], settle: boolean, at?: CSSNumberish | null) {
   cancelPush(part);
-  const animation = part.animate(frames, { duration: PUSH_MS, easing: PUSH_EASING, fill: 'forwards' });
+  const animation = part.animate(frames, { duration: SUPER_VIEW_PUSH_MS, easing: PUSH_EASING, fill: 'forwards' });
   if (at != null) animation.currentTime = at;
   pushes.set(part, animation);
   if (settle) {
@@ -67,7 +67,8 @@ function pushedX(slide: HTMLElement | undefined) {
 /**
  * The open Super View. Switching to another pushes the open view's block
  * (everything under its header) away like heavy ice, the way a sidebar pane
- * switches panels (`DesktopSidebarLayout`): toward the right when the new
+ * switches panels (`DesktopSidebarLayout`), on the longer whole-window
+ * push (`SUPER_VIEW_PUSH_MS`) that the switch's glass rides too: toward the right when the new
  * view lies to the left in the switcher (and the reverse), the new block
  * arriving behind it from the other side; slow to start, then fast. The
  * views form one strip (`planSidebarPush`), so a switch made mid-push carries
@@ -146,7 +147,7 @@ export function DesktopSuperViewStage({ active }: { active: SuperViewId | 'none'
     if (!push) return undefined;
     const timer = window.setTimeout(() => {
       setStage((current) => ({ ...current, behind: [], push: null }));
-    }, PUSH_MS + PUSH_OUTLINE_FADE_MS);
+    }, SUPER_VIEW_PUSH_MS + PUSH_OUTLINE_FADE_MS);
     return () => window.clearTimeout(timer);
   }, [push]);
 

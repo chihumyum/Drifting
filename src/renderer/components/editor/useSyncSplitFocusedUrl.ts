@@ -8,7 +8,6 @@ import {
   useUiStore,
   tabKey,
   focusedLeafOf,
-  CREATE_TAB_ID,
   SINGLETON_TAB_ID,
   type TabRef,
 } from '../../store/ui-store';
@@ -101,14 +100,11 @@ export function useSyncSplitFocusedUrl(navigator: WorkspaceNavigator): void {
   // that stale URL and re-create the tab we just closed, which is the
   // "click X twice to close" bug.
   const prevOpenTabsLenRef = useRef(openTabs.length);
-  const prevActiveTabKeyRef = useRef(activeTabKey);
   const prevFocusedRef = useRef<TabRef | null>(null);
 
   useEffect(() => {
     const prevLen = prevOpenTabsLenRef.current;
-    const previousActiveTabKey = prevActiveTabKeyRef.current;
     prevOpenTabsLenRef.current = openTabs.length;
-    prevActiveTabKeyRef.current = activeTabKey;
     const justEmptied = prevLen > 0 && openTabs.length === 0;
 
     if (!projectId) {
@@ -119,7 +115,6 @@ export function useSyncSplitFocusedUrl(navigator: WorkspaceNavigator): void {
     const urlEntity = parseEntityFromPath(location.pathname, projectId);
     const projectRoot = `/project/${projectId}`;
     const atProjectHome = location.pathname === projectRoot || location.pathname === `${projectRoot}/`;
-    const atCreateRoute = location.pathname === `${projectRoot}/new`;
     const resumeEntry =
       (location.state as { projectEntry?: unknown } | null)?.projectEntry ===
       'resume-last-content';
@@ -139,7 +134,6 @@ export function useSyncSplitFocusedUrl(navigator: WorkspaceNavigator): void {
       return;
     }
     if (!active) {
-      if (atCreateRoute) navigate(projectRoot, { replace: true });
       // No active tab — the last tab was just closed, or a delete flow
       // emptied the project. Nothing is focused, so clear any lingering
       // node/element selection. Otherwise nodeUi/elementUi.selectedId keeps
@@ -147,50 +141,6 @@ export function useSyncSplitFocusedUrl(navigator: WorkspaceNavigator): void {
       // render a stale "selected" cell/node forever (the residual-highlight
       // bug). Guard on getState() to skip redundant store writes when there's
       // nothing selected.
-      const ui = useUiStore.getState();
-      if (ui.nodeUi.selectedId) setNodeSelection(null);
-      if (ui.elementUi.selectedId) setElementSelection(null);
-      prevFocusedRef.current = null;
-      return;
-    }
-
-    if (active.kind === 'create') {
-      const previousFocused = prevFocusedRef.current;
-      if (urlEntity && previousFocused && sameEntity(urlEntity, previousFocused)) {
-        navigate(`${projectRoot}/new`, { replace: true });
-      } else if (urlEntity) {
-        // Back/forward, a deep link, or another entity navigation replaces an
-        // idle preview draft; a dedicated draft stays open in the background.
-        if (!activateExistingTarget(projectId, urlEntity)) {
-          openEntityTab(projectId, urlEntity, { preview: true });
-        }
-        mirrorSelection(urlEntity, setNodeSelection, setElementSelection);
-        prevFocusedRef.current = urlEntity;
-        return;
-      }
-      if (atProjectHome) {
-        // Opening Universal Create from Home updates the external tab store
-        // and React Router independently. The store notification can render
-        // first, leaving one frame with "newly active create tab + old Home
-        // URL". That is a forward transition, not a request to return Home.
-        // Let the already-requested /new navigation commit; a genuine
-        // browser/history return from /new has create active in both renders
-        // and still clears the active tab below.
-        if (
-          isCreateActivationFromProjectHome({
-            atProjectHome,
-            previousActiveTabKey,
-            activeTabKey,
-          })
-        ) {
-          prevFocusedRef.current = null;
-          return;
-        }
-        useUiStore.getState().setActiveTab(projectId, null);
-        prevFocusedRef.current = null;
-        return;
-      }
-      if (!atCreateRoute) navigate(`${projectRoot}/new`, { replace: true });
       const ui = useUiStore.getState();
       if (ui.nodeUi.selectedId) setNodeSelection(null);
       if (ui.elementUi.selectedId) setElementSelection(null);
@@ -215,24 +165,6 @@ export function useSyncSplitFocusedUrl(navigator: WorkspaceNavigator): void {
       prevFocusedRef.current = null;
       return;
     }
-    if (atCreateRoute) {
-      if (
-        isContentActivationFromCreateRoute({
-          atCreateRoute,
-          previousActiveTabKey,
-          activeTabKey,
-        })
-      ) {
-        const expected = expectedPathnameFor(projectId, focused);
-        if (expected) navigate(expected, { replace: true });
-        mirrorSelection(focused, setNodeSelection, setElementSelection);
-        prevFocusedRef.current = focused;
-        return;
-      }
-      navigate(projectRoot, { replace: true });
-      return;
-    }
-
     if (
       urlEntity &&
       !sameEntity(urlEntity, focused)
@@ -303,39 +235,6 @@ export function useSyncSplitFocusedUrl(navigator: WorkspaceNavigator): void {
     setNodeSelection,
     setElementSelection,
   ]);
-}
-
-export function isCreateActivationFromProjectHome({
-  atProjectHome,
-  previousActiveTabKey,
-  activeTabKey,
-}: {
-  atProjectHome: boolean;
-  previousActiveTabKey: string | null;
-  activeTabKey: string | null;
-}): boolean {
-  return (
-    atProjectHome &&
-    activeTabKey !== null &&
-    previousActiveTabKey !== activeTabKey
-  );
-}
-
-export function isContentActivationFromCreateRoute({
-  atCreateRoute,
-  previousActiveTabKey,
-  activeTabKey,
-}: {
-  atCreateRoute: boolean;
-  previousActiveTabKey: string | null;
-  activeTabKey: string | null;
-}): boolean {
-  return (
-    atCreateRoute &&
-    previousActiveTabKey === `create:${CREATE_TAB_ID}` &&
-    activeTabKey !== null &&
-    activeTabKey !== previousActiveTabKey
-  );
 }
 
 function sameEntity(a: TabRef, b: TabRef): boolean {

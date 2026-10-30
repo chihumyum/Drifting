@@ -10,9 +10,12 @@ not continuously, and it does not implement the frozen Shadow Ambient Editor
 
 ## Agent entry
 
-- Desktop: the first section of the Dashboard Overview. Sending opens a new
-  General Agent conversation in the right sidebar with the author's text as an
-  ordinary author turn.
+- Desktop: the Agent section of Project Home, after the work and the create
+  row; it floats at the foot of the page when Home is reached any way but the
+  dock's `+` (see `design-system/components.md`, 「作品主页」). The check-in
+  cards sit above the conversation box. Sending opens a new General Agent
+  conversation in the right sidebar with the author's text as an ordinary
+  author turn. Turning the check-in on or off lives in Home's 设定 view.
 - Mobile: the first section of the Home flow. It opens the full-screen voice
   Agent surface, which is the mobile Agent conversation surface.
 - The entry uses the ordinary read-write General Agent and its tools. There is

@@ -17,6 +17,10 @@ export const STRUCTURAL_EASING = 'cubic-bezier(0.32, 0.72, 0, 1)';
 export const PUSH_MS = 265;
 export const PUSH_EASING = 'cubic-bezier(0.8, 0, 0.66, 1)';
 export const PUSH_OUTLINE_FADE_MS = 340;
+// A Super View is pushed across the whole window, several times a sidebar
+// pane's width: the same curve, given longer so the block keeps its weight
+// instead of whipping past. The switch's glass rides this push too.
+export const SUPER_VIEW_PUSH_MS = 400;
 
 // Weighted spring: something with weight in the hand. Critically damped, a
 // little behind the hand and never springing back; where a fixed length is

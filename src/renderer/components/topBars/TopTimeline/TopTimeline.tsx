@@ -1,5 +1,5 @@
 import { Component, useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useDataStore } from '../../../store/data-store';
 import { createTopTabPresentationSelector, leafPresentationKey } from './top-tab-presentation';
@@ -14,7 +14,6 @@ import {
   tabKey,
   focusedLeafOf,
   type AnyTab,
-  type CreateTab,
   type LeafTab,
   type SplitTab,
   type TabEntityType,
@@ -81,9 +80,6 @@ function measureLabelWidth(text: string, fontSize: number): number {
 // The kind mark leads the title in the flow; the dot's sand that spreads
 // away under the glass sits out of the flow on the same spot.
 const TAB_CHROME_WIDTH = 10 + 14 + 6 + 6 + 2 + 16 + 6;
-// The new-document tab keeps its + in the flow:
-//   paddingL 10 + icon 14 + gap 6 + label + gap 6 + closeMargin 2 + close 16 + paddingR 6
-const CREATE_CHROME_WIDTH = 10 + 14 + 6 + 6 + 2 + 16 + 6;
 // Split tab = two SplitSubLabel slots around a short I-shaped divider. Each sub-label:
 //   paddingL 8 + mark 14 + gap 5 + label + gap 5 + close 14 + paddingR 6 = 52 + label
 // Total chrome = 52 + 52 + 9 (divider 1 + its margins) = 113.
@@ -105,11 +101,11 @@ export function TopTimeline({ expanded = true, leading }: {
 } = {}) {
   const { t } = useTranslation();
   const location = useLocation();
-  const navigate = useNavigate();
-  const { projectId, openEntity, activateLeafTab } = useProjectNavigation();
+  const { projectId, openEntity, activateLeafTab, navigateToHome } = useProjectNavigation();
   const { openTabs, activeTabKey } = useProjectTabs(projectId);
-  const setActiveTab = useUiStore((s) => s.setActiveTab);
-  const openCreateTab = useUiStore((s) => s.openCreateTab);
+  // Home has no pill: while it shows, the + is lit, since creating lives there.
+  const homeShowing = useUiStore((s) => s.activeSuperView === 'none')
+    && isProjectHomePathname(projectId, location.pathname);
   const closeWorkspaceTab = useDesktopTabClose();
   const closeSplitSide = useUiStore((s) => s.closeSplitSide);
   const promoteTab = useUiStore((s) => s.promoteTab);
@@ -197,9 +193,7 @@ export function TopTimeline({ expanded = true, leading }: {
       const raw =
         tab.kind === 'leaf'
           ? measureLabelWidth(labelOfLeaf(tab), labelFontSize) + TAB_CHROME_WIDTH
-          : tab.kind === 'create'
-            ? measureLabelWidth(t('topTimeline.newTab'), labelFontSize) + CREATE_CHROME_WIDTH
-            : measureLabelWidth(labelOfLeaf(tab.left), labelFontSize) +
+          : measureLabelWidth(labelOfLeaf(tab.left), labelFontSize) +
               measureLabelWidth(labelOfLeaf(tab.right), labelFontSize) +
               SPLIT_CHROME_WIDTH;
       return Math.min(TAB_MAX_WIDTH * weights[i], raw);
@@ -228,7 +222,7 @@ export function TopTimeline({ expanded = true, leading }: {
     }
     const scale = Math.min(1, virtual / idealTotal);
     return ideals.map((w, i) => Math.max(TAB_FLOOR_WIDTH * weights[i], Math.floor(w * scale)));
-  }, [openTabs, labelOfLeaf, containerWidth, labelFontSize, t]);
+  }, [openTabs, labelOfLeaf, containerWidth, labelFontSize]);
 
   useTabReorder(containerRef, projectId, openTabs, tabWidths);
   // Choosing another pill sends the selected glass across like water.
@@ -280,21 +274,15 @@ export function TopTimeline({ expanded = true, leading }: {
     return () => container.removeEventListener('animationend', grown);
   }, [activeTabKey, tabWidths, containerWidth, containerRef, expanded]);
 
-  // Tab activation uses the shell navigator rather than openEntity. Besides
-  // preserving split/all-chapters semantics, the desktop adapter can keep an
-  // active create draft mounted until the destination route is ready.
+  // Tab activation uses the shell navigator rather than openEntity, which
+  // preserves split/all-chapters semantics.
   const handleSelectTab = useCallback(
     (tab: AnyTab) => {
       if (!projectId) return;
-      if (tab.kind === 'create') {
-        setActiveTab(projectId, { createId: tab.id });
-        navigate(`/project/${projectId}/new`);
-        return;
-      }
       const target = focusedLeafOf(tab);
       if (target) activateLeafTab(target);
     },
-    [activateLeafTab, navigate, projectId, setActiveTab],
+    [activateLeafTab, projectId],
   );
 
   const handleCloseTab = useCallback(
@@ -308,12 +296,7 @@ export function TopTimeline({ expanded = true, leading }: {
   const handlePromote = useCallback(
     (tab: AnyTab) => {
       if (!projectId || tab.kind === 'split' || !tab.isPreview) return;
-      promoteTab(
-        projectId,
-        tab.kind === 'create'
-          ? { createId: tab.id }
-          : { entityType: tab.entityType, id: tab.id },
-      );
+      promoteTab(projectId, { entityType: tab.entityType, id: tab.id });
     },
     [projectId, promoteTab],
   );
@@ -375,10 +358,10 @@ export function TopTimeline({ expanded = true, leading }: {
           }
           return (
             <TabDot key={key} tabKeyValue={key}
-              kind={tab.kind === 'leaf' ? kindMarkOfTarget(tab.entityType, isDriftLeaf(tab)) : 'chapter'}
+              kind={kindMarkOfTarget(tab.entityType, isDriftLeaf(tab))}
               seed={tab.id}
-              label={tab.kind === 'leaf' ? labelOfLeaf(tab) : t('topTimeline.newTab')}
-              color={tab.kind === 'leaf' ? colorOfLeaf(tab) : undefined}
+              label={labelOfLeaf(tab)}
+              color={colorOfLeaf(tab)}
               isActive={isActive}
               isPreview={tab.isPreview}
               clusterBreak={clusterBreak}
@@ -386,21 +369,6 @@ export function TopTimeline({ expanded = true, leading }: {
  />
           );
         }
-        if (tab.kind === 'create') {
-          return (
-            <CreateTabSlot
-              key={key}
-              tab={tab}
-              isActive={isActive}
-              width={width}
-              label={t('topTimeline.newTab')}
-              onSelect={() => handleSelectTab(tab)}
-              onPromote={() => handlePromote(tab)}
-              onClose={() => handleCloseTab(tab)}
-            />
-          );
-        }
-
         if (tab.kind === 'leaf') {
           return (
             <LeafTabSlot
@@ -451,14 +419,10 @@ export function TopTimeline({ expanded = true, leading }: {
         type="button"
         className="top-timeline-create-button glass glass--rest glass--round"
         aria-label={t('topTimeline.newEntity')}
+        aria-pressed={homeShowing}
         title={t('topTimeline.newEntity')}
         onClick={() => {
-          if (!projectId) return;
-          if (isProjectHomePathname(projectId, location.pathname)) {
-            setActiveTab(projectId, null);
-          }
-          openCreateTab(projectId);
-          navigate(`/project/${projectId}/new`);
+          if (projectId) navigateToHome({ intent: 'new' });
         }}
       >
         <BrushIcon name="plus" />
@@ -501,55 +465,6 @@ class DockLeaveMotion extends Component<{
   render() {
     return null;
   }
-}
-
-function CreateTabSlot({
-  tab,
-  isActive,
-  width,
-  label,
-  onSelect,
-  onPromote,
-  onClose,
-}: {
-  tab: CreateTab;
-  isActive: boolean;
-  width: number;
-  label: string;
-  onSelect: () => void;
-  onPromote: () => void;
-  onClose: () => void;
-}) {
-  const { t } = useTranslation();
-  const isCreating = tab.draft.status === 'creating';
-  return (
-    <div
-      role="tab"
-      aria-selected={isActive}
-      data-tab-key={tabKey(tab)}
-      className={`app-tab app-tab--create glass glass--rest${isActive ? ' is-active is-on' : ''}`}
-      onClick={onSelect}
-      onDoubleClick={onPromote}
-      style={{ width, minWidth: TAB_FLOOR_WIDTH, fontStyle: tab.isPreview ? 'italic' : 'normal' }}
-    >
-      <BrushIcon name="plus" size={14} />
-      <span className="app-tab--create__label">{label}</span>
-      <button
-        type="button"
-        className="app-tab__close"
-        aria-label={t('topTimeline.closeTab')}
-        title={t('topTimeline.closeTab')}
-        disabled={isCreating}
-        onClick={(event) => {
-          event.stopPropagation();
-          onClose();
-        }}
-      >
-        <BrushIcon name="close" size={12} />
-      </button>
-      <span className="glass-wave" data-wave-key={tabKey(tab)} aria-hidden />
-    </div>
-  );
 }
 
 interface LeafSlotProps {

@@ -158,56 +158,36 @@ html:not([data-shell-mode='mobile']) .se-band__name.sand-cell {
 }
 
 /* ── Category island ──────────────────────────────────────────────── */
-/* A category is an island: a wash of its colour that thins toward the
-   shore, with the sand's own grain in it. No frame. The wash and the grain
-   sit behind the cards (isolation keeps their z-index local). */
+/* A category is an island: a wash of its colour just past its box, its
+   edges feathered so neighbouring islands meet in clear water rather than
+   overlapping. Its name sits inside the top shore. No frame, no texture. */
 .se-category {
   position: absolute;
   isolation: isolate;
 }
 
-.se-category::before,
-.se-category::after {
+.se-category::before {
   content: '';
   position: absolute;
   z-index: -1;
-  inset: -24px -28px;
-  border-radius: 56px;
+  inset: -8px -10px;
+  border-radius: 28px;
+  background: color-mix(in srgb, var(--se-category-c, hsl(var(--ink-4))) 16%, transparent);
+  -webkit-mask-image:
+    linear-gradient(to right, transparent, #000 26px, #000 calc(100% - 26px), transparent),
+    linear-gradient(to bottom, transparent, #000 22px, #000 calc(100% - 22px), transparent);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(to right, transparent, #000 26px, #000 calc(100% - 26px), transparent),
+    linear-gradient(to bottom, transparent, #000 22px, #000 calc(100% - 22px), transparent);
+  mask-composite: intersect;
   pointer-events: none;
-}
-
-.se-category::before {
-  background: radial-gradient(
-    ellipse closest-side at 50% 50%,
-    color-mix(in srgb, var(--se-category-c, hsl(var(--ink-4))) 22%, transparent) 0%,
-    color-mix(in srgb, var(--se-category-c, hsl(var(--ink-4))) 12%, transparent) 64%,
-    transparent 100%
-  );
   transition: background var(--motion-sand-fade, 0.3s) ease-out;
 }
 
-.se-category::after {
-  background: color-mix(in srgb, var(--se-category-c, hsl(var(--ink-4))), #ffffff var(--pigment-lift));
-  opacity: calc(var(--pigment) * 0.22);
-  mix-blend-mode: var(--pigment-blend);
-  -webkit-mask-image: radial-gradient(ellipse closest-side at 50% 50%, #000 55%, transparent 100%), var(--glass-texture);
-  -webkit-mask-size: 100% 100%, 170px 170px;
-  -webkit-mask-composite: source-in;
-  mask-image: radial-gradient(ellipse closest-side at 50% 50%, #000 55%, transparent 100%), var(--glass-texture);
-  mask-size: 100% 100%, 170px 170px;
-  mask-composite: intersect;
-}
-
-/* An element carried over the island: the wash deepens and the shore takes
-   a still line of clear glass. */
+/* An element carried over the island: the wash deepens. */
 .se-category.is-drop::before {
-  background: radial-gradient(
-    ellipse closest-side at 50% 50%,
-    color-mix(in srgb, var(--se-category-c, hsl(var(--ink-4))) 34%, transparent) 0%,
-    color-mix(in srgb, var(--se-category-c, hsl(var(--ink-4))) 20%, transparent) 70%,
-    transparent 100%
-  );
-  border: 1px solid color-mix(in srgb, var(--glass-clear) 70%, transparent);
+  background: color-mix(in srgb, var(--se-category-c, hsl(var(--ink-4))) 30%, transparent);
 }
 
 /* An island carried by its name rides above the rest until it lands. */
@@ -216,11 +196,11 @@ html:not([data-shell-mode='mobile']) .se-band__name.sand-cell {
   cursor: grabbing;
 }
 
-/* The island's name, floating on its upper shore. Carried, it moves the island. */
+/* The island's name, inside its top shore. Carried, it moves the island. */
 .se-category__legend {
   position: absolute;
   box-sizing: border-box;
-  top: -14px;
+  top: 6px;
   left: 4px;
   z-index: 2;
   display: inline-flex;
@@ -232,7 +212,7 @@ html:not([data-shell-mode='mobile']) .se-band__name.sand-cell {
   border: 0;
   background: transparent;
   color: hsl(var(--ink-1));
-  font: 400 13px/1 var(--font-structure);
+  font: 400 13px/1.25 var(--font-structure);
   white-space: nowrap;
   cursor: grab;
 }
@@ -403,7 +383,7 @@ html:not([data-shell-mode='mobile']) .se-band__name.sand-cell {
 }
 
 .super-view-body[data-se-lod='far'] .se-category__legend {
-  top: -30px;
+  top: -12px;
   height: 36px;
   font-size: 26px;
 }
@@ -569,8 +549,6 @@ html:not([data-shell-mode='mobile']) .se-band__name.sand-cell {
   background: var(--tick-c);
   opacity: var(--tick-o);
   mix-blend-mode: var(--pigment-blend);
-  -webkit-mask: var(--glass-texture) var(--tick-x) 0 / 60px 60px;
-  mask: var(--glass-texture) var(--tick-x) 0 / 60px 60px;
 }
 
 .se-detail__tick.is-absent {
@@ -578,8 +556,6 @@ html:not([data-shell-mode='mobile']) .se-band__name.sand-cell {
   background: hsl(var(--ink-5));
   opacity: 0.6;
   mix-blend-mode: normal;
-  -webkit-mask: none;
-  mask: none;
 }
 
 .se-detail__rows {

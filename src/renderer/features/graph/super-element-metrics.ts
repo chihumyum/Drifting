@@ -31,9 +31,9 @@ export const GROUP_HEADER_PX = 16;
 // the reason last-column cards covered the right border).
 export const CATEGORY_INNER_PAD_Y_TOP = 8;
 export const CATEGORY_INNER_PAD_Y_BOTTOM = 4;
-// Desktop: the category name is a taller plate set into the sand frame's top
-// edge (structure type), so the first card row starts a little lower.
-export const DESKTOP_CATEGORY_INNER_PAD_Y_TOP = 12;
+// Desktop: an island's name sits inside its own shore, above the first row
+// of marks, so the wash under it never has to reach past the box.
+export const DESKTOP_CATEGORY_INNER_PAD_Y_TOP = 30;
 
 // Visible horizontal gap between two adjacent category boxes. Each box
 // renders inset by CATEGORY_GAP_X / 2 on its left and right edges; the

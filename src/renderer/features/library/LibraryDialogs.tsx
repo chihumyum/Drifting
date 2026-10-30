@@ -104,16 +104,19 @@ const dialogTextareaStyle: React.CSSProperties = {
 
 export function ComposeLibraryItemDialog({
   focused,
+  initialKind = 'text',
   onCancel,
   onCreate,
 }: {
   focused: FocusedEntity;
+  /** The type already chosen elsewhere (Project Home's 图片… / PDF…). */
+  initialKind?: LibraryItemKind;
   onCancel: () => void;
   onCreate: (input: CreateLibraryItemInput, relations: RelationTarget[]) => Promise<void>;
 }) {
   const { t } = useTranslation();
   const glass = !getPlatformRuntime().isMobileShell;
-  const [kind, setKind] = useState<LibraryItemKind>('text');
+  const [kind, setKind] = useState<LibraryItemKind>(initialKind);
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [pickedSourcePath, setPickedSourcePath] = useState<string | null>(null);
