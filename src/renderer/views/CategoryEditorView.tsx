@@ -544,7 +544,7 @@ export function CategoryEditorView({
                     );
                   })}
                   {filteredEls.length === 0 && (
-                    <div className="mgr-empty">{t('categoryEditor.empty.noFilteredElements')}</div>
+                    <div className="mgr-empty ui-section-empty">{t('categoryEditor.empty.noFilteredElements')}</div>
                   )}
                 </div>
               </>

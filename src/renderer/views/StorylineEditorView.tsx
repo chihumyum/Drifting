@@ -631,7 +631,7 @@ export function StorylineEditorView({
                     );
                   })}
                   {filteredNodes.length === 0 && (
-                    <div className="mgr-empty">{t('storylineEditor.empty.noFilteredChapters')}</div>
+                    <div className="mgr-empty ui-section-empty">{t('storylineEditor.empty.noFilteredChapters')}</div>
                   )}
                 </div>
               </>

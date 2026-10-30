@@ -20,13 +20,16 @@ html[data-shell-mode='desktop'] {
   --font-mono: 'Sarasa Mono SC', monospace;
 }
 
-/* Structure: panel destinations and the headings that organize entities. */
+/* Structure: panel destinations and the headings that organize entities,
+   including the section headers of the structured editors on the paper. */
 html[data-shell-mode='desktop'] :is(
   .workspace-panel-tab-row .app-panel-tab,
   .workspace-panel-tab-row [data-panel-tab-label],
   .left-sb-group-header__name,
   .left-sb-group-header__frame-label,
-  .btl-rail__name
+  .btl-rail__name,
+  .page__scene-title,
+  .refs-section__title
 ) {
   font-family: var(--font-structure);
   font-style: normal;
@@ -45,7 +48,8 @@ html[data-shell-mode='desktop'] .left-sb-group-header__name {
   text-transform: none !important;
 }
 
-/* Index: subheaders, filters, secondary groups and their metadata. */
+/* Index: subheaders, filters, secondary groups and their metadata, and the
+   one line an empty editor section says (.ui-section-empty). */
 html[data-shell-mode='desktop'] :is(
   .workspace-panel-header-row,
   .left-sb-inline-group-header,
@@ -53,7 +57,8 @@ html[data-shell-mode='desktop'] :is(
   .review-group__count,
   .review-card__kind,
   .review-card__status,
-  .review-card__time
+  .review-card__time,
+  .ui-section-empty
 ) {
   font-family: var(--font-mono);
   font-weight: 400;

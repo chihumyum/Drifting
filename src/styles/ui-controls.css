@@ -2089,6 +2089,22 @@ html:not([data-shell-mode='mobile']) .empty-state--compact {
   margin-top: 2px;
 }
 
+/* Desktop: the one line an empty section of a structured editor says (no
+   fields, no patches, nothing for this filter, no mentions). Every editor
+   writes it the same way: index type (mono, from interface-fonts.css), the
+   caption size, centred, upright and unforced case. The paused mobile shell
+   keeps each consumer's own fallback. */
+html:not([data-shell-mode='mobile']) .ui-section-empty {
+  margin: 0;
+  padding: 12px 8px;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  font-size: var(--ui-font-caption, 11px);
+  font-style: normal;
+  line-height: var(--ui-line-caption, 16px);
+  text-align: center;
+  text-wrap: balance;
+}
+
 /* Only the tab strip uses this full-width half-pixel hairline. Panel headers
    flow directly into their content so adjacent local rows do not double-rule. */
 .workspace-local-divider {

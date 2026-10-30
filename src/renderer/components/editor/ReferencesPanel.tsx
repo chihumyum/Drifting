@@ -684,7 +684,7 @@ export function ReferencesPanel({
               )}
               <div className="refs-picker__list">
                 {pickerCandidates.length === 0 ? (
-                  <div className="refs-picker__empty">{t('referencesPanel.picker.empty')}</div>
+                  <div className="refs-picker__empty ui-section-empty">{t('referencesPanel.picker.empty')}</div>
                 ) : (
                   pickerCandidates.map((c) => (
                     <button
@@ -808,7 +808,7 @@ export function ReferencesPanel({
             <span className="refs-section__count">{incomingGroups.length}</span>
           </div>
           {incomingGroups.length === 0 ? (
-            <div className="refs-empty">{t('referencesPanel.empty.incoming')}</div>
+            <div className="refs-empty ui-section-empty">{t('referencesPanel.empty.incoming')}</div>
           ) : (
             <div className={`refs-cards${glass ? ' refs-cards--plain' : ''}`}>
               {incomingGroups.map((g) => (
@@ -850,7 +850,7 @@ export function ReferencesPanel({
             <span className="refs-section__count">{outgoingGroups.length}</span>
           </div>
           {outgoingGroups.length === 0 ? (
-            <div className="refs-empty">{t('referencesPanel.empty.outgoing')}</div>
+            <div className="refs-empty ui-section-empty">{t('referencesPanel.empty.outgoing')}</div>
           ) : (
             <div className={`refs-cards${glass ? ' refs-cards--plain' : ''}`}>
               {outgoingGroups.map((g) => (
