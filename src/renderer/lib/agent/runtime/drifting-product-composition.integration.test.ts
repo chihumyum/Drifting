@@ -2221,4 +2221,93 @@ describe.sequential('Drifting Agent product composition', () => {
     ).toMatchObject({ status: 'pending' });
     harness.driver.assertExhausted();
   });
+  it('guides a stalled chapter item to one more anchored change and reports merged and ended checklists', async () => {
+    const lastResults: string[] = [];
+    const lastResult = (request: { context: { messages: readonly unknown[] } }) => {
+      for (const message of request.context.messages) lastResults.push(JSON.stringify(message));
+    };
+    const step = (name: string, callId: string, tool: string, args: Record<string, unknown>) => ({
+      name,
+      expectRequest: lastResult,
+      steps: toolCallSteps(callId, tool, args),
+    });
+    harness = await ProductAgentHarness.create([
+      {
+        name: 'create the checklist',
+        steps: toolCallSteps('plan', 'update_task_plan', {
+          operation: 'create',
+          scopeKind: 'explicit_targets',
+          objective: '整理 Chapter One 新出现的设定',
+          steps: [
+            { title: '新建人物阿岚', target: { kind: 'element', name: '阿岚' } },
+            { title: '在 Chapter One 记阿岚的变更', target: { kind: 'chapter', name: NODE_TITLE } },
+            { title: '整理 Chapter One 的设定', target: { kind: 'chapter', name: NODE_TITLE } },
+          ],
+        }),
+      },
+      step('create the element', 'create-element', 'create_element', {
+        category: 'People',
+        name: '阿岚',
+        summary: '背断弦琴的女人。',
+        body: '自称从盐场逃出。',
+      }),
+      step('complete item 1', 'item-1', 'update_task_step', { step: 1, status: 'completed' }),
+      step('record the change at the chapter', 'patch', 'create_element_patch', {
+        element: '阿岚',
+        title: '现身码头',
+        body: '清晨出现在码头。',
+        sourceChapter: NODE_TITLE,
+      }),
+      step('complete item 2', 'item-2', 'update_task_step', { step: 2, status: 'completed' }),
+      step('complete item 3 without its own change', 'item-3-early', 'update_task_step', {
+        step: 3,
+        status: 'completed',
+      }),
+      step('append an item for an existing target', 'append', 'update_task_plan', {
+        operation: 'append_steps',
+        steps: [{ title: '补全阿岚', target: { kind: 'element', name: '阿岚' } }],
+      }),
+      step('anchor one more change to the chapter', 'relation', 'create_relation', {
+        fromType: 'element',
+        fromName: '阿岚',
+        relationType: 'appears_in',
+        toType: 'chapter',
+        toName: NODE_TITLE,
+      }),
+      step('complete item 3', 'item-3', 'update_task_step', { step: 3, status: 'completed' }),
+      step('update the ended checklist', 'after-end', 'update_task_step', { step: 3, status: 'completed' }),
+      step('read the ended checklist', 'read-ended', 'read_task_plan', {}),
+      { name: 'finish', expectRequest: lastResult, steps: finalSteps('整理好了。') },
+    ]);
+    const relationType = await createEntityRelationTypeRepository(PROJECT_ID, harness.database).create({
+      id: 'relation-type-appears-in',
+      projectId: PROJECT_ID,
+      name: 'appears_in',
+      normalizedName: 'appears_in',
+      description: '',
+      orientation: 'directed',
+      systemKey: null,
+      locked: false,
+      sourceRole: 'appearing element',
+      targetRole: 'scene',
+      sourceKinds: ['element'],
+      targetKinds: ['node'],
+      createdAt: INITIAL_REVISION,
+      updatedAt: INITIAL_REVISION,
+    });
+    useDataStore.getState().addEntityRelationType(relationType);
+    await harness.runTurn('turn-organize', '整理设定');
+
+    const resultOf = (callId: string) =>
+      lastResults.find((entry) => entry.includes(`"callId":"${callId}"`) && entry.includes('"role":"tool"')) ?? '';
+    expect(resultOf('item-3-early')).toContain('TASK_WRITE_EVIDENCE_INVALID');
+    expect(resultOf('item-3-early')).toContain('No unclaimed change has been saved during this task.');
+    expect(resultOf('item-3-early')).toContain('save one more change to its target or anchored to it');
+    expect(resultOf('append')).toContain('「补全阿岚」没有另加：第 1 项「新建人物阿岚」（已完成）已经是同一目标');
+    expect(resultOf('item-3')).toContain('3/3 已完成');
+    expect(resultOf('after-end')).toContain('已经完成（3/3 已完成），不能再修改');
+    expect(resultOf('read-ended')).toContain('当前没有进行中的任务清单。任务清单「整理 Chapter One 新出现的设定」已经完成');
+    expect(harness.scalar("SELECT count(*) FROM agent_runtime_task_step")).toBe(3);
+    harness.driver.assertExhausted();
+  });
 });

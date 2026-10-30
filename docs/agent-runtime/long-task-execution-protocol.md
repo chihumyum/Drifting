@@ -112,8 +112,12 @@ as its source chapter, a relation for both ends. Eligible writes start when the
 author request that created the checklist began, so a checklist created in a
 later automatic-continuation slice adopts writes an earlier slice of the same
 request saved; a new author request starts afresh. When nothing qualifies, the
-error names the step's target and the saved changes no step has claimed, and
-points the Agent to `append_steps` for work saved to other objects.
+error names the step's target and the saved changes no step has claimed, asks
+for one more change to or anchored to that target, and keeps `append_steps` for
+work that belongs to other objects. `append_steps` names every requested step it
+merged into an existing step with the same target instead of adding it. Once a
+checklist has completed or failed, `read_task_plan` and every update say so with
+its final progress and tell the Agent to stop updating it.
 
 For `workKind=review`,
 the provider omits `resultRef`, reads the exact target first, and submits a
