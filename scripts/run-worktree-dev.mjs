@@ -148,6 +148,8 @@ export function createWorktreePlan({
     VITE_SENTRY_RELEASE: loaded.VITE_SENTRY_RELEASE || '',
     VITE_SENTRY_ENVIRONMENT: loaded.VITE_SENTRY_ENVIRONMENT || 'development',
     VITE_DRIFTING_CRASH_REPORTS_IN_DEV: loaded.VITE_DRIFTING_CRASH_REPORTS_IN_DEV || '',
+    // Where share links point; development runs the reader on its own server.
+    VITE_SHARE_WEB_ORIGIN: loaded.VITE_SHARE_WEB_ORIGIN || '',
   });
   // Development only: the Agent's keys from the checkout's .env files (the
   // main checkout's too), so a fresh profile starts connected. A packaged app

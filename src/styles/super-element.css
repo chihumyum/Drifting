@@ -157,43 +157,90 @@ html:not([data-shell-mode='mobile']) .se-band__name.sand-cell {
   -webkit-line-clamp: 2;
 }
 
-/* ── Category box ─────────────────────────────────────────────────── */
+/* ── Category island ──────────────────────────────────────────────── */
+/* A category is an island: a wash of its colour that thins toward the
+   shore, with the sand's own grain in it. No frame. The wash and the grain
+   sit behind the cards (isolation keeps their z-index local). */
 .se-category {
   position: absolute;
+  isolation: isolate;
 }
 
-/* The frame is nine-sliced so the dry stroke keeps one weight at any size. */
-.se-category::before {
+.se-category::before,
+.se-category::after {
   content: '';
   position: absolute;
-  inset: -4px -5px;
-  background: color-mix(in srgb, var(--se-category-c, hsl(var(--ink-4))), #ffffff var(--pigment-lift));
-  -webkit-mask-box-image: url('../assets/design/sand/frame-box.png') 24 / 12px round;
-  mask-border: url('../assets/design/sand/frame-box.png') 24 / 12px round;
-  mix-blend-mode: var(--pigment-blend);
-  opacity: var(--pigment);
+  z-index: -1;
+  inset: -24px -28px;
+  border-radius: 56px;
   pointer-events: none;
 }
 
-/* The name plate cuts the frame's top edge where it sits. */
+.se-category::before {
+  background: radial-gradient(
+    ellipse closest-side at 50% 50%,
+    color-mix(in srgb, var(--se-category-c, hsl(var(--ink-4))) 22%, transparent) 0%,
+    color-mix(in srgb, var(--se-category-c, hsl(var(--ink-4))) 12%, transparent) 64%,
+    transparent 100%
+  );
+  transition: background var(--motion-sand-fade, 0.3s) ease-out;
+}
+
+.se-category::after {
+  background: color-mix(in srgb, var(--se-category-c, hsl(var(--ink-4))), #ffffff var(--pigment-lift));
+  opacity: calc(var(--pigment) * 0.22);
+  mix-blend-mode: var(--pigment-blend);
+  -webkit-mask-image: radial-gradient(ellipse closest-side at 50% 50%, #000 55%, transparent 100%), var(--glass-texture);
+  -webkit-mask-size: 100% 100%, 170px 170px;
+  -webkit-mask-composite: source-in;
+  mask-image: radial-gradient(ellipse closest-side at 50% 50%, #000 55%, transparent 100%), var(--glass-texture);
+  mask-size: 100% 100%, 170px 170px;
+  mask-composite: intersect;
+}
+
+/* An element carried over the island: the wash deepens and the shore takes
+   a still line of clear glass. */
+.se-category.is-drop::before {
+  background: radial-gradient(
+    ellipse closest-side at 50% 50%,
+    color-mix(in srgb, var(--se-category-c, hsl(var(--ink-4))) 34%, transparent) 0%,
+    color-mix(in srgb, var(--se-category-c, hsl(var(--ink-4))) 20%, transparent) 70%,
+    transparent 100%
+  );
+  border: 1px solid color-mix(in srgb, var(--glass-clear) 70%, transparent);
+}
+
+/* An island carried by its name rides above the rest until it lands. */
+.se-category.is-carried {
+  z-index: 6;
+  cursor: grabbing;
+}
+
+/* The island's name, floating on its upper shore. Carried, it moves the island. */
 .se-category__legend {
   position: absolute;
   box-sizing: border-box;
-  top: -11px;
-  left: 12px;
+  top: -14px;
+  left: 4px;
   z-index: 2;
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  max-width: calc(100% - 24px);
-  height: 18px;
-  padding: 0 7px;
+  max-width: calc(100% - 8px);
+  height: 20px;
+  padding: 0 6px;
   border: 0;
-  background: hsl(var(--paper));
+  background: transparent;
   color: hsl(var(--ink-1));
   font: 400 13px/1 var(--font-structure);
   white-space: nowrap;
-  cursor: pointer;
+  cursor: grab;
+}
+
+.se-category__pinned {
+  flex-shrink: 0;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font: 400 10px/1 var(--font-mono);
 }
 
 .se-category__legend > .kind-mark {
@@ -322,4 +369,270 @@ html:not([data-shell-mode='mobile']) .se-band__name.sand-cell {
   align-items: center;
   justify-content: center;
   pointer-events: none;
+}
+
+/* ── Distance ─────────────────────────────────────────────────────── */
+/* From far the islands are a star map: each element only its mark, as large
+   as it is mentioned (--se-weight, 0–1), and each island's name large enough
+   to read. From the middle distance each mark has its name; close up each
+   is a card with its summary. */
+.super-view-body[data-se-lod] .se-card__summary {
+  display: none;
+}
+
+.super-view-body[data-se-lod='near'] .se-card__summary {
+  display: -webkit-box;
+}
+
+.super-view-body[data-se-lod='mid'] .se-card.sand-cell {
+  justify-content: center;
+}
+
+.super-view-body[data-se-lod='far'] .se-card.sand-cell {
+  align-items: center;
+  justify-content: center;
+}
+
+.super-view-body[data-se-lod='far'] .se-card__name {
+  display: none;
+}
+
+.super-view-body[data-se-lod='far'] .se-card__title > .kind-mark {
+  margin: 0;
+  transform: scale(calc(1.4 + var(--se-weight, 0) * 2.2));
+}
+
+.super-view-body[data-se-lod='far'] .se-category__legend {
+  top: -30px;
+  height: 36px;
+  font-size: 26px;
+}
+
+.super-view-body[data-se-lod='far'] .se-category__count {
+  font-size: 22px;
+}
+
+/* ── Focus, search and carrying ───────────────────────────────────── */
+.se-card.sand-cell {
+  transition: opacity var(--motion-sand-shift, 0.24s) ease-out;
+}
+
+/* Outside the focused element's neighbourhood, or not what the search found. */
+.se-card.sand-cell.is-dim {
+  opacity: 0.2;
+}
+
+/* Left out while only one element's neighbourhood is shown. */
+.se-card.sand-cell.is-gone {
+  visibility: hidden;
+}
+
+/* Its place while it is carried to another island. */
+.se-card.sand-cell.is-lifted {
+  opacity: 0.3;
+}
+
+/* Never mentioned in the prose: the mark is faint, the name a step lighter. */
+.se-card.sand-cell.is-unmentioned .se-card__title > .kind-mark {
+  opacity: 0.4;
+}
+
+.se-card.sand-cell.is-unmentioned .se-card__name {
+  color: hsl(var(--ink-4));
+}
+
+/* The element in the hand: a lifted slip that follows the pointer. */
+.se-carried {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 20;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  margin: -14px 0 0 -16px;
+  padding: 0 10px;
+  border-radius: 3px;
+  background: hsl(var(--page));
+  box-shadow: var(--menu-surface-shadow);
+  color: hsl(var(--ink-1));
+  font: 600 13px/1 var(--font-sans);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* ── Lines from the prose ─────────────────────────────────────────── */
+/* World-sized canvas under the marks; its colour is the sand it draws in. */
+.se-isle-lines {
+  position: absolute;
+  color: hsl(var(--ink-2));
+  pointer-events: none;
+}
+
+/* ── The focused element ──────────────────────────────────────────── */
+/* A lifted piece of desk at the canvas's right edge (the menu surface
+   tokens), no lines inside; its rows are menu rows. */
+.se-detail {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 15;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 300px;
+  max-height: calc(100% - 32px);
+  overflow: auto;
+  padding: 16px 16px 12px;
+  border-radius: var(--menu-surface-radius);
+  background: var(--menu-surface-bg);
+  box-shadow: var(--menu-surface-shadow);
+  cursor: default;
+}
+
+.se-detail__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.se-detail__head > .kind-mark {
+  margin-top: 3px;
+}
+
+.se-detail__title {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.se-detail__name {
+  color: hsl(var(--ink-1));
+  font: 600 17px/1.25 var(--font-sans);
+}
+
+.se-detail__meta {
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font: 400 11px/1.5 var(--font-mono);
+}
+
+.se-detail__close {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: hsl(var(--ink-3));
+  cursor: pointer;
+}
+
+.se-detail__close:hover {
+  color: hsl(var(--ink-1));
+}
+
+.se-detail__summary {
+  margin: 0;
+  color: hsl(var(--ink-2));
+  font: 400 13px/1.6 var(--font-sans);
+}
+
+.se-detail__label {
+  margin-top: 4px;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font: 400 11px/1 var(--font-mono);
+}
+
+/* One stroke of sand per chapter, in book order: the storyline's colour,
+   as dense as the element is mentioned there. */
+.se-detail__ticks {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  min-height: 26px;
+}
+
+.se-detail__ticks.is-dense {
+  gap: 1px;
+}
+
+.se-detail__tick {
+  flex: 0 1 7px;
+  min-width: 1px;
+  height: var(--tick-h);
+  border-radius: 1px;
+  background: var(--tick-c);
+  opacity: var(--tick-o);
+  mix-blend-mode: var(--pigment-blend);
+  -webkit-mask: var(--glass-texture) var(--tick-x) 0 / 60px 60px;
+  mask: var(--glass-texture) var(--tick-x) 0 / 60px 60px;
+}
+
+.se-detail__tick.is-absent {
+  height: 3px;
+  background: hsl(var(--ink-5));
+  opacity: 0.6;
+  mix-blend-mode: normal;
+  -webkit-mask: none;
+  mask: none;
+}
+
+.se-detail__rows {
+  display: flex;
+  flex-direction: column;
+  margin: 0 -16px;
+}
+
+.se-detail__row {
+  gap: 8px;
+}
+
+.se-detail__row:disabled {
+  cursor: default;
+}
+
+.se-detail__row-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.se-detail__row-count,
+.se-detail__row-type {
+  flex-shrink: 0;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font: 400 11px/1 var(--font-mono);
+  white-space: nowrap;
+}
+
+.se-detail__row-type {
+  min-width: 32px;
+}
+
+.se-detail__dash {
+  flex: none;
+  width: 12px;
+  height: 3px;
+  border-radius: 1px;
+  background: var(--dash-c);
+}
+
+.se-detail__foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+/* ── Header ───────────────────────────────────────────────────────── */
+.se-find {
+  width: 168px;
+  min-height: 26px;
 }

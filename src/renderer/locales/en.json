@@ -19,6 +19,24 @@
     "saved": "Markdown saved",
     "failed": "Could not complete the action. Please retry or select and copy the text."
   },
+  "shareLink": {
+    "dialogTitle": "Share",
+    "title": "Share link",
+    "signIn": "Sign in",
+    "create": "Create share link",
+    "creating": "Creating…",
+    "url": "Share link",
+    "copy": "Copy link",
+    "copied": "Link copied",
+    "allowComments": "Allow comments",
+    "revision": "Version {{revision}}",
+    "stop": "Stop sharing",
+    "confirmStop": "Stop? The link will stop working",
+    "stopping": "Stopping…",
+    "failed": "That did not finish. Check the connection and try again.",
+    "reauth": "Your sign-in expired. Sign in again and retry.",
+    "readerBadge": "Reader"
+  },
   "sidebarLayout": {
     "split": "Restore two columns"
   },
@@ -3018,6 +3036,35 @@
     "uncategorized": "Uncategorized",
     "startEdgeFromElement": "Create relation from this element",
     "startEdgeFromDrift": "Create relation from this idea",
+    "isles": {
+      "distance": "Distance",
+      "far": "Far",
+      "mid": "Mid",
+      "near": "Near",
+      "lines": "Together",
+      "linesTitle": "A sand line joins two elements mentioned in the same paragraph of a chapter",
+      "threshold": "Paragraphs together, at least",
+      "atLeast": "≥{{count}}",
+      "find": "Find element",
+      "newElement": "New element here",
+      "unpin": "Back to automatic layout",
+      "pinned": "Pinned",
+      "detail": {
+        "meta": "{{category}} · {{count}} mentions",
+        "appearance": "Appears",
+        "appeared": "In {{appeared}}/{{total}} chapters · first {{first}} · last {{last}} · longest gap {{gap}}",
+        "never": "Not mentioned in the prose yet",
+        "tick": "{{section}} {{title}} · {{count}}",
+        "tickAbsent": "{{section}} {{title}}",
+        "companions": "Often together",
+        "times": "× {{count}}",
+        "relations": "Relations",
+        "isolate": "Only this",
+        "showAll": "Show all",
+        "edit": "Edit",
+        "close": "Close"
+      }
+    },
     "empty": {
       "noStorylines": "No storylines yet",
       "noCategories": "No element categories yet",

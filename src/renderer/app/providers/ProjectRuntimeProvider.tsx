@@ -5,6 +5,7 @@ import { Navigate } from 'react-router-dom';
 import loglevel from 'loglevel';
 import { getDb, getDbIfInitialized, initDatabase } from '../../lib/db';
 import { events } from '../../lib/events';
+import { APP_CONFIG } from '../../lib/config';
 import { useAgentToolBridge } from '../../lib/agent/useAgentToolBridge';
 import { useDriftingAgentRuntime } from '../../lib/agent/useDriftingAgentRuntime';
 import { useDataStore, type WorkspaceDataProjection } from '../../store/data-store';
@@ -186,6 +187,16 @@ export function ProjectRuntimeProvider({
     let dispose: (() => void) | undefined;
     void import('../../services/markdown-projection.service').then(module => {
       if (!cancelled) dispose = module.installMarkdownProjection(projectId);
+    });
+    return () => { cancelled = true; dispose?.(); };
+  }, [bootKey, bootState.key, bootState.status, projectId]);
+
+  useEffect(() => {
+    if (bootState.key !== bootKey || bootState.status !== 'ready' || APP_CONFIG.LOCAL_ONLY_MODE) return;
+    let cancelled = false;
+    let dispose: (() => void) | undefined;
+    void import('../../features/share-links/share-link-publisher').then(module => {
+      if (!cancelled) dispose = module.installShareLinkPublisher(projectId);
     });
     return () => { cancelled = true; dispose?.(); };
   }, [bootKey, bootState.key, bootState.status, projectId]);

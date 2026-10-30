@@ -972,7 +972,10 @@ describe('workspace surface language acceptance', () => {
     expect(superElement).toContain('setPendingLinkTypeId(created.id)');
     expect(superElement).toContain('<RelationEdgePopover');
     expect(superElement).toContain('<RelationArrowMarker');
-    expect(superElement).toContain('markerEnd={edge.directed');
+    // Arrowheads only in the paused mobile shell; the desktop islands name the
+    // direction on the detail card (element-isles.acceptance.test.ts).
+    expect(superElement).toContain('const directed = mobileShell && edge.directed;');
+    expect(superElement).toContain('markerEnd={directed');
     expect(superElement).not.toContain('data-super-edge-delete');
     expect(storyGraph).toContain('<RelationTypeField');
     expect(storyGraph).toContain('<RelationTypeEditor');

@@ -20,6 +20,7 @@ import { UpdateService } from '../../services/update/update-service';
 import { runAssetStoreRestartGc } from '../../services/asset-store-restart-gc';
 import { applyResolvedColorScheme } from '../../lib/initial-theme';
 import { reportIntegrityEvent } from '../../services/diagnostics/crash-reporter';
+import { APP_CONFIG } from '../../lib/config';
 
 const log = loglevel.getLogger('AppEffects');
 log.setLevel(import.meta.env.DEV ? loglevel.levels.TRACE : loglevel.levels.WARN);
@@ -187,7 +188,17 @@ function SyncEngineEffects() {
     const stopHostedProvisioning = installHostedSyncGenerationProvisioningRuntime();
     const stopHostedDiscovery = installHostedDiscoveryRuntime();
     const stopSync = installProductionSyncRuntime();
+    // Readers' comments on share links; only Hosted-configured builds load it.
+    let stopShareInbox: (() => void) | undefined;
+    let disposed = false;
+    if (!APP_CONFIG.LOCAL_ONLY_MODE) {
+      void import('../../features/share-links/share-inbox-runtime').then((module) => {
+        if (!disposed) stopShareInbox = module.installShareInboxRuntime();
+      });
+    }
     return () => {
+      disposed = true;
+      stopShareInbox?.();
       stopHostedDiscovery();
       stopHostedProvisioning();
       stopSync();

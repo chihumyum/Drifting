@@ -19,6 +19,24 @@
     "saved": "已保存 Markdown",
     "failed": "操作未完成，请重试，或选中文字后复制。"
   },
+  "shareLink": {
+    "dialogTitle": "分享",
+    "title": "分享链接",
+    "signIn": "登录",
+    "create": "创建分享链接",
+    "creating": "正在创建…",
+    "url": "分享链接",
+    "copy": "复制链接",
+    "copied": "链接已复制",
+    "allowComments": "允许评论",
+    "revision": "第 {{revision}} 版",
+    "stop": "停止分享",
+    "confirmStop": "确认停止？链接会失效",
+    "stopping": "正在停止…",
+    "failed": "操作没有完成，请检查网络后重试。",
+    "reauth": "登录已过期，请重新登录后再试。",
+    "readerBadge": "读者"
+  },
   "sidebarLayout": {
     "split": "恢复双栏"
   },
@@ -3013,6 +3031,35 @@
     "uncategorized": "未分类",
     "startEdgeFromElement": "从此要素新建关联",
     "startEdgeFromDrift": "从这条构想新建关联",
+    "isles": {
+      "distance": "远近",
+      "far": "远",
+      "mid": "中",
+      "near": "近",
+      "lines": "同段",
+      "linesTitle": "两个要素在同一章的同一段里都被提到，就连一条砂线",
+      "threshold": "同段至少几次",
+      "atLeast": "≥{{count}}",
+      "find": "找要素",
+      "newElement": "在这里新建要素",
+      "unpin": "恢复自动排布",
+      "pinned": "已固定",
+      "detail": {
+        "meta": "{{category}} · 提及 {{count}} 处",
+        "appearance": "出场",
+        "appeared": "出场 {{appeared}}/{{total}} 章 · 首 {{first}} · 末 {{last}} · 最长空档 {{gap}} 章",
+        "never": "还没有在正文里出现",
+        "tick": "{{section}} {{title}} · {{count}} 处",
+        "tickAbsent": "{{section}} {{title}}",
+        "companions": "常同段",
+        "times": "× {{count}}",
+        "relations": "关系",
+        "isolate": "只看它",
+        "showAll": "看全部",
+        "edit": "编辑",
+        "close": "关闭"
+      }
+    },
     "empty": {
       "noStorylines": "还没有故事线",
       "noCategories": "还没有要素类目",

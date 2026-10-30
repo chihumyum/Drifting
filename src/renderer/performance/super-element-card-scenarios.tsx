@@ -54,8 +54,10 @@ export async function runSuperElementCardScenarios() {
         await pause(700);
         const cards = [...host.querySelectorAll<HTMLElement>('[data-super-card="element"]')];
         const nodes = [...host.querySelectorAll<HTMLElement>('[data-super-card="node"]')];
-        if (cards.length !== elements || nodes.length !== 20) throw new Error('Full graph fixture did not mount every card.');
-        const focus = host.querySelector<HTMLButtonElement>('.super-element-toggle, [data-super-element-toggle="focus"]')!;
+        // The desktop islands have no chapter band, so no chapter cards.
+        if (cards.length !== elements || nodes.length !== 0) throw new Error('Full graph fixture did not mount every card.');
+        // The header toggle that reaches every card: the islands' 同段 lines.
+        const focus = host.querySelector<HTMLButtonElement>('[data-se-lines]')!;
         resetWork(); const started = performance.now();
         for (let index = 0; index < 20; index++) flushSync(() => focus.click());
         const focusMs = performance.now() - started; const focusWork = { ...superElementCardWork };
@@ -65,8 +67,8 @@ export async function runSuperElementCardScenarios() {
         await pause(150); const wheelWork = { ...superElementCardWork };
         const checks = {
           allCardsRetained: cards.every(card => card.isConnected) && nodes.every(node => node.isConnected),
-          focusModeReturned: focus.getAttribute('aria-pressed') === 'false',
-          shiftSelectsSource: false, shiftClearsSource: false, elementPairUsesLatestSource: false, chapterPairUsesLatestSource: false,
+          focusModeReturned: focus.getAttribute('aria-pressed') === 'true',
+          shiftSelectsSource: false, shiftClearsSource: false, elementPairUsesLatestSource: false,
           renameUpdatesCard: false, categoryNavigation: false,
         };
         const first = host.querySelector<HTMLElement>('[data-element-id="synthetic-element-0"]')!;
@@ -77,7 +79,6 @@ export async function runSuperElementCardScenarios() {
         const target = host.querySelector<HTMLElement>(`[data-element-id="${fixture.bookElements[elements - 1].id}"]`)!;
         for (const [source, sourceName, check] of [
           [first, fixture.bookElements[0].name, 'elementPairUsesLatestSource'],
-          [nodes[0], fixture.bookNodes[0].title, 'chapterPairUsesLatestSource'],
         ] as const) {
           flushSync(() => source.dispatchEvent(new MouseEvent('click', { bubbles: true, shiftKey: true })));
           flushSync(() => target.click());

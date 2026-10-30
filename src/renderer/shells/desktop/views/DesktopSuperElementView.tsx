@@ -26,7 +26,24 @@ import { entityHoverActions } from '../../../components/leftBars/entity-hover-ac
 import { useEntityCellAction } from '../../../hooks/useEntityCellAction';
 import { EntityHoverCard } from '../../../features/entities/hover/EntityHoverCard';
 import type { EntityHoverTarget } from '../../../features/entities/hover/entity-hover-card-model';
-import { useCanvasHoverCard, withDriftGroupChoices } from '../../../features/graph/canvas-hover-card';
+import { useCanvasHoverCard, withDriftGroupChoices, withElementCategoryChoices } from '../../../features/graph/canvas-hover-card';
+import { SuperElementIsleLines } from '../../../features/graph/SuperElementIsleLines';
+import {
+  ISLES_LOD_ZOOM,
+  isleCompanions,
+  isleMarkWeight,
+  isleNeighbours,
+  islePairs,
+  islesLod,
+  isleTicks,
+  type IslesLod,
+} from '../../../features/graph/element-isles-model';
+import { useElementMentionGraph } from '../../../usecase/useElementMentionGraph';
+import { useBookElement } from '../../../usecase/useBookElement';
+import { useElementCategory } from '../../../usecase/useElementCategory';
+import { GlassSlider } from '../../../components/ui/GlassSlider';
+import { FilterChip } from '../../../components/ui/FilterChip';
+import { ElementIsleDetail } from '../components/ElementIsleDetail';
 import { useDriftGroup } from '../../../usecase/useDriftGroup';
 import { findById } from '../../../lib/immutable-id-index';
 import {
@@ -148,11 +165,20 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
     anchor: AnchorRect;
   } | null>(null);
 
+  // Desktop islands (element-isles-model.ts): a click focuses an element
+  // instead of opening its popover; the detail card at the right edge offers
+  // the popover's editing as one of its actions.
+  const [isleFocus, setIsleFocus] = useState<string | null>(null);
+  const [isolated, setIsolated] = useState(false);
+  const [linesOn, setLinesOn] = useState(true);
+  const [lineThreshold, setLineThreshold] = useState(2);
+  const [findQuery, setFindQuery] = useState('');
+
   // Click-focus neighborhood: while an element's popover is open, the
   // elements it shares an edge with — and those edges — light up so the
   // clicked card's graph neighborhood reads at a glance. Cleared with the
   // popover.
-  const focusedElementId = activePopover?.elementId ?? null;
+  const focusedElementId = mobileShell ? (activePopover?.elementId ?? null) : isleFocus;
   const focusConnected = useMemo(() => {
     if (!focusedElementId) return null;
     const elementIds = new Set<string>();
@@ -315,6 +341,14 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
         onEscape: () => setMobileLinkMode(false),
       },
       {
+        id: `isle-focus:${isleFocus ?? ''}`,
+        active: !mobileShell && isleFocus !== null,
+        onEscape: () => {
+          setIsleFocus(null);
+          setIsolated(false);
+        },
+      },
+      {
         id: 'drift-panel',
         active: driftPanelMounted && !driftPanelClosing,
         onEscape: closeDriftPanel,
@@ -410,7 +444,10 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
   // Solver-reserved band space — actual visible band height plus an extra
   // BAND_OUTER_RESERVE_CELLS cells so categories sit a bit further away,
   // leaving a visible gap on both sides of the band.
-  const bandReservedHeightCells = bandHeightCells + BAND_OUTER_RESERVE_CELLS;
+  // The desktop has no chapter band: the islands above and below leave one
+  // cell of sea between them, and where an element appears lives on its
+  // detail card instead.
+  const bandReservedHeightCells = mobileShell ? bandHeightCells + BAND_OUTER_RESERVE_CELLS : 1;
   const layout = useMemo(() => {
     const inputs: LayoutInput[] = categoryModels.map((m) => ({
       id: m.categoryId,
@@ -473,6 +510,7 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
   );
   const nodeCenters = useMemo(() => {
     const m = new Map<string, { x: number; y: number }>();
+    if (!mobileShell) return m;
     const rowIndex = new Map<string, number>();
     storylines.forEach((s, i) => rowIndex.set(s.id, i));
     sortedPlacedNodesAll.forEach((n, idx) => {
@@ -485,7 +523,7 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
       m.set(n.id, { x, y });
     });
     return m;
-  }, [sortedPlacedNodesAll, storylines, bandWorldLeft, bandRailPx, bandTopWorldY, primaryStorylineByNode]);
+  }, [mobileShell, sortedPlacedNodesAll, storylines, bandWorldLeft, bandRailPx, bandTopWorldY, primaryStorylineByNode]);
 
   // Drift no longer has a bookOrder — sort by recency (matches DriftPanel).
   // Drifts BOUND to a timeline marker OR an act are excluded: they've
@@ -560,6 +598,66 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
     relationTypeById,
   ]);
 
+  // ---- Islands (desktop) ----
+  // Lines from the prose: two elements mentioned in the same paragraph of a
+  // chapter. Their weight sizes each mark from far away; the relations the
+  // author drew stay their own coloured lines on top.
+  const { graph: mentionGraph } = useElementMentionGraph(projectId, !mobileShell);
+  const { updateElement, createElement } = useBookElement({ projectId: projectId ?? '', userId });
+  const { updateCategory } = useElementCategory({ projectId: projectId ?? '', userId });
+  const presentElementIds = useMemo(() => new Set(bookElements.map((el) => el.id)), [bookElements]);
+  const isleLines = useMemo(
+    () => (!mobileShell && linesOn && mentionGraph ? islePairs(mentionGraph.pairs, lineThreshold, presentElementIds) : []),
+    [mobileShell, linesOn, mentionGraph, lineThreshold, presentElementIds],
+  );
+  const markWeights = useMemo(() => {
+    if (mobileShell || !mentionGraph) return null;
+    let most = 0;
+    for (const entry of mentionGraph.elements.values()) most = Math.max(most, entry.mentions);
+    const weights = new Map<string, number>();
+    for (const [id, entry] of mentionGraph.elements) {
+      if (entry.mentions > 0) weights.set(id, isleMarkWeight(entry.mentions, most));
+    }
+    return weights;
+  }, [mobileShell, mentionGraph]);
+  const relationPairs = useMemo(
+    () => entityRelations
+      .filter((r) => r.fromKind === 'element' && r.toKind === 'element' && !hiddenRelationTypeIds.has(r.relationTypeId))
+      .map((r) => ({ a: r.fromId, b: r.toId })),
+    [entityRelations, hiddenRelationTypeIds],
+  );
+  const isleNeighbourhood = useMemo(
+    () => (!mobileShell && isleFocus ? isleNeighbours(isleFocus, isleLines, relationPairs) : null),
+    [mobileShell, isleFocus, isleLines, relationPairs],
+  );
+  const findHits = useMemo(() => {
+    const query = findQuery.trim().toLocaleLowerCase();
+    if (mobileShell || !query) return null;
+    return new Set(
+      bookElements
+        .filter((el) => [el.name, ...(el.aliases ?? [])].some((name) => name.toLocaleLowerCase().includes(query)))
+        .map((el) => el.id),
+    );
+  }, [mobileShell, findQuery, bookElements]);
+  const dimmedElementIds = useMemo(() => {
+    const keep = findHits ?? isleNeighbourhood;
+    if (!keep) return null;
+    return new Set(bookElements.filter((el) => !keep.has(el.id)).map((el) => el.id));
+  }, [findHits, isleNeighbourhood, bookElements]);
+  const hiddenElementIds = useMemo(() => {
+    if (!isolated || !isleNeighbourhood) return null;
+    return new Set(bookElements.filter((el) => !isleNeighbourhood.has(el.id)).map((el) => el.id));
+  }, [isolated, isleNeighbourhood, bookElements]);
+  const worldBounds = useMemo(() => {
+    const { minX, maxX, minY, maxY } = layout.bounds;
+    return {
+      left: minX * CELL_W - CELL_W,
+      top: minY * CELL_H - CELL_H,
+      width: (maxX - minX + 2) * CELL_W,
+      height: (maxY - minY + 2) * CELL_H,
+    };
+  }, [layout.bounds]);
+
   // ---- Pan + zoom ----
   // Lazy initial state seeds the world transform so the FIRST frame already
   // has the band roughly in viewport center (rather than at world origin,
@@ -607,6 +705,23 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
   const initialCenter = useCallback(() => {
     const viewport = viewportRef.current;
     if (!viewport) return { pan: { x: 0, y: 0 }, zoom: 1 };
+    if (!mobileShell) {
+      // The islands fit the window, no closer than the middle distance.
+      const { minX, maxX, minY, maxY } = layout.bounds;
+      const width = Math.max(1, (maxX - minX) * CELL_W);
+      const height = Math.max(1, (maxY - minY) * CELL_H);
+      const zoom = Math.max(
+        ZOOM_MIN,
+        Math.min(ISLES_LOD_ZOOM.mid, (viewport.clientWidth - 96) / width, (viewport.clientHeight - 96) / height),
+      );
+      return {
+        pan: {
+          x: viewport.clientWidth / 2 - ((minX + maxX) / 2) * CELL_W * zoom,
+          y: viewport.clientHeight / 2 - ((minY + maxY) / 2) * CELL_H * zoom,
+        },
+        zoom,
+      };
+    }
     return {
       pan: {
         // World x=0 lands at the band's horizontal center.
@@ -616,7 +731,7 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
       },
       zoom: 1,
     };
-  }, [bandWorldCenterY]);
+  }, [bandWorldCenterY, layout.bounds, mobileShell]);
 
   // useLayoutEffect (not useEffect) so the restored viewport is committed
   // to state + DOM BEFORE the first paint. Otherwise the lazy-init position
@@ -664,10 +779,11 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
     if (!next) next = { ...initialCenter(), bandSticky: false, edgesViewportOnly: false };
     setPan(next.pan);
     setZoom(next.zoom);
-    if (typeof next.bandSticky === 'boolean') setBandSticky(next.bandSticky);
-    if (typeof next.edgesViewportOnly === 'boolean') setEdgesViewportOnly(next.edgesViewportOnly);
+    // The desktop has neither the band nor its 聚焦 filter any more.
+    setBandSticky(mobileShell && next.bandSticky === true);
+    setEdgesViewportOnly(mobileShell && next.edgesViewportOnly === true);
     setRestoredForKey(key);
-  }, [projectId, initialCenter, restoredForKey]);
+  }, [projectId, initialCenter, restoredForKey, mobileShell]);
 
   // Save whenever pan / zoom / toggles change — but only after restore
   // has committed for the current project. localStorage writes are fast
@@ -897,8 +1013,51 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
     clampZoomForSticky,
   ]);
 
+  // ---- Carrying (desktop) ----
+  // An element carried onto another island joins that category; an island
+  // carried by its name is pinned where it lands (layoutMode 'pinned', the
+  // solver packs the rest around it). Neither captures the pointer until it
+  // has moved, so a plain click still reaches the card or the name.
+  const elementDragRef = useRef<{ id: string; pointerId: number; x: number; y: number; moved: boolean } | null>(null);
+  const islandDragRef = useRef<{ id: string; pointerId: number; x: number; y: number; moved: boolean } | null>(null);
+  const dragEndedAtRef = useRef(0);
+  const ghostRef = useRef<HTMLDivElement | null>(null);
+  const [carried, setCarried] = useState<{ id: string; name: string; color?: string; x: number; y: number } | null>(null);
+  const [dropCategoryId, setDropCategoryId] = useState<string | null>(null);
+  const dropCategoryRef = useRef<string | null>(null);
+  const categoryAtWorld = useCallback(
+    (x: number, y: number): string | null => {
+      for (const model of categoryModels) {
+        if (!model.category) continue;
+        const placement = placementById.get(model.categoryId);
+        if (!placement) continue;
+        const left = placement.gridX * CELL_W + CATEGORY_GAP_X / 2 - 16;
+        const top = placement.gridY * CELL_H - 16;
+        if (x >= left && x <= left + model.widthCells * CELL_W + 32 && y >= top && y <= top + model.heightCells * CELL_H + 32) {
+          return model.categoryId;
+        }
+      }
+      return null;
+    },
+    [categoryModels, placementById],
+  );
+
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!mobileShell && e.pointerType !== 'touch' && e.button === 0 && !e.shiftKey && !linkSource) {
+        const target = e.target as Element | null;
+        const card = target?.closest<HTMLElement>('[data-element-id]');
+        if (card?.dataset.elementId) {
+          elementDragRef.current = { id: card.dataset.elementId, pointerId: e.pointerId, x: e.clientX, y: e.clientY, moved: false };
+          return;
+        }
+        const island = target?.closest('.se-category__legend')?.closest<HTMLElement>('[data-se-category]');
+        const islandId = island?.dataset.seCategory;
+        if (islandId && bookElementCategories.some((category) => category.id === islandId)) {
+          islandDragRef.current = { id: islandId, pointerId: e.pointerId, x: e.clientX, y: e.clientY, moved: false };
+          return;
+        }
+      }
       if (e.pointerType === 'touch') {
         const points = touchPointsRef.current;
         points.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -961,10 +1120,53 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
       e.currentTarget.setPointerCapture(e.pointerId);
       setPanningVisual(true);
     },
-    [setPanningVisual],
+    [setPanningVisual, mobileShell, linkSource, bookElementCategories],
   );
   const handlePointerMove = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
+      const carry = elementDragRef.current ?? islandDragRef.current;
+      if (carry && carry.pointerId === e.pointerId) {
+        const rect = e.currentTarget.getBoundingClientRect();
+        if (!carry.moved) {
+          if (Math.abs(e.clientX - carry.x) + Math.abs(e.clientY - carry.y) < 5) return;
+          carry.moved = true;
+          try {
+            e.currentTarget.setPointerCapture(e.pointerId);
+          } catch {
+            /* the pointer may already be gone */
+          }
+          hoverDismiss();
+          if (carry === elementDragRef.current) {
+            const element = findById(bookElements, carry.id);
+            const category = element?.categoryId ? findById(bookElementCategories, element.categoryId) : undefined;
+            setCarried({ id: carry.id, name: element?.name ?? '', color: category?.color, x: e.clientX - rect.left, y: e.clientY - rect.top });
+          }
+        }
+        if (carry === elementDragRef.current) {
+          if (ghostRef.current) {
+            ghostRef.current.style.transform = `translate(${e.clientX - rect.left}px, ${e.clientY - rect.top}px)`;
+          }
+          const zoomNow = zoomRef.current;
+          const at = categoryAtWorld(
+            (e.clientX - rect.left - panRef.current.x) / zoomNow,
+            (e.clientY - rect.top - panRef.current.y) / zoomNow,
+          );
+          const current = findById(bookElements, carry.id)?.categoryId ?? null;
+          const next = at && at !== current ? at : null;
+          if (next !== dropCategoryRef.current) {
+            dropCategoryRef.current = next;
+            setDropCategoryId(next);
+          }
+        } else {
+          const box = worldRef.current?.querySelector<HTMLElement>(`[data-se-category="${CSS.escape(carry.id)}"]`);
+          if (box) {
+            const zoomNow = zoomRef.current;
+            box.classList.add('is-carried');
+            box.style.transform = `translate(${(e.clientX - carry.x) / zoomNow}px, ${(e.clientY - carry.y) / zoomNow}px)`;
+          }
+        }
+        return;
+      }
       if (e.pointerType === 'touch' && touchPointsRef.current.has(e.pointerId)) {
         touchPointsRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
         const pinch = pinchRef.current;
@@ -1009,10 +1211,51 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
       // committed pan state catches up at pointerUp.
       applyTransform();
     },
-    [applyTransform, clampPanXForSticky, clampPanYForSticky, clampZoomForSticky],
+    [applyTransform, clampPanXForSticky, clampPanYForSticky, clampZoomForSticky, hoverDismiss, bookElements,
+      bookElementCategories, categoryAtWorld],
   );
   const handlePointerUp = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
+      const carry = elementDragRef.current ?? islandDragRef.current;
+      if (carry && carry.pointerId === e.pointerId) {
+        const isElement = carry === elementDragRef.current;
+        elementDragRef.current = null;
+        islandDragRef.current = null;
+        if (!carry.moved) return;
+        dragEndedAtRef.current = performance.now();
+        try {
+          e.currentTarget.releasePointerCapture(e.pointerId);
+        } catch {
+          /* capture may already be gone */
+        }
+        if (isElement) {
+          const target = dropCategoryRef.current;
+          dropCategoryRef.current = null;
+          setDropCategoryId(null);
+          setCarried(null);
+          if (target) {
+            updateElement(carry.id, { categoryId: target }).catch(() => {
+              /* the store keeps the old category; nothing to undo here */
+            });
+          }
+          return;
+        }
+        const box = worldRef.current?.querySelector<HTMLElement>(`[data-se-category="${CSS.escape(carry.id)}"]`);
+        if (box) {
+          box.classList.remove('is-carried');
+          box.style.transform = '';
+        }
+        const placement = placementById.get(carry.id);
+        const zoomNow = zoomRef.current;
+        const dx = Math.round((e.clientX - carry.x) / zoomNow / CELL_W);
+        const dy = Math.round((e.clientY - carry.y) / zoomNow / CELL_H);
+        if (placement && (dx !== 0 || dy !== 0)) {
+          updateCategory(carry.id, { layoutMode: 'pinned', gridX: placement.gridX + dx, gridY: placement.gridY + dy }).catch(() => {
+            /* the store keeps the island where it was */
+          });
+        }
+        return;
+      }
       if (e.pointerType === 'touch') {
         const points = touchPointsRef.current;
         points.delete(e.pointerId);
@@ -1058,7 +1301,7 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
       setPanningVisual(false);
       window.dispatchEvent(new Event('super-element:pan-end'));
     },
-    [setPanningVisual],
+    [setPanningVisual, updateElement, updateCategory, placementById],
   );
 
   // Reset view on demand — centers the band and resets zoom.
@@ -1114,7 +1357,10 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
       //   • element       → ElementCardPopover (two-tier name/summary/editor)
       //   • drift node    → NodeCardPopover (same two-tier UX, for nodes)
       //   • chapter pill  → no-op (band is read-only per design)
-      if (kind === 'element') {
+      if (kind === 'element' && !mobileShell) {
+        setIsleFocus((current) => (current === id ? null : id));
+        setIsolated(false);
+      } else if (kind === 'element') {
         setActivePopover({
           elementId: id,
           anchor: {
@@ -1136,16 +1382,18 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
         });
       }
     },
-    [driftIds, linkSource, mobileLinkMode, hoverDismiss],
+    [driftIds, linkSource, mobileLinkMode, hoverDismiss, mobileShell],
   );
 
   const handleNodeClick = useCallback<ChapterBandProps['onNodeClick']>((node, rect, opts) => {
     handleEntityClick('node', node.id, rect, opts);
   }, [handleEntityClick]);
   const handleElementClick = useCallback<CategoryBoxProps['onElementClick']>((element, rect, opts) => {
+    if (dragEndedAtRef.current > performance.now() - 250) return;
     handleEntityClick('element', element.id, rect, opts);
   }, [handleEntityClick]);
   const handleCategoryClick = useCallback<CategoryBoxProps['onCategoryClick']>(id => {
+    if (dragEndedAtRef.current > performance.now() - 250) return;
     openEntity({ entityType: 'category', id });
     close();
   }, [openEntity, close]);
@@ -1174,7 +1422,7 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
 
   const hoverActionsFor = (target: EntityHoverTarget) => {
     if (target.kind === 'element') {
-      return entityHoverActions({
+      const groups = entityHoverActions({
         editorType: 'element',
         extraGroups: [[{ action: 'startEdgeFrom', label: t('superElement.startEdgeFromElement') }]],
         onAction: (action) => {
@@ -1186,11 +1434,49 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
         },
         t,
       });
+      if (mobileShell) return groups;
+      // 改类目 moves it to another island right here.
+      return withElementCategoryChoices(groups, {
+        categoryId: findById(bookElements, target.id)?.categoryId ?? null,
+        categories: bookElementCategories,
+        onMove: (categoryId) => {
+          updateElement(target.id, { categoryId }).catch(() => {
+            /* the store keeps the old category */
+          });
+        },
+      });
     }
     if (target.kind === 'category') {
+      const category = findById(bookElementCategories, target.id);
+      const pinned = category?.layoutMode === 'pinned';
       return entityHoverActions({
         editorType: 'category',
-        onAction: (action) => void dispatchEntityAction({ entityType: 'category', id: target.id, action }),
+        extraGroups: mobileShell
+          ? undefined
+          : [[
+            { action: 'newElement', label: t('superElement.isles.newElement') },
+            ...(pinned ? [{ action: 'unpin', label: t('superElement.isles.unpin') }] : []),
+          ]],
+        onAction: (action) => {
+          if (action === 'newElement') {
+            createElement({ categoryId: target.id })
+              .then((created) => {
+                setIsleFocus(created.id);
+                setIsolated(false);
+              })
+              .catch(() => {
+                /* nothing was created */
+              });
+            return;
+          }
+          if (action === 'unpin') {
+            updateCategory(target.id, { layoutMode: 'auto', gridX: null, gridY: null }).catch(() => {
+              /* the island stays pinned */
+            });
+            return;
+          }
+          void dispatchEntityAction({ entityType: 'category', id: target.id, action });
+        },
         t,
       });
     }
@@ -1297,6 +1583,75 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
     [bookElements, bookElementCategories, driftIds, storylineColorOfNode],
   );
 
+  // ---- Distance, travel and the focused element (desktop) ----
+  const lod: IslesLod = islesLod(zoom);
+  const goToDistance = useCallback((next: IslesLod) => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const target = ISLES_LOD_ZOOM[next];
+    const cx = viewport.clientWidth / 2;
+    const cy = viewport.clientHeight / 2;
+    const k = target / zoomRef.current;
+    setPan({ x: cx - (cx - panRef.current.x) * k, y: cy - (cy - panRef.current.y) * k });
+    setZoom(target);
+  }, []);
+  const flyToElement = useCallback((id: string) => {
+    const viewport = viewportRef.current;
+    const center = elementCenters.get(id);
+    if (!viewport || !center) return;
+    const target = Math.max(zoomRef.current, ISLES_LOD_ZOOM.mid);
+    setPan({ x: viewport.clientWidth / 2 - center.x * target, y: viewport.clientHeight / 2 - center.y * target });
+    setZoom(target);
+    setIsleFocus(id);
+    setIsolated(false);
+  }, [elementCenters]);
+  const hoveredElementId = hoverPreview?.data.kind === 'element' ? hoverPreview.data.id : null;
+  const activeIsleElement = mobileShell ? null : (carried?.id ?? hoveredElementId ?? isleFocus);
+  const isleChapters = useMemo(
+    () => sortedPlacedNodesAll.map((node) => ({ id: node.id, title: node.title, color: storylineColorOfNode(node.id) ?? null })),
+    [sortedPlacedNodesAll, storylineColorOfNode],
+  );
+  const isleDetail = (() => {
+    if (mobileShell || !isleFocus) return null;
+    const element = findById(bookElements, isleFocus);
+    if (!element) return null;
+    const category = element.categoryId ? findById(bookElementCategories, element.categoryId) : undefined;
+    const entry = mentionGraph?.elements.get(element.id);
+    const companions = mentionGraph
+      ? isleCompanions(element.id, mentionGraph.pairs, 5).flatMap(({ id, count }) => {
+        const other = findById(bookElements, id);
+        if (!other) return [];
+        const otherCategory = other.categoryId ? findById(bookElementCategories, other.categoryId) : undefined;
+        return [{ id, name: other.name, color: otherCategory?.color, count }];
+      })
+      : [];
+    const relations = entityRelations
+      .filter((r) => (r.fromKind === 'element' && r.fromId === element.id) || (r.toKind === 'element' && r.toId === element.id))
+      .map((r) => {
+        const incoming = !(r.fromKind === 'element' && r.fromId === element.id);
+        const otherKind = incoming ? r.fromKind : r.toKind;
+        const otherId = incoming ? r.fromId : r.toId;
+        return {
+          id: r.id,
+          typeName: resolveRelationTypeLabel(r.relationTypeId),
+          color: resolveRelationTypeColor(r.relationTypeId),
+          incoming,
+          otherName: relationEndpointLabel(otherKind, otherId),
+          otherMark: entityMark(otherKind, otherId),
+          onSelect: otherKind === 'element' ? () => setIsleFocus(otherId) : undefined,
+        };
+      });
+    return {
+      element,
+      categoryName: category?.name ?? t('superElement.uncategorized'),
+      color: category?.color,
+      mentions: entry?.mentions ?? 0,
+      ticks: isleTicks(isleChapters, entry?.byChapter),
+      companions,
+      relations,
+    };
+  })();
+
   return (
     <SuperViewShell className="super-element-overlay">
       {/* Header — back + Super tabs + stats + filter controls. */}
@@ -1390,31 +1745,48 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
               </>
             ) : (
               <>
-                {/* Two-state words that never change: on or off is the glass. */}
-                <button
-                  type="button"
-                  className="ui-word-toggle glass glass--rest glass--small"
-                  data-super-element-toggle="focus"
-                  onClick={() => setEdgesViewportOnly((v) => !v)}
-                  title={
-                    edgesViewportOnly ? t('superElement.focusOffTitle') : t('superElement.focusOnTitle')
-                  }
-                  aria-pressed={edgesViewportOnly}
+                <label className="ui-field glass glass--rest glass--field se-find">
+                  <BrushIcon name="search" size={13} />
+                  <input
+                    type="text"
+                    value={findQuery}
+                    placeholder={t('superElement.isles.find')}
+                    aria-label={t('superElement.isles.find')}
+                    onChange={(event) => setFindQuery(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Escape' && findQuery) {
+                        event.preventDefault();
+                        setFindQuery('');
+                      } else if (event.key === 'Enter' && findHits && findHits.size > 0) {
+                        const first = bookElements.find((el) => findHits.has(el.id));
+                        if (first) flyToElement(first.id);
+                      }
+                    }}
+                  />
+                </label>
+                <GlassSlider
+                  ariaLabel={t('superElement.isles.distance')}
+                  value={lod}
+                  onChange={goToDistance}
+                  options={(['far', 'mid', 'near'] as const).map((value) => ({ value, label: t(`superElement.isles.${value}`) }))}
+                />
+                <FilterChip
+                  look="glass"
+                  data-se-lines=""
+                  active={linesOn}
+                  markerColor="hsl(var(--ink-3))"
+                  count={isleLines.length}
+                  title={t('superElement.isles.linesTitle')}
+                  onClick={() => setLinesOn((value) => !value)}
                 >
-                  {t('superElement.focus')}
-                </button>
-                <button
-                  type="button"
-                  className="ui-word-toggle glass glass--rest glass--small"
-                  data-super-element-toggle="sticky"
-                  onClick={() => setBandSticky((v) => !v)}
-                  title={
-                    bandSticky ? t('superElement.stickyOffTitle') : t('superElement.stickyOnTitle')
-                  }
-                  aria-pressed={bandSticky}
-                >
-                  {t('superElement.sticky')}
-                </button>
+                  {t('superElement.isles.lines')}
+                </FilterChip>
+                <GlassSlider
+                  ariaLabel={t('superElement.isles.threshold')}
+                  value={String(lineThreshold)}
+                  onChange={(value) => setLineThreshold(Number(value))}
+                  options={['1', '2', '3'].map((value) => ({ value, label: t('superElement.isles.atLeast', { count: Number(value) }) }))}
+                />
                 <Button variant="ghost" size="sm" onClick={resetView} title={t('superElement.resetTitle')}>
                   <BrushIcon name="rotate" size={13} />
                   {t('superElement.reset')}
@@ -1431,6 +1803,7 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
       <div
         ref={viewportRef}
         className="super-view-body"
+        data-se-lod={mobileShell ? undefined : lod}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
@@ -1466,7 +1839,7 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
               the user toggles sticky on, the band is hoisted OUT of the
               world transform (rendered below as a sibling) so it can clamp
               y to the viewport edges independently. */}
-          {!bandSticky && (
+          {mobileShell && !bandSticky && (
             <div
               style={{
                 position: 'absolute',
@@ -1491,6 +1864,17 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
             </div>
           )}
 
+          {/* Desktop: the lines the prose draws, in sand, under the islands' marks. */}
+          {!mobileShell && (
+            <SuperElementIsleLines
+              pairs={isleLines}
+              centers={elementCenters}
+              bounds={worldBounds}
+              active={activeIsleElement}
+              visible={isolated ? isleNeighbourhood : null}
+            />
+          )}
+
           {/* Categories above + below */}
           {categoryModels.map((model) => {
             const placement = placementById.get(model.categoryId);
@@ -1502,7 +1886,13 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
                 placement={placement}
                 linkSourceElementId={linkSource?.kind === 'element' ? linkSource.id : null}
                 focusedElementId={focusedElementId}
-                connectedElementIds={focusConnected?.elementIds ?? null}
+                connectedElementIds={mobileShell ? (focusConnected?.elementIds ?? null) : isleNeighbourhood}
+                dimmedElementIds={mobileShell ? null : dimmedElementIds}
+                hiddenElementIds={mobileShell ? null : hiddenElementIds}
+                markWeights={markWeights}
+                dropTarget={dropCategoryId === model.categoryId}
+                draggingElementId={carried?.id ?? null}
+                pinnedLabel={!mobileShell && model.category?.layoutMode === 'pinned' ? t('superElement.isles.pinned') : null}
                 elementCardRefs={elementCardRefs}
                 onElementClick={handleElementClick}
                 onCategoryClick={handleCategoryClick}
@@ -1545,20 +1935,26 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
                 // selected strength so the lit neighborhood includes its links.
                 const selected =
                   selectedEdgeId === edge.id || !!focusConnected?.edgeIds.has(edge.id);
+                // Islands: with an element in focus the other relations recede,
+                // and leave altogether while only its neighbourhood is shown.
+                if (!mobileShell && isolated && isleFocus && !selected) return null;
+                const receded = !mobileShell && isleFocus !== null && !selected;
+                // Islands draw relations without arrowheads; the direction reads on the detail card.
+                const directed = mobileShell && edge.directed;
                 const markerId = relationArrowMarkerId('super-world-arrow', edge.id);
                 const d = relationEdgePath({
                   x1: edge.x1,
                   y1: edge.y1,
                   x2: edge.x2,
                   y2: edge.y2,
-                  directed: edge.directed,
+                  directed,
                   targetInsetX: edge.targetInsetX,
                   targetInsetY: edge.targetInsetY,
                 });
                 const typeLabel = resolveRelationTypeLabel(edge.relationTypeId);
                 return (
                   <g key={edge.id} data-super-edge>
-                    {edge.directed && (
+                    {directed && (
                       <defs>
                         <RelationArrowMarker id={markerId} color={edge.color} />
                       </defs>
@@ -1584,8 +1980,8 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
                       stroke={edge.color}
                       strokeWidth={selected ? edgeWidths.selected : edgeWidths.normal}
                       fill="none"
-                      opacity={selected ? 1 : 0.78}
-                      markerEnd={edge.directed ? `url(#${markerId})` : undefined}
+                      opacity={selected ? 1 : receded ? 0.14 : 0.78}
+                      markerEnd={directed ? `url(#${markerId})` : undefined}
                       style={{ pointerEvents: 'none' }}
                     />
                   </g>
@@ -1644,6 +2040,47 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
               onStorylineClick={handleStorylineClick}
             />
           </div>
+        )}
+
+        {/* The element in the hand while it is carried to another island. */}
+        {carried && (
+          <div
+            ref={ghostRef}
+            className="se-carried glass"
+            aria-hidden
+            style={{ transform: `translate(${carried.x}px, ${carried.y}px)` }}
+          >
+            <KindMark kind="element" color={carried.color} />
+            <span>{carried.name}</span>
+          </div>
+        )}
+
+        {isleDetail && projectId && (
+          <ElementIsleDetail
+            name={isleDetail.element.name}
+            summary={isleDetail.element.summary ?? ''}
+            categoryName={isleDetail.categoryName}
+            color={isleDetail.color}
+            mentions={isleDetail.mentions}
+            ticks={isleDetail.ticks}
+            companions={isleDetail.companions}
+            relations={isleDetail.relations}
+            isolated={isolated}
+            onIsolate={() => setIsolated((value) => !value)}
+            onFocus={(id) => setIsleFocus(id)}
+            onEdit={(anchor) => setActivePopover({
+              elementId: isleDetail.element.id,
+              anchor: { left: anchor.left, top: anchor.top, width: anchor.width, height: 0 },
+            })}
+            onOpen={() => {
+              openEntity({ entityType: 'element', id: isleDetail.element.id });
+              close();
+            }}
+            onClose={() => {
+              setIsleFocus(null);
+              setIsolated(false);
+            }}
+          />
         )}
 
         {/* Empty-state hint when there's literally nothing to show */}

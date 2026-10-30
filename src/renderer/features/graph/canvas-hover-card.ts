@@ -110,3 +110,32 @@ function driftGroupChoices(
   walk(ROOT_GROUP_KEY, '');
   return choices;
 }
+
+/**
+ * An element's 改类目 unfolds the categories as a second row inside its
+ * hover card, so the move happens where the element is instead of in an
+ * editor tab opened under the Super View.
+ */
+export function withElementCategoryChoices(
+  groups: HoverActionGroup[],
+  { categoryId, categories, onMove }: {
+    categoryId: string | null;
+    categories: readonly { id: string; name: string }[];
+    onMove: (categoryId: string) => void;
+  },
+): HoverActionGroup[] {
+  const choices: HoverAction[] = categories.map((category) => ({
+    key: category.id,
+    label: category.name,
+    active: category.id === categoryId,
+    disabled: category.id === categoryId,
+    onSelect: () => onMove(category.id),
+  }));
+  return groups.map((group) => ({
+    ...group,
+    actions: group.actions.flatMap((action) => {
+      if (action.key !== 'categoryPicker') return [action];
+      return choices.length > 1 ? [{ ...action, onSelect: undefined, choices }] : [];
+    }),
+  }));
+}

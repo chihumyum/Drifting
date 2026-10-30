@@ -74,5 +74,10 @@ This document describes an engineering and licensing boundary; it is not a
 consumer Terms of Service. A build that enables account creation must configure
 a real operator-owned Terms URL and privacy policy before distribution.
 
+Share links (`docs/share-links.md`) are an account feature of the same
+service: the client publishes one entity's reader copy, which the service can
+read, and the operator serves the AGPL reader page (`src/share-web`) at `/s/`
+on the service origin. Local-only builds omit them.
+
 Current client integration, local operator commands and acceptance boundaries:
 [Hosted sync](hosted-sync/README.md).
