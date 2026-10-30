@@ -39,6 +39,14 @@ export interface CheckinChangedDocument {
 }
 
 const TRACKED_SOURCES: readonly CheckinChangeSource[] = ['user', 'agent', 'remote'];
+
+/** Narrows a delta to some revision sources and object kinds. */
+export interface CheckinDeltaFilter {
+  /** Every tracked source when omitted. */
+  sources?: readonly CheckinChangeSource[];
+  /** Every prose object kind when omitted. */
+  objectKinds?: readonly CheckinChangedDocument['objectKind'][];
+}
 const DEFAULT_MAX_DOCUMENTS = 8;
 const DOCUMENT_DIGEST_CHARACTERS = 3_000;
 const PASSAGE_CHARACTERS = 360;
@@ -112,8 +120,13 @@ interface ChangedDocRow {
   revisions: Record<CheckinChangeSource, number>;
 }
 
-async function changedDocuments(projectId: string, sinceIso: string): Promise<ChangedDocRow[]> {
+async function changedDocuments(
+  projectId: string,
+  sinceIso: string,
+  filter: CheckinDeltaFilter = {},
+): Promise<ChangedDocRow[]> {
   const provenance = YjsDocumentRevisionProvenanceTable;
+  const sources = filter.sources ?? TRACKED_SOURCES;
   const rows = await getDb()
     .select({
       docId: provenance.docId,
@@ -125,7 +138,7 @@ async function changedDocuments(projectId: string, sinceIso: string): Promise<Ch
     .where(
       and(
         gt(provenance.createdAt, sinceIso),
-        inArray(provenance.sourceKind, [...TRACKED_SOURCES]),
+        inArray(provenance.sourceKind, [...sources]),
       ),
     )
     .groupBy(provenance.docId, provenance.sourceKind);
@@ -135,6 +148,7 @@ async function changedDocuments(projectId: string, sinceIso: string): Promise<Ch
     const entity = entityForDoc(row.docId);
     const object = entity ? objects.get(`${entity.entityType}:${entity.entityId}`) : undefined;
     if (!entity || !object) continue;
+    if (filter.objectKinds && !filter.objectKinds.includes(object.objectKind)) continue;
     const current =
       byDoc.get(row.docId) ??
       {
@@ -152,8 +166,12 @@ async function changedDocuments(projectId: string, sinceIso: string): Promise<Ch
 }
 
 /** Cheap probe: did any tracked prose in this project change after `since`? */
-export async function hasCheckinDelta(projectId: string, sinceIso: string): Promise<boolean> {
-  return (await changedDocuments(projectId, sinceIso)).length > 0;
+export async function hasCheckinDelta(
+  projectId: string,
+  sinceIso: string,
+  filter?: CheckinDeltaFilter,
+): Promise<boolean> {
+  return (await changedDocuments(projectId, sinceIso, filter)).length > 0;
 }
 
 async function currentContentJson(docId: string): Promise<string | null> {
@@ -274,8 +292,9 @@ export async function collectCheckinDelta(
   projectId: string,
   sinceIso: string,
   maxDocuments = DEFAULT_MAX_DOCUMENTS,
+  filter?: CheckinDeltaFilter,
 ): Promise<CheckinChangedDocument[]> {
-  const changed = (await changedDocuments(projectId, sinceIso)).slice(0, maxDocuments);
+  const changed = (await changedDocuments(projectId, sinceIso, filter)).slice(0, maxDocuments);
   const documents: CheckinChangedDocument[] = [];
   for (const row of changed) {
     const current = await currentContentJson(row.docId);

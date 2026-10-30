@@ -14,7 +14,7 @@ import { create } from 'zustand';
 
 export type NotificationState = 'running' | 'completed' | 'failed' | 'stopped';
 /** `share-comment`: readers commented on something the author shares (features/share-links). */
-export type AppNotificationSource = 'hosted-sync' | 'share-comment';
+export type AppNotificationSource = 'hosted-sync' | 'share-comment' | 'agent-organize';
 
 /** What a notification opens: an entity in a project, wherever the author is. */
 export interface AppNotificationTarget {
@@ -49,6 +49,8 @@ export interface AppNotificationEvent {
   at: number;
   progress?: AppNotificationProgress;
   target?: AppNotificationTarget;
+  /** Clicking the row opens this project's Home. */
+  projectHomeId?: string;
 }
 
 export interface AppNotification {
@@ -59,6 +61,7 @@ export interface AppNotification {
   detail?: string;
   chapterId?: string;
   target?: AppNotificationTarget;
+  projectHomeId?: string;
   outcome?: NotificationOutcome;
   count?: number;
   error?: string;
@@ -110,6 +113,7 @@ export const useNotificationStore = create<NotificationStore>((set) => ({
           detail: e.detail ?? existing.detail,
           chapterId: e.chapterId ?? existing.chapterId,
           target: e.target ?? existing.target,
+          projectHomeId: e.projectHomeId ?? existing.projectHomeId,
           outcome: e.outcome ?? existing.outcome,
           count: e.count ?? existing.count,
           error: e.error ?? existing.error,
@@ -129,6 +133,7 @@ export const useNotificationStore = create<NotificationStore>((set) => ({
         detail: e.detail,
         chapterId: e.chapterId,
         target: e.target,
+        projectHomeId: e.projectHomeId,
         outcome: e.outcome,
         count: e.count,
         error: e.error,

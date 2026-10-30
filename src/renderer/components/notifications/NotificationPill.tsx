@@ -57,6 +57,7 @@ function relTime(
 }
 
 function sourceLabel(n: AppNotification, t: (key: string, options?: Record<string, unknown>) => string): string {
+  if (n.source === 'agent-organize') return t('notifications.organize.source');
   return t(n.source === 'share-comment' ? 'notifications.shareComments.source' : 'notifications.cloudSync.source');
 }
 
@@ -190,7 +191,11 @@ export function NotificationPill({ opens = 'down' }: {
     iconColor = 'hsl(var(--ink-2))';
     iconEl = (
       <span key={`${runningItem.source}-run`} className="notif-blink-icon">
-        <BrushIcon name="cloud" size={15} />
+        {runningItem.source === 'agent-organize' ? (
+          <BrushIcon name="shikigami" size={14} />
+        ) : (
+          <BrushIcon name="cloud" size={15} />
+        )}
       </span>
     );
   } else if (flashResult) {
@@ -249,10 +254,16 @@ function NotificationCenter({
   const remove = useNotificationStore((s) => s.remove);
   const clear = useNotificationStore((s) => s.clear);
   const setCenterOpen = useNotificationStore((s) => s.setCenterOpen);
-  const { navigateToNode } = useProjectNavigation();
+  const { projectId, navigateToNode, navigateToHome } = useProjectNavigation();
   const navigate = useNavigate();
 
   const onRowClick = (n: AppNotification) => {
+    if (n.projectHomeId) {
+      if (n.projectHomeId === projectId) navigateToHome();
+      else navigate(`/project/${n.projectHomeId}`);
+      setCenterOpen(false);
+      return;
+    }
     // A target may be in another project: open it by its workspace URL.
     const url = n.target
       ? workspaceUrlFor(n.target.projectId, { entityType: n.target.entityType, id: n.target.id })
@@ -293,7 +304,7 @@ function NotificationCenter({
                 'menu-surface__item',
                 'notification-row',
                 n.read ? '' : 'is-unread',
-                n.chapterId || n.target ? '' : 'is-static',
+                n.chapterId || n.target || n.projectHomeId ? '' : 'is-static',
               ]
                 .filter(Boolean)
                 .join(' ')}
@@ -304,7 +315,10 @@ function NotificationCenter({
               <div className="notification-row__body">
                 <div className="notification-row__meta">
                   <span className="notification-row__source">
-                    <BrushIcon name={n.source === 'share-comment' ? 'comment' : 'cloud'} size={12} />
+                    <BrushIcon
+                      name={n.source === 'share-comment' ? 'comment' : n.source === 'agent-organize' ? 'shikigami' : 'cloud'}
+                      size={12}
+                    />
                     {sourceLabel(n, t)}
                   </span>
                   <span className="notification-row__time">{relTime(n.updatedAt, now, t)}</span>

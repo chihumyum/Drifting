@@ -16,6 +16,7 @@ import { TimelineDrawer } from './TimelineDrawer';
 import { DesktopRightSidebar } from './DesktopRightSidebar';
 import { DesktopLeftSidebar } from './DesktopLeftSidebar';
 import { useInertUnderSuperView } from './useInertUnderSuperView';
+import { useOrganizeOnReturn } from '../../usecase/useProjectOrganize';
 
 interface DesktopWorkspaceProps {
   projectId: string;
@@ -56,6 +57,7 @@ export const DesktopWorkspace = memo(function DesktopWorkspace({
   if (dockPane && dockPane !== lastPane) setLastPane(dockPane);
   const rootRef = useRef<HTMLDivElement>(null);
   useInertUnderSuperView(rootRef);
+  useOrganizeOnReturn(projectId);
   return (
     <div ref={rootRef} className="app-root desktop-app-shell">
       <div className="app-row desktop-workspace-row">

@@ -135,6 +135,13 @@ describe('workspace Agent entity activity projection', () => {
     });
   });
 
+  it('maps a create whose result is prose to the entity named in its arguments', () => {
+    expect(
+      toolEntityRef('create_element', { category: '人物', name: '艾达' }, '要素「艾达」设定已创建。当前改动已保存。'),
+    ).toEqual({ entityType: 'element', id: 'element-ada', op: 'create', spots: { structural: true } });
+    expect(toolEntityRef('create_element', { name: '无名' }, '要素「无名」设定已创建。')).toBeNull();
+  });
+
   it('keeps an existing chapter revision classified as Modified', () => {
     expect(
       toolEntityRef(

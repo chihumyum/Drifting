@@ -560,6 +560,41 @@ p.dash-ro {
   font-weight: 500;
 }
 
+.home-agent__organize-summary {
+  display: -webkit-box;
+  overflow: hidden;
+  white-space: pre-line;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 8;
+}
+
+.home-agent__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 14px 12px;
+}
+
+.home-agent__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: hsl(var(--ink-1));
+  font: inherit;
+  font-size: var(--ui-font-secondary, 12.5px);
+  cursor: pointer;
+}
+
+.home-agent__chip-op {
+  color: hsl(var(--ink-3));
+  font-size: var(--ui-font-caption, 12px);
+}
+
 .home-agent__dismiss {
   position: absolute;
   top: 6px;

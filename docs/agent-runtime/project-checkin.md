@@ -23,9 +23,12 @@ not continuously.
 
 ## When a check-in runs
 
-`decideCheckin` (`src/renderer/store/project-checkin-store.ts`) runs on Home
-mount and window focus:
+`decideCheckin` (`src/renderer/store/project-checkin-store.ts`) runs one
+macrotask after Home mount and window focus, and when an organize pass settles:
 
+0. Never while an organize pass (`project-organize.md`) holds the project,
+   unless forced; the pass runs the check-in when it settles and, after a
+   completed pass, skips the cooldown below.
 1. Never while disabled (unless forced) or already running, and at most once
    per 90 minutes per project and device unless the author presses *Check in
    now*.

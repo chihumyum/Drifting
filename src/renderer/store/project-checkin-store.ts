@@ -57,6 +57,8 @@ export async function decideCheckin(input: {
   enabled: boolean;
   running: boolean;
   force: boolean;
+  /** An organize pass just settled; its check-in skips the cooldown. */
+  afterOrganize?: boolean;
   record: ProjectCheckinRecord;
   previousOpenedAt: string | null;
   hasChangesSince: (sinceIso: string) => Promise<boolean>;
@@ -65,7 +67,7 @@ export async function decideCheckin(input: {
   if (input.running) return { run: false, reason: 'running' };
   const now = input.now.getTime();
   const lastAttempt = input.record.lastAttemptAt ? Date.parse(input.record.lastAttemptAt) : 0;
-  if (!input.force && now - lastAttempt < CHECKIN_ATTEMPT_COOLDOWN_MS) {
+  if (!input.force && !input.afterOrganize && now - lastAttempt < CHECKIN_ATTEMPT_COOLDOWN_MS) {
     return { run: false, reason: 'cooldown' };
   }
   const lookback = new Date(now - CHECKIN_LOOKBACK_MS).toISOString();
