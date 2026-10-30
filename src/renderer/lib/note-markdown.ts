@@ -13,6 +13,9 @@ export interface NoteMarkdownOptions {
   embed?: (libraryItemId: string) => string | null;
   /** Markdown for a mention of `text`; null keeps the plain text. */
   entity?: (kind: string, id: string, text: string) => string | null;
+  /** Like `entity`, with the mark's full attributes (block anchors included).
+   *  Takes precedence over `entity`. */
+  entityLink?: (attrs: Readonly<Record<string, unknown>>, text: string) => string | null;
 }
 
 const EMBED_PLACEHOLDER = '［素材］';
@@ -21,6 +24,16 @@ export function noteToMarkdown(contentJson: string | null | undefined, options: 
   if (!contentJson) return '';
   const doc = parseTiptapDocJson(contentJson);
   return blocks(doc.content ?? [], options).join('\n\n').replace(/\n{3,}/gu, '\n\n').trim();
+}
+
+/**
+ * The Markdown of each top-level node, in order and including empty ones, so
+ * a caller can map a passage of the joined note back to the blocks it spans.
+ * Joining the non-empty entries with a blank line reproduces noteToMarkdown
+ * for every note whose blocks render without blank-line runs.
+ */
+export function noteBlockMarkdown(nodes: readonly JSONContent[], options: NoteMarkdownOptions = {}): string[] {
+  return nodes.map((node) => block(node, options).replace(/\n{3,}/gu, '\n\n').trim());
 }
 
 /** Cards are previews, including their expanded state. Bound both text and
@@ -105,7 +118,9 @@ function list(
     .map((item, index) => {
       const prefix = marker(index, item);
       const [first = '', ...rest] = blocks(item.content ?? [], options);
-      const indent = ' '.repeat(prefix.length);
+      // A task item's content column is after "- ", not after its checkbox;
+      // deeper indents read as a lazy paragraph continuation, not a sub-list.
+      const indent = ' '.repeat(item.type === 'taskItem' ? 2 : prefix.length);
       return [prefix + first, ...rest.map((text) => prefixLines(text, indent))].join('\n');
     })
     .join('\n');
@@ -134,7 +149,7 @@ function inline(nodes: readonly JSONContent[], options: NoteMarkdownOptions): st
       if (node.type !== 'text') return inline(node.content ?? [], options);
       let text = node.text ?? '';
       let href: string | null = null;
-      let mention: { kind: string; id: string } | null = null;
+      let mention: { kind: string; id: string; attrs: Record<string, unknown> } | null = null;
       for (const mark of node.marks ?? []) {
         if (mark.type === 'code') text = `\`${text}\``;
         else if (mark.type === 'bold') text = `**${text}**`;
@@ -145,11 +160,13 @@ function inline(nodes: readonly JSONContent[], options: NoteMarkdownOptions): st
         else if (mark.type === 'entityLink') {
           const kind = mark.attrs?.targetKind;
           const id = mark.attrs?.targetId;
-          if (typeof kind === 'string' && typeof id === 'string') mention = { kind, id };
+          if (typeof kind === 'string' && typeof id === 'string') mention = { kind, id, attrs: mark.attrs ?? {} };
         }
       }
       if (href) return `[${text}](${href})`;
-      return (mention && options.entity?.(mention.kind, mention.id, text)) ?? text;
+      if (!mention) return text;
+      if (options.entityLink) return options.entityLink(mention.attrs, text) ?? text;
+      return options.entity?.(mention.kind, mention.id, text) ?? text;
     })
     .join('');
 }

@@ -7,7 +7,10 @@ import type {
   CreateAgentRuntimeEntityWriteReceipt,
   PersistedAgentRuntimeEntityWriteReceipt,
 } from '../domain/agent-runtime-entity-write-receipt';
-import { isDriftingDomainWriteToolName } from '../lib/agent/runtime/drifting-workspace-tool-contract';
+import {
+  WORKBENCH_COMMAND_NAMES,
+  isDriftingDomainWriteToolName,
+} from '../lib/agent/runtime/drifting-workspace-tool-contract';
 import { getDb, type DbExecutor } from '../lib/db';
 import { hashEntityWriteValue } from '../lib/agent/runtime/entity-write-revision';
 import {
@@ -70,6 +73,10 @@ const TOOL_KIND: Record<
   update_element: 'element',
   update_storyline: 'storyline',
   update_project_facts: 'project',
+  ...(Object.fromEntries(WORKBENCH_COMMAND_NAMES.map((name) => [name, 'authoring_scope'])) as Record<
+    (typeof WORKBENCH_COMMAND_NAMES)[number],
+    'authoring_scope'
+  >),
 };
 
 const CREATE_TOOLS = new Set<AgentRuntimeEntityWriteTool>([
@@ -249,6 +256,15 @@ function parseSnapshot(
         )
       ) {
         integrityError(receiptId, 'storyline membership snapshot fields are invalid');
+      }
+      break;
+    case 'authoring_scope':
+      if (
+        typeof value.value.scope !== 'string' ||
+        !value.value.scope ||
+        !isRecord(value.value.state)
+      ) {
+        integrityError(receiptId, 'authoring scope snapshot fields are invalid');
       }
       break;
     case 'memory':

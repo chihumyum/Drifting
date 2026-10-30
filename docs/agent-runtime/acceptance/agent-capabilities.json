@@ -21,9 +21,9 @@
     }
   },
   "installedModelTools": {
-    "total": 78,
+    "total": 85,
     "read": 27,
-    "write": 51,
+    "write": 58,
     "entries": [
       {
         "name": "add_chapter_to_storyline",
@@ -110,6 +110,28 @@
         "certification": "internal-certified",
         "risk": "medium",
         "effect": "canon",
+        "approval": "automatic",
+        "revertStrategy": "exact_inverse"
+      },
+      {
+        "name": "create_material_folder",
+        "access": "write",
+        "owner": "drifting-runtime",
+        "surface": "domain-tools",
+        "certification": "internal-certified",
+        "risk": "medium",
+        "effect": "annotation",
+        "approval": "automatic",
+        "revertStrategy": "exact_inverse"
+      },
+      {
+        "name": "create_material_note",
+        "access": "write",
+        "owner": "drifting-runtime",
+        "surface": "domain-tools",
+        "certification": "internal-certified",
+        "risk": "medium",
+        "effect": "annotation",
         "approval": "automatic",
         "revertStrategy": "exact_inverse"
       },
@@ -220,6 +242,17 @@
         "certification": "internal-certified",
         "risk": "critical",
         "effect": "destructive",
+        "approval": "confirm_before",
+        "revertStrategy": "exact_inverse"
+      },
+      {
+        "name": "delete_material_folder",
+        "access": "write",
+        "owner": "drifting-runtime",
+        "surface": "domain-tools",
+        "certification": "internal-certified",
+        "risk": "high",
+        "effect": "annotation",
         "approval": "confirm_before",
         "revertStrategy": "exact_inverse"
       },
@@ -631,6 +664,17 @@
         "revertStrategy": "exact_inverse"
       },
       {
+        "name": "replace_material_note_body",
+        "access": "write",
+        "owner": "drifting-runtime",
+        "surface": "domain-tools",
+        "certification": "internal-certified",
+        "risk": "high",
+        "effect": "annotation",
+        "approval": "automatic",
+        "revertStrategy": "exact_inverse"
+      },
+      {
         "name": "replace_storyline_body",
         "access": "write",
         "owner": "drifting-runtime",
@@ -682,6 +726,17 @@
         "certification": "internal-certified",
         "risk": "medium",
         "effect": "prose",
+        "approval": "automatic",
+        "revertStrategy": "exact_inverse"
+      },
+      {
+        "name": "revise_material_note",
+        "access": "write",
+        "owner": "drifting-runtime",
+        "surface": "domain-tools",
+        "certification": "internal-certified",
+        "risk": "medium",
+        "effect": "annotation",
         "approval": "automatic",
         "revertStrategy": "exact_inverse"
       },
@@ -792,6 +847,28 @@
         "certification": "write-certified",
         "risk": "medium",
         "effect": "canon",
+        "approval": "automatic",
+        "revertStrategy": "exact_inverse"
+      },
+      {
+        "name": "update_material",
+        "access": "write",
+        "owner": "drifting-runtime",
+        "surface": "domain-tools",
+        "certification": "internal-certified",
+        "risk": "medium",
+        "effect": "annotation",
+        "approval": "automatic",
+        "revertStrategy": "exact_inverse"
+      },
+      {
+        "name": "update_material_folder",
+        "access": "write",
+        "owner": "drifting-runtime",
+        "surface": "domain-tools",
+        "certification": "internal-certified",
+        "risk": "medium",
+        "effect": "annotation",
         "approval": "automatic",
         "revertStrategy": "exact_inverse"
       },
@@ -1001,7 +1078,14 @@
       "delete_project_memory",
       "create_element_patch",
       "update_element_patch",
-      "delete_element_patch"
+      "delete_element_patch",
+      "create_material_note",
+      "revise_material_note",
+      "replace_material_note_body",
+      "update_material",
+      "create_material_folder",
+      "update_material_folder",
+      "delete_material_folder"
     ],
     "hiddenDomainOperations": [
       "edit_prose_file",
@@ -1056,8 +1140,8 @@
     "promptCaching": "fixed-tools-directory-and-dispatch-schemas-results-append-to-context"
   },
   "domainCrud": {
-    "totalDomains": 11,
-    "closedLifecycleOperations": 53,
+    "totalDomains": 13,
+    "closedLifecycleOperations": 62,
     "entries": [
       {
         "domain": "node",
@@ -1706,6 +1790,110 @@
               "update_memory",
               "forget"
             ],
+            "approval": "not_applicable",
+            "authority": "sqlite"
+          }
+        }
+      },
+      {
+        "domain": "material",
+        "authoredTargets": [
+          "素材「<标题>」",
+          "笔记「<标题>」"
+        ],
+        "operations": {
+          "create": {
+            "status": "closed",
+            "providerTools": [
+              "create_material_note"
+            ],
+            "hiddenCommands": [],
+            "approval": "automatic",
+            "authority": "sqlite"
+          },
+          "read": {
+            "status": "closed",
+            "providerTools": [
+              "list_materials",
+              "read_material"
+            ],
+            "hiddenCommands": [],
+            "approval": "automatic",
+            "authority": "yjs_sqlite"
+          },
+          "update": {
+            "status": "closed",
+            "providerTools": [
+              "update_material",
+              "revise_material_note",
+              "replace_material_note_body"
+            ],
+            "hiddenCommands": [],
+            "approval": "automatic",
+            "authority": "yjs_sqlite"
+          },
+          "delete": {
+            "status": "not_applicable",
+            "providerTools": [],
+            "hiddenCommands": [],
+            "approval": "not_applicable",
+            "authority": "sqlite"
+          },
+          "revert": {
+            "status": "closed",
+            "providerTools": [],
+            "hiddenCommands": [],
+            "approval": "not_applicable",
+            "authority": "yjs_sqlite"
+          }
+        }
+      },
+      {
+        "domain": "material_folder",
+        "authoredTargets": [
+          "素材文件夹「<路径>」"
+        ],
+        "operations": {
+          "create": {
+            "status": "closed",
+            "providerTools": [
+              "create_material_folder"
+            ],
+            "hiddenCommands": [],
+            "approval": "automatic",
+            "authority": "sqlite"
+          },
+          "read": {
+            "status": "closed",
+            "providerTools": [
+              "list_materials"
+            ],
+            "hiddenCommands": [],
+            "approval": "automatic",
+            "authority": "sqlite"
+          },
+          "update": {
+            "status": "closed",
+            "providerTools": [
+              "update_material_folder"
+            ],
+            "hiddenCommands": [],
+            "approval": "automatic",
+            "authority": "sqlite"
+          },
+          "delete": {
+            "status": "closed",
+            "providerTools": [
+              "delete_material_folder"
+            ],
+            "hiddenCommands": [],
+            "approval": "confirm_before",
+            "authority": "sqlite"
+          },
+          "revert": {
+            "status": "closed",
+            "providerTools": [],
+            "hiddenCommands": [],
             "approval": "not_applicable",
             "authority": "sqlite"
           }

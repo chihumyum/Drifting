@@ -49,9 +49,14 @@ import {
   isDriftingDomainWriteToolName,
   WORKSPACE_NOOP_WRITE_MODEL_MARKER,
   isDriftingWorkspaceCommandName,
+  isMaterialNoteCommandName,
+  isWorkbenchCommandName,
   type DriftingWorkspaceCommandName,
   type DriftingDomainReadToolName,
 } from './drifting-workspace-tool-contract';
+import { resolveWorkbenchCommand } from './drifting-workbench-write-strategy';
+import { WorkbenchNoChangeError } from './drifting-workbench-types';
+import { MATERIAL_NOTE_OBSERVATION_KIND } from './drifting-material-note-write-strategy';
 
 export {
   DRIFTING_DOMAIN_PROVIDER_TOOLS,
@@ -450,6 +455,84 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
     }
   }
 
+  /**
+   * Workbench writes cite a fresh runtime read of their whole scope; the
+   * public arguments are resolved to ids here so the strategy plans exactly
+   * what the author-domain names meant at this moment.
+   */
+  private async prepareWorkbenchWrite(
+    request: AgentToolExecutionRequest,
+    projectId: string,
+  ): Promise<AgentToolExecutionRequest> {
+    if (!isWorkbenchCommandName(request.name)) throw new Error(`Unknown workbench write "${request.name}"`);
+    let resolved: Awaited<ReturnType<typeof resolveWorkbenchCommand>>;
+    try {
+      resolved = await resolveWorkbenchCommand(request.name, projectId, request.arguments);
+    } catch (error) {
+      if (error instanceof WorkbenchNoChangeError) throw new WorkspaceNoopWriteSignal(error.target);
+      throw error;
+    }
+    const { scope, scopeId, resolution } = resolved;
+    const read = await this.canonicalRead(
+      request,
+      scope.readTool,
+      scope.readArguments(scopeId, projectId),
+      `${request.name}-freshness`,
+    );
+    const expectedRevision = expectedRevisionFrom(read, scope.kind, scopeId);
+    return {
+      ...request,
+      arguments: {
+        ...resolution.arguments,
+        scopeId,
+        path: resolution.path,
+        changeSummary: resolution.changeSummary,
+        expectedRevision,
+      },
+    };
+  }
+
+  private async prepareMaterialNoteWrite(
+    request: AgentToolExecutionRequest,
+    projectId: string,
+  ): Promise<AgentToolExecutionRequest> {
+    const reference = requiredDomainName(request.arguments.material, 'material');
+    const items = useDataStore.getState().libraryItems.filter((item) => item.projectId === projectId);
+    const direct = items.find((item) => item.id === reference);
+    const matches = direct
+      ? [direct]
+      : items.filter((item) => authoredNamesEqual(item.title || '', reference));
+    if (matches.length !== 1) {
+      throw new Error(
+        matches.length === 0
+          ? `没有标题为「${reference}」的笔记；用 list_materials 查看标题`
+          : `有 ${matches.length} 个素材都叫「${reference}」；先用 update_material 给它们改成不同的标题`,
+      );
+    }
+    const item = matches[0]!;
+    if (item.kind !== 'text') throw new Error(`「${item.title}」是${item.kind === 'pdf' ? ' PDF' : '图片'}，没有可编辑的正文`);
+    const read = await this.canonicalRead(
+      request,
+      'read_material',
+      { material: item.id },
+      `${request.name}-freshness`,
+    );
+    const expectedRevision = expectedRevisionFrom(read, MATERIAL_NOTE_OBSERVATION_KIND, item.id);
+    return {
+      ...request,
+      arguments: {
+        ...request.arguments,
+        materialId: item.id,
+        path: `/materials/${pathSegment(item.title)}`,
+        changeSummary:
+          request.name === 'replace_material_note_body'
+            ? `重写笔记「${item.title}」`
+            : `修改笔记「${item.title}」`,
+        expectedRevision,
+      },
+    };
+  }
+
   /** Convert a simple public domain mutation into one certified hidden command. */
   async prepareWriteRequest(
     request: AgentToolExecutionRequest,
@@ -466,6 +549,8 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
     request: AgentToolExecutionRequest,
     projectId: string,
   ): Promise<AgentToolExecutionRequest> {
+    if (isWorkbenchCommandName(request.name)) return this.prepareWorkbenchWrite(request, projectId);
+    if (isMaterialNoteCommandName(request.name)) return this.prepareMaterialNoteWrite(request, projectId);
     const args = request.arguments;
     let path: string;
     let expectedRevision: Record<string, string>;

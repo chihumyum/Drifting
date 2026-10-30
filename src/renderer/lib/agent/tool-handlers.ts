@@ -1,5 +1,5 @@
-import { materialFolderPath } from '../../domain/material-folder';
-import { noteToMarkdown } from '../note-markdown';
+import { flattenMaterialFolders, materialFolderPath } from '../../domain/material-folder';
+import { readMaterialNoteMarkdown } from './runtime/drifting-material-note-write-strategy';
 import { searchExactProse } from './exact-prose-search';
 /**
  * Renderer-side execution of the agent's entity tools.
@@ -724,14 +724,18 @@ function materialFolderLabel(folderId: string | null): string | undefined {
   return path.length ? path.map((folder) => folder.name).join('/') : undefined;
 }
 
-/** list_materials — the project's library items by TITLE, with kind hints. */
+/** list_materials — the folder tree, then the library items by TITLE with kind hints. */
 function listMaterials(ctx: AgentToolContext) {
-  const items = useDataStore
-    .getState()
-    .libraryItems.filter((m) => m.projectId === ctx.projectId)
+  const state = useDataStore.getState();
+  const items = state.libraryItems
+    .filter((m) => m.projectId === ctx.projectId)
     .slice()
     .sort((a, b) => a.orderKey - b.orderKey);
+  const folders = flattenMaterialFolders(
+    state.materialFolders.filter((folder) => folder.projectId === ctx.projectId),
+  ).map(({ folder }) => materialFolderLabel(folder.id)!);
   return {
+    folders,
     materials: items.map((m) => ({
       title: m.title || '(untitled)',
       kind: m.kind,
@@ -745,7 +749,7 @@ function listMaterials(ctx: AgentToolContext) {
 }
 
 /** read_material — one item by TITLE: body text for 'text', metadata otherwise. */
-function readMaterial(ctx: AgentToolContext, args: Record<string, unknown>) {
+async function readMaterial(ctx: AgentToolContext, args: Record<string, unknown>) {
   const ref = String(args.material ?? '').trim();
   if (!ref) throw new Error('missing `material` (the material TITLE)');
   const items = useDataStore.getState().libraryItems.filter((m) => m.projectId === ctx.projectId);
@@ -785,7 +789,7 @@ function readMaterial(ctx: AgentToolContext, args: Record<string, unknown>) {
         ? { replacedAt: provenance.replacedAt }
         : {}),
     ...(item.kind === 'text'
-      ? { body: noteToMarkdown(item.bodyJson) || '(empty)' }
+      ? { body: (await readMaterialNoteMarkdown(ctx.projectId, item.id)) || '(empty)' }
       : {
           assetId: item.assetId,
           mime: asset?.sourceMime,

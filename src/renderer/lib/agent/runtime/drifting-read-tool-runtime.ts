@@ -1,3 +1,12 @@
+import {
+  currentWorkbenchRevision,
+  isWorkbenchScopeKind,
+  workbenchReadObservations,
+} from './drifting-workbench-write-strategy';
+import {
+  MATERIAL_NOTE_OBSERVATION_KIND,
+  readMaterialNoteBase,
+} from './drifting-material-note-write-strategy';
 import { Type, type TSchema } from '@sinclair/typebox';
 import { Value } from '@sinclair/typebox/value';
 import type {
@@ -354,6 +363,36 @@ export class DriftingReadToolRuntime implements AgentToolRuntime {
     if (request.name === 'get_element_patches') {
       return this.captureElementPatchObservations(request, active);
     }
+    // Workbench scopes and note documents are observed only when a write could
+    // cite them; a runtime without freshness persists no observations at all.
+    const workbench: Array<Omit<CreateAgentRuntimeReadObservation, 'id'>> = this.freshness
+      ? await workbenchReadObservations(request.name, request.arguments, active.projectId)
+      : [];
+    if (request.name === 'read_material' && this.freshness) {
+      const note = resolveObservedEntity(
+        useDataStore
+          .getState()
+          .libraryItems.filter((item) => item.projectId === active.projectId && item.kind === 'text'),
+        request.arguments.material,
+        (item) => item.title,
+      );
+      if (note) {
+        const { base } = await readMaterialNoteBase(active.projectId, note.id);
+        workbench.push({
+          entityKind: MATERIAL_NOTE_OBSERVATION_KIND,
+          entityId: note.id,
+          revision: `yjs:${base.revision}`,
+          stateVector: new Uint8Array(base.stateVector),
+          stateHash: base.stateHash,
+        });
+      }
+    }
+    if (workbench.length > 0) {
+      return workbench.map((observation, ordinal) => ({
+        ...observation,
+        id: readObservationId(request, ordinal),
+      }));
+    }
     if (request.name === 'get_project_brief' || request.name === 'get_overview') {
       const project = useProjectStore.getState().currentProject;
       return project?.id === active.projectId
@@ -549,6 +588,26 @@ export class DriftingReadToolRuntime implements AgentToolRuntime {
     projectId: string,
   ): Promise<void> {
     for (const observation of observations) {
+      if (isWorkbenchScopeKind(observation.entityKind)) {
+        if (
+          (await currentWorkbenchRevision(observation.entityKind, projectId, observation.entityId)) !==
+          observation.revision
+        ) {
+          throw new Error('The material library changed while it was being read; read it again before writing');
+        }
+        continue;
+      }
+      if (observation.entityKind === MATERIAL_NOTE_OBSERVATION_KIND) {
+        const { base } = await readMaterialNoteBase(projectId, observation.entityId);
+        if (
+          observation.revision !== `yjs:${base.revision}` ||
+          observation.stateHash !== base.stateHash ||
+          !bytesEqual(observation.stateVector, base.stateVector)
+        ) {
+          throw new Error('The note changed while it was being read; retry read_material before writing');
+        }
+        continue;
+      }
       if (observation.entityKind === 'project') {
         const current = useProjectStore.getState().currentProject;
         if (

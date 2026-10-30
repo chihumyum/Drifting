@@ -77,7 +77,44 @@ export const DRIFTING_DOMAIN_WRITE_TOOLS = [
   'create_element_patch',
   'update_element_patch',
   'delete_element_patch',
+  'create_material_note',
+  'revise_material_note',
+  'replace_material_note_body',
+  'update_material',
+  'create_material_folder',
+  'update_material_folder',
+  'delete_material_folder',
 ] as const;
+
+/**
+ * Workbench commands (drifting-workbench-types.ts): direct writes that plan
+ * one whole scope image — the material library, the book structure, a plot
+ * grid — and keep it as their freshness revision and exact inverse.
+ */
+export const WORKBENCH_COMMAND_NAMES = [
+  'create_material_note',
+  'update_material',
+  'create_material_folder',
+  'update_material_folder',
+  'delete_material_folder',
+] as const;
+
+/** Direct writes to a material note's own Yjs document. */
+export const MATERIAL_NOTE_COMMAND_NAMES = [
+  'revise_material_note',
+  'replace_material_note_body',
+] as const;
+
+export type WorkbenchCommandName = (typeof WORKBENCH_COMMAND_NAMES)[number];
+export type MaterialNoteCommandName = (typeof MATERIAL_NOTE_COMMAND_NAMES)[number];
+
+export function isWorkbenchCommandName(name: string): name is WorkbenchCommandName {
+  return (WORKBENCH_COMMAND_NAMES as readonly string[]).includes(name);
+}
+
+export function isMaterialNoteCommandName(name: string): name is MaterialNoteCommandName {
+  return (MATERIAL_NOTE_COMMAND_NAMES as readonly string[]).includes(name);
+}
 
 /** Public domain tools whose canonical certified strategy already has the same
  * name. The runtime still supplies freshness; the model never does. */
@@ -96,6 +133,8 @@ export const DRIFTING_DOMAIN_DIRECT_WRITE_TOOLS = [
   'create_relation_type',
   'update_relation_type',
   'delete_relation_type',
+  ...WORKBENCH_COMMAND_NAMES,
+  ...MATERIAL_NOTE_COMMAND_NAMES,
 ] as const;
 /** Stable semantic receipt used to retire side-effect-free write pairs from
  * provider context without exposing runtime mechanics. */
@@ -199,7 +238,9 @@ export interface DriftingDomainCrudContract {
     | 'relation_type'
     | 'storyline_membership'
     | 'agent_memory'
-    | 'project_facts';
+    | 'project_facts'
+    | 'material'
+    | 'material_folder';
   authoredTargets: readonly string[];
   operations: Readonly<
     Record<DriftingDomainCrudOperation, DriftingDomainCrudOperationContract>
@@ -457,6 +498,33 @@ export const DRIFTING_DOMAIN_CRUD_CONTRACTS: readonly DriftingDomainCrudContract
       update: closedWrite(['update_project_memory'], ['update_memory'], 'automatic'),
       delete: closedWrite(['delete_project_memory'], ['forget'], 'automatic'),
       revert: exactRevert(['remember', 'update_memory', 'forget']),
+    },
+  },
+  {
+    domain: 'material',
+    authoredTargets: ['素材「<标题>」', '笔记「<标题>」'],
+    operations: {
+      create: closedWrite(['create_material_note'], [], 'automatic'),
+      read: closedRead(['list_materials', 'read_material'], 'yjs_sqlite'),
+      update: closedWrite(
+        ['update_material', 'revise_material_note', 'replace_material_note_body'],
+        [],
+        'automatic',
+        'yjs_sqlite',
+      ),
+      delete: notApplicable,
+      revert: exactRevert([], 'yjs_sqlite'),
+    },
+  },
+  {
+    domain: 'material_folder',
+    authoredTargets: ['素材文件夹「<路径>」'],
+    operations: {
+      create: closedWrite(['create_material_folder'], [], 'automatic'),
+      read: closedRead(['list_materials']),
+      update: closedWrite(['update_material_folder'], [], 'automatic'),
+      delete: closedWrite(['delete_material_folder'], [], 'confirm_before'),
+      revert: exactRevert([]),
     },
   },
   {

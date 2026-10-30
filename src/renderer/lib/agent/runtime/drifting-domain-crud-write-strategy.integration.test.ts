@@ -173,7 +173,7 @@ describe('workspace domain CRUD transactions', () => {
     const list = async (session: ExternalToolSession) => session.handle({ jsonrpc: '2.0', id: 0,
       method: 'tools/list' }, new AbortController().signal) as Promise<{ tools: { name: string }[] }>;
     expect((await list(reader)).tools).toHaveLength(24);
-    expect((await list(writer)).tools).toHaveLength(70);
+    expect((await list(writer)).tools).toHaveLength(77);
     expect((await list(writer)).tools.map((t) => t.name)).not.toContain('ask_user');
     expect(await mcpCall(reader, 'get_project_overview', {})).toMatchObject({ isError: false });
     // A cleared projection error must not leave an undefined field that the
@@ -298,7 +298,7 @@ describe('workspace domain CRUD transactions', () => {
       new AbortController().signal) as Promise<{ tools: { name: string }[] }>;
     expect((await list()).tools).toHaveLength(24);
     update('write');
-    expect((await list()).tools).toHaveLength(70);
+    expect((await list()).tools).toHaveLength(77);
     expect((await list(other)).tools).toHaveLength(24);
     expect(await mcpCall(session, 'create_chapter', { title: 'Permission fixture', body: 'Synthetic.' })).toMatchObject({ isError: false });
     await mcpCall(session, 'read_chapter', { chapter: 'Permission fixture' });

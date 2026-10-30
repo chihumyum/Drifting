@@ -383,14 +383,16 @@ const GENERAL_READ_TOOL_SPECS: ReadToolSpec[] = [
   },
   {
     name: 'list_materials',
-    description: '按标题列出项目素材库：title · kind · source；text 素材附 chars。',
+    description:
+      '列出素材库：全部素材文件夹（含空文件夹）与每个素材的 title · kind · folder · source；笔记附 chars。素材是作者的研究资料和随手记，与书的正文无关。',
     parametersSchema: noArgs,
     aliases: ['materials', '素材库'],
     resultBudgetChars: 20_000,
   },
   {
     name: 'read_material',
-    description: '按标题读取一个素材。text 返回全文，image/pdf/url 返回元数据。',
+    description:
+      '按标题读取一个素材。笔记返回 Markdown 全文（表格、清单、代码、> [!note] 提示块、==高亮==、［素材：标题］嵌入、drifting: 位置链接），改笔记前先读；图片与 PDF 返回元数据和作者说明。',
     parametersSchema: Type.Object(
       { material: str('素材标题（来自 list_materials）') },
       { additionalProperties: false },
@@ -1542,6 +1544,76 @@ const DOMAIN_RUNTIME_WRITE_TOOL_SPECS: InternalToolSpec[] = [
       { additionalProperties: false },
     ),
     { effect: 'annotation', concurrency: 'exclusive_project' },
+  ),
+  domainRuntimeWriteSpec(
+    'create_material_note',
+    '在素材库新建一篇笔记（作者的研究资料或随手记，不进成稿）。正文用笔记 Markdown：表格、- [ ] 清单（会成为 TODO）、代码块、> [!note] 提示块、==高亮==、［素材：标题］嵌入其他素材、[文字](drifting:chapters/<章节名>/prose.md#L3) 位置链接。',
+    Type.Object(
+      {
+        title: str('笔记标题'),
+        body: optionalStr('笔记 Markdown 正文'),
+        folder: optionalStr('放入的素材文件夹路径，如 "人物/原型"；省略为根目录'),
+      },
+      { additionalProperties: false },
+    ),
+    { effect: 'annotation', concurrency: 'exclusive_project' },
+  ),
+  domainRuntimeWriteSpec(
+    'revise_material_note',
+    '按 read_material 读到的笔记 Markdown 原文局部修改一篇笔记；只重写被改到的块。',
+    Type.Object({ material: str('笔记标题'), changes: domainTextChanges }, { additionalProperties: false }),
+    { effect: 'annotation', approval: 'automatic' },
+  ),
+  domainRuntimeWriteSpec(
+    'replace_material_note_body',
+    '用新的笔记 Markdown 完整替换一篇笔记正文；必须先通读该笔记。',
+    Type.Object(
+      { material: str('笔记标题'), body: str('完整新正文（笔记 Markdown）') },
+      { additionalProperties: false },
+    ),
+    { risk: 'high', effect: 'annotation', approval: 'automatic', retry: 'never' },
+  ),
+  domainRuntimeWriteSpec(
+    'update_material',
+    '整理一个素材：改标题、移到另一个素材文件夹、或改写说明（图片和 PDF 的说明就是作者对它的描述）。只修改传入的字段。',
+    Type.Object(
+      {
+        material: str('当前素材标题'),
+        title: optionalStr('新标题'),
+        folder: optionalStr('目标素材文件夹路径；"" 为根目录'),
+        description: optionalStr('新的说明文字；"" 为清空'),
+      },
+      { additionalProperties: false },
+    ),
+    { effect: 'annotation', concurrency: 'exclusive_project' },
+  ),
+  domainRuntimeWriteSpec(
+    'create_material_folder',
+    '新建一个素材文件夹。',
+    Type.Object(
+      { name: str('文件夹名称，不含 /'), parent: optionalStr('上级文件夹路径；省略为根目录') },
+      { additionalProperties: false },
+    ),
+    { effect: 'annotation', concurrency: 'exclusive_project' },
+  ),
+  domainRuntimeWriteSpec(
+    'update_material_folder',
+    '重命名或移动一个素材文件夹；不能移进它自己的子文件夹。',
+    Type.Object(
+      {
+        folder: str('当前文件夹路径，如 "人物/原型"'),
+        name: optionalStr('新名称'),
+        parent: optionalStr('新的上级文件夹路径；"" 为根目录'),
+      },
+      { additionalProperties: false },
+    ),
+    { effect: 'annotation', concurrency: 'exclusive_project' },
+  ),
+  domainRuntimeWriteSpec(
+    'delete_material_folder',
+    '删除一个素材文件夹；其中的子文件夹和素材移到上一级，不删除任何素材。默认请求作者确认。',
+    Type.Object({ folder: str('文件夹路径') }, { additionalProperties: false }),
+    { risk: 'high', effect: 'annotation', concurrency: 'exclusive_project', approval: 'confirm_before', retry: 'never' },
   ),
   domainRuntimeWriteSpec(
     'create_project_memory',

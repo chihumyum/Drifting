@@ -304,7 +304,9 @@ describe('Drifting Agent capability manifest', () => {
           ).toBeDefined();
         }
       }
-      if (domain.domain !== 'project_facts') {
+      // Project facts have no lifecycle; materials are filed, described and
+      // written by the Agent but only the author deletes them.
+      if (domain.domain !== 'project_facts' && domain.domain !== 'material') {
         expect(
           Object.values(domain.operations).every((operation) => operation.status === 'closed'),
         ).toBe(true);

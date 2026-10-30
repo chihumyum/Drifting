@@ -70,7 +70,16 @@ import {
   DRIFTING_DOMAIN_WRITE_TOOLS,
   isDriftingDomainReadToolName,
   isDriftingDomainWriteToolName,
+  isMaterialNoteCommandName,
 } from './drifting-workspace-tool-contract';
+import {
+  resolveWorkbenchFreshnessTarget,
+  workbenchFreshnessKind,
+} from './drifting-workbench-write-strategy';
+import {
+  MATERIAL_NOTE_OBSERVATION_KIND,
+  readMaterialNoteBase,
+} from './drifting-material-note-write-strategy';
 import { hashAgentPermissionArguments } from './control-plane';
 import {
   agentMemorySetRevision,
@@ -1699,6 +1708,8 @@ function requireReconciliationTool(effect: PersistedAgentRuntimeWriteEffect): Re
 }
 
 type FreshnessReadToolName =
+  | 'list_materials'
+  | 'read_material'
   | 'read_node'
   | 'get_element_patches'
   | 'read_element'
@@ -1711,6 +1722,8 @@ type FreshnessReadToolName =
   | 'get_relation_types';
 
 type FreshnessEntityKind =
+  | 'material_library'
+  | 'material_note_prose'
   | 'node'
   | 'node_prose'
   | 'element_prose'
@@ -1738,6 +1751,16 @@ function reconciliationFreshnessTarget(
 } {
   const effective = effectiveWriteCommand(toolName, arguments_);
   toolName = effective.name;
+  const workbench = workbenchFreshnessKind(toolName);
+  if (workbench) {
+    return {
+      readToolNames: workbench.readToolNames as readonly FreshnessReadToolName[],
+      entityKind: workbench.entityKind as FreshnessEntityKind,
+    };
+  }
+  if (isMaterialNoteCommandName(toolName)) {
+    return { readToolNames: ['read_material'], entityKind: MATERIAL_NOTE_OBSERVATION_KIND };
+  }
   if (isProseWriteTool(toolName)) {
     return {
       readToolNames: proseReadToolNames(effective.arguments),
@@ -2056,6 +2079,25 @@ async function resolveWriteFreshnessTarget(
   const projectId = request.context.route.projectId;
   if (!projectId) {
     throw new Error(`${request.name} requires a project-scoped route`);
+  }
+  const workbench = await resolveWorkbenchFreshnessTarget(request.name, request.arguments, projectId, db);
+  if (workbench) {
+    return {
+      readToolNames: workbench.readToolNames as readonly FreshnessReadToolName[],
+      entityKind: workbench.entityKind as FreshnessEntityKind,
+      entityId: workbench.entityId,
+      currentRevision: workbench.currentRevision,
+    };
+  }
+  if (isMaterialNoteCommandName(request.name)) {
+    const itemId = String(request.arguments.materialId ?? '').trim();
+    const { base } = await readMaterialNoteBase(projectId, itemId);
+    return {
+      readToolNames: ['read_material'],
+      entityKind: MATERIAL_NOTE_OBSERVATION_KIND,
+      entityId: itemId,
+      currentRevision: `yjs:${base.revision}`,
+    };
   }
   if (request.name === 'create_element_patch') {
     const element = resolveProjectElement(projectId, request.arguments.element);
