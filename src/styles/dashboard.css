@@ -331,20 +331,24 @@ p.dash-ro {
   transform: scale(1.75);
 }
 
-/* The places a kind can go: small pills straight above it, while the
-   pointer or the focus is on it. A bridge of padding keeps them open on the
-   way up; they leave 160ms after the pointer does. */
+/* The places a kind can go: a column of small pills straight above it, all
+   as wide as the widest, while the pointer is on it or the keyboard brings the
+   focus there (the focus Home places on arrival opens nothing: `.is-quiet`).
+   A bridge of padding keeps them open on the way up; they leave 160ms after
+   the pointer does. A long list scrolls. */
 .home-create__picks {
   position: absolute;
   bottom: 100%;
   left: 50%;
   z-index: 4;
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 5px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
   width: max-content;
-  max-width: 360px;
+  max-height: min(60vh, 420px);
+  overflow-y: auto;
+  scrollbar-width: none;
   padding-bottom: 10px;
   transform: translateX(-50%);
   opacity: 0;
@@ -352,7 +356,12 @@ p.dash-ro {
   transition: opacity 0.14s ease-out 0.16s, visibility 0s linear 0.3s;
 }
 
-.home-create__slot:is(:hover, :focus-within, .is-open) > .home-create__picks {
+.home-create__picks::-webkit-scrollbar {
+  display: none;
+}
+
+.home-create__slot:is(:hover, .is-open) > .home-create__picks,
+.home-create:not(.is-quiet) .home-create__slot:has(:focus-visible) > .home-create__picks {
   opacity: 1;
   visibility: visible;
   transition: opacity 0.14s ease-out, visibility 0s linear;
@@ -360,7 +369,9 @@ p.dash-ro {
 
 .home-create__pick {
   display: inline-flex;
+  flex: none;
   align-items: center;
+  justify-content: flex-start;
   gap: 6px;
   height: 28px;
   padding: 0 11px;
@@ -465,7 +476,8 @@ p.dash-ro {
     0 0 8px hsl(var(--page));
 }
 
-.home-create__slot:is(:hover, :focus-within) > .home-create__label {
+.home-create__slot:hover > .home-create__label,
+.home-create:not(.is-quiet) .home-create__slot:has(:focus-visible) > .home-create__label {
   opacity: 1;
 }
 

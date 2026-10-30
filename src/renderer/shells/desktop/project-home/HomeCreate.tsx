@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from 'react';
+import type { CSSProperties, FocusEvent, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { BrushIcon } from '../../../components/ui/BrushIcon';
@@ -73,7 +73,9 @@ function Slot({
       }}
       onKeyDown={(event) => {
         if (event.key !== 'Escape' || !entry.picks) return;
+        // Back on the kind, with its places closed until the next key.
         model.setOpenKind(null);
+        model.hush();
         event.currentTarget.querySelector<HTMLButtonElement>('[data-home-kind]')?.focus();
       }}
     >
@@ -81,6 +83,18 @@ function Slot({
       <Picks entry={entry} model={model} />
     </div>
   );
+}
+
+/** Any key, pointer press or leaving the row ends the quiet arrival focus. */
+function wakeOn(model: HomeCreateModel) {
+  if (!model.quiet) return {};
+  return {
+    onKeyDown: model.wake,
+    onPointerDown: model.wake,
+    onBlur: (event: FocusEvent<HTMLDivElement>) => {
+      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) model.wake();
+    },
+  };
 }
 
 function activate(entry: HomeCreateEntry, model: HomeCreateModel) {
@@ -104,7 +118,12 @@ export function HomeCreateTiles({ model }: { model: HomeCreateModel }) {
   const { t } = useTranslation();
   return (
     <>
-      <div className="home-create home-create--tiles" role="group" aria-label={t('projectHome.create.title')}>
+      <div
+        className={`home-create home-create--tiles${model.quiet ? ' is-quiet' : ''}`}
+        role="group"
+        aria-label={t('projectHome.create.title')}
+        {...wakeOn(model)}
+      >
         {model.entries.map((entry) => (
           <Slot key={entry.kind} entry={entry} model={model}>
             <button
@@ -141,7 +160,12 @@ export function HomeCreateFloat({ model }: { model: HomeCreateModel }) {
   return (
     <>
       <CreateError model={model} />
-      <div className="home-create home-create--float" role="group" aria-label={t('projectHome.create.title')}>
+      <div
+        className={`home-create home-create--float${model.quiet ? ' is-quiet' : ''}`}
+        role="group"
+        aria-label={t('projectHome.create.title')}
+        {...wakeOn(model)}
+      >
         {model.entries.map((entry) => (
           <Slot key={entry.kind} entry={entry} model={model}>
             <button

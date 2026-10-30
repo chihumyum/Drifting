@@ -89,6 +89,7 @@ export const ProjectDashboard = memo(function ProjectDashboard() {
   const projects = useProjectStore((s) => s.projects);
   const projectName = currentProject?.name ?? projects.find((p) => p.id === projectId)?.name ?? '';
   const create = useHomeCreate();
+  const { hush } = create;
   const agent = useHomeAgent(projectId ?? '', projectName);
 
   const [view, setView] = useState<HomeView>('overview');
@@ -153,12 +154,14 @@ export const ProjectDashboard = memo(function ProjectDashboard() {
     if (arrival === 0) return;
     dock();
     if (!arrivedFromPlus.current) return;
-    // After the dock's + the focus waits on the kind used last, floating or not.
+    // After the dock's + the focus waits on the kind used last, floating or
+    // not; it stays quiet and opens nothing until the author moves it.
     const scope = floatingRef.current === 'new' ? floatRef.current : newRef.current;
-    scope
-      ?.querySelector<HTMLButtonElement>(`[data-kind="${lastHomeCreateKind()}"] [data-home-kind]`)
-      ?.focus({ preventScroll: true });
-  }, [arrival, dock]);
+    const kind = scope?.querySelector<HTMLButtonElement>(`[data-kind="${lastHomeCreateKind()}"] [data-home-kind]`);
+    if (!kind) return;
+    hush();
+    kind.focus({ preventScroll: true });
+  }, [arrival, dock, hush]);
 
   useEffect(() => {
     const scroller = scrollRef.current;

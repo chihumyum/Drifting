@@ -85,7 +85,7 @@ describe('Project Home with creating in it', () => {
     expect(css).toContain('.dash-float :is(.home-create__orb, .home-create__pick, .home-agent__mini) {');
   });
 
-  it('creates without naming: places pop above the kind under the pointer; no place, no step', () => {
+  it('creates without naming: places stack above the kind under the pointer; no place, no step', () => {
     const tiles = source('src/renderer/shells/desktop/project-home/HomeCreate.tsx');
     const model = source('src/renderer/shells/desktop/project-home/useHomeCreate.tsx');
     const css = source('src/styles/dashboard.css');
@@ -95,12 +95,27 @@ describe('Project Home with creating in it', () => {
     expect(picks).toContain('bottom: 100%;');
     expect(picks).toContain('left: 50%;');
     expect(picks).toContain('transform: translateX(-50%);');
-    expect(css).toContain('.home-create__slot:is(:hover, :focus-within, .is-open) > .home-create__picks {');
+    // One column straight above the kind, every pill as wide as the widest.
+    expect(picks).toContain('flex-direction: column;');
+    expect(picks).toContain('align-items: stretch;');
+    expect(picks).not.toContain('flex-wrap');
+    // The pointer opens them, and so does focus the keyboard brought; the
+    // focus Home places on arrival (or after Escape) stays quiet.
+    expect(css).toContain(
+      '.home-create__slot:is(:hover, .is-open) > .home-create__picks,\n.home-create:not(.is-quiet) .home-create__slot:has(:focus-visible) > .home-create__picks {',
+    );
+    expect(css).not.toContain(':focus-within) > .home-create__picks');
+    const home = source('src/renderer/views/ProjectDashboard.tsx');
+    expect(home.indexOf('hush();')).toBeLessThan(home.indexOf('kind.focus({ preventScroll: true });'));
+    expect(tiles).toContain('model.hush();');
+    expect(tiles).toContain('onKeyDown: model.wake,');
     // The floating rounds hold only the mark; the name comes up under them.
     const orb = block(tiles, 'className="home-create__orb glass glass--rest glass--round"', '</Slot>');
     expect(orb).toContain('<Mark kind={entry.kind}');
     expect(orb).toContain('<span className="home-create__label" aria-hidden="true">{entry.label}</span>');
-    expect(css).toContain('.home-create__slot:is(:hover, :focus-within) > .home-create__label {');
+    expect(css).toContain(
+      '.home-create__slot:hover > .home-create__label,\n.home-create:not(.is-quiet) .home-create__slot:has(:focus-visible) > .home-create__label {',
+    );
     // A kind with nothing to choose creates on click.
     expect(tiles).toContain('else entry.create();');
     expect(model).toContain("if (sortedStorylines.length === 0) return null;");

@@ -61,6 +61,13 @@ export interface HomeCreateModel {
   error: string | null;
   openKind: HomeCreateKind | null;
   setOpenKind: (kind: HomeCreateKind | null) => void;
+  /**
+   * The focus Home places on arrival is quiet: it opens no places until the
+   * author moves it with the keyboard, points into the row or leaves it.
+   */
+  quiet: boolean;
+  hush: () => void;
+  wake: () => void;
   /** The material dialog for 图片… / PDF…, rendered by the page. */
   dialog: ReactNode;
 }
@@ -97,6 +104,9 @@ export function useHomeCreate(): HomeCreateModel {
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [openKind, setOpenKind] = useState<HomeCreateKind | null>(null);
+  const [quiet, setQuiet] = useState(false);
+  const hush = useCallback(() => setQuiet(true), []);
+  const wake = useCallback(() => setQuiet(false), []);
   const [materialKind, setMaterialKind] = useState<'image' | 'pdf' | null>(null);
 
   /** Open what was made, unless the author has already left Home. */
@@ -265,5 +275,5 @@ export function useHomeCreate(): HomeCreateModel {
     />
   ) : null;
 
-  return { entries, busyKey, error, openKind, setOpenKind, dialog };
+  return { entries, busyKey, error, openKind, setOpenKind, quiet, hush, wake, dialog };
 }
