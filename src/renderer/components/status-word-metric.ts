@@ -1,17 +1,15 @@
-import { canonicalWordCount, isChapter, type BookNode } from '../domain/book-node';
+import { canonicalWordCount, isChapter, isDrift, type BookNode } from '../domain/book-node';
+
+export type StatusWordMetricKind = 'selection' | 'chapter' | 'drift' | 'storyline' | 'book';
 
 export type StatusWordMetric = {
-  labelKey:
-    | 'bottomStatusBar.selectedWords'
-    | 'bottomStatusBar.currentWords'
-    | 'bottomStatusBar.storylineWords'
-    | 'bottomStatusBar.projectWords';
+  kind: StatusWordMetricKind;
   count: number | null;
 };
 
 /**
- * The footer's word count, most specific first: the selection, the open
- * chapter or drift — in 通览全书, the chapter being edited — the open
+ * The account cell's word count, most specific first: the selection, the
+ * open chapter or idea — in 通览全书, the chapter being edited — the open
  * storyline, then the whole book.
  */
 export function deriveStatusWordMetric({
@@ -30,7 +28,7 @@ export function deriveStatusWordMetric({
   projectWordCount: { count: number; ready: boolean };
 }): StatusWordMetric {
   if (selectedWordCount !== null) {
-    return { labelKey: 'bottomStatusBar.selectedWords', count: selectedWordCount };
+    return { kind: 'selection', count: selectedWordCount };
   }
 
   const nodeId =
@@ -41,7 +39,7 @@ export function deriveStatusWordMetric({
         : null;
   const node = nodeId ? bookNodes.find((candidate) => candidate.id === nodeId) : undefined;
   if (node) {
-    return { labelKey: 'bottomStatusBar.currentWords', count: canonicalWordCount(node) };
+    return { kind: isDrift(node) ? 'drift' : 'chapter', count: canonicalWordCount(node) };
   }
 
   if (activeLeaf?.entityType === 'storyline') {
@@ -50,7 +48,7 @@ export function deriveStatusWordMetric({
       .filter((candidate) => isChapter(candidate) && nodeIds.has(candidate.id))
       .map(canonicalWordCount);
     return {
-      labelKey: 'bottomStatusBar.storylineWords',
+      kind: 'storyline',
       count: counts.every((count) => count != null)
         ? counts.reduce<number>((sum, count) => sum + (count ?? 0), 0)
         : null,
@@ -58,7 +56,16 @@ export function deriveStatusWordMetric({
   }
 
   return {
-    labelKey: 'bottomStatusBar.projectWords',
+    kind: 'book',
     count: projectWordCount.ready ? projectWordCount.count : null,
   };
+}
+
+/**
+ * How far today's words have gone toward the daily goal, 0–1; null when
+ * there is no goal (0 turns it off) or today is still being counted.
+ */
+export function dailyGoalProgress(todayWords: number | null, dailyWordGoal: number): number | null {
+  if (todayWords == null || !(dailyWordGoal > 0)) return null;
+  return Math.min(1, Math.max(0, todayWords / dailyWordGoal));
 }
