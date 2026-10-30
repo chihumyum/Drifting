@@ -57,6 +57,14 @@ function ProjectProjectionSettings({ projectId, projectName }: { projectId: stri
         {projection?.generatedAt ? ` · ${new Date(projection.generatedAt).toLocaleString()}` : ''}
         {projection?.error ? ` · ${projection.error}` : ''}
       </p>
+      {projection?.mirrorIssues?.map(issue => (
+        <p key={issue.path} role="alert" className="set-row__desc" style={{ marginTop: 4, overflowWrap: 'anywhere' }}>
+          {t(`settings.sync.projection.issue.${issue.reason}`, { path: issue.path, defaultValue: t('settings.sync.projection.issue.unreadable', { path: issue.path }) })}
+        </p>
+      ))}
+      {projection?.preserved?.length ? (
+        <p className="set-row__desc" style={{ marginTop: 4 }}>{t('settings.sync.projection.preserved', { count: projection.preserved.length })}</p>
+      ) : null}
       <div className="set-actions set-actions--below">
         <SettingsButton disabled={busy || !projection} onClick={() => void run(async () => {
           const root = await platform.markdownProjection.pickOutputRoot(t('settings.sync.projection.choose'));

@@ -54,10 +54,10 @@ if (process.argv.includes('--check')) {
     import { AgentMcpAccessSettings } from '/src/renderer/components/agent/AgentMcpAccessSettings';
     Object.assign(getPlatformRuntime(), { target: 'desktop', isMacDesktop: true });
     useProjectStore.setState({ currentProject: { id: 'synthetic', name: 'Synthetic project' } });
-    const api = window.__PROJECTION_UI__ = { calls: [], nextRoot: null, fail: false, locale: language => i18next.changeLanguage(language) };
+    const api = window.__PROJECTION_UI__ = { calls: [], nextRoot: null, fail: false, publish, locale: language => i18next.changeLanguage(language) };
     platform.markdownProjection.pickOutputRoot = async () => api.nextRoot;
     platform.mcpServer.list = async () => [];
-    publish('synthetic', { state: 'ready', directory: '/synthetic/default/markdown-projections/project-id', customRoot: null, generatedAt: '2026-10-03T00:00:00Z', readOnly: true, reverseSync: false });
+    publish('synthetic', { state: 'ready', directory: '/synthetic/default/markdown-projections/project-id', customRoot: null, generatedAt: '2026-10-03T00:00:00Z', readOnly: false, reverseSync: true });
     const renderer = createRoot(document.getElementById('root'));
     api.render = mounted => renderer.render(<main style={{ maxWidth: 820, padding: 30, margin: 'auto' }}>
       <section id="projection"><MarkdownProjectionSettings projectRuntimeMounted={mounted} /></section>
@@ -105,8 +105,14 @@ if (process.argv.includes('--check')) {
     await evaluate("__PROJECTION_UI__.locale('en')");
     await until("document.querySelector('#projection').textContent.includes('Choose output folder')");
     assert.equal(await evaluate("document.querySelectorAll('#mcp code').length"), 0);
-    assert.equal(await evaluate("document.querySelector('#mcp').textContent.includes('External Agents can also read')"), true);
+    assert.equal(await evaluate("document.querySelector('#mcp').textContent.includes('External Agents can also use')"), true);
     checks.push('MCP shows a projection hint without directory controls');
+    await evaluate("__PROJECTION_UI__.publish('synthetic', { mirrorIssues: [{ path: '正文/002 晨雾.md', reason: 'frontmatter' }], preserved: ['正文/003 旧稿.md'] })");
+    await until("document.querySelector('#projection').textContent.includes('正文/002 晨雾.md: the properties at the top are malformed')");
+    assert.equal(await evaluate("document.querySelector('#projection').textContent.includes('1 edited old file was kept')"), true);
+    checks.push('an edited file that cannot merge and preserved copies are reported');
+    await evaluate("__PROJECTION_UI__.publish('synthetic', { mirrorIssues: [], preserved: undefined })");
+    await until("!document.querySelector('#projection [role=alert]')");
     await click('Choose output folder');
     await until("![...document.querySelectorAll('#projection button')][0].disabled");
     assert.deepEqual(await evaluate('__PROJECTION_UI__.calls'), []);

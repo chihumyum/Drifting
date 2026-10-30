@@ -327,6 +327,7 @@ impl WorkspaceStore<'_> {
         };
         let document_id = format!("{}:{id}", target.prefix);
         for table in [
+            "markdown_mirror_file",
             "yjs_prose_command_receipt",
             "yjs_document_revision_provenance",
             "yjs_document_revision",

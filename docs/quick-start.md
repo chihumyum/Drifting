@@ -8,9 +8,9 @@
 3. Create a project from the Bookshelf, add a chapter or drift, write, then close
    and reopen the app to check your local work. The outline supports acts,
    chapters, scenes, beats and notes.
-4. In an open project, **Settings → Sync & Data** shows the automatic read-only
-   Markdown projection and lets you choose its directory. It is a readable
-   mirror, not a complete backup or reverse-sync folder. Relational Markdown
+4. In an open project, **Settings → Sync & Data** shows the automatic
+   Markdown folder and lets you choose its directory. Chapters and drifts there
+   can be edited in any editor and merge back; it is not a complete backup. Relational Markdown
    export preserves readable project structure; a `.drifting` library backup is
    restorable and currently requires a stable local library without a cloud binding.
 5. Configure a model in **Models & API** if wanted. Writing does not require AI;

@@ -1,8 +1,11 @@
-//! One-way, derived Markdown files. No filesystem content is ever imported.
+//! Project Markdown folder. Generated reading files are derived and read-only.
+//! Authored files (chapters and drifts) are writable: the renderer reads them
+//! back and merges external edits into Yjs, so this writer never replaces
+//! authored bytes it has not been told about (`expected_sha256`).
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashSet},
     fs,
     io::{Read, Write},
     path::{Path, PathBuf},
@@ -13,11 +16,23 @@ use tauri::Manager;
 static WRITER: Mutex<()> = Mutex::new(());
 
 #[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Entry {
     path: String,
     text: String,
+    /// An authored file: writable, and merged back into Drifting when edited.
+    #[serde(default)]
+    authored: bool,
+    /// SHA-256 of the authored file as Drifting last wrote or read it. A file
+    /// with other bytes was edited outside Drifting and is not replaced.
+    #[serde(default)]
+    expected_sha256: Option<String>,
 }
+
+/// Largest authored file read back from disk.
+const MAX_READ_BYTES: u64 = 16 * 1024 * 1024;
+const OWNER: &str = ".drifting/owner.json";
+const PRESERVED: &str = ".drifting/preserved";
 
 #[derive(Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -40,6 +55,8 @@ pub struct Asset {
 struct OutputEntry {
     path: String,
     bytes: Vec<u8>,
+    authored: bool,
+    expected: Option<String>,
 }
 const MAX_BYTES: usize = 256 * 1024 * 1024;
 const ASSET_EXTENSIONS: &[&str] = &[
@@ -72,6 +89,10 @@ struct Manifest {
     files: BTreeMap<String, String>,
     #[serde(default)]
     documents: Vec<Document>,
+    /// Paths of authored files (schema 4). Their hashes in `files` are the
+    /// bytes this writer published.
+    #[serde(default)]
+    authored: BTreeSet<String>,
 }
 
 #[derive(Serialize)]
@@ -82,6 +103,43 @@ pub struct ProjectionInfo {
     generated_at: Option<String>,
     read_only: bool,
     reverse_sync: bool,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WriteResult {
+    #[serde(flatten)]
+    info: ProjectionInfo,
+    /// Authored paths left untouched because their bytes changed on disk.
+    conflicts: Vec<String>,
+    /// Edited files this writer kept a copy of under `.drifting/preserved`.
+    preserved: Vec<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ReadRequest {
+    path: String,
+    known_size: Option<u64>,
+    known_modified_ms: Option<i64>,
+    /// Read and hash even when size and modification time match.
+    #[serde(default)]
+    force: bool,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReadResult {
+    path: String,
+    exists: bool,
+    size: u64,
+    modified_ms: i64,
+    /// Size or modification time differ from the request, or `force` was set.
+    changed: bool,
+    sha256: Option<String>,
+    text: Option<String>,
+    /// `encoding`, `too-large` or an I/O message; the file is then not read.
+    error: Option<String>,
 }
 
 pub fn project_directory(root: &Path, project_id: &str) -> PathBuf {
@@ -188,6 +246,7 @@ pub(crate) fn set_output_root(
     atomic_write(
         &root.join("markdown-projection-settings.json"),
         &serde_json::to_vec(&settings).map_err(|e| e.to_string())?,
+        0o400,
     )?;
     Ok(result)
 }
@@ -322,12 +381,23 @@ fn read_manifest_file(root: &Path, filename: &str) -> Result<Option<Manifest>, S
     }
     let manifest: Manifest = serde_json::from_slice(&fs::read(path).map_err(|e| e.to_string())?)
         .map_err(|_| "Invalid projection manifest")?;
-    if !matches!(manifest.schema_version, 1 | 2 | 3) || !manifest.read_only || manifest.reverse_sync
-    {
+    let supported = match manifest.schema_version {
+        1..=3 => manifest.read_only && !manifest.reverse_sync && manifest.authored.is_empty(),
+        4 => !manifest.read_only && manifest.reverse_sync,
+        _ => false,
+    };
+    if !supported {
         return Err("Unsupported projection manifest".into());
     }
     for path in manifest.files.keys() {
         validate_path(path)?;
+    }
+    if manifest
+        .authored
+        .iter()
+        .any(|path| !path.ends_with(".md") || !manifest.files.contains_key(path))
+    {
+        return Err("Invalid projection manifest".into());
     }
     Ok(Some(manifest))
 }
@@ -346,6 +416,7 @@ fn read_owned_manifest(root: &Path, project_id: &str) -> Result<Option<Manifest>
         }
         if let Some(owned) = &mut owned {
             owned.files.extend(manifest.files);
+            owned.authored.extend(manifest.authored);
         } else {
             owned = Some(manifest);
         }
@@ -383,12 +454,200 @@ fn info_at(
         directory: directory.to_string_lossy().into_owned(),
         custom_root,
         generated_at: manifest.map(|m| m.generated_at),
-        read_only: true,
-        reverse_sync: false,
+        read_only: false,
+        reverse_sync: true,
     })
 }
 
-fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), String> {
+fn sha256_hex(bytes: &[u8]) -> String {
+    format!("{:x}", Sha256::digest(bytes))
+}
+
+fn valid_sha256(value: &str) -> bool {
+    value.len() == 64
+        && value
+            .bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+}
+
+/// One Drifting installation manages a folder. Two would each merge the same
+/// external edit into their own copy, and sync would then duplicate the text.
+fn instance_id(root: &Path) -> Result<String, String> {
+    let path = root.join("markdown-mirror-instance");
+    if inspect(&path, false)? {
+        let value = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+        let value = value.trim();
+        if value.len() == 32 && value.bytes().all(|b| b.is_ascii_hexdigit()) {
+            return Ok(value.to_owned());
+        }
+        return Err("Invalid Markdown folder instance identity".into());
+    }
+    let mut random = [0u8; 16];
+    getrandom::getrandom(&mut random).map_err(|e| e.to_string())?;
+    let value = format!("{:032x}", u128::from_le_bytes(random));
+    atomic_write(&path, value.as_bytes(), 0o600)?;
+    Ok(value)
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct Owner {
+    instance: String,
+}
+
+/// Checks the folder's owner, claiming an unowned folder when `claim` is set.
+fn check_owner(root: &Path, directory: &Path, claim: bool) -> Result<(), String> {
+    let instance = instance_id(root)?;
+    let path = directory.join(OWNER);
+    if inspect(&path, false)? {
+        if fs::metadata(&path).map_err(|e| e.to_string())?.len() > 4096 {
+            return Err("Invalid Markdown folder owner".into());
+        }
+        let owner: Owner = serde_json::from_slice(&fs::read(&path).map_err(|e| e.to_string())?)
+            .map_err(|_| "Invalid Markdown folder owner")?;
+        if owner.instance != instance {
+            return Err(
+                "This Markdown folder is managed by another Drifting installation".into(),
+            );
+        }
+    } else if claim {
+        ensure_directory(&directory.join(".drifting"))?;
+        atomic_write(
+            &path,
+            &serde_json::to_vec(&Owner { instance }).map_err(|e| e.to_string())?,
+            0o600,
+        )?;
+    }
+    Ok(())
+}
+
+/// Keeps a copy of an edited file before it is replaced or abandoned.
+fn preserve(directory: &Path, path: &str, bytes: &[u8], stamp: &str) -> Result<(), String> {
+    let stamp: String = stamp
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+        .take(64)
+        .collect();
+    ensure_directory(&directory.join(".drifting"))?;
+    ensure_directory(&directory.join(PRESERVED))?;
+    let base = format!("{PRESERVED}/{stamp}");
+    let target = prepare_path(directory, &format!("{base}/{path}"), true)?;
+    atomic_write(&target, bytes, 0o600)
+}
+
+fn modified_ms(meta: &fs::Metadata) -> i64 {
+    meta.modified()
+        .ok()
+        .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+        .map_or(0, |duration| duration.as_millis() as i64)
+}
+
+fn read_files(
+    root: &Path,
+    project_id: &str,
+    requests: Vec<ReadRequest>,
+) -> Result<Vec<ReadResult>, String> {
+    validate_project(project_id)?;
+    if requests.len() > 20_000 {
+        return Err("Too many Markdown files requested".into());
+    }
+    let directory = resolved_project_directory(root, project_id)?;
+    if !inspect(&directory, true)? {
+        return Ok(requests
+            .into_iter()
+            .map(|request| ReadResult {
+                path: request.path,
+                exists: false,
+                size: 0,
+                modified_ms: 0,
+                changed: request.known_size.is_some(),
+                sha256: None,
+                text: None,
+                error: None,
+            })
+            .collect());
+    }
+    check_owner(root, &directory, false)?;
+    let mut results = Vec::with_capacity(requests.len());
+    for request in requests {
+        validate_path(&request.path)?;
+        if !request.path.ends_with(".md") {
+            return Err("Only Markdown files can be read back".into());
+        }
+        let target = match prepare_path(&directory, &request.path, false) {
+            Ok(target) => target,
+            Err(error) => {
+                results.push(ReadResult {
+                    path: request.path,
+                    exists: false,
+                    size: 0,
+                    modified_ms: 0,
+                    changed: true,
+                    sha256: None,
+                    text: None,
+                    error: Some(error),
+                });
+                continue;
+            }
+        };
+        let meta = match fs::metadata(&target) {
+            Ok(meta) => meta,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                results.push(ReadResult {
+                    path: request.path,
+                    exists: false,
+                    size: 0,
+                    modified_ms: 0,
+                    changed: request.known_size.is_some(),
+                    sha256: None,
+                    text: None,
+                    error: None,
+                });
+                continue;
+            }
+            Err(error) => return Err(error.to_string()),
+        };
+        let size = meta.len();
+        let modified = modified_ms(&meta);
+        let changed = request.force
+            || request.known_size != Some(size)
+            || request.known_modified_ms != Some(modified);
+        let mut result = ReadResult {
+            path: request.path,
+            exists: true,
+            size,
+            modified_ms: modified,
+            changed,
+            sha256: None,
+            text: None,
+            error: None,
+        };
+        if changed {
+            if size > MAX_READ_BYTES {
+                result.error = Some("too-large".into());
+            } else {
+                let mut bytes = Vec::new();
+                fs::File::open(&target)
+                    .map_err(|e| e.to_string())?
+                    .take(MAX_READ_BYTES + 1)
+                    .read_to_end(&mut bytes)
+                    .map_err(|e| e.to_string())?;
+                result.size = bytes.len() as u64;
+                result.sha256 = Some(sha256_hex(&bytes));
+                match String::from_utf8(bytes) {
+                    Ok(text) => result.text = Some(text),
+                    Err(_) => result.error = Some("encoding".into()),
+                }
+            }
+        }
+        results.push(result);
+    }
+    Ok(results)
+}
+
+fn atomic_write(path: &Path, bytes: &[u8], mode: u32) -> Result<(), String> {
+    #[cfg(not(unix))]
+    let _ = mode;
     let mut random = [0u8; 16];
     getrandom::getrandom(&mut random).map_err(|e| e.to_string())?;
     let temporary =
@@ -407,7 +666,7 @@ fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), String> {
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            file.set_permissions(fs::Permissions::from_mode(0o400))
+            file.set_permissions(fs::Permissions::from_mode(mode))
                 .map_err(|e| e.to_string())?;
         }
         fs::rename(&temporary, path).map_err(|e| e.to_string())?;
@@ -438,6 +697,7 @@ fn write_projection_with_assets(
     assets: Vec<Asset>,
 ) -> Result<ProjectionInfo, String> {
     write_projection_with_documents(root, project_id, generated_at, entries, assets, vec![])
+        .map(|result| result.info)
 }
 
 fn write_projection_with_documents(
@@ -447,7 +707,7 @@ fn write_projection_with_documents(
     entries: Vec<Entry>,
     assets: Vec<Asset>,
     documents: Vec<Document>,
-) -> Result<ProjectionInfo, String> {
+) -> Result<WriteResult, String> {
     let _guard = WRITER.lock().map_err(|_| "Projection writer unavailable")?;
     validate_project(project_id)?;
     if entries.len() + assets.len() > 20_000 {
@@ -460,6 +720,13 @@ fn write_projection_with_documents(
         if !entry.path.ends_with(".md") {
             return Err("Text projection entries must be Markdown".into());
         }
+        if entry
+            .expected_sha256
+            .as_ref()
+            .is_some_and(|hash| !entry.authored || !valid_sha256(hash))
+        {
+            return Err("Invalid authored file expectation".into());
+        }
         total = total
             .checked_add(entry.text.len())
             .filter(|size| *size <= MAX_BYTES)
@@ -467,6 +734,8 @@ fn write_projection_with_documents(
         output.push(OutputEntry {
             path: entry.path,
             bytes: entry.text.into_bytes(),
+            authored: entry.authored,
+            expected: entry.expected_sha256,
         });
     }
     // Resolve only immutable app-owned sources. Never accept an arbitrary source path over IPC.
@@ -541,6 +810,8 @@ fn write_projection_with_documents(
         output.push(OutputEntry {
             path: asset.path,
             bytes,
+            authored: false,
+            expected: None,
         });
     }
     let entries = output;
@@ -567,6 +838,7 @@ fn write_projection_with_documents(
     ensure_directory(&output.join("markdown-projections"))?;
     let directory = project_directory(&output, project_id);
     ensure_directory(&directory)?;
+    check_owner(root, &directory, true)?;
     let previous = read_owned_manifest(&directory, project_id)?;
     // Validate every existing path before changing any managed file.
     for entry in &entries {
@@ -584,14 +856,57 @@ fn write_projection_with_documents(
             prepare_path(&directory, path, false)?;
         }
     }
+    // Decide every authored file against what is on disk before changing any.
+    // Bytes Drifting has not read are never replaced: an expected hash that no
+    // longer matches is a conflict the renderer merges first. Without an
+    // expectation (an upgrade from the read-only projection), edited bytes are
+    // kept under .drifting/preserved before the file is replaced.
+    let mut conflicts = Vec::new();
+    let mut preserved = Vec::new();
+    let mut keep: BTreeMap<String, Vec<u8>> = BTreeMap::new();
+    for entry in entries.iter().filter(|entry| entry.authored) {
+        let path = prepare_path(&directory, &entry.path, false)?;
+        if !inspect(&path, false)? {
+            continue;
+        }
+        let mut current = Vec::new();
+        fs::File::open(&path)
+            .map_err(|e| e.to_string())?
+            .take(MAX_READ_BYTES + 1)
+            .read_to_end(&mut current)
+            .map_err(|e| e.to_string())?;
+        let current_hash = sha256_hex(&current);
+        if current_hash == sha256_hex(&entry.bytes) {
+            continue;
+        }
+        let published = previous.as_ref().and_then(|m| m.files.get(&entry.path));
+        match &entry.expected {
+            Some(expected) if *expected == current_hash => {}
+            Some(_) => conflicts.push(entry.path.clone()),
+            None if published == Some(&current_hash) => {}
+            None => {
+                keep.insert(entry.path.clone(), current);
+            }
+        }
+    }
     let files: BTreeMap<_, _> = entries
         .iter()
         .map(|entry| {
-            (
-                entry.path.clone(),
-                format!("{:x}", Sha256::digest(&entry.bytes)),
-            )
+            let hash = if conflicts.contains(&entry.path) {
+                previous
+                    .as_ref()
+                    .and_then(|m| m.files.get(&entry.path).cloned())
+                    .unwrap_or_else(|| sha256_hex(&entry.bytes))
+            } else {
+                sha256_hex(&entry.bytes)
+            };
+            (entry.path.clone(), hash)
         })
+        .collect();
+    let authored: BTreeSet<String> = entries
+        .iter()
+        .filter(|entry| entry.authored)
+        .map(|entry| entry.path.clone())
         .collect();
     if documents.len() > 20_000 {
         return Err("Too many projection document mappings".into());
@@ -625,13 +940,14 @@ fn write_projection_with_documents(
         }
     }
     let mut manifest = Manifest {
-        schema_version: 3,
+        schema_version: 4,
         project_id: project_id.into(),
-        generated_at,
-        read_only: true,
-        reverse_sync: false,
+        generated_at: generated_at.clone(),
+        read_only: false,
+        reverse_sync: true,
         files: files.clone(),
         documents,
+        authored: authored.clone(),
     };
     if serde_json::to_vec(&manifest)
         .map_err(|e| e.to_string())?
@@ -653,22 +969,49 @@ fn write_projection_with_documents(
             .map(|m| m.files.clone())
             .unwrap_or_default();
         manifest.files.extend(files.clone());
-        atomic_write(&directory.join(PENDING), &{
-            let bytes = serde_json::to_vec(&manifest).map_err(|e| e.to_string())?;
-            if bytes.len() > 8 * 1024 * 1024 {
-                return Err("Projection pending manifest exceeds size limit".into());
-            }
-            bytes
-        })?;
+        manifest.authored = previous
+            .as_ref()
+            .map(|m| m.authored.clone())
+            .unwrap_or_default();
+        manifest.authored.extend(authored.iter().cloned());
+        atomic_write(
+            &directory.join(PENDING),
+            &{
+                let bytes = serde_json::to_vec(&manifest).map_err(|e| e.to_string())?;
+                if bytes.len() > 8 * 1024 * 1024 {
+                    return Err("Projection pending manifest exceeds size limit".into());
+                }
+                bytes
+            },
+            0o400,
+        )?;
     }
     for entry in entries {
+        if conflicts.contains(&entry.path) {
+            continue;
+        }
         let path = prepare_path(&directory, &entry.path, true)?;
-        // Compare actual bytes, so external edits are repaired, never imported.
+        let mode = if entry.authored { 0o600 } else { 0o400 };
+        // Compare actual bytes, so edits to generated files are repaired.
         if !inspect(&path, false)?
             || fs::metadata(&path).map_err(|e| e.to_string())?.len() != entry.bytes.len() as u64
             || fs::read(&path).map_err(|e| e.to_string())? != entry.bytes
         {
-            atomic_write(&path, &entry.bytes)?;
+            if let Some(bytes) = keep.get(&entry.path) {
+                preserve(&directory, &entry.path, bytes, &generated_at)?;
+                preserved.push(entry.path.clone());
+            }
+            atomic_write(&path, &entry.bytes, mode)?;
+        } else {
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let meta = fs::metadata(&path).map_err(|e| e.to_string())?;
+                if meta.permissions().mode() & 0o777 != mode {
+                    fs::set_permissions(&path, fs::Permissions::from_mode(mode))
+                        .map_err(|e| e.to_string())?;
+                }
+            }
         }
     }
     let mut obsolete_directories = HashSet::new();
@@ -680,6 +1023,15 @@ fn write_projection_with_documents(
         {
             let target = prepare_path(&directory, path, false)?;
             if inspect(&target, false)? {
+                // An authored file Drifting no longer writes (renamed or
+                // removed) may hold edits it has not read; keep a copy.
+                if previous.authored.contains(path) {
+                    let bytes = fs::read(&target).map_err(|e| e.to_string())?;
+                    if previous.files.get(path) != Some(&sha256_hex(&bytes)) {
+                        preserve(&directory, path, &bytes, &generated_at)?;
+                        preserved.push(path.clone());
+                    }
+                }
                 fs::remove_file(&target).map_err(|e| e.to_string())?;
             }
             let mut parent = target.parent();
@@ -698,9 +1050,11 @@ fn write_projection_with_documents(
         let _ = fs::remove_dir(path);
     }
     manifest.files = files;
+    manifest.authored = authored;
     atomic_write(
         &directory.join(MANIFEST),
         &serde_json::to_vec_pretty(&manifest).map_err(|e| e.to_string())?,
+        0o400,
     )?;
     for name in [PENDING, "manifest.json", ".pending-manifest.json"] {
         let old = directory.join(name);
@@ -708,7 +1062,11 @@ fn write_projection_with_documents(
             fs::remove_file(old).map_err(|e| e.to_string())?;
         }
     }
-    info(root, project_id)
+    Ok(WriteResult {
+        info: info(root, project_id)?,
+        conflicts,
+        preserved,
+    })
 }
 
 fn remove_projection(root: &Path, project_id: &str) -> Result<(), String> {
@@ -737,7 +1095,7 @@ fn remove_projection(root: &Path, project_id: &str) -> Result<(), String> {
             fs::remove_file(path).map_err(|e| e.to_string())?;
         }
     }
-    for name in MANIFEST_PATHS {
+    for name in MANIFEST_PATHS.into_iter().chain([OWNER]) {
         let path = directory.join(name);
         if inspect(&path, false)? {
             fs::remove_file(path).map_err(|e| e.to_string())?;
@@ -760,6 +1118,7 @@ fn forget_output_root(root: &Path, project_id: &str) -> Result<(), String> {
         atomic_write(
             &root.join("markdown-projection-settings.json"),
             &serde_json::to_vec(&settings).map_err(|e| e.to_string())?,
+            0o400,
         )?;
     }
     Ok(())
@@ -837,7 +1196,7 @@ pub async fn markdown_projection_write(
     entries: Vec<Entry>,
     assets: Vec<Asset>,
     documents: Vec<Document>,
-) -> Result<ProjectionInfo, String> {
+) -> Result<WriteResult, String> {
     let root = app.path().app_local_data_dir().map_err(|e| e.to_string())?;
     tauri::async_runtime::spawn_blocking(move || {
         write_projection_with_documents(
@@ -853,6 +1212,19 @@ pub async fn markdown_projection_write(
     .map_err(|e| e.to_string())?
 }
 
+/// Reads authored files back: stat only, unless size or time changed or `force`.
+#[tauri::command]
+pub async fn markdown_projection_read(
+    app: tauri::AppHandle,
+    project_id: String,
+    requests: Vec<ReadRequest>,
+) -> Result<Vec<ReadResult>, String> {
+    let root = app.path().app_local_data_dir().map_err(|e| e.to_string())?;
+    tauri::async_runtime::spawn_blocking(move || read_files(&root, &project_id, requests))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -860,6 +1232,8 @@ mod tests {
         Entry {
             path: path.into(),
             text: text.into(),
+            authored: false,
+            expected_sha256: None,
         }
     }
     #[test]
@@ -884,10 +1258,12 @@ mod tests {
                 format!("{:x}", Sha256::digest(b"old prose")),
             )]),
             documents: vec![],
+            authored: BTreeSet::new(),
         };
         atomic_write(
             &directory.join("manifest.json"),
             &serde_json::to_vec(&legacy).unwrap(),
+            0o400,
         )
         .unwrap();
         let document = Document {
@@ -912,7 +1288,7 @@ mod tests {
         assert!(directory.join("读者笔记.md").exists());
         assert!(directory.join(".obsidian/app.json").exists());
         let manifest = read_manifest(&directory).unwrap().unwrap();
-        assert_eq!(manifest.schema_version, 3);
+        assert_eq!(manifest.schema_version, 4);
         assert_eq!(manifest.documents[0].path, "正文/001 雨夜.md");
         // A renamed chapter replaces the old managed name without leaving empty folders.
         write_projection(
@@ -1235,6 +1611,7 @@ mod tests {
             read_only: true,
             reverse_sync: false,
             files: BTreeMap::new(),
+            authored: BTreeSet::new(),
         };
         fs::write(
             target.join("manifest.json"),
@@ -1337,6 +1714,7 @@ mod tests {
         atomic_write(
             &directory.join(".pending-manifest.json"),
             &serde_json::to_vec(&interrupted).unwrap(),
+            0o400,
         )
         .unwrap();
         fs::write(directory.join("new.md"), "partially generated").unwrap();
@@ -1357,6 +1735,7 @@ mod tests {
         atomic_write(
             &directory.join(".pending-manifest.json"),
             &serde_json::to_vec(&interrupted).unwrap(),
+            0o400,
         )
         .unwrap();
         remove_projection(local.path(), "p").unwrap();
@@ -1407,7 +1786,8 @@ mod tests {
         assert!(!directory.join("old.md").exists());
         assert!(directory.join("user.md").exists());
         let manifest = read_manifest(&directory).unwrap().unwrap();
-        assert!(manifest.read_only && !manifest.reverse_sync);
+        assert!(!manifest.read_only && manifest.reverse_sync);
+        assert!(manifest.authored.is_empty());
         assert_eq!(
             manifest.files["chapters/a/prose.md"],
             format!("{:x}", Sha256::digest("雨😀".as_bytes()))
@@ -1470,5 +1850,219 @@ mod tests {
             "safe"
         );
         assert!(!outside.path().join("prose.md").exists());
+    }
+
+    fn authored(path: &str, text: &str, expected: Option<&str>) -> Entry {
+        Entry {
+            path: path.into(),
+            text: text.into(),
+            authored: true,
+            expected_sha256: expected.map(|bytes| sha256_hex(bytes.as_bytes())),
+        }
+    }
+
+    fn write_authored(root: &Path, entries: Vec<Entry>, stamp: &str) -> WriteResult {
+        write_projection_with_documents(root, "p", stamp.into(), entries, vec![], vec![]).unwrap()
+    }
+
+    #[cfg(unix)]
+    fn edit(path: &Path, text: &str) {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(path, fs::Permissions::from_mode(0o600)).unwrap();
+        fs::write(path, text).unwrap();
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn authored_files_are_writable_and_never_replace_unread_edits() {
+        use std::os::unix::fs::PermissionsExt;
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        let chapter = "正文/001 雨夜.md";
+        let first = write_authored(
+            root,
+            vec![authored(chapter, "A", None), entry("开始阅读.md", "home")],
+            "first",
+        );
+        let directory = PathBuf::from(first.info.directory);
+        let file = directory.join(chapter);
+        assert_eq!(
+            fs::metadata(&file).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
+        assert_eq!(
+            fs::metadata(directory.join("开始阅读.md"))
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
+            0o400
+        );
+        let manifest = read_manifest(&directory).unwrap().unwrap();
+        assert_eq!(manifest.schema_version, 4);
+        assert!(manifest.authored.contains(chapter));
+
+        fs::write(&file, "B").unwrap();
+        let stale = write_authored(root, vec![authored(chapter, "C", Some("A"))], "second");
+        assert_eq!(stale.conflicts, vec![chapter.to_string()]);
+        assert_eq!(fs::read_to_string(&file).unwrap(), "B");
+        assert_eq!(
+            read_manifest(&directory).unwrap().unwrap().files[chapter],
+            sha256_hex(b"A")
+        );
+
+        let merged = write_authored(root, vec![authored(chapter, "C", Some("B"))], "third");
+        assert!(merged.conflicts.is_empty() && merged.preserved.is_empty());
+        assert_eq!(fs::read_to_string(&file).unwrap(), "C");
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn upgrading_a_read_only_projection_keeps_edited_files() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        let untouched = "正文/001 雨夜.md";
+        let edited = "正文/002 晨雾.md";
+        let info = write_projection(
+            root,
+            "p",
+            "old".into(),
+            vec![entry(untouched, "old one"), entry(edited, "old two")],
+        )
+        .unwrap();
+        let directory = PathBuf::from(info.directory);
+        edit(&directory.join(edited), "author two");
+
+        let result = write_authored(
+            root,
+            vec![
+                authored(untouched, "new one", None),
+                authored(edited, "new two", None),
+            ],
+            "2026-10-31T00:00:00.000Z",
+        );
+        assert_eq!(result.preserved, vec![edited.to_string()]);
+        assert_eq!(
+            fs::read_to_string(directory.join(edited)).unwrap(),
+            "new two"
+        );
+        assert_eq!(
+            fs::read_to_string(
+                directory
+                    .join(PRESERVED)
+                    .join("2026-10-31T00-00-00-000Z")
+                    .join(edited)
+            )
+            .unwrap(),
+            "author two"
+        );
+        assert_eq!(
+            fs::read_to_string(directory.join(untouched)).unwrap(),
+            "new one"
+        );
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn an_abandoned_authored_file_with_unread_edits_is_preserved() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        let first = write_authored(root, vec![authored("正文/001 雨夜.md", "A", None)], "one");
+        let directory = PathBuf::from(first.info.directory);
+        edit(&directory.join("正文/001 雨夜.md"), "edited");
+        let renamed = write_authored(root, vec![authored("正文/001 夜雨.md", "A", None)], "two");
+        assert_eq!(renamed.preserved, vec!["正文/001 雨夜.md".to_string()]);
+        assert!(!directory.join("正文/001 雨夜.md").exists());
+        assert_eq!(
+            fs::read_to_string(directory.join(PRESERVED).join("two/正文/001 雨夜.md")).unwrap(),
+            "edited"
+        );
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn authored_files_are_read_back_by_stat_then_bytes() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        let chapter = "正文/001 雨夜.md";
+        let info = write_authored(root, vec![authored(chapter, "雨", None)], "one").info;
+        let directory = PathBuf::from(info.directory);
+        let request = |known_size, known_modified_ms, force| ReadRequest {
+            path: chapter.into(),
+            known_size,
+            known_modified_ms,
+            force,
+        };
+        let first = read_files(root, "p", vec![request(None, None, false)]).unwrap();
+        assert!(first[0].exists && first[0].changed);
+        assert_eq!(first[0].text.as_deref(), Some("雨"));
+        assert_eq!(first[0].sha256, Some(sha256_hex("雨".as_bytes())));
+
+        let (size, modified) = (first[0].size, first[0].modified_ms);
+        let same = read_files(root, "p", vec![request(Some(size), Some(modified), false)]).unwrap();
+        assert!(!same[0].changed && same[0].text.is_none());
+        let forced = read_files(root, "p", vec![request(Some(size), Some(modified), true)]).unwrap();
+        assert_eq!(forced[0].text.as_deref(), Some("雨"));
+
+        edit(&directory.join(chapter), "雨夜");
+        let edited = read_files(root, "p", vec![request(Some(size), Some(modified), false)]).unwrap();
+        assert!(edited[0].changed);
+        assert_eq!(edited[0].text.as_deref(), Some("雨夜"));
+
+        fs::write(directory.join(chapter), [0xff, 0xfe, 0x00]).unwrap();
+        let invalid = read_files(root, "p", vec![request(None, None, true)]).unwrap();
+        assert_eq!(invalid[0].error.as_deref(), Some("encoding"));
+        assert!(invalid[0].text.is_none());
+
+        fs::remove_file(directory.join(chapter)).unwrap();
+        let missing = read_files(root, "p", vec![request(Some(size), Some(modified), false)]).unwrap();
+        assert!(!missing[0].exists && missing[0].changed);
+        assert!(read_files(root, "p", vec![ReadRequest {
+            path: "../escape.md".into(),
+            known_size: None,
+            known_modified_ms: None,
+            force: true,
+        }])
+        .is_err());
+    }
+
+    #[test]
+    fn a_folder_managed_by_another_installation_is_refused() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        let info = write_authored(root, vec![authored("正文/001 雨夜.md", "A", None)], "one").info;
+        let directory = PathBuf::from(info.directory);
+        fs::remove_file(directory.join(OWNER)).unwrap();
+        fs::write(
+            directory.join(OWNER),
+            serde_json::to_vec(&Owner {
+                instance: "0".repeat(32),
+            })
+            .unwrap(),
+        )
+        .unwrap();
+        let error = write_projection_with_documents(
+            root,
+            "p",
+            "two".into(),
+            vec![authored("正文/001 雨夜.md", "B", None)],
+            vec![],
+            vec![],
+        )
+        .err()
+        .unwrap();
+        assert!(error.contains("another Drifting installation"));
+        assert!(read_files(
+            root,
+            "p",
+            vec![ReadRequest {
+                path: "正文/001 雨夜.md".into(),
+                known_size: None,
+                known_modified_ms: None,
+                force: true,
+            }]
+        )
+        .is_err());
+        assert_eq!(fs::read_to_string(directory.join("正文/001 雨夜.md")).unwrap(), "A");
     }
 }

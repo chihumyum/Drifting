@@ -603,13 +603,13 @@ export async function hashYjsProseState(doc: Y.Doc): Promise<string> {
   return sha256Text(canonicalStringify(snapshotYjsProseBlocks(doc)));
 }
 
-function createText(node: YjsProseTextNode): Y.XmlText {
+export function createYjsProseText(node: YjsProseTextNode): Y.XmlText {
   const text = new Y.XmlText();
   text.insert(0, node.text, canonicalRecord(node.marks, 'node.marks'));
   return text;
 }
 
-function createElement(node: YjsProseElementNode): Y.XmlElement {
+export function createYjsProseElement(node: YjsProseElementNode): Y.XmlElement {
   const element = new Y.XmlElement(node.type);
   for (const [key, value] of Object.entries(canonicalRecord(node.attrs, 'node.attrs'))) {
     // Yjs' declaration narrows XML attrs to string even though
@@ -618,13 +618,13 @@ function createElement(node: YjsProseElementNode): Y.XmlElement {
     element.setAttribute(key, value as string);
   }
   const children = (node.content ?? []).map((child) =>
-    child.kind === 'text' ? createText(child) : createElement(child),
+    child.kind === 'text' ? createYjsProseText(child) : createYjsProseElement(child),
   );
   if (children.length > 0) element.insert(0, children);
   return element;
 }
 
-function createBlock(block: YjsProseBlock): Y.XmlElement {
+export function createYjsProseBlock(block: YjsProseBlock): Y.XmlElement {
   const element = new Y.XmlElement(block.type);
   const attrs: Record<string, YjsJsonValue> = {
     ...canonicalRecord(block.attrs, 'block.attrs'),
@@ -634,7 +634,7 @@ function createBlock(block: YjsProseBlock): Y.XmlElement {
     element.setAttribute(key, attrs[key] as string);
   }
   const children = (block.content ?? []).map((node) =>
-    node.kind === 'text' ? createText(node) : createElement(node),
+    node.kind === 'text' ? createYjsProseText(node) : createYjsProseElement(node),
   );
   if (children.length > 0) element.insert(0, children);
   return element;
@@ -649,7 +649,7 @@ export function replaceYjsProseBlocks(doc: Y.Doc, blocks: readonly YjsProseBlock
   const fragment = doc.getXmlFragment(DEFAULT_FRAGMENT);
   doc.transact(() => {
     if (fragment.length > 0) fragment.delete(0, fragment.length);
-    if (normalized.length > 0) fragment.insert(0, normalized.map(createBlock));
+    if (normalized.length > 0) fragment.insert(0, normalized.map(createYjsProseBlock));
   }, 'agent-runtime:yjs-prose-fixture');
 }
 
@@ -819,7 +819,7 @@ function preflightOperation(baseBlocks: readonly YjsProseBlock[], raw: YjsProseO
       return {
         operation,
         affectedBlockIds: operation.blocks.map((block) => block.id),
-        apply: (fragment) => fragment.insert(at, operation.blocks.map(createBlock)),
+        apply: (fragment) => fragment.insert(at, operation.blocks.map(createYjsProseBlock)),
       };
     }
     case 'edit': {
@@ -829,7 +829,7 @@ function preflightOperation(baseBlocks: readonly YjsProseBlock[], raw: YjsProseO
         affectedBlockIds: [operation.blockId],
         apply: (fragment) => {
           fragment.delete(at, 1);
-          fragment.insert(at, [createBlock(operation.block)]);
+          fragment.insert(at, [createYjsProseBlock(operation.block)]);
         },
       };
     }
@@ -849,7 +849,7 @@ function preflightOperation(baseBlocks: readonly YjsProseBlock[], raw: YjsProseO
             (left, right) => right.at - left.at,
           )) {
             fragment.delete(at, 1);
-            fragment.insert(at, [createBlock(edit.block)]);
+            fragment.insert(at, [createYjsProseBlock(edit.block)]);
           }
         },
       };
@@ -883,7 +883,7 @@ function preflightOperation(baseBlocks: readonly YjsProseBlock[], raw: YjsProseO
         affectedBlockIds: [...new Set([...removed, ...operation.blocks.map((block) => block.id)])],
         apply: (fragment) => {
           fragment.delete(from, to - from + 1);
-          fragment.insert(from, operation.blocks.map(createBlock));
+          fragment.insert(from, operation.blocks.map(createYjsProseBlock));
         },
       };
     }
@@ -892,7 +892,7 @@ function preflightOperation(baseBlocks: readonly YjsProseBlock[], raw: YjsProseO
       return {
         operation,
         affectedBlockIds: operation.blocks.map((block) => block.id),
-        apply: (fragment) => fragment.insert(fragment.length, operation.blocks.map(createBlock)),
+        apply: (fragment) => fragment.insert(fragment.length, operation.blocks.map(createYjsProseBlock)),
       };
     }
   }

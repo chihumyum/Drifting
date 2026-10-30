@@ -282,6 +282,15 @@ export const DEV_CLI_MODEL_CAPABILITIES: readonly CliModelCapability[] = [
     note: 'Restore uses the history-restore Yjs origin and guarded workflow.',
   },
   {
+    name: 'markdown_mirror_file',
+    scope: 'ops',
+    authority: 'sqlite',
+    coverage: 'workflow_only',
+    commands: ['ops inspect'],
+    table: 'markdown_mirror_file',
+    note: 'Device-local ledger of the Markdown folder; only the folder sync workflow writes it.',
+  },
+  {
     name: 'yjs_updates_and_snapshots',
     scope: 'ops',
     authority: 'yjs_sqlite',
@@ -408,6 +417,7 @@ export const DEV_CLI_TABLE_MODEL_COVERAGE: Readonly<Record<string, string>> = {
   agent_mcp_server: 'agent_mcp_server',
   agent_permission_grant: 'agent_permission_grant',
   entity_snapshot_history: 'entity_snapshot_history',
+  markdown_mirror_file: 'markdown_mirror_file',
   yjs_updates: 'yjs_updates_and_snapshots',
   yjs_snapshots: 'yjs_updates_and_snapshots',
   yjs_document_revision: 'yjs_revision_and_provenance',

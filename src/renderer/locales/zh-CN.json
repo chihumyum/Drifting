@@ -471,7 +471,7 @@
       "select_file": "选择文件…",
       "projection": {
         "title": "Markdown 本地投影",
-        "description": "自动生成「{{project}}」的结构化 Markdown，供本地阅读、检索和外部工具使用。投影只读，修改文件不会反向同步到 Drifting。",
+        "description": "自动生成「{{project}}」的结构化 Markdown，供本地阅读、检索和外部工具使用。章节和构想可以在任何编辑器里修改，Drifting 运行时会把修改合并回来；其余文件由 Drifting 生成，只读。",
         "openProject": "打开项目后，可查看投影状态并设置该项目的输出位置。",
         "locationHint": "位置仅对当前项目在本机生效。所选文件夹内会生成 markdown-projections/项目标识 子目录；切换位置后保留旧目录。",
         "customLocation": "当前输出目录 · 自定义",
@@ -484,7 +484,19 @@
         "copy": "复制投影目录",
         "refresh": "刷新投影",
         "copied": "已复制投影目录",
-        "changed": "输出位置已更新，投影已重新生成。旧目录已保留。"
+        "changed": "输出位置已更新，投影已重新生成。旧目录已保留。",
+        "preserved_one": "{{count}} 个被改过的旧文件已另存到 .drifting/preserved。",
+        "preserved_other": "{{count}} 个被改过的旧文件已另存到 .drifting/preserved。",
+        "issue": {
+          "frontmatter": "{{path}}：开头的属性写法有误，修好之前不会合并，也不会覆盖它。",
+          "identity": "{{path}}：drifting-id 指向别的章节，未合并；原文件已另存到 .drifting/preserved。",
+          "empty": "{{path}}：正文被清空，未合并；原文件已另存到 .drifting/preserved。若确实要清空，请在 Drifting 里操作。",
+          "lineage": "{{path}}：这一章在 Drifting 里被恢复或重置过，文件里的修改无法自动合并；原文件已另存到 .drifting/preserved。",
+          "missing": "{{path}}：这一章已在 Drifting 里删除。",
+          "encoding": "{{path}}：不是 UTF-8 编码，未读取；原文件已另存到 .drifting/preserved。",
+          "too-large": "{{path}}：文件太大，未读取；原文件已另存到 .drifting/preserved。",
+          "unreadable": "{{path}}：无法读取。"
+        }
       }
     },
     "keys": {
@@ -843,7 +855,7 @@
         }
       },
       "mcpAccess": {
-        "projectionDescription": "外部 Agent 也可读取只读 Markdown 投影；在「同步与数据 → 本地数据」中设置。",
+        "projectionDescription": "外部 Agent 也可使用 Markdown 投影，其中章节和构想文件可以直接修改；在「同步与数据 → 本地数据」中设置。",
         "title": "外部 Agent 访问",
         "desc": "授权 Codex、Claude Code、Antigravity 等工具访问「{{project}}」。连接仅限这个项目。",
         "name": "连接名称",

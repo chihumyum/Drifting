@@ -477,7 +477,7 @@ describe('automatic read-only Markdown projection', () => {
     expect(body.text).toMatch(/^Snapshot Yjs truth$/mu);
     expect(body.text).not.toContain('drifting_source_version:');
     expect(body.sourceVersion).toBe(`sha256:${createHash('sha256').update('Snapshot Yjs truth').digest('hex')}`);
-    expect(before.entries.find(entry => entry.path === '导出说明.md')!.text).toContain('NO reverse sync');
+    expect(before.entries.find(entry => entry.path === '导出说明.md')!.text).toContain('章节和构想是双向的');
     expect(before.documents.some(item => item.key.includes('node-deleted-0004'))).toBe(false);
     expect(projectedDocument(before, 'node', UPDATE_NODE_ID).text).toMatch(/^Update-log Yjs truth$/mu);
     for (const entry of before.entries) expect(entry.text).not.toMatch(/\^(?:comment-)?drift-|#\^/u);

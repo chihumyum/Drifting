@@ -1,30 +1,10 @@
 {
   "kind": "local-mcp-runtime-and-native-ipc",
-  "generatedAt": "2026-10-26T16:30:21.050Z",
-  "sourceSha256": "95851414c875996443b172cc3b68c7b33758982004d28d2c1f20011133fd0b08",
+  "generatedAt": "2026-10-30T17:36:26.507Z",
+  "sourceSha256": "b8c5dd59794a1bcd0d14dedc27219011151a4827d5d1e3d81d778562bf8eb363",
   "status": "passed",
   "synthetic": true,
   "checks": [
-    {
-      "name": "application persistence lifecycle flushes mounted projections after durability without letting a projection error block saving",
-      "status": "passed"
-    },
-    {
-      "name": "application persistence lifecycle keeps the remote lane inert until SyncEngine installs its hook",
-      "status": "passed"
-    },
-    {
-      "name": "application persistence lifecycle attempts every ordered local durability step before requesting a SyncEngine cycle",
-      "status": "passed"
-    },
-    {
-      "name": "application persistence lifecycle unmounts and waits for Yjs close snapshots after the SyncEngine hook and before the final checkpoint",
-      "status": "passed"
-    },
-    {
-      "name": "application persistence lifecycle tears down after credential loss even when the first local flush fails",
-      "status": "passed"
-    },
     {
       "name": "Markdown projection scheduling defers automatic full-project capture during IME but preserves explicit refresh",
       "status": "passed"
@@ -50,7 +30,27 @@
       "status": "passed"
     },
     {
-      "name": "Markdown projection scheduling coalesces continuous commits without starving refresh or overlapping captures",
+      "name": "Markdown projection scheduling waits for the author to pause, without starving a continuous writer or overlapping captures",
+      "status": "passed"
+    },
+    {
+      "name": "Markdown projection scheduling publishes what was written since the last capture when the project closes, then releases it",
+      "status": "passed"
+    },
+    {
+      "name": "Markdown projection scheduling starts a reopened project only after its closing capture published",
+      "status": "passed"
+    },
+    {
+      "name": "Markdown projection scheduling captures pending changes before quitting without waiting for a pause, and nothing when current",
+      "status": "passed"
+    },
+    {
+      "name": "Markdown projection scheduling merges edited files first, writes authored files guarded, and retries a conflict",
+      "status": "passed"
+    },
+    {
+      "name": "Markdown projection scheduling looks for edits made elsewhere only while the window is visible",
       "status": "passed"
     },
     {
@@ -186,6 +186,26 @@
       "status": "passed"
     },
     {
+      "name": "application persistence lifecycle flushes mounted projections after durability without letting a projection error block saving",
+      "status": "passed"
+    },
+    {
+      "name": "application persistence lifecycle keeps the remote lane inert until SyncEngine installs its hook",
+      "status": "passed"
+    },
+    {
+      "name": "application persistence lifecycle attempts every ordered local durability step before requesting a SyncEngine cycle",
+      "status": "passed"
+    },
+    {
+      "name": "application persistence lifecycle unmounts and waits for Yjs close snapshots after the SyncEngine hook and before the final checkpoint",
+      "status": "passed"
+    },
+    {
+      "name": "application persistence lifecycle tears down after credential loss even when the first local flush fails",
+      "status": "passed"
+    },
+    {
       "name": "MCP client access rows offers each known client once when the project has no connections",
       "status": "passed"
     },
@@ -210,26 +230,6 @@
       "status": "passed"
     },
     {
-      "name": "MCP server bridge gives a native session that outlives a bridge remount a fresh durable identity",
-      "status": "passed"
-    },
-    {
-      "name": "shared prose reading and literal search preserves empty blocks and hard breaks in the body-only line coordinate system",
-      "status": "passed"
-    },
-    {
-      "name": "shared prose reading and literal search rejects invalid ranges and produces content-sensitive versions",
-      "status": "passed"
-    },
-    {
-      "name": "shared prose reading and literal search bounds an overestimated end line to the body and preserves range pagination",
-      "status": "passed"
-    },
-    {
-      "name": "shared prose reading and literal search matches every literal occurrence, preserves punctuation and pages with a version guard",
-      "status": "passed"
-    },
-    {
       "name": "local relational Markdown export acceptance uses persisted Yjs state before seed fallback and preserves safe relational links",
       "status": "passed"
     },
@@ -243,6 +243,14 @@
     },
     {
       "name": "local relational Markdown export acceptance keeps local export reachable without mounting a retired cloud activity surface",
+      "status": "passed"
+    },
+    {
+      "name": "automatic read-only Markdown projection renders the worker hydration path identically, including canonical Yjs and source hashes",
+      "status": "passed"
+    },
+    {
+      "name": "automatic read-only Markdown projection reuses prose hydrated at an unchanged Yjs version and rehydrates only what changed",
       "status": "passed"
     },
     {
@@ -266,7 +274,31 @@
       "status": "passed"
     },
     {
+      "name": "reader-facing Markdown tree nests materials in their folders in the readable tree and records the folder in the relational export",
+      "status": "passed"
+    },
+    {
       "name": "reader-facing Markdown tree handles duplicate names, Unicode normalization, reserved names and file-directory collisions without leaking full IDs",
+      "status": "passed"
+    },
+    {
+      "name": "MCP server bridge gives a native session that outlives a bridge remount a fresh durable identity",
+      "status": "passed"
+    },
+    {
+      "name": "shared prose reading and literal search preserves empty blocks and hard breaks in the body-only line coordinate system",
+      "status": "passed"
+    },
+    {
+      "name": "shared prose reading and literal search rejects invalid ranges and produces content-sensitive versions",
+      "status": "passed"
+    },
+    {
+      "name": "shared prose reading and literal search bounds an overestimated end line to the body and preserves range pagination",
+      "status": "passed"
+    },
+    {
+      "name": "shared prose reading and literal search matches every literal occurrence, preserves punctuation and pages with a version guard",
       "status": "passed"
     },
     {
@@ -538,11 +570,11 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::local::tests::framing_is_bounded_and_hashes_do_not_accept_partial_credentials",
+      "name": "mcp_server::client_config::tests::claude_statistics_keep_their_exact_numeric_values",
       "status": "passed"
     },
     {
-      "name": "mcp_server::client_config::tests::claude_statistics_keep_their_exact_numeric_values",
+      "name": "mcp_server::client_config::tests::claude_merge_preserves_account_project_and_existing_mcp_settings",
       "status": "passed"
     },
     {
@@ -550,7 +582,7 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::client_config::tests::claude_merge_preserves_account_project_and_existing_mcp_settings",
+      "name": "mcp_server::local::tests::framing_is_bounded_and_hashes_do_not_accept_partial_credentials",
       "status": "passed"
     },
     {
@@ -562,15 +594,15 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::client_config::tests::configuration_updates_back_up_original_and_reject_symlinks",
-      "status": "passed"
-    },
-    {
       "name": "mcp_server::local::tests::private_credentials_reject_symlinks_and_public_permissions",
       "status": "passed"
     },
     {
-      "name": "mcp_server::local::tests::permission_change_rejects_wrong_project_invalid_scope_and_failed_persistence",
+      "name": "mcp_server::local::tests::renderer_dispatch_preserves_authorized_scope_and_cancellation",
+      "status": "passed"
+    },
+    {
+      "name": "mcp_server::client_config::tests::configuration_updates_back_up_original_and_reject_symlinks",
       "status": "passed"
     },
     {
@@ -578,7 +610,7 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::local::tests::renderer_dispatch_preserves_authorized_scope_and_cancellation",
+      "name": "mcp_server::local::tests::permission_change_rejects_wrong_project_invalid_scope_and_failed_persistence",
       "status": "passed"
     },
     {
@@ -594,11 +626,11 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::local::tests::failed_installation_rolls_back_grant_and_credentials_without_touching_config",
+      "name": "mcp_server::local::tests::changed_client_configuration_does_not_block_access_revocation",
       "status": "passed"
     },
     {
-      "name": "mcp_server::local::tests::changed_client_configuration_does_not_block_access_revocation",
+      "name": "mcp_server::local::tests::failed_installation_rolls_back_grant_and_credentials_without_touching_config",
       "status": "passed"
     },
     {
@@ -610,15 +642,35 @@
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::output_selection_rejects_symlinked_managed_directory",
-      "status": "passed"
-    },
-    {
-      "name": "markdown_projection::tests::markdown_projection_rejects_symlink_parent_and_preserves_external_target",
+      "name": "markdown_projection::tests::authored_files_are_read_back_by_stat_then_bytes",
       "status": "passed"
     },
     {
       "name": "markdown_projection::tests::markdown_projection_rejects_unsafe_paths_and_duplicates_before_writing",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::a_folder_managed_by_another_installation_is_refused",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::output_selection_rejects_symlinked_managed_directory",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::an_abandoned_authored_file_with_unread_edits_is_preserved",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::authored_files_are_writable_and_never_replace_unread_edits",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::markdown_projection_is_incremental_read_only_and_removes_only_owned_files",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::markdown_projection_rejects_symlink_parent_and_preserves_external_target",
       "status": "passed"
     },
     {
@@ -630,15 +682,11 @@
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::interrupted_projection_claims_can_be_retried_and_cleaned_up",
-      "status": "passed"
-    },
-    {
-      "name": "markdown_projection::tests::markdown_projection_is_incremental_read_only_and_removes_only_owned_files",
-      "status": "passed"
-    },
-    {
       "name": "markdown_projection::tests::unsupported_image_previews_copy_only_from_the_project_owned_display_variant",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::interrupted_projection_claims_can_be_retried_and_cleaned_up",
       "status": "passed"
     },
     {
@@ -646,7 +694,7 @@
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::readable_paths_reject_reserved_names_prefix_conflicts_and_case_collisions",
+      "name": "markdown_projection::tests::refresh_rejects_new_unowned_file_before_changing_managed_prose",
       "status": "passed"
     },
     {
@@ -654,11 +702,11 @@
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::refresh_rejects_new_unowned_file_before_changing_managed_prose",
+      "name": "markdown_projection::tests::missing_corrupt_or_unowned_attachments_never_replace_the_previous_snapshot",
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::missing_corrupt_or_unowned_attachments_never_replace_the_previous_snapshot",
+      "name": "markdown_projection::tests::upgrading_a_read_only_projection_keeps_edited_files",
       "status": "passed"
     },
     {
@@ -666,11 +714,15 @@
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::custom_output_persists_per_project_resets_and_preserves_old_snapshots",
+      "name": "markdown_projection::tests::readable_paths_reject_reserved_names_prefix_conflicts_and_case_collisions",
       "status": "passed"
     },
     {
       "name": "markdown_projection::tests::unavailable_custom_output_does_not_fallback_and_can_be_reset",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::custom_output_persists_per_project_resets_and_preserves_old_snapshots",
       "status": "passed"
     }
   ],

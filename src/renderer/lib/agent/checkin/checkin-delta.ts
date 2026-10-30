@@ -127,6 +127,8 @@ async function changedDocuments(
 ): Promise<ChangedDocRow[]> {
   const provenance = YjsDocumentRevisionProvenanceTable;
   const sources = filter.sources ?? TRACKED_SOURCES;
+  // Edits made in another editor through the Markdown folder are the author's.
+  const sourceKinds: string[] = sources.includes('user') ? [...sources, 'file'] : [...sources];
   const rows = await getDb()
     .select({
       docId: provenance.docId,
@@ -138,7 +140,7 @@ async function changedDocuments(
     .where(
       and(
         gt(provenance.createdAt, sinceIso),
-        inArray(provenance.sourceKind, [...sources]),
+        inArray(provenance.sourceKind, sourceKinds),
       ),
     )
     .groupBy(provenance.docId, provenance.sourceKind);
@@ -158,7 +160,8 @@ async function changedDocuments(
         lastChangedAt: row.lastAt,
         revisions: { user: 0, agent: 0, remote: 0 },
       };
-    current.revisions[row.sourceKind as CheckinChangeSource] += Number(row.count) || 0;
+    const source = (row.sourceKind === 'file' ? 'user' : row.sourceKind) as CheckinChangeSource;
+    current.revisions[source] += Number(row.count) || 0;
     if (row.lastAt > current.lastChangedAt) current.lastChangedAt = row.lastAt;
     byDoc.set(row.docId, current);
   }

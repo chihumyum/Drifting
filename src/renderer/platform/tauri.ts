@@ -838,6 +838,7 @@ export const tauriPlatform: PlatformApi = {
     remove: (projectId) => invokeContract('markdown_projection_remove', { projectId }),
     info: (projectId) => invokeContract('markdown_projection_info', { projectId }),
     write: (projectId, generatedAt, entries, assets, documents) => invokeContract('markdown_projection_write', { projectId, generatedAt, entries, assets, documents }),
+    read: (projectId, requests) => invokeContract('markdown_projection_read', { projectId, requests }),
   },
 
   mcpServer: {

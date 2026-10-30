@@ -141,7 +141,7 @@ cancellation. The official SDK is used only for development acceptance, not
 shipped as an app runtime dependency.
 Mobile and remote HTTP/OAuth endpoints are outside this milestone.
 
-## Shared reading, search and read-only Markdown projection
+## Shared reading, search and the Markdown folder
 
 Markdown projection status returned by `get_project_overview` omits cleared
 fields instead of retaining `undefined` values. This keeps recovery from a
@@ -192,7 +192,7 @@ remain unchanged.
   existing categories, and comments/TODOs are aggregated. Rename/reorder refreshes
   rebuild internal links; external hand-written file links may become stale.
 
-See [local Markdown projection](../local-data-export.md#automatic-read-only-project-projection)
+See [local Markdown projection](../local-data-export.md#automatic-project-markdown-folder)
 for layout, freshness, cleanup and the one-way boundary. Reading a disk file
 does not establish the tool read coverage required before writing through MCP.
 

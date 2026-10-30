@@ -88,6 +88,8 @@ export type YjsRevisionSource =
   | { kind: 'agent'; collaborator?: YjsRevisionAgentIdentity }
   | { kind: 'user' }
   | { kind: 'remote' }
+  /** An edit read back from the project Markdown folder (docs/markdown-mirror.md). */
+  | { kind: 'file' }
   | { kind: 'system' }
   | { kind: 'legacy' };
 
@@ -283,6 +285,7 @@ function provenanceFromRow(
   } else if (
     row.sourceKind === 'user' ||
     row.sourceKind === 'remote' ||
+    row.sourceKind === 'file' ||
     row.sourceKind === 'system' ||
     row.sourceKind === 'legacy'
   ) {

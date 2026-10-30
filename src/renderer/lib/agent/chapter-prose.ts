@@ -77,7 +77,7 @@ function setBlockText(el: Y.XmlElement, text: string): void {
  * the agent transaction so the marks land with the edit. Each touched block is
  * plain text at this point (just written), so positions align with the string.
  */
-function relinkBlockMentions(frag: Y.XmlFragment, blockIds: string[], projectId: string | null, docId: string): void {
+export function relinkBlockMentions(frag: Y.XmlFragment, blockIds: string[], projectId: string | null, docId: string): void {
   const source = parseDocId(docId);
   const sourceKind = source ? proseEntityTypeForDocKind(source.kind) : null;
   if (!source || !sourceKind) return;

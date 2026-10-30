@@ -31,8 +31,42 @@ export interface MarkdownProjectionInfo {
   directory: string;
   customRoot: string | null;
   generatedAt: string | null;
-  readOnly: true;
-  reverseSync: false;
+  readOnly: false;
+  reverseSync: true;
+}
+
+/** Generated reading files are replaced freely; authored files never over bytes Drifting has not read. */
+export interface MarkdownProjectionEntry {
+  path: string;
+  text: string;
+  authored?: boolean;
+  /** SHA-256 of the authored file as Drifting last wrote or read it. */
+  expectedSha256?: string | null;
+}
+
+export interface MarkdownProjectionWriteResult extends MarkdownProjectionInfo {
+  /** Authored paths left untouched because they changed on disk. */
+  conflicts: string[];
+  /** Edited files kept under `.drifting/preserved` before being replaced. */
+  preserved: string[];
+}
+
+export interface MarkdownProjectionReadRequest {
+  path: string;
+  knownSize: number | null;
+  knownModifiedMs: number | null;
+  force?: boolean;
+}
+
+export interface MarkdownProjectionReadResult {
+  path: string;
+  exists: boolean;
+  size: number;
+  modifiedMs: number;
+  changed: boolean;
+  sha256: string | null;
+  text: string | null;
+  error: string | null;
 }
 
 export type PlatformTarget = 'desktop' | 'mobile';
@@ -656,8 +690,12 @@ export interface TauriCommandContract {
     result: MarkdownProjectionInfo;
   };
   markdown_projection_write: {
-    args: { projectId: string; generatedAt: string; entries: { path: string; text: string }[]; assets: MarkdownProjectionAsset[]; documents: MarkdownProjectionDocument[] };
-    result: MarkdownProjectionInfo;
+    args: { projectId: string; generatedAt: string; entries: MarkdownProjectionEntry[]; assets: MarkdownProjectionAsset[]; documents: MarkdownProjectionDocument[] };
+    result: MarkdownProjectionWriteResult;
+  };
+  markdown_projection_read: {
+    args: { projectId: string; requests: MarkdownProjectionReadRequest[] };
+    result: MarkdownProjectionReadResult[];
   };
   mcp_server_list: { args: undefined; result: McpServerConnection[] };
   mcp_server_create: { args: { input: McpServerCreateInput }; result: McpServerConnection };
