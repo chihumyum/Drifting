@@ -25,6 +25,7 @@ import { elementPatchCapability } from './lib/copilot/capabilities/element-patch
 import { hydratePlatformRuntime } from './platform/runtime';
 import { applyInitialThemeBeforeRender } from './lib/initial-theme';
 import { installCrashReporting } from './services/diagnostics/crash-reporter';
+import { installGlassAwake } from './lib/glass-awake';
 import App from './App';
 
 // Register Copilot capabilities once at app boot. Order doesn't matter —
@@ -34,6 +35,7 @@ registerCopilotCapability(elementPatchCapability);
 
 installAIDevConsole();
 installCrashReporting();
+installGlassAwake(document);
 
 // Kept behind both a compile-time branch (DEV, or a local release-performance
 // measurement bundle) and an explicit opt-in. The dynamic module and its global

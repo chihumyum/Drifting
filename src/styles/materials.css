@@ -124,6 +124,13 @@
   transition: opacity var(--motion-glass-bleed) ease-out, box-shadow var(--motion-glass-press) ease-out;
 }
 
+/* A paused animation still costs its element a style update on every frame
+   anything else animates, so a rim that cannot have drifted carries none: its
+   first frame is its static mask position. The pointer or focus wakes a
+   control before its rim starts to drift (lib/glass-awake.ts); glass that
+   drifts on its own keeps its animations. */
+.glass:not([data-glass-awake], .glass--waiting, .glass-sweep)::before { animation-name: none; }
+
 .glass:nth-of-type(4n + 1) { --glass-gx: -14px; --glass-gy: -46px; }
 .glass:nth-of-type(4n + 2) { --glass-gx: -96px; --glass-gy: -132px; }
 .glass:nth-of-type(4n + 3) { --glass-gx: -168px; --glass-gy: -18px; }
@@ -743,10 +750,15 @@
   mask-size: 150px 150px;
   --glass-gx: -30px;
   --glass-gy: -64px;
+  -webkit-mask-position: var(--glass-gx) var(--glass-gy);
+  mask-position: var(--glass-gx) var(--glass-gy);
   opacity: 0;
   animation: glass-flow var(--motion-glass-drift) linear infinite paused;
   transition: opacity var(--motion-glass-bleed) ease-out;
 }
+/* Like a resting glass rim, a ring that cannot have drifted carries no
+   animation (lib/glass-awake.ts). */
+:not([data-glass-awake]) > .cell-ring { animation-name: none; }
 
 .sand-cell:hover > .cell-ring { opacity: 1; animation-play-state: running; }
 .sand-cell.is-selected > .cell-ring { opacity: 0; }
