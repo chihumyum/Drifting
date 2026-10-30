@@ -27,10 +27,10 @@ Agent 双栏隔离使用合成 repository/transport 的真实 store 验收：`pn
 
 ## 行为证据
 
-- **材料**：`sand-glass-materials.test.ts` 覆盖记号映射与章节印记的稳定性、忙碌/游离记号、cell 已选中时淡入而非重画、玻璃流动按距离推进并在静止后淡出以及减少动效时不动、选中态与按住态分开（按住在后、覆盖选中）、水波层的样式约定，以及小块玻璃（`.glass--small`、`.glass--round`）由一条规则取稠密纹理、写在轮换之后，其他样式表不再自写稠密坐标，共用的 `Button`、`GhostIconButton`、`GlassSelect` 带上小块修饰，开关轨道也取稠密纹理；深色主题一组覆盖 `--shadow-ink` 浅深两值与深色的浮层、药丸副本投影，除第二批待迁的 Super View、设置页、书架与暂停中的移动端外，样式表里的浮起投影不再用 `--ink-1`（半像素边线与内嵌细线除外），以及深色下只有内晕往白里提 45%。
+- **材料**：`sand-glass-materials.test.ts` 覆盖记号映射与章节印记的稳定性、忙碌/游离记号、cell 已选中时淡入而非重画、玻璃流动按距离推进并在静止后淡出以及减少动效时不动、内层的主人（双栏中缝）只写自己那一对且线取两对里较强的那个、选中态与按住态分开（按住在后、覆盖选中）、水波层的样式约定，以及小块玻璃（`.glass--small`、`.glass--round`）由一条规则取稠密纹理、写在轮换之后，其他样式表不再自写稠密坐标，共用的 `Button`、`GhostIconButton`、`GlassSelect` 带上小块修饰，开关轨道也取稠密纹理；深色主题一组覆盖 `--shadow-ink` 浅深两值与深色的浮层、药丸副本投影，除第二批待迁的 Super View、设置页、书架与暂停中的移动端外，样式表里的浮起投影不再用 `--ink-1`（半像素边线与内嵌细线除外），以及深色下只有内晕往白里提 45%。
 - **动效模块**：`lib/motion.test.ts` 覆盖 `lib/motion.ts` 与 `materials.css` 里 `--motion-*` 的数值一致、设计系统点名的时长与弹簧参数、弹簧采样从 0 单调走到 1 不越过，以及侧栏、时间线、滑块、Dock 拖拽、水波与各 CSS 不再自带这些数值。Dock 药丸拖拽的无头浏览器验收（`node scripts/run-tab-reorder-acceptance.mjs`）把 `lib/motion.ts` 计入指纹，2026-10-29 收拢后重跑通过。
 - **水波**：`lib/glass-wave.test.ts` 覆盖水波从旧项出发、准确落在新项、途经各项依次亮起、远近决定时长、落定后进入 settle 再撤掉、按下选中的项不退回细线，以及减少动效时直接跳过；`hooks/useGlassWave.test.ts` 覆盖时间线水波只在同一泳道内流动、跨泳道不流动。
-- **Panel Tab 与面板 header**：`workspace-surface-language.acceptance.test.ts` 覆盖 Panel Tab 玻璃方块与 Panel 推进共用时长和曲线、方块的几何与随距离流动、悬停任一 Tab 时整栏 Header 四边流动，以及面板 header 的放大与统一的图标按钮。
+- **Panel Tab 与面板 header**：`workspace-surface-language.acceptance.test.ts` 覆盖 Panel Tab 玻璃方块与 Panel 推进共用时长和曲线、方块的几何与随距离流动、悬停任一 Tab 时整栏 Header 四边流动，拖动双栏中缝时中缝与两半栏 Tab 行下沿合成的十字按中缝移动的距离流动、不碰侧栏外沿与根元素，以及面板 header 的放大与统一的图标按钮。
 - **多选一与开关**：`glass-slider-scope-toggle.test.ts` 覆盖滑块没有轨道、方角、取稠密纹理并随移动流动，开关的同一个词与锁一样的玻璃状态。
 - **Dock**：`desktop-universal-create.acceptance.test.ts` 覆盖锁与 `+` 在药丸滚动区之外、展开后滚到当前药丸；`node scripts/run-tab-reorder-acceptance.mjs` 在无头浏览器里按正常与减少动效两套跑药丸拖拽：邻居先让位、落位、取消、Escape、拖出药丸行收拢原位、拖回再让位、WebKit 松手前的假“离开窗口”不收拢、外部放下保留分屏数据，`--check` 校验证据与源码一致。
 - **Agent 面板**：`features/agent/agent-glass.render.test.ts` 渲染真实的消息组件：Agent 工作时新出现的工具步骤带推波、从历史载入的不带，只读的步骤与任务清单悬停不变、能展开的步骤悬停流动，作者发出的话是对话框同款的圆角片，出错不垫底，请求授权的卡片与它的主按钮是等你处理的玻璃、主按钮排在最后，没有 `AgentGlassContext` 的移动端不带玻璃；`workspace-surface-language.acceptance.test.ts` 守着对话框的玻璃片、左下托盘、右下圆形按钮与「上提／弯杆上提」，以及 `materials.css` 里五种修饰的关键规则和 Dock 无色药丸取浅灰。

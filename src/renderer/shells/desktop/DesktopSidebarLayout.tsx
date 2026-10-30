@@ -10,7 +10,7 @@ import {
   clampSidebarSplitRatio, sidebarSplitRatioBounds, SIDEBAR_DIVIDER_WIDTH,
   sidebarSplitMinWidth, type DimensionBounds,
 } from '../../lib/layout-geometry';
-import { trackGlassFlow } from '../../lib/glass-flow';
+import { stepInnerGlassFlow, trackGlassFlow } from '../../lib/glass-flow';
 import { planSidebarPush } from '../../lib/sidebar-push';
 import { PUSH_EASING, PUSH_MS, PUSH_OUTLINE_FADE_MS, STRUCTURAL_MS } from '../../lib/motion';
 
@@ -98,16 +98,27 @@ export function DesktopSidebarLayout({
 
   useEffect(() => () => stopDragging.current(), [split]);
 
+  // Dragging the seam between the columns bleeds glass along the cross it
+  // forms: the seam itself and the line under each column's tabs, run by
+  // the distance the seam moves. Besides an arriving panel's outline they are
+  // the only flow lines in this layout, which owns them through the inner
+  // pair (lib/glass-flow.ts), so
+  // the sidebar's outer edge stays still and its own moves still reach them.
   const onDividerMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
     if (event.button !== 0) return;
     event.preventDefault();
     stopDragging.current();
+    let seam = ratio;
     const onMove = (event: MouseEvent) => {
       event.preventDefault();
       const rect = bodyRef.current?.getBoundingClientRect();
       if (rect && rect.width > SIDEBAR_DIVIDER_WIDTH) {
         const next = (event.clientX - rect.left - SIDEBAR_DIVIDER_WIDTH / 2) / (rect.width - SIDEBAR_DIVIDER_WIDTH);
-        setRatio(clampSidebarSplitRatio(next, minimumWidth, rect.width));
+        const clamped = clampSidebarSplitRatio(next, minimumWidth, rect.width);
+        const moved = Math.abs(clamped - seam) * (rect.width - SIDEBAR_DIVIDER_WIDTH);
+        seam = clamped;
+        if (rootRef.current) stepInnerGlassFlow(rootRef.current, moved);
+        setRatio(clamped);
       }
     };
     const preventSelection = (event: Event) => event.preventDefault();

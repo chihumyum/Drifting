@@ -342,7 +342,10 @@
  * A hairline at rest. While its panel slides open, closes or is dragged
  * wider, the owner sets --flow (distance travelled, px) and --flowa (0–1,
  * how fast) on an ancestor with `.is-moving`; the line then carries flowing
- * glass that runs and stops with the panel, and fades out whole after. */
+ * glass that runs and stops with the panel, and fades out whole after. An
+ * owner inside that panel (the seam between a sidebar's two columns) writes
+ * --flow-inner/--flowa-inner instead: the line shows the stronger and runs by
+ * both, so the inner owner bleeds only its own lines and hides nobody's. */
 .flow-line {
   position: absolute;
   z-index: 5;
@@ -357,7 +360,7 @@
   mask-image: var(--glass-texture);
   -webkit-mask-size: 150px 150px;
   mask-size: 150px 150px;
-  opacity: calc(var(--flowa, 0) * 0.8);
+  opacity: calc(max(var(--flowa, 0), var(--flowa-inner, 0)) * 0.8);
   transition: opacity var(--motion-flow-fade) ease-out;
 }
 
@@ -370,8 +373,8 @@
   top: -1px;
   height: 3px;
   background: linear-gradient(to bottom, transparent, var(--flow-glass), transparent);
-  -webkit-mask-position: calc(var(--flow, 0) * 1.2px + var(--flow-gx, 0px)) var(--flow-gy, 0px);
-  mask-position: calc(var(--flow, 0) * 1.2px + var(--flow-gx, 0px)) var(--flow-gy, 0px);
+  -webkit-mask-position: calc((var(--flow, 0) + var(--flow-inner, 0)) * 1.2px + var(--flow-gx, 0px)) var(--flow-gy, 0px);
+  mask-position: calc((var(--flow, 0) + var(--flow-inner, 0)) * 1.2px + var(--flow-gx, 0px)) var(--flow-gy, 0px);
 }
 
 .flow-line--v { top: 0; bottom: 0; width: 1px; }
@@ -381,8 +384,8 @@
   left: -1px;
   width: 3px;
   background: linear-gradient(to right, transparent, var(--flow-glass), transparent);
-  -webkit-mask-position: var(--flow-gx, 0px) calc(var(--flow, 0) * 1.6px + var(--flow-gy, 0px));
-  mask-position: var(--flow-gx, 0px) calc(var(--flow, 0) * 1.6px + var(--flow-gy, 0px));
+  -webkit-mask-position: var(--flow-gx, 0px) calc((var(--flow, 0) + var(--flow-inner, 0)) * 1.6px + var(--flow-gy, 0px));
+  mask-position: var(--flow-gx, 0px) calc((var(--flow, 0) + var(--flow-inner, 0)) * 1.6px + var(--flow-gy, 0px));
 }
 
 /* ── Sand ───────────────────────────────────────────────────────────

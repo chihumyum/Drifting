@@ -74,7 +74,7 @@
 
 ### 会流动的线
 
-侧栏贴向稿纸的边、Tab 行下沿、账户 cell 上沿、双栏分隔线、Bottom Timeline 顶边与泳道分隔线，静止时都是 hairline。面板滑开、收起或被拖宽时，这些线按面板实际移动的距离推动玻璃纹理（`--flow`，横线每移动 1px 纹理走 1.2px，竖线 1.6px），强度跟随速度（`--flowa`），停下后整体淡出（`lib/glass-flow.ts`，`.flow-line`）。同一机制也驱动移动中的玻璃方块：Panel Tab 方块与筛选滑块的纹理随自身移动的距离流动，落地即停。Bottom Timeline 拖动幕或时间点时的落点线也是这样一道无色玻璃，纹理随拖动距离流动（`--flow` 由 `TimelineGuideLines` 与 `ActRail` 写在线上）。
+侧栏贴向稿纸的边、Tab 行下沿、账户 cell 上沿、双栏分隔线、Bottom Timeline 顶边与泳道分隔线，静止时都是 hairline。面板滑开、收起或被拖宽时，这些线按面板实际移动的距离推动玻璃纹理（`--flow`，横线每移动 1px 纹理走 1.2px，竖线 1.6px），强度跟随速度（`--flowa`），停下后整体淡出（`lib/glass-flow.ts`，`.flow-line`）。拖动双栏中缝时，中缝本身与两半栏各自 Tab 行下沿的线合成一个十字，按中缝移动的距离流出玻璃，侧栏外沿与账户 cell 上沿不动：中缝的主人是侧栏里面的一层（`DesktopSidebarLayout` 的根），写的是内层的一对 `--flow-inner`／`--flowa-inner`，线取两对里较强的那个、按两段距离之和流动，所以内层只让自己的线流动，也不会挡住侧栏外层开合时的那一对（2026-10-30）。同一机制也驱动移动中的玻璃方块：Panel Tab 方块与筛选滑块的纹理随自身移动的距离流动，落地即停。Bottom Timeline 拖动幕或时间点时的落点线也是这样一道无色玻璃，纹理随拖动距离流动（`--flow` 由 `TimelineGuideLines` 与 `ActRail` 写在线上）。
 
 ### 同族选中的水波
 
