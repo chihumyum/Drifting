@@ -7,7 +7,7 @@ import { useDataStore } from '../../store/data-store';
 import { useAgentActivityStore } from '../../store/agent-activity-store';
 import type { ActivityMark } from '../../store/agent-activity-store';
 import { type GroupActivity } from './agentActivityBubble';
-import { PanelTab as SharedPanelTab, PanelTabRowEdges, PanelTabTray } from '../ui/PanelTabs';
+import { PanelTab as SharedPanelTab, PanelTabLabel, PanelTabRowEdges, PanelTabTray } from '../ui/PanelTabs';
 import { useSidebarTabMinimumWidth } from '../../hooks/useSidebarTabMinimumWidth';
 import { useAgentUnreadMarks } from '../../hooks/useAgentUnreadMarks';
 import { AgentCountBadge } from './AgentCountBadge';
@@ -160,7 +160,7 @@ function PanelTab({
           className={busy ? 'agent-glyph-busy' : undefined}
           style={{ color: busy ? 'hsl(var(--accent))' : undefined }}
         >
-          <span data-panel-tab-label>{label}</span>
+          <PanelTabLabel>{label}</PanelTabLabel>
         </span>
       </SharedPanelTab>
       {!busy && doneCount > 0 && (

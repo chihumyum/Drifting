@@ -155,3 +155,19 @@ export function PanelTab({
     </button>
   );
 }
+
+const CJK_TEXT = /[぀-ヿ㐀-鿿豈-﫿]/;
+
+/**
+ * A panel tab's words. The Latin structure face sets the line, and Chinese
+ * ideographs from the fallback face sit visibly higher on it than Latin
+ * words do; such labels are marked so they settle onto the window-control
+ * line with the traffic lights and the sidebar toggles (interface-fonts.css).
+ */
+export function PanelTabLabel({ children }: { children: string }) {
+  return (
+    <span data-panel-tab-label data-script={CJK_TEXT.test(children) ? 'cjk' : undefined}>
+      {children}
+    </span>
+  );
+}

@@ -13,7 +13,15 @@
 import { create } from 'zustand';
 
 export type NotificationState = 'running' | 'completed' | 'failed' | 'stopped';
-export type AppNotificationSource = 'hosted-sync';
+/** `share-comment`: readers commented on something the author shares (features/share-links). */
+export type AppNotificationSource = 'hosted-sync' | 'share-comment';
+
+/** What a notification opens: an entity in a project, wherever the author is. */
+export interface AppNotificationTarget {
+  projectId: string;
+  entityType: 'node' | 'element' | 'storyline' | 'category';
+  id: string;
+}
 /** Tints the completed banner. */
 export type NotificationOutcome = 'clean' | 'issues' | 'ok' | 'error';
 
@@ -40,6 +48,7 @@ export interface AppNotificationEvent {
   error?: string;
   at: number;
   progress?: AppNotificationProgress;
+  target?: AppNotificationTarget;
 }
 
 export interface AppNotification {
@@ -49,6 +58,7 @@ export interface AppNotification {
   title: string;
   detail?: string;
   chapterId?: string;
+  target?: AppNotificationTarget;
   outcome?: NotificationOutcome;
   count?: number;
   error?: string;
@@ -99,6 +109,7 @@ export const useNotificationStore = create<NotificationStore>((set) => ({
           title: e.title || existing.title,
           detail: e.detail ?? existing.detail,
           chapterId: e.chapterId ?? existing.chapterId,
+          target: e.target ?? existing.target,
           outcome: e.outcome ?? existing.outcome,
           count: e.count ?? existing.count,
           error: e.error ?? existing.error,
@@ -117,6 +128,7 @@ export const useNotificationStore = create<NotificationStore>((set) => ({
         title: e.title,
         detail: e.detail,
         chapterId: e.chapterId,
+        target: e.target,
         outcome: e.outcome,
         count: e.count,
         error: e.error,

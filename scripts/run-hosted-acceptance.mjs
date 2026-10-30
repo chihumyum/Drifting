@@ -74,6 +74,8 @@ if (process.argv.includes('--check')) {
       'src/renderer/sync/hosted/sign-in.test.ts',
       'src/renderer/features/share-links/share-links.hosted.integration.test.ts',
       'src/renderer/features/share-links/share-inbox.integration.test.ts',
+      'src/renderer/features/share-links/reader-comment-rail.test.ts',
+      'src/renderer/features/share-links/share-comment-notifications.test.ts',
       'src/shared/share-document.test.ts',
       'src/share-web/anchor.test.ts',
       '--reporter=json',
