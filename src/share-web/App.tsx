@@ -205,7 +205,6 @@ function Reader({ token, page, notice, reload, onPage }: ReaderProps) {
           <div ref={articleRef} className="prose">
             {doc.blocks.map((block, index) => <BlockView key={`${block.id ?? 'x'}-${index}`} block={block} index={index} />)}
           </div>
-          <footer className="sheet__footer">{t.footer}</footer>
         </article>
         {wide && <aside className="rail" aria-label={t.comments}>{rail}</aside>}
       </div>
@@ -288,12 +287,10 @@ interface RailProps {
 }
 
 function CommentRail(props: RailProps) {
-  const { comments, draft, commentsEnabled } = props;
+  const { comments, draft } = props;
   return (
     <div className="comments">
       {draft && <Composer {...props} draft={draft} />}
-      {!draft && commentsEnabled && <p className="comments__hint">{comments.length ? t.selectHint : t.noComments}</p>}
-      {!commentsEnabled && <p className="comments__hint">{t.commentsClosed}</p>}
       <ol className="comments__list">
         {comments.map(comment => (
           <CommentCard key={comment.id} {...props} comment={comment} />

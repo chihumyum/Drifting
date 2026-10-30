@@ -9,8 +9,6 @@ const zh = {
   commentsClosed: '作者已关闭评论',
   comments: '评论',
   commentCount: (count: number) => (count ? `评论 ${count}` : '评论'),
-  noComments: '还没有评论。选中一段文字就可以评论。',
-  selectHint: '选中文字后点「评论」。',
   addComment: '评论',
   placeholder: '写下你的想法…',
   post: '发布',
@@ -21,7 +19,6 @@ const zh = {
   withdraw: '撤回',
   you: '我',
   passageChanged: '原文已改动',
-  signInToComment: '登录 Drifting 账号后即可评论',
   signIn: '登录',
   signUp: '注册',
   signOut: '退出登录',
@@ -45,7 +42,6 @@ const zh = {
     OFFLINE: '网络连接不上。',
     fallback: '出了点问题，请再试一次。',
   } as Record<string, string>,
-  footer: '用 Drifting 写作',
 };
 
 type Strings = typeof zh;
@@ -61,8 +57,6 @@ const en: Strings = {
   commentsClosed: 'The author has turned comments off',
   comments: 'Comments',
   commentCount: (count: number) => (count ? `Comments ${count}` : 'Comments'),
-  noComments: 'No comments yet. Select a passage to comment on it.',
-  selectHint: 'Select text, then choose Comment.',
   addComment: 'Comment',
   placeholder: 'Share your thoughts…',
   post: 'Post',
@@ -73,7 +67,6 @@ const en: Strings = {
   withdraw: 'Withdraw',
   you: 'You',
   passageChanged: 'Passage changed',
-  signInToComment: 'Sign in with a Drifting account to comment',
   signIn: 'Sign in',
   signUp: 'Sign up',
   signOut: 'Sign out',
@@ -97,7 +90,6 @@ const en: Strings = {
     OFFLINE: 'Cannot reach the network.',
     fallback: 'Something went wrong. Please try again.',
   },
-  footer: 'Written with Drifting',
 };
 
 export const locale = typeof navigator !== 'undefined' && !navigator.language.toLowerCase().startsWith('zh') ? 'en' : 'zh';

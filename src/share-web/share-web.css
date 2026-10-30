@@ -137,13 +137,6 @@ body {
   color: var(--ink-3);
   font-size: 13px;
 }
-.sheet__footer {
-  margin-top: 56px;
-  padding-top: 16px;
-  border-top: 0.5px solid var(--rule);
-  color: var(--ink-4);
-  font-size: 12px;
-}
 
 .prose {
   font-family: var(--font-prose);
@@ -174,7 +167,6 @@ body {
 }
 
 .comments { display: grid; gap: 12px; }
-.comments__hint { margin: 4px 4px 0; color: var(--ink-3); font-size: 13px; }
 .comments__list { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
 
 .card {

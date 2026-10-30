@@ -63,15 +63,12 @@ export function ShareLinkSection({ target }: { target: ShareTarget }) {
     const signedOut = hostedStatus === 'signed-out' || hostedStatus === 'needs-reauth';
     return (
       <section className="share-link">
-        <div className="share-link__head">
-          <strong>{t('shareLink.title')}</strong>
-          <span>{t(signedOut ? 'shareLink.signedOut' : 'shareLink.unavailable')}</span>
+        <div className="share-link__head"><strong>{t('shareLink.title')}</strong></div>
+        <div className="share-link__row">
+          {signedOut
+            ? <Button onClick={() => openSignIn('signin')}><BrushIcon name="gate-in" size={14} />{t('shareLink.signIn')}</Button>
+            : <Button variant="primary" disabled><BrushIcon name="share" size={14} />{t('shareLink.create')}</Button>}
         </div>
-        {signedOut && (
-          <div className="share-link__row">
-            <Button onClick={() => openSignIn('signin')}><BrushIcon name="gate-in" size={14} />{t('shareLink.signIn')}</Button>
-          </div>
-        )}
       </section>
     );
   }
@@ -79,10 +76,7 @@ export function ShareLinkSection({ target }: { target: ShareTarget }) {
   const url = link ? shareLinkUrl(link.token) : null;
   return (
     <section className="share-link" aria-busy={!loaded}>
-      <div className="share-link__head">
-        <strong>{t('shareLink.title')}</strong>
-        <span>{t(link ? 'shareLink.liveHint' : 'shareLink.createHint')}</span>
-      </div>
+      <div className="share-link__head"><strong>{t('shareLink.title')}</strong></div>
       {link && url ? (
         <>
           <div className="share-link__row">

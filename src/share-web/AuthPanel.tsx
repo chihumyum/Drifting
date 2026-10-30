@@ -41,7 +41,7 @@ export function AuthPanel({ onSignedIn }: { onSignedIn: () => void }) {
 
   return (
     <div className="auth">
-      <p className="auth__lead">{step === 'verify' ? t.codeSent(email.trim()) : t.signInToComment}</p>
+      {step === 'verify' && <p className="auth__lead">{t.codeSent(email.trim())}</p>}
       {step === 'verify' ? (
         <form className="auth__form" onSubmit={event => void run(event, async () => {
           await accountApi.verify(email.trim(), code.trim());

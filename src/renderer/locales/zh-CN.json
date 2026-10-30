@@ -22,11 +22,7 @@
   "shareLink": {
     "dialogTitle": "分享",
     "title": "分享链接",
-    "signedOut": "登录 Hosted 账号后，可以生成一个阅读链接；读者登录后能在上面评论，评论会回到这里。",
     "signIn": "登录",
-    "unavailable": "暂时连不上 Hosted，恢复连接后就能管理分享链接。",
-    "createHint": "拿到链接的人可以阅读；登录后可以评论，评论会自动回到这份正文的批注里。",
-    "liveHint": "你继续写时，分享页会在停笔几秒后自动更新。",
     "create": "创建分享链接",
     "creating": "正在创建…",
     "url": "分享链接",
