@@ -23,7 +23,7 @@ describe('Project Dashboard scroll ownership', () => {
     const dash = block(dashboardCss, '.dash {', '.dash *,');
     const webkitScrollbar = block(dashboardCss, '.dash::-webkit-scrollbar {', '.dash__inner {');
 
-    expect(dashboardView).toContain('<div className="dash">');
+    expect(dashboardView).toContain('<div className="dash" ref={scrollRef} onScroll={dock}>');
     expect(dash).toContain('width: 100%;');
     expect(dash).toContain('height: 100%;');
     expect(dash).toContain('min-height: 0;');

@@ -70,8 +70,7 @@ existing customized previous/next bindings remain intact. Shifted `{` / `}`
 events are recognized without changing the unshifted history shortcuts.
 Tab switching runs in document capture so it also works inside the editor,
 while yielding to the window-level shortcut recorder and IME composition.
-Split tabs retain their focused pane, and create tabs use the same route
-transition as clicking the tab. Executable coverage lives in
+Split tabs retain their focused pane. Executable coverage lives in
 `useDesktopGlobalShortcuts.test.ts` and `lib/shortcuts.test.ts`; this is renderer
 acceptance, with physical macOS keyboard verification remaining separate.
 
@@ -197,7 +196,7 @@ ChapterEditor/ProjectRuntime continuity and latency remain separate gates.
 ### Desktop editor-session continuity
 
 `EditorMainArea` is the desktop editor-session stage. It mounts Project Home
-plus one absolute surface for every open top-level leaf, split, and create tab.
+plus one absolute surface for every open top-level leaf and split.
 The URL remains the address/selection authority, but React Router no longer
 owns the lifetime of desktop editor views: inactive surfaces stay mounted with
 `visibility: hidden`, `inert`, and no pointer or command ownership. Their
@@ -377,10 +376,10 @@ or changed split mounts behind the currently committed surface. The incoming
 view reports ready only after its canonical document is present in the exact
 TipTap instance that will be shown. `EditorMainArea` keeps the outgoing surface
 visible but inert until then and commits visibility in a layout effect, before
-the next browser paint. Project Home and the create chooser are synchronously
+the next browser paint. Project Home is synchronously
 ready; a split is ready only when both panes are ready. A removed active tab is
 retained as the outgoing visual cover until its successor commits, which also
-covers create completion and close transitions without a gray/empty frame.
+covers close transitions without a gray/empty frame.
 
 `EditorSurfaceLifecycle` separates pixel visibility from command ownership.
 Only the interactive committed surface can own Cmd+F/Cmd+S, Copilot, global
@@ -773,60 +772,41 @@ native Rust gateway, physical-device or power-loss recovery. F6b2 extends the
 matrix to interrupt the warmed runtime's scoped capture as well; every restart
 still uses complete startup reconstruction.
 
-## Desktop universal create
+## Project Home create
 
-The desktop tab model has one shell-owned `create` variant in addition to real
-entity leaves and splits. It is a project-local, session-only transient draft,
-not a `WorkspaceTarget` or `WorkspaceEntityType`: shared navigation and the
-mobile paper session therefore never need to recognize a synthetic entity.
-Each project may hold at most one draft, kept at the end of its open-tab list.
-The `+` command sits immediately after the rendered tabs inside the horizontal
-tab strip, including when the list is empty, rather than occupying a detached
-right-edge command slot.
+Creating happens on Project Home; the former session-only `create` tab, its
+`/new` surface and its completion/close transitions are retired (2026-10-30).
+The desktop tab model is leaves and splits only. A stale `create` entry in old
+`ui-storage` is dropped when tabs are sanitized, and `/project/:projectId/new`
+redirects to Home.
 
-Opening the draft navigates the desktop shell to `/project/:projectId/new` and makes
-`focusedLeafOf` return `null`, so URL mirroring, the right sidebar, status
-consumers, and split actions behave as though no entity is focused. A later
-entity/deep-link navigation follows the shared preview rules: a new draft starts
-as an italic preview, consumes any existing entity preview, and stays at the
-end of the strip. Opening another new entity preview replaces the idle draft
-in place, even after visiting Home or another existing tab. Activating an
-already-open entity only changes focus. Double-clicking the draft tab promotes
-it to a dedicated tab, preserving its choices across later navigation. Starting
-creation also promotes it before the asynchronous write, keeping the result or
-retry error safe from preview replacement. The draft cannot be reordered or
-fused into a split. Inventory
-pruning preserves it during the current session, but it does not enter
-`ui-storage`, SQLite, Yjs, sync, or restart restoration.
+The dock's `+` and the `newEntity` shortcut (`Mod+N`) call
+`WorkspaceNavigator.showProjectHome({ intent: 'new' })`; every other arrival
+(the account cell's Home button, `⌘⌥1`, closing the last tab) is intent
+`'home'`. The desktop navigator records each arrival in
+`ui-store.projectHomeEntry` (`intent` and a sequence number, never persisted),
+so pressing `+` while Home already shows counts as a new arrival. Mobile ignores
+the intent.
 
-The draft also records a session-only return owner when it is activated. A
-draft opened from Project Home closes directly back to Home even when dormant
-content tabs remain; a draft opened from a content tab or split restores that
-exact surviving tab and focused leaf. Reopening an existing background draft refreshes
-the return owner to the current context. If that content owner disappeared,
-close falls back to the nearest surviving tab (or Home when none remain).
-This also applies when the return owner was the entity preview consumed on entry.
-Store selection and the `/new`
-route transition must resolve the same destination so no intermediate content
-tab or Project Home frame can flash. Every outbound transition from an active
-draft is route-first: close, content-tab activation, Project Home navigation,
-and successful creation all use the same ordering. The desktop navigation
-boundary still commits route/store ownership in layout effects, while the
-editor-session stage keeps the draft surface mounted until the prepared
-destination surface reports ready, then swaps before paint. Mouse and keyboard activation/close paths
-share these transition owners; the intentionally empty `/new` child route is
-therefore never exposed as the rendered workspace.
+`ProjectDashboard` scrolls to the top on each arrival and floats one section at
+the foot of the page: the create row for `'new'`, the Agent for `'home'`. The
+floating set is a separate, leaner presentation of the same model
+(`useHomeCreate`, `useHomeAgent` under `shells/desktop/project-home/`); its
+section in the flow stays laid out but transparent. Scroll and resize compare
+that section's bottom with the floating set's rest line (26px above the
+viewport bottom); once it is in view the floating set is removed for the rest of
+that arrival, and focus inside it follows into the flow.
 
-`DesktopUniversalCreateView` collects the entity kind and only the required
-existing parent/group context. It then delegates to `createNode`,
-`createStoryline`, `createElement`, or `createCategory`; those authored use cases
-remain responsible for unique defaults, templates, Yjs seeding, SQLite atomic
-transactions, optimistic rollback, and sync journal entries. Success replaces
-the transient slot in place with a dedicated leaf after its editor route has
-matched. The URL changes only when the draft is still active, so an async
-completion cannot steal focus from a tab the user selected meanwhile. Failure
-leaves the same draft and error available for retry. This surface is
-desktop-only; mobile creation design remains independent and unchanged.
+`createHomeEntity` delegates to `createNode`, `createStoryline`,
+`createElement`, `createCategory` and the library's text-material create; those
+authored use cases keep owning defaults, templates, Yjs seeding, SQLite
+transactions, rollback and sync journal entries. Nothing is named before the
+write: a chapter or drift asks its editor to select the default title
+(`requestChapterTitleFocus`). The result opens as a dedicated tab while Home is
+still visible; a create that resolves after the author left adds the tab in the
+background (`openEntityTab(..., { activate: false })`). Image and PDF materials
+go through the library's create dialog with the kind preselected. This surface
+is desktop-only; mobile Project Home is unchanged.
 
 ## Project Home authority
 
@@ -903,7 +883,6 @@ its own back/navigation behavior through the same view-level close actions.
 | `src/styles/entity-editors.css`           | entity editors, relations, metadata, and domain surfaces                        |
 | `src/styles/desktop-shell.css`            | desktop geometry, columns, overlays, and full-screen states                     |
 | `src/styles/workspace-navigation.css`     | topbar project name and workspace navigation triggers                           |
-| `src/styles/desktop-universal-create.css` | desktop transient-create chooser and context form                               |
 | `src/styles/bottom-status-bar.css`        | full-width footer status line                                                   |
 | `src/styles/bottom-timeline.css`          | bottom timeline dock                                                            |
 | `src/styles/act-rail.css`                 | ActRail act strip in track coordinate space                                     |
@@ -912,7 +891,7 @@ its own back/navigation behavior through the same view-level close actions.
 | `src/styles/relation-edge-popover.css`    | relation edge popover                                                           |
 | `src/styles/drift-panel.css`              | bottom-anchored drift panel shared by Graph and Element views                   |
 | `src/styles/plot-planner.css`             | in-chapter Plot Planner dock                                                    |
-| `src/styles/dashboard.css`                | Project Home dashboard                                                          |
+| `src/styles/dashboard.css`                | Project Home: the work, the create row, the Agent and their floating sets       |
 | `src/styles/search.css`                   | global search modal and editor find panel                                       |
 | `src/styles/settings.css`                 | full-screen Settings overlay                                                    |
 | `src/styles/agent-panel.css`              | Agent panel composer and conversation surface                                   |
@@ -936,8 +915,8 @@ pnpm exec vitest run \
   src/renderer/hooks/useSuperViewEscapeStack.test.ts \
   src/renderer/components/ui/EntityCardPopoverShell.test.ts \
   src/renderer/store/ui-store.workspace-tabs.test.ts \
-  src/renderer/shells/desktop/entity-create/desktop-universal-create.test.ts \
-  src/renderer/shells/desktop/entity-create/desktop-universal-create.acceptance.test.ts \
+  src/renderer/shells/desktop/project-home/home-create.test.ts \
+  src/renderer/shells/desktop/project-home/project-home-create.acceptance.test.ts \
   src/renderer/shells/desktop/navigation/desktop-editor-continuity.acceptance.test.ts \
   src/renderer/shells/desktop/navigation/desktop-tab-close-transition.acceptance.test.ts \
   src/renderer/app/project-home.acceptance.test.ts

@@ -7,31 +7,15 @@ function source(path: string): string {
 }
 
 describe('desktop tab close transition acceptance', () => {
-  it('keeps the create surface until the destination route commits', () => {
+  it('lands on the successor, or on Project Home when the last active tab closes', () => {
     const transition = source(
       'src/renderer/shells/desktop/navigation/DesktopTabCloseTransition.ts',
     );
-    const routeRequest = transition.slice(
-      transition.indexOf("if (closing.kind === 'create' && plan.wasActive)"),
-      transition.indexOf('closeImmediately(closing);'),
+    expect(transition).toContain('state.closeTab(projectId, closeRefFor(closing))');
+    expect(transition.indexOf('navigator.open(nextActive);')).toBeLessThan(
+      transition.indexOf('navigate(`/project/${projectId}`, { replace: true });'),
     );
-    const routeCommit = transition.slice(
-      transition.indexOf('useLayoutEffect(() => {'),
-      transition.indexOf('return useCallback('),
-    );
-    const pendingRequest = routeRequest.slice(
-      routeRequest.indexOf('pendingCreateCloseRef.current = {'),
-    );
-
-    expect(routeRequest.indexOf('pendingCreateCloseRef.current = {')).toBeGreaterThanOrEqual(0);
-    expect(routeRequest.indexOf('pendingCreateCloseRef.current = {')).toBeLessThan(
-      routeRequest.indexOf('navigate(destination, { replace: true });'),
-    );
-    expect(pendingRequest).not.toContain('.closeTab(');
-    expect(routeCommit).toContain('location.pathname === pending.createRoute');
-    expect(routeCommit.indexOf('location.pathname !== destination')).toBeLessThan(
-      routeCommit.indexOf('state.closeTab(projectId, { createId: closing.id });'),
-    );
+    expect(transition).not.toContain("'create'");
   });
 
   it('shares the transition owner between mouse and keyboard close actions', () => {
@@ -40,14 +24,11 @@ describe('desktop tab close transition acceptance', () => {
     );
     const timeline = source('src/renderer/components/topBars/TopTimeline/TopTimeline.tsx');
     const shortcuts = source('src/renderer/shells/desktop/useDesktopGlobalShortcuts.ts');
-    const architecture = source('docs/renderer-ui-architecture.md');
 
     expect(boundary).toContain('useDesktopTabCloseTransition({ projectId, navigator, navigate })');
     expect(boundary).toContain('<DesktopTabCloseContext.Provider value={closeWorkspaceTab}>');
     expect(timeline).toContain('const closeWorkspaceTab = useDesktopTabClose();');
     expect(timeline).toContain('closeWorkspaceTab(tab);');
     expect(shortcuts).toContain('closeWorkspaceTab(activeTab);');
-    expect(architecture).toContain('keeps the draft surface mounted');
-    expect(architecture).toContain('before paint');
   });
 });

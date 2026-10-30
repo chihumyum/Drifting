@@ -19,7 +19,6 @@ import {
   tabKey,
   type AnyTab,
   type LeafTab,
-  type CreateTab,
   type SplitTab,
 } from '../../store/ui-store';
 import { NodeEditorView } from '../../views/NodeEditorView';
@@ -36,7 +35,6 @@ import {
   useHoverPreview,
   type EntityHoverTarget,
 } from '../../features/entities/hover/entity-hover-card-model';
-import { DesktopUniversalCreateView } from '../../shells/desktop/entity-create/DesktopUniversalCreateView';
 import {
   EditorSurfaceLifecycleProvider,
   ImmediateEditorSurfaceReady,
@@ -78,7 +76,6 @@ export function EditorMainArea() {
   const splitActiveWith = useUiStore((s) => s.splitActiveWith);
 
   const activeTab = openTabs.find((t) => tabKey(t) === activeTabKey) ?? null;
-  const createTab = activeTab?.kind === 'create' ? (activeTab as CreateTab) : null;
   const currentSurfaces = useMemo<WorkspaceSurfaceDescriptor[]>(
     () => [
       { revisionKey: PROJECT_HOME_SURFACE_KEY, tab: null },
@@ -164,7 +161,7 @@ export function EditorMainArea() {
       // Only react to drags that carry the tab payload — we don't want to
       // hijack text/file drops the editor might want.
       if (!event.dataTransfer.types.includes('application/x-drifting-tab')) return;
-      if (createTab || !activeTab) {
+      if (!activeTab) {
         setDropSide(null);
         return;
       }
@@ -181,7 +178,7 @@ export function EditorMainArea() {
       else if (x > rect.width * 0.67) setDropSide('right');
       else setDropSide(null);
     },
-    [activeTab, createTab],
+    [activeTab],
   );
 
   const handleDragLeave = useCallback((event: React.DragEvent<HTMLDivElement>) => {
@@ -298,19 +295,6 @@ const WorkspaceSurface = memo(function WorkspaceSurface({
       >
         <ImmediateEditorSurfaceReady>
           <ProjectDashboard />
-        </ImmediateEditorSurfaceReady>
-      </EditorSurfaceLifecycleProvider>
-    );
-  } else if (tab.kind === 'create') {
-    content = (
-      <EditorSurfaceLifecycleProvider
-        isVisible={isVisible}
-        isPreparing={isDesired}
-        isCommandActive={isInteractive}
-        onReadyChange={reportReady}
-      >
-        <ImmediateEditorSurfaceReady>
-          <DesktopUniversalCreateView tab={tab} />
         </ImmediateEditorSurfaceReady>
       </EditorSurfaceLifecycleProvider>
     );

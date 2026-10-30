@@ -46,7 +46,7 @@
 
 尚未补齐的部分（按影响排序）：
 
-1. **控件层还没进其余视图。** 控件的定义都在 [components.md](components.md)；共用的 `Button` 已经跟着换了，实体编辑器、Review、批注便笺、统计面板、素材、书架与登录、三个 Super View 与设置页已经换上，见 [components.md](components.md) 的对应各节（设置页另定下了数值滑块、色板、字体选择、服务商连接行、快捷键组合与配置框）。作品主页（Project Home）先整体重排结构，再按本设计系统重做。
+1. **控件层还没进其余视图。** 控件的定义都在 [components.md](components.md)；共用的 `Button` 已经跟着换了，实体编辑器、Review、批注便笺、统计面板、素材、书架与登录、三个 Super View 与设置页已经换上，见 [components.md](components.md) 的对应各节（设置页另定下了数值滑块、色板、字体选择、服务商连接行、快捷键组合与配置框）。作品主页（Project Home）已与新建合成一处并按本设计系统重做（2026-10-30，见 [components.md](components.md) 的「作品主页」）。
 2. **移动端未采用。** `docs/design/mobile-v2/` 是砂笔与素玻璃之前的移动端提案，只作历史快照。
 
 ## 范围

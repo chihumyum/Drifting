@@ -33,7 +33,7 @@ export function useProjectNavigation() {
     [openEntity],
   );
   const navigateToHome = useCallback(
-    () => navigator.showProjectHome(),
+    (options?: { intent?: 'new' | 'home' }) => navigator.showProjectHome(options),
     [navigator],
   );
   const navigateToAllChapters = useCallback(

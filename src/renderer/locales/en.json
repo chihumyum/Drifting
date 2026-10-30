@@ -513,6 +513,10 @@
           "label": "Toggle bottom timeline",
           "desc": "Show or hide the bottom timeline"
         },
+        "newEntity": {
+          "label": "New",
+          "desc": "Open Project Home with its create row in reach"
+        },
         "closeProject": {
           "label": "Close project",
           "desc": "Close this project and return to the bookshelf"
@@ -2413,68 +2417,11 @@
       "closeAll": "Close all"
     },
     "newEntity": "Create entity",
-    "newTab": "New…",
     "splitControls": "Split",
     "closeTab": "Close tab",
     "closePane": "Close pane",
     "dockLock": "Keep open",
     "dockUnlock": "Fold back to dots"
-  },
-  "universalCreate": {
-    "eyebrow": "Create entity",
-    "title": "What do you want to create?",
-    "subtitle": "Choose an entity type first. Nothing is written to the project until you confirm; closing this tab leaves no entity behind.",
-    "back": "Back to entity types",
-    "continue": "Continue",
-    "createNow": "Create now",
-    "submit": "Create and open",
-    "creating": "Creating…",
-    "errorUnknown": "Creation failed. Please try again.",
-    "noCategories": "This project has no categories yet. Go back and create a category before creating an element.",
-    "contextTitle": {
-      "chapter": "Create chapter",
-      "drift": "Create idea",
-      "element": "Create element"
-    },
-    "contextSubtitle": {
-      "chapter": "Leave the chapter unaffiliated for now or place it in an existing storyline.",
-      "drift": "Keep the idea at the root or place it in an existing idea group.",
-      "element": "Every element needs a category; its group can be organized later."
-    },
-    "kinds": {
-      "chapter": {
-        "label": "Chapter",
-        "description": "Start a prose chapter and optionally choose its storyline."
-      },
-      "drift": {
-        "label": "Idea",
-        "description": "Capture an idea that is not yet part of the manuscript."
-      },
-      "element": {
-        "label": "Element",
-        "description": "Create a character, place, object, or other reference."
-      },
-      "storyline": {
-        "label": "Storyline",
-        "description": "Create a narrative line and open its editor."
-      },
-      "category": {
-        "label": "Category",
-        "description": "Create a top-level classification for elements."
-      }
-    },
-    "fields": {
-      "storyline": "Storyline",
-      "driftGroup": "Idea group",
-      "categoryRequired": "Category (required)",
-      "elementGroup": "Element group"
-    },
-    "defaults": {
-      "unaffiliated": "Unaffiliated",
-      "root": "Root",
-      "chooseCategory": "Choose a category…",
-      "ungrouped": "Ungrouped"
-    }
   },
   "mobileTimeline": {
     "create": "New",
@@ -3457,6 +3404,66 @@
     "inactive": "Inactive",
     "enable": "Enable",
     "deleteConfirm": "Delete this memory? Later conversations will no longer read it."
+  },
+  "projectHome": {
+    "kicker": "Project Home",
+    "since": "Project Home · since {{date}}",
+    "views": {
+      "overview": "Overview",
+      "settings": "Settings"
+    },
+    "readout": "{{chapters}} chapters · {{storylines}} storylines · {{elements}} elements",
+    "words": "{{words}} words",
+    "wordsOfTarget": "{{words}} / {{target}} words",
+    "today": "Today {{today}} / {{goal}} · {{streak}}-day streak",
+    "todayNoGoal": "Today {{today}} · {{streak}}-day streak",
+    "todayShort": "Today {{today}}",
+    "continue": {
+      "title": "Continue",
+      "empty": "No chapters yet."
+    },
+    "book": {
+      "title": "The book",
+      "storylineCount": "{{done}} / {{total}} chapters",
+      "noStorylines": "No storylines yet."
+    },
+    "create": {
+      "title": "New",
+      "kinds": {
+        "chapter": "Chapter",
+        "drift": "Idea",
+        "element": "Element",
+        "storyline": "Storyline",
+        "category": "Category",
+        "material": "Material"
+      },
+      "picksLabel": {
+        "chapter": "Which storyline",
+        "drift": "Which group",
+        "element": "Which category",
+        "material": "Which kind of material"
+      },
+      "picks": {
+        "unaffiliated": "Unaffiliated",
+        "root": "Top level",
+        "newCategory": "Make a category first",
+        "text": "Text",
+        "image": "Image…",
+        "pdf": "PDF…"
+      },
+      "failed": "Not created: {{error}}",
+      "defaults": {
+        "storyline": "New storyline"
+      }
+    },
+    "agent": {
+      "placeholder": "Ask about the book, or hand the Agent a task…"
+    },
+    "settings": {
+      "projectTarget": "Book target",
+      "dailyGoal": "Daily goal",
+      "checkin": "Daily check-in"
+    }
   },
   "projectAgent": {
     "title": "Agent",

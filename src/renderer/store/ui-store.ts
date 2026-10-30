@@ -48,36 +48,7 @@ export function isSingletonTabType(t: TabEntityType): boolean {
 
 export type TabRef = WorkspaceTarget;
 
-export type UniversalCreateEntityKind =
-  | 'chapter'
-  | 'drift'
-  | 'element'
-  | 'storyline'
-  | 'category';
-
-export interface CreateTabDraft {
-  step: 'kind' | 'context';
-  entityKind: UniversalCreateEntityKind | null;
-  storylineId: string | null;
-  driftGroupId: string | null;
-  categoryId: string | null;
-  elementGroupName: string | null;
-  status: 'idle' | 'creating';
-  error: string | null;
-}
-
-export const CREATE_TAB_ID = 'universal-new';
-
-export interface CreateTab {
-  kind: 'create';
-  id: typeof CREATE_TAB_ID;
-  isPreview: boolean;
-  /** Session-only destination restored when an idle draft is closed. `null`
-   * means the draft was entered from Project Home; otherwise this is the
-   * exact content/split tab that owned focus at entry time. */
-  returnTabKey: string | null;
-  draft: CreateTabDraft;
-}
+export type ProjectHomeIntent = 'new' | 'home';
 
 // Leaf — a single entity occupying a tab slot. The on-screen rendering of
 // a leaf is whatever view component matches its entityType.
@@ -105,7 +76,7 @@ export interface SplitTab {
   splitRatio: number; // 0..1, fraction of width given to the left pane
 }
 
-export type AnyTab = LeafTab | SplitTab | CreateTab;
+export type AnyTab = LeafTab | SplitTab;
 
 // Backwards-compat alias for the pre-split-pane code that imported `Tab`.
 // New code should reference `LeafTab` or `AnyTab` directly.
@@ -131,7 +102,6 @@ export interface WorkspaceTabInventory {
 // that callers must opt-in to handle.
 export function tabKey(tab: AnyTab | TabRef): string {
   if ('kind' in tab && tab.kind === 'split') return `split:${tab.id}`;
-  if ('kind' in tab && tab.kind === 'create') return `create:${tab.id}`;
   return `${tab.entityType}:${tab.id}`;
 }
 
@@ -139,7 +109,6 @@ export function tabKey(tab: AnyTab | TabRef): string {
 // tab that's itself; for a split tab it's the side under `focused`.
 export function focusedLeafOf(tab: AnyTab): LeafTab | null {
   if (tab.kind === 'leaf') return tab;
-  if (tab.kind === 'create') return null;
   return tab.focused === 'left' ? tab.left : tab.right;
 }
 
@@ -151,10 +120,7 @@ export interface WorkspaceTabClosePlan {
 }
 
 /**
- * Resolves a tab close without mutating the store. Desktop navigation uses the
- * same plan to place the destination route before an active create draft is
- * removed, so Router and tab ownership cannot disagree for an intermediate
- * paint.
+ * Resolves a tab close without mutating the store.
  */
 export function planWorkspaceTabClose(
   project: ProjectTabsState,
@@ -162,8 +128,6 @@ export function planWorkspaceTabClose(
 ): WorkspaceTabClosePlan | null {
   const idx = project.openTabs.findIndex((tab) => tabKey(tab) === closingKey);
   if (idx < 0) return null;
-  const closing = project.openTabs[idx];
-  if (closing.kind === 'create' && closing.draft.status === 'creating') return null;
 
   const nextOpenTabs = project.openTabs.slice();
   nextOpenTabs.splice(idx, 1);
@@ -175,43 +139,15 @@ export function planWorkspaceTabClose(
     if (nextOpenTabs.length === 0) {
       nextActiveTabKey = null;
     } else {
-      const neighbor =
-        idx < nextOpenTabs.length ? nextOpenTabs[idx] : nextOpenTabs[nextOpenTabs.length - 1];
+      // Prefer the right neighbour, else the new last tab.
       const successor =
-        closing.kind === 'create'
-          ? closing.returnTabKey === null
-            ? null
-            : (nextOpenTabs.find((tab) => tabKey(tab) === closing.returnTabKey) ?? neighbor)
-          : neighbor;
-      nextActiveTabKey = successor ? tabKey(successor) : null;
-      nextActive = successor ? focusedLeafOf(successor) : null;
+        idx < nextOpenTabs.length ? nextOpenTabs[idx] : nextOpenTabs[nextOpenTabs.length - 1];
+      nextActiveTabKey = tabKey(successor);
+      nextActive = focusedLeafOf(successor);
     }
   }
 
   return { nextOpenTabs, nextActiveTabKey, nextActive, wasActive };
-}
-
-export function initialCreateTabDraft(): CreateTabDraft {
-  return {
-    step: 'kind',
-    entityKind: null,
-    storylineId: null,
-    driftGroupId: null,
-    categoryId: null,
-    elementGroupName: null,
-    status: 'idle',
-    error: null,
-  };
-}
-
-function makeCreateTab(returnTabKey: string | null): CreateTab {
-  return {
-    kind: 'create',
-    id: CREATE_TAB_ID,
-    isPreview: true,
-    returnTabKey,
-    draft: initialCreateTabDraft(),
-  };
 }
 
 function makeLeafTab(ref: TabRef, isPreview: boolean): LeafTab {
@@ -227,14 +163,14 @@ function withActiveTab(
     ? openTabs.find((tab) => tabKey(tab) === activeTabKey)
     : null;
   const previousLastStillExists = project.lastActiveContentTabKey
-    ? openTabs.some((tab) => tab.kind !== 'create' && tabKey(tab) === project.lastActiveContentTabKey)
+    ? openTabs.some((tab) => tabKey(tab) === project.lastActiveContentTabKey)
     : false;
-  const fallbackLast = [...openTabs].reverse().find((tab) => tab.kind !== 'create') ?? null;
+  const fallbackLast = openTabs[openTabs.length - 1] ?? null;
   return {
     openTabs,
     activeTabKey,
     lastActiveContentTabKey:
-      active && active.kind !== 'create'
+      active
         ? activeTabKey
         : previousLastStillExists
           ? project.lastActiveContentTabKey
@@ -271,12 +207,6 @@ function pruneTabsToWorkspace(
   const openTabs: AnyTab[] = [];
 
   for (const tab of project.openTabs) {
-    if (tab.kind === 'create') {
-      openTabs.push(tab);
-      if (tab === previousActive) replacementActiveKey = tabKey(tab);
-      if (tabKey(tab) === project.lastActiveContentTabKey) replacementLastContentKey = tabKey(tab);
-      continue;
-    }
     if (tab.kind === 'leaf') {
       if (!isLeafInWorkspace(tab, inventory)) continue;
       openTabs.push(tab);
@@ -306,7 +236,7 @@ function pruneTabsToWorkspace(
     project.activeTabKey === null
       ? null
       : replacementActiveKey ?? (openTabs[0] ? tabKey(openTabs[0]) : null);
-  const fallbackLast = [...openTabs].reverse().find((tab) => tab.kind !== 'create') ?? null;
+  const fallbackLast = openTabs[openTabs.length - 1] ?? null;
   return {
     openTabs,
     activeTabKey,
@@ -321,7 +251,7 @@ export function persistableTabsByProject(
 ): Record<string, ProjectTabsState> {
   const persisted: Record<string, ProjectTabsState> = {};
   for (const [projectId, project] of Object.entries(tabsByProject)) {
-    const openTabs = project.openTabs.filter((tab) => tab.kind !== 'create');
+    const openTabs = project.openTabs;
     const activeStillExists = openTabs.some((tab) => tabKey(tab) === project.activeTabKey);
     const lastStillExists = openTabs.some(
       (tab) => tabKey(tab) === project.lastActiveContentTabKey,
@@ -393,6 +323,7 @@ export function sanitizePersistedTabsByProject(
       if (!candidate || typeof candidate !== 'object') return;
       const tab = candidate as Record<string, unknown>;
       const oldKey = legacyTopLevelKey(tab);
+      // The retired 新建… tab was session-only; drop any left in old storage.
       if (tab.kind === 'create') return;
       if (tab.kind === 'split') {
         if (typeof tab.id !== 'string' || !tab.id) return;
@@ -660,18 +591,25 @@ interface UiState {
   lastActiveSuperView: 'element' | 'graph' | 'memo-material' | null;
   setLastActiveSuperView: (view: 'element' | 'graph' | 'memo-material' | null) => void;
 
+  // How the author last arrived at Project Home: from the dock's + or ⌘N
+  // ('new': the create row floats at the foot of the page until it is
+  // scrolled into place) or any other way ('home': the Agent floats instead).
+  // `seq` changes on every arrival, also onto a Home that is already showing.
+  projectHomeEntry: { intent: ProjectHomeIntent; seq: number };
+  markProjectHomeEntry: (intent: ProjectHomeIntent) => void;
+
   tabsByProject: Record<string, ProjectTabsState>;
-  openEntityTab: (projectId: string, ref: TabRef, options?: { preview?: boolean }) => void;
-  activateExistingTarget: (projectId: string, ref: TabRef) => boolean;
-  openCreateTab: (projectId: string) => void;
-  updateCreateTabDraft: (projectId: string, patch: Partial<CreateTabDraft>) => void;
-  replaceCreateTabWithEntity: (
+  // `activate: false` adds a dedicated tab behind the current one: a create
+  // that finished after the author had already moved on.
+  openEntityTab: (
     projectId: string,
     ref: TabRef,
-  ) => { replaced: boolean; wasActive: boolean };
+    options?: { preview?: boolean; activate?: boolean },
+  ) => void;
+  activateExistingTarget: (projectId: string, ref: TabRef) => boolean;
   promoteTab: (
     projectId: string,
-    ref?: TabRef | { createId: typeof CREATE_TAB_ID } | { splitId: string; side: 'left' | 'right' },
+    ref?: TabRef | { splitId: string; side: 'left' | 'right' },
   ) => void;
   // Close a top-level tab (either a leaf or a whole split). Returns:
   //   • nextActive — the leaf that should become active next so the URL /
@@ -685,12 +623,12 @@ interface UiState {
   //     active (or re-create a singleton tab when navigating home).
   closeTab: (
     projectId: string,
-    ref: TabRef | { splitId: string } | { createId: typeof CREATE_TAB_ID },
+    ref: TabRef | { splitId: string },
   ) => { nextActive: LeafTab | null; wasActive: boolean };
   reorderTabs: (projectId: string, fromIndex: number, toIndex: number) => void;
   setActiveTab: (
     projectId: string,
-    ref: TabRef | { splitId: string } | { createId: typeof CREATE_TAB_ID } | null,
+    ref: TabRef | { splitId: string } | null,
   ) => void;
   clearProjectTabs: (projectId: string) => void;
   pruneProjectTabs: (projectId: string, inventory: WorkspaceTabInventory) => void;
@@ -1101,6 +1039,10 @@ export const useUiStore = create<UiState>()(
       lastActiveSuperView: null,
       setLastActiveSuperView: (view) => set({ lastActiveSuperView: view }),
 
+      projectHomeEntry: { intent: 'home', seq: 0 },
+      markProjectHomeEntry: (intent) =>
+        set((state) => ({ projectHomeEntry: { intent, seq: state.projectHomeEntry.seq + 1 } })),
+
       tabsByProject: {},
 
       // Open an entity as a tab. Semantics differ based on the active tab:
@@ -1109,12 +1051,13 @@ export const useUiStore = create<UiState>()(
       //     A dedicated side leaves the split intact and uses the ordinary
       //     top-level preview slot. The other side is never a replacement slot.
       //
-      //   • Active is a LeafTab, CreateTab (or no active tab) → preserve the existing
+      //   • Active is a LeafTab (or no active tab) → preserve the existing
       //     preview-slot behaviour: an open dedicated tab is activated in
       //     place, a preview tab is replaced, otherwise append.
       openEntityTab: (projectId, ref, options) =>
         set((state) => {
           const preview = options?.preview ?? true;
+          const activate = options?.activate ?? true;
           const project = state.tabsByProject[projectId] ?? EMPTY_PROJECT_TABS;
           const newLeaf = makeLeafTab(ref, preview);
           const key = tabKey(newLeaf);
@@ -1126,6 +1069,7 @@ export const useUiStore = create<UiState>()(
               && (tabKey(tab.left) === key || tabKey(tab.right) === key),
           );
           if (existingIdx >= 0) {
+            if (!activate) return {};
             const existing = project.openTabs[existingIdx];
             const updated = existing.kind === 'split'
               ? { ...existing, focused: tabKey(existing.left) === key ? 'left' as const : 'right' as const }
@@ -1143,7 +1087,7 @@ export const useUiStore = create<UiState>()(
           // All Chapters opens at top level unless explicitly split.
           // Dedicated opens also use the ordinary top-level tab behavior.
           const active = project.openTabs.find((tab) => tabKey(tab) === project.activeTabKey);
-          if (!isSingletonTabType(ref.entityType) && preview
+          if (activate && !isSingletonTabType(ref.entityType) && preview
             && active?.kind === 'split' && active[active.focused].isPreview) {
             const updated: SplitTab = { ...active, [active.focused]: newLeaf };
             const openTabs = project.openTabs.map((tab) => tab === active ? updated : tab);
@@ -1159,31 +1103,20 @@ export const useUiStore = create<UiState>()(
           // top-level preview slot, without changing either split side.
           let nextOpenTabs: AnyTab[];
           if (preview) {
-            // Replace the existing entity/create preview in place, or append.
+            // Replace the existing preview in place, or append.
             // Splits never have isPreview, so they're naturally skipped.
             const previewIdx = project.openTabs.findIndex((t) => t.kind !== 'split' && t.isPreview);
-            if (previewIdx >= 0) {
-              nextOpenTabs = project.openTabs.slice();
-              nextOpenTabs[previewIdx] = newLeaf;
-            } else {
-              const createIdx = project.openTabs.findIndex((tab) => tab.kind === 'create');
-              nextOpenTabs = project.openTabs.slice();
-              nextOpenTabs.splice(createIdx >= 0 ? createIdx : nextOpenTabs.length, 0, newLeaf);
-            }
-          } else {
-            const createIdx = project.openTabs.findIndex((tab) => tab.kind === 'create');
             nextOpenTabs = project.openTabs.slice();
-            nextOpenTabs.splice(
-              createIdx >= 0 ? createIdx : nextOpenTabs.length,
-              0,
-              { ...newLeaf, isPreview: false },
-            );
+            if (previewIdx >= 0) nextOpenTabs[previewIdx] = newLeaf;
+            else nextOpenTabs.push(newLeaf);
+          } else {
+            nextOpenTabs = [...project.openTabs, { ...newLeaf, isPreview: false }];
           }
 
           return {
             tabsByProject: {
               ...state.tabsByProject,
-              [projectId]: withActiveTab(project, key, nextOpenTabs),
+              [projectId]: withActiveTab(project, activate ? key : project.activeTabKey, nextOpenTabs),
             },
           };
         }),
@@ -1227,110 +1160,14 @@ export const useUiStore = create<UiState>()(
         return activated;
       },
 
-      openCreateTab: (projectId) =>
-        set((state) => {
-          const project = state.tabsByProject[projectId] ?? EMPTY_PROJECT_TABS;
-          const existing = project.openTabs.find((tab) => tab.kind === 'create');
-          const active = project.activeTabKey
-            ? project.openTabs.find((tab) => tabKey(tab) === project.activeTabKey)
-            : null;
-          const returnTabKey =
-            active?.kind === 'create'
-              ? active.returnTabKey
-              : active
-                ? tabKey(active)
-                : null;
-          if (existing) {
-            const openTabs = project.openTabs.map((tab) =>
-              tab === existing ? { ...existing, returnTabKey } : tab,
-            );
-            return {
-              tabsByProject: {
-                ...state.tabsByProject,
-                [projectId]: withActiveTab(project, tabKey(existing), openTabs),
-              },
-            };
-          }
-          const createTab = makeCreateTab(returnTabKey);
-          // Share the single preview slot while keeping the create entry at
-          // the end of the strip. Dedicated leaves and splits remain open.
-          const openTabs = project.openTabs.filter((tab) => tab.kind === 'split' || !tab.isPreview);
-          openTabs.push(createTab);
-          return {
-            tabsByProject: {
-              ...state.tabsByProject,
-              [projectId]: {
-                ...withActiveTab(project, tabKey(createTab), openTabs),
-              },
-            },
-          };
-        }),
-
-      updateCreateTabDraft: (projectId, patch) =>
-        set((state) => {
-          const project = state.tabsByProject[projectId];
-          if (!project) return {};
-          let changed = false;
-          const openTabs = project.openTabs.map((tab) => {
-            if (tab.kind !== 'create') return tab;
-            changed = true;
-            return {
-              ...tab,
-              // Once a write starts, navigation must not discard its owner
-              // or its eventual result/error, even after a failed attempt.
-              isPreview: patch.status === 'creating' ? false : tab.isPreview,
-              draft: { ...tab.draft, ...patch },
-            };
-          });
-          if (!changed) return {};
-          return {
-            tabsByProject: {
-              ...state.tabsByProject,
-              [projectId]: { ...project, openTabs },
-            },
-          };
-        }),
-
-      replaceCreateTabWithEntity: (projectId, ref) => {
-        let replaced = false;
-        let wasActive = false;
-        set((state) => {
-          const project = state.tabsByProject[projectId];
-          if (!project) return {};
-          const createIdx = project.openTabs.findIndex((tab) => tab.kind === 'create');
-          if (createIdx < 0) return {};
-          const createKey = tabKey(project.openTabs[createIdx]);
-          const leaf = makeLeafTab(ref, false);
-          const openTabs = project.openTabs.slice();
-          openTabs[createIdx] = leaf;
-          replaced = true;
-          wasActive = project.activeTabKey === createKey;
-          return {
-            tabsByProject: {
-              ...state.tabsByProject,
-              [projectId]: {
-                ...withActiveTab(
-                  project,
-                  wasActive ? tabKey(leaf) : project.activeTabKey,
-                  openTabs,
-                ),
-              },
-            },
-          };
-        });
-        return { replaced, wasActive };
-      },
-
       promoteTab: (projectId, ref) =>
         set((state) => {
           const project = state.tabsByProject[projectId];
           if (!project) return {};
           const targetKey = ref
-            ? 'createId' in ref
-              ? `create:${ref.createId}`
-              : 'splitId' in ref
-                ? `split:${ref.splitId}`
-                : tabKey(ref)
+            ? 'splitId' in ref
+              ? `split:${ref.splitId}`
+              : tabKey(ref)
             : project.activeTabKey;
           if (!targetKey) return {};
           const idx = project.openTabs.findIndex((t) =>
@@ -1367,12 +1204,7 @@ export const useUiStore = create<UiState>()(
         set((state) => {
           const project = state.tabsByProject[projectId];
           if (!project) return {};
-          const key =
-            'splitId' in ref
-              ? `split:${ref.splitId}`
-              : 'createId' in ref
-                ? `create:${ref.createId}`
-                : `${ref.entityType}:${ref.id}`;
+          const key = 'splitId' in ref ? `split:${ref.splitId}` : `${ref.entityType}:${ref.id}`;
           const plan = planWorkspaceTabClose(project, key);
           if (!plan) return {};
           ({ nextActive, wasActive } = plan);
@@ -1403,14 +1235,9 @@ export const useUiStore = create<UiState>()(
           ) {
             return {};
           }
-          if (project.openTabs[fromIndex].kind === 'create') return {};
-          const createIdx = project.openTabs.findIndex((tab) => tab.kind === 'create');
-          const boundedToIndex =
-            createIdx >= 0 ? Math.max(0, Math.min(toIndex, createIdx - 1)) : toIndex;
-          if (fromIndex === boundedToIndex) return {};
           const nextOpenTabs = project.openTabs.slice();
           const [moved] = nextOpenTabs.splice(fromIndex, 1);
-          nextOpenTabs.splice(boundedToIndex, 0, moved);
+          nextOpenTabs.splice(toIndex, 0, moved);
           return {
             tabsByProject: {
               ...state.tabsByProject,
@@ -1425,7 +1252,6 @@ export const useUiStore = create<UiState>()(
           let nextKey: string | null;
           if (!ref) nextKey = null;
           else if ('splitId' in ref) nextKey = `split:${ref.splitId}`;
-          else if ('createId' in ref) nextKey = `create:${ref.createId}`;
           else nextKey = `${ref.entityType}:${ref.id}`;
           if (project.activeTabKey === nextKey) return {};
           return {
@@ -1518,16 +1344,6 @@ export const useUiStore = create<UiState>()(
           }
 
           const active = workingTabs[activeIdx];
-          if (active.kind === 'create') {
-            const insertionIdx = activeIdx;
-            workingTabs.splice(insertionIdx, 0, sourceLeaf);
-            return {
-              tabsByProject: {
-                ...state.tabsByProject,
-                [projectId]: withActiveTab(project, tabKey(sourceLeaf), workingTabs),
-              },
-            };
-          }
           let newSplit: SplitTab;
           let displacedLeaf: LeafTab | null = null;
           if (active.kind === 'leaf') {
@@ -1716,11 +1532,7 @@ export const useUiStore = create<UiState>()(
           if (!project) return {};
           const keep = project.openTabs.find((t) => tabKey(t) === keepKey);
           if (!keep) return {};
-          const protectedCreate = project.openTabs.find(
-            (tab) => tab.kind === 'create' && tab.draft.status === 'creating',
-          );
-          const openTabs =
-            protectedCreate && protectedCreate !== keep ? [keep, protectedCreate] : [keep];
+          const openTabs = [keep];
           nextActive = focusedLeafOf(keep);
           return {
             tabsByProject: {
@@ -1740,12 +1552,6 @@ export const useUiStore = create<UiState>()(
           const idx = project.openTabs.findIndex((t) => tabKey(t) === anchorKey);
           if (idx < 0) return {};
           const nextOpenTabs = project.openTabs.slice(0, idx + 1);
-          const protectedCreate = project.openTabs.find(
-            (tab) => tab.kind === 'create' && tab.draft.status === 'creating',
-          );
-          if (protectedCreate && !nextOpenTabs.includes(protectedCreate)) {
-            nextOpenTabs.push(protectedCreate);
-          }
           let nextActiveTabKey = project.activeTabKey;
           if (
             project.activeTabKey &&
@@ -1768,19 +1574,10 @@ export const useUiStore = create<UiState>()(
         set((state) => {
           const project = state.tabsByProject[projectId];
           if (!project) return {};
-          const protectedCreate = project.openTabs.find(
-            (tab) => tab.kind === 'create' && tab.draft.status === 'creating',
-          );
           return {
             tabsByProject: {
               ...state.tabsByProject,
-              [projectId]: protectedCreate
-                ? withActiveTab(
-                    project,
-                    project.activeTabKey === null ? null : tabKey(protectedCreate),
-                    [protectedCreate],
-                  )
-                : { openTabs: [], activeTabKey: null, lastActiveContentTabKey: null },
+              [projectId]: { openTabs: [], activeTabKey: null, lastActiveContentTabKey: null },
             },
           };
         }),
@@ -1800,7 +1597,6 @@ export const useUiStore = create<UiState>()(
           // active-tab key with the same "prefer right neighbor" rule
           // closeTab uses.
           const replacements: Array<AnyTab | null> = project.openTabs.map((tab) => {
-            if (tab.kind === 'create') return tab;
             if (tab.kind === 'leaf') {
               return matchesLeaf(tab) ? null : tab;
             }

@@ -9,12 +9,14 @@ On desktop, Home keeps the complete workspace chrome and is represented by a
 null active tab. Background tabs remain open. The desktop shelf supplies a
 one-shot resume marker for existing projects; after Project Runtime has pruned
 stale tabs, the shell resumes `lastActiveContentTabKey` or stays on Home. Direct
-root navigation always means Home. Universal Create uses `/new` and remains a
-session-only tab. Activating Universal Create from Home is a forward navigation
-transition: the tab-store update may render before the router reaches `/new`,
-so that intermediate Home frame must not clear the newly active create tab.
-The header Home action derives its active ink state from the root route, so it
-turns active as soon as the Dashboard is visible. Ordinary tab clicks retain
+root navigation always means Home. Creating happens on Home (the former
+session-only 新建… tab and its `/new` route are retired; `/new` redirects
+Home): the dock's `+` and `⌘N` arrive with the create row floating at the foot
+of the page, every other arrival floats the Agent, and Home scrolls to the top
+each time. The structure, the floating sets and the create flow are specified
+in `design-system/components.md` (「作品主页」) and
+`renderer-ui-architecture.md` (Project Home create). The account cell's Home
+action derives its active ink state from the root route, so it turns active as soon as the Dashboard is visible. Ordinary tab clicks retain
 their established activation semantics; in particular, preview-tab clicks are
 not overloaded as a Home toggle.
 
@@ -31,7 +33,7 @@ navigation path.
 
 Both platforms open with a General Agent entry and the check-in cards the
 Agent prepared from recent changes (`agent-runtime/project-checkin.md`), and
-both edit the project's `PROJECT_MEMORY.md` (desktop: Structure tab; mobile:
+both edit the project's `PROJECT_MEMORY.md` (desktop: the 设定 view; mobile:
 end of the Home flow; see `agent-runtime/domain-crud-transaction-protocol.md`
 §9). The mobile entry opens the full-screen voice Agent surface.
 
@@ -45,8 +47,8 @@ Machine acceptance:
 ```bash
 pnpm exec vitest run src/renderer/app/project-home.acceptance.test.ts \
   src/renderer/store/project-checkin-store.test.ts \
-  src/renderer/components/editor/useSyncSplitFocusedUrl.test.ts \
-  src/renderer/shells/desktop/entity-create/desktop-universal-create.acceptance.test.ts \
+  src/renderer/shells/desktop/project-home/project-home-create.acceptance.test.ts \
+  src/renderer/shells/desktop/project-home/home-create.test.ts \
   src/renderer/store/ui-store.workspace-tabs.test.ts \
   src/renderer/shells/mobile/workspace/mobile-workspace-controller.test.ts \
   src/renderer/shells/mobile/workspace/mobile-workspace-session-storage.test.ts

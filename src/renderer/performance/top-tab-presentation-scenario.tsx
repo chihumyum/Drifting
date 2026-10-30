@@ -23,8 +23,8 @@ export async function runTopTabPresentationScenario() {
   const savedData = useDataStore.getState(); const savedUi = useUiStore.getState(); const profiles = [];
   const translation = i18next.createInstance();
   await translation.init({ lng: 'en', resources: {
-    en: { translation: { topTimeline: { untitled: { chapter: 'Untitled chapter', drift: 'Untitled drift' }, newTab: 'New tab', singletons: { allChapters: 'All chapters' } } } },
-    zh: { translation: { topTimeline: { untitled: { chapter: '未命名章节', drift: '未命名构想' }, newTab: '新建', singletons: { allChapters: '全部章节' } } } },
+    en: { translation: { topTimeline: { untitled: { chapter: 'Untitled chapter', drift: 'Untitled drift' }, singletons: { allChapters: 'All chapters' } } } },
+    zh: { translation: { topTimeline: { untitled: { chapter: '未命名章节', drift: '未命名构想' }, singletons: { allChapters: '全部章节' } } } },
   } });
   for (const nodes of [100, 1000, 5000]) for (const tabCount of [1, 5, 20]) {
     const projectId = 'synthetic-tab-project'; const data = createWorkspaceSharingFixture(projectId, nodes); let generation = 'generation-1';
@@ -47,7 +47,7 @@ export async function runTopTabPresentationScenario() {
     try {
       reset(); publish(); setTabs(tabs);
       flushSync(() => root.render(<MemoryRouter initialEntries={[`/project/${projectId}`]}><I18nextProvider i18n={translation}>
-        <WorkspaceNavigationProvider navigator={navigator}><DesktopTabCloseContext.Provider value={tab => { closed.push(tabKey(tab)); useUiStore.getState().closeTab(projectId, tab.kind === 'split' ? { splitId: tab.id } : tab.kind === 'create' ? { createId: tab.id } : tab); }}>
+        <WorkspaceNavigationProvider navigator={navigator}><DesktopTabCloseContext.Provider value={tab => { closed.push(tabKey(tab)); useUiStore.getState().closeTab(projectId, tab.kind === 'split' ? { splitId: tab.id } : tab); }}>
           <TopTimeline />
         </DesktopTabCloseContext.Provider></WorkspaceNavigationProvider>
       </I18nextProvider></MemoryRouter>));
@@ -103,17 +103,13 @@ export async function runTopTabPresentationScenario() {
       const splitLabels = splitText.includes('Untitled drift') && splitText.includes(data.bookElements[0].name);
       const singletonLabel = elementFor('all-chapters:self').textContent?.includes('All chapters') === true;
       const splitWidths = widths();
-      // Create-tab state remains a UI-store draft; a data publication cannot reset it.
-      flushSync(() => { useUiStore.getState().openCreateTab(projectId); useUiStore.getState().updateCreateTabDraft(projectId, { entityKind: 'element', step: 'context' }); });
-      publish(); const draft = useUiStore.getState().tabsByProject[projectId].openTabs.find(tab => tab.kind === 'create');
-      const createDraftPreserved = draft?.kind === 'create' && draft.draft.entityKind === 'element' && draft.draft.step === 'context';
       setTabs([tabs[0]]); click(elementFor(tabKey(tabs[0])).querySelector<HTMLButtonElement>('button')!);
       const closeWorks = closed[0] === tabKey(tabs[0]) && !container.querySelector('[data-tab-key]');
       flushSync(() => root.unmount()); reset(); data.bookNodes = [...data.bookNodes]; publish(); const unmounted = measure();
       profiles.push({ nodes, tabCount, updates: 100, initialWidths, renameWidths, narrowWidths, splitWidths,
         metrics, unrelatedBodies, outsideRename, colorChange, rename, generationChange, requestOnly, dragWork, dragTrace, unmounted,
         checks: { metricsKeepWidths, colorApplied, colorsKeepWidths, renamed, foreignHidden, projectReturns,
-          englishFallback, chineseFallback, driftFallback, navigationWorks, reorderWorks, splitLabels, singletonLabel, createDraftPreserved, closeWorks } });
+          englishFallback, chineseFallback, driftFallback, navigationWorks, reorderWorks, splitLabels, singletonLabel, closeWorks } });
     } finally { flushSync(() => root.unmount()); container.remove(); useDataStore.setState(savedData, true); useUiStore.setState(savedUi, true); }
   }
   return { build: 'production-React-mounted-top-tab-strip-Chromium', profiles,

@@ -27,7 +27,7 @@ describe('Project Home cross-platform acceptance', () => {
   });
   it('keeps Home outside the shared content target and exposes explicit navigation', () => {
     const target = read('src/renderer/features/workspace/navigation/workspace-target.ts');
-    expect(target).toContain('showProjectHome(options?: { replace?: boolean }): void');
+    expect(target).toContain("showProjectHome(options?: { replace?: boolean; intent?: 'new' | 'home' }): void");
     expect(target).not.toContain("| 'dashboard'");
   });
 
@@ -37,7 +37,7 @@ describe('Project Home cross-platform acceptance', () => {
     const navigation = read('src/renderer/components/workspaceChrome/WorkspaceAccountControls.tsx');
     expect(read('src/renderer/app/project-route-components.tsx')).toContain('<EditorShell view="project-home">');
     expect(routes).toContain('<Route path="home" element={<Navigate to=".." replace />} />');
-    expect(routes).toContain('<Route path="new" element={null} />');
+    expect(routes).toContain('<Route path="new" element={<Navigate to=".." replace />} />');
     expect(main).not.toContain('<EmptyEditorState');
     expect(navigation).toContain('aria-pressed={homeActive}');
     expect(navigation).toContain("activeSuperView === 'none' && isProjectHomePathname(projectId, location.pathname)");
@@ -83,6 +83,7 @@ describe('Project Home cross-platform acceptance', () => {
 
   it('opens Project Home with the General Agent entry, check-in cards and Project Memory', () => {
     const dashboard = read('src/renderer/views/ProjectDashboard.tsx');
+    const desktopAgent = read('src/renderer/shells/desktop/project-home/HomeAgent.tsx');
     const flow = read('src/renderer/shells/mobile/workspace/MobileProjectFlow.tsx');
     const home = read('src/renderer/shells/mobile/workspace/MobileProjectHome.tsx');
     const shell = read('src/renderer/shells/mobile/MobileAppShell.tsx');
@@ -91,9 +92,14 @@ describe('Project Home cross-platform acceptance', () => {
     const store = read('src/renderer/store/project-checkin-store.ts');
     const runner = read('src/renderer/lib/agent/checkin/checkin-runner.ts');
 
-    // Desktop: the Agent entry leads Overview; Project Memory sits in Structure.
-    expect(dashboard).toContain('openAgent={revealDesktopAgentView}');
-    expect(dashboard.indexOf('<ProjectAgentHome')).toBeLessThan(dashboard.indexOf('className="dash-chips"'));
+    // Desktop: the Agent follows the work and the create row in Overview, its
+    // cards above its box; Project Memory sits in 设定, a link away.
+    expect(read('src/renderer/shells/desktop/project-home/useHomeAgent.ts')).toContain(
+      'startCheckinCardSession(projectId, card, revealDesktopAgentView)',
+    );
+    expect(desktopAgent.indexOf('home-agent__cards')).toBeLessThan(desktopAgent.indexOf('<Composer agent={agent} inputRef={inputRef} showHint />'));
+    expect(dashboard.indexOf('<HomeWork />')).toBeLessThan(dashboard.indexOf('<HomeCreateTiles'));
+    expect(dashboard.indexOf('<HomeCreateTiles')).toBeLessThan(dashboard.indexOf('<HomeAgentFlow'));
     expect(dashboard).toContain('<ProjectMemoryEditor projectId={currentProject.id} />');
     // Mobile: the entry opens the full-screen voice Agent surface.
     expect(shell).toContain('onOpenAgent={openVoice}');

@@ -106,47 +106,22 @@ describe('desktop editor continuity acceptance', () => {
     expect(nodeEditor).toContain('onReadyChange={reportReady}');
   });
 
-  it('keeps the create surface until tab activation and creation routes commit', () => {
+  it('activates tabs through the shell navigator now that creating lives on Project Home', () => {
     const navigator = source(
       'src/renderer/shells/desktop/navigation/useDesktopWorkspaceNavigator.ts',
-    );
-    const completion = source(
-      'src/renderer/shells/desktop/navigation/DesktopCreateCompletionTransition.ts',
-    );
-    const boundary = source(
-      'src/renderer/shells/desktop/navigation/DesktopWorkspaceNavigationBoundary.tsx',
     );
     const timeline = source('src/renderer/components/topBars/TopTimeline/TopTimeline.tsx');
     const shortcuts = source('src/renderer/shells/desktop/useDesktopGlobalShortcuts.ts');
     const routeSync = source('src/renderer/components/editor/useSyncSplitFocusedUrl.ts');
-    const createView = source(
-      'src/renderer/shells/desktop/entity-create/DesktopUniversalCreateView.tsx',
-    );
-    const architecture = source('docs/renderer-ui-architecture.md');
 
-    expect(navigator).toContain('pendingCreateTransitionRef.current = {');
-    expect(navigator).toContain("if (pending.kind === 'target')");
-    expect(navigator).toContain('commitTarget(pending.target, pending.preview);');
+    expect(navigator).not.toContain('pendingCreateTransitionRef');
+    expect(navigator).toContain("state.markProjectHomeEntry(options?.intent ?? 'home');");
     expect(timeline).toContain('if (target) activateLeafTab(target);');
     expect(timeline).toContain('activateLeafTab(leaf);');
+    expect(timeline).toContain("navigateToHome({ intent: 'new' })");
     expect(shortcuts).toContain('if (target) navigator.activate(target);');
+    expect(shortcuts).toContain("navigator.showProjectHome({ intent: 'new' });");
     expect(routeSync).toContain('navigator.open(target);');
-
-    expect(completion.indexOf('pendingRef.current = { target, pathname };')).toBeLessThan(
-      completion.lastIndexOf('navigate(pathname);'),
-    );
-    const activeCompletion = completion.slice(
-      completion.indexOf('if (location.pathname !== pending.pathname)'),
-    );
-    expect(activeCompletion.indexOf('location.pathname !== pending.pathname')).toBeLessThan(
-      activeCompletion.indexOf('state.replaceCreateTabWithEntity(projectId, pending.target);'),
-    );
-    expect(boundary).toContain(
-      '<DesktopCreateCompletionContext.Provider value={completeCreateTab}>',
-    );
-    expect(createView).toContain('completeCreateTab(target);');
-    expect(createView).not.toContain('replaceCreateTabWithEntity');
-    expect(architecture).toContain('Every outbound transition from an active');
-    expect(architecture).toContain('destination surface reports ready');
+    expect(routeSync).not.toContain('/new');
   });
 });

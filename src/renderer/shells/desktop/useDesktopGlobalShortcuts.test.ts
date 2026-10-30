@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { WorkspaceNavigator, WorkspaceTarget } from '../../features/workspace/navigation/workspace-target';
-import { CREATE_TAB_ID, tabKey, useUiStore } from '../../store/ui-store';
+import { tabKey, useUiStore } from '../../store/ui-store';
 import { useShortcutsStore } from '../../store/shortcuts-store';
 import { useDesktopGlobalShortcuts } from './useDesktopGlobalShortcuts';
 
@@ -101,17 +101,14 @@ describe('desktop top-tab keyboard acceptance', () => {
     expect(navigator.activate).toHaveBeenCalledTimes(2);
   });
 
-  it('activates the focused leaf of a split and routes to an existing create draft', () => {
+  it('activates the focused leaf of a split', () => {
     useUiStore.getState().splitActiveWith(projectId, { entityType: 'node', id: 'd' }, 'right');
     const splitKey = activeKey();
-    useUiStore.getState().openCreateTab(projectId);
+    dispatch({ key: 'ArrowRight', altKey: true });
     dispatch({ key: '{', shiftKey: true });
     expect(navigator.activate).toHaveBeenLastCalledWith(expect.objectContaining({ id: 'd' }));
     expect(activeKey()).toBe(splitKey);
-    dispatch({ key: 'ArrowRight', altKey: true });
-    expect(activeKey()).toBe(`create:${CREATE_TAB_ID}`);
-    expect(navigate).toHaveBeenCalledWith(`/project/${projectId}/new`);
-    expect(useUiStore.getState().tabsByProject[projectId].openTabs.map(tabKey)).toHaveLength(4);
+    expect(useUiStore.getState().tabsByProject[projectId].openTabs.map(tabKey)).toHaveLength(3);
   });
 
   it('keeps customized bindings alongside the bracket aliases', () => {

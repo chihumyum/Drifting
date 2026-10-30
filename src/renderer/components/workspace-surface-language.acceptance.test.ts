@@ -1028,7 +1028,7 @@ describe('workspace surface language acceptance', () => {
     expect(block(controls, '.filter-chip--pill {', '.filter-chip--square {')).toContain(
       'border-radius: var(--radius-xs);',
     );
-    expect(block(dashboard, '.dash-hero {', '.dash-hero__kicker {')).toMatch(
+    expect(block(dashboard, '.dash-continue {', '.dash-continue__head {')).toMatch(
       /border-radius:\s*2px;[\s\S]*?box-shadow:\s*none;/,
     );
     expect(block(picker, '.pp-card {', '.pp-card__body {')).toMatch(
@@ -1220,8 +1220,6 @@ describe('workspace surface language acceptance', () => {
     // text or a one-character string; inside a sentence they are punctuation.
     const lone = /^\s*[×+→←↑↓…]\s*$|>\s*[×+→←↑↓…]\s*<|['"`][×→←↓§⌘]['"`]/u;
     const allowed: [string, RegExp][] = [
-      // Project Home's 「全部章节」 waits for the Home page rework.
-      ['views/ProjectDashboard.tsx', /☰/u],
       // Only rendered in the paused mobile shell (`mobileActions={mobileShell}`).
       ['features/library/LibraryItemCard.tsx', /^\s*\w+: '[＋→↗×]',$/u],
       // Shortcut text: the plus between two keys.

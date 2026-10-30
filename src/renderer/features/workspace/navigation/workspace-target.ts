@@ -20,6 +20,10 @@ export interface WorkspaceNavigator {
   projectId: string;
   open(target: WorkspaceTarget, options?: { preview?: boolean }): void;
   activate(target: WorkspaceTarget): void;
-  showProjectHome(options?: { replace?: boolean }): void;
+  /**
+   * `intent: 'new'` is the dock's + and ⌘N: Home opens with its create row
+   * floating at the foot of the page. Every other arrival floats the Agent.
+   */
+  showProjectHome(options?: { replace?: boolean; intent?: 'new' | 'home' }): void;
   leaveDeletedTarget(): void;
 }
