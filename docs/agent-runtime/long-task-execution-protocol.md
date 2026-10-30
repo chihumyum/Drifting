@@ -1,7 +1,7 @@
 # Durable long-task execution protocol
 
 Status: normative for Milestone E and later
-Updated: 2026-08-26
+Updated: 2026-10-31
 
 This protocol defines how one Drifting Agent carries a writing task across
 model iterations, context compaction, budget slices, author steering, safe
@@ -104,7 +104,18 @@ task `workKind`, and the current manifest comparison must be `current`. Only
 then may task status become `completed`.
 
 For `workKind=edit`, `resultRef` must resolve to accepted or automatically
-authorized durable write evidence for that exact target. For `workKind=review`,
+authorized durable write evidence for that exact target. The provider omits
+`resultRef`; Drifting binds the newest write no other step has claimed, and
+each write completes at most one step. A write counts for its own object and
+for the objects it is anchored to: an element change for the chapter it names
+as its source chapter, a relation for both ends. Eligible writes start when the
+author request that created the checklist began, so a checklist created in a
+later automatic-continuation slice adopts writes an earlier slice of the same
+request saved; a new author request starts afresh. When nothing qualifies, the
+error names the step's target and the saved changes no step has claimed, and
+points the Agent to `append_steps` for work saved to other objects.
+
+For `workKind=review`,
 the provider omits `resultRef`, reads the exact target first, and submits a
 structured `reviewResult`. The renderer locates the latest target read,
 verifies its content hash and pagination receipts, validates every claim and
