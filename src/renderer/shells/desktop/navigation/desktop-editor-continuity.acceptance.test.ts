@@ -96,7 +96,8 @@ describe('desktop editor continuity acceptance', () => {
       visibleNode.indexOf('<PlotPlannerDock'),
       visibleNode.indexOf('<div className="editor-body"'),
     );
-    expect(plannerDock).toContain('key={`plot-planner:${nodeId}`}');
+    // The revision remounts the planner on a grid written from outside it.
+    expect(plannerDock).toContain('key={`plot-planner:${nodeId}:${plotGridRevision}`}');
     expect(plannerDock).not.toContain('key={nodeId}');
     expect(proseBody.indexOf('isActiveNodeReady && !isActiveNodeLoadError ? (')).toBeLessThan(
       proseBody.indexOf('<ChapterEditor'),

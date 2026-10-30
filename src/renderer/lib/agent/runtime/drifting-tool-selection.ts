@@ -75,6 +75,20 @@ const WRITE_PREREQUISITE_READS: Readonly<Record<string, readonly string[] | unde
     delete_comment: Object.freeze(['list_comments']),
     update_project_memory: Object.freeze(['list_project_memory']),
     delete_project_memory: Object.freeze(['list_project_memory']),
+    revise_material_note: Object.freeze(['read_material']),
+    replace_material_note_body: Object.freeze(['read_material']),
+    update_material: Object.freeze(['list_materials']),
+    update_material_folder: Object.freeze(['list_materials']),
+    delete_material_folder: Object.freeze(['list_materials']),
+    create_act: Object.freeze(['read_book_structure']),
+    update_act: Object.freeze(['read_book_structure']),
+    delete_act: Object.freeze(['read_book_structure']),
+    move_chapter: Object.freeze(['read_book_structure']),
+    set_timeline_position: Object.freeze(['read_book_structure']),
+    create_timeline_marker: Object.freeze(['read_book_structure']),
+    update_timeline_marker: Object.freeze(['read_book_structure']),
+    delete_timeline_marker: Object.freeze(['read_book_structure']),
+    write_plot_grid: Object.freeze(['read_plot_grid']),
   });
 
 const REDUNDANT_DIRECTORY_READS_AFTER_SUCCESS: Readonly<

@@ -534,4 +534,98 @@ export const DRIFTING_DOMAIN_TOOL_SEARCH_METADATA: ToolSearchMetadataByName = {
   delete_element_patch: {
     searchIntents: ['delete an element evolution patch', '删除要素演变补丁', '移除状态变化记录'],
   },
+  create_material_note: {
+    searchIntents: [
+      'write a research note',
+      'save findings as a material note',
+      '新建研究笔记',
+      '把资料整理成笔记',
+      '记一篇素材笔记',
+    ],
+  },
+  revise_material_note: {
+    searchIntents: ['edit part of a research note', '修改素材笔记的一段', '更新研究笔记'],
+  },
+  replace_material_note_body: {
+    searchIntents: ['rewrite a whole research note', '整篇重写素材笔记', '重新整理笔记全文'],
+  },
+  update_material: {
+    searchIntents: [
+      'rename or file a material into a folder',
+      'describe an image or pdf material',
+      '整理素材到文件夹',
+      '重命名素材',
+      '给图片或 PDF 写说明',
+    ],
+  },
+  create_material_folder: {
+    searchIntents: ['create a material folder', '新建素材文件夹', '给资料建分类目录'],
+  },
+  update_material_folder: {
+    searchIntents: ['rename or move a material folder', '重命名素材文件夹', '移动素材文件夹'],
+  },
+  delete_material_folder: {
+    searchIntents: ['remove a material folder', '删除素材文件夹', '撤掉一个资料目录'],
+  },
+  read_book_structure: {
+    searchIntents: [
+      'see acts and reading order',
+      'see the story timeline',
+      '查看分幕与章节顺序',
+      '查看叙事时间线',
+      '全书结构',
+    ],
+  },
+  create_act: {
+    searchIntents: ['split the book into acts', 'start a new act at a chapter', '新建一幕', '分幕', '划分幕'],
+  },
+  update_act: {
+    searchIntents: ['rename an act', 'move an act boundary', '重命名一幕', '调整分幕线'],
+  },
+  delete_act: {
+    searchIntents: ['remove an act boundary', '删除一幕', '取消分幕'],
+  },
+  move_chapter: {
+    searchIntents: ['reorder chapters', 'move a chapter after another', '调整章节顺序', '把这一章挪到', '移动章节到另一幕'],
+  },
+  set_timeline_position: {
+    searchIntents: [
+      'place a chapter on the story timeline',
+      'set when a scene happens',
+      '放到叙事时间线上',
+      '调整故事时间顺序',
+      '设置章节发生时间',
+    ],
+  },
+  create_timeline_marker: {
+    searchIntents: ['add a date marker to the timeline', '添加时间刻度', '在时间线上标注年份'],
+  },
+  update_timeline_marker: {
+    searchIntents: ['rename or move a timeline marker', '修改时间刻度', '移动时间刻度'],
+  },
+  delete_timeline_marker: {
+    searchIntents: ['remove a timeline marker', '删除时间刻度'],
+  },
+  view_material: {
+    searchIntents: [
+      'look at an image material',
+      'read text in a scanned pdf page',
+      'describe a reference photo',
+      '看一下这张图片',
+      '识别扫描件上的文字',
+      '看看这页 PDF',
+    ],
+  },
+  read_plot_grid: {
+    searchIntents: ['read a chapter plot grid', 'see the chapter planning table', '查看情节表', '读取这一章的规划表'],
+  },
+  write_plot_grid: {
+    searchIntents: [
+      'fill in the chapter plot grid',
+      'plan a chapter in its grid',
+      '填写情节表',
+      '更新章节规划表',
+      '把大纲写进情节表',
+    ],
+  },
 };

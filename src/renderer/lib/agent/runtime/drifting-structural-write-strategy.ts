@@ -132,7 +132,7 @@ type ExpectedEntityKind =
 
 type StructuralEntityWriteKind = Exclude<
   AgentRuntimeEntityWriteKind,
-  'project' | 'storyline_membership' | 'memory'
+  'project' | 'storyline_membership' | 'memory' | 'authoring_scope'
 >;
 
 type StructuralMutation =
@@ -1694,7 +1694,8 @@ async function restoreDeletedEntity(
   if (
     preimage.kind === 'project' ||
     preimage.kind === 'storyline_membership' ||
-    preimage.kind === 'memory'
+    preimage.kind === 'memory' ||
+    preimage.kind === 'authoring_scope'
   ) {
     throw new Error(`${preimage.kind} cannot be restored through a structural entity delete`);
   }

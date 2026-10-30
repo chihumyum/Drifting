@@ -210,8 +210,19 @@ export function isCanonicalAgentRuntimeUnknownToolResult(result: AgentToolResult
   );
 }
 
+/**
+ * An image a one-shot request shows the model (`lifecycle: 'single_request'`).
+ * Images never enter durable conversation context: a tool that needs vision
+ * asks in its own request and returns text.
+ */
+export interface AgentModelImageInput {
+  mediaType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif';
+  /** Base64 without a data: prefix. */
+  data: string;
+}
+
 export type AgentModelMessage =
-  | { role: 'user'; content: string }
+  | { role: 'user'; content: string; images?: readonly AgentModelImageInput[] }
   | { role: 'assistant'; content: AgentAssistantContentBlock[] }
   | { role: 'tool'; content: AgentToolResultBlock[] };
 

@@ -317,6 +317,11 @@ export function normalizeAgentProviderEffort(
     : reasoning.defaultEffort;
 }
 
+/** Providers whose certified Agent wire contract accepts image input. */
+export function agentProviderAcceptsImages(provider: unknown): boolean {
+  return provider === 'openai' || provider === 'openai-codex' || provider === 'anthropic';
+}
+
 export function isAgentProviderId(value: unknown): value is AgentProviderId {
   return AGENT_PROVIDER_OPTIONS.some((candidate) => candidate.value === value);
 }

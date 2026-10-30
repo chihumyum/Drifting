@@ -401,7 +401,22 @@ function projectCanonicalMessage(
   message: AgentModelMessage,
   replayByCallId: ReadonlyMap<string, readonly ResponsesItem[]>,
 ): ResponsesItem[] {
-  if (message.role === 'user') return [{ role: 'user', content: message.content }];
+  if (message.role === 'user') {
+    if (!message.images?.length) return [{ role: 'user', content: message.content }];
+    return [
+      {
+        role: 'user',
+        content: [
+          { type: 'input_text', text: message.content },
+          ...message.images.map((image) => ({
+            type: 'input_image',
+            image_url: `data:${image.mediaType};base64,${image.data}`,
+            detail: 'high',
+          })),
+        ],
+      },
+    ];
+  }
   if (message.role === 'tool') {
     return message.content.map((result) => ({
       type: 'function_call_output',

@@ -357,10 +357,17 @@ export type AgentRuntimeTaskCommand =
   | AgentRuntimeTaskStepCommand
   | AgentRuntimeTaskConstraintCommand;
 
+/** An appended step that matched an existing step's target and was not added. */
+export interface AgentRuntimeTaskMergedStep {
+  requestedTitle: string;
+  stepId: string;
+}
+
 export interface AgentRuntimeTaskCommandResult {
   outcome: 'inserted' | 'duplicate';
   plan: AgentRuntimeTaskPlan;
   changedStepId?: string;
+  mergedSteps?: AgentRuntimeTaskMergedStep[];
   changedConstraintId?: string;
   manifestReconciliation?: AgentRuntimeTaskManifestReconciliationResult;
 }

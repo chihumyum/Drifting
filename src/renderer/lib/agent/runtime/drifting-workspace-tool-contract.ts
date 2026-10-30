@@ -26,6 +26,9 @@ export const DRIFTING_DOMAIN_READ_TOOLS = [
   'list_project_memory',
   'list_materials',
   'read_material',
+  'read_book_structure',
+  'read_plot_grid',
+  'view_material',
   'search_prose',
   'search_project',
 ] as const;
@@ -77,7 +80,62 @@ export const DRIFTING_DOMAIN_WRITE_TOOLS = [
   'create_element_patch',
   'update_element_patch',
   'delete_element_patch',
+  'create_material_note',
+  'revise_material_note',
+  'replace_material_note_body',
+  'update_material',
+  'create_material_folder',
+  'update_material_folder',
+  'delete_material_folder',
+  'create_act',
+  'update_act',
+  'delete_act',
+  'move_chapter',
+  'set_timeline_position',
+  'create_timeline_marker',
+  'update_timeline_marker',
+  'delete_timeline_marker',
+  'write_plot_grid',
 ] as const;
+
+/**
+ * Workbench commands (drifting-workbench-types.ts): direct writes that plan
+ * one whole scope image — the material library, the book structure, a plot
+ * grid — and keep it as their freshness revision and exact inverse.
+ */
+export const WORKBENCH_COMMAND_NAMES = [
+  'create_material_note',
+  'update_material',
+  'create_material_folder',
+  'update_material_folder',
+  'delete_material_folder',
+  'create_act',
+  'update_act',
+  'delete_act',
+  'move_chapter',
+  'set_timeline_position',
+  'create_timeline_marker',
+  'update_timeline_marker',
+  'delete_timeline_marker',
+  'write_plot_grid',
+] as const;
+
+/** Direct writes to a material note's own Yjs document. */
+export const MATERIAL_NOTE_COMMAND_NAMES = [
+  'revise_material_note',
+  'replace_material_note_body',
+] as const;
+
+export type WorkbenchCommandName = (typeof WORKBENCH_COMMAND_NAMES)[number];
+export type MaterialNoteCommandName = (typeof MATERIAL_NOTE_COMMAND_NAMES)[number];
+
+export function isWorkbenchCommandName(name: string): name is WorkbenchCommandName {
+  return (WORKBENCH_COMMAND_NAMES as readonly string[]).includes(name);
+}
+
+export function isMaterialNoteCommandName(name: string): name is MaterialNoteCommandName {
+  return (MATERIAL_NOTE_COMMAND_NAMES as readonly string[]).includes(name);
+}
 
 /** Public domain tools whose canonical certified strategy already has the same
  * name. The runtime still supplies freshness; the model never does. */
@@ -96,6 +154,8 @@ export const DRIFTING_DOMAIN_DIRECT_WRITE_TOOLS = [
   'create_relation_type',
   'update_relation_type',
   'delete_relation_type',
+  ...WORKBENCH_COMMAND_NAMES,
+  ...MATERIAL_NOTE_COMMAND_NAMES,
 ] as const;
 /** Stable semantic receipt used to retire side-effect-free write pairs from
  * provider context without exposing runtime mechanics. */
@@ -199,7 +259,13 @@ export interface DriftingDomainCrudContract {
     | 'relation_type'
     | 'storyline_membership'
     | 'agent_memory'
-    | 'project_facts';
+    | 'project_facts'
+    | 'material'
+    | 'material_folder'
+    | 'act'
+    | 'book_order'
+    | 'timeline'
+    | 'plot_grid';
   authoredTargets: readonly string[];
   operations: Readonly<
     Record<DriftingDomainCrudOperation, DriftingDomainCrudOperationContract>
@@ -457,6 +523,77 @@ export const DRIFTING_DOMAIN_CRUD_CONTRACTS: readonly DriftingDomainCrudContract
       update: closedWrite(['update_project_memory'], ['update_memory'], 'automatic'),
       delete: closedWrite(['delete_project_memory'], ['forget'], 'automatic'),
       revert: exactRevert(['remember', 'update_memory', 'forget']),
+    },
+  },
+  {
+    domain: 'material',
+    authoredTargets: ['素材「<标题>」', '笔记「<标题>」'],
+    operations: {
+      create: closedWrite(['create_material_note'], [], 'automatic'),
+      read: closedRead(['list_materials', 'read_material', 'view_material'], 'yjs_sqlite'),
+      update: closedWrite(
+        ['update_material', 'revise_material_note', 'replace_material_note_body'],
+        [],
+        'automatic',
+        'yjs_sqlite',
+      ),
+      delete: notApplicable,
+      revert: exactRevert([], 'yjs_sqlite'),
+    },
+  },
+  {
+    domain: 'material_folder',
+    authoredTargets: ['素材文件夹「<路径>」'],
+    operations: {
+      create: closedWrite(['create_material_folder'], [], 'automatic'),
+      read: closedRead(['list_materials']),
+      update: closedWrite(['update_material_folder'], [], 'automatic'),
+      delete: closedWrite(['delete_material_folder'], [], 'confirm_before'),
+      revert: exactRevert([]),
+    },
+  },
+  {
+    domain: 'act',
+    authoredTargets: ['幕「<名称>」'],
+    operations: {
+      create: closedWrite(['create_act'], [], 'automatic'),
+      read: closedRead(['read_book_structure', 'list_chapters']),
+      update: closedWrite(['update_act'], [], 'automatic'),
+      delete: closedWrite(['delete_act'], [], 'confirm_before'),
+      revert: exactRevert([]),
+    },
+  },
+  {
+    domain: 'book_order',
+    authoredTargets: ['章节「<名称>」的阅读位置'],
+    operations: {
+      create: notApplicable,
+      read: closedRead(['read_book_structure', 'list_chapters']),
+      update: closedWrite(['move_chapter'], [], 'automatic'),
+      delete: notApplicable,
+      revert: exactRevert([]),
+    },
+  },
+  {
+    domain: 'timeline',
+    authoredTargets: ['叙事时间线位置', '时间刻度「<名称>」'],
+    operations: {
+      create: closedWrite(['create_timeline_marker', 'set_timeline_position'], [], 'automatic'),
+      read: closedRead(['read_book_structure']),
+      update: closedWrite(['update_timeline_marker', 'set_timeline_position'], [], 'automatic'),
+      delete: closedWrite(['delete_timeline_marker', 'set_timeline_position'], [], 'confirm_before'),
+      revert: exactRevert([]),
+    },
+  },
+  {
+    domain: 'plot_grid',
+    authoredTargets: ['章节「<名称>」的情节表'],
+    operations: {
+      create: closedWrite(['write_plot_grid'], [], 'automatic'),
+      read: closedRead(['read_plot_grid', 'read_book_structure']),
+      update: closedWrite(['write_plot_grid'], [], 'automatic'),
+      delete: closedWrite(['write_plot_grid'], [], 'automatic'),
+      revert: exactRevert([]),
     },
   },
   {

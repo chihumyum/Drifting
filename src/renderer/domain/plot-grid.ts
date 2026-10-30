@@ -5,7 +5,9 @@
  * chapter. The author owns the meaning of rows and columns (e.g. characters ×
  * time, or beats × detail) — we impose no semantics and bind to nothing. It is
  * deliberately decoupled from prose: NOT derived from the text (unlike
- * outlineJson / chapter summary) and never feeds Agent context automatically.
+ * outlineJson / chapter summary) and never feeds Agent context automatically;
+ * the Agent reads and writes it on request as one Markdown table
+ * (read_plot_grid / write_plot_grid, lib/agent/plot-grid-markdown.ts).
  *
  * Rows/cols carry stable ids so cells survive insert/delete without reindexing
  * and React keys stay stable across structural edits. Cells are stored sparsely

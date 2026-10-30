@@ -901,3 +901,30 @@ describe('OpenAI Responses Agent driver', () => {
     );
   });
 });
+
+describe('OpenAI Responses image input', () => {
+  it('sends one-shot images as input_image parts after the question', async () => {
+    const transport = { request: vi.fn(async (_body: string) => new Response(sse([
+      { type: 'response.output_text.delta', delta: '灯塔。' },
+      { type: 'response.completed', response: { status: 'completed', output: [], usage: { input_tokens: 1, output_tokens: 1 } } },
+    ]))) };
+    const driver = new OpenAIResponsesAgentDriver({ provider: 'openai', transport });
+    await collect(driver, request({
+      lifecycle: 'single_request',
+      tools: [],
+      context: {
+        systemPrompt: 'Look.',
+        messages: [{
+          type: 'model_message',
+          sourceIds: ['vision/1'],
+          message: { role: 'user', content: '这是什么？', images: [{ mediaType: 'image/jpeg', data: 'AAAA' }] },
+        }],
+      },
+    }));
+    const body = JSON.parse(transport.request.mock.calls[0]![0]) as { input: Array<{ role?: string; content?: unknown }> };
+    expect(body.input.find((item) => item.role === 'user')?.content).toEqual([
+      { type: 'input_text', text: '这是什么？' },
+      { type: 'input_image', image_url: 'data:image/jpeg;base64,AAAA', detail: 'high' },
+    ]);
+  });
+});

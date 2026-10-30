@@ -70,7 +70,11 @@ import { workspaceCommandFromArguments } from './drifting-workspace-tool-runtime
 import {
   isDriftingDomainDirectWriteToolName,
   isDriftingDomainWriteToolName,
+  isMaterialNoteCommandName,
+  isWorkbenchCommandName,
 } from './drifting-workspace-tool-contract';
+import { createDriftingWorkbenchWriteStrategy } from './drifting-workbench-write-strategy';
+import { createDriftingMaterialNoteWriteStrategy } from './drifting-material-note-write-strategy';
 import {
   parseWorkspaceTextReplacements,
   planWorkspaceProseFileEdit,
@@ -238,6 +242,20 @@ function getCertifiedDriftingWriteStrategy(
         ...(options.authoredJournal ? { journal: options.authoredJournal } : {}),
       },
     );
+  }
+  if (isWorkbenchCommandName(toolName) && options.freshness) {
+    return createDriftingWorkbenchWriteStrategy(toolName, {
+      freshness: options.freshness,
+      ...(options.elementPatchDb ? { db: options.elementPatchDb } : {}),
+      ...(options.now ? { now: options.now } : {}),
+      ...(options.authoredJournal ? { journal: options.authoredJournal } : {}),
+    });
+  }
+  if (isMaterialNoteCommandName(toolName)) {
+    return createDriftingMaterialNoteWriteStrategy(toolName, {
+      ...(options.proseCoordinator ? { coordinator: options.proseCoordinator } : {}),
+      ...(options.now ? { now: options.now } : {}),
+    });
   }
   const field = nodeFieldStrategies.get(toolName);
   if (field) return nodeFieldStrategy(field);

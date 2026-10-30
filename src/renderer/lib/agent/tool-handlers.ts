@@ -1,5 +1,12 @@
-import { materialFolderPath } from '../../domain/material-folder';
-import { noteToMarkdown } from '../note-markdown';
+import { flattenMaterialFolders, materialFolderPath } from '../../domain/material-folder';
+import { actForOrder, deriveActSegments } from '../../domain/book-act';
+import { readPlotGridProjection } from '../../domain/plot-grid';
+import { createPlotGridRepository } from '../../sqlite-repo/plot-grid-repo';
+import { plotGridToMarkdown } from './plot-grid-markdown';
+import { resolvePlotGridNode } from './runtime/workbench-plot-grid';
+import { readMaterialNoteMarkdown } from './runtime/drifting-material-note-write-strategy';
+import { excerptPdfText, parsePageRange, pdfPageTexts } from './material-media';
+import type { LibraryAssetItem } from '../../domain/library-item';
 import { searchExactProse } from './exact-prose-search';
 /**
  * Renderer-side execution of the agent's entity tools.
@@ -282,6 +289,9 @@ function listChapters(ctx: AgentToolContext) {
     );
   const storylineName = (id: string | null) =>
     id ? (s.storylines.find((sl) => sl.id === id)?.name ?? undefined) : undefined;
+  const acts = s.bookActs.filter((act) => act.projectId === ctx.projectId);
+  const actName = (node: BookNode) =>
+    node.bookOrder == null ? undefined : (actForOrder(acts, node.bookOrder)?.name ?? undefined);
   return {
     storylines: s.storylines
       .filter((sl) => sl.projectId === ctx.projectId)
@@ -297,6 +307,7 @@ function listChapters(ctx: AgentToolContext) {
         status: n.writingStatus,
         ...(words == null ? { wordsPending: true } : { words }),
         storyline: storylineName(s.primaryStorylineByNode[n.id] ?? null),
+        act: actName(n),
       };
     }),
     drifts: drifts.map((n) => ({
@@ -710,6 +721,84 @@ function searchProject(ctx: AgentToolContext, query: string) {
   return { matches, ranking: 'drifting-evidence-v1' };
 }
 
+// ---- Book structure: acts, reading order, narrative timeline --------------
+
+/**
+ * read_book_structure — what the author arranges around the prose: acts as
+ * runs of chapters in reading order, and the narrative timeline (story time)
+ * with its markers. Positions are ranks; equal ranks are simultaneous.
+ */
+async function readBookStructure(ctx: AgentToolContext) {
+  const s = useDataStore.getState();
+  const nodes = s.bookNodes.filter((node) => node.projectId === ctx.projectId);
+  const chapters = nodes
+    .filter(isChapter)
+    .slice()
+    .sort((left, right) => left.bookOrder - right.bookOrder || left.id.localeCompare(right.id, 'en'));
+  const acts = s.bookActs.filter((act) => act.projectId === ctx.projectId);
+  const segments = deriveActSegments(acts, chapters);
+  const inActs = new Set(segments.flatMap((segment) => segment.chapters.map((chapter) => chapter.id)));
+  const title = (id: string | null) => (id ? nodes.find((node) => node.id === id)?.title : undefined);
+  const markers = s.timelineMarkers.filter((marker) => marker.projectId === ctx.projectId);
+  const axis = [
+    ...nodes
+      .filter((node) => node.narrativeOrder != null)
+      .map((node) => ({
+        type: node.kind === 'chapter' ? 'chapter' : 'inspiration',
+        name: node.title,
+        order: node.narrativeOrder!,
+      })),
+    ...markers.map((marker) => ({
+      type: 'marker',
+      name: (marker.driftNodeId ? title(marker.driftNodeId) : undefined) ?? marker.label,
+      order: marker.narrativeOrder,
+    })),
+  ].sort((left, right) => left.order - right.order);
+  const ranks = [...new Set(axis.map((entry) => entry.order))];
+  const withGrid = new Set(
+    await createPlotGridRepository().findNodeIdsWithDocument(nodes.map((node) => node.id)),
+  );
+  return {
+    readingOrder: {
+      ...(segments.length > 0 && chapters.some((chapter) => !inActs.has(chapter.id))
+        ? { beforeFirstAct: chapters.filter((chapter) => !inActs.has(chapter.id)).map((chapter) => chapter.title) }
+        : {}),
+      ...(segments.length > 0
+        ? {
+            acts: segments.map((segment) => ({
+              name: segment.act.name,
+              chapters: segment.chapters.map((chapter) => chapter.title),
+              ...(segment.act.driftNodeId ? { notes: title(segment.act.driftNodeId) } : {}),
+            })),
+          }
+        : { chapters: chapters.map((chapter) => chapter.title) }),
+    },
+    narrativeTimeline: axis.map(({ order, ...entry }) => ({ ...entry, position: ranks.indexOf(order) + 1 })),
+    notOnTimeline: {
+      chapters: chapters.filter((node) => node.narrativeOrder == null).map((node) => node.title),
+      inspirations: nodes
+        .filter((node) => node.kind === 'drift' && node.narrativeOrder == null)
+        .map((node) => node.title),
+    },
+    withPlotGrid: nodes.filter((node) => withGrid.has(node.id)).map((node) => node.title),
+  };
+}
+
+/** read_plot_grid — one chapter's (or idea's) plot grid as a Markdown table. */
+async function readPlotGrid(ctx: AgentToolContext, args: Record<string, unknown>) {
+  const node = resolvePlotGridNode(ctx.projectId, args.chapter);
+  const grid = readPlotGridProjection(await createPlotGridRepository().materializeProjection(node.id));
+  if (!grid) {
+    return { chapter: node.title, empty: true, note: '这一章还没有情节表；可以用 write_plot_grid 新建' };
+  }
+  return {
+    chapter: node.title,
+    rows: grid.rows.length,
+    columns: grid.cols.length,
+    table: plotGridToMarkdown(grid),
+  };
+}
+
 // ---- Materials (素材库 library items) ---------------------------------------
 
 /** Material prose is always stored as a canonical TipTap document. */
@@ -724,14 +813,18 @@ function materialFolderLabel(folderId: string | null): string | undefined {
   return path.length ? path.map((folder) => folder.name).join('/') : undefined;
 }
 
-/** list_materials — the project's library items by TITLE, with kind hints. */
+/** list_materials — the folder tree, then the library items by TITLE with kind hints. */
 function listMaterials(ctx: AgentToolContext) {
-  const items = useDataStore
-    .getState()
-    .libraryItems.filter((m) => m.projectId === ctx.projectId)
+  const state = useDataStore.getState();
+  const items = state.libraryItems
+    .filter((m) => m.projectId === ctx.projectId)
     .slice()
     .sort((a, b) => a.orderKey - b.orderKey);
+  const folders = flattenMaterialFolders(
+    state.materialFolders.filter((folder) => folder.projectId === ctx.projectId),
+  ).map(({ folder }) => materialFolderLabel(folder.id)!);
   return {
+    folders,
     materials: items.map((m) => ({
       title: m.title || '(untitled)',
       kind: m.kind,
@@ -745,7 +838,7 @@ function listMaterials(ctx: AgentToolContext) {
 }
 
 /** read_material — one item by TITLE: body text for 'text', metadata otherwise. */
-function readMaterial(ctx: AgentToolContext, args: Record<string, unknown>) {
+async function readMaterial(ctx: AgentToolContext, args: Record<string, unknown>) {
   const ref = String(args.material ?? '').trim();
   if (!ref) throw new Error('missing `material` (the material TITLE)');
   const items = useDataStore.getState().libraryItems.filter((m) => m.projectId === ctx.projectId);
@@ -785,13 +878,44 @@ function readMaterial(ctx: AgentToolContext, args: Record<string, unknown>) {
         ? { replacedAt: provenance.replacedAt }
         : {}),
     ...(item.kind === 'text'
-      ? { body: noteToMarkdown(item.bodyJson) || '(empty)' }
+      ? { body: (await readMaterialNoteMarkdown(ctx.projectId, item.id)) || '(empty)' }
       : {
           assetId: item.assetId,
           mime: asset?.sourceMime,
           sizeBytes: asset?.sourceSizeBytes,
         }),
     ...(notes ? { notes } : {}),
+    ...(item.kind === 'pdf' ? await readPdfMaterialText(ctx, item, args.pages) : {}),
+    ...(item.kind === 'image'
+      ? { howToSee: 'view_material 能看这张图并回答具体问题（包括图中文字）' }
+      : {}),
+  };
+}
+
+const PDF_TEXT_BUDGET = 16_000;
+
+/** A PDF's text layer for the requested pages; scans point to view_material. */
+async function readPdfMaterialText(
+  ctx: AgentToolContext,
+  item: LibraryAssetItem,
+  pages: unknown,
+): Promise<Record<string, unknown>> {
+  let texts: string[];
+  try {
+    texts = await pdfPageTexts(ctx.projectId, item);
+  } catch (error) {
+    return {
+      textUnavailable: error instanceof Error ? error.message : String(error),
+      howToSee: 'view_material 可以直接看页面',
+    };
+  }
+  const excerpt = excerptPdfText(texts, parsePageRange(pages, texts.length), PDF_TEXT_BUDGET);
+  return {
+    ...excerpt,
+    ...(excerpt.nextPage ? { continueWith: `read_material，pages="${excerpt.nextPage}-${texts.length}"` } : {}),
+    ...(excerpt.pagesWithoutText?.length
+      ? { howToSee: '没有文字层的页面（多为扫描件）用 view_material 看图识别' }
+      : {}),
   };
 }
 
@@ -2233,6 +2357,10 @@ export async function runAgentTool(
       return listMaterials(ctx);
     case 'read_material':
       return readMaterial(ctx, args);
+    case 'read_book_structure':
+      return readBookStructure(ctx);
+    case 'read_plot_grid':
+      return readPlotGrid(ctx, args);
     // writes
     case 'update_element':
       return updateElement(ctx, args);
