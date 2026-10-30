@@ -1,11 +1,27 @@
 {
   "kind": "hosted-client-http-sqlite",
-  "generatedAt": "2026-10-30T14:44:43.408Z",
-  "sourceSha256": "5862e2fc48fd9b0d55343679bec2432caccca085724a26e4442edb95f31f7e8b",
+  "generatedAt": "2026-10-30T15:39:12.817Z",
+  "sourceSha256": "591b6d439d04065e674683710780a7cb842685d01e70fc7ee63c3bbbdebc546f",
   "status": "passed",
   "synthetic": true,
   "serviceProtocol": "hosted-object-v1",
   "checks": [
+    {
+      "name": "reader comment anchors writes a single-block anchor exactly as the editor does",
+      "status": "passed"
+    },
+    {
+      "name": "reader comment anchors spans blocks, trims whitespace and skips unanchorable blocks",
+      "status": "passed"
+    },
+    {
+      "name": "reader comment anchors re-locates an anchor after the author edits around it, and gives up when it is rewritten",
+      "status": "passed"
+    },
+    {
+      "name": "reader comment anchors reads the token from a reader path only",
+      "status": "passed"
+    },
     {
       "name": "share document v1 keeps block ids, marks, breaks and quotes as the reader copy",
       "status": "passed"
@@ -24,22 +40,6 @@
     },
     {
       "name": "share document v1 tolerates an empty or malformed body",
-      "status": "passed"
-    },
-    {
-      "name": "reader comment anchors writes a single-block anchor exactly as the editor does",
-      "status": "passed"
-    },
-    {
-      "name": "reader comment anchors spans blocks, trims whitespace and skips unanchorable blocks",
-      "status": "passed"
-    },
-    {
-      "name": "reader comment anchors re-locates an anchor after the author edits around it, and gives up when it is rewritten",
-      "status": "passed"
-    },
-    {
-      "name": "reader comment anchors reads the token from a reader path only",
       "status": "passed"
     },
     {
@@ -271,15 +271,19 @@
       "status": "passed"
     },
     {
-      "name": "Hosted-only App sync boundary offers account sync and local recovery without Drive controls in any build",
+      "name": "reader comments on the sticky-note rail pins open reader comments of the project, newest on top, and leaves others alone",
       "status": "passed"
     },
     {
-      "name": "Hosted-only App sync boundary installs only Hosted provisioning and has no Drive transport in the production runtime",
+      "name": "reader comments on the sticky-note rail pins a comment that arrives later, but not one the author took off the rail",
       "status": "passed"
     },
     {
-      "name": "Hosted-only App sync boundary labels project and conversation sync without advertising Google Drive",
+      "name": "reader comment notifications notifies once per shared entity with the reader and comment, or the count",
+      "status": "passed"
+    },
+    {
+      "name": "reader comment notifications shortens a long comment",
       "status": "passed"
     },
     {
@@ -292,6 +296,18 @@
     },
     {
       "name": "share links against the Hosted service publishes the entity copy, imports readers' comments, reports resolutions and stops sharing",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted-only App sync boundary offers account sync and local recovery without Drive controls in any build",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted-only App sync boundary installs only Hosted provisioning and has no Drive transport in the production runtime",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted-only App sync boundary labels project and conversation sync without advertising Google Drive",
       "status": "passed"
     },
     {
