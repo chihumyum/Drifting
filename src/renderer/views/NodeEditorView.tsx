@@ -21,6 +21,7 @@ import { DesktopStickyNoteRail as StickyNoteRail } from '../features/comments/de
 import { EditorReviewLayer } from '../components/editor/EditorReviewLayer';
 import { useEditorSurfaceLifecycle } from '../components/editor/editor-surface-lifecycle-context';
 import { PlotPlannerDock } from '../components/editor/PlotPlannerDock';
+import { eventBus } from '../lib/events';
 import { usePlotPlannerSlot } from '../components/editor/plot-grid/plot-planner-slot';
 import type { PlotGridMutation } from '../domain/plot-grid';
 import { EditorOutlineRail } from '../components/editor/EditorOutlineRail';
@@ -214,6 +215,27 @@ const NodeEditorSession = memo(function NodeEditorSession({ nodeId, projectId }:
   // for focus at this level
   const editorRef = useRef<ChapterEditorRef>(null);
   const activeNodeIdRef = useRef<string | null>(nodeId ?? null);
+  // The planner seeds from its grid once; a write from outside it (the Agent)
+  // reloads the projection and remounts the planner on the new grid.
+  const [plotGridRevision, setPlotGridRevision] = useState(0);
+  useEffect(() => {
+    const reload = ({ nodeId: changedNodeId }: { projectId: string; nodeId: string }) => {
+      if (changedNodeId !== activeNodeIdRef.current) return;
+      void getContentByNodeId(changedNodeId)
+        .then((content) => {
+          if (!content || activeNodeIdRef.current !== changedNodeId) return;
+          setLoadedNodeContent((current) =>
+            current?.nodeId === changedNodeId && current.content
+              ? { ...current, content: { ...current.content, plotGridJson: content.plotGridJson } }
+              : current,
+          );
+          setPlotGridRevision((revision) => revision + 1);
+        })
+        .catch((error: unknown) => log.error('[NodeEditor] Failed to reload the plot grid', error));
+    };
+    eventBus.on('plot-grid:changed', reload);
+    return () => eventBus.off('plot-grid:changed', reload);
+  }, [getContentByNodeId]);
 
   useEffect(() => {
     activeNodeIdRef.current = nodeId ?? null;
@@ -650,7 +672,7 @@ const NodeEditorSession = memo(function NodeEditorSession({ nodeId, projectId }:
           {isVisible && isCommandActive && isActiveNodeReady && plotPlannerSlot &&
             createPortal(
               <PlotPlannerDock
-                key={`plot-planner:${nodeId}`}
+                key={`plot-planner:${nodeId}:${plotGridRevision}`}
                 nodeId={nodeId}
                 title={curNode.title}
                 color={isDriftNode ? undefined : mainStoryline?.color || undefined}

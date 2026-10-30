@@ -844,6 +844,9 @@ function projectMessages(
   const projected: AIMessage[] = [];
   for (const message of messages) {
     if (message.role === 'user') {
+      if (message.images?.length) {
+        throw new AgentModelDriverError('This model provider cannot look at images.');
+      }
       projected.push({ role: 'user', content: message.content });
       continue;
     }

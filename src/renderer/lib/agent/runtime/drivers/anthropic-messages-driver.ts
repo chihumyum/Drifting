@@ -458,7 +458,18 @@ function projectCanonicalMessage(
   // Canonical user text is always projected in block form so the rendered
   // bytes do not change when the cache breakpoint moves onto or off of it.
   if (message.role === 'user') {
-    return [{ role: 'user', content: [{ type: 'text', text: message.content }] }];
+    return [
+      {
+        role: 'user',
+        content: [
+          ...(message.images ?? []).map((image) => ({
+            type: 'image',
+            source: { type: 'base64', media_type: image.mediaType, data: image.data },
+          })),
+          { type: 'text', text: message.content },
+        ],
+      },
+    ];
   }
   if (message.role === 'tool') {
     return [

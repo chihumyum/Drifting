@@ -248,11 +248,55 @@ folder; relations to chapters and elements stay the cross-cutting link.
 
 ## Agent
 
-- `list_materials` / `read_material` keep their contract and add the folder
-  path; `read_material` returns a note as Markdown (`lib/note-markdown.ts`:
-  GFM tables, task lists, code fences, callouts) rendered from its projection.
-- The Agent does not edit notes in this design. Deleting a note-task TODO
-  through the Agent removes its line like any other deletion.
+The Agent reads and organizes the library, and writes notes, through the
+direct domain tools listed in
+`docs/agent-runtime/acceptance/agent-capabilities.md`.
+
+- `list_materials` lists every folder path (empty folders included) and each
+  material's title, kind, folder and source. `read_material` returns a note as
+  Markdown rendered from its current Yjs document: GFM tables, `- [ ]` task
+  lists, code fences, `> [!note]` callouts, `==highlights==`, embeds as
+  `［素材：标题］` and mentions as drifting: location links. A PDF returns its
+  text layer page by page (`pages`, about 16 000 characters per call with a
+  `continueWith` hint), read locally with pdf.js and cached per immutable
+  asset; pages without a text layer are listed. Images return their metadata
+  and the author's description.
+- `view_material` actually looks at an image (its display variant) or up to
+  four PDF pages — rendered with pdf.js's print intent, which needs no
+  animation frame and so still works while the window is hidden — and
+  answers a question about them — describing the
+  picture, transcribing handwriting, captions or a scanned page. It is one
+  `single_request` call to the session's own provider and model
+  (`lib/agent/material-vision.ts`); only the text answer returns to the
+  conversation, so pictures never enter durable context, receipts or
+  compaction. Providers without image input (DeepSeek) refuse before anything
+  is sent.
+- `create_material_note`, `revise_material_note` and
+  `replace_material_note_body` write notes in that same dialect
+  (`lib/note-markdown-parse.ts`). A revision finds its passage in the Markdown
+  and re-parses only the top-level blocks it touches
+  (`runtime/material-note-edit.ts`); every other block keeps its id, marks,
+  embeds and TODO link, and a rewritten block keeps its top-level id when the
+  block count holds. A rewritten checklist line keeps its TODO when its text
+  is unchanged; new lines become TODOs when the note editor next reconciles,
+  exactly as typed ones do. Note writes go through the Yjs persistence
+  coordinator on `library-item:<id>` with the note's Yjs revision as their
+  freshness. Notes stay outside the book, so there is no paragraph review: a
+  note write is accepted or rejected as a whole through its exact Yjs inverse.
+- `update_material` renames, files or describes a material;
+  `create_material_folder`, `update_material_folder` and
+  `delete_material_folder` organize the tree with the panel's rules (no loops,
+  unique sibling names, deleting moves contents up a level). These are
+  workbench commands (`runtime/drifting-workbench-types.ts`): each plans a
+  complete next image of the library (folders plus each material's title,
+  folder and description) and that image is its revision, receipt and inverse.
+  A note body is not part of the image, so typing in a note never makes a
+  filing write stale.
+- Rejecting a folder delete recreates the folder under a new id — sync never
+  revives a purged id — and refiles everything that was in it. Rejecting a
+  created note deletes it only while it is unchanged and has no comments.
+- The Agent never deletes materials. Deleting a note-task TODO through the
+  Agent removes its line like any other deletion.
 
 ## Export
 

@@ -6,6 +6,7 @@ import type { Project } from './project';
 import type { Storyline } from './storyline';
 import type { AgentMemory } from './agent-memory';
 import type { EntityRelationType } from './entity-relation-type';
+import type { WorkbenchCommandName } from '../lib/agent/runtime/drifting-workspace-tool-contract';
 
 export type AgentRuntimeEntityWriteDirection = 'forward' | 'inverse';
 export type AgentRuntimeEntityWriteTool =
@@ -35,7 +36,8 @@ export type AgentRuntimeEntityWriteTool =
   | 'forget'
   | 'update_element'
   | 'update_storyline'
-  | 'update_project_facts';
+  | 'update_project_facts'
+  | WorkbenchCommandName;
 export type AgentRuntimeEntityWriteKind =
   | 'comment'
   | 'node'
@@ -46,7 +48,8 @@ export type AgentRuntimeEntityWriteKind =
   | 'relation_type'
   | 'storyline_membership'
   | 'memory'
-  | 'project';
+  | 'project'
+  | 'authoring_scope';
 
 export interface AgentRuntimeStorylineMembershipLinkSnapshot {
   nodeId: string;
@@ -82,6 +85,20 @@ export interface AgentRuntimeEntityRelationSnapshotValue {
 }
 
 /**
+ * The complete image of one workbench scope (drifting-workbench-types.ts):
+ * the material library, the book structure or one plot grid. `updatedAt` is
+ * the image's content hash, used as its revision.
+ */
+export interface AgentRuntimeAuthoringScopeSnapshotValue {
+  /** The scope instance: the project id, or a chapter id for a plot grid. */
+  id: string;
+  projectId: string;
+  updatedAt: string;
+  scope: string;
+  state: unknown;
+}
+
+/**
  * A closed, typed authored-state image. This is runtime recovery data and is
  * intentionally not stored in any entity metadata column.
  */
@@ -98,7 +115,8 @@ export type AgentRuntimeEntityWriteSnapshot =
       value: AgentRuntimeStorylineMembershipSnapshotValue;
     }
   | { kind: 'memory'; value: AgentMemory }
-  | { kind: 'project'; value: Project };
+  | { kind: 'project'; value: Project }
+  | { kind: 'authoring_scope'; value: AgentRuntimeAuthoringScopeSnapshotValue };
 
 export interface PersistedAgentRuntimeEntityWriteReceipt {
   id: string;
@@ -133,7 +151,8 @@ export function snapshotAgentRuntimeEntity(
     | EntityRelationType
     | AgentRuntimeStorylineMembershipSnapshotValue
     | AgentMemory
-    | Project,
+    | Project
+    | AgentRuntimeAuthoringScopeSnapshotValue,
   kind: AgentRuntimeEntityWriteKind,
 ): AgentRuntimeEntityWriteSnapshot {
   return { kind, value } as AgentRuntimeEntityWriteSnapshot;

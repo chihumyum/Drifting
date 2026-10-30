@@ -530,6 +530,9 @@
       "list_project_memory",
       "list_materials",
       "read_material",
+      "read_book_structure",
+      "read_plot_grid",
+      "view_material",
       "search_prose",
       "search_project"
     ],
@@ -579,7 +582,23 @@
       "delete_project_memory",
       "create_element_patch",
       "update_element_patch",
-      "delete_element_patch"
+      "delete_element_patch",
+      "create_material_note",
+      "revise_material_note",
+      "replace_material_note_body",
+      "update_material",
+      "create_material_folder",
+      "update_material_folder",
+      "delete_material_folder",
+      "create_act",
+      "update_act",
+      "delete_act",
+      "move_chapter",
+      "set_timeline_position",
+      "create_timeline_marker",
+      "update_timeline_marker",
+      "delete_timeline_marker",
+      "write_plot_grid"
     ]
   }
 }

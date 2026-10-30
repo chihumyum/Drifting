@@ -383,16 +383,37 @@ const GENERAL_READ_TOOL_SPECS: ReadToolSpec[] = [
   },
   {
     name: 'list_materials',
-    description: '按标题列出项目素材库：title · kind · source；text 素材附 chars。',
+    description:
+      '列出素材库：全部素材文件夹（含空文件夹）与每个素材的 title · kind · folder · source；笔记附 chars。素材是作者的研究资料和随手记，与书的正文无关。',
     parametersSchema: noArgs,
     aliases: ['materials', '素材库'],
     resultBudgetChars: 20_000,
   },
   {
+    name: 'read_book_structure',
+    description:
+      '读取全书结构：幕与各幕包含的章节（阅读顺序）、叙事时间线（故事内时间顺序，含时间刻度，position 相同表示同时发生）、尚未放上时间线的章节与构想。调整幕、章节顺序或时间线前先读。',
+    parametersSchema: noArgs,
+    aliases: ['book structure', '全书结构', '分幕', '时间线'],
+    resultBudgetChars: 24_000,
+  },
+  {
+    name: 'read_plot_grid',
+    description:
+      '读取一章（或一个构想）的情节表：作者自由定义行列含义的规划表，以一张 Markdown 表格返回（表头第一格空，其后是列名；每行第一格是行名）。情节表不会自动进入上下文，规划这一章前可以先读。',
+    parametersSchema: Type.Object({ chapter: str('章节或构想名') }, { additionalProperties: false }),
+    aliases: ['plot grid', '情节表', '规划表'],
+    resultBudgetChars: 24_000,
+  },
+  {
     name: 'read_material',
-    description: '按标题读取一个素材。text 返回全文，image/pdf/url 返回元数据。',
+    description:
+      '按标题读取一个素材。笔记返回 Markdown 全文（表格、清单、代码、> [!note] 提示块、==高亮==、［素材：标题］嵌入、drifting: 位置链接），改笔记前先读；PDF 返回逐页文字层（pages 指定页码，长文档按 continueWith 续读）；图片返回元数据和作者说明，要看画面用 view_material。',
     parametersSchema: Type.Object(
-      { material: str('素材标题（来自 list_materials）') },
+      {
+        material: str('素材标题（来自 list_materials）'),
+        pages: optionalStr('PDF 页码，如 "3" 或 "2-5"；省略从第 1 页读起'),
+      },
       { additionalProperties: false },
     ),
     aliases: ['material detail', '读取素材'],
@@ -1333,6 +1354,19 @@ const DOMAIN_RUNTIME_READ_TOOL_SPECS: InternalToolSpec[] = [
     20_000,
   ),
   domainRuntimeReadSpec('list_project_memory', '列出 PROJECT_MEMORY.md 的全部条目及 memoryId。'),
+  domainRuntimeReadSpec(
+    'view_material',
+    '真正看一张图片素材或 PDF 的页面（最多 4 页），回答 question：描述画面、识别图中或扫描件上的文字、对比细节。用当前对话的模型看图（需要支持图片的模型），只把文字回答带回对话。',
+    Type.Object(
+      {
+        material: str('图片或 PDF 素材标题'),
+        question: optionalStr('想从画面里知道什么；省略则完整描述并转写其中文字'),
+        pages: optionalStr('PDF 页码，如 "3" 或 "2-4"；省略看第 1 页'),
+      },
+      { additionalProperties: false },
+    ),
+    12_000,
+  ),
 ];
 
 const DOMAIN_RUNTIME_WRITE_TOOL_SPECS: InternalToolSpec[] = [
@@ -1542,6 +1576,166 @@ const DOMAIN_RUNTIME_WRITE_TOOL_SPECS: InternalToolSpec[] = [
       { additionalProperties: false },
     ),
     { effect: 'annotation', concurrency: 'exclusive_project' },
+  ),
+  domainRuntimeWriteSpec(
+    'create_material_note',
+    '在素材库新建一篇笔记（作者的研究资料或随手记，不进成稿）。正文用笔记 Markdown：表格、- [ ] 清单（会成为 TODO）、代码块、> [!note] 提示块、==高亮==、［素材：标题］嵌入其他素材、[文字](drifting:chapters/<章节名>/prose.md#L3) 位置链接。',
+    Type.Object(
+      {
+        title: str('笔记标题'),
+        body: optionalStr('笔记 Markdown 正文'),
+        folder: optionalStr('放入的素材文件夹路径，如 "人物/原型"；省略为根目录'),
+      },
+      { additionalProperties: false },
+    ),
+    { effect: 'annotation', concurrency: 'exclusive_project' },
+  ),
+  domainRuntimeWriteSpec(
+    'revise_material_note',
+    '按 read_material 读到的笔记 Markdown 原文局部修改一篇笔记；只重写被改到的块。',
+    Type.Object({ material: str('笔记标题'), changes: domainTextChanges }, { additionalProperties: false }),
+    { effect: 'annotation', approval: 'automatic' },
+  ),
+  domainRuntimeWriteSpec(
+    'replace_material_note_body',
+    '用新的笔记 Markdown 完整替换一篇笔记正文；必须先通读该笔记。',
+    Type.Object(
+      { material: str('笔记标题'), body: str('完整新正文（笔记 Markdown）') },
+      { additionalProperties: false },
+    ),
+    { risk: 'high', effect: 'annotation', approval: 'automatic', retry: 'never' },
+  ),
+  domainRuntimeWriteSpec(
+    'update_material',
+    '整理一个素材：改标题、移到另一个素材文件夹、或改写说明（图片和 PDF 的说明就是作者对它的描述）。只修改传入的字段。',
+    Type.Object(
+      {
+        material: str('当前素材标题'),
+        title: optionalStr('新标题'),
+        folder: optionalStr('目标素材文件夹路径；"" 为根目录'),
+        description: optionalStr('新的说明文字；"" 为清空'),
+      },
+      { additionalProperties: false },
+    ),
+    { effect: 'annotation', concurrency: 'exclusive_project' },
+  ),
+  domainRuntimeWriteSpec(
+    'create_material_folder',
+    '新建一个素材文件夹。',
+    Type.Object(
+      { name: str('文件夹名称，不含 /'), parent: optionalStr('上级文件夹路径；省略为根目录') },
+      { additionalProperties: false },
+    ),
+    { effect: 'annotation', concurrency: 'exclusive_project' },
+  ),
+  domainRuntimeWriteSpec(
+    'update_material_folder',
+    '重命名或移动一个素材文件夹；不能移进它自己的子文件夹。',
+    Type.Object(
+      {
+        folder: str('当前文件夹路径，如 "人物/原型"'),
+        name: optionalStr('新名称'),
+        parent: optionalStr('新的上级文件夹路径；"" 为根目录'),
+      },
+      { additionalProperties: false },
+    ),
+    { effect: 'annotation', concurrency: 'exclusive_project' },
+  ),
+  domainRuntimeWriteSpec(
+    'delete_material_folder',
+    '删除一个素材文件夹；其中的子文件夹和素材移到上一级，不删除任何素材。默认请求作者确认。',
+    Type.Object({ folder: str('文件夹路径') }, { additionalProperties: false }),
+    { risk: 'high', effect: 'annotation', concurrency: 'exclusive_project', approval: 'confirm_before', retry: 'never' },
+  ),
+  domainRuntimeWriteSpec(
+    'create_act',
+    '新建一幕：从指定章节开始（之后的章节直到下一幕都归入这一幕）；不给 firstChapter 则在全书末尾新建一个空幕。',
+    Type.Object(
+      { name: optionalStr('幕名；省略时按位置命名，如「第二幕」'), firstChapter: optionalStr('这一幕的第一章') },
+      { additionalProperties: false },
+    ),
+    { effect: 'graph', concurrency: 'exclusive_project' },
+  ),
+  domainRuntimeWriteSpec(
+    'update_act',
+    '重命名一幕，或改为从另一章开始（移动分幕线）。',
+    Type.Object(
+      { act: str('当前幕名'), name: optionalStr('新幕名'), firstChapter: optionalStr('新的第一章') },
+      { additionalProperties: false },
+    ),
+    { effect: 'graph', concurrency: 'exclusive_project' },
+  ),
+  domainRuntimeWriteSpec(
+    'delete_act',
+    '删除一条分幕线；章节和它们的顺序不变，原本属于这一幕的章节归入前一幕。默认请求作者确认。',
+    Type.Object({ act: str('幕名') }, { additionalProperties: false }),
+    { risk: 'high', effect: 'graph', concurrency: 'exclusive_project', approval: 'confirm_before', retry: 'never' },
+  ),
+  domainRuntimeWriteSpec(
+    'move_chapter',
+    '调整一章的阅读顺序：放到某章之后、某章之前，或某一幕的末尾（三者给一个）。after 和 before 都会留在参照章所在的幕里。',
+    Type.Object(
+      {
+        chapter: str('要移动的章节'),
+        after: optionalStr('放到这一章之后'),
+        before: optionalStr('放到这一章之前'),
+        act: optionalStr('放到这一幕末尾'),
+      },
+      { additionalProperties: false },
+    ),
+    { effect: 'graph', concurrency: 'exclusive_project' },
+  ),
+  domainRuntimeWriteSpec(
+    'set_timeline_position',
+    '把一章或一个构想放到叙事时间线（故事内时间）上某个已在时间线上的章节、构想或时间刻度之后/之前；remove=true 则从时间线上拿下。不改变阅读顺序。重名时写「章节:名」「构想:名」「刻度:名」。',
+    Type.Object(
+      {
+        item: str('章节或构想名'),
+        after: optionalStr('参照：章节、构想或时间刻度'),
+        before: optionalStr('参照：章节、构想或时间刻度'),
+        remove: Type.Optional(Type.Boolean({ description: 'true 表示从叙事时间线上拿下' })),
+      },
+      { additionalProperties: false },
+    ),
+    { effect: 'graph', concurrency: 'exclusive_project' },
+  ),
+  domainRuntimeWriteSpec(
+    'create_timeline_marker',
+    '在叙事时间线上加一个时间刻度（如「1937 年冬」「卷二」），放在某个章节、构想或刻度之后/之前。',
+    Type.Object(
+      { label: str('刻度文字'), after: optionalStr('参照'), before: optionalStr('参照') },
+      { additionalProperties: false },
+    ),
+    { effect: 'graph', concurrency: 'exclusive_project' },
+  ),
+  domainRuntimeWriteSpec(
+    'update_timeline_marker',
+    '修改一个时间刻度的文字，或把它移到别处（after/before）。',
+    Type.Object(
+      {
+        marker: str('当前刻度文字'),
+        label: optionalStr('新文字'),
+        after: optionalStr('移到这个参照之后'),
+        before: optionalStr('移到这个参照之前'),
+      },
+      { additionalProperties: false },
+    ),
+    { effect: 'graph', concurrency: 'exclusive_project' },
+  ),
+  domainRuntimeWriteSpec(
+    'delete_timeline_marker',
+    '删除一个时间刻度；不影响任何章节。默认请求作者确认。',
+    Type.Object({ marker: str('刻度文字') }, { additionalProperties: false }),
+    { risk: 'high', effect: 'graph', concurrency: 'exclusive_project', approval: 'confirm_before', retry: 'never' },
+  ),
+  domainRuntimeWriteSpec(
+    'write_plot_grid',
+    '用一张 Markdown 表格写入一章（或一个构想）的情节表：表头第一格留空，其后是列名；每行第一格是行名，其余是格子内容，格内换行写 <br>。名称不变的行列保持原样，被删掉的行列连同格子一起移除。先用 read_plot_grid 读当前表格。',
+    Type.Object(
+      { chapter: str('章节或构想名'), table: str('完整的 Markdown 表格') },
+      { additionalProperties: false },
+    ),
+    { effect: 'canon', concurrency: 'exclusive_entity' },
   ),
   domainRuntimeWriteSpec(
     'create_project_memory',

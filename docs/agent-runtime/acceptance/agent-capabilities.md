@@ -9,15 +9,15 @@ Runtime-discovered project MCP/plugin tools are additional and generation-bound.
 
 | Capability | Current value |
 | --- | ---: |
-| Installed built-in model tools | 78 |
-| Installed reads | 27 |
-| Installed writes | 51 |
+| Installed built-in model tools | 97 |
+| Installed reads | 30 |
+| Installed writes | 67 |
 | Direct catalog writes | 37 |
 | Direct write-certified | 22 |
 | Direct unavailable | 15 |
 | Hidden certified domain operations | 31 |
-| Domain lifecycle contracts | 11 |
-| Closed domain lifecycle operations | 53 |
+| Domain lifecycle contracts | 17 |
+| Closed domain lifecycle operations | 80 |
 | Context window policy | model-declared (full selected model window) |
 | App concurrency cap | none |
 
@@ -49,7 +49,7 @@ freshness, identity resolution, durable receipts and guarded inverse handling.
 
 ## Domain tool surface
 
-Provider tools: `get_project_overview`, `get_project_facts`, `list_chapters`, `read_chapter`, `list_inspirations`, `read_inspiration`, `list_element_categories`, `read_element_category`, `list_elements`, `read_element`, `get_element_patches`, `find_element_appearances`, `list_storylines`, `read_storyline`, `list_relations`, `list_relation_types`, `list_entity_relations`, `list_comments`, `list_project_memory`, `list_materials`, `read_material`, `search_prose`, `search_project`, `create_chapter`, `rename_chapter`, `set_chapter_summary`, `revise_chapter`, `replace_chapter_body`, `delete_chapter`, `create_inspiration`, `rename_inspiration`, `set_inspiration_summary`, `revise_inspiration`, `replace_inspiration_body`, `delete_inspiration`, `create_element`, `update_element`, `revise_element`, `replace_element_body`, `delete_element`, `create_element_category`, `update_element_category`, `replace_element_category_body`, `delete_element_category`, `create_storyline`, `update_storyline`, `revise_storyline`, `replace_storyline_body`, `delete_storyline`, `add_chapter_to_storyline`, `remove_chapter_from_storyline`, `set_chapter_primary_storyline`, `replace_storyline_chapters`, `create_relation`, `update_relation`, `delete_relation`, `create_relation_type`, `update_relation_type`, `delete_relation_type`, `create_comment`, `update_comment`, `delete_comment`, `update_project_facts`, `create_project_memory`, `update_project_memory`, `delete_project_memory`, `create_element_patch`, `update_element_patch`, `delete_element_patch`
+Provider tools: `get_project_overview`, `get_project_facts`, `list_chapters`, `read_chapter`, `list_inspirations`, `read_inspiration`, `list_element_categories`, `read_element_category`, `list_elements`, `read_element`, `get_element_patches`, `find_element_appearances`, `list_storylines`, `read_storyline`, `list_relations`, `list_relation_types`, `list_entity_relations`, `list_comments`, `list_project_memory`, `list_materials`, `read_material`, `read_book_structure`, `read_plot_grid`, `view_material`, `search_prose`, `search_project`, `create_chapter`, `rename_chapter`, `set_chapter_summary`, `revise_chapter`, `replace_chapter_body`, `delete_chapter`, `create_inspiration`, `rename_inspiration`, `set_inspiration_summary`, `revise_inspiration`, `replace_inspiration_body`, `delete_inspiration`, `create_element`, `update_element`, `revise_element`, `replace_element_body`, `delete_element`, `create_element_category`, `update_element_category`, `replace_element_category_body`, `delete_element_category`, `create_storyline`, `update_storyline`, `revise_storyline`, `replace_storyline_body`, `delete_storyline`, `add_chapter_to_storyline`, `remove_chapter_from_storyline`, `set_chapter_primary_storyline`, `replace_storyline_chapters`, `create_relation`, `update_relation`, `delete_relation`, `create_relation_type`, `update_relation_type`, `delete_relation_type`, `create_comment`, `update_comment`, `delete_comment`, `update_project_facts`, `create_project_memory`, `update_project_memory`, `delete_project_memory`, `create_element_patch`, `update_element_patch`, `delete_element_patch`, `create_material_note`, `revise_material_note`, `replace_material_note_body`, `update_material`, `create_material_folder`, `update_material_folder`, `delete_material_folder`, `create_act`, `update_act`, `delete_act`, `move_chapter`, `set_timeline_position`, `create_timeline_marker`, `update_timeline_marker`, `delete_timeline_marker`, `write_plot_grid`
 
 Hidden domain operations: `edit_prose_file`, `rename_node`, `set_node_summary`, `update_element`, `update_storyline`, `update_project_facts`, `create_node`, `delete_node`, `create_element`, `delete_element`, `create_storyline`, `delete_storyline`, `create_category`, `update_category`, `delete_category`, `create_comment`, `update_comment`, `delete_comment`, `add_relation`, `assign_relation_type`, `remove_relation`, `create_relation_type`, `update_relation_type`, `delete_relation_type`, `set_storyline_membership`, `remember`, `update_memory`, `forget`, `create_element_patch`, `update_element_patch`, `delete_element_patch`
 
@@ -78,6 +78,12 @@ Hidden domain operations: `edit_prose_file`, `rename_node`, `set_node_summary`, 
 | `entity_relation` | `实体关系「<handle>」` | closed | closed | closed | closed | closed |
 | `storyline_membership` | `故事线「<名称>」章节关系` | closed | closed | closed | closed | closed |
 | `agent_memory` | `项目记忆`, `项目记忆「<memoryId>」` | closed | closed | closed | closed | closed |
+| `material` | `素材「<标题>」`, `笔记「<标题>」` | closed | closed | closed | not_applicable | closed |
+| `material_folder` | `素材文件夹「<路径>」` | closed | closed | closed | closed | closed |
+| `act` | `幕「<名称>」` | closed | closed | closed | closed | closed |
+| `book_order` | `章节「<名称>」的阅读位置` | not_applicable | closed | closed | not_applicable | closed |
+| `timeline` | `叙事时间线位置`, `时间刻度「<名称>」` | closed | closed | closed | closed | closed |
+| `plot_grid` | `章节「<名称>」的情节表` | closed | closed | closed | closed | closed |
 | `project_facts` | `项目事实` | not_applicable | closed | closed | not_applicable | closed |
 
 ## Installed built-in tools
@@ -86,26 +92,33 @@ Hidden domain operations: `edit_prose_file`, `rename_node`, `set_node_summary`, 
 | --- | --- | --- | --- | --- |
 | `add_chapter_to_storyline` | write | domain-tools | drifting-runtime | internal-certified |
 | `ask_user` | read | runtime-control | workspace-runtime | internal-certified |
+| `create_act` | write | domain-tools | drifting-runtime | internal-certified |
 | `create_chapter` | write | domain-tools | drifting-runtime | internal-certified |
 | `create_comment` | write | domain-tools | drifting-runtime | write-certified |
 | `create_element` | write | domain-tools | drifting-runtime | write-certified |
 | `create_element_category` | write | domain-tools | drifting-runtime | internal-certified |
 | `create_element_patch` | write | domain-tools | drifting-runtime | write-certified |
 | `create_inspiration` | write | domain-tools | drifting-runtime | internal-certified |
+| `create_material_folder` | write | domain-tools | drifting-runtime | internal-certified |
+| `create_material_note` | write | domain-tools | drifting-runtime | internal-certified |
 | `create_project_memory` | write | domain-tools | drifting-runtime | internal-certified |
 | `create_relation` | write | domain-tools | drifting-runtime | internal-certified |
 | `create_relation_type` | write | domain-tools | drifting-runtime | write-certified |
 | `create_storyline` | write | domain-tools | drifting-runtime | write-certified |
+| `create_timeline_marker` | write | domain-tools | drifting-runtime | internal-certified |
+| `delete_act` | write | domain-tools | drifting-runtime | internal-certified |
 | `delete_chapter` | write | domain-tools | drifting-runtime | internal-certified |
 | `delete_comment` | write | domain-tools | drifting-runtime | write-certified |
 | `delete_element` | write | domain-tools | drifting-runtime | write-certified |
 | `delete_element_category` | write | domain-tools | drifting-runtime | internal-certified |
 | `delete_element_patch` | write | domain-tools | drifting-runtime | write-certified |
 | `delete_inspiration` | write | domain-tools | drifting-runtime | internal-certified |
+| `delete_material_folder` | write | domain-tools | drifting-runtime | internal-certified |
 | `delete_project_memory` | write | domain-tools | drifting-runtime | internal-certified |
 | `delete_relation` | write | domain-tools | drifting-runtime | internal-certified |
 | `delete_relation_type` | write | domain-tools | drifting-runtime | write-certified |
 | `delete_storyline` | write | domain-tools | drifting-runtime | internal-certified |
+| `delete_timeline_marker` | write | domain-tools | drifting-runtime | internal-certified |
 | `edit_working_memory` | write | working-memory-runtime | working-memory-runtime | internal-certified |
 | `find_element_appearances` | read | domain-tools | workspace-runtime | internal-certified |
 | `generate_element_images` | write | element-image-runtime | element-image-runtime | internal-certified |
@@ -123,11 +136,14 @@ Hidden domain operations: `edit_prose_file`, `rename_node`, `set_node_summary`, 
 | `list_relation_types` | read | domain-tools | workspace-runtime | internal-certified |
 | `list_relations` | read | domain-tools | workspace-runtime | internal-certified |
 | `list_storylines` | read | domain-tools | workspace-runtime | internal-certified |
+| `move_chapter` | write | domain-tools | drifting-runtime | internal-certified |
+| `read_book_structure` | read | domain-tools | workspace-runtime | read-certified |
 | `read_chapter` | read | domain-tools | workspace-runtime | internal-certified |
 | `read_element` | read | domain-tools | workspace-runtime | read-certified |
 | `read_element_category` | read | domain-tools | workspace-runtime | internal-certified |
 | `read_inspiration` | read | domain-tools | workspace-runtime | internal-certified |
 | `read_material` | read | domain-tools | workspace-runtime | read-certified |
+| `read_plot_grid` | read | domain-tools | workspace-runtime | read-certified |
 | `read_storyline` | read | domain-tools | workspace-runtime | internal-certified |
 | `read_task_plan` | read | long-task-runtime | long-task-runtime | runtime-certified |
 | `read_tool_result` | read | runtime-control | workspace-runtime | internal-certified |
@@ -139,21 +155,27 @@ Hidden domain operations: `edit_prose_file`, `rename_node`, `set_node_summary`, 
 | `replace_element_body` | write | domain-tools | drifting-runtime | internal-certified |
 | `replace_element_category_body` | write | domain-tools | drifting-runtime | internal-certified |
 | `replace_inspiration_body` | write | domain-tools | drifting-runtime | internal-certified |
+| `replace_material_note_body` | write | domain-tools | drifting-runtime | internal-certified |
 | `replace_storyline_body` | write | domain-tools | drifting-runtime | internal-certified |
 | `replace_storyline_chapters` | write | domain-tools | drifting-runtime | internal-certified |
 | `revise_chapter` | write | domain-tools | drifting-runtime | internal-certified |
 | `revise_element` | write | domain-tools | drifting-runtime | internal-certified |
 | `revise_inspiration` | write | domain-tools | drifting-runtime | internal-certified |
+| `revise_material_note` | write | domain-tools | drifting-runtime | internal-certified |
 | `revise_storyline` | write | domain-tools | drifting-runtime | internal-certified |
 | `search_project` | read | domain-tools | workspace-runtime | read-certified |
 | `search_prose` | read | domain-tools | workspace-runtime | read-certified |
 | `set_chapter_primary_storyline` | write | domain-tools | drifting-runtime | internal-certified |
 | `set_chapter_summary` | write | domain-tools | drifting-runtime | internal-certified |
 | `set_inspiration_summary` | write | domain-tools | drifting-runtime | internal-certified |
+| `set_timeline_position` | write | domain-tools | drifting-runtime | internal-certified |
+| `update_act` | write | domain-tools | drifting-runtime | internal-certified |
 | `update_comment` | write | domain-tools | drifting-runtime | internal-certified |
 | `update_element` | write | domain-tools | drifting-runtime | write-certified |
 | `update_element_category` | write | domain-tools | drifting-runtime | internal-certified |
 | `update_element_patch` | write | domain-tools | drifting-runtime | write-certified |
+| `update_material` | write | domain-tools | drifting-runtime | internal-certified |
+| `update_material_folder` | write | domain-tools | drifting-runtime | internal-certified |
 | `update_project_facts` | write | domain-tools | drifting-runtime | write-certified |
 | `update_project_memory` | write | domain-tools | drifting-runtime | internal-certified |
 | `update_relation` | write | domain-tools | drifting-runtime | internal-certified |
@@ -162,6 +184,9 @@ Hidden domain operations: `edit_prose_file`, `rename_node`, `set_node_summary`, 
 | `update_task_constraint` | write | long-task-runtime | long-task-runtime | runtime-certified |
 | `update_task_plan` | write | long-task-runtime | long-task-runtime | runtime-certified |
 | `update_task_step` | write | long-task-runtime | long-task-runtime | runtime-certified |
+| `update_timeline_marker` | write | domain-tools | drifting-runtime | internal-certified |
+| `view_material` | read | domain-tools | workspace-runtime | internal-certified |
+| `write_plot_grid` | write | domain-tools | drifting-runtime | internal-certified |
 
 ## Long-task execution contract
 
