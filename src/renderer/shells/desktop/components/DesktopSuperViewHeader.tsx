@@ -6,6 +6,11 @@ import { useSuperViewNavigation } from '../../../hooks/useSuperViewNavigation';
 import { getPlatformRuntime } from '../../../platform/runtime';
 import { DesktopSuperViewRelationControl } from './DesktopSuperViewRelationControl';
 import { SUPER_VIEW_OPTIONS, type SuperViewId } from '../super-view-options';
+import { PUSH_EASING, SUPER_VIEW_PUSH_MS } from '../../../lib/motion';
+
+// The switch's glass rides the push that brings the chosen view in
+// (DesktopSuperViewStage), landing with it, as under a sidebar's panel tabs.
+const SWITCH_TRAVEL = { ms: SUPER_VIEW_PUSH_MS, easing: PUSH_EASING };
 
 /** Desktop-owned Super View navigation; the shared header stays store-free. */
 export function DesktopSuperViewHeader(props: Omit<SuperViewHeaderProps, 'navigationSlot'>) {
@@ -47,6 +52,7 @@ export function DesktopSuperViewHeader(props: Omit<SuperViewHeaderProps, 'naviga
       <GlassSlider
         ariaLabel={t('mobileWorkspace.superView.navigation')}
         handoff="super-view-switch"
+        travel={SWITCH_TRAVEL}
         value={activeSuperView ?? 'graph'}
         onChange={(view) => setActiveSuperView(view)}
         options={SUPER_VIEW_OPTIONS.map((option) => ({

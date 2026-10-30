@@ -82,7 +82,6 @@ export function ElementIsleDetail({
                 '--tick-c': tick.color ?? 'hsl(var(--ink-3))',
                 '--tick-h': `${Math.round(8 + (tick.count / most) * 16)}px`,
                 '--tick-o': (0.45 + (tick.count / most) * 0.55).toFixed(2),
-                '--tick-x': `${(tick.number * 17) % 60}px`,
               } as CSSProperties) : undefined}
             />
           );

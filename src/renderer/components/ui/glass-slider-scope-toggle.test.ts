@@ -46,7 +46,9 @@ describe('glass slider', () => {
     const thumb = controls.slice(controls.indexOf('.glass-slider__thumb {'), controls.indexOf('.glass-slider__thumb[data-visible'));
     expect(thumb).toContain('border-radius: 0;');
     expect(controls).toContain(".glass-slider[data-placed='true'] .glass-slider__thumb {\n    transition: none;");
-    expect(css('src/renderer/components/ui/GlassSlider.tsx')).toContain("'--slider-ms': `${SPRING_MS}ms`,\n          '--slider-ease': weightedEasing(),");
+    // The dock spring by default; a slider that switches what a push brings in
+    // (the Super View switch) rides that push instead.
+    expect(css('src/renderer/components/ui/GlassSlider.tsx')).toContain("'--slider-ms': `${travel?.ms ?? SPRING_MS}ms`,\n          '--slider-ease': travel?.easing ?? weightedEasing(),");
     // Small glass reads its rim from the dense texture patch the panel-tab
     // block uses, and the slider's glass runs with its travel like that block.
     expect(controls).toContain('.glass-slider > .glass-slider__thumb.glass {\n  --glass-gx: calc(var(--flow, 0) * 1.2px + var(--glass-dense-gx));\n  --glass-gy: var(--glass-dense-gy);');

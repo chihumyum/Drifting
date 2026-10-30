@@ -137,7 +137,11 @@ describe('the element overview as category islands', () => {
   it('washes islands in sand instead of framing them, and changes the cards with the distance', () => {
     const css = source('src/styles/super-element.css');
     expect(css).not.toContain('frame-box.png');
-    expect(css).toMatch(/\.se-category::before \{\s*background: radial-gradient\(/);
+    // A feathered wash just past the box, the name inside its top shore; no
+    // glass texture on sand (that texture belongs to glass).
+    expect(css).toMatch(/\.se-category::before \{[^}]*inset: -8px -10px;[^}]*mask-composite: intersect;/);
+    expect(css).toMatch(/\.se-category__legend \{[^}]*top: 6px;/);
+    expect(css).not.toMatch(/\.se-(category|detail)[^{]*\{[^}]*glass-texture/);
     expect(css).toMatch(/\.super-view-body\[data-se-lod='far'\] \.se-card__name \{\s*display: none;/);
     expect(css).toMatch(/\.super-view-body\[data-se-lod='near'\] \.se-card__summary \{\s*display: -webkit-box;/);
     expect(css).toMatch(/\.se-card\.sand-cell\.is-dim \{\s*opacity: 0\.2;/);

@@ -153,8 +153,12 @@ describe('Super View sand and glass acceptance', () => {
     expect(slider).toContain('const shown = !placed && handedFrom ? handedFrom : thumb;');
     expect(slider).toContain("'--slider-x': `${shown?.x ?? 0}px`,");
     expect(slider).toContain('const handed = takeSliderGlass(handoff);');
-    // At rest the glass is handed over without a layout read.
-    expect(slider).toContain('if (performance.now() - setOff >= SPRING_MS) {\n        leaveSliderGlass(handoff, rect);');
+    // At rest the glass is handed over without a layout read; "at rest" is
+    // after the slider's own travel, the Super View push for the switch.
+    expect(slider).toContain('if (performance.now() - setOff >= travelMs.current) {\n        leaveSliderGlass(handoff, rect);');
+    expect(slider).toContain("'--slider-ms': `${travel?.ms ?? SPRING_MS}ms`,");
+    expect(switcher).toContain('const SWITCH_TRAVEL = { ms: SUPER_VIEW_PUSH_MS, easing: PUSH_EASING };');
+    expect(switcher).toContain('travel={SWITCH_TRAVEL}');
 
     // What a slider leaves is taken once, in the same commit, and never later.
     const graph = { x: 72, y: 0, w: 85, h: 26 };
