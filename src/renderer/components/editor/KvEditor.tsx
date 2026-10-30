@@ -113,7 +113,7 @@ export function KvEditor({
 
   return (
     <div className={`kv-editor${glass ? ' kv-editor--glass' : ''}`} data-variant={variant}>
-      {rows.length === 0 && <div className="kv-editor__empty">{resolvedEmptyHint}</div>}
+      {rows.length === 0 && <div className="kv-editor__empty ui-section-empty">{resolvedEmptyHint}</div>}
       {rows.length > 0 && (
         <div className="kv-editor__list" role="list">
           {rows.map((row, idx) =>

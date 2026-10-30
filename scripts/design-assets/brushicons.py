@@ -60,6 +60,10 @@ spread.png                  two heads turned outward, a dot left between them
 locate.png                  a drop-shaped pin standing on its point, a white eye in it
 new-storyline.png           a lane drawn as one level stroke, a plus above it
 new-category.png            the element category's own sand corner, a plus beside it
+folding-fan.png             開扇: a folding fan opened out, its leaf pressed solid with the
+                            pleats cut white, the two guards one 「V」 gathering at the
+                            rivet — every pleat opens or folds at once (expand or collapse
+                            all groups). ALTERNATES keeps the other two drawn for it.
 
 Where a character used to stand in for an icon (fine grain too):
 
@@ -864,6 +868,51 @@ def new_category(rng):
     p = new(); plus_at(p, rng, 74, 26, 14, th=T * 0.95)
     return a, p
 
+# A folding fan opened halfway: the rivet at the foot, the leaf's edge an arc.
+FAN_P, FAN_R, FAN_LEAF_R, FAN_A0, FAN_A1 = (48, 84), 56, 33, -145, -35
+
+def _fan_at(r, deg):
+    t = np.deg2rad(deg)
+    return (FAN_P[0] + r * np.cos(t), FAN_P[1] + r * np.sin(t))
+
+def folding_fan(rng):
+    """開扇: the leaf pressed solid with its pleats cut white, the two guards one
+    「V」 gathering at the rivet."""
+    a = new()
+    fill_poly(a, arc(*FAN_P, FAN_R, FAN_R, FAN_A0, FAN_A1, 60) + arc(*FAN_P, FAN_LEAF_R, FAN_LEAF_R, FAN_A1, FAN_A0, 40), rng, rough=0.7)
+    cut = new()
+    for deg in np.linspace(FAN_A0, FAN_A1, 6)[1:-1]:
+        brush(cut, line(_fan_at(FAN_LEAF_R - 3, deg), _fan_at(FAN_R + 3, deg), 14), 1.7, np.random.default_rng(31), dry=0.0, taper=(0, 0))
+    erase(a, np.clip(cut * 1.25, 0, 1))
+    brush(a, line(_fan_at(FAN_LEAF_R + 2, FAN_A0), FAN_P, 18)[:-1] + line(FAN_P, _fan_at(FAN_LEAF_R + 2, FAN_A1), 18),
+          T * 0.8, rng, load0=1.0, dry=0.15, taper=(0.04, 0.04))
+    disc(a, FAN_P[0], FAN_P[1] - 1, 5.2, rng)
+    return a
+
+def folding_fan_line(rng):
+    """Alternate: the same fan in line — the leaf's edge one stroke, the guards
+    one 「V」, two ribs between, the rivet."""
+    a = new()
+    brush(a, arc(*FAN_P, FAN_R, FAN_R, FAN_A0, FAN_A1, 70), T * 0.9, rng, load0=1.0, dry=0.25, taper=(0.03, 0.06))
+    brush(a, line(_fan_at(FAN_R, FAN_A0), FAN_P, 22)[:-1] + line(FAN_P, _fan_at(FAN_R, FAN_A1), 22), T * 0.9, rng,
+          load0=1.0, dry=0.2, taper=(0.03, 0.05))
+    for deg in np.linspace(FAN_A0, FAN_A1, 4)[1:-1]:
+        brush(a, line(_fan_at(8, deg), _fan_at(FAN_R - 2, deg), 18), T * 0.6, rng, load0=0.95, dry=0.35, taper=(0.05, 0.1))
+    disc(a, FAN_P[0], FAN_P[1] - 1, 5.5, rng)
+    return a
+
+def lantern(rng):
+    """Alternate: 折灯, a paper lantern that folds flat and opens out — its body
+    one round stroke, two folds across it, a cap above and a tassel below."""
+    a = new()
+    brush(a, arc(48, 50, 30, 30, -80, 262, 120), T * 0.9, rng, load0=1.0, dry=0.25, taper=(0.03, 0.08))
+    for y in (40, 60):
+        brush(a, line((21, y), (75, y), 16), T * 0.6, rng, load0=0.95, dry=0.3, taper=(0.05, 0.1))
+    fill_poly(a, [(38, 14), (58, 14), (58, 22), (38, 22)], rng, rough=0.6)
+    fill_poly(a, [(38, 78), (58, 78), (58, 86), (38, 86)], rng, rough=0.6)
+    brush(a, line((48, 86), (48, 95), 6), T * 0.55, rng, load0=0.9, dry=0.5, taper=(0, 0.5))
+    return a
+
 # ── Characters that stood in for icons ──
 
 def arrow_at(a, rng, deg, cx=48, cy=48, half=34, head=26):
@@ -1098,13 +1147,16 @@ OBJECTS = {
     "eraser": (eraser, 2033), "share": (share, 2035), "layers": (layers, 2039), "branch": (branch, 2041),
     "view-grid": (view_grid, 2045), "view-list": (view_list, 2046), "open-book": (open_book, 2049), "knots": (knots, 2050), "tea": (tea, 2104),
     "spread": (spread, 3001), "locate": (locate, 3004), "new-storyline": (new_storyline, 3007),
-    "new-category": (new_category, 3008),
+    "new-category": (new_category, 3008), "folding-fan": (folding_fan, 3011),
     "arrow-down": (arrow_down, 4001), "arrow-out": (arrow_out, 4002), "arrow-in": (arrow_in, 4003),
     "both-ways": (both_ways, 4005), "swap": (swap, 4007), "stitched": (stitched, 4012),
     "task-todo": (task_todo, 4013), "task-doing": (task_doing, 4014), "task-done": (task_done, 4015),
     "name-seal": (name_seal, 4019), "inkstone": (inkstone, 4020), "grip": (grip, 4025), "hook": (hook, 4026),
     "lift": (lift, 5101), "lift-bent": (lift_bent, 5205),
 }
+# Drawn beside the shipped folding fan and not written out: to ship one
+# instead, put it in OBJECTS under "folding-fan".
+ALTERNATES = {"folding-fan-line": (folding_fan_line, 3012), "lantern": (lantern, 3013)}
 # Frames drawn with one rng, each finished with fine grain, then laid side by side.
 STRIPS = {"thinking": (thinking, 4102)}
 masks = {}

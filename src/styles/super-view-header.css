@@ -40,8 +40,9 @@
 
 /* ─── Flat full-screen workspace ────────────────────────────────────
    Header and body meet at one hairline with no inset, gap, radius or
-   elevation. The overlay stops above the center-column status strip so its
-   project navigation and Super View switches remain available.
+   elevation. On desktop the inset is 0: the overlay covers the whole window
+   and the workspace under it is inert (useInertUnderSuperView). The paused
+   mobile shell keeps its own inset.
    ──────────────────────────────────────────────────────────────── */
 .super-view-overlay {
   top: 0;

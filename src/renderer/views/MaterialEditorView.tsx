@@ -583,7 +583,7 @@ function MaterialMediaPage({ item, projectId, userId, onUpdate }: MaterialPagePr
             aria-label={t('materialEditor.regions.listLabel')}
           >
             {comments.length === 0 ? (
-              <div className="material-comments__empty">{t('materialEditor.regions.empty')}</div>
+              <div className="material-comments__empty ui-section-empty">{t('materialEditor.regions.empty')}</div>
             ) : (
               comments.map(({ comment, region }, index) => (
                 <div

@@ -789,7 +789,8 @@ html[data-shell-mode='desktop'] .snapshot-modal__close:hover {
    a container that never thickens when something in it is pressed
    (`.glass--surface`). An applied format, and 「格式」 while its pill is out,
    is the still selected glass. The bar floats in once the selection settles;
-   the formats unfold over 150ms and fold back in 110ms. */
+   the formats unfold over 150ms and fold back in 110ms. A material note's
+   checklist and table actions (NoteFloatingBar) are the same long pill. */
 .editor-selection-bar {
   position: fixed;
   z-index: var(--z-context-menu);
@@ -810,7 +811,7 @@ html[data-shell-mode='desktop'] .snapshot-modal__close:hover {
   white-space: nowrap;
   animation: editor-selection-bar-in 0.16s cubic-bezier(0.3, 0.7, 0.2, 1) both;
 }
-.editor-comment-menu.editor-selection-bar.glass {
+.editor-selection-bar.glass.glass--surface {
   --glass-gx: -168px;
   --glass-gy: -18px;
 }

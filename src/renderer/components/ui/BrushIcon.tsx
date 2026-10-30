@@ -38,6 +38,7 @@ export type BrushIconName =
   | 'folder'
   | 'folder-open'
   | 'folder-plus'
+  | 'folding-fan'
   | 'fmt-bold'
   | 'fmt-h1'
   | 'fmt-h2'
