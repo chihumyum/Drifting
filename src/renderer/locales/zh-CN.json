@@ -2209,7 +2209,7 @@
       "elementListTitle": "名称列表 · 点此切换到紧凑索引"
     },
     "actions": {
-      "collapseAll": "折叠全部",
+      "collapseAll": "展开／折叠全部",
       "sort": "排序",
       "newChapter": "新章节",
       "newStoryline": "新故事线",

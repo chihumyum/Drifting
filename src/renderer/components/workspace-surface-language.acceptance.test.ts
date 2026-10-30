@@ -1014,7 +1014,7 @@ describe('workspace surface language acceptance', () => {
       'file-text', 'comment-plus', 'rotate', 'sort', 'status-done', 'status-warning', 'status-stopped', 'cloud',
       'checklist', 'checklist-plus', 'sticky-note', 'mic', 'image', 'image-plus', 'eraser', 'share', 'layers', 'branch',
       'view-grid', 'view-list', 'open-book', 'knots', 'case-rise', 'tea', 'spread', 'locate', 'new-storyline',
-      'new-category',
+      'new-category', 'folding-fan',
       // A closed sidebar's crescent, cleared from the committed solid one.
       'moon-left-hollow', 'moon-right-hollow',
       // The Agent composer's send and steer, a weight heavier.
