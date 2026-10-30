@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getDb } from '../../lib/db';
-import { CommentTable, NodeContentTable } from '../../schema/drizzle';
+import { BookElementTable, CommentTable, NodeContentTable } from '../../schema/drizzle';
 import { createWorkspaceProjectionFixture, WORKSPACE_TEST_INPUT as INPUT } from '../../services/workspace-projection.test-support';
 import { anchorForSelection } from '../../../share-web/anchor';
 import type { ShareDocument } from '../../../shared/share-document';
@@ -91,7 +91,12 @@ describe.skipIf(!origin)('share links against the Hosted service', () => {
     // Editors give every block an id; comments anchor to them.
     await getDb().update(NodeContentTable).set({ contentJson: JSON.stringify({ type: 'doc', content: [
       { type: 'paragraph', attrs: { id: 'block-1' }, content: [{ type: 'text', text: 'Synthetic body.' }] },
+      { type: 'paragraph', attrs: { id: 'block-2' }, content: [
+        { type: 'text', text: 'Element', marks: [{ type: 'entityLink', attrs: { targetKind: 'element', targetId: 'element' } }] },
+        { type: 'text', text: ' waits.' },
+      ] },
     ] }) }).where(eq(NodeContentTable.nodeId, 'chapter'));
+    await getDb().update(BookElementTable).set({ summary: '合成摘要' }).where(eq(BookElementTable.id, 'element'));
 
     const link = await useShareLinkStore.getState().publish(target);
     expect(link).toMatchObject({ ...target, title: 'Chapter', revision: 1, commentsEnabled: true });
@@ -100,6 +105,10 @@ describe.skipIf(!origin)('share links against the Hosted service', () => {
     // stores it as jsonb), so an unchanged body is never re-sent.
     expect(await shareDocumentSha256((await readShareDocument(target))!)).toBe(link.documentSha256);
     const page = await (await reader(audience.token, link.token)).json() as { document: ShareDocument; viewer: { name: string } };
+    // Linked entities travel with name and summary only; the folio carries the chapter's place and storyline.
+    expect(page.document.blocks[1]!.runs[0]).toEqual({ text: 'Element', entity: 'e1' });
+    expect(page.document.entities).toEqual({ e1: { kind: 'element', name: 'Element', summary: '合成摘要' } });
+    expect(page.document.folio).toEqual({ chapter: 1, line: { name: 'main', color: '#778899' }, words: expect.any(Number) });
     expect(await republishShareLink(link)).toBe(false);
     expect(page.viewer.name).toBe('合成读者');
 

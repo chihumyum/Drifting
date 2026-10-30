@@ -31,6 +31,11 @@ const zh = {
   haveAccount: '已有账号？登录',
   needAccount: '没有账号？注册',
   signedInAs: (name: string) => `已登录：${name}`,
+  outline: '大纲',
+  hiddenItems: (count: number) => `还有 ${count} 项`,
+  chapterNumber: (n: number) => `第 ${n} 章`,
+  words: (n: number) => `${n.toLocaleString('zh-CN')} 字`,
+  kinds: { chapter: '章节', drift: '构想', element: '要素', storyline: '故事线', category: '类目' } as Record<'chapter' | 'drift' | 'element' | 'storyline' | 'category', string>,
   errors: {
     INVALID_EMAIL_OR_PASSWORD: '邮箱或密码不对。',
     USER_ALREADY_EXISTS: '这个邮箱已经注册过了，请直接登录。',
@@ -79,6 +84,11 @@ const en: Strings = {
   haveAccount: 'Have an account? Sign in',
   needAccount: 'No account? Sign up',
   signedInAs: (name: string) => `Signed in as ${name}`,
+  outline: 'Outline',
+  hiddenItems: (count: number) => `${count} more`,
+  chapterNumber: (n: number) => `Chapter ${n}`,
+  words: (n: number) => `${n.toLocaleString('en')} words`,
+  kinds: { chapter: 'Chapter', drift: 'Drift', element: 'Element', storyline: 'Storyline', category: 'Category' },
   errors: {
     INVALID_EMAIL_OR_PASSWORD: 'The email or password is incorrect.',
     USER_ALREADY_EXISTS: 'This email is already registered. Please sign in.',

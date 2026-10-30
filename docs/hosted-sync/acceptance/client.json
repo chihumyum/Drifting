@@ -1,11 +1,31 @@
 {
   "kind": "hosted-client-http-sqlite",
-  "generatedAt": "2026-10-30T13:44:52.325Z",
-  "sourceSha256": "4469cf92b57c101282be494f753597ae48f39b057f961c315c6466fdf0f8b77e",
+  "generatedAt": "2026-10-30T14:44:43.408Z",
+  "sourceSha256": "5862e2fc48fd9b0d55343679bec2432caccca085724a26e4442edb95f31f7e8b",
   "status": "passed",
   "synthetic": true,
   "serviceProtocol": "hosted-object-v1",
   "checks": [
+    {
+      "name": "share document v1 keeps block ids, marks, breaks and quotes as the reader copy",
+      "status": "passed"
+    },
+    {
+      "name": "share document v1 matches the editor block text that comment offsets index",
+      "status": "passed"
+    },
+    {
+      "name": "share document v1 keys linked entities in reading order with name, summary and colour only",
+      "status": "passed"
+    },
+    {
+      "name": "share document v1 accepts only stored colour forms and drops an empty folio",
+      "status": "passed"
+    },
+    {
+      "name": "share document v1 tolerates an empty or malformed body",
+      "status": "passed"
+    },
     {
       "name": "reader comment anchors writes a single-block anchor exactly as the editor does",
       "status": "passed"
@@ -20,18 +40,6 @@
     },
     {
       "name": "reader comment anchors reads the token from a reader path only",
-      "status": "passed"
-    },
-    {
-      "name": "share document v1 keeps block ids, marks, breaks and quotes as the reader copy",
-      "status": "passed"
-    },
-    {
-      "name": "share document v1 matches the editor block text that comment offsets index",
-      "status": "passed"
-    },
-    {
-      "name": "share document v1 tolerates an empty or malformed body",
       "status": "passed"
     },
     {
@@ -287,46 +295,6 @@
       "status": "passed"
     },
     {
-      "name": "SyncScheduler waits for cancelled provider callbacks before changing local ownership",
-      "status": "passed"
-    },
-    {
-      "name": "SyncScheduler uses a trailing two-second local-commit debounce",
-      "status": "passed"
-    },
-    {
-      "name": "SyncScheduler runs globally single-flight and round-robins before rerunning one SyncGeneration",
-      "status": "passed"
-    },
-    {
-      "name": "SyncScheduler cancels the active network lane offline and resumes queued SyncGenerations immediately online",
-      "status": "passed"
-    },
-    {
-      "name": "SyncScheduler supports delayed retry, foreground polling, and immediate self-publish pull",
-      "status": "passed"
-    },
-    {
-      "name": "SyncScheduler adapts polling per SyncGeneration without accelerating idle projects",
-      "status": "passed"
-    },
-    {
-      "name": "SyncScheduler removes poll-only work on blur and rebuilds an idle deadline on focus",
-      "status": "passed"
-    },
-    {
-      "name": "SyncScheduler keeps Retry-After as a hard floor for every queued wake trigger",
-      "status": "passed"
-    },
-    {
-      "name": "SyncScheduler coalesces missed foreground intervals after a long single-flight cycle",
-      "status": "passed"
-    },
-    {
-      "name": "fullJitterBackoffMs starts at one second, caps at five minutes, and respects Retry-After",
-      "status": "passed"
-    },
-    {
       "name": "retains rejected remote Drive bytes and local projects while starting a clean Hosted generation",
       "status": "passed"
     },
@@ -452,6 +420,46 @@
     },
     {
       "name": "leaving sign-in cancels before the library is connected",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler waits for cancelled provider callbacks before changing local ownership",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler uses a trailing two-second local-commit debounce",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler runs globally single-flight and round-robins before rerunning one SyncGeneration",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler cancels the active network lane offline and resumes queued SyncGenerations immediately online",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler supports delayed retry, foreground polling, and immediate self-publish pull",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler adapts polling per SyncGeneration without accelerating idle projects",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler removes poll-only work on blur and rebuilds an idle deadline on focus",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler keeps Retry-After as a hard floor for every queued wake trigger",
+      "status": "passed"
+    },
+    {
+      "name": "SyncScheduler coalesces missed foreground intervals after a long single-flight cycle",
+      "status": "passed"
+    },
+    {
+      "name": "fullJitterBackoffMs starts at one second, caps at five minutes, and respects Retry-After",
       "status": "passed"
     },
     {

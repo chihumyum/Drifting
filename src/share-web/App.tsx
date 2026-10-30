@@ -1,6 +1,14 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { shareBlockText, type ShareBlock, type ShareCommentAnchor, type ShareDocument } from '../shared/share-document';
+import type { CSSProperties, ReactNode } from 'react';
+import { KindMark } from '../renderer/components/ui/KindMark';
+import type { KindMarkKind } from '../renderer/components/ui/kind-mark';
+import { shareBlockText, type ShareBlock, type ShareCommentAnchor, type ShareDocument, type ShareEntity } from '../shared/share-document';
+import { EntityCard } from './EntityCard';
+import { useEntityCard } from './entity-card-state';
+import { OutlineRail } from './OutlineRail';
+import { outlineOf } from './document-outline';
+import { useCommentSand } from './comment-sand';
 import { anchorForSelection, comparePoints, locateAnchor, tokenFromPath, type BlockPoint, type LocatedAnchor } from './anchor';
 import { accountApi, readerApi, ReaderError, type ReaderComment, type ReaderPage } from './api';
 import { AuthPanel } from './AuthPanel';
@@ -111,12 +119,18 @@ interface Draft {
 
 function Reader({ token, page, notice, reload, onPage }: ReaderProps) {
   const articleRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const { document: doc, comments, viewer, share } = page;
   const [selection, setSelection] = useState<{ draft: Draft; rect: DOMRect } | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const wide = useMediaQuery('(min-width: 1080px)');
+  const roomy = useMediaQuery('(min-width: 1260px)');
+  const hasOutline = useMemo(() => outlineOf(doc.blocks).length > 0, [doc.blocks]);
+  const outline = roomy && hasOutline;
+  const card = useEntityCard(articleRef, scrollRef);
+  const cardEntity = card ? doc.entities?.[card.key] : undefined;
 
   const located = useMemo(() => {
     const result = new Map<string, LocatedAnchor | null>();
@@ -132,8 +146,8 @@ function Reader({ token, page, notice, reload, onPage }: ReaderProps) {
     return a.createdAt.localeCompare(b.createdAt);
   }), [comments, located]);
 
-  useSelectionTracking(articleRef, doc.blocks, share.commentsEnabled, setSelection);
-  useCommentHighlights(articleRef, doc.blocks, comments, located, activeId, draft);
+  useSelectionTracking(articleRef, scrollRef, doc.blocks, share.commentsEnabled, setSelection);
+  useCommentSand(scrollRef, comments, activeId, draft?.anchor ?? null);
 
   const startComment = () => {
     if (!selection) return;
@@ -181,7 +195,7 @@ function Reader({ token, page, notice, reload, onPage }: ReaderProps) {
   );
 
   return (
-    <div className="reader">
+    <div className={`reader${outline ? ' reader--outline' : ''}`}>
       <header className="topbar">
         <span className="topbar__brand">Drifting</span>
         <span className="topbar__account">
@@ -193,20 +207,31 @@ function Reader({ token, page, notice, reload, onPage }: ReaderProps) {
           ) : null}
         </span>
       </header>
-      <div className="layout">
-        <article className="sheet" aria-labelledby="share-title">
-          <h1 id="share-title" className="sheet__title">{doc.title || share.title}</h1>
-          <p className="sheet__meta">
-            <span>{t.sharedBy(share.ownerName)}</span>
-            <span aria-hidden="true">·</span>
-            <span>{t.updatedAt(formatTime(share.publishedAt))}</span>
-            {!share.commentsEnabled && <><span aria-hidden="true">·</span><span>{t.commentsClosed}</span></>}
-          </p>
-          <div ref={articleRef} className="prose">
-            {doc.blocks.map((block, index) => <BlockView key={`${block.id ?? 'x'}-${index}`} block={block} index={index} />)}
+      <div className="reader__body">
+        {outline && <OutlineRail blocks={doc.blocks} />}
+        <div ref={scrollRef} className="reader__scroll">
+          <div className="reader__columns">
+            <div className="reader__spread editor__spread">
+              <article className="sheet" aria-labelledby="share-title">
+                <Folio document={doc} />
+                <h1 id="share-title" className="sheet__title">{doc.title || share.title}</h1>
+                <p className="sheet__meta">
+                  <span>{t.sharedBy(share.ownerName)}</span>
+                  <span aria-hidden="true">·</span>
+                  <span>{t.updatedAt(formatTime(share.publishedAt))}</span>
+                  {!share.commentsEnabled && <><span aria-hidden="true">·</span><span>{t.commentsClosed}</span></>}
+                </p>
+                <div ref={articleRef} className="prose">
+                  {doc.blocks.map((block, index) => (
+                    <BlockView key={`${block.id ?? 'x'}-${index}`} block={block} index={index} entities={doc.entities}
+                      openEntity={card?.key ?? null} />
+                  ))}
+                </div>
+              </article>
+            </div>
+            {wide && <aside className="rail" aria-label={t.comments}>{rail}</aside>}
           </div>
-        </article>
-        {wide && <aside className="rail" aria-label={t.comments}>{rail}</aside>}
+        </div>
       </div>
       {!wide && <button type="button" className="sheet-toggle button" onClick={() => setSheetOpen(true)}>{t.commentCount(comments.length)}</button>}
       {!wide && sheetOpen && (
@@ -222,35 +247,84 @@ function Reader({ token, page, notice, reload, onPage }: ReaderProps) {
         <SelectionButton rect={selection.rect} onComment={startComment} />,
         document.body,
       )}
+      {card && cardEntity && <EntityCard open={card} entity={cardEntity} />}
       {notice && <div className="notice" role="status">{notice}</div>}
     </div>
   );
 }
 
-const BlockView = memo(function BlockView({ block, index }: { block: ShareBlock; index: number }) {
+const FOLIO_MARK: Record<ShareDocument['kind'], KindMarkKind> = {
+  chapter: 'storyline', drift: 'drift-group', element: 'category', storyline: 'storyline', category: 'category',
+};
+
+/** The editor page's folio: 「第 N 章」 or the kind, the coloured line it belongs to, the word count. */
+function Folio({ document: doc }: { document: ShareDocument }) {
+  const folio = doc.folio;
+  return (
+    <p className="sheet__folio" aria-hidden="true">
+      <span>{doc.kind === 'chapter' && folio?.chapter ? t.chapterNumber(folio.chapter) : t.kinds[doc.kind]}</span>
+      {folio?.line && (
+        <span>
+          <KindMark kind={FOLIO_MARK[doc.kind]} color={folio.line.color} className="is-inline" />
+          {folio.line.name}
+        </span>
+      )}
+      {folio?.words !== undefined && <span>{t.words(folio.words)}</span>}
+    </p>
+  );
+}
+
+interface BlockViewProps {
+  block: ShareBlock;
+  index: number;
+  entities: ShareDocument['entities'];
+  /** Re-renders only the block holding the open link. */
+  openEntity: string | null;
+}
+
+const BlockView = memo(function BlockView({ block, index, entities, openEntity }: BlockViewProps) {
   const className = [
     block.quote ? 'is-quote' : '',
     block.align ? `align-${block.align}` : '',
   ].filter(Boolean).join(' ') || undefined;
   const style = block.indent ? { marginInlineStart: `${block.indent * 2}em` } : undefined;
-  if (block.type === 'rule') return <hr data-block-index={index} />;
+  // Block ids let the outline and the comment sand find their anchors, as in the editor.
+  const id = block.id ?? undefined;
+  if (block.type === 'rule') return <hr data-block-index={index} data-block-id={id} />;
   const runs = block.runs.map((run, key) => {
     if (run.br) return <br key={key} />;
-    let node: React.ReactNode = run.text;
+    let node: ReactNode = run.text;
     for (const mark of run.marks ?? []) {
       node = mark === 'bold' ? <strong>{node}</strong>
         : mark === 'italic' ? <em>{node}</em>
           : mark === 'strike' ? <s>{node}</s> : <u>{node}</u>;
+    }
+    const entity: ShareEntity | undefined = run.entity ? entities?.[run.entity] : undefined;
+    if (entity && run.entity) {
+      const open = openEntity === run.entity;
+      node = (
+        <span
+          className={`entity-link entity-link--${entity.kind}${open ? ' is-open' : ''}`}
+          data-entity={run.entity}
+          tabIndex={0}
+          aria-describedby={open ? 'entity-card' : undefined}
+          style={entity.color ? ({ '--entity-link-color': entity.color } as CSSProperties) : undefined}
+        >
+          {node}
+        </span>
+      );
     }
     if (run.href) node = <a href={run.href} target="_blank" rel="noopener noreferrer nofollow">{node}</a>;
     return <span key={key}>{node}</span>;
   });
   if (block.type === 'heading') {
     const Tag = (`h${(block.level ?? 3) + 1}`) as 'h2' | 'h3' | 'h4';
-    return <Tag data-block-index={index} className={className} style={style}>{runs}</Tag>;
+    return <Tag data-block-index={index} data-block-id={id} className={className} style={style}>{runs}</Tag>;
   }
-  return <p data-block-index={index} className={className} style={style}>{runs.length ? runs : <br />}</p>;
-});
+  return <p data-block-index={index} data-block-id={id} className={className} style={style}>{runs.length ? runs : <br />}</p>;
+}, (before, after) => before.block === after.block && before.index === after.index && before.entities === after.entities
+  && (before.openEntity === after.openEntity
+    || !before.block.runs.some(run => run.entity && (run.entity === before.openEntity || run.entity === after.openEntity))));
 
 function SelectionButton({ rect, onComment }: { rect: DOMRect; onComment: () => void }) {
   const coarse = matchMedia('(pointer: coarse)').matches;
@@ -418,37 +492,9 @@ function offsetIn(block: HTMLElement, container: Node, offset: number): number {
   return range.toString().length;
 }
 
-/** The DOM point at a plain-text offset of a block element. */
-function domPoint(block: HTMLElement, offset: number): { node: Node; offset: number } {
-  const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
-  let remaining = Math.max(0, offset);
-  let last: Text | null = null;
-  for (let node = walker.nextNode() as Text | null; node; node = walker.nextNode() as Text | null) {
-    last = node;
-    if (remaining <= node.data.length) return { node, offset: remaining };
-    remaining -= node.data.length;
-  }
-  return last ? { node: last, offset: last.data.length } : { node: block, offset: 0 };
-}
-
-function domRange(root: HTMLElement, at: LocatedAnchor): Range | null {
-  const start = root.querySelector<HTMLElement>(`[data-block-index="${at.start.index}"]`);
-  const end = root.querySelector<HTMLElement>(`[data-block-index="${at.end.index}"]`);
-  if (!start || !end) return null;
-  const from = domPoint(start, at.start.offset);
-  const to = domPoint(end, at.end.offset);
-  const range = document.createRange();
-  try {
-    range.setStart(from.node, from.offset);
-    range.setEnd(to.node, to.offset);
-  } catch {
-    return null;
-  }
-  return range.collapsed ? null : range;
-}
-
 function useSelectionTracking(
   articleRef: React.RefObject<HTMLDivElement | null>,
+  scrollRef: React.RefObject<HTMLDivElement | null>,
   blocks: readonly ShareBlock[],
   enabled: boolean,
   onSelection: (value: { draft: Draft; rect: DOMRect } | null) => void,
@@ -483,45 +529,13 @@ function useSelectionTracking(
     };
     // Settle while a selection is being dragged out before showing the button.
     const schedule = () => { if (!timer) timer = window.setTimeout(update, 60); };
+    const scroller = scrollRef.current;
     document.addEventListener('selectionchange', schedule);
-    window.addEventListener('scroll', schedule, { passive: true });
+    scroller?.addEventListener('scroll', schedule, { passive: true });
     return () => {
       if (timer) window.clearTimeout(timer);
       document.removeEventListener('selectionchange', schedule);
-      window.removeEventListener('scroll', schedule);
+      scroller?.removeEventListener('scroll', schedule);
     };
-  }, [articleRef, blocks, enabled, onSelection]);
-}
-
-type HighlightRegistry = { set(name: string, highlight: unknown): void; delete(name: string): void };
-
-/** Comment anchors as CSS custom highlights; browsers without them show no wash. */
-function useCommentHighlights(
-  articleRef: React.RefObject<HTMLDivElement | null>,
-  blocks: readonly ShareBlock[],
-  comments: readonly ReaderComment[],
-  located: Map<string, LocatedAnchor | null>,
-  activeId: string | null,
-  draft: Draft | null,
-) {
-  useLayoutEffect(() => {
-    const registry = (CSS as unknown as { highlights?: HighlightRegistry }).highlights;
-    const Highlight = (globalThis as unknown as { Highlight?: new (...ranges: Range[]) => unknown }).Highlight;
-    const root = articleRef.current;
-    if (!registry || !Highlight || !root) return;
-    const ranges = (ids: readonly ReaderComment[]) => ids.flatMap(comment => {
-      const at = located.get(comment.id);
-      const range = at ? domRange(root, at) : null;
-      return range ? [range] : [];
-    });
-    registry.set('share-comment', new Highlight(...ranges(comments.filter(comment => comment.status === 'open'))));
-    const active = [...ranges(comments.filter(comment => comment.id === activeId))];
-    const draftRange = draft ? domRange(root, draft.located) : null;
-    if (draftRange) active.push(draftRange);
-    registry.set('share-comment-active', new Highlight(...active));
-    return () => {
-      registry.delete('share-comment');
-      registry.delete('share-comment-active');
-    };
-  }, [articleRef, blocks, comments, located, activeId, draft]);
+  }, [articleRef, scrollRef, blocks, enabled, onSelection]);
 }
