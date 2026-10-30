@@ -48,7 +48,7 @@
 | 素材页工具与翻页 | 玻璃长药丸 + 圆形玻璃按钮 | `MaterialEditorView`（`.material-stage__toolbar`）、`MaterialMediaStage`（`.material-stage__pager-bar`） |
 | 区域批注 | 砂笔框 + 圆砂印编号 | `MaterialRegionLayer`（`RegionFrame`、`.material-region--sand`） |
 | 笔记正文的块 | 平面；提示块与代码块是只读细线卡；高亮与勾选框是砂笔 | `material-workbench.css`（`.note-prose`） |
-| 笔记浮条 | 平面浮层；只有被指着的那一格流出玻璃 | `NoteFloatingBar`（`.note-floating-bar--float`） |
+| 笔记浮条 | 选区浮条同款的玻璃长药丸 + 短药丸 | `NoteFloatingBar`（`.note-floating-bar--glass`） |
 | 嵌入笔记的素材 | 图片无框、悬停或选中出玻璃；PDF 是细线卡 | `MaterialEmbedView` |
 | 素材库卡片 | 素材＝砂笔 cell；TODO＝不垫底的细线卡 | `LibraryItemCard`、`TodoCard` |
 | 素材文件夹 | 侧栏 cell 的玻璃环（多选静止、拖到上面流动） | `MaterialFolderTree` |
@@ -354,7 +354,7 @@ Agent 工作时新出现的一步（工具调用）先由一道流动的玻璃�
 
 ## 笔记浮条与嵌入素材
 
-光标停在清单行或表格里时浮出的操作条（`NoteFloatingBar`）与菜单同一种浮层：桌面色、直角、hairline 加浮起投影，每一项是菜单行（`.menu-surface__item`），只有被指着的那一项流出玻璃；分组之间用 `8px` 空白，不画竖线。嵌入笔记的图片本身没有框，悬停时出一圈玻璃，整块被选中时是静止的选中玻璃；PDF 是一张不垫底的细线卡（`.glass--rest`），没有缩略图时用素材的竖笔记号；素材已删除只留一行灰字加墨印白「！」。插入素材的选择器里，每一格也是细线卡，「导入文件…」是次按钮。
+光标停在清单行或表格里时浮出的操作条（`NoteFloatingBar`）和正文的选区浮条是同一块玻璃（2026-10-30 定，此前是菜单外壳）：一条横向玻璃长药丸（静止细线、稿纸半透底、不带投影，`160ms` 上移 3px 淡入，portal 到 `body` 并固定定位），每个动作——转为 TODO／不作为 TODO，加一行、加一列、删除行、删除列、表头行、删除表格——是一颗短药丸，平时看不见玻璃，悬停晕开流动，按住加深；长药丸本身按下不加深（`.editor-selection-bar.glass--surface` 与 `.editor-selection-bar__item`，直接复用选区浮条的类）。「已同步为 TODO」是一句次级墨的字，TODO 与表格两组之间空 `8px`、不画竖线；空行上停用的「转为 TODO」变淡、指着也不出玻璃。暂停中的移动端保留原来的纸面浮条。嵌入笔记的图片本身没有框，悬停时出一圈玻璃，整块被选中时是静止的选中玻璃；PDF 是一张不垫底的细线卡（`.glass--rest`），没有缩略图时用素材的竖笔记号；素材已删除只留一行灰字加墨印白「！」。插入素材的选择器里，每一格也是细线卡，「导入文件…」是次按钮。
 
 ## 素材库卡片
 
