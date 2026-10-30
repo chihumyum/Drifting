@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { KindMark } from './KindMark';
 import { kindMarkOfTarget } from './kind-mark';
 import { SandCell } from './SandCell';
-import { restGlassFlow, stepGlassFlow } from '../../lib/glass-flow';
+import { restGlassFlow, stepGlassFlow, stepInnerGlassFlow } from '../../lib/glass-flow';
 
 describe('kind marks', () => {
   it('gives every tab-able kind its own mark', () => {
@@ -116,6 +116,32 @@ describe('lines that bleed glass while their panel moves', () => {
     expect(values.get('--flowa')).toBe('0');
     expect(classes.has('is-moving')).toBe(false);
     restGlassFlow(el);
+  });
+
+  it('moves an inner owner on its own pair, so it bleeds its lines without hiding the outer one', () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('window', { matchMedia: () => ({ matches: false }) });
+    vi.stubGlobal('cancelAnimationFrame', () => undefined);
+    const { el, values, classes } = element();
+    stepInnerGlassFlow(el, 6);
+    stepInnerGlassFlow(el, 9);
+    expect(values.get('--flow-inner')).toBe('15.0');
+    expect(Number(values.get('--flowa-inner'))).toBeGreaterThan(0);
+    // The outer pair is never written here: the shell's own moves reach the lines.
+    expect(values.has('--flow')).toBe(false);
+    expect(values.has('--flowa')).toBe(false);
+    expect(classes.has('is-moving')).toBe(true);
+    vi.advanceTimersByTime(200);
+    expect(values.get('--flowa-inner')).toBe('0');
+    expect(values.has('--flowa')).toBe(false);
+    expect(classes.has('is-moving')).toBe(false);
+
+    // A line shows the stronger pair and runs by both distances.
+    const materials = readFileSync(resolve(process.cwd(), 'src/styles/materials.css'), 'utf8');
+    const lines = materials.slice(materials.indexOf('.flow-line {'), materials.indexOf('/* ── Sand'));
+    expect(lines).toContain('opacity: calc(max(var(--flowa, 0), var(--flowa-inner, 0)) * 0.8);');
+    expect(lines).toContain('mask-position: calc((var(--flow, 0) + var(--flow-inner, 0)) * 1.2px + var(--flow-gx, 0px)) var(--flow-gy, 0px);');
+    expect(lines).toContain('mask-position: var(--flow-gx, 0px) calc((var(--flow, 0) + var(--flow-inner, 0)) * 1.6px + var(--flow-gy, 0px));');
   });
 
   it('stays still for readers who reduce motion', () => {

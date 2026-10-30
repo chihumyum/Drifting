@@ -134,11 +134,23 @@ describe('materials in sand and glass on the desktop', () => {
     expect(checkbox).toContain("url('../assets/design/icons/task-todo.png')");
     expect(css).toContain("mask-image: url('../assets/design/icons/task-done.png');");
 
-    expect(bar).toContain("className={`note-floating-bar${float ? ' note-floating-bar--float' : ''}`}");
-    expect(bar).toContain("className={float ? 'menu-surface__item' : undefined}");
-    expect(block(css, '.note-floating-bar.note-floating-bar--float {', '}')).toContain(
-      'box-shadow: var(--menu-surface-shadow);',
+    // The checklist and table bar is the prose selection bar's glass long pill,
+    // its actions the same short pills, portaled to the body; the paused
+    // mobile shell keeps its paper bar.
+    expect(bar).toContain(
+      "className={glass ? 'note-floating-bar--glass editor-selection-bar glass glass--rest glass--surface' : 'note-floating-bar'}",
     );
+    expect(bar).toContain("className={glass ? 'editor-selection-bar__item glass glass--small' : undefined}");
+    expect(bar).toContain("<span className={glass ? 'editor-selection-bar__sep' : 'note-floating-bar__divider'} aria-hidden />");
+    expect(bar).toContain('document.body,');
+    expect(bar).not.toContain('menu-surface');
+    expect(css).not.toContain('note-floating-bar--float');
+    expect(css).not.toMatch(/\.note-floating-bar--glass[^{]*\{[^}]*(box-shadow|--menu-surface|background:)/);
+    expect(block(css, '.note-floating-bar--glass .editor-selection-bar__item:disabled::before {', '}')).toContain('opacity: 0;');
+    const review = source('src/styles/comments-review.css');
+    expect(block(review, '.editor-selection-bar {', '}')).toContain('position: fixed;');
+    expect(block(review, '.editor-selection-bar.glass.glass--surface {', '}')).toContain('--glass-gx: -168px;');
+    expect(designSystemDocs()).toContain('和正文的选区浮条是同一块玻璃');
     expect(embed).toContain("` note-embed__card--glass glass glass--rest${selected ? ' is-on' : ''}`");
     expect(embed).toContain('<KindMark kind="material" />');
     expect(note).toContain("className={`note-embed-picker__tile${glass ? ' note-embed-picker__tile--glass glass glass--rest' : ''}`}");

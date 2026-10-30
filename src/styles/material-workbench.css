@@ -413,7 +413,8 @@
   overflow-x: auto;
 }
 
-/* Checklist and table actions float over the note (NoteFloatingBar). */
+/* Checklist and table actions float over the note (NoteFloatingBar); this
+   paper bar is the paused mobile shell's, the desktop's is glass (below). */
 .note-floating-bar {
   position: fixed;
   z-index: var(--z-popover);
@@ -1682,37 +1683,30 @@
   letter-spacing: 0.08em;
 }
 
-/* Checklist and table actions: a floating layer like the menus, only the
-   action under the pointer flows out in glass (menu-surface__item). */
-.note-floating-bar.note-floating-bar--float {
-  gap: 0;
-  padding: 0;
-  border: 0;
-  border-radius: var(--menu-surface-radius, 0);
-  background: var(--menu-surface-bg);
-  box-shadow: var(--menu-surface-shadow);
+/* Checklist and table actions on the desktop: the prose selection bar's glass
+   long pill (`.editor-selection-bar` in comments-review.css) — its resting
+   line, the floating fill, no shadow — each action one of its short pills,
+   glass only under the pointer. The TODO's part and the table's are parted
+   by space (`.editor-selection-bar__sep`), not a line. */
+.note-floating-bar--glass {
+  max-width: calc(100vw - 16px);
 }
 
-.note-floating-bar--float button,
-.note-floating-bar--float button:hover:not(:disabled) {
-  width: auto;
-  min-height: 30px;
-  padding: 0 11px;
-  border-radius: 0;
-  background: transparent;
-  font-size: 12.5px;
-  white-space: nowrap;
+.note-floating-bar--glass .note-floating-bar__status {
+  padding: 0 4px 0 12px;
+  color: hsl(var(--ink-3));
+  font-size: inherit;
+  line-height: 28px;
 }
 
-.note-floating-bar--float .note-floating-bar__status {
-  padding: 0 4px 0 11px;
+/* 「转为 TODO」 on an empty line: faded, and no glass comes under the pointer. */
+.note-floating-bar--glass .editor-selection-bar__item:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
-.note-floating-bar--float .note-floating-bar__divider {
-  width: 8px;
-  height: auto;
-  margin: 0;
-  background: transparent;
+.note-floating-bar--glass .editor-selection-bar__item:disabled::before {
+  opacity: 0;
 }
 
 /* Materials embedded in a note: an image stands on its own and takes
