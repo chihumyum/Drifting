@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import type { BYOKProvider } from '../lib/byok-keychain';
 import type { AgentEffortChoice } from '../lib/agent/protocol';
 import {
   AGENT_PROVIDER_OPTIONS,
@@ -90,14 +89,6 @@ export const EDITOR_STYLE_DEFAULTS = {
 export function normalizeEditorTextWrap(value: unknown): EditorTextWrap {
   return value === 'pretty' ? 'pretty' : EDITOR_STYLE_DEFAULTS.editorTextWrap;
 }
-export type ModelTier = 'lite' | 'standard' | 'pro';
-export type CopilotMode = 'local' | 'cloud';
-/**
- * Legacy Copilot credential-mode token retained for persisted compatibility.
- * Public local-only builds coerce this to `byok`; renderer-local Copilot reads
- * the author-selected provider key only when making a direct provider call.
- */
-export type AiMode = 'hosted' | 'byok';
 /**
  * Legacy General-Agent credential token retained for persisted compatibility.
  * The current provider-neutral local runtime always uses `apikey`, resolving the
@@ -132,7 +123,25 @@ export type AgentToolSearch = 'off' | 'auto' | 'on';
 
 /** Product default for a fresh General Agent installation. */
 export const AGENT_TOOL_SEARCH_DEFAULT: AgentToolSearch = 'auto';
-export const SETTINGS_STORAGE_VERSION = 31;
+export const SETTINGS_STORAGE_VERSION = 32;
+
+/** Persisted keys of the retired Copilot, dropped by the v32 migration. */
+const RETIRED_COPILOT_SETTINGS = [
+  'copilotTier',
+  'copilotAiMode',
+  'copilotByokProvider',
+  'copilotByokModel',
+  'copilotAutoTrigger',
+  'copilotMode',
+  'copilotInDrift',
+  'copilotTasks',
+  'copilotDebounceMs',
+  'copilotTaskConfigs',
+  'copilotGenerateSummaries',
+  'copilotSummarySectionSize',
+  'copilotInlineEditAllowNewContent',
+  'copilotOutputLangByProject',
+] as const;
 
 /**
  * Keep an explicit persisted choice, including `off`, while giving new or
@@ -197,62 +206,10 @@ export const AGENT_EFFORT_OPTIONS: { value: AgentEffort; label: string; short: s
   { value: 'max', label: 'Max', short: 'Max' },
 ];
 export type LocaleCode = 'zh-CN' | 'zh-TW' | 'en' | 'ja' | 'ko' | 'fr';
-/** Per-project Copilot output language. 'auto' = follow manuscriptLocale. */
-export type CopilotOutputLang = LocaleCode | 'auto';
 export type DateFormat = 'cjk' | 'iso' | 'us';
 
 function normalizeUiLocale(locale: LocaleCode): LocaleCode {
   return locale.startsWith('zh') ? 'zh-CN' : 'en';
-}
-
-// The AUTO-task switches — only the wired, debounced copilot capabilities. The
-// unimplemented placeholders (人物一致性核查 / 时间线对齐 / 自动链接 / 语言润色 /
-// 资料检索) were removed — they rendered toggles that did nothing. elementExtract
-// + elementPatch are the two debounced capabilities. Inline-edit (⇧⌘I) and the
-// popover「问」are MANUAL — always available, never gated by a task switch — so
-// they are deliberately NOT listed here. The task-toggle UIs (settings panel +
-// bottom menu) iterate COPILOT_TASKS, so a manual feature never gets a switch.
-export type CopilotTaskId = 'elementExtract' | 'elementPatch';
-
-export const COPILOT_TASKS: { id: CopilotTaskId; label: string; desc: string }[] = [
-  {
-    id: 'elementExtract',
-    label: 'Element extraction',
-    desc: 'Extract people, places, and objects from the manuscript',
-  },
-  {
-    id: 'elementPatch',
-    label: 'Element patch suggestions',
-    desc: 'Detect state changes for existing people or places and draft patch proposals',
-  },
-];
-
-/**
- * Per-task configuration. `debounceMs` undefined = inherit the capability's
- * `defaultDebounceMs` declaration; explicit number = user override. Future
- * advanced knobs (confidence threshold, model, max suggestions) will live
- * alongside these — see CopilotCapability.configSchema for the declaration
- * side and PR D-2 settings UI for the surface.
- */
-export interface CopilotTaskConfig {
-  enabled: boolean;
-  debounceMs?: number;
-}
-
-/** Initial value for a newly-encountered task id. */
-function defaultTaskConfig(enabled: boolean): CopilotTaskConfig {
-  return { enabled };
-}
-
-/** All known task ids with their first-run defaults. */
-function buildInitialTaskConfigs(): Record<CopilotTaskId, CopilotTaskConfig> {
-  const out = {} as Record<CopilotTaskId, CopilotTaskConfig>;
-  for (const t of COPILOT_TASKS) {
-    // Both remaining tasks are wired — default them on so a fresh install
-    // actually does something.
-    out[t.id] = defaultTaskConfig(true);
-  }
-  return out;
 }
 
 interface SettingsState {
@@ -336,24 +293,6 @@ interface SettingsState {
   dateFormat: DateFormat;
   setDateFormat: (f: DateFormat) => void;
 
-  // Copilot (跟随式副手) provider config — note: API keys are NOT here. They
-  // live in the OS keychain via `byok-keychain.ts`. Storing them in this
-  // persisted store would put them in plaintext localStorage. Only non-secret
-  // config belongs here.
-  // Legacy hosted tier retained for persisted compatibility.
-  copilotTier: ModelTier;
-  setCopilotTier: (t: ModelTier) => void;
-  // Public local-only builds always coerce this legacy route token to 'byok'.
-  copilotAiMode: AiMode;
-  setCopilotAiMode: (m: AiMode) => void;
-  // Which provider the BYOK path uses (the key for it must be in the keychain).
-  copilotByokProvider: BYOKProvider;
-  setCopilotByokProvider: (p: BYOKProvider) => void;
-  // The concrete model id within the BYOK provider ('' = use the renderer-local
-  // default for that provider). Only meaningful when copilotAiMode === 'byok'.
-  copilotByokModel: string;
-  setCopilotByokModel: (m: string) => void;
-
   // General Agent credential token. Current BYOK-only builds coerce this to
   // `apikey`; the actual provider/model are chosen in the chat composer.
   agentAuth: AgentAuth;
@@ -384,74 +323,6 @@ interface SettingsState {
    */
   agentTurnIterationLimit: number | null;
   setAgentTurnIterationLimit: (limit: number | null) => void;
-  // Copilot (任务自动化, 没有续写)
-  /**
-   * The single switch for AUTOMATIC Copilot. When on, background tasks run on
-   * their own as you write (debounced capability fire, todo parsing, segment
-   * summaries). When off, nothing fires automatically — but manual triggers
-   * (⇧⌘I / the context-menu Copilot popover) keep working regardless, since
-   * those are user-initiated.
-   */
-  copilotAutoTrigger: boolean;
-  setCopilotAutoTrigger: (on: boolean) => void;
-  copilotMode: CopilotMode;
-  setCopilotMode: (m: CopilotMode) => void;
-  /**
-   * Whether Copilot runs inside the drift-node editor. Drift nodes are
-   * scratch / inspiration space, so by default we keep the副手 quiet there
-   * even when the master switch is on — it stays active in chapter editors.
-   * Flip on to get the same task suggestions in drifts.
-   */
-  copilotInDrift: boolean;
-  setCopilotInDrift: (on: boolean) => void;
-  /**
-   * Per-task configuration map. Each task carries its own enabled flag
-   * and an optional debounceMs override (undefined = fall back to the
-   * capability's `defaultDebounceMs`). Replaces the legacy
-   * `copilotTasks: CopilotTaskId[]` + global `copilotDebounceMs` pair
-   * with a richer shape that PR D-2 can extend (model, threshold, etc).
-   */
-  copilotTaskConfigs: Record<CopilotTaskId, CopilotTaskConfig>;
-  setCopilotTaskEnabled: (id: CopilotTaskId, on: boolean) => void;
-  setCopilotTaskDebounceMs: (id: CopilotTaskId, ms: number | undefined) => void;
-  setCopilotTaskConfig: (id: CopilotTaskId, patch: Partial<CopilotTaskConfig>) => void;
-  /**
-   * Master switch for the rolling-summary side-output. When true, Copilot
-   * accumulates uncovered-block count across capability fires and triggers
-   * a block-section summary once `copilotSummarySectionSize` distinct
-   * blocks are uncovered. When false: no summaries are generated, no
-   * priorSections context is sent to prompts — saves token cost at the
-   * expense of element-patch / element-candidate quality.
-   */
-  copilotGenerateSummaries: boolean;
-  setCopilotGenerateSummaries: (on: boolean) => void;
-  /**
-   * How many distinct uncovered blocks must accumulate before any
-   * capability's fire triggers a new summary. Larger = fewer summary
-   * calls (cheaper) + bigger context per call. Default 8 covers ~half
-   * a typical scene.
-   */
-  copilotSummarySectionSize: number;
-  setCopilotSummarySectionSize: (n: number) => void;
-  /**
-   * Inline-edit (Cmd+Shift+I) escape hatch. Default false: inline-edit refuses to
-   * generate NEW story content because it runs without the project / chapter
-   * / storyline context the rest of Copilot assembles. Flip on to let it
-   * fulfill "continue this" style asks — the author then owns the quality
-   * loss from the missing global context.
-   */
-  copilotInlineEditAllowNewContent: boolean;
-  setCopilotInlineEditAllowNewContent: (on: boolean) => void;
-  /**
-   * Per-project output language for Copilot generation,
-   * keyed by projectId. 'auto'/unset follows manuscriptLocale. Keeps the
-   * 副手 from drifting into the wrong language (e.g. English in a Chinese
-   * novel). This is an on-device presentation/runtime preference and is not
-   * part of the authored SyncEngine domain.
-   */
-  copilotOutputLangByProject: Record<string, CopilotOutputLang>;
-  setCopilotOutputLang: (projectId: string, lang: CopilotOutputLang) => void;
-
   /**
    * Last-active Agent conversation id per project. Persisted so the Agent panel
    * re-opens the session the user was in after a reload/restart (the transcript
@@ -577,18 +448,6 @@ export const useSettingsStore = create<SettingsState>()(
       dateFormat: 'cjk',
       setDateFormat: (f) => set({ dateFormat: f }),
 
-      // Fresh installs start on BYOK in a BYOK-only build (no hosted key server-side).
-      copilotAiMode: 'byok',
-      setCopilotAiMode: () => set({ copilotAiMode: 'byok' }),
-      copilotByokProvider: 'deepseek',
-      setCopilotByokProvider: (p) =>
-        set((state) =>
-          state.copilotByokProvider === p
-            ? { copilotByokProvider: p }
-            : { copilotByokProvider: p, copilotByokModel: '' },
-        ),
-      copilotByokModel: '',
-      setCopilotByokModel: (m) => set({ copilotByokModel: m }),
       agentAuth: 'apikey',
       setAgentAuth: (auth) => set({ agentAuth: auth === 'hosted' ? 'apikey' : auth }),
       agentProvider: DEFAULT_AGENT_PROVIDER,
@@ -646,51 +505,6 @@ export const useSettingsStore = create<SettingsState>()(
       agentTurnIterationLimit: AGENT_TURN_ITERATION_LIMIT_DEFAULT,
       setAgentTurnIterationLimit: (limit) =>
         set({ agentTurnIterationLimit: normalizeAgentTurnIterationLimit(limit) }),
-      copilotTier: 'standard',
-      setCopilotTier: (t) => set({ copilotTier: t }),
-
-      copilotAutoTrigger: true,
-      setCopilotAutoTrigger: (on) => set({ copilotAutoTrigger: on }),
-      copilotMode: 'cloud',
-      setCopilotMode: (m) => set({ copilotMode: m }),
-      copilotInDrift: false,
-      setCopilotInDrift: (on) => set({ copilotInDrift: on }),
-      copilotTaskConfigs: buildInitialTaskConfigs(),
-      setCopilotTaskEnabled: (id, on) =>
-        set((state) => ({
-          copilotTaskConfigs: {
-            ...state.copilotTaskConfigs,
-            [id]: { ...(state.copilotTaskConfigs[id] ?? defaultTaskConfig(false)), enabled: on },
-          },
-        })),
-      setCopilotTaskDebounceMs: (id, ms) =>
-        set((state) => ({
-          copilotTaskConfigs: {
-            ...state.copilotTaskConfigs,
-            [id]: { ...(state.copilotTaskConfigs[id] ?? defaultTaskConfig(false)), debounceMs: ms },
-          },
-        })),
-      setCopilotTaskConfig: (id, patch) =>
-        set((state) => ({
-          copilotTaskConfigs: {
-            ...state.copilotTaskConfigs,
-            [id]: { ...(state.copilotTaskConfigs[id] ?? defaultTaskConfig(false)), ...patch },
-          },
-        })),
-      copilotGenerateSummaries: true,
-      setCopilotGenerateSummaries: (on) => set({ copilotGenerateSummaries: on }),
-      copilotSummarySectionSize: 8,
-      setCopilotSummarySectionSize: (n) => set({ copilotSummarySectionSize: n }),
-      copilotInlineEditAllowNewContent: false,
-      setCopilotInlineEditAllowNewContent: (on) => set({ copilotInlineEditAllowNewContent: on }),
-      copilotOutputLangByProject: {},
-      setCopilotOutputLang: (projectId, lang) =>
-        set((state) => ({
-          copilotOutputLangByProject: {
-            ...state.copilotOutputLangByProject,
-            [projectId]: lang,
-          },
-        })),
       lastAgentConvByProject: {},
       setLastAgentConv: (projectId, convId) =>
         set((state) => ({
@@ -705,11 +519,9 @@ export const useSettingsStore = create<SettingsState>()(
         }),
       clearProjectSettings: (projectId) =>
         set((state) => {
-          const copilotOutputLangByProject = { ...state.copilotOutputLangByProject };
           const lastAgentConvByProject = { ...state.lastAgentConvByProject };
-          delete copilotOutputLangByProject[projectId];
           delete lastAgentConvByProject[projectId];
-          return { copilotOutputLangByProject, lastAgentConvByProject };
+          return { lastAgentConvByProject };
         }),
 
       autoSnapshot: true,
@@ -735,13 +547,8 @@ export const useSettingsStore = create<SettingsState>()(
           marginNotes?: boolean;
           marginNotesByKind?: unknown;
           animationsEnabled?: boolean;
-          copilotTasks?: CopilotTaskId[];
-          copilotDebounceMs?: number;
-          // v8→v9 legacy AI keys (renamed/removed below).
-          modelTier?: ModelTier;
-          aiMode?: AiMode;
-          byokProvider?: BYOKProvider;
-          agentMode?: AiMode;
+          // v8→v9 legacy AI key (mapped to agentAuth below).
+          agentMode?: 'hosted' | 'byok';
           focusLine?: unknown;
         };
         let next: Partial<SettingsState> & {
@@ -751,12 +558,7 @@ export const useSettingsStore = create<SettingsState>()(
           marginNotes?: boolean;
           marginNotesByKind?: unknown;
           animationsEnabled?: boolean;
-          copilotTasks?: CopilotTaskId[];
-          copilotDebounceMs?: number;
-          modelTier?: ModelTier;
-          aiMode?: AiMode;
-          byokProvider?: BYOKProvider;
-          agentMode?: AiMode;
+          agentMode?: 'hosted' | 'byok';
           focusLine?: unknown;
         } = state;
         if (version < 2) {
@@ -785,90 +587,13 @@ export const useSettingsStore = create<SettingsState>()(
           void _omit;
           next = rest;
         }
-        if (version < 6) {
-          // copilotTasks (string[] allow-list) + copilotDebounceMs (single
-          // global) folded into copilotTaskConfigs (per-task enabled +
-          // optional debounceMs). Migration preserves each user's prior
-          // choices: enabled = was in the allow-list; debounceMs = old
-          // global if non-default, else undefined (capability default).
-          const oldTasks = (next.copilotTasks ?? []) as string[];
-          const oldGlobalDebounce = next.copilotDebounceMs;
-          const configs = buildInitialTaskConfigs();
-          // If user had an explicit allow-list, respect it (overrides initial
-          // defaults). Empty list = nothing was on → set everything off.
-          // Note: 'entityExtract' was the old name for what is now
-          // 'elementExtract' (PR E rename), but at v5 it was still the old
-          // name in storage. The v7 migration below handles the key rename;
-          // this v6 step preserves it as-is.
-          if (oldTasks.length > 0) {
-            for (const id of Object.keys(configs) as CopilotTaskId[]) {
-              configs[id] = { ...configs[id], enabled: oldTasks.includes(id) };
-            }
-          }
-          // Apply old global debounce only to currently-wired caps. The placeholders
-          // would otherwise carry a debounce setting they can't act on.
-          if (typeof oldGlobalDebounce === 'number' && oldGlobalDebounce > 0) {
-            for (const id of ['elementExtract', 'elementPatch'] as CopilotTaskId[]) {
-              configs[id] = { ...configs[id], debounceMs: oldGlobalDebounce };
-            }
-          }
-          const { copilotTasks: _omitTasks, copilotDebounceMs: _omitDebounce, ...rest } = next;
-          void _omitTasks;
-          void _omitDebounce;
-          next = { ...rest, copilotTaskConfigs: configs };
-        }
-        if (version < 7) {
-          // PR E: 'entityExtract' task id renamed to 'elementExtract' (it
-          // was always BookElement-targeted; the old "entity" name conflated
-          // it with Drifting's broader entity union). Move the config under
-          // the new key, then drop the old one if both somehow co-exist
-          // (new key wins — it's what current code reads).
-          const configs = { ...(next.copilotTaskConfigs ?? {}) } as Record<
-            string,
-            CopilotTaskConfig
-          >;
-          if (configs.entityExtract && !configs.elementExtract) {
-            configs.elementExtract = configs.entityExtract;
-          }
-          delete configs.entityExtract;
-          next = {
-            ...next,
-            copilotTaskConfigs: configs as Record<CopilotTaskId, CopilotTaskConfig>,
-          };
-        }
-        if (version < 8) {
-          // New task ids ship over time. Backfill any current
-          // COPILOT_TASKS entry missing from the user's persisted configs
-          // with its first-run default, so the settings UI and the manual-run
-          // menu surface it instead of treating it as silently disabled.
-          // Existing user choices are preserved (only missing keys are added).
-          const defaults = buildInitialTaskConfigs();
-          const configs = {
-            ...(next.copilotTaskConfigs ?? {}),
-          } as Record<CopilotTaskId, CopilotTaskConfig>;
-          for (const id of Object.keys(defaults) as CopilotTaskId[]) {
-            if (!configs[id]) configs[id] = defaults[id];
-          }
-          next = { ...next, copilotTaskConfigs: configs };
-        }
         if (version < 9) {
-          // AI settings reorg by subsystem. (1) Copilot's generic field names
-          // get a `copilot` prefix to disambiguate from the General Agent's
-          // routing. (2) `agentMode` (binary hosted/byok-OAuth) becomes the
-          // 3-way `agentAuth` — BYOK now splits into 'oauth' and 'apikey'. (3)
-          // The never-wired Shadow scaffolding (orb/surface/notify/permissions/
-          // voice/prompt) is dropped; no runtime ever consumed it. Each user's
-          // prior choices are preserved across the renames.
+          // AI settings reorg by subsystem. `agentMode` (binary hosted/byok-
+          // OAuth) becomes the 3-way `agentAuth` — BYOK now splits into 'oauth'
+          // and 'apikey'. The never-wired Shadow scaffolding (orb/surface/
+          // notify/permissions/voice/prompt) is dropped; no runtime ever
+          // consumed it. The retired Copilot fields are dropped at v32.
           const legacy = next;
-          if (legacy.modelTier !== undefined && next.copilotTier === undefined) {
-            next.copilotTier = legacy.modelTier;
-          }
-          if (legacy.aiMode !== undefined && next.copilotAiMode === undefined) {
-            next.copilotAiMode = legacy.aiMode;
-          }
-          if (legacy.byokProvider !== undefined && next.copilotByokProvider === undefined) {
-            next.copilotByokProvider = legacy.byokProvider;
-          }
           if (next.agentAuth === undefined) {
             // Old 'byok' meant the Claude OAuth path; map it to 'oauth'.
             next.agentAuth = legacy.agentMode === 'hosted' ? 'hosted' : 'oauth';
@@ -901,24 +626,6 @@ export const useSettingsStore = create<SettingsState>()(
           for (const k of ['uploadFullManuscript', 'allowWebSearch', 'requestTimeoutSec']) {
             delete drop[k];
           }
-        }
-        if (version < 12) {
-          // 'inlineEdit' is no longer a task: inline-edit (⇧⌘I) is a MANUAL
-          // feature, always available, never gated by a switch. Drop its stale
-          // persisted config (and any other key no longer in COPILOT_TASKS) so
-          // the saved shape matches CopilotTaskId again.
-          const known = new Set(COPILOT_TASKS.map((t) => t.id));
-          const configs = { ...(next.copilotTaskConfigs ?? {}) } as Record<
-            string,
-            CopilotTaskConfig
-          >;
-          for (const id of Object.keys(configs)) {
-            if (!known.has(id as CopilotTaskId)) delete configs[id];
-          }
-          next = {
-            ...next,
-            copilotTaskConfigs: configs as Record<CopilotTaskId, CopilotTaskConfig>,
-          };
         }
         if (version < 14) {
           // The application now has one modern UI. Preserve the only visual
@@ -1025,6 +732,11 @@ export const useSettingsStore = create<SettingsState>()(
           // existed, so no stored value reflects a choice. Start enabled.
           next.sendCrashLogs = true;
         }
+        if (version < 32) {
+          // Copilot was retired in favour of the Agent.
+          const retired = next as unknown as Record<string, unknown>;
+          for (const key of RETIRED_COPILOT_SETTINGS) delete retired[key];
+        }
         return next;
       },
       // BYOK-only builds (VITE_BYOK_ONLY) disable the hosted AI tier — the server
@@ -1061,7 +773,6 @@ export const useSettingsStore = create<SettingsState>()(
         merged.editorTextWrap = normalizeEditorTextWrap(merged.editorTextWrap);
         merged.agentEditRevealAnimation = merged.agentEditRevealAnimation !== false;
         if (APP_CONFIG.BYOK_ONLY) {
-          if (merged.copilotAiMode === 'hosted') merged.copilotAiMode = 'byok';
           if (merged.agentAuth === 'hosted') merged.agentAuth = 'apikey';
         }
         const retired = merged as unknown as Record<string, unknown>;

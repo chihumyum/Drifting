@@ -103,7 +103,7 @@ export function isAuthRequired(): boolean {
 
 /**
  * Whether this is a BYOK-only build (hosted AI tier disabled). When true, every
- * AI subsystem (Copilot / General Agent) hides its hosted option and
+ * AI subsystem (General Agent) hides its hosted option and
  * routes only through the user's own credentials. General Agent currently uses
  * the shared DeepSeek BYOK credential; Drifting-hosted inference is off.
  */

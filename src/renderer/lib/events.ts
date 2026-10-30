@@ -4,27 +4,6 @@ import type { BookElement, BookElementCategory } from '../domain/book-element';
 import type { EntityKind } from './extensions/entity-link';
 import type { LeftSidebarTab, SidebarPaneId } from './sidebar-tabs';
 
-// One Copilot-task lifecycle signal. Carries its
-// `state` inline so a single subscription drives the
-// global notification surface. `id` is stable across started→completed/failed so
-// the notification center can collapse a task's phases into one row.
-export type AiTaskSource = 'copilot';
-export type AiTaskState = 'started' | 'completed' | 'failed' | 'stopped';
-export type AiTaskOutcome = 'clean' | 'issues' | 'ok' | 'error';
-
-export type AiTaskEvent = {
-  id: string;
-  source: AiTaskSource;
-  state: AiTaskState;
-  title: string; // short headline, e.g. "Copilot · 要素候选"
-  detail?: string; // one-line detail, e.g. "第三章 · 发现 2 处问题"
-  chapterId?: string; // for click-to-navigate, when applicable
-  outcome?: AiTaskOutcome; // tints the completed banner
-  count?: number; // findings / suggestions produced
-  error?: string;
-  at: number;
-};
-
 export type AppEvents = {
   'graph:select': { nodeId: string | null };
   'graph:node-created': { node: BookNode };
@@ -84,9 +63,6 @@ export type AppEvents = {
   'jobs:completed': { jobId: string; result?: unknown };
   'jobs:failed': { jobId: string; error: string };
 
-  // Copilot task lifecycle → global notification pill + center.
-  'ai-task': AiTaskEvent;
-
   'ui:sidecar-toggled': { open: boolean };
   'ui:command-palette-toggled': { open: boolean };
 
@@ -125,30 +101,6 @@ export type AppEvents = {
   // status indicators re-read their selected provider without owning another
   // credential form.
   'byok:keys-changed': void;
-
-  // Copilot persisted a suggestion against the given (kind, id) target.
-  // Announces a newly persisted Copilot review item. Review surfaces may use
-  // this as an unread signal; it never auto-mounts or opens an editor rail.
-  'copilot:suggestion-persisted': {
-    targetKind: 'node' | 'element' | 'patch' | 'category' | 'storyline';
-    targetId: string;
-  };
-
-  // User explicitly asked Copilot to run a capability NOW (Cmd+Shift+I / copilot
-  // menu), bypassing the per-capability debounce and dedup gate. Consumed by
-  // the useCopilot instance whose chapter (nodeId) matches — it forces a
-  // fire even if the capability's per-task toggle is off, and even when
-  // automatic Copilot is disabled (manual is never gated by those switches).
-  // `instruction` is the optional free-text steer the user typed in the
-  // popover; it's threaded into the capability's prompt. `selectionBlockIds`,
-  // when present (Task 6), scopes the run to those blocks + the segments they
-  // fall into, instead of the rolling coverage context.
-  'copilot:manual-run': {
-    nodeId: string;
-    capId: string;
-    instruction?: string;
-    selectionBlockIds?: string[];
-  };
 };
 
 export const eventBus = mitt<AppEvents>();

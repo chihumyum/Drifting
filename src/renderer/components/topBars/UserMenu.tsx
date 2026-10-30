@@ -1,5 +1,5 @@
 import { useSettingsPreloadIntent } from '../../features/settings/useSettingsPanels';
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../store/auth';
@@ -9,14 +9,12 @@ import { UI_LOCALE_OPTIONS } from '../../lib/i18n';
 import loglevel from 'loglevel';
 import { AnchoredPopover } from '../ui/AnchoredPopover';
 import type { AnchoredPopoverPlacement } from '../ui/anchored-popover-position';
-import { CopilotQuickSettings } from '../copilot/CopilotBottomMenu';
 import { getPlatformRuntime } from '../../platform/runtime';
 import { hostedAccountSettingsEnabled } from '../../features/settings/hosted-settings-policy';
 import { useShareLinksDialogStore } from '../../features/share-links/share-links-dialog-store';
 import { useOpenSignIn } from '../../features/auth/auth-dialog-store';
 import { AccountAvatar } from '../ui/AccountAvatar';
 import { BrushIcon } from '../ui/BrushIcon';
-import { GhostIconButton } from '../ui/GhostIconButton';
 import { GlassSlider } from '../ui/GlassSlider';
 
 const log = loglevel.getLogger('UserMenu');
@@ -29,8 +27,6 @@ interface UserMenuProps {
   /** Where the menu opens relative to its trigger. */
   placement?: AnchoredPopoverPlacement;
 }
-
-type UserMenuSettingsPage = 'copilot';
 
 export function UserMenu({ triggerRef, open, onClose, scope = 'project', placement = 'bottom-end' }: UserMenuProps) {
   const { t } = useTranslation();
@@ -50,57 +46,15 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project', placeme
   const setUiLocale = useSettingsStore((s) => s.setUiLocale);
   const navigate = useNavigate();
   const openSignIn = useOpenSignIn();
-  const settingsBackRef = useRef<HTMLButtonElement | null>(null);
   const [signingOut, setSigningOut] = useState(false);
-  const [activeSettingsPage, setActiveSettingsPage] = useState<UserMenuSettingsPage | null>(null);
-  const settingsIntent = useSettingsPreloadIntent(scope === 'project' && open && activeSettingsPage === null);
-
-  useEffect(() => {
-    if (!open) setActiveSettingsPage(null);
-  }, [open]);
-
-  useEffect(() => {
-    if (!open || activeSettingsPage === null) return undefined;
-    const frame = window.requestAnimationFrame(() => {
-      settingsBackRef.current?.focus({ preventScroll: true });
-    });
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      const target = event.target;
-      if (
-        target instanceof HTMLElement &&
-        (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')
-      ) {
-        return;
-      }
-      event.preventDefault();
-      event.stopPropagation();
-      setActiveSettingsPage(null);
-    };
-    document.addEventListener('keydown', handleEscape, true);
-    return () => {
-      window.cancelAnimationFrame(frame);
-      document.removeEventListener('keydown', handleEscape, true);
-    };
-  }, [activeSettingsPage, open]);
-
-  const handleClose = () => {
-    setActiveSettingsPage(null);
-    onClose();
-  };
-
-  const openFullSettings = () => {
-    if (getPlatformRuntime().isMobileShell) navigate('/settings?section=copilot');
-    else events.emit('settings:open', { railId: 'copilot' });
-    handleClose();
-  };
+  const settingsIntent = useSettingsPreloadIntent(scope === 'project' && open);
 
   const handleSignOut = async () => {
     if (signingOut) return;
     setSigningOut(true);
     try {
       await logout();
-      handleClose();
+      onClose();
       navigate('/');
     } catch (e) {
       log.error('Failed to sign out:', e);
@@ -117,41 +71,18 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project', placeme
     <AnchoredPopover
       anchorRef={triggerRef}
       open={open}
-      onClose={handleClose}
+      onClose={onClose}
       placement={placement}
       role="dialog"
-      ariaLabel={
-        activeSettingsPage
-          ? `${activeSettingsPage} settings`
-          : t(accountSettingsEnabled ? 'userMenu.accountMenu' : 'userMenu.localMenu')
-      }
+      ariaLabel={t(accountSettingsEnabled ? 'userMenu.accountMenu' : 'userMenu.localMenu')}
       maxHeight={560}
-      dismissOnEscape={activeSettingsPage === null}
-      className={`menu-surface menu-surface--rich ${
-        activeSettingsPage === 'copilot' ? 'menu-surface--panel' : 'menu-surface--wide'
-      } user-menu`}
+      className="menu-surface menu-surface--rich menu-surface--wide user-menu"
       style={{
         zIndex: 'var(--z-popover)',
         overflowY: 'auto',
       }}
     >
-      {activeSettingsPage && (
-        <div>
-          <div className="user-menu__subhead">
-            <GhostIconButton
-              ref={settingsBackRef}
-              onClick={() => setActiveSettingsPage(null)}
-              aria-label={t('common.back', { defaultValue: 'Back' })}
-              title={t('common.back', { defaultValue: 'Back' })}
-              icon={<BrushIcon name="chevron-left" size={15} />}
-            />
-            <span>Copilot</span>
-          </div>
-          <CopilotQuickSettings onOpenFullSettings={openFullSettings} />
-        </div>
-      )}
-
-      <div style={{ display: activeSettingsPage ? 'none' : undefined }}>
+      <div>
         <div className="user-menu__head">
           <UserAvatar initial={initial} image={user?.image} size={desktop ? 32 : 36} fontSize={desktop ? 15 : 17} />
           <div className="user-menu__identity">
@@ -163,17 +94,6 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project', placeme
             </span>
           </div>
         </div>
-
-        {scope === 'project' && (
-          <MenuGroup>
-            <MenuItem
-              icon={<BrushIcon name="jizo" size={13} />}
-              label="Copilot"
-              tail={<BrushIcon name="chevron-right" size={13} />}
-              onClick={() => setActiveSettingsPage('copilot')}
-            />
-          </MenuGroup>
-        )}
 
         <MenuGroup last={scope === 'shelf' && !accountSettingsEnabled}>
           <MenuItem
@@ -265,7 +185,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project', placeme
                 meta="⌘,"
                 onClick={() => {
                   events.emit('settings:open', {});
-                  handleClose();
+                  onClose();
                 }}
               />
               <MenuItem
@@ -275,7 +195,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project', placeme
                 meta="⌘K ⌘/"
                 onClick={() => {
                   events.emit('settings:open', { railId: 'keys' });
-                  handleClose();
+                  onClose();
                 }}
               />
             </>
@@ -287,7 +207,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project', placeme
               intent={settingsIntent}
               onClick={() => {
                 navigate('/settings?section=sync', { state: { from: '/' } });
-                handleClose();
+                onClose();
               }}
             />
           )}
@@ -312,7 +232,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project', placeme
                 meta="MD · DOCX · TXT"
                 onClick={() => {
                   events.emit('import:open');
-                  handleClose();
+                  onClose();
                 }}
               />
               <MenuItem
@@ -320,7 +240,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project', placeme
                 label={t('userMenu.bookshelf')}
                 onClick={() => {
                   navigate('/');
-                  handleClose();
+                  onClose();
                 }}
               />
             </>
@@ -342,7 +262,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project', placeme
             <MenuItem
               icon={<BrushIcon name={canSignOut ? 'gate-out' : 'gate-in'} size={13} />}
               label={signingOut ? t('userMenu.signingOut') : t(canSignOut ? 'userMenu.signOut' : 'settings.hosted.sign_in_sync')}
-              onClick={signingOut ? undefined : canSignOut ? handleSignOut : () => { handleClose(); openSignIn(); }}
+              onClick={signingOut ? undefined : canSignOut ? handleSignOut : () => { onClose(); openSignIn(); }}
             />
           </MenuGroup>
         )}

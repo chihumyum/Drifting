@@ -56,16 +56,8 @@ function relTime(
   return t('notifications.time.daysAgo', { count: Math.floor(d / 86_400_000) });
 }
 
-function sourceLabel(
-  n: AppNotification,
-  t: (key: string, options?: Record<string, unknown>) => string,
-): string {
-  if (n.source === 'share-comment') return t('notifications.shareComments.source');
-  return n.source === 'hosted-sync' ? t('notifications.cloudSync.source') : 'Copilot';
-}
-
-function sourceMark(n: AppNotification) {
-  return n.source === 'hosted-sync' ? 'cloud' : n.source === 'share-comment' ? 'comment' : 'shikigami';
+function sourceLabel(n: AppNotification, t: (key: string, options?: Record<string, unknown>) => string): string {
+  return t(n.source === 'share-comment' ? 'notifications.shareComments.source' : 'notifications.cloudSync.source');
 }
 
 function SourceIcon({ n, size = 14 }: { n: AppNotification; size?: number }) {
@@ -198,11 +190,7 @@ export function NotificationPill({ opens = 'down' }: {
     iconColor = 'hsl(var(--ink-2))';
     iconEl = (
       <span key={`${runningItem.source}-run`} className="notif-blink-icon">
-        {runningItem.source === 'hosted-sync' ? (
-          <BrushIcon name="cloud" size={15} />
-        ) : (
-          <BrushIcon name="shikigami" size={14} />
-        )}
+        <BrushIcon name="cloud" size={15} />
       </span>
     );
   } else if (flashResult) {
@@ -316,7 +304,7 @@ function NotificationCenter({
               <div className="notification-row__body">
                 <div className="notification-row__meta">
                   <span className="notification-row__source">
-                    <BrushIcon name={sourceMark(n)} size={12} />
+                    <BrushIcon name={n.source === 'share-comment' ? 'comment' : 'cloud'} size={12} />
                     {sourceLabel(n, t)}
                   </span>
                   <span className="notification-row__time">{relTime(n.updatedAt, now, t)}</span>

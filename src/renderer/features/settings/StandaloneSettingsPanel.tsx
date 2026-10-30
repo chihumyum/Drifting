@@ -4,7 +4,7 @@ import { AppearancePanel, LanguagePanel } from './panels/BasicPreferencePanels';
 import { SettingsLoadStatus } from './SettingsLoadStatus';
 import { hostedAccountSettingsEnabled } from './hosted-settings-policy';
 
-type DeferredPanelId = 'account' | 'editor' | 'models' | 'copilot' | 'keys' | 'sync' | 'updates' | 'privacy' | 'about';
+type DeferredPanelId = 'account' | 'editor' | 'models' | 'keys' | 'sync' | 'updates' | 'privacy' | 'about';
 export type StandalonePanelId = 'appearance' | 'language' | DeferredPanelId;
 type PanelContent = ComponentType<{ id: DeferredPanelId }>;
 const REGISTER_NOOP = () => undefined;
@@ -16,11 +16,9 @@ const editor = createDeferredModule<PanelContent>(async () => {
   return function EditorContent() { return <EditorPanel registerRef={REGISTER_NOOP} />; };
 });
 const intelligence = createDeferredModule<PanelContent>(async () => {
-  const { ModelsPanel, CopilotPanel } = await import('./panels/IntelligenceSettingsPanels');
-  return function IntelligenceContent({ id }) {
-    return id === 'models'
-      ? <ModelsPanel credentialsActive registerRef={REGISTER_NOOP} />
-      : <CopilotPanel credentialsActive registerRef={REGISTER_NOOP} />;
+  const { ModelsPanel } = await import('./panels/IntelligenceSettingsPanels');
+  return function IntelligenceContent() {
+    return <ModelsPanel credentialsActive registerRef={REGISTER_NOOP} />;
   };
 });
 const controls = createDeferredModule<PanelContent>(async () => {
@@ -37,7 +35,7 @@ const controls = createDeferredModule<PanelContent>(async () => {
     }
   };
 });
-const panelModules = { account: controls, editor, models: intelligence, copilot: intelligence,
+const panelModules = { account: controls, editor, models: intelligence,
   keys: controls, sync: controls, updates: controls, privacy: controls, about: controls };
 
 function DeferredStandalonePanel({ id }: { id: DeferredPanelId }) {

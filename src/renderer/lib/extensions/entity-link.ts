@@ -203,9 +203,8 @@ export function refreshEntityLinkPresentation(editor: Editor, targetsChanged: bo
 
 // Trailing-debounce window before auto-linking freshly-typed entity names. Keeps
 // the name-matching pass OFF the per-keystroke frame: a typing burst links once,
-// on pause. Copilot context assembly calls flushPendingAutoDetect() to force it
-// synchronously first, so a manual ⇧⌘I right after typing a name still sees it.
-// (Copilot auto-runs are themselves debounced ≥3s, so they always see it too.)
+// on pause. Callers that read entityLink marks right after typing call
+// flushPendingAutoDetect() to force it synchronously first.
 const AUTO_DETECT_DEBOUNCE_MS = 500;
 
 interface AutoDetectViewState {
@@ -363,9 +362,9 @@ export function detectEntityLinkSpans(text: string, config: EntityLinkAutoDetect
 
 /**
  * Force any pending debounced auto-detect to run NOW, synchronously linking
- * freshly-typed entity names. Copilot context assembly calls this before reading
- * entityLink marks off the live doc, so a manual ⇧⌘I fired right after typing a
- * name still sees it as a mentioned element. No-op when nothing new matches.
+ * freshly-typed entity names, so a reader of entityLink marks off the live doc
+ * sees a name typed a moment ago as a mentioned element. No-op when nothing
+ * new matches.
  */
 export function flushPendingAutoDetect(editor: Editor): void {
   if (editor.isDestroyed) return;

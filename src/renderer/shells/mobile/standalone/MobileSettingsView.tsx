@@ -17,7 +17,6 @@ type MobileSettingsId =
   | 'editor'
   | 'language'
   | 'models'
-  | 'copilot'
   | 'keys'
   | 'sync'
   | 'privacy'
@@ -53,7 +52,6 @@ const MOBILE_SETTINGS_GROUPS: MobileSettingsGroup[] = [
     labelKey: 'settings.groups.intelligence',
     items: [
       { id: 'models', labelKey: 'settings.rail.models' },
-      { id: 'copilot', labelKey: 'settings.rail.copilot' },
     ],
   },
   {
