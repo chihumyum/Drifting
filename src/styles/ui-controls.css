@@ -1458,10 +1458,11 @@ html:not([data-shell-mode='mobile']) .ui-button.ui-button--glass:disabled::befor
 
 .ui-select__menu {
   min-width: var(--menu-width-standard);
+  padding-block: 6px;
 }
 
 .ui-select__search {
-  padding: 8px 8px 4px;
+  padding: 2px var(--menu-row-inset) 4px;
 }
 
 .ui-select__check {

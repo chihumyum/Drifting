@@ -866,7 +866,7 @@ html[data-shell-mode='mobile'] .super-view-overlay {
 }
 
 .relation-kind-menu--glass .relation-kind-menu__head {
-  padding: 4px 14px 6px;
+  padding: 4px 16px 6px;
   border-bottom: 0;
 }
 
@@ -890,16 +890,24 @@ html[data-shell-mode='mobile'] .super-view-overlay {
   color: var(--ui-text-muted, hsl(var(--ink-4)));
 }
 
+/* The filters and the type definitions are parted by the menu's hairline. */
 .relation-kind-menu--glass .relation-kind-menu__section--manage {
-  margin-top: 8px;
+  margin-top: 5px;
   padding-top: 0;
   border-top: 0;
+}
+.relation-kind-menu--glass .relation-kind-menu__section--manage::before {
+  content: '';
+  display: block;
+  height: 0.5px;
+  margin: 0 16px 5px;
+  background: var(--menu-separator);
 }
 
 .relation-kind-menu--glass .relation-kind-menu__section-label,
 .relation-kind-menu--glass .relation-kind-menu__group-label {
   margin: 0;
-  padding: 8px 14px 4px;
+  padding: 8px 16px 4px;
   color: var(--ui-text-muted, hsl(var(--ink-4)));
   font-family: var(--font-mono);
   font-size: var(--ui-font-caption, 10px);
@@ -913,11 +921,11 @@ html[data-shell-mode='mobile'] .super-view-overlay {
 }
 
 .relation-kind-menu--glass .relation-kind-menu__chips {
-  padding: 2px 12px 4px;
+  padding: 2px 14px 4px;
 }
 
 .relation-kind-menu--glass .relation-kind-menu__empty {
-  padding: 4px 14px;
+  padding: 4px 16px;
   color: var(--ui-text-muted, hsl(var(--ink-4)));
   font-size: var(--ui-font-secondary, 11.5px);
 }

@@ -262,6 +262,27 @@ describe('shared menu surface style', () => {
     expect(source('src/renderer/views/MaterialNotePage.tsx')).toContain("icon: 'list-bullet'");
   });
 
+  it('keeps the rich menus in line with the shared rows, parted by the same hairline', () => {
+    const controls = source('src/styles/ui-controls.css');
+    // No row of a select sits in the rounded corner; its search field lines up with the rows.
+    expect(rule(controls, '.ui-select__menu {')).toContain('padding-block: 6px;');
+    expect(rule(controls, '.ui-select__search {')).toContain('padding: 2px var(--menu-row-inset) 4px;');
+    // Rows styled in a stylesheet loaded before ui-controls.css scope their own
+    // rule, so the menu row's geometry does not override them.
+    expect(source('src/styles/comments-review.css')).toContain('.editor__toc-omission-reveal .editor__toc-reveal-item {');
+    const editors = source('src/styles/entity-editors.css');
+    expect(editors).toContain('.patch-card__anchor-pop .patch-card__anchor-pop-item.menu-surface__item {');
+    expect(rule(editors, '.patch-card__anchor-pop-sep {')).toContain('background: var(--menu-separator);');
+    expect(rule(editors, '.patch-card__anchor-pop-kicker {')).not.toContain('text-transform: uppercase;');
+    // Heads and search fields 16px / 6px in, as the rows are.
+    expect(rule(source('src/styles/notifications.css'), '.notification-center__head {')).toContain('padding: 10px 8px 6px 16px;');
+    expect(rule(source('src/styles/super-memo-material.css'), '.entity-filter-popover__search {')).toContain('padding: 8px var(--menu-row-inset) 6px;');
+    const relation = source('src/styles/super-view-header.css');
+    expect(relation).toContain('.relation-kind-menu--glass .relation-kind-menu__section--manage::before {');
+    expect(rule(relation, '.relation-kind-menu--glass .relation-kind-menu__head {')).toContain('padding: 4px 16px 6px;');
+    expect(source('src/renderer/features/agent/desktop/DesktopAgentPanel.tsx')).toContain("padding: '6px 0',");
+  });
+
   it('aligns button dropdowns and keeps rich popovers on the same shell tokens', () => {
     const anchoredMenus = [
       'src/renderer/components/editor/EditorTopBar.tsx',

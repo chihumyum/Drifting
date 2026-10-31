@@ -835,12 +835,11 @@
   }
 }
 .patch-card__anchor-pop-kicker {
-  padding: 0 12px 6px;
-  font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: hsl(var(--ink-5));
+  padding: 0 16px 4px;
+  font-size: var(--ui-font-caption, 10px);
+  font-weight: 500;
+  line-height: 16px;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
 }
 .patch-card__anchor-pop-list {
   flex: 1;
@@ -848,16 +847,17 @@
   padding: 0;
 }
 .patch-card__anchor-pop-empty {
-  padding: 6px 12px;
+  padding: 6px 16px;
   font-family: var(--font-sans);
   font-style: italic;
   font-size: 12px;
   color: hsl(var(--ink-5));
 }
 .patch-card__anchor-pop-sep {
-  height: 0;
-  margin: 4px 8px;
-  border-top: 1px dotted hsl(var(--rule));
+  height: 0.5px;
+  margin: 5px 16px;
+  border: 0;
+  background: var(--menu-separator);
 }
 /* Scoped to the popover so the shared menu row (.menu-surface__item, which
    desktop adds for its hover ring) keeps this row's own layout and face. */
@@ -866,7 +866,7 @@
   align-items: flex-start;
   gap: 8px;
   width: 100%;
-  padding: 6px 12px;
+  padding: 6px 16px;
   background: transparent;
   border: 0;
   font-family: var(--font-sans);
@@ -876,6 +876,10 @@
   cursor: pointer;
   text-align: left;
   transition: background-color 0.1s;
+}
+.patch-card__anchor-pop .patch-card__anchor-pop-item.menu-surface__item {
+  width: calc(100% - 2 * var(--menu-row-inset));
+  padding: 6px 10px;
 }
 .patch-card__anchor-pop-item:hover {
   background: hsl(var(--ink-1) / 0.04);
