@@ -39,7 +39,7 @@ describe('shared menu surface style', () => {
     // by a hairline.
     expect(tokens).toContain('--menu-surface-bg: var(--workspace-ui-bg);');
     expect(tokens).toContain('--menu-surface-border: transparent;');
-    // Dialogs, search and hover cards keep the square shell and its hairline.
+    // Dialogs and search keep the square shell and its hairline.
     expect(tokens).toContain('--menu-surface-radius: 0;');
     expect(tokens).toContain('0 0 0 0.5px hsl(var(--ink-1) / 0.16),');
     expect(tokens).toContain('--menu-radius: 16px;');

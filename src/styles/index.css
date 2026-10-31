@@ -58,11 +58,11 @@
     /* Shared menu chrome. Cursor context menus and button-anchored dropdowns
        keep separate positioning/interaction owners, but resolve their visual
        shell and rows through this one token family. Menus and hover cards
-       are a piece of the desk lifted out: the sidebar's own opaque colour,
-       square, a half-pixel hairline edge and the floating shadow. Dropdown
-       menus (.menu-surface) are rounder: 16px corners, the resting glass line
-       instead of the hairline, and rows inset from the edge; dialogs, search
-       and hover cards keep the square shell. */
+       are a piece of the desk lifted out: the sidebar's own opaque colour
+       and the floating shadow. Dialogs and search are square with a
+       half-pixel hairline edge; dropdown menus (.menu-surface) and hover
+       cards are 16px rounded rectangles whose rim is the resting glass line,
+       and a menu's rows stand in from the edge. */
     --menu-surface-bg: var(--workspace-ui-bg);
     --menu-surface-border: transparent;
     --menu-surface-radius: 0;
