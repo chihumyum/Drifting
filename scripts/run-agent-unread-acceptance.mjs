@@ -88,7 +88,7 @@ if (process.argv.includes('--check')) {
       const afterResult = await client.Runtime.evaluate({ expression: 'globalThis.__AGENT_UNREAD_UI__.finishHoverTransition()', awaitPromise: true, returnByValue: true });
       const after = afterResult.result.value;
       assert.equal(after.labelOpacity, 0); assert.equal(after.glyphOpacity, 1); assert.equal(after.animated, true);
-      assert.equal(after.glyphIsSvg, true);
+      assert.equal(after.glyphIsBrushCheck, true, 'Hover glyph must be the sand-brush check');
       assert(before.digitWidth > 0 && Math.abs(after.glyphWidth - before.digitWidth) < 0.1, 'Hover glyph must match one digit in width');
       for (const property of ['width', 'color', 'background', 'border', 'radius', 'shadow']) assert.equal(after[property], before[property], `Hover changed ${property}`);
       hoverChecks[`quietHover${kind}`] = true;

@@ -24,13 +24,15 @@ Sidebar A/M markers and group/tab counts are unread presentation. Clicking an
 item marker marks only that entity read; a group count marks its descendants;
 a group A/M marks the group itself; a chapter/element/drift tab count marks its
 panel. These buttons do not open editors, collapse groups, or switch tabs. Hover
-replaces the label with a centered SVG check exactly one digit wide (`1ch`) and
+replaces the label with a centered sand-brush check exactly one digit wide (`1ch`) and
 one font em tall, preserving width, ink, background, border and shadow. Both directions
 crossfade over 140 ms; reduced-motion preferences disable that transition.
 Acknowledgement clears cached prose/field/Added presentation and remembers its
 review ids, preventing replay after reload. A later Agent write is unread again.
 An open reveal stops immediately; opening an acknowledged editor skips reveal.
 Active tool pulses and pre-live guards belong to ongoing work and stay separate.
+An M for an edit merged from the Markdown folder is blue and acknowledges the
+same way (`docs/markdown-mirror.md`).
 
 Run `node scripts/run-agent-unread-acceptance.mjs` to regenerate
 `acceptance/unread-direct-edits.json`, or add `--check` to verify its source hash.

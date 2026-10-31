@@ -69,8 +69,12 @@ const hoverMetrics = () => {
   const digitWidth = digit.getBoundingClientRect().width;
   digit.remove();
   const style = getComputedStyle(hoverTarget);
+  const brush = glyph.querySelector<HTMLElement>('.brush-icon--check');
+  const brushStyle = brush && getComputedStyle(brush);
   return { width: hoverTarget.getBoundingClientRect().width, digitWidth,
-    glyphWidth: glyph.getBoundingClientRect().width, glyphIsSvg: !!glyph.querySelector('svg'),
+    glyphWidth: glyph.getBoundingClientRect().width,
+    glyphIsBrushCheck: !!brushStyle && brush!.getBoundingClientRect().width > 0
+      && (brushStyle.maskImage || brushStyle.webkitMaskImage).startsWith('url('),
     labelOpacity: Number(getComputedStyle(label).opacity),
     glyphOpacity: Number(getComputedStyle(glyph).opacity), color: style.color, background: style.backgroundColor,
     border: style.border, radius: style.borderRadius, shadow: style.boxShadow };
@@ -143,7 +147,7 @@ const api = {
   },
   async categoryPreview() {
     for (let i = 0; i < 200; i++) {
-      const card = document.querySelector<HTMLElement>('[role="tooltip"]');
+      const card = document.querySelector<HTMLElement>('.hover-card');
       if (card?.textContent?.includes('Synthetic Category') && getComputedStyle(card).visibility === 'visible') {
         assert(opens.length === 0, 'Hover navigated to category'); return true;
       }
@@ -152,11 +156,16 @@ const api = {
     throw new Error('Category preview did not appear');
   },
   focusCategory() { categoryTarget.focus(); },
-  async blurCategory() { categoryTarget.blur(); await pulse(); assert(!document.querySelector('[role="tooltip"]'), 'Category preview remained after blur'); return true; },
+  async blurCategory() {
+    categoryTarget.blur();
+    // The card lingers for its grace period so the pointer can reach its actions.
+    for (let i = 0; i < 100 && document.querySelector('.hover-card'); i++) await new Promise(resolve => setTimeout(resolve, 10));
+    assert(!document.querySelector('.hover-card'), 'Category preview remained after blur'); return true;
+  },
   async clickCategory() {
     categoryTarget.click(); await pulse();
     assert(opens.length === 1 && (opens[0] as { entityType: string }).entityType === 'category', 'Category click did not open exactly one editor');
-    assert(!document.querySelector('[role="tooltip"]'), 'Category preview remained after opening editor');
+    assert(!document.querySelector('.hover-card'), 'Category preview remained after opening editor');
     assert(group('elements').querySelector('[aria-expanded="true"]'), 'Category title click collapsed its contents');
     return true;
   },
@@ -211,7 +220,20 @@ const api = {
     write('node', 'chapter-b'); await pulse();
     assert(document.querySelector('.agent-reveal'), 'A later Agent write did not reveal');
     assert(!document.querySelector('.agent-approve, .agent-review-all, .field-review__actions, .patch-card__review-actions'), 'Retired review controls remain');
-    return { chapterAdded: true, compactElementAdded: true, listElementModified: true, driftModified: true, groupSelfAndChildren: true, categoryCount: true, allThreeTabCounts: true, clickIsolation: true, noNestedButtons: true, acknowledgedEditorSkipsReveal: true, activeRevealCancelled: true, laterWriteUnread: true, reviewControlsAbsent: true };
+    showEditor(null); useAgentActivityStore.getState().clearAll(); useAgentEditStore.getState().clearAll(); write('node', 'chapter-a');
+    useAgentEditStore.getState().recordExternal('node', 'chapter-b', [{ blockId: 'paragraph', op: 'changed', oldText: 'Synthetic before', newText: 'Synthetic after', afterPrevId: null }]);
+    await pulse();
+    const external = indicator(findRow('chapters', 'Synthetic chapter-b'));
+    assert(external.getAttribute('aria-label')?.startsWith('Changed in another editor'), 'Markdown folder edit is not labelled as external');
+    const ink = document.body.appendChild(document.createElement('i'));
+    ink.style.color = 'hsl(var(--external-ink))';
+    const blue = getComputedStyle(ink).color; ink.remove();
+    assert(getComputedStyle(external).color === blue && blue !== getComputedStyle(indicator(findRow('chapters', 'Synthetic chapter-a'))).color, 'Markdown folder edit M is not blue');
+    showEditor('chapter-b'); await pulse();
+    assert(document.querySelector('.agent-reveal.agent-reveal--external'), 'Markdown folder edit did not reveal in blue');
+    external.click(); await pulse();
+    assert(!useAgentEditStore.getState().pending['node:chapter-b'] && useAgentEditStore.getState().pending['node:chapter-a'] && !document.querySelector('.agent-reveal'), 'Acknowledging a Markdown folder edit failed');
+    return { externalEditBlue: true, chapterAdded: true, compactElementAdded: true, listElementModified: true, driftModified: true, groupSelfAndChildren: true, categoryCount: true, allThreeTabCounts: true, clickIsolation: true, noNestedButtons: true, acknowledgedEditorSkipsReveal: true, activeRevealCancelled: true, laterWriteUnread: true, reviewControlsAbsent: true };
   },
 };
 Object.assign(globalThis, { __AGENT_UNREAD_UI__: api });
