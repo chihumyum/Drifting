@@ -1,0 +1,508 @@
+{
+  "title": "雾港来信（合成样书）",
+  "author": "合成作者",
+  "identifier": "synthetic-manuscript-book",
+  "modified": "2026-10-31T08:00:00Z",
+  "locale": "zh-CN",
+  "sections": [
+    {
+      "kind": "chapter",
+      "title": "序章　灯下",
+      "showTitle": true,
+      "blocks": [
+        {
+          "type": "paragraph",
+          "runs": [
+            {
+              "text": "雾港的灯塔在午夜亮起，守灯人写下第一行字：“今夜无船。”"
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "runs": [
+            {
+              "text": "她把信纸折成三折——又展开——再折好……\n窗外，潮声一阵紧似一阵。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "act",
+      "title": "第一卷　潮起"
+    },
+    {
+      "kind": "chapter",
+      "title": "第一章　来信",
+      "showTitle": true,
+      "blocks": [
+        {
+          "type": "heading",
+          "level": 1,
+          "runs": [
+            {
+              "text": "一　雨夜"
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "runs": [
+            {
+              "text": "信封上只写着《雾港来信》四个字，邮戳是二〇二六年十月。"
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "runs": [
+            {
+              "text": "“你确定是寄给我的吗？”她问。"
+            },
+            {
+              "text": "信使",
+              "bold": true
+            },
+            {
+              "text": "没有回答，只把"
+            },
+            {
+              "text": "Drifting 2026",
+              "italic": true
+            },
+            {
+              "text": "字样的徽章翻了过来。"
+            }
+          ]
+        },
+        {
+          "type": "quote",
+          "blocks": [
+            {
+              "type": "paragraph",
+              "runs": [
+                {
+                  "text": "见字如面：港口的雾，今年来得早了些。"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "runs": [
+            {
+              "text": "她在页边画了一道"
+            },
+            {
+              "text": "下划线",
+              "underline": true
+            },
+            {
+              "text": "，又把旧地址"
+            },
+            {
+              "text": "划掉",
+              "strike": true
+            },
+            {
+              "text": "。"
+            }
+          ]
+        },
+        {
+          "type": "break"
+        },
+        {
+          "type": "heading",
+          "level": 1,
+          "runs": [
+            {
+              "text": "二　旧信"
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "runs": [
+            {
+              "text": "参见"
+            },
+            {
+              "text": "雾港志",
+              "href": "https://example.com/fog-harbor"
+            },
+            {
+              "text": "与内部条目，以及林岚的回信。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "chapter",
+      "title": "第二章　旧港",
+      "showTitle": true,
+      "blocks": [
+        {
+          "type": "paragraph",
+          "runs": [
+            {
+              "text": "码头上的人说：「雾散之前，不要出海。」（这句话她听过很多遍。）"
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "runs": [
+            {
+              "text": "——完——"
+            }
+          ],
+          "align": "center"
+        },
+        {
+          "type": "paragraph",
+          "runs": [
+            {
+              "text": "附：潮汐表见第三页。"
+            }
+          ],
+          "indent": 1
+        },
+        {
+          "type": "paragraph",
+          "runs": [
+            {
+              "text": "潮水退去以后，风从海面上吹来，带着盐和铁锈的味道，可她还是把那封信揣进了怀里，码头上只剩下几盏马灯。"
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "runs": [
+            {
+              "text": "守灯人说，这样的夜里最好不要出门，潮水退去以后，风从海面上吹来，带着盐和铁锈的味道，可她还是把那封信揣进了怀里，码头上只剩下几盏马灯。"
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "runs": [
+            {
+              "text": "她沿着湿漉漉的石阶往下走，守灯人说，这样的夜里最好不要出门，潮水退去以后，风从海面上吹来，带着盐和铁锈的味道，可她还是把那封信揣进了怀里，码头上只剩下几盏马灯。"
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "runs": [
+            {
+              "text": "石墙上的青苔在灯下发亮，她沿着湿漉漉的石阶往下走，守灯人说，这样的夜里最好不要出门，潮水退去以后。"
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "runs": [
+            {
+              "text": "远处的雾笛响了三声，石墙上的青苔在灯下发亮，她沿着湿漉漉的石阶往下走，守灯人说，这样的夜里最好不要出门，潮水退去以后。"
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "runs": [
+            {
+              "text": "码头上只剩下几盏马灯，远处的雾笛响了三声，石墙上的青苔在灯下发亮，她沿着湿漉漉的石阶往下走，守灯人说，这样的夜里最好不要出门，潮水退去以后。"
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "runs": [
+            {
+              "text": "可她还是把那封信揣进了怀里，码头上只剩下几盏马灯，远处的雾笛响了三声，石墙上的青苔在灯下发亮。"
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "runs": [
+            {
+              "text": "风从海面上吹来，带着盐和铁锈的味道，可她还是把那封信揣进了怀里，码头上只剩下几盏马灯，远处的雾笛响了三声，石墙上的青苔在灯下发亮。"
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "runs": [
+            {
+              "text": "潮水退去以后，风从海面上吹来，带着盐和铁锈的味道，可她还是把那封信揣进了怀里，码头上只剩下几盏马灯，远处的雾笛响了三声，石墙上的青苔在灯下发亮。"
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "runs": [
+            {
+              "text": "守灯人说，这样的夜里最好不要出门，潮水退去以后，风从海面上吹来，带着盐和铁锈的味道，可她还是把那封信揣进了怀里。"
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "runs": [
+            {
+              "text": "她沿着湿漉漉的石阶往下走，守灯人说，这样的夜里最好不要出门，潮水退去以后，风从海面上吹来，带着盐和铁锈的味道，可她还是把那封信揣进了怀里。"
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "runs": [
+            {
+              "text": "石墙上的青苔在灯下发亮，她沿着湿漉漉的石阶往下走，守灯人说，这样的夜里最好不要出门，潮水退去以后，风从海面上吹来，带着盐和铁锈的味道，可她还是把那封信揣进了怀里。"
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "runs": [
+            {
+              "text": "远处的雾笛响了三声，石墙上的青苔在灯下发亮，她沿着湿漉漉的石阶往下走，守灯人说，这样的夜里最好不要出门。"
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "runs": [
+            {
+              "text": "码头上只剩下几盏马灯，远处的雾笛响了三声，石墙上的青苔在灯下发亮，她沿着湿漉漉的石阶往下走，守灯人说，这样的夜里最好不要出门。"
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "runs": [
+            {
+              "text": "可她还是把那封信揣进了怀里，码头上只剩下几盏马灯，远处的雾笛响了三声，石墙上的青苔在灯下发亮，她沿着湿漉漉的石阶往下走，守灯人说，这样的夜里最好不要出门。"
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "runs": [
+            {
+              "text": "风从海面上吹来，带着盐和铁锈的味道，可她还是把那封信揣进了怀里，码头上只剩下几盏马灯，远处的雾笛响了三声。"
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "runs": [
+            {
+              "text": "潮水退去以后，风从海面上吹来，带着盐和铁锈的味道，可她还是把那封信揣进了怀里，码头上只剩下几盏马灯，远处的雾笛响了三声。"
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "runs": [
+            {
+              "text": "守灯人说，这样的夜里最好不要出门，潮水退去以后，风从海面上吹来，带着盐和铁锈的味道，可她还是把那封信揣进了怀里，码头上只剩下几盏马灯，远处的雾笛响了三声。"
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "runs": [
+            {
+              "text": "她沿着湿漉漉的石阶往下走，守灯人说，这样的夜里最好不要出门，潮水退去以后，风从海面上吹来，带着盐和铁锈的味道。"
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "runs": [
+            {
+              "text": "石墙上的青苔在灯下发亮，她沿着湿漉漉的石阶往下走，守灯人说，这样的夜里最好不要出门，潮水退去以后，风从海面上吹来，带着盐和铁锈的味道。"
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "runs": [
+            {
+              "text": "远处的雾笛响了三声，石墙上的青苔在灯下发亮，她沿着湿漉漉的石阶往下走，守灯人说，这样的夜里最好不要出门，潮水退去以后，风从海面上吹来，带着盐和铁锈的味道。"
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "runs": [
+            {
+              "text": "码头上只剩下几盏马灯，远处的雾笛响了三声，石墙上的青苔在灯下发亮，她沿着湿漉漉的石阶往下走。"
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "runs": [
+            {
+              "text": "可她还是把那封信揣进了怀里，码头上只剩下几盏马灯，远处的雾笛响了三声，石墙上的青苔在灯下发亮，她沿着湿漉漉的石阶往下走。"
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "runs": [
+            {
+              "text": "风从海面上吹来，带着盐和铁锈的味道，可她还是把那封信揣进了怀里，码头上只剩下几盏马灯，远处的雾笛响了三声，石墙上的青苔在灯下发亮，她沿着湿漉漉的石阶往下走。"
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "runs": [
+            {
+              "text": "潮水退去以后，风从海面上吹来，带着盐和铁锈的味道，可她还是把那封信揣进了怀里，码头上只剩下几盏马灯。"
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "runs": [
+            {
+              "text": "守灯人说，这样的夜里最好不要出门，潮水退去以后，风从海面上吹来，带着盐和铁锈的味道，可她还是把那封信揣进了怀里，码头上只剩下几盏马灯。"
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "runs": [
+            {
+              "text": "她沿着湿漉漉的石阶往下走，守灯人说，这样的夜里最好不要出门，潮水退去以后，风从海面上吹来，带着盐和铁锈的味道，可她还是把那封信揣进了怀里，码头上只剩下几盏马灯。"
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "runs": [
+            {
+              "text": "石墙上的青苔在灯下发亮，她沿着湿漉漉的石阶往下走，守灯人说，这样的夜里最好不要出门，潮水退去以后。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "act",
+      "title": "第二卷　雾散"
+    },
+    {
+      "kind": "chapter",
+      "title": "第三章　返航",
+      "showTitle": true,
+      "blocks": [
+        {
+          "type": "paragraph",
+          "runs": [
+            {
+              "text": "It was past midnight when the ship came home; nobody said a word."
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "runs": [
+            {
+              "text": "船靠岸时，天已经亮了。"
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "runs": [
+            {
+              "text": "The harbour lamps went out one by one, and the letter in her coat had gone soft with damp, and The harbour lamps went out one by one, and the letter in her coat had gone soft with damp."
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "runs": [
+            {
+              "text": "the tide came in faster than the tables promised, and she counted the steps down to the water, and the tide came in faster than the tables promised, and she counted the steps down to the water, and the tide came in faster than the tables promised."
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "runs": [
+            {
+              "text": "nobody on the quay looked up when the bell rang, and a gull complained somewhere above the breakwater, and nobody on the quay looked up when the bell rang, and a gull complained somewhere above the breakwater, and nobody on the quay looked up when the bell rang, and a gull complained somewhere above the breakwater."
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "runs": [
+            {
+              "text": "the letter in her coat had gone soft with damp, and The harbour lamps went out one by one, and the letter in her coat had gone soft with damp, and The harbour lamps went out one by one."
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "runs": [
+            {
+              "text": "she counted the steps down to the water, and the tide came in faster than the tables promised, and she counted the steps down to the water, and the tide came in faster than the tables promised, and she counted the steps down to the water."
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "runs": [
+            {
+              "text": "a gull complained somewhere above the breakwater, and nobody on the quay looked up when the bell rang, and a gull complained somewhere above the breakwater, and nobody on the quay looked up when the bell rang, and a gull complained somewhere above the breakwater, and nobody on the quay looked up when the bell rang."
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "runs": [
+            {
+              "text": "The harbour lamps went out one by one, and the letter in her coat had gone soft with damp, and The harbour lamps went out one by one, and the letter in her coat had gone soft with damp."
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "runs": [
+            {
+              "text": "the tide came in faster than the tables promised, and she counted the steps down to the water, and the tide came in faster than the tables promised, and she counted the steps down to the water, and the tide came in faster than the tables promised."
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "runs": [
+            {
+              "text": "nobody on the quay looked up when the bell rang, and a gull complained somewhere above the breakwater, and nobody on the quay looked up when the bell rang, and a gull complained somewhere above the breakwater, and nobody on the quay looked up when the bell rang, and a gull complained somewhere above the breakwater."
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "runs": [
+            {
+              "text": "the letter in her coat had gone soft with damp, and The harbour lamps went out one by one, and the letter in her coat had gone soft with damp, and The harbour lamps went out one by one."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

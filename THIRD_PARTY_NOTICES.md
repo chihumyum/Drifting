@@ -59,3 +59,26 @@ dependencies include `half` 2.7.1 (MIT OR Apache-2.0,
 [rust-base64](https://github.com/marshallpierce/rust-base64)). These dependencies
 retain their upstream licenses; binary redistribution must include the notices
 required by the exact locked packages.
+
+## Manuscript export
+
+PDF export ([docs/manuscript-export.md](docs/manuscript-export.md)) uses
+[krilla](https://github.com/LaurenzV/krilla) 0.8.2 (MIT OR Apache-2.0) with its
+locked font and PDF stack: `pdf-writer` 0.15.0, `subsetter` 0.2.6 and
+`xmp-writer` 0.3.3 from the Typst project; `skrifa` 0.42.1, `read-fonts`
+0.39.2, `write-fonts` 0.48.1 and `font-types` 0.11.3 from Google Fonts'
+fontations; `kurbo` 0.13.1, `euclid` 0.22.14, `polycool` 0.4.0, `zune-jpeg`
+0.5.15, `zune-core` 0.5.3, `gif` 0.14.2 and `imagesize` 0.14.0 (all MIT and/or
+Apache-2.0, `zune-*` also Zlib); `tiny-skia-path` 0.12.0 (BSD-3-Clause);
+`arrayref` 0.3.9 (BSD-2-Clause); `float-cmp` 0.9.0 and `strict-num` 0.1.1 (MIT).
+Text shaping uses [rustybuzz](https://github.com/harfbuzz/rustybuzz) 0.20.1
+(MIT, a port of HarfBuzz) with `unicode-script`, `unicode-ccc`,
+`unicode-properties` and `unicode-bidi-mirroring` (MIT/Apache-2.0); line breaking
+uses [unicode-linebreak](https://github.com/axelf4/unicode-linebreak) 0.1.5
+(Apache-2.0). EPUB and Word packages are written with the already locked `zip`
+4.6.1 (MIT). None of these is relicensed by Drifting.
+
+Exported PDFs embed subsets of fonts installed on the author's computer. A face
+whose OS/2 `fsType` forbids embedding or subsetting is skipped; the embedded
+glyphs stay under that font's own license. Drifting bundles no font for PDF
+export.
