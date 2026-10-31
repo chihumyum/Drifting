@@ -23,6 +23,15 @@ not continuously.
 
 ## When a check-in runs
 
+A check-in needs a model. While the selected Agent provider cannot run (no
+Keychain or development `.env` key for a key provider, no ChatGPT sign-in for
+the subscription route; `canAgentProviderRun` in
+`src/renderer/lib/agent/agent-provider-readiness.ts`, shared with the Agent
+panel's connect rows), nothing runs automatically and nothing is recorded, so
+the first open after a model is connected checks in. A missing-key failure
+stored by an earlier attempt is cleared. *Check in now* still runs and shows
+why it cannot.
+
 `decideCheckin` (`src/renderer/store/project-checkin-store.ts`) runs one
 macrotask after Home mount and window focus, and when an organize pass settles:
 

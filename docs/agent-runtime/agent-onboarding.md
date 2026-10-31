@@ -35,7 +35,9 @@ Each cell carries the provider seal (solid when it can already run, hollow
 when not), the name and, in index type, where the credential comes from.
 
 - A provider that can already run (a Keychain key, a development `.env` key or
-  a ChatGPT sign-in) is chosen with one click. This fixes the trap where a key
+  a ChatGPT sign-in; `src/renderer/lib/agent/agent-provider-readiness.ts`,
+  which the Project Home check-in and organize passes also read) is chosen
+  with one click. This fixes the trap where a key
   was stored for one provider while the composer still pointed at another.
 - A hollow cell opens in place: a password field, the primary 「连接」 and a
   text button that opens the provider's key page outside Drifting. 「连接」

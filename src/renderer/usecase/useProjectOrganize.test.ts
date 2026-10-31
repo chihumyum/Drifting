@@ -20,16 +20,13 @@ const transport = vi.hoisted(() => ({
   usable: true,
 }));
 vi.mock('../lib/agent/transport', () => ({
-  generalAgentTransport: {
-    capability: { available: true },
-    authStatus: vi.fn(async () => ({
-      ok: true,
-      value: { byokConnected: transport.usable, apiKeyConnected: transport.usable, hostedAvailable: transport.usable },
-    })),
-  },
+  generalAgentTransport: { capability: { available: true } },
+}));
+vi.mock('../lib/agent/agent-provider-readiness', () => ({
+  canAgentProviderRun: vi.fn(async () => transport.usable),
 }));
 vi.mock('../store/settings-store', () => ({
-  useSettingsStore: { getState: () => ({ agentAuth: 'byok' }) },
+  useSettingsStore: { getState: () => ({ agentProvider: 'deepseek' }) },
 }));
 
 vi.mock('../store/project-store', async () => {

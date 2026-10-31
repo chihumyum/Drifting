@@ -97,6 +97,7 @@ interface ProjectCheckinState {
   setRunning: (projectId: string, running: boolean) => void;
   completeCheckin: (projectId: string, horizonIso: string, cards: StoredCheckinCard[]) => void;
   failCheckin: (projectId: string, error: string) => void;
+  clearCheckinError: (projectId: string) => void;
   updateCard: (
     projectId: string,
     cardId: string,
@@ -160,6 +161,17 @@ export const useProjectCheckinStore = create<ProjectCheckinState>()(
             [projectId]: { ...recordFor(state, projectId), error },
           },
         })),
+      clearCheckinError: (projectId) =>
+        set((state) =>
+          recordFor(state, projectId).error === null
+            ? state
+            : {
+                projects: {
+                  ...state.projects,
+                  [projectId]: { ...recordFor(state, projectId), error: null },
+                },
+              },
+        ),
       updateCard: (projectId, cardId, patch) =>
         set((state) => {
           const current = recordFor(state, projectId);
