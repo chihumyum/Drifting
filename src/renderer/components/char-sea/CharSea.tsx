@@ -15,10 +15,14 @@ const OVERLAY = '[role="dialog"], [aria-modal="true"], [role="menu"], [role="lis
 
 // The longest an ebb lasts; a single press is still water in about five seconds.
 const EBB_LIMIT_MS = 8000;
-// Panels the last rings pass under while the sea ebbs beneath the workspace,
-// and how much of the sea they show: the burst of the word reaches them.
-const EBB_VEILS = '.desktop-app-shell .sidebar-shell:not(.is-fully-hidden), .desktop-app-shell .desktop-workspace-dock';
-const EBB_VEIL = 0.5;
+// Panels the last rings pass under while the sea ebbs beneath the workspace.
+// Like the shelf's cards they cover it (12% shows) and have no resting line;
+// where the burst of the word reaches their outline its glass shows and
+// bleeds inward, at half a card's strength, as it does while they slide.
+const EBB_PANELS = '.desktop-app-shell .sidebar-shell:not(.is-fully-hidden), .desktop-app-shell .desktop-workspace-dock';
+const EBB_PANEL_RIM = 0.5;
+// A panel's edge on the window's border carries no line: it is pushed past it.
+const PAST_BORDER = 8;
 
 /**
  * live: a page lies on the sea or a wait holds it. ebb: the last hold let go
@@ -140,8 +144,8 @@ export function CharSea() {
 
   // Glass on the page, measured where it is now: after it registers, hovers,
   // scrolls or the window changes size. While the sea ebbs under the
-  // workspace, its sidebars and bottom bar veil it. Measured before paint, so
-  // no frame passes without them.
+  // workspace, its sidebars and bottom bar cover it as the cards do. Measured
+  // before paint, so no frame passes without them.
   useLayoutEffect(() => {
     if (!active) return undefined;
     let frame = 0;
@@ -150,12 +154,17 @@ export function CharSea() {
       const height = window.innerHeight;
       const shapes: CharSeaShape[] = [];
       if (mode === 'ebb') {
-        document.querySelectorAll<HTMLElement>(EBB_VEILS).forEach((panel, index) => {
+        document.querySelectorAll<HTMLElement>(EBB_PANELS).forEach((panel, index) => {
           const rect = panel.getBoundingClientRect();
           if (rect.width <= 0 || rect.height <= 0) return;
+          const left = rect.left <= 1 ? -PAST_BORDER : rect.left;
+          const top = rect.top <= 1 ? -PAST_BORDER : rect.top;
+          const right = rect.right >= window.innerWidth - 1 ? window.innerWidth + PAST_BORDER : rect.right;
+          const bottom = rect.bottom >= height - 1 ? height + PAST_BORDER : rect.bottom;
+          const [textureX, textureY] = GLASS_TEXTURE_OFFSETS[index % GLASS_TEXTURE_OFFSETS.length];
           shapes.push({
-            id: -1 - index, x: rect.left, y: rect.top, width: rect.width, height: rect.height,
-            radius: 0, rest: -EBB_VEIL, hover: false, textureX: 0, textureY: 0,
+            id: -1 - index, x: left, y: top, width: right - left, height: bottom - top,
+            radius: 0, rest: 0, rim: EBB_PANEL_RIM, hover: false, textureX, textureY,
           });
         });
       }

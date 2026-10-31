@@ -33,8 +33,19 @@ import { captureWorkspaceProjection } from '../../services/workspace-projection.
 import { FullScreenStatus } from '../components/FullScreenStatus';
 import { releaseEntityLinkNames } from '../../lib/entity-link-names';
 import { prewarmAuthoredReducer } from '../../sync/journal/authored-transaction';
+import { afterEditorStageReady, resetEditorStageReady } from '../../components/editor/editor-stage-ready';
 
 const log = loglevel.getLogger('ProjectRuntimeProvider');
+
+// The background work a project starts on opening (prose metrics, the
+// reference index, the Markdown folder, the reducer prewarm) waits until the
+// page the book opened on is ready and has the single database thread to
+// itself, at most this long. The paused mobile shell has no stage to wait for.
+const STAGE_WAIT_LIMIT_MS = 3000;
+
+function stageWaitLimit(): number {
+  return getPlatformRuntime().isMobileShell ? 0 : STAGE_WAIT_LIMIT_MS;
+}
 log.setLevel(import.meta.env.DEV ? loglevel.levels.TRACE : loglevel.levels.WARN);
 
 function pruneDeviceTabsToProjection(projectId: string, data: WorkspaceDataProjection): void {
@@ -173,22 +184,30 @@ export function ProjectRuntimeProvider({
 
   useEffect(() => {
     if (bootState.key !== bootKey || bootState.status !== 'ready') return;
-    // Rebuild the reducer state once the project has painted, instead of on
-    // the first keystroke.
-    const timer = window.setTimeout(() => {
-      void prewarmAuthoredReducer(projectId).catch((error) => log.debug('Reducer prewarm skipped:', error));
-    }, 1000);
-    return () => window.clearTimeout(timer);
+    // Rebuild the reducer state a second after the page in front is ready,
+    // instead of on the first keystroke.
+    let timer = 0;
+    const cancel = afterEditorStageReady(() => {
+      timer = window.setTimeout(() => {
+        void prewarmAuthoredReducer(projectId).catch((error) => log.debug('Reducer prewarm skipped:', error));
+      }, 1000);
+    }, stageWaitLimit());
+    return () => {
+      cancel();
+      window.clearTimeout(timer);
+    };
   }, [bootKey, bootState.key, bootState.status, projectId]);
 
   useEffect(() => {
     if (bootState.key !== bootKey || bootState.status !== 'ready' || getPlatformRuntime().target !== 'desktop') return;
     let cancelled = false;
     let dispose: (() => void) | undefined;
-    void import('../../services/markdown-projection.service').then(module => {
-      if (!cancelled) dispose = module.installMarkdownProjection(projectId);
-    });
-    return () => { cancelled = true; dispose?.(); };
+    const cancel = afterEditorStageReady(() => {
+      void import('../../services/markdown-projection.service').then(module => {
+        if (!cancelled) dispose = module.installMarkdownProjection(projectId);
+      });
+    }, stageWaitLimit());
+    return () => { cancelled = true; cancel(); dispose?.(); };
   }, [bootKey, bootState.key, bootState.status, projectId]);
 
   useEffect(() => {
@@ -258,7 +277,14 @@ export function ProjectRuntimeProvider({
 
   useEffect(() => {
     if (bootState.key !== bootKey || bootState.status !== 'ready') return undefined;
-    return retainProjectReferenceIndex(projectId);
+    let release: (() => void) | undefined;
+    const cancel = afterEditorStageReady(() => {
+      release = retainProjectReferenceIndex(projectId);
+    }, stageWaitLimit());
+    return () => {
+      cancel();
+      release?.();
+    };
   }, [bootAttempt, bootKey, bootState.key, bootState.status, projectId]);
 
   useEffect(() => {
@@ -334,6 +360,8 @@ export function ProjectRuntimeProvider({
       .requestWorkspaceProjection(projectId, 'loading');
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setBootState({ key: bootKey, status: 'loading' });
+    resetEditorStageReady();
+    let cancelMetrics = () => {};
 
     const initialize = async () => {
       let database: ReturnType<typeof getDb> | null = null;
@@ -357,14 +385,18 @@ export function ProjectRuntimeProvider({
         pruneDeviceTabsToProjection(projectId, capture.data);
         events.emit('db:ready');
         setBootState({ key: bootKey, status: 'ready' });
-        // Derived metrics run after the workspace authority is published. A
-        // remote Yjs revision conflict never invalidates the captured domain
-        // projection and will be retried by the remote quiet-window worker.
-        void reconcileProjectProseMetrics(projectId).catch((error) => {
-          if (!(error instanceof NodeProseMetricRevisionConflictError)) {
-            log.warn('Canonical prose metric reconciliation failed:', error);
-          }
-        });
+        // Derived metrics run after the workspace authority is published and
+        // the page in front is ready. A remote Yjs revision conflict never
+        // invalidates the captured domain projection and will be retried by
+        // the remote quiet-window worker.
+        cancelMetrics = afterEditorStageReady(() => {
+          if (!active) return;
+          void reconcileProjectProseMetrics(projectId).catch((error) => {
+            if (!(error instanceof NodeProseMetricRevisionConflictError)) {
+              log.warn('Canonical prose metric reconciliation failed:', error);
+            }
+          });
+        }, stageWaitLimit());
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         log.error('Project initialization failed:', error);
@@ -379,6 +411,7 @@ export function ProjectRuntimeProvider({
     void initialize();
     return () => {
       active = false;
+      cancelMetrics();
       releaseEntityLinkNames(projectId);
     };
   }, [bootAttempt, bootKey, projectId, userId]);

@@ -161,10 +161,12 @@ describe('the sea of characters under the desktop window', () => {
     expect(component).toContain('const EBB_LIMIT_MS = 8000;');
     // Only a live sea feels the hand.
     expect(component).toContain("if (mode !== 'live') return undefined;");
-    // The sidebars and the bottom bar show it at 50%, with no line of their own.
-    expect(component).toContain("const EBB_VEILS = '.desktop-app-shell .sidebar-shell:not(.is-fully-hidden), .desktop-app-shell .desktop-workspace-dock';");
-    expect(component).toContain('const EBB_VEIL = 0.5;');
-    expect(component).toContain('radius: 0, rest: -EBB_VEIL, hover: false');
+    // The sidebars and the bottom bar cover it as the cards do; where a ring
+    // reaches their outline its glass bleeds, at half a card's strength.
+    expect(component).toContain("const EBB_PANELS = '.desktop-app-shell .sidebar-shell:not(.is-fully-hidden), .desktop-app-shell .desktop-workspace-dock';");
+    expect(component).toContain('const EBB_PANEL_RIM = 0.5;');
+    expect(component).toContain('radius: 0, rest: 0, rim: EBB_PANEL_RIM, hover: false');
+    expect(read('src/renderer/lib/char-sea/char-sea.ts')).toContain('ra=max(ra,ring*clamp(${GLASS_EDGE}*G,0.,1.)*cut*k);');
     const engine = read('src/renderer/lib/char-sea/char-sea.ts');
     expect(engine).toContain('if (still || !water || ebbing) return;');
     expect(engine).toContain('const restTarget = ebbing ? 0 : 1;');
@@ -194,7 +196,6 @@ describe('the sea of characters under the desktop window', () => {
     const engine = read('src/renderer/lib/char-sea/char-sea.ts');
     expect(engine).toContain('const WORD_BURST = 2.5;');
     expect(engine).toContain('if (word.held) water?.hold(null, WORD_BURST);');
-    expect(engine).toContain('float v=uShapeP[i].y<0.?-uShapeP[i].y:.12;');
   });
 
   it('is written down in the design system', () => {
