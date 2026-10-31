@@ -18,9 +18,9 @@ Drifting 仍在早期开发。下面是最可能遇到的限制。其他问题�
 
 ## Export · 导出
 
-- EPUB, PDF and Word export is new. EPUB files have not yet been checked with
-  the W3C EPUB validator; tell us if a reader or store rejects one.
-- EPUB、PDF、Word 成稿导出刚上线，EPUB 还没有经过 W3C 校验器检查；如果阅读器或书店不接受，请告诉我们。
+- EPUB, PDF and Word export is new. If a reader, store or word processor
+  rejects a file, tell us.
+- EPUB、PDF、Word 成稿导出刚上线；如果阅读器、书店或文字处理软件打不开导出的文件，请告诉我们。
 - The Markdown ZIP and the project Markdown folder are readable copies, not
   backups: they leave out images and PDFs and cannot be imported back. Use a
   `.drifting` library backup (Settings → Sync & Data) for a restorable copy.
