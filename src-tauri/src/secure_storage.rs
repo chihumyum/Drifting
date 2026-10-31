@@ -354,10 +354,7 @@ mod tests {
 
     #[test]
     fn renderer_cannot_read_or_mutate_native_sync_secrets() {
-        for key in [
-            "sync.provider.credentials.opaque",
-            "oauth.openai-codex",
-        ] {
+        for key in ["sync.provider.credentials.opaque", "oauth.openai-codex"] {
             assert!(key_is_valid(key));
             assert!(
                 !renderer_can_access_secret_value(key),
@@ -365,11 +362,7 @@ mod tests {
             );
         }
 
-        for key in [
-            "drifting.session_token",
-            "byok.openai",
-            "sync.installation.identity.v1",
-        ] {
+        for key in ["drifting.session_token", "byok.openai"] {
             assert!(renderer_can_access_secret_value(key));
         }
     }

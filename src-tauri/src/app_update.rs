@@ -161,9 +161,7 @@ pub(crate) fn update_install(
         .ok_or_else(|| "The checked update has not been downloaded".to_string())?;
     if let Err(error) = update.install(&bytes) {
         pending.downloaded = Some(bytes);
-        return Err(format!(
-            "could not install the verified update: {error}"
-        ));
+        return Err(format!("could not install the verified update: {error}"));
     }
     pending.update = None;
     drop(pending);
