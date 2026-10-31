@@ -2633,11 +2633,17 @@ svg.super-viewport-edges[data-panning='1'] {
    Hover cards (HoverCardShell)
 
    Drifting has no right-click menus. Resting the pointer on a thing shows its
-   card — the menus' lifted piece of desk — and what a menu used to offer is
-   the card's bottom row of plain actions. The pointer may cross into the
-   card; only the action under it carries flowing glass. A passive preview
-   (inline links) never takes the pointer. */
+   card, and what a menu used to offer is the card's rows. The card is the
+   menus' lifted piece of desk with rounded corners (the Agent composer's
+   16px), edged by the resting thin glass line instead of a hairline, and
+   keeps the floating shadow. One size for every word; only the title is
+   bold. Everything starts at one left edge: a kind mark where a line has one,
+   the words where it has not; a section's choices step in behind their own
+   marks. What can be pressed is set in the mono face, one row each, and only
+   the row under the pointer rings. A passive preview (inline links) never
+   takes the pointer. */
 .hover-card {
+  --hover-card-pad: 14px;
   position: fixed;
   z-index: var(--z-popover);
   display: flex;
@@ -2645,10 +2651,35 @@ svg.super-viewport-edges[data-panning='1'] {
   max-width: calc(100vw - 24px);
   overflow: hidden;
   background: var(--menu-surface-bg);
-  border-radius: var(--menu-surface-radius);
-  box-shadow: var(--menu-surface-shadow);
+  border-radius: 16px;
+  box-shadow: 0 16px 30px -16px hsl(var(--shadow-ink) / 0.38);
+  color: hsl(var(--ink-2));
   font-family: var(--font-sans);
+  font-size: var(--ui-font-secondary, 13px);
+  line-height: 1.5;
   pointer-events: none;
+}
+
+.dark .hover-card {
+  box-shadow: 0 16px 30px -16px hsl(var(--shadow-ink) / 0.62);
+}
+
+/* The resting thin glass line (`.glass--rest`: strength 0.85, no bleed), cut
+   from the texture and standing still, over everything inside the card. */
+.hover-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--glass-clear) 50.5%, transparent);
+  -webkit-mask-image: var(--glass-texture);
+  mask-image: var(--glass-texture);
+  -webkit-mask-size: 150px 150px;
+  mask-size: 150px 150px;
+  -webkit-mask-position: -14px -46px;
+  mask-position: -14px -46px;
 }
 
 .hover-card--interactive {
@@ -2658,107 +2689,310 @@ svg.super-viewport-edges[data-panning='1'] {
 .hover-card__body {
   min-height: 0;
   overflow: hidden auto;
-  padding: 10px 12px;
+  padding: 13px 14px 13px var(--hover-card-pad);
   scrollbar-width: thin;
   scrollbar-color: hsl(var(--rule-strong)) transparent;
 }
 
-.hover-card__actions {
+.hover-card__body:not(:last-child) {
+  padding-bottom: 6px;
+}
+
+.hover-card__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.hover-card__head + .hover-card__head {
+  margin-top: 4px;
+}
+
+.hover-card__title {
+  flex: 0 1 auto;
+  min-width: 0;
+  color: hsl(var(--ink-1));
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.hover-card__title--quiet {
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font-weight: 400;
+}
+
+.hover-card__title > .kind-mark {
+  vertical-align: -0.16em;
+  margin-right: 8px;
+}
+
+.hover-card__index {
   flex: none;
-  padding: 4px 6px 5px;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font-family: var(--font-mono);
+  white-space: nowrap;
 }
 
-.hover-card__body + .hover-card__actions {
-  box-shadow: inset 0 0.5px 0 hsl(var(--ink-1) / 0.12);
-}
-
-.hover-card__action-row {
+.hover-card__meta {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 2px;
+  gap: 0 14px;
+  margin-top: 2px;
+  color: hsl(var(--ink-3));
+  overflow-wrap: anywhere;
 }
 
-.hover-card__action-row--choices {
-  margin-top: 3px;
-  padding-top: 3px;
-  box-shadow: inset 0 0.5px 0 hsl(var(--ink-1) / 0.08);
+.hover-card__tag > .kind-mark {
+  vertical-align: -0.16em;
+  margin-right: 6px;
 }
 
-.hover-card__action {
-  display: inline-flex;
+.hover-card__tag--soft {
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+}
+
+.hover-card__tag--soft > .kind-mark > .sand {
+  opacity: calc(0.5 * var(--pigment));
+}
+
+.hover-card__text {
+  margin-top: 8px;
+  color: hsl(var(--ink-2));
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.hover-card__kv {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0 14px;
+  margin: 8px 0 0;
+}
+
+.hover-card__kv dt {
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+}
+
+.hover-card__kv dd {
+  margin: 0;
+  color: hsl(var(--ink-2));
+  overflow-wrap: anywhere;
+}
+
+/* What a review item's passage says: the author's prose on a slip of paper. */
+.hover-card__quote {
+  margin-top: 8px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  background: hsl(var(--page));
+  color: hsl(var(--ink-2));
+  font-family: var(--font-content);
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* ── The rows ── Sections (a group of actions, a choice, what is dangerous)
+   are parted by the menus' hairline: 1px of ink at 9%, 5px either side. */
+.hover-card__actions {
+  flex: none;
+  padding: 0 0 6px;
+}
+
+.hover-card__actions:first-child {
+  padding-top: 6px;
+}
+
+.hover-card__body + .hover-card__actions::before,
+.hover-card__section + .hover-card__section::before {
+  content: '';
+  display: block;
+  height: 1px;
+  margin: 5px 14px;
+  background: hsl(var(--ink-1) / 0.09);
+}
+
+.hover-card__section-label,
+.hover-card__section-head {
+  display: flex;
   align-items: center;
-  gap: 3px;
-  height: 24px;
-  padding: 0 7px;
+  width: 100%;
+  height: 30px;
+  padding: 0 14px 0 var(--hover-card-pad);
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font: inherit;
+  white-space: nowrap;
+}
+
+.hover-card__section-head {
+  position: relative;
   border: 0;
-  border-radius: 3px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.hover-card__section-head:hover:not(:disabled) {
+  color: hsl(var(--ink-2));
+}
+
+.hover-card__chevron {
+  margin-left: auto;
+  opacity: 0.6;
+  transition: transform var(--motion-glass-settle) var(--motion-structural-ease);
+}
+
+.hover-card__section.is-open .hover-card__chevron {
+  transform: rotate(180deg);
+}
+
+/* A folded list opens out of its header. */
+.hover-card__fold {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows var(--motion-glass-settle) var(--motion-structural-ease),
+    opacity 0.2s ease-out;
+}
+
+.hover-card__section.is-open .hover-card__fold {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.hover-card__fold-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.hover-card__section.is-open .hover-card__fold-inner {
+  max-height: 300px;
+  overflow: hidden auto;
+  scrollbar-width: thin;
+}
+
+.hover-card__row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 30px;
+  padding: 0 14px 0 var(--hover-card-pad);
+  border: 0;
   background: transparent;
   color: hsl(var(--ink-3));
   font: inherit;
-  font-size: var(--ui-font-secondary, 12px);
+  font-family: var(--font-mono);
+  text-align: left;
   white-space: nowrap;
   cursor: pointer;
 }
 
-.hover-card__action:hover:not(:disabled),
-.hover-card__action:focus-visible {
+.hover-card__row-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hover-card__row:hover:not(:disabled),
+.hover-card__row:focus-visible,
+.hover-card__row.is-active,
+.hover-card__row.is-checked {
   color: hsl(var(--ink-1));
 }
 
-.hover-card__action.is-active {
-  color: hsl(var(--ink-1));
-  font-weight: 600;
+.hover-card__row:focus-visible,
+.hover-card__section-head:focus-visible {
+  outline: none;
 }
 
-.hover-card__action--danger,
-.hover-card__action--danger:hover:not(:disabled) {
+.hover-card__row--danger,
+.hover-card__row--danger:hover:not(:disabled) {
   color: hsl(var(--destructive));
 }
 
-.hover-card__action:disabled {
-  color: hsl(var(--ink-4));
+.hover-card__row:disabled {
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
   cursor: default;
 }
 
-.hover-card__action-label {
-  padding: 0 3px 0 5px;
-  color: hsl(var(--ink-4));
-  font: 500 9.5px/24px var(--font-mono, ui-monospace, monospace);
-  letter-spacing: 0.08em;
-}
-
-.hover-card__action-gap {
-  width: 0.5px;
-  height: 14px;
-  margin: 0 4px;
-  background: hsl(var(--ink-1) / 0.14);
-}
-
-.hover-card__action-chevron {
-  display: inline-flex;
-  opacity: 0.5;
-}
-
-.hover-card__title {
+/* The choice in effect is pressed only once: it reads as chosen, not muted. */
+.hover-card__row.is-active:disabled {
   color: hsl(var(--ink-1));
-  font-size: 12.5px;
-  font-weight: 600;
-  line-height: 1.3;
-  overflow-wrap: anywhere;
 }
 
-.hover-card__detail {
-  margin-top: 4px;
-  color: hsl(var(--ink-3));
-  font-size: 11.5px;
-  line-height: 1.5;
-  overflow-wrap: anywhere;
+/* The row's ring: the menus' one hairline of flowing glass, round the row
+   under the pointer; standing still round the choice in effect. A header
+   that was just pressed keeps none once the pointer leaves it. */
+html:not([data-shell-mode='mobile']) :is(.hover-card__row, .hover-card__section-head)::before {
+  --hover-card-line: color-mix(in srgb, var(--glass-clear), hsl(var(--ink-3)) 30%);
+  content: '';
+  position: absolute;
+  inset: 1px 6px;
+  border-radius: 3px;
+  pointer-events: none;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--hover-card-line) 82%, transparent),
+    inset 0 0 3px 0.5px color-mix(in srgb, var(--hover-card-line) 28%, transparent);
+  -webkit-mask-image: var(--glass-texture);
+  mask-image: var(--glass-texture);
+  -webkit-mask-size: 150px 150px;
+  mask-size: 150px 150px;
+  --glass-gx: -30px;
+  --glass-gy: -64px;
+  opacity: 0;
+  animation: glass-flow var(--motion-glass-drift) linear infinite paused;
+  transition: opacity 0.18s ease-out;
 }
 
-.hover-card__action-break {
-  flex-basis: 100%;
-  height: 0;
+html:not([data-shell-mode='mobile']) :is(.hover-card__row, .hover-card__section-head):hover:not(:disabled)::before,
+html:not([data-shell-mode='mobile']) :is(.hover-card__row, .hover-card__section-head):focus-visible::before {
+  opacity: 1;
+  animation-play-state: running;
+}
+
+html:not([data-shell-mode='mobile']) .hover-card__row.is-active::before {
+  opacity: 1;
+  animation-play-state: paused;
+}
+
+html:not([data-shell-mode='mobile']) .hover-card__row--danger::before {
+  --hover-card-line: hsl(var(--destructive));
+}
+
+/* No hover on touch: a ⋯ button opens the card, so its rows are taps. */
+html[data-shell-mode='mobile'] .hover-card__row {
+  min-height: 44px;
+  touch-action: manipulation;
+}
+
+/* A row's mark sits on the left edge and steps its words in to where the
+   title's begin. */
+.hover-card__mark {
+  flex: none;
+  margin-right: 6px;
+}
+
+.hover-card__mark--kind {
+  display: inline-flex;
+  width: 16px;
+  justify-content: center;
+}
+
+.hover-card__tick {
+  flex: none;
+  margin-left: auto;
+  padding-left: 8px;
+  visibility: hidden;
+  box-sizing: content-box;
+}
+
+.hover-card__row.is-checked .hover-card__tick {
+  visibility: visible;
 }
 
 /* ── Glass slider: one choice out of several ─────────────────────────

@@ -6,6 +6,7 @@ import { extractTextFromCommentBody } from '../../domain/comment';
 import {
   buildMaterialFolderChildren,
   effectiveMaterialFolderId,
+  isDescendantFolder,
   materialFolderPath,
   ROOT_FOLDER_KEY,
   type MaterialFolder,
@@ -16,7 +17,7 @@ import { requestConfirmation } from '../../store/confirmation-store';
 import { useSidebarPanelState } from '../../hooks/useSidebarPanelState';
 import { useMaterialFolder } from '../../usecase/useMaterialFolder';
 import { ContextMenuSurface } from '../../components/ui/ContextMenuSurface';
-import { HoverCardHeading, HoverCardShell, type HoverActionGroup } from '../../components/ui/HoverCard';
+import { HoverCardHeading, HoverCardShell, type HoverAction, type HoverActionGroup } from '../../components/ui/HoverCard';
 import { KindMark } from '../../components/ui/KindMark';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { EntityRelationPicker, type RelationTarget } from '../../components/rightBars/EntityRelationPicker';
@@ -441,6 +442,43 @@ export function MaterialFolderTree(props: MaterialFolderTreeProps) {
   };
 
   const breadcrumb = materialFolderPath(folders, mobileKey === ROOT_FOLDER_KEY ? null : mobileKey);
+  // Where a material or folder can move, unfolded in its card: the root, then
+  // every folder by its path. A folder cannot move into itself or below it.
+  const moveInto = (selection: MaterialTreeSelection, folderId: string | null) => {
+    void (async () => {
+      if (selection.itemIds.length > 0) await folderUsecases.moveMaterialsToFolder(selection.itemIds, folderId);
+      for (const id of selection.folderIds) await folderUsecases.moveFolder(id, folderId);
+    })().catch((error: unknown) => console.warn('[material] failed to move materials:', error));
+  };
+  const moveChoices = (currentFolderId: string | null, selection: MaterialTreeSelection): HoverAction[] => {
+    const ids = new Set(folders.map((folder) => folder.id));
+    const current = effectiveMaterialFolderId(ids, currentFolderId);
+    const rows: HoverAction[] = [{
+      key: 'root',
+      label: t('materialFolders.root'),
+      icon: { brush: 'folder-none' },
+      active: current === null,
+      disabled: current === null,
+      onSelect: () => moveInto(selection, null),
+    }];
+    const walk = (parentKey: string, prefix: string) => {
+      for (const folder of children.get(parentKey) ?? []) {
+        if (selection.folderIds.some((id) => isDescendantFolder(folders, folder.id, id))) continue;
+        const path = prefix ? `${prefix} / ${folder.name}` : folder.name;
+        rows.push({
+          key: folder.id,
+          label: path,
+          icon: { brush: 'folder' },
+          active: folder.id === current,
+          disabled: folder.id === current,
+          onSelect: () => moveInto(selection, folder.id),
+        });
+        walk(folder.id, path);
+      }
+    };
+    walk(ROOT_FOLDER_KEY, '');
+    return rows;
+  };
   const actionsFor = (target: ActionTarget): HoverActionGroup[] => {
     if (target.kind === 'selection') {
       const count = target.selection.itemIds.length + target.selection.folderIds.length;
@@ -451,6 +489,7 @@ export function MaterialFolderTree(props: MaterialFolderTreeProps) {
             {
               key: 'moveSelection',
               label: t('materialFolders.menu.moveSelection', { count }),
+              icon: { brush: 'folder' },
               onSelect: () => props.onMove(target.selection, null),
             },
           ],
@@ -461,6 +500,7 @@ export function MaterialFolderTree(props: MaterialFolderTreeProps) {
             {
               key: 'deleteSelection',
               label: t('materialFolders.menu.deleteSelection', { count }),
+              icon: { brush: 'trash' },
               danger: true,
               onSelect: () => void removeSelection(target.selection),
             },
@@ -474,11 +514,11 @@ export function MaterialFolderTree(props: MaterialFolderTreeProps) {
         {
           key: 'contents',
           actions: [
-            { key: 'newSubfolder', label: t('materialFolders.menu.newSubfolder'), onSelect: () => void newFolder(folder.id) },
+            { key: 'newSubfolder', label: t('materialFolders.menu.newSubfolder'), icon: { brush: 'folder-plus' }, onSelect: () => void newFolder(folder.id) },
             ...((children.get(folder.id) ?? []).length > 0
               ? [
-                  { key: 'expandAll', label: t('materialFolders.menu.expandAll'), onSelect: () => setSubtreeExpanded(folder.id, true) },
-                  { key: 'collapseAll', label: t('materialFolders.menu.collapseAll'), onSelect: () => setSubtreeExpanded(folder.id, false) },
+                  { key: 'expandAll', label: t('materialFolders.menu.expandAll'), icon: { brush: 'folding-fan' as const }, onSelect: () => setSubtreeExpanded(folder.id, true) },
+                  { key: 'collapseAll', label: t('materialFolders.menu.collapseAll'), icon: { brush: 'folding-fan-closed' as const }, onSelect: () => setSubtreeExpanded(folder.id, false) },
                 ]
               : []),
           ],
@@ -486,10 +526,12 @@ export function MaterialFolderTree(props: MaterialFolderTreeProps) {
         {
           key: 'folder',
           actions: [
-            { key: 'rename', label: t('materialFolders.menu.rename'), onSelect: () => setRenamingKey(folderKey(folder.id)) },
+            { key: 'rename', label: t('materialFolders.menu.rename'), icon: { brush: 'edit' }, onSelect: () => setRenamingKey(folderKey(folder.id)) },
             {
               key: 'move',
               label: t('materialFolders.menu.move'),
+              // The card unfolds the folders; the ⋯ menu keeps the picker.
+              choices: moveChoices(folder.parentFolderId, { itemIds: [], folderIds: [folder.id] }),
               onSelect: () => props.onMove({ itemIds: [], folderIds: [folder.id] }, folder.parentFolderId),
             },
           ],
@@ -500,6 +542,7 @@ export function MaterialFolderTree(props: MaterialFolderTreeProps) {
             {
               key: 'delete',
               label: t('materialFolders.menu.delete'),
+              icon: { brush: 'trash' },
               danger: true,
               onSelect: () => void removeSelection({ itemIds: [], folderIds: [folder.id] }),
             },
@@ -513,24 +556,26 @@ export function MaterialFolderTree(props: MaterialFolderTreeProps) {
       {
         key: 'view',
         actions: [
-          { key: 'open', label: t('materialFolders.menu.open'), onSelect: () => props.onOpenItem(item) },
+          { key: 'open', label: t('materialFolders.menu.open'), icon: { brush: 'open-book' }, onSelect: () => props.onOpenItem(item) },
           {
             key: 'preview',
             label: previewOpen ? t('materialFolders.menu.collapsePreview') : t('materialFolders.menu.expandPreview'),
+            icon: { brush: 'image' },
             onSelect: () => setPreviewOpen(item.id, !previewOpen),
           },
           ...(item.kind === 'text'
             ? []
-            : [{ key: 'openInSystem', label: t('memoMaterial.menu.openInSystem'), onSelect: () => props.onOpenInSystem(item) }]),
+            : [{ key: 'openInSystem', label: t('memoMaterial.menu.openInSystem'), icon: { brush: 'arrow-out' as const }, onSelect: () => props.onOpenInSystem(item) }]),
         ],
       },
       {
         key: 'item',
         actions: [
-          { key: 'rename', label: t('materialFolders.menu.rename'), onSelect: () => setRenamingKey(itemKey(item.id)) },
+          { key: 'rename', label: t('materialFolders.menu.rename'), icon: { brush: 'edit' }, onSelect: () => setRenamingKey(itemKey(item.id)) },
           {
             key: 'addRelation',
             label: t('memoMaterial.menu.addRelation'),
+            icon: { brush: 'knot-links' },
             onSelect: () => {
               setPreviewOpen(item.id, true);
               setRelationPickerFor(item.id);
@@ -539,6 +584,7 @@ export function MaterialFolderTree(props: MaterialFolderTreeProps) {
           {
             key: 'move',
             label: t('materialFolders.menu.move'),
+            choices: moveChoices(item.folderId, { itemIds: [item.id], folderIds: [] }),
             onSelect: () => props.onMove({ itemIds: [item.id], folderIds: [] }, item.folderId),
           },
         ],
@@ -549,6 +595,7 @@ export function MaterialFolderTree(props: MaterialFolderTreeProps) {
           {
             key: 'delete',
             label: t('memoMaterial.menu.deleteMaterial'),
+            icon: { brush: 'trash' },
             danger: true,
             onSelect: () => void removeSelection({ itemIds: [item.id], folderIds: [] }),
           },
@@ -623,11 +670,10 @@ export function MaterialFolderTree(props: MaterialFolderTreeProps) {
         >
           <HoverCardHeading
             title={hoveredTitle}
-            detail={hoveredEntry.kind === 'folder'
+            mark={hoveredEntry.kind === 'item' ? { kind: 'material' } : undefined}
+            index={hoveredEntry.kind === 'folder'
               ? t('memoMaterial.toolbar.count', { count: totals.get(hoveredEntry.folder.id) ?? 0 })
-              : t('memoMaterial.menu.type', {
-                  type: t(`memoMaterial.kind.${hoveredEntry.item.kind}`, { defaultValue: hoveredEntry.item.kind }),
-                })}
+              : t(`memoMaterial.kind.${hoveredEntry.item.kind}`, { defaultValue: hoveredEntry.item.kind })}
           />
         </HoverCardShell>
       )}

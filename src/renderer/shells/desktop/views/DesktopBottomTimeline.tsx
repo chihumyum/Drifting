@@ -13,6 +13,8 @@ import {
   useHoverPreview,
   type EntityHoverTarget,
 } from '../../../features/entities/hover/entity-hover-card-model';
+import { withChapterStorylineChoices } from '../../../features/entities/hover/hover-choices';
+import { chapterStorylineIds, useChapterStorylineToggle } from '../../../features/entities/hover/use-hover-choice-writes';
 import { useDataStore } from '../../../store/data-store';
 import { useDataStoreFields } from '../../../store/use-data-store-fields';
 import { useProjectNavigation } from '../../../hooks/useProjectNavigation';
@@ -171,7 +173,7 @@ export function DesktopBottomTimeline({
     return m;
   }, [bookNodes]);
   const bookActs = useDataStore((s) => s.bookActs);
-  const { splitAtOrder, updateAct, moveBoundary, unbindDrift, deleteAct, remapAfterSpread } =
+  const { splitAtOrder, updateAct, moveBoundary, bindDrift, unbindDrift, deleteAct, remapAfterSpread } =
     useBookAct({
       projectId: projectId ?? '',
     });
@@ -402,6 +404,7 @@ export function DesktopBottomTimeline({
     void createChapterAt(storylineId, order);
   };
 
+  const toggleChapterStoryline = useChapterStorylineToggle(projectId);
   const hoverActionsFor = (target: EntityHoverTarget): HoverActionGroup[] | undefined => {
     if (target.kind === 'storyline') {
       return [
@@ -411,6 +414,7 @@ export function DesktopBottomTimeline({
             {
               key: 'append-chapter',
               label: t('leftSidebar.groups.newChapterInStoryline'),
+              icon: { brush: 'plus' },
               onSelect: () => appendChapter(target.id),
             },
           ],
@@ -438,7 +442,7 @@ export function DesktopBottomTimeline({
         label: t('bottomTimeline.menu.detachFromNarrative'),
       });
     }
-    return entityHoverActions({
+    const groups = entityHoverActions({
       editorType: 'node',
       nodeStatusKind: isChapter(node) ? 'chapter' : 'drift',
       nodeWritingStatus: node.writingStatus,
@@ -453,6 +457,12 @@ export function DesktopBottomTimeline({
         void dispatchEntityAction({ entityType: 'node', id: node.id, action });
       },
       t,
+    });
+    // 编辑故事线 unfolds the storylines in place, each ticked while the chapter is on it.
+    return withChapterStorylineChoices(groups, {
+      memberIds: chapterStorylineIds(node.id),
+      storylines,
+      onToggle: (storylineId) => toggleChapterStoryline(node.id, storylineId),
     });
   };
 
@@ -1395,6 +1405,7 @@ export function DesktopBottomTimeline({
             onAddAct={handleAddActSplit}
             driftTitleById={(id) => driftById.get(id)?.title ?? null}
             onRequestBind={(id) => events.emit('drift-bind:open', { target: { kind: 'act', id } })}
+            onBindDrift={(id, driftNodeId) => void bindDrift(id, driftNodeId)}
             onUnbindDrift={(id) => void unbindDrift(id)}
             onOpenDrift={(driftNodeId) =>
               openEntity({ entityType: 'node', id: driftNodeId }, { preview: false })

@@ -27,6 +27,7 @@ import { useEntityCellAction } from '../../../hooks/useEntityCellAction';
 import { EntityHoverCard } from '../../../features/entities/hover/EntityHoverCard';
 import type { EntityHoverTarget } from '../../../features/entities/hover/entity-hover-card-model';
 import { useCanvasHoverCard, withDriftGroupChoices, withElementCategoryChoices } from '../../../features/graph/canvas-hover-card';
+import { withElementGroupChoices } from '../../../features/entities/hover/hover-choices';
 import { SuperElementIsleLines } from '../../../features/graph/SuperElementIsleLines';
 import {
   ISLES_LOD_ZOOM,
@@ -1471,15 +1472,33 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
         t,
       });
       if (mobileShell) return groups;
-      // 改类目 moves it to another island right here.
-      return withElementCategoryChoices(groups, {
-        categoryId: findById(bookElements, target.id)?.categoryId ?? null,
+      const element = findById(bookElements, target.id);
+      // 改类目 moves it to another island right here; 改分组 chooses among the
+      // island's named groups (a new name is typed in the editor's picker).
+      const withCategories = withElementCategoryChoices(groups, {
+        categoryId: element?.categoryId ?? null,
         categories: bookElementCategories,
         onMove: (categoryId) => {
           updateElement(target.id, { categoryId }).catch(() => {
             /* the store keeps the old category */
           });
         },
+      });
+      if (!element) return withCategories;
+      const groupNames = [...new Set(bookElements
+        .filter((candidate) => (candidate.categoryId ?? null) === (element.categoryId ?? null))
+        .map((candidate) => candidate.groupName?.trim())
+        .filter((name): name is string => Boolean(name)))];
+      return withElementGroupChoices(withCategories, {
+        groupName: element.groupName,
+        groupNames,
+        onMove: (groupName) => {
+          updateElement(target.id, { groupName }).catch(() => {
+            /* the store keeps the old group */
+          });
+        },
+        onNewGroup: () => void dispatchEntityAction({ entityType: 'element', id: target.id, action: 'groupPicker' }),
+        t,
       });
     }
     if (target.kind === 'category') {
