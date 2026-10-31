@@ -327,7 +327,7 @@
 }
 
 .entity-filter-popover__search {
-  padding: 8px 10px 6px;
+  padding: 8px var(--menu-row-inset) 6px;
 }
 
 .entity-filter-popover__item {

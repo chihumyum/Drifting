@@ -100,11 +100,15 @@ describe('history and the config menu as menu rows', () => {
     expect(panel).not.toContain("border: '1px solid hsl(var(--accent) / 0.5)'");
   });
 
-  it('builds the desktop config menu from the shared rows, groups separated by space', () => {
+  it('builds the desktop config menu from the shared rows, groups parted by the menu hairline', () => {
     const config = source('src/renderer/features/agent/AgentComposerConfig.tsx');
     expect(config).toContain("const sectionClass = glass ? 'menu-surface__section-label' : 'agt-menu__sec';");
     expect(config).toContain("const rowButtonClass = glass ? 'menu-surface__item agt-menu__item' : 'agt-menu__row agt-menu__row--btn';");
-    expect(config).toContain("const divider = glass ? null : <div className=\"agt-menu__divider\" />;");
+    expect(config).toContain("const divider = <div className={glass ? 'menu-surface__divider' : 'agt-menu__divider'} />;");
+    // Like every menu, its rows stand 6px in and its words 16px in.
+    const css = source('src/styles/agent-panel.css');
+    expect(css).toContain('.agt-menu.agt-menu--glass {\n  padding: 6px 0;\n}');
+    expect(css).toContain('.agt-menu--glass .agt-menu__row {\n  padding: 6px 16px;');
     expect(config).toContain('className="ui-select glass glass--rest glass--field glass--small agt-menu__effort"');
     expect(config).toContain("? 'menu-surface__item agt-menu__item' + (current ? ' menu-surface__item--active is-current' : '')");
     expect(config).toContain("<span className={glass ? 'agt-mem__pending' : 'agt-mem__kind'}>");

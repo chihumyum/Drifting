@@ -507,7 +507,7 @@ const historyPanel: React.CSSProperties = {
   maxHeight: 280,
   overflowY: 'auto',
   zIndex: 'var(--z-popover)',
-  padding: 4,
+  padding: '6px 0',
 };
 
 const inputArea: React.CSSProperties = {

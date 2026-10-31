@@ -1253,8 +1253,13 @@ html:not([data-shell-mode='mobile']) .agt-history__row:has(:focus-visible)::befo
   gap: 6px;
   color: var(--ui-text-muted, hsl(var(--ink-3)));
 }
+/* The glass config menu stands its rows in from the edge like every menu:
+   the shared rows 6px in, a settings row's words 16px in, as far as the icons. */
+.agt-menu.agt-menu--glass {
+  padding: 6px 0;
+}
 .agt-menu--glass .agt-menu__row {
-  padding: 6px 14px;
+  padding: 6px 16px;
   border-radius: 0;
 }
 /* The effort: a dropdown field of glass round a native select, whose list is
@@ -1293,7 +1298,7 @@ html:not([data-shell-mode='mobile']) .agt-history__row:has(:focus-visible)::befo
 .agt-menu__effort-select:disabled { cursor: default; }
 .agt-mem.agt-mem--glass {
   gap: 8px;
-  padding: 6px 10px 6px 14px;
+  padding: 6px 10px;
   border-radius: 0;
   cursor: default;
 }

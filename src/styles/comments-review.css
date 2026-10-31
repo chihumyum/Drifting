@@ -1109,10 +1109,10 @@ html[data-shell-mode='desktop'] .editor__toc-rail--edge {
   flex-direction: column;
   z-index: calc(var(--z-context-menu) + 2);
 }
-.editor__toc-reveal-item {
+.editor__toc-omission-reveal .editor__toc-reveal-item {
   display: block;
   min-height: 0;
-  padding: 4px 12px;
+  padding: 4px 10px;
   overflow: hidden;
   color: hsl(var(--ink-3));
   font-family: var(--font-sans);

@@ -75,7 +75,7 @@ export function AgentComposerConfig({
   const sectionClass = glass ? 'menu-surface__section-label' : 'agt-menu__sec';
   const rowButtonClass = glass ? 'menu-surface__item agt-menu__item' : 'agt-menu__row agt-menu__row--btn';
   const backClass = glass ? 'menu-surface__item agt-menu__item agt-menu__item--back' : 'agt-menu__back';
-  const divider = glass ? null : <div className="agt-menu__divider" />;
+  const divider = <div className={glass ? 'menu-surface__divider' : 'agt-menu__divider'} />;
   const effortValue = reasoningProfile.efforts.includes(agentEffort) ? agentEffort : reasoningProfile.defaultEffort;
   const effortSelect = (
     <select

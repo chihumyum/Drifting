@@ -19,7 +19,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 10px 8px 6px 14px;
+  padding: 10px 8px 6px 16px;
   color: hsl(var(--ink-1));
   font-weight: 600;
 }
