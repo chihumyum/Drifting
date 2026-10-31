@@ -1172,6 +1172,7 @@ describe('workspace surface language acceptance', () => {
       // Menu rows that had no icon of their own; insert-col is insert-row turned.
       'brush-broken', 'fluff', 'stone-sunk', 'ri', 'zi', 'zi-ri', 'wu', 'seal-fork', 'seal-main', 'folder-none',
       'insert-row', 'insert-col', 'list-bullet', 'list-ordered', 'table', 'code', 'highlight',
+      'brush-writing', 'alpha-down', 'lanes-stagger',
     ];
     for (const name of names) {
       expect(brushIcon).toContain(`| '${name}'`);

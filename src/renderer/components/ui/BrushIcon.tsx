@@ -5,6 +5,7 @@ import type { CSSProperties } from 'react';
  * tinted by the control's text colour, so hover and press still change them.
  */
 export type BrushIconName =
+  | 'alpha-down'
   | 'arrow-back'
   | 'arrow-down'
   | 'arrow-forward'
@@ -17,6 +18,7 @@ export type BrushIconName =
   | 'brush-broken'
   | 'brush-laid'
   | 'brush-lifted'
+  | 'brush-writing'
   | 'case-dew'
   | 'case-rise'
   | 'check'
@@ -61,6 +63,7 @@ export type BrushIconName =
   | 'hook'
   | 'insert-col'
   | 'insert-row'
+  | 'lanes-stagger'
   | 'lift'
   | 'lift-bent'
   | 'image'
