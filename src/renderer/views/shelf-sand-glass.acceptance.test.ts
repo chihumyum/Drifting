@@ -50,13 +50,22 @@ describe('the bookshelf in sand and glass', () => {
     expect(view).toContain('className="pp-head__account"');
   });
 
-  it('runs the toolbar on the shared controls', () => {
-    expect(view).toContain('<GlassSlider');
-    expect(view).toContain('className="pp-bar__search ui-field glass glass--rest glass--field"');
-    expect(view).toContain('className="pp-bar__view glass--rest"');
-    expect(view).toContain('aria-pressed={view === value}');
-    expect(view).not.toContain('<FilterChip');
-    expect(view).not.toContain('pp-toolbar__btn--accent');
+  it('holds only the shelf’s name, the avatar and the books', () => {
+    // A writer’s shelf never grows long enough to need a toolbar, a list
+    // view or a footer: no filters, search, view switch or 新建作品 button.
+    for (const gone of ['pp-bar', 'pp-foot', 'pp-list', 'pp-row', 'ProjectListRow', '<GlassSlider', 'pp-empty-state']) {
+      expect(view, gone).not.toContain(gone);
+      expect(css, gone).not.toContain(gone);
+    }
+    // Every book, then the slip to start the next one; an empty shelf is that slip alone.
+    expect(view).toContain('{decorated.map((row) => (');
+    expect(view).toContain('className="pp-card pp-card--new"');
+    // Recently deleted books are kept within reach, in the avatar's menu.
+    expect(view).toContain('trashCount={trashed.length}');
+    expect(view).toContain('onOpenTrash={() => setTrashOpen(true)}');
+    const menu = read('src/renderer/components/topBars/UserMenu.tsx');
+    expect(menu).toContain("{scope === 'shelf' && onOpenTrash && trashCount > 0 && (");
+    expect(menu).toContain("label={t('projectPicker.desk.trashEntry')}");
   });
 
   it('flows each book’s storylines down its cover as sand, seeded by the book', () => {
@@ -68,13 +77,11 @@ describe('the bookshelf in sand and glass', () => {
     expect(read('src/renderer/usecase/useProject.ts')).toContain('const cover = await readProjectCover(project.id);');
   });
 
-  it('makes a book a resting line of glass with a sand readout, and a list row a cell', () => {
+  it('makes a book a resting line of glass with a sand readout', () => {
     expect(view).toContain('<article className="pp-card glass glass--rest">');
-    expect(view).toContain('<SandCell selected={false} className="pp-row">');
     expect(view).toContain('className="sand-track"');
     expect(view).toContain('<span className="sand-stroke"');
     expect(block(css, '.pp-card {', '}')).toMatch(/background: transparent;[\s\S]*box-shadow: none;/);
-    expect(view).toContain('mark="all"');
   });
 
   it('builds the desktop dialogs on the shared shell, and keeps the mobile modals', () => {

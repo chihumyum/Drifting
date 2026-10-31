@@ -10,7 +10,6 @@ import { AccountAvatar } from '../components/ui/AccountAvatar';
 import { Button } from '../components/ui/Button';
 import { EmptyState } from '../components/ui/EmptyState';
 import { GhostIconButton } from '../components/ui/GhostIconButton';
-import { GlassSlider } from '../components/ui/GlassSlider';
 import { LoadingStatus } from '../components/ui/LoadingStatus';
 import { ModalActions, ModalBody, ModalCard, ModalHeader, ModalRoot } from '../components/ui/Modal';
 import { SandCell } from '../components/ui/SandCell';
@@ -50,7 +49,6 @@ log.setLevel(loglevel.levels.DEBUG);
 const EXPIRED_TRASH_PURGE_DELAY_MS = 2 * 60 * 1_000;
 const DAY_MS = 24 * 60 * 60 * 1_000;
 
-type View = 'grid' | 'list';
 type Filter = 'all' | 'active' | 'paused';
 type Status = 'writing' | 'draft' | 'paused';
 
@@ -188,7 +186,6 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
 
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<View>('grid');
   const [filter, setFilter] = useState<Filter>(() =>
     presentation === 'mobile' ? initialMobileShelfSession.filter : 'all',
   );
@@ -464,18 +461,6 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
   }
 
   const openCreate = () => setCreateOpen(true);
-  const viewButton = (value: View, icon: 'view-grid' | 'view-list', label: string) => (
-    <GhostIconButton
-      size="lg"
-      glass="round"
-      className="pp-bar__view glass--rest"
-      icon={<BrushIcon name={icon} size={16} />}
-      onClick={() => setView(value)}
-      aria-pressed={view === value}
-      aria-label={label}
-      title={label}
-    />
-  );
 
   return (
     <div className="pp">
@@ -508,140 +493,35 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
             open={menuOpen}
             onClose={() => setMenuOpen(false)}
             scope="shelf"
+            trashCount={trashed.length}
+            onOpenTrash={() => setTrashOpen(true)}
           />
         </header>
 
-        {/* ─── Toolbar: what is shown, how, and a new book ─── */}
-        <div className="pp-bar">
-          <h2 className="pp-bar__title">
-            <BrushIcon name="books" size={17} />
-            {t('projectPicker.desk.allBooks')}
-            <span className="pp-bar__count">
-              {t('projectPicker.desk.count', { count: filtered.length })}
-            </span>
-          </h2>
-          <GlassSlider
-            className="pp-bar__filters"
-            ariaLabel={t('projectPicker.desk.filterLabel')}
-            value={filter}
-            onChange={setFilter}
-            options={(
-              [
-                ['all', t('projectPicker.filters.all'), counts.all],
-                ['active', t('projectPicker.filters.active'), counts.active],
-                ['paused', t('projectPicker.filters.paused'), counts.paused],
-              ] as Array<[Filter, string, number]>
-            ).map(([value, label, n]) => ({
-              value,
-              label: (
-                <>
-                  {label}
-                  <span className="pp-bar__n">{n}</span>
-                </>
-              ),
-            }))}
-          />
-          <span className="pp-bar__grow" />
-          <label className="pp-bar__search ui-field glass glass--rest glass--field">
-            <BrushIcon name="search" size={15} />
-            <input
-              type="search"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder={t('projectPicker.desk.search')}
-              aria-label={t('projectPicker.desk.search')}
+        {/* ─── The books, and a slip to start the next one ─── */}
+        <div className="pp-grid">
+          {decorated.map((row) => (
+            <ProjectCard
+              key={row.project.id}
+              row={row}
+              onOpen={() => handleOpen(row.project.id)}
+              onEdit={() => setEditing(row.project)}
+              onDelete={() => openDelete(row.project)}
             />
-          </label>
-          <div className="pp-bar__views" role="group" aria-label={t('projectPicker.desk.viewLabel')}>
-            {viewButton('grid', 'view-grid', t('projectPicker.view.card'))}
-            {viewButton('list', 'view-list', t('projectPicker.view.list'))}
-          </div>
-          <Button onClick={openCreate}>
-            <BrushIcon name="plus" size={14} />
-            {t('projectPicker.desk.newBook')}
-          </Button>
+          ))}
+          <SandCell
+            selected={false}
+            className="pp-card pp-card--new"
+            onClick={openCreate}
+            onKeyDown={(event) => activateOnEnterOrSpace(event, openCreate)}
+            role="button"
+            tabIndex={0}
+          >
+            <BrushIcon name="plus" size={22} />
+            <span>{t('projectPicker.desk.newCard')}</span>
+            <small>{t('projectPicker.desk.newCardSub')}</small>
+          </SandCell>
         </div>
-
-        {/* ─── The books ─── */}
-        {decorated.length === 0 ? (
-          <EmptyState
-            className="pp-empty-state"
-            mark="all"
-            message={t('projectPicker.desk.empty')}
-            action={
-              <Button variant="ghost" onClick={openCreate}>
-                <BrushIcon name="plus" size={14} />
-                {t('projectPicker.desk.newBook')}
-              </Button>
-            }
-          />
-        ) : filtered.length === 0 ? (
-          <EmptyState className="pp-empty-state" message={t('projectPicker.desk.noMatch')} />
-        ) : view === 'grid' ? (
-          <div className="pp-grid">
-            {filtered.map((row) => (
-              <ProjectCard
-                key={row.project.id}
-                row={row}
-                onOpen={() => handleOpen(row.project.id)}
-                onEdit={() => setEditing(row.project)}
-                onDelete={() => openDelete(row.project)}
-              />
-            ))}
-            <SandCell
-              selected={false}
-              className="pp-card pp-card--new"
-              onClick={openCreate}
-              onKeyDown={(event) => activateOnEnterOrSpace(event, openCreate)}
-              role="button"
-              tabIndex={0}
-            >
-              <BrushIcon name="plus" size={22} />
-              <span>{t('projectPicker.desk.newCard')}</span>
-              <small>{t('projectPicker.desk.newCardSub')}</small>
-            </SandCell>
-          </div>
-        ) : (
-          <div className="pp-list">
-            {filtered.map((row) => (
-              <ProjectListRow
-                key={row.project.id}
-                row={row}
-                onOpen={() => handleOpen(row.project.id)}
-                onEdit={() => setEditing(row.project)}
-                onDelete={() => openDelete(row.project)}
-              />
-            ))}
-            <SandCell
-              selected={false}
-              className="pp-row pp-row--new"
-              onClick={openCreate}
-              onKeyDown={(event) => activateOnEnterOrSpace(event, openCreate)}
-              role="button"
-              tabIndex={0}
-            >
-              <BrushIcon name="plus" size={16} />
-              <span>{t('projectPicker.desk.newCard')}</span>
-            </SandCell>
-          </div>
-        )}
-
-        <footer className="pp-foot">
-          {trashed.length > 0 ? (
-            <Button variant="ghost" size="sm" className="pp-foot__trash" onClick={() => setTrashOpen(true)}>
-              <BrushIcon name="trash" size={12} />
-              {t('projectPicker.desk.trashEntry')}
-              <span className="pp-foot__n">{trashed.length}</span>
-            </Button>
-          ) : (
-            <span />
-          )}
-          <span>
-            {hostedAccountSettingsEnabled() && account?.email
-              ? account.email
-              : t('projectPicker.desk.localLibrary')}
-          </span>
-        </footer>
       </div>
 
       {confirmDelete && (
@@ -709,33 +589,29 @@ function formatWords(words: number, locale: string): string {
  * a book is shown and kept for the session. Until it lands the cover is a
  * plain slip of paper with its first letter.
  */
-// A list row's small cover gets masks of its own size: scaling the big ones
-// down that far would drop most of their grains.
-const MINI_COVER_MASK = { width: 60, height: 92 };
-
-function useCoverMasks(project: ProjectSummary, mini: boolean): string[] | null {
+function useCoverMasks(project: ProjectSummary): string[] | null {
   const lines = project.cover.storylines;
   const chapters = project.stats.chapters;
-  const key = sandCoverKey(project.id, chapters, lines, mini ? MINI_COVER_MASK : undefined);
+  const key = sandCoverKey(project.id, chapters, lines);
   const [drawn, setDrawn] = useState<{ key: string; masks: string[] } | null>(null);
   const cached = peekSandCoverMasks(key);
   useEffect(() => {
     if (peekSandCoverMasks(key)) return undefined;
     return requestSandCoverMasks(
       key,
-      { seed: coverSeed(project.id), chapters, storylines: lines, ...(mini ? MINI_COVER_MASK : {}) },
+      { seed: coverSeed(project.id), chapters, storylines: lines },
       (masks) => setDrawn({ key, masks }),
     );
-  }, [key, project.id, chapters, lines, mini]);
+  }, [key, project.id, chapters, lines]);
   return cached ?? (drawn?.key === key ? drawn.masks : null);
 }
 
-function BookCover({ row, mini = false }: { row: DecoratedRow; mini?: boolean }) {
+function BookCover({ row }: { row: DecoratedRow }) {
   const { project, meta, glyph } = row;
-  const masks = useCoverMasks(project, mini);
+  const masks = useCoverMasks(project);
   const lines = project.cover.storylines;
   return (
-    <div className={`pp-cover${mini ? ' pp-cover--mini' : ''}`} aria-hidden="true">
+    <div className="pp-cover" aria-hidden="true">
       {masks?.map((mask, index) => (
         <i
           key={index}
@@ -748,10 +624,8 @@ function BookCover({ row, mini = false }: { row: DecoratedRow; mini?: boolean })
           }
         />
       ))}
-      {!mini && (
-        <span className="pp-cover__glyph">{glyph || <KindMark kind="all" />}</span>
-      )}
-      {!mini && meta.genre && <span className="pp-cover__label">{meta.genre}</span>}
+      <span className="pp-cover__glyph">{glyph || <KindMark kind="all" />}</span>
+      {meta.genre && <span className="pp-cover__label">{meta.genre}</span>}
     </div>
   );
 }
@@ -861,47 +735,6 @@ function ProjectCard({ row, onOpen, onEdit, onDelete }: CardProps) {
         aria-label={t('projectPicker.desk.open', { name: title })}
       />
     </article>
-  );
-}
-
-function ProjectListRow({ row, onOpen, onEdit, onDelete }: CardProps) {
-  const { t, i18n } = useTranslation();
-  const { project, meta, status, lastEditedRel } = row;
-  const stats = project.stats;
-  const title = project.name.trim() || t('projectPicker.desk.untitled');
-  const subline = [
-    meta.genre,
-    stats.storylines ? t('projectPicker.desk.storylineCount', { count: stats.storylines }) : '',
-  ].filter(Boolean).join(' · ') || '—';
-
-  return (
-    <SandCell selected={false} className="pp-row">
-      <BookCover row={row} mini />
-      <div className="pp-row__title">
-        <span>{title}</span>
-        <small>{subline}</small>
-      </div>
-      <div className="pp-row__sum">{project.summary || meta.subtitle || ''}</div>
-      <div className="pp-row__v">
-        {stats.wordsReady ? formatWords(stats.words, i18n.language) : t('common.counting')}
-        <small>{t('projectPicker.desk.wordsUnit')}</small>
-      </div>
-      <div className="pp-row__v pp-row__v--chapters">
-        {stats.chapters}
-        <small>{t('projectPicker.desk.chaptersUnit', { count: stats.chapters })}</small>
-      </div>
-      <div className="pp-row__v">
-        {lastEditedRel}
-        <small>{t(`projectPicker.status.${status}`)}</small>
-      </div>
-      <RowActions onEdit={onEdit} onDelete={onDelete} />
-      <button
-        type="button"
-        className="pp-hit"
-        onClick={onOpen}
-        aria-label={t('projectPicker.desk.open', { name: title })}
-      />
-    </SandCell>
   );
 }
 

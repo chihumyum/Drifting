@@ -26,9 +26,20 @@ interface UserMenuProps {
   scope?: 'project' | 'shelf';
   /** Where the menu opens relative to its trigger. */
   placement?: AnchoredPopoverPlacement;
+  /** The shelf's recently deleted books: shown only while there are some. */
+  trashCount?: number;
+  onOpenTrash?: () => void;
 }
 
-export function UserMenu({ triggerRef, open, onClose, scope = 'project', placement = 'bottom-end' }: UserMenuProps) {
+export function UserMenu({
+  triggerRef,
+  open,
+  onClose,
+  scope = 'project',
+  placement = 'bottom-end',
+  trashCount = 0,
+  onOpenTrash,
+}: UserMenuProps) {
   const { t } = useTranslation();
   const user = useAuthStore((s) => s.hostedUser);
   const hostedStatus = useAuthStore((s) => s.hostedStatus);
@@ -207,6 +218,17 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project', placeme
               intent={settingsIntent}
               onClick={() => {
                 navigate('/settings?section=sync', { state: { from: '/' } });
+                onClose();
+              }}
+            />
+          )}
+          {scope === 'shelf' && onOpenTrash && trashCount > 0 && (
+            <MenuItem
+              icon={<BrushIcon name="trash" size={13} />}
+              label={t('projectPicker.desk.trashEntry')}
+              meta={String(trashCount)}
+              onClick={() => {
+                onOpenTrash();
                 onClose();
               }}
             />

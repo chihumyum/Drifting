@@ -1908,10 +1908,6 @@
       "active": "进行中",
       "paused": "搁置"
     },
-    "view": {
-      "card": "卡片",
-      "list": "列表"
-    },
     "status": {
       "writing": "在写",
       "draft": "草稿",
@@ -1969,16 +1965,8 @@
       "createSubmit": "新建"
     },
     "desk": {
-      "allBooks": "全部作品",
-      "count": "{{count}} 本",
-      "filterLabel": "筛选作品",
-      "viewLabel": "视图",
-      "search": "搜索作品",
-      "newBook": "新建作品",
       "newCard": "新建一本",
       "newCardSub": "从一张白纸开始",
-      "empty": "书架上还没有作品。",
-      "noMatch": "没有符合的作品。",
       "open": "打开《{{name}}》",
       "moveToTrash": "移到最近删除",
       "untitled": "未命名",
@@ -1988,8 +1976,6 @@
       "chaptersUnit": "章",
       "storylinesUnit": "条故事线",
       "elementsUnit": "个要素",
-      "storylineCount": "{{count}} 条故事线",
-      "localLibrary": "本地书库",
       "trashEntry": "最近删除",
       "trashTitle": "把《{{name}}》移到最近删除？",
       "form": {
