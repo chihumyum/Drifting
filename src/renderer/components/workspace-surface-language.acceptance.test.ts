@@ -1147,10 +1147,10 @@ describe('workspace surface language acceptance', () => {
     expect(topTimeline).toContain('<BrushIcon name="plus" />');
     expect(userMenu).not.toContain("from 'lucide-react'");
     for (const name of ['wen', 'dharma-wheel', 'movable-type', 'case-dew', 'books']) {
-      expect(userMenu).toContain(`<BrushIcon name="${name}" size={13} />`);
+      expect(userMenu).toContain(`<BrushIcon name="${name}" size={16} />`);
     }
     expect(userMenu).toContain("name={themeMode === 'light' ? 'enso' : themeMode === 'dark' ? 'ink-disc' : 'taiji'}");
-    expect(userMenu).toContain("<BrushIcon name={canSignOut ? 'gate-out' : 'gate-in'} size={13} />");
+    expect(userMenu).toContain("<BrushIcon name={canSignOut ? 'gate-out' : 'gate-in'} size={16} />");
 
     // Every icon is registered, masked and generated from a fixed seed.
     const names = [

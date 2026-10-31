@@ -196,56 +196,56 @@ export function LeftSidebarSubHeader({ panel: activeLeftPanel }: { panel: LeftSi
 
   const driftSortOptions = useMemo<SortMenuOption<DriftSortMode>[]>(
     () => [
-      { value: 'createdAt', label: t('leftSidebar.sort.createdAt') },
-      { value: 'updatedAt', label: t('leftSidebar.sort.updatedAt') },
-      { value: 'title', label: t('leftSidebar.sort.title') },
+      { value: 'createdAt', label: t('leftSidebar.sort.createdAt'), icon: 'sprout' },
+      { value: 'updatedAt', label: t('leftSidebar.sort.updatedAt'), icon: 'brush-writing' },
+      { value: 'title', label: t('leftSidebar.sort.title'), icon: 'alpha-down' },
     ],
     [t],
   );
   const chapterGlobalSortOptions = useMemo<SortMenuOption<ChapterGlobalSortMode>[]>(
     () => [
-      { value: 'bookOrder', label: t('leftSidebar.sort.bookOrder') },
-      { value: 'narrativeOrder', label: t('leftSidebar.sort.narrativeOrder') },
-      { value: 'createdAt', label: t('leftSidebar.sort.createdAt') },
-      { value: 'updatedAt', label: t('leftSidebar.sort.updatedAt') },
+      { value: 'bookOrder', label: t('leftSidebar.sort.bookOrder'), icon: 'open-book' },
+      { value: 'narrativeOrder', label: t('leftSidebar.sort.narrativeOrder'), icon: 'bamboo' },
+      { value: 'createdAt', label: t('leftSidebar.sort.createdAt'), icon: 'sprout' },
+      { value: 'updatedAt', label: t('leftSidebar.sort.updatedAt'), icon: 'brush-writing' },
     ],
     [t],
   );
   const chapterStorylineInnerSortOptions = useMemo<SortMenuOption<ChapterStorylineInnerSortMode>[]>(
     () => [
-      { value: 'bookOrder', label: t('leftSidebar.sort.bookOrder') },
-      { value: 'narrativeOrder', label: t('leftSidebar.sort.narrativeOrder') },
+      { value: 'bookOrder', label: t('leftSidebar.sort.bookOrder'), icon: 'open-book' },
+      { value: 'narrativeOrder', label: t('leftSidebar.sort.narrativeOrder'), icon: 'bamboo' },
     ],
     [t],
   );
   const chapterStorylineOuterSortOptions = useMemo<SortMenuOption<ChapterStorylineOuterSortMode>[]>(
     () => [
-      { value: 'storylineOrder', label: t('leftSidebar.sort.storylineOrder') },
-      { value: 'alphabet', label: t('leftSidebar.sort.alphabet') },
+      { value: 'storylineOrder', label: t('leftSidebar.sort.storylineOrder'), icon: 'lanes-stagger' },
+      { value: 'alphabet', label: t('leftSidebar.sort.alphabet'), icon: 'alpha-down' },
     ],
     [t],
   );
   const elementSortOptions = useMemo<SortMenuOption<ElementSortMode>[]>(
     () => [
-      { value: 'alphabet', label: t('leftSidebar.sort.alphabet') },
-      { value: 'createdAt', label: t('leftSidebar.sort.createdAt') },
+      { value: 'alphabet', label: t('leftSidebar.sort.alphabet'), icon: 'alpha-down' },
+      { value: 'createdAt', label: t('leftSidebar.sort.createdAt'), icon: 'sprout' },
     ],
     [t],
   );
   const elementCategorySortOptions = useMemo<SortMenuOption<ElementCategorySortMode>[]>(
     () => [
-      { value: 'alphabet', label: t('leftSidebar.sort.alphabet') },
-      { value: 'createdAt', label: t('leftSidebar.sort.createdAt') },
+      { value: 'alphabet', label: t('leftSidebar.sort.alphabet'), icon: 'alpha-down' },
+      { value: 'createdAt', label: t('leftSidebar.sort.createdAt'), icon: 'sprout' },
     ],
     [t],
   );
   // Right-edge cell meta toggle — shared by the 章节 and 构想 menus.
   const nodeCellMetaOptions = useMemo<SortMenuOption<NodeCellMeta>[]>(
     () => [
-      { value: 'date', label: t('leftSidebar.sort.showDate') },
-      { value: 'wordCount', label: t('leftSidebar.sort.showWordCount') },
-      { value: 'both', label: t('leftSidebar.sort.showBoth') },
-      { value: 'none', label: t('leftSidebar.sort.showNone') },
+      { value: 'date', label: t('leftSidebar.sort.showDate'), icon: 'ri' },
+      { value: 'wordCount', label: t('leftSidebar.sort.showWordCount'), icon: 'zi' },
+      { value: 'both', label: t('leftSidebar.sort.showBoth'), icon: 'zi-ri' },
+      { value: 'none', label: t('leftSidebar.sort.showNone'), icon: 'wu' },
     ],
     [t],
   );
@@ -253,8 +253,8 @@ export function LeftSidebarSubHeader({ panel: activeLeftPanel }: { panel: LeftSi
   // storylines shows in every group or just its primary one.
   const chapterDuplicateOptions = useMemo<SortMenuOption<'all' | 'primary'>[]>(
     () => [
-      { value: 'all', label: t('leftSidebar.sort.duplicatesAll') },
-      { value: 'primary', label: t('leftSidebar.sort.duplicatesPrimary') },
+      { value: 'all', label: t('leftSidebar.sort.duplicatesAll'), icon: 'seal-fork' },
+      { value: 'primary', label: t('leftSidebar.sort.duplicatesPrimary'), icon: 'seal-main' },
     ],
     [t],
   );

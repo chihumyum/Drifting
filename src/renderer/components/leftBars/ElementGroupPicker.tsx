@@ -60,7 +60,7 @@ export function ElementGroupPicker({
       }}
     >
       <div className="menu-surface__section-label">{t('elementGroupPicker.title')}</div>
-      <div style={{ padding: '2px 8px 6px' }}>
+      <div style={{ padding: '2px 16px 6px' }}>
         <input
           autoFocus
           value={query}
@@ -93,7 +93,8 @@ export function ElementGroupPicker({
           className="menu-surface__item"
           onClick={() => pick(trimmed)}
         >
-          {t('elementGroupPicker.createGroup', { name: trimmed })}
+          <BrushIcon name="folder-plus" size={16} />
+          <span>{t('elementGroupPicker.createGroup', { name: trimmed })}</span>
         </button>
       )}
 
@@ -101,11 +102,12 @@ export function ElementGroupPicker({
         type="button"
         role="menuitem"
         className="menu-surface__item"
-        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}
+        aria-current={current == null || undefined}
         onClick={() => pick(null)}
       >
+        <BrushIcon name="folder-none" size={16} />
         <span>{t('elementGroupPicker.noGroup')}</span>
-        {current == null && <BrushIcon name="check" size={11} inline />}
+        {current == null && <BrushIcon name="check" size={12} className="menu-surface__check" />}
       </button>
 
       {filtered.length > 0 && <div className="menu-surface__divider" />}
@@ -115,13 +117,12 @@ export function ElementGroupPicker({
           type="button"
           role="menuitem"
           className="menu-surface__item"
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}
+          aria-current={current === name || undefined}
           onClick={() => pick(name)}
         >
-          <span style={{ overflowWrap: 'anywhere' }}>
-            {name}
-          </span>
-          {current === name && <BrushIcon name="check" size={11} inline />}
+          <BrushIcon name="folder" size={16} />
+          <span>{name}</span>
+          {current === name && <BrushIcon name="check" size={12} className="menu-surface__check" />}
         </button>
       ))}
     </ContextMenuSurface>

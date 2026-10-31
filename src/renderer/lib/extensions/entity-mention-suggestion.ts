@@ -2,6 +2,7 @@ import { Extension } from '@tiptap/core';
 import { PluginKey } from '@tiptap/pm/state';
 import type { SuggestionOptions } from '@tiptap/suggestion';
 import { createOwnedSuggestion, type EditorSuggestionGate } from '../editor-suggestion-interaction';
+import { createSuggestionMenu, type SuggestionMenuRow } from '../editor-suggestion-menu';
 import type { EntityKind } from './entity-link';
 
 // Distinct from the slash-menu's pluginKey so the two suggestion plugins can
@@ -167,20 +168,25 @@ export const EntityMentionSuggestion = Extension.create<EntityMentionSuggestionO
             .run();
         },
         render: () => {
-          let container: HTMLDivElement | null = null;
+          let menu: ReturnType<typeof createSuggestionMenu> | null = null;
           let items: MentionPickerItem[] = [];
           let selected = 0;
           let keyboardMode = false;
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           let lastProps: any = null;
 
-          const labelFor = (item: MentionPickerItem): { tag: string; text: string } => {
+          // An entity leads with its own kind mark and names its kind at the
+          // far end; creating an element comes last, under a hairline.
+          const rowFor = (item: MentionPickerItem): SuggestionMenuRow => {
             if (item.variant === 'create-element') {
-              return { tag: '新建', text: `创建要素「${item.name}」` };
+              return { label: `创建要素「${item.name}」`, icon: 'plus', group: 'create' };
             }
+            const element = item.entity.kind === 'element';
             return {
-              tag: item.entity.kind === 'element' ? '要素' : '章节',
-              text: item.displayText,
+              label: item.displayText,
+              icon: { kind: element ? 'element' : 'chapter', seed: item.entity.id },
+              trail: element ? '要素' : '章节',
+              group: 'entities',
             };
           };
 
@@ -190,133 +196,34 @@ export const EntityMentionSuggestion = Extension.create<EntityMentionSuggestionO
           }) => {
             lastProps = props;
             items = props.items ?? [];
-            if (!container) return;
-            container.innerHTML = '';
-
-            const list = document.createElement('div');
-            // Tracked across the forEach below; typed broadly so TS doesn't
-            // narrow it to never after the initializer.
-            let selectedBtn = null as HTMLButtonElement | null;
-            list.style.display = 'flex';
-            list.style.flexDirection = 'column';
-            list.style.background = '#fefdfb';
-            list.style.border = '1px solid hsl(var(--accent-border))';
-            list.style.borderRadius = '6px';
-            list.style.boxShadow = '0 4px 16px rgba(139, 115, 85, 0.12)';
-            // max-height is set dynamically by updatePosition based on
-            // available room above / below the trigger.
-            list.style.overflowY = 'auto';
-            list.style.overflowX = 'hidden';
-            list.style.minWidth = '220px';
-            list.style.maxWidth = '320px';
-            list.style.fontFamily = 'var(--font-sans)';
-            list.style.fontSize = '13px';
-
-            if (items.length === 0) {
-              const empty = document.createElement('div');
-              empty.textContent = '没有匹配的实体';
-              empty.style.padding = '8px 12px';
-              empty.style.color = '#9b8a78';
-              list.appendChild(empty);
-              container.appendChild(list);
-              return;
-            }
-
-            const accentHsl = getComputedStyle(document.documentElement)
-              .getPropertyValue('--accent')
-              .trim();
-            const accentColor = accentHsl ? `hsl(${accentHsl})` : '#b89968';
-
-            items.forEach((item, idx) => {
-              const btn = document.createElement('button');
-              btn.type = 'button';
-              btn.style.display = 'flex';
-              btn.style.alignItems = 'center';
-              btn.style.gap = '8px';
-              btn.style.padding = '6px 12px';
-              btn.style.textAlign = 'left';
-              btn.style.border = 'none';
-              btn.style.background = idx === selected ? accentColor : '#fefdfb';
-              btn.style.color = idx === selected ? '#fefdfb' : '#5a4a3a';
-              btn.style.cursor = 'pointer';
-              btn.style.fontSize = '13px';
-              btn.style.fontFamily = 'var(--font-sans)';
-              btn.style.transition = 'all 0.15s ease';
-
-              const { tag, text } = labelFor(item);
-              const chip = document.createElement('span');
-              chip.textContent = tag;
-              chip.style.fontSize = '10px';
-              chip.style.padding = '2px 6px';
-              chip.style.borderRadius = '3px';
-              chip.style.background = idx === selected ? 'rgba(255,255,255,0.2)' : '#f1ead9';
-              chip.style.color = idx === selected ? '#fefdfb' : '#8b7355';
-              chip.style.flexShrink = '0';
-
-              const label = document.createElement('span');
-              label.textContent = text;
-              label.style.flex = '1';
-              label.style.overflow = 'hidden';
-              label.style.textOverflow = 'ellipsis';
-              label.style.whiteSpace = 'nowrap';
-
-              btn.appendChild(chip);
-              btn.appendChild(label);
-
-              btn.onmouseenter = () => {
-                if (container?.contains(btn) && !keyboardMode) {
-                  selected = idx;
-                  renderList(lastProps);
-                }
-              };
-              btn.onmousemove = () => {
-                if (container?.contains(btn) && keyboardMode) {
+            if (!menu) return;
+            menu.render(
+              items.map(rowFor),
+              {
+                onPick: (index) => lastProps?.command(items[index]),
+                onPoint: (index, moved) => {
+                  // The pointer takes over from the keys only once it moves.
+                  if (keyboardMode && !moved) return;
                   keyboardMode = false;
-                  selected = idx;
-                  renderList(lastProps);
-                }
-              };
-              btn.onmousedown = (e) => e.preventDefault();
-              btn.onclick = () => { if (container?.contains(btn)) lastProps?.command(item); };
-              if (idx === selected) selectedBtn = btn;
-              list.appendChild(btn);
-            });
-
-            container.appendChild(list);
-            if (keyboardMode && selectedBtn) {
-              selectedBtn.scrollIntoView({ block: 'nearest' });
-            }
+                  selected = index;
+                  menu?.select(selected, false);
+                },
+              },
+              '没有匹配的实体',
+            );
+            menu.select(selected, keyboardMode);
           };
 
           const updatePosition = (clientRect?: () => DOMRect | null) => {
             const rect = clientRect?.();
-            if (!rect || !container) return;
-            container.style.position = 'fixed';
-            container.style.zIndex = '9999';
-            container.style.left = `${rect.left}px`;
-            const FLIP_THRESHOLD = 200;
-            const MARGIN = 8;
-            const viewportHeight = window.innerHeight;
-            const roomBelow = viewportHeight - rect.bottom - MARGIN;
-            const roomAbove = rect.top - MARGIN;
-            const list = container.firstElementChild as HTMLDivElement | null;
-            if (roomBelow < FLIP_THRESHOLD && roomAbove > roomBelow) {
-              container.style.top = '';
-              container.style.bottom = `${viewportHeight - rect.top + 2}px`;
-              if (list) list.style.maxHeight = `${roomAbove}px`;
-            } else {
-              container.style.bottom = '';
-              container.style.top = `${rect.bottom + 2}px`;
-              if (list) list.style.maxHeight = `${Math.max(roomBelow, 160)}px`;
-            }
+            if (rect && menu) menu.place(rect);
           };
 
           return {
             onStart: (props) => {
-              container?.remove();
-              container = document.createElement('div');
-              container.dataset.editorSuggestion = 'mention';
-              document.body.appendChild(container);
+              menu?.root.remove();
+              menu = createSuggestionMenu('mention', '@');
+              document.body.appendChild(menu.root);
               selected = 0;
               keyboardMode = false;
               renderList(props as Parameters<typeof renderList>[0]);
@@ -332,16 +239,11 @@ export const EntityMentionSuggestion = Extension.create<EntityMentionSuggestionO
             onKeyDown: ({ event }) => {
               if (event.key === 'Escape') return true;
               if (!items.length) return false;
-              if (event.key === 'ArrowDown') {
+              if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
                 keyboardMode = true;
-                selected = (selected + 1) % items.length;
-                renderList(lastProps);
-                return true;
-              }
-              if (event.key === 'ArrowUp') {
-                keyboardMode = true;
-                selected = (selected - 1 + items.length) % items.length;
-                renderList(lastProps);
+                const step = event.key === 'ArrowDown' ? 1 : -1;
+                selected = (selected + step + items.length) % items.length;
+                menu?.select(selected, true);
                 return true;
               }
               if (event.key === 'Enter') {
@@ -351,8 +253,8 @@ export const EntityMentionSuggestion = Extension.create<EntityMentionSuggestionO
               return false;
             },
             onExit: () => {
-              container?.remove();
-              container = null;
+              menu?.root.remove();
+              menu = null;
               items = []; lastProps = null; selected = 0; keyboardMode = false;
             },
           };

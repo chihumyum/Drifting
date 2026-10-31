@@ -100,7 +100,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project', placeme
             icon={
               <BrushIcon
                 name={themeMode === 'light' ? 'enso' : themeMode === 'dark' ? 'ink-disc' : 'taiji'}
-                size={13}
+                size={16}
               />
             }
             label={t('userMenu.theme')}
@@ -145,7 +145,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project', placeme
             }
           />
           <MenuItem
-            icon={<BrushIcon name="wen" size={13} />}
+            icon={<BrushIcon name="wen" size={16} />}
             label={t('userMenu.language')}
             tail={
               desktop ? (
@@ -179,7 +179,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project', placeme
           {scope === 'project' && (
             <>
               <MenuItem
-                icon={<BrushIcon name="dharma-wheel" size={13} />}
+                icon={<BrushIcon name="dharma-wheel" size={16} />}
                 label={t('userMenu.settings')}
                 intent={settingsIntent}
                 meta="⌘,"
@@ -189,7 +189,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project', placeme
                 }}
               />
               <MenuItem
-                icon={<BrushIcon name="movable-type" size={13} />}
+                icon={<BrushIcon name="movable-type" size={16} />}
                 label={t('userMenu.keyboardShortcuts')}
                 intent={settingsIntent}
                 meta="⌘K ⌘/"
@@ -202,7 +202,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project', placeme
           )}
           {scope === 'shelf' && (
             <MenuItem
-              icon={<BrushIcon name="dharma-wheel" size={13} />}
+              icon={<BrushIcon name="dharma-wheel" size={16} />}
               label={t('userMenu.settings')}
               intent={settingsIntent}
               onClick={() => {
@@ -218,7 +218,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project', placeme
             <>
               {shareLinksEnabled && (
                 <MenuItem
-                  icon={<BrushIcon name="share" size={13} />}
+                  icon={<BrushIcon name="share" size={16} />}
                   label={t('shareLink.listTitle')}
                   onClick={() => {
                     useShareLinksDialogStore.getState().show();
@@ -227,7 +227,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project', placeme
                 />
               )}
               <MenuItem
-                icon={<BrushIcon name="case-dew" size={13} />}
+                icon={<BrushIcon name="case-dew" size={16} />}
                 label={t('userMenu.import')}
                 meta="MD · DOCX · TXT"
                 onClick={() => {
@@ -236,7 +236,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project', placeme
                 }}
               />
               <MenuItem
-                icon={<BrushIcon name="books" size={13} />}
+                icon={<BrushIcon name="books" size={16} />}
                 label={t('userMenu.bookshelf')}
                 onClick={() => {
                   navigate('/');
@@ -251,7 +251,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project', placeme
           <MenuGroup last>
             {shareLinksEnabled && (
               <MenuItem
-                icon={<BrushIcon name="share" size={13} />}
+                icon={<BrushIcon name="share" size={16} />}
                 label={t('shareLink.listTitle')}
                 onClick={() => {
                   useShareLinksDialogStore.getState().show();
@@ -260,7 +260,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project', placeme
               />
             )}
             <MenuItem
-              icon={<BrushIcon name={canSignOut ? 'gate-out' : 'gate-in'} size={13} />}
+              icon={<BrushIcon name={canSignOut ? 'gate-out' : 'gate-in'} size={16} />}
               label={signingOut ? t('userMenu.signingOut') : t(canSignOut ? 'userMenu.signOut' : 'settings.hosted.sign_in_sync')}
               onClick={signingOut ? undefined : canSignOut ? handleSignOut : () => { onClose(); openSignIn(); }}
             />
@@ -342,10 +342,9 @@ function MenuItem({ icon, label, meta, tail, onClick, intent }: MenuItemProps) {
     <>
       <span
         style={{
-          width: 18,
+          width: 16,
           display: 'grid',
           placeItems: 'center',
-          color: 'var(--ui-text-muted, hsl(var(--ink-4)))',
           flexShrink: 0,
         }}
       >

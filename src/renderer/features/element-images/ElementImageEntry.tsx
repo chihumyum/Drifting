@@ -83,7 +83,7 @@ export function ElementImageEntry({
         open={open}
         onClose={close}
         placement="bottom-end"
-        className="elem-image-menu"
+        className="menu-surface menu-surface--rich menu-surface--wide elem-image-menu"
         ariaLabel={label}
       >
         {view === 'generate' ? (
@@ -124,45 +124,49 @@ export function ElementImageEntry({
                 workflow.candidateProps.onPreview(candidate);
               }}
             />
+            <div className="menu-surface__divider" />
             <div className="elem-image-menu__actions">
               <button
                 type="button"
-                className="elem-image-menu__action"
+                className="menu-surface__item"
                 onClick={() => {
                   workflow.prepareGenerate();
                   setView('generate');
                 }}
               >
-                <BrushIcon name="shikigami" size={14} />
-                {t('elementEditor.imageEntry.generate')}
+                <BrushIcon name="shikigami" size={16} />
+                <span>{t('elementEditor.imageEntry.generate')}</span>
               </button>
               <button
                 type="button"
-                className="elem-image-menu__action"
+                className="menu-surface__item"
                 disabled={busy}
                 onClick={closeThen(onImportFromFile)}
               >
-                <BrushIcon name="image-plus" size={14} />
-                {t(hasImage ? 'elementEditor.imageEntry.replaceFromFile' : 'elementEditor.imageEntry.addFromFile')}
+                <BrushIcon name="image-plus" size={16} />
+                <span>{t(hasImage ? 'elementEditor.imageEntry.replaceFromFile' : 'elementEditor.imageEntry.addFromFile')}</span>
               </button>
               {imageUrl && (
-                <button type="button" className="elem-image-menu__action" onClick={closeThen(onViewLarge)}>
-                  <BrushIcon name="fullscreen" size={14} />
-                  {t('elementEditor.portrait.view')}
-                </button>
-              )}
-              {hasImage && (
-                <button
-                  type="button"
-                  className="elem-image-menu__action elem-image-menu__action--danger"
-                  disabled={busy}
-                  onClick={closeThen(onRemove)}
-                >
-                  <BrushIcon name="trash" size={14} />
-                  {t('elementEditor.imageEntry.remove')}
+                <button type="button" className="menu-surface__item" onClick={closeThen(onViewLarge)}>
+                  <BrushIcon name="fullscreen" size={16} />
+                  <span>{t('elementEditor.portrait.view')}</span>
                 </button>
               )}
             </div>
+            {hasImage && (
+              <>
+                <div className="menu-surface__divider" />
+                <button
+                  type="button"
+                  className="menu-surface__item menu-surface__item--danger"
+                  disabled={busy}
+                  onClick={closeThen(onRemove)}
+                >
+                  <BrushIcon name="trash" size={16} />
+                  <span>{t('elementEditor.imageEntry.remove')}</span>
+                </button>
+              </>
+            )}
           </div>
         )}
       </AnchoredPopover>

@@ -1,10 +1,12 @@
 import { Fragment } from 'react';
 import { AnchoredPopover } from '../ui/AnchoredPopover';
-import { BrushIcon } from '../ui/BrushIcon';
+import { BrushIcon, type BrushIconName } from '../ui/BrushIcon';
 
 export interface SortMenuOption<T extends string> {
   value: T;
   label: string;
+  /** Every row of a menu leads with its icon (docs/design-system/materials.md). */
+  icon: BrushIconName;
 }
 
 // A radio group rendered below the primary sort group, separated by a divider.
@@ -80,6 +82,7 @@ export function SortMenu<T extends string>({
           <SortMenuRow
             key={opt.value}
             label={opt.label}
+            icon={opt.icon}
             active={opt.value === value}
             onSelect={() => {
               onChange(opt.value);
@@ -98,6 +101,7 @@ export function SortMenu<T extends string>({
               <SortMenuRow
                 key={opt.value}
                 label={opt.label}
+                icon={opt.icon}
                 active={opt.value === group.value}
                 onSelect={() => {
                   group.onChange(opt.value);
@@ -118,10 +122,12 @@ function GroupTitle({ children }: { children: React.ReactNode }) {
 
 function SortMenuRow({
   label,
+  icon,
   active,
   onSelect,
 }: {
   label: string;
+  icon: BrushIconName;
   active: boolean;
   onSelect: () => void;
 }) {
@@ -132,32 +138,10 @@ function SortMenuRow({
       aria-checked={active}
       onClick={onSelect}
       className="menu-surface__item"
-      style={{
-        gap: 8,
-      }}
     >
-      <span
-        style={{
-          width: 14,
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'hsl(var(--accent))',
-          flexShrink: 0,
-        }}
-      >
-        {active ? <BrushIcon name="check" size={12} /> : null}
-      </span>
-      <span
-        style={{
-          flex: 1,
-          minWidth: 0,
-          overflowWrap: 'anywhere',
-          fontWeight: active ? 500 : 400,
-        }}
-      >
-        {label}
-      </span>
+      <BrushIcon name={icon} size={16} />
+      <span>{label}</span>
+      {active && <BrushIcon name="check" size={12} className="menu-surface__check" />}
     </button>
   );
 }

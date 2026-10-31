@@ -418,8 +418,8 @@ export function ReviewPanel({ focused, onOpenAgentTask }: ReviewPanelProps) {
         onClose={() => setSortMenuOpen(false)}
         title={t('leftSidebar.actions.sort')}
         options={[
-          { value: 'createdAt', label: t('leftSidebar.sort.createdAt') },
-          { value: 'updatedAt', label: t('leftSidebar.sort.updatedAt') },
+          { value: 'createdAt', label: t('leftSidebar.sort.createdAt'), icon: 'sprout' },
+          { value: 'updatedAt', label: t('leftSidebar.sort.updatedAt'), icon: 'brush-writing' },
         ]}
         value={sortMode}
         onChange={setSortMode}
@@ -427,8 +427,8 @@ export function ReviewPanel({ focused, onOpenAgentTask }: ReviewPanelProps) {
           sortMenuGroup<ReviewGroupMode>({
             title: t('reviewPanel.groupBy.title'),
             options: [
-              { value: 'target', label: t('reviewPanel.groupBy.target') },
-              { value: 'flat', label: t('reviewPanel.groupBy.flat') },
+              { value: 'target', label: t('reviewPanel.groupBy.target'), icon: 'locate' },
+              { value: 'flat', label: t('reviewPanel.groupBy.flat'), icon: 'view-list' },
             ],
             value: groupMode,
             onChange: setGroupMode,

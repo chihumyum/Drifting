@@ -12,12 +12,13 @@
 ## Menu surfaces
 
 - 三点按钮、排序按钮与窗口控件只决定菜单如何定位，不决定菜单长什么样。按钮锚定面继续由 `AnchoredPopover` portal 到 `body` 并使用 `position: fixed`；坐标锚定的选择器（分组选择等）使用 `ContextMenuSurface`。编辑器选区浮条与悬停卡保留各自的生命周期 owner，同样 portal 到 `body` 并固定定位；悬停卡使用共享的菜单外壳 token，选区浮条是玻璃长药丸，不用菜单外壳。
-- 所有动作菜单使用 `.menu-surface`。外壳唯一来源是 `--menu-surface-bg`、`--menu-surface-border`、`--menu-surface-radius` 与 `--menu-surface-shadow`；宽度只能从 compact / standard / wide / panel / settings 五档中选择，对应 `180 / 220 / 280 / 360 / 420px`，窄视口再由浮层 primitive 的 viewport max-width 收缩，不为单个入口另写任意宽度。
-- 菜单是从桌面掀起的一块：`--menu-surface-bg` 取侧栏同色的不透明 `--workspace-ui-bg`，直角（`--menu-surface-radius: 0`），没有实线边框，边缘是 `--menu-surface-shadow` 里的 `0.5px` 墨色 hairline 加浮起投影；菜单整体没有自己的玻璃边，流动玻璃只出现在被悬停的那一行。悬停预览卡共用这组 token。
-- 普通行使用 `.menu-surface__item`，桌面采用 `14px / 20px`（较大档 `16px / 22px`）UI 字体，共享移动 fallback 为 `12.5px / 18px`，`6px 14px` padding、直角，左右贴齐菜单边缘。桌面单行内容至少为 `32px`；文本超过一行时允许正常换行，由所选档位的行高自然撑高，不截断为单行，也不把富表单强制压进固定 cell。行不填色：悬停时该行四边一整圈变成 hairline 流动玻璃（与侧栏 cell 的悬停环同一做法，同一张纹理切出，四边粗细一致）；在行之间移动只淡出旧行、淡入新行的环。
-- section label、header 与 accelerator 分别使用共享的小型层级；分组之间用 `8px` 空白代替分隔线（divider 保留为空白）。当前项只以字重显示，不绘制 inset-left accent bar。
+- 所有动作菜单使用 `.menu-surface`。宽度只有两档：一列动作的菜单 `240px`（compact / standard 两个类名同值），装着更多东西的菜单（图片、对象列表、表单）`320px`（wide / panel 同值）；关系类型管理这种设置面板仍是 `420px`（settings）。即 `240 / 320 / 420px`，窄视口再由浮层 primitive 的 viewport max-width 收缩，不为单个入口另写任意宽度。
+- 外壳（桌面，2026-10-31 菜单统一）：圆角矩形，`--menu-radius: 16px`，与悬停卡浮窗同值；底色是侧栏同色的不透明 `--menu-surface-bg`；边是静止的细玻璃线，与顶部药丸未选中、右栏批注卡、Agent 输入框同一种不均匀的玻璃边（玻璃色 50% 的 1px 线被玻璃纹理切开，没有内晕，不流动）；外面只有浮起投影 `--menu-shadow`，不再有 `0.5px` 墨色 hairline。菜单自己就是滚动容器，伪元素画的环会跟着行滚走，所以这条线画成背景：`ringgen.py` 把玻璃纹理预先着成浅色／深色的玻璃色（`glass-ring.png` / `glass-ring-dark.png`，`--menu-ring-texture`），只露在 1px 透明边框里。对话框、全局搜索、查找与悬停卡仍用原来直角的 `--menu-surface-*` 外壳。
+- 行：菜单里的 `.menu-surface__item` 左右各缩进 `6px`（`--menu-row-inset`），`5px 10px` padding、`4px` 圆角，桌面单行 `30px`（随界面字号档增加），UI 字体 `14px / 20px`。每一行都以图标开头：`16px` 的砂笔图标（`BrushIcon`），或这一行要变成、要插入的对象的记号（转换为章节＝章节圆印，`@` 提及的实体＝它自己的记号，`MenuRowIcon`），图标与文字同色，间距 `10px`；同一个菜单里不混用有图标和没图标的行。文本超过一行时正常换行，不截断。行不填色：悬停时这一行沿自己的圆角一整圈变成 hairline 流动玻璃（与侧栏 cell 的悬停环同一张纹理）；删除这类危险操作的环是危险色；在行之间移动只淡出旧行、淡入新行的环。
+- 分组之间是一道 `0.5px` 发丝线（`--menu-separator`，上下各 `5px`，左右缩进 `16px` 与图标对齐）；section label 是 `12px` 中等字重的淡色字，不大写、不加字距。单选组的当前项文字转深，行尾一个批阅一勾（`.menu-surface__check`）；不绘制 inset-left accent bar。编辑器 ⋯ 菜单按普通操作、写作状态、删除分三组。
+- 正文编辑器的 `/` 与 `@` 菜单也是 `.menu-surface`（`lib/editor-suggestion-menu.ts` 用 DOM 拼出同样的外壳与行），不再自带写死的米白底与填色选中行：`/` 分块级格式与插入两组；`@` 的实体行行首是它的记号、行尾淡色标出种类，「创建要素」在发丝线下。
 - 键盘移到的当前行（全局搜索的结果、下拉选择的选项、查找结果）是同一圈环的静止选中态（`.menu-surface__item.is-current`），指针下的行照旧流动。下拉选择的列表与触发器同宽、不窄于 standard 档，这是宽度档位唯一的例外。
-- 账户、通知中心、Agent 配置/历史、关系类型管理、资料卡摘要和“未放置”内容不是普通动作列表。它们使用 `.menu-surface--rich` 保留表单、摘要、chip 或多列布局，但外壳 token、基础字号、菜单行的悬停玻璃（不垫底）、圆角阶梯与浮层层级仍与简单菜单一致；不为了视觉整齐把富交互压成 30px 动作行。
+- 账户、通知中心、Agent 配置/历史、关系类型管理、设定图、资料卡摘要和“未放置”内容不是普通动作列表。它们使用 `.menu-surface--rich` 保留表单、摘要、图片、chip 或多列布局，但外壳、基础字号、菜单行的缩进与悬停玻璃（不垫底）、分组发丝线与浮层层级仍与简单菜单一致；账户菜单的分组同样以发丝线分开、图标 `16px`；不为了视觉整齐把富交互压成 30px 动作行。
 - App 自绘菜单受上述约束；系统原生右键菜单不属于 renderer 可定制范围。静态测试能证明 token、class 与 portal/fixed 路径已收敛，不能证明不同平台上的字体栅格化、阴影观感或系统原生菜单外观；这些仍由用户在实际窗口中目测验收。
 
 ## 按压、悬停与焦点

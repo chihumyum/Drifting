@@ -59,20 +59,29 @@
        keep separate positioning/interaction owners, but resolve their visual
        shell and rows through this one token family. Menus and hover cards
        are a piece of the desk lifted out: the sidebar's own opaque colour,
-       square, a half-pixel hairline edge and the floating shadow. */
+       square, a half-pixel hairline edge and the floating shadow. Dropdown
+       menus (.menu-surface) are rounder: 16px corners, the resting glass line
+       instead of the hairline, and rows inset from the edge; dialogs, search
+       and hover cards keep the square shell. */
     --menu-surface-bg: var(--workspace-ui-bg);
     --menu-surface-border: transparent;
     --menu-surface-radius: 0;
     --menu-surface-shadow:
       0 0 0 0.5px hsl(var(--ink-1) / 0.16),
       0 16px 30px -16px hsl(var(--shadow-ink) / 0.38);
+    --menu-radius: 16px;
+    --menu-shadow: 0 16px 30px -16px hsl(var(--shadow-ink) / 0.38);
+    --menu-row-inset: 6px;
+    --menu-separator: hsl(var(--ink-1) / 0.14);
     --menu-item-hover-bg: hsl(var(--ink-1) / 0.05);
     --menu-item-danger: hsl(var(--destructive));
     --menu-item-danger-hover-bg: hsl(var(--destructive) / 0.1);
-    --menu-width-compact: 180px;
-    --menu-width-standard: 220px;
-    --menu-width-wide: 280px;
-    --menu-width-panel: 360px;
+    /* Two widths: a menu of rows, and a menu that carries more (an image,
+       a list of things, a form). Compact and panel are the older names. */
+    --menu-width-compact: 240px;
+    --menu-width-standard: 240px;
+    --menu-width-wide: 320px;
+    --menu-width-panel: 320px;
     --menu-width-settings: 420px;
 
     /* ─── Drifting-only tokens (full ink scale, paper scale, accents) ─── */
@@ -350,6 +359,7 @@
     --menu-surface-shadow:
       0 0 0 0.5px hsl(var(--ink-1) / 0.16),
       0 16px 30px -16px hsl(var(--shadow-ink) / 0.62);
+    --menu-shadow: 0 16px 30px -16px hsl(var(--shadow-ink) / 0.62);
 
     --ink-1: 220 8% 93%;
     --ink-2: 220 6% 82%;

@@ -53,7 +53,7 @@ describe('left sidebar outer-container sorting', () => {
     expect(elementMenu).toContain('options: elementCategorySortOptions');
     expect(elementMenu).toContain('value: elementCategorySortMode');
     expect(subheader).toContain(
-      "{ value: 'storylineOrder', label: t('leftSidebar.sort.storylineOrder') }",
+      "{ value: 'storylineOrder', label: t('leftSidebar.sort.storylineOrder'), icon: 'lanes-stagger' }",
     );
     expect(subheader).toContain("t('leftSidebar.sort.categoryElements')");
     expect(en.leftSidebar.sort.outerStorylinesGroup).toBe('Outer storylines');

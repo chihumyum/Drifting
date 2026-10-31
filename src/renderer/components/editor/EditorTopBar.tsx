@@ -1,4 +1,4 @@
-import { type ReactNode, useRef, useState } from 'react';
+import { Fragment, type ReactNode, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   DRIFT_STATUSES,
@@ -7,7 +7,8 @@ import {
 } from '../../domain/book-node';
 import { useSettingsStore } from '../../store/settings-store';
 import { AnchoredPopover } from '../ui/AnchoredPopover';
-import { BrushIcon } from '../ui/BrushIcon';
+import { BrushIcon, type BrushIconName } from '../ui/BrushIcon';
+import { MenuRowIcon, type MenuRowIconSpec } from '../ui/MenuRowIcon';
 import { TimelineToggle } from '../workspaceChrome/WorkspaceTabDock';
 import { useEditorCornerHostsTimelineToggle } from './editor-corner';
 import { useEditorRailPresentation } from './editor-rail-presentation';
@@ -268,6 +269,81 @@ function EditorBarMenu({
     : [];
   if (items.length === 0 && !showStatus && !menuHeader) return null;
 
+  const actionRow = (item: MenuItem) => (
+    <button
+      key={item.action}
+      type="button"
+      role="menuitem"
+      className={`menu-surface__item${item.danger ? ' menu-surface__item--danger' : ''}`}
+      onClick={() => {
+        onAction(item.action);
+        setIsOpen(false);
+      }}
+    >
+      <MenuRowIcon icon={item.icon} />
+      <span>{item.label}</span>
+    </button>
+  );
+  const plain = items.filter((item) => !item.danger);
+  const destructive = items.filter((item) => item.danger);
+  // The plain actions, the writing status, then what destroys: each group
+  // parted from the next by a hairline.
+  const groups: { key: string; content: ReactNode }[] = [];
+  if (onShare || plain.length > 0) {
+    groups.push({
+      key: 'actions',
+      content: (
+        <>
+          {onShare && (
+            <button type="button" role="menuitem" className="menu-surface__item" onClick={() => {
+              setIsOpen(false);
+              onShare();
+            }}>
+              <BrushIcon name="share" size={16} />
+              <span>{translate?.('markdownShare.menu') ?? 'Share'}</span>
+            </button>
+          )}
+          {plain.map(actionRow)}
+        </>
+      ),
+    });
+  }
+  if (showStatus && nodeStatusKind) {
+    groups.push({
+      key: 'status',
+      content: (
+        <>
+          <div className="menu-surface__section-label">
+            {getStatusSectionLabel(nodeStatusKind, translate)}
+          </div>
+          {statusOptions.map((status) => {
+            const active = status === nodeWritingStatus;
+            return (
+              <button
+                key={status}
+                type="button"
+                role="menuitemradio"
+                aria-checked={active}
+                className="menu-surface__item"
+                onClick={() => {
+                  if (!active) onAction(`${SET_STATUS_ACTION_PREFIX}${status}`);
+                  setIsOpen(false);
+                }}
+              >
+                <BrushIcon name={WRITING_STATUS_ICON[status]} size={16} />
+                <span>{getWritingStatusLabel(status, translate)}</span>
+                {active && <BrushIcon name="check" size={12} className="menu-surface__check" />}
+              </button>
+            );
+          })}
+        </>
+      ),
+    });
+  }
+  if (destructive.length > 0) {
+    groups.push({ key: 'destructive', content: <>{destructive.map(actionRow)}</> });
+  }
+
   return (
     <div style={{ position: 'relative' }}>
       <button
@@ -291,62 +367,12 @@ function EditorBarMenu({
         className="menu-surface menu-surface--standard editor-bar__menu"
         role="menu"
       >
-          {onShare && <>
-            <button type="button" role="menuitem" className="menu-surface__item" onClick={() => {
-              setIsOpen(false);
-              onShare();
-            }}>
-              <BrushIcon name="share" size={14} />
-              {translate?.('markdownShare.menu') ?? 'Share'}
-            </button>
-            <div className="menu-surface__divider" />
-          </>}
-          {menuHeader && (
-            <>
-              <div className="menu-surface__header">{menuHeader}</div>
-              {(showStatus || items.length > 0) && <div className="menu-surface__divider" />}
-            </>
-          )}
-          {showStatus && nodeStatusKind && (
-            <>
-              <div className="menu-surface__section-label">
-                {getStatusSectionLabel(nodeStatusKind, translate)}
-              </div>
-              {statusOptions.map((status) => {
-                const active = status === nodeWritingStatus;
-                return (
-                  <button
-                    key={status}
-                    type="button"
-                    role="menuitemradio"
-                    aria-checked={active}
-                    className={`menu-surface__item menu-surface__item--status${active ? ' menu-surface__item--active' : ''}`}
-                    onClick={() => {
-                      if (!active) onAction(`${SET_STATUS_ACTION_PREFIX}${status}`);
-                      setIsOpen(false);
-                    }}
-                  >
-                    <span>{getWritingStatusLabel(status, translate)}</span>
-                    {active && <BrushIcon name="check" size={12} />}
-                  </button>
-                );
-              })}
-              {items.length > 0 && <div className="menu-surface__divider" />}
-            </>
-          )}
-          {items.map((item) => (
-            <button
-              key={item.action}
-              type="button"
-              role="menuitem"
-              className={`menu-surface__item${item.danger ? ' menu-surface__item--danger' : ''}`}
-              onClick={() => {
-                onAction(item.action);
-                setIsOpen(false);
-              }}
-            >
-              {item.label}
-            </button>
+          {menuHeader && <div className="menu-surface__header">{menuHeader}</div>}
+          {groups.map((group, index) => (
+            <Fragment key={group.key}>
+              {(index > 0 || menuHeader) && <div className="menu-surface__divider" />}
+              {group.content}
+            </Fragment>
           ))}
       </AnchoredPopover>
     </div>
@@ -356,8 +382,20 @@ function EditorBarMenu({
 export interface MenuItem {
   action: string;
   label: string;
+  /** Every row of a menu leads with its icon. */
+  icon: MenuRowIconSpec;
   danger?: boolean;
 }
+
+// 提笔 / 搁笔 / 折笔 for a chapter's draft, finished and abandoned states; a
+// drift drifts like a seed on its fluff and rests like a sunk stone.
+const WRITING_STATUS_ICON: Record<WritingStatus, BrushIconName> = {
+  draft: 'brush-lifted',
+  finished: 'brush-laid',
+  discarded: 'brush-broken',
+  drifting: 'fluff',
+  resting: 'stone-sunk',
+};
 
 // Action names for drift → chapter / element conversions. Surfaced as named
 // exports so NodeEditorView can branch on them without string duplication.
@@ -395,18 +433,22 @@ export function getMenuItems(
           {
             action: CONVERT_DRIFT_TO_CHAPTER_ACTION,
             label: label('editorTopBar.menu.convertToChapter', 'Convert to chapter…'),
+            icon: { kind: 'chapter' },
           },
           {
             action: CONVERT_DRIFT_TO_ELEMENT_ACTION,
             label: label('editorTopBar.menu.convertToElement', 'Convert to element…'),
+            icon: { kind: 'element' },
           },
           {
             action: DRIFT_MOVE_TO_GROUP_ACTION,
             label: label('editorTopBar.menu.moveToGroup', 'Move to group…'),
+            icon: 'folder',
           },
           {
             action: 'deleteNode',
             label: label('editorTopBar.menu.deleteNode', 'Delete Node'),
+            icon: 'trash',
             danger: true,
           },
         ];
@@ -415,10 +457,12 @@ export function getMenuItems(
         {
           action: 'editNodeStorylines',
           label: label('editorTopBar.menu.editStorylines', 'Edit Storylines'),
+          icon: 'branch',
         },
         {
           action: 'deleteNode',
           label: label('editorTopBar.menu.deleteNode', 'Delete Node'),
+          icon: 'trash',
           danger: true,
         },
       ];
@@ -427,14 +471,17 @@ export function getMenuItems(
         {
           action: 'categoryPicker',
           label: label('editorTopBar.menu.changeCategory', 'Change Category'),
+          icon: { kind: 'category' },
         },
         {
           action: 'groupPicker',
           label: label('editorTopBar.menu.changeGroup', 'Change Group'),
+          icon: 'folder',
         },
         {
           action: 'deleteElement',
           label: label('editorTopBar.menu.deleteElement', 'Delete Element'),
+          icon: 'trash',
           danger: true,
         },
       ];
@@ -443,6 +490,7 @@ export function getMenuItems(
         {
           action: 'deleteCategory',
           label: label('editorTopBar.menu.deleteCategory', 'Delete Category'),
+          icon: 'trash',
           danger: true,
         },
       ];
@@ -451,6 +499,7 @@ export function getMenuItems(
         {
           action: 'deleteStoryline',
           label: label('editorTopBar.menu.deleteStoryline', 'Delete Storyline'),
+          icon: 'trash',
           danger: true,
         },
       ];
@@ -459,22 +508,27 @@ export function getMenuItems(
         {
           action: MATERIAL_OPEN_IN_SYSTEM_ACTION,
           label: label('editorTopBar.menu.openMaterialInSystem', 'Open in default app'),
+          icon: 'arrow-out',
         },
         {
           action: MATERIAL_MOVE_TO_FOLDER_ACTION,
           label: label('editorTopBar.menu.moveMaterialToFolder', 'Move to folder…'),
+          icon: 'folder',
         },
         {
           action: NOTE_TASK_TODOS_OFF_ACTION,
           label: label('editorTopBar.menu.noteTaskTodosOff', 'Stop syncing checklist to TODOs'),
+          icon: 'checklist',
         },
         {
           action: NOTE_TASK_TODOS_ON_ACTION,
           label: label('editorTopBar.menu.noteTaskTodosOn', 'Sync checklist to TODOs'),
+          icon: 'checklist',
         },
         {
           action: 'deleteMaterial',
           label: label('editorTopBar.menu.deleteMaterial', 'Delete material'),
+          icon: 'trash',
           danger: true,
         },
       ];
