@@ -1407,7 +1407,9 @@ function KindGroup({
   return (
     <section {...look(mobileShell, 'smm-kind-group', { marginBottom: 18 })}>
       <div {...look(mobileShell, 'smm-kind-group__head smm-index', LEGACY_GROUP_HEAD_STYLE)}>
-        <span>{t(`memoMaterial.kind.${kind}`, { defaultValue: kind })}</span>
+        <span {...look(mobileShell, 'smm-kind-group__name')}>
+          {t(`memoMaterial.kind.${kind}`, { defaultValue: kind })}
+        </span>
         <span {...look(mobileShell, 'smm-index-count', { color: 'hsl(var(--ink-4))' })}>
           {items.length}
         </span>
