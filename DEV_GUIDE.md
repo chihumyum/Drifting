@@ -85,8 +85,8 @@ Keychain/Keystore 凭据或真实稿件。关系型 Markdown 导出的能力与�
 `0.1.x` 版本必须按顺序升级更早的公开 `0.1.x` 数据，已发布的迁移不可改写。当前
 基线的数据库应予保留；只有基线之前的 pre-Alpha 开发库不属于受支持的迁移人群，
 应备份后重置，不要为其添加 fallback read、双写或搬运器。这项规则以
-[AGENTS.md](AGENTS.md) 的 `Public Alpha compatibility policy` 与
-[docs/alpha-release-contract.md](docs/alpha-release-contract.md) 为准。
+[AGENTS.md](AGENTS.md) 的 `Public Alpha compatibility policy` 为准；发布流程见
+[docs/releasing.md](docs/releasing.md)。
 
 ## 网络与兼容服务
 

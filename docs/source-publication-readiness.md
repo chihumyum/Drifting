@@ -144,7 +144,7 @@ zero findings. Signing validation was a certificate/runner preflight only.
 Read the [headless dependency regression](renderer-performance/acceptance/source-publication-regression.json)
 and [resource-release regression](renderer-performance/acceptance/source-publication-lifecycle.json)
 alongside the current commit's GitHub CI result. Human acceptance remains in
-[desktop RC](qa/desktop-alpha-release-candidate.md) and
+the [release smoke check](releasing.md#冒烟检查) and
 [Hosted readiness](client-onboarding-and-hosted-readiness.md). After that review,
 freeze the intended publication SHA and repeat the preflight below before an
 explicit visibility change. Source visibility and installer distribution remain
@@ -298,7 +298,7 @@ publication and its exact-commit evidence are recorded above.
       do not substitute a run for an earlier commit.
 - [ ] Run `pnpm audit --prod --audit-level high` and review every open
       Dependabot alert, including Rust lockfile alerts not covered by pnpm.
-- [ ] Run `node scripts/check-alpha-release.mjs app-v<version>` and confirm every
+- [ ] Run `node scripts/check-release.mjs v<version>` and confirm every
       third-party Action remains pinned to a 40-character commit SHA.
 
 ### GitHub configuration
@@ -345,7 +345,7 @@ and real-account gates documented in:
 
 - [`../README.md`](../README.md#licensing-and-project-policy);
 - [`qa/tauri-native-manual-regression.md`](qa/tauri-native-manual-regression.md);
-- [`qa/desktop-alpha-release-candidate.md`](qa/desktop-alpha-release-candidate.md);
+- [`releasing.md`](releasing.md);
 - [current onboarding and Hosted readiness](client-onboarding-and-hosted-readiness.md);
 - [`../src-tauri/UNSUPPORTED.md`](../src-tauri/UNSUPPORTED.md); and
 - [Hosted sync contract](hosted-sync/README.md).

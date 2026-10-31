@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 
 const errors = [];
 const ci = readFileSync('.github/workflows/ci.yml', 'utf8');
-const release = readFileSync('.github/workflows/release-alpha.yml', 'utf8');
+const release = readFileSync('.github/workflows/release.yml', 'utf8');
 
 function requireMatch(source, pattern, message) {
   if (!pattern.test(source)) errors.push(message);
@@ -12,7 +12,7 @@ function requireMatch(source, pattern, message) {
 requireMatch(ci, /^\s{4}branches: \[main\]$/mu, 'ordinary CI must run for main pushes');
 requireMatch(ci, /^\s{2}pull_request:\s*$/mu, 'ordinary CI must run for pull requests');
 if (/^\s{4}tags:/mu.test(ci)) {
-  errors.push('ordinary CI must not duplicate the exact-SHA release workflow on tags');
+  errors.push('ordinary CI must not duplicate the release workflow on tags');
 }
 
 for (const job of ['client-checks', 'client-tests', 'client-renderer', 'client', 'native']) {
@@ -33,7 +33,7 @@ requireMatch(ci, /RENDERER_RESULT: \$\{\{ needs\.client-renderer\.result \}\}/u,
 const rustAction = 'dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de';
 for (const [name, workflow, expectedCount] of [
   ['ordinary CI', ci, 1],
-  ['Alpha release', release, 2],
+  ['release', release, 2],
 ]) {
   if (workflow.split(rustAction).length - 1 !== expectedCount)
     errors.push(`${name} must use the pinned Rust action that accepts the toolchain input`);
@@ -56,11 +56,11 @@ for (const command of [
 }
 requireMatch(
   release,
-  /^\s{4}tags: \['app-v0\.1\.\*-alpha\.\*'\]\s*$/mu,
-  'the release workflow must remain the owner of Alpha tags',
+  /^\s{4}tags: \['v\*'\]\s*$/mu,
+  'the release workflow must own v* tags',
 );
 if (!release.includes('pnpm ci:contract:check')) {
-  errors.push('the exact-SHA release validation must enforce the CI contract');
+  errors.push('release validation must enforce the CI contract');
 }
 
 const testFiles = execFileSync('git', [

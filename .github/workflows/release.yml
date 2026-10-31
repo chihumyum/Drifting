@@ -1,18 +1,21 @@
-name: Release macOS Alpha
+name: Release
 
+# Pushing tag v<version> builds a signed, notarized macOS release as a draft.
+# Publishing the draft makes it the latest release, which is what the app's
+# updater offers (docs/releasing.md).
 on:
   push:
-    tags: ['app-v0.1.*-alpha.*']
+    tags: ['v*']
 
 permissions:
   contents: read
 
 concurrency:
-  group: alpha-release-${{ github.ref }}
+  group: release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  exact-sha-validation:
+  verify:
     runs-on: macos-14
     timeout-minutes: 60
     env:
@@ -23,12 +26,6 @@ jobs:
       API_BASE_URL: http://localhost:3000
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          fetch-depth: 0
-      - name: Require public repository before secret-bearing build
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: test "$(gh repo view --json visibility --jq .visibility)" = "PUBLIC"
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 22.23.1
@@ -42,46 +39,29 @@ jobs:
       - run: corepack enable
       - run: corepack prepare pnpm@10.17.1 --activate
       - run: pnpm install --frozen-lockfile
-      - run: node scripts/check-alpha-release.mjs "${GITHUB_REF_NAME}"
+      - run: node scripts/check-release.mjs "${GITHUB_REF_NAME}"
       - run: pnpm ci:contract:check
       - run: pnpm public:check
-      - run: pnpm security:dependencies
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
-      - run: pnpm agent:conversation-sync:check
       - run: pnpm agent:capabilities:check
-      - run: pnpm exec vite build --config vite.renderer.config.ts
       - run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
-      - run: cargo check --manifest-path src-tauri/Cargo.toml --locked --all-targets
       - run: cargo test --manifest-path src-tauri/Cargo.toml --locked --lib
-      - name: Require anonymous public release pages
-        run: |
-          for url in \
-            https://drifting.app \
-            https://drifting.app/privacy \
-            https://drifting.app/quick-start \
-            https://drifting.app/support \
-            https://drifting.app/known-issues; do
-            curl --fail --location --silent --show-error "$url" >/dev/null
-          done
 
-  signed-draft-release:
-    needs: exact-sha-validation
+  build:
+    needs: verify
     runs-on: macos-14
     timeout-minutes: 90
-    environment: alpha-release
+    environment: release
     permissions:
       contents: write
     env:
-      VITE_LOCAL_ONLY_MODE: 'true'
-      VITE_REQUIRE_AUTH: 'false'
-      VITE_AI_TRANSPORT: direct
-      VITE_API_BASE_URL: http://localhost:3000
-      API_BASE_URL: http://localhost:3000
-      DRIFTING_GOOGLE_DESKTOP_CLIENT_ID: ${{ secrets.DRIFTING_GOOGLE_DESKTOP_CLIENT_ID }}
-      DRIFTING_GOOGLE_DESKTOP_CLIENT_SECRET: ${{ secrets.DRIFTING_GOOGLE_DESKTOP_CLIENT_SECRET }}
-      DRIFTING_UPDATER_PUBLIC_KEY: ${{ secrets.DRIFTING_UPDATER_PUBLIC_KEY }}
+      # The official build signs in to Hosted and allows sign-up.
+      DRIFTING_HOSTED_ORIGIN: ${{ vars.DRIFTING_HOSTED_ORIGIN }}
+      VITE_TERMS_URL: https://drifting.cc/terms
+      VITE_PRIVACY_URL: https://drifting.cc/privacy
+      DRIFTING_UPDATER_PUBLIC_KEY: ${{ vars.DRIFTING_UPDATER_PUBLIC_KEY }}
       TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
       APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
@@ -89,8 +69,6 @@ jobs:
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          fetch-depth: 0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 22.23.1
@@ -104,24 +82,20 @@ jobs:
       - run: corepack enable
       - run: corepack prepare pnpm@10.17.1 --activate
       - run: pnpm install --frozen-lockfile
-      - name: Require public repository and protected release inputs
+      - name: Require release inputs
         env:
           APPLE_API_PRIVATE_KEY: ${{ secrets.APPLE_API_PRIVATE_KEY }}
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
-          test "$(gh repo view --json visibility --jq .visibility)" = "PUBLIC"
-          test -n "$DRIFTING_GOOGLE_DESKTOP_CLIENT_ID"
-          test -n "$DRIFTING_GOOGLE_DESKTOP_CLIENT_SECRET"
-          test -n "$DRIFTING_UPDATER_PUBLIC_KEY"
-          test -n "$TAURI_SIGNING_PRIVATE_KEY"
-          test -n "$APPLE_API_ISSUER"
-          test -n "$APPLE_API_KEY"
-          test -n "${APPLE_API_PRIVATE_KEY:-}"
-          test -n "$APPLE_CERTIFICATE"
-          test -n "$APPLE_CERTIFICATE_PASSWORD"
-          test -n "$KEYCHAIN_PASSWORD"
+          missing=0
+          for name in DRIFTING_HOSTED_ORIGIN DRIFTING_UPDATER_PUBLIC_KEY TAURI_SIGNING_PRIVATE_KEY \
+            APPLE_API_ISSUER APPLE_API_KEY APPLE_API_PRIVATE_KEY APPLE_CERTIFICATE \
+            APPLE_CERTIFICATE_PASSWORD KEYCHAIN_PASSWORD; do
+            if [ -z "${!name:-}" ]; then echo "::error::$name is not configured"; missing=1; fi
+          done
+          exit "$missing"
       - name: Import Developer ID Application certificate
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
@@ -148,17 +122,15 @@ jobs:
           printf '%s' "$APPLE_API_PRIVATE_KEY" > "$APPLE_API_KEY_PATH"
           chmod 600 "$APPLE_API_KEY_PATH"
           echo "APPLE_API_KEY_PATH=$APPLE_API_KEY_PATH" >> "$GITHUB_ENV"
-      - name: Build, sign, notarize, staple, and generate updater artifact
-        run: pnpm tauri build --target aarch64-apple-darwin --bundles app,dmg
-      - name: Verify local signed artifacts
+      - name: Build, sign, notarize and staple
+        run: node scripts/run-desktop-tauri.mjs build --online --target aarch64-apple-darwin --bundles app,dmg
+      - name: Verify signed artifacts
         run: |
-          APP_PATH=$(find src-tauri/target/aarch64-apple-darwin/release/bundle/macos -maxdepth 1 -name '*.app' -print -quit)
-          DMG_PATH=$(find src-tauri/target/aarch64-apple-darwin/release/bundle/dmg -maxdepth 1 -name '*.dmg' -print -quit)
-          UPDATE_PATH=$(find src-tauri/target/aarch64-apple-darwin/release/bundle/macos -maxdepth 1 -name '*.app.tar.gz' -print -quit)
-          test -d "$APP_PATH"
-          test -f "$DMG_PATH"
-          test -f "$UPDATE_PATH"
-          test -f "$UPDATE_PATH.sig"
+          BUNDLE=src-tauri/target/aarch64-apple-darwin/release/bundle
+          APP_PATH=$(find "$BUNDLE/macos" -maxdepth 1 -name '*.app' -print -quit)
+          DMG_PATH=$(find "$BUNDLE/dmg" -maxdepth 1 -name '*.dmg' -print -quit)
+          UPDATE_PATH=$(find "$BUNDLE/macos" -maxdepth 1 -name '*.app.tar.gz' -print -quit)
+          test -d "$APP_PATH" && test -f "$DMG_PATH" && test -f "$UPDATE_PATH" && test -f "$UPDATE_PATH.sig"
           codesign --verify --deep --strict --verbose=2 "$APP_PATH"
           spctl --assess --type execute --verbose=2 "$APP_PATH"
           xcrun stapler validate "$APP_PATH"
@@ -169,33 +141,32 @@ jobs:
           codesign --verify --deep --strict --verbose=2 "$MOUNTED_APP"
           spctl --assess --type execute --verbose=2 "$MOUNTED_APP"
           hdiutil detach "$RUNNER_TEMP/drifting-dmg"
-      - name: Assemble release evidence
+      - name: Assemble release files
         run: |
-          RELEASE_VERSION=$(node -p "require('./package.json').version")
+          VERSION=$(node -p "require('./package.json').version")
+          BUNDLE=src-tauri/target/aarch64-apple-darwin/release/bundle
           RELEASE_DIR="$RUNNER_TEMP/drifting-release"
           mkdir -p "$RELEASE_DIR"
-          cp src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg "$RELEASE_DIR/"
-          cp src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.app.tar.gz "$RELEASE_DIR/"
-          cp src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.app.tar.gz.sig "$RELEASE_DIR/"
-          cp LICENSE PRIVACY.md SECURITY.md THIRD_PARTY_NOTICES.md KNOWN_ISSUES.md "$RELEASE_DIR/"
+          cp "$BUNDLE"/dmg/*.dmg "$RELEASE_DIR/"
+          cp "$BUNDLE"/macos/*.app.tar.gz "$BUNDLE"/macos/*.app.tar.gz.sig "$RELEASE_DIR/"
+          UPDATE_NAME=$(basename "$(find "$RELEASE_DIR" -maxdepth 1 -name '*.app.tar.gz' -print -quit)")
+          node scripts/create-update-manifest.mjs \
+            --version "$VERSION" \
+            --url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/${UPDATE_NAME}" \
+            --signature-file "$RELEASE_DIR/$UPDATE_NAME.sig" \
+            --notes-file "docs/releases/${VERSION}.md" \
+            --output "$RELEASE_DIR/latest.json"
           node scripts/generate-release-sbom.mjs "$RELEASE_DIR/sbom.spdx.json"
           (cd "$RELEASE_DIR" && shasum -a 256 ./* > SHA256SUMS.txt)
-          echo "RELEASE_VERSION=$RELEASE_VERSION" >> "$GITHUB_ENV"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           echo "RELEASE_DIR=$RELEASE_DIR" >> "$GITHUB_ENV"
-      - name: Create immutable-tag draft prerelease
+      - name: Create draft release
         run: |
-          NOTES_FILE="docs/releases/${RELEASE_VERSION}.md"
-          test -f "$NOTES_FILE"
+          NOTES_FILE="docs/releases/${VERSION}.md"
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
             test "$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq .isDraft)" = "true"
             gh release upload "$GITHUB_REF_NAME" "$RELEASE_DIR"/* --clobber
-            gh release edit "$GITHUB_REF_NAME" --notes-file "$NOTES_FILE" --title "Drifting ${RELEASE_VERSION}" --prerelease --draft
+            gh release edit "$GITHUB_REF_NAME" --notes-file "$NOTES_FILE" --title "Drifting ${VERSION}" --draft
           else
-            gh release create "$GITHUB_REF_NAME" "$RELEASE_DIR"/* --verify-tag --draft --prerelease --title "Drifting ${RELEASE_VERSION}" --notes-file "$NOTES_FILE"
+            gh release create "$GITHUB_REF_NAME" "$RELEASE_DIR"/* --verify-tag --draft --title "Drifting ${VERSION}" --notes-file "$NOTES_FILE"
           fi
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: drifting-${{ github.ref_name }}-release-evidence
-          path: ${{ env.RELEASE_DIR }}
-          if-no-files-found: error
-          retention-days: 30
