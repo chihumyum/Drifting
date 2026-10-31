@@ -40,6 +40,8 @@ import { EntityHoverCard } from '../../../features/entities/hover/EntityHoverCar
 import type { EntityHoverTarget } from '../../../features/entities/hover/entity-hover-card-model';
 import type { EntityHoverCardPlacement } from '../../../components/ui/entity-hover-card-position';
 import { useCanvasHoverCard, withDriftGroupChoices } from '../../../features/graph/canvas-hover-card';
+import { withChapterStorylineChoices } from '../../../features/entities/hover/hover-choices';
+import { chapterStorylineIds, useChapterStorylineToggle } from '../../../features/entities/hover/use-hover-choice-writes';
 import type { RelationEdgePopoverAnchor } from '../../../components/graph/RelationEdgePopover';
 import type { GraphViewProps } from '../../../features/graph/graph-ui-components.types';
 import { DesktopSuperViewHeader } from '../components/DesktopSuperViewHeader';
@@ -145,7 +147,7 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
   const { moveDriftToGroup } = useDriftGroup({ projectId: projectId ?? '' });
   const { markers, addMarker, updateMarker, deleteMarker, boundDriftIds } =
     useTimelineMarkers(projectId);
-  const { splitAtOrder, updateAct, moveBoundary, unbindDrift, deleteAct, remapAfterSpread } =
+  const { splitAtOrder, updateAct, moveBoundary, bindDrift, unbindDrift, deleteAct, remapAfterSpread } =
     useBookAct({
       projectId: projectId ?? '',
     });
@@ -1023,11 +1025,13 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
       log.error('Graph hover card action failed', err);
     }
   };
+  const toggleChapterStoryline = useChapterStorylineToggle(projectId);
   const chapterHoverActions = (node: BookNode) => {
     const edgeCount = nodeEdges.filter(
       (e) => e.sourceNodeId === node.id || e.targetNodeId === node.id,
     ).length;
-    return entityHoverActions({
+    // 编辑故事线 unfolds the storylines in place, each ticked while the chapter is on it.
+    return withChapterStorylineChoices(entityHoverActions({
       editorType: 'node',
       nodeStatusKind: isChapter(node) ? 'chapter' : 'drift',
       nodeWritingStatus: node.writingStatus,
@@ -1052,6 +1056,10 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
       ],
       onAction: (action) => void runChapterHoverAction(node.id, action),
       t,
+    }), {
+      memberIds: chapterStorylineIds(node.id),
+      storylines,
+      onToggle: (storylineId) => toggleChapterStoryline(node.id, storylineId),
     });
   };
   const driftHoverActions = (node: BookNode) =>
@@ -1287,6 +1295,7 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
               onRequestBind={(id) =>
                 events.emit('drift-bind:open', { target: { kind: 'act', id } })
               }
+              onBindDrift={(id, driftNodeId) => void bindDrift(id, driftNodeId)}
               onUnbindDrift={(id) => void unbindDrift(id)}
               onOpenDrift={(driftNodeId, anchor) =>
                 // Match the drift-panel card: open the two-step NodeCardPopover

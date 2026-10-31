@@ -5,12 +5,20 @@ import {
   type EntityHoverCardPlacement,
   type EntityHoverCardPosition,
 } from './entity-hover-card-position';
-import { BrushIcon } from './BrushIcon';
+import { BrushIcon, type BrushIconName } from './BrushIcon';
+import { KindMark } from './KindMark';
+import type { KindMarkKind } from './kind-mark';
+import { hoverCardSections, sectionTitle } from './hover-card-sections';
+
+/** A row's mark: a sand brush icon for what it does, a kind mark for a kind of thing. */
+export type HoverActionIcon =
+  | { brush: BrushIconName }
+  | { kind: KindMarkKind; color?: string; seed?: string; loose?: boolean };
 
 /**
  * One thing that can be done to whatever a hover card describes. Drifting
- * has no right-click menus: what a menu used to offer lives in the bottom
- * row of the card that shows when the pointer rests on the thing.
+ * has no right-click menus: what a menu used to offer lives in the rows
+ * along the bottom of the card that shows when the pointer rests on the thing.
  */
 export interface HoverAction {
   key: string;
@@ -18,17 +26,26 @@ export interface HoverAction {
   onSelect?: () => void;
   danger?: boolean;
   disabled?: boolean;
-  /** A choice already in effect (the current writing status, the checked option). */
+  /** A choice already in effect (the current writing status, the current group). */
   active?: boolean;
-  /** Picking among these unfolds them as a row of their own (a group to move into…). */
+  /** Leads the row and steps its words in. Left out on a row that opens more. */
+  icon?: HoverActionIcon;
+  /**
+   * Several choices behind one cell (a group to move into…): a section of its
+   * own under its own header, folded until the header is pressed.
+   */
   choices?: HoverAction[];
+  /** The choices may hold at once (a chapter's storylines): each is ticked instead of ringed. */
+  multiple?: boolean;
+  /** One of several that hold at once. */
+  checked?: boolean;
   /** Keep the card open after choosing (toggles that are tried in place). */
   keepOpen?: boolean;
 }
 
 export interface HoverActionGroup {
   key: string;
-  /** A small caption before the group's buttons, for choice groups. */
+  /** A fixed choice of one (writing status): its header, its choices always open. */
   label?: string;
   actions: HoverAction[];
 }
@@ -38,31 +55,47 @@ export interface HoverCardPointerProps {
   onMouseLeave: () => void;
 }
 
+/** What the card's head says it is about: the thing's kind mark. */
+export interface HoverCardMark {
+  kind: KindMarkKind;
+  color?: string;
+  seed?: string;
+  loose?: boolean;
+}
+
 /**
  * A floating card beside the thing under the pointer. The pointer may cross
- * into the card (the owner's hover state gives it a moment) so the actions
+ * into the card (the owner's hover state gives it a moment) so the rows
  * along its bottom can be used; choosing one closes the card.
  */
 export function HoverCardShell({
   anchor,
   placement = 'right-start',
-  width = 300,
+  width = 248,
+  maxHeight = 720,
   label,
   pointer,
   actions,
   onDismiss,
+  id,
+  autoFocus = false,
   className = '',
   children,
 }: {
   anchor: HTMLElement;
   placement?: EntityHoverCardPlacement;
   width?: number;
+  maxHeight?: number;
   /** Accessible name of the card (usually the title of what it describes). */
   label?: string;
   /** From the owner's hover state; without it the card is a passive preview. */
   pointer?: HoverCardPointerProps;
   actions?: HoverActionGroup[];
   onDismiss?: () => void;
+  /** Lets the anchor point at the card (`aria-describedby`). */
+  id?: string;
+  /** Opened from a ⋯ button: focus the first row, and hand focus back on close. */
+  autoFocus?: boolean;
   className?: string;
   children?: ReactNode;
 }) {
@@ -84,13 +117,14 @@ export function HoverCardShell({
       viewportWidth: window.innerWidth,
       viewportHeight: window.innerHeight,
       placement,
+      maxHeight,
     });
     setPosition((current) =>
       current && current.top === next.top && current.left === next.left && current.maxHeight === next.maxHeight
         ? current
         : next,
     );
-  }, [anchor, placement]);
+  }, [anchor, placement, maxHeight]);
 
   useLayoutEffect(() => {
     updatePosition();
@@ -166,6 +200,24 @@ export function HoverCardShell({
     };
   }, [anchor, interactive, onDismiss]);
 
+  // The card is portaled to the end of the page, out of the tab order: asked
+  // for from the keyboard, it takes focus once it is placed (a hidden button
+  // cannot be focused) and gives it back when it closes.
+  const returnFocusRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    const card = cardRef.current;
+    if (!autoFocus || !position || !card || returnFocusRef.current) return;
+    returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : document.body;
+    card.querySelector<HTMLElement>('.hover-card__row:not(:disabled)')?.focus({ preventScroll: true });
+  }, [autoFocus, position]);
+  useLayoutEffect(() => {
+    const card = cardRef.current;
+    return () => {
+      const previous = returnFocusRef.current;
+      if (previous?.isConnected && card?.contains(document.activeElement)) previous.focus({ preventScroll: true });
+    };
+  }, []);
+
   // The card is portaled, but React still bubbles its events through the
   // owner's tree; a press on an action must not also click the row under it.
   const stop = (event: { stopPropagation: () => void }) => event.stopPropagation();
@@ -174,6 +226,7 @@ export function HoverCardShell({
   return createPortal(
     <div
       ref={cardRef}
+      id={id}
       role={interactive ? 'group' : 'tooltip'}
       aria-label={label}
       className={`hover-card${interactive ? ' hover-card--interactive' : ''} ${className}`.trim()}
@@ -187,7 +240,7 @@ export function HoverCardShell({
         top: position?.top ?? 0,
         left: position?.left ?? 0,
         width,
-        maxHeight: position?.maxHeight ?? 720,
+        maxHeight: position?.maxHeight ?? maxHeight,
         visibility: position ? 'visible' : 'hidden',
       }}
     >
@@ -202,78 +255,128 @@ export function HoverCardShell({
   );
 }
 
-/** Title and optional detail line at the top of a hover card's body. */
-export function HoverCardHeading({ title, detail }: { title: ReactNode; detail?: ReactNode }) {
+/**
+ * The head of a hover card: the thing's kind mark and title on the left, a
+ * count (words, chapters, items) on the right, and an optional line of what
+ * it belongs to under them.
+ */
+export function HoverCardHeading({ title, mark, index, detail }: {
+  title: ReactNode;
+  mark?: HoverCardMark;
+  index?: ReactNode;
+  detail?: ReactNode;
+}) {
   return (
     <>
-      <div className="hover-card__title">{title}</div>
-      {detail != null && detail !== '' && <div className="hover-card__detail">{detail}</div>}
+      <div className="hover-card__head">
+        <span className="hover-card__title">
+          {mark && <KindMark kind={mark.kind} color={mark.color} seed={mark.seed} loose={mark.loose} />}
+          {title}
+        </span>
+        {index != null && index !== '' && <span className="hover-card__index">{index}</span>}
+      </div>
+      {detail != null && detail !== '' && <div className="hover-card__meta">{detail}</div>}
     </>
   );
 }
 
-/** The bottom row of a hover card: what used to be its right-click menu. */
+/** The rows along the bottom of a hover card: what used to be its right-click menu. */
 export function HoverCardActions({ groups, onDone }: { groups: HoverActionGroup[]; onDone?: () => void }) {
-  const [unfolded, setUnfolded] = useState<string | null>(null);
+  const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set());
   const choose = (action: HoverAction) => {
     if (action.disabled) return;
-    if (action.choices) {
-      setUnfolded((current) => (current === action.key ? null : action.key));
-      return;
-    }
     action.onSelect?.();
     if (!action.keepOpen) onDone?.();
   };
-  const open = groups.flatMap((group) => group.actions).find((action) => action.key === unfolded);
+  const toggle = (key: string) => setOpen((current) => {
+    const next = new Set(current);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    return next;
+  });
   return (
-    <div className="hover-card__actions" role="toolbar" aria-orientation="horizontal">
-      <div className="hover-card__action-row">
-        {groups.map((group, index) => (
-          <Fragment key={group.key}>
-            {/* A captioned choice group (writing status…) keeps a line of its own. */}
-            {index > 0 && (groups[index - 1].label || group.label
-              ? <span className="hover-card__action-break" aria-hidden="true" />
-              : <span className="hover-card__action-gap" aria-hidden="true" />)}
-            {group.label && <span className="hover-card__action-label">{group.label}</span>}
-            {group.actions.map((action) => (
-              <HoverActionButton key={action.key} action={action}
-                expanded={action.choices ? unfolded === action.key : undefined}
-                onChoose={() => choose(action)} />
-            ))}
-          </Fragment>
-        ))}
-      </div>
-      {open?.choices && (
-        <div className="hover-card__action-row hover-card__action-row--choices">
-          {open.choices.map((choice) => (
-            <HoverActionButton key={choice.key} action={choice} onChoose={() => choose(choice)} />
+    <div className="hover-card__actions">
+      {hoverCardSections(groups).map((section) => (
+        <div key={section.key} className={`hover-card__section${section.type === 'folded' && open.has(section.key) ? ' is-open' : ''}`}>
+          {section.type === 'plain' && section.actions.map((action) => (
+            <HoverActionRow key={action.key} action={action} onChoose={() => choose(action)} />
           ))}
+          {section.type === 'fixed' && (
+            <Fragment>
+              <div className="hover-card__section-label">{section.label}</div>
+              {section.actions.map((action) => (
+                <HoverActionRow key={action.key} action={action} choice onChoose={() => choose(action)} />
+              ))}
+            </Fragment>
+          )}
+          {section.type === 'folded' && (
+            <Fragment>
+              <button
+                type="button"
+                className="hover-card__section-head"
+                aria-expanded={open.has(section.key)}
+                disabled={section.action.disabled}
+                onClick={() => toggle(section.key)}
+              >
+                {sectionTitle(section.action.label)}
+                <BrushIcon name="chevron-down" size={12} className="hover-card__chevron" />
+              </button>
+              <div className="hover-card__fold">
+                <div className="hover-card__fold-inner">
+                  {(section.action.choices ?? []).map((choice) => (
+                    <HoverActionRow
+                      key={choice.key}
+                      action={section.action.multiple ? { ...choice, keepOpen: choice.keepOpen ?? true } : choice}
+                      choice
+                      multiple={section.action.multiple}
+                      tabbable={open.has(section.key)}
+                      onChoose={() => choose(section.action.multiple ? { ...choice, keepOpen: choice.keepOpen ?? true } : choice)}
+                    />
+                  ))}
+                </div>
+              </div>
+            </Fragment>
+          )}
         </div>
-      )}
+      ))}
     </div>
   );
 }
 
-function HoverActionButton({ action, expanded, onChoose }: {
+function HoverActionMark({ icon }: { icon: HoverActionIcon }) {
+  if ('brush' in icon) return <BrushIcon name={icon.brush} className="hover-card__mark" />;
+  return (
+    <span className="hover-card__mark hover-card__mark--kind">
+      <KindMark kind={icon.kind} color={icon.color} seed={icon.seed} loose={icon.loose} />
+    </span>
+  );
+}
+
+function HoverActionRow({ action, choice = false, multiple = false, tabbable = true, onChoose }: {
   action: HoverAction;
-  expanded?: boolean;
+  /** One of a section's choices: the one in effect keeps its ring. */
+  choice?: boolean;
+  multiple?: boolean;
+  tabbable?: boolean;
   onChoose: () => void;
 }) {
   return (
     <button
       type="button"
       className={[
-        'hover-card__action glass glass--surface',
-        action.danger ? 'hover-card__action--danger' : '',
-        action.active ? 'is-active' : '',
+        'hover-card__row',
+        action.danger ? 'hover-card__row--danger' : '',
+        choice && !multiple && action.active ? 'is-active' : '',
+        multiple && action.checked ? 'is-checked' : '',
       ].filter(Boolean).join(' ')}
       disabled={action.disabled}
-      aria-pressed={action.active === undefined ? undefined : action.active}
-      aria-expanded={expanded}
+      tabIndex={tabbable ? undefined : -1}
+      aria-pressed={choice ? Boolean(multiple ? action.checked : action.active) : undefined}
       onClick={onChoose}
     >
-      {action.label}
-      {action.choices && <span className="hover-card__action-chevron" aria-hidden="true"><BrushIcon name={expanded ? 'chevron-up' : 'chevron-down'} size={9} /></span>}
+      {action.icon && <HoverActionMark icon={action.icon} />}
+      <span className="hover-card__row-label">{action.label}</span>
+      {multiple && <BrushIcon name="check" size={14} className="hover-card__tick" />}
     </button>
   );
 }

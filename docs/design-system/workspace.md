@@ -66,7 +66,7 @@
 - 要素 panel 提供可持久化的“紧凑索引 / 名称列表”两种纯文字显示模式，由 header 左侧“X 类 · XX 要素”摘要直接往返切换。紧凑索引中，展开的 category 被一圈该类目颜色的干砂笔框包住，框是九宫格切片（`frame-box.png`），任何尺寸下笔画粗细一致；标题嵌在框的上边：legend 以 `--workspace-ui-bg` 底切开上边，依次是折角记号、名称、计数／Agent 标记、legend 末端的固定 disclosure hit area（展开/收起箭头，悬停或收起时显示）与 `+`。真实 category 的文本 label 单击进入 editor、双击固定 tab，不兼任折叠；收起时框整体淡出。紧凑模式下 category 标题随内容滚动，不再 sticky。没有 element 的 category 不可展开，文本 label 仍可进入 editor。具名 element group 在框内以普通 hairline（`--workspace-local-border`）框住其卡片，不增加底色；连续具名 group 不加额外 margin，只有最后一个具名 group 与随后未分组卡片之间增加语义间距。未分组要素不画 group 框。每个要素卡是没有底色的砂笔 cell：方印记号、名称、悬停玻璃环、选中画框（按卡片尺寸现画，见 [materials.md](materials.md) 的砂笔框）。紧凑卡片与旧名称列表的 element label 共同复用 `.element-panel-item-label`：`--font-sans`、`12.5px`、字重 `400`、`1.35` 行高与 `-0.005em` 字距，选中不再加粗，两种视图不得分别定义另一套字号或字重。卡片使用 wrapping flex flow：名称估算宽度（含记号）决定其初始 `flex-basis`，同行剩余空间由卡片共同吸收；栏宽不足时自然退回单列。完整名称直接显示并允许换行，Agent 活动只占末端小状态标记。
 - 要素 panel 的 category 标题在紧凑索引和名称列表中都将 Agent 状态放在名称右侧的要素数量位置：忙碌提示、category 自身的 `A` / `M`、子要素待查看数量按此顺序优先显示；名称列表没有 Agent 状态时恢复要素总数；紧凑网格不显示常驻总数，只有 Agent 未读改动时显示对应数量，全部已读后数量槽消失。左侧只保留折叠／类别颜色，不再额外插入 Agent 标识，故事线和漂流分组沿用原有位置。
 - 紧凑 category 标题的记号、名称、计数／Agent 标记、展开箭头和新增按钮共用一段连续的 `--workspace-ui-bg` legend 底，砂笔框只出现在该段两侧，不穿过数字或按钮间隙；这些控件仍是独立点击区域，不嵌套 button。真实 category 名称 hover 使用共享延迟预览，紧凑标题的键盘 focus 也触发预览；离开、失焦或打开 editor 时关闭。预览只读取已加载的类目名称和要素数量，“未分类”不伪装成可预览的 category 实体。
-- 标签、状态 chip、popover、dialog 和预览内容保持小圆角；菜单与悬停卡是直角；头像、状态点、spinner 与 switch 保留其语义形状。它们不计作一级页面模块，也不应被无差别的全局 `border-radius: 0` 误伤。
+- 标签、状态 chip、popover、dialog 和预览内容保持小圆角；菜单是直角，悬停卡是 `16px` 圆角（里面的行不跟着变圆）；头像、状态点、spinner 与 switch 保留其语义形状。它们不计作一级页面模块，也不应被无差别的全局 `border-radius: 0` 误伤。
 
 ## Persistence and responsive behavior
 

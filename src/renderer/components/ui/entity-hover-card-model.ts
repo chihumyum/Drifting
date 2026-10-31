@@ -5,7 +5,8 @@ export {
 } from '../../features/entities/hover/entity-hover-card-model';
 export type {
   EntityHoverCardContent,
-  EntityHoverMetaItem,
+  EntityHoverMark,
   EntityHoverPreview,
+  EntityHoverTag,
   EntityHoverTarget,
 } from '../../features/entities/hover/entity-hover-card-model';

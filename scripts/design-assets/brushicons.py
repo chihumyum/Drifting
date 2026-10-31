@@ -64,6 +64,10 @@ folding-fan.png             開扇: a folding fan opened out, its leaf pressed s
                             pleats cut white, the two guards one 「V」 gathering at the
                             rivet — every pleat opens or folds at once (expand or collapse
                             all groups). ALTERNATES keeps the other two drawn for it.
+folding-fan-closed.png      閉扇: the same fan folded shut, the pleats gathered into one
+                            narrow leaf with a pleat cut white down it, the guards a
+                            narrow 「V」 on the rivet: fold every group (the open fan
+                            unfolds them).
 
 Where a character used to stand in for an icon (fine grain too):
 
@@ -537,11 +541,12 @@ def loader(rng):
     a = new(); brush(a, arc(48, 48, 30, 30, -90, 190, 120), G * 1.05, rng, load0=1.0, dry=0.6, taper=(0.04, 0.35)); return a
 
 def trash(rng):
+    # Centred in the square like the other small glyphs (it once sat 12px low).
     a = new()
-    brush(a, poly((14, 34), (24, 86), (72, 86), (82, 34), n=24), G * 0.9, rng, load0=1.0, dry=0.2, taper=(0.03, 0.05))
-    brush(a, line((10, 34), (86, 34)), G, rng, load0=1.0, dry=0.15, taper=(0.04, 0.05))
-    brush(a, line((34, 46), (62, 76), 20), G * 0.7, rng, load0=1.0, dry=0.2, taper=(0.08, 0.12))
-    brush(a, line((62, 46), (34, 76), 20), G * 0.7, rng, load0=1.0, dry=0.2, taper=(0.08, 0.12))
+    brush(a, poly((14, 22), (24, 74), (72, 74), (82, 22), n=24), G * 0.9, rng, load0=1.0, dry=0.2, taper=(0.03, 0.05))
+    brush(a, line((10, 22), (86, 22)), G, rng, load0=1.0, dry=0.15, taper=(0.04, 0.05))
+    brush(a, line((34, 34), (62, 64), 20), G * 0.7, rng, load0=1.0, dry=0.2, taper=(0.08, 0.12))
+    brush(a, line((62, 34), (34, 64), 20), G * 0.7, rng, load0=1.0, dry=0.2, taper=(0.08, 0.12))
     return a
 
 def edit(rng):
@@ -907,6 +912,21 @@ def folding_fan(rng):
         brush(cut, line(_fan_at(FAN_LEAF_R - 3, deg), _fan_at(FAN_R + 3, deg), 14), 1.7, np.random.default_rng(31), dry=0.0, taper=(0, 0))
     erase(a, np.clip(cut * 1.25, 0, 1))
     brush(a, line(_fan_at(FAN_LEAF_R + 2, FAN_A0), FAN_P, 18)[:-1] + line(FAN_P, _fan_at(FAN_LEAF_R + 2, FAN_A1), 18),
+          T * 0.8, rng, load0=1.0, dry=0.15, taper=(0.04, 0.04))
+    disc(a, FAN_P[0], FAN_P[1] - 1, 5.2, rng)
+    return a
+
+def folding_fan_closed(rng):
+    """閉扇: the same fan folded shut, every pleat gathered into one narrow leaf
+    pressed solid with a single pleat cut white down it, the guards one narrow
+    「V」 closing on the rivet."""
+    a0, a1 = -107, -73
+    a = new()
+    fill_poly(a, arc(*FAN_P, FAN_R, FAN_R, a0, a1, 24) + arc(*FAN_P, FAN_LEAF_R, FAN_LEAF_R, a1, a0, 16), rng, rough=0.7)
+    cut = new()
+    brush(cut, line(_fan_at(FAN_LEAF_R - 3, -90), _fan_at(FAN_R + 3, -90), 14), 1.7, np.random.default_rng(31), dry=0.0, taper=(0, 0))
+    erase(a, np.clip(cut * 1.25, 0, 1))
+    brush(a, line(_fan_at(FAN_LEAF_R + 2, a0), FAN_P, 18)[:-1] + line(FAN_P, _fan_at(FAN_LEAF_R + 2, a1), 18),
           T * 0.8, rng, load0=1.0, dry=0.15, taper=(0.04, 0.04))
     disc(a, FAN_P[0], FAN_P[1] - 1, 5.2, rng)
     return a
@@ -1370,7 +1390,7 @@ OBJECTS = {
     "eraser": (eraser, 2033), "share": (share, 2035), "layers": (layers, 2039), "branch": (branch, 2041),
     "view-grid": (view_grid, 2045), "view-list": (view_list, 2046), "open-book": (open_book, 2049), "knots": (knots, 2050), "tea": (tea, 2104),
     "spread": (spread, 3001), "locate": (locate, 3004), "new-storyline": (new_storyline, 3007),
-    "new-category": (new_category, 3008), "folding-fan": (folding_fan, 3011),
+    "new-category": (new_category, 3008), "folding-fan": (folding_fan, 3011), "folding-fan-closed": (folding_fan_closed, 3014),
     "arrow-down": (arrow_down, 4001), "arrow-out": (arrow_out, 4002), "arrow-in": (arrow_in, 4003),
     "both-ways": (both_ways, 4005), "swap": (swap, 4007), "stitched": (stitched, 4012),
     "task-todo": (task_todo, 4013), "task-doing": (task_doing, 4014), "task-done": (task_done, 4015),

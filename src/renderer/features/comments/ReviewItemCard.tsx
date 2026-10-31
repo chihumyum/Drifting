@@ -208,17 +208,19 @@ export function ReviewItemCard({
           ? [{
               key: 'sticky',
               label: mountedInStickyRail ? t('reviewPanel.removeSticky') : t('reviewPanel.addSticky'),
+              icon: { brush: 'sticky-note' as const },
               onSelect: onToggleStickyRail,
             }]
           : []),
         {
           key: 'edit',
           label: ownedByNote ? t('reviewPanel.editInNote') : t('common.edit'),
+          icon: { brush: 'edit' },
           disabled: busy,
           onSelect: startEditing,
         },
         ...(snapshots.length > 0
-          ? [{ key: 'source', label: t('reviewPanel.source'), onSelect: () => setSnapshotOpen(true) }]
+          ? [{ key: 'source', label: t('reviewPanel.source'), icon: { brush: 'file-text' as const }, onSelect: () => setSnapshotOpen(true) }]
           : []),
       ],
     },
@@ -230,6 +232,7 @@ export function ReviewItemCard({
             {
               key: 'resolve',
               label: isResolved ? t('commentRail.actions.reopen') : t('commentRail.actions.resolve'),
+              icon: { brush: isResolved ? 'rotate' : 'check' },
               disabled: busy,
               onSelect: () => void run(() => isResolved
                 ? commentUsecases.reopenComment(comment.id)
@@ -238,6 +241,7 @@ export function ReviewItemCard({
             {
               key: 'convert',
               label: isTodo ? t('commentRail.actions.toNote') : t('commentRail.actions.toTodo'),
+              icon: { brush: isTodo ? 'comment' : 'checklist-plus' },
               disabled: busy,
               onSelect: () => void run(() => isTodo
                 ? commentUsecases.revertToNote(comment.id)
@@ -250,6 +254,7 @@ export function ReviewItemCard({
       actions: [{
         key: 'delete',
         label: t('common.delete'),
+        icon: { brush: 'trash' },
         danger: true,
         disabled: busy,
         onSelect: () => void run(() => commentUsecases.deleteComment(comment.id)),

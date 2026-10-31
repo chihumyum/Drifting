@@ -10,6 +10,8 @@ import { useTranslation } from 'react-i18next';
 import type { TimelineMarker } from '../../domain/timeline-marker';
 import { MOBILE_PLANNING_CONTEXT_MENU_MS } from '../../features/graph/mobile-planning-gesture';
 import { useHoverPreview } from '../../features/entities/hover/entity-hover-card-model';
+import { bindDriftChoices } from '../../features/entities/hover/hover-choices';
+import { bindableDriftsNow, driftColorNow } from '../../features/entities/hover/use-hover-choice-writes';
 import {
   HoverCardHeading,
   HoverCardShell,
@@ -241,27 +243,44 @@ export function TimelinePin({
         actions.push({
           key: 'open-drift',
           label: t('bottomTimeline.pinMenu.openDrift'),
+          icon: { brush: 'arrow-out' },
           onSelect: () => onOpenDrift(anchorOf(label)),
         });
       }
       actions.push({
         key: 'unbind',
         label: t('bottomTimeline.pinMenu.unbind'),
+        icon: { brush: 'close' },
         onSelect: handleUnbind,
       });
     } else {
-      if (onRequestBind) {
-        actions.push({
-          key: 'bind',
-          label: t('bottomTimeline.pinMenu.bindDrift'),
-          onSelect: onRequestBind,
-        });
-      }
       actions.push({
         key: 'rename',
         label: t('bottomTimeline.pinMenu.rename'),
+        icon: { brush: 'edit' },
         onSelect: () => setEditing(true),
       });
+      // The drifts free to bind unfold in the card; binding takes the
+      // drift's title as the pin's caption.
+      const freeDrifts = bindableDriftsNow();
+      if (freeDrifts.length > 0) {
+        actions.push({
+          key: 'bind',
+          label: t('bottomTimeline.pinMenu.bindDrift'),
+          choices: bindDriftChoices({
+            drifts: freeDrifts,
+            colorOf: driftColorNow,
+            onBind: (driftNodeId) => onChange({ driftNodeId }),
+          }),
+        });
+      } else if (onRequestBind) {
+        actions.push({
+          key: 'bind',
+          label: t('bottomTimeline.pinMenu.bindDrift'),
+          icon: { brush: 'knot-links' },
+          onSelect: onRequestBind,
+        });
+      }
     }
     return [
       { key: 'marker', actions },
@@ -271,6 +290,7 @@ export function TimelinePin({
           {
             key: 'delete',
             label: t('bottomTimeline.pinMenu.deleteMarker'),
+            icon: { brush: 'trash' },
             danger: true,
             onSelect: onDelete,
           },
@@ -344,11 +364,7 @@ export function TimelinePin({
         >
           <HoverCardHeading
             title={displayLabel}
-            detail={
-              isBound
-                ? t('bottomTimeline.marker.boundTitle')
-                : t('bottomTimeline.marker.renameTitle')
-            }
+            mark={isBound ? { kind: 'drift', color: 'hsl(var(--accent))' } : undefined}
           />
         </HoverCardShell>
       )}

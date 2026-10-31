@@ -748,9 +748,11 @@ describe('workspace surface language acceptance', () => {
     expect(designSystem).toContain('左侧 label 使用与组头一致的 `--ink-4` 中性灰');
   });
 
-  it('gives entity and comment-source hover cards the menus\' surface', () => {
+  it('gives entity and comment-source hover cards one rounded desk card edged in resting glass', () => {
     const css = source('src/styles/index.css');
+    const controls = source('src/styles/ui-controls.css');
     const hoverCard = source('src/renderer/features/entities/hover/EntityHoverCard.tsx');
+    const sourceCard = source('src/renderer/features/comments/CommentSourceHoverCard.tsx');
     const consumers = [
       source('src/renderer/components/leftBars/ChapterPanel.tsx'),
       source('src/renderer/components/leftBars/ElementPanel.tsx'),
@@ -758,18 +760,27 @@ describe('workspace surface language acceptance', () => {
       source('src/renderer/shells/desktop/views/DesktopBottomTimeline.tsx'),
     ];
 
-    const sourceCard = block(source('src/styles/comments-review.css'), '.comment-source-hover {', '.comment-source-hover__content {');
-
-    const shell = block(source('src/styles/ui-controls.css'), '.hover-card {', '}');
+    const shell = block(controls, '.hover-card {', '}');
+    const edge = block(controls, '.hover-card::after {', '}');
 
     expect(css).not.toContain('--entity-hover-card-shadow');
     expect(hoverCard).toContain('<HoverCardShell');
+    // The review source card is the same card, no longer a copy of it.
+    expect(sourceCard).toContain('<HoverCardShell');
+    expect(source('src/styles/comments-review.css')).not.toContain('.comment-source-hover');
+    // The menus' piece of desk, rounded like the Agent composer, one size of words.
     expect(shell).toContain('background: var(--menu-surface-bg);');
-    expect(shell).toContain('box-shadow: var(--menu-surface-shadow);');
-    expect(shell).toContain('border-radius: var(--menu-surface-radius);');
+    expect(shell).toContain('border-radius: 16px;');
+    expect(shell).toContain('box-shadow: 0 16px 30px -16px hsl(var(--shadow-ink) / 0.38);');
+    expect(shell).toContain('font-size: var(--ui-font-secondary, 13px);');
+    expect(shell).not.toContain('0.5px');
+    // Its edge is the resting thin glass line, standing still.
+    expect(edge).toContain('box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--glass-clear) 50.5%, transparent);');
+    expect(edge).toContain('mask-image: var(--glass-texture);');
+    expect(edge).not.toContain('animation');
+    // Default width is the narrow card.
+    expect(source('src/renderer/components/ui/HoverCard.tsx')).toContain('width = 248,');
     expect(hoverCard).not.toContain("border: '1px solid");
-    expect(sourceCard).toContain('background: var(--menu-surface-bg);');
-    expect(sourceCard).toContain('box-shadow: var(--menu-surface-shadow);');
     for (const consumer of consumers) {
       expect(consumer).toContain('<EntityHoverCard');
     }
@@ -1390,7 +1401,7 @@ describe('workspace surface language acceptance', () => {
     expect(block(desktopReview, '.todo-status-toggle__tick {', '}')).toContain('transition: clip-path 0.38s');
     expect(desktopReview).toContain(".todo-status-toggle--glass[aria-pressed='true'] .todo-status-toggle__tick {");
     // The source card names its sources by their sand marks.
-    expect(sourceCard).toContain('<KindMark kind={kindMarkOfTarget(entity.targetKind, entity.isDrift)}');
+    expect(sourceCard).toContain('kind: kindMarkOfTarget(entity.targetKind, entity.isDrift),');
     // The rail keeps clear of the window-control row and the paper's toolbar,
     // so neither the drag strip nor a sidebar toggle covers its buttons.
     const railPlace = block(desktopReview, '.editor-body > .sticky-note-rail.sticky-note-rail--glass {', '}');
