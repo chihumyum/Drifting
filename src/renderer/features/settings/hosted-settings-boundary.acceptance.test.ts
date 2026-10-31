@@ -114,7 +114,8 @@ describe('hosted settings boundary', () => {
     expect(shelf).toContain("'userMenu.accountMenu' : 'userMenu.localMenu'");
     expect(shelf).toContain('accountSettingsEnabled && user?.email');
     expect(projectPicker).toContain("'userMenu.accountMenu' : 'userMenu.localMenu'");
-    expect(projectPicker).toContain('hostedAccountSettingsEnabled() && account?.email');
+    // The desktop shelf has no footer: the email shows only in the account menu.
+    expect(projectPicker).not.toContain('pp-foot');
     expect(workspace).not.toContain('<UserAvatar');
     expect(workspace).not.toContain('hostedAccountSettingsEnabled');
   });
