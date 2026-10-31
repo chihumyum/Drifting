@@ -39,6 +39,8 @@ describe('the bookshelf in sand and glass', () => {
 
   it('writes the shelf straight on the desk, with no boxes, washes or accent blocks', () => {
     expect(block(css, '.pp {', '}')).toContain('background: var(--workspace-ui-bg);');
+    // A double click on the open desk selects no words.
+    expect(block(css, '.pp {', '}')).toContain('-webkit-user-select: none;');
     const desk = css.slice(0, css.indexOf("/* ─── The paused mobile shelf's modals"));
     expect(desk).not.toContain('hsl(var(--surface))');
     expect(desk).not.toContain('background: hsl(var(--accent))');

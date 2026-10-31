@@ -7,12 +7,23 @@
    No white boxes, solid frames, washes, accent blocks or shadows. The paused
    mobile shelf (mobile-project-shelf.css) keeps `.pp-modal*` at the end. */
 
+/* Nothing on the shelf is text to copy, so a double click on the open desk
+   doesn't select the nearest word (the new-book slip's line). */
 .pp {
   height: 100vh;
   overflow-y: auto;
   color: hsl(var(--ink-1));
   background: var(--workspace-ui-bg);
   font-family: var(--font-sans);
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* WebKit inherits user-select, so the mobile shelf's search field asks for
+   text back. */
+.pp input {
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 /* On the desktop the shelf lies on the sea of characters (CharSea), which
