@@ -29,7 +29,7 @@ function hex(hash: string): string {
 /**
  * Development/reference codec for Memory and LocalFolder providers.
  *
- * It deliberately has no secret handling. Production Drive composition uses
+ * It deliberately has no secret handling. Production Hosted composition uses
  * the native root-confined staging variant instead of renderer-owned files.
  */
 export class PlaintextSyncEngineObjectCodec implements SyncEngineObjectCodec {

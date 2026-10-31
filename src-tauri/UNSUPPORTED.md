@@ -54,10 +54,9 @@ to sign in or enter BYOK credentials again.
 ## Sync credential isolation
 
 The generic renderer Keychain commands reject value reads, overwrites, and deletion for
-`sync.google-drive.*`. An opaque credential reference therefore does not grant JavaScript access
-to the corresponding OAuth token or resumable-session state. Existence-only checks remain safe
-and supported. These prefixes remain reserved so retiring the transport never
-exposes previously stored secrets. The client no longer reads or revokes them.
+`sync.*` and `oauth.*`. An opaque credential reference therefore does not grant JavaScript access
+to the corresponding provider token or session state. Existence-only checks remain safe
+and supported.
 
 ## Native OAuth bearer handoff
 

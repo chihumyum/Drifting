@@ -74,23 +74,23 @@ function createProjectAndGeneration(
   return { projectId, syncGenerationId, projectSyncId };
 }
 
-function activateGoogleDrive(database: DatabaseSync): void {
+function activateHosted(database: DatabaseSync): void {
   database
     .prepare(
       `INSERT INTO sync_connect_attempt
         (attempt_id, authority_generation, kind, target_mode,
          target_account_subject_id, target_credential_secret_ref,
          state, created_at, updated_at)
-       VALUES ('connect-google', 1, 'connect', 'google-drive',
-               'google-subject', 'secret-ref-google', 'preparing', ?, ?)`,
+       VALUES ('connect-hosted', 1, 'connect', 'hosted',
+               'hosted-subject', 'secret-ref-hosted', 'preparing', ?, ?)`,
     )
     .run(NOW, NOW);
   database
     .prepare(
       `UPDATE sync_app_authority
        SET transition_state = 'connecting',
-           target_mode = 'google-drive',
-           attempt_id = 'connect-google',
+           target_mode = 'hosted',
+           attempt_id = 'connect-hosted',
            updated_at = ?
        WHERE id = 'app'`,
     )
@@ -121,14 +121,14 @@ function activateGoogleDrive(database: DatabaseSync): void {
       .prepare(
         `INSERT INTO sync_connect_generation_attempt
           (attempt_id, source_sync_generation_id, commit_marker_object_id, state, created_at, updated_at)
-         VALUES ('connect-google', ?, ?, 'committed', ?, ?)`,
+         VALUES ('connect-hosted', ?, ?, 'committed', ?, ?)`,
       )
       .run(syncGenerationId, remoteObjectId, NOW, NOW);
     database
       .prepare(
         `UPDATE sync_connect_generation_attempt
          SET state = 'activated', activation_receipt = ?, activated_at = ?, updated_at = ?
-         WHERE attempt_id = 'connect-google' AND source_sync_generation_id = ?`,
+         WHERE attempt_id = 'connect-hosted' AND source_sync_generation_id = ?`,
       )
       .run(`receipt-${syncGenerationId}`, NOW, NOW, syncGenerationId);
   }
@@ -136,13 +136,13 @@ function activateGoogleDrive(database: DatabaseSync): void {
     .prepare(
       `UPDATE sync_connect_attempt
        SET state = 'completed', completed_at = ?, updated_at = ?
-       WHERE attempt_id = 'connect-google'`,
+       WHERE attempt_id = 'connect-hosted'`,
     )
     .run(NOW, NOW);
   database
     .prepare(
       `UPDATE sync_app_authority
-       SET mode = 'google-drive',
+       SET mode = 'hosted',
            generation = generation + 1,
            transition_state = 'stable',
            target_mode = NULL,
@@ -156,8 +156,8 @@ function activateGoogleDrive(database: DatabaseSync): void {
       `INSERT INTO sync_provider_account
         (id, singleton_key, authority_id, provider_kind, authority_generation, account_subject_id,
          credential_secret_ref, created_at, updated_at)
-       VALUES ('account-google', 1, 'app', 'google-drive', 2, 'google-subject',
-               'secret-ref-google', ?, ?)`,
+       VALUES ('account-hosted', 1, 'app', 'hosted', 2, 'hosted-subject',
+               'secret-ref-hosted', ?, ?)`,
     )
     .run(NOW, NOW);
 }
@@ -300,19 +300,19 @@ describe('SyncEngine fresh schema', () => {
           `INSERT INTO sync_provider_account
             (id, singleton_key, authority_id, provider_kind, authority_generation, account_subject_id,
              credential_secret_ref, created_at, updated_at)
-           VALUES ('forbidden-local', 1, 'app', 'google-drive', 1, 'subject',
+           VALUES ('forbidden-local', 1, 'app', 'hosted', 1, 'subject',
                    'secret-ref', ?, ?)`,
         )
         .run(NOW, NOW),
     ).toThrow(/does not match app authority|FOREIGN KEY/u);
 
-    activateGoogleDrive(database);
+    activateHosted(database);
     for (const { syncGenerationId } of [first, second]) {
       database
         .prepare(
           `INSERT INTO sync_provider_binding
             (sync_generation_id, provider_account_id, provider_namespace, state, updated_at)
-           VALUES (?, 'account-google', ?, 'ready', ?)`,
+           VALUES (?, 'account-hosted', ?, 'ready', ?)`,
         )
         .run(syncGenerationId, `namespace-${syncGenerationId}`, NOW);
     }
@@ -323,8 +323,8 @@ describe('SyncEngine fresh schema', () => {
           `INSERT INTO sync_provider_account
             (id, singleton_key, authority_id, provider_kind, authority_generation, account_subject_id,
              credential_secret_ref, created_at, updated_at)
-           VALUES ('second-account', 1, 'app', 'google-drive', 2, 'google-subject',
-                   'secret-ref-google', ?, ?)`,
+           VALUES ('second-account', 1, 'app', 'hosted', 2, 'hosted-subject',
+                   'secret-ref-hosted', ?, ?)`,
         )
         .run(NOW, NOW),
     ).toThrow(/UNIQUE/u);
@@ -333,7 +333,7 @@ describe('SyncEngine fresh schema', () => {
         .prepare(
           `INSERT INTO sync_provider_binding
             (sync_generation_id, provider_account_id, provider_namespace, state, updated_at)
-           VALUES (?, 'account-google', 'duplicate', 'ready', ?)`,
+           VALUES (?, 'account-hosted', 'duplicate', 'ready', ?)`,
         )
         .run(first.syncGenerationId, NOW),
     ).toThrow(/UNIQUE/u);
@@ -341,8 +341,8 @@ describe('SyncEngine fresh schema', () => {
     database
       .prepare(
         `UPDATE sync_app_authority
-         SET transition_state = 'switching', target_mode = 'hosted',
-             attempt_id = 'switch-hosted', updated_at = ?
+         SET transition_state = 'disconnecting', target_mode = 'local',
+             attempt_id = 'disconnect-hosted', updated_at = ?
          WHERE id = 'app'`,
       )
       .run(NOW);
@@ -350,7 +350,7 @@ describe('SyncEngine fresh schema', () => {
       database
         .prepare(
           `UPDATE sync_app_authority
-           SET mode = 'hosted', generation = generation + 1,
+           SET mode = 'local', generation = generation + 1,
                transition_state = 'stable', target_mode = NULL,
                attempt_id = NULL, updated_at = ?
            WHERE id = 'app'`,
@@ -537,7 +537,7 @@ describe('SyncEngine fresh schema', () => {
             (attempt_id, authority_generation, kind, target_mode,
              target_account_subject_id, target_credential_secret_ref,
              state, created_at, updated_at)
-           VALUES (?, 1, ?, 'google-drive', 'google-subject', 'secret-ref-google',
+           VALUES (?, 1, ?, 'hosted', 'hosted-subject', 'secret-ref-hosted',
                    'discovering', ?, ?)`,
         )
         .run(attemptId, kind, NOW, NOW);
@@ -665,10 +665,9 @@ describe('SyncEngine fresh schema', () => {
     });
   });
 
-  it('stages and atomically activates every sync generation before a provider switch', () => {
+  it('activates a Hosted connect only through durable receipts and disconnects without a retained provider', () => {
     const database = createDatabase();
-    const source = createProjectAndGeneration(database, 'migration');
-    activateGoogleDrive(database);
+    const source = createProjectAndGeneration(database, 'connect');
 
     database
       .prepare(
@@ -676,42 +675,23 @@ describe('SyncEngine fresh schema', () => {
           (attempt_id, authority_generation, kind, target_mode,
            target_account_subject_id, target_credential_secret_ref,
            state, created_at, updated_at)
-         VALUES ('switch-hosted', 2, 'switch-provider', 'hosted',
+         VALUES ('connect-hosted', 1, 'connect', 'hosted',
                  'hosted-subject', 'secret-ref-hosted', 'preparing', ?, ?)`,
       )
       .run(NOW, NOW);
     database
       .prepare(
         `UPDATE sync_app_authority
-         SET transition_state = 'switching', target_mode = 'hosted',
-             attempt_id = 'switch-hosted', updated_at = ?
+         SET transition_state = 'connecting', target_mode = 'hosted',
+             attempt_id = 'connect-hosted', updated_at = ?
          WHERE id = 'app'`,
       )
       .run(NOW);
     database
       .prepare(
-        `INSERT INTO sync_generation
-          (sync_generation_id, project_id, project_sync_id, generation_number, protocol_version,
-           domain_schema_version, status, created_at, updated_at)
-         VALUES ('sync-generation-migration-v2', ?, ?, 2, 1, 1, 'staged', ?, ?)`,
-      )
-      .run(source.projectId, source.projectSyncId, NOW, NOW);
-    database
-      .prepare(
-        `INSERT INTO sync_remote_object
-          (id, sync_generation_id, provider_object_id, logical_key_id, object_kind,
-           stored_sha256, size_bytes, first_observed_at, last_observed_at)
-         VALUES ('hosted-marker', 'sync-generation-migration-v2', 'hosted-object',
-                 'hosted-logical-key', 'snapshot-commit', ?, 1, ?, ?)`,
-      )
-      .run(SHA256, NOW, NOW);
-    database
-      .prepare(
         `INSERT INTO sync_connect_generation_attempt
-          (attempt_id, source_sync_generation_id, target_sync_generation_id, commit_marker_object_id,
-           state, created_at, updated_at)
-         VALUES ('switch-hosted', ?, 'sync-generation-migration-v2', 'hosted-marker',
-                 'committed', ?, ?)`,
+          (attempt_id, source_sync_generation_id, state, created_at, updated_at)
+         VALUES ('connect-hosted', ?, 'committed', ?, ?)`,
       )
       .run(source.syncGenerationId, NOW, NOW);
 
@@ -720,58 +700,21 @@ describe('SyncEngine fresh schema', () => {
         .prepare(
           `UPDATE sync_connect_attempt
            SET state = 'completed', completed_at = ?, updated_at = ?
-           WHERE attempt_id = 'switch-hosted'`,
+           WHERE attempt_id = 'connect-hosted'`,
         )
         .run(NOW, NOW),
     ).toThrow(/missing a sync generation activation receipt/u);
+    // A cloud target needs its durable commit marker before activation.
     expect(() =>
       database
         .prepare(
           `UPDATE sync_connect_generation_attempt
            SET state = 'activated', activation_receipt = 'too-early',
                activated_at = ?, updated_at = ?
-           WHERE attempt_id = 'switch-hosted' AND source_sync_generation_id = ?`,
+           WHERE attempt_id = 'connect-hosted' AND source_sync_generation_id = ?`,
         )
         .run(NOW, NOW, source.syncGenerationId),
     ).toThrow(/activation is not durable/u);
-
-    database.exec('BEGIN IMMEDIATE');
-    try {
-      database
-        .prepare(
-          `UPDATE sync_generation
-           SET status = 'retired', retired_at = ?, updated_at = ?
-           WHERE sync_generation_id = ?`,
-        )
-        .run(NOW, NOW, source.syncGenerationId);
-      database
-        .prepare(
-          `UPDATE sync_generation
-           SET status = 'active', updated_at = ?
-           WHERE sync_generation_id = 'sync-generation-migration-v2'`,
-        )
-        .run(NOW);
-      database
-        .prepare(
-          `UPDATE sync_connect_generation_attempt
-           SET state = 'activated', activation_receipt = 'hosted-receipt',
-               activated_at = ?, updated_at = ?
-           WHERE attempt_id = 'switch-hosted' AND source_sync_generation_id = ?`,
-        )
-        .run(NOW, NOW, source.syncGenerationId);
-      database.exec('COMMIT');
-    } catch (error) {
-      database.exec('ROLLBACK');
-      throw error;
-    }
-    database
-      .prepare(
-        `UPDATE sync_connect_attempt
-         SET state = 'completed', completed_at = ?, updated_at = ?
-         WHERE attempt_id = 'switch-hosted'`,
-      )
-      .run(NOW, NOW);
-
     expect(() =>
       database
         .prepare(
@@ -782,8 +725,43 @@ describe('SyncEngine fresh schema', () => {
            WHERE id = 'app'`,
         )
         .run(NOW),
-    ).toThrow(/FOREIGN KEY/u);
-    database.prepare("DELETE FROM sync_provider_account WHERE id = 'account-google'").run();
+    ).toThrow(/invalid sync app authority transition/u);
+
+    database
+      .prepare(
+        `INSERT INTO sync_remote_object
+          (id, sync_generation_id, provider_object_id, logical_key_id, object_kind,
+           stored_sha256, size_bytes, first_observed_at, last_observed_at)
+         VALUES ('hosted-marker', ?, 'hosted-object', 'hosted-logical-key',
+                 'snapshot-commit', ?, 1, ?, ?)`,
+      )
+      .run(source.syncGenerationId, SHA256, NOW, NOW);
+    database
+      .prepare(
+        `UPDATE sync_connect_generation_attempt
+         SET commit_marker_object_id = 'hosted-marker', state = 'activated',
+             activation_receipt = 'hosted-receipt', activated_at = ?, updated_at = ?
+         WHERE attempt_id = 'connect-hosted' AND source_sync_generation_id = ?`,
+      )
+      .run(NOW, NOW, source.syncGenerationId);
+    database
+      .prepare(
+        `UPDATE sync_connect_attempt
+         SET state = 'completed', completed_at = ?, updated_at = ?
+         WHERE attempt_id = 'connect-hosted'`,
+      )
+      .run(NOW, NOW);
+    expect(() =>
+      database
+        .prepare(
+          `INSERT INTO sync_provider_account
+            (id, singleton_key, authority_id, provider_kind, authority_generation,
+             account_subject_id, credential_secret_ref, created_at, updated_at)
+           VALUES ('account-hosted', 1, 'app', 'hosted', 2, 'hosted-subject',
+                   'secret-ref-hosted', ?, ?)`,
+        )
+        .run(NOW, NOW),
+    ).toThrow(/does not match app authority/u);
     database
       .prepare(
         `UPDATE sync_app_authority
@@ -798,40 +776,89 @@ describe('SyncEngine fresh schema', () => {
         `INSERT INTO sync_provider_account
           (id, singleton_key, authority_id, provider_kind, authority_generation,
            account_subject_id, credential_secret_ref, created_at, updated_at)
-         VALUES ('account-hosted', 1, 'app', 'hosted', 3, 'hosted-subject',
+         VALUES ('account-hosted', 1, 'app', 'hosted', 2, 'hosted-subject',
                  'secret-ref-hosted', ?, ?)`,
       )
       .run(NOW, NOW);
+    database
+      .prepare(
+        `INSERT INTO sync_provider_binding
+          (sync_generation_id, provider_account_id, provider_namespace, state, updated_at)
+         VALUES (?, 'account-hosted', 'project-v1', 'ready', ?)`,
+      )
+      .run(source.syncGenerationId, NOW);
 
+    database
+      .prepare(
+        `INSERT INTO sync_connect_attempt
+          (attempt_id, authority_generation, kind, target_mode, state, created_at, updated_at)
+         VALUES ('disconnect-hosted', 2, 'disconnect', 'local', 'preparing', ?, ?)`,
+      )
+      .run(NOW, NOW);
+    database
+      .prepare(
+        `UPDATE sync_app_authority
+         SET transition_state = 'disconnecting', target_mode = 'local',
+             attempt_id = 'disconnect-hosted', updated_at = ?
+         WHERE id = 'app'`,
+      )
+      .run(NOW);
+    database
+      .prepare(
+        `INSERT INTO sync_connect_generation_attempt
+          (attempt_id, source_sync_generation_id, state, created_at, updated_at)
+         VALUES ('disconnect-hosted', ?, 'committed', ?, ?)`,
+      )
+      .run(source.syncGenerationId, NOW, NOW);
+    // A local target is durable without a remote commit marker.
+    database
+      .prepare(
+        `UPDATE sync_connect_generation_attempt
+         SET state = 'activated', activation_receipt = 'local-receipt',
+             activated_at = ?, updated_at = ?
+         WHERE attempt_id = 'disconnect-hosted' AND source_sync_generation_id = ?`,
+      )
+      .run(NOW, NOW, source.syncGenerationId);
+    database
+      .prepare(
+        `UPDATE sync_connect_attempt
+         SET state = 'completed', completed_at = ?, updated_at = ?
+         WHERE attempt_id = 'disconnect-hosted'`,
+      )
+      .run(NOW, NOW);
+
+    const disconnect = database.prepare(
+      `UPDATE sync_app_authority
+       SET mode = 'local', generation = generation + 1,
+           transition_state = 'stable', target_mode = NULL,
+           attempt_id = NULL, updated_at = ?
+       WHERE id = 'app'`,
+    );
+    expect(() => disconnect.run(NOW)).toThrow(/local sync authority cannot retain a provider|FOREIGN KEY/u);
+    database.prepare('DELETE FROM sync_provider_binding').run();
+    database.prepare("DELETE FROM sync_provider_account WHERE id = 'account-hosted'").run();
+    disconnect.run(NOW);
+
+    expect(database.prepare('SELECT mode, generation, transition_state FROM sync_app_authority').get()).toEqual({
+      mode: 'local',
+      generation: 3,
+      transition_state: 'stable',
+    });
     expect(
       database
         .prepare(
           `SELECT sync_generation_id, status, generation_number
            FROM sync_generation
-           WHERE project_sync_id = ?
-           ORDER BY generation_number`,
+           WHERE project_sync_id = ?`,
         )
         .all(source.projectSyncId),
     ).toEqual([
       {
         sync_generation_id: source.syncGenerationId,
-        status: 'retired',
+        status: 'active',
         generation_number: 1,
       },
-      {
-        sync_generation_id: 'sync-generation-migration-v2',
-        status: 'active',
-        generation_number: 2,
-      },
     ]);
-    expect(
-      database
-        .prepare(
-          `SELECT provider_kind, authority_generation
-           FROM sync_provider_account`,
-        )
-        .get(),
-    ).toEqual({ provider_kind: 'hosted', authority_generation: 3 });
     expect(database.prepare('PRAGMA foreign_key_check').all()).toEqual([]);
   });
 });

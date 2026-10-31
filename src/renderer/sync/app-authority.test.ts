@@ -27,7 +27,7 @@ describe('App-wide sync provider authority', () => {
     expect(() =>
       assertUniformSyncProvider(authority, {
         activeSyncGenerationIds: ['sync-generation-a'],
-        providerAccount: { id: 'google', mode: 'google-drive', authorityGeneration: 1 },
+        providerAccount: { id: 'hosted', mode: 'hosted', authorityGeneration: 1 },
         bindings: [],
       }),
     ).toThrow(/cannot coexist/);
@@ -35,7 +35,7 @@ describe('App-wide sync provider authority', () => {
 
   it('keeps local authoritative until every SyncGeneration has a target receipt', () => {
     const connecting = beginSyncProviderTransition(createLocalSyncAppAuthority(t0), {
-      targetMode: 'google-drive',
+      targetMode: 'hosted',
       attemptId: 'attempt-1',
       now: t1,
     });
@@ -43,7 +43,7 @@ describe('App-wide sync provider authority', () => {
       mode: 'local',
       generation: 1,
       transitionState: 'connecting',
-      targetMode: 'google-drive',
+      targetMode: 'hosted',
     });
     expect(() =>
       completeSyncProviderTransition(connecting, {
@@ -65,7 +65,7 @@ describe('App-wide sync provider authority', () => {
     });
     expect(active).toEqual({
       id: 'app',
-      mode: 'google-drive',
+      mode: 'hosted',
       generation: 2,
       transitionState: 'stable',
       targetMode: null,
@@ -74,25 +74,45 @@ describe('App-wide sync provider authority', () => {
     });
   });
 
-  it('switches cloud providers as one new authority generation without dual active providers', () => {
-    const drive: SyncAppAuthority = {
+  it('disconnects Hosted as one new authority generation while Hosted stays authoritative', () => {
+    const hosted: SyncAppAuthority = {
       id: 'app',
-      mode: 'google-drive',
+      mode: 'hosted',
       generation: 4,
       transitionState: 'stable',
       targetMode: null,
       attemptId: null,
       updatedAt: t0,
     };
-    const switching = beginSyncProviderTransition(drive, {
-      targetMode: 'hosted',
-      attemptId: 'migration-1',
+    expect(() =>
+      beginSyncProviderTransition(hosted, { targetMode: 'hosted', attemptId: 'again', now: t1 }),
+    ).toThrow(/already hosted/);
+    const disconnecting = beginSyncProviderTransition(hosted, {
+      targetMode: 'local',
+      attemptId: 'disconnect-1',
       now: t1,
     });
-    expect(switching.transitionState).toBe('switching');
-    expect(switching.mode).toBe('google-drive');
+    expect(disconnecting).toMatchObject({
+      mode: 'hosted',
+      generation: 4,
+      transitionState: 'disconnecting',
+      targetMode: 'local',
+    });
     expect(() =>
-      assertUniformSyncProvider(switching, {
+      assertUniformSyncProvider(disconnecting, {
+        activeSyncGenerationIds: ['sync-generation-a'],
+        providerAccount: { id: 'hosted-account', mode: 'hosted', authorityGeneration: 3 },
+        bindings: [
+          {
+            syncGenerationId: 'sync-generation-a',
+            providerAccountId: 'hosted-account',
+            authorityGeneration: 3,
+          },
+        ],
+      }),
+    ).toThrow(/does not match/);
+    expect(() =>
+      assertUniformSyncProvider(disconnecting, {
         activeSyncGenerationIds: ['sync-generation-a'],
         providerAccount: { id: 'hosted-account', mode: 'hosted', authorityGeneration: 4 },
         bindings: [
@@ -103,25 +123,28 @@ describe('App-wide sync provider authority', () => {
           },
         ],
       }),
-    ).toThrow(/does not match/);
-    expect(() =>
-      assertUniformSyncProvider(switching, {
-        activeSyncGenerationIds: ['sync-generation-a'],
-        providerAccount: { id: 'drive-account', mode: 'google-drive', authorityGeneration: 4 },
-        bindings: [
-          {
-            syncGenerationId: 'sync-generation-a',
-            providerAccountId: 'drive-account',
-            authorityGeneration: 4,
-          },
-        ],
-      }),
     ).not.toThrow();
+    expect(
+      completeSyncProviderTransition(disconnecting, {
+        attemptId: 'disconnect-1',
+        expectedSyncGenerationIds: ['sync-generation-a'],
+        readySyncGenerations: [{ syncGenerationId: 'sync-generation-a', receiptId: 'receipt-a' }],
+        now: t1,
+      }),
+    ).toEqual({
+      id: 'app',
+      mode: 'local',
+      generation: 5,
+      transitionState: 'stable',
+      targetMode: null,
+      attemptId: null,
+      updatedAt: t1,
+    });
   });
 
   it('blocks, resumes and cancels without changing the active generation', () => {
     const connecting = beginSyncProviderTransition(createLocalSyncAppAuthority(t0), {
-      targetMode: 'google-drive',
+      targetMode: 'hosted',
       attemptId: 'attempt-1',
       now: t1,
     });
@@ -143,7 +166,7 @@ describe('App-wide sync provider authority', () => {
         mode: 'local',
         generation: 1,
         transitionState: 'switching',
-        targetMode: 'google-drive',
+        targetMode: 'hosted',
         attemptId: 'attempt-1',
         updatedAt: t0,
       }),
@@ -154,17 +177,39 @@ describe('App-wide sync provider authority', () => {
         mode: 'local',
         generation: 1,
         transitionState: 'stable',
-        targetMode: 'google-drive',
+        targetMode: 'hosted',
         attemptId: null,
         updatedAt: t0,
       } as unknown as SyncAppAuthority),
     ).toThrow(/cannot retain/);
+    expect(() =>
+      assertSyncAppAuthority({
+        id: 'app',
+        mode: 'google-drive',
+        generation: 2,
+        transitionState: 'stable',
+        targetMode: null,
+        attemptId: null,
+        updatedAt: t0,
+      } as unknown as SyncAppAuthority),
+    ).toThrow(/Unknown sync provider mode/);
+    expect(() =>
+      assertSyncAppAuthority({
+        id: 'app',
+        mode: 'local',
+        generation: 1,
+        transitionState: 'blocked',
+        targetMode: 'google-drive',
+        attemptId: 'attempt-1',
+        updatedAt: t0,
+      } as unknown as SyncAppAuthority),
+    ).toThrow(/Unknown target sync provider mode/);
   });
 
   it('requires every cloud SyncGeneration to bind the same account and generation', () => {
     const authority: SyncAppAuthority = {
       id: 'app',
-      mode: 'google-drive',
+      mode: 'hosted',
       generation: 3,
       transitionState: 'stable',
       targetMode: null,
@@ -174,7 +219,7 @@ describe('App-wide sync provider authority', () => {
     expect(() =>
       assertUniformSyncProvider(authority, {
         activeSyncGenerationIds: ['sync-generation-a', 'sync-generation-b'],
-        providerAccount: { id: 'account-a', mode: 'google-drive', authorityGeneration: 3 },
+        providerAccount: { id: 'account-a', mode: 'hosted', authorityGeneration: 3 },
         bindings: [
           { syncGenerationId: 'sync-generation-a', providerAccountId: 'account-a', authorityGeneration: 3 },
           { syncGenerationId: 'sync-generation-b', providerAccountId: 'account-b', authorityGeneration: 3 },
@@ -184,7 +229,7 @@ describe('App-wide sync provider authority', () => {
     expect(() =>
       assertUniformSyncProvider(authority, {
         activeSyncGenerationIds: ['sync-generation-a', 'sync-generation-b'],
-        providerAccount: { id: 'account-a', mode: 'google-drive', authorityGeneration: 3 },
+        providerAccount: { id: 'account-a', mode: 'hosted', authorityGeneration: 3 },
         bindings: [
           { syncGenerationId: 'sync-generation-a', providerAccountId: 'account-a', authorityGeneration: 3 },
         ],

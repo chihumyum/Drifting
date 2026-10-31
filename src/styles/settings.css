@@ -2471,3 +2471,8 @@ html:not([data-shell-mode='mobile']) .set-trash__actions .ui-button.ui-button--g
     animation: none;
   }
 }
+
+/* Release notes in Settings › Updates keep their line breaks. */
+.set-update-notes {
+  white-space: pre-line;
+}

@@ -30,13 +30,12 @@ Guidance for coding agents working in this standalone Drifting client repository
 - This repository contains the Tauri 2, Rust, React, and Vite client.
 - Public source builds default to local-only mode. Account, hosted sync,
   payment, and other official hosted features belong to a separately operated
-  service. Hosted is the only supported sync provider. Google Drive sync and
-  the standalone Apple-native front-end were retired on 2026-10-28. Do not
-  restore their UI, transport, plugins or build gates. Preserve published
-  migrations, stored recovery records and the local-replica adoption path.
+  service. Hosted is the only sync provider. Google Drive sync and the
+  standalone Apple-native front-end have been removed; do not restore them.
+  Migration `0014` turns a library still bound to Drive into a local library.
   Tauri still uses `drifting-core`, `drifting-document` and `drifting-prose`;
-  Apple platform adapters and Tauri iOS are not the retired front-end. See
-  `docs/client-onboarding-and-hosted-readiness.md` and `docs/hosted-sync/README.md`.
+  Apple platform adapters and Tauri iOS are not the removed front-end. See
+  `docs/hosted-sync/README.md`.
 - `packages/prose-metrics` is independently licensed under Apache-2.0. The
   remaining project-owned client source is AGPL-3.0-or-later.
 - Keep service integration behind versioned network contracts. Do not import or
@@ -44,10 +43,8 @@ Guidance for coding agents working in this standalone Drifting client repository
 
 ## Public Alpha compatibility policy
 
-- **Release contract and gates paused by the author on 2026-10-28** for a
-  large restructuring; `docs/alpha-release-contract.md` is not in force and
-  gates will be rebuilt once the client stabilizes. The migration rules below
-  still apply unless the author says otherwise.
+- Releases are published on GitHub as described in `docs/releasing.md`;
+  publishing a release is what offers it to installed apps as an update.
 - `0.1.0-alpha.1` freezes the first public SQLite/domain/checkpoint baseline.
   Every later public `0.1.x` build must open and migrate every earlier public
   `0.1.x` database without asking the author to reset it.

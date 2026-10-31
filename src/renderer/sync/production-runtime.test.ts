@@ -113,29 +113,17 @@ describe('ProductionSyncRuntimeSupervisor', () => {
     } finally { supervisor.stop(); vi.useRealTimers(); }
   });
 
-  it('does not mount retained Drive bindings or create either project or chat transports', async () => {
-    const fixture = dependencies({ listBindings: async () => [{ ...binding('old-drive'), mode: 'google-drive' }] });
+  it('keeps the local App provider-free and creates neither project nor chat transports', async () => {
+    const fixture = dependencies({ listBindings: vi.fn(async () => []) });
     const createAgentChatRuntime = vi.fn(() => null);
     const supervisor = new ProductionSyncRuntimeSupervisor({ ...fixture.deps, createAgentChatRuntime });
+
     supervisor.requestReload();
     await supervisor.drain();
+
     expect(fixture.deps.createProvider).not.toHaveBeenCalled();
     expect(fixture.deps.writerIdentity).not.toHaveBeenCalled();
     expect(createAgentChatRuntime).not.toHaveBeenCalled();
-    expect(fixture.created).toEqual([]);
-    expect(fixture.errors).toEqual([]);
-    supervisor.stop();
-  });
-
-  it('keeps the local App provider-free and does not resolve native identity', async () => {
-    const fixture = dependencies({ listBindings: vi.fn(async () => []) });
-    const supervisor = new ProductionSyncRuntimeSupervisor(fixture.deps);
-
-    supervisor.requestReload();
-    await supervisor.drain();
-
-    expect(fixture.deps.createProvider).not.toHaveBeenCalled();
-    expect(fixture.deps.writerIdentity).not.toHaveBeenCalled();
     expect(fixture.deps.reconcileNativeStorage).toHaveBeenCalledOnce();
     expect(fixture.created).toEqual([]);
     expect(fixture.checkpoints).toEqual([]);

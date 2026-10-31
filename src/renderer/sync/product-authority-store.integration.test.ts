@@ -106,9 +106,9 @@ describe('ProductSyncAuthorityStore', () => {
       createTargetSyncGenerationId: () => 'unused-target',
     });
     const attempt = await authority.begin({
-      targetMode: 'google-drive',
-      accountSubjectId: 'opaque-google-subject',
-      credentialSecretRef: 'native:google-secret',
+      targetMode: 'hosted',
+      accountSubjectId: 'opaque-hosted-subject',
+      credentialSecretRef: 'native:hosted-secret',
       nowIso: NOW,
     });
     await db.insert(SyncRemoteObjectTable).values({
@@ -132,7 +132,7 @@ describe('ProductSyncAuthorityStore', () => {
       attemptId: attempt.attemptId,
       providerAccountId: 'account-a',
       bindings: [
-        { syncGenerationId: 'sync-generation-a', providerNamespace: 'appDataFolder', providerGenerationRef: null },
+        { syncGenerationId: 'sync-generation-a', providerNamespace: 'project-v1', providerGenerationRef: null },
       ],
       nowIso: NOW,
     });
@@ -140,11 +140,11 @@ describe('ProductSyncAuthorityStore', () => {
     await store.refresh(db);
     expect(store.getSnapshot()).toMatchObject({
       status: 'cloud-ready',
-      mode: 'google-drive',
+      mode: 'hosted',
       readySyncGenerations: 1,
     });
     expect(JSON.stringify(store.getSnapshot())).not.toMatch(
-      /opaque-google-subject|native:google-secret|native:sync-generation-key/u,
+      /opaque-hosted-subject|native:hosted-secret|native:sync-generation-key/u,
     );
 
     for (const [state, status] of [
@@ -177,7 +177,7 @@ describe('ProductSyncAuthorityStore', () => {
     await store.refresh(db);
     expect(store.getSnapshot()).toMatchObject({
       status: 'cloud-attention',
-      mode: 'google-drive',
+      mode: 'hosted',
       targetMode: 'local',
       transitionKind: 'disconnect',
       errorCode: 'OFFLINE',

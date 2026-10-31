@@ -2,7 +2,7 @@
 
 The 2026-10-01 scope is the existing Tauri iOS client. Cross-client automation
 uses an iPhone Simulator; the Release configuration repair also uses a physical
-iPhone. The separate standalone Apple-native front-end is retired. Android, physical-device
+iPhone. Android, physical-device
 IME, distribution signing and guaranteed background execution are separate gates.
 
 ## Operator commands

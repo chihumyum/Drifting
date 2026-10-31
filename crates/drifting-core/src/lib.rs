@@ -1,4 +1,4 @@
-//! Drifting client core shared by Tauri and Apple native hosts.
+//! Drifting client core used by the Tauri host.
 pub mod archive;
 pub mod asset_store;
 pub mod database;

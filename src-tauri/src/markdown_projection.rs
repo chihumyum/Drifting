@@ -506,9 +506,7 @@ fn check_owner(root: &Path, directory: &Path, claim: bool) -> Result<(), String>
         let owner: Owner = serde_json::from_slice(&fs::read(&path).map_err(|e| e.to_string())?)
             .map_err(|_| "Invalid Markdown folder owner")?;
         if owner.instance != instance {
-            return Err(
-                "This Markdown folder is managed by another Drifting installation".into(),
-            );
+            return Err("This Markdown folder is managed by another Drifting installation".into());
         }
     } else if claim {
         ensure_directory(&directory.join(".drifting"))?;
@@ -2001,11 +1999,13 @@ mod tests {
         let (size, modified) = (first[0].size, first[0].modified_ms);
         let same = read_files(root, "p", vec![request(Some(size), Some(modified), false)]).unwrap();
         assert!(!same[0].changed && same[0].text.is_none());
-        let forced = read_files(root, "p", vec![request(Some(size), Some(modified), true)]).unwrap();
+        let forced =
+            read_files(root, "p", vec![request(Some(size), Some(modified), true)]).unwrap();
         assert_eq!(forced[0].text.as_deref(), Some("雨"));
 
         edit(&directory.join(chapter), "雨夜");
-        let edited = read_files(root, "p", vec![request(Some(size), Some(modified), false)]).unwrap();
+        let edited =
+            read_files(root, "p", vec![request(Some(size), Some(modified), false)]).unwrap();
         assert!(edited[0].changed);
         assert_eq!(edited[0].text.as_deref(), Some("雨夜"));
 
@@ -2015,14 +2015,19 @@ mod tests {
         assert!(invalid[0].text.is_none());
 
         fs::remove_file(directory.join(chapter)).unwrap();
-        let missing = read_files(root, "p", vec![request(Some(size), Some(modified), false)]).unwrap();
+        let missing =
+            read_files(root, "p", vec![request(Some(size), Some(modified), false)]).unwrap();
         assert!(!missing[0].exists && missing[0].changed);
-        assert!(read_files(root, "p", vec![ReadRequest {
-            path: "../escape.md".into(),
-            known_size: None,
-            known_modified_ms: None,
-            force: true,
-        }])
+        assert!(read_files(
+            root,
+            "p",
+            vec![ReadRequest {
+                path: "../escape.md".into(),
+                known_size: None,
+                known_modified_ms: None,
+                force: true,
+            }]
+        )
         .is_err());
     }
 
@@ -2063,6 +2068,9 @@ mod tests {
             }]
         )
         .is_err());
-        assert_eq!(fs::read_to_string(directory.join("正文/001 雨夜.md")).unwrap(), "A");
+        assert_eq!(
+            fs::read_to_string(directory.join("正文/001 雨夜.md")).unwrap(),
+            "A"
+        );
     }
 }

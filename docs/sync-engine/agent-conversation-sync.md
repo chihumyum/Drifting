@@ -2,18 +2,18 @@
 
 The Agent conversation extension synchronizes settled chat history and supports
 continuing that history on another device. It is activated automatically for
-projects with an active Google Drive binding. It backfills existing local
+projects with an active Hosted binding. It backfills existing local
 conversations and follows the app's pause, resume, disconnect and account
 lifecycle. It does not transfer a running task or its authority.
 
 ## Storage and compatibility
 
-Drive uses `driftingProtocol=agent-chat-v1`, separate from the released
+Conversations use `driftingProtocol=agent-chat-v1`, separate from the released
 `object-v2` project namespace. A namespace is selected when a native generation
 handle opens; the default remains the project namespace. Native handle caches,
 inventory, metadata validation, uploads and downloads respect that scope.
-Project discovery still selects only object-v2 snapshot commits. Account-wide
-Drive changes for unknown chat file IDs are harmless to the released parser.
+Project discovery still selects only object-v2 snapshot commits. Change-feed
+entries for unknown chat objects are harmless to the released parser.
 Project v1 changesets, snapshots, included tables and schema version remain
 unchanged. An extension object never creates or restores a project.
 
