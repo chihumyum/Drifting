@@ -286,6 +286,19 @@ export type ArchiveSaveResult =
   | { ok: false; canceled: true }
   | { ok: false; canceled: false; error: string };
 
+/** A cover image picked for a manuscript export, re-encoded by native code. */
+export interface ManuscriptCoverImage {
+  mediaType: 'image/jpeg' | 'image/png';
+  data: string;
+  width: number;
+  height: number;
+}
+
+export type ManuscriptCoverPickResult =
+  | { ok: true; canceled: false; cover: ManuscriptCoverImage }
+  | { ok: false; canceled: true }
+  | { ok: false; canceled: false; error: string };
+
 /** One native panic recorded by the panic hook and taken on the next launch. */
 export interface NativeCrashReport {
   message: string;
@@ -668,6 +681,11 @@ export interface TauriCommandContract {
     args: { filename: string; markdown: string };
     result: ArchiveSaveResult;
   };
+  manuscript_export_save: {
+    args: { format: 'epub' | 'pdf' | 'docx'; filename: string; payload: string };
+    result: ArchiveSaveResult;
+  };
+  manuscript_export_pick_cover: { args: undefined; result: ManuscriptCoverPickResult };
   update_check: { args: undefined; result: AppUpdateMetadata | null };
   update_download: {
     args: { onEvent: unknown };

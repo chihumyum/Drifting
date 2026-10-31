@@ -319,15 +319,22 @@ const UserBubble = memo(function UserBubble({ msg }: { msg: Extract<ChatMsg, { k
 export function EntityLinkChip({
   refItem,
   onOpen,
+  waiting = false,
 }: {
   refItem: ToolEntityRef;
   onOpen: (ref: ToolEntityRef) => void;
+  /** The first change the Agent made for this author: it waits to be opened. */
+  waiting?: boolean;
 }) {
   const { t } = useTranslation();
   const deletedLabel = t('common.deleted_paren');
   const name = useDataStore((s) => entityRefName(s, refItem, deletedLabel));
   return (
-    <button type="button" className="agt-entity-chip glass glass--surface glass--small" onClick={() => onOpen(refItem)}>
+    <button
+      type="button"
+      className={'agt-entity-chip glass glass--surface glass--small' + (waiting ? ' glass--waiting agt-entity-chip--waiting' : '')}
+      onClick={() => onOpen(refItem)}
+    >
       <KindMark kind={ENTITY_MARK[refItem.entityType]} seed={refItem.id} color="hsl(var(--accent))" />
       <span>{name}</span>
       <span className="agt-entity-chip__op">

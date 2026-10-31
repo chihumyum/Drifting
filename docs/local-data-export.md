@@ -1,5 +1,8 @@
 # Local relational Markdown export
 
+Finished-manuscript EPUB, PDF and Word export is separate; see
+[manuscript export](manuscript-export.md).
+
 ## Automatic project Markdown folder
 
 Chapter and drift files are two-way: edits saved in any editor merge back into

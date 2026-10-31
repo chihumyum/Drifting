@@ -810,6 +810,9 @@ export const tauriPlatform: PlatformApi = {
 
   sharing: {
     saveMarkdown: (filename, markdown) => invokeContract('share_save_markdown', { filename, markdown }),
+    saveManuscript: (format, filename, payload) =>
+      invokeContract('manuscript_export_save', { format, filename, payload }),
+    pickManuscriptCover: () => invokeContract('manuscript_export_pick_cover', undefined),
   },
 
   updater: {

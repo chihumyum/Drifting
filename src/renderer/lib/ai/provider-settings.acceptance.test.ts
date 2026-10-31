@@ -54,6 +54,18 @@ describe('central AI provider settings acceptance', () => {
     expect(runtime).toContain('platform.codexSubscription');
   });
 
+  it('lets the Agent panel first run only add a tested key or pick a route that can run', async () => {
+    const onboarding = await source('/src/renderer/features/agent/onboarding/AgentOnboarding.tsx');
+    const connect = await source('/src/renderer/lib/agent/connect-agent-provider.ts');
+
+    expect(onboarding).toContain('connectAgentProviderKey(provider, draft)');
+    expect(onboarding).toContain('selectAgentProvider(id)');
+    expect(onboarding).not.toMatch(/byokKeychain\.(set|clear|get)\(/);
+    expect(onboarding).not.toContain('<ProviderRow');
+    expect(connect).toContain('testByokProviderConnection(provider');
+    expect(connect).toContain("events.emit('agent:auth-changed')");
+  });
+
   it('tests every credential directly without a hosted BYOK relay', async () => {
     const intelligence = await source(
       '/src/renderer/features/settings/panels/IntelligenceSettingsPanels.tsx',

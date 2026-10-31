@@ -32,6 +32,7 @@ truth.
 
 - [Privacy boundary](../PRIVACY.md) and [security policy](../SECURITY.md)
 - [Local images and PDFs](local-assets.md)
+- [Manuscript export](manuscript-export.md): EPUB, PDF and Word
 - [Markdown export and the automatic Markdown folder](local-data-export.md)
 - [Markdown folder two-way sync](markdown-mirror.md)
 - [Library backup and restore](library-backup.md): the complete `.drifting` package
@@ -51,6 +52,7 @@ truth.
   [`agent-capabilities.json`](agent-runtime/acceptance/agent-capabilities.json)
 - [Roadmap and milestone policy](agent-runtime/ROADMAP.md)
 - [Model providers and API keys](ai-provider-settings.md)
+- [First Agent conversation](agent-runtime/agent-onboarding.md): connecting a model in the panel
 - [Project Home check-in](agent-runtime/project-checkin.md) and
   [organize on return](agent-runtime/project-organize.md)
 - [External agent access (local MCP)](agent-runtime/local-mcp.md)

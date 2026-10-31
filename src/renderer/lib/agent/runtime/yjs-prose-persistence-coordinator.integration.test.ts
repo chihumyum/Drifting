@@ -32,6 +32,12 @@ import {
   type YjsProsePersistenceBase,
 } from './yjs-prose-persistence-coordinator';
 import { createTestAgentAuthoredJournal } from './agent-authored-journal.test-support';
+import { captureSnapshotHistory } from '../../../services/snapshot-history.service';
+
+vi.mock('../../../services/snapshot-history.service', async (original) => ({
+  ...(await original<typeof import('../../../services/snapshot-history.service')>()),
+  captureSnapshotHistory: vi.fn(async () => undefined),
+}));
 
 const migrationDirectory = new URL('../../../../../drizzle/', import.meta.url);
 const journal = JSON.parse(readFileSync(new URL('meta/_journal.json', migrationDirectory), 'utf8')) as { entries: Array<{ tag: string }> };
@@ -382,6 +388,23 @@ describe('Yjs prose persistence coordinator against real SQLite + Y.Doc', () => 
         },
       }),
     ]);
+  });
+
+  it('records the replaced state as a restore point before a forward commit, and never lets it block the write', async () => {
+    const { coordinator } = setup();
+    const capture = vi.mocked(captureSnapshotHistory);
+    capture.mockClear();
+    const base = await coordinator.readBase('node-content:node-1', createState([paragraph('base-a', 'Alpha')]));
+    const command = await prepareAppend(coordinator, 'command-restore-point', base, 'agent-a');
+    capture.mockRejectedValueOnce(new Error('history unavailable'));
+    const committed = await coordinator.commit({ command, direction: 'forward', expectedRevision: 0, ...persistenceHooks() });
+    expect(committed.outcome).toBe('committed');
+    expect(capture).toHaveBeenCalledTimes(1);
+    expect(capture).toHaveBeenCalledWith('node-content:node-1', base.stateUpdate, 'agent');
+    expect(queryCount(gateway!, 'yjs_updates')).toBe(1);
+
+    await coordinator.commit({ command, direction: 'inverse', expectedRevision: 1, ...persistenceHooks() });
+    expect(capture).toHaveBeenCalledTimes(1);
   });
 
   it('commits seed -> closed commands, survives compaction, and replays receipts without a duplicate write', async () => {
