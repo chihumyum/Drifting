@@ -1,16 +1,16 @@
 # Drifting
 
-**The ease of a Markdown editor, the scaffolding of Scrivener, and an Agent for
-the whole book.**
+**The ease of a Markdown editor, the scaffolding of a classic writing studio, and
+an Agent for the whole book.**
 
 [English](#english) | [简体中文](#简体中文)
 
 ## English
 
 Drifting is an open-source, local-first novel writing app for Mac. It writes
-like a Markdown editor, builds a book the way Scrivener does — chapters and
-outline, characters and world, storylines and research — and comes with an AI
-Agent that can read, search and edit the whole project.
+like a Markdown editor, builds a book the way classic writing studios do —
+chapters and outline, characters and world, storylines and research — and comes
+with an AI Agent that can read, search and edit the whole project.
 
 **Early development.** Drifting is used daily by its author and changes often.
 Keep independent copies of manuscripts that matter, and read the
@@ -32,7 +32,7 @@ The first launch opens a sample project you can explore or delete.
 - Copy or save any document, or the whole book, as Markdown. Import `.md`,
   `.txt` and `.docx`.
 
-### Scrivener-style scaffolding
+### The scaffolding of a classic writing studio
 
 - Write chapter by chapter, or read and edit the whole book in one view.
 - Acts sit on the timeline; scenes, beats and notes are headings inside a
@@ -107,18 +107,17 @@ pnpm dev
 
 Project source is [AGPL-3.0-or-later](LICENSE); `packages/prose-metrics` is
 [Apache-2.0](packages/prose-metrics/LICENSE). Third-party code and assets keep
-their own licenses. Scrivener is a trademark of Literature & Latte; Drifting is
-not affiliated with it.
+their own licenses.
 
 [Third-party notices](THIRD_PARTY_NOTICES.md) · [Trademarks](TRADEMARKS.md) ·
 [Client privacy boundary](PRIVACY.md) · [Source history](docs/public-history.md)
 
 ## 简体中文
 
-**Markdown 的轻快，Scrivener 的脚手架，再加一个照看整本书的 Agent。**
+**Markdown 的轻快，传统写作软件的脚手架，再加一个照看整本书的 Agent。**
 
 Drifting 是一个开源、本地优先的 Mac 长篇小说写作软件。写起来像 Markdown 编辑器；
-像 Scrivener 那样用章节和大纲、人物和世界设定、故事线和资料把一本书搭起来；
+像传统写作软件那样，用章节和大纲、人物和世界设定、故事线和资料把一本书搭起来；
 还有一个能读、能查、能动手修改整个项目的 AI Agent。
 
 **仍在早期开发。** 作者每天都在用它写作，它也在频繁变化。重要的稿件请另外保留副本，
@@ -138,7 +137,7 @@ Drifting 是一个开源、本地优先的 Mac 长篇小说写作软件。写起
   会合并回 Drifting。
 - 单篇或整本书都可以复制、保存为 Markdown；可以导入 `.md`、`.txt`、`.docx`。
 
-### Scrivener 式的脚手架
+### 传统写作软件的脚手架
 
 - 按章写，也可以在一个视图里通读、修改整本书。
 - 幕在时间线上设置；场景、节拍、笔记是章节里的标题，列在正文旁的大纲里。
@@ -196,7 +195,6 @@ pnpm dev
 
 项目源码采用 [AGPL-3.0-or-later](LICENSE)；`packages/prose-metrics` 采用
 [Apache-2.0](packages/prose-metrics/LICENSE)。第三方代码和素材保留各自的许可证。
-Scrivener 是 Literature & Latte 的商标，Drifting 与其无关联。
 
 [第三方声明](THIRD_PARTY_NOTICES.md) · [商标说明](TRADEMARKS.md) ·
 [客户端隐私边界](PRIVACY.md) · [源码历史说明](docs/public-history.md)
