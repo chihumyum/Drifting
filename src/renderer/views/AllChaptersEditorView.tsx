@@ -910,6 +910,7 @@ export function AllChaptersEditorView() {
         editorType="node"
         onMenuAction={handleChapterMenuAction}
         shareTarget={{ projectId, kind: 'book', title: projectName }}
+        manuscriptExport={{ projectId }}
         nodeWritingStatus={menuTargetNode?.writingStatus}
         nodeStatusKind={menuTargetNode ? 'chapter' : undefined}
         menuHeader={

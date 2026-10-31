@@ -1,0 +1,154 @@
+/* Manuscript export dialog: the shared dialog shell (.modal-*), sections of
+   a mono label over their controls, no frames. */
+.manuscript-export {
+  display: flex;
+  flex-direction: column;
+}
+
+.manuscript-export__placeholder {
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font-size: var(--ui-font-secondary, 13px);
+}
+
+/* Selected chapters fold open under the scope slider. */
+.manuscript-export__chapters-shell {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: grid-template-rows 280ms var(--ease-out, ease), opacity 280ms var(--ease-out, ease);
+}
+
+.manuscript-export__chapters-shell.is-open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.manuscript-export__chapters-clip {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.manuscript-export__chapters-shell:not(.is-open) .manuscript-export__chapters-clip {
+  visibility: hidden;
+}
+
+.manuscript-export__chapters-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 2px 4px;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font-family: var(--font-mono);
+  font-size: var(--ui-font-caption, 12px);
+}
+
+.manuscript-export__text-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: hsl(var(--ink-2));
+  font: inherit;
+  cursor: pointer;
+}
+
+.manuscript-export__text-button:hover:not(:disabled) {
+  color: hsl(var(--ink-1));
+}
+
+.manuscript-export__text-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.manuscript-export__chapters {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 240px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.manuscript-export__act {
+  padding: 8px 10px 2px;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font-family: var(--font-mono);
+  font-size: var(--ui-font-caption, 12px);
+}
+
+.manuscript-export__switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: var(--ui-row-height, 32px);
+  color: hsl(var(--ink-1));
+  font-size: var(--ui-font-secondary, 13px);
+  cursor: pointer;
+}
+
+.manuscript-export__field {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  color: hsl(var(--ink-2));
+  font-size: var(--ui-font-secondary, 13px);
+}
+
+.manuscript-export__cover {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.manuscript-export__cover-thumb {
+  width: auto;
+  height: 48px;
+  max-width: 64px;
+  border-radius: 2px;
+  object-fit: contain;
+}
+
+.manuscript-export__feedback {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font-size: var(--ui-font-secondary, 12px);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.manuscript-export__feedback[role='alert'] {
+  color: hsl(var(--destructive));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .manuscript-export__chapters-shell {
+    transition: none;
+  }
+}
+
+@media (max-width: 600px) {
+  .manuscript-export__field {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+
+  .manuscript-export-root .modal-actions {
+    flex-wrap: wrap;
+  }
+
+  .manuscript-export__feedback {
+    flex-basis: 100%;
+  }
+}

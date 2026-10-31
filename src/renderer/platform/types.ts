@@ -12,6 +12,7 @@ import type {
   AppUpdateMetadata,
   AppInfo,
   ArchiveSaveResult,
+  ManuscriptCoverPickResult,
   AssetStoreDeleteResult,
   AssetStorePathResult,
   AssetStoreWriteResult,
@@ -335,6 +336,9 @@ export interface PlatformApi {
   readonly archive: ArchivePlatformApi;
   readonly sharing: {
     saveMarkdown(filename: string, markdown: string): Promise<ArchiveSaveResult>;
+    /** Pick a destination, then lay out and write an EPUB, PDF or Word manuscript. */
+    saveManuscript(format: 'epub' | 'pdf' | 'docx', filename: string, payload: string): Promise<ArchiveSaveResult>;
+    pickManuscriptCover(): Promise<ManuscriptCoverPickResult>;
   };
   readonly updater: UpdatePlatformApi;
   readonly diagnostics: {

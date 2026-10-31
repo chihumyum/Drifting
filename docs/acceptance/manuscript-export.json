@@ -1,0 +1,267 @@
+{
+  "kind": "manuscript-export-sample-book",
+  "generatedAt": "2026-10-31T07:55:26.539Z",
+  "sourceSha256": "b7a8ed0f48ef528c4c35629baf2c9c8284247a19801de619b8d2525721e3c84b",
+  "status": "passed",
+  "synthetic": true,
+  "platform": "darwin-arm64",
+  "krilla": "0.8.2",
+  "debugBuildMilliseconds": {
+    "epub": 12,
+    "docx": 4,
+    "pdf": 843
+  },
+  "outputs": {
+    "epub": {
+      "bytes": 30713,
+      "sha256": "0aded9fd09770aef666c9ce2bc9bb926757dbc0de72bd1569f9a405ac195bd1d",
+      "files": 15,
+      "spine": 9,
+      "epubcheck": {
+        "run": false,
+        "reason": "EPUBCHECK_JAR is not set"
+      }
+    },
+    "docx": {
+      "bytes": 28830,
+      "sha256": "638080ac968577c4614ef7bb16b107a08dba99a19c9c971e224cdb60b02d6695",
+      "headings": 10,
+      "textutilCharacters": 4637
+    },
+    "pdf": {
+      "bytes": 122643,
+      "pages": 13,
+      "fonts": [
+        {
+          "name": "ZCJOBV+STSongti-SC-Bold",
+          "type": "CID TrueType",
+          "embedded": true,
+          "subset": true,
+          "unicode": true
+        },
+        {
+          "name": "EDARMF+STSongti-SC-Regular",
+          "type": "CID TrueType",
+          "embedded": true,
+          "subset": true,
+          "unicode": true
+        },
+        {
+          "name": "FHVVWU+TimesNewRomanPSMT",
+          "type": "CID TrueType",
+          "embedded": true,
+          "subset": true,
+          "unicode": true
+        },
+        {
+          "name": "ZAAOZT+TimesNewRomanPS-ItalicMT",
+          "type": "CID TrueType",
+          "embedded": true,
+          "subset": true,
+          "unicode": true
+        }
+      ],
+      "lines": 156,
+      "fontsChosen": {
+        "body": "STSongti-SC-Regular",
+        "latin": "TimesNewRomanPSMT"
+      }
+    }
+  },
+  "checks": [
+    {
+      "name": "epub: uncompressed mimetype is the first entry without an extra field",
+      "passed": true
+    },
+    {
+      "name": "epub: every manifest item exists and every file is declared",
+      "passed": true
+    },
+    {
+      "name": "epub: navigation document lists acts and chapters in book order",
+      "passed": true,
+      "detail": [
+        "序章　灯下",
+        "第一卷　潮起",
+        "第一章　来信",
+        "第二章　旧港",
+        "第二卷　雾散",
+        "第三章　返航"
+      ]
+    },
+    {
+      "name": "epub: spine reads titles, then contents, then the body in order",
+      "passed": true
+    },
+    {
+      "name": "epub: CJK punctuation survives verbatim",
+      "passed": true
+    },
+    {
+      "name": "epub: beat/note headings, drifts, discarded chapters and private links stay out",
+      "passed": true
+    },
+    {
+      "name": "epub: cover image is declared and is a JPEG",
+      "passed": true
+    },
+    {
+      "name": "epub: metadata names the title, author, language and modification time",
+      "passed": true
+    },
+    {
+      "name": "docx: acts are Heading 1, chapters Heading 2 and scenes Heading 3, in book order",
+      "passed": true,
+      "detail": [
+        [
+          "Title",
+          "雾港来信（合成样书）"
+        ],
+        [
+          "Subtitle",
+          "合成作者"
+        ],
+        [
+          "Heading2",
+          "序章　灯下"
+        ],
+        [
+          "Heading1",
+          "第一卷　潮起"
+        ],
+        [
+          "Heading2",
+          "第一章　来信"
+        ],
+        [
+          "Heading3",
+          "一　雨夜"
+        ],
+        [
+          "Heading3",
+          "二　旧信"
+        ],
+        [
+          "Heading2",
+          "第二章　旧港"
+        ],
+        [
+          "Heading1",
+          "第二卷　雾散"
+        ],
+        [
+          "Heading2",
+          "第三章　返航"
+        ]
+      ]
+    },
+    {
+      "name": "docx: macOS textutil opens the package and reads the book in order",
+      "passed": true
+    },
+    {
+      "name": "docx: CJK punctuation survives verbatim",
+      "passed": true
+    },
+    {
+      "name": "docx: bold, italic, underline, strike and the web link are kept",
+      "passed": true
+    },
+    {
+      "name": "docx: the cover picture is embedded",
+      "passed": true
+    },
+    {
+      "name": "pdf: metadata names the title and author",
+      "passed": true
+    },
+    {
+      "name": "pdf: A5 pages",
+      "passed": true
+    },
+    {
+      "name": "pdf: every font is an embedded subset with a Unicode map",
+      "passed": true,
+      "detail": [
+        {
+          "name": "ZCJOBV+STSongti-SC-Bold",
+          "type": "CID TrueType",
+          "embedded": true,
+          "subset": true,
+          "unicode": true
+        },
+        {
+          "name": "EDARMF+STSongti-SC-Regular",
+          "type": "CID TrueType",
+          "embedded": true,
+          "subset": true,
+          "unicode": true
+        },
+        {
+          "name": "FHVVWU+TimesNewRomanPSMT",
+          "type": "CID TrueType",
+          "embedded": true,
+          "subset": true,
+          "unicode": true
+        },
+        {
+          "name": "ZAAOZT+TimesNewRomanPS-ItalicMT",
+          "type": "CID TrueType",
+          "embedded": true,
+          "subset": true,
+          "unicode": true
+        }
+      ]
+    },
+    {
+      "name": "pdf: the cover is the one image, on page 1",
+      "passed": true,
+      "detail": [
+        "   1     0 image     600   900  rgb     3   8  jpeg   yes       90  0   109   109 22.1K 1.4%"
+      ]
+    },
+    {
+      "name": "pdf: extracted text reads the title page, contents and body in order",
+      "passed": true
+    },
+    {
+      "name": "pdf: CJK punctuation is extractable verbatim",
+      "passed": true
+    },
+    {
+      "name": "pdf: beat/note headings, drifts and discarded chapters stay out",
+      "passed": true
+    },
+    {
+      "name": "pdf: line breaking keeps closing marks off line starts and opening marks off line ends",
+      "passed": true,
+      "detail": {
+        "startsBadly": [],
+        "endsBadly": []
+      }
+    },
+    {
+      "name": "pdf: body pages carry footer numbers from 1",
+      "passed": true,
+      "detail": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10"
+      ]
+    }
+  ],
+  "boundaries": {
+    "sample": "synthetic book from manuscript-export.acceptance.test.ts: one pre-act chapter, two acts, a discarded chapter, a drift, a trashed chapter, scene/beat/note headings, marks, links, quote, scene break, hard break and a generated cover",
+    "epubcheck": "the W3C epubcheck jar runs only when EPUBCHECK_JAR is set; otherwise the Rust test checks the OCF, package, navigation, NCX and XHTML rules it enforces",
+    "word": "macOS textutil and the Rust test parse the package; Microsoft Word itself is not driven",
+    "pdfFonts": "installed system fonts of the machine that ran this report; another computer may pick other faces from the same lists",
+    "ui": "the export dialog is covered by its own desktop acceptance notes in docs/manuscript-export.md"
+  }
+}
