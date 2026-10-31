@@ -54,23 +54,34 @@ export function EntityHoverCard({
   );
 }
 
-function EntityHoverCardBody({ content, showStatus }: { content: EntityHoverCardContent; showStatus: boolean }) {
-  const summary = content.summary?.trim() ?? '';
+/**
+ * A thing's head as every card shows it: its kind mark and title, its count
+ * on the right, what it belongs to under them. The cards a press opens (a
+ * Super View's chapter card) lead with it too.
+ */
+export function EntityHoverCardHead({ content, showStatus = false }: { content: EntityHoverCardContent; showStatus?: boolean }) {
   const tags = showStatus && content.status ? [{ text: content.status }, ...content.tags] : content.tags;
   return (
+    <HoverCardHeading
+      title={content.title}
+      mark={{ ...content.mark, color: content.mark.color ?? undefined }}
+      index={content.index}
+      detail={tags.length > 0 ? tags.map((tag, index) => (
+        <span key={`${tag.text}:${index}`}
+          className={`hover-card__tag${tag.tone === 'secondary' ? ' hover-card__tag--soft' : ''}`}>
+          {tag.mark && <KindMark kind={tag.mark.kind} color={tag.mark.color ?? undefined} seed={tag.mark.seed} loose={tag.mark.loose} />}
+          {tag.text}
+        </span>
+      )) : undefined}
+    />
+  );
+}
+
+function EntityHoverCardBody({ content, showStatus }: { content: EntityHoverCardContent; showStatus: boolean }) {
+  const summary = content.summary?.trim() ?? '';
+  return (
     <>
-      <HoverCardHeading
-        title={content.title}
-        mark={{ ...content.mark, color: content.mark.color ?? undefined }}
-        index={content.index}
-        detail={tags.length > 0 ? tags.map((tag, index) => (
-          <span key={`${tag.text}:${index}`}
-            className={`hover-card__tag${tag.tone === 'secondary' ? ' hover-card__tag--soft' : ''}`}>
-            {tag.mark && <KindMark kind={tag.mark.kind} color={tag.mark.color ?? undefined} seed={tag.mark.seed} loose={tag.mark.loose} />}
-            {tag.text}
-          </span>
-        )) : undefined}
-      />
+      <EntityHoverCardHead content={content} showStatus={showStatus} />
       {summary && <div className="hover-card__text">{summary}</div>}
       {content.kv.length > 0 && (
         <dl className="hover-card__kv">

@@ -59,7 +59,8 @@ const members = [
 describe('the element overview’s floating island', () => {
   it('starts as a small card that holds no editor', () => {
     const html = island('peek', createElement('div', { className: 'editor-probe' }));
-    expect(html).toContain('class="se-island se-island--peek"');
+    // The small card is the hover card's own card (rounded, edged in resting glass).
+    expect(html).toContain('class="se-island se-island--peek hover-card-surface"');
     expect(html).toContain('data-super-modal');
     expect(html).toContain('class="peek-probe"');
     expect(html).not.toContain('editor-probe');
@@ -112,11 +113,14 @@ describe('the element overview’s floating island', () => {
       name: '人物', color: '#8a7fd0', members, onFocus: noop, onEdit: noop, onOpen: noop, onClose: noop,
     })).replaceAll('&quot;', '"');
     expect(card).toContain('superElement.isles.island.categoryMeta:{"count":2}');
-    expect(card.match(/class="menu-surface__item se-detail__row"/g)).toHaveLength(2);
-    expect(card).toContain('superElement.isles.island.mentions:{"count":12}');
+    // Its elements are the card's rows, each led by its square seal, the count at the far end.
+    expect(card.match(/class="hover-card__row"/g)).toHaveLength(4);
+    expect(card).toContain('<span class="hover-card__row-aside">superElement.isles.island.mentions:{"count":12}</span>');
     expect(card).toContain('superElement.isles.island.unmentioned');
     expect(card).toContain('data-se-open-tab=""');
-    expect(card.match(/glass--primary/g)).toHaveLength(1);
+    // 编辑 is a row like the rest: no primary button on the card.
+    expect(card).not.toContain('glass--primary');
+    expect(card).toContain('class="hover-card__head"');
     const strip = renderToStaticMarkup(createElement(CategoryIsleStrip, { color: '#8a7fd0', members, onFocus: noop }));
     expect(strip.match(/class="se-strip__chip"/g)).toHaveLength(2);
     expect(strip).toContain('superElement.isles.island.mostMentioned');
