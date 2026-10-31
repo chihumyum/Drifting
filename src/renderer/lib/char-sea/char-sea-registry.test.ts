@@ -30,4 +30,15 @@ describe('the waits holding the sea', () => {
     expect(charSeaRegistry.loadingSince()).toBe(2000 + CHAR_SEA_HANDOVER_MS + 10);
     next();
   });
+
+  it('counts a page in the rain apart from the waits', () => {
+    const rain = charSeaRegistry.hold('rain');
+    expect(charSeaRegistry.getHolds()).toEqual({ loading: 0, rain: 1, surfaces: 0 });
+    expect(charSeaRegistry.loadingSince()).toBeNull();
+    const shelf = charSeaRegistry.hold('surface');
+    rain();
+    rain();
+    expect(charSeaRegistry.getHolds()).toEqual({ loading: 0, rain: 0, surfaces: 1 });
+    shelf();
+  });
 });

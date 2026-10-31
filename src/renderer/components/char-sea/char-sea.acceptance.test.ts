@@ -82,6 +82,44 @@ describe('the sea of characters under the desktop window', () => {
     expect(block(picker, '.pp-card--sea.glass::before {', '}')).toContain('display: none;');
   });
 
+  it('lays the first-run choice in the window on the sea, in the rain with no word', () => {
+    const routes = read('src/renderer/app/AppRoutes.tsx');
+    expect(routes).toMatch(/<PreAlphaFirstRunGate>\s*<ProjectPickerView \/>\s*<\/PreAlphaFirstRunGate>/);
+    const gate = block(
+      read('src/renderer/components/modals/PreAlphaOnboardingDialog.tsx'),
+      'export function PreAlphaFirstRunGate',
+      '\n}\n',
+    );
+    // Not a dialog over the window but a card in it, whose resting glass the sea draws.
+    expect(gate).not.toMatch(/ModalRoot|ModalCard|aria-modal/);
+    expect(gate).toContain(
+      'const { attach: cardRef, drawn: onSea } = useCharSeaShape<HTMLElement>({ rest: 0.85, radius: 2, hover: false });',
+    );
+    expect(gate).toContain("useCharSeaHold('rain', open && onSea);");
+    expect(gate).toContain("glass glass--rest glass--still${onSea ? ' first-run-gate__card--sea' : ''}");
+    expect(gate).toContain("<div className={`first-run-gate${onSea ? ' first-run-gate--sea' : ''}`}>");
+    const css = read('src/styles/auth.css');
+    expect(block(css, '.first-run-gate {', '}')).toContain('background: var(--workspace-ui-bg);');
+    expect(block(css, '.first-run-gate--sea {', '}')).toContain('background: transparent;');
+    expect(block(css, '.first-run-gate__card--sea.glass::before {', '}')).toContain('display: none;');
+    // A card that steps through a flow takes its drawn rim with it.
+    expect(read('src/renderer/components/char-sea/useCharSea.ts')).toContain(
+      'new ResizeObserver(() => charSeaRegistry.resized())',
+    );
+
+    // Rain holds the sea live and falls at once; the word belongs to a wait, which hands its rain over.
+    const component = read('src/renderer/components/char-sea/CharSea.tsx');
+    expect(component).toContain('const held = holds.loading > 0 || holds.rain > 0 || holds.surfaces > 0;');
+    expect(component).toContain('sea.current?.rain(true);');
+    expect(component).toContain('return () => sea.current?.rain(false);');
+    const engine = read('src/renderer/lib/char-sea/char-sea.ts');
+    const rain = block(engine, '    rain(on) {', '    setShapes(next) {');
+    expect(rain).toContain('rain?.start();');
+    expect(rain).not.toMatch(/water\.hold|word\.held = true/);
+    expect(rain).toContain('if (!word.held) rain?.stop();');
+    expect(engine).toContain('if (!rainHeld) rain?.stop();');
+  });
+
   it('rains and raises "Loading" out of the water after the loading delay, lets both go when the wait ends, and stops when still', () => {
     const component = read('src/renderer/components/char-sea/CharSea.tsx');
     expect(component).toContain('const timer = window.setTimeout(() => sea.current?.loading(true), LOADING_DELAY_MS);');

@@ -106,7 +106,7 @@ through the headless Agent tool path, and its evidence is unchanged.
 
 `store/auth.ts` `checkSession()` opens the local library, emits `db:ready` and
 starts the sample in the background. It never blocks startup; on desktop the
-first-run welcome dialog usually covers the time it takes.
+first-run welcome card usually covers the time it takes.
 
 The device-local `library_state` table (never synced or journaled) holds the
 `built-in-sample` marker:
