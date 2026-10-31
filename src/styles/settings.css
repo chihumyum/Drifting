@@ -1758,7 +1758,13 @@ html[data-shell-mode='mobile'] .set-overlay {
   letter-spacing: 0;
   text-transform: none;
 }
-:where(html:not([data-shell-mode='mobile'])) .set-sec__action {
+.set-sec__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+:where(html:not([data-shell-mode='mobile'])) .set-sec__actions {
   margin-top: 10px;
 }
 

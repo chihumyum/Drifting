@@ -879,7 +879,8 @@
         "installed": "{{client}} is configured. Reopen the client or restart its MCP server to load the connection; follow its tool approval prompts on first use.",
         "revoked": "Access revoked and automatically installed client configuration removed.",
         "revokedWarning": "Access revoked. The client configuration changed or could not be updated; remove this connection in your client."
-      }
+      },
+      "replayOnboarding": "Show the first-run guide again"
     },
     "agentLimits": {
       "title": "Run limits",
@@ -1651,6 +1652,24 @@
       "pending": "This conversation is syncing. Continue when its history is ready.",
       "archive": "This display-only archive can be read but cannot be continued.",
       "conflict": "This conversation has missing or conflicting data and cannot be continued yet."
+    },
+    "onboarding": {
+      "connect": "Connect a model",
+      "try": "Try",
+      "experimental": "Experimental",
+      "getKey": "Get an API key",
+      "history": "Version history",
+      "saveFailed": "Could not save the key to the Keychain.",
+      "prompts": {
+        "commentChapter": "Leave two comments on “{{chapter}}”",
+        "tightenChapter": "Tighten the opening paragraph of “{{chapter}}”",
+        "relateElements": "Sort out how {{first}} and {{second}} are related",
+        "completeElement": "Fill in the details of “{{element}}”",
+        "extractElements": "Find the people and places in “{{chapter}}” and add them as elements",
+        "outline": "Sketch a three-act chapter outline",
+        "interview": "Ask me a few questions to shape this story",
+        "castCharacters": "Create three main characters"
+      }
     }
   },
   "voiceAgent": {

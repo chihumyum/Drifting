@@ -11,7 +11,7 @@ Drifting 只有一个凭据管理入口：**设置 → 模型与 API**。每个 
 | OpenAI    | `byok.openai`    | General Agent |
 | ChatGPT 订阅（实验） | `oauth.openai-codex`（仅原生可读） | General Agent `openai-codex` |
 
-密钥不进入 Zustand/localStorage，不参与偏好同步，也不在 General Agent 面板中重复编辑。旧版 General Agent 的 `byok.agent.anthropic` 会在第一次读取 Anthropic 凭据时迁移到 `byok.anthropic`，确认写入后删除旧条目。
+密钥不进入 Zustand/localStorage，不参与偏好同步，也不在 General Agent 面板中重复编辑。唯一的例外是 Agent 面板的首次引导（[agent-runtime/agent-onboarding.md](agent-runtime/agent-onboarding.md)）：空对话里没有可用路由时，它可以就地**新增**一个 Key——先写入 Keychain、跑一次与「测试连接」相同的直连测试，通过才保留并把对话框切到该 provider，失败即删除；也可以就地发起 ChatGPT 设备码登录，或直接选中已有凭据的 provider。编辑、重新测试、查看来源与断开仍只在「模型与 API」。旧版 General Agent 的 `byok.agent.anthropic` 会在第一次读取 Anthropic 凭据时迁移到 `byok.anthropic`，确认写入后删除旧条目。
 
 ChatGPT 订阅是实验性、不受支持的路由：设置页的「ChatGPT 订阅」行只驱动 OpenAI Codex 设备码登录并读取非敏感账号状态，OAuth token 全程在原生 Rust 侧读写、刷新与注入，`secure_storage` 拒绝 renderer 访问 `oauth.` 前缀。它不是 BYOK provider，也不进入 BYOK 密钥选择器。只要该登录有效，General Agent 页面就视为已有可用凭据并允许进入 composer；实际发送仍使用 composer 当前明确选择的 provider，不做静默 fallback。OpenAI 未对第三方应用开放该路径，用量计入作者本人的 ChatGPT 套餐，随时可能失效，不构成任何发布声明。
 
@@ -45,7 +45,7 @@ General Agent 当前认证 DeepSeek、Anthropic、OpenAI 三种多轮 tool proto
 
 - 「测试连接」是显式用户动作。DeepSeek、Anthropic 使用各自 direct adapter；OpenAI 使用固定 origin 的原生 Responses transport，测试时 API key 不进入 renderer JavaScript。测试模型取 General Agent 当前所选模型（同一 provider 时），否则取该 provider 模型目录的第一项。仅浏览设置页只查询 key 是否存在，不解密 key。
 - General Agent 通过 provider-neutral canonical `AgentRuntime` 执行多轮工具调用。
-- 缺少所选 provider key 时 fail closed，并引导用户前往「模型与 API」；不会换用另一个 provider 或 hosted fallback。
+- 缺少所选 provider key 时 fail closed：空对话就地显示连接行（首次引导），已开始的对话引导用户前往「模型与 API」；不会静默换用另一个 provider 或 hosted fallback——切换 provider 只发生在作者点了某一行之后。
 - direct BYOK client 在构建和每次请求前都会检查 `canUseByokProvider()`；General Agent 的 provider router 也会在创建或复用 driver 前复查，离线时不会触发 provider/native transport。
 - OpenAI Responses 请求由原生 Tauri host 发起；DeepSeek 与 Anthropic 保留各自已认证的 provider driver。
 
@@ -58,6 +58,8 @@ pnpm exec vitest run \
   src/renderer/lib/agent/runtime/drivers/openai-responses-driver.test.ts \
   src/renderer/lib/agent/runtime/drivers/drifting-agent-driver.test.ts \
   src/renderer/lib/ai/provider-settings.acceptance.test.ts \
+  src/renderer/lib/agent/connect-agent-provider.test.ts \
+  src/renderer/features/agent/onboarding/agent-onboarding.acceptance.test.ts \
   src/renderer/lib/ai/local-ai-boundary.acceptance.test.ts \
   src/renderer/lib/ai/retired-copilot.acceptance.test.ts \
   src/renderer/lib/ai/test-provider-connection.test.ts \
