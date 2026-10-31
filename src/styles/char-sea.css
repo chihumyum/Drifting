@@ -24,3 +24,21 @@
   width: 100%;
   height: 100%;
 }
+
+/* Ebb: a wait opened the workspace. Its desk is left clear while the rings
+   already out run their course under it (the paper stays opaque, the sidebars
+   veil the sea), and the workspace comes up over them as a whole. When the
+   water is still the attribute goes and the desk is opaque again, the same
+   colour the sea's ground was. */
+html[data-char-sea='ebb'] .desktop-app-shell {
+  --workspace-ui-bg: transparent;
+  animation: char-sea-surface var(--motion-structural) ease-out both;
+}
+
+@keyframes char-sea-surface {
+  from { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-char-sea='ebb'] .desktop-app-shell { animation: none; }
+}

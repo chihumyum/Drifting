@@ -3,6 +3,7 @@ import { events } from '../../lib/events';
 import { getDb, type DbClient } from '../../lib/db';
 import { flushLocalApplicationPersistence } from '../../lib/persistence-lifecycle';
 import { getHostedSessionBinding } from '../../lib/hosted-session-binding';
+import { waitForBuiltInSampleProject } from '../../services/sample-project/first-run';
 import {
   nativeSnapshotAssetCapturePort,
   nativeSnapshotAssetRestorePort,
@@ -67,6 +68,8 @@ export function hostedRestoreDependencies(): CloudRestoreDependencies {
 export async function connectHostedFromProduct(signal: AbortSignal, db: DbClient = getDb()) {
   const session = getHostedSessionBinding();
   if (!session) throw new Error('needs-reauth');
+  // Never publish a half-written built-in sample (docs/sample-project.md).
+  await waitForBuiltInSampleProject();
   await flushLocalApplicationPersistence();
   const repository = createSyncAppAuthorityRepository(db);
   const current = await repository.read();

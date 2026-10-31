@@ -8,6 +8,7 @@ truth.
 ## Using Drifting
 
 - [Quick start](quick-start.md)
+- [Built-in sample project](sample-project.md)
 - [Known issues](../KNOWN_ISSUES.md) and [support](../SUPPORT.md)
 - [Release notes](releases/)
 - [Project Home](project-home.md)

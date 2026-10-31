@@ -63,6 +63,7 @@ const APPLICATION_TABLES = [
   'entity_snapshot_history',
   'inline_mention',
   'library_item',
+  'library_state',
   'markdown_mirror_file',
   'material_folder',
   'node_content',
@@ -228,7 +229,8 @@ describe('product file-backed migration acceptance', () => {
     const journal = JSON.parse(
       readFileSync(new URL('meta/_journal.json', DRIZZLE_DIRECTORY), 'utf8'),
     ) as { entries: Array<{ idx: number; tag: string; when: number }> };
-    expect(journal.entries).toHaveLength(15);
+    expect(journal.entries).toHaveLength(16);
+    expect(journal.entries[15]?.tag).toBe('0015_library_state');
     expect(journal.entries[14]?.tag).toBe('0014_retire_google_drive_sync');
     expect(journal.entries[13]?.tag).toBe('0013_markdown_mirror_ledger');
     expect(journal.entries[12]?.tag).toBe('0012_material_folders');

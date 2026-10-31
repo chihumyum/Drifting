@@ -19,7 +19,7 @@ import { singleSidebarTab } from '../src/renderer/lib/sidebar-tabs';
 import { createSyntheticWorkspaceProjection } from '../src/renderer/performance/fixture';
 import { deriveNodeStorylineState } from '../src/renderer/domain/node-storyline-state';
 import { createPlainCommentDoc } from '../src/renderer/domain/comment';
-import { seedChapterTitle, SEED_STORYLINES } from '../src/dev-cli/seeds/default-project';
+import { seedChapterTitle, SEED_STORYLINES } from '../src/renderer/services/sample-project/scenario';
 import { setI18nLocale } from '../src/renderer/lib/i18n';
 import '@fontsource-variable/inter-tight';
 import '../src/styles/index.css';

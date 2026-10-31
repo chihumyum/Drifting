@@ -29,7 +29,11 @@ export interface CharSeaShape {
   width: number;
   height: number;
   radius: number;
-  /** Strength of the resting line: the app's resting glass is 0.85; 0 shows only what the water brings. */
+  /**
+   * Strength of the resting line: the app's resting glass is 0.85; 0 shows
+   * only what the water brings; below 0 no line at all, only the veil (the
+   * sea under it at 12%), for panels the sea passes under.
+   */
   rest: number;
   /** Whether the pointer is on it (bleed in, unevenness drifting). */
   hover: boolean;
@@ -43,6 +47,14 @@ export interface CharSea {
   drop(x: number, y: number, amplitude?: number): void;
   /** The pointer moved: a light wake, stronger the faster it goes. */
   wake(x: number, y: number): void;
+  /**
+   * The page it lay under is gone (a wait opened the workspace): no more
+   * drops or hands, the resting dots fade, and the rings already out run
+   * their course. Calls back once the water is still; `setActive(false)`
+   * then puts it away. Becoming active again (or `live()`) calls it off.
+   */
+  ebb(onStill: () => void): void;
+  live(): void;
   /** Drops falling at one place every `period` ms (the first after `delay`); null stops them. */
   pulse(origin: { x: number; y: number } | null, period?: number, delay?: number): void;
   setShapes(shapes: readonly CharSeaShape[]): void;
@@ -106,7 +118,7 @@ void main(){
     float up=clamp(hAt(px)*4.,-.8,1.);
     float ra=0.;float ba=0.;
     for(int i=0;i<${MAX_SHAPES};i++){if(i>=uShapes)break;
-      vec4 R=uShape[i];vec4 P=uShapeP[i];
+      vec4 R=uShape[i];vec4 P=uShapeP[i];if(P.y<0.)continue;
       float sd=sdBox(px,R,P.x);if(sd>2.||sd<-24.)continue;
       float cut=texture(uGlassTex,(px-R.xy-uShapeT[i].xy-vec2(P.w))/${GLASS_TILE}.).a;
       float base=max(P.y,P.z);
@@ -265,6 +277,11 @@ export function createCharSea(canvas: HTMLCanvasElement): CharSea | null {
   let slotU = 1;
   let slotV = 1;
   let pulse: { x: number; y: number; period: number; next: number } | null = null;
+  // Ebbing: input is off and the resting dots fade (restScale → 0) while the
+  // rings already out run their course.
+  let ebbing = false;
+  let onEbbStill: (() => void) | null = null;
+  let restScale = 1;
   let lastMove: { x: number; y: number; at: number } | null = null;
   const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
   let shapes: CharSeaShape[] = [];
@@ -365,7 +382,7 @@ export function createCharSea(canvas: HTMLCanvasElement): CharSea | null {
     gl.uniform2f(U.origin, layout.originX, layout.originY);
     gl.uniform1f(U.an, atlasColumns);
     gl.uniform2f(U.slot, slotU, slotV);
-    gl.uniform1f(U.rest, theme.rest);
+    gl.uniform1f(U.rest, theme.rest * restScale);
     gl.uniform1f(U.peak, theme.peak);
     gl.uniform1f(U.mul, theme.multiply ? 1 : 0);
     gl.uniform3fv(U.ground, theme.ground);
@@ -416,6 +433,11 @@ export function createCharSea(canvas: HTMLCanvasElement): CharSea | null {
       pulse.next = now + pulse.period;
     }
     const glassMoving = easeGlass(dt);
+    // The resting dots come and go over about 0.3s.
+    const restTarget = ebbing ? 0 : 1;
+    restScale += (restTarget - restScale) * (1 - Math.exp(-dt * 10));
+    if (Math.abs(restTarget - restScale) < 0.005) restScale = restTarget;
+    const restMoving = restScale !== restTarget;
     accumulated += dt;
     const steps = Math.min(6, Math.floor(accumulated * CHAR_SEA_STEP_RATE));
     accumulated -= steps / CHAR_SEA_STEP_RATE;
@@ -423,13 +445,18 @@ export function createCharSea(canvas: HTMLCanvasElement): CharSea | null {
     for (let s = 0; s < steps; s += 1) peak = Math.max(peak, water.step());
     draw();
     // Still water and still glass: one last frame, then nothing until something touches it.
-    quietFrames = peak < 0.004 && !glassMoving && !pulse ? quietFrames + 1 : 0;
+    quietFrames = peak < 0.004 && !glassMoving && !restMoving && !pulse ? quietFrames + 1 : 0;
     if (quietFrames > 20) {
       water.clear();
       draw();
       running = false;
       last = 0;
       accumulated = 0;
+      if (ebbing && onEbbStill) {
+        const done = onEbbStill;
+        onEbbStill = null;
+        done();
+      }
       return;
     }
     raf = requestAnimationFrame(frame);
@@ -446,12 +473,12 @@ export function createCharSea(canvas: HTMLCanvasElement): CharSea | null {
 
   return {
     drop(x, y, amplitude = 1.2) {
-      if (still || !water) return;
+      if (still || !water || ebbing) return;
       water.splash(x, y, amplitude, DROP_RADIUS);
       kick();
     },
     wake(x, y) {
-      if (still || !water) return;
+      if (still || !water || ebbing) return;
       const now = performance.now();
       if (lastMove && now - lastMove.at < 100) {
         const dx = x - lastMove.x;
@@ -468,6 +495,19 @@ export function createCharSea(canvas: HTMLCanvasElement): CharSea | null {
         }
       }
       lastMove = { x, y, at: now };
+    },
+    ebb(onStill) {
+      // Drops still due from the wait that just ended fall; the wait's end stops them.
+      ebbing = true;
+      onEbbStill = onStill;
+      if (still) restScale = 0;
+      kick();
+    },
+    live() {
+      ebbing = false;
+      onEbbStill = null;
+      if (still) restScale = 1;
+      kick();
     },
     pulse(origin, period = 1100, delay = 0) {
       if (!origin || still) {
@@ -494,6 +534,9 @@ export function createCharSea(canvas: HTMLCanvasElement): CharSea | null {
       if (next === active) return;
       active = next;
       if (active) {
+        ebbing = false;
+        onEbbStill = null;
+        restScale = 1;
         last = 0;
         measure();
         draw();

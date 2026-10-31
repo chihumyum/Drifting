@@ -3,7 +3,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import { countWords, extractProseText } from '@drifting/prose-metrics';
 import * as Y from 'yjs';
 import { yDocToProsemirrorJSON } from 'y-prosemirror';
-import { allocateSeedLengths, type SeedPreset, type SeedWordBudget } from './presets';
+import { allocateSeedLengths, type SeedPreset, type SeedWordBudget } from '../../renderer/services/sample-project/presets';
 
 export interface SeedBodyStatistics {
   count: number;
@@ -32,7 +32,12 @@ function requireEqual(actual: number, expected: number, label: string): void {
 }
 
 /** Read only. Count reconstructed CRDT prose, never JSON bytes or journal copies. */
-export function auditDevelopmentSeed(database: DatabaseSync, projectId: string, preset: SeedPreset): SeedAuditReport {
+export function auditDevelopmentSeed(
+  database: DatabaseSync, projectId: string, preset: SeedPreset,
+  options: { agentHistory?: boolean } = {},
+): SeedAuditReport {
+  // The built-in sample (renderer/services/sample-project) has no Agent history.
+  const agentHistory = options.agentHistory ?? true;
   const groups: Record<string, Array<{ words: number; text: string; yjs: boolean }>> = {};
   const add = (group: string, json: string | null, docId?: string, cachedWords?: number) => {
     let document: Parameters<typeof extractProseText>[0] = json ? JSON.parse(json) : {};
@@ -93,13 +98,17 @@ export function auditDevelopmentSeed(database: DatabaseSync, projectId: string, 
   const toolCount = Number((database.prepare("SELECT count(*) AS n FROM agent_runtime_tool_call t JOIN agent_runtime_session s ON s.id = t.session_id WHERE s.project_id = ? AND s.provider = 'development-seed' AND t.status = 'completed'").get(projectId) as { n: number }).n);
   const checkpoints = Number((database.prepare("SELECT count(*) AS n FROM agent_runtime_checkpoint c JOIN agent_runtime_session s ON s.id = c.session_id WHERE s.project_id = ? AND s.provider = 'development-seed'").get(projectId) as { n: number }).n);
   const rounds = sessions.map(session => Number(session.rounds));
-  requireEqual(conversations.length, preset.conversations.count, 'Agent conversations');
-  requireEqual(rounds.reduce((sum, value) => sum + value, 0), preset.conversations.total, 'Agent total rounds');
-  requireEqual(Math.min(...rounds), preset.conversations.min, 'Agent minimum rounds');
-  requireEqual(Math.max(...rounds), preset.conversations.max, 'Agent maximum rounds');
-  const expectedTools = allocateSeedLengths(preset.conversations, 109).reduce((sum, count) => sum + Math.floor((count + 1) / 3), 0);
-  requireEqual(toolCount, expectedTools, 'Agent completed tool cards');
-  requireEqual(checkpoints, preset.conversations.count, 'Agent final V4 checkpoints');
+  if (agentHistory) {
+    requireEqual(conversations.length, preset.conversations.count, 'Agent conversations');
+    requireEqual(rounds.reduce((sum, value) => sum + value, 0), preset.conversations.total, 'Agent total rounds');
+    requireEqual(Math.min(...rounds), preset.conversations.min, 'Agent minimum rounds');
+    requireEqual(Math.max(...rounds), preset.conversations.max, 'Agent maximum rounds');
+    const expectedTools = allocateSeedLengths(preset.conversations, 109).reduce((sum, count) => sum + Math.floor((count + 1) / 3), 0);
+    requireEqual(toolCount, expectedTools, 'Agent completed tool cards');
+    requireEqual(checkpoints, preset.conversations.count, 'Agent final V4 checkpoints');
+  } else {
+    requireEqual(conversations.length + rounds.length + toolCount + checkpoints, 0, 'absent Agent history');
+  }
   let visibleWords = 0, toolResultWords = 0, displayMessages = 0;
   for (const conversation of conversations) {
     const messages = JSON.parse(conversation.json) as { kind: string; text?: string; result?: string }[];
@@ -118,7 +127,7 @@ export function auditDevelopmentSeed(database: DatabaseSync, projectId: string, 
   requireEqual(foreignKeyViolations, 0, 'foreign keys');
   return {
     preset: preset.name, metric: 'Drifting countWords on reconstructed Yjs or initial material JSON; excludes title, summary, attributes and storage duplicates', bodies,
-    agent: { conversations: conversations.length, rounds: rounds.reduce((sum, count) => sum + count, 0), minRounds: Math.min(...rounds), maxRounds: Math.max(...rounds), tools: toolCount, displayMessages, checkpoints, visibleWords, toolResultWords },
+    agent: { conversations: conversations.length, rounds: rounds.reduce((sum, count) => sum + count, 0), minRounds: rounds.length ? Math.min(...rounds) : 0, maxRounds: rounds.length ? Math.max(...rounds) : 0, tools: toolCount, displayMessages, checkpoints, visibleWords, toolResultWords },
     assets: { images, pdfs, sourceBytes: assetRows.reduce((sum, row) => sum + row.bytes, 0),
       verifiedBlobs: Number((database.prepare("SELECT count(*) AS n FROM sync_blob_state WHERE local_state = 'verified'").get() as { n: number }).n) },
     foreignKeyViolations,

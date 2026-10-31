@@ -5,15 +5,17 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { installHeadlessRendererGlobals } from '../src/dev-cli/headless-globals';
-import { SEED_PRESETS } from '../src/dev-cli/seeds/presets';
+import { SEED_PRESETS } from '../src/renderer/services/sample-project/presets';
 import type { SeedAuditReport } from '../src/dev-cli/seeds/audit';
 
 async function main(): Promise<void> {
 const root = fileURLToPath(new URL('../', import.meta.url));
 const files = [
-  'src/dev-cli/seed.ts', 'src/dev-cli/seeds/default-project.ts', 'src/dev-cli/seeds/presets.ts',
-  'src/dev-cli/seeds/prose.ts', 'src/dev-cli/seeds/materials.ts', 'src/dev-cli/seeds/conversations.ts',
-  'src/dev-cli/seeds/audit.ts', 'src/dev-cli/seeds/assets/manifest.json',
+  'src/dev-cli/seed.ts', 'src/renderer/services/sample-project/scenario.ts', 'src/renderer/services/sample-project/presets.ts',
+  'src/renderer/services/sample-project/prose.ts', 'src/renderer/services/sample-project/materials.ts',
+  'src/renderer/services/sample-project/headless-workspace.ts', 'src/renderer/services/sample-project/comments.ts',
+  'src/dev-cli/seeds/materials.ts', 'src/dev-cli/seeds/conversations.ts',
+  'src/dev-cli/seeds/audit.ts', 'src/renderer/services/sample-project/assets/manifest.json',
   'packages/prose-metrics/src/index.ts', 'scripts/run-seeded-dev.mjs', 'scripts/check-development-seed.ts',
 ];
 const fingerprint = createHash('sha256');

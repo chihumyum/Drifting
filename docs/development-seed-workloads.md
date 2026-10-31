@@ -5,6 +5,13 @@ relations, TODO/comment state changes, material notes, attachment previews and
 Agent history/recovery. Use **stress when implementing or validating performance
 and stability changes**. A lite pass cannot close that heavier validation.
 
+The lite recipe is also the app's [built-in sample project](sample-project.md):
+every new library, including a fresh `pnpm dev` or `pnpm dev:worktree` profile,
+gets it on first launch without a seed command, minus the Agent discussions and
+the development labels. A plain fresh profile is therefore enough for most
+functional checks; `pnpm dev:seed:lite` remains the profile with Agent history.
+Both are written from `src/renderer/services/sample-project/`.
+
 The stress preset has 3.5 million words across chapter, element, inspiration
 and material-note bodies, plus storyline/category prose, review work and large
 Agent histories. Its longest chapter is 20,000 words, element 10,000,
@@ -16,8 +23,10 @@ current workload; the old short-prose seed is not a substitute.
 ## Development workflow
 
 1. Run the appropriate unit/integration checks and smoke-test the implementation
-   with `pnpm dev:seed:lite --no-watch`. Confirm the intended behavior before
-   attributing a failure to data volume.
+   in a fresh profile (`pnpm dev:worktree --instance <new> --no-watch`, which
+   opens with the built-in sample) or with `pnpm dev:seed:lite --no-watch` when
+   Agent history matters. Confirm the intended behavior before attributing a
+   failure to data volume.
 2. For a performance/stability implementation, run the same affected journey
    with `pnpm dev:seed --no-watch`. The seed wrapper delegates launch to the
    isolated worktree launcher. For automated desktop acceptance after seeding,

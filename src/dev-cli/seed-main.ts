@@ -19,7 +19,7 @@ async function main(): Promise<void> {
   // Renderer stores read browser storage when their modules load.
   installHeadlessRendererGlobals();
   const { seedDevelopmentDatabase } = await import('./seed');
-  const { seedPreset } = await import('./seeds/presets');
+  const { seedPreset } = await import('../renderer/services/sample-project/presets');
   const result = await seedDevelopmentDatabase({
     databasePath, scenarioPath: option(args, '--scenario'), preset: seedPreset(option(args, '--preset')).name, appLocalDataDirectory: option(args, '--app-local-data'),
     onProgress: message => console.error(message),

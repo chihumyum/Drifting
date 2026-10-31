@@ -15,6 +15,7 @@ import { useProjectStore } from '../store/project-store';
 import LogLevel from 'loglevel';
 import { reconcileProjectProseMetrics } from '../services/node-prose-metrics.service';
 import { cleanupDeletedProject } from '../services/project-deletion-cleanup';
+import { withoutPendingSampleProject } from '../services/sample-project/first-run';
 const log = LogLevel.getLogger('UseProject');
 log.setLevel(LogLevel.levels.WARN);
 
@@ -123,7 +124,8 @@ export function useProject({ userId }: UseProjectContext) {
   const loadProjectSummaries = useCallback(
     async (): Promise<ProjectSummary[]> => {
       await ensureDb();
-      const projects = await repo.findAll();
+      // An unfinished built-in sample stays off the shelf until it is complete.
+      const projects = withoutPendingSampleProject(await repo.findAll());
       let summaries = await buildLocalProjectSummaries(projects);
       if (localProjectIdsNeedingProseMetricReconciliation(summaries).length > 0) {
         await reconcileShelfProjectMetrics(summaries);

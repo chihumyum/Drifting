@@ -33,6 +33,7 @@ import {
   sandCoverKey,
 } from '../lib/sand-cover';
 import { useProjectRoutePreload } from '../app/useProjectRoutePreload';
+import { useBuiltInSampleStore } from '../services/sample-project/first-run';
 import { BrushIcon } from '../components/ui/BrushIcon';
 import { KindMark } from '../components/ui/KindMark';
 import { useCharSeaEnabled, useCharSeaHold, useCharSeaShape } from '../components/char-sea/useCharSea';
@@ -245,6 +246,18 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
     };
   }, [user?.id, fetchProjects]);
 
+  // The built-in sample is written in the background on a new library's first
+  // launch; show it as soon as it is complete.
+  const samplePhase = useBuiltInSampleStore((state) => state.phase);
+  const preparingSample = samplePhase === 'creating';
+  const observedSamplePhase = useRef(samplePhase);
+  useEffect(() => {
+    const previous = observedSamplePhase.current;
+    observedSamplePhase.current = samplePhase;
+    if (!user?.id || samplePhase !== 'settled' || previous === 'settled') return;
+    void fetchProjects().catch((error) => log.warn('Project refresh after the sample failed:', error));
+  }, [samplePhase, fetchProjects, user?.id]);
+
   useEffect(() => {
     if (!user?.id) return undefined;
     let refreshTimer: ReturnType<typeof setTimeout> | null = null;
@@ -418,7 +431,9 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
           onMenuOpenChange={setMenuOpen}
           onQueryChange={setQuery}
           onFilterChange={setFilter}
-          onCreate={() => setCreateOpen(true)}
+          onCreate={() => {
+            if (!preparingSample) setCreateOpen(true);
+          }}
           onSettings={() => navigate('/settings')}
           onOpen={(project) => handleOpen(project.id)}
           onEdit={setEditing}
@@ -467,7 +482,10 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
     );
   }
 
-  const openCreate = () => setCreateOpen(true);
+  // Project views share the stores the sample is written through.
+  const openCreate = () => {
+    if (!preparingSample) setCreateOpen(true);
+  };
 
   return (
     <div className={shelfClass}>
@@ -516,6 +534,11 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
               onDelete={() => openDelete(row.project)}
             />
           ))}
+          {preparingSample && (
+            <div className="pp-card pp-card--preparing" aria-busy="true">
+              <LoadingStatus label={t('projectPicker.desk.preparingSample')} />
+            </div>
+          )}
           <SandCell
             ref={newSlipRef}
             selected={false}
@@ -524,6 +547,7 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
             onKeyDown={(event) => activateOnEnterOrSpace(event, openCreate)}
             role="button"
             tabIndex={0}
+            aria-disabled={preparingSample || undefined}
           >
             <BrushIcon name="plus" size={22} />
             <span>{t('projectPicker.desk.newCard')}</span>

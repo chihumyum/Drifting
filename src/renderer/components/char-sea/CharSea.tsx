@@ -18,8 +18,19 @@ const OVERLAY = '[role="dialog"], [aria-modal="true"], [role="menu"], [role="lis
 
 // A page handing the sea to the next (the shelf to the wait for the book it
 // opened, one wait to the next) lets go and takes hold in the same commit.
-// A hold that ends counts only after this, so the water and the drops carry on.
+// A wait that ends counts only after this, so its drops keep their rhythm.
 const HANDOVER_MS = 80;
+// The longest an ebb lasts; a single press is still water in about five seconds.
+const EBB_LIMIT_MS = 8000;
+// Panels the last rings pass under while the sea ebbs beneath the workspace.
+const EBB_VEILS = '.desktop-app-shell .sidebar-shell:not(.is-fully-hidden)';
+
+/**
+ * live: a page lies on the sea or a wait holds it. ebb: the last hold let go
+ * (a wait opened the workspace); the rings already out run their course under
+ * it, untouchable, then the sea goes off. off: hidden, computing nothing.
+ */
+type SeaMode = 'off' | 'live' | 'ebb';
 
 function useHandedOver(value: boolean): boolean {
   const [held, setHeld] = useState(value);
@@ -34,14 +45,21 @@ function useHandedOver(value: boolean): boolean {
 
 /**
  * The sea of characters, once, under the whole desktop window
- * (lib/char-sea/char-sea.ts). It is on while a full-window wait or the shelf
- * holds it, and computes nothing while its water is still.
+ * (lib/char-sea/char-sea.ts). It is live while a full-window wait or the shelf
+ * holds it; when a wait opens the workspace it ebbs there (char-sea.css clears
+ * the workspace's desk meanwhile), and it computes nothing while still.
  */
 export function CharSea() {
   const canvas = useRef<HTMLCanvasElement>(null);
   const sea = useRef<CharSeaHandle | null>(null);
   const holds = useSyncExternalStore(charSeaRegistry.subscribe, charSeaRegistry.getHolds, charSeaRegistry.getHolds);
-  const active = useHandedOver(holds.loading > 0 || holds.surfaces > 0);
+  const held = holds.loading > 0 || holds.surfaces > 0;
+  const [mode, setMode] = useState<SeaMode>(held ? 'live' : 'off');
+  // A hold makes it live at once; losing every hold lets it ebb. A hand-over
+  // within one commit goes live → ebb → live before paint, the water untouched.
+  if (held && mode !== 'live') setMode('live');
+  if (!held && mode === 'live') setMode('ebb');
+  const active = mode !== 'off';
   const loading = useHandedOver(holds.loading > 0);
   const { i18n } = useTranslation();
   const script = charSeaScript(i18n.language);
@@ -66,6 +84,21 @@ export function CharSea() {
 
   useLayoutEffect(() => sea.current?.setScript(script), [script]);
   useLayoutEffect(() => sea.current?.setActive(active), [active]);
+  useLayoutEffect(() => {
+    if (mode === 'live') sea.current?.live();
+    if (mode !== 'ebb') return undefined;
+    const root = document.documentElement;
+    root.dataset.charSea = 'ebb';
+    const still = () => setMode((current) => (current === 'ebb' ? 'off' : current));
+    if (sea.current) sea.current.ebb(still);
+    else queueMicrotask(still);
+    // A hidden window draws no frames, so its water never stills: put it away anyway.
+    const fallback = window.setTimeout(still, EBB_LIMIT_MS);
+    return () => {
+      window.clearTimeout(fallback);
+      delete root.dataset.charSea;
+    };
+  }, [mode]);
 
   // A wait that outlasts the loading delay: drops fall from where the author
   // pressed (the book they opened) or from the middle, until it ends.
@@ -84,9 +117,10 @@ export function CharSea() {
   }, [loading]);
 
   // The hand: a light wake as it moves, a ring where it presses the bare desk
-  // or opens a book. Dialogs and menus over the page are not the sea.
+  // or opens a book. Dialogs and menus over the page are not the sea, and an
+  // ebbing sea is no longer touched.
   useEffect(() => {
-    if (!active) return undefined;
+    if (mode !== 'live') return undefined;
     const move = (event: PointerEvent) => sea.current?.wake(event.clientX, event.clientY);
     const down = (event: PointerEvent) => {
       if (event.button !== 0 || !(event.target instanceof Element)) return;
@@ -103,17 +137,29 @@ export function CharSea() {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerdown', down, { capture: true });
     };
-  }, [active]);
+  }, [mode]);
 
   // Glass on the page, measured where it is now: after it registers, hovers,
-  // scrolls or the window changes size.
-  useEffect(() => {
+  // scrolls or the window changes size. While the sea ebbs under the
+  // workspace, its sidebars veil it as the shelf's cards do. Measured before
+  // paint, so no frame passes without them.
+  useLayoutEffect(() => {
     if (!active) return undefined;
     let frame = 0;
     const sync = () => {
       frame = 0;
       const height = window.innerHeight;
       const shapes: CharSeaShape[] = [];
+      if (mode === 'ebb') {
+        document.querySelectorAll<HTMLElement>(EBB_VEILS).forEach((panel, index) => {
+          const rect = panel.getBoundingClientRect();
+          if (rect.width <= 0 || rect.height <= 0) return;
+          shapes.push({
+            id: -1 - index, x: rect.left, y: rect.top, width: rect.width, height: rect.height,
+            radius: 0, rest: -1, hover: false, textureX: 0, textureY: 0,
+          });
+        });
+      }
       charSeaRegistry.shapes().forEach((entry, order) => {
         const rect = entry.element.getBoundingClientRect();
         if (rect.bottom < -24 || rect.top > height + 24 || rect.width <= 0) return;
@@ -128,7 +174,7 @@ export function CharSea() {
     const schedule = () => {
       if (!frame) frame = requestAnimationFrame(sync);
     };
-    schedule();
+    sync();
     const stopShapes = charSeaRegistry.onShapes(schedule);
     document.addEventListener('scroll', schedule, { capture: true, passive: true });
     window.addEventListener('resize', schedule);
@@ -139,7 +185,7 @@ export function CharSea() {
       window.removeEventListener('resize', schedule);
       sea.current?.setShapes([]);
     };
-  }, [active]);
+  }, [active, mode]);
 
   return (
     <div className={`char-sea${active ? ' char-sea--active' : ''}`} aria-hidden="true">

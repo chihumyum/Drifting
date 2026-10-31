@@ -67,7 +67,7 @@ async function main() {
   const { loadCanonicalAgentChatProjection } = await import('../src/renderer/lib/agent/runtime/recovered-transcript');
   const { executeOfflineWorkspaceTool } = await import('../src/dev-cli/offline-workspace');
   const { countWords, extractProseText } = await import('../packages/prose-metrics/src/index');
-  const { createSeedMarkdown } = await import('../src/dev-cli/seeds/prose');
+  const { createSeedMarkdown } = await import('../src/renderer/services/sample-project/prose');
   const { readProjectStats } = await import('../src/renderer/sqlite-repo/project-stats-repo');
   const { useUiStore } = await import('../src/renderer/store/ui-store');
   for (const logger of Object.values(loglevel.getLoggers())) logger.setLevel('silent');
