@@ -51,6 +51,14 @@ describe('the serif structure face beyond the sidebars', () => {
     expect(views).toContain('font-family: var(--font-structure);');
     expect(views).toContain('font-weight: 400;');
     expect(block(css, `${desktop} .super-view-head__views [data-script='cjk'] {`)).toContain('top: 0.15em;');
+    // Sized like the Panel Tabs' row: the slab 2px short of the header's top
+    // and bottom (as .panel-tab-tray__block), 12px between the names.
+    const track = block(css, `${desktop} .super-view-head__views .glass-slider {`);
+    expect(track).toContain('gap: 12px;');
+    expect(track).toContain('height: calc(var(--window-titlebar-height) - 4px);');
+    const tray = read('src/styles/ui-controls.css');
+    expect(block(tray, '.panel-tab-tray > .panel-tab-tray__block.glass {')).toMatch(/top: 2px;[\s\S]*bottom: 2px;/);
+    expect(block(tray, "html[data-shell-mode='desktop'] :is(.leftbar-tab-tray, .rightbar-tab-tray) {")).toContain('gap: 12px;');
     expect(read('src/renderer/shells/desktop/components/DesktopSuperViewHeader.tsx')).toContain(
       "data-script={CJK_TEXT.test(label) ? 'cjk' : undefined}",
     );

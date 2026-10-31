@@ -239,7 +239,14 @@ html:not([data-shell-mode='mobile']) .super-view-head .glass-slider__option[aria
 
 /* The three views are destinations, like the Panel Tabs: the serif
    structure face at one weight, the chosen one shown by its glass alone.
+   They sit as the Panel Tabs' row does: the square slab stops 2px short of
+   the header's top and bottom, and 12px part one name from the next.
    The views' own modes (书序／叙事时) stay controls in the UI face above. */
+html:not([data-shell-mode='mobile']) .super-view-head__views .glass-slider {
+  gap: 12px;
+  height: calc(var(--window-titlebar-height) - 4px);
+}
+
 html:not([data-shell-mode='mobile']) .super-view-head__views .glass-slider__option,
 html:not([data-shell-mode='mobile']) .super-view-head__views .glass-slider__option[aria-checked='true'] {
   font-family: var(--font-structure);
