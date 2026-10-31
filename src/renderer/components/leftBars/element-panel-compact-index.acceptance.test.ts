@@ -141,7 +141,8 @@ describe('ElementPanel compact text index', () => {
     expect(categoryBody).toContain('mix-blend-mode: var(--pigment-blend);');
     expect(categoryBody).not.toContain('border: 1px solid var(--element-category-color);');
     expect(categoryBody).toContain('.left-sb-group-header--frame .left-sb-group-header__legend {');
-    expect(categoryBody).toContain('background: var(--workspace-ui-bg);');
+    // the desk, kept opaque while the char sea ebbs under a just-opened workspace
+    expect(categoryBody).toContain('background: var(--workspace-plate-bg, var(--workspace-ui-bg));');
     expect(categoryBody).toContain('.element-category-section--compact.is-collapsed {');
     expect(categoryBody).toContain('.element-category-section--compact.is-collapsed::before {');
     expect(categoryBody).toContain('opacity: 0;');
