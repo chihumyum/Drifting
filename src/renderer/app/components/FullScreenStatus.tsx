@@ -1,3 +1,5 @@
+import { useCharSeaEnabled, useCharSeaHold } from '../../components/char-sea/useCharSea';
+
 interface FullScreenStatusProps {
   title: string;
   detail?: string;
@@ -7,6 +9,18 @@ interface FullScreenStatusProps {
 }
 
 export function FullScreenStatus({ title, detail, loading = false, action, secondaryAction }: FullScreenStatusProps) {
+  // On the desktop a full-window wait is the sea of characters: drops fall
+  // once it passes the loading delay. The words stay for screen readers. A
+  // wait that fails comes back here with its retry and its way back.
+  const sea = useCharSeaEnabled() && loading && !action;
+  useCharSeaHold('loading', sea);
+  if (sea) {
+    return (
+      <div role="status" aria-live="polite" className="app-fullscreen-status app-fullscreen-status--sea">
+        <span className="sr-only">{detail ? `${title} ${detail}` : title}</span>
+      </div>
+    );
+  }
   return (
     <div
       role={action ? 'alert' : 'status'}

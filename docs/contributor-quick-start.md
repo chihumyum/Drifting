@@ -1,19 +1,19 @@
 # Contributor quick start
 
-The source client runs locally without a Drifting service account, Google OAuth
-configuration, BYOK key, maintainer certificate or `.env.local`. Configure your
+The source client runs locally without a Drifting service account, BYOK key,
+maintainer certificate or `.env.local`. Configure your
 own providers only when developing optional network features.
 
 ## Tools
 
 - Node.js 22.23.1 or newer and pnpm 10.17.1.
-- Rust 1.88 or newer and the [Tauri platform prerequisites](https://v2.tauri.app/start/prerequisites/).
+- Rust 1.96 or newer and the [Tauri platform prerequisites](https://v2.tauri.app/start/prerequisites/).
 - On macOS: full Xcode, its command-line tools, and your own Apple Development
   certificate **with its private key**. The launcher checks revocation online.
   A Developer ID distribution certificate and a maintainer's team are not needed.
 
-The supported Alpha target is macOS 13+ on Apple Silicon. Windows/Linux can run
-source checks but are not currently release-supported targets.
+The supported target is macOS 13+ on Apple Silicon. Windows, Linux and Intel
+Macs can run source checks but are not release targets.
 
 ## Set up macOS signing once
 

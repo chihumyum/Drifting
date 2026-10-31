@@ -1,109 +1,132 @@
-# Drifting Core documentation
+# Drifting documentation
 
-This directory contains current product contracts, architecture notes, runbooks,
-and acceptance evidence. Current behavior must be read from the sources below;
-dated run reports are evidence for one checkout, not product truth.
+This directory holds Drifting's current product contracts, architecture notes,
+runbooks and acceptance evidence. Current behavior is described by the
+documents below; dated run reports are evidence for one checkout, not product
+truth.
 
-## Desktop public Alpha
+## Using Drifting
 
-- [Sentry operational diagnostics and setup](sentry-observability.md)
+- [Quick start](quick-start.md)
+- [Known issues](../KNOWN_ISSUES.md) and [support](../SUPPORT.md)
+- [Release notes](releases/)
+- [Project Home](project-home.md)
+- [Materials](material-workbench.md): material tabs, notes, image and PDF comments
+- [Element portraits](image-generation.md) (experimental)
+- [Share links](share-links.md): read-only web copies and reader comments
+- [Location links](location-links.md)
+- [Relation types](relation-types.md)
+- [Prose metrics and word counts](prose-metrics.md)
+- Editor: [chapter-end menu](editor/chapter-end-menu.md),
+  [entity links](editor/entity-links.md),
+  [Markdown sharing](editor/markdown-sharing.md),
+  [outline rail](editor/semantic-outline-rail.md),
+  [split tabs](editor/split-tab-preview.md),
+  [footer word count](editor/status-word-count.md),
+  [element summary](editor/element-summary.md),
+  [block spacing](editor/block-spacing.md),
+  [title wrapping](editor/title-wrapping.md),
+  [Ideas / 构想 terminology](editor/drift-terminology.md)
 
-- [Releasing (GitHub Releases, signing, updates)](releasing.md)
-- [`0.1.0-alpha.1` release notes](releases/0.1.0-alpha.1.md)
-- [Desktop quick start](quick-start.md)
-- [Known issues](../KNOWN_ISSUES.md)
-- [Support](../SUPPORT.md)
+## Data, privacy and sync
 
-Tauri and Hosted are the active client/service path. See [onboarding and Hosted readiness](client-onboarding-and-hosted-readiness.md).
+- [Privacy boundary](../PRIVACY.md) and [security policy](../SECURITY.md)
+- [Local images and PDFs](local-assets.md)
+- [Manuscript export](manuscript-export.md): EPUB, PDF and Word
+- [Markdown export and the automatic Markdown folder](local-data-export.md)
+- [Markdown folder two-way sync](markdown-mirror.md)
+- [Library backup and restore](library-backup.md): the complete `.drifting` package
+- [Saving before quit](desktop-quit-persistence.md)
+- [Crash and integrity reports](crash-reports.md) and
+  [Sentry diagnostics](sentry-observability.md)
+- [Hosted sync](hosted-sync/README.md) and
+  [account settings](hosted-sync/account-settings.md)
+- [Official service boundary](official-service.md)
+- [SyncEngine architecture](sync-engine/README.md)
 
-## Start here
+## Agent
 
-| Question                                                   | Source                                                                                                                                                                |
-| ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| How do I build and run the client?                         | [`../README.md`](../README.md)                                                                                                                                        |
-| Where is the source-publication record?                    | [`source-publication-readiness.md`](source-publication-readiness.md)                                                                                                  |
-| What is the canonical local image/PDF boundary?            | [`local-assets.md`](local-assets.md)                                                                                                                                  |
-| How do materials open, and how are notes and media edited? | [`material-workbench.md`](material-workbench.md) — material tabs, note profile, region comments, retired url kind |
-| How do element portraits get generated and kept?           | [`image-generation.md`](image-generation.md) — experimental ChatGPT subscription route, local inbox, material provenance                                            |
-| How does account-free relational Markdown export work?     | [`local-data-export.md`](local-data-export.md)                                                                                                                        |
-| How is the book exported as EPUB, PDF or Word?             | [`manuscript-export.md`](manuscript-export.md) — finished-manuscript scope, live Yjs read, native writers, sample-book evidence |
-| How do share links and readers' comments work?             | [`share-links.md`](share-links.md) — Hosted only, link-readable copy, signed-in reader comments imported as anchored comments                                        |
-| How do complete `.drifting` library backups and restore work? | [`library-backup.md`](library-backup.md) — local-only package, staged verification, pre-restore copy, additive asset merge                                        |
-| What do crash and integrity reports send?                  | [`crash-reports.md`](crash-reports.md) — content-free, Hosted builds only, Settings → Privacy                                                                         |
-| How do chapter/line location links work?                   | [`location-links.md`](location-links.md)                                                                                                                              |
-| How do committed remote Yjs updates reach an open editor?  | [`sync-engine/phase1-remote-yjs-live-merge.md`](sync-engine/phase1-remote-yjs-live-merge.md)                                                                          |
-| What does checkpoint capture/isolated restore implement?   | [`sync-engine/phase2-checkpoint-restore.md`](sync-engine/phase2-checkpoint-restore.md)                                                                                |
-| What durable SyncEngine/reference convergence is complete? | [`sync-engine/phase3-durable-runtime.md`](sync-engine/phase3-durable-runtime.md)                                                                                      |
-| How is one App-wide provider activated atomically?         | [`sync-engine/phase3-app-provider-authority.md`](sync-engine/phase3-app-provider-authority.md)                                                                        |
-| What filesystem reference-provider durability is complete? | [`sync-engine/phase3-local-folder-provider.md`](sync-engine/phase3-local-folder-provider.md)                                                                          |
-| What normalized KV/list/Plot Grid authority is complete?   | [`sync-engine/phase1-normalized-authority.md`](sync-engine/phase1-normalized-authority.md)                                                                            |
-| What does General Agent support now?                       | [`agent-runtime/acceptance/CURRENT_STATUS.md`](agent-runtime/acceptance/CURRENT_STATUS.md)                                                                            |
-| What tools and capability counts ship?                     | Generated [`agent-capabilities.md`](agent-runtime/acceptance/agent-capabilities.md) and [`agent-capabilities.json`](agent-runtime/acceptance/agent-capabilities.json) |
-| How do coding agents run fast CRUD and E2E checks?         | [`dev-cli/README.md`](dev-cli/README.md) and generated [`cli-capabilities.md`](dev-cli/acceptance/cli-capabilities.md)                                                |
-| How do agents inspect and operate a mobile WebView?        | [`frontend-debug.md`](frontend-debug.md)                                                                                                                             |
-| What is the current milestone policy and open work?        | [`agent-runtime/ROADMAP.md`](agent-runtime/ROADMAP.md)                                                                                                                |
-| What is the design system (sand and glass)?               | [`design-system/README.md`](design-system/README.md)                                                                                                                   |
-| What are the renderer dependency rules?                    | [`renderer-ui-architecture.md`](renderer-ui-architecture.md)                                                                                                          |
-| How will frontend architecture and performance improve?   | [`renderer-performance/optimization-plan.md`](renderer-performance/optimization-plan.md) and [execution evidence](renderer-performance/README.md)                                    |
-| How do project relation types behave?                      | [`relation-types.md`](relation-types.md)                                                                                                                              |
-| What is the mobile product boundary?                       | [`mobile-ui-foundation.md`](mobile-ui-foundation.md)                                                                                                                  |
-| What voice-authored source exists, and why is it still unaccepted? | [`voice-authored-capture.md`](voice-authored-capture.md)                                                                                                      |
-| How do Review and editor sticky notes behave?              | [`qa/review-sticky-note-rail-2026-08-30.md`](qa/review-sticky-note-rail-2026-08-30.md)                                                                               |
-| What still needs physical-device testing?                  | [`mobile-device-acceptance.md`](mobile-device-acceptance.md)                                                                                                          |
-| How does Project Home and workspace entry behave?          | [`project-home.md`](project-home.md)                                                                                                                                  |
-| What does the Agent organize when the author returns?      | [`agent-runtime/project-organize.md`](agent-runtime/project-organize.md)                                                                                              |
-| How does a new author connect a model and start the Agent? | [`agent-runtime/agent-onboarding.md`](agent-runtime/agent-onboarding.md)                                                                                              |
-| How are prose metrics and writing stats computed?          | [`prose-metrics.md`](prose-metrics.md)                                                                                                                                |
-| What is the hosted-service boundary of a source build?     | [`official-service.md`](official-service.md)                                                                                                                          |
-| How was the public commit history prepared?                | [`public-history.md`](public-history.md)                                                                                                                              |
+- [Current Agent status](agent-runtime/acceptance/CURRENT_STATUS.md)
+- Generated tool inventory:
+  [`agent-capabilities.md`](agent-runtime/acceptance/agent-capabilities.md) and
+  [`agent-capabilities.json`](agent-runtime/acceptance/agent-capabilities.json)
+- [Roadmap and milestone policy](agent-runtime/ROADMAP.md)
+- [Model providers and API keys](ai-provider-settings.md)
+- [First Agent conversation](agent-runtime/agent-onboarding.md): connecting a model in the panel
+- [Project Home check-in](agent-runtime/project-checkin.md) and
+  [organize on return](agent-runtime/project-organize.md)
+- [External agent access (local MCP)](agent-runtime/local-mcp.md)
+- [Tool discovery](agent-runtime/tool-discovery.md)
+- Runtime protocols:
+  [author-owned writing](agent-runtime/author-owned-writing-policy.md),
+  [context engineering](agent-runtime/context-engineering-protocol.md),
+  [domain CRUD and transactions](agent-runtime/domain-crud-transaction-protocol.md),
+  [durable turns and writes](agent-runtime/durable-commit-review-protocol.md),
+  [long tasks](agent-runtime/long-task-execution-protocol.md),
+  [providers and extensions](agent-runtime/provider-extension-protocol.md),
+  [entity snapshot history](agent-runtime/entity-snapshot-history.md)
+- [Headless debug bridge](agent-runtime/headless-debug.md),
+  [execution control audit](agent-runtime/execution-control-audit.md),
+  [prose read performance](agent-runtime/prose-read-performance.md)
 
-## Normative documents
+## Development and release
 
-- `agent-runtime/*-protocol.md`, `author-owned-writing-policy.md`, and
-  `entity-snapshot-history.md` define runtime invariants.
-- [`design-system/`](design-system/README.md) and `editor/*.md` define durable UI and
-  editor contracts that are not obvious from a screenshot.
-- [`ai-provider-settings.md`](ai-provider-settings.md) defines credential and
-  provider-routing ownership.
-- [`local-assets.md`](local-assets.md) and
-  [`local-data-export.md`](local-data-export.md) define the current local asset
-  and readable-export boundaries. The Markdown archive is not a lossless backup;
-  [`library-backup.md`](library-backup.md) defines the restorable `.drifting` package.
-- [`sync-engine/README.md`](sync-engine/README.md) indexes current SyncEngine
-  architecture and current phase evidence.
-- [`sync-engine/phase2-checkpoint-restore.md`](sync-engine/phase2-checkpoint-restore.md)
-  records the implemented provider-neutral checkpoint/restore core and its
-  reproducible SQLite acceptance boundary.
-- [`sync-engine/phase1-remote-yjs-live-merge.md`](sync-engine/phase1-remote-yjs-live-merge.md)
-  records the post-commit live-document delivery order, replayable SQLite-tail
-  coverage barrier, no-echo rule and compaction/crash acceptance.
-- [`sync-engine/phase1-normalized-authority.md`](sync-engine/phase1-normalized-authority.md)
-  records the stable KV/alias/Plot Grid model, fractional-indexing list
-  authority, explicit rebalance contract and checkpoint projection rebuild.
-- [`sync-engine/phase2-native-asset-pipeline.md`](sync-engine/phase2-native-asset-pipeline.md)
-  records the opaque-ref native capture/install ports, durable blob lane,
-  restart reconciliation and real SIGKILL recovery evidence.
-- [`sync-engine/phase3-durable-runtime.md`](sync-engine/phase3-durable-runtime.md)
-  records the journal-to-object-log coordinator, crash/convergence evidence and
-  the explicit domain-kernel, remote-asset and composition gates before product
-  activation.
-- [`sync-engine/phase3-app-provider-authority.md`](sync-engine/phase3-app-provider-authority.md)
-  records the all-project provider transition, generation replacement, durable
-  activation receipts, and local-data-preserving disconnect transaction.
-- [`sync-engine/phase3-local-folder-provider.md`](sync-engine/phase3-local-folder-provider.md)
-  records the opaque-reference filesystem provider, conformance matrix and
-  child-process SIGKILL durability evidence.
-- [`../src-tauri/UNSUPPORTED.md`](../src-tauri/UNSUPPORTED.md) defines explicit
-  platform limitations.
+- [Contributor quick start](contributor-quick-start.md),
+  [contributing](../CONTRIBUTING.md) and [development guide](../DEV_GUIDE.md)
+- [Isolated worktree development](worktree-development.md) and
+  [seed workloads](development-seed-workloads.md)
+- [Frontend debug bridge](frontend-debug.md)
+- [Developer CLI](dev-cli/README.md) and its generated
+  [capability inventory](dev-cli/acceptance/cli-capabilities.md)
+- [Renderer UI architecture](renderer-ui-architecture.md)
+- [Renderer performance](renderer-performance/README.md) and the
+  [optimization plan](renderer-performance/optimization-plan.md)
+- [Database read/write performance](database-read-write-performance.md) and
+  [Rust reuse](rust-reuse-performance.md)
+- [Releasing](releasing.md): GitHub Releases, signing and updates
+- [Platform limitations](../src-tauri/UNSUPPORTED.md)
+- Mobile (paused):
+  [mobile UI foundation](mobile-ui-foundation.md),
+  [device acceptance runbook](mobile-device-acceptance.md),
+  [iOS Hosted integration](hosted-sync/ios.md),
+  [voice-authored writing](voice-authored-capture.md) (unaccepted)
+
+## Design system
+
+[Design system](design-system/README.md) (sand and glass, desktop):
+[materials](design-system/materials.md),
+[surfaces](design-system/surfaces.md),
+[typography](design-system/typography.md),
+[components](design-system/components.md),
+[interaction](design-system/interaction.md),
+[motion](design-system/motion.md),
+[workspace](design-system/workspace.md),
+[acceptance](design-system/acceptance.md).
+
+## Historical evidence
+
+These record past work for one checkout and are not current product truth.
+
+- [Source publication](source-publication-readiness.md) and
+  [public history](public-history.md)
+- [Mac Hosted acceptance, 2026-09-30](hosted-sync/native-session.md)
+- [Prose metric batches](prose-metrics-performance-batches.md),
+  [prose metric Rust benchmark](prose-metrics-rust-benchmark.md),
+  [whole-book find benchmark](rust-book-search-benchmark.md)
+- [Manual QA reports](qa/), including the
+  [Review and sticky-note rail](qa/review-sticky-note-rail-2026-08-30.md) and
+  the [native manual regression](qa/tauri-native-manual-regression.md)
+- [Native and endurance acceptance](agent-runtime/native-endurance-acceptance.md)
+- [Mobile V2 design snapshot](design/mobile-v2/README.md)
+- Machine evidence in [`acceptance/`](acceptance/) and each area's `acceptance/` folder
 
 ## Evidence policy
 
 - Generated capability files and deterministic acceptance JSON are checked-in
-  machine evidence. Do not edit generated files by hand.
-- Dated paid-provider, real-project, or native run reports may remain when the
+  machine evidence. Do not edit them by hand.
+- Dated paid-provider, real-project or native run reports stay only when the
   evidence cannot be reproduced in an ordinary local test run.
-- Completed phase and milestone prose is not re-narrated in current documents;
-  retired delivery documents and dated run reports remain recoverable from Git
-  history.
-- README and current-status documents link to authoritative detail instead of
-  copying tool counts, test counts, or completed milestone narratives.
+- Completed phases and milestones are not re-narrated in current documents;
+  retired documents remain recoverable from Git history.
+- README and status documents link to the authoritative detail instead of
+  copying tool counts, test counts or milestone narratives.

@@ -27,7 +27,9 @@ code identifier 为 `cc.drifting.client.dev`。这避免 ad-hoc 签名的 cdhash
 Keychain 每次重新授权。若机器上有多个有效 identity，可在本机 shell 中设置
 `DRIFTING_MACOS_DEV_SIGNING_IDENTITY` 明确选择；不要把证书或私钥提交到仓库。
 首次把旧 ad-hoc Keychain 条目授权给稳定签名时，macOS 仍可能要求一次确认。
-没有开发证书的贡献者仍可启动应用，但会退回 Cargo 默认签名并显示警告。
+没有可用的开发证书时，`pnpm dev` 会在启动 Cargo/Vite 前停止并给出设置指引，不会退回
+ad-hoc 签名，见 [贡献者快速上手](docs/contributor-quick-start.md)；`pnpm typecheck`、
+`pnpm test` 不需要证书。
 
 ```bash
 pnpm macos:dev-signing:check
@@ -44,6 +46,8 @@ cargo test --manifest-path src-tauri/Cargo.toml
 ```
 
 ## 桌面与移动端构建
+
+移动端目前暂停推进，下面的 iOS/Android 命令仅供维护。
 
 ```bash
 pnpm tauri:build
@@ -73,8 +77,8 @@ iOS/Android 的设备选择、服务覆盖与手工验收边界见
 默认本地书库数据库名为 `drifting-library.db`。桌面生产数据目录通常为：
 
 - macOS：`~/Library/Application Support/cc.drifting.client/databases/`
-- Windows：`%LOCALAPPDATA%/cc.drifting.client/databases/`
-- Linux：`${XDG_DATA_HOME:-~/.local/share}/cc.drifting.client/databases/`
+- Windows：`%LOCALAPPDATA%/cc.drifting.client/databases/`（非受支持平台）
+- Linux：`${XDG_DATA_HOME:-~/.local/share}/cc.drifting.client/databases/`（非受支持平台）
 
 iOS 与 Android 使用各自的应用容器。不要提交 `.local-data/`、数据库、素材、
 Keychain/Keystore 凭据或真实稿件。关系型 Markdown 导出的能力与限制见
@@ -90,7 +94,7 @@ Keychain/Keystore 凭据或真实稿件。关系型 Markdown 导出的能力与�
 
 ## 网络与兼容服务
 
-默认值由 `src/renderer/lib/config.ts` 定义，标准桌面/移动构建脚本也会显式设置：
+源码默认值（`src/renderer/lib/config.ts`）是本地模式，标准桌面/移动构建脚本显式设置：
 
 ```text
 VITE_LOCAL_ONLY_MODE=true
@@ -101,7 +105,9 @@ VITE_AI_TRANSPORT=direct
 `LOCAL_ONLY_MODE` 只关闭 Drifting-compatible hosted service。网络按
 `hosted-service`、`byok-provider` 与 `agent-extension` 分类；
 用户明确选择的 BYOK provider 及已配置的远程 Agent extension 仅在设备在线时可用。
-素材不再抓取网页元数据或远程预览图（URL 素材已于 2026-10 退役）。Hosted 是唯一的同步 provider。公开仓库不包含兼容服务实现；需要自建服务的 operator 应先阅读
+素材不再抓取网页元数据或远程预览图（URL 素材已于 2026-10 退役）。Hosted 是唯一的同步 provider。
+GitHub Releases 上的正式版用 `--online` 构建，连接官方 Hosted 服务并开放注册，见
+[docs/releasing.md](docs/releasing.md)。公开仓库不包含兼容服务实现；需要自建服务的 operator 应先阅读
 [official-service.md](docs/official-service.md)，并自行配置 API origin、CSP、隐私政策与
 凭据。
 

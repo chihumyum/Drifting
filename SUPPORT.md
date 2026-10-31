@@ -1,17 +1,20 @@
-# Drifting Alpha support
+# Support · 支持
 
-Email `support@drifting.cc` or use the public support page at
-<https://drifting.cc/support>.
+- Help page · 帮助页：<https://drifting.cc/support>
+- Email · 邮件：`support@drifting.cc`
+- Bugs and feature requests · 问题与建议：[GitHub Issues](https://github.com/chihumyum/Drifting/issues)
+- Security vulnerabilities · 安全漏洞：follow [SECURITY.md](SECURITY.md), not email or public issues · 请按 [SECURITY.md](SECURITY.md) 私下报告
 
-Include the Drifting version, macOS version, Apple Silicon model, the action
-that failed, and whether the installation was fresh or updated. If available,
-attach the app's user-generated diagnostic summary.
+Include the Drifting version (Settings → Updates), your macOS version and Mac
+model, what you did and what happened, and whether you had just updated.
+Settings → Privacy can copy a sanitized diagnostic summary.
 
-Do not send manuscript text, SQLite databases, OAuth tokens, API keys,
-Keychain screenshots, or credential-bearing logs.
-Security vulnerabilities belong in GitHub private vulnerability reporting as
-described in [SECURITY.md](SECURITY.md), not in ordinary support email.
+请写上 Drifting 版本（设置 → 更新）、macOS 版本和 Mac 型号、你做了什么、发生了什么，
+以及是不是刚更新过。「设置 → 隐私」可以复制一份脱敏的诊断摘要。
 
-Public Alpha support is best-effort. Data loss, restore failure, database
-damage, invalid signing/update behavior, sync non-convergence, and credential
-exposure are release-blocking P0 issues.
+Never send manuscript text, databases, API keys, tokens or screenshots of them.
+请不要发送稿件内容、数据库、API Key、令牌，或包含这些内容的截图。
+
+Support is best effort. Data loss, a backup that cannot be restored, a damaged
+library and broken updates are handled first.
+支持尽力而为；数据丢失、备份无法恢复、资料库损坏和更新失败会优先处理。
