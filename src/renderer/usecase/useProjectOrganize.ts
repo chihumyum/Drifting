@@ -16,7 +16,7 @@ import {
   type OrganizeCounts,
 } from '../lib/agent/organize/organize-task';
 import { collectTurnEntityRefs } from '../lib/agent/tool-entity-ref';
-import { isGeneralAgentUsable } from '../lib/agent/protocol';
+import { canAgentProviderRun } from '../lib/agent/agent-provider-readiness';
 import { generalAgentTransport } from '../lib/agent/transport';
 import { i18next } from '../lib/i18n';
 import { useAgentChatStore } from '../store/agent-chat-store';
@@ -93,15 +93,10 @@ function notifyOrganize(projectId: string, run: OrganizeRun): void {
   });
 }
 
-/** A project without a connected Agent is skipped quietly, not failed. */
+/** A project whose selected Agent provider cannot run is skipped quietly, not failed. */
 async function generalAgentUsable(): Promise<boolean> {
   if (!generalAgentTransport.capability.available) return false;
-  try {
-    const status = await generalAgentTransport.authStatus();
-    return status.ok && isGeneralAgentUsable(useSettingsStore.getState().agentAuth, status.value);
-  } catch {
-    return false;
-  }
+  return canAgentProviderRun(useSettingsStore.getState().agentProvider);
 }
 
 function releaseToCheckin(projectId: string, afterOrganize: boolean): void {

@@ -26,8 +26,9 @@ by the desktop workspace) treats these as a return:
 3. Runs only when the author's own chapter or idea prose (`user` revision
    provenance) changed since the horizon. The first run looks back one day;
    prose older than seven days is never organized automatically.
-4. Skips quietly, without counting as a failure, while no Agent provider is
-   connected.
+4. Skips quietly, without counting as a failure, while the selected Agent
+   provider cannot run (`canAgentProviderRun`, the same answer the check-in
+   and the Agent panel's connect rows use).
 
 Changes that are only formatting move the horizon without starting a session.
 The horizon and the latest run are device-local renderer state

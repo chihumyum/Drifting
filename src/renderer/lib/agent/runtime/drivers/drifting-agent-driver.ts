@@ -219,6 +219,13 @@ function createCredentialChain(): ChainCredentialsProvider {
   ]);
 }
 
+const MISSING_PROVIDER_KEY = / needs a configured .+ API key\.$/u;
+
+/** Whether `message` is the error a provider without a key fails with. */
+export function isMissingProviderKeyMessage(message: string | null | undefined): boolean {
+  return typeof message === 'string' && MISSING_PROVIDER_KEY.test(message);
+}
+
 function clientInitializationError(
   error: unknown,
   provider: AgentProviderId,
