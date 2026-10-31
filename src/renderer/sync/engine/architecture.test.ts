@@ -58,7 +58,7 @@ describe('SyncEngine architecture', () => {
   it('keeps every engine module provider-neutral', () => {
     for (const file of productionFiles()) {
       const source = fs.readFileSync(file, 'utf8');
-      expect(source, file).not.toMatch(/google-drive|\bGoogle\b|\bOAuth\b|\bHTTP\b|@tauri-apps/iu);
+      expect(source, file).not.toMatch(/\bGoogle\b|\bOAuth\b|\bHTTP\b|@tauri-apps/iu);
     }
   });
 

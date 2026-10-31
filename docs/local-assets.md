@@ -104,7 +104,7 @@ a restart once the project holds an image or PDF, so syncing devices need a
 current build. `production-domain-kernel.integration.test.ts` covers it across
 two devices ("binary materials across devices").
 
-Google Drive and a future hosted provider implement the same opaque object/log
+Hosted and the local folder provider implement the same opaque object/log
 contract. They transport bytes and immutable records; local SQLite still owns
 transactions, merge rules, Yjs application, and domain validation.
 

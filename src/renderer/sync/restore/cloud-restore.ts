@@ -280,7 +280,7 @@ function temporaryBinding(input: {
   };
 }
 
-/** Capture-before-inventory and drain-after-inventory closes the Drive listing race. */
+/** Capture-before-inventory and drain-after-inventory closes the provider listing race. */
 export async function discoverCurrentSyncGenerationObjects(input: {
   provider: ObjectLogProvider;
   generation: ProviderGeneration;

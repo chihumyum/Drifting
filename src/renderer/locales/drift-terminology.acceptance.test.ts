@@ -101,7 +101,7 @@ describe('Ideas / 构想 terminology acceptance', () => {
         let text = readFileSync(path, 'utf8');
         if (text.includes(['浮', '缀'].join(''))) return true;
         const relativePath = relative(process.cwd(), path).replaceAll('\\', '/');
-        if (relativePath.startsWith('docs/apple-native/') || relativePath.startsWith('docs/qa/')) {
+        if (relativePath.startsWith('docs/qa/')) {
           return false;
         }
         for (const alias of inputAliases[relativePath] ?? []) text = text.replaceAll(alias, '');

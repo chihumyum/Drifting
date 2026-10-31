@@ -328,6 +328,8 @@ async function writeProseDoc(
     // session persists + journals it. Snapshot before/after so the
     // change indicators (#4) can diff exactly which blocks moved.
     const beforeJson = toJson(live);
+    // A restore point for this change in the entity's history.
+    maybeCaptureSnapshotHistory(docId, Y.encodeStateAsUpdate(live), 'agent');
     let blockIds: string[] = [];
     live.transact(() => {
       const frag = live.getXmlFragment('default');
@@ -352,6 +354,7 @@ async function writeProseDoc(
         Y.applyUpdate(doc, update.updateBlob, 'load');
       }
       const beforeJson = toJson(doc);
+      maybeCaptureSnapshotHistory(docId, Y.encodeStateAsUpdate(doc), 'agent');
 
       // Collect the diff this edit produces so we can append it for sync.
       const diff: Uint8Array[] = [];
@@ -400,6 +403,7 @@ async function writeProseDoc(
   try {
     Y.applyUpdate(document, seed, 'seed-only-promotion');
     const canonicalBeforeJson = toJson(document);
+    maybeCaptureSnapshotHistory(docId, seed, 'agent');
     let blockIds: string[] = [];
     document.transact(() => {
       const fragment = document.getXmlFragment('default');

@@ -130,7 +130,7 @@
     "public:check": "node scripts/check-public-boundaries.mjs",
     "security:dependencies": "pnpm audit --audit-level high",
     "public:evidence": "node scripts/generate-source-publication-evidence.mjs",
-    "release:check": "node scripts/check-alpha-release.mjs",
+    "release:check": "node scripts/check-release.mjs",
     "release:sbom": "node scripts/generate-release-sbom.mjs",
     "hosted:client": "node scripts/run-hosted-client.mjs",
     "hosted:acceptance": "node scripts/run-hosted-acceptance.mjs",

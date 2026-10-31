@@ -2347,6 +2347,8 @@ export const SyncAppAuthorityTable = sqliteTable(
   },
   (t) => [
     uniqueIndex('uniq_sync_app_authority_identity').on(t.id, t.mode, t.generation),
+    // The published CHECKs on the sync tables still name 'google-drive'.
+    // Migration 0014 retired it; its triggers refuse new Drive rows.
     check('sync_app_authority_singleton_check', sql`${t.id} = 'app'`),
     check(
       'sync_app_authority_mode_check',

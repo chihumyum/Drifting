@@ -89,8 +89,6 @@ if (target === 'ios' && command === 'build') {
     encoding: 'utf8',
   }).trim();
 }
-if (target === 'ios')
-  env.PATH = `${path.join(root, 'scripts/apple-toolchain')}${path.delimiter}${env.PATH}`;
 let binary = 'pnpm';
 let parameters;
 if (target === 'desktop')

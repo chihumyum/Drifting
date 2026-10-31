@@ -46,7 +46,7 @@ node scripts/run-renderer-startup-placeholder.mjs --check
 
 `src/styles/index.css` 使用 `source(none)` 关闭 Tailwind 的全仓库自动源发现，
 保留 `tailwind.config.js` 中的 `index.html` 和 `src/**/*.{js,ts,jsx,tsx}` 作为工具类来源。
-开发服务仍会跟踪这些来源的变化，文档、Rust 和 Apple 原生目录不再成为样式扫描来源。
+开发服务仍会跟踪这些来源的变化，文档和 Rust 目录不再成为样式扫描来源。
 以后把带有 Tailwind 工具类的 UI 移到 `src` 之外时，需显式更新该来源配置。
 
 2026-10-03 的本机隔离诊断中，原配置的 CSS 初始化耗时约 18.6 秒，其中约 18.1 秒

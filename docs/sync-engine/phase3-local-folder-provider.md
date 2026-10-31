@@ -104,7 +104,7 @@ The current machine report is
 
 - No native Rust filesystem port is implemented or changed by this milestone.
 - No provider picker or product lifecycle is connected.
-- This provider is not the source of product trust policy. Google Drive follows
+- This provider is not the source of product trust policy. Hosted follows
   the trusted-cloud contract and can process the synchronized Project objects.
 - POSIX SIGKILL cases are skipped on Windows; Windows requires a separate native
   restart/power-loss acceptance before claiming support.
