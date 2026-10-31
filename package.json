@@ -7,7 +7,7 @@
   "engines": {
     "node": ">=22.23.1"
   },
-  "description": "Drifting - A creative writing and storytelling tool",
+  "description": "Open-source, local-first novel writing app: the ease of a Markdown editor, Scrivener-style scaffolding and an Agent for the whole book",
   "scripts": {
     "tauri": "tauri",
     "tauri:dev": "node scripts/run-desktop-tauri.mjs dev",
