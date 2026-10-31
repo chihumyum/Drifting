@@ -93,4 +93,6 @@ aliases: ["雨夜"]
 - `markdown-projection.service.test.ts`：捕获前先合并、作者文件替换生成内容、冲突触发下一轮、合并不了的文件只通知一次、另存进通知中心、只在窗口可见时扫描。
 - `cargo test markdown_projection`：作者文件可写、未读过的字节不替换、升级时另存被改过的只读文件、弃用的作者文件另存、按大小和时间读回、拒绝别的安装管理的文件夹。
 
+侧栏的蓝色「M」、蓝色出现动画和标为已读，在 Agent 未读显示的浏览器验收里（[`agent-runtime/acceptance/unread-direct-edits.json`](agent-runtime/acceptance/unread-direct-edits.json) 的 `externalEditBlue`）。
+
 2026-10-31 另在隔离的种子实例（`pnpm dev:seed:lite --frontend-debug`）里经调试桥手动走过一遍，未进报告：首次写出 30 个作者文件（0600、清单 schema 4、owner 文件）；关着的章节在磁盘上改正文和写作状态，约 2 秒后合并，修订来源为 `file`；章节开在编辑器里时，同一段在编辑器末尾打字、在文件开头插字，两处都留在原位、没有重复段落 ID，停笔后写回磁盘；写回后账本指纹与磁盘一致，不会把自己的写入再读一遍。测试窗口在其他窗口后面时页面是 `hidden`，轮询按设计不运行；验证时在页面里把 `visibilityState` 改成了 `visible`。

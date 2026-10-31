@@ -1,8 +1,8 @@
 {
   "kind": "agent_unread_direct_edits_acceptance",
   "status": "passed",
-  "generatedAt": "2026-10-28T08:16:21.492Z",
-  "sourceSha256": "ff2be9b652642ab0b77eb8a0118cdf7ed36e05ac65e1b8acc6e3a3a14c6c0d3a",
+  "generatedAt": "2026-10-31T02:40:43.106Z",
+  "sourceSha256": "28a237eeba1749272798f8682d984b066a2a26c760bbc951d1dfa78febbbf9ae",
   "suites": [
     "src/renderer/store/agent-unread-acknowledgement.test.ts",
     "src/renderer/components/ui/entity-hover-card-model.test.ts",
@@ -201,6 +201,10 @@
     },
     {
       "name": "ElementPanel compact text index persists compact/list and toggles it from the header summary instead of the sort menu",
+      "status": "passed"
+    },
+    {
+      "name": "ElementPanel compact text index shows the expand/collapse-all toggle as a folding fan, since it does both",
       "status": "passed"
     },
     {
@@ -488,6 +492,22 @@
       "status": "passed"
     },
     {
+      "name": "Drifting Agent product composition completes a chapter item from an element change recorded at that chapter and explains a mismatch",
+      "status": "passed"
+    },
+    {
+      "name": "Drifting Agent product composition adopts writes saved earlier in the same request but not from an earlier request",
+      "status": "passed"
+    },
+    {
+      "name": "Drifting Agent product composition does not let a checklist from a new author request claim an earlier request write",
+      "status": "passed"
+    },
+    {
+      "name": "Drifting Agent product composition guides a stalled chapter item to one more anchored change and reports merged and ended checklists",
+      "status": "passed"
+    },
+    {
       "name": "Drifting write strategies captures and exactly reverts a node title through the renderer usecase",
       "status": "passed"
     },
@@ -593,6 +613,7 @@
     }
   ],
   "browserChecks": {
+    "externalEditBlue": true,
     "chapterAdded": true,
     "compactElementAdded": true,
     "listElementModified": true,
