@@ -18,7 +18,8 @@ describe('local project bootstrap and lifecycle architecture', () => {
     expect(provider).toContain('<Navigate to="/" replace />');
     expect(provider).not.toContain('useNavigate');
     expect(provider).not.toContain('nodeUsecases.loadNodes()');
-    expect(provider).toContain('return retainProjectReferenceIndex(projectId)');
+    // retained once the page the book opened on is ready
+    expect(provider).toContain('release = retainProjectReferenceIndex(projectId);');
     expect(provider).not.toContain('rebuildProjectInlineReferenceIndex');
     const editor = source('../../hooks/useEntityEditor.ts');
     expect(editor).not.toContain('createInlineMentionRepository');

@@ -58,10 +58,13 @@ function surfaceRevisionKey(tab: AnyTab): string {
 }
 
 // EditorMainArea is the desktop editor-session owner. Every open top-level tab
-// remains mounted in an absolute surface; switching tabs changes visibility,
-// not the React/TipTap/Yjs lifetime. A newly-created/replaced surface mounts
-// behind the currently committed one and is revealed only after its canonical
-// editor reports ready, so Router/store timing can never expose an empty frame.
+// that has been in front since the book opened remains mounted in an absolute
+// surface; switching tabs changes visibility, not the React/TipTap/Yjs
+// lifetime. A tab not yet visited mounts when it is first wanted, so opening a
+// book loads only the page in front. A newly-created/replaced/first-visited
+// surface mounts behind the currently committed one and is revealed only after
+// its canonical editor reports ready, so Router/store timing can never expose
+// an empty frame.
 //
 // Drag-to-split:
 //   The whole surface watches drags carrying our `application/x-drifting-tab`
@@ -120,8 +123,13 @@ export function EditorMainArea() {
     return () => clearTimeout(timer);
   }, [committedRevisionKey, desiredRevisionKey]);
 
+  // The surfaces that have been wanted since the book opened; only these mount.
+  const [visitedKeys, setVisitedKeys] = useState<ReadonlySet<string>>(() => new Set([desiredRevisionKey]));
+  if (!visitedKeys.has(desiredRevisionKey)) setVisitedKeys(new Set(visitedKeys).add(desiredRevisionKey));
+
   const renderedSurfaces = useMemo(() => {
-    const next = [...currentSurfaces];
+    const next = currentSurfaces.filter((surface) =>
+      visitedKeys.has(surface.revisionKey) || surface.revisionKey === committedSurface?.revisionKey);
     if (
       committedSurface &&
       !next.some((surface) => surface.revisionKey === committedSurface.revisionKey)
@@ -129,7 +137,7 @@ export function EditorMainArea() {
       next.push(committedSurface);
     }
     return next;
-  }, [committedSurface, currentSurfaces]);
+  }, [committedSurface, currentSurfaces, visitedKeys]);
 
   useEffect(() => {
     if (!projectId) return;
