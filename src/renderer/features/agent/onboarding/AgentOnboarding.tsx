@@ -10,8 +10,8 @@ import { useTranslation } from 'react-i18next';
 import { KindMark } from '../../../components/ui/KindMark';
 import { BrushIcon } from '../../../components/ui/BrushIcon';
 import { Button } from '../../../components/ui/Button';
-import { byokKeychain, type BYOKProvider } from '../../../lib/byok-keychain';
-import { readEnvApiKey } from '../../../lib/ai/credentials/env';
+import type { BYOKProvider } from '../../../lib/byok-keychain';
+import { agentProviderKeySource, type AgentProviderKeySource } from '../../../lib/agent/agent-provider-readiness';
 import {
   codexSubscription,
   isCodexLoginActive,
@@ -66,7 +66,7 @@ export function AgentOnboarding({
 
 function ConnectSection({ onConnected }: { onConnected: () => void }) {
   const { t } = useTranslation();
-  const [stored, setStored] = useState<Partial<Record<BYOKProvider, boolean>>>({});
+  const [sources, setSources] = useState<Partial<Record<BYOKProvider, AgentProviderKeySource | null>>>({});
   const [codex, setCodex] = useState<CodexSubscriptionStatus | null>(null);
   const [open, setOpen] = useState<RowId | null>(null);
   const [draft, setDraft] = useState('');
@@ -77,8 +77,8 @@ function ConnectSection({ onConnected }: { onConnected: () => void }) {
   useEffect(() => {
     let cancelled = false;
     for (const { id } of KEY_PROVIDERS) {
-      void byokKeychain.has(id).catch(() => false).then((has) => {
-        if (!cancelled) setStored((current) => ({ ...current, [id]: has }));
+      void agentProviderKeySource(id).then((source) => {
+        if (!cancelled) setSources((current) => ({ ...current, [id]: source }));
       });
     }
     void codexSubscription.status().then(
@@ -205,14 +205,14 @@ function ConnectSection({ onConnected }: { onConnected: () => void }) {
         )}
       </ProviderCell>
       {KEY_PROVIDERS.map(({ id, name }) => {
-        const env = Boolean(readEnvApiKey(id));
-        const live = env || stored[id] === true;
+        const source = sources[id] ?? null;
+        const live = source !== null;
         return (
           <ProviderCell
             key={id}
             id={id}
             name={name}
-            source={live ? (env ? '.ENV (DEV)' : 'Keychain') : ''}
+            source={source === 'env' ? '.ENV (DEV)' : source === 'keychain' ? 'Keychain' : ''}
             live={live}
             open={open === id}
             onClick={() => choose(id, live)}

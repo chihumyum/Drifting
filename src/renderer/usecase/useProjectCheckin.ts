@@ -3,8 +3,10 @@
  * background, and turn opened cards into General Agent sessions.
  */
 import { useCallback, useEffect } from 'react';
+import { canAgentProviderRun } from '../lib/agent/agent-provider-readiness';
 import { hasCheckinDelta } from '../lib/agent/checkin/checkin-delta';
 import { runProjectCheckin } from '../lib/agent/checkin/checkin-runner';
+import { isMissingProviderKeyMessage } from '../lib/agent/runtime/drivers';
 import { useAgentChatStore } from '../store/agent-chat-store';
 import {
   decideCheckin,
@@ -34,6 +36,12 @@ export async function maybeRunProjectCheckin(
     openedThisRun.add(projectId);
     previousOpenedAt = store.recordOpen(projectId, now.toISOString());
   }
+  // Without a model there is nothing to ask. An automatic check-in waits,
+  // unrecorded, until one is connected, and a missing-key failure left by an
+  // earlier attempt goes. "Check in now" still runs and says why it could not.
+  const ready = await canAgentProviderRun(useSettingsStore.getState().agentProvider);
+  if (isMissingProviderKeyMessage(readProjectCheckin(projectId).error)) store.clearCheckinError(projectId);
+  if (!ready && !options.force) return;
   const decision = await decideCheckin({
     now,
     enabled: store.enabled,
