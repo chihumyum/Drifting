@@ -47,11 +47,6 @@ export interface CharSeaShape {
    * sea under it at 12%).
    */
   rest: number;
-  /**
-   * How strongly the water's glass shows on its rim and bleeds inward (1, the
-   * shelf's cards, when left out): the workspace's panels take less.
-   */
-  rim?: number;
   /** Whether the pointer is on it (bleed in, unevenness drifting). */
   hover: boolean;
   /** Where the glass texture starts in the shape, as `.glass:nth-of-type` places it. */
@@ -160,8 +155,7 @@ void main(){
       float hw=max(.12,.5+.45*up);
       float ring=1.-smoothstep(hw-.3,hw+.3,abs(sd+.5));
       float bleed=sd<0.?exp(sd/4.)*(.5*P.z+.3*max(up,0.)):0.;
-      float k=uShapeT[i].z;
-      ra=max(ra,ring*clamp(${GLASS_EDGE}*G,0.,1.)*cut*k);ba=max(ba,bleed*${GLASS_EDGE}*cut*k);
+      ra=max(ra,ring*clamp(${GLASS_EDGE}*G,0.,1.)*cut);ba=max(ba,bleed*${GLASS_EDGE}*cut);
     }
     col=mix(col,uBleed,clamp(ba,0.,.6));
     col=mix(col,uGlass,clamp(ra,0.,.9));
@@ -507,7 +501,7 @@ export function createCharSea(canvas: HTMLCanvasElement): CharSea | null {
       const shape = shapes[i];
       shapeRect.set([shape.x, shape.y, shape.width, shape.height], i * 4);
       shapeParams.set([shape.radius, shape.rest, hoverAmount.get(shape.id) ?? 0, flowOffset.get(shape.id) ?? 0], i * 4);
-      shapeTexture.set([shape.textureX, shape.textureY, shape.rim ?? 1, 0], i * 4);
+      shapeTexture.set([shape.textureX, shape.textureY, 0, 0], i * 4);
     }
     gl.uniform4fv(U.shape, shapeRect);
     gl.uniform4fv(U.shapeP, shapeParams);

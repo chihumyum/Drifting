@@ -124,11 +124,9 @@ describe('the sea of characters under the desktop window', () => {
     // Only a live sea feels the hand.
     expect(component).toContain("if (mode !== 'live') return undefined;");
     // The sidebars and the bottom bar cover it as the cards do; where a ring
-    // reaches their outline its glass bleeds, at half a card's strength.
+    // reaches their outline its glass bleeds as a card's does.
     expect(component).toContain("const EBB_PANELS = '.desktop-app-shell .sidebar-shell:not(.is-fully-hidden), .desktop-app-shell .desktop-workspace-dock';");
-    expect(component).toContain('const EBB_PANEL_RIM = 0.5;');
-    expect(component).toContain('radius: 0, rest: 0, rim: EBB_PANEL_RIM, hover: false');
-    expect(read('src/renderer/lib/char-sea/char-sea.ts')).toContain('ra=max(ra,ring*clamp(${GLASS_EDGE}*G,0.,1.)*cut*k);');
+    expect(component).toContain('radius: 0, rest: 0, hover: false, textureX, textureY,');
     const engine = read('src/renderer/lib/char-sea/char-sea.ts');
     expect(engine).toContain('if (still || !water || ebbing) return;');
     expect(engine).toContain('const restTarget = ebbing ? 0 : 1;');

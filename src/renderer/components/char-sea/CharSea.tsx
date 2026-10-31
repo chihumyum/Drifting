@@ -16,11 +16,10 @@ const OVERLAY = '[role="dialog"], [aria-modal="true"], [role="menu"], [role="lis
 // The longest an ebb lasts; a single press is still water in about five seconds.
 const EBB_LIMIT_MS = 8000;
 // Panels the last rings pass under while the sea ebbs beneath the workspace.
-// Like the shelf's cards they cover it (12% shows) and have no resting line;
-// where the burst of the word reaches their outline its glass shows and
-// bleeds inward, at half a card's strength, as it does while they slide.
+// Like the shelf's cards they cover it (12% shows), and where the burst of the
+// word reaches their outline its glass shows and bleeds inward as a card's
+// does; they have no resting line.
 const EBB_PANELS = '.desktop-app-shell .sidebar-shell:not(.is-fully-hidden), .desktop-app-shell .desktop-workspace-dock';
-const EBB_PANEL_RIM = 0.5;
 // A panel's edge on the window's border carries no line: it is pushed past it.
 const PAST_BORDER = 8;
 
@@ -154,7 +153,7 @@ export function CharSea() {
           const [textureX, textureY] = GLASS_TEXTURE_OFFSETS[index % GLASS_TEXTURE_OFFSETS.length];
           shapes.push({
             id: -1 - index, x: left, y: top, width: right - left, height: bottom - top,
-            radius: 0, rest: 0, rim: EBB_PANEL_RIM, hover: false, textureX, textureY,
+            radius: 0, rest: 0, hover: false, textureX, textureY,
           });
         });
       }
