@@ -11,6 +11,14 @@ import { BrushIcon } from '../../../components/ui/BrushIcon';
 import { collectTurnEntityRefs, type ToolEntityRef } from '../../../lib/agent/tool-entity-ref';
 import { EntityLinkChip, MessageView, PendingRow, RuntimeControlCard, STREAM_FOLLOW_BOTTOM_THRESHOLD_PX, fmtCost, fmtTokens } from '../AgentMessageViews';
 import { AgentGlassContext } from '../agent-glass';
+import { events } from '../../../lib/events';
+import { useSettingsStore } from '../../../store/settings-store';
+import { AgentOnboarding } from '../onboarding/AgentOnboarding';
+import {
+  agentOnboardingWaitsOnChange,
+  noteAgentOnboarding,
+  resolveAgentOnboardingView,
+} from '../onboarding/agent-onboarding';
 
 const DesktopMessageBlock = memo(function DesktopMessageBlock({ block }: { block: AgentMessageBlock }) {
   return <>{block.messages.map((m, i) => <MessageView key={i} msg={m} />)}</>;
@@ -18,9 +26,17 @@ const DesktopMessageBlock = memo(function DesktopMessageBlock({ block }: { block
 
 export interface AgentTranscriptHandle { follow(): void }
 
+export interface AgentTranscriptOnboarding {
+  /** null while the credential check has not answered. */
+  usable: boolean | null;
+  onPick(text: string): void;
+}
+
+const noteChangeSeen = () => noteAgentOnboarding({ type: 'change-seen' });
+
 /** The visible transcript owns display subscriptions and scroll state. The
  * canonical run continues independently when this view is unmounted. */
-export const DesktopAgentTranscript = memo(forwardRef<AgentTranscriptHandle, { canRun?: boolean }>(function DesktopAgentTranscript({ canRun = true }: { canRun?: boolean }, ref) {
+export const DesktopAgentTranscript = memo(forwardRef<AgentTranscriptHandle, { canRun?: boolean; onboarding?: AgentTranscriptOnboarding }>(function DesktopAgentTranscript({ canRun = true, onboarding }: { canRun?: boolean; onboarding?: AgentTranscriptOnboarding }, ref) {
   const { t } = useTranslation();
   const messages = useAgentChatTranscript();
   const messageBlocks = useAgentMessageBlocks(messages);
@@ -93,19 +109,38 @@ export const DesktopAgentTranscript = memo(forwardRef<AgentTranscriptHandle, { c
     () => (running ? [] : collectTurnEntityRefs(messages.toArray())),
     [messages, running],
   );
+  // First run: the first turn that changes something waits for the author
+  // once — its links drift until one is opened, beside the version history.
+  const onboardingStep = useSettingsStore((s) => s.agentOnboardingStep);
+  const onboardingView = onboarding
+    ? resolveAgentOnboardingView({
+        step: onboardingStep,
+        usable: onboarding.usable,
+        emptyConversation: messages.length === 0 && !running && !starting,
+      })
+    : null;
+  const waitsOnChange = agentOnboardingWaitsOnChange(onboardingStep, turnRefs.length);
   const openRef = useCallback(
     (ref: ToolEntityRef) => {
       openEntity({ entityType: ref.entityType, id: ref.id });
       useAgentActivityStore.getState().clearTouched(ref.entityType, ref.id);
+      noteChangeSeen();
     },
     [openEntity],
   );
+  const openChangeHistory = useCallback(() => {
+    const ref = turnRefs[0];
+    if (ref) events.emit('snapshot-history:open', { entityKind: ref.entityType, entityId: ref.id });
+    noteChangeSeen();
+  }, [turnRefs]);
 
   return (<AgentGlassContext.Provider value>
       <div style={logWrap}>
         <div ref={logRef} className="agt-log--glass" style={logStyle} onScroll={onScroll}>
           {messages.length === 0 ? (
-            <div className="agt-panel-empty">{t('agentPanel.empty.start')}</div>
+            onboardingView && onboarding
+              ? <AgentOnboarding view={onboardingView} onPick={onboarding.onPick} />
+              : <div className="agt-panel-empty">{t('agentPanel.empty.start')}</div>
           ) : (
             <>
               {visibleStart > 0 && <button type="button" className="agt-toolbar-action" onClick={() => {
@@ -177,8 +212,13 @@ export const DesktopAgentTranscript = memo(forwardRef<AgentTranscriptHandle, { c
             <div className="agt-entity-links">
               <span style={{ opacity: 0.55, fontSize: 'var(--agent-font-caption, 10.5px)' }}>{t('agentPanel.turnChanges')}</span>
               {turnRefs.map((r) => (
-                <EntityLinkChip key={`${r.entityType}:${r.id}`} refItem={r} onOpen={openRef} />
+                <EntityLinkChip key={`${r.entityType}:${r.id}`} refItem={r} onOpen={openRef} waiting={waitsOnChange} />
               ))}
+              {waitsOnChange && (
+                <button type="button" className="agt-toolbar-action agt-entity-links__history" onClick={openChangeHistory}>
+                  <BrushIcon name="rotate" size={11} /> {t('agentPanel.onboarding.history')}
+                </button>
+              )}
             </div>
           )}
         </div>

@@ -18,7 +18,7 @@ This is local Docker acceptance, not two physical computers or a public release.
 | Offline application restart | Quit and reopened the first app while the API remained stopped. The local project and saved prose opened. Appended another paragraph, restarted the service, and observed that paragraph in the peer without signing in again or pressing Sync now. |
 | Final account code | Opened the final Mac bundle, confirmed restored account identity, signed out, returned to the retained 105-character local project, then signed in again successfully. |
 | Source verification | Final full suite: 450 passing files / 3,155 passing tests; 2 skipped files / 4 skipped tests. Typecheck, CI contract, public boundaries and 19 Agent capability checks passed. Full lint has 0 errors / 70 warnings. The later touched-file lint has 0 errors / 1 existing warning. |
-| Hosted protocol verification | The generated client report records 39 passing cases, including actual HTTP, independent SQLite files, Drive adoption rollback/retry, old-history retention, asset bytes, bounded history inserts and account-request races. Object staging/asset installation in these tests use explicit synthetic ports. |
+| Hosted protocol verification | The generated client report records 39 passing cases, including actual HTTP, independent SQLite files, asset bytes, bounded history inserts and account-request races. Object staging/asset installation in these tests use explicit synthetic ports. |
 | Native and service checks | Native origin/path validation passed. Both ad-hoc Mac bundles built. Private service check passed; its 8-case report includes restart, concurrent pagination/account isolation and isolated PostgreSQL backup restoration. Credential scans passed for both repositories. |
 
 ## Defects repaired during acceptance
@@ -32,8 +32,6 @@ This is local Docker acceptance, not two physical computers or a public release.
   restart does not need a browser online event.
 - Stale authentication responses cannot replace credentials or rebind a signed-out
   session. Account changes are checked again before publishing/restoring data.
-- The explicit Drive-local-replica takeover has independent generations and an
-  atomic, retryable local boundary; it needs no Google request.
 
 ## Dogfooding observations still open
 

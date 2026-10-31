@@ -34,7 +34,7 @@ the immutable attempt history.
 
 Disconnect removes only provider cursor/account/binding state. It does not
 delete the local project, SQLite journal, Yjs state, assets, or internal sync
-identity. Drive to Hosted never mirrors two providers: it creates a new sync
+identity. A provider switch never mirrors two providers: it creates a new sync
 generation through a checkpoint and switches all projects together.
 
 ## Runtime handoff
@@ -56,15 +56,11 @@ Run:
 pnpm exec vitest run src/renderer/sync/app-authority-repository.integration.test.ts
 ```
 
-The file-backed SQLite suite covers two-project Drive activation, exact binding
+The file-backed SQLite suite covers two-project Hosted activation, exact binding
 completeness and rollback, disconnect with cursor cleanup/local-data retention,
-Drive-to-Hosted generation replacement, blocked/resume state, foreign keys and
-integrity.
+blocked/resume state, foreign keys and integrity.
 
-This phase does not itself make Google Drive selectable in Settings. The
-production remote domain materializer
+The production remote domain materializer
 (`src/renderer/sync/reducer/production-domain-kernel.ts`, injected by
-`src/renderer/sync/production-runtime.ts`) and account-scoped project discovery
-(`src/renderer/sync/providers/google-drive/project-snapshot-discovery.ts`) have
-since been delivered; product mounting now waits only on the platform-specific
-OAuth release gates documented by later phases.
+`src/renderer/sync/production-runtime.ts`) and account-scoped Hosted project
+discovery build on this authority.

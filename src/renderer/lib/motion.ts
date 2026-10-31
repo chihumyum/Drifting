@@ -83,6 +83,10 @@ export function sandDrawTimeAt(drawn: number) {
   return 1 - Math.pow(1 - Math.min(1, Math.max(0, drawn)), 1 / 2.2);
 }
 
+// Waiting: a wait shorter than this shows nothing, so a quick read never
+// flashes a loading mark (CSS: --motion-loading-delay).
+export const LOADING_DELAY_MS = 240;
+
 // Dwell and grace.
 /** How long the pointer rests on a thing before its hover card shows. */
 export const HOVER_PREVIEW_DELAY_MS = 220;

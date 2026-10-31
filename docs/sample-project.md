@@ -1,7 +1,7 @@
 # Built-in sample project
 
 Status: **current behavior** of every build (desktop and Tauri iOS), from
-migration `0014_library_state`.
+migration `0015_library_state`.
 
 A brand-new local library opens with one sample project, 《潮汐灯塔（示例）》,
 already on the Bookshelf. No seed command is needed: a fresh install, a fresh

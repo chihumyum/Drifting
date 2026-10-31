@@ -136,6 +136,10 @@ const APPLICATION_TRIGGERS = [
   'protect_locked_relation_type_endpoint_insert',
   'protect_locked_relation_type_endpoint_update',
   'protect_locked_relation_type_update',
+  'sync_app_authority_retired_drive_insert',
+  'sync_app_authority_retired_drive_update',
+  'sync_connect_attempt_retired_drive_insert',
+  'sync_provider_account_retired_drive_insert',
   'sync_yjs_materialization_receipt_immutable_delete',
   'sync_yjs_materialization_receipt_immutable_update',
   'sync_yjs_materialization_receipt_insert_guard',
@@ -225,8 +229,9 @@ describe('product file-backed migration acceptance', () => {
     const journal = JSON.parse(
       readFileSync(new URL('meta/_journal.json', DRIZZLE_DIRECTORY), 'utf8'),
     ) as { entries: Array<{ idx: number; tag: string; when: number }> };
-    expect(journal.entries).toHaveLength(15);
-    expect(journal.entries[14]?.tag).toBe('0014_library_state');
+    expect(journal.entries).toHaveLength(16);
+    expect(journal.entries[15]?.tag).toBe('0015_library_state');
+    expect(journal.entries[14]?.tag).toBe('0014_retire_google_drive_sync');
     expect(journal.entries[13]?.tag).toBe('0013_markdown_mirror_ledger');
     expect(journal.entries[12]?.tag).toBe('0012_material_folders');
     expect(journal.entries[11]?.tag).toBe('0011_retire_url_materials');

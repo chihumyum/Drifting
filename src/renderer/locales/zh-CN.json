@@ -19,6 +19,38 @@
     "saved": "已保存 Markdown",
     "failed": "操作未完成，请重试，或选中文字后复制。"
   },
+  "manuscriptExport": {
+    "menu": "导出成稿",
+    "title": "导出成稿",
+    "loading": "正在读取章节…",
+    "loadFailed": "未能读取章节，请重试。",
+    "retry": "重试",
+    "format": "格式",
+    "scope": "范围",
+    "wholeBook": "全书",
+    "selectedChapters": "选中章节",
+    "chapterCount": "{{count}} 章",
+    "selectAll": "全选",
+    "selectNone": "全不选",
+    "contents": "内容",
+    "actTitles": "卷标题",
+    "chapterTitles": "章节标题",
+    "outlineHeadings": "节拍与注记标题",
+    "bookInfo": "书籍信息",
+    "bookTitle": "书名",
+    "author": "作者",
+    "cover": "封面",
+    "chooseCover": "选择图片",
+    "changeCover": "更换",
+    "removeCover": "移除",
+    "export": "导出 {{format}}",
+    "exporting": "正在导出…",
+    "saved": "已导出",
+    "failed": "导出未完成，请重试。",
+    "coverFailed": "未能读取这张图片。",
+    "untitledChapter": "无标题章节",
+    "untitledAct": "未命名卷"
+  },
   "shareLink": {
     "dialogTitle": "分享",
     "title": "分享链接",
@@ -87,8 +119,8 @@
     "title": "欢迎使用 Drifting Alpha",
     "intro": "无需账号也能开始写作。项目与正文会先保存在这台设备上。",
     "localData": "无需 Drifting 账号；项目、正文、关系、回收站与历史记录都保存在应用的本地数据目录。",
-    "byok": "General Agent 为 Experimental 且只支持 BYOK。请求、费用、留存、训练条款与输出风险由你选择的模型服务商决定；API Key 只留在系统 Keychain。",
-    "crashReports": "应用会自动发送不含正文的错误与关键操作诊断，方便排查故障；可以在 设置 → 隐私 中关闭。",
+    "byok": "Agent 是实验功能，需要你自己的模型密钥或 ChatGPT 订阅；请求、费用和数据条款由你选择的服务商决定。密钥只保存在系统钥匙串。",
+    "crashReports": "应用会自动发送不含正文的故障报告，方便排查问题；可以在 设置 → 隐私 中关闭。",
     "settingsHint": "继续本地模式即可创建第一个项目，开始写作。",
     "accountAction": "登录 / 注册并同步",
     "continueLocal": "继续本地模式"
@@ -210,58 +242,6 @@
       "delete_account_btn": "删除…",
       "delete_pending": "已请求注销，{{daysLeft}} 天后永久删除",
       "delete_cancel": "取消注销"
-    },
-    "subscription": {
-      "kicker": "订阅 · SUBSCRIPTION",
-      "title": "你的方案与发票。",
-      "loading": "加载中…",
-      "current_plan_inline": "当前方案",
-      "free_plan_inline": "当前为免费方案。",
-      "renew_line": "下次扣款 {{date}}",
-      "cancel_at_period_end": " · 已取消（不会续费）",
-      "no_paid_plan": "尚未订阅付费方案",
-      "back": "返回订阅",
-      "plans_kicker": "升级 / 降级",
-      "plans_title": "挑一个更合脚的方案。",
-      "free": "免费",
-      "current_plan": "当前方案",
-      "current_kicker": "当前 · CURRENT",
-      "recommended": "主流推荐",
-      "professional": "专业作家",
-      "switching": "切换中…",
-      "downgrade": "降级",
-      "upgrade": "升级",
-      "dev_notice": "当前未接入支付。点击直接切换订阅等级，立即生效。Stripe 接通后此面板会改回 Checkout 流程。",
-      "invoices_kicker": "发票 · INVOICES",
-      "invoices_title": "过往扣款明细。",
-      "recent": "近期",
-      "stripe_unconfigured": "支付通道未配置，无法获取发票。",
-      "no_invoices": "暂无发票记录。",
-      "download_pdf": "下载 PDF",
-      "per_month": "/ 月",
-      "month_suffix": "/月",
-      "hosted_coming_soon": "托管方案即将开放",
-      "view_invoices": "浏览发票",
-      "payment_cancel": "付款方式 / 取消",
-      "manage_payment": "管理付款方式与发票",
-      "manage_payment_desc": "跳转到 Stripe 安全门户。",
-      "open_portal": "打开门户",
-      "plans": {
-        "free_label": "免费",
-        "pro_label": "Drifting Pro",
-        "studio_label": "Studio",
-        "free_name": "免费",
-        "free_feature_1": "1 个项目 · 50,000 字",
-        "free_feature_2": "基础任务自动化 · 50 次/月",
-        "free_feature_4": "无 BYOK",
-        "pro_feature_1": "无限项目与字数",
-        "pro_feature_3": "Copilot 自动化无限",
-        "pro_feature_4": "自带模型 BYOK",
-        "pro_feature_5": "版本历史 90 天",
-        "studio_feature_2": "协作者 · 5 席位",
-        "studio_feature_3": "版本历史 1 年",
-        "studio_feature_4": "优先稳定通道"
-      }
     },
     "trash": {
       "kicker": "回收站 · TRASH",
@@ -467,7 +447,7 @@
       "auto_snapshot_desc": "正文或实体发生变化后约每 15 分钟留存一份；本地保留 30 天，并按时间自动稀疏。",
       "auto_snapshot_active": "已启用",
       "import_files": "导入",
-      "import_files_desc": "从 Scrivener / Word / Markdown / 纯文本 导入。",
+      "import_files_desc": "从 Word（.docx）、Markdown 或纯文本导入。",
       "select_file": "选择文件…",
       "projection": {
         "title": "Markdown 本地投影",
@@ -560,41 +540,41 @@
       }
     },
     "update": {
-      "kicker": "签名更新 · UPDATES",
-      "title": "由你决定何时安装签名 Alpha 更新。",
-      "sub": "应用启动完成后，Drifting 最多每 24 小时检查一次公开 Alpha channel；下载和安装都必须由你确认。",
-      "current_version": "当前安装版本",
-      "channel_desc": "Apple Silicon · macOS 13+ · 公开 Alpha channel",
-      "unavailable": "这个开发构建没有编译 Alpha updater 公钥。签名 Release 构建会开放更新检查；没有通过签名校验时绝不会允许安装。",
-      "check": "Alpha 更新",
+      "kicker": "更新 · UPDATES",
+      "title": "新版本由你决定何时安装。",
+      "sub": "Drifting 启动后每天最多检查一次 GitHub 上发布的新版本；下载和安装都要你确认。",
+      "current_version": "当前版本",
+      "channel_desc": "Apple Silicon · macOS 13+",
+      "unavailable": "这个构建没有内置更新签名公钥，不能检查更新。从 GitHub Releases 下载的正式版可以。",
+      "check": "新版本",
       "check_action": "检查更新",
       "checking": "正在检查…",
-      "no_update": "当前没有选中的新版签名 Alpha 更新。",
+      "no_update": "已是最新版本。",
       "available_version": "Drifting {{version}} 可用",
-      "download": "下载并校验",
-      "downloading": "正在下载并校验 updater 签名…",
+      "download": "下载",
+      "downloading": "正在下载并校验签名…",
       "downloading_progress": "正在下载并校验… {{progress}}%",
-      "install": "安装更新…",
-      "confirm_install": "安装签名更新",
-      "install_migration_safety": "若新版本需要修改本地数据，下次启动会先创建经过校验的 SQLite 安全快照，只在隔离 candidate 中迁移并通过检查后才激活。",
+      "install": "安装并重启…",
+      "confirm_install": "安装并重启",
+      "install_migration_safety": "如果新版本需要升级本地数据，启动时会先做一份校验过的安全快照，迁移通过检查后才启用。",
       "dismiss": "暂不更新",
       "installing": "正在保存并安装…",
       "save_failed": "本地修改暂时没能保存，所以没有安装更新。正在写的内容仍然打开着，请稍后再试。",
-      "error": "更新器已安全停止：{{error}}",
+      "error": "更新已停止：{{error}}",
       "states": {
-        "checking": "正在读取签名 Alpha channel manifest…",
-        "available": "签名更新已可下载。",
+        "checking": "正在检查…",
+        "available": "可以下载。",
         "downloading": "正在下载并校验…",
-        "installing": "正在保存本地修改并安装，完成后自动重启…",
-        "ready": "签名更新已准备安装。",
-        "error": "更新器已停止，当前安装没有被修改。"
+        "installing": "正在保存修改并安装，完成后自动重启…",
+        "ready": "已下载并通过签名校验，可以安装。",
+        "error": "更新已停止，当前版本没有改动。"
       }
     },
     "privacy": {
       "kicker": "隐私 · PRIVACY",
       "title": "你的稿子，停在哪儿。",
       "sub": "这页直说：Drifting 用了什么、不用什么、何时离开你的机器。",
-      "noteA": "公开源码构建默认不连接 Drifting 托管服务。你主动选择的模型提供商、个人云盘和远程 Agent 扩展可能访问网络；这不会把正文或本地素材上传给 Drifting。",
+      "noteA": "公开源码构建默认不连接 Drifting 托管服务。你主动选择的模型提供商和远程 Agent 扩展可能访问网络；这不会把正文或本地素材上传给 Drifting。",
       "noteBPrefix": "AI 请求适用",
       "noteBStrong": "所选模型提供商",
       "noteBSuffix": "当前的数据与训练条款。",
@@ -604,14 +584,14 @@
       "usageStats": "发送匿名使用统计",
       "usageStatsDesc": "界面点击、错误、性能指标。不含稿件内容。",
       "crashLogs": "自动发送故障诊断",
-      "crashLogsDesc": "发送脱敏的错误位置、版本、系统和关键操作日志，帮助维护者排查故障；不采集正文或原始控制台日志。由维护者配置的诊断服务处理，可随时关闭。",
+      "crashLogsDesc": "发送脱敏的错误位置、版本和系统信息，帮助维护者排查故障；不包含正文。可随时关闭。",
       "diagnostics": "脱敏诊断摘要",
       "diagnosticsDesc": "复制版本、平台、功能可用性、同步计数/错误类别与 updater 状态；不含稿件、凭据、项目标识或绝对路径，也不会自动上传。",
       "copyDiagnostics": "复制摘要",
       "diagnosticsCopied": "已复制脱敏诊断摘要。",
       "diagnosticsCopyFailed": "无法写入剪贴板，可能没有剪贴板权限。",
       "fullPolicy": "查看完整隐私政策",
-      "lastUpdated": "最近更新 2026·10·28"
+      "lastUpdated": "最近更新 2026·10·31"
     },
     "about": {
       "kicker": "关于 · ABOUT",
@@ -879,7 +859,8 @@
         "installed": "已配置 {{client}}。请重新打开客户端或重启它的 MCP 服务以加载连接；首次使用时按客户端提示确认工具权限。",
         "revoked": "已撤销访问，并移除自动添加的客户端配置。",
         "revokedWarning": "访问已撤销。客户端配置已被改动或无法写入，请在客户端移除这条连接。"
-      }
+      },
+      "replayOnboarding": "重新显示首次引导"
     },
     "agentLimits": {
       "title": "运行限额",
@@ -1372,6 +1353,11 @@
       "source": "读者评论",
       "count": "{{count}} 条新评论",
       "single": "{{name}}：{{body}}"
+    },
+    "appUpdate": {
+      "source": "更新",
+      "available": "Drifting {{version}} 可以更新",
+      "installed": "已更新到 Drifting {{version}}"
     }
   },
   "userMenu": {
@@ -1651,6 +1637,24 @@
       "pending": "正在同步这段对话，完成后可继续。",
       "archive": "这段历史只有展示记录，可查看，无法继续。",
       "conflict": "这段对话的数据不完整或存在冲突，暂时无法继续。"
+    },
+    "onboarding": {
+      "connect": "连接模型",
+      "try": "试试",
+      "experimental": "实验",
+      "getKey": "获取 API Key",
+      "history": "版本历史",
+      "saveFailed": "无法保存到 Keychain。",
+      "prompts": {
+        "commentChapter": "给「{{chapter}}」留两条批注",
+        "tightenChapter": "把「{{chapter}}」开头一段改紧凑些",
+        "relateElements": "理一理{{first}}和{{second}}的关系",
+        "completeElement": "补全「{{element}}」的设定",
+        "extractElements": "从「{{chapter}}」里找出人物和地点，建成要素",
+        "outline": "帮我搭一个三幕的分章大纲",
+        "interview": "先问我几个问题，帮我理清这个故事",
+        "castCharacters": "建三个主要人物"
+      }
     }
   },
   "voiceAgent": {
@@ -2702,7 +2706,6 @@
     },
     "color": {
       "todo": "TODO",
-      "copilot": "COPILOT",
       "manual": "COMMENT"
     },
     "snapshot": {

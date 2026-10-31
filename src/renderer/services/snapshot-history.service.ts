@@ -37,7 +37,8 @@ const RETENTION_DAYS = 30;
 const HOUR_MS = 3_600_000;
 const DAY_MS = 24 * HOUR_MS;
 
-export type CaptureReason = 'periodic' | 'close' | 'restore';
+/** `agent`: the state just before an Agent write, so every Agent change can be undone. */
+export type CaptureReason = 'periodic' | 'close' | 'restore' | 'agent';
 
 /** The restorable metadata fields snapshotted alongside the prose body. */
 export interface SnapshotMeta {

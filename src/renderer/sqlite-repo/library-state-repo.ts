@@ -1,5 +1,5 @@
 /**
- * Device-local library state (`library_state`, migration 0014): one JSON value
+ * Device-local library state (`library_state`, migration 0015): one JSON value
  * per key, outside every project. Never synced or journaled.
  */
 import { eq } from 'drizzle-orm';

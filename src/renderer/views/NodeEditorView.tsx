@@ -643,6 +643,7 @@ const NodeEditorSession = memo(function NodeEditorSession({ nodeId, projectId }:
             editorType="node"
             onMenuAction={handleContextAction}
             shareTarget={{ projectId, kind: 'node', id: curNode.id, title: curNode.title }}
+            manuscriptExport={curNode.kind === 'chapter' ? { projectId, chapterId: curNode.id } : undefined}
             // mainStorylineId is the source of truth for "is this a drift
             // node" — writingStatus is just the per-axis state.
             nodeWritingStatus={curNode.writingStatus}

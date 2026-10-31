@@ -1,6 +1,6 @@
 # Current Drifting Agent Runtime status
 
-Updated: 2026-10-03
+Updated: 2026-10-31
 
 This document is the current human-readable product and verification boundary.
 Historical phase reports and dated provider runs are evidence for their
@@ -30,7 +30,7 @@ pnpm agent:capabilities:check
 
 ### Runtime and authority
 
-- Prompt version 53 removes reading/reasoning micromanagement from the base
+- Since prompt version 53 there is no reading/reasoning micromanagement in the base
   prompt, tool guidance, saved results, and restored domain state. Requested
   full reading is explicit. See
   [`../author-owned-writing-policy.md`](../author-owned-writing-policy.md) and
@@ -134,7 +134,7 @@ pnpm agent:capabilities:check
   relation has one non-null type id; copied labels, nullable types, and
   `unconfigured` compatibility rows are absent and old payloads fail closed.
   TODO/Library shortcuts use a deterministic locked `generic-association`
-  type. SQLite, SyncEngine provider sync (Google Drive / local folder), and
+  type. SQLite, Hosted sync, and
   General Agent use the same definition
   and durable receipt/revert boundary. See
   [`../../relation-types.md`](../../relation-types.md).
@@ -149,10 +149,14 @@ pnpm agent:capabilities:check
   see [paired performance evidence](../prose-read-performance.md) for the
   measured service scope and browser/provider limitations.
 
-- Prose review is write-first and durable per block. Accept/reject-one and
-  accept/reject-all use ordered SQLite decisions and guarded Yjs inverses;
-  restart hydration does not depend on localStorage.
-- Added and Modified presentation markers are projections of committed effects.
+- Agent changes commit directly; no editor offers accept/reject or review-all
+  controls (since 2026-10-17). Each prose write keeps a durable per-block
+  SQLite receipt and a guarded Yjs inverse for recovery, and restart recovery
+  does not depend on localStorage. The author undoes an Agent edit from entity
+  snapshot history. See
+  [`../durable-commit-review-protocol.md`](../durable-commit-review-protocol.md).
+- Added and Modified markers in the text and sidebar are unread projections of
+  committed effects.
   A local display failure cannot turn an already committed domain write into a
   model-visible failure or justify a duplicate mutation.
 - A conversation owns at most one active turn. The App imposes no numeric
@@ -243,8 +247,8 @@ pnpm agent:capabilities:check
 
 - Models & API is the single writable BYOK credential surface. General Agent
   chooses its provider/model in the composer and lazily reads the same native
-  secure-storage entries. Copilot, the other consumer, was retired on
-  2026-10-30.
+  secure-storage entries. It is the only model consumer since Copilot was
+  retired on 2026-10-30.
 - DeepSeek, Anthropic, and OpenAI deterministic wire conformance is certified.
   Exact supported models, thinking modes, and effort combinations come from the
   generated capability inventory.
@@ -265,6 +269,7 @@ pnpm agent:capabilities:check
 
 ### Native and mobile
 
+- Mobile work is paused; current product work is desktop-first.
 - Desktop and mobile use separate shells over the shared project runtime and
   domain/use-case layer. Mobile uses its own paper session, navigation,
   overview, panels, and interaction state instead of a narrow desktop shell.

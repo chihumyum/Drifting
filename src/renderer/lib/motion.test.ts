@@ -26,7 +26,8 @@ describe('motion vocabulary', () => {
     expect(ms(cssValue('motion-glass-press'))).toBe(40);
     expect(ms(cssValue('motion-glass-drift'))).toBe(15000);
     expect(ms(cssValue('motion-flow-fade'))).toBe(320);
-    expect(ms(cssValue('motion-loading-delay'))).toBe(240);
+    expect(ms(cssValue('motion-loading-delay'))).toBe(motion.LOADING_DELAY_MS);
+    expect(motion.LOADING_DELAY_MS).toBe(240);
     expect(ms(cssValue('motion-sand-fade'))).toBe(motion.SAND_FADE_MS);
     expect(ms(cssValue('motion-sand-shift'))).toBe(motion.SAND_SHIFT_MS);
     expect(ms(cssValue('motion-dock-pill'))).toBe(motion.DOCK_PILL_MS);

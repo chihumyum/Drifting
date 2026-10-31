@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "de5dc76a-83c9-434f-b884-f28788cb6975",
+  "id": "b2ad0cb9-d2c4-48fd-ab14-7fac0c9cd32e",
   "prevId": "7d72f53d-67b4-45d2-906d-64cfbbde5744",
   "tables": {
     "agent_chat_binding": {
@@ -6797,37 +6797,6 @@
           "value": "\"library_item\".\"provenance_json\" is null or (json_valid(\"library_item\".\"provenance_json\") and json_type(\"library_item\".\"provenance_json\", '$.v') is 'integer')"
         }
       }
-    },
-    "library_state": {
-      "name": "library_state",
-      "columns": {
-        "key": {
-          "name": "key",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "value_json": {
-          "name": "value_json",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
     },
     "markdown_mirror_file": {
       "name": "markdown_mirror_file",

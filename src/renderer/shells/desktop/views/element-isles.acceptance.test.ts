@@ -84,10 +84,13 @@ describe('the element overview as category islands', () => {
     expect(html.match(/class="se-detail__tick is-absent"/g)).toHaveLength(2);
     expect(html).toContain('--tick-c:#6aa0d8');
     expect(html.replaceAll('&quot;', '"')).toContain('superElement.isles.detail.appeared:{"appeared":2,"total":4,"first":"§01","last":"§04","gap":2}');
-    expect(html).toContain('class="menu-surface__item se-detail__row"');
-    expect(html).toContain('师徒 ←');
+    // Laid out as a hover card: head, summary, then sections of rows parted by the menus' hairline.
+    expect(html).toContain('class="hover-card__head"');
+    expect(html).toContain('<div class="hover-card__section-label">superElement.isles.detail.companions</div>');
+    expect(html).toContain('<span class="hover-card__row-aside">superElement.isles.detail.times:{&quot;count&quot;:3}</span>');
+    expect(html).toContain('<span class="hover-card__row-type">师徒 ←</span>');
     expect(html).toContain('superElement.isles.detail.isolate');
-    expect(html.match(/glass--primary/g)).toHaveLength(1);
+    expect(html).not.toContain('glass--primary');
   });
 
   it('changes an element’s category inside its hover card', () => {

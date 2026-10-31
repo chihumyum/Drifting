@@ -41,6 +41,7 @@ tauri-plugin-dialog = "2.7"
 tauri-plugin-fs = "2.5"
 tauri-plugin-opener = "2.5.4"
 tokio = { version = "1", features = ["fs", "io-util", "net", "sync", "time"] }
+zip = { version = "=4.6.1", default-features = false, features = ["deflate-flate2"] }
 
 [target.'cfg(any(target_os = "macos", target_os = "ios", target_os = "windows", target_os = "linux"))'.dependencies]
 keyring = { version = "3.6", features = ["apple-native", "windows-native", "linux-native-sync-persistent", "crypto-rust"] }
@@ -64,10 +65,14 @@ security-framework = "3"
 
 [target.'cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))'.dependencies]
 fontdb = "0.23"
+krilla = "0.8.2"
+rustybuzz = "0.20.1"
+unicode-linebreak = "0.1.5"
 tauri-plugin-single-instance = { version = "2.4.3", features = ["deep-link"] }
 tauri-plugin-updater = "2.10.1"
 
 [dev-dependencies]
+roxmltree = "0.20"
 tempfile = "3.14.0"
 
 # Backport only tauri-apps/tao#1245 to the published 0.35.3 source.

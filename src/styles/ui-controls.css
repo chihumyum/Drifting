@@ -2723,31 +2723,38 @@ svg.super-viewport-edges[data-panning='1'] {
    marks. What can be pressed is set in the mono face, one row each, and only
    the row under the pointer rings. A passive preview (inline links) never
    takes the pointer. */
-.hover-card {
+.hover-card-surface {
   --hover-card-pad: 14px;
+  --hover-card-shadow: 0 16px 30px -16px hsl(var(--shadow-ink) / 0.38);
+  overflow: hidden;
+  background: var(--menu-surface-bg);
+  border-radius: 16px;
+  box-shadow: var(--hover-card-shadow);
+  color: hsl(var(--ink-2));
+  font-family: var(--font-sans);
+  font-size: var(--ui-font-secondary, 13px);
+  line-height: 1.5;
+}
+
+.dark .hover-card-surface {
+  --hover-card-shadow: 0 16px 30px -16px hsl(var(--shadow-ink) / 0.62);
+}
+
+/* The card that follows the pointer; the cards a press opens (a Super View's
+   chapter card, the element island's small card, a relation's card) wear the
+   same surface where they are placed. */
+.hover-card {
   position: fixed;
   z-index: var(--z-popover);
   display: flex;
   flex-direction: column;
   max-width: calc(100vw - 24px);
-  overflow: hidden;
-  background: var(--menu-surface-bg);
-  border-radius: 16px;
-  box-shadow: 0 16px 30px -16px hsl(var(--shadow-ink) / 0.38);
-  color: hsl(var(--ink-2));
-  font-family: var(--font-sans);
-  font-size: var(--ui-font-secondary, 13px);
-  line-height: 1.5;
   pointer-events: none;
-}
-
-.dark .hover-card {
-  box-shadow: 0 16px 30px -16px hsl(var(--shadow-ink) / 0.62);
 }
 
 /* The resting thin glass line (`.glass--rest`: strength 0.85, no bleed), cut
    from the texture and standing still, over everything inside the card. */
-.hover-card::after {
+.hover-card-surface::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -2827,7 +2834,7 @@ svg.super-viewport-edges[data-panning='1'] {
 
 .hover-card__tag > .kind-mark {
   vertical-align: -0.16em;
-  margin-right: 6px;
+  margin-right: 8px;
 }
 
 .hover-card__tag--soft {
@@ -2877,7 +2884,8 @@ svg.super-viewport-edges[data-panning='1'] {
 }
 
 /* ── The rows ── Sections (a group of actions, a choice, what is dangerous)
-   are parted by the menus' hairline: 1px of ink at 9%, 5px either side. */
+   are parted by the menus' own hairline (--menu-separator, 0.5px), 5px either
+   side, in from the edge as far as the card's words. */
 .hover-card__actions {
   flex: none;
   padding: 0 0 6px;
@@ -2891,9 +2899,9 @@ svg.super-viewport-edges[data-panning='1'] {
 .hover-card__section + .hover-card__section::before {
   content: '';
   display: block;
-  height: 1px;
+  height: 0.5px;
   margin: 5px 14px;
-  background: hsl(var(--ink-1) / 0.09);
+  background: var(--menu-separator);
 }
 
 .hover-card__section-label,
@@ -3049,6 +3057,91 @@ html:not([data-shell-mode='mobile']) .hover-card__row--danger::before {
 html[data-shell-mode='mobile'] .hover-card__row {
   min-height: 44px;
   touch-action: manipulation;
+}
+
+/* A count or a note at the row's far end (× 8 with someone, 3 处). */
+.hover-card__row-aside {
+  flex: none;
+  margin-left: auto;
+  padding-left: 10px;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+}
+
+/* A relation's type ahead of whom it points at. */
+.hover-card__row-type {
+  flex: none;
+  margin-right: 10px;
+  color: hsl(var(--ink-3));
+}
+
+.hover-card__row-type + .kind-mark {
+  margin-right: 6px;
+}
+
+/* A note in a section, under its strip (出场 9/12 章 …). */
+.hover-card__note {
+  padding: 2px 14px 4px var(--hover-card-pad);
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+}
+
+/* What is written in place on a card a press opens (a chapter's summary):
+   a slip of paper; the caret in it is the still selected glass. */
+.hover-card__slip {
+  position: relative;
+  display: block;
+  margin-top: 8px;
+  border-radius: 6px;
+  background: hsl(var(--page));
+}
+
+.hover-card__slip > textarea {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 88px;
+  max-height: min(42vh, 320px);
+  padding: 7px 10px;
+  border: 0;
+  outline: none;
+  resize: none;
+  overflow-y: auto;
+  background: transparent;
+  color: hsl(var(--ink-2));
+  font-family: var(--font-content);
+  font-size: inherit;
+  line-height: 1.7;
+}
+
+.hover-card__slip::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--glass-clear) 59%, transparent),
+    inset 0 0 9px 1px color-mix(in srgb, var(--glass-clear) 59%, transparent);
+  -webkit-mask-image: var(--glass-texture);
+  mask-image: var(--glass-texture);
+  -webkit-mask-size: 150px 150px;
+  mask-size: 150px 150px;
+  -webkit-mask-position: var(--glass-dense-gx) var(--glass-dense-gy);
+  mask-position: var(--glass-dense-gx) var(--glass-dense-gy);
+  opacity: 0;
+  transition: opacity var(--motion-glass-bleed) ease-out;
+}
+
+.hover-card__slip:focus-within::before {
+  opacity: 1;
+}
+
+/* A card a press opens, placed by its own owner. */
+.entity-card-popover--card {
+  position: fixed;
+  z-index: calc(var(--z-popover) + 1);
+  display: flex;
+  flex-direction: column;
+  max-width: calc(100vw - 16px);
 }
 
 /* A row's mark sits on the left edge and steps its words in to where the

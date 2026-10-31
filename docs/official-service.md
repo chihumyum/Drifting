@@ -4,17 +4,21 @@ This repository is the AGPL-licensed Drifting client. It does not contain the
 private official server, payment system, production credentials, deployment
 configuration, or an entitlement to use official infrastructure.
 
-The default build is local-only. Hosted accounts and the hosted sync provider
-require a separately operated compatible service and explicit build configuration.
-Hosted AI and billing are outside the current implementation. Google Drive sync and the standalone Apple-native front-end are retired. The source license does not grant API capacity,
+The default source build is local-only. Hosted accounts and the hosted sync
+provider require a separately operated compatible service and explicit build
+configuration. The official macOS build on GitHub Releases is configured for the
+official service at `https://api.drifting.cc` with open sign-up
+([releasing](releasing.md)). Hosted AI and billing are outside the current
+implementation. The source license does not grant API capacity,
 an account, hosted support, or permission to bypass authentication, rate limits,
 abuse controls, or service terms.
 
-In that default build, desktop and mobile Settings omit the Account and
-Subscription entries and do not mount their hosted API clients. Privacy also
+In that default build, desktop and mobile Settings omit the Account and its
+sync and share-link controls, and do not mount their hosted API clients. The
+retired Subscription entry is absent from every build. Privacy also
 omits the hosted telemetry controls rather than presenting disabled upload or
 official-service placeholders. The first-run guide describes the local data
-boundary and offers only Continue locally; it has no Drive or quick-guide
+boundary and offers only Continue locally; it has no quick-guide
 entry. It makes no trial account or hosted storage claim. Trash and the separate
 30-day entity history are local SQLite capabilities and do not require a
 subscription. Trash items remain local until the author restores or permanently
@@ -62,13 +66,13 @@ credentials, domains, signing identity, bundle identifier, and branding. A
 compatible service implementation is not currently supplied by this project.
 
 The public production CSP intentionally contains no Drifting hosted origin. It
-allows the currently supported direct BYOK origins, and HTTPS images only for
-the explicitly gated external-preview surface. Changing `VITE_API_BASE_URL`
-alone is therefore not sufficient for an operator build. Fork operators must
-provide a production CSP containing their exact HTTPS and WebSocket service
-origins, update the
-development CSP when needed, and verify the result without broadly relaxing the
-remaining policy.
+allows the direct BYOK provider origins and the DashScope voice-transcription
+origin; `img-src` also allows HTTPS images. Changing `VITE_API_BASE_URL` alone
+is therefore not sufficient for an operator build. The `--online` desktop
+launcher (`scripts/run-desktop-tauri.mjs`) adds the configured
+`DRIFTING_HOSTED_ORIGIN` to both CSPs and the native transport allowlist at build
+time; operators using another build path must do the same and verify the
+result without broadly relaxing the remaining policy.
 
 This document describes an engineering and licensing boundary; it is not a
 consumer Terms of Service. A build that enables account creation must configure

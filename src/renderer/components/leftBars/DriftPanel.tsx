@@ -26,7 +26,7 @@ import { useSidebarPanelNavigation as useProjectNavigation } from '../../hooks/u
 import { useBookNode } from '../../usecase/useBookNode';
 import { useDriftGroup } from '../../usecase/useDriftGroup';
 import { entityHoverActions } from './entity-hover-actions';
-import { DRIFT_MOVE_TO_GROUP_ACTION } from '../editor/EditorTopBar';
+import { withDriftGroupChoices } from '../../features/entities/hover/hover-choices';
 import { HoverCardHeading, HoverCardShell, type HoverAction, type HoverActionGroup } from '../ui/HoverCard';
 import { GroupHeaderCell } from './GroupHeaderCell';
 import { KindMark } from '../ui/KindMark';
@@ -548,28 +548,7 @@ export function DriftPanel({
     const parent = group.parentGroupId ? driftGroupById.get(group.parentGroupId) : undefined;
     return parent ? `${parent.name} / ${group.name}` : group.name;
   };
-  const moveChoices = (kind: 'drift' | 'group', id: string): HoverAction[] => {
-    if (kind === 'drift') {
-      const current = bookNodes.find((n) => n.id === id)?.driftGroupId ?? null;
-      return [
-        {
-          key: 'root',
-          label: t('leftSidebar.groups.moveDriftToRoot'),
-          icon: { brush: 'folder-none' as const },
-          active: current == null,
-          disabled: current == null,
-          onSelect: () => void moveDriftToGroup(id, null),
-        },
-        ...flatGroups.map(({ group }) => ({
-          key: group.id,
-          label: groupPath(group),
-          icon: { kind: 'drift-group' as const, color: group.color ?? undefined },
-          active: group.id === current,
-          disabled: group.id === current,
-          onSelect: () => void moveDriftToGroup(id, group.id),
-        })),
-      ];
-    }
+  const groupMoveChoices = (id: string): HoverAction[] => {
     const group = driftGroups.find((g) => g.id === id);
     const currentParent = group?.parentGroupId ?? null;
     // Can't move a group into itself or its own subtree.
@@ -596,42 +575,44 @@ export function DriftPanel({
     ];
   };
 
+  // "移动到分组…" is a shared getMenuItems entry; here it unfolds the groups
+  // to choose from instead of routing to the entity dispatcher, and is left
+  // out while there are no groups, as in the Super Views.
   const driftActions = (node: BookNode): HoverActionGroup[] =>
-    entityHoverActions({
+    withDriftGroupChoices(entityHoverActions({
       editorType: 'node',
       nodeStatusKind: 'drift',
       nodeWritingStatus: node.writingStatus,
       onAction: (action) => void dispatchEntityAction({ entityType: 'node', id: node.id, action }),
       t,
-    }).map((group) => ({
-      ...group,
-      // "移动到分组…" is a shared getMenuItems entry; here it unfolds the
-      // groups to choose from instead of routing to the entity dispatcher.
-      actions: group.actions.map((action) => action.key === DRIFT_MOVE_TO_GROUP_ACTION
-        ? { key: action.key, label: action.label, choices: moveChoices('drift', node.id) }
-        : action),
-    }));
+    }), { node, driftGroups, onMove: (groupId) => void moveDriftToGroup(node.id, groupId), t });
 
-  const groupActions = (groupId: string, depth: number): HoverActionGroup[] => [
-    {
-      key: 'create',
-      actions: [
-        // "新建子分组" gated by the 2-level nesting cap.
-        ...(depth < MAX_DRIFT_GROUP_DEPTH - 1
-          ? [{ key: 'new-sub', label: t('leftSidebar.groups.newSubGroup'), icon: { brush: 'folder-plus' as const }, onSelect: () => void createSubGroup(groupId) }]
-          : []),
-        { key: 'new-drift', label: t('leftSidebar.groups.newDriftInGroup'), icon: { brush: 'plus' as const }, onSelect: () => void createDriftInGroup(groupId) },
-      ],
-    },
-    {
-      key: 'edit',
-      actions: [
-        { key: 'rename', label: t('leftSidebar.groups.rename'), icon: { brush: 'edit' as const }, onSelect: () => setRenamingGroupId(groupId) },
-        { key: 'move', label: t('leftSidebar.groups.moveToGroup'), choices: moveChoices('group', groupId) },
-        { key: 'delete', label: t('leftSidebar.groups.deleteGroup'), icon: { brush: 'trash' as const }, danger: true, onSelect: () => void deleteGroup(groupId) },
-      ],
-    },
-  ];
+  const groupActions = (groupId: string, depth: number): HoverActionGroup[] => {
+    // With every target ruled out (no other group, or all past the nesting
+    // cap) there is no choice to make, so the section is left out.
+    const moveChoices = groupMoveChoices(groupId);
+    const canMove = moveChoices.some((choice) => !choice.disabled);
+    return [
+      {
+        key: 'create',
+        actions: [
+          // "新建子分组" gated by the 2-level nesting cap.
+          ...(depth < MAX_DRIFT_GROUP_DEPTH - 1
+            ? [{ key: 'new-sub', label: t('leftSidebar.groups.newSubGroup'), icon: { brush: 'folder-plus' as const }, onSelect: () => void createSubGroup(groupId) }]
+            : []),
+          { key: 'new-drift', label: t('leftSidebar.groups.newDriftInGroup'), icon: { brush: 'plus' as const }, onSelect: () => void createDriftInGroup(groupId) },
+        ],
+      },
+      {
+        key: 'edit',
+        actions: [
+          { key: 'rename', label: t('leftSidebar.groups.rename'), icon: { brush: 'edit' as const }, onSelect: () => setRenamingGroupId(groupId) },
+          ...(canMove ? [{ key: 'move', label: t('leftSidebar.groups.moveToGroup'), choices: moveChoices }] : []),
+          { key: 'delete', label: t('leftSidebar.groups.deleteGroup'), icon: { brush: 'trash' as const }, danger: true, onSelect: () => void deleteGroup(groupId) },
+        ],
+      },
+    ];
+  };
 
   const renderHoverCard = () => {
     if (!hoverPreview) return null;

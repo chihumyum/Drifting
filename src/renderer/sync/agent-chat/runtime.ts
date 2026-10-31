@@ -209,8 +209,8 @@ export class AgentChatSyncRuntime implements RegisteredSyncGenerationRuntime {
           for (const change of page.changes) {
             if (change.kind === 'present') this.incoming.set(change.object.objectId, change.object);
             else {
-              // Account-wide Drive changes also include unrelated files. Only
-              // a previously observed chat object can become degraded.
+              // A change feed can include unrelated objects. Only a
+              // previously observed chat object can become degraded.
               const [known] = await this.options.db
                 .select()
                 .from(Deliveries)

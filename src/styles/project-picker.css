@@ -15,6 +15,17 @@
   font-family: var(--font-sans);
 }
 
+/* On the desktop the shelf lies on the sea of characters (CharSea), which
+   paints the desk; the cards' resting glass is drawn there too, so the water
+   reaches it (`.pp-card--sea` drops the CSS rim). */
+.pp--sea {
+  background: transparent;
+}
+
+.pp-card--sea.glass::before {
+  display: none;
+}
+
 .pp *,
 .pp *::before,
 .pp *::after {

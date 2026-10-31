@@ -49,7 +49,7 @@ back to a JSON or numeric projection.
   reusing a source writer identity.
 - The verified package is recorded as the restore attempt's exact
   `source_checkpoint_id`; cloud input retains the stored-object hash, size and
-  local reference rather than manufacturing a Drive receipt.
+  local reference rather than manufacturing a provider receipt.
 - A snapshot is publishable only in the order `required blobs → package →
   snapshot-commit`. Failure before the last call never publishes the commit
   marker, so a package body without its marker is an invisible orphan.
@@ -109,8 +109,6 @@ statement, so capture failed. Payload v2 removes both bounds:
   and replay only change-sets above its coverage. The reducer base is
   authoritative, not a cache; see the
   [materializer rules](phase1-sqlite-reducer-materializer.md#persistence-rules).
-- A base-restored SyncGeneration lacks the covered history, so Drive-to-Hosted
-  adoption, which rebases the complete journal, rejects it.
 
 `changeSetCount` of a checkpoint is the journal position it covers: the sum
 of its frontier's applied sequences, for a local capture and a restore alike.
@@ -119,7 +117,7 @@ Unlike a row count it survives journal truncation
 
 ## Deliberate exclusions
 
-- This module does not upload to Google Drive, choose scheduler thresholds,
+- This module does not upload to a provider, choose scheduler thresholds,
   resolve OAuth, set provider trust policy, or expose filesystem paths.
 - It does not reuse the product's `snapshot_history` restore service. Sync
   checkpoint restore is a separate sync-generation activation path.
@@ -156,12 +154,4 @@ covers:
 
 The machine-readable result is
 [`acceptance/phase2-checkpoint-restore.json`](acceptance/phase2-checkpoint-restore.json).
-That file is the historical Phase 2 record. The later mutation-row integrity
-fix has separate [source-matched generated evidence (retired)](../client-onboarding-and-hosted-readiness.md).
-Its runner, `node scripts/apple-checkpoint-provenance-acceptance.mjs`, executes
-the checkpoint, protocol and restore suites; `--check` verifies the recorded
-source and required cases. The 13 re-sealed tamper cases and valid round-trip
-cover mutation-row consistency, not complete validation of every reducer
-register's target or clock semantics. That evidence predates payload v2 and
-belongs to the paused Apple-native migration, so it is stale until that
-migration resumes and refreshes it.
+That file is the historical Phase 2 record.

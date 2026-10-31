@@ -25,6 +25,7 @@ import {
 } from '../SettingsPrimitives';
 import { BrushIcon } from '../../../components/ui/BrushIcon';
 import { EmptyState } from '../../../components/ui/EmptyState';
+import { nextAgentOnboardingStep } from '../../agent/onboarding/agent-onboarding';
 
 const fmtUsageTok = (n: number): string =>
   n >= 1_000_000
@@ -230,6 +231,23 @@ function AgentUsageSection({ open }: { open: boolean }) {
   );
 }
 
+// The Agent panel's first run (features/agent/onboarding) shows once per
+// device; this puts it back for the next empty conversation.
+function ReplayOnboardingButton() {
+  const { t } = useTranslation();
+  const step = useSettingsStore((s) => s.agentOnboardingStep);
+  const setStep = useSettingsStore((s) => s.setAgentOnboardingStep);
+  return (
+    <SettingsButton
+      variant="ghost"
+      disabled={step === 'new'}
+      onClick={() => setStep(nextAgentOnboardingStep(step, { type: 'reset' }))}
+    >
+      {t('settings.agent.replayOnboarding')}
+    </SettingsButton>
+  );
+}
+
 export function AgentPanel({ open, registerRef }: { open: boolean; registerRef: SettingsRegisterRef }) {
   const { t } = useTranslation();
 
@@ -267,12 +285,14 @@ export function AgentPanel({ open, registerRef }: { open: boolean; registerRef: 
       <div className="set-sec">
         <SettingsSectionHeader title={t('settings.agent.chatConfigTitle')} hint="RIGHT PANEL" />
         <p className="set-row__desc">{t('settings.agent.chatConfigDesc')}</p>
-        <SettingsButton
-          className="set-sec__action"
-          onClick={() => document.getElementById('models')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-        >
-          {t('settings.common.manageKeys')}
-        </SettingsButton>
+        <div className="set-sec__actions">
+          <SettingsButton
+            onClick={() => document.getElementById('models')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+          >
+            {t('settings.common.manageKeys')}
+          </SettingsButton>
+          <ReplayOnboardingButton />
+        </div>
       </div>
 
       <AgentLimitsSection />

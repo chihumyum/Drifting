@@ -760,8 +760,8 @@ describe('workspace surface language acceptance', () => {
       source('src/renderer/shells/desktop/views/DesktopBottomTimeline.tsx'),
     ];
 
-    const shell = block(controls, '.hover-card {', '}');
-    const edge = block(controls, '.hover-card::after {', '}');
+    const shell = block(controls, '.hover-card-surface {', '}');
+    const edge = block(controls, '.hover-card-surface::after {', '}');
 
     expect(css).not.toContain('--entity-hover-card-shadow');
     expect(hoverCard).toContain('<HoverCardShell');
@@ -771,9 +771,20 @@ describe('workspace surface language acceptance', () => {
     // The menus' piece of desk, rounded like the Agent composer, one size of words.
     expect(shell).toContain('background: var(--menu-surface-bg);');
     expect(shell).toContain('border-radius: 16px;');
-    expect(shell).toContain('box-shadow: 0 16px 30px -16px hsl(var(--shadow-ink) / 0.38);');
+    expect(shell).toContain('--hover-card-shadow: 0 16px 30px -16px hsl(var(--shadow-ink) / 0.38);');
+    expect(shell).toContain('box-shadow: var(--hover-card-shadow);');
+    // Its sections are parted by the menus' own hairline.
+    expect(block(controls, '.hover-card__section + .hover-card__section::before {', '}')).toContain('background: var(--menu-separator);');
+    // The cards a press opens wear the same surface.
+    expect(source('src/renderer/components/graph/RelationEdgePopover.tsx')).toContain('hover-card-surface');
+    expect(source('src/renderer/shells/desktop/components/SuperElementIsland.tsx')).toContain("mode === 'peek' ? ' hover-card-surface' : ''");
     expect(shell).toContain('font-size: var(--ui-font-secondary, 13px);');
     expect(shell).not.toContain('0.5px');
+    // A storyline, category or group name in the meta line starts in the title's column.
+    expect(block(controls, '.hover-card__tag > .kind-mark {', '}')).toContain('margin-right: 8px;');
+    expect(block(controls, '.hover-card__title > .kind-mark {', '}')).toContain('margin-right: 8px;');
+    // With no drift groups there is nowhere to move a drift, as in the Super Views.
+    expect(source('src/renderer/components/leftBars/DriftPanel.tsx')).toContain('withDriftGroupChoices(entityHoverActions(');
     // Its edge is the resting thin glass line, standing still.
     expect(edge).toContain('box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--glass-clear) 50.5%, transparent);');
     expect(edge).toContain('mask-image: var(--glass-texture);');

@@ -55,13 +55,13 @@ async function readPlan(db: DbExecutor, projectId: string, userId: string, hoste
     mode: SyncConnectAttemptTable.targetMode,
   }).from(SyncConnectGenerationAttemptTable).innerJoin(SyncConnectAttemptTable,
     eq(SyncConnectAttemptTable.attemptId, SyncConnectGenerationAttemptTable.attemptId));
-  const retainedDrive = new Set<string>();
+  // Objects a retired provider stored can no longer be reached or deleted remotely.
+  const retiredProvider = new Set<string>();
   for (const attempt of attempts) {
     const id = attempt.target ?? attempt.source;
     if (!ids.includes(id)) continue;
     if (attempt.mode === 'hosted') add(id, attempt.account);
-    if (attempt.mode === 'google-drive' && generations.some(row => row.syncGenerationId === id && row.status === 'retired'))
-      retainedDrive.add(id);
+    else if (attempt.mode !== 'local') retiredProvider.add(id);
   }
   if (authority?.mode === 'hosted') {
     const account = accounts.find(row => row.providerKind === 'hosted');
@@ -72,7 +72,7 @@ async function readPlan(db: DbExecutor, projectId: string, userId: string, hoste
   const remoteObjects = await db.select({ id: SyncRemoteObjectTable.syncGenerationId })
     .from(SyncRemoteObjectTable).where(inArray(SyncRemoteObjectTable.syncGenerationId, ids));
   // Never discard a disconnected replica whose remote ownership cannot be proved.
-  if (remoteObjects.some(row => !targets.has(row.id) && !retainedDrive.has(row.id))) throw new ProjectDeletionError('connect');
+  if (remoteObjects.some(row => !targets.has(row.id) && !retiredProvider.has(row.id))) throw new ProjectDeletionError('connect');
   if (hostedEnabled && targets.size === 0) throw new ProjectDeletionError('connect');
   return { ids, targets: [...targets].sort(([a], [b]) => a.localeCompare(b)), authority };
 }

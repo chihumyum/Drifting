@@ -8,7 +8,7 @@
  * bindings together with this authority row.
  */
 
-export const SYNC_PROVIDER_MODES = ['local', 'google-drive', 'hosted'] as const;
+export const SYNC_PROVIDER_MODES = ['local', 'hosted'] as const;
 
 export type SyncProviderMode = (typeof SYNC_PROVIDER_MODES)[number];
 export type CloudSyncProviderMode = Exclude<SyncProviderMode, 'local'>;

@@ -123,7 +123,21 @@ export type AgentToolSearch = 'off' | 'auto' | 'on';
 
 /** Product default for a fresh General Agent installation. */
 export const AGENT_TOOL_SEARCH_DEFAULT: AgentToolSearch = 'auto';
-export const SETTINGS_STORAGE_VERSION = 32;
+export const SETTINGS_STORAGE_VERSION = 33;
+
+/**
+ * The Agent panel's first run (features/agent/onboarding): `new` until the
+ * author sends from the panel, `change` until they open the first change, then
+ * `done`. Settings → General Agent puts it back to `new`.
+ */
+export type AgentOnboardingStep = 'new' | 'change' | 'done';
+
+/** An installation that predates the guide skips it if the Agent was already used here. */
+export function agentOnboardingStepForExistingInstall(
+  lastAgentConvByProject: Record<string, string> | undefined,
+): AgentOnboardingStep {
+  return lastAgentConvByProject && Object.keys(lastAgentConvByProject).length > 0 ? 'done' : 'new';
+}
 
 /** Persisted keys of the retired Copilot, dropped by the v32 migration. */
 const RETIRED_COPILOT_SETTINGS = [
@@ -331,6 +345,8 @@ interface SettingsState {
    */
   lastAgentConvByProject: Record<string, string>;
   setLastAgentConv: (projectId: string, convId: string) => void;
+  agentOnboardingStep: AgentOnboardingStep;
+  setAgentOnboardingStep: (step: AgentOnboardingStep) => void;
   clearLastAgentConv: (projectId: string) => void;
   clearProjectSettings: (projectId: string) => void;
 
@@ -505,6 +521,8 @@ export const useSettingsStore = create<SettingsState>()(
       agentTurnIterationLimit: AGENT_TURN_ITERATION_LIMIT_DEFAULT,
       setAgentTurnIterationLimit: (limit) =>
         set({ agentTurnIterationLimit: normalizeAgentTurnIterationLimit(limit) }),
+      agentOnboardingStep: 'new',
+      setAgentOnboardingStep: (step) => set({ agentOnboardingStep: step }),
       lastAgentConvByProject: {},
       setLastAgentConv: (projectId, convId) =>
         set((state) => ({
@@ -737,6 +755,9 @@ export const useSettingsStore = create<SettingsState>()(
           const retired = next as unknown as Record<string, unknown>;
           for (const key of RETIRED_COPILOT_SETTINGS) delete retired[key];
         }
+        if (version < 33) {
+          next.agentOnboardingStep = agentOnboardingStepForExistingInstall(next.lastAgentConvByProject);
+        }
         return next;
       },
       // BYOK-only builds (VITE_BYOK_ONLY) disable the hosted AI tier — the server
@@ -772,6 +793,7 @@ export const useSettingsStore = create<SettingsState>()(
         merged.interfaceTextSize = normalizeInterfaceTextSize(merged.interfaceTextSize);
         merged.editorTextWrap = normalizeEditorTextWrap(merged.editorTextWrap);
         merged.agentEditRevealAnimation = merged.agentEditRevealAnimation !== false;
+        if (!['new', 'change', 'done'].includes(merged.agentOnboardingStep)) merged.agentOnboardingStep = 'new';
         if (APP_CONFIG.BYOK_ONLY) {
           if (merged.agentAuth === 'hosted') merged.agentAuth = 'apikey';
         }

@@ -1758,7 +1758,13 @@ html[data-shell-mode='mobile'] .set-overlay {
   letter-spacing: 0;
   text-transform: none;
 }
-:where(html:not([data-shell-mode='mobile'])) .set-sec__action {
+.set-sec__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+:where(html:not([data-shell-mode='mobile'])) .set-sec__actions {
   margin-top: 10px;
 }
 
@@ -2470,4 +2476,9 @@ html:not([data-shell-mode='mobile']) .set-trash__actions .ui-button.ui-button--g
   :where(html:not([data-shell-mode='mobile'])) .set-rail__section::before {
     animation: none;
   }
+}
+
+/* Release notes in Settings › Updates keep their line breaks. */
+.set-update-notes {
+  white-space: pre-line;
 }

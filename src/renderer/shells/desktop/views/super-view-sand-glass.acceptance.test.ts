@@ -287,18 +287,21 @@ describe('Super View sand and glass acceptance', () => {
     expect(css).toContain('.graph-pin.is-bound .graph-pin__label:not(.glass)::before');
   });
 
-  it('turns the card popovers into floating layers with the field slip and one primary button', () => {
+  it('turns the card popovers into the hover card\'s own card, the expanded editor a floating layer', () => {
     const shellSource = source('src/renderer/components/ui/EntityCardPopoverShell.tsx');
     expect(shellSource).toContain("float ? 'entity-card-popover--float' : ''");
-    for (const file of [
-      'src/renderer/components/graph/NodeCardPopover.tsx',
-      'src/renderer/features/graph/ElementCardPopover.tsx',
-    ]) {
-      const card = source(file);
-      expect(card, file).toContain('className="entity-card__slip ui-field ui-field--area glass glass--rest glass--field"');
-      expect(card.match(/variant="primary"/g), file).toHaveLength(1);
-      expect(card, file).toContain('getPlatformRuntime().isMobileShell');
-    }
+    expect(shellSource).toContain("['entity-card-popover--card', 'hover-card-surface', className]");
+    // A chapter or drift card: the hover card's head, its summary on a slip, its two rows.
+    const node = source('src/renderer/components/graph/NodeCardPopover.tsx');
+    expect(node).toContain('<EntityHoverCardHead content={head} />');
+    expect(node).toContain('<label className="hover-card__slip">{summaryField}</label>');
+    expect(node).toContain("icon: { brush: 'arrow-forward' },");
+    expect(node.match(/variant="primary"/g)).toHaveLength(1);
+    // The paused mobile shell's element popover keeps the field slip.
+    const element = source('src/renderer/features/graph/ElementCardPopover.tsx');
+    expect(element).toContain('className="entity-card__slip ui-field ui-field--area glass glass--rest glass--field"');
+    expect(element.match(/variant="primary"/g)).toHaveLength(1);
+    for (const card of [node, element]) expect(card).toContain('getPlatformRuntime().isMobileShell');
     const css = source('src/styles/ui-controls.css');
     const float = rules(css, ['entity-card-popover--float', 'entity-card__head', 'entity-card__foot']);
     expect(float.length).toBeGreaterThan(0);
@@ -306,9 +309,11 @@ describe('Super View sand and glass acceptance', () => {
       expect(body, selector).not.toMatch(/border-(top|bottom):\s*1px/);
     }
 
+    // A relation's card is the hover card's own: its type as a sand dash, each end as a key and value.
     const popover = source('src/renderer/components/graph/RelationEdgePopover.tsx');
-    expect(popover).toContain('relation-edge-popover--menu');
-    expect(popover).toContain('<KindMark kind="storyline" color={color} />');
+    expect(popover).toContain('className="relation-edge-popover--card entity-card-popover--card hover-card-surface"');
+    expect(popover).toContain("mark={{ kind: 'storyline', color }}");
+    expect(popover).toContain('<dl className="hover-card__kv">');
   });
 
   it('draws the element overview in sand, its band kept for the paused mobile shell', () => {
