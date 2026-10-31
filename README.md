@@ -1,7 +1,7 @@
 # Drifting
 
 **The ease of a Markdown editor, the scaffolding of Scrivener, and an Agent for
-the whole book. · Markdown 的轻快，Scrivener 的脚手架，再加一个照看整本书的 Agent。**
+the whole book.**
 
 [English](#english) | [简体中文](#简体中文)
 
@@ -114,6 +114,8 @@ not affiliated with it.
 [Client privacy boundary](PRIVACY.md) · [Source history](docs/public-history.md)
 
 ## 简体中文
+
+**Markdown 的轻快，Scrivener 的脚手架，再加一个照看整本书的 Agent。**
 
 Drifting 是一个开源、本地优先的 Mac 长篇小说写作软件。写起来像 Markdown 编辑器；
 像 Scrivener 那样用章节和大纲、人物和世界设定、故事线和资料把一本书搭起来；
