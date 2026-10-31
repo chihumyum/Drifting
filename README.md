@@ -2,96 +2,93 @@
 
 **A home for your stories. · 写作之心**
 
-![Drifting demo](docs/assets/drifting-demo.gif)
-
 [English](#english) | [简体中文](#简体中文)
 
 ## English
 
-Drifting is a local-first workspace for long-form writing. It brings your
-manuscript, loose ideas, characters, worldbuilding, storylines, and AI assistance
-into one project. Move between drafting and organizing, from a fragment that
-hasn't found its place to a book that needs another careful pass.
+Drifting is an open-source, local-first workspace for long-form fiction. The
+manuscript, loose ideas, characters and world, storylines and research live in
+one project, with an Agent that can read, search and work on all of it.
 
-**This project is still in early development.** I am exploring its interactions,
-architecture, and features. The current version is not yet mature and will
-continue to change. The source is maintained publicly for reading, building,
-and discussion.
+**Early development.** Drifting is used daily by its author and changes often.
+Keep independent copies of manuscripts that matter, and read the
+[known issues](KNOWN_ISSUES.md).
 
-### Write the manuscript. Keep the loose ideas.
+### Download
 
-Work chapter by chapter or read the whole book together. Navigate an outline of
-acts, chapters, scenes, beats, and notes. Keep fragments in Ideas until
-they find a place, without having to assign them to a chapter or storyline.
+macOS 13 or later on Apple Silicon. Download the `.dmg` from
+[GitHub Releases](https://github.com/chihumyum/Drifting/releases/latest).
+The app tells you when a new version is out; you choose when to install it.
+The first launch opens a sample project you can explore or delete.
 
-Comments, to-dos, images, PDFs, and other reference material stay within the
-project, close to your writing.
+### Write
 
-### See the shape of your story
+- Write chapter by chapter, or read and edit the whole book in one view.
+- Acts sit on the timeline; scenes, beats and notes are headings inside a
+  chapter, listed in the outline beside the text.
+- **Ideas** hold fragments that have not found a place yet. Turn one into a
+  chapter or an element when it is ready.
+- Comments and TODOs are anchored to the text. A finished chapter can be marked
+  done, or handed to the Agent for a review pass.
+- History snapshots, word counts, daily goals and streaks.
 
-Organize characters, places, objects, and worldbuilding into elements and
-categories, then connect them to the manuscript and to one another. Storylines,
-the story graph, timeline, and plot grid offer different views for arranging
-chapters, tracing relationships, and planning what happens next.
+### Plan
 
-Track changes to an element alongside their supporting passages to look back
-at how a character or setting has developed.
+- **Elements** for characters, places, objects and lore, grouped into
+  categories. **Patches** record how an element changes, next to the passage
+  that changes it.
+- Typed **relations** between elements, chapters and storylines.
+- **Storylines**, a timeline in book order or narrative time, and a plot grid for
+  each chapter.
+- Full-window views: **Element overview**, **Story graph**, and **TODO &
+  Materials**.
+- **Materials**: notes, images and PDFs in folders, each opening as a tab.
+  Comment on a region of an image or PDF.
+- **Project Home** gathers progress, quick creation and a daily check-in.
 
-### Work with AI on your terms
+### Work with the Agent
 
-- **Copilot** suggests new elements and changes to existing ones as you write.
-  You decide which suggestions to accept.
-- **General Agent** can read and search your project, discuss the writing, and
-  organize story material. With write permission, it can also edit prose and
-  project content. The editor provides change review; AI judgments still need
-  the author's attention.
-- **External agents / MCP** let you bring familiar tools into the same project.
-  The Mac client can configure connections for Codex, Claude Code, and
-  Antigravity, with separate access permissions. Keep Drifting and the
-  authorized project open while using them.
+- Bring your own key for DeepSeek, Anthropic or OpenAI, or sign in with a
+  ChatGPT subscription (experimental). Writing never requires AI.
+- The Agent reads, searches and edits your project: prose, elements, relations,
+  storylines, materials, TODOs. Its edits are marked in the text and can be
+  undone from history.
+- Project Memory keeps the preferences and rules you give it. TODOs, chapter
+  reviews and check-in cards can run as background Agent sessions.
+- When you come back after a break, it can file what you wrote into elements,
+  patches and relations. It never edits prose on its own.
+- **External agents**: Codex, Claude Code and Antigravity can connect to one
+  project through MCP, read-only by default. See
+  [external agent setup](docs/agent-runtime/local-mcp.md).
 
-AI is optional. Built-in AI features require a configured model provider;
-external MCP access does not require a model configured inside Drifting.
-See the [current Agent capabilities](docs/agent-runtime/acceptance/CURRENT_STATUS.md)
-and [external agent setup](docs/agent-runtime/local-mcp.md).
+### Your data
 
-### Write locally. Sync and export when needed.
+- Everything is stored on your Mac and works offline. No account needed.
+- Each project keeps a Markdown folder. Chapters and ideas edited there in any
+  editor merge back into Drifting.
+- Export the book, or chosen chapters, as EPUB, PDF or Word.
+- Copy or save any document or the whole book as Markdown; export every project
+  as a Markdown ZIP; back up the whole library as a restorable `.drifting` file.
+- Import `.md`, `.txt` and `.docx`.
+- Deleted projects stay in Recently Deleted for 30 days.
 
-Your manuscript and project data live on your device, so you can keep writing
-offline. Default source builds do not require a Drifting account. Builds
-configured for the official Hosted service can sign in and sync; that service
-is operated separately and its server is not included in this repository.
-Sync is still undergoing validation, does not guarantee conflict-free device
-switching, and does not provide end-to-end encryption. Hosted is the only supported sync provider.
+With an account you can sync between Macs and share a chapter as a web page
+that readers can comment on. Synced projects are not end-to-end encrypted. See
+the [privacy policy](https://drifting.cc/privacy) and
+[terms](https://drifting.cc/terms).
 
-Copy or save a document or whole-book manuscript as Markdown, or export a
-Markdown ZIP containing project structure and relationships. The ZIP is a
-readable copy for migration, not a complete backup; original image and PDF files
-are not included. For a complete, restorable copy of a local library, export a
-`.drifting` backup in Settings.
+### Help
 
-[Sync details](docs/hosted-sync/README.md) · [Manuscript sharing](docs/editor/markdown-sharing.md) ·
-[Project export](docs/local-data-export.md) · [Library backup](docs/library-backup.md)
+[Support](https://drifting.cc/support) · [Known issues](KNOWN_ISSUES.md) ·
+[Report a bug](https://github.com/chihumyum/Drifting/issues) ·
+[Security](SECURITY.md)
 
-### Current stage
+### Build from source
 
-Tauri is the active client. The desktop Alpha release target is Apple Silicon
-Mac; mobile work is still in development and validation, and other platforms
-are not yet supported releases. This introduction describes capabilities in
-the current source, not the availability of a mature installer.
-
-To try it, read the [known issues](KNOWN_ISSUES.md), start with a source build,
-and keep independent copies of important manuscripts.
-
-### Development
-
-Drifting uses Tauri, Rust, React, and TypeScript. The default build runs locally
-without a Drifting account; this repository does not include the hosted
-service's server implementation.
-
-Before starting, read the [contributor quick start](docs/contributor-quick-start.md)
-for dependencies and platform setup. Running locally on macOS requires your own
-development signing certificate.
+Drifting is built with Tauri, Rust, React and TypeScript. Source builds run
+locally without an account; the Hosted sync service is operated separately and
+is not part of this repository. Running on macOS needs Xcode and your own Apple
+Development certificate; see the [contributor quick start](docs/contributor-quick-start.md).
 
 ```bash
 pnpm install --frozen-lockfile
@@ -99,88 +96,84 @@ pnpm dev:check
 pnpm dev
 ```
 
-- [Documentation index](docs/README.md)
-- [Known issues](KNOWN_ISSUES.md)
-- [Contributing](CONTRIBUTING.md)
+[Documentation](docs/README.md) · [Contributing](CONTRIBUTING.md) ·
+[Releasing](docs/releasing.md)
 
-### Licensing and project policy
+### License
 
-Most project-owned source is licensed under [AGPL-3.0-or-later](LICENSE).
-`packages/prose-metrics` is separately licensed under
-[Apache-2.0](packages/prose-metrics/LICENSE). Third-party code and assets retain
-their respective licenses.
+Project source is [AGPL-3.0-or-later](LICENSE); `packages/prose-metrics` is
+[Apache-2.0](packages/prose-metrics/LICENSE). Third-party code and assets keep
+their own licenses.
 
 [Third-party notices](THIRD_PARTY_NOTICES.md) · [Trademarks](TRADEMARKS.md) ·
-[Privacy boundary](PRIVACY.md) · [Security reporting](SECURITY.md) ·
-[Source history](docs/public-history.md)
+[Client privacy boundary](PRIVACY.md) · [Source history](docs/public-history.md)
 
 ## 简体中文
-Drifting 是一个本地优先的长篇写作工作台，把正文、构想、人物与世界设定、
-故事线和 AI 协作放在同一个项目里。从一段尚未成形的片段，到需要反复推敲的整本书，
-你可以在写作与整理之间来回切换，让材料逐渐长成故事。
 
-**项目仍在早期开发中。** 我正在持续探索它的交互、架构和功能；当前版本尚不成熟，
-界面和功能会继续调整。源码公开维护，欢迎阅读、构建和交流。
+Drifting 是一个开源、本地优先的长篇小说写作工作台。正文、零散的构想、人物与世界设定、
+故事线和资料都在同一个项目里，还有一个能读、能查、能动手整理这一切的 Agent。
 
-### 写下正文，也容得下未成形的想法
+**仍在早期开发。** 作者每天都在用它写作，它也在频繁变化。重要的稿件请另外保留副本，
+并先看一下[已知问题](KNOWN_ISSUES.md)。
 
-按章节写作，也可以连起来阅读整本书。大纲保留幕、章、场景、节拍、笔记的层次，
-在长文中定位和回看。暂时不知道放在哪里的片段，可以先写进漂流区，
-不必急着为它安排章节或故事线。
+### 下载
 
-批注、待办和图片、PDF 等参考资料留在项目中，写作时随手查阅。
+支持 Apple Silicon 上的 macOS 13 及以上。在
+[GitHub Releases](https://github.com/chihumyum/Drifting/releases/latest) 下载 `.dmg`。
+有新版本时 App 会提示，何时安装由你决定。第一次打开会带一个示例作品，可以随便看，也可以删掉。
 
-### 看见故事的结构
+### 写作
 
-用要素和分类整理人物、地点、物品与世界设定，把它们与正文和彼此连接起来。
-故事线、故事图谱、时间线与情节规划表提供不同的视角，帮助你安排章节、梳理关系、
-检查故事的走向。
+- 按章写，也可以在一个视图里通读、修改整本书。
+- 幕在时间线上设置；场景、节拍、笔记是章节里的标题，列在正文旁的大纲里。
+- **构想**收留还没有位置的片段，成熟后可以转成章节或要素。
+- 批注和 TODO 锚定在正文上。写完的章节可以标记完成，也可以交给 Agent 做一轮审读。
+- 历史快照、字数统计、每日目标与连续写作天数。
 
-设定也可以随情节变化：记录要素的变化及其原文依据，回看人物如何走到现在。
+### 规划
 
-### 按你的意图，与 AI 协作
+- 用**要素**整理人物、地点、物品和设定，并归入分类；用**补丁**记录要素随情节发生的变化，
+  紧挨着引起变化的那段原文。
+- 要素、章节、故事线之间可以建立带类型的**关联**。
+- **故事线**、按书序或叙事时间排列的时间线，以及每章一张情节表。
+- 全窗口视图：**要素全景**、**叙事结构图**、**TODO & 素材库**。
+- **素材**：笔记、图片和 PDF，可以分文件夹，各自在标签页里打开；可以在图片或 PDF 的某个区域上批注。
+- **作品主页**汇总进度、快速新建和每日签到。
 
-- **Copilot** 在写作中提出新要素和设定变化的建议，由你决定是否采纳。
-- **General Agent** 可以阅读和检索项目、讨论文本、整理设定，也可以在获得写入权限后
-  修改正文与项目内容。编辑器提供变更审阅；AI 的判断仍需要作者核对。
-- **外部 Agent / MCP** 让你使用熟悉的工具处理同一个项目。Mac 客户端支持为 Codex、
-  Claude Code、Antigravity 配置连接，并分别选择访问权限。Drifting 与已授权的项目
-  需要保持打开。
+### 与 Agent 协作
 
-不启用 AI 也可以正常写作。内置 AI 功能需要配置模型服务；外部 MCP 接入不要求
-在 Drifting 中配置模型。详见[Agent 当前能力](docs/agent-runtime/acceptance/CURRENT_STATUS.md)
-和[外部 Agent 接入](docs/agent-runtime/local-mcp.md)。
+- 可以用自己的 DeepSeek、Anthropic、OpenAI 密钥，也可以登录 ChatGPT 订阅（实验性）。
+  不用 AI 也能正常写作。
+- Agent 能读、搜索和修改你的项目：正文、要素、关联、故事线、素材、TODO。它的改动会在正文里标出，
+  可以从历史快照撤回。
+- 项目记忆保存你交代给它的偏好和规则。TODO、章末审读和签到卡片都可以交给后台 Agent 处理。
+- 你离开一阵再回来时，它可以把上次写的内容整理进要素、补丁和关联；它不会自行改动正文。
+- **外部 Agent**：Codex、Claude Code、Antigravity 可以通过 MCP 连接到某一个项目，默认只读。
+  见[外部 Agent 接入](docs/agent-runtime/local-mcp.md)。
 
-### 本地写作，按需同步与导出
+### 你的数据
 
-正文和项目数据保存在本机，断网也能继续写。默认源码构建不需要 Drifting 账号。
-配置了官方 Hosted 服务的构建可以登录并同步；服务端独立运营，不包含在此仓库中。
-当前同步仍在持续验证，不能保证跨设备切换永远无冲突，也不提供端到端加密。
-Hosted 是目前唯一支持的同步服务。
+- 所有内容保存在你的 Mac 上，断网也能写，不需要账号。
+- 每个项目都有一个 Markdown 文件夹；在任何编辑器里改过的章节和构想会合并回 Drifting。
+- 整本书或选定章节可以导出为 EPUB、PDF、Word 成稿。
+- 单篇或整本书可以复制、保存为 Markdown；所有项目可以导出为 Markdown ZIP；整个资料库可以备份成
+  能恢复的 `.drifting` 文件。
+- 可以导入 `.md`、`.txt`、`.docx`。
+- 删除的项目会在「最近删除」里保留 30 天。
 
-可以将单篇或整本书的正文复制、保存为 Markdown，也可以导出包含项目结构与关系的
-Markdown ZIP。它是便于阅读和迁移的副本，不是完整备份，不包含图片、PDF 的原始文件。
-需要可恢复的完整副本时，可在设置中把本地资料库导出为 `.drifting` 备份。
+注册账号后，可以在多台 Mac 之间同步，并把章节分享成网页给读者阅读和评论。同步内容没有端到端加密。
+详见[隐私政策](https://drifting.cc/privacy)和[服务条款](https://drifting.cc/terms)。
 
-[同步说明](docs/hosted-sync/README.md) · [正文分享](docs/editor/markdown-sharing.md) ·
-[项目导出](docs/local-data-export.md) · [资料库备份](docs/library-backup.md)
+### 帮助
 
-### 当前阶段
+[支持](https://drifting.cc/support) · [已知问题](KNOWN_ISSUES.md) ·
+[报告问题](https://github.com/chihumyum/Drifting/issues) · [安全问题](SECURITY.md)
 
-当前主客户端使用 Tauri。桌面 Alpha 的发布目标是 Apple Silicon Mac；
-移动端仍在开发和验证中，其他平台尚未作为受支持的发行版提供。
-这里的产品介绍描述当前源码中的能力，不代表已有成熟的安装包可下载。
+### 从源码构建
 
-如果你想尝试，建议先阅读[已知问题](KNOWN_ISSUES.md)，从源码构建开始，
-并保留重要稿件的独立副本。
-
-### 开发
-
-项目使用 Tauri、Rust、React 和 TypeScript。默认构建在本地运行，不需要
-Drifting 账号；此仓库不包含托管服务的服务端实现。
-
-开始前请阅读[开发环境配置](docs/contributor-quick-start.md)，安装依赖并完成
-目标平台的准备工作。macOS 本地运行需要自己的开发签名证书。
+Drifting 使用 Tauri、Rust、React 和 TypeScript。源码构建在本地运行，不需要账号；Hosted
+同步服务另行运营，不在此仓库中。在 macOS 上运行需要 Xcode 和你自己的 Apple Development 证书，
+见[开发环境配置](docs/contributor-quick-start.md)。
 
 ```bash
 pnpm install --frozen-lockfile
@@ -188,14 +181,12 @@ pnpm dev:check
 pnpm dev
 ```
 
-- [文档索引](docs/README.md)
-- [已知问题](KNOWN_ISSUES.md)
-- [参与开发](CONTRIBUTING.md)
+[文档索引](docs/README.md) · [参与开发](CONTRIBUTING.md) · [发布流程](docs/releasing.md)
 
-### 许可与项目政策
+### 许可
 
-项目主体采用 [AGPL-3.0-or-later](LICENSE)；`packages/prose-metrics` 单独采用
+项目源码采用 [AGPL-3.0-or-later](LICENSE)；`packages/prose-metrics` 采用
 [Apache-2.0](packages/prose-metrics/LICENSE)。第三方代码和素材保留各自的许可证。
 
 [第三方声明](THIRD_PARTY_NOTICES.md) · [商标说明](TRADEMARKS.md) ·
-[隐私边界](PRIVACY.md) · [安全反馈](SECURITY.md) · [源码历史说明](docs/public-history.md)
+[客户端隐私边界](PRIVACY.md) · [源码历史说明](docs/public-history.md)

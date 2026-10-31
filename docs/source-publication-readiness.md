@@ -145,7 +145,7 @@ Read the [headless dependency regression](renderer-performance/acceptance/source
 and [resource-release regression](renderer-performance/acceptance/source-publication-lifecycle.json)
 alongside the current commit's GitHub CI result. Human acceptance remains in
 the [release smoke check](releasing.md#冒烟检查) and
-[Hosted readiness](client-onboarding-and-hosted-readiness.md). After that review,
+[Hosted sync](hosted-sync/README.md). After that review,
 freeze the intended publication SHA and repeat the preflight below before an
 explicit visibility change. Source visibility and installer distribution remain
 separate decisions.
@@ -343,10 +343,10 @@ store release. Binary distribution still requires the platform acceptance,
 verified mobile link, signing/notarization, operator-policy, bundled-license,
 and real-account gates documented in:
 
-- [`../README.md`](../README.md#licensing-and-project-policy);
+- [`../README.md`](../README.md#license);
 - [`qa/tauri-native-manual-regression.md`](qa/tauri-native-manual-regression.md);
 - [`releasing.md`](releasing.md);
-- [current onboarding and Hosted readiness](client-onboarding-and-hosted-readiness.md);
+- [known issues](../KNOWN_ISSUES.md);
 - [`../src-tauri/UNSUPPORTED.md`](../src-tauri/UNSUPPORTED.md); and
 - [Hosted sync contract](hosted-sync/README.md).
 
