@@ -723,6 +723,24 @@
 .brush-icon--hook { -webkit-mask-image: url('../assets/design/icons/hook.png'); mask-image: url('../assets/design/icons/hook.png'); }
 .brush-icon--lift { -webkit-mask-image: url('../assets/design/icons/lift.png'); mask-image: url('../assets/design/icons/lift.png'); }
 .brush-icon--lift-bent { -webkit-mask-image: url('../assets/design/icons/lift-bent.png'); mask-image: url('../assets/design/icons/lift-bent.png'); }
+/* Menu rows that had no icon of their own (2026-10-31). */
+.brush-icon--brush-broken { -webkit-mask-image: url('../assets/design/icons/brush-broken.png'); mask-image: url('../assets/design/icons/brush-broken.png'); }
+.brush-icon--fluff { -webkit-mask-image: url('../assets/design/icons/fluff.png'); mask-image: url('../assets/design/icons/fluff.png'); }
+.brush-icon--stone-sunk { -webkit-mask-image: url('../assets/design/icons/stone-sunk.png'); mask-image: url('../assets/design/icons/stone-sunk.png'); }
+.brush-icon--ri { -webkit-mask-image: url('../assets/design/icons/ri.png'); mask-image: url('../assets/design/icons/ri.png'); }
+.brush-icon--zi { -webkit-mask-image: url('../assets/design/icons/zi.png'); mask-image: url('../assets/design/icons/zi.png'); }
+.brush-icon--zi-ri { -webkit-mask-image: url('../assets/design/icons/zi-ri.png'); mask-image: url('../assets/design/icons/zi-ri.png'); }
+.brush-icon--wu { -webkit-mask-image: url('../assets/design/icons/wu.png'); mask-image: url('../assets/design/icons/wu.png'); }
+.brush-icon--seal-fork { -webkit-mask-image: url('../assets/design/icons/seal-fork.png'); mask-image: url('../assets/design/icons/seal-fork.png'); }
+.brush-icon--seal-main { -webkit-mask-image: url('../assets/design/icons/seal-main.png'); mask-image: url('../assets/design/icons/seal-main.png'); }
+.brush-icon--folder-none { -webkit-mask-image: url('../assets/design/icons/folder-none.png'); mask-image: url('../assets/design/icons/folder-none.png'); }
+.brush-icon--insert-row { -webkit-mask-image: url('../assets/design/icons/insert-row.png'); mask-image: url('../assets/design/icons/insert-row.png'); }
+.brush-icon--insert-col { -webkit-mask-image: url('../assets/design/icons/insert-col.png'); mask-image: url('../assets/design/icons/insert-col.png'); }
+.brush-icon--list-bullet { -webkit-mask-image: url('../assets/design/icons/list-bullet.png'); mask-image: url('../assets/design/icons/list-bullet.png'); }
+.brush-icon--list-ordered { -webkit-mask-image: url('../assets/design/icons/list-ordered.png'); mask-image: url('../assets/design/icons/list-ordered.png'); }
+.brush-icon--table { -webkit-mask-image: url('../assets/design/icons/table.png'); mask-image: url('../assets/design/icons/table.png'); }
+.brush-icon--code { -webkit-mask-image: url('../assets/design/icons/code.png'); mask-image: url('../assets/design/icons/code.png'); }
+.brush-icon--highlight { -webkit-mask-image: url('../assets/design/icons/highlight.png'); mask-image: url('../assets/design/icons/highlight.png'); }
 /* Thinking: six frames side by side, grains pressing into a dot and loosening
  * again, played back and forth the way a terminal spinner cycles its glyphs.
  * `.brush-icon--still` holds the gathered dot once the thought is done. */
