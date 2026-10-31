@@ -64,8 +64,10 @@ import {
   BOOK_ILLUSTRATIONS,
   buildProseDocument,
   chapterTitle,
+  createEntityLinker,
   type BookChapter,
   type BookIllustration,
+  type EntityLinker,
   type ProseDocument,
 } from './book';
 import {
@@ -78,6 +80,7 @@ import {
   IDEAS,
   ILLUSTRATION_FOLDER,
   ILLUSTRATION_NOTES,
+  LINK_FORMS,
   MATERIAL_NOTES,
   PLOT_GRID,
   PROJECT_FACTS,
@@ -137,13 +140,17 @@ interface PreparedChapter extends PreparedProse {
 
 const chapterOrder = (number: number) => number * CHAPTER_STRIDE;
 
-async function prepareProse(paragraphs: readonly (string | readonly string[])[], newId: () => string): Promise<PreparedProse> {
-  const document = buildProseDocument(paragraphs, newId);
+async function prepareProse(
+  paragraphs: readonly (string | readonly string[])[],
+  newId: () => string,
+  linker?: EntityLinker,
+): Promise<PreparedProse> {
+  const document = buildProseDocument(paragraphs, newId, linker);
   return { document, seed: await createYjsProseSeedState(document.contentJson) };
 }
 
-async function prepareChapter(chapter: BookChapter, newId: () => string): Promise<PreparedChapter> {
-  const prose = await prepareProse(chapter.blocks, newId);
+async function prepareChapter(chapter: BookChapter, newId: () => string, linker: EntityLinker): Promise<PreparedChapter> {
+  const prose = await prepareProse(chapter.blocks, newId, linker);
   const metric = await deriveProseMetricFromJson(prose.document.contentJson);
   return { ...prose, chapter, id: newId(), wordCount: metric.wordCount, basisHash: metric.basisHash };
 }
@@ -212,14 +219,14 @@ interface WrittenOutline {
  * Project facts and memory, element categories and elements, relation types
  * and relations between elements, storylines, acts, timeline pins and ideas.
  */
-async function writeOutline(input: WriteBookSampleInput): Promise<WrittenOutline> {
+async function writeOutline(input: WriteBookSampleInput, elementIds: ReadonlyMap<string, string>): Promise<WrittenOutline> {
   const { projectId, newId } = input;
   const now = input.now();
   const categories = await Promise.all(CATEGORIES.map(async (category) => ({
     category, id: newId(), prose: await prepareProse(category.body, newId),
   })));
   const elements = await Promise.all(ELEMENTS.map(async (element) => ({
-    element, id: newId(), prose: await prepareProse(element.body, newId),
+    element, id: elementIds.get(element.key)!, prose: await prepareProse(element.body, newId),
   })));
   const storylines = await Promise.all(STORYLINES.map(async (storyline) => ({
     storyline, id: newId(), prose: await prepareProse(storyline.body, newId),
@@ -229,7 +236,6 @@ async function writeOutline(input: WriteBookSampleInput): Promise<WrittenOutline
     const metric = await deriveProseMetricFromJson(prose.document.contentJson);
     return { idea, id: newId(), prose, metric };
   }));
-  const elementIds = new Map(elements.map(({ element, id }) => [element.key, id]));
   const storylineIds = new Map(storylines.map(({ storyline, id }) => [storyline.key, id]));
   const relationTypes = new Map<string, EntityRelationType>(RELATION_TYPES.map((type) => [type.key, {
     id: newId(),
@@ -389,7 +395,7 @@ async function writeOutline(input: WriteBookSampleInput): Promise<WrittenOutline
       });
     }
   });
-  return { elementIds, relationTypes, storylineIds };
+  return { elementIds: new Map(elementIds), relationTypes, storylineIds };
 }
 
 async function insertRelation(
@@ -419,11 +425,11 @@ async function insertRelation(
  * chain, so later chapters are prepared while earlier transactions wait on the
  * database.
  */
-function prepareChapters(newId: () => string): Promise<PreparedChapter>[] {
+function prepareChapters(newId: () => string, linker: EntityLinker): Promise<PreparedChapter>[] {
   const preparations: Promise<PreparedChapter>[] = [];
   let previous: Promise<unknown> = Promise.resolve();
   for (const chapter of BOOK_CHAPTERS) {
-    const next = previous.then(() => prepareChapter(chapter, newId));
+    const next = previous.then(() => prepareChapter(chapter, newId, linker));
     next.catch(() => undefined);
     preparations.push(next);
     previous = next.catch(() => undefined);
@@ -642,10 +648,14 @@ export async function writeBookSample(input: WriteBookSampleInput): Promise<void
     return result;
   };
   const started = performance.now();
-  const preparations = prepareChapters(input.newId);
+  // Element ids come first: the chapters link the names that point at them.
+  const elementIds = new Map(ELEMENTS.map((element) => [element.key, input.newId()]));
+  const linker = createEntityLinker(new Map(LINK_FORMS.map(({ form, element }) =>
+    [form, element === null ? null : elementIds.get(element)!])));
+  const preparations = prepareChapters(input.newId, linker);
   void Promise.all(preparations).then(() => input.onStep?.('chaptersPreparedAt', performance.now() - started), () => undefined);
   void input.assets.then(() => input.onStep?.('assetsReadyAt', performance.now() - started), () => undefined);
-  const outline = await time('outline', () => writeOutline(input));
+  const outline = await time('outline', () => writeOutline(input, elementIds));
   const chapters = await time('chapters', () => writeChapters(input, outline, preparations));
   await time('review', () => writeReview(input, outline, chapters));
   await time('materials', () => writeMaterials(input, outline));

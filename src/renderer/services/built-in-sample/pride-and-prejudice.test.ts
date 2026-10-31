@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import { validateRelationAgainstType, normalizeRelationTypeDefinition } from '../../domain/entity-relation-type';
-import { anchorQuotation, BOOK_CHAPTERS, BOOK_ILLUSTRATIONS, BOOK_TEXT_SHA256, buildProseDocument, paragraphText } from './book';
+import { anchorQuotation, BOOK_CHAPTERS, BOOK_ILLUSTRATIONS, BOOK_TEXT_SHA256, buildProseDocument, createEntityLinker, paragraphText } from './book';
 import * as showcase from './showcase';
 
 const directory = fileURLToPath(new URL('./pride-and-prejudice/', import.meta.url));
@@ -146,5 +146,56 @@ describe('the showcase', () => {
     for (const illustration of BOOK_ILLUSTRATIONS.filter((item) => item.use === 'material'))
       expect(showcase.ILLUSTRATION_NOTES[illustration.name], illustration.name).toBeTruthy();
     expect(showcase.PLOT_GRID.rows.every((row) => row.cells.length === showcase.PLOT_GRID.columns.length)).toBe(true);
+  });
+});
+
+describe('the chapter links', () => {
+  const linker = createEntityLinker(new Map(showcase.LINK_FORMS.map(({ form, element }) => [form, element])));
+  const linked = (text: string) => linker(text).filter((run) => run.elementId).map((run) => [run.text, run.elementId]);
+
+  it('point every linked form at an element of the sample', () => {
+    const keys = new Set(showcase.ELEMENTS.map((element) => element.key));
+    for (const { form, element } of showcase.LINK_FORMS) {
+      if (element !== null) expect(keys.has(element), form).toBe(true);
+    }
+    expect(new Set(showcase.LINK_FORMS.map(({ form }) => form)).size).toBe(showcase.LINK_FORMS.length);
+  });
+
+  it('tell apart the people who share a name', () => {
+    expect(linked('Miss Darcy smiled at Mr. Darcy.')).toEqual([['Miss Darcy', 'georgiana'], ['Mr. Darcy', 'darcy']]);
+    expect(linked('Miss Bingley and Mr. Bingley; later Mrs. Bingley.')).toEqual([
+      ['Miss Bingley', 'caroline'], ['Mr. Bingley', 'bingley'], ['Mrs. Bingley', 'jane'],
+    ]);
+    expect(linked('Mrs. Wickham wrote to Wickham.')).toEqual([['Mrs. Wickham', 'lydia'], ['Wickham', 'wickham']]);
+    expect(linked('Mrs. Collins and Mr. Collins')).toEqual([['Mrs. Collins', 'charlotte'], ['Mr. Collins', 'collins']]);
+    expect(linked('Lady Catherine and Catherine')).toEqual([['Lady Catherine', 'lady-catherine'], ['Catherine', 'kitty']]);
+    expect(linked('Colonel Fitzwilliam met Fitzwilliam Darcy.')).toEqual([
+      ['Colonel Fitzwilliam', 'fitzwilliam'], ['Fitzwilliam Darcy', 'darcy'],
+    ]);
+    // Darcy's father, his mother, Wickham's heiress and the ambiguous "Miss Bennet" stay plain.
+    expect(linked('the late Mr. Darcy, Lady Anne Darcy, Mary King and Miss Bennet')).toEqual([]);
+    expect(linked('Elizabeth, not Eliza’s Elizabethan cousin')).toEqual([['Elizabeth', 'elizabeth'], ['Eliza', 'elizabeth']]);
+  });
+
+  it('link the people and places through the whole book', () => {
+    const counts = new Map<string, number>();
+    for (const chapter of BOOK_CHAPTERS) {
+      for (const text of paragraphs(chapter.number)) {
+        for (const run of linker(text)) if (run.elementId) counts.set(run.elementId, (counts.get(run.elementId) ?? 0) + 1);
+      }
+    }
+    expect(counts.get('elizabeth')).toBeGreaterThan(700);
+    expect(counts.get('georgiana')).toBeGreaterThan(40);
+    expect(counts.get('pemberley')).toBeGreaterThan(40);
+    expect(counts.size).toBe(showcase.ELEMENTS.length - 2);
+  });
+
+  it('keep the text and block layout the anchors rely on', () => {
+    let next = 0;
+    const plain = buildProseDocument(BOOK_CHAPTERS[35].blocks, () => `b${++next}`);
+    next = 0;
+    const withLinks = buildProseDocument(BOOK_CHAPTERS[35].blocks, () => `b${++next}`, linker);
+    expect(withLinks.blocks).toEqual(plain.blocks);
+    expect(withLinks.contentJson).toContain('"entityLink"');
   });
 });
