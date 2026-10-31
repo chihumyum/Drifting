@@ -237,6 +237,23 @@ html:not([data-shell-mode='mobile']) .super-view-head .glass-slider__option[aria
   font-weight: 500;
 }
 
+/* The three views are destinations, like the Panel Tabs: the serif
+   structure face at one weight, the chosen one shown by its glass alone.
+   The views' own modes (书序／叙事时) stay controls in the UI face above. */
+html:not([data-shell-mode='mobile']) .super-view-head__views .glass-slider__option,
+html:not([data-shell-mode='mobile']) .super-view-head__views .glass-slider__option[aria-checked='true'] {
+  font-family: var(--font-structure);
+  font-weight: 400;
+  font-optical-sizing: auto;
+}
+
+/* Ideographs drop onto the Latin line, as in the Panel Tabs, so a Chinese
+   view name centres in the glass slab. */
+html:not([data-shell-mode='mobile']) .super-view-head__views [data-script='cjk'] {
+  position: relative;
+  top: 0.15em;
+}
+
 html:not([data-shell-mode='mobile']) .super-view-head__meta {
   font-size: var(--ui-font-caption, 10px);
   letter-spacing: 0;

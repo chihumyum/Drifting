@@ -966,10 +966,14 @@
   background: transparent;
 }
 
+/* Folders organize the materials, as categories organize elements: their
+   names are set in the serif structure face, materials in the entity face. */
 .material-tree__name {
   flex: 1;
   min-width: 0;
   overflow: hidden;
+  font-family: var(--font-structure);
+  font-weight: 400;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

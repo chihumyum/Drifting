@@ -247,6 +247,15 @@ p.dash-ro {
   color: hsl(var(--ink-1));
 }
 
+/* The book's storylines and categories organize it, so their names are set
+   in the serif structure face, as in the sidebars; chapters and elements in
+   Continue keep the entity face. */
+.dash-line__name,
+.dash-cell--category .dash-cell__name {
+  font-family: var(--font-structure);
+  font-weight: 400;
+}
+
 /* ── The whole book: one sand readout per storyline ────────────────── */
 .dash-lines {
   display: flex;

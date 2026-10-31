@@ -250,6 +250,21 @@
 .actrail--glass .actrail__band.has-color .actrail__label.glass {
   --glass-cc: var(--act-color);
 }
+/* Act names are set in the serif structure face, as acts are in the paper's
+   outline; the chapter count stays index type. */
+.actrail--glass .actrail__name,
+.actrail--glass .actrail__edit {
+  font-family: var(--font-structure);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+/* Ideographs drop onto the Latin line, as in the Panel Tabs, so a Chinese
+   act name centres in its chip and sits on the count's line. */
+.actrail--glass .actrail__name[data-script='cjk'] {
+  position: relative;
+  top: 0.15em;
+}
 .actrail--glass .actrail__label:focus-visible,
 .actrail--glass .actrail__divider:focus-visible {
   outline: none;
