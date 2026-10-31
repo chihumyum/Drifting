@@ -110,6 +110,9 @@ list-ordered.png            1 2 3 brushed small, a row after each
 table.png                   a table with its head row inked solid
 code.png                    </>
 highlight.png               a broad dry swash, a line of text over it
+brush-writing.png           sort by last edit: the brush still on the line it is writing
+alpha-down.png              sort by title or name: the letter A and a falling arrow
+lanes-stagger.png           sort by storyline order: three storyline dashes, each a step later
 
 moon-left-hollow / moon-right-hollow  the sidebar toggles' crescents with the
                             inside cleared, the rim as thin, light and sandy as
@@ -1313,6 +1316,34 @@ def highlight(rng):
     _hline(a, rng, 18, 78, 50, T * 0.75)
     return a
 
+def brush_writing(rng):
+    """续笔 (sort by last edit): the brush still on the line it is writing."""
+    a = new()
+    brush(a, line((8, 80), (52, 79)), T * 0.9, rng, load0=1.0, dry=0.45, taper=(0.05, 0.0))
+    brush(a, line((58, 66), (88, 30)), G * 0.7, rng, load0=1.0, dry=0.2, taper=(0.02, 0.05))
+    head = curve([(60, 62), (54, 64), (50, 72), (50, 80), (58, 74), (62, 68), (63, 64), (60, 62)], 8)
+    fill_poly(a, head, rng, rough=0.6)
+    return a
+
+def alpha_down(rng):
+    """A↓ (sort by title or name): the letter A and a falling arrow."""
+    a = new()
+    brush(a, poly((12, 84), (32, 14), (52, 84), n=20), T * 0.9, rng, load0=1.0, dry=0.2, taper=(0.05, 0.12))
+    brush(a, line((20, 60), (44, 60), 10), T * 0.7, rng, load0=1.0, dry=0.2, taper=(0.05, 0.1))
+    brush(a, line((74, 12), (74, 78), 18), T * 0.8, rng, load0=1.0, dry=0.2, taper=(0.04, 0.0))
+    arrowhead(a, rng, (74, 82), (0, 1), length=13, spread=40, th=T * 0.7)
+    return a
+
+def _dashes(xs, ys, w=46):
+    out = new()
+    for x, y in zip(xs, ys):
+        out = np.maximum(out, place("mark-dash.png", x, y, w))
+    return out
+
+def lanes_stagger(rng):
+    """错落三短横 (sort by storyline order): three storyline dashes, each starting a step later."""
+    return _dashes((4, 24, 44), (12, 38, 64)), new()
+
 # name → (draw, seed). The seeds are the ones the author picked from.
 ICONS = {
     "stones-triad": (stones_triad, 602), "brush-laid": (brush_laid, 606), "brush-lifted": (brush_lifted, 607),
@@ -1350,6 +1381,7 @@ OBJECTS = {
     "seal-fork": (seal_fork, 8152), "seal-main": (seal_main, 8162), "folder-none": (folder_none, 8180),
     "insert-row": (insert_row, 8192), "list-bullet": (list_bullet, 8201), "list-ordered": (list_ordered, 8211),
     "table": (table, 8222), "code": (code, 8230), "highlight": (highlight, 8240),
+    "brush-writing": (brush_writing, 8081), "alpha-down": (alpha_down, 8091), "lanes-stagger": (lanes_stagger, 8102),
 }
 # Drawn beside the shipped folding fan and not written out: to ship one
 # instead, put it in OBJECTS under "folding-fan".

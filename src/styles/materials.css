@@ -741,6 +741,9 @@
 .brush-icon--table { -webkit-mask-image: url('../assets/design/icons/table.png'); mask-image: url('../assets/design/icons/table.png'); }
 .brush-icon--code { -webkit-mask-image: url('../assets/design/icons/code.png'); mask-image: url('../assets/design/icons/code.png'); }
 .brush-icon--highlight { -webkit-mask-image: url('../assets/design/icons/highlight.png'); mask-image: url('../assets/design/icons/highlight.png'); }
+.brush-icon--brush-writing { -webkit-mask-image: url('../assets/design/icons/brush-writing.png'); mask-image: url('../assets/design/icons/brush-writing.png'); }
+.brush-icon--alpha-down { -webkit-mask-image: url('../assets/design/icons/alpha-down.png'); mask-image: url('../assets/design/icons/alpha-down.png'); }
+.brush-icon--lanes-stagger { -webkit-mask-image: url('../assets/design/icons/lanes-stagger.png'); mask-image: url('../assets/design/icons/lanes-stagger.png'); }
 /* Thinking: six frames side by side, grains pressing into a dot and loosening
  * again, played back and forth the way a terminal spinner cycles its glyphs.
  * `.brush-icon--still` holds the gathered dot once the thought is done. */
