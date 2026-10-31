@@ -21,6 +21,7 @@ mod library_backup;
 mod local_lab_session;
 #[cfg(target_os = "macos")]
 mod macos_quit;
+mod manuscript_export;
 mod markdown_projection;
 mod mcp_http;
 mod mcp_server;
@@ -290,6 +291,8 @@ pub fn run() {
             native_capabilities::asset_store_delete_asset,
             native_capabilities::archive_save,
             markdown_share::share_save_markdown,
+            manuscript_export::manuscript_export_save,
+            manuscript_export::manuscript_export_pick_cover,
             native_capabilities::archive_create_text_zip,
             native_capabilities::ai_log_write,
             native_capabilities::ai_log_open_dir,

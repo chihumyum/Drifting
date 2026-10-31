@@ -13,6 +13,7 @@ import { TimelineToggle } from '../workspaceChrome/WorkspaceTabDock';
 import { useEditorCornerHostsTimelineToggle } from './editor-corner';
 import { useEditorRailPresentation } from './editor-rail-presentation';
 import { MarkdownShareDialog } from './MarkdownShareDialog';
+import { ManuscriptExportDialog, type ManuscriptExportTarget } from './ManuscriptExportDialog';
 import type { MarkdownShareTarget } from '../../services/export/markdown-share';
 
 export type EditorType = 'node' | 'element' | 'category' | 'storyline' | 'library_item';
@@ -75,6 +76,8 @@ interface EditorTopBarProps {
   editorType?: EditorType;
   onMenuAction?: (action: string) => void;
   shareTarget?: MarkdownShareTarget;
+  // The book (and, from a chapter, that chapter) for EPUB/PDF/Word export.
+  manuscriptExport?: ManuscriptExportTarget;
   // Only used when editorType === 'node'. Drives the status section at the
   // top of the three-dot menu; the current value is shown with a check.
   // `nodeStatusKind` picks the enum/labels (chapter or drift); both must be
@@ -113,6 +116,7 @@ export function EditorTopBar({
   editorType,
   onMenuAction,
   shareTarget,
+  manuscriptExport,
   nodeWritingStatus,
   nodeStatusKind,
   menuHeader,
@@ -124,6 +128,7 @@ export function EditorTopBar({
 }: EditorTopBarProps) {
   const { t } = useTranslation();
   const [shareRequest, setShareRequest] = useState<MarkdownShareTarget | null>(null);
+  const [exportRequest, setExportRequest] = useState<ManuscriptExportTarget | null>(null);
   const showMenu = Boolean(editorType && onMenuAction);
   const hostsTimelineToggle = useEditorCornerHostsTimelineToggle();
 
@@ -201,9 +206,11 @@ export function EditorTopBar({
             hiddenActions={hiddenMenuActions}
             translate={t}
             onShare={shareTarget ? () => setShareRequest({ ...shareTarget }) : undefined}
+            onExportManuscript={manuscriptExport ? () => setExportRequest({ ...manuscriptExport }) : undefined}
           />
         )}
         {shareRequest && <MarkdownShareDialog target={shareRequest} onClose={() => setShareRequest(null)} />}
+        {exportRequest && <ManuscriptExportDialog target={exportRequest} onClose={() => setExportRequest(null)} />}
       </div>
     </div>
   );
@@ -242,6 +249,7 @@ interface EditorBarMenuProps {
   hiddenActions?: readonly string[];
   translate?: Translate;
   onShare?: () => void;
+  onExportManuscript?: () => void;
 }
 
 function EditorBarMenu({
@@ -253,6 +261,7 @@ function EditorBarMenu({
   hiddenActions,
   translate,
   onShare,
+  onExportManuscript,
 }: EditorBarMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -289,7 +298,7 @@ function EditorBarMenu({
   // The plain actions, the writing status, then what destroys: each group
   // parted from the next by a hairline.
   const groups: { key: string; content: ReactNode }[] = [];
-  if (onShare || plain.length > 0) {
+  if (onShare || onExportManuscript || plain.length > 0) {
     groups.push({
       key: 'actions',
       content: (
@@ -301,6 +310,15 @@ function EditorBarMenu({
             }}>
               <BrushIcon name="share" size={16} />
               <span>{translate?.('markdownShare.menu') ?? 'Share'}</span>
+            </button>
+          )}
+          {onExportManuscript && (
+            <button type="button" role="menuitem" className="menu-surface__item" onClick={() => {
+              setIsOpen(false);
+              onExportManuscript();
+            }}>
+              <BrushIcon name="case-rise" size={16} />
+              <span>{translate?.('manuscriptExport.menu') ?? 'Export manuscript'}</span>
             </button>
           )}
           {plain.map(actionRow)}
