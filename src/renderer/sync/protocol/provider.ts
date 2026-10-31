@@ -9,7 +9,7 @@ import {
 } from './primitives';
 import { assertSchema } from './validation';
 
-export const PROVIDER_KINDS = ['memory', 'local-folder', 'google-drive', 'hosted'] as const;
+export const PROVIDER_KINDS = ['memory', 'local-folder', 'hosted'] as const;
 export const SYNC_OBJECT_KINDS = [
   'segment',
   'genesis',
@@ -33,7 +33,6 @@ const localObjectRefSchema = Type.String({
 export const PROVIDER_KIND_SCHEMA = Type.Union([
   Type.Literal('memory'),
   Type.Literal('local-folder'),
-  Type.Literal('google-drive'),
   Type.Literal('hosted'),
 ]);
 export const SYNC_OBJECT_KIND_SCHEMA = Type.Union([

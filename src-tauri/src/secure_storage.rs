@@ -38,9 +38,9 @@ fn keychain_service(app: &AppHandle) -> String {
 }
 const MAX_KEY_BYTES: usize = 128;
 const MAX_VALUE_BYTES: usize = 256 * 1024;
-/// Secrets only native code may read or mutate: sync credentials and the
-/// ChatGPT subscription OAuth tokens that back the Codex transport.
-const NATIVE_ONLY_SECRET_PREFIXES: &[&str] = &["sync.google-drive.", "oauth."];
+/// Secrets only native code may read or mutate: sync provider credentials and
+/// the ChatGPT subscription OAuth tokens that back the Codex transport.
+const NATIVE_ONLY_SECRET_PREFIXES: &[&str] = &["sync.", "oauth."];
 
 fn key_is_valid(key: &str) -> bool {
     !key.is_empty()
@@ -355,8 +355,7 @@ mod tests {
     #[test]
     fn renderer_cannot_read_or_mutate_native_sync_secrets() {
         for key in [
-            "sync.google-drive.credentials.opaque",
-            "sync.google-drive.resumable.opaque",
+            "sync.provider.credentials.opaque",
             "oauth.openai-codex",
         ] {
             assert!(key_is_valid(key));

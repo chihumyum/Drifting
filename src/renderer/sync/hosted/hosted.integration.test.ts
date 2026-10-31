@@ -1,7 +1,8 @@
-import { adoptDriveReplicaForHosted } from './adopt-drive';
 import { deleteProjectWithRemoteConfirmation } from './project-deletion';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
+import { DatabaseSync } from 'node:sqlite';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -17,14 +18,11 @@ import {
   SyncGenerationTable,
   SyncRemoteObjectTable,
   SyncChangeSetTable,
-  SyncFieldClockTable,
-  SyncLocalObjectTable,
-  SyncQuarantinedObjectTable,
 } from '../../schema/drizzle';
 import { createYjsRepository } from '../../sqlite-repo/yjs-repo';
 import { createSyncAppAuthorityRepository } from '../app-authority-repository';
 import { ProviderSnapshotPublisher } from '../checkpoint';
-import { SqliteSyncGenerationRuntime } from '../engine/durable-runtime';
+import { SqliteSyncGenerationRuntime, syncRemoteObjectId } from '../engine/durable-runtime';
 import { PlaintextSyncEngineObjectCodec } from '../engine/plaintext-object-codec';
 import { SyncChangeBuilder, recordAuthoredChangeSetInTransaction } from '../journal';
 import {
@@ -101,9 +99,14 @@ async function createAccount() {
   return { token, accountSubject: session.user.id, credentialSecretRef: 'hosted.session' };
 }
 
-async function device(label: string, account: Awaited<ReturnType<typeof createAccount>>) {
+async function device(
+  label: string,
+  account: Awaited<ReturnType<typeof createAccount>>,
+  prepareLibrary?: (file: string) => void,
+) {
   const directory = await mkdtemp(path.join(tmpdir(), `drifting-hosted-${label}-`));
   temp.push(directory);
+  prepareLibrary?.(path.join(directory, 'library.db'));
   const gateway = new ProductFileBackedSqliteGateway(path.join(directory, 'library.db'));
   gateways.push(gateway);
   const db = gateway.client();
@@ -148,8 +151,10 @@ async function device(label: string, account: Awaited<ReturnType<typeof createAc
       }
       if (!response.ok)
         throw Object.assign(new Error(`Hosted ${response.status}`), {
-          code: response.status === 410 ? 'GENERATION_DELETED' : response.status === 401 ? 'needs-reauth' : 'provider-unavailable',
-          retryable: response.status !== 401,
+          // Same status mapping as the native transport (src-tauri/src/hosted_sync.rs).
+          code: response.status === 410 ? 'GENERATION_DELETED' : response.status === 401 ? 'needs-reauth'
+            : response.status === 404 ? 'REMOTE_OBJECT_MISSING' : 'provider-unavailable',
+          retryable: response.status !== 401 && response.status !== 404,
         });
       if (input.sourceRef && network.loseUploadResponse) {
         network.loseUploadResponse = false;
@@ -426,6 +431,73 @@ async function loadDoc(db: DbClient, nodeId: string) {
   return doc;
 }
 
+const DRIZZLE_DIRECTORY = new URL('../../../../drizzle/', import.meta.url);
+const DRIVE_RETIREMENT_MIGRATION = '0014_retire_google_drive_sync';
+/**
+ * Writes a library file at the last schema that still allowed Google Drive,
+ * recording its migration history exactly like the native migrator, so that
+ * opening it applies the retirement migration as an upgrade would.
+ */
+function createDriveBoundLibrary(file: string, project: Project & { title: string }) {
+  const journal = JSON.parse(readFileSync(new URL('meta/_journal.json', DRIZZLE_DIRECTORY), 'utf8')) as {
+    entries: Array<{ tag: string; when: number }>;
+  };
+  const retirement = journal.entries.findIndex((entry) => entry.tag === DRIVE_RETIREMENT_MIGRATION);
+  expect(retirement).toBeGreaterThan(0);
+  const database = new DatabaseSync(file);
+  database.exec('PRAGMA foreign_keys = OFF');
+  database.exec('BEGIN IMMEDIATE');
+  database.exec('CREATE TABLE __drizzle_migrations (id SERIAL PRIMARY KEY, hash text NOT NULL, created_at numeric)');
+  for (const entry of journal.entries.slice(0, retirement)) {
+    const bytes = readFileSync(new URL(`${entry.tag}.sql`, DRIZZLE_DIRECTORY));
+    for (const statement of bytes.toString('utf8').split('--> statement-breakpoint'))
+      if (statement.trim()) database.exec(statement);
+    database
+      .prepare('INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?, ?)')
+      .run(createHash('sha256').update(bytes).digest('hex'), entry.when);
+  }
+  database.exec('COMMIT');
+  database.exec('PRAGMA foreign_keys = ON');
+  const at = now();
+  const run = (sql: string, ...values: Array<string | number | null>) => database.prepare(sql).run(...values);
+  run(`INSERT INTO project (id, name, user_id, created_at, updated_at) VALUES (?, ?, 'drifting-library.db', ?, ?)`,
+    project.projectId, 'Synthetic Drive library', at, at);
+  run(`INSERT INTO book_node (id, project_id, kind, title, summary, writing_status, position_x, position_y, created_at, updated_at)
+       VALUES (?, ?, 'chapter', ?, '', 'draft', 0, 0, ?, ?)`, project.nodeId, project.projectId, project.title, at, at);
+  run(`INSERT INTO node_content (node_id, content_json, created_at, updated_at) VALUES (?, ?, ?, ?)`,
+    project.nodeId, JSON.stringify({ type: 'doc', content: [] }), at, at);
+  run(`INSERT INTO sync_generation (sync_generation_id, project_id, project_sync_id, generation_number, protocol_version,
+         domain_schema_version, status, created_at, updated_at) VALUES (?, ?, ?, 1, 1, 1, 'active', ?, ?)`,
+    project.syncGenerationId, project.projectId, project.projectSyncId, at, at);
+  // A completed Drive connect. Its commit marker is recorded the way the runtime records
+  // a Drive object observed during restore: a remote row with no local download.
+  const marker = syncRemoteObjectId(project.syncGenerationId, 'old-drive-object');
+  run(`INSERT INTO sync_connect_attempt (attempt_id, authority_generation, kind, target_mode, target_account_subject_id,
+         target_credential_secret_ref, state, created_at, updated_at)
+       VALUES ('drive-connect', 1, 'connect', 'google-drive', 'synthetic-drive', 'unreachable-drive', 'preparing', ?, ?)`, at, at);
+  run(`UPDATE sync_app_authority SET transition_state = 'connecting', target_mode = 'google-drive', attempt_id = 'drive-connect'`);
+  run(`INSERT INTO sync_remote_object (id, sync_generation_id, provider_object_id, logical_key_id, object_kind,
+         stored_sha256, size_bytes, first_observed_at, last_observed_at)
+       VALUES (?, ?, 'old-drive-object', 'old-drive-key', 'snapshot-commit', ?, 1, ?, ?)`,
+    marker, project.syncGenerationId, '0'.repeat(64), at, at);
+  run(`INSERT INTO sync_connect_generation_attempt (attempt_id, source_sync_generation_id, commit_marker_object_id,
+         state, created_at, updated_at) VALUES ('drive-connect', ?, ?, 'committed', ?, ?)`,
+    project.syncGenerationId, marker, at, at);
+  run(`UPDATE sync_connect_generation_attempt SET state = 'activated', activation_receipt = 'drive-receipt',
+         activated_at = ?, updated_at = ? WHERE attempt_id = 'drive-connect'`, at, at);
+  run(`UPDATE sync_connect_attempt SET state = 'completed', completed_at = ?, updated_at = ? WHERE attempt_id = 'drive-connect'`, at, at);
+  run(`UPDATE sync_app_authority SET mode = 'google-drive', generation = 2, transition_state = 'stable',
+         target_mode = NULL, attempt_id = NULL`);
+  run(`INSERT INTO sync_provider_account (id, singleton_key, authority_id, provider_kind, authority_generation,
+         account_subject_id, credential_secret_ref, created_at, updated_at)
+       VALUES ('drive-account', 1, 'app', 'google-drive', 2, 'synthetic-drive', 'unreachable-drive', ?, ?)`, at, at);
+  run(`INSERT INTO sync_provider_binding (sync_generation_id, provider_account_id, provider_namespace, state, connected_at, updated_at)
+       VALUES (?, 'drive-account', 'appDataFolder', 'ready', ?, ?)`, project.syncGenerationId, at, at);
+  run(`INSERT INTO sync_cursor (sync_generation_id, provider_epoch, committed_cursor, inventory_complete, updated_at)
+       VALUES (?, 'drive-epoch', 'drive-cursor', 1, ?)`, project.syncGenerationId, at);
+  database.close();
+}
+
 describe.skipIf(!origin)('Hosted current-client real HTTP and SQLite acceptance', () => {
   it('deletes remote bytes before local data, survives a lost acknowledgement and removes an offline peer without resurrection',
     { timeout: 150_000 }, async () => {
@@ -589,180 +661,83 @@ describe.skipIf(!origin)('Hosted current-client real HTTP and SQLite acceptance'
     },
   );
   it(
-    'takes over an offline Drive replica with retained remote quarantine, keeps immutable history, and provisions a fresh Hosted generation',
+    'connects a library migrated from Google Drive to Hosted like any local library and keeps its content',
     { timeout: 150_000 },
     async () => {
       const account = await createAccount();
-      const a = await device('drive-takeover-a', account);
-      const b = await device('drive-takeover-b', account);
-      const project = await seed(a.db, randomUUID());
-      const doc = new Y.Doc();
-      await author(a, project, doc, '尚未上传到 Drive 的中文正文。');
-      const title = '离线修改的章节名';
-      for (let revision = 0; revision < 40; revision++)
-        await a.db.transaction(async (tx) => {
-          const changes = new SyncChangeBuilder();
-          changes.add({
-            action: 'field.set',
-            target: { family: 'entity', kind: 'node', id: project.nodeId, incarnation: 0 },
-            payload: { field: 'title', value: title },
-          });
-
-          await tx.update(BookNodeTable).set({ title }).where(eq(BookNodeTable.id, project.nodeId));
-          const clock = { nowMs: Date.now() + 10_000, nowIso: now() };
-          const result = await recordAuthoredChangeSetInTransaction(
-            tx,
-            { ...project, identity: a.identity, clock },
-            changes,
-          );
-          await observeLocalAuthoredReducerInTransaction(tx, {
-            changeSet: result.changeSet,
-            clock,
-          });
-        });
-      const authorityRepository = createSyncAppAuthorityRepository(a.db);
-      const driveAttempt = await authorityRepository.begin({
-        targetMode: 'google-drive',
-        accountSubjectId: 'synthetic-drive',
-        credentialSecretRef: 'unreachable-drive',
-        nowIso: now(),
-      });
-      await a.db.insert(SyncRemoteObjectTable).values({
-        id: 'old-drive-marker',
-        syncGenerationId: project.syncGenerationId,
-        providerObjectId: 'old-drive-object',
-        logicalKeyId: 'old-drive-key',
-        objectKind: 'snapshot-commit',
-        storedSha256: '0'.repeat(64),
-        sizeBytes: 1,
-        firstObservedAt: now(),
-        lastObservedAt: now(),
-      });
-      await authorityRepository.markSyncGenerationCommitted({
-        attemptId: driveAttempt.attemptId,
-        sourceSyncGenerationId: project.syncGenerationId,
-        commitMarkerObjectId: 'old-drive-marker',
-        nowIso: now(),
-      });
-      await authorityRepository.complete({
-        attemptId: driveAttempt.attemptId,
-        bindings: [
-          {
-            syncGenerationId: project.syncGenerationId,
-            providerNamespace: 'appDataFolder',
-            providerGenerationRef: null,
-          },
-        ],
-        nowIso: now(),
-      });
-      const assetId = randomUUID();
-      const assetBytes = new Uint8Array([137, 80, 78, 71, 7, 8, 9]);
-      const assetHash = await sha256Bytes(assetBytes);
-      a.assets.set(assetId, assetBytes);
-      await a.db.insert(ProjectAssetTable).values({
-        id: assetId,
-        projectId: project.projectId,
-        kind: 'image',
-        sourceMime: 'image/png',
-        sourceSha256: assetHash.slice(7),
-        sourceSizeBytes: assetBytes.length,
-        width: 1,
-        height: 1,
-        createdAt: now(),
-      });
-      // Rejected Drive bytes are retained for recovery, never adopted or published.
-      await a.db.insert(SyncLocalObjectTable).values({
-        id: 'old-drive-quarantine-local',
-        syncGenerationId: project.syncGenerationId,
-        objectKind: 'quarantine', logicalKeyId: 'old-rejected-drive-object',
-        storageRef: 'syncobj:synthetic-quarantine', storedSha256: '0'.repeat(64),
-        sizeBytes: 1, codec: 'opaque', state: 'quarantined', createdAt: now(),
-      });
-      await a.db.insert(SyncQuarantinedObjectTable).values({
-        quarantineId: 'old-drive-quarantine', syncGenerationId: project.syncGenerationId,
-        remoteObjectId: 'old-drive-marker', localObjectId: 'old-drive-quarantine-local',
-        reason: 'object-codec-verification-failed', storedSha256: '0'.repeat(64),
-        sizeBytes: 1, state: 'blocked-corrupt', createdAt: now(),
-      });
-      const quarantineBefore = await a.db.select().from(SyncQuarantinedObjectTable);
-      const original = await a.db.select().from(SyncChangeSetTable);
-      const identity = {
-        ...a.identity,
-        createWriterIdentity: () => ({ writerId: randomUUID(), writerEpoch: randomUUID() }),
+      const suffix = randomUUID();
+      const project = {
+        projectId: `project-${suffix}`,
+        syncGenerationId: `generation-${suffix}`,
+        projectSyncId: `project-sync-${suffix}`,
+        nodeId: `chapter-${suffix}`,
+        title: 'Drive 时期写下的章节名',
       };
-      let guards = 0;
-      await expect(
-        adoptDriveReplicaForHosted({
-          db: a.db,
-          accountSubject: account.accountSubject,
-          identity,
-          assertAccount() {
-            if (++guards === 2) throw new Error('Account changed before commit');
-          },
-        }),
-      ).rejects.toThrow('Account changed');
-      expect((await createSyncAppAuthorityRepository(a.db).read()).mode).toBe('google-drive');
-      expect(await a.db.select().from(SyncChangeSetTable)).toEqual(original);
-      expect(await a.db.select().from(SyncGenerationTable)).toHaveLength(1);
-
-      // No provider call is made by takeover, including while all network is unavailable.
-      a.network.online = false;
-      const adoption = await adoptDriveReplicaForHosted({
-        db: a.db,
-        accountSubject: account.accountSubject,
-        identity,
-        assertAccount() {},
+      // Opening the file applies the retirement migration; no provider is contacted.
+      const a = await device('drive-migrated', account, (file) => createDriveBoundLibrary(file, project));
+      const raw = a.gateway.database;
+      expect(raw.prepare('SELECT mode, generation, transition_state FROM sync_app_authority').get()).toEqual({
+        mode: 'local',
+        generation: 3,
+        transition_state: 'stable',
       });
-      const [newGeneration] = adoption.syncGenerationIds;
-      expect(await a.db.select().from(SyncQuarantinedObjectTable)).toEqual(quarantineBefore);
-      expect(await a.db.select().from(SyncQuarantinedObjectTable).where(eq(SyncQuarantinedObjectTable.syncGenerationId, newGeneration!))).toEqual([]);
-      expect(newGeneration).not.toBe(project.syncGenerationId);
+      for (const table of ['sync_provider_account', 'sync_provider_binding', 'sync_cursor'])
+        expect(raw.prepare(`SELECT count(*) AS count FROM ${table}`).get(), table).toEqual({ count: 0 });
+      expect(await a.db.select().from(SyncRemoteObjectTable)).toMatchObject([{ providerObjectId: 'old-drive-object' }]);
+
+      const doc = new Y.Doc();
+      await author(a, project, doc, '迁移后继续离线写的正文。');
+      const journalBefore = await a.db.select().from(SyncChangeSetTable);
+      expect(journalBefore).toHaveLength(1);
+
+      await restoreCloudSyncGenerations(a.restoreInput);
+      expect(raw.prepare('SELECT mode, generation, transition_state FROM sync_app_authority').get()).toEqual({
+        mode: 'hosted',
+        generation: 4,
+        transition_state: 'stable',
+      });
+      // The same generation is published and bound; no replacement generation is created.
+      expect(await a.db.select().from(SyncGenerationTable)).toMatchObject([
+        { syncGenerationId: project.syncGenerationId, status: 'active' },
+      ]);
       expect(
-        await a.db
-          .select()
-          .from(SyncChangeSetTable)
-          .where(eq(SyncChangeSetTable.syncGenerationId, project.syncGenerationId)),
-      ).toEqual(original);
+        (await createSyncAppAuthorityRepository(a.db).listActiveRuntimeBindings()).map(
+          (item) => item.binding.syncGenerationId,
+        ),
+      ).toEqual([project.syncGenerationId]);
       expect(
-        (
-          await a.db
-            .select()
-            .from(SyncFieldClockTable)
-            .where(eq(SyncFieldClockTable.syncGenerationId, newGeneration!))
-        )[0]?.changeSetId,
-      ).not.toBe(original[1]?.changeSetId);
-      const hostedProject = { ...project, syncGenerationId: newGeneration! };
-      await author(a, hostedProject, doc, '切换后仍可离线继续写。');
-      const retry = { ...a.restoreInput, attemptId: adoption.attemptId };
-      await expect(restoreCloudSyncGenerations(retry)).rejects.toThrow();
-      expect(await createSyncAppAuthorityRepository(a.db).listActiveRuntimeBindings()).toHaveLength(
-        0,
-      );
-      a.network.online = true;
-      await restoreCloudSyncGenerations(retry);
-      await restoreCloudSyncGenerations(b.restoreInput);
-      expect(b.assets.get(assetId)).toEqual(assetBytes);
-      const restored = await loadDoc(b.db, project.nodeId);
-      expect(restored.getXmlFragment('default').toString()).toBe(
-        doc.getXmlFragment('default').toString(),
-      );
+        raw.prepare('SELECT attempt_id, target_mode, state FROM sync_connect_attempt ORDER BY created_at, attempt_id').all(),
+      ).toEqual([
+        { attempt_id: 'drive-connect', target_mode: 'google-drive', state: 'completed' },
+        expect.objectContaining({ target_mode: 'hosted', state: 'completed' }),
+      ]);
+      const local = await loadDoc(a.db, project.nodeId);
+      expect(local.getXmlFragment('default').toString()).toBe(doc.getXmlFragment('default').toString());
+      local.destroy();
+      expect(await a.db.select().from(SyncChangeSetTable)).toEqual(expect.arrayContaining(journalBefore));
+
+      const b = await device('drive-migrated-peer', account);
+      const restored = await restoreCloudSyncGenerations(b.restoreInput);
+      expect(restored.restored.map((item) => item.projectId)).toEqual([project.projectId]);
+      const peerDoc = await loadDoc(b.db, project.nodeId);
+      expect(peerDoc.getXmlFragment('default').toString()).toBe(doc.getXmlFragment('default').toString());
       expect(
-        (await b.db.select().from(BookNodeTable).where(eq(BookNodeTable.id, project.nodeId)))[0]
-          ?.title,
-      ).toBe(title);
-      await author(b, hostedProject, restored, '第二台 Mac 继续写。');
-      await b.cycle(newGeneration!);
-      await a.cycle(newGeneration!);
-      await b.cycle(newGeneration!);
+        (await b.db.select().from(BookNodeTable).where(eq(BookNodeTable.id, project.nodeId)))[0]?.title,
+      ).toBe(project.title);
+
+      await author(b, project, peerDoc, '第二台设备继续写。');
+      await b.cycle(project.syncGenerationId);
+      await a.cycle(project.syncGenerationId);
+      await b.cycle(project.syncGenerationId);
       const roundTrip = await loadDoc(a.db, project.nodeId);
-      expect(roundTrip.getXmlFragment('default').toString()).toBe(
-        restored.getXmlFragment('default').toString(),
-      );
-      expect(await a.cycle(newGeneration!)).toMatchObject({
+      expect(roundTrip.getXmlFragment('default').toString()).toBe(peerDoc.getXmlFragment('default').toString());
+      expect(roundTrip.getXmlFragment('default').toString()).toContain('迁移后继续离线写的正文。');
+      expect(await a.cycle(project.syncGenerationId)).toMatchObject({
         pendingChangeSets: 0,
         pendingSegments: 0,
         pendingTransfers: 0,
       });
+
       const deletedGenerations: string[] = [];
       await deleteProjectWithRemoteConfirmation({
         db: a.db, projectId: project.projectId, userId: 'drifting-library.db', signal,
@@ -774,12 +749,11 @@ describe.skipIf(!origin)('Hosted current-client real HTTP and SQLite acceptance'
           },
         },
       });
-      expect(deletedGenerations).toEqual([newGeneration]);
-      expect(await a.db.select().from(SyncQuarantinedObjectTable)).toEqual(quarantineBefore);
-      await b.cycle(newGeneration!);
+      expect(deletedGenerations).toEqual([project.syncGenerationId]);
+      await b.cycle(project.syncGenerationId);
       expect(await b.db.select().from(ProjectTable)).toHaveLength(0);
       doc.destroy();
-      restored.destroy();
+      peerDoc.destroy();
       roundTrip.destroy();
     },
   );

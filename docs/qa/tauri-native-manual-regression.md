@@ -3,16 +3,14 @@
 这份清单用于记录 Drifting Tauri 客户端中只能依赖真实设备、系统浏览器、真实账号或真实云端完成的回归。
 它不替代自动化测试，也不把尚未完成的移动端 UI 适配当作发布验收项。
 
-当前同步范围（2026-10-01）：App 仅启用 Hosted；Google Drive 入口和后台执行暂时停用。
-旧 Drive 验收资料保留为历史记录，当前账号与同步验证见 [Hosted 文档](../hosted-sync/README.md)。
+当前同步范围：App 仅支持 Hosted，账号与同步验证见 [Hosted 文档](../hosted-sync/README.md)。
 
 历史基线：2026-08-20
 
 ## 公开 Alpha 桌面门槛
 
 `0.1.0-alpha.1` 只支持 macOS 13+ Apple Silicon。它的 P0/P1 发布记录以
-[签名桌面 RC 表](desktop-alpha-release-candidate.md)和
-[Google Drive 双机表 (retired)](../client-onboarding-and-hosted-readiness.md)为准；两张表必须记录日期、
+[签名桌面 RC 表](desktop-alpha-release-candidate.md)为准；记录必须包含日期、
 设备、构建 SHA 与脱敏证据。下面保留的 iOS/Android 清单是后续可移植性资料，不影响本轮
 桌面 Alpha 放行，也不能替代桌面签名构建验收。
 

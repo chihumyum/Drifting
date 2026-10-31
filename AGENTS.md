@@ -30,13 +30,12 @@ Guidance for coding agents working in this standalone Drifting client repository
 - This repository contains the Tauri 2, Rust, React, and Vite client.
 - Public source builds default to local-only mode. Account, hosted sync,
   payment, and other official hosted features belong to a separately operated
-  service. Hosted is the only supported sync provider. Google Drive sync and
-  the standalone Apple-native front-end were retired on 2026-10-28. Do not
-  restore their UI, transport, plugins or build gates. Preserve published
-  migrations, stored recovery records and the local-replica adoption path.
+  service. Hosted is the only sync provider. Google Drive sync and the
+  standalone Apple-native front-end have been removed; do not restore them.
+  Migration `0014` turns a library still bound to Drive into a local library.
   Tauri still uses `drifting-core`, `drifting-document` and `drifting-prose`;
-  Apple platform adapters and Tauri iOS are not the retired front-end. See
-  `docs/client-onboarding-and-hosted-readiness.md` and `docs/hosted-sync/README.md`.
+  Apple platform adapters and Tauri iOS are not the removed front-end. See
+  `docs/hosted-sync/README.md`.
 - `packages/prose-metrics` is independently licensed under Apache-2.0. The
   remaining project-owned client source is AGPL-3.0-or-later.
 - Keep service integration behind versioned network contracts. Do not import or

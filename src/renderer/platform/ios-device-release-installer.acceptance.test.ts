@@ -142,7 +142,7 @@ describe('standalone iOS Release build and install', () => {
     expect(config.app.security.csp).toContain('https://service.example.test');
     expect(dependencies.writeBuildConfiguration).toHaveBeenCalledWith(expect.objectContaining({
       SDKROOT: '/test/iphoneos.sdk', APPLE_DEVELOPMENT_TEAM: 'SYNTHETIC1',
-      PATH: expect.stringContaining('/scripts/apple-toolchain:'), VITE_LOCAL_ONLY_MODE: 'false',
+      VITE_LOCAL_ONLY_MODE: 'false',
       DRIFTING_HOSTED_ORIGIN: 'https://service.example.test',
     }));
     expect(calls[5][1]).toEqual(['devicectl', 'device', 'install', 'app', '--device', 'phone-b', expect.stringMatching(/Drifting\.app$/)]);

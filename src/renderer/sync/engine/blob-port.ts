@@ -37,7 +37,7 @@ export interface VerifiedInboundSyncBlob {
  * Streaming asset lane owned by native production adapters.
  *
  * Implementations may use in-memory bytes for Memory/LocalFolder conformance,
- * but Drive composition must use opaque native refs and streaming I/O.
+ * but Hosted composition must use opaque native refs and streaming I/O.
  */
 export interface SyncEngineBlobPort {
   prepareOutbound(input: {

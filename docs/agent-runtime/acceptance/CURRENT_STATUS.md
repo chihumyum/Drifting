@@ -134,7 +134,7 @@ pnpm agent:capabilities:check
   relation has one non-null type id; copied labels, nullable types, and
   `unconfigured` compatibility rows are absent and old payloads fail closed.
   TODO/Library shortcuts use a deterministic locked `generic-association`
-  type. SQLite, SyncEngine provider sync (Google Drive / local folder), and
+  type. SQLite, SyncEngine provider sync (Hosted / local folder), and
   General Agent use the same definition
   and durable receipt/revert boundary. See
   [`../../relation-types.md`](../../relation-types.md).
