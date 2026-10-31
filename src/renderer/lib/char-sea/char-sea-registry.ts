@@ -1,9 +1,10 @@
 /**
  * Who is using the sea of characters right now. A full-window wait holds it
  * as loading (rain falls and "Loading" rises), a page that lies on it holds it
- * as a surface (it stays on, still until touched), and glass on that page is
- * registered as a shape so the sea can draw its rim. The sea is on while
- * anything holds it.
+ * as a surface (it stays on, still until touched), a page that lies on it
+ * waiting for the author holds it as rain (rain falls round the page, no
+ * word), and glass on that page is registered as a shape so the sea can draw
+ * its rim. The sea is on while anything holds it.
  */
 
 export interface CharSeaShapeOptions {
@@ -21,8 +22,11 @@ export interface CharSeaShapeEntry {
 
 export interface CharSeaHolds {
   loading: number;
+  rain: number;
   surfaces: number;
 }
+
+export type CharSeaHoldKind = 'loading' | 'rain' | 'surface';
 
 /**
  * A page handing the sea to the next (the shelf to the wait for the book it
@@ -32,7 +36,7 @@ export interface CharSeaHolds {
  */
 export const CHAR_SEA_HANDOVER_MS = 80;
 
-let holds: CharSeaHolds = { loading: 0, surfaces: 0 };
+let holds: CharSeaHolds = { loading: 0, rain: 0, surfaces: 0 };
 // When the current run of loading holds began (handovers do not break it).
 let loadingSince: number | null = null;
 let loadingLetGoAt = 0;
@@ -68,8 +72,8 @@ export const charSeaRegistry = {
     return holds.loading > 0 ? loadingSince : null;
   },
   /** Holds the sea on; the returned function lets go. */
-  hold(kind: 'loading' | 'surface'): () => void {
-    const key = kind === 'loading' ? 'loading' : 'surfaces';
+  hold(kind: CharSeaHoldKind): () => void {
+    const key = kind === 'surface' ? 'surfaces' : kind;
     setHolds({ ...holds, [key]: holds[key] + 1 });
     let held = true;
     return () => {
@@ -86,6 +90,10 @@ export const charSeaRegistry = {
     return () => {
       if (shapes.delete(entry.id)) shapesChanged();
     };
+  },
+  /** Registered glass changed size on its own (not by scrolling or the window): it is measured again. */
+  resized(): void {
+    shapesChanged();
   },
   /** The pointer or focus came onto, or left, a registered piece of glass. */
   hover(element: HTMLElement, on: boolean): void {

@@ -40,15 +40,16 @@ function useHandedOver(value: boolean): boolean {
 
 /**
  * The sea of characters, once, under the whole desktop window
- * (lib/char-sea/char-sea.ts). It is live while a full-window wait or the shelf
- * holds it; when a wait opens the workspace it ebbs there (char-sea.css clears
- * the workspace's desk meanwhile), and it computes nothing while still.
+ * (lib/char-sea/char-sea.ts). It is live while a full-window wait, the shelf
+ * or the first-run choice holds it; when a wait opens the workspace it ebbs
+ * there (char-sea.css clears the workspace's desk meanwhile), and it computes
+ * nothing while still.
  */
 export function CharSea() {
   const canvas = useRef<HTMLCanvasElement>(null);
   const sea = useRef<CharSeaHandle | null>(null);
   const holds = useSyncExternalStore(charSeaRegistry.subscribe, charSeaRegistry.getHolds, charSeaRegistry.getHolds);
-  const held = holds.loading > 0 || holds.surfaces > 0;
+  const held = holds.loading > 0 || holds.rain > 0 || holds.surfaces > 0;
   const [mode, setMode] = useState<SeaMode>(held ? 'live' : 'off');
   // A hold makes it live at once; losing every hold lets it ebb. A hand-over
   // within one commit goes live → ebb → live before paint, the water untouched.
@@ -56,6 +57,7 @@ export function CharSea() {
   if (!held && mode === 'live') setMode('ebb');
   const active = mode !== 'off';
   const loading = useHandedOver(holds.loading > 0);
+  const raining = holds.rain > 0;
   const { i18n } = useTranslation();
   const script = charSeaScript(i18n.language);
 
@@ -105,6 +107,14 @@ export function CharSea() {
       sea.current?.loading(false);
     };
   }, [loading]);
+
+  // A page waiting for the author (the first-run choice) lies in the rain at
+  // once, with no word; a wait it takes over from lets its word go into it.
+  useEffect(() => {
+    if (!raining) return undefined;
+    sea.current?.rain(true);
+    return () => sea.current?.rain(false);
+  }, [raining]);
 
   // The hand: a light wake as it moves, a ring where it presses the bare desk
   // or opens a book. Dialogs and menus over the page are not the sea, and an

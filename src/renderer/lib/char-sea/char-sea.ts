@@ -30,7 +30,8 @@ import { CHAR_SEA_LANGUAGES, type CharSeaScript } from './char-sea-text';
  * knocks both about and they come back by themselves. Meanwhile the characters
  * under the rain and in the word keep changing (CharSeaGlyphs). When the wait
  * ends the rain fades and the word is let go, spreading as rings under the next
- * page.
+ * page. A page that waits on the author instead (the first-run choice) has
+ * only the rain: it falls round the page with no word in the middle.
  */
 
 /** A piece of glass on the page, in CSS px of the window. */
@@ -69,6 +70,8 @@ export interface CharSea {
   live(): void;
   /** Something is loading: the rain falls and the word rises; false lets both go. */
   loading(on: boolean): void;
+  /** Only the rain, no word; it keeps falling while either holds it. */
+  rain(on: boolean): void;
   setShapes(shapes: readonly CharSeaShape[]): void;
   setScript(script: CharSeaScript): void;
   /** Off: no frame is computed or drawn until it is on again. */
@@ -346,6 +349,8 @@ export function createCharSea(canvas: HTMLCanvasElement): CharSea | null {
   let slotV = 1;
   let rain: CharSeaRain | null = null;
   let rainDirty = false;
+  // The rain is asked for on its own (`rain(true)`), not only by a wait.
+  let rainHeld = false;
   let glyphs: CharSeaGlyphs | null = null;
   let glyphsDirty = false;
   let wordShape: Float32Array | null = null;
@@ -561,7 +566,7 @@ export function createCharSea(canvas: HTMLCanvasElement): CharSea | null {
   }
 
   function letLoadingGo(): void {
-    rain?.stop();
+    if (!rainHeld) rain?.stop();
     if (word.held) water?.hold(null, WORD_BURST);
     word.held = false;
   }
@@ -667,6 +672,17 @@ export function createCharSea(canvas: HTMLCanvasElement): CharSea | null {
       }
       kick();
     },
+    rain(on) {
+      rainHeld = on;
+      if (!on) {
+        if (!word.held) rain?.stop();
+        kick();
+        return;
+      }
+      if (still) return;
+      rain?.start();
+      kick();
+    },
     setShapes(next) {
       shapes = next.slice(0, MAX_SHAPES);
       if (running) return;
@@ -689,6 +705,7 @@ export function createCharSea(canvas: HTMLCanvasElement): CharSea | null {
         restScale = 1;
         last = 0;
         measure();
+        if (rainHeld && !still) rain?.start();
         draw();
         kick();
       } else {

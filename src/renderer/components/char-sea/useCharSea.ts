@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
 import { charSeaSupported } from '../../lib/char-sea/char-sea';
-import { charSeaRegistry, type CharSeaShapeOptions } from '../../lib/char-sea/char-sea-registry';
+import { charSeaRegistry, type CharSeaHoldKind, type CharSeaShapeOptions } from '../../lib/char-sea/char-sea-registry';
 import { getPlatformRuntime } from '../../platform/runtime';
 
 /**
@@ -19,11 +19,12 @@ export function useCharSeaEnabled(): boolean {
 }
 
 /**
- * Holds the sea on while mounted: as a full-window wait, or as the page lying
- * on it. Taken before paint, so the first frame of the page already lies on
- * the sea (an effect would let one frame of the bare body through).
+ * Holds the sea on while mounted: as a full-window wait, as the page lying on
+ * it, or as a page lying on it in the rain. Taken before paint, so the first
+ * frame of the page already lies on the sea (an effect would let one frame of
+ * the bare body through).
  */
-export function useCharSeaHold(kind: 'loading' | 'surface', on: boolean): void {
+export function useCharSeaHold(kind: CharSeaHoldKind, on: boolean): void {
   useLayoutEffect(() => (on ? charSeaRegistry.hold(kind) : undefined), [kind, on]);
 }
 
@@ -40,7 +41,14 @@ export function useCharSeaShape<T extends HTMLElement>(options: CharSeaShapeOpti
 
   useEffect(() => {
     if (!drawn || !element) return undefined;
-    return charSeaRegistry.addShape(element, { rest, radius });
+    const remove = charSeaRegistry.addShape(element, { rest, radius });
+    // Glass whose content changes (a card that steps through a flow) moves its rim with it.
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => charSeaRegistry.resized());
+    observer?.observe(element);
+    return () => {
+      observer?.disconnect();
+      remove();
+    };
   }, [drawn, element, rest, radius]);
 
   const on = useCallback(() => { if (element) charSeaRegistry.hover(element, true); }, [element]);

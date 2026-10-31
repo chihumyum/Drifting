@@ -382,12 +382,44 @@ html:not([data-shell-mode='mobile']) .auth-flow--dialog .auth-flow__glass-button
   font-size: var(--ui-font-secondary, 13px);
 }
 
-/* Desktop first run: the choice sits on a quiet page before the shelf mounts,
-   so the shared modal backdrop needs no dimming. */
+/* Desktop first run: before the shelf mounts the choice is a card laid in the
+   window, not a dialog over it. Like the shelf's books it is a resting glass
+   line on the desk with nothing under it; head, body and actions keep the
+   dialog's type and spacing. On the sea of characters (CharSea) the desk is
+   the sea's, the rain falls round the card, and the card's line is drawn
+   there too (`--sea` drops the CSS rim). */
 .first-run-gate {
+  box-sizing: border-box;
   position: fixed;
   inset: 0;
-  background: hsl(var(--paper-deep));
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  place-items: center;
+  padding: 48px 24px;
+  overflow-y: auto;
+  background: var(--workspace-ui-bg);
+  color: hsl(var(--ink-1));
+}
+
+.first-run-gate--sea {
+  background: transparent;
+}
+
+.first-run-gate__card {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  width: min(100%, 560px);
+  min-width: 0;
+  border-radius: 2px;
+}
+
+.first-run-gate__card--account {
+  width: min(100%, 400px);
+}
+
+.first-run-gate__card--sea.glass::before {
+  display: none;
 }
 
 .first-run-gate__drag {
@@ -397,8 +429,4 @@ html:not([data-shell-mode='mobile']) .auth-flow--dialog .auth-flow__glass-button
   left: 0;
   z-index: calc(var(--z-modal) + 1);
   height: 36px;
-}
-
-.modal-root.first-run-gate__modal {
-  background: transparent;
 }

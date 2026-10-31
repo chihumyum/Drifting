@@ -30,7 +30,9 @@ describe('account sign-in entry', () => {
     // Mobile keeps the overlay guide and its full-page authentication route.
     expect(guide).toContain('if (!open || !getPlatformRuntime().isMobileShell) return null;');
     expect(guide).toContain("if (!session) navigate('/login');");
-    expect(css).toMatch(/\.modal-root\.first-run-gate__modal \{\s*background: transparent;/);
+    // The desktop choice is a card in the window, not a dialog over it (char-sea.acceptance.test.ts).
+    expect(css).not.toContain('first-run-gate__modal');
+    expect(css).toMatch(/\.first-run-gate__card--account \{\s*width: min\(100%, 400px\);/);
   });
 
   it('signs in with a dialog over the current desktop screen', () => {
