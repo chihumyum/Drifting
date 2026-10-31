@@ -28,6 +28,7 @@ import {
   YjsProseCommandReceiptTable,
 } from '../../../schema/drizzle';
 import { flushOpenYjsDocument } from '../../../services/yjs-local-durability.service';
+import { captureSnapshotHistory } from '../../../services/snapshot-history.service';
 import {
   createYjsRepository,
   YjsDocumentRevisionConflictError,
@@ -424,6 +425,7 @@ export class YjsProsePersistenceCoordinator {
     input: CommitPreparedYjsProseCommandInput,
   ): Promise<YjsProseCommitResult> {
     assertRevision(input.expectedRevision, 'expectedRevision');
+    if (input.direction === 'forward') await captureRestorePoint(input.command.base);
     let transactionResult: TransactionCommit;
     let outcome: YjsProseCommitResult['outcome'];
     try {
@@ -859,4 +861,18 @@ export function createYjsProsePersistenceCoordinator(
   options?: YjsProsePersistenceCoordinatorOptions,
 ): YjsProsePersistenceCoordinator {
   return new YjsProsePersistenceCoordinator(options);
+}
+
+/**
+ * The state an Agent change replaces becomes a row in the entity's local
+ * history before the write commits, so every Agent edit can be restored
+ * (entity-snapshot-history.md). History is a device-local projection: it runs
+ * outside the write transaction and never blocks or fails the write.
+ */
+async function captureRestorePoint(base: YjsProsePersistenceBase): Promise<void> {
+  try {
+    await captureSnapshotHistory(base.docId, base.stateUpdate, 'agent');
+  } catch {
+    // A missing restore point is logged by the history service.
+  }
 }

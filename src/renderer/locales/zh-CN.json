@@ -879,7 +879,8 @@
         "installed": "已配置 {{client}}。请重新打开客户端或重启它的 MCP 服务以加载连接；首次使用时按客户端提示确认工具权限。",
         "revoked": "已撤销访问，并移除自动添加的客户端配置。",
         "revokedWarning": "访问已撤销。客户端配置已被改动或无法写入，请在客户端移除这条连接。"
-      }
+      },
+      "replayOnboarding": "重新显示首次引导"
     },
     "agentLimits": {
       "title": "运行限额",
@@ -1656,6 +1657,24 @@
       "pending": "正在同步这段对话，完成后可继续。",
       "archive": "这段历史只有展示记录，可查看，无法继续。",
       "conflict": "这段对话的数据不完整或存在冲突，暂时无法继续。"
+    },
+    "onboarding": {
+      "connect": "连接模型",
+      "try": "试试",
+      "experimental": "实验",
+      "getKey": "获取 API Key",
+      "history": "版本历史",
+      "saveFailed": "无法保存到 Keychain。",
+      "prompts": {
+        "commentChapter": "给「{{chapter}}」留两条批注",
+        "tightenChapter": "把「{{chapter}}」开头一段改紧凑些",
+        "relateElements": "理一理{{first}}和{{second}}的关系",
+        "completeElement": "补全「{{element}}」的设定",
+        "extractElements": "从「{{chapter}}」里找出人物和地点，建成要素",
+        "outline": "帮我搭一个三幕的分章大纲",
+        "interview": "先问我几个问题，帮我理清这个故事",
+        "castCharacters": "建三个主要人物"
+      }
     }
   },
   "voiceAgent": {
