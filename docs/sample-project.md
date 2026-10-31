@@ -58,15 +58,23 @@ renderer bundle.
 `services/built-in-sample/`:
 
 - `book.ts` reads the generated files in `pride-and-prejudice/` and turns each
-  chapter into a ProseMirror document with a stable id on every block.
-- `showcase.ts` holds the curated workspace.
+  chapter into a ProseMirror document with a stable id on every block. Names
+  are linked to their elements as an author would have linked them: every
+  whole-word, case-sensitive occurrence of a form in `LINK_FORMS`, the longest
+  form winning, so "Miss Darcy" is Georgiana, "Mrs. Bingley" is Jane and "the
+  late Mr. Darcy", "Lady Anne Darcy", "Mary King" and the ambiguous "Miss
+  Bennet" stay plain. Element ids are assigned before the chapters are built.
+  The reference index projects the links on the first open (about 2,900
+  mentions across the 61 chapters), which feeds backlinks and the Element
+  overview.
+- `showcase.ts` holds the curated workspace and `LINK_FORMS`.
 - `write-sample.ts` writes it in a few authored transactions
   (`withAtomicSyncTransaction`, the app's own sync identity):
   1. project summary and facts, Project Memory, categories, elements (facts,
      aliases), relation types and element relations, storylines, acts,
      timeline pins and ideas;
-  2. the chapters, in change-sets of at most 320 KiB of Yjs state (three for
-     this book, the largest change-set about 350 KB), so a later Hosted upload
+  2. the chapters, in change-sets of at most 320 KiB of Yjs state (five for
+     this book with its links, about 1.5 MB in all), so a later Hosted upload
      never meets an oversized one; their storyline links are written as the
      Agent's membership write stores them, all rows then one projection per
      chapter;
@@ -131,8 +139,12 @@ Measured on 2026-10-31 on an Apple Silicon Mac with fresh isolated profiles
 | Node integration test (in-process SQLite) | 0.65 s, 4,180 SQL statements | outline about 1,800 statements (with the illustration receipts), chapters 1,889, review 313, materials 112 |
 | Debug (`pnpm dev:worktree`, Vite dev server, debug Rust) | 6.4 s | claim 67, outline 2,171, chapters 3,346, review 436, materials 188 |
 | `--release-perf` (release Rust, production bundle) | 4.0 s | claim 65, outline 1,001, chapters 2,301, review 365, materials 192 |
+| Debug, with the chapter links (window behind others, page hidden) | 7.1 s | claim 76, outline 2,507, chapters 3,855, review 401, materials 197 |
 
-The window was in front and nothing else was running for the two app rows.
+The window was in front and nothing else was running for the first two app
+rows, measured before the chapters carried links; the links add about 0.65 MB
+of Yjs state and two chapter change-sets. The last row was measured in the
+background, so it overstates the cost of the links.
 Each SQL statement is one call over the native gateway, so the time is almost
 all statement count; most statements are the journal and Yjs bookkeeping each
 new entity needs (about 15 per prose document, 104 documents). Preparing the 61

@@ -51,14 +51,49 @@ export function chapterTitle(number: number): string {
 
 type ProseNode = Record<string, unknown>;
 
-/** A paragraph's ProseMirror inline content: text runs, italics, line breaks. */
-function inlineContent(encoded: string): ProseNode[] {
+/** Splits text into runs, each naming the element id it links to, if any. */
+export type EntityLinker = (text: string) => { text: string; elementId: string | null }[];
+
+/**
+ * A linker for the given forms (form → element id, or null for a form that
+ * stays unlinked): whole words, case-sensitive, longest form first.
+ */
+export function createEntityLinker(forms: ReadonlyMap<string, string | null>): EntityLinker {
+  const escaped = [...forms.keys()]
+    .sort((left, right) => right.length - left.length)
+    .map((form) => form.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const pattern = new RegExp(`\\b(?:${escaped.join('|')})\\b`, 'g');
+  return (text) => {
+    const runs: { text: string; elementId: string | null }[] = [];
+    let last = 0;
+    for (const match of text.matchAll(pattern)) {
+      const elementId = forms.get(match[0]) ?? null;
+      if (!elementId) continue;
+      if (match.index > last) runs.push({ text: text.slice(last, match.index), elementId: null });
+      runs.push({ text: match[0], elementId });
+      last = match.index + match[0].length;
+    }
+    if (last < text.length) runs.push({ text: text.slice(last), elementId: null });
+    return runs;
+  };
+}
+
+/** A paragraph's ProseMirror inline content: text runs, italics, line breaks, element links. */
+function inlineContent(encoded: string, linker?: EntityLinker): ProseNode[] {
   const nodes: ProseNode[] = [];
   encoded.split('*').forEach((segment, index) => {
     const italic = index % 2 === 1;
     segment.split('\n').forEach((line, lineIndex) => {
       if (lineIndex > 0) nodes.push({ type: 'hardBreak' });
-      if (line) nodes.push({ type: 'text', text: line, ...(italic ? { marks: [{ type: 'italic' }] } : {}) });
+      for (const run of line ? (linker ? linker(line) : [{ text: line, elementId: null }]) : []) {
+        const marks = [
+          ...(italic ? [{ type: 'italic' }] : []),
+          ...(run.elementId
+            ? [{ type: 'entityLink', attrs: { targetKind: 'element', targetId: run.elementId, targetBlockId: null } }]
+            : []),
+        ];
+        nodes.push({ type: 'text', text: run.text, ...(marks.length ? { marks } : {}) });
+      }
     });
   });
   return nodes;
@@ -96,13 +131,17 @@ function nodeSize(node: ProseNode): number {
  * block, as the editor itself would leave it. Top-level blocks are laid out so
  * comments and patches can anchor to exact text.
  */
-export function buildProseDocument(blocks: readonly BookBlock[], newId: () => string): ProseDocument {
+export function buildProseDocument(
+  blocks: readonly BookBlock[],
+  newId: () => string,
+  linker?: EntityLinker,
+): ProseDocument {
   const content: ProseNode[] = [];
   const layout: ProseBlockLayout[] = [];
   let position = 0;
   for (const block of blocks) {
     const paragraphs = typeof block === 'string' ? [block] : block;
-    const nodes = paragraphs.map((paragraph) => ({ type: 'paragraph', attrs: { id: newId() }, content: inlineContent(paragraph) }));
+    const nodes = paragraphs.map((paragraph) => ({ type: 'paragraph', attrs: { id: newId() }, content: inlineContent(paragraph, linker) }));
     const node = typeof block === 'string' ? nodes[0] : { type: 'blockquote', attrs: { id: newId() }, content: nodes };
     content.push(node);
     layout.push({

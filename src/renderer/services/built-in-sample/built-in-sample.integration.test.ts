@@ -8,6 +8,7 @@ import * as Y from 'yjs';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import type { ProjectAsset } from '../../domain/project-asset';
+import { projectInlineMentionsFromJson } from '../reference-projection.service';
 import type { DbClient } from '../../lib/db';
 import { installHeadlessRendererGlobals } from '../../../dev-cli/headless-globals';
 
@@ -292,6 +293,18 @@ describe('built-in sample project', () => {
       expect(blockText.slice(text.startOffset, text.endOffset)).toBe(text.text);
     }
     expect(paragraphText('*You* want')).toBe('You want');
+  }, 300_000);
+
+  it('links the names in the live chapters for the reference index to project', async () => {
+    const library = await openLibrary();
+    expect((await ensureBuiltInSampleProject(dependencies(library))).kind).toBe('created');
+    const names = new Map(rows<{ id: string; name: string }>(library, 'SELECT id, name FROM element').map((row) => [row.id, row.name]));
+    const [chapter] = rows<{ id: string }>(library, "SELECT id FROM book_node WHERE kind = 'chapter' AND title = 'Chapter XLIII'");
+    const mentions = projectInlineMentionsFromJson(liveProse(library, `node-content:${chapter.id}`).json);
+    expect(mentions.length).toBeGreaterThan(20);
+    expect(mentions.every((mention) => mention.toKind === 'element' && names.has(mention.toId))).toBe(true);
+    const mentioned = new Set(mentions.map((mention) => names.get(mention.toId)));
+    for (const name of ['Elizabeth Bennet', 'Fitzwilliam Darcy', 'Pemberley', 'Mrs. Gardiner']) expect(mentioned).toContain(name);
   }, 300_000);
 
   it('never touches a library that already has projects, even in the trash or after they are gone', async () => {
