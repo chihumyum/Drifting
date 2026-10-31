@@ -592,7 +592,7 @@ function HomeWork() {
                   <button
                     key={category.id}
                     type="button"
-                    className="sand-cell dash-cell"
+                    className="sand-cell dash-cell dash-cell--category"
                     style={{ '--cell-c': color } as CSSProperties}
                     onClick={() => openEntity({ entityType: 'category', id: category.id })}
                   >

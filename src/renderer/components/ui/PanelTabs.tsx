@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from 'react';
 import { trackGlassFlow } from '../../lib/glass-flow';
+import { CJK_TEXT } from '../../lib/interface-typography';
 import { PUSH_EASING, PUSH_MS } from '../../lib/motion';
 
 interface PanelTabTrayProps extends HTMLAttributes<HTMLDivElement> {
@@ -155,8 +156,6 @@ export function PanelTab({
     </button>
   );
 }
-
-const CJK_TEXT = /[぀-ヿ㐀-鿿豈-﫿]/;
 
 /**
  * A panel tab's words. The Latin structure face sets the line, and Chinese

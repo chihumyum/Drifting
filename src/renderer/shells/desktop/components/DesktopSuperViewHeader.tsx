@@ -5,6 +5,7 @@ import { SuperViewHeader, type SuperViewHeaderProps } from '../../../components/
 import { GlassSlider } from '../../../components/ui/GlassSlider';
 import { useSuperViewNavigation } from '../../../hooks/useSuperViewNavigation';
 import { getPlatformRuntime } from '../../../platform/runtime';
+import { CJK_TEXT } from '../../../lib/interface-typography';
 import { DesktopSuperViewRelationControl } from './DesktopSuperViewRelationControl';
 import { SUPER_VIEW_OPTIONS, type SuperViewId } from '../super-view-options';
 import { PUSH_EASING, SUPER_VIEW_PUSH_MS } from '../../../lib/motion';
@@ -59,10 +60,17 @@ export function DesktopSuperViewHeader(props: Omit<SuperViewHeaderProps, 'naviga
         travel={SWITCH_TRAVEL}
         value={activeSuperView ?? 'graph'}
         onChange={(view) => setActiveSuperView(view)}
-        options={SUPER_VIEW_OPTIONS.map((option) => ({
-          value: option.id,
-          label: <span {...intentOf(option.id)}>{t(option.labelKey)}</span>,
-        }))}
+        options={SUPER_VIEW_OPTIONS.map((option) => {
+          const label = t(option.labelKey);
+          return {
+            value: option.id,
+            label: (
+              <span {...intentOf(option.id)} data-script={CJK_TEXT.test(label) ? 'cjk' : undefined}>
+                {label}
+              </span>
+            ),
+          };
+        })}
       />
     </nav>
   );

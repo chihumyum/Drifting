@@ -17,6 +17,7 @@ import {
   type HoverAction,
   type HoverActionGroup,
 } from '../ui/HoverCard';
+import { CJK_TEXT } from '../../lib/interface-typography';
 import { BrushIcon } from '../ui/BrushIcon';
 import { KindMark } from '../ui/KindMark';
 import '../../../styles/act-rail.css';
@@ -580,7 +581,9 @@ export function ActRail({
                       <KindMark kind="drift" color="hsl(var(--accent))" />
                     </button>
                   )}
-                  <span className="actrail__name">{seg.act.name}</span>
+                  <span className="actrail__name" data-script={CJK_TEXT.test(seg.act.name) ? 'cjk' : undefined}>
+                    {seg.act.name}
+                  </span>
                   <span className="actrail__count">
                     {t('bottomTimeline.act.chapterCount', { count: seg.chapters.length })}
                   </span>

@@ -1057,13 +1057,15 @@ html:not([data-shell-mode='mobile']) .graph-track-cell::before {
   min-width: 0;
 }
 
+/* Lane names are storylines organizing the chapters, set in the serif
+   structure face like the Bottom Timeline's rail. */
 .graph-rail-cell--glass .graph-rail__name {
   gap: 6px;
   min-width: 0;
-  font-family: var(--font-sans);
+  font-family: var(--font-structure);
   font-style: normal;
   font-size: var(--ui-font-body, 13px);
-  font-weight: 500;
+  font-weight: 400;
   color: hsl(var(--ink-1));
 }
 
