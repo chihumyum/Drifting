@@ -224,7 +224,7 @@ export function UserMenu({
           )}
           {scope === 'shelf' && onOpenTrash && trashCount > 0 && (
             <MenuItem
-              icon={<BrushIcon name="trash" size={13} />}
+              icon={<BrushIcon name="trash" size={16} />}
               label={t('projectPicker.desk.trashEntry')}
               meta={String(trashCount)}
               onClick={() => {
