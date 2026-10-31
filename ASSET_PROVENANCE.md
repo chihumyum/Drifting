@@ -48,3 +48,31 @@ The bundled Inter Tight variable font is supplied through
 relicensed as AGPL. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and
 `LICENSES/OFL-1.1.txt`.
 
+
+## Built-in sample book
+
+The built-in sample project ([docs/sample-project.md](docs/sample-project.md))
+bundles the text of Jane Austen's *Pride and Prejudice* (first published 1813)
+and seven images from Hugh Thomson's illustrations, all in
+`src/renderer/services/built-in-sample/pride-and-prejudice/`.
+
+- **Edition.** The George Allen edition of 1894 (the "Peacock" edition), with
+  Thomson's illustrations, as transcribed by Chuck Greif and the Online
+  Distributed Proofreading Team in Project Gutenberg eBook #1342 (EPUB,
+  release of 1 June 1998, file modified 1 August 2026). George Saintsbury's
+  preface is not included.
+- **Public-domain basis.** Austen died in 1817 and Thomson in 1920; the edition
+  was published in 1894. The text and the illustrations are in the public
+  domain in the United States (published before 1931) and in countries whose
+  copyright term is the author's life plus 100 years or less.
+- **What was taken.** Only the 61 chapters and seven images.
+  `scripts/build-sample-book.py` removes the eBook's header, footer and license
+  text, every reference to Project Gutenberg, page numbers, front matter, the
+  printer's imprint, chapter heading art and drop caps (restoring the first
+  word's normal case). The images are resized, two are cropped above the
+  publisher's 1894 copyright line and two are portrait crops; embedded
+  metadata is removed. No Project Gutenberg trademark is used in the bundled
+  files, so the eBook's license does not apply to them.
+- **Our additions.** Chapter summaries, element notes, relations, storylines,
+  timeline pins, comments, ideas and material notes in `showcase.ts` were
+  written for Drifting and are AGPL-3.0-or-later like the rest of the client.

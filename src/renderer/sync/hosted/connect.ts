@@ -3,7 +3,7 @@ import { events } from '../../lib/events';
 import { getDb, type DbClient } from '../../lib/db';
 import { flushLocalApplicationPersistence } from '../../lib/persistence-lifecycle';
 import { getHostedSessionBinding } from '../../lib/hosted-session-binding';
-import { waitForBuiltInSampleProject } from '../../services/sample-project/first-run';
+import { waitForBuiltInSampleProject } from '../../services/built-in-sample/first-run';
 import {
   nativeSnapshotAssetCapturePort,
   nativeSnapshotAssetRestorePort,

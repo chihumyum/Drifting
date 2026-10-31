@@ -15,7 +15,7 @@ import { useProjectStore } from '../store/project-store';
 import LogLevel from 'loglevel';
 import { reconcileProjectProseMetrics } from '../services/node-prose-metrics.service';
 import { cleanupDeletedProject } from '../services/project-deletion-cleanup';
-import { withoutPendingSampleProject } from '../services/sample-project/first-run';
+import { withoutPendingSampleProject } from '../services/built-in-sample/first-run';
 const log = LogLevel.getLogger('UseProject');
 log.setLevel(LogLevel.levels.WARN);
 

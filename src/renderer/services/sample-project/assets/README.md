@@ -1,8 +1,9 @@
 # Original synthetic sample assets
 
 These files are original geometric illustrations and fictional documents made
-for Drifting's [built-in sample project](../../../../../docs/sample-project.md)
-and the development seed. They contain no external photography, private text,
+for the development seed (`pnpm dev:seed`, `pnpm dev:seed:lite`). The app's
+[built-in sample project](../../../../../docs/sample-project.md) uses its own
+files under `services/built-in-sample/`. They contain no external photography, private text,
 real measurements, account data or bundled third-party fonts. Project-owned
 source and fixtures use the repository's AGPL-3.0-or-later license.
 
@@ -26,10 +27,9 @@ python3 scripts/generate-seed-assets.py
 The generator uses built-in Pillow/ReportLab fonts and ReportLab's invariant PDF
 mode. Regenerate the manifest together with its bytes; rendering versions can
 change JPEG/PDF hashes. Creation never reads personal material or any network.
-The checked-in corpus is under 0.5 MiB and ships in the renderer bundle for the
-built-in sample. Each seeded profile and each new library receives its own copies
-in its native asset store; the repository files remain unchanged. The app
-verifies every byte against `manifest.json` before importing it.
+The checked-in corpus is under 0.5 MiB and is read by the Node seed only; it is
+not part of the renderer bundle. Each seeded profile receives its own copies in
+its native asset store; the repository files remain unchanged.
 
 Machine acceptance:
 

@@ -72,7 +72,7 @@ vi.mock('../lib/persistence-lifecycle', () => ({
   flushLocalApplicationPersistence: mocks.flushLocal,
 }));
 vi.mock('../sync/hosted/session-recovery', () => ({ resumeHostedAuthentication: mocks.resume }));
-vi.mock('../services/sample-project/first-run', () => ({
+vi.mock('../services/built-in-sample/first-run', () => ({
   startBuiltInSampleProject: async () => undefined,
 }));
 import { useAuthStore, LOCAL_USER_ID } from './auth';

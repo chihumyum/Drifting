@@ -63,22 +63,3 @@ it('keeps the author-requested heavy and lite corpus sizes as explicit contracts
 it('rejects impossible word budgets instead of silently clipping their totals', () => {
   expect(() => allocateSeedLengths({ count: 10, total: 20_000, min: 1_000, max: 50_000 }, 1)).toThrow('budget');
 });
-
-it('builds the built-in sample from the lite recipe without development labels', () => {
-  const development = createDefaultProjectScenario(SEED_PRESETS.lite, 'development');
-  const builtIn = createDefaultProjectScenario(SEED_PRESETS.lite, 'built-in');
-  const bodies = (document: typeof builtIn) => document.steps
-    .filter(step => step.tool !== 'create_project_memory')
-    .map(step => [step.tool, step.input.body ?? null]);
-  expect(bodies(builtIn)).toEqual(bodies(development));
-  const titles = builtIn.steps.filter(step => step.tool === 'create_chapter').map(step => step.input.title);
-  expect(titles.slice(0, 5)).toEqual(['第一章 潮声', '第二章 北岬', '第三章 退潮', '第四章 盐仓回声', '第五章 玻璃浮标']);
-  expect(titles[titles.length - 1]).toBe('第二十章 黎明的海');
-  expect(development.steps.some(step => step.tool === 'create_chapter' && step.input.title === '第004章 归岛·盐仓回声')).toBe(true);
-  const ideas = builtIn.steps.filter(step => step.tool === 'create_inspiration').map(step => String(step.input.title));
-  expect(new Set(ideas).size).toBe(SEED_PRESETS.lite.inspirations.count);
-  expect(ideas[0]).toBe('北岬的缺页日志');
-  expect(development.steps.find(step => step.tool === 'create_inspiration')?.input.title).toBe('构想001 · 北岬的缺页日志');
-  expect(JSON.stringify(builtIn.steps)).not.toMatch(/开发样本|开发用|第0\d\d章|构想\d/);
-  expect(builtIn.steps.find(step => step.tool === 'create_project_memory')?.input.body).toBe('作者偏好短句，场景描写克制，对白少而准。');
-});

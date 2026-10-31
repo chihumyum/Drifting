@@ -19,7 +19,7 @@ import { APP_CONFIG, canUseHostedService } from '../lib/config';
 import { initDatabase } from '../lib/db';
 import { events } from '../lib/events';
 import { readHostedProfile, writeHostedProfile, type HostedProfile } from '../lib/hosted-profile';
-import { startBuiltInSampleProject } from '../services/sample-project/first-run';
+import { startBuiltInSampleProject } from '../services/built-in-sample/first-run';
 export interface User {
   id: string;
   email: string;

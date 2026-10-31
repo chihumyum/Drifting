@@ -1,22 +1,18 @@
 // The built-in sample project (docs/sample-project.md). A brand-new local
-// library gets the lite sample recipe once, written through the same certified
-// workspace tools and journaled transactions as the development seed, so the
-// sample is an ordinary project: SQLite rows, live Yjs prose and app-owned
-// asset bytes. A durable `library_state` marker makes it once-only per
-// library; deleting the sample never brings it back.
+// library gets Pride and Prejudice, taken apart into a working project, once.
+// It is written in a few authored transactions through the same repositories
+// and journal as the author's own actions (./write-sample.ts), so the sample
+// is an ordinary project: SQLite rows, live Yjs prose and app-owned asset
+// bytes. A durable `library_state` marker makes it once-only per library;
+// deleting the sample never brings it back.
 
 import { eq, inArray } from 'drizzle-orm';
 import loglevel from 'loglevel';
 import { v7 as uuidv7 } from 'uuid';
 
 import type { ProjectAsset, ProjectAssetVariant } from '../../domain/project-asset';
-import {
-  createAgentAuthoredJournal,
-  type AgentAuthoredJournal,
-} from '../../lib/agent/runtime/agent-authored-journal';
 import { getDb, type DbClient } from '../../lib/db';
 import {
-  AgentConversationTable,
   ProjectTable,
   SyncAppAuthorityTable,
   SyncGenerationTable,
@@ -28,35 +24,26 @@ import {
   deleteProjectDataInTransaction,
   type ProjectDeletionReceipt,
 } from '../../sqlite-repo/project-deletion-repo';
-import { useAgentEditStore } from '../../store/agent-edit-store';
 import { LOCAL_USER_ID } from '../../store/auth';
-import { useDataStore } from '../../store/data-store';
-import { useProjectStore } from '../../store/project-store';
 import { ensureLocalAuthoredAssetBlobVerified } from '../../sync/assets/local-authored-blob';
 import type { BookNodeAtomicTransactionRunner } from '../../usecase/book-node-write';
 import { createProjectInTransaction } from '../../usecase/project-create';
 import { withAtomicSyncTransaction } from '../../usecase/sync-helpers';
 import { assetStoreService } from '../asset-store.service';
-import { resolveSampleComments } from './comments';
+import { BOOK_ILLUSTRATIONS, type BookIllustration } from './book';
 import { useBuiltInSampleStore } from './first-run';
-import { runHeadlessWorkspaceSteps, type HeadlessWorkspaceRoute } from './headless-workspace';
-import {
-  commitSampleMaterials,
-  planSampleMaterials,
-  SAMPLE_ASSET_FIXTURES,
-  type SampleAssetFixture,
-} from './materials';
-import { SEED_PRESETS } from './presets';
-import { createDefaultProjectScenario, sampleProjectName } from './scenario';
+import { SAMPLE_PROJECT_NAME } from './showcase';
+import { writeBookSample, type ImportedSampleAsset } from './write-sample';
+
+export type { ImportedSampleAsset } from './write-sample';
 
 const log = loglevel.getLogger('BuiltInSample');
 
 export const BUILT_IN_SAMPLE_STATE_KEY = 'built-in-sample';
 /** The recipe a library received; recorded for diagnostics and later recipes. */
-export const BUILT_IN_SAMPLE_RECIPE = 'lite-v1';
+export const BUILT_IN_SAMPLE_RECIPE = 'pride-and-prejudice-v1';
 /** Interrupted or failed attempts are retried on later launches up to this many times. */
 export const BUILT_IN_SAMPLE_MAX_ATTEMPTS = 3;
-const BUILT_IN_SAMPLE_PRESET = SEED_PRESETS.lite;
 
 export interface BuiltInSampleMarker {
   /**
@@ -70,31 +57,30 @@ export interface BuiltInSampleMarker {
   projectId: string | null;
   attempts: number;
   reason?: string;
+  /** Wall-clock milliseconds the created sample took, for diagnostics. */
+  durationMs?: number;
+  /** Milliseconds per step (`…At` steps are offsets from the start of writing). */
+  steps?: Record<string, number>;
   updatedAt: string;
 }
 
 export type BuiltInSampleOutcome =
-  | { kind: 'created'; projectId: string }
+  | { kind: 'created'; projectId: string; durationMs: number }
   | { kind: 'skipped'; reason: 'already-created' | 'not-a-new-library' | 'attempts-exhausted' }
   | { kind: 'failed'; error: unknown };
-
-export interface ImportedSampleAsset {
-  asset: ProjectAsset;
-  /** After the material transaction commits. */
-  commit(): Promise<void>;
-  /** When the material transaction did not commit. */
-  abandon(): Promise<void>;
-}
 
 export interface BuiltInSampleDependencies {
   database(): DbClient;
   userId: string;
-  writer(): { runAtomic: BookNodeAtomicTransactionRunner; authoredJournal: AgentAuthoredJournal };
-  importAsset(projectId: string, fixture: SampleAssetFixture): Promise<ImportedSampleAsset>;
+  /** The authored transaction runner (the app's own sync identity). */
+  runAtomic: BookNodeAtomicTransactionRunner;
+  importAsset(projectId: string, illustration: BookIllustration): Promise<ImportedSampleAsset>;
   /** Remove an unpublished (never connected) partial sample completely. */
   discardProject(projectId: string): Promise<void>;
   now(): string;
   newId(): string;
+  /** Diagnostics: one step of the sample and how long it took. */
+  onStep?(step: string, milliseconds: number): void;
 }
 
 class LibraryNoLongerNew extends Error {}
@@ -121,31 +107,27 @@ async function projectExists(database: DbClient, projectId: string): Promise<boo
   return Boolean(row);
 }
 
-/** The Agent runtime ledger that owns the sample's tool calls; removed at the end. */
-function sampleRoute(projectId: string): HeadlessWorkspaceRoute {
-  return {
-    conversationId: `built-in-sample:${projectId}`,
-    conversationTitle: '',
-    sessionId: `built-in-sample-session:${projectId}`,
-    provider: 'built-in-sample',
-    turnIdPrefix: 'built-in-sample-turn',
-  };
-}
-
 /**
- * The workspace tools resolve names through the renderer stores. The shelf
- * does not read them, but restore everything afterwards so no project view or
- * Agent review presentation inherits the sample's working state.
+ * Import every bundled illustration at once, alongside the sample's
+ * transactions: each import's receipt transaction then queues behind the
+ * current sample transaction instead of behind the previous import. Every
+ * import settles before this resolves or rejects, so `imported` lists exactly
+ * the files to abandon on failure.
  */
-function captureRendererStores(): () => void {
-  const data = useDataStore.getState();
-  const project = useProjectStore.getState();
-  const edits = useAgentEditStore.getState();
-  return () => {
-    useDataStore.setState(data, true);
-    useProjectStore.setState(project, true);
-    useAgentEditStore.setState(edits, true);
-  };
+async function importIllustrations(
+  dependencies: BuiltInSampleDependencies,
+  projectId: string,
+  imported: ImportedSampleAsset[],
+): Promise<ReadonlyMap<string, ImportedSampleAsset>> {
+  const byName = new Map<string, ImportedSampleAsset>();
+  const results = await Promise.allSettled(BOOK_ILLUSTRATIONS.map(async (illustration) => {
+    const entry = await dependencies.importAsset(projectId, illustration);
+    imported.push(entry);
+    byName.set(illustration.name, entry);
+  }));
+  const failure = results.find((result) => result.status === 'rejected');
+  if (failure) throw (failure as PromiseRejectedResult).reason;
+  return byName;
 }
 
 /**
@@ -203,11 +185,17 @@ export async function ensureBuiltInSampleProject(
 
   const projectId = dependencies.newId();
   attempts += 1;
-  const { runAtomic, authoredJournal } = dependencies.writer();
-  const route = sampleRoute(projectId);
+  const { runAtomic } = dependencies;
+  const started = performance.now();
+  const steps: Record<string, number> = {};
+  const onStep = (step: string, milliseconds: number) => {
+    steps[step] = Math.round(milliseconds);
+    dependencies.onStep?.(step, milliseconds);
+  };
   store.setState({ phase: 'creating', pendingProjectId: projectId });
-  const restoreStores = captureRendererStores();
   let claimed = false;
+  const imported: ImportedSampleAsset[] = [];
+  let assets: Promise<ReadonlyMap<string, ImportedSampleAsset>> | null = null;
   try {
     const now = dependencies.now();
     // The project row and the claim commit together: a later launch either
@@ -218,7 +206,7 @@ export async function ensureBuiltInSampleProject(
       await createProjectInTransaction(tx, sync, changes, {
         projectId,
         userId: dependencies.userId,
-        name: sampleProjectName(BUILT_IN_SAMPLE_PRESET, 'built-in'),
+        name: SAMPLE_PROJECT_NAME,
         now,
       });
       await createLibraryStateRepository(tx).write<BuiltInSampleMarker>(
@@ -228,49 +216,32 @@ export async function ensureBuiltInSampleProject(
       );
     });
     claimed = true;
+    onStep('claim', performance.now() - started);
 
-    const scenario = createDefaultProjectScenario(BUILT_IN_SAMPLE_PRESET, 'built-in');
-    await runHeadlessWorkspaceSteps({
+    assets = importIllustrations(dependencies, projectId, imported);
+    assets.catch(() => undefined);
+    await writeBookSample({
       database,
       projectId,
-      steps: scenario.steps,
-      requestId: `built-in-sample-${projectId}`,
-      writer: { runAtomic, authoredJournal },
-      route,
-    });
-    await resolveSampleComments(database, runAtomic, projectId);
-
-    const plan = planSampleMaterials({
-      projectId,
-      preset: BUILT_IN_SAMPLE_PRESET,
-      now: dependencies.now(),
+      userId: dependencies.userId,
+      runAtomic,
+      now: dependencies.now,
       newId: dependencies.newId,
+      assets,
+      onStep,
     });
-    const imported: ImportedSampleAsset[] = [];
-    try {
-      for (let copy = 0; copy < BUILT_IN_SAMPLE_PRESET.assetCopies; copy++) {
-        for (const fixture of SAMPLE_ASSET_FIXTURES) {
-          const entry = await dependencies.importAsset(projectId, fixture);
-          imported.push(entry);
-          plan.addAsset({ fixture, asset: entry.asset, copy });
-        }
-      }
-      await commitSampleMaterials(runAtomic, projectId, plan, imported.map((entry) => entry.asset));
-    } catch (error) {
-      for (const entry of imported) await entry.abandon().catch(() => undefined);
-      throw error;
-    }
     for (const entry of imported) {
       await entry.commit().catch((error) => log.warn('[sample] Asset import marker was not cleared', error));
     }
-
-    // The tool-call ledger was bookkeeping for writing the sample, not a
-    // conversation the author had; its runtime rows cascade with it.
-    await database.delete(AgentConversationTable).where(eq(AgentConversationTable.id, route.conversationId));
-    await writeMarker({ status: 'created', projectId, attempts });
+    const durationMs = Math.round(performance.now() - started);
+    await writeMarker({ status: 'created', projectId, attempts, durationMs, steps });
     store.setState({ pendingProjectId: null, createdProjectId: projectId });
-    return { kind: 'created', projectId };
+    log.info(`[sample] Built-in sample created in ${durationMs} ms`);
+    return { kind: 'created', projectId, durationMs };
   } catch (error) {
+    // Imports still in flight finish first, so every imported file is abandoned.
+    await assets?.catch(() => undefined);
+    for (const entry of imported) await entry.abandon().catch(() => undefined);
     if (error instanceof LibraryNoLongerNew) {
       store.setState({ pendingProjectId: null });
       await writeMarker({ status: 'skipped', projectId: null, attempts: attempts - 1, reason: 'not-a-new-library' })
@@ -295,14 +266,12 @@ export async function ensureBuiltInSampleProject(
       store.setState({ pendingProjectId: null });
     }
     return { kind: 'failed', error };
-  } finally {
-    restoreStores();
   }
 }
 
 // ── App dependencies ────────────────────────────────────────────────────────
 
-const bundledFixtureUrls = import.meta.glob('./assets/*.{png,jpg,pdf}', {
+const bundledFileUrls = import.meta.glob('./pride-and-prejudice/*.jpg', {
   query: '?url',
   import: 'default',
   eager: true,
@@ -313,51 +282,51 @@ async function sha256Hex(bytes: Uint8Array<ArrayBuffer>): Promise<string> {
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
-/** A bundled fixture file, verified against the checked-in manifest. */
-async function bundledFixtureBytes(file: string, sha256: string): Promise<Uint8Array<ArrayBuffer>> {
-  const url = bundledFixtureUrls[`./assets/${file}`];
-  if (!url) throw new Error(`Sample fixture ${file} is not bundled`);
+/** A bundled illustration file, verified against the checked-in manifest. */
+async function bundledFileBytes(file: string, sha256: string): Promise<Uint8Array<ArrayBuffer>> {
+  const url = bundledFileUrls[`./pride-and-prejudice/${file}`];
+  if (!url) throw new Error(`Sample file ${file} is not bundled`);
   const response = await fetch(url);
-  if (!response.ok) throw new Error(`Sample fixture ${file} could not be read (${response.status})`);
+  if (!response.ok) throw new Error(`Sample file ${file} could not be read (${response.status})`);
   const bytes = new Uint8Array(await response.arrayBuffer());
-  if ((await sha256Hex(bytes)) !== sha256) throw new Error(`Sample fixture ${file} failed its integrity check`);
+  if ((await sha256Hex(bytes)) !== sha256) throw new Error(`Sample file ${file} failed its integrity check`);
   return bytes;
 }
 
 /**
- * Import one fixture as the app imports an attachment: source and prebuilt
+ * Import one illustration as the app imports an image: source and prebuilt
  * preview bytes into the native asset store, then the verified local blob
- * receipt the asset.bind mutation requires. No image/PDF codec runs.
+ * receipt the asset.bind mutation requires. No image codec runs.
  */
-async function importBundledSampleAsset(
+async function importBundledIllustration(
   projectId: string,
-  fixture: SampleAssetFixture,
+  illustration: BookIllustration,
 ): Promise<ImportedSampleAsset> {
-  const source = await bundledFixtureBytes(fixture.source, fixture.sha256);
-  if (source.byteLength !== fixture.sizeBytes) throw new Error(`Sample fixture ${fixture.source} has the wrong size`);
+  const source = await bundledFileBytes(illustration.source, illustration.sha256);
+  if (source.byteLength !== illustration.sizeBytes) throw new Error(`Sample file ${illustration.source} has the wrong size`);
   const variants = await Promise.all(
-    Object.entries(fixture.variants).map(async ([variant, metadata]) => ({
+    Object.entries(illustration.variants).map(async ([variant, metadata]) => ({
       variant: variant as ProjectAssetVariant,
-      bytes: await bundledFixtureBytes(metadata.file, metadata.sha256),
+      bytes: metadata.file === illustration.source ? source : await bundledFileBytes(metadata.file, metadata.sha256),
     })),
   );
   const assetId = uuidv7();
   const abandon = () => assetStoreService.deleteAsset(projectId, assetId);
   await assetStoreService.beginImport(projectId, assetId);
   try {
-    await assetStoreService.writeBytes(projectId, assetId, 'source', fixture.kind === 'image' ? 'png' : 'pdf', source);
+    await assetStoreService.writeBytes(projectId, assetId, 'source', 'jpg', source);
     for (const { variant, bytes } of variants) {
       await assetStoreService.writeBytes(projectId, assetId, variant, 'jpg', bytes);
     }
     const asset: ProjectAsset = {
       id: assetId,
       projectId,
-      kind: fixture.kind,
-      sourceMime: fixture.kind === 'image' ? 'image/png' : 'application/pdf',
+      kind: 'image',
+      sourceMime: illustration.mime,
       sourceSizeBytes: source.byteLength,
-      sourceSha256: fixture.sha256,
-      width: fixture.width,
-      height: fixture.height,
+      sourceSha256: illustration.sha256,
+      width: illustration.width,
+      height: illustration.height,
       createdAt: new Date().toISOString(),
     };
     await ensureLocalAuthoredAssetBlobVerified(asset);
@@ -415,13 +384,11 @@ export function defaultBuiltInSampleDependencies(): BuiltInSampleDependencies {
   return {
     database: getDb,
     userId: LOCAL_USER_ID,
-    writer: () => ({
-      runAtomic: withAtomicSyncTransaction,
-      authoredJournal: createAgentAuthoredJournal(),
-    }),
-    importAsset: importBundledSampleAsset,
+    runAtomic: withAtomicSyncTransaction,
+    importAsset: importBundledIllustration,
     discardProject: discardUnpublishedSampleProject,
     now: () => new Date().toISOString(),
     newId: uuidv7,
+    onStep: (step, milliseconds) => log.info(`[sample] ${step}: ${Math.round(milliseconds)} ms`),
   };
 }

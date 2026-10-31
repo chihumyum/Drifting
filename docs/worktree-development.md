@@ -68,7 +68,7 @@ Use only synthetic data in these profiles. A fresh profile starts without cloud
 bindings. The launcher does not seed fixtures, grant MCP access or
 claim UI acceptance (`pnpm dev:seed` below seeds one). On its first launch the
 app itself gives an empty profile the [built-in sample project](sample-project.md)
-(the lite recipe without its Agent history), as it does for a new install; a
+(*Pride and Prejudice*, taken apart in English), as it does for a new install; a
 profile seeded before launch, or any library that already had a project, is left
 as it is. Configure test-owned MCP access from the isolated app if needed.
 Existing acceptance collectors keep their own fixture workflows.
@@ -174,11 +174,12 @@ checking the not-connected setup flow. See `scripts/dev-agent-keys.mjs`.
 for validating performance and stability changes.** Both use isolated local-only
 worktree profiles and the ordinary current-format application data model.
 
-A plain fresh profile (`pnpm dev`, `pnpm dev:worktree --instance <new>`) needs no
-seed command for lite content: the app writes the
-[built-in sample project](sample-project.md) on first launch. It is the lite
-recipe below without the Agent discussions and development labels. Use
-`pnpm dev:seed:lite` when you need those discussions or the `开发样本` profile.
+A plain fresh profile (`pnpm dev`, `pnpm dev:worktree --instance <new>`) gets
+the [built-in sample project](sample-project.md) on first launch: Jane Austen's
+*Pride and Prejudice* with a curated English workspace. It is not a seed preset
+and has nothing in common with the synthetic Chinese corpus below; use
+`pnpm dev:seed:lite` or `pnpm dev:seed` for that corpus, its Agent discussions
+and the `开发样本` profile.
 
 ```bash
 pnpm dev:seed --no-watch            # stress, instance "seed-stress-v2"
@@ -210,7 +211,7 @@ ordinary fresh app notes do.
 
 All names and prose are original synthetic fixtures. The
 [scenario builder](../src/renderer/services/sample-project/scenario.ts) uses the existing
-journaled app/General Agent paths, shared with the app's built-in sample through
+journaled app/General Agent paths through
 `services/sample-project/headless-workspace.ts`. The old tiny JSON seed is removed. Agent
 history uses canonical runtime acceptance, event, tool-ledger and commit
 repositories, with a verified final V4 checkpoint for each conversation. Large

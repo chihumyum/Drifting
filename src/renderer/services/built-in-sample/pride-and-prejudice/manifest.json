@@ -1,0 +1,170 @@
+{
+  "text": {
+    "file": "text.json",
+    "sha256": "1a22eb6d257dbe9269cef98dea753746910daf4e909e4222c522b2b22d0815f8",
+    "chapters": 61
+  },
+  "illustrations": [
+    {
+      "name": "mr-and-mrs-bennet",
+      "title": "Mr. & Mrs. Bennet",
+      "chapter": 1,
+      "use": "material",
+      "kind": "image",
+      "mime": "image/jpeg",
+      "source": "mr-and-mrs-bennet.jpg",
+      "sha256": "5a1e9d45a6b0ad4a6c415426e15fe1240fb987d17d9d901aefb665a1c9353ff2",
+      "sizeBytes": 78154,
+      "width": 613,
+      "height": 760,
+      "variants": {
+        "display": {
+          "file": "mr-and-mrs-bennet.jpg",
+          "sha256": "5a1e9d45a6b0ad4a6c415426e15fe1240fb987d17d9d901aefb665a1c9353ff2"
+        },
+        "thumbnail": {
+          "file": "mr-and-mrs-bennet.thumbnail.jpg",
+          "sha256": "7c63f51ac6e1fc920bdc5cd39010123d33dc5cc5481ba22a760c302975c80e9f"
+        }
+      }
+    },
+    {
+      "name": "she-is-tolerable",
+      "title": "“She is tolerable”",
+      "chapter": 3,
+      "use": "material",
+      "kind": "image",
+      "mime": "image/jpeg",
+      "source": "she-is-tolerable.jpg",
+      "sha256": "b75c50f62bc3cbc81ab4c81d7ad035cd7b42baa933d05229f25e4350e696d9d5",
+      "sizeBytes": 90598,
+      "width": 652,
+      "height": 760,
+      "variants": {
+        "display": {
+          "file": "she-is-tolerable.jpg",
+          "sha256": "b75c50f62bc3cbc81ab4c81d7ad035cd7b42baa933d05229f25e4350e696d9d5"
+        },
+        "thumbnail": {
+          "file": "she-is-tolerable.thumbnail.jpg",
+          "sha256": "89c4376c445f5830f373ff8d2f69138ab251999027b0046547bd47ea1280e93a"
+        }
+      }
+    },
+    {
+      "name": "never-read-novels",
+      "title": "“Protested that he never read novels”",
+      "chapter": 14,
+      "use": "material",
+      "kind": "image",
+      "mime": "image/jpeg",
+      "source": "never-read-novels.jpg",
+      "sha256": "3e79b53f51cfa581cec303af02e0ec70096138e6a95a04924fec3e57bf6ab483",
+      "sizeBytes": 73622,
+      "width": 498,
+      "height": 760,
+      "variants": {
+        "display": {
+          "file": "never-read-novels.jpg",
+          "sha256": "3e79b53f51cfa581cec303af02e0ec70096138e6a95a04924fec3e57bf6ab483"
+        },
+        "thumbnail": {
+          "file": "never-read-novels.thumbnail.jpg",
+          "sha256": "23b7e1c996cbf58cbff7b4672c0d0c796f0e1e32f0a13e0108c793dd943f8848"
+        }
+      }
+    },
+    {
+      "name": "hearing-herself-called",
+      "title": "“Hearing herself called”",
+      "chapter": 35,
+      "use": "material",
+      "kind": "image",
+      "mime": "image/jpeg",
+      "source": "hearing-herself-called.jpg",
+      "sha256": "37c6c2e5b43d4609b51fc3b7d85d169cbb85b6e48402a7e5826fe81d2218517c",
+      "sizeBytes": 114977,
+      "width": 760,
+      "height": 621,
+      "variants": {
+        "display": {
+          "file": "hearing-herself-called.jpg",
+          "sha256": "37c6c2e5b43d4609b51fc3b7d85d169cbb85b6e48402a7e5826fe81d2218517c"
+        },
+        "thumbnail": {
+          "file": "hearing-herself-called.thumbnail.jpg",
+          "sha256": "fc3ab5f5d59c01c3a8d45cf77fc3ee4ff47f8bf5f0d31439775b794259238800"
+        }
+      }
+    },
+    {
+      "name": "after-a-short-survey",
+      "title": "“After a short survey”",
+      "chapter": 56,
+      "use": "material",
+      "kind": "image",
+      "mime": "image/jpeg",
+      "source": "after-a-short-survey.jpg",
+      "sha256": "8d65070a26f5357e3619d65bddfe59a9bac000a7240611f703ad63cf970ceec1",
+      "sizeBytes": 82777,
+      "width": 484,
+      "height": 760,
+      "variants": {
+        "display": {
+          "file": "after-a-short-survey.jpg",
+          "sha256": "8d65070a26f5357e3619d65bddfe59a9bac000a7240611f703ad63cf970ceec1"
+        },
+        "thumbnail": {
+          "file": "after-a-short-survey.thumbnail.jpg",
+          "sha256": "d7b0f6adfd8e782fc5516b6040da8341500039b712832a10f981e77ee64f4386"
+        }
+      }
+    },
+    {
+      "name": "portrait-elizabeth",
+      "title": "Elizabeth Bennet",
+      "chapter": 3,
+      "use": "portrait",
+      "kind": "image",
+      "mime": "image/jpeg",
+      "source": "portrait-elizabeth.jpg",
+      "sha256": "05a86a7148a601594aa947b55499b8a9c3e2ea5c02a6a289de9a4f5920e49fcd",
+      "sizeBytes": 35255,
+      "width": 300,
+      "height": 380,
+      "variants": {
+        "display": {
+          "file": "portrait-elizabeth.jpg",
+          "sha256": "05a86a7148a601594aa947b55499b8a9c3e2ea5c02a6a289de9a4f5920e49fcd"
+        },
+        "thumbnail": {
+          "file": "portrait-elizabeth.thumbnail.jpg",
+          "sha256": "c9f587f44940991d2b8cc312e2feff79c09937d0977481e11c92a5f10ea334c2"
+        }
+      }
+    },
+    {
+      "name": "portrait-darcy",
+      "title": "Fitzwilliam Darcy",
+      "chapter": 35,
+      "use": "portrait",
+      "kind": "image",
+      "mime": "image/jpeg",
+      "source": "portrait-darcy.jpg",
+      "sha256": "eb2afda6b6e37b559ff3e41b871d1918cbd0f561df881154fb4855f1e1eca22e",
+      "sizeBytes": 57556,
+      "width": 340,
+      "height": 430,
+      "variants": {
+        "display": {
+          "file": "portrait-darcy.jpg",
+          "sha256": "eb2afda6b6e37b559ff3e41b871d1918cbd0f561df881154fb4855f1e1eca22e"
+        },
+        "thumbnail": {
+          "file": "portrait-darcy.thumbnail.jpg",
+          "sha256": "7dd481d2c45de583053bd1b7aa135e697f3013a35b785eceac19b87b9ce060f0"
+        }
+      }
+    }
+  ]
+}

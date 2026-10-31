@@ -33,7 +33,7 @@ import {
   sandCoverKey,
 } from '../lib/sand-cover';
 import { useProjectRoutePreload } from '../app/useProjectRoutePreload';
-import { useBuiltInSampleStore } from '../services/sample-project/first-run';
+import { useBuiltInSampleStore } from '../services/built-in-sample/first-run';
 import { BrushIcon } from '../components/ui/BrushIcon';
 import { KindMark } from '../components/ui/KindMark';
 import { useCharSeaEnabled, useCharSeaHold, useCharSeaShape } from '../components/char-sea/useCharSea';
