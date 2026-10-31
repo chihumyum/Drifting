@@ -136,6 +136,11 @@ describe('the sea of characters under the desktop window', () => {
       /--workspace-ui-bg: transparent;[\s\S]*animation: char-sea-surface var\(--motion-structural\) ease-out both;/,
     );
     expect(css).toContain("html[data-char-sea='ebb'] .desktop-app-shell { animation: none; }");
+    // A plate that cuts a line under it keeps the desk: the compact element
+    // index's heading still cuts its category's sand frame.
+    expect(block(css, "html[data-char-sea='ebb'] .desktop-app-shell {", '}')).toContain('--workspace-plate-bg: hsl(var(--paper-deep));');
+    expect(block(read('src/styles/ui-controls.css'), '.left-sb-group-header--frame .left-sb-group-header__legend {', '}'))
+      .toContain('background: var(--workspace-plate-bg, var(--workspace-ui-bg));');
   });
 
   it('opens a book only once its page is ready, then bursts the word into the workspace', () => {

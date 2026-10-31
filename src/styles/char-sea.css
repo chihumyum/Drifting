@@ -49,6 +49,9 @@
    colour the sea's ground was. */
 html[data-char-sea='ebb'] .desktop-app-shell {
   --workspace-ui-bg: transparent;
+  /* A plate that cuts a line drawn under it (the compact element index's
+     category heading, set into its sand frame) stays the desk it was. */
+  --workspace-plate-bg: hsl(var(--paper-deep));
   animation: char-sea-surface var(--motion-structural) ease-out both;
 }
 

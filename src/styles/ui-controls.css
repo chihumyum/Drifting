@@ -2478,7 +2478,9 @@ html:not([data-shell-mode='mobile']) .ui-section-empty {
   display: contents;
 }
 
-/* The heading's own plate cuts the frame's top edge where it sits. */
+/* The heading's own plate cuts the frame's top edge where it sits. It stays
+   opaque while the char sea ebbs under a just-opened workspace and clears
+   the desk (char-sea.css), or the frame would run through the heading. */
 .left-sb-group-header--frame .left-sb-group-header__legend {
   display: inline-flex;
   align-items: center;
@@ -2486,7 +2488,7 @@ html:not([data-shell-mode='mobile']) .ui-section-empty {
   min-width: 0;
   height: 22px;
   padding: 0 7px 0 5px;
-  background: var(--workspace-ui-bg);
+  background: var(--workspace-plate-bg, var(--workspace-ui-bg));
 }
 
 .left-sb-group-header__frame-disclosure {
