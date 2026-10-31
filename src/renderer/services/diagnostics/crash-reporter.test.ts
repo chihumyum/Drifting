@@ -27,6 +27,8 @@ import {
   reportNativeCrashes,
   reportDiagnosticLog,
   resetCrashReporterForTests,
+  startNewLaunchForTests,
+  takeCrashFollowUp,
 } from './crash-reporter';
 
 const storage = new Map<string, string>();
@@ -197,4 +199,68 @@ it('keeps sending live after an empty flush and never loses a report added durin
   await flushCrashReports();
   expect(sentBodies().map((body) => body.fingerprint)).toEqual(['integrity:first', 'integrity:second']);
   expect(storage.has('drifting.diagnostics.queue.v1')).toBe(false);
+});
+
+const renderFailure = (name = 'TypeError') => reportCrash({
+  kind: 'render-failure', severity: 'fatal', name, message: 'Cannot read properties of undefined',
+  stack: `${name}: x\n    at AgentTranscript (tauri://localhost/assets/AgentTranscript-Bx9fK2aQ.js:1:2)`,
+});
+const accepted = (id: string) => ({ ok: true, status: 202, json: async () => ({ status: 'accepted', id }) });
+
+it('offers a delivered render failure once, on a later launch, with the service id', async () => {
+  fetchMock.mockResolvedValueOnce(accepted('9b3c1f0e-1d2a-4c55-9a51-0d7b1b6f2e10'));
+  renderFailure();
+  await flushCrashReports();
+  expect(takeCrashFollowUp()).toBeNull(); // never in the launch it broke
+  startNewLaunchForTests();
+  expect(takeCrashFollowUp()).toEqual({
+    kind: 'render-failure', fingerprint: sentBodies()[0].fingerprint,
+    occurredAt: sentBodies()[0].occurredAt, reportId: '9b3c1f0e-1d2a-4c55-9a51-0d7b1b6f2e10',
+  });
+  expect(takeCrashFollowUp()).toBeNull();
+  startNewLaunchForTests();
+  expect(takeCrashFollowUp()).toBeNull();
+  expect(storage.has('drifting.diagnostics.follow-ups.v1')).toBe(false);
+});
+
+it('offers a native panic on the launch that sends it, only the newest of several', async () => {
+  const panic = (location: string) => ({
+    message: 'index out of bounds', location, thread: 'main', backtrace: '', occurredAtMs: 1, appVersion: '0.1.0-alpha.2',
+  });
+  fetchMock.mockResolvedValueOnce(accepted('first')).mockResolvedValueOnce(accepted('second'));
+  nativeReports.take.mockResolvedValueOnce([panic('src/a.rs:1'), panic('src/b.rs:2')]);
+  await reportNativeCrashes();
+  await flushCrashReports();
+  expect(takeCrashFollowUp()).toMatchObject({ kind: 'native-panic', fingerprint: 'native-panic:src-b.rs:2', reportId: 'second' });
+  expect(takeCrashFollowUp()).toBeNull();
+});
+
+it('never offers a crash Drifting did not send, nor other kinds of report', async () => {
+  mocks.enabled = false;
+  renderFailure('OffError');
+  mocks.enabled = true;
+  fetchMock.mockResolvedValueOnce({ ok: false, status: 400 });
+  renderFailure('RejectedError');
+  await flushCrashReports();
+  reportIntegrityEvent('local-flush-failed');
+  await flushCrashReports();
+  startNewLaunchForTests();
+  expect(takeCrashFollowUp()).toBeNull();
+
+  fetchMock.mockResolvedValueOnce({ ok: false, status: 503 });
+  renderFailure('LaterError');
+  await flushCrashReports();
+  startNewLaunchForTests();
+  expect(takeCrashFollowUp()).toBeNull(); // still queued
+  fetchMock.mockResolvedValueOnce(accepted('later'));
+  await flushCrashReports();
+  expect(takeCrashFollowUp()).toMatchObject({ reportId: 'later' });
+});
+
+it('offers a Sentry-delivered crash without a service id', async () => {
+  sentry.env.VITE_SENTRY_DSN = 'https://0123456789abcdef0123456789abcdef@errors.example.test/42';
+  renderFailure();
+  await flushCrashReports();
+  startNewLaunchForTests();
+  expect(takeCrashFollowUp()).toMatchObject({ kind: 'render-failure', reportId: null });
 });

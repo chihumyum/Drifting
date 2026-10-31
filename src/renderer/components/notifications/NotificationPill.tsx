@@ -3,6 +3,7 @@
  * of the left sidebar.
  *   - a task is running   → its source icon blinks
  *   - task just finished  → the result's ink seal for FLASH_MS, then the bell
+ *   - a crash follow-up is unread → its warning seal, until the center opens
  *   - otherwise           → the bell (furin)
  * Clicking toggles the notification center, which opens upward from it.
  */
@@ -17,6 +18,7 @@ import { Button } from '../ui/Button';
 import { EmptyState } from '../ui/EmptyState';
 import { GhostIconButton } from '../ui/GhostIconButton';
 import { useNotificationStore, type AppNotification } from '../../store/notification-store';
+import { useFeedbackDialogStore } from '../../features/feedback/feedback-dialog-store';
 import '../../../styles/notifications.css';
 
 const FLASH_MS = 1800; // how long the result icon shows in the circle after the pill collapses
@@ -60,6 +62,7 @@ function sourceLabel(n: AppNotification, t: (key: string, options?: Record<strin
   if (n.source === 'agent-organize') return t('notifications.organize.source');
   if (n.source === 'markdown-folder') return t('notifications.markdownFolder.source');
   if (n.source === 'app-update') return t('notifications.appUpdate.source');
+  if (n.source === 'crash-follow-up') return t('notifications.crashFollowUp.source');
   return t(n.source === 'share-comment' ? 'notifications.shareComments.source' : 'notifications.cloudSync.source');
 }
 
@@ -113,6 +116,8 @@ export function NotificationPill({ opens = 'down' }: {
   const setCenterOpen = useNotificationStore((s) => s.setCenterOpen);
 
   const runningItem = items.find((n) => n.state === 'running');
+  // A crash the author has not looked at keeps its seal on the bell.
+  const unreadFollowUp = items.some((n) => n.source === 'crash-follow-up' && !n.read);
   const headUpdatedAt = items.length ? items[0].updatedAt : 0;
 
   // When a task reaches a terminal state, flash its result icon for FLASH_MS.
@@ -207,6 +212,9 @@ export function NotificationPill({ opens = 'down' }: {
         <FlashIcon result={flashResult} />
       </span>
     );
+  } else if (unreadFollowUp) {
+    iconColor = 'hsl(var(--destructive))';
+    iconEl = <BrushIcon name="status-warning" size={15} />;
   } else {
     iconColor = undefined;
     iconEl = <BrushIcon name="furin" />;
@@ -261,6 +269,11 @@ function NotificationCenter({
   const location = useLocation();
 
   const onRowClick = (n: AppNotification) => {
+    if (n.crashFollowUp) {
+      useFeedbackDialogStore.getState().show(n.crashFollowUp);
+      setCenterOpen(false);
+      return;
+    }
     if (n.settingsSection) {
       navigate(`/settings?section=${n.settingsSection}`, { state: { from: `${location.pathname}${location.search}` } });
       setCenterOpen(false);
@@ -312,7 +325,7 @@ function NotificationCenter({
                 'menu-surface__item',
                 'notification-row',
                 n.read ? '' : 'is-unread',
-                n.chapterId || n.target || n.projectHomeId || n.settingsSection ? '' : 'is-static',
+                n.chapterId || n.target || n.projectHomeId || n.settingsSection || n.crashFollowUp ? '' : 'is-static',
               ]
                 .filter(Boolean)
                 .join(' ')}
@@ -324,7 +337,7 @@ function NotificationCenter({
                 <div className="notification-row__meta">
                   <span className="notification-row__source">
                     <BrushIcon
-                      name={n.source === 'share-comment' ? 'comment' : n.source === 'agent-organize' ? 'shikigami' : n.source === 'markdown-folder' ? 'both-ways' : n.source === 'app-update' ? 'rotate' : 'cloud'}
+                      name={n.source === 'share-comment' ? 'comment' : n.source === 'agent-organize' ? 'shikigami' : n.source === 'markdown-folder' ? 'both-ways' : n.source === 'app-update' ? 'rotate' : n.source === 'crash-follow-up' ? 'brush-broken' : 'cloud'}
                       size={12}
                     />
                     {sourceLabel(n, t)}

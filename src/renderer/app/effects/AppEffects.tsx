@@ -18,6 +18,7 @@ import { installProductSyncAuthorityMonitor } from '../../sync/product-authority
 import { events } from '../../lib/events';
 import { UpdateService } from '../../services/update/update-service';
 import { installUpdateNotifications } from '../../services/update/update-notifications';
+import { offerCrashFollowUp } from '../../services/diagnostics/crash-follow-up-notifications';
 import { runAssetStoreRestartGc } from '../../services/asset-store-restart-gc';
 import { applyResolvedColorScheme } from '../../lib/initial-theme';
 import { reportIntegrityEvent } from '../../services/diagnostics/crash-reporter';
@@ -240,6 +241,15 @@ function UpdaterEffects() {
   return null;
 }
 
+/** A fatal report from an earlier launch becomes one notification the author can explain. */
+function CrashFollowUpEffects() {
+  useEffect(() => {
+    if (getPlatformRuntime().isMobileShell) return;
+    void offerCrashFollowUp();
+  }, []);
+  return null;
+}
+
 function AssetStoreRestartGcEffects() {
   useEffect(() => {
     const collect = () => {
@@ -264,6 +274,7 @@ export function AppEffects() {
       <RestoredProjectUiEffects />
       <AssetStoreRestartGcEffects />
       <UpdaterEffects />
+      <CrashFollowUpEffects />
     </>
   );
 }

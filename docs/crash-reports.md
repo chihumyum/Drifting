@@ -52,3 +52,44 @@ wait in local storage (20 at most) for the next launch; reports the service
 rejects (4xx) are dropped. Native panics are written to
 `diagnostics/native/` next to the databases directory, at most 20 at a time, and
 removed once the renderer takes them.
+
+## Crash follow-ups
+
+When a `render-failure` or `native-panic` report reaches the service (or
+Sentry), the client keeps its fingerprint, time and the id the service
+returned (`drifting.diagnostics.follow-ups.v1`, five at most). A render failure
+waits for a later launch; a native panic is already reported on the launch
+after the crash. Once that launch's native panics and queue have been sent
+(`crashReportsSettled`), `offerCrashFollowUp` takes the newest ready one and
+puts a single `crash-follow-up` notification in the notification center; older
+ones are retired, so each report is offered once at most and never twice in
+one launch. Reports that were never sent (reports off, no service, rejected,
+still queued) are never offered. While the notification is unread the bell
+keeps its warning seal.
+
+Its row opens the feedback dialog as a follow-up: the crash time as the
+kicker, the message asks what the author was doing, and **Ignore** retires the
+notification. Closing the dialog keeps it. The note is sent as feedback with
+`kind: "crash-follow-up"` and the report's id and fingerprint.
+
+## Feedback
+
+`services/diagnostics/feedback.ts` and `features/feedback/FeedbackDialog.tsx`.
+The dialog opens from the account menu, Settings → About and a crash
+follow-up. It holds the author's message (up to 5000 characters), a reply-to
+address (the signed-in account's email by default; optional, validated as one
+plain address) and a switch, on by default, for the sanitized diagnostic
+summary of Settings → Privacy, which the dialog takes once as it opens and can
+preview. ⌘↩ sends.
+
+Feedback is sent on purpose, so it ignores the automatic report switch. With a
+Hosted service and a network it goes to
+`POST <API_BASE_URL>/api/diagnostics/v1/feedback` (`drifting.feedback` v1, the
+service's `docs/diagnostics-v1.md`), with the session when signed in; the
+service stores it and emails the maintainer with the author's address as
+Reply-To. Local-only builds, development builds without
+`VITE_DRIFTING_CRASH_REPORTS_IN_DEV=1`, an offline Mac and a failed send all
+hand the same message, the version and, when attached, the summary to the mail
+client as a `mailto:` to the support address. Nothing from the manuscript, the
+database or the Keychain is read; `feedback.test.ts` guards the payload and the
+imports.

@@ -622,7 +622,8 @@
       "emailTeam": "Email the team",
       "writeEmail": "Write email",
       "submitFeedback": "Submit feedback",
-      "submitFeedbackDesc": "Opens a blank email. Drifting does not attach manuscript context automatically.",
+      "submitFeedbackDesc": "Can include a sanitized diagnostic summary; never manuscript text.",
+      "submitFeedbackMailDesc": "Opens a blank email. Drifting does not attach manuscript context automatically.",
       "feedback": "Feedback…",
       "tagline": "Built for writers awake deep into the night."
     },
@@ -1359,6 +1360,9 @@
       "source": "Updates",
       "available": "Drifting {{version}} is available",
       "installed": "Updated to Drifting {{version}}"
+    },
+    "crashFollowUp": {
+      "source": "Drifting"
     }
   },
   "userMenu": {
@@ -1378,7 +1382,8 @@
     "import": "Import",
     "bookshelf": "Bookshelf · Switch project",
     "signingOut": "Signing out…",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "feedback": "Send feedback"
   },
   "agentPanel": {
     "newConversation": "New chat",
@@ -3545,5 +3550,28 @@
     "label": "Current",
     "hintOff": "Only what belongs to the current item",
     "hintOn": "Showing only the current item; click again for the whole project"
+  },
+  "feedback": {
+    "title": "Send feedback",
+    "placeholder": "A problem or an idea",
+    "contact": "Reply-to email",
+    "contactPlaceholder": "Optional",
+    "attachDiagnostics": "Attach sanitized diagnostics",
+    "preview": "Preview",
+    "hidePreview": "Hide",
+    "cancel": "Cancel",
+    "send": "Send",
+    "sending": "Sending…",
+    "sent": "Sent",
+    "close": "Close",
+    "failed": "Couldn’t send",
+    "sendByEmail": "Send by email",
+    "emailSubject": "Drifting feedback",
+    "crash": {
+      "title": "Drifting ran into a problem last time",
+      "placeholder": "What were you doing?",
+      "ignore": "Ignore",
+      "emailSubject": "Drifting crash follow-up"
+    }
   }
 }

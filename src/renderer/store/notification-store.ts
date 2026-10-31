@@ -11,14 +11,22 @@
  * mobile can project the same sanitized transfer lifecycle independently.
  */
 import { create } from 'zustand';
+import type { CrashFollowUp } from '../services/diagnostics/crash-reporter';
 
 export type NotificationState = 'running' | 'completed' | 'failed' | 'stopped';
 /**
  * `share-comment`: readers commented on something the author shares (features/share-links).
  * `markdown-folder`: an edited file in the project Markdown folder could not merge (docs/markdown-mirror.md).
  * `app-update`: a new version is available, or this launch installed one (services/update).
+ * `crash-follow-up`: a fatal report from an earlier launch the author can explain (docs/crash-reports.md).
  */
-export type AppNotificationSource = 'hosted-sync' | 'share-comment' | 'agent-organize' | 'markdown-folder' | 'app-update';
+export type AppNotificationSource =
+  | 'hosted-sync'
+  | 'share-comment'
+  | 'agent-organize'
+  | 'markdown-folder'
+  | 'app-update'
+  | 'crash-follow-up';
 
 /** What a notification opens: an entity in a project, wherever the author is. */
 export interface AppNotificationTarget {
@@ -57,6 +65,8 @@ export interface AppNotificationEvent {
   projectHomeId?: string;
   /** Clicking the row opens this Settings section. */
   settingsSection?: string;
+  /** Clicking the row opens the feedback dialog to explain this crash. */
+  crashFollowUp?: CrashFollowUp;
 }
 
 export interface AppNotification {
@@ -69,6 +79,7 @@ export interface AppNotification {
   target?: AppNotificationTarget;
   projectHomeId?: string;
   settingsSection?: string;
+  crashFollowUp?: CrashFollowUp;
   outcome?: NotificationOutcome;
   count?: number;
   error?: string;
@@ -122,6 +133,7 @@ export const useNotificationStore = create<NotificationStore>((set) => ({
           target: e.target ?? existing.target,
           projectHomeId: e.projectHomeId ?? existing.projectHomeId,
           settingsSection: e.settingsSection ?? existing.settingsSection,
+          crashFollowUp: e.crashFollowUp ?? existing.crashFollowUp,
           outcome: e.outcome ?? existing.outcome,
           count: e.count ?? existing.count,
           error: e.error ?? existing.error,
@@ -143,6 +155,7 @@ export const useNotificationStore = create<NotificationStore>((set) => ({
         target: e.target,
         projectHomeId: e.projectHomeId,
         settingsSection: e.settingsSection,
+        crashFollowUp: e.crashFollowUp,
         outcome: e.outcome,
         count: e.count,
         error: e.error,

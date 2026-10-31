@@ -621,7 +621,8 @@
       "emailTeam": "写信给团队",
       "writeEmail": "写邮件",
       "submitFeedback": "提交反馈",
-      "submitFeedbackDesc": "打开一封空白邮件；Drifting 不会自动附带稿件上下文。",
+      "submitFeedbackDesc": "可附上脱敏诊断摘要；不含正文。",
+      "submitFeedbackMailDesc": "打开一封空白邮件；Drifting 不会自动附带稿件上下文。",
       "feedback": "反馈…",
       "tagline": "为夜里不睡的写作人造。"
     },
@@ -1358,6 +1359,9 @@
       "source": "更新",
       "available": "Drifting {{version}} 可以更新",
       "installed": "已更新到 Drifting {{version}}"
+    },
+    "crashFollowUp": {
+      "source": "Drifting"
     }
   },
   "userMenu": {
@@ -1377,7 +1381,8 @@
     "import": "导入",
     "bookshelf": "书架 · 切换项目",
     "signingOut": "登出中…",
-    "signOut": "登出账号"
+    "signOut": "登出账号",
+    "feedback": "提交反馈"
   },
   "agentPanel": {
     "newConversation": "新对话",
@@ -3541,5 +3546,28 @@
     "label": "当前",
     "hintOff": "只看当前这一项的内容",
     "hintOn": "正在只看当前这一项；再点一下看整个项目"
+  },
+  "feedback": {
+    "title": "提交反馈",
+    "placeholder": "问题或建议",
+    "contact": "联系邮箱",
+    "contactPlaceholder": "选填",
+    "attachDiagnostics": "附上脱敏诊断摘要",
+    "preview": "预览",
+    "hidePreview": "收起",
+    "cancel": "取消",
+    "send": "发送",
+    "sending": "发送中…",
+    "sent": "已发送",
+    "close": "关闭",
+    "failed": "没能发出",
+    "sendByEmail": "用邮件发送",
+    "emailSubject": "Drifting 反馈",
+    "crash": {
+      "title": "上次出了故障",
+      "placeholder": "当时在做什么",
+      "ignore": "忽略",
+      "emailSubject": "Drifting 故障补充"
+    }
   }
 }
