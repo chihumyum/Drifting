@@ -1,6 +1,38 @@
 import { describe, expect, it } from 'vitest';
-import { CHAR_SEA_STEP_RATE, CHAR_SEA_WATER_CELL, CharSeaWater, layoutCharSea } from './char-sea-model';
+import { CHAR_SEA_STEP_RATE, CHAR_SEA_WATER_CELL, CharSeaRain, CharSeaWater, layoutCharSea } from './char-sea-model';
 import { CHAR_SEA_LANGUAGES, charSeaScript, type CharSeaLanguage } from './char-sea-text';
+
+/** A repeatable stand-in for Math.random. */
+function seeded(seed: number): () => number {
+  let state = seed;
+  return () => {
+    state = (state * 16807) % 2147483647;
+    return state / 2147483647;
+  };
+}
+
+/** How much light the rain lays on its columns in [from, to). */
+function litAmount(rain: CharSeaRain, from = 0, to = rain.cols): number {
+  let sum = 0;
+  for (let row = 0; row < rain.rows; row += 1) {
+    for (let col = from; col < to; col += 1) sum += rain.cells[(row * rain.cols + col) * 2];
+  }
+  return sum;
+}
+
+/** How many of the rain's columns have a lit cell, of those in [from, to). */
+function litColumns(rain: CharSeaRain, from = 0, to = rain.cols): number {
+  let count = 0;
+  for (let col = from; col < to; col += 1) {
+    for (let row = 0; row < rain.rows; row += 1) {
+      if (rain.cells[(row * rain.cols + col) * 2] > 0) {
+        count += 1;
+        break;
+      }
+    }
+  }
+  return count;
+}
 
 /** How far the wave front has travelled along a direction, in CSS px. */
 function frontDistance(water: CharSeaWater, cx: number, cy: number, angle: number): number {
@@ -67,5 +99,61 @@ describe('the sea of characters', () => {
     expect(peak).toBeGreaterThan(0.1);
     for (let i = 0; i < CHAR_SEA_STEP_RATE * 4.5; i += 1) peak = water.step();
     expect(peak).toBeLessThan(0.004);
+  });
+
+  it('holds the water to the loading word: it stands there, settles back after a ring, and spreads when let go', () => {
+    const water = new CharSeaWater(480, 300);
+    const shape = new Float32Array(water.cols * water.rows);
+    for (let y = 18; y < 24; y += 1) for (let x = 24; x < 44; x += 1) shape[y * water.cols + x] = 1;
+    const at = { x: 34 * CHAR_SEA_WATER_CELL + 3, y: 21 * CHAR_SEA_WATER_CELL + 3 };
+    const centre = 21 * water.cols + 34;
+    water.hold(shape);
+    water.setHoldHeight(0.45);
+    for (let i = 0; i < CHAR_SEA_STEP_RATE * 3; i += 1) water.step();
+    expect(water.heights[centre]).toBeCloseTo(0.45, 2);
+    expect(Math.abs(water.offRest(at.x, at.y))).toBeLessThan(0.01);
+    expect(Math.abs(water.heights[5 * water.cols + 5])).toBeLessThan(0.005);
+
+    water.splash(at.x, at.y, 1.2, 2.2);
+    for (let i = 0; i < CHAR_SEA_STEP_RATE * 0.05; i += 1) water.step();
+    expect(Math.abs(water.offRest(at.x, at.y))).toBeGreaterThan(0.1);
+    for (let i = 0; i < CHAR_SEA_STEP_RATE * 2; i += 1) water.step();
+    expect(Math.abs(water.offRest(at.x, at.y))).toBeLessThan(0.02);
+
+    water.hold(null);
+    for (let i = 0; i < CHAR_SEA_STEP_RATE * 0.5; i += 1) water.step();
+    expect(water.heights[centre]).toBeLessThan(0.2);
+  });
+
+  it('rains down about a third of the columns, breaks the drops the water knocks, and refills them', () => {
+    const rain = new CharSeaRain(60, 40, seeded(7));
+    const tick = (seconds: number, offRest: (col: number) => number) => {
+      for (let t = 0; t < seconds; t += 1 / 60) rain.tick(1 / 60, offRest);
+    };
+    rain.start();
+    tick(6, () => 0);
+    const falling = litColumns(rain);
+    expect(falling).toBeGreaterThan(60 * 0.15);
+    expect(falling).toBeLessThan(60 * 0.6);
+    expect(rain.cells.some((value, index) => index % 2 === 1 && value === 255)).toBe(true);
+
+    // Drops that still fall in break at once, so only their first instant shows.
+    tick(1, (col) => (col < 30 ? 1 : 0));
+    expect(litAmount(rain, 0, 30)).toBeLessThan(litAmount(rain, 30) * 0.25);
+
+    tick(4, () => 0);
+    expect(litColumns(rain, 0, 30)).toBeGreaterThan(30 * 0.15);
+  });
+
+  it('stops the rain: nothing new falls and what is out fades within half a second', () => {
+    const rain = new CharSeaRain(40, 30, seeded(3));
+    rain.start();
+    for (let t = 0; t < 4; t += 1 / 60) rain.tick(1 / 60, () => 0);
+    expect(litColumns(rain)).toBeGreaterThan(0);
+    rain.stop();
+    let still = true;
+    for (let t = 0; t < 0.5; t += 1 / 60) still = rain.tick(1 / 60, () => 0);
+    expect(still).toBe(false);
+    expect(litColumns(rain)).toBe(0);
   });
 });

@@ -25,12 +25,12 @@ function block(text: string, start: string, end: string): string {
 }
 
 describe('the sea of characters under the desktop window', () => {
-  it('opens on the sea at rest: the desk with a faint dot in every 14px cell, no spinner', () => {
+  it('opens on the sea at rest: the desk with a faint dot in every 10px cell, no spinner', () => {
     const html = read('index.html');
     const placeholder = block(html, '#app-startup-loading {', '</style>');
     expect(html).toContain('<div id="app-startup-loading" role="status" aria-label="正在启动 Drifting" data-tauri-drag-region></div>');
     expect(placeholder).not.toMatch(/@keyframes|animation/);
-    expect(placeholder).toContain('background-size: 14px 14px;');
+    expect(placeholder).toContain('background-size: 10px 10px;');
     expect(placeholder).toContain('background-position: center;');
     // The desk's own colour (--paper-deep), light and dark, so React takes over without a change of ground.
     const tokens = read('src/styles/index.css');
@@ -39,7 +39,7 @@ describe('the sea of characters under the desktop window', () => {
     expect(placeholder).toContain('background-color: hsl(40 9% 94.5%);');
     expect(placeholder).toContain('background-color: hsl(220 6% 11.5%);');
     const css = read('src/styles/char-sea.css');
-    expect(block(css, '.char-sea {', '}')).toMatch(/z-index: -1;[\s\S]*background-color: var\(--workspace-ui-bg\);[\s\S]*background-position: center;[\s\S]*background-size: 14px 14px;/);
+    expect(block(css, '.char-sea {', '}')).toMatch(/z-index: -1;[\s\S]*background-color: var\(--workspace-ui-bg\);[\s\S]*background-position: center;[\s\S]*background-size: 10px 10px;/);
   });
 
   it('turns a full-window wait into the sea on the desktop, keeping the words for screen readers', () => {
@@ -82,13 +82,23 @@ describe('the sea of characters under the desktop window', () => {
     expect(block(picker, '.pp-card--sea.glass::before {', '}')).toContain('display: none;');
   });
 
-  it('drops from the press that started a wait, after the loading delay, and stops when still', () => {
+  it('rains and raises "Loading" out of the water after the loading delay, lets both go when the wait ends, and stops when still', () => {
     const component = read('src/renderer/components/char-sea/CharSea.tsx');
-    expect(component).toContain('const PULSE_PERIOD_MS = 1100;');
-    expect(component).toContain('}, LOADING_DELAY_MS);');
-    expect(component).toContain('charSeaRegistry.recentPress(PRESS_ORIGIN_MS)');
+    expect(component).toContain('const timer = window.setTimeout(() => sea.current?.loading(true), LOADING_DELAY_MS);');
+    expect(component).toContain('sea.current?.loading(false);');
+    expect(component).not.toContain('pulse');
     expect(component).toContain("const OVERLAY = '[role=\"dialog\"], [aria-modal=\"true\"], [role=\"menu\"], [role=\"listbox\"]';");
     const engine = read('src/renderer/lib/char-sea/char-sea.ts');
+    // The word is water held to its shape in an old serif; the sheet's own characters surface on it.
+    expect(engine).toContain("const LOADING_WORD = 'Loading';");
+    expect(engine).toContain('`700 ${size}px "Times New Roman", Tinos, Times, serif`');
+    expect(engine).toContain('water.hold(wordShape);');
+    // Its standing slope moves no glyph, no light or shade is painted round it,
+    // and the rain surfaces a cell to 70% of a crest.
+    expect(engine).toContain('-uWordH*vec2(wAt(cc+sx)-wAt(cc-sx),wAt(cc+sy)-wAt(cc-sy));');
+    expect(engine).not.toMatch(/col\+=vec3/);
+    expect(engine).toContain('float s=max(smoothstep(.04,.26,abs(hc)),.7*rd.x);');
+    expect(read('src/renderer/lib/char-sea/char-sea-text.ts')).not.toMatch(/cellHeight: 14/);
     // Still water and still glass draw one last frame, then nothing.
     expect(engine).toContain('if (quietFrames > 20) {');
     expect(engine).toContain("window.matchMedia?.('(prefers-reduced-motion: reduce)')");

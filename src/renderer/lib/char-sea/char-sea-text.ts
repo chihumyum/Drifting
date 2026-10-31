@@ -13,7 +13,7 @@ export interface CharSeaLanguage {
   font: string;
   /** The face to wait for before drawing the atlas again. */
   loadFace: string;
-  /** Cell size in CSS px. */
+  /** Cell size in CSS px: 10px rows, fine enough for the loading word's serifs to land on. */
   cellWidth: number;
   cellHeight: number;
   /** Glyph size as a share of the cell height. */
@@ -26,9 +26,9 @@ export const CHAR_SEA_LANGUAGES: Record<CharSeaScript, CharSeaLanguage> = {
   zh: {
     font: '"Noto Serif SC Variable", "Songti SC", serif',
     loadFace: '"Noto Serif SC Variable"',
-    cellWidth: 14,
-    cellHeight: 14,
-    size: 0.74,
+    cellWidth: 10,
+    cellHeight: 10,
+    size: 0.8,
     rtl: false,
     text:
       '雾从港口那边漫过来的时候，林岚正把第三封信压在灯座底下。灯塔的铁梯被潮气浸得发凉，她每往上走一级，脚下就响一声，像有人在楼下跟着数。' +
@@ -39,9 +39,9 @@ export const CHAR_SEA_LANGUAGES: Record<CharSeaScript, CharSeaLanguage> = {
   ja: {
     font: '"Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", serif',
     loadFace: '"Hiragino Mincho ProN"',
-    cellWidth: 14,
-    cellHeight: 14,
-    size: 0.74,
+    cellWidth: 10,
+    cellHeight: 10,
+    size: 0.8,
     rtl: false,
     text:
       '霧が港のほうから流れてきたとき、リンは三通目の手紙を灯台のランプの下にはさんでいた。鉄の階段は湿気で冷たく、一段のぼるたびに小さな音がして、まるで誰かが下で数えているようだった。' +
@@ -51,9 +51,9 @@ export const CHAR_SEA_LANGUAGES: Record<CharSeaScript, CharSeaLanguage> = {
   en: {
     font: '"Newsreader Variable", Georgia, serif',
     loadFace: '"Newsreader Variable"',
-    cellWidth: 9,
-    cellHeight: 14,
-    size: 0.7,
+    cellWidth: 6.5,
+    cellHeight: 10,
+    size: 0.72,
     rtl: false,
     text:
       'The fog came in from the harbour while Lin was tucking the third letter under the lamp. The iron stairs of the lighthouse were cold with damp, and every step gave a small sound, as if someone below were counting. ' +
@@ -63,9 +63,9 @@ export const CHAR_SEA_LANGUAGES: Record<CharSeaScript, CharSeaLanguage> = {
   ar: {
     font: '"Geeza Pro", "Noto Naskh Arabic", "Traditional Arabic", serif',
     loadFace: '"Geeza Pro"',
-    cellWidth: 10,
-    cellHeight: 14,
-    size: 0.68,
+    cellWidth: 7,
+    cellHeight: 10,
+    size: 0.7,
     rtl: true,
     text:
       'جاء الضباب من جهة الميناء حين كانت لينا تضع الرسالة الثالثة تحت قاعدة المصباح. كان درج المنارة الحديدي باردا من الرطوبة، وكلما صعدت درجة سمعت صوتا خافتا، كأن أحدا في الأسفل يعد خطواتها. ' +

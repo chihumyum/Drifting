@@ -2,6 +2,7 @@ import glassTextureUrl from '../../../assets/design/glass-thick.png';
 import {
   CHAR_SEA_STEP_RATE,
   CHAR_SEA_WATER_CELL,
+  CharSeaRain,
   CharSeaWater,
   layoutCharSea,
   type CharSeaLayout,
@@ -19,6 +20,13 @@ import { CHAR_SEA_LANGUAGES, type CharSeaScript } from './char-sea-text';
  * resting glass line, so the water can reach it: a crest thickens and deepens
  * the glass in the line and bleeds a little inward, a trough thins it. The
  * line itself never moves.
+ *
+ * While something loads, rain runs down the sheet's columns, and in the middle
+ * the water itself rises into the word "Loading" in an old serif, so the
+ * sheet's own characters surface along its strokes as they do on a crest. The
+ * word is held by a spring and the rain falls on its own: a ring the hand makes
+ * knocks both about and they come back by themselves. When the wait ends the
+ * rain fades and the word is let go, spreading as rings under the next page.
  */
 
 /** A piece of glass on the page, in CSS px of the window. */
@@ -55,8 +63,8 @@ export interface CharSea {
    */
   ebb(onStill: () => void): void;
   live(): void;
-  /** Drops falling at one place every `period` ms (the first after `delay`); null stops them. */
-  pulse(origin: { x: number; y: number } | null, period?: number, delay?: number): void;
+  /** Something is loading: the rain falls and the word rises; false lets both go. */
+  loading(on: boolean): void;
   setShapes(shapes: readonly CharSeaShape[]): void;
   setScript(script: CharSeaScript): void;
   /** Off: no frame is computed or drawn until it is on again. */
@@ -71,8 +79,17 @@ export interface CharSea {
 const MAX_SHAPES = 16;
 // A cap on drawn pixels, so a large window on a dense display stays light.
 const PIXEL_BUDGET = 6_000_000;
-const PULSE_AMPLITUDE = 1.05;
 const DROP_RADIUS = 2.2;
+// The loading word: an old serif (the system's Times New Roman, or its metric
+// twin Tinos), about 30% of the window's height and at most 70% of its width.
+// It rises to WORD_HEIGHT over WORD_RISE seconds and breathes ±WORD_SWELL every
+// WORD_BREATH seconds.
+const LOADING_WORD = 'Loading';
+const LOADING_FONT = (size: number) => `700 ${size}px "Times New Roman", Tinos, Times, serif`;
+const WORD_HEIGHT = 0.45;
+const WORD_RISE = 0.7;
+const WORD_BREATH = 2.6;
+const WORD_SWELL = 0.12;
 // Strength and size of the glass line, as materials.css draws it at rest.
 const GLASS_EDGE = 0.594; // --glass-edge 33% × 1.8
 const GLASS_TILE = 150;
@@ -82,6 +99,7 @@ const VERTEX = '#version 300 es\nin vec2 a;void main(){gl_Position=vec4(a,0.,1.)
 const FRAGMENT = `#version 300 es
 precision highp float;
 uniform sampler2D uH;uniform sampler2D uAtlas;uniform sampler2D uMap;uniform sampler2D uGlassTex;
+uniform sampler2D uRain;uniform sampler2D uWordSim;uniform float uWordH;
 uniform vec2 uRes;uniform float uDpr;uniform vec2 uWin;uniform vec2 uSim;
 uniform vec2 uCells;uniform vec2 uCell;uniform vec2 uOrigin;uniform float uAN;uniform vec2 uSlot;
 uniform float uRest;uniform float uPeak;uniform float uMul;
@@ -89,6 +107,7 @@ uniform vec3 uGround;uniform vec3 uInk;uniform vec3 uTint;uniform vec3 uGlass;un
 uniform vec4 uShape[${MAX_SHAPES}];uniform vec4 uShapeP[${MAX_SHAPES}];uniform vec4 uShapeT[${MAX_SHAPES}];uniform int uShapes;
 out vec4 o;
 float hAt(vec2 p){return texture(uH,p/uWin).r;}
+float wAt(vec2 p){return texture(uWordSim,p/uWin).r;}
 float sdBox(vec2 p,vec4 R,float r){vec2 hs=R.zw*.5;vec2 d=abs(p-R.xy-hs)-hs+r;return length(max(d,0.))+min(max(d.x,d.y),0.)-r;}
 void main(){
   vec2 px=vec2(gl_FragCoord.x,uRes.y-gl_FragCoord.y)/uDpr;
@@ -100,17 +119,20 @@ void main(){
     m=min(m,mix(1.,.12,1.-smoothstep(0.,10.,sdBox(px,uShape[i],uShapeP[i].x))));}
   vec2 cf=(px-uOrigin)/uCell;vec2 ci=floor(cf);vec2 f=cf-ci;
   if(ci.x>=0.&&ci.y>=0.&&ci.x<uCells.x&&ci.y<uCells.y){
-    vec2 cc=uOrigin+(ci+.5)*uCell;float hc=hAt(cc);
-    vec2 g=vec2(hAt(cc+vec2(st.x,0.))-hAt(cc-vec2(st.x,0.)),hAt(cc+vec2(0.,st.y))-hAt(cc-vec2(0.,st.y)));
-    vec2 off=clamp(g*26.,-3.,3.);float cr=clamp(hc*3.,-1.,1.);float sc=1.+.2*cr;
+    vec2 cc=uOrigin+(ci+.5)*uCell;float hc=hAt(cc);vec2 sx=vec2(st.x,0.);vec2 sy=vec2(0.,st.y);
+    // the loading word's own standing slope moves no glyph: its characters sit square in their cells
+    vec2 g=vec2(hAt(cc+sx)-hAt(cc-sx),hAt(cc+sy)-hAt(cc-sy))-uWordH*vec2(wAt(cc+sx)-wAt(cc-sx),wAt(cc+sy)-wAt(cc-sy));
+    // the rain: a trail surfaces a cell to 70%, a head tints it, and both bend further with the water
+    vec2 rd=texture(uRain,(ci+.5)/uCells).rg;
+    float lim=(.3+.4*rd.x)*uCell.y;vec2 off=clamp(g*26.*(1.+1.5*rd.x),-lim,lim);float cr=clamp(hc*3.,-1.,1.);float sc=1.+.2*cr;
     vec2 fl=.5+((f-.5)*uCell-off)/(uCell*sc);
-    float s=smoothstep(.04,.26,abs(hc));
+    float s=max(smoothstep(.04,.26,abs(hc)),.7*rd.x);
     float dt=1.-smoothstep(.35,.95,length((f-.5)*uCell-off));
     float gi=floor(texture(uMap,(ci+.5)/uCells).r*255.+.5);
     vec2 auv=(vec2(mod(gi,uAN),floor(gi/uAN))+clamp(fl,0.,1.))*uSlot;
     float gl=texture(uAtlas,auv).a*step(0.,fl.x)*step(fl.x,1.)*step(0.,fl.y)*step(fl.y,1.);
-    float a=mix(dt*uRest,gl*uPeak*(.6+.4*cr),s)*m;
-    vec3 c=mix(uInk,uTint,.45*s*max(cr,0.));
+    float a=mix(dt*uRest,gl*uPeak*(.6+.4*max(cr,rd.y)),s)*m;
+    vec3 c=mix(uInk,uTint,min(1.,.45*s*max(cr,0.)+.55*rd.y));
     col=uMul>.5?col*mix(vec3(1.),c,a):mix(col,c,a);
   }
   // the glass lines stay where they are; only the glass in them follows the water
@@ -201,6 +223,40 @@ function readTheme(): Theme {
   };
 }
 
+/** The loading word as each water cell's share of its ink, centred on the window. */
+function loadingWordShape(water: CharSeaWater, width: number, height: number): Float32Array {
+  const shape = new Float32Array(water.cols * water.rows);
+  const samples = 4;
+  const raster = document.createElement('canvas');
+  raster.width = water.cols * samples;
+  raster.height = water.rows * samples;
+  const context = raster.getContext('2d', { willReadFrequently: true });
+  if (!context) return shape;
+  let size = height * 0.3;
+  context.font = LOADING_FONT(size);
+  const wide = context.measureText(LOADING_WORD).width;
+  if (wide > width * 0.7) size *= (width * 0.7) / wide;
+  const scale = samples / CHAR_SEA_WATER_CELL;
+  context.font = LOADING_FONT(size * scale);
+  const metrics = context.measureText(LOADING_WORD);
+  context.fillStyle = '#fff';
+  context.textAlign = 'center';
+  context.textBaseline = 'alphabetic';
+  context.fillText(LOADING_WORD, (width / 2) * scale,
+    (height / 2) * scale + (metrics.actualBoundingBoxAscent - metrics.actualBoundingBoxDescent) / 2);
+  const pixels = context.getImageData(0, 0, raster.width, raster.height).data;
+  for (let row = 0; row < water.rows; row += 1) {
+    for (let col = 0; col < water.cols; col += 1) {
+      let sum = 0;
+      for (let j = 0; j < samples; j += 1) {
+        for (let k = 0; k < samples; k += 1) sum += pixels[((row * samples + j) * raster.width + col * samples + k) * 4 + 3];
+      }
+      shape[row * water.cols + col] = sum / (samples * samples * 255);
+    }
+  }
+  return shape;
+}
+
 export function createCharSea(canvas: HTMLCanvasElement): CharSea | null {
   const context = canvas.getContext('webgl2', { antialias: false, alpha: false, preserveDrawingBuffer: false });
   if (!context) return null;
@@ -240,6 +296,7 @@ export function createCharSea(canvas: HTMLCanvasElement): CharSea | null {
     rest: uniform('uRest'), peak: uniform('uPeak'), mul: uniform('uMul'),
     ground: uniform('uGround'), ink: uniform('uInk'), tint: uniform('uTint'), glass: uniform('uGlass'), bleed: uniform('uBleed'),
     shape: uniform('uShape'), shapeP: uniform('uShapeP'), shapeT: uniform('uShapeT'), shapes: uniform('uShapes'),
+    rain: uniform('uRain'), wordSim: uniform('uWordSim'), wordH: uniform('uWordH'),
   };
   gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
 
@@ -259,6 +316,8 @@ export function createCharSea(canvas: HTMLCanvasElement): CharSea | null {
   const glassTexture = texture(3, gl.LINEAR, gl.REPEAT);
   // Until the texture loads the line is drawn even.
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([255, 255, 255, 255]));
+  const rainTexture = texture(4, gl.NEAREST, gl.CLAMP_TO_EDGE);
+  const wordTexture = texture(5, gl.LINEAR, gl.CLAMP_TO_EDGE);
 
   let alive = true;
   let active = false;
@@ -276,7 +335,13 @@ export function createCharSea(canvas: HTMLCanvasElement): CharSea | null {
   let atlasColumns = 1;
   let slotU = 1;
   let slotV = 1;
-  let pulse: { x: number; y: number; period: number; next: number } | null = null;
+  let rain: CharSeaRain | null = null;
+  let rainDirty = false;
+  let wordShape: Float32Array | null = null;
+  // held: the spring holds the word up; time: since it began to rise; height:
+  // its height now; shown: the height the shader takes as the word's own
+  // (its slope moves no glyph), which eases away once it is let go.
+  const word = { held: false, time: 0, height: 0, shown: 0 };
   // Ebbing: input is off and the resting dots fade (restScale → 0) while the
   // rings already out run their course.
   let ebbing = false;
@@ -334,6 +399,13 @@ export function createCharSea(canvas: HTMLCanvasElement): CharSea | null {
     gl.activeTexture(gl.TEXTURE2);
     gl.bindTexture(gl.TEXTURE_2D, mapTexture);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, layout.cols, layout.rows, 0, gl.RED, gl.UNSIGNED_BYTE, layout.map);
+    // A new sheet has new columns: the rain starts over on them.
+    const raining = rain?.raining ?? false;
+    rain = new CharSeaRain(layout.cols, layout.rows);
+    if (raining) rain.start();
+    gl.activeTexture(gl.TEXTURE4);
+    gl.bindTexture(gl.TEXTURE_2D, rainTexture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RG8, layout.cols, layout.rows, 0, gl.RG, gl.UNSIGNED_BYTE, rain.cells);
     buildAtlas();
     const face = CHAR_SEA_LANGUAGES[script].loadFace;
     const wanted = script;
@@ -352,6 +424,12 @@ export function createCharSea(canvas: HTMLCanvasElement): CharSea | null {
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, heightTexture);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.R16F, water.cols, water.rows, 0, gl.RED, gl.FLOAT, water.heights);
+    wordShape = loadingWordShape(water, width, height);
+    if (word.held) water.hold(wordShape);
+    gl.activeTexture(gl.TEXTURE5);
+    gl.bindTexture(gl.TEXTURE_2D, wordTexture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, water.cols, water.rows, 0, gl.RED, gl.UNSIGNED_BYTE,
+      Uint8Array.from(wordShape, (share) => Math.round(share * 255)));
     layout = layoutCharSea(width, height, CHAR_SEA_LANGUAGES[script]);
     lay();
   }
@@ -369,10 +447,19 @@ export function createCharSea(canvas: HTMLCanvasElement): CharSea | null {
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, heightTexture);
     gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, water.cols, water.rows, gl.RED, gl.FLOAT, water.heights);
+    if (rainDirty && rain) {
+      gl.activeTexture(gl.TEXTURE4);
+      gl.bindTexture(gl.TEXTURE_2D, rainTexture);
+      gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, rain.cols, rain.rows, gl.RG, gl.UNSIGNED_BYTE, rain.cells);
+      rainDirty = false;
+    }
     gl.uniform1i(U.h, 0);
     gl.uniform1i(U.atlas, 1);
     gl.uniform1i(U.map, 2);
     gl.uniform1i(U.glassTex, 3);
+    gl.uniform1i(U.rain, 4);
+    gl.uniform1i(U.wordSim, 5);
+    gl.uniform1f(U.wordH, word.shown);
     gl.uniform2f(U.res, pixelWidth, pixelHeight);
     gl.uniform1f(U.dpr, pixelWidth / width);
     gl.uniform2f(U.win, width, height);
@@ -420,6 +507,38 @@ export function createCharSea(canvas: HTMLCanvasElement): CharSea | null {
     return moving;
   }
 
+  // The word rises and breathes while held, and its own height eases away once
+  // let go; the rain falls and breaks where the water knocks it. Returns
+  // whether either is still moving.
+  function moveLoading(dt: number): boolean {
+    if (!water || !layout) return false;
+    if (word.held) {
+      word.time += dt;
+      const rise = 1 - (1 - Math.min(1, word.time / WORD_RISE)) ** 3;
+      word.height = WORD_HEIGHT * rise * (1 + WORD_SWELL * Math.sin((2 * Math.PI * word.time) / WORD_BREATH));
+      word.shown = word.height;
+      water.setHoldHeight(word.height);
+    } else if (word.shown) {
+      word.shown *= Math.exp(-dt / 0.15);
+      if (word.shown < 0.002) word.shown = 0;
+    }
+    let raining = false;
+    if (rain) {
+      const sheet = layout;
+      const sea = water;
+      raining = rain.tick(dt, (col, row) =>
+        sea.offRest(sheet.originX + (col + 0.5) * sheet.cellWidth, sheet.originY + row * sheet.cellHeight));
+      rainDirty = true;
+    }
+    return word.held || word.shown > 0 || raining;
+  }
+
+  function letLoadingGo(): void {
+    rain?.stop();
+    word.held = false;
+    water?.hold(null);
+  }
+
   function frame(now: number): void {
     raf = 0;
     if (!alive || !active || !water) {
@@ -428,10 +547,7 @@ export function createCharSea(canvas: HTMLCanvasElement): CharSea | null {
     }
     const dt = last ? Math.min(0.05, (now - last) / 1000) : 1 / 60;
     last = now;
-    if (pulse && now >= pulse.next) {
-      water.splash(pulse.x, pulse.y, PULSE_AMPLITUDE, DROP_RADIUS);
-      pulse.next = now + pulse.period;
-    }
+    const loadingMoving = moveLoading(dt);
     const glassMoving = easeGlass(dt);
     // The resting dots come and go over about 0.3s.
     const restTarget = ebbing ? 0 : 1;
@@ -445,7 +561,7 @@ export function createCharSea(canvas: HTMLCanvasElement): CharSea | null {
     for (let s = 0; s < steps; s += 1) peak = Math.max(peak, water.step());
     draw();
     // Still water and still glass: one last frame, then nothing until something touches it.
-    quietFrames = peak < 0.004 && !glassMoving && !restMoving && !pulse ? quietFrames + 1 : 0;
+    quietFrames = peak < 0.004 && !glassMoving && !restMoving && !loadingMoving ? quietFrames + 1 : 0;
     if (quietFrames > 20) {
       water.clear();
       draw();
@@ -497,7 +613,7 @@ export function createCharSea(canvas: HTMLCanvasElement): CharSea | null {
       lastMove = { x, y, at: now };
     },
     ebb(onStill) {
-      // Drops still due from the wait that just ended fall; the wait's end stops them.
+      // The wait that just ended has let its rain and word go; they run out under the workspace.
       ebbing = true;
       onEbbStill = onStill;
       if (still) restScale = 0;
@@ -509,12 +625,19 @@ export function createCharSea(canvas: HTMLCanvasElement): CharSea | null {
       if (still) restScale = 1;
       kick();
     },
-    pulse(origin, period = 1100, delay = 0) {
-      if (!origin || still) {
-        pulse = null;
+    loading(on) {
+      if (!on) {
+        letLoadingGo();
+        kick();
         return;
       }
-      pulse = { x: origin.x, y: origin.y, period, next: performance.now() + delay };
+      if (still || !water || !wordShape) return;
+      rain?.start();
+      if (!word.held) {
+        word.held = true;
+        word.time = 0;
+        water.hold(wordShape);
+      }
       kick();
     },
     setShapes(next) {
@@ -542,7 +665,11 @@ export function createCharSea(canvas: HTMLCanvasElement): CharSea | null {
         draw();
         kick();
       } else {
-        pulse = null;
+        letLoadingGo();
+        word.shown = 0;
+        // put away with nothing lit: the next wait's rain starts on a dry sheet
+        if (rain) rain = new CharSeaRain(rain.cols, rain.rows);
+        rainDirty = true;
         water?.clear();
       }
     },
@@ -559,7 +686,7 @@ export function createCharSea(canvas: HTMLCanvasElement): CharSea | null {
     destroy() {
       alive = false;
       if (raf) cancelAnimationFrame(raf);
-      [heightTexture, atlasTexture, mapTexture, glassTexture].forEach((handle) => gl.deleteTexture(handle));
+      [heightTexture, atlasTexture, mapTexture, glassTexture, rainTexture, wordTexture].forEach((handle) => gl.deleteTexture(handle));
       gl.deleteBuffer(quad);
       gl.deleteProgram(program);
     },
