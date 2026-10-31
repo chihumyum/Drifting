@@ -92,6 +92,25 @@ fmt-italic.png              斜体: one slanted I with short level strokes top a
 fmt-underline.png           下划线: a U with one stroke drawn beneath it
 fmt-strike.png              删除线: an S with one stroke drawn straight through it
 
+Menu rows that had no icon of their own (2026-10-31, fine grain, one of three
+candidates each):
+
+brush-broken.png            已弃用: the writing brush snapped in two
+fluff.png                   漂浮中: one dandelion seed carried off on its fluff
+stone-sunk.png              休眠: a stone at the bottom, the water quiet above
+ri / zi / zi-ri / wu        show the date / the word count / both / neither: 日, 字,
+                            字日 side by side, 无
+seal-fork.png               a chapter in every storyline: its seal, three lanes forking
+seal-main.png               only in its main storyline: the main lane heavy, two faint
+folder-none.png             no group: the closed case struck through
+insert-row / insert-col     a new row inked solid below two drawn ones, a plus cut
+                            white in it; the column is the row turned a quarter
+list-bullet.png             a 「、」 leading each of three rows
+list-ordered.png            1 2 3 brushed small, a row after each
+table.png                   a table with its head row inked solid
+code.png                    </>
+highlight.png               a broad dry swash, a line of text over it
+
 moon-left-hollow / moon-right-hollow  the sidebar toggles' crescents with the
                             inside cleared, the rim as thin, light and sandy as
                             the moon's faint outer ring: shown while that
@@ -1121,6 +1140,179 @@ def fmt_strike(rng):
     brush(a, line((12, 48), (86, 47)), G * 0.9, rng, load0=1.0, dry=0.35, taper=(0.03, 0.2))
     return a
 
+# ── Menu rows (2026-10-31): the rows that had no icon of their own ──
+# Picked from three candidates each; seeds are the candidates' own.
+
+def _scaled(m, scale, dx=0.0, dy=0.0):
+    """An alpha array shrunk about the centre, then moved."""
+    out = np.zeros_like(m)
+    ys, xs = np.mgrid[0:S, 0:S].astype(float)
+    sx = ((xs - dx) - 48) / scale + 48; sy = ((ys - dy) - 48) / scale + 48
+    ok = (sx >= 0) & (sx < S - 1) & (sy >= 0) & (sy < S - 1)
+    x0 = np.clip(sx.astype(int), 0, S - 2); y0 = np.clip(sy.astype(int), 0, S - 2)
+    fx = sx - x0; fy = sy - y0
+    v = (m[y0, x0] * (1 - fx) * (1 - fy) + m[y0, x0 + 1] * fx * (1 - fy) + m[y0 + 1, x0] * (1 - fx) * fy + m[y0 + 1, x0 + 1] * fx * fy)
+    out[ok] = v[ok]
+    return out
+
+def _rect(a, rng, x0, y0, x1, y1, th=None, load=1.0):
+    brush(a, poly((x0, y0), (x1, y0), (x1, y1), (x0, y1), (x0, y0), n=18), th or T * 0.8, rng, load0=load, dry=0.15, taper=(0.02, 0.02))
+
+def _hline(a, rng, x0, x1, y, th=None, load=1.0, dry=0.3):
+    brush(a, line((x0, y), (x1, y - 1), 20), th or T * 0.85, rng, load0=load, dry=dry, taper=(0.05, 0.15))
+
+def _vline(a, rng, x, y0, y1, th=None, load=1.0, dry=0.3):
+    brush(a, line((x, y0), (x + 0.5, y1), 20), th or T * 0.85, rng, load0=load, dry=dry, taper=(0.05, 0.12))
+
+def _wave(a, rng, y, x0=6, x1=90, amp=4, th=None, load=1.0):
+    xs = np.linspace(x0, x1, 7)
+    pts = [(x, y + (amp if i % 2 else -amp)) for i, x in enumerate(xs)]
+    brush(a, curve(pts, 10), th or T * 0.75, rng, load0=load, dry=0.35, taper=(0.06, 0.2))
+
+def _rows(a, rng, x0=34):
+    for y in (20, 48, 76): _hline(a, rng, x0, 88, y, T * 0.8)
+
+def brush_broken(rng):
+    """折笔 (abandoned): the writing brush snapped in two, its head fallen apart from the shaft."""
+    a = new()
+    brush(a, line((34, 66), (46, 52)), G * 0.8, rng, load0=1.0, dry=0.1, taper=(0.02, 0.0))
+    head = curve([(38, 58), (30, 62), (20, 74), (8, 90), (24, 80), (36, 70), (42, 62), (38, 58)], 8)
+    fill_poly(a, head, rng, rough=0.6)
+    brush(a, line((60, 52), (90, 34)), G * 0.8, rng, load0=1.0, dry=0.2, taper=(0.0, 0.05))
+    for p0, p1 in (((46, 52), (49, 43)), ((46, 52), (52, 50)), ((60, 52), (56, 58)), ((60, 52), (58, 44))):
+        brush(a, line(p0, p1, 6), G * 0.4, rng, load0=0.9, dry=0.3, taper=(0.0, 0.6))
+    return a
+
+def fluff(rng):
+    """飞絮 (drifting): one dandelion seed carried off, its fluff spread above it."""
+    a = new()
+    disc(a, 34, 82, 4.5, rng, squash=1.5)
+    brush(a, curve([(35, 77), (40, 60), (50, 42)], 12), T * 0.55, rng, load0=1.0, dry=0.2, taper=(0.02, 0.1))
+    for deg in (-170, -140, -110, -80, -50, -20, 8):
+        t = np.deg2rad(deg)
+        tip = (50 + 30 * np.cos(t), 42 + 30 * np.sin(t))
+        brush(a, line((50, 42), tip, 10), T * 0.42, rng, load0=0.9, dry=0.5, taper=(0.1, 0.5))
+    return a
+
+def stone_sunk(rng):
+    """沉石 (resting): a stone gone to the bottom, the water quiet above it."""
+    a = new()
+    _wave(a, rng, 18, 10, 86, amp=3)
+    _wave(a, rng, 34, 18, 78, amp=3, th=T * 0.6, load=0.85)
+    disc(a, 48, 68, 19, rng, wob=0.08, squash=0.62)
+    brush(a, line((8, 84), (88, 83)), T * 0.8, rng, load0=1.0, dry=0.3, taper=(0.05, 0.15))
+    return a
+
+def char_ri(rng):
+    """日 (show the date): the character for the day."""
+    a = new()
+    th = T * 0.9
+    _rect(a, rng, 26, 10, 70, 86, th)
+    _hline(a, rng, 26, 70, 48, th * 0.9)
+    return a
+
+def char_zi(rng):
+    """字 (show the word count): the character for a written word."""
+    a = new()
+    th = T * 0.8
+    dot_stroke(a, 48, 10, rng, s=0.55)
+    brush(a, poly((16, 30), (16, 20), (80, 20), (78, 30), n=14), th, rng, load0=1.0, dry=0.2, taper=(0.02, 0.2))
+    brush(a, poly((30, 38), (64, 36), (50, 48), n=12), th, rng, load0=1.0, dry=0.2, taper=(0.03, 0.1))
+    brush(a, curve([(50, 46), (50, 72), (50, 86), (42, 82)], 10), th, rng, load0=1.0, dry=0.2, taper=(0.03, 0.3))
+    _hline(a, rng, 12, 84, 62, th)
+    return a
+
+def char_zi_ri(rng):
+    """字日 (show both): the two characters side by side, each at a little over half size."""
+    r1 = np.random.default_rng(int(rng.integers(1 << 30))); r2 = np.random.default_rng(int(rng.integers(1 << 30)))
+    return np.maximum(_scaled(char_zi(r1), 0.56, -22, 0), _scaled(char_ri(r2), 0.56, 22, 0))
+
+def char_wu(rng):
+    """无 (show neither): the character for none."""
+    a = new()
+    th = T * 0.85
+    _hline(a, rng, 22, 74, 20, th)
+    _hline(a, rng, 10, 86, 46, th)
+    brush(a, curve([(46, 22), (40, 56), (28, 76), (12, 88)]), th, rng, load0=1.0, dry=0.3, taper=(0.03, 0.5))
+    brush(a, curve([(56, 46), (56, 78), (62, 86), (82, 86), (86, 76)], 10), th, rng, load0=1.0, dry=0.2, taper=(0.03, 0.2))
+    return a
+
+def seal_fork(rng):
+    """一印分三道 (a chapter in every storyline it belongs to): the chapter's seal, three lanes forking from it."""
+    base = place("blob-0.png", 2, 34, 28)
+    p = new()
+    for y in (16, 48, 80):
+        brush(p, curve([(30, 48), (46, (48 + y) / 2), (60, y), (90, y)], 10), T * 0.7, rng, load0=1.0, dry=0.3, taper=(0.0, 0.15))
+    return base, p
+
+def seal_main(rng):
+    """一道重两道轻 (only in its main storyline): the same fork, the main lane heavy, the other two faint."""
+    base = place("blob-0.png", 2, 34, 28)
+    p = new()
+    brush(p, line((30, 48), (90, 48), 14), T * 1.05, rng, load0=1.0, dry=0.2, taper=(0.0, 0.15))
+    for y in (16, 80):
+        brush(p, curve([(30, 48), (46, (48 + y) / 2), (60, y), (90, y)], 10), T * 0.45, rng, load0=0.5, dry=0.5, taper=(0.0, 0.15))
+    return base, p
+
+def folder_none(rng):
+    """书帙一划 (no group): the closed case struck through."""
+    a = new()
+    brush(a, poly((12, 26), (80, 26), (80, 80), (12, 80), (12, 26), n=24), T * 0.85, rng, load0=1.0, dry=0.2, taper=(0.02, 0.02))
+    brush(a, line((12, 38), (80, 38), 20), T * 0.55, rng, load0=0.85, dry=0.2, taper=(0.03, 0.03))
+    brush(a, line((74, 55), (88, 55), 8), T * 0.75, rng, load0=1.0, dry=0.1, taper=(0.02, 0.02))
+    disc(a, 88, 55, 3.4, rng)
+    brush(a, line((8, 88), (88, 14)), T * 0.9, rng, load0=1.0, dry=0.2, taper=(0.06, 0.1))
+    return a
+
+def insert_row(rng):
+    """新行实墨刻十 (insert a row): two rows drawn, the new one below inked solid with a plus cut white;
+    insert-col is the same turned a quarter."""
+    a = new()
+    _rect(a, rng, 12, 8, 84, 30, T * 0.65)
+    _rect(a, rng, 12, 34, 84, 56, T * 0.65)
+    block(a, rng, 12, 62, 84, 88)
+    cut = new(); plus_at(cut, np.random.default_rng(4), 48, 75, 8, th=2.2); erase(a, np.clip(cut * 1.3, 0, 1))
+    return a
+
+def list_bullet(rng):
+    """顿号 (bulleted list): a 「、」 leading each row."""
+    a = new(); _rows(a, rng)
+    for y in (20, 48, 76):
+        brush(a, line((10, y - 7), (20, y + 4), 10), 4.6, rng, load0=1.0, dry=0.0, taper=(0.7, 0.0))
+        disc(a, 20, y + 4, 4.6, rng, wob=0.06)
+    return a
+
+def list_ordered(rng):
+    """123 (numbered list): the digits brushed small, a row after each."""
+    a = new(); _rows(a, rng, 40)
+    brush(a, line((18, 11), (18, 29), 8), T * 0.75, rng, load0=1.0, dry=0.1, taper=(0.1, 0.1))
+    brush(a, curve([(9, 42), (16, 38), (24, 42), (20, 50), (9, 57), (26, 57)], 8), T * 0.6, rng, load0=1.0, dry=0.1, taper=(0.05, 0.1))
+    brush(a, curve([(9, 68), (18, 66), (22, 71), (14, 75), (23, 79), (18, 85), (8, 84)], 8), T * 0.6, rng, load0=1.0, dry=0.1, taper=(0.05, 0.1))
+    return a
+
+def table(rng):
+    """表头实墨 (table): a table with its head row inked solid."""
+    a = new()
+    _rect(a, rng, 8, 14, 88, 82, T * 0.75)
+    block(a, rng, 8, 14, 88, 34)
+    _vline(a, rng, 48, 34, 82, T * 0.6); _hline(a, rng, 8, 88, 58, T * 0.6)
+    return a
+
+def code(rng):
+    """</> (code block): two angle brackets and a slash between them."""
+    a = new()
+    brush(a, poly((30, 24), (10, 48), (30, 72), n=12), T * 0.85, rng, load0=1.0, dry=0.15, taper=(0.05, 0.1))
+    brush(a, poly((66, 24), (86, 48), (66, 72), n=12), T * 0.85, rng, load0=1.0, dry=0.15, taper=(0.05, 0.1))
+    brush(a, line((56, 14), (40, 82)), T * 0.75, rng, load0=1.0, dry=0.25, taper=(0.05, 0.1))
+    return a
+
+def highlight(rng):
+    """干笔荧光 (highlight): one broad dry swash, a line of text over it."""
+    a = new()
+    brush(a, line((8, 56), (88, 52)), 13, rng, load0=0.5, dry=0.55, taper=(0.04, 0.25))
+    _hline(a, rng, 18, 78, 50, T * 0.75)
+    return a
+
 # name → (draw, seed). The seeds are the ones the author picked from.
 ICONS = {
     "stones-triad": (stones_triad, 602), "brush-laid": (brush_laid, 606), "brush-lifted": (brush_lifted, 607),
@@ -1153,6 +1345,11 @@ OBJECTS = {
     "task-todo": (task_todo, 4013), "task-doing": (task_doing, 4014), "task-done": (task_done, 4015),
     "name-seal": (name_seal, 4019), "inkstone": (inkstone, 4020), "grip": (grip, 4025), "hook": (hook, 4026),
     "lift": (lift, 5101), "lift-bent": (lift_bent, 5205),
+    "brush-broken": (brush_broken, 8001), "fluff": (fluff, 8012), "stone-sunk": (stone_sunk, 8021),
+    "ri": (char_ri, 8111), "zi": (char_zi, 8121), "zi-ri": (char_zi_ri, 8131), "wu": (char_wu, 8141),
+    "seal-fork": (seal_fork, 8152), "seal-main": (seal_main, 8162), "folder-none": (folder_none, 8180),
+    "insert-row": (insert_row, 8192), "list-bullet": (list_bullet, 8201), "list-ordered": (list_ordered, 8211),
+    "table": (table, 8222), "code": (code, 8230), "highlight": (highlight, 8240),
 }
 # Drawn beside the shipped folding fan and not written out: to ship one
 # instead, put it in OBJECTS under "folding-fan".
@@ -1219,6 +1416,8 @@ for seed, side in ((31, "left"), (32, "right")):
 masks["arrow-forward"] = masks["arrow-back"][:, ::-1]
 for k, name in ((1, "chevron-right"), (2, "chevron-up"), (3, "chevron-left")):
     masks[name] = np.rot90(masks["chevron-down"], k)
+# A new column is the new row turned a quarter: the solid band moves from below to the right.
+masks["insert-col"] = np.rot90(masks["insert-row"], 1)
 for name, a in masks.items():
     write_png(OUT / f"{name}.png", np.ascontiguousarray(a))
 print(sorted(masks))
