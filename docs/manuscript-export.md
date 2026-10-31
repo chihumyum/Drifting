@@ -207,7 +207,9 @@ node scripts/run-manuscript-export-acceptance.mjs --check  # verify freshness
   verbatim CJK punctuation, line-start/line-end punctuation and footer numbers;
   macOS `textutil` for the Word package; the EPUB container for navigation,
   spine order and metadata. Set `EPUBCHECK_JAR` to a local W3C epubcheck jar to
-  add its verdict; without it the report says epubcheck was not run.
+  add its verdict; without it the report says epubcheck was not run. The
+  committed report was generated with EPUBCheck v5.4.0: 0 fatals, errors,
+  warnings or infos.
 
 Not claimed by these checks: Microsoft Word, Apple Books or other readers
 driven interactively; the native save dialog; fonts on other machines (the
@@ -239,6 +241,11 @@ On 2026-10-31 the dialog was driven through the desktop debug bridge
   reads in book order.
 - A chapter's own menu opened the dialog on *Selected chapters* with only that
   chapter ticked and the remembered format.
+- EPUBCheck v5.4.0 (W3C release zip, SHA-256 `33350c61…a28c`) reported
+  0 fatals, errors, warnings and infos for the whole-book EPUB above and for
+  sample variants without a cover, without acts and with hidden chapter titles,
+  a Latin book with `& < > " '` in its title, author and chapter title plus an
+  empty chapter, and one with beat and note headings.
 
 The test window sat behind other windows (`visibilityState: hidden`), so the
 fold-open transition was measured with transitions disabled; the native save

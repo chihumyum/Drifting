@@ -1,15 +1,15 @@
 {
   "kind": "manuscript-export-sample-book",
-  "generatedAt": "2026-10-31T07:55:26.539Z",
-  "sourceSha256": "b7a8ed0f48ef528c4c35629baf2c9c8284247a19801de619b8d2525721e3c84b",
+  "generatedAt": "2026-10-31T08:13:18.842Z",
+  "sourceSha256": "a7438265e6d6e34e5e0eb3d8a8e072a5d15719b424ba1512712707e9e2682548",
   "status": "passed",
   "synthetic": true,
   "platform": "darwin-arm64",
   "krilla": "0.8.2",
   "debugBuildMilliseconds": {
-    "epub": 12,
-    "docx": 4,
-    "pdf": 843
+    "epub": 9,
+    "docx": 2,
+    "pdf": 614
   },
   "outputs": {
     "epub": {
@@ -18,8 +18,13 @@
       "files": 15,
       "spine": 9,
       "epubcheck": {
-        "run": false,
-        "reason": "EPUBCHECK_JAR is not set"
+        "run": true,
+        "version": "EPUBCheck v5.4.0",
+        "exitCode": 0,
+        "summary": [
+          "No errors or warnings detected.",
+          "Messages: 0 fatals / 0 errors / 0 warnings / 0 infos"
+        ]
       }
     },
     "docx": {
@@ -108,6 +113,14 @@
     {
       "name": "epub: metadata names the title, author, language and modification time",
       "passed": true
+    },
+    {
+      "name": "epub: W3C epubcheck reports no fatals, errors or warnings",
+      "passed": true,
+      "detail": [
+        "No errors or warnings detected.",
+        "Messages: 0 fatals / 0 errors / 0 warnings / 0 infos"
+      ]
     },
     {
       "name": "docx: acts are Heading 1, chapters Heading 2 and scenes Heading 3, in book order",
