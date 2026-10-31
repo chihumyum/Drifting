@@ -66,6 +66,7 @@ The first launch opens a sample project you can explore or delete.
 - Everything is stored on your Mac and works offline. No account needed.
 - Each project keeps a Markdown folder. Chapters and ideas edited there in any
   editor merge back into Drifting.
+- Export the book, or chosen chapters, as EPUB, PDF or Word.
 - Copy or save any document or the whole book as Markdown; export every project
   as a Markdown ZIP; back up the whole library as a restorable `.drifting` file.
 - Import `.md`, `.txt` and `.docx`.
@@ -154,6 +155,7 @@ Drifting 是一个开源、本地优先的长篇小说写作工作台。正文�
 
 - 所有内容保存在你的 Mac 上，断网也能写，不需要账号。
 - 每个项目都有一个 Markdown 文件夹；在任何编辑器里改过的章节和构想会合并回 Drifting。
+- 整本书或选定章节可以导出为 EPUB、PDF、Word 成稿。
 - 单篇或整本书可以复制、保存为 Markdown；所有项目可以导出为 Markdown ZIP；整个资料库可以备份成
   能恢复的 `.drifting` 文件。
 - 可以导入 `.md`、`.txt`、`.docx`。
