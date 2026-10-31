@@ -2,8 +2,10 @@ import glassTextureUrl from '../../../assets/design/glass-thick.png';
 import {
   CHAR_SEA_STEP_RATE,
   CHAR_SEA_WATER_CELL,
+  CharSeaGlyphs,
   CharSeaRain,
   CharSeaWater,
+  charSeaCellsCovered,
   layoutCharSea,
   type CharSeaLayout,
 } from './char-sea-model';
@@ -25,8 +27,10 @@ import { CHAR_SEA_LANGUAGES, type CharSeaScript } from './char-sea-text';
  * the water itself rises into the word "Loading" in an old serif, so the
  * sheet's own characters surface along its strokes as they do on a crest. The
  * word is held by a spring and the rain falls on its own: a ring the hand makes
- * knocks both about and they come back by themselves. When the wait ends the
- * rain fades and the word is let go, spreading as rings under the next page.
+ * knocks both about and they come back by themselves. Meanwhile the characters
+ * under the rain and in the word keep changing (CharSeaGlyphs). When the wait
+ * ends the rain fades and the word is let go, spreading as rings under the next
+ * page.
  */
 
 /** A piece of glass on the page, in CSS px of the window. */
@@ -337,7 +341,10 @@ export function createCharSea(canvas: HTMLCanvasElement): CharSea | null {
   let slotV = 1;
   let rain: CharSeaRain | null = null;
   let rainDirty = false;
+  let glyphs: CharSeaGlyphs | null = null;
+  let glyphsDirty = false;
   let wordShape: Float32Array | null = null;
+  let wordCells: Uint8Array | null = null;
   // held: the spring holds the word up; time: since it began to rise; height:
   // its height now; shown: the height the shader takes as the word's own
   // (its slope moves no glyph), which eases away once it is let go.
@@ -399,6 +406,8 @@ export function createCharSea(canvas: HTMLCanvasElement): CharSea | null {
     gl.activeTexture(gl.TEXTURE2);
     gl.bindTexture(gl.TEXTURE_2D, mapTexture);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, layout.cols, layout.rows, 0, gl.RED, gl.UNSIGNED_BYTE, layout.map);
+    glyphs = new CharSeaGlyphs(layout);
+    if (wordShape && water) wordCells = charSeaCellsCovered(layout, wordShape, water.cols, water.rows);
     // A new sheet has new columns: the rain starts over on them.
     const raining = rain?.raining ?? false;
     rain = new CharSeaRain(layout.cols, layout.rows);
@@ -426,6 +435,7 @@ export function createCharSea(canvas: HTMLCanvasElement): CharSea | null {
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.R16F, water.cols, water.rows, 0, gl.RED, gl.FLOAT, water.heights);
     wordShape = loadingWordShape(water, width, height);
     if (word.held) water.hold(wordShape);
+    // its cells on the sheet are found when the sheet is laid (lay)
     gl.activeTexture(gl.TEXTURE5);
     gl.bindTexture(gl.TEXTURE_2D, wordTexture);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, water.cols, water.rows, 0, gl.RED, gl.UNSIGNED_BYTE,
@@ -447,6 +457,12 @@ export function createCharSea(canvas: HTMLCanvasElement): CharSea | null {
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, heightTexture);
     gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, water.cols, water.rows, gl.RED, gl.FLOAT, water.heights);
+    if (glyphsDirty && glyphs) {
+      gl.activeTexture(gl.TEXTURE2);
+      gl.bindTexture(gl.TEXTURE_2D, mapTexture);
+      gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, layout.cols, layout.rows, gl.RED, gl.UNSIGNED_BYTE, glyphs.live);
+      glyphsDirty = false;
+    }
     if (rainDirty && rain) {
       gl.activeTexture(gl.TEXTURE4);
       gl.bindTexture(gl.TEXTURE_2D, rainTexture);
@@ -530,7 +546,13 @@ export function createCharSea(canvas: HTMLCanvasElement): CharSea | null {
         sea.offRest(sheet.originX + (col + 0.5) * sheet.cellWidth, sheet.originY + row * sheet.cellHeight));
       rainDirty = true;
     }
-    return word.held || word.shown > 0 || raining;
+    let changing = false;
+    if (glyphs) {
+      const swap = glyphs.tick(dt, rain?.cells ?? null, word.shown > 0.05 ? wordCells : null);
+      changing = swap.changing;
+      if (swap.changed) glyphsDirty = true;
+    }
+    return word.held || word.shown > 0 || raining || changing;
   }
 
   function letLoadingGo(): void {
@@ -670,6 +692,8 @@ export function createCharSea(canvas: HTMLCanvasElement): CharSea | null {
         // put away with nothing lit: the next wait's rain starts on a dry sheet
         if (rain) rain = new CharSeaRain(rain.cols, rain.rows);
         rainDirty = true;
+        if (layout) glyphs = new CharSeaGlyphs(layout);
+        glyphsDirty = true;
         water?.clear();
       }
     },

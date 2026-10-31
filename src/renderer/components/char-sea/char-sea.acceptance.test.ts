@@ -99,6 +99,9 @@ describe('the sea of characters under the desktop window', () => {
     expect(engine).not.toMatch(/col\+=vec3/);
     expect(engine).toContain('float s=max(smoothstep(.04,.26,abs(hc)),.7*rd.x);');
     expect(read('src/renderer/lib/char-sea/char-sea-text.ts')).not.toMatch(/cellHeight: 14/);
+    // Meanwhile the characters under the rain and in the word change, for letters of the same passage.
+    expect(engine).toContain("glyphs.tick(dt, rain?.cells ?? null, word.shown > 0.05 ? wordCells : null);");
+    expect(read('src/renderer/lib/char-sea/char-sea-model.ts')).toContain('const SWAP_HEAD = 14;');
     // Still water and still glass draw one last frame, then nothing.
     expect(engine).toContain('if (quietFrames > 20) {');
     expect(engine).toContain("window.matchMedia?.('(prefers-reduced-motion: reduce)')");

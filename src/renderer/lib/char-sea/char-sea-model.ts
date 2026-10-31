@@ -2,7 +2,8 @@ import type { CharSeaLanguage } from './char-sea-text';
 
 /**
  * The parts of the sea that need no GPU: where each character sits, the water
- * under them (and a shape it can be held to), and the loading rain.
+ * under them (and a shape it can be held to), the loading rain, and the
+ * characters that change while it loads.
  */
 
 export interface CharSeaLayout {
@@ -353,5 +354,83 @@ export class CharSeaRain {
       }
     });
     return lit || this.falling;
+  }
+}
+
+/**
+ * Which of the sheet's cells a water-grid shape covers (more than `threshold`
+ * of it under the cell's centre), row by row: the cells of the loading word.
+ */
+export function charSeaCellsCovered(
+  layout: CharSeaLayout,
+  shape: Float32Array,
+  waterCols: number,
+  waterRows: number,
+  threshold = 0.35,
+): Uint8Array {
+  const cells = new Uint8Array(layout.cols * layout.rows);
+  for (let row = 0; row < layout.rows; row += 1) {
+    for (let col = 0; col < layout.cols; col += 1) {
+      const x = Math.floor((layout.originX + (col + 0.5) * layout.cellWidth) / CHAR_SEA_WATER_CELL);
+      const y = Math.floor((layout.originY + (row + 0.5) * layout.cellHeight) / CHAR_SEA_WATER_CELL);
+      if (x >= 0 && y >= 0 && x < waterCols && y < waterRows && shape[y * waterCols + x] > threshold) {
+        cells[row * layout.cols + col] = 1;
+      }
+    }
+  }
+  return cells;
+}
+
+// Changes a second per cell while it loads: under a rain head, in a rain
+// trail, and in a cell of the loading word.
+const SWAP_HEAD = 14;
+const SWAP_TRAIL = 2.5;
+const SWAP_WORD = 0.8;
+const LETTER = /[\p{L}\p{N}]/u;
+
+/**
+ * The characters drawn in the sheet's cells. While something loads they change
+ * as digital rain's do: a head swaps its cell's character many times a second,
+ * a trail now and then, a cell of the loading word about once a second, always
+ * for another letter of the same passage (never punctuation). A cell the rain
+ * and the word have left goes back to its own character, so a ripple still
+ * reads as the passage.
+ */
+export class CharSeaGlyphs {
+  /** The glyph drawn in each cell, row by row (indices into the layout's glyphs). */
+  readonly live: Uint8Array;
+  private readonly base: Uint8Array;
+  private readonly letters: number[];
+
+  constructor(layout: CharSeaLayout, private readonly random: () => number = Math.random) {
+    this.base = layout.map;
+    this.live = layout.map.slice();
+    this.letters = layout.glyphs.flatMap((glyph, index) => (LETTER.test(glyph) ? [index] : []));
+  }
+
+  /**
+   * Moves on by `dt` seconds. `rain` is `CharSeaRain.cells` (null: no rain),
+   * `word` the loading word's cells (null: no word). Returns whether any cell
+   * is still changing, and whether `live` changed.
+   */
+  tick(dt: number, rain: Uint8Array | null, word: Uint8Array | null): { changing: boolean; changed: boolean } {
+    let changing = false;
+    let changed = false;
+    for (let i = 0; i < this.live.length; i += 1) {
+      let rate = 0;
+      if (rain) rate = rain[i * 2 + 1] > 40 ? SWAP_HEAD : rain[i * 2] > 20 ? SWAP_TRAIL : 0;
+      if (word && word[i]) rate = Math.max(rate, SWAP_WORD);
+      if (rate && this.letters.length) {
+        changing = true;
+        if (this.random() < rate * dt) {
+          this.live[i] = this.letters[Math.floor(this.random() * this.letters.length)];
+          changed = true;
+        }
+      } else if (this.live[i] !== this.base[i]) {
+        this.live[i] = this.base[i];
+        changed = true;
+      }
+    }
+    return { changing, changed };
   }
 }

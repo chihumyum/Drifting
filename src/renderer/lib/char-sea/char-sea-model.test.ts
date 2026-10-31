@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { CHAR_SEA_STEP_RATE, CHAR_SEA_WATER_CELL, CharSeaRain, CharSeaWater, layoutCharSea } from './char-sea-model';
+import {
+  CHAR_SEA_STEP_RATE,
+  CHAR_SEA_WATER_CELL,
+  CharSeaGlyphs,
+  CharSeaRain,
+  CharSeaWater,
+  charSeaCellsCovered,
+  layoutCharSea,
+} from './char-sea-model';
 import { CHAR_SEA_LANGUAGES, charSeaScript, type CharSeaLanguage } from './char-sea-text';
 
 /** A repeatable stand-in for Math.random. */
@@ -155,5 +163,50 @@ describe('the sea of characters', () => {
     for (let t = 0; t < 0.5; t += 1 / 60) still = rain.tick(1 / 60, () => 0);
     expect(still).toBe(false);
     expect(litColumns(rain)).toBe(0);
+  });
+
+  it('changes the characters under the rain and in the word for other letters, and puts them back after', () => {
+    const layout = layoutCharSea(200, 100, CHAR_SEA_LANGUAGES.zh);
+    const glyphs = new CharSeaGlyphs(layout, seeded(11));
+    const cells = layout.cols * layout.rows;
+    const rain = new Uint8Array(cells * 2);
+    const word = new Uint8Array(cells);
+    const head = 3;
+    const trail = layout.cols + 3;
+    const inWord = 2 * layout.cols + 8;
+    rain[head * 2] = 255;
+    rain[head * 2 + 1] = 255;
+    rain[trail * 2] = 120;
+    word[inWord] = 1;
+    const seen = { head: new Set<number>(), trail: new Set<number>(), word: new Set<number>() };
+    for (let t = 0; t < 2; t += 1 / 60) {
+      expect(glyphs.tick(1 / 60, rain, word).changing).toBe(true);
+      seen.head.add(glyphs.live[head]);
+      seen.trail.add(glyphs.live[trail]);
+      seen.word.add(glyphs.live[inWord]);
+    }
+    // about 14 changes a second under a head, 2.5 in a trail, 0.8 in the word
+    expect(seen.head.size).toBeGreaterThan(12);
+    expect(seen.trail.size).toBeGreaterThan(1);
+    expect(seen.trail.size).toBeLessThan(seen.head.size);
+    expect(seen.word.size).toBeGreaterThan(0);
+    const letters = new Set([...seen.head, ...seen.trail].map((index) => layout.glyphs[index]));
+    for (const glyph of letters) expect(glyph).toMatch(/[\p{L}\p{N}]/u);
+    // untouched cells keep the passage; once the rain and the word are gone every cell is its own again
+    expect(glyphs.live[layout.cols * 4 + 1]).toBe(layout.map[layout.cols * 4 + 1]);
+    expect(glyphs.tick(1 / 60, null, null)).toEqual({ changing: false, changed: true });
+    expect([...glyphs.live]).toEqual([...layout.map]);
+  });
+
+  it('finds the sheet cells the loading word covers', () => {
+    const layout = layoutCharSea(200, 100, CHAR_SEA_LANGUAGES.zh);
+    const water = new CharSeaWater(200, 100);
+    const shape = new Float32Array(water.cols * water.rows);
+    const x = Math.floor((layout.originX + 5.5 * layout.cellWidth) / CHAR_SEA_WATER_CELL);
+    const y = Math.floor((layout.originY + 2.5 * layout.cellHeight) / CHAR_SEA_WATER_CELL);
+    shape[y * water.cols + x] = 1;
+    const cells = charSeaCellsCovered(layout, shape, water.cols, water.rows);
+    expect(cells[2 * layout.cols + 5]).toBe(1);
+    expect(cells.reduce((sum, value) => sum + value, 0)).toBe(1);
   });
 });
