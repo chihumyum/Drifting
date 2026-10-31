@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Drifting social preview</title>
+<link rel="stylesheet" href="preview.css">
+</head>
+<body>
+<canvas id="sea"></canvas>
+<div class="frame" hidden></div>
+<canvas id="tagline"></canvas>
+<script type="module">
+// ?theme=dark|light, ?frame=1 puts the tagline on a floating glass rim.
+import { drawSea, token } from './char-sea-frame.js';
+import { writeInSand } from './sand-letters.js';
+
+const TAGLINE = [
+  'The ease of a Markdown editor, the scaffolding of a classic writing studio,',
+  'and an Agent for the whole book.',
+];
+const query = new URLSearchParams(location.search);
+const dark = query.get('theme') === 'dark';
+document.body.classList.toggle('dark', dark);
+document.querySelector('.frame').hidden = query.get('frame') !== '1';
+
+await document.fonts.ready;
+await drawSea(document.getElementById('sea'), {
+  word: 'DRIFTING', wordCentreY: 232, dark, seed: 7,
+  density: 1.9, peakBoost: 1.6, wordHeight: 0.34, wordWidth: 0.78,
+  rainDensity: 0.3, rainStrength: 1, rainSurface: 1, rainTint: 0.85,
+  rainLength: [14, 52], rainWeight: 1, rainWidth: 2,
+  quiet: [{ x: 132, y: 382, w: 1016, h: 110, soft: 36 }],
+});
+await writeInSand(document.getElementById('tagline'), TAGLINE, {
+  font: '400 {size}px "Times New Roman"', size: 32, lineHeight: 44, centreY: 437,
+  colour: token('--ink-2'), thick: 5.2,
+});
+document.body.dataset.ready = '1';
+</script>
+</body>
+</html>

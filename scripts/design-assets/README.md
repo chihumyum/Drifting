@@ -25,3 +25,6 @@ Each script takes an output directory: `python3 glyphgen.py out/`. They need
 NumPy and write every mask they define (`hollowgen.py` instead reads the sand
 directory and writes beside it); copy the ones listed above into
 `src/assets/design/`. Seeds are fixed, so a rerun reproduces the same pixels.
+
+`social-preview/` renders the repository's sharing card (GitHub's social
+preview) from the character sea and the same sand brush; see its README.
