@@ -35,6 +35,20 @@ describe('desktop editor continuity acceptance', () => {
     expect(nodeEditor).toContain('if (isCommandActive && canPromoteOnEdit())');
   });
 
+  it('opens a book loading only the page in front, its background work after it', () => {
+    const main = source('src/renderer/components/editor/EditorMainArea.tsx');
+    // A tab mounts when it is first wanted and stays mounted after that.
+    expect(main).toContain('if (!visitedKeys.has(desiredRevisionKey)) setVisitedKeys(new Set(visitedKeys).add(desiredRevisionKey));');
+    expect(main).toContain('visitedKeys.has(surface.revisionKey) || surface.revisionKey === committedSurface?.revisionKey');
+    expect(main).toContain('announceEditorStageReady();');
+    const runtime = source('src/renderer/app/providers/ProjectRuntimeProvider.tsx');
+    expect(runtime).toContain('resetEditorStageReady();');
+    expect(runtime).toContain('const STAGE_WAIT_LIMIT_MS = 3000;');
+    // Prose metrics, the reference index, the Markdown folder and the reducer prewarm.
+    expect(runtime.match(/afterEditorStageReady\(/g)?.length).toBe(4);
+    expect(runtime).toContain('release = retainProjectReferenceIndex(projectId);');
+  });
+
   it('never reveals an empty JSON editor or a pre-collaboration Yjs editor', () => {
     const entityEditor = source('src/renderer/hooks/useEntityEditor.ts');
     const template = source('src/renderer/components/editor/ElementTemplateEditor.tsx');

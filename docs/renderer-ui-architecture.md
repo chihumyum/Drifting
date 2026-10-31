@@ -195,8 +195,11 @@ ChapterEditor/ProjectRuntime continuity and latency remain separate gates.
 
 ### Desktop editor-session continuity
 
-`EditorMainArea` is the desktop editor-session stage. It mounts Project Home
-plus one absolute surface for every open top-level leaf and split.
+`EditorMainArea` is the desktop editor-session stage. It mounts one absolute
+surface for Project Home and for every open top-level leaf and split once that
+surface has been wanted in front since the book opened (2026-11-01: a book
+opens loading only the page in front; a tab not yet visited mounts on its
+first visit, behind the committed surface until it is ready).
 The URL remains the address/selection authority, but React Router no longer
 owns the lifetime of desktop editor views: inactive surfaces stay mounted with
 `visibility: hidden`, `inert`, and no pointer or command ownership. Their

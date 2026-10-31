@@ -25,8 +25,8 @@ is laid out but has `visibility: hidden` or `user-select: none` is not a candida
 so WebKit steps through it one character at a time. Text without a renderer
 (`display: none`) is skipped one node at a time.
 
-`EditorMainArea` keeps every open top-level tab mounted as an absolute surface
-with `visibility: hidden` (see
+`EditorMainArea` keeps every open top-level tab it has shown mounted as an
+absolute surface with `visibility: hidden` (see
 [desktop editor-session continuity](../renderer-ui-architecture.md#desktop-editor-session-continuity)).
 A temporary survey of the author's live DOM counted 38,813 non-candidate
 characters between the active editor's end and the first candidate (in the right

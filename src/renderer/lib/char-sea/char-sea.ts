@@ -43,10 +43,15 @@ export interface CharSeaShape {
   radius: number;
   /**
    * Strength of the resting line: the app's resting glass is 0.85; 0 shows
-   * only what the water brings (the sea under it at 12%); below 0 no line at
-   * all, only a veil showing the sea at -rest, for panels it passes under.
+   * only what the water brings; below 0 no line at all, only the veil (the
+   * sea under it at 12%).
    */
   rest: number;
+  /**
+   * How strongly the water's glass shows on its rim and bleeds inward (1, the
+   * shelf's cards, when left out): the workspace's panels take less.
+   */
+  rim?: number;
   /** Whether the pointer is on it (bleed in, unevenness drifting). */
   hover: boolean;
   /** Where the glass texture starts in the shape, as `.glass:nth-of-type` places it. */
@@ -122,10 +127,8 @@ void main(){
   vec3 col=uGround;
   // under what sits on the page the field shows at 12%
   float m=1.;
-  // (a veil, whose rest is below 0, shows it at -rest instead)
   for(int i=0;i<${MAX_SHAPES};i++){if(i>=uShapes)break;
-    float v=uShapeP[i].y<0.?-uShapeP[i].y:.12;
-    m=min(m,mix(1.,v,1.-smoothstep(0.,10.,sdBox(px,uShape[i],uShapeP[i].x))));}
+    m=min(m,mix(1.,.12,1.-smoothstep(0.,10.,sdBox(px,uShape[i],uShapeP[i].x))));}
   vec2 cf=(px-uOrigin)/uCell;vec2 ci=floor(cf);vec2 f=cf-ci;
   if(ci.x>=0.&&ci.y>=0.&&ci.x<uCells.x&&ci.y<uCells.y){
     vec2 cc=uOrigin+(ci+.5)*uCell;float hc=hAt(cc);vec2 sx=vec2(st.x,0.);vec2 sy=vec2(0.,st.y);
@@ -157,7 +160,8 @@ void main(){
       float hw=max(.12,.5+.45*up);
       float ring=1.-smoothstep(hw-.3,hw+.3,abs(sd+.5));
       float bleed=sd<0.?exp(sd/4.)*(.5*P.z+.3*max(up,0.)):0.;
-      ra=max(ra,ring*clamp(${GLASS_EDGE}*G,0.,1.)*cut);ba=max(ba,bleed*${GLASS_EDGE}*cut);
+      float k=uShapeT[i].z;
+      ra=max(ra,ring*clamp(${GLASS_EDGE}*G,0.,1.)*cut*k);ba=max(ba,bleed*${GLASS_EDGE}*cut*k);
     }
     col=mix(col,uBleed,clamp(ba,0.,.6));
     col=mix(col,uGlass,clamp(ra,0.,.9));
@@ -503,7 +507,7 @@ export function createCharSea(canvas: HTMLCanvasElement): CharSea | null {
       const shape = shapes[i];
       shapeRect.set([shape.x, shape.y, shape.width, shape.height], i * 4);
       shapeParams.set([shape.radius, shape.rest, hoverAmount.get(shape.id) ?? 0, flowOffset.get(shape.id) ?? 0], i * 4);
-      shapeTexture.set([shape.textureX, shape.textureY, 0, 0], i * 4);
+      shapeTexture.set([shape.textureX, shape.textureY, shape.rim ?? 1, 0], i * 4);
     }
     gl.uniform4fv(U.shape, shapeRect);
     gl.uniform4fv(U.shapeP, shapeParams);
