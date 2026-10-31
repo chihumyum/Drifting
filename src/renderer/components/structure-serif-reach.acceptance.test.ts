@@ -88,11 +88,8 @@ describe('the serif structure face beyond the sidebars', () => {
   it('names the shelf in the structure face, leaving each book in its own prose font', () => {
     const css = read('src/styles/project-picker.css');
     expect(block(css, '.pp-head__title {')).toContain('font: 400 22px/1.2 var(--font-structure);');
-    expect(block(css, '.pp-bar__title {')).toContain('font: 400 16px/1 var(--font-structure);');
     expect(block(css, '.pp-card__title {')).toContain('var(--font-content)');
     expect(block(css, '.pp-cover__glyph {')).toContain('var(--font-content)');
-    // The filters' counts stand apart from their words.
-    expect(block(css, '.pp-bar__filters .pp-bar__n {')).toContain('margin-left: 4px;');
   });
 
   it('sets material kinds in the structure face in TODO & 素材库, their counts index type', () => {
@@ -111,9 +108,9 @@ describe('the serif structure face beyond the sidebars', () => {
   it('documents where the structure face reaches', () => {
     const docs = designSystemDocs();
     expect(docs).toContain('Super View 的视图切换、设置每一节的页题');
-    expect(docs).toContain('素材文件夹与「TODO 与素材库」里的种类组头、书架的「书架」与「全部作品」、时间线与故事图谱的故事线泳道名、幕名');
+    expect(docs).toContain('素材文件夹与「TODO 与素材库」里的种类组头、书架的页名、时间线与故事图谱的故事线泳道名、幕名');
     expect(docs).toContain('三个视图是去处，和 Panel Tab 一样用结构字');
     expect(docs).toContain('文件夹名是结构字、素材条目是实体字');
-    expect(docs).toContain('书架的「书架」与「全部作品」是地方的名字，也用结构字');
+    expect(docs).toContain('书架的页名「书架」是地方的名字，也用结构字');
   });
 });
