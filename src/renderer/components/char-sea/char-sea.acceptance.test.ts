@@ -100,6 +100,30 @@ describe('the sea of characters under the desktop window', () => {
     expect(engine).toContain('float sd=sdBox(px,R,P.x);');
   });
 
+  it('ebbs under the workspace a wait opened: the rings run out, untouched, then it goes off', () => {
+    const component = read('src/renderer/components/char-sea/CharSea.tsx');
+    // Losing every hold lets it ebb; a hold makes it live again at once.
+    expect(component).toContain("if (held && mode !== 'live') setMode('live');");
+    expect(component).toContain("if (!held && mode === 'live') setMode('ebb');");
+    expect(component).toContain("root.dataset.charSea = 'ebb';");
+    expect(component).toContain('if (sea.current) sea.current.ebb(still);');
+    expect(component).toContain('const EBB_LIMIT_MS = 8000;');
+    // Only a live sea feels the hand.
+    expect(component).toContain("if (mode !== 'live') return undefined;");
+    // The sidebars veil it as the shelf's cards do, with no line of their own.
+    expect(component).toContain("const EBB_VEILS = '.desktop-app-shell .sidebar-shell:not(.is-fully-hidden)';");
+    expect(component).toContain('radius: 0, rest: -1, hover: false');
+    const engine = read('src/renderer/lib/char-sea/char-sea.ts');
+    expect(engine).toContain('if (still || !water || ebbing) return;');
+    expect(engine).toContain('const restTarget = ebbing ? 0 : 1;');
+    expect(engine).toContain('if(P.y<0.)continue;');
+    const css = read('src/styles/char-sea.css');
+    expect(block(css, "html[data-char-sea='ebb'] .desktop-app-shell {", '}')).toMatch(
+      /--workspace-ui-bg: transparent;[\s\S]*animation: char-sea-surface var\(--motion-structural\) ease-out both;/,
+    );
+    expect(css).toContain("html[data-char-sea='ebb'] .desktop-app-shell { animation: none; }");
+  });
+
   it('is written down in the design system', () => {
     const docs = designSystemDocs();
     expect(docs).toContain('全屏加载与字海');
