@@ -32,7 +32,8 @@ export interface SuperElementIslandProps {
 /**
  * The element overview's floating island (2026-10-30, the prototype's B): a
  * lifted piece of desk inset from the canvas's edges with rounded corners
- * and no glass. It begins as a small card at the top right; 编辑 grows it
+ * and no glass. It begins as a small card at the top right, the hover card's
+ * own card (2026-10-31: rounded, edged in resting glass); 编辑 grows it
  * down the right side into a full-height sheet holding the workspace's own
  * element or category editor, on the structural motion. The sheet's left
  * edge is dragged to change its width between 15% and 75% of the canvas,
@@ -124,7 +125,7 @@ export function SuperElementIsland({
   return (
     <aside
       ref={ref}
-      className={`se-island se-island--${mode}${compact ? ' is-compact' : ''}${liveRatio !== null ? ' is-resizing' : ''}`}
+      className={`se-island se-island--${mode}${mode === 'peek' ? ' hover-card-surface' : ''}${compact ? ' is-compact' : ''}${liveRatio !== null ? ' is-resizing' : ''}`}
       style={mode === 'sheet' ? { width: `${(ratio * 100).toFixed(2)}%` } : undefined}
       data-super-modal
       // Presses here, and in the editor's menus portaled to body (React

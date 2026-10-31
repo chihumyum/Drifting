@@ -1,5 +1,4 @@
 import { SyncProviderBindingTable } from '../../schema/drizzle';
-import { adoptDriveReplicaForHosted } from './adopt-drive';
 import { events } from '../../lib/events';
 import { getDb, type DbClient } from '../../lib/db';
 import { flushLocalApplicationPersistence } from '../../lib/persistence-lifecycle';
@@ -70,42 +69,9 @@ export async function connectHostedFromProduct(signal: AbortSignal, db: DbClient
   if (!session) throw new Error('needs-reauth');
   await flushLocalApplicationPersistence();
   const repository = createSyncAppAuthorityRepository(db);
-  let current = await repository.read();
-  // Drive is retired. Cancel an unfinished legacy transition without contacting
-  // its provider, so a previous connect/disconnect cannot strand Hosted sign-in.
-  if (
-    current.transitionState !== 'stable' &&
-    (current.mode === 'google-drive' || current.targetMode === 'google-drive')
-  ) {
-    signal.throwIfAborted();
-    await repository.cancel({ attemptId: current.attemptId, nowIso: new Date().toISOString() });
-    events.emit('sync:authority-changed');
-    current = await repository.read();
-  }
+  const current = await repository.read();
   if (current.mode === 'hosted' && current.transitionState === 'stable')
     return { restored: await discoverHostedProjects(db, signal) };
-  if (current.mode === 'google-drive' && current.transitionState === 'stable') {
-    const resume = await productSyncRuntimeControl.quiesceForProviderChange();
-    try {
-      signal.throwIfAborted();
-      await flushLocalApplicationPersistence();
-      await adoptDriveReplicaForHosted({
-        db,
-        accountSubject: session.accountSubject,
-        identity: await getSyncInstallationIdentity(),
-        assertAccount() {
-          signal.throwIfAborted();
-          if (getHostedSessionBinding()?.accountSubject !== session.accountSubject)
-            throw new Error('HOSTED_ACCOUNT_MISMATCH');
-        },
-      });
-    } catch (error) {
-      resume();
-      throw error;
-    }
-    events.emit('sync:authority-changed');
-    current = await createSyncAppAuthorityRepository(db).read();
-  }
   if (current.mode !== 'local')
     throw new Error('Finish or cancel the current provider transition first.');
   const result = await restoreCloudSyncGenerations({

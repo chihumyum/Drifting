@@ -98,7 +98,7 @@ It uses a disposable headless browser profile and synthetic documents.
 | Certificate is revoked/expired | Renew your own development certificate in Xcode and rerun `pnpm dev:check`. |
 | OCSP verification fails | The launcher already checks twice: once macOS's cached OCSP response has expired, the first required check fetches a fresh one but still fails, and the second decides on it. If both fail, check network access, system date and certificate status, then retry. Revocation checking remains required. |
 | An old identity is explicitly pinned | Update or remove `DRIFTING_MACOS_DEV_SIGNING_IDENTITY` in your shell/ignored `.env.local`. An explicit pin never silently selects another certificate. |
-| Which client and sync provider are supported? | Tauri with optional Hosted sync. Google Drive and the standalone Apple-native front-end are retired; see `docs/client-onboarding-and-hosted-readiness.md`. |
+| Which client and sync provider are supported? | Tauri with optional Hosted sync; see `docs/hosted-sync/README.md`. |
 
 No automatic ad-hoc fallback is introduced: it changes app/credential identity
 and does not validate the existing secure-storage behavior. Signed distribution,

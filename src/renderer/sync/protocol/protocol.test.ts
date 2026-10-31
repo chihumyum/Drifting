@@ -286,7 +286,7 @@ describe('opaque provider object boundaries', () => {
     expect(
       Value.Check(PROVIDER_BINDING_SCHEMA, {
         bindingId: 'binding-a',
-        providerKind: 'google-drive',
+        providerKind: 'hosted',
         syncGenerationId: 'sync-generation-a',
         accountRef: 'account-a',
         secretRef: 'secret-a',

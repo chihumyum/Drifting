@@ -10,6 +10,7 @@ vi.hoisted(() => {
 });
 
 import {
+  agentOnboardingStepForExistingInstall,
   AGENT_TOOL_SEARCH_DEFAULT,
   AGENT_TURN_ITERATION_LIMIT_DEFAULT,
   migrateAgentToolSearch,
@@ -33,6 +34,21 @@ describe('General Agent product settings', () => {
     expect(merged).not.toHaveProperty('agentMaxContext');
     expect(merged).not.toHaveProperty('setAgentMaxContext');
     expect(merged).toMatchObject({ agentProvider: 'openai', agentModel: 'gpt-5.6-sol' });
+  });
+
+  it('shows the Agent first run to fresh installations and to existing ones that never used the Agent', () => {
+    expect(useSettingsStore.getInitialState().agentOnboardingStep).toBe('new');
+    const migrate = useSettingsStore.persist.getOptions().migrate!;
+    expect(migrate({ lastAgentConvByProject: {} }, 32)).toMatchObject({ agentOnboardingStep: 'new' });
+    expect(migrate({ lastAgentConvByProject: { p1: 'c1' } }, 32)).toMatchObject({ agentOnboardingStep: 'done' });
+    expect(agentOnboardingStepForExistingInstall(undefined)).toBe('new');
+  });
+
+  it('keeps a stored first-run step and repairs an unknown one', () => {
+    const current = useSettingsStore.getInitialState();
+    const merge = useSettingsStore.persist.getOptions().merge!;
+    expect(merge({ agentOnboardingStep: 'change' }, current)).toMatchObject({ agentOnboardingStep: 'change' });
+    expect(merge({ agentOnboardingStep: 'later' }, current)).toMatchObject({ agentOnboardingStep: 'new' });
   });
 
   it('keeps dangerous operations opt-in', () => {

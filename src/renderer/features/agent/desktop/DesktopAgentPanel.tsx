@@ -12,8 +12,9 @@
  * owns message display subscriptions and scrolling.
  *
  * Provider/model/reasoning selection lives in this composer. API keys are
- * managed once in Settings → 模型与 API; a missing selected-provider key links
- * there instead of creating another credential form in the chat surface.
+ * managed once in Settings → 模型与 API. An empty conversation that cannot run
+ * connects in place instead (features/agent/onboarding: add a tested key, sign
+ * in to ChatGPT, or pick a route that can run); a started one links to Settings.
  */
 import { DesktopAgentTranscript, type AgentTranscriptHandle } from './DesktopAgentTranscript';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -48,6 +49,7 @@ import { useSidebarPaneId } from '../../../lib/sidebar-pane-context';
 import { createAgentChatViewSource } from '../../../store/agent-chat-view-source';
 import { AgentChatViewContext, useAgentChatViewStore } from '../AgentChatViewContext';
 import { BrushIcon } from '../../../components/ui/BrushIcon';
+import { noteAgentOnboarding } from '../onboarding/agent-onboarding';
 
 export function DesktopAgentPanel({ projectId }: { projectId: string }) {
   const paneId = useSidebarPaneId();
@@ -143,9 +145,21 @@ function DesktopAgentPanelContent({ projectId }: { projectId: string }) {
 
   const handleSend = useCallback(() => {
     if (!usable) return;
+    noteAgentOnboarding({ type: 'sent' });
     transcriptRef.current?.follow();
     void send();
   }, [send, usable]);
+
+  // A first-run suggestion is sent as the author's own words.
+  const handlePick = useCallback((text: string) => {
+    setPrompt(text);
+    handleSend();
+  }, [handleSend, setPrompt]);
+  const onboardingUsable = api.capability.available && status !== null ? usable : null;
+  const onboarding = useMemo(
+    () => ({ usable: onboardingUsable, onPick: handlePick }),
+    [onboardingUsable, handlePick],
+  );
 
   const handleNew = useCallback(() => {
     transcriptRef.current?.follow();
@@ -214,6 +228,8 @@ function DesktopAgentPanelContent({ projectId }: { projectId: string }) {
     [itemDraft, renameConversation],
   );
 
+  // An empty new conversation shows the provider rows itself (AgentOnboarding).
+  const transcriptConnects = status !== null && !activeConvId && !running && !starting;
   const notConnectedText = agentAuth === 'hosted' ? t('agentPanel.setup.hosted')
     : agentAuth === 'apikey' ? t('agentPanel.setup.apiKey') : t('agentPanel.setup.byok');
 
@@ -382,13 +398,18 @@ function DesktopAgentPanelContent({ projectId }: { projectId: string }) {
         )}
       </AnchoredPopover>
 
-      {!usable && <div style={hintBox} role="status">
+      {!usable && !transcriptConnects && <div style={hintBox} role="status">
         <div style={hintText}>{status === null && api.capability.available ? t('agentPanel.checking') : notConnectedText}</div>
         <button type="button" className="agt-btn glass glass--primary glass--small" onClick={() => events.emit('settings:open', { railId: 'models' })}>
           {t('agentPanel.setup.openSettings')}
         </button>
       </div>}
-      <DesktopAgentTranscript canRun={usable} key={`${projectId}:${activeConvId ?? "new"}`} ref={transcriptRef} />
+      <DesktopAgentTranscript
+        canRun={usable}
+        onboarding={onboarding}
+        key={`${projectId}:${activeConvId ?? "new"}`}
+        ref={transcriptRef}
+      />
 
       <div style={inputArea}>
         <div className="agt-composer agt-composer--glass glass glass--rest glass--field">

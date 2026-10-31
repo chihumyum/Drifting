@@ -1,7 +1,6 @@
 import type { CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button } from '../../../components/ui/Button';
-import { BrushIcon } from '../../../components/ui/BrushIcon';
+import { HoverCardHeading, HoverCardRow } from '../../../components/ui/HoverCard';
 import { KindMark } from '../../../components/ui/KindMark';
 import {
   isleAppearance,
@@ -38,114 +37,110 @@ export interface ElementIsleDetailProps {
 
 /**
  * The focused element on the islands, as the island's small card
- * (SuperElementIsland). Its appearance strip is one stroke of sand per
+ * (SuperElementIsland), laid out as a hover card is: its head, its summary,
+ * then its sections parted by the menus' hairline. Its appearance strip is one stroke of sand per
  * chapter in book order, in the colour of that chapter's storyline and as
  * dense as the element is mentioned there; who it is mentioned with most
  * and the relations drawn to it follow, each one a way to move the focus.
  */
 export function ElementIsleDetail({
   name, summary, categoryName, color, mentions, ticks, companions, relations,
-  isolated, onIsolate, onFocus, onEdit, onOpen, onClose,
+  isolated, onIsolate, onFocus, onEdit, onOpen,
 }: ElementIsleDetailProps) {
   const { t } = useTranslation();
   const appearance = isleAppearance(ticks);
   const most = ticks.reduce((max, tick) => Math.max(max, tick.count), 1);
   return (
     <div className="se-detail" aria-label={name}>
-      <div className="se-detail__head">
-        <KindMark kind="element" color={color} />
-        <div className="se-detail__title">
-          <div className="se-detail__name">{name}</div>
-          <div className="se-detail__meta">{t('superElement.isles.detail.meta', { category: categoryName, count: mentions })}</div>
+      <div className="hover-card__body">
+        <HoverCardHeading
+          title={name}
+          mark={{ kind: 'element', color }}
+          index={t('superElement.isles.island.mentions', { count: mentions })}
+          detail={<span className="hover-card__tag"><KindMark kind="category" color={color} />{categoryName}</span>}
+        />
+        {summary && <div className="hover-card__text">{summary}</div>}
+      </div>
+      <div className="hover-card__actions">
+        <div className="hover-card__section">
+          <div className="hover-card__section-label">{t('superElement.isles.detail.appearance')}</div>
+          <div className={ticks.length > 40 ? 'se-detail__ticks is-dense' : 'se-detail__ticks'} role="list">
+            {ticks.map((tick) => {
+              const section = isleSection(tick.number);
+              const title = tick.count > 0
+                ? t('superElement.isles.detail.tick', { section, title: tick.title, count: tick.count })
+                : t('superElement.isles.detail.tickAbsent', { section, title: tick.title });
+              return (
+                <span
+                  key={tick.chapterId}
+                  role="listitem"
+                  title={title}
+                  aria-label={title}
+                  className={tick.count > 0 ? 'se-detail__tick' : 'se-detail__tick is-absent'}
+                  style={tick.count > 0 ? ({
+                    '--tick-c': tick.color ?? 'hsl(var(--ink-3))',
+                    '--tick-h': `${Math.round(8 + (tick.count / most) * 16)}px`,
+                    '--tick-o': (0.45 + (tick.count / most) * 0.55).toFixed(2),
+                  } as CSSProperties) : undefined}
+                />
+              );
+            })}
+          </div>
+          <div className="hover-card__note">
+            {appearance.appeared > 0
+              ? t('superElement.isles.detail.appeared', {
+                appeared: appearance.appeared,
+                total: appearance.total,
+                first: isleSection(appearance.first ?? 0),
+                last: isleSection(appearance.last ?? 0),
+                gap: appearance.longestGap,
+              })
+              : t('superElement.isles.detail.never')}
+          </div>
         </div>
-        <button type="button" className="se-detail__close" aria-label={t('superElement.isles.detail.close')} onClick={onClose}>
-          <BrushIcon name="close" size={13} />
-        </button>
-      </div>
-      {summary && <p className="se-detail__summary">{summary}</p>}
 
-      <div className="se-detail__label">{t('superElement.isles.detail.appearance')}</div>
-      <div className={ticks.length > 40 ? 'se-detail__ticks is-dense' : 'se-detail__ticks'} role="list">
-        {ticks.map((tick) => {
-          const section = isleSection(tick.number);
-          const title = tick.count > 0
-            ? t('superElement.isles.detail.tick', { section, title: tick.title, count: tick.count })
-            : t('superElement.isles.detail.tickAbsent', { section, title: tick.title });
-          return (
-            <span
-              key={tick.chapterId}
-              role="listitem"
-              title={title}
-              aria-label={title}
-              className={tick.count > 0 ? 'se-detail__tick' : 'se-detail__tick is-absent'}
-              style={tick.count > 0 ? ({
-                '--tick-c': tick.color ?? 'hsl(var(--ink-3))',
-                '--tick-h': `${Math.round(8 + (tick.count / most) * 16)}px`,
-                '--tick-o': (0.45 + (tick.count / most) * 0.55).toFixed(2),
-              } as CSSProperties) : undefined}
-            />
-          );
-        })}
-      </div>
-      <div className="se-detail__meta">
-        {appearance.appeared > 0
-          ? t('superElement.isles.detail.appeared', {
-            appeared: appearance.appeared,
-            total: appearance.total,
-            first: isleSection(appearance.first ?? 0),
-            last: isleSection(appearance.last ?? 0),
-            gap: appearance.longestGap,
-          })
-          : t('superElement.isles.detail.never')}
-      </div>
-
-      {companions.length > 0 && (
-        <>
-          <div className="se-detail__label">{t('superElement.isles.detail.companions')}</div>
-          <div className="se-detail__rows">
+        {companions.length > 0 && (
+          <div className="hover-card__section">
+            <div className="hover-card__section-label">{t('superElement.isles.detail.companions')}</div>
             {companions.map((companion) => (
-              <button key={companion.id} type="button" className="menu-surface__item se-detail__row" onClick={() => onFocus(companion.id)}>
-                <KindMark kind="element" color={companion.color} />
-                <span className="se-detail__row-name">{companion.name}</span>
-                <span className="se-detail__row-count">{t('superElement.isles.detail.times', { count: companion.count })}</span>
-              </button>
+              <HoverCardRow
+                key={companion.id}
+                icon={{ kind: 'element', color: companion.color }}
+                label={companion.name}
+                aside={t('superElement.isles.detail.times', { count: companion.count })}
+                onClick={() => onFocus(companion.id)}
+              />
             ))}
           </div>
-        </>
-      )}
+        )}
 
-      {relations.length > 0 && (
-        <>
-          <div className="se-detail__label">{t('superElement.isles.detail.relations')}</div>
-          <div className="se-detail__rows">
+        {relations.length > 0 && (
+          <div className="hover-card__section">
+            <div className="hover-card__section-label">{t('superElement.isles.detail.relations')}</div>
             {relations.map((relation) => (
-              <button
+              <HoverCardRow
                 key={relation.id}
-                type="button"
-                className="menu-surface__item se-detail__row"
+                icon={{ kind: 'storyline', color: relation.color }}
                 disabled={!relation.onSelect}
                 onClick={relation.onSelect}
               >
-                <span className="se-detail__dash" style={{ '--dash-c': relation.color } as CSSProperties} aria-hidden />
-                <span className="se-detail__row-type">{relation.incoming ? `${relation.typeName} ←` : relation.typeName}</span>
+                <span className="hover-card__row-type">{relation.incoming ? `${relation.typeName} ←` : relation.typeName}</span>
                 {relation.otherMark}
-                <span className="se-detail__row-name">{relation.otherName}</span>
-              </button>
+                <span className="hover-card__row-label">{relation.otherName}</span>
+              </HoverCardRow>
             ))}
           </div>
-        </>
-      )}
+        )}
 
-      <div className="se-detail__foot">
-        <Button variant="ghost" size="sm" onClick={onIsolate}>
-          {isolated ? t('superElement.isles.detail.showAll') : t('superElement.isles.detail.isolate')}
-        </Button>
-        <Button variant="ghost" size="sm" data-se-open-tab="" onClick={onOpen}>
-          {t('superElement.isles.island.openInTab')}
-        </Button>
-        <Button variant="primary" size="sm" onClick={onEdit}>
-          {t('superElement.isles.detail.edit')}
-        </Button>
+        <div className="hover-card__section">
+          <HoverCardRow
+            icon={{ brush: 'locate' }}
+            label={isolated ? t('superElement.isles.detail.showAll') : t('superElement.isles.detail.isolate')}
+            onClick={onIsolate}
+          />
+          <HoverCardRow icon={{ brush: 'arrow-out' }} label={t('superElement.isles.island.openInTab')} data-se-open-tab="" onClick={onOpen} />
+          <HoverCardRow icon={{ brush: 'edit' }} label={t('superElement.isles.detail.edit')} onClick={onEdit} />
+        </div>
       </div>
     </div>
   );
@@ -209,7 +204,7 @@ export function ElementIsleStrip({ ticks, companions, onFocus }: {
 }
 
 /** A category as the island's small card: its elements, most mentioned first. */
-export function CategoryIsleDetail({ name, color, members, onFocus, onEdit, onOpen, onClose }: {
+export function CategoryIsleDetail({ name, color, members, onFocus, onEdit, onOpen }: {
   name: string;
   color: string | undefined;
   members: readonly { id: string; name: string; mentions: number }[];
@@ -221,36 +216,33 @@ export function CategoryIsleDetail({ name, color, members, onFocus, onEdit, onOp
   const { t } = useTranslation();
   return (
     <div className="se-detail" aria-label={name}>
-      <div className="se-detail__head">
-        <KindMark kind="category" color={color} />
-        <div className="se-detail__title">
-          <div className="se-detail__name">{name}</div>
-          <div className="se-detail__meta">{t('superElement.isles.island.categoryMeta', { count: members.length })}</div>
-        </div>
-        <button type="button" className="se-detail__close" aria-label={t('superElement.isles.detail.close')} onClick={onClose}>
-          <BrushIcon name="close" size={13} />
-        </button>
+      <div className="hover-card__body">
+        <HoverCardHeading
+          title={name}
+          mark={{ kind: 'category', color }}
+          index={t('superElement.isles.island.categoryMeta', { count: members.length })}
+        />
       </div>
-      {members.length > 0 && (
-        <div className="se-detail__rows">
-          {members.slice(0, 8).map((member) => (
-            <button key={member.id} type="button" className="menu-surface__item se-detail__row" onClick={() => onFocus(member.id)}>
-              <KindMark kind="element" color={color} />
-              <span className="se-detail__row-name">{member.name}</span>
-              <span className="se-detail__row-count">
-                {member.mentions > 0 ? t('superElement.isles.island.mentions', { count: member.mentions }) : t('superElement.isles.island.unmentioned')}
-              </span>
-            </button>
-          ))}
+      <div className="hover-card__actions">
+        {members.length > 0 && (
+          <div className="hover-card__section">
+            {members.slice(0, 8).map((member) => (
+              <HoverCardRow
+                key={member.id}
+                icon={{ kind: 'element', color }}
+                label={member.name}
+                aside={member.mentions > 0
+                  ? t('superElement.isles.island.mentions', { count: member.mentions })
+                  : t('superElement.isles.island.unmentioned')}
+                onClick={() => onFocus(member.id)}
+              />
+            ))}
+          </div>
+        )}
+        <div className="hover-card__section">
+          <HoverCardRow icon={{ brush: 'arrow-out' }} label={t('superElement.isles.island.openInTab')} data-se-open-tab="" onClick={onOpen} />
+          <HoverCardRow icon={{ brush: 'edit' }} label={t('superElement.isles.detail.edit')} onClick={onEdit} />
         </div>
-      )}
-      <div className="se-detail__foot">
-        <Button variant="ghost" size="sm" data-se-open-tab="" onClick={onOpen}>
-          {t('superElement.isles.island.openInTab')}
-        </Button>
-        <Button variant="primary" size="sm" onClick={onEdit}>
-          {t('superElement.isles.detail.edit')}
-        </Button>
       </div>
     </div>
   );

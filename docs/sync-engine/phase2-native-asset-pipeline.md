@@ -18,9 +18,9 @@ verified.
 - The native blob adapter stages captured sources as immutable SyncEngine blob
   objects. Provider identity is derived from canonical protocol metadata; the
   source SHA-256, byte size, and MIME remain available for verification.
-- Drifting applies no project-content encryption before Google Drive upload.
-  Native-only paths and credentials remain protected boundaries, but Google is
-  trusted with the stored blob bytes.
+- Drifting applies no project-content encryption before Hosted upload.
+  Native-only paths and credentials remain protected boundaries, but the Hosted
+  operator is trusted with the stored blob bytes.
 - Image display/thumbnail variants are deliberately absent from the protocol.
   They are rebuildable projections. PDF and image source bytes are exact.
 

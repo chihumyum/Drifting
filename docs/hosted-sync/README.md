@@ -1,11 +1,7 @@
 # Hosted sync dogfooding
 
 The active Tauri client now supports a separately operated Hosted account and
-immutable-object provider. The standalone Apple-native front-end and Google Drive sync were retired on
-2026-10-28. Hosted is the only supported App sync provider. Drive OAuth, native
-commands, transports, SDK plugins, UI and build gates have been removed.
-Published SQLite schemas, saved recovery records and local-replica adoption are
-retained; see [the cleanup and onboarding audit](../client-onboarding-and-hosted-readiness.md). Builds without
+immutable-object provider. Hosted is the only App sync provider. Builds without
 a configured Hosted service continue locally. The author narrowed this
 milestone to Mac on 2026-09-30. On 2026-10-01 the author resumed Tauri iOS
 Hosted integration, with iPhone Simulator acceptance against the operator's VPS;
@@ -75,8 +71,7 @@ settings through **Connect and sync**. No second install or
 library is needed to move from local writing to Hosted. The source-default
 service-disabled configuration is an operator boundary, not a user mode.
 Service-disabled builds show only **Continue locally**, without a sync action or
-Hosted storage claim. Neither welcome-page variant includes Google Drive copy
-or a quick-guide link. The `v6` seen marker is stored per local library identity; it is not tied to the
+Hosted storage claim. Neither welcome-page variant includes a quick-guide link. The `v6` seen marker is stored per local library identity; it is not tied to the
 Hosted account. Clearing WebView storage can show the guide again.
 
 Initial connection publishes existing local projects and restores validated cloud projects before
@@ -87,24 +82,10 @@ running clients discover projects on wakeup and periodic checks. An offline
 startup revalidates the cached session on focus and every 30 seconds, so a service
 restart does not require a new browser network event or manual login.
 
-For a library previously using Drive, **Sign in and sync** or **Connect and sync** adopts
-the saved local replica. It does not contact Drive, include unseen changes from
-other devices, or delete the Drive copy. The client drains cancelled provider
-callbacks, flushes local writes, then atomically records a local disconnect,
-creates independent sync generations and a resumable Hosted connect attempt.
-The original immutable history remains retired. Rebased reducer ancestry gets
-new identities; prose, project IDs, assets and domain rows remain unchanged.
-A fresh writer inherits the highest source clock and starts at sequence 1.
-No Drive cursor, segment chain, upload receipt or remote asset receipt becomes
-Hosted authority. Only a verified published genesis activates sync. An upload
-failure leaves the new local replica writable and retryable; cancelling the
-connect retains it in local mode. Rejected inbound Drive objects stay quarantined
-in the retired generation, with their bytes and diagnostics preserved; they never
-enter the new Hosted genesis or block adoption of verified local content. Local
-quarantine without a remote source, unresolved conflicts and journal gaps still
-block adoption. Unfinished Drive transitions are cancelled locally before
-connection, without OAuth, credential revocation or remote deletion. Snapshot
-restore/rebase inserts bounded batches into SQLite.
+A library that was bound to the removed Drive sync is turned into a local
+library by migration `0014` and then connects like any other local library.
+Objects the device never fetched from Drive are recorded as removed, so they never wait as
+downloads. Snapshot restore/rebase inserts bounded batches into SQLite.
 
 Existing projects continue through the shared SyncEngine journal, checkpoint,
 reducer and native blob paths. No second prose database or service entity CRUD
@@ -145,7 +126,7 @@ subsequent asset/presentation cleanup. Offline, unsupported-server, account-chan
 and ambiguous-response failures keep the local project and leave the confirmation
 dialog open with a retryable error. Never-synced projects in service-disabled
 local builds retain local deletion; unowned remote evidence blocks that path.
-Retired Drive history is retained outside the Hosted deletion contract.
+Objects stored by a removed provider are outside the Hosted deletion contract.
 
 The service tombstones the project stream and the same generation's
 `agent-chat-v1` stream in one PostgreSQL transaction. Tombstones are permanent;
@@ -229,11 +210,8 @@ interactive work separately from the final source checks.
 source fingerprint and exercises real HTTP with independent SQLite libraries:
 initial connect/recovery, concurrent offline Chinese prose, lost upload response,
 new-project provisioning/discovery, synthetic asset bytes, session rejection,
-reauthentication, reopening SQLite, offline Drive takeover with rollback, preserved
-immutable history and remote quarantine, cross-batch reducer ancestry and asset restoration.
-The Hosted-only App boundary also verifies that retained Drive bindings mount no
-project or conversation transport, Settings exposes no Drive controls, and local
-integrity failures still roll back adoption. Dedicated tests also cover account identity,
+reauthentication, reopening SQLite, a library migrated from Drive connecting and
+converging, cross-batch reducer ancestry and asset restoration. Dedicated tests also cover account identity,
 local-only network denial and credential persistence failures.
 
 The Mac interaction loop uses two isolated app instances on one physical Mac.
@@ -262,6 +240,6 @@ Only debug Mac lab identities targeting an exact compiled loopback service keep
 that origin's Hosted session in an atomic owner-only local file (directory 0700,
 file 0600). This is disposable developer-session storage, not encryption. Release
 builds, production app identities, remote service origins, other-origin session
-keys and all BYOK/OAuth/Drive secrets cannot use this path. No old Keychain token
+keys and all BYOK/OAuth secrets cannot use this path. No old Keychain token
 is copied. The first updated lab launch requires signing in again; subsequent
 lab rebuilds reuse the local session without code-signing authorization prompts.

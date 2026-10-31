@@ -7,13 +7,13 @@ describe('notification store', () => {
     useNotificationStore.setState({ items: [], centerOpen: false });
   });
 
-  it('folds Google Drive byte progress and its terminal result into one row', () => {
+  it('folds cloud sync byte progress and its terminal result into one row', () => {
     const ingest = useNotificationStore.getState().ingest;
     ingest({
       id: 'hosted-sync:generation-a:1',
       source: 'hosted-sync',
       state: 'started',
-      title: 'Pulling from Google Drive…',
+      title: 'Downloading from the cloud…',
       detail: '8 MB / 16 MB · 1 / 2 items',
       progress: {
         value: 0.5,
@@ -28,7 +28,7 @@ describe('notification store', () => {
       id: 'hosted-sync:generation-a:1',
       source: 'hosted-sync',
       state: 'completed',
-      title: 'Google Drive sync complete',
+      title: 'Cloud sync complete',
       detail: 'Novel',
       outcome: 'ok',
       at: 20,
@@ -39,7 +39,7 @@ describe('notification store', () => {
         id: 'hosted-sync:generation-a:1',
         source: 'hosted-sync',
         state: 'completed',
-        title: 'Google Drive sync complete',
+        title: 'Cloud sync complete',
         detail: 'Novel',
         progress: undefined,
         read: false,

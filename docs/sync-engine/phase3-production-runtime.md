@@ -13,12 +13,12 @@ current generation down without making a later database recovery impossible.
 
 ## Product wiring
 
-Each Google Drive runtime receives:
+Each Hosted runtime receives:
 
-- one shared `GoogleDriveObjectLogProvider` backed by the native-only Tauri
-  transport;
+- one shared Hosted immutable-object provider (`createHostedProvider`) backed by
+  the native Tauri transport;
 - the integrity-checking plaintext object codec; there is no Drifting-held
-  Project content key, and Google can process the synchronized objects;
+  Project content key, and the Hosted operator can process the synchronized objects;
 - `nativeSyncAssetBlobPort`, so verified source blobs precede owner mutations;
 - `productionSyncDomainMaterializationKernel`, never raw remote SQL;
 - the durable non-secret native installation writer identity; and
@@ -33,8 +33,7 @@ detached/non-active SyncGenerations or any open frontier gap, semantic conflict 
 blocked quarantine, and publishes blobs/package/commit marker in that order.
 
 The supervisor validates that all bindings have the same provider mode and
-authority generation. A Hosted authority fails closed until its immutable
-object provider exists. Local mode returns before loading the native writer
+authority generation; only Hosted bindings are mounted. Local mode returns before loading the native writer
 identity, constructing a provider or installing network/lifecycle callbacks.
 
 Native asset attempt reconciliation runs before any project cycle. This finishes

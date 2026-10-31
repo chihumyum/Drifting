@@ -1,7 +1,7 @@
 # Drifting Alpha support
 
-Email `hi@drifting.app` or use the public support page at
-<https://drifting.app/support>.
+Email `support@drifting.cc` or use the public support page at
+<https://drifting.cc/support>.
 
 Include the Drifting version, macOS version, Apple Silicon model, the action
 that failed, and whether the installation was fresh or updated. If available,
@@ -13,5 +13,5 @@ Security vulnerabilities belong in GitHub private vulnerability reporting as
 described in [SECURITY.md](SECURITY.md), not in ordinary support email.
 
 Public Alpha support is best-effort. Data loss, restore failure, database
-damage, invalid signing/update behavior, Drive non-convergence, and credential
+damage, invalid signing/update behavior, sync non-convergence, and credential
 exposure are release-blocking P0 issues.

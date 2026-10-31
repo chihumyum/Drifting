@@ -94,7 +94,7 @@
 - 桌面中文导入通过，不等于中文 IME 组合输入通过；本轮没有完成 IME 候选和连续组合态验收。
 - iPhone Mirroring 不能替代设备的麦克风、相机和直接触摸；实际录音、转写、长按拖动与软键盘输入未验收。
 - 模拟器交互工具受阻；iOS 15 最低系统、iPad 多窗口、Android 模拟器与 Android 真机未验收。
-- 真实 BYOK 请求、双 Mac Google Drive 并发与断网恢复、生产签名公证安装包、更新器升级未执行。
+- 真实 BYOK 请求、双 Mac 云同步并发与断网恢复、生产签名公证安装包、更新器升级未执行。
 - 本轮没有复验完整图片/PDF流程、全部迁移与断电故障矩阵，也没有测得原生帧率、触摸延迟或低内存设备性能指标。
 
 ## 什么时候可以开源
@@ -104,6 +104,5 @@
 无需等待 iOS 14，也无需把所有正式安装包测试都做完才公开源码。
 维护者明确决定公开后，再执行[仓库可见性变更流程](../source-publication-readiness.md#visibility-change-sequence)。
 
-**正式二进制发布**：仍须完成[桌面 RC](desktop-alpha-release-candidate.md)、
-[双 Mac Drive (retired)](../client-onboarding-and-hosted-readiness.md)和移动端实际输入复验等相关门槛。
+**正式二进制发布**：按[发布流程](../releasing.md)的冒烟检查进行；移动端实际输入仍需复验。
 本轮结果不支持“所有平台已经完整验收”的发布声明。

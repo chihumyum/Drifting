@@ -239,7 +239,7 @@ describe('SQLite SyncEngine reducer materializer', () => {
       identity: identity(),
       clock: { nowMs: 100, nowIso: '2026-08-15T00:00:00.100Z' },
       kernel: nodeKernel(),
-      sourceObjectId: 'drive-object-1',
+      sourceObjectId: 'remote-object-1',
     }));
     expect(result.status).toBe('applied');
     expect(await db.select().from(BookNodeTable).where(eq(BookNodeTable.id, NODE_ID))).toMatchObject([
@@ -250,7 +250,7 @@ describe('SQLite SyncEngine reducer materializer', () => {
       { fieldKey: 'tuple:graph.position', changeSetId: changeSet.changeSetId, mutationIndex: 1 },
     ]);
     expect(await db.select().from(SyncApplyReceiptTable)).toMatchObject([
-      { changeSetId: changeSet.changeSetId, sourceObjectId: 'drive-object-1' },
+      { changeSetId: changeSet.changeSetId, sourceObjectId: 'remote-object-1' },
     ]);
     expect(await db.select().from(SyncChangeSetTable)).toMatchObject([
       { origin: 'remote', applyState: 'applied' },

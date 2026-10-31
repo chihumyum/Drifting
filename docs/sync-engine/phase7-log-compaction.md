@@ -179,9 +179,7 @@ paths against file-backed SQLite.
 ## Boundaries
 
 - Only payload v2 snapshots are installed; v1 packages wait for a v2 checkpoint.
-- Journal truncation runs only on pruning providers. A Drive generation keeps
-  its complete journal, which Drive-to-Hosted adoption needs; adoption still
-  rejects any generation with a reducer base.
+- Journal truncation runs only on pruning providers.
 - Below the floor a redelivered envelope is accepted as already applied
   without comparing bytes, because the stored row is gone. A different
   envelope reusing a covered writer sequence (for example a writer epoch

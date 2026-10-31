@@ -154,7 +154,7 @@ mod tests {
         for other in [
             "byok.openai",
             "oauth.openai-codex",
-            "sync.google-drive.credentials.a",
+            "sync.provider.credentials.a",
         ] {
             assert!(!allowed(
                 true,

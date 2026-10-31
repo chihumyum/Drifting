@@ -593,34 +593,34 @@
       }
     },
     "update": {
-      "kicker": "SIGNED UPDATES",
-      "title": "Install signed Alpha updates on your terms.",
-      "sub": "Drifting checks the public Alpha channel at most once every 24 hours after startup. Downloads and installation always require your confirmation.",
-      "current_version": "Installed version",
-      "channel_desc": "Apple Silicon · macOS 13+ · public Alpha channel",
-      "unavailable": "This development build has no compiled Alpha updater public key. Signed release builds enable update checks; installation is never allowed without signature verification.",
-      "check": "Alpha update",
+      "kicker": "UPDATES",
+      "title": "Install new versions when you choose.",
+      "sub": "After startup, Drifting checks GitHub for a new release at most once a day. Downloading and installing always wait for you.",
+      "current_version": "Current version",
+      "channel_desc": "Apple Silicon · macOS 13+",
+      "unavailable": "This build has no updater signing key, so it cannot check for updates. Releases downloaded from GitHub can.",
+      "check": "New version",
       "check_action": "Check for updates",
       "checking": "Checking…",
-      "no_update": "No newer signed Alpha update has been selected.",
+      "no_update": "You're up to date.",
       "available_version": "Drifting {{version}} is available",
-      "download": "Download and verify",
-      "downloading": "Downloading and verifying the updater signature…",
+      "download": "Download",
+      "downloading": "Downloading and verifying the signature…",
       "downloading_progress": "Downloading and verifying… {{progress}}%",
-      "install": "Install update…",
-      "confirm_install": "Install signed update",
-      "install_migration_safety": "If the new version needs to change local data, the next launch creates a verified SQLite safety snapshot and migrates an isolated candidate before activating it.",
+      "install": "Install and restart…",
+      "confirm_install": "Install and restart",
+      "install_migration_safety": "If the new version needs to upgrade local data, the next launch first makes a verified safety snapshot and switches over only after the migration passes its checks.",
       "dismiss": "Not now",
       "installing": "Saving and installing…",
       "save_failed": "Local changes could not be saved, so the update was not installed. Your writing is still open; try again in a moment.",
-      "error": "Updater stopped safely: {{error}}",
+      "error": "Update stopped: {{error}}",
       "states": {
-        "checking": "Reading the signed Alpha channel manifest…",
-        "available": "A signed update is ready to download.",
+        "checking": "Checking…",
+        "available": "Ready to download.",
         "downloading": "Downloading and verifying…",
-        "installing": "Saving local changes, installing, then relaunching…",
-        "ready": "The signed update is ready to install.",
-        "error": "The updater stopped without changing the installed app."
+        "installing": "Saving your changes and installing; Drifting restarts when done…",
+        "ready": "Downloaded and verified. Ready to install.",
+        "error": "Update stopped. The current version is unchanged."
       }
     },
     "privacy": {
@@ -912,7 +912,8 @@
         "installed": "{{client}} is configured. Reopen the client or restart its MCP server to load the connection; follow its tool approval prompts on first use.",
         "revoked": "Access revoked and automatically installed client configuration removed.",
         "revokedWarning": "Access revoked. The client configuration changed or could not be updated; remove this connection in your client."
-      }
+      },
+      "replayOnboarding": "Show the first-run guide again"
     },
     "agentLimits": {
       "title": "Run limits",
@@ -1405,6 +1406,11 @@
       "source": "Reader comment",
       "count": "{{count}} new comments",
       "single": "{{name}}: {{body}}"
+    },
+    "appUpdate": {
+      "source": "Updates",
+      "available": "Drifting {{version}} is available",
+      "installed": "Updated to Drifting {{version}}"
     }
   },
   "userMenu": {
@@ -1684,6 +1690,24 @@
       "pending": "This conversation is syncing. Continue when its history is ready.",
       "archive": "This display-only archive can be read but cannot be continued.",
       "conflict": "This conversation has missing or conflicting data and cannot be continued yet."
+    },
+    "onboarding": {
+      "connect": "Connect a model",
+      "try": "Try",
+      "experimental": "Experimental",
+      "getKey": "Get an API key",
+      "history": "Version history",
+      "saveFailed": "Could not save the key to the Keychain.",
+      "prompts": {
+        "commentChapter": "Leave two comments on “{{chapter}}”",
+        "tightenChapter": "Tighten the opening paragraph of “{{chapter}}”",
+        "relateElements": "Sort out how {{first}} and {{second}} are related",
+        "completeElement": "Fill in the details of “{{element}}”",
+        "extractElements": "Find the people and places in “{{chapter}}” and add them as elements",
+        "outline": "Sketch a three-act chapter outline",
+        "interview": "Ask me a few questions to shape this story",
+        "castCharacters": "Create three main characters"
+      }
     }
   },
   "voiceAgent": {

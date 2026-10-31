@@ -27,14 +27,20 @@ model context. Neither internal table is an author-visible branch mechanism.
 ## Capture and retention
 
 Existing Yjs persistence moments feed the history service: periodic/unload
-snapshots and Agent writes to closed documents. Byte-identical states are
-skipped. A future remote reducer may request the same local capture hook, but
+snapshots and Agent writes to closed documents. Every forward Agent prose
+write first records the state it is about to replace (reason `agent`), so each
+Agent change has a restore point: the runtime's `YjsProsePersistenceCoordinator.commit`
+captures the prepared base state before its write transaction, outside it and
+without ever failing the write, and the older `writeProseDoc` path (open editor,
+closed document, seed-only promotion) does the same before it mutates. The
+Agent panel's first run points there (`agent-onboarding.md`). Byte-identical
+states are skipped. A future remote reducer may request the same local capture hook, but
 the history row itself is never uploaded.
 
 - Periodic capture is limited to about one changed state per entity per 15
   minutes.
-- Close and restore safety captures bypass the interval but still deduplicate
-  unchanged state.
+- Close, restore and pre-Agent-write safety captures bypass the interval but
+  still deduplicate unchanged state.
 - Rows newer than 24 hours are thinned to the newest row per hour.
 - Older rows are thinned to the newest row per day.
 - Local history expires after 30 days.

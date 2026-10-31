@@ -267,8 +267,7 @@ export class ProductionSyncRuntimeSupervisor {
     const database = this.dependencies.database();
     await this.dependencies.reconcileNativeStorage(database);
     if (this.stopped || revision !== this.revision) return;
-    // Retained Drive bindings are recovery metadata, never an active App runtime.
-    const bindings = (await this.dependencies.listBindings(database)).filter(item => item.mode === 'hosted');
+    const bindings = await this.dependencies.listBindings(database);
     if (this.stopped || revision !== this.revision || bindings.length === 0) return;
 
     const mode = bindings[0]!.mode;

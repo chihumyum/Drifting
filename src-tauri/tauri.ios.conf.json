@@ -9,10 +9,7 @@
     "deep-link": {
       "mobile": [
         {
-          "scheme": [
-            "drifting",
-            "$(DRIFTING_GOOGLE_IOS_REVERSED_CLIENT_ID)"
-          ],
+          "scheme": ["drifting"],
           "appLink": false
         }
       ]
