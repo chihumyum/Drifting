@@ -760,8 +760,8 @@ describe('workspace surface language acceptance', () => {
       source('src/renderer/shells/desktop/views/DesktopBottomTimeline.tsx'),
     ];
 
-    const shell = block(controls, '.hover-card {', '}');
-    const edge = block(controls, '.hover-card::after {', '}');
+    const shell = block(controls, '.hover-card-surface {', '}');
+    const edge = block(controls, '.hover-card-surface::after {', '}');
 
     expect(css).not.toContain('--entity-hover-card-shadow');
     expect(hoverCard).toContain('<HoverCardShell');
@@ -771,7 +771,13 @@ describe('workspace surface language acceptance', () => {
     // The menus' piece of desk, rounded like the Agent composer, one size of words.
     expect(shell).toContain('background: var(--menu-surface-bg);');
     expect(shell).toContain('border-radius: 16px;');
-    expect(shell).toContain('box-shadow: 0 16px 30px -16px hsl(var(--shadow-ink) / 0.38);');
+    expect(shell).toContain('--hover-card-shadow: 0 16px 30px -16px hsl(var(--shadow-ink) / 0.38);');
+    expect(shell).toContain('box-shadow: var(--hover-card-shadow);');
+    // Its sections are parted by the menus' own hairline.
+    expect(block(controls, '.hover-card__section + .hover-card__section::before {', '}')).toContain('background: var(--menu-separator);');
+    // The cards a press opens wear the same surface.
+    expect(source('src/renderer/components/graph/RelationEdgePopover.tsx')).toContain('hover-card-surface');
+    expect(source('src/renderer/shells/desktop/components/SuperElementIsland.tsx')).toContain("mode === 'peek' ? ' hover-card-surface' : ''");
     expect(shell).toContain('font-size: var(--ui-font-secondary, 13px);');
     expect(shell).not.toContain('0.5px');
     // Its edge is the resting thin glass line, standing still.

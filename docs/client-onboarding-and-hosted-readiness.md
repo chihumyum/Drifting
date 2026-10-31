@@ -25,18 +25,9 @@
 5. **Hosted 与独立恢复的组合尚有缺口。** 登录会上传整个本地书库；先本地试用、后登录的边界必须让用户看懂。完整备份当前不能直接覆盖云端绑定资料库，投影不能被宣传成完整备份。需要独立的账号备份/导出恢复路径、两客户端离线合并及新设备恢复验收。
 6. **运营与发布文案需形成同一契约。** 客户端已有配额、删除、重试与本地持久化，但生产服务的备份异地性、恢复演练、告警、滥用控制、可用性及支持入口没有在本次核验。服务端仍独立运营，不应把客户端开源描述成已经提供 Hosted SLA。收费、Hosted AI 也不属于当前客户端能力。
 
-## 本次清理边界
-
-- 删除 Google Drive provider、原生 OAuth/传输命令、iOS/Android SDK 插件、连接/撤销/恢复组合、专用 UI/进度样式、诊断、文案、脚本和 Drive 专用验收文档；Hosted 共用 provisioning 改为 `sync/provision/hosted-runtime.ts`。
-- 删除独立 `native/apple` 前端、`drifting-apple-bridge`、实验构建脚本、fixture 生成器、迁移验收和 CI 作业。历史可从 Git 与 `apple-native-paused-2026-09-29` 标签找回。
-- 保留 Tauri 的 Apple 系统适配、iOS 工程、ImageIO、Keychain、签名支持，以及 Tauri 仍依赖的 `drifting-core`、`drifting-document`、`drifting-prose`。iOS 的共享配置改名为 `LocalBuild.xcconfig`，仅继续处理签名和 Hosted origin。
-- 共享 prose journal 的跨语言合成 fixture 和生成器已迁到核心测试目录与 `scripts/prose-journal-oracle.ts`，由 `pnpm core:test` 核验；不再依赖 Apple 实验文档。
-- 不改任何已发布迁移，不清空资料库，不联系 Drive，不撤销旧授权、不删除云端副本。已有 Drive provider 枚举、旧凭据的安全存储保留前缀、历史恢复记录和 `hosted/adopt-drive.ts` 仅用于读旧库与安全接管已保存的本地副本；它们不能恢复 Drive 同步。
-- 当前实现、文档和自动化检查收敛为 Tauri + 可选 Hosted。发布契约维持暂停；本次清理提交不启用发布工作流或发布安装包。
-
 ## 可复现证据
 
-`architecture/retired-client-integrations.acceptance.test.ts` 检查已退役执行入口与构建命令不存在、共享 Rust 与数据库基线仍在。`hosted/adopt-drive.integration.test.ts` 和 Hosted HTTP/SQLite 集成测试继续覆盖旧库接管、保留隔离数据、失败回滚、新设备恢复与本地内容安全。`pnpm hosted:acceptance` 重新生成 [当前客户端证据](hosted-sync/acceptance/client.json)，`pnpm hosted:acceptance --check` 核验源码指纹。
+Hosted HTTP/SQLite 集成测试覆盖保留隔离数据、失败回滚、新设备恢复与本地内容安全。`pnpm hosted:acceptance` 重新生成 [当前客户端证据](hosted-sync/acceptance/client.json)，`pnpm hosted:acceptance --check` 核验源码指纹。
 
 这些检查不等于真实账号注册、邮件送达、原生输入体验、签名安装、生产部署或升级验收。
 

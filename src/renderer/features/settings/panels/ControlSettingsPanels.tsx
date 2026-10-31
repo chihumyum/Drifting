@@ -2,7 +2,7 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { exportAllProjectsAsRelationalMarkdown } from '../../../services/export/relational-markdown.service';
-import { UPDATE_LOCAL_SAVE_FAILED, UpdateService } from '../../../services/update/update-service';
+import { installedUpdateFor, UPDATE_LOCAL_SAVE_FAILED, UpdateService } from '../../../services/update/update-service';
 import { createSanitizedDiagnosticSummary } from '../../../services/diagnostics/sanitized-summary';
 import {
   SHORTCUT_ACTIONS,
@@ -11,6 +11,7 @@ import {
 } from '../../../store/shortcuts-store';
 import { acceleratorFromEvent, formatAccelerator } from '../../../lib/shortcuts';
 import { events } from '../../../lib/events';
+import { APP_CONFIG } from '../../../lib/config';
 import { platform } from '../../../platform';
 import { getPlatformRuntime } from '../../../platform/runtime';
 import { useProductSyncAuthority } from '../../../sync/product-authority-react';
@@ -300,6 +301,9 @@ export function UpdatePanel({ registerRef }: { registerRef: SettingsRegisterRef 
       ? Math.min(100, Math.round((update.downloadedBytes / update.totalBytes) * 100))
       : null;
 
+  const currentVersion = getPlatformRuntime().appInfo?.version ?? null;
+  const installed = currentVersion ? installedUpdateFor(currentVersion) : null;
+
   return (
     <section className="set-panel" ref={registerRef} id="updates">
       <SettingsPanelHeader
@@ -310,12 +314,10 @@ export function UpdatePanel({ registerRef }: { registerRef: SettingsRegisterRef 
 
       <SettingsRow
         label={t('settings.update.current_version')}
-        desc={t('settings.update.channel_desc')}
-        control={
-          <span className="set-mono">
-            {getPlatformRuntime().appInfo?.version ?? '0.1.0-alpha.1'} · Alpha
-          </span>
-        }
+        desc={installed?.notes
+          ? <span className="set-update-notes">{installed.notes}</span>
+          : t('settings.update.channel_desc')}
+        control={<span className="set-mono">{currentVersion ?? '—'}</span>}
       />
 
       {!updaterAvailable ? (
@@ -329,7 +331,7 @@ export function UpdatePanel({ registerRef }: { registerRef: SettingsRegisterRef 
                 : t('settings.update.check')
             }
             desc={
-              update.update?.notes ||
+              (update.update?.notes && <span className="set-update-notes">{update.update.notes}</span>) ||
               (update.phase === 'idle'
                 ? t('settings.update.no_update')
                 : t(`settings.update.states.${update.phase}`))
@@ -490,7 +492,7 @@ export function PrivacyPanel({ registerRef }: { registerRef: SettingsRegisterRef
         label={t('settings.privacy.fullPolicy')}
         desc={<span className="set-mono">{t('settings.privacy.lastUpdated')}</span>}
         control={
-          <SettingsButton outbound onClick={() => void platform.material.openExternal('https://drifting.app/privacy')}>
+          <SettingsButton outbound onClick={() => void platform.material.openExternal(APP_CONFIG.PRIVACY_URL)}>
             {t('settings.common.open_in_browser')}
           </SettingsButton>
         }
@@ -603,7 +605,7 @@ export function AboutPanel({ registerRef }: { registerRef: SettingsRegisterRef }
           label={<span className="set-italic">{t('settings.about.knownIssues')}</span>}
           desc={t('settings.about.knownIssuesDesc')}
           control={
-            <SettingsButton outbound onClick={open('https://drifting.app/known-issues')}>
+            <SettingsButton outbound onClick={open('https://github.com/chihumyum/Drifting/blob/main/KNOWN_ISSUES.md')}>
               {t('settings.common.open_in_browser')}
             </SettingsButton>
           }
@@ -616,16 +618,16 @@ export function AboutPanel({ registerRef }: { registerRef: SettingsRegisterRef }
           label={t('settings.about.support')}
           desc={t('settings.about.supportDesc')}
           control={
-            <SettingsButton outbound onClick={open('https://drifting.app/support')}>
+            <SettingsButton outbound onClick={open(APP_CONFIG.SUPPORT_URL)}>
               {t('settings.common.open_in_browser')}
             </SettingsButton>
           }
         />
         <SettingsRow
           label={t('settings.about.emailTeam')}
-          desc={<span className="set-mono">hi@drifting.app</span>}
+          desc={<span className="set-mono">{APP_CONFIG.SUPPORT_EMAIL}</span>}
           control={
-            <SettingsButton outbound onClick={open('mailto:hi@drifting.app')}>
+            <SettingsButton outbound onClick={open(`mailto:${APP_CONFIG.SUPPORT_EMAIL}`)}>
               {t('settings.about.writeEmail')}
             </SettingsButton>
           }
@@ -634,7 +636,7 @@ export function AboutPanel({ registerRef }: { registerRef: SettingsRegisterRef }
           label={t('settings.about.submitFeedback')}
           desc={t('settings.about.submitFeedbackDesc')}
           control={
-            <SettingsButton outbound onClick={open('mailto:hi@drifting.app?subject=Drifting%20Alpha%20Feedback')}>
+            <SettingsButton outbound onClick={open(`mailto:${APP_CONFIG.SUPPORT_EMAIL}?subject=${encodeURIComponent('Drifting feedback')}`)}>
               {t('settings.about.feedback')}
             </SettingsButton>
           }

@@ -82,12 +82,12 @@ async function addCommitMarker(
   });
 }
 
-async function connectGoogle(input: Awaited<ReturnType<typeof setup>>) {
+async function connectHosted(input: Awaited<ReturnType<typeof setup>>) {
   const attempt = await input.repository.begin({
-    targetMode: 'google-drive',
-    accountSubjectId: 'google-subject',
-    credentialSecretRef: 'secret:google',
-    attemptId: 'connect-google',
+    targetMode: 'hosted',
+    accountSubjectId: 'hosted-subject',
+    credentialSecretRef: 'secret:hosted',
+    attemptId: 'connect-hosted',
     nowIso: NOW,
   });
   for (const generation of attempt.generations) {
@@ -102,11 +102,11 @@ async function connectGoogle(input: Awaited<ReturnType<typeof setup>>) {
   }
   await input.repository.complete({
     attemptId: attempt.attemptId,
-    providerAccountId: 'google-account',
+    providerAccountId: 'hosted-account',
     bindings: attempt.generations.map((generation) => ({
       syncGenerationId: generation.sourceSyncGenerationId,
-      providerNamespace: 'appDataFolder',
-      providerGenerationRef: `syncdrive:${generation.sourceSyncGenerationId}`,
+      providerNamespace: 'project-v1',
+      providerGenerationRef: `hosted:${generation.sourceSyncGenerationId}`,
     })),
     nowIso: NOW,
   });
@@ -123,19 +123,19 @@ afterEach(async () => {
 describe('App-wide SyncEngine provider authority repository', () => {
   it('activates every local project immediately after its genesis marker is durable', async () => {
     const input = await setup();
-    await connectGoogle(input);
+    await connectHosted(input);
 
     expect(await input.repository.read()).toMatchObject({
-      mode: 'google-drive',
+      mode: 'hosted',
       generation: 2,
       transitionState: 'stable',
     });
     expect(await input.db.select().from(SyncProviderAccountTable)).toMatchObject([
       {
-        id: 'google-account',
-        providerKind: 'google-drive',
-        accountSubjectId: 'google-subject',
-        credentialSecretRef: 'secret:google',
+        id: 'hosted-account',
+        providerKind: 'hosted',
+        accountSubjectId: 'hosted-subject',
+        credentialSecretRef: 'secret:hosted',
       },
     ]);
     expect(
@@ -146,11 +146,11 @@ describe('App-wide SyncEngine provider authority repository', () => {
     ).toEqual([
       {
         syncGenerationId: 'sync-generation-a',
-        providerGenerationRef: 'syncdrive:sync-generation-a',
+        providerGenerationRef: 'hosted:sync-generation-a',
       },
       {
         syncGenerationId: 'sync-generation-b',
-        providerGenerationRef: 'syncdrive:sync-generation-b',
+        providerGenerationRef: 'hosted:sync-generation-b',
       },
     ]);
     expect(input.gateway.database.prepare('PRAGMA foreign_key_check').all()).toEqual([]);
@@ -159,9 +159,9 @@ describe('App-wide SyncEngine provider authority repository', () => {
   it('keeps activation atomic when any project binding is omitted', async () => {
     const input = await setup();
     const attempt = await input.repository.begin({
-      targetMode: 'google-drive',
-      accountSubjectId: 'google-subject',
-      credentialSecretRef: 'secret:google',
+      targetMode: 'hosted',
+      accountSubjectId: 'hosted-subject',
+      credentialSecretRef: 'secret:hosted',
       attemptId: 'incomplete-connect',
       nowIso: NOW,
     });
@@ -182,7 +182,7 @@ describe('App-wide SyncEngine provider authority repository', () => {
         bindings: [
           {
             syncGenerationId: 'sync-generation-a',
-            providerNamespace: 'appDataFolder',
+            providerNamespace: 'project-v1',
             providerGenerationRef: null,
           },
         ],
@@ -196,12 +196,32 @@ describe('App-wide SyncEngine provider authority repository', () => {
     ).toEqual(['committed', 'committed']);
   });
 
+  it('refuses a retired Google Drive target in the database even if the type is bypassed', async () => {
+    const input = await setup();
+    await expect(
+      input.repository.begin({
+        targetMode: 'google-drive' as never,
+        accountSubjectId: 'drive-subject',
+        credentialSecretRef: 'secret:drive',
+        nowIso: NOW,
+      }),
+    ).rejects.toMatchObject({
+      cause: expect.objectContaining({ message: 'Google Drive sync is retired' }),
+    });
+    expect(await input.repository.read()).toMatchObject({
+      mode: 'local',
+      generation: 1,
+      transitionState: 'stable',
+    });
+    expect(await input.db.select().from(SyncConnectGenerationAttemptTable)).toEqual([]);
+  });
+
   it('disconnects without deleting local projects, journals, or sync generations', async () => {
     const input = await setup();
-    await connectGoogle(input);
+    await connectHosted(input);
     await input.db.insert(SyncCursorTable).values({
       syncGenerationId: 'sync-generation-a',
-      providerEpoch: 'drive-v1',
+      providerEpoch: 'hosted-v1',
       committedCursor: 'cursor-1',
       inventoryComplete: true,
       updatedAt: NOW,
@@ -209,7 +229,7 @@ describe('App-wide SyncEngine provider authority repository', () => {
 
     const attempt = await input.repository.begin({
       targetMode: 'local',
-      attemptId: 'disconnect-google',
+      attemptId: 'disconnect-hosted',
       nowIso: LATER,
     });
     for (const generation of attempt.generations) {
@@ -242,7 +262,7 @@ describe('App-wide SyncEngine provider authority repository', () => {
 
   it('mounts a detached active generation by its unique terminal journal project identity', async () => {
     const input = await setup();
-    await connectGoogle(input);
+    await connectHosted(input);
     const purge = new SyncChangeBuilder();
     purge.add({
       action: 'sync-generation.purge',

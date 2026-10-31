@@ -277,13 +277,13 @@ async function createDatabase(deviceId: string, connectMarker?: RemoteObject): P
       (attempt_id, authority_generation, kind, target_mode,
        target_account_subject_id, target_credential_secret_ref,
        state, created_at, updated_at)
-     VALUES ('connect-google', 1, 'connect', 'google-drive',
+     VALUES ('connect-hosted', 1, 'connect', 'hosted',
              'shared-test-account', ?, 'preparing', ?, ?)`,
   ).run(`secret-ref-${deviceId}`, NOW, NOW);
   gateway.database.prepare(
     `UPDATE sync_app_authority
-     SET transition_state = 'connecting', target_mode = 'google-drive',
-         attempt_id = 'connect-google', updated_at = ?
+     SET transition_state = 'connecting', target_mode = 'hosted',
+         attempt_id = 'connect-hosted', updated_at = ?
      WHERE id = 'app'`,
   ).run(NOW);
   const connectMarkerRowId = connectMarker
@@ -308,22 +308,22 @@ async function createDatabase(deviceId: string, connectMarker?: RemoteObject): P
   gateway.database.prepare(
     `INSERT INTO sync_connect_generation_attempt
       (attempt_id, source_sync_generation_id, commit_marker_object_id, state, created_at, updated_at)
-     VALUES ('connect-google', ?, ?, 'committed', ?, ?)`,
+     VALUES ('connect-hosted', ?, ?, 'committed', ?, ?)`,
   ).run(SYNC_GENERATION_ID, connectMarkerRowId, NOW, NOW);
   gateway.database.prepare(
     `UPDATE sync_connect_generation_attempt
      SET state = 'activated', activation_receipt = 'test-activation',
          activated_at = ?, updated_at = ?
-     WHERE attempt_id = 'connect-google' AND source_sync_generation_id = ?`,
+     WHERE attempt_id = 'connect-hosted' AND source_sync_generation_id = ?`,
   ).run(NOW, NOW, SYNC_GENERATION_ID);
   gateway.database.prepare(
     `UPDATE sync_connect_attempt
      SET state = 'completed', completed_at = ?, updated_at = ?
-     WHERE attempt_id = 'connect-google'`,
+     WHERE attempt_id = 'connect-hosted'`,
   ).run(NOW, NOW);
   gateway.database.prepare(
     `UPDATE sync_app_authority
-     SET mode = 'google-drive', generation = 2, transition_state = 'stable',
+     SET mode = 'hosted', generation = 2, transition_state = 'stable',
          target_mode = NULL, attempt_id = NULL, updated_at = ?
      WHERE id = 'app'`,
   ).run(NOW);
@@ -331,7 +331,7 @@ async function createDatabase(deviceId: string, connectMarker?: RemoteObject): P
     `INSERT INTO sync_provider_account
       (id, singleton_key, authority_id, provider_kind, authority_generation,
        account_subject_id, credential_secret_ref, created_at, updated_at)
-     VALUES (?, 1, 'app', 'google-drive', 2, 'shared-test-account', ?, ?, ?)`,
+     VALUES (?, 1, 'app', 'hosted', 2, 'shared-test-account', ?, ?, ?)`,
   ).run(`provider-account-${deviceId}`, `secret-ref-${deviceId}`, NOW, NOW);
   await db.insert(SyncProviderBindingTable).values({
     syncGenerationId: SYNC_GENERATION_ID,
@@ -1352,7 +1352,7 @@ describe('SQLite durable SyncEngine runtime', () => {
     expectHealthy(reader);
   });
 
-  it('recovers an expired lowercase Drive-style pending inventory page token', async () => {
+  it('recovers an expired lowercase-coded pending inventory page token', async () => {
     const folderRoot = await mkdtemp(path.join(tmpdir(), 'drifting-engine-expired-page-'));
     temporaryDirectories.push(folderRoot);
     const publisherObjects = new MemoryProviderLocalObjectStore();

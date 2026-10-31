@@ -9,7 +9,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { workspaceUrlFor } from '../../features/workspace/navigation/workspace-route';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { BrushIcon } from '../ui/BrushIcon';
@@ -59,6 +59,7 @@ function relTime(
 function sourceLabel(n: AppNotification, t: (key: string, options?: Record<string, unknown>) => string): string {
   if (n.source === 'agent-organize') return t('notifications.organize.source');
   if (n.source === 'markdown-folder') return t('notifications.markdownFolder.source');
+  if (n.source === 'app-update') return t('notifications.appUpdate.source');
   return t(n.source === 'share-comment' ? 'notifications.shareComments.source' : 'notifications.cloudSync.source');
 }
 
@@ -257,8 +258,14 @@ function NotificationCenter({
   const setCenterOpen = useNotificationStore((s) => s.setCenterOpen);
   const { projectId, navigateToNode, navigateToHome } = useProjectNavigation();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const onRowClick = (n: AppNotification) => {
+    if (n.settingsSection) {
+      navigate(`/settings?section=${n.settingsSection}`, { state: { from: `${location.pathname}${location.search}` } });
+      setCenterOpen(false);
+      return;
+    }
     if (n.projectHomeId) {
       if (n.projectHomeId === projectId) navigateToHome();
       else navigate(`/project/${n.projectHomeId}`);
@@ -305,7 +312,7 @@ function NotificationCenter({
                 'menu-surface__item',
                 'notification-row',
                 n.read ? '' : 'is-unread',
-                n.chapterId || n.target || n.projectHomeId ? '' : 'is-static',
+                n.chapterId || n.target || n.projectHomeId || n.settingsSection ? '' : 'is-static',
               ]
                 .filter(Boolean)
                 .join(' ')}
@@ -317,7 +324,7 @@ function NotificationCenter({
                 <div className="notification-row__meta">
                   <span className="notification-row__source">
                     <BrushIcon
-                      name={n.source === 'share-comment' ? 'comment' : n.source === 'agent-organize' ? 'shikigami' : n.source === 'markdown-folder' ? 'both-ways' : 'cloud'}
+                      name={n.source === 'share-comment' ? 'comment' : n.source === 'agent-organize' ? 'shikigami' : n.source === 'markdown-folder' ? 'both-ways' : n.source === 'app-update' ? 'rotate' : 'cloud'}
                       size={12}
                     />
                     {sourceLabel(n, t)}

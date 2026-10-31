@@ -75,5 +75,5 @@ pnpm exec vitest run \
 Machine-readable evidence:
 [`acceptance/phase1-remote-yjs-live-merge.json`](acceptance/phase1-remote-yjs-live-merge.json).
 
-This acceptance is local/file-backed. It does not claim a real Google Drive
+This acceptance is local/file-backed. It does not claim a real cloud
 account or physical desktop/iOS/Android convergence run.

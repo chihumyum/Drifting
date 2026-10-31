@@ -23,7 +23,7 @@
 keys, Agent-facing labels, and this contract. It also scans renderer source and durable
 documentation so retired Chinese labels cannot silently return to the active app, and
 checks English locale values for retired feature labels independently of internal keys.
-Historical QA reports and the paused Apple-native archive retain their original wording;
+Historical QA reports retain their original wording;
 input parsing retains the explicitly listed legacy aliases.
 
 Run it with:

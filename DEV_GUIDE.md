@@ -85,8 +85,8 @@ Keychain/Keystore 凭据或真实稿件。关系型 Markdown 导出的能力与�
 `0.1.x` 版本必须按顺序升级更早的公开 `0.1.x` 数据，已发布的迁移不可改写。当前
 基线的数据库应予保留；只有基线之前的 pre-Alpha 开发库不属于受支持的迁移人群，
 应备份后重置，不要为其添加 fallback read、双写或搬运器。这项规则以
-[AGENTS.md](AGENTS.md) 的 `Public Alpha compatibility policy` 与
-[docs/alpha-release-contract.md](docs/alpha-release-contract.md) 为准。
+[AGENTS.md](AGENTS.md) 的 `Public Alpha compatibility policy` 为准；发布流程见
+[docs/releasing.md](docs/releasing.md)。
 
 ## 网络与兼容服务
 
@@ -101,7 +101,7 @@ VITE_AI_TRANSPORT=direct
 `LOCAL_ONLY_MODE` 只关闭 Drifting-compatible hosted service。网络按
 `hosted-service`、`byok-provider` 与 `agent-extension` 分类；
 用户明确选择的 BYOK provider 及已配置的远程 Agent extension 仅在设备在线时可用。
-素材不再抓取网页元数据或远程预览图（URL 素材已于 2026-10 退役）。Hosted 是唯一支持的同步 provider。Google Drive 同步与独立 Apple 原生前端已经退役。公开仓库不包含兼容服务实现；需要自建服务的 operator 应先阅读
+素材不再抓取网页元数据或远程预览图（URL 素材已于 2026-10 退役）。Hosted 是唯一的同步 provider。公开仓库不包含兼容服务实现；需要自建服务的 operator 应先阅读
 [official-service.md](docs/official-service.md)，并自行配置 API origin、CSP、隐私政策与
 凭据。
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { canonicalWordCount, isDrift, type BookNode } from '../../domain/book-node';
 import type { NodeContent } from '../../domain/node-content';
@@ -16,6 +16,10 @@ import { BrushIcon } from '../ui/BrushIcon';
 import { Button } from '../ui/Button';
 import { KindMark } from '../ui/KindMark';
 import { getPlatformRuntime } from '../../platform/runtime';
+import { HoverCardActions } from '../ui/HoverCard';
+import { EntityHoverCardHead } from '../../features/entities/hover/EntityHoverCard';
+import { buildEntityHoverCardContent } from '../../features/entities/hover/entity-hover-card-model';
+import { useDataStoreFields } from '../../store/use-data-store-fields';
 
 const log = loglevel.getLogger('NodeCardPopover');
 log.setLevel(loglevel.levels.WARN);
@@ -55,6 +59,22 @@ export function NodeCardPopover({
   const activeNodeIdRef = useRef(node.id);
 
   const { updateNodeSummary, renameNode } = useBookNode({ projectId, userId });
+  // The card's head reads like every hover card's: the same mark, title,
+  // count and storylines, from the hydrated store.
+  const headState = useDataStoreFields(
+    'bookNodes',
+    'bookElements',
+    'bookElementCategories',
+    'storylines',
+    'nodeStorylineMapping',
+    'primaryStorylineByNode',
+    'storylineNodeMapping',
+    'driftGroups',
+  );
+  const head = useMemo(
+    () => buildEntityHoverCardContent({ kind: 'node', id: node.id }, headState, t),
+    [headState, node.id, t],
+  );
   const { getContentByNodeId } = useBookContent({
     projectId,
     userId,
@@ -199,11 +219,50 @@ export function NodeCardPopover({
       ? t('common.counting')
       : t('nodeCardPopover.wordSync', { count: canonicalWordCount(node) });
 
-  // Desktop: a floating layer (the menu shell) with no rules: the chapter's
-  // own seal before its title, the summary in the multi-line field's slip,
-  // 展开编辑 as a text button and 在编辑器中打开 the only primary button.
-  // Expanded, the text is a sheet of page colour inside the shell. The
-  // paused mobile shell keeps the bordered card below.
+  // Desktop: the card is the hover card's own (one rounded desk card edged in
+  // resting glass): the chapter's head, its summary written in place on a
+  // slip of paper, then 展开编辑 and 在编辑器中打开 as rows. Expanded, the
+  // text is a sheet of page colour inside the menu shell over the desk's
+  // mist. The paused mobile shell keeps the bordered card below.
+  if (!getPlatformRuntime().isMobileShell && mode === 'default') {
+    return (
+      <EntityCardPopoverShell
+        mode={mode}
+        anchorRect={anchorRect}
+        popoverWidth={248}
+        estimatedHeight={220}
+        onClose={onClose}
+        ariaLabel={t('nodeCardPopover.aria.card')}
+        surface
+      >
+        <div className="hover-card__body">
+          {head && <EntityHoverCardHead content={head} />}
+          <label className="hover-card__slip">{summaryField}</label>
+        </div>
+        <HoverCardActions groups={[{
+          key: 'card',
+          actions: [
+            {
+              key: 'expand',
+              label: t('nodeCardPopover.expand'),
+              icon: { brush: 'arrow-out' },
+              keepOpen: true,
+              onSelect: () => setMode('upgrade'),
+            },
+            {
+              key: 'open',
+              label: t('nodeCardPopover.openInEditor'),
+              icon: { brush: 'arrow-forward' },
+              keepOpen: true,
+              onSelect: () => onOpenInEditor(node.id),
+            },
+          ],
+        }]} />
+      </EntityCardPopoverShell>
+    );
+  }
+
+  // Expanded: the text is a sheet of page colour in the menu shell.
   if (!getPlatformRuntime().isMobileShell) {
     const mark = isDrift(node)
       ? <KindMark kind="drift" color="hsl(var(--accent))" />
@@ -224,45 +283,26 @@ export function NodeCardPopover({
           <span className="entity-card__title" title={node.title || t('common.untitled')}>
             {node.title || t('common.untitled')}
           </span>
-          {mode === 'upgrade' && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setMode('default')}
-              title={t('nodeCardPopover.collapseTitle')}
-            >
-              <BrushIcon name="arrow-in" size={11} /> {t('nodeCardPopover.collapse')}
-            </Button>
-          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setMode('default')}
+            title={t('nodeCardPopover.collapseTitle')}
+          >
+            <BrushIcon name="arrow-in" size={11} /> {t('nodeCardPopover.collapse')}
+          </Button>
           {closeButton}
         </div>
-        {mode === 'default' ? (
-          <label className="entity-card__slip ui-field ui-field--area glass glass--rest glass--field">
-            {summaryField}
-          </label>
-        ) : (
-          <div className="entity-card__page">{editor}</div>
-        )}
+        <div className="entity-card__page">{editor}</div>
         <div className="entity-card__foot">
-          {mode === 'default' ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setMode('upgrade')}
-              title={t('nodeCardPopover.expandTitle')}
-            >
-              <BrushIcon name="arrow-out" size={11} /> {t('nodeCardPopover.expand')}
-            </Button>
-          ) : (
-            <span className="entity-card__meta">{wordSync}</span>
-          )}
+          <span className="entity-card__meta">{wordSync}</span>
           <Button
             variant="primary"
             size="sm"
             onClick={() => onOpenInEditor(node.id)}
             title={t('nodeCardPopover.openFullTitle')}
           >
-            {mode === 'default' ? t('nodeCardPopover.openInEditor') : t('nodeCardPopover.fullEditor')}
+            {t('nodeCardPopover.fullEditor')}
             <BrushIcon name="arrow-forward" size={11} />
           </Button>
         </div>

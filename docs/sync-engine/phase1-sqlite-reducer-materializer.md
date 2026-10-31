@@ -255,5 +255,5 @@ facades, Agent trash/restore for structural objects, explicit comment-action
 cascade, Agent-created comment and memory rejection, element-patch delete and
 incarnation-one restore, remote physical trash projections for tables without
 `deletedAt`, and late incarnation-zero Yjs/asset suppression. This milestone
-does not claim provider activation, Google account credentials, or real-device
-Google Drive acceptance.
+does not claim provider activation, account credentials, or real-device
+cloud acceptance.

@@ -17,6 +17,7 @@ import { installHostedDiscoveryRuntime } from '../../sync/hosted/runtime';
 import { installProductSyncAuthorityMonitor } from '../../sync/product-authority-store';
 import { events } from '../../lib/events';
 import { UpdateService } from '../../services/update/update-service';
+import { installUpdateNotifications } from '../../services/update/update-notifications';
 import { runAssetStoreRestartGc } from '../../services/asset-store-restart-gc';
 import { applyResolvedColorScheme } from '../../lib/initial-theme';
 import { reportIntegrityEvent } from '../../services/diagnostics/crash-reporter';
@@ -221,15 +222,20 @@ function RestoredProjectUiEffects() {
   return null;
 }
 
-function AlphaUpdaterEffects() {
+function UpdaterEffects() {
   useEffect(() => {
+    let stopNotifications: (() => void) | null = null;
     const check = () => {
+      stopNotifications ??= installUpdateNotifications();
       void UpdateService.check().catch((error) =>
-        log.warn('Automatic Alpha update check failed:', error),
+        log.warn('Automatic update check failed:', error),
       );
     };
     events.on('db:ready', check);
-    return () => events.off('db:ready', check);
+    return () => {
+      events.off('db:ready', check);
+      stopNotifications?.();
+    };
   }, []);
   return null;
 }
@@ -257,7 +263,7 @@ export function AppEffects() {
       <SyncEngineEffects />
       <RestoredProjectUiEffects />
       <AssetStoreRestartGcEffects />
-      <AlphaUpdaterEffects />
+      <UpdaterEffects />
     </>
   );
 }

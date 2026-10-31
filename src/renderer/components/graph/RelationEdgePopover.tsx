@@ -7,6 +7,7 @@ import { useRelationTypePresentation } from '../../hooks/useRelationTypePresenta
 import { BrushIcon } from '../ui/BrushIcon';
 import { Button } from '../ui/Button';
 import { KindMark } from '../ui/KindMark';
+import { HoverCardActions, HoverCardHeading } from '../ui/HoverCard';
 import type { KindMarkKind } from '../ui/kind-mark';
 import { computeAnchoredPopoverPosition } from '../ui/anchored-popover-position';
 import { getPlatformRuntime } from '../../platform/runtime';
@@ -86,53 +87,53 @@ export function RelationEdgePopover({
     return mark ? <KindMark kind={mark} seed={id} /> : null;
   };
 
-  // Desktop: the menu shell's rich form. The type is its sand dash, the
-  // direction a word of index type, each end its mark and name, nothing
-  // filled; delete is the danger button. The paused mobile shell keeps the
-  // rounded paper card below.
+  // Desktop: the hover card's own card (rounded desk card, resting glass
+  // edge): the type as its sand dash with the direction's word on the right,
+  // each end under its role as a key and its mark and name as the value, the
+  // description, then 删除关联 as the danger row.
   if (!getPlatformRuntime().isMobileShell) {
     return createPortal(
       <div
         ref={popoverRef}
-        className="relation-edge-popover relation-edge-popover--menu"
+        className="relation-edge-popover--card entity-card-popover--card hover-card-surface"
         data-relation-edge-popover
         role="dialog"
         aria-label={t('storyGraph.edge.detailsTitle')}
         style={{
-          position: 'fixed',
+          width: 248,
           top: position?.top ?? 0,
           left: position?.left ?? 0,
           visibility: position ? 'visible' : 'hidden',
         }}
         onPointerDown={(event) => event.stopPropagation()}
       >
-        <div className="relation-edge-popover__header">
-          <KindMark kind="storyline" color={color} />
-          <strong>{presentation.name}</strong>
-          <span className="relation-edge-popover__orientation">
-            {t(`relationTypes.${orientation}`)}
-          </span>
+        <div className="hover-card__body">
+          <HoverCardHeading
+            title={presentation.name}
+            mark={{ kind: 'storyline', color }}
+            index={t(`relationTypes.${orientation}`)}
+          />
+          <dl className="hover-card__kv">
+            <dt>{presentation.sourceRole}</dt>
+            <dd className="hover-card__tag">{sourceMark ?? endMark(relation.fromKind, relation.fromId)}{sourceLabel}</dd>
+            <dt>{presentation.targetRole}</dt>
+            <dd className="hover-card__tag">{targetMark ?? endMark(relation.toKind, relation.toId)}{targetLabel}</dd>
+          </dl>
+          {presentation.description && (
+            <div className="hover-card__text">{presentation.description}</div>
+          )}
         </div>
-        <div className="relation-edge-popover__flow">
-          <div>
-            <span>{presentation.sourceRole}</span>
-            <strong>{sourceMark ?? endMark(relation.fromKind, relation.fromId)}<span>{sourceLabel}</span></strong>
-          </div>
-          <b aria-hidden><BrushIcon name={flowIcon} size={15} /></b>
-          <div>
-            <span>{presentation.targetRole}</span>
-            <strong>{targetMark ?? endMark(relation.toKind, relation.toId)}<span>{targetLabel}</span></strong>
-          </div>
-        </div>
-        {presentation.description && (
-          <p className="relation-edge-popover__description">{presentation.description}</p>
-        )}
-        <div className="relation-edge-popover__actions">
-          <Button variant="danger" size="sm" onClick={onDelete}>
-            <BrushIcon name="trash" size={12} />
-            {t('storyGraph.edge.delete')}
-          </Button>
-        </div>
+        <HoverCardActions groups={[{
+          key: 'relation',
+          actions: [{
+            key: 'delete',
+            label: t('storyGraph.edge.delete'),
+            icon: { brush: 'trash' },
+            danger: true,
+            keepOpen: true,
+            onSelect: onDelete,
+          }],
+        }]} />
       </div>,
       document.body,
     );

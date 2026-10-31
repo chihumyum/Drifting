@@ -15,14 +15,13 @@ and whether a proof of concept contains sensitive data. The project aims to
 acknowledge a report within seven days; remediation and disclosure timing
 depend on severity and release constraints.
 
-BYOK and Google OAuth credentials are stored through platform secure storage,
-but a build using proxy AI transport sends the selected BYOK credential
-transiently to its configured service. Google OAuth and Google Drive are inside
-the optional sync trust boundary: Drifting does not end-to-end encrypt synced
-projects against Google and does not create an application-managed Project
-content key. HTTPS and Google's storage protections apply, but connecting or
-restoring is still a decision to trust the selected Google account and Google
-Drive with Project content. Google sign-in is the cross-device access
-authority; there is no recovery code or QR. See
+BYOK credentials and the Hosted session are stored through platform secure
+storage, but a build using proxy AI transport sends the selected BYOK credential
+transiently to its configured service. The Hosted service is inside the optional
+sync trust boundary: Drifting does not end-to-end encrypt synced projects and
+does not create an application-managed Project content key. HTTPS protects the
+transport, but signing in and syncing is a decision to trust the Hosted operator
+with Project content. The Hosted account is the cross-device access authority;
+there is no recovery code or QR. See
 [PRIVACY.md](PRIVACY.md) and [docs/official-service.md](docs/official-service.md)
 before enabling network features.

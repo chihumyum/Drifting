@@ -52,7 +52,6 @@ if (process.argv.includes('--check')) {
       'src/renderer/sync/hosted/project-deletion.integration.test.ts',
       'src/renderer/sync/provision/supervisor.test.ts',
       'src/renderer/sync/product-runtime-control.test.ts',
-      'src/renderer/sync/hosted/adopt-drive.integration.test.ts',
       'src/renderer/sync/hosted/connect.test.ts',
       'src/renderer/architecture/retired-client-integrations.acceptance.test.ts',
       'src/renderer/sync/production-runtime.test.ts',

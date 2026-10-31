@@ -12,7 +12,7 @@ The default build is local-only. It stores projects in local SQLite/Yjs data,
 uses OS secure storage for provider credentials, keeps imported assets and
 caches in the application data directory, and does not require an account or
 connect a cloud provider by default. Hosted account/sync features require an
-operator-configured build and explicit sign-in. Google Drive sync is retired.
+operator-configured build and explicit sign-in.
 Usage statistics default to off; this repository currently contains no production
 product-analytics uploader. Automatic fault diagnostics default to on in
 Hosted-capable builds and remain disabled by the public local-only network
@@ -95,11 +95,6 @@ projects and does not delete uploaded copies. Permanent Hosted project deletion
 requires an owning account and a verified service deletion receipt; service
 retention, backups and account access/deletion requests follow the operator's
 published policy. Offline failure retains local work.
-
-Google Drive OAuth, transport and controls have been removed. Previously stored
-Drive records and protected credentials are not automatically erased or revoked;
-the client can adopt the verified local replica into Hosted without contacting
-Drive, fetching unseen remote changes, or deleting the old remote copy.
 
 Local projects support readable Markdown exports and automatic read-only
 projection. A complete `.drifting` backup currently requires a stable local

@@ -88,7 +88,7 @@ export interface SyncProviderTransitionAttempt {
 
 export interface BeginSyncProviderTransitionInput {
   targetMode: SyncProviderMode;
-  /** Opaque Google/hosted subject identifier. Never an access token. */
+  /** Opaque Hosted account subject identifier. Never an access token. */
   accountSubjectId?: string;
   /** Native secure-storage reference. Never a bearer or refresh token. */
   credentialSecretRef?: string;
@@ -225,9 +225,8 @@ export async function resolveSyncGenerationAuthorityProjectId(
   return requireNonEmpty([...projectIds][0], 'detached project id');
 }
 
-function providerNamespace(mode: CloudSyncProviderMode): string {
-  return mode === 'google-drive' ? 'appDataFolder' : 'project-v1';
-}
+/** Hosted is the only cloud provider; its bindings live in one namespace. */
+const PROVIDER_NAMESPACE = 'project-v1';
 
 /**
  * Atomically records that a newly-created local SyncGeneration still needs its cloud
@@ -267,7 +266,7 @@ export async function stagePendingProviderBindingForNewSyncGenerationInTransacti
   await tx.insert(SyncProviderBindingTable).values({
     syncGenerationId: input.syncGenerationId,
     providerAccountId: account.id,
-    providerNamespace: providerNamespace(authority.mode as CloudSyncProviderMode),
+    providerNamespace: PROVIDER_NAMESPACE,
     providerGenerationRef: null,
     state: 'connecting',
     connectedAt: null,
@@ -463,7 +462,7 @@ async function completeTransitionInTransaction(
       await tx.insert(SyncProviderBindingTable).values({
         syncGenerationId: generation.syncGenerationId,
         providerAccountId,
-        providerNamespace: providerNamespace(completed.mode),
+        providerNamespace: PROVIDER_NAMESPACE,
         providerGenerationRef: null,
         state: 'connecting',
         connectedAt: null,
@@ -571,7 +570,7 @@ export function createSyncAppAuthorityRepository(
     },
 
     /**
-     * Add one authenticated remote SyncGeneration to an owned Google Drive connect transition.
+     * Add one authenticated remote SyncGeneration to an owned Hosted connect transition.
      * The SyncGeneration remains staged and project-less until snapshot restore validates
      * and materializes it. Replaying the exact registration is idempotent.
      */

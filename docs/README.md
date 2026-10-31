@@ -8,17 +8,13 @@ dated run reports are evidence for one checkout, not product truth.
 
 - [Sentry operational diagnostics and setup](sentry-observability.md)
 
-- [Frozen release contract](alpha-release-contract.md)
-- [Release runbook](desktop-alpha-release-runbook.md)
+- [Releasing (GitHub Releases, signing, updates)](releasing.md)
 - [`0.1.0-alpha.1` release notes](releases/0.1.0-alpha.1.md)
 - [Desktop quick start](quick-start.md)
-- [Signed desktop RC acceptance](qa/desktop-alpha-release-candidate.md)
 - [Known issues](../KNOWN_ISSUES.md)
 - [Support](../SUPPORT.md)
 
-The standalone Apple-native front-end and Google Drive sync were retired on
-2026-10-28. Tauri and Hosted are the active client/service path. The public
-release contract remains paused. See [onboarding and Hosted readiness](client-onboarding-and-hosted-readiness.md).
+Tauri and Hosted are the active client/service path. See [onboarding and Hosted readiness](client-onboarding-and-hosted-readiness.md).
 
 ## Start here
 
@@ -39,7 +35,6 @@ release contract remains paused. See [onboarding and Hosted readiness](client-on
 | What durable SyncEngine/reference convergence is complete? | [`sync-engine/phase3-durable-runtime.md`](sync-engine/phase3-durable-runtime.md)                                                                                      |
 | How is one App-wide provider activated atomically?         | [`sync-engine/phase3-app-provider-authority.md`](sync-engine/phase3-app-provider-authority.md)                                                                        |
 | What filesystem reference-provider durability is complete? | [`sync-engine/phase3-local-folder-provider.md`](sync-engine/phase3-local-folder-provider.md)                                                                          |
-| What SyncEngine product controls and gates exist?          | [`sync-engine/phase6-product-controls.md`](sync-engine/phase6-product-controls.md)                                                                                    |
 | What normalized KV/list/Plot Grid authority is complete?   | [`sync-engine/phase1-normalized-authority.md`](sync-engine/phase1-normalized-authority.md)                                                                            |
 | What does General Agent support now?                       | [`agent-runtime/acceptance/CURRENT_STATUS.md`](agent-runtime/acceptance/CURRENT_STATUS.md)                                                                            |
 | What tools and capability counts ship?                     | Generated [`agent-capabilities.md`](agent-runtime/acceptance/agent-capabilities.md) and [`agent-capabilities.json`](agent-runtime/acceptance/agent-capabilities.json) |
@@ -97,8 +92,6 @@ release contract remains paused. See [onboarding and Hosted readiness](client-on
 - [`sync-engine/phase3-local-folder-provider.md`](sync-engine/phase3-local-folder-provider.md)
   records the opaque-reference filesystem provider, conformance matrix and
   child-process SIGKILL durability evidence.
-- [`sync-engine/phase6-product-controls.md`](sync-engine/phase6-product-controls.md)
-  points to current Hosted controls and local recovery settings.
 - [`../src-tauri/UNSUPPORTED.md`](../src-tauri/UNSUPPORTED.md) defines explicit
   platform limitations.
 

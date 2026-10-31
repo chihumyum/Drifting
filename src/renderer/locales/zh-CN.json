@@ -560,34 +560,34 @@
       }
     },
     "update": {
-      "kicker": "签名更新 · UPDATES",
-      "title": "由你决定何时安装签名 Alpha 更新。",
-      "sub": "应用启动完成后，Drifting 最多每 24 小时检查一次公开 Alpha channel；下载和安装都必须由你确认。",
-      "current_version": "当前安装版本",
-      "channel_desc": "Apple Silicon · macOS 13+ · 公开 Alpha channel",
-      "unavailable": "这个开发构建没有编译 Alpha updater 公钥。签名 Release 构建会开放更新检查；没有通过签名校验时绝不会允许安装。",
-      "check": "Alpha 更新",
+      "kicker": "更新 · UPDATES",
+      "title": "新版本由你决定何时安装。",
+      "sub": "Drifting 启动后每天最多检查一次 GitHub 上发布的新版本；下载和安装都要你确认。",
+      "current_version": "当前版本",
+      "channel_desc": "Apple Silicon · macOS 13+",
+      "unavailable": "这个构建没有内置更新签名公钥，不能检查更新。从 GitHub Releases 下载的正式版可以。",
+      "check": "新版本",
       "check_action": "检查更新",
       "checking": "正在检查…",
-      "no_update": "当前没有选中的新版签名 Alpha 更新。",
+      "no_update": "已是最新版本。",
       "available_version": "Drifting {{version}} 可用",
-      "download": "下载并校验",
-      "downloading": "正在下载并校验 updater 签名…",
+      "download": "下载",
+      "downloading": "正在下载并校验签名…",
       "downloading_progress": "正在下载并校验… {{progress}}%",
-      "install": "安装更新…",
-      "confirm_install": "安装签名更新",
-      "install_migration_safety": "若新版本需要修改本地数据，下次启动会先创建经过校验的 SQLite 安全快照，只在隔离 candidate 中迁移并通过检查后才激活。",
+      "install": "安装并重启…",
+      "confirm_install": "安装并重启",
+      "install_migration_safety": "如果新版本需要升级本地数据，启动时会先做一份校验过的安全快照，迁移通过检查后才启用。",
       "dismiss": "暂不更新",
       "installing": "正在保存并安装…",
       "save_failed": "本地修改暂时没能保存，所以没有安装更新。正在写的内容仍然打开着，请稍后再试。",
-      "error": "更新器已安全停止：{{error}}",
+      "error": "更新已停止：{{error}}",
       "states": {
-        "checking": "正在读取签名 Alpha channel manifest…",
-        "available": "签名更新已可下载。",
+        "checking": "正在检查…",
+        "available": "可以下载。",
         "downloading": "正在下载并校验…",
-        "installing": "正在保存本地修改并安装，完成后自动重启…",
-        "ready": "签名更新已准备安装。",
-        "error": "更新器已停止，当前安装没有被修改。"
+        "installing": "正在保存修改并安装，完成后自动重启…",
+        "ready": "已下载并通过签名校验，可以安装。",
+        "error": "更新已停止，当前版本没有改动。"
       }
     },
     "privacy": {
@@ -1373,6 +1373,11 @@
       "source": "读者评论",
       "count": "{{count}} 条新评论",
       "single": "{{name}}：{{body}}"
+    },
+    "appUpdate": {
+      "source": "更新",
+      "available": "Drifting {{version}} 可以更新",
+      "installed": "已更新到 Drifting {{version}}"
     }
   },
   "userMenu": {

@@ -65,7 +65,7 @@ Allow the manifest's exact development origin in the operator's service CORS
 configuration when testing remote authentication. Do not enable wildcard CORS.
 
 Use only synthetic data in these profiles. A fresh profile starts without cloud
-bindings. Google Drive is temporarily suspended in all App builds. The launcher does not seed fixtures, grant MCP access or
+bindings. The launcher does not seed fixtures, grant MCP access or
 claim UI acceptance (`pnpm dev:seed` below seeds one). Configure test-owned MCP
 access from the isolated app if needed. Existing acceptance collectors keep their
 own fixture workflows.

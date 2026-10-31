@@ -1,3 +1,6 @@
+// Writes the Tauri updater manifest (latest.json) attached to a GitHub release.
+// The app polls releases/latest/download/latest.json, so publishing a release
+// is what offers it as an update.
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
@@ -12,7 +15,7 @@ const required = (key) => {
   return value;
 };
 const version = required('--version');
-if (!/^0\.1\.\d+-alpha\.\d+$/u.test(version)) throw new Error('Alpha version is invalid');
+if (!/^\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$/u.test(version)) throw new Error(`Version ${version} is not SemVer`);
 const url = new URL(required('--url'));
 if (url.protocol !== 'https:') throw new Error('Updater artifact URL must use HTTPS');
 const signature = fs.readFileSync(required('--signature-file'), 'utf8').trim();
@@ -21,7 +24,8 @@ const notesFile = values.get('--notes-file');
 const output = path.resolve(required('--output'));
 const manifest = {
   version,
-  notes: notesFile ? fs.readFileSync(notesFile, 'utf8').trim() : '',
+  // The release title already names the version; the app shows only the body.
+  notes: notesFile ? fs.readFileSync(notesFile, 'utf8').replace(/^# .*\n+/u, '').trim() : '',
   pub_date: new Date().toISOString(),
   platforms: {
     'darwin-aarch64': { signature, url: url.toString() },

@@ -5,7 +5,7 @@ assets except where a file or notice identifies a separate license. It does not
 grant trademark rights.
 
 “Drifting”, “Drifting Writing Studio”, the official Drifting logo and app icon,
-and official `drifting.app` / `drifting.cc` service identities are marks claimed
+and the official `drifting.cc` service identity are marks claimed
 by the project maintainer. No claim of registration is made by this document.
 
 You may use the word Drifting truthfully to identify this project, describe

@@ -44,14 +44,14 @@ async function setup() {
   const authorityRepository = createSyncAppAuthorityRepository(db);
   const authorityAttempt = await authorityRepository.begin({
     targetMode: 'hosted',
-    accountSubjectId: 'google-subject',
+    accountSubjectId: 'hosted-subject',
     credentialSecretRef: 'native:google-credential',
     attemptId: 'empty-cloud-connect',
     nowIso: NOW,
   });
   await authorityRepository.complete({
     attemptId: authorityAttempt.attemptId,
-    providerAccountId: 'google-account',
+    providerAccountId: 'hosted-account',
     bindings: [],
     nowIso: NOW,
   });

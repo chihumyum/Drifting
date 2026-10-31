@@ -60,7 +60,7 @@ function walkNpm(node) {
 for (const project of npm) walkNpm(project);
 
 const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
-const documentNamespace = `https://drifting.app/sbom/${packageJson.version}/${crypto.randomUUID()}`;
+const documentNamespace = `https://github.com/chihumyum/Drifting/sbom/${packageJson.version}/${crypto.randomUUID()}`;
 const rootId = 'SPDXRef-Drifting';
 const document = {
   spdxVersion: 'SPDX-2.3',
@@ -81,7 +81,7 @@ const document = {
       filesAnalyzed: false,
       licenseConcluded: 'AGPL-3.0-or-later',
       licenseDeclared: 'AGPL-3.0-or-later',
-      homepage: 'https://drifting.app',
+      homepage: 'https://github.com/chihumyum/Drifting',
     },
     ...[...packages.values()].sort((left, right) => left.name.localeCompare(right.name)),
   ],

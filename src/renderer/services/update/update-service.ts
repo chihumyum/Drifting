@@ -6,6 +6,8 @@ import { reportDiagnosticLog, reportIntegrityEvent } from '../diagnostics/crash-
 
 const AUTO_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1_000;
 const LAST_CHECK_KEY = 'drifting.alpha-updater.last-check.v1';
+/** The update being installed, so the relaunched version can say what changed. */
+const INSTALLED_UPDATE_KEY = 'drifting.updater.installed.v1';
 /** Published as `error` when local writes could not be saved before installing. */
 export const UPDATE_LOCAL_SAVE_FAILED = 'UPDATE_LOCAL_SAVE_FAILED';
 
@@ -68,6 +70,45 @@ function markAutomaticCheck(now: number): void {
     // A disabled preference store may cause another check next launch, but it
     // never weakens update signature verification or installation safety.
   }
+}
+
+export interface InstalledUpdate {
+  readonly version: string;
+  readonly notes: string | null;
+}
+
+function readInstalledUpdate(): (InstalledUpdate & { announced: boolean }) | null {
+  try {
+    const value = JSON.parse(localStorage.getItem(INSTALLED_UPDATE_KEY) ?? 'null') as unknown;
+    if (!value || typeof value !== 'object') return null;
+    const { version, notes, announced } = value as Record<string, unknown>;
+    if (typeof version !== 'string') return null;
+    return { version, notes: typeof notes === 'string' && notes.trim() ? notes : null, announced: announced === true };
+  } catch {
+    return null;
+  }
+}
+
+function writeInstalledUpdate(value: InstalledUpdate & { announced: boolean }): void {
+  try {
+    localStorage.setItem(INSTALLED_UPDATE_KEY, JSON.stringify(value));
+  } catch {
+    // Losing the record only skips the "updated" notice; installation is unaffected.
+  }
+}
+
+/** The installed update's notes, while the app still runs that version. */
+export function installedUpdateFor(version: string): InstalledUpdate | null {
+  const record = readInstalledUpdate();
+  return record?.version === version ? { version: record.version, notes: record.notes } : null;
+}
+
+/** The update this launch finished installing, returned once. */
+export function takeUnannouncedInstalledUpdate(version: string): InstalledUpdate | null {
+  const record = readInstalledUpdate();
+  if (!record || record.version !== version || record.announced) return null;
+  writeInstalledUpdate({ ...record, announced: true });
+  return { version: record.version, notes: record.notes };
 }
 
 async function check(options: { manual?: boolean } = {}): Promise<UpdateServiceState> {
@@ -149,6 +190,7 @@ async function install(): Promise<void> {
     throw new Error('The checked update is not ready to install');
   }
   if (activeOperation) throw new Error('Another updater operation is still running');
+  const update = state.update;
   const operation = (async () => {
     publish({ ...state, phase: 'installing', error: null });
     try {
@@ -164,6 +206,7 @@ async function install(): Promise<void> {
       try {
         // Native installs, then relaunches through the ordinary quit flush.
         reportDiagnosticLog('update-install-started');
+        writeInstalledUpdate({ version: update.version, notes: update.notes ?? null, announced: false });
         await platform.updater.install();
       } catch (error) {
         publish({ ...state, phase: 'error', error: errorMessage(error) });
