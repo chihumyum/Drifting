@@ -43,8 +43,8 @@ export interface CharSeaShape {
   radius: number;
   /**
    * Strength of the resting line: the app's resting glass is 0.85; 0 shows
-   * only what the water brings; below 0 no line at all, only the veil (the
-   * sea under it at 12%), for panels the sea passes under.
+   * only what the water brings (the sea under it at 12%); below 0 no line at
+   * all, only a veil showing the sea at -rest, for panels it passes under.
    */
   rest: number;
   /** Whether the pointer is on it (bleed in, unevenness drifting). */
@@ -94,6 +94,9 @@ const WORD_HEIGHT = 0.45;
 const WORD_RISE = 0.7;
 const WORD_BREATH = 2.6;
 const WORD_SWELL = 0.12;
+// Let go, the word's water is first raised this many times over: it bursts into
+// rings that reach the sidebars and the bottom bar.
+const WORD_BURST = 2.5;
 // Strength and size of the glass line, as materials.css draws it at rest.
 const GLASS_EDGE = 0.594; // --glass-edge 33% × 1.8
 const GLASS_TILE = 150;
@@ -119,8 +122,10 @@ void main(){
   vec3 col=uGround;
   // under what sits on the page the field shows at 12%
   float m=1.;
+  // (a veil, whose rest is below 0, shows it at -rest instead)
   for(int i=0;i<${MAX_SHAPES};i++){if(i>=uShapes)break;
-    m=min(m,mix(1.,.12,1.-smoothstep(0.,10.,sdBox(px,uShape[i],uShapeP[i].x))));}
+    float v=uShapeP[i].y<0.?-uShapeP[i].y:.12;
+    m=min(m,mix(1.,v,1.-smoothstep(0.,10.,sdBox(px,uShape[i],uShapeP[i].x))));}
   vec2 cf=(px-uOrigin)/uCell;vec2 ci=floor(cf);vec2 f=cf-ci;
   if(ci.x>=0.&&ci.y>=0.&&ci.x<uCells.x&&ci.y<uCells.y){
     vec2 cc=uOrigin+(ci+.5)*uCell;float hc=hAt(cc);vec2 sx=vec2(st.x,0.);vec2 sy=vec2(0.,st.y);
@@ -557,8 +562,8 @@ export function createCharSea(canvas: HTMLCanvasElement): CharSea | null {
 
   function letLoadingGo(): void {
     rain?.stop();
+    if (word.held) water?.hold(null, WORD_BURST);
     word.held = false;
-    water?.hold(null);
   }
 
   function frame(now: number): void {

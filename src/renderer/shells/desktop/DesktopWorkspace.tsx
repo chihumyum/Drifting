@@ -16,6 +16,8 @@ import { TimelineDrawer } from './TimelineDrawer';
 import { DesktopRightSidebar } from './DesktopRightSidebar';
 import { DesktopLeftSidebar } from './DesktopLeftSidebar';
 import { useInertUnderSuperView } from './useInertUnderSuperView';
+import { useWorkspaceOpening } from './useWorkspaceOpening';
+import { WorkspaceOpeningCover } from './WorkspaceOpeningCover';
 import { useOrganizeOnReturn } from '../../usecase/useProjectOrganize';
 
 interface DesktopWorkspaceProps {
@@ -57,6 +59,7 @@ export const DesktopWorkspace = memo(function DesktopWorkspace({
   if (dockPane && dockPane !== lastPane) setLastPane(dockPane);
   const rootRef = useRef<HTMLDivElement>(null);
   useInertUnderSuperView(rootRef);
+  useWorkspaceOpening(rootRef);
   useOrganizeOnReturn(projectId);
   return (
     <div ref={rootRef} className="app-root desktop-app-shell">
@@ -89,6 +92,7 @@ export const DesktopWorkspace = memo(function DesktopWorkspace({
         </Sidebar>
       </div>
       <WorkspaceSidebarToggles />
+      <WorkspaceOpeningCover />
     </div>
   );
 });

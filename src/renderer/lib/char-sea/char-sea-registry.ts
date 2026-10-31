@@ -24,13 +24,29 @@ export interface CharSeaHolds {
   surfaces: number;
 }
 
+/**
+ * A page handing the sea to the next (the shelf to the wait for the book it
+ * opened, one wait to the next) lets go and takes hold in the same commit, or
+ * a moment later. A wait that ends counts only after this, so its rain and
+ * word carry on.
+ */
+export const CHAR_SEA_HANDOVER_MS = 80;
+
 let holds: CharSeaHolds = { loading: 0, surfaces: 0 };
+// When the current run of loading holds began (handovers do not break it).
+let loadingSince: number | null = null;
+let loadingLetGoAt = 0;
 let nextId = 1;
 const shapes = new Map<number, CharSeaShapeEntry>();
 const holdListeners = new Set<() => void>();
 const shapeListeners = new Set<() => void>();
 
 function setHolds(next: CharSeaHolds): void {
+  const now = performance.now();
+  if (next.loading > 0 && holds.loading === 0 && (loadingSince === null || now - loadingLetGoAt > CHAR_SEA_HANDOVER_MS)) {
+    loadingSince = now;
+  }
+  if (next.loading === 0 && holds.loading > 0) loadingLetGoAt = now;
   holds = next;
   holdListeners.forEach((listener) => listener());
 }
@@ -46,6 +62,10 @@ export const charSeaRegistry = {
   },
   getHolds(): CharSeaHolds {
     return holds;
+  },
+  /** When the wait now holding the sea began (performance.now()), or null if none does. */
+  loadingSince(): number | null {
+    return holds.loading > 0 ? loadingSince : null;
   },
   /** Holds the sea on; the returned function lets go. */
   hold(kind: 'loading' | 'surface'): () => void {

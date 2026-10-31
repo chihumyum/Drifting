@@ -133,6 +133,29 @@ describe('the sea of characters', () => {
     expect(water.heights[centre]).toBeLessThan(0.2);
   });
 
+  it('bursts a held word into rings that reach the sides when it is let go', () => {
+    const reach = (burst: number) => {
+      const water = new CharSeaWater(960, 600);
+      const shape = new Float32Array(water.cols * water.rows);
+      for (let y = 36; y < 50; y += 1) for (let x = 30; x < 107; x += 1) if (Math.floor(x / 3) % 2 === 0) shape[y * water.cols + x] = 1;
+      water.hold(shape);
+      water.setHoldHeight(0.45);
+      for (let i = 0; i < CHAR_SEA_STEP_RATE * 1.5; i += 1) water.step();
+      water.hold(null, burst);
+      let peak = 0;
+      const side = Math.floor(300 / CHAR_SEA_WATER_CELL) * water.cols + Math.floor(60 / CHAR_SEA_WATER_CELL);
+      for (let i = 0; i < CHAR_SEA_STEP_RATE * 3; i += 1) {
+        water.step();
+        peak = Math.max(peak, Math.abs(water.heights[side]));
+      }
+      return peak;
+    };
+    const plain = reach(1);
+    const burst = reach(2);
+    expect(burst).toBeGreaterThan(plain * 1.8);
+    expect(burst).toBeGreaterThan(0.26);
+  });
+
   it('rains down about a third of the columns, breaks the drops the water knocks, and refills them', () => {
     const rain = new CharSeaRain(60, 40, seeded(7));
     const tick = (seconds: number, offRest: (col: number) => number) => {

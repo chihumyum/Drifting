@@ -123,9 +123,10 @@ describe('the sea of characters under the desktop window', () => {
     expect(component).toContain('const EBB_LIMIT_MS = 8000;');
     // Only a live sea feels the hand.
     expect(component).toContain("if (mode !== 'live') return undefined;");
-    // The sidebars veil it as the shelf's cards do, with no line of their own.
-    expect(component).toContain("const EBB_VEILS = '.desktop-app-shell .sidebar-shell:not(.is-fully-hidden)';");
-    expect(component).toContain('radius: 0, rest: -1, hover: false');
+    // The sidebars and the bottom bar show it at 50%, with no line of their own.
+    expect(component).toContain("const EBB_VEILS = '.desktop-app-shell .sidebar-shell:not(.is-fully-hidden), .desktop-app-shell .desktop-workspace-dock';");
+    expect(component).toContain('const EBB_VEIL = 0.5;');
+    expect(component).toContain('radius: 0, rest: -EBB_VEIL, hover: false');
     const engine = read('src/renderer/lib/char-sea/char-sea.ts');
     expect(engine).toContain('if (still || !water || ebbing) return;');
     expect(engine).toContain('const restTarget = ebbing ? 0 : 1;');
@@ -135,6 +136,27 @@ describe('the sea of characters under the desktop window', () => {
       /--workspace-ui-bg: transparent;[\s\S]*animation: char-sea-surface var\(--motion-structural\) ease-out both;/,
     );
     expect(css).toContain("html[data-char-sea='ebb'] .desktop-app-shell { animation: none; }");
+  });
+
+  it('opens a book only once its page is ready, then bursts the word into the workspace', () => {
+    const workspace = read('src/renderer/shells/desktop/DesktopWorkspace.tsx');
+    expect(workspace).toContain('useWorkspaceOpening(rootRef);');
+    expect(workspace).toContain('<WorkspaceOpeningCover />');
+    const opening = read('src/renderer/shells/desktop/useWorkspaceOpening.ts');
+    expect(opening).toContain('export const WORKSPACE_OPENING_LIMIT_MS = 2000;');
+    expect(opening).toContain("const release = charSeaRegistry.hold('loading');");
+    expect(opening).toContain('stopListening = onEditorStageReady(ready);');
+    // Shown, the wait stays until "Loading" is up; a book ready before it showed opens at once.
+    expect(opening).toContain('export const WORKSPACE_OPENING_SHOWN_MS = 600;');
+    expect(opening).toContain('if (performance.now() < shownAt || wait <= 0) finish();');
+    expect(read('src/renderer/components/editor/EditorMainArea.tsx')).toContain('announceEditorStageReady();');
+    const css = read('src/styles/char-sea.css');
+    expect(block(css, '.desktop-app-shell[data-opening] {', '}')).toMatch(/opacity: 0;[\s\S]*pointer-events: none;/);
+    expect(block(css, '.workspace-opening-cover {', '}')).toContain('pointer-events: auto;');
+    const engine = read('src/renderer/lib/char-sea/char-sea.ts');
+    expect(engine).toContain('const WORD_BURST = 2.5;');
+    expect(engine).toContain('if (word.held) water?.hold(null, WORD_BURST);');
+    expect(engine).toContain('float v=uShapeP[i].y<0.?-uShapeP[i].y:.12;');
   });
 
   it('is written down in the design system', () => {

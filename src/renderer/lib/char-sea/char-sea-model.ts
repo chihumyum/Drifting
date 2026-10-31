@@ -129,13 +129,22 @@ export class CharSeaWater {
   /**
    * Holds the water to a shape (each water cell's share of it, 0..1) raised to
    * `setHoldHeight`, by a spring with its own damping; null lets it go, and the
-   * shape spreads as rings. The spring's target is compensated with the same
-   * Laplacian and damping `step` uses, so at rest the water stands exactly at
+   * shape spreads as rings, its water first raised `burst` times so the rings
+   * carry further. The spring's target is compensated with the same Laplacian
+   * and damping `step` uses, so at rest the water stands exactly at
    * shape × height, and whatever knocks it settles back.
    */
-  hold(shape: Float32Array | null): void {
+  hold(shape: Float32Array | null, burst = 1): void {
     if (!shape) {
+      const held = this.held;
       this.held = null;
+      if (held && burst !== 1) {
+        for (let i = 0; i < held.inside.length; i += 1) {
+          if (!held.inside[i]) continue;
+          this.current[i] *= burst;
+          this.previous[i] *= burst;
+        }
+      }
       return;
     }
     const w = this.cols;

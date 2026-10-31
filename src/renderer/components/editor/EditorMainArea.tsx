@@ -41,6 +41,7 @@ import {
 } from './EditorSurfaceLifecycle';
 import { TrailingEditorPaneContext } from './editor-corner';
 import { TextInputLookupStop } from './TextInputLookupStop';
+import { announceEditorStageReady } from './editor-stage-ready';
 
 const PROJECT_HOME_SURFACE_KEY = 'project-home';
 
@@ -96,6 +97,28 @@ export function EditorMainArea() {
     },
     [],
   );
+
+  // The first time the surface in front is the one wanted, the book is ready to
+  // be seen. Checked a task later against the latest keys: opening a book
+  // resumes its last tab in a parent's layout effect, after Project Home has
+  // already committed, and that first match must not count.
+  const stageKeys = useRef({ committed: committedRevisionKey, desired: desiredRevisionKey });
+  const stageAnnounced = useRef(false);
+  useLayoutEffect(() => {
+    stageKeys.current = { committed: committedRevisionKey, desired: desiredRevisionKey };
+  }, [committedRevisionKey, desiredRevisionKey]);
+  useEffect(() => {
+    if (stageAnnounced.current || committedRevisionKey === null || committedRevisionKey !== desiredRevisionKey) {
+      return undefined;
+    }
+    const timer = setTimeout(() => {
+      const { committed, desired } = stageKeys.current;
+      if (stageAnnounced.current || committed === null || committed !== desired) return;
+      stageAnnounced.current = true;
+      announceEditorStageReady();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [committedRevisionKey, desiredRevisionKey]);
 
   const renderedSurfaces = useMemo(() => {
     const next = [...currentSurfaces];
