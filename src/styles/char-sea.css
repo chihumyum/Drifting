@@ -25,9 +25,25 @@
   height: 100%;
 }
 
+/* Opening a book: the workspace is laid out but unseen until its page is
+   ready (shells/desktop/useWorkspaceOpening.ts); the cover over it takes the
+   pointer while the sea keeps the wait. */
+.desktop-app-shell[data-opening] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.workspace-opening-cover {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  pointer-events: auto;
+}
+
 /* Ebb: a wait opened the workspace. Its desk is left clear while the rings
    already out run their course under it (the paper stays opaque, the sidebars
-   veil the sea), and the workspace comes up over them as a whole. When the
+   and the bottom bar show the sea at 50%), and the workspace comes up over
+   them as a whole. When the
    water is still the attribute goes and the desk is opaque again, the same
    colour the sea's ground was. */
 html[data-char-sea='ebb'] .desktop-app-shell {

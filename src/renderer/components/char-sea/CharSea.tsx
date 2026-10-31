@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } fr
 import { useTranslation } from 'react-i18next';
 import '../../../styles/char-sea.css';
 import { createCharSea, type CharSea as CharSeaHandle, type CharSeaShape } from '../../lib/char-sea/char-sea';
-import { charSeaRegistry } from '../../lib/char-sea/char-sea-registry';
+import { CHAR_SEA_HANDOVER_MS, charSeaRegistry } from '../../lib/char-sea/char-sea-registry';
 import { charSeaScript } from '../../lib/char-sea/char-sea-text';
 import { LOADING_DELAY_MS } from '../../lib/motion';
 
@@ -13,14 +13,12 @@ const INTERACTIVE =
   'button, a, input, textarea, select, label, summary, [role="button"], [role="link"], [role="menuitem"], [role="tab"], [contenteditable=""], [contenteditable="true"]';
 const OVERLAY = '[role="dialog"], [aria-modal="true"], [role="menu"], [role="listbox"]';
 
-// A page handing the sea to the next (the shelf to the wait for the book it
-// opened, one wait to the next) lets go and takes hold in the same commit.
-// A wait that ends counts only after this, so its rain and word carry on.
-const HANDOVER_MS = 80;
 // The longest an ebb lasts; a single press is still water in about five seconds.
 const EBB_LIMIT_MS = 8000;
-// Panels the last rings pass under while the sea ebbs beneath the workspace.
-const EBB_VEILS = '.desktop-app-shell .sidebar-shell:not(.is-fully-hidden)';
+// Panels the last rings pass under while the sea ebbs beneath the workspace,
+// and how much of the sea they show: the burst of the word reaches them.
+const EBB_VEILS = '.desktop-app-shell .sidebar-shell:not(.is-fully-hidden), .desktop-app-shell .desktop-workspace-dock';
+const EBB_VEIL = 0.5;
 
 /**
  * live: a page lies on the sea or a wait holds it. ebb: the last hold let go
@@ -34,7 +32,7 @@ function useHandedOver(value: boolean): boolean {
   if (value && !held) setHeld(true);
   useEffect(() => {
     if (value) return undefined;
-    const timer = window.setTimeout(() => setHeld(false), HANDOVER_MS);
+    const timer = window.setTimeout(() => setHeld(false), CHAR_SEA_HANDOVER_MS);
     return () => window.clearTimeout(timer);
   }, [value]);
   return value || held;
@@ -132,8 +130,8 @@ export function CharSea() {
 
   // Glass on the page, measured where it is now: after it registers, hovers,
   // scrolls or the window changes size. While the sea ebbs under the
-  // workspace, its sidebars veil it as the shelf's cards do. Measured before
-  // paint, so no frame passes without them.
+  // workspace, its sidebars and bottom bar veil it. Measured before paint, so
+  // no frame passes without them.
   useLayoutEffect(() => {
     if (!active) return undefined;
     let frame = 0;
@@ -147,7 +145,7 @@ export function CharSea() {
           if (rect.width <= 0 || rect.height <= 0) return;
           shapes.push({
             id: -1 - index, x: rect.left, y: rect.top, width: rect.width, height: rect.height,
-            radius: 0, rest: -1, hover: false, textureX: 0, textureY: 0,
+            radius: 0, rest: -EBB_VEIL, hover: false, textureX: 0, textureY: 0,
           });
         });
       }
