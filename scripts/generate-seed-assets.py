@@ -15,7 +15,7 @@ from PIL import Image, ImageDraw, ImageFont
 from reportlab.lib.colors import HexColor
 from reportlab.pdfgen import canvas
 
-DEST = Path(__file__).resolve().parents[1] / "src/dev-cli/seeds/assets"
+DEST = Path(__file__).resolve().parents[1] / "src/renderer/services/sample-project/assets"
 DEST.mkdir(parents=True, exist_ok=True)
 INK, SEA, PAPER, GOLD = "#233f48", "#bdd8d6", "#f5f0e4", "#cf9458"
 FONT = ImageFont.load_default(size=24)

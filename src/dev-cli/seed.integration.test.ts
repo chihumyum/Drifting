@@ -7,8 +7,8 @@ import * as Y from 'yjs';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { installHeadlessRendererGlobals } from './headless-globals';
-import { SEED_PRESETS, allocateSeedLengths } from './seeds/presets';
-import fixtures from './seeds/assets/manifest.json';
+import { SEED_PRESETS, allocateSeedLengths } from '../renderer/services/sample-project/presets';
+import fixtures from '../renderer/services/sample-project/assets/manifest.json';
 
 const preset = SEED_PRESETS.lite;
 const expected = Object.fromEntries(Object.entries(preset).filter(([, value]) => value && typeof value === 'object' && 'count' in value).map(([key, value]) => [key, (value as { count: number }).count]));

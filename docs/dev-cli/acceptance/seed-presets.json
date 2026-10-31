@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "sourceFingerprint": "80e8958ad45681ed43fb1572f6ca90f8a8ef416b573b12f29b9113815af0bf4c",
+  "sourceFingerprint": "8ec58d3712373ae6868e0528c53070106851944f69b8c5a831fe3906ba025a5c",
   "validation": "Actual migrated SQLite, reconstructed Yjs, material initial JSON, verified local asset receipts and canonical Agent checkpoint recovery. No native UI latency, FPS, memory or stability measurement is claimed.",
   "results": {
     "stress": {

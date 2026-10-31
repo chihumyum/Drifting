@@ -19,6 +19,7 @@ import { APP_CONFIG, canUseHostedService } from '../lib/config';
 import { initDatabase } from '../lib/db';
 import { events } from '../lib/events';
 import { readHostedProfile, writeHostedProfile, type HostedProfile } from '../lib/hosted-profile';
+import { startBuiltInSampleProject } from '../services/sample-project/first-run';
 export interface User {
   id: string;
   email: string;
@@ -321,6 +322,9 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     bootstrap = (async () => {
       await initDatabase(LOCAL_USER_ID);
       events.emit('db:ready');
+      // A new library gets the built-in sample once, in the background and
+      // before any Hosted connect (which waits for it). Never blocks startup.
+      void startBuiltInSampleProject();
       // Neither credential-store interaction nor a network probe may block local writing.
       if (!APP_CONFIG.LOCAL_ONLY_MODE)
         void hydrateSessionToken().then(() => get().refreshHostedSession());

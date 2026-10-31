@@ -66,9 +66,12 @@ configuration when testing remote authentication. Do not enable wildcard CORS.
 
 Use only synthetic data in these profiles. A fresh profile starts without cloud
 bindings. The launcher does not seed fixtures, grant MCP access or
-claim UI acceptance (`pnpm dev:seed` below seeds one). Configure test-owned MCP
-access from the isolated app if needed. Existing acceptance collectors keep their
-own fixture workflows.
+claim UI acceptance (`pnpm dev:seed` below seeds one). On its first launch the
+app itself gives an empty profile the [built-in sample project](sample-project.md)
+(the lite recipe without its Agent history), as it does for a new install; a
+profile seeded before launch, or any library that already had a project, is left
+as it is. Configure test-owned MCP access from the isolated app if needed.
+Existing acceptance collectors keep their own fixture workflows.
 
 Keep one running launcher per profile. To get fresh state, choose a new
 `--instance` name; there is deliberately no automatic reset/delete operation.
@@ -171,6 +174,12 @@ checking the not-connected setup flow. See `scripts/dev-agent-keys.mjs`.
 for validating performance and stability changes.** Both use isolated local-only
 worktree profiles and the ordinary current-format application data model.
 
+A plain fresh profile (`pnpm dev`, `pnpm dev:worktree --instance <new>`) needs no
+seed command for lite content: the app writes the
+[built-in sample project](sample-project.md) on first launch. It is the lite
+recipe below without the Agent discussions and development labels. Use
+`pnpm dev:seed:lite` when you need those discussions or the `开发样本` profile.
+
 ```bash
 pnpm dev:seed --no-watch            # stress, instance "seed-stress-v2"
 pnpm dev:seed:lite --no-watch       # lite, instance "seed-lite-v2"
@@ -200,15 +209,16 @@ Material notes begin as rich-text JSON seeds with headings and checklists, as
 ordinary fresh app notes do.
 
 All names and prose are original synthetic fixtures. The
-[scenario builder](../src/dev-cli/seeds/default-project.ts) uses the existing
-journaled app/General Agent paths. The old tiny JSON seed is removed. Agent
+[scenario builder](../src/renderer/services/sample-project/scenario.ts) uses the existing
+journaled app/General Agent paths, shared with the app's built-in sample through
+`services/sample-project/headless-workspace.ts`. The old tiny JSON seed is removed. Agent
 history uses canonical runtime acceptance, event, tool-ledger and commit
 repositories, with a verified final V4 checkpoint for each conversation. Large
 replies and explicitly synthetic read-tool results exercise history rendering
 and recovery. Seeding calls no model or external tool and records zero cost.
 The developer CLI also retains its separate workspace audit conversation.
 
-The [asset fixtures](../src/dev-cli/seeds/assets/README.md) are repository-owned
+The [asset fixtures](../src/renderer/services/sample-project/assets/README.md) are repository-owned
 bytes with source/preview hashes. Stress creates six independent owners per
 source; lite creates one. Originals remain shared while each profile has its
 own native asset files and opaque sync objects. Metadata and owner bindings
@@ -257,7 +267,7 @@ once-only preservation of edits, and failed-seed retry. It uses disposable
 synthetic fixtures; it does not open a daily-use library.
 
 ```bash
-pnpm exec vitest run src/dev-cli/seeds/presets.test.ts src/dev-cli/seed.integration.test.ts
+pnpm exec vitest run src/renderer/services/sample-project src/dev-cli/seed.integration.test.ts
 pnpm seed:acceptance                # generate both real SQLite/Yjs workloads and evidence
 pnpm seed:acceptance --check        # validate source-matched generated evidence
 ```

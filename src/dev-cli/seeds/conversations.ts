@@ -8,8 +8,8 @@ import { createAgentRuntimeCheckpointContextV4, hashAgentRuntimeCheckpointPayloa
 import type { AgentModelMessage, AgentRuntimeEvent, AgentRuntimeJournalEntry } from '../../renderer/lib/agent/runtime/types';
 import { createAgentConversationRepository } from '../../renderer/sqlite-repo/agent-conversation-repo';
 import { createAgentRuntimePersistenceRepository } from '../../renderer/sqlite-repo/agent-runtime-persistence-repo';
-import { allocateSeedLengths, type SeedPreset } from './presets';
-import { createSeedMarkdown, createSeedProse, seedProsePlainText } from './prose';
+import { allocateSeedLengths, type SeedPreset } from '../../renderer/services/sample-project/presets';
+import { createSeedMarkdown, createSeedProse, seedProsePlainText } from '../../renderer/services/sample-project/prose';
 
 const topics = ['开篇节奏', '三线交织', '人物动机', '灯塔空间', '证词矛盾', '伏笔回收', '对白精简', '潮汐时间线', '场景转场', '全书修订', '素材整理', '结尾余韵'];
 const usage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, costUsd: 0 };

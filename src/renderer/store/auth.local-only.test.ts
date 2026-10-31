@@ -6,6 +6,7 @@ const authCalls = vi.hoisted(() => ({
   getSession: vi.fn(),
   initDatabase: vi.fn(),
   emit: vi.fn(),
+  startSample: vi.fn(async () => undefined),
 }));
 
 vi.mock('../lib/config', () => ({
@@ -34,6 +35,10 @@ vi.mock('../lib/db', () => ({
 }));
 
 vi.mock('../lib/events', () => ({ events: { emit: authCalls.emit } }));
+
+vi.mock('../services/sample-project/first-run', () => ({
+  startBuiltInSampleProject: authCalls.startSample,
+}));
 
 import { useAuthStore } from './auth';
 
@@ -70,6 +75,11 @@ describe('local-only account boundary', () => {
     expect(authCalls.initDatabase).toHaveBeenCalledTimes(1);
     expect(authCalls.initDatabase).toHaveBeenCalledWith('drifting-library.db');
     expect(authCalls.emit).toHaveBeenCalledWith('db:ready');
+    // A new library's built-in sample starts once the library is open.
+    expect(authCalls.startSample).toHaveBeenCalledTimes(1);
+    expect(authCalls.initDatabase.mock.invocationCallOrder[0]).toBeLessThan(
+      authCalls.startSample.mock.invocationCallOrder[0],
+    );
     expect(authCalls.getSession).not.toHaveBeenCalled();
   });
 });

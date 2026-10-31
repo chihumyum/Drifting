@@ -4,8 +4,9 @@
    [GitHub Releases](https://github.com/chihumyum/Drifting/releases/latest)
    (macOS 13+, Apple Silicon) and drag Drifting into Applications.
 2. **First launch.** Choose **Continue locally** to write without an account,
-   or **Sign in / sign up and sync** to create an account. The bookshelf opens
-   with a sample project; explore it or delete it.
+   or **Sign in / sign up and sync** to create an account. A new library's
+   bookshelf opens with the [sample project](sample-project.md) 《潮汐灯塔（示例）》;
+   explore it or delete it. It is created once and does not come back.
 3. **Write.** Create a project, add a chapter or an idea, and start writing.
    Headings inside a chapter become scenes, beats and notes in the outline;
    acts are set on the timeline. Everything is saved on your Mac as you type.

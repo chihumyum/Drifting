@@ -1,7 +1,8 @@
-# Original synthetic development assets
+# Original synthetic sample assets
 
 These files are original geometric illustrations and fictional documents made
-for Drifting development. They contain no external photography, private text,
+for Drifting's [built-in sample project](../../../../../docs/sample-project.md)
+and the development seed. They contain no external photography, private text,
 real measurements, account data or bundled third-party fonts. Project-owned
 source and fixtures use the repository's AGPL-3.0-or-later license.
 
@@ -25,14 +26,15 @@ python3 scripts/generate-seed-assets.py
 The generator uses built-in Pillow/ReportLab fonts and ReportLab's invariant PDF
 mode. Regenerate the manifest together with its bytes; rendering versions can
 change JPEG/PDF hashes. Creation never reads personal material or any network.
-The checked-in corpus is under 0.5 MiB. Each seeded profile receives its own
-copies under its generated native app identifier; the repository files remain
-unchanged.
+The checked-in corpus is under 0.5 MiB and ships in the renderer bundle for the
+built-in sample. Each seeded profile and each new library receives its own copies
+in its native asset store; the repository files remain unchanged. The app
+verifies every byte against `manifest.json` before importing it.
 
 Machine acceptance:
 
 ```bash
-pnpm exec vitest run src/dev-cli/seed.integration.test.ts src/renderer/platform/worktree-dev-launcher.acceptance.test.ts
+pnpm exec vitest run src/dev-cli/seed.integration.test.ts src/renderer/services/sample-project src/renderer/platform/worktree-dev-launcher.acceptance.test.ts
 ```
 
 This exercises actual SQLite, Yjs and on-disk source/variant/object bytes plus
