@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import {
   computeEntityHoverCardPosition,
@@ -229,7 +229,7 @@ export function HoverCardShell({
       id={id}
       role={interactive ? 'group' : 'tooltip'}
       aria-label={label}
-      className={`hover-card${interactive ? ' hover-card--interactive' : ''} ${className}`.trim()}
+      className={`hover-card hover-card-surface${interactive ? ' hover-card--interactive' : ''} ${className}`.trim()}
       onMouseEnter={pointer?.onMouseEnter}
       onMouseLeave={pointer?.onMouseLeave}
       onClick={stop}
@@ -361,22 +361,59 @@ function HoverActionRow({ action, choice = false, multiple = false, tabbable = t
   onChoose: () => void;
 }) {
   return (
+    <HoverCardRow
+      icon={action.icon}
+      label={action.label}
+      danger={action.danger}
+      active={choice && !multiple ? Boolean(action.active) : undefined}
+      checked={multiple ? Boolean(action.checked) : undefined}
+      disabled={action.disabled}
+      tabbable={tabbable}
+      onClick={onChoose}
+    />
+  );
+}
+
+/**
+ * One row of a card: its mark on the left edge, its words, and what stands at
+ * its far end (a count, a tick). The rows of a card a press opens (a
+ * relation, a companion, an island's own actions) are these rows too.
+ */
+export function HoverCardRow({ icon, label, aside, danger, active, checked, disabled, tabbable = true, onClick, children, ...rest }: {
+  icon?: HoverActionIcon;
+  label?: ReactNode;
+  /** At the row's far end, in the quiet ink. */
+  aside?: ReactNode;
+  danger?: boolean;
+  /** The choice in effect: its ring stands still. */
+  active?: boolean;
+  /** One of several that hold at once: ticked at the far end. */
+  checked?: boolean;
+  disabled?: boolean;
+  tabbable?: boolean;
+  onClick?: () => void;
+  /** Laid out between the mark and the far end instead of a plain label. */
+  children?: ReactNode;
+} & Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'onClick' | 'children' | 'type' | 'className'>) {
+  return (
     <button
+      {...rest}
       type="button"
       className={[
         'hover-card__row',
-        action.danger ? 'hover-card__row--danger' : '',
-        choice && !multiple && action.active ? 'is-active' : '',
-        multiple && action.checked ? 'is-checked' : '',
+        danger ? 'hover-card__row--danger' : '',
+        active ? 'is-active' : '',
+        checked ? 'is-checked' : '',
       ].filter(Boolean).join(' ')}
-      disabled={action.disabled}
+      disabled={disabled}
       tabIndex={tabbable ? undefined : -1}
-      aria-pressed={choice ? Boolean(multiple ? action.checked : action.active) : undefined}
-      onClick={onChoose}
+      aria-pressed={active !== undefined ? Boolean(active) : checked !== undefined ? checked : undefined}
+      onClick={onClick}
     >
-      {action.icon && <HoverActionMark icon={action.icon} />}
-      <span className="hover-card__row-label">{action.label}</span>
-      {multiple && <BrushIcon name="check" size={14} className="hover-card__tick" />}
+      {icon && <HoverActionMark icon={icon} />}
+      {children ?? <span className="hover-card__row-label">{label}</span>}
+      {aside != null && aside !== '' && <span className="hover-card__row-aside">{aside}</span>}
+      {checked !== undefined && <BrushIcon name="check" size={14} className="hover-card__tick" />}
     </button>
   );
 }

@@ -73,6 +73,11 @@ interface EntityCardPopoverShellProps extends EntityCardPositionOptions {
   ariaLabel: string;
   className?: string;
   style?: CSSProperties;
+  /**
+   * Desktop, not expanded: wear the hover card's own surface (rounded desk
+   * card, resting glass edge) and lay its parts out as a hover card does.
+   */
+  surface?: boolean;
 }
 
 /**
@@ -85,6 +90,7 @@ export function EntityCardPopoverShell({
   ariaLabel,
   className = '',
   style,
+  surface = false,
   ...positionOptions
 }: EntityCardPopoverShellProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -122,6 +128,7 @@ export function EntityCardPopoverShell({
   // Desktop: a floating layer on the menu shell, over the desk's mist when
   // expanded; the paused mobile shell keeps the bordered card and dark scrim.
   const float = !getPlatformRuntime().isMobileShell;
+  const card = float && surface && positionOptions.mode === 'default';
   return createPortal(
     <>
       {positionOptions.mode === 'upgrade' && (
@@ -131,12 +138,14 @@ export function EntityCardPopoverShell({
         ref={containerRef}
         role="dialog"
         aria-label={ariaLabel}
-        className={[
-          'entity-card-popover',
-          float ? 'entity-card-popover--float' : '',
-          positionOptions.mode === 'upgrade' ? 'is-upgrade' : '',
-          className,
-        ]
+        className={(card
+          ? ['entity-card-popover--card', 'hover-card-surface', className]
+          : [
+              'entity-card-popover',
+              float ? 'entity-card-popover--float' : '',
+              positionOptions.mode === 'upgrade' ? 'is-upgrade' : '',
+              className,
+            ])
           .filter(Boolean)
           .join(' ')}
         style={{ ...position, ...style }}

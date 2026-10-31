@@ -44,7 +44,7 @@ try {
     reachableHistory: { ...secretScan(['git', '--log-opts=--all', '.'], 'reachable-history'), commits: Number(run('git', ['rev-list', '--all', '--count']).trim()) } };
   run('git', ['fsck', '--full', '--no-dangling']);
   run(pnpm, ['public:check']);
-  run(process.execPath, ['scripts/check-alpha-release.mjs']);
+  run(process.execPath, ['scripts/check-release.mjs']);
   const signing = process.platform === 'darwin'
     ? spawnSync(process.execPath, ['scripts/check-macos-dev-signing.mjs'], { encoding: 'utf8', timeout: 120000 }) : null;
   const localDevelopmentSigning = signing ? { status: signing.status === 0 ? 'passed' : 'failed',

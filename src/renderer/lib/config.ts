@@ -44,6 +44,8 @@ export const APP_CONFIG = {
   PRIVACY_URL:
     (runtimeViteEnv.VITE_PRIVACY_URL as string | undefined) ||
     'https://github.com/chihumyum/Drifting/blob/main/PRIVACY.md',
+  SUPPORT_URL: 'https://drifting.cc/support',
+  SUPPORT_EMAIL: 'support@drifting.cc',
 
   // Development
   ENABLE_DEBUG_LOGS: true,

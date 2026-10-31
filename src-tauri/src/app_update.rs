@@ -1,4 +1,5 @@
-//! Native-only Tauri updater state for the public Alpha channel.
+//! Native-only Tauri updater state. Updates come from the latest published
+//! GitHub release (docs/releasing.md).
 //!
 //! The renderer can request checks and present metadata, but the endpoint,
 //! signature verification, downloaded bytes, and installation remain native.
@@ -12,8 +13,8 @@ use tauri_plugin_updater::{Update, UpdaterExt};
 
 use crate::state::ShutdownAction;
 
-const ALPHA_UPDATE_ENDPOINT: &str =
-    "https://chihumyum.github.io/Drifting/updates/alpha/latest.json";
+const UPDATE_ENDPOINT: &str =
+    "https://github.com/chihumyum/Drifting/releases/latest/download/latest.json";
 
 #[derive(Default)]
 struct PendingUpdate {
@@ -51,7 +52,7 @@ fn updater_public_key() -> Result<&'static str, String> {
     option_env!("DRIFTING_UPDATER_PUBLIC_KEY")
         .map(str::trim)
         .filter(|value| !value.is_empty())
-        .ok_or_else(|| "This build is not configured with the Alpha updater public key".to_string())
+        .ok_or_else(|| "This build is not configured with the updater public key".to_string())
 }
 
 pub(crate) fn install_plugin_if_configured(app: &AppHandle) -> Result<(), String> {
@@ -72,19 +73,19 @@ pub(crate) async fn update_check(
     state: State<'_, AppUpdateState>,
 ) -> Result<Option<UpdateMetadata>, String> {
     updater_public_key()?;
-    let endpoint = ALPHA_UPDATE_ENDPOINT
+    let endpoint = UPDATE_ENDPOINT
         .parse()
-        .map_err(|error| format!("Alpha updater endpoint is invalid: {error}"))?;
+        .map_err(|error| format!("Updater endpoint is invalid: {error}"))?;
     let update = app
         .updater_builder()
         .endpoints(vec![endpoint])
-        .map_err(|error| format!("could not configure the Alpha updater: {error}"))?
+        .map_err(|error| format!("could not configure the updater: {error}"))?
         .timeout(Duration::from_secs(30))
         .build()
-        .map_err(|error| format!("could not build the Alpha updater: {error}"))?
+        .map_err(|error| format!("could not build the updater: {error}"))?
         .check()
         .await
-        .map_err(|error| format!("could not check for an Alpha update: {error}"))?;
+        .map_err(|error| format!("could not check for an update: {error}"))?;
     let metadata = update.as_ref().map(|candidate| UpdateMetadata {
         version: candidate.version.clone(),
         current_version: candidate.current_version.clone(),
@@ -94,7 +95,7 @@ pub(crate) async fn update_check(
     let mut pending = state
         .0
         .lock()
-        .map_err(|_| "Alpha updater state is unavailable".to_string())?;
+        .map_err(|_| "updater state is unavailable".to_string())?;
     pending.update = update;
     pending.downloaded = None;
     Ok(metadata)
@@ -109,11 +110,11 @@ pub(crate) async fn update_download(
         let pending = state
             .0
             .lock()
-            .map_err(|_| "Alpha updater state is unavailable".to_string())?;
+            .map_err(|_| "updater state is unavailable".to_string())?;
         pending
             .update
             .clone()
-            .ok_or_else(|| "There is no checked Alpha update to download".to_string())?
+            .ok_or_else(|| "There is no checked update to download".to_string())?
     };
     let mut started = false;
     let bytes = update
@@ -130,13 +131,13 @@ pub(crate) async fn update_download(
             },
         )
         .await
-        .map_err(|error| format!("could not download or verify the Alpha update: {error}"))?;
+        .map_err(|error| format!("could not download or verify the update: {error}"))?;
     let size =
         u64::try_from(bytes.len()).map_err(|_| "downloaded update is too large".to_string())?;
     let mut pending = state
         .0
         .lock()
-        .map_err(|_| "Alpha updater state is unavailable".to_string())?;
+        .map_err(|_| "updater state is unavailable".to_string())?;
     pending.downloaded = Some(bytes);
     Ok(size)
 }
@@ -149,19 +150,19 @@ pub(crate) fn update_install(
     let mut pending = state
         .0
         .lock()
-        .map_err(|_| "Alpha updater state is unavailable".to_string())?;
+        .map_err(|_| "updater state is unavailable".to_string())?;
     let update = pending
         .update
         .clone()
-        .ok_or_else(|| "There is no checked Alpha update to install".to_string())?;
+        .ok_or_else(|| "There is no checked update to install".to_string())?;
     let bytes = pending
         .downloaded
         .take()
-        .ok_or_else(|| "The checked Alpha update has not been downloaded".to_string())?;
+        .ok_or_else(|| "The checked update has not been downloaded".to_string())?;
     if let Err(error) = update.install(&bytes) {
         pending.downloaded = Some(bytes);
         return Err(format!(
-            "could not install the verified Alpha update: {error}"
+            "could not install the verified update: {error}"
         ));
     }
     pending.update = None;
@@ -179,7 +180,7 @@ pub(crate) fn update_dismiss(state: State<'_, AppUpdateState>) -> Result<(), Str
     let mut pending = state
         .0
         .lock()
-        .map_err(|_| "Alpha updater state is unavailable".to_string())?;
+        .map_err(|_| "updater state is unavailable".to_string())?;
     pending.update = None;
     pending.downloaded = None;
     Ok(())
@@ -190,9 +191,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn alpha_endpoint_is_https_and_versioned_outside_latest_release_alias() {
-        assert!(ALPHA_UPDATE_ENDPOINT.starts_with("https://"));
-        assert!(ALPHA_UPDATE_ENDPOINT.ends_with("/updates/alpha/latest.json"));
-        assert!(!ALPHA_UPDATE_ENDPOINT.contains("/releases/latest"));
+    fn endpoint_is_the_latest_published_release_manifest() {
+        assert!(UPDATE_ENDPOINT.starts_with("https://github.com/"));
+        assert!(UPDATE_ENDPOINT.ends_with("/releases/latest/download/latest.json"));
     }
 }

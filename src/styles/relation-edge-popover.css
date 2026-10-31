@@ -106,85 +106,11 @@
   }
 }
 
-/* Desktop: the menu shell's rich form (desk colour, square corners, the
-   hairline and the floating shadow), nothing filled inside. */
-.relation-edge-popover--menu {
-  padding: 14px 14px 12px;
-  border: 1px solid var(--menu-surface-border);
-  border-radius: var(--menu-surface-radius);
-  background: var(--menu-surface-bg);
-  box-shadow: var(--menu-surface-shadow);
-  font-family: var(--font-sans);
-}
-
-.relation-edge-popover--menu .relation-edge-popover__header {
-  gap: 6px;
-}
-
-.relation-edge-popover--menu .relation-edge-popover__header strong {
-  font-size: var(--ui-font-body, 13px);
-}
-
-.relation-edge-popover--menu .relation-edge-popover__orientation {
-  padding: 0;
-  border-radius: 0;
-  background: transparent;
-  color: var(--ui-text-muted, hsl(var(--ink-4)));
-  font: var(--ui-font-caption, 10px)/1 var(--font-mono);
-}
-
-.relation-edge-popover--menu .relation-edge-popover__flow {
-  grid-template-columns: minmax(0, 1fr) 20px minmax(0, 1fr);
-  align-items: start;
-  gap: 8px;
-  margin-top: 14px;
-  padding: 0;
-  border-radius: 0;
-  background: transparent;
-}
-
-.relation-edge-popover--menu .relation-edge-popover__flow > div {
-  gap: 4px;
-}
-
-.relation-edge-popover--menu .relation-edge-popover__flow > div > span {
-  color: var(--ui-text-muted, hsl(var(--ink-4)));
-  font: var(--ui-font-caption, 10px)/1.2 var(--font-mono);
-}
-
-.relation-edge-popover--menu .relation-edge-popover__flow strong {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  min-width: 0;
-  font-size: var(--ui-font-secondary, 12.5px);
-  font-weight: 400;
-}
-
-.relation-edge-popover--menu .relation-edge-popover__flow strong > span:not(.kind-mark) {
-  overflow: hidden;
-  color: hsl(var(--ink-1));
-  font: inherit;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.relation-edge-popover--menu .relation-edge-popover__flow strong > .kind-mark {
-  overflow: visible;
-  font: inherit;
-}
-
-.relation-edge-popover--menu .relation-edge-popover__flow b {
-  padding-top: 16px;
-}
-
-.relation-edge-popover--menu .relation-edge-popover__description {
-  margin-top: 12px;
-  font-size: var(--ui-font-secondary, 12.5px);
-}
-
-.relation-edge-popover--menu .relation-edge-popover__actions {
-  margin-top: 12px;
+/* Desktop: the relation's card is the hover card's own (ui-controls.css
+   .hover-card-surface, .entity-card-popover--card); it keeps the layer it
+   always had over the canvas. */
+.relation-edge-popover--card.entity-card-popover--card {
+  z-index: 286;
 }
 
 /* The new-relation dialog's two ends (story graph, element overview): each
