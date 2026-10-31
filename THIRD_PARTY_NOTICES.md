@@ -11,6 +11,11 @@ The vendored [tao 0.35.3](src-tauri/vendor/tao/VENDORED.md) source retains its
 [Apache-2.0 license](src-tauri/vendor/tao/LICENSE). It contains only the upstream
 tao#1245 iOS scene lifetime backport; it is not relicensed under Drifting's AGPL.
 
+The built-in sample project bundles the public-domain text of Jane Austen's
+*Pride and Prejudice* (1813) and seven of Hugh Thomson's illustrations from the
+George Allen edition of 1894. They carry no license; their source and
+public-domain basis are recorded in [ASSET_PROVENANCE.md](ASSET_PROVENANCE.md#built-in-sample-book).
+
 | Component                                                | Use                                                        | License    | Copyright / source                                                              |
 | -------------------------------------------------------- | ---------------------------------------------------------- | ---------- | ------------------------------------------------------------------------------- |
 | Inter Tight variable font                                | Bundled UI font through `@fontsource-variable/inter-tight` | OFL-1.1    | Copyright 2022 The Inter Project Authors; <https://github.com/rsms/inter-tight> |

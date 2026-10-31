@@ -36,7 +36,7 @@ vi.mock('../lib/db', () => ({
 
 vi.mock('../lib/events', () => ({ events: { emit: authCalls.emit } }));
 
-vi.mock('../services/sample-project/first-run', () => ({
+vi.mock('../services/built-in-sample/first-run', () => ({
   startBuiltInSampleProject: authCalls.startSample,
 }));
 

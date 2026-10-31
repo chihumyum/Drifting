@@ -5,12 +5,13 @@ relations, TODO/comment state changes, material notes, attachment previews and
 Agent history/recovery. Use **stress when implementing or validating performance
 and stability changes**. A lite pass cannot close that heavier validation.
 
-The lite recipe is also the app's [built-in sample project](sample-project.md):
-every new library, including a fresh `pnpm dev` or `pnpm dev:worktree` profile,
-gets it on first launch without a seed command, minus the Agent discussions and
-the development labels. A plain fresh profile is therefore enough for most
-functional checks; `pnpm dev:seed:lite` remains the profile with Agent history.
-Both are written from `src/renderer/services/sample-project/`.
+Both presets are written from `src/renderer/services/sample-project/`. They are
+separate from the app's [built-in sample project](sample-project.md), the English
+*Pride and Prejudice* workspace that every new library (including a fresh
+`pnpm dev` or `pnpm dev:worktree` profile) gets on first launch. That sample is
+a real novel of about 122,000 words with a curated workspace and no Agent
+history; it is not a performance workload. Use `pnpm dev:seed:lite` for the
+synthetic corpus with Agent discussions.
 
 The stress preset has 3.5 million words across chapter, element, inspiration
 and material-note bodies, plus storyline/category prose, review work and large
@@ -25,7 +26,7 @@ current workload; the old short-prose seed is not a substitute.
 1. Run the appropriate unit/integration checks and smoke-test the implementation
    in a fresh profile (`pnpm dev:worktree --instance <new> --no-watch`, which
    opens with the built-in sample) or with `pnpm dev:seed:lite --no-watch` when
-   Agent history matters. Confirm the intended behavior before attributing a
+   the synthetic corpus or Agent history matters. Confirm the intended behavior before attributing a
    failure to data volume.
 2. For a performance/stability implementation, run the same affected journey
    with `pnpm dev:seed --no-watch`. The seed wrapper delegates launch to the

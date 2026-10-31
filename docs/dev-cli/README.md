@@ -163,8 +163,8 @@ orchestration boundary.
 A scenario is a versioned JSON sequence of `workspace.call` and read-only
 `workspace.resource` steps. `pnpm dev:seed` builds the default stress workload;
 `pnpm dev:seed:lite` builds the fast functional-verification workload. Both use
-`src/renderer/services/sample-project/scenario.ts`, which also writes the app's
-[built-in sample project](../sample-project.md); see
+`src/renderer/services/sample-project/scenario.ts` (the app's
+[built-in sample project](../sample-project.md) is a separate English book); see
 [seeded profiles](../worktree-development.md#seeded-profiles) for quantities,
 asset fixtures and offline Agent history. A CLI scenario containing a mutating domain call
 receives one pre-run database backup and then stops at the first failed
