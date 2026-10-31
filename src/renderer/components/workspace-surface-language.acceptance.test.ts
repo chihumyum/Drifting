@@ -780,6 +780,11 @@ describe('workspace surface language acceptance', () => {
     expect(source('src/renderer/shells/desktop/components/SuperElementIsland.tsx')).toContain("mode === 'peek' ? ' hover-card-surface' : ''");
     expect(shell).toContain('font-size: var(--ui-font-secondary, 13px);');
     expect(shell).not.toContain('0.5px');
+    // A storyline, category or group name in the meta line starts in the title's column.
+    expect(block(controls, '.hover-card__tag > .kind-mark {', '}')).toContain('margin-right: 8px;');
+    expect(block(controls, '.hover-card__title > .kind-mark {', '}')).toContain('margin-right: 8px;');
+    // With no drift groups there is nowhere to move a drift, as in the Super Views.
+    expect(source('src/renderer/components/leftBars/DriftPanel.tsx')).toContain('withDriftGroupChoices(entityHoverActions(');
     // Its edge is the resting thin glass line, standing still.
     expect(edge).toContain('box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--glass-clear) 50.5%, transparent);');
     expect(edge).toContain('mask-image: var(--glass-texture);');
