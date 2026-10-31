@@ -1,4 +1,4 @@
-import { Component, useEffect } from 'react';
+import { Component, useEffect, useState } from 'react';
 import type { ErrorInfo, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { PreAlphaOnboardingDialog } from './components/modals/PreAlphaOnboardingDialog';
@@ -15,6 +15,8 @@ import { DatabaseRecoveryBoundary } from './app/components/DatabaseRecoveryBound
 import { useDatabaseOpenFailure } from './platform/database-recovery-store';
 import { ConfirmationDialog } from './components/modals/ConfirmationDialog';
 import { reportError } from './services/diagnostics/crash-reporter';
+import { CharSea } from './components/char-sea/CharSea';
+import { charSeaEnabled } from './components/char-sea/useCharSea';
 
 const log = loglevel.getLogger('App');
 
@@ -60,6 +62,7 @@ function RootErrorFallback({ error, onRetry }: { error: Error; onRetry: () => vo
 
 function AppContents() {
   const databaseFailure = useDatabaseOpenFailure();
+  const [seaEnabled] = useState(charSeaEnabled);
   useEffect(() => {
     if (!getPlatformRuntime().isMobile) return;
     return disableMobileWebViewZoom();
@@ -71,6 +74,7 @@ function AppContents() {
 
   return (
     <>
+      {seaEnabled && <CharSea />}
       <AppEffects />
       <LocationDeepLinkEffects />
       <PreAlphaOnboardingDialog />

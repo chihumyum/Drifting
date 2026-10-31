@@ -131,16 +131,19 @@ if (process.argv.includes('--check')) {
           throw new Error(`Timed out: ${mode}/${test.name}/${expression}`);
         };
         await client.Page.navigate({ url: origin });
-        await until("document.querySelector('#app-startup-loading > span')");
+        await until("document.querySelector('#app-startup-loading')");
+        // The sea of characters at rest: the desk with a faint dot in every
+        // 14px cell, one cell centred on the window, and nothing that turns.
         const geometry = await evaluate(`(() => {
-          const element = document.querySelector('#app-startup-loading > span');
+          const element = document.querySelector('#app-startup-loading');
+          const style = getComputedStyle(element);
           const rect = element.getBoundingClientRect();
-          return { width: parseFloat(getComputedStyle(element).width), height: parseFloat(getComputedStyle(element).height),
-            x: rect.x + rect.width / 2, y: rect.y + rect.height / 2,
-            display: getComputedStyle(element.parentElement).display };
+          return { width: rect.width, height: rect.height, x: rect.x, y: rect.y, children: element.children.length,
+            image: style.backgroundImage, size: style.backgroundSize, position: style.backgroundPosition };
         })()`);
-        assert.equal(geometry.width, 24); assert.equal(geometry.height, 24);
-        assert(Math.abs(geometry.x - 500) < 1); assert(Math.abs(geometry.y - 350) < 1); assert.equal(geometry.display, 'grid');
+        assert.equal(geometry.width, 1000); assert.equal(geometry.height, 700); assert.equal(geometry.x, 0); assert.equal(geometry.y, 0);
+        assert.equal(geometry.children, 0); assert.match(geometry.image, /radial-gradient/);
+        assert.equal(geometry.size, '14px 14px'); assert.equal(geometry.position, '50% 50%');
         const screenshots = path.join(root, '.qa/startup-placeholder'); mkdirSync(screenshots, { recursive: true });
         if (test.name === 'default') writeFileSync(path.join(screenshots, `${mode}-before-scripts.png`),
           Buffer.from((await client.Page.captureScreenshot({ format: 'png' })).data, 'base64'));
@@ -152,7 +155,8 @@ if (process.argv.includes('--check')) {
         assert.equal(await evaluate("document.querySelector('#app-startup-loading').getAttribute('aria-label')"), test.settings?.uiLocale === 'en' ? 'Starting Drifting' : '正在启动 Drifting');
         const brightness = await evaluate("getComputedStyle(document.querySelector('#app-startup-loading')).backgroundColor.match(/\\d+/g).slice(0,3).map(Number).reduce((a,b) => a+b,0)");
         assert(test.scheme === 'dark' ? brightness < 150 : brightness > 700); result.themeAndLocale = true;
-        assert.equal(await evaluate("getComputedStyle(document.querySelector('#app-startup-loading > span')).animationName"), test.reduced ? 'none' : 'app-startup-spin'); result.reducedMotion = true;
+        // Nothing in the placeholder moves, with or without reduced motion.
+        assert.equal(await evaluate("getComputedStyle(document.querySelector('#app-startup-loading')).animationName"), 'none'); result.reducedMotion = true;
         writeFileSync(path.join(screenshots, `${mode}-${test.name}.png`), Buffer.from((await client.Page.captureScreenshot({ format: 'png' })).data, 'base64'));
         for (let i = 0; i < 200 && !heldEntry; i++) await delay(20); assert(heldEntry);
         // Only storage access during the no-module placeholder phase is under test.
@@ -165,7 +169,8 @@ if (process.argv.includes('--check')) {
         assert.equal(await evaluate('document.documentElement.dataset.colorScheme'), test.scheme); result.replacedByReact = true;
         await until('document.querySelector("[role=status] .loading-status__spinner")');
         assert.equal(await evaluate('getComputedStyle(document.querySelector(".loading-status__spinner")).animationName'), test.reduced ? 'none' : 'loading-status-spin');
-        assert.equal(await evaluate('getComputedStyle(document.querySelector(".loading-status__spinner")).width'), '24px');
+        // The desktop's local wait is the 20px brush loader (components.md, 加载与进度).
+        assert.equal(await evaluate('getComputedStyle(document.querySelector(".loading-status__spinner")).width'), '20px');
         await evaluate('document.querySelector("[data-react-mounted] button").click()');
         await until('document.querySelector("[data-startup-ready]")');
         assert.equal(await evaluate('document.querySelector(".loading-status")'), null); result.localLoading = true;

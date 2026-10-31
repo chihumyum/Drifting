@@ -7,38 +7,22 @@
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
     />
     <title>Drifting</title>
-    <!-- This placeholder has no dependency on renderer modules or native IPC. -->
+    <!-- This placeholder has no dependency on renderer modules or native IPC.
+         It is the sea of characters at rest (docs/design-system/components.md,
+         "全屏加载与字海"): the desk with a faint dot in every 14px cell, one
+         cell centred on the window, so the sea React mounts over it lines up. -->
     <style>
       #app-startup-loading {
         position: fixed;
         inset: 0;
-        display: grid;
-        place-items: center;
-        background: hsl(30 8% 96.5%);
-        color: hsl(218 22% 52%);
-      }
-      #app-startup-loading > span {
-        box-sizing: border-box;
-        width: 24px;
-        height: 24px;
-        border: 2px solid hsl(30 5% 89%);
-        border-top-color: currentColor;
-        border-radius: 50%;
-        animation: app-startup-spin 0.8s linear infinite;
+        background-color: hsl(40 9% 94.5%);
+        background-image: radial-gradient(circle at center, hsl(30 4% 26% / 0.075) 0.35px, transparent 0.95px);
+        background-position: center;
+        background-size: 14px 14px;
       }
       .dark #app-startup-loading {
-        background: hsl(220 6% 11%);
-        color: hsl(218 35% 65%);
-      }
-      .dark #app-startup-loading > span {
-        border-color: hsl(220 5% 22%);
-        border-top-color: currentColor;
-      }
-      @keyframes app-startup-spin {
-        to { transform: rotate(360deg); }
-      }
-      @media (prefers-reduced-motion: reduce) {
-        #app-startup-loading > span { animation: none; }
+        background-color: hsl(220 6% 11.5%);
+        background-image: radial-gradient(circle at center, hsl(220 6% 82% / 0.09) 0.35px, transparent 0.95px);
       }
     </style>
 
@@ -51,9 +35,7 @@
   <body>
     <div id="root">
       <!-- React replaces this node on its first commit; no timer or overlay teardown. -->
-      <div id="app-startup-loading" role="status" aria-label="正在启动 Drifting" data-tauri-drag-region>
-        <span aria-hidden="true"></span>
-      </div>
+      <div id="app-startup-loading" role="status" aria-label="正在启动 Drifting" data-tauri-drag-region></div>
     </div>
     <script src="/startup.js"></script>
     <script type="module" src="/src/renderer/main.tsx"></script>
