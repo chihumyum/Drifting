@@ -6,7 +6,7 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['.claude/worktrees/**', 'native/apple/**', 'src-tauri/plugins/drifting-google-drive-oauth/**', 'dist', '.vite', 'out', 'build', 'node_modules', 'src-tauri/target', 'crates/*/target', '.local-data', '**/*.d.ts'],
+    ignores: ['.claude/worktrees/**', 'dist', '.vite', 'out', 'build', 'node_modules', 'src-tauri/target', 'crates/*/target', '.local-data', '**/*.d.ts'],
   },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],

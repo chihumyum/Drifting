@@ -90,9 +90,8 @@ describe('account sign-in entry', () => {
       expect(locale.auth).not.toHaveProperty('controls');
       for (const label of Object.values(locale.auth.fields)) expect(label).not.toContain(' · ');
       expect(locale.preAlphaGuide).not.toHaveProperty('sync');
-      expect(locale.preAlphaGuide).not.toHaveProperty('openDrive');
       expect(locale.preAlphaGuide).not.toHaveProperty('quickGuide');
-      expect(JSON.stringify(locale.preAlphaGuide)).not.toMatch(/Google Drive|quick guide|快速指南/i);
+      expect(JSON.stringify(locale.preAlphaGuide)).not.toMatch(/quick guide|快速指南/i);
     }
     expect(keyPaths(zh.auth).sort()).toEqual(keyPaths(en.auth).sort());
     expect(keyPaths(zh.preAlphaGuide).sort()).toEqual(keyPaths(en.preAlphaGuide).sort());

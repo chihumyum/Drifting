@@ -49,7 +49,7 @@ the maintainer has not tested that chain and it is not a claimed mobile
 capability. See [`voice-authored-capture.md`](voice-authored-capture.md). The three Super Views (Elements, Story Graph, Library/Memo) are
 independent controller surfaces with preserved per-view state
 (`MobileSuperViewHost.tsx`). Shared Settings now exposes Hosted account sync
-and local recovery; Google Drive controls are suspended as of 2026-10-01.
+and local recovery.
 Hosted mobile interaction remains an unaccepted, deferred gate. The mobile Editor Settings
 surface reuses the desktop preference authority and live `--editor-*` preview,
 but replaces the desktop rail breakout with a readable phone-width miniature:
@@ -300,10 +300,7 @@ contracts.
 4. Story Graph, Agent, entity editing, account sync settings, and other dense
    workflows require device-specific interaction checks. Simulator/Emulator
    evidence covers visible surfaces and synthetic input, but does not close
-   live-provider, native clipboard, accessibility, or physical-touch gates. The
-   retained Google Drive release gate is suspended with that provider. Its
-   historical real-account three-platform checklist remains in
-   [`qa/google-drive-three-platform-physical-acceptance.md` (retired)](client-onboarding-and-hosted-readiness.md).
+   live-provider, native clipboard, accessibility, or physical-touch gates.
 
 Use [`mobile-device-acceptance.md`](mobile-device-acceptance.md) for setup and
 the current checklist. Build or Simulator success must not be reported as

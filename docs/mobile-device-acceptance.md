@@ -33,7 +33,7 @@ Vite 端口，因此可以和已经占用 `5173` 的桌面开发进程并行运�
 
 移动入口会先读取仓库根目录中被忽略的 `.env.local`；显式 shell 或 CI 环境变量优先。
 iOS 入口生成被 Git 忽略且仅当前用户可读写的 `src-tauri/gen/apple/LocalBuild.local.xcconfig`，
-用于 Apple 开发签名和原生 Hosted origin。Google Drive OAuth、SDK 和 callback 配置已经退役。
+用于 Apple 开发签名和原生 Hosted origin。
 
 dev 包默认使用 local-only 模式：不要求 Drifting 官方账号，并让 BYOK AI 直连所选模型提供商；
 Hosted 是唯一支持的同步 provider，需要显式配置服务。
@@ -119,18 +119,6 @@ Info.plist and XcodeGen spec in sync. The current tao backend requires
 `UIApplicationSupportsMultipleScenes: true` to register its scene delegate;
 this is not an acceptance claim for iPad multiwindow. See
 [`vendor/tao/VENDORED.md`](../src-tauri/vendor/tao/VENDORED.md).
-
-Xcode 27 changes SwiftPM's default backend. Until `swift-rs` supports it, opt into
-the checked-in compatibility wrapper for iOS builds, including simulator builds:
-
-```bash
-export PATH="$PWD/scripts/apple-toolchain:$PATH"
-pnpm mobile:ios:device:debug -- --device <device-id> --no-launch
-```
-
-The wrapper uses Apple's SwiftPM `native` backend; it does not modify Xcode or
-the SDK. Launch the installed app normally after installation. This setting is
-local to the shell and can be omitted with toolchains that do not need it.
 
 公共前置条件：在仓库根目录完成 `pnpm install`，Rust target 和 Tauri mobile target 已安装。本仓库的
 iOS/Android 工程已在 `src-tauri/gen` 初始化，不要重复运行 init 命令。
@@ -221,7 +209,7 @@ macOS 防火墙、server bind address 和手机的本地网络权限。
 2026-08-23 至 2026-08-25 期间曾在 `iPhone 16e / iOS 26.1` Simulator 与
 `Persimmon_API_35` Android Emulator 上按里程碑完成了 unified bar、panel、paper
 swipe、编辑/搜索/All Chapters、Planning/Plot Grid、Agent/Library/TODO/Stats、
-独立 Super View 与 Google Drive 设置面的逐项检查。这些带日期的记录已随交付完成
+独立 Super View 与设置面的逐项检查。这些带日期的记录已随交付完成
 从仓库退役，完整原文保留在 Git 历史中。共同边界不变：所有 WebView 指针输入均为
 明确标记的合成输入（`synthetic-dom` / `nativeInput=false`），仅 Android hardware
 Back 是真实系统输入；它们不关闭真机连续触摸、原生键盘/IME、辅助功能、生命周期、

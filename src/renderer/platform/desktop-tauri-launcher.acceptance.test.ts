@@ -64,16 +64,16 @@ describe('desktop Tauri environment', () => {
   it('keeps explicit shell or CI values authoritative', () => {
     const environment = createDesktopTauriEnvironment({
       baseEnvironment: {
-        DRIFTING_GOOGLE_DESKTOP_CLIENT_ID: 'explicit-client-id',
+        DRIFTING_SYNTHETIC_SETTING: 'explicit-value',
         DRIFTING_DB_DIR: '/tmp/drifting-explicit-database',
       },
       envFile: localEnv(
-        'DRIFTING_GOOGLE_DESKTOP_CLIENT_ID=file-client-id\n' +
+        'DRIFTING_SYNTHETIC_SETTING=file-value\n' +
           'DRIFTING_DB_DIR=file-database\n',
       ),
     });
 
-    expect(environment.DRIFTING_GOOGLE_DESKTOP_CLIENT_ID).toBe('explicit-client-id');
+    expect(environment.DRIFTING_SYNTHETIC_SETTING).toBe('explicit-value');
     expect(environment.DRIFTING_DB_DIR).toBe('/tmp/drifting-explicit-database');
   });
 

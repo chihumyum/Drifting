@@ -68,4 +68,4 @@ pnpm exec vitest run \
 The checked-in machine-readable results are
 [`acceptance/phase1-main-prose-authority.json`](acceptance/phase1-main-prose-authority.json).
 This is local/file-backed acceptance; it does not claim real-account or
-physical-device Google Drive convergence.
+physical-device cloud convergence.

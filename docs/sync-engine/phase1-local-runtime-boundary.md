@@ -39,7 +39,7 @@ durable coordinator) is now wired, and the status bar projects App authority
 plus runtime diagnostics as local, syncing, synced, paused, offline, or
 attention states. Settings remain in the local persisted settings store until a
 future explicitly versioned preference domain is added to SyncEngine. This
-local-runtime milestone is not evidence of a real-account Google Drive cycle.
+local-runtime milestone is not evidence of a real-account cloud sync cycle.
 
 Machine checks:
 

@@ -244,7 +244,6 @@ export async function installIosDevice(
     environment.SDKROOT = String(await execute('xcrun', ['--sdk', 'iphoneos', '--show-sdk-path'], {
       environment, captureOutput: true,
     })).trim();
-    environment.PATH = `${path.join(repoDir, 'scripts/apple-toolchain')}${path.delimiter}${environment.PATH ?? ''}`;
     // Keep the private signing team in the environment / ignored xcconfig.
     const team = (environment.APPLE_DEVELOPMENT_TEAM || environment.DRIFTING_APPLE_DEVELOPMENT_TEAM || '').trim();
     if (!/^[A-Z0-9]{10}$/u.test(team)) {

@@ -1,9 +1,7 @@
 # SyncEngine documentation
 
 Start with the [Hosted sync contract](../hosted-sync/README.md). Hosted is the
-only supported App sync provider. Google Drive transport, OAuth and product
-controls were removed on 2026-10-28; only legacy database recovery/adoption remains.
-See [the retirement audit](../client-onboarding-and-hosted-readiness.md).
+only App sync provider.
 
 ## Current architecture
 
@@ -44,6 +42,6 @@ See [the retirement audit](../client-onboarding-and-hosted-readiness.md).
 
 Phase documents contain historical implementation evidence and are not current
 product promises. `pnpm hosted:acceptance` generates the active Hosted HTTP/SQLite
-report, including retired-library adoption without Drive access. Source and
+report. Source and
 synthetic HTTP checks do not establish live account, email, cross-device,
 signed-installation or production-service acceptance.

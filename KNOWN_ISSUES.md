@@ -23,5 +23,5 @@ evidence that a public installer is available.
   mobile acceptance gaps are in [the 2026-09-23 report](docs/qa/native-acceptance-2026-09-23.md).
   These binary-release gaps do not prevent accurately documented source publication.
 
-Report reproducible problems to `hi@drifting.app` without attaching private
+Report reproducible problems to `support@drifting.cc` without attaching private
 manuscript text, API keys, OAuth tokens, or credential screenshots.

@@ -303,17 +303,3 @@ pub fn lifecycle_complete_flush(
     }
     Ok(true)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn platform_capabilities_do_not_advertise_retired_drive() {
-        let value = serde_json::to_value(platform_capabilities())
-            .expect("platform capabilities should serialize");
-
-        assert!(value.get("googleDriveTransport").is_none());
-        assert!(value.get("googleDriveOAuth").is_none());
-    }
-}

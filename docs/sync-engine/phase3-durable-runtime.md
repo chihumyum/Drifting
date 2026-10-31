@@ -51,9 +51,9 @@ injected local-object port, and verifies kind, stored SHA-256, byte size, and
 canonical protocol content before materialization. It never accepts or resolves
 renderer-provided filesystem paths.
 
-The Google Drive product composition follows the trusted-cloud contract: it
-does not wrap project content in a Drifting-managed encryption layer. Google is
-inside the trust boundary. Opaque native object references still keep paths and
+The Hosted product composition follows the trusted-cloud contract: it
+does not wrap project content in a Drifting-managed encryption layer. The Hosted
+operator is inside the trust boundary. Opaque native object references still keep paths and
 large byte streams out of renderer DTOs, and downloaded bytes remain staged
 until their protocol hashes and schemas verify. Integrity verification does not
 make the stored objects opaque to Google.
@@ -131,7 +131,7 @@ The file-backed SQLite integration suite proves:
 - an expired committed cursor, including the reference-provider uppercase
   `INVALID_CURSOR`, is durably discarded, followed by a new captured cursor,
   complete LocalFolder inventory and changes drain;
-- an expired pending inventory page, including native Drive-style lowercase
+- an expired pending inventory page, including the lowercase
   `invalid-page-token`, restarts the same full-inventory protocol and remains
   restart-safe;
 - cursor recovery marks every active known immutable object

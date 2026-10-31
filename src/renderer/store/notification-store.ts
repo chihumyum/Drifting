@@ -16,8 +16,9 @@ export type NotificationState = 'running' | 'completed' | 'failed' | 'stopped';
 /**
  * `share-comment`: readers commented on something the author shares (features/share-links).
  * `markdown-folder`: an edited file in the project Markdown folder could not merge (docs/markdown-mirror.md).
+ * `app-update`: a new version is available, or this launch installed one (services/update).
  */
-export type AppNotificationSource = 'hosted-sync' | 'share-comment' | 'agent-organize' | 'markdown-folder';
+export type AppNotificationSource = 'hosted-sync' | 'share-comment' | 'agent-organize' | 'markdown-folder' | 'app-update';
 
 /** What a notification opens: an entity in a project, wherever the author is. */
 export interface AppNotificationTarget {
@@ -54,6 +55,8 @@ export interface AppNotificationEvent {
   target?: AppNotificationTarget;
   /** Clicking the row opens this project's Home. */
   projectHomeId?: string;
+  /** Clicking the row opens this Settings section. */
+  settingsSection?: string;
 }
 
 export interface AppNotification {
@@ -65,6 +68,7 @@ export interface AppNotification {
   chapterId?: string;
   target?: AppNotificationTarget;
   projectHomeId?: string;
+  settingsSection?: string;
   outcome?: NotificationOutcome;
   count?: number;
   error?: string;
@@ -117,6 +121,7 @@ export const useNotificationStore = create<NotificationStore>((set) => ({
           chapterId: e.chapterId ?? existing.chapterId,
           target: e.target ?? existing.target,
           projectHomeId: e.projectHomeId ?? existing.projectHomeId,
+          settingsSection: e.settingsSection ?? existing.settingsSection,
           outcome: e.outcome ?? existing.outcome,
           count: e.count ?? existing.count,
           error: e.error ?? existing.error,
@@ -137,6 +142,7 @@ export const useNotificationStore = create<NotificationStore>((set) => ({
         chapterId: e.chapterId,
         target: e.target,
         projectHomeId: e.projectHomeId,
+        settingsSection: e.settingsSection,
         outcome: e.outcome,
         count: e.count,
         error: e.error,
