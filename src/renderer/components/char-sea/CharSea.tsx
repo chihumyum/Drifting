@@ -9,16 +9,13 @@ import { LOADING_DELAY_MS } from '../../lib/motion';
 // Where `.glass:nth-of-type(4n + k)` starts its texture (materials.css), so a
 // rim the sea draws is cut the way the same card's CSS rim was.
 const GLASS_TEXTURE_OFFSETS = [[-14, -46], [-96, -132], [-168, -18], [-58, -186]] as const;
-const PULSE_PERIOD_MS = 1100;
-// A wait that starts this soon after a press drops from where the press was.
-const PRESS_ORIGIN_MS = 2000;
 const INTERACTIVE =
   'button, a, input, textarea, select, label, summary, [role="button"], [role="link"], [role="menuitem"], [role="tab"], [contenteditable=""], [contenteditable="true"]';
 const OVERLAY = '[role="dialog"], [aria-modal="true"], [role="menu"], [role="listbox"]';
 
 // A page handing the sea to the next (the shelf to the wait for the book it
 // opened, one wait to the next) lets go and takes hold in the same commit.
-// A wait that ends counts only after this, so its drops keep their rhythm.
+// A wait that ends counts only after this, so its rain and word carry on.
 const HANDOVER_MS = 80;
 // The longest an ebb lasts; a single press is still water in about five seconds.
 const EBB_LIMIT_MS = 8000;
@@ -100,19 +97,14 @@ export function CharSea() {
     };
   }, [mode]);
 
-  // A wait that outlasts the loading delay: drops fall from where the author
-  // pressed (the book they opened) or from the middle, until it ends.
+  // A wait that outlasts the loading delay: the rain falls and "Loading" rises
+  // in the middle until it ends; then both are let go and run out.
   useEffect(() => {
     if (!loading) return undefined;
-    const timer = window.setTimeout(() => {
-      const press = charSeaRegistry.recentPress(PRESS_ORIGIN_MS);
-      const origin = press ?? { x: window.innerWidth / 2, y: window.innerHeight / 2 };
-      const delay = press ? Math.max(0, PULSE_PERIOD_MS - (performance.now() - press.at)) : 0;
-      sea.current?.pulse(origin, PULSE_PERIOD_MS, delay);
-    }, LOADING_DELAY_MS);
+    const timer = window.setTimeout(() => sea.current?.loading(true), LOADING_DELAY_MS);
     return () => {
       window.clearTimeout(timer);
-      sea.current?.pulse(null);
+      sea.current?.loading(false);
     };
   }, [loading]);
 
@@ -129,7 +121,6 @@ export function CharSea() {
       const book = target.closest('[data-char-sea-press]');
       if (!book && target.closest(INTERACTIVE)) return;
       sea.current?.drop(event.clientX, event.clientY, book ? 1.3 : 1.2);
-      charSeaRegistry.notePress(event.clientX, event.clientY);
     };
     window.addEventListener('pointermove', move, { passive: true });
     window.addEventListener('pointerdown', down, { capture: true, passive: true });

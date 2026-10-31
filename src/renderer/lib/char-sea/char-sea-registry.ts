@@ -1,8 +1,9 @@
 /**
  * Who is using the sea of characters right now. A full-window wait holds it
- * as loading (drops fall), a page that lies on it holds it as a surface (it
- * stays on, still until touched), and glass on that page is registered as a
- * shape so the sea can draw its rim. The sea is on while anything holds it.
+ * as loading (rain falls and "Loading" rises), a page that lies on it holds it
+ * as a surface (it stays on, still until touched), and glass on that page is
+ * registered as a shape so the sea can draw its rim. The sea is on while
+ * anything holds it.
  */
 
 export interface CharSeaShapeOptions {
@@ -28,7 +29,6 @@ let nextId = 1;
 const shapes = new Map<number, CharSeaShapeEntry>();
 const holdListeners = new Set<() => void>();
 const shapeListeners = new Set<() => void>();
-let press: { x: number; y: number; at: number } | null = null;
 
 function setHolds(next: CharSeaHolds): void {
   holds = next;
@@ -83,12 +83,5 @@ export const charSeaRegistry = {
   onShapes(listener: () => void): () => void {
     shapeListeners.add(listener);
     return () => shapeListeners.delete(listener);
-  },
-  notePress(x: number, y: number): void {
-    press = { x, y, at: performance.now() };
-  },
-  /** The last press on the sea, if it was within `withinMs`. */
-  recentPress(withinMs: number): { x: number; y: number; at: number } | null {
-    return press && performance.now() - press.at <= withinMs ? press : null;
   },
 };

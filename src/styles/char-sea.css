@@ -12,7 +12,7 @@
   background-color: var(--workspace-ui-bg);
   background-image: radial-gradient(circle at center, hsl(var(--ink-2) / 0.075) 0.35px, transparent 0.95px);
   background-position: center;
-  background-size: 14px 14px;
+  background-size: 10px 10px;
 }
 
 .char-sea--active {
