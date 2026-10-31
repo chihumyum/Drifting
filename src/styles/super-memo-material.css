@@ -143,9 +143,18 @@
 
 .smm-kind-group__head {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 6px;
   margin: 0 0 8px;
+}
+
+/* Kinds organize the materials as categories organize elements: the kind's
+   name in the serif structure face, as a category's legend on the element
+   canvas, its count still index type. */
+.smm-kind-group__name {
+  color: hsl(var(--ink-1));
+  font-family: var(--font-structure);
+  font-size: var(--ui-font-secondary, 13px);
 }
 
 .smm-kind-group__grid {
