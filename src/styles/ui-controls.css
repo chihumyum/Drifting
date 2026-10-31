@@ -486,21 +486,23 @@ html[data-shell-mode='desktop'] :is(.leftbar-tab-tray, .rightbar-tab-tray) > .ap
    Rich menus may opt into `menu-surface--rich` and own their inner layout while
    retaining the same outer shell.
 
-   The shell is a piece of the desk lifted out: the sidebar's opaque colour,
-   square corners, a half-pixel hairline and the floating shadow, with no
-   glass of its own. Only the row under the pointer carries glass: one whole
-   ring of flowing hairline glass around it. Moving between rows only fades one row's ring out and
-   the next row's in. Rows carry no fill; groups are separated by space,
-   not rules. */
+   The shell is a piece of the desk lifted out: the sidebar's opaque colour
+   and the floating shadow. On the desktop it is a rounded rectangle (16px)
+   whose rim is the resting glass line, the same uneven line as a resting
+   control. Every row leads with its icon, stands 6px in from the edge and,
+   under the pointer, carries one whole ring of flowing hairline glass (red
+   for a destructive row). Moving between rows only fades one row's ring out
+   and the next row's in. Rows carry no fill; groups are parted by a hairline
+   rule. */
 :where(.menu-surface) {
   position: relative;
 }
 
 .menu-surface {
   box-sizing: border-box;
-  width: var(--menu-width-compact);
+  width: var(--menu-width-standard);
   max-width: calc(100vw - 16px);
-  padding: 4px 0;
+  padding: 6px 0;
   overflow: hidden auto;
   isolation: isolate;
   border: 1px solid var(--menu-surface-border);
@@ -514,6 +516,18 @@ html[data-shell-mode='desktop'] :is(.leftbar-tab-tray, .rightbar-tab-tray) > .ap
   line-height: var(--ui-line-body, 18px);
   letter-spacing: normal;
   text-transform: none;
+}
+
+/* The rim is a background, not a masked ring on a pseudo-element: a menu is
+   its own scroll container and a pseudo-element would scroll away with the
+   rows, while backgrounds stay put. The tinted texture (ringgen.py) shows only
+   in the 1px transparent border; the desk colour fills the rest. */
+html:not([data-shell-mode='mobile']) .menu-surface {
+  border-radius: var(--menu-radius);
+  background:
+    linear-gradient(var(--menu-surface-bg), var(--menu-surface-bg)) padding-box,
+    var(--menu-ring-texture) -14px -46px / 150px 150px border-box var(--menu-surface-bg);
+  box-shadow: var(--menu-shadow);
 }
 
 .menu-surface--rich {
@@ -562,6 +576,54 @@ html[data-shell-mode='desktop'] :is(.leftbar-tab-tray, .rightbar-tab-tray) > .ap
     color 0.12s;
 }
 
+/* Inside a menu a row stands in from the edge, its icon first. Owners that
+   lay out their own rows (a class of theirs, loaded later) still win. */
+:where(.menu-surface) .menu-surface__item {
+  width: calc(100% - 2 * var(--menu-row-inset));
+  min-height: calc(30px + var(--ui-text-increment, 0px));
+  margin-inline: var(--menu-row-inset);
+  padding: 5px 10px;
+  gap: 10px;
+  border-radius: 4px;
+}
+
+:where(.menu-surface) .menu-surface__item > .brush-icon,
+:where(.menu-surface) .menu-surface__item > .kind-mark {
+  flex: none;
+}
+
+/* A kind mark is drawn in a 14px slot; centre it in the 16px icon column. */
+:where(.menu-surface) .menu-surface__item > .kind-mark {
+  margin-inline: 1px;
+}
+
+/* The chosen option of a group: a tick at the far end of its row. */
+.menu-surface__check {
+  flex: none;
+  margin-inline-start: auto;
+}
+
+/* Muted words at a row's far end: the kind of a mentioned entity. */
+.menu-surface__trail {
+  flex: none;
+  margin-inline-start: auto;
+  padding-inline-start: 12px;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  font-size: var(--ui-font-secondary, 11.5px);
+}
+
+/* In the editor's suggestions the arrow keys' row is marked by its still
+   ring alone; a bolder label would shift as the keys move. */
+.editor-suggestion-menu .menu-surface__item[aria-selected='true'] {
+  font-weight: 400;
+}
+
+/* A menu with nothing to offer says so in one quiet line. */
+.menu-surface__empty {
+  padding: 6px 16px;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+}
+
 .menu-surface__item:hover:not(:disabled),
 .menu-surface__item:focus-visible {
   background: transparent;
@@ -600,6 +662,18 @@ html:not([data-shell-mode='mobile']) .menu-surface__item:focus-visible::before {
 
 html:not([data-shell-mode='mobile']) .menu-surface__item:active::before {
   --menu-line: color-mix(in srgb, var(--glass-clear), hsl(var(--ink-3)) 55%);
+}
+
+/* A menu's own rows: the ring is the row's own inset outline. */
+html:not([data-shell-mode='mobile']) :where(.menu-surface) .menu-surface__item::before {
+  inset: 0;
+  border-radius: inherit;
+}
+
+/* A destructive row's ring is drawn in the danger colour. */
+html:not([data-shell-mode='mobile']) .menu-surface__item--danger::before,
+html:not([data-shell-mode='mobile']) .menu-surface__item--danger:active::before {
+  --menu-line: var(--menu-item-danger);
 }
 
 .menu-surface__item:focus-visible {
@@ -653,18 +727,18 @@ html:not([data-shell-mode='mobile']) .menu-surface__item.is-current:not(:hover):
 }
 
 .menu-surface__section-label {
-  padding: 8px 14px 3px;
+  padding: 6px 16px 4px;
   color: var(--ui-text-muted, hsl(var(--ink-4)));
   font-size: var(--ui-font-caption, 9.5px);
   font-weight: 500;
-  letter-spacing: 0.1em;
-  line-height: 14px;
-  text-transform: uppercase;
+  letter-spacing: normal;
+  line-height: 16px;
+  text-transform: none;
 }
 
 .menu-surface__header {
   max-width: 280px;
-  padding: 6px 14px;
+  padding: 6px 16px;
   overflow: hidden;
   color: hsl(var(--ink-2));
   font-size: var(--ui-font-secondary, 11.5px);
@@ -673,12 +747,13 @@ html:not([data-shell-mode='mobile']) .menu-surface__item.is-current:not(:hover):
   white-space: nowrap;
 }
 
+/* Groups are parted by a hairline rule, in from the edge as far as the icons. */
 .menu-surface__divider,
 .menu-surface__separator {
-  height: 8px;
-  margin: 0;
+  height: 0.5px;
+  margin: 5px 16px;
   border: 0;
-  background: transparent;
+  background: var(--menu-separator);
 }
 
 /* Account menu (UserMenu). On the desktop its rows run edge to edge, groups
@@ -735,7 +810,7 @@ html:not([data-shell-mode='mobile']) .menu-surface__item.is-current:not(:hover):
 }
 
 html:not([data-shell-mode='mobile']) .user-menu__head {
-  padding: 14px 14px 8px;
+  padding: 14px 16px 8px;
   border-bottom: 0;
 }
 
@@ -757,12 +832,17 @@ html:not([data-shell-mode='mobile']) .user-menu__group {
   border-bottom: 0;
 }
 
-html:not([data-shell-mode='mobile']) .user-menu__group + .user-menu__group {
-  margin-top: 8px;
+/* Like every menu, its groups are parted by a hairline. */
+html:not([data-shell-mode='mobile']) .user-menu__group + .user-menu__group::before {
+  content: '';
+  display: block;
+  height: 0.5px;
+  margin: 5px 16px;
+  background: var(--menu-separator);
 }
 
 html:not([data-shell-mode='mobile']) .user-menu__group--last {
-  padding-bottom: 4px;
+  padding-bottom: 6px;
 }
 
 .user-menu__slider {

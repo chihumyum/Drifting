@@ -75,7 +75,8 @@ export function ElementCategoryCreateMenu({
               onCreateElement();
             }}
           >
-            {t('elementCategoryCreateMenu.newElement')}
+            <BrushIcon name="plus" size={16} />
+            <span>{t('elementCategoryCreateMenu.newElement')}</span>
           </button>
           <button
             type="button"
@@ -83,7 +84,8 @@ export function ElementCategoryCreateMenu({
             className="menu-surface__item"
             onClick={() => setMode('group')}
           >
-            {t('elementCategoryCreateMenu.newGroup')}
+            <BrushIcon name="folder-plus" size={16} />
+            <span>{t('elementCategoryCreateMenu.newGroup')}</span>
           </button>
         </>
       ) : (

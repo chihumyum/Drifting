@@ -1,4 +1,5 @@
 import {
+  Fragment,
   useCallback,
   useEffect,
   useImperativeHandle,
@@ -38,6 +39,9 @@ import {
 import { usePlotGridDraft } from './plot-grid/usePlotGridDraft';
 import '../../../styles/plot-planner.css';
 import { BrushIcon } from '../ui/BrushIcon';
+
+// The header menu's groups: rename, moving, inserting, deleting.
+const HEADER_MENU_GROUP_STARTS = new Set(['move-back', 'insert-before', 'delete']);
 
 /**
  * The shared Plot Grid surface: one contiguous grid that fills its host. On
@@ -520,6 +524,7 @@ export function PlotGridEditor({
       {
         key: 'rename',
         label: t('plotGrid.rename'),
+        icon: 'edit' as const,
         onClick: () => {
           close();
           setFocusToken((current) => ({ axis: header.axis, id: header.id, n: (current?.n ?? 0) + 1 }));
@@ -528,18 +533,25 @@ export function PlotGridEditor({
       {
         key: 'move-back',
         label: t(isRow ? 'plotGrid.moveUp' : 'plotGrid.moveLeft'),
+        // No arrow points up: the falling one, turned over.
+        icon: isRow ? 'arrow-down' as const : 'arrow-back' as const,
+        iconTurn: isRow ? 'rotate(180deg)' : undefined,
         disabled: index <= 0,
         onClick: () => api.moveVisual(header.axis, header.id, -1),
       },
       {
         key: 'move-forward',
         label: t(isRow ? 'plotGrid.moveDown' : 'plotGrid.moveRight'),
+        icon: isRow ? 'arrow-down' as const : 'arrow-forward' as const,
         disabled: index >= count - 1,
         onClick: () => api.moveVisual(header.axis, header.id, 1),
       },
       {
         key: 'insert-before',
         label: t(isRow ? 'plotGrid.insertRowAbove' : 'plotGrid.insertColumnLeft'),
+        // The new row (column) is drawn below (right of) the others; mirror it above (left).
+        icon: isRow ? 'insert-row' as const : 'insert-col' as const,
+        iconTurn: isRow ? 'scaleY(-1)' : 'scaleX(-1)',
         onClick: () => {
           close();
           api.insertVisual(header.axis, header.id, 'before');
@@ -548,6 +560,7 @@ export function PlotGridEditor({
       {
         key: 'insert-after',
         label: t(isRow ? 'plotGrid.insertRowBelow' : 'plotGrid.insertColumnRight'),
+        icon: isRow ? 'insert-row' as const : 'insert-col' as const,
         onClick: () => {
           close();
           api.insertVisual(header.axis, header.id, 'after');
@@ -556,6 +569,7 @@ export function PlotGridEditor({
       {
         key: 'delete',
         label: t(isRow ? 'plotGrid.deleteRow' : 'plotGrid.deleteColumn'),
+        icon: 'trash' as const,
         hint: filled > 0 ? t('plotGrid.deleteClears', { count: filled }) : undefined,
         danger: true,
         disabled: count <= 1,
@@ -733,17 +747,21 @@ export function PlotGridEditor({
           ariaLabel={t('plotGrid.headerMenu')}
         >
           {menuItems(menu).map((item) => (
-            <button
-              key={item.key}
-              type="button"
-              role="menuitem"
-              className={`menu-surface__item${item.danger ? ' menu-surface__item--danger' : ''}`}
-              disabled={item.disabled}
-              onClick={item.onClick}
-            >
-              <span>{item.label}</span>
-              {item.hint && <small className="pl-head-menu__hint">{item.hint}</small>}
-            </button>
+            <Fragment key={item.key}>
+              {/* Rename, then moving, then inserting, then deleting. */}
+              {HEADER_MENU_GROUP_STARTS.has(item.key) && <div className="menu-surface__divider" />}
+              <button
+                type="button"
+                role="menuitem"
+                className={`menu-surface__item${item.danger ? ' menu-surface__item--danger' : ''}`}
+                disabled={item.disabled}
+                onClick={item.onClick}
+              >
+                <BrushIcon name={item.icon} size={16} style={'iconTurn' in item && item.iconTurn ? { transform: item.iconTurn } : undefined} />
+                <span>{item.label}</span>
+                {item.hint && <small className="pl-head-menu__hint">{item.hint}</small>}
+              </button>
+            </Fragment>
           ))}
         </AnchoredPopover>
       )}

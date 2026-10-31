@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import type { KindMarkKind } from './kind-mark';
+import { kindMarkShape, type KindMarkKind } from './kind-mark';
 
 /**
  * The sand mark of each kind of thing that can open as a tab, the same in
@@ -8,23 +8,6 @@ import type { KindMarkKind } from './kind-mark';
  * eddy, drift group = wave, material = upright slip, the whole book = star.
  * Shapes are alpha masks (materials.css `.kind-mark`).
  */
-const SHAPE: Record<Exclude<KindMarkKind, 'chapter'>, string> = {
-  element: 'square',
-  storyline: 'dash',
-  category: 'corner',
-  drift: 'spiral',
-  'drift-group': 'wave',
-  material: 'slip',
-  all: 'star',
-};
-
-/** Chapters press one of six seals, always the same one for the same chapter. */
-function sealOf(seed: string) {
-  let hash = 0;
-  for (let index = 0; index < seed.length; index += 1) hash = (hash * 31 + seed.charCodeAt(index)) | 0;
-  return `blob-${Math.abs(hash) % 6}`;
-}
-
 export function KindMark({
   kind,
   color,
@@ -49,7 +32,7 @@ export function KindMark({
   title?: string;
   className?: string;
 }) {
-  const shape = kind === 'chapter' ? sealOf(seed) : SHAPE[kind];
+  const shape = kindMarkShape(kind, seed);
   return (
     <span
       aria-hidden={title ? undefined : true}

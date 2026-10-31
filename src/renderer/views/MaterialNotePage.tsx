@@ -95,14 +95,14 @@ export function MaterialNotePage({
 
   const slashItems = useMemo<SlashMenuExtraItem[]>(
     () => [
-      { id: 'bullet-list', title: t('materialEditor.slash.bulletList'), run: ({ editor }) => editor.chain().focus().toggleBulletList().run() },
-      { id: 'ordered-list', title: t('materialEditor.slash.orderedList'), run: ({ editor }) => editor.chain().focus().toggleOrderedList().run() },
-      { id: 'task-list', title: t('materialEditor.slash.taskList'), run: ({ editor }) => editor.chain().focus().toggleTaskList().run() },
-      { id: 'table', title: t('materialEditor.slash.table'), run: ({ editor }) => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run() },
-      { id: 'code-block', title: t('materialEditor.slash.codeBlock'), run: ({ editor }) => editor.chain().focus().toggleCodeBlock().run() },
-      { id: 'callout', title: t('materialEditor.slash.callout'), run: ({ editor }) => editor.chain().focus().toggleCallout().run() },
-      { id: 'highlight', title: t('materialEditor.slash.highlight'), run: ({ editor }) => editor.chain().focus().toggleHighlight().run() },
-      { id: 'material', title: t('materialEditor.slash.material'), run: ({ editor }) => setEmbedPickerEditor(editor) },
+      { id: 'bullet-list', title: t('materialEditor.slash.bulletList'), icon: 'list-bullet', run: ({ editor }) => editor.chain().focus().toggleBulletList().run() },
+      { id: 'ordered-list', title: t('materialEditor.slash.orderedList'), icon: 'list-ordered', run: ({ editor }) => editor.chain().focus().toggleOrderedList().run() },
+      { id: 'task-list', title: t('materialEditor.slash.taskList'), icon: 'checklist', run: ({ editor }) => editor.chain().focus().toggleTaskList().run() },
+      { id: 'table', title: t('materialEditor.slash.table'), icon: 'table', run: ({ editor }) => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run() },
+      { id: 'code-block', title: t('materialEditor.slash.codeBlock'), icon: 'code', run: ({ editor }) => editor.chain().focus().toggleCodeBlock().run() },
+      { id: 'callout', title: t('materialEditor.slash.callout'), icon: 'sticky-note', run: ({ editor }) => editor.chain().focus().toggleCallout().run() },
+      { id: 'highlight', title: t('materialEditor.slash.highlight'), icon: 'highlight', run: ({ editor }) => editor.chain().focus().toggleHighlight().run() },
+      { id: 'material', title: t('materialEditor.slash.material'), icon: 'lib-curio', run: ({ editor }) => setEmbedPickerEditor(editor) },
     ],
     [t],
   );

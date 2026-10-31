@@ -51,6 +51,8 @@
   /* Floating glass: the paper shows through, faintly enough to keep labels readable. */
   --glass-fill: color-mix(in srgb, hsl(var(--page)) 80%, transparent);
   --glass-texture: url('../assets/design/glass-thick.png');
+  /* The same texture tinted as the resting line, for a menu's rim (ringgen.py). */
+  --menu-ring-texture: url('../assets/design/glass-ring.png');
   /* The densest patch of that texture: small glass always reads its rim here. */
   --glass-dense-gx: -96px;
   --glass-dense-gy: -132px;
@@ -79,6 +81,7 @@
    white and glows in its own colour. */
 .dark {
   --glass-clear: #6b6d67;
+  --menu-ring-texture: url('../assets/design/glass-ring-dark.png');
   --pigment-blend: normal;
   --pigment-lift: 14%;
   --glass-bleed-lift: 45%;

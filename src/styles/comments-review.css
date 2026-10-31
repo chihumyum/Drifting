@@ -1310,32 +1310,31 @@ html[data-shell-mode='desktop'] .editor__toc-rail--edge {
   cursor: pointer;
 }
 /* Element image entry: the editor top bar button opens .elem-image-menu, a
-   popover portaled to body holding the large image, its candidates, actions
-   and the generation form. */
+   wide menu (.menu-surface) holding the large image, its candidates, the
+   actions as menu rows and the generation form. The image and the candidates
+   stand in from the edge as far as the rows do. */
 .elem-image-menu {
   z-index: var(--z-popover);
-  width: 320px;
   max-height: min(78vh, 720px);
   overflow-y: auto;
-  padding: 12px;
-  border: 1px solid hsl(var(--rule));
-  border-radius: 10px;
-  background: hsl(var(--page));
-  box-shadow: 0 12px 36px hsl(var(--shadow-ink) / 0.14);
   font-family: var(--font-ui);
-  color: hsl(var(--ink-2));
 }
 .elem-image-menu__body {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  padding: 6px 0;
+}
+.elem-image-menu__body > .elem-portrait__error,
+.elem-image-menu__body > .elem-candidates {
+  margin: 8px 16px 2px;
 }
 .elem-image-menu__art {
   display: block;
-  width: 100%;
+  width: calc(100% - 2 * var(--menu-row-inset));
+  margin: 0 var(--menu-row-inset);
   padding: 0;
   border: 0;
-  border-radius: 6px;
+  border-radius: 4px;
   overflow: hidden;
   background: hsl(var(--ink-1) / 0.04);
   cursor: zoom-in;
@@ -1357,35 +1356,9 @@ html[data-shell-mode='desktop'] .editor__toc-rail--edge {
 .elem-image-menu__actions {
   display: flex;
   flex-direction: column;
-  margin: 0 -4px;
-  padding-top: 6px;
-  border-top: 1px solid hsl(var(--rule));
 }
-.elem-image-menu__action {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  border: 0;
-  border-radius: 5px;
-  background: transparent;
-  color: hsl(var(--ink-2));
-  font: 12.5px var(--font-ui);
-  text-align: left;
-  cursor: pointer;
-}
-.elem-image-menu__action:hover:not(:disabled),
-.elem-image-menu__action:focus-visible {
-  background: hsl(var(--rule));
-  color: hsl(var(--ink-1));
-  outline: none;
-}
-.elem-image-menu__action:disabled {
-  opacity: 0.45;
-  cursor: progress;
-}
-.elem-image-menu__action--danger {
-  color: hsl(var(--danger, var(--accent)));
+.elem-image-menu > .elem-imagegen__form {
+  padding: 12px 16px;
 }
 .elem-imagegen__form {
   display: flex;

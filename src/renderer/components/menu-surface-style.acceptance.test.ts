@@ -23,46 +23,89 @@ function rule(text: string, selector: string): string {
 }
 
 describe('shared menu surface style', () => {
-  it('defines one compact action-menu shell and semantic row states', () => {
+  it('defines one rounded action-menu shell, inset rows and hairline groups', () => {
     const tokens = source('src/styles/index.css');
+    const materials = source('src/styles/materials.css');
     const controls = source('src/styles/ui-controls.css');
     const surface = block(controls, '.menu-surface {', '.menu-surface--rich {');
     const item = block(controls, '.menu-surface__item {', '.menu-surface__item:hover');
     const separator = block(controls, '.menu-surface__divider,', '.user-menu__group {');
 
-    // Menus are a lifted piece of the desk: the sidebar's opaque colour,
-    // square, a half-pixel hairline and the floating shadow, with no glass
-    // of their own; only the row under the pointer shows hairline glass
-    // along its edges; rows carry no fill; groups are separated by space.
+    // Menus are a lifted piece of the desk: the sidebar's opaque colour and the
+    // floating shadow. On the desktop a dropdown menu is a 16px rounded
+    // rectangle whose rim is the resting glass line; its rows stand 6px in from
+    // the edge, and only the row under the pointer shows its ring of hairline
+    // glass (red on a destructive row); rows carry no fill; groups are parted
+    // by a hairline.
     expect(tokens).toContain('--menu-surface-bg: var(--workspace-ui-bg);');
     expect(tokens).toContain('--menu-surface-border: transparent;');
+    // Dialogs and search keep the square shell and its hairline.
     expect(tokens).toContain('--menu-surface-radius: 0;');
     expect(tokens).toContain('0 0 0 0.5px hsl(var(--ink-1) / 0.16),');
+    expect(tokens).toContain('--menu-radius: 16px;');
+    expect(tokens).toContain('--menu-shadow: 0 16px 30px -16px hsl(var(--shadow-ink) / 0.38);');
+    expect(tokens).toContain('--menu-shadow: 0 16px 30px -16px hsl(var(--shadow-ink) / 0.62);');
+    expect(tokens).toContain('--menu-row-inset: 6px;');
+    expect(tokens).toContain('--menu-separator: hsl(var(--ink-1) / 0.14);');
     expect(tokens).toContain('--menu-item-hover-bg: hsl(var(--ink-1) / 0.05);');
     expect(tokens).toContain('--menu-item-danger: hsl(var(--destructive));');
-    expect(tokens).toContain('--menu-width-compact: 180px;');
-    expect(tokens).toContain('--menu-width-standard: 220px;');
-    expect(tokens).toContain('--menu-width-wide: 280px;');
-    expect(tokens).toContain('--menu-width-panel: 360px;');
+    // Two widths for menus (the older class names alias them) and one for settings panels.
+    expect(tokens).toContain('--menu-width-compact: 240px;');
+    expect(tokens).toContain('--menu-width-standard: 240px;');
+    expect(tokens).toContain('--menu-width-wide: 320px;');
+    expect(tokens).toContain('--menu-width-panel: 320px;');
     expect(tokens).toContain('--menu-width-settings: 420px;');
     expect(surface).toContain('border: 1px solid var(--menu-surface-border);');
-    expect(surface).toContain('box-shadow: var(--menu-surface-shadow);');
-    expect(surface).toContain('width: var(--menu-width-compact);');
+    expect(surface).toContain('padding: 6px 0;');
+    expect(surface).toContain('width: var(--menu-width-standard);');
     expect(surface).toContain('font-size: var(--ui-font-body, 12.5px);');
     expect(surface).toContain('line-height: var(--ui-line-body, 18px);');
     expect(surface).not.toContain('backdrop-filter');
+    // The rim is the resting glass line drawn as a background in the 1px
+    // border: a pseudo-element would scroll away with the rows.
+    expect(surface).toContain('border-radius: var(--menu-radius);');
+    expect(surface).toContain('linear-gradient(var(--menu-surface-bg), var(--menu-surface-bg)) padding-box,');
+    expect(surface).toContain('var(--menu-ring-texture) -14px -46px / 150px 150px border-box var(--menu-surface-bg);');
+    expect(surface).toContain('box-shadow: var(--menu-shadow);');
+    expect(materials).toContain("--menu-ring-texture: url('../assets/design/glass-ring.png');");
+    expect(materials).toContain("--menu-ring-texture: url('../assets/design/glass-ring-dark.png');");
+    for (const ring of ['glass-ring.png', 'glass-ring-dark.png']) {
+      expect(existsSync(resolve(process.cwd(), `src/assets/design/${ring}`)), ring).toBe(true);
+    }
+    expect(source('scripts/design-assets/ringgen.py')).toContain('STRENGTH = 0.33 * 1.8 * 0.85');
     expect(controls).not.toContain('.menu-surface::before {');
+    expect(controls).not.toContain('.menu-surface::after {');
     // The hovered row is one whole ring, no open sides.
     expect(controls).not.toContain(".menu-surface__item::after {");
+    // Rows outside a menu (search results, lists in dialogs) keep their own geometry.
     expect(controls).toContain('inset: 1px 4px;');
     expect(item).toContain('min-height: var(--ui-row-height, 30px);');
     expect(item).toContain('padding: 6px 14px;');
     expect(item).toContain('border-radius: 0;');
+    // Inside a menu a row stands in from the edge and leads with its icon.
+    expect(item).toContain(':where(.menu-surface) .menu-surface__item {');
+    expect(item).toContain('width: calc(100% - 2 * var(--menu-row-inset));');
+    expect(item).toContain('margin-inline: var(--menu-row-inset);');
+    expect(item).toContain('min-height: calc(30px + var(--ui-text-increment, 0px));');
+    expect(item).toContain('padding: 5px 10px;');
+    expect(item).toContain('gap: 10px;');
+    expect(item).toContain('border-radius: 4px;');
+    expect(item).toContain('.menu-surface__check {');
+    expect(controls).toContain(
+      "html:not([data-shell-mode='mobile']) :where(.menu-surface) .menu-surface__item::before {\n  inset: 0;",
+    );
     expect(controls).toContain(
       "html:not([data-shell-mode='mobile']) .menu-surface__item:hover:not(:disabled)::before,",
     );
-    expect(separator).toContain('height: 8px;');
-    expect(separator).toContain('background: transparent;');
+    expect(controls).toContain("html:not([data-shell-mode='mobile']) .menu-surface__item--danger::before,");
+    expect(controls).toContain('  --menu-line: var(--menu-item-danger);');
+    expect(separator).toContain('height: 0.5px;');
+    expect(separator).toContain('margin: 5px 16px;');
+    expect(separator).toContain('background: var(--menu-separator);');
+    const label = rule(controls, '.menu-surface__section-label {');
+    expect(label).toContain('padding: 6px 16px 4px;');
+    expect(label).toContain('text-transform: none;');
+    expect(label).toContain('letter-spacing: normal;');
     expect(item).toContain('overflow-wrap: anywhere;');
     expect(item).toContain('white-space: normal;');
     expect(item).not.toContain('white-space: nowrap;');
@@ -162,6 +205,63 @@ describe('shared menu surface style', () => {
     expect(rule(source('src/styles/comments-review.css'), '.editor-selection-bar {')).toContain('flex-direction: row;');
   });
 
+  it('leads every dropdown row with its icon, the editor suggestions included', () => {
+    // Sort options cannot be declared without an icon; the tick of the chosen one sits at the far end.
+    const sortMenu = source('src/renderer/components/leftBars/SortMenu.tsx');
+    expect(sortMenu).toContain('  icon: BrushIconName;');
+    expect(sortMenu).toContain('<BrushIcon name={icon} size={16} />');
+    expect(sortMenu).toContain('<BrushIcon name="check" size={12} className="menu-surface__check" />');
+    const subHeader = source('src/renderer/components/leftBars/LeftSidebarSubHeader.tsx');
+    const sortOptions = subHeader.match(/\{ value: '\w+', label: t\('leftSidebar\.sort\.\w+'\)[^}]*\}/g) ?? [];
+    expect(sortOptions.length).toBeGreaterThan(15);
+    for (const option of sortOptions) expect(option, option).toMatch(/icon: '[a-z-]+'/);
+    for (const [key, icon] of [
+      ['createdAt', 'sprout'], ['updatedAt', 'brush-writing'], ['alphabet', 'alpha-down'],
+      ['storylineOrder', 'lanes-stagger'], ['showDate', 'ri'], ['showNone', 'wu'], ['duplicatesAll', 'seal-fork'],
+    ]) {
+      expect(subHeader).toContain(`label: t('leftSidebar.sort.${key}'), icon: '${icon}' }`);
+    }
+
+    // The editor's ⋯ menu: plain actions, the writing status, then what destroys.
+    const topBar = source('src/renderer/components/editor/EditorTopBar.tsx');
+    expect(topBar).toContain('  icon: MenuRowIconSpec;');
+    expect(topBar).toContain('<MenuRowIcon icon={item.icon} />');
+    expect(topBar).toContain("discarded: 'brush-broken',");
+    expect(topBar).toContain("drifting: 'fluff',");
+    expect(topBar).toContain("icon: { kind: 'chapter' },");
+    expect(topBar).toContain("groups.push({ key: 'destructive'");
+    // Every action's label is followed by its icon.
+    const actionLabels = topBar.match(/label: label\('editorTopBar\.menu\.\w+', '[^']*'\),\n\s+\S+/g) ?? [];
+    expect(actionLabels.length).toBe(16);
+    for (const action of actionLabels) expect(action, action).toMatch(/\n\s+icon:$/);
+    expect(source('src/renderer/components/ui/MenuRowIcon.tsx')).toContain('<KindMark kind={icon.kind} />');
+
+    // The other menus of rows.
+    expect(source('src/renderer/components/leftBars/ElementCategoryCreateMenu.tsx')).toContain('<BrushIcon name="folder-plus" size={16} />');
+    expect(source('src/renderer/components/leftBars/ElementGroupPicker.tsx')).toContain('<BrushIcon name="folder-none" size={16} />');
+    const plotGrid = source('src/renderer/components/editor/PlotGrid.tsx');
+    expect(plotGrid).toContain("icon: isRow ? 'insert-row' as const : 'insert-col' as const,");
+    expect(plotGrid).toContain("const HEADER_MENU_GROUP_STARTS = new Set(['move-back', 'insert-before', 'delete']);");
+    const imageEntry = source('src/renderer/features/element-images/ElementImageEntry.tsx');
+    expect(imageEntry).toContain('className="menu-surface menu-surface--rich menu-surface--wide elem-image-menu"');
+    expect(imageEntry).toContain('className="menu-surface__item menu-surface__item--danger"');
+    expect(rule(source('src/styles/comments-review.css'), '.elem-image-menu {')).not.toContain('border-radius');
+
+    // `/` and `@` open the same menu at the caret, built with the DOM.
+    const suggestionMenu = source('src/renderer/lib/editor-suggestion-menu.ts');
+    expect(suggestionMenu).toContain("root.className = 'menu-surface editor-suggestion-menu';");
+    expect(suggestionMenu).toContain("rule.className = 'menu-surface__divider';");
+    expect(suggestionMenu).toContain("button.classList.toggle('is-current', current);");
+    for (const path of ['src/renderer/lib/slash-menu/default-slash-menu.ts', 'src/renderer/lib/extensions/entity-mention-suggestion.ts']) {
+      const menu = source(path);
+      expect(menu, path).toContain('createSuggestionMenu(');
+      expect(menu, path).not.toContain('#fefdfb');
+      expect(menu, path).not.toContain('style.background');
+    }
+    expect(source('src/renderer/lib/slash-menu/default-slash-menu.ts')).toContain("  icon: BrushIconName;");
+    expect(source('src/renderer/views/MaterialNotePage.tsx')).toContain("icon: 'list-bullet'");
+  });
+
   it('aligns button dropdowns and keeps rich popovers on the same shell tokens', () => {
     const anchoredMenus = [
       'src/renderer/components/editor/EditorTopBar.tsx',
@@ -247,8 +347,9 @@ describe('shared menu surface style', () => {
     expect(doc).toContain('## No right-click menus');
     expect(doc).toContain('三点按钮、排序按钮与窗口控件');
     expect(doc).toContain('系统原生右键菜单不属于 renderer 可定制范围');
-    expect(doc).toContain('180 / 220 / 280 / 360 / 420px');
-    expect(doc).toContain('桌面单行内容至少为 `32px`');
+    expect(doc).toContain('240 / 320 / 420px');
+    expect(doc).toContain('桌面单行 `30px`');
+    expect(doc).toContain('同一个菜单里不混用有图标和没图标的行');
     expect(doc).toContain('不能证明不同平台上的字体栅格化、阴影观感');
   });
 });
@@ -321,7 +422,7 @@ describe('floating layers, dialogs and the controls inside them', () => {
     expect(search).toContain('--search-find-match-bg:        hsl(var(--accent) / 0.16);');
   });
 
-  it('parts the account menu by space and sets theme and language with GlassSliders', () => {
+  it('parts the account menu by hairlines and sets theme and language with GlassSliders', () => {
     const menu = source('src/renderer/components/topBars/UserMenu.tsx');
     const controls = source('src/styles/ui-controls.css');
 
@@ -332,9 +433,11 @@ describe('floating layers, dialogs and the controls inside them', () => {
     expect(rule(controls, "html:not([data-shell-mode='mobile']) .user-menu__group {")).toContain(
       'border-bottom: 0;',
     );
-    expect(
-      rule(controls, "html:not([data-shell-mode='mobile']) .user-menu__group + .user-menu__group {"),
-    ).toContain('margin-top: 8px;');
+    // Like every menu, its groups are parted by a hairline; its icons are 16px.
+    const hairline = rule(controls, "html:not([data-shell-mode='mobile']) .user-menu__group + .user-menu__group::before {");
+    expect(hairline).toContain('height: 0.5px;');
+    expect(hairline).toContain('background: var(--menu-separator);');
+    expect(menu).not.toContain('size={13}');
     expect(rule(controls, "html:not([data-shell-mode='mobile']) .user-menu__name {")).toContain(
       'font-style: normal;',
     );
