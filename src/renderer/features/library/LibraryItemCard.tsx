@@ -231,9 +231,9 @@ export function LibraryItemCard({
     {
       key: 'organize',
       actions: [
-        { key: 'addRelation', label: t('memoMaterial.menu.addRelation'), onSelect: () => setPickerOpen(true) },
+        { key: 'addRelation', label: t('memoMaterial.menu.addRelation'), icon: { brush: 'knot-links' as const }, onSelect: () => setPickerOpen(true) },
         ...(onMoveToFolder
-          ? [{ key: 'moveToFolder', label: t('editorTopBar.menu.moveMaterialToFolder'), onSelect: onMoveToFolder }]
+          ? [{ key: 'moveToFolder', label: t('editorTopBar.menu.moveMaterialToFolder'), icon: { brush: 'folder' as const }, onSelect: onMoveToFolder }]
           : []),
       ],
     },
@@ -241,11 +241,11 @@ export function LibraryItemCard({
       key: 'system',
       actions: isTextSnippet
         ? []
-        : [{ key: 'openInSystem', label: t('memoMaterial.menu.openInSystem'), onSelect: handleOpenInSystem }],
+        : [{ key: 'openInSystem', label: t('memoMaterial.menu.openInSystem'), icon: { brush: 'arrow-out' as const }, onSelect: handleOpenInSystem }],
     },
     {
       key: 'delete',
-      actions: [{ key: 'delete', label: t('memoMaterial.menu.deleteMaterial'), danger: true, onSelect: onDelete }],
+      actions: [{ key: 'delete', label: t('memoMaterial.menu.deleteMaterial'), icon: { brush: 'trash' as const }, danger: true, onSelect: onDelete }],
     },
   ].filter((group) => group.actions.length > 0);
 
@@ -796,7 +796,7 @@ export function LibraryItemCard({
           actions={actions}
           onDismiss={hoverDismiss}
         >
-          <HoverCardHeading title={cardTitle} detail={cardDetails.join(' · ')} />
+          <HoverCardHeading title={cardTitle} mark={{ kind: 'material' }} index={kindLabel} detail={cardDetails[1]} />
         </HoverCardShell>
       )}
       {mobileMenu && (

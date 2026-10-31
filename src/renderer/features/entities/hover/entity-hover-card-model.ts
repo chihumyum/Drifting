@@ -7,6 +7,7 @@ import { parseKv } from '../../../domain/kv';
 import { resolvePrimaryStorylineId } from '../../../domain/node-storyline-state';
 import { useDataStore } from '../../../store/data-store';
 import { HOVER_CARD_GRACE_MS, HOVER_PREVIEW_DELAY_MS, SCROLL_REST_MS } from '../../../lib/motion';
+import type { KindMarkKind } from '../../../components/ui/kind-mark';
 
 export { HOVER_PREVIEW_DELAY_MS };
 
@@ -20,16 +21,31 @@ export interface EntityHoverPreview<T> {
   anchor: HTMLElement;
 }
 
-export interface EntityHoverMetaItem {
-  text: string;
+/** A kind mark: the thing's own in the head, what it belongs to in a tag. */
+export interface EntityHoverMark {
+  kind: KindMarkKind;
   color?: string | null;
+  seed?: string;
+  loose?: boolean;
+}
+
+/** One thing it belongs to or is known by, in the line under the title. */
+export interface EntityHoverTag {
+  text: string;
+  mark?: EntityHoverMark;
   tone?: 'secondary';
 }
 
 export interface EntityHoverCardContent {
-  title?: string;
+  title: string;
+  mark: EntityHoverMark;
+  /** A count on the right of the title: words, chapters, elements. */
+  index?: string;
+  /** The writing status, named in the line under the title when the card has no choice of it. */
+  status?: string;
+  tags: EntityHoverTag[];
+  kv: Array<{ key: string; value: string }>;
   summary: string | null | undefined;
-  meta: EntityHoverMetaItem[];
 }
 
 type DataStoreSnapshot = Pick<ReturnType<typeof useDataStore.getState>,
@@ -52,18 +68,16 @@ function compactAliases(aliases: string[]): string | null {
   return `AKA ${visible}${remaining > 0 ? ` +${remaining}` : ''}`;
 }
 
-function kvMeta(raw: string): EntityHoverMetaItem[] {
+function kvRows(raw: string): Array<{ key: string; value: string }> {
   return parseKv(raw).flatMap(({ key, value }) => {
     const cleanKey = key.trim();
     const cleanValue = value.trim();
     if (!cleanKey && !cleanValue) return [];
-    return [
-      { text: cleanKey && cleanValue ? `${cleanKey}：${cleanValue}` : cleanKey || cleanValue },
-    ];
+    return [{ key: cleanKey, value: cleanValue }];
   });
 }
 
-/** Build summary + cheap metadata exclusively from the already-hydrated store. */
+/** Build the card's head, tags and summary from the already-hydrated store only. */
 export function buildEntityHoverCardContent(
   target: EntityHoverTarget,
   state: DataStoreSnapshot,
@@ -72,17 +86,17 @@ export function buildEntityHoverCardContent(
   if (target.kind === 'node') {
     const node = state.bookNodes.find((candidate) => candidate.id === target.id);
     if (!node) return null;
-    const meta: EntityHoverMetaItem[] = [
-      { text: t(STATUS_KEYS[node.writingStatus]) },
-      {
-        text:
-          canonicalWordCount(node) == null
-            ? t('common.counting')
-            : t('nodeEditor.meta.words', {
-                count: canonicalWordCount(node)!.toLocaleString(),
-              }),
-      },
-    ];
+    const words = canonicalWordCount(node);
+    const index = words == null
+      ? t('common.counting')
+      : t('nodeEditor.meta.words', { count: words.toLocaleString() });
+    const content = {
+      title: node.title || t('common.untitled'),
+      index,
+      status: t(STATUS_KEYS[node.writingStatus]),
+      kv: [],
+      summary: node.summary,
+    };
     if (isChapter(node)) {
       const storylineById = new Map(state.storylines.map((candidate) => [candidate.id, candidate]));
       const storylineIds = (state.nodeStorylineMapping[node.id] ?? []).filter((id) =>
@@ -93,36 +107,38 @@ export function buildEntityHoverCardContent(
         storylineIds,
       );
       const storyline = storylineId ? storylineById.get(storylineId) : null;
-      meta.push({
-        text: storyline?.name ?? t('nodeEditor.empty.noStoryline'),
-        color: storyline?.color,
-      });
+      const tags: EntityHoverTag[] = [
+        storyline
+          ? { text: storyline.name, mark: { kind: 'storyline', color: storyline.color } }
+          : { text: t('nodeEditor.empty.noStoryline') },
+      ];
       for (const secondaryStorylineId of storylineIds) {
         if (secondaryStorylineId === storylineId) continue;
         const secondaryStoryline = storylineById.get(secondaryStorylineId);
         if (!secondaryStoryline) continue;
-        meta.push({
+        tags.push({
           text: secondaryStoryline.name,
-          color: secondaryStoryline.color,
+          mark: { kind: 'storyline', color: secondaryStoryline.color },
           tone: 'secondary',
         });
       }
-    } else if (node.driftGroupId) {
-      const groupsById = new Map(state.driftGroups.map((group) => [group.id, group]));
-      const groupPath: string[] = [];
-      const seen = new Set<string>();
-      let group = groupsById.get(node.driftGroupId) ?? null;
-      const color = group?.color;
-      while (group && !seen.has(group.id)) {
-        seen.add(group.id);
-        groupPath.unshift(group.name);
-        group = group.parentGroupId ? (groupsById.get(group.parentGroupId) ?? null) : null;
-      }
-      if (groupPath.length > 0) meta.push({ text: groupPath.join(' / '), color });
+      return { ...content, mark: { kind: 'chapter', seed: node.id, color: storyline?.color }, tags };
     }
-    // Cards now stand on their own (timeline tiles truncate names), so every
-    // kind leads with its name.
-    return { title: node.title || t('common.untitled'), summary: node.summary, meta };
+    const groupsById = new Map(state.driftGroups.map((group) => [group.id, group]));
+    const groupPath: string[] = [];
+    const seen = new Set<string>();
+    let group = node.driftGroupId ? (groupsById.get(node.driftGroupId) ?? null) : null;
+    const color = group?.color;
+    while (group && !seen.has(group.id)) {
+      seen.add(group.id);
+      groupPath.unshift(group.name);
+      group = group.parentGroupId ? (groupsById.get(group.parentGroupId) ?? null) : null;
+    }
+    return {
+      ...content,
+      mark: { kind: 'drift', color, loose: groupPath.length === 0 },
+      tags: groupPath.length > 0 ? [{ text: groupPath.join(' / '), mark: { kind: 'drift-group', color } }] : [],
+    };
   }
 
   if (target.kind === 'element') {
@@ -131,17 +147,21 @@ export function buildEntityHoverCardContent(
     const category = element.categoryId
       ? state.bookElementCategories.find((candidate) => candidate.id === element.categoryId)
       : null;
-    const meta: EntityHoverMetaItem[] = [
-      {
-        text: category?.name ?? t('leftSidebar.uncategorized'),
-        color: category?.color,
-      },
+    const tags: EntityHoverTag[] = [
+      category
+        ? { text: category.name, mark: { kind: 'category', color: category.color } }
+        : { text: t('leftSidebar.uncategorized') },
     ];
-    if (element.groupName) meta.push({ text: element.groupName });
+    if (element.groupName) tags.push({ text: element.groupName });
     const aliases = compactAliases(element.aliases);
-    if (aliases) meta.push({ text: aliases });
-    meta.push(...kvMeta(element.kvJson));
-    return { title: element.name, summary: element.summary, meta };
+    if (aliases) tags.push({ text: aliases, tone: 'secondary' });
+    return {
+      title: element.name,
+      mark: { kind: 'element', color: category?.color },
+      tags,
+      kv: kvRows(element.kvJson),
+      summary: element.summary,
+    };
   }
 
   if (target.kind === 'storyline') {
@@ -156,17 +176,16 @@ export function buildEntityHoverCardContent(
       : null;
     return {
       title: storyline.name || t('common.untitled'),
+      mark: { kind: 'storyline', color: storyline.color },
+      index: [
+        t('storylineEditor.meta.chapters', { count: nodes.length }),
+        words == null
+          ? t('common.counting')
+          : t('storylineEditor.meta.kWords', { count: (words / 1000).toFixed(1) }),
+      ].join(' · '),
+      tags: [],
+      kv: kvRows(storyline.kvJson),
       summary: storyline.summary,
-      meta: [
-        { text: t('storylineEditor.meta.chapters', { count: nodes.length }) },
-        {
-          text:
-            words == null
-              ? t('common.counting')
-              : t('storylineEditor.meta.kWords', { count: (words / 1000).toFixed(1) }),
-        },
-        ...kvMeta(storyline.kvJson),
-      ],
     };
   }
 
@@ -176,8 +195,11 @@ export function buildEntityHoverCardContent(
     const count = state.bookElements.filter((element) => element.categoryId === category.id).length;
     return {
       title: category.name,
+      mark: { kind: 'category', color: category.color },
+      index: t('categoryEditor.meta.elements', { count }),
+      tags: [],
+      kv: [],
       summary: null,
-      meta: [{ text: t('categoryEditor.meta.elements', { count }), color: category.color }],
     };
   }
 

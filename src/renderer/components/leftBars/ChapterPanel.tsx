@@ -10,6 +10,8 @@ import loglevel from 'loglevel';
 import type { BookNode } from '../../domain/book-node';
 import { canonicalWordCount, CHAPTER_ORDER_STRIDE, isChapter } from '../../domain/book-node';
 import { entityHoverActions } from './entity-hover-actions';
+import { withChapterStorylineChoices } from '../../features/entities/hover/hover-choices';
+import { chapterStorylineIds, useChapterStorylineToggle } from '../../features/entities/hover/use-hover-choice-writes';
 import { GroupHeaderCell } from './GroupHeaderCell';
 import { KindMark } from '../ui/KindMark';
 import { CELL_PAD_LEFT, SandCell } from '../ui/SandCell';
@@ -368,22 +370,39 @@ export function ChapterPanel({
     dismiss: hoverDismiss,
     card: hoverCard,
   } = useHoverPreview<EntityHoverTarget>();
+  const toggleChapterStoryline = useChapterStorylineToggle(projectId);
   const hoverActionsFor = (target: EntityHoverTarget) => {
     if (target.kind === 'storyline') {
-      return entityHoverActions({
-        editorType: 'storyline',
-        onAction: (action) => void dispatchEntityAction({ entityType: 'storyline', id: target.id, action }),
-        t,
-      });
+      return [
+        {
+          key: 'create',
+          actions: [{
+            key: 'append-chapter',
+            label: t('leftSidebar.groups.newChapterInStoryline'),
+            icon: { brush: 'plus' as const },
+            onSelect: () => void handleCreateNode(target.id),
+          }],
+        },
+        ...entityHoverActions({
+          editorType: 'storyline',
+          onAction: (action) => void dispatchEntityAction({ entityType: 'storyline', id: target.id, action }),
+          t,
+        }),
+      ];
     }
     const node = target.kind === 'node' ? nodeById.get(target.id) : undefined;
     if (!node) return undefined;
-    return entityHoverActions({
+    // 编辑故事线 unfolds the storylines in place, each ticked while the chapter is on it.
+    return withChapterStorylineChoices(entityHoverActions({
       editorType: 'node',
       nodeStatusKind: isChapter(node) ? 'chapter' : 'drift',
       nodeWritingStatus: node.writingStatus,
       onAction: (action) => void dispatchEntityAction({ entityType: 'node', id: node.id, action }),
       t,
+    }), {
+      memberIds: chapterStorylineIds(node.id),
+      storylines,
+      onToggle: (storylineId) => toggleChapterStoryline(node.id, storylineId),
     });
   };
 

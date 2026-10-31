@@ -30,7 +30,7 @@ function store(overrides: Record<string, unknown> = {}) {
 }
 
 describe('buildEntityHoverCardContent', () => {
-  it('shows the primary storyline followed by dimmed secondary storyline chips', () => {
+  it('leads with the chapter seal in its primary storyline colour, then dimmed secondary storylines', () => {
     const content = buildEntityHoverCardContent(
       { kind: 'node', id: 'chapter-1' },
       store({
@@ -57,13 +57,15 @@ describe('buildEntityHoverCardContent', () => {
 
     expect(content).toEqual({
       title: 'common.untitled',
-      summary: 'A chapter summary',
-      meta: [
-        { text: 'Draft' },
-        { text: '1,234 words' },
-        { text: 'Main Arc', color: '#5570A7' },
-        { text: 'Quiet Arc', color: '#8C6F52', tone: 'secondary' },
+      mark: { kind: 'chapter', seed: 'chapter-1', color: '#5570A7' },
+      index: '1,234 words',
+      status: 'Draft',
+      tags: [
+        { text: 'Main Arc', mark: { kind: 'storyline', color: '#5570A7' } },
+        { text: 'Quiet Arc', mark: { kind: 'storyline', color: '#8C6F52' }, tone: 'secondary' },
       ],
+      kv: [],
+      summary: 'A chapter summary',
     });
   });
 
@@ -87,7 +89,7 @@ describe('buildEntityHoverCardContent', () => {
       t,
     );
 
-    expect(content?.meta[2]).toEqual({ text: 'Main Arc', color: '#5570A7' });
+    expect(content?.tags[0]).toEqual({ text: 'Main Arc', mark: { kind: 'storyline', color: '#5570A7' } });
   });
 
   it('builds element metadata without reading its prose body', () => {
@@ -116,13 +118,14 @@ describe('buildEntityHoverCardContent', () => {
 
     expect(content).toEqual({
       title: 'Mira Vale',
-      summary: 'An element summary',
-      meta: [
-        { text: 'Characters', color: '#B84A62' },
+      mark: { kind: 'element', color: '#B84A62' },
+      tags: [
+        { text: 'Characters', mark: { kind: 'category', color: '#B84A62' } },
         { text: 'Allies' },
-        { text: 'AKA Mira · Lady Mira · The Heir +1' },
-        { text: 'Faction：North' },
+        { text: 'AKA Mira · Lady Mira · The Heir +1', tone: 'secondary' },
       ],
+      kv: [{ key: 'Faction', value: 'North' }],
+      summary: 'An element summary',
     });
   });
 
@@ -161,8 +164,11 @@ describe('buildEntityHoverCardContent', () => {
 
     expect(content).toEqual({
       title: 'common.untitled',
+      mark: { kind: 'storyline', color: undefined },
+      index: '2 chapters · 2.0k words',
+      tags: [],
+      kv: [{ key: 'Tone', value: 'Suspenseful' }],
       summary: 'A storyline summary',
-      meta: [{ text: '2 chapters' }, { text: '2.0k words' }, { text: 'Tone：Suspenseful' }],
     });
   });
 
@@ -188,10 +194,10 @@ describe('buildEntityHoverCardContent', () => {
       t,
     );
 
-    expect(content?.meta[content.meta.length - 1]).toEqual({
-      text: 'Ideas / Dreams',
-      color: '#7A55A3',
-    });
+    expect(content?.mark).toEqual({ kind: 'drift', color: '#7A55A3', loose: false });
+    expect(content?.tags).toEqual([
+      { text: 'Ideas / Dreams', mark: { kind: 'drift-group', color: '#7A55A3' } },
+    ]);
   });
 
   it('does not query non-hydrated patch data', () => {

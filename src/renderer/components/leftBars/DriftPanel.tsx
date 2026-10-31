@@ -555,6 +555,7 @@ export function DriftPanel({
         {
           key: 'root',
           label: t('leftSidebar.groups.moveDriftToRoot'),
+          icon: { brush: 'folder-none' as const },
           active: current == null,
           disabled: current == null,
           onSelect: () => void moveDriftToGroup(id, null),
@@ -562,6 +563,7 @@ export function DriftPanel({
         ...flatGroups.map(({ group }) => ({
           key: group.id,
           label: groupPath(group),
+          icon: { kind: 'drift-group' as const, color: group.color ?? undefined },
           active: group.id === current,
           disabled: group.id === current,
           onSelect: () => void moveDriftToGroup(id, group.id),
@@ -576,6 +578,7 @@ export function DriftPanel({
       {
         key: 'root',
         label: t('leftSidebar.groups.moveGroupToRoot'),
+        icon: { brush: 'folder-none' as const },
         active: currentParent == null,
         disabled: currentParent == null || !canMoveGroupUnder(driftGroups, id, null),
         onSelect: () => void moveGroup(id, null),
@@ -585,6 +588,7 @@ export function DriftPanel({
       ...flatGroups.map(({ group: g }) => ({
         key: g.id,
         label: groupPath(g),
+        icon: { kind: 'drift-group' as const, color: g.color ?? undefined },
         active: g.id === currentParent,
         disabled: blocked.has(g.id) || g.id === currentParent || !canMoveGroupUnder(driftGroups, id, g.id),
         onSelect: () => void moveGroup(id, g.id),
@@ -614,17 +618,17 @@ export function DriftPanel({
       actions: [
         // "新建子分组" gated by the 2-level nesting cap.
         ...(depth < MAX_DRIFT_GROUP_DEPTH - 1
-          ? [{ key: 'new-sub', label: t('leftSidebar.groups.newSubGroup'), onSelect: () => void createSubGroup(groupId) }]
+          ? [{ key: 'new-sub', label: t('leftSidebar.groups.newSubGroup'), icon: { brush: 'folder-plus' as const }, onSelect: () => void createSubGroup(groupId) }]
           : []),
-        { key: 'new-drift', label: t('leftSidebar.groups.newDriftInGroup'), onSelect: () => void createDriftInGroup(groupId) },
+        { key: 'new-drift', label: t('leftSidebar.groups.newDriftInGroup'), icon: { brush: 'plus' as const }, onSelect: () => void createDriftInGroup(groupId) },
       ],
     },
     {
       key: 'edit',
       actions: [
-        { key: 'rename', label: t('leftSidebar.groups.rename'), onSelect: () => setRenamingGroupId(groupId) },
+        { key: 'rename', label: t('leftSidebar.groups.rename'), icon: { brush: 'edit' as const }, onSelect: () => setRenamingGroupId(groupId) },
         { key: 'move', label: t('leftSidebar.groups.moveToGroup'), choices: moveChoices('group', groupId) },
-        { key: 'delete', label: t('leftSidebar.groups.deleteGroup'), danger: true, onSelect: () => void deleteGroup(groupId) },
+        { key: 'delete', label: t('leftSidebar.groups.deleteGroup'), icon: { brush: 'trash' as const }, danger: true, onSelect: () => void deleteGroup(groupId) },
       ],
     },
   ];
@@ -638,8 +642,8 @@ export function DriftPanel({
       return (
         <HoverCardShell anchor={anchor} placement="right-start" label={group.name}
           pointer={hoverCard} onDismiss={hoverDismiss} actions={groupActions(group.id, data.depth)}>
-          <HoverCardHeading title={group.name}
-            detail={t('leftSidebar.groups.driftCount', { count: (descendantDriftIds.get(group.id) ?? []).length })} />
+          <HoverCardHeading title={group.name} mark={{ kind: 'drift-group', color: group.color ?? undefined }}
+            index={t('leftSidebar.groups.driftCount', { count: (descendantDriftIds.get(group.id) ?? []).length })} />
         </HoverCardShell>
       );
     }

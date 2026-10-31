@@ -11,6 +11,8 @@ import {
   MOBILE_PLANNING_MOVE_TOLERANCE_PX,
 } from '../../features/graph/mobile-planning-gesture';
 import { useHoverPreview } from '../../features/entities/hover/entity-hover-card-model';
+import { bindDriftChoices } from '../../features/entities/hover/hover-choices';
+import { bindableDriftsNow, driftColorNow } from '../../features/entities/hover/use-hover-choice-writes';
 import {
   HoverCardHeading,
   HoverCardShell,
@@ -67,6 +69,8 @@ interface ActRailProps {
   driftTitleById?: (id: string) => string | null;
   /** Open the standalone drift-bind picker (DriftBindModal) for an act. */
   onRequestBind?: (actId: string) => void;
+  /** Bind a drift straight from the act card's 绑定构想 section. */
+  onBindDrift?: (actId: string, driftNodeId: string) => void;
   onUnbindDrift?: (actId: string) => void;
   /** Open a bound drift. `anchor` (the clicked element's viewport rect) lets
       the host anchor a preview popover instead of jumping to the editor — the
@@ -108,6 +112,7 @@ export function ActRail({
   onAddAct,
   driftTitleById,
   onRequestBind,
+  onBindDrift,
   onUnbindDrift,
   onOpenDrift,
   railLabel,
@@ -352,6 +357,7 @@ export function ActRail({
     chip: HTMLElement,
   ): HoverActionGroup[] => {
     const driftNodeId = act.driftNodeId;
+    const freeDrifts = !driftNodeId && onBindDrift ? bindableDriftsNow() : [];
     // Drift binding — a bound act opens or unbinds its note; an unbound one
     // opens the standalone bind picker (DriftBindModal).
     const driftActions: HoverAction[] = [];
@@ -360,6 +366,7 @@ export function ActRail({
         driftActions.push({
           key: 'open-drift',
           label: t('bottomTimeline.act.openActNote'),
+          icon: { brush: 'arrow-out' },
           onSelect: () => {
             const r = chip.getBoundingClientRect();
             onOpenDrift(driftNodeId, {
@@ -375,13 +382,26 @@ export function ActRail({
         driftActions.push({
           key: 'unbind',
           label: t('bottomTimeline.act.unbindDrift'),
+          icon: { brush: 'close' },
           onSelect: () => onUnbindDrift(act.id),
         });
       }
+    } else if (onBindDrift && freeDrifts.length > 0) {
+      // The drifts free to bind unfold in the card.
+      driftActions.push({
+        key: 'bind',
+        label: t('bottomTimeline.pinMenu.bindDrift'),
+        choices: bindDriftChoices({
+          drifts: freeDrifts,
+          colorOf: driftColorNow,
+          onBind: (driftNodeId) => onBindDrift(act.id, driftNodeId),
+        }),
+      });
     } else if (onRequestBind) {
       driftActions.push({
         key: 'bind',
         label: t('bottomTimeline.pinMenu.bindDrift'),
+        icon: { brush: 'knot-links' },
         onSelect: () => onRequestBind(act.id),
       });
     }
@@ -392,11 +412,13 @@ export function ActRail({
           {
             key: 'rename',
             label: t('bottomTimeline.pinMenu.rename'),
+            icon: { brush: 'edit' },
             onSelect: () => setEditingId(act.id),
           },
           {
             key: 'split',
             label: t('bottomTimeline.act.startHere'),
+            icon: { brush: 'sprout' },
             onSelect: () => onSplitAt(orderAtCursor),
           },
         ],
@@ -411,6 +433,7 @@ export function ActRail({
               actIndexOf(act.id) === 0
                 ? t('bottomTimeline.act.deleteMergeNext')
                 : t('bottomTimeline.act.deleteMergePrev'),
+            icon: { brush: 'trash' },
             danger: true,
             onSelect: () => onDeleteAct(act.id),
           },
@@ -644,7 +667,7 @@ export function ActRail({
             title={cardAct.name}
             detail={
               cardAct.driftNodeId
-                ? <><KindMark kind="drift" color="hsl(var(--accent))" /> {driftTitleById?.(cardAct.driftNodeId) ?? t('bottomTimeline.act.actNote')}</>
+                ? <span className="hover-card__tag"><KindMark kind="drift" color="hsl(var(--accent))" />{driftTitleById?.(cardAct.driftNodeId) ?? t('bottomTimeline.act.actNote')}</span>
                 : undefined
             }
           />

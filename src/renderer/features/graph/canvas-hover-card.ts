@@ -1,11 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
-import type { TFunction } from 'i18next';
-
-import type { BookNode } from '../../domain/book-node';
-import { buildDriftGroupChildren, ROOT_GROUP_KEY, type DriftGroup } from '../../domain/drift-group';
-import { DRIFT_MOVE_TO_GROUP_ACTION } from '../../components/editor/EditorTopBar';
-import type { HoverAction, HoverActionGroup } from '../../components/ui/HoverCard';
 import { useHoverPreview, type EntityHoverTarget } from '../entities/hover/entity-hover-card-model';
+
+// The Super View cards unfold the same choice sections as the sidebars'.
+export { withDriftGroupChoices, withElementCategoryChoices } from '../entities/hover/hover-choices';
 
 /**
  * Hover-card state for the Super View canvases, where the cards carry what
@@ -43,99 +40,4 @@ export function useCanvasHoverCard(blocked: boolean) {
   }, [preview]);
 
   return { ...hover, onEnter: enter };
-}
-
-/**
- * A drift card's "Move to group…" unfolds the drift-group tree in place, by
- * the drift panel's rules: root first, sub-groups read as "parent / child",
- * the current one checked. With no groups there is nowhere to move, so the
- * action is left out.
- */
-export function withDriftGroupChoices(
-  groups: HoverActionGroup[],
-  { node, driftGroups, onMove, t }: {
-    node: BookNode;
-    driftGroups: readonly DriftGroup[];
-    onMove: (groupId: string | null) => void;
-    t: TFunction;
-  },
-): HoverActionGroup[] {
-  const choices = driftGroups.length > 0 ? driftGroupChoices(node, driftGroups, onMove, t) : null;
-  return groups.map((group) => ({
-    ...group,
-    actions: group.actions.flatMap((action) => {
-      if (action.key !== DRIFT_MOVE_TO_GROUP_ACTION) return [action];
-      return choices ? [{ ...action, onSelect: undefined, choices }] : [];
-    }),
-  }));
-}
-
-function driftGroupChoices(
-  node: BookNode,
-  driftGroups: readonly DriftGroup[],
-  onMove: (groupId: string | null) => void,
-  t: TFunction,
-): HoverAction[] {
-  const groupIds = new Set(driftGroups.map((group) => group.id));
-  // A pointer at a group that no longer exists (a cross-device sync race)
-  // reads as root, as it does in the drift panel.
-  const current = node.driftGroupId && groupIds.has(node.driftGroupId) ? node.driftGroupId : null;
-  const children = buildDriftGroupChildren(
-    driftGroups.map((group) =>
-      group.parentGroupId && !groupIds.has(group.parentGroupId) ? { ...group, parentGroupId: null } : group,
-    ),
-  );
-  const choices: HoverAction[] = [
-    {
-      key: 'root',
-      label: t('leftSidebar.groups.moveDriftToRoot'),
-      active: current == null,
-      disabled: current == null,
-      onSelect: () => onMove(null),
-    },
-  ];
-  const walk = (parentKey: string, parentPath: string) => {
-    for (const group of children.get(parentKey) ?? []) {
-      const path = parentPath ? `${parentPath} / ${group.name}` : group.name;
-      choices.push({
-        key: group.id,
-        label: path,
-        active: group.id === current,
-        disabled: group.id === current,
-        onSelect: () => onMove(group.id),
-      });
-      walk(group.id, path);
-    }
-  };
-  walk(ROOT_GROUP_KEY, '');
-  return choices;
-}
-
-/**
- * An element's 改类目 unfolds the categories as a second row inside its
- * hover card, so the move happens where the element is instead of in an
- * editor tab opened under the Super View.
- */
-export function withElementCategoryChoices(
-  groups: HoverActionGroup[],
-  { categoryId, categories, onMove }: {
-    categoryId: string | null;
-    categories: readonly { id: string; name: string }[];
-    onMove: (categoryId: string) => void;
-  },
-): HoverActionGroup[] {
-  const choices: HoverAction[] = categories.map((category) => ({
-    key: category.id,
-    label: category.name,
-    active: category.id === categoryId,
-    disabled: category.id === categoryId,
-    onSelect: () => onMove(category.id),
-  }));
-  return groups.map((group) => ({
-    ...group,
-    actions: group.actions.flatMap((action) => {
-      if (action.key !== 'categoryPicker') return [action];
-      return choices.length > 1 ? [{ ...action, onSelect: undefined, choices }] : [];
-    }),
-  }));
 }

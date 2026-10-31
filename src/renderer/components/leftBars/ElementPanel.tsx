@@ -19,6 +19,7 @@ import { useElementCategory } from '../../usecase/useElementCategory';
 import { useSidebarPanelNavigation as useProjectNavigation } from '../../hooks/useSidebarPanelNavigation';
 import { subscribeSidebarCollapse } from '../../lib/sidebar-pane-events';
 import { entityHoverActions } from './entity-hover-actions';
+import { withElementCategoryChoices, withElementGroupChoices } from '../../features/entities/hover/hover-choices';
 import { ElementCategoryCreateMenu } from './ElementCategoryCreateMenu';
 import { GroupHeaderCell } from './GroupHeaderCell';
 import { ElementGroupPicker } from './ElementGroupPicker';
@@ -136,17 +137,30 @@ export function ElementPanel({
   } = useHoverPreview<EntityHoverTarget>();
   const hoverActionsFor = (target: EntityHoverTarget, anchor: HTMLElement) => {
     if (target.kind !== 'element' && target.kind !== 'category') return undefined;
-    return entityHoverActions({
+    const groups = entityHoverActions({
       editorType: target.kind,
-      onAction: (action) => {
-        // "Change Group" opens an in-place combobox beside the row instead of
-        // routing to the editor + modal (parallels the drift move-to-group flow).
-        if (target.kind === 'element' && action === 'groupPicker') {
-          const rect = anchor.getBoundingClientRect();
-          setGroupPicker({ x: rect.right + 8, y: rect.top, elementId: target.id });
-          return;
-        }
-        void dispatchEntityAction({ entityType: target.kind === 'element' ? 'element' : 'category', id: target.id, action });
+      onAction: (action) => void dispatchEntityAction({ entityType: target.kind === 'element' ? 'element' : 'category', id: target.id, action }),
+      t,
+    });
+    const element = target.kind === 'element' ? bookElements.find((candidate) => candidate.id === target.id) : undefined;
+    if (!element) return groups;
+    // 改类目 and 改分组 unfold their choices in the card; a new group's name is
+    // typed in the in-place picker beside the row.
+    const withCategories = withElementCategoryChoices(groups, {
+      categoryId: element.categoryId ?? null,
+      categories: bookElementCategories,
+      onMove: (categoryId) => void updateElement(element.id, { categoryId }),
+    });
+    return withElementGroupChoices(withCategories, {
+      groupName: element.groupName,
+      groupNames: [...new Set(bookElements
+        .filter((candidate) => (candidate.categoryId ?? null) === (element.categoryId ?? null))
+        .map((candidate) => candidate.groupName?.trim())
+        .filter((name): name is string => Boolean(name)))],
+      onMove: (groupName) => void updateElement(element.id, { groupName }),
+      onNewGroup: () => {
+        const rect = anchor.getBoundingClientRect();
+        setGroupPicker({ x: rect.right + 8, y: rect.top, elementId: element.id });
       },
       t,
     });

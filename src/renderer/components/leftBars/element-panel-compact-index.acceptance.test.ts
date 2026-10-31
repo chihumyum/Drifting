@@ -55,9 +55,11 @@ describe('ElementPanel compact text index', () => {
     const zh = JSON.parse(source('src/renderer/locales/zh-CN.json'));
     const toggle = block(subheader, "<SubIconBtn title={t('leftSidebar.actions.collapseAll')}", '</SubIconBtn>');
 
-    // One press opens every type, the next folds them all: a fan, not a minus.
+    // One press opens every type, the next folds them all: a fan, not a minus,
+    // drawn as the press will leave it (shut while every type is open).
     expect(panel).toContain('if (prev.size === 0) return new Set(bookElementCategories.map((c) => c.id));');
-    expect(toggle).toContain('<BrushIcon name="folding-fan" size={11} />');
+    expect(toggle).toContain("<BrushIcon name={collapsedGroups.size === 0 ? 'folding-fan-closed' : 'folding-fan'} size={11} />");
+    expect(subheader).toContain("useSidebarPanelState<Set<string>>('collapsed', () => new Set())");
     expect(toggle).not.toContain('name="minus"');
     expect(en.leftSidebar.actions.collapseAll).toBe('Expand or collapse all');
     expect(zh.leftSidebar.actions.collapseAll).toBe('展开／折叠全部');
@@ -280,8 +282,8 @@ describe('ElementPanel compact text index', () => {
     const card = source('src/renderer/features/entities/hover/EntityHoverCard.tsx');
     const docs = designSystemDocs();
 
-    expect(model).toContain('return { title: element.name, summary: element.summary, meta };');
-    expect(card).toContain('{content.title}');
+    expect(model).toContain("mark: { kind: 'element', color: category?.color },");
+    expect(card).toContain('title={content.title}');
     expect(docs).toContain('紧凑索引 / 名称列表');
     expect(docs).toContain('wrapping flex flow');
     expect(docs).toContain('`.element-panel-item-label`');

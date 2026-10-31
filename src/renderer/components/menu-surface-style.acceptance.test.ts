@@ -187,7 +187,8 @@ describe('shared menu surface style', () => {
     ]) {
       expect(source(owner), owner).toContain('<HoverCardShell');
     }
-    expect(source('src/renderer/features/comments/CommentSourceHoverCard.tsx')).toContain('<HoverCardActions');
+    // The review source card is the same card: one shell, one set of rows.
+    expect(source('src/renderer/features/comments/CommentSourceHoverCard.tsx')).toContain('<HoverCardShell');
     // Plain tab pills have no card; a split's own operations unfold from the
     // grip on the editors' seam.
     expect(source('src/renderer/components/topBars/TopTimeline/TopTimeline.tsx')).not.toContain('HoverCard');

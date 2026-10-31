@@ -65,10 +65,13 @@
   margin-bottom: 18px;
 }
 
+/* 书架 and 全部作品 name the place, like the Panel Tabs: the serif structure
+   face, not the author's prose font, which stays with each book's own title
+   and initial. */
 .pp-head__title {
   margin: 0;
   color: hsl(var(--ink-1));
-  font: 400 22px/1.2 var(--font-content);
+  font: 400 22px/1.2 var(--font-structure);
   letter-spacing: 0.04em;
 }
 
@@ -105,7 +108,7 @@
   gap: 8px;
   margin: 0 8px 0 0;
   color: hsl(var(--ink-1));
-  font: 500 16px/1 var(--font-content);
+  font: 400 16px/1 var(--font-structure);
 }
 
 .pp-bar__title > .brush-icon {
@@ -118,8 +121,9 @@
   font: 400 var(--ui-font-caption, 12px) / 1 var(--font-mono);
 }
 
-.pp-bar__filters .glass-slider__option {
-  gap: 6px;
+/* Each filter's count stands a little apart from its word. */
+.pp-bar__filters .pp-bar__n {
+  margin-left: 4px;
 }
 
 .pp-bar__filters .glass-slider__option[aria-checked='true'] .pp-bar__n {
