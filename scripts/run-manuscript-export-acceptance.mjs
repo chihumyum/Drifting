@@ -93,8 +93,10 @@ async function inspectEpub(file) {
   if (process.env.EPUBCHECK_JAR && existsSync(process.env.EPUBCHECK_JAR)) {
     const result = spawnSync('java', ['-jar', process.env.EPUBCHECK_JAR, file], { encoding: 'utf8' });
     const output = `${result.stdout}\n${result.stderr}`;
-    epubcheck = { run: true, exitCode: result.status, summary: output.split('\n').filter(line => /Messages:|No errors/.test(line)) };
-    check('epub: epubcheck reports no errors', result.status === 0, epubcheck.summary);
+    const version = spawnSync('java', ['-jar', process.env.EPUBCHECK_JAR, '--version'], { encoding: 'utf8' }).stdout.trim();
+    epubcheck = { run: true, version, exitCode: result.status, summary: output.split('\n').filter(line => /Messages:|No errors/.test(line)) };
+    check('epub: W3C epubcheck reports no fatals, errors or warnings', result.status === 0
+      && epubcheck.summary.some(line => line.includes('0 fatals / 0 errors / 0 warnings')), epubcheck.summary);
   }
   return { bytes: bytes.length, sha256: sha256(bytes), files: names.length, spine: spine.length, epubcheck };
 }
