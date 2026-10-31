@@ -2,18 +2,18 @@
   "protocol": "drifting.sync.domain-manifest",
   "version": 1,
   "schemaSource": "src/renderer/schema/drizzle.ts",
-  "schemaSha256": "b9cd7217055fb13993eb9c1bbd396a97c7aeab0ea491eab6c787a2a59fd50f0a",
+  "schemaSha256": "26e8c9c1a9ef15e548d224f955fe3fcb09f05af0bf29ad39acbb37d0a5b5d05e",
   "gate": "Every Drizzle table and column must have one explicit class and non-empty reason.",
   "summary": {
-    "tableCount": 98,
-    "fieldCount": 1018,
+    "tableCount": 99,
+    "fieldCount": 1021,
     "includedTableCount": 27,
-    "excludedTableCount": 71,
+    "excludedTableCount": 72,
     "classCounts": {
       "authored": 176,
       "crdt": 10,
       "derived": 94,
-      "device-local": 382,
+      "device-local": 385,
       "secret": 5,
       "transport": 332,
       "extension": 19
@@ -3773,6 +3773,32 @@
           "classification": "derived",
           "disposition": "exclude",
           "reason": "Projection of the winning change-set clock; it is rebuilt locally and is not merge authority."
+        }
+      ]
+    },
+    {
+      "table": "library_state",
+      "scope": "global",
+      "disposition": "exclude",
+      "reason": "Library-level first-run state (the built-in sample marker) belongs to this local library, not to any project.",
+      "fields": [
+        {
+          "field": "key",
+          "classification": "device-local",
+          "disposition": "exclude",
+          "reason": "Keys and values describe this library on this device and are never synced."
+        },
+        {
+          "field": "updated_at",
+          "classification": "device-local",
+          "disposition": "exclude",
+          "reason": "Keys and values describe this library on this device and are never synced."
+        },
+        {
+          "field": "value_json",
+          "classification": "device-local",
+          "disposition": "exclude",
+          "reason": "Keys and values describe this library on this device and are never synced."
         }
       ]
     },

@@ -12,13 +12,13 @@ import { installHeadlessRendererGlobals } from './headless-globals';
 import { OfflineProductDatabase } from './offline-database';
 import { createAtomicRunner } from './offline-workspace';
 import { loadScenario, parseScenario, runScenario } from './scenario';
-import { createDefaultProjectScenario } from './seeds/default-project';
-import { seedPreset, type SeedPresetName } from './seeds/presets';
+import { createDefaultProjectScenario, sampleProjectName } from '../renderer/services/sample-project/scenario';
+import { resolveSampleComments } from '../renderer/services/sample-project/comments';
+import { seedPreset, type SeedPresetName } from '../renderer/services/sample-project/presets';
 import { auditDevelopmentSeed, type SeedAuditReport } from './seeds/audit';
 import { seedConversations } from './seeds/conversations';
 import { loadSeedAssets, seedMaterials } from './seeds/materials';
 import { ProjectTable } from '../renderer/schema/drizzle';
-import { createCommentRepository } from '../renderer/sqlite-repo/comment-repo';
 import { createProjectInTransaction } from '../renderer/usecase/project-create';
 
 /** The local-only library: `store/auth`'s LOCAL_USER_ID and its database file. */
@@ -83,7 +83,7 @@ export async function seedDevelopmentDatabase(input: {
       createProjectInTransaction(tx, sync, changes, {
         projectId,
         userId: LOCAL_LIBRARY_USER_ID,
-        name: input.projectName ?? (preset.name === 'stress' ? '潮汐灯塔（重型性能样本）' : '潮汐灯塔（轻量功能样本）'),
+        name: input.projectName ?? sampleProjectName(preset, 'development'),
         now,
       }),
     );
@@ -94,20 +94,9 @@ export async function seedDevelopmentDatabase(input: {
       projectId,
       requestId: `dev-seed-${uuidv7()}`,
     });
-    // Same repository + authored transaction as useComment.resolve. A bulk
-    // fixture must not page the entire growing comment list into one Agent
-    // result-artifact session for every completed task.
-    const comments = await createCommentRepository(projectId, database.client).findAll();
-    if (comments.length) await runAtomic(projectId, async (tx, sync) => {
-      const repository = createCommentRepository(projectId, tx);
-      const resolvedAt = new Date().toISOString();
-      for (const [index, comment] of comments.entries()) {
-        if (index % 4 !== 0) continue;
-        const persisted = await repository.update(comment.id, { status: 'resolved', resolvedAt, updatedAt: resolvedAt });
-        if (!persisted) throw new Error('Seed comment disappeared during resolution');
-        await sync('comment', 'update', comment.id, projectId, { status: persisted.status, resolvedAt: persisted.resolvedAt });
-      }
-    });
+    // A bulk fixture must not page the entire growing comment list into one
+    // Agent result-artifact session for every completed task.
+    await resolveSampleComments(database.client, runAtomic, projectId);
     input.onProgress?.('Seeding material notes, verified images and PDFs…');
     abandonAssets = await seedMaterials(database.client, projectId, appLocalDataDirectory, fixtures, preset);
     input.onProgress?.('Seeding offline Agent conversations and recovery checkpoints…');

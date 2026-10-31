@@ -1967,6 +1967,7 @@
     "desk": {
       "newCard": "New book",
       "newCardSub": "Start from a blank page",
+      "preparingSample": "Preparing the sample project",
       "open": "Open “{{name}}”",
       "moveToTrash": "Move to Recently Deleted",
       "untitled": "Untitled",

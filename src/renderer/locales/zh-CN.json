@@ -1967,6 +1967,7 @@
     "desk": {
       "newCard": "新建一本",
       "newCardSub": "从一张白纸开始",
+      "preparingSample": "正在准备示例项目",
       "open": "打开《{{name}}》",
       "moveToTrash": "移到最近删除",
       "untitled": "未命名",

@@ -12,6 +12,7 @@ dated run reports are evidence for one checkout, not product truth.
 - [Release runbook](desktop-alpha-release-runbook.md)
 - [`0.1.0-alpha.1` release notes](releases/0.1.0-alpha.1.md)
 - [Desktop quick start](quick-start.md)
+- [Built-in sample project](sample-project.md)
 - [Signed desktop RC acceptance](qa/desktop-alpha-release-candidate.md)
 - [Known issues](../KNOWN_ISSUES.md)
 - [Support](../SUPPORT.md)

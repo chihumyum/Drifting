@@ -781,6 +781,21 @@ const tables: SyncDomainTablePolicy[] = [
     ],
   }),
   defineTable({
+    table: 'library_state',
+    scope: 'global',
+    disposition: 'exclude',
+    reason: 'Library-level first-run state (the built-in sample marker) belongs to this local library, not to any project.',
+    groups: [
+      group(
+        'device-local',
+        'Keys and values describe this library on this device and are never synced.',
+        'key',
+        'value_json',
+        'updated_at',
+      ),
+    ],
+  }),
+  defineTable({
     table: 'yjs_updates',
     scope: 'project-via-reference',
     disposition: 'include',

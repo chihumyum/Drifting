@@ -8,8 +8,9 @@
 | --- | --- |
 | 打开本地资料库 | `store/auth.ts` 的 `checkSession()` 先打开固定本地库；账号凭据加载和服务会话探测在后台进行，网络不阻塞本地写作。`isAuthenticated` 在这里表示本地入口可用，不等于 Hosted 登录成功。 |
 | 首次引导 | `components/modals/PreAlphaOnboardingDialog.tsx` 使用 `drifting.alpha-guide.v6:<localUserId>` 的 WebView localStorage 标记。桌面在书架挂载前展示；移动端为覆盖层。确认后通常不再展示，清除 WebView 存储可重置。 |
-| 能力说明 | 当前提示本地保存、可选 Hosted 信任边界、BYOK，以及配置 Hosted 时的崩溃报告。没有交互式编辑器教程、示例作品导览或逐步任务。 |
-| 本地分支 | 默认源码构建 `VITE_LOCAL_ONLY_MODE=true`，仅显示“先在本地写作”；进入书架后自行创建项目。 |
+| 能力说明 | 当前提示本地保存、可选 Hosted 信任边界、BYOK，以及配置 Hosted 时的崩溃报告。没有交互式编辑器教程或逐步任务。 |
+| 内置示例 | 新的本地书库在 `checkSession()` 打开后于后台写入一次[内置示例项目](sample-project.md)《潮汐灯塔（示例）》；`library_state` 标记保证每个书库只创建一次，删除后不再出现，已有内容或已连接云端的书库不受影响。Hosted 连接等待示例写完。 |
+| 本地分支 | 默认源码构建 `VITE_LOCAL_ONLY_MODE=true`，仅显示“先在本地写作”；进入书架后可先浏览示例项目，或自行创建项目。 |
 | Hosted 分支 | 显式配置服务的构建另有“登录 / 注册并同步”；桌面在原弹窗中打开 `features/auth/AuthFlow.tsx`，已有会话则进入账号设置。之后也可从用户菜单或账号设置登录。 |
 | 认证 | 支持邮箱密码、邮箱验证码登录、注册后验证邮箱、找回密码；社交登录目前关闭。生产构建默认关闭注册，需显式设置 `VITE_CLOSED_BETA=false`。注册展示条款与隐私链接，默认条款地址为空。 |
 | 首次连接 | `sync/hosted/sign-in.ts` → `connectHostedFromProduct()`：下载云端项目、上传当前本地书库，完成后打开书架；失败提供重试或稍后处理。登录不另建资料库。 |

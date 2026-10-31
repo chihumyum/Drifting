@@ -2239,6 +2239,19 @@ export const MarkdownMirrorFileTable = sqliteTable(
   ],
 );
 
+/**
+ * Device-local state of the library itself, outside every project
+ * (docs/sample-project.md). One JSON value per key. `built-in-sample` records
+ * whether this library ever created, or deliberately skipped, its first-run
+ * sample project, so deleting the sample never brings it back. Never synced
+ * or journaled; a library backup carries it with the rest of the database.
+ */
+export const LibraryStateTable = sqliteTable('library_state', {
+  key: text('key').primaryKey().notNull(),
+  valueJson: text('value_json').notNull(),
+  updatedAt: text('updated_at').notNull(),
+});
+
 export const yjsUpdates = sqliteTable(
   'yjs_updates',
   {

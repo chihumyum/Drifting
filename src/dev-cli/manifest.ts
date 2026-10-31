@@ -291,6 +291,15 @@ export const DEV_CLI_MODEL_CAPABILITIES: readonly CliModelCapability[] = [
     note: 'Device-local ledger of the Markdown folder; only the folder sync workflow writes it.',
   },
   {
+    name: 'library_state',
+    scope: 'ops',
+    authority: 'sqlite',
+    coverage: 'workflow_only',
+    commands: ['ops inspect'],
+    table: 'library_state',
+    note: 'Device-local library state such as the built-in sample marker; only the first-run workflow writes it.',
+  },
+  {
     name: 'yjs_updates_and_snapshots',
     scope: 'ops',
     authority: 'yjs_sqlite',
@@ -418,6 +427,7 @@ export const DEV_CLI_TABLE_MODEL_COVERAGE: Readonly<Record<string, string>> = {
   agent_permission_grant: 'agent_permission_grant',
   entity_snapshot_history: 'entity_snapshot_history',
   markdown_mirror_file: 'markdown_mirror_file',
+  library_state: 'library_state',
   yjs_updates: 'yjs_updates_and_snapshots',
   yjs_snapshots: 'yjs_updates_and_snapshots',
   yjs_document_revision: 'yjs_revision_and_provenance',
