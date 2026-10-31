@@ -1,0 +1,67 @@
+/* Feedback dialog: the shared dialog shell (.modal-*). The message is the
+   multi-line field, the reply-to address a single-line field, the summary a
+   switch with a text button that folds its read-only card open beneath. */
+.feedback-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.feedback-dialog .dialog-section {
+  margin-bottom: 0;
+}
+
+.feedback-dialog__message > textarea {
+  min-height: calc(var(--ui-line-body, 20px) * 5);
+}
+
+/* An address that cannot be replied to: the field's line in the danger colour. */
+.feedback-dialog__field.is-invalid {
+  --glass-cc: hsl(var(--destructive));
+}
+
+.feedback-dialog__attach {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: var(--ui-row-height, 32px);
+}
+
+.feedback-dialog__switch {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: hsl(var(--ink-1));
+  font-size: var(--ui-font-secondary, 13px);
+  cursor: pointer;
+}
+
+.feedback-dialog__preview {
+  max-height: 180px;
+  margin: 0;
+  overflow: auto;
+  padding: 10px 12px;
+  border-radius: 2px;
+  color: hsl(var(--ink-2));
+  font-family: var(--font-mono);
+  font-size: var(--ui-font-caption, 11px);
+  line-height: 1.55;
+  white-space: pre;
+  overscroll-behavior: contain;
+}
+
+.feedback-dialog__result {
+  flex: 1;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font-size: var(--ui-font-secondary, 13px);
+}
+
+.feedback-dialog__result[role='alert'] {
+  color: hsl(var(--destructive));
+}

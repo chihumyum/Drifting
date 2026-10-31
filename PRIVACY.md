@@ -11,7 +11,8 @@ another compatible service is responsible for their own disclosures.
 ## Two kinds of build
 
 - **Source builds** (`pnpm dev`, `pnpm tauri:build`) are local-only. They have
-  no account, no sync, no crash reports and no update checks.
+  no account, no sync, no crash reports and no update checks; **Send feedback**
+  opens an email in your mail app instead of sending it.
 - **The official macOS build** from GitHub Releases is the same local-first
   app. It also offers an optional Hosted account at `https://api.drifting.cc`,
   sends crash reports and checks for updates, as described below. Using it
@@ -89,6 +90,26 @@ Reports are on by default and can be turned off in **Settings → Privacy**.
 Source builds and development builds send none. A build can be configured to
 send reports to Sentry instead; see [crash reports](docs/crash-reports.md) and
 [Sentry diagnostics](docs/sentry-observability.md).
+
+After a report of a crash or a screen that stopped working was sent, the next
+launch adds one notification asking what you were doing. Nothing more is sent
+unless you write a note and choose **Send**; the note goes out as feedback
+(below), linked to that report.
+
+## Feedback
+
+**Send feedback** (account menu, Settings → About) sends what you write only
+when you choose **Send**: your message, the reply-to address you leave in the
+form (your account email by default, or none), and, unless you switch it off,
+the sanitized diagnostic summary you can preview in the form. Drifting never
+attaches manuscript text, project data, the database or credentials. When you
+are signed in, the feedback includes your account.
+
+Feedback goes to the official service at `https://api.drifting.cc` and is
+emailed to the maintainer, so they can answer you. It does not depend on the
+automatic crash-report switch. Without the service or a network, the same
+message opens as an email to support@drifting.cc in your mail app. The service
+keeps feedback for 365 days and deletes it with your account.
 
 ## AI
 

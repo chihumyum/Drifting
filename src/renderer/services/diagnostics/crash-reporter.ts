@@ -41,7 +41,9 @@ export interface CrashReportPayload {
 
 const INSTALLATION_KEY = 'drifting.diagnostics.installation.v1';
 const QUEUE_KEY = 'drifting.diagnostics.queue.v1';
+const FOLLOW_UPS_KEY = 'drifting.diagnostics.follow-ups.v1';
 const MAX_QUEUED = 20;
+const MAX_FOLLOW_UPS = 5;
 const MAX_PER_SESSION = 30;
 const REPEAT_WINDOW_MS = 60 * 60 * 1000;
 
@@ -51,6 +53,9 @@ let flushing: Promise<void> | null = null;
 let logsThisSession = 0;
 let sentryModule: Promise<typeof import('./sentry-reporter')> | undefined;
 const loadSentry = () => sentryModule ??= import('./sentry-reporter');
+// A render failure is explained on a later launch, never the one it broke.
+let launchId = uuidv4();
+let launchSettled: Promise<void> = Promise.resolve();
 
 function reportsPermitted(): boolean {
   if (import.meta.env.DEV && import.meta.env.VITE_DRIFTING_CRASH_REPORTS_IN_DEV !== '1') return false;
@@ -59,7 +64,8 @@ function reportsPermitted(): boolean {
 
 function reportsEnabled(): boolean { return reportsPermitted() && canUseHostedService(); }
 
-function installationId(): string {
+/** The random diagnostics-only installation ID that reports and feedback share. */
+export function diagnosticsInstallationId(): string {
   try {
     const existing = localStorage.getItem(INSTALLATION_KEY);
     if (existing && /^diag-[a-f0-9-]{36}$/.test(existing)) return existing;
@@ -89,12 +95,85 @@ function writeQueue(queue: readonly CrashReportPayload[]): void {
   }
 }
 
-async function send(report: CrashReportPayload): Promise<boolean> {
+/**
+ * A fatal failure the author may explain on a later launch: the report's
+ * grouping key and time, and the service's id once it was delivered. The
+ * author's note goes out as feedback (feedback.ts), never with the report.
+ */
+export interface CrashFollowUp {
+  kind: 'render-failure' | 'native-panic';
+  fingerprint: string;
+  occurredAt: string;
+  /** The service's id for the report; null when Sentry delivered it. */
+  reportId: string | null;
+}
+
+interface StoredFollowUp extends CrashFollowUp {
+  delivered: boolean;
+  /** The launch a render failure happened in; it is offered on a later one. */
+  launchId: string | null;
+}
+
+function readFollowUps(): StoredFollowUp[] {
   try {
-    if (!reportsEnabled()) return false;
+    const value = JSON.parse(localStorage.getItem(FOLLOW_UPS_KEY) ?? '[]') as unknown;
+    return Array.isArray(value) ? (value as StoredFollowUp[]).slice(-MAX_FOLLOW_UPS) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeFollowUps(followUps: readonly StoredFollowUp[]): void {
+  try {
+    if (followUps.length === 0) localStorage.removeItem(FOLLOW_UPS_KEY);
+    else localStorage.setItem(FOLLOW_UPS_KEY, JSON.stringify(followUps.slice(-MAX_FOLLOW_UPS)));
+  } catch {
+    // Losing the chance to explain a crash never affects writing.
+  }
+}
+
+/** Record whether a fatal report reached the service; an undelivered one is never offered. */
+function settleFollowUp(report: CrashReportPayload, delivered: boolean, reportId: string | null): void {
+  const followUps = readFollowUps();
+  const index = followUps.findIndex(
+    (item) => item.fingerprint === report.fingerprint && item.occurredAt === report.occurredAt,
+  );
+  if (index < 0) return;
+  if (delivered) followUps[index] = { ...followUps[index]!, delivered: true, reportId };
+  else followUps.splice(index, 1);
+  writeFollowUps(followUps);
+}
+
+/**
+ * The newest delivered fatal report from before this launch that the author
+ * has not been asked about, at most one per launch. Taking it also retires
+ * older ones, so each report is offered once at most.
+ */
+export function takeCrashFollowUp(): CrashFollowUp | null {
+  const followUps = readFollowUps();
+  const ready = (item: StoredFollowUp) => item.delivered && item.launchId !== launchId;
+  const offer = followUps.filter(ready).pop();
+  writeFollowUps(followUps.filter((item) => !ready(item)));
+  return offer
+    ? { kind: offer.kind, fingerprint: offer.fingerprint, occurredAt: offer.occurredAt, reportId: offer.reportId }
+    : null;
+}
+
+/** Resolves once this launch's recorded native panics and queued reports were sent or kept. */
+export function crashReportsSettled(): Promise<void> {
+  return launchSettled;
+}
+
+type SendOutcome = { done: false } | { done: true; delivered: boolean; id: string | null };
+
+async function send(report: CrashReportPayload): Promise<SendOutcome> {
+  try {
+    if (!reportsEnabled()) return { done: false };
     if (configuredSentryDsn(runtimeViteEnv.VITE_SENTRY_DSN)) {
       const { sendSentryReport } = await loadSentry();
-      return await sendSentryReport(report, reportsEnabled);
+      return (await sendSentryReport(report, reportsEnabled))
+        ? { done: true, delivered: true, id: null }
+        : { done: false };
     }
     const token = getSessionToken();
     const response = await fetch(
@@ -110,10 +189,19 @@ async function send(report: CrashReportPayload): Promise<boolean> {
         body: JSON.stringify(report),
       },
     );
+    if (response.ok) {
+      const body = typeof response.json === 'function'
+        ? await response.json().catch(() => null) as { id?: unknown } | null
+        : null;
+      const id = typeof body?.id === 'string' && /^[A-Za-z0-9:._-]{1,64}$/.test(body.id) ? body.id : null;
+      return { done: true, delivered: true, id };
+    }
     // A rejected report (invalid, rate limited) is dropped rather than retried.
-    return response.ok || (response.status >= 400 && response.status < 500);
+    return response.status >= 400 && response.status < 500
+      ? { done: true, delivered: false, id: null }
+      : { done: false };
   } catch {
-    return false;
+    return { done: false };
   }
 }
 
@@ -126,7 +214,10 @@ async function drainQueue(): Promise<void> {
   for (;;) {
     if (!reportsEnabled()) return;
     const [next] = readQueue();
-    if (!next || !(await send(next))) return;
+    if (!next) return;
+    const outcome = await send(next);
+    if (!outcome.done) return;
+    settleFollowUp(next, outcome.delivered, outcome.id);
     const queue = readQueue();
     const index = queue.findIndex(
       (item) => item.fingerprint === next.fingerprint && item.occurredAt === next.occurredAt,
@@ -204,11 +295,22 @@ export function reportCrash(input: CrashReportInput): void {
     stack,
     appVersion: reportToken(runtime.appInfo?.version ?? 'unknown'),
     platform: reportToken(runtime.appInfo?.platform ?? runtime.nativePlatform ?? 'unknown', 32),
-    installationId: installationId(),
+    installationId: diagnosticsInstallationId(),
     occurredAt: new Date(now).toISOString(),
     context,
   };
   writeQueue([...readQueue(), report]);
+  if (input.kind === 'render-failure' || input.kind === 'native-panic') {
+    writeFollowUps([...readFollowUps(), {
+      kind: input.kind,
+      fingerprint,
+      occurredAt: report.occurredAt,
+      reportId: null,
+      delivered: false,
+      // A native panic is recorded on the launch after it, so it is ready now.
+      launchId: input.kind === 'render-failure' ? launchId : null,
+    }]);
+  }
   void flushCrashReports();
 }
 
@@ -280,7 +382,7 @@ export function installCrashReporting(): () => void {
   window.addEventListener('unhandledrejection', onRejection);
   const onOnline = () => { void flushCrashReports(); };
   window.addEventListener('online', onOnline);
-  void reportNativeCrashes().finally(() => flushCrashReports());
+  launchSettled = reportNativeCrashes().finally(() => flushCrashReports());
   return () => {
     window.removeEventListener('error', onError);
     window.removeEventListener('unhandledrejection', onRejection);
@@ -295,4 +397,9 @@ export function resetCrashReporterForTests(): void {
   flushing = null;
   logsThisSession = 0;
   sentryModule = undefined;
+}
+
+/** Tests start a new launch without reloading the module. */
+export function startNewLaunchForTests(): void {
+  launchId = uuidv4();
 }

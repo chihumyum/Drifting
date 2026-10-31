@@ -12,6 +12,7 @@ import type { AnchoredPopoverPlacement } from '../ui/anchored-popover-position';
 import { getPlatformRuntime } from '../../platform/runtime';
 import { hostedAccountSettingsEnabled } from '../../features/settings/hosted-settings-policy';
 import { useShareLinksDialogStore } from '../../features/share-links/share-links-dialog-store';
+import { useFeedbackDialogStore } from '../../features/feedback/feedback-dialog-store';
 import { useOpenSignIn } from '../../features/auth/auth-dialog-store';
 import { AccountAvatar } from '../ui/AccountAvatar';
 import { BrushIcon } from '../ui/BrushIcon';
@@ -229,6 +230,16 @@ export function UserMenu({
               meta={String(trashCount)}
               onClick={() => {
                 onOpenTrash();
+                onClose();
+              }}
+            />
+          )}
+          {desktop && (
+            <MenuItem
+              icon={<BrushIcon name="sticky-note" size={16} />}
+              label={t('userMenu.feedback')}
+              onClick={() => {
+                useFeedbackDialogStore.getState().show();
                 onClose();
               }}
             />

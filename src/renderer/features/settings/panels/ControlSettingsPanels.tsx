@@ -30,6 +30,7 @@ import { hostedAccountSettingsEnabled } from '../hosted-settings-policy';
 import { LibraryBackupSettings } from './LibraryBackupSettings';
 import { MarkdownProjectionSettings } from './MarkdownProjectionSettings';
 import { useSettingsStore } from '../../../store/settings-store';
+import { useFeedbackDialogStore } from '../../feedback/feedback-dialog-store';
 
 export function KeysPanel({ registerRef }: { registerRef: SettingsRegisterRef }) {
   const { t } = useTranslation();
@@ -634,11 +635,17 @@ export function AboutPanel({ registerRef }: { registerRef: SettingsRegisterRef }
         />
         <SettingsRow
           label={t('settings.about.submitFeedback')}
-          desc={t('settings.about.submitFeedbackDesc')}
+          desc={t(desktop ? 'settings.about.submitFeedbackDesc' : 'settings.about.submitFeedbackMailDesc')}
           control={
-            <SettingsButton outbound onClick={open(`mailto:${APP_CONFIG.SUPPORT_EMAIL}?subject=${encodeURIComponent('Drifting feedback')}`)}>
-              {t('settings.about.feedback')}
-            </SettingsButton>
+            desktop ? (
+              <SettingsButton onClick={() => useFeedbackDialogStore.getState().show()}>
+                {t('settings.about.feedback')}
+              </SettingsButton>
+            ) : (
+              <SettingsButton outbound onClick={open(`mailto:${APP_CONFIG.SUPPORT_EMAIL}?subject=${encodeURIComponent('Drifting feedback')}`)}>
+                {t('settings.about.feedback')}
+              </SettingsButton>
+            )
           }
         />
       </div>
