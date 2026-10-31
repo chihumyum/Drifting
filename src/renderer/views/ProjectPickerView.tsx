@@ -35,6 +35,7 @@ import {
 import { useProjectRoutePreload } from '../app/useProjectRoutePreload';
 import { BrushIcon } from '../components/ui/BrushIcon';
 import { KindMark } from '../components/ui/KindMark';
+import { useCharSeaEnabled, useCharSeaHold, useCharSeaShape } from '../components/char-sea/useCharSea';
 
 function WindowDragStrip() {
   if (!getPlatformRuntime().desktopWindowControls) return null;
@@ -165,6 +166,12 @@ interface ProjectPickerViewProps {
 export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerViewProps) {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
+  // The desktop shelf lies on the sea of characters: its own ground is left
+  // clear, and the slip for a new book is glass only the water shows.
+  const onSea = useCharSeaEnabled() && presentation !== 'mobile';
+  useCharSeaHold('surface', onSea);
+  const { attach: newSlipRef } = useCharSeaShape<HTMLDivElement>({ rest: 0, radius: 2, hover: false });
+  const shelfClass = onSea ? 'pp pp--sea' : 'pp';
   const user = useAuthStore((s) => s.user);
   const account = useAuthStore((s) => s.hostedUser);
   const writingPlans = useWritingStatsStore((s) => s.plans);
@@ -451,7 +458,7 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
 
   if (loading) {
     return (
-      <div className="pp">
+      <div className={shelfClass}>
         <WindowDragStrip />
         <div className="pp__inner">
           <div className="pp-empty"><LoadingStatus label={t('projectPicker.loading')} /></div>
@@ -463,7 +470,7 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
   const openCreate = () => setCreateOpen(true);
 
   return (
-    <div className="pp">
+    <div className={shelfClass}>
       <WindowDragStrip />
       <div className="pp__inner">
         {/* ─── Header: the shelf's name and the account ─── */}
@@ -510,6 +517,7 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
             />
           ))}
           <SandCell
+            ref={newSlipRef}
             selected={false}
             className="pp-card pp-card--new"
             onClick={openCreate}
@@ -668,9 +676,17 @@ function ProjectCard({ row, onOpen, onEdit, onDelete }: CardProps) {
   const { project, meta, status, lastEditedRel, wordProgress, wordTarget } = row;
   const stats = project.stats;
   const title = project.name.trim() || t('projectPicker.desk.untitled');
+  // On the sea the card's resting glass is drawn by the sea, so the water can
+  // reach it; elsewhere it keeps its own CSS rim.
+  const { attach: glassRef, drawn: seaDrawn, hoverProps: glassHover } = useCharSeaShape<HTMLElement>({ rest: 0.85, radius: 2 });
 
   return (
-    <article className="pp-card glass glass--rest">
+    <article
+      ref={glassRef}
+      className={`pp-card glass glass--rest${seaDrawn ? ' pp-card--sea' : ''}`}
+      data-char-sea-press=""
+      {...glassHover}
+    >
       <BookCover row={row} />
       <div className="pp-card__body">
         <div className="pp-card__head">

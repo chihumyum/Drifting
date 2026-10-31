@@ -29,7 +29,7 @@
 | `180ms` | 列表滚动停下多久之后，滑到指针下的行才算“被指着” | `SCROLL_REST_MS` |
 | `180ms` | 正文选区稳定多久后浮出选区浮条 | `SELECTION_BAR_SETTLE_MS` |
 | `140ms` | 指针离开「格式」与它的格式条后多久收起（够跨过两条之间的缝） | `FORMATS_CLOSE_MS` |
-| `240ms` | 等数据超过多久才出现加载的缺角圆相（之后 `0.16s` 淡入，`0.9s` 转一圈） | CSS `--motion-loading-delay`（`loading-status.css`） |
+| `240ms` | 等数据超过多久才出现加载的缺角圆相（之后 `0.16s` 淡入，`0.9s` 转一圈）；整个窗口的等待超过它才在字海里落水滴（之后每 `1.1s` 一滴，波每秒约 310px，按一下约五秒后静止） | `LOADING_DELAY_MS`，CSS `--motion-loading-delay`（`loading-status.css`、`CharSea`） |
 | `260ms` | 指针离开 Dock 后多久收回小点 | `DOCK_COLLAPSE_DELAY_MS` |
 | `160ms` | 指针离开收起的多选一 tab 与它展开的列表后多久收起（够跨过两者之间的缝） | `OPTIONS_CLOSE_MS`（`GlassSlider.tsx`） |
 | `200ms` | 指针在 Agent 刚写的字上停多久，那几个字才退回墨色（之后 `300ms` 分两步退完） | `RECENT_CHANGE_DWELL_MS`、`RECENT_CHANGE_FADE_MS` |

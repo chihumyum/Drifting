@@ -831,6 +831,10 @@
   color: hsl(var(--ink-1));
 }
 
+.app-fullscreen-status--sea {
+  background: transparent;
+}
+
 .app-fullscreen-status__content {
   width: min(440px, 100%);
   text-align: center;
