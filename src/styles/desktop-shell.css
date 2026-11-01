@@ -494,21 +494,27 @@
    out and thinning away under the glass, the pill's rim (in the mark's
    colour) comes up, then the title. Leaving reverses it and the sand gathers
    back into a mark. The lock and the create button stay put while the pills
-   scroll. With a sidebar closed the row keeps clear of both top corners. */
+   scroll. With a sidebar closed the row keeps clear of both top corners.
+   The dock is placed by its edges and centred by flex, never by a transform:
+   in WebKit, once the pills overflow and their row scrolls, a transformed
+   dock leaves every pill's glass (rim, selection, hover, the selection wave)
+   unpainted over the blurred pill fill. */
 .workspace-tab-dock {
   position: absolute;
   z-index: 30;
-  top: calc(var(--window-titlebar-height) / 2);
-  left: 50%;
+  top: 0;
+  right: 16px;
+  left: 16px;
   display: flex;
-  width: calc(100% - 32px);
+  height: var(--window-titlebar-height);
+  align-items: center;
   justify-content: center;
-  transform: translate(-50%, -50%);
   pointer-events: none;
 }
 
 .workspace-tab-dock[data-clear-corners] {
-  width: calc(100% - 260px);
+  right: 130px;
+  left: 130px;
 }
 
 .workspace-tab-dock__tabs {
