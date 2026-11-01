@@ -250,6 +250,12 @@ describe('the sea of characters under the desktop window', () => {
     expect([...page.matchAll(/<h([1-6])\b/g)].map((m) => m[1]).join('')).toBe('122222');
     expect(page).toContain("var el = document.createElement(kind === 'p' ? 'p' : 'div');");
     expect(build).toContain("path.join(root, 'node_modules/@fontsource-variable', face)");
+    // A tab switch in the workspace corners pushes the panels and slides the glass block as the app does.
+    const motion = read('src/renderer/lib/motion.ts');
+    const pushMs = /export const PUSH_MS = (\d+);/.exec(motion)?.[1];
+    const pushEasing = /export const PUSH_EASING = '([^']+)';/.exec(motion)?.[1];
+    expect(page).toContain(`var PUSH_MS = ${pushMs}, PUSH_EASE = '${pushEasing}';`);
+    expect(page).toContain('<i class="sb-tab-block glass is-on" aria-hidden="true"></i>');
     // The name in the bar is written in sand with the sharing card's brush, and the link keeps the word.
     expect(read('scripts/design-assets/landing/site.css')).toContain('mask: url({{asset:sand/wordmark-drifting.png}})');
     expect(read('scripts/design-assets/landing/wordmark.html')).toContain("import { letterMark } from '../social-preview/sand-letters.js';");
