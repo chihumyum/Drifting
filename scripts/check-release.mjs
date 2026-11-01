@@ -1,7 +1,7 @@
 // Release preflight (docs/releasing.md): the version agrees everywhere, the tag
 // names it, release notes exist, the bundle still produces signed updater
-// artifacts for the endpoint the app polls, build tools stay unstripped, and
-// every Action is pinned.
+// artifacts for the endpoint the app polls, build tools stay unstripped, the
+// app is built with Xcode 26 or later, and every Action is pinned.
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
@@ -41,6 +41,11 @@ export function checkRelease({ tag } = {}) {
   }
   if (!read('src-tauri/src/app_update.rs').includes(`"${UPDATE_ENDPOINT}"`)) {
     errors.push(`src-tauri/src/app_update.rs must poll ${UPDATE_ENDPOINT}`);
+  }
+  // An app linked against an SDK older than macOS 26 gets the older title bar,
+  // and its traffic lights sit lower than the position the app sets.
+  if (!/DEVELOPER_DIR: \/Applications\/Xcode_(?:2[6-9]|[3-9]\d)[\d.]*\.app\/Contents\/Developer/u.test(read('.github/workflows/release.yml'))) {
+    errors.push('release.yml must build with Xcode 26 or later (DEVELOPER_DIR)');
   }
   for (const workflow of fs.readdirSync(path.join(root, '.github/workflows'))) {
     if (!/\.ya?ml$/u.test(workflow)) continue;

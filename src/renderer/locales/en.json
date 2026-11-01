@@ -580,6 +580,7 @@
       "dismiss": "Not now",
       "installing": "Saving and installing…",
       "save_failed": "Local changes could not be saved, so the update was not installed. Your writing is still open; try again in a moment.",
+      "check_failed": "Couldn't check for updates right now, perhaps there is no connection. Try again later; this version keeps working.",
       "error": "Update stopped: {{error}}",
       "states": {
         "checking": "Checking…",
@@ -1888,7 +1889,10 @@
       "failedTitle": "Sync didn't finish",
       "failedDetail": "You can keep writing locally. Retry now, or later choose “Connect and sync” in Account settings.",
       "retry": "Retry",
-      "later": "Not now"
+      "later": "Not now",
+      "accountMismatchTitle": "This library belongs to another account",
+      "accountMismatch": "A library connects to one Drifting account, and the library on this Mac already belongs to another, so it was not connected to this one. To switch, sign in with the original account, disconnect sync under Account, then sign in with this account. Your local projects and their cloud copies are kept.",
+      "accountMismatchOk": "OK"
     },
     "errors": {
       "signInFailed": "Sign in failed",
@@ -1902,7 +1906,9 @@
       "sendRetry": "Send failed. Please try again later.",
       "sendCodeFailed": "Could not send the verification code",
       "verifyFailed": "Verification failed",
-      "signupClosed": "Drifting is still in development. Sign-up isn't open yet."
+      "signupClosed": "Drifting is still in development. Sign-up isn't open yet.",
+      "mailQuotaExhausted": "Today's verification emails have all been sent. Drifting works fully without an account, so keep writing on this device and come back tomorrow to sign in and turn on sync.",
+      "mailDeliveryFailed": "Verification emails can't be sent right now. Drifting works fully without an account, so keep writing on this device and sign in later to turn on sync."
     }
   },
   "projectPicker": {

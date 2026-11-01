@@ -17,6 +17,18 @@ function keyPaths(value: unknown, prefix = ''): string[] {
 }
 
 describe('account sign-in entry', () => {
+  it('tells the author plainly when the library already belongs to another account', () => {
+    const flow = read('src/renderer/features/auth/AuthFlow.tsx');
+    expect(flow).toContain("message.startsWith('HOSTED_ACCOUNT_MISMATCH')");
+    expect(flow).toContain("<p className=\"auth-flow__lead\">{t('auth.sync.accountMismatch')}</p>");
+    for (const locale of ['zh-CN', 'en']) {
+      const sync = (JSON.parse(read(`src/renderer/locales/${locale}.json`)) as Locale).auth.sync as Record<string, string>;
+      expect(sync.accountMismatchTitle).toBeTruthy();
+      expect(sync.accountMismatch).not.toContain('HOSTED_ACCOUNT_MISMATCH');
+      expect(sync.accountMismatchOk).toBeTruthy();
+    }
+  });
+
   it('asks for local or account use before the desktop shelf mounts', () => {
     const routes = read('src/renderer/app/AppRoutes.tsx');
     const guide = read('src/renderer/components/modals/PreAlphaOnboardingDialog.tsx');

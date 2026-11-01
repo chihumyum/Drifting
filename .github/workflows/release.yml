@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   verify:
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 60
     env:
       # The type check needs more than the ~2 GB heap Node gives itself on the
@@ -54,13 +54,17 @@ jobs:
 
   build:
     needs: verify
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 90
     environment: release
     permissions:
       contents: write
     env:
       NODE_OPTIONS: --max-old-space-size=4096
+      # Built against the macOS 26 SDK, as the app is developed: macOS draws
+      # an app linked against an older SDK with the older title bar, whose
+      # buttons sit lower than the traffic-light position the app sets.
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
       # The official build signs in to Hosted and allows sign-up.
       DRIFTING_HOSTED_ORIGIN: ${{ vars.DRIFTING_HOSTED_ORIGIN }}
       VITE_TERMS_URL: https://drifting.cc/terms

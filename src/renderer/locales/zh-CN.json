@@ -579,6 +579,7 @@
       "dismiss": "暂不更新",
       "installing": "正在保存并安装…",
       "save_failed": "本地修改暂时没能保存，所以没有安装更新。正在写的内容仍然打开着，请稍后再试。",
+      "check_failed": "暂时无法检查更新，可能是网络不通。稍后再试，当前版本照常可用。",
       "error": "更新已停止：{{error}}",
       "states": {
         "checking": "正在检查…",
@@ -1887,7 +1888,10 @@
       "failedTitle": "同步没有完成",
       "failedDetail": "本地写作不受影响。可以现在重试，也可以稍后在账号设置里点「连接并同步」。",
       "retry": "重试",
-      "later": "稍后再说"
+      "later": "稍后再说",
+      "accountMismatchTitle": "这个书库连着另一个账号",
+      "accountMismatch": "一个书库只能连一个 Drifting 账号，这台 Mac 上的书库已经连着另一个账号，所以没有连到这个账号。要换成这个账号，请先用原来的账号登录，在「账户」里断开同步，再用这个账号登录。断开后本地项目和云端副本都会保留。",
+      "accountMismatchOk": "知道了"
     },
     "errors": {
       "signInFailed": "登录失败",
@@ -1901,7 +1905,9 @@
       "sendRetry": "发送失败，请稍后重试",
       "sendCodeFailed": "发送验证码失败",
       "verifyFailed": "验证失败",
-      "signupClosed": "Drifting 仍在开发中，暂未开放注册。"
+      "signupClosed": "Drifting 仍在开发中，暂未开放注册。",
+      "mailQuotaExhausted": "今天的验证邮件已经发完了。Drifting 不登录也能完整写作，你可以先在本机写，明天再来登录并开启同步。",
+      "mailDeliveryFailed": "验证邮件暂时发不出去。Drifting 不登录也能完整写作，你可以先在本机写，稍后再来登录并开启同步。"
     }
   },
   "projectPicker": {

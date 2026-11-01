@@ -12,6 +12,7 @@
 | 项 | 值 |
 | --- | --- |
 | 平台 | macOS 13+，Apple Silicon（`aarch64-apple-darwin`） |
+| 构建机 | GitHub `macos-26`，Xcode 26.6（macOS 26 SDK）。用更早的 SDK 编译，新系统会给 App 画旧样式的标题栏，红绿灯比 App 设定的位置偏下 |
 | 打包 | `.dmg`（首次安装）、`.app.tar.gz` + `.sig`（自动更新）、`latest.json`、`SHA256SUMS.txt`、`sbom.spdx.json` |
 | 签名 | Developer ID Application 证书；App 和外层的 DMG 都用 App Store Connect API Key 公证并 staple（DMG 那一步在 Tauri 构建之后单独做） |
 | Hosted | 连接 `vars.DRIFTING_HOSTED_ORIGIN`，开放注册；注册页链接 `https://drifting.cc/terms` 与 `https://drifting.cc/privacy` |

@@ -24,8 +24,12 @@ import { Button } from '../../components/ui/Button';
 import { GhostIconButton } from '../../components/ui/GhostIconButton';
 import { LoadingStatus } from '../../components/ui/LoadingStatus';
 import type { AuthEntryMode } from './auth-dialog-store';
+import { authErrorMessage } from './auth-errors';
 import '../../../styles/auth.css';
 import { BrushIcon } from '../../components/ui/BrushIcon';
+
+/** The sync error shown when the library already belongs to another account. */
+const ACCOUNT_MISMATCH = 'HOSTED_ACCOUNT_MISMATCH';
 
 // Social sign-in is OFF for the BYOK-only beta: Google OAuth still injects a
 // cookie that the bearer-token flow does not use. The block stays behind this
@@ -100,8 +104,15 @@ export function AuthFlow({
       await finishHostedSignIn(controller.signal);
       if (!controller.signal.aborted) onCompleteRef.current();
     } catch (err) {
-      if (!controller.signal.aborted)
-        setSyncError(err instanceof Error ? err.message : t('auth.errors.sessionFailed'));
+      if (controller.signal.aborted) return;
+      const message = err instanceof Error ? err.message : '';
+      // The library already belongs to another account (store/auth.ts):
+      // retrying cannot help, only disconnecting it from that account.
+      setSyncError(
+        message.startsWith('HOSTED_ACCOUNT_MISMATCH')
+          ? ACCOUNT_MISMATCH
+          : message || t('auth.errors.sessionFailed'),
+      );
     }
   }, [t]);
 
@@ -156,7 +167,7 @@ export function AuthFlow({
         // The server creates the account without a session until the email is
         // verified; the verify step then signs in with these credentials.
         const result = await authClient.signUp.email({ email, password, name });
-        if (result.error) throw new Error(result.error.message || t('auth.errors.signUpFailed'));
+        if (result.error) throw new Error(authErrorMessage(result.error, t, 'auth.errors.signUpFailed'));
         go('verify');
       }
     } catch (err) {
@@ -177,7 +188,13 @@ export function AuthFlow({
     otp: t('auth.titles.otp'),
     forgot: t('auth.titles.forgot'),
     verify: t('auth.titles.verify'),
-    syncing: t(syncError ? 'auth.sync.failedTitle' : 'auth.sync.title'),
+    syncing: t(
+      syncError === ACCOUNT_MISMATCH
+        ? 'auth.sync.accountMismatchTitle'
+        : syncError
+          ? 'auth.sync.failedTitle'
+          : 'auth.sync.title',
+    ),
   };
   const back =
     step === 'otp' || step === 'forgot' || step === 'verify'
@@ -188,7 +205,16 @@ export function AuthFlow({
 
   let body: ReactNode;
   if (step === 'syncing') {
-    body = syncError ? (
+    body = syncError === ACCOUNT_MISMATCH ? (
+      <div className="auth-flow__body" role="alert">
+        <p className="auth-flow__lead">{t('auth.sync.accountMismatch')}</p>
+        <div className="auth-flow__actions">
+          <FlowButton kind="primary" onClick={() => onCompleteRef.current()}>
+            {t('auth.sync.accountMismatchOk')}
+          </FlowButton>
+        </div>
+      </div>
+    ) : syncError ? (
       <div className="auth-flow__body" role="alert">
         <FlowError announce={false}>{syncError}</FlowError>
         <p className="auth-flow__lead">{t('auth.sync.failedDetail')}</p>
@@ -481,7 +507,7 @@ function OtpForm({
     try {
       if (stage === 'email') {
         const res = await authClient.emailOtp.sendVerificationOtp({ email, type: 'sign-in' });
-        if (res.error) throw new Error(res.error.message || t('auth.errors.sendFailed'));
+        if (res.error) throw new Error(authErrorMessage(res.error, t, 'auth.errors.sendFailed'));
         setStage('code');
       } else {
         const res = await authClient.signIn.emailOtp({ email, otp });
@@ -552,7 +578,7 @@ function ForgotForm({ initialEmail, onDone }: { initialEmail: string; onDone(): 
     setError(null);
     try {
       const result = await authClient.emailOtp.requestPasswordReset({ email });
-      if (result.error) throw new Error(result.error.message || t('auth.errors.sendCodeFailed'));
+      if (result.error) throw new Error(authErrorMessage(result.error, t, 'auth.errors.sendCodeFailed'));
       setPhase('reset');
     } catch (err) {
       setError(err instanceof Error ? err.message : t('auth.errors.sendCodeFailed'));
@@ -683,7 +709,7 @@ function VerifyForm({
     setBusy(true);
     try {
       const res = await authClient.emailOtp.sendVerificationOtp({ email, type: 'email-verification' });
-      if (res.error) throw new Error(res.error.message || t('auth.errors.sendFailed'));
+      if (res.error) throw new Error(authErrorMessage(res.error, t, 'auth.errors.sendFailed'));
       setSentOnce(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : t('auth.errors.sendCodeFailed'));
