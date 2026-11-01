@@ -1,0 +1,128 @@
+/* The open book's sync mark in the paper's lower-left corner
+   (PaperSyncMark.tsx, docs/hosted-sync/sync-status.md). It stands on the
+   toolbar's middle line across the paper, as large as a round glass button,
+   and is sand, not glass: nothing to press, only to point at. One mark shows
+   at a time; a change of mark fades the old one out and the new one in whole,
+   the way sand arrives (never drawn along a path: no author's hand made it). */
+.paper-sync-mark {
+  position: absolute;
+  z-index: 20;
+  bottom: calc(16px + var(--glass-tray-padding));
+  left: 16px;
+  width: var(--glass-round-size);
+  height: var(--glass-round-size);
+  pointer-events: none;
+  transition: opacity var(--motion-sand-fade) ease-out;
+}
+
+/* A transfer steps aside while the author types and returns once they pause. */
+.paper-sync-mark[data-typing] {
+  opacity: 0;
+}
+
+.paper-sync-mark__mark {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  outline: none;
+  color: hsl(var(--ink-3));
+  cursor: default;
+  pointer-events: auto;
+}
+
+.paper-sync-mark[data-state='none'] .paper-sync-mark__mark,
+.paper-sync-mark[data-typing] .paper-sync-mark__mark {
+  pointer-events: none;
+}
+
+.paper-sync-mark[data-state='offline'] .paper-sync-mark__mark {
+  color: hsl(var(--ink-4));
+}
+
+.paper-sync-mark[data-state='problem'] .paper-sync-mark__mark {
+  color: hsl(var(--destructive));
+}
+
+.paper-sync-mark__glyph.brush-icon {
+  grid-area: 1 / 1;
+  background: color-mix(in srgb, currentColor, #ffffff var(--pigment-lift));
+  mix-blend-mode: var(--pigment-blend);
+  opacity: 0;
+  transform: scale(0.8);
+  filter: blur(1.6px);
+  transition:
+    opacity var(--motion-sand-fade) ease-out,
+    transform 0.34s ease-out,
+    filter 0.34s ease-out;
+}
+
+.paper-sync-mark__glyph.is-on {
+  opacity: var(--pigment);
+  transform: none;
+  filter: none;
+}
+
+/* Pointed at, the mark deepens, like the scroll markers. */
+.paper-sync-mark__mark:hover .paper-sync-mark__glyph.is-on,
+.paper-sync-mark__mark:focus-visible .paper-sync-mark__glyph.is-on {
+  opacity: 1;
+}
+
+/* Offline: the same cloud as loose grains only. */
+.paper-sync-mark__glyph--loose.brush-icon {
+  -webkit-mask-image: url('../assets/design/icons/cloud.png'), radial-gradient(circle, #000 0.75px, transparent 1.15px);
+  mask-image: url('../assets/design/icons/cloud.png'), radial-gradient(circle, #000 0.75px, transparent 1.15px);
+  -webkit-mask-size: 100% 100%, 2.6px 2.4px;
+  mask-size: 100% 100%, 2.6px 2.4px;
+  -webkit-mask-repeat: no-repeat, repeat;
+  mask-repeat: no-repeat, repeat;
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+}
+
+/* Syncing, the whole cloud breathes; retrying, it blinks. Nothing animates
+   while the corner is empty. */
+.paper-sync-mark[data-state='syncing'] .paper-sync-mark__glyph.is-on {
+  animation: paper-sync-breathe var(--motion-sync-breathe) ease-in-out infinite;
+}
+
+.paper-sync-mark[data-state='retrying'] .paper-sync-mark__glyph.is-on {
+  animation: paper-sync-blink var(--motion-sync-blink) ease-in-out infinite;
+}
+
+@keyframes paper-sync-breathe {
+  0%, 100% { opacity: var(--pigment); }
+  50% { opacity: 0.25; }
+}
+
+@keyframes paper-sync-blink {
+  0%, 40%, 100% { opacity: var(--pigment); }
+  55%, 70% { opacity: 0.18; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .paper-sync-mark__glyph.is-on {
+    animation: none !important;
+  }
+}
+
+/* Its hover card: the shared shell; a reading in the index face, a failure's
+   code in the danger ink, and how far a transfer is as one sand stroke. */
+.paper-sync-card__reading,
+.paper-sync-card__code {
+  margin-top: 8px;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font-family: var(--font-mono);
+  font-size: var(--ui-font-caption, 12px);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.paper-sync-card__code {
+  color: hsl(var(--destructive));
+}
+
+.paper-sync-card__track {
+  margin-top: 8px;
+}

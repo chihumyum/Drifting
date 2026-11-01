@@ -97,6 +97,14 @@ export const LOADING_DELAY_MS = 240;
 // (CSS: --motion-glass-loading).
 export const GLASS_LOADING_DRIFT_MS = 2400;
 
+// Sync on the paper (features/sync-status): a long transfer's cloud breathes
+// once in this long and a retrying one blinks once in this long
+// (CSS: --motion-sync-breathe, --motion-sync-blink). A cloud that stepped
+// aside for typing comes back this long after the last keystroke.
+export const SYNC_MARK_BREATHE_MS = 1800;
+export const SYNC_MARK_BLINK_MS = 2400;
+export const SYNC_MARK_TYPING_SETTLE_MS = 2000;
+
 // Dwell and grace.
 /** How long the pointer rests on a thing before its hover card shows. */
 export const HOVER_PREVIEW_DELAY_MS = 220;

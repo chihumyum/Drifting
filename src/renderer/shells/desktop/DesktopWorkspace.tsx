@@ -7,6 +7,7 @@ import { EditorFindPanel } from '../../components/search/EditorFindPanel';
 import { WorkspaceCornerControls } from '../../components/workspaceChrome/WorkspaceCornerControls';
 import { WorkspaceSidebarToggles } from '../../components/workspaceChrome/WindowControlButtons';
 import { StageTimelineToggle, WorkspaceTabDock } from '../../components/workspaceChrome/WorkspaceTabDock';
+import { PaperSyncMark } from '../../features/sync-status/PaperSyncMark';
 import { BottomPanel, BottomPanelHeader } from '../../components/workspaceChrome/BottomPanel';
 import type { BottomPanelPane } from '../../components/workspaceChrome/bottom-panel-context';
 import { setPlotPlannerSlot } from '../../components/editor/plot-grid/plot-planner-slot';
@@ -74,6 +75,7 @@ export const DesktopWorkspace = memo(function DesktopWorkspace({
             <EditorMainArea />
             <WorkspaceTabDock />
             <StageTimelineToggle />
+            <PaperSyncMark />
           </div>
           <TimelineDrawer open={dockPane !== null}>
             <BottomPanel show={dockPane ?? lastPane}>

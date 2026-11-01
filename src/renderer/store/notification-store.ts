@@ -12,6 +12,7 @@
  */
 import { create } from 'zustand';
 import type { CrashFollowUp } from '../services/diagnostics/crash-reporter';
+import type { SyncProblemReport } from '../sync/sync-health';
 
 export type NotificationState = 'running' | 'completed' | 'failed' | 'stopped';
 /**
@@ -67,6 +68,12 @@ export interface AppNotificationEvent {
   settingsSection?: string;
   /** Clicking the row opens the feedback dialog to explain this crash. */
   crashFollowUp?: CrashFollowUp;
+  /**
+   * A sync problem the author has to act on (sync/sync-health.ts): the row
+   * stays first and cannot be removed or cleared until an event with `null`
+   * says it resolved.
+   */
+  syncProblem?: SyncProblemReport | null;
 }
 
 export interface AppNotification {
@@ -80,6 +87,7 @@ export interface AppNotification {
   projectHomeId?: string;
   settingsSection?: string;
   crashFollowUp?: CrashFollowUp;
+  syncProblem?: SyncProblemReport;
   outcome?: NotificationOutcome;
   count?: number;
   error?: string;
@@ -104,10 +112,12 @@ function toState(s: AppNotificationEvent['state']): NotificationState {
 interface NotificationStore {
   items: AppNotification[]; // newest-first
   centerOpen: boolean;
+  /** Which bell opened the center, when more than one is mounted (NotificationPill). */
+  centerOwner: string | null;
 
   ingest: (e: AppNotificationEvent) => void;
   setCenterOpen: (open: boolean) => void;
-  toggleCenter: () => void;
+  toggleCenter: (owner?: string) => void;
   markAllRead: () => void;
   remove: (id: string) => void;
   clear: () => void;
@@ -116,6 +126,7 @@ interface NotificationStore {
 export const useNotificationStore = create<NotificationStore>((set) => ({
   items: [],
   centerOpen: false,
+  centerOwner: null,
 
   ingest: (e) =>
     set((s) => {
@@ -128,15 +139,17 @@ export const useNotificationStore = create<NotificationStore>((set) => ({
           ...existing,
           state,
           title: e.title || existing.title,
-          detail: e.detail ?? existing.detail,
+          detail: e.syncProblem === null ? e.detail : e.detail ?? existing.detail,
           chapterId: e.chapterId ?? existing.chapterId,
           target: e.target ?? existing.target,
           projectHomeId: e.projectHomeId ?? existing.projectHomeId,
           settingsSection: e.settingsSection ?? existing.settingsSection,
           crashFollowUp: e.crashFollowUp ?? existing.crashFollowUp,
+          syncProblem: e.syncProblem === undefined ? existing.syncProblem : e.syncProblem ?? undefined,
           outcome: e.outcome ?? existing.outcome,
           count: e.count ?? existing.count,
-          error: e.error ?? existing.error,
+          // A resolved sync problem keeps none of the failure it reported.
+          error: e.syncProblem === null ? e.error : e.error ?? existing.error,
           progress: e.progress,
           updatedAt: e.at,
           read: state === 'running' ? existing.read : false,
@@ -156,6 +169,7 @@ export const useNotificationStore = create<NotificationStore>((set) => ({
         projectHomeId: e.projectHomeId,
         settingsSection: e.settingsSection,
         crashFollowUp: e.crashFollowUp,
+        syncProblem: e.syncProblem ?? undefined,
         outcome: e.outcome,
         count: e.count,
         error: e.error,
@@ -170,21 +184,23 @@ export const useNotificationStore = create<NotificationStore>((set) => ({
   setCenterOpen: (open) =>
     set((s) => ({
       centerOpen: open,
+      centerOwner: open ? s.centerOwner : null,
       items: open ? s.items.map((n) => (n.read ? n : { ...n, read: true })) : s.items,
     })),
 
-  toggleCenter: () =>
+  toggleCenter: (owner) =>
     set((s) => {
       const open = !s.centerOpen;
       return {
         centerOpen: open,
+        centerOwner: open ? owner ?? null : null,
         items: open ? s.items.map((n) => (n.read ? n : { ...n, read: true })) : s.items,
       };
     }),
 
   markAllRead: () => set((s) => ({ items: s.items.map((n) => ({ ...n, read: true })) })),
-  remove: (id) => set((s) => ({ items: s.items.filter((n) => n.id !== id) })),
-  clear: () => set({ items: [] }),
+  remove: (id) => set((s) => ({ items: s.items.filter((n) => n.id !== id || n.syncProblem) })),
+  clear: () => set((s) => ({ items: s.items.filter((n) => n.syncProblem) })),
 }));
 
 export function selectUnreadCount(items: AppNotification[]): number {

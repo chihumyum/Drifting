@@ -32,6 +32,8 @@ describe('motion vocabulary', () => {
     expect(ms(cssValue('motion-sand-fade'))).toBe(motion.SAND_FADE_MS);
     expect(ms(cssValue('motion-sand-shift'))).toBe(motion.SAND_SHIFT_MS);
     expect(ms(cssValue('motion-dock-pill'))).toBe(motion.DOCK_PILL_MS);
+    expect(ms(cssValue('motion-sync-breathe'))).toBe(motion.SYNC_MARK_BREATHE_MS);
+    expect(ms(cssValue('motion-sync-blink'))).toBe(motion.SYNC_MARK_BLINK_MS);
     expect(cssValue('motion-dock-pill-ease')).toBe(motion.DOCK_PILL_EASING);
   });
 

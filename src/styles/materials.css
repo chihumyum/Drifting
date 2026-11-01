@@ -34,6 +34,10 @@
      waiting on what it asked for drifts after that. */
   --motion-loading-delay: 240ms;
   --motion-glass-loading: 2.4s;
+  /* The paper's sync cloud: one breath while a long transfer runs, one blink
+     while a failure is being retried. */
+  --motion-sync-breathe: 1.8s;
+  --motion-sync-blink: 2.4s;
   /* A dock mark grows into its pill, a closed pill folds away, and the
      neighbours that make room or close the gap land with it. */
   --motion-dock-pill: 340ms;

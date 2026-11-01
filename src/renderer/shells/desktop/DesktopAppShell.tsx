@@ -5,6 +5,7 @@ import { useAuthStore } from '../../store/auth';
 import { useUiStore } from '../../store/ui-store';
 import { subscribeActiveEditor } from '../../lib/active-editor';
 import { useNotificationFeed } from '../../hooks/useNotificationFeed';
+import { useSyncProblemNotifications } from '../../hooks/useSyncProblemNotifications';
 import { ProjectRuntimeProvider } from '../../app/providers/ProjectRuntimeProvider';
 import { DesktopWorkspace } from './DesktopWorkspace';
 import { DesktopOverlayHost } from './DesktopOverlayHost';
@@ -30,7 +31,9 @@ export function DesktopAppShell() {
     (state) => state.setChapterStorylineEditorNodeId,
   );
 
-  useNotificationFeed();
+  // Transfers show on the paper's sync mark; the bell only carries sync problems.
+  useNotificationFeed({ transfers: false });
+  useSyncProblemNotifications();
 
   const openSettings = useCallback((railId: string | null) => {
     setSettingsTargetRail(railId);

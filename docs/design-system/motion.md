@@ -19,6 +19,7 @@
 | 翻页 | 稿纸换成另一页 | 原地叠化：新页盖在旧页上面 `180ms` 淡入，曲线 `cubic-bezier(0.4, 0, 0.2, 1)`，不位移；旧页一直完整地留在下面，新页盖满后才撤走，纸上的墨一刻也不变淡（2026-11-02 作者在原型里比过浮起、慢出慢入、直接换后选定；之前的「旧页 `90ms` 淡出、新页晚 `50ms` 从下方 `6px` 浮起」中途两页都淡，读起来像闪）。中途再换页，正在淡入的那页停在下面完整显示，下一页从它已占的那份浓淡接着淡入，不跳回。舞台本身是稿纸色 | 切换顶部标签、从侧栏或链接打开另一个实体、关掉标签后露出下一页、回到作品主页；打开书时的第一页在字海下面露出，不翻 | `PAGE_BLEND_MS`、`PAGE_BLEND_EASING`（`components/editor/editor-page-turn.ts`，由 `EditorMainArea` 在新页就绪时驱动） |
 | 按压 | 手按下去 | `40ms` 加深，松开 `0.28s` 退回；选中态的边与内晕变化 `0.28s` | 所有 `.glass` 控件（Panel Tab 与筛选项是文字，不按压） | CSS `--motion-glass-press`、`--motion-glass-settle`（`materials.css`） |
 | 砂笔画出 | 作者的操作留下痕迹 | 画框沿路径 `0.38s`；Dock 小点长成药丸与关掉时收回见上面的「Dock 药丸开合」；锁与 `+` `0.3s` 展开；章末 ⁂ 展开 `150ms`、收回 `110ms`；TODO 完成的一勾从左往右 `0.38s` 画出（`cubic-bezier(0.3, 0.7, 0.2, 1)`）；统计读数淡入 `0.24s`，值改变时 `0.25s` 滑到新长度；滚动标记的砂印出现 `0.34s`（`sand-arrive` 那一种），离开整颗 `0.3s` 淡出；正文里选中的批注沿行重画，第一行 `0.38s`、每多一行加 `0.12s`，整段一口气缓出，正文砂笔整块淡入淡出 `0.3s`、浓度变化（指着卡片、链接悬停）`0.24s` | 侧栏 cell 选中、Dock 展开、章末菜单、TODO 完成、统计读数、滚动标记、正文的批注锚点与实体链接 | `lib/sand-frame.ts`、`desktop-shell.css`、`chapter-end-menu.css`、`comments-review.css`（`.todo-status-toggle__tick`、`.editor__scrollmap-tick`、`.comment-sand`）、`materials.css`（`.sand-stroke`、`prose-sand-arrive`）；`SAND_DRAW_MS`、`SAND_DRAW_PER_LINE_MS`、`sandDrawTimeAt()`、`SAND_FADE_MS`、`SAND_SHIFT_MS`，CSS `--motion-sand-fade`、`--motion-sand-shift`（`lib/comment-sand.ts`、`index.css` 的 `.entity-link`） |
+| 同步的云 | 稿纸角的同步还在进行，或正在重试 | 呼吸：整朵云 `1.8s` 一次淡到 25% 再回来；慢闪：`2.4s` 一次，后半段暗下去一会儿；换记号整块淡出淡入 `0.3s`（砂笔出现那一种） | 稿纸左下角的同步记号 | `SYNC_MARK_BREATHE_MS`、`SYNC_MARK_BLINK_MS`，CSS `--motion-sync-breathe`、`--motion-sync-blink`（`paper-sync-mark.css`） |
 | 原地改写 | Agent 写进来的改动 | 每步 `25ms`，一处改动走较长那一边的字数（整段 `0.5–2.5s`，同时揭示的段落多时按档加速，见 `agentEditRevealTiming`）；写完原地交给正文。留下的绿、紫墨字在指针停 `200ms` 后用 `300ms` 分两步退回墨色 | 正文里 Agent 改动的揭示与留色（暂停中的移动端仍是先擦后写的打字机） | `agentRevealFrame`、`agentEditRevealTiming`（`components/editor/agent-edit-animation.ts`）、`RECENT_CHANGE_DWELL_MS`、`RECENT_CHANGE_FADE_MS`（`lib/agent-recent-highlight.ts`、`lib/agent-recent-changes.ts`） |
 
 ## 停留与宽限
@@ -36,6 +37,7 @@
 | `200ms` | 指针在 Agent 刚写的字上停多久，那几个字才退回墨色（之后 `300ms` 分两步退完） | `RECENT_CHANGE_DWELL_MS`、`RECENT_CHANGE_FADE_MS` |
 | `150ms` | 拖动中报告“离开窗口”后等多久才当真（WebKit 松手前也会报告一次） | `DRAG_LEAVE_GRACE_MS` |
 | `1500ms` | 按下后多久内发生的选中算“按下选中的”，直接从按住态过渡到选中态 | `PRESS_WINDOW_MS` |
+| `2000ms` | 作者停笔多久后，因打字淡出的同步云回来 | `SYNC_MARK_TYPING_SETTLE_MS` |
 
 ## 约定
 
