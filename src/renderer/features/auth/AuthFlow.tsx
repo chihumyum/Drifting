@@ -13,6 +13,7 @@ import {
   type ReactNode,
 } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import { finishHostedSignIn } from '../../sync/hosted/sign-in';
 import { describeSyncConnectError } from '../../sync/hosted/connect-error-text';
 import { authClient } from '../../lib/auth-client';
@@ -69,6 +70,7 @@ export function AuthFlow({
   presentation = 'dialog',
 }: AuthFlowProps) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [step, setStep] = useState<Step>(initialMode);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -224,7 +226,13 @@ export function AuthFlow({
             kind="primary"
             onClick={() => {
               onCompleteRef.current();
-              events.emit('settings:open', { railId: 'account' });
+              // Inside a project the desktop shell opens Settings over it; the
+              // shelf has no shell, so it goes to the Settings page instead.
+              if (events.all.get('settings:open')?.length) {
+                events.emit('settings:open', { railId: 'account' });
+              } else {
+                navigate('/settings?section=account');
+              }
             }}
           >
             {t('auth.sync.accountMismatchOpenAccount')}
