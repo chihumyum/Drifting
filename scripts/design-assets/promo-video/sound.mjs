@@ -34,7 +34,7 @@ function svf(mode) {
   };
 }
 
-class Bus {
+export class Bus {
   constructor(length) {
     this.l = new Float32Array(length);
     this.r = new Float32Array(length);
@@ -281,7 +281,8 @@ function strings(chords, length, end, rand) {
         const f0 = hz(note);
         for (let i = first; i < last; i += 1) {
           const t = i / RATE, local = t - chord.from;
-          const lean = chord.accent ? 1 + 0.9 * Math.exp(-local / 0.5) : 1;
+          // A chord bowed hard leans in and settles; any other swells to its middle and eases off.
+          const lean = chord.accent ? 1 + 0.9 * Math.exp(-local / 0.5) : 0.82 + 0.3 * Math.sin(Math.PI * Math.min(1, local / Math.max(0.1, chord.to - chord.from)));
           const env = smooth(local / attack) * lean * (t > chord.to ? smooth(1 - (t - chord.to) / release) : 1) * smooth((end - t) / 2.5);
           const depth = 9 * Math.min(1, local / 0.8);
           const f = f0 * 2 ** ((detune + depth * Math.sin(2 * Math.PI * rate * t + offset)) / 1200);
@@ -305,11 +306,17 @@ function strings(chords, length, end, rand) {
 const VOICING = {
   Dm: ['D2', 'D3', 'F3', 'A3', 'D4'], Bb: ['Bb1', 'D3', 'F3', 'Bb3', 'D4'], F: ['F2', 'C3', 'F3', 'A3', 'C4'],
   C: ['C2', 'C3', 'E3', 'G3', 'C4'], Gm: ['G2', 'D3', 'G3', 'Bb3', 'D4'], A: ['A2', 'C#3', 'E3', 'A3', 'C#4'],
-  Dm9: ['D2', 'D3', 'F3', 'A3', 'E4'],
+  Dm9: ['D2', 'D3', 'F3', 'A3', 'E4'], 'F/A': ['A1', 'C3', 'F3', 'A3', 'C4'],
 };
 const BROKEN = {
   Dm: ['D2', 'A2', 'F3', 'A2'], Bb: ['Bb1', 'F2', 'D3', 'F2'], F: ['F2', 'C3', 'A3', 'C3'],
-  C: ['C2', 'G2', 'E3', 'G2'], Gm: ['G1', 'D2', 'Bb2', 'D2'], A: ['A1', 'E2', 'C#3', 'E2'],
+  C: ['C2', 'G2', 'E3', 'G2'], Gm: ['G1', 'D2', 'Bb2', 'D2'], A: ['A1', 'E2', 'C#3', 'E2'], 'F/A': ['A1', 'F2', 'C3', 'F2'],
+};
+// What the brass and the tuba strike with each hit, by its chord.
+const STAB = {
+  Dm: { stabHorns: ['D3', 'F3', 'A3'], stabTrombones: ['D2', 'A2'], stabTuba: ['D2'] },
+  Gm: { stabHorns: ['D3', 'G3', 'Bb3'], stabTrombones: ['G2', 'D3'], stabTuba: ['G1'] },
+  Bb: { stabHorns: ['F3', 'Bb3', 'D4'], stabTrombones: ['Bb1', 'F2'], stabTuba: ['Bb1'] },
 };
 
 // The chord over each hit, above its low octave; the high notes each falling stone plays, by sheet.
@@ -328,7 +335,7 @@ const STONES = [['A5', 'D6'], ['G5', 'Bb5', 'D6'], ['F5', 'Bb5', 'D6', 'F6']];
  * once more over D minor with an added ninth as the video closes. Each note is
  * damped where its chord ends, as a pedal is.
  */
-function score(sounds, duration) {
+export function score(sounds, duration) {
   const at = (kind, name) => sounds.find((s) => s.kind === kind && (name === undefined || s.name === name))?.t;
   const h = at('section', 'hero') ?? 0.75, w = at('section', 'write') ?? 6.1;
   const bu = at('section', 'build') ?? 13.8, te = at('section', 'tend') ?? 20.9, fo = at('section', 'fold') ?? 27.8, cl = at('section', 'close') ?? 29;
@@ -338,56 +345,117 @@ function score(sounds, duration) {
   const drop = sounds.find((s) => s.kind === 'drop' && s.size > 0.8)?.t ?? 0.25;
   const settle = Math.max(te + 5.2, at('settle') ?? te + 5.6);
   const notes = [], chords = [], drums = [];
-  const play = (t, names, v, pan) => [].concat(names).forEach((name) => notes.push({ t, note: midi(name), v, pan }));
+  const play = (t, names, v, pan, role = 'chord') => [].concat(names).forEach((name) => notes.push({ t, note: midi(name), v, pan, role }));
+  const sing = (t, name, v) => play(t, name, v, undefined, 'melody');
   const broken = (from, to, chord, step, v) => {
-    for (let t = from, i = 0; t < to - 0.05; t += step, i += 1) play(t, BROKEN[chord][i % 4], v * (i % 4 ? 0.8 : 1));
+    for (let t = from, i = 0; t < to - 0.05; t += step, i += 1) play(t, BROKEN[chord][i % 4], v * [1, 0.78, 0.88, 0.74][i % 4], undefined, 'lh');
   };
   const hold = (from, to, chord, level, accent = false) => chords.push({ from, to, notes: VOICING[chord].map(midi), level, accent });
+  // The parts only GarageBand's instruments play (instruments.mjs); the modelled score leaves them out.
+  const orchestra = [];
+  const part = (name, t, names, v, length) => [].concat(names).forEach((n) => orchestra.push({ part: name, t, note: midi(n), v, off: t + length }));
   const hit = (t, root, chord, v) => {
-    play(t, [`${root}1`, `${root}2`], v);
-    play(t, STRUCK[chord], v * 0.6);
+    play(t, [`${root}1`, `${root}2`], v, undefined, 'hit');
+    play(t, STRUCK[chord], v * 0.6, undefined, 'hit');
     drums.push({ t, note: midi(`${root}2`), v });
+    for (const [name, notesOf] of Object.entries(STAB[chord])) part(name, t, notesOf, v, name === 'stabTuba' ? 0.9 : 0.7);
   };
   [0, 1, 2].forEach((sheet) => {
-    sounds.filter((s) => s.kind === 'drop' && s.sheet === sheet).forEach((stone, i) => play(stone.t, STONES[sheet][i % STONES[sheet].length], 0.36, stone.pan));
+    sounds.filter((s) => s.kind === 'drop' && s.sheet === sheet).forEach((stone, i) => play(stone.t, STONES[sheet][i % STONES[sheet].length], 0.36, stone.pan, 'stone'));
   });
 
-  play(drop, 'A5', 0.42);
+  play(drop, 'A5', 0.42, 0, 'stone');
   play(h, ['D2', 'A2'], 0.42);
-  play(h + 0.85, 'A4', 0.46); play(h + 1.6, 'F4', 0.4); play(h + 2.05, 'E4', 0.36);
-  play(h + 2.5, ['Bb1', 'F2'], 0.38); play(h + 2.5, 'D4', 0.4); play(h + 3.35, 'F4', 0.32); play(h + 3.8, 'E4', 0.3);
+  sing(h + 0.85, 'A4', 0.46); sing(h + 1.6, 'F4', 0.4); sing(h + 2.05, 'E4', 0.36);
+  play(h + 2.5, ['Bb1', 'F2'], 0.38); sing(h + 2.5, 'D4', 0.4); sing(h + 3.35, 'F4', 0.32); sing(h + 3.8, 'E4', 0.3);
   hold(h, h + 2.5, 'Dm', 0.45); hold(h + 2.5, hw, 'Bb', 0.6);
 
   const e = 0.45;
   hit(hw, 'D', 'Dm', 0.62);
   broken(w + 0.45, w + 1.8, 'Dm', e, 0.3); broken(w + 1.8, w + 3.6, 'Bb', e, 0.3); broken(w + 3.6, w + 5.4, 'F', e, 0.3); broken(w + 5.4, hb, 'C', e, 0.3);
-  play(w + 0.45, 'A4', 0.4); play(w + 1.35, 'G4', 0.33); play(w + 1.8, 'F4', 0.4); play(w + 2.7, 'D4', 0.33);
-  play(w + 3.6, 'A4', 0.4); play(w + 4.5, 'C5', 0.38); play(w + 5.4, 'G4', 0.4); play(w + 6.75, 'E4', 0.32);
+  sing(w + 0.45, 'A4', 0.4); sing(w + 1.35, 'G4', 0.33); sing(w + 1.8, 'F4', 0.4); sing(w + 2.7, 'D4', 0.33);
+  sing(w + 3.6, 'A4', 0.4); sing(w + 4.5, 'C5', 0.38); sing(w + 5.4, 'G4', 0.4); sing(w + 6.75, 'E4', 0.32);
   hold(hw, w + 1.8, 'Dm', 0.75, true); hold(w + 1.8, w + 3.6, 'Bb', 0.5); hold(w + 3.6, w + 5.4, 'F', 0.5); hold(w + 5.4, hb, 'C', 0.55);
 
   const q = 0.4125;
   hit(hb, 'G', 'Gm', 0.72);
   broken(bu + 0.4125, bu + 1.65, 'Gm', q, 0.36); broken(bu + 1.65, bu + 3.3, 'Dm', q, 0.36); broken(bu + 3.3, bu + 4.95, 'Bb', q, 0.37); broken(bu + 4.95, ht, 'A', q, 0.38);
-  play(bu + 0.4125, 'D5', 0.42); play(bu + 1.24, 'Bb4', 0.36); play(bu + 1.65, 'A4', 0.42); play(bu + 2.45, 'F4', 0.36);
-  play(bu + 3.3, 'D5', 0.44); play(bu + 4.1, 'C5', 0.4); play(bu + 4.95, 'C#5', 0.46); play(bu + 5.75, 'E5', 0.5);
+  sing(bu + 0.4125, 'D5', 0.42); sing(bu + 1.24, 'Bb4', 0.36); sing(bu + 1.65, 'A4', 0.42); sing(bu + 2.45, 'F4', 0.36);
+  sing(bu + 3.3, 'D5', 0.44); sing(bu + 4.1, 'C5', 0.4); sing(bu + 4.95, 'C#5', 0.46); sing(bu + 5.75, 'E5', 0.5);
   hold(hb, bu + 1.65, 'Gm', 0.65, true); hold(bu + 1.65, bu + 3.3, 'Dm', 0.6); hold(bu + 3.3, bu + 4.95, 'Bb', 0.68); hold(bu + 4.95, ht, 'A', 0.78);
 
   hit(ht, 'Bb', 'Bb', 0.84);
-  broken(te + 0.45, te + 1.8, 'Bb', e, 0.44); broken(te + 1.8, te + 3.6, 'F', e, 0.44); broken(te + 3.6, te + 4.7, 'Gm', e, 0.46); broken(te + 4.7, settle, 'A', 0.3, 0.46);
-  play(te + 0.45, 'D5', 0.52); play(te + 1.15, 'F5', 0.54); play(te + 1.8, 'A5', 0.6); play(te + 3.0, 'G5', 0.5);
-  play(te + 3.6, 'F5', 0.52); play(te + 4.25, 'D5', 0.46); play(te + 4.7, 'C#5', 0.52); play(te + 5.1, 'E5', 0.54);
+  broken(te + 0.45, te + 1.8, 'Bb', e, 0.44); broken(te + 1.8, te + 3.6, 'F/A', e, 0.44); broken(te + 3.6, te + 4.7, 'Gm', e, 0.46); broken(te + 4.7, settle, 'A', 0.3, 0.46);
+  sing(te + 0.45, 'D5', 0.52); sing(te + 1.15, 'F5', 0.54); sing(te + 1.8, 'A5', 0.6); sing(te + 3.0, 'G5', 0.5);
+  sing(te + 3.6, 'F5', 0.52); sing(te + 4.25, 'D5', 0.46); sing(te + 4.7, 'C#5', 0.52); sing(te + 5.1, 'E5', 0.54);
   play(settle, ['D2', 'A2', 'D3'], 0.5); play(settle, ['F4', 'A4', 'D5'], 0.48);
-  hold(ht, te + 1.8, 'Bb', 0.85, true); hold(te + 1.8, te + 3.6, 'F', 0.85); hold(te + 3.6, te + 4.7, 'Gm', 0.9); hold(te + 4.7, settle, 'A', 1); hold(settle, fo, 'Dm', 0.8);
+  hold(ht, te + 1.8, 'Bb', 0.85, true); hold(te + 1.8, te + 3.6, 'F/A', 0.85); hold(te + 3.6, te + 4.7, 'Gm', 0.9); hold(te + 4.7, settle, 'A', 1); hold(settle, fo, 'Dm', 0.8);
 
   play(fo, ['Bb1', 'F2', 'D3'], 0.36); play(fo, ['F4', 'A4'], 0.3);
   hold(fo, cl, 'Bb', 0.6);
-  play(cl, ['D2', 'A2', 'D3'], 0.44); play(cl, ['F3', 'A3', 'E4'], 0.36); play(cl + 0.7, 'A5', 0.38);
+  play(cl, ['D2', 'A2', 'D3'], 0.44); play(cl, ['F3', 'A3', 'E4'], 0.36); sing(cl + 0.7, 'A5', 0.38);
   hold(cl, duration, 'Dm9', 0.55);
 
-  // The pedal comes up where each chord ends.
+  // The orchestra. A horn pad under the falling line; in the first pillar a
+  // clarinet's low counter-line (B flat, A, C, D, leading into G minor) over a
+  // plucked bass on each chord; in the second the horns come in and grow, the
+  // clarinet sighs (F to E) and the bass pulses on A toward the hit; in the
+  // third the bass steps down (B flat, A, G, A, D — a lament), the horns hold
+  // the climax and a flute answers the piano's high A, falling from D and
+  // hanging on A until the edit settles; at the close the flute echoes the
+  // opening's high A and the clarinet sighs once more.
+  part('horns', h + 2.5, ['D3', 'F3'], 0.32, hw - h - 2.3);
+  part('bass', w + 1.8, 'Bb1', 0.5, 1); part('bass', w + 3.6, 'F2', 0.5, 1); part('bass', w + 5.4, 'C2', 0.5, 1);
+  part('clarinet', w + 1.9, 'Bb3', 0.45, 1.6); part('clarinet', w + 3.7, 'A3', 0.45, 0.95); part('clarinet', w + 4.6, 'C4', 0.42, 0.85);
+  part('clarinet', w + 5.5, 'C4', 0.44, 0.85); part('clarinet', w + 6.35, 'D4', 0.48, hb - w - 6.2);
+  part('horns', bu + 1.65, ['A3', 'D4'], 0.42, 1.7); part('horns', bu + 3.3, ['Bb3', 'D4'], 0.5, 1.7); part('horns', bu + 4.95, ['A3', 'C#4'], 0.58, ht - bu - 4.85);
+  part('bass', bu + q, 'G1', 0.5, 0.8); part('bass', bu + 1.65, 'D2', 0.5, 0.8); part('bass', bu + 3.3, 'Bb1', 0.52, 0.8);
+  for (let k = 0; k < 4; k += 1) part('bass', bu + 4.95 + k * q, 'A1', 0.5 + 0.04 * k, 0.35);
+  part('clarinet', bu + 0.6, 'D4', 0.44, 1); part('clarinet', bu + 2, 'F4', 0.48, 0.7); part('clarinet', bu + 2.7, 'E4', 0.44, 0.6);
+  part('clarinet', bu + 3.5, 'D4', 0.46, 1.4); part('clarinet', bu + 5, 'C#4', 0.5, ht - bu - 4.9);
+  part('horns', te, ['F3', 'D4'], 0.55, 1.85); part('horns', te + 1.8, ['F3', 'C4'], 0.62, 1.85); part('horns', te + 3.6, ['G3', 'D4'], 0.66, 1.15);
+  part('horns', te + 4.7, ['A3', 'E4'], 0.7, settle - te - 4.6); part('horns', settle, ['A3', 'F4'], 0.55, fo - settle + 0.2);
+  part('bass', te, 'Bb1', 0.55, 0.9); part('bass', te + 1.8, 'A1', 0.55, 0.9); part('bass', te + 3.6, 'G1', 0.56, 0.9); part('bass', te + 4.7, 'A1', 0.6, 0.9); part('bass', settle, 'D2', 0.55, 1.2);
+  part('flute', te + 2.3, 'D6', 0.5, 0.55); part('flute', te + 2.85, 'C6', 0.48, 0.45); part('flute', te + 3.3, 'A5', 0.46, 0.5); part('flute', te + 3.8, 'Bb5', 0.5, 0.85);
+  part('flute', te + 4.7, 'A5', 0.55, settle - te - 4.1); part('flute', settle + 0.6, 'F5', 0.45, fo - settle - 0.4);
+  part('horns', fo, ['D3', 'F3'], 0.32, cl - fo + 0.2); part('bass', fo, 'Bb1', 0.38, 1);
+  part('bass', cl, 'D2', 0.38, 1.5); part('horns', cl, ['A2', 'D3'], 0.28, duration - cl);
+  part('flute', cl + 0.7, 'A5', 0.34, 2.4); part('clarinet', cl + 1.3, 'F4', 0.32, 1); part('clarinet', cl + 2.3, 'E4', 0.3, duration - cl - 2.3);
+
+  // Where each chord ends: the pedal comes up there.
   const changes = [h + 2.5, hw, w + 1.8, w + 3.6, w + 5.4, hb, bu + 1.65, bu + 3.3, bu + 4.95, ht, te + 1.8, te + 3.6, te + 4.7, settle, fo, cl, Infinity];
-  for (const n of notes) n.until = changes.find((c) => c > n.t + 0.01);
-  return { notes, chords, drums };
+
+  // Rise and fall. Each chord's broken notes and melody lean late, the gaps
+  // widening as the chord ends (a ritardando; the change keeps its frame);
+  // the melody sings a hair after the hand under it and a little louder; each
+  // phrase — two chords — swells to its middle and falls away; the piece is
+  // quiet at the opening and the first pillar, climbs through the second into
+  // the Agent, settles with its edit and is quieter still at the close;
+  // and twice the hand leaves out a note to breathe where a phrase turns.
+  const phrases = [[h, hw], [w, w + 3.6], [w + 3.6, hb], [bu, bu + 3.3], [bu + 3.3, ht], [te, te + 3.6], [te + 3.6, settle], [settle, cl], [cl, duration]];
+  const arc = (t) => {
+    const phrase = phrases.find(([a, b]) => t >= a && t < b);
+    return phrase ? 0.86 + 0.26 * Math.sin((Math.PI * (t - phrase[0])) / (phrase[1] - phrase[0])) ** 1.5 : 1;
+  };
+  const lift = (t) => (t < hw ? 0.82 : t < bu ? 0.88 : t < te ? 0.88 + (0.32 * (t - bu)) / (te - bu) : t < settle ? 1.22 : t < cl ? 1 : 0.74);
+  const breaths = [w + 3.6, bu + 3.3];
+  const bounds = [h, ...changes.slice(0, -1)].sort((a, b) => a - b);
+  const kept = notes.filter((n) => !(n.role === 'lh' && breaths.some((b) => n.t < b && n.t > b - 0.4)));
+  for (const n of kept) {
+    if (n.role === 'lh' || n.role === 'melody') {
+      const k = bounds.findLastIndex((b) => b <= n.t + 1e-6);
+      if (k >= 0 && k < bounds.length - 1) {
+        const a = bounds[k], b = bounds[k + 1];
+        n.t = a + (b - a) * ((n.t - a) / (b - a)) ** 1.08;
+      }
+      if (n.role === 'melody') { n.t += 0.022; n.v *= 1.06; }
+      n.v *= arc(n.t) * lift(n.t);
+    } else if (n.role === 'chord') n.v *= lift(n.t);
+  }
+  for (const chord of chords) chord.level *= lift(chord.from);
+  for (const o of orchestra) o.v *= lift(o.t);
+  for (const n of kept) n.until = changes.find((c) => c > n.t + 0.01);
+  return { notes: kept, chords, drums, orchestra };
 }
 
 // ── Space ────────────────────────────────────────────────────────────
@@ -434,9 +502,11 @@ function reverb(send, { room = 0.86, damp = 0.28, width = 1 } = {}) {
 /**
  * Renders the video's sound. Returns `mix` (everything) and `effects` (rain
  * and effects without the score, for laying other music under the video),
- * each { l, r } at RATE.
+ * each { l, r } at RATE. `instruments` may carry the score's piano and
+ * strings already played on sampled instruments (instruments.mjs), each
+ * { l, r } at RATE; without them the modelled ones play.
  */
-export function synthesize(sounds, duration, seed = 0x5eed) {
+export function synthesize(sounds, duration, { seed = 0x5eed, instruments = null } = {}) {
   const length = Math.round(duration * RATE);
   const rand = rng(seed);
   const effects = new Bus(length), effectsSend = new Bus(length);
@@ -517,21 +587,32 @@ export function synthesize(sounds, duration, seed = 0x5eed) {
   // the bench), the strings under it, both in a larger hall than the effects.
   const music = new Bus(length), musicSend = new Bus(length);
   const { notes, chords, drums } = score(sounds, duration);
-  for (const n of notes) {
-    const voice = piano(n.note, n.v, rand);
-    const pan = n.pan ?? Math.max(-0.5, Math.min(0.5, (n.note - 60) / 40));
-    music.put(n.t, voice, 0.5, pan, n.until);
-    musicSend.put(n.t, voice, 0.2, pan, n.until);
+  if (instruments?.piano) {
+    music.mix(instruments.piano);
+    musicSend.mix(instruments.piano, 0.4);
+  } else {
+    for (const n of notes) {
+      const voice = piano(n.note, n.v, rand);
+      const pan = n.pan ?? Math.max(-0.5, Math.min(0.5, (n.note - 60) / 40));
+      music.put(n.t, voice, 0.5, pan, n.until);
+      musicSend.put(n.t, voice, 0.2, pan, n.until);
+    }
   }
-  // The timpano stands a little left of the piano, further back in the hall.
-  for (const d of drums) {
+  // GarageBand's horns, woodwinds, bass and brass; without them the hits keep a
+  // modelled timpano, a little left of the piano and further back in the hall.
+  if (instruments?.orchestra) {
+    music.mix(instruments.orchestra);
+    musicSend.mix(instruments.orchestra, 0.5);
+  }
+  for (const d of instruments?.orchestra ? [] : drums) {
     const voice = timpani(d.note, d.v, rand);
     music.put(d.t, voice, 0.28, -0.2);
     musicSend.put(d.t, voice, 0.2, -0.2);
   }
-  const low = strings(chords, length, duration, rand);
-  music.mix(low, 0.09);
-  musicSend.mix(low, 0.055);
+  const low = instruments?.strings ?? strings(chords, length, duration, rand);
+  const lowGain = instruments?.strings ? 1 : 0.09;
+  music.mix(low, lowGain);
+  musicSend.mix(low, lowGain * 0.6);
   // Kept clear in the low end: nothing under 40 Hz, the bass of the broken
   // chords and the strings a little lighter below 140 Hz, and only what is
   // above 220 Hz sent into the hall, so the room never muddies the piano.

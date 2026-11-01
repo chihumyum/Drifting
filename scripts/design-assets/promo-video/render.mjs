@@ -3,6 +3,7 @@
 //   node scripts/design-assets/promo-video/render.mjs [--lang en,zh] [--fps 60] [--out dir]
 //   node scripts/design-assets/promo-video/render.mjs --stills 2.5,8,15   # PNGs at those seconds
 //   node scripts/design-assets/promo-video/render.mjs --sound-only        # new sound on the videos already rendered
+//   add --modelled to keep the modelled instruments when GarageBand's sound library is installed
 // Builds the page (build.mjs), serves it on 127.0.0.1, and for each language
 // steps the page's clock one frame at a time and captures it at 1920×1080.
 // Writes to out/promo-video by default, for each language: the silent
@@ -16,7 +17,8 @@ import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { RATE, synthesize, wav } from './sound.mjs';
+import { playOnGarageBand } from './instruments.mjs';
+import { RATE, score, synthesize, wav } from './sound.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '../../..');
@@ -30,6 +32,8 @@ const fps = Number(option('fps', '60'));
 const out = path.resolve(option('out', path.join(root, 'out/promo-video')));
 const stills = option('stills', '') ? option('stills').split(',').map(Number) : null;
 const soundOnly = args.includes('--sound-only');
+// --modelled keeps the modelled piano and strings even when GarageBand's sound library is installed.
+const modelled = args.includes('--modelled');
 const chrome = process.env.CHROME ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 // The page is laid out at 1152×648 CSS px and captured at 1920×1080.
 const VIEW = { width: 1152, height: 648, deviceScaleFactor: 1920 / 1152 };
@@ -126,7 +130,9 @@ async function writeSound(lang, duration) {
   const sounds = await evaluate('window.__promo.sounds');
   // The cue list, for cutting other music to the picture.
   writeFileSync(path.join(out, `drifting-promo-${lang}-cues.json`), `${JSON.stringify(sounds.filter((s) => s.kind !== 'key'), null, 1)}\n`);
-  const { mix, effects } = synthesize(sounds, duration);
+  const instruments = modelled ? null : playOnGarageBand(score(sounds, duration), duration, profile);
+  console.log(`${lang}: the score on ${instruments ? "GarageBand's instruments" : 'the modelled instruments'}`);
+  const { mix, effects } = synthesize(sounds, duration, { instruments });
   const files = [];
   for (const [bus, name] of [[mix, `drifting-promo-${lang}.wav`], [effects, `drifting-promo-${lang}-effects.wav`]]) {
     const raw = path.join(profile, `raw-${name}`);
