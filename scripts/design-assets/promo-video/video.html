@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>Drifting promo</title>
+<!-- render.mjs captures this page frame by frame at 1152×648 CSS px (1920×1080
+     device px). ?lang=zh|en picks the language; without ?render it plays in
+     real time, and ?t= starts it at a given second. -->
+<script src="/assets/clock.js"></script>
+<link rel="stylesheet" href="/assets/site.css">
+<style>
+/* The landing page's own layout: its corners of the workspace come with it. */
+{{landing-style}}
+</style>
+<style>
+/* ── The frame ────────────────────────────────────────────────────── */
+html, body { width: 1152px; height: 648px; overflow: hidden; }
+body { padding: 0; }
+.pv { position: fixed; inset: 0; z-index: 1; }
+.pv-scene { position: absolute; opacity: 0; }
+
+/* Opening and closing: the words under the risen name */
+.pv-under { left: 0; right: 0; top: var(--word-bottom, 340px); display: grid; justify-items: center; gap: 26px; padding-top: 40px; text-align: center; }
+.pv-under .tagline { max-width: 31em; font-size: 27px; }
+:root[data-lang="zh"] .pv-under .tagline { max-width: 24em; }
+.pv-under .su::after { clip-path: inset(-20% calc((1 - var(--draw, 1)) * 100%) -20% 0); }
+.pv-url { height: 60px; padding: 0 36px; font: 500 26px/1 var(--font-ui); letter-spacing: 0.01em; }
+.pv-under .meta { font-size: 16px; }
+
+/* The pillars: a sheet on the sea, its words on the left and a corner of the workspace on the right */
+.pv-sheet { left: 50%; top: 50%; width: 1080px; max-width: none; margin: 0; padding: 34px 36px; transform-origin: 50% 50%; }
+.pv-sheet .pillar { grid-template-columns: 296px minmax(0, 1fr); gap: 40px; align-items: center; }
+.pv-sheet .pillar-text { gap: 20px; padding-top: 0; }
+.pv-sheet .kind { font-size: 13px; }
+.pv-sheet h2 { font-size: 38px; line-height: 1.22; }
+.pv-sub .nb { white-space: nowrap; }
+.pv-sub { margin: 0; font: 400 17px/1.65 var(--font-ui); color: hsl(var(--ink-2)); }
+:root[data-lang="zh"] .pv-sub { letter-spacing: 0.02em; }
+.pv-sheet .tools { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 8px; }
+.pv-sheet .tools li { font-size: 13px; }
+.vg-agent .win { min-height: 470px; }
+</style>
+</head>
+<body>
+
+<canvas id="sea" aria-hidden="true"></canvas>
+
+<div class="pv">
+  <!-- Opening: the name rises out of the sea, the tagline under it -->
+  <section class="pv-scene pv-under" id="s-hero">
+    <p class="tagline pv-rise">
+      <span data-l="zh"><span class="su" style="--c: var(--c-blue)">Markdown</span> 的轻快，传统写作软件的<span class="su" style="--c: var(--c-ochre)">脚手架</span>，<br>再加一个照看整本书的 <span class="su" style="--c: var(--c-green)">Agent</span>。</span>
+      <span data-l="en">The ease of a <span class="su" style="--c: var(--c-blue)">Markdown</span> editor, the <span class="su" style="--c: var(--c-ochre)">scaffolding</span> of a classic writing studio, and an <span class="su" style="--c: var(--c-green)">Agent</span> for the whole book.</span>
+    </p>
+  </section>
+
+  <!-- Write -->
+  <section class="pv-scene pv-sheet sheet glass" id="s-write" style="--sec: var(--c-blue)">
+    <div class="pillar">
+      <div class="pillar-text">
+        <div class="kind pv-rise"><i class="mk mk-seal"></i><span data-l="zh">写</span><span data-l="en">Write</span></div>
+        <h2 class="pv-rise"><span data-l="zh">像 Markdown 编辑器一样写</span><span data-l="en">Writes like a Markdown editor</span></h2>
+        <p class="pv-sub pv-rise"><span data-l="zh">每个项目同时也是一个 <span class="nb">Markdown 文件夹。</span></span><span data-l="en">Every project is also a folder of Markdown files.</span></p>
+      </div>
+      {{corner:vg-md}}
+    </div>
+  </section>
+
+  <!-- Build -->
+  <section class="pv-scene pv-sheet sheet glass" id="s-build" style="--sec: var(--c-ochre)">
+    <div class="pillar">
+      <div class="pillar-text">
+        <div class="kind pv-rise"><i class="mk mk-square"></i><span data-l="zh">搭</span><span data-l="en">Build</span></div>
+        <h2 class="pv-rise"><span data-l="zh">传统写作软件的<br>脚手架</span><span data-l="en">The scaffolding of a classic writing studio</span></h2>
+        <ul class="tools">
+          <li class="pv-rise" style="--c: var(--c-blue)"><i class="ic" style="--i:url({{asset:icons/ov-folding.png}})"></i><span data-l="zh">通览全书</span><span data-l="en">Whole book</span></li>
+          <li class="pv-rise" style="--c: var(--c-red)"><i class="ic" style="--i:url({{asset:icons/bamboo.png}})"></i><span data-l="zh">时间线</span><span data-l="en">Timeline</span></li>
+          <li class="pv-rise" style="--c: var(--c-teal)"><i class="ic" style="--i:url({{asset:icons/ov-iceberg.png}})"></i><span data-l="zh">要素全景</span><span data-l="en">Element overview</span></li>
+          <li class="pv-rise" style="--c: var(--c-ochre)"><i class="ic" style="--i:url({{asset:icons/lib-curio.png}})"></i><span data-l="zh">素材库</span><span data-l="en">Materials</span></li>
+          <li class="pv-rise" style="--c: var(--c-red)"><i class="ic" style="--i:url({{asset:icons/torii.png}})"></i><span data-l="zh">作品主页</span><span data-l="en">Project Home</span></li>
+          <li class="pv-rise" style="--c: var(--c-purple)"><i class="ic" style="--i:url({{asset:icons/comment.png}})"></i><span data-l="zh">批注</span><span data-l="en">Comments</span></li>
+        </ul>
+      </div>
+      {{corner:vg-studio}}
+    </div>
+  </section>
+
+  <!-- Tend -->
+  <section class="pv-scene pv-sheet sheet glass" id="s-tend" style="--sec: var(--c-green)">
+    <div class="pillar">
+      <div class="pillar-text">
+        <div class="kind pv-rise"><i class="mk mk-icon" style="--m:url({{asset:icons/shikigami.png}})"></i><span data-l="zh">照看</span><span data-l="en">Tend</span></div>
+        <h2 class="pv-rise"><span data-l="zh">照看整本书的<br>Agent</span><span data-l="en">An Agent for the whole book</span></h2>
+        <p class="pv-sub pv-rise"><span data-l="zh">它的改动会在正文里标出，可以从<span class="nb">历史快照撤回。</span></span><span data-l="en">Its edits are marked in the text and can be undone from history.</span></p>
+      </div>
+      {{corner:vg-agent}}
+    </div>
+  </section>
+
+  <!-- Closing: the name again, and where to find it -->
+  <section class="pv-scene pv-under" id="s-close">
+    <span class="glass glass--primary pill pv-url pv-rise">drifting.cc</span>
+    <p class="meta pv-rise">
+      <span>macOS 13+</span><span>Apple Silicon</span><span data-l="zh">开源 · 本地优先</span><span data-l="en">Open source · Local-first</span>
+    </p>
+  </section>
+</div>
+
+<script src="/assets/video.js"></script>
+</body>
+</html>

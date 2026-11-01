@@ -35,3 +35,5 @@ the site's icons from them; see its README.
 preview) from the character sea and the same sand brush; see its README.
 `landing/` builds drifting.cc's home page and the look its other pages share
 from the same sea, sand and glass; see its README.
+`promo-video/` renders a 32-second promo video in English and Chinese from the
+same sea and the landing page's corners of the workspace; see its README.
