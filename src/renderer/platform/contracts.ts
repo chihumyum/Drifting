@@ -37,6 +37,12 @@ export interface MarkdownProjectionInfo {
   enabled: boolean;
 }
 
+/** The project's folder after naming it for its book. */
+export interface MarkdownProjectionNamedFolder extends MarkdownProjectionInfo {
+  /** Where the folder was before this renamed it; its ledger rows move along. */
+  previousDirectory: string | null;
+}
+
 /** Where projects without a location of their own are written, and whether the folder is on. */
 export interface MarkdownFolderSettings {
   /** Holds the folder of every project without a location of its own. */
@@ -713,6 +719,7 @@ export interface TauriCommandContract {
   ai_log_get_dir: { args: undefined; result: string };
   markdown_projection_remove: { args: { projectId: string }; result: void };
   markdown_projection_info: { args: { projectId: string }; result: MarkdownProjectionInfo };
+  markdown_projection_name_folder: { args: { projectId: string; title: string }; result: MarkdownProjectionNamedFolder };
   markdown_projection_folder: { args: undefined; result: MarkdownFolderSettings };
   markdown_projection_set_default_root: { args: { customRoot: string | null }; result: MarkdownFolderSettings };
   markdown_projection_set_enabled: { args: { enabled: boolean }; result: MarkdownFolderSettings };

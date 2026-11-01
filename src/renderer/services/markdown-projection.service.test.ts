@@ -3,14 +3,14 @@ const fixture = vi.hoisted(() => ({
   database: {} as object,
   composing: false,
   committed: (_event: { projectId: string }) => undefined as void,
-  read: vi.fn(), build: vi.fn(), flush: vi.fn(), write: vi.fn(), info: vi.fn(), remove: vi.fn(), setOutputRoot: vi.fn(), setEnabled: vi.fn(),
+  read: vi.fn(), build: vi.fn(), flush: vi.fn(), write: vi.fn(), info: vi.fn(), remove: vi.fn(), setOutputRoot: vi.fn(), setEnabled: vi.fn(), nameFolder: vi.fn(),
   known: new Map<string, string>(), disposeRenderer: vi.fn(),
   mirror: {
-    scan: vi.fn(), prepare: vi.fn(), settle: vi.fn(), dispose: vi.fn(),
+    scan: vi.fn(), prepare: vi.fn(), settle: vi.fn(), relocate: vi.fn(), dispose: vi.fn(),
     exclusive: <T,>(work: () => Promise<T>) => work(),
   },
 }));
-vi.mock('../platform', () => ({ platform: { markdownProjection: { info: fixture.info, write: fixture.write, remove: fixture.remove, setOutputRoot: fixture.setOutputRoot, setEnabled: fixture.setEnabled } } }));
+vi.mock('../platform', () => ({ platform: { markdownProjection: { info: fixture.info, write: fixture.write, remove: fixture.remove, setOutputRoot: fixture.setOutputRoot, setEnabled: fixture.setEnabled, nameFolder: fixture.nameFolder } } }));
 vi.mock('../lib/db', () => ({ getDbIfInitialized: () => fixture.database }));
 vi.mock('../lib/active-editor', () => ({ getActiveEditor: () => ({ view: { composing: fixture.composing } }) }));
 vi.mock('../sync/journal/authored-transaction', () => ({ onAuthoredChangeCommitted: (callback: typeof fixture.committed) => {
@@ -376,6 +376,33 @@ describe('Markdown projection scheduling', () => {
       await dispose();
       vi.unstubAllGlobals();
     }
+  });
+
+  it('names the folder after the book before writing, and moves the ledger with a renamed folder', async () => {
+    vi.useFakeTimers();
+    const old = '/synthetic/markdown-projections/old-name';
+    const named = '/synthetic/markdown-projections/潮汐灯塔-北岬';
+    fixture.info.mockResolvedValue({ directory: old, customRoot: null, generatedAt: null, readOnly: false, reverseSync: true, enabled: true });
+    fixture.read.mockResolvedValue({ books: [{ project: { id: 'synthetic', name: '潮汐灯塔/北岬' } }], proseByDocId: new Map() });
+    fixture.nameFolder.mockResolvedValue({ directory: named, customRoot: null, generatedAt: null, readOnly: false, reverseSync: true, enabled: true, previousDirectory: old });
+    fixture.write.mockResolvedValue({ directory: named, generatedAt: 'now', readOnly: false, reverseSync: true, enabled: true, conflicts: [], preserved: [] });
+    const dispose = installMarkdownProjection('synthetic');
+    try {
+      await vi.advanceTimersByTimeAsync(0);
+      // Scanned where the files were, then named with the file-name rules.
+      expect(fixture.mirror.scan).toHaveBeenCalledWith(old, { force: true });
+      expect(fixture.nameFolder).toHaveBeenCalledWith('synthetic', '潮汐灯塔-北岬');
+      expect(fixture.mirror.relocate).toHaveBeenCalledWith(old, named);
+      expect(fixture.mirror.relocate.mock.invocationCallOrder[0]).toBeLessThan(fixture.mirror.prepare.mock.invocationCallOrder[0]!);
+      expect(fixture.mirror.prepare).toHaveBeenCalledWith(expect.anything(), [], named);
+      expect(fixture.mirror.settle).toHaveBeenCalledWith([], named, expect.anything());
+      expect(getMarkdownProjectionStatus('synthetic')).toMatchObject({ state: 'ready', directory: named });
+      expect(getMarkdownProjectionStatus('synthetic')).not.toHaveProperty('previousDirectory');
+      // An unchanged name moves nothing.
+      fixture.nameFolder.mockResolvedValue({ directory: named, customRoot: null, generatedAt: 'now', readOnly: false, reverseSync: true, enabled: true, previousDirectory: null });
+      await refreshMarkdownProjection('synthetic');
+      expect(fixture.mirror.relocate).toHaveBeenCalledOnce();
+    } finally { await dispose(); }
   });
 
   it('reports failure and allows a later refresh without blocking the author', async () => {

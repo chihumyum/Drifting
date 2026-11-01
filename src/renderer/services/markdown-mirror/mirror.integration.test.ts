@@ -182,6 +182,24 @@ describe('Markdown folder ledger', () => {
     expect(disk.get(FILE_PATH)!.text).toContain('林岚轻轻推开门。\n\n雨很大。');
   });
 
+  it('keeps the merge base when the folder is renamed after its book', async () => {
+    const db = await setup();
+    const mirror = createMarkdownMirror(PROJECT_ID);
+    await capture(db, mirror);
+    const renamed = '/synthetic/markdown-projections/Mirror';
+    // Only the folder's own rows move.
+    await createMarkdownMirrorRepository().record(PROJECT_ID, 'node-content:elsewhere', '/synthetic/other', {
+      path: 'x.md', fileSha256: 'x', baseState: new Uint8Array([0]), baseFieldsJson: '{}',
+    });
+    await mirror.relocate(DIRECTORY, renamed);
+    expect((await createMarkdownMirrorRepository().get(PROJECT_ID, DOC_ID))!.directory).toBe(renamed);
+    expect((await createMarkdownMirrorRepository().get(PROJECT_ID, 'node-content:elsewhere'))!.directory).toBe('/synthetic/other');
+    editOnDisk((text) => text.replace('林岚推开门。', '林岚轻轻推开门。'));
+    expect(await mirror.scan(renamed)).toEqual({ merged: 1, issues: [] });
+    expect(await prose(db)).toBe('林岚轻轻推开门。');
+    expect(await mirror.scan(DIRECTORY, { force: true })).toEqual({ merged: 0, issues: [] });
+  });
+
   it('confirms a write that reached disk before a crash instead of merging it again', async () => {
     const db = await setup();
     await capture(db);

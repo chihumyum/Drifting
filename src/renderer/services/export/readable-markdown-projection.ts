@@ -14,6 +14,7 @@ import { markdownLabel, obsidianProse, relativeMarkdownHref, relativeMarkdownLin
 import { readLocalProseJson, type ProseJsonCache } from './relational-markdown.prose';
 import type { LocalRelationalMarkdownSource } from './relational-markdown.local-source';
 import type { MarkdownZipEntry } from './markdown-zip';
+import { readableFileStem } from './readable-file-stem';
 
 const HOME = '开始阅读.md';
 const CONTENTS = '正文/目录.md';
@@ -21,17 +22,6 @@ const COMMENTS = '注释与待办.md';
 const STATUS: Record<string, string> = { draft: '草稿', finished: '已完成', discarded: '已搁置', drifting: '漂浮中', resting: '休眠', open: '未完成', resolved: '已解决', converted: '已转换' };
 const byteLength = (value: string) => new TextEncoder().encode(value).length;
 const key = (kind: string, id: string) => `${kind}:${id}`;
-
-/** Filenames are readable on macOS/Windows and safe as Markdown destinations. */
-export function readableFileStem(value: string): string {
-  const normalized = value.normalize('NFKC').replace(/[<>:"/\\|?*#^%\x5b\x5d\p{Cc}\p{Cf}]/gu, '-')
-    .replace(/\.{2,}/gu, '-').replace(/-{2,}/gu, '-').replace(/\s+/gu, ' ').replace(/^[.\s]+|[.\s]+$/gu, '');
-  let result = '';
-  for (const char of normalized || '未命名') { if (byteLength(result + char) > 120) break; result += char; }
-  result = result.replace(/[. ]+$/gu, '') || '未命名';
-  if (/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/iu.test(result)) result = `_${result}`;
-  return result;
-}
 
 function shortId(value: string): string {
   let hash = 0xcbf29ce484222325n;

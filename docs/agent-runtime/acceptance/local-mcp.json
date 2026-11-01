@@ -1,7 +1,7 @@
 {
   "kind": "local-mcp-runtime-and-native-ipc",
-  "generatedAt": "2026-11-01T17:42:08.371Z",
-  "sourceSha256": "78903895e0d300594d730efea084c204004f62bfe91dc6b5c167dba1ca6f60fc",
+  "generatedAt": "2026-11-01T17:57:14.920Z",
+  "sourceSha256": "e73f3782159190a489cf92c750c7192c7004fb360b9b0ce6b68f2d06a14e45b1",
   "status": "passed",
   "synthetic": true,
   "checks": [
@@ -75,6 +75,10 @@
     },
     {
       "name": "Markdown projection scheduling captures pending work before the folder is turned off, then neither scans nor writes until it is back on",
+      "status": "passed"
+    },
+    {
+      "name": "Markdown projection scheduling names the folder after the book before writing, and moves the ledger with a renamed folder",
       "status": "passed"
     },
     {
@@ -594,7 +598,7 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::client_config::tests::malformed_or_colliding_config_is_never_replaced",
+      "name": "mcp_server::client_config::tests::claude_merge_preserves_account_project_and_existing_mcp_settings",
       "status": "passed"
     },
     {
@@ -602,19 +606,19 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::client_config::tests::claude_merge_preserves_account_project_and_existing_mcp_settings",
-      "status": "passed"
-    },
-    {
       "name": "mcp_server::client_config::tests::codex_merge_preserves_comments_and_other_servers_and_is_idempotent",
       "status": "passed"
     },
     {
-      "name": "mcp_server::client_config::tests::configuration_updates_back_up_original_and_reject_symlinks",
+      "name": "mcp_server::client_config::tests::malformed_or_colliding_config_is_never_replaced",
       "status": "passed"
     },
     {
-      "name": "mcp_server::local::tests::permission_change_cancels_pending_requests_before_publishing_new_grant",
+      "name": "mcp_server::local::tests::renderer_dispatch_preserves_authorized_scope_and_cancellation",
+      "status": "passed"
+    },
+    {
+      "name": "mcp_server::local::tests::permission_change_rejects_wrong_project_invalid_scope_and_failed_persistence",
       "status": "passed"
     },
     {
@@ -626,19 +630,7 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::local::tests::initialize_says_when_the_markdown_folder_is_turned_off",
-      "status": "passed"
-    },
-    {
-      "name": "mcp_server::local::tests::permission_change_rejects_wrong_project_invalid_scope_and_failed_persistence",
-      "status": "passed"
-    },
-    {
-      "name": "mcp_server::local::tests::renderer_dispatch_preserves_authorized_scope_and_cancellation",
-      "status": "passed"
-    },
-    {
-      "name": "mcp_server::local::tests::initialize_reports_persisted_custom_projection_location",
+      "name": "mcp_server::client_config::tests::configuration_updates_back_up_original_and_reject_symlinks",
       "status": "passed"
     },
     {
@@ -646,7 +638,19 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::local::tests::failed_installation_rolls_back_grant_and_credentials_without_touching_config",
+      "name": "mcp_server::local::tests::permission_change_cancels_pending_requests_before_publishing_new_grant",
+      "status": "passed"
+    },
+    {
+      "name": "mcp_server::local::tests::initialize_reports_persisted_custom_projection_location",
+      "status": "passed"
+    },
+    {
+      "name": "mcp_server::local::tests::initialize_says_when_the_markdown_folder_is_turned_off",
+      "status": "passed"
+    },
+    {
+      "name": "mcp_server::local::tests::permission_changes_notify_live_clients_and_dispatch_current_grants",
       "status": "passed"
     },
     {
@@ -654,7 +658,7 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::local::tests::permission_changes_notify_live_clients_and_dispatch_current_grants",
+      "name": "mcp_server::local::tests::failed_installation_rolls_back_grant_and_credentials_without_touching_config",
       "status": "passed"
     },
     {
@@ -666,39 +670,7 @@
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::an_abandoned_authored_file_with_unread_edits_is_preserved",
-      "status": "passed"
-    },
-    {
-      "name": "markdown_projection::tests::a_folder_managed_by_another_installation_is_refused",
-      "status": "passed"
-    },
-    {
       "name": "markdown_projection::tests::hidden_metadata_rejects_symlinks_before_changing_the_readable_manuscript",
-      "status": "passed"
-    },
-    {
-      "name": "markdown_projection::tests::authored_files_are_writable_and_never_replace_unread_edits",
-      "status": "passed"
-    },
-    {
-      "name": "markdown_projection::tests::opening_shows_the_project_folder_once_written_else_the_folder_holding_projects",
-      "status": "passed"
-    },
-    {
-      "name": "markdown_projection::tests::markdown_projection_rejects_symlink_parent_and_preserves_external_target",
-      "status": "passed"
-    },
-    {
-      "name": "markdown_projection::tests::markdown_projection_rejects_unsafe_paths_and_duplicates_before_writing",
-      "status": "passed"
-    },
-    {
-      "name": "markdown_projection::tests::interrupted_projection_claims_can_be_retried_and_cleaned_up",
-      "status": "passed"
-    },
-    {
-      "name": "markdown_projection::tests::output_selection_rejects_symlinked_managed_directory",
       "status": "passed"
     },
     {
@@ -706,15 +678,27 @@
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::output_selection_rejects_unowned_directory_and_keeps_previous_location",
+      "name": "markdown_projection::tests::an_abandoned_authored_file_with_unread_edits_is_preserved",
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::missing_corrupt_or_unowned_attachments_never_replace_the_previous_snapshot",
+      "name": "markdown_projection::tests::markdown_projection_rejects_unsafe_paths_and_duplicates_before_writing",
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::refresh_rejects_new_unowned_file_before_changing_managed_prose",
+      "name": "markdown_projection::tests::a_folder_managed_by_another_installation_is_refused",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::a_taken_title_gets_a_number_that_stays_while_the_title_does",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::a_location_where_the_name_is_taken_is_accepted_and_written_around_it",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::naming_waits_while_the_folder_is_off",
       "status": "passed"
     },
     {
@@ -722,7 +706,11 @@
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::source_assets_reject_symlinks_and_hardlinks_before_modifying_managed_output",
+      "name": "markdown_projection::tests::markdown_projection_rejects_symlink_parent_and_preserves_external_target",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::interrupted_projection_claims_can_be_retried_and_cleaned_up",
       "status": "passed"
     },
     {
@@ -730,15 +718,11 @@
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::unsupported_image_previews_copy_only_from_the_project_owned_display_variant",
+      "name": "markdown_projection::tests::output_selection_rejects_symlinked_managed_directory",
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::readable_tree_upgrades_legacy_manifests_and_cleans_only_owned_paths",
-      "status": "passed"
-    },
-    {
-      "name": "markdown_projection::tests::upgrading_a_read_only_projection_keeps_edited_files",
+      "name": "markdown_projection::tests::folders_are_named_after_the_book_and_follow_its_title",
       "status": "passed"
     },
     {
@@ -746,7 +730,19 @@
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::unavailable_default_location_does_not_fall_back_and_can_be_reset",
+      "name": "markdown_projection::tests::authored_files_are_writable_and_never_replace_unread_edits",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::missing_corrupt_or_unowned_attachments_never_replace_the_previous_snapshot",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::unsupported_image_previews_copy_only_from_the_project_owned_display_variant",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::opening_shows_the_project_folder_once_written_else_the_folder_holding_projects",
       "status": "passed"
     },
     {
@@ -754,11 +750,31 @@
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::turned_off_folder_is_neither_written_nor_read_and_keeps_its_files",
+      "name": "markdown_projection::tests::readable_tree_upgrades_legacy_manifests_and_cleans_only_owned_paths",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::source_assets_reject_symlinks_and_hardlinks_before_modifying_managed_output",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::upgrading_a_read_only_projection_keeps_edited_files",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::refresh_rejects_new_unowned_file_before_changing_managed_prose",
       "status": "passed"
     },
     {
       "name": "markdown_projection::tests::unavailable_custom_output_does_not_fallback_and_can_be_reset",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::unavailable_default_location_does_not_fall_back_and_can_be_reset",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::turned_off_folder_is_neither_written_nor_read_and_keeps_its_files",
       "status": "passed"
     }
   ],

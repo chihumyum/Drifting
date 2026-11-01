@@ -11,6 +11,7 @@ import { flushPendingAtomicSyncTransactions } from './atomic-sync-transaction-tr
 import { flushAllOpenYjsDocuments } from './yjs-local-durability.service';
 import { readLocalRelationalMarkdownSource } from './export/relational-markdown.local-source';
 import { createMarkdownProjectionRenderer } from './export/markdown-projection-client';
+import { readableFileStem } from './export/readable-file-stem';
 import { createMarkdownMirror, type MirrorIssue, type MirrorScanResult } from './markdown-mirror/mirror';
 import type { MarkdownFolderSettings } from '../platform/contracts';
 import { i18next } from '../lib/i18n';
@@ -196,11 +197,21 @@ export function installMarkdownProjection(projectId: string): () => Promise<void
       const { entries, assets, documents } = await stage('render-worker', () => renderer.render(source, capturedAt, controller.signal));
       if (!active()) return;
       if (yieldToComposition()) return;
-      const authored = await stage('mirror-prepare', () => mirror.prepare(source, documents, info.directory));
+      // The folder carries the book's name; renaming the book renames it,
+      // and the ledger follows so edits there keep their merge base.
+      let directory = info.directory;
+      const title = source.books[0]?.project?.name;
+      if (title !== undefined) {
+        const { previousDirectory, ...named } = await stage('name-folder', () => platform.markdownProjection.nameFolder(projectId, readableFileStem(title)));
+        if (previousDirectory) await mirror.relocate(previousDirectory, named.directory);
+        directory = named.directory;
+        if (active()) publish(projectId, { ...named, state: 'pending' });
+      }
+      const authored = await stage('mirror-prepare', () => mirror.prepare(source, documents, directory));
       const byPath = new Map(authored.entries.map(entry => [entry.path, entry]));
       const published = entries.map(entry => byPath.get(entry.path) ?? entry);
       const result = await stage('publish', () => platform.markdownProjection.write(projectId, capturedAt.toISOString(), published, assets, documents));
-      await mirror.settle(authored.renders, info.directory, result);
+      await mirror.settle(authored.renders, directory, result);
       lastFailed = false;
       // A native build from before two-way files reports neither list.
       const { conflicts = [], preserved = [], ...written } = result;

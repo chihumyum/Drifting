@@ -26,11 +26,22 @@ issues and a location of its own (Choose for this project / Follow all
 projects), Copy path and Update now. **Turn off Markdown folder** is the danger
 button at the end; it asks first, with Cancel focused.
 
-A project's folder is `<location>/markdown-projections/<SHA-256 of project ID>/`,
-where the location is the project's own, else the one chosen for all projects,
-else the app's local data folder. Both are saved on this device in
+A project's folder is `<location>/markdown-projections/<book title>/`, where
+the location is the project's own, else the one chosen for all projects, else
+the app's local data folder. The title goes through the same rules as chapter
+file names (`readableFileStem`). When another folder there already has the
+name (a book of the same title, or a folder the author made), the name takes
+` 2`, ` 3`… and keeps that number while the title stays. Renaming the book
+renames the folder in place on the next capture, files, manifest and owner
+record together; a folder from before folders had names (named by the SHA-256
+of the project ID) is renamed the same way. A write never enters a folder that
+holds another project's manifest or the author's own files. Because the book's
+folder can be renamed, point an Obsidian vault or editor workspace at the
+folder holding the books rather than at one book's folder. The locations,
+each project's folder name and the switch are saved on this device in
 `<app-local-data>/markdown-projection-settings.json` (`roots` per project,
-`defaultRoot`, `disabled`), outside SQLite, Yjs and synced preferences.
+`folders`, `defaultRoot`, `disabled`), outside SQLite, Yjs and synced
+preferences.
 Worktree instances retain their isolated application-data identity and default
 output. Custom locations are explicitly user-selected; use separate folders for
 independent acceptance instances.
@@ -42,6 +53,13 @@ refreshed; remove them manually when no longer needed. If regeneration fails,
 the chosen location remains selected and the UI reports the error for retry. An
 unavailable chosen folder never silently falls back to another one. Restore
 default remains available after a location error. No manuscript data is moved.
+
+The device ledger of two-way files (`markdown_mirror_file`) records each
+file's folder; a rename moves its rows to the new path before the capture
+writes, so edits waiting in the folder keep their merge base. If the app stops
+between the rename and that move, the next capture treats the files as having
+no base: an edited one is kept under `.drifting/preserved` before it is
+replaced, and nothing is lost.
 
 Turning the folder off first captures what was written since the last capture
 (merging edits waiting in the folder), then stops every project from writing or
@@ -225,6 +243,13 @@ folder; Turn off asked first with Cancel focused, then wrote `disabled` and
 stopped writing; a chapter file edited while off did not merge until Turn on,
 then merged; Restore default location regenerated the project under the app's
 data folder with that edit and kept the old folder.
+
+Book-named folders were walked through the same way on 2026-11-02 (not part of
+a report): the sample book's folder was created as `潮汐灯塔(轻量功能样本)` (the
+file-name rules turn full-width parentheses into ASCII), `folders` recorded it,
+renaming the book to `北岬灯塔` renamed the folder in place on the next capture
+and moved the ledger rows, and a chapter then edited in the renamed folder
+merged on refresh with nothing kept under `.drifting/preserved`.
 
 `node scripts/run-obsidian-projection-acceptance.mjs` generates
 [`obsidian-projection.json`](agent-runtime/acceptance/obsidian-projection.json)
