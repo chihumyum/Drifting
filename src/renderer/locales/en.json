@@ -561,6 +561,7 @@
       "dismiss": "Not now",
       "installing": "Saving and installing…",
       "save_failed": "Local changes could not be saved, so the update was not installed. Your writing is still open; try again in a moment.",
+      "check_failed": "Couldn't check for updates right now, perhaps there is no connection. Try again later; this version keeps working.",
       "error": "Update stopped: {{error}}",
       "states": {
         "checking": "Checking…",

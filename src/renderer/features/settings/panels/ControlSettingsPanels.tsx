@@ -2,7 +2,12 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { exportAllProjectsAsRelationalMarkdown } from '../../../services/export/relational-markdown.service';
-import { installedUpdateFor, UPDATE_LOCAL_SAVE_FAILED, UpdateService } from '../../../services/update/update-service';
+import {
+  installedUpdateFor,
+  UPDATE_CHECK_FAILED,
+  UPDATE_LOCAL_SAVE_FAILED,
+  UpdateService,
+} from '../../../services/update/update-service';
 import { createSanitizedDiagnosticSummary } from '../../../services/diagnostics/sanitized-summary';
 import {
   SHORTCUT_ACTIONS,
@@ -382,7 +387,9 @@ export function UpdatePanel({ registerRef }: { registerRef: SettingsRegisterRef 
             <SettingsNote icon="status-stopped" tone="error" role="alert">
               {update.error === UPDATE_LOCAL_SAVE_FAILED
                 ? t('settings.update.save_failed')
-                : t('settings.update.error', { error: update.error })}
+                : update.error === UPDATE_CHECK_FAILED
+                  ? t('settings.update.check_failed')
+                  : t('settings.update.error', { error: update.error })}
             </SettingsNote>
           )}
           {update.update && !busy && (

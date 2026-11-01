@@ -99,3 +99,15 @@ it('reports a native install failure after a successful save', async () => {
     error: 'bundle is read-only',
   });
 });
+
+it('says a failed check plainly instead of passing on the updater\'s words', async () => {
+  vi.resetModules();
+  const { UpdateService, UPDATE_CHECK_FAILED } = await import('./update-service');
+  mocks.check.mockRejectedValueOnce(
+    new Error('could not check for an update: Could not fetch a valid release JSON from the remote'),
+  );
+
+  await UpdateService.check({ manual: true });
+
+  expect(UpdateService.getState()).toMatchObject({ phase: 'error', update: null, error: UPDATE_CHECK_FAILED });
+});
