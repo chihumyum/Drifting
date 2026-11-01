@@ -100,16 +100,25 @@ const capture = async () => Buffer.from((await send('Page.captureScreenshot', { 
 
 // EBU R128 loudness to −16 LUFS (what the feeds play at) by one fixed gain,
 // so the rain never pumps: the few peaks the gain would lift past −2 dBFS
-// (the burst, the first drop) are held by a look-ahead limiter first.
+// (the hits, the first drop) are held by a look-ahead limiter first. What the
+// limiter takes off the hits lowers the loudness a little, so the gain is
+// measured again on the result and corrected, twice at most.
+function loudness(file) {
+  const measured = spawnSync('ffmpeg', ['-hide_banner', '-i', file, '-af', 'loudnorm=print_format=json', '-f', 'null', '-'], { encoding: 'utf8' });
+  return Number(JSON.parse(/\{[^{}]*"input_i"[^{}]*\}/.exec(measured.stderr)[0]).input_i);
+}
 function loudnorm(input, output) {
-  const measure = spawnSync('ffmpeg', ['-hide_banner', '-i', input, '-af', 'loudnorm=print_format=json', '-f', 'null', '-'], { encoding: 'utf8' });
-  const { input_i: loudness } = JSON.parse(/\{[^{}]*"input_i"[^{}]*\}/.exec(measure.stderr)[0]);
-  const gain = -16 - Number(loudness);
-  const ceiling = Math.min(1, 10 ** ((-2 - gain) / 20));
-  const done = spawnSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', input, '-af',
-    `alimiter=limit=${ceiling.toFixed(5)}:attack=4:release=150:level=disabled,volume=${gain.toFixed(2)}dB`,
-    '-ar', String(RATE), '-c:a', 'pcm_s24le', output], { stdio: 'inherit' });
-  if (done.status !== 0) throw new Error(`render.mjs: normalizing ${input} failed`);
+  let gain = -16 - loudness(input);
+  for (let pass = 0; pass < 3; pass += 1) {
+    const ceiling = Math.min(1, 10 ** ((-2 - gain) / 20));
+    const done = spawnSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', input, '-af',
+      `alimiter=limit=${ceiling.toFixed(5)}:attack=4:release=150:level=disabled,volume=${gain.toFixed(2)}dB`,
+      '-ar', String(RATE), '-c:a', 'pcm_s24le', output], { stdio: 'inherit' });
+    if (done.status !== 0) throw new Error(`render.mjs: normalizing ${input} failed`);
+    const off = -16 - loudness(output);
+    if (Math.abs(off) < 0.15) return;
+    gain += off;
+  }
 }
 
 // The page's list of what is heard when, synthesized and normalized.

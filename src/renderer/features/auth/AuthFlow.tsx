@@ -14,6 +14,7 @@ import {
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import { finishHostedSignIn } from '../../sync/hosted/sign-in';
+import { describeSyncConnectError } from '../../sync/hosted/connect-error-text';
 import { authClient } from '../../lib/auth-client';
 import { setSessionToken } from '../../lib/session-token';
 import { platform } from '../../platform';
@@ -105,6 +106,12 @@ export function AuthFlow({
       if (!controller.signal.aborted) onCompleteRef.current();
     } catch (err) {
       if (controller.signal.aborted) return;
+      const described = await describeSyncConnectError(err, t);
+      if (controller.signal.aborted) return;
+      if (described) {
+        setSyncError(described);
+        return;
+      }
       const message = err instanceof Error ? err.message : '';
       // The library already belongs to another account (store/auth.ts):
       // retrying cannot help, only disconnecting it from that account.

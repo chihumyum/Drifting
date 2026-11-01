@@ -24,8 +24,9 @@ const $$ = (selector, within = document) => [...within.querySelectorAll(selector
 // ── Time ─────────────────────────────────────────────────────────────
 // Seconds. The rain has been falling for a while when the video starts (the
 // first frame is what a feed shows before it plays); a stone drops, the name
-// rises and bursts, the three pillars each lie on the sea as a sheet, each
-// unfolding as the last folds away, and the name rises again over where to
+// rises and bursts; then for each of the three pillars, stones fall on the
+// open sea (STONES before its sheet) and its sheet unfolds over the rings,
+// folding away again before the next; and the name rises again over where to
 // find it.
 const T = {
   rain: -2.4,
@@ -34,13 +35,14 @@ const T = {
   taglineIn: 2.0,
   taglineOut: 4.9,
   burst: 5.25,
-  write: [5.85, 13.15],
-  build: [13.25, 19.95],
-  tend: [20.05, 27.15],
-  closeRise: 27.45,
-  closeIn: 28.35,
-  end: 32,
+  write: [6.1, 13.1],
+  build: [13.8, 20.2],
+  tend: [20.9, 27.8],
+  closeRise: 28.1,
+  closeIn: 29.0,
+  end: 32.2,
 };
+const STONES = 0.4;
 
 const clamp01 = (x) => Math.min(1, Math.max(0, x));
 const span = (t, from, length) => clamp01((t - from) / length);
@@ -372,26 +374,19 @@ function sheetScene(el, [open, close], play) {
   return scene;
 }
 
-// The pillars lie on one sheet of glass the sea draws. It unfolds from its
-// middle under the first, takes each next pillar's size as the words change,
-// and folds away after the last.
+// Each pillar lies on a sheet of glass the sea draws. It unfolds from its
+// middle over the rings of the stones that fell before it, and folds back to
+// its middle as its words fade, so the next stones fall on open water: under
+// the glass the sea shows at only 12%, and their rings would not be seen.
 function sheetGlass(sheets) {
-  const first = sheets[0], last = sheets[sheets.length - 1];
-  const MORPH = 0.6;
-  const boxOf = (sheet) => sheet.el.getBoundingClientRect();
   return (t, shapes) => {
-    const unfold = structural(span(t, first.open, 0.7)) * (1 - easeIn(span(t, last.close + 0.04, 0.4)));
-    if (unfold < 0.002) return;
-    let box = null;
-    for (let i = 0; i < sheets.length && !box; i += 1) {
-      const sheet = sheets[i], next = sheets[i + 1];
-      if (next && t >= sheet.close && t < next.open + MORPH) {
-        const a = boxOf(sheet), b = boxOf(next), u = easeInOut(span(t, sheet.close, next.open + MORPH - sheet.close));
-        box = { left: a.left + (b.left - a.left) * u, top: a.top + (b.top - a.top) * u, width: a.width + (b.width - a.width) * u, height: a.height + (b.height - a.height) * u };
-      } else if (t < (next ? next.open : Infinity)) box = boxOf(sheet);
-    }
-    const height = box.height * unfold;
-    shapes.push({ id: 1, x: box.left, y: box.top + (box.height - height) / 2, width: box.width, height, radius: 2, rest: 0.85 * Math.min(1, unfold * 1.4), hover: false, textureX: 14, textureY: 46 });
+    sheets.forEach((sheet, n) => {
+      const unfold = structural(span(t, sheet.open, 0.7)) * (1 - easeIn(span(t, sheet.close + 0.04, 0.35)));
+      if (unfold < 0.002) return;
+      const box = sheet.el.getBoundingClientRect();
+      const height = box.height * unfold;
+      shapes.push({ id: n + 1, x: box.left, y: box.top + (box.height - height) / 2, width: box.width, height, radius: 2, rest: 0.85 * Math.min(1, unfold * 1.4), hover: false, textureX: 14, textureY: 46 });
+    });
   };
 }
 
@@ -445,9 +440,20 @@ async function setUp() {
     sheetGlass(pillars),
     underScene(close, [T.closeIn, Infinity], $$('.pv-rise', close)),
   ];
-  const middle = (selector) => {
-    const box = $(selector).getBoundingClientRect();
-    return [box.left + box.width / 2, box.top + box.height / 2];
+  // As each pillar's sheet comes, stones fall on the sea: one more each time
+  // than the last (the opening's one in the middle, then two, three, four),
+  // scattered apart from each other, a few hundredths of a second between
+  // them. Seeded, so every render scatters them the same way.
+  const scatter = (count, seed) => {
+    let s = seed;
+    const rand = () => (s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296;
+    const spots = [];
+    for (let tries = 0; spots.length < count; tries += 1) {
+      const x = 0.1 + 0.8 * rand(), y = 0.14 + 0.72 * rand();
+      const apart = tries < 400 ? 0.42 : 0.25;
+      if (spots.every(([a, b]) => Math.hypot(((a - x) * innerWidth) / innerHeight, b - y) > apart)) spots.push([x, y]);
+    }
+    return spots;
   };
   // [when, what the sea does, what is heard]
   cues = [
@@ -455,7 +461,11 @@ async function setUp() {
     [T.rain, () => sea.rain(true)],
     [T.rise, () => sea.loading(true), { kind: 'rise' }],
     [T.burst, () => sea.loading(false), { kind: 'burst' }],
-    ...sheets.map(([selector, [open]]) => [open + 0.05, () => sea.drop(...middle(selector), 0.9), { kind: 'drop', size: 0.6 }]),
+    ...sheets.flatMap(([, [open]], n) => scatter(n + 2, 0x51ab + n * 977).map(([x, y], i) => [
+      open - STONES + i * 0.055,
+      () => sea.drop(x * innerWidth, y * innerHeight, 1),
+      { kind: 'drop', size: 0.7, sheet: n, pan: Number((x * 2 - 1).toFixed(3)) },
+    ])),
     [T.closeRise, () => sea.loading(true), { kind: 'rise' }],
   ].sort((x, y) => x[0] - y[0]);
   // What render.mjs's sound.mjs plays, in seconds of the video. `section`
@@ -464,9 +474,7 @@ async function setUp() {
   sounds = [
     ...cues.filter((cue) => cue[2]).map(([t, , sound]) => ({ t, ...sound })),
     ...scenes.flatMap((scene) => scene.sounds ?? []),
-    { t: T.write[0], kind: 'glass', dir: 1 },
-    ...pillars.slice(1).map((pillar, n) => ({ t: pillars[n].close, kind: 'glass', dir: 0 })),
-    { t: T.tend[1] + 0.04, kind: 'glass', dir: -1 },
+    ...pillars.flatMap((pillar) => [{ t: pillar.open, kind: 'glass', dir: 1 }, { t: pillar.close + 0.04, kind: 'glass', dir: -1 }]),
     { t: T.closeIn, kind: 'pill' },
     ...[['hero', T.rise], ['burst', T.burst], ['write', T.write[0]], ['build', T.build[0]], ['tend', T.tend[0]], ['fold', T.tend[1]], ['close', T.closeIn]]
       .map(([name, t]) => ({ t, kind: 'section', name })),

@@ -18,6 +18,7 @@ import {
 } from '../SettingsPrimitives';
 import { settingsOnDesktop } from '../settings-on-desktop';
 import { useShareLinkStore } from '../../share-links/share-link-store';
+import { syncConnectErrorText } from '../../../sync/hosted/connect-error-text';
 import { useShareLinksDialogStore } from '../../share-links/share-links-dialog-store';
 
 export function AccountPanel({ registerRef }: { registerRef: SettingsRegisterRef }) {
@@ -219,7 +220,7 @@ export function AccountPanel({ registerRef }: { registerRef: SettingsRegisterRef
           />
         )}
         {(connected || hostedTransition) && authority.errorCode && (
-          <p role="alert" className="set-account-message">{authority.errorCode}</p>
+          <p role="alert" className="set-account-message">{syncConnectErrorText(authority.errorCode, t)}</p>
         )}
         {message && <p role="status" className="set-account-message">{message}</p>}
       </div>
