@@ -2,70 +2,128 @@
   "fill-specializations": [
     {
       "value": {
-        "linear-gradient": [
-          "display-p3:0.22954,0.34438,0.96783,1.00000",
-          "display-p3:0.05690,0.14405,0.64137,1.00000"
-        ],
-        "orientation": {
-          "start": {
-            "x": 0.5,
-            "y": 0
-          },
-          "stop": {
-            "x": 0.5,
-            "y": 0.7
-          }
-        }
+        "solid": "display-p3:0.94942,0.94675,0.94061,1.00000"
       }
     },
     {
       "appearance": "dark",
-      "value": "system-dark"
+      "value": {
+        "solid": "display-p3:0.10894,0.11255,0.12102,1.00000"
+      }
     }
   ],
   "groups": [
     {
-      "blur-material": null,
+      "name": "Glass",
       "hidden": false,
       "layers": [
         {
+          "name": "Glass line",
+          "image-name": "glass-line.png",
+          "hidden": false,
+          "glass": false,
           "fill-specializations": [
+            {
+              "value": {
+                "solid": "display-p3:0.28157,0.42515,0.66602,1.00000"
+              }
+            },
             {
               "appearance": "dark",
               "value": {
-                "automatic-gradient": "display-p3:0.14094,0.45790,0.96312,1.00000",
-                "orientation": {
-                  "start": {
-                    "x": 0.5,
-                    "y": 0
-                  },
-                  "stop": {
-                    "x": 0.5,
-                    "y": 0.7
-                  }
-                }
+                "solid": "display-p3:0.49238,0.61161,0.80276,1.00000"
               }
             }
           ],
-          "hidden": false,
-          "image-name": "icon-source.png",
-          "name": "Drifting icon source",
           "position": {
-            "scale": 0.8,
-            "translation-in-points": [17.1875, 0]
+            "scale": 1,
+            "translation-in-points": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "name": "Glass bleed",
+          "image-name": "glass-bleed.png",
+          "hidden": false,
+          "glass": false,
+          "fill-specializations": [
+            {
+              "value": {
+                "solid": "display-p3:0.28157,0.42515,0.66602,1.00000"
+              }
+            },
+            {
+              "appearance": "dark",
+              "value": {
+                "solid": "display-p3:0.71925,0.78614,0.89046,1.00000"
+              }
+            }
+          ],
+          "position": {
+            "scale": 1,
+            "translation-in-points": [
+              0,
+              0
+            ]
           }
         }
       ],
-      "lighting": "individual",
+      "lighting": "combined",
       "shadow": {
-        "kind": "neutral",
-        "opacity": 0.5
+        "kind": "none",
+        "opacity": 0
       },
       "specular": false,
       "translucency": {
-        "enabled": true,
-        "value": 0.2
-      }
+        "enabled": false,
+        "value": 0
+      },
+      "blur-material": null
+    },
+    {
+      "name": "Sand",
+      "hidden": false,
+      "layers": [
+        {
+          "name": "Sand",
+          "image-name": "sand.png",
+          "hidden": false,
+          "glass": false,
+          "fill-specializations": [
+            {
+              "value": {
+                "solid": "display-p3:0.28157,0.42515,0.66602,1.00000"
+              }
+            },
+            {
+              "appearance": "dark",
+              "value": {
+                "solid": "display-p3:0.49238,0.61161,0.80276,1.00000"
+              }
+            }
+          ],
+          "position": {
+            "scale": 1,
+            "translation-in-points": [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "lighting": "combined",
+      "shadow": {
+        "kind": "none",
+        "opacity": 0
+      },
+      "specular": false,
+      "translucency": {
+        "enabled": false,
+        "value": 0
+      },
+      "blur-material": null
     }
   ],
   "supported-platforms": {

@@ -221,7 +221,7 @@ h2 {
 .typed, .raw-wrap { position: relative; min-width: 0; }
 .typed-ghost, .raw-ghost { visibility: hidden; }
 .typed.has-ghost > #md-typed, .raw-live { position: absolute; inset: 0 0 auto 0; }
-.sb-panes { display: grid; grid-template-columns: minmax(0, 1fr); }
+.sb-panes { display: grid; grid-template-columns: minmax(0, 1fr); overflow: hidden; }
 .sb-panes > .sb-pane { grid-area: 1 / 1; }
 .sb-pane.off { visibility: hidden; }
 
@@ -239,23 +239,43 @@ h2 {
 @keyframes raw-in { from { opacity: 0; background: hsl(var(--accent) / 0.12); } }
 
 /* Build: the left sidebar beside the page it opens */
-.vg-studio .win { grid-template-columns: 264px minmax(0, 1fr); min-height: 420px; }
+.vg-studio .win { grid-template-columns: 304px minmax(0, 1fr); min-height: 420px; }
 .sb { position: relative; display: flex; flex-direction: column; min-width: 0; background: hsl(var(--paper-deep)); }
 /* The tab row (PanelTabTray): the tabs are plain words sharing the row; one
    square glass block lies under the chosen tab's whole share, 2px short of the
-   row's top and bottom. The sidebar's toggle sits in the row beside them. */
+   row's top and bottom. A switch pushes the pane's panels like a heavy block
+   of ice (265ms, slow to start, then fast) and the block rides the same push,
+   its glass running with the distance it moves (--flow, glass-flow.ts). The
+   sidebar's toggle sits in the row beside them. */
 .sb-top { display: flex; align-items: center; gap: 3px; height: 40px; padding: 0 6px 0 13px; box-shadow: inset 0 -1px var(--rule); }
 .sb-top .lights { margin-right: 9px; }
 .sb-toggle { display: grid; place-items: center; flex: none; width: 26px; height: 26px; color: var(--ui-muted); }
 .sb-toggle .ic { width: 15px; height: 15px; }
-.sb-tabs { display: flex; flex: 1; align-self: stretch; min-width: 0; gap: 12px; }
+.sb-tabs { position: relative; display: flex; flex: 1; align-self: stretch; min-width: 0; gap: 8px; }
+.sb-tab-block.glass {
+  --glass-gx: calc(var(--flow, 0) * 1.2px - 14px);
+  --glass-gy: -46px;
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 0;
+  width: 0;
+  z-index: 0;
+  border-radius: 0;
+  background: var(--glass-fill);
+  pointer-events: none;
+}
 .sb-tab {
+  position: relative;
+  z-index: 1;
   flex: 1 0 auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   margin: 2px 0;
-  padding: 0;
+  /* The app's panel tab keeps 8px each side of its word (ui-controls.css), so
+     the glass block never touches the word even when the row is full. */
+  padding: 0 8px;
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -265,8 +285,6 @@ h2 {
   white-space: nowrap;
 }
 .sb-tab:hover, .sb-tab.is-on { color: hsl(var(--ink-1)); }
-.sb-tab.is-on { background: var(--glass-fill); }
-.sb-tab.glass:not(.is-on)::before { display: none; }
 /* The pane's header: what it holds, and its actions on the right. */
 .sb-head { display: flex; align-items: center; gap: 8px; height: 32px; margin: 4px 0 8px; padding: 0 5px 0 6px; font: 400 11.5px/18px var(--font-ui); letter-spacing: 0.12em; text-transform: uppercase; color: var(--ui-muted); }
 .sb-head > span:first-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -421,7 +439,7 @@ h2 {
 <canvas id="sea" aria-hidden="true"></canvas>
 
 <header class="bar">
-  <a class="brand" href="#top" aria-label="Drifting">DRIFTING</a>
+  <a class="brand glass glass--rest" href="#top" aria-label="Drifting">DRIFTING</a>
   <div class="bar-actions">
     <a class="glass glass--primary pill pill--sm bar-dl" href="https://github.com/chihumyum/Drifting/releases/latest" target="_blank" rel="noopener"><span data-l="zh">下载</span><span data-l="en">Download</span></a>
     <a class="glass glass--rest pill pill--sm" id="lang-btn" data-l="en" href="/zh" hreflang="zh" lang="zh-CN">中文</a>
@@ -519,9 +537,10 @@ h2 {
               <span class="lights"><i></i><i></i><i></i></span>
               <span class="sb-toggle"><i class="ic" style="--i:url({{asset:icons/moon-left.png}})"></i></span>
               <div class="sb-tabs">
-                <button class="sb-tab glass is-on" type="button" data-tab="nodes"><span data-l="zh">章节</span><span data-l="en">Chapters</span></button>
-                <button class="sb-tab glass" type="button" data-tab="elements"><span data-l="zh">要素</span><span data-l="en">Elements</span></button>
-                <button class="sb-tab glass" type="button" data-tab="drifts"><span data-l="zh">构想</span><span data-l="en">Ideas</span></button>
+                <i class="sb-tab-block glass is-on" aria-hidden="true"></i>
+                <button class="sb-tab is-on" type="button" data-tab="nodes"><span data-l="zh">章节</span><span data-l="en">Chapters</span></button>
+                <button class="sb-tab" type="button" data-tab="elements"><span data-l="zh">要素</span><span data-l="en">Elements</span></button>
+                <button class="sb-tab" type="button" data-tab="drifts"><span data-l="zh">构想</span><span data-l="en">Ideas</span></button>
               </div>
             </div>
             <div class="sb-panes">
@@ -660,7 +679,8 @@ h2 {
           <aside class="sb sb-right">
             <div class="sb-top">
               <div class="sb-tabs">
-                <span class="sb-tab">Review</span><span class="sb-tab"><span data-l="zh">素材库</span><span data-l="en">Library</span></span><span class="sb-tab"><span data-l="zh">统计</span><span data-l="en">Stats</span></span><span class="sb-tab glass is-on">Agent</span>
+                <i class="sb-tab-block glass is-on" aria-hidden="true"></i>
+                <span class="sb-tab">Review</span><span class="sb-tab"><span data-l="zh">素材库</span><span data-l="en">Library</span></span><span class="sb-tab"><span data-l="zh">统计</span><span data-l="en">Stats</span></span><span class="sb-tab is-on">Agent</span>
               </div>
               <span class="sb-toggle"><i class="ic" style="--i:url({{asset:icons/moon-right.png}})"></i></span>
             </div>
@@ -838,6 +858,37 @@ h2 {
       cover.insertBefore(band, cover.firstChild);
     });
   })();
+
+  /* ── The tab rows: one glass block under the chosen tab ── */
+  var PUSH_MS = 265, PUSH_EASE = 'cubic-bezier(0.8, 0, 0.66, 1)';
+  function seatBlock(row, slide) {
+    var block = row.querySelector('.sb-tab-block');
+    var chosen = row.querySelector('.sb-tab.is-on');
+    if (!block || !chosen) return;
+    var moving = slide && !reduce && block.dataset.seated === '1';
+    var to = chosen.offsetLeft;
+    block.style.transition = moving ? 'transform ' + PUSH_MS + 'ms ' + PUSH_EASE + ', width ' + PUSH_MS + 'ms ' + PUSH_EASE : 'none';
+    block.style.transform = 'translateX(' + to + 'px)';
+    block.style.width = chosen.offsetWidth + 'px';
+    block.dataset.seated = '1';
+    if (!moving) return;
+    // Its glass runs with the distance it travels, and stands still once it lands.
+    var last = block.getBoundingClientRect().left;
+    var travelled = Number(row.style.getPropertyValue('--flow')) || 0;
+    var start = performance.now();
+    (function step(now) {
+      var x = block.getBoundingClientRect().left;
+      travelled += Math.abs(x - last);
+      last = x;
+      row.style.setProperty('--flow', travelled.toFixed(1));
+      if (now - start < PUSH_MS + 80) requestAnimationFrame(step);
+    })(start);
+  }
+  var tabRows = Array.prototype.slice.call(document.querySelectorAll('.vg .sb-tabs'));
+  function seatBlocks() { tabRows.forEach(function (row) { seatBlock(row, false); }); }
+  seatBlocks();
+  addEventListener('resize', seatBlocks);
+  if (document.fonts) document.fonts.ready.then(seatBlocks);
 
   /* ── Each corner of the workspace plays over and over while it is in view ── */
   var wait = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
@@ -1095,10 +1146,32 @@ h2 {
     if (!raf) raf = requestAnimationFrame(paint);
   }
   function redrawFrame() { if (!raf && current) raf = requestAnimationFrame(paint); }
+  // A switch pushes the panels like a heavy block of ice and the tab's glass
+  // block rides the same push (DesktopSidebarLayout, PanelTabTray). The brush
+  // round the cell waits out the push and is laid where its cell landed.
+  var pushing = [];
   function showTab(name) {
+    var from = panes.filter(function (p) { return !p.classList.contains('off'); }).pop();
+    var to = panes.filter(function (p) { return p.dataset.pane === name; })[0];
     tabs.forEach(function (t) { t.classList.toggle('is-on', t.dataset.tab === name); t.setAttribute('aria-pressed', t.dataset.tab === name ? 'true' : 'false'); });
-    panes.forEach(function (p) { p.classList.toggle('off', p.dataset.pane !== name); });
-    placeFrame(false);
+    seatBlock(side.querySelector('.sb-tabs'), true);
+    pushing.forEach(function (a) { a.cancel(); });
+    pushing = [];
+    panes.forEach(function (p) { p.classList.toggle('off', p !== to); });
+    if (!from || from === to || reduce || !to.animate) { placeFrame(false); return; }
+    from.classList.remove('off');
+    frame.hidden = true;
+    var ahead = panes.indexOf(to) > panes.indexOf(from) ? -100 : 100;
+    var timing = { duration: PUSH_MS, easing: PUSH_EASE };
+    pushing = [
+      from.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(' + ahead + '%)' }], timing),
+      to.animate([{ transform: 'translateX(' + -ahead + '%)' }, { transform: 'translateX(0)' }], timing),
+    ];
+    pushing[1].onfinish = function () {
+      from.classList.add('off');
+      pushing = [];
+      placeFrame(false);
+    };
   }
   function select(cell, drawn) {
     if (current) current.removeAttribute('aria-current');

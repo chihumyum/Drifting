@@ -250,10 +250,20 @@ describe('the sea of characters under the desktop window', () => {
     expect([...page.matchAll(/<h([1-6])\b/g)].map((m) => m[1]).join('')).toBe('122222');
     expect(page).toContain("var el = document.createElement(kind === 'p' ? 'p' : 'div');");
     expect(build).toContain("path.join(root, 'node_modules/@fontsource-variable', face)");
+    // A tab switch in the workspace corners pushes the panels and slides the glass block as the app does.
+    const motion = read('src/renderer/lib/motion.ts');
+    const pushMs = /export const PUSH_MS = (\d+);/.exec(motion)?.[1];
+    const pushEasing = /export const PUSH_EASING = '([^']+)';/.exec(motion)?.[1];
+    expect(page).toContain(`var PUSH_MS = ${pushMs}, PUSH_EASE = '${pushEasing}';`);
+    expect(page).toContain('<i class="sb-tab-block glass is-on" aria-hidden="true"></i>');
     // The name in the bar is written in sand with the sharing card's brush, and the link keeps the word.
     expect(read('scripts/design-assets/landing/site.css')).toContain('mask: url({{asset:sand/wordmark-drifting.png}})');
     expect(read('scripts/design-assets/landing/wordmark.html')).toContain("import { letterMark } from '../social-preview/sand-letters.js';");
-    expect(page).toMatch(/<a class="brand"[^>]*>DRIFTING<\/a>/);
+    expect(page).toMatch(/<a class="brand glass glass--rest"[^>]*>DRIFTING<\/a>/);
+    // The site's buttons rest as a faint line, flow under the pointer and thicken when pressed, as the app's floating controls do.
+    const site = read('scripts/design-assets/landing/site.css');
+    expect(site).toContain('.pill.glass--primary { --glass-g: 0.85; --glass-sp: 0; }');
+    expect(site).toContain(':is(.pill, .round, .brand).glass:active { --glass-g: 1.7; --glass-sp: 1.3; }');
     // The theme follows the system on every visit: a pick is kept for the tab only.
     const prefs = read('scripts/design-assets/landing/prefs.js');
     expect(prefs).toContain("sessionStorage.getItem('drifting.landing.theme')");

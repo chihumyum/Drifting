@@ -1,15 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="108" height="108" viewBox="0 0 108 108">
   <!--
-    The 59.4dp height uses 90% of Android's guaranteed 66dp adaptive-icon
-    safe zone. The small right shift mirrors the composition in icon.icon.
+    The Icon Composer layers (white masks on its 1024 canvas), stacked back to
+    front and tinted with their light fill in icon.json, which is the same blue
+    for all three. The berg's 59.4dp height uses 90% of Android's guaranteed
+    66dp adaptive-icon safe zone.
   -->
-  <image
-    x="28.03"
-    y="24.3"
-    width="55.58"
-    height="59.4"
-    preserveAspectRatio="xMidYMid meet"
-    href="icon.icon/Assets/icon-source.png"
-    xlink:href="icon.icon/Assets/icon-source.png"
-  />
+  <defs>
+    <filter id="fill" color-interpolation-filters="sRGB">
+      <feFlood flood-color="#3c6eaf" />
+      <feComposite in2="SourceAlpha" operator="in" />
+    </filter>
+  </defs>
+  <g filter="url(#fill)">
+    <image x="17.49" y="17.81" width="71.48" height="71.48" href="icon.icon/Assets/sand.png" xlink:href="icon.icon/Assets/sand.png" />
+    <image x="17.49" y="17.81" width="71.48" height="71.48" href="icon.icon/Assets/glass-bleed.png" xlink:href="icon.icon/Assets/glass-bleed.png" />
+    <image x="17.49" y="17.81" width="71.48" height="71.48" href="icon.icon/Assets/glass-line.png" xlink:href="icon.icon/Assets/glass-line.png" />
+  </g>
 </svg>

@@ -13,7 +13,8 @@ It writes the home page in English (`index.html`, served at `/`) and in Chinese
 (`zh.html`, served at `/zh`), `assets/` and `fonts/` (and `og.png` with `--og`;
 use `social-preview/`'s `dark.png`), and leaves everything else in the
 directory alone. Every page links `/legal/favicon-32x32.png` and
-`/legal/apple-touch-icon.png`, which the site serves.
+`/legal/apple-touch-icon.png`, which the site serves; `app-icon/render.sh`
+renders both from the app icon.
 
 What is shared, and where it comes from:
 
@@ -48,7 +49,8 @@ What is on the page, and why:
   information pages have the same sea and rain with no word.
 - **Corners of the workspace.** Each pillar shows a corner of the real
   desktop window, measured from the app's own components (the tab rows with
-  their square glass block and sidebar toggle, the pane headers and their
+  their square glass block, which slides with the panels' push on the app's
+  `PUSH_MS` and `PUSH_EASING`, and the sidebar toggle, the pane headers and their
   actions, cells, storylines, category frames, the Agent's conversation row): a page that takes
   Markdown as it is typed beside the `.md` file it is saved to; the left
   sidebar's cells, element categories and the dry frame drawn round a click;

@@ -39,16 +39,22 @@ assert.ok(
   'canonical Icon Composer file is missing',
 );
 const iconDocument = JSON.parse(read('src/assets/icon.icon/icon.json'));
-const layerImage = iconDocument.groups?.[0]?.layers?.[0]?.['image-name'];
-assert.ok(layerImage, 'Icon Composer file must declare its foreground layer');
-assert.ok(
-  existsSync(path.join(iconComposer, 'Assets', layerImage)),
-  'Icon Composer layer image is missing',
+const layerImages = (iconDocument.groups ?? []).flatMap((group) =>
+  (group.layers ?? []).map((layer) => layer['image-name']),
 );
-assert.ok(
-  read('src/assets/icon-android-foreground.svg').includes(layerImage),
-  'Android foreground must reference the current Icon Composer layer',
-);
+assert.ok(layerImages.length > 0, 'Icon Composer file must declare its layers');
+const androidForeground = read('src/assets/icon-android-foreground.svg');
+for (const layerImage of layerImages) {
+  assert.ok(layerImage, 'every Icon Composer layer must name its image');
+  assert.ok(
+    existsSync(path.join(iconComposer, 'Assets', layerImage)),
+    `Icon Composer layer image ${layerImage} is missing`,
+  );
+  assert.ok(
+    androidForeground.includes(`icon.icon/Assets/${layerImage}`),
+    `Android foreground must stack the Icon Composer layer ${layerImage}`,
+  );
+}
 
 const projectSpec = readFileSync(path.join(appleRoot, 'project.yml'), 'utf8');
 const pbxProject = readFileSync(
@@ -110,11 +116,10 @@ for (const [density, sizes] of Object.entries(densities)) {
   const bottomOffset = ((sizes.adaptive - 1) * sizes.adaptive + Math.floor(sizes.adaptive / 2)) * 4;
   const bottom = background.data.subarray(bottomOffset, bottomOffset + 4);
   assert.equal(top[3], 255);
-  assert.equal(bottom[3], 255);
-  assert.notDeepEqual(
+  assert.deepEqual(
     [...top],
     [...bottom],
-    `${density} background must preserve the blue gradient`,
+    `${density} background must be the icon's flat paper colour`,
   );
 
   for (const name of ['ic_launcher.png', 'ic_launcher_round.png']) {
