@@ -49,9 +49,11 @@ export class ProductSyncCommandService {
       ) {
         throw new Error('Pause requires stable cloud authority');
       }
-      const bindings = await tx
+      // A purged binding is history: it neither syncs nor blocks a pause.
+      const bindings = (await tx
         .select({ syncGenerationId: SyncProviderBindingTable.syncGenerationId, state: SyncProviderBindingTable.state })
-        .from(SyncProviderBindingTable);
+        .from(SyncProviderBindingTable))
+        .filter(({ state }) => state !== 'purged');
       if (bindings.length === 0) throw new Error('No cloud SyncGeneration is connected');
       if (bindings.some(({ state }) => state !== 'ready' && state !== 'paused')) {
         throw new Error('Provisioning or attention state must be resolved before pause changes');

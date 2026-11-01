@@ -1,3 +1,4 @@
+import { eq } from 'drizzle-orm';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -111,6 +112,37 @@ describe('ProductSyncCommandService', () => {
       state: 'ready',
     });
     expect(input.dependencies.emitAuthorityChanged).toHaveBeenCalledTimes(2);
+  });
+
+  it('pauses past a purged project binding and leaves it purged', async () => {
+    const input = await setup();
+    await input.db.insert(SyncGenerationTable).values({
+      syncGenerationId: 'sync-generation-2',
+      projectId: null,
+      projectSyncId: 'project-sync-2',
+      generationNumber: 1,
+      protocolVersion: 1,
+      domainSchemaVersion: 1,
+      status: 'active',
+      createdAt: NOW,
+      updatedAt: NOW,
+    });
+    await input.db.insert(SyncProviderBindingTable).values({
+      syncGenerationId: 'sync-generation-2',
+      providerAccountId: 'account-1',
+      providerNamespace: 'project-v1',
+      state: 'purged',
+      connectedAt: NOW,
+      updatedAt: NOW,
+    });
+    await input.db
+      .update(SyncGenerationTable)
+      .set({ status: 'purged', purgedAt: NOW })
+      .where(eq(SyncGenerationTable.syncGenerationId, 'sync-generation-2'));
+    await input.service.setPaused(true);
+    const states = Object.fromEntries((await input.db.select().from(SyncProviderBindingTable))
+      .map((binding) => [binding.syncGenerationId, binding.state]));
+    expect(states).toEqual({ 'sync-generation-1': 'paused', 'sync-generation-2': 'purged' });
   });
 
 
