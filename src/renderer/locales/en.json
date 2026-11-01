@@ -1022,6 +1022,7 @@
     }
   },
   "common": {
+    "customColor": "Custom color",
     "local": "Local",
     "loading": "Loading…",
     "confirm": "Confirm",

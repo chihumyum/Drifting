@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FilterChip } from '../components/ui/FilterChip';
 import { GlassSlider } from '../components/ui/GlassSlider';
+import { ColorPicker } from '../components/ui/ColorPicker';
 import { getPlatformRuntime } from '../platform/runtime';
 import { EditorContent } from '@tiptap/react';
 import type { Editor } from '@tiptap/core';
@@ -409,6 +410,12 @@ export function CategoryEditorView({
                             title={c}
                           />
                         ))}
+                        <ColorPicker
+                          value={categoryColor}
+                          onChange={(color) => void commitColor(color)}
+                          ariaLabel={t('common.customColor')}
+                          showValue={false}
+                        />
                       </div>
                     </div>
                   </div>

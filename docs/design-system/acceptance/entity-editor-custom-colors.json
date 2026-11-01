@@ -1,0 +1,88 @@
+{
+  "kind": "entity-editor-custom-colors",
+  "status": "passed",
+  "generatedAt": "2026-11-01T19:07:49.592Z",
+  "sourceSha256": "0a323719bb92598f4ac4525a29f18bbef54769c9d8b23994c4d6abffcecba816",
+  "inputs": [
+    "src/renderer/components/ui/ColorPicker.tsx",
+    "src/renderer/views/StorylineEditorView.tsx",
+    "src/renderer/views/CategoryEditorView.tsx",
+    "src/renderer/features/settings/SettingsPrimitives.tsx",
+    "src/styles/entity-editors.css",
+    "src/renderer/locales/zh-CN.json",
+    "src/renderer/locales/en.json"
+  ],
+  "transport": "desktop-renderer-bridge",
+  "nativeInput": false,
+  "profile": [
+    {
+      "kind": "storyline",
+      "presets": 6,
+      "colors": [
+        {
+          "color": "#123456",
+          "value": "#123456",
+          "persisted": "#123456"
+        },
+        {
+          "color": "#000000",
+          "value": "#000000",
+          "persisted": "#000000"
+        },
+        {
+          "color": "#ffffff",
+          "value": "#ffffff",
+          "persisted": "#ffffff"
+        },
+        {
+          "color": "#13579b",
+          "value": "#13579b",
+          "persisted": "#13579b"
+        }
+      ],
+      "reopened": "#13579b",
+      "preset": {
+        "stored": "hsl(var(--story-1))",
+        "hex": "#9d8be4",
+        "computed": "rgb(157, 139, 228)"
+      },
+      "focusDidNotWrite": true,
+      "visibleColorText": false
+    },
+    {
+      "kind": "category",
+      "presets": 6,
+      "colors": [
+        {
+          "color": "#123456",
+          "value": "#123456",
+          "persisted": "#123456"
+        },
+        {
+          "color": "#000000",
+          "value": "#000000",
+          "persisted": "#000000"
+        },
+        {
+          "color": "#ffffff",
+          "value": "#ffffff",
+          "persisted": "#ffffff"
+        },
+        {
+          "color": "#9b5317",
+          "value": "#9b5317",
+          "persisted": "#9b5317"
+        }
+      ],
+      "reopened": "#9b5317",
+      "preset": {
+        "stored": "hsl(var(--story-1))",
+        "hex": "#9d8be4",
+        "computed": "rgb(157, 139, 228)"
+      },
+      "focusDidNotWrite": true,
+      "visibleColorText": false
+    }
+  ],
+  "boundary": "Isolated Tauri WKWebView with the built-in public-domain sample. Synthetic DOM input and focus; real SQLite persistence and WebView reload. Does not claim physical interaction with the OS colour panel or pixel-level visual acceptance."
+}

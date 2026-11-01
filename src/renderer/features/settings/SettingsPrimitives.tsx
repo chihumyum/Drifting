@@ -287,49 +287,8 @@ export function SettingsNote({
   );
 }
 
-/** Any colour: on the desktop a round glass button holding one seal of it
- * (or the kind's own sand mark), the value written beside. */
-export function SettingsColor({
-  value,
-  onChange,
-  ariaLabel,
-  mark,
-  children,
-}: {
-  value: string;
-  onChange: (next: string) => void;
-  ariaLabel: string;
-  /** A kind's sand mark in place of the plain seal. */
-  mark?: ReactNode;
-  /** A reset text button after the value. */
-  children?: ReactNode;
-}) {
-  if (settingsOnDesktop()) {
-    return (
-      <span className="set-color">
-        <label className="ui-swatch glass glass--rest glass--round">
-          {mark ?? <i className="sand sand--blob-2" style={{ '--sand-c': value } as CSSProperties} />}
-          <input type="color" value={value} aria-label={ariaLabel} onChange={(event) => onChange(event.target.value)} />
-        </label>
-        <span className="ui-swatch__value">{value.toUpperCase()}</span>
-        {children}
-      </span>
-    );
-  }
-  return (
-    <span className="set-color-picker">
-      <input
-        className="set-color-picker__input"
-        type="color"
-        value={value}
-        aria-label={ariaLabel}
-        onChange={(event) => onChange(event.target.value)}
-      />
-      <span className="set-color-picker__value">{value.toUpperCase()}</span>
-      {children}
-    </span>
-  );
-}
+// Preferences and entity editors use the same native colour control.
+export { ColorPicker as SettingsColor } from '../../components/ui/ColorPicker';
 
 export function SettingsPanelHeader({
   kicker,
