@@ -126,7 +126,7 @@ describe('the element overview’s floating island', () => {
     expect(strip).toContain('superElement.isles.island.mostMentioned');
   });
 
-  it('mounts the workspace editors on the overview and moves 正文同段 into the relation menu', () => {
+  it('mounts the workspace editors on the overview, moves 正文同段 into the relation menu and its threshold into the header', () => {
     const view = source('src/renderer/shells/desktop/views/DesktopSuperElementView.tsx');
     expect(view).toContain('<ElementEditorView key={islandSubject.id} elementIdOverride={islandSubject.id} />');
     expect(view).toContain('<CategoryEditorView key={islandSubject.id} categoryIdOverride={islandSubject.id} />');
@@ -141,6 +141,11 @@ describe('the element overview’s floating island', () => {
     expect(view).toContain('relationMenuLead={mobileShell ? undefined : (');
     expect(view.match(/data-se-lines=""/g)).toHaveLength(1);
     expect(view.indexOf('data-se-lines=""')).toBeLessThan(view.indexOf('rightSlot={'));
+    // Its threshold (≥1/≥2/≥3) sits in the header where 远/中/近 was; the distance follows the zoom alone.
+    expect(view.match(/ariaLabel=\{t\('superElement\.isles\.threshold'\)\}/g)).toHaveLength(1);
+    expect(view.indexOf("ariaLabel={t('superElement.isles.threshold')}")).toBeGreaterThan(view.indexOf('rightSlot={'));
+    expect(view).not.toContain('superElement.isles.distance');
+    expect(view).not.toContain('goToDistance');
     const header = source('src/renderer/shells/desktop/components/DesktopSuperViewHeader.tsx');
     expect(header).toContain('<DesktopSuperViewRelationControl canvas={relationCanvas} lead={relationMenuLead} />');
     const topBar = source('src/renderer/components/editor/EditorTopBar.tsx');

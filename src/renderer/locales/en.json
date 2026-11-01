@@ -2935,10 +2935,6 @@
     "startEdgeFromElement": "Create relation from this element",
     "startEdgeFromDrift": "Create relation from this idea",
     "isles": {
-      "distance": "Distance",
-      "far": "Far",
-      "mid": "Mid",
-      "near": "Near",
       "lines": "Same paragraph",
       "linesSection": "Automatic lines",
       "linesTitle": "A sand line joins two elements mentioned in the same paragraph of a chapter",
