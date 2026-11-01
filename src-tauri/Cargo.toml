@@ -75,6 +75,14 @@ tauri-plugin-updater = "2.10.1"
 roxmltree = "0.20"
 tempfile = "3.14.0"
 
+# Build scripts and proc macros run only on the build machine. Release builds
+# strip debug info by default, and Xcode 27's toolchain leaves stripped
+# proc-macro dylibs that dyld refuses to load ("mis-aligned LINKEDIT string
+# pool"), so `cargo build --release` failed before reaching the app. Leave them
+# unstripped; the app itself is still stripped.
+[profile.release.build-override]
+strip = "none"
+
 # Backport only tauri-apps/tao#1245 to the published 0.35.3 source.
 # See vendor/tao/VENDORED.md for provenance and removal criteria.
 [patch.crates-io]
