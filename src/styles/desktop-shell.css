@@ -1213,11 +1213,6 @@
   cursor: pointer;
 }
 
-.editor-split-seam__option:hover,
-.editor-split-seam__option:focus-visible {
-  color: hsl(var(--ink-1));
-}
-
 @media (prefers-reduced-motion: reduce) {
   .editor-split-seam__options,
   .editor-split-seam__grip-group[data-open='true'] .editor-split-seam__options {

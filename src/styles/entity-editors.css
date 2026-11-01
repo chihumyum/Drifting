@@ -885,8 +885,10 @@
   background: hsl(var(--ink-1) / 0.04);
   color: hsl(var(--ink-1));
 }
-.patch-card__anchor-pop-item.menu-surface__item:hover {
+/* A menu row keeps its colour under the pointer: its ring says it. */
+.patch-card__anchor-pop .patch-card__anchor-pop-item.menu-surface__item:hover {
   background: transparent;
+  color: hsl(var(--ink-2));
 }
 .patch-card__anchor-pop .patch-card__anchor-pop-item--current {
   color: hsl(var(--ink-1));

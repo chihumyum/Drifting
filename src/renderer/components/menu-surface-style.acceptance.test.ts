@@ -262,6 +262,23 @@ describe('shared menu surface style', () => {
     expect(source('src/renderer/views/MaterialNotePage.tsx')).toContain("icon: 'list-bullet'");
   });
 
+  it('keeps a row in one colour under the pointer and the keys; only a state darkens it', () => {
+    const controls = source('src/styles/ui-controls.css');
+    // The ring says which row the pointer or the keys are on.
+    expect(rule(controls, '.menu-surface__item:hover:not(:disabled),\n.menu-surface__item:focus-visible {')).not.toContain('color:');
+    expect(controls).not.toMatch(/\.menu-surface__item\.is-current \{\s*color:/);
+    expect(controls).not.toContain('.menu-surface__item--danger:hover');
+    expect(rule(controls, ".editor-suggestion-menu .menu-surface__item[aria-selected='true'] {")).toContain('color: hsl(var(--ink-2));');
+    expect(source('src/styles/chapter-end-menu.css')).not.toContain('.chapter-end-menu__item:hover');
+    expect(source('src/styles/desktop-shell.css')).not.toContain('.editor-split-seam__option:hover');
+    expect(rule(source('src/styles/entity-editors.css'), '.patch-card__anchor-pop .patch-card__anchor-pop-item.menu-surface__item:hover {')).toContain('color: hsl(var(--ink-2));');
+    expect(source('src/styles/super-view-header.css')).toContain(
+      ".relation-kind-menu--glass .relation-kind-menu__other-toggle:hover:not([aria-expanded='true']) {\n  color: hsl(var(--ink-2));",
+    );
+    // A chosen or checked row still darkens.
+    expect(rule(controls, '.menu-surface__item--active,')).toContain('color: hsl(var(--ink-1));');
+  });
+
   it('keeps the rich menus in line with the shared rows, parted by the same hairline', () => {
     const controls = source('src/styles/ui-controls.css');
     // No row of a select sits in the rounded corner; its search field lines up with the rows.
