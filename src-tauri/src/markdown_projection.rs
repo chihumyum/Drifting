@@ -156,9 +156,23 @@ pub struct ReadResult {
     error: Option<String>,
 }
 
+/// A project's folder before it is named after its book (and in builds from
+/// before folders had names): the SHA-256 of its ID.
 pub fn project_directory(root: &Path, project_id: &str) -> PathBuf {
     root.join("markdown-projections")
-        .join(format!("{:x}", Sha256::digest(project_id.as_bytes())))
+        .join(hashed_name(project_id))
+}
+
+fn hashed_name(project_id: &str) -> String {
+    format!("{:x}", Sha256::digest(project_id.as_bytes()))
+}
+
+/// The project's folder under `output`, named after its book once named.
+fn named_directory(settings: &OutputSettings, output: &Path, project_id: &str) -> PathBuf {
+    match settings.folders.get(project_id) {
+        Some(name) => output.join("markdown-projections").join(name),
+        None => project_directory(output, project_id),
+    }
 }
 
 const SETTINGS: &str = "markdown-projection-settings.json";
@@ -168,6 +182,10 @@ const TURNED_OFF: &str = "The Markdown folder is turned off";
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct OutputSettings {
     roots: BTreeMap<String, PathBuf>,
+    /// Each project's folder name: its book's title, or the title with ` 2`,
+    /// ` 3`… when another folder had it first.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    folders: BTreeMap<String, String>,
     /// Where a project without a location of its own is written; the app's
     /// data folder when unset.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -249,8 +267,9 @@ fn output_root(root: &Path, project_id: &str) -> Result<(PathBuf, Option<String>
 }
 
 pub fn resolved_project_directory(root: &Path, project_id: &str) -> Result<PathBuf, String> {
-    let (output, _) = output_root(root, project_id)?;
-    Ok(project_directory(&output, project_id))
+    let settings = read_settings(root)?;
+    let (output, _) = output_root_in(&settings, root, project_id)?;
+    Ok(named_directory(&settings, &output, project_id))
 }
 
 /// Whether the author left the folder on; an unreadable setting counts as on.
@@ -333,7 +352,7 @@ fn folder_to_open(root: &Path, project_id: Option<&str>) -> Result<PathBuf, Stri
     let settings = read_settings(root)?;
     if let Some(project_id) = project_id {
         let (output, _) = output_root_in(&settings, root, project_id)?;
-        let directory = project_directory(&output, project_id);
+        let directory = named_directory(&settings, &output, project_id);
         if inspect(&directory, true)? {
             return Ok(directory);
         }
@@ -363,24 +382,17 @@ pub(crate) fn set_output_root(
     let output = output.as_path();
     let mut result = info_at(
         output,
+        &named_directory(&settings, output, project_id),
         project_id,
         selected.as_ref().map(|p| p.to_string_lossy().into_owned()),
     )?;
     result.enabled = !settings.disabled;
-    let directory = PathBuf::from(&result.directory);
-    if inspect(&directory, true)?
-        && read_owned_manifest(&directory, project_id)?.is_none()
-        && fs::read_dir(&directory)
-            .map_err(|e| e.to_string())?
-            .next()
-            .is_some()
-    {
-        return Err("Output directory contains files not owned by this projection".into());
-    }
-    ensure_directory(&output.join("markdown-projections"))?;
-    ensure_directory(&directory)?;
+    // A folder of that name already there is someone else's: the next
+    // capture names this project's folder around it.
+    let parent = output.join("markdown-projections");
+    ensure_directory(&parent)?;
     // Check writability before persisting a new location; never touch old output.
-    probe_writable(&directory)?;
+    probe_writable(&parent)?;
     if let Some(selected) = selected {
         settings.roots.insert(project_id.into(), selected);
     } else {
@@ -388,6 +400,157 @@ pub(crate) fn set_output_root(
     }
     write_settings(root, &settings)?;
     Ok(result)
+}
+
+#[derive(PartialEq)]
+enum Occupant {
+    /// Missing, or holding nothing but Drifting's own bookkeeping.
+    Vacant,
+    Ours,
+    Taken,
+}
+
+/// Who holds a folder: a manifest names its project; anything else in it,
+/// or anything unreadable, makes it someone else's.
+fn occupant(directory: &Path, project_id: &str) -> Occupant {
+    match inspect(directory, true) {
+        Ok(false) => return Occupant::Vacant,
+        Ok(true) => {}
+        Err(_) => return Occupant::Taken,
+    }
+    for name in MANIFEST_PATHS {
+        match read_manifest_file(directory, name) {
+            Ok(None) => {}
+            Ok(Some(manifest)) if manifest.project_id == project_id => return Occupant::Ours,
+            _ => return Occupant::Taken,
+        }
+    }
+    match fs::read_dir(directory) {
+        Ok(mut entries) => {
+            if entries.any(|entry| entry.map_or(true, |entry| entry.file_name() != ".drifting")) {
+                Occupant::Taken
+            } else {
+                Occupant::Vacant
+            }
+        }
+        Err(_) => Occupant::Taken,
+    }
+}
+
+/// A folder name is one path part under the rules for file names.
+fn validate_folder_name(name: &str) -> Result<(), String> {
+    if name.contains('/') || validate_path(&format!("{name}/a.md")).is_err() {
+        return Err("Unsafe Markdown folder name".into());
+    }
+    Ok(())
+}
+
+/// `name` is the title, or the title with the number another folder forced.
+fn numbered(name: &str, title: &str) -> bool {
+    name == title
+        || name
+            .strip_prefix(title)
+            .and_then(|rest| rest.strip_prefix(' '))
+            .and_then(|digits| {
+                digits
+                    .parse::<u32>()
+                    .ok()
+                    .filter(|number| *number >= 2 && number.to_string() == digits)
+            })
+            .is_some()
+}
+
+fn same_directory(a: &Path, b: &Path) -> bool {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        match (fs::metadata(a), fs::metadata(b)) {
+            (Ok(a), Ok(b)) => a.dev() == b.dev() && a.ino() == b.ino(),
+            _ => false,
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = (a, b);
+        false
+    }
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NamedFolder {
+    #[serde(flatten)]
+    info: ProjectionInfo,
+    /// Where the folder was before this call renamed it.
+    previous_directory: Option<String>,
+}
+
+/// Names the project's folder after its book. When another folder already
+/// has the title, the name takes ` 2`, ` 3`…, and keeps that number while the
+/// title stays. The folder written under its old name (or, from before folders
+/// had names, its hashed ID) is renamed in place, files and bookkeeping
+/// together; one that cannot move is left where it is.
+pub(crate) fn name_folder(
+    root: &Path,
+    project_id: &str,
+    title: &str,
+) -> Result<NamedFolder, String> {
+    let _guard = WRITER.lock().map_err(|_| "Projection writer unavailable")?;
+    validate_project(project_id)?;
+    validate_folder_name(title)?;
+    let mut settings = read_settings(root)?;
+    if settings.disabled {
+        return Ok(NamedFolder {
+            info: info(root, project_id)?,
+            previous_directory: None,
+        });
+    }
+    let (output, custom_root) = output_root_in(&settings, root, project_id)?;
+    if !inspect(&output, true)? {
+        return Err("Projection output directory is unavailable".into());
+    }
+    let parent = output.join("markdown-projections");
+    let current = settings.folders.get(project_id).cloned();
+    let written = current
+        .iter()
+        .cloned()
+        .chain([hashed_name(project_id)])
+        .map(|name| parent.join(name))
+        .find(|directory| occupant(directory, project_id) == Occupant::Ours);
+    let free = |name: &str| occupant(&parent.join(name), project_id) != Occupant::Taken;
+    let name = match current.filter(|name| numbered(name, title) && free(name)) {
+        Some(name) => name,
+        None => (1..=1000)
+            .map(|number| match number {
+                1 => title.to_owned(),
+                _ => format!("{title} {number}"),
+            })
+            .find(|name| validate_folder_name(name).is_ok() && free(name))
+            .ok_or("No free Markdown folder name")?,
+    };
+    let directory = parent.join(&name);
+    let mut previous_directory = None;
+    if let Some(written) = written.filter(|written| *written != directory) {
+        // Onto a missing or empty folder, or the same one in other letter case.
+        let onto = !inspect(&directory, true)?
+            || same_directory(&written, &directory)
+            || fs::read_dir(&directory)
+                .map_err(|e| e.to_string())?
+                .next()
+                .is_none();
+        if onto {
+            fs::rename(&written, &directory).map_err(|e| e.to_string())?;
+            previous_directory = Some(written.to_string_lossy().into_owned());
+        }
+    }
+    if settings.folders.get(project_id) != Some(&name) {
+        settings.folders.insert(project_id.into(), name);
+        write_settings(root, &settings)?;
+    }
+    Ok(NamedFolder {
+        info: info_at(&output, &directory, project_id, custom_root)?,
+        previous_directory,
+    })
 }
 
 fn validate_project(project_id: &str) -> Result<(), String> {
@@ -573,7 +736,7 @@ fn info(root: &Path, project_id: &str) -> Result<ProjectionInfo, String> {
             .or(settings.default_root.as_ref())
             .map_or(root, PathBuf::as_path);
         return Ok(ProjectionInfo {
-            directory: project_directory(output, project_id)
+            directory: named_directory(&settings, output, project_id)
                 .to_string_lossy()
                 .into_owned(),
             custom_root: custom.map(|path| path.to_string_lossy().into_owned()),
@@ -584,30 +747,25 @@ fn info(root: &Path, project_id: &str) -> Result<ProjectionInfo, String> {
         });
     }
     let (output, custom_root) = output_root_in(&settings, root, project_id)?;
-    info_at(&output, project_id, custom_root)
+    let directory = named_directory(&settings, &output, project_id);
+    info_at(&output, &directory, project_id, custom_root)
 }
 
 fn info_at(
     root: &Path,
+    directory: &Path,
     project_id: &str,
     custom_root: Option<String>,
 ) -> Result<ProjectionInfo, String> {
     validate_project(project_id)?;
     inspect(root, true)?;
     inspect(&root.join("markdown-projections"), true)?;
-    let directory = project_directory(root, project_id);
-    let exists = inspect(&directory, true)?;
-    let manifest = if exists {
-        read_manifest(&directory)?
-    } else {
-        None
+    // Another project's folder of the same name reports no capture yet; the
+    // next capture names this one around it, and a write never enters it.
+    let manifest = match occupant(directory, project_id) {
+        Occupant::Ours => read_manifest(directory)?,
+        _ => None,
     };
-    if manifest
-        .as_ref()
-        .is_some_and(|m| m.project_id != project_id)
-    {
-        return Err("Projection project mismatch".into());
-    }
     Ok(ProjectionInfo {
         directory: directory.to_string_lossy().into_owned(),
         custom_root,
@@ -713,7 +871,7 @@ fn read_files(
         return Err(TURNED_OFF.into());
     }
     let (output, _) = output_root_in(&settings, root, project_id)?;
-    let directory = project_directory(&output, project_id);
+    let directory = named_directory(&settings, &output, project_id);
     if !inspect(&directory, true)? {
         return Ok(requests
             .into_iter()
@@ -1002,7 +1160,10 @@ fn write_projection_with_documents(
         return Err("Projection output directory is unavailable".into());
     }
     ensure_directory(&output.join("markdown-projections"))?;
-    let directory = project_directory(&output, project_id);
+    let directory = named_directory(&settings, &output, project_id);
+    if occupant(&directory, project_id) == Occupant::Taken {
+        return Err("Output directory contains files not owned by this projection".into());
+    }
     ensure_directory(&directory)?;
     check_owner(root, &directory, true)?;
     let previous = read_owned_manifest(&directory, project_id)?;
@@ -1280,7 +1441,8 @@ fn remove_projection(root: &Path, project_id: &str) -> Result<(), String> {
 
 fn forget_output_root(root: &Path, project_id: &str) -> Result<(), String> {
     let mut settings = read_settings(root)?;
-    if settings.roots.remove(project_id).is_some() {
+    let root_removed = settings.roots.remove(project_id).is_some();
+    if settings.folders.remove(project_id).is_some() || root_removed {
         write_settings(root, &settings)?;
     }
     Ok(())
@@ -1316,6 +1478,18 @@ pub async fn markdown_projection_set_output_root(
 ) -> Result<ProjectionInfo, String> {
     let root = app.path().app_local_data_dir().map_err(|e| e.to_string())?;
     tauri::async_runtime::spawn_blocking(move || set_output_root(&root, &project_id, custom_root))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn markdown_projection_name_folder(
+    app: tauri::AppHandle,
+    project_id: String,
+    title: String,
+) -> Result<NamedFolder, String> {
+    let root = app.path().app_local_data_dir().map_err(|e| e.to_string())?;
+    tauri::async_runtime::spawn_blocking(move || name_folder(&root, &project_id, &title))
         .await
         .map_err(|e| e.to_string())?
 }
@@ -1727,6 +1901,133 @@ mod tests {
     }
 
     #[test]
+    fn folders_are_named_after_the_book_and_follow_its_title() {
+        let local = tempfile::tempdir().unwrap();
+        let root = local.path();
+        let hashed =
+            write_projection(root, "p", "first".into(), vec![entry("prose.md", "text")]).unwrap();
+        // A folder from before names is renamed in place.
+        let named = name_folder(root, "p", "潮汐灯塔").unwrap();
+        let directory = root.join("markdown-projections/潮汐灯塔");
+        assert_eq!(
+            named.previous_directory.as_deref(),
+            Some(hashed.directory.as_str())
+        );
+        assert_eq!(named.info.directory, directory.to_string_lossy());
+        assert_eq!(named.info.generated_at.as_deref(), Some("first"));
+        assert!(!Path::new(&hashed.directory).exists());
+        assert_eq!(
+            fs::read_to_string(directory.join("prose.md")).unwrap(),
+            "text"
+        );
+        assert_eq!(info(root, "p").unwrap().directory, named.info.directory);
+        assert_eq!(resolved_project_directory(root, "p").unwrap(), directory);
+        assert_eq!(folder_to_open(root, Some("p")).unwrap(), directory);
+        let again = name_folder(root, "p", "潮汐灯塔").unwrap();
+        assert_eq!(again.previous_directory, None);
+        write_projection(root, "p", "second".into(), vec![entry("prose.md", "new")]).unwrap();
+        assert_eq!(
+            fs::read_to_string(directory.join("prose.md")).unwrap(),
+            "new"
+        );
+        let read = read_files(
+            root,
+            "p",
+            vec![ReadRequest {
+                path: "prose.md".into(),
+                known_size: None,
+                known_modified_ms: None,
+                force: true,
+            }],
+        )
+        .unwrap();
+        assert_eq!(read[0].text.as_deref(), Some("new"));
+        // A renamed book renames its folder.
+        let renamed = name_folder(root, "p", "北岬").unwrap();
+        assert_eq!(
+            renamed.previous_directory.as_deref(),
+            Some(directory.to_string_lossy().as_ref())
+        );
+        assert!(!directory.exists());
+        assert_eq!(
+            fs::read_to_string(root.join("markdown-projections/北岬/prose.md")).unwrap(),
+            "new"
+        );
+        // So does a change of letter case alone, on any file system.
+        name_folder(root, "p", "Tide").unwrap();
+        let cased = name_folder(root, "p", "tide").unwrap();
+        assert!(cased.previous_directory.is_some());
+        let names: Vec<_> = fs::read_dir(root.join("markdown-projections"))
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(names, vec!["tide".to_string()]);
+        // Deleting the project forgets its name.
+        remove_projection(root, "p").unwrap();
+        assert!(read_settings(root).unwrap().folders.is_empty());
+        assert!(name_folder(root, "p", "a/b").is_err());
+        assert!(name_folder(root, "p", ".hidden").is_err());
+    }
+
+    #[test]
+    fn a_taken_title_gets_a_number_that_stays_while_the_title_does() {
+        let local = tempfile::tempdir().unwrap();
+        let root = local.path();
+        let parent = root.join("markdown-projections");
+        fs::create_dir_all(parent.join("Book")).unwrap();
+        fs::write(parent.join("Book/notes.md"), "user file").unwrap();
+        let first = name_folder(root, "p", "Book").unwrap();
+        assert_eq!(
+            first.info.directory,
+            parent.join("Book 2").to_string_lossy()
+        );
+        write_projection(root, "p", "now".into(), vec![entry("prose.md", "p")]).unwrap();
+        let second = name_folder(root, "q", "Book").unwrap();
+        assert_eq!(
+            second.info.directory,
+            parent.join("Book 3").to_string_lossy()
+        );
+        write_projection(root, "q", "now".into(), vec![entry("prose.md", "q")]).unwrap();
+        // The number stays even once the plain title is free again.
+        fs::remove_dir_all(parent.join("Book")).unwrap();
+        let kept = name_folder(root, "p", "Book").unwrap();
+        assert_eq!(kept.info.directory, parent.join("Book 2").to_string_lossy());
+        assert_eq!(kept.previous_directory, None);
+        // A new title drops it.
+        let renamed = name_folder(root, "p", "Other").unwrap();
+        assert_eq!(
+            renamed.info.directory,
+            parent.join("Other").to_string_lossy()
+        );
+        assert_eq!(
+            fs::read_to_string(parent.join("Other/prose.md")).unwrap(),
+            "p"
+        );
+        assert_eq!(
+            fs::read_to_string(parent.join("Book 3/prose.md")).unwrap(),
+            "q"
+        );
+        assert!(numbered("Book 12", "Book"));
+        assert!(!numbered("Book 02", "Book"));
+        assert!(!numbered("Book 1", "Book"));
+        assert!(!numbered("Booklet", "Book"));
+    }
+
+    #[test]
+    fn naming_waits_while_the_folder_is_off() {
+        let local = tempfile::tempdir().unwrap();
+        let root = local.path();
+        let hashed =
+            write_projection(root, "p", "first".into(), vec![entry("prose.md", "text")]).unwrap();
+        set_enabled(root, false).unwrap();
+        let named = name_folder(root, "p", "Book").unwrap();
+        assert!(!named.info.enabled);
+        assert_eq!(named.previous_directory, None);
+        assert!(Path::new(&hashed.directory).exists());
+        assert!(read_settings(root).unwrap().folders.is_empty());
+    }
+
+    #[test]
     fn default_location_holds_projects_without_their_own_and_keeps_old_folders() {
         let local = tempfile::tempdir().unwrap();
         let chosen = tempfile::tempdir().unwrap();
@@ -1920,27 +2221,44 @@ mod tests {
     }
 
     #[test]
-    fn output_selection_rejects_unowned_directory_and_keeps_previous_location() {
+    fn a_location_where_the_name_is_taken_is_accepted_and_written_around_it() {
         let local = tempfile::tempdir().unwrap();
         let custom = tempfile::tempdir().unwrap();
         let root = local.path();
-        let target = project_directory(custom.path(), "p");
-        fs::create_dir_all(&target).unwrap();
-        fs::write(target.join("README.md"), "belongs to user").unwrap();
-        assert!(set_output_root(
+        name_folder(root, "p", "Book").unwrap();
+        let taken = custom.path().join("markdown-projections").join("Book");
+        fs::create_dir_all(&taken).unwrap();
+        fs::write(taken.join("README.md"), "belongs to user").unwrap();
+        assert!(set_output_root(root, "p", Some("relative/path".into())).is_err());
+        let selected = set_output_root(
             root,
             "p",
-            Some(custom.path().to_string_lossy().into_owned())
+            Some(custom.path().to_string_lossy().into_owned()),
         )
-        .is_err());
-        assert!(set_output_root(root, "p", Some("relative/path".into())).is_err());
-        assert_eq!(info(root, "p").unwrap().custom_root, None);
+        .unwrap();
+        assert_eq!(selected.generated_at, None);
+        // A write never enters someone else's folder; naming finds another.
+        assert!(
+            write_projection(root, "p", "now".into(), vec![entry("prose.md", "text")]).is_err()
+        );
+        let named = name_folder(root, "p", "Book").unwrap();
+        let canonical = fs::canonicalize(custom.path()).unwrap();
         assert_eq!(
-            fs::read_to_string(target.join("README.md")).unwrap(),
+            named.info.directory,
+            canonical
+                .join("markdown-projections/Book 2")
+                .to_string_lossy()
+        );
+        write_projection(root, "p", "now".into(), vec![entry("prose.md", "text")]).unwrap();
+        assert_eq!(
+            fs::read_to_string(taken.join("README.md")).unwrap(),
             "belongs to user"
         );
-        fs::remove_file(target.join("README.md")).unwrap();
-        let wrong_manifest = Manifest {
+        assert!(!taken.join("prose.md").exists());
+        // Another project's manifest makes a folder taken too.
+        let other = custom.path().join("markdown-projections").join("Other");
+        fs::create_dir_all(other.join(".drifting")).unwrap();
+        let manifest = Manifest {
             documents: vec![],
             schema_version: 1,
             project_id: "other".into(),
@@ -1951,17 +2269,12 @@ mod tests {
             authored: BTreeSet::new(),
         };
         fs::write(
-            target.join("manifest.json"),
-            serde_json::to_vec(&wrong_manifest).unwrap(),
+            other.join("manifest.json"),
+            serde_json::to_vec(&manifest).unwrap(),
         )
         .unwrap();
-        assert!(set_output_root(
-            root,
-            "p",
-            Some(custom.path().to_string_lossy().into_owned())
-        )
-        .is_err());
-        assert_eq!(info(root, "p").unwrap().custom_root, None);
+        assert!(occupant(&other, "p") == Occupant::Taken);
+        assert!(occupant(&other, "other") == Occupant::Ours);
     }
 
     #[test]

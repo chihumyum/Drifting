@@ -81,7 +81,8 @@ aliases: ["雨夜"]
 - 设置 → 同步与数据 → 本地数据 → Markdown 文件夹：所有项目的位置（选择 / 恢复默认）、「在访达中打开」、打开着的项目的路径与状态（可以为它单独选位置），最后是危险按钮「关闭 Markdown 文件夹」，先确认、默认焦点在「取消」。
 - 关闭前先做一次捕获（顺带合并文件夹里等着的外部修改），之后所有项目不再写出也不再读回，原生层的读写也会拒绝；已有文件留在原处。重新开启后第一次扫描对所有文件重算指纹，关闭期间在文件夹里改过的章节按上面的读入规则合并回来。
 - MCP 初始化说明和 `get_project_overview` 在关闭时只说文件夹已关闭，不再给出路径。
-- 位置与开关存在本机的 `markdown-projection-settings.json`（`defaultRoot`、`disabled`），不同步。细节见 [`local-data-export.md`](local-data-export.md)。
+- 每本书的文件夹用书名命名（与章节文件名同一套清洗规则）；同名时加 ` 2`、` 3`，书名不变就一直保留这个数字。改书名后，下一次捕获在原地改文件夹名；以前用项目 ID 哈希命名的文件夹也这样改过来。改名后账本里这些文件的目录随之迁移，外部修改的合并基线不丢。
+- 位置、每本书的文件夹名与开关存在本机的 `markdown-projection-settings.json`（`folders`、`defaultRoot`、`disabled`），不同步。细节见 [`local-data-export.md`](local-data-export.md)。
 
 ## 第一期不做
 
@@ -97,10 +98,10 @@ aliases: ["雨夜"]
 - `authored-file.test.ts`：格式往返、其他编辑器改写过的 frontmatter、坏掉的 frontmatter、单行换行。
 - `reconcile-yjs.test.ts`：同一段两边修改都保留且原位、同一处插入不丢字、增删段落不改别的段落身份、标记与人物链接、换行、无修改时不产生更新、字符差异不拆代理对。
 - `ingest.integration.test.ts`（真实 SQLite）：并发修改与字段一起合并、只有同一处被两边改才报重叠、同一字节读两次只生效一次、恢复被删的段落、拒绝陌生历史 / 清空 / 坏 frontmatter / 错误 ID。
-- `mirror.integration.test.ts`（真实 SQLite）：写出—外部修改—写回、写完未确认就崩溃不会重复合并、写入中途被改的文件留到下一轮且两边修改都在、合并不了的修改被提示并重写、坏 frontmatter 修好前不覆盖、两边改了同一处只挂一条 TODO。
+- `mirror.integration.test.ts`（真实 SQLite）：写出—外部修改—写回、文件夹改名后账本跟着走、写完未确认就崩溃不会重复合并、写入中途被改的文件留到下一轮且两边修改都在、合并不了的修改被提示并重写、坏 frontmatter 修好前不覆盖、两边改了同一处只挂一条 TODO。
 - `markdown-projection.service.test.ts`：捕获前先合并、作者文件替换生成内容、冲突触发下一轮、合并不了的文件只通知一次、另存进通知中心、只在窗口可见时扫描。
-- `markdown-projection.service.test.ts` 另有：关闭前先写出未捕获的修改，关闭后不扫描不写出，重新开启后强制重算指纹。
-- `cargo test markdown_projection`：作者文件可写、未读过的字节不替换、升级时另存被改过的只读文件、弃用的作者文件另存、按大小和时间读回、拒绝别的安装管理的文件夹、所有项目的默认位置与单独位置、选中的位置不可用时不回退、关闭后不读不写且文件保留、在访达中打开的目录。
+- `markdown-projection.service.test.ts` 另有：关闭前先写出未捕获的修改，关闭后不扫描不写出，重新开启后强制重算指纹；写出前按书名命名文件夹，改名时先迁移账本。
+- `cargo test markdown_projection`：作者文件可写、未读过的字节不替换、升级时另存被改过的只读文件、弃用的作者文件另存、按大小和时间读回、拒绝别的安装管理的文件夹、所有项目的默认位置与单独位置、选中的位置不可用时不回退、关闭后不读不写且文件保留、在访达中打开的目录、按书名命名与改名（含旧哈希文件夹、只改大小写）、同名加数字且数字保留、写出不进别人的文件夹。
 
 侧栏的蓝色「M」、蓝色出现动画和标为已读，在 Agent 未读显示的浏览器验收里（[`agent-runtime/acceptance/unread-direct-edits.json`](agent-runtime/acceptance/unread-direct-edits.json) 的 `externalEditBlue`）。
 

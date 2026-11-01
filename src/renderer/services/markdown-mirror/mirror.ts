@@ -86,6 +86,8 @@ export interface MarkdownMirror {
   ): Promise<{ entries: MarkdownProjectionEntry[]; renders: AuthoredRender[] }>;
   /** Confirm what reached disk; conflicted files stay for the next scan. */
   settle(renders: readonly AuthoredRender[], directory: string, result: MarkdownProjectionWriteResult): Promise<void>;
+  /** The folder was renamed: what this device knows of its files moves with it. */
+  relocate(from: string, to: string): Promise<void>;
   /** Runs `work` alone: scans and captures never interleave their ledger updates. */
   exclusive<T>(work: () => Promise<T>): Promise<T>;
   dispose(): void;
@@ -274,6 +276,7 @@ export function createMarkdownMirror(projectId: string): MarkdownMirror {
     scan,
     prepare,
     settle,
+    relocate: (from, to) => ledger().moveDirectory(projectId, from, to),
     exclusive<T>(work: () => Promise<T>) {
       const run = queue.then(work, work);
       queue = run.catch(() => undefined);

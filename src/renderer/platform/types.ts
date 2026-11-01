@@ -3,6 +3,7 @@ import type {
   AILogWriteResult,
   MarkdownFolderSettings,
   MarkdownProjectionInfo,
+  MarkdownProjectionNamedFolder,
   MarkdownProjectionAsset,
   MarkdownProjectionDocument,
   MarkdownProjectionEntry,
@@ -352,6 +353,8 @@ export interface PlatformApi {
     info(projectId: string): Promise<MarkdownProjectionInfo>;
     pickOutputRoot(title: string): Promise<string | null>;
     setOutputRoot(projectId: string, customRoot: string | null): Promise<MarkdownProjectionInfo>;
+    /** Names the project's folder for its book, renaming the folder already written. */
+    nameFolder(projectId: string, title: string): Promise<MarkdownProjectionNamedFolder>;
     folder(): Promise<MarkdownFolderSettings>;
     setDefaultRoot(customRoot: string | null): Promise<MarkdownFolderSettings>;
     setEnabled(enabled: boolean): Promise<MarkdownFolderSettings>;

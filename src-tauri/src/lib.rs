@@ -219,6 +219,7 @@ pub fn run() {
             commands::lifecycle_get_status,
             commands::lifecycle_complete_flush,
             markdown_projection::markdown_projection_info,
+            markdown_projection::markdown_projection_name_folder,
             markdown_projection::markdown_projection_folder,
             markdown_projection::markdown_projection_set_default_root,
             markdown_projection::markdown_projection_set_enabled,

@@ -838,6 +838,7 @@ export const tauriPlatform: PlatformApi = {
   markdownProjection: {
     pickOutputRoot: (title) => invokeContract('markdown_projection_pick_output_root', { title }),
     setOutputRoot: (projectId, customRoot) => invokeContract('markdown_projection_set_output_root', { projectId, customRoot }),
+    nameFolder: (projectId, title) => invokeContract('markdown_projection_name_folder', { projectId, title }),
     folder: () => invokeContract('markdown_projection_folder', undefined),
     setDefaultRoot: (customRoot) => invokeContract('markdown_projection_set_default_root', { customRoot }),
     setEnabled: (enabled) => invokeContract('markdown_projection_set_enabled', { enabled }),

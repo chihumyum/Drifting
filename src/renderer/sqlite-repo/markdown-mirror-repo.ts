@@ -62,6 +62,8 @@ export interface MarkdownMirrorRepository {
    */
   release(projectId: string, docId: string): Promise<void>;
   remove(projectId: string, docId: string): Promise<void>;
+  /** The folder was renamed: its rows follow it. */
+  moveDirectory(projectId: string, from: string, to: string): Promise<void>;
 }
 
 function bytes(input: unknown): Uint8Array {
@@ -226,6 +228,12 @@ export function createMarkdownMirrorRepository(dbOverride?: DbExecutor): Markdow
     },
     async remove(projectId, docId) {
       await db().delete(MarkdownMirrorFileTable).where(key(projectId, docId));
+    },
+    async moveDirectory(projectId, from, to) {
+      await db()
+        .update(MarkdownMirrorFileTable)
+        .set({ directory: to, updatedAt: new Date().toISOString() })
+        .where(and(eq(MarkdownMirrorFileTable.projectId, projectId), eq(MarkdownMirrorFileTable.directory, from)));
     },
   };
 }
