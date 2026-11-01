@@ -28,3 +28,5 @@ directory and writes beside it); copy the ones listed above into
 
 `social-preview/` renders the repository's sharing card (GitHub's social
 preview) from the character sea and the same sand brush; see its README.
+`landing/` builds drifting.cc's home page from the same sea, sand and glass;
+see its README.

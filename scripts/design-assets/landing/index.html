@@ -1,0 +1,1498 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Drifting</title>
+<meta name="description" content="Open-source, local-first novel writing app for Mac: the ease of a Markdown editor, the scaffolding of a classic writing studio, and an Agent for the whole book.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://drifting.cc/">
+<meta property="og:title" content="Drifting">
+<meta property="og:description" content="Open-source, local-first novel writing app for Mac: the ease of a Markdown editor, the scaffolding of a classic writing studio, and an Agent for the whole book.">
+<meta property="og:image" content="https://drifting.cc/og.png">
+<meta property="og:image:width" content="2560">
+<meta property="og:image:height" content="1280">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" sizes="32x32" href="/legal/favicon-32x32.png">
+<link rel="apple-touch-icon" href="/legal/apple-touch-icon.png">
+<style>
+/* Fonts are served from the site itself (build.mjs): only the slices that hold a character this page or the sea writes. */
+{{fonts}}
+/* Layout: the site is the app's shelf. A sea of characters lies under the whole
+   window; the word rises out of it while the page waits at the top, bursts as
+   the reader scrolls (a book opening), and the content lies on the sea as
+   sheets whose glass outlines the water reaches. Inside the sheets are corners
+   of the real workspace. Tokens are the app's own (src/styles/index.css). */
+:root {
+  --paper-deep: 40 9% 94.5%;
+  --page: 45 30% 99.5%;
+  --ink-1: 30 6% 12%;
+  --ink-2: 30 4% 26%;
+  --ink-3: 30 3% 48%;
+  --ink-4: 30 3% 64%;
+  --accent: 218 22% 52%;
+  --rule: hsl(30 6% 12% / 0.08);
+  --hairline: hsl(var(--ink-1) / 0.1);
+  /* The colours an author gives storylines and categories, laid on as sand. */
+  --c-red: 13 49% 46%;
+  --c-blue: 214 49% 46%;
+  --c-green: 82 41% 40%;
+  --c-purple: 270 24% 55%;
+  --c-teal: 162 22% 48%;
+  --c-ochre: 32 47% 53%;
+  /* Agent edits: removed words on story-1, written words on story-3. */
+  --story-1: 252 62% 72%;
+  --story-3: 148 38% 60%;
+  --glass-clear: #b4b6ae;
+  --glass-bleed-lift: 0%;
+  --pigment: 0.85;
+  --pigment-blend: multiply;
+  --pigment-lift: 0%;
+
+  --font-ui: "Inter Tight Variable", -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", sans-serif;
+  --font-content: ui-serif, "Newsreader Variable", "Songti SC", "Noto Serif SC Variable", Georgia, serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --word-face: "Times New Roman", Tinos, Times, serif;
+
+  --glass-fill: color-mix(in srgb, hsl(var(--page)) 80%, transparent);
+  --glass-texture: url({{asset:glass-thick.png}});
+  --glass-round-size: 28px;
+  --motion-structural: 420ms;
+  --motion-structural-ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --motion-sweep: 1.125s;
+  --motion-sweep-ease: cubic-bezier(0.4, 0.1, 0.35, 1);
+  --motion-glass-bleed: 0.24s;
+  --motion-glass-settle: 0.28s;
+  --motion-glass-press: 40ms;
+  --motion-glass-drift: 15s;
+  --motion-sand-fade: 0.3s;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper-deep: 220 6% 11.5%;
+    --page: 220 6% 14%;
+    --ink-1: 220 8% 93%;
+    --ink-2: 220 6% 82%;
+    --ink-3: 220 5% 62%;
+    --ink-4: 220 4% 48%;
+    --accent: 218 35% 65%;
+    --rule: hsl(220 8% 93% / 0.09);
+    --hairline: hsl(var(--ink-1) / 0.12);
+    --story-1: 252 50% 74%;
+    --story-3: 148 34% 62%;
+    --glass-clear: #6b6d67;
+    --glass-bleed-lift: 45%;
+    --pigment-blend: normal;
+    --pigment-lift: 14%;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper-deep: 220 6% 11.5%;
+  --page: 220 6% 14%;
+  --ink-1: 220 8% 93%;
+  --ink-2: 220 6% 82%;
+  --ink-3: 220 5% 62%;
+  --ink-4: 220 4% 48%;
+  --accent: 218 35% 65%;
+  --rule: hsl(220 8% 93% / 0.09);
+  --hairline: hsl(var(--ink-1) / 0.12);
+  --story-1: 252 50% 74%;
+  --story-3: 148 34% 62%;
+  --glass-clear: #6b6d67;
+  --glass-bleed-lift: 45%;
+  --pigment-blend: normal;
+  --pigment-lift: 14%;
+  color-scheme: dark;
+}
+
+:root[data-lang="zh"] [data-l="en"],
+:root[data-lang="en"] [data-l="zh"] { display: none !important; }
+
+html { scroll-behavior: smooth; }
+body { margin: 0; }
+[hidden] { display: none !important; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body {
+  background: hsl(var(--paper-deep));
+  color: hsl(var(--ink-1));
+  font: 400 15px/1.7 var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  overflow-x: hidden;
+}
+/* Without the sea: the sheet of manuscript paper it rests as. */
+:root.no-sea body {
+  background-image: radial-gradient(circle at 5px 5px, hsl(var(--ink-2) / 0.085) 0.9px, transparent 1.3px);
+  background-size: 10px 10px;
+}
+a { color: inherit; }
+:focus-visible { outline: 1.5px solid hsl(var(--accent)); outline-offset: 3px; }
+
+#sea {
+  position: fixed;
+  inset: 0 0 auto 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100lvh;
+  z-index: 0;
+  pointer-events: none;
+  display: block;
+}
+:root.no-sea #sea { display: none; }
+.layer { position: relative; z-index: 1; }
+
+/* ── Glass (src/styles/materials.css) ─────────────────────────────── */
+.glass {
+  --glass-cc: var(--glass-clear);
+  --glass-edge: 33%;
+  --glass-rim: 9px;
+  --glass-g: 1;
+  --glass-sp: 1;
+  --glass-gx: -96px;
+  --glass-gy: -132px;
+  position: relative;
+  isolation: isolate;
+}
+.glass::before {
+  --glass-ring: color-mix(in srgb, var(--glass-cc) min(100%, calc(var(--glass-edge) * 1.8 * var(--glass-g))), transparent);
+  --glass-bleed: color-mix(in srgb, color-mix(in srgb, var(--glass-cc), white var(--glass-bleed-lift)) min(100%, calc(var(--glass-edge) * 1.8 * var(--glass-g))), transparent);
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow:
+    inset 0 0 0 1px var(--glass-ring),
+    inset 0 0 calc(var(--glass-rim) * var(--glass-sp)) calc(1px * var(--glass-sp)) var(--glass-bleed);
+  -webkit-mask-image: var(--glass-texture);
+  mask-image: var(--glass-texture);
+  -webkit-mask-size: 150px 150px;
+  mask-size: 150px 150px;
+  -webkit-mask-position: var(--glass-gx) var(--glass-gy);
+  mask-position: var(--glass-gx) var(--glass-gy);
+  opacity: 0;
+  animation: glass-flow var(--motion-glass-drift) linear infinite paused;
+  transition: opacity var(--motion-glass-bleed) ease-out, box-shadow var(--motion-glass-press) ease-out;
+}
+.glass--wide { --glass-gx: -14px; --glass-gy: -46px; }
+.glass--rest { --glass-g: 0.85; --glass-sp: 0; }
+.glass--rest::before { opacity: 1; }
+.glass--rest:hover, .glass--rest:focus-visible { --glass-g: 1; --glass-sp: 1; }
+.glass--rest:hover::before, .glass--rest:focus-visible::before {
+  transition: opacity var(--motion-glass-bleed) ease-out, box-shadow var(--motion-glass-bleed) ease-out;
+}
+.glass:hover::before, .glass:focus-visible::before { opacity: 1; animation-play-state: running; }
+.glass.is-on { --glass-g: 1; --glass-sp: 1; }
+.glass.is-on::before { opacity: 1; animation-play-state: paused; transition: opacity var(--motion-glass-bleed) ease-out, box-shadow var(--motion-glass-settle) ease-out; }
+.glass:active { --glass-g: 1.7; --glass-sp: 1.3; }
+.glass:active::before { opacity: 1; animation-play-state: paused; }
+.glass--still:hover, .glass--still:focus-visible { --glass-g: 0.85; --glass-sp: 0; }
+.glass--still:hover::before { animation-play-state: paused; }
+.glass--primary { --glass-cc: hsl(var(--accent)); --glass-g: 1; --glass-sp: 1; color: hsl(var(--accent)); }
+.glass--primary::before { opacity: 1; }
+.glass-sweep::after {
+  --sweep-ring: color-mix(in srgb, var(--glass-cc) 85%, transparent);
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 1px var(--sweep-ring), inset 0 0 12px 1.5px var(--sweep-ring);
+  -webkit-mask-image: var(--glass-texture), linear-gradient(to right, transparent 35%, #000 46%, #000 54%, transparent 65%);
+  mask-image: var(--glass-texture), linear-gradient(to right, transparent 35%, #000 46%, #000 54%, transparent 65%);
+  -webkit-mask-size: 150px 150px, 300% 100%;
+  mask-size: 150px 150px, 300% 100%;
+  -webkit-mask-repeat: repeat, no-repeat;
+  mask-repeat: repeat, no-repeat;
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+  opacity: 0;
+  animation: glass-sweep var(--motion-sweep) var(--motion-sweep-ease) both;
+}
+.glass-sweep.glass--rest::before { animation: glass-sweep-line var(--motion-sweep) ease-out backwards; }
+@keyframes glass-flow {
+  from { -webkit-mask-position: var(--glass-gx) var(--glass-gy); mask-position: var(--glass-gx) var(--glass-gy); }
+  to { -webkit-mask-position: calc(var(--glass-gx) + 150px) calc(var(--glass-gy) + 150px); mask-position: calc(var(--glass-gx) + 150px) calc(var(--glass-gy) + 150px); }
+}
+@keyframes glass-sweep {
+  0% { opacity: 1; -webkit-mask-position: var(--glass-gx) var(--glass-gy), 100% 0; mask-position: var(--glass-gx) var(--glass-gy), 100% 0; }
+  88% { opacity: 1; }
+  100% { opacity: 0; -webkit-mask-position: var(--glass-gx) var(--glass-gy), 0% 0; mask-position: var(--glass-gx) var(--glass-gy), 0% 0; }
+}
+@keyframes glass-sweep-line { 0%, 40% { opacity: 0; } 100% { opacity: 1; } }
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 22px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: hsl(var(--ink-1));
+  font: 500 15px/1 var(--font-ui);
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.pill.glass--primary { color: hsl(var(--accent)); font-weight: 600; }
+.pill--sm { height: 32px; padding: 0 14px; font-size: 13px; }
+.round {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: hsl(var(--ink-2));
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+}
+/* A brush icon (src/assets/design/icons): one mask in the current colour. */
+.ic {
+  display: block;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  background: currentColor;
+  -webkit-mask: var(--i) center / contain no-repeat;
+  mask: var(--i) center / contain no-repeat;
+}
+
+/* ── Sand (materials.css `.sand`): a mask in a colour, laid on as pigment ── */
+.mk {
+  display: inline-block;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  background: color-mix(in srgb, hsl(var(--c, var(--ink-3))), #fff var(--pigment-lift));
+  -webkit-mask: var(--m) center / contain no-repeat;
+  mask: var(--m) center / contain no-repeat;
+  mix-blend-mode: var(--pigment-blend);
+  opacity: var(--pigment);
+}
+.mk-seal { --m: url({{asset:sand/blob-3.png}}); }
+.mk-dash { --m: url({{asset:sand/mark-dash.png}}); width: 15px; height: 6px; }
+.mk-square { --m: url({{asset:sand/mark-square.png}}); width: 8px; height: 8px; }
+.mk-spiral { --m: url({{asset:sand/mark-spiral.png}}); width: 13px; height: 10px; }
+.mk-slip { --m: url({{asset:sand/mark-slip.png}}); width: 5px; height: 12px; }
+.mk-corner { --m: url({{asset:sand/mark-corner.png}}); width: 10px; height: 10px; }
+.mk-star { --m: url({{asset:sand/mark-star.png}}); width: 13px; height: 13px; }
+.mk-icon { width: 15px; height: 15px; }
+
+/* A dry underline under a word (ul.png) and a highlighter stroke behind a phrase (hl.png). */
+.su, .sh { position: relative; white-space: nowrap; text-decoration: none; isolation: isolate; }
+.su::after, .sh::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  background: color-mix(in srgb, hsl(var(--c)), #fff var(--pigment-lift));
+  mix-blend-mode: var(--pigment-blend);
+  pointer-events: none;
+  transition: opacity var(--motion-sand-fade) ease-out;
+}
+.su::after {
+  left: -0.12em;
+  right: -0.12em;
+  bottom: -0.08em;
+  height: 0.36em;
+  -webkit-mask: url({{asset:sand/ul.png}}) 0 0 / 100% 100% no-repeat;
+  mask: url({{asset:sand/ul.png}}) 0 0 / 100% 100% no-repeat;
+  opacity: 0.9;
+}
+a.su:hover::after { opacity: 1; }
+.sh::before {
+  inset: 0.02em -0.28em -0.04em;
+  -webkit-mask: url({{asset:sand/hl.png}}) 0 50% / 100% 100% no-repeat;
+  mask: url({{asset:sand/hl.png}}) 0 50% / 100% 100% no-repeat;
+  opacity: 0.34;
+}
+/* Sand that comes into view fades in as a whole (it is never drawn on its own). */
+.sand-wait.su::after, .sand-wait.sh::before { opacity: 0; }
+.sand-wait .mk, .sand-wait.mk, .sand-wait .ic { opacity: 0 !important; }
+.kind .mk, .tools .ic { transition: opacity var(--motion-sand-fade) ease-out; }
+
+/* ── Bar ──────────────────────────────────────────────────────────── */
+.bar {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: calc(14px + env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px));
+  pointer-events: none;
+}
+.bar > * { pointer-events: auto; }
+.brand {
+  font: 700 19px/1 var(--word-face);
+  letter-spacing: 0.08em;
+  color: hsl(var(--ink-1));
+  text-decoration: none;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: var(--glass-fill);
+  opacity: 0;
+  translate: 0 -4px;
+  transition: opacity var(--motion-structural) var(--motion-structural-ease), translate var(--motion-structural) var(--motion-structural-ease);
+}
+.bar-actions { display: flex; align-items: center; gap: 8px; }
+.bar .glass { background: var(--glass-fill); }
+.bar-dl { opacity: 0; pointer-events: none; transition: opacity var(--motion-structural) var(--motion-structural-ease); }
+:root.scrolled .brand { opacity: 1; translate: 0 0; }
+:root.scrolled .bar-dl { opacity: 1; pointer-events: auto; }
+
+/* ── Hero ─────────────────────────────────────────────────────────── */
+.hero {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 22px;
+  padding-top: calc(var(--word-bottom, 48vh) + clamp(22px, 4.5vh, 48px));
+  padding-bottom: clamp(72px, 14vh, 140px);
+}
+.word {
+  margin: 0;
+  position: absolute;
+  inset: calc(var(--word-top, 30vh) - var(--word-size, 160px) * 0.2) 0 auto 0;
+  font: 700 var(--word-size, 160px)/1 var(--word-face);
+  color: hsl(var(--accent));
+  letter-spacing: 0;
+}
+:root:not(.still-word) .word {
+  width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+.tagline {
+  margin: 0;
+  max-width: 34em;
+  font: 400 clamp(1.15rem, 0.92rem + 1vw, 1.55rem)/1.6 var(--font-content);
+  color: hsl(var(--ink-1));
+  text-wrap: balance;
+  text-shadow: 0 0 14px hsl(var(--paper-deep)), 0 0 4px hsl(var(--paper-deep)), 0 0 2px hsl(var(--paper-deep));
+}
+:root[data-lang="zh"] .tagline { letter-spacing: 0.04em; }
+.cta { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
+.cta .glass { background: color-mix(in srgb, hsl(var(--paper-deep)) 70%, transparent); }
+.meta {
+  margin: 0;
+  font: 400 13px/1.6 var(--font-ui);
+  color: hsl(var(--ink-3));
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 8px hsl(var(--paper-deep)), 0 0 3px hsl(var(--paper-deep));
+}
+.meta span + span::before { content: '·'; margin: 0 0.6em; color: hsl(var(--ink-4)); }
+
+/* ── Sheets ───────────────────────────────────────────────────────── */
+main { display: grid; gap: clamp(48px, 9vh, 96px); padding-bottom: clamp(64px, 10vh, 112px); }
+.sheet {
+  width: 100%;
+  max-width: 1160px;
+  margin: 0 auto;
+  box-sizing: border-box;
+  padding: clamp(24px, 4vw, 52px);
+  border-radius: 2px;
+}
+/* The sea draws the sheet's outline and its 12% veil; without it the sheet is plain ground with a CSS line. */
+:root.no-sea .sheet { background: hsl(var(--paper-deep)); }
+:root.no-sea .sheet::before { opacity: 1; }
+.sheet.glass { --glass-g: 0.85; --glass-sp: 0; --glass-gx: -14px; --glass-gy: -46px; }
+.sheet.glass::before { opacity: 0; }
+.sheet.glass:hover::before { animation-play-state: paused; }
+
+.pillar {
+  display: grid;
+  grid-template-columns: minmax(0, 4fr) minmax(0, 7fr);
+  gap: clamp(28px, 4vw, 52px);
+  align-items: start;
+}
+.pillar-text { min-width: 0; display: grid; gap: 18px; padding-top: 4px; }
+.kind { display: flex; align-items: center; gap: 10px; color: hsl(var(--ink-3)); font: 500 12px/1 var(--font-ui); letter-spacing: 0.12em; text-transform: uppercase; --c: var(--sec); }
+.kind .mk { width: 15px; height: 15px; }
+.kind .mk-dash { height: 7px; width: 20px; }
+h2 {
+  margin: 0;
+  font: 400 clamp(1.7rem, 1.15rem + 1.6vw, 2.45rem)/1.25 var(--font-content);
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+:root[data-lang="zh"] h2 { letter-spacing: 0.02em; }
+.points { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; color: hsl(var(--ink-2)); font-size: 15px; line-height: 1.72; }
+.points li { display: grid; grid-template-columns: 12px minmax(0, 1fr); gap: 10px; }
+.points li::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  margin-top: 0.72em;
+  background: color-mix(in srgb, hsl(var(--sec)), #fff var(--pigment-lift));
+  -webkit-mask: url({{asset:sand/blob-3.png}}) center / contain no-repeat;
+  mask: url({{asset:sand/blob-3.png}}) center / contain no-repeat;
+  opacity: 0.6;
+}
+.points b { color: hsl(var(--ink-1)); font-weight: 600; }
+.points .sh { --c: var(--sec); }
+code { white-space: nowrap; font: 500 0.86em/1 var(--font-mono); color: hsl(var(--ink-1)); background: hsl(var(--ink-1) / 0.06); padding: 0.14em 0.36em; border-radius: 3px; }
+
+/* Views and panels, each with its brush icon in an author's colour. */
+.tools { list-style: none; margin: 4px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 14px 8px; }
+.tools li { display: grid; justify-items: start; gap: 7px; font: 400 12.5px/1.35 var(--font-ui); color: hsl(var(--ink-3)); }
+.tools .ic { width: 24px; height: 24px; background: color-mix(in srgb, hsl(var(--c)), #fff var(--pigment-lift)); mix-blend-mode: var(--pigment-blend); opacity: var(--pigment); }
+
+/* ── Corners of the real workspace ────────────────────────────────── */
+.vg { position: relative; min-width: 0; }
+.win {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 10px;
+  background: hsl(var(--paper-deep));
+  color: hsl(var(--ink-1));
+  font-family: var(--font-ui);
+  box-shadow: 0 0 0 1px var(--hairline), 0 22px 44px -30px rgb(0 0 0 / 0.38);
+}
+.lights { display: flex; gap: 6px; flex: none; }
+.lights i { width: 10px; height: 10px; border-radius: 50%; background: #ff5f57; box-shadow: inset 0 0 0 0.5px rgb(0 0 0 / 0.18); }
+.lights i:nth-child(2) { background: #febc2e; }
+.lights i:nth-child(3) { background: #28c840; }
+.stage { position: relative; min-width: 0; background: hsl(var(--page)); }
+.dots { display: flex; justify-content: center; align-items: center; gap: 12px; height: 34px; }
+.dots .mk { width: 7px; height: 7px; }
+.dots .mk-dash { width: 13px; height: 5px; }
+.dots .mk-spiral { width: 11px; height: 9px; }
+.dots .mk-square { width: 7px; height: 7px; }
+.dots .on { width: 10px; height: 10px; }
+.pg { max-width: 460px; margin: 0 auto; padding: 14px 28px 30px; }
+.folio {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 20px;
+  padding-bottom: 10px;
+  border-bottom: 1px dotted var(--rule);
+  font: 400 9px/1.4 var(--font-ui);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: hsl(var(--ink-4));
+}
+.folio b { font-weight: 600; color: hsl(var(--c, var(--ink-3))); letter-spacing: 0.04em; }
+.pg-title { margin: 0 0 8px; font: 400 31px/1.3 var(--font-content); letter-spacing: -0.01em; }
+.pg-rule { height: 1px; margin: 0 0 20px; border: 0; background: var(--rule); }
+.pg-body { font: 400 15px/1.75 var(--font-content); color: hsl(var(--ink-1)); }
+:root[data-lang="zh"] .pg-body { letter-spacing: 0.01em; }
+.pg-body :is(p, h1, h2) { margin: 0 0 0.95em; }
+.pg-body h1 { font-size: 1.6em; font-weight: 500; line-height: 1.6; letter-spacing: -0.01em; }
+.pg-body h2 { font-size: 1.26em; font-weight: 500; line-height: 1.6; }
+.pg-body .md { color: hsl(var(--ink-4)); }
+.pg-sub { margin: -2px 0 16px; font: 400 12px/1.4 var(--font-ui); color: hsl(var(--ink-3)); }
+.caret { display: inline-block; width: 1.5px; height: 1.05em; margin-left: 1px; vertical-align: -0.14em; background: hsl(var(--ink-2)); animation: blink 0.9s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+/* A name the book knows: one dry underline in its category's colour (index.css .entity-link). */
+.ent { position: relative; white-space: nowrap; isolation: isolate; }
+.ent::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  left: 0;
+  right: 0;
+  bottom: -2px;
+  height: 6px;
+  background: color-mix(in srgb, hsl(var(--c)), #fff var(--pigment-lift));
+  -webkit-mask: url({{asset:sand/ul.png}}) 0 0 / max(100%, 120px) 100% no-repeat;
+  mask: url({{asset:sand/ul.png}}) 0 0 / max(100%, 120px) 100% no-repeat;
+  mix-blend-mode: var(--pigment-blend);
+  opacity: 0.7;
+}
+#md-typed { transition: opacity 0.3s ease; }
+/* The corners never change height while they play: what changes floats over a
+   hidden copy of its tallest state (the finished text, the file as saved). */
+.typed, .raw-wrap { position: relative; min-width: 0; }
+.typed-ghost, .raw-ghost { visibility: hidden; }
+.typed.has-ghost > #md-typed, .raw-live { position: absolute; inset: 0 0 auto 0; }
+.sb-panes { display: grid; }
+.sb-panes > .sb-pane { grid-area: 1 / 1; }
+.sb-pane.off { visibility: hidden; }
+
+/* Write: the page, and its Markdown file in another editor */
+.vg-md { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+.vg-md .win.app { min-height: 380px; align-content: start; }
+.vg-md .stage { min-height: 380px; }
+.txt { margin-top: 30px; min-height: 330px; align-content: start; grid-template-columns: minmax(0, 1fr); background: hsl(var(--page)); }
+.txt-top { display: flex; align-items: center; gap: 10px; height: 30px; padding: 0 12px; border-bottom: 1px solid var(--rule); font: 500 11px/1 var(--font-ui); color: hsl(var(--ink-3)); }
+.txt-top > span:last-child { flex: 1; min-width: 0; text-align: center; margin-right: 46px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.raw { min-width: 0; overflow-wrap: anywhere; margin: 0; padding: 12px 14px 18px; font: 400 11px/1.7 var(--font-mono); color: hsl(var(--ink-2)); white-space: pre-wrap; word-break: break-word; }
+.raw .fm { color: hsl(var(--ink-4)); }
+.raw .line { display: block; min-height: 1.7em; }
+.raw .line.fresh { animation: raw-in 0.5s ease-out; }
+@keyframes raw-in { from { opacity: 0; background: hsl(var(--accent) / 0.12); } }
+
+/* Build: the left sidebar beside the page it opens */
+.vg-studio .win { grid-template-columns: 240px minmax(0, 1fr); min-height: 420px; }
+.sb { position: relative; display: flex; flex-direction: column; min-width: 0; background: hsl(var(--paper-deep)); }
+.sb-top { display: flex; align-items: center; gap: 4px; height: 40px; padding: 0 8px 0 13px; }
+.sb-top .moon { width: 15px; height: 15px; color: hsl(var(--ink-3)); margin-left: 12px; }
+.sb-tabs { display: flex; gap: 2px; margin-left: auto; }
+.sb-tab {
+  height: 26px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: hsl(var(--ink-2));
+  font: 500 12.5px/1 var(--font-ui);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.sb-tab.is-on { color: hsl(var(--ink-1)); }
+.sb-head { padding: 12px 12px 6px; font: 400 10.5px/1.5 var(--font-ui); letter-spacing: 0.12em; text-transform: uppercase; color: hsl(var(--ink-3)); }
+.sb-pane { display: grid; align-content: start; padding: 0 5px 12px; }
+.grp { display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 8px 0 6px; font: 400 13.5px/1 var(--font-ui); color: hsl(var(--ink-2)); }
+.grp small { margin-left: -3px; font-size: 12px; color: hsl(var(--ink-4)); }
+.grp small::before { content: '· '; }
+.cell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  height: 32px;
+  padding: 0 10px 0 22px;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: hsl(var(--ink-2));
+  font: 400 13.5px/1 var(--font-ui);
+  text-align: left;
+  cursor: pointer;
+}
+.cell > span:not(.mkb) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cell .mkb { display: grid; place-items: center; width: 10px; flex: none; }
+.cell time { margin-left: auto; padding-left: 8px; font: 400 11.5px/1 var(--font-ui); letter-spacing: 0.04em; color: hsl(var(--ink-3)); font-variant-numeric: tabular-nums; }
+.cell[aria-current="true"] { color: hsl(var(--ink-1)); }
+.cat { position: relative; margin: 14px 6px 4px; padding: 16px 4px 6px; }
+.cat::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, hsl(var(--c)), #fff var(--pigment-lift));
+  -webkit-mask-box-image: url({{asset:sand/frame-box.png}}) 24 / 12px round;
+  mask-border: url({{asset:sand/frame-box.png}}) 24 / 12px round;
+  mix-blend-mode: var(--pigment-blend);
+  opacity: 0.62;
+  pointer-events: none;
+}
+.cat-legend {
+  position: absolute;
+  top: -9px;
+  left: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 6px;
+  background: hsl(var(--paper-deep));
+  font: 400 12.5px/18px var(--font-ui);
+  color: hsl(var(--ink-2));
+}
+.cat-grid { display: grid; grid-template-columns: 1fr 1fr; }
+.cat .cell { padding-left: 8px; height: 30px; }
+.cell-frame { position: absolute; z-index: 2; pointer-events: none; color: color-mix(in srgb, hsl(var(--c, var(--ink-3))), #fff var(--pigment-lift)); mix-blend-mode: var(--pigment-blend); opacity: 0.92; }
+.panels { display: grid; }
+.panels > .pg { grid-area: 1 / 1; width: 100%; box-sizing: border-box; opacity: 0; visibility: hidden; transition: opacity var(--motion-sand-fade) ease, visibility 0s linear var(--motion-sand-fade); }
+.panels > .pg.on { opacity: 1; visibility: visible; transition: opacity var(--motion-sand-fade) ease; }
+.patches { list-style: none; display: grid; gap: 9px; margin: 2px 0 0; padding: 0; font: 400 13px/1.55 var(--font-ui); color: hsl(var(--ink-2)); }
+.patches li { display: grid; grid-template-columns: 12px minmax(0, 1fr); gap: 8px; align-items: baseline; }
+.patches .k { color: hsl(var(--ink-3)); }
+
+/* Tend: the page beside the right sidebar's Agent */
+.vg-agent .win { grid-template-columns: minmax(0, 1fr) 252px; min-height: 452px; }
+.sb-right { border-left: 1px solid var(--rule); }
+.sb-right .sb-top { padding: 0 10px 0 8px; }
+.sb-right .sb-tabs { margin-left: 0; }
+.sb-right .sb-tab { padding: 0 6px; font-size: 12px; }
+.sb-right .moon { margin-left: auto; }
+.agt { display: flex; flex-direction: column; gap: 8px; flex: 1; padding: 10px 11px 0; }
+.agt > .step { transition: opacity var(--motion-sand-fade) ease, translate var(--motion-structural) var(--motion-structural-ease); }
+.agt > .step.wait { opacity: 0; translate: 0 6px; }
+.agt-user { align-self: flex-end; max-width: 90%; padding: 8px 12px; border-radius: 14px; background: hsl(var(--page)); font: 400 12.5px/1.55 var(--font-ui); color: hsl(var(--ink-1)); }
+.agt-tool { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 2px; font: 400 12px/1.4 var(--font-ui); color: hsl(var(--ink-3)); }
+.agt-tool .ic { width: 9px; height: 9px; opacity: 0.7; }
+.agt-tool .spin { animation: spin 1s linear infinite; }
+@keyframes spin { to { rotate: 360deg; } }
+.agt-text { font: 400 12.5px/1.6 var(--font-ui); color: hsl(var(--ink-1)); }
+.agt-composer { margin: 12px 10px 10px; border-radius: 14px; background: hsl(var(--page)); --glass-gx: -168px; --glass-gy: -18px; }
+.agt-ph { padding: 10px 13px 4px; font: 400 12px/1.5 var(--font-ui); color: hsl(var(--ink-4)); }
+.agt-bar { display: flex; align-items: center; gap: 4px; padding: 3px 6px 6px; }
+.agt-tray { display: flex; gap: 2px; padding: 3px; border-radius: 999px; background: var(--glass-fill); }
+.agt-bar .rb { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; color: hsl(var(--ink-2)); }
+.agt-bar .rb .ic { width: 13px; height: 13px; }
+.agt-bar .send { margin-left: auto; }
+/* The edit the Agent makes: the old words erase off story-1, the new ones type onto story-3,
+   and once written they stay in story-3's colour, without the ground. */
+.ins-done { color: hsl(var(--story-3)); transition: color 0.42s ease; }
+.del { color: hsl(var(--story-1)); background: hsl(var(--story-1) / 0.18); border-radius: 2px; text-decoration: line-through; text-decoration-color: hsl(var(--story-1) / 0.7); }
+.ins { color: hsl(var(--story-3)); background: hsl(var(--story-3) / 0.18); border-radius: 2px; }
+
+/* ── Your data, closing, footer ───────────────────────────────────── */
+.data { display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 7fr); gap: clamp(28px, 4vw, 52px); }
+.data .account { margin: 0; color: hsl(var(--ink-2)); font-size: 15px; align-self: end; max-width: 36em; }
+.closing { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: clamp(28px, 5vw, 64px); align-items: center; max-width: 1000px; width: 100%; margin: 0 auto; padding-top: clamp(16px, 4vh, 40px); }
+.closing-text { display: grid; gap: 18px; justify-items: start; min-width: 0; }
+.closing-text p { margin: 0; max-width: 34em; color: hsl(var(--ink-2)); text-shadow: 0 0 10px hsl(var(--paper-deep)); }
+.closing .cta { justify-content: flex-start; }
+/* A book on the shelf (project-picker.css): its cover is its storylines as sand. */
+.book { display: flex; gap: 16px; width: 360px; max-width: 100%; box-sizing: border-box; padding: 12px; border-radius: 2px; }
+:root:not(.no-sea) .book.glass::before { display: none; }
+.cover { position: relative; isolation: isolate; flex: none; width: 126px; height: 226px; overflow: hidden; border-radius: 2px; background: hsl(var(--page)); }
+.cover .band { position: absolute; inset: 0; background: color-mix(in srgb, hsl(var(--c)), #fff var(--pigment-lift)); -webkit-mask: var(--m) 0 0 / 100% 100% no-repeat; mask: var(--m) 0 0 / 100% 100% no-repeat; mix-blend-mode: var(--pigment-blend); opacity: var(--pigment); }
+.cover-glyph { position: absolute; top: 12px; left: 14px; z-index: 2; font: 400 34px/1 var(--font-content); color: hsl(var(--ink-1)); }
+.cover-label { position: absolute; left: 14px; right: 10px; bottom: 11px; z-index: 2; font: 400 11px/1.2 var(--font-mono); color: hsl(var(--ink-3)); }
+.book-body { display: flex; flex-direction: column; min-width: 0; padding-top: 2px; }
+.book-title { margin: 0; font: 400 19px/1.35 var(--font-content); letter-spacing: 0.02em; }
+.book-sub { margin-top: 2px; font: 400 12.5px/1.4 var(--font-ui); color: hsl(var(--ink-3)); }
+.book-meta { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 12px; font: 400 12px/1.4 var(--font-mono); color: hsl(var(--ink-4)); }
+.book-meta b { margin-right: 3px; font-weight: 400; color: hsl(var(--ink-2)); }
+.book-progress { position: relative; height: 6px; margin-top: auto; width: 62%; background: color-mix(in srgb, hsl(var(--ink-2)), #fff var(--pigment-lift)); -webkit-mask: url({{asset:sand/ul.png}}) 0 0 / 100% 100% no-repeat; mask: url({{asset:sand/ul.png}}) 0 0 / 100% 100% no-repeat; opacity: 0.7; mix-blend-mode: var(--pigment-blend); }
+
+footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px 28px;
+  max-width: 1160px;
+  margin: 0 auto;
+  padding-block: 28px calc(32px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--hairline);
+  font-size: 13px;
+  color: hsl(var(--ink-3));
+}
+footer nav { display: flex; flex-wrap: wrap; gap: 6px 18px; }
+footer a { text-decoration: none; }
+footer a:hover { color: hsl(var(--ink-1)); }
+footer .addr { user-select: all; font-family: var(--font-mono); font-size: 12.5px; }
+
+@media (max-width: 980px) {
+  .pillar, .data { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 640px) {
+  .vg-md { grid-template-columns: minmax(0, 1fr); }
+  .txt { margin-top: 0; min-height: 0; }
+  .vg-studio .win { grid-template-columns: minmax(0, 1fr); }
+  .vg-studio .sb { border-bottom: 1px solid var(--rule); }
+  .vg-agent .win { grid-template-columns: minmax(0, 1fr); }
+  .sb-right { border-left: 0; border-top: 1px solid var(--rule); }
+  .closing { grid-template-columns: minmax(0, 1fr); justify-items: center; }
+  .bar .pill--sm { padding: 0 11px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .caret { animation: none; }
+  .glass::before { animation: none !important; }
+}
+</style>
+<script>
+(function () {
+  var root = document.documentElement;
+  var lang = null, theme = null;
+  try { lang = localStorage.getItem('drifting.landing.lang'); theme = localStorage.getItem('drifting.landing.theme'); } catch (e) {}
+  if (lang !== 'zh' && lang !== 'en') lang = /^zh/i.test(navigator.language || '') ? 'zh' : 'en';
+  root.dataset.lang = lang;
+  root.lang = lang === 'zh' ? 'zh-CN' : 'en';
+  if (theme === 'light' || theme === 'dark') root.setAttribute('data-theme', theme);
+})();
+</script>
+</head>
+<body>
+
+<canvas id="sea" aria-hidden="true"></canvas>
+
+<header class="bar">
+  <a class="brand" href="#top" aria-label="Drifting">DRIFTING</a>
+  <div class="bar-actions">
+    <a class="glass glass--primary pill pill--sm bar-dl" href="https://github.com/chihumyum/Drifting/releases/latest" target="_blank" rel="noopener"><span data-l="zh">下载</span><span data-l="en">Download</span></a>
+    <button class="glass glass--rest pill pill--sm" id="lang-btn" type="button"><span data-l="zh">English</span><span data-l="en">中文</span></button>
+    <button class="glass glass--rest round" id="theme-btn" type="button"><i class="ic" id="theme-ic"></i></button>
+  </div>
+</header>
+
+<main class="layer" id="top">
+  <section class="hero">
+    <h1 class="word">DRIFTING</h1>
+    <p class="tagline">
+      <span data-l="zh"><a class="su" href="#markdown" style="--c: var(--c-blue)">Markdown</a> 的轻快，传统写作软件的<a class="su" href="#studio" style="--c: var(--c-ochre)">脚手架</a>，再加一个照看整本书的 <a class="su" href="#agent" style="--c: var(--c-green)">Agent</a>。</span>
+      <span data-l="en">The ease of a <a class="su" href="#markdown" style="--c: var(--c-blue)">Markdown</a> editor, the <a class="su" href="#studio" style="--c: var(--c-ochre)">scaffolding</a> of a classic writing studio, and an <a class="su" href="#agent" style="--c: var(--c-green)">Agent</a> for the whole book.</span>
+    </p>
+    <div class="cta">
+      <a class="glass glass--primary pill" href="https://github.com/chihumyum/Drifting/releases/latest" target="_blank" rel="noopener"><span data-l="zh">下载 Mac 版</span><span data-l="en">Download for Mac</span></a>
+      <a class="glass glass--rest pill" href="https://github.com/chihumyum/Drifting" target="_blank" rel="noopener">GitHub</a>
+    </div>
+    <p class="meta">
+      <span>macOS 13+</span><span>Apple Silicon</span><span data-l="zh">开源 · 本地优先</span><span data-l="en">Open source · Local-first</span><span>0.1.0-alpha.1</span>
+    </p>
+  </section>
+
+  <!-- Write -->
+  <section class="sheet glass" data-sea id="markdown" style="--sec: var(--c-blue)">
+    <div class="pillar">
+      <div class="pillar-text">
+        <div class="kind"><i class="mk mk-seal"></i><span data-l="zh">写</span><span data-l="en">Write</span></div>
+        <h2><span data-l="zh">像 Markdown 编辑器一样写</span><span data-l="en">Writes like a Markdown editor</span></h2>
+        <ul class="points">
+          <li><span data-l="zh">一张安静的稿纸，手不离键盘。输入 <code>#</code>、<code>##</code>、<code>###</code> 就开始一个场景、节拍或笔记；<code>**粗体**</code>、<code>*斜体*</code>、<code>&gt;</code> 和 <code>---</code> <span class="sh">边打边成形</span>。</span><span data-l="en">One quiet page and the keyboard. Type <code>#</code>, <code>##</code> or <code>###</code> to start a scene, a beat or a note; <code>**bold**</code>, <code>*italic*</code>, <code>&gt;</code> and <code>---</code> <span class="sh">take shape as you type</span>.</span></li>
+          <li><span data-l="zh">每个项目同时也是一个 Markdown 文件夹。在 Obsidian 或任何文本编辑器里改过的章节和构想，会合并回 Drifting。</span><span data-l="en">Every project is also a folder of Markdown files. Edit chapters and ideas in Obsidian or any text editor, and the changes merge back into Drifting.</span></li>
+          <li><span data-l="zh">单篇或整本书都可以复制、保存为 Markdown；可以导入 <code>.md</code>、<code>.txt</code>、<code>.docx</code>。</span><span data-l="en">Copy or save any document, or the whole book, as Markdown. Import <code>.md</code>, <code>.txt</code> and <code>.docx</code>.</span></li>
+        </ul>
+      </div>
+
+      <div class="vg vg-md" id="vg-md">
+        <div class="win app">
+          <div class="stage">
+            <div class="dots" aria-hidden="true">
+              <i class="mk mk-seal" style="--c: var(--c-red)"></i><i class="mk mk-seal on" style="--c: var(--c-red)"></i><i class="mk mk-square" style="--c: var(--c-purple)"></i><i class="mk mk-spiral"></i>
+            </div>
+            <article class="pg">
+              <div class="folio"><span>Chapter III</span><span>·</span><b style="--c: var(--c-red)"><span data-l="zh">寻信</span><span data-l="en">The letters</span></b></div>
+              <h4 class="pg-title"><span data-l="zh">雾</span><span data-l="en">Fog</span></h4>
+              <hr class="pg-rule">
+              <div class="pg-body">
+                <p><span data-l="zh">雾从港口那边漫过来的时候，林岚正把第三封信压在灯座底下。</span><span data-l="en">The fog came in from the harbour while Lin was tucking the third letter under the lamp.</span></p>
+                <div class="typed"><div id="md-typed">
+                  <h1><span data-l="zh">铁梯</span><span data-l="en">The stairs</span></h1>
+                  <p><span data-l="zh">她每往上走一级，脚下就响一声，像有人在楼下<strong>跟着数</strong>。</span><span data-l="en">Every step gave a small sound, as if someone below were <strong>counting</strong>.</span></p>
+                  <h2><span data-l="zh">第七圈</span><span data-l="en">The seventh turn</span></h2>
+                  <p><span data-l="zh">海面上亮起一点很小的光。</span><span data-l="en">A small glow rose on the water.</span></p>
+                </div></div>
+              </div>
+            </article>
+          </div>
+        </div>
+        <div class="win txt" aria-label="Markdown">
+          <div class="txt-top"><span class="lights"><i></i><i></i><i></i></span><span><span data-l="zh">雾.md — 正文</span><span data-l="en">Fog.md — Manuscript</span></span></div>
+          <div class="raw-wrap"><pre class="raw raw-ghost" id="md-raw-ghost" aria-hidden="true"></pre><pre class="raw raw-live" id="md-raw"></pre></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Build -->
+  <section class="sheet glass" data-sea id="studio" style="--sec: var(--c-ochre)">
+    <div class="pillar">
+      <div class="pillar-text">
+        <div class="kind"><i class="mk mk-square"></i><span data-l="zh">搭</span><span data-l="en">Build</span></div>
+        <h2><span data-l="zh">传统写作软件的脚手架</span><span data-l="en">The scaffolding of a classic writing studio</span></h2>
+        <ul class="points">
+          <li><span data-l="zh">按章写，也可以在一个视图里通读、修改整本书。</span><span data-l="en">Write chapter by chapter, or read and edit the whole book in one view.</span></li>
+          <li><span data-l="zh">用<b>要素</b>整理人物、地点、物品和设定；用<span class="sh"><b>补丁</b></span>记录要素随情节发生的变化，紧挨着引起变化的那段原文。</span><span data-l="en"><b>Elements</b> for characters, places, objects and lore. <span class="sh"><b>Patches</b></span> record how an element changes, next to the passage that changes it.</span></li>
+          <li><span data-l="zh"><b>故事线</b>、按书序或叙事时间排列的时间线，以及每章一张情节表。</span><span data-l="en"><b>Storylines</b>, a timeline in book order or narrative time, and a plot grid for each chapter.</span></li>
+          <li><span data-l="zh">整本书或选定章节可以导出为 EPUB、PDF、Word 成稿。</span><span data-l="en">Export the book, or chosen chapters, as EPUB, PDF or Word.</span></li>
+        </ul>
+        <ul class="tools">
+          <li style="--c: var(--c-blue)"><i class="ic" style="--i:url({{asset:icons/ov-folding.png}})"></i><span data-l="zh">通览全书</span><span data-l="en">Whole book</span></li>
+          <li style="--c: var(--c-red)"><i class="ic" style="--i:url({{asset:icons/bamboo.png}})"></i><span data-l="zh">时间线</span><span data-l="en">Timeline</span></li>
+          <li style="--c: var(--c-teal)"><i class="ic" style="--i:url({{asset:icons/ov-iceberg.png}})"></i><span data-l="zh">要素全景</span><span data-l="en">Element overview</span></li>
+          <li style="--c: var(--c-ochre)"><i class="ic" style="--i:url({{asset:icons/lib-curio.png}})"></i><span data-l="zh">素材库</span><span data-l="en">Materials</span></li>
+          <li style="--c: var(--c-red)"><i class="ic" style="--i:url({{asset:icons/torii.png}})"></i><span data-l="zh">作品主页</span><span data-l="en">Project Home</span></li>
+          <li style="--c: var(--c-purple)"><i class="ic" style="--i:url({{asset:icons/comment.png}})"></i><span data-l="zh">批注</span><span data-l="en">Comments</span></li>
+          <li style="--c: var(--c-green)"><i class="ic" style="--i:url({{asset:icons/checklist.png}})"></i>TODO</li>
+        </ul>
+      </div>
+
+      <div class="vg vg-studio" id="vg-studio">
+        <div class="win">
+          <aside class="sb" id="studio-sb">
+            <div class="sb-top">
+              <span class="lights"><i></i><i></i><i></i></span>
+              <div class="sb-tabs">
+                <button class="sb-tab glass is-on" type="button" data-tab="nodes"><span data-l="zh">章节</span><span data-l="en">Chapters</span></button>
+                <button class="sb-tab glass" type="button" data-tab="elements"><span data-l="zh">要素</span><span data-l="en">Elements</span></button>
+                <button class="sb-tab glass" type="button" data-tab="drifts"><span data-l="zh">构想</span><span data-l="en">Ideas</span></button>
+              </div>
+            </div>
+            <div class="sb-panes">
+            <div class="sb-pane" data-pane="nodes">
+              <div class="sb-head"><span data-l="zh">1 条故事线 · 4 章</span><span data-l="en">1 storyline · 4 chapters</span></div>
+              <div class="grp"><i class="mk mk-dash" style="--c: var(--c-red)"></i><span data-l="zh">寻信</span><span data-l="en">The letters</span><small>3</small></div>
+              <button class="cell" type="button" data-k="letters" style="--c: var(--c-red)"><span class="mkb"><i class="mk mk-seal"></i></span><span><span data-l="zh">来信</span><span data-l="en">Letters</span></span><time>10/29</time></button>
+              <button class="cell" type="button" data-k="fog" style="--c: var(--c-red)" aria-current="true"><span class="mkb"><i class="mk mk-seal"></i></span><span><span data-l="zh">雾</span><span data-l="en">Fog</span></span><time>10/31</time></button>
+              <button class="cell" type="button" data-k="seventh" style="--c: var(--c-red)"><span class="mkb"><i class="mk mk-seal"></i></span><span><span data-l="zh">第七圈</span><span data-l="en">The seventh turn</span></span><time>11/01</time></button>
+              <div class="grp"><i class="mk mk-dash" style="--c: var(--ink-4)"></i><span data-l="zh">未归属</span><span data-l="en">Unassigned</span><small>1</small></div>
+              <button class="cell" type="button" data-k="harbour" style="--c: var(--ink-4)"><span class="mkb"><i class="mk mk-seal"></i></span><span><span data-l="zh">港口</span><span data-l="en">Harbour</span></span><time>10/26</time></button>
+            </div>
+            <div class="sb-pane off" data-pane="elements">
+              <div class="sb-head"><span data-l="zh">2 类 · 4 要素</span><span data-l="en">2 categories · 4 elements</span></div>
+              <div class="cat" style="--c: var(--c-purple)">
+                <div class="cat-legend"><i class="mk mk-corner"></i><span data-l="zh">人物</span><span data-l="en">Characters</span></div>
+                <div class="cat-grid">
+                  <button class="cell" type="button" data-k="lin" style="--c: var(--c-purple)"><span class="mkb"><i class="mk mk-square"></i></span><span><span data-l="zh">林岚</span><span data-l="en">Lin</span></span></button>
+                  <button class="cell" type="button" data-k="keeper" style="--c: var(--c-purple)"><span class="mkb"><i class="mk mk-square"></i></span><span><span data-l="zh">守塔人</span><span data-l="en">The keeper</span></span></button>
+                  <button class="cell" type="button" data-k="father" style="--c: var(--c-purple)"><span class="mkb"><i class="mk mk-square"></i></span><span><span data-l="zh">父亲</span><span data-l="en">Her father</span></span></button>
+                </div>
+              </div>
+              <div class="cat" style="--c: var(--c-teal)">
+                <div class="cat-legend"><i class="mk mk-corner"></i><span data-l="zh">地点</span><span data-l="en">Places</span></div>
+                <div class="cat-grid">
+                  <button class="cell" type="button" data-k="pier" style="--c: var(--c-teal)"><span class="mkb"><i class="mk mk-square"></i></span><span><span data-l="zh">旧码头</span><span data-l="en">The old pier</span></span></button>
+                </div>
+              </div>
+            </div>
+            <div class="sb-pane off" data-pane="drifts">
+              <div class="sb-head"><span data-l="zh">2 条构想</span><span data-l="en">2 ideas</span></div>
+              <button class="cell" type="button" data-k="match" style="--c: var(--ink-3); padding-left: 12px"><span class="mkb" style="width: 14px"><i class="mk mk-spiral"></i></span><span><span data-l="zh">水底的火柴</span><span data-l="en">A match under the sea</span></span><time>10/30</time></button>
+              <button class="cell" type="button" data-k="pencil" style="--c: var(--ink-3); padding-left: 12px"><span class="mkb" style="width: 14px"><i class="mk mk-spiral"></i></span><span><span data-l="zh">背面的铅笔字</span><span data-l="en">Pencil on the back</span></span><time>10/31</time></button>
+            </div>
+            </div>
+            <canvas class="cell-frame" aria-hidden="true"></canvas>
+          </aside>
+          <div class="stage">
+            <div class="dots" aria-hidden="true">
+              <i class="mk mk-seal" style="--c: var(--c-red)"></i><i class="mk mk-seal on" style="--c: var(--c-red)"></i><i class="mk mk-square" style="--c: var(--c-purple)"></i><i class="mk mk-spiral"></i><i class="mk mk-dash" style="--c: var(--c-red)"></i>
+            </div>
+            <div class="panels">
+              <article class="pg" data-p="harbour">
+                <div class="folio"><span>Chapter I</span></div>
+                <h4 class="pg-title"><span data-l="zh">港口</span><span data-l="en">Harbour</span></h4><hr class="pg-rule">
+                <div class="pg-body"><p><span data-l="zh">信封上的邮戳已经洇开了，只剩一个“北”字还看得清。</span><span data-l="en">The postmark had run; only one letter of it could still be read.</span></p></div>
+              </article>
+              <article class="pg" data-p="letters">
+                <div class="folio"><span>Chapter II</span><span>·</span><b style="--c: var(--c-red)"><span data-l="zh">寻信</span><span data-l="en">The letters</span></b></div>
+                <h4 class="pg-title"><span data-l="zh">来信</span><span data-l="en">Letters</span></h4><hr class="pg-rule">
+                <div class="pg-body"><p><span data-l="zh">她想起<span class="ent" style="--c: var(--c-purple)">父亲</span>说过，雾最浓的夜里，<span class="ent" style="--c: var(--c-teal)">旧码头</span>会自己记起从前的船。</span><span data-l="en">She remembered <span class="ent" style="--c: var(--c-purple)">her father</span> saying that on the thickest nights <span class="ent" style="--c: var(--c-teal)">the old pier</span> remembers the boats it once had.</span></p></div>
+              </article>
+              <article class="pg on" data-p="fog">
+                <div class="folio"><span>Chapter III</span><span>·</span><b style="--c: var(--c-red)"><span data-l="zh">寻信</span><span data-l="en">The letters</span></b></div>
+                <h4 class="pg-title"><span data-l="zh">雾</span><span data-l="en">Fog</span></h4><hr class="pg-rule">
+                <div class="pg-body">
+                  <p><span data-l="zh">雾从港口那边漫过来的时候，<span class="ent" style="--c: var(--c-purple)">林岚</span>正把第三封信压在灯座底下。灯塔的铁梯被潮气浸得发凉。</span><span data-l="en">The fog came in from the harbour while <span class="ent" style="--c: var(--c-purple)">Lin</span> was tucking the third letter under the lamp.</span></p>
+                  <p><span data-l="zh"><span class="ent" style="--c: var(--c-purple)">守塔人</span>说今晚不会有船。她没有回答，只是把窗推开一道缝。</span><span data-l="en"><span class="ent" style="--c: var(--c-purple)">The keeper</span> said no boats would come tonight. She did not answer.</span></p>
+                </div>
+              </article>
+              <article class="pg" data-p="seventh">
+                <div class="folio"><span>Chapter IV</span><span>·</span><b style="--c: var(--c-red)"><span data-l="zh">寻信</span><span data-l="en">The letters</span></b></div>
+                <h4 class="pg-title"><span data-l="zh">第七圈</span><span data-l="en">The seventh turn</span></h4><hr class="pg-rule">
+                <div class="pg-body"><p><span data-l="zh">远处的雾笛响了两声，停了，又响了一声。她数着灯转过的圈数，数到第七圈的时候，海面上亮起一点很小的光。</span><span data-l="en">Far off the foghorn sounded twice, stopped, and sounded once more. On the seventh turn of the light a small glow rose on the water.</span></p></div>
+              </article>
+              <article class="pg" data-p="lin">
+                <div class="folio"><b style="--c: var(--c-purple)"><span data-l="zh">人物</span><span data-l="en">Character</span></b></div>
+                <h4 class="pg-title"><span data-l="zh">林岚</span><span data-l="en">Lin</span></h4><hr class="pg-rule">
+                <ul class="patches">
+                  <li style="--c: var(--c-red)"><i class="mk mk-seal"></i><span><span class="k"><span data-l="zh">雾 ·</span><span data-l="en">Fog ·</span></span> <span data-l="zh">在信纸背面认出自己的笔迹，却不记得写过。</span><span data-l="en">Finds a line in her own hand on the back of a letter, and cannot remember writing it.</span></span></li>
+                  <li style="--c: var(--c-red)"><i class="mk mk-seal"></i><span><span class="k"><span data-l="zh">第七圈 ·</span><span data-l="en">The seventh turn ·</span></span> <span data-l="zh">数到第七圈时看见水上的光。</span><span data-l="en">Sees the glow on the water at the seventh turn.</span></span></li>
+                </ul>
+              </article>
+              <article class="pg" data-p="keeper">
+                <div class="folio"><b style="--c: var(--c-purple)"><span data-l="zh">人物</span><span data-l="en">Character</span></b></div>
+                <h4 class="pg-title"><span data-l="zh">守塔人</span><span data-l="en">The keeper</span></h4><hr class="pg-rule">
+                <ul class="patches"><li style="--c: var(--c-red)"><i class="mk mk-seal"></i><span><span class="k"><span data-l="zh">雾 ·</span><span data-l="en">Fog ·</span></span> <span data-l="zh">说今晚不会有船。</span><span data-l="en">Says no boats will come tonight.</span></span></li></ul>
+              </article>
+              <article class="pg" data-p="father">
+                <div class="folio"><b style="--c: var(--c-purple)"><span data-l="zh">人物</span><span data-l="en">Character</span></b></div>
+                <h4 class="pg-title"><span data-l="zh">父亲</span><span data-l="en">Her father</span></h4><hr class="pg-rule">
+                <div class="pg-body"><p><span data-l="zh">雾最浓的夜里，旧码头会自己记起从前的船。</span><span data-l="en">On the thickest nights the old pier remembers the boats it once had.</span></p></div>
+              </article>
+              <article class="pg" data-p="pier">
+                <div class="folio"><b style="--c: var(--c-teal)"><span data-l="zh">地点</span><span data-l="en">Place</span></b></div>
+                <h4 class="pg-title"><span data-l="zh">旧码头</span><span data-l="en">The old pier</span></h4><hr class="pg-rule">
+                <div class="pg-body"><p><span data-l="zh">那光不往岸边来，也不往外走，只在原地一明一灭。</span><span data-l="en">The light comes no nearer the shore and goes no further out; it only brightens and fades where it is.</span></p></div>
+              </article>
+              <article class="pg" data-p="match">
+                <div class="folio"><span data-l="zh">构想</span><span data-l="en">Idea</span></div>
+                <h4 class="pg-title"><span data-l="zh">水底的火柴</span><span data-l="en">A match under the sea</span></h4><hr class="pg-rule">
+                <div class="pg-body"><p><span data-l="zh">海面上亮起一点很小的光，像有人在水底下划了一根火柴。</span><span data-l="en">A small glow on the water, as if someone under the sea had struck a match.</span></p></div>
+              </article>
+              <article class="pg" data-p="pencil">
+                <div class="folio"><span data-l="zh">构想</span><span data-l="en">Idea</span></div>
+                <h4 class="pg-title"><span data-l="zh">背面的铅笔字</span><span data-l="en">Pencil on the back</span></h4><hr class="pg-rule">
+                <div class="pg-body"><p><span data-l="zh">纸角卷起来，露出背面一行很淡的铅笔字，那是她自己的笔迹。</span><span data-l="en">A corner lifted to show a faint line of pencil on the back, in her own hand.</span></p></div>
+              </article>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Tend -->
+  <section class="sheet glass" data-sea id="agent" style="--sec: var(--c-green)">
+    <div class="pillar">
+      <div class="pillar-text">
+        <div class="kind"><i class="mk mk-icon" style="--m:url({{asset:icons/shikigami.png}})"></i><span data-l="zh">照看</span><span data-l="en">Tend</span></div>
+        <h2><span data-l="zh">照看整本书的 Agent</span><span data-l="en">An Agent for the whole book</span></h2>
+        <ul class="points">
+          <li><span data-l="zh">可以用自己的 DeepSeek、Anthropic、OpenAI 密钥，也可以登录 ChatGPT 订阅（实验性）。不用 AI 也能正常写作。</span><span data-l="en">Bring your own key for DeepSeek, Anthropic or OpenAI, or sign in with a ChatGPT subscription (experimental). Writing never requires AI.</span></li>
+          <li><span data-l="zh">Agent 能读、搜索和修改你的项目：正文、要素、关联、故事线、素材、TODO。它的改动会在正文里<span class="sh">标出</span>，可以从历史快照撤回。</span><span data-l="en">The Agent reads, searches and edits your project: prose, elements, relations, storylines, materials, TODOs. Its edits are <span class="sh">marked</span> in the text and can be undone from history.</span></li>
+          <li><span data-l="zh">你离开一阵再回来时，它可以把上次写的内容整理进要素、补丁和关联；它不会自行改动正文。</span><span data-l="en">When you come back after a break, it can file what you wrote into elements, patches and relations. It never edits prose on its own.</span></li>
+          <li><span data-l="zh">Codex、Claude Code、Antigravity 可以通过 MCP 连接到某一个项目，默认只读。</span><span data-l="en">Codex, Claude Code and Antigravity can connect to one project through MCP, read-only by default.</span></li>
+        </ul>
+      </div>
+
+      <div class="vg vg-agent" id="vg-agent">
+        <div class="win">
+          <div class="stage">
+            <div class="dots" aria-hidden="true">
+              <i class="mk mk-seal on" style="--c: var(--c-red)"></i><i class="mk mk-square" style="--c: var(--c-purple)"></i>
+            </div>
+            <article class="pg">
+              <div class="folio"><span>Chapter III</span><span>·</span><b style="--c: var(--c-red)"><span data-l="zh">寻信</span><span data-l="en">The letters</span></b></div>
+              <h4 class="pg-title"><span data-l="zh">雾</span><span data-l="en">Fog</span></h4><hr class="pg-rule">
+              <div class="pg-body">
+                <p><span data-l="zh">雾从港口那边漫过来的时候，林岚正把第三封信压在灯座底下。</span><span data-l="en">The fog came in from the harbour while Lin was tucking the third letter under the lamp.</span></p>
+                <p class="edit" id="ag-edit"><span data-l="zh">守塔人说今晚不会有船。</span><span data-l="en">The keeper said no boats would come tonight.</span></p>
+                <p><span data-l="zh">她没有回答，只是把窗推开一道缝，让海风翻动桌上的信纸。</span><span data-l="en">She did not answer. She opened the window a crack and let the sea wind turn the pages.</span></p>
+              </div>
+            </article>
+          </div>
+          <aside class="sb sb-right">
+            <div class="sb-top">
+              <div class="sb-tabs">
+                <span class="sb-tab">Review</span><span class="sb-tab"><span data-l="zh">素材库</span><span data-l="en">Library</span></span><span class="sb-tab"><span data-l="zh">统计</span><span data-l="en">Stats</span></span><span class="sb-tab glass is-on">Agent</span>
+              </div>
+              <i class="ic moon" style="--i:url({{asset:icons/moon-right.png}})"></i>
+            </div>
+            <div class="agt" id="ag-log">
+              <div class="agt-user glass glass--rest glass--still step"><span data-l="zh">守塔人的话太满了，帮我收成一句，别动林岚的部分。</span><span data-l="en">The keeper says too much. Pare it down to one line, and leave Lin alone.</span></div>
+              <div class="agt-tool glass glass--rest glass--still glass--wide step"><i class="ic" style="--i:url({{asset:icons/status-done.png}})"></i><span><span data-l="zh">阅读章节「雾」</span><span data-l="en">Read chapter “Fog”</span></span></div>
+              <div class="agt-tool glass glass--rest glass--still step"><i class="ic" style="--i:url({{asset:icons/status-done.png}})"></i><span><span data-l="zh">查找写作要素出场「守塔人」</span><span data-l="en">Find appearances of element “The keeper”</span></span></div>
+              <div class="agt-tool glass glass--rest glass--still glass--wide step"><i class="ic" style="--i:url({{asset:icons/status-done.png}})"></i><span><span data-l="zh">修改章节正文「雾」</span><span data-l="en">Revise chapter “Fog”</span></span></div>
+              <div class="agt-text step"><span data-l="zh">改好了：守塔人那句收成了一句，已在正文里标出。林岚的部分没有动。</span><span data-l="en">Done. The keeper’s line is down to one sentence and marked in the text. Lin’s parts are untouched.</span></div>
+            </div>
+            <div class="agt-composer glass glass--rest">
+              <div class="agt-ph"><span data-l="zh">询问 Agent…</span><span data-l="en">Ask the agent…</span></div>
+              <div class="agt-bar">
+                <span class="agt-tray glass glass--rest"><span class="rb"><i class="ic" style="--i:url({{asset:icons/dharma-wheel.png}})"></i></span><span class="rb"><i class="ic" style="--i:url({{asset:icons/mic.png}})"></i></span></span>
+                <span class="rb send glass glass--primary"><i class="ic" style="--i:url({{asset:icons/lift.png}})"></i></span>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Your data -->
+  <section class="sheet glass" data-sea id="data" style="--sec: var(--c-teal)">
+    <div class="data">
+      <div class="pillar-text">
+        <div class="kind"><i class="mk mk-slip"></i><span data-l="zh">存</span><span data-l="en">Keep</span></div>
+        <h2><span data-l="zh">你的数据</span><span data-l="en">Your data</span></h2>
+        <ul class="points">
+          <li><span data-l="zh">所有内容保存在你的 Mac 上，断网也能写，<span class="sh">不需要账号</span>。</span><span data-l="en">Everything is stored on your Mac and works offline. <span class="sh">No account needed.</span></span></li>
+          <li><span data-l="zh">所有项目可以导出为 Markdown ZIP；整个资料库可以备份成能恢复的 <code>.drifting</code> 文件。</span><span data-l="en">Export every project as a Markdown ZIP, or back up the whole library as a restorable <code>.drifting</code> file.</span></li>
+          <li><span data-l="zh">删除的项目会在「最近删除」里保留 30 天。</span><span data-l="en">Deleted projects stay in Recently Deleted for 30 days.</span></li>
+        </ul>
+      </div>
+      <p class="account">
+        <span data-l="zh">注册账号后，可以在多台 Mac 之间同步，并把章节分享成网页给读者阅读和评论。同步内容没有端到端加密。详见<a href="https://drifting.cc/privacy" target="_blank" rel="noopener">隐私政策</a>和<a href="https://drifting.cc/terms" target="_blank" rel="noopener">服务条款</a>。</span>
+        <span data-l="en">With an account you can sync between Macs and share a chapter as a web page that readers can comment on. Synced projects are not end-to-end encrypted. See the <a href="https://drifting.cc/privacy" target="_blank" rel="noopener">privacy policy</a> and <a href="https://drifting.cc/terms" target="_blank" rel="noopener">terms</a>.</span>
+      </p>
+    </div>
+  </section>
+
+  <section class="closing">
+    <article class="book glass glass--rest" data-sea data-sea-hover aria-hidden="true">
+      <div class="cover" id="book-cover">
+        <span class="cover-glyph"><span data-l="zh">潮</span><span data-l="en">T</span></span>
+        <span class="cover-label"><span data-l="zh">长篇小说</span><span data-l="en">Novel</span></span>
+      </div>
+      <div class="book-body">
+        <h3 class="book-title"><span data-l="zh">潮汐灯塔</span><span data-l="en">The Tide Light</span></h3>
+        <div class="book-sub"><span data-l="zh">第一卷 · 雾</span><span data-l="en">Book one · Fog</span></div>
+        <div class="book-meta"><span><b>4</b><span data-l="zh">章</span><span data-l="en">chapters</span></span><span><b>3</b><span data-l="zh">条故事线</span><span data-l="en">storylines</span></span><span><b>12,480</b><span data-l="zh">字</span><span data-l="en">words</span></span></div>
+        <div class="book-progress"></div>
+      </div>
+    </article>
+    <div class="closing-text">
+      <h2><span data-l="zh">支持 Apple Silicon 上的 macOS 13 及以上</span><span data-l="en">For macOS 13 or later on Apple Silicon</span></h2>
+      <p><span data-l="zh">仍在早期开发。作者每天都在用它写作，它也在频繁变化。重要的稿件请另外保留副本，并先看一下<a href="https://github.com/chihumyum/Drifting/blob/main/KNOWN_ISSUES.md" target="_blank" rel="noopener">已知问题</a>。</span><span data-l="en">Early development. Drifting is used daily by its author and changes often. Keep independent copies of manuscripts that matter, and read the <a href="https://github.com/chihumyum/Drifting/blob/main/KNOWN_ISSUES.md" target="_blank" rel="noopener">known issues</a>.</span></p>
+      <div class="cta">
+        <a class="glass glass--primary pill" href="https://github.com/chihumyum/Drifting/releases/latest" target="_blank" rel="noopener"><span data-l="zh">下载 Mac 版</span><span data-l="en">Download for Mac</span></a>
+        <a class="glass glass--rest pill" href="https://github.com/chihumyum/Drifting#build-from-source" target="_blank" rel="noopener"><span data-l="zh">从源码构建</span><span data-l="en">Build from source</span></a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="layer">
+  <nav>
+    <a href="https://drifting.cc/support" target="_blank" rel="noopener"><span data-l="zh">支持</span><span data-l="en">Support</span></a>
+    <a href="https://drifting.cc/privacy" target="_blank" rel="noopener"><span data-l="zh">隐私政策</span><span data-l="en">Privacy</span></a>
+    <a href="https://drifting.cc/terms" target="_blank" rel="noopener"><span data-l="zh">服务条款</span><span data-l="en">Terms</span></a>
+    <a href="https://github.com/chihumyum/Drifting/issues" target="_blank" rel="noopener"><span data-l="zh">报告问题</span><span data-l="en">Report a bug</span></a>
+    <a href="https://github.com/chihumyum/Drifting" target="_blank" rel="noopener">GitHub</a>
+  </nav>
+  <div><span class="addr">support@drifting.cc</span> · AGPL-3.0-or-later</div>
+</footer>
+
+<script src="/assets/landing.js"></script>
+<script>
+(function () {
+  var S = window.DriftingSea;
+  var root = document.documentElement;
+  var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var store = {
+    set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+    del: function (k) { try { localStorage.removeItem(k); } catch (e) {} },
+  };
+  function lang() { return root.dataset.lang === 'en' ? 'en' : 'zh'; }
+  var langHooks = [];
+
+  /* ── Theme ── */
+  var mq = matchMedia('(prefers-color-scheme: dark)');
+  var ICONS = { system: 'url({{asset:icons/taiji.png}})', light: 'url({{asset:icons/enso.png}})', dark: 'url({{asset:icons/ink-disc.png}})' };
+  var themeLabels = { zh: { system: '跟随系统', light: '浅色', dark: '深色' }, en: { system: 'System', light: 'Light', dark: 'Dark' } };
+  var themeBtn = document.getElementById('theme-btn');
+  function themePref() { var t = root.getAttribute('data-theme'); return t === 'light' || t === 'dark' ? t : 'system'; }
+  function isDark() { var t = root.getAttribute('data-theme'); return t ? t === 'dark' : mq.matches; }
+  function syncTheme() {
+    root.classList.toggle('dark', isDark());
+    var pref = themePref();
+    document.getElementById('theme-ic').style.setProperty('--i', ICONS[pref]);
+    themeBtn.setAttribute('aria-label', themeLabels[lang()][pref]);
+    themeBtn.title = themeLabels[lang()][pref];
+    if (sea) sea.refreshTheme();
+    redrawFrame();
+  }
+  themeBtn.addEventListener('click', function () {
+    var order = ['system', 'light', 'dark'];
+    var next = order[(order.indexOf(themePref()) + 1) % 3];
+    if (next === 'system') { root.removeAttribute('data-theme'); store.del('drifting.landing.theme'); }
+    else { root.setAttribute('data-theme', next); store.set('drifting.landing.theme', next); }
+  });
+  new MutationObserver(syncTheme).observe(root, { attributes: true, attributeFilter: ['data-theme'] });
+  mq.addEventListener('change', syncTheme);
+
+  /* ── Language ── */
+  document.getElementById('lang-btn').addEventListener('click', function () {
+    var next = lang() === 'zh' ? 'en' : 'zh';
+    root.dataset.lang = next;
+    root.lang = next === 'zh' ? 'zh-CN' : 'en';
+    store.set('drifting.landing.lang', next);
+    if (sea) sea.setScript(next);
+    syncTheme();
+    langHooks.forEach(function (f) { f(); });
+    scheduleShapes();
+  });
+
+  /* ── The sea ── */
+  var canvas = document.getElementById('sea');
+  var sea = null;
+  try { if (S.charSeaSupported()) sea = S.createCharSea(canvas); } catch (e) { sea = null; }
+  if (!sea) root.classList.add('no-sea');
+  if (!sea || reduce) root.classList.add('still-word');
+  root.classList.toggle('dark', isDark());
+  if (sea) {
+    sea.refreshTheme();
+    sea.setScript(lang());
+    sea.setActive(true);
+  }
+
+  // The tagline sits under the word: its box comes from the same code that raises it.
+  function placeHero() {
+    var box = S.wordBox(canvas.clientWidth || innerWidth, canvas.clientHeight || innerHeight);
+    if (!box) return;
+    root.style.setProperty('--word-top', box.top + 'px');
+    root.style.setProperty('--word-bottom', box.bottom + 'px');
+    root.style.setProperty('--word-size', box.size + 'px');
+  }
+  placeHero();
+
+  // Waiting at the top the word stands in the rain; scrolling lets it go, as a book opens.
+  var held = false;
+  function hold(on) {
+    if (!sea || held === on) return;
+    held = on;
+    sea.loading(on);
+  }
+  var shapesEls = Array.prototype.slice.call(document.querySelectorAll('[data-sea]'));
+  var hovering = new Set();
+  shapesEls.forEach(function (el) {
+    if (!el.hasAttribute('data-sea-hover')) return;
+    el.addEventListener('pointerenter', function () { hovering.add(el); scheduleShapes(); });
+    el.addEventListener('pointerleave', function () { hovering.delete(el); scheduleShapes(); });
+  });
+  var OFFSETS = [[14, 46], [96, 132], [168, 18], [58, 186]];
+  var shapesQueued = false;
+  function pushShapes() {
+    shapesQueued = false;
+    if (!sea) return;
+    var vh = innerHeight, list = [];
+    shapesEls.forEach(function (el, i) {
+      var r = el.getBoundingClientRect();
+      if (r.bottom < -40 || r.top > vh + 40) return;
+      list.push({ id: i + 1, x: r.left, y: r.top, width: r.width, height: r.height, radius: 2, rest: 0.85, hover: hovering.has(el), textureX: OFFSETS[i % 4][0], textureY: OFFSETS[i % 4][1] });
+    });
+    sea.setShapes(list);
+  }
+  function scheduleShapes() {
+    if (shapesQueued) return;
+    shapesQueued = true;
+    requestAnimationFrame(pushShapes);
+  }
+  function onScroll() {
+    var y = scrollY, h = innerHeight;
+    if (y < h * 0.06) hold(true);
+    else if (y > h * 0.16) hold(false);
+    root.classList.toggle('scrolled', y > h * 0.55);
+    scheduleShapes();
+  }
+  addEventListener('scroll', onScroll, { passive: true });
+  addEventListener('resize', function () {
+    if (sea) sea.resize();
+    placeHero();
+    placeFrame(false);
+    scheduleShapes();
+  });
+  addEventListener('pointermove', function (e) {
+    if (sea && e.pointerType === 'mouse') sea.wake(e.clientX, e.clientY);
+  }, { passive: true });
+  addEventListener('pointerdown', function (e) {
+    if (!sea || e.target.closest('a, button, .vg, input')) return;
+    sea.drop(e.clientX, e.clientY);
+  });
+  if (document.fonts) document.fonts.ready.then(function () { if (sea) sea.resize(); placeHero(); placeFrame(false); scheduleShapes(); });
+  onScroll();
+  pushShapes();
+
+  /* ── Sand that comes into view fades in as a whole ── */
+  if (!reduce && 'IntersectionObserver' in window) {
+    var sandEls = Array.prototype.slice.call(document.querySelectorAll('.sheet .su, .sheet .sh, .kind .mk, .tools li'));
+    var sandIo = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (!en.isIntersecting) return;
+        en.target.classList.remove('sand-wait');
+        sandIo.unobserve(en.target);
+      });
+    }, { threshold: 0.6 });
+    sandEls.forEach(function (el) {
+      if (el.getBoundingClientRect().top < innerHeight) return;
+      el.classList.add('sand-wait');
+      sandIo.observe(el);
+    });
+  }
+
+  /* ── The book on the shelf: its cover is its storylines as sand ── */
+  (function () {
+    var cover = document.getElementById('book-cover');
+    var colours = ['var(--c-red)', 'var(--c-blue)', 'var(--c-green)'];
+    var masks = S.drawSandCover({ seed: S.coverSeed('the-tide-light'), chapters: 6, storylines: [{ chapters: [0, 1, 2, 3, 5] }, { chapters: [2, 3, 4] }, { chapters: [1, 5] }] });
+    masks.forEach(function (alpha, i) {
+      var url = S.sandCoverMaskUrl(alpha);
+      if (!url) return;
+      var band = document.createElement('i');
+      band.className = 'band';
+      band.style.setProperty('--m', 'url(' + url + ')');
+      band.style.setProperty('--c', colours[i]);
+      cover.insertBefore(band, cover.firstChild);
+    });
+  })();
+
+  /* ── Each corner of the workspace plays over and over while it is in view ── */
+  var wait = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+  var runs = {}, settle = {}, checks = {};
+  function stop(key) {
+    if (!runs[key]) return;
+    runs[key] = null;
+    if (settle[key]) settle[key]();
+  }
+  function loop(el, key, play, rest) {
+    if (reduce || !('IntersectionObserver' in window)) return;
+    var shown = false;
+    function check() {
+      if (!shown || document.hidden || runs[key]) return;
+      var token = {};
+      runs[key] = token;
+      var alive = function () { return runs[key] === token; };
+      (async function () {
+        while (alive()) {
+          await play(alive);
+          if (!alive()) return;
+          await wait(rest);
+        }
+      })();
+    }
+    checks[key] = check;
+    // Out of view it stops and rests finished; back in view it starts again from the top.
+    new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        shown = en.isIntersecting;
+        if (shown) check();
+        else stop(key);
+      });
+    }, { threshold: 0.3 }).observe(el);
+    document.addEventListener('visibilitychange', function () {
+      if (document.hidden) stop(key);
+      else check();
+    });
+  }
+  function restart(key) {
+    stop(key);
+    if (checks[key]) setTimeout(checks[key], 60);
+  }
+  var esc = function (s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;'); };
+
+  /* Write: each line takes shape as it is typed, and the Markdown file beside it is saved. */
+  var MD = {
+    zh: { first: '雾从港口那边漫过来的时候，林岚正把第三封信压在灯座底下。', lines: ['# 铁梯', '她每往上走一级，脚下就响一声，像有人在楼下**跟着数**。', '## 第七圈', '海面上亮起一点很小的光。'] },
+    en: { first: 'The fog came in from the harbour while Lin was tucking the third letter under the lamp.', lines: ['# The stairs', 'Every step gave a small sound, as if someone below were **counting**.', '## The seventh turn', 'A small glow rose on the water.'] },
+  };
+  var rawBox = document.getElementById('md-raw');
+  var rawGhost = document.getElementById('md-raw-ghost');
+  function rawLine(text, cls, fresh) {
+    var el = document.createElement('span');
+    el.className = 'line' + (cls ? ' ' + cls : '') + (fresh ? ' fresh' : '');
+    el.textContent = text;
+    return el;
+  }
+  function fillRaw(lines, into) {
+    var box = into || rawBox;
+    box.innerHTML = '';
+    ['---', 'drifting-id: 3f9c2a', '---'].forEach(function (t) { box.appendChild(rawLine(t, 'fm')); });
+    box.appendChild(rawLine(''));
+    box.appendChild(rawLine(MD[lang()].first));
+    lines.forEach(function (t) { box.appendChild(rawLine('')); box.appendChild(rawLine(t)); });
+  }
+  fillRaw(MD[lang()].lines);
+  fillRaw(MD[lang()].lines, rawGhost);
+  langHooks.push(function () { fillRaw(MD[lang()].lines, rawGhost); });
+  // The finished page, hidden, holds the height while the lines are typed over it.
+  (function () {
+    var live = document.getElementById('md-typed');
+    var ghost = document.createElement('div');
+    ghost.className = 'typed-ghost';
+    ghost.setAttribute('aria-hidden', 'true');
+    ghost.innerHTML = live.innerHTML;
+    live.parentNode.insertBefore(ghost, live);
+    live.parentNode.classList.add('has-ghost');
+  })();
+  settle.md = function () {
+    var box = document.getElementById('md-typed');
+    box.style.opacity = '';
+    box.innerHTML = MD[lang()].lines.map(function (l) { return renderLine(l, false).outerHTML; }).join('');
+    fillRaw(MD[lang()].lines);
+  };
+  langHooks.push(function () { restart('md'); });
+  function renderLine(raw, caret) {
+    var kind = 'p', body = raw;
+    if (/^## /.test(raw)) { kind = 'h2'; body = raw.slice(3); }
+    else if (/^# /.test(raw)) { kind = 'h1'; body = raw.slice(2); }
+    var html = esc(body).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\*\*|^#{1,2}$/g, function (m) { return '<span class="md">' + m + '</span>'; });
+    var el = document.createElement(kind);
+    el.innerHTML = html + (caret ? '<span class="caret"></span>' : '');
+    return el;
+  }
+  function playMarkdown(alive) {
+    var box = document.getElementById('md-typed');
+    var lines = MD[lang()].lines;
+    box.style.opacity = '0';
+    return (async function () {
+      await wait(320);
+      if (!alive()) return;
+      box.innerHTML = '';
+      fillRaw([]);
+      box.style.opacity = '';
+      await wait(500);
+      for (var i = 0; i < lines.length; i++) {
+        var raw = '', line = lines[i];
+        var el = renderLine('', true);
+        box.appendChild(el);
+        for (var j = 0; j < line.length; j++) {
+          if (!alive()) return;
+          raw += line[j];
+          var next = renderLine(raw, true);
+          box.replaceChild(next, el);
+          el = next;
+          var ch = line[j];
+          await wait(ch === ' ' || ch === '*' || ch === '#' ? 70 : (lang() === 'zh' ? 100 : 40) + Math.random() * 50);
+        }
+        if (!alive()) return;
+        box.replaceChild(renderLine(raw, false), el);
+        await wait(260);
+        if (!alive()) return;
+        rawBox.appendChild(rawLine(''));
+        rawBox.appendChild(rawLine(line, '', true));
+        await wait(480);
+      }
+    })();
+  }
+  loop(document.getElementById('vg-md'), 'md', playMarkdown, 3200);
+
+  /* Tend: the ask, its steps arriving one by one, the edit erased and written into the page. */
+  var AG = {
+    zh: { old: '守塔人说，今晚这样的大雾，港口里不会有任何一条船敢出来，你就别再等了，等也是白等。', now: '守塔人说今晚不会有船。' },
+    en: { old: 'The keeper said that in a fog like this not a single boat would dare come out tonight, so she might as well stop waiting.', now: 'The keeper said no boats would come tonight.' },
+  };
+  var edit = document.getElementById('ag-edit');
+  var steps = Array.prototype.slice.call(document.querySelectorAll('#ag-log .step'));
+  var DONE = 'url({{asset:icons/status-done.png}})', LOADER = 'url({{asset:icons/loader.png}})';
+  function setEdit(html) { edit.innerHTML = html; }
+  // What the edit keeps, removes and writes: the common start and end stay as they were.
+  function diffOf(text) {
+    var a = text.old, b = text.now, p = 0, s = 0;
+    while (p < a.length && p < b.length && a[p] === b[p]) p++;
+    while (s < a.length - p && s < b.length - p && a[a.length - 1 - s] === b[b.length - 1 - s]) s++;
+    return { head: a.slice(0, p), tail: a.slice(a.length - s), gone: a.slice(p, a.length - s), come: b.slice(p, b.length - s) };
+  }
+  function settleEdit() {
+    var d = diffOf(AG[lang()]);
+    setEdit(esc(d.head) + '<span class="ins-done">' + esc(d.come) + '</span>' + esc(d.tail));
+  }
+  settleEdit();
+  var agentPage = edit.closest('.pg');
+  function lockAgentPage() {
+    var cs = getComputedStyle(agentPage);
+    var padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight), padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+    var clone = agentPage.cloneNode(true);
+    var e = clone.querySelector('#ag-edit');
+    e.removeAttribute('id');
+    e.textContent = AG[lang()].old;
+    clone.style.cssText = 'position:absolute;left:0;top:0;visibility:hidden;pointer-events:none;min-height:0;max-width:none;width:' + (agentPage.clientWidth - padX) + 'px';
+    agentPage.parentNode.appendChild(clone);
+    var tallest = clone.offsetHeight;
+    clone.remove();
+    agentPage.style.minHeight = (tallest - padY) + 'px';
+  }
+  lockAgentPage();
+  langHooks.push(lockAgentPage);
+  addEventListener('resize', function () { requestAnimationFrame(lockAgentPage); });
+  if (document.fonts) document.fonts.ready.then(lockAgentPage);
+  settle.agent = function () {
+    settleEdit();
+    steps.forEach(function (st) {
+      st.classList.remove('wait');
+      var icon = st.querySelector('.ic');
+      if (icon && st.classList.contains('agt-tool')) { icon.classList.remove('spin'); icon.style.setProperty('--i', DONE); }
+    });
+  };
+  langHooks.push(function () { restart('agent'); });
+  function playAgent(alive) {
+    var a = AG[lang()].old, d = diffOf(AG[lang()]);
+    var head = d.head, tail = d.tail, gone = d.gone, come = d.come;
+    steps.forEach(function (st) { st.classList.add('wait'); });
+    return (async function () {
+      await wait(360);
+      if (!alive()) return;
+      setEdit(esc(a));
+      steps.forEach(function (st) { st.classList.remove('glass-sweep'); });
+      await wait(450);
+      for (var i = 0; i < steps.length; i++) {
+        if (!alive()) return;
+        var st = steps[i];
+        var icon = st.querySelector('.ic');
+        st.classList.remove('wait');
+        if (st.classList.contains('agt-tool')) {
+          st.classList.add('glass-sweep');
+          icon.style.setProperty('--i', LOADER);
+          icon.classList.add('spin');
+        }
+        await wait(i === 0 ? 800 : 900);
+        if (!alive()) return;
+        if (icon && st.classList.contains('agt-tool')) {
+          if (i === 3) {
+            // The removed words erase off their ground, then the new ones type onto theirs.
+            setEdit(esc(head) + '<span class="del">' + esc(gone) + '</span>' + esc(tail));
+            await wait(650);
+            for (var k = gone.length; k >= 0; k -= Math.max(1, Math.round(gone.length / 18))) {
+              if (!alive()) return;
+              setEdit(esc(head) + '<span class="del">' + esc(gone.slice(0, k)) + '</span>' + esc(tail));
+              await wait(28);
+            }
+            for (var n = 1; n <= come.length; n++) {
+              if (!alive()) return;
+              setEdit(esc(head) + '<span class="ins">' + esc(come.slice(0, n)) + '</span><span class="caret"></span>' + esc(tail));
+              await wait(lang() === 'zh' ? 85 : 38);
+            }
+            await wait(700);
+            if (!alive()) return;
+            settleEdit();
+          }
+          icon.classList.remove('spin');
+          icon.style.setProperty('--i', DONE);
+        }
+      }
+    })();
+  }
+  loop(document.getElementById('vg-agent'), 'agent', playAgent, 3600);
+
+  /* Build: a tab shows its panel, a click opens the page and the brush goes round the cell. */
+  var studio = document.getElementById('vg-studio');
+  var side = document.getElementById('studio-sb');
+  var frame = side.querySelector('.cell-frame');
+  var tabs = Array.prototype.slice.call(side.querySelectorAll('.sb-tab'));
+  var panes = Array.prototype.slice.call(side.querySelectorAll('.sb-pane'));
+  var cells = Array.prototype.slice.call(side.querySelectorAll('.cell'));
+  var pages = Array.prototype.slice.call(studio.querySelectorAll('[data-p]'));
+  var current = side.querySelector('.cell[aria-current="true"]');
+  var stroke = null, strokeKey = '', drawStart = -Infinity, seed = 0x5eed, raf = 0;
+  var PAD = S.SAND_FRAME_PAD;
+  function visible(cell) { return cell && !cell.closest('.sb-pane').classList.contains('off'); }
+  function paint() {
+    raf = 0;
+    if (!visible(current)) { frame.hidden = true; return; }
+    frame.hidden = false;
+    var w = current.offsetWidth, h = current.offsetHeight, dpr = Math.max(1, devicePixelRatio || 1);
+    var key = w + 'x' + h + '@' + dpr + ':' + seed;
+    if (key !== strokeKey) { stroke = S.drawSandStroke({ width: w, height: h, dpr: dpr, seed: seed }); strokeKey = key; }
+    var t = (performance.now() - drawStart) / 380;
+    var p = t >= 1 ? 1 : t <= 0 ? 0 : 1 - Math.pow(1 - t, 2.2);
+    S.paintSandStroke(frame, stroke, S.rgbOfComputedColour(getComputedStyle(frame).color), p);
+    if (p < 1) raf = requestAnimationFrame(paint);
+  }
+  function placeFrame(again) {
+    if (!visible(current)) { frame.hidden = true; return; }
+    var s = side.getBoundingClientRect(), r = current.getBoundingClientRect();
+    frame.style.left = (r.left - s.left + side.scrollLeft - PAD) + 'px';
+    frame.style.top = (r.top - s.top + side.scrollTop - PAD) + 'px';
+    frame.style.width = (r.width + PAD * 2) + 'px';
+    frame.style.height = (r.height + PAD * 2) + 'px';
+    frame.style.setProperty('--c', current.style.getPropertyValue('--c'));
+    if (again && !reduce) { seed = (Math.random() * 4294967296) >>> 0; drawStart = performance.now(); }
+    if (!raf) raf = requestAnimationFrame(paint);
+  }
+  function redrawFrame() { if (!raf && current) raf = requestAnimationFrame(paint); }
+  function showTab(name) {
+    tabs.forEach(function (t) { t.classList.toggle('is-on', t.dataset.tab === name); t.setAttribute('aria-pressed', t.dataset.tab === name ? 'true' : 'false'); });
+    panes.forEach(function (p) { p.classList.toggle('off', p.dataset.pane !== name); });
+    placeFrame(false);
+  }
+  function select(cell, drawn) {
+    if (current) current.removeAttribute('aria-current');
+    current = cell;
+    current.setAttribute('aria-current', 'true');
+    pages.forEach(function (p) { p.classList.toggle('on', p.dataset.p === cell.dataset.k); });
+    placeFrame(drawn);
+  }
+  // The reader's own clicks hold the tour off until they have left it alone for a while.
+  var touchedAt = -Infinity;
+  var idle = function () { return performance.now() - touchedAt > 9000; };
+  tabs.forEach(function (t) { t.addEventListener('click', function () { touchedAt = performance.now(); showTab(t.dataset.tab); }); });
+  cells.forEach(function (cell) { cell.addEventListener('click', function () { touchedAt = performance.now(); select(cell, true); }); });
+  langHooks.push(function () { placeFrame(false); });
+  select(current, false);
+  function cellOf(k) { return cells.filter(function (c) { return c.dataset.k === k; })[0]; }
+  loop(studio, 'studio', function (alive) {
+    var tour = [['nodes', 'letters'], ['elements', 'lin'], ['elements', 'pier'], ['drifts', 'match'], ['nodes', 'fog']];
+    return (async function () {
+      for (var i = 0; i < tour.length; i++) {
+        await wait(i === 0 ? 1100 : 2600);
+        if (!alive()) return;
+        if (!idle()) { i -= 1; continue; }
+        showTab(tour[i][0]);
+        await wait(380);
+        if (!alive()) return;
+        if (idle()) select(cellOf(tour[i][1]), true);
+      }
+    })();
+  }, 1500);
+  if ('ResizeObserver' in window) new ResizeObserver(function () { placeFrame(false); }).observe(side);
+
+  syncTheme();
+})();
+</script>
+</body>
+</html>

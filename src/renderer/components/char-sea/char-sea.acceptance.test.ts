@@ -201,10 +201,31 @@ describe('the sea of characters under the desktop window', () => {
     expect(engine).toContain('if (word.held) water?.hold(null, WORD_BURST);');
   });
 
+  it('gives the landing page its own word, place, sheet and ink, while the app keeps the sea it had', () => {
+    const engine = read('src/renderer/lib/char-sea/char-sea.ts');
+    // Without options: "Loading" in the middle, at most 70% wide, on the app's cells, its characters as on any crest.
+    expect(engine).toContain('const word = options.word ?? LOADING_WORD;');
+    expect(engine).toContain('const span = options.wordSpan?.(width) ?? 0.7;');
+    expect(engine).toContain('centreY: height * (options.wordCentreY ?? 0.5)');
+    expect(engine).toContain('const density = options.density?.(width) ?? 1;');
+    expect(engine).toContain('gl.uniform1f(U.wordInk, options.wordInk ?? 0);');
+    expect(engine).toContain('float wk=uWordInk>0.?');
+    expect(read('src/renderer/components/char-sea/CharSea.tsx')).toContain('const handle = createCharSea(canvas.current);');
+    // The site raises its name from the same code, and asks nothing of another host.
+    const entry = read('scripts/design-assets/landing/entry.mjs');
+    expect(entry).toContain("from '../../../src/renderer/lib/char-sea/char-sea';");
+    expect(entry).toContain("word: 'DRIFTING',");
+    const page = read('scripts/design-assets/landing/index.html');
+    expect(page).toContain('var box = S.wordBox(');
+    expect(page).not.toMatch(/<link[^>]+href="https?:|<script[^>]+src="https?:|@import|fonts\.googleapis/);
+    expect(read('scripts/design-assets/landing/build.mjs')).toContain("path.join(root, 'node_modules/@fontsource-variable', face)");
+  });
+
   it('is written down in the design system', () => {
     const docs = designSystemDocs();
     expect(docs).toContain('全屏加载与字海');
     expect(docs).toContain('`CharSea`');
+    expect(docs).toContain('`CharSeaOptions`');
     expect(read('docs/renderer-performance/startup-placeholder.md')).toContain('字海');
   });
 });
