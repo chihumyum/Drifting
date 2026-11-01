@@ -11,13 +11,7 @@ import {
   editorStageWaiting,
   setEditorStageWaiting,
 } from '../../../components/editor/editor-stage-waiting';
-import {
-  PAGE_LEAVE_MS,
-  PAGE_RISE_DELAY_MS,
-  PAGE_RISE_EASING,
-  PAGE_RISE_MS,
-  PAGE_RISE_PX,
-} from '../../../lib/motion';
+import { PAGE_BLEND_EASING, PAGE_BLEND_MS } from '../../../lib/motion';
 
 function source(path: string): string {
   return readFileSync(resolve(process.cwd(), path), 'utf8');
@@ -72,43 +66,30 @@ describe('the paper turns to another page', () => {
     expect(commitSurface(turning, again, true)).toEqual({ committed: again, leaving: home });
   });
 
-  it('fades the page in front out while the next floats up into place a moment later', () => {
+  it('dissolves the next page in over the one in front, which stays whole underneath', () => {
     vi.stubGlobal('getComputedStyle', (element: { style: unknown }) => element.style);
     const incoming = fakeSurface();
     const outgoing = fakeSurface();
-    const leave = turnPage(asElement(incoming), asElement(outgoing)) as unknown as FakeAnimation;
+    const dissolve = turnPage(asElement(incoming), asElement(outgoing)) as unknown as FakeAnimation;
 
-    expect(incoming.animations).toHaveLength(1);
-    expect(incoming.animations[0].frames).toEqual([
-      { opacity: 0, transform: `translateY(${PAGE_RISE_PX}px)` },
-      { opacity: 1, transform: 'none' },
-    ]);
-    expect(incoming.animations[0].options).toEqual({
-      duration: PAGE_RISE_MS, delay: PAGE_RISE_DELAY_MS, easing: PAGE_RISE_EASING, fill: 'backwards',
-    });
-    expect(leave).toBe(outgoing.animations[0]);
-    expect(leave.frames).toEqual([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'none' }]);
-    // It holds the page transparent until the stage hides it and lets go.
-    expect(leave.options).toEqual({ duration: PAGE_LEAVE_MS, easing: 'linear', fill: 'forwards' });
+    expect(dissolve).toBe(incoming.animations[0]);
+    // In place: only opacity changes, nothing moves.
+    expect(dissolve.frames).toEqual([{ opacity: 0 }, { opacity: 1 }]);
+    expect(dissolve.options).toEqual({ duration: PAGE_BLEND_MS, easing: PAGE_BLEND_EASING });
+    // The page underneath is left alone, so the ink on the paper never thins.
+    expect(outgoing.animations).toHaveLength(0);
 
-    // Going straight back: the leaving page returns from where its fade got
-    // to, without floating up again, and the page that had just arrived
-    // leaves from where it is.
-    outgoing.style.opacity = '0.4';
+    // Going straight back: the page that was arriving rests whole underneath,
+    // and the one coming back starts from the share of the paper it still had.
     incoming.style.opacity = '0.7';
-    incoming.style.transform = 'matrix(1, 0, 0, 1, 0, 2)';
     turnPage(asElement(outgoing), asElement(incoming));
-    expect(leave.cancelled).toBe(true);
-    expect(incoming.animations[0].cancelled).toBe(true);
-    expect(outgoing.animations[1].frames).toEqual([{ opacity: 0.4 }, { opacity: 1 }]);
-    expect(outgoing.animations[1].options).toEqual({ duration: PAGE_RISE_MS, easing: PAGE_RISE_EASING });
-    expect(incoming.animations[1].frames).toEqual([
-      { opacity: 0.7, transform: 'matrix(1, 0, 0, 1, 0, 2)' },
-      { opacity: 0, transform: 'matrix(1, 0, 0, 1, 0, 2)' },
-    ]);
+    expect(dissolve.cancelled).toBe(true);
+    expect(incoming.animations).toHaveLength(1);
+    expect(outgoing.animations[0].frames[0].opacity).toBeCloseTo(0.3);
+    expect(outgoing.animations[0].frames[1]).toEqual({ opacity: 1 });
 
-    stopPageTurn(asElement(incoming));
-    expect(incoming.animations[1].cancelled).toBe(true);
+    stopPageTurn(asElement(outgoing));
+    expect(outgoing.animations[0].cancelled).toBe(true);
   });
 
   it('keeps the stage the owner of the turn and the wait', () => {

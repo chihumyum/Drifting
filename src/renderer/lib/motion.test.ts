@@ -52,10 +52,8 @@ describe('motion vocabulary', () => {
       motion.OPTIONS_CLOSE_MS, motion.DRAG_LEAVE_GRACE_MS, motion.PRESS_WINDOW_MS,
     ]).toEqual([220, 220, 180, 180, 140, 260, 160, 150, 1500]);
     expect([motion.RECENT_CHANGE_DWELL_MS, motion.RECENT_CHANGE_FADE_MS]).toEqual([200, 300]);
-    expect([motion.PAGE_LEAVE_MS, motion.PAGE_RISE_MS, motion.PAGE_RISE_DELAY_MS, motion.PAGE_RISE_PX])
-      .toEqual([90, 260, 50, 6]);
-    // The page rises on the float-in curve the dock pill grows on.
-    expect(motion.PAGE_RISE_EASING).toBe(motion.DOCK_PILL_EASING);
+    expect(motion.PAGE_BLEND_MS).toBe(180);
+    expect(motion.PAGE_BLEND_EASING).toBe('cubic-bezier(0.4, 0, 0.2, 1)');
     expect(motion.GLASS_LOADING_DRIFT_MS).toBe(2400);
   });
 

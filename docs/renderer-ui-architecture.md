@@ -346,11 +346,12 @@ the next browser paint. Once the book is in view (the stage has announced it is
 ready) and motion is allowed, that commit turns the page
 (`components/editor/editor-page-turn.ts`): the replaced surface stays shown as
 `leaving` — still `inert`, `aria-hidden` and not the lifecycle-visible surface —
-while it fades out over 90ms under the committed one, which floats up 6px into
-place; the stage then hides it, or unmounts it when its tab is gone. The stage
-itself is page-coloured, so the desk never shows between the two pages while
-both are partly transparent. A turn made mid-turn carries both pages on from
-where they are. Past the 240ms loading
+whole under the committed one, which dissolves in over it in place over 180ms;
+once covered the stage hides it, or unmounts it when its tab is gone. The ink
+on the paper never thins during a turn, and the stage itself is page-coloured.
+A turn made mid-turn leaves the page that was arriving whole underneath and
+dissolves the next one in from the share of the paper it already had. Past the
+240ms loading
 delay, the stage publishes the active tab key it is still waiting on
 (`editor-stage-waiting.ts`) and the dock draws that tab as drifting
 `glass--loading` until the commit. Project Home is synchronously

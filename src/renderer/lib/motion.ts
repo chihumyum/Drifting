@@ -84,13 +84,10 @@ export function sandDrawTimeAt(drawn: number) {
 }
 
 // Page turn: the paper changes to another page (a tab, an entity opened from
-// a list). The page in front fades out quickly; a moment later the next one
-// floats up a few px into place as it fades in, on the float-in curve.
-export const PAGE_LEAVE_MS = 90;
-export const PAGE_RISE_MS = 260;
-export const PAGE_RISE_DELAY_MS = 50;
-export const PAGE_RISE_PX = 6;
-export const PAGE_RISE_EASING = 'cubic-bezier(0.3, 0.7, 0.2, 1)';
+// a list). The next page dissolves in, in place, over the one in front, which
+// stays whole underneath until it is covered: the ink on the paper never thins.
+export const PAGE_BLEND_MS = 180;
+export const PAGE_BLEND_EASING = 'cubic-bezier(0.4, 0, 0.2, 1)';
 
 // Waiting: a wait shorter than this shows nothing, so a quick read never
 // flashes a loading mark (CSS: --motion-loading-delay).
