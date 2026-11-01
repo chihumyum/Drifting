@@ -150,7 +150,7 @@ function soften(pts, k = 2) {
 }
 
 /** One character as a sand mark: a white-on-alpha canvas Q times the CSS size, plus its placement. */
-function letterMark(ch, { font, size, Q, thick, seed }) {
+export function letterMark(ch, { font, size, Q, thick, seed }) {
   const rand = rng(seed);
   const pad = Math.ceil(size * 0.5) * Q;
   const probe = new OffscreenCanvas(8, 8).getContext('2d');

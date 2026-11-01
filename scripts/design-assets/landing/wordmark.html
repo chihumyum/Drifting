@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Drifting wordmark</title>
+<style>html, body { margin: 0; background: transparent; -webkit-font-smoothing: antialiased; }</style>
+</head>
+<body>
+<output id="png"></output>
+<script type="module">
+// The site's wordmark: DRIFTING written in sand letter by letter, with the
+// sharing card's own brush (social-preview/sand-letters.js) at the bar's size
+// and tracking. wordmark.sh reads the PNG this page leaves in #png: white on
+// alpha, four times the CSS size, trimmed to the marks.
+import { letterMark } from '../social-preview/sand-letters.js';
+
+const WORD = 'DRIFTING';
+const FONT = '700 {size}px "Times New Roman"';
+const SIZE = 20;
+const TRACKING = 0.08;
+const SEED = 101;
+const Q = 4;
+const SCALE = 4;
+const THICK = 0.045 * SIZE * Q;
+
+await document.fonts.load(FONT.replace('{size}', SIZE));
+const probe = document.createElement('canvas').getContext('2d');
+probe.font = FONT.replace('{size}', SIZE);
+const advances = [...WORD].map((ch) => probe.measureText(ch).width);
+const pad = SIZE;
+const width = advances.reduce((sum, advance) => sum + advance, 0) + TRACKING * SIZE * (WORD.length - 1) + pad * 2;
+const height = SIZE * 2.4;
+const baseline = SIZE * 1.6;
+const layer = document.createElement('canvas');
+layer.width = Math.ceil(width * SCALE);
+layer.height = Math.ceil(height * SCALE);
+const g = layer.getContext('2d');
+g.setTransform(SCALE, 0, 0, SCALE, 0, 0);
+g.imageSmoothingQuality = 'high';
+let x = pad;
+[...WORD].forEach((ch, n) => {
+  const mark = letterMark(ch, { font: FONT, size: SIZE, Q, thick: THICK, seed: SEED + n * 7919 });
+  g.drawImage(mark.canvas, x - mark.pad, baseline - mark.base, mark.w, mark.h);
+  x += advances[n] + TRACKING * SIZE;
+});
+
+// Trimmed to the grains, with a pixel of air.
+const { data } = g.getImageData(0, 0, layer.width, layer.height);
+let left = layer.width, right = -1, top = layer.height, bottom = -1;
+for (let y = 0; y < layer.height; y += 1) {
+  for (let x = 0; x < layer.width; x += 1) {
+    if (data[(y * layer.width + x) * 4 + 3] < 8) continue;
+    left = Math.min(left, x); right = Math.max(right, x);
+    top = Math.min(top, y); bottom = Math.max(bottom, y);
+  }
+}
+left = Math.max(0, left - 1); top = Math.max(0, top - 1);
+right = Math.min(layer.width - 1, right + 1); bottom = Math.min(layer.height - 1, bottom + 1);
+const out = document.createElement('canvas');
+out.width = right - left + 1;
+out.height = bottom - top + 1;
+out.getContext('2d').drawImage(layer, -left, -top);
+document.getElementById('png').textContent = out.toDataURL('image/png');
+</script>
+</body>
+</html>

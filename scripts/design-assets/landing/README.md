@@ -60,6 +60,12 @@ What is on the page, and why:
   colours, each section carries its colour in its mark, bullets and one
   highlighted word, and the closing card is a book with its storylines flowing
   down the cover.
+- **The name in the bar** is written in sand, like the sharing card's
+  tagline: `wordmark.sh` renders `wordmark.html` (each letter of DRIFTING
+  traced and laid with `social-preview/sand-letters.js`) to
+  `src/assets/design/sand/wordmark-drifting.png`, and `site.css` shows it as a
+  mask in ink inside the bar's pill. The link keeps the word as text for
+  readers and search engines.
 - **Copy** comes from the README in both languages. `index.html` says
   everything twice, each piece marked `data-l="zh"` or `data-l="en"` (the head's
   title, description, canonical and sharing tags too); `build.mjs` writes each
