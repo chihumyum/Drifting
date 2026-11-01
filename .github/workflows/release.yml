@@ -128,6 +128,18 @@ jobs:
           echo "APPLE_API_KEY_PATH=$APPLE_API_KEY_PATH" >> "$GITHUB_ENV"
       - name: Build, sign, notarize and staple
         run: node scripts/run-desktop-tauri.mjs build --online --target aarch64-apple-darwin --bundles app,dmg
+      - name: Sign, notarize and staple the disk image
+        # Tauri notarizes and staples the app inside it. The disk image people
+        # download is a container of its own, so it is signed, notarized and
+        # stapled too, and Gatekeeper can check it offline when it is opened.
+        run: |
+          DMG_PATH=$(find src-tauri/target/aarch64-apple-darwin/release/bundle/dmg -maxdepth 1 -name '*.dmg' -print -quit)
+          test -f "$DMG_PATH"
+          codesign --force --timestamp --sign "$APPLE_SIGNING_IDENTITY" "$DMG_PATH"
+          RESULT=$(xcrun notarytool submit "$DMG_PATH" --key "$APPLE_API_KEY_PATH" --key-id "$APPLE_API_KEY" --issuer "$APPLE_API_ISSUER" --wait --output-format json)
+          echo "$RESULT"
+          test "$(printf '%s' "$RESULT" | jq -r .status)" = Accepted
+          xcrun stapler staple "$DMG_PATH"
       - name: Verify signed artifacts
         run: |
           BUNDLE=src-tauri/target/aarch64-apple-darwin/release/bundle
