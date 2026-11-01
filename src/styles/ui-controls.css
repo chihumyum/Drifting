@@ -2926,10 +2926,6 @@ svg.super-viewport-edges[data-panning='1'] {
   cursor: pointer;
 }
 
-.hover-card__section-head:hover:not(:disabled) {
-  color: hsl(var(--ink-2));
-}
-
 .hover-card__chevron {
   margin-left: auto;
   opacity: 0.6;
@@ -2975,7 +2971,7 @@ svg.super-viewport-edges[data-panning='1'] {
   padding: 0 14px 0 var(--hover-card-pad);
   border: 0;
   background: transparent;
-  color: hsl(var(--ink-3));
+  color: hsl(var(--ink-2));
   font: inherit;
   font-family: var(--font-mono);
   text-align: left;
@@ -2989,8 +2985,8 @@ svg.super-viewport-edges[data-panning='1'] {
   text-overflow: ellipsis;
 }
 
-.hover-card__row:hover:not(:disabled),
-.hover-card__row:focus-visible,
+/* The row under the pointer is marked by its ring alone, its words keep the
+   menus' one colour; only a choice in effect reads darker. */
 .hover-card__row.is-active,
 .hover-card__row.is-checked {
   color: hsl(var(--ink-1));
@@ -3001,8 +2997,7 @@ svg.super-viewport-edges[data-panning='1'] {
   outline: none;
 }
 
-.hover-card__row--danger,
-.hover-card__row--danger:hover:not(:disabled) {
+.hover-card__row--danger {
   color: hsl(var(--destructive));
 }
 
