@@ -458,8 +458,9 @@ async function setUp() {
     ...sheets.map(([selector, [open]]) => [open + 0.05, () => sea.drop(...middle(selector), 0.9), { kind: 'drop', size: 0.6 }]),
     [T.closeRise, () => sea.loading(true), { kind: 'rise' }],
   ].sort((x, y) => x[0] - y[0]);
-  // What render.mjs's sound.mjs plays, in seconds of the video. `pad` marks
-  // where the music changes chord: the name, the burst, each pillar, the fold.
+  // What render.mjs's sound.mjs plays, in seconds of the video. `section`
+  // marks where the score turns: the name, the burst, each pillar, the fold
+  // and the close.
   sounds = [
     ...cues.filter((cue) => cue[2]).map(([t, , sound]) => ({ t, ...sound })),
     ...scenes.flatMap((scene) => scene.sounds ?? []),
@@ -467,7 +468,8 @@ async function setUp() {
     ...pillars.slice(1).map((pillar, n) => ({ t: pillars[n].close, kind: 'glass', dir: 0 })),
     { t: T.tend[1] + 0.04, kind: 'glass', dir: -1 },
     { t: T.closeIn, kind: 'pill' },
-    ...[[T.rise, 'D'], [T.burst, 'Bm'], [T.write[1], 'G'], [T.build[1], 'Em'], [T.tend[1] - 1.6, 'A'], [T.tend[1], 'D']].map(([t, chord]) => ({ t, kind: 'pad', chord })),
+    ...[['hero', T.rise], ['burst', T.burst], ['write', T.write[0]], ['build', T.build[0]], ['tend', T.tend[0]], ['fold', T.tend[1]], ['close', T.closeIn]]
+      .map(([name, t]) => ({ t, kind: 'section', name })),
   ].map((sound) => ({ pan: 0, ...sound, t: Number(sound.t.toFixed(4)) })).sort((x, y) => x.t - y.t);
   // The glass texture and the sea's glyph atlas settle on real time.
   await new Promise((resolve) => clock.real.setTimeout(resolve, 600));
