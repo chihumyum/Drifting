@@ -226,3 +226,6 @@ export async function writeInSand(canvas, lines, { font, size, lineHeight, centr
   g.setTransform(1, 0, 0, 1, 0, 0);
   g.drawImage(layer, 0, 0);
 }
+
+// The app icon (../app-icon/layers.js) traces the iceberg line art with the same skeleton.
+export { thin, trace, len, rng };
