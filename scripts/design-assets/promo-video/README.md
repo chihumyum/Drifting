@@ -36,10 +36,13 @@ What is in it, second by second:
 | 0 | Rain on the character sea (it has fallen for 2.4 seconds before the first frame, so a feed's still shows it); a stone drops. |
 | 0.75 | DRIFTING rises out of the sea as on the landing page; the tagline comes in under it and its three words are underlined in their pillars' colours. |
 | 5.25 | The word is let go and bursts as one ring from its outline. |
-| 5.85 | Write: a sheet of glass unfolds; Markdown takes shape as it is typed while the `.md` file beside it is saved. |
-| 13.25 | Build: the sheet takes the next pillar's size; the sidebar's tabs push their panels, a click opens a page and the dry frame goes round the cell. |
-| 20.05 | Tend: the ask, the Agent's steps one by one, its edit erased and written into the page, marked. |
-| 27.45 | The sheet folds away and DRIFTING rises again over drifting.cc and the facts under the landing page's buttons. |
+| 5.7 | Two stones fall on the sea, with the first hit (on D). |
+| 6.1 | Write: a sheet of glass unfolds over their rings; Markdown takes shape as it is typed while the `.md` file beside it is saved. |
+| 13.4 | The sheet folds away; three stones fall, with the second hit (on G). |
+| 13.8 | Build: the next sheet unfolds; the sidebar's tabs push their panels, a click opens a page and the dry frame goes round the cell. |
+| 20.5 | The sheet folds away; four stones fall, with the third hit (on B flat). |
+| 20.9 | Tend: the ask, the Agent's steps one by one, its edit erased and written into the page, marked. |
+| 28.1 | The sheet folds away and DRIFTING rises again over drifting.cc and the facts under the landing page's buttons. |
 
 How it is made, and why:
 
@@ -62,10 +65,14 @@ How it is made, and why:
   what drifting.cc shows. Their scripts are not taken: `video.mjs` plays each
   corner as a function of the scene's time instead of on timers, with the
   same texts, steps and timings scaled to the scene.
-- **The pillars lie on one sheet of glass** the sea draws (its resting line and
-  12% veil). It unfolds from its middle under the first pillar and morphs to
-  each next pillar's size as the words change, so a cut never shows an empty
-  frame.
+- **Each pillar lies on a sheet of glass** the sea draws (its resting line and
+  12% veil). Before each sheet, stones fall on the open sea — one more each
+  time than the opening's single stone (two, three, four), scattered from a
+  fixed seed so no two land close, 55 ms apart — and the sheet unfolds from
+  its middle over their rings. It folds back to its middle as its words fade,
+  so the next stones fall on open water: under the glass the sea shows at
+  only 12% and their rings would not be seen. With the glass gone there is
+  water to look at, never an empty frame.
 - **The sound** (`sound.mjs`) is synthesized, not recorded, so nothing in it
   needs a licence, and it is made from the page's own list of what happens
   when (`window.__promo.sounds`), built from the same schedules the picture
@@ -75,7 +82,12 @@ How it is made, and why:
     slow decay, the felt darker under a soft touch, the hammer's knock, a pedal
     lifted at each chord change) over low bowed strings kept 7–9 dB under it.
     Its turns sit on the video's `section` marks: one high A as the stone
-    drops; a falling line as the name rises; a low D struck as it bursts;
+    drops; a falling line as the name rises, held on B flat through the
+    burst; with each sheet's stones a hit — a modelled timpano (a felt
+    mallet ringing the head's inharmonic modes, its pitch sagging just after
+    the stroke), the piano's low octave and the strings bowed hard — on D,
+    then G, then B flat, rising with each sheet and harder each time, while
+    each stone rings a high piano note of the chord, heard where it falls;
     broken chords under the pillars (Dm Bb F C, then Gm Dm Bb A); the line
     reaching its high A under the Agent and resolving to D minor as its edit
     settles (the `settle` cue, so each language lands on its own frame); the
@@ -90,7 +102,8 @@ How it is made, and why:
     send bloops and glass chimes: keep effects toneless.
   - **The mix**: the score below 40 Hz cut, 3 dB lighter below 140 Hz, and
     only what is above 220 Hz sent into its hall (Freeverb), so the low end
-    stays clear. It is brought to −16 LUFS by one fixed gain, the few peaks
+    stays clear. Nothing is clipped while mixing (the WAV is float), so the
+    hits keep their attack. It is brought to −16 LUFS by one fixed gain, the few peaks
     it would lift past −2 dBFS held first by a look-ahead limiter, so the
     rain never pumps; a rerun gives the same samples.
 - **Copy** is the landing page's and the README's, in both languages; the

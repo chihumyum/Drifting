@@ -1,6 +1,7 @@
 // The promo video's sound, made from the page's own list of what happens when
-// (window.__promo.sounds): a short score for felt piano and low strings in D
-// minor that turns where the scenes turn, rain on the sea all the way through,
+// (window.__promo.sounds): a short score for felt piano, low strings and a
+// timpano in D minor that turns where the scenes turn and strikes, a step
+// higher each time, as each pillar comes; rain on the sea all the way through,
 // and quiet, acoustic effects — keys as each character appears, the dry
 // brush, air as the name rises and bursts and as the panels and the glass
 // move, and soft taps for the Agent's steps. No sine bleeps: every effect is
@@ -226,6 +227,33 @@ function piano(note, velocity, rand) {
   return out;
 }
 
+// A timpano, modelled: a felt mallet's knock rings the head's modes — not
+// harmonic: 1, 1.5, 1.98, 2.44, 2.94 and 3.43 times the note — each a
+// resonance dying at its own pace, the pitch sagging a little just after the
+// stroke; under them the thud of the drum's air and the slap of the skin.
+function timpani(note, velocity, rand) {
+  const f0 = hz(note);
+  const out = samples(3.4);
+  const mallet = new Float32Array(out.length), felt = svf('low');
+  for (let i = 0; i < Math.round(0.014 * RATE); i += 1) mallet[i] = felt(noise(rand) * Math.exp(-i / RATE / 0.003), 900 + 1500 * velocity);
+  // [ratio, strength, seconds to die by e]; a resonance's ring scales as 1/decay, so strength is weighted by it.
+  for (const [ratio, strength, decay] of [[1, 1, 1.7], [1.5, 0.75, 1.2], [1.98, 0.5, 0.9], [2.44, 0.32, 0.65], [2.94, 0.2, 0.5], [3.43, 0.12, 0.4]]) {
+    const ring = svf('band');
+    for (let i = 0; i < out.length; i += 1) {
+      const sag = 1 + 0.012 * Math.exp(-i / RATE / 0.12);
+      out[i] += ring(mallet[i], f0 * ratio * sag, Math.PI * f0 * ratio * decay) * strength * decay;
+    }
+  }
+  let peak = 0;
+  for (const v of out) peak = Math.max(peak, Math.abs(v));
+  const thud = svf('low'), slap = svf('band');
+  for (let i = 0; i < out.length; i += 1) {
+    const t = i / RATE;
+    out[i] = (out[i] / peak + thud(noise(rand) * Math.exp(-t / 0.06), 140) * 0.9 + slap(noise(rand) * Math.exp(-t / 0.01), 650, 1.2) * 0.25) * velocity;
+  }
+  return out;
+}
+
 // Low strings: each note a few bowed voices, each with its own slight
 // detuning and a vibrato that grows in, swelling in and out slowly; kept dark
 // so they lie under the piano.
@@ -237,7 +265,8 @@ function strings(chords, length, end, rand) {
     return v;
   };
   for (const chord of chords) {
-    const attack = 0.9, release = 1.2;
+    // A chord that lands on a hit is bowed hard: it starts at once and leans in before it settles.
+    const attack = chord.accent ? 0.04 : 0.9, release = 1.2;
     const first = Math.max(0, Math.round(chord.from * RATE)), last = Math.min(length, Math.round((chord.to + release) * RATE));
     chord.notes.forEach((note, k) => {
       const bass = k === 0;
@@ -252,7 +281,8 @@ function strings(chords, length, end, rand) {
         const f0 = hz(note);
         for (let i = first; i < last; i += 1) {
           const t = i / RATE, local = t - chord.from;
-          const env = smooth(local / attack) * (t > chord.to ? smooth(1 - (t - chord.to) / release) : 1) * smooth((end - t) / 2.5);
+          const lean = chord.accent ? 1 + 0.9 * Math.exp(-local / 0.5) : 1;
+          const env = smooth(local / attack) * lean * (t > chord.to ? smooth(1 - (t - chord.to) / release) : 1) * smooth((end - t) / 2.5);
           const depth = 9 * Math.min(1, local / 0.8);
           const f = f0 * 2 ** ((detune + depth * Math.sin(2 * Math.PI * rate * t + offset)) / 1200);
           const dt = f / RATE;
@@ -282,53 +312,72 @@ const BROKEN = {
   C: ['C2', 'G2', 'E3', 'G2'], Gm: ['G1', 'D2', 'Bb2', 'D2'], A: ['A1', 'E2', 'C#3', 'E2'],
 };
 
+// The chord over each hit, above its low octave; the high notes each falling stone plays, by sheet.
+const STRUCK = { Dm: ['A2', 'D3', 'F3'], Gm: ['D3', 'G3', 'Bb3'], Bb: ['F3', 'Bb3', 'D4'] };
+const STONES = [['A5', 'D6'], ['G5', 'Bb5', 'D6'], ['F5', 'Bb5', 'D6', 'F6']];
+
 /**
  * A short piece in D minor laid on the video's sections: one high A as the
- * stone drops; a falling line as the name rises; a low D struck as it bursts;
- * broken chords under the pillars (Dm Bb F C, then Gm Dm Bb A, climbing);
- * the line reaching its high A under the Agent and coming home to D minor as
- * its edit settles; the high A once more over D minor with an added ninth as
- * the video closes. Each note is damped where its chord ends, as a pedal is.
+ * stone drops; a falling line as the name rises, held on B flat through the
+ * burst; then, as the stones fall before each pillar's sheet, a hit — the
+ * timpano, the piano's low octave and the strings bowed hard — on D, then G,
+ * then B flat, rising with each sheet and a little harder each time, while
+ * each stone rings a high note of the chord where it falls; broken chords under
+ * the pillars (Dm Bb F C, then Gm Dm Bb A); the line reaching its high A
+ * under the Agent and coming home to D minor as its edit settles; the high A
+ * once more over D minor with an added ninth as the video closes. Each note is
+ * damped where its chord ends, as a pedal is.
  */
 function score(sounds, duration) {
   const at = (kind, name) => sounds.find((s) => s.kind === kind && (name === undefined || s.name === name))?.t;
-  const h = at('section', 'hero') ?? 0.75, b = at('section', 'burst') ?? 5.25, w = at('section', 'write') ?? 5.85;
-  const bu = at('section', 'build') ?? 13.25, te = at('section', 'tend') ?? 20.05, fo = at('section', 'fold') ?? 27.15, cl = at('section', 'close') ?? 28.35;
+  const h = at('section', 'hero') ?? 0.75, w = at('section', 'write') ?? 6.1;
+  const bu = at('section', 'build') ?? 13.8, te = at('section', 'tend') ?? 20.9, fo = at('section', 'fold') ?? 27.8, cl = at('section', 'close') ?? 29;
+  // Each sheet's hit lands with the first of the stones that fall before it.
+  const struck = (sheet, open) => Math.min(...sounds.filter((s) => s.kind === 'drop' && s.sheet === sheet).map((s) => s.t), open);
+  const hw = struck(0, w), hb = struck(1, bu), ht = struck(2, te);
   const drop = sounds.find((s) => s.kind === 'drop' && s.size > 0.8)?.t ?? 0.25;
   const settle = Math.max(te + 5.2, at('settle') ?? te + 5.6);
-  const notes = [], chords = [];
-  const play = (t, names, v) => [].concat(names).forEach((name) => notes.push({ t, note: midi(name), v }));
+  const notes = [], chords = [], drums = [];
+  const play = (t, names, v, pan) => [].concat(names).forEach((name) => notes.push({ t, note: midi(name), v, pan }));
   const broken = (from, to, chord, step, v) => {
     for (let t = from, i = 0; t < to - 0.05; t += step, i += 1) play(t, BROKEN[chord][i % 4], v * (i % 4 ? 0.8 : 1));
   };
-  const hold = (from, to, chord, level) => chords.push({ from, to, notes: VOICING[chord].map(midi), level });
+  const hold = (from, to, chord, level, accent = false) => chords.push({ from, to, notes: VOICING[chord].map(midi), level, accent });
+  const hit = (t, root, chord, v) => {
+    play(t, [`${root}1`, `${root}2`], v);
+    play(t, STRUCK[chord], v * 0.6);
+    drums.push({ t, note: midi(`${root}2`), v });
+  };
+  [0, 1, 2].forEach((sheet) => {
+    sounds.filter((s) => s.kind === 'drop' && s.sheet === sheet).forEach((stone, i) => play(stone.t, STONES[sheet][i % STONES[sheet].length], 0.36, stone.pan));
+  });
 
   play(drop, 'A5', 0.42);
   play(h, ['D2', 'A2'], 0.42);
   play(h + 0.85, 'A4', 0.46); play(h + 1.6, 'F4', 0.4); play(h + 2.05, 'E4', 0.36);
   play(h + 2.5, ['Bb1', 'F2'], 0.38); play(h + 2.5, 'D4', 0.4); play(h + 3.35, 'F4', 0.32); play(h + 3.8, 'E4', 0.3);
-  hold(h, h + 2.5, 'Dm', 0.45); hold(h + 2.5, b, 'Bb', 0.55);
-
-  play(b, ['D1', 'D2'], 0.7); play(b, ['A2', 'D3', 'F3', 'A3'], 0.42); play(b + 0.55, 'D5', 0.4);
-  hold(b, w + 1.8, 'Dm', 0.75);
+  hold(h, h + 2.5, 'Dm', 0.45); hold(h + 2.5, hw, 'Bb', 0.6);
 
   const e = 0.45;
-  broken(w, w + 1.8, 'Dm', e, 0.3); broken(w + 1.8, w + 3.6, 'Bb', e, 0.3); broken(w + 3.6, w + 5.4, 'F', e, 0.3); broken(w + 5.4, bu, 'C', e, 0.3);
+  hit(hw, 'D', 'Dm', 0.62);
+  broken(w + 0.45, w + 1.8, 'Dm', e, 0.3); broken(w + 1.8, w + 3.6, 'Bb', e, 0.3); broken(w + 3.6, w + 5.4, 'F', e, 0.3); broken(w + 5.4, hb, 'C', e, 0.3);
   play(w + 0.45, 'A4', 0.4); play(w + 1.35, 'G4', 0.33); play(w + 1.8, 'F4', 0.4); play(w + 2.7, 'D4', 0.33);
   play(w + 3.6, 'A4', 0.4); play(w + 4.5, 'C5', 0.38); play(w + 5.4, 'G4', 0.4); play(w + 6.75, 'E4', 0.32);
-  hold(w + 1.8, w + 3.6, 'Bb', 0.5); hold(w + 3.6, w + 5.4, 'F', 0.5); hold(w + 5.4, bu, 'C', 0.55);
+  hold(hw, w + 1.8, 'Dm', 0.75, true); hold(w + 1.8, w + 3.6, 'Bb', 0.5); hold(w + 3.6, w + 5.4, 'F', 0.5); hold(w + 5.4, hb, 'C', 0.55);
 
   const q = 0.4125;
-  broken(bu, bu + 1.65, 'Gm', q, 0.36); broken(bu + 1.65, bu + 3.3, 'Dm', q, 0.36); broken(bu + 3.3, bu + 4.95, 'Bb', q, 0.37); broken(bu + 4.95, te, 'A', q, 0.38);
-  play(bu + 0.35, 'D5', 0.42); play(bu + 1.15, 'Bb4', 0.36); play(bu + 1.65, 'A4', 0.42); play(bu + 2.45, 'F4', 0.36);
+  hit(hb, 'G', 'Gm', 0.72);
+  broken(bu + 0.4125, bu + 1.65, 'Gm', q, 0.36); broken(bu + 1.65, bu + 3.3, 'Dm', q, 0.36); broken(bu + 3.3, bu + 4.95, 'Bb', q, 0.37); broken(bu + 4.95, ht, 'A', q, 0.38);
+  play(bu + 0.4125, 'D5', 0.42); play(bu + 1.24, 'Bb4', 0.36); play(bu + 1.65, 'A4', 0.42); play(bu + 2.45, 'F4', 0.36);
   play(bu + 3.3, 'D5', 0.44); play(bu + 4.1, 'C5', 0.4); play(bu + 4.95, 'C#5', 0.46); play(bu + 5.75, 'E5', 0.5);
-  hold(bu, bu + 1.65, 'Gm', 0.55); hold(bu + 1.65, bu + 3.3, 'Dm', 0.6); hold(bu + 3.3, bu + 4.95, 'Bb', 0.68); hold(bu + 4.95, te, 'A', 0.78);
+  hold(hb, bu + 1.65, 'Gm', 0.65, true); hold(bu + 1.65, bu + 3.3, 'Dm', 0.6); hold(bu + 3.3, bu + 4.95, 'Bb', 0.68); hold(bu + 4.95, ht, 'A', 0.78);
 
-  broken(te, te + 1.8, 'Bb', e, 0.44); broken(te + 1.8, te + 3.6, 'F', e, 0.44); broken(te + 3.6, te + 4.7, 'Gm', e, 0.46); broken(te + 4.7, settle, 'A', 0.3, 0.46);
-  play(te + 0.25, 'D5', 0.52); play(te + 1.15, 'F5', 0.54); play(te + 1.8, 'A5', 0.6); play(te + 3.0, 'G5', 0.5);
+  hit(ht, 'Bb', 'Bb', 0.84);
+  broken(te + 0.45, te + 1.8, 'Bb', e, 0.44); broken(te + 1.8, te + 3.6, 'F', e, 0.44); broken(te + 3.6, te + 4.7, 'Gm', e, 0.46); broken(te + 4.7, settle, 'A', 0.3, 0.46);
+  play(te + 0.45, 'D5', 0.52); play(te + 1.15, 'F5', 0.54); play(te + 1.8, 'A5', 0.6); play(te + 3.0, 'G5', 0.5);
   play(te + 3.6, 'F5', 0.52); play(te + 4.25, 'D5', 0.46); play(te + 4.7, 'C#5', 0.52); play(te + 5.1, 'E5', 0.54);
   play(settle, ['D2', 'A2', 'D3'], 0.5); play(settle, ['F4', 'A4', 'D5'], 0.48);
-  hold(te, te + 1.8, 'Bb', 0.75); hold(te + 1.8, te + 3.6, 'F', 0.85); hold(te + 3.6, te + 4.7, 'Gm', 0.9); hold(te + 4.7, settle, 'A', 1); hold(settle, fo, 'Dm', 0.8);
+  hold(ht, te + 1.8, 'Bb', 0.85, true); hold(te + 1.8, te + 3.6, 'F', 0.85); hold(te + 3.6, te + 4.7, 'Gm', 0.9); hold(te + 4.7, settle, 'A', 1); hold(settle, fo, 'Dm', 0.8);
 
   play(fo, ['Bb1', 'F2', 'D3'], 0.36); play(fo, ['F4', 'A4'], 0.3);
   hold(fo, cl, 'Bb', 0.6);
@@ -336,9 +385,9 @@ function score(sounds, duration) {
   hold(cl, duration, 'Dm9', 0.55);
 
   // The pedal comes up where each chord ends.
-  const changes = [h + 2.5, b, w + 1.8, w + 3.6, w + 5.4, bu, bu + 1.65, bu + 3.3, bu + 4.95, te, te + 1.8, te + 3.6, te + 4.7, settle, fo, cl, Infinity];
+  const changes = [h + 2.5, hw, w + 1.8, w + 3.6, w + 5.4, hb, bu + 1.65, bu + 3.3, bu + 4.95, ht, te + 1.8, te + 3.6, te + 4.7, settle, fo, cl, Infinity];
   for (const n of notes) n.until = changes.find((c) => c > n.t + 0.01);
-  return { notes, chords };
+  return { notes, chords, drums };
 }
 
 // ── Space ────────────────────────────────────────────────────────────
@@ -467,12 +516,18 @@ export function synthesize(sounds, duration, seed = 0x5eed) {
   // The score: the piano a little wide (low notes left, high right, as from
   // the bench), the strings under it, both in a larger hall than the effects.
   const music = new Bus(length), musicSend = new Bus(length);
-  const { notes, chords } = score(sounds, duration);
+  const { notes, chords, drums } = score(sounds, duration);
   for (const n of notes) {
     const voice = piano(n.note, n.v, rand);
-    const pan = Math.max(-0.5, Math.min(0.5, (n.note - 60) / 40));
+    const pan = n.pan ?? Math.max(-0.5, Math.min(0.5, (n.note - 60) / 40));
     music.put(n.t, voice, 0.5, pan, n.until);
     musicSend.put(n.t, voice, 0.2, pan, n.until);
+  }
+  // The timpano stands a little left of the piano, further back in the hall.
+  for (const d of drums) {
+    const voice = timpani(d.note, d.v, rand);
+    music.put(d.t, voice, 0.28, -0.2);
+    musicSend.put(d.t, voice, 0.2, -0.2);
   }
   const low = strings(chords, length, duration, rand);
   music.mix(low, 0.09);
@@ -495,10 +550,8 @@ export function synthesize(sounds, duration, seed = 0x5eed) {
   mix.mix(effects);
   mix.mix(music);
   mix.mix(reverb(musicSend, { room: 0.9, damp: 0.38 }), 0.9);
-  // A gentle safety on peaks; loudness is set afterwards.
-  for (const bus of [mix, effects]) {
-    for (const side of ['l', 'r']) for (let i = 0; i < length; i += 1) bus[side][i] = Math.tanh(bus[side][i] * 1.2) / 1.2;
-  }
+  // No clipping here: the WAV is float, and render.mjs's look-ahead limiter
+  // holds the few peaks, so the hits keep their attack.
   return { mix, effects };
 }
 
