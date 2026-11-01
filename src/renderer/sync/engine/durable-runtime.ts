@@ -1,4 +1,4 @@
-import { and, asc, count, eq, gte, inArray, isNotNull, isNull, lte, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, lte, sql } from 'drizzle-orm';
 
 import type { DbClient, DbTransaction } from '../../lib/db';
 import { applyHostedGenerationDeletion } from '../hosted/project-deletion';
@@ -79,6 +79,7 @@ import {
 } from './sqlite-repository';
 import {
   ChangeSetSegmenter,
+  SEGMENT_MAX_CHANGE_SETS,
   type SealedSegment,
   type SegmentFlushReason,
 } from './segmenter';
@@ -92,6 +93,8 @@ import type {
 import { SyncGenerationCycleLane, type CycleClock, type SyncGenerationCycleResult } from './cycle';
 
 const MAX_PROVIDER_PAGES_PER_CYCLE = 10_000;
+/** Change sets sealed per cycle across all lanes; a backlog drains over cycles. */
+export const SEAL_MAX_CHANGE_SETS_PER_CYCLE = 16 * SEGMENT_MAX_CHANGE_SETS;
 const MAX_INVALID_TOKEN_RECOVERIES_PER_CYCLE = 1;
 
 /** Cursor ownership must change whenever provider authority or binding identity changes. */
@@ -141,6 +144,8 @@ export interface SqliteSyncGenerationRuntimeOptions {
   readonly domainKernel: SyncDomainMaterializationKernel;
   readonly clock?: SyncEngineRuntimeClock;
   readonly flushLocalDurability?: () => Promise<void>;
+  /** Tests shrink the per-cycle seal budget; production keeps the default. */
+  readonly sealMaxChangeSetsPerCycle?: number;
   readonly checkpoint?: SyncEngineCheckpointHook;
   /**
    * On a pruning provider, delete local journal rows a published snapshot
@@ -384,6 +389,7 @@ export class SqliteSyncGenerationRuntime {
   private readonly domainKernel: SyncDomainMaterializationKernel;
   private readonly clock: SyncEngineRuntimeClock;
   private readonly flushLocalDurability: () => Promise<void>;
+  private readonly sealMaxChangeSetsPerCycle: number;
   private readonly checkpoint?: SyncEngineCheckpointHook;
   private readonly reconcileOpenYjsDocuments?: SqliteSyncGenerationRuntimeOptions['reconcileOpenYjsDocuments'];
   private readonly onRemoteChangeCommitted?: SqliteSyncGenerationRuntimeOptions['onRemoteChangeCommitted'];
@@ -421,6 +427,8 @@ export class SqliteSyncGenerationRuntime {
     this.domainKernel = options.domainKernel;
     this.clock = options.clock ?? systemClock;
     this.flushLocalDurability = options.flushLocalDurability ?? (async () => {});
+    this.sealMaxChangeSetsPerCycle =
+      options.sealMaxChangeSetsPerCycle ?? SEAL_MAX_CHANGE_SETS_PER_CYCLE;
     this.checkpoint = options.checkpoint;
     this.truncateJournal = options.truncateJournal ?? true;
     this.reconcileOpenYjsDocuments = options.reconcileOpenYjsDocuments;
@@ -843,13 +851,20 @@ export class SqliteSyncGenerationRuntime {
   }
 
   private async prepareLocalBlobs(signal: AbortSignal): Promise<void> {
+    // Only change sets that bind an asset declare blobs; decoding the whole
+    // journal every cycle grows with history.
     const rows = await this.db
-      .select({ encodedBytes: SyncChangeSetTable.encodedBytes })
+      .selectDistinct({ encodedBytes: SyncChangeSetTable.encodedBytes })
       .from(SyncChangeSetTable)
+      .innerJoin(
+        SyncMutationTable,
+        eq(SyncMutationTable.changeSetId, SyncChangeSetTable.changeSetId),
+      )
       .where(
         and(
           eq(SyncChangeSetTable.syncGenerationId, this.syncGenerationId),
           eq(SyncChangeSetTable.origin, 'local'),
+          eq(SyncMutationTable.action, 'asset.bind'),
         ),
       );
     const changeSets: import('../protocol').SyncChangeSetV1[] = [];
@@ -968,7 +983,12 @@ export class SqliteSyncGenerationRuntime {
 
   private async sealLocalChangeSets(signal: AbortSignal): Promise<void> {
     const identity = await this.identity();
-    const activeWriter = (await this.db
+    // Every lane this installation wrote, retired or not: an identity that was
+    // replaced and later restored must not strand its own unsealed history.
+    // A restored checkpoint has no outbound history until this installation
+    // owns a writer, and lanes of other installations stay theirs: a copied
+    // database must never reseal what the original may still publish.
+    const lanes = await this.db
       .select({
         writerId: SyncGenerationWriterStateTable.writerId,
         writerEpoch: SyncGenerationWriterStateTable.writerEpoch,
@@ -978,100 +998,98 @@ export class SqliteSyncGenerationRuntime {
         and(
           eq(SyncGenerationWriterStateTable.syncGenerationId, this.syncGenerationId),
           eq(SyncGenerationWriterStateTable.installationId, this.writerIdentity.installationId),
-          isNull(SyncGenerationWriterStateTable.retiredAt),
         ),
       )
-      .limit(1))[0];
-    // A restored checkpoint has no outbound history until this installation
-    // owns a writer. Source writer lanes are reducer ancestry, never candidates
-    // for resealing on the restoring device.
-    if (!activeWriter) return;
-    const [changeRows, existingSegments] = await Promise.all([
-      this.db
-        .select({
-          writerId: SyncChangeSetTable.writerId,
-          writerEpoch: SyncChangeSetTable.writerEpoch,
-          deviceSeq: SyncChangeSetTable.deviceSeq,
-          encodedBytes: SyncChangeSetTable.encodedBytes,
-          createdAt: SyncChangeSetTable.createdAt,
-        })
-        .from(SyncChangeSetTable)
-        .where(
-          and(
-            eq(SyncChangeSetTable.syncGenerationId, this.syncGenerationId),
-            eq(SyncChangeSetTable.origin, 'local'),
-            eq(SyncChangeSetTable.writerId, activeWriter.writerId),
-            eq(SyncChangeSetTable.writerEpoch, activeWriter.writerEpoch),
-          ),
-        )
-        .orderBy(
-          asc(SyncChangeSetTable.writerId),
-          asc(SyncChangeSetTable.writerEpoch),
-          asc(SyncChangeSetTable.deviceSeq),
-        ),
-      this.db
-        .select()
-        .from(SyncSegmentTable)
-        .where(
-          and(
-            eq(SyncSegmentTable.syncGenerationId, this.syncGenerationId),
-            eq(SyncSegmentTable.writerId, activeWriter.writerId),
-            eq(SyncSegmentTable.writerEpoch, activeWriter.writerEpoch),
-          ),
-        )
-        .orderBy(
-          asc(SyncSegmentTable.writerId),
-          asc(SyncSegmentTable.writerEpoch),
-          asc(SyncSegmentTable.firstSeq),
-        ),
-    ]);
-    if (changeRows.length > 0) {
-      assertNotAborted(signal);
-      const { writerId, writerEpoch } = activeWriter;
-      const lastSegment = existingSegments[existingSegments.length - 1];
-      const nextDeviceSeq = (lastSegment?.lastSeq ?? 0) + 1;
-      const pendingRows = changeRows.filter(
-        (row) =>
-          row.writerId === writerId &&
-          row.writerEpoch === writerEpoch &&
-          row.deviceSeq >= nextDeviceSeq,
-      );
-      if (pendingRows.length === 0) return;
-      if (pendingRows[0]?.deviceSeq !== nextDeviceSeq) {
-        throw new Error(
-          `local journal lane ${writerId}/${writerEpoch} has a segment gap before ${pendingRows[0]?.deviceSeq}`,
-        );
-      }
-      const segmenter = new ChangeSetSegmenter({
-        identity: { ...identity, writerId, writerEpoch },
-        nextDeviceSeq,
-        previousSegmentHash: lastSegment?.segmentSha256
-          ? protocolSha256(lastSegment.segmentSha256)
-          : null,
-      });
-      const sealed: SealedSegment[] = [];
-      for (const row of pendingRows) {
-        const decoded = await decodeSyncChangeSetV1(row.encodedBytes as Uint8Array);
-        if (!decoded.ok) {
-          throw new Error(`local journal change-set cannot be segmented: ${decoded.reason}`);
-        }
-        sealed.push(
-          ...(await segmenter.push({
-            changeSet: decoded.value,
-            enqueuedAtMs: Date.parse(row.createdAt),
-          })),
-        );
-      }
-      const reason = this.flushReason();
-      const tail = reason
-        ? await segmenter.flush(reason)
-        : await segmenter.sealExpired(this.clock.nowMs());
-      if (tail) sealed.push(tail);
-      for (const segment of sealed) {
-        assertNotAborted(signal);
-        await this.persistSealedSegment(segment);
-      }
+      .orderBy(asc(SyncGenerationWriterStateTable.createdAt));
+    let budget = this.sealMaxChangeSetsPerCycle;
+    for (const lane of lanes) {
+      if (budget <= 0) break;
+      budget -= await this.sealLane(identity, lane, budget, signal);
     }
+  }
+
+  /**
+   * Seal up to `budget` unsealed change sets of one lane and persist them, so a
+   * long backlog advances in bounded cycles instead of one that never ends.
+   */
+  private async sealLane(
+    identity: SyncGenerationIdentity,
+    lane: { writerId: string; writerEpoch: string },
+    budget: number,
+    signal: AbortSignal,
+  ): Promise<number> {
+    const { writerId, writerEpoch } = lane;
+    const [lastSegment] = await this.db
+      .select({
+        lastSeq: SyncSegmentTable.lastSeq,
+        segmentSha256: SyncSegmentTable.segmentSha256,
+      })
+      .from(SyncSegmentTable)
+      .where(
+        and(
+          eq(SyncSegmentTable.syncGenerationId, this.syncGenerationId),
+          eq(SyncSegmentTable.writerId, writerId),
+          eq(SyncSegmentTable.writerEpoch, writerEpoch),
+        ),
+      )
+      .orderBy(desc(SyncSegmentTable.lastSeq))
+      .limit(1);
+    const nextDeviceSeq = (lastSegment?.lastSeq ?? 0) + 1;
+    const pendingRows = await this.db
+      .select({
+        deviceSeq: SyncChangeSetTable.deviceSeq,
+        encodedBytes: SyncChangeSetTable.encodedBytes,
+        createdAt: SyncChangeSetTable.createdAt,
+      })
+      .from(SyncChangeSetTable)
+      .where(
+        and(
+          eq(SyncChangeSetTable.syncGenerationId, this.syncGenerationId),
+          eq(SyncChangeSetTable.origin, 'local'),
+          eq(SyncChangeSetTable.writerId, writerId),
+          eq(SyncChangeSetTable.writerEpoch, writerEpoch),
+          gte(SyncChangeSetTable.deviceSeq, nextDeviceSeq),
+        ),
+      )
+      .orderBy(asc(SyncChangeSetTable.deviceSeq))
+      .limit(budget);
+    if (pendingRows.length === 0) return 0;
+    assertNotAborted(signal);
+    if (pendingRows[0]?.deviceSeq !== nextDeviceSeq) {
+      throw new Error(
+        `local journal lane ${writerId}/${writerEpoch} has a segment gap before ${pendingRows[0]?.deviceSeq}`,
+      );
+    }
+    const segmenter = new ChangeSetSegmenter({
+      identity: { ...identity, writerId, writerEpoch },
+      nextDeviceSeq,
+      previousSegmentHash: lastSegment?.segmentSha256
+        ? protocolSha256(lastSegment.segmentSha256)
+        : null,
+    });
+    const sealed: SealedSegment[] = [];
+    for (const row of pendingRows) {
+      const decoded = await decodeSyncChangeSetV1(row.encodedBytes as Uint8Array);
+      if (!decoded.ok) {
+        throw new Error(`local journal change-set cannot be segmented: ${decoded.reason}`);
+      }
+      sealed.push(
+        ...(await segmenter.push({
+          changeSet: decoded.value,
+          enqueuedAtMs: Date.parse(row.createdAt),
+        })),
+      );
+    }
+    const reason = this.flushReason();
+    const tail = reason
+      ? await segmenter.flush(reason)
+      : await segmenter.sealExpired(this.clock.nowMs());
+    if (tail) sealed.push(tail);
+    for (const segment of sealed) {
+      assertNotAborted(signal);
+      await this.persistSealedSegment(segment);
+    }
+    return pendingRows.length;
   }
 
   private async persistSealedSegment(sealed: SealedSegment): Promise<void> {

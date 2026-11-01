@@ -130,6 +130,28 @@ describe('ProductionSyncRuntimeSupervisor', () => {
     expect(fixture.errors).toEqual([]);
   });
 
+  it('still mounts every SyncGeneration when local storage cleanup fails', async () => {
+    const fixture = dependencies({ listBindings: async () => [binding('sync-generation-a')] });
+    const cleanupFailures: unknown[] = [];
+    const supervisor = new ProductionSyncRuntimeSupervisor({
+      ...fixture.deps,
+      reconcileNativeStorage: vi.fn(async () => {
+        throw new Error('local sync object bucket is invalid');
+      }),
+      onStorageReconcileError: (error) => cleanupFailures.push(error),
+    });
+
+    supervisor.requestReload();
+    await supervisor.drain();
+
+    expect(fixture.created).toEqual(['sync-generation-a']);
+    expect(fixture.exposedDisposals).toEqual([]);
+    expect(fixture.errors).toEqual([]);
+    expect(cleanupFailures).toHaveLength(1);
+    supervisor.stop();
+    expect(fixture.exposedDisposals).toEqual(['status']);
+  });
+
   it('mounts all SyncGenerations under one provider and tears the generation down before reload', async () => {
     const listBindings = vi
       .fn<ProductionSyncRuntimeDependencies['listBindings']>()

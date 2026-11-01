@@ -203,10 +203,12 @@ fn gc_orphan_objects_at(
             .file_name()
             .into_string()
             .map_err(|_| "local sync object bucket name is invalid".to_string())?;
+        // A bucket is the first two bytes of any valid token, so prefixed
+        // tokens such as `agent-chat.…` live in `ag`, not only hex buckets.
         if bucket_metadata.file_type().is_symlink()
             || !bucket_metadata.is_dir()
             || bucket_name.len() != 2
-            || !bucket_name.bytes().all(|byte| byte.is_ascii_hexdigit())
+            || validate_token(&bucket_name).is_err()
         {
             return Err("local sync object bucket is invalid".into());
         }
@@ -655,6 +657,29 @@ mod tests {
             gc_orphan_objects_at(root, &retained, Duration::ZERO, SystemTime::now()).unwrap(),
             SyncObjectGcCounts::default()
         );
+    }
+
+    #[test]
+    fn orphan_gc_accepts_buckets_of_prefixed_tokens() {
+        let directory = tempfile::tempdir().unwrap();
+        let root = directory.path();
+        // Agent chat transfers stage `syncobj:agent-chat.<uuid>` objects.
+        let token = "agent-chat.01a19874-5469-746f-b0cf-f73cbf16e0a9";
+        let path = path_for_token(root, token).unwrap();
+        assert!(path.starts_with(root.join("ag")));
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(&path, b"chat").unwrap();
+        fs::create_dir_all(root.join("ff")).unwrap();
+
+        assert_eq!(
+            gc_orphan_objects_at(root, &HashSet::new(), Duration::ZERO, SystemTime::now()).unwrap(),
+            SyncObjectGcCounts {
+                removed_objects: 1,
+                removed_temporary_files: 0,
+            }
+        );
+        assert!(!path.exists());
+        assert!(root.join("ag").is_dir());
     }
 
     #[test]

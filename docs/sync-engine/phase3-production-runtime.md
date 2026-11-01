@@ -38,12 +38,15 @@ identity, constructing a provider or installing network/lifecycle callbacks.
 
 Native asset attempt reconciliation runs before any project cycle. This finishes
 or rolls back crash-interrupted asset activation receipts before a remote
-`asset.bind` can be applied.
+`asset.bind` can be applied. A failing storage reconciliation is reported and
+skipped; it never keeps the runtime from mounting. An activation that still
+throws is reported as `sync-activation-failed`, and Account settings shows that
+sync could not start instead of waiting forever.
 
 `ProductSyncRuntimeControl` is the only UI-facing bridge. The active supervisor
 attaches the current coordinator and removes it before generation replacement.
-Its immutable snapshot contains only registered `syncGenerationIds` and sanitized
-phase/outcome/pending diagnostics; it cannot expose provider credentials,
+Its immutable snapshot contains only registered `syncGenerationIds`, an
+`activationFailed` flag and sanitized phase/outcome/pending diagnostics; it cannot expose provider credentials,
 filesystem references, resumable sessions, content or reducer payloads. Manual
 sync requests are routed back to registered projects through this bridge.
 

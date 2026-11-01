@@ -963,6 +963,7 @@
       "quota_blocked": "Hosted storage is full and an attachment could not be uploaded, so this project cannot sync further for now. Deleting attachments or projects you no longer need resumes it; local content is unaffected.",
       "progress": "Sync progress",
       "retrying": "Sync could not finish. Writing remains saved locally; retrying automatically.",
+      "not_started": "Sync could not start. Your writing stays saved on this device; reopen Drifting to try again.",
       "pending": "Syncing or waiting for sync to finish.",
       "last_synced": "Last completed sync: {{time}}",
       "sign_in_sync": "Sign in and sync",

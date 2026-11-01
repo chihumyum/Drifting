@@ -82,6 +82,12 @@ export interface ProductionSyncRuntimeDependencies {
   readonly installCoordinator: (coordinator: SyncEngineCoordinator) => () => void;
   readonly exposeCoordinator: (coordinator: SyncEngineCoordinator) => () => void;
   readonly onError: (error: unknown) => void;
+  readonly onStorageReconcileError?: (error: unknown) => void;
+}
+
+function reportStorageReconcileError(error: unknown): void {
+  log.warn('Local sync storage cleanup failed; sync continues without it', error);
+  reportIntegrityEvent('sync-storage-cleanup-failed', error);
 }
 
 /**
@@ -218,6 +224,8 @@ const defaultDependencies: ProductionSyncRuntimeDependencies = {
   exposeCoordinator: (coordinator) => productSyncRuntimeControl.attach(coordinator),
   onError(error) {
     log.error('SyncEngine production runtime could not be activated', error);
+    reportIntegrityEvent('sync-activation-failed', error);
+    productSyncRuntimeControl.reportActivationFailure();
   },
 };
 
@@ -265,7 +273,12 @@ export class ProductionSyncRuntimeSupervisor {
     this.cleanupActive = () => {};
 
     const database = this.dependencies.database();
-    await this.dependencies.reconcileNativeStorage(database);
+    // Housekeeping only: a cleanup that cannot run must never keep sync off.
+    try {
+      await this.dependencies.reconcileNativeStorage(database);
+    } catch (error) {
+      (this.dependencies.onStorageReconcileError ?? reportStorageReconcileError)(error);
+    }
     if (this.stopped || revision !== this.revision) return;
     const bindings = await this.dependencies.listBindings(database);
     if (this.stopped || revision !== this.revision || bindings.length === 0) return;

@@ -141,6 +141,8 @@ export function AccountPanel({ registerRef }: { registerRef: SettingsRegisterRef
                 ? t(`settings.hosted.session.${status}`)
                 : paused
                   ? t('settings.hosted.paused')
+                  : runtime.activationFailed
+                    ? t('settings.hosted.not_started')
                   : failure
                     ? t('settings.hosted.retrying')
                     : running || waiting || !syncedAt
