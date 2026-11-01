@@ -84,6 +84,13 @@ describe('the manuscript tools in sand and glass', () => {
     expect(pill).not.toContain('--menu-surface');
     expect(rule(css, '.editor-selection-bar__item')).toContain('border-radius: calc(var(--glass-pill-height) / 2);');
     expect(rule(css, '.editor-selection-bar__format')).toContain('border-radius: 50%;');
+    // Its glass says which pill or glyph is under the pointer: the words keep
+    // the bar's one colour; only 「格式」 while out and an applied format darken.
+    expect(css).not.toContain('.editor-selection-bar__item:hover');
+    expect(css).not.toContain('.editor-selection-bar__format:hover');
+    expect(rule(css, '.editor-selection-bar__format')).toContain('color: hsl(var(--ink-2));');
+    expect(rule(css, ".editor-selection-bar__item[aria-expanded='true']")).toContain('color: hsl(var(--ink-1));');
+    expect(rule(css, ".editor-selection-bar__format[aria-pressed='true']")).toContain('color: hsl(var(--ink-1));');
     expect(rule(css, '.editor-selection-bar__formats.is-open')).toContain('visibility: visible;');
     // Small glass takes the dense patch (`glass--small`, `glass--round`); the
     // paused phone keeps the desk surface.
