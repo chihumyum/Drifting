@@ -1,0 +1,448 @@
+// The promo video, as a page whose every frame is a function of time.
+// build.mjs bundles it to /assets/video.js. The sea is the app's own
+// (lib/char-sea), raising DRIFTING as the landing page does; the three
+// corners of the workspace are the landing page's, played here on the
+// video's timeline instead of on timers. clock.js holds time still until
+// step(t) moves it, so render.mjs can capture frame after frame and get the
+// same video every time.
+import doneIcon from '../../../src/assets/design/icons/status-done.png';
+import loaderIcon from '../../../src/assets/design/icons/loader.png';
+import { charSeaWordBox, createCharSea } from '../../../src/renderer/lib/char-sea/char-sea';
+import { SAND_FRAME_PAD, drawSandStroke, paintSandStroke, rgbOfComputedColour } from '../../../src/renderer/lib/sand-frame';
+
+const clock = window.__clock;
+const params = new URLSearchParams(location.search);
+const lang = params.get('lang') === 'zh' ? 'zh' : 'en';
+const root = document.documentElement;
+root.dataset.lang = lang;
+root.lang = lang === 'zh' ? 'zh-CN' : 'en';
+// The video is dark, as the sharing card is; the sea reads its theme from this class.
+root.classList.add('dark');
+const $ = (selector, within = document) => within.querySelector(selector);
+const $$ = (selector, within = document) => [...within.querySelectorAll(selector)];
+
+// ── Time ─────────────────────────────────────────────────────────────
+// Seconds. The rain has been falling for a while when the video starts (the
+// first frame is what a feed shows before it plays); a stone drops, the name
+// rises and bursts, the three pillars each lie on the sea as a sheet, each
+// unfolding as the last folds away, and the name rises again over where to
+// find it.
+const T = {
+  rain: -2.4,
+  drop: 0.25,
+  rise: 0.75,
+  taglineIn: 2.0,
+  taglineOut: 4.9,
+  burst: 5.25,
+  write: [5.85, 13.15],
+  build: [13.25, 19.95],
+  tend: [20.05, 27.15],
+  closeRise: 27.45,
+  closeIn: 28.35,
+  end: 32,
+};
+
+const clamp01 = (x) => Math.min(1, Math.max(0, x));
+const span = (t, from, length) => clamp01((t - from) / length);
+const easeOut = (x) => 1 - (1 - x) ** 3;
+const easeIn = (x) => x * x * x;
+const easeInOut = (x) => (x < 0.5 ? 4 * x * x * x : 1 - (-2 * x + 2) ** 3 / 2);
+// CSS cubic-bezier(x1, y1, x2, y2) as a function of progress.
+function bezier(x1, y1, x2, y2) {
+  const at = (a, b, s) => 3 * a * s * (1 - s) ** 2 + 3 * b * s * s * (1 - s) + s ** 3;
+  return (x) => {
+    if (x <= 0) return 0;
+    if (x >= 1) return 1;
+    let lo = 0, hi = 1, s = x;
+    for (let i = 0; i < 40; i += 1) {
+      s = (lo + hi) / 2;
+      if (at(x1, x2, s) < x) lo = s;
+      else hi = s;
+    }
+    return at(y1, y2, s);
+  };
+}
+const structural = bezier(0.32, 0.72, 0, 1);
+// A tab switch pushes the panels like a heavy block of ice (the app's PUSH_MS and PUSH_EASING).
+const PUSH = 0.265;
+const pushEase = bezier(0.8, 0, 0.66, 1);
+// A typist's unevenness, the same on every render.
+const jitter = (a, b) => {
+  const x = Math.sin(a * 12.9898 + b * 78.233) * 43758.5453;
+  return x - Math.floor(x);
+};
+const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+function rise(el, t, from) {
+  const r = easeOut(span(t, from, 0.55));
+  el.style.opacity = String(r);
+  el.style.translate = `0 ${((1 - r) * 12).toFixed(2)}px`;
+}
+
+// ── The sea ──────────────────────────────────────────────────────────
+// Times bold's hairlines are thinner than one of the app's cells, so on a
+// 1080p frame the capitals read only on a denser sheet with heavier risen
+// characters (the sharing card packs its sheet 1.9 times). At 1.75 a raindrop
+// still shows. The canvas is lifted a little so the sea carries on a phone.
+const SEA = {
+  word: 'DRIFTING',
+  wordCentreY: 0.4,
+  wordSpan: () => 0.82,
+  density: () => 1.75,
+  wordInk: 2.2,
+};
+$('#sea').style.filter = 'brightness(1.3)';
+
+// ── Write: each line takes shape as it is typed, and the file beside it is saved ──
+function writeCorner(el) {
+  const MD = {
+    zh: { first: '雾从港口那边漫过来的时候，林岚正把第三封信压在灯座底下。', lines: ['# 铁梯', '她每往上走一级，脚下就响一声，像有人在楼下**跟着数**。', '## 第七圈', '海面上亮起一点很小的光。'] },
+    en: { first: 'The fog came in from the harbour while Lin was tucking the third letter under the lamp.', lines: ['# The stairs', 'Every step gave a small sound, as if someone below were **counting**.', '## The seventh turn', 'A small glow rose on the water.'] },
+  }[lang];
+  const live = $('#md-typed', el);
+  const raw = $('#md-raw', el);
+  const rawGhost = $('#md-raw-ghost', el);
+  const rawLine = (text, cls) => {
+    const line = document.createElement('span');
+    line.className = `line${cls ? ` ${cls}` : ''}`;
+    line.textContent = text;
+    return line;
+  };
+  const fillRaw = (lines, box) => {
+    box.innerHTML = '';
+    ['---', 'drifting-id: 3f9c2a', '---'].forEach((text) => box.appendChild(rawLine(text, 'fm')));
+    box.appendChild(rawLine(''));
+    box.appendChild(rawLine(MD.first));
+    lines.forEach((text) => { box.appendChild(rawLine('')); box.appendChild(rawLine(text)); });
+  };
+  const renderLine = (text, caret) => {
+    let kind = 'p', body = text;
+    if (/^## /.test(text)) { kind = 'h2'; body = text.slice(3); } else if (/^# /.test(text)) { kind = 'h1'; body = text.slice(2); }
+    const html = esc(body).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\*\*|^#{1,2}$/g, (m) => `<span class="md">${m}</span>`);
+    const tag = kind === 'p' ? 'p' : 'div';
+    return `<${tag}${kind === 'p' ? '' : ` class="${kind}"`}>${html}${caret ? '<span class="caret"></span>' : ''}</${tag}>`;
+  };
+  // The finished page and file, hidden, hold the corner's height while the lines are typed over them.
+  const ghost = document.createElement('div');
+  ghost.className = 'typed-ghost';
+  ghost.setAttribute('aria-hidden', 'true');
+  ghost.innerHTML = live.innerHTML;
+  live.parentNode.insertBefore(ghost, live);
+  live.parentNode.classList.add('has-ghost');
+  fillRaw(MD.lines, rawGhost);
+  fillRaw([], raw);
+  live.innerHTML = '';
+
+  const pace = lang === 'zh' ? [0.05, 0.026] : [0.015, 0.012];
+  let at = 0.7;
+  const lines = MD.lines.map((text, i) => {
+    const chars = [...text];
+    const start = at;
+    at += 0.12;
+    const times = chars.map((ch, j) => {
+      const shown = at;
+      at += ch === ' ' || ch === '*' || ch === '#' ? 0.045 : pace[0] + pace[1] * jitter(i, j);
+      return shown;
+    });
+    const done = at;
+    const saved = done + 0.2;
+    at = saved + 0.3;
+    return { chars, start, times, done, saved };
+  });
+  let lastKey = '';
+  let savedCount = 0;
+  return (tau) => {
+    const parts = [];
+    let key = '';
+    lines.forEach((line) => {
+      if (tau < line.start) return;
+      const typed = line.times.filter((time) => time <= tau).length;
+      const typing = tau < line.done;
+      key += `${typed}${typing ? '|' : '.'}`;
+      parts.push(renderLine(line.chars.slice(0, typed).join(''), typing));
+    });
+    if (key !== lastKey) {
+      live.innerHTML = parts.join('');
+      lastKey = key;
+    }
+    const nowSaved = lines.filter((line) => tau >= line.saved).length;
+    for (; savedCount < nowSaved; savedCount += 1) {
+      raw.appendChild(rawLine(''));
+      raw.appendChild(rawLine(MD.lines[savedCount], 'fresh'));
+    }
+  };
+}
+
+// ── Build: a tab shows its panel, a click opens the page and the brush goes round the cell ──
+function studioCorner(el) {
+  const side = $('#studio-sb', el);
+  const frame = $('.cell-frame', side);
+  const row = $('.sb-tabs', side);
+  const block = $('.sb-tab-block', row);
+  const tabs = $$('.sb-tab', side);
+  const panes = $$('.sb-pane', side);
+  const cells = $$('.cell', side);
+  const pages = $$('[data-p]', el);
+  const tabOf = (name) => tabs.find((tab) => tab.dataset.tab === name);
+  const paneOf = (name) => panes.find((pane) => pane.dataset.pane === name);
+  const cellOf = (k) => cells.find((cell) => cell.dataset.k === k);
+  // [when, tab to show, cell to open]
+  const TOUR = [[0.85, null, 'letters'], [2.0, 'elements', null], [2.4, null, 'lin'], [3.45, null, 'pier'], [4.55, 'drifts', null], [4.95, null, 'match']];
+  const SEEDS = [0x5eed, 0x1f2e3d4c, 0x7a3b9c21, 0x0badf00d, 0x2468ace1];
+  const within = (node) => {
+    let x = 0, y = 0;
+    for (let at = node; at && at !== side; at = at.offsetParent) { x += at.offsetLeft; y += at.offsetTop; }
+    return { x, y };
+  };
+  block.style.transition = 'none';
+  let stroke = null, strokeKey = '', painted = '', lastCell = '';
+  return (tau) => {
+    let tab = 'nodes', from = 'nodes', switchAt = -Infinity, cell = 'fog', selectAt = -Infinity, chosen = 0, travelled = 0;
+    for (const [at, nextTab, nextCell] of TOUR) {
+      if (at > tau) break;
+      if (nextTab) {
+        travelled += Math.abs(tabOf(nextTab).offsetLeft - tabOf(tab).offsetLeft);
+        from = tab;
+        tab = nextTab;
+        switchAt = at;
+      }
+      if (nextCell) { cell = nextCell; selectAt = at; chosen += 1; }
+    }
+    const u = pushEase(clamp01((tau - switchAt) / PUSH));
+    const pushing = u < 1;
+    const a = tabOf(from), b = tabOf(tab);
+    tabs.forEach((t) => t.classList.toggle('is-on', t === b));
+    block.style.transform = `translateX(${a.offsetLeft + (b.offsetLeft - a.offsetLeft) * u}px)`;
+    block.style.width = `${a.offsetWidth + (b.offsetWidth - a.offsetWidth) * u}px`;
+    // Its glass runs with the distance it travels.
+    row.style.setProperty('--flow', (travelled - Math.abs(b.offsetLeft - a.offsetLeft) * (1 - u)).toFixed(1));
+    const fromPane = paneOf(from), toPane = paneOf(tab);
+    const ahead = panes.indexOf(toPane) > panes.indexOf(fromPane) ? -100 : 100;
+    panes.forEach((pane) => {
+      const moving = pushing && fromPane !== toPane;
+      pane.classList.toggle('off', !(pane === toPane || (moving && pane === fromPane)));
+      pane.style.transform = !moving ? '' : pane === fromPane ? `translateX(${ahead * u}%)` : pane === toPane ? `translateX(${-ahead * (1 - u)}%)` : '';
+    });
+    if (cell !== lastCell) {
+      cells.forEach((c) => (c.dataset.k === cell ? c.setAttribute('aria-current', 'true') : c.removeAttribute('aria-current')));
+      pages.forEach((page) => page.classList.toggle('on', page.dataset.p === cell));
+      lastCell = cell;
+    }
+    // The brush waits out the push and is laid where its cell landed.
+    const current = cellOf(cell);
+    const shown = !pushing && !current.closest('.sb-pane').classList.contains('off');
+    frame.hidden = !shown;
+    if (!shown) return;
+    const w = current.offsetWidth, h = current.offsetHeight, dpr = window.devicePixelRatio || 1;
+    const seed = SEEDS[chosen % SEEDS.length];
+    const key = `${w}x${h}@${dpr}:${seed}`;
+    if (key !== strokeKey) { stroke = drawSandStroke({ width: w, height: h, dpr, seed }); strokeKey = key; }
+    const { x, y } = within(current);
+    frame.style.left = `${x - SAND_FRAME_PAD}px`;
+    frame.style.top = `${y - SAND_FRAME_PAD}px`;
+    frame.style.width = `${w + SAND_FRAME_PAD * 2}px`;
+    frame.style.height = `${h + SAND_FRAME_PAD * 2}px`;
+    frame.style.setProperty('--c', current.style.getPropertyValue('--c'));
+    const drawn = clamp01((tau - Math.max(selectAt, switchAt + PUSH)) / 0.38);
+    const p = selectAt === -Infinity ? 1 : 1 - (1 - drawn) ** 2.2;
+    const paint = `${key}:${p.toFixed(4)}`;
+    if (paint !== painted) {
+      paintSandStroke(frame, stroke, rgbOfComputedColour(getComputedStyle(frame).color), p);
+      painted = paint;
+    }
+  };
+}
+
+// ── Tend: the ask, its steps arriving one by one, the edit erased and written into the page ──
+function agentCorner(el) {
+  const AG = {
+    zh: { old: '守塔人说，今晚这样的大雾，港口里不会有任何一条船敢出来，你就别再等了，等也是白等。', now: '守塔人说今晚不会有船。' },
+    en: { old: 'The keeper said that in a fog like this not a single boat would dare come out tonight, so she might as well stop waiting.', now: 'The keeper said no boats would come tonight.' },
+  }[lang];
+  const edit = $('#ag-edit', el);
+  const steps = $$('#ag-log .step', el);
+  // What the edit keeps, removes and writes: the common start and end stay as they were.
+  let p = 0, s = 0;
+  while (p < AG.old.length && p < AG.now.length && AG.old[p] === AG.now[p]) p += 1;
+  while (s < AG.old.length - p && s < AG.now.length - p && AG.old[AG.old.length - 1 - s] === AG.now[AG.now.length - 1 - s]) s += 1;
+  const head = esc(AG.old.slice(0, p)), tail = esc(AG.old.slice(AG.old.length - s));
+  const gone = [...AG.old.slice(p, AG.old.length - s)], come = [...AG.now.slice(p, AG.now.length - s)];
+
+  // The page never changes height while the edit plays: it keeps the old text's height.
+  const page = edit.closest('.pg');
+  const cs = getComputedStyle(page);
+  const clone = page.cloneNode(true);
+  const old = $('#ag-edit', clone);
+  old.removeAttribute('id');
+  old.textContent = AG.old;
+  clone.style.cssText = `position:absolute;left:0;top:0;visibility:hidden;min-height:0;max-width:none;width:${page.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)}px`;
+  page.parentNode.appendChild(clone);
+  page.style.minHeight = `${clone.offsetHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom)}px`;
+  clone.remove();
+
+  const typePace = lang === 'zh' ? 0.07 : 0.028;
+  const mark = 3.55, erase = 4.1, eraseFor = 0.45;
+  const typeFrom = erase + eraseFor + 0.1;
+  const settle = typeFrom + come.length * typePace + 0.55;
+  const shows = [0.45, 1.2, 2.05, 2.9, settle + 0.3];
+  const dones = [null, 1.95, 2.8, settle, null];
+  steps.forEach((step) => step.classList.add('wait'));
+  let lastHtml = '';
+  const lastState = [];
+  return (tau) => {
+    let html;
+    if (tau < mark) html = esc(AG.old);
+    else if (tau < erase) html = `${head}<span class="del">${esc(gone.join(''))}</span>${tail}`;
+    else if (tau < typeFrom) {
+      const left = Math.round(gone.length * (1 - clamp01((tau - erase) / eraseFor)));
+      html = `${head}<span class="del">${esc(gone.slice(0, left).join(''))}</span>${tail}`;
+    } else if (tau < settle) {
+      const typed = Math.min(come.length, Math.floor((tau - typeFrom) / typePace) + 1);
+      html = `${head}<span class="ins">${esc(come.slice(0, typed).join(''))}</span><span class="caret"></span>${tail}`;
+    } else html = `${head}<span class="ins-done">${esc(come.join(''))}</span>${tail}`;
+    if (html !== lastHtml) { edit.innerHTML = html; lastHtml = html; }
+    steps.forEach((step, i) => {
+      const state = tau < shows[i] ? 0 : dones[i] !== null && tau >= dones[i] ? 2 : 1;
+      if (lastState[i] === state) return;
+      lastState[i] = state;
+      step.classList.toggle('wait', state === 0);
+      const icon = $('.ic', step);
+      if (!icon || !step.classList.contains('agt-tool')) return;
+      step.classList.toggle('glass-sweep', state > 0);
+      icon.classList.toggle('spin', state === 1);
+      icon.style.setProperty('--i', `url(${state === 1 ? loaderIcon : doneIcon})`);
+    });
+  };
+}
+
+// ── Scenes ───────────────────────────────────────────────────────────
+// A pillar's words rise one after another and its corner plays, then fade.
+function sheetScene(el, [open, close], play) {
+  const rises = $$('.pv-rise', el);
+  const corner = $('.vg', el);
+  const scene = (t) => {
+    if (t < open - 0.1 || t > close + 0.6) { el.style.opacity = '0'; return; }
+    el.style.opacity = String(1 - easeOut(span(t, close, 0.28)));
+    el.style.transform = `translate(-50%, -50%) scale(${(1 + 0.03 * easeInOut(span(t, open, close - open))).toFixed(5)})`;
+    rises.forEach((item, i) => rise(item, t, open + 0.3 + i * 0.09));
+    rise(corner, t, open + 0.22);
+    play(t - open);
+  };
+  scene.el = el;
+  scene.open = open;
+  scene.close = close;
+  return scene;
+}
+
+// The pillars lie on one sheet of glass the sea draws. It unfolds from its
+// middle under the first, takes each next pillar's size as the words change,
+// and folds away after the last.
+function sheetGlass(sheets) {
+  const first = sheets[0], last = sheets[sheets.length - 1];
+  const MORPH = 0.6;
+  const boxOf = (sheet) => sheet.el.getBoundingClientRect();
+  return (t, shapes) => {
+    const unfold = structural(span(t, first.open, 0.7)) * (1 - easeIn(span(t, last.close + 0.04, 0.4)));
+    if (unfold < 0.002) return;
+    let box = null;
+    for (let i = 0; i < sheets.length && !box; i += 1) {
+      const sheet = sheets[i], next = sheets[i + 1];
+      if (next && t >= sheet.close && t < next.open + MORPH) {
+        const a = boxOf(sheet), b = boxOf(next), u = easeInOut(span(t, sheet.close, next.open + MORPH - sheet.close));
+        box = { left: a.left + (b.left - a.left) * u, top: a.top + (b.top - a.top) * u, width: a.width + (b.width - a.width) * u, height: a.height + (b.height - a.height) * u };
+      } else if (t < (next ? next.open : Infinity)) box = boxOf(sheet);
+    }
+    const height = box.height * unfold;
+    shapes.push({ id: 1, x: box.left, y: box.top + (box.height - height) / 2, width: box.width, height, radius: 2, rest: 0.85 * Math.min(1, unfold * 1.4), hover: false, textureX: 14, textureY: 46 });
+  };
+}
+
+function underScene(el, [from, to], rises) {
+  const lines = $$(`[data-l="${lang}"] .su`, el);
+  return (t) => {
+    if (t < from - 0.1 || t > to + 0.6) { el.style.opacity = '0'; return; }
+    el.style.opacity = String(1 - easeIn(span(t, to, 0.45)));
+    rises.forEach((item, i) => rise(item, t, from + i * 0.18));
+    lines.forEach((line, i) => line.style.setProperty('--draw', easeOut(span(t, from + 0.7 + i * 0.38, 0.6)).toFixed(4)));
+  };
+}
+
+const canvas = $('#sea');
+let sea = null;
+let scenes = [];
+let cues = [];
+let fired = 0;
+
+async function setUp() {
+  // The faces the sea, the corners and the words are written in, before anything is measured.
+  await Promise.all([
+    '400 24px "Newsreader Variable"', '500 24px "Newsreader Variable"', '400 24px "Inter Tight Variable"', '500 24px "Inter Tight Variable"',
+    '600 24px "Inter Tight Variable"', '400 24px "Noto Serif SC Variable"', '700 24px "Times New Roman"',
+  ].map((face) => document.fonts.load(face, lang === 'zh' ? '雾林岚 Aa' : 'Aa')));
+  await document.fonts.ready;
+  sea = createCharSea(canvas, SEA);
+  if (!sea) throw new Error('promo: the sea needs WebGL2');
+  sea.refreshTheme();
+  sea.setScript(lang);
+  sea.setActive(true);
+  const box = charSeaWordBox(innerWidth, innerHeight, SEA);
+  root.style.setProperty('--word-bottom', `${box.bottom}px`);
+
+  const hero = $('#s-hero');
+  const close = $('#s-close');
+  const sheets = [['#s-write', T.write, writeCorner], ['#s-build', T.build, studioCorner], ['#s-tend', T.tend, agentCorner]];
+  const pillars = sheets.map(([selector, times, corner]) => {
+    const el = $(selector);
+    return sheetScene(el, times, corner(el));
+  });
+  scenes = [
+    underScene(hero, [T.taglineIn, T.taglineOut], $$('.pv-rise', hero)),
+    ...pillars,
+    sheetGlass(pillars),
+    underScene(close, [T.closeIn, Infinity], $$('.pv-rise', close)),
+  ];
+  const middle = (selector) => {
+    const box = $(selector).getBoundingClientRect();
+    return [box.left + box.width / 2, box.top + box.height / 2];
+  };
+  cues = [
+    [T.drop, () => sea.drop(innerWidth / 2, innerHeight * 0.4, 1.4)],
+    [T.rain, () => sea.rain(true)],
+    [T.rise, () => sea.loading(true)],
+    [T.burst, () => sea.loading(false)],
+    ...sheets.map(([selector, [open]]) => [open + 0.05, () => sea.drop(...middle(selector), 0.9)]),
+    [T.closeRise, () => sea.loading(true)],
+  ].sort((x, y) => x[0] - y[0]);
+  // The glass texture and the sea's glyph atlas settle on real time.
+  await new Promise((resolve) => clock.real.setTimeout(resolve, 600));
+  // The rain that fell before the first frame.
+  for (let t = T.rain; t < 0; t += 1 / 30) step(t);
+}
+
+/** Moves the video to `t` seconds (from T.rain on); frames must come in order. */
+function step(t) {
+  clock.advanceTo((t - T.rain) * 1000);
+  while (fired < cues.length && cues[fired][0] <= t) { cues[fired][1](); fired += 1; }
+  const shapes = [];
+  scenes.forEach((scene) => scene(t, shapes));
+  sea.setShapes(shapes);
+  clock.flushFrames();
+  clock.syncAnimations();
+}
+
+const ready = setUp();
+window.__promo = { duration: T.end, ready, step };
+
+// Opened in a browser: play in real time (from ?t= seconds, reached at 30 fps).
+if (!params.has('render')) {
+  ready.then(() => {
+    const from = Number(params.get('t')) || 0;
+    for (let t = 0; t < from; t += 1 / 30) step(t);
+    const start = clock.real.now() - from * 1000;
+    const tick = () => {
+      const t = (clock.real.now() - start) / 1000;
+      step(Math.min(t, T.end));
+      if (t < T.end) clock.real.requestAnimationFrame(tick);
+    };
+    clock.real.requestAnimationFrame(tick);
+  });
+}

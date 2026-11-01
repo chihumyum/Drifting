@@ -1,0 +1,140 @@
+#!/usr/bin/env node
+// Render the promo video, frame by frame, with headless Chrome and ffmpeg:
+//   node scripts/design-assets/promo-video/render.mjs [--lang en,zh] [--fps 60] [--out dir]
+//   node scripts/design-assets/promo-video/render.mjs --stills 2.5,8,15   # PNGs at those seconds
+// Builds the page (build.mjs), serves it on 127.0.0.1, and for each language
+// steps the page's clock one frame at a time and captures it at 1920×1080.
+// Writes drifting-promo-<lang>.mp4 (H.264, BT.709) to out/promo-video by
+// default. CHROME overrides the browser.
+import { spawn, spawnSync } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:http';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const root = path.resolve(here, '../../..');
+const args = process.argv.slice(2);
+const option = (name, fallback) => {
+  const at = args.indexOf(`--${name}`);
+  return at >= 0 ? args[at + 1] : fallback;
+};
+const langs = option('lang', 'en,zh').split(',');
+const fps = Number(option('fps', '60'));
+const out = path.resolve(option('out', path.join(root, 'out/promo-video')));
+const stills = option('stills', '') ? option('stills').split(',').map(Number) : null;
+const chrome = process.env.CHROME ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+// The page is laid out at 1152×648 CSS px and captured at 1920×1080.
+const VIEW = { width: 1152, height: 648, deviceScaleFactor: 1920 / 1152 };
+
+const pageDir = path.join(out, 'page');
+const built = spawnSync(process.execPath, [path.join(here, 'build.mjs'), pageDir], { stdio: 'inherit' });
+if (built.status !== 0) process.exit(built.status ?? 1);
+
+const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.woff2': 'font/woff2' };
+const server = createServer((request, response) => {
+  const file = path.join(pageDir, decodeURIComponent(new URL(request.url, 'http://x').pathname));
+  if (!file.startsWith(pageDir) || !existsSync(file)) { response.writeHead(404).end(); return; }
+  response.writeHead(200, { 'content-type': TYPES[path.extname(file)] ?? 'application/octet-stream' }).end(readFileSync(file));
+});
+await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+const origin = `http://127.0.0.1:${server.address().port}`;
+
+const profile = mkdtempSync(path.join(tmpdir(), 'drifting-promo-'));
+const browser = spawn(chrome, ['--headless=new', `--user-data-dir=${profile}`, '--remote-debugging-port=0', '--hide-scrollbars',
+  '--mute-audio', '--force-color-profile=srgb', `--window-size=${VIEW.width},${VIEW.height}`, 'about:blank'], { stdio: 'ignore' });
+const closed = new Promise((resolve) => browser.on('exit', resolve));
+const finish = async (code) => {
+  browser.kill();
+  server.close();
+  await closed;
+  rmSync(profile, { recursive: true, force: true });
+  process.exit(code);
+};
+process.on('SIGINT', () => finish(130));
+
+// A minimal DevTools Protocol client.
+let port = '';
+for (let i = 0; i < 100 && !port; i += 1) {
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  const file = path.join(profile, 'DevToolsActivePort');
+  if (existsSync(file)) port = readFileSync(file, 'utf8').split('\n')[0];
+}
+if (!port) { console.error('render.mjs: Chrome did not start'); finish(1); }
+const targets = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
+const socket = new WebSocket(targets.find((target) => target.type === 'page').webSocketDebuggerUrl);
+await new Promise((resolve) => { socket.onopen = resolve; });
+let nextId = 0;
+const pending = new Map();
+socket.onmessage = (message) => {
+  const data = JSON.parse(message.data);
+  if (data.id && pending.has(data.id)) {
+    const { resolve, reject } = pending.get(data.id);
+    pending.delete(data.id);
+    if (data.error) reject(new Error(data.error.message));
+    else resolve(data.result);
+  } else if (data.method === 'Runtime.exceptionThrown') {
+    console.error('page:', data.params.exceptionDetails.exception?.description ?? data.params.exceptionDetails.text);
+  } else if (data.method === 'Runtime.consoleAPICalled' && ['error', 'warning'].includes(data.params.type)) {
+    console.error('page:', data.params.args.map((arg) => arg.value ?? arg.description).join(' '));
+  }
+};
+const send = (method, params = {}) => new Promise((resolve, reject) => {
+  nextId += 1;
+  pending.set(nextId, { resolve, reject });
+  socket.send(JSON.stringify({ id: nextId, method, params }));
+});
+async function evaluate(expression) {
+  const result = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
+  if (result.exceptionDetails) throw new Error(result.exceptionDetails.exception?.description ?? result.exceptionDetails.text);
+  return result.result.value;
+}
+const capture = async () => Buffer.from((await send('Page.captureScreenshot', { format: 'png', optimizeForSpeed: true })).data, 'base64');
+
+await send('Page.enable');
+await send('Runtime.enable');
+await send('Emulation.setDeviceMetricsOverride', { ...VIEW, mobile: false });
+mkdirSync(out, { recursive: true });
+
+try {
+  for (const lang of langs) {
+    await send('Page.navigate', { url: `${origin}/index.html?render&lang=${lang}` });
+    for (let i = 0; i < 200 && !(await evaluate('!!window.__promo')); i += 1) await new Promise((resolve) => setTimeout(resolve, 50));
+    await evaluate('window.__promo.ready.then(() => true)');
+    const duration = await evaluate('window.__promo.duration');
+    const frames = Math.round(duration * fps);
+    const started = Date.now();
+    if (stills) {
+      // Stills: step every frame up to each wanted second, capture only those.
+      const wanted = new Set(stills.map((second) => Math.round(second * fps)));
+      const last = Math.max(...wanted);
+      for (let frame = 0; frame <= last; frame += 1) {
+        await evaluate(`window.__promo.step(${frame / fps})`);
+        if (!wanted.has(frame)) continue;
+        const file = path.join(out, `still-${lang}-${(frame / fps).toFixed(2)}.png`);
+        writeFileSync(file, await capture());
+        console.log(file);
+      }
+      continue;
+    }
+    const file = path.join(out, `drifting-promo-${lang}.mp4`);
+    const encoder = spawn('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'image2pipe', '-framerate', String(fps), '-c:v', 'png', '-i', '-',
+      '-vf', 'scale=out_color_matrix=bt709:out_range=tv,format=yuv420p', '-c:v', 'libx264', '-preset', 'slow', '-crf', '16',
+      '-profile:v', 'high', '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-movflags', '+faststart', file],
+    { stdio: ['pipe', 'inherit', 'inherit'] });
+    const encoded = new Promise((resolve) => encoder.on('close', resolve));
+    for (let frame = 0; frame < frames; frame += 1) {
+      await evaluate(`window.__promo.step(${frame / fps})`);
+      if (!encoder.stdin.write(await capture())) await new Promise((resolve) => encoder.stdin.once('drain', resolve));
+      if (frame % (fps * 5) === 0) console.log(`${lang} ${(frame / fps).toFixed(0).padStart(2)}s / ${duration}s`);
+    }
+    encoder.stdin.end();
+    if ((await encoded) !== 0) throw new Error('render.mjs: ffmpeg failed');
+    console.log(`${file}  (${frames} frames in ${Math.round((Date.now() - started) / 1000)}s)`);
+  }
+} catch (error) {
+  console.error(error);
+  finish(1);
+}
+finish(0);
