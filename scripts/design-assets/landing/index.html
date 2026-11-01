@@ -239,7 +239,7 @@ h2 {
 @keyframes raw-in { from { opacity: 0; background: hsl(var(--accent) / 0.12); } }
 
 /* Build: the left sidebar beside the page it opens */
-.vg-studio .win { grid-template-columns: 264px minmax(0, 1fr); min-height: 420px; }
+.vg-studio .win { grid-template-columns: 304px minmax(0, 1fr); min-height: 420px; }
 .sb { position: relative; display: flex; flex-direction: column; min-width: 0; background: hsl(var(--paper-deep)); }
 /* The tab row (PanelTabTray): the tabs are plain words sharing the row; one
    square glass block lies under the chosen tab's whole share, 2px short of the
@@ -251,7 +251,7 @@ h2 {
 .sb-top .lights { margin-right: 9px; }
 .sb-toggle { display: grid; place-items: center; flex: none; width: 26px; height: 26px; color: var(--ui-muted); }
 .sb-toggle .ic { width: 15px; height: 15px; }
-.sb-tabs { position: relative; display: flex; flex: 1; align-self: stretch; min-width: 0; gap: 12px; }
+.sb-tabs { position: relative; display: flex; flex: 1; align-self: stretch; min-width: 0; gap: 8px; }
 .sb-tab-block.glass {
   --glass-gx: calc(var(--flow, 0) * 1.2px - 14px);
   --glass-gy: -46px;
@@ -273,7 +273,9 @@ h2 {
   align-items: center;
   justify-content: center;
   margin: 2px 0;
-  padding: 0;
+  /* The app's panel tab keeps 8px each side of its word (ui-controls.css), so
+     the glass block never touches the word even when the row is full. */
+  padding: 0 8px;
   border: 0;
   border-radius: 0;
   background: transparent;
