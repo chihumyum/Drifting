@@ -55,6 +55,11 @@ What is on the page, and why:
   Markdown as it is typed beside the `.md` file it is saved to; the left
   sidebar's cells, element categories and the dry frame drawn round a click;
   the Agent's transcript beside a page where its edit erases and types in.
+  Panel tabs on both sidebars, storyline names (including Unassigned) and
+  element-category headings use the app's structure face: Newsreader with
+  Noto Serif SC, normal weight and spacing. Chinese tab labels sit 0.15em
+  lower on the Latin line, as in `interface-fonts.css`; group counts keep
+  the site's index face (2026-11-02).
   Each plays over and over while it is in view and rests finished when it is
   not; whatever changes floats over a hidden copy of its tallest state, so the
   page never shifts while one plays. Reduced motion shows them finished.
