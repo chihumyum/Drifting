@@ -1,6 +1,7 @@
 import type { McpServerPlatformApi } from './mcp-server-contract';
 import type {
   AILogWriteResult,
+  MarkdownFolderSettings,
   MarkdownProjectionInfo,
   MarkdownProjectionAsset,
   MarkdownProjectionDocument,
@@ -351,6 +352,11 @@ export interface PlatformApi {
     info(projectId: string): Promise<MarkdownProjectionInfo>;
     pickOutputRoot(title: string): Promise<string | null>;
     setOutputRoot(projectId: string, customRoot: string | null): Promise<MarkdownProjectionInfo>;
+    folder(): Promise<MarkdownFolderSettings>;
+    setDefaultRoot(customRoot: string | null): Promise<MarkdownFolderSettings>;
+    setEnabled(enabled: boolean): Promise<MarkdownFolderSettings>;
+    /** Shows the project's folder in Finder, or with no project the folder holding them. */
+    open(projectId: string | null): Promise<void>;
     write(projectId: string, generatedAt: string, entries: MarkdownProjectionEntry[], assets: MarkdownProjectionAsset[], documents: MarkdownProjectionDocument[]): Promise<MarkdownProjectionWriteResult>;
     read(projectId: string, requests: MarkdownProjectionReadRequest[]): Promise<MarkdownProjectionReadResult[]>;
   };

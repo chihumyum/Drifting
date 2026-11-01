@@ -1893,6 +1893,37 @@ html[data-shell-mode='mobile'] .patch-create-modal {
   line-height: 1.8;
 }
 
+/* First run's Markdown folder step: where the folders go, as a path in index
+   type under a muted label. Turning the folder off sits apart on the left. */
+.markdown-folder-guide__location {
+  margin-top: 14px;
+}
+
+.markdown-folder-guide__label {
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font-size: var(--ui-font-caption, 12px);
+  line-height: 16px;
+}
+
+.markdown-folder-guide__path {
+  display: block;
+  margin-top: 4px;
+  color: hsl(var(--ink-1));
+  font-family: var(--font-mono);
+  font-size: var(--ui-font-secondary, 13px);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.markdown-folder-guide__error {
+  margin: 10px 0 0;
+  color: hsl(var(--destructive));
+}
+
+.markdown-folder-guide__off {
+  margin-right: auto;
+}
+
 .debug-modal__tabs {
   padding: 0 20px 4px;
 }

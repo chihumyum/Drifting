@@ -75,6 +75,14 @@ aliases: ["雨夜"]
   - 某段有尚未结算的 Agent 审阅时，外部改动不接管这一段的标记。
   - 设置里的出现动画开关同时管 Agent 和外部改动。外部改动不提供撤回，也分不出是作者还是外部 Agent 改的；只在合并的这台设备上标出。
 
+## 位置与开关（2026-11-02）
+
+- 桌面首次启动在欢迎卡片之后问 Markdown 文件夹放在哪里：选了就是所有项目的位置，不选用默认位置（应用数据目录）。同一张卡片左侧有危险色的「关闭 Markdown 文件夹」，确认后才关。每台设备只问一次。
+- 设置 → 同步与数据 → 本地数据 → Markdown 文件夹：所有项目的位置（选择 / 恢复默认）、「在访达中打开」、打开着的项目的路径与状态（可以为它单独选位置），最后是危险按钮「关闭 Markdown 文件夹」，先确认、默认焦点在「取消」。
+- 关闭前先做一次捕获（顺带合并文件夹里等着的外部修改），之后所有项目不再写出也不再读回，原生层的读写也会拒绝；已有文件留在原处。重新开启后第一次扫描对所有文件重算指纹，关闭期间在文件夹里改过的章节按上面的读入规则合并回来。
+- MCP 初始化说明和 `get_project_overview` 在关闭时只说文件夹已关闭，不再给出路径。
+- 位置与开关存在本机的 `markdown-projection-settings.json`（`defaultRoot`、`disabled`），不同步。细节见 [`local-data-export.md`](local-data-export.md)。
+
 ## 第一期不做
 
 - 新建、删除、改名、移动文件不同步：删掉的章节文件会重新生成，改名后的文件不受管理。
@@ -91,7 +99,8 @@ aliases: ["雨夜"]
 - `ingest.integration.test.ts`（真实 SQLite）：并发修改与字段一起合并、只有同一处被两边改才报重叠、同一字节读两次只生效一次、恢复被删的段落、拒绝陌生历史 / 清空 / 坏 frontmatter / 错误 ID。
 - `mirror.integration.test.ts`（真实 SQLite）：写出—外部修改—写回、写完未确认就崩溃不会重复合并、写入中途被改的文件留到下一轮且两边修改都在、合并不了的修改被提示并重写、坏 frontmatter 修好前不覆盖、两边改了同一处只挂一条 TODO。
 - `markdown-projection.service.test.ts`：捕获前先合并、作者文件替换生成内容、冲突触发下一轮、合并不了的文件只通知一次、另存进通知中心、只在窗口可见时扫描。
-- `cargo test markdown_projection`：作者文件可写、未读过的字节不替换、升级时另存被改过的只读文件、弃用的作者文件另存、按大小和时间读回、拒绝别的安装管理的文件夹。
+- `markdown-projection.service.test.ts` 另有：关闭前先写出未捕获的修改，关闭后不扫描不写出，重新开启后强制重算指纹。
+- `cargo test markdown_projection`：作者文件可写、未读过的字节不替换、升级时另存被改过的只读文件、弃用的作者文件另存、按大小和时间读回、拒绝别的安装管理的文件夹、所有项目的默认位置与单独位置、选中的位置不可用时不回退、关闭后不读不写且文件保留、在访达中打开的目录。
 
 侧栏的蓝色「M」、蓝色出现动画和标为已读，在 Agent 未读显示的浏览器验收里（[`agent-runtime/acceptance/unread-direct-edits.json`](agent-runtime/acceptance/unread-direct-edits.json) 的 `externalEditBlue`）。
 

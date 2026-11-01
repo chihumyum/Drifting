@@ -103,6 +103,20 @@ pub struct ProjectionInfo {
     generated_at: Option<String>,
     read_only: bool,
     reverse_sync: bool,
+    /// False once the author turned the folder off: nothing is written or read back.
+    enabled: bool,
+}
+
+/// Where projects without a location of their own are written, and whether
+/// the folder is on at all. Device-local, like each project's own location.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FolderSettings {
+    /// Holds the folder of every project without a location of its own.
+    directory: String,
+    /// The location the author chose; the app's data folder when unset.
+    custom_root: Option<String>,
+    enabled: bool,
 }
 
 #[derive(Serialize)]
@@ -147,16 +161,25 @@ pub fn project_directory(root: &Path, project_id: &str) -> PathBuf {
         .join(format!("{:x}", Sha256::digest(project_id.as_bytes())))
 }
 
+const SETTINGS: &str = "markdown-projection-settings.json";
+const TURNED_OFF: &str = "The Markdown folder is turned off";
+
 #[derive(Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct OutputSettings {
     roots: BTreeMap<String, PathBuf>,
+    /// Where a project without a location of its own is written; the app's
+    /// data folder when unset.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    default_root: Option<PathBuf>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    disabled: bool,
 }
 
 // Device-local paths must never enter project data or authored sync settings.
 fn read_settings(root: &Path) -> Result<OutputSettings, String> {
     inspect(root, true)?;
-    let path = root.join("markdown-projection-settings.json");
+    let path = root.join(SETTINGS);
     if !inspect(&path, false)? {
         return Ok(OutputSettings::default());
     }
@@ -167,26 +190,161 @@ fn read_settings(root: &Path) -> Result<OutputSettings, String> {
         .map_err(|_| "Invalid projection output settings".into())
 }
 
-fn output_root(root: &Path, project_id: &str) -> Result<(PathBuf, Option<String>), String> {
-    validate_project(project_id)?;
-    match read_settings(root)?.roots.remove(project_id) {
-        Some(custom) => {
-            if !custom.is_absolute()
-                || (inspect(&custom, true)?
-                    && fs::canonicalize(&custom).map_err(|e| e.to_string())? != custom)
-            {
-                return Err("Custom projection output directory is unavailable".into());
-            }
-            let label = custom.to_string_lossy().into_owned();
-            Ok((custom, Some(label)))
-        }
-        None => Ok((root.to_path_buf(), None)),
+fn write_settings(root: &Path, settings: &OutputSettings) -> Result<(), String> {
+    atomic_write(
+        &root.join(SETTINGS),
+        &serde_json::to_vec(settings).map_err(|e| e.to_string())?,
+        0o400,
+    )
+}
+
+/// A chosen location is never silently replaced by another one: once it is
+/// gone or moved, writing fails until the author chooses again or resets.
+fn chosen_root(path: &Path) -> Result<(), String> {
+    if !path.is_absolute()
+        || (inspect(path, true)? && fs::canonicalize(path).map_err(|e| e.to_string())? != path)
+    {
+        return Err("Custom projection output directory is unavailable".into());
     }
+    Ok(())
+}
+
+fn selected_directory(path: String) -> Result<PathBuf, String> {
+    let path = PathBuf::from(path);
+    if !path.is_absolute() || !inspect(&path, true)? {
+        return Err("Select an existing absolute output directory".into());
+    }
+    fs::canonicalize(path).map_err(|e| e.to_string())
+}
+
+fn default_output(settings: &OutputSettings, root: &Path) -> Result<PathBuf, String> {
+    match &settings.default_root {
+        Some(chosen) => {
+            chosen_root(chosen)?;
+            Ok(chosen.clone())
+        }
+        None => Ok(root.to_path_buf()),
+    }
+}
+
+/// The project's own location, else the chosen default, else the app's data
+/// folder. The label names a location chosen for this project.
+fn output_root_in(
+    settings: &OutputSettings,
+    root: &Path,
+    project_id: &str,
+) -> Result<(PathBuf, Option<String>), String> {
+    validate_project(project_id)?;
+    match settings.roots.get(project_id) {
+        Some(custom) => {
+            chosen_root(custom)?;
+            Ok((custom.clone(), Some(custom.to_string_lossy().into_owned())))
+        }
+        None => Ok((default_output(settings, root)?, None)),
+    }
+}
+
+fn output_root(root: &Path, project_id: &str) -> Result<(PathBuf, Option<String>), String> {
+    output_root_in(&read_settings(root)?, root, project_id)
 }
 
 pub fn resolved_project_directory(root: &Path, project_id: &str) -> Result<PathBuf, String> {
     let (output, _) = output_root(root, project_id)?;
     Ok(project_directory(&output, project_id))
+}
+
+/// Whether the author left the folder on; an unreadable setting counts as on.
+pub fn folder_enabled(root: &Path) -> bool {
+    read_settings(root).map_or(true, |settings| !settings.disabled)
+}
+
+fn probe_writable(directory: &Path) -> Result<(), String> {
+    let mut random = [0u8; 16];
+    getrandom::getrandom(&mut random).map_err(|e| e.to_string())?;
+    let probe = directory.join(format!(
+        ".projection-check-{:032x}.tmp",
+        u128::from_le_bytes(random)
+    ));
+    fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&probe)
+        .map_err(|e| e.to_string())?;
+    fs::remove_file(probe).map_err(|e| e.to_string())
+}
+
+fn folder_settings_in(settings: &OutputSettings, root: &Path) -> FolderSettings {
+    let output = settings.default_root.as_deref().unwrap_or(root);
+    FolderSettings {
+        directory: output
+            .join("markdown-projections")
+            .to_string_lossy()
+            .into_owned(),
+        custom_root: settings
+            .default_root
+            .as_ref()
+            .map(|path| path.to_string_lossy().into_owned()),
+        enabled: !settings.disabled,
+    }
+}
+
+fn folder_settings(root: &Path) -> Result<FolderSettings, String> {
+    Ok(folder_settings_in(&read_settings(root)?, root))
+}
+
+/// Chooses where projects without a location of their own are written. Their
+/// folders at the old location stay where they are.
+pub(crate) fn set_default_root(
+    root: &Path,
+    custom_root: Option<String>,
+) -> Result<FolderSettings, String> {
+    let _guard = WRITER.lock().map_err(|_| "Projection writer unavailable")?;
+    let mut settings = read_settings(root)?;
+    let app_folder = fs::canonicalize(root).map_err(|e| e.to_string())?;
+    // Choosing the app's own data folder is choosing the default.
+    let selected = custom_root
+        .map(selected_directory)
+        .transpose()?
+        .filter(|path| *path != app_folder);
+    let parent = selected
+        .as_deref()
+        .unwrap_or(root)
+        .join("markdown-projections");
+    ensure_directory(&parent)?;
+    // Check writability before persisting a new location.
+    probe_writable(&parent)?;
+    settings.default_root = selected;
+    write_settings(root, &settings)?;
+    Ok(folder_settings_in(&settings, root))
+}
+
+/// Turning the folder off keeps its files where they are; turning it back on
+/// merges whatever was edited there meanwhile.
+pub(crate) fn set_enabled(root: &Path, enabled: bool) -> Result<FolderSettings, String> {
+    let _guard = WRITER.lock().map_err(|_| "Projection writer unavailable")?;
+    let mut settings = read_settings(root)?;
+    settings.disabled = !enabled;
+    write_settings(root, &settings)?;
+    Ok(folder_settings_in(&settings, root))
+}
+
+/// The project's folder once it was written, else the folder holding projects.
+fn folder_to_open(root: &Path, project_id: Option<&str>) -> Result<PathBuf, String> {
+    let settings = read_settings(root)?;
+    if let Some(project_id) = project_id {
+        let (output, _) = output_root_in(&settings, root, project_id)?;
+        let directory = project_directory(&output, project_id);
+        if inspect(&directory, true)? {
+            return Ok(directory);
+        }
+    }
+    let output = default_output(&settings, root)?;
+    if !inspect(&output, true)? {
+        return Err("Projection output directory is unavailable".into());
+    }
+    let directory = output.join("markdown-projections");
+    ensure_directory(&directory)?;
+    Ok(directory)
 }
 
 pub(crate) fn set_output_root(
@@ -197,22 +355,18 @@ pub(crate) fn set_output_root(
     let _guard = WRITER.lock().map_err(|_| "Projection writer unavailable")?;
     validate_project(project_id)?;
     let mut settings = read_settings(root)?;
-    let selected = match custom_root {
-        Some(path) => {
-            let path = PathBuf::from(path);
-            if !path.is_absolute() || !inspect(&path, true)? {
-                return Err("Select an existing absolute output directory".into());
-            }
-            Some(fs::canonicalize(path).map_err(|e| e.to_string())?)
-        }
-        None => None,
+    let selected = custom_root.map(selected_directory).transpose()?;
+    let output = match &selected {
+        Some(path) => path.clone(),
+        None => default_output(&settings, root)?,
     };
-    let output = selected.as_deref().unwrap_or(root);
-    let result = info_at(
+    let output = output.as_path();
+    let mut result = info_at(
         output,
         project_id,
         selected.as_ref().map(|p| p.to_string_lossy().into_owned()),
     )?;
+    result.enabled = !settings.disabled;
     let directory = PathBuf::from(&result.directory);
     if inspect(&directory, true)?
         && read_owned_manifest(&directory, project_id)?.is_none()
@@ -226,28 +380,13 @@ pub(crate) fn set_output_root(
     ensure_directory(&output.join("markdown-projections"))?;
     ensure_directory(&directory)?;
     // Check writability before persisting a new location; never touch old output.
-    let mut random = [0u8; 16];
-    getrandom::getrandom(&mut random).map_err(|e| e.to_string())?;
-    let probe = directory.join(format!(
-        ".projection-check-{:032x}.tmp",
-        u128::from_le_bytes(random)
-    ));
-    fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&probe)
-        .map_err(|e| e.to_string())?;
-    fs::remove_file(probe).map_err(|e| e.to_string())?;
+    probe_writable(&directory)?;
     if let Some(selected) = selected {
         settings.roots.insert(project_id.into(), selected);
     } else {
         settings.roots.remove(project_id);
     }
-    atomic_write(
-        &root.join("markdown-projection-settings.json"),
-        &serde_json::to_vec(&settings).map_err(|e| e.to_string())?,
-        0o400,
-    )?;
+    write_settings(root, &settings)?;
     Ok(result)
 }
 
@@ -425,7 +564,26 @@ fn read_owned_manifest(root: &Path, project_id: &str) -> Result<Option<Manifest>
 }
 
 fn info(root: &Path, project_id: &str) -> Result<ProjectionInfo, String> {
-    let (output, custom_root) = output_root(root, project_id)?;
+    let settings = read_settings(root)?;
+    if settings.disabled {
+        validate_project(project_id)?;
+        // Nothing at the location is read while off, so it may even be gone.
+        let custom = settings.roots.get(project_id);
+        let output = custom
+            .or(settings.default_root.as_ref())
+            .map_or(root, PathBuf::as_path);
+        return Ok(ProjectionInfo {
+            directory: project_directory(output, project_id)
+                .to_string_lossy()
+                .into_owned(),
+            custom_root: custom.map(|path| path.to_string_lossy().into_owned()),
+            generated_at: None,
+            read_only: false,
+            reverse_sync: true,
+            enabled: false,
+        });
+    }
+    let (output, custom_root) = output_root_in(&settings, root, project_id)?;
     info_at(&output, project_id, custom_root)
 }
 
@@ -456,6 +614,7 @@ fn info_at(
         generated_at: manifest.map(|m| m.generated_at),
         read_only: false,
         reverse_sync: true,
+        enabled: true,
     })
 }
 
@@ -549,7 +708,12 @@ fn read_files(
     if requests.len() > 20_000 {
         return Err("Too many Markdown files requested".into());
     }
-    let directory = resolved_project_directory(root, project_id)?;
+    let settings = read_settings(root)?;
+    if settings.disabled {
+        return Err(TURNED_OFF.into());
+    }
+    let (output, _) = output_root_in(&settings, root, project_id)?;
+    let directory = project_directory(&output, project_id);
     if !inspect(&directory, true)? {
         return Ok(requests
             .into_iter()
@@ -829,7 +993,11 @@ fn write_projection_with_documents(
             }
         }
     }
-    let (output, _) = output_root(root, project_id)?;
+    let settings = read_settings(root)?;
+    if settings.disabled {
+        return Err(TURNED_OFF.into());
+    }
+    let (output, _) = output_root_in(&settings, root, project_id)?;
     if !inspect(&output, true)? {
         return Err("Projection output directory is unavailable".into());
     }
@@ -1113,11 +1281,7 @@ fn remove_projection(root: &Path, project_id: &str) -> Result<(), String> {
 fn forget_output_root(root: &Path, project_id: &str) -> Result<(), String> {
     let mut settings = read_settings(root)?;
     if settings.roots.remove(project_id).is_some() {
-        atomic_write(
-            &root.join("markdown-projection-settings.json"),
-            &serde_json::to_vec(&settings).map_err(|e| e.to_string())?,
-            0o400,
-        )?;
+        write_settings(root, &settings)?;
     }
     Ok(())
 }
@@ -1154,6 +1318,53 @@ pub async fn markdown_projection_set_output_root(
     tauri::async_runtime::spawn_blocking(move || set_output_root(&root, &project_id, custom_root))
         .await
         .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn markdown_projection_folder(app: tauri::AppHandle) -> Result<FolderSettings, String> {
+    let root = app.path().app_local_data_dir().map_err(|e| e.to_string())?;
+    tauri::async_runtime::spawn_blocking(move || folder_settings(&root))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn markdown_projection_set_default_root(
+    app: tauri::AppHandle,
+    custom_root: Option<String>,
+) -> Result<FolderSettings, String> {
+    let root = app.path().app_local_data_dir().map_err(|e| e.to_string())?;
+    tauri::async_runtime::spawn_blocking(move || set_default_root(&root, custom_root))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn markdown_projection_set_enabled(
+    app: tauri::AppHandle,
+    enabled: bool,
+) -> Result<FolderSettings, String> {
+    let root = app.path().app_local_data_dir().map_err(|e| e.to_string())?;
+    tauri::async_runtime::spawn_blocking(move || set_enabled(&root, enabled))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// Shows the folder in Finder.
+#[tauri::command]
+pub async fn markdown_projection_open(
+    app: tauri::AppHandle,
+    project_id: Option<String>,
+) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    let root = app.path().app_local_data_dir().map_err(|e| e.to_string())?;
+    let directory =
+        tauri::async_runtime::spawn_blocking(move || folder_to_open(&root, project_id.as_deref()))
+            .await
+            .map_err(|e| e.to_string())??;
+    app.opener()
+        .open_path(directory.to_string_lossy(), None::<&str>)
+        .map_err(|_| "could not open the Markdown folder".to_string())
 }
 
 #[tauri::command]
@@ -1513,6 +1724,134 @@ mod tests {
         );
         assert!(!project_directory(root, "p").exists());
         assert_eq!(fs::read(outside).unwrap(), b"synthetic image");
+    }
+
+    #[test]
+    fn default_location_holds_projects_without_their_own_and_keeps_old_folders() {
+        let local = tempfile::tempdir().unwrap();
+        let chosen = tempfile::tempdir().unwrap();
+        let own = tempfile::tempdir().unwrap();
+        let root = local.path();
+        let original =
+            write_projection(root, "p", "first".into(), vec![entry("prose.md", "old")]).unwrap();
+        let folder =
+            set_default_root(root, Some(chosen.path().to_string_lossy().into_owned())).unwrap();
+        let canonical = fs::canonicalize(chosen.path()).unwrap();
+        assert_eq!(
+            folder.custom_root.as_deref(),
+            Some(canonical.to_string_lossy().as_ref())
+        );
+        assert_eq!(
+            folder.directory,
+            canonical.join("markdown-projections").to_string_lossy()
+        );
+        // The project follows the new default; its own choice is still unset.
+        let moved = info(root, "p").unwrap();
+        assert_eq!(moved.custom_root, None);
+        assert_eq!(
+            moved.directory,
+            project_directory(&canonical, "p").to_string_lossy()
+        );
+        write_projection(root, "p", "second".into(), vec![entry("prose.md", "new")]).unwrap();
+        assert_eq!(
+            fs::read_to_string(project_directory(&canonical, "p").join("prose.md")).unwrap(),
+            "new"
+        );
+        assert_eq!(
+            fs::read_to_string(Path::new(&original.directory).join("prose.md")).unwrap(),
+            "old"
+        );
+        // A location chosen for the project wins, and resetting it returns to the default.
+        set_output_root(root, "p", Some(own.path().to_string_lossy().into_owned())).unwrap();
+        assert!(info(root, "p").unwrap().custom_root.is_some());
+        let reset = set_output_root(root, "p", None).unwrap();
+        assert_eq!(reset.directory, moved.directory);
+        // Choosing the app's own folder is the default.
+        let folder = set_default_root(root, Some(root.to_string_lossy().into_owned())).unwrap();
+        assert_eq!(folder.custom_root, None);
+        assert_eq!(info(root, "p").unwrap().directory, original.directory);
+        assert!(set_default_root(root, Some("relative/path".into())).is_err());
+        assert_eq!(folder_settings(root).unwrap().custom_root, None);
+    }
+
+    #[test]
+    fn unavailable_default_location_does_not_fall_back_and_can_be_reset() {
+        let local = tempfile::tempdir().unwrap();
+        let chosen = tempfile::tempdir().unwrap();
+        let root = local.path();
+        set_default_root(root, Some(chosen.path().to_string_lossy().into_owned())).unwrap();
+        chosen.close().unwrap();
+        assert!(
+            write_projection(root, "p", "now".into(), vec![entry("prose.md", "text")]).is_err()
+        );
+        assert!(!project_directory(root, "p").exists());
+        assert!(folder_to_open(root, Some("p")).is_err());
+        set_default_root(root, None).unwrap();
+        write_projection(root, "p", "now".into(), vec![entry("prose.md", "text")]).unwrap();
+    }
+
+    #[test]
+    fn turned_off_folder_is_neither_written_nor_read_and_keeps_its_files() {
+        let local = tempfile::tempdir().unwrap();
+        let root = local.path();
+        let written =
+            write_projection(root, "p", "first".into(), vec![entry("prose.md", "kept")]).unwrap();
+        assert!(written.enabled);
+        assert!(!set_enabled(root, false).unwrap().enabled);
+        assert!(!folder_enabled(root));
+        let off = info(root, "p").unwrap();
+        assert!(!off.enabled);
+        assert_eq!(off.directory, written.directory);
+        assert!(
+            write_projection(root, "p", "second".into(), vec![entry("prose.md", "new")]).is_err()
+        );
+        assert!(read_files(
+            root,
+            "p",
+            vec![ReadRequest {
+                path: "prose.md".into(),
+                known_size: None,
+                known_modified_ms: None,
+                force: true,
+            }]
+        )
+        .is_err());
+        assert_eq!(
+            fs::read_to_string(Path::new(&written.directory).join("prose.md")).unwrap(),
+            "kept"
+        );
+        // A location that went missing is no error while off.
+        let gone = tempfile::tempdir().unwrap();
+        set_enabled(root, true).unwrap();
+        set_default_root(root, Some(gone.path().to_string_lossy().into_owned())).unwrap();
+        set_enabled(root, false).unwrap();
+        gone.close().unwrap();
+        assert!(!info(root, "p").unwrap().enabled);
+        set_default_root(root, None).unwrap();
+        assert!(set_enabled(root, true).unwrap().enabled);
+        assert!(info(root, "p").unwrap().enabled);
+        write_projection(root, "p", "third".into(), vec![entry("prose.md", "new")]).unwrap();
+    }
+
+    #[test]
+    fn opening_shows_the_project_folder_once_written_else_the_folder_holding_projects() {
+        let local = tempfile::tempdir().unwrap();
+        let root = local.path();
+        assert_eq!(
+            folder_to_open(root, Some("p")).unwrap(),
+            root.join("markdown-projections")
+        );
+        assert!(root.join("markdown-projections").is_dir());
+        let written =
+            write_projection(root, "p", "now".into(), vec![entry("prose.md", "text")]).unwrap();
+        assert_eq!(
+            folder_to_open(root, Some("p")).unwrap(),
+            PathBuf::from(&written.directory)
+        );
+        assert_eq!(
+            folder_to_open(root, None).unwrap(),
+            root.join("markdown-projections")
+        );
     }
 
     #[test]

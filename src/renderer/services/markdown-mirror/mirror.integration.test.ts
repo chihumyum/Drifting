@@ -101,7 +101,7 @@ async function source(db: DbClient): Promise<LocalRelationalMarkdownSource> {
 
 const documents = [{ key: `node:${NODE_ID}`, path: FILE_PATH, title: '雨夜', anchor: null, sourceVersion: null }];
 const result = (conflicts: string[] = []): MarkdownProjectionWriteResult => ({
-  directory: DIRECTORY, customRoot: null, generatedAt: NOW, readOnly: false, reverseSync: true, conflicts, preserved: [],
+  directory: DIRECTORY, customRoot: null, generatedAt: NOW, readOnly: false, reverseSync: true, enabled: true, conflicts, preserved: [],
 });
 
 /** The native writer: replace only bytes the ledger expects. */
