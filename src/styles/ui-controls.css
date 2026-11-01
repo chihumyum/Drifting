@@ -613,8 +613,10 @@ html:not([data-shell-mode='mobile']) .menu-surface {
 }
 
 /* In the editor's suggestions the arrow keys' row is marked by its still
-   ring alone; a bolder label would shift as the keys move. */
+   ring alone, in the row's own colour; a bolder label would shift as the
+   keys move. */
 .editor-suggestion-menu .menu-surface__item[aria-selected='true'] {
+  color: hsl(var(--ink-2));
   font-weight: 400;
 }
 
@@ -624,10 +626,12 @@ html:not([data-shell-mode='mobile']) .menu-surface {
   color: var(--ui-text-muted, hsl(var(--ink-4)));
 }
 
+/* A row keeps one colour under the pointer and under the keys: its ring of
+   glass already says which row it is, so the words do not darken as well.
+   Only a state (chosen, checked) darkens a row. */
 .menu-surface__item:hover:not(:disabled),
 .menu-surface__item:focus-visible {
   background: transparent;
-  color: hsl(var(--ink-1));
 }
 
 /* Desktop only: mobile menus keep their own row pseudo-elements.
@@ -695,12 +699,8 @@ html:not([data-shell-mode='mobile']) .menu-surface__item--danger:active::before 
 }
 
 /* The row the arrow keys have moved to (a search result, a select's option)
-   keeps the same ring, standing still like any selected glass; the row under
-   the pointer still drifts. */
-html:not([data-shell-mode='mobile']) .menu-surface__item.is-current {
-  color: hsl(var(--ink-1));
-}
-
+   keeps the same ring, standing still like any selected glass, in the row's
+   own colour; the row under the pointer still drifts. */
 html:not([data-shell-mode='mobile']) .menu-surface__item.is-current:not(:hover)::before {
   opacity: 1;
   animation-play-state: paused;
@@ -712,12 +712,6 @@ html:not([data-shell-mode='mobile']) .menu-surface__item.is-current:not(:hover):
 }
 
 .menu-surface__item--danger {
-  color: var(--menu-item-danger);
-}
-
-.menu-surface__item--danger:hover:not(:disabled),
-.menu-surface__item--danger:focus-visible {
-  background: transparent;
   color: var(--menu-item-danger);
 }
 

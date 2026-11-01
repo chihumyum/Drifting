@@ -136,10 +136,6 @@
 .chapter-end-menu__item[data-primary="true"] {
   color: hsl(var(--ink-2));
 }
-.chapter-end-menu__item:hover:not(:disabled),
-.chapter-end-menu__item:focus-visible {
-  color: hsl(var(--ink-1));
-}
 .chapter-end-menu__item:focus-visible {
   outline: none;
   text-decoration: underline;
