@@ -77,6 +77,11 @@ function rise(el, t, from) {
   el.style.opacity = String(r);
   el.style.translate = `0 ${((1 - r) * 12).toFixed(2)}px`;
 }
+// Where a sound is heard, left (−1) to right (1): where its element sits across the frame.
+function panOf(node) {
+  const box = node.getBoundingClientRect();
+  return Number((Math.max(-1, Math.min(1, ((box.left + box.width / 2) / innerWidth) * 2 - 1))).toFixed(3));
+}
 
 // ── The sea ──────────────────────────────────────────────────────────
 // Times bold's hairlines are thinner than one of the app's cells, so on a
@@ -150,7 +155,7 @@ function writeCorner(el) {
   });
   let lastKey = '';
   let savedCount = 0;
-  return (tau) => {
+  const play = (tau) => {
     const parts = [];
     let key = '';
     lines.forEach((line) => {
@@ -170,6 +175,13 @@ function writeCorner(el) {
       raw.appendChild(rawLine(MD.lines[savedCount], 'fresh'));
     }
   };
+  // A key for each character as it appears, and the file saving each line.
+  const keyPan = panOf(live), filePan = panOf(raw);
+  play.sounds = lines.flatMap((line) => [
+    ...line.chars.map((ch, j) => ({ at: line.times[j], kind: 'key', ch, pan: keyPan })),
+    { at: line.saved, kind: 'saved', pan: filePan },
+  ]);
+  return play;
 }
 
 // ── Build: a tab shows its panel, a click opens the page and the brush goes round the cell ──
@@ -195,7 +207,7 @@ function studioCorner(el) {
   };
   block.style.transition = 'none';
   let stroke = null, strokeKey = '', painted = '', lastCell = '';
-  return (tau) => {
+  const play = (tau) => {
     let tab = 'nodes', from = 'nodes', switchAt = -Infinity, cell = 'fog', selectAt = -Infinity, chosen = 0, travelled = 0;
     for (const [at, nextTab, nextCell] of TOUR) {
       if (at > tau) break;
@@ -250,6 +262,19 @@ function studioCorner(el) {
       painted = paint;
     }
   };
+  // A push for each tab, a click for each cell and the brush going round it once the push is over.
+  const sidePan = panOf(side);
+  play.sounds = [];
+  let shownTab = 'nodes', lastSwitch = -Infinity;
+  for (const [at, nextTab, nextCell] of TOUR) {
+    if (nextTab) {
+      play.sounds.push({ at, kind: 'push', dur: PUSH, pan: sidePan });
+      shownTab = nextTab;
+      lastSwitch = at;
+    }
+    if (nextCell) play.sounds.push({ at, kind: 'click', pan: sidePan }, { at: Math.max(at, lastSwitch + PUSH), kind: 'brush', dur: 0.38, pan: sidePan });
+  }
+  return play;
 }
 
 // ── Tend: the ask, its steps arriving one by one, the edit erased and written into the page ──
@@ -288,7 +313,7 @@ function agentCorner(el) {
   steps.forEach((step) => step.classList.add('wait'));
   let lastHtml = '';
   const lastState = [];
-  return (tau) => {
+  const play = (tau) => {
     let html;
     if (tau < mark) html = esc(AG.old);
     else if (tau < erase) html = `${head}<span class="del">${esc(gone.join(''))}</span>${tail}`;
@@ -312,6 +337,19 @@ function agentCorner(el) {
       icon.style.setProperty('--i', `url(${state === 1 ? loaderIcon : doneIcon})`);
     });
   };
+  // The ask sent, each step arriving and finishing, the edit marked, erased and typed, and the reply.
+  const logPan = panOf($('#ag-log', el)), pagePan = panOf(edit);
+  play.sounds = [
+    { at: shows[0], kind: 'send', pan: logPan },
+    ...[1, 2, 3].map((i) => ({ at: shows[i], kind: 'step', pan: logPan })),
+    ...[1, 2].map((i) => ({ at: dones[i], kind: 'done', pan: logPan })),
+    { at: mark, kind: 'mark', pan: pagePan },
+    { at: erase, kind: 'erase', dur: eraseFor, pan: pagePan },
+    ...come.map((ch, n) => ({ at: typeFrom + n * typePace, kind: 'key', ch, pan: pagePan })),
+    { at: settle, kind: 'settle', pan: pagePan },
+    { at: shows[4], kind: 'reply', pan: logPan },
+  ];
+  return play;
 }
 
 // ── Scenes ───────────────────────────────────────────────────────────
@@ -330,6 +368,7 @@ function sheetScene(el, [open, close], play) {
   scene.el = el;
   scene.open = open;
   scene.close = close;
+  scene.sounds = (play.sounds ?? []).map(({ at, ...sound }) => ({ ...sound, t: open + at }));
   return scene;
 }
 
@@ -358,18 +397,22 @@ function sheetGlass(sheets) {
 
 function underScene(el, [from, to], rises) {
   const lines = $$(`[data-l="${lang}"] .su`, el);
-  return (t) => {
+  const scene = (t) => {
     if (t < from - 0.1 || t > to + 0.6) { el.style.opacity = '0'; return; }
     el.style.opacity = String(1 - easeIn(span(t, to, 0.45)));
     rises.forEach((item, i) => rise(item, t, from + i * 0.18));
     lines.forEach((line, i) => line.style.setProperty('--draw', easeOut(span(t, from + 0.7 + i * 0.38, 0.6)).toFixed(4)));
   };
+  // The brush under each word, heard where the word is.
+  scene.sounds = lines.map((line, i) => ({ t: from + 0.7 + i * 0.38, kind: 'brush', dur: 0.6, pan: panOf(line) }));
+  return scene;
 }
 
 const canvas = $('#sea');
 let sea = null;
 let scenes = [];
 let cues = [];
+let sounds = [];
 let fired = 0;
 
 async function setUp() {
@@ -392,6 +435,8 @@ async function setUp() {
   const sheets = [['#s-write', T.write, writeCorner], ['#s-build', T.build, studioCorner], ['#s-tend', T.tend, agentCorner]];
   const pillars = sheets.map(([selector, times, corner]) => {
     const el = $(selector);
+    // Centred before the corner measures where its sounds come from.
+    el.style.transform = 'translate(-50%, -50%)';
     return sheetScene(el, times, corner(el));
   });
   scenes = [
@@ -404,14 +449,26 @@ async function setUp() {
     const box = $(selector).getBoundingClientRect();
     return [box.left + box.width / 2, box.top + box.height / 2];
   };
+  // [when, what the sea does, what is heard]
   cues = [
-    [T.drop, () => sea.drop(innerWidth / 2, innerHeight * 0.4, 1.4)],
+    [T.drop, () => sea.drop(innerWidth / 2, innerHeight * 0.4, 1.4), { kind: 'drop', size: 1 }],
     [T.rain, () => sea.rain(true)],
-    [T.rise, () => sea.loading(true)],
-    [T.burst, () => sea.loading(false)],
-    ...sheets.map(([selector, [open]]) => [open + 0.05, () => sea.drop(...middle(selector), 0.9)]),
-    [T.closeRise, () => sea.loading(true)],
+    [T.rise, () => sea.loading(true), { kind: 'rise' }],
+    [T.burst, () => sea.loading(false), { kind: 'burst' }],
+    ...sheets.map(([selector, [open]]) => [open + 0.05, () => sea.drop(...middle(selector), 0.9), { kind: 'drop', size: 0.6 }]),
+    [T.closeRise, () => sea.loading(true), { kind: 'rise' }],
   ].sort((x, y) => x[0] - y[0]);
+  // What render.mjs's sound.mjs plays, in seconds of the video. `pad` marks
+  // where the music changes chord: the name, the burst, each pillar, the fold.
+  sounds = [
+    ...cues.filter((cue) => cue[2]).map(([t, , sound]) => ({ t, ...sound })),
+    ...scenes.flatMap((scene) => scene.sounds ?? []),
+    { t: T.write[0], kind: 'glass', dir: 1 },
+    ...pillars.slice(1).map((pillar, n) => ({ t: pillars[n].close, kind: 'glass', dir: 0 })),
+    { t: T.tend[1] + 0.04, kind: 'glass', dir: -1 },
+    { t: T.closeIn, kind: 'pill' },
+    ...[[T.rise, 'D'], [T.burst, 'Bm'], [T.write[1], 'G'], [T.build[1], 'Em'], [T.tend[1] - 1.6, 'A'], [T.tend[1], 'D']].map(([t, chord]) => ({ t, kind: 'pad', chord })),
+  ].map((sound) => ({ pan: 0, ...sound, t: Number(sound.t.toFixed(4)) })).sort((x, y) => x.t - y.t);
   // The glass texture and the sea's glyph atlas settle on real time.
   await new Promise((resolve) => clock.real.setTimeout(resolve, 600));
   // The rain that fell before the first frame.
@@ -430,7 +487,7 @@ function step(t) {
 }
 
 const ready = setUp();
-window.__promo = { duration: T.end, ready, step };
+window.__promo = { duration: T.end, ready, step, get sounds() { return sounds; } };
 
 // Opened in a browser: play in real time (from ?t= seconds, reached at 30 fps).
 if (!params.has('render')) {

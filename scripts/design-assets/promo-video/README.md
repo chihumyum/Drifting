@@ -1,18 +1,29 @@
 # Promo video
 
 A 32-second video for sharing Drifting (X, YouTube, Bilibili, the site), in
-English and in Chinese, 1920×1080 at 60 fps, silent.
+English and in Chinese, 1920×1080 at 60 fps, silent and with its own sound.
 
 ```sh
 node scripts/design-assets/promo-video/render.mjs                    # both languages → out/promo-video/
 node scripts/design-assets/promo-video/render.mjs --lang zh --fps 30 # one language, a quicker draft
-node scripts/design-assets/promo-video/render.mjs --stills 3.8,15    # PNGs at those seconds (covers, review)
+node scripts/design-assets/promo-video/render.mjs --stills 4.4,15    # PNGs at those seconds (covers, review)
+node scripts/design-assets/promo-video/render.mjs --sound-only       # new sound on the videos already rendered
 ```
 
-It writes `drifting-promo-en.mp4` and `drifting-promo-zh.mp4` (H.264, BT.709,
-`+faststart`), about 3 minutes a language at 60 fps. It needs `pnpm install`,
-Google Chrome (`CHROME` overrides the path; WebGL2 runs on Metal in headless
-mode), Times New Roman from the system and `ffmpeg` with libx264.
+For each language it writes:
+
+| File | What |
+| --- | --- |
+| `drifting-promo-<lang>.mp4` | The picture, silent (H.264, BT.709, `+faststart`). |
+| `drifting-promo-<lang>-sound.mp4` | The same picture stream with the sound (AAC 192k). |
+| `drifting-promo-<lang>.wav` | The sound: rain, effects and the pad, −16 LUFS. |
+| `drifting-promo-<lang>-effects.wav` | Rain and effects without the pad, −16 LUFS, for laying other music under it. |
+| `drifting-promo-<lang>-cues.json` | When each effect falls (keys left out), for cutting other music to the picture. |
+
+About 3 minutes a language at 60 fps; `--sound-only` takes seconds. It needs
+`pnpm install`, Google Chrome (`CHROME` overrides the path; WebGL2 runs on
+Metal in headless mode), Times New Roman from the system and `ffmpeg` with
+libx264.
 
 `node scripts/design-assets/promo-video/build.mjs [dir]` writes the page alone
 (`out/promo-video/page`). Served from that directory, `index.html?lang=zh`
@@ -55,6 +66,21 @@ How it is made, and why:
   12% veil). It unfolds from its middle under the first pillar and morphs to
   each next pillar's size as the words change, so a cut never shows an empty
   frame.
+- **The sound** (`sound.mjs`) is synthesized, not recorded, so nothing in it
+  needs a licence, and it is made from the page's own list of what happens
+  when (`window.__promo.sounds`), built from the same schedules the picture
+  plays: a key for each character as it appears, the brush as each frame and
+  underline is drawn, a drop as the sea is struck. Each is heard where its
+  element sits across the frame. Under them: rain all the way through (6 dB
+  softer under the sheets, so the room is heard), air as the name rises, a
+  low thump and falling air as it bursts, faint glass as the sheet opens and
+  changes, small glass notes as files save and the Agent's steps finish, and
+  a soft pad above 90 Hz that changes chord with the scenes (D, Bm, G, Em, A,
+  D) and breathes with the risen word; one reverb (Freeverb) holds it all.
+  The layers sit at about −30 dBFS (rain), −37 (pad) and peaks of −11 to −18
+  (effects). The mix is brought to −16 LUFS by one fixed gain, the few peaks
+  it would lift past −2 dBFS held first by a look-ahead limiter, so the rain
+  never pumps; a rerun gives the same samples.
 - **Copy** is the landing page's and the README's, in both languages; the
   Chinese headings break where a phrase ends. The page lays out at 1152×648 CSS
   px and is captured at device scale 1920/1152, so the corners' 15px text is

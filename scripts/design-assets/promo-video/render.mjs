@@ -2,16 +2,21 @@
 // Render the promo video, frame by frame, with headless Chrome and ffmpeg:
 //   node scripts/design-assets/promo-video/render.mjs [--lang en,zh] [--fps 60] [--out dir]
 //   node scripts/design-assets/promo-video/render.mjs --stills 2.5,8,15   # PNGs at those seconds
+//   node scripts/design-assets/promo-video/render.mjs --sound-only        # new sound on the videos already rendered
 // Builds the page (build.mjs), serves it on 127.0.0.1, and for each language
 // steps the page's clock one frame at a time and captures it at 1920×1080.
-// Writes drifting-promo-<lang>.mp4 (H.264, BT.709) to out/promo-video by
-// default. CHROME overrides the browser.
+// Writes to out/promo-video by default, for each language: the silent
+// drifting-promo-<lang>.mp4 (H.264, BT.709), its sound (sound.mjs) as
+// drifting-promo-<lang>.wav and, without the pad, -effects.wav, both at
+// −16 LUFS, and the two together as drifting-promo-<lang>-sound.mp4.
+// CHROME overrides the browser.
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { RATE, synthesize, wav } from './sound.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '../../..');
@@ -24,6 +29,7 @@ const langs = option('lang', 'en,zh').split(',');
 const fps = Number(option('fps', '60'));
 const out = path.resolve(option('out', path.join(root, 'out/promo-video')));
 const stills = option('stills', '') ? option('stills').split(',').map(Number) : null;
+const soundOnly = args.includes('--sound-only');
 const chrome = process.env.CHROME ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 // The page is laid out at 1152×648 CSS px and captured at 1920×1080.
 const VIEW = { width: 1152, height: 648, deviceScaleFactor: 1920 / 1152 };
@@ -92,6 +98,43 @@ async function evaluate(expression) {
 }
 const capture = async () => Buffer.from((await send('Page.captureScreenshot', { format: 'png', optimizeForSpeed: true })).data, 'base64');
 
+// EBU R128 loudness to −16 LUFS (what the feeds play at) by one fixed gain,
+// so the rain never pumps: the few peaks the gain would lift past −2 dBFS
+// (the burst, the first drop) are held by a look-ahead limiter first.
+function loudnorm(input, output) {
+  const measure = spawnSync('ffmpeg', ['-hide_banner', '-i', input, '-af', 'loudnorm=print_format=json', '-f', 'null', '-'], { encoding: 'utf8' });
+  const { input_i: loudness } = JSON.parse(/\{[^{}]*"input_i"[^{}]*\}/.exec(measure.stderr)[0]);
+  const gain = -16 - Number(loudness);
+  const ceiling = Math.min(1, 10 ** ((-2 - gain) / 20));
+  const done = spawnSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', input, '-af',
+    `alimiter=limit=${ceiling.toFixed(5)}:attack=4:release=150:level=disabled,volume=${gain.toFixed(2)}dB`,
+    '-ar', String(RATE), '-c:a', 'pcm_s24le', output], { stdio: 'inherit' });
+  if (done.status !== 0) throw new Error(`render.mjs: normalizing ${input} failed`);
+}
+
+// The page's list of what is heard when, synthesized and normalized.
+async function writeSound(lang, duration) {
+  const sounds = await evaluate('window.__promo.sounds');
+  // The cue list, for cutting other music to the picture.
+  writeFileSync(path.join(out, `drifting-promo-${lang}-cues.json`), `${JSON.stringify(sounds.filter((s) => s.kind !== 'key'), null, 1)}\n`);
+  const { mix, effects } = synthesize(sounds, duration);
+  const files = [];
+  for (const [bus, name] of [[mix, `drifting-promo-${lang}.wav`], [effects, `drifting-promo-${lang}-effects.wav`]]) {
+    const raw = path.join(profile, `raw-${name}`);
+    writeFileSync(raw, wav(bus));
+    loudnorm(raw, path.join(out, name));
+    files.push(path.join(out, name));
+  }
+  return files[0];
+}
+
+function mux(video, audio, file) {
+  const done = spawnSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', video, '-i', audio, '-map', '0:v', '-map', '1:a', '-c:v', 'copy',
+    '-c:a', 'aac', '-b:a', '192k', '-ar', String(RATE), '-movflags', '+faststart', '-shortest', file], { stdio: 'inherit' });
+  if (done.status !== 0) throw new Error('render.mjs: muxing the sound failed');
+  console.log(file);
+}
+
 await send('Page.enable');
 await send('Runtime.enable');
 await send('Emulation.setDeviceMetricsOverride', { ...VIEW, mobile: false });
@@ -119,6 +162,12 @@ try {
       continue;
     }
     const file = path.join(out, `drifting-promo-${lang}.mp4`);
+    const sound = await writeSound(lang, duration);
+    if (soundOnly) {
+      if (!existsSync(file)) throw new Error(`render.mjs: --sound-only needs ${file}; render it first`);
+      mux(file, sound, path.join(out, `drifting-promo-${lang}-sound.mp4`));
+      continue;
+    }
     const encoder = spawn('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'image2pipe', '-framerate', String(fps), '-c:v', 'png', '-i', '-',
       // The captures are sRGB; the frames carry BT.709 primaries and transfer (ffmpeg 9 tags only what the frames hold).
       '-vf', 'scale=out_color_matrix=bt709:out_range=tv,format=yuv420p,setparams=color_primaries=bt709:color_trc=bt709:colorspace=bt709:range=tv',
@@ -133,6 +182,7 @@ try {
     encoder.stdin.end();
     if ((await encoded) !== 0) throw new Error('render.mjs: ffmpeg failed');
     console.log(`${file}  (${frames} frames in ${Math.round((Date.now() - started) / 1000)}s)`);
+    mux(file, sound, path.join(out, `drifting-promo-${lang}-sound.mp4`));
   }
 } catch (error) {
   console.error(error);
