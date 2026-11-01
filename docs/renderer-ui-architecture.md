@@ -342,7 +342,16 @@ or changed split mounts behind the currently committed surface. The incoming
 view reports ready only after its canonical document is present in the exact
 TipTap instance that will be shown. `EditorMainArea` keeps the outgoing surface
 visible but inert until then and commits visibility in a layout effect, before
-the next browser paint. Project Home is synchronously
+the next browser paint. Once the book is in view (the stage has announced it is
+ready) and motion is allowed, that commit turns the page
+(`components/editor/editor-page-turn.ts`): the replaced surface stays shown as
+`leaving` — still `inert`, `aria-hidden` and not the lifecycle-visible surface —
+while it fades out over 90ms under the committed one, which floats up 6px into
+place; the stage then hides it, or unmounts it when its tab is gone. A turn made
+mid-turn carries both pages on from where they are. Past the 240ms loading
+delay, the stage publishes the active tab key it is still waiting on
+(`editor-stage-waiting.ts`) and the dock draws that tab as drifting
+`glass--loading` until the commit. Project Home is synchronously
 ready; a split is ready only when both panes are ready. A removed active tab is
 retained as the outgoing visual cover until its successor commits, which also
 covers close transitions without a gray/empty frame.

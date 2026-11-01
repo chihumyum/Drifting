@@ -25,6 +25,6 @@ describe('TextInputLookupStop', () => {
   it('ends every desktop editor surface, after its content', () => {
     const source = read('./EditorMainArea.tsx');
     const surface = source.slice(source.indexOf('function WorkspaceSurface('));
-    expect(surface).toMatch(/visibility: isVisible \? 'visible' : 'hidden',[\s\S]*?\{content\}\n\s*<TextInputLookupStop \/>\n\s*<\/div>/);
+    expect(surface).toMatch(/visibility: isShown \? 'visible' : 'hidden',[\s\S]*?\{content\}\n\s*<TextInputLookupStop \/>\n\s*<\/div>/);
   });
 });

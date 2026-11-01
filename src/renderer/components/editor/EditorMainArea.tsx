@@ -42,12 +42,21 @@ import {
 import { TrailingEditorPaneContext } from './editor-corner';
 import { TextInputLookupStop } from './TextInputLookupStop';
 import { announceEditorStageReady } from './editor-stage-ready';
+import { commitSurface, stopPageTurn, turnPage, type PageTurnStage } from './editor-page-turn';
+import { editorStageWaiting, setEditorStageWaiting } from './editor-stage-waiting';
+import { LOADING_DELAY_MS } from '../../lib/motion';
 
 const PROJECT_HOME_SURFACE_KEY = 'project-home';
 
 interface WorkspaceSurfaceDescriptor {
   revisionKey: string;
   tab: AnyTab | null;
+}
+
+type WorkspaceStage = PageTurnStage<WorkspaceSurfaceDescriptor>;
+
+function prefersReducedMotion(): boolean {
+  return typeof window !== 'undefined' && Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
 }
 
 function surfaceRevisionKey(tab: AnyTab): string {
@@ -64,7 +73,10 @@ function surfaceRevisionKey(tab: AnyTab): string {
 // book loads only the page in front. A newly-created/replaced/first-visited
 // surface mounts behind the currently committed one and is revealed only after
 // its canonical editor reports ready, so Router/store timing can never expose
-// an empty frame.
+// an empty frame. Once the book is in view, every change of the surface in
+// front turns the page (editor-page-turn.ts), and a page that takes longer
+// than the loading delay to be ready lets the dock tab asked for drift its
+// glass until it arrives (editor-stage-waiting.ts).
 //
 // Drag-to-split:
 //   The whole surface watches drags carrying our `application/x-drifting-tab`
@@ -90,13 +102,18 @@ export function EditorMainArea() {
   const desiredRevisionKey = activeTab
     ? surfaceRevisionKey(activeTab)
     : PROJECT_HOME_SURFACE_KEY;
-  const [committedSurface, setCommittedSurface] =
-    useState<WorkspaceSurfaceDescriptor | null>(null);
+  const [stage, setStage] = useState<WorkspaceStage>({ committed: null, leaving: null });
+  const { committed: committedSurface, leaving: leavingSurface } = stage;
   const committedRevisionKey = committedSurface?.revisionKey ?? null;
+  const leavingRevisionKey = leavingSurface?.revisionKey ?? null;
+  const stageAnnounced = useRef(false);
+  const [stageShown, setStageShown] = useState(false);
 
   const handleSurfaceReadyChange = useCallback(
     (descriptor: WorkspaceSurfaceDescriptor, ready: boolean, isDesired: boolean) => {
-      if (ready && isDesired) setCommittedSurface(descriptor);
+      if (!ready || !isDesired) return;
+      const turn = stageAnnounced.current && !prefersReducedMotion();
+      setStage((current) => commitSurface(current, descriptor, turn));
     },
     [],
   );
@@ -106,7 +123,6 @@ export function EditorMainArea() {
   // resumes its last tab in a parent's layout effect, after Project Home has
   // already committed, and that first match must not count.
   const stageKeys = useRef({ committed: committedRevisionKey, desired: desiredRevisionKey });
-  const stageAnnounced = useRef(false);
   useLayoutEffect(() => {
     stageKeys.current = { committed: committedRevisionKey, desired: desiredRevisionKey };
   }, [committedRevisionKey, desiredRevisionKey]);
@@ -118,10 +134,60 @@ export function EditorMainArea() {
       const { committed, desired } = stageKeys.current;
       if (stageAnnounced.current || committed === null || committed !== desired) return;
       stageAnnounced.current = true;
+      setStageShown(true);
       announceEditorStageReady();
     }, 0);
     return () => clearTimeout(timer);
   }, [committedRevisionKey, desiredRevisionKey]);
+
+  // The page turn. Before the next paint, the surface just put in front
+  // floats up over the one it replaced, which fades out and is then hidden.
+  // A newer turn takes over from wherever both pages are.
+  const surfaceRef = useRef<HTMLDivElement | null>(null);
+  const turningKey = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    const surfaceOf = (key: string | null) => {
+      if (key === null) return null;
+      for (const child of surfaceRef.current?.children ?? []) {
+        if (child instanceof HTMLElement && child.dataset.editorSurface === key) return child;
+      }
+      return null;
+    };
+    const previous = turningKey.current;
+    turningKey.current = leavingRevisionKey;
+    // The page that was leaving is hidden now (or back in front, where the
+    // new turn picks it up): its held fade lets go.
+    if (previous !== null && previous !== leavingRevisionKey && previous !== committedRevisionKey) {
+      stopPageTurn(surfaceOf(previous));
+    }
+    if (leavingRevisionKey === null || leavingRevisionKey === previous) return;
+    const settle = () => setStage((current) =>
+      current.leaving?.revisionKey === leavingRevisionKey ? { ...current, leaving: null } : current);
+    const incoming = surfaceOf(committedRevisionKey);
+    const outgoing = surfaceOf(leavingRevisionKey);
+    if (!incoming || !outgoing) {
+      settle();
+      return;
+    }
+    turnPage(incoming, outgoing).finished.then(settle, () => undefined);
+  }, [committedRevisionKey, leavingRevisionKey]);
+
+  // A page that is not ready a loading delay after it was asked for: the dock
+  // lets the tab asked for drift its glass until the page arrives. A wait
+  // already showing moves to a newly asked-for tab rather than blinking out.
+  useEffect(() => {
+    if (!stageShown || committedRevisionKey === desiredRevisionKey || activeTabKey === null) {
+      setEditorStageWaiting(null);
+      return undefined;
+    }
+    if (editorStageWaiting() !== null) {
+      setEditorStageWaiting(activeTabKey);
+      return undefined;
+    }
+    const timer = setTimeout(() => setEditorStageWaiting(activeTabKey), LOADING_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [stageShown, committedRevisionKey, desiredRevisionKey, activeTabKey]);
+  useEffect(() => () => setEditorStageWaiting(null), []);
 
   // The surfaces that have been wanted since the book opened; only these mount.
   const [visitedKeys, setVisitedKeys] = useState<ReadonlySet<string>>(() => new Set([desiredRevisionKey]));
@@ -136,21 +202,25 @@ export function EditorMainArea() {
     ) {
       next.push(committedSurface);
     }
+    // A closed tab's page stays until it has faded out under its successor.
+    if (leavingSurface && !next.some((surface) => surface.revisionKey === leavingSurface.revisionKey)) {
+      next.push(leavingSurface);
+    }
     return next;
-  }, [committedSurface, currentSurfaces, visitedKeys]);
+  }, [committedSurface, leavingSurface, currentSurfaces, visitedKeys]);
 
   useEffect(() => {
     if (!projectId) return;
-    // A removed committed surface stays mounted until its replacement is ready.
-    // Its later detach can save selection after the openTabs prune already ran;
-    // prune again once the visible-surface handoff retires that last owner.
+    // A removed committed surface stays mounted until its replacement is ready
+    // and has turned the page over it. Its later detach can save selection
+    // after the openTabs prune already ran; prune again once the handoff
+    // retires that last owner.
     pruneEditorSelectionMemory(projectId, openTabs);
-  }, [projectId, openTabs, committedRevisionKey]);
+  }, [projectId, openTabs, committedRevisionKey, leavingRevisionKey]);
 
   // Drag-to-split overlay state. `dropSide` is null when no tab drag is in
   // progress over the surface, otherwise indicates which half is hot.
   const [dropSide, setDropSide] = useState<'left' | 'right' | null>(null);
-  const surfaceRef = useRef<HTMLDivElement | null>(null);
   const {
     preview: entityHoverPreview,
     onEnter: entityHoverEnter,
@@ -260,6 +330,7 @@ export function EditorMainArea() {
           descriptor={surface}
           projectId={projectId ?? ''}
           isVisible={surface.revisionKey === committedRevisionKey}
+          isLeaving={surface.revisionKey === leavingRevisionKey}
           isDesired={surface.revisionKey === desiredRevisionKey}
           isInteractive={
             surface.revisionKey === committedRevisionKey &&
@@ -290,6 +361,7 @@ const WorkspaceSurface = memo(function WorkspaceSurface({
   descriptor,
   projectId,
   isVisible,
+  isLeaving,
   isDesired,
   isInteractive,
   onReadyChange,
@@ -299,6 +371,8 @@ const WorkspaceSurface = memo(function WorkspaceSurface({
   descriptor: WorkspaceSurfaceDescriptor;
   projectId: string;
   isVisible: boolean;
+  /** Replaced, still shown while it fades out under the page in front. */
+  isLeaving: boolean;
   isDesired: boolean;
   isInteractive: boolean;
   onReadyChange(
@@ -357,6 +431,9 @@ const WorkspaceSurface = memo(function WorkspaceSurface({
     );
   }
 
+  // A leaving surface is only pixels: it is no longer the page in front for
+  // its editors, assistive technology or the pointer.
+  const isShown = isVisible || isLeaving;
   return (
     <div
       data-editor-surface={revisionKey}
@@ -368,10 +445,10 @@ const WorkspaceSurface = memo(function WorkspaceSurface({
         inset: 0,
         minWidth: 0,
         overflow: 'hidden',
-        visibility: isVisible ? 'visible' : 'hidden',
-        contentVisibility: editorSurfaceContentVisibility(isVisible, isDesired),
+        visibility: isShown ? 'visible' : 'hidden',
+        contentVisibility: editorSurfaceContentVisibility(isShown, isDesired),
         pointerEvents: isInteractive ? 'auto' : 'none',
-        zIndex: isVisible ? 1 : 0,
+        zIndex: isVisible ? 2 : isLeaving ? 1 : 0,
       }}
     >
       {content}
@@ -380,7 +457,8 @@ const WorkspaceSurface = memo(function WorkspaceSurface({
   );
 }, (previous, next) => previous.descriptor.revisionKey === next.descriptor.revisionKey
   && previous.descriptor.tab === next.descriptor.tab && previous.projectId === next.projectId
-  && previous.isVisible === next.isVisible && previous.isDesired === next.isDesired
+  && previous.isVisible === next.isVisible && previous.isLeaving === next.isLeaving
+  && previous.isDesired === next.isDesired
   && previous.isInteractive === next.isInteractive && previous.onReadyChange === next.onReadyChange
   && previous.onSetSplitFocus === next.onSetSplitFocus && previous.onSetSplitRatio === next.onSetSplitRatio);
 

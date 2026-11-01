@@ -18,8 +18,9 @@ describe('desktop editor continuity acceptance', () => {
     expect(main).not.toContain("from 'react-router-dom'");
     expect(main).not.toContain('<Outlet />');
     expect(main).toContain('...openTabs.map((tab) => ({ revisionKey: surfaceRevisionKey(tab), tab }))');
-    expect(main).toContain('if (ready && isDesired) setCommittedSurface(descriptor);');
-    expect(main).toContain('visibility: isVisible ? \'visible\' : \'hidden\'');
+    expect(main).toContain('if (!ready || !isDesired) return;');
+    expect(main).toContain('setStage((current) => commitSurface(current, descriptor, turn));');
+    expect(main).toContain('visibility: isShown ? \'visible\' : \'hidden\'');
     expect(main).toContain('inert={!isInteractive}');
     expect(main).toContain('surface.revisionKey === desiredRevisionKey');
     expect(main).toContain('isPreparing={isDesired}');

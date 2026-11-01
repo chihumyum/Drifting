@@ -28,6 +28,7 @@ describe('motion vocabulary', () => {
     expect(ms(cssValue('motion-flow-fade'))).toBe(320);
     expect(ms(cssValue('motion-loading-delay'))).toBe(motion.LOADING_DELAY_MS);
     expect(motion.LOADING_DELAY_MS).toBe(240);
+    expect(ms(cssValue('motion-glass-loading'))).toBe(motion.GLASS_LOADING_DRIFT_MS);
     expect(ms(cssValue('motion-sand-fade'))).toBe(motion.SAND_FADE_MS);
     expect(ms(cssValue('motion-sand-shift'))).toBe(motion.SAND_SHIFT_MS);
     expect(ms(cssValue('motion-dock-pill'))).toBe(motion.DOCK_PILL_MS);
@@ -51,6 +52,11 @@ describe('motion vocabulary', () => {
       motion.OPTIONS_CLOSE_MS, motion.DRAG_LEAVE_GRACE_MS, motion.PRESS_WINDOW_MS,
     ]).toEqual([220, 220, 180, 180, 140, 260, 160, 150, 1500]);
     expect([motion.RECENT_CHANGE_DWELL_MS, motion.RECENT_CHANGE_FADE_MS]).toEqual([200, 300]);
+    expect([motion.PAGE_LEAVE_MS, motion.PAGE_RISE_MS, motion.PAGE_RISE_DELAY_MS, motion.PAGE_RISE_PX])
+      .toEqual([90, 260, 50, 6]);
+    // The page rises on the float-in curve the dock pill grows on.
+    expect(motion.PAGE_RISE_EASING).toBe(motion.DOCK_PILL_EASING);
+    expect(motion.GLASS_LOADING_DRIFT_MS).toBe(2400);
   });
 
   it('samples the spring from rest to exactly its end, never past it', () => {
@@ -77,12 +83,13 @@ describe('motion vocabulary', () => {
     expect(slider).not.toContain('tab-reorder');
     expect(slider).not.toMatch(/= (520|160);/);
     expect(source('src/renderer/features/graph/chapter-lane-drag.ts')).not.toContain('= 150;');
+    expect(source('src/renderer/components/editor/editor-page-turn.ts')).not.toMatch(/cubic-bezier|duration: \d|delay: \d/);
     // CSS reads the custom properties; only materials.css's :root spells them out.
     for (const file of ['desktop-shell.css', 'ui-controls.css', 'index.css', 'act-rail.css', 'material-workbench.css', 'loading-status.css']) {
       const css = source(`src/styles/${file}`);
       expect(css, file).not.toMatch(/420ms|1\.125s|15s linear|cubic-bezier\(0\.32, 0\.72, 0, 1\)/);
     }
     const materials = source('src/styles/materials.css').replace(root, '').replace(/\/\*[\s\S]*?\*\//g, '');
-    expect(materials).not.toMatch(/1\.125s|15s linear|0\.04s|0\.28s|0\.32s/);
+    expect(materials).not.toMatch(/1\.125s|15s linear|2\.4s|0\.04s|0\.28s|0\.32s/);
   });
 });

@@ -30,8 +30,10 @@
   /* Sand that comes or goes as a whole fades; a change of its strength shifts. */
   --motion-sand-fade: 0.3s;
   --motion-sand-shift: 0.24s;
-  /* How long a wait runs before its loading mark shows. */
+  /* How long a wait runs before its loading mark shows, and how fast glass
+     waiting on what it asked for drifts after that. */
   --motion-loading-delay: 240ms;
+  --motion-glass-loading: 2.4s;
   /* A dock mark grows into its pill, a closed pill folds away, and the
      neighbours that make room or close the gap land with it. */
   --motion-dock-pill: 340ms;
@@ -146,7 +148,7 @@
    first frame is its static mask position. The pointer or focus wakes a
    control before its rim starts to drift (lib/glass-awake.ts); glass that
    drifts on its own keeps its animations. */
-.glass:not([data-glass-awake], .glass--waiting, .glass-sweep)::before { animation-name: none; }
+.glass:not([data-glass-awake], .glass--waiting, .glass--loading, .glass-sweep)::before { animation-name: none; }
 
 .glass:nth-of-type(4n + 1) { --glass-gx: -14px; --glass-gy: -46px; }
 .glass:nth-of-type(4n + 2) { --glass-gx: -96px; --glass-gy: -132px; }
@@ -238,6 +240,16 @@
 .glass--waiting { --glass-g: 1; --glass-sp: 1; }
 .glass--waiting::before { opacity: 1; animation-play-state: running; }
 .glass--waiting:hover::before { animation-play-state: paused; }
+
+/* Waiting on the app (a dock tab whose page is still being prepared, past
+   the loading delay): the selected rim, a shade deeper, drifts on its own
+   and faster than a hovered rim until what it asked for arrives. The pointer
+   does not still it. */
+.glass.glass--loading { --glass-g: 1.15; --glass-sp: 1.1; }
+.glass.glass--loading::before {
+  opacity: 1;
+  animation: glass-flow var(--motion-glass-loading) linear infinite running;
+}
 
 /* A step that has just arrived (a tool the Agent ran): one band of drifting
    glass is pushed across it from left to right, once, and its resting line
@@ -830,6 +842,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .glass::before,
+  .glass.glass--loading::before,
   .glass-sweep.glass--rest::before,
   .sand-cell > .cell-ring { animation: none; }
   .glass-sweep::after { animation: none; opacity: 0; }

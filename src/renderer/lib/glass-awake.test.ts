@@ -147,7 +147,7 @@ describe('waking glass rims only while they can drift', () => {
 
   it('gives resting rims no animation and installs the waker at boot', () => {
     const css = readFileSync(resolve(process.cwd(), 'src/styles/materials.css'), 'utf8');
-    expect(css).toContain('.glass:not([data-glass-awake], .glass--waiting, .glass-sweep)::before { animation-name: none; }');
+    expect(css).toContain('.glass:not([data-glass-awake], .glass--waiting, .glass--loading, .glass-sweep)::before { animation-name: none; }');
     expect(css).toContain(':not([data-glass-awake]) > .cell-ring { animation-name: none; }');
     // Without its animation a ring must rest where the animation starts.
     const ring = css.slice(css.indexOf('.sand-cell > .cell-ring {'), css.indexOf(':not([data-glass-awake]) > .cell-ring'));
