@@ -1,6 +1,7 @@
 // Release preflight (docs/releasing.md): the version agrees everywhere, the tag
 // names it, release notes exist, the bundle still produces signed updater
-// artifacts for the endpoint the app polls, and every Action is pinned.
+// artifacts for the endpoint the app polls, build tools stay unstripped, and
+// every Action is pinned.
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
@@ -31,6 +32,12 @@ export function checkRelease({ tag } = {}) {
   }
   if (tauriConfig.bundle?.createUpdaterArtifacts !== true) {
     errors.push('tauri.conf.json must keep bundle.createUpdaterArtifacts');
+  }
+  // Stripped proc-macro dylibs from Xcode 27's toolchain do not load, which
+  // stops a release build before it reaches the app.
+  const buildOverride = cargo.split(/^(?=\[)/mu).find((section) => section.startsWith('[profile.release.build-override]')) ?? '';
+  if (!/^strip\s*=\s*"none"/mu.test(buildOverride)) {
+    errors.push('src-tauri/Cargo.toml must keep [profile.release.build-override] strip = "none"');
   }
   if (!read('src-tauri/src/app_update.rs').includes(`"${UPDATE_ENDPOINT}"`)) {
     errors.push(`src-tauri/src/app_update.rs must poll ${UPDATE_ENDPOINT}`);

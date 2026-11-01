@@ -83,5 +83,11 @@
 
 `scripts/check-release.mjs`（`pnpm release:check`）核对：三处版本号一致且是 SemVer、
 tag 等于 `v<版本号>`、发布说明存在、打包仍生成更新签名产物、App 轮询的更新地址正确、
-所有 GitHub Action 都钉在完整 commit SHA 上。`pnpm ci:contract:check` 核对 CI 与发布
-工作流的结构。
+构建脚本和过程宏不剥离、所有 GitHub Action 都钉在完整 commit SHA 上。
+`pnpm ci:contract:check` 核对 CI 与发布工作流的结构。
+
+最后一项对应 `src-tauri/Cargo.toml` 里的 `[profile.release.build-override] strip = "none"`。
+release 默认会剥离调试信息，而 Xcode 27 的工具链剥离后的过程宏 dylib 加载不了
+（报 `mis-aligned LINKEDIT string pool` 或 `can't find crate`），正式构建在编译 App
+之前就会失败。构建脚本和过程宏只在构建机上运行，不剥离它们不影响发出去的 App，App
+本身仍会剥离。
