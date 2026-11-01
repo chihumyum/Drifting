@@ -91,7 +91,7 @@ fn load_or_create(root: &Path) -> Result<String, String> {
 
 #[tauri::command]
 pub async fn sync_installation_identity(app: tauri::AppHandle) -> Result<String, String> {
-    let root = app.path().app_local_data_dir().map_err(|e| e.to_string())?;
+    let root = crate::data_paths::app_local_root(&app)?;
     tauri::async_runtime::spawn_blocking(move || load_or_create(&root))
         .await
         .map_err(|_| "installation identity worker failed")?

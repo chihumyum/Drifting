@@ -66,13 +66,19 @@ pub fn app_get_info(app: AppHandle) -> AppInfo {
     }
 }
 
+/// Both names resolve to the App-local root, which a development launch moves.
+fn app_data_path(app: &AppHandle) -> Result<String, String> {
+    Ok(crate::data_paths::app_local_root(app)?
+        .to_string_lossy()
+        .into_owned())
+}
+
 #[tauri::command]
 pub fn app_get_path(app: AppHandle, name: String) -> Result<String, String> {
     let resolver = app.path();
     let path: PathBuf = match name.as_str() {
         "home" => resolver.home_dir(),
-        "appData" => resolver.app_data_dir(),
-        "userData" => resolver.app_local_data_dir(),
+        "appData" | "userData" => return app_data_path(&app),
         "temp" => Ok(std::env::temp_dir()),
         "documents" => resolver.document_dir(),
         _ => return Err(format!("unsupported app path: {name}")),

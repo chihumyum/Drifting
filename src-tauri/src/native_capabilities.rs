@@ -405,9 +405,7 @@ fn file_url(path: &Path) -> Result<String, String> {
 }
 
 pub(crate) fn app_local_dir(app: &AppHandle, child: &str) -> Result<PathBuf, String> {
-    let root = app
-        .path()
-        .app_local_data_dir()
+    let root = crate::data_paths::app_local_root(app)
         .map_err(|_| "application data directory is unavailable".to_string())?;
     Ok(root.join(child))
 }

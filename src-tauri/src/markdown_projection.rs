@@ -1453,7 +1453,7 @@ pub async fn markdown_projection_remove(
     app: tauri::AppHandle,
     project_id: String,
 ) -> Result<(), String> {
-    let root = app.path().app_local_data_dir().map_err(|e| e.to_string())?;
+    let root = crate::data_paths::app_local_root(&app)?;
     tauri::async_runtime::spawn_blocking(move || remove_projection(&root, &project_id))
         .await
         .map_err(|e| e.to_string())?
@@ -1464,7 +1464,7 @@ pub async fn markdown_projection_info(
     app: tauri::AppHandle,
     project_id: String,
 ) -> Result<ProjectionInfo, String> {
-    let root = app.path().app_local_data_dir().map_err(|e| e.to_string())?;
+    let root = crate::data_paths::app_local_root(&app)?;
     tauri::async_runtime::spawn_blocking(move || info(&root, &project_id))
         .await
         .map_err(|e| e.to_string())?
@@ -1476,7 +1476,7 @@ pub async fn markdown_projection_set_output_root(
     project_id: String,
     custom_root: Option<String>,
 ) -> Result<ProjectionInfo, String> {
-    let root = app.path().app_local_data_dir().map_err(|e| e.to_string())?;
+    let root = crate::data_paths::app_local_root(&app)?;
     tauri::async_runtime::spawn_blocking(move || set_output_root(&root, &project_id, custom_root))
         .await
         .map_err(|e| e.to_string())?
@@ -1488,7 +1488,7 @@ pub async fn markdown_projection_name_folder(
     project_id: String,
     title: String,
 ) -> Result<NamedFolder, String> {
-    let root = app.path().app_local_data_dir().map_err(|e| e.to_string())?;
+    let root = crate::data_paths::app_local_root(&app)?;
     tauri::async_runtime::spawn_blocking(move || name_folder(&root, &project_id, &title))
         .await
         .map_err(|e| e.to_string())?
@@ -1496,7 +1496,7 @@ pub async fn markdown_projection_name_folder(
 
 #[tauri::command]
 pub async fn markdown_projection_folder(app: tauri::AppHandle) -> Result<FolderSettings, String> {
-    let root = app.path().app_local_data_dir().map_err(|e| e.to_string())?;
+    let root = crate::data_paths::app_local_root(&app)?;
     tauri::async_runtime::spawn_blocking(move || folder_settings(&root))
         .await
         .map_err(|e| e.to_string())?
@@ -1507,7 +1507,7 @@ pub async fn markdown_projection_set_default_root(
     app: tauri::AppHandle,
     custom_root: Option<String>,
 ) -> Result<FolderSettings, String> {
-    let root = app.path().app_local_data_dir().map_err(|e| e.to_string())?;
+    let root = crate::data_paths::app_local_root(&app)?;
     tauri::async_runtime::spawn_blocking(move || set_default_root(&root, custom_root))
         .await
         .map_err(|e| e.to_string())?
@@ -1518,7 +1518,7 @@ pub async fn markdown_projection_set_enabled(
     app: tauri::AppHandle,
     enabled: bool,
 ) -> Result<FolderSettings, String> {
-    let root = app.path().app_local_data_dir().map_err(|e| e.to_string())?;
+    let root = crate::data_paths::app_local_root(&app)?;
     tauri::async_runtime::spawn_blocking(move || set_enabled(&root, enabled))
         .await
         .map_err(|e| e.to_string())?
@@ -1531,7 +1531,7 @@ pub async fn markdown_projection_open(
     project_id: Option<String>,
 ) -> Result<(), String> {
     use tauri_plugin_opener::OpenerExt;
-    let root = app.path().app_local_data_dir().map_err(|e| e.to_string())?;
+    let root = crate::data_paths::app_local_root(&app)?;
     let directory =
         tauri::async_runtime::spawn_blocking(move || folder_to_open(&root, project_id.as_deref()))
             .await
@@ -1580,7 +1580,7 @@ pub async fn markdown_projection_write(
     assets: Vec<Asset>,
     documents: Vec<Document>,
 ) -> Result<WriteResult, String> {
-    let root = app.path().app_local_data_dir().map_err(|e| e.to_string())?;
+    let root = crate::data_paths::app_local_root(&app)?;
     tauri::async_runtime::spawn_blocking(move || {
         write_projection_with_documents(
             &root,
@@ -1602,7 +1602,7 @@ pub async fn markdown_projection_read(
     project_id: String,
     requests: Vec<ReadRequest>,
 ) -> Result<Vec<ReadResult>, String> {
-    let root = app.path().app_local_data_dir().map_err(|e| e.to_string())?;
+    let root = crate::data_paths::app_local_root(&app)?;
     tauri::async_runtime::spawn_blocking(move || read_files(&root, &project_id, requests))
         .await
         .map_err(|e| e.to_string())?

@@ -69,6 +69,14 @@ the API and sync objects go to the configured server. No installer or bundled
 release is needed. The first run still compiles/signs the native host, and Rust
 changes or a different service origin require a native rebuild/restart.
 
+Development launches also keep the App-local folder (assets, sync objects, the
+sync installation identity, Markdown projections and MCP state) in
+`src-tauri/.local-data/app-data` (`DRIFTING_APP_DATA_DIR`), beside the
+database, never in the installed App's `~/Library/Application Support/cc.drifting.client`.
+A development build and an installed release therefore never share an
+installation identity or sync objects; they still share Keychain items, because
+both use the identifier `cc.drifting.client`.
+
 Online mode keeps the same `DRIFTING_DB_DIR` as local mode; it neither changes
 accounts nor migrates another lab's library. For a disposable test library, set
 `DRIFTING_DB_DIR=.local-data/hosted-dev-test/databases` in the launch environment.
