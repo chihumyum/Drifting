@@ -148,6 +148,20 @@ function mux(video, audio, file) {
     '-c:a', 'aac', '-b:a', '192k', '-ar', String(RATE), '-movflags', '+faststart', '-shortest', file], { stdio: 'inherit' });
   if (done.status !== 0) throw new Error('render.mjs: muxing the sound failed');
   console.log(file);
+  if (path.basename(file) === 'drifting-promo-en-sound.mp4') readmeCut(file);
+}
+
+// The English video for the repository's README: GitHub plays a video there
+// only as an attachment uploaded through its web editor, and takes at most
+// 10 MB from a free account. At 720p and 30 fps (the README is under 900 px
+// wide) it is about 7.5 MB.
+function readmeCut(file) {
+  const readme = path.join(out, 'drifting-promo-en-readme.mp4');
+  const done = spawnSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', file, '-vf', 'fps=30,scale=1280:720:flags=lanczos',
+    '-c:v', 'libx264', '-preset', 'slow', '-crf', '20', '-profile:v', 'high', '-pix_fmt', 'yuv420p',
+    '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart', readme], { stdio: 'inherit' });
+  if (done.status !== 0) throw new Error('render.mjs: the README cut failed');
+  console.log(readme);
 }
 
 await send('Page.enable');

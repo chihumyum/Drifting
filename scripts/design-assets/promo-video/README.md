@@ -20,6 +20,15 @@ For each language it writes:
 | `drifting-promo-<lang>-effects.wav` | Rain and effects without the score, −16 LUFS, for laying other music under it. |
 | `drifting-promo-<lang>-cues.json` | The sections and when each effect falls (keys left out), for cutting other music to the picture. |
 
+And from the English video, `drifting-promo-en-readme.mp4` (720p, 30 fps, about
+7.5 MB) for the top of the repository's README. GitHub plays a video in a
+README only as an attachment uploaded through its web editor (at most 10 MB
+on a free account): drag the file into a new issue's text box on
+github.com/chihumyum/Drifting, copy the `user-attachments` URL it writes, and
+put that URL on its own line under the README's tagline. An attachment may
+answer 404 to visitors who are not signed in until saved content uses it, so
+check the README in a private window once it is pushed.
+
 About 3 minutes a language at 60 fps; `--sound-only` takes seconds. It needs
 `pnpm install`, Google Chrome (`CHROME` overrides the path; WebGL2 runs on
 Metal in headless mode), Times New Roman from the system and `ffmpeg` with
