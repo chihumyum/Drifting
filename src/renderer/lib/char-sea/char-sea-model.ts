@@ -88,6 +88,76 @@ const CALM_DAMPING = 0.015;
 const HOLD_SPRING = 0.03;
 const HOLD_DAMPING = 0.04;
 const HOLD_MARGIN = 4;
+// Let go with a burst, the word leaves from its outline only: its strokes are
+// joined across gaps up to this share of its height and its holes filled, the
+// edge softened over RELEASE_SOFTEN cells. For RELEASE_DRAIN_STEPS steps after,
+// what lies more than RELEASE_DRAIN_DEPTH cells inside drinks its own water (at
+// most RELEASE_DRAIN a step), so the middle sinks quietly instead of rebounding
+// as a second ring.
+const RELEASE_JOIN = 0.12;
+const RELEASE_SOFTEN = 1;
+const RELEASE_DRAIN_DEPTH = 2;
+const RELEASE_DRAIN_STEPS = 80;
+const RELEASE_DRAIN = 0.18;
+
+/** A box blur of `radius` cells along the rows, then the columns, in place. */
+function boxBlur(field: Float32Array, cols: number, rows: number, radius: number): void {
+  const line = new Float32Array(Math.max(cols, rows));
+  const pass = (count: number, length: number, at: (lineIndex: number, k: number) => number) => {
+    for (let l = 0; l < count; l += 1) {
+      for (let k = 0; k < length; k += 1) line[k] = field[at(l, k)];
+      let sum = 0;
+      for (let k = -radius; k <= radius; k += 1) sum += line[Math.min(length - 1, Math.max(0, k))];
+      for (let k = 0; k < length; k += 1) {
+        field[at(l, k)] = sum / (2 * radius + 1);
+        sum += line[Math.min(length - 1, k + radius + 1)] - line[Math.max(0, k - radius)];
+      }
+    }
+  };
+  pass(rows, cols, (row, col) => row * cols + col);
+  pass(cols, rows, (col, row) => row * cols + col);
+}
+
+/** Grows (`grow`) or shrinks a 0/1 mask by `radius` cells, as a square, along the rows then the columns. */
+function morph(mask: Uint8Array, cols: number, rows: number, radius: number, grow: boolean): void {
+  const line = new Uint8Array(Math.max(cols, rows));
+  const pass = (count: number, length: number, at: (lineIndex: number, k: number) => number) => {
+    for (let l = 0; l < count; l += 1) {
+      for (let k = 0; k < length; k += 1) line[k] = mask[at(l, k)];
+      for (let k = 0; k < length; k += 1) {
+        let value = line[k];
+        for (let j = Math.max(0, k - radius); j <= Math.min(length - 1, k + radius); j += 1) {
+          value = grow ? value | line[j] : value & line[j];
+        }
+        mask[at(l, k)] = value;
+      }
+    }
+  };
+  pass(rows, cols, (row, col) => row * cols + col);
+  pass(cols, rows, (col, row) => row * cols + col);
+}
+
+/** Fills whatever the mask encloses (a letter's counter): what the outside cannot reach becomes part of it. */
+function fillHoles(mask: Uint8Array, cols: number, rows: number): void {
+  const outside = new Uint8Array(mask.length);
+  const queue: number[] = [];
+  const visit = (i: number) => {
+    if (mask[i] || outside[i]) return;
+    outside[i] = 1;
+    queue.push(i);
+  };
+  for (let x = 0; x < cols; x += 1) { visit(x); visit((rows - 1) * cols + x); }
+  for (let y = 0; y < rows; y += 1) { visit(y * cols); visit(y * cols + cols - 1); }
+  while (queue.length) {
+    const i = queue.pop()!;
+    const x = i % cols;
+    if (x > 0) visit(i - 1);
+    if (x < cols - 1) visit(i + 1);
+    if (i >= cols) visit(i - cols);
+    if (i < mask.length - cols) visit(i + cols);
+  }
+  for (let i = 0; i < mask.length; i += 1) if (!outside[i]) mask[i] = 1;
+}
 
 /**
  * A water surface over the window: the 2D wave equation on a grid of 7px
@@ -103,6 +173,7 @@ export class CharSeaWater {
   private lastPeak = 0;
   private held: { shape: Float32Array; target: Float32Array; inside: Uint8Array } | null = null;
   private holdHeight = 0;
+  private drain: { inside: Float32Array; steps: number } | null = null;
 
   constructor(width: number, height: number) {
     this.cols = Math.max(3, Math.ceil(width / CHAR_SEA_WATER_CELL));
@@ -129,22 +200,17 @@ export class CharSeaWater {
   /**
    * Holds the water to a shape (each water cell's share of it, 0..1) raised to
    * `setHoldHeight`, by a spring with its own damping; null lets it go, and the
-   * shape spreads as rings, its water first raised `burst` times so the rings
-   * carry further. The spring's target is compensated with the same Laplacian
-   * and damping `step` uses, so at rest the water stands exactly at
-   * shape × height, and whatever knocks it settles back.
+   * shape spreads as rings. With a `burst` it leaves as one ring from its
+   * outline, raised `burst` times so it carries further (`release`). The
+   * spring's target is compensated with the same Laplacian and damping `step`
+   * uses, so at rest the water stands exactly at shape × height, and whatever
+   * knocks it settles back.
    */
   hold(shape: Float32Array | null, burst = 1): void {
     if (!shape) {
       const held = this.held;
       this.held = null;
-      if (held && burst !== 1) {
-        for (let i = 0; i < held.inside.length; i += 1) {
-          if (!held.inside[i]) continue;
-          this.current[i] *= burst;
-          this.previous[i] *= burst;
-        }
-      }
+      if (held && burst !== 1) this.release(held, burst);
       return;
     }
     const w = this.cols;
@@ -173,6 +239,47 @@ export class CharSeaWater {
       target[i] = g[i] + ((g[i] * (1 - d)) / d - C2 * laplacian) / HOLD_SPRING;
     }
     this.held = { shape, target, inside };
+  }
+
+  /**
+   * The held word let go as one: only its outer outline leaves. Its strokes are
+   * joined across the gaps between letters and its holes filled, so the
+   * outline keeps the letters' corners but none of their inner edges. That
+   * silhouette stands as high as the strokes stood, raised `burst` times, and
+   * for a moment its inside drinks its own water, so one ring goes out.
+   */
+  private release(held: { shape: Float32Array; inside: Uint8Array }, burst: number): void {
+    const { cols, rows } = this;
+    const solid = new Uint8Array(held.shape.length);
+    let top = rows;
+    let bottom = -1;
+    for (let i = 0; i < solid.length; i += 1) {
+      if (held.shape[i] <= 0.3) continue;
+      solid[i] = 1;
+      const row = Math.floor(i / cols);
+      if (row < top) top = row;
+      if (row > bottom) bottom = row;
+    }
+    if (bottom < top) return;
+    const join = Math.max(1, Math.round((bottom - top + 1) * RELEASE_JOIN));
+    morph(solid, cols, rows, join, true);
+    morph(solid, cols, rows, join, false);
+    fillHoles(solid, cols, rows);
+    const inner = solid.slice();
+    morph(inner, cols, rows, RELEASE_DRAIN_DEPTH, false);
+    const silhouette = Float32Array.from(solid);
+    const drain = Float32Array.from(inner);
+    boxBlur(silhouette, cols, rows, RELEASE_SOFTEN);
+    boxBlur(drain, cols, rows, RELEASE_SOFTEN);
+    let standing = 0;
+    for (let i = 0; i < held.inside.length; i += 1) if (held.inside[i] && this.current[i] > standing) standing = this.current[i];
+    for (const field of [this.current, this.previous]) {
+      for (let i = 0; i < field.length; i += 1) {
+        if (held.inside[i]) field[i] = 0;
+        field[i] += standing * silhouette[i] * burst;
+      }
+    }
+    this.drain = { inside: drain, steps: RELEASE_DRAIN_STEPS };
   }
 
   /** How high the held shape stands now. */
@@ -213,6 +320,8 @@ export class CharSeaWater {
     const w = this.cols;
     const held = this.held;
     const height = this.holdHeight;
+    const drain = this.drain;
+    const drinking = drain ? (RELEASE_DRAIN * drain.steps) / RELEASE_DRAIN_STEPS : 0;
     const calmness = Math.min(1, Math.max(0, (CALM_FROM - this.lastPeak) / (CALM_FROM - CALM_FULL)));
     const calm = 1 - CALM_DAMPING * calmness * calmness * (3 - 2 * calmness);
     let peak = 0;
@@ -228,6 +337,7 @@ export class CharSeaWater {
         // a held shape's spring pulls its water back to the shape and calms it
         if (held && held.inside[i]) value += HOLD_SPRING * (height * held.target[i] - c[i]) - HOLD_DAMPING * (c[i] - p[i]);
         value *= d[i] * calm;
+        if (drain) value *= 1 - drinking * drain.inside[i];
         n[i] = value;
         const magnitude = value < 0 ? -value : value;
         if (magnitude > peak) peak = magnitude;
@@ -237,6 +347,7 @@ export class CharSeaWater {
     this.current = n;
     this.next = p;
     this.lastPeak = peak;
+    if (drain && --drain.steps <= 0) this.drain = null;
     return peak;
   }
 
@@ -244,6 +355,7 @@ export class CharSeaWater {
     this.current.fill(0);
     this.previous.fill(0);
     this.lastPeak = 0;
+    this.drain = null;
   }
 }
 
@@ -395,24 +507,27 @@ export function charSeaCellsCovered(
 const SWAP_HEAD = 14;
 const SWAP_TRAIL = 2.5;
 const SWAP_WORD = 0.8;
+const SWAP_SEA = 1;
 const LETTER = /[\p{L}\p{N}]/u;
 
 /**
- * The characters drawn in the sheet's cells. While something loads they change
- * as digital rain's do: a head swaps its cell's character many times a second,
- * a trail now and then, a cell of the loading word about once a second, always
- * for another letter of the same passage (never punctuation). A cell the rain
- * and the word have left goes back to its own character, so a ripple still
- * reads as the passage.
+ * The characters drawn in the sheet's cells. While the sea moves, every cell
+ * now and then (about once a second) trades its own character for another
+ * letter of the same passage (never punctuation), so the sea never stands
+ * still as one text. Under the rain and in the loading word they change as
+ * digital rain's do on top of that: a head swaps its cell's character many
+ * times a second, a trail now and then, a cell of the word about once a second.
+ * A cell the rain and the word have left shows its own character again.
  */
 export class CharSeaGlyphs {
   /** The glyph drawn in each cell, row by row (indices into the layout's glyphs). */
   readonly live: Uint8Array;
-  private readonly base: Uint8Array;
+  /** Each cell's own character, which drifts slowly through the passage's letters. */
+  readonly own: Uint8Array;
   private readonly letters: number[];
 
   constructor(layout: CharSeaLayout, private readonly random: () => number = Math.random) {
-    this.base = layout.map;
+    this.own = layout.map.slice();
     this.live = layout.map.slice();
     this.letters = layout.glyphs.flatMap((glyph, index) => (LETTER.test(glyph) ? [index] : []));
   }
@@ -425,6 +540,15 @@ export class CharSeaGlyphs {
   tick(dt: number, rain: Uint8Array | null, word: Uint8Array | null): { changing: boolean; changed: boolean } {
     let changing = false;
     let changed = false;
+    // The slow drift of the cells' own characters. It only runs while the sea
+    // is drawn for something else, so on its own it never keeps the sea awake.
+    if (this.letters.length) {
+      const expected = this.own.length * SWAP_SEA * dt;
+      const count = Math.floor(expected) + (this.random() < expected % 1 ? 1 : 0);
+      for (let k = 0; k < count; k += 1) {
+        this.own[Math.floor(this.random() * this.own.length)] = this.letters[Math.floor(this.random() * this.letters.length)];
+      }
+    }
     for (let i = 0; i < this.live.length; i += 1) {
       let rate = 0;
       if (rain) rate = rain[i * 2 + 1] > 40 ? SWAP_HEAD : rain[i * 2] > 20 ? SWAP_TRAIL : 0;
@@ -435,8 +559,8 @@ export class CharSeaGlyphs {
           this.live[i] = this.letters[Math.floor(this.random() * this.letters.length)];
           changed = true;
         }
-      } else if (this.live[i] !== this.base[i]) {
-        this.live[i] = this.base[i];
+      } else if (this.live[i] !== this.own[i]) {
+        this.live[i] = this.own[i];
         changed = true;
       }
     }

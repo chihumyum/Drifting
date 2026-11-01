@@ -150,10 +150,45 @@ describe('the sea of characters', () => {
       }
       return peak;
     };
+    // A burst leaves from the word's outline only, so it carries further than
+    // letting go plainly, and at the loading word's strength (4) further still.
     const plain = reach(1);
-    const burst = reach(2);
-    expect(burst).toBeGreaterThan(plain * 1.8);
-    expect(burst).toBeGreaterThan(0.26);
+    expect(reach(2)).toBeGreaterThan(plain * 1.6);
+    expect(reach(4)).toBeGreaterThan(0.4);
+  });
+
+  it('lets a held word go as one swell from its outline, and its middle does not ring again', () => {
+    const water = new CharSeaWater(960, 600);
+    const shape = new Float32Array(water.cols * water.rows);
+    // Strokes four cells wide with gaps between them, as letters stand.
+    for (let y = 36; y < 50; y += 1) for (let x = 30; x < 107; x += 1) if (Math.floor(x / 4) % 2 === 0) shape[y * water.cols + x] = 1;
+    water.hold(shape);
+    water.setHoldHeight(0.45);
+    for (let i = 0; i < CHAR_SEA_STEP_RATE * 1.5; i += 1) water.step();
+    // Along the word's middle row: how many separate stretches stand above half its top.
+    const stretches = () => {
+      const row = 43 * water.cols;
+      let top = 0;
+      for (let x = 20; x < 117; x += 1) top = Math.max(top, water.heights[row + x]);
+      let count = 0;
+      for (let x = 20; x < 117; x += 1) if (water.heights[row + x] > top / 2 && !(water.heights[row + x - 1] > top / 2)) count += 1;
+      return count;
+    };
+    expect(stretches()).toBeGreaterThan(5);
+    water.hold(null, 2);
+    expect(stretches()).toBe(1);
+    const middle = 43 * water.cols + 68;
+    const side = Math.floor(300 / CHAR_SEA_WATER_CELL) * water.cols + Math.floor(60 / CHAR_SEA_WATER_CELL);
+    let late = 0;
+    let reach = 0;
+    for (let i = 0; i < CHAR_SEA_STEP_RATE * 2; i += 1) {
+      water.step();
+      if (i > CHAR_SEA_STEP_RATE * 0.4) late = Math.max(late, Math.abs(water.heights[middle]));
+      reach = Math.max(reach, Math.abs(water.heights[side]));
+    }
+    // The word stood at 0.9 when let go; its middle sinks and stays down while the ring reaches the side.
+    expect(late).toBeLessThan(0.1);
+    expect(reach).toBeGreaterThan(0.2);
   });
 
   it('rains down about a third of the columns, breaks the drops the water knocks, and refills them', () => {
@@ -215,10 +250,26 @@ describe('the sea of characters', () => {
     expect(seen.word.size).toBeGreaterThan(0);
     const letters = new Set([...seen.head, ...seen.trail].map((index) => layout.glyphs[index]));
     for (const glyph of letters) expect(glyph).toMatch(/[\p{L}\p{N}]/u);
-    // untouched cells keep the passage; once the rain and the word are gone every cell is its own again
-    expect(glyphs.live[layout.cols * 4 + 1]).toBe(layout.map[layout.cols * 4 + 1]);
-    expect(glyphs.tick(1 / 60, null, null)).toEqual({ changing: false, changed: true });
-    expect([...glyphs.live]).toEqual([...layout.map]);
+    // once the rain and the word are gone every cell shows its own character again
+    expect(glyphs.tick(1 / 60, null, null)).toMatchObject({ changing: false, changed: true });
+    expect([...glyphs.live]).toEqual([...glyphs.own]);
+  });
+
+  it('lets every cell drift through the passage\'s letters about once a second, without keeping the sea awake', () => {
+    const layout = layoutCharSea(200, 100, CHAR_SEA_LANGUAGES.zh);
+    const glyphs = new CharSeaGlyphs(layout, seeded(5));
+    const cells = layout.cols * layout.rows;
+    const traded = new Uint8Array(cells);
+    for (let t = 0; t < 3; t += 1 / 60) {
+      expect(glyphs.tick(1 / 60, null, null).changing).toBe(false);
+      for (let i = 0; i < cells; i += 1) if (glyphs.own[i] !== layout.map[i]) traded[i] = 1;
+    }
+    // Over three seconds nearly every cell has traded (1 - e^-3 ≈ 95%), always for a letter.
+    expect(traded.reduce((sum, value) => sum + value, 0) / cells).toBeGreaterThan(0.85);
+    glyphs.own.forEach((index, cell) => {
+      if (traded[cell]) expect(layout.glyphs[index]).toMatch(/[\p{L}\p{N}]/u);
+    });
+    expect([...glyphs.live]).toEqual([...glyphs.own]);
   });
 
   it('finds the sheet cells the loading word covers', () => {

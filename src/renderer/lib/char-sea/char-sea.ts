@@ -28,9 +28,10 @@ import { CHAR_SEA_LANGUAGES, type CharSeaScript } from './char-sea-text';
  * sheet's own characters surface along its strokes as they do on a crest. The
  * word is held by a spring and the rain falls on its own: a ring the hand makes
  * knocks both about and they come back by themselves. Meanwhile the characters
- * under the rain and in the word keep changing (CharSeaGlyphs). When the wait
- * ends the rain fades and the word is let go, spreading as rings under the next
- * page. A page that waits on the author instead (the first-run choice) has
+ * under the rain and in the word keep changing, and every cell's own character
+ * drifts slowly through the passage's letters (CharSeaGlyphs). When the wait
+ * ends the rain fades and the word is let go: one ring leaves from its outline
+ * and spreads under the next page. A page that waits on the author instead (the first-run choice) has
  * only the rain: it falls round the page with no word in the middle.
  */
 
@@ -97,9 +98,9 @@ const WORD_HEIGHT = 0.45;
 const WORD_RISE = 0.7;
 const WORD_BREATH = 2.6;
 const WORD_SWELL = 0.12;
-// Let go, the word's water is first raised this many times over: it bursts into
-// rings that reach the sidebars and the bottom bar.
-const WORD_BURST = 2.5;
+// Let go, the word's silhouette is raised this many times over and leaves as one
+// ring from its outline (CharSeaWater.hold), reaching the sidebars and the bottom bar.
+const WORD_BURST = 4;
 // Strength and size of the glass line, as materials.css draws it at rest.
 const GLASS_EDGE = 0.594; // --glass-edge 33% × 1.8
 const GLASS_TILE = 150;

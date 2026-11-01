@@ -197,7 +197,7 @@ describe('the sea of characters under the desktop window', () => {
     expect(block(css, '.desktop-app-shell[data-opening] {', '}')).toMatch(/opacity: 0;[\s\S]*pointer-events: none;/);
     expect(block(css, '.workspace-opening-cover {', '}')).toContain('pointer-events: auto;');
     const engine = read('src/renderer/lib/char-sea/char-sea.ts');
-    expect(engine).toContain('const WORD_BURST = 2.5;');
+    expect(engine).toContain('const WORD_BURST = 4;');
     expect(engine).toContain('if (word.held) water?.hold(null, WORD_BURST);');
   });
 
