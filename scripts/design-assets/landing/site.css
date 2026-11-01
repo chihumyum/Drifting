@@ -35,6 +35,7 @@
   --pigment-lift: 0%;
 
   --font-ui: "Inter Tight Variable", -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", sans-serif;
+  --font-structure: "Newsreader Variable", "Noto Serif SC Variable", serif;
   --font-content: ui-serif, "Newsreader Variable", "Songti SC", "Noto Serif SC Variable", Georgia, serif;
   --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --word-face: "Times New Roman", Tinos, Times, serif;

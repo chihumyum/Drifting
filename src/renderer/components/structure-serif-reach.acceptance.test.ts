@@ -111,5 +111,16 @@ describe('the serif structure face beyond the sidebars', () => {
     expect(docs).toContain('三个视图是去处，和 Panel Tab 一样用结构字');
     expect(docs).toContain('文件夹名是结构字、素材条目是实体字');
     expect(docs).toContain('书架的页名「书架」是地方的名字，也用结构字');
+    const landing = read('scripts/design-assets/landing/index.html');
+    const site = read('scripts/design-assets/landing/site.css');
+    const family = (css: string) => /--font-structure:\s*([^;]+);/.exec(css)?.[1].replaceAll(/["']/g, '');
+    expect(family(site)).toBe(family(read('src/styles/interface-fonts.css')));
+    for (const selector of ['.sb-tab {', '.grp {', '.cat-legend {']) {
+      expect(block(landing, selector)).toContain('var(--font-structure)');
+      expect(block(landing, selector)).toMatch(/font: 400 /);
+    }
+    expect(block(landing, '.grp small {')).toContain('var(--font-mono)');
+    expect(block(landing, '.sb-tab [data-script="cjk"] {')).toContain('top: 0.15em;');
+    expect(landing.match(/data-l="zh" data-script="cjk"/g)).toHaveLength(5);
   });
 });

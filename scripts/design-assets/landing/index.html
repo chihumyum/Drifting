@@ -281,11 +281,16 @@ h2 {
   border-radius: 0;
   background: transparent;
   color: var(--ui-muted);
-  font: 500 12.5px/20px var(--font-ui);
+  font: 400 12.5px/20px var(--font-structure);
+  font-optical-sizing: auto;
+  letter-spacing: normal;
+  text-transform: none;
   cursor: pointer;
   white-space: nowrap;
 }
 .sb-tab:hover, .sb-tab.is-on { color: hsl(var(--ink-1)); }
+/* Noto Serif SC sits higher on Newsreader's line, as in interface-fonts.css. */
+.sb-tab [data-script="cjk"] { position: relative; top: 0.15em; }
 /* The pane's header: what it holds, and its actions on the right. */
 .sb-head { display: flex; align-items: center; gap: 8px; height: 32px; margin: 4px 0 8px; padding: 0 5px 0 6px; font: 400 11.5px/18px var(--font-ui); letter-spacing: 0.12em; text-transform: uppercase; color: var(--ui-muted); }
 .sb-head > span:first-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -296,9 +301,9 @@ h2 {
 .sb-act--ov .ic { width: 19px; height: 19px; }
 .sb-act--new { color: hsl(var(--accent)); }
 .sb-pane { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; padding: 0 5px 12px; }
-.grp { display: flex; align-items: center; gap: 7px; height: 30px; padding: 0 6px 0 4px; font: 400 13.5px/20px var(--font-ui); color: hsl(var(--ink-2)); }
+.grp { display: flex; align-items: center; gap: 7px; height: 30px; padding: 0 6px 0 4px; font: 400 12.5px/20px var(--font-structure); font-optical-sizing: auto; color: hsl(var(--ink-2)); }
 .grp > .mk-dash { width: 14px; }
-.grp small { font-size: 11.5px; color: var(--ui-muted); }
+.grp small { font: 400 11.5px/20px var(--font-mono); color: var(--ui-muted); }
 .grp small::before { content: '· '; }
 .grp-chev { width: 10px; height: 10px; margin: 0 4px 0 auto; color: hsl(var(--ink-4)); }
 .cell {
@@ -345,8 +350,9 @@ h2 {
   gap: 6px;
   padding: 0 5px;
   background: hsl(var(--paper-deep));
-  font: 500 11.5px/18px var(--font-ui);
-  letter-spacing: 0.12em;
+  font: 400 12.5px/18px var(--font-structure);
+  font-optical-sizing: auto;
+  letter-spacing: normal;
   color: var(--ui-muted);
 }
 .cat-legend .mk-corner { width: 12px; height: 12px; margin: 0 1px; }
@@ -537,9 +543,9 @@ h2 {
               <span class="sb-toggle"><i class="ic" style="--i:url({{asset:icons/moon-left.png}})"></i></span>
               <div class="sb-tabs">
                 <i class="sb-tab-block glass is-on" aria-hidden="true"></i>
-                <button class="sb-tab is-on" type="button" data-tab="nodes"><span data-l="zh">章节</span><span data-l="en">Chapters</span></button>
-                <button class="sb-tab" type="button" data-tab="elements"><span data-l="zh">要素</span><span data-l="en">Elements</span></button>
-                <button class="sb-tab" type="button" data-tab="drifts"><span data-l="zh">构想</span><span data-l="en">Ideas</span></button>
+                <button class="sb-tab is-on" type="button" data-tab="nodes"><span data-l="zh" data-script="cjk">章节</span><span data-l="en">Chapters</span></button>
+                <button class="sb-tab" type="button" data-tab="elements"><span data-l="zh" data-script="cjk">要素</span><span data-l="en">Elements</span></button>
+                <button class="sb-tab" type="button" data-tab="drifts"><span data-l="zh" data-script="cjk">构想</span><span data-l="en">Ideas</span></button>
               </div>
             </div>
             <div class="sb-panes">
@@ -679,7 +685,7 @@ h2 {
             <div class="sb-top">
               <div class="sb-tabs">
                 <i class="sb-tab-block glass is-on" aria-hidden="true"></i>
-                <span class="sb-tab">Review</span><span class="sb-tab"><span data-l="zh">素材库</span><span data-l="en">Library</span></span><span class="sb-tab"><span data-l="zh">统计</span><span data-l="en">Stats</span></span><span class="sb-tab is-on">Agent</span>
+                <span class="sb-tab">Review</span><span class="sb-tab"><span data-l="zh" data-script="cjk">素材库</span><span data-l="en">Library</span></span><span class="sb-tab"><span data-l="zh" data-script="cjk">统计</span><span data-l="en">Stats</span></span><span class="sb-tab is-on">Agent</span>
               </div>
               <span class="sb-toggle"><i class="ic" style="--i:url({{asset:icons/moon-right.png}})"></i></span>
             </div>
