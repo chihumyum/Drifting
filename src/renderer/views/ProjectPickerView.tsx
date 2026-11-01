@@ -33,7 +33,6 @@ import type { CoverStyleId } from '../lib/shelf-cover/styles';
 import { useProjectRoutePreload } from '../app/useProjectRoutePreload';
 import { useBuiltInSampleStore } from '../services/built-in-sample/first-run';
 import { BrushIcon } from '../components/ui/BrushIcon';
-import { KindMark } from '../components/ui/KindMark';
 import { useCharSeaEnabled, useCharSeaHold, useCharSeaShape } from '../components/char-sea/useCharSea';
 
 function WindowDragStrip() {
@@ -639,8 +638,7 @@ function useCoverStyle(): CoverStyleId {
 /**
  * The cover in the shelf's style (lib/shelf-cover), drawn off the main path
  * the first time a book is shown in that style and kept for the session.
- * Until it lands the cover keeps what it showed, or is a plain slip of paper
- * with its first letter.
+ * Until it lands the cover keeps what it showed, or is a plain slip of paper.
  */
 function useShelfCover(project: ProjectSummary, glyph: string, style: CoverStyleId): ShelfCover | null {
   const request = useMemo(
@@ -685,7 +683,6 @@ function BookCover({ row }: { row: DecoratedRow }) {
             />
           ))
         : cover && <i key={cover.urls[0]} className="pp-cover__art" style={{ backgroundImage: `url(${cover.urls[0]})` }} />}
-      <span className="pp-cover__glyph">{glyph || <KindMark kind="all" />}</span>
       {meta.genre && <span className="pp-cover__label">{meta.genre}</span>}
     </div>
   );

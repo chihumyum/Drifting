@@ -89,9 +89,15 @@ describe('the bookshelf in sand and glass', () => {
     const covers = read('src/renderer/lib/shelf-cover/covers.ts');
     expect(covers).toContain("new Worker(new URL('./shelf-cover.worker.ts', import.meta.url), { type: 'module' })");
     expect(covers).toContain('return drawOnPage(style, request);');
-    // On a picture the title keeps a fixed ink, light on a dark ground.
-    expect(block(css, '.pp-cover--art.pp-cover--dark .pp-cover__glyph {', '}')).toContain('color: hsl(40 20% 95%);');
-    expect(view).toContain('<KindMark kind="all" />');
+    // The genre keeps a fixed ink, light on a dark ground. The cover has
+    // neither a title initial nor an untitled-book mark; the landing demo agrees.
+    expect(block(css, '.pp-cover--art.pp-cover--dark .pp-cover__label {', '}')).toContain('color: hsl(40 12% 92% / 0.66);');
+    expect(view).not.toContain('pp-cover__glyph');
+    expect(view).not.toContain('<KindMark');
+    expect(css).not.toContain('pp-cover__glyph');
+    const landing = read('scripts/design-assets/landing/index.html');
+    expect(landing).not.toContain('cover-glyph');
+    expect(landing).toContain('class="cover-label"');
     expect(block(css, '.pp-cover {', '}')).toContain('background: hsl(var(--page));');
     expect(read('src/renderer/usecase/useProject.ts')).toContain('const cover = await readProjectCover(project.id);');
   });

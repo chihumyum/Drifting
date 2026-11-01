@@ -89,7 +89,6 @@ describe('the serif structure face beyond the sidebars', () => {
     const css = read('src/styles/project-picker.css');
     expect(block(css, '.pp-head__title {')).toContain('font: 400 22px/1.2 var(--font-structure);');
     expect(block(css, '.pp-card__title {')).toContain('var(--font-content)');
-    expect(block(css, '.pp-cover__glyph {')).toContain('var(--font-content)');
   });
 
   it('sets material kinds in the structure face in TODO & 素材库, their counts index type', () => {

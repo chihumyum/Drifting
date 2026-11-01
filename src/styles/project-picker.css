@@ -90,8 +90,7 @@
 }
 
 /* 书架 and 全部作品 name the place, like the Panel Tabs: the serif structure
-   face, not the author's prose font, which stays with each book's own title
-   and initial. */
+   face, not the author's prose font, which stays with each book's own title. */
 .pp-head__title {
   margin: 0;
   color: hsl(var(--ink-1));
@@ -136,27 +135,13 @@
 }
 
 /* Any style but sand paints the whole slip as one picture, its own ground in
-   every theme, so the title and genre take fixed inks: dark on a light
+   every theme, so the genre takes fixed inks: dark on a light
    ground, light on a dark one (cyanotype, the star chart, a deep field). */
 .pp-cover__art {
   position: absolute;
   inset: 0;
   background-size: 100% 100%;
   animation: sand-stroke-arrive 0.24s ease-out backwards;
-}
-
-.pp-cover__glyph {
-  position: absolute;
-  top: 12px;
-  left: 14px;
-  z-index: 2;
-  color: hsl(var(--ink-1));
-  font: 400 34px/1 var(--font-content);
-}
-
-.pp-cover__glyph .kind-mark {
-  width: 32px;
-  height: 32px;
 }
 
 .pp-cover__label {
@@ -172,16 +157,8 @@
   white-space: nowrap;
 }
 
-.pp-cover--art .pp-cover__glyph {
-  color: hsl(30 6% 12%);
-}
-
 .pp-cover--art .pp-cover__label {
   color: hsl(30 3% 44%);
-}
-
-.pp-cover--art.pp-cover--dark .pp-cover__glyph {
-  color: hsl(40 20% 95%);
 }
 
 .pp-cover--art.pp-cover--dark .pp-cover__label {
