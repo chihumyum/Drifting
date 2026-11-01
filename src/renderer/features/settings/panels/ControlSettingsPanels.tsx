@@ -534,9 +534,8 @@ export function AboutPanel({ registerRef }: { registerRef: SettingsRegisterRef }
       />
 
       {desktop ? (
-        // Only the name, in the structure serif, and one line of readouts.
+        // The panel's header already names the app; here only one line of readouts.
         <div className="set-about-name">
-          <div className="set-about-name__title">Drifting</div>
           <div className="set-about-name__meta">
             <span>
               {t('settings.about.version')} <b>{appVersion}</b>

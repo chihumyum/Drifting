@@ -2437,24 +2437,15 @@ html:not([data-shell-mode='mobile']) .set-trash__actions .ui-button.ui-button--g
   text-align: right;
 }
 
-/* About: only the name, in the structure serif, and one line of readouts. */
+/* About: the panel's header names the app; under it one line of readouts. */
 .set-about-name {
-  margin-top: 18px;
-  padding: 6px 0 4px;
-}
-.set-about-name__title {
-  color: hsl(var(--ink-1));
-  font-family: var(--font-structure);
-  font-size: 26px;
-  font-weight: 500;
-  line-height: 1.15;
-  letter-spacing: 0.01em;
+  margin-top: 14px;
+  padding: 0 0 4px;
 }
 .set-about-name__meta {
   display: flex;
   flex-wrap: wrap;
   gap: 4px 14px;
-  margin-top: 7px;
   color: var(--ui-text-muted, hsl(var(--ink-3)));
   font-family: var(--font-mono);
   font-size: var(--ui-font-caption, 12px);
