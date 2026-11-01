@@ -58,6 +58,12 @@ What is on the page, and why:
   Each plays over and over while it is in view and rests finished when it is
   not; whatever changes floats over a hidden copy of its tallest state, so the
   page never shifts while one plays. Reduced motion shows them finished.
+  The `.md` window's title uses an 11px font on a 16px line: its ellipsis
+  container clips both axes, and a line as short as the font size clips the
+  actual glyphs (including the descender in "Fog"). Keep the line tall enough
+  for both languages, centred within the unchanged 30px title bar. The static
+  demo converts its cover's alpha masks to PNGs in `entry.mjs`; the app's
+  shared `sand-cover` module supplies the masks and dimensions.
 - **Coloured sand.** The tagline's three pillars are underlined in their
   colours, each section carries its colour in its mark, bullets and one
   highlighted word, and the closing card is a book with its storylines flowing
@@ -90,3 +96,12 @@ What is on the page, and why:
   typed in the Markdown corner and the book's title are styled elements, not
   headings. `robots.txt` and `sitemap.xml` belong to the site repository; a new
   page there goes into the sitemap too.
+
+## Markdown title acceptance
+
+`acceptance/markdown-title.json` records a local built-page browser check in
+English and Chinese at 1280px and 390px viewport widths. A DOM Range around
+the title is compared with its clipping container: the original 11px line
+clips the 13px text bounds by 1px above and below; the 16px line contains them.
+The same observations retain the title bar height and horizontal ellipsis,
+and confirm that all three cover masks still render after the build.
