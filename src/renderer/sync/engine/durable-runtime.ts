@@ -390,6 +390,8 @@ export class SqliteSyncGenerationRuntime {
   private readonly clock: SyncEngineRuntimeClock;
   private readonly flushLocalDurability: () => Promise<void>;
   private readonly sealMaxChangeSetsPerCycle: number;
+  /** The last seal stopped at its budget with more local history waiting. */
+  private sealBacklogRemains = false;
   private readonly checkpoint?: SyncEngineCheckpointHook;
   private readonly reconcileOpenYjsDocuments?: SqliteSyncGenerationRuntimeOptions['reconcileOpenYjsDocuments'];
   private readonly onRemoteChangeCommitted?: SqliteSyncGenerationRuntimeOptions['onRemoteChangeCommitted'];
@@ -443,7 +445,12 @@ export class SqliteSyncGenerationRuntime {
         prepare: (signal) => this.prepare(signal),
         ingest: (signal) => this.ingest(signal),
         apply: (signal) => this.apply(signal),
-        checkpoint: (signal) => this.checkpoint?.captureIfDue({ syncGenerationId: this.syncGenerationId, signal }) ?? Promise.resolve(false),
+        // A snapshot embeds every unsealed local change set; while a backlog
+        // is still being sealed it would carry that whole backlog. Wait until
+        // the backlog is in segments.
+        checkpoint: (signal) => this.sealBacklogRemains
+          ? Promise.resolve(false)
+          : this.checkpoint?.captureIfDue({ syncGenerationId: this.syncGenerationId, signal }) ?? Promise.resolve(false),
         inspectPending: async (signal) => {
           assertNotAborted(signal);
           const pending = await this.inspectPending();
@@ -1002,9 +1009,15 @@ export class SqliteSyncGenerationRuntime {
       )
       .orderBy(asc(SyncGenerationWriterStateTable.createdAt));
     let budget = this.sealMaxChangeSetsPerCycle;
+    this.sealBacklogRemains = false;
     for (const lane of lanes) {
-      if (budget <= 0) break;
-      budget -= await this.sealLane(identity, lane, budget, signal);
+      if (budget <= 0) {
+        this.sealBacklogRemains = true;
+        break;
+      }
+      const sealed = await this.sealLane(identity, lane, budget, signal);
+      if (sealed === budget) this.sealBacklogRemains = true;
+      budget -= sealed;
     }
   }
 

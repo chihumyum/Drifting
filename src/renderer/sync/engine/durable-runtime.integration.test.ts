@@ -358,6 +358,7 @@ async function createDevice(input: {
   onReferenceCoverageInvalidated?: SqliteSyncGenerationRuntimeOptions['onReferenceCoverageInvalidated'];
   connectMarker?: RemoteObject;
   sealMaxChangeSetsPerCycle?: number;
+  checkpoint?: SqliteSyncGenerationRuntimeOptions['checkpoint'];
 }): Promise<Device> {
   const { db, gateway } = await createDatabase(input.id, input.connectMarker);
   const identity = writerIdentity(input.id);
@@ -384,6 +385,7 @@ async function createDevice(input: {
     onRemoteChangeCommitted: input.onRemoteChangeCommitted,
     onReferenceCoverageInvalidated: input.onReferenceCoverageInvalidated,
     sealMaxChangeSetsPerCycle: input.sealMaxChangeSetsPerCycle,
+    checkpoint: input.checkpoint,
   });
   return { id: input.id, db, gateway, identity, binding, runtime };
 }
@@ -739,7 +741,16 @@ describe('SQLite durable SyncEngine runtime', () => {
   it('drains a backlog in bounded cycles, persisting each batch before the next', async () => {
     const localObjects = new MemoryProviderLocalObjectStore();
     const provider = new MemoryObjectLogProvider(localObjects);
-    const a = await createDevice({ id: 'a', provider, localObjects, clockMs: 10_000, sealMaxChangeSetsPerCycle: 2 });
+    const checkpoints: number[] = [];
+    const a = await createDevice({
+      id: 'a', provider, localObjects, clockMs: 10_000, sealMaxChangeSetsPerCycle: 2,
+      checkpoint: {
+        captureIfDue: async () => {
+          checkpoints.push((await a.db.select().from(SyncSegmentTable)).length);
+          return false;
+        },
+      },
+    });
     const b = await createDevice({ id: 'b', provider, localObjects, clockMs: 10_000 });
     for (let index = 1; index <= 5; index += 1) await authorTitle(a, `Draft ${index}`, index * 1_000);
 
@@ -752,6 +763,9 @@ describe('SQLite durable SyncEngine runtime', () => {
     await cycle(a);
     expect(await sealedRanges()).toEqual([[1, 2], [3, 4], [5, 5]]);
     expect((await a.runtime.inspectPending()).pendingChangeSets).toBe(0);
+    // A snapshot would embed every unsealed change set, so none is taken
+    // until the cycle that seals the last of the backlog.
+    expect(checkpoints).toEqual([3]);
 
     await cycle(b, 'start');
     expect(await title(b)).toBe('Draft 5');
