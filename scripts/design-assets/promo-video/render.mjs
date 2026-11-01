@@ -120,8 +120,9 @@ try {
     }
     const file = path.join(out, `drifting-promo-${lang}.mp4`);
     const encoder = spawn('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'image2pipe', '-framerate', String(fps), '-c:v', 'png', '-i', '-',
-      '-vf', 'scale=out_color_matrix=bt709:out_range=tv,format=yuv420p', '-c:v', 'libx264', '-preset', 'slow', '-crf', '16',
-      '-profile:v', 'high', '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-movflags', '+faststart', file],
+      // The captures are sRGB; the frames carry BT.709 primaries and transfer (ffmpeg 9 tags only what the frames hold).
+      '-vf', 'scale=out_color_matrix=bt709:out_range=tv,format=yuv420p,setparams=color_primaries=bt709:color_trc=bt709:colorspace=bt709:range=tv',
+      '-c:v', 'libx264', '-preset', 'slow', '-crf', '16', '-profile:v', 'high', '-movflags', '+faststart', file],
     { stdio: ['pipe', 'inherit', 'inherit'] });
     const encoded = new Promise((resolve) => encoder.on('close', resolve));
     for (let frame = 0; frame < frames; frame += 1) {
