@@ -107,6 +107,39 @@ async function setup() {
   return { db, gateway, objects, provider, providerGeneration, codec, publisher };
 }
 
+/** The App authority and a ready Hosted binding, as a completed connect leaves them. */
+function bindReady(gateway: ProductFileBackedSqliteGateway): void {
+  const run = (statement: string, ...values: unknown[]) =>
+    gateway.database.prepare(statement).run(...(values as never[]));
+  run(`INSERT INTO sync_connect_attempt
+      (attempt_id, authority_generation, kind, target_mode, target_account_subject_id,
+       target_credential_secret_ref, state, created_at, updated_at)
+     VALUES ('connect-hosted', 1, 'connect', 'hosted', 'test-account', 'secret-ref', 'preparing', ?, ?)`, NOW, NOW);
+  run(`UPDATE sync_app_authority SET transition_state = 'connecting', target_mode = 'hosted',
+       attempt_id = 'connect-hosted', updated_at = ? WHERE id = 'app'`, NOW);
+  run(`INSERT INTO sync_remote_object
+      (id, sync_generation_id, provider_object_id, logical_key_id, object_kind, stored_sha256,
+       size_bytes, first_observed_at, last_observed_at)
+     VALUES ('connect-marker', ?, 'connect-provider-marker', 'connect-logical-marker',
+             'snapshot-commit', ?, 1, ?, ?)`, SYNC_GENERATION_ID, '0'.repeat(64), NOW, NOW);
+  run(`INSERT INTO sync_connect_generation_attempt
+      (attempt_id, source_sync_generation_id, commit_marker_object_id, state, created_at, updated_at)
+     VALUES ('connect-hosted', ?, 'connect-marker', 'committed', ?, ?)`, SYNC_GENERATION_ID, NOW, NOW);
+  run(`UPDATE sync_connect_generation_attempt SET state = 'activated', activation_receipt = 'test',
+       activated_at = ?, updated_at = ? WHERE attempt_id = 'connect-hosted'`, NOW, NOW);
+  run(`UPDATE sync_connect_attempt SET state = 'completed', completed_at = ?, updated_at = ?
+       WHERE attempt_id = 'connect-hosted'`, NOW, NOW);
+  run(`UPDATE sync_app_authority SET mode = 'hosted', generation = 2, transition_state = 'stable',
+       target_mode = NULL, attempt_id = NULL, updated_at = ? WHERE id = 'app'`, NOW);
+  run(`INSERT INTO sync_provider_account
+      (id, singleton_key, authority_id, provider_kind, authority_generation, account_subject_id,
+       credential_secret_ref, created_at, updated_at)
+     VALUES ('provider-account', 1, 'app', 'hosted', 2, 'test-account', 'secret-ref', ?, ?)`, NOW, NOW);
+  run(`INSERT INTO sync_provider_binding
+      (sync_generation_id, provider_account_id, provider_namespace, state, connected_at, updated_at)
+     VALUES (?, 'provider-account', 'reference-provider', 'ready', ?, ?)`, SYNC_GENERATION_ID, NOW, NOW);
+}
+
 afterEach(async () => {
   vi.restoreAllMocks();
   for (const gateway of gateways.splice(0)) await gateway.close();
@@ -367,6 +400,37 @@ describe('durable provider snapshot publisher', () => {
     expect(await fixture.db.select().from(SyncRemoteObjectTable)).toHaveLength(1);
     expect(await fixture.db.select({ state: SyncTransferTable.state, remoteObjectId: SyncTransferTable.remoteObjectId })
       .from(SyncTransferTable)).toEqual([{ state: 'completed', remoteObjectId: 'remote-recorded-by-runtime' }]);
+  });
+
+  it('resumes a captured checkpoint whose upload was cut off before taking a newer one', async () => {
+    const fixture = await setup();
+    bindReady(fixture.gateway);
+    const upload = fixture.provider.uploadImmutable.bind(fixture.provider);
+    const failOnce = vi.spyOn(fixture.provider, 'uploadImmutable').mockImplementationOnce(async () => {
+      throw new Error('connection reset');
+    });
+    await expect(
+      fixture.publisher.publishSnapshot({
+        snapshotId: 'checkpoint-cut-off',
+        snapshotKind: 'checkpoint',
+        signal: new AbortController().signal,
+      }),
+    ).rejects.toThrow('connection reset');
+    failOnce.mockImplementation(upload);
+    expect((await fixture.db.select().from(SyncCheckpointTable))[0]?.state).not.toBe('published');
+
+    const hook = createProviderCheckpointHook({
+      db: fixture.db,
+      syncGenerationId: SYNC_GENERATION_ID,
+      publisher: fixture.publisher,
+      createSnapshotId: () => 'checkpoint-newer',
+    });
+    await expect(
+      hook.captureIfDue({ syncGenerationId: SYNC_GENERATION_ID, signal: new AbortController().signal }),
+    ).resolves.toBe(true);
+    expect(
+      (await fixture.db.select().from(SyncCheckpointTable)).map((row) => [row.checkpointId, row.state]),
+    ).toEqual([['checkpoint-cut-off', 'published']]);
   });
 
   it('rejects conflicting metadata returned by a provider upload', async () => {

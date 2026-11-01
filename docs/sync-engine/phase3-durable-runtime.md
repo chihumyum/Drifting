@@ -14,7 +14,10 @@ object log without putting provider I/O inside a SQLite transaction:
    repull cycle, so a long backlog drains over bounded cycles. A cycle whose
    seal stopped at its budget takes no checkpoint: a snapshot embeds every
    unsealed local change set, so mid-backlog it would carry the whole backlog
-   (a 143k change-set backlog made a 400 MB checkpoint);
+   (a 143k change-set backlog made a 400 MB checkpoint). A checkpoint that was
+   captured but not published (its upload failed or was cut off) resumes before
+   any newer one is taken, rather than counting as the latest and waiting for
+   the next threshold;
 2. capture/incrementally advance the provider cursor; an invalid cursor/page
    token atomically resets transport progress and starts a new
    capture-before-full-inventory pass;
