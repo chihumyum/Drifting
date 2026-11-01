@@ -314,6 +314,8 @@ export function EditorMainArea() {
     if (projectId) setSplitRatio(projectId, split.id, ratio);
   }, [projectId, setSplitRatio]);
 
+  // The stage is the paper the pages lie on: while one page fades out and the
+  // next floats up, the paper stays and only what is on it changes.
   return (
     <div
       ref={surfaceRef}
@@ -322,7 +324,7 @@ export function EditorMainArea() {
       onDrop={handleDrop}
       onMouseOver={handleEntityLinkMouseOver}
       onMouseOut={handleEntityLinkMouseOut}
-      style={{ position: 'relative', height: '100%', width: '100%' }}
+      style={{ position: 'relative', height: '100%', width: '100%', background: 'hsl(var(--page))' }}
     >
       {renderedSurfaces.map((surface) => (
         <WorkspaceSurface

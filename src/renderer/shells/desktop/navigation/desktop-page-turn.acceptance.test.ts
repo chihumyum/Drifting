@@ -114,6 +114,8 @@ describe('the paper turns to another page', () => {
   it('keeps the stage the owner of the turn and the wait', () => {
     const main = source('src/renderer/components/editor/EditorMainArea.tsx');
     expect(main).toContain('const turn = stageAnnounced.current && !prefersReducedMotion();');
+    // The paper stays under both pages while they turn: no desk shows through.
+    expect(main).toContain("style={{ position: 'relative', height: '100%', width: '100%', background: 'hsl(var(--page))' }}");
     expect(main).toContain('turnPage(incoming, outgoing).finished.then(settle, () => undefined);');
     expect(main).toContain('stopPageTurn(surfaceOf(previous));');
     expect(main).toContain("zIndex: isVisible ? 2 : isLeaving ? 1 : 0,");
