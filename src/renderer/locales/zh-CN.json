@@ -1882,7 +1882,9 @@
       "sendRetry": "发送失败，请稍后重试",
       "sendCodeFailed": "发送验证码失败",
       "verifyFailed": "验证失败",
-      "signupClosed": "Drifting 仍在开发中，暂未开放注册。"
+      "signupClosed": "Drifting 仍在开发中，暂未开放注册。",
+      "mailQuotaExhausted": "今天的验证邮件已经发完了。Drifting 不登录也能完整写作，你可以先在本机写，明天再来登录并开启同步。",
+      "mailDeliveryFailed": "验证邮件暂时发不出去。Drifting 不登录也能完整写作，你可以先在本机写，稍后再来登录并开启同步。"
     }
   },
   "projectPicker": {

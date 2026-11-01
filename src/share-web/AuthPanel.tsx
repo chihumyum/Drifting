@@ -24,8 +24,13 @@ export function AuthPanel({ onSignedIn }: { onSignedIn: () => void }) {
     } catch (failure) {
       const code = failure instanceof ReaderError ? failure.code : 'fallback';
       if (code === 'EMAIL_NOT_VERIFIED') {
-        await accountApi.sendCode(email).catch(() => undefined);
-        setStep('verify');
+        // Without a code on its way the verify step would wait for nothing.
+        const unsent = await accountApi.sendCode(email).then(
+          () => null,
+          (sendFailure: unknown) => (sendFailure instanceof ReaderError && sendFailure.code.startsWith('MAIL_') ? sendFailure.code : null),
+        );
+        if (unsent) setError(errorText(unsent));
+        else setStep('verify');
       } else {
         setError(errorText(code));
       }

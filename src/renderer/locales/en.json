@@ -1883,7 +1883,9 @@
       "sendRetry": "Send failed. Please try again later.",
       "sendCodeFailed": "Could not send the verification code",
       "verifyFailed": "Verification failed",
-      "signupClosed": "Drifting is still in development. Sign-up isn't open yet."
+      "signupClosed": "Drifting is still in development. Sign-up isn't open yet.",
+      "mailQuotaExhausted": "Today's verification emails have all been sent. Drifting works fully without an account, so keep writing on this device and come back tomorrow to sign in and turn on sync.",
+      "mailDeliveryFailed": "Verification emails can't be sent right now. Drifting works fully without an account, so keep writing on this device and sign in later to turn on sync."
     }
   },
   "projectPicker": {

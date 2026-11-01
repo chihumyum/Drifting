@@ -59,7 +59,12 @@ sync** on first use. The welcome page states that connecting downloads cloud
 projects and uploads the current local library. On the Mac this choice is a
 dialog shown before the bookshelf mounts; the existing account flow continues
 in that dialog. Authors can switch between sign-in and registration, verify
-their email, or use email-code sign-in and password recovery. Successful
+their email, or use email-code sign-in and password recovery. When the service
+cannot mail a code today (`MAIL_QUOTA_EXHAUSTED`) or right now
+(`MAIL_DELIVERY_FAILED`; see the service's mail pool), each of those steps says
+so and that Drifting works fully without an account: the author keeps writing
+on this device and signs in to sync later. The share-link reader shows a shorter
+version of the same notice. Successful
 authentication connects the library before opening the shelf. An existing
 session instead offers **Manage account and sync**. Later sign-in (user menu or
 Account settings) opens the same compact dialog over the current screen instead of a
@@ -200,8 +205,11 @@ for renderer requests, native transport and CSP. No physical mobile usability is
 `src/renderer/features/auth/auth-entry.acceptance.test.ts` and
 `src/renderer/features/settings/hosted-settings-boundary.acceptance.test.ts`
 check the first-run account entry, local-only boundary, English/Chinese copy and
-absence of retired welcome-page links. These source contracts do not claim a
-live account registration or delivered verification email.
+absence of retired welcome-page links. `src/renderer/features/auth/auth-errors.test.ts`
+and `src/share-web/i18n.test.ts` check the notice for each verification-mail
+refusal in both languages and that every request mailing a code uses it. These
+source contracts do not claim a live account registration or delivered
+verification email.
 
 [Native session observations and open gates](native-session.md) record the
 interactive work separately from the final source checks.
