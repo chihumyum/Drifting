@@ -867,8 +867,8 @@ html[data-shell-mode='desktop'] .snapshot-modal__close:hover {
   cursor: pointer;
   transition: color 0.12s ease-out;
 }
-.editor-selection-bar__item:hover,
-.editor-selection-bar__item:focus-visible,
+/* A pill under the pointer or the keys is marked by its glass alone; its words
+   keep the bar's one colour. Only 「格式」 while its pill is out reads darker. */
 .editor-selection-bar__item[aria-expanded='true'] {
   color: hsl(var(--ink-1));
 }
@@ -881,12 +881,12 @@ html[data-shell-mode='desktop'] .snapshot-modal__close:hover {
   border: 0;
   border-radius: 50%;
   background: transparent;
-  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  color: hsl(var(--ink-2));
   cursor: pointer;
   transition: color 0.12s ease-out;
 }
-.editor-selection-bar__format:hover,
-.editor-selection-bar__format:focus-visible,
+/* Likewise a glyph: the same colour as the bar's words under the pointer;
+   only an applied format reads darker. */
 .editor-selection-bar__format[aria-pressed='true'] {
   color: hsl(var(--ink-1));
 }
