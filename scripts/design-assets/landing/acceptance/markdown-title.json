@@ -1,0 +1,109 @@
+{
+  "description": "Landing Markdown mock window title glyph bounds",
+  "baseline": "3aa0a391",
+  "method": "In-app Chromium, rendered DOM Range bounds compared with the overflow-hidden title box after local build and font load",
+  "before": {
+    "bottomOverflow": 1,
+    "clipped": true,
+    "fontFamily": "\"Inter Tight Variable\", -apple-system, \"system-ui\", \"PingFang SC\", \"Hiragino Sans GB\", \"Noto Sans SC\", sans-serif",
+    "fontSize": "11px",
+    "headerHeight": 31,
+    "language": "en",
+    "lineHeight": "11px",
+    "overflow": "hidden",
+    "textHeight": 13,
+    "textOverflow": "ellipsis",
+    "titleHeight": 11,
+    "topOverflow": 1,
+    "viewport": {
+      "height": 720,
+      "width": 1280
+    },
+    "whiteSpace": "nowrap"
+  },
+  "after": [
+    {
+      "bottomOverflow": 0,
+      "clipped": false,
+      "fontFamily": "\"Inter Tight Variable\", -apple-system, \"system-ui\", \"PingFang SC\", \"Hiragino Sans GB\", \"Noto Sans SC\", sans-serif",
+      "fontSize": "11px",
+      "headerHeight": 31,
+      "language": "en",
+      "lineHeight": "16px",
+      "overflow": "hidden",
+      "textHeight": 13,
+      "textOverflow": "ellipsis",
+      "titleHeight": 16,
+      "topOverflow": 0,
+      "viewport": {
+        "height": 720,
+        "width": 1280
+      },
+      "whiteSpace": "nowrap"
+    },
+    {
+      "bottomOverflow": 0,
+      "clipped": false,
+      "fontFamily": "\"Inter Tight Variable\", -apple-system, \"system-ui\", \"PingFang SC\", \"Hiragino Sans GB\", \"Noto Sans SC\", sans-serif",
+      "fontSize": "11px",
+      "headerHeight": 31,
+      "language": "zh-CN",
+      "lineHeight": "16px",
+      "overflow": "hidden",
+      "textHeight": 13,
+      "textOverflow": "ellipsis",
+      "titleHeight": 16,
+      "topOverflow": 0,
+      "viewport": {
+        "height": 720,
+        "width": 1280
+      },
+      "whiteSpace": "nowrap"
+    },
+    {
+      "bottomOverflow": 0,
+      "clipped": false,
+      "fontFamily": "\"Inter Tight Variable\", -apple-system, \"system-ui\", \"PingFang SC\", \"Hiragino Sans GB\", \"Noto Sans SC\", sans-serif",
+      "fontSize": "11px",
+      "headerHeight": 31,
+      "language": "zh-CN",
+      "lineHeight": "16px",
+      "overflow": "hidden",
+      "textHeight": 13,
+      "textOverflow": "ellipsis",
+      "titleHeight": 16,
+      "topOverflow": 0,
+      "viewport": {
+        "height": 844,
+        "width": 390
+      },
+      "whiteSpace": "nowrap"
+    },
+    {
+      "bottomOverflow": 0,
+      "clipped": false,
+      "fontFamily": "\"Inter Tight Variable\", -apple-system, \"system-ui\", \"PingFang SC\", \"Hiragino Sans GB\", \"Noto Sans SC\", sans-serif",
+      "fontSize": "11px",
+      "headerHeight": 31,
+      "language": "en",
+      "lineHeight": "16px",
+      "overflow": "hidden",
+      "textHeight": 13,
+      "textOverflow": "ellipsis",
+      "titleHeight": 16,
+      "topOverflow": 0,
+      "viewport": {
+        "height": 844,
+        "width": 390
+      },
+      "whiteSpace": "nowrap"
+    }
+  ],
+  "checks": {
+    "baselineClippingReproduced": true,
+    "allTitlesFitVertically": true,
+    "titleBarHeightPreserved": true,
+    "horizontalEllipsisPreserved": true,
+    "coverBands": 3
+  }
+}
