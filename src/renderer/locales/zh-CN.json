@@ -986,6 +986,19 @@
       "password_sessions": "修改密码后，其他设备需要重新登录，本机保持登录。",
       "change_password": "修改密码",
       "password_saved": "密码已修改，其他设备需要重新登录。",
+      "connect_errors": {
+        "local_project_sync_conflict": "这台 Mac 上有项目和云端的同一个项目分属两份不同的同步记录（比如复制过书库文件夹，或在另一台 Mac 上从备份恢复过）。为了不覆盖任何一边的内容，这次没有连接同步。本地写作不受影响。",
+        "local_project_sync_conflict_named": "{{projects}}在这台 Mac 上的副本和云端的那份分属两份不同的同步记录（比如复制过书库文件夹，或在另一台 Mac 上从备份恢复过）。为了不覆盖任何一边的内容，这次没有连接同步。本地写作不受影响。",
+        "project_name": "「{{name}}」",
+        "project_separator": "、",
+        "blocked_update": "云端的数据来自更新版本的 Drifting。请先更新 App，再连接同步。",
+        "blocked_corrupt": "云端的数据没有通过校验，为了安全，这次没有连接同步。请发邮件到 support@drifting.cc。",
+        "restore_failed": "同步连接没有完成。本地写作不受影响，可以稍后重试。",
+        "interrupted": "上次连接同步被中断了，请重试。",
+        "cancelled": "已取消。",
+        "disconnect_failed": "断开同步没有完成，请稍后重试。",
+        "unknown": "同步没有完成（{{code}}）。本地写作不受影响。"
+      },
       "account_errors": {
         "generic": "未能完成操作，请检查网络后重试。",
         "INVALID_PROFILE_NAME": "请输入 1–80 个字符的昵称。",
