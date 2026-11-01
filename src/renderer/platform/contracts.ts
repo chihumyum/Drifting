@@ -33,6 +33,17 @@ export interface MarkdownProjectionInfo {
   generatedAt: string | null;
   readOnly: false;
   reverseSync: true;
+  /** False once the author turned the Markdown folder off. */
+  enabled: boolean;
+}
+
+/** Where projects without a location of their own are written, and whether the folder is on. */
+export interface MarkdownFolderSettings {
+  /** Holds the folder of every project without a location of its own. */
+  directory: string;
+  /** The location the author chose; the app's data folder when null. */
+  customRoot: string | null;
+  enabled: boolean;
 }
 
 /** Generated reading files are replaced freely; authored files never over bytes Drifting has not read. */
@@ -702,6 +713,10 @@ export interface TauriCommandContract {
   ai_log_get_dir: { args: undefined; result: string };
   markdown_projection_remove: { args: { projectId: string }; result: void };
   markdown_projection_info: { args: { projectId: string }; result: MarkdownProjectionInfo };
+  markdown_projection_folder: { args: undefined; result: MarkdownFolderSettings };
+  markdown_projection_set_default_root: { args: { customRoot: string | null }; result: MarkdownFolderSettings };
+  markdown_projection_set_enabled: { args: { enabled: boolean }; result: MarkdownFolderSettings };
+  markdown_projection_open: { args: { projectId: string | null }; result: void };
   markdown_projection_pick_output_root: { args: { title: string }; result: string | null };
   markdown_projection_set_output_root: {
     args: { projectId: string; customRoot: string | null };

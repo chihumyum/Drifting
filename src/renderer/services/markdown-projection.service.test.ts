@@ -3,14 +3,14 @@ const fixture = vi.hoisted(() => ({
   database: {} as object,
   composing: false,
   committed: (_event: { projectId: string }) => undefined as void,
-  read: vi.fn(), build: vi.fn(), flush: vi.fn(), write: vi.fn(), info: vi.fn(), remove: vi.fn(), setOutputRoot: vi.fn(),
+  read: vi.fn(), build: vi.fn(), flush: vi.fn(), write: vi.fn(), info: vi.fn(), remove: vi.fn(), setOutputRoot: vi.fn(), setEnabled: vi.fn(),
   known: new Map<string, string>(), disposeRenderer: vi.fn(),
   mirror: {
     scan: vi.fn(), prepare: vi.fn(), settle: vi.fn(), dispose: vi.fn(),
     exclusive: <T,>(work: () => Promise<T>) => work(),
   },
 }));
-vi.mock('../platform', () => ({ platform: { markdownProjection: { info: fixture.info, write: fixture.write, remove: fixture.remove, setOutputRoot: fixture.setOutputRoot } } }));
+vi.mock('../platform', () => ({ platform: { markdownProjection: { info: fixture.info, write: fixture.write, remove: fixture.remove, setOutputRoot: fixture.setOutputRoot, setEnabled: fixture.setEnabled } } }));
 vi.mock('../lib/db', () => ({ getDbIfInitialized: () => fixture.database }));
 vi.mock('../lib/active-editor', () => ({ getActiveEditor: () => ({ view: { composing: fixture.composing } }) }));
 vi.mock('../sync/journal/authored-transaction', () => ({ onAuthoredChangeCommitted: (callback: typeof fixture.committed) => {
@@ -24,7 +24,7 @@ vi.mock('./export/markdown-projection-client', () => ({ createMarkdownProjection
 }) }));
 import {
   createProjectionWorker, installMarkdownProjection, MIRROR_SCAN_MS, PROJECTION_MAX_WAIT_MS, PROJECTION_QUIET_MS,
-  refreshMarkdownProjection, setMarkdownProjectionOutputRoot,
+  refreshMarkdownProjection, setMarkdownFolderEnabled, setMarkdownProjectionOutputRoot,
 } from './markdown-projection.service';
 import { getMarkdownProjectionStatus } from './markdown-projection-status';
 import { flushMarkdownProjections } from './markdown-projection-lifecycle';
@@ -337,6 +337,41 @@ describe('Markdown projection scheduling', () => {
       expect(fixture.write).toHaveBeenCalledTimes(1);
       await vi.advanceTimersByTimeAsync(PROJECTION_QUIET_MS);
       expect(fixture.write).toHaveBeenCalledTimes(2);
+    } finally {
+      await dispose();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('captures pending work before the folder is turned off, then neither scans nor writes until it is back on', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('document', { visibilityState: 'visible' });
+    const info = { directory: '/synthetic/projection', customRoot: null, generatedAt: null, readOnly: false, reverseSync: true };
+    fixture.info.mockResolvedValue({ ...info, enabled: true });
+    fixture.setEnabled.mockImplementation(async (enabled: boolean) => {
+      fixture.info.mockResolvedValue({ ...info, enabled });
+      return { directory: '/synthetic', customRoot: null, enabled };
+    });
+    const dispose = installMarkdownProjection('synthetic');
+    try {
+      await vi.advanceTimersByTimeAsync(0);
+      expect(fixture.write).toHaveBeenCalledOnce();
+      fixture.committed({ projectId: 'synthetic' });
+      await setMarkdownFolderEnabled(false);
+      // What was written since the last capture reached the folder first.
+      expect(fixture.write).toHaveBeenCalledTimes(2);
+      expect(fixture.write.mock.invocationCallOrder[1]).toBeLessThan(fixture.setEnabled.mock.invocationCallOrder[0]!);
+      expect(getMarkdownProjectionStatus('synthetic')).toMatchObject({ state: 'off', enabled: false });
+      const scans = fixture.mirror.scan.mock.calls.length;
+      fixture.committed({ projectId: 'synthetic' });
+      await vi.advanceTimersByTimeAsync(PROJECTION_QUIET_MS + MIRROR_SCAN_MS * 3);
+      expect(fixture.write).toHaveBeenCalledTimes(2);
+      expect(fixture.mirror.scan).toHaveBeenCalledTimes(scans);
+      await setMarkdownFolderEnabled(true);
+      expect(fixture.write).toHaveBeenCalledTimes(3);
+      // Every file is hashed again, so edits made there meanwhile merge.
+      expect(fixture.mirror.scan).toHaveBeenLastCalledWith('/synthetic/projection', { force: true });
+      expect(getMarkdownProjectionStatus('synthetic')).toMatchObject({ state: 'ready', enabled: true });
     } finally {
       await dispose();
       vi.unstubAllGlobals();

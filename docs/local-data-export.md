@@ -10,25 +10,46 @@ Drifting while it runs, and edits made while it was closed merge when the projec
 opens. Every other file is generated and read-only. The merge model, ledger and
 safeguards are in [Markdown folder two-way sync](markdown-mirror.md).
 
-The Tauri desktop client maintains one project-scoped directory. **Settings →
-Sync & Data → Local data → Local Markdown projection** shows its actual path,
-generation status, folder picker, restore-default, copy and refresh actions.
-Open a project to configure its projection. The default location is
-`<app-local-data>/markdown-projections/<SHA-256 of project ID>/`. Selecting a
-folder changes it to `<selected-folder>/markdown-projections/<SHA-256 of project ID>/`.
-The location is saved per project on this device in
-`<app-local-data>/markdown-projection-settings.json`, outside SQLite, Yjs and
-synced preferences. Worktree instances retain their isolated application-data
-identity and default output. Custom locations are explicitly user-selected;
-use separate folders for independent acceptance instances.
+The Tauri desktop client maintains one directory per project, under a folder
+that holds all of them. On the first desktop run, after the welcome card, the
+same card asks where that folder goes (`drifting.markdown-folder-guide.v1`
+marks the question answered on this device; existing installations see it once
+too). Choosing a folder sets it for every project; not choosing keeps the
+default, `<app-local-data>/markdown-projections/`. The card also offers to turn
+the folder off, in the danger ink and only after a destructive confirmation.
 
-Changing or resetting the location drains the current capture, checks the new
-directory and its writability, saves the preference, then regenerates the
-projection. Old directories are retained as snapshots and no longer refreshed;
-remove them manually when no longer needed. If regeneration fails, the chosen
-location remains selected and the UI reports the error for retry. An unavailable
-custom folder never silently falls back to the default. Restore default remains
-available after a location error. No manuscript data is moved.
+**Settings → Sync & Data → Local data → Markdown folder** shows the location
+for all projects with Choose folder and Restore default location, a **Show in
+Finder** button (the open project's folder once written, otherwise the folder
+holding projects), and, with a project open, that project's path, status,
+issues and a location of its own (Choose for this project / Follow all
+projects), Copy path and Update now. **Turn off Markdown folder** is the danger
+button at the end; it asks first, with Cancel focused.
+
+A project's folder is `<location>/markdown-projections/<SHA-256 of project ID>/`,
+where the location is the project's own, else the one chosen for all projects,
+else the app's local data folder. Both are saved on this device in
+`<app-local-data>/markdown-projection-settings.json` (`roots` per project,
+`defaultRoot`, `disabled`), outside SQLite, Yjs and synced preferences.
+Worktree instances retain their isolated application-data identity and default
+output. Custom locations are explicitly user-selected; use separate folders for
+independent acceptance instances.
+
+Changing or resetting either location drains the current capture, checks the
+new directory and its writability, saves the preference, then regenerates the
+open project there. Old directories are retained as snapshots and no longer
+refreshed; remove them manually when no longer needed. If regeneration fails,
+the chosen location remains selected and the UI reports the error for retry. An
+unavailable chosen folder never silently falls back to another one. Restore
+default remains available after a location error. No manuscript data is moved.
+
+Turning the folder off first captures what was written since the last capture
+(merging edits waiting in the folder), then stops every project from writing or
+reading back files; the native writer and reader refuse while it is off, and
+existing files stay where they are. MCP initialization and
+`get_project_overview` then say the folder is off instead of pointing at it.
+Turning it back on hashes every file again, so chapters edited there meanwhile
+merge as described in [Markdown folder two-way sync](markdown-mirror.md).
 
 The directory is
 created when a project opens and refreshed after local authored commits and remote
@@ -185,11 +206,25 @@ block anchors, alias lists, attachment plans, literal
 search, scheduler behavior, readable naming, rename/reorder link regeneration and native filesystem writes.
 `node scripts/run-markdown-projection-settings.mjs` generates
 [`projection-settings-ui.json`](agent-runtime/acceptance/projection-settings-ui.json)
-from browser clicks on the real React settings components in English and Chinese.
-It covers cancellation, choose/reset/refresh, failure feedback and narrow desktop
-layout, with synthetic picker/service actions. Pass `--check` to verify its source
+from browser clicks on the real React settings components and the first-run card
+in English and Chinese. It covers Show in Finder, cancellation, choosing and
+restoring the location for all projects and for one project, update, failure
+feedback, turning the folder off (danger ink, confirmation with Cancel focused)
+and on, narrow desktop layout, and the first run's choose / default / turn-off
+paths before the shelf, with synthetic picker/service actions. Pass `--check` to verify its source
 fingerprint. The native OS folder-picker dialog is not exercised by this browser
 report; filesystem and scheduling behavior are tested separately above.
+
+On 2026-11-02 the first-run step and the settings section were also walked
+through in an isolated seeded instance (`pnpm dev:seed:lite --frontend-debug`)
+over the debug bridge; this is not part of a report. After the welcome card the
+folder step showed the profile's real default path; a synthetic folder set
+through `setDefaultRoot` (the native picker was not driven) received the
+sample project's 62 Markdown files; Show in Finder opened that project's
+folder; Turn off asked first with Cancel focused, then wrote `disabled` and
+stopped writing; a chapter file edited while off did not merge until Turn on,
+then merged; Restore default location regenerated the project under the app's
+data folder with that edit and kept the old folder.
 
 `node scripts/run-obsidian-projection-acceptance.mjs` generates
 [`obsidian-projection.json`](agent-runtime/acceptance/obsidian-projection.json)

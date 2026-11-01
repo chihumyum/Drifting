@@ -1,7 +1,7 @@
 {
   "kind": "local-mcp-runtime-and-native-ipc",
-  "generatedAt": "2026-10-30T18:46:13.700Z",
-  "sourceSha256": "1db18a444cb6da127031eb6bde9457b1a69682d20055a71d556d3a8a792ed5eb",
+  "generatedAt": "2026-11-01T17:32:42.158Z",
+  "sourceSha256": "d352025f3eae7afeeb876af9468fe5c2295388b0d01b049edb7a58b1c5bfed71",
   "status": "passed",
   "synthetic": true,
   "checks": [
@@ -54,6 +54,10 @@
       "status": "passed"
     },
     {
+      "name": "Markdown projection scheduling captures pending work before the folder is turned off, then neither scans nor writes until it is back on",
+      "status": "passed"
+    },
+    {
       "name": "Markdown projection scheduling reports failure and allows a later refresh without blocking the author",
       "status": "passed"
     },
@@ -79,6 +83,26 @@
     },
     {
       "name": "migrates old MCP identities and provider records without deleting history or audit data",
+      "status": "passed"
+    },
+    {
+      "name": "application persistence lifecycle flushes mounted projections after durability without letting a projection error block saving",
+      "status": "passed"
+    },
+    {
+      "name": "application persistence lifecycle keeps the remote lane inert until SyncEngine installs its hook",
+      "status": "passed"
+    },
+    {
+      "name": "application persistence lifecycle attempts every ordered local durability step before requesting a SyncEngine cycle",
+      "status": "passed"
+    },
+    {
+      "name": "application persistence lifecycle unmounts and waits for Yjs close snapshots after the SyncEngine hook and before the final checkpoint",
+      "status": "passed"
+    },
+    {
+      "name": "application persistence lifecycle tears down after credential loss even when the first local flush fails",
       "status": "passed"
     },
     {
@@ -183,26 +207,6 @@
     },
     {
       "name": "committed conversation removal and concurrent navigation finishes durable deletion and releases waiters when the cancellation transport throws",
-      "status": "passed"
-    },
-    {
-      "name": "application persistence lifecycle flushes mounted projections after durability without letting a projection error block saving",
-      "status": "passed"
-    },
-    {
-      "name": "application persistence lifecycle keeps the remote lane inert until SyncEngine installs its hook",
-      "status": "passed"
-    },
-    {
-      "name": "application persistence lifecycle attempts every ordered local durability step before requesting a SyncEngine cycle",
-      "status": "passed"
-    },
-    {
-      "name": "application persistence lifecycle unmounts and waits for Yjs close snapshots after the SyncEngine hook and before the final checkpoint",
-      "status": "passed"
-    },
-    {
-      "name": "application persistence lifecycle tears down after credential loss even when the first local flush fails",
       "status": "passed"
     },
     {
@@ -582,11 +586,19 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::client_config::tests::claude_statistics_keep_their_exact_numeric_values",
+      "name": "mcp_server::client_config::tests::codex_merge_preserves_comments_and_other_servers_and_is_idempotent",
       "status": "passed"
     },
     {
       "name": "mcp_server::local::tests::framing_is_bounded_and_hashes_do_not_accept_partial_credentials",
+      "status": "passed"
+    },
+    {
+      "name": "mcp_server::client_config::tests::malformed_or_colliding_config_is_never_replaced",
+      "status": "passed"
+    },
+    {
+      "name": "mcp_server::client_config::tests::claude_statistics_keep_their_exact_numeric_values",
       "status": "passed"
     },
     {
@@ -598,11 +610,11 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::client_config::tests::malformed_or_colliding_config_is_never_replaced",
+      "name": "mcp_server::client_config::tests::configuration_updates_back_up_original_and_reject_symlinks",
       "status": "passed"
     },
     {
-      "name": "mcp_server::client_config::tests::codex_merge_preserves_comments_and_other_servers_and_is_idempotent",
+      "name": "mcp_server::local::tests::renderer_dispatch_preserves_authorized_scope_and_cancellation",
       "status": "passed"
     },
     {
@@ -610,15 +622,7 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::local::tests::socket_authentication_project_scope_revocation_and_duplicate_ids",
-      "status": "passed"
-    },
-    {
-      "name": "mcp_server::client_config::tests::configuration_updates_back_up_original_and_reject_symlinks",
-      "status": "passed"
-    },
-    {
-      "name": "mcp_server::local::tests::renderer_dispatch_preserves_authorized_scope_and_cancellation",
+      "name": "mcp_server::local::tests::initialize_says_when_the_markdown_folder_is_turned_off",
       "status": "passed"
     },
     {
@@ -631,6 +635,10 @@
     },
     {
       "name": "mcp_server::local::tests::permission_change_cancels_pending_requests_before_publishing_new_grant",
+      "status": "passed"
+    },
+    {
+      "name": "mcp_server::local::tests::socket_authentication_project_scope_revocation_and_duplicate_ids",
       "status": "passed"
     },
     {
@@ -658,6 +666,10 @@
       "status": "passed"
     },
     {
+      "name": "markdown_projection::tests::hidden_metadata_rejects_symlinks_before_changing_the_readable_manuscript",
+      "status": "passed"
+    },
+    {
       "name": "markdown_projection::tests::a_folder_managed_by_another_installation_is_refused",
       "status": "passed"
     },
@@ -666,11 +678,15 @@
       "status": "passed"
     },
     {
+      "name": "markdown_projection::tests::markdown_projection_rejects_symlink_parent_and_preserves_external_target",
+      "status": "passed"
+    },
+    {
       "name": "markdown_projection::tests::output_selection_rejects_symlinked_managed_directory",
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::markdown_projection_rejects_symlink_parent_and_preserves_external_target",
+      "name": "markdown_projection::tests::opening_shows_the_project_folder_once_written_else_the_folder_holding_projects",
       "status": "passed"
     },
     {
@@ -678,7 +694,7 @@
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::attachments_are_verified_hashed_read_only_and_removed_without_touching_vault_settings",
+      "name": "markdown_projection::tests::interrupted_projection_claims_can_be_retried_and_cleaned_up",
       "status": "passed"
     },
     {
@@ -686,7 +702,7 @@
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::hidden_metadata_rejects_symlinks_before_changing_the_readable_manuscript",
+      "name": "markdown_projection::tests::attachments_are_verified_hashed_read_only_and_removed_without_touching_vault_settings",
       "status": "passed"
     },
     {
@@ -694,15 +710,15 @@
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::refresh_rejects_new_unowned_file_before_changing_managed_prose",
-      "status": "passed"
-    },
-    {
       "name": "markdown_projection::tests::readable_paths_reject_reserved_names_prefix_conflicts_and_case_collisions",
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::interrupted_projection_claims_can_be_retried_and_cleaned_up",
+      "name": "markdown_projection::tests::source_assets_reject_symlinks_and_hardlinks_before_modifying_managed_output",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::unsupported_image_previews_copy_only_from_the_project_owned_display_variant",
       "status": "passed"
     },
     {
@@ -714,19 +730,11 @@
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::unsupported_image_previews_copy_only_from_the_project_owned_display_variant",
+      "name": "markdown_projection::tests::refresh_rejects_new_unowned_file_before_changing_managed_prose",
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::source_assets_reject_symlinks_and_hardlinks_before_modifying_managed_output",
-      "status": "passed"
-    },
-    {
-      "name": "markdown_projection::tests::custom_output_persists_per_project_resets_and_preserves_old_snapshots",
-      "status": "passed"
-    },
-    {
-      "name": "markdown_projection::tests::readable_tree_upgrades_legacy_manifests_and_cleans_only_owned_paths",
+      "name": "markdown_projection::tests::unavailable_default_location_does_not_fall_back_and_can_be_reset",
       "status": "passed"
     },
     {
@@ -735,6 +743,22 @@
     },
     {
       "name": "markdown_projection::tests::unavailable_custom_output_does_not_fallback_and_can_be_reset",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::readable_tree_upgrades_legacy_manifests_and_cleans_only_owned_paths",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::turned_off_folder_is_neither_written_nor_read_and_keeps_its_files",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::custom_output_persists_per_project_resets_and_preserves_old_snapshots",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::default_location_holds_projects_without_their_own_and_keeps_old_folders",
       "status": "passed"
     }
   ],

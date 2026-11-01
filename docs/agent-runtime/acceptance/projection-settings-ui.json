@@ -1,17 +1,25 @@
 {
   "kind": "markdown-projection-settings-browser",
-  "generatedAt": "2026-10-30T18:45:49.602Z",
-  "sourceSha256": "0dca5791be9b577e78f389ea2be31c3a0338a1f9726db0f6d5e888b812caff3c",
+  "generatedAt": "2026-11-01T17:30:45.844Z",
+  "sourceSha256": "57971101fe15bb51964576b91f2715b279296c38d0b5f4e896442345818fd35a",
   "status": "passed",
   "synthetic": true,
   "checks": [
     "MCP shows a projection hint without directory controls",
     "an edited file that cannot merge and preserved copies are reported",
-    "canceling folder selection preserves the current output",
-    "choose, refresh and reset use the current project and update the shown path",
+    "Show in Finder opens the open project's folder",
+    "canceling folder selection preserves the current location",
+    "choosing and restoring the location for all projects updates the shown path",
+    "a location of the project's own, update and follow-all-projects use the current project",
     "a failed folder change shows an error and preserves the previous path",
+    "turning the folder off is drawn in the danger ink, asks first with Cancel focused, and leaves only Turn on",
+    "turning it back on restores the location and project controls",
     "Chinese controls wrap without horizontal overflow at two desktop widths",
-    "standalone settings explain that a project must be open"
+    "with no project open the location and switch remain, and Finder opens the folder holding projects",
+    "the first run asks where the Markdown folder goes, showing the default, before the shelf",
+    "a chosen folder becomes the location for all projects and the shelf opens after it",
+    "not choosing keeps the default location",
+    "the first run can turn the folder off, only after the danger confirmation"
   ],
   "boundaries": {
     "browser": "real React components and clicks; synthetic native picker and service actions",

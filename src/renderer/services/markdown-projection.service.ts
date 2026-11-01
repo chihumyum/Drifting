@@ -12,6 +12,7 @@ import { flushAllOpenYjsDocuments } from './yjs-local-durability.service';
 import { readLocalRelationalMarkdownSource } from './export/relational-markdown.local-source';
 import { createMarkdownProjectionRenderer } from './export/markdown-projection-client';
 import { createMarkdownMirror, type MirrorIssue, type MirrorScanResult } from './markdown-mirror/mirror';
+import type { MarkdownFolderSettings } from '../platform/contracts';
 import { i18next } from '../lib/i18n';
 import { useDataStore } from '../store/data-store';
 import { useNotificationStore } from '../store/notification-store';
@@ -162,6 +163,15 @@ export function installMarkdownProjection(projectId: string): () => Promise<void
     publish(projectId, { state: 'pending', error: undefined });
     const info = await platform.markdownProjection.info(projectId);
     if (!active()) return;
+    if (info.enabled === false) {
+      // Turned off: nothing is read or written. Turning it back on hashes
+      // every file again, so edits made there meanwhile merge.
+      hashedOnce = false;
+      lastFailed = false;
+      publish(projectId, { ...info, state: 'off', error: undefined, mirrorIssues: undefined, preserved: undefined });
+      notifyIssues([]);
+      return;
+    }
     publish(projectId, { ...info, state: 'pending' });
     if (yieldToComposition()) return;
     // Scans and captures take turns, so the ledger never sees them interleave.
@@ -236,7 +246,10 @@ export function installMarkdownProjection(projectId: string): () => Promise<void
     void mirror.exclusive(() => scanMirror(directory, false)).then(result => {
       if (result.merged) worker.request();
     }).catch(error => {
-      if (active()) publish(projectId, { error: error instanceof Error ? error.message : String(error) });
+      // A scan that raced the folder being turned off is not an error.
+      if (active() && getMarkdownProjectionStatus(projectId)?.state !== 'off') {
+        publish(projectId, { error: error instanceof Error ? error.message : String(error) });
+      }
     }).finally(() => { polling = false; });
   };
   const pollTimer = setInterval(poll, MIRROR_SCAN_MS);
@@ -296,6 +309,39 @@ export async function setMarkdownProjectionOutputRoot(projectId: string, customR
     if (workers.get(projectId) === worker) publish(projectId, { ...info, state: 'pending', error: undefined });
   } finally { resume(); }
   if (workers.get(projectId) === worker) await refreshMarkdownProjection(projectId);
+}
+
+/**
+ * Changes a setting every project's folder follows. An open project first
+ * captures what was written since its last capture (and merges edits waiting
+ * in the folder), so the files left behind are current, then captures again
+ * under the new setting.
+ */
+async function changeMarkdownFolder(change: () => Promise<MarkdownFolderSettings>): Promise<MarkdownFolderSettings> {
+  const open = [...workers.entries()];
+  await Promise.all(open.map(([, worker]) => worker.flush()));
+  const resumes = open.map(([, worker]) => worker.suspend());
+  let settings: MarkdownFolderSettings;
+  try {
+    await Promise.all(open.map(([, worker]) => worker.flush()));
+    settings = await change();
+  } finally { for (const resume of resumes) resume(); }
+  await Promise.all(open.map(async ([projectId, worker]) => {
+    if (workers.get(projectId) !== worker) return;
+    worker.request();
+    await worker.flush();
+  }));
+  return settings;
+}
+
+/** Turns the Markdown folder on or off for every project; files already written stay where they are. */
+export function setMarkdownFolderEnabled(enabled: boolean): Promise<MarkdownFolderSettings> {
+  return changeMarkdownFolder(() => platform.markdownProjection.setEnabled(enabled));
+}
+
+/** Where projects without a location of their own are written; their old folders stay. */
+export function setMarkdownFolderDefaultRoot(customRoot: string | null): Promise<MarkdownFolderSettings> {
+  return changeMarkdownFolder(() => platform.markdownProjection.setDefaultRoot(customRoot));
 }
 
 /** Called only after the project deletion committed; prevent a late capture from republishing it. */

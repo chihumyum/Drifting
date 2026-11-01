@@ -20,9 +20,11 @@
    edits land in your project, marked in the text; undo them from history.
 6. **Export.** From **Read all chapters** or a chapter's three-dot menu,
    **Export manuscript** saves the book or chosen chapters as EPUB, PDF or Word.
-7. **Keep copies.** Each project has a Markdown folder (Settings → Sync & Data
-   shows where); chapters and ideas you edit there merge back. For a restorable
-   copy of everything, export a `.drifting` library backup from the same page.
+7. **Keep copies.** Each project has a Markdown folder. The first run asks
+   where to put it (or keeps the default); **Settings → Sync & Data** shows it
+   in Finder, moves it, or turns it off. Chapters and ideas you edit there merge
+   back. For a restorable copy of everything, export a `.drifting` library
+   backup from the same page.
 8. **Sync (optional).** With an account, **Settings → Account** connects sync,
    pauses or disconnects it. Let sync finish before switching to another Mac.
 9. **Updates.** When a new version is out, a notice appears in the
