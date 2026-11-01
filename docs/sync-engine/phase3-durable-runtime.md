@@ -151,6 +151,13 @@ The file-backed SQLite integration suite proves:
   SQLite transaction; if any known object is absent, the binding becomes
   `blocked-corrupt` and the current cycle stops before ingest, publish or
   checkpoint. Provider absence never becomes a domain delete;
+- a provider object is recorded once per `(SyncGeneration, provider object)`:
+  whichever path records it first (the runtime's upload receipt or the
+  checkpoint publisher) owns the row's id, and every later transfer names that
+  existing row. (Until 2026-11-02 the second path pointed its transfer at its
+  own, never-written id, so a checkpoint that re-published an image already
+  uploaded with a segment failed on every attempt and the project never
+  converged.)
 - an upload whose success response is lost is reconciled by logical key, hash
   and size without a second remote object;
 - structured SyncGeneration/object identities are hashed into stable

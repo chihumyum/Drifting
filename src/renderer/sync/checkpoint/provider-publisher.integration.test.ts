@@ -31,6 +31,7 @@ import { MemoryProviderLocalObjectStore } from '../providers/local-object-store'
 import { MemoryObjectLogProvider } from '../providers/memory-provider';
 import {
   createProviderCheckpointHook,
+  DurableImmutableObjectPublisher,
   ProviderSnapshotPublisher,
 } from './provider-publisher';
 
@@ -306,6 +307,66 @@ describe('durable provider snapshot publisher', () => {
         remoteState: 'available',
       },
     ]);
+  });
+
+  it('publishes a blob the sync runtime already recorded under its own id', async () => {
+    const fixture = await setup();
+    const bytes = Uint8Array.of(1, 2, 3, 5, 8);
+    const sha256 = await sha256Bytes(bytes);
+    const logicalKeyId = await sha256Bytes(new TextEncoder().encode(`blob\0${SYNC_GENERATION_ID}\0${sha256}`));
+    const sourceRef = fixture.objects.ref('runtime.published.blob');
+    await fixture.objects.write(sourceRef, bytes, new AbortController().signal);
+    const remote = (
+      await fixture.provider.uploadImmutable({
+        generation: fixture.providerGeneration,
+        sourceRef,
+        objectKind: 'blob',
+        logicalKeyId,
+        storedSha256: sha256,
+        sizeBytes: bytes.byteLength,
+        transferId: 'runtime-blob-upload',
+        signal: new AbortController().signal,
+      })
+    ).object;
+    const hex = sha256.slice('sha256:'.length);
+    await fixture.db.insert(SyncLocalObjectTable).values({
+      id: 'local-runtime-blob',
+      syncGenerationId: SYNC_GENERATION_ID,
+      objectKind: 'blob',
+      logicalKeyId,
+      storageRef: sourceRef,
+      storedSha256: hex,
+      contentSha256: hex,
+      sizeBytes: bytes.byteLength,
+      codec: 'raw',
+      state: 'verified',
+      createdAt: NOW,
+      verifiedAt: NOW,
+    });
+    // The runtime's upload receipt names provider objects with its own id scheme.
+    await fixture.db.insert(SyncRemoteObjectTable).values({
+      id: 'remote-recorded-by-runtime',
+      syncGenerationId: SYNC_GENERATION_ID,
+      providerObjectId: remote.objectId,
+      logicalKeyId,
+      objectKind: 'blob',
+      storedSha256: hex,
+      sizeBytes: bytes.byteLength,
+      firstObservedAt: NOW,
+      lastObservedAt: NOW,
+    });
+
+    const published = await new DurableImmutableObjectPublisher(
+      fixture.db,
+      fixture.provider,
+      fixture.providerGeneration,
+      () => NOW,
+    ).publish('local-runtime-blob', new AbortController().signal);
+
+    expect(published.remoteObjectId).toBe('remote-recorded-by-runtime');
+    expect(await fixture.db.select().from(SyncRemoteObjectTable)).toHaveLength(1);
+    expect(await fixture.db.select({ state: SyncTransferTable.state, remoteObjectId: SyncTransferTable.remoteObjectId })
+      .from(SyncTransferTable)).toEqual([{ state: 'completed', remoteObjectId: 'remote-recorded-by-runtime' }]);
   });
 
   it('rejects conflicting metadata returned by a provider upload', async () => {

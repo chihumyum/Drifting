@@ -249,10 +249,11 @@ export class DurableImmutableObjectPublisher {
       ) {
         throw new Error('Provider logical key contains conflicting immutable bytes');
       }
-      const internalRemoteId = remoteObjectId(local.syncGenerationId, remote.objectId);
+      let internalRemoteId = remoteObjectId(local.syncGenerationId, remote.objectId);
       const completedAt = this.nowIso();
       await this.db.transaction(async (tx) => {
-        await this.recordRemoteObject(tx, local, remote!, internalRemoteId, completedAt);
+        // The sync runtime may have recorded this object first under its own id.
+        internalRemoteId = await this.recordRemoteObject(tx, local, remote!, internalRemoteId, completedAt);
         await tx
           .update(SyncTransferTable)
           .set({
@@ -303,7 +304,7 @@ export class DurableImmutableObjectPublisher {
     remote: RemoteObject,
     id: string,
     nowIso: string,
-  ): Promise<void> {
+  ): Promise<string> {
     const [existing] = await tx
       .select()
       .from(SyncRemoteObjectTable)
@@ -340,6 +341,7 @@ export class DurableImmutableObjectPublisher {
         target: [SyncRemoteObjectTable.syncGenerationId, SyncRemoteObjectTable.providerObjectId],
         set: { lastObservedAt: nowIso, removedAt: null },
       });
+    return existing?.id ?? id;
   }
 }
 
