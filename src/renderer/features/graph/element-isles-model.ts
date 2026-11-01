@@ -7,7 +7,7 @@
 
 export type IslesLod = 'far' | 'mid' | 'near';
 
-/** The zoom each distance in the header's 远 / 中 / 近 switch takes you to. */
+/** A zoom inside each distance; fitting the islands and flying to an element stop at `mid`. */
 export const ISLES_LOD_ZOOM: Readonly<Record<IslesLod, number>> = { far: 0.5, mid: 0.9, near: 1.5 };
 
 export function islesLod(zoom: number): IslesLod {

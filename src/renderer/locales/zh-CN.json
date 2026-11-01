@@ -2931,10 +2931,6 @@
     "startEdgeFromElement": "从此要素新建关联",
     "startEdgeFromDrift": "从这条构想新建关联",
     "isles": {
-      "distance": "远近",
-      "far": "远",
-      "mid": "中",
-      "near": "近",
       "lines": "正文同段",
       "linesSection": "自动连线",
       "linesTitle": "两个要素在同一章的同一段里都被提到，就连一条砂线",

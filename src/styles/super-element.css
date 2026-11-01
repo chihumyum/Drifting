@@ -725,12 +725,8 @@ html:not([data-shell-mode='mobile']) .se-band__name.sand-cell {
   min-height: 26px;
 }
 
-/* 正文同段 in the relation menu (全部): the automatic lines' switch and
-   threshold on one row, what they draw in a line below. */
-.se-lines-section__row {
-  align-items: center;
-}
-
+/* 正文同段 in the relation menu (全部): the automatic lines' switch, what
+   they draw in a line below. Their threshold sits in the header. */
 .se-lines-section__hint {
   padding: 2px 14px 8px;
   color: var(--ui-text-muted, hsl(var(--ink-4)));

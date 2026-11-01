@@ -1640,16 +1640,6 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
 
   // ---- Distance, travel and the focused element (desktop) ----
   const lod: IslesLod = islesLod(zoom);
-  const goToDistance = useCallback((next: IslesLod) => {
-    const viewport = viewportRef.current;
-    if (!viewport) return;
-    const target = ISLES_LOD_ZOOM[next];
-    const cx = viewport.clientWidth / 2;
-    const cy = viewport.clientHeight / 2;
-    const k = target / zoomRef.current;
-    setPan({ x: cx - (cx - panRef.current.x) * k, y: cy - (cy - panRef.current.y) * k });
-    setZoom(target);
-  }, []);
   const flyToElement = useCallback((id: string) => {
     const viewport = viewportRef.current;
     const center = elementCenters.get(id);
@@ -1783,11 +1773,11 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
         onBack={close}
         relationMenuLead={mobileShell ? undefined : (
           // The automatic sand lines live with the relation filters: two
-          // elements mentioned in one paragraph of a chapter, at least
-          // `lineThreshold` times.
+          // elements mentioned in one paragraph of a chapter. How many
+          // times (`lineThreshold`) is set in the header.
           <section className="relation-kind-menu__section se-lines-section">
             <div className="relation-kind-menu__section-label">{t('superElement.isles.linesSection')}</div>
-            <div className="relation-kind-menu__chips se-lines-section__row">
+            <div className="relation-kind-menu__chips">
               <FilterChip
                 look="glass"
                 size="sm"
@@ -1799,12 +1789,6 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
               >
                 {t('superElement.isles.lines')}
               </FilterChip>
-              <GlassSlider
-                ariaLabel={t('superElement.isles.threshold')}
-                value={String(lineThreshold)}
-                onChange={(value) => setLineThreshold(Number(value))}
-                options={['1', '2', '3'].map((value) => ({ value, label: t('superElement.isles.atLeast', { count: Number(value) }) }))}
-              />
             </div>
             <div className="se-lines-section__hint">{t('superElement.isles.linesTitle')}</div>
           </section>
@@ -1913,10 +1897,10 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
                   />
                 </label>
                 <GlassSlider
-                  ariaLabel={t('superElement.isles.distance')}
-                  value={lod}
-                  onChange={goToDistance}
-                  options={(['far', 'mid', 'near'] as const).map((value) => ({ value, label: t(`superElement.isles.${value}`) }))}
+                  ariaLabel={t('superElement.isles.threshold')}
+                  value={String(lineThreshold)}
+                  onChange={(value) => setLineThreshold(Number(value))}
+                  options={['1', '2', '3'].map((value) => ({ value, label: t('superElement.isles.atLeast', { count: Number(value) }) }))}
                 />
                 <Button variant="ghost" size="sm" onClick={resetView} title={t('superElement.resetTitle')}>
                   <BrushIcon name="rotate" size={13} />
