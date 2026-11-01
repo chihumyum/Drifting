@@ -23,7 +23,7 @@ use reqwest::header::{ACCEPT, CONTENT_TYPE, USER_AGENT};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
 
-use crate::secure_storage;
+use crate::{codex_compat, codex_models::CodexCatalogCache, secure_storage};
 
 pub const CODEX_RESPONSES_URL: &str = "https://chatgpt.com/backend-api/codex/responses";
 /// Native-only secure-storage key; `secure_storage` refuses renderer access to it.
@@ -35,7 +35,6 @@ const DEVICE_TOKEN_URL: &str = "https://auth.openai.com/api/accounts/deviceauth/
 const DEVICE_VERIFY_URL: &str = "https://auth.openai.com/codex/device";
 const DEVICE_REDIRECT_URI: &str = "https://auth.openai.com/deviceauth/callback";
 const ORIGINATOR: &str = "codex_cli_rs";
-const CLIENT_USER_AGENT: &str = "codex_cli_rs/0.0.0 (Drifting)";
 const REFRESH_SKEW_MS: u64 = 5 * 60 * 1_000;
 /// Local device-code window. The poll loop never issues a request past it,
 /// matching the official CLI's fallback when the server window is unreadable.
@@ -119,9 +118,19 @@ pub struct CodexOAuthState {
     /// Serializes token refreshes so concurrent turns rotate one refresh token once.
     refresh: tokio::sync::Mutex<()>,
     client: OnceLock<reqwest::Client>,
+    pub(crate) models: Mutex<CodexCatalogCache>,
 }
 
 impl CodexOAuthState {
+    fn invalidate_models(&self) {
+        // Cache health must never prevent credential removal or a new login.
+        self.models
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .clear();
+        self.models.clear_poison();
+    }
+
     pub(crate) fn client(&self) -> Result<reqwest::Client, String> {
         if let Some(client) = self.client.get() {
             return Ok(client.clone());
@@ -147,6 +156,18 @@ impl Drop for CodexOAuthState {
 pub(crate) struct CodexAuthorization {
     access_token: String,
     account_id: Option<String>,
+}
+
+impl CodexAuthorization {
+    /// Native-only key: separate users sharing an account and rotated tokens.
+    pub(crate) fn catalog_identity(&self) -> String {
+        use sha2::{Digest, Sha256};
+        let mut hash = Sha256::new();
+        hash.update(self.access_token.as_bytes());
+        hash.update([0]);
+        hash.update(self.account_id.as_deref().unwrap_or_default().as_bytes());
+        format!("{:x}", hash.finalize())
+    }
 }
 
 struct DeviceAuthorization {
@@ -260,6 +281,9 @@ pub async fn codex_oauth_logout(
     .await
     .map_err(|_| "CODEX_CREDENTIAL_UNAVAILABLE: secure storage worker failed")?
     .map_err(|_| "CODEX_CREDENTIAL_UNAVAILABLE: ChatGPT sign-in could not be removed")?;
+    // Invalidate after deletion as well as renderer logout: requests can have
+    // started while the secure-storage worker was removing the credential.
+    state.invalidate_models();
     Ok(true)
 }
 
@@ -299,7 +323,7 @@ pub(crate) fn apply_request_headers(
         .bearer_auth(&authorization.access_token)
         .header("OpenAI-Beta", "responses=experimental")
         .header("originator", ORIGINATOR)
-        .header(USER_AGENT, CLIENT_USER_AGENT);
+        .header(USER_AGENT, codex_compat::user_agent());
     if let Some(account_id) = &authorization.account_id {
         builder = builder.header("ChatGPT-Account-Id", account_id);
     }
@@ -320,6 +344,7 @@ async fn complete_device_login(
     write_tokens(app, &tokens)
         .await
         .map_err(|_| "storage_failed".to_string())?;
+    app.state::<CodexOAuthState>().invalidate_models();
     Ok(())
 }
 
@@ -330,7 +355,7 @@ async fn start_device_authorization(
         .post(DEVICE_USERCODE_URL)
         .header(ACCEPT, "application/json")
         .header(CONTENT_TYPE, "application/json")
-        .header(USER_AGENT, CLIENT_USER_AGENT)
+        .header(USER_AGENT, codex_compat::user_agent())
         .timeout(OAUTH_TIMEOUT)
         .json(&serde_json::json!({ "client_id": CLIENT_ID }))
         .send()
@@ -377,7 +402,7 @@ async fn poll_device_authorization(
             .post(DEVICE_TOKEN_URL)
             .header(ACCEPT, "application/json")
             .header(CONTENT_TYPE, "application/json")
-            .header(USER_AGENT, CLIENT_USER_AGENT)
+            .header(USER_AGENT, codex_compat::user_agent())
             .timeout(OAUTH_TIMEOUT)
             .json(&serde_json::json!({
                 "device_auth_id": device.device_auth_id,
@@ -414,7 +439,7 @@ async fn exchange_device_code(
     let response = client
         .post(TOKEN_URL)
         .header(ACCEPT, "application/json")
-        .header(USER_AGENT, CLIENT_USER_AGENT)
+        .header(USER_AGENT, codex_compat::user_agent())
         .timeout(OAUTH_TIMEOUT)
         .form(&[
             ("grant_type", "authorization_code"),
@@ -440,7 +465,7 @@ async fn refresh_tokens(
     let response = client
         .post(TOKEN_URL)
         .header(ACCEPT, "application/json")
-        .header(USER_AGENT, CLIENT_USER_AGENT)
+        .header(USER_AGENT, codex_compat::user_agent())
         .timeout(OAUTH_TIMEOUT)
         .form(&[
             ("grant_type", "refresh_token"),
@@ -700,6 +725,18 @@ fn plan_type(claims: &serde_json::Value) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn signout_can_invalidate_a_poisoned_catalog_cache() {
+        let state = CodexOAuthState::default();
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _guard = state.models.lock().unwrap();
+            panic!("synthetic cache failure");
+        }));
+        assert!(state.models.is_poisoned());
+        state.invalidate_models();
+        assert!(state.models.lock().is_ok());
+    }
 
     fn jwt(payload: serde_json::Value) -> String {
         let engine = base64::engine::general_purpose::URL_SAFE_NO_PAD;

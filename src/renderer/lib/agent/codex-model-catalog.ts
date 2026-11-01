@@ -1,5 +1,5 @@
 import { isTauriRuntime, platform } from '../../platform';
-import type { CodexModel, CodexSubscriptionStatus } from '../../platform';
+import type { CodexModel, CodexModelCatalogResponse, CodexSubscriptionStatus } from '../../platform';
 import { canUseByokProvider } from '../config';
 import { setCodexModelCatalog } from './runtime/agent-provider-contract';
 
@@ -7,7 +7,7 @@ type CatalogState = 'idle' | 'loading' | 'ready' | 'error' | 'signed-out';
 interface CatalogSnapshot { state: CatalogState; updatedAt: number | null }
 interface CatalogSource {
   status(): Promise<CodexSubscriptionStatus>;
-  listModels(): Promise<CodexModel[]>;
+  listModels(): Promise<CodexModelCatalogResponse>;
 }
 
 /** Account-scoped, memory-only cache. Stale requests cannot republish after logout. */
@@ -21,6 +21,7 @@ export function createCodexModelCatalog(
   let generation = 0;
   let account: string | null = null;
   let pending: Promise<void> | null = null;
+  let refreshAfterMs = 0;
   const listeners = new Set<() => void>();
   const update = (next: CatalogSnapshot) => {
     snapshot = next;
@@ -30,13 +31,15 @@ export function createCodexModelCatalog(
     generation++;
     pending = null;
     account = null;
+    refreshAfterMs = 0;
     publish(null);
     update({ state: 'idle', updatedAt: null });
   };
   const refresh = (force = false): Promise<void> => {
     if (!available()) return Promise.resolve();
     if (pending) return pending;
-    if (!force && snapshot.updatedAt !== null && now() - snapshot.updatedAt < 5 * 60_000) {
+    if (!force && snapshot.state === 'ready' && snapshot.updatedAt !== null
+      && now() - snapshot.updatedAt < refreshAfterMs) {
       return Promise.resolve();
     }
     const revision = generation;
@@ -59,9 +62,12 @@ export function createCodexModelCatalog(
           publish(null);
           update({ state: 'loading', updatedAt: null });
         }
-        const models = await source.listModels();
+        const response = await source.listModels();
         if (!current()) return;
+        const { models } = response;
         if (!models.length) throw new Error('empty catalog');
+        refreshAfterMs = Number.isFinite(response.refreshAfterMs)
+          ? Math.max(0, Math.min(response.refreshAfterMs, 5 * 60_000)) : 0;
         publish(models);
         update({ state: 'ready', updatedAt: now() });
       } catch {

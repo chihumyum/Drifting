@@ -4,6 +4,7 @@ mod android_image_codec;
 mod app_update;
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 mod apple_image_codec;
+mod codex_compat;
 mod codex_images;
 mod codex_models;
 mod codex_oauth;

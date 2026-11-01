@@ -21,6 +21,7 @@ export const codexSubscription = {
     if (identity !== lastIdentity) {
       lastIdentity = identity;
       codexModelCatalog.invalidate();
+      if (status.signedIn) void codexModelCatalog.refresh();
     }
     return status;
   },

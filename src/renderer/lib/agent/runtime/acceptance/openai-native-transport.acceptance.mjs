@@ -11,6 +11,7 @@ const TEST_FILES = [
   'src/renderer/lib/agent/runtime/drivers/drifting-agent-driver.test.ts',
   'src/renderer/lib/agent/runtime/drivers/openai-responses-driver.test.ts',
   'src/renderer/lib/byok-keychain.test.ts',
+  'src/renderer/lib/agent/codex-model-catalog.test.ts',
   'src/renderer/platform/tauri.test.ts',
 ];
 const LINT_FILES = [
@@ -25,6 +26,12 @@ const LINT_FILES = [
   'src/renderer/platform/types.ts',
   'src/renderer/platform/tauri.ts',
   'src/renderer/platform/tauri.test.ts',
+  'src/renderer/lib/agent/codex-model-catalog.ts',
+  'src/renderer/lib/agent/codex-model-catalog.test.ts',
+  'src/renderer/lib/codex-subscription.ts',
+  'src/renderer/features/agent/useCodexModelCatalog.ts',
+  'src/renderer/features/agent/AgentComposerConfig.tsx',
+  'scripts/check-codex-compatibility.mjs',
 ];
 const SOURCE_FILES = [
   'src-tauri/Cargo.lock',
@@ -33,6 +40,16 @@ const SOURCE_FILES = [
   'package.json',
   'src-tauri/src/lib.rs',
   'src-tauri/src/openai_responses.rs',
+  'src-tauri/src/codex_compat.rs',
+  'src-tauri/src/codex_models.rs',
+  'src-tauri/src/codex_oauth.rs',
+  'src-tauri/codex-compatibility.json',
+  '.github/workflows/codex-compatibility.yml',
+  '.github/workflows/ci.yml',
+  'scripts/check-ci-contract.mjs',
+  'docs/ai-provider-settings.md',
+  'src/renderer/locales/en.json',
+  'src/renderer/locales/zh-CN.json',
   'src-tauri/src/secure_storage.rs',
   'src/renderer/lib/agent/runtime/acceptance/openai-native-transport.acceptance.mjs',
   ...LINT_FILES,
@@ -106,7 +123,7 @@ export async function runOpenAINativeTransportAcceptance(config = options([])) {
       );
     }
 
-    const [typecheck, lint, rustOpenAI, rustSecureStorage, rustCheck, rustFormat] =
+    const [typecheck, lint, rustOpenAI, rustSecureStorage, rustCheck, rustFormat, rustCodexCatalog, compatibilityCheck] =
       await Promise.all([
         run('pnpm', ['exec', 'tsc', '--noEmit', '--pretty', 'false']),
         run('pnpm', ['exec', 'eslint', ...LINT_FILES]),
@@ -128,11 +145,13 @@ export async function runOpenAINativeTransportAcceptance(config = options([])) {
         ]),
         run('cargo', ['check', '--manifest-path', 'src-tauri/Cargo.toml']),
         run('cargo', ['fmt', '--manifest-path', 'src-tauri/Cargo.toml', '--', '--check']),
+        run('cargo', ['test', '--manifest-path', 'src-tauri/Cargo.toml', '--locked', '--lib', 'codex_']),
+        run('node', ['scripts/check-codex-compatibility.mjs']),
       ]);
 
     const summary = {
-      suite: 'openai-native-responses-and-keychain-status',
-      schemaVersion: 1,
+      suite: 'openai-native-responses-keychain-and-account-model-catalog',
+      schemaVersion: 2,
       generatedAt: new Date().toISOString(),
       nodeVersion: process.version,
       platform: process.platform,
@@ -149,6 +168,8 @@ export async function runOpenAINativeTransportAcceptance(config = options([])) {
       rustSecureStorage: gate(rustSecureStorage),
       rustCheck: gate(rustCheck),
       rustFormat: gate(rustFormat),
+      rustCodexCatalog: gate(rustCodexCatalog),
+      compatibilityManifest: gate(compatibilityCheck),
       evidence: {
         responseHost: 'fixed-native-https-api.openai.com-v1-responses',
         authorization: 'native-keychain-injection-never-renderer',
@@ -156,6 +177,12 @@ export async function runOpenAINativeTransportAcceptance(config = options([])) {
         settingsStatus: 'existence-only; macos-attributes-with-authentication-ui-skipped',
         workspaceTypecheck: 'full-tsc-noEmit',
         paidLiveCanary: 'explicit-separate-command-only',
+        catalogVersion: JSON.parse(await readFile(path.join(CORE_DIRECTORY, 'src-tauri/codex-compatibility.json'), 'utf8')).clientVersion,
+        accountCatalog: 'native-only-etag-revalidation; 304-reuses-projection; server-cache-control-and-age',
+        cacheIsolation: 'credential-and-account-scoped; logout-login-epoch-discards-inflight-results',
+        rendererFreshness: 'server-directed-up-to-five-minutes; forced-manual-and-online-refresh',
+        futureModels: 'server-order-and-capabilities; synthetic-unknown-model-tool-loop',
+        upstreamReview: 'weekly-read-only-report; no-automatic-version-bump',
       },
       boundaries: {
         macosPromptUI: 'OS password-dialog behavior requires interactive acceptance',
@@ -163,7 +190,7 @@ export async function runOpenAINativeTransportAcceptance(config = options([])) {
     };
     summary.passed =
       summary.vitest.passed &&
-      [typecheck, lint, rustOpenAI, rustSecureStorage, rustCheck, rustFormat].every(
+      [typecheck, lint, rustOpenAI, rustSecureStorage, rustCheck, rustFormat, rustCodexCatalog, compatibilityCheck].every(
         (execution) => execution.code === 0 && execution.signal === null,
       );
 
@@ -180,6 +207,8 @@ export async function runOpenAINativeTransportAcceptance(config = options([])) {
         rustSecureStorage,
         rustCheck,
         rustFormat,
+        rustCodexCatalog,
+        compatibilityCheck,
       ]) {
         if (execution.code !== 0) process.stderr.write(execution.stderr || execution.stdout);
       }

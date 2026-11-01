@@ -1,0 +1,28 @@
+name: Codex compatibility review
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 2 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  upstream:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22.23.1
+      - name: Compare reviewed compatibility with the upstream stable release
+        run: node scripts/check-codex-compatibility.mjs --upstream --output=codex-compatibility-report.json
+      - name: Show the review report
+        run: cat codex-compatibility-report.json >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: codex-compatibility-report
+          path: codex-compatibility-report.json
+          retention-days: 30

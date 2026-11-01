@@ -450,6 +450,12 @@ export interface CodexModel {
   supportsVerbosity: boolean;
 }
 
+export interface CodexModelCatalogResponse {
+  models: CodexModel[];
+  /** Native HTTP freshness, capped at five minutes; zero means revalidate. */
+  refreshAfterMs: number;
+}
+
 export interface ImageCandidateTarget {
   kind: 'element';
   id: string;
@@ -771,7 +777,7 @@ export interface TauriCommandContract {
   openai_responses_cancel: { args: { requestId: string }; result: boolean };
   codex_oauth_start: { args: undefined; result: CodexLoginProjection };
   codex_oauth_status: { args: undefined; result: CodexSubscriptionStatus };
-  codex_models_list: { args: undefined; result: CodexModel[] };
+  codex_models_list: { args: undefined; result: CodexModelCatalogResponse };
   codex_oauth_cancel: { args: undefined; result: boolean };
   codex_oauth_logout: { args: undefined; result: boolean };
   codex_images_generate: {

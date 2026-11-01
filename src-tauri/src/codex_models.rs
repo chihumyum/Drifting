@@ -4,16 +4,16 @@ use std::collections::HashSet;
 use std::time::Duration;
 
 use futures_util::StreamExt;
+use reqwest::header::{HeaderMap, HeaderValue, AGE, CACHE_CONTROL, ETAG, IF_NONE_MATCH};
 use serde::Serialize;
 use serde_json::Value;
 use tauri::{AppHandle, Manager};
 
+use crate::codex_compat;
 use crate::codex_oauth::{self, CodexOAuthState};
 
 const MODELS_URL: &str = "https://chatgpt.com/backend-api/codex/models";
-// Match the native OAuth host's codex_cli_rs/0.0.0 identity. This is the
-// upstream development-client version, not a model name or entitlement.
-const CLIENT_VERSION: &str = "0.0.0";
+const DEFAULT_REFRESH_MS: u64 = 5 * 60 * 1_000;
 const MAX_CATALOG_BYTES: usize = 8 * 1024 * 1024;
 
 #[derive(Clone, Debug, Serialize, PartialEq)]
@@ -28,25 +28,208 @@ pub struct CodexModel {
     supports_verbosity: bool,
 }
 
+/// Only a non-secret projection crosses IPC. HTTP validators stay native.
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CodexModelCatalog {
+    models: Vec<CodexModel>,
+    refresh_after_ms: u64,
+}
+
+#[derive(Clone, Copy)]
+struct CachePolicy {
+    store: bool,
+    max_age_ms: u64,
+}
+
+impl Default for CachePolicy {
+    fn default() -> Self {
+        Self {
+            store: true,
+            max_age_ms: DEFAULT_REFRESH_MS,
+        }
+    }
+}
+
+impl CachePolicy {
+    fn from_headers(headers: &HeaderMap, previous: Self) -> Self {
+        if !headers.contains_key(CACHE_CONTROL) {
+            return previous;
+        }
+        let mut result = Self::default();
+        let mut revalidate = false;
+        for value in headers.get_all(CACHE_CONTROL) {
+            let Ok(value) = value.to_str() else { continue };
+            for directive in value.split(',').map(str::trim) {
+                let (name, value) = directive.split_once('=').unwrap_or((directive, ""));
+                match name.trim().to_ascii_lowercase().as_str() {
+                    "no-store" => {
+                        result.store = false;
+                        revalidate = true;
+                    }
+                    "no-cache" => revalidate = true,
+                    "max-age" => {
+                        if let Ok(seconds) = value.trim().trim_matches('"').parse::<u64>() {
+                            result.max_age_ms = seconds.saturating_mul(1_000);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        if revalidate {
+            result.max_age_ms = 0;
+        }
+        result
+    }
+
+    fn refresh_after_ms(self, headers: &HeaderMap) -> u64 {
+        let age = headers
+            .get(AGE)
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| value.parse::<u64>().ok())
+            .unwrap_or(0);
+        self.max_age_ms
+            .saturating_sub(age.saturating_mul(1_000))
+            .min(DEFAULT_REFRESH_MS)
+    }
+}
+
+#[derive(Clone)]
+struct CachedCatalog {
+    models: Vec<CodexModel>,
+    etag: Option<HeaderValue>,
+    policy: CachePolicy,
+}
+
+struct CatalogRequest {
+    epoch: u64,
+    cached: Option<CachedCatalog>,
+}
+
+#[derive(Default)]
+pub(crate) struct CodexCatalogCache {
+    epoch: u64,
+    identity: Option<String>,
+    entry: Option<CachedCatalog>,
+}
+
+impl CodexCatalogCache {
+    pub(crate) fn clear(&mut self) {
+        self.epoch = self.epoch.wrapping_add(1);
+        self.identity = None;
+        self.entry = None;
+    }
+
+    fn prepare(&mut self, epoch: u64, identity: String) -> Result<CatalogRequest, String> {
+        if epoch != self.epoch {
+            return Err("CODEX_MODELS_FAILED: stale_authorization".into());
+        }
+        if self
+            .identity
+            .as_ref()
+            .is_some_and(|current| current != &identity)
+        {
+            self.clear();
+        }
+        self.identity = Some(identity);
+        Ok(CatalogRequest {
+            epoch: self.epoch,
+            cached: self.entry.clone(),
+        })
+    }
+
+    fn finish(
+        &mut self,
+        request: CatalogRequest,
+        headers: &HeaderMap,
+        models: Option<Vec<CodexModel>>,
+    ) -> Result<CodexModelCatalog, String> {
+        if request.epoch != self.epoch {
+            return Err("CODEX_MODELS_FAILED: stale_authorization".into());
+        }
+        let not_modified = models.is_none();
+        let models = models
+            .or_else(|| request.cached.as_ref().map(|cached| cached.models.clone()))
+            .ok_or("CODEX_MODELS_FAILED: unexpected_not_modified")?;
+        let previous = request.cached.as_ref();
+        let policy = CachePolicy::from_headers(
+            headers,
+            if not_modified {
+                previous.map(|cached| cached.policy).unwrap_or_default()
+            } else {
+                CachePolicy::default()
+            },
+        );
+        let etag = headers
+            .get(ETAG)
+            .filter(|value| value.as_bytes().len() <= 1_024)
+            .cloned()
+            .or_else(|| {
+                if not_modified {
+                    previous.and_then(|cached| cached.etag.clone())
+                } else {
+                    None
+                }
+            });
+        self.entry = policy.store.then(|| CachedCatalog {
+            models: models.clone(),
+            etag,
+            policy,
+        });
+        Ok(CodexModelCatalog {
+            models,
+            refresh_after_ms: policy.refresh_after_ms(headers),
+        })
+    }
+}
+
 #[tauri::command]
-pub async fn codex_models_list(app: AppHandle) -> Result<Vec<CodexModel>, String> {
-    let client = app.state::<CodexOAuthState>().client()?;
+pub async fn codex_models_list(app: AppHandle) -> Result<CodexModelCatalog, String> {
+    let state = app.state::<CodexOAuthState>();
+    let client = state.client()?;
+    let unavailable = || "CODEX_MODELS_FAILED: cache_unavailable".to_string();
+    // Capture before reading credentials: logout also invalidates requests still
+    // waiting on Keychain or token refresh, not only those already on the wire.
+    let mut epoch = state.models.lock().map_err(|_| unavailable())?.epoch;
     let mut authorization = codex_oauth::authorization(&app, false).await?;
     for attempt in 0..2 {
-        let response = codex_oauth::apply_request_headers(
-            client
-                .get(MODELS_URL)
-                .query(&[("client_version", CLIENT_VERSION)])
-                .header(reqwest::header::ACCEPT, "application/json")
-                .timeout(Duration::from_secs(30)),
-            &authorization,
-        )
-        .send()
-        .await
-        .map_err(|_| "CODEX_MODELS_FAILED: network_failed".to_string())?;
+        let request = state
+            .models
+            .lock()
+            .map_err(|_| unavailable())?
+            .prepare(epoch, authorization.catalog_identity())?;
+        let mut builder = client
+            .get(MODELS_URL)
+            .query(&[(
+                "client_version",
+                &codex_compat::compatibility().client_version,
+            )])
+            .header(reqwest::header::ACCEPT, "application/json")
+            .timeout(Duration::from_secs(30));
+        if let Some(etag) = request
+            .cached
+            .as_ref()
+            .and_then(|cached| cached.etag.as_ref())
+        {
+            builder = builder.header(IF_NONE_MATCH, etag);
+        }
+        let response = codex_oauth::apply_request_headers(builder, &authorization)
+            .send()
+            .await
+            .map_err(|_| "CODEX_MODELS_FAILED: network_failed".to_string())?;
         if response.status() == reqwest::StatusCode::UNAUTHORIZED && attempt == 0 {
+            epoch = request.epoch;
             authorization = codex_oauth::authorization(&app, true).await?;
             continue;
+        }
+        let headers = response.headers().clone();
+        if response.status() == reqwest::StatusCode::NOT_MODIFIED {
+            return state
+                .models
+                .lock()
+                .map_err(|_| unavailable())?
+                .finish(request, &headers, None);
         }
         if !response.status().is_success() {
             return Err(format!(
@@ -63,7 +246,12 @@ pub async fn codex_models_list(app: AppHandle) -> Result<Vec<CodexModel>, String
             }
             bytes.extend_from_slice(&chunk);
         }
-        return project_models(&bytes);
+        let models = project_models(&bytes)?;
+        return state.models.lock().map_err(|_| unavailable())?.finish(
+            request,
+            &headers,
+            Some(models),
+        );
     }
     Err("CODEX_MODELS_FAILED: authorization_failed".into())
 }
@@ -168,6 +356,125 @@ fn project_models(bytes: &[u8]) -> Result<Vec<CodexModel>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn fixture_models() -> Vec<CodexModel> {
+        project_models(br#"{"models":[{"slug":"synthetic-next","visibility":"list"}]}"#).unwrap()
+    }
+
+    fn headers(values: &[(&str, &str)]) -> HeaderMap {
+        values
+            .iter()
+            .map(|(name, value)| {
+                (
+                    reqwest::header::HeaderName::from_bytes(name.as_bytes()).unwrap(),
+                    HeaderValue::from_str(value).unwrap(),
+                )
+            })
+            .collect()
+    }
+
+    #[test]
+    fn revalidates_etags_and_reuses_only_the_matching_catalog_on_304() {
+        let mut cache = CodexCatalogCache::default();
+        let request = cache
+            .prepare(0, "synthetic-account-a-token".into())
+            .unwrap();
+        let response = cache
+            .finish(
+                request,
+                &headers(&[
+                    ("etag", "W/\"synthetic-v1\""),
+                    ("cache-control", "private, max-age=60"),
+                ]),
+                Some(fixture_models()),
+            )
+            .unwrap();
+        assert_eq!(response.refresh_after_ms, 60_000);
+        let request = cache
+            .prepare(cache.epoch, "synthetic-account-a-token".into())
+            .unwrap();
+        assert_eq!(
+            request.cached.as_ref().unwrap().etag.as_ref().unwrap(),
+            "W/\"synthetic-v1\""
+        );
+        let response = cache
+            .finish(request, &headers(&[("age", "10")]), None)
+            .unwrap();
+        assert_eq!(response.models, fixture_models());
+        assert_eq!(response.refresh_after_ms, 50_000);
+        let request = cache
+            .prepare(cache.epoch, "synthetic-account-b-token".into())
+            .unwrap();
+        assert!(request.cached.is_none());
+        assert!(cache.finish(request, &HeaderMap::new(), None).is_err());
+    }
+
+    #[test]
+    fn logout_or_new_login_invalidates_inflight_requests_and_clears_validators() {
+        let mut cache = CodexCatalogCache::default();
+        let request = cache.prepare(0, "synthetic-a".into()).unwrap();
+        cache.clear();
+        assert!(cache
+            .finish(request, &HeaderMap::new(), Some(fixture_models()))
+            .is_err());
+        assert!(cache.prepare(0, "synthetic-a".into()).is_err());
+        let request = cache.prepare(cache.epoch, "synthetic-b".into()).unwrap();
+        assert!(request.cached.is_none());
+    }
+
+    #[test]
+    fn no_store_discards_the_native_cache_and_no_cache_keeps_only_revalidation_data() {
+        let mut cache = CodexCatalogCache::default();
+        let request = cache.prepare(0, "synthetic-a".into()).unwrap();
+        let response = cache
+            .finish(
+                request,
+                &headers(&[
+                    ("etag", "\"v1\""),
+                    ("cache-control", "no-store, max-age=600"),
+                ]),
+                Some(fixture_models()),
+            )
+            .unwrap();
+        assert_eq!(response.refresh_after_ms, 0);
+        assert!(cache.entry.is_none());
+        let request = cache.prepare(cache.epoch, "synthetic-a".into()).unwrap();
+        let response = cache
+            .finish(
+                request,
+                &headers(&[
+                    ("etag", "\"v2\""),
+                    ("cache-control", "max-age=600, no-cache"),
+                ]),
+                Some(fixture_models()),
+            )
+            .unwrap();
+        assert_eq!(response.refresh_after_ms, 0);
+        assert!(cache.entry.as_ref().unwrap().etag.is_some());
+        let request = cache.prepare(cache.epoch, "synthetic-a".into()).unwrap();
+        let response = cache
+            .finish(request, &headers(&[("cache-control", "no-store")]), None)
+            .unwrap();
+        assert_eq!(response.models, fixture_models());
+        assert!(cache.entry.is_none());
+    }
+
+    #[test]
+    fn freshness_accounts_for_age_and_caps_long_server_lifetimes() {
+        for (control, age, expected) in [
+            ("max-age=60", "15", 45_000),
+            ("max-age=60", "90", 0),
+            ("MAX-AGE=\"3600\"", "600", DEFAULT_REFRESH_MS),
+            ("no-cache=\"private-field\", max-age=60", "0", 0),
+        ] {
+            let headers = headers(&[("cache-control", control), ("age", age)]);
+            assert_eq!(
+                CachePolicy::from_headers(&headers, CachePolicy::default())
+                    .refresh_after_ms(&headers),
+                expected
+            );
+        }
+    }
 
     #[test]
     fn projects_visible_models_in_server_order_without_instructions_or_secrets() {

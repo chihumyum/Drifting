@@ -19,7 +19,7 @@ ChatGPT 订阅是实验性、不受支持的路由：设置页的「ChatGPT 订�
 
 ## ChatGPT 订阅模型发现
 
-General Agent 在登录或账号变化、composer 挂载、打开模型菜单、窗口重新获得焦点和恢复联网时，自动请求当前账号的模型目录；菜单也提供「刷新模型」。原生 `codex_models_list` 复用现有 Codex OAuth 凭据和固定 `https://chatgpt.com/backend-api/codex/models?client_version=0.0.0` 路由，使用当前原生 host 的开发客户端版本身份。请求拒绝重定向，限制为 30 秒、8 MiB；401 只刷新凭据后重试一次。renderer 只收到模型名称、标识和能力字段，不接收 token、原始目录或其中的 instructions。
+General Agent 在发现有效登录或账号变化后刷新目录；打开模型菜单和菜单打开时窗口重新获得焦点按有效期刷新，恢复联网与手动「刷新模型」强制重新验证。原生 `codex_models_list` 复用现有 Codex OAuth 凭据和固定 `https://chatgpt.com/backend-api/codex/models` 路由；`client_version` 与 OAuth User-Agent 统一读取 [`src-tauri/codex-compatibility.json`](../src-tauri/codex-compatibility.json)，目前的兼容基线为 `0.166.0`。这与 Drifting 的应用版本独立，不能继续使用开发占位值 `0.0.0`。请求拒绝重定向，限制为 30 秒、8 MiB；401 只刷新凭据后重试一次。renderer 只收到模型名称、标识、能力字段和刷新有效期，不接收 token、ETag、原始目录或其中的 instructions。
 
 目录保留服务端 `visibility: list` 模型的顺序和名称，不用 `supported_in_api` 过滤订阅模型。上下文和推理档位跟随目录，包括 `minimal` / `ultra`；没有 `none` 的推理模型不能关闭推理，不支持的 summary / verbosity 参数不会发送。缺少上下文元数据时采用 32,768 token 本地输入规划回退；目录没有提供的输出上限记为 `null`（未知），不能用预留量冒充模型能力。
 
@@ -29,9 +29,11 @@ General Agent 默认不设置单次或累计输出上限；摘要压缩也不再
 
 明确指定的限制与已知模型规格冲突属于配置错误；压缩失败、熔断或第一次调用前无法容纳的上下文属于失败，不触发自动续接。完整合成 tool-loop 覆盖新目录模型与重启后未加载的模型，通过实际 Responses driver 验证读取工具、结果回传、每次 16,384 token 用量及自然结束；两次请求均无输出上限。更广的预算和续接审计见 [执行控制审计](agent-runtime/execution-control-audit.md)。
 
-缓存只在当前进程内保留，运行时复用期限为五分钟，菜单或账号事件可强制刷新。同一账号更新失败保留最后一次成功目录，首次失败使用内置列表；退出和账号变化清空旧目录，迟到的旧请求不能覆盖新状态。已选择的新模型 id 在重启、目录失败或模型退役后仍保留，服务端拒绝时显式报错，不静默换成旧模型。API Key provider 的静态认证列表不受影响。
+缓存只在当前进程内保留。Rust 用凭据与账号的不可逆摘要隔离最近一次目录及 ETag；后续请求发送 `If-None-Match`，304 复用已投影的模型，不重新解析空 body。`Cache-Control: max-age` 与 `Age` 决定 renderer 的复用期限，上限五分钟；`no-cache` 每次重新验证，`no-store` 不保留原生目录或 ETag，并返回零复用期。无缓存控制时默认五分钟。同一账号更新失败保留最后一次成功目录，显示其更新时间并允许下次自动重试；首次失败使用内置列表。退出、完成新登录及凭据身份变化清空旧缓存；原生与 renderer 的 generation 都拒绝迟到的旧请求。已选择的新模型 id 在重启、目录失败或模型退役后仍保留；新目录缺少它时显示提示，发送被拒绝时显式报错，不静默换成旧模型。API Key provider 的静态认证列表不受影响。
 
-[官方 Sign in with ChatGPT 模型说明](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference) 使用注册应用的 `api.openai.com/v1/models` 路由；本次延续仓库既有 Codex 设备码路由，没有迁移 OAuth 客户端或推理端点。新目录的真实账号联网与 UI 验收尚未完成，合成验收不表示所有列出的模型均已通过付费 tool-loop 测试。
+同一兼容协议下的新增模型通过刷新自动出现，无需逐个发版添加名称。[OpenAI 官方目录规范](https://learn.chatgpt.com/docs/model-catalogs) 说明目录与客户端版本及账号有关，并要求版本不变时仍刷新。新协议、参数或工具能力需要更新适配器并验证后升级兼容基线；不能自动把远端最新版本写入 manifest。`pnpm openai:catalog:check` 在普通 CI 离线检查 manifest；`pnpm openai:catalog:upstream` 只读比较上游稳定版、输出 JSON 报告。`Codex compatibility review` workflow 每周一 02:23 UTC 与手动触发时执行比较、保留报告，不写源文件、不创建 PR。维护者对照 `schemaTag` 检查公开上游类型、运行下方验收及明确选择的真实模型 canary，通过后一起更新版本和 `reviewedOn`。
+
+[官方 Sign in with ChatGPT 模型说明](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference) 使用注册应用的 `api.openai.com/v1/models` 路由；本次延续仓库既有 Codex 设备码路由，没有迁移 OAuth 客户端或推理端点。目录联网对比已确认版本参数影响 6.1 模型可见性；合成验收覆盖动态新模型的 Responses tool-loop，但不表示所有列出的模型均已通过真实推理或原生 UI 验收。
 
 ## 路由归属
 
@@ -51,7 +53,10 @@ General Agent 当前认证 DeepSeek、Anthropic、OpenAI 三种多轮 tool proto
 
 ## 机器验收
 
+生成的目录／原生传输验收见 [`agent-runtime/acceptance/openai-native-transport.json`](agent-runtime/acceptance/openai-native-transport.json)，由 `pnpm eval:agent:openai-native` 重建。
+
 ```bash
+pnpm openai:catalog:check
 pnpm exec vitest run \
   src/renderer/lib/agent/codex-model-catalog.test.ts \
   src/renderer/lib/agent/runtime/runtime-context-planning.test.ts \

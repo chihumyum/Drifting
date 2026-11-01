@@ -43,6 +43,7 @@ for (const [name, workflow, expectedCount] of [
 
 for (const command of [
   'pnpm ci:contract:check',
+  'pnpm openai:catalog:check',
   'pnpm public:check',
   'pnpm core:test',
   'pnpm security:dependencies',
