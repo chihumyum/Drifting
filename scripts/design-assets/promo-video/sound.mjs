@@ -354,11 +354,17 @@ export function score(sounds, duration) {
   // The parts only GarageBand's instruments play (instruments.mjs); the modelled score leaves them out.
   const orchestra = [];
   const part = (name, t, names, v, length) => [].concat(names).forEach((n) => orchestra.push({ part: name, t, note: midi(n), v, off: t + length }));
+  // A hit is the players landing together, not one spike: the piano first,
+  // the brass a hundredth of a second behind, the tuba last, the lowest note
+  // a little lighter so the weight stays clean.
+  const STAB_DELAY = { stabHorns: 0.012, stabTrombones: 0.018, stabTuba: 0.024 };
   const hit = (t, root, chord, v) => {
-    play(t, [`${root}1`, `${root}2`], v, undefined, 'hit');
-    play(t, STRUCK[chord], v * 0.6, undefined, 'hit');
+    play(t, `${root}1`, v * 0.65, undefined, 'hit');
+    play(t, `${root}2`, v * 0.85, undefined, 'hit');
+    play(t + 0.008, STRUCK[chord], v * 0.55, undefined, 'hit');
     drums.push({ t, note: midi(`${root}2`), v });
-    for (const [name, notesOf] of Object.entries(STAB[chord])) part(name, t, notesOf, v, name === 'stabTuba' ? 0.9 : 0.7);
+    // Firm, not the brass's loudest layer, whose blare reads as distortion on a small speaker.
+    for (const [name, notesOf] of Object.entries(STAB[chord])) part(name, t + STAB_DELAY[name], notesOf, v * 0.88, name === 'stabTuba' ? 0.9 : 0.7);
   };
   [0, 1, 2].forEach((sheet) => {
     sounds.filter((s) => s.kind === 'drop' && s.sheet === sheet).forEach((stone, i) => play(stone.t, STONES[sheet][i % STONES[sheet].length], 0.36, stone.pan, 'stone'));
@@ -453,7 +459,8 @@ export function score(sounds, duration) {
     } else if (n.role === 'chord') n.v *= lift(n.t);
   }
   for (const chord of chords) chord.level *= lift(chord.from);
-  for (const o of orchestra) o.v *= lift(o.t);
+  // The hits already rise on their own; the piece's swell would push their brass into its blare.
+  for (const o of orchestra) if (!o.part.startsWith('stab')) o.v *= lift(o.t);
   for (const n of kept) n.until = changes.find((c) => c > n.t + 0.01);
   return { notes: kept, chords, drums, orchestra };
 }
@@ -545,7 +552,7 @@ export function synthesize(sounds, duration, { seed = 0x5eed, instruments = null
         break;
       }
       case 'brush':
-        lay(t, brush(rand, sound.dur), 0.2, pan, 0.12);
+        lay(t, brush(rand, sound.dur), 0.14, pan, 0.12);
         break;
       case 'key':
         lay(t, key(rand, sound.ch === ' ' || sound.ch === '#'), 0.36, pan, 0.06);
@@ -557,7 +564,7 @@ export function synthesize(sounds, duration, { seed = 0x5eed, instruments = null
         break;
       }
       case 'click':
-        lay(t, click(rand), 0.14, pan, 0.05);
+        lay(t, click(rand), 0.1, pan, 0.05);
         break;
       case 'send':
         lay(t, air(rand, 0.2, 1400, 2800, 0.9, (u) => Math.sin(Math.PI * u) ** 2), 0.12, pan, 0.1);

@@ -126,9 +126,16 @@ How it is made, and why:
     only what is above 220 Hz sent into its hall (Freeverb), so the low end
     stays clear. Nothing is clipped while mixing (the WAV is float). It is
     brought to −16 LUFS by one fixed gain, the few peaks it would lift past
-    −2 dBFS held first by a look-ahead limiter so the rain never pumps, the
-    loudness measured again after the limiter and corrected; a rerun gives
-    the same samples.
+    −2 dBFS held first by a look-ahead limiter (10 ms, its delay compensated
+    so the sound stays on its frame) so the rain never pumps, the loudness
+    measured again after the limiter and corrected; a rerun gives the same
+    samples. The hits are written to need almost none of it — at most about
+    1.6 dB: the players land 8–24 ms apart (piano, horns, trombones, tuba),
+    the lowest octave is lighter, the hit brass keeps out of the piece's
+    swell and off its loudest layer, and its short strokes are levelled by
+    peak, not RMS, so one hit played softer does not lift the others. The
+    author heard the first orchestral hits as distortion: the third had been
+    limited by 6 dB.
 - **Copy** is the landing page's and the README's, in both languages; the
   Chinese headings break where a phrase ends. The page lays out at 1152×648 CSS
   px and is captured at device scale 1920/1152, so the corners' 15px text is
