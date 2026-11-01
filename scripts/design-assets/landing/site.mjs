@@ -18,14 +18,16 @@ const SHEET_TEXTURE_OFFSETS = [[14, 46], [96, 132], [168, 18], [58, 186]];
 // On a narrow window the sea needs a denser sheet of characters.
 export const seaDensity = (width) => (width < 600 ? 1.7 : width < 960 ? 1.3 : 1);
 
-// The language button switches the page between its zh and en copy and keeps
-// the choice. The theme button steps system → light → dark; a pick lasts only
-// for this tab, so the next visit follows the system again.
+// The language button keeps the choice. On the home page it is a link to the
+// page in the other language; on the information pages it switches the page
+// between its zh and en copy. The theme button steps system → light → dark; a
+// pick lasts only for this tab, so the next visit follows the system again.
 export function startBar({ onTheme = () => {}, onLang = () => {} } = {}) {
   const root = document.documentElement;
   const system = matchMedia('(prefers-color-scheme: dark)');
   const themeButton = document.getElementById('theme-btn');
   const themeIcon = document.getElementById('theme-ic');
+  const homeLink = document.querySelector('a.brand[href="/"]');
   const lang = () => (root.dataset.lang === 'en' ? 'en' : 'zh');
   const pick = () => {
     const theme = root.getAttribute('data-theme');
@@ -38,6 +40,8 @@ export function startBar({ onTheme = () => {}, onLang = () => {} } = {}) {
     themeIcon.style.setProperty('--i', `url(${THEME_ICONS[theme]})`);
     themeButton.setAttribute('aria-label', THEME_LABELS[lang()][theme]);
     themeButton.title = THEME_LABELS[lang()][theme];
+    // An information page's name in the bar leads to the home page in the language it shows.
+    homeLink?.setAttribute('href', lang() === 'zh' ? '/zh' : '/');
     onTheme();
   }
   themeButton.addEventListener('click', () => {
@@ -52,7 +56,14 @@ export function startBar({ onTheme = () => {}, onLang = () => {} } = {}) {
   });
   new MutationObserver(sync).observe(root, { attributes: true, attributeFilter: ['data-theme'] });
   system.addEventListener('change', sync);
-  document.getElementById('lang-btn').addEventListener('click', () => {
+  const langButton = document.getElementById('lang-btn');
+  if (langButton instanceof HTMLAnchorElement) {
+    langButton.addEventListener('click', () => {
+      try {
+        localStorage.setItem(LANG_KEY, langButton.hreflang);
+      } catch {}
+    });
+  } else langButton.addEventListener('click', () => {
     const next = lang() === 'zh' ? 'en' : 'zh';
     root.dataset.lang = next;
     root.lang = next === 'zh' ? 'zh-CN' : 'en';
