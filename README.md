@@ -3,6 +3,8 @@
 **The ease of a Markdown editor, the scaffolding of a classic writing studio, and
 an Agent for the whole book.**
 
+https://github.com/user-attachments/assets/54473d28-e047-4fce-9e6c-9e300cf83e8d
+
 [English](#english) | [简体中文](#简体中文)
 
 ## English
