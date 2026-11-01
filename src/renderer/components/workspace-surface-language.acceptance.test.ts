@@ -322,6 +322,14 @@ describe('workspace surface language acceptance', () => {
     expect(block(shell, '.workspace-tab-dock .top-timeline-container.is-expanded {', '}')).toContain(
       'height: calc(var(--glass-pill-height) + 8px);',
     );
+    // The dock is placed by its edges and centred by flex on the window
+    // controls' line. A transform there leaves the pills' glass unpainted in
+    // WebKit once their row overflows and scrolls.
+    const dockBlock = block(shell, '.workspace-tab-dock {', '}');
+    expect(dockBlock).not.toMatch(/transform|translate/);
+    expect(dockBlock).toContain('height: var(--window-titlebar-height);');
+    expect(dockBlock).toContain('align-items: center;');
+    expect(block(shell, '.workspace-tab-dock[data-clear-corners] {', '}')).not.toMatch(/transform|translate/);
     expect(block(review, '.editor-selection-bar__item {', '}')).toContain('height: var(--glass-pill-height);');
     expect(topTimeline).toContain(`const DOCK_ROUND_GLASS_SIZE = ${root.match(/--glass-round-size: (\d+)px;/)?.[1]};`);
     expect(block(shell, '.workspace-sidebar-toggle {', '}')).toContain(
