@@ -222,10 +222,23 @@ describe('the sea of characters under the desktop window', () => {
     const pages = read('scripts/design-assets/landing/pages.mjs');
     expect(pages).toContain("from '../../../src/renderer/lib/char-sea/char-sea';");
     expect(pages).toContain('sea.rain(true);');
-    // Nothing from another host, on any page or in the sheet they share.
+    // Nothing from another host, on any page or in the sheet they share (a canonical link only names the page).
     for (const file of ['index.html', 'site.css']) {
-      expect(read(`scripts/design-assets/landing/${file}`)).not.toMatch(/<link[^>]+href="https?:|<script[^>]+src="https?:|url\(["']?https?:|@import|fonts\.googleapis/);
+      expect(read(`scripts/design-assets/landing/${file}`)).not.toMatch(/<link(?![^>]*rel="canonical")[^>]+href="https?:|<script[^>]+src="https?:|url\(["']?https?:|@import|fonts\.googleapis/);
     }
+    // Search engines and sharing: the page names its address, says what the app is, and its
+    // outline is the word and the sections' headings; the corners' page titles are not headings.
+    expect(page).toMatch(/<title>Drifting — [^<]+<\/title>/);
+    expect(page).toContain('<link rel="canonical" href="https://drifting.cc/">');
+    expect(page).toContain('<meta property="og:url" content="https://drifting.cc/">');
+    expect(page).toContain('<meta property="og:site_name" content="Drifting">');
+    const data = JSON.parse(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(page)?.[1] ?? 'null');
+    const app = data['@graph'].find((node: { '@type': string }) => node['@type'] === 'SoftwareApplication');
+    expect(app).toMatchObject({ name: 'Drifting', offers: { price: '0' }, downloadUrl: 'https://github.com/chihumyum/Drifting/releases/latest' });
+    expect(app.operatingSystem).toContain('macOS');
+    expect(app.license).toContain('AGPL-3.0-or-later');
+    expect([...page.matchAll(/<h([1-6])\b/g)].map((m) => m[1]).join('')).toBe('122222');
+    expect(page).toContain("var el = document.createElement(kind === 'p' ? 'p' : 'div');");
     expect(read('scripts/design-assets/landing/build.mjs')).toContain("path.join(root, 'node_modules/@fontsource-variable', face)");
     // The theme follows the system on every visit: a pick is kept for the tab only.
     const prefs = read('scripts/design-assets/landing/prefs.js');
