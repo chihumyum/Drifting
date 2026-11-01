@@ -1870,7 +1870,10 @@
       "failedTitle": "Sync didn't finish",
       "failedDetail": "You can keep writing locally. Retry now, or later choose “Connect and sync” in Account settings.",
       "retry": "Retry",
-      "later": "Not now"
+      "later": "Not now",
+      "accountMismatchTitle": "This library belongs to another account",
+      "accountMismatch": "A library connects to one Drifting account, and the library on this Mac already belongs to another, so it was not connected to this one. To switch, sign in with the original account, disconnect sync under Account, then sign in with this account. Your local projects and their cloud copies are kept.",
+      "accountMismatchOk": "OK"
     },
     "errors": {
       "signInFailed": "Sign in failed",

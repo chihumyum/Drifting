@@ -1869,7 +1869,10 @@
       "failedTitle": "同步没有完成",
       "failedDetail": "本地写作不受影响。可以现在重试，也可以稍后在账号设置里点「连接并同步」。",
       "retry": "重试",
-      "later": "稍后再说"
+      "later": "稍后再说",
+      "accountMismatchTitle": "这个书库连着另一个账号",
+      "accountMismatch": "一个书库只能连一个 Drifting 账号，这台 Mac 上的书库已经连着另一个账号，所以没有连到这个账号。要换成这个账号，请先用原来的账号登录，在「账户」里断开同步，再用这个账号登录。断开后本地项目和云端副本都会保留。",
+      "accountMismatchOk": "知道了"
     },
     "errors": {
       "signInFailed": "登录失败",
