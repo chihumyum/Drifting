@@ -97,7 +97,7 @@ describe('the bookshelf in sand and glass', () => {
     expect(css).not.toContain('pp-cover__glyph');
     const landing = read('scripts/design-assets/landing/index.html');
     expect(landing).not.toContain('cover-glyph');
-    expect(landing).toContain('class="cover-label"');
+    expect(landing).not.toContain('cover-label');
     expect(block(css, '.pp-cover {', '}')).toContain('background: hsl(var(--page));');
     expect(read('src/renderer/usecase/useProject.ts')).toContain('const cover = await readProjectCover(project.id);');
   });

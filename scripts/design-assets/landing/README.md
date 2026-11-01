@@ -67,8 +67,8 @@ What is on the page, and why:
 - **Coloured sand.** The tagline's three pillars are underlined in their
   colours, each section carries its colour in its mark, bullets and one
   highlighted word, and the closing card is a book with its storylines flowing
-  down the cover. As on the app's shelf, the cover carries its genre at the
-  foot and no title initial in the upper corner (2026-11-02).
+  down the cover. The closing cover carries only its artwork, with no title
+  initial or genre text over it (2026-11-02).
 - **The name in the bar** is written in sand, like the sharing card's
   tagline: `wordmark.sh` renders `wordmark.html` (each letter of DRIFTING
   traced and laid with `social-preview/sand-letters.js`) to
