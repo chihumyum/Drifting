@@ -568,6 +568,24 @@
   transform: scale(1.35);
 }
 
+/* The page asked for is still being prepared (glass--loading, materials.css):
+   glass lands on its dot as a small ring round the mark, coming in like a
+   bleed and drifting until the page arrives. */
+.workspace-tab-dock .app-tab-dot.glass--loading::before {
+  inset: calc(50% - 9px);
+  animation:
+    glass-flow var(--motion-glass-loading) linear infinite running,
+    dock-dot-glass-in var(--motion-glass-bleed) ease-out;
+}
+
+@keyframes dock-dot-glass-in {
+  from { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace-tab-dock .app-tab-dot.glass--loading::before { animation: none; }
+}
+
 
 .app-tab-dot-pair {
   display: inline-flex;

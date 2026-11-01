@@ -83,9 +83,22 @@ export function sandDrawTimeAt(drawn: number) {
   return 1 - Math.pow(1 - Math.min(1, Math.max(0, drawn)), 1 / 2.2);
 }
 
+// Page turn: the paper changes to another page (a tab, an entity opened from
+// a list). The page in front fades out quickly; a moment later the next one
+// floats up a few px into place as it fades in, on the float-in curve.
+export const PAGE_LEAVE_MS = 90;
+export const PAGE_RISE_MS = 260;
+export const PAGE_RISE_DELAY_MS = 50;
+export const PAGE_RISE_PX = 6;
+export const PAGE_RISE_EASING = 'cubic-bezier(0.3, 0.7, 0.2, 1)';
+
 // Waiting: a wait shorter than this shows nothing, so a quick read never
 // flashes a loading mark (CSS: --motion-loading-delay).
 export const LOADING_DELAY_MS = 240;
+// Past it, glass that asked for what is still being prepared drifts on its
+// own, one lap of the texture in this long, until it arrives
+// (CSS: --motion-glass-loading).
+export const GLASS_LOADING_DRIFT_MS = 2400;
 
 // Dwell and grace.
 /** How long the pointer rests on a thing before its hover card shows. */

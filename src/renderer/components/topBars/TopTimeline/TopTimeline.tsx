@@ -21,6 +21,7 @@ import {
 import { isProjectHomePathname } from '../../../features/workspace/navigation/workspace-route';
 import { useDesktopTabClose } from '../../../shells/desktop/navigation/DesktopTabCloseContext';
 import { useGlassWave } from '../../../hooks/useGlassWave';
+import { useEditorStageWaiting } from '../../editor/editor-stage-waiting';
 import { captureDock, createDockLeaveState, playDockLeave, stopDockLeave, type DockSnapshot } from './dock-leave';
 
 // Floor: absolute survival width — chrome (icon + close) just fits, label
@@ -103,6 +104,8 @@ export function TopTimeline({ expanded = true, leading }: {
   const location = useLocation();
   const { projectId, openEntity, activateLeafTab, navigateToHome } = useProjectNavigation();
   const { openTabs, activeTabKey } = useProjectTabs(projectId);
+  // The tab whose page the stage is still preparing: its glass drifts.
+  const waitingTabKey = useEditorStageWaiting();
   // Home has no pill: while it shows, the + is lit, since creating lives there.
   const homeShowing = useUiStore((s) => s.activeSuperView === 'none')
     && isProjectHomePathname(projectId, location.pathname);
@@ -334,6 +337,7 @@ export function TopTimeline({ expanded = true, leading }: {
       {openTabs.map((tab, index) => {
         const key = tabKey(tab);
         const isActive = key === activeTabKey;
+        const isLoading = key === waitingTabKey;
         const width = tabWidths[index] ?? TAB_MIN_WIDTH;
         if (!expanded) {
           const clusterBreak = index > 0 && clusterOf(openTabs[index - 1]) !== clusterOf(tab);
@@ -349,6 +353,7 @@ export function TopTimeline({ expanded = true, leading }: {
                     label={labelOfLeaf(tab[side])}
                     color={colorOfLeaf(tab[side])}
                     isActive={isActive && tab.focused === side}
+                    isLoading={isLoading && tab.focused === side}
                     isPreview={tab[side].isPreview}
                     onSelect={() => activateLeafTab(tab[side])}
  />
@@ -363,6 +368,7 @@ export function TopTimeline({ expanded = true, leading }: {
               label={labelOfLeaf(tab)}
               color={colorOfLeaf(tab)}
               isActive={isActive}
+              isLoading={isLoading}
               isPreview={tab.isPreview}
               clusterBreak={clusterBreak}
               onSelect={() => handleSelectTab(tab)}
@@ -375,6 +381,7 @@ export function TopTimeline({ expanded = true, leading }: {
               key={key}
               tab={tab}
               isActive={isActive}
+              isLoading={isLoading}
               width={width}
               label={labelOfLeaf(tab)}
               color={colorOfLeaf(tab)}
@@ -391,6 +398,7 @@ export function TopTimeline({ expanded = true, leading }: {
             key={key}
             tab={tab}
             isActive={isActive}
+            isLoading={isLoading}
             width={width}
             leftLabel={labelOfLeaf(tab.left)}
             rightLabel={labelOfLeaf(tab.right)}
@@ -470,6 +478,8 @@ class DockLeaveMotion extends Component<{
 interface LeafSlotProps {
   tab: LeafTab;
   isActive: boolean;
+  /** Its page is still being prepared, past the loading delay. */
+  isLoading: boolean;
   width: number;
   label: string;
   color: string | undefined;
@@ -482,6 +492,7 @@ interface LeafSlotProps {
 function LeafTabSlot({
   tab,
   isActive,
+  isLoading,
   width,
   label,
   color,
@@ -498,7 +509,7 @@ function LeafTabSlot({
       role="tab"
       aria-selected={isActive}
       data-tab-key={tabKey(tab)}
-      className={`app-tab glass glass--rest${isActive ? ' is-active is-on' : ''}`}
+      className={`app-tab glass glass--rest${isActive ? ' is-active is-on' : ''}${isLoading ? ' glass--loading' : ''}`}
       draggable
       onClick={onSelect}
       onDoubleClick={onPromote}
@@ -611,6 +622,7 @@ function LeafTabSlot({
 interface SplitSlotProps {
   tab: SplitTab;
   isActive: boolean;
+  isLoading: boolean;
   width: number;
   leftLabel: string;
   rightLabel: string;
@@ -626,6 +638,7 @@ interface SplitSlotProps {
 function SplitTabSlot({
   tab,
   isActive,
+  isLoading,
   width,
   leftLabel,
   rightLabel,
@@ -642,7 +655,7 @@ function SplitTabSlot({
       role="tab"
       aria-selected={isActive}
       data-tab-key={tabKey(tab)}
-      className={`app-tab app-tab--split glass glass--rest${isActive ? ' is-active is-on' : ''}`}
+      className={`app-tab app-tab--split glass glass--rest${isActive ? ' is-active is-on' : ''}${isLoading ? ' glass--loading' : ''}`}
       draggable
       style={{
         '--glass-cc': (tab.focused === 'right' ? rightColor : leftColor) || 'var(--glass-clear)',
@@ -823,6 +836,7 @@ function TabDot({
   label,
   color,
   isActive,
+  isLoading = false,
   isPreview,
   clusterBreak = false,
   onSelect,
@@ -833,6 +847,8 @@ function TabDot({
   label: string;
   color: string | undefined;
   isActive: boolean;
+  /** Its page is still being prepared: glass lands on the dot and drifts. */
+  isLoading?: boolean;
   isPreview: boolean;
   clusterBreak?: boolean;
   onSelect: () => void;
@@ -847,7 +863,8 @@ function TabDot({
       data-tab-key={tabKeyValue}
       data-cluster-break={clusterBreak ? 'true' : undefined}
       data-preview={isPreview ? 'true' : undefined}
-      className={`app-tab-dot${isActive ? ' is-active' : ''}`}
+      className={`app-tab-dot${isActive ? ' is-active' : ''}${isLoading ? ' glass glass--round glass--loading' : ''}`}
+      style={isLoading ? { '--glass-cc': color || 'var(--glass-clear)' } as React.CSSProperties : undefined}
       onClick={onSelect}
     >
       <KindMark kind={kind} seed={seed} color={color || 'hsl(var(--ink-3))'} hollow={isPreview} />
