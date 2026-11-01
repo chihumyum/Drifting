@@ -35,6 +35,7 @@ describe('sanitized diagnostic summary', () => {
       },
       sync: {
         mounted: true,
+        activationFailed: false,
         syncGenerationIds: ['private-generation-id'],
         diagnostics: {
           generatedAtMs: 1,

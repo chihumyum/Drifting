@@ -293,7 +293,7 @@ mod local {
         if let Some(server) = slot.as_ref() {
             return Ok(server.clone());
         }
-        let root = app.path().app_local_data_dir().map_err(|e| e.to_string())?;
+        let root = crate::data_paths::app_local_root(&app)?;
         fs::create_dir_all(&root).map_err(|e| e.to_string())?;
         let server = Server::start(root.join("mcp"))?;
         *slot = Some(server.clone());

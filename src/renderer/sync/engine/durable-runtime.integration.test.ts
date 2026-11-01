@@ -21,6 +21,7 @@ import {
   SyncProviderBindingTable,
   SyncQuarantinedObjectTable,
   SyncRemoteObjectTable,
+  SyncGenerationWriterStateTable,
   SyncSegmentTable,
   SyncTransferTable,
   SyncGenerationTable,
@@ -356,6 +357,7 @@ async function createDevice(input: {
   onRemoteChangeCommitted?: SqliteSyncGenerationRuntimeOptions['onRemoteChangeCommitted'];
   onReferenceCoverageInvalidated?: SqliteSyncGenerationRuntimeOptions['onReferenceCoverageInvalidated'];
   connectMarker?: RemoteObject;
+  sealMaxChangeSetsPerCycle?: number;
 }): Promise<Device> {
   const { db, gateway } = await createDatabase(input.id, input.connectMarker);
   const identity = writerIdentity(input.id);
@@ -381,6 +383,7 @@ async function createDevice(input: {
     reconcileOpenYjsDocuments: input.reconcileOpenYjsDocuments,
     onRemoteChangeCommitted: input.onRemoteChangeCommitted,
     onReferenceCoverageInvalidated: input.onReferenceCoverageInvalidated,
+    sealMaxChangeSetsPerCycle: input.sealMaxChangeSetsPerCycle,
   });
   return { id: input.id, db, gateway, identity, binding, runtime };
 }
@@ -731,6 +734,60 @@ describe('SQLite durable SyncEngine runtime', () => {
     await cycle(b, 'start');
     expect(await a.db.select().from(SyncApplyReceiptTable)).toHaveLength(2);
     expect(await b.db.select().from(SyncApplyReceiptTable)).toHaveLength(2);
+  });
+
+  it('drains a backlog in bounded cycles, persisting each batch before the next', async () => {
+    const localObjects = new MemoryProviderLocalObjectStore();
+    const provider = new MemoryObjectLogProvider(localObjects);
+    const a = await createDevice({ id: 'a', provider, localObjects, clockMs: 10_000, sealMaxChangeSetsPerCycle: 2 });
+    const b = await createDevice({ id: 'b', provider, localObjects, clockMs: 10_000 });
+    for (let index = 1; index <= 5; index += 1) await authorTitle(a, `Draft ${index}`, index * 1_000);
+
+    const sealedRanges = async () =>
+      (await a.db.select().from(SyncSegmentTable)).map((segment) => [segment.firstSeq, segment.lastSeq]);
+    expect((await cycle(a)).publishedSegments).toBe(1);
+    expect(await sealedRanges()).toEqual([[1, 2]]);
+    expect((await a.runtime.inspectPending()).pendingChangeSets).toBe(3);
+    await cycle(a);
+    await cycle(a);
+    expect(await sealedRanges()).toEqual([[1, 2], [3, 4], [5, 5]]);
+    expect((await a.runtime.inspectPending()).pendingChangeSets).toBe(0);
+
+    await cycle(b, 'start');
+    expect(await title(b)).toBe('Draft 5');
+    expectHealthy(a);
+  });
+
+  it('seals retired lanes of this installation and never those of another', async () => {
+    const localObjects = new MemoryProviderLocalObjectStore();
+    const provider = new MemoryObjectLogProvider(localObjects);
+    const a = await createDevice({ id: 'a', provider, localObjects, clockMs: 10_000 });
+    const b = await createDevice({ id: 'b', provider, localObjects, clockMs: 10_000 });
+    const identity = (installationId: string, lane: string): SyncWriterIdentitySource => ({
+      installationId,
+      createWriterIdentity: () => ({ writerId: `writer-${lane}`, writerEpoch: `epoch-${lane}` }),
+    });
+    // The installation marker was replaced (another copy's identity), then restored.
+    await authorTitle(a, 'Written before the swap', 1_000);
+    await authorTitle({ ...a, identity: identity('installation-other', 'other') }, 'Copy wrote this', 2_000);
+    await authorTitle({ ...a, identity: identity('installation-a', 'a-again') }, 'Written after restore', 3_000);
+    expect(
+      (await a.db.select().from(SyncGenerationWriterStateTable))
+        .map((lane) => [lane.writerId, lane.retiredAt !== null]),
+    ).toEqual([['writer-a', true], ['writer-other', true], ['writer-a-again', false]]);
+
+    expect((await cycle(a)).publishedSegments).toBe(2);
+    expect(
+      (await a.db.select().from(SyncSegmentTable)).map((segment) => segment.writerId).sort(),
+    ).toEqual(['writer-a', 'writer-a-again']);
+    // The other installation's lane stays pending here instead of being resealed.
+    expect((await a.runtime.inspectPending()).pendingChangeSets).toBe(1);
+
+    await cycle(b, 'start');
+    expect(await title(b)).toBe('Written after restore');
+    expect(
+      (await b.db.select().from(SyncApplyReceiptTable)).map((receipt) => receipt.changeSetId).sort(),
+    ).toEqual(['writer-a-again:epoch-a-again:1', 'writer-a:epoch-a:1']);
   });
 
   it('publishes real object and byte progress for outbound and inbound transfers', async () => {

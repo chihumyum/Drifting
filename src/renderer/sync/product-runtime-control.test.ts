@@ -70,8 +70,27 @@ describe('ProductSyncRuntimeControl', () => {
 
     detach();
     detach();
-    expect(control.getSnapshot()).toEqual({ mounted: false, syncGenerationIds: [], diagnostics: null });
+    expect(control.getSnapshot()).toEqual({
+      mounted: false,
+      syncGenerationIds: [],
+      diagnostics: null,
+      activationFailed: false,
+    });
     expect(observed).toHaveBeenCalledTimes(2);
+    coordinator.shutdown();
+  });
+
+  it('reports a failed activation until a coordinator mounts', () => {
+    const control = new ProductSyncRuntimeControl();
+    control.reportActivationFailure();
+    expect(control.getSnapshot()).toMatchObject({ mounted: false, activationFailed: true });
+
+    const coordinator = new SyncEngineCoordinator();
+    const detach = control.attach(coordinator);
+    expect(control.getSnapshot()).toMatchObject({ mounted: true, activationFailed: false });
+    control.reportActivationFailure();
+    expect(control.getSnapshot().activationFailed).toBe(false);
+    detach();
     coordinator.shutdown();
   });
 

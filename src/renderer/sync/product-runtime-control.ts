@@ -5,6 +5,8 @@ export interface ProductSyncRuntimeSnapshot {
   readonly mounted: boolean;
   readonly syncGenerationIds: readonly string[];
   readonly diagnostics: SyncEngineDiagnostics | null;
+  /** The last activation threw before any coordinator mounted. */
+  readonly activationFailed: boolean;
 }
 
 export interface ProductSyncConvergenceOptions {
@@ -18,6 +20,12 @@ const EMPTY_SNAPSHOT: ProductSyncRuntimeSnapshot = Object.freeze({
   mounted: false,
   syncGenerationIds: Object.freeze([]),
   diagnostics: null,
+  activationFailed: false,
+});
+
+const ACTIVATION_FAILED_SNAPSHOT: ProductSyncRuntimeSnapshot = Object.freeze({
+  ...EMPTY_SNAPSHOT,
+  activationFailed: true,
 });
 
 /**
@@ -78,6 +86,13 @@ export class ProductSyncRuntimeControl {
       this.snapshot = EMPTY_SNAPSHOT;
       this.emit();
     };
+  }
+
+  /** No coordinator could mount; Settings says so instead of waiting forever. */
+  reportActivationFailure(): void {
+    if (this.coordinator) return;
+    this.snapshot = ACTIVATION_FAILED_SNAPSHOT;
+    this.emit();
   }
 
   /** Stop provider callbacks before the local replica changes ownership. */
@@ -181,6 +196,7 @@ export class ProductSyncRuntimeControl {
           mounted: true,
           syncGenerationIds: coordinator.registeredSyncGenerationIds(),
           diagnostics: coordinator.diagnostics(),
+          activationFailed: false,
         })
       : EMPTY_SNAPSHOT;
     this.emit();

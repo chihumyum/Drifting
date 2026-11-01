@@ -78,6 +78,13 @@ describe('desktop Tauri environment', () => {
   });
 
 
+  it('keeps the development App-local folder apart from the installed App', () => {
+    expect(desktopLauncher.developmentAppDataDirectory('dev', {})).toBe('.local-data/app-data');
+    expect(desktopLauncher.developmentAppDataDirectory('dev', { DRIFTING_APP_DATA_DIR: '/tmp/explicit' }))
+      .toBe('/tmp/explicit');
+    expect(desktopLauncher.developmentAppDataDirectory('build', {})).toBeUndefined();
+  });
+
   it('uses one configured origin for renderer authentication, native sync and CSP while preserving HMR', () => {
     const environment = createDesktopTauriEnvironment({
       baseEnvironment: {},

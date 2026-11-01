@@ -76,6 +76,16 @@ export function createDesktopTauriEnvironment({
   };
 }
 
+/**
+ * The daily development App keeps its app-local folder (assets, sync objects,
+ * installation identity) beside its database, never in the installed App's
+ * folder, so a development build and a release never share an identity.
+ */
+export function developmentAppDataDirectory(command, environment) {
+  if (environment.DRIFTING_APP_DATA_DIR) return environment.DRIFTING_APP_DATA_DIR;
+  return command === 'dev' ? '.local-data/app-data' : undefined;
+}
+
 /** Check before Cargo/Vite starts, so a new contributor sees setup guidance
  * without first compiling the native host. The runner rechecks before launch. */
 export function prepareDesktopSigning({ command, arguments: tauriArguments = [], environment,
@@ -182,6 +192,8 @@ export async function runDesktopTauri(rawArguments = process.argv.slice(2)) {
   const online = normalizedForwarded.includes('--online');
   const tauriArguments = normalizedForwarded.filter((argument) => argument !== '--online');
   const environment = createDesktopTauriEnvironment({ mode: online ? 'online' : 'local' });
+  const appDataDirectory = developmentAppDataDirectory(command, environment);
+  if (appDataDirectory) environment.DRIFTING_APP_DATA_DIR = appDataDirectory;
   // Development only: the Agent's keys from .env (scripts/dev-agent-keys.mjs).
   if (command === 'dev') {
     Object.assign(environment, devAgentKeyEnvironment({ roots: devAgentKeyRoots(repoDir), baseEnvironment: environment }));

@@ -8,7 +8,10 @@ orchestration milestones; this runtime mounts only their committed bindings.
 `SqliteSyncGenerationRuntime` connects the authored journal to the immutable
 object log without putting provider I/O inside a SQLite transaction:
 
-1. flush local Yjs/domain durability and seal complete writer-epoch segments;
+1. flush local Yjs/domain durability and seal complete writer-epoch segments,
+   at most `SEAL_MAX_CHANGE_SETS_PER_CYCLE` (4,096) change sets per cycle, each
+   batch persisted before the next; a published batch asks for an immediate
+   repull cycle, so a long backlog drains over bounded cycles;
 2. capture/incrementally advance the provider cursor; an invalid cursor/page
    token atomically resets transport progress and starts a new
    capture-before-full-inventory pass;
@@ -61,8 +64,14 @@ make the stored objects opaque to Google.
 Production startup reconciles the native opaque-object directory against all
 SQLite-retained `storageRef` values even when there is no active provider
 binding. Native GC recognizes only the current canonical `.object` layout and
-atomic `.part` residue older than the safety TTL. Unknown entries and symlinks
-fail closed; repeated restart reconciliation is idempotent.
+atomic `.part` residue older than the safety TTL. A bucket is the first two
+bytes of any valid token, so prefixed tokens such as Agent chat's
+`agent-chat.<uuid>` live in `ag/`. Unknown entries and symlinks fail closed;
+repeated restart reconciliation is idempotent. Reconciliation is housekeeping:
+a failure is reported as `sync-storage-cleanup-failed` and never keeps the
+runtime from mounting. (Until 2026-11-02 the collector accepted only hex
+buckets, so the first Agent chat transfer made every later activation fail and
+sync silently stopped after the first launch.)
 
 ## Scheduler and lifecycle
 
@@ -149,9 +158,12 @@ The file-backed SQLite integration suite proves:
 - a writer's segment 2 arriving before segment 1 remains a durable received
   dependency with no domain apply, quarantine or binding block; after segment 1
   arrives, both ranges apply in sequence and duplicate replay stays idempotent;
-- segment sealing reads only the active writer owned by the current native
-  installation. With no such writer there is no historical outbound lane;
-  checkpoint source histories are never resealed on restore;
+- segment sealing reads every writer lane owned by the current native
+  installation, active or retired: an installation marker that was replaced
+  and later restored still publishes its own unsealed history. Lanes of other
+  installations are never resealed, so a copied database cannot fork what the
+  original may still publish; with no own lane there is no historical outbound
+  lane, and checkpoint source histories are never resealed on restore;
 - a restore with no historical `sync_segment` rows accepts the exact next
   segment only when its `previousSegmentHash` matches the checkpoint's applied
   chain-head anchor; a different hash is retained and quarantined as

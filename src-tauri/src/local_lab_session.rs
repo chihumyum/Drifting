@@ -42,11 +42,7 @@ pub fn path(app: &tauri::AppHandle, key: &str) -> Result<Option<PathBuf>, String
     ) {
         return Ok(None);
     }
-    let root = app
-        .path()
-        .app_local_data_dir()
-        .map_err(|e| e.to_string())?
-        .join("local-hosted-session");
+    let root = crate::data_paths::app_local_root(app)?.join("local-hosted-session");
     fs::create_dir_all(&root).map_err(|e| e.to_string())?;
     if !fs::symlink_metadata(&root)
         .map_err(|e| e.to_string())?
