@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   verify:
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 60
     env:
       VITE_LOCAL_ONLY_MODE: 'true'
@@ -51,7 +51,7 @@ jobs:
 
   build:
     needs: verify
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 90
     environment: release
     permissions:
