@@ -1399,6 +1399,25 @@
       "source": "Drifting"
     }
   },
+  "paperSync": {
+    "label": "同步状态",
+    "retrying": "暂时未能完成同步",
+    "retryingDetail": "正文已保存在本机，会自动重试。",
+    "offline": "网络暂不可用",
+    "offlineDetail": "你可以继续在本地写作。",
+    "offlinePending": "{{count}} 项待同步",
+    "notStarted": "同步没能启动",
+    "notStartedDetail": "正文仍保存在本机。",
+    "failing": "云同步失败",
+    "failingCode": "错误代码：{{code}} · 连续 {{count}} 次",
+    "quota": "Hosted 存储已满",
+    "reauth": "登录已过期",
+    "reauthDetail": "请重新登录同一账号。",
+    "retry": "重试",
+    "signIn": "重新登录",
+    "openSettings": "打开设置",
+    "restored": "同步已恢复"
+  },
   "userMenu": {
     "accountMenu": "账户菜单",
     "localMenu": "本地书库菜单",

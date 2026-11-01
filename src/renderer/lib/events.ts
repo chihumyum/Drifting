@@ -45,6 +45,8 @@ export type AppEvents = {
   'agent:conversations-changed': { projectId: string; conversationIds: string[] };
   /** Runtime persisted a provider binding state that product authority UI must re-read. */
   'sync:runtime-state-changed': void;
+  /** The author asked to try activating sync again after it could not start. */
+  'sync:activation-retry': void;
   /** A remote change-set committed locally after exact live-Yjs reconciliation. */
   'sync:project-changed': {
     projectId: string;

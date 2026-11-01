@@ -42,6 +42,11 @@ sleeping/disconnected Mac cannot provide continuous access away from that Mac.
 
 ## Writing and account behavior
 
+The desktop workspace shows sync state outside Settings: a sand mark in the
+paper's lower-left corner for long transfers, retries and offline, plus the
+notification bell for problems the author has to act on. See
+[sync status](sync-status.md).
+
 [Account settings](account-settings.md) supports changing the display name,
 choosing/removing an avatar and changing the password. Password changes verify
 the current password and sign out other devices while rotating this device's

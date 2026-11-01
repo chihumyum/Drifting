@@ -1400,6 +1400,25 @@
       "source": "Drifting"
     }
   },
+  "paperSync": {
+    "label": "Sync status",
+    "retrying": "Sync could not finish",
+    "retryingDetail": "Your writing is saved on this device. Retrying automatically.",
+    "offline": "Offline",
+    "offlineDetail": "You can keep writing locally.",
+    "offlinePending": "{{count}} items waiting to sync",
+    "notStarted": "Sync could not start",
+    "notStartedDetail": "Your writing stays saved on this device.",
+    "failing": "Cloud sync failed",
+    "failingCode": "Error code: {{code}} · {{count}} times in a row",
+    "quota": "Hosted storage is full",
+    "reauth": "Session expired",
+    "reauthDetail": "Sign in to the same account again.",
+    "retry": "Retry",
+    "signIn": "Sign in again",
+    "openSettings": "Open Settings",
+    "restored": "Sync resumed"
+  },
   "userMenu": {
     "accountMenu": "Account menu",
     "localMenu": "Local library menu",

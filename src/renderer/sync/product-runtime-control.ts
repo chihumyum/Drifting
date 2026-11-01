@@ -95,6 +95,12 @@ export class ProductSyncRuntimeControl {
     this.emit();
   }
 
+  /** The paper or the bell asked to try again after no coordinator could mount. */
+  retryActivation(): void {
+    if (this.coordinator) return;
+    events.emit('sync:activation-retry');
+  }
+
   /** Stop provider callbacks before the local replica changes ownership. */
   async quiesceForProviderChange(): Promise<() => void> {
     return this.hold();

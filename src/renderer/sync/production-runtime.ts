@@ -356,10 +356,12 @@ export function installProductionSyncRuntime(
   const deactivate = () => supervisor.deactivate();
   events.on('db:ready', reload);
   events.on('sync:authority-changed', reload);
+  events.on('sync:activation-retry', reload);
   events.on('db:error', deactivate);
   return () => {
     events.off('db:ready', reload);
     events.off('sync:authority-changed', reload);
+    events.off('sync:activation-retry', reload);
     events.off('db:error', deactivate);
     supervisor.stop();
   };

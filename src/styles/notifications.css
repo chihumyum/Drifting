@@ -111,3 +111,13 @@ html:not([data-shell-mode='mobile']) .notification-row.is-static::before {
 .notification-row__remove:focus-visible {
   opacity: 1;
 }
+
+/* A sync problem's actions: text buttons under its detail, the first one's
+   words lined up with the title. */
+.notification-row__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+  margin-left: -8px;
+}

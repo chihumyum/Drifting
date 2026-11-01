@@ -3,11 +3,12 @@
  * of the left sidebar.
  *   - a task is running   → its source icon blinks
  *   - task just finished  → the result's ink seal for FLASH_MS, then the bell
+ *   - a sync problem lasts → the danger seal, until it resolves
  *   - a crash follow-up is unread → its warning seal, until the center opens
  *   - otherwise           → the bell (furin)
  * Clicking toggles the notification center, which opens upward from it.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -19,6 +20,7 @@ import { EmptyState } from '../ui/EmptyState';
 import { GhostIconButton } from '../ui/GhostIconButton';
 import { useNotificationStore, type AppNotification } from '../../store/notification-store';
 import { useFeedbackDialogStore } from '../../features/feedback/feedback-dialog-store';
+import { syncActionsFor, useSyncStatusActions, type SyncStatusAction } from '../../features/sync-status/sync-status-actions';
 import '../../../styles/notifications.css';
 
 const FLASH_MS = 1800; // how long the result icon shows in the circle after the pill collapses
@@ -34,7 +36,7 @@ type FlashResult = {
 const COMMENT_INK = 'hsl(var(--comment))';
 
 /** Fixed-position edges of the notification center. */
-type Anchor = { top: number; right: number } | { bottom: number; left: number };
+type Anchor = { top: number; right: number } | { bottom: number; left: number } | { top: number; left: number };
 
 function useNow(active: boolean): number {
   const [now, setNow] = useState(() => performance.timeOrigin + performance.now());
@@ -105,17 +107,29 @@ function toneColor(n: AppNotification): string {
   return 'hsl(142 42% 40%)';
 }
 
-export function NotificationPill({ opens = 'down' }: {
-  /** `up` opens the center above the bell, aligned to its left edge. */
-  opens?: 'down' | 'up';
+export function NotificationPill({ opens = 'down', floating = false }: {
+  /**
+   * `up` opens the center above the bell, aligned to its left edge;
+   * `down-start` below it, aligned to its left edge.
+   */
+  opens?: 'down' | 'up' | 'down-start';
+  /** Over the desk on its own (the left sidebar is closed): the floating glass line and fill. */
+  floating?: boolean;
 } = {}) {
   const { t } = useTranslation();
+  const owner = useId();
   const items = useNotificationStore((s) => s.items);
   const centerOpen = useNotificationStore((s) => s.centerOpen);
+  const centerOwner = useNotificationStore((s) => s.centerOwner);
+  // The account cell's bell stays mounted while the left sidebar is closed:
+  // only the bell that opened the center draws it, and the floating one only then.
+  const drawsCenter = centerOpen && (centerOwner === owner || (centerOwner === null && !floating));
   const toggleCenter = useNotificationStore((s) => s.toggleCenter);
   const setCenterOpen = useNotificationStore((s) => s.setCenterOpen);
 
   const runningItem = items.find((n) => n.state === 'running');
+  // A sync problem keeps the danger seal on the bell until it resolves.
+  const syncProblem = items.some((n) => n.syncProblem);
   // A crash the author has not looked at keeps its seal on the bell.
   const unreadFollowUp = items.some((n) => n.source === 'crash-follow-up' && !n.read);
   const headUpdatedAt = items.length ? items[0].updatedAt : 0;
@@ -161,15 +175,17 @@ export function NotificationPill({ opens = 'down' }: {
     if (!r) return;
     setAnchor(opens === 'up'
       ? { bottom: window.innerHeight - r.top + 6, left: Math.max(8, r.left - 8) }
-      : { top: r.bottom + 6, right: Math.max(8, window.innerWidth - r.right) });
+      : opens === 'down-start'
+        ? { top: r.bottom + 6, left: Math.max(8, r.left - 8) }
+        : { top: r.bottom + 6, right: Math.max(8, window.innerWidth - r.right) });
   };
   const handleToggle = () => {
     if (!centerOpen) measure();
-    toggleCenter();
+    toggleCenter(owner);
   };
 
   useEffect(() => {
-    if (!centerOpen) return;
+    if (!drawsCenter) return;
     const onDown = (e: MouseEvent) => {
       const t = e.target as Node;
       if (wrapRef.current?.contains(t) || centerRef.current?.contains(t)) return;
@@ -187,14 +203,17 @@ export function NotificationPill({ opens = 'down' }: {
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('resize', onResize);
     };
-  }, [centerOpen, setCenterOpen]);
+  }, [drawsCenter, setCenterOpen]);
 
-  const now = useNow(centerOpen);
+  const now = useNow(drawsCenter);
 
-  // Priority: active work (source-specific blink) > flash result icon > bell.
+  // Priority: a sync problem > active work (source-specific blink) > flash result icon > bell.
   let iconEl: React.ReactNode;
   let iconColor: string | undefined;
-  if (runningItem) {
+  if (syncProblem) {
+    iconColor = 'hsl(var(--destructive))';
+    iconEl = <BrushIcon name="status-warning" size={15} />;
+  } else if (runningItem) {
     iconColor = 'hsl(var(--ink-2))';
     iconEl = (
       <span key={`${runningItem.source}-run`} className="notif-blink-icon">
@@ -228,13 +247,13 @@ export function NotificationPill({ opens = 'down' }: {
         onClick={handleToggle}
         title={t('notifications.title')}
         aria-label={t('notifications.title')}
-        aria-expanded={centerOpen}
-        className="notification-pill-button"
+        aria-expanded={drawsCenter}
+        className={`notification-pill-button${floating ? ' workspace-sidebar-toggle--floating glass--rest' : ''}`}
         style={iconColor ? { color: iconColor } : undefined}
         icon={iconEl}
       />
 
-      {centerOpen &&
+      {drawsCenter &&
         createPortal(
           <NotificationCenter now={now} anchor={anchor} containerRef={centerRef} />,
           document.body,
@@ -248,7 +267,9 @@ export function NotificationPill({ opens = 'down' }: {
  * notification is a menu row; one that leads to a chapter carries the row's
  * ring of glass under the pointer. Unread titles are set at a heavier weight,
  * a failure speaks in the danger ink, progress is a hairline, and the remove
- * button appears only on the row under the pointer.
+ * button appears only on the row under the pointer. A sync problem stays
+ * first, has no remove button and carries its own actions (retry, sign in,
+ * open Settings) as text buttons.
  */
 function NotificationCenter({
   now,
@@ -261,12 +282,14 @@ function NotificationCenter({
 }) {
   const { t } = useTranslation();
   const items = useNotificationStore((s) => s.items);
+  const ordered = [...items.filter((n) => n.syncProblem), ...items.filter((n) => !n.syncProblem)];
   const remove = useNotificationStore((s) => s.remove);
   const clear = useNotificationStore((s) => s.clear);
   const setCenterOpen = useNotificationStore((s) => s.setCenterOpen);
   const { projectId, navigateToNode, navigateToHome } = useProjectNavigation();
   const navigate = useNavigate();
   const location = useLocation();
+  const run = useSyncStatusActions();
 
   const onRowClick = (n: AppNotification) => {
     if (n.crashFollowUp) {
@@ -317,7 +340,7 @@ function NotificationCenter({
         <EmptyState icon="furin" density="compact" message={t('notifications.empty')} />
       ) : (
         <div className="notification-center__list">
-          {items.map((n) => (
+          {ordered.map((n) => (
             <div
               key={n.id}
               onClick={() => onRowClick(n)}
@@ -367,22 +390,67 @@ function NotificationCenter({
                     />
                   </div>
                 )}
+                {n.syncProblem && (
+                  <SyncProblemActions
+                    actions={syncActionsFor(n.syncProblem.problem)}
+                    onAction={(action) => {
+                      run(action, n.syncProblem!);
+                      setCenterOpen(false);
+                    }}
+                  />
+                )}
               </div>
-              <GhostIconButton
-                size="sm"
-                className="notification-row__remove"
-                aria-label={t('notifications.remove')}
-                title={t('notifications.remove')}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  remove(n.id);
-                }}
-                icon={<BrushIcon name="close" size={13} />}
-              />
+              {!n.syncProblem && (
+                <GhostIconButton
+                  size="sm"
+                  className="notification-row__remove"
+                  aria-label={t('notifications.remove')}
+                  title={t('notifications.remove')}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    remove(n.id);
+                  }}
+                  icon={<BrushIcon name="close" size={13} />}
+                />
+              )}
             </div>
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+const SYNC_ACTION_LABEL: Record<SyncStatusAction, string> = {
+  retry: 'paperSync.retry',
+  'sign-in': 'paperSync.signIn',
+  'open-settings': 'paperSync.openSettings',
+};
+
+/** A sync problem's way out, as text buttons under its row. */
+function SyncProblemActions({
+  actions,
+  onAction,
+}: {
+  actions: readonly SyncStatusAction[];
+  onAction: (action: SyncStatusAction) => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <div className="notification-row__actions">
+      {actions.map((action) => (
+        <Button
+          key={action}
+          variant="ghost"
+          size="sm"
+          onClick={(event) => {
+            event.stopPropagation();
+            onAction(action);
+          }}
+        >
+          {t(SYNC_ACTION_LABEL[action])}
+        </Button>
+      ))}
     </div>
   );
 }

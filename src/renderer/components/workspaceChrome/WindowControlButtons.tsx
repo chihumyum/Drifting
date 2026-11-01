@@ -1,7 +1,9 @@
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getPlatformRuntime } from '../../platform/runtime';
+import { useNotificationStore } from '../../store/notification-store';
 import { useUiStore, type SidebarType } from '../../store/ui-store';
+import { NotificationPill } from '../notifications/NotificationPill';
 import { BrushIcon } from '../ui/BrushIcon';
 import { GhostIconButton } from '../ui/GhostIconButton';
 
@@ -38,6 +40,23 @@ export function WorkspaceSidebarToggles() {
     <div className="workspace-sidebar-toggles" data-leading-inset={runtime.isMacDesktop ? 'true' : undefined}>
       <SidebarToggleButton side="left" />
       <SidebarToggleButton side="right" />
+      <FloatingSyncBell />
+    </div>
+  );
+}
+
+/**
+ * The bell carries sync problems until they resolve. While one lasts and the
+ * left sidebar (whose account cell holds the bell) is closed, a second bell
+ * floats on the desk under the left toggle, in the same floating glass.
+ */
+function FloatingSyncBell() {
+  const leftClosed = useUiStore((state) => !state.sidebars.left.isOpen);
+  const problem = useNotificationStore((state) => state.items.some((n) => n.syncProblem));
+  const shown = leftClosed && problem;
+  return (
+    <div className="workspace-sync-bell" data-shown={shown ? 'true' : undefined} aria-hidden={shown ? undefined : true}>
+      <NotificationPill opens="down-start" floating />
     </div>
   );
 }

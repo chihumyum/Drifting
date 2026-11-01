@@ -222,6 +222,32 @@
   right: 8px;
 }
 
+/* While a sync problem lasts with the left sidebar closed, the bell floats
+   under the left toggle in the same floating glass, and fades away (0.24s)
+   once the problem resolves or the sidebar opens on its own bell. */
+.workspace-sync-bell {
+  position: absolute;
+  top: calc((var(--window-titlebar-height) + var(--glass-round-size)) / 2 + 6px);
+  left: 8px;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity var(--motion-glass-bleed) ease-out,
+    visibility 0s linear var(--motion-glass-bleed);
+}
+
+.workspace-sidebar-toggles[data-leading-inset] .workspace-sync-bell {
+  left: var(--window-header-leading-inset);
+}
+
+.workspace-sync-bell[data-shown] {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition: opacity var(--motion-glass-bleed) ease-out;
+}
+
 .sidebar-toggle-slot {
   display: block;
   width: var(--glass-round-size);

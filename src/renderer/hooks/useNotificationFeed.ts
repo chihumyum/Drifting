@@ -3,34 +3,15 @@ import { useTranslation } from 'react-i18next';
 import { useNotificationStore } from '../store/notification-store';
 import { useProjectStore } from '../store/project-store';
 import { productSyncRuntimeControl } from '../sync/product-runtime-control';
-import type {
-  SyncGenerationRuntimeStatus,
-  SyncGenerationTransferProgress,
-} from '../sync/engine';
+import type { SyncGenerationTransferProgress } from '../sync/engine';
+import {
+  formatTransferBytes,
+  transferPhaseKey,
+  transferRatio,
+} from '../features/sync-status/sync-status-text';
 
-function formatBytes(bytes: number, locale: string): string {
-  if (bytes < 1024) return `${bytes.toLocaleString(locale)} B`;
-  const units = ['KB', 'MB', 'GB'] as const;
-  let value = bytes / 1024;
-  let unit: (typeof units)[number] = units[0];
-  for (let index = 1; index < units.length && value >= 1024; index += 1) {
-    value /= 1024;
-    unit = units[index];
-  }
-  return `${value.toLocaleString(locale, { maximumFractionDigits: value < 10 ? 1 : 0 })} ${unit}`;
-}
-
-function progressValue(progress: SyncGenerationTransferProgress): number | null {
-  if (!progress.totalKnown) return null;
-  if (progress.totalBytes > 0) {
-    return Math.min(1, progress.transferredBytes / progress.totalBytes);
-  }
-  return progress.totalObjects > 0
-    ? Math.min(1, progress.completedObjects / progress.totalObjects)
-    : null;
-}
-
-function projectName(projectId: string | null | undefined): string | null {
+/** A book's name for a sync row, from the open project or the shelf list. */
+export function projectName(projectId: string | null | undefined): string | null {
   if (!projectId) return null;
   const state = useProjectStore.getState();
   return (
@@ -40,25 +21,19 @@ function projectName(projectId: string | null | undefined): string | null {
   );
 }
 
-function phaseKey(status: SyncGenerationRuntimeStatus): string {
-  const stage = status.transferProgress?.stage;
-  if (stage === 'download') return 'downloading';
-  if (stage === 'upload-assets') return 'uploadingAssets';
-  if (stage === 'upload-changes') return 'uploadingChanges';
-  if (status.phase === 'ingesting' || status.phase === 'applying') return 'applying';
-  if (status.phase === 'checkpointing') return 'finishing';
-  return 'syncing';
-}
-
 /**
  * Wires sanitized Hosted transfer progress into the shared notification
  * store. One sync cycle stays one row from its
  * first material transfer through completion, cancellation, or failure.
+ * The desktop leaves transfers to the paper's sync mark and puts only
+ * problems on the bell (useSyncProblemNotifications); the paused mobile shell
+ * keeps a row per transfer.
  */
-export function useNotificationFeed(): void {
+export function useNotificationFeed({ transfers = true }: { transfers?: boolean } = {}): void {
   const { t, i18n } = useTranslation();
 
   useEffect(() => {
+    if (!transfers) return undefined;
     const active = new Map<
       string,
       { id: string; cycleNumber: number; lastProgress: SyncGenerationTransferProgress }
@@ -89,12 +64,12 @@ export function useNotificationFeed(): void {
 
         const chat = generation.syncGenerationId.endsWith(':agent-chat');
         const name = [projectName(generation.projectId), chat ? t('notifications.cloudSync.agentChat') : null].filter(Boolean).join(' · ') || null;
-        const title = t(`notifications.cloudSync.${phaseKey(generation)}`);
+        const title = t(`notifications.cloudSync.${transferPhaseKey(generation.phase, generation.transferProgress)}`);
         if (generation.phase !== 'idle') {
           if (progress) tracked.lastProgress = progress;
           const current = progress ?? tracked.lastProgress;
-          const transferred = formatBytes(current.transferredBytes, i18n.language);
-          const total = formatBytes(current.totalBytes, i18n.language);
+          const transferred = formatTransferBytes(current.transferredBytes, i18n.language);
+          const total = formatTransferBytes(current.totalBytes, i18n.language);
           const byteProgress =
             current.totalBytes > 0
               ? current.totalKnown
@@ -116,7 +91,7 @@ export function useNotificationFeed(): void {
             title,
             detail: [name, byteProgress, objectProgress].filter(Boolean).join(' · '),
             progress: {
-              value: progressValue(current),
+              value: transferRatio(current),
               transferredBytes: current.transferredBytes,
               totalBytes: current.totalBytes,
               completedObjects: current.completedObjects,
@@ -157,5 +132,5 @@ export function useNotificationFeed(): void {
     const unsubscribe = productSyncRuntimeControl.subscribe(inspect);
     inspect();
     return unsubscribe;
-  }, [i18n.language, t]);
+  }, [i18n.language, t, transfers]);
 }
