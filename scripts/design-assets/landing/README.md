@@ -60,3 +60,12 @@ What is on the page, and why:
   faces, copied as only the slices holding a character a page (this one, and
   the information pages already in the directory) or the sea writes, under the app's family names so the sea's font stacks find them. The
   site's privacy policy says it loads no third-party resources; keep it true.
+- **For search engines and sharing.** The head names the page's address
+  (`canonical`, `og:url`: `https://drifting.cc/`, the host the app, README and
+  policies link to), a title that says what Drifting is, the sharing card
+  (`/og.png`, with its size and alt text) and, as JSON-LD, the site's name and
+  the app as a free, open-source macOS download. The page's outline is the
+  word (`h1`) and one `h2` per sheet: the corners' page titles, the headings
+  typed in the Markdown corner and the book's title are styled elements, not
+  headings. `robots.txt` and `sitemap.xml` belong to the site repository; a new
+  page there goes into the sitemap too.
