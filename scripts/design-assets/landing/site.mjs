@@ -107,7 +107,10 @@ export function laySheets(sea) {
     sheet.addEventListener('pointerenter', () => { hovering.add(sheet); schedule(); });
     sheet.addEventListener('pointerleave', () => { hovering.delete(sheet); schedule(); });
   }
-  addEventListener('scroll', schedule, { passive: true });
+  // A scroll is measured at once: its event comes before the frame's callbacks,
+  // so the sea's next draw already has the sheets where they are. Waiting for
+  // a frame of our own would land after the sea had drawn them where they were.
+  addEventListener('scroll', push, { passive: true });
   addEventListener('resize', schedule);
   push();
   return schedule;
