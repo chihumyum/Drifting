@@ -1615,9 +1615,9 @@ export class SqliteSyncGenerationRuntime {
       logical.sizeBytes === remote.sizeBytes;
     const nowIso = this.clock.nowIso();
     if (identityMatches && logical && ['verified', 'published'].includes(logical.state)) {
-      await this.upsertRemoteObject(remote, remoteId, nowIso, this.db, observedCursor);
+      const storedRemoteId = await this.upsertRemoteObject(remote, remoteId, nowIso, this.db, observedCursor);
       return {
-        remoteId,
+        remoteId: storedRemoteId,
         localObjectId: logical.id,
         destinationRef: createLocalObjectRef(logical.storageRef),
         transferId,
@@ -1648,8 +1648,9 @@ export class SqliteSyncGenerationRuntime {
       ? createLocalObjectRef(priorTransfer[0].storageRef)
       : await this.objectCodec.allocateInbound({ syncGenerationId: this.syncGenerationId, remoteObject: remote });
 
+    let storedRemoteId = remoteId;
     await this.db.transaction(async (tx) => {
-      await this.upsertRemoteObject(remote, remoteId, nowIso, tx, observedCursor);
+      storedRemoteId = await this.upsertRemoteObject(remote, remoteId, nowIso, tx, observedCursor);
       await tx
         .insert(SyncLocalObjectTable)
         .values({
@@ -1678,7 +1679,7 @@ export class SqliteSyncGenerationRuntime {
           objectKind: remote.objectKind,
           logicalKeyId: remote.logicalKeyId,
           localObjectId: durableLocalId,
-          remoteObjectId: remoteId,
+          remoteObjectId: storedRemoteId,
           expectedStoredSha256: sha256Hex(remote.storedSha256),
           totalBytes: remote.sizeBytes,
           transferredBytes: 0,
@@ -1699,7 +1700,7 @@ export class SqliteSyncGenerationRuntime {
         });
     });
     return {
-      remoteId,
+      remoteId: storedRemoteId,
       localObjectId: durableLocalId,
       destinationRef,
       transferId,
@@ -1708,14 +1709,19 @@ export class SqliteSyncGenerationRuntime {
     };
   }
 
+  /**
+   * Record a provider object and return the id of its stored row. The checkpoint
+   * publisher may have recorded the same object first under its own id, and
+   * every later reference must name the row that exists.
+   */
   private async upsertRemoteObject(
     remote: RemoteObject,
     id: string,
     nowIso: string,
     executor: DbClient | DbTransaction = this.db,
     observedCursor?: string,
-  ): Promise<void> {
-    await executor
+  ): Promise<string> {
+    const [stored] = await executor
       .insert(SyncRemoteObjectTable)
       .values({
         id,
@@ -1736,7 +1742,9 @@ export class SqliteSyncGenerationRuntime {
           removedAt: null,
           ...(observedCursor ? { observedCursor } : {}),
         },
-      });
+      })
+      .returning({ id: SyncRemoteObjectTable.id });
+    return stored?.id ?? id;
   }
 
   private async ingest(signal: AbortSignal): Promise<void> {
@@ -2787,10 +2795,14 @@ export class SqliteSyncGenerationRuntime {
     transferId: string,
     remote: RemoteObject,
   ): Promise<void> {
-    const remoteId = syncRemoteObjectId(this.syncGenerationId, remote.objectId);
     const completedAt = this.clock.nowIso();
     await this.db.transaction(async (tx) => {
-      await this.upsertRemoteObject(remote, remoteId, completedAt, tx);
+      const remoteId = await this.upsertRemoteObject(
+        remote,
+        syncRemoteObjectId(this.syncGenerationId, remote.objectId),
+        completedAt,
+        tx,
+      );
       await tx
         .update(SyncTransferTable)
         .set({
