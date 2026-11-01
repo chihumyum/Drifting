@@ -74,7 +74,7 @@ describe('entity editors in sand and glass', () => {
     }
   });
 
-  it('trades the colour slab for the large sand mark and the swatches for round glass', () => {
+  it('trades the colour slab for the large sand mark and one shared colour picker', () => {
     for (const [path, kind] of [
       ['src/renderer/views/StorylineEditorView.tsx', 'storyline'],
       ['src/renderer/views/CategoryEditorView.tsx', 'category'],
@@ -83,8 +83,8 @@ describe('entity editors in sand and glass', () => {
       expect(view).toMatch(/\{!glass && \(\s*<div\s+className="elem-portrait/);
       expect(view).toContain(`<KindMark kind="${kind}" color=`);
       expect(view).toContain('className="entity-hero__mark"');
-      expect(view).toContain('className="col-pick__dot glass glass--round"');
-      expect(view).toContain('<i className="sand sand--blob-2"');
+      expect(view).toContain('<ColorPicker');
+      expect(view).not.toContain('col-pick__dot');
     }
 
     const element = source('src/renderer/views/ElementEditorView.tsx');
@@ -163,7 +163,6 @@ describe('entity editors in sand and glass', () => {
       '.entity-choice-card',
       '.entity-slider',
       '.col-pick--glass',
-      '.col-pick__dot',
       '.mgr-row__mark',
       '.refs-picker__type',
       '.patch-card__invalid',

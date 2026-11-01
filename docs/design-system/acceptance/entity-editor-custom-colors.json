@@ -1,8 +1,8 @@
 {
   "kind": "entity-editor-custom-colors",
   "status": "passed",
-  "generatedAt": "2026-11-01T19:07:49.592Z",
-  "sourceSha256": "0a323719bb92598f4ac4525a29f18bbef54769c9d8b23994c4d6abffcecba816",
+  "generatedAt": "2026-11-01T19:10:43.105Z",
+  "sourceSha256": "f3b8204b964e9982cc9791190dddbb0e528f3d04a6106d6fda215d7a138eb762",
   "inputs": [
     "src/renderer/components/ui/ColorPicker.tsx",
     "src/renderer/views/StorylineEditorView.tsx",
@@ -17,7 +17,8 @@
   "profile": [
     {
       "kind": "storyline",
-      "presets": 6,
+      "presets": 0,
+      "inputs": 1,
       "colors": [
         {
           "color": "#123456",
@@ -41,17 +42,13 @@
         }
       ],
       "reopened": "#13579b",
-      "preset": {
-        "stored": "hsl(var(--story-1))",
-        "hex": "#9d8be4",
-        "computed": "rgb(157, 139, 228)"
-      },
       "focusDidNotWrite": true,
       "visibleColorText": false
     },
     {
       "kind": "category",
-      "presets": 6,
+      "presets": 0,
+      "inputs": 1,
       "colors": [
         {
           "color": "#123456",
@@ -75,11 +72,6 @@
         }
       ],
       "reopened": "#9b5317",
-      "preset": {
-        "stored": "hsl(var(--story-1))",
-        "hex": "#9d8be4",
-        "computed": "rgb(157, 139, 228)"
-      },
       "focusDidNotWrite": true,
       "visibleColorText": false
     }
