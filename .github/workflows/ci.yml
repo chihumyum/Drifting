@@ -34,6 +34,7 @@ jobs:
       - run: corepack prepare pnpm@10.17.1 --activate
       - run: pnpm install --frozen-lockfile
       - run: pnpm ci:contract:check
+      - run: pnpm openai:catalog:check
       - run: pnpm public:check
       - run: pnpm security:dependencies
       - run: pnpm lint

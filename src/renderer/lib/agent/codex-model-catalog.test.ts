@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { CodexModel, CodexSubscriptionStatus } from '../../platform/contracts';
+import type { CodexModel, CodexModelCatalogResponse, CodexSubscriptionStatus } from '../../platform/contracts';
 import { createCodexModelCatalog } from './codex-model-catalog';
 import {
   agentProviderOption,
@@ -31,12 +31,12 @@ function deferred<T>() {
   return { resolve, promise };
 }
 function fixture() {
-  const source = { status: vi.fn(async () => signedIn()), listModels: vi.fn(async () => [nextModel]) };
+  const source = { status: vi.fn(async () => signedIn()), listModels: vi.fn(async () => ({ models: [nextModel], refreshAfterMs: 300_000 })) };
   const publish = vi.fn(setCodexModelCatalog);
   const available = vi.fn(() => true);
   let now = 1_000;
   const catalog = createCodexModelCatalog(source, publish, available, () => now);
-  return { source, publish, available, catalog, advance: () => { now += 300_001; } };
+  return { source, publish, available, catalog, advance: (ms = 300_001) => { now += ms; } };
 }
 
 afterEach(() => setCodexModelCatalog(null));
@@ -124,7 +124,7 @@ describe('ChatGPT account model discovery', () => {
 
   it('loads fresh choices with account capabilities and preserves their server order', async () => {
     const { catalog, source } = fixture();
-    source.listModels.mockResolvedValue([nextModel, { ...nextModel, slug: 'gpt-small', contextWindow: null }]);
+    source.listModels.mockResolvedValue({ models: [nextModel, { ...nextModel, slug: 'gpt-small', contextWindow: null }], refreshAfterMs: 300_000 });
     await catalog.refresh();
     expect(catalog.getSnapshot().state).toBe('ready');
     expect(agentProviderOption('openai-codex').models.map((model) => model.value)).toEqual(['gpt-next', 'gpt-small']);
@@ -150,6 +150,41 @@ describe('ChatGPT account model discovery', () => {
     expect(source.listModels).toHaveBeenCalledTimes(3);
   });
 
+  it('honors shorter server freshness and discovers new models when it expires', async () => {
+    const { catalog, source, advance } = fixture();
+    source.listModels.mockResolvedValueOnce({ models: [nextModel], refreshAfterMs: 30_000 });
+    await catalog.refresh();
+    advance(29_999);
+    await catalog.refresh();
+    expect(source.listModels).toHaveBeenCalledOnce();
+    source.listModels.mockResolvedValueOnce({
+      models: [{ ...nextModel, slug: 'future-model-without-a-client-release' }, nextModel],
+      refreshAfterMs: 30_000,
+    });
+    advance(1);
+    await catalog.refresh();
+    expect(agentProviderOption('openai-codex').models.map(({ value }) => value))
+      .toEqual(['future-model-without-a-client-release', 'gpt-next']);
+  });
+
+  it.each([0, -1, NaN])('revalidates without reusing freshness when the server returns %s', async (refreshAfterMs) => {
+    const { catalog, source } = fixture();
+    source.listModels.mockResolvedValue({ models: [nextModel], refreshAfterMs });
+    await catalog.refresh();
+    await catalog.refresh();
+    expect(source.listModels).toHaveBeenCalledTimes(2);
+  });
+
+  it('retries a failed refresh on the next normal open even while the old catalog is fresh', async () => {
+    const { catalog, source } = fixture();
+    await catalog.refresh();
+    source.listModels.mockRejectedValueOnce(new Error('synthetic network failure'));
+    await catalog.refresh(true);
+    await catalog.refresh();
+    expect(source.listModels).toHaveBeenCalledTimes(3);
+    expect(catalog.getSnapshot().state).toBe('ready');
+  });
+
   it('preserves the last good catalog and selected model after a failed or empty refresh', async () => {
     const { catalog, source } = fixture();
     await catalog.refresh();
@@ -157,7 +192,7 @@ describe('ChatGPT account model discovery', () => {
     await catalog.refresh(true);
     expect(catalog.getSnapshot()).toEqual({ state: 'error', updatedAt: 1_000 });
     expect(agentProviderOption('openai-codex').models[0].value).toBe('gpt-next');
-    source.listModels.mockResolvedValueOnce([]);
+    source.listModels.mockResolvedValueOnce({ models: [], refreshAfterMs: 300_000 });
     await catalog.refresh(true);
     expect(agentProviderOption('openai-codex').models[0].value).toBe('gpt-next');
   });
@@ -175,14 +210,14 @@ describe('ChatGPT account model discovery', () => {
 
   it('discards a late response after logout or account invalidation', async () => {
     const { catalog, source, publish } = fixture();
-    const pending = deferred<CodexModel[]>();
+    const pending = deferred<CodexModelCatalogResponse>();
     source.listModels.mockReturnValueOnce(pending.promise);
     const old = catalog.refresh();
     await vi.waitFor(() => expect(source.listModels).toHaveBeenCalledOnce());
     catalog.invalidate();
     source.status.mockResolvedValueOnce({ signedIn: false, account: null, login: null });
     await catalog.refresh();
-    pending.resolve([nextModel]);
+    pending.resolve({ models: [nextModel], refreshAfterMs: 300_000 });
     await old;
     expect(publish).toHaveBeenLastCalledWith(null);
     expect(catalog.getSnapshot().state).toBe('signed-out');

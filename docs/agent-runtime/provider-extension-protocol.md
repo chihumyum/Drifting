@@ -27,7 +27,11 @@ MCP servers, dynamic tools, secrets, permissions and lifecycle ownership.
   official Codex device-code OAuth flow. The body mirrors the official CLI:
   no `max_output_tokens`, and summary/verbosity only when supported by the
   selected model. Native model discovery populates the picker from the current
-  account catalog; the bundled GPT-5.6 list is a fallback. Context and reasoning
+  account catalog; the bundled GPT-5.6 list is a fallback. Catalog requests and
+  OAuth headers share the reviewed version in `src-tauri/codex-compatibility.json`.
+  Account/credential-scoped native ETags support 304 revalidation, and HTTP
+  freshness is capped at five minutes. Upstream release review reports never
+  automatically raise that compatibility claim. Context and reasoning
   controls use returned metadata, and saved model ids survive discovery outages
   and restarts without silent substitution. Missing output metadata is null,
   not an invented ceiling. The planner's input headroom never becomes an

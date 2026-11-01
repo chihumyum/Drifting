@@ -1,14 +1,14 @@
 {
-  "suite": "openai-native-responses-and-keychain-status",
-  "schemaVersion": 1,
-  "generatedAt": "2026-08-04T18:07:54.391Z",
+  "suite": "openai-native-responses-keychain-and-account-model-catalog",
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-01T18:46:04.364Z",
   "nodeVersion": "v24.4.0",
   "platform": "darwin",
-  "sourceSetSha256": "sha256:ff113ec1ba5e628c4c31ace3753646ee81ca4f8d190b41b0825e6311d54334c6",
+  "sourceSetSha256": "sha256:7ff959249d463cbb5aaf82e1e272e490ce8209c52d4462e365b8423570a1ec8f",
   "vitest": {
-    "files": 4,
-    "tests": 38,
-    "passedTests": 38,
+    "files": 5,
+    "tests": 85,
+    "passedTests": 85,
     "passed": true
   },
   "typecheck": {
@@ -41,13 +41,29 @@
     "signal": null,
     "passed": true
   },
+  "rustCodexCatalog": {
+    "exitCode": 0,
+    "signal": null,
+    "passed": true
+  },
+  "compatibilityManifest": {
+    "exitCode": 0,
+    "signal": null,
+    "passed": true
+  },
   "evidence": {
     "responseHost": "fixed-native-https-api.openai.com-v1-responses",
     "authorization": "native-keychain-injection-never-renderer",
     "rendererTransport": "ordered-tauri-channel-with-abort-forwarding",
     "settingsStatus": "existence-only; macos-attributes-with-authentication-ui-skipped",
     "workspaceTypecheck": "full-tsc-noEmit",
-    "paidLiveCanary": "explicit-separate-command-only"
+    "paidLiveCanary": "explicit-separate-command-only",
+    "catalogVersion": "0.166.0",
+    "accountCatalog": "native-only-etag-revalidation; 304-reuses-projection; server-cache-control-and-age",
+    "cacheIsolation": "credential-and-account-scoped; logout-login-epoch-discards-inflight-results",
+    "rendererFreshness": "server-directed-up-to-five-minutes; forced-manual-and-online-refresh",
+    "futureModels": "server-order-and-capabilities; synthetic-unknown-model-tool-loop",
+    "upstreamReview": "weekly-read-only-report; no-automatic-version-bump"
   },
   "boundaries": {
     "macosPromptUI": "OS password-dialog behavior requires interactive acceptance"

@@ -10,16 +10,17 @@ export function useCodexModelCatalog(modelMenuOpen: boolean) {
     // Login/logout invalidation belongs to codex-subscription; a closed menu
     // needs neither account IPC on window focus nor React catalog updates.
     if (!modelMenuOpen) return;
-    const refresh = () => { void codexModelCatalog.refresh(true); };
+    const refresh = () => { void codexModelCatalog.refresh(); };
+    const forceRefresh = () => { void codexModelCatalog.refresh(true); };
     const authChanged = () => { codexModelCatalog.invalidate(); refresh(); };
     refresh();
     events.on('agent:auth-changed', authChanged);
     window.addEventListener('focus', refresh);
-    window.addEventListener('online', refresh);
+    window.addEventListener('online', forceRefresh);
     return () => {
       events.off('agent:auth-changed', authChanged);
       window.removeEventListener('focus', refresh);
-      window.removeEventListener('online', refresh);
+      window.removeEventListener('online', forceRefresh);
     };
   }, [modelMenuOpen]);
   return snapshot;

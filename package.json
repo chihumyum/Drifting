@@ -127,6 +127,8 @@
     "eval:agent:p4": "node src/renderer/lib/agent/runtime/acceptance/p4.acceptance.mjs --output=docs/agent-runtime/acceptance/p4-summary.json",
     "eval:agent:p5": "node src/renderer/lib/agent/runtime/acceptance/p5.acceptance.mjs --output=docs/agent-runtime/acceptance/p5-summary.json",
     "ci:contract:check": "node scripts/check-ci-contract.mjs",
+    "openai:catalog:check": "node scripts/check-codex-compatibility.mjs",
+    "openai:catalog:upstream": "node scripts/check-codex-compatibility.mjs --upstream",
     "public:check": "node scripts/check-public-boundaries.mjs",
     "security:dependencies": "pnpm audit --audit-level high",
     "public:evidence": "node scripts/generate-source-publication-evidence.mjs",

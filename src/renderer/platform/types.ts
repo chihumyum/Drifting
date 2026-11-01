@@ -20,7 +20,7 @@ import type {
   AssetStoreWriteResult,
   AssetVariant,
   CodexLoginProjection,
-  CodexModel,
+  CodexModelCatalogResponse,
   CodexImagesGenerateInput,
   CodexImagesGenerateResult,
   CodexSubscriptionStatus,
@@ -287,7 +287,7 @@ export interface CodexSubscriptionPlatformApi extends OpenAIResponsesPlatformApi
   /** Native Codex-backend Responses transport authorized by the ChatGPT sign-in. */
   request(body: string, signal: AbortSignal): Promise<Response>;
   status(): Promise<CodexSubscriptionStatus>;
-  listModels(): Promise<CodexModel[]>;
+  listModels(): Promise<CodexModelCatalogResponse>;
   /** Starts a device-code sign-in; poll `status()` until the attempt is terminal. */
   startLogin(): Promise<CodexLoginProjection>;
   cancelLogin(): Promise<boolean>;
