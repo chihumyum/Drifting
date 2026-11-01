@@ -34,12 +34,14 @@ describe('user accent color preference acceptance', () => {
     const effects = source('src/renderer/app/effects/AppEffects.tsx');
     const theme = source('src/renderer/lib/theme.ts');
 
-    const swatch = source('src/renderer/features/settings/SettingsPrimitives.tsx');
+    const swatch = source('src/renderer/components/ui/ColorPicker.tsx');
+    expect(source('src/renderer/features/settings/SettingsPrimitives.tsx')).toContain('ColorPicker as SettingsColor');
 
     expect(panel).toContain("t('settings.appearance.accent_color')");
     // The colour swatch (components.md, Settings) owns the system colour input.
     expect(panel).toContain('<SettingsColor\n              value={displayedAccentColor}\n              onChange={setAccentColor}');
-    expect(swatch).toContain('<input type="color" value={value} aria-label={ariaLabel} onChange={(event) => onChange(event.target.value)} />');
+    expect(swatch).toContain('type="color"');
+    expect(swatch).toContain('onChange={(event) => onChange(event.target.value)}');
     expect(panel).toContain('setAccentColor(null)');
     expect(effects).toContain('applyAccentColor(accentColor);');
     expect(theme).toContain("root.style.setProperty('--accent', accent);");

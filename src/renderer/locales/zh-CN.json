@@ -1021,6 +1021,7 @@
     }
   },
   "common": {
+    "customColor": "自定义颜色",
     "local": "本地",
     "loading": "加载中…",
     "confirm": "确认",
