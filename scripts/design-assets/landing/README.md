@@ -48,7 +48,8 @@ What is on the page, and why:
   information pages have the same sea and rain with no word.
 - **Corners of the workspace.** Each pillar shows a corner of the real
   desktop window, measured from the app's own components (the tab rows with
-  their square glass block and sidebar toggle, the pane headers and their
+  their square glass block, which slides with the panels' push on the app's
+  `PUSH_MS` and `PUSH_EASING`, and the sidebar toggle, the pane headers and their
   actions, cells, storylines, category frames, the Agent's conversation row): a page that takes
   Markdown as it is typed beside the `.md` file it is saved to; the left
   sidebar's cells, element categories and the dry frame drawn round a click;
