@@ -41,13 +41,24 @@ describe('Agent changes: in-place reveal and lingering colour (desktop)', () => 
       .toContain('<AgentRecentChangeHighlights scrollEl={scrollEl} entityType="node" targetId={null} />');
   });
 
-  it('styles Agent writing as coloured ink with no ground', () => {
+  it('tints the reveal runs and leaves only coloured ink in the live prose', () => {
     const css = source('src/styles/comments-review.css');
-    expect(css).toContain('.agent-reveal__new { color: hsl(var(--agent-new-ink)); }');
-    expect(css).toContain('.agent-reveal__chg { color: hsl(var(--agent-chg-ink)); }');
+    for (const kind of ['new', 'chg']) {
+      const rule = new RegExp(`\\.agent-reveal__${kind} \\{([^}]+)\\}`).exec(css)?.[1];
+      expect(rule).toContain(`color: hsl(var(--agent-${kind}-ink));`);
+      expect(rule).toContain(`background: hsl(var(--agent-${kind}-ink) / 0.18);`);
+      expect(rule).toContain('border-radius: 2px;');
+      expect(rule).not.toMatch(/padding|margin/);
+    }
     for (const name of ['agent-recent-new', 'agent-recent-new-1', 'agent-recent-new-2', 'agent-recent-chg', 'agent-recent-chg-1', 'agent-recent-chg-2']) {
       expect(css).toContain(`::highlight(${name}) { color:`);
     }
+    expect(css).toContain('transition: background-color var(--agent-reveal-ground-fade-duration, 180ms) ease-out;');
+    expect(css).toMatch(/\.agent-reveal--settle \.agent-reveal__chg \{\s*background-color: transparent;/);
+    const animator = source('src/renderer/components/editor/AgentEditAnimator.tsx');
+    expect(animator).toContain('setSettling(true);');
+    expect(animator).toContain('window.setTimeout(() => done.current(), GROUND_FADE_MS)');
+    expect(animator).toContain("'--agent-reveal-ground-fade-duration': `${GROUND_FADE_MS}ms`");
     const agent = css.slice(css.indexOf('/* Desktop: what the Agent writes is coloured ink'),
       css.indexOf('Agent NON-PROSE field review'));
     expect(agent).not.toMatch(/prose-sand|mix-blend-mode|background-image/);

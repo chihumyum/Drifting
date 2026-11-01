@@ -217,7 +217,10 @@ that only adds or only deletes simply inserts or deletes. The overwritten
 characters keep their places; text after the place moves as it would under a
 person's editing. The duration counts steps (each place's longer side) rather
 than deleted plus inserted characters, under the same tiers. Added words show
-in the story green and rewritten words in purple, with no ground; the overlay
+in the story green and rewritten words in purple, with a matching 18% ground
+during the reveal only. At completion the ground fades for 180 ms (ease-out)
+while the text and opaque overlay stay fully visible and the real paragraph
+stays masked; only then does the atomic handoff occur. The overlay
 keeps its opaque paper-coloured backdrop, so while it is still taller than the
 committed paragraph it covers the next paragraph's first lines, which come back
 as it shortens and never move. When it hands over, the same words stay coloured

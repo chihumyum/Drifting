@@ -498,7 +498,8 @@
   opacity: 0.85;
 }
 
-/* Desktop: what the Agent writes is coloured ink, never a ground. The reveal
+/* Desktop: what the Agent writes is coloured ink. During the reveal, changed
+   runs also carry a faint matching ground; it leaves with the overlay. The reveal
    plays each changed place in place (AgentRevealText, `overwrite`): added
    words come in green, rewritten words purple, and the old words are deleted
    or overwritten without a mark of their own. When the reveal hands over to
@@ -519,10 +520,29 @@
   --agent-chg-ink: 252 60% 78%;
   --external-ink: 210 72% 74%;
 }
-.agent-reveal__new { color: hsl(var(--agent-new-ink)); }
-.agent-reveal__chg { color: hsl(var(--agent-chg-ink)); }
+.agent-reveal__new {
+  color: hsl(var(--agent-new-ink));
+  background: hsl(var(--agent-new-ink) / 0.18);
+  border-radius: 2px;
+}
+.agent-reveal__chg {
+  color: hsl(var(--agent-chg-ink));
+  background: hsl(var(--agent-chg-ink) / 0.18);
+  border-radius: 2px;
+}
+.agent-reveal__new,
+.agent-reveal__chg {
+  transition: background-color var(--agent-reveal-ground-fade-duration, 180ms) ease-out;
+}
+.agent-reveal--settle .agent-reveal__new,
+.agent-reveal--settle .agent-reveal__chg {
+  background-color: transparent;
+}
 .agent-reveal--external .agent-reveal__new,
-.agent-reveal--external .agent-reveal__chg { color: hsl(var(--external-ink)); }
+.agent-reveal--external .agent-reveal__chg {
+  color: hsl(var(--external-ink));
+  background: none;
+}
 .agent-reveal--external .agent-reveal__ins {
   color: hsl(var(--external-ink));
   background: hsl(var(--external-ink) / 0.14);
