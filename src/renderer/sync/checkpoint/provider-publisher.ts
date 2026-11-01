@@ -762,6 +762,17 @@ export function createProviderCheckpointHook(options: ProviderCheckpointHookOpti
         .where(eq(SyncCheckpointTable.syncGenerationId, syncGenerationId))
         .orderBy(desc(SyncCheckpointTable.createdAt))
         .limit(1);
+      // A checkpoint captured but not published (its upload failed or was cut
+      // off) resumes before anything newer is taken; otherwise it would count
+      // as the latest and nothing would publish until the next threshold.
+      if (latest?.kind === 'checkpoint' && latest.state !== 'published') {
+        await options.publisher.publishSnapshot({
+          snapshotId: latest.checkpointId,
+          snapshotKind: 'checkpoint',
+          signal,
+        });
+        return true;
+      }
       const currentCount = await appliedJournalPosition(options.db, syncGenerationId);
       const previousCount = Math.max(
         latest?.changeSetCount ?? 0,
