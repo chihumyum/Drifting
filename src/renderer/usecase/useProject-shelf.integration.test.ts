@@ -37,9 +37,12 @@ it('loads the owned shelf with bounded aggregate work and preserves updated-date
   expect(useProjectStore.getState().projects).toEqual(summaries);
   // One project inventory, then per project its aggregate row and its cover's storylines.
   expect(query).toHaveBeenCalledTimes(1 + 14 * 2);
-  expect(summaries.find(project => project.id === 'synthetic-workspace')?.cover.storylines).toEqual([
-    { color: '#778899', chapters: [0] },
-    { color: '#778899', chapters: [] },
-  ]);
+  expect(summaries.find(project => project.id === 'synthetic-workspace')?.cover).toEqual({
+    storylines: [
+      { color: '#778899', chapters: [0] },
+      { color: '#778899', chapters: [] },
+    ],
+    words: [expect.any(Number)],
+  });
   expect(maximum).toBe(4);
 });

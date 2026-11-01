@@ -1,9 +1,10 @@
 /* Bookshelf — a flat desk. The words are written straight on the desk's own
    colour (--workspace-ui-bg); each book's cover is the one slip of paper on
-   it, its storylines flowing down it as sand (lib/sand-cover.ts). The page
-   holds only the shelf's name, the avatar and the books. Glass is what the
-   hand presses: the avatar and the cards' rim. Sand is what is left: covers,
-   progress, icons and marks.
+   it, its storylines drawn on it in the shelf's cover style (lib/shelf-cover;
+   sand by default, lib/sand-cover.ts). The page holds only the shelf's name,
+   the avatar, the books and, at its foot, the round button that turns the
+   cover style. Glass is what the hand presses: the avatar, that button and
+   the cards' rim. Sand is what is left: covers, progress, icons and marks.
    No white boxes, solid frames, washes, accent blocks or shadows. The paused
    mobile shelf (mobile-project-shelf.css) keeps `.pp-modal*` at the end. */
 
@@ -134,6 +135,16 @@
   animation: sand-stroke-arrive 0.24s ease-out backwards;
 }
 
+/* Any style but sand paints the whole slip as one picture, its own ground in
+   every theme, so the title and genre take fixed inks: dark on a light
+   ground, light on a dark one (cyanotype, the star chart, a deep field). */
+.pp-cover__art {
+  position: absolute;
+  inset: 0;
+  background-size: 100% 100%;
+  animation: sand-stroke-arrive 0.24s ease-out backwards;
+}
+
 .pp-cover__glyph {
   position: absolute;
   top: 12px;
@@ -161,12 +172,42 @@
   white-space: nowrap;
 }
 
+.pp-cover--art .pp-cover__glyph {
+  color: hsl(30 6% 12%);
+}
+
+.pp-cover--art .pp-cover__label {
+  color: hsl(30 3% 44%);
+}
+
+.pp-cover--art.pp-cover--dark .pp-cover__glyph {
+  color: hsl(40 20% 95%);
+}
+
+.pp-cover--art.pp-cover--dark .pp-cover__label {
+  color: hsl(40 12% 92% / 0.66);
+}
+
 /* ─── Cards: a resting line of glass round the cover and its words ─── */
 
 .pp-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
+}
+
+/* The shelf's foot: one round glass button that turns every cover to the
+   next style, below the books however many there are. */
+.pp-cover-style {
+  display: flex;
+  justify-content: center;
+  margin-top: auto;
+  padding-top: 28px;
+}
+
+.pp-cover-style__turn.ghost-icon-button {
+  width: 34px;
+  height: 34px;
 }
 
 .pp-card {

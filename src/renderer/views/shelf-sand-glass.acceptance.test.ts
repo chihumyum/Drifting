@@ -52,7 +52,7 @@ describe('the bookshelf in sand and glass', () => {
     expect(view).toContain('className="pp-head__account"');
   });
 
-  it('holds only the shelf’s name, the avatar and the books', () => {
+  it('holds only the shelf’s name, the avatar, the books and the cover-style button at its foot', () => {
     // A writer’s shelf never grows long enough to need a toolbar, a list
     // view or a footer: no filters, search, view switch or 新建作品 button.
     for (const gone of ['pp-bar', 'pp-foot', 'pp-list', 'pp-row', 'ProjectListRow', '<GlassSlider', 'pp-empty-state']) {
@@ -68,12 +68,29 @@ describe('the bookshelf in sand and glass', () => {
     const menu = read('src/renderer/components/topBars/UserMenu.tsx');
     expect(menu).toContain("{scope === 'shelf' && onOpenTrash && trashCount > 0 && (");
     expect(menu).toContain("label={t('projectPicker.desk.trashEntry')}");
+    // Below the books, one round glass button turns every cover to the next style.
+    const foot = block(view, '<div className="pp-cover-style">', '</div>');
+    expect(foot).toContain('glass="round"');
+    expect(foot).toContain('<BrushIcon name="rotate" size={16} />');
+    expect(foot).toContain('onClick={() => turnCoverStyle()}');
+    expect(foot).toContain('t(`projectPicker.desk.coverStyle.names.${coverStyle}`)');
+    expect(block(css, '.pp-cover-style {', '}')).toContain('margin-top: auto;');
   });
 
-  it('flows each book’s storylines down its cover as sand, seeded by the book', () => {
+  it('draws each book’s storylines on its cover in the shelf’s style, seeded by the book and remembered on the device', () => {
+    // Sand is a mask per storyline coloured in CSS; every other style is one picture of the slip.
     expect(view).toContain('className="sand pp-cover__band"');
     expect(view).toContain("'--sand-mask': `url(${mask})`");
+    expect(view).toContain('className="pp-cover__art"');
     expect(view).toContain('seed: coverSeed(project.id)');
+    expect(view).toContain('useSyncExternalStore(subscribeCoverStyle, readCoverStyle, readCoverStyle)');
+    expect(read('src/renderer/lib/shelf-cover/preference.ts')).toContain("const STYLE_KEY = 'shelf:cover-style';");
+    // Drawn off the page where the WebView allows it, with the page as the fallback.
+    const covers = read('src/renderer/lib/shelf-cover/covers.ts');
+    expect(covers).toContain("new Worker(new URL('./shelf-cover.worker.ts', import.meta.url), { type: 'module' })");
+    expect(covers).toContain('return drawOnPage(style, request);');
+    // On a picture the title keeps a fixed ink, light on a dark ground.
+    expect(block(css, '.pp-cover--art.pp-cover--dark .pp-cover__glyph {', '}')).toContain('color: hsl(40 20% 95%);');
     expect(view).toContain('<KindMark kind="all" />');
     expect(block(css, '.pp-cover {', '}')).toContain('background: hsl(var(--page));');
     expect(read('src/renderer/usecase/useProject.ts')).toContain('const cover = await readProjectCover(project.id);');
@@ -156,6 +173,7 @@ describe('the design-system docs', () => {
     expect(doc).toContain('## 书架');
     expect(doc).toContain('## 登录与注册');
     expect(doc).toContain('`lib/sand-cover.ts`');
+    expect(doc).toContain('`lib/shelf-cover/`');
     expect(doc).toContain('危险色的玻璃只有一处');
   });
 });

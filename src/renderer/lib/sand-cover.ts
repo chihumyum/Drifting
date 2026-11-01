@@ -1,28 +1,38 @@
 /**
- * The sand on a shelf cover: the book's storylines turned upright, its first
- * chapter at the top. Each storyline is one band of sand flowing down the
- * cover, side by side in the author's order; it runs thick through the
- * chapters it carries and thins to a loose thread where it is absent, so the
- * cover reads as the book's structure. A book without storylines gets one
- * band of neutral ink.
+ * The sand on a shelf cover (the shelf's first cover style): the book's
+ * storylines turned upright, its first chapter at the top. Each storyline is
+ * one sand stroke scribbled down the cover by a hand with momentum: it sweeps
+ * from side to side, overshoots a little and comes round, now and then carries
+ * on down instead of turning back, and the book is read along the stroke, so
+ * every sweep is a stretch of chapters. The stroke runs thick through the
+ * chapters the storyline carries, the more so where they are long, and thins to
+ * a loose thread where it is absent; the hand's pressure wanders over that, so
+ * the cover follows the book's structure without charting it. The strokes keep
+ * the author's order from left to right, each about its own lane, and cross
+ * where their sweeps meet. A book whose storylines carry no chapter gets one
+ * stroke of neutral ink.
  *
- * Each band is an alpha mask (white, 0–1); the colour is laid on in CSS like
+ * Each stroke is an alpha mask (white, 0–1); the colour is laid on in CSS like
  * every sand mark (materials.css `.sand`), so a theme change needs no redraw.
  * Everything random is seeded by the book, so its cover is the same every time
  * the shelf opens. Sizes are mask px: twice the 126 × 226 cover.
  */
+import { presence, relativeWords } from './shelf-cover/book';
+import { clamp, noise1d, noise2d, random, type Point } from './shelf-cover/paint';
 
 export const COVER_MASK_WIDTH = 252;
 export const COVER_MASK_HEIGHT = 452;
+const W = COVER_MASK_WIDTH;
+const H = COVER_MASK_HEIGHT;
 
 export interface SandCoverRequest {
   seed: number;
   /** Chapters in the book, in reading order. */
   chapters: number;
-  /** Each storyline's chapters, as indexes in reading order. Empty: one neutral band. */
+  /** Each storyline's chapters, as indexes in reading order. None carrying a chapter: one neutral stroke. */
   storylines: ReadonlyArray<{ chapters: readonly number[] }>;
-  width?: number;
-  height?: number;
+  /** Each chapter's words, in reading order, where known. */
+  words?: readonly number[];
 }
 
 /** A stable seed for a book from its id (FNV-1a). */
@@ -35,213 +45,198 @@ export function coverSeed(id: string): number {
   return h >>> 0;
 }
 
-function random(seed: number) {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+/**
+ * How heavily a chapter lies on its stroke: a chapter of the book's usual
+ * length weighs 1, an empty one about half, a long one up to half again;
+ * rounded to tenths, so a few more words leave the cover as it was.
+ */
+export function chapterWeight(relative: number): number {
+  return Math.round(Math.min(1.5, 0.45 + 0.55 * Math.sqrt(relative)) * 10) / 10;
+}
+
+/** One writer's hand for one cover: how fast it drops, how far it reaches, how tightly it turns. */
+function makeHand(rand: () => number) {
+  return {
+    pace: 0.055 + 0.07 * rand(),
+    vmax: 2.6 + 2.4 * rand(),
+    accel: 0.3 + 0.9 * rand(),
+    damp: 0.86 + 0.09 * rand(),
+    jitter: rand() * 0.3,
+    reachMin: 0.05 + 0.3 * rand(),
+    carry: 0.06 + 0.16 * rand(),
+    wander: 0.4 + rand(),
+    swing: 0.75 + 0.5 * rand(),
+    bold: 0.7 + 0.6 * rand(),
+    pressureVar: 0.2 + 0.4 * rand(),
+    pressureCell: 40 + 100 * rand(),
   };
 }
+type Hand = ReturnType<typeof makeHand>;
 
-const smooth = (t: number) => t * t * (3 - 2 * t);
-
-/** Smooth noise along one axis, 0–1, varying over about `cell` px. */
-function noise1d(n: number, cell: number, rand: () => number): Float32Array {
-  const grid = Array.from({ length: Math.floor(n / cell) + 3 }, rand);
-  const out = new Float32Array(n);
-  for (let i = 0; i < n; i++) {
-    const u = i / cell;
-    const i0 = Math.floor(u);
-    const t = smooth(u - i0);
-    out[i] = grid[i0] * (1 - t) + grid[i0 + 1] * t;
-  }
-  return out;
-}
-
-/** Smooth noise over the mask, 0–1, varying over about `cell` px. */
-function noise2d(h: number, w: number, cell: number, rand: () => number): Float32Array {
-  const gw = Math.floor(w / cell) + 3;
-  const gh = Math.floor(h / cell) + 3;
-  const grid = Array.from({ length: gw * gh }, rand);
-  const out = new Float32Array(w * h);
-  for (let y = 0; y < h; y++) {
-    const v = y / cell;
-    const y0 = Math.floor(v);
-    const ty = smooth(v - y0);
-    for (let x = 0; x < w; x++) {
-      const u = x / cell;
-      const x0 = Math.floor(u);
-      const tx = smooth(u - x0);
-      const a = grid[y0 * gw + x0];
-      const b = grid[y0 * gw + x0 + 1];
-      const c = grid[(y0 + 1) * gw + x0];
-      const d = grid[(y0 + 1) * gw + x0 + 1];
-      out[y * w + x] = (a * (1 - tx) + b * tx) * (1 - ty) + (c * (1 - tx) + d * tx) * ty;
+/**
+ * A pen with momentum steered from side to side down the cover, from above it
+ * to below it: it overshoots a little and comes round, so its turns are tight
+ * or loose as the hand is.
+ */
+function penPath(lane: number, swing: number, hand: Hand, rand: () => number): Point[] {
+  const wander = noise1d(160, 4, rand);
+  let side = rand() < 0.5 ? -1 : 1;
+  const p = { x: lane + side * swing * 0.4, y: -24 };
+  let k = 0;
+  let ty = p.y;
+  let vmax = hand.vmax;
+  const pace = H * hand.pace * (0.85 + 0.3 * rand());
+  const next = () => {
+    k++;
+    // Now and then the hand carries on down the same side instead of turning back.
+    const carry = rand() < hand.carry;
+    if (!carry) side = -side;
+    ty += pace * (carry ? 1.2 + 1.2 * rand() : 0.45 + 1.1 * rand());
+    vmax = hand.vmax * (0.7 + 0.6 * rand());
+    const centre = lane + (wander[k % 160] - 0.5) * swing * hand.wander;
+    const reach = hand.reachMin + (1 - hand.reachMin) * rand() ** 0.8;
+    return { x: clamp(centre + side * swing * (carry ? 0.3 + 0.5 * rand() : reach), 5, W - 5), y: ty, carry };
+  };
+  let target = next();
+  const v = { x: side * hand.vmax * 0.6, y: 0.6 };
+  const pts: Point[] = [{ x: p.x, y: p.y }];
+  let since = 0;
+  for (let i = 0; i < 20000 && p.y < H + 24; i++) {
+    const dx = target.x - p.x;
+    const dy = target.y - p.y;
+    const d = Math.hypot(dx, dy) || 1;
+    v.x = v.x * hand.damp + (dx / d) * hand.accel + (rand() - 0.5) * hand.jitter;
+    v.y = v.y * hand.damp + (dy / d) * hand.accel + (rand() - 0.5) * hand.jitter;
+    const sp = Math.hypot(v.x, v.y);
+    if (sp > vmax) {
+      v.x *= vmax / sp;
+      v.y *= vmax / sp;
+    }
+    p.x += v.x;
+    p.y += v.y;
+    pts.push({ x: p.x, y: p.y });
+    since++;
+    const passed = target.carry ? p.y >= target.y : side > 0 ? p.x >= target.x : p.x <= target.x;
+    if (passed || d < 6 || since > 300) {
+      target = next();
+      since = 0;
     }
   }
-  return out;
+  return pts;
 }
 
-/** How strongly the storyline is present on each row: its chapters, spread down the cover and softened. */
-function presence(rows: number, chapters: number, own: readonly number[] | null): Float32Array {
-  const n = Math.max(1, chapters);
-  const level = new Float32Array(n);
-  if (own === null) level.fill(0.5);
-  else if (chapters === 0) level.fill(0.3);
-  else for (const index of own) if (index >= 0 && index < n) level[index] = 1;
-
-  const raw = new Float32Array(rows);
-  for (let y = 0; y < rows; y++) {
-    const at = n === 1 ? 0 : (y / (rows - 1)) * (n - 1);
-    const i0 = Math.min(n - 1, Math.floor(at));
-    const i1 = Math.min(n - 1, i0 + 1);
-    raw[y] = level[i0] + (level[i1] - level[i0]) * (at - i0);
-  }
-  // A moving average, so a band swells into its chapters rather than stepping;
-  // beyond the ends counts as absent, so every band tapers in and out.
-  const window = Math.max(3, Math.round((31 * rows) / COVER_MASK_HEIGHT) | 1);
-  const half = window >> 1;
-  const prefix = new Float32Array(rows + 1);
-  for (let y = 0; y < rows; y++) prefix[y + 1] = prefix[y] + raw[y];
-  const out = new Float32Array(rows);
-  for (let y = 0; y < rows; y++) {
-    out[y] = (prefix[Math.min(rows, y + half + 1)] - prefix[Math.max(0, y - half)]) / window;
-  }
-  return out;
+interface Sample extends Point {
+  nx: number;
+  ny: number;
+  /** How heavily the book lies here, 0–1. */
+  l: number;
+  half: number;
 }
 
-/** One alpha mask per storyline (or one neutral band), row by row, `width × height`. */
-export function drawSandCover({
-  seed,
-  chapters,
-  storylines,
-  width: w = COVER_MASK_WIDTH,
-  height: h = COVER_MASK_HEIGHT,
-}: SandCoverRequest): Float32Array[] {
-  const rand = random(seed);
-  const s = w / COVER_MASK_WIDTH;
-  const lines: Array<readonly number[] | null> = storylines.length
-    ? storylines.map((line) => line.chapters)
-    : [null];
-  const n = lines.length;
-  const maxWidth = (n > 3 ? 40 : 52) * s;
-  const turn = rand() * Math.PI * 2;
-
-  return lines.map((own, index) => {
-    const level = presence(h, chapters, own);
-    const drift = noise1d(h, 120, rand);
-    const ragged = noise1d(h, 25, rand);
-    const strata = noise2d(h, w, 30, rand);
-    const phase = index * 1.9 + turn;
-    const centreX = w * (n === 1 ? 0.5 : 0.26 + (0.56 * index) / (n - 1));
-    const alpha = new Float32Array(w * h);
-    for (let y = 0; y < h; y++) {
-      const l = level[y];
-      const flow = Math.sin((y / (h - 1)) * Math.PI * 2 * 0.9 + phase) * 0.5 + (drift[y] - 0.5) * 0.8;
-      const centre = centreX + flow * 18 * s;
-      const half = Math.max(0.5, (maxWidth * (0.12 + 0.88 * l) + (ragged[y] - 0.5) * 4 * s) / 2);
-      const load = 0.3 + 0.7 * l;
-      const reach = Math.ceil(half * 2.2);
-      const x0 = Math.max(0, Math.floor(centre - reach));
-      const x1 = Math.min(w - 1, Math.ceil(centre + reach));
-      for (let x = x0; x <= x1; x++) {
-        const dist = Math.abs(x - centre) / half;
-        const density = Math.max(0, Math.min(1, 1.25 - dist)) ** 1.3 * load;
-        const layers = 0.75 + 0.25 * Math.sin((x - centre) * 0.9 + strata[y * w + x] * 6);
-        let a = rand() < density * layers ? 0.62 + 0.38 * rand() : 0;
-        a += density * 0.35;
-        // Loose grains thrown off the band's edge.
-        if (dist < 2.2 && rand() < 0.012 * (0.3 + l)) a = Math.max(a, 0.5);
-        alpha[y * w + x] = Math.min(1, a);
-      }
+/** The path at 1 px steps, each step with its width; the book is read along it from where it enters the cover to where it leaves. */
+function strokeSamples(pts: readonly Point[], level: Float32Array, hand: Hand, maxHalf: number, rand: () => number): Sample[] {
+  const out: Point[] = [{ x: pts[0].x, y: pts[0].y }];
+  let carry = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1];
+    const b = pts[i];
+    const len = Math.hypot(b.x - a.x, b.y - a.y);
+    let d = 1 - carry;
+    while (d <= len) {
+      out.push({ x: a.x + ((b.x - a.x) * d) / len, y: a.y + ((b.y - a.y) * d) / len });
+      d += 1;
     }
-    return alpha;
+    carry = len - (d - 1);
+  }
+  const n = out.length;
+  let top = 0;
+  let bottom = n - 1;
+  for (let i = 0; i < n; i++) if (out[i].y >= 0) { top = i; break; }
+  for (let i = top; i < n; i++) if (out[i].y >= H - 1) { bottom = i; break; }
+  const pressure = noise1d(n + 1, hand.pressureCell, rand);
+  const ragged = noise1d(n + 1, 10, rand);
+  const pv = hand.pressureVar;
+  return out.map((s, i) => {
+    const a = out[Math.max(0, i - 2)];
+    const b = out[Math.min(n - 1, i + 2)];
+    const dl = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+    const t = clamp((i - top) / Math.max(1, bottom - top), 0, 1);
+    const asked = level[Math.round(t * (level.length - 1))];
+    // What the chapters here ask for, under a hand whose pressure wanders.
+    const l = clamp((asked * (1 - pv + 2 * pv * pressure[i])) / 1.25, 0, 1);
+    return {
+      x: s.x,
+      y: s.y,
+      nx: -(b.y - a.y) / dl,
+      ny: (b.x - a.x) / dl,
+      l,
+      half: Math.max(0.7, maxHalf * (0.14 + 0.86 * l) + (ragged[i] - 0.5) * 2.4),
+    };
   });
 }
 
-/** The mask as a PNG data URL for CSS (`--sand-mask`), or null where there is no canvas. */
-export function sandCoverMaskUrl(alpha: Float32Array, width = COVER_MASK_WIDTH, height = COVER_MASK_HEIGHT): string | null {
-  if (typeof document === 'undefined') return null;
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-  const context = canvas.getContext('2d');
-  if (!context) return null;
-  const image = context.createImageData(width, height);
-  for (let i = 0; i < alpha.length; i++) {
-    image.data[i * 4] = 255;
-    image.data[i * 4 + 1] = 255;
-    image.data[i * 4 + 2] = 255;
-    image.data[i * 4 + 3] = Math.round(alpha[i] * 255);
-  }
-  context.putImageData(image, 0, 0);
-  return canvas.toDataURL('image/png');
-}
+/** One alpha mask per storyline (or one neutral stroke), row by row, 252 × 452. */
+export function drawSandCover({ seed, chapters, storylines, words = [] }: SandCoverRequest): Float32Array[] {
+  const rand = random(seed);
+  const hand = makeHand(rand);
+  const relative = relativeWords(chapters, words);
+  const lines: Array<readonly number[] | null> = storylines.some((line) => line.chapters.length > 0)
+    ? storylines.map((line) => line.chapters)
+    : [null];
+  const n = lines.length;
+  const base = n <= 1 ? 14 : n <= 3 ? 12.5 : 9;
+  const swing = W * (n === 1 ? 0.34 : n === 2 ? 0.27 : n === 3 ? 0.22 : 0.15) * hand.swing;
 
-/* ── The shelf's covers, drawn once a session ──────────────────────── */
+  return lines.map((own, index) => {
+    const level = own === null
+      ? presence(H, chapters, null)
+      : presence(H, chapters, own, own.map((c) => chapterWeight(relative[c] ?? 1)));
+    const lane = W * (n === 1 ? 0.5 : 0.22 + (0.56 * index) / (n - 1)) + (rand() - 0.5) * W * 0.06;
+    const samples = strokeSamples(penPath(lane, swing, hand, rand), level, hand, base * hand.bold, rand);
 
-const COVER_CACHE_LIMIT = 160;
-const drawnCovers = new Map<string, string[]>();
-const waiting = new Map<string, { request: SandCoverRequest; listeners: Set<(masks: string[]) => void> }>();
-let drawing = false;
+    // How much sand each px holds, which way across the stroke it lies, and
+    // how likely a loose grain is to land there.
+    const sand = new Float32Array(W * H);
+    const across = new Float32Array(W * H);
+    const loose = new Float32Array(W * H);
+    for (let k = 0; k < samples.length; ) {
+      const s = samples[k];
+      const load = 0.38 + 0.62 * s.l;
+      const reach = s.half * 2.2;
+      const x0 = Math.max(0, Math.floor(s.x - reach));
+      const x1 = Math.min(W - 1, Math.ceil(s.x + reach));
+      const y0 = Math.max(0, Math.floor(s.y - reach));
+      const y1 = Math.min(H - 1, Math.ceil(s.y + reach));
+      for (let y = y0; y <= y1; y++) {
+        for (let x = x0; x <= x1; x++) {
+          const dx = x - s.x;
+          const dy = y - s.y;
+          const dist = Math.hypot(dx, dy) / s.half;
+          if (dist >= 2.2) continue;
+          const i = y * W + x;
+          if (0.3 + s.l > loose[i]) loose[i] = 0.3 + s.l;
+          const density = Math.max(0, Math.min(1, 1.25 - dist)) ** 1.3 * load;
+          if (density > sand[i]) {
+            sand[i] = density;
+            across[i] = dx * s.nx + dy * s.ny;
+          }
+        }
+      }
+      k += Math.max(1, Math.round(s.half * 0.3));
+    }
 
-/** What a cover's sand depends on: the book, its length and where each storyline runs. Colours are CSS. */
-export function sandCoverKey(
-  id: string,
-  chapters: number,
-  storylines: ReadonlyArray<{ chapters: readonly number[] }>,
-  size: { width: number; height: number } = { width: COVER_MASK_WIDTH, height: COVER_MASK_HEIGHT },
-): string {
-  const lines = storylines.map((line) => line.chapters.join('.')).join('/');
-  return `${id}|${size.width}x${size.height}|${chapters}|${lines}`;
-}
-
-export function peekSandCoverMasks(key: string): string[] | null {
-  return drawnCovers.get(key) ?? null;
-}
-
-/**
- * Draws a cover's masks off the main path: one book per task, so a shelf of
- * many books never holds up a frame. Returns a cancel for the listener.
- */
-export function requestSandCoverMasks(
-  key: string,
-  request: SandCoverRequest,
-  listener: (masks: string[]) => void,
-): () => void {
-  const done = drawnCovers.get(key);
-  if (done) {
-    listener(done);
-    return () => {};
-  }
-  const entry = waiting.get(key) ?? { request, listeners: new Set() };
-  entry.listeners.add(listener);
-  waiting.set(key, entry);
-  if (!drawing) {
-    drawing = true;
-    setTimeout(drawNextCover, 0);
-  }
-  return () => {
-    entry.listeners.delete(listener);
-    if (!entry.listeners.size && waiting.get(key) === entry) waiting.delete(key);
-  };
-}
-
-function drawNextCover() {
-  const next = waiting.entries().next();
-  if (next.done) {
-    drawing = false;
-    return;
-  }
-  const [key, { request, listeners }] = next.value;
-  waiting.delete(key);
-  const masks = drawSandCover(request)
-    .map((alpha) => sandCoverMaskUrl(alpha, request.width, request.height))
-    .filter((url): url is string => url !== null);
-  drawnCovers.set(key, masks);
-  if (drawnCovers.size > COVER_CACHE_LIMIT) drawnCovers.delete(drawnCovers.keys().next().value!);
-  for (const listener of listeners) listener(masks);
-  setTimeout(drawNextCover, 0);
+    const strata = noise2d(30, rand);
+    const alpha = new Float32Array(W * H);
+    for (let i = 0; i < W * H; i++) {
+      if (!loose[i]) continue;
+      const density = sand[i];
+      const layers = 0.75 + 0.25 * Math.sin(across[i] * 0.9 + strata[i] * 6);
+      let a = rand() < density * layers ? 0.62 + 0.38 * rand() : 0;
+      a += density * 0.35;
+      // Loose grains thrown off the stroke's edge.
+      if (rand() < 0.012 * loose[i]) a = Math.max(a, 0.5);
+      alpha[i] = Math.min(1, a);
+    }
+    return alpha;
+  });
 }
