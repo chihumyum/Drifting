@@ -222,15 +222,25 @@ describe('the sea of characters under the desktop window', () => {
     const pages = read('scripts/design-assets/landing/pages.mjs');
     expect(pages).toContain("from '../../../src/renderer/lib/char-sea/char-sea';");
     expect(pages).toContain('sea.rain(true);');
-    // Nothing from another host, on any page or in the sheet they share (a canonical link only names the page).
+    // Nothing from another host, on any page or in the sheet they share (canonical and alternate links only name pages).
     for (const file of ['index.html', 'site.css']) {
-      expect(read(`scripts/design-assets/landing/${file}`)).not.toMatch(/<link(?![^>]*rel="canonical")[^>]+href="https?:|<script[^>]+src="https?:|url\(["']?https?:|@import|fonts\.googleapis/);
+      expect(read(`scripts/design-assets/landing/${file}`)).not.toMatch(/<link(?![^>]*rel="(?:canonical|alternate)")[^>]+href="https?:|<script[^>]+src="https?:|url\(["']?https?:|@import|fonts\.googleapis/);
     }
-    // Search engines and sharing: the page names its address, says what the app is, and its
+    // Search engines and sharing: the page is written once per language, / in English and /zh
+    // in Chinese, each naming its own address and the other's; it says what the app is, and its
     // outline is the word and the sections' headings; the corners' page titles are not headings.
-    expect(page).toMatch(/<title>Drifting — [^<]+<\/title>/);
-    expect(page).toContain('<link rel="canonical" href="https://drifting.cc/">');
-    expect(page).toContain('<meta property="og:url" content="https://drifting.cc/">');
+    const build = read('scripts/design-assets/landing/build.mjs');
+    expect(build).toContain("const HOMES = { en: { file: 'index.html', lang: 'en' }, zh: { file: 'zh.html', lang: 'zh-CN' } };");
+    expect(build).toContain('function inLanguage(html, lang) {');
+    for (const [lang, url] of [['en', 'https://drifting.cc/'], ['zh', 'https://drifting.cc/zh']]) {
+      expect(page).toMatch(new RegExp(`<title data-l="${lang}">Drifting — [^<]+</title>`));
+      expect(page).toContain(`<link data-l="${lang}" rel="canonical" href="${url}">`);
+      expect(page).toContain(`<meta data-l="${lang}" property="og:url" content="${url}">`);
+      expect(page).toContain(`<link rel="alternate" hreflang="${lang}" href="${url}">`);
+    }
+    expect(page).toContain('<link rel="alternate" hreflang="x-default" href="https://drifting.cc/">');
+    expect(page).toContain('<a class="glass glass--rest pill pill--sm" id="lang-btn" data-l="en" href="/zh" hreflang="zh" lang="zh-CN">中文</a>');
+    expect(page).not.toContain('langHooks');
     expect(page).toContain('<meta property="og:site_name" content="Drifting">');
     const data = JSON.parse(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(page)?.[1] ?? 'null');
     const app = data['@graph'].find((node: { '@type': string }) => node['@type'] === 'SoftwareApplication');
@@ -239,11 +249,14 @@ describe('the sea of characters under the desktop window', () => {
     expect(app.license).toContain('AGPL-3.0-or-later');
     expect([...page.matchAll(/<h([1-6])\b/g)].map((m) => m[1]).join('')).toBe('122222');
     expect(page).toContain("var el = document.createElement(kind === 'p' ? 'p' : 'div');");
-    expect(read('scripts/design-assets/landing/build.mjs')).toContain("path.join(root, 'node_modules/@fontsource-variable', face)");
+    expect(build).toContain("path.join(root, 'node_modules/@fontsource-variable', face)");
     // The theme follows the system on every visit: a pick is kept for the tab only.
     const prefs = read('scripts/design-assets/landing/prefs.js');
     expect(prefs).toContain("sessionStorage.getItem('drifting.landing.theme')");
     expect(prefs).not.toContain("localStorage.getItem('drifting.landing.theme')");
+    // / opens /zh for a visitor who reads Chinese (or a #zh link); /zh never sends a reader away unasked.
+    expect(prefs).toContain('if (lang !== written && page && (hash || atHome)) location.replace(new URL(page.href).pathname + location.hash);');
+    expect(read('scripts/design-assets/landing/site.mjs')).toContain('localStorage.setItem(LANG_KEY, langButton.hreflang);');
   });
 
   it('is written down in the design system', () => {

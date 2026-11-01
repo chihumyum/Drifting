@@ -3,26 +3,39 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Drifting — Open-source, local-first novel writing app for Mac</title>
-<meta name="description" content="Open-source, local-first novel writing app for Mac: the ease of a Markdown editor, the scaffolding of a classic writing studio, and an Agent for the whole book.">
-<link rel="canonical" href="https://drifting.cc/">
+<!-- build.mjs writes this page twice, / in English and /zh in Chinese: each keeps
+     the elements marked with its data-l (dropping the mark) and drops the others'. -->
+<title data-l="en">Drifting — Open-source, local-first novel writing app for Mac</title>
+<title data-l="zh">Drifting — 开源、本地优先的 Mac 长篇小说写作软件</title>
+<meta data-l="en" name="description" content="Open-source, local-first novel writing app for Mac: the ease of a Markdown editor, the scaffolding of a classic writing studio, and an Agent for the whole book.">
+<meta data-l="zh" name="description" content="开源、本地优先的 Mac 长篇小说写作软件：Markdown 的轻快，传统写作软件的脚手架，再加一个照看整本书的 Agent。">
+<link data-l="en" rel="canonical" href="https://drifting.cc/">
+<link data-l="zh" rel="canonical" href="https://drifting.cc/zh">
+<link rel="alternate" hreflang="en" href="https://drifting.cc/">
+<link rel="alternate" hreflang="zh" href="https://drifting.cc/zh">
+<link rel="alternate" hreflang="x-default" href="https://drifting.cc/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Drifting">
-<meta property="og:url" content="https://drifting.cc/">
+<meta data-l="en" property="og:url" content="https://drifting.cc/">
+<meta data-l="zh" property="og:url" content="https://drifting.cc/zh">
 <meta property="og:title" content="Drifting">
-<meta property="og:description" content="Open-source, local-first novel writing app for Mac: the ease of a Markdown editor, the scaffolding of a classic writing studio, and an Agent for the whole book.">
-<meta property="og:locale" content="en_US">
-<meta property="og:locale:alternate" content="zh_CN">
+<meta data-l="en" property="og:description" content="Open-source, local-first novel writing app for Mac: the ease of a Markdown editor, the scaffolding of a classic writing studio, and an Agent for the whole book.">
+<meta data-l="zh" property="og:description" content="开源、本地优先的 Mac 长篇小说写作软件：Markdown 的轻快，传统写作软件的脚手架，再加一个照看整本书的 Agent。">
+<meta data-l="en" property="og:locale" content="en_US">
+<meta data-l="en" property="og:locale:alternate" content="zh_CN">
+<meta data-l="zh" property="og:locale" content="zh_CN">
+<meta data-l="zh" property="og:locale:alternate" content="en_US">
 <meta property="og:image" content="https://drifting.cc/og.png">
 <meta property="og:image:type" content="image/png">
 <meta property="og:image:width" content="2560">
 <meta property="og:image:height" content="1280">
-<meta property="og:image:alt" content="DRIFTING written in a sea of characters, over the tagline: the ease of a Markdown editor, the scaffolding of a classic writing studio, and an Agent for the whole book.">
+<meta data-l="en" property="og:image:alt" content="DRIFTING written in a sea of characters, over the tagline: the ease of a Markdown editor, the scaffolding of a classic writing studio, and an Agent for the whole book.">
+<meta data-l="zh" property="og:image:alt" content="字海拼出的 DRIFTING，下方是英文标语：The ease of a Markdown editor, the scaffolding of a classic writing studio, and an Agent for the whole book.">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" type="image/png" sizes="32x32" href="/legal/favicon-32x32.png">
 <link rel="apple-touch-icon" href="/legal/apple-touch-icon.png">
 <link rel="stylesheet" href="/assets/site.css">
-<!-- For search engines: the site's name, and the app as a free, open-source download. -->
+<!-- For search engines: the site's name and languages, and the app as a free, open-source download. -->
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -30,13 +43,13 @@
     {
       "@type": "WebSite",
       "name": "Drifting",
-      "url": "https://drifting.cc/"
+      "url": "https://drifting.cc/",
+      "inLanguage": ["en", "zh-Hans"]
     },
     {
       "@type": "SoftwareApplication",
       "name": "Drifting",
       "url": "https://drifting.cc/",
-      "description": "Open-source, local-first novel writing app for Mac: the ease of a Markdown editor, the scaffolding of a classic writing studio, and an Agent for the whole book.",
       "image": "https://drifting.cc/og.png",
       "operatingSystem": "macOS 13 or later",
       "processorRequirements": "Apple Silicon",
@@ -411,7 +424,8 @@ h2 {
   <a class="brand" href="#top" aria-label="Drifting">DRIFTING</a>
   <div class="bar-actions">
     <a class="glass glass--primary pill pill--sm bar-dl" href="https://github.com/chihumyum/Drifting/releases/latest" target="_blank" rel="noopener"><span data-l="zh">下载</span><span data-l="en">Download</span></a>
-    <button class="glass glass--rest pill pill--sm" id="lang-btn" type="button"><span data-l="zh">English</span><span data-l="en">中文</span></button>
+    <a class="glass glass--rest pill pill--sm" id="lang-btn" data-l="en" href="/zh" hreflang="zh" lang="zh-CN">中文</a>
+    <a class="glass glass--rest pill pill--sm" id="lang-btn" data-l="zh" href="/" hreflang="en" lang="en">English</a>
     <button class="glass glass--rest round" id="theme-btn" type="button"><i class="ic" id="theme-ic"></i></button>
   </div>
 </header>
@@ -734,17 +748,12 @@ h2 {
   var S = window.DriftingSea;
   var root = document.documentElement;
   var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // The page is written in one language (/ in English, /zh in Chinese); its button opens the other.
   function lang() { return root.dataset.lang === 'en' ? 'en' : 'zh'; }
-  var langHooks = [];
 
-  /* ── Theme and language (site.mjs) ── */
+  /* ── Theme (site.mjs) ── */
   var bar = S.startBar({
     onTheme: function () { if (sea) sea.refreshTheme(); redrawFrame(); },
-    onLang: function (next) {
-      if (sea) sea.setScript(next);
-      langHooks.forEach(function (f) { f(); });
-      scheduleShapes();
-    },
   });
 
   /* ── The sea ── */
@@ -832,7 +841,7 @@ h2 {
 
   /* ── Each corner of the workspace plays over and over while it is in view ── */
   var wait = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
-  var runs = {}, settle = {}, checks = {};
+  var runs = {}, settle = {};
   function stop(key) {
     if (!runs[key]) return;
     runs[key] = null;
@@ -854,7 +863,6 @@ h2 {
         }
       })();
     }
-    checks[key] = check;
     // Out of view it stops and rests finished; back in view it starts again from the top.
     new IntersectionObserver(function (entries) {
       entries.forEach(function (en) {
@@ -867,10 +875,6 @@ h2 {
       if (document.hidden) stop(key);
       else check();
     });
-  }
-  function restart(key) {
-    stop(key);
-    if (checks[key]) setTimeout(checks[key], 60);
   }
   var esc = function (s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;'); };
 
@@ -897,7 +901,6 @@ h2 {
   }
   fillRaw(MD[lang()].lines);
   fillRaw(MD[lang()].lines, rawGhost);
-  langHooks.push(function () { fillRaw(MD[lang()].lines, rawGhost); });
   // The finished page, hidden, holds the height while the lines are typed over it.
   (function () {
     var live = document.getElementById('md-typed');
@@ -914,7 +917,6 @@ h2 {
     box.innerHTML = MD[lang()].lines.map(function (l) { return renderLine(l, false).outerHTML; }).join('');
     fillRaw(MD[lang()].lines);
   };
-  langHooks.push(function () { restart('md'); });
   function renderLine(raw, caret) {
     var kind = 'p', body = raw;
     if (/^## /.test(raw)) { kind = 'h2'; body = raw.slice(3); }
@@ -998,7 +1000,6 @@ h2 {
     agentPage.style.minHeight = (tallest - padY) + 'px';
   }
   lockAgentPage();
-  langHooks.push(lockAgentPage);
   addEventListener('resize', function () { requestAnimationFrame(lockAgentPage); });
   if (document.fonts) document.fonts.ready.then(lockAgentPage);
   settle.agent = function () {
@@ -1009,7 +1010,6 @@ h2 {
       if (icon && st.classList.contains('agt-tool')) { icon.classList.remove('spin'); icon.style.setProperty('--i', DONE); }
     });
   };
-  langHooks.push(function () { restart('agent'); });
   function playAgent(alive) {
     var a = AG[lang()].old, d = diffOf(AG[lang()]);
     var head = d.head, tail = d.tail, gone = d.gone, come = d.come;
@@ -1112,7 +1112,6 @@ h2 {
   var idle = function () { return performance.now() - touchedAt > 9000; };
   tabs.forEach(function (t) { t.addEventListener('click', function () { touchedAt = performance.now(); showTab(t.dataset.tab); }); });
   cells.forEach(function (cell) { cell.addEventListener('click', function () { touchedAt = performance.now(); select(cell, true); }); });
-  langHooks.push(function () { placeFrame(false); });
   select(current, false);
   function cellOf(k) { return cells.filter(function (c) { return c.dataset.k === k; })[0]; }
   loop(studio, 'studio', function (alive) {

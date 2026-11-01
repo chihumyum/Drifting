@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 // Build drifting.cc's home page and the look its other pages share:
 //   node scripts/design-assets/landing/build.mjs [out-dir] [--og card.png]
-// Writes index.html, assets/ (site.css, prefs.js, the landing and information
-// page scripts, masks and icons) and fonts/ (out/landing by default),
-// replacing only those; --og copies the sharing card in as og.png. Point it at
-// the site's served directory to update the site: the information pages there
-// link /assets/site.css, /assets/prefs.js and /assets/pages.js.
+// Writes the home page in English (index.html, served at /) and in Chinese
+// (zh.html, served at /zh), assets/ (site.css, prefs.js, the landing and
+// information page scripts, masks and icons) and fonts/ (out/landing by
+// default), replacing only those; --og copies the sharing card in as og.png.
+// Point it at the site's served directory to update the site: the information
+// pages there link /assets/site.css, /assets/prefs.js and /assets/pages.js.
 import { build } from 'esbuild';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -19,9 +20,13 @@ const og = ogAt >= 0 ? path.resolve(args[ogAt + 1]) : null;
 const [outArg] = args.filter((arg, index) => !arg.startsWith('--') && !(ogAt >= 0 && index === ogAt + 1));
 const out = path.resolve(outArg ?? path.join(root, 'out/landing'));
 
+// The home page in each language: the file, and its <html lang>.
+const HOMES = { en: { file: 'index.html', lang: 'en' }, zh: { file: 'zh.html', lang: 'zh-CN' } };
+const homeFiles = Object.values(HOMES).map((home) => home.file);
+
 // Only what this script writes is replaced: the site's own pages beside it stay,
 // and so does the sharing card unless a new one is given.
-for (const own of ['index.html', 'assets', 'fonts', ...(og ? ['og.png'] : [])]) rmSync(path.join(out, own), { recursive: true, force: true });
+for (const own of [...homeFiles, 'assets', 'fonts', ...(og ? ['og.png'] : [])]) rmSync(path.join(out, own), { recursive: true, force: true });
 mkdirSync(path.join(out, 'assets'), { recursive: true });
 mkdirSync(path.join(out, 'fonts'), { recursive: true });
 
@@ -57,7 +62,7 @@ let css = withAssets(readFileSync(path.join(here, 'site.css'), 'utf8'));
 // writes — this page, and the site's information pages already in the
 // directory. The families keep the app's names, so the sea's own font stacks
 // (char-sea-text.ts) find them.
-const others = readdirSync(out).filter((name) => name.endsWith('.html') && name !== 'index.html');
+const others = readdirSync(out).filter((name) => name.endsWith('.html') && !homeFiles.includes(name));
 const written = [page, readFileSync(path.join(root, 'src/renderer/lib/char-sea/char-sea-text.ts'), 'utf8'),
   ...others.map((name) => readFileSync(path.join(out, name), 'utf8'))].join('');
 const used = [...new Set([...written].map((char) => char.codePointAt(0)))];
@@ -90,7 +95,53 @@ for (const [name, text] of [['index.html', page], ['site.css', css]]) {
 }
 if (og) copyFileSync(og, path.join(out, 'og.png'));
 writeFileSync(path.join(out, 'assets/site.css'), css);
-writeFileSync(path.join(out, 'index.html'), page);
+
+// The page says everything in both languages, each piece marked data-l. A page
+// in one language keeps the pieces marked with it, dropping the mark, and drops
+// the others' with all they hold (and their line, when they had one to
+// themselves), so a search engine reads one language at one address.
+function inLanguage(html, lang) {
+  const marked = /<([a-z][a-z0-9]*)\b([^<>]*?)\sdata-l="(zh|en)"([^<>]*)>/g;
+  let kept = '';
+  let at = 0;
+  for (const match of html.matchAll(marked)) {
+    if (match.index < at) continue;
+    const [tag, name, before, which, after] = match;
+    kept += html.slice(at, match.index);
+    at = match.index + tag.length;
+    if (which === lang) {
+      kept += `<${name}${before}${after}>`;
+      continue;
+    }
+    if (!['link', 'meta'].includes(name)) {
+      const nested = new RegExp(`<(/?)${name}\\b[^>]*>`, 'g');
+      nested.lastIndex = at;
+      for (let depth = 1; depth > 0;) {
+        const next = nested.exec(html);
+        if (!next) throw new Error(`build.mjs: <${name} data-l="${which}"> is never closed`);
+        depth += next[1] ? -1 : 1;
+        at = nested.lastIndex;
+      }
+    }
+    const lead = /\n[ \t]*$/.exec(kept);
+    const trail = /[ \t]*\n/y;
+    trail.lastIndex = at;
+    if (lead && trail.test(html)) {
+      kept = kept.slice(0, lead.index + 1);
+      at = trail.lastIndex;
+    }
+  }
+  return kept + html.slice(at);
+}
+const informationPages = others.filter((name) => name !== '404.html').map((name) => name.slice(0, -'.html'.length));
+if (!page.includes('<html lang="en">')) throw new Error('build.mjs: index.html must open with <html lang="en">');
+for (const [lang, home] of Object.entries(HOMES)) {
+  let text = inLanguage(page, lang).replace('<html lang="en">', `<html lang="${home.lang}" data-lang="${lang}">`);
+  // A link to an information page opens it in this page's language.
+  for (const name of informationPages) text = text.replaceAll(`href="/${name}"`, `href="/${name}#${lang}"`);
+  if (/\sdata-l=/.test(text)) throw new Error(`build.mjs: ${home.file} still holds a data-l mark`);
+  writeFileSync(path.join(out, home.file), text);
+}
 for (const name of others) {
   const text = readFileSync(path.join(out, name), 'utf8');
   for (const asset of ['/assets/site.css', '/assets/prefs.js', '/assets/pages.js']) {
@@ -101,6 +152,6 @@ for (const name of others) {
 const size = (dir) => readdirSync(dir).reduce((sum, name) => sum + statSync(path.join(dir, name)).size, 0);
 const kb = (bytes) => `${Math.round(bytes / 1024)} KB`;
 console.log(`${out}
-  index.html  ${kb(statSync(path.join(out, 'index.html')).size)}
-  assets/     ${readdirSync(path.join(out, 'assets')).length} files, ${kb(size(path.join(out, 'assets')))}
+${homeFiles.map((file) => `  ${file.padEnd(11)} ${kb(statSync(path.join(out, file)).size)}`).join('\n')}
+  assets/    ${readdirSync(path.join(out, 'assets')).length} files, ${kb(size(path.join(out, 'assets')))}
   fonts/      ${readdirSync(path.join(out, 'fonts')).length} files, ${kb(size(path.join(out, 'fonts')))}${og ? '\n  og.png' : ''}${others.length ? `\n  fonts cover ${others.join(', ')}` : ''}`);
