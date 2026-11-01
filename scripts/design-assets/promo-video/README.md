@@ -73,39 +73,62 @@ How it is made, and why:
   so the next stones fall on open water: under the glass the sea shows at
   only 12% and their rings would not be seen. With the glass gone there is
   water to look at, never an empty frame.
-- **The sound** (`sound.mjs`) is synthesized, not recorded, so nothing in it
-  needs a licence, and it is made from the page's own list of what happens
-  when (`window.__promo.sounds`), built from the same schedules the picture
-  plays.
-  - **The score** is a short piece in D minor for a modelled felt piano
-    (inharmonic partials, two or three detuned strings a note, a quick and a
-    slow decay, the felt darker under a soft touch, the hammer's knock, a pedal
-    lifted at each chord change) over low bowed strings kept 7–9 dB under it.
-    Its turns sit on the video's `section` marks: one high A as the stone
-    drops; a falling line as the name rises, held on B flat through the
-    burst; with each sheet's stones a hit — a modelled timpano (a felt
-    mallet ringing the head's inharmonic modes, its pitch sagging just after
-    the stroke), the piano's low octave and the strings bowed hard — on D,
-    then G, then B flat, rising with each sheet and harder each time, while
-    each stone rings a high piano note of the chord, heard where it falls;
-    broken chords under the pillars (Dm Bb F C, then Gm Dm Bb A); the line
-    reaching its high A under the Agent and resolving to D minor as its edit
-    settles (the `settle` cue, so each language lands on its own frame); the
-    high A again over D minor with an added ninth at the close.
+- **The sound** (`sound.mjs`, `instruments.mjs`, `sampler.swift`) is made
+  from the page's own list of what happens when (`window.__promo.sounds`),
+  built from the same schedules the picture plays.
+  - **The score** is a short piece in D minor whose turns sit on the video's
+    `section` marks: one high A as the stone drops; a falling line as the
+    name rises, held on B flat through the burst; with each sheet's stones a
+    hit — the piano's low octave, the strings bowed hard and, on the sampled
+    orchestra, French horns, trombones and tuba struck together (on the
+    modelled one a timpano) — on D, then G, then B flat, rising with each
+    sheet and harder each time, while each stone rings a high piano note of
+    the chord, heard where it falls; broken chords under the pillars (Dm Bb F
+    C, then Gm Dm Bb A) with a clarinet's low counter-line over a plucked
+    double bass in the first, horns coming in and the bass pulsing toward the
+    hit in the second; under the Agent a lament bass (B flat, A, G, A, D),
+    horns holding the climax and a flute answering the piano's high A, all
+    resolving to D minor as the edit settles (the `settle` cue, so each
+    language lands on its own frame); the high A again on flute and piano
+    over D minor with an added ninth at the close, and the clarinet's sigh.
+  - **Rise and fall**: each chord's notes lean late as it ends (a ritardando;
+    the change keeps its frame), the melody sings a hair after the hand
+    under it, each two-chord phrase swells and falls away, every held note
+    and chord swells to its middle, twice the hand leaves out a note to
+    breathe, and the piece is quiet at the opening, climbs through the second
+    pillar into the Agent and is quieter still at the close.
+  - **The instruments.** With GarageBand's sound library installed
+    (GarageBand → Sound Library → Download All Available Sounds; it lands in
+    `/Library/Application Support/Logic`), `instruments.mjs` plays the score
+    on it: the Steinway Grand Piano read straight from its EXS zones and
+    consolidated CAF (four velocity layers by register, the instrument's own
+    −7 cent tune, dampers lifting at each pedal change) because the system's
+    sampler cannot open consolidated samples, and String Ensemble, French
+    Horns, Clarinet and Flute Solo, Upright Jazz Bass and the staccato horns,
+    trombones and tuba through `sampler.swift`, which plays a note list on
+    AVAudioUnitSampler offline. Each part is brought to its level (dBFS RMS
+    while it plays) after the score's dynamics are applied. Apple's licence
+    lets these sounds be used in one's own soundtracks; nothing of them
+    enters the repository. Without the library, or with `--modelled`, the
+    score is played on `sound.mjs`'s modelled felt piano (inharmonic
+    partials, detuned strings, a quick and a slow decay, the felt darker
+    under a soft touch), dark bowed strings and a modelled timpano.
   - **The effects** are all shaped noise, never a tone: rain all the way
     through (6 dB softer under the sheets), air as the name rises and as it
     bursts over a low rumble, a key for each character, the brush as each
     frame and underline is drawn and reversed for the Agent's erase, air for
     a tab's push, a sent message and the glass sheet, and soft taps for a
     saved line and each Agent step. Each is heard where its element sits
-    across the frame. The author turned down the earlier pitched drop and
-    send bloops and glass chimes: keep effects toneless.
+    across the frame. The author turned down pitched bloops and glass chimes
+    and asked for real instruments in the score: keep effects toneless and
+    music acoustic.
   - **The mix**: the score below 40 Hz cut, 3 dB lighter below 140 Hz, and
     only what is above 220 Hz sent into its hall (Freeverb), so the low end
-    stays clear. Nothing is clipped while mixing (the WAV is float), so the
-    hits keep their attack. It is brought to −16 LUFS by one fixed gain, the few peaks
-    it would lift past −2 dBFS held first by a look-ahead limiter, so the
-    rain never pumps; a rerun gives the same samples.
+    stays clear. Nothing is clipped while mixing (the WAV is float). It is
+    brought to −16 LUFS by one fixed gain, the few peaks it would lift past
+    −2 dBFS held first by a look-ahead limiter so the rain never pumps, the
+    loudness measured again after the limiter and corrected; a rerun gives
+    the same samples.
 - **Copy** is the landing page's and the README's, in both languages; the
   Chinese headings break where a phrase ends. The page lays out at 1152×648 CSS
   px and is captured at device scale 1920/1152, so the corners' 15px text is
