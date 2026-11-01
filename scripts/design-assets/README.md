@@ -27,6 +27,10 @@ NumPy and write every mask they define (`hollowgen.py` instead reads the sand
 directory and writes beside it); copy the ones listed above into
 `src/assets/design/`. Seeds are fixed, so a rerun reproduces the same pixels.
 
+`app-icon/` draws the app icon (the iceberg in sand under a glass outline) as
+the Icon Composer layers in `src/assets/icon.icon` and renders the master and
+the site's icons from them; see its README.
+
 `social-preview/` renders the repository's sharing card (GitHub's social
 preview) from the character sea and the same sand brush; see its README.
 `landing/` builds drifting.cc's home page and the look its other pages share

@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Drifting app icon layers</title>
+</head>
+<body>
+<pre id="layers"></pre>
+<script type="module">
+// render.sh reads the layers back out of the page (--dump-dom), with the icon
+// flattened onto a square in icon.json's light colours: iOS and a site's touch
+// icon want an opaque square and round its corners themselves.
+import { drawLayers, maskUrl } from './layers.js';
+
+const layers = await drawLayers();
+const icon = await (await fetch('../../../src/assets/icon.icon/icon.json')).json();
+
+// icon.json writes colours as "display-p3:r,g,b,a"; the canvas wants sRGB.
+function srgb(value) {
+  const [r, g, b] = value.split(':')[1].split(',').map(Number);
+  const lin = (c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+  const gam = (c) => Math.round(255 * Math.min(1, Math.max(0, c <= 0.0031308 ? 12.92 * c : 1.055 * c ** (1 / 2.4) - 0.055)));
+  const [lr, lg, lb] = [r, g, b].map(lin);
+  const X = 0.4865709 * lr + 0.2656677 * lg + 0.1982173 * lb;
+  const Y = 0.2289746 * lr + 0.6917385 * lg + 0.0792869 * lb;
+  const Z = 0.0451134 * lg + 1.0439444 * lb;
+  return [3.2404542 * X - 1.5371385 * Y - 0.4985314 * Z, -0.969266 * X + 1.8760108 * Y + 0.041556 * Z, 0.0556434 * X - 0.2040259 * Y + 1.0572252 * Z].map(gam);
+}
+const light = (fills) => srgb(fills.find((f) => !f.appearance).value.solid);
+const layer = (name) => icon.groups.flatMap((g) => g.layers).find((l) => l['image-name'] === name);
+
+const N = 1024, square = document.createElement('canvas');
+square.width = square.height = N;
+const g = square.getContext('2d');
+g.fillStyle = `rgb(${light(icon['fill-specializations']).join(',')})`;
+g.fillRect(0, 0, N, N);
+// Back to front: the sand, then the glass's bleed and its line.
+for (const [name, mask] of [['sand.png', layers.sand], ['glass-bleed.png', layers.bleed], ['glass-line.png', layers.line]]) {
+  const [r, gr, b] = light(layer(name)['fill-specializations']), img = new ImageData(N, N);
+  for (let p = 0; p < N * N; p++) { img.data[p * 4] = r; img.data[p * 4 + 1] = gr; img.data[p * 4 + 2] = b; img.data[p * 4 + 3] = Math.round(Math.min(1, mask[p]) * 255); }
+  const c = new OffscreenCanvas(N, N); c.getContext('2d').putImageData(img, 0, 0);
+  g.drawImage(c, 0, 0);
+}
+
+document.getElementById('layers').textContent = JSON.stringify({
+  layers: {
+    'sand.png': maskUrl(layers.sand),
+    'glass-line.png': maskUrl(layers.line),
+    'glass-bleed.png': maskUrl(layers.bleed),
+  },
+  square: square.toDataURL('image/png'),
+});
+document.body.dataset.ready = '1';
+</script>
+</body>
+</html>

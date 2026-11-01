@@ -13,7 +13,8 @@ It writes the home page in English (`index.html`, served at `/`) and in Chinese
 (`zh.html`, served at `/zh`), `assets/` and `fonts/` (and `og.png` with `--og`;
 use `social-preview/`'s `dark.png`), and leaves everything else in the
 directory alone. Every page links `/legal/favicon-32x32.png` and
-`/legal/apple-touch-icon.png`, which the site serves.
+`/legal/apple-touch-icon.png`, which the site serves; `app-icon/render.sh`
+renders both from the app icon.
 
 What is shared, and where it comes from:
 

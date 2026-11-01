@@ -5,11 +5,16 @@ Drifting source tree. Do not remove an entry when regenerating a derivative.
 
 ## Drifting app icon
 
-The project maintainer created the canonical raster source in June 2026 with
-the assistance of an AI image-generation service and selected, edited, and
-packaged it for Drifting. The canonical repository source is
-`src/assets/icon.icon/Assets/icon-source.png`; platform icons and the Android
-foreground asset are derivatives generated from it.
+The project maintainer created the iceberg line art in June 2026 with the
+assistance of an AI image-generation service and selected, edited, and
+packaged it for Drifting. It is kept as
+`scripts/design-assets/app-icon/iceberg-lines.png`. Since November 2026 the
+icon is generated from it: `scripts/design-assets/app-icon/` traces the line
+art and fills it with procedurally generated sand under a glass outline (the
+glass texture is the interface's own, below). The canonical icon is the Icon
+Composer document `src/assets/icon.icon`; its layer images, the master
+`src/assets/icon-master.png`, the platform icons and the Android foreground are
+derivatives generated from the line art.
 
 The maintainer includes the icon with the AGPL-covered client and represents
 that they have the rights needed to distribute it on those terms. AI-generated
