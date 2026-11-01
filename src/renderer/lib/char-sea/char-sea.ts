@@ -104,12 +104,32 @@ const WORD_BURST = 2.5;
 const GLASS_EDGE = 0.594; // --glass-edge 33% × 1.8
 const GLASS_TILE = 150;
 
+/**
+ * What a page other than the app's own may ask of the sea: the drifting.cc
+ * landing page (scripts/design-assets/landing) raises its name instead of
+ * "Loading", higher up, over a denser sheet on a narrow window, with the
+ * risen characters a little heavier so the capitals read. The app passes none
+ * of these and gets the sea described above.
+ */
+export interface CharSeaOptions {
+  /** The word the water raises while something loads. */
+  word?: string;
+  /** Where the word's middle sits, as a share of the window's height. */
+  wordCentreY?: number;
+  /** How much of the window's width the word may span. */
+  wordSpan?: (width: number) => number;
+  /** How many times denser than the app's the cells are packed. */
+  density?: (width: number) => number;
+  /** 0–1: how much heavier, darker and nearer the accent the risen word's own characters are. */
+  wordInk?: number;
+}
+
 const VERTEX = '#version 300 es\nin vec2 a;void main(){gl_Position=vec4(a,0.,1.);}';
 
 const FRAGMENT = `#version 300 es
 precision highp float;
 uniform sampler2D uH;uniform sampler2D uAtlas;uniform sampler2D uMap;uniform sampler2D uGlassTex;
-uniform sampler2D uRain;uniform sampler2D uWordSim;uniform float uWordH;
+uniform sampler2D uRain;uniform sampler2D uWordSim;uniform float uWordH;uniform float uWordInk;
 uniform vec2 uRes;uniform float uDpr;uniform vec2 uWin;uniform vec2 uSim;
 uniform vec2 uCells;uniform vec2 uCell;uniform vec2 uOrigin;uniform float uAN;uniform vec2 uSlot;
 uniform float uRest;uniform float uPeak;uniform float uMul;
@@ -140,9 +160,13 @@ void main(){
     float dt=1.-smoothstep(.35,.95,length((f-.5)*uCell-off));
     float gi=floor(texture(uMap,(ci+.5)/uCells).r*255.+.5);
     vec2 auv=(vec2(mod(gi,uAN),floor(gi/uAN))+clamp(fl,0.,1.))*uSlot;
-    float gl=texture(uAtlas,auv).a*step(0.,fl.x)*step(fl.x,1.)*step(0.,fl.y)*step(fl.y,1.);
-    float a=mix(dt*uRest,gl*uPeak*(.6+.4*max(cr,rd.y)),s)*m;
-    vec3 c=mix(uInk,uTint,min(1.,.45*s*max(cr,0.)+.55*rd.y));
+    float inSlot=step(0.,fl.x)*step(fl.x,1.)*step(0.,fl.y)*step(fl.y,1.);
+    float gl=texture(uAtlas,auv).a*inSlot;
+    // a page may ask for the risen word's own characters heavier, darker and nearer the accent; the app's uWordInk is 0
+    float wk=uWordInk>0.?uWordInk*smoothstep(.25,.75,wAt(cc))*clamp(uWordH*2.2,0.,1.):0.;
+    if(wk>0.){vec2 bo=vec2(uSlot.x*.055,0.);gl=mix(gl,max(gl,max(texture(uAtlas,auv+bo).a,texture(uAtlas,auv-bo).a)*inSlot),wk);}
+    float a=min(1.,mix(dt*uRest,gl*uPeak*(.6+.4*max(cr,rd.y))*(1.+.5*wk),s))*m;
+    vec3 c=mix(uInk,uTint,min(1.,.45*s*max(cr,0.)+.55*rd.y+.35*wk));
     col=uMul>.5?col*mix(vec3(1.),c,a):mix(col,c,a);
   }
   // the glass lines stay where they are; only the glass in them follows the water
@@ -233,8 +257,37 @@ function readTheme(): Theme {
   };
 }
 
-/** The loading word as each water cell's share of its ink, centred on the window. */
-function loadingWordShape(water: CharSeaWater, width: number, height: number): Float32Array {
+/** The loading word's size and the height of its middle in a window, CSS px. */
+function placeWord(context: CanvasRenderingContext2D, width: number, height: number, options: CharSeaOptions) {
+  const word = options.word ?? LOADING_WORD;
+  const span = options.wordSpan?.(width) ?? 0.7;
+  let size = height * 0.3;
+  context.font = LOADING_FONT(size);
+  const wide = context.measureText(word).width;
+  if (wide > width * span) size *= (width * span) / wide;
+  return { word, size, centreY: height * (options.wordCentreY ?? 0.5) };
+}
+
+/** Where the loading word's ink stands in a window, CSS px, so a page can lay its own text round it. */
+export function charSeaWordBox(width: number, height: number, options: CharSeaOptions = {}) {
+  const context = document.createElement('canvas').getContext('2d');
+  if (!context) return null;
+  const { word, size, centreY } = placeWord(context, width, height, options);
+  context.font = LOADING_FONT(size);
+  const metrics = context.measureText(word);
+  const half = (metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent) / 2;
+  return { top: centreY - half, bottom: centreY + half, size };
+}
+
+/** A page's sheet: the language's cells, packed `density` times tighter. */
+function seaLanguage(script: CharSeaScript, width: number, options: CharSeaOptions) {
+  const language = CHAR_SEA_LANGUAGES[script];
+  const density = options.density?.(width) ?? 1;
+  return density === 1 ? language : { ...language, cellWidth: language.cellWidth / density, cellHeight: language.cellHeight / density };
+}
+
+/** The loading word as each water cell's share of its ink, centred across the window. */
+function loadingWordShape(water: CharSeaWater, width: number, height: number, options: CharSeaOptions): Float32Array {
   const shape = new Float32Array(water.cols * water.rows);
   const samples = 4;
   const raster = document.createElement('canvas');
@@ -242,18 +295,15 @@ function loadingWordShape(water: CharSeaWater, width: number, height: number): F
   raster.height = water.rows * samples;
   const context = raster.getContext('2d', { willReadFrequently: true });
   if (!context) return shape;
-  let size = height * 0.3;
-  context.font = LOADING_FONT(size);
-  const wide = context.measureText(LOADING_WORD).width;
-  if (wide > width * 0.7) size *= (width * 0.7) / wide;
+  const { word, size, centreY } = placeWord(context, width, height, options);
   const scale = samples / CHAR_SEA_WATER_CELL;
   context.font = LOADING_FONT(size * scale);
-  const metrics = context.measureText(LOADING_WORD);
+  const metrics = context.measureText(word);
   context.fillStyle = '#fff';
   context.textAlign = 'center';
   context.textBaseline = 'alphabetic';
-  context.fillText(LOADING_WORD, (width / 2) * scale,
-    (height / 2) * scale + (metrics.actualBoundingBoxAscent - metrics.actualBoundingBoxDescent) / 2);
+  context.fillText(word, (width / 2) * scale,
+    centreY * scale + (metrics.actualBoundingBoxAscent - metrics.actualBoundingBoxDescent) / 2);
   const pixels = context.getImageData(0, 0, raster.width, raster.height).data;
   for (let row = 0; row < water.rows; row += 1) {
     for (let col = 0; col < water.cols; col += 1) {
@@ -267,7 +317,7 @@ function loadingWordShape(water: CharSeaWater, width: number, height: number): F
   return shape;
 }
 
-export function createCharSea(canvas: HTMLCanvasElement): CharSea | null {
+export function createCharSea(canvas: HTMLCanvasElement, options: CharSeaOptions = {}): CharSea | null {
   const context = canvas.getContext('webgl2', { antialias: false, alpha: false, preserveDrawingBuffer: false });
   if (!context) return null;
   const gl: WebGL2RenderingContext = context;
@@ -306,7 +356,7 @@ export function createCharSea(canvas: HTMLCanvasElement): CharSea | null {
     rest: uniform('uRest'), peak: uniform('uPeak'), mul: uniform('uMul'),
     ground: uniform('uGround'), ink: uniform('uInk'), tint: uniform('uTint'), glass: uniform('uGlass'), bleed: uniform('uBleed'),
     shape: uniform('uShape'), shapeP: uniform('uShapeP'), shapeT: uniform('uShapeT'), shapes: uniform('uShapes'),
-    rain: uniform('uRain'), wordSim: uniform('uWordSim'), wordH: uniform('uWordH'),
+    rain: uniform('uRain'), wordSim: uniform('uWordSim'), wordH: uniform('uWordH'), wordInk: uniform('uWordInk'),
   };
   gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
 
@@ -441,14 +491,14 @@ export function createCharSea(canvas: HTMLCanvasElement): CharSea | null {
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, heightTexture);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.R16F, water.cols, water.rows, 0, gl.RED, gl.FLOAT, water.heights);
-    wordShape = loadingWordShape(water, width, height);
+    wordShape = loadingWordShape(water, width, height, options);
     if (word.held) water.hold(wordShape);
     // its cells on the sheet are found when the sheet is laid (lay)
     gl.activeTexture(gl.TEXTURE5);
     gl.bindTexture(gl.TEXTURE_2D, wordTexture);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, water.cols, water.rows, 0, gl.RED, gl.UNSIGNED_BYTE,
       Uint8Array.from(wordShape, (share) => Math.round(share * 255)));
-    layout = layoutCharSea(width, height, CHAR_SEA_LANGUAGES[script]);
+    layout = layoutCharSea(width, height, seaLanguage(script, width, options));
     lay();
   }
 
@@ -484,6 +534,7 @@ export function createCharSea(canvas: HTMLCanvasElement): CharSea | null {
     gl.uniform1i(U.rain, 4);
     gl.uniform1i(U.wordSim, 5);
     gl.uniform1f(U.wordH, word.shown);
+    gl.uniform1f(U.wordInk, options.wordInk ?? 0);
     gl.uniform2f(U.res, pixelWidth, pixelHeight);
     gl.uniform1f(U.dpr, pixelWidth / width);
     gl.uniform2f(U.win, width, height);
@@ -690,7 +741,7 @@ export function createCharSea(canvas: HTMLCanvasElement): CharSea | null {
     setScript(next) {
       if (next === script) return;
       script = next;
-      layout = layoutCharSea(width, height, CHAR_SEA_LANGUAGES[script]);
+      layout = layoutCharSea(width, height, seaLanguage(script, width, options));
       lay();
       draw();
     },
