@@ -780,6 +780,10 @@ describe('workspace surface language acceptance', () => {
     expect(source('src/renderer/shells/desktop/components/SuperElementIsland.tsx')).toContain("mode === 'peek' ? ' hover-card-surface' : ''");
     expect(shell).toContain('font-size: var(--ui-font-secondary, 13px);');
     expect(shell).not.toContain('0.5px');
+    // A row under the pointer is marked by its ring alone: the words keep the menus' colour.
+    expect(block(controls, '.hover-card__row {', '}')).toContain('color: hsl(var(--ink-2));');
+    expect(controls).not.toMatch(/\.hover-card__(row|section-head):hover[^{]*\{[^}]*(?<![-\w])color:/);
+    expect(controls).not.toMatch(/\.hover-card__row:focus-visible,\s*\.hover-card__row\.is-active/);
     // A storyline, category or group name in the meta line starts in the title's column.
     expect(block(controls, '.hover-card__tag > .kind-mark {', '}')).toContain('margin-right: 8px;');
     expect(block(controls, '.hover-card__title > .kind-mark {', '}')).toContain('margin-right: 8px;');
