@@ -407,7 +407,6 @@ h2 {
 :root:not(.no-sea) .book.glass::before { display: none; }
 .cover { position: relative; isolation: isolate; flex: none; width: 126px; height: 226px; overflow: hidden; border-radius: 2px; background: hsl(var(--page)); }
 .cover .band { position: absolute; inset: 0; background: color-mix(in srgb, hsl(var(--c)), #fff var(--pigment-lift)); -webkit-mask: var(--m) 0 0 / 100% 100% no-repeat; mask: var(--m) 0 0 / 100% 100% no-repeat; mix-blend-mode: var(--pigment-blend); opacity: var(--pigment); }
-.cover-label { position: absolute; left: 14px; right: 10px; bottom: 11px; z-index: 2; font: 400 11px/1.2 var(--font-mono); color: hsl(var(--ink-3)); }
 .book-body { display: flex; flex-direction: column; min-width: 0; padding-top: 2px; }
 .book-title { margin: 0; font: 400 19px/1.35 var(--font-content); letter-spacing: 0.02em; }
 .book-sub { margin-top: 2px; font: 400 12.5px/1.4 var(--font-ui); color: hsl(var(--ink-3)); }
@@ -730,7 +729,6 @@ h2 {
   <section class="closing">
     <article class="book glass glass--rest" data-sea data-sea-hover aria-hidden="true">
       <div class="cover" id="book-cover">
-        <span class="cover-label"><span data-l="zh">长篇小说</span><span data-l="en">Novel</span></span>
       </div>
       <div class="book-body">
         <div class="book-title"><span data-l="zh">潮汐灯塔</span><span data-l="en">The Tide Light</span></div>
