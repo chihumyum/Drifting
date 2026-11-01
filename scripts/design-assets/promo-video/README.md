@@ -16,9 +16,9 @@ For each language it writes:
 | --- | --- |
 | `drifting-promo-<lang>.mp4` | The picture, silent (H.264, BT.709, `+faststart`). |
 | `drifting-promo-<lang>-sound.mp4` | The same picture stream with the sound (AAC 192k). |
-| `drifting-promo-<lang>.wav` | The sound: rain, effects and the pad, −16 LUFS. |
-| `drifting-promo-<lang>-effects.wav` | Rain and effects without the pad, −16 LUFS, for laying other music under it. |
-| `drifting-promo-<lang>-cues.json` | When each effect falls (keys left out), for cutting other music to the picture. |
+| `drifting-promo-<lang>.wav` | The sound: the score, rain and effects, −16 LUFS. |
+| `drifting-promo-<lang>-effects.wav` | Rain and effects without the score, −16 LUFS, for laying other music under it. |
+| `drifting-promo-<lang>-cues.json` | The sections and when each effect falls (keys left out), for cutting other music to the picture. |
 
 About 3 minutes a language at 60 fps; `--sound-only` takes seconds. It needs
 `pnpm install`, Google Chrome (`CHROME` overrides the path; WebGL2 runs on
@@ -69,18 +69,30 @@ How it is made, and why:
 - **The sound** (`sound.mjs`) is synthesized, not recorded, so nothing in it
   needs a licence, and it is made from the page's own list of what happens
   when (`window.__promo.sounds`), built from the same schedules the picture
-  plays: a key for each character as it appears, the brush as each frame and
-  underline is drawn, a drop as the sea is struck. Each is heard where its
-  element sits across the frame. Under them: rain all the way through (6 dB
-  softer under the sheets, so the room is heard), air as the name rises, a
-  low thump and falling air as it bursts, faint glass as the sheet opens and
-  changes, small glass notes as files save and the Agent's steps finish, and
-  a soft pad above 90 Hz that changes chord with the scenes (D, Bm, G, Em, A,
-  D) and breathes with the risen word; one reverb (Freeverb) holds it all.
-  The layers sit at about −30 dBFS (rain), −37 (pad) and peaks of −11 to −18
-  (effects). The mix is brought to −16 LUFS by one fixed gain, the few peaks
-  it would lift past −2 dBFS held first by a look-ahead limiter, so the rain
-  never pumps; a rerun gives the same samples.
+  plays.
+  - **The score** is a short piece in D minor for a modelled felt piano
+    (inharmonic partials, two or three detuned strings a note, a quick and a
+    slow decay, the felt darker under a soft touch, the hammer's knock, a pedal
+    lifted at each chord change) over low bowed strings kept 7–9 dB under it.
+    Its turns sit on the video's `section` marks: one high A as the stone
+    drops; a falling line as the name rises; a low D struck as it bursts;
+    broken chords under the pillars (Dm Bb F C, then Gm Dm Bb A); the line
+    reaching its high A under the Agent and resolving to D minor as its edit
+    settles (the `settle` cue, so each language lands on its own frame); the
+    high A again over D minor with an added ninth at the close.
+  - **The effects** are all shaped noise, never a tone: rain all the way
+    through (6 dB softer under the sheets), air as the name rises and as it
+    bursts over a low rumble, a key for each character, the brush as each
+    frame and underline is drawn and reversed for the Agent's erase, air for
+    a tab's push, a sent message and the glass sheet, and soft taps for a
+    saved line and each Agent step. Each is heard where its element sits
+    across the frame. The author turned down the earlier pitched drop and
+    send bloops and glass chimes: keep effects toneless.
+  - **The mix**: the score below 40 Hz cut, 3 dB lighter below 140 Hz, and
+    only what is above 220 Hz sent into its hall (Freeverb), so the low end
+    stays clear. It is brought to −16 LUFS by one fixed gain, the few peaks
+    it would lift past −2 dBFS held first by a look-ahead limiter, so the
+    rain never pumps; a rerun gives the same samples.
 - **Copy** is the landing page's and the README's, in both languages; the
   Chinese headings break where a phrase ends. The page lays out at 1152×648 CSS
   px and is captured at device scale 1920/1152, so the corners' 15px text is
