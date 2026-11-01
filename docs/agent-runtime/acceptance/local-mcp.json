@@ -1,10 +1,30 @@
 {
   "kind": "local-mcp-runtime-and-native-ipc",
-  "generatedAt": "2026-11-01T17:32:42.158Z",
-  "sourceSha256": "d352025f3eae7afeeb876af9468fe5c2295388b0d01b049edb7a58b1c5bfed71",
+  "generatedAt": "2026-11-01T17:42:08.371Z",
+  "sourceSha256": "78903895e0d300594d730efea084c204004f62bfe91dc6b5c167dba1ca6f60fc",
   "status": "passed",
   "synthetic": true,
   "checks": [
+    {
+      "name": "application persistence lifecycle flushes mounted projections after durability without letting a projection error block saving",
+      "status": "passed"
+    },
+    {
+      "name": "application persistence lifecycle keeps the remote lane inert until SyncEngine installs its hook",
+      "status": "passed"
+    },
+    {
+      "name": "application persistence lifecycle attempts every ordered local durability step before requesting a SyncEngine cycle",
+      "status": "passed"
+    },
+    {
+      "name": "application persistence lifecycle unmounts and waits for Yjs close snapshots after the SyncEngine hook and before the final checkpoint",
+      "status": "passed"
+    },
+    {
+      "name": "application persistence lifecycle tears down after credential loss even when the first local flush fails",
+      "status": "passed"
+    },
     {
       "name": "Markdown projection scheduling defers automatic full-project capture during IME but preserves explicit refresh",
       "status": "passed"
@@ -83,26 +103,6 @@
     },
     {
       "name": "migrates old MCP identities and provider records without deleting history or audit data",
-      "status": "passed"
-    },
-    {
-      "name": "application persistence lifecycle flushes mounted projections after durability without letting a projection error block saving",
-      "status": "passed"
-    },
-    {
-      "name": "application persistence lifecycle keeps the remote lane inert until SyncEngine installs its hook",
-      "status": "passed"
-    },
-    {
-      "name": "application persistence lifecycle attempts every ordered local durability step before requesting a SyncEngine cycle",
-      "status": "passed"
-    },
-    {
-      "name": "application persistence lifecycle unmounts and waits for Yjs close snapshots after the SyncEngine hook and before the final checkpoint",
-      "status": "passed"
-    },
-    {
-      "name": "application persistence lifecycle tears down after credential loss even when the first local flush fails",
       "status": "passed"
     },
     {
@@ -234,6 +234,26 @@
       "status": "passed"
     },
     {
+      "name": "MCP server bridge gives a native session that outlives a bridge remount a fresh durable identity",
+      "status": "passed"
+    },
+    {
+      "name": "shared prose reading and literal search preserves empty blocks and hard breaks in the body-only line coordinate system",
+      "status": "passed"
+    },
+    {
+      "name": "shared prose reading and literal search rejects invalid ranges and produces content-sensitive versions",
+      "status": "passed"
+    },
+    {
+      "name": "shared prose reading and literal search bounds an overestimated end line to the body and preserves range pagination",
+      "status": "passed"
+    },
+    {
+      "name": "shared prose reading and literal search matches every literal occurrence, preserves punctuation and pages with a version guard",
+      "status": "passed"
+    },
+    {
       "name": "local relational Markdown export acceptance uses persisted Yjs state before seed fallback and preserves safe relational links",
       "status": "passed"
     },
@@ -283,26 +303,6 @@
     },
     {
       "name": "reader-facing Markdown tree handles duplicate names, Unicode normalization, reserved names and file-directory collisions without leaking full IDs",
-      "status": "passed"
-    },
-    {
-      "name": "MCP server bridge gives a native session that outlives a bridge remount a fresh durable identity",
-      "status": "passed"
-    },
-    {
-      "name": "shared prose reading and literal search preserves empty blocks and hard breaks in the body-only line coordinate system",
-      "status": "passed"
-    },
-    {
-      "name": "shared prose reading and literal search rejects invalid ranges and produces content-sensitive versions",
-      "status": "passed"
-    },
-    {
-      "name": "shared prose reading and literal search bounds an overestimated end line to the body and preserves range pagination",
-      "status": "passed"
-    },
-    {
-      "name": "shared prose reading and literal search matches every literal occurrence, preserves punctuation and pages with a version guard",
       "status": "passed"
     },
     {
@@ -586,7 +586,7 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::client_config::tests::codex_merge_preserves_comments_and_other_servers_and_is_idempotent",
+      "name": "mcp_server::client_config::tests::claude_statistics_keep_their_exact_numeric_values",
       "status": "passed"
     },
     {
@@ -598,7 +598,7 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::client_config::tests::claude_statistics_keep_their_exact_numeric_values",
+      "name": "mcp_server::client_config::tests::antigravity_stdio_setup_preserves_other_servers_and_user_controls",
       "status": "passed"
     },
     {
@@ -606,7 +606,7 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::client_config::tests::antigravity_stdio_setup_preserves_other_servers_and_user_controls",
+      "name": "mcp_server::client_config::tests::codex_merge_preserves_comments_and_other_servers_and_is_idempotent",
       "status": "passed"
     },
     {
@@ -614,11 +614,15 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::local::tests::renderer_dispatch_preserves_authorized_scope_and_cancellation",
+      "name": "mcp_server::local::tests::permission_change_cancels_pending_requests_before_publishing_new_grant",
       "status": "passed"
     },
     {
       "name": "mcp_server::local::tests::private_credentials_reject_symlinks_and_public_permissions",
+      "status": "passed"
+    },
+    {
+      "name": "mcp_server::client_config::tests::antigravity_setup_creates_nested_config_and_backs_up_before_revocation",
       "status": "passed"
     },
     {
@@ -630,19 +634,15 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::client_config::tests::antigravity_setup_creates_nested_config_and_backs_up_before_revocation",
-      "status": "passed"
-    },
-    {
-      "name": "mcp_server::local::tests::permission_change_cancels_pending_requests_before_publishing_new_grant",
-      "status": "passed"
-    },
-    {
-      "name": "mcp_server::local::tests::socket_authentication_project_scope_revocation_and_duplicate_ids",
+      "name": "mcp_server::local::tests::renderer_dispatch_preserves_authorized_scope_and_cancellation",
       "status": "passed"
     },
     {
       "name": "mcp_server::local::tests::initialize_reports_persisted_custom_projection_location",
+      "status": "passed"
+    },
+    {
+      "name": "mcp_server::local::tests::socket_authentication_project_scope_revocation_and_duplicate_ids",
       "status": "passed"
     },
     {
@@ -666,7 +666,7 @@
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::hidden_metadata_rejects_symlinks_before_changing_the_readable_manuscript",
+      "name": "markdown_projection::tests::an_abandoned_authored_file_with_unread_edits_is_preserved",
       "status": "passed"
     },
     {
@@ -674,19 +674,7 @@
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::an_abandoned_authored_file_with_unread_edits_is_preserved",
-      "status": "passed"
-    },
-    {
-      "name": "markdown_projection::tests::markdown_projection_rejects_symlink_parent_and_preserves_external_target",
-      "status": "passed"
-    },
-    {
-      "name": "markdown_projection::tests::output_selection_rejects_symlinked_managed_directory",
-      "status": "passed"
-    },
-    {
-      "name": "markdown_projection::tests::opening_shows_the_project_folder_once_written_else_the_folder_holding_projects",
+      "name": "markdown_projection::tests::hidden_metadata_rejects_symlinks_before_changing_the_readable_manuscript",
       "status": "passed"
     },
     {
@@ -694,7 +682,11 @@
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::interrupted_projection_claims_can_be_retried_and_cleaned_up",
+      "name": "markdown_projection::tests::opening_shows_the_project_folder_once_written_else_the_folder_holding_projects",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::markdown_projection_rejects_symlink_parent_and_preserves_external_target",
       "status": "passed"
     },
     {
@@ -702,23 +694,15 @@
       "status": "passed"
     },
     {
+      "name": "markdown_projection::tests::interrupted_projection_claims_can_be_retried_and_cleaned_up",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::output_selection_rejects_symlinked_managed_directory",
+      "status": "passed"
+    },
+    {
       "name": "markdown_projection::tests::attachments_are_verified_hashed_read_only_and_removed_without_touching_vault_settings",
-      "status": "passed"
-    },
-    {
-      "name": "markdown_projection::tests::markdown_projection_is_incremental_read_only_and_removes_only_owned_files",
-      "status": "passed"
-    },
-    {
-      "name": "markdown_projection::tests::readable_paths_reject_reserved_names_prefix_conflicts_and_case_collisions",
-      "status": "passed"
-    },
-    {
-      "name": "markdown_projection::tests::source_assets_reject_symlinks_and_hardlinks_before_modifying_managed_output",
-      "status": "passed"
-    },
-    {
-      "name": "markdown_projection::tests::unsupported_image_previews_copy_only_from_the_project_owned_display_variant",
       "status": "passed"
     },
     {
@@ -734,23 +718,11 @@
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::unavailable_default_location_does_not_fall_back_and_can_be_reset",
+      "name": "markdown_projection::tests::markdown_projection_is_incremental_read_only_and_removes_only_owned_files",
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::upgrading_a_read_only_projection_keeps_edited_files",
-      "status": "passed"
-    },
-    {
-      "name": "markdown_projection::tests::unavailable_custom_output_does_not_fallback_and_can_be_reset",
-      "status": "passed"
-    },
-    {
-      "name": "markdown_projection::tests::readable_tree_upgrades_legacy_manifests_and_cleans_only_owned_paths",
-      "status": "passed"
-    },
-    {
-      "name": "markdown_projection::tests::turned_off_folder_is_neither_written_nor_read_and_keeps_its_files",
+      "name": "markdown_projection::tests::source_assets_reject_symlinks_and_hardlinks_before_modifying_managed_output",
       "status": "passed"
     },
     {
@@ -758,7 +730,35 @@
       "status": "passed"
     },
     {
+      "name": "markdown_projection::tests::unsupported_image_previews_copy_only_from_the_project_owned_display_variant",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::readable_tree_upgrades_legacy_manifests_and_cleans_only_owned_paths",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::upgrading_a_read_only_projection_keeps_edited_files",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::readable_paths_reject_reserved_names_prefix_conflicts_and_case_collisions",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::unavailable_default_location_does_not_fall_back_and_can_be_reset",
+      "status": "passed"
+    },
+    {
       "name": "markdown_projection::tests::default_location_holds_projects_without_their_own_and_keeps_old_folders",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::turned_off_folder_is_neither_written_nor_read_and_keeps_its_files",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::unavailable_custom_output_does_not_fallback_and_can_be_reset",
       "status": "passed"
     }
   ],
