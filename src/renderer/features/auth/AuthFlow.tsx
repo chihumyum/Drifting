@@ -24,6 +24,7 @@ import { Button } from '../../components/ui/Button';
 import { GhostIconButton } from '../../components/ui/GhostIconButton';
 import { LoadingStatus } from '../../components/ui/LoadingStatus';
 import type { AuthEntryMode } from './auth-dialog-store';
+import { authErrorMessage } from './auth-errors';
 import '../../../styles/auth.css';
 import { BrushIcon } from '../../components/ui/BrushIcon';
 
@@ -156,7 +157,7 @@ export function AuthFlow({
         // The server creates the account without a session until the email is
         // verified; the verify step then signs in with these credentials.
         const result = await authClient.signUp.email({ email, password, name });
-        if (result.error) throw new Error(result.error.message || t('auth.errors.signUpFailed'));
+        if (result.error) throw new Error(authErrorMessage(result.error, t, 'auth.errors.signUpFailed'));
         go('verify');
       }
     } catch (err) {
@@ -481,7 +482,7 @@ function OtpForm({
     try {
       if (stage === 'email') {
         const res = await authClient.emailOtp.sendVerificationOtp({ email, type: 'sign-in' });
-        if (res.error) throw new Error(res.error.message || t('auth.errors.sendFailed'));
+        if (res.error) throw new Error(authErrorMessage(res.error, t, 'auth.errors.sendFailed'));
         setStage('code');
       } else {
         const res = await authClient.signIn.emailOtp({ email, otp });
@@ -552,7 +553,7 @@ function ForgotForm({ initialEmail, onDone }: { initialEmail: string; onDone(): 
     setError(null);
     try {
       const result = await authClient.emailOtp.requestPasswordReset({ email });
-      if (result.error) throw new Error(result.error.message || t('auth.errors.sendCodeFailed'));
+      if (result.error) throw new Error(authErrorMessage(result.error, t, 'auth.errors.sendCodeFailed'));
       setPhase('reset');
     } catch (err) {
       setError(err instanceof Error ? err.message : t('auth.errors.sendCodeFailed'));
@@ -683,7 +684,7 @@ function VerifyForm({
     setBusy(true);
     try {
       const res = await authClient.emailOtp.sendVerificationOtp({ email, type: 'email-verification' });
-      if (res.error) throw new Error(res.error.message || t('auth.errors.sendFailed'));
+      if (res.error) throw new Error(authErrorMessage(res.error, t, 'auth.errors.sendFailed'));
       setSentOnce(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : t('auth.errors.sendCodeFailed'));

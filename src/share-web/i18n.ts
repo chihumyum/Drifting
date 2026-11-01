@@ -45,6 +45,8 @@ const zh = {
     COMMENTS_DISABLED: '作者已关闭评论。',
     NEEDS_SIGN_IN: '请先登录。',
     OFFLINE: '网络连接不上。',
+    MAIL_QUOTA_EXHAUSTED: '今天的验证邮件已经发完了，明天再来注册或登录吧。',
+    MAIL_DELIVERY_FAILED: '验证邮件暂时发不出去，请稍后再试。',
     fallback: '出了点问题，请再试一次。',
   } as Record<string, string>,
 };
@@ -98,6 +100,8 @@ const en: Strings = {
     COMMENTS_DISABLED: 'The author has turned comments off.',
     NEEDS_SIGN_IN: 'Please sign in first.',
     OFFLINE: 'Cannot reach the network.',
+    MAIL_QUOTA_EXHAUSTED: "Today's verification emails have all been sent. Please come back tomorrow to sign up or sign in.",
+    MAIL_DELIVERY_FAILED: "Verification emails can't be sent right now. Please try again later.",
     fallback: 'Something went wrong. Please try again.',
   },
 };
