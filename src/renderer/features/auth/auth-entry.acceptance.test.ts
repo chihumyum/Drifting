@@ -26,6 +26,7 @@ describe('account sign-in entry', () => {
       expect(sync.accountMismatchTitle).toBeTruthy();
       expect(sync.accountMismatch).not.toContain('HOSTED_ACCOUNT_MISMATCH');
       expect(sync.accountMismatchOk).toBeTruthy();
+      expect(sync.accountMismatchOpenAccount).toBeTruthy();
     }
   });
 

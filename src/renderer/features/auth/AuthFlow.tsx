@@ -18,6 +18,7 @@ import { describeSyncConnectError } from '../../sync/hosted/connect-error-text';
 import { authClient } from '../../lib/auth-client';
 import { setSessionToken } from '../../lib/session-token';
 import { platform } from '../../platform';
+import { events } from '../../lib/events';
 import { OAUTH_PROVIDER_CONFIG, OAUTH_PROVIDERS, type SupportedOAuthProvider } from '../../lib/oauth-providers';
 import { isAppClosedForPublic } from '../../utils/appAccess';
 import { APP_CONFIG } from '../../lib/config';
@@ -216,8 +217,17 @@ export function AuthFlow({
       <div className="auth-flow__body" role="alert">
         <p className="auth-flow__lead">{t('auth.sync.accountMismatch')}</p>
         <div className="auth-flow__actions">
-          <FlowButton kind="primary" onClick={() => onCompleteRef.current()}>
+          <FlowButton kind={glass ? 'text' : 'secondary'} onClick={() => onCompleteRef.current()}>
             {t('auth.sync.accountMismatchOk')}
+          </FlowButton>
+          <FlowButton
+            kind="primary"
+            onClick={() => {
+              onCompleteRef.current();
+              events.emit('settings:open', { railId: 'account' });
+            }}
+          >
+            {t('auth.sync.accountMismatchOpenAccount')}
           </FlowButton>
         </div>
       </div>
