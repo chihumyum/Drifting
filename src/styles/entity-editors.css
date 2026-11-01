@@ -1154,38 +1154,10 @@ button.patch-card__invalid {
   align-items: center;
   padding: 6px 0 2px;
 }
-.col-pick__sw {
-  width: 24px;
-  height: 24px;
-  border-radius: 3px;
-  background: var(--c, hsl(var(--ink-5)));
-  cursor: pointer;
-  position: relative;
-  border: 2px solid hsl(var(--page));
-  box-shadow: 0 0 0 1px hsl(var(--rule-strong));
-  transition:
-    border-color 0.12s,
-    box-shadow 0.12s;
-}
-.col-pick__sw:hover {
-  border-color: hsl(var(--ink-2));
-}
-.col-pick__sw--active {
-  box-shadow: 0 0 0 1.5px var(--c);
-}
-.col-pick__sw--active::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: hsl(var(--paper));
-  -webkit-mask: url('../assets/design/icons/check.png') center / 11px 11px no-repeat;
-  mask: url('../assets/design/icons/check.png') center / 11px 11px no-repeat;
-}
 
 /* Desktop: no colour slab in the hero — the storyline's dash or the
-   category's corner, drawn large ahead of the name. Colours are a row of
-   round glass, each holding a seal of its colour; the chosen one is that
-   colour's still selected glass. */
+   category's corner, drawn large ahead of the name. A single round glass
+   swatch opens the system colour picker. */
 .entity-hero__name-row {
   display: flex;
   align-items: flex-start;
@@ -1215,20 +1187,6 @@ button.patch-card__invalid {
 .col-pick--glass {
   gap: 6px;
   padding: 2px 0;
-}
-.col-pick__dot {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-}
-.col-pick__dot > .sand {
-  width: 15px;
-  height: 15px;
 }
 
 /* Desktop element aliases: plain words set apart by a dot. The one under the

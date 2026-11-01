@@ -48,15 +48,6 @@ import { BrushIcon } from '../components/ui/BrushIcon';
 const log = loglevel.getLogger('StorylineEditorView');
 log.setLevel(loglevel.levels.WARN);
 
-const STORY_COLORS = [
-  'hsl(var(--story-1))',
-  'hsl(var(--story-2))',
-  'hsl(var(--story-3))',
-  'hsl(var(--story-4))',
-  'hsl(var(--story-5))',
-  'hsl(var(--story-6))',
-];
-
 type ChapterFilter = 'all' | 'written' | 'unwritten';
 
 export function StorylineEditorView({
@@ -437,27 +428,6 @@ export function StorylineEditorView({
                     <div className="elem-hero__fact-k">{t('storylineEditor.labels.color')}</div>
                     <div className="elem-hero__fact-v">
                       <div className={`col-pick${glass ? ' col-pick--glass' : ''}`}>
-                        {STORY_COLORS.map((c, index) => glass ? (
-                          <button
-                            key={c}
-                            type="button"
-                            className="col-pick__dot glass glass--round"
-                            aria-pressed={c === currentStoryline.color}
-                            aria-label={`${t('storylineEditor.labels.color')} ${index + 1}`}
-                            style={{ '--glass-cc': c } as React.CSSProperties}
-                            onClick={() => void commitColor(c)}
-                          >
-                            <i className="sand sand--blob-2" style={{ '--sand-c': c } as React.CSSProperties} />
-                          </button>
-                        ) : (
-                          <div
-                            key={c}
-                            className={`col-pick__sw${c === currentStoryline.color ? ' col-pick__sw--active' : ''}`}
-                            style={{ ['--c' as string]: c } as React.CSSProperties}
-                            onClick={() => void commitColor(c)}
-                            title={c}
-                          />
-                        ))}
                         <ColorPicker
                           value={storylineColor}
                           onChange={(color) => void commitColor(color)}

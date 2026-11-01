@@ -56,7 +56,7 @@ describe('entity editor custom colours', () => {
     }
   });
 
-  it('keeps presets and writes custom colours through each editor’s existing commit path', () => {
+  it('offers only the native picker and keeps each editor’s existing commit path', () => {
     for (const locale of ['zh-CN', 'en']) {
       expect(JSON.parse(source(`src/renderer/locales/${locale}.json`)).common.customColor).toBeTruthy();
     }
@@ -65,8 +65,8 @@ describe('entity editor custom colours', () => {
       ['CategoryEditorView', 'categoryColor'],
     ]) {
       const view = source(`src/renderer/views/${file}.tsx`);
-      expect(view).toContain('hsl(var(--story-6))');
-      expect(view).toContain('onClick={() => void commitColor(c)}');
+      expect(view).not.toMatch(/STORY_COLORS|CATEGORY_COLORS|col-pick__(?:dot|sw)/);
+      expect(view.match(/<ColorPicker\s/g)).toHaveLength(1);
       expect(view).toContain(`<ColorPicker\n                          value={${color}}`);
       expect(view).toContain('onChange={(color) => void commitColor(color)}');
       expect(view).toContain("ariaLabel={t('common.customColor')}");

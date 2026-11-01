@@ -27,7 +27,7 @@ Agent 双栏隔离使用合成 repository/transport 的真实 store 验收：`pn
 
 ## 行为证据
 
-- **实体自定义颜色**：`entity-editor-colors.acceptance.test.ts` 检查两个编辑器保留六个主题预设、接入强调色使用的共享 `ColorPicker`、任意六位 Hex（含黑白）与移动端的原生输入、既有颜色提交路径及窄栏换行；编辑器行内不显示 Hex 或「自定义颜色」文字，设置保留色值。隔离 Tauri WKWebView 的[生成证据](acceptance/entity-editor-custom-colors.json)走过两个编辑器的四种任意颜色、真实 SQLite 写入、WebView 重载回显、返回主题预设和聚焦取色器不写回。输入是合成 DOM 事件，证据不声明系统取色面板的物理点击或像素级视觉验收。
+- **实体自定义颜色**：`entity-editor-colors.acceptance.test.ts` 检查两个编辑器仅有一个共享 `ColorPicker`，没有预设色，且和强调色使用同一控件；覆盖任意六位 Hex（含黑白）与移动端的原生输入、既有颜色提交路径及窄栏换行；编辑器行内不显示 Hex 或「自定义颜色」文字，设置保留色值。隔离 Tauri WKWebView 的[生成证据](acceptance/entity-editor-custom-colors.json)走过两个编辑器的四种任意颜色、真实 SQLite 写入、WebView 重载回显、没有预设色、单个取色入口和聚焦取色器不写回。输入是合成 DOM 事件，证据不声明系统取色面板的物理点击或像素级视觉验收。
 
 - **材料**：`sand-glass-materials.test.ts` 覆盖记号映射与章节印记的稳定性、忙碌/游离记号、cell 已选中时淡入而非重画、玻璃流动按距离推进并在静止后淡出以及减少动效时不动、内层的主人（双栏中缝）只写自己那一对且线取两对里较强的那个、选中态与按住态分开（按住在后、覆盖选中）、水波层的样式约定，以及小块玻璃（`.glass--small`、`.glass--round`）由一条规则取稠密纹理、写在轮换之后，其他样式表不再自写稠密坐标，共用的 `Button`、`GhostIconButton`、`GlassSelect` 带上小块修饰，开关轨道也取稠密纹理；深色主题一组覆盖 `--shadow-ink` 浅深两值与深色的浮层、药丸副本投影，除第二批待迁的 Super View、设置页、书架与暂停中的移动端外，样式表里的浮起投影不再用 `--ink-1`（半像素边线与内嵌细线除外），以及深色下只有内晕往白里提 45%。
 - **动效模块**：`lib/motion.test.ts` 覆盖 `lib/motion.ts` 与 `materials.css` 里 `--motion-*` 的数值一致、设计系统点名的时长与弹簧参数、弹簧采样从 0 单调走到 1 不越过，以及侧栏、时间线、滑块、Dock 拖拽、水波与各 CSS 不再自带这些数值。Dock 药丸拖拽的无头浏览器验收（`node scripts/run-tab-reorder-acceptance.mjs`）把 `lib/motion.ts` 计入指纹，2026-10-29 收拢后重跑通过。
