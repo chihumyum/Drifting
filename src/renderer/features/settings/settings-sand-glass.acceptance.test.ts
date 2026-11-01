@@ -105,7 +105,9 @@ describe('settings in sand and glass on the desktop', () => {
 
     const controls = source('src/renderer/features/settings/panels/ControlSettingsPanels.tsx');
     expect(controls).toContain("className={`set-key-combo glass glass--small${isRecording ? ' glass--waiting' : ''}`}");
-    expect(controls).toContain('<div className="set-about-name__title">Drifting</div>');
+    // The About panel's header names the app once; the desktop block keeps only the readouts.
+    expect(controls).not.toContain('set-about-name__title');
+    expect(controls).toContain('<div className="set-about-name__meta">');
     expect(controls).not.toContain('cnName');
 
     const trash = source('src/renderer/components/TrashPanel.tsx');

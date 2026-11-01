@@ -10,6 +10,10 @@ const LAST_CHECK_KEY = 'drifting.alpha-updater.last-check.v1';
 const INSTALLED_UPDATE_KEY = 'drifting.updater.installed.v1';
 /** Published as `error` when local writes could not be saved before installing. */
 export const UPDATE_LOCAL_SAVE_FAILED = 'UPDATE_LOCAL_SAVE_FAILED';
+/** Published as `error` when the check could not reach a valid release manifest
+ * (no network, the release site down, no published release yet). The author
+ * sees a plain sentence instead of the updater's own words. */
+export const UPDATE_CHECK_FAILED = 'UPDATE_CHECK_FAILED';
 
 export type UpdateServicePhase =
   | 'idle'
@@ -137,7 +141,7 @@ async function check(options: { manual?: boolean } = {}): Promise<UpdateServiceS
         update: null,
         downloadedBytes: 0,
         totalBytes: null,
-        error: errorMessage(error),
+        error: UPDATE_CHECK_FAILED,
       });
       return state;
     } finally {
