@@ -13,7 +13,7 @@
 | --- | --- |
 | 平台 | macOS 13+，Apple Silicon（`aarch64-apple-darwin`） |
 | 打包 | `.dmg`（首次安装）、`.app.tar.gz` + `.sig`（自动更新）、`latest.json`、`SHA256SUMS.txt`、`sbom.spdx.json` |
-| 签名 | Developer ID Application 证书，App Store Connect API Key 公证并 staple |
+| 签名 | Developer ID Application 证书；App 和外层的 DMG 都用 App Store Connect API Key 公证并 staple（DMG 那一步在 Tauri 构建之后单独做） |
 | Hosted | 连接 `vars.DRIFTING_HOSTED_ORIGIN`，开放注册；注册页链接 `https://drifting.cc/terms` 与 `https://drifting.cc/privacy` |
 | 更新 | 启动后每天最多检查一次；有新版本时通知中心出现一条，点开到 设置 › 更新；下载和安装都要用户确认；安装前先保存全部本地修改 |
 
