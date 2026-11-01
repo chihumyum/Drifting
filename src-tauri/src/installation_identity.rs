@@ -4,7 +4,6 @@
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
 use std::path::Path;
-use tauri::Manager;
 
 const FILE_NAME: &str = "sync-installation-v2.json";
 

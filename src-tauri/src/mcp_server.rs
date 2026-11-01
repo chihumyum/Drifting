@@ -207,6 +207,28 @@ mod local {
             if socket.as_os_str().len() > 103 {
                 return Err("MCP application data path is too long for local IPC".into());
             }
+            // A moved application data folder (development launches keep theirs
+            // beside the database) leaves connection files naming the old socket
+            // and clients naming the old connection file; follow the move once.
+            let mut moved = Vec::new();
+            for grant in &grants {
+                let path = directory.join(format!("connection-{}.json", grant.id));
+                let Ok(bytes) = read_private(&path) else {
+                    continue;
+                };
+                let Ok(mut credential) = serde_json::from_slice::<Credential>(&bytes) else {
+                    continue;
+                };
+                if credential.socket_path == socket {
+                    continue;
+                }
+                let previous = credential
+                    .socket_path
+                    .with_file_name(format!("connection-{}.json", grant.id));
+                credential.socket_path = socket.clone();
+                write_private(&path, &credential)?;
+                moved.push((grant.clone(), previous));
+            }
             if let Ok(meta) = fs::symlink_metadata(&socket) {
                 use std::os::unix::fs::FileTypeExt;
                 if !meta.file_type().is_socket() {
@@ -227,6 +249,15 @@ mod local {
                     ..Inner::default()
                 }),
             });
+            for (grant, previous) in moved {
+                let Some(installation) = &grant.installation else {
+                    continue;
+                };
+                let config = server.describe(&grant)?["config"].clone();
+                let previous_args = serde_json::json!(["--mcp", "--connection", previous]);
+                // Best effort: a client edited meanwhile keeps its own entry.
+                let _ = client_config::relocate(installation, &previous_args, &config);
+            }
             let shared = server.clone();
             thread::spawn(move || {
                 for stream in listener.incoming().flatten() {

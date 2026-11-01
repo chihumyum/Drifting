@@ -11,7 +11,6 @@ use std::{
     path::{Path, PathBuf},
     sync::Mutex,
 };
-use tauri::Manager;
 
 static WRITER: Mutex<()> = Mutex::new(());
 

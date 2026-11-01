@@ -73,9 +73,16 @@ Development launches also keep the App-local folder (assets, sync objects, the
 sync installation identity, Markdown projections and MCP state) in
 `src-tauri/.local-data/app-data` (`DRIFTING_APP_DATA_DIR`), beside the
 database, never in the installed App's `~/Library/Application Support/cc.drifting.client`.
-A development build and an installed release therefore never share an
-installation identity or sync objects; they still share Keychain items, because
-both use the identifier `cc.drifting.client`.
+The development App also runs under its own identifier,
+`cc.drifting.client.dev` (the identifier it is code-signed with), so it can stay
+open beside an installed release: neither App's single-instance check hands its
+launch to the other. A development build and an installed release therefore
+never share an installation identity, sync objects or a running instance. They
+still share Keychain items, which `secure_storage.rs` keeps under the published
+service name for both identifiers. When the App-local folder moves, MCP
+connections follow it on the next launch: each connection file is pointed at
+the new socket, and a client entry that still names the old connection file is
+rewritten.
 
 Online mode keeps the same `DRIFTING_DB_DIR` as local mode; it neither changes
 accounts nor migrates another lab's library. For a disposable test library, set
