@@ -29,6 +29,7 @@ import type { HoverActionGroup } from '../../../components/ui/HoverCard';
 import { useEntityCellAction } from '../../../hooks/useEntityCellAction';
 import { TimelinePin as SharedTimelinePin } from '../../../components/timeline/TimelinePin';
 import { ActRail } from '../../../components/BottomTimeline/ActRail';
+import { StorylineRailLabel } from '../../../components/BottomTimeline/StorylineRailLabel';
 import {
   TimelineMarkerLines,
   TimelineActDragLine,
@@ -763,15 +764,13 @@ export function DesktopBottomTimeline({
     const isRouteActive = !isSynthetic && storylineId === storyline.id;
     const railColor = storyline.color || 'hsl(var(--story-4))';
     const railMain = (
-      <div className="btl-rail__main">
-        <div className="btl-rail__name">
-          {!isMobilePresentation && <KindMark kind="storyline" color={storyline.color || 'hsl(var(--ink-4))'} />}
-          {storyline.name || 'Untitled'}
-        </div>
-        <div className="btl-rail__count">
-          {t('bottomTimeline.storyline.chapterCount', { count: nodesInStoryline.length })}
-        </div>
-      </div>
+      <StorylineRailLabel
+        wrap={!isMobilePresentation}
+        rowHeight={rowHeight}
+        mark={!isMobilePresentation && <KindMark kind="storyline" color={storyline.color || 'hsl(var(--ink-4))'} />}
+        name={storyline.name || 'Untitled'}
+        count={t('bottomTimeline.storyline.chapterCount', { count: nodesInStoryline.length })}
+      />
     );
 
     return (

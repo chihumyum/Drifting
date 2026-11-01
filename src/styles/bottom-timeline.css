@@ -824,6 +824,16 @@ html:not([data-shell-mode='mobile']) .menu-surface__item.btl__unplaced-row:activ
   display: flex;
   align-items: center;
   gap: 6px;
+  white-space: normal;
+}
+
+.btl--desktop .btl-rail__text {
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: var(--btl-rail-lines, 1);
+  overflow: hidden;
+  overflow-wrap: anywhere;
 }
 
 .btl--desktop .btl-rail__name .kind-mark {
