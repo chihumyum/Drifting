@@ -1,8 +1,8 @@
 # Landing page
 
-drifting.cc's home page, built as a static directory that the site repository
-(Drifting-Showcase) serves beside its `/privacy`, `/terms` and `/support`
-pages.
+drifting.cc's home page and the look the whole site shares, built as a static
+directory that the site repository (Drifting-Showcase) serves beside its
+`/privacy`, `/terms` and `/support` pages and its 404.
 
 ```sh
 node scripts/design-assets/landing/build.mjs                       # writes out/landing/
@@ -10,10 +10,23 @@ node scripts/design-assets/landing/build.mjs ../site --og card.png # another dir
 ```
 
 It writes `index.html`, `assets/` and `fonts/` (and `og.png` with `--og`; use
-`social-preview/`'s `dark.png`). Copy the directory's contents into the site's
-served directory. The page links `/legal/favicon-32x32.png` and
-`/legal/apple-touch-icon.png`, which the site already serves for its
-information pages.
+`social-preview/`'s `dark.png`), and leaves everything else in the directory
+alone. Every page links `/legal/favicon-32x32.png` and
+`/legal/apple-touch-icon.png`, which the site serves.
+
+What is shared, and where it comes from:
+
+- `site.css` → `/assets/site.css`: the app's tokens, glass, sand marks, the bar,
+  the sheets, the footer, the font faces, and the information pages' heading and
+  prose. The home page's own layout stays inline in `index.html`.
+- `prefs.js` → `/assets/prefs.js`, in each page's head: the language (a `#zh` or
+  `#en` link, the visitor's last choice, then the browser's) and a theme picked
+  in this tab, applied before the page paints. Without a pick the theme follows
+  the system on every visit; a pick lasts only for the tab (sessionStorage).
+- `site.mjs`: the language and theme buttons, the sheets whose glass the sea
+  draws, and the pointer's ripples. `entry.mjs` (→ `/assets/landing.js`) and
+  `pages.mjs` (→ `/assets/pages.js`, the information pages' script) both bundle
+  it.
 
 What is on the page, and why:
 
@@ -22,11 +35,15 @@ What is on the page, and why:
   DRIFTING instead of "Loading", at 0.4 of the window's height so the tagline
   and buttons fit under it, with heavier characters in the word (`wordInk`) and
   a denser sheet on narrow windows. `charSeaWordBox` places the tagline under
-  the word. At the top the word stands in the rain; scrolling lets it go, as a
-  book opens. The content sheets lie on the sea like shelf cards, their glass
-  drawn by the sea.
+  the word. The rain falls the whole way down (`rain(true)`, as on the app's
+  first-run page), changing the characters it passes. At the top the word
+  stands in it; scrolling lets the word go, as a book opens. The content sheets
+  lie on the sea like shelf cards, their glass drawn by the sea. The
+  information pages have the same sea and rain with no word.
 - **Corners of the workspace.** Each pillar shows a corner of the real
-  desktop window, measured from the app's own components: a page that takes
+  desktop window, measured from the app's own components (the tab rows with
+  their square glass block and sidebar toggle, the pane headers and their
+  actions, cells, storylines, category frames, the Agent's conversation row): a page that takes
   Markdown as it is typed beside the `.md` file it is saved to; the left
   sidebar's cells, element categories and the dry frame drawn round a click;
   the Agent's transcript beside a page where its edit erases and types in.
@@ -40,6 +57,6 @@ What is on the page, and why:
 - **Copy** comes from the README in both languages; the language switch also
   changes the sea's script. Theme follows the system, or the round button.
 - **Nothing from another host.** Fonts are the app's own `@fontsource-variable`
-  faces, copied as only the slices holding a character the page or the sea
-  writes, under the app's family names so the sea's font stacks find them. The
+  faces, copied as only the slices holding a character a page (this one, and
+  the information pages already in the directory) or the sea writes, under the app's family names so the sea's font stacks find them. The
   site's privacy policy says it loads no third-party resources; keep it true.

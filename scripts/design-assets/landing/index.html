@@ -15,340 +15,15 @@
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" type="image/png" sizes="32x32" href="/legal/favicon-32x32.png">
 <link rel="apple-touch-icon" href="/legal/apple-touch-icon.png">
+<link rel="stylesheet" href="/assets/site.css">
 <style>
-/* Fonts are served from the site itself (build.mjs): only the slices that hold a character this page or the sea writes. */
-{{fonts}}
 /* Layout: the site is the app's shelf. A sea of characters lies under the whole
    window; the word rises out of it while the page waits at the top, bursts as
    the reader scrolls (a book opening), and the content lies on the sea as
    sheets whose glass outlines the water reaches. Inside the sheets are corners
-   of the real workspace. Tokens are the app's own (src/styles/index.css). */
-:root {
-  --paper-deep: 40 9% 94.5%;
-  --page: 45 30% 99.5%;
-  --ink-1: 30 6% 12%;
-  --ink-2: 30 4% 26%;
-  --ink-3: 30 3% 48%;
-  --ink-4: 30 3% 64%;
-  --accent: 218 22% 52%;
-  --rule: hsl(30 6% 12% / 0.08);
-  --hairline: hsl(var(--ink-1) / 0.1);
-  /* The colours an author gives storylines and categories, laid on as sand. */
-  --c-red: 13 49% 46%;
-  --c-blue: 214 49% 46%;
-  --c-green: 82 41% 40%;
-  --c-purple: 270 24% 55%;
-  --c-teal: 162 22% 48%;
-  --c-ochre: 32 47% 53%;
-  /* Agent edits: removed words on story-1, written words on story-3. */
-  --story-1: 252 62% 72%;
-  --story-3: 148 38% 60%;
-  --glass-clear: #b4b6ae;
-  --glass-bleed-lift: 0%;
-  --pigment: 0.85;
-  --pigment-blend: multiply;
-  --pigment-lift: 0%;
-
-  --font-ui: "Inter Tight Variable", -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", sans-serif;
-  --font-content: ui-serif, "Newsreader Variable", "Songti SC", "Noto Serif SC Variable", Georgia, serif;
-  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  --word-face: "Times New Roman", Tinos, Times, serif;
-
-  --glass-fill: color-mix(in srgb, hsl(var(--page)) 80%, transparent);
-  --glass-texture: url({{asset:glass-thick.png}});
-  --glass-round-size: 28px;
-  --motion-structural: 420ms;
-  --motion-structural-ease: cubic-bezier(0.32, 0.72, 0, 1);
-  --motion-sweep: 1.125s;
-  --motion-sweep-ease: cubic-bezier(0.4, 0.1, 0.35, 1);
-  --motion-glass-bleed: 0.24s;
-  --motion-glass-settle: 0.28s;
-  --motion-glass-press: 40ms;
-  --motion-glass-drift: 15s;
-  --motion-sand-fade: 0.3s;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --paper-deep: 220 6% 11.5%;
-    --page: 220 6% 14%;
-    --ink-1: 220 8% 93%;
-    --ink-2: 220 6% 82%;
-    --ink-3: 220 5% 62%;
-    --ink-4: 220 4% 48%;
-    --accent: 218 35% 65%;
-    --rule: hsl(220 8% 93% / 0.09);
-    --hairline: hsl(var(--ink-1) / 0.12);
-    --story-1: 252 50% 74%;
-    --story-3: 148 34% 62%;
-    --glass-clear: #6b6d67;
-    --glass-bleed-lift: 45%;
-    --pigment-blend: normal;
-    --pigment-lift: 14%;
-    color-scheme: dark;
-  }
-}
-:root[data-theme="dark"] {
-  --paper-deep: 220 6% 11.5%;
-  --page: 220 6% 14%;
-  --ink-1: 220 8% 93%;
-  --ink-2: 220 6% 82%;
-  --ink-3: 220 5% 62%;
-  --ink-4: 220 4% 48%;
-  --accent: 218 35% 65%;
-  --rule: hsl(220 8% 93% / 0.09);
-  --hairline: hsl(var(--ink-1) / 0.12);
-  --story-1: 252 50% 74%;
-  --story-3: 148 34% 62%;
-  --glass-clear: #6b6d67;
-  --glass-bleed-lift: 45%;
-  --pigment-blend: normal;
-  --pigment-lift: 14%;
-  color-scheme: dark;
-}
-
-:root[data-lang="zh"] [data-l="en"],
-:root[data-lang="en"] [data-l="zh"] { display: none !important; }
-
-html { scroll-behavior: smooth; }
-body { margin: 0; }
-[hidden] { display: none !important; }
-@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
-body {
-  background: hsl(var(--paper-deep));
-  color: hsl(var(--ink-1));
-  font: 400 15px/1.7 var(--font-ui);
-  -webkit-font-smoothing: antialiased;
-  padding-left: max(16px, env(safe-area-inset-left, 0px));
-  padding-right: max(16px, env(safe-area-inset-right, 0px));
-  overflow-x: hidden;
-}
-/* Without the sea: the sheet of manuscript paper it rests as. */
-:root.no-sea body {
-  background-image: radial-gradient(circle at 5px 5px, hsl(var(--ink-2) / 0.085) 0.9px, transparent 1.3px);
-  background-size: 10px 10px;
-}
-a { color: inherit; }
-:focus-visible { outline: 1.5px solid hsl(var(--accent)); outline-offset: 3px; }
-
-#sea {
-  position: fixed;
-  inset: 0 0 auto 0;
-  width: 100vw;
-  height: 100vh;
-  height: 100lvh;
-  z-index: 0;
-  pointer-events: none;
-  display: block;
-}
-:root.no-sea #sea { display: none; }
-.layer { position: relative; z-index: 1; }
-
-/* ── Glass (src/styles/materials.css) ─────────────────────────────── */
-.glass {
-  --glass-cc: var(--glass-clear);
-  --glass-edge: 33%;
-  --glass-rim: 9px;
-  --glass-g: 1;
-  --glass-sp: 1;
-  --glass-gx: -96px;
-  --glass-gy: -132px;
-  position: relative;
-  isolation: isolate;
-}
-.glass::before {
-  --glass-ring: color-mix(in srgb, var(--glass-cc) min(100%, calc(var(--glass-edge) * 1.8 * var(--glass-g))), transparent);
-  --glass-bleed: color-mix(in srgb, color-mix(in srgb, var(--glass-cc), white var(--glass-bleed-lift)) min(100%, calc(var(--glass-edge) * 1.8 * var(--glass-g))), transparent);
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  border-radius: inherit;
-  pointer-events: none;
-  box-shadow:
-    inset 0 0 0 1px var(--glass-ring),
-    inset 0 0 calc(var(--glass-rim) * var(--glass-sp)) calc(1px * var(--glass-sp)) var(--glass-bleed);
-  -webkit-mask-image: var(--glass-texture);
-  mask-image: var(--glass-texture);
-  -webkit-mask-size: 150px 150px;
-  mask-size: 150px 150px;
-  -webkit-mask-position: var(--glass-gx) var(--glass-gy);
-  mask-position: var(--glass-gx) var(--glass-gy);
-  opacity: 0;
-  animation: glass-flow var(--motion-glass-drift) linear infinite paused;
-  transition: opacity var(--motion-glass-bleed) ease-out, box-shadow var(--motion-glass-press) ease-out;
-}
-.glass--wide { --glass-gx: -14px; --glass-gy: -46px; }
-.glass--rest { --glass-g: 0.85; --glass-sp: 0; }
-.glass--rest::before { opacity: 1; }
-.glass--rest:hover, .glass--rest:focus-visible { --glass-g: 1; --glass-sp: 1; }
-.glass--rest:hover::before, .glass--rest:focus-visible::before {
-  transition: opacity var(--motion-glass-bleed) ease-out, box-shadow var(--motion-glass-bleed) ease-out;
-}
-.glass:hover::before, .glass:focus-visible::before { opacity: 1; animation-play-state: running; }
-.glass.is-on { --glass-g: 1; --glass-sp: 1; }
-.glass.is-on::before { opacity: 1; animation-play-state: paused; transition: opacity var(--motion-glass-bleed) ease-out, box-shadow var(--motion-glass-settle) ease-out; }
-.glass:active { --glass-g: 1.7; --glass-sp: 1.3; }
-.glass:active::before { opacity: 1; animation-play-state: paused; }
-.glass--still:hover, .glass--still:focus-visible { --glass-g: 0.85; --glass-sp: 0; }
-.glass--still:hover::before { animation-play-state: paused; }
-.glass--primary { --glass-cc: hsl(var(--accent)); --glass-g: 1; --glass-sp: 1; color: hsl(var(--accent)); }
-.glass--primary::before { opacity: 1; }
-.glass-sweep::after {
-  --sweep-ring: color-mix(in srgb, var(--glass-cc) 85%, transparent);
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  border-radius: inherit;
-  pointer-events: none;
-  box-shadow: inset 0 0 0 1px var(--sweep-ring), inset 0 0 12px 1.5px var(--sweep-ring);
-  -webkit-mask-image: var(--glass-texture), linear-gradient(to right, transparent 35%, #000 46%, #000 54%, transparent 65%);
-  mask-image: var(--glass-texture), linear-gradient(to right, transparent 35%, #000 46%, #000 54%, transparent 65%);
-  -webkit-mask-size: 150px 150px, 300% 100%;
-  mask-size: 150px 150px, 300% 100%;
-  -webkit-mask-repeat: repeat, no-repeat;
-  mask-repeat: repeat, no-repeat;
-  -webkit-mask-composite: source-in;
-  mask-composite: intersect;
-  opacity: 0;
-  animation: glass-sweep var(--motion-sweep) var(--motion-sweep-ease) both;
-}
-.glass-sweep.glass--rest::before { animation: glass-sweep-line var(--motion-sweep) ease-out backwards; }
-@keyframes glass-flow {
-  from { -webkit-mask-position: var(--glass-gx) var(--glass-gy); mask-position: var(--glass-gx) var(--glass-gy); }
-  to { -webkit-mask-position: calc(var(--glass-gx) + 150px) calc(var(--glass-gy) + 150px); mask-position: calc(var(--glass-gx) + 150px) calc(var(--glass-gy) + 150px); }
-}
-@keyframes glass-sweep {
-  0% { opacity: 1; -webkit-mask-position: var(--glass-gx) var(--glass-gy), 100% 0; mask-position: var(--glass-gx) var(--glass-gy), 100% 0; }
-  88% { opacity: 1; }
-  100% { opacity: 0; -webkit-mask-position: var(--glass-gx) var(--glass-gy), 0% 0; mask-position: var(--glass-gx) var(--glass-gy), 0% 0; }
-}
-@keyframes glass-sweep-line { 0%, 40% { opacity: 0; } 100% { opacity: 1; } }
-
-.pill {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  height: 40px;
-  padding: 0 22px;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: hsl(var(--ink-1));
-  font: 500 15px/1 var(--font-ui);
-  text-decoration: none;
-  cursor: pointer;
-  white-space: nowrap;
-}
-.pill.glass--primary { color: hsl(var(--accent)); font-weight: 600; }
-.pill--sm { height: 32px; padding: 0 14px; font-size: 13px; }
-.round {
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: transparent;
-  color: hsl(var(--ink-2));
-  display: inline-grid;
-  place-items: center;
-  cursor: pointer;
-}
-/* A brush icon (src/assets/design/icons): one mask in the current colour. */
-.ic {
-  display: block;
-  flex: none;
-  width: 18px;
-  height: 18px;
-  background: currentColor;
-  -webkit-mask: var(--i) center / contain no-repeat;
-  mask: var(--i) center / contain no-repeat;
-}
-
-/* ── Sand (materials.css `.sand`): a mask in a colour, laid on as pigment ── */
-.mk {
-  display: inline-block;
-  flex: none;
-  width: 8px;
-  height: 8px;
-  background: color-mix(in srgb, hsl(var(--c, var(--ink-3))), #fff var(--pigment-lift));
-  -webkit-mask: var(--m) center / contain no-repeat;
-  mask: var(--m) center / contain no-repeat;
-  mix-blend-mode: var(--pigment-blend);
-  opacity: var(--pigment);
-}
-.mk-seal { --m: url({{asset:sand/blob-3.png}}); }
-.mk-dash { --m: url({{asset:sand/mark-dash.png}}); width: 15px; height: 6px; }
-.mk-square { --m: url({{asset:sand/mark-square.png}}); width: 8px; height: 8px; }
-.mk-spiral { --m: url({{asset:sand/mark-spiral.png}}); width: 13px; height: 10px; }
-.mk-slip { --m: url({{asset:sand/mark-slip.png}}); width: 5px; height: 12px; }
-.mk-corner { --m: url({{asset:sand/mark-corner.png}}); width: 10px; height: 10px; }
-.mk-star { --m: url({{asset:sand/mark-star.png}}); width: 13px; height: 13px; }
-.mk-icon { width: 15px; height: 15px; }
-
-/* A dry underline under a word (ul.png) and a highlighter stroke behind a phrase (hl.png). */
-.su, .sh { position: relative; white-space: nowrap; text-decoration: none; isolation: isolate; }
-.su::after, .sh::before {
-  content: '';
-  position: absolute;
-  z-index: -1;
-  background: color-mix(in srgb, hsl(var(--c)), #fff var(--pigment-lift));
-  mix-blend-mode: var(--pigment-blend);
-  pointer-events: none;
-  transition: opacity var(--motion-sand-fade) ease-out;
-}
-.su::after {
-  left: -0.12em;
-  right: -0.12em;
-  bottom: -0.08em;
-  height: 0.36em;
-  -webkit-mask: url({{asset:sand/ul.png}}) 0 0 / 100% 100% no-repeat;
-  mask: url({{asset:sand/ul.png}}) 0 0 / 100% 100% no-repeat;
-  opacity: 0.9;
-}
-a.su:hover::after { opacity: 1; }
-.sh::before {
-  inset: 0.02em -0.28em -0.04em;
-  -webkit-mask: url({{asset:sand/hl.png}}) 0 50% / 100% 100% no-repeat;
-  mask: url({{asset:sand/hl.png}}) 0 50% / 100% 100% no-repeat;
-  opacity: 0.34;
-}
-/* Sand that comes into view fades in as a whole (it is never drawn on its own). */
-.sand-wait.su::after, .sand-wait.sh::before { opacity: 0; }
-.sand-wait .mk, .sand-wait.mk, .sand-wait .ic { opacity: 0 !important; }
+   of the real workspace. What every page shares (tokens, glass, sand, the bar,
+   the sheets and the footer) is in site.css. */
 .kind .mk, .tools .ic { transition: opacity var(--motion-sand-fade) ease-out; }
-
-/* ── Bar ──────────────────────────────────────────────────────────── */
-.bar {
-  position: fixed;
-  inset: 0 0 auto 0;
-  z-index: 5;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: calc(14px + env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px));
-  pointer-events: none;
-}
-.bar > * { pointer-events: auto; }
-.brand {
-  font: 700 19px/1 var(--word-face);
-  letter-spacing: 0.08em;
-  color: hsl(var(--ink-1));
-  text-decoration: none;
-  padding: 8px 12px;
-  border-radius: 999px;
-  background: var(--glass-fill);
-  opacity: 0;
-  translate: 0 -4px;
-  transition: opacity var(--motion-structural) var(--motion-structural-ease), translate var(--motion-structural) var(--motion-structural-ease);
-}
-.bar-actions { display: flex; align-items: center; gap: 8px; }
-.bar .glass { background: var(--glass-fill); }
-.bar-dl { opacity: 0; pointer-events: none; transition: opacity var(--motion-structural) var(--motion-structural-ease); }
-:root.scrolled .brand { opacity: 1; translate: 0 0; }
-:root.scrolled .bar-dl { opacity: 1; pointer-events: auto; }
 
 /* ── Hero ─────────────────────────────────────────────────────────── */
 .hero {
@@ -394,20 +69,6 @@ a.su:hover::after { opacity: 1; }
 
 /* ── Sheets ───────────────────────────────────────────────────────── */
 main { display: grid; gap: clamp(48px, 9vh, 96px); padding-bottom: clamp(64px, 10vh, 112px); }
-.sheet {
-  width: 100%;
-  max-width: 1160px;
-  margin: 0 auto;
-  box-sizing: border-box;
-  padding: clamp(24px, 4vw, 52px);
-  border-radius: 2px;
-}
-/* The sea draws the sheet's outline and its 12% veil; without it the sheet is plain ground with a CSS line. */
-:root.no-sea .sheet { background: hsl(var(--paper-deep)); }
-:root.no-sea .sheet::before { opacity: 1; }
-.sheet.glass { --glass-g: 0.85; --glass-sp: 0; --glass-gx: -14px; --glass-gy: -46px; }
-.sheet.glass::before { opacity: 0; }
-.sheet.glass:hover::before { animation-play-state: paused; }
 
 .pillar {
   display: grid;
@@ -416,9 +77,6 @@ main { display: grid; gap: clamp(48px, 9vh, 96px); padding-bottom: clamp(64px, 1
   align-items: start;
 }
 .pillar-text { min-width: 0; display: grid; gap: 18px; padding-top: 4px; }
-.kind { display: flex; align-items: center; gap: 10px; color: hsl(var(--ink-3)); font: 500 12px/1 var(--font-ui); letter-spacing: 0.12em; text-transform: uppercase; --c: var(--sec); }
-.kind .mk { width: 15px; height: 15px; }
-.kind .mk-dash { height: 7px; width: 20px; }
 h2 {
   margin: 0;
   font: 400 clamp(1.7rem, 1.15rem + 1.6vw, 2.45rem)/1.25 var(--font-content);
@@ -440,7 +98,6 @@ h2 {
 }
 .points b { color: hsl(var(--ink-1)); font-weight: 600; }
 .points .sh { --c: var(--sec); }
-code { white-space: nowrap; font: 500 0.86em/1 var(--font-mono); color: hsl(var(--ink-1)); background: hsl(var(--ink-1) / 0.06); padding: 0.14em 0.36em; border-radius: 3px; }
 
 /* Views and panels, each with its brush icon in an author's colour. */
 .tools { list-style: none; margin: 4px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 14px 8px; }
@@ -517,7 +174,7 @@ code { white-space: nowrap; font: 500 0.86em/1 var(--font-mono); color: hsl(var(
 .typed, .raw-wrap { position: relative; min-width: 0; }
 .typed-ghost, .raw-ghost { visibility: hidden; }
 .typed.has-ghost > #md-typed, .raw-live { position: absolute; inset: 0 0 auto 0; }
-.sb-panes { display: grid; }
+.sb-panes { display: grid; grid-template-columns: minmax(0, 1fr); }
 .sb-panes > .sb-pane { grid-area: 1 / 1; }
 .sb-pane.off { visibility: hidden; }
 
@@ -535,50 +192,73 @@ code { white-space: nowrap; font: 500 0.86em/1 var(--font-mono); color: hsl(var(
 @keyframes raw-in { from { opacity: 0; background: hsl(var(--accent) / 0.12); } }
 
 /* Build: the left sidebar beside the page it opens */
-.vg-studio .win { grid-template-columns: 240px minmax(0, 1fr); min-height: 420px; }
+.vg-studio .win { grid-template-columns: 264px minmax(0, 1fr); min-height: 420px; }
 .sb { position: relative; display: flex; flex-direction: column; min-width: 0; background: hsl(var(--paper-deep)); }
-.sb-top { display: flex; align-items: center; gap: 4px; height: 40px; padding: 0 8px 0 13px; }
-.sb-top .moon { width: 15px; height: 15px; color: hsl(var(--ink-3)); margin-left: 12px; }
-.sb-tabs { display: flex; gap: 2px; margin-left: auto; }
+/* The tab row (PanelTabTray): the tabs are plain words sharing the row; one
+   square glass block lies under the chosen tab's whole share, 2px short of the
+   row's top and bottom. The sidebar's toggle sits in the row beside them. */
+.sb-top { display: flex; align-items: center; gap: 3px; height: 40px; padding: 0 6px 0 13px; box-shadow: inset 0 -1px var(--rule); }
+.sb-top .lights { margin-right: 9px; }
+.sb-toggle { display: grid; place-items: center; flex: none; width: 26px; height: 26px; color: var(--ui-muted); }
+.sb-toggle .ic { width: 15px; height: 15px; }
+.sb-tabs { display: flex; flex: 1; align-self: stretch; min-width: 0; gap: 12px; }
 .sb-tab {
-  height: 26px;
-  padding: 0 7px;
+  flex: 1 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 2px 0;
+  padding: 0;
   border: 0;
-  border-radius: 5px;
+  border-radius: 0;
   background: transparent;
-  color: hsl(var(--ink-2));
-  font: 500 12.5px/1 var(--font-ui);
+  color: var(--ui-muted);
+  font: 500 12.5px/20px var(--font-ui);
   cursor: pointer;
   white-space: nowrap;
 }
-.sb-tab.is-on { color: hsl(var(--ink-1)); }
-.sb-head { padding: 12px 12px 6px; font: 400 10.5px/1.5 var(--font-ui); letter-spacing: 0.12em; text-transform: uppercase; color: hsl(var(--ink-3)); }
-.sb-pane { display: grid; align-content: start; padding: 0 5px 12px; }
-.grp { display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 8px 0 6px; font: 400 13.5px/1 var(--font-ui); color: hsl(var(--ink-2)); }
-.grp small { margin-left: -3px; font-size: 12px; color: hsl(var(--ink-4)); }
+.sb-tab:hover, .sb-tab.is-on { color: hsl(var(--ink-1)); }
+.sb-tab.is-on { background: var(--glass-fill); }
+.sb-tab.glass:not(.is-on)::before { display: none; }
+/* The pane's header: what it holds, and its actions on the right. */
+.sb-head { display: flex; align-items: center; gap: 8px; height: 32px; margin: 4px 0 8px; padding: 0 5px 0 6px; font: 400 11.5px/18px var(--font-ui); letter-spacing: 0.12em; text-transform: uppercase; color: var(--ui-muted); }
+.sb-head > span:first-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sb-acts { display: flex; align-items: center; flex: none; }
+.sb-act { display: grid; place-items: center; width: 26px; height: 26px; color: var(--ui-muted); }
+.sb-act .ic { width: 13px; height: 13px; }
+.sb-act--ov { width: 31px; height: 31px; }
+.sb-act--ov .ic { width: 19px; height: 19px; }
+.sb-act--new { color: hsl(var(--accent)); }
+.sb-pane { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; padding: 0 5px 12px; }
+.grp { display: flex; align-items: center; gap: 7px; height: 30px; padding: 0 6px 0 4px; font: 400 13.5px/20px var(--font-ui); color: hsl(var(--ink-2)); }
+.grp > .mk-dash { width: 14px; }
+.grp small { font-size: 11.5px; color: var(--ui-muted); }
 .grp small::before { content: '· '; }
+.grp-chev { width: 10px; height: 10px; margin: 0 4px 0 auto; color: hsl(var(--ink-4)); }
 .cell {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 9px;
   width: 100%;
   min-width: 0;
   height: 32px;
-  padding: 0 10px 0 22px;
+  padding: 0 10px 0 12px;
   border: 0;
   border-radius: 2px;
   background: transparent;
   color: hsl(var(--ink-2));
-  font: 400 13.5px/1 var(--font-ui);
+  font: 400 13.5px/20px var(--font-ui);
+  letter-spacing: -0.005em;
   text-align: left;
   cursor: pointer;
 }
 .cell > span:not(.mkb) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cell .mkb { display: grid; place-items: center; width: 10px; flex: none; }
-.cell time { margin-left: auto; padding-left: 8px; font: 400 11.5px/1 var(--font-ui); letter-spacing: 0.04em; color: hsl(var(--ink-3)); font-variant-numeric: tabular-nums; }
+.cell .mkb { display: grid; place-items: center; width: 14px; flex: none; }
+.cell time { margin-left: auto; padding-left: 8px; font: 400 11.5px/20px var(--font-ui); letter-spacing: 0.04em; color: var(--ui-muted); font-variant-numeric: tabular-nums; }
 .cell[aria-current="true"] { color: hsl(var(--ink-1)); }
-.cat { position: relative; margin: 14px 6px 4px; padding: 16px 4px 6px; }
+/* An element category (the compact index): a dry frame whose heading cuts its top edge. */
+.cat { position: relative; margin: 10px 4px 12px 6px; padding: 18px 8px 6px; }
 .cat::before {
   content: '';
   position: absolute;
@@ -597,13 +277,17 @@ code { white-space: nowrap; font: 500 0.86em/1 var(--font-mono); color: hsl(var(
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 0 6px;
+  padding: 0 5px;
   background: hsl(var(--paper-deep));
-  font: 400 12.5px/18px var(--font-ui);
-  color: hsl(var(--ink-2));
+  font: 500 11.5px/18px var(--font-ui);
+  letter-spacing: 0.12em;
+  color: var(--ui-muted);
 }
-.cat-grid { display: grid; grid-template-columns: 1fr 1fr; }
-.cat .cell { padding-left: 8px; height: 30px; }
+.cat-legend .mk-corner { width: 12px; height: 12px; margin: 0 1px; }
+.cat-legend .grp-chev { width: 9px; height: 9px; margin: 0 0 0 1px; }
+.cat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 4px; }
+.cat .cell { gap: 6px; height: 28px; padding: 0 8px; }
+.cat .cell .mkb { width: 10px; }
 .cell-frame { position: absolute; z-index: 2; pointer-events: none; color: color-mix(in srgb, hsl(var(--c, var(--ink-3))), #fff var(--pigment-lift)); mix-blend-mode: var(--pigment-blend); opacity: 0.92; }
 .panels { display: grid; }
 .panels > .pg { grid-area: 1 / 1; width: 100%; box-sizing: border-box; opacity: 0; visibility: hidden; transition: opacity var(--motion-sand-fade) ease, visibility 0s linear var(--motion-sand-fade); }
@@ -613,12 +297,16 @@ code { white-space: nowrap; font: 500 0.86em/1 var(--font-mono); color: hsl(var(
 .patches .k { color: hsl(var(--ink-3)); }
 
 /* Tend: the page beside the right sidebar's Agent */
-.vg-agent .win { grid-template-columns: minmax(0, 1fr) 252px; min-height: 452px; }
+.vg-agent .win { grid-template-columns: minmax(0, 1fr) clamp(272px, 50%, 320px); min-height: 492px; }
 .sb-right { border-left: 1px solid var(--rule); }
-.sb-right .sb-top { padding: 0 10px 0 8px; }
-.sb-right .sb-tabs { margin-left: 0; }
-.sb-right .sb-tab { padding: 0 6px; font-size: 12px; }
-.sb-right .moon { margin-left: auto; }
+.sb-right .sb-top { padding: 0 6px; }
+/* The conversation's own row: its title, then working memory, history and a new chat. */
+.agt-head { display: flex; align-items: center; gap: 6px; height: 38px; padding: 0 9px 0 11px; }
+.agt-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 500 12.5px/16px var(--font-ui); color: hsl(var(--ink-2)); }
+.agt-acts { display: flex; flex: none; gap: 2px; }
+.agt-act { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px; font: 400 12.5px/18px var(--font-ui); color: var(--ui-muted); white-space: nowrap; }
+:root[data-lang="zh"] :is(.agt-title, .agt-act) { letter-spacing: 0.04em; }
+.agt-act .ic { width: 10px; height: 10px; }
 .agt { display: flex; flex-direction: column; gap: 8px; flex: 1; padding: 10px 11px 0; }
 .agt > .step { transition: opacity var(--motion-sand-fade) ease, translate var(--motion-structural) var(--motion-structural-ease); }
 .agt > .step.wait { opacity: 0; translate: 0 6px; }
@@ -662,22 +350,6 @@ code { white-space: nowrap; font: 500 0.86em/1 var(--font-mono); color: hsl(var(
 .book-meta b { margin-right: 3px; font-weight: 400; color: hsl(var(--ink-2)); }
 .book-progress { position: relative; height: 6px; margin-top: auto; width: 62%; background: color-mix(in srgb, hsl(var(--ink-2)), #fff var(--pigment-lift)); -webkit-mask: url({{asset:sand/ul.png}}) 0 0 / 100% 100% no-repeat; mask: url({{asset:sand/ul.png}}) 0 0 / 100% 100% no-repeat; opacity: 0.7; mix-blend-mode: var(--pigment-blend); }
 
-footer {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 12px 28px;
-  max-width: 1160px;
-  margin: 0 auto;
-  padding-block: 28px calc(32px + env(safe-area-inset-bottom, 0px));
-  border-top: 1px solid var(--hairline);
-  font-size: 13px;
-  color: hsl(var(--ink-3));
-}
-footer nav { display: flex; flex-wrap: wrap; gap: 6px 18px; }
-footer a { text-decoration: none; }
-footer a:hover { color: hsl(var(--ink-1)); }
-footer .addr { user-select: all; font-family: var(--font-mono); font-size: 12.5px; }
 
 @media (max-width: 980px) {
   .pillar, .data { grid-template-columns: minmax(0, 1fr); }
@@ -690,24 +362,12 @@ footer .addr { user-select: all; font-family: var(--font-mono); font-size: 12.5p
   .vg-agent .win { grid-template-columns: minmax(0, 1fr); }
   .sb-right { border-left: 0; border-top: 1px solid var(--rule); }
   .closing { grid-template-columns: minmax(0, 1fr); justify-items: center; }
-  .bar .pill--sm { padding: 0 11px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .caret { animation: none; }
-  .glass::before { animation: none !important; }
 }
 </style>
-<script>
-(function () {
-  var root = document.documentElement;
-  var lang = null, theme = null;
-  try { lang = localStorage.getItem('drifting.landing.lang'); theme = localStorage.getItem('drifting.landing.theme'); } catch (e) {}
-  if (lang !== 'zh' && lang !== 'en') lang = /^zh/i.test(navigator.language || '') ? 'zh' : 'en';
-  root.dataset.lang = lang;
-  root.lang = lang === 'zh' ? 'zh-CN' : 'en';
-  if (theme === 'light' || theme === 'dark') root.setAttribute('data-theme', theme);
-})();
-</script>
+<script src="/assets/prefs.js"></script>
 </head>
 <body>
 
@@ -809,6 +469,7 @@ footer .addr { user-select: all; font-family: var(--font-mono); font-size: 12.5p
           <aside class="sb" id="studio-sb">
             <div class="sb-top">
               <span class="lights"><i></i><i></i><i></i></span>
+              <span class="sb-toggle"><i class="ic" style="--i:url({{asset:icons/moon-left.png}})"></i></span>
               <div class="sb-tabs">
                 <button class="sb-tab glass is-on" type="button" data-tab="nodes"><span data-l="zh">章节</span><span data-l="en">Chapters</span></button>
                 <button class="sb-tab glass" type="button" data-tab="elements"><span data-l="zh">要素</span><span data-l="en">Elements</span></button>
@@ -817,18 +478,18 @@ footer .addr { user-select: all; font-family: var(--font-mono); font-size: 12.5p
             </div>
             <div class="sb-panes">
             <div class="sb-pane" data-pane="nodes">
-              <div class="sb-head"><span data-l="zh">1 条故事线 · 4 章</span><span data-l="en">1 storyline · 4 chapters</span></div>
-              <div class="grp"><i class="mk mk-dash" style="--c: var(--c-red)"></i><span data-l="zh">寻信</span><span data-l="en">The letters</span><small>3</small></div>
+              <div class="sb-head"><span><span data-l="zh">1 条故事线 · 4 章</span><span data-l="en">1 storyline · 4 chapters</span></span><span class="sb-acts"><span class="sb-act sb-act--ov"><i class="ic" style="--i:url({{asset:icons/ov-folding.png}})"></i></span><span class="sb-act"><i class="ic" style="--i:url({{asset:icons/sort.png}})"></i></span><span class="sb-act sb-act--new"><i class="ic" style="--i:url({{asset:icons/new-storyline.png}})"></i></span></span></div>
+              <div class="grp"><i class="mk mk-dash" style="--c: var(--c-red)"></i><span data-l="zh">寻信</span><span data-l="en">The letters</span><small>3</small><i class="ic grp-chev" style="--i:url({{asset:icons/chevron-down.png}})"></i></div>
               <button class="cell" type="button" data-k="letters" style="--c: var(--c-red)"><span class="mkb"><i class="mk mk-seal"></i></span><span><span data-l="zh">来信</span><span data-l="en">Letters</span></span><time>10/29</time></button>
               <button class="cell" type="button" data-k="fog" style="--c: var(--c-red)" aria-current="true"><span class="mkb"><i class="mk mk-seal"></i></span><span><span data-l="zh">雾</span><span data-l="en">Fog</span></span><time>10/31</time></button>
               <button class="cell" type="button" data-k="seventh" style="--c: var(--c-red)"><span class="mkb"><i class="mk mk-seal"></i></span><span><span data-l="zh">第七圈</span><span data-l="en">The seventh turn</span></span><time>11/01</time></button>
-              <div class="grp"><i class="mk mk-dash" style="--c: var(--ink-4)"></i><span data-l="zh">未归属</span><span data-l="en">Unassigned</span><small>1</small></div>
+              <div class="grp"><i class="mk mk-dash" style="--c: var(--ink-4)"></i><span data-l="zh">未归属</span><span data-l="en">Unassigned</span><small>1</small><i class="ic grp-chev" style="--i:url({{asset:icons/chevron-down.png}})"></i></div>
               <button class="cell" type="button" data-k="harbour" style="--c: var(--ink-4)"><span class="mkb"><i class="mk mk-seal"></i></span><span><span data-l="zh">港口</span><span data-l="en">Harbour</span></span><time>10/26</time></button>
             </div>
             <div class="sb-pane off" data-pane="elements">
-              <div class="sb-head"><span data-l="zh">2 类 · 4 要素</span><span data-l="en">2 categories · 4 elements</span></div>
+              <div class="sb-head"><span><span data-l="zh">2 类 · 4 要素</span><span data-l="en">2 categories · 4 elements</span></span><span class="sb-acts"><span class="sb-act sb-act--ov"><i class="ic" style="--i:url({{asset:icons/ov-iceberg.png}})"></i></span><span class="sb-act"><i class="ic" style="--i:url({{asset:icons/folding-fan-closed.png}})"></i></span><span class="sb-act"><i class="ic" style="--i:url({{asset:icons/sort.png}})"></i></span><span class="sb-act sb-act--new"><i class="ic" style="--i:url({{asset:icons/new-category.png}})"></i></span></span></div>
               <div class="cat" style="--c: var(--c-purple)">
-                <div class="cat-legend"><i class="mk mk-corner"></i><span data-l="zh">人物</span><span data-l="en">Characters</span></div>
+                <div class="cat-legend"><i class="mk mk-corner"></i><span data-l="zh">人物</span><span data-l="en">Characters</span><i class="ic grp-chev" style="--i:url({{asset:icons/chevron-down.png}})"></i></div>
                 <div class="cat-grid">
                   <button class="cell" type="button" data-k="lin" style="--c: var(--c-purple)"><span class="mkb"><i class="mk mk-square"></i></span><span><span data-l="zh">林岚</span><span data-l="en">Lin</span></span></button>
                   <button class="cell" type="button" data-k="keeper" style="--c: var(--c-purple)"><span class="mkb"><i class="mk mk-square"></i></span><span><span data-l="zh">守塔人</span><span data-l="en">The keeper</span></span></button>
@@ -836,16 +497,16 @@ footer .addr { user-select: all; font-family: var(--font-mono); font-size: 12.5p
                 </div>
               </div>
               <div class="cat" style="--c: var(--c-teal)">
-                <div class="cat-legend"><i class="mk mk-corner"></i><span data-l="zh">地点</span><span data-l="en">Places</span></div>
+                <div class="cat-legend"><i class="mk mk-corner"></i><span data-l="zh">地点</span><span data-l="en">Places</span><i class="ic grp-chev" style="--i:url({{asset:icons/chevron-down.png}})"></i></div>
                 <div class="cat-grid">
                   <button class="cell" type="button" data-k="pier" style="--c: var(--c-teal)"><span class="mkb"><i class="mk mk-square"></i></span><span><span data-l="zh">旧码头</span><span data-l="en">The old pier</span></span></button>
                 </div>
               </div>
             </div>
             <div class="sb-pane off" data-pane="drifts">
-              <div class="sb-head"><span data-l="zh">2 条构想</span><span data-l="en">2 ideas</span></div>
-              <button class="cell" type="button" data-k="match" style="--c: var(--ink-3); padding-left: 12px"><span class="mkb" style="width: 14px"><i class="mk mk-spiral"></i></span><span><span data-l="zh">水底的火柴</span><span data-l="en">A match under the sea</span></span><time>10/30</time></button>
-              <button class="cell" type="button" data-k="pencil" style="--c: var(--ink-3); padding-left: 12px"><span class="mkb" style="width: 14px"><i class="mk mk-spiral"></i></span><span><span data-l="zh">背面的铅笔字</span><span data-l="en">Pencil on the back</span></span><time>10/31</time></button>
+              <div class="sb-head"><span><span data-l="zh">2 条构想</span><span data-l="en">2 ideas</span></span><span class="sb-acts"><span class="sb-act"><i class="ic" style="--i:url({{asset:icons/folding-fan-closed.png}})"></i></span><span class="sb-act"><i class="ic" style="--i:url({{asset:icons/sort.png}})"></i></span><span class="sb-act"><i class="ic" style="--i:url({{asset:icons/folder-plus.png}})"></i></span><span class="sb-act sb-act--new"><i class="ic" style="--i:url({{asset:icons/plus.png}})"></i></span></span></div>
+              <button class="cell" type="button" data-k="match" style="--c: var(--ink-3)"><span class="mkb"><i class="mk mk-spiral"></i></span><span><span data-l="zh">水底的火柴</span><span data-l="en">A match under the sea</span></span><time>10/30</time></button>
+              <button class="cell" type="button" data-k="pencil" style="--c: var(--ink-3)"><span class="mkb"><i class="mk mk-spiral"></i></span><span><span data-l="zh">背面的铅笔字</span><span data-l="en">Pencil on the back</span></span><time>10/31</time></button>
             </div>
             </div>
             <canvas class="cell-frame" aria-hidden="true"></canvas>
@@ -953,7 +614,11 @@ footer .addr { user-select: all; font-family: var(--font-mono); font-size: 12.5p
               <div class="sb-tabs">
                 <span class="sb-tab">Review</span><span class="sb-tab"><span data-l="zh">素材库</span><span data-l="en">Library</span></span><span class="sb-tab"><span data-l="zh">统计</span><span data-l="en">Stats</span></span><span class="sb-tab glass is-on">Agent</span>
               </div>
-              <i class="ic moon" style="--i:url({{asset:icons/moon-right.png}})"></i>
+              <span class="sb-toggle"><i class="ic" style="--i:url({{asset:icons/moon-right.png}})"></i></span>
+            </div>
+            <div class="agt-head">
+              <span class="agt-title"><span data-l="zh">守塔人的话太满了，帮我收成一句</span><span data-l="en">The keeper says too much</span></span>
+              <span class="agt-acts"><span class="agt-act"><span data-l="zh">工作记忆</span><span data-l="en">Working memory</span></span><span class="agt-act"><i class="ic" style="--i:url({{asset:icons/stitched.png}})"></i><span data-l="zh">历史</span><span data-l="en">History</span></span><span class="agt-act"><i class="ic" style="--i:url({{asset:icons/plus.png}})"></i><span data-l="zh">新对话</span><span data-l="en">New chat</span></span></span>
             </div>
             <div class="agt" id="ag-log">
               <div class="agt-user glass glass--rest glass--still step"><span data-l="zh">守塔人的话太满了，帮我收成一句，别动林岚的部分。</span><span data-l="en">The keeper says too much. Pare it down to one line, and leave Lin alone.</span></div>
@@ -988,8 +653,8 @@ footer .addr { user-select: all; font-family: var(--font-mono); font-size: 12.5p
         </ul>
       </div>
       <p class="account">
-        <span data-l="zh">注册账号后，可以在多台 Mac 之间同步，并把章节分享成网页给读者阅读和评论。同步内容没有端到端加密。详见<a href="https://drifting.cc/privacy" target="_blank" rel="noopener">隐私政策</a>和<a href="https://drifting.cc/terms" target="_blank" rel="noopener">服务条款</a>。</span>
-        <span data-l="en">With an account you can sync between Macs and share a chapter as a web page that readers can comment on. Synced projects are not end-to-end encrypted. See the <a href="https://drifting.cc/privacy" target="_blank" rel="noopener">privacy policy</a> and <a href="https://drifting.cc/terms" target="_blank" rel="noopener">terms</a>.</span>
+        <span data-l="zh">注册账号后，可以在多台 Mac 之间同步，并把章节分享成网页给读者阅读和评论。同步内容没有端到端加密。详见<a href="/privacy">隐私政策</a>和<a href="/terms">服务条款</a>。</span>
+        <span data-l="en">With an account you can sync between Macs and share a chapter as a web page that readers can comment on. Synced projects are not end-to-end encrypted. See the <a href="/privacy">privacy policy</a> and <a href="/terms">terms</a>.</span>
       </p>
     </div>
   </section>
@@ -1020,9 +685,9 @@ footer .addr { user-select: all; font-family: var(--font-mono); font-size: 12.5p
 
 <footer class="layer">
   <nav>
-    <a href="https://drifting.cc/support" target="_blank" rel="noopener"><span data-l="zh">支持</span><span data-l="en">Support</span></a>
-    <a href="https://drifting.cc/privacy" target="_blank" rel="noopener"><span data-l="zh">隐私政策</span><span data-l="en">Privacy</span></a>
-    <a href="https://drifting.cc/terms" target="_blank" rel="noopener"><span data-l="zh">服务条款</span><span data-l="en">Terms</span></a>
+    <a href="/support"><span data-l="zh">支持</span><span data-l="en">Support</span></a>
+    <a href="/privacy"><span data-l="zh">隐私政策</span><span data-l="en">Privacy</span></a>
+    <a href="/terms"><span data-l="zh">服务条款</span><span data-l="en">Terms</span></a>
     <a href="https://github.com/chihumyum/Drifting/issues" target="_blank" rel="noopener"><span data-l="zh">报告问题</span><span data-l="en">Report a bug</span></a>
     <a href="https://github.com/chihumyum/Drifting" target="_blank" rel="noopener">GitHub</a>
   </nav>
@@ -1035,48 +700,17 @@ footer .addr { user-select: all; font-family: var(--font-mono); font-size: 12.5p
   var S = window.DriftingSea;
   var root = document.documentElement;
   var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  var store = {
-    set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
-    del: function (k) { try { localStorage.removeItem(k); } catch (e) {} },
-  };
   function lang() { return root.dataset.lang === 'en' ? 'en' : 'zh'; }
   var langHooks = [];
 
-  /* ── Theme ── */
-  var mq = matchMedia('(prefers-color-scheme: dark)');
-  var ICONS = { system: 'url({{asset:icons/taiji.png}})', light: 'url({{asset:icons/enso.png}})', dark: 'url({{asset:icons/ink-disc.png}})' };
-  var themeLabels = { zh: { system: '跟随系统', light: '浅色', dark: '深色' }, en: { system: 'System', light: 'Light', dark: 'Dark' } };
-  var themeBtn = document.getElementById('theme-btn');
-  function themePref() { var t = root.getAttribute('data-theme'); return t === 'light' || t === 'dark' ? t : 'system'; }
-  function isDark() { var t = root.getAttribute('data-theme'); return t ? t === 'dark' : mq.matches; }
-  function syncTheme() {
-    root.classList.toggle('dark', isDark());
-    var pref = themePref();
-    document.getElementById('theme-ic').style.setProperty('--i', ICONS[pref]);
-    themeBtn.setAttribute('aria-label', themeLabels[lang()][pref]);
-    themeBtn.title = themeLabels[lang()][pref];
-    if (sea) sea.refreshTheme();
-    redrawFrame();
-  }
-  themeBtn.addEventListener('click', function () {
-    var order = ['system', 'light', 'dark'];
-    var next = order[(order.indexOf(themePref()) + 1) % 3];
-    if (next === 'system') { root.removeAttribute('data-theme'); store.del('drifting.landing.theme'); }
-    else { root.setAttribute('data-theme', next); store.set('drifting.landing.theme', next); }
-  });
-  new MutationObserver(syncTheme).observe(root, { attributes: true, attributeFilter: ['data-theme'] });
-  mq.addEventListener('change', syncTheme);
-
-  /* ── Language ── */
-  document.getElementById('lang-btn').addEventListener('click', function () {
-    var next = lang() === 'zh' ? 'en' : 'zh';
-    root.dataset.lang = next;
-    root.lang = next === 'zh' ? 'zh-CN' : 'en';
-    store.set('drifting.landing.lang', next);
-    if (sea) sea.setScript(next);
-    syncTheme();
-    langHooks.forEach(function (f) { f(); });
-    scheduleShapes();
+  /* ── Theme and language (site.mjs) ── */
+  var bar = S.startBar({
+    onTheme: function () { if (sea) sea.refreshTheme(); redrawFrame(); },
+    onLang: function (next) {
+      if (sea) sea.setScript(next);
+      langHooks.forEach(function (f) { f(); });
+      scheduleShapes();
+    },
   });
 
   /* ── The sea ── */
@@ -1085,11 +719,13 @@ footer .addr { user-select: all; font-family: var(--font-mono); font-size: 12.5p
   try { if (S.charSeaSupported()) sea = S.createCharSea(canvas); } catch (e) { sea = null; }
   if (!sea) root.classList.add('no-sea');
   if (!sea || reduce) root.classList.add('still-word');
-  root.classList.toggle('dark', isDark());
   if (sea) {
     sea.refreshTheme();
     sea.setScript(lang());
     sea.setActive(true);
+    // The rain falls the whole way down the page, as on the app's first-run page:
+    // its heads and trails keep changing the characters they pass.
+    sea.rain(true);
   }
 
   // The tagline sits under the word: its box comes from the same code that raises it.
@@ -1109,37 +745,12 @@ footer .addr { user-select: all; font-family: var(--font-mono); font-size: 12.5p
     held = on;
     sea.loading(on);
   }
-  var shapesEls = Array.prototype.slice.call(document.querySelectorAll('[data-sea]'));
-  var hovering = new Set();
-  shapesEls.forEach(function (el) {
-    if (!el.hasAttribute('data-sea-hover')) return;
-    el.addEventListener('pointerenter', function () { hovering.add(el); scheduleShapes(); });
-    el.addEventListener('pointerleave', function () { hovering.delete(el); scheduleShapes(); });
-  });
-  var OFFSETS = [[14, 46], [96, 132], [168, 18], [58, 186]];
-  var shapesQueued = false;
-  function pushShapes() {
-    shapesQueued = false;
-    if (!sea) return;
-    var vh = innerHeight, list = [];
-    shapesEls.forEach(function (el, i) {
-      var r = el.getBoundingClientRect();
-      if (r.bottom < -40 || r.top > vh + 40) return;
-      list.push({ id: i + 1, x: r.left, y: r.top, width: r.width, height: r.height, radius: 2, rest: 0.85, hover: hovering.has(el), textureX: OFFSETS[i % 4][0], textureY: OFFSETS[i % 4][1] });
-    });
-    sea.setShapes(list);
-  }
-  function scheduleShapes() {
-    if (shapesQueued) return;
-    shapesQueued = true;
-    requestAnimationFrame(pushShapes);
-  }
+  var scheduleShapes = S.laySheets(sea);
   function onScroll() {
     var y = scrollY, h = innerHeight;
     if (y < h * 0.06) hold(true);
     else if (y > h * 0.16) hold(false);
     root.classList.toggle('scrolled', y > h * 0.55);
-    scheduleShapes();
   }
   addEventListener('scroll', onScroll, { passive: true });
   addEventListener('resize', function () {
@@ -1148,16 +759,9 @@ footer .addr { user-select: all; font-family: var(--font-mono); font-size: 12.5p
     placeFrame(false);
     scheduleShapes();
   });
-  addEventListener('pointermove', function (e) {
-    if (sea && e.pointerType === 'mouse') sea.wake(e.clientX, e.clientY);
-  }, { passive: true });
-  addEventListener('pointerdown', function (e) {
-    if (!sea || e.target.closest('a, button, .vg, input')) return;
-    sea.drop(e.clientX, e.clientY);
-  });
+  S.stirSea(sea, 'a, button, .vg, input');
   if (document.fonts) document.fonts.ready.then(function () { if (sea) sea.resize(); placeHero(); placeFrame(false); scheduleShapes(); });
   onScroll();
-  pushShapes();
 
   /* ── Sand that comes into view fades in as a whole ── */
   if (!reduce && 'IntersectionObserver' in window) {
@@ -1491,7 +1095,7 @@ footer .addr { user-select: all; font-family: var(--font-mono); font-size: 12.5p
   }, 1500);
   if ('ResizeObserver' in window) new ResizeObserver(function () { placeFrame(false); }).observe(side);
 
-  syncTheme();
+  bar.sync();
 })();
 </script>
 </body>

@@ -217,8 +217,20 @@ describe('the sea of characters under the desktop window', () => {
     expect(entry).toContain("word: 'DRIFTING',");
     const page = read('scripts/design-assets/landing/index.html');
     expect(page).toContain('var box = S.wordBox(');
-    expect(page).not.toMatch(/<link[^>]+href="https?:|<script[^>]+src="https?:|@import|fonts\.googleapis/);
+    // The rain falls the whole way down every page of the site, changing the characters it passes.
+    expect(page).toContain('sea.rain(true);');
+    const pages = read('scripts/design-assets/landing/pages.mjs');
+    expect(pages).toContain("from '../../../src/renderer/lib/char-sea/char-sea';");
+    expect(pages).toContain('sea.rain(true);');
+    // Nothing from another host, on any page or in the sheet they share.
+    for (const file of ['index.html', 'site.css']) {
+      expect(read(`scripts/design-assets/landing/${file}`)).not.toMatch(/<link[^>]+href="https?:|<script[^>]+src="https?:|url\(["']?https?:|@import|fonts\.googleapis/);
+    }
     expect(read('scripts/design-assets/landing/build.mjs')).toContain("path.join(root, 'node_modules/@fontsource-variable', face)");
+    // The theme follows the system on every visit: a pick is kept for the tab only.
+    const prefs = read('scripts/design-assets/landing/prefs.js');
+    expect(prefs).toContain("sessionStorage.getItem('drifting.landing.theme')");
+    expect(prefs).not.toContain("localStorage.getItem('drifting.landing.theme')");
   });
 
   it('is written down in the design system', () => {
