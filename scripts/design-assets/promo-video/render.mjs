@@ -116,7 +116,7 @@ function loudnorm(input, output) {
   for (let pass = 0; pass < 3; pass += 1) {
     const ceiling = Math.min(1, 10 ** ((-2 - gain) / 20));
     const done = spawnSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', input, '-af',
-      `alimiter=limit=${ceiling.toFixed(5)}:attack=4:release=150:level=disabled,volume=${gain.toFixed(2)}dB`,
+      `alimiter=limit=${ceiling.toFixed(5)}:attack=10:release=250:level=disabled:latency=1,volume=${gain.toFixed(2)}dB`,
       '-ar', String(RATE), '-c:a', 'pcm_s24le', output], { stdio: 'inherit' });
     if (done.status !== 0) throw new Error(`render.mjs: normalizing ${input} failed`);
     const off = -16 - loudness(output);

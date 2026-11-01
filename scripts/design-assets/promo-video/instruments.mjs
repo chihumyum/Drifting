@@ -24,10 +24,11 @@ const STEINWAY = {
   exs: `${LOGIC}/Sampler Instruments/01 Acoustic Pianos/Steinway Grand Piano 2.exs`,
   caf: `${LOGIC}/EXS Factory Samples/01 Acoustic Pianos/Steinway Piano_consolidated.caf`,
 };
-// Each part's instrument and its level in the mix (dBFS RMS while it plays).
-// The piano and the strings take the modelled instruments' levels; a part
-// marked `swell` rises to the middle of each note and eases off, as a player
-// leans on a long note.
+// Each part's instrument and its level in the mix: dBFS RMS while it plays,
+// or, for the short strokes of the hits, the dBFS of their loudest peak (so
+// one hit played softer does not lift the others). The piano and the strings
+// take the modelled instruments' levels; a part marked `swell` rises to the
+// middle of each note and eases off, as a player leans on a long note.
 const PIANO_LEVEL = -24.5;
 const PARTS = {
   strings: { exs: 'String Ensemble', level: -33 },
@@ -35,9 +36,9 @@ const PARTS = {
   clarinet: { exs: 'Clarinet Solo Legato', level: -31, swell: true },
   flute: { exs: 'Flute Solo Legato', level: -32, swell: true },
   bass: { exs: 'Upright Jazz Bass', level: -31 },
-  stabHorns: { exs: 'French Horns Staccato', level: -27 },
-  stabTrombones: { exs: 'Trombones Staccato', level: -27 },
-  stabTuba: { exs: 'Tuba Solo Staccato', level: -28 },
+  stabHorns: { exs: 'French Horns Staccato', peak: -15 },
+  stabTrombones: { exs: 'Trombones Staccato', peak: -15 },
+  stabTuba: { exs: 'Tuba Solo Staccato', peak: -16 },
 };
 
 const instruments = existsSync(`${LOGIC}/Sampler Instruments`)
@@ -79,6 +80,14 @@ const decode = (file, rate) => {
   if (done.status !== 0) throw new Error(`instruments.mjs: could not decode ${file}`);
   return new Float32Array(done.stdout.buffer, done.stdout.byteOffset, done.stdout.length / 4);
 };
+
+function setPeak(bus, dbfs) {
+  let peak = 0;
+  for (let i = 0; i < bus.l.length; i += 1) peak = Math.max(peak, Math.abs(bus.l[i]), Math.abs(bus.r[i]));
+  const gain = peak ? 10 ** (dbfs / 20) / peak : 1;
+  for (let i = 0; i < bus.l.length; i += 1) { bus.l[i] *= gain; bus.r[i] *= gain; }
+  return bus;
+}
 
 function setLevel(bus, dbfs) {
   let sum = 0, n = 0;
@@ -154,7 +163,7 @@ function shaped(bus, spans) {
     const t = i / RATE;
     const span = spans.findLast((s) => s.from <= t);
     const local = span ? t - span.from : 0;
-    const target = !span ? 0 : span.level * (span.accent ? 1 + 0.9 * Math.exp(-local / 0.5) : 0.82 + 0.3 * Math.sin(Math.PI * Math.min(1, local / Math.max(0.1, span.to - span.from))));
+    const target = !span ? 0 : span.level * (span.accent ? 1 + 0.5 * Math.exp(-local / 0.6) : 0.82 + 0.3 * Math.sin(Math.PI * Math.min(1, local / Math.max(0.1, span.to - span.from))));
     shape += (target - shape) * 0.0004;
     bus.l[i] *= shape;
     bus.r[i] *= shape;
@@ -178,7 +187,7 @@ export function playOnGarageBand({ notes, chords, orchestra }, duration, work) {
     if (!notesOf.length) continue;
     let bus = sampled(name, notesOf, length, duration, work);
     if (PARTS[name].swell) bus = shaped(bus, notesOf.map((o) => ({ from: o.t, to: o.off, level: o.v })));
-    band.mix(setLevel(bus, PARTS[name].level));
+    band.mix(PARTS[name].peak !== undefined ? setPeak(bus, PARTS[name].peak) : setLevel(bus, PARTS[name].level));
   }
   return { piano: steinway(notes, length), strings, orchestra: band };
 }
