@@ -141,8 +141,8 @@ export function EditorMainArea() {
   }, [committedRevisionKey, desiredRevisionKey]);
 
   // The page turn. Before the next paint, the surface just put in front
-  // floats up over the one it replaced, which fades out and is then hidden.
-  // A newer turn takes over from wherever both pages are.
+  // dissolves in over the one it replaced, which stays whole underneath and
+  // is hidden once covered. A newer turn takes over from where the paper is.
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const turningKey = useRef<string | null>(null);
   useLayoutEffect(() => {
@@ -156,7 +156,7 @@ export function EditorMainArea() {
     const previous = turningKey.current;
     turningKey.current = leavingRevisionKey;
     // The page that was leaving is hidden now (or back in front, where the
-    // new turn picks it up): its held fade lets go.
+    // new turn picks it up): any turn left on it lets go.
     if (previous !== null && previous !== leavingRevisionKey && previous !== committedRevisionKey) {
       stopPageTurn(surfaceOf(previous));
     }
@@ -202,7 +202,7 @@ export function EditorMainArea() {
     ) {
       next.push(committedSurface);
     }
-    // A closed tab's page stays until it has faded out under its successor.
+    // A closed tab's page stays until its successor has covered it.
     if (leavingSurface && !next.some((surface) => surface.revisionKey === leavingSurface.revisionKey)) {
       next.push(leavingSurface);
     }
@@ -314,8 +314,8 @@ export function EditorMainArea() {
     if (projectId) setSplitRatio(projectId, split.id, ratio);
   }, [projectId, setSplitRatio]);
 
-  // The stage is the paper the pages lie on: while one page fades out and the
-  // next floats up, the paper stays and only what is on it changes.
+  // The stage is the paper the pages lie on: while one page dissolves into the
+  // next, the paper stays and only what is on it changes.
   return (
     <div
       ref={surfaceRef}
@@ -373,7 +373,7 @@ const WorkspaceSurface = memo(function WorkspaceSurface({
   descriptor: WorkspaceSurfaceDescriptor;
   projectId: string;
   isVisible: boolean;
-  /** Replaced, still shown while it fades out under the page in front. */
+  /** Replaced, still shown under the page in front until it is covered. */
   isLeaving: boolean;
   isDesired: boolean;
   isInteractive: boolean;
