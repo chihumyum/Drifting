@@ -64,6 +64,7 @@ import {
   type SyncEngineRuntimeClock,
 } from './durable-runtime';
 import { INVENTORY_UNCONFIRMED_CURSOR } from './sqlite-repository';
+import { countUnuploadedLocalChanges } from '../hosted/unuploaded';
 import type {
   SyncAssetBlobDeclaration,
   SyncEngineBlobPort,
@@ -756,13 +757,17 @@ describe('SQLite durable SyncEngine runtime', () => {
 
     const sealedRanges = async () =>
       (await a.db.select().from(SyncSegmentTable)).map((segment) => [segment.firstSeq, segment.lastSeq]);
+    // What a disconnect would leave on this Mac alone shrinks as batches publish.
+    expect(await countUnuploadedLocalChanges(a.db, 'installation-a')).toBe(5);
     expect((await cycle(a)).publishedSegments).toBe(1);
     expect(await sealedRanges()).toEqual([[1, 2]]);
     expect((await a.runtime.inspectPending()).pendingChangeSets).toBe(3);
+    expect(await countUnuploadedLocalChanges(a.db, 'installation-a')).toBe(3);
     await cycle(a);
     await cycle(a);
     expect(await sealedRanges()).toEqual([[1, 2], [3, 4], [5, 5]]);
     expect((await a.runtime.inspectPending()).pendingChangeSets).toBe(0);
+    expect(await countUnuploadedLocalChanges(a.db, 'installation-a')).toBe(0);
     // A snapshot would embed every unsealed change set, so none is taken
     // until the cycle that seals the last of the backlog.
     expect(checkpoints).toEqual([3]);
@@ -796,6 +801,8 @@ describe('SQLite durable SyncEngine runtime', () => {
     ).toEqual(['writer-a', 'writer-a-again']);
     // The other installation's lane stays pending here instead of being resealed.
     expect((await a.runtime.inspectPending()).pendingChangeSets).toBe(1);
+    expect(await countUnuploadedLocalChanges(a.db, 'installation-a')).toBe(0);
+    expect(await countUnuploadedLocalChanges(a.db, 'installation-other')).toBe(1);
 
     await cycle(b, 'start');
     expect(await title(b)).toBe('Written after restore');

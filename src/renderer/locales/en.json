@@ -945,7 +945,11 @@
       "pause": "Pause",
       "resume": "Resume",
       "disconnect": "Disconnect sync",
-      "disconnect_description": "Finish pending sync, then disconnect. Local projects and cloud copies are retained.",
+      "disconnect_description": "Uploads the changes only this Mac has, then disconnects. Local projects and cloud copies are retained.",
+      "disconnect_uploading": "Uploading the changes only this Mac has: {{count}} left. Disconnecting now leaves the rest on this Mac only.",
+      "disconnect_now": "Disconnect now",
+      "disconnect_unuploaded": "{{count}} changes have not been uploaded. After disconnecting they stay on this Mac only.",
+      "disconnect_anyway": "Disconnect anyway",
       "done": "Completed",
       "session": {
         "signed-out": "Local writing does not require an account.",
@@ -1928,8 +1932,9 @@
       "retry": "Retry",
       "later": "Not now",
       "accountMismatchTitle": "This library belongs to another account",
-      "accountMismatch": "A library connects to one Drifting account, and the library on this Mac already belongs to another, so it was not connected to this one. To switch, sign in with the original account, disconnect sync under Account, then sign in with this account. Your local projects and their cloud copies are kept.",
-      "accountMismatchOk": "OK"
+      "accountMismatch": "A library connects to one Drifting account, and the library on this Mac already belongs to another, so it was not connected to this one. To switch, disconnect sync under Account (no need to sign in to the original account), then sign in with this account. Your local projects and their cloud copies are kept.",
+      "accountMismatchOk": "OK",
+      "accountMismatchOpenAccount": "Disconnect sync"
     },
     "errors": {
       "signInFailed": "Sign in failed",

@@ -944,7 +944,11 @@
       "pause": "暂停",
       "resume": "继续同步",
       "disconnect": "断开同步",
-      "disconnect_description": "先完成待同步内容，再断开。本地项目和云端副本都会保留。",
+      "disconnect_description": "先把本机还没上传的改动传完，再断开。本地项目和云端副本都会保留。",
+      "disconnect_uploading": "正在把本机还没上传的改动传上去，还剩 {{count}} 条。直接断开的话，没传完的只留在这台 Mac 上。",
+      "disconnect_now": "不等了，直接断开",
+      "disconnect_unuploaded": "本机还有 {{count}} 条改动没传上去，断开后它们只留在这台 Mac 上。",
+      "disconnect_anyway": "仍然断开",
       "done": "操作已完成",
       "session": {
         "signed-out": "本地写作不需要登录。",
@@ -1927,8 +1931,9 @@
       "retry": "重试",
       "later": "稍后再说",
       "accountMismatchTitle": "这个书库连着另一个账号",
-      "accountMismatch": "一个书库只能连一个 Drifting 账号，这台 Mac 上的书库已经连着另一个账号，所以没有连到这个账号。要换成这个账号，请先用原来的账号登录，在「账户」里断开同步，再用这个账号登录。断开后本地项目和云端副本都会保留。",
-      "accountMismatchOk": "知道了"
+      "accountMismatch": "一个书库只能连一个 Drifting 账号，这台 Mac 上的书库已经连着另一个账号，所以没有连到这个账号。要换成这个账号，请先在「账户」里断开同步（不用登录原账号），再用这个账号登录。断开后本地项目和云端副本都会保留。",
+      "accountMismatchOk": "知道了",
+      "accountMismatchOpenAccount": "去断开同步"
     },
     "errors": {
       "signInFailed": "登录失败",

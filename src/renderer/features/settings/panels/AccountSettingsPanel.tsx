@@ -6,7 +6,7 @@ import { useProductSyncAuthority } from '../../../sync/product-authority-react';
 import { productSyncCommands } from '../../../sync/product-commands';
 import { useProductSyncRuntime } from '../../../sync/product-runtime-react';
 import { synchronizeHostedNow } from '../../../sync/hosted/connect';
-import { disconnectHosted } from '../../../sync/hosted/disconnect';
+import { countHostedUnuploadedChanges, disconnectHosted } from '../../../sync/hosted/disconnect';
 import { formatStorageBytes, readHostedUsage, type HostedUsage } from '../../../sync/hosted/quota';
 import { HostedAccountDetails } from './HostedAccountDetails';
 import {
@@ -208,17 +208,10 @@ export function AccountPanel({ registerRef }: { registerRef: SettingsRegisterRef
           />
         )}
         {(connected || hostedTransition) && (
-          <SettingsRow
-            label={t('settings.hosted.disconnect')}
-            desc={t('settings.hosted.disconnect_description')}
-            control={
-              <SettingsButton
-                disabled={busy || (connected && (paused || !accountReady))}
-                onClick={() => void run(disconnectHosted)}
-              >
-                {t('settings.hosted.disconnect')}
-              </SettingsButton>
-            }
+          <DisconnectRow
+            run={run}
+            busy={busy}
+            canUpload={connected && accountReady && !paused && runtime.mounted}
           />
         )}
         {(connected || hostedTransition) && authority.errorCode && (
@@ -227,6 +220,78 @@ export function AccountPanel({ registerRef }: { registerRef: SettingsRegisterRef
         {message && <p role="status" className="set-account-message">{message}</p>}
       </div>
     </section>
+  );
+}
+
+/**
+ * Disconnecting first uploads what only this Mac holds, showing how much is
+ * left, and can stop waiting at any time. Signed out or paused, nothing can
+ * upload: it says how many changes would stay on this Mac before going ahead.
+ */
+function DisconnectRow({
+  run,
+  busy,
+  canUpload,
+}: {
+  run: (action: (signal: AbortSignal) => Promise<unknown>) => Promise<void>;
+  busy: boolean;
+  canUpload: boolean;
+}) {
+  const { t } = useTranslation();
+  const [uploading, setUploading] = useState(false);
+  const [remaining, setRemaining] = useState<number | null>(null);
+  const [unuploaded, setUnuploaded] = useState<number | null>(null);
+  const stopWaiting = useRef<AbortController | null>(null);
+  const disconnect = (uploadFirst: boolean) => {
+    const stop = new AbortController();
+    stopWaiting.current = stop;
+    setUnuploaded(null);
+    setRemaining(null);
+    setUploading(uploadFirst);
+    void run((signal) =>
+      disconnectHosted(signal, { uploadFirst, stopWaiting: stop.signal, onRemaining: setRemaining }),
+    ).finally(() => {
+      if (stopWaiting.current === stop) stopWaiting.current = null;
+      setUploading(false);
+    });
+  };
+  const start = () => {
+    if (canUpload) {
+      disconnect(true);
+      return;
+    }
+    void countHostedUnuploadedChanges().then((count) =>
+      count > 0 ? setUnuploaded(count) : disconnect(false),
+    );
+  };
+  return (
+    <SettingsRow
+      label={t('settings.hosted.disconnect')}
+      desc={
+        uploading
+          ? remaining === null
+            ? t('settings.hosted.working')
+            : t('settings.hosted.disconnect_uploading', { count: remaining })
+          : unuploaded !== null
+            ? t('settings.hosted.disconnect_unuploaded', { count: unuploaded })
+            : t('settings.hosted.disconnect_description')
+      }
+      control={
+        uploading ? (
+          <SettingsButton onClick={() => stopWaiting.current?.abort()}>
+            {t('settings.hosted.disconnect_now')}
+          </SettingsButton>
+        ) : unuploaded !== null ? (
+          <SettingsButton disabled={busy} onClick={() => disconnect(false)}>
+            {t('settings.hosted.disconnect_anyway')}
+          </SettingsButton>
+        ) : (
+          <SettingsButton disabled={busy} onClick={start}>
+            {t('settings.hosted.disconnect')}
+          </SettingsButton>
+        )
+      }
+    />
   );
 }
 

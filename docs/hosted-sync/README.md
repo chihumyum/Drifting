@@ -105,9 +105,16 @@ panel have been removed; local recovery has no subscription cache.
 An expired session stops outbound sync and keeps local writing available. Signing
 in to the same verified account resumes authentication-blocked generations.
 Another account is rejected while the library owns the current Hosted authority.
-Pause/resume applies to the active project bindings. Disconnect waits for a fresh
-converged frontier, then retains local projects and remote copies. Sign out stops
-sync and retains local data; it does not imply pending changes reached the server.
+Pause/resume applies to the active project bindings. Disconnect first uploads
+what only this Mac holds (this installation's change sets no published segment
+covers, and verified blobs the provider lacks), showing how many remain; it does
+not wait for downloads, and **Disconnect now** stops waiting and leaves the rest
+on this Mac. Signed out or paused, nothing can upload, so Disconnect states that
+count and asks before going ahead. Either way local projects and remote copies
+are retained. Sign out stops sync and retains local data and the account binding,
+so signing back in to the same account resumes; it does not imply pending changes
+reached the server. To switch accounts, disconnect first (no sign-in needed); the
+account-mismatch dialog offers a way to Account settings.
 
 ## Versioned service contract
 

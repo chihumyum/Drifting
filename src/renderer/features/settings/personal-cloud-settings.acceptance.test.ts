@@ -14,6 +14,17 @@ describe('Hosted-only App sync boundary', () => {
     expect(account).toContain('run(synchronizeHostedNow)');
   });
 
+  it('lets a signed-out or paused library disconnect, uploading first only when it can', () => {
+    const account = read('src/renderer/features/settings/panels/AccountSettingsPanel.tsx');
+    const disconnect = read('src/renderer/sync/hosted/disconnect.ts');
+    expect(account).not.toContain('connected && (paused || !accountReady)');
+    expect(account).toContain('canUpload={connected && accountReady && !paused && runtime.mounted}');
+    expect(account).toContain("t('settings.hosted.disconnect_now')");
+    // Disconnecting waits for outbound changes only, never for a full download.
+    expect(disconnect).toContain('countUnuploadedLocalChanges(db, installationId)');
+    expect(disconnect).not.toContain('waitForConvergence({');
+  });
+
   it('installs only Hosted provisioning in the production runtime', () => {
     const effects = read('src/renderer/app/effects/AppEffects.tsx');
     const runtime = read('src/renderer/sync/production-runtime.ts');
