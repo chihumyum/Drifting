@@ -804,6 +804,8 @@ export class CloudRestoreError extends Error {
     readonly code: CloudRestoreFailureCode,
     message: string,
     readonly cause?: unknown,
+    /** The local projects the failure is about, so the author can be told which. */
+    readonly projectIds: readonly string[] = [],
   ) {
     super(message);
     this.name = 'CloudRestoreError';
@@ -1097,11 +1099,15 @@ export async function restoreCloudSyncGenerations(
         .set({ status: 'retired', retiredAt, updatedAt: retiredAt })
         .where(eq(SyncGenerationTable.syncGenerationId, candidate.syncGenerationId));
     }
-    const localProjectSyncs = new Set(
-      localBeforeRestore.map((generation) => generation.projectSyncId),
+    const localByProjectSync = new Map(
+      localBeforeRestore.map((generation) => [generation.projectSyncId, generation] as const),
     );
     const reconnectCandidates: RemoteSnapshotCandidate[] = [];
     const restoreCandidates: RemoteSnapshotCandidate[] = [];
+    // Every project held locally under another generation than the cloud's
+    // newest is named at once, so the author learns all of them from one try.
+    const conflictingProjectIds: string[] = [];
+    let conflicts = 0;
     for (const candidate of selected) {
       const local = localBySyncGenerationId.get(candidate.syncGenerationId);
       if (local) {
@@ -1117,13 +1123,21 @@ export async function restoreCloudSyncGenerations(
         reconnectCandidates.push(candidate);
         continue;
       }
-      if (localProjectSyncs.has(candidate.marker.projectSyncId)) {
-        throw new CloudRestoreError(
-          'local-project-sync-conflict',
-          'A remote project belongs to another generation of a local projectSync',
-        );
+      const sameProjectSync = localByProjectSync.get(candidate.marker.projectSyncId);
+      if (sameProjectSync) {
+        conflicts += 1;
+        if (sameProjectSync.projectId) conflictingProjectIds.push(sameProjectSync.projectId);
+        continue;
       }
       restoreCandidates.push(candidate);
+    }
+    if (conflicts > 0) {
+      throw new CloudRestoreError(
+        'local-project-sync-conflict',
+        'A remote project belongs to another generation of a local projectSync',
+        undefined,
+        conflictingProjectIds,
+      );
     }
     for (const candidate of restoreCandidates) {
       await repository.stageRestoreSyncGeneration({

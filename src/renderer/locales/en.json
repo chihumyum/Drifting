@@ -987,6 +987,19 @@
       "password_sessions": "Changing your password signs out other devices. This device stays signed in.",
       "change_password": "Change password",
       "password_saved": "Password changed. Other devices need to sign in again.",
+      "connect_errors": {
+        "local_project_sync_conflict": "A project on this Mac and the same project in the cloud are two different sync records (the library folder was copied, or restored from a backup on another Mac). So that neither side is overwritten, sync was not connected. You can keep writing locally.",
+        "local_project_sync_conflict_named": "{{projects}} on this Mac and in the cloud are two different sync records (the library folder was copied, or restored from a backup on another Mac). So that neither side is overwritten, sync was not connected. You can keep writing locally.",
+        "project_name": "“{{name}}”",
+        "project_separator": ", ",
+        "blocked_update": "The cloud data comes from a newer version of Drifting. Update the app, then connect sync.",
+        "blocked_corrupt": "The cloud data did not pass its checks, so sync was not connected. Please write to support@drifting.cc.",
+        "restore_failed": "Sync didn't finish connecting. You can keep writing locally and try again later.",
+        "interrupted": "Connecting sync was interrupted last time. Please try again.",
+        "cancelled": "Cancelled.",
+        "disconnect_failed": "Disconnecting sync didn't finish. Please try again later.",
+        "unknown": "Sync didn't finish ({{code}}). You can keep writing locally."
+      },
       "account_errors": {
         "generic": "Could not complete the request. Check your connection and try again.",
         "INVALID_PROFILE_NAME": "Enter a display name of 1–80 characters.",
