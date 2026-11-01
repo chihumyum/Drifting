@@ -30,7 +30,8 @@ What is on the card, and why:
 - **The tagline** (`sand-letters.js`) is written letter by letter: each glyph
   of Times New Roman is thinned to a skeleton, traced into strokes, and each
   stroke is laid with `brushicons.py`'s dry brush and grained the same way. Every
-  letter has its own seed and a slight tilt. It names a kind of product, not a
+  letter has its own seed and a slight tilt. `letterMark` is exported: the
+  site's wordmark (`landing/wordmark.sh`) is written with it. It names a kind of product, not a
   competitor.
 
 Seeds are fixed, so a rerun reproduces the same pixels.

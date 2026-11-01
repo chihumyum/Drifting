@@ -250,6 +250,10 @@ describe('the sea of characters under the desktop window', () => {
     expect([...page.matchAll(/<h([1-6])\b/g)].map((m) => m[1]).join('')).toBe('122222');
     expect(page).toContain("var el = document.createElement(kind === 'p' ? 'p' : 'div');");
     expect(build).toContain("path.join(root, 'node_modules/@fontsource-variable', face)");
+    // The name in the bar is written in sand with the sharing card's brush, and the link keeps the word.
+    expect(read('scripts/design-assets/landing/site.css')).toContain('mask: url({{asset:sand/wordmark-drifting.png}})');
+    expect(read('scripts/design-assets/landing/wordmark.html')).toContain("import { letterMark } from '../social-preview/sand-letters.js';");
+    expect(page).toMatch(/<a class="brand"[^>]*>DRIFTING<\/a>/);
     // The theme follows the system on every visit: a pick is kept for the tab only.
     const prefs = read('scripts/design-assets/landing/prefs.js');
     expect(prefs).toContain("sessionStorage.getItem('drifting.landing.theme')");

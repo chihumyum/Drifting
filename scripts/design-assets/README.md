@@ -15,6 +15,7 @@ only the theme's white or black).
 | `sand/ul-cover.png`, `sand/ul-cover-dark.png`, `sand/ul-loose-cover.png`, `sand/ul-loose-cover-dark.png` | `covergen.py` | Covers for sand under text in the prose (entity links): white (light theme) or black (dark theme), opaque except where the grains are, laid over a CSS colour band; the span blends with the page so the cover vanishes and any colour shows through the grains. The dry underline and its loose grains (five strokes wide, tiling). Run after `gen.py`; it reads the committed `ul.png`. |
 | `sand/blob-0..5.png` | `protogen.py` | Round seals. The frame round a selected cell is not an asset: `src/renderer/lib/sand-frame.ts` draws it for each cell's size. |
 | `sand/frame-box.png` | `glyphgen.py` `frame_box()` | Nine-sliced frame for element categories. |
+| `sand/wordmark-drifting.png` | `landing/wordmark.sh` | drifting.cc's name in the bar: DRIFTING written letter by letter with the sharing card's brush (`social-preview/sand-letters.js`), Times New Roman Bold's skeleton at 20px, tracking 0.08em, seed 101; four times the CSS size, trimmed to the marks. Needs Times New Roman from the system. |
 | `sand/mark-*.png` | `glyphgen.py` | Kind marks: dash, square, corner, spiral, wave, slip, star. |
 | `sand/*-hollow.png` | `hollowgen.py` | Hollow kind marks for preview tabs, derived from the solid marks above (run it after them). |
 | `icons/split.png` | `glyphgen.py` `icon_split()` | Sidebar split button (a pair of hanging scrolls). |

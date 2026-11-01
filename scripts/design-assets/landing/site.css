@@ -316,17 +316,30 @@ a.su:hover::after { opacity: 1; }
   pointer-events: none;
 }
 .bar > * { pointer-events: auto; }
+/* The name is written in sand (wordmark.sh, the sharing card's brush): the link
+   keeps the word for readers and search engines, and shows the mask in ink. */
 .brand {
-  font: 700 19px/1 var(--word-face);
-  letter-spacing: 0.08em;
-  color: hsl(var(--ink-1));
+  display: inline-flex;
+  align-items: center;
+  padding: 9px 14px;
+  font-size: 0;
+  line-height: 0;
+  color: transparent;
   text-decoration: none;
-  padding: 8px 12px;
   border-radius: 999px;
   background: var(--glass-fill);
   opacity: 0;
   translate: 0 -4px;
   transition: opacity var(--motion-structural) var(--motion-structural-ease), translate var(--motion-structural) var(--motion-structural-ease);
+}
+.brand::before {
+  content: '';
+  display: block;
+  height: 16px;
+  aspect-ratio: 446 / 65;
+  background: hsl(var(--ink-1));
+  -webkit-mask: url({{asset:sand/wordmark-drifting.png}}) center / contain no-repeat;
+  mask: url({{asset:sand/wordmark-drifting.png}}) center / contain no-repeat;
 }
 .bar-actions { display: flex; align-items: center; gap: 8px; }
 .bar .glass { background: var(--glass-fill); }
