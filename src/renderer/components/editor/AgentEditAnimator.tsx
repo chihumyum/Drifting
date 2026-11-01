@@ -48,6 +48,7 @@ const ANCHOR_GRACE_MS = 4500;
 // visible slice covers ≥35% of the VIEWPORT — the latter handles a block taller
 // than the viewport, whose visible fraction OF ITSELF can never reach 35%.
 const REVEAL_RATIO = 0.35;
+const GROUND_FADE_MS = 180;
 
 const keyOf = agentEditAnimationKey;
 const sel = (blockId: string): string => `[data-block-id="${CSS.escape(blockId)}"]`;
@@ -244,8 +245,8 @@ function RevealOverlay({
   change: AgentBlockChange;
   revealCount: number;
   onDone: () => void;
-  /** Auto changed/new blocks stay masked in ProseMirror while typing. At
-   *  completion they swap atomically to the real block, so no crossfade. */
+  /** Auto changed/new blocks stay masked in ProseMirror while typing and while
+   *  the ground fades, then swap atomically to the real block. */
   crossfade?: boolean;
   /** Extra vertical offset so a run of deletions sharing one anchor stacks
    *  instead of all pinning to the anchor's bottom (the parent sums the earlier
@@ -276,6 +277,7 @@ function RevealOverlay({
 
   const [progress, setProgress] = useState(0);
   const [fading, setFading] = useState(false);
+  const [settling, setSettling] = useState(false);
   const done = useRef(onDone);
   useEffect(() => {
     done.current = onDone;
@@ -332,7 +334,15 @@ function RevealOverlay({
         // overlay. The EXIT crossfade is only for changed/new blocks.
         done.current();
       } else if (!crossfade) {
-        done.current();
+        if (mode === 'overwrite' && change.source !== 'file' && total > 0) {
+          // Paint the complete final frame before fading just its ground. The
+          // opaque overlay and prose mask remain in place, so the words never
+          // fade or double-paint while handing back to the real paragraph.
+          raf = window.requestAnimationFrame(() => {
+            setSettling(true);
+            exitTimer = window.setTimeout(() => done.current(), GROUND_FADE_MS);
+          });
+        } else done.current();
       } else {
         setFading(true);
         exitTimer = window.setTimeout(() => done.current(), exitMs);
@@ -343,7 +353,7 @@ function RevealOverlay({
       if (raf) window.cancelAnimationFrame(raf);
       if (exitTimer) window.clearTimeout(exitTimer);
     };
-  }, [total, change.op, crossfade, revealAnimationEnabled, durationMs, exitMs]);
+  }, [total, change.op, change.source, mode, crossfade, revealAnimationEnabled, durationMs, exitMs]);
 
   if (!rect || !revealAnimationEnabled) return null;
 
@@ -352,7 +362,7 @@ function RevealOverlay({
   const aEl = anchorEl(scrollEl, change);
   const onGhost = !!aEl && aEl.classList.contains('agent-diff-deleted-block');
   const top = aEl && deletionHangsBelow(aEl, change) ? rect.top + rect.height : rect.top;
-  const pos: CSSProperties = {
+  const pos: CSSProperties & { '--agent-reveal-ground-fade-duration': string } = {
     ...rect.prose,
     // The overlay host is an in-flow child of `.editor-scroll`, so these stable
     // content coordinates move in the same compositor transaction as the prose.
@@ -362,6 +372,7 @@ function RevealOverlay({
     left: rect.left,
     width: rect.width,
     transitionDuration: `${exitMs}ms`,
+    '--agent-reveal-ground-fade-duration': `${GROUND_FADE_MS}ms`,
     // Keep occluding the anchor when the animation switches between the old and
     // new text layouts. A deletion over its struck ghost must cover that ghost
     // until the owner removes both together. Unanchored deletions use auto-height.
@@ -371,10 +382,10 @@ function RevealOverlay({
     <div
       ref={setNode}
       aria-hidden="true"
-      className={`agent-reveal agent-reveal--${change.op}${change.source === 'file' ? ' agent-reveal--external' : ''}${fading ? ' agent-reveal--fade' : ''}`}
+      className={`agent-reveal agent-reveal--${change.op}${change.source === 'file' ? ' agent-reveal--external' : ''}${fading ? ' agent-reveal--fade' : ''}${settling ? ' agent-reveal--settle' : ''}`}
       style={pos}
     >
-      <AgentRevealText segments={segs} progress={progress} showCaret={!fading} mode={mode} />
+      <AgentRevealText segments={segs} progress={progress} showCaret={!fading && !settling} mode={mode} />
     </div>
   );
 }
