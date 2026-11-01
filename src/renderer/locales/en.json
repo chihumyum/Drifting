@@ -1977,6 +1977,25 @@
     "desk": {
       "newCard": "New book",
       "newCardSub": "Start from a blank page",
+      "coverStyle": {
+        "turn": "Change cover style · now {{name}}",
+        "names": {
+          "sand": "Sand",
+          "ridge": "Ridgelines",
+          "quipu": "Knotted cords",
+          "weave": "Weave",
+          "topo": "Contours",
+          "cyanotype": "Cyanotype",
+          "rings": "Tree rings",
+          "field": "Color fields",
+          "cutout": "Cut paper",
+          "riso": "Risograph",
+          "stars": "Star chart",
+          "strata": "Strata",
+          "bauhaus": "Bauhaus",
+          "chars": "Sea of type"
+        }
+      },
       "preparingSample": "Preparing the sample project",
       "open": "Open “{{name}}”",
       "moveToTrash": "Move to Recently Deleted",

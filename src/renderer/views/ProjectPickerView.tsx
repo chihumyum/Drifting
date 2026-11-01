@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties } from 'react';
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { projectTrashExpiresAt, useProject, type ProjectSummary } from '../usecase/useProject';
@@ -26,12 +26,10 @@ import {
 import { events } from '../lib/events';
 import { canUseHostedService } from '../lib/config';
 import { projectDeletionErrorKey } from '../lib/project-deletion-feedback';
-import {
-  coverSeed,
-  peekSandCoverMasks,
-  requestSandCoverMasks,
-  sandCoverKey,
-} from '../lib/sand-cover';
+import { coverSeed } from '../lib/sand-cover';
+import { peekShelfCover, requestShelfCover, shelfCoverKey, type ShelfCover } from '../lib/shelf-cover/covers';
+import { readCoverStyle, subscribeCoverStyle, turnCoverStyle } from '../lib/shelf-cover/preference';
+import type { CoverStyleId } from '../lib/shelf-cover/styles';
 import { useProjectRoutePreload } from '../app/useProjectRoutePreload';
 import { useBuiltInSampleStore } from '../services/built-in-sample/first-run';
 import { BrushIcon } from '../components/ui/BrushIcon';
@@ -191,6 +189,7 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
   const avatarRef = useRef<HTMLButtonElement | null>(null);
   const [initialMobileShelfSession] = useState(readMobileProjectShelfSession);
   const [menuOpen, setMenuOpen] = useState(false);
+  const coverStyle = useCoverStyle();
 
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -554,6 +553,22 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
             <small>{t('projectPicker.desk.newCardSub')}</small>
           </SandCell>
         </div>
+
+        {/* ─── At the foot: turns every cover to the next style ─── */}
+        <div className="pp-cover-style">
+          <GhostIconButton
+            glass="round"
+            className="pp-cover-style__turn"
+            icon={<BrushIcon name="rotate" size={16} />}
+            title={t('projectPicker.desk.coverStyle.turn', {
+              name: t(`projectPicker.desk.coverStyle.names.${coverStyle}`),
+            })}
+            aria-label={t('projectPicker.desk.coverStyle.turn', {
+              name: t(`projectPicker.desk.coverStyle.names.${coverStyle}`),
+            })}
+            onClick={() => turnCoverStyle()}
+          />
+        </div>
       </div>
 
       {confirmDelete && (
@@ -616,46 +631,60 @@ function formatWords(words: number, locale: string): string {
   return `${(words / 10_000).toFixed(1).replace(/\.0$/, '')} 万`;
 }
 
+/** The shelf's cover style (lib/shelf-cover/preference.ts), kept on this device. */
+function useCoverStyle(): CoverStyleId {
+  return useSyncExternalStore(subscribeCoverStyle, readCoverStyle, readCoverStyle);
+}
+
 /**
- * The cover's sand (lib/sand-cover.ts), drawn off the main path the first time
- * a book is shown and kept for the session. Until it lands the cover is a
- * plain slip of paper with its first letter.
+ * The cover in the shelf's style (lib/shelf-cover), drawn off the main path
+ * the first time a book is shown in that style and kept for the session.
+ * Until it lands the cover keeps what it showed, or is a plain slip of paper
+ * with its first letter.
  */
-function useCoverMasks(project: ProjectSummary): string[] | null {
-  const lines = project.cover.storylines;
-  const chapters = project.stats.chapters;
-  const key = sandCoverKey(project.id, chapters, lines);
-  const [drawn, setDrawn] = useState<{ key: string; masks: string[] } | null>(null);
-  const cached = peekSandCoverMasks(key);
+function useShelfCover(project: ProjectSummary, glyph: string, style: CoverStyleId): ShelfCover | null {
+  const request = useMemo(
+    () => ({
+      chapters: project.stats.chapters,
+      storylines: project.cover.storylines,
+      words: project.cover.words,
+      latin: /[A-Za-z]/.test(glyph),
+    }),
+    [project.stats.chapters, project.cover, glyph],
+  );
+  const key = shelfCoverKey(project.id, style, request);
+  const [shown, setShown] = useState<ShelfCover | null>(null);
+  const cached = peekShelfCover(key);
   useEffect(() => {
-    if (peekSandCoverMasks(key)) return undefined;
-    return requestSandCoverMasks(
-      key,
-      { seed: coverSeed(project.id), chapters, storylines: lines },
-      (masks) => setDrawn({ key, masks }),
-    );
-  }, [key, project.id, chapters, lines]);
-  return cached ?? (drawn?.key === key ? drawn.masks : null);
+    if (peekShelfCover(key)) return undefined;
+    return requestShelfCover(key, style, { seed: coverSeed(project.id), ...request }, setShown);
+  }, [key, style, project.id, request]);
+  return cached ?? shown;
 }
 
 function BookCover({ row }: { row: DecoratedRow }) {
   const { project, meta, glyph } = row;
-  const masks = useCoverMasks(project);
+  const cover = useShelfCover(project, glyph, useCoverStyle());
   const lines = project.cover.storylines;
   return (
-    <div className="pp-cover" aria-hidden="true">
-      {masks?.map((mask, index) => (
-        <i
-          key={index}
-          className="sand pp-cover__band"
-          style={
-            {
-              '--sand-mask': `url(${mask})`,
-              '--sand-c': lines[index]?.color || undefined,
-            } as CSSProperties
-          }
-        />
-      ))}
+    <div
+      className={`pp-cover${cover && cover.style !== 'sand' ? ' pp-cover--art' : ''}${cover?.dark ? ' pp-cover--dark' : ''}`}
+      aria-hidden="true"
+    >
+      {cover?.style === 'sand'
+        ? cover.urls.map((mask, index) => (
+            <i
+              key={mask}
+              className="sand pp-cover__band"
+              style={
+                {
+                  '--sand-mask': `url(${mask})`,
+                  '--sand-c': (!cover.neutral && lines[index]?.color) || undefined,
+                } as CSSProperties
+              }
+            />
+          ))
+        : cover && <i key={cover.urls[0]} className="pp-cover__art" style={{ backgroundImage: `url(${cover.urls[0]})` }} />}
       <span className="pp-cover__glyph">{glyph || <KindMark kind="all" />}</span>
       {meta.genre && <span className="pp-cover__label">{meta.genre}</span>}
     </div>

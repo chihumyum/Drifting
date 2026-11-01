@@ -14,9 +14,11 @@ export interface ProjectStats {
 }
 
 /** What the shelf cover draws: each storyline, in the author's order, with its
- * colour and the chapters it runs through (indexes in reading order). */
+ * colour and the chapters it runs through (indexes in reading order), and every
+ * chapter's words in reading order. */
 export interface ProjectCover {
   storylines: Array<{ color: string; chapters: number[] }>;
+  words: number[];
 }
 
 export type ProjectSummary = Project & {

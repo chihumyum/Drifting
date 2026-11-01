@@ -18,14 +18,14 @@ const chapter = (id: string, bookOrder: number, extra: Partial<typeof BookNodeTa
 });
 
 describe('project shelf cover', () => {
-  it('reads each storyline in order with the chapters it runs through, by reading order', async () => {
+  it('reads each storyline in order with the chapters it runs through, and every chapter’s words, by reading order', async () => {
     fixture = await createWorkspaceProjectionFixture();
     const { db, gateway } = fixture;
     // The fixture's one chapter sits at book order 1; add one before and two after it.
     await db.insert(BookNodeTable).values([
-      chapter('opening', 0),
-      chapter('late', 5),
-      chapter('middle', 3),
+      chapter('opening', 0, { wordCount: 1200 }),
+      chapter('late', 5, { wordCount: 300 }),
+      chapter('middle', 3, { wordCount: 4500 }),
       chapter('trashed', 4, { deletedAt: WORKSPACE_TEST_NOW }),
     ]);
     await db.insert(NodeStorylineLinkTable).values([
@@ -45,9 +45,11 @@ describe('project shelf cover', () => {
         // The trashed chapter and the drift node are not on the reading axis.
         { color: '#778899', chapters: [0, 2] },
       ],
+      // opening, chapter (no words counted in the fixture), middle, late.
+      words: [1200, 0, 4500, 300],
     });
     expect(query).toHaveBeenCalledTimes(1);
-    expect(await readProjectCover('other-project', db)).toEqual({ storylines: [] });
+    expect(await readProjectCover('other-project', db)).toEqual({ storylines: [], words: [] });
   });
 
   it('leaves out deleted storylines and draws no more than the cover holds', async () => {
@@ -63,5 +65,13 @@ describe('project shelf cover', () => {
     expect(cover.storylines).toHaveLength(COVER_MAX_STORYLINES);
     expect(cover.storylines[0]).toEqual({ color: '#778899', chapters: [0] });
     expect(cover.storylines.slice(1).every((line) => line.chapters.length === 0)).toBe(true);
+  });
+
+  it('still reads the words of a book without storylines', async () => {
+    fixture = await createWorkspaceProjectionFixture();
+    const { db } = fixture;
+    await db.update(StorylineTable).set({ deletedAt: WORKSPACE_TEST_NOW });
+    await db.insert(BookNodeTable).values(chapter('opening', 0, { wordCount: 900 }));
+    expect(await readProjectCover('synthetic-workspace', db)).toEqual({ storylines: [], words: [900, 0] });
   });
 });

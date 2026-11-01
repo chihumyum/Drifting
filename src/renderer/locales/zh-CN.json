@@ -1976,6 +1976,25 @@
     "desk": {
       "newCard": "新建一本",
       "newCardSub": "从一张白纸开始",
+      "coverStyle": {
+        "turn": "换封面画风 · 现在是{{name}}",
+        "names": {
+          "sand": "砂笔",
+          "ridge": "山脊",
+          "quipu": "结绳",
+          "weave": "织物",
+          "topo": "等高线",
+          "cyanotype": "蓝晒",
+          "rings": "年轮",
+          "field": "色域",
+          "cutout": "剪纸",
+          "riso": "孔版",
+          "stars": "星图",
+          "strata": "地层",
+          "bauhaus": "包豪斯",
+          "chars": "字海"
+        }
+      },
       "preparingSample": "正在准备示例项目",
       "open": "打开《{{name}}》",
       "moveToTrash": "移到最近删除",
