@@ -34,7 +34,7 @@ use reqwest::dns::{Addrs, Name, Resolve, Resolving};
 use reqwest::redirect::Policy;
 use reqwest::{Client, ClientBuilder, Url};
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 use tauri_plugin_dialog::{DialogExt, FileAccessMode, FilePath, PickerMode};
 use tauri_plugin_fs::{FsExt, OpenOptions as PluginOpenOptions};
 use tauri_plugin_opener::OpenerExt;

@@ -86,6 +86,19 @@ export function developmentAppDataDirectory(command, environment) {
   return command === 'dev' ? '.local-data/app-data' : undefined;
 }
 
+/** Matches the code-signing identifier the development runner signs with. */
+export const DEVELOPMENT_IDENTIFIER = 'cc.drifting.client.dev';
+
+/**
+ * The daily development App runs under its own identifier, so the installed
+ * release's single-instance check does not hand its launch to the development
+ * window (and the reverse). Keychain items stay shared; see secure_storage.rs.
+ */
+export function withDevelopmentIdentifier(command, override) {
+  if (command !== 'dev') return override;
+  return { ...(override ?? {}), identifier: DEVELOPMENT_IDENTIFIER };
+}
+
 /** Check before Cargo/Vite starts, so a new contributor sees setup guidance
  * without first compiling the native host. The runner rechecks before launch. */
 export function prepareDesktopSigning({ command, arguments: tauriArguments = [], environment,
@@ -200,12 +213,12 @@ export async function runDesktopTauri(rawArguments = process.argv.slice(2)) {
     console.log(describeDevAgentKeys(environment));
   }
   const macosSigningIdentity = prepareDesktopSigning({ command, arguments: tauriArguments, environment });
-  const tauriConfigOverride = createDesktopTauriConfigOverride({
+  const tauriConfigOverride = withDevelopmentIdentifier(command, createDesktopTauriConfigOverride({
     command,
     arguments: tauriArguments,
     environment,
     macosSigningIdentity,
-  });
+  }));
 
   console.log(online
     ? `Hosted service: ${environment.DRIFTING_HOSTED_ORIGIN}`

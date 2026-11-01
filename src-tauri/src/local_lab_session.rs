@@ -5,7 +5,6 @@
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
 use std::path::PathBuf;
-use tauri::Manager;
 
 fn allowed(debug: bool, identifier: &str, origin: &str, key: &str) -> bool {
     let Some(suffix) = key.strip_prefix("drifting.hosted.v1.") else {

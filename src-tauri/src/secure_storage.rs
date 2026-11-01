@@ -27,10 +27,21 @@ const KEYCHAIN_SERVICE: &str = "Drifting";
     target_os = "linux"
 ))]
 fn keychain_service(app: &AppHandle) -> String {
-    let identifier = &app.config().identifier;
-    // The published application's existing BYOK/writer keys keep their identity.
-    // Independently identified lab packages must never request those credentials.
-    if identifier == "cc.drifting.client" {
+    keychain_service_for(&app.config().identifier)
+}
+
+#[cfg(any(
+    target_os = "macos",
+    target_os = "ios",
+    target_os = "windows",
+    target_os = "linux"
+))]
+/// The published application's existing BYOK/writer keys keep their identity,
+/// and so does the daily development App, which runs under its own identifier
+/// only so it can stay open beside an installed release. Independently
+/// identified lab packages must never request those credentials.
+fn keychain_service_for(identifier: &str) -> String {
+    if matches!(identifier, "cc.drifting.client" | "cc.drifting.client.dev") {
         KEYCHAIN_SERVICE.into()
     } else {
         format!("{KEYCHAIN_SERVICE}.{identifier}")
@@ -326,7 +337,20 @@ pub async fn keychain_delete(app: AppHandle, key: String) -> Result<bool, String
 
 #[cfg(test)]
 mod tests {
+    #[cfg(target_os = "macos")]
+    use super::keychain_service_for;
     use super::{key_is_valid, renderer_can_access_secret_value, MAX_KEY_BYTES};
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn the_development_app_shares_the_published_keychain_service_but_labs_do_not() {
+        assert_eq!(keychain_service_for("cc.drifting.client"), "Drifting");
+        assert_eq!(keychain_service_for("cc.drifting.client.dev"), "Drifting");
+        assert_eq!(
+            keychain_service_for("cc.drifting.wt.w123"),
+            "Drifting.cc.drifting.wt.w123"
+        );
+    }
 
     #[test]
     fn accepts_namespaced_keys_used_by_the_renderer() {

@@ -30,22 +30,43 @@ fn read(path: &Path) -> Result<Option<String>, String> {
     }
 }
 
+/// What an edit does to Drifting's own entry in a client configuration.
+#[derive(Clone, Copy)]
+enum Change<'a> {
+    Install,
+    Remove,
+    /// The connection file moved: rewrite only an entry that still names the
+    /// previous arguments, and never re-add one the author removed.
+    Move(&'a Value),
+}
+
 fn edit(
     source: &str,
     installation: &Installation,
     config: &Value,
-    remove: bool,
+    change: Change,
 ) -> Result<String, String> {
+    let remove = matches!(change, Change::Remove);
+    let keep_missing = !matches!(change, Change::Install);
+    let owner_args = match change {
+        Change::Move(previous) => previous,
+        _ => &config["args"],
+    };
     // Ownership follows the private connection-file reference, so an app move
     // can repair its executable path without replacing somebody else's entry.
-    let owns_json = |entry: &Value| entry.get("args") == config.get("args");
+    // A move that already happened leaves the entry naming the current file.
+    let is_move = matches!(change, Change::Move(_));
+    let owns_json = |entry: &Value| {
+        entry.get("args") == Some(owner_args)
+            || (is_move && entry.get("args") == config.get("args"))
+    };
     match installation.client {
         Client::Codex => {
             let mut doc = source
                 .parse::<DocumentMut>()
                 .map_err(|_| "Codex configuration is invalid; it was left unchanged")?;
             if !doc.contains_key("mcp_servers") {
-                if remove {
+                if keep_missing {
                     return Ok(source.into());
                 }
                 doc["mcp_servers"] = Item::Table(Table::new());
@@ -53,24 +74,31 @@ fn edit(
             let servers = doc["mcp_servers"]
                 .as_table_like_mut()
                 .ok_or("Codex mcp_servers must be a table")?;
+            let owner_list = owner_args
+                .as_array()
+                .ok_or("Invalid MCP arguments")?
+                .iter()
+                .map(Value::as_str)
+                .collect::<Vec<_>>();
             if let Some(entry) = servers.get(&installation.server_name) {
+                let current_list = config["args"]
+                    .as_array()
+                    .ok_or("Invalid MCP arguments")?
+                    .iter()
+                    .map(Value::as_str)
+                    .collect::<Vec<_>>();
                 let owned = entry
                     .get("args")
                     .and_then(Item::as_array)
                     .map(|args| {
-                        args.iter().map(|arg| arg.as_str()).collect::<Vec<_>>()
-                            == config["args"]
-                                .as_array()
-                                .unwrap()
-                                .iter()
-                                .map(Value::as_str)
-                                .collect::<Vec<_>>()
+                        let args = args.iter().map(|arg| arg.as_str()).collect::<Vec<_>>();
+                        args == owner_list || (is_move && args == current_list)
                     })
                     .unwrap_or(false);
                 if !owned {
                     return Err("A different MCP server already uses this name; its configuration was left unchanged".into());
                 }
-            } else if remove {
+            } else if keep_missing {
                 return Ok(source.into());
             }
             if remove {
@@ -112,7 +140,7 @@ fn edit(
                 .as_object_mut()
                 .ok_or_else(|| format!("{client_name} configuration must be an object"))?;
             if !root.contains_key("mcpServers") {
-                if remove {
+                if keep_missing {
                     return Ok(source.into());
                 }
                 root.insert("mcpServers".into(), json!({}));
@@ -125,7 +153,7 @@ fn edit(
                 if !owns_json(entry) {
                     return Err("A different MCP server already uses this name; its configuration was left unchanged".into());
                 }
-            } else if remove {
+            } else if keep_missing {
                 return Ok(source.into());
             }
             if remove {
@@ -154,16 +182,37 @@ pub(super) fn update(
     config: &Value,
     remove: bool,
 ) -> Result<(), String> {
+    apply(
+        installation,
+        config,
+        if remove {
+            Change::Remove
+        } else {
+            Change::Install
+        },
+    )
+}
+
+/// Point an entry that still names `previous_args` at the moved connection.
+pub(super) fn relocate(
+    installation: &Installation,
+    previous_args: &Value,
+    config: &Value,
+) -> Result<(), String> {
+    apply(installation, config, Change::Move(previous_args))
+}
+
+fn apply(installation: &Installation, config: &Value, change: Change) -> Result<(), String> {
     let path = &installation.config_path;
     let before = read(path)?;
-    if remove && before.is_none() {
+    if !matches!(change, Change::Install) && before.is_none() {
         return Ok(());
     }
     let after = edit(
         before.as_deref().unwrap_or(""),
         installation,
         config,
-        remove,
+        change,
     )?;
     if before.as_deref() == Some(after.as_str()) {
         return Ok(());
@@ -237,12 +286,18 @@ mod tests {
     fn codex_merge_preserves_comments_and_other_servers_and_is_idempotent() {
         let source = "# user settings\nmodel = 'synthetic-model'\n[mcp_servers.other]\ncommand = 'other' # keep this\n";
         let i = installation(Client::Codex);
-        let result = edit(source, &i, &config(), false).unwrap();
+        let result = edit(source, &i, &config(), Change::Install).unwrap();
         assert!(result.starts_with(source));
-        assert_eq!(edit(&result, &i, &config(), false).unwrap(), result);
-        assert_eq!(edit(&result, &i, &config(), true).unwrap(), source);
+        assert_eq!(
+            edit(&result, &i, &config(), Change::Install).unwrap(),
+            result
+        );
+        assert_eq!(
+            edit(&result, &i, &config(), Change::Remove).unwrap(),
+            source
+        );
         let inline = "mcp_servers = {other = {command = 'other'}}\n";
-        assert!(edit(inline, &i, &config(), false)
+        assert!(edit(inline, &i, &config(), Change::Install)
             .unwrap()
             .parse::<DocumentMut>()
             .unwrap()["mcp_servers"]["other"]
@@ -252,10 +307,14 @@ mod tests {
     fn claude_merge_preserves_account_project_and_existing_mcp_settings() {
         let source = json!({"account":{"name":"synthetic"},"projects":{"/synthetic":{"hasTrustDialogAccepted":false}},"mcpServers":{"other":{"command":"other"}}});
         let i = installation(Client::ClaudeCode);
-        let result = edit(&source.to_string(), &i, &config(), false).unwrap();
-        assert_eq!(edit(&result, &i, &config(), false).unwrap(), result);
+        let result = edit(&source.to_string(), &i, &config(), Change::Install).unwrap();
         assert_eq!(
-            serde_json::from_str::<Value>(&edit(&result, &i, &config(), true).unwrap()).unwrap(),
+            edit(&result, &i, &config(), Change::Install).unwrap(),
+            result
+        );
+        assert_eq!(
+            serde_json::from_str::<Value>(&edit(&result, &i, &config(), Change::Remove).unwrap())
+                .unwrap(),
             source
         );
     }
@@ -264,27 +323,61 @@ mod tests {
         let source = json!({"mcpServers":{"other":{"serverUrl":"https://synthetic.invalid/mcp","disabledTools":["synthetic_tool"]}},"customSetting":true});
         let i = installation(Client::Antigravity);
         assert_eq!(serde_json::to_value(i.client).unwrap(), "antigravity");
-        let result = edit(&source.to_string(), &i, &config(), false).unwrap();
+        let result = edit(&source.to_string(), &i, &config(), Change::Install).unwrap();
         let mut installed: Value = serde_json::from_str(&result).unwrap();
         assert_eq!(installed["mcpServers"]["drifting_test"], config());
-        assert_eq!(edit(&result, &i, &config(), false).unwrap(), result);
+        assert_eq!(
+            edit(&result, &i, &config(), Change::Install).unwrap(),
+            result
+        );
         installed["mcpServers"]["drifting_test"]["disabled"] = json!(true);
         installed["mcpServers"]["drifting_test"]["disabledTools"] = json!(["create_chapter"]);
         let mut moved = config();
         moved["command"] = json!("/synthetic/moved/writer");
-        let repaired = edit(&installed.to_string(), &i, &moved, false).unwrap();
+        let repaired = edit(&installed.to_string(), &i, &moved, Change::Install).unwrap();
         let repaired_json: Value = serde_json::from_str(&repaired).unwrap();
         let entry = &repaired_json["mcpServers"]["drifting_test"];
         assert_eq!(entry["command"], moved["command"]);
         assert_eq!(entry["disabled"], true);
         assert_eq!(entry["disabledTools"], json!(["create_chapter"]));
         assert_eq!(
-            serde_json::from_str::<Value>(&edit(&repaired, &i, &moved, true).unwrap()).unwrap(),
+            serde_json::from_str::<Value>(&edit(&repaired, &i, &moved, Change::Remove).unwrap())
+                .unwrap(),
             source
         );
         for invalid in ["null", "[]", r#"{"mcpServers":[]}"#] {
-            assert!(edit(invalid, &i, &config(), false).is_err());
+            assert!(edit(invalid, &i, &config(), Change::Install).is_err());
         }
+    }
+    #[test]
+    fn a_moved_connection_file_rewrites_only_its_own_entry() {
+        let previous = json!(["--mcp", "--connection", "/synthetic/old/connection.json"]);
+        let mut old = config();
+        old["args"] = previous.clone();
+        for client in [Client::ClaudeCode, Client::Codex] {
+            let i = installation(client);
+            let installed = edit("", &i, &old, Change::Install).unwrap();
+            let moved = edit(&installed, &i, &config(), Change::Move(&previous)).unwrap();
+            assert_eq!(moved, edit("", &i, &config(), Change::Install).unwrap());
+            assert_eq!(
+                edit(&moved, &i, &config(), Change::Move(&previous)).unwrap(),
+                moved
+            );
+            // An entry the author removed stays removed.
+            assert_eq!(
+                edit("", &i, &config(), Change::Move(&previous)).unwrap(),
+                ""
+            );
+        }
+        let foreign =
+            json!({"mcpServers":{"drifting_test":{"command":"other","args":["x"]}}}).to_string();
+        assert!(edit(
+            &foreign,
+            &installation(Client::ClaudeCode),
+            &config(),
+            Change::Move(&previous)
+        )
+        .is_err());
     }
     #[test]
     fn antigravity_setup_creates_nested_config_and_backs_up_before_revocation() {
@@ -316,8 +409,8 @@ mod tests {
     fn claude_statistics_keep_their_exact_numeric_values() {
         let source = r#"{"projects":{"synthetic":{"stat":1.2345678901234567890123456789,"integer":123456789012345678901234567890}},"mcpServers":{}}"#;
         let i = installation(Client::ClaudeCode);
-        let installed = edit(source, &i, &config(), false).unwrap();
-        let removed = edit(&installed, &i, &config(), true).unwrap();
+        let installed = edit(source, &i, &config(), Change::Install).unwrap();
+        let removed = edit(&installed, &i, &config(), Change::Remove).unwrap();
         assert!(removed.contains("1.2345678901234567890123456789"));
         assert!(removed.contains("123456789012345678901234567890"));
         assert_eq!(
@@ -329,12 +422,12 @@ mod tests {
     fn malformed_or_colliding_config_is_never_replaced() {
         for client in [Client::Codex, Client::ClaudeCode, Client::Antigravity] {
             let i = installation(client);
-            assert!(edit("[broken", &i, &config(), false).is_err());
-            let original = edit("", &i, &config(), false).unwrap();
+            assert!(edit("[broken", &i, &config(), Change::Install).is_err());
+            let original = edit("", &i, &config(), Change::Install).unwrap();
             let mut other = config();
             other["args"] = json!(["unrelated"]);
-            assert!(edit(&original, &i, &other, false).is_err());
-            assert!(edit(&original, &i, &other, true).is_err());
+            assert!(edit(&original, &i, &other, Change::Install).is_err());
+            assert!(edit(&original, &i, &other, Change::Remove).is_err());
         }
     }
     #[test]

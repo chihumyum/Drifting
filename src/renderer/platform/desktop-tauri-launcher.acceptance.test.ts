@@ -85,6 +85,13 @@ describe('desktop Tauri environment', () => {
     expect(desktopLauncher.developmentAppDataDirectory('build', {})).toBeUndefined();
   });
 
+  it('runs the development App under its own identifier beside an installed release', () => {
+    expect(desktopLauncher.withDevelopmentIdentifier('dev', null)).toEqual({ identifier: 'cc.drifting.client.dev' });
+    expect(desktopLauncher.withDevelopmentIdentifier('dev', { app: { security: {} } }))
+      .toEqual({ app: { security: {} }, identifier: 'cc.drifting.client.dev' });
+    expect(desktopLauncher.withDevelopmentIdentifier('build', null)).toBeNull();
+  });
+
   it('uses one configured origin for renderer authentication, native sync and CSP while preserving HMR', () => {
     const environment = createDesktopTauriEnvironment({
       baseEnvironment: {},
