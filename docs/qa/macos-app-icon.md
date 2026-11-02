@@ -45,7 +45,9 @@ node scripts/check-macos-icon.mjs --check
 ```
 
 The generated `docs/qa/macos-app-icon.json` records actual Tauri package
-metadata and source hashes. The checker requires matching `Info.plist` keys,
+metadata and source hashes. The `tauri.conf.json` fingerprint leaves out the
+release version, so bumping the version for a release does not need a new
+recording. The checker requires matching `Info.plist` keys,
 the original `.icns` bytes, a 1024px icon, both design groups in each
 Default/Dark/Mono appearance, and the macOS 13 minimum. Release verification
 also inspects the built app and the app mounted from the signed DMG, so a

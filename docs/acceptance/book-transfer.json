@@ -5,7 +5,7 @@
     "sourceSha256": {
       "docs/book-transfer.md": "aafff42fe838e41ce25ee23e75f261c872ac30b89200b6e8b190eb0564f34121",
       "scripts/generate-book-transfer-evidence.mjs": "282ea7789f13deacedc66aaa3c4e0d4321a2ea5ed5dec943aa94b74059e94a04",
-      "src-tauri/src/book_transfer.rs": "3fb7b4ebb4e3c0816867dcf49ce188ad748441e8a840f14c7e7e34c85d1321fa",
+      "src-tauri/src/book_transfer.rs": "1b4d83ed69ed663e4a36a793f157792207fd6e42a4be18e62c3c418d0624391d",
       "src/renderer/components/topBars/UserMenu.tsx": "a9a33a92024e5c1090384efd11c5a2fa56cf0fd993a361ef23bed3505d136faa",
       "src/renderer/platform/tauri.test.ts": "5c0d54308129a63d5c7e77fe27a711921fc9b147e3ebfe6aec20e2e42a562544",
       "src/renderer/services/book-transfer/book-file.test.ts": "28c6ce9d03e450619345f3080f0fffea2f0539fd227ca443030a5804c6ee3c25",
