@@ -1,10 +1,10 @@
 {
   "suite": "milestone-e-durable-long-task-execution",
   "schemaVersion": 1,
-  "nodeVersion": "v22.23.1",
+  "nodeVersion": "v24.4.0",
   "platform": "darwin",
-  "gitHead": "59dcf0f9d71ab18681e3439d3ca5bab31b7a464e",
-  "sourceSetSha256": "sha256:4ec2e32ea4e5cf519cbe2f8ca273700e9a4c17939a77083bd2c7c0fb77378103",
+  "gitHead": "eb07c2ba1ee1e647f8193ea674104b0149e79f24",
+  "sourceSetSha256": "sha256:412d6af09813f822b9f9975125974962e6fa7c55869a26b7bf319bb4f7e77058",
   "execution": {
     "defaultTaskBudgets": "unlimited",
     "safeStop": "after-current-tool",
@@ -21,12 +21,12 @@
   },
   "vitest": {
     "files": {
-      "required": 10,
-      "discovered": 10
+      "required": 13,
+      "discovered": 13
     },
     "tests": {
-      "total": 162,
-      "passed": 162,
+      "total": 184,
+      "passed": 184,
       "failed": 0,
       "pending": 0,
       "todo": 0
@@ -44,11 +44,11 @@
         "passed": true
       },
       "continuationAndAuthorControl": {
-        "requiredFiles": 3,
-        "discoveredFiles": 3,
+        "requiredFiles": 6,
+        "discoveredFiles": 6,
         "tests": {
-          "total": 60,
-          "passed": 60,
+          "total": 81,
+          "passed": 81,
           "failed": 0,
           "pending": 0
         },
@@ -58,8 +58,8 @@
         "requiredFiles": 2,
         "discoveredFiles": 2,
         "tests": {
-          "total": 16,
-          "passed": 16,
+          "total": 17,
+          "passed": 17,
           "failed": 0,
           "pending": 0
         },
@@ -120,6 +120,16 @@
       },
       "exactSteering": {
         "requiredName": "applies author steering exactly once at the next model boundary",
+        "matches": 1,
+        "passed": true
+      },
+      "iterationBoundaryWithoutToolOutage": {
+        "requiredName": "checkpoints at the iteration limit without disabling tools or asking the model for a failure explanation",
+        "matches": 1,
+        "passed": true
+      },
+      "authoritativeContinuationStatus": {
+        "requiredName": "shows saved progress only while the scheduler is preparing or continuing that boundary",
         "matches": 1,
         "passed": true
       },

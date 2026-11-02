@@ -114,6 +114,8 @@ describe('Drifting Agent capability manifest', () => {
       manifestPolicy: 'detect-explicitly-reconcile-before-completion',
       completionPolicy: 'current-manifest-plus-work-kind-evidence',
       automaticContinuationPrompts: 'model-visible-transcript-hidden',
+      iterationBoundaryPolicy: 'checkpoint-with-normal-tools-no-model-synthesis',
+      iterationBoundaryDisplay: 'host-owned-saved-progress-authoritative-continuation',
       stagnantSliceWatchdog: AGENT_AUTO_CONTINUATION_MAX_STAGNANT_SLICES,
     });
     expect(

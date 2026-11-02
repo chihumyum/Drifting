@@ -59,6 +59,7 @@ const messageSchema = Type.Union([
     cacheCreationTokens: Type.Number(),
     costUsd: Type.Number(),
     turns: Type.Number(),
+    boundary: Type.Optional(Type.Literal('iteration_limit')),
     at,
     durationMs: Type.Optional(Type.Number()),
     durationApiMs: Type.Optional(Type.Number()),

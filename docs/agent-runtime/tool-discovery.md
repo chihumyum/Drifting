@@ -13,7 +13,10 @@ The tool directory is captured once per turn after project and read-only
 filtering. Searches, repairs and pending result pages never replace the provider
 `tools` array. Returned schemas enter ordinary conversation history, where they
 are budgeted, persisted and compacted normally; the model can retrieve them again.
-Final synthesis retains the same definitions with `tool_choice=none`.
+Explicit token-budget synthesis retains the same definitions with
+`tool_choice=none`. A model-iteration cap keeps normal tools through the last
+allowed iteration, then checkpoints for host-owned continuation without asking
+the model to explain a temporary tool restriction.
 `off` remains the full-schema option. Actual catalog or access changes may change
 the next turn's directory; this is not a promise of cache hits across such changes.
 

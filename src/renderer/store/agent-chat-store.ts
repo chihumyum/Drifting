@@ -221,6 +221,19 @@ export const selectAutomaticContinuation = (
   s: AgentChatState,
 ): AgentAutomaticContinuationState | null =>
   s.activeConvId ? (s.runs[s.activeConvId]?.automaticContinuation ?? null) : null;
+/** A saved iteration boundary is progress; only the scheduler can promise continuation. */
+export const selectAgentSliceProgress = (
+  s: AgentChatState,
+): 'evaluating' | 'scheduled' | null => {
+  const run = s.activeConvId ? s.runs[s.activeConvId] : undefined;
+  const last = run?.transcript.at(run.transcript.length - 1);
+  const status = run?.automaticContinuation?.status;
+  return run?.lastTerminal?.outcome === 'budget_exceeded' &&
+    last?.kind === 'usage' && last.boundary === 'iteration_limit' &&
+    (status === 'evaluating' || status === 'scheduled')
+    ? status
+    : null;
+};
 export type AgentTaskContinuationReason = 'budget_exceeded' | 'active_plan';
 export const selectAgentTaskContinuationReason = (
   s: AgentChatState,

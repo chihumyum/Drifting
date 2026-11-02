@@ -286,9 +286,17 @@ function UsageRow({ msg }: { msg: Extract<ChatMsg, { kind: 'usage' }> }) {
   ].filter((part): part is string => Boolean(part));
   return (
     <div style={usageRow} title={title}>
-      {details.join(' · ')}
+      {[msg.boundary === 'iteration_limit' ? t('agentPanel.slice.saved') : null, ...details].filter(Boolean).join(' · ')}
     </div>
   );
+}
+
+/** Host status, never model-authored text or an input to the provider. */
+export function AgentSliceProgress({ status }: { status: 'evaluating' | 'scheduled' }) {
+  const { t } = useTranslation();
+  return <div className="agt-pending" role="status">
+    {t(status === 'scheduled' ? 'agentPanel.slice.continuing' : 'agentPanel.slice.preparing')}
+  </div>;
 }
 
 const UserBubble = memo(function UserBubble({ msg }: { msg: Extract<ChatMsg, { kind: 'user' }> }) {

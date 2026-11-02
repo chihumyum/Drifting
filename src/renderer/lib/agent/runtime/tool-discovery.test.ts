@@ -137,7 +137,7 @@ describe('Model-directed tool discovery', () => {
 
   it('keeps the prefix during the final synthesis boundary and disables invocation', async () => {
     const h = harness([call('tool_search', { names: ['read_element'] }), done()]);
-    const result = await h.runtime.runTurn({ ...input, limits: { maxModelIterations: 2 } });
+    const result = await h.runtime.runTurn({ ...input, limits: { maxModelIterations: 2, maxOutputTokens: 2 } });
     expect(result.state.status).toBe('completed');
     expect(h.requests[1]!.toolChoice).toBe('none');
     expect(h.requests[1]!.tools).toEqual(h.requests[0]!.tools);
@@ -174,7 +174,7 @@ describe('Model-directed tool discovery', () => {
       yield* requests.length === 1 ? call('read_element', { element: 'Synthetic' }) : done();
     } };
     const runtime = new AgentRuntime({ driver, toolDiscovery: () => false, tools: { listDefinitions: () => catalog, execute: async () => ({ ok: true, data: 'Read' }) } });
-    expect((await runtime.runTurn({ ...input, limits: { maxModelIterations: 2 } })).state.status).toBe('completed');
+    expect((await runtime.runTurn({ ...input, limits: { maxModelIterations: 2, maxOutputTokens: 2 } })).state.status).toBe('completed');
     expect(requests[1]!.tools).toEqual(requests[0]!.tools);
     expect(requests[1]!.toolChoice).toBe('none');
   });

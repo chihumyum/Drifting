@@ -201,6 +201,8 @@ Hidden domain operations: `edit_prose_file`, `rename_node`, `set_node_summary`, 
 - Manifest policy: `detect-explicitly-reconcile-before-completion`
 - Completion policy: `current-manifest-plus-work-kind-evidence`
 - Continuation prompt visibility: `model-visible-transcript-hidden`
+- Iteration boundary: `checkpoint-with-normal-tools-no-model-synthesis`
+- Iteration boundary display: `host-owned-saved-progress-authoritative-continuation`
 - Stagnant automatic slices before pause: 2
 
 ## Working Memory contract

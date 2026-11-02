@@ -24,6 +24,8 @@ export const AGENT_LONG_TASK_EXECUTION_CONTRACT = {
   manifestPolicy: 'detect-explicitly-reconcile-before-completion',
   completionPolicy: 'current-manifest-plus-work-kind-evidence',
   automaticContinuationPrompts: 'model-visible-transcript-hidden',
+  iterationBoundaryPolicy: 'checkpoint-with-normal-tools-no-model-synthesis',
+  iterationBoundaryDisplay: 'host-owned-saved-progress-authoritative-continuation',
   stagnantSliceWatchdog: 2,
 } as const;
 

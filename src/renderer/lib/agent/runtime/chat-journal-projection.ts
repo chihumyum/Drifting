@@ -196,6 +196,7 @@ function fold<T>(list: T, entry: AgentRuntimeJournalEntry, ops: MessageOps<T>): 
     case 'commit_started':
       return finalize(list, ops);
     case 'turn_finished': {
+      const iterationBoundary = ev.outcome === 'budget_exceeded' && ev.failureCode === 'MAX_MODEL_ITERATIONS';
       let next = ops.append(finalize(list, ops),
         {
           kind: 'usage',
@@ -205,11 +206,12 @@ function fold<T>(list: T, entry: AgentRuntimeJournalEntry, ops: MessageOps<T>): 
           cacheCreationTokens: ev.usage.cacheWriteTokens,
           costUsd: ev.usage.costUsd,
           turns: ev.modelIterations,
+          ...(iterationBoundary ? { boundary: 'iteration_limit' as const } : {}),
           durationMs: ev.durationMs,
           at: new Date(entry.wallTimeMs).toISOString(),
         },
       );
-      if (ev.outcome !== 'completed' && ev.outcome !== 'aborted') {
+      if (ev.outcome !== 'completed' && ev.outcome !== 'aborted' && !iterationBoundary) {
         next = ops.append(next,
           {
             kind: 'error',

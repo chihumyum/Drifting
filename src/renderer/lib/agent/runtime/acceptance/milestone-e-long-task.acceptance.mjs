@@ -17,6 +17,9 @@ const TEST_GROUPS = {
     'src/renderer/lib/agent/runtime/long-task-auto-continuation.test.ts',
     'src/renderer/lib/agent/runtime/runtime.test.ts',
     'src/renderer/store/agent-chat-store.test.ts',
+    'src/renderer/lib/agent/runtime/chat-journal-projection.test.ts',
+    'src/renderer/features/agent/agent-glass.render.test.ts',
+    'src/renderer/sync/agent-chat/payload.test.ts',
   ],
   restartAndInvisibleContinuation: [
     'src/renderer/lib/agent/runtime/recovered-transcript.test.ts',
@@ -33,6 +36,12 @@ const TEST_FILES = [...new Set(Object.values(TEST_GROUPS).flat())];
 const LINT_FILES = [
   'scripts/generate-agent-capabilities.ts',
   'src/renderer/domain/agent-runtime-long-task.ts',
+  'src/renderer/domain/agent-conversation.ts',
+  'src/renderer/features/agent/AgentMessageViews.tsx',
+  'src/renderer/features/agent/desktop/DesktopAgentTranscript.tsx',
+  'src/renderer/shells/mobile/workspace/MobileAgentTranscript.tsx',
+  'src/renderer/sync/agent-chat/payload.ts',
+  'src/renderer/lib/agent/runtime/chat-journal-projection.ts',
   'src/renderer/lib/agent/protocol.ts',
   'src/renderer/lib/agent/runtime/drifting-agent-capability-manifest.ts',
   'src/renderer/lib/agent/runtime/local-transport.ts',
@@ -51,6 +60,9 @@ const LINT_FILES = [
 ];
 const HASHED_SOURCE_FILES = [
   'docs/agent-runtime/long-task-execution-protocol.md',
+  'docs/agent-runtime/tool-discovery.md',
+  'src/renderer/locales/zh-CN.json',
+  'src/renderer/locales/en.json',
   'drizzle/0000_local_first_baseline.sql',
   'drizzle/meta/_journal.json',
   'src/renderer/lib/agent/runtime/acceptance/milestone-e-long-task.acceptance.mjs',
@@ -76,6 +88,10 @@ const REQUIRED_ASSERTIONS = {
     'stops scheduling later writes immediately after the current tool settles',
   exactSteering:
     'applies author steering exactly once at the next model boundary',
+  iterationBoundaryWithoutToolOutage:
+    'checkpoints at the iteration limit without disabling tools or asking the model for a failure explanation',
+  authoritativeContinuationStatus:
+    'shows saved progress only while the scheduler is preparing or continuing that boundary',
   manualResumeAfterTerminal:
     'offers manual continuation after any terminal turn with an authoritative same-session open plan',
   invisibleContinuation:

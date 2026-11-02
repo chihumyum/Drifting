@@ -178,6 +178,8 @@ function renderMarkdown(manifest: ReturnType<typeof buildDriftingAgentCapability
     `- Manifest policy: \`${manifest.longTaskExecution.manifestPolicy}\``,
     `- Completion policy: \`${manifest.longTaskExecution.completionPolicy}\``,
     `- Continuation prompt visibility: \`${manifest.longTaskExecution.automaticContinuationPrompts}\``,
+    `- Iteration boundary: \`${manifest.longTaskExecution.iterationBoundaryPolicy}\``,
+    `- Iteration boundary display: \`${manifest.longTaskExecution.iterationBoundaryDisplay}\``,
     `- Stagnant automatic slices before pause: ${manifest.longTaskExecution.stagnantSliceWatchdog}`,
     '',
     '## Working Memory contract',

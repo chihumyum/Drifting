@@ -40,6 +40,20 @@ function foldTranscript(entries: readonly AgentRuntimeJournalEntry[]): AgentChat
 }
 
 describe.each([['array', foldArray], ['live transcript', foldTranscript]] as const)('canonical thinking runs: %s', (_, fold) => {
+  it('projects a saved iteration boundary without a tool-outage error and keeps real failures visible', () => {
+    const finished = {
+      type: 'turn_finished' as const, outcome: 'budget_exceeded' as const,
+      failureCode: 'MAX_MODEL_ITERATIONS' as const, message: 'maxModelIterations reached: 50',
+      usage: { inputTokens: 50, outputTokens: 50, cacheReadTokens: 0, cacheWriteTokens: 0, costUsd: 0 },
+      modelIterations: 50, durationMs: 1000,
+    };
+    const saved = fold([entry(1, finished)]);
+    expect(saved).toEqual([expect.objectContaining({ kind: 'usage', boundary: 'iteration_limit', turns: 50 })]);
+    const failed = fold([entry(1, { ...finished, outcome: 'failed', failureCode: 'MODEL_ERROR', message: 'Service failed' })]);
+    expect(failed).toContainEqual({ kind: 'error', text: 'Service failed' });
+    expect(failed[0]).not.toHaveProperty('boundary');
+  });
+
   it('appends historical per-chunk thinking rows into one streaming message', () => {
     const messages = fold([
       entry(1, { type: 'thinking_delta', iteration: 1, text: '先想' }),

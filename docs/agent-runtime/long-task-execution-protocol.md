@@ -134,6 +134,20 @@ evidence is not runnable.
 
 ## Continuation state machine
 
+The per-slice model-iteration cap (50 by default in product settings) is a
+checkpoint boundary, not a tool failure. The final allowed iteration keeps its
+normal authorized tools. If work still needs another iteration, the runtime
+checkpoints the completed tool results and ends the slice without a tool-free
+model summary. The renderer records **Progress saved** in the usage row and
+shows **Progress saved. Preparing to continue…** while checking the plan, then
+**Progress saved. Continuing…** only once the scheduler has queued continuation.
+Paused, stopped, review-only and failed states never promise automatic work.
+Both desktop and mobile render this host-owned status; it is not a fabricated
+assistant message and never becomes provider history. Canonical replay and
+portable conversation display retain the saved-progress marker. Actual tool,
+provider and durability errors remain errors. Explicit token-budget summaries
+still explain the slice boundary without suggesting that tools are unavailable.
+
 The durable plan and renderer-lifetime continuation authorization are separate:
 
 ```text

@@ -83,6 +83,8 @@ export type AgentChatMessage =
       cacheCreationTokens: number;
       costUsd: number;
       turns: number;
+      /** Host-owned saved-progress marker, reconstructed from the runtime journal. */
+      boundary?: 'iteration_limit';
       at?: string;
       // Turn timing (SDK duration_ms / duration_api_ms). Optional: absent on
       // rows persisted before timing was added. The gap durationMs − durationApiMs

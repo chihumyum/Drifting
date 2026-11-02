@@ -19,7 +19,7 @@ function invocation(index: number) {
 async function run(driver: AgentModelDriver, reasoning = false) {
   const execute = vi.fn(async () => ({ ok: true as const, data: 'Synthetic result' }));
   const runtime = new AgentRuntime({ driver, toolDiscovery: () => true, tools: { listDefinitions: () => definitions, execute } });
-  const result = await runtime.runTurn({ sessionId: 'session-provider-discovery', turnId: 'turn-discovery', route: { kind: 'test' }, prompt: '继续改', systemPrompt: 'Use the tools.', reasoning: { enabled: reasoning }, limits: { maxModelIterations: 4 } });
+  const result = await runtime.runTurn({ sessionId: 'session-provider-discovery', turnId: 'turn-discovery', route: { kind: 'test' }, prompt: '继续改', systemPrompt: 'Use the tools.', reasoning: { enabled: reasoning }, limits: { maxModelIterations: 4, maxOutputTokens: 6 } });
   expect(result.state.status, JSON.stringify(result.state.terminal)).toBe('completed');
   expect(execute.mock.calls).toHaveLength(2);
   expect(result.messages.flatMap((message) => message.role === 'tool' ? message.content.map((entry) => entry.name) : [])).toEqual(['tool_search', 'read_element', 'revise_element']);

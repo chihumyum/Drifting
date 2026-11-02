@@ -1041,50 +1041,36 @@ describe('AgentRuntime', () => {
     driver.assertExhausted();
   });
 
-  it('reserves the final model iteration for a best-effort answer after tool results', async () => {
+  it('checkpoints at the iteration limit without disabling tools or asking the model for a failure explanation', async () => {
     const execute = vi.fn<AgentToolRuntime['execute']>(async () => ({
       ok: true,
-      data: { chapters: ['第一章'] },
+      data: { saved: true },
     }));
     const driver = new ScriptedFakeDriver({
       rounds: [
-        {
-          expectRequest: {
-            iteration: 1,
-            toolNames: ['list_nodes'],
+        ...Array.from({ length: 50 }, (_, index): ScriptedDriverRound => ({
+          expectRequest: (request) => {
+            expect(request.iteration).toBe(index + 1);
+            expect(request.tools.map(tool => tool.name)).toEqual(['write_chapter']);
+            expect(request.toolChoice).not.toBe('none');
+            expect(JSON.stringify(request.messages)).not.toContain(AGENT_SYNTHESIS_ONLY_SYSTEM_NOTE);
           },
           steps: [
-            ...toolCallSteps('list-1', 'list_nodes', ['{}']),
+            ...toolCallSteps(`write-${index}`, 'write_chapter', ['{}']),
             { op: 'emit', event: { type: 'usage', usage: usage(4, 1) } },
             { op: 'emit', event: { type: 'finish', reason: 'tool_use' } },
           ],
-        },
+        })),
         {
           expectRequest: (request) => {
-            expect(request.iteration).toBe(2);
-            expect(request.tools).toEqual([]);
-            expect(request.messages[request.messages.length - 1]).toEqual({
-              role: 'user',
-              content: AGENT_SYNTHESIS_ONLY_SYSTEM_NOTE,
-            });
-            expect(request.messages[request.messages.length - 2]).toMatchObject({
+            expect(request.iteration).toBe(1);
+            expect(request.messages).toContainEqual(expect.objectContaining({
               role: 'tool',
-              content: [
-                {
-                  callId: 'list-1',
-                  ok: true,
-                },
-              ],
-            });
+              content: [expect.objectContaining({ callId: 'write-49', ok: true })],
+            }));
           },
           steps: [
-            {
-              op: 'emit',
-              event: {
-                type: 'text_delta',
-                text: '目前有第一章。',
-              },
-            },
+            { op: 'emit', event: { type: 'text_delta', text: '全部完成。' } },
             { op: 'emit', event: { type: 'usage', usage: usage(5, 3) } },
             { op: 'emit', event: { type: 'finish', reason: 'end_turn' } },
           ],
@@ -1092,19 +1078,22 @@ describe('AgentRuntime', () => {
       ],
     });
 
-    const result = await new AgentRuntime({
+    const runtime = new AgentRuntime({
       driver,
-      tools: toolRuntime([definition('list_nodes')], execute),
-    }).runTurn(
-      input({
-        limits: { maxModelIterations: 2 },
-      }),
-    );
+      tools: toolRuntime([definition('write_chapter', 'write')], execute),
+    });
+    const result = await runtime.runTurn(input({ limits: { maxModelIterations: 50 } }));
 
-    expect(execute).toHaveBeenCalledOnce();
-    expect(result.state.status).toBe('completed');
-    expect(result.state.assistantText).toContain('目前有第一章');
-    expect(result.state.terminal?.outcome).toBe('completed');
+    expect(execute).toHaveBeenCalledTimes(50);
+    expect(result.state.status).toBe('budget_exceeded');
+    expect(result.state.modelIterations).toBe(50);
+    expect(result.state.assistantText).toBe('');
+    expect(result.state.terminal?.failureCode).toBe('MAX_MODEL_ITERATIONS');
+    expect(result.completedContextCheckpoint).toBeDefined();
+    expect(replayAgentRuntimeJournal(result.entries)).toEqual(result.state);
+    const resumed = await runtime.runTurn(input({ turnId: 'turn-2', history: result.messages }));
+    expect(resumed.state.status).toBe('completed');
+    expect(execute).toHaveBeenCalledTimes(50);
     driver.assertExhausted();
   });
 
@@ -1286,7 +1275,7 @@ describe('AgentRuntime', () => {
                 text: 'I will continue. <｜｜DSML｜｜tool_calls><｜｜DSML｜｜invoke name="read_node">',
               },
             },
-            { op: 'emit', event: { type: 'usage', usage: usage(5, 4) } },
+            { op: 'emit', event: { type: 'usage', usage: usage(5, 1) } },
             { op: 'emit', event: { type: 'finish', reason: 'end_turn' } },
           ],
         },
@@ -1295,7 +1284,7 @@ describe('AgentRuntime', () => {
     const result = await new AgentRuntime({
       driver,
       tools: toolRuntime([definition('read_node')], async () => ({ ok: true, data: {} })),
-    }).runTurn(input({ limits: { maxModelIterations: 2 } }));
+    }).runTurn(input({ limits: { maxModelIterations: 2, maxOutputTokens: 2 } }));
 
     expect(result.state.assistantText).toContain(AGENT_SYNTHESIS_DISCARDED_TOOL_TEXT);
     expect(result.state.assistantText).not.toContain('DSML');

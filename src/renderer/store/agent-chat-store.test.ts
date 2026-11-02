@@ -13,6 +13,7 @@ import {
   applyEvent,
   BUDGET_CONTINUATION_PROMPT,
   selectAgentTaskContinuationReason,
+  selectAgentSliceProgress,
   selectCanContinueAgentTask,
   selectOtherRunning,
   selectOtherRunningConversationId,
@@ -445,6 +446,31 @@ describe('agent chat canonical journal projection', () => {
     };
     expect(selectRunning(siblingOnly)).toBe(false);
     expect(selectOtherRunning(siblingOnly)).toBe(true);
+  });
+
+  it('shows saved progress only while the scheduler is preparing or continuing that boundary', () => {
+    const saved: AgentChatMessage = {
+      kind: 'usage', boundary: 'iteration_limit', turns: 50,
+      inputTokens: 50, outputTokens: 50, cacheReadTokens: 0, cacheCreationTokens: 0, costUsd: 0,
+    };
+    const state = {
+      activeConvId: 'conversation-1',
+      runs: {
+        'conversation-1': {
+          transcript: AgentChatTranscript.from([saved]),
+          lastTerminal: { turnId: 'turn-1', outcome: 'budget_exceeded' },
+          automaticContinuation: { ...createInactiveAgentAutomaticContinuation(), status: 'evaluating' },
+        },
+      },
+    } as unknown as Parameters<typeof selectAgentSliceProgress>[0];
+    expect(selectAgentSliceProgress(state)).toBe('evaluating');
+    const run = state.runs['conversation-1']!;
+    for (const status of ['scheduled', 'paused', 'off', 'armed'] as const) {
+      const next = { ...state, runs: { 'conversation-1': { ...run, automaticContinuation: { ...run.automaticContinuation, status } } } };
+      expect(selectAgentSliceProgress(next)).toBe(status === 'scheduled' ? 'scheduled' : null);
+    }
+    expect(selectAgentSliceProgress({ ...state, activeConvId: null })).toBeNull();
+    expect(selectAgentSliceProgress({ ...state, runs: { 'conversation-1': { ...run, lastTerminal: null } } })).toBeNull();
   });
 
   it('offers an explicit one-shot continuation only after an idle budget terminal', () => {

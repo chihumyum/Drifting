@@ -7,10 +7,10 @@ import { useAgentMessageBlocks, type AgentMessageBlock } from '../../../features
 import { useAgentTranscriptSummary } from '../../../features/agent/useAgentTranscriptSummary';
 import { useAgentChatTranscript } from '../../../features/agent/useAgentChatMessages';
 import { useWorkspaceNavigator } from '../../../features/workspace/navigation/WorkspaceNavigationContext';
-import { MessageView, PendingRow, RuntimeControlCard, STREAM_FOLLOW_BOTTOM_THRESHOLD_PX } from '../../../features/agent/AgentMessageViews';
+import { AgentSliceProgress, MessageView, PendingRow, RuntimeControlCard, STREAM_FOLLOW_BOTTOM_THRESHOLD_PX } from '../../../features/agent/AgentMessageViews';
 import { useAuthStore } from '../../../store/auth';
 import { useDataStore } from '../../../store/data-store';
-import { selectControlStatus, selectPendingControl, selectRunning, useAgentChatStore } from '../../../store/agent-chat-store';
+import { selectAgentSliceProgress, selectControlStatus, selectPendingControl, selectRunning, useAgentChatStore } from '../../../store/agent-chat-store';
 import { useBookNode } from '../../../usecase/useBookNode';
 import { useComment } from '../../../usecase/useComment';
 import { scrollToBlockWhenReady } from '../../../lib/scroll-to-block';
@@ -78,6 +78,7 @@ export const MobileAgentTranscript = memo(forwardRef<MobileAgentTranscriptHandle
   const starting = useAgentChatStore(state => state.starting);
   const pendingControl = useAgentChatStore(selectPendingControl);
   const controlStatus = useAgentChatStore(selectControlStatus);
+  const sliceProgress = useAgentChatStore(selectAgentSliceProgress);
   const respondPermission = useAgentChatStore(state => state.respondPermission);
   const cancelRecoveredControl = useAgentChatStore(state => state.cancelRecoveredControl);
   const userId = useAuthStore(state => state.user?.id) ?? '';
@@ -164,7 +165,7 @@ export const MobileAgentTranscript = memo(forwardRef<MobileAgentTranscriptHandle
             >
               {messages.length === 0 && <div className="m-tool-empty">{t('agentPanel.mobile.empty')}</div>}
               {messageBlocks.map(block => <MobileMessageBlock key={block.start} block={block} actionState={actionState} owner={owner} onAction={runOutputAction} />)}
-              {waiting && <PendingRow status={controlStatus} />}
+              {sliceProgress ? <AgentSliceProgress status={sliceProgress} /> : waiting && <PendingRow status={controlStatus} />}
               {pendingControl && (
                 <RuntimeControlCard
                   pending={pendingControl}

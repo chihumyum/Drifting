@@ -80,7 +80,7 @@ export const DEFAULT_AGENT_RUNTIME_LIMITS: AgentRuntimeLimits = {
 const RESULT_PAGE_TOOL = 'read_tool_result';
 const MAX_SYNTHESIS_OUTPUT_TOKEN_RESERVE = 2_048;
 export const AGENT_SYNTHESIS_ONLY_SYSTEM_NOTE =
-  'Runtime synthesis boundary: tool execution is disabled for this final response. Do not emit function-call, XML, DSML, or other tool invocation markup, and do not claim an unexecuted call. Summarize only verified results, state unfinished work explicitly, and end with ordinary prose.';
+  'This execution slice is using its reserved token budget to report verified progress at an explicit budget boundary. Tool access has not failed; any further tool execution belongs to a subsequent slice. Do not describe tools as missing, unavailable, or inaccessible. The host decides whether another slice starts; do not promise automatic continuation. Do not emit function-call, XML, DSML, or other tool invocation markup, and do not claim an unexecuted call. Summarize only verified results, state unfinished work explicitly, and end with ordinary prose.';
 export const AGENT_SYNTHESIS_DISCARDED_TOOL_TEXT =
   'This execution slice ended before another tool call could run. The unexecuted invocation was discarded; durable task progress is preserved for continuation.';
 
@@ -1526,7 +1526,6 @@ export class AgentRuntime {
       // no answer budget remains.
       const reserveForcesSynthesis =
         hasToolResultsInContext &&
-        hasFutureModelIteration &&
         synthesisReserve > 0 &&
         (remainingOutputTokens <= synthesisReserve || remainingTotalTokens <= synthesisReserve);
       const forceCompletionTool = Boolean(
@@ -1537,12 +1536,13 @@ export class AgentRuntime {
       const synthesisOnly =
         hasToolResultsInContext &&
         !forceCompletionTool &&
-        (reserveForcesSynthesis || isFinalModelIteration);
+        reserveForcesSynthesis;
       if (remainingOutputTokens <= 0 || remainingTotalTokens <= 0) {
         budget('No output token budget remains for another model iteration');
       }
-      // Tool access is removed for the reserved/final round so the model must
-      // turn the facts already in context into a best-effort author response.
+      // Explicit token budgets may reserve a progress summary. An iteration
+      // boundary instead checkpoints after its last normal tool round: asking
+      // for a tool-free answer there made the model report a false tool outage.
       const shouldSearch =
         !this.toolDiscovery &&
         !synthesisOnly &&

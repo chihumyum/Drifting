@@ -704,7 +704,7 @@
     },
     "agentLimits": {
       "title": "Run limits",
-      "desc": "A hard brake on a single turn. When the cap is reached the turn ends as \"budget exceeded\" with durable progress and task plans preserved; send another message to let Agent continue. Changes apply from the next turn.",
+      "desc": "Limits model iterations in each execution slice. Progress is saved at the cap, and an authorized continuous task resumes automatically; a paused task can also be continued manually. Changes apply to the next slice.",
       "iterationLabel": "Max model iterations per turn",
       "iterationOption": "{{value}} iterations",
       "unlimited": "Unlimited",
@@ -1380,6 +1380,12 @@
     "longTask": {
       "title": "The task plan is not finished",
       "body": "This turn completed normally, but the durable plan still has unfinished work. Continue from its first unfinished step."
+    },
+    "slice": {
+      "saved": "Progress saved",
+      "preparing": "Progress saved. Preparing to continue…",
+      "continuing": "Progress saved. Continuing…",
+      "paused": "Continue to resume from saved progress."
     },
     "autoContinue": {
       "waitingReviewTitle": "Waiting for edit review",

@@ -1663,6 +1663,7 @@ function buildTranscript(
     const journalState = recovered.journalState;
     const terminal = journalState?.terminal;
     if (!terminal) continue;
+    const iterationBoundary = terminal.outcome === 'budget_exceeded' && terminal.failureCode === 'MAX_MODEL_ITERATIONS';
     transcript.push({
       kind: 'usage',
       inputTokens: terminal.usage.inputTokens,
@@ -1671,12 +1672,13 @@ function buildTranscript(
       cacheCreationTokens: terminal.usage.cacheWriteTokens,
       costUsd: terminal.usage.costUsd,
       turns: terminal.modelIterations,
+      ...(iterationBoundary ? { boundary: 'iteration_limit' as const } : {}),
       durationMs: terminal.durationMs,
       ...(journalState.endedAtMs === null
         ? {}
         : { at: new Date(journalState.endedAtMs).toISOString() }),
     });
-    if (terminal.outcome !== 'completed' && terminal.outcome !== 'aborted') {
+    if (terminal.outcome !== 'completed' && terminal.outcome !== 'aborted' && !iterationBoundary) {
       transcript.push({
         kind: 'error',
         text: terminal.message ?? `Agent turn ${terminal.outcome}`,

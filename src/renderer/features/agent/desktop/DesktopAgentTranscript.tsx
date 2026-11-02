@@ -3,13 +3,13 @@ import { useTranslation } from 'react-i18next';
 import { useAgentMessageBlocks, type AgentMessageBlock } from '../useAgentMessageBlocks';
 import { useAgentTranscriptSummary } from '../useAgentTranscriptSummary';
 import { useAgentChatTranscript } from '../useAgentChatMessages';
-import { selectAutomaticContinuation, selectAgentTaskContinuationReason, selectControlStatus, selectPendingControl, selectRunning } from '../../../store/agent-chat-store';
+import { selectAutomaticContinuation, selectAgentSliceProgress, selectAgentTaskContinuationReason, selectControlStatus, selectPendingControl, selectRunning } from '../../../store/agent-chat-store';
 import { useAgentChatViewStore } from '../AgentChatViewContext';
 import { useAgentActivityStore } from '../../../store/agent-activity-store';
 import { useWorkspaceNavigator } from '../../workspace/navigation/WorkspaceNavigationContext';
 import { BrushIcon } from '../../../components/ui/BrushIcon';
 import { collectTurnEntityRefs, type ToolEntityRef } from '../../../lib/agent/tool-entity-ref';
-import { EntityLinkChip, MessageView, PendingRow, RuntimeControlCard, STREAM_FOLLOW_BOTTOM_THRESHOLD_PX, fmtCost, fmtTokens } from '../AgentMessageViews';
+import { AgentSliceProgress, EntityLinkChip, MessageView, PendingRow, RuntimeControlCard, STREAM_FOLLOW_BOTTOM_THRESHOLD_PX, fmtCost, fmtTokens } from '../AgentMessageViews';
 import { AgentGlassContext } from '../agent-glass';
 import { events } from '../../../lib/events';
 import { useSettingsStore } from '../../../store/settings-store';
@@ -46,6 +46,7 @@ export const DesktopAgentTranscript = memo(forwardRef<AgentTranscriptHandle, { c
   const pendingControl = useAgentChatViewStore(selectPendingControl);
   const continuationReason = useAgentChatViewStore(selectAgentTaskContinuationReason);
   const automaticContinuation = useAgentChatViewStore(selectAutomaticContinuation);
+  const sliceProgress = useAgentChatViewStore(selectAgentSliceProgress);
   const continueTask = useAgentChatViewStore(s => s.continueTask);
   const respondPermission = useAgentChatViewStore(s => s.respondPermission);
   const cancelRecoveredControl = useAgentChatViewStore(s => s.cancelRecoveredControl);
@@ -93,6 +94,7 @@ export const DesktopAgentTranscript = memo(forwardRef<AgentTranscriptHandle, { c
   // actively streaming — i.e. the dead-air gaps (right after send, and between a
   // tool finishing and the next token), where there was previously no feedback.
   const lastMsg = messages.at(messages.length - 1);
+  const iterationBoundary = lastMsg?.kind === 'usage' && lastMsg.boundary === 'iteration_limit';
   const busyTail =
     !!lastMsg &&
     (((lastMsg.kind === 'assistant' || lastMsg.kind === 'thinking') && lastMsg.streaming) ||
@@ -152,7 +154,7 @@ export const DesktopAgentTranscript = memo(forwardRef<AgentTranscriptHandle, { c
               {messageBlocks.slice(visibleStart).map(block => <DesktopMessageBlock key={block.start} block={block} />)}
             </>
           )}
-          {waiting && <PendingRow status={controlStatus} />}
+          {sliceProgress ? <AgentSliceProgress status={sliceProgress} /> : waiting && <PendingRow status={controlStatus} />}
           {pendingControl && (
             <RuntimeControlCard
               pending={pendingControl}
@@ -171,28 +173,32 @@ export const DesktopAgentTranscript = memo(forwardRef<AgentTranscriptHandle, { c
                   ? t('agentPanel.autoContinue.waitingReviewTitle')
                   : automaticContinuation?.stopReason === 'no_progress'
                     ? t('agentPanel.autoContinue.noProgressTitle')
-                    : continuationReason === 'budget_exceeded'
-                      ? t('agentPanel.budget.title', {
-                          defaultValue: '本次上下文需要续接',
-                        })
-                      : t('agentPanel.longTask.title', {
-                          defaultValue: '任务计划尚未完成',
-                        })}
+                    : iterationBoundary
+                      ? t('agentPanel.slice.saved')
+                      : continuationReason === 'budget_exceeded'
+                        ? t('agentPanel.budget.title', {
+                            defaultValue: '本次上下文需要续接',
+                          })
+                        : t('agentPanel.longTask.title', {
+                            defaultValue: '任务计划尚未完成',
+                          })}
               </strong>
               <span>
                 {automaticContinuation?.stopReason === 'waiting_review'
                   ? t('agentPanel.autoContinue.waitingReviewBody')
                   : automaticContinuation?.stopReason === 'no_progress'
                     ? t('agentPanel.autoContinue.noProgressBody')
-                    : continuationReason === 'budget_exceeded'
-                      ? t('agentPanel.budget.body', {
-                          defaultValue:
-                            '已完成的进度会保留。继续后，Agent 会从持久化状态恢复并接着处理。',
-                        })
-                      : t('agentPanel.longTask.body', {
-                          defaultValue:
-                            '本轮已正常结束，但同一会话的持久化任务计划仍有未完成内容。你可以继续执行下一步。',
-                        })}
+                    : iterationBoundary
+                      ? t('agentPanel.slice.paused')
+                      : continuationReason === 'budget_exceeded'
+                        ? t('agentPanel.budget.body', {
+                            defaultValue:
+                              '已完成的进度会保留。继续后，Agent 会从持久化状态恢复并接着处理。',
+                          })
+                        : t('agentPanel.longTask.body', {
+                            defaultValue:
+                              '本轮已正常结束，但同一会话的持久化任务计划仍有未完成内容。你可以继续执行下一步。',
+                          })}
               </span>
               <div className="agt-control-card__actions">
                 <button

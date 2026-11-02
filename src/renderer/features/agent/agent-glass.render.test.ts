@@ -11,7 +11,7 @@ vi.mock('react-i18next', () => ({
 
 import type { AgentChatMessage } from '../../domain/agent-conversation';
 import type { AgentPendingControl } from '../../lib/agent/protocol';
-import { MessageView, RuntimeControlCard } from './AgentMessageViews';
+import { AgentSliceProgress, MessageView, RuntimeControlCard } from './AgentMessageViews';
 import { AgentGlassContext } from './agent-glass';
 
 const onDesktop = (node: ReactElement) =>
@@ -28,6 +28,24 @@ const readStep = (status: 'running' | 'ok'): AgentChatMessage => ({
 });
 
 describe('the desktop Agent transcript in sand and glass', () => {
+  it('renders host-owned saved progress and the scheduler continuation state without an error', () => {
+    const saved = onDesktop(message({
+      kind: 'usage', boundary: 'iteration_limit', turns: 50,
+      inputTokens: 50, outputTokens: 50, cacheReadTokens: 0, cacheCreationTokens: 0, costUsd: 0,
+    }));
+    expect(saved).toContain('agentPanel.slice.saved');
+    expect(saved).not.toContain('agt-error');
+    for (const desktop of [false, true]) {
+      const render = (status: 'evaluating' | 'scheduled') => {
+        const node = createElement(AgentSliceProgress, { status });
+        return desktop ? onDesktop(node) : renderToStaticMarkup(node);
+      };
+      expect(render('evaluating')).toContain('agentPanel.slice.preparing');
+      expect(render('scheduled')).toContain('agentPanel.slice.continuing');
+      expect(render('scheduled')).toContain('role="status"');
+    }
+  });
+
   it('sweeps in only a step that arrives while the Agent works', () => {
     const live = onDesktop(message(readStep('running')));
     expect(live).toContain('class="agt-tool glass glass--rest glass--still glass-sweep"');

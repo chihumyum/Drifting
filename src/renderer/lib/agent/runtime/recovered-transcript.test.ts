@@ -279,6 +279,19 @@ describe('canonical Agent chat recovery projection', () => {
     );
   });
 
+  it('restores an iteration boundary as saved progress instead of an outage', async () => {
+    const persisted = snapshot();
+    const row = persisted.events.find(row => row.eventType === 'turn_finished')!;
+    const payload = row.payload as { event: Extract<AgentRuntimeEvent, { type: 'turn_finished' }> };
+    payload.event.failureCode = 'MAX_MODEL_ITERATIONS';
+    payload.event.message = 'maxModelIterations reached: 50';
+    persisted.turns[0]!.errorCode = 'MAX_MODEL_ITERATIONS';
+    persisted.turns[0]!.errorMessage = payload.event.message;
+    const messages = await loadCanonicalAgentTranscript('session-1', repository(persisted));
+    expect(messages).toContainEqual(expect.objectContaining({ kind: 'usage', boundary: 'iteration_limit' }));
+    expect(messages?.some(message => message.kind === 'error')).toBe(false);
+  });
+
   it('renders a consolidated thinking row as one finished thinking message', async () => {
     const persisted = snapshot();
     const now = '2026-07-31T00:00:00.000Z';
