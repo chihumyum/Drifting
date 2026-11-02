@@ -20,7 +20,14 @@ const sourceFiles = [
   ...readdirSync(path.join(root, 'src/assets/icon.icon/Assets')).sort()
     .map(name => `src/assets/icon.icon/Assets/${name}`),
 ];
-const sources = Object.fromEntries(sourceFiles.map(file => [file, sha256(read(file))]));
+// The release version lives in tauri.conf.json but never changes the icon;
+// leave it out so bumping the version does not stale the packaging evidence.
+const fingerprint = file => {
+  if (file !== 'src-tauri/tauri.conf.json') return sha256(read(file));
+  const { version: _version, ...config } = json(file);
+  return sha256(JSON.stringify(config));
+};
+const sources = Object.fromEntries(sourceFiles.map(file => [file, fingerprint(file)]));
 const appearances = ['ISAppearanceTintable', 'NSAppearanceNameAqua', 'NSAppearanceNameDarkAqua'];
 const base = json('src-tauri/tauri.conf.json');
 const mac = json('src-tauri/tauri.macos.conf.json');

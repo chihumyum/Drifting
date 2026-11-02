@@ -180,6 +180,9 @@ mod tests {
     #[test]
     fn reads_up_to_the_limit_only() {
         assert_eq!(read_capped(&[1u8, 2, 3][..], 3).unwrap(), vec![1, 2, 3]);
-        assert_eq!(read_capped(&[1u8, 2, 3, 4][..], 3).unwrap_err(), "book-file-too-large");
+        assert_eq!(
+            read_capped(&[1u8, 2, 3, 4][..], 3).unwrap_err(),
+            "book-file-too-large"
+        );
     }
 }

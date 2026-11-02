@@ -2,8 +2,8 @@
   "kind": "macos-layered-app-icon",
   "sources": {
     "scripts/compile-macos-icon.mjs": "be35f55b51f188b2f253071071496ea3bb33147f71aae058ebf97143d5a3fd49",
-    "scripts/check-macos-icon.mjs": "af5117d8b0e21e3390a5a35fb739bcad87bcee9f7f6adb9ed50ea00a2a51684a",
-    "src-tauri/tauri.conf.json": "e5a5022e54a9a27040815c497bca130da49634087a27adbccfb2148e7216d785",
+    "scripts/check-macos-icon.mjs": "1af51a80f0ac9a79df029bea40595b26b29a17d58a6f3736476ada5cb8e036ef",
+    "src-tauri/tauri.conf.json": "ba10d28912c1269c7c90b9ff7d169b568d738ae2459e6dd45ddbc51d7155804a",
     "src-tauri/tauri.macos.conf.json": "27bc8c6480840118d78e513aa52514c8820c0d424d3cc10772c48864196bce86",
     "src/assets/icon.icns": "2635b4051ac37bd945e0ef4e3a1594fbb8b042133d433c093df496a581509422",
     "src/assets/icon.icon/icon.json": "a47f93e0c7ac61fcf982a24a16d4473180327cbfbf5c8fc1477dc5767aaef71e",
@@ -16,7 +16,7 @@
     "iconName": "icon",
     "iconFile": "icon.icns",
     "fallbackSha256": "2635b4051ac37bd945e0ef4e3a1594fbb8b042133d433c093df496a581509422",
-    "catalogSha256": "f6ca07f9b38ebc5231ad6c5096dbd20c59b96fcb5fdf9d59e1bd5dd16cc5baff",
+    "catalogSha256": "b90e65bb74ec72ad7940d419b6d94f565fc1e60f4950f31cb3181e27fff4f7f7",
     "compiler": "Xcode 27.2 (27B52) via AssetCatalogAgent-AssetRuntime",
     "platform": "macosx",
     "appearances": [
