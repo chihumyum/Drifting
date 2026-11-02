@@ -24,8 +24,11 @@ account in both directions and left the previous account's sync state behind.
 - The local library never connects to an account, and it does not receive the
   built-in sample twice; an account library never gets the sample.
 
-Bringing a book from one library into another is a separate, explicit import
-(not part of this change).
+Bringing a book from one library into another is a separate, explicit step:
+export it as a `.driftingbook` file from the shelf in one library and import it
+from the shelf's account menu in the other. The import adds a new book with
+fresh identities and, in an account library, publishes it like any new book;
+see [moving a book between libraries](../book-transfer.md).
 
 ## How it works
 

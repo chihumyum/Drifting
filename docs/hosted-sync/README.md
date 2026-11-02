@@ -59,7 +59,8 @@ Each Hosted account has its own library on the Mac and a separate local library
 holds signed-out writing; see [account-isolated libraries](account-libraries.md).
 Signing in opens the account's library (relaunching the App), signing out
 returns to the local library, and an expired session or offline use keeps the
-same library. Within every library the domain user identity stays
+same library. A book moves between libraries only by an explicit export and
+import ([book transfer](../book-transfer.md)). Within every library the domain user identity stays
 `drifting-library.db`; it does not become a server account ID.
 Cached account display metadata contains no token. Production bearer sessions use an
 origin-scoped secure-storage key; another host's retired session is never read

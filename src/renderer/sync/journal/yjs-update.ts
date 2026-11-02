@@ -109,7 +109,24 @@ export async function appendAuthoredProseSeedInTransaction(
     readonly source?: YjsRevisionSource;
   },
 ): Promise<AuthoredProseStateResult> {
-  const docId = proseDocId(input.entityType, input.entityId);
+  return appendAuthoredDocumentSeedInTransaction(tx, changes, {
+    docId: proseDocId(input.entityType, input.entityId),
+    stateUpdate: input.stateUpdate,
+    source: input.source,
+  });
+}
+
+/** {@link appendAuthoredProseSeedInTransaction} for any canonical document id, material notes included. */
+export async function appendAuthoredDocumentSeedInTransaction(
+  tx: DbExecutor,
+  changes: SyncChangeBuilder,
+  input: {
+    readonly docId: string;
+    readonly stateUpdate: Uint8Array;
+    readonly source?: YjsRevisionSource;
+  },
+): Promise<AuthoredProseStateResult> {
+  const { docId } = input;
   assertYjsUpdateIdentity(docId, input.stateUpdate);
   const repository = createYjsRepository(tx);
   const [hasState, revision] = await Promise.all([

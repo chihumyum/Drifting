@@ -1,5 +1,5 @@
 import type { McpServerEvent } from './mcp-server-contract';
-import { Channel, convertFileSrc, invoke } from '@tauri-apps/api/core';
+import { Channel, convertFileSrc, invoke, type InvokeOptions } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { APP_CONFIG, canUseHostedService } from '../lib/config';
 import { hasPdfSignature, renderPdfThumbnail } from '../lib/pdf-thumbnail';
@@ -71,10 +71,13 @@ function requireTauriRuntime(feature: string): void {
 async function invokeContract<Name extends TauriCommandName>(
   name: Name,
   args: TauriCommandArgs<Name>,
+  options?: InvokeOptions,
 ): Promise<TauriCommandResult<Name>> {
   requireTauriRuntime(name);
   try {
-    return await invoke<TauriCommandResult<Name>>(name, args ?? undefined);
+    return await (options
+      ? invoke<TauriCommandResult<Name>>(name, args ?? undefined, options)
+      : invoke<TauriCommandResult<Name>>(name, args ?? undefined));
   } catch (error) {
     if (error instanceof PlatformUnavailableError) throw error;
     const reason = error instanceof Error ? error.message : String(error);
@@ -811,6 +814,17 @@ export const tauriPlatform: PlatformApi = {
     )),
     save: (filename, bytes) =>
       invokeContract('archive_save', { filename, bytes: toNumberArray(bytes) }),
+  },
+
+  bookTransfer: {
+    save: (fileName, bytes) =>
+      invokeContract('book_transfer_save', bytes, {
+        headers: { 'x-drifting-book-file-name': encodeURIComponent(fileName) },
+      }),
+    async open() {
+      const bytes = new Uint8Array(toArrayBuffer(await invokeContract('book_transfer_open', undefined)));
+      return bytes.byteLength === 0 ? null : bytes;
+    },
   },
 
   sharing: {

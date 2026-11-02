@@ -738,7 +738,7 @@ function applyPreparedMutation(scope: ReductionScope, prepared: PreparedMutation
   }
 }
 
-interface ResolvedLifecycle {
+export interface ResolvedLifecycle {
   readonly status: 'live' | 'trashed' | 'purged' | 'unresolved';
   readonly incarnation: number;
   readonly seed: LifecycleSeed | null;
@@ -746,7 +746,7 @@ interface ResolvedLifecycle {
   readonly source: ReducerSource | null;
 }
 
-function resolvedLifecycle(lifecycle: LifecycleState): ResolvedLifecycle {
+export function resolvedLifecycle(lifecycle: LifecycleState): ResolvedLifecycle {
   if (lifecycle.purge) {
     const highestIncarnation = Math.max(0, ...lifecycle.seeds.keys());
     return {
@@ -804,7 +804,7 @@ function canMaterializeTarget(
   return resolved.status === 'live' && resolved.incarnation === target.incarnation;
 }
 
-function lifecycleOwnerTarget(
+export function lifecycleOwnerTarget(
   target: Pick<SyncMutationTargetV1, 'kind' | 'id' | 'incarnation'>,
 ): Pick<SyncMutationTargetV1, 'kind' | 'id'> | null {
   switch (target.kind) {

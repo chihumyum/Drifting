@@ -37,6 +37,7 @@ truth.
 - [Markdown export and the automatic Markdown folder](local-data-export.md)
 - [Markdown folder two-way sync](markdown-mirror.md)
 - [Library backup and restore](library-backup.md): the complete `.drifting` package
+- [Moving a book between libraries](book-transfer.md): one book as a `.driftingbook` file
 - [Saving before quit](desktop-quit-persistence.md)
 - [Crash and integrity reports](crash-reports.md) and
   [Sentry diagnostics](sentry-observability.md)
