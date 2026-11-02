@@ -84,6 +84,19 @@ export function runAgentJournalScenarios() {
   check('terminal-persistence-sees-final-array', terminal.saved.length === 1 && terminal.saved[0][0].kind === 'assistant'
     && terminal.saved[0][0].streaming === false && terminal.saved[0][1].kind === 'usage' && !terminal.ports.read().runningTurns.first);
 
+  // A store subscriber (the store publishes before notifying) and an activity
+  // port both throw on the terminal; the running pointer must still clear.
+  const throwing = fixture(); throwing.owner.ensureConnected(); throwing.owner.registerTurn('synthetic-turn', 'first');
+  throwing.afterPublish(() => { throw new Error('Synthetic quota exceeded'); });
+  throwing.ports.activity = () => ({ onToolUse: () => undefined, onToolResult: () => undefined,
+    onTurnEnd: () => { throw new Error('Synthetic activity failure'); } });
+  let surfaced: unknown = null;
+  try { throwing.emit(done); } catch (error) { surfaced = error; }
+  check('throwing-effects-still-finish-and-persist-terminal', (surfaced as Error | null)?.message === 'Synthetic quota exceeded'
+    && throwing.effects.join(',') === 'publish:first,plan:first,finish:first,persist:first' && !throwing.ports.read().runningTurns.first
+    && throwing.ports.read().runs.first.lastTerminal?.outcome === 'completed');
+  throwing.owner.dispose();
+
   const failed = fixture(); const subscribe = failed.ports.subscribeJournal; let rejected: ((entry: AgentRuntimeJournalEntry) => void) | undefined;
   failed.ports.subscribeJournal = callback => { rejected = callback; return { ok: false, code: 'synthetic-unavailable', error: 'Synthetic unavailable' }; };
   check('unavailable-connection-is-retryable', !failed.owner.ensureConnected());

@@ -433,7 +433,11 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
             ? patchAgentChatView(current, viewId, { prompt: '' })
             : current,
         );
-      } else {
+      } else if (
+        response.code !== 'AGENT_CONTROL_NOT_ACTIVE' ||
+        !(await reconcileDetachedTurn(activeConversationId, activeTurnId, viewId))
+      ) {
+        // A reconciled turn had already ended; the prompt stays for an ordinary send.
         appendRunError(activeConversationId, response.error);
       }
       return;
@@ -722,7 +726,9 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     const response = await generalAgentTransport.stopAfterTool({
       turnId,
     });
-    if (!response.ok) appendRunError(convId, response.error);
+    if (response.ok) return;
+    if (response.code === 'AGENT_CONTROL_NOT_ACTIVE' && (await reconcileDetachedTurn(convId, turnId, viewId))) return;
+    appendRunError(convId, response.error);
   },
 
   cancelRecoveredControl: async (viewId = get().focusedViewId) => {
@@ -845,6 +851,34 @@ function stopConversationForRemoval(id: string): void {
   journalConsumer.releaseTurn(turnId);
   if (sessionId) useAgentActivityStore.getState().onTurnEnd({ sessionId, turnId });
   useAgentChatStore.setState(current => withoutRunningTurn(current, id, turnId) ?? current);
+}
+
+/**
+ * The transport no longer runs this turn, yet its terminal never reached the
+ * live run (a lost journal delivery), so the panel would keep a timer and a
+ * Stop button forever. Drop the stale pointer and rebuild the run from the
+ * durable session and journal, the same record a restart reads. Returns false
+ * only when the turn may still be starting.
+ */
+async function reconcileDetachedTurn(convId: string, turnId: string, viewId: string): Promise<boolean> {
+  const state = useAgentChatStore.getState();
+  // Its terminal arrived while the control request was in flight.
+  if (state.runningTurns[convId] !== turnId) return true;
+  // Before turn_started the transport has not registered the turn yet (memory
+  // and provider preflight); "not active" then means "not active yet".
+  if (!state.runs[convId]?.controlStatus) return false;
+  journalConsumer.releaseTurn(turnId);
+  const sessionId = state.runs[convId]?.runtimeSessionId;
+  if (sessionId) useAgentActivityStore.getState().onTurnEnd({ sessionId, turnId });
+  useAgentChatStore.setState((current) => {
+    const cleared = withoutRunningTurn(current, convId, turnId);
+    if (!cleared) return current;
+    const runs = { ...current.runs };
+    delete runs[convId];
+    return { ...cleared, runs };
+  });
+  await openAgentConversation(convId, undefined, viewId);
+  return true;
 }
 
 function removeCommittedConversations(ids: readonly string[]): void {
@@ -1137,7 +1171,10 @@ async function refreshLongTaskPlanState(
     const manifestState = latestPlan
       ? await longTaskRepo.getChapterManifestState({ projectId, sessionId }, latestPlan.task.id)
       : null;
-    planState = summarizeLongTaskPlanForContinuation(sessionId, latestPlan, manifestState);
+    const committedWrites = latestPlan
+      ? await longTaskRepo.countCommittedWrites({ projectId, sessionId }, latestPlan.task.createdAt)
+      : null;
+    planState = summarizeLongTaskPlanForContinuation(sessionId, latestPlan, manifestState, committedWrites);
   } catch {
     // Continuation authority is fail-closed when the durable plan cannot be read.
   }

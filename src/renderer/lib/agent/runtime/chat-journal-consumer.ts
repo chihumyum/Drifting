@@ -44,33 +44,45 @@ export function createAgentChatJournalConsumer(ports: AgentChatJournalPorts) {
     if (!before || before.projectId !== entry.route.projectId || hasAgentChatJournalEvent(before.journalScope, entry.eventId)) return;
     const sessionBindingChanged = before.runtimeSessionId !== entry.sessionId;
     let accepted = false;
-    ports.updateRun(conversationId, run => {
+    // Each effect of an accepted delivery runs even when an earlier one throws
+    // (for example a storage write in a store subscriber): a skipped finishTurn
+    // leaves a turn the transport has released "running" with no way to stop it.
+    const failures: unknown[] = [];
+    const attempt = (effect: () => void): void => {
+      try { effect(); } catch (error) { failures.push(error); }
+    };
+    attempt(() => ports.updateRun(conversationId, run => {
       if (run.projectId !== entry.route.projectId || hasAgentChatJournalEvent(run.journalScope, entry.eventId)) return run;
       const projected = projectAgentChatRunEvent(run, entry);
       markAgentChatMessagePublication(projected.transcript, ev.type);
       rememberAgentChatJournalEvent(run.journalScope, entry.eventId);
       accepted = true;
       return projected;
-    });
+    }));
     // A delivery accepted before disposal finishes its terminal/persistence
     // effects. Disposal invalidates future callbacks, not already accepted data.
-    if (!accepted) return;
+    if (!accepted) {
+      if (failures.length) throw failures[0];
+      return;
+    }
 
     const state = ports.read(); const run = state.runs[conversationId];
     // Capture the canonical binding at first delivery, including a partial turn.
-    if (sessionBindingChanged) ports.persistConversation(conversationId);
+    if (sessionBindingChanged) attempt(() => ports.persistConversation(conversationId));
     if (run && run.projectId === state.boundProjectId && state.runningTurns[conversationId] === turnId) {
-      const activity = ports.activity(); const scope = { sessionId: entry.sessionId, turnId };
-      if (ev.type === 'tool_call_ready') activity.onToolUse(scope, ev.callId, ev.name, ev.arguments);
-      else if (ev.type === 'tool_result') activity.onToolResult(scope, ev.callId, ev.ok, ev.content);
+      const scope = { sessionId: entry.sessionId, turnId };
+      if (ev.type === 'tool_call_ready') attempt(() => ports.activity().onToolUse(scope, ev.callId, ev.name, ev.arguments));
+      else if (ev.type === 'tool_result') attempt(() => ports.activity().onToolResult(scope, ev.callId, ev.ok, ev.content));
     }
     if (ev.type === 'turn_finished') {
-      if (run) ports.refreshPlan(conversationId, run.projectId, entry.sessionId, turnId);
+      if (run) attempt(() => ports.refreshPlan(conversationId, run.projectId, entry.sessionId, turnId));
       turnConversations.delete(turnId);
-      ports.activity().onTurnEnd({ sessionId: entry.sessionId, turnId });
-      ports.finishTurn(conversationId, turnId);
-      ports.persistConversation(conversationId);
+      attempt(() => ports.activity().onTurnEnd({ sessionId: entry.sessionId, turnId }));
+      attempt(() => ports.finishTurn(conversationId, turnId));
+      attempt(() => ports.persistConversation(conversationId));
     }
+    // Surface the first failure to the transport's listener guard, which logs it.
+    if (failures.length) throw failures[0];
   }
 
   return {

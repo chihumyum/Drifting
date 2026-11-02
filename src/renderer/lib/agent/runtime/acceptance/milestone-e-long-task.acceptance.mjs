@@ -21,6 +21,15 @@ const TEST_GROUPS = {
     'src/renderer/features/agent/agent-glass.render.test.ts',
     'src/renderer/sync/agent-chat/payload.test.ts',
   ],
+  // A long turn must survive a crashed workspace view, and a turn the transport
+  // has released must never look running in the panel.
+  turnLifecycleResilience: [
+    'src/renderer/lib/agent/runtime/runtime-tool-search.test.ts',
+    'src/renderer/lib/agent/runtime/chat-journal-consumer.test.ts',
+    'src/renderer/store/agent-chat-preparation.integration.test.ts',
+    'src/renderer/app/providers/workspace-error-boundary.acceptance.test.ts',
+    'src/renderer/lib/agent/runtime/drivers/openai-responses-driver.test.ts',
+  ],
   restartAndInvisibleContinuation: [
     'src/renderer/lib/agent/runtime/recovered-transcript.test.ts',
     'src/renderer/lib/agent/runtime/local-transport-persistence.test.ts',
@@ -42,6 +51,13 @@ const LINT_FILES = [
   'src/renderer/shells/mobile/workspace/MobileAgentTranscript.tsx',
   'src/renderer/sync/agent-chat/payload.ts',
   'src/renderer/lib/agent/runtime/chat-journal-projection.ts',
+  'src/renderer/lib/agent/runtime/chat-journal-consumer.ts',
+  'src/renderer/lib/agent/runtime/drivers/openai-responses-driver.ts',
+  'src/renderer/performance/agent-journal-scenarios.ts',
+  'src/renderer/app/components/RenderErrorBoundary.tsx',
+  'src/renderer/app/components/RenderErrorFallback.tsx',
+  'src/renderer/app/providers/ProjectRuntimeProvider.tsx',
+  'src/renderer/App.tsx',
   'src/renderer/lib/agent/protocol.ts',
   'src/renderer/lib/agent/runtime/drifting-agent-capability-manifest.ts',
   'src/renderer/lib/agent/runtime/local-transport.ts',
@@ -66,6 +82,7 @@ const HASHED_SOURCE_FILES = [
   'drizzle/0000_local_first_baseline.sql',
   'drizzle/meta/_journal.json',
   'src/renderer/lib/agent/runtime/acceptance/milestone-e-long-task.acceptance.mjs',
+  'src-tauri/src/openai_responses.rs',
   ...LINT_FILES,
 ];
 
@@ -92,6 +109,22 @@ const REQUIRED_ASSERTIONS = {
     'checkpoints at the iteration limit without disabling tools or asking the model for a failure explanation',
   authoritativeContinuationStatus:
     'shows saved progress only while the scheduler is preparing or continuing that boundary',
+  committedWritesAreProgress:
+    'counts committed project writes as progress when the checklist is not ticked',
+  committedWriteEvidence:
+    'counts committed project writes for the continuation watchdog and restates an in-progress item',
+  workspaceCrashKeepsTools:
+    'catches workspace render failures below the project runtime that owns the Agent tools',
+  unmountedToolsNamed:
+    'names the cause when the workspace unmounts under a running turn',
+  releasedTurnRebuilt:
+    'rebuilds a started turn the transport already released instead of keeping a stuck timer',
+  startingTurnKept:
+    'keeps a turn that has not reached the transport yet when Stop finds nothing to stop',
+  terminalEffectsIsolated:
+    'owns journal routing, accepted effects, retries and disposal across 100 lifetimes',
+  rejectedRequestLocated:
+    'locates a rejected request by the native identifier projection',
   manualResumeAfterTerminal:
     'offers manual continuation after any terminal turn with an authoritative same-session open plan',
   invisibleContinuation:

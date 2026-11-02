@@ -9,6 +9,7 @@ import { installGeneralAgentTransport, unsupportedGeneralAgentTransport, type Ge
 
 const ports = vi.hoisted(() => ({
   create: vi.fn(async () => undefined), update: vi.fn(async () => undefined),
+  get: vi.fn(async (_id: string): Promise<{ id: string; projectId: string; messages: unknown[]; runtimeSessionId: string | null } | null> => null),
   listByProject: vi.fn(async () => []), softDelete: vi.fn(async (id: string) => [{ id, projectId: 'synthetic-preparation-project', deletedAt: '2026-09-13' }]), softDeleteAllByProject: vi.fn(async (projectId: string) => [{ id: 'synthetic-preparation-conversation', projectId, deletedAt: '2026-09-13' }]),
   fork: vi.fn(async (id: string) => id),
   memories: vi.fn(async (): Promise<Array<{ kind: string; body: string }>> => []),
@@ -176,6 +177,43 @@ describe('chat send preparation ownership', () => {
       if (action === 'stopAfterTool') expect(ports.stopAfterTool).toHaveBeenCalledWith({ turnId });
     });
   }
+
+  it('rebuilds a started turn the transport already released instead of keeping a stuck timer', async () => {
+    // Smoke: after an error screen the panel kept "thinking" for minutes while
+    // Stop answered "There is no matching active Agent turn to stop."
+    const notActive = { ok: false as const, code: 'AGENT_CONTROL_NOT_ACTIVE', error: 'There is no matching active Agent turn to stop.' };
+    ports.stopAfterTool.mockResolvedValueOnce(notActive as never);
+    ports.get.mockResolvedValueOnce({ id: conversationId, projectId, runtimeSessionId: null,
+      messages: [{ kind: 'error', text: 'The installed tool runtime failed to resolve a canonical tool name' }] });
+    const stale = { ...run(), controlStatus: 'running' as const };
+    useAgentChatStore.setState({ runs: { [conversationId]: stale }, runningTurns: { [conversationId]: 'synthetic-released-turn' },
+      runningTurnId: 'synthetic-released-turn', runningConvId: conversationId });
+
+    await useAgentChatStore.getState().stopAfterTool();
+
+    const state = useAgentChatStore.getState();
+    expect(ports.stopAfterTool).toHaveBeenCalledWith({ turnId: 'synthetic-released-turn' });
+    expect(state.runningTurns[conversationId]).toBeUndefined();
+    expect(state.runningTurnId).toBeNull();
+    expect(state.runs[conversationId]).not.toBe(stale);
+    expect(state.runs[conversationId].transcript.toArray()).toEqual([
+      expect.objectContaining({ kind: 'error', text: 'The installed tool runtime failed to resolve a canonical tool name' }),
+    ]);
+  });
+
+  it('keeps a turn that has not reached the transport yet when Stop finds nothing to stop', async () => {
+    ports.stopAfterTool.mockResolvedValueOnce({ ok: false, code: 'AGENT_CONTROL_NOT_ACTIVE', error: 'There is no matching active Agent turn to stop.' } as never);
+    useAgentChatStore.setState({ runningTurns: { [conversationId]: 'synthetic-preflight-turn' },
+      runningTurnId: 'synthetic-preflight-turn', runningConvId: conversationId });
+
+    await useAgentChatStore.getState().stopAfterTool();
+
+    const state = useAgentChatStore.getState();
+    expect(state.runningTurns[conversationId]).toBe('synthetic-preflight-turn');
+    expect(ports.get).not.toHaveBeenCalled();
+    const transcript = state.runs[conversationId].transcript.toArray();
+    expect(transcript[transcript.length - 1]).toMatchObject({ kind: 'error' });
+  });
 
   for (const action of ['abort', 'project', 'delete', 'clear'] as const) {
     it(`reissues cancellation after a late successful start acknowledgement following ${action}`, async () => {

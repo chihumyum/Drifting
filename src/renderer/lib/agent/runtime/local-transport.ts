@@ -650,8 +650,10 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
     for (const listener of this.listeners) {
       try {
         listener(envelope);
-      } catch {
-        // UI projections cannot break runtime progress or other subscribers.
+      } catch (error) {
+        // UI projections cannot break runtime progress or other subscribers,
+        // but a dropped projection must stay diagnosable.
+        console.error('[agent] event listener failed', error);
       }
     }
   }
@@ -660,8 +662,10 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
     for (const listener of this.journalListeners) {
       try {
         listener(entry);
-      } catch {
-        // UI projections cannot break runtime progress or other subscribers.
+      } catch (error) {
+        // UI projections cannot break runtime progress or other subscribers,
+        // but a dropped projection must stay diagnosable.
+        console.error('[agent] journal listener failed', entry.event.type, error);
       }
     }
   }

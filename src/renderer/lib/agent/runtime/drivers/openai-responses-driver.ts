@@ -811,7 +811,14 @@ function responseError(
       true,
     );
   }
-  return new AgentModelDriverError(`OpenAI request failed with HTTP ${status}.${suffix}`);
+  // The native transport projects a rejected request to identifier fields only
+  // (type/param/code), enough to locate the offending input item.
+  const rejection = status >= 400 && status < 500
+    ? response.headers.get('x-drifting-openai-error-message')
+    : null;
+  return new AgentModelDriverError(
+    `${rejection && errorCode === 'invalid_request' ? rejection : `OpenAI request failed with HTTP ${status}.`}${suffix}`,
+  );
 }
 
 function requestStartError(error: unknown): AgentModelDriverError {

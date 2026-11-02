@@ -10,6 +10,7 @@ import {
   like,
   lte,
   max,
+  notInArray,
   or,
   sql,
 } from 'drizzle-orm';
@@ -234,6 +235,12 @@ export interface AgentRuntimeLongTaskRepository {
     scope: AgentRuntimeTaskScope,
     taskId: string,
   ): Promise<AgentRuntimeTaskChapterManifestState>;
+  /**
+   * Committed project writes in this session since `since`, excluding task and
+   * Working Memory bookkeeping. Only result-committed effects count, so a
+   * failing or declined write never looks like progress.
+   */
+  countCommittedWrites(scope: AgentRuntimeTaskScope, since: string): Promise<number>;
   listCommandEvidence(
     scope: AgentRuntimeTaskScope,
     taskId: string,
@@ -248,6 +255,14 @@ export interface AgentRuntimeLongTaskRepositoryOptions {
   now?: () => string;
   createId?: (kind: 'task' | 'step' | 'constraint') => string;
 }
+
+/** Writes that maintain the Agent's own bookkeeping rather than the project. */
+const BOOKKEEPING_WRITE_TOOLS = [
+  'update_task_plan',
+  'update_task_step',
+  'update_task_constraint',
+  'edit_working_memory',
+] as const;
 
 function defaultId(kind: 'task' | 'step' | 'constraint'): string {
   const uuid = globalThis.crypto?.randomUUID?.();
@@ -1960,6 +1975,22 @@ export function createAgentRuntimeLongTaskRepository(
       return loadManifestState(executor, scope, plan);
     },
 
+    async countCommittedWrites(scope, since) {
+      const rows = await dbProvider()
+        .select({ count: sql<number>`count(*)` })
+        .from(AgentRuntimeWriteEffectTable)
+        .where(
+          and(
+            eq(AgentRuntimeWriteEffectTable.projectId, scope.projectId),
+            eq(AgentRuntimeWriteEffectTable.sessionId, scope.sessionId),
+            eq(AgentRuntimeWriteEffectTable.phase, 'result_committed'),
+            gte(AgentRuntimeWriteEffectTable.resultCommittedAt, since),
+            notInArray(AgentRuntimeWriteEffectTable.toolName, [...BOOKKEEPING_WRITE_TOOLS]),
+          ),
+        );
+      return Number(rows[0]?.count ?? 0);
+    },
+
     async getOpenPlan(scope) {
       const rows = await dbProvider()
         .select({ id: AgentRuntimeTaskTable.id })
@@ -2327,9 +2358,14 @@ export function createAgentRuntimeLongTaskRepository(
                   `Task step "${command.stepId}" is not owned by this task.`,
                 );
               }
+              // Re-marking the current item in progress is a harmless restatement
+              // (typically after a resumed slice), not a conflicting transition.
+              const restatesProgress =
+                step.status === 'in_progress' && command.status === 'in_progress';
               if (
-                step.status === command.status ||
-                !canTransitionAgentRuntimeTaskStep(step.status, command.status)
+                !restatesProgress &&
+                (step.status === command.status ||
+                  !canTransitionAgentRuntimeTaskStep(step.status, command.status))
               ) {
                 throw new AgentRuntimeLongTaskConflictError(
                   'INVALID_STEP_TRANSITION',

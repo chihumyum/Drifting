@@ -1,10 +1,10 @@
 {
   "suite": "milestone-e-durable-long-task-execution",
   "schemaVersion": 1,
-  "nodeVersion": "v24.4.0",
+  "nodeVersion": "v22.23.1",
   "platform": "darwin",
-  "gitHead": "eb07c2ba1ee1e647f8193ea674104b0149e79f24",
-  "sourceSetSha256": "sha256:412d6af09813f822b9f9975125974962e6fa7c55869a26b7bf319bb4f7e77058",
+  "gitHead": "8bc79c97c83122cc8985f2f8d5a8cb271f52c635",
+  "sourceSetSha256": "sha256:f52076dc14efafd1cd848e13c0eecd3b9a34d2f379ceba3536d72c81c8a51ada",
   "execution": {
     "defaultTaskBudgets": "unlimited",
     "safeStop": "after-current-tool",
@@ -21,12 +21,12 @@
   },
   "vitest": {
     "files": {
-      "required": 13,
-      "discovered": 13
+      "required": 18,
+      "discovered": 18
     },
     "tests": {
-      "total": 184,
-      "passed": 184,
+      "total": 262,
+      "passed": 262,
       "failed": 0,
       "pending": 0,
       "todo": 0
@@ -36,8 +36,8 @@
         "requiredFiles": 2,
         "discoveredFiles": 2,
         "tests": {
-          "total": 27,
-          "passed": 27,
+          "total": 28,
+          "passed": 28,
           "failed": 0,
           "pending": 0
         },
@@ -47,8 +47,19 @@
         "requiredFiles": 6,
         "discoveredFiles": 6,
         "tests": {
-          "total": 81,
-          "passed": 81,
+          "total": 82,
+          "passed": 82,
+          "failed": 0,
+          "pending": 0
+        },
+        "passed": true
+      },
+      "turnLifecycleResilience": {
+        "requiredFiles": 5,
+        "discoveredFiles": 5,
+        "tests": {
+          "total": 76,
+          "passed": 76,
           "failed": 0,
           "pending": 0
         },
@@ -130,6 +141,46 @@
       },
       "authoritativeContinuationStatus": {
         "requiredName": "shows saved progress only while the scheduler is preparing or continuing that boundary",
+        "matches": 1,
+        "passed": true
+      },
+      "committedWritesAreProgress": {
+        "requiredName": "counts committed project writes as progress when the checklist is not ticked",
+        "matches": 1,
+        "passed": true
+      },
+      "committedWriteEvidence": {
+        "requiredName": "counts committed project writes for the continuation watchdog and restates an in-progress item",
+        "matches": 1,
+        "passed": true
+      },
+      "workspaceCrashKeepsTools": {
+        "requiredName": "catches workspace render failures below the project runtime that owns the Agent tools",
+        "matches": 1,
+        "passed": true
+      },
+      "unmountedToolsNamed": {
+        "requiredName": "names the cause when the workspace unmounts under a running turn",
+        "matches": 1,
+        "passed": true
+      },
+      "releasedTurnRebuilt": {
+        "requiredName": "rebuilds a started turn the transport already released instead of keeping a stuck timer",
+        "matches": 1,
+        "passed": true
+      },
+      "startingTurnKept": {
+        "requiredName": "keeps a turn that has not reached the transport yet when Stop finds nothing to stop",
+        "matches": 1,
+        "passed": true
+      },
+      "terminalEffectsIsolated": {
+        "requiredName": "owns journal routing, accepted effects, retries and disposal across 100 lifetimes",
+        "matches": 1,
+        "passed": true
+      },
+      "rejectedRequestLocated": {
+        "requiredName": "locates a rejected request by the native identifier projection",
         "matches": 1,
         "passed": true
       },
