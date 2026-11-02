@@ -1,15 +1,22 @@
 # Drifting
 
+An open-source, local-first novel writing app for Mac.
+
 **The ease of a Markdown editor, the scaffolding of a classic writing studio, and
 an Agent for the whole book.**
+
+[Download for Mac](https://github.com/chihumyum/Drifting/releases/latest) ·
+[Website](https://drifting.cc/) · [Documentation](docs/README.md)
+
+macOS 13+ · Apple Silicon · Early development
+
+[English](#english) | [简体中文](#简体中文)
 
 https://github.com/user-attachments/assets/54473d28-e047-4fce-9e6c-9e300cf83e8d
 
 <img width="1552" height="1012" alt="Screenshot 2026-11-02 at 4 54 53 PM" src="https://github.com/user-attachments/assets/28733411-98d7-4be4-8bd3-e84be7de2b5d" />
 
 <img width="1840" height="1196" alt="Screenshot 2026-11-02 at 4 52 19 PM" src="https://github.com/user-attachments/assets/bfcef0bf-4c47-4a42-882a-02d32d49f421" />
-
-[English](#english) | [简体中文](#简体中文)
 
 ## English
 
