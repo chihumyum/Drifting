@@ -1862,6 +1862,16 @@
   },
   "auth": {
     "dialogLabel": "Account",
+    "signOut": {
+      "title": "Sign out",
+      "pending": "Changes on this Mac the cloud doesn't have yet: {{count}}. If you sign out now, they stay on this Mac and upload when you sign back in to this account.",
+      "pendingLocal": "Changes on this Mac the cloud doesn't have yet: {{count}}. If you sign out now, they stay on this Mac only.",
+      "uploading": "Uploading this Mac's changes: {{count}} left.",
+      "disconnect": "Also disconnect this library's sync",
+      "uploadFirst": "Upload, then sign out",
+      "now": "Sign out now",
+      "stopWaiting": "Sign out without waiting"
+    },
     "titles": {
       "signin": "Sign in to Drifting",
       "signup": "Create account",

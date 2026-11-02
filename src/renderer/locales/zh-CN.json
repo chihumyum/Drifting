@@ -1861,6 +1861,16 @@
   },
   "auth": {
     "dialogLabel": "账号",
+    "signOut": {
+      "title": "登出",
+      "pending": "这台 Mac 上还有 {{count}} 条改动没传上去。直接登出的话，它们留在这台 Mac 上，下次登录同一个账号时接着传。",
+      "pendingLocal": "这台 Mac 上还有 {{count}} 条改动没传上去。直接登出的话，它们只留在这台 Mac 上。",
+      "uploading": "正在把这台 Mac 上的改动传上去，还剩 {{count}} 条。",
+      "disconnect": "同时断开这个书库的同步",
+      "uploadFirst": "传完再登出",
+      "now": "直接登出",
+      "stopWaiting": "不等了，直接登出"
+    },
     "titles": {
       "signin": "登录 Drifting",
       "signup": "创建账号",
