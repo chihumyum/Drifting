@@ -24,6 +24,8 @@ export function DesktopSettingsRail<Id extends string>({
   const { t } = useTranslation();
   const user = useAuthStore((s) => s.hostedUser);
   const name = user?.name ?? user?.email ?? t('settings.local_user');
+  // The email under a display name; a local author reads where the books live.
+  const meta = user ? (user.name ? user.email : null) : t('settings.hosted.disabled');
   const initial = name.slice(0, 1).toUpperCase();
   const groups: { name: string; items: typeof items }[] = [];
   for (const item of items) {
@@ -42,7 +44,7 @@ export function DesktopSettingsRail<Id extends string>({
         </div>
         <div className="set-rail__who-body">
           <div className="set-rail__who-name">{name}</div>
-          <div className="set-rail__who-meta">{t('settings.models.sidebarMeta')}</div>
+          {meta && <div className="set-rail__who-meta">{meta}</div>}
         </div>
       </div>
 

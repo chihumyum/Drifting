@@ -93,6 +93,26 @@ describe('desktop interface text preference', () => {
   });
 });
 
+describe('retired unwired preferences', () => {
+  it('drops settings no runtime read and the placeholder privacy toggles', async () => {
+    const retired = {
+      autosave: false,
+      manuscriptLocale: 'ja',
+      spellcheck: false,
+      dateFormat: 'us',
+      improveModelsWithManuscripts: true,
+      sendUsageStats: true,
+    };
+    const { store, values } = await settings({ ...retired, themeMode: 'dark' });
+    const state = store.getState();
+    for (const key of Object.keys(retired)) expect(state).not.toHaveProperty(key);
+    expect(state.themeMode).toBe('dark');
+    state.setThemeMode('light');
+    const persisted = JSON.parse(values.get('settings-storage')!).state;
+    for (const key of Object.keys(retired)) expect(persisted).not.toHaveProperty(key);
+  });
+});
+
 describe('editor line wrapping preference', () => {
   it('uses stable wrapping for fresh, old and malformed preferences', async () => {
     for (const persisted of [undefined, { bodyFontSize: 21 }, { editorTextWrap: 'balance' }, { editorTextWrap: null }]) {

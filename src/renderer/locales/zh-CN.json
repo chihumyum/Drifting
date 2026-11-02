@@ -140,14 +140,11 @@
     "loading": "正在加载设置…",
     "loadFailed": "设置加载失败，请重试。",
     "title": "设定",
-    "title_en": "Settings",
-    "esc_close": "Esc 关闭",
     "search_placeholder": "搜索设定…",
     "close": "关闭",
-    "close_with_esc": "关闭 (Esc)",
     "local_user": "本地用户",
     "groups": {
-      "account": "我的账户",
+      "account": "我的账号",
       "localData": "本地数据",
       "preferences": "偏好",
       "intelligence": "智能",
@@ -174,83 +171,19 @@
       "cancel": "取消",
       "edit": "编辑",
       "delete": "删除",
-      "change": "更改",
-      "manage": "管理",
-      "provider": "Provider",
       "manageKeys": "管理 API Key",
       "connect": "连接",
       "disconnect": "断开",
       "test_connection": "测试连接",
-      "open_in_browser": "在浏览器打开",
-      "back": "返回",
-      "not_available_yet": "当前版本尚未提供"
+      "open_in_browser": "在浏览器打开"
     },
     "account": {
-      "kicker": "账号 · ACCOUNT",
-      "title": "你的写作身份。",
-      "sub": "这些信息会出现在协作面板与稿件元数据里——是你给自己作品留下的指印。",
-      "profile": "个人资料",
-      "display_name": "显示名",
-      "display_name_desc": "协作者看见的名字。",
-      "not_set": "未设置",
-      "pen_name": "笔名",
-      "pen_name_desc": "导出稿件 PDF / EPUB 时使用。可留空。",
-      "email": "邮箱",
-      "email_desc": "用于登录与账户找回。",
-      "verified": "已验证",
-      "verify": "验证",
-      "send_verify_intro": "我们会向",
-      "send": "寄出",
-      "send_failed": "发送失败",
-      "verify_failed": "验证失败",
-      "verify_sent_prefix": "已寄到",
-      "verify_sent_suffix": "，10 分钟内输入 6 位验证码。",
-      "otp_placeholder": "6 位数字",
-      "send_change_code": "发送验证码",
-      "confirm_email_change": "确认更换",
-      "confirm": "确认",
-      "resend": "重发",
-      "password": "密码",
-      "password_desc": "更改后其他设备会被强制下线。",
-      "current_password": "当前密码",
-      "new_password": "新密码（至少 8 位）",
-      "save_password": "保存密码",
-      "two_factor": "两步验证",
-      "two_factor_desc": "使用 Authenticator App 接收一次性验证码。",
-      "two_factor_off": "未启用",
-      "two_factor_on": "已启用 · TOTP",
-      "setup": "设置",
-      "devices": "登入设备",
-      "devices_hint": "LAST 90 DAYS",
-      "sessions_loading": "读取中…",
-      "current_session_only": "仅本机会话。",
-      "unknown_device": "未知设备",
-      "this_device": "本机",
-      "other_device": "其他",
-      "logout_device": "登出本机",
-      "revoking": "撤销中…",
-      "revoke": "撤销",
-      "revoke_failed": "撤销失败：{{error}}",
-      "logout": "登出",
-      "sign_out_title": "退出登录",
-      "sign_out_label": "登出本机账号",
-      "sign_out_desc": "结束当前设备会话；本地稿件保留，下次回来重新登录即可。",
-      "sign_out_button": "退出登录",
-      "danger_zone": "危险区",
       "export_all": "导出关系型 Markdown",
       "export_all_desc": "导出本机书库中的所有项目及其中的章节、构想、要素、注释和资料笔记；使用双向 Wiki 链接保留关系。不包含图片和 PDF 文件，也不能重新导入 Drifting。",
       "export_all_btn": "导出 Markdown ZIP",
       "exporting": "正在导出…",
       "export_done": "已导出 {{count}} 个 Markdown 文档。",
-      "export_failed": "导出失败：{{error}}",
-      "delete_confirm": "确认请求注销账户？账号将进入 30 天宽限期。",
-      "delete_pending_title": "账户已计划删除",
-      "delete_pending_desc": "{{daysLeft}} 天后永久删除（{{date}}）",
-      "delete_account": "删除账户",
-      "delete_account_desc": "将保留稿件 30 天后永久删除，期间可以恢复。",
-      "delete_account_btn": "删除…",
-      "delete_pending": "已请求注销，{{daysLeft}} 天后永久删除",
-      "delete_cancel": "取消注销"
+      "export_failed": "导出失败：{{error}}"
     },
     "trash": {
       "kicker": "回收站 · TRASH",
@@ -275,11 +208,9 @@
       "accent_color": "界面强调色",
       "accent_color_desc": "用于按钮、焦点与活动状态，不影响编辑器光标颜色。",
       "accent_reset": "恢复默认",
-      "density": "界面密度",
       "animations": "动效与过渡",
       "agent_edit_reveal": "改动 reveal 动画",
-      "agent_edit_reveal_desc": "逐字展示 Agent 对正文和字段的修改，以及在其他编辑器里改过的章节和构想。关闭后直接显示结果，未读改动标记保留到看过或点击标记后。",
-      "animations_desc": "界面过渡与任务活动反馈。"
+      "agent_edit_reveal_desc": "逐字展示 Agent 对正文和字段的修改，以及在其他编辑器里改过的章节和构想。关闭后直接显示结果，未读改动标记保留到看过或点击标记后。"
     },
     "editor": {
       "kicker": "编辑器 · EDITOR",
@@ -354,17 +285,15 @@
       "paragraph_spacing_desc": "正文与各级标题共用的段间距，按正文字号计算；仅编辑视图。",
       "page_width": "纸张宽度",
       "page_width_desc": "编辑器中部纸张的宽度；正文按固定边距填满纸张。",
-      "max_width": "最大行宽",
-      "max_width_desc": "单页中央栏的最大宽度。",
       "flow": "书写体验",
       "typewriter_mode": "打字机模式",
       "typewriter_mode_desc": "输入或移动光标时，让当前正文行稳定停在视口中的固定位置；只影响编辑视图。",
       "typewriter_position": "输入行位置",
       "typewriter_position_desc": "距编辑器顶部的比例：25% 靠上，50% 居中，75% 靠下。",
       "caret_color": "光标颜色",
-      "caret_color_desc": "选择正文输入光标的颜色；它会保存在本机，只有另行配置兼容同步服务后才参与偏好同步。",
+      "caret_color_desc": "选择正文输入光标的颜色；只保存在这台设备上。",
       "entity_link_style": "Entity Link 高亮",
-      "entity_link_style_desc": "选择正文实体链接使用归属色、按实体类型统一配色、仅悬停时显示归属色，或保持正文文字颜色并显示色带；它会保存在本机，只有另行配置兼容同步服务后才参与偏好同步。",
+      "entity_link_style_desc": "选择正文实体链接使用归属色、按实体类型统一配色、仅悬停时显示归属色，或保持正文文字颜色并显示色带；只保存在这台设备上。",
       "entity_link_style_contextual": "随归属",
       "entity_link_style_kind": "按类型",
       "entity_link_style_hover": "仅 Hover",
@@ -385,40 +314,13 @@
       "entity_link_kind_category": "类目",
       "entity_link_kind_storyline": "故事线",
       "auto_element_link": "自动要素链接",
-      "auto_element_link_desc": "输入时自动识别已存在的要素名称（如人物、地点），并链接到对应页面。",
-      "autosave": "自动保存",
-      "autosave_desc_a": "每次空闲超过",
-      "autosave_desc_b": "。",
-      "seconds": "秒",
-      "entity_highlight": "实体高亮",
-      "entity_highlight_desc": "在正文中给已识别的人物 / 地点 / 物件添加下划虚线。",
-      "auto_link": "自动要素链接",
-      "auto_link_desc": "输入时自动识别已存在的要素名称（如人物、地点），并链接到对应页面。",
-      "margin_notes": "边注栏",
-      "margin_notes_desc": "在手稿右侧显示批注卡片。",
-      "autosave_desc": "每次空闲超过 3 秒。"
+      "auto_element_link_desc": "输入时自动识别已存在的要素名称（如人物、地点），并链接到对应页面。"
     },
     "language": {
       "kicker": "语言 · LANGUAGE",
       "title": "界面用什么语言对你说话。",
-      "sub": "这只关乎界面文本——稿件语言在下方独立设置。",
       "ui_locale": "界面语言",
-      "ui_locale_desc": "这只关乎界面文本，稿件语言在下方独立设置。",
-      "manuscript": "写作语言",
-      "manuscript_default": "手稿默认语言",
-      "manuscript_default_desc": "影响拼写检查、断行与 AI 写作语言。",
-      "spellcheck": "拼写检查",
-      "spellcheck_desc": "中文按词典检查别字。英文使用系统拼写。",
-      "date_format": "日期与数字",
-      "date_format_desc": "影响时间线轴标签。",
-      "date_cjk": "中文",
-      "locales": {
-        "zhCN": "中文（简体）",
-        "zhTW": "中文（繁體）",
-        "default": "默认",
-        "traditional": "繁體",
-        "beta": "beta"
-      }
+      "ui_locale_desc": "菜单、按钮与提示文字的语言，不影响你写的内容。"
     },
     "sync": {
       "local_kicker": "本地数据 · LOCAL DATA",
@@ -443,9 +345,9 @@
         "restoreConfirmButton": "替换并恢复",
         "noProjects": "（没有项目）",
         "loading": "正在读取同步状态…",
-        "syncConnected": "同步开启时不能备份或恢复资料库。请先在「账户」中断开同步。",
+        "syncConnected": "同步开启时不能备份或恢复资料库。请先在「账号」中断开同步。",
         "errors": {
-          "sync-connected": "同步开启时不能备份或恢复资料库。请先在「账户」中断开同步。",
+          "sync-connected": "同步开启时不能备份或恢复资料库。请先在「账号」中断开同步。",
           "invalid": "这个文件不是有效的 Drifting 备份，或已经损坏。当前资料库没有改动。",
           "newer": "这个备份来自更新版本的 Drifting。请先更新应用再恢复。",
           "unknown": "操作没有完成，当前资料库没有改动：{{detail}}"
@@ -530,11 +432,11 @@
         },
         "goBack": {
           "label": "返回上一个页面",
-          "desc": "回到上一个访问过的 editor 页面（类似浏览器后退）"
+          "desc": "回到上一个访问过的页面（类似浏览器后退）"
         },
         "goForward": {
           "label": "前进下一个页面",
-          "desc": "回到下一个访问过的 editor 页面（类似浏览器前进）"
+          "desc": "回到下一个访问过的页面（类似浏览器前进）"
         },
         "prevTab": {
           "label": "切换到上一个标签页",
@@ -594,24 +496,18 @@
       "kicker": "隐私 · PRIVACY",
       "title": "你的稿子，停在哪儿。",
       "sub": "这页直说：Drifting 用了什么、不用什么、何时离开你的机器。",
-      "noteA": "公开源码构建默认不连接 Drifting 托管服务。你主动选择的模型提供商和远程 Agent 扩展可能访问网络；这不会把正文或本地素材上传给 Drifting。",
-      "noteBPrefix": "AI 请求适用",
-      "noteBStrong": "所选模型提供商",
-      "noteBSuffix": "当前的数据与训练条款。",
       "dataUsage": "数据使用",
-      "improveModels": "官方服务的模型改进选择",
-      "improveModelsDesc": "为未来明确的选择加入政策保留；此构建不可用。",
-      "usageStats": "发送匿名使用统计",
-      "usageStatsDesc": "界面点击、错误、性能指标。不含稿件内容。",
       "crashLogs": "自动发送故障诊断",
       "crashLogsDesc": "发送脱敏的错误位置、版本和系统信息，帮助维护者排查故障；不包含正文。可随时关闭。",
       "diagnostics": "脱敏诊断摘要",
-      "diagnosticsDesc": "复制版本、平台、功能可用性、同步计数/错误类别与 updater 状态；不含稿件、凭据、项目标识或绝对路径，也不会自动上传。",
+      "diagnosticsDesc": "复制版本、平台、功能可用性、同步计数/错误类别与更新状态；不含稿件、凭据、项目标识或绝对路径，也不会自动上传。",
       "copyDiagnostics": "复制摘要",
       "diagnosticsCopied": "已复制脱敏诊断摘要。",
       "diagnosticsCopyFailed": "无法写入剪贴板，可能没有剪贴板权限。",
       "fullPolicy": "查看完整隐私政策",
-      "lastUpdated": "最近更新 2026·10·31"
+      "lastUpdated": "最近更新 2026·10·31",
+      "noteHosted": "作品先保存在这台设备上，只在两种时候传到 Drifting 服务端：连接托管同步后（项目与原始素材），以及创建分享链接时（分享出去的部分）。你主动发送的反馈、下方开启的故障诊断也会发给维护者，故障诊断不含正文。AI 与语音转写请求从本机直接发往你选择的服务商，不经过 Drifting，适用该服务商的数据与训练条款；你添加的远程 MCP 扩展也会访问网络。",
+      "noteLocal": "这个构建不连接 Drifting 服务端，作品只保存在这台设备上。AI 与语音转写请求从本机直接发往你选择的服务商，适用该服务商的数据与训练条款；你添加的远程 MCP 扩展也会访问网络。"
     },
     "about": {
       "kicker": "关于 · ABOUT",
@@ -619,7 +515,6 @@
       "sub": "终极写作体验",
       "version": "版本",
       "channel": "通道",
-      "channelDev": "开发",
       "channelPreAlpha": "Alpha",
       "engine": "引擎",
       "credits": "致谢与许可",
@@ -634,7 +529,7 @@
       "licenseDesc": "GNU AGPL v3 或更高版本",
       "viewLicense": "查看许可证",
       "knownIssues": "已知问题",
-      "knownIssuesDesc": "当前 Alpha 的限制与发布阻断项",
+      "knownIssuesDesc": "当前 Alpha 的已知限制",
       "contact": "联系",
       "support": "Alpha 支持",
       "supportDesc": "故障排查与安全反馈说明",
@@ -648,29 +543,19 @@
     },
     "models": {
       "kicker": "模型服务 · PROVIDERS",
-      "title": "所有 AI 凭据，只在这里管理。",
-      "sub": "每个 provider 保存一条全局 API Key；General Agent 只引用它，不另存副本。",
-      "sidebarMeta": "BYOK · 本机 Keychain",
-      "credentialsTitle": "Provider 凭据",
-      "credentialsDesc": "密钥仅写入本机系统 Keychain，不进入 localStorage 或偏好同步。不同功能可以各自选择 provider 与模型。",
+      "title": "AI 功能连接的服务。",
+      "sub": "每家服务商在本机只保存一份密钥；在 Agent 首次引导里连接的也会出现在这里，可以测试、更换或断开。",
+      "credentialsTitle": "模型服务商",
+      "credentialsDesc": "密钥只写入本机系统钥匙串，不会同步到其他设备，也不经过 Drifting。Agent 用哪家服务商、哪个模型，在 Agent 输入框的配置菜单里选。",
       "providers": {
         "deepseek": "供 General Agent 使用。",
         "anthropic": "供 General Agent 使用。",
         "openai": "供 General Agent 使用。",
-        "openaiCodex": "实验性：General Agent 可通过 OpenAI 的 Codex 设备登录，用你自己的 ChatGPT 订阅运行 GPT-5.6。OpenAI 未对第三方应用开放此路径，因此不受支持、可能随时失效；用量计入你的 ChatGPT 套餐。",
+        "openaiCodex": "实验性：通过 OpenAI 的 Codex 设备登录，用你的 ChatGPT 订阅运行 General Agent，可用模型以你的账号为准；生成设定图也用它。OpenAI 没有向第三方应用开放这条路径，可能随时失效；用量计入你的 ChatGPT 套餐。",
         "dashscope": "仅用于语音输入转写（Qwen3-ASR）。在阿里云百炼控制台创建 API Key 后填入。"
       },
       "speechTitle": "语音转写",
       "speechDesc": "语音输入的转写凭据，独立于上方对话模型。转写会携带本项目的要素与设定名以纠正专有名词；请求从本机直连百炼，Key 仅存系统钥匙串。"
-    },
-    "ai": {
-      "tierTitle": "能力档位",
-      "byokTitle": "自带密钥 · BYOK",
-      "modelTitle": "模型",
-      "preAlphaByokOnly": "Alpha 中的 AI 功能均为 Experimental，不提供托管模型或 Drifting 额度。每次调用都必须使用你自己的 API Key，并遵循对应服务商的计费、隐私、留存、训练与输出条款。",
-      "preAlphaAgentCredentials": "General Agent 使用你所选 provider 的 BYOK API Key；每个 provider 的密钥分别保存在本机 Keychain，不经过 Drifting 托管额度。",
-      "hostedByokOnlyTitle": "托管暂不可用 · 测试版仅支持自带 Key",
-      "disabledSuffix": " · 暂不可用"
     },
     "byokProvider": {
       "ownKey": "自带密钥",
@@ -679,8 +564,6 @@
       "testing": "测试中…",
       "available": "可用",
       "editKey": "编辑密钥",
-      "currentByok": "当前 BYOK",
-      "setCurrent": "设为当前",
       "invalidKey": "密钥无效",
       "requestFailed": "请求失败（provider 不可用或网络问题）"
     },
@@ -705,61 +588,16 @@
         "storage_failed": "登录信息无法保存到 Keychain。"
       }
     },
-    "agentAuth": {
-      "statusTitle": "状态",
-      "hostedReady": "已就绪",
-      "hostedSignedOut": "未登录",
-      "hostedReadyDesc": "已登录 Drifting，可用托管额度调用 Agent。",
-      "hostedSignedOutDesc": "托管 Agent 需要先登录 Drifting 账号（在「账户」中登录）。",
-      "hostedAvailable": "可用",
-      "hostedUnavailable": "未就绪",
-      "pasteApiKey": "粘贴所选 provider 的 API Key：",
-      "filled": "已填写",
-      "notFilled": "未填写",
-      "apiKeyFilledDesc": "Agent 将使用所选 provider 的 API Key。密钥仅存于本机 Keychain。",
-      "apiKeyEmptyDesc": "填入所选 provider 的 API Key 后，Agent 即可执行任务。",
-      "enterKey": "填入 Key",
-      "oauthTitle": "Claude 账号 · OAuth",
-      "connected": "已连接",
-      "notConnected": "未连接",
-      "oauthConnectedDesc": "Agent 将用你的 Claude 账号直连 Anthropic。",
-      "oauthEmptyDesc": "用你的 Claude 账号（Max/Pro）授权。点击后打开浏览器，把页面上的 code 粘回来。",
-      "connectClaude": "连接 Claude",
-      "pasteCode": "粘贴授权 code：",
-      "verifying": "验证中…",
-      "submit": "提交"
-    },
     "agent": {
       "kicker": "GENERAL AGENT · EXPERIMENTAL",
       "title": "右栏那位能动手的实验性 Agent。",
-      "sub": "运行在 Tauri renderer 内的 BYOK provider-neutral Agent。请检查每次操作；费用、隐私、留存、训练条款与输出风险由所选 provider 决定。",
+      "sub": "用你自己的模型密钥或 ChatGPT 订阅运行，请求从本机直接发往所选服务商。请检查它的每次改动；费用、隐私、留存、训练条款与输出风险由该服务商决定。",
       "unavailableTitle": "General Agent 运行时未安装",
       "unavailableStatus": "当前 transport 不可用",
       "unavailableReason": "本窗口没有安装可用的 Agent model driver 或工具运行时。",
       "unavailableFuture": "重新打开项目；若问题持续，请检查应用版本与所选 provider 的 API Key。",
-      "credentialPrivacy": "凭据存于本机；代理模式会将其临时转发给所配置的服务。",
       "chatConfigTitle": "对话配置",
-      "chatConfigDesc": "Provider、模型与推理参数都在右侧 General Agent 输入框的配置菜单中选择；API Key 统一在「模型与 API」管理。",
-      "hostedDisabledTitle": "托管暂不可用 · 测试版使用你自己的 provider API Key",
-      "auth": {
-        "oauth": {
-          "kicker": "CLAUDE 账号",
-          "name": "自带 Claude",
-          "desc": "用你的 Claude 账号（Max/Pro）登录（OAuth），直连 Anthropic，不计入托管额度。"
-        },
-        "apikey": {
-          "kicker": "PROVIDER · BYOK",
-          "name": "自带 API Key",
-          "desc": "使用当前选择的 provider API Key；密钥只存于本机 Keychain。"
-        },
-        "hosted": {
-          "kicker": "HOSTED",
-          "name": "托管订阅",
-          "desc": "走 Drifting 的通道与额度，无需你自己的 Claude 账号或 Key。"
-        }
-      },
-      "chatModel": "对话模型",
-      "chatModelDesc": "模型列表随 provider 切换；provider 与模型在每轮开始时冻结。",
+      "chatConfigDesc": "服务商、模型与推理强度在右栏 Agent 输入框的配置菜单里选；密钥和 ChatGPT 订阅在「模型与 API」里管理。",
       "modelOptions": {
         "deepseek-v4-flash": {
           "label": "DeepSeek Flash · 快",
@@ -790,18 +628,6 @@
           "short": "5.6 Luna"
         }
       },
-      "reasoningTitle": "推理参数",
-      "thinking": "扩展思考",
-      "thinkingDesc": "使用所选 provider 的原生推理模式，并在当前轮工具循环中安全保留 provider 的不透明重放状态。",
-      "thinkingUnavailable": "当前模型没有已认证的 thinking 模式。",
-      "effort": "思考强度",
-      "effortDesc": "可选档位由 provider 与模型决定；每轮开始时冻结本轮取值。",
-      "effortUnavailable": "当前模型没有已认证的推理强度控制。",
-      "notSupported": "不支持",
-      "thinkingOptions": {
-        "off": "关闭",
-        "adaptive": "自适应"
-      },
       "effortOptions": {
         "minimal": "最低",
         "low": "低",
@@ -810,14 +636,6 @@
         "xhigh": "超高",
         "max": "最大",
         "ultra": "极高"
-      },
-      "toolSearchTitle": "工具检索",
-      "toolSearch": "工具检索",
-      "toolSearchDesc": "模型通过 tool_search 按需获取工具定义。完整工具目录和调用入口保持固定，检索结果加入对话上下文。",
-      "toolSearchOptions": {
-        "off": "关闭 · 全量加载工具",
-        "auto": "自动 · 按需检索工具",
-        "on": "开启 · 按需检索工具"
       },
       "extensions": {
         "title": "MCP 扩展",
@@ -892,28 +710,15 @@
       "unlimitedHint": "选择「无限制」时，唯一的刹车是你手动停止。"
     },
     "agentMemory": {
-      "title": "项目记忆",
-      "desc": "由你掌控的长期规则。这里生效的偏好、指令和否决会原样注入后续对话；你可以随时新增或删除。Agent 提议的规则必须先由你批准，产品不会额外添加隐藏的写作规范。",
-      "kind": {
-        "preference": "偏好",
-        "directive": "指令",
-        "veto": "否决"
-      },
-      "placeholder": "新增一条项目规则……",
-      "add": "添加",
-      "empty": "暂无长期规则。",
-      "pending": "待批准",
-      "approve": "批准",
-      "deleteConfirm": "删除这条规则？它将不再影响后续对话与审阅。"
+      "title": "项目记忆"
     },
     "agentUsage": {
       "usage": "用量",
-      "usageDesc": "本项目里 Agent 用了多少 token、花了多少钱。统计自每轮返回的用量（输入含缓存读取）；自付费模式下为你的实际花费，数据保存在本地。按本月 / 累计两个口径查看。",
+      "usageDesc": "本项目里 Agent 用了多少 token。统计自每轮返回的用量（输入含缓存读取），按本月 / 累计两个口径查看。",
       "noProjectUsage": "打开一个项目后查看其 Agent 用量。",
       "month": "本月",
       "all": "累计",
       "tokenCard": "{{scope}} Token",
-      "costCard": "{{scope}}费用",
       "conversationsTurns": "对话 / 轮次",
       "history": "对话历史",
       "historyDesc": "本项目的所有 Agent 对话。删除为软删除，会与右栏「历史」同步移除，不影响其它项目。",
@@ -1211,8 +1016,6 @@
   },
   "trashPanel": {
     "noProject": "请先打开一个项目。",
-    "proTitle": "回收站 · Pro",
-    "proDesc": "软删除与回收站是 Pro / Studio 功能。当前账号为免费版，删除操作仍为永久删除。",
     "title": "回收站",
     "retention": "保留在本机，直到你删除",
     "clear": "清空回收站",
@@ -1423,7 +1226,7 @@
     "restored": "同步已恢复"
   },
   "userMenu": {
-    "accountMenu": "账户菜单",
+    "accountMenu": "账号菜单",
     "localMenu": "本地书库菜单",
     "localStatus": "本地 · 本机存储",
     "theme": "主题",
@@ -1941,7 +1744,7 @@
       "retry": "重试",
       "later": "稍后再说",
       "accountMismatchTitle": "这个书库连着另一个账号",
-      "accountMismatch": "一个书库只能连一个 Drifting 账号，这台 Mac 上的书库已经连着另一个账号，所以没有连到这个账号。要换成这个账号，请先在「账户」里断开同步（不用登录原账号），再用这个账号登录。断开后本地项目和云端副本都会保留。",
+      "accountMismatch": "一个书库只能连一个 Drifting 账号，这台 Mac 上的书库已经连着另一个账号，所以没有连到这个账号。要换成这个账号，请先在「账号」里断开同步（不用登录原账号），再用这个账号登录。断开后本地项目和云端副本都会保留。",
       "accountMismatchOk": "知道了",
       "accountMismatchOpenAccount": "去断开同步"
     },

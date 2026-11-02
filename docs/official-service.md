@@ -17,7 +17,11 @@ In that default build, desktop and mobile Settings omit the Account and its
 sync and share-link controls, and do not mount their hosted API clients. The
 retired Subscription entry is absent from every build. Privacy also
 omits the hosted telemetry controls rather than presenting disabled upload or
-official-service placeholders. The first-run guide describes the local data
+official-service placeholders; a Hosted build shows only the crash-diagnostics
+switch, and each build's Privacy note names exactly when work leaves the device
+(Hosted: hosted sync, share links, feedback and diagnostics; both: direct
+requests to the chosen AI or transcription provider and remote MCP extensions).
+The first-run guide describes the local data
 boundary and offers only Continue locally; it has no quick-guide
 entry. It makes no trial account or hosted storage claim. Trash and the separate
 30-day entity history are local SQLite capabilities and do not require a

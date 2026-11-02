@@ -4,9 +4,6 @@ export type RecoverableFeature = 'trash' | 'snapshot';
 export function canUseFeature(_feature: RecoverableFeature): boolean {
   return true;
 }
-export function useCanUseFeature(_feature: RecoverableFeature): boolean {
-  return true;
-}
 export async function ensureFeatureAccess(
   subjectId: string,
 ): Promise<void> {

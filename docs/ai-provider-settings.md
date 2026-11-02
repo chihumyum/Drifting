@@ -9,9 +9,9 @@ Drifting 只有一个凭据管理入口：**设置 → 模型与 API**。每个 
 | DeepSeek  | `byok.deepseek`  | General Agent |
 | Anthropic | `byok.anthropic` | General Agent |
 | OpenAI    | `byok.openai`    | General Agent |
-| ChatGPT 订阅（实验） | `oauth.openai-codex`（仅原生可读） | General Agent `openai-codex` |
+| ChatGPT 订阅（实验） | `oauth.openai-codex`（仅原生可读） | General Agent `openai-codex`、设定图生成 |
 
-密钥不进入 Zustand/localStorage，不参与偏好同步，也不在 General Agent 面板中重复编辑。唯一的例外是 Agent 面板的首次引导（[agent-runtime/agent-onboarding.md](agent-runtime/agent-onboarding.md)）：空对话里没有可用路由时，它可以就地**新增**一个 Key——先写入 Keychain、跑一次与「测试连接」相同的直连测试，通过才保留并把对话框切到该 provider，失败即删除；也可以就地发起 ChatGPT 设备码登录，或直接选中已有凭据的 provider。编辑、重新测试、查看来源与断开仍只在「模型与 API」。旧版 General Agent 的 `byok.agent.anthropic` 会在第一次读取 Anthropic 凭据时迁移到 `byok.anthropic`，确认写入后删除旧条目。
+密钥不进入 Zustand/localStorage，不同步到其他设备（Hosted 也不同步任何偏好），也不在 General Agent 面板中重复编辑。唯一的例外是 Agent 面板的首次引导（[agent-runtime/agent-onboarding.md](agent-runtime/agent-onboarding.md)）：空对话里没有可用路由时，它可以就地**新增**一个 Key——先写入 Keychain、跑一次与「测试连接」相同的直连测试，通过才保留并把对话框切到该 provider，失败即删除；也可以就地发起 ChatGPT 设备码登录，或直接选中已有凭据的 provider。编辑、重新测试、查看来源与断开仍只在「模型与 API」。旧版 General Agent 的 `byok.agent.anthropic` 会在第一次读取 Anthropic 凭据时迁移到 `byok.anthropic`，确认写入后删除旧条目。
 
 ChatGPT 订阅是实验性、不受支持的路由：设置页的「ChatGPT 订阅」行只驱动 OpenAI Codex 设备码登录并读取非敏感账号状态，OAuth token 全程在原生 Rust 侧读写、刷新与注入，`secure_storage` 拒绝 renderer 访问 `oauth.` 前缀。它不是 BYOK provider，也不进入 BYOK 密钥选择器。只要该登录有效，General Agent 页面就视为已有可用凭据并允许进入 composer；实际发送仍使用 composer 当前明确选择的 provider，不做静默 fallback。OpenAI 未对第三方应用开放该路径，用量计入作者本人的 ChatGPT 套餐，随时可能失效，不构成任何发布声明。
 

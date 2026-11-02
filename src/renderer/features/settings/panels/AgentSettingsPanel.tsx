@@ -33,7 +33,6 @@ const fmtUsageTok = (n: number): string =>
     : n >= 1000
       ? `${(n / 1000).toFixed(n >= 10_000 ? 0 : 1)}k`
       : String(n);
-const fmtUsageUsd = (n: number): string => `$${n.toFixed(n > 0 && n < 0.01 ? 4 : 2)}`;
 const fmtConvTime = (iso: string): string => {
   try {
     const d = new Date(iso);
@@ -127,16 +126,16 @@ function AgentUsageSection({ open }: { open: boolean }) {
     return () => { owner.dispose(); if (history.current === owner) history.current = null; };
   }, [open, projectId, scope, t]);
 
-  // Totals sum EVERY conversation in-window, deleted or not — the spend was real,
-  // so deleting a chat must not shrink the usage figures.
+  // Totals sum EVERY conversation in-window, deleted or not — the tokens were
+  // really spent, so deleting a chat must not shrink the usage figures. No
+  // driver prices its usage (costUsd is always 0), so no cost is shown.
   const totals = rows.reduce(
     (a, r) => ({
       input: a.input + r.inputTokens,
       output: a.output + r.outputTokens,
-      cost: a.cost + r.costUsd,
       turns: a.turns + r.turns,
     }),
-    { input: 0, output: 0, cost: 0, turns: 0 },
+    { input: 0, output: 0, turns: 0 },
   );
   const withUsage = rows.filter((r) => r.inputTokens + r.outputTokens > 0);
   // The manageable history list is live conversations only (all of them, not
@@ -180,7 +179,6 @@ function AgentUsageSection({ open }: { open: boolean }) {
               fmtUsageTok(totals.input + totals.output),
               `↑${fmtUsageTok(totals.input)} ↓${fmtUsageTok(totals.output)}`,
             )}
-            {readout(t('settings.agentUsage.costCard', { scope: scopeLabel }), fmtUsageUsd(totals.cost))}
             {readout(t('settings.agentUsage.conversationsTurns'), `${withUsage.length} / ${totals.turns}`)}
           </div>
         </>
@@ -210,9 +208,6 @@ function AgentUsageSection({ open }: { open: boolean }) {
                 {r.inputTokens + r.outputTokens > 0
                   ? `↑${fmtUsageTok(r.inputTokens)} ↓${fmtUsageTok(r.outputTokens)}`
                   : '—'}
-              </span>
-              <span className="set-history__meta set-history__meta--cost">
-                {r.costUsd > 0 ? fmtUsageUsd(r.costUsd) : '—'}
               </span>
               <button
                 type="button"
@@ -274,12 +269,7 @@ export function AgentPanel({ open, registerRef }: { open: boolean; registerRef: 
       <SettingsPanelHeader
         kicker={t('settings.agent.kicker')}
         title={t('settings.agent.title')}
-        sub={
-          <>
-            {t('settings.agent.sub')}
-            <span className="set-italic"> {t('settings.agent.credentialPrivacy')}</span>
-          </>
-        }
+        sub={t('settings.agent.sub')}
       />
 
       <div className="set-sec">

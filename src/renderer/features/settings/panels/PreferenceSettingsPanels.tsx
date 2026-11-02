@@ -449,8 +449,6 @@ export function EditorPanel({ registerRef }: { registerRef: SettingsRegisterRef 
     setEntityLinkBandStyle,
     entityLinkKindColors,
     setEntityLinkKindColor,
-    autosave,
-    setAutosave,
     autoElementLinkEnabled,
     setAutoElementLinkEnabled,
   } = useSettingsStore();
@@ -768,18 +766,6 @@ export function EditorPanel({ registerRef }: { registerRef: SettingsRegisterRef 
               onChange={setAutoElementLinkEnabled}
               aria-label={t('settings.editor.auto_element_link')}
             />
-          }
-        />
-        <SettingsRow
-          label={t('settings.editor.autosave')}
-          desc={
-            <>
-              {t('settings.editor.autosave_desc_a')} <code>3 {t('settings.editor.seconds')}</code>
-              {t('settings.editor.autosave_desc_b')}
-            </>
-          }
-          control={
-            <SettingsToggle on={autosave} onChange={setAutosave} aria-label={t('settings.editor.autosave')} />
           }
         />
       </div>

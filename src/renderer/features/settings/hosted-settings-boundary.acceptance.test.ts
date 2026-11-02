@@ -43,9 +43,12 @@ describe('hosted settings boundary', () => {
 
     expect(privacyPanel).toContain('const hostedSettings = hostedAccountSettingsEnabled()');
     expect(privacyPanel).toContain('{hostedSettings && (');
-    expect(privacyPanel).toContain("t('settings.privacy.improveModels')");
-    expect(privacyPanel).toContain("t('settings.privacy.usageStats')");
+    expect(privacyPanel).toContain("hostedSettings ? 'settings.privacy.noteHosted' : 'settings.privacy.noteLocal'");
     expect(privacyPanel).toContain("t('settings.privacy.crashLogs')");
+    // Only controls that do something: no placeholder toggles for features that do not exist.
+    expect(privacyPanel).not.toContain('settings.privacy.improveModels');
+    expect(privacyPanel).not.toContain('settings.privacy.usageStats');
+    expect(privacyPanel).not.toContain('disabled />');
   });
 
   it('does not mount the project-scoped import action in standalone mobile settings', () => {
@@ -95,11 +98,14 @@ describe('hosted settings boundary', () => {
     };
     const zh = JSON.parse(read('src/renderer/locales/zh-CN.json')) as typeof en;
 
-    expect(en.settings.editor.caret_color_desc).toContain('saved locally');
-    expect(en.settings.editor.entity_link_style_desc).toContain('saved locally');
+    // Device preferences are never synced, not even by Hosted.
+    expect(en.settings.editor.caret_color_desc).toContain('Saved on this device only');
+    expect(en.settings.editor.entity_link_style_desc).toContain('Saved on this device only');
+    expect(en.settings.editor.caret_color_desc).not.toContain('sync');
     expect(en.settings.keys.actions.saveCurrentEditor.desc).toContain('local storage');
-    expect(zh.settings.editor.caret_color_desc).toContain('保存在本机');
-    expect(zh.settings.editor.entity_link_style_desc).toContain('保存在本机');
+    expect(zh.settings.editor.caret_color_desc).toContain('只保存在这台设备上');
+    expect(zh.settings.editor.entity_link_style_desc).toContain('只保存在这台设备上');
+    expect(zh.settings.editor.entity_link_style_desc).not.toContain('同步');
     expect(zh.settings.keys.actions.saveCurrentEditor.desc).toContain('本地存储');
   });
 

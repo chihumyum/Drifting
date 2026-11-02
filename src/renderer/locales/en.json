@@ -141,11 +141,8 @@
     "loading": "Loading settings…",
     "loadFailed": "Settings could not be loaded. Try again.",
     "title": "Settings",
-    "title_en": "",
-    "esc_close": "Press Esc to close",
     "search_placeholder": "Search settings…",
     "close": "Close",
-    "close_with_esc": "Close (Esc)",
     "local_user": "Local user",
     "groups": {
       "account": "Account",
@@ -175,83 +172,19 @@
       "cancel": "Cancel",
       "edit": "Edit",
       "delete": "Delete",
-      "change": "Change",
-      "manage": "Manage",
-      "provider": "Provider",
       "manageKeys": "Manage API keys",
       "connect": "Connect",
       "disconnect": "Disconnect",
       "test_connection": "Test connection",
-      "open_in_browser": "Open in browser",
-      "back": "Back",
-      "not_available_yet": "Not available in this build"
+      "open_in_browser": "Open in browser"
     },
     "account": {
-      "kicker": "ACCOUNT",
-      "title": "Your writing identity.",
-      "sub": "Shown on collaboration panels and manuscript metadata.",
-      "profile": "Profile",
-      "display_name": "Display name",
-      "display_name_desc": "How collaborators see you.",
-      "not_set": "Not set",
-      "pen_name": "Pen name",
-      "pen_name_desc": "Used on exported PDF / EPUB. Leave blank to use display name.",
-      "email": "Email",
-      "email_desc": "Used for sign-in and account recovery.",
-      "verified": "Verified",
-      "verify": "Verify",
-      "send_verify_intro": "We will send a 6-digit code to",
-      "send": "Send",
-      "send_failed": "Send failed",
-      "verify_failed": "Verification failed",
-      "verify_sent_prefix": "Sent to",
-      "verify_sent_suffix": ". Enter the 6-digit code within 10 minutes.",
-      "otp_placeholder": "6 digits",
-      "send_change_code": "Send verification code",
-      "confirm_email_change": "Confirm change",
-      "confirm": "Confirm",
-      "resend": "Resend",
-      "password": "Password",
-      "password_desc": "Changing it signs out other devices.",
-      "current_password": "Current password",
-      "new_password": "New password (at least 8 characters)",
-      "save_password": "Save password",
-      "two_factor": "Two-factor auth",
-      "two_factor_desc": "Use an authenticator app for one-time codes.",
-      "two_factor_off": "Disabled",
-      "two_factor_on": "Enabled · TOTP",
-      "setup": "Set up",
-      "devices": "Signed-in devices",
-      "devices_hint": "LAST 90 DAYS",
-      "sessions_loading": "Loading…",
-      "current_session_only": "Only this device is signed in.",
-      "unknown_device": "Unknown device",
-      "this_device": "This device",
-      "other_device": "Other",
-      "logout_device": "Sign out this device",
-      "revoking": "Revoking…",
-      "revoke": "Revoke",
-      "revoke_failed": "Revoke failed: {{error}}",
-      "logout": "Sign out",
-      "sign_out_title": "Sign out",
-      "sign_out_label": "Sign out on this device",
-      "sign_out_desc": "Ends the current device session. Local manuscripts stay here; sign in again next time.",
-      "sign_out_button": "Sign out",
-      "danger_zone": "Danger zone",
       "export_all": "Export relational Markdown",
       "export_all_desc": "Export every project in this local library, including chapters, ideas, elements, comments, and library notes, with bidirectional wiki links. Image and PDF files are not included, and the Markdown archive cannot be imported back into Drifting.",
       "export_all_btn": "Export Markdown ZIP",
       "exporting": "Exporting…",
       "export_done": "Exported {{count}} Markdown documents.",
-      "export_failed": "Export failed: {{error}}",
-      "delete_confirm": "Request account deletion? Your account will enter a 30-day grace period.",
-      "delete_pending_title": "Account deletion scheduled",
-      "delete_pending_desc": "Permanent deletion in {{daysLeft}} day(s) ({{date}})",
-      "delete_account": "Delete account",
-      "delete_account_desc": "Manuscripts retained for 30 days, then permanently deleted. Reversible within the grace period.",
-      "delete_account_btn": "Delete…",
-      "delete_pending": "Deletion scheduled · permanent in {{daysLeft}} day(s)",
-      "delete_cancel": "Cancel deletion"
+      "export_failed": "Export failed: {{error}}"
     },
     "trash": {
       "kicker": "TRASH",
@@ -276,11 +209,9 @@
       "accent_color": "Interface accent",
       "accent_color_desc": "Used for buttons, focus, and active states without changing the editor caret.",
       "accent_reset": "Restore default",
-      "density": "Density",
       "animations": "Animations & transitions",
       "agent_edit_reveal": "Change reveal animation",
-      "agent_edit_reveal_desc": "Reveal Agent edits to prose and fields, and chapters and ideas edited in another editor, character by character. Turn off to show results immediately; unread change markers remain available.",
-      "animations_desc": "Interface transitions and activity feedback."
+      "agent_edit_reveal_desc": "Reveal Agent edits to prose and fields, and chapters and ideas edited in another editor, character by character. Turn off to show results immediately; unread change markers remain available."
     },
     "editor": {
       "kicker": "EDITOR",
@@ -355,17 +286,15 @@
       "paragraph_spacing_desc": "Shared spacing for body paragraphs and all heading levels, relative to the body font size; editor view only.",
       "page_width": "Page width",
       "page_width_desc": "The paper width in the editor; prose fills it with fixed margins.",
-      "max_width": "Max line width",
-      "max_width_desc": "Maximum width of the centered column.",
       "flow": "Flow",
       "typewriter_mode": "Typewriter mode",
       "typewriter_mode_desc": "Keeps the active prose line at a stable viewport position while typing or moving the caret. Editor view only.",
       "typewriter_position": "Typing line position",
       "typewriter_position_desc": "Percentage from the top of the editor: 25% high, 50% centered, 75% low.",
       "caret_color": "Caret color",
-      "caret_color_desc": "Choose the prose insertion caret color. It is saved locally and joins preference sync only when a compatible service is configured.",
+      "caret_color_desc": "Choose the prose insertion caret color. Saved on this device only.",
       "entity_link_style": "Entity Link highlight",
-      "entity_link_style_desc": "Use owner colors, one custom color per entity type, reveal owner colors only on hover, or keep prose-colored text with a band. It is saved locally and joins preference sync only when a compatible service is configured.",
+      "entity_link_style_desc": "Use owner colors, one custom color per entity type, reveal owner colors only on hover, or keep prose-colored text with a band. Saved on this device only.",
       "entity_link_style_contextual": "By owner",
       "entity_link_style_kind": "By type",
       "entity_link_style_hover": "Hover only",
@@ -386,40 +315,13 @@
       "entity_link_kind_category": "Category",
       "entity_link_kind_storyline": "Storyline",
       "auto_element_link": "Auto element links",
-      "auto_element_link_desc": "Recognize existing element names while typing and link them to their pages.",
-      "autosave": "Autosave",
-      "autosave_desc_a": "After idle for more than",
-      "autosave_desc_b": ".",
-      "seconds": "seconds",
-      "entity_highlight": "Entity highlight",
-      "entity_highlight_desc": "Add a dotted underline to recognized people / places / items.",
-      "auto_link": "Auto element link",
-      "auto_link_desc": "Auto-detect existing element names while you type and link them.",
-      "margin_notes": "Margin notes",
-      "margin_notes_desc": "Show annotation cards on the right margin.",
-      "autosave_desc": "After 3 seconds of idle."
+      "auto_element_link_desc": "Recognize existing element names while typing and link them to their pages."
     },
     "language": {
       "kicker": "LANGUAGE",
       "title": "What language the UI speaks.",
-      "sub": "UI language only — manuscript language is configured below.",
       "ui_locale": "UI language",
-      "ui_locale_desc": "Only the interface text; the manuscript language is set separately below.",
-      "manuscript": "Manuscript",
-      "manuscript_default": "Default manuscript language",
-      "manuscript_default_desc": "Affects spellcheck, line-breaking, and AI writing language.",
-      "spellcheck": "Spellcheck",
-      "spellcheck_desc": "CJK uses a dictionary; English uses the system spell checker.",
-      "date_format": "Dates & numbers",
-      "date_format_desc": "Affects timeline axis labels.",
-      "date_cjk": "CJK",
-      "locales": {
-        "zhCN": "Simplified Chinese",
-        "zhTW": "Traditional Chinese",
-        "default": "Default",
-        "traditional": "Traditional",
-        "beta": "beta"
-      }
+      "ui_locale_desc": "The language of menus, buttons and messages. Your writing is not affected."
     },
     "sync": {
       "local_kicker": "LOCAL DATA",
@@ -531,11 +433,11 @@
         },
         "goBack": {
           "label": "Go back",
-          "desc": "Return to the previous editor page, like browser back"
+          "desc": "Return to the previous page you visited, like browser back"
         },
         "goForward": {
           "label": "Go forward",
-          "desc": "Return to the next editor page, like browser forward"
+          "desc": "Return to the next page you visited, like browser forward"
         },
         "prevTab": {
           "label": "Previous tab",
@@ -595,24 +497,18 @@
       "kicker": "PRIVACY",
       "title": "Where your manuscript stops.",
       "sub": "A plain view of what Drifting uses, what it does not use, and when data leaves your machine.",
-      "noteA": "Public source builds do not contact a Drifting hosted service by default. Author-selected model providers and remote Agent extensions may use the network; this does not upload manuscripts or local assets to Drifting.",
-      "noteBPrefix": "AI requests follow the",
-      "noteBStrong": "selected provider's",
-      "noteBSuffix": "current data and training terms.",
       "dataUsage": "Data use",
-      "improveModels": "Official-service model-improvement opt-in",
-      "improveModelsDesc": "Reserved for a future explicit policy; unavailable in this build.",
-      "usageStats": "Send anonymous usage stats",
-      "usageStatsDesc": "UI clicks, errors, and performance metrics. No manuscript content.",
       "crashLogs": "Send fault diagnostics automatically",
       "crashLogsDesc": "Send sanitized error locations, version and platform to the maintainer to diagnose failures. No manuscript text is included. You can turn this off at any time.",
       "diagnostics": "Sanitized diagnostic summary",
-      "diagnosticsDesc": "Copy version, platform, feature availability, sync counts/error categories, and updater state. It contains no manuscript, credential, project identifier, or absolute path and is never uploaded automatically.",
+      "diagnosticsDesc": "Copy version, platform, feature availability, sync counts/error categories, and update state. It contains no manuscript, credential, project identifier, or absolute path and is never uploaded automatically.",
       "copyDiagnostics": "Copy summary",
       "diagnosticsCopied": "Sanitized diagnostic summary copied.",
       "diagnosticsCopyFailed": "Could not write to the clipboard. Clipboard permission may be unavailable.",
       "fullPolicy": "View full privacy policy",
-      "lastUpdated": "Last updated 2026-10-31"
+      "lastUpdated": "Last updated 2026-10-31",
+      "noteHosted": "Your work is saved on this device first and reaches the Drifting server only when you connect hosted sync (projects and original assets) or create a share link (the shared part). Feedback you send and, when turned on below, crash diagnostics also go to the maintainer; diagnostics contain no manuscript text. AI and voice-transcription requests go straight from this device to the provider you chose, never through Drifting, under that provider's data and training terms; remote MCP extensions you add also use the network.",
+      "noteLocal": "This build never contacts a Drifting server; your work stays on this device. AI and voice-transcription requests go straight from this device to the provider you chose, under that provider's data and training terms; remote MCP extensions you add also use the network."
     },
     "about": {
       "kicker": "ABOUT",
@@ -620,7 +516,6 @@
       "sub": "The ultimate writing experience",
       "version": "Version",
       "channel": "Channel",
-      "channelDev": "Development",
       "channelPreAlpha": "Alpha",
       "engine": "Engine",
       "credits": "Credits and licenses",
@@ -635,7 +530,7 @@
       "licenseDesc": "GNU AGPL v3 or later",
       "viewLicense": "View license",
       "knownIssues": "Known issues",
-      "knownIssuesDesc": "Current Alpha limitations and release blockers",
+      "knownIssuesDesc": "Known limitations of the current Alpha",
       "contact": "Contact",
       "support": "Alpha support",
       "supportDesc": "Troubleshooting and safe reporting instructions",
@@ -649,29 +544,19 @@
     },
     "models": {
       "kicker": "MODEL PROVIDERS",
-      "title": "Manage every AI credential in one place.",
-      "sub": "Each provider has one global API key. General Agent references it instead of saving a separate copy.",
-      "sidebarMeta": "BYOK · local Keychain",
-      "credentialsTitle": "Provider credentials",
-      "credentialsDesc": "Keys are written only to the system Keychain, never localStorage or preference sync. Each feature can still choose its own provider and model.",
+      "title": "The services Drifting's AI features connect to.",
+      "sub": "Each provider keeps one key on this device. Keys connected in the Agent's first-run guide appear here too, where you can test, replace or disconnect them.",
+      "credentialsTitle": "Model providers",
+      "credentialsDesc": "Keys are written only to this device's system keychain; they never sync to other devices or pass through Drifting. Pick the provider and model the Agent uses from the configuration menu in its composer.",
       "providers": {
         "deepseek": "Used by General Agent.",
         "anthropic": "Used by General Agent.",
         "openai": "Used by General Agent.",
-        "openaiCodex": "Experimental: General Agent can run GPT-5.6 on your own ChatGPT subscription through OpenAI's Codex device sign-in. OpenAI offers no third-party contract for this path, so it is unsupported and may stop working without notice; usage counts against your ChatGPT plan.",
+        "openaiCodex": "Experimental: sign in through OpenAI's Codex device flow to run General Agent on your own ChatGPT subscription, with whichever models your account offers; element art generation uses it too. OpenAI offers no third-party contract for this path, so it may stop working without notice; usage counts against your ChatGPT plan.",
         "dashscope": "Used only for voice-input transcription (Qwen3-ASR). Create an API key in the Alibaba Cloud Bailian console."
       },
       "speechTitle": "Voice transcription",
       "speechDesc": "The transcription credential for voice input, separate from the chat providers above. Transcription carries this project's element and setting names to correct proper nouns; requests go directly from this device to Bailian and the key lives only in the system keychain."
-    },
-    "ai": {
-      "tierTitle": "Capability tier",
-      "byokTitle": "Bring your own key · BYOK",
-      "modelTitle": "Model",
-      "preAlphaByokOnly": "Alpha AI features are Experimental and provide no hosted model or Drifting AI quota. Every call requires your own API key and follows that provider's billing, privacy, retention, training, and output terms.",
-      "preAlphaAgentCredentials": "General Agent uses the BYOK API key for your selected provider. Each provider key is stored separately in the local Keychain and does not use Drifting-hosted quota.",
-      "hostedByokOnlyTitle": "Hosted is unavailable · beta only supports BYOK",
-      "disabledSuffix": " · Unavailable"
     },
     "byokProvider": {
       "ownKey": "Own key",
@@ -680,8 +565,6 @@
       "testing": "Testing…",
       "available": "Available",
       "editKey": "Edit key",
-      "currentByok": "Current BYOK",
-      "setCurrent": "Set current",
       "invalidKey": "Invalid key",
       "requestFailed": "Request failed (provider unavailable or network issue)"
     },
@@ -706,61 +589,16 @@
         "storage_failed": "The sign-in could not be saved to Keychain."
       }
     },
-    "agentAuth": {
-      "statusTitle": "Status",
-      "hostedReady": "Ready",
-      "hostedSignedOut": "Signed out",
-      "hostedReadyDesc": "Signed in to Drifting; hosted Agent quota is available.",
-      "hostedSignedOutDesc": "Hosted Agent requires signing in to a Drifting account in Account.",
-      "hostedAvailable": "Available",
-      "hostedUnavailable": "Not ready",
-      "pasteApiKey": "Paste the selected provider API key:",
-      "filled": "Filled",
-      "notFilled": "Not filled",
-      "apiKeyFilledDesc": "Agent uses the selected provider API key. The key stays in the local Keychain.",
-      "apiKeyEmptyDesc": "Add an API key for the selected provider to enable Agent tasks.",
-      "enterKey": "Enter key",
-      "oauthTitle": "Claude account · OAuth",
-      "connected": "Connected",
-      "notConnected": "Not connected",
-      "oauthConnectedDesc": "Agent will call Anthropic directly with your Claude account.",
-      "oauthEmptyDesc": "Authorize with your Claude account (Max/Pro). The browser opens; paste the code back here.",
-      "connectClaude": "Connect Claude",
-      "pasteCode": "Paste authorization code:",
-      "verifying": "Verifying…",
-      "submit": "Submit"
-    },
     "agent": {
       "kicker": "GENERAL AGENT · EXPERIMENTAL",
       "title": "The experimental agent in the right rail that can act.",
-      "sub": "A BYOK provider-neutral Agent running inside the Tauri renderer. Review every action; provider costs, privacy, retention, training terms, and output risk apply.",
+      "sub": "Runs on your own model keys or ChatGPT subscription, with requests going straight from this device to the provider you chose. Review every change it makes; that provider's costs, privacy, retention, training terms and output risks apply.",
       "unavailableTitle": "General Agent runtime is not installed",
       "unavailableStatus": "No active transport",
       "unavailableReason": "This window has no usable Agent model driver or tool runtime.",
       "unavailableFuture": "Reopen the project. If this persists, check the app version and the selected provider API key.",
-      "credentialPrivacy": "Credentials are stored locally; proxy mode forwards them transiently to the configured service.",
       "chatConfigTitle": "Chat configuration",
-      "chatConfigDesc": "Choose provider, model, and reasoning from the configuration menu beside the General Agent composer. Manage API keys centrally under Models & API.",
-      "hostedDisabledTitle": "Hosted is unavailable · beta uses your own provider API key",
-      "auth": {
-        "oauth": {
-          "kicker": "CLAUDE ACCOUNT",
-          "name": "Own Claude",
-          "desc": "Sign in with your Claude account (Max/Pro) via OAuth and call Anthropic directly without hosted quota."
-        },
-        "apikey": {
-          "kicker": "PROVIDER · BYOK",
-          "name": "Own API key",
-          "desc": "Use the currently selected provider API key; it stays only in the local Keychain."
-        },
-        "hosted": {
-          "kicker": "HOSTED",
-          "name": "Hosted subscription",
-          "desc": "Use Drifting routing and quota without your own Claude account or key."
-        }
-      },
-      "chatModel": "Chat model",
-      "chatModelDesc": "The model list follows the provider; provider and model are frozen when each turn starts.",
+      "chatConfigDesc": "Choose the provider, model and reasoning effort from the configuration menu in the Agent composer in the right rail. Keys and the ChatGPT subscription are managed under Models & API.",
       "modelOptions": {
         "deepseek-v4-flash": {
           "label": "DeepSeek Flash · fast",
@@ -791,18 +629,6 @@
           "short": "5.6 Luna"
         }
       },
-      "reasoningTitle": "Reasoning",
-      "thinking": "Extended thinking",
-      "thinkingDesc": "Uses the selected provider's native reasoning mode and preserves its opaque tool-loop replay state for the active turn.",
-      "thinkingUnavailable": "This model does not expose a certified thinking mode.",
-      "effort": "Thinking effort",
-      "effortDesc": "Available effort levels follow the selected provider and model; the value is frozen when a turn starts.",
-      "effortUnavailable": "This model does not expose a certified effort control.",
-      "notSupported": "Not supported",
-      "thinkingOptions": {
-        "off": "Off",
-        "adaptive": "Adaptive"
-      },
       "effortOptions": {
         "minimal": "Minimal",
         "low": "Low",
@@ -811,14 +637,6 @@
         "xhigh": "Extra high",
         "max": "Max",
         "ultra": "Ultra"
-      },
-      "toolSearchTitle": "Tool search",
-      "toolSearch": "Tool search",
-      "toolSearchDesc": "The model retrieves tool schemas with tool_search. The complete directory and dispatch entrypoints stay fixed; search results are appended to conversation context.",
-      "toolSearchOptions": {
-        "off": "Off · Load all tool schemas",
-        "auto": "Auto · On-demand tool discovery",
-        "on": "On · On-demand tool discovery"
       },
       "extensions": {
         "title": "MCP extensions",
@@ -893,28 +711,15 @@
       "unlimitedHint": "With Unlimited, the only brake is stopping the turn yourself."
     },
     "agentMemory": {
-      "title": "Project memory",
-      "desc": "Long-term rules controlled by you. Active preferences, directives, and vetoes are injected verbatim into future chats; you can add or delete them at any time. Rules proposed by Agent require your approval, and the product adds no hidden writing policy.",
-      "kind": {
-        "preference": "Preference",
-        "directive": "Directive",
-        "veto": "Veto"
-      },
-      "placeholder": "Add a project rule…",
-      "add": "Add",
-      "empty": "No long-term rules yet.",
-      "pending": "Pending approval",
-      "approve": "Approve",
-      "deleteConfirm": "Delete this rule? It will no longer affect future chats or reviews."
+      "title": "Project memory"
     },
     "agentUsage": {
       "usage": "Usage",
-      "usageDesc": "How many tokens Agent used and what it cost in this project. Usage is recorded from each returned turn, including cached input reads. In self-paid mode this is your real spend, stored locally. View by this month or all time.",
+      "usageDesc": "How many tokens Agent used in this project, recorded from each returned turn (input includes cached reads). View by this month or all time.",
       "noProjectUsage": "Open a project to view Agent usage.",
       "month": "This month",
       "all": "All time",
       "tokenCard": "{{scope}} Token",
-      "costCard": "{{scope}} cost",
       "conversationsTurns": "Conversations / turns",
       "history": "Conversation history",
       "historyDesc": "All Agent conversations in this project. Delete is soft delete and syncs with the right rail History without affecting other projects.",
@@ -1212,8 +1017,6 @@
   },
   "trashPanel": {
     "noProject": "Open a project first.",
-    "proTitle": "Trash · Pro",
-    "proDesc": "Soft delete and Trash are Pro / Studio features. This account is on the free plan, so deletes remain permanent.",
     "title": "Trash",
     "retention": "Kept locally until you delete it",
     "clear": "Empty trash",

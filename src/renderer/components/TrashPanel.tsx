@@ -6,7 +6,6 @@ import { useBookNode } from '../usecase/useBookNode';
 import { useBookElement } from '../usecase/useBookElement';
 import { useStoryline } from '../usecase/useStoryline';
 import { useElementCategory } from '../usecase/useElementCategory';
-import { useCanUseFeature } from '../lib/feature-access';
 import { requestConfirmation } from '../store/confirmation-store';
 import { getPlatformRuntime } from '../platform/runtime';
 import { BrushIcon } from './ui/BrushIcon';
@@ -34,24 +33,11 @@ export function TrashPanel() {
   const { t } = useTranslation();
   const userId = useAuthStore((s) => s.user?.id);
   const projectId = useProjectStore((s) => s.currentProject?.id ?? null);
-  const canTrash = useCanUseFeature('trash');
 
   if (!userId || !projectId) {
     if (onDesktop()) return <EmptyState icon="trash" message={t('trashPanel.noProject')} />;
     return (
       <div style={{ padding: 24, color: 'hsl(var(--ink-4))' }}>{t('trashPanel.noProject')}</div>
-    );
-  }
-
-  if (!canTrash) {
-    if (onDesktop()) return <EmptyState icon="trash" message={t('trashPanel.proDesc')} />;
-    return (
-      <div style={{ padding: 24, color: 'hsl(var(--ink-4))', maxWidth: 480 }}>
-        <h3 style={{ marginBottom: 8 }}>{t('trashPanel.proTitle')}</h3>
-        <p style={{ fontSize: 13, lineHeight: 1.6 }}>
-          {t('trashPanel.proDesc')}
-        </p>
-      </div>
     );
   }
 

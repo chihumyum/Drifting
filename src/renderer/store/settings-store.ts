@@ -123,7 +123,7 @@ export type AgentToolSearch = 'off' | 'auto' | 'on';
 
 /** Product default for a fresh General Agent installation. */
 export const AGENT_TOOL_SEARCH_DEFAULT: AgentToolSearch = 'auto';
-export const SETTINGS_STORAGE_VERSION = 33;
+export const SETTINGS_STORAGE_VERSION = 34;
 
 /**
  * The Agent panel's first run (features/agent/onboarding): `new` until the
@@ -155,6 +155,20 @@ const RETIRED_COPILOT_SETTINGS = [
   'copilotSummarySectionSize',
   'copilotInlineEditAllowNewContent',
   'copilotOutputLangByProject',
+] as const;
+
+/**
+ * Persisted keys of settings no runtime ever read (autosave, manuscript
+ * language, spellcheck, date format) and of the placeholder privacy toggles,
+ * dropped by the v34 migration.
+ */
+const RETIRED_UNWIRED_SETTINGS = [
+  'autosave',
+  'manuscriptLocale',
+  'spellcheck',
+  'dateFormat',
+  'improveModelsWithManuscripts',
+  'sendUsageStats',
 ] as const;
 
 /**
@@ -220,7 +234,6 @@ export const AGENT_EFFORT_OPTIONS: { value: AgentEffort; label: string; short: s
   { value: 'max', label: 'Max', short: 'Max' },
 ];
 export type LocaleCode = 'zh-CN' | 'zh-TW' | 'en' | 'ja' | 'ko' | 'fr';
-export type DateFormat = 'cjk' | 'iso' | 'us';
 
 function normalizeUiLocale(locale: LocaleCode): LocaleCode {
   return locale.startsWith('zh') ? 'zh-CN' : 'en';
@@ -294,18 +307,10 @@ interface SettingsState {
   entityLinkKindColors: EntityLinkKindColors;
   setEntityLinkKindColor: (kind: EntityLinkColorKind, color: string) => void;
   setEntityLinkKindColors: (colors: unknown) => void;
-  autosave: boolean;
-  setAutosave: (on: boolean) => void;
 
   // 语言
   uiLocale: LocaleCode;
   setUiLocale: (l: LocaleCode) => void;
-  manuscriptLocale: LocaleCode;
-  setManuscriptLocale: (l: LocaleCode) => void;
-  spellcheck: boolean;
-  setSpellcheck: (on: boolean) => void;
-  dateFormat: DateFormat;
-  setDateFormat: (f: DateFormat) => void;
 
   // General Agent credential token. Current BYOK-only builds coerce this to
   // `apikey`; the actual provider/model are chosen in the chat composer.
@@ -355,10 +360,6 @@ interface SettingsState {
   setAutoSnapshot: (on: boolean) => void;
 
   // 隐私
-  improveModelsWithManuscripts: boolean;
-  setImproveModelsWithManuscripts: (on: boolean) => void;
-  sendUsageStats: boolean;
-  setSendUsageStats: (on: boolean) => void;
   sendCrashLogs: boolean;
   setSendCrashLogs: (on: boolean) => void;
 }
@@ -452,17 +453,9 @@ export const useSettingsStore = create<SettingsState>()(
         })),
       setEntityLinkKindColors: (colors) =>
         set({ entityLinkKindColors: normalizeEntityLinkKindColors(colors) }),
-      autosave: true,
-      setAutosave: (on) => set({ autosave: on }),
 
       uiLocale: 'zh-CN',
       setUiLocale: (l) => set({ uiLocale: normalizeUiLocale(l) }),
-      manuscriptLocale: 'zh-CN',
-      setManuscriptLocale: (l) => set({ manuscriptLocale: l }),
-      spellcheck: true,
-      setSpellcheck: (on) => set({ spellcheck: on }),
-      dateFormat: 'cjk',
-      setDateFormat: (f) => set({ dateFormat: f }),
 
       agentAuth: 'apikey',
       setAgentAuth: (auth) => set({ agentAuth: auth === 'hosted' ? 'apikey' : auth }),
@@ -545,10 +538,6 @@ export const useSettingsStore = create<SettingsState>()(
       autoSnapshot: true,
       setAutoSnapshot: (on) => set({ autoSnapshot: on }),
 
-      improveModelsWithManuscripts: false,
-      setImproveModelsWithManuscripts: (on) => set({ improveModelsWithManuscripts: on }),
-      sendUsageStats: false,
-      setSendUsageStats: (on) => set({ sendUsageStats: on }),
       // Content-free crash and integrity reports; see services/diagnostics/crash-reporter.ts.
       sendCrashLogs: true,
       setSendCrashLogs: (on) => set({ sendCrashLogs: on }),
@@ -757,6 +746,10 @@ export const useSettingsStore = create<SettingsState>()(
         }
         if (version < 33) {
           next.agentOnboardingStep = agentOnboardingStepForExistingInstall(next.lastAgentConvByProject);
+        }
+        if (version < 34) {
+          const retired = next as unknown as Record<string, unknown>;
+          for (const key of RETIRED_UNWIRED_SETTINGS) delete retired[key];
         }
         return next;
       },
