@@ -98,14 +98,15 @@ describe('hosted settings boundary', () => {
     };
     const zh = JSON.parse(read('src/renderer/locales/zh-CN.json')) as typeof en;
 
-    // Device preferences are never synced, not even by Hosted.
-    expect(en.settings.editor.caret_color_desc).toContain('Saved on this device only');
-    expect(en.settings.editor.entity_link_style_desc).toContain('Saved on this device only');
-    expect(en.settings.editor.caret_color_desc).not.toContain('sync');
+    // These follow a Hosted account (docs/hosted-sync/preferences.md) but local
+    // builds show them too, so their copy names neither sync nor device-only storage.
+    for (const desc of [en.settings.editor.caret_color_desc, en.settings.editor.entity_link_style_desc]) {
+      expect(desc).not.toMatch(/sync|this device/i);
+    }
+    for (const desc of [zh.settings.editor.caret_color_desc, zh.settings.editor.entity_link_style_desc]) {
+      expect(desc).not.toMatch(/同步|本机|这台设备/);
+    }
     expect(en.settings.keys.actions.saveCurrentEditor.desc).toContain('local storage');
-    expect(zh.settings.editor.caret_color_desc).toContain('只保存在这台设备上');
-    expect(zh.settings.editor.entity_link_style_desc).toContain('只保存在这台设备上');
-    expect(zh.settings.editor.entity_link_style_desc).not.toContain('同步');
     expect(zh.settings.keys.actions.saveCurrentEditor.desc).toContain('本地存储');
   });
 

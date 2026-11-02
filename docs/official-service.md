@@ -19,7 +19,8 @@ retired Subscription entry is absent from every build. Privacy also
 omits the hosted telemetry controls rather than presenting disabled upload or
 official-service placeholders; a Hosted build shows only the crash-diagnostics
 switch, and each build's Privacy note names exactly when work leaves the device
-(Hosted: hosted sync, share links, feedback and diagnostics; both: direct
+(Hosted: hosted sync, account preferences, share links, feedback and
+diagnostics; both: direct
 requests to the chosen AI or transcription provider and remote MCP extensions).
 The first-run guide describes the local data
 boundary and offers only Continue locally; it has no quick-guide

@@ -292,9 +292,9 @@
       "typewriter_position": "Typing line position",
       "typewriter_position_desc": "Percentage from the top of the editor: 25% high, 50% centered, 75% low.",
       "caret_color": "Caret color",
-      "caret_color_desc": "Choose the prose insertion caret color. Saved on this device only.",
+      "caret_color_desc": "Choose the prose insertion caret color.",
       "entity_link_style": "Entity Link highlight",
-      "entity_link_style_desc": "Use owner colors, one custom color per entity type, reveal owner colors only on hover, or keep prose-colored text with a band. Saved on this device only.",
+      "entity_link_style_desc": "Use owner colors, one custom color per entity type, reveal owner colors only on hover, or keep prose-colored text with a band.",
       "entity_link_style_contextual": "By owner",
       "entity_link_style_kind": "By type",
       "entity_link_style_hover": "Hover only",
@@ -507,7 +507,7 @@
       "diagnosticsCopyFailed": "Could not write to the clipboard. Clipboard permission may be unavailable.",
       "fullPolicy": "View full privacy policy",
       "lastUpdated": "Last updated 2026-10-31",
-      "noteHosted": "Your work is saved on this device first and reaches the Drifting server only when you connect hosted sync (projects and original assets) or create a share link (the shared part). Feedback you send and, when turned on below, crash diagnostics also go to the maintainer; diagnostics contain no manuscript text. AI and voice-transcription requests go straight from this device to the provider you chose, never through Drifting, under that provider's data and training terms; remote MCP extensions you add also use the network.",
+      "noteHosted": "Your work is saved on this device first and reaches the Drifting server only when you connect hosted sync (projects and original assets) or create a share link (the shared part). With hosted sync connected, preferences such as appearance, typography and shortcuts also follow your account. Feedback you send and, when turned on below, crash diagnostics also go to the maintainer; diagnostics contain no manuscript text. AI and voice-transcription requests go straight from this device to the provider you chose, never through Drifting, under that provider's data and training terms; remote MCP extensions you add also use the network.",
       "noteLocal": "This build never contacts a Drifting server; your work stays on this device. AI and voice-transcription requests go straight from this device to the provider you chose, under that provider's data and training terms; remote MCP extensions you add also use the network."
     },
     "about": {

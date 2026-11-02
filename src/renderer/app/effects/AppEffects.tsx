@@ -190,16 +190,22 @@ function SyncEngineEffects() {
     const stopHostedProvisioning = installHostedSyncGenerationProvisioningRuntime();
     const stopHostedDiscovery = installHostedDiscoveryRuntime();
     const stopSync = installProductionSyncRuntime();
-    // Readers' comments on share links; only Hosted-configured builds load it.
+    // Readers' comments on share links and the account's preferences; only
+    // Hosted-configured builds load them.
     let stopShareInbox: (() => void) | undefined;
+    let stopPreferenceSync: (() => void) | undefined;
     let disposed = false;
     if (!APP_CONFIG.LOCAL_ONLY_MODE) {
       void import('../../features/share-links/share-inbox-runtime').then((module) => {
         if (!disposed) stopShareInbox = module.installShareInboxRuntime();
       });
+      void import('../../features/preference-sync/preference-sync-runtime').then((module) => {
+        if (!disposed) stopPreferenceSync = module.installPreferenceSyncRuntime();
+      });
     }
     return () => {
       disposed = true;
+      stopPreferenceSync?.();
       stopShareInbox?.();
       stopHostedDiscovery();
       stopHostedProvisioning();

@@ -48,7 +48,10 @@ notification bell for problems the author has to act on. See
 [sync status](sync-status.md).
 
 [Account settings](account-settings.md) supports changing the display name,
-choosing/removing an avatar and changing the password. Password changes verify
+choosing/removing an avatar and changing the password. With sync connected,
+appearance, typography, writing behaviour, interface language and shortcuts
+follow the account; device-bound settings stay local. See
+[account preferences](preferences.md). Password changes verify
 the current password and sign out other devices while rotating this device's
 session. The existing local library and sync ownership remain unchanged.
 
