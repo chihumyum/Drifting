@@ -3,7 +3,7 @@
     "file": ".driftingbook: CBOR envelope around a payload v2 snapshot package, its commit marker and asset variants",
     "import": "validated as a restore; every row id replaced; reducer state replayed as local authored change-sets; one transaction",
     "sourceSha256": {
-      "docs/book-transfer.md": "906f6d2be46cbda8f8a7e57b21377a551f0854160ad12889fa46e547c16a69ee",
+      "docs/book-transfer.md": "aafff42fe838e41ce25ee23e75f261c872ac30b89200b6e8b190eb0564f34121",
       "scripts/generate-book-transfer-evidence.mjs": "282ea7789f13deacedc66aaa3c4e0d4321a2ea5ed5dec943aa94b74059e94a04",
       "src-tauri/src/book_transfer.rs": "3fb7b4ebb4e3c0816867dcf49ce188ad748441e8a840f14c7e7e34c85d1321fa",
       "src/renderer/components/topBars/UserMenu.tsx": "a9a33a92024e5c1090384efd11c5a2fa56cf0fd993a361ef23bed3505d136faa",

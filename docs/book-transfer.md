@@ -14,10 +14,13 @@ overwrites a book: it always adds a new one.
 ## What the author sees
 
 - **Export**: the arrow-out icon among a book card's hover actions on the shelf
-  (beside edit and move to Recently Deleted). Drifting saves pending edits,
-  builds the file and asks where to save `<book name>.driftingbook`.
-- **Import**: *Import book* in the shelf's account menu. After a file is picked
-  an *Importing* card stands on the shelf until the book appears.
+  (beside edit and move to Recently Deleted), labelled *Export this book
+  (.driftingbook)*. Drifting saves pending edits, builds the file and asks
+  where to save `<book name>.driftingbook`.
+- **Import**: *Import book (.driftingbook)* in the shelf's account menu. Both
+  labels name the extension, so the import is not mistaken for the in-book
+  manuscript import (Word, Markdown). After a file is picked an *Importing*
+  card stands on the shelf until the book appears.
 - A failed import names the reason (not a Drifting book, exported by a newer
   Drifting, damaged, too large, the account's storage is full, or a write
   failure) and leaves the library as it was.
