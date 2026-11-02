@@ -9,10 +9,13 @@ import * as Y from 'yjs';
 import { ProductFileBackedSqliteGateway } from '../../lib/agent/runtime/acceptance/p3-file-backed-sqlite';
 import { createYjsProseSeedState } from '../../lib/agent/runtime/yjs-prose-command';
 import { legacyUrlNoteBodyJson, type LibraryItem } from '../../domain/library-item';
+import { cellKey, diffPlotGrid, type PlotGrid } from '../../domain/plot-grid';
 import type { ProjectAsset } from '../../domain/project-asset';
 import { createLibraryItemSqliteRepository } from '../../sqlite-repo/library-item-repo';
+import { createPlotGridRepository } from '../../sqlite-repo/plot-grid-repo';
 import { createProjectAssetSqliteRepository } from '../../sqlite-repo/project-asset-repo';
 import { deleteLibraryItemInTransaction } from '../../usecase/library-item-deletion';
+import { applyPlotGridMutationsInTransaction } from '../../usecase/plot-grid-write';
 import type { AtomicSyncWriter } from '../../usecase/sync-helpers';
 import { libraryMutationPayload } from '../../usecase/library-item-payload';
 import type { DbClient, DbTransaction } from '../../lib/db';
@@ -1990,5 +1993,114 @@ describe('binary materials across devices', () => {
     ], { writerId: 'device-c', writerEpoch: 'epoch-c', wallMs: 1_700_000_000_040 });
     expect((await apply(b, later, deviceB)).conflicts).toEqual([]);
     expect(await materialRows(b)).toEqual([{ id: material.item.id, kind: 'image', title: 'Imported', assetId: material.asset.id }]);
+  });
+});
+
+describe('plot grids across devices', () => {
+  const deviceA: SyncWriterIdentitySource = {
+    installationId: 'device-a-installation',
+    createWriterIdentity: () => ({ writerId: 'device-a', writerEpoch: 'epoch-a' }),
+  };
+  const deviceB: SyncWriterIdentitySource = {
+    installationId: 'device-b-installation',
+    createWriterIdentity: () => ({ writerId: 'device-b', writerEpoch: 'epoch-b' }),
+  };
+
+  /** Writes the way the editor and the Agent do: one change set per edit. */
+  function editOn(db: DbClient, nowMs: number, previous: PlotGrid | null, next: PlotGrid, device = deviceA) {
+    return author(db, nowMs, (tx, changes) => applyPlotGridMutationsInTransaction(tx, changes, {
+      projectId: PROJECT_ID,
+      nodeId: NODE_ID,
+      mutations: diffPlotGrid(previous, next),
+    }).then(() => undefined), device);
+  }
+
+  const projection = (db: DbClient) => createPlotGridRepository(db).materializeProjection(NODE_ID);
+
+  it('lands a grid created with its cells on another device, then its new row and its removal', async () => {
+    const a = await createDatabase();
+    const b = await createDatabase();
+    // Cell ids sort before column and row ids, and the grid document arrives
+    // as a tuple: the first change set brings all of them at once.
+    const created: PlotGrid = {
+      rows: [{ id: 'r-one', label: 'Morning' }, { id: 'r-two', label: 'Night' }],
+      cols: [{ id: 'c-one', label: 'Ana' }, { id: 'c-two', label: 'Ben' }],
+      cells: { [cellKey('r-one', 'c-one')]: 'wakes', [cellKey('r-two', 'c-two')]: 'leaves' },
+      cellW: 200,
+      cellH: 120,
+    };
+    expect((await apply(b, await editOn(a, 1_700_000_000_010, null, created), deviceB)).conflicts).toEqual([]);
+    expect(await projection(b)).toBe(await projection(a));
+    expect(await projection(b)).not.toBeNull();
+
+    // An existing grid gains a row and a cell in it in one change set.
+    const grown: PlotGrid = {
+      ...created,
+      rows: [...created.rows, { id: 'r-three', label: 'Dawn' }],
+      cells: { ...created.cells, [cellKey('r-three', 'c-one')]: 'returns' },
+    };
+    expect((await apply(b, await editOn(a, 1_700_000_000_020, created, grown), deviceB)).conflicts).toEqual([]);
+    expect(await projection(b)).toBe(await projection(a));
+
+    // A restart re-materializes every live entity from the reducer state.
+    invalidateSqliteReducerStateCache();
+    const unrelated = await changeSet(1, [
+      { action: 'field.set', kind: 'node', id: NODE_ID, payload: { field: 'title', value: 'After restart' } },
+    ], { writerId: 'device-c', writerEpoch: 'epoch-c', wallMs: 1_700_000_000_030 });
+    expect((await apply(a, unrelated, deviceA)).conflicts).toEqual([]);
+    expect((await apply(b, unrelated, deviceB)).conflicts).toEqual([]);
+    expect(await projection(b)).toBe(await projection(a));
+
+    const shrunk: PlotGrid = {
+      ...grown,
+      rows: grown.rows.filter(({ id }) => id !== 'r-one'),
+      cells: Object.fromEntries(Object.entries(grown.cells).filter(([key]) => !key.startsWith('r-one:'))),
+    };
+    expect((await apply(b, await editOn(a, 1_700_000_000_040, grown, shrunk), deviceB)).conflicts).toEqual([]);
+    expect(await projection(b)).toBe(await projection(a));
+    expect(await projection(b)).not.toContain('wakes');
+  });
+
+  it('lets a row removal win over a concurrent new cell in that row, on both devices', async () => {
+    const a = await createDatabase();
+    const b = await createDatabase();
+    const created: PlotGrid = {
+      rows: [{ id: 'r-one', label: '' }, { id: 'r-two', label: '' }],
+      cols: [{ id: 'c-one', label: '' }, { id: 'c-two', label: '' }],
+      cells: { [cellKey('r-two', 'c-two')]: 'leaves' },
+      cellW: 200,
+      cellH: 120,
+    };
+    expect((await apply(b, await editOn(a, 1_700_000_000_010, null, created), deviceB)).conflicts).toEqual([]);
+
+    // Each device keeps its own reducer state; these two databases share one
+    // cache key, so every switch between them starts from SQLite.
+    invalidateSqliteReducerStateCache();
+    const removed = await editOn(b, 1_700_000_000_020, created, {
+      ...created,
+      rows: [{ id: 'r-one', label: '' }],
+      cells: {},
+    }, deviceB);
+    invalidateSqliteReducerStateCache();
+    const filled = await editOn(a, 1_700_000_000_021, created, {
+      ...created,
+      cells: { ...created.cells, [cellKey('r-two', 'c-one')]: 'late' },
+    });
+    invalidateSqliteReducerStateCache();
+    expect((await apply(b, filled, deviceB)).conflicts).toEqual([]);
+    invalidateSqliteReducerStateCache();
+    expect((await apply(a, removed, deviceA)).conflicts).toEqual([]);
+    expect(await projection(a)).toBe(await projection(b));
+    expect(await projection(a)).not.toContain('late');
+
+    // A restart replays the cell as live; it still stays out.
+    invalidateSqliteReducerStateCache();
+    const unrelated = await changeSet(1, [
+      { action: 'field.set', kind: 'node', id: NODE_ID, payload: { field: 'title', value: 'After restart' } },
+    ], { writerId: 'device-c', writerEpoch: 'epoch-c', wallMs: 1_700_000_000_030 });
+    expect((await apply(a, unrelated, deviceA)).conflicts).toEqual([]);
+    invalidateSqliteReducerStateCache();
+    expect((await apply(b, unrelated, deviceB)).conflicts).toEqual([]);
+    expect(await projection(a)).toBe(await projection(b));
   });
 });
