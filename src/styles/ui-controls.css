@@ -154,11 +154,9 @@ html[data-shell-mode='desktop'] .workspace-panel-header-row .agt-toolbar-action 
 
 /* Desktop panes can narrow to their labels. Intrinsic bases give longer
    English labels room without reserving the same empty width for short ones.
-   Large activity counts remain reachable by scrolling/focusing the tab row. */
+   Unread Agent dots hang off the labels and need no width of their own. */
 html[data-shell-mode='desktop'] :is(.leftbar-tab-tray, .rightbar-tab-tray) {
   gap: 12px;
-  overflow-x: auto;
-  scrollbar-width: none;
 }
 
 html[data-shell-mode='desktop'] :is(.leftbar-tab-tray, .rightbar-tab-tray) > .app-panel-tab {

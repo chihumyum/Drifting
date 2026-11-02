@@ -10,7 +10,7 @@ import { type GroupActivity } from './agentActivityBubble';
 import { PanelTab as SharedPanelTab, PanelTabLabel, PanelTabRowEdges, PanelTabTray } from '../ui/PanelTabs';
 import { useSidebarTabMinimumWidth } from '../../hooks/useSidebarTabMinimumWidth';
 import { useAgentUnreadMarks } from '../../hooks/useAgentUnreadMarks';
-import { AgentCountBadge } from './AgentCountBadge';
+import { AgentChangeIndicator } from './AgentChangeIndicator';
 import { SidebarHeaderChrome, SidebarToggleSlot } from '../workspaceChrome/WindowControlButtons';
 import { getPlatformRuntime } from '../../platform/runtime';
 
@@ -44,7 +44,7 @@ export function LeftSidebarHeader({ paneId, activeTab, windowChrome = false }: {
   const tabTrayRef = useSidebarTabMinimumWidth('left');
 
   // Aggregate unviewed activity into the persistent text labels. Busy labels
-  // pulse; completed changes append their count until reviewed.
+  // pulse; completed changes leave a sand dot on the label until reviewed.
   const agentActive = useAgentActivityStore((s) => s.active);
   const agentTouched = useAgentUnreadMarks();
   const bookNodes = useDataStore((s) => s.bookNodes);
@@ -138,10 +138,11 @@ function PanelTab({
   const { t } = useTranslation();
   const busy = activity?.busy ?? false;
   const doneCount = activity?.doneCount ?? 0;
+  const unread = !busy && doneCount > 0;
   const statusTitle = busy
     ? t('agentActivity.working')
-    : doneCount > 0
-      ? t('agentActivity.unviewedChanges')
+    : unread
+      ? t('agentActivity.unviewedChangeCount', { count: doneCount })
       : undefined;
   return (
     <div
@@ -154,7 +155,7 @@ function PanelTab({
         aria-label={statusTitle ? `${label}: ${statusTitle}` : label}
         active={isActive}
         typography="label"
-        style={{ flex: 1, color: 'inherit' }}
+        style={{ color: 'inherit' }}
       >
         <span
           className={busy ? 'agent-glyph-busy' : undefined}
@@ -163,12 +164,18 @@ function PanelTab({
           <PanelTabLabel>{label}</PanelTabLabel>
         </span>
       </SharedPanelTab>
-      {!busy && doneCount > 0 && (
-        <AgentCountBadge
-          count={doneCount}
-          title={`${label}: ${t('agentActivity.unviewedChanges')}`}
-          onClick={onAgentSeen}
-        />
+      {/* A zero-width slot right after the words: the dot hangs off the
+          label's upper corner and never asks the row for room. */}
+      {unread && (
+        <span className="agent-panel-tab__mark">
+          <AgentChangeIndicator
+            className="agent-tab-dot"
+            title={`${label}: ${statusTitle}`}
+            onClick={onAgentSeen}
+          >
+            <i className="sand sand--blob-2" />
+          </AgentChangeIndicator>
+        </span>
       )}
     </div>
   );

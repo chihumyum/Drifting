@@ -9,10 +9,10 @@
  * The same signal bubbles UP two layers — cell → group (storyline/category)
  * header → left tab switcher. While a child is busy the parent keeps its own
  * glyph and blinks it in accent; only once the run finishes and leaves unviewed
- * changes (busy is false) is the glyph REPLACED by a plain count of the
- * changed-but-unopened children (`.agent-count`). The count reverts to the
- * glyph once the user has reviewed everything (count → 0). See
- * agentActivityBubble.ts.
+ * changes (busy is false) does a group's glyph give way to a plain count of the
+ * changed-but-unopened children (`.agent-count`), and a tab's label gain one
+ * sand dot (`.agent-tab-dot`). Both go once the user has reviewed everything
+ * (count → 0). See agentActivityBubble.ts.
  */
 
 /* Working: the glyph pulses opacity and an accent glow. drop-shadow follows the
@@ -123,12 +123,51 @@
   outline-offset: 2px;
 }
 
-.agent-panel-tab > .agent-count {
-  align-self: stretch;
-  min-width: 16px;
-  margin-right: 4px;
+/* A left panel tab: its button holds only the words, centred in the tab's
+   share of the row, and reaches over the whole share through ::before. Unread
+   changes leave one sand dot at the label's upper corner, hung from a
+   zero-width slot after the words, so the dot never asks the row for room:
+   the sidebar's minimum (labels, 12px gaps, 6px ends) holds with dots on. */
+.agent-panel-tab {
+  gap: 0;
+}
+
+.agent-panel-tab > .app-panel-tab {
+  position: static;
+  flex: none;
+}
+
+.agent-panel-tab > .app-panel-tab::before {
+  content: '';
+  position: absolute;
+  inset: 0;
 }
 
 html[data-shell-mode='desktop'] .agent-panel-tab > .app-panel-tab {
   padding-inline: 0;
+}
+
+.agent-panel-tab__mark {
+  position: relative;
+  z-index: 1;
+  align-self: stretch;
+  width: 0;
+  font-size: var(--ui-font-secondary, 11.5px);
+}
+
+/* The hit area is a little larger than the dot and, on the last tab, ends
+   where the row's 6px end does. */
+.agent-change-indicator.agent-tab-dot {
+  position: absolute;
+  left: -2px;
+  top: calc(50% - 0.45em - 5px);
+  width: 8px;
+  height: 10px;
+  padding: 0;
+}
+
+.agent-tab-dot .sand {
+  --sand-c: hsl(var(--ink-2));
+  width: 6px;
+  height: 6px;
 }

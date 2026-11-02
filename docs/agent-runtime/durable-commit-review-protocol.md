@@ -20,10 +20,12 @@ through their original guarded recovery before remaining blocks settle.
 Historical `approve` snapshot values remain readable; no product setting or
 debug request can select that mode. A test-only override exercises old receipts.
 
-Sidebar A/M markers and group/tab counts are unread presentation. Clicking an
-item marker marks only that entity read; a group count marks its descendants;
-a group A/M marks the group itself; a chapter/element/drift tab count marks its
-panel. These buttons do not open editors, collapse groups, or switch tabs. Hover
+Sidebar A/M markers, group counts and tab dots are unread presentation.
+Clicking an item marker marks only that entity read; a group count marks its
+descendants; a group A/M marks the group itself; the sand dot on a
+chapter/element/drift tab marks its panel. A tab shows no number: the dot hangs
+off the label's upper corner without width, and the tab's tooltip names the
+count. These buttons do not open editors, collapse groups, or switch tabs. Hover
 replaces the label with a centered sand-brush check exactly one digit wide (`1ch`) and
 one font em tall, preserving width, ink, background, border and shadow. Both directions
 crossfade over 140 ms; reduced-motion preferences disable that transition.
