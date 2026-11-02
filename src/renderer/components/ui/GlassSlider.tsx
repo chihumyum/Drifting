@@ -126,9 +126,16 @@ function GlassSliderTrack<T extends string>({
       const chosen = [...track.querySelectorAll<HTMLElement>('[data-value]')].find(
         (option) => option.dataset.value === value,
       );
-      if (chosen) {
-        setThumb({ x: chosen.offsetLeft, y: chosen.offsetTop, w: chosen.offsetWidth, h: chosen.offsetHeight });
-      }
+      if (!chosen) return;
+      // Measured to the subpixel: whole-pixel offsets left the words up to a
+      // pixel off centre. A scaled ancestor (a menu still opening) would
+      // scale the boxes too, so there the offsets stand.
+      const box = chosen.getBoundingClientRect();
+      const origin = track.getBoundingClientRect();
+      const unscaled = Math.abs(origin.width - track.offsetWidth) < 1 && Math.abs(origin.height - track.offsetHeight) < 1;
+      setThumb(unscaled
+        ? { x: box.left - origin.left, y: box.top - origin.top, w: box.width, h: box.height }
+        : { x: chosen.offsetLeft, y: chosen.offsetTop, w: chosen.offsetWidth, h: chosen.offsetHeight });
     };
     place();
     if (typeof ResizeObserver === 'undefined') return undefined;
