@@ -3,7 +3,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { readCoverBook, type CoverRequest } from './book';
 import { shelfCoverKey } from './covers';
 import { random } from './paint';
-import { ART_STYLES, COVER_STYLES, DEFAULT_COVER_STYLE, nextCoverStyle } from './styles';
+import { ART_STYLES, COVER_STYLES, DEFAULT_COVER_STYLE, nextCoverStyle, type CoverStyleId } from './styles';
 
 /** A 2D context that keeps what is set on it and counts what is painted. */
 function fakeContext() {
@@ -70,16 +70,16 @@ describe('the book a cover reads', () => {
 describe('the cover styles', () => {
   it('turns through every style in order and back to sand', () => {
     expect(new Set(COVER_STYLES).size).toBe(COVER_STYLES.length);
-    expect(COVER_STYLES[0]).toBe(DEFAULT_COVER_STYLE);
+    expect(DEFAULT_COVER_STYLE).toBe('topo');
     expect(Object.keys(ART_STYLES).sort()).toEqual(COVER_STYLES.filter((s) => s !== 'sand').sort());
-    let style = DEFAULT_COVER_STYLE;
+    let style: CoverStyleId = COVER_STYLES[0];
     const seen = [];
     for (let i = 0; i < COVER_STYLES.length; i++) {
       seen.push(style);
       style = nextCoverStyle(style);
     }
     expect(seen).toEqual([...COVER_STYLES]);
-    expect(style).toBe(DEFAULT_COVER_STYLE);
+    expect(style).toBe('sand');
   });
 
   it('names every style in both languages', () => {
@@ -139,30 +139,34 @@ describe('the shelf’s cover style on this device', () => {
     return values;
   }
 
-  it('starts on sand, turns to the next style and remembers it', async () => {
+  it('starts on contours, turns to the next style and remembers choices including sand', async () => {
     const values = storage();
     const { readCoverStyle, turnCoverStyle, subscribeCoverStyle } = await import('./preference');
-    expect(readCoverStyle()).toBe('sand');
+    expect(readCoverStyle()).toBe('topo');
+    expect(values.has('shelf:cover-style')).toBe(false);
     const heard = vi.fn();
     const stop = subscribeCoverStyle(heard);
-    expect(turnCoverStyle()).toBe('ridge');
+    expect(turnCoverStyle()).toBe('cyanotype');
     expect(heard).toHaveBeenCalledTimes(1);
-    expect(values.get('shelf:cover-style')).toBe('ridge');
+    expect(values.get('shelf:cover-style')).toBe('cyanotype');
     stop();
     vi.resetModules();
-    expect((await import('./preference')).readCoverStyle()).toBe('ridge');
+    expect((await import('./preference')).readCoverStyle()).toBe('cyanotype');
+    values.set('shelf:cover-style', 'sand');
+    vi.resetModules();
+    expect((await import('./preference')).readCoverStyle()).toBe('sand');
   });
 
-  it('falls back to sand for a style it does not know or storage it cannot reach', async () => {
+  it('falls back to contours for a style it does not know or storage it cannot reach', async () => {
     storage({ 'shelf:cover-style': 'retired-style' });
-    expect((await import('./preference')).readCoverStyle()).toBe('sand');
+    expect((await import('./preference')).readCoverStyle()).toBe('topo');
     vi.resetModules();
     vi.stubGlobal('localStorage', {
       getItem: () => { throw new Error('blocked'); },
       setItem: () => { throw new Error('blocked'); },
     });
     const { readCoverStyle, turnCoverStyle } = await import('./preference');
-    expect(readCoverStyle()).toBe('sand');
-    expect(turnCoverStyle()).toBe('ridge');
+    expect(readCoverStyle()).toBe('topo');
+    expect(turnCoverStyle()).toBe('cyanotype');
   });
 });

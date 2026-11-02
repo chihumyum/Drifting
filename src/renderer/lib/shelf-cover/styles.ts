@@ -38,7 +38,7 @@ export const COVER_STYLES = [
 export type CoverStyleId = (typeof COVER_STYLES)[number];
 export type ArtStyleId = Exclude<CoverStyleId, 'sand'>;
 
-export const DEFAULT_COVER_STYLE: CoverStyleId = 'sand';
+export const DEFAULT_COVER_STYLE: CoverStyleId = 'topo';
 
 export const ART_STYLES: Record<ArtStyleId, ArtStyle> = {
   ridge,
