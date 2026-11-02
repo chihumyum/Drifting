@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../../store/auth';
 import { useOpenSignIn } from '../../auth/auth-dialog-store';
+import { requestSignOut } from '../../auth/sign-out';
 import { useProductSyncAuthority } from '../../../sync/product-authority-react';
 import { productSyncCommands } from '../../../sync/product-commands';
 import { useProductSyncRuntime } from '../../../sync/product-runtime-react';
@@ -60,6 +61,19 @@ export function AccountPanel({ registerRef }: { registerRef: SettingsRegisterRef
       if (!controller.signal.aborted) setBusy(false);
     }
   };
+  // Opens the sign-out dialog while this Mac holds changes the cloud lacks.
+  const signOut = async () => {
+    if (operation.current) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      await requestSignOut();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  };
   const connected = authority.mode === 'hosted';
   const hostedTransition = authority.targetMode === 'hosted';
   const paused = connected && authority.status === 'cloud-paused';
@@ -86,7 +100,7 @@ export function AccountPanel({ registerRef }: { registerRef: SettingsRegisterRef
           desc={t(`settings.hosted.session.${status}`)}
           control={
             accountReady ? (
-              <SettingsButton disabled={busy} onClick={() => void run(() => useAuthStore.getState().logout())}>
+              <SettingsButton disabled={busy} onClick={() => void signOut()}>
                 {t('settings.hosted.sign_out')}
               </SettingsButton>
             ) : (

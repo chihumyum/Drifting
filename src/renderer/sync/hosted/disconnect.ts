@@ -58,10 +58,18 @@ export async function disconnectHosted(
   }).disconnect(signal);
 }
 
+/** Wait until this Mac holds no change the cloud lacks, or until `stopWaiting` aborts. */
+export function waitForHostedUpload(
+  signal: AbortSignal,
+  options: Pick<HostedDisconnectOptions, 'stopWaiting' | 'onRemaining'> = {},
+): Promise<void> {
+  return waitForLocalUpload(getDb(), signal, options);
+}
+
 async function waitForLocalUpload(
   db: DbClient,
   signal: AbortSignal,
-  options: HostedDisconnectOptions,
+  options: Pick<HostedDisconnectOptions, 'stopWaiting' | 'onRemaining'>,
 ): Promise<void> {
   const { installationId } = await getSyncInstallationIdentity();
   for (;;) {

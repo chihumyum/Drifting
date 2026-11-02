@@ -74,6 +74,11 @@
   gap: 12px;
 }
 
+.auth-flow__field-foot {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .auth-flow__label {
   color: hsl(var(--ink-2));
   font-size: 12px;
@@ -429,4 +434,31 @@ html:not([data-shell-mode='mobile']) .auth-flow--dialog .auth-flow__glass-button
   left: 0;
   z-index: calc(var(--z-modal) + 1);
   height: 36px;
+}
+
+/* Sign-out dialog (SignOutDialog.tsx): the disconnect switch sits under the
+   message like the feedback dialog's attach switch; errors in the danger ink. */
+.sign-out-dialog__switch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  color: hsl(var(--ink-1));
+  font-size: var(--ui-font-secondary, 13px);
+  cursor: pointer;
+}
+
+.sign-out-dialog__error {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 12px 0 0;
+  color: hsl(var(--destructive));
+  font-size: var(--ui-font-secondary, 13px);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.sign-out-dialog__error > .brush-icon {
+  margin-top: 3px;
 }

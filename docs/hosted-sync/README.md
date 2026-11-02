@@ -112,9 +112,13 @@ not wait for downloads, and **Disconnect now** stops waiting and leaves the rest
 on this Mac. Signed out or paused, nothing can upload, so Disconnect states that
 count and asks before going ahead. Either way local projects and remote copies
 are retained. Sign out stops sync and retains local data and the account binding,
-so signing back in to the same account resumes; it does not imply pending changes
-reached the server. To switch accounts, disconnect first (no sign-in needed); the
-account-mismatch dialog offers a way to Account settings.
+so signing back in to the same account resumes. While this Mac holds changes the
+cloud lacks, Sign out first opens a dialog that says how many: **Upload, then sign
+out** (offered only while sync can upload) waits for them, **Sign out now** leaves
+them on this Mac, and a switch also disconnects the library, for switching
+accounts. With nothing pending it signs out at once. To switch accounts,
+disconnect first (no sign-in needed); the account-mismatch dialog offers a way
+to Account settings.
 
 ## Versioned service contract
 

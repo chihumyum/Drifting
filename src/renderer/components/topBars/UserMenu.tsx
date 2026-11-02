@@ -14,6 +14,7 @@ import { hostedAccountSettingsEnabled } from '../../features/settings/hosted-set
 import { useShareLinksDialogStore } from '../../features/share-links/share-links-dialog-store';
 import { useFeedbackDialogStore } from '../../features/feedback/feedback-dialog-store';
 import { useOpenSignIn } from '../../features/auth/auth-dialog-store';
+import { requestSignOut } from '../../features/auth/sign-out';
 import { AccountAvatar } from '../ui/AccountAvatar';
 import { BrushIcon } from '../ui/BrushIcon';
 import { GlassSlider } from '../ui/GlassSlider';
@@ -45,7 +46,6 @@ export function UserMenu({
   const user = useAuthStore((s) => s.hostedUser);
   const hostedStatus = useAuthStore((s) => s.hostedStatus);
   const canSignOut = hostedStatus === 'connected' || hostedStatus === 'offline' || hostedStatus === 'checking';
-  const logout = useAuthStore((s) => s.logout);
   const accountSettingsEnabled = hostedAccountSettingsEnabled();
   // Share links belong to the signed-in Hosted account.
   const shareLinksEnabled = accountSettingsEnabled && canSignOut;
@@ -65,9 +65,8 @@ export function UserMenu({
     if (signingOut) return;
     setSigningOut(true);
     try {
-      await logout();
+      await requestSignOut(() => navigate('/'));
       onClose();
-      navigate('/');
     } catch (e) {
       log.error('Failed to sign out:', e);
     } finally {
