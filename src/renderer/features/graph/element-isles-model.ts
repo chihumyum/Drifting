@@ -26,6 +26,14 @@ export function isleKey(a: string, b: string): string {
   return a < b ? `${a}|${b}` : `${b}|${a}`;
 }
 
+/** Custom thresholds count whole paragraphs, never fractions or exponent notation. */
+export function parseIsleLineThreshold(draft: string): number | null {
+  const text = draft.trim();
+  if (!/^\d+$/.test(text)) return null;
+  const value = Number(text);
+  return Number.isSafeInteger(value) && value >= 1 ? value : null;
+}
+
 /** The pairs drawn at `threshold` paragraphs or more, between elements still on the canvas. */
 export function islePairs(
   pairs: ReadonlyMap<string, number>,

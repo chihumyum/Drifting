@@ -10,6 +10,7 @@ import {
   isleSection,
   islesLod,
   isleTicks,
+  parseIsleLineThreshold,
 } from './element-isles-model';
 
 const pairs = new Map([
@@ -39,6 +40,18 @@ describe('element islands', () => {
       ['lin', 'tower', 3],
     ]);
     expect(islePairs(pairs, 1, present)).toHaveLength(3);
+  });
+
+  it('accepts custom positive integer thresholds and filters pairs with the same rule as presets', () => {
+    expect(parseIsleLineThreshold(' 5 ')).toBe(5);
+    expect(parseIsleLineThreshold('1')).toBe(1);
+    expect(parseIsleLineThreshold('12')).toBe(12);
+    for (const invalid of ['', ' ', '0', '-1', '1.5', '1e2', 'Infinity', 'NaN', '9007199254740992']) {
+      expect(parseIsleLineThreshold(invalid), invalid).toBeNull();
+    }
+    const present = new Set(['lin', 'cap', 'tower', 'key']);
+    expect(islePairs(pairs, parseIsleLineThreshold('5')!, present).map((pair) => pair.count)).toEqual([7]);
+    expect(islePairs(pairs, parseIsleLineThreshold('8')!, present)).toEqual([]);
   });
 
   it('counts drawn lines and drawn relations as neighbours, itself included', () => {

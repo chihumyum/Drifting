@@ -13,6 +13,7 @@ vi.mock('react-i18next', () => ({
 }));
 
 import { SuperElementIsland } from '../components/SuperElementIsland';
+import { SuperElementLineThreshold } from '../components/SuperElementLineThreshold';
 import { ISLAND_WIDTH_DEFAULT, clampIslandWidth } from '../components/super-element-island-width';
 import { CategoryIsleDetail, CategoryIsleStrip } from '../components/ElementIsleDetail';
 import { TabPromotionSuppressedContext } from '../../../store/tab-promotion-context';
@@ -142,8 +143,20 @@ describe('the element overview’s floating island', () => {
     expect(view.match(/data-se-lines=""/g)).toHaveLength(1);
     expect(view.indexOf('data-se-lines=""')).toBeLessThan(view.indexOf('rightSlot={'));
     // Its threshold (≥1/≥2/≥3) sits in the header where 远/中/近 was; the distance follows the zoom alone.
-    expect(view.match(/ariaLabel=\{t\('superElement\.isles\.threshold'\)\}/g)).toHaveLength(1);
-    expect(view.indexOf("ariaLabel={t('superElement.isles.threshold')}")).toBeGreaterThan(view.indexOf('rightSlot={'));
+    expect(view.match(/<SuperElementLineThreshold value=\{lineThreshold\} onChange=\{setLineThreshold\} \/>/g)).toHaveLength(1);
+    expect(view.indexOf('<SuperElementLineThreshold')).toBeGreaterThan(view.indexOf('rightSlot={'));
+    // The label explains the otherwise bare thresholds on hover; choices keep their compact numbers.
+    const thresholdControl = source('src/renderer/shells/desktop/components/SuperElementLineThreshold.tsx');
+    expect(thresholdControl).toMatch(/<span className="se-line-threshold__label" title=\{t\('superElement\.isles\.thresholdHint'\)\}>\s*\{t\('superElement\.isles\.thresholdLabel'\)\}/);
+    expect(thresholdControl.indexOf("{t('superElement.isles.thresholdLabel')}")).toBeLessThan(thresholdControl.indexOf("ariaLabel={t('superElement.isles.threshold')}"));
+    const zh = JSON.parse(source('src/renderer/locales/zh-CN.json')).superElement.isles;
+    const en = JSON.parse(source('src/renderer/locales/en.json')).superElement.isles;
+    expect(zh.thresholdLabel).toBe('同段连线');
+    expect(zh.thresholdHint).toBe('两个要素共同出现的段落数达到所选门槛时，显示自动连线。');
+    expect(en.thresholdLabel).toBe('Paragraph links');
+    expect(en.thresholdHint).toContain('selected number of paragraphs');
+    expect(zh.atLeast).toBe('≥{{count}}');
+    expect(en.atLeast).toBe('≥{{count}}');
     expect(view).not.toContain('superElement.isles.distance');
     expect(view).not.toContain('goToDistance');
     const header = source('src/renderer/shells/desktop/components/DesktopSuperViewHeader.tsx');
@@ -152,6 +165,18 @@ describe('the element overview’s floating island', () => {
     expect(topBar).toContain("const visible = owned ? presentation.outlineVisible === true : mode === 'visible';");
     expect(topBar).toContain("onClick={owned ?? (() => setMode(visible ? 'hidden' : 'visible'))}");
     expect(source('src/renderer/components/ui/RelationKindMenu.tsx')).toMatch(/\{lead\}\s*<section className="relation-kind-menu__section">/);
+  });
+
+  it('keeps preset choices and shows a custom threshold as the selected number', () => {
+    const preset = renderToStaticMarkup(createElement(SuperElementLineThreshold, { value: 2, onChange: noop }));
+    expect(preset).toContain('title="superElement.isles.thresholdHint"');
+    expect(preset).toContain('superElement.isles.thresholdLabel');
+    expect(preset).toMatch(/aria-checked="true"[^>]*data-value="2"/);
+    expect(preset).toMatch(/data-value="custom"[^>]*>superElement.isles.customThreshold<\/button>/);
+    const custom = renderToStaticMarkup(createElement(SuperElementLineThreshold, { value: 5, onChange: noop }));
+    expect(custom).toMatch(/aria-checked="true"[^>]*data-value="custom"/);
+    expect(custom).toContain('superElement.isles.atLeast:{&quot;count&quot;:5}');
+    expect(custom.match(/role="radio"/g)).toHaveLength(4);
   });
 
   it('is a lifted piece of desk with rounded corners and no glass, written down as the island', () => {

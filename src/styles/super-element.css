@@ -725,6 +725,39 @@ html:not([data-shell-mode='mobile']) .se-band__name.sand-cell {
   min-height: 26px;
 }
 
+.se-line-threshold {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.se-line-threshold__label {
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font-size: var(--ui-font-secondary, 12px);
+}
+
+.se-line-threshold__popover {
+  width: 224px;
+  padding: 12px;
+}
+
+.se-line-threshold__popover .ui-field {
+  margin-top: 8px;
+}
+
+.se-line-threshold__hint {
+  margin: 6px 0 12px;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font-size: var(--ui-font-caption, 11px);
+}
+
+.se-line-threshold__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 /* 正文同段 in the relation menu (全部): the automatic lines' switch, what
    they draw in a line below. Their threshold sits in the header. */
 .se-lines-section__hint {

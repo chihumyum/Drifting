@@ -42,7 +42,7 @@ import {
 import { useElementMentionGraph } from '../../../usecase/useElementMentionGraph';
 import { useBookElement } from '../../../usecase/useBookElement';
 import { useElementCategory } from '../../../usecase/useElementCategory';
-import { GlassSlider } from '../../../components/ui/GlassSlider';
+import { SuperElementLineThreshold } from '../components/SuperElementLineThreshold';
 import { FilterChip } from '../../../components/ui/FilterChip';
 import { CategoryIsleDetail, CategoryIsleStrip, ElementIsleDetail, ElementIsleStrip } from '../components/ElementIsleDetail';
 import { SuperElementIsland } from '../components/SuperElementIsland';
@@ -1896,12 +1896,7 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
                     }}
                   />
                 </label>
-                <GlassSlider
-                  ariaLabel={t('superElement.isles.threshold')}
-                  value={String(lineThreshold)}
-                  onChange={(value) => setLineThreshold(Number(value))}
-                  options={['1', '2', '3'].map((value) => ({ value, label: t('superElement.isles.atLeast', { count: Number(value) }) }))}
-                />
+                <SuperElementLineThreshold value={lineThreshold} onChange={setLineThreshold} />
                 <Button variant="ghost" size="sm" onClick={resetView} title={t('superElement.resetTitle')}>
                   <BrushIcon name="rotate" size={13} />
                   {t('superElement.reset')}
