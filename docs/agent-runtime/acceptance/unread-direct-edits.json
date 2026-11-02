@@ -1,14 +1,15 @@
 {
   "kind": "agent_unread_direct_edits_acceptance",
   "status": "passed",
-  "generatedAt": "2026-10-31T02:40:43.106Z",
-  "sourceSha256": "28a237eeba1749272798f8682d984b066a2a26c760bbc951d1dfa78febbbf9ae",
+  "generatedAt": "2026-11-02T09:16:59.481Z",
+  "sourceSha256": "c10ba56a1fcfb30c29ab831ca6a6ed4fae0a06fcfc586a1097d27ecebf1d38a3",
   "suites": [
     "src/renderer/store/agent-unread-acknowledgement.test.ts",
     "src/renderer/components/ui/entity-hover-card-model.test.ts",
     "src/renderer/lib/agent/tool-registry.test.ts",
     "src/renderer/lib/agent/runtime/drifting-write-strategies.test.ts",
     "src/renderer/store/agent-edit-store.test.ts",
+    "src/renderer/store/agent-edit-storage.test.ts",
     "src/renderer/store/agent-activity-store.test.ts",
     "src/renderer/store/settings-store-appearance.test.ts",
     "src/renderer/components/leftBars/element-panel-compact-index.acceptance.test.ts",
@@ -33,6 +34,22 @@
     },
     {
       "name": "General Agent Added activity retains both relation endpoints through deletion so each receives M",
+      "status": "passed"
+    },
+    {
+      "name": "Agent edit cache quota recovery keeps Added seeding, completion, and acknowledgement usable when the shared quota is full",
+      "status": "passed"
+    },
+    {
+      "name": "Agent edit cache quota recovery evicts an oversized first-open cache without truncating live prose or changing the v1 envelope",
+      "status": "passed"
+    },
+    {
+      "name": "Agent edit cache quota recovery discards oversized pre-fix and corrupt caches on startup",
+      "status": "passed"
+    },
+    {
+      "name": "Agent edit cache quota recovery contains storage access, read, deletion and serialization failures",
       "status": "passed"
     },
     {
@@ -137,6 +154,10 @@
     },
     {
       "name": "desktop interface text preference restores large UI text without changing the author typography",
+      "status": "passed"
+    },
+    {
+      "name": "retired unwired preferences drops settings no runtime read and the placeholder privacy toggles",
       "status": "passed"
     },
     {
@@ -248,7 +269,7 @@
       "status": "passed"
     },
     {
-      "name": "buildEntityHoverCardContent shows the primary storyline followed by dimmed secondary storyline chips",
+      "name": "buildEntityHoverCardContent leads with the chapter seal in its primary storyline colour, then dimmed secondary storylines",
       "status": "passed"
     },
     {
@@ -638,7 +659,11 @@
     "categoryAgentCountsOnly": true,
     "categoryKeyboardPreview": true,
     "categoryClickIsolation": true,
-    "categoryListPreview": true
+    "categoryListPreview": true,
+    "realQuotaExceeded": true,
+    "quotaRevealUsable": true,
+    "quotaAcknowledgementUsable": true,
+    "quotaCleanupIsolated": true
   },
   "boundary": {
     "data": "synthetic",

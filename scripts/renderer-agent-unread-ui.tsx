@@ -177,6 +177,43 @@ const api = {
     return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, ...hoverMetrics() };
   },
   hoverMetrics,
+  async quotaRecovery() {
+    showEditor(null); await pulse();
+    const store = useAgentEditStore.getState();
+    store.clearAll();
+    store.recordAddition('node', 'chapter-a');
+    const fillerKey = 'synthetic-quota-filler';
+    let filler = '';
+    try {
+      // Exhaust this isolated origin's real quota, down to one code unit.
+      for (let size = 64 * 1024; size >= 1; size = Math.floor(size / 2)) {
+        const chunk = 'x'.repeat(size);
+        while (true) {
+          try { localStorage.setItem(fillerKey, filler + chunk); filler += chunk; }
+          catch (error) { assert(error instanceof DOMException && error.name === 'QuotaExceededError', 'Unexpected storage failure'); break; }
+        }
+      }
+      let quotaExceeded = false;
+      try { localStorage.setItem('synthetic-quota-probe', 'x'.repeat(1024)); }
+      catch (error) { quotaExceeded = error instanceof DOMException && error.name === 'QuotaExceededError'; }
+      assert(quotaExceeded, 'Positive control: real localStorage quota was not exhausted');
+      store.beginAdditionReveal('node', 'chapter-a', [{ blockId: 'paragraph', op: 'new', oldText: '', newText: 'Synthetic after', afterPrevId: null }]);
+      assert(store !== useAgentEditStore.getState() && useAgentEditStore.getState().pending['node:chapter-a'], 'Quota failure lost live reveal state');
+      assert(localStorage.getItem('agent-edit-pending') === null, 'Quota failure left a stale Added cache');
+      showEditor('chapter-a'); await pulse();
+      assert(document.querySelector('.agent-reveal'), 'Full storage prevented a live reveal');
+      indicator(findRow('chapters', 'Synthetic chapter-a')).click(); await pulse();
+      assert(!document.querySelector('.agent-reveal'), 'Full storage prevented acknowledgement');
+      store.resolveAddition('node', 'chapter-a');
+      assert(!useAgentEditStore.getState().additions['node:chapter-a'], 'Full storage prevented Added completion');
+      assert(localStorage.getItem(fillerKey) === filler, 'Recovery modified an unrelated key');
+      return { realQuotaExceeded: true, quotaRevealUsable: true, quotaAcknowledgementUsable: true, quotaCleanupIsolated: true };
+    } finally {
+      localStorage.removeItem(fillerKey);
+      localStorage.removeItem('synthetic-quota-probe');
+      showEditor(null); store.clearAll();
+    }
+  },
   async run() {
     await i18n.changeLanguage('en'); useUiStore.setState({ elementPanelViewMode: 'compact' }); await reset();
     assert(!document.querySelector('button button'), 'Nested interactive buttons');

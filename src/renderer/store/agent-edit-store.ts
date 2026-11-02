@@ -11,15 +11,17 @@
  *
  * Keyed `${entityType}:${id}` like the activity store.
  *
- * PERSISTED to localStorage so pending editor presentation survives a reload.
+ * Best-effort, bounded localStorage cache so presentation can survive a reload.
+ * Storage failure must never escape a store action or interrupt an editor.
  * The v1 migration retires batches from the previously removed review protocol;
  * SQLite reconciliation remains authoritative for all new durable batches.
  */
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
+import { persist } from 'zustand/middleware';
 import { entityKey, type ActivityEntityType } from '../lib/agent/tool-entity-ref';
 import { mergeBlockChanges, type AgentBlockChange, type AgentFieldRef } from '../lib/agent/block-diff';
 import { parseDocId, proseEntityTypeForDocKind } from '../lib/yjs-doc-id';
+import { createAgentEditStorage } from './agent-edit-storage';
 
 export type AgentEditMode = 'auto' | 'approve';
 
@@ -636,7 +638,7 @@ export const useAgentEditStore = create<AgentEditState>()(
     }),
     {
       name: 'agent-edit-pending',
-      storage: createJSONStorage(() => localStorage),
+      storage: createAgentEditStorage(),
       version: 1,
       migrate: (persistedState, version) =>
         version < 1

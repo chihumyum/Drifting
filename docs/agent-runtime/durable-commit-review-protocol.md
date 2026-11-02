@@ -54,6 +54,22 @@ LocalStorage is never permission, mutation or review authority. Losing it may
 lose only unread presentation; opening a project settles historical unresolved
 reviews from SQLite and immutable write evidence.
 
+The `agent-edit-pending` localStorage cache is best-effort and limited to
+512 Ki UTF-16 code units for the complete serialized v1 envelope (about 1 MiB
+of text). Before/after prose and review batches can otherwise exceed the shared
+WebView quota during Added first-open seeding. Oversized or corrupt caches are
+discarded on read. Oversized snapshots, quota errors, and unavailable storage
+never escape store actions: the complete live projection stays in memory and
+only this cache key is evicted, if storage permits, so a stale snapshot cannot
+resurrect an acknowledged reveal on reload. Other storage keys are untouched.
+Persistence resumes on the next write that fits. Reload under storage pressure
+may lose unread/reveal presentation and historical cached feedback; manuscript
+content and canonical write/review decisions remain in Yjs/SQLite. This requires
+no database migration or reset. Acceptance injects storage failures into the
+production store and exhausts real localStorage in an isolated Chromium origin
+before exercising reveal and sidebar acknowledgement. Native WKWebView quota
+acceptance is not covered by that browser report.
+
 For an auto-mode prose write targeting an editor whose live `Y.Doc` is open,
 the renderer installs an ephemeral block guard synchronously after the SQLite
 transaction commits and immediately before the committed update enters that

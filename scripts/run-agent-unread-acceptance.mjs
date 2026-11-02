@@ -18,6 +18,7 @@ const suites = [
   'src/renderer/lib/agent/tool-registry.test.ts',
   'src/renderer/lib/agent/runtime/drifting-write-strategies.test.ts',
   'src/renderer/store/agent-edit-store.test.ts',
+  'src/renderer/store/agent-edit-storage.test.ts',
   'src/renderer/store/agent-activity-store.test.ts',
   'src/renderer/store/settings-store-appearance.test.ts',
   'src/renderer/components/leftBars/element-panel-compact-index.acceptance.test.ts',
@@ -30,6 +31,7 @@ const suites = [
 const sources = [
   ...suites,
   'src/renderer/store/agent-edit-store.ts', 'src/renderer/store/agent-activity-store.ts',
+  'src/renderer/store/agent-edit-storage.ts',
   'src/renderer/store/settings-store.ts', 'src/renderer/hooks/useAgentUnreadMarks.ts', 'src/renderer/hooks/useFieldReview.ts',
   ...['AgentChangeIndicator', 'AgentCountBadge', 'LeftSidebarHeader', 'GroupHeaderCell', 'ChapterPanel', 'ElementPanel', 'DriftPanel'].map(name => `src/renderer/components/leftBars/${name}.tsx`),
   ...['AgentEditAnimator', 'FieldReview', 'PatchEditorCard', 'ChapterEditor'].map(name => `src/renderer/components/editor/${name}.tsx`),
@@ -54,6 +56,10 @@ if (process.argv.includes('--check')) {
   assert.equal(report.sourceSha256, fingerprint(), 'Agent unread/direct-write evidence is stale');
   assert(report.tests.length >= 100 && report.tests.every(test => test.status === 'passed'));
   assert(Object.keys(report.browserChecks).length >= 13 && Object.values(report.browserChecks).every(value => value === true));
+  assert.equal(report.browserChecks.realQuotaExceeded, true);
+  assert.equal(report.browserChecks.quotaRevealUsable, true);
+  assert.equal(report.browserChecks.quotaAcknowledgementUsable, true);
+  assert.equal(report.browserChecks.quotaCleanupIsolated, true);
   console.log('Agent unread/direct-write evidence matches source.');
 } else {
   const temporary = mkdtempSync(path.join(tmpdir(), 'drifting-agent-unread-'));
@@ -133,8 +139,9 @@ if (process.argv.includes('--check')) {
     await client.Input.dispatchMouseEvent({ type: 'mouseMoved', x: 1200, y: 850 });
     const result = await client.Runtime.evaluate({ expression: 'globalThis.__AGENT_UNREAD_UI__.run()', awaitPromise: true, returnByValue: true });
     assert(!result.exceptionDetails, result.exceptionDetails?.exception?.description ?? result.exceptionDetails?.text);
+    const quotaChecks = await evaluate('globalThis.__AGENT_UNREAD_UI__.quotaRecovery()');
     assert.deepEqual(errors, []);
-    const browserChecks = { ...result.result.value, ...hoverChecks };
+    const browserChecks = { ...result.result.value, ...hoverChecks, ...quotaChecks };
     assert(Object.keys(browserChecks).length >= 13 && Object.values(browserChecks).every(value => value === true));
     const report = { kind: 'agent_unread_direct_edits_acceptance', status: 'passed', generatedAt: new Date().toISOString(), sourceSha256: fingerprint(), suites, tests, browserChecks,
       boundary: { data: 'synthetic', browser: 'isolated Chromium with production sidebar/store/animator components', nativeInteraction: 'not_run', hostedService: 'not_run' } };
