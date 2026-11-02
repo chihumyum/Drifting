@@ -31,6 +31,7 @@ import {
 import { createWorkspaceProjectionRefresh } from '../../services/workspace-projection-refresh';
 import { captureWorkspaceProjection } from '../../services/workspace-projection.service';
 import { FullScreenStatus } from '../components/FullScreenStatus';
+import { RenderErrorBoundary } from '../components/RenderErrorBoundary';
 import { releaseEntityLinkNames } from '../../lib/entity-link-names';
 import { prewarmAuthoredReducer } from '../../sync/journal/authored-transaction';
 import { afterEditorStageReady, resetEditorStageReady } from '../../components/editor/editor-stage-ready';
@@ -449,7 +450,8 @@ export function ProjectRuntimeProvider({
 
   return (
     <>
-      {children}
+      {/* Below the tool bridge: a crashed editor must not unmount the Agent's tools. */}
+      <RenderErrorBoundary scope="workspace">{children}</RenderErrorBoundary>
       {projectRefreshFailed ? (
         <WorkspaceBlockingStatus
           title={t('appShell.projectRefreshFailedTitle')}

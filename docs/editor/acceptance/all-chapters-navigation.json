@@ -1,8 +1,8 @@
 {
   "kind": "all-chapters-navigation",
   "status": "passed",
-  "generatedAt": "2026-10-22T18:59:04.932Z",
-  "sourceSha256": "8cab5d8cca890e632654bced97ca934764bd5db4d21ff3ba516dc9d5aaaf3323",
+  "generatedAt": "2026-11-02T13:10:12.526Z",
+  "sourceSha256": "94acd0add1fe2e8346edf5c3a00384579c47706eebf6ab2a22325bd4312bbe2e",
   "inputs": [
     "scripts/run-all-chapters-navigation-acceptance.mjs",
     "scripts/renderer-headless-browser.mjs",
@@ -19,13 +19,13 @@
     "src/styles/index.css",
     "src/styles/comments-review.css"
   ],
-  "browser": "Chrome/155.0.8059.85",
+  "browser": "Chrome/156.0.8078.74",
   "syntheticChaptersPerPane": 60,
   "samples": [
     {
       "id": "chapter-45-h2",
       "pane": "left",
-      "scrollTop": 531995,
+      "scrollTop": 531953,
       "relativeTop": 0,
       "height": 29.328125,
       "visible": true,
@@ -37,9 +37,9 @@
     {
       "id": "chapter-4",
       "pane": "left",
-      "scrollTop": 12337,
+      "scrollTop": 12211,
       "relativeTop": 0,
-      "height": 3313.875,
+      "height": 3271.875,
       "visible": true,
       "inViewport": true,
       "hitTarget": true,
@@ -49,7 +49,7 @@
     {
       "id": "chapter-55-h3",
       "pane": "left",
-      "scrollTop": 620528,
+      "scrollTop": 620318,
       "relativeTop": -0.046875,
       "height": 28.796875,
       "visible": true,
@@ -61,7 +61,7 @@
     {
       "id": "act:act-20",
       "pane": "left",
-      "scrollTop": 167902,
+      "scrollTop": 167650,
       "relativeTop": 23.5,
       "height": 316.5,
       "visible": true,
@@ -85,7 +85,7 @@
     {
       "id": "chapter-59-h1",
       "pane": "right",
-      "scrollTop": 678905,
+      "scrollTop": 678821,
       "relativeTop": 0.140625,
       "height": 31.109375,
       "visible": true,
@@ -97,7 +97,7 @@
     {
       "id": "chapter-45-h2",
       "pane": "left",
-      "scrollTop": 440122,
+      "scrollTop": 439786,
       "relativeTop": -0.125,
       "height": 29.328125,
       "visible": true,
@@ -110,7 +110,7 @@
   "scrollUp": {
     "stepPx": 120,
     "steps": 120,
-    "measured": 85,
+    "measured": 89,
     "maxDeviationPx": 0.86,
     "chapters": [
       "chapter-31",

@@ -890,6 +890,26 @@ describe('OpenAI Responses Agent driver', () => {
     );
   });
 
+  it('locates a rejected request by the native identifier projection', async () => {
+    const driver = new OpenAIResponsesAgentDriver({
+      transport: {
+        request: async () =>
+          new Response(null, {
+            status: 400,
+            headers: {
+              'x-drifting-openai-error-code': 'invalid_request',
+              'x-drifting-openai-error-message':
+                'OpenAI rejected the Responses request (HTTP 400; type invalid_request_error; param input[42]).',
+            },
+          }),
+      },
+    });
+
+    await expect(collect(driver, request())).rejects.toThrow(
+      'OpenAI rejected the Responses request (HTTP 400; type invalid_request_error; param input[42]).',
+    );
+  });
+
   it('does not leak an authentication response body', async () => {
     const driver = new OpenAIResponsesAgentDriver({
       apiKey: 'secret-key',

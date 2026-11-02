@@ -135,9 +135,11 @@ export function markAutomaticContinuationTerminal(
 }
 
 /**
- * Observe only durable-plan progress. Assistant prose and repeated successful
- * reads do not reset the watchdog, so a confused model cannot keep retrying the
- * same invalid operation indefinitely.
+ * Observe only durable progress: the plan's shape and committed project writes.
+ * Assistant prose, repeated successful reads and failed or declined writes do
+ * not reset the watchdog, so a confused model cannot keep retrying the same
+ * invalid operation indefinitely. A model that writes chapter after chapter
+ * without ticking its checklist is still progressing and is not paused.
  */
 export function observeAgentAutomaticContinuationProgress(
   state: AgentAutomaticContinuationState,
@@ -171,6 +173,8 @@ export function summarizeLongTaskPlanForContinuation(
   sessionId: string,
   plan: AgentRuntimeTaskPlan | null,
   manifestState: AgentRuntimeTaskChapterManifestState | null = null,
+  /** Committed project writes in this session since the task began. */
+  committedWriteCount: number | null = null,
 ): AgentLongTaskPlanContinuationState {
   if (!plan) {
     return {
@@ -241,6 +245,7 @@ export function summarizeLongTaskPlanForContinuation(
             })),
           }
         : null,
+      writes: committedWriteCount,
       steps: plan.steps.map((step) => ({
         id: step.id,
         status: step.status,

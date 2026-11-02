@@ -329,8 +329,9 @@ fn project_upstream_error(
     body: &[u8],
     source: OpenAIResponsesCredentialSource,
 ) -> (String, String) {
-    let upstream_code = serde_json::from_slice::<serde_json::Value>(body)
-        .ok()
+    let upstream = serde_json::from_slice::<serde_json::Value>(body).ok();
+    let upstream_code = upstream
+        .as_ref()
         .and_then(|value| value.get("error")?.get("code")?.as_str().map(str::to_owned))
         .unwrap_or_default()
         .to_ascii_lowercase();
@@ -377,13 +378,38 @@ fn project_upstream_error(
         ),
         400..=499 => (
             "invalid_request".into(),
-            "OpenAI rejected the Responses request.".into(),
+            format!(
+                "OpenAI rejected the Responses request (HTTP {status}{}).",
+                upstream_error_fields(upstream.as_ref())
+            ),
         ),
         _ => (
             "upstream_failed".into(),
             "OpenAI could not complete the request.".into(),
         ),
     }
+}
+
+/// The structural fields of an OpenAI error object (`type`, `param`, `code`),
+/// which locate a rejected request item without returning provider prose.
+/// Each must be a short identifier; anything else is omitted.
+fn upstream_error_fields(upstream: Option<&serde_json::Value>) -> String {
+    let Some(error) = upstream.and_then(|value| value.get("error")) else {
+        return String::new();
+    };
+    ["type", "param", "code"]
+        .iter()
+        .filter_map(|key| {
+            let value = error.get(*key)?.as_str()?;
+            let identifier = !value.is_empty()
+                && value.len() <= 120
+                && value.chars().all(|character| {
+                    character.is_ascii_alphanumeric()
+                        || matches!(character, '_' | '.' | '-' | '[' | ']')
+                });
+            identifier.then(|| format!("; {key} {value}"))
+        })
+        .collect()
 }
 
 fn project_network_error(error: reqwest::Error) -> String {
@@ -528,6 +554,31 @@ mod tests {
         assert_eq!(code, "quota_exhausted");
         assert!(!message.contains("sk-secret"));
         assert!(!message.contains("Bearer"));
+    }
+
+    #[test]
+    fn locates_rejected_requests_by_identifier_fields_only() {
+        let body = br#"{"error":{"type":"invalid_request_error","param":"input[42]","code":null,"message":"Item 'rs_1' of type 'reasoning' was provided without its required following item."}}"#;
+        let (code, message) = project_upstream_error(
+            400,
+            body,
+            OpenAIResponsesCredentialSource::ChatgptSubscription,
+        );
+        assert_eq!(code, "invalid_request");
+        assert_eq!(
+            message,
+            "OpenAI rejected the Responses request (HTTP 400; type invalid_request_error; param input[42])."
+        );
+
+        let prose =
+            br#"{"error":{"type":"Bearer sk-secret","param":"input 3","code":"bad value"}}"#;
+        let (_, message) =
+            project_upstream_error(422, prose, OpenAIResponsesCredentialSource::ApiKey);
+        assert_eq!(message, "OpenAI rejected the Responses request (HTTP 422).");
+
+        let (_, message) =
+            project_upstream_error(400, b"not json", OpenAIResponsesCredentialSource::ApiKey);
+        assert_eq!(message, "OpenAI rejected the Responses request (HTTP 400).");
     }
 
     #[test]

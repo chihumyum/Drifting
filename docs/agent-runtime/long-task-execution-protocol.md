@@ -55,9 +55,11 @@ Step states are:
 - `retired`: historical target was removed by explicit manifest
   reconciliation. This is audit history, never a claim that work completed.
 
-At most one step is `in_progress`. `completed`, `failed`, and `retired` carry a
-terminal timestamp. The model cannot set `retired`; only the renderer-owned
-manifest transaction can.
+At most one step is `in_progress`. Marking the current `in_progress` step
+`in_progress` again (typical after a resumed slice) is an accepted restatement
+that keeps its `startedAt`, not an `INVALID_STEP_TRANSITION`. `completed`,
+`failed`, and `retired` carry a terminal timestamp. The model cannot set
+`retired`; only the renderer-owned manifest transaction can.
 
 ## Frozen manifest and reconciliation
 
@@ -159,11 +161,16 @@ author turn -> armed -> terminal -> evaluate durable plan
 ```
 
 The progress watchdog fingerprints actual task status, manifest identity/order,
-step status, result reference, and review outcome. Task `revision` is excluded:
-renaming an objective or touching unrelated metadata cannot masquerade as work.
-Two automatic slices with the same durable fingerprint pause the sequence.
-Any real durable progress resets the counter. This is a loop-safety rule, not
-a work quota; a progressing task can run for arbitrarily many slices.
+step status, result reference, review outcome, and the number of project writes
+the session has committed since the task began (`agent_runtime_write_effect`
+rows in `result_committed`, excluding task-plan and Working Memory
+bookkeeping). Task `revision` is excluded: renaming an objective or touching
+unrelated metadata cannot masquerade as work. Two automatic slices with the same
+durable fingerprint pause the sequence. Any real durable progress resets the
+counter, including a model that saves chapter after chapter without ticking its
+checklist; failed or declined writes never commit and still count as stagnant.
+This is a loop-safety rule, not a work quota; a progressing task can run for
+arbitrarily many slices.
 
 Mixed state is handled deliberately: if one step awaits review and another is
 runnable, continuation schedules the runnable work. `waiting_review` pauses
@@ -185,6 +192,20 @@ only when no independent work, manifest reconciliation, or finalization remains.
 Permission and `ask_user` waits pause automatic continuation. A recovered wait
 whose original JavaScript stack is gone may be inspected or safely cancelled,
 but is never falsely resumed in place.
+
+A turn outlives the workspace view that started it. Workspace render failures
+are caught by a boundary inside `ProjectRuntimeProvider`, below the Agent tool
+bridge and runtime, so an editor crash shows its retry screen without
+unmounting the tools a running turn calls next. If the tools do disappear (the
+app-level boundary), the failure names the cause instead of a bare
+canonical-name error. The panel never keeps a turn the transport has released:
+every effect of an accepted terminal delivery runs even when an earlier one
+throws, and when Stop or 补充 answers `AGENT_CONTROL_NOT_ACTIVE` for a turn whose
+`turn_started` was seen, the run is rebuilt from the durable session and journal
+(the record a restart reads). Before `turn_started` the turn may still be in
+preflight, so that answer is reported and the turn is kept. A request the
+provider rejects (HTTP 4xx) reports OpenAI's identifier fields (`type`,
+`param`, `code`) through the native transport, never provider prose.
 
 ## Context and compaction
 
@@ -210,9 +231,10 @@ pnpm eval:agent:long-task
 The gate covers the current product SQLite baseline, command-receipt rollback,
 manifest mutation/reconciliation, close/reopen, product Yjs composition,
 multi-turn pinned context, mixed review state, unlimited progressing work,
-stagnation pause, safe stop, exact steering, terminal manual resume, hidden
-continuation prompts, TypeScript, targeted ESLint, and generated capability
-drift. It writes `acceptance/milestone-e-long-task.json`.
+committed writes as progress, stagnation pause, safe stop, exact steering,
+terminal manual resume, hidden continuation prompts, turns surviving a crashed
+workspace view, released-turn reconciliation, TypeScript, targeted ESLint, and
+generated capability drift. It writes `acceptance/milestone-e-long-task.json`.
 
 This does not claim native desktop/iOS/Android lifecycle acceptance, live
 multi-provider conformance or literary compaction quality. Agent conversation

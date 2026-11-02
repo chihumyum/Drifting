@@ -1119,6 +1119,96 @@ html[data-shell-mode='mobile'] .editor-selection-bar.glass::before {
 html[data-shell-mode='desktop'] .editor__toc-rail--edge {
   top: calc((var(--window-titlebar-height) + var(--glass-pill-height)) / 2);
 }
+/* Not enough room beside the paper (2026-11-02). OutlineViewportController
+   measures the editor column's own gutter — `.editor-body`'s left edge to the
+   paper's text — never the window, and sets data-fit="dots" once the label
+   lane would reach the text (outline-rail-model.ts holds the thresholds and
+   their hysteresis). Each label then folds to one ink dot at its own height,
+   in its own colour and weight of ink, so the viewport range, the active path
+   and the reading location (a larger dot) still read. Hovering a dot, or
+   keyboard focus, unfolds the labels in place onto one hover-card surface
+   spanning them; leaving folds them back. The delays are hover intent: a
+   pointer crossing the edge does not open it, and a brief exit does not
+   close it. The paused mobile shell keeps its in-paper overlay. */
+html:not([data-shell-mode='mobile']) .editor__toc-rail[data-fit='dots'] .editor__toc-tag {
+  --toc-dot: 4px;
+  max-width: 14px;
+  overflow: hidden;
+  transition:
+    top 0.18s ease,
+    color 0.12s ease,
+    opacity 0.12s ease,
+    max-width 0s linear 0.14s;
+}
+html:not([data-shell-mode='mobile']) .editor__toc-rail[data-fit='dots'] .editor__toc-tag::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: calc(7px - var(--toc-dot) / 2);
+  width: var(--toc-dot);
+  height: var(--toc-dot);
+  margin-top: calc(var(--toc-dot) / -2);
+  border-radius: 50%;
+  background: currentColor;
+  transition: opacity 0.12s ease 0.14s;
+}
+html:not([data-shell-mode='mobile']) .editor__toc-rail[data-fit='dots'] .editor__toc-tag > span {
+  opacity: 0;
+  transition: opacity 0.12s ease 0.14s;
+}
+html:not([data-shell-mode='mobile']) .editor__toc-rail[data-fit='dots'] .editor__toc-tag--l1 {
+  --toc-dot: 5px;
+}
+html:not([data-shell-mode='mobile']) .editor__toc-rail[data-fit='dots'] .editor__toc-tag--l4,
+html:not([data-shell-mode='mobile']) .editor__toc-rail[data-fit='dots'] .editor__toc-tag--l5 {
+  --toc-dot: 3px;
+}
+html:not([data-shell-mode='mobile']) .editor__toc-rail[data-fit='dots'] .editor__toc-tag.is-primary {
+  --toc-dot: 6px;
+}
+.editor__toc-surface {
+  display: none;
+}
+html:not([data-shell-mode='mobile']) .editor__toc-rail[data-fit='dots'] .editor__toc-surface {
+  position: absolute;
+  left: 2px;
+  z-index: 0;
+  display: block;
+  width: calc(100% + 6px);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: auto;
+  transition:
+    opacity 0.12s ease 0.14s,
+    visibility 0s linear 0.26s;
+}
+html:not([data-shell-mode='mobile']) .editor__toc-rail[data-fit='dots']:hover .editor__toc-tag,
+html:not([data-shell-mode='mobile']) .editor__toc-rail[data-fit='dots']:has(:focus-visible) .editor__toc-tag {
+  max-width: calc(100% - 14px);
+  transition:
+    top 0.18s ease,
+    color 0.12s ease,
+    opacity 0.12s ease,
+    max-width 0s linear 0.07s;
+}
+html:not([data-shell-mode='mobile']) .editor__toc-rail[data-fit='dots']:hover .editor__toc-tag::before,
+html:not([data-shell-mode='mobile']) .editor__toc-rail[data-fit='dots']:has(:focus-visible) .editor__toc-tag::before {
+  opacity: 0;
+  transition-delay: 0.07s;
+}
+html:not([data-shell-mode='mobile']) .editor__toc-rail[data-fit='dots']:hover .editor__toc-tag > span,
+html:not([data-shell-mode='mobile']) .editor__toc-rail[data-fit='dots']:has(:focus-visible) .editor__toc-tag > span {
+  opacity: 1;
+  transition-delay: 0.07s;
+}
+html:not([data-shell-mode='mobile']) .editor__toc-rail[data-fit='dots']:hover .editor__toc-surface,
+html:not([data-shell-mode='mobile']) .editor__toc-rail[data-fit='dots']:has(:focus-visible) .editor__toc-surface {
+  opacity: 1;
+  visibility: visible;
+  transition:
+    opacity 0.12s ease 0.07s,
+    visibility 0s linear 0.07s;
+}
 /* A distant omission restores nearby real TOC tags on hover/focus. This is a
    compact traversal aid, not a magnification animation or the retired panel:
    a compact menu surface (a lifted piece of desk) of rail-sized rows, whose

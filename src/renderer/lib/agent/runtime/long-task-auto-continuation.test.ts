@@ -9,6 +9,7 @@ import {
   markAutomaticContinuationTerminal,
   observeAgentAutomaticContinuationProgress,
   summarizeLongTaskPlanForContinuation,
+  type AgentAutomaticContinuationState,
 } from './long-task-auto-continuation';
 
 function plan(
@@ -313,6 +314,47 @@ describe('long-task auto continuation', () => {
       stagnantSliceCount: 0,
       lastPlanFingerprint: `${planState.progressFingerprint}:changed`,
     });
+  });
+
+  it('counts committed project writes as progress when the checklist is not ticked', () => {
+    // Smoke: slices that wrote chapter after chapter without updating the
+    // checklist were paused as "no durable progress".
+    const checklist = plan([step({ id: 'chapters', status: 'in_progress' })]);
+    const observe = (
+      automatic: AgentAutomaticContinuationState,
+      turnId: string,
+      writes: number,
+    ) =>
+      observeAgentAutomaticContinuationProgress(
+        markAutomaticContinuationTerminal(beginAutomaticContinuationSlice(automatic), {
+          turnId,
+          costUsd: 0,
+        }),
+        summarizeLongTaskPlanForContinuation('session-1', checklist, null, writes),
+      );
+    let automatic = observeAgentAutomaticContinuationProgress(
+      markAutomaticContinuationTerminal(armAgentAutomaticContinuation(null, 100), {
+        turnId: 'turn-author',
+        costUsd: 0,
+      }),
+      summarizeLongTaskPlanForContinuation('session-1', checklist, null, 4),
+    );
+    automatic = observe(automatic, 'turn-auto-1', 9);
+    automatic = observe(automatic, 'turn-auto-2', 15);
+    expect(automatic.stagnantSliceCount).toBe(0);
+    expect(
+      decideAgentAutomaticContinuation({
+        automatic,
+        plan: summarizeLongTaskPlanForContinuation('session-1', checklist, null, 15),
+        terminalOutcome: 'budget_exceeded',
+        nowMs: 200,
+      }),
+    ).toEqual({ kind: 'schedule' });
+
+    // Slices that commit nothing (failed or declined writes never commit) still stall.
+    automatic = observe(automatic, 'turn-auto-3', 15);
+    automatic = observe(automatic, 'turn-auto-4', 15);
+    expect(automatic.stagnantSliceCount).toBe(AGENT_AUTO_CONTINUATION_MAX_STAGNANT_SLICES);
   });
 
   it('fails closed on terminal failure and unavailable plans without imposing work quotas', () => {

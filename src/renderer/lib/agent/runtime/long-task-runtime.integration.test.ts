@@ -48,7 +48,8 @@ interface Fixture {
       | 'update_task_constraint'
       | 'update_project_facts'
       | 'edit_block'
-      | 'rename_node',
+      | 'rename_node'
+      | 'edit_working_memory',
     scope?: {
       projectId: string;
       sessionId: string;
@@ -231,7 +232,7 @@ async function createAcceptedWriteReview(
   input: {
     chapterId: string;
     chapterName: string;
-    toolName?: 'edit_block' | 'rename_node';
+    toolName?: 'edit_block' | 'rename_node' | 'edit_working_memory';
   },
 ): Promise<string> {
   const toolName = input.toolName ?? 'edit_block';
@@ -1069,6 +1070,61 @@ describe('durable Agent long-task runtime', () => {
         acceptedTargetEvidence: true,
         outcome: 'accepted_target_write',
       },
+    });
+    await test.gateway.close();
+  });
+
+  it('counts committed project writes for the continuation watchdog and restates an in-progress item', async () => {
+    const test = await fixture();
+    const repository = createAgentRuntimeLongTaskRepository(test.gateway.client(), {
+      createId: idFactory(),
+    });
+    const plan = (
+      await repository.applyCommand(test.nextProvenance('update_task_plan'), createCommand())
+    ).plan;
+    const scope = { projectId: plan.task.projectId, sessionId: plan.task.sessionId };
+    const step = plan.steps[0]!;
+    expect(await repository.countCommittedWrites(scope, plan.task.createdAt)).toBe(0);
+    await createAcceptedWriteReview(test, {
+      chapterId: step.target!.resolvedTargetId!,
+      chapterName: step.target!.name,
+    });
+    // Working Memory upkeep is the Agent's own bookkeeping, not project progress.
+    await createAcceptedWriteReview(test, {
+      chapterId: step.target!.resolvedTargetId!,
+      chapterName: step.target!.name,
+      toolName: 'edit_working_memory',
+    });
+    expect(await repository.countCommittedWrites(scope, plan.task.createdAt)).toBe(1);
+    expect(
+      await repository.countCommittedWrites(
+        { projectId: plan.task.projectId, sessionId: 'another-session' },
+        plan.task.createdAt,
+      ),
+    ).toBe(0);
+
+    const startStep = (expectedRevision: number) => ({
+      toolName: 'update_task_step' as const,
+      taskId: plan.task.id,
+      expectedRevision,
+      stepId: step.id,
+      status: 'in_progress' as const,
+      resultNote: null,
+      resultRef: null,
+    });
+    const started = await repository.applyCommand(
+      test.nextProvenance('update_task_step'),
+      startStep(plan.task.revision),
+    );
+    // A resumed slice re-marks its current item; that used to fail with
+    // INVALID_STEP_TRANSITION (in_progress -> in_progress).
+    const restated = await repository.applyCommand(
+      test.nextProvenance('update_task_step'),
+      startStep(started.plan.task.revision),
+    );
+    expect(restated.plan.steps[0]).toMatchObject({
+      status: 'in_progress',
+      startedAt: started.plan.steps[0]!.startedAt,
     });
     await test.gateway.close();
   });

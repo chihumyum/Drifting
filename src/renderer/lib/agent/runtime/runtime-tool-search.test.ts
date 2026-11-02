@@ -419,6 +419,36 @@ describe('AgentRuntime tool search integration', () => {
     ).toBe(true);
   });
 
+  it('names the cause when the workspace unmounts under a running turn', async () => {
+    // Smoke: a full-window error screen cleared the tool bridge mid-turn and
+    // the transcript only said the canonical name could not be resolved.
+    const definitions = [
+      definition('read_node'),
+      ...Array.from({ length: 8 }, (_, index) => definition(`other_${index}`)),
+    ];
+    let mounted = true;
+    const tools: AgentToolRuntime = {
+      listDefinitions: () => definitions,
+      resolveCanonicalName: () => {
+        if (!mounted) throw new Error('Drifting tool context is not mounted');
+        return undefined;
+      },
+      execute: async () => ({ ok: true, data: 'ok' }),
+    };
+    const driver = new RecordingDriver((request) => {
+      mounted = false;
+      return request.iteration === 1 ? toolCall('read', 'read_node') : endTurn();
+    });
+    const runtime = new AgentRuntime({ driver, tools, toolSelector: { select: () => ['read_node'] } });
+
+    const result = await runtime.runTurn(runInput({ toolSearch: 'auto' }));
+
+    expect(result.state.status).toBe('failed');
+    expect(result.state.terminal?.message).toBe(
+      'The installed tool runtime failed to resolve a canonical tool name: Drifting tool context is not mounted',
+    );
+  });
+
   it('fails closed when a selector exceeds the hard limit or returns a non-executable name', async () => {
     for (const selected of [
       Array.from({ length: AGENT_RUNTIME_TOOL_SEARCH_LIMIT + 1 }, (_, index) => `tool_${index}`),

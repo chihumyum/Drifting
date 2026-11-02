@@ -1894,10 +1894,13 @@ export class AgentRuntime {
               try {
                 canonicalName =
                   this.tools.resolveCanonicalName?.(frame.name, context) ?? frame.name;
-              } catch {
+              } catch (cause) {
+                // Name the cause: an unmounted workspace and a broken dynamic
+                // tool source otherwise read the same in the transcript.
+                const reason = cause instanceof Error ? cause.message.trim().slice(0, 200) : '';
                 throw new AgentRuntimeError(
                   'INTERNAL_ERROR',
-                  'The installed tool runtime failed to resolve a canonical tool name',
+                  `The installed tool runtime failed to resolve a canonical tool name${reason ? `: ${reason}` : ''}`,
                 );
               }
               if (!canonicalName.trim()) {

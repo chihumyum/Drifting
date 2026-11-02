@@ -319,6 +319,10 @@ describe('Super View sand and glass acceptance', () => {
   it('draws the element overview in sand, its band kept for the paused mobile shell', () => {
     const view = source('src/renderer/shells/desktop/views/DesktopSuperElementView.tsx');
     expect(view).toContain("import '../../../../styles/super-element.css';");
+    // The body arrives through a deferred entry whose CSS a production build never
+    // injects; the immediate shell owns the sheet (renderer-boundaries.test.ts).
+    expect(source('src/renderer/shells/desktop/views/DeferredSuperViews.tsx'))
+      .toContain("import '../../../../styles/super-element.css';");
     // The desktop islands (element-isles.acceptance.test.ts) dropped 聚焦 and 粘带.
     expect(view).not.toContain('data-super-element-toggle');
     expect(view).toContain('className="super-view-head__hint"');
@@ -341,6 +345,8 @@ describe('Super View sand and glass acceptance', () => {
   it('lays the TODO and material view on one plane with chips and a one-click entity menu', () => {
     const view = source('src/renderer/shells/desktop/views/DesktopSuperMemoMaterialView.tsx');
     expect(view).toContain("import '../../../../styles/super-memo-material.css';");
+    expect(source('src/renderer/shells/desktop/views/DeferredSuperViews.tsx'))
+      .toContain("import '../../../../styles/super-memo-material.css';");
     expect(view).toContain('look="glass"');
     expect(view).toContain('menu-surface menu-surface--rich menu-surface--panel entity-filter-popover');
     expect(view).toContain('<TodoStatusToggle');
