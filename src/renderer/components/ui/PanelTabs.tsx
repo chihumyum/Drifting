@@ -50,8 +50,12 @@ export const PanelTabTray = forwardRef<HTMLDivElement, PanelTabTrayProps>(functi
     const chosen = tray.querySelector<HTMLElement>(':scope > .app-panel-tab.is-active');
     // The block reaches half a gap past its tab on either side, so the room
     // beside the words is half the distance to the next tab's words.
+    // Measured to the subpixel: whole-pixel offsets left the words up to a
+    // pixel off centre in the block.
     const reach = (parseFloat(getComputedStyle(tray).columnGap) || 0) / 2;
-    const next = chosen ? { x: chosen.offsetLeft - reach, width: chosen.offsetWidth + reach * 2 } : null;
+    const box = chosen?.getBoundingClientRect();
+    const origin = tray.getBoundingClientRect().left;
+    const next = box ? { x: box.left - origin - reach, width: box.width + reach * 2 } : null;
     const previous = placed.current;
     if (previous?.x === next?.x && previous?.width === next?.width) return;
     placed.current = next;

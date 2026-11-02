@@ -19,7 +19,11 @@ export function useSidebarTabMinimumWidth(side: SidebarSide) {
       if (!widths.length || widths.some((width) => width <= 0)) return;
       const style = getComputedStyle(row);
       const rowGap = parseFloat(style.columnGap) || 0;
-      const chromeWidth = chrome().reduce((sum, node) => sum + node.getBoundingClientRect().width + rowGap, 0);
+      const chromeWidth = chrome().reduce((sum, node) => {
+        // The right toggle keeps 2px off the window edge (margin-right).
+        const own = getComputedStyle(node);
+        return sum + node.getBoundingClientRect().width + parseFloat(own.marginLeft) + parseFloat(own.marginRight) + rowGap;
+      }, 0);
       const minimum = sidebarTabMinimumWidth(widths, parseFloat(getComputedStyle(tray).columnGap) || 0,
         parseFloat(style.paddingLeft) + parseFloat(style.paddingRight) + chromeWidth);
       useSidebarMetricsStore.getState().setMinimumWidth(side, minimum, source);
