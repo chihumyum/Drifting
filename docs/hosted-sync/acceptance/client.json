@@ -1,7 +1,7 @@
 {
   "kind": "hosted-client-http-sqlite",
-  "generatedAt": "2026-10-30T15:43:11.841Z",
-  "sourceSha256": "0e9a6e1670c7e2307487c80f1944ac0c39005c401a96e24dba210db91b489f21",
+  "generatedAt": "2026-11-02T08:30:48.665Z",
+  "sourceSha256": "bff85f7007cfe6ab91007af3a9569e466f5d8a67270ce7ffce6e442b107e914f",
   "status": "passed",
   "synthetic": true,
   "serviceProtocol": "hosted-object-v1",
@@ -43,11 +43,11 @@
       "status": "passed"
     },
     {
-      "name": "retired client integrations removes Drive native commands, renderer ports and SDK dependencies",
+      "name": "retired client integrations keeps Google Drive sync out of the source tree",
       "status": "passed"
     },
     {
-      "name": "retired client integrations keeps Hosted provisioning and removes experimental build gates",
+      "name": "retired client integrations keeps the standalone Apple-native front-end out of the source tree",
       "status": "passed"
     },
     {
@@ -147,6 +147,54 @@
       "status": "passed"
     },
     {
+      "name": "ProductSyncRuntimeControl keeps deletion suspended when an overlapping provider change releases its hold",
+      "status": "passed"
+    },
+    {
+      "name": "ProductSyncRuntimeControl holds a coordinator mounted while deletion is already in progress",
+      "status": "passed"
+    },
+    {
+      "name": "ProductSyncRuntimeControl publishes only sanitized diagnostics and detaches by coordinator identity",
+      "status": "passed"
+    },
+    {
+      "name": "ProductSyncRuntimeControl reports a failed activation until a coordinator mounts",
+      "status": "passed"
+    },
+    {
+      "name": "ProductSyncRuntimeControl routes manual requests only to registered production SyncGenerations",
+      "status": "passed"
+    },
+    {
+      "name": "ProductSyncRuntimeControl waits for a fresh successful cycle with an empty durable frontier",
+      "status": "passed"
+    },
+    {
+      "name": "ProductionSyncRuntimeSupervisor keeps prose running when chat fails and schedules durable chat commits independently",
+      "status": "passed"
+    },
+    {
+      "name": "ProductionSyncRuntimeSupervisor keeps the local App provider-free and creates neither project nor chat transports",
+      "status": "passed"
+    },
+    {
+      "name": "ProductionSyncRuntimeSupervisor still mounts every SyncGeneration when local storage cleanup fails",
+      "status": "passed"
+    },
+    {
+      "name": "ProductionSyncRuntimeSupervisor mounts all SyncGenerations under one provider and tears the generation down before reload",
+      "status": "passed"
+    },
+    {
+      "name": "ProductionSyncRuntimeSupervisor invalidates an in-flight database activation after a database error",
+      "status": "passed"
+    },
+    {
+      "name": "ProductionSyncRuntimeSupervisor fails closed if active bindings disagree on provider generation",
+      "status": "passed"
+    },
+    {
       "name": "local-only account boundary rejects account actions before the Better Auth client can dispatch",
       "status": "passed"
     },
@@ -227,59 +275,95 @@
       "status": "passed"
     },
     {
-      "name": "ProductSyncRuntimeControl keeps deletion suspended when an overlapping provider change releases its hold",
+      "name": "synced preference fields leaves device-bound settings out",
       "status": "passed"
     },
     {
-      "name": "ProductSyncRuntimeControl holds a coordinator mounted while deletion is already in progress",
+      "name": "synced preference fields applies valid values through the editor ranges and refuses unknown ones",
       "status": "passed"
     },
     {
-      "name": "ProductSyncRuntimeControl publishes only sanitized diagnostics and detaches by coordinator identity",
+      "name": "synced preference fields keeps shortcut actions this version knows and ignores the rest",
       "status": "passed"
     },
     {
-      "name": "ProductSyncRuntimeControl routes manual requests only to registered production SyncGenerations",
+      "name": "account preferences merge carries a change from one device to another",
       "status": "passed"
     },
     {
-      "name": "ProductSyncRuntimeControl waits for a fresh successful cycle with an empty durable frontier",
+      "name": "account preferences merge keeps the later of two offline changes to one setting, and both to different settings",
       "status": "passed"
     },
     {
-      "name": "ProductionSyncRuntimeSupervisor keeps prose running when chat fails and schedules durable chat commits independently",
+      "name": "account preferences merge gives a new device the account settings, while values it never changed only fill gaps",
       "status": "passed"
     },
     {
-      "name": "ProductionSyncRuntimeSupervisor does not mount retained Drive bindings or create either project or chat transports",
+      "name": "account preferences merge lets a change made here before signing in win only when it is the later one",
       "status": "passed"
     },
     {
-      "name": "ProductionSyncRuntimeSupervisor keeps the local App provider-free and does not resolve native identity",
+      "name": "account preferences merge switching accounts applies the new account settings instead of carrying the old ones over",
       "status": "passed"
     },
     {
-      "name": "ProductionSyncRuntimeSupervisor mounts all SyncGenerations under one provider and tears the generation down before reload",
+      "name": "account preferences merge leaves alone a value this version does not understand, without sending anything back",
       "status": "passed"
     },
     {
-      "name": "ProductionSyncRuntimeSupervisor invalidates an in-flight database activation after a database error",
+      "name": "account preferences merge settles a change from a clock running ahead instead of sending it forever",
       "status": "passed"
     },
     {
-      "name": "ProductionSyncRuntimeSupervisor fails closed if active bindings disagree on provider generation",
+      "name": "account preferences merge keeps a change made while its previous value is being sent for the next exchange",
       "status": "passed"
     },
     {
-      "name": "Hosted-only App sync boundary offers account sync and local recovery without Drive controls in any build",
+      "name": "account preferences merge sends nothing when nothing changed",
       "status": "passed"
     },
     {
-      "name": "Hosted-only App sync boundary installs only Hosted provisioning and has no Drive transport in the production runtime",
+      "name": "preference sync runtime fills the account with this device settings and keeps device-bound ones out",
       "status": "passed"
     },
     {
-      "name": "Hosted-only App sync boundary labels project and conversation sync without advertising Google Drive",
+      "name": "preference sync runtime sends a change made here once, after the edit settles",
+      "status": "passed"
+    },
+    {
+      "name": "preference sync runtime applies a change from another device without counting it as one made here",
+      "status": "passed"
+    },
+    {
+      "name": "preference sync runtime records changes but sends nothing while sync is paused, and catches up on resume",
+      "status": "passed"
+    },
+    {
+      "name": "preference sync runtime treats a service without preferences as unsupported instead of failing",
+      "status": "passed"
+    },
+    {
+      "name": "account preferences against the Hosted service two devices of one account converge on the latest change of each setting",
+      "status": "passed"
+    },
+    {
+      "name": "account preferences against the Hosted service another account neither sees nor overwrites these settings",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted-only App sync boundary offers account sync and local recovery in any build",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted-only App sync boundary lets a signed-out or paused library disconnect, uploading first only when it can",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted-only App sync boundary installs only Hosted provisioning in the production runtime",
+      "status": "passed"
+    },
+    {
+      "name": "Hosted-only App sync boundary labels project and conversation sync as Hosted",
       "status": "passed"
     },
     {
@@ -351,43 +435,23 @@
       "status": "passed"
     },
     {
-      "name": "retains rejected remote Drive bytes and local projects while starting a clean Hosted generation",
+      "name": "connects a stable local library to Hosted as a fresh attempt after flushing local writes",
       "status": "passed"
     },
     {
-      "name": "still rolls back takeover for unresolved local integrity: local-quarantine",
+      "name": "resumes an unfinished Hosted connect with its own attempt",
       "status": "passed"
     },
     {
-      "name": "still rolls back takeover for unresolved local integrity: conflict",
+      "name": "only discovers new projects when the library is already on Hosted",
       "status": "passed"
     },
     {
-      "name": "still rolls back takeover for unresolved local integrity: gap",
+      "name": "leaves an unfinished Hosted disconnect for the author to finish or cancel",
       "status": "passed"
     },
     {
-      "name": "refuses to adopt a generation restored from a compacted checkpoint",
-      "status": "passed"
-    },
-    {
-      "name": "rolls back the entire adoption if account ownership changes before commit",
-      "status": "passed"
-    },
-    {
-      "name": "cancels an unfinished Drive connect locally before connecting Hosted",
-      "status": "passed"
-    },
-    {
-      "name": "cancels an unfinished Drive disconnect, then quiesces before local replica adoption",
-      "status": "passed"
-    },
-    {
-      "name": "leaves a retained transition alone if it cannot safely be cancelled",
-      "status": "passed"
-    },
-    {
-      "name": "restores runtime control and stops before upload when local adoption fails",
+      "name": "asks for sign-in before touching local state when there is no Hosted session",
       "status": "passed"
     },
     {
@@ -403,7 +467,7 @@
       "status": "passed"
     },
     {
-      "name": "Hosted current-client real HTTP and SQLite acceptance takes over an offline Drive replica with retained remote quarantine, keeps immutable history, and provisions a fresh Hosted generation",
+      "name": "Hosted current-client real HTTP and SQLite acceptance connects a library migrated from Google Drive to Hosted like any local library and keeps its content",
       "status": "passed"
     },
     {
