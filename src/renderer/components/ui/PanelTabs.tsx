@@ -22,7 +22,8 @@ function reducedMotion() {
 
 /**
  * A pane's row of panel tabs. The tabs stay plain words; one square glass
- * block lies under the chosen tab's whole share of the row and, when another
+ * block lies under the chosen tab's whole share of the row, half the gap to
+ * each neighbour included, and, when another
  * tab is chosen, slides there on the pane's own push (same duration and
  * easing), landing with the panel. Its glass runs with the distance it moves
  * (`--flow`, lib/glass-flow.ts) and stands still once it lands.
@@ -47,7 +48,10 @@ export const PanelTabTray = forwardRef<HTMLDivElement, PanelTabTrayProps>(functi
     // The left sidebar wraps each tab button with its activity badge; the
     // wrapper is the tab's slot in the row.
     const chosen = tray.querySelector<HTMLElement>(':scope > .app-panel-tab.is-active');
-    const next = chosen ? { x: chosen.offsetLeft, width: chosen.offsetWidth } : null;
+    // The block reaches half a gap past its tab on either side, so the room
+    // beside the words is half the distance to the next tab's words.
+    const reach = (parseFloat(getComputedStyle(tray).columnGap) || 0) / 2;
+    const next = chosen ? { x: chosen.offsetLeft - reach, width: chosen.offsetWidth + reach * 2 } : null;
     const previous = placed.current;
     if (previous?.x === next?.x && previous?.width === next?.width) return;
     placed.current = next;

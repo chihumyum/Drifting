@@ -1,8 +1,8 @@
 {
   "kind": "agent_unread_direct_edits_acceptance",
   "status": "passed",
-  "generatedAt": "2026-11-02T09:16:59.481Z",
-  "sourceSha256": "c10ba56a1fcfb30c29ab831ca6a6ed4fae0a06fcfc586a1097d27ecebf1d38a3",
+  "generatedAt": "2026-11-02T14:25:39.224Z",
+  "sourceSha256": "3d6198064d45ddd4df966f94b0b2f36c24410f5ca286b0c8f07422e73446d060",
   "suites": [
     "src/renderer/store/agent-unread-acknowledgement.test.ts",
     "src/renderer/components/ui/entity-hover-card-model.test.ts",
@@ -177,50 +177,6 @@
       "status": "passed"
     },
     {
-      "name": "Agent decoration composition ownership defers updates from the native capture event, before PM marks itself composing",
-      "status": "passed"
-    },
-    {
-      "name": "Agent decoration composition ownership still installs required new review masks during composition",
-      "status": "passed"
-    },
-    {
-      "name": "Agent decoration composition ownership a subsequent composition cancels the previous flush and blur releases the native guard",
-      "status": "passed"
-    },
-    {
-      "name": "Agent decoration composition ownership disposes listeners and pending work even after the editor was destroyed",
-      "status": "passed"
-    },
-    {
-      "name": "Agent reveal appearance preference treats old approval receipts as automatic and removes every mask when motion is off",
-      "status": "passed"
-    },
-    {
-      "name": "Agent reveal appearance preference does not hide guard prose when animation starts disabled",
-      "status": "passed"
-    },
-    {
-      "name": "Agent reveal appearance preference does not hide added prose when animation starts disabled",
-      "status": "passed"
-    },
-    {
-      "name": "Agent decoration semantic selection ignores other entities and non-prose field updates",
-      "status": "passed"
-    },
-    {
-      "name": "Agent decoration semantic selection keeps prose identity when unrelated field changes are merged into an entity",
-      "status": "passed"
-    },
-    {
-      "name": "Agent decoration semantic selection isolates guards by entity kind and compares retained guard identities",
-      "status": "passed"
-    },
-    {
-      "name": "Agent decoration semantic selection preserves pre-live to durable review handoff and Added mask-all semantics",
-      "status": "passed"
-    },
-    {
       "name": "ElementPanel compact text index persists compact/list and toggles it from the header summary instead of the sort menu",
       "status": "passed"
     },
@@ -290,6 +246,50 @@
     },
     {
       "name": "buildEntityHoverCardContent does not query non-hydrated patch data",
+      "status": "passed"
+    },
+    {
+      "name": "Agent decoration composition ownership defers updates from the native capture event, before PM marks itself composing",
+      "status": "passed"
+    },
+    {
+      "name": "Agent decoration composition ownership still installs required new review masks during composition",
+      "status": "passed"
+    },
+    {
+      "name": "Agent decoration composition ownership a subsequent composition cancels the previous flush and blur releases the native guard",
+      "status": "passed"
+    },
+    {
+      "name": "Agent decoration composition ownership disposes listeners and pending work even after the editor was destroyed",
+      "status": "passed"
+    },
+    {
+      "name": "Agent reveal appearance preference treats old approval receipts as automatic and removes every mask when motion is off",
+      "status": "passed"
+    },
+    {
+      "name": "Agent reveal appearance preference does not hide guard prose when animation starts disabled",
+      "status": "passed"
+    },
+    {
+      "name": "Agent reveal appearance preference does not hide added prose when animation starts disabled",
+      "status": "passed"
+    },
+    {
+      "name": "Agent decoration semantic selection ignores other entities and non-prose field updates",
+      "status": "passed"
+    },
+    {
+      "name": "Agent decoration semantic selection keeps prose identity when unrelated field changes are merged into an entity",
+      "status": "passed"
+    },
+    {
+      "name": "Agent decoration semantic selection isolates guards by entity kind and compares retained guard identities",
+      "status": "passed"
+    },
+    {
+      "name": "Agent decoration semantic selection preserves pre-live to durable review handoff and Added mask-all semantics",
       "status": "passed"
     },
     {
@@ -641,7 +641,7 @@
     "driftModified": true,
     "groupSelfAndChildren": true,
     "categoryCount": true,
-    "allThreeTabCounts": true,
+    "allThreeTabDots": true,
     "clickIsolation": true,
     "noNestedButtons": true,
     "acknowledgedEditorSkipsReveal": true,
@@ -663,7 +663,9 @@
     "realQuotaExceeded": true,
     "quotaRevealUsable": true,
     "quotaAcknowledgementUsable": true,
-    "quotaCleanupIsolated": true
+    "quotaCleanupIsolated": true,
+    "tabDotsFitMinimum:zh-CN": true,
+    "tabDotsFitMinimum:en": true
   },
   "boundary": {
     "data": "synthetic",

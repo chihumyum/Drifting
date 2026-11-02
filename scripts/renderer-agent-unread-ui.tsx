@@ -12,6 +12,7 @@ import { useAgentActivityStore } from '../src/renderer/store/agent-activity-stor
 import { useDataStore } from '../src/renderer/store/data-store';
 import { useUiStore } from '../src/renderer/store/ui-store';
 import { useAuthStore } from '../src/renderer/store/auth';
+import { useSidebarMetricsStore } from '../src/renderer/store/sidebar-metrics-store';
 import { i18next as i18n } from '../src/renderer/lib/i18n';
 import '../src/styles/index.css';
 import '../src/styles/materials.css';
@@ -78,6 +79,12 @@ const hoverMetrics = () => {
     labelOpacity: Number(getComputedStyle(label).opacity),
     glyphOpacity: Number(getComputedStyle(glyph).opacity), color: style.color, background: style.backgroundColor,
     border: style.border, radius: style.borderRadius, shadow: style.boxShadow };
+};
+/** The desktop tab row alone, free or held at a width; returns the minimum it measured. */
+const mountTabRow = async (root: ReturnType<typeof createRoot>, width: number | 'free') => {
+  root.render(<div style={{ width: width === 'free' ? 640 : width }}><LeftSidebarHeader paneId="primary" activeTab="nodes" /></div>);
+  await document.fonts.ready; await pulse(); await pulse();
+  return useSidebarMetricsStore.getState().minimumWidths.left;
 };
 let categoryTarget: HTMLElement;
 const api = {
@@ -171,7 +178,7 @@ const api = {
   },
   async prepareHover(kind: 'A' | 'M' | 'count') {
     await reset();
-    hoverTarget = kind === 'count' ? indicator(document.querySelector('.agent-panel-tab')!)
+    hoverTarget = kind === 'count' ? indicator(document.querySelector('#tab-row .agent-panel-tab')!)
       : indicator(findRow('chapters', kind === 'A' ? 'Synthetic chapter-a' : 'Synthetic chapter-b'));
     const rect = hoverTarget.getBoundingClientRect();
     return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, ...hoverMetrics() };
@@ -214,6 +221,55 @@ const api = {
       showEditor(null); store.clearAll();
     }
   },
+  /** Desktop panel tabs at the sidebar's measured minimum, with unread dots on
+   * all three: the labels keep 6px ends and 12px gaps, each dot hangs at its
+   * label's upper corner clear of the next label, and the row never scrolls. */
+  async tabDotsFitMinimum() {
+    const results: Record<string, boolean> = {};
+    for (const locale of ['zh-CN', 'en']) {
+      await i18n.changeLanguage(locale);
+      useAgentActivityStore.getState().clearAll(); useAgentEditStore.getState().clearAll();
+      document.documentElement.dataset.shellMode = 'desktop';
+      const host = document.body.appendChild(document.createElement('div'));
+      // Above the fixture's own tab row, which stacks at z-index 20.
+      host.style.cssText = 'position:fixed;left:0;top:0;z-index:100;background:#fff';
+      const root = createRoot(host);
+      const plain = await mountTabRow(root, 'free');
+      await reset();
+      const minimum = await mountTabRow(root, 'free');
+      assert(minimum > 0, 'Desktop tab row did not measure a minimum');
+      // A wide tab's empty share still belongs to the tab button.
+      const wide = host.querySelector<HTMLElement>('.agent-panel-tab')!.getBoundingClientRect();
+      const label = host.querySelector<HTMLElement>('[data-panel-tab-label]')!.getBoundingClientRect();
+      assert(label.left - wide.left > 4, 'Positive control: the free tab is no wider than its label');
+      assert(document.elementFromPoint(wide.left + 2, wide.top + wide.height / 2)?.closest('button.app-panel-tab'), 'The tab edge no longer switches the tab');
+      await mountTabRow(root, minimum);
+      const row = host.querySelector<HTMLElement>('.workspace-panel-tab-row')!;
+      const tray = row.querySelector<HTMLElement>('.panel-tab-tray')!;
+      const bounds = row.getBoundingClientRect();
+      const labels = [...row.querySelectorAll<HTMLElement>('[data-panel-tab-label]')].map(label => label.getBoundingClientRect());
+      const dots = [...row.querySelectorAll<HTMLElement>('.agent-tab-dot')];
+      assert(plain === minimum, 'Unread dots changed the sidebar minimum');
+      assert(dots.length === 3, `Expected three tab dots, saw ${dots.length}`);
+      assert(Math.abs(bounds.width - minimum) < 0.5 && row.scrollWidth <= row.clientWidth
+        && getComputedStyle(tray).overflowX === 'visible', 'Tab row overflows or scrolls at its minimum');
+      labels.forEach((label, i) => assert(label.left >= bounds.left + 5.9 && label.right <= bounds.right - 5.9
+        && (i === 0 || label.left - labels[i - 1].right >= 11.9), `Label ${i} lost its room`));
+      dots.forEach((dot, i) => {
+        const hit = dot.getBoundingClientRect();
+        const sand = dot.querySelector('.sand')!.getBoundingClientRect();
+        assert(sand.width > 0 && sand.left >= labels[i].right - 2 && sand.bottom <= labels[i].top + labels[i].height / 2, `Dot ${i} is not at its label's upper corner`);
+        assert(hit.right <= bounds.right && (i === labels.length - 1 || hit.right < labels[i + 1].left), `Dot ${i} crowds the next label`);
+        const middle = document.elementFromPoint(hit.left + hit.width / 2, hit.top + hit.height / 2);
+        assert(dot.contains(middle), `Dot ${i} cannot receive the pointer: ${middle?.outerHTML.slice(0, 200)}`);
+      });
+      root.unmount(); host.remove();
+      delete document.documentElement.dataset.shellMode;
+      results[`tabDotsFitMinimum:${locale}`] = true;
+    }
+    await i18n.changeLanguage('en');
+    return results;
+  },
   async run() {
     await i18n.changeLanguage('en'); useUiStore.setState({ elementPanelViewMode: 'compact' }); await reset();
     assert(!document.querySelector('button button'), 'Nested interactive buttons');
@@ -243,10 +299,15 @@ const api = {
     assert(!useAgentEditStore.getState().pending['element:element-a'] && useAgentEditStore.getState().pending['node:chapter-a'], 'Category child count escaped scope');
     for (const [index, keys] of [[0, ['node:chapter-a', 'node:chapter-b']], [1, ['element:element-a', 'element:element-b']], [2, ['node:drift-a']]] as const) {
       await reset();
-      const tab = document.querySelectorAll('.agent-panel-tab')[index]; indicator(tab).click(); await pulse();
-      assert(keys.every(key => !useAgentEditStore.getState().pending[key]), 'Tab count did not acknowledge its entities');
-      assert(JSON.stringify(useUiStore.getState().desktopSidebarTabs) === tabsBefore && opens.length === 0, 'Tab count switched tabs or opened editor');
-      assert(Object.keys(useAgentEditStore.getState().pending).length === 5 - keys.length, 'Tab count cleared another panel');
+      const tab = document.querySelectorAll('#tab-row .agent-panel-tab')[index];
+      assert(!tab.textContent?.match(/\d/) && tab.querySelector('.agent-tab-dot .sand'), 'Tab shows a count instead of a sand dot');
+      const tabButton = tab.querySelector('button.app-panel-tab')!;
+      assert(tabButton.getAttribute('aria-label')?.includes(`${keys.length} unviewed Agent change`), 'Tab does not name its unread count');
+      indicator(tab).click(); await pulse();
+      assert(keys.every(key => !useAgentEditStore.getState().pending[key]), 'Tab dot did not acknowledge its entities');
+      assert(JSON.stringify(useUiStore.getState().desktopSidebarTabs) === tabsBefore && opens.length === 0, 'Tab dot switched tabs or opened editor');
+      assert(Object.keys(useAgentEditStore.getState().pending).length === 5 - keys.length, 'Tab dot cleared another panel');
+      assert(!tab.querySelector('.agent-tab-dot'), 'Acknowledged tab kept its dot');
     }
     await reset(); showEditor('chapter-b'); await pulse();
     assert(document.querySelector('.agent-reveal'), 'Positive control: live unread reveal did not start');
@@ -270,7 +331,7 @@ const api = {
     assert(document.querySelector('.agent-reveal.agent-reveal--external'), 'Markdown folder edit did not reveal in blue');
     external.click(); await pulse();
     assert(!useAgentEditStore.getState().pending['node:chapter-b'] && useAgentEditStore.getState().pending['node:chapter-a'] && !document.querySelector('.agent-reveal'), 'Acknowledging a Markdown folder edit failed');
-    return { externalEditBlue: true, chapterAdded: true, compactElementAdded: true, listElementModified: true, driftModified: true, groupSelfAndChildren: true, categoryCount: true, allThreeTabCounts: true, clickIsolation: true, noNestedButtons: true, acknowledgedEditorSkipsReveal: true, activeRevealCancelled: true, laterWriteUnread: true, reviewControlsAbsent: true };
+    return { externalEditBlue: true, chapterAdded: true, compactElementAdded: true, listElementModified: true, driftModified: true, groupSelfAndChildren: true, categoryCount: true, allThreeTabDots: true, clickIsolation: true, noNestedButtons: true, acknowledgedEditorSkipsReveal: true, activeRevealCancelled: true, laterWriteUnread: true, reviewControlsAbsent: true };
   },
 };
 Object.assign(globalThis, { __AGENT_UNREAD_UI__: api });
@@ -279,7 +340,7 @@ function Fixture() {
   const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
   useLayoutEffect(() => { showEditor = setEditorId; }, []);
   return <WorkspaceNavigationProvider navigator={{ projectId, open: target => opens.push(target), activate() {}, showProjectHome() {}, leaveDeletedTarget() {} }}>
-    <LeftSidebarHeader paneId="primary" activeTab="nodes" />
+    <div id="tab-row"><LeftSidebarHeader paneId="primary" activeTab="nodes" /></div>
     <div style={{ display: 'flex', gap: 16, height: 320 }}>
       <div data-panel="chapters" style={{ width: 280 }}><ChapterPanel /></div>
       <div data-panel="elements" style={{ width: 280 }}><ElementPanel /></div>

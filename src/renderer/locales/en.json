@@ -876,7 +876,8 @@
   },
   "agentActivity": {
     "markSeen": "Mark Agent changes as read",
-    "unviewedChanges": "Unviewed Agent changes",
+    "unviewedChangeCount_one": "{{count}} unviewed Agent change",
+    "unviewedChangeCount_other": "{{count}} unviewed Agent changes",
     "working": "Agent is working",
     "addedHere": "Agent added this; its full prose reveals on first open",
     "changedHere": "Agent just changed this",

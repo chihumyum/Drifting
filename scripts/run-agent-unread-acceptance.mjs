@@ -60,6 +60,8 @@ if (process.argv.includes('--check')) {
   assert.equal(report.browserChecks.quotaRevealUsable, true);
   assert.equal(report.browserChecks.quotaAcknowledgementUsable, true);
   assert.equal(report.browserChecks.quotaCleanupIsolated, true);
+  assert.equal(report.browserChecks['tabDotsFitMinimum:zh-CN'], true);
+  assert.equal(report.browserChecks['tabDotsFitMinimum:en'], true);
   console.log('Agent unread/direct-write evidence matches source.');
 } else {
   const temporary = mkdtempSync(path.join(tmpdir(), 'drifting-agent-unread-'));
@@ -140,8 +142,9 @@ if (process.argv.includes('--check')) {
     const result = await client.Runtime.evaluate({ expression: 'globalThis.__AGENT_UNREAD_UI__.run()', awaitPromise: true, returnByValue: true });
     assert(!result.exceptionDetails, result.exceptionDetails?.exception?.description ?? result.exceptionDetails?.text);
     const quotaChecks = await evaluate('globalThis.__AGENT_UNREAD_UI__.quotaRecovery()');
+    const fitChecks = await evaluate('globalThis.__AGENT_UNREAD_UI__.tabDotsFitMinimum()');
     assert.deepEqual(errors, []);
-    const browserChecks = { ...result.result.value, ...hoverChecks, ...quotaChecks };
+    const browserChecks = { ...result.result.value, ...hoverChecks, ...quotaChecks, ...fitChecks };
     assert(Object.keys(browserChecks).length >= 13 && Object.values(browserChecks).every(value => value === true));
     const report = { kind: 'agent_unread_direct_edits_acceptance', status: 'passed', generatedAt: new Date().toISOString(), sourceSha256: fingerprint(), suites, tests, browserChecks,
       boundary: { data: 'synthetic', browser: 'isolated Chromium with production sidebar/store/animator components', nativeInteraction: 'not_run', hostedService: 'not_run' } };

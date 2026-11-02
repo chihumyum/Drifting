@@ -875,7 +875,7 @@
   },
   "agentActivity": {
     "markSeen": "将 Agent 改动标为已读",
-    "unviewedChanges": "未查看的 Agent 改动",
+    "unviewedChangeCount": "{{count}} 处未查看的 Agent 改动",
     "working": "Agent 正在处理",
     "addedHere": "Agent 新建了这里；首次打开会播放全文 reveal",
     "changedHere": "Agent 刚改动了这里",

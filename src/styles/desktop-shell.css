@@ -256,7 +256,9 @@
 
 .workspace-panel-tab-row.workspace-panel-tab-row--window {
   height: var(--window-titlebar-height);
-  gap: 4px;
+  /* Half the tabs' 12px gap: the chosen tab's glass block reaches that far
+     past its tab, up to the window controls and no further. */
+  gap: 6px;
 }
 
 .workspace-panel-tab-row.workspace-panel-tab-row--window[data-leading-inset] {

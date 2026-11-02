@@ -6,14 +6,15 @@
  * beneath it:
  *   - busy (a child cell is being touched right now) → the layer keeps its
  *     glyph and blinks/glows it in accent.
- *   - not busy + doneCount > 0 (children with unviewed changes) → the leading
- *     glyph is REPLACED by a plain count (how many changed cells the user hasn't
- *     opened). The count returns to the glyph once they've reviewed all (→ 0).
- *   - both → busy wins: the glyph blinks and the count stays hidden until the
- *     run finishes, so a working layer never shows a static number.
+ *   - not busy + doneCount > 0 (children with unviewed changes) → a group's
+ *     leading glyph is REPLACED by a plain count (how many changed cells the
+ *     user hasn't opened); a tab, short of room, only gains a sand dot on its
+ *     label. Both go once they've reviewed all (→ 0).
+ *   - both → busy wins: the glyph blinks and the count or dot stays hidden
+ *     until the run finishes, so a working layer never shows a static mark.
  *
  * `aggregateActivity` does the roll-up; <AgentCountBadge> (its own file, so this
- * stays a logic-only module) paints the count.
+ * stays a logic-only module) paints a group's count, LeftSidebarHeader a tab's dot.
  */
 import type { ActivityMark } from '../../store/agent-activity-store';
 
