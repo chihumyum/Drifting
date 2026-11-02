@@ -3,16 +3,15 @@
 // touched, so ProseMirror reconciliation and IME composition never see it.
 // A mark is painted on its block's text at its stored offsets while the text
 // there still matches (else at its nearest occurrence in the block); a block
-// whose text no longer holds those words drops the mark. Resting the pointer on
-// a mark for RECENT_CHANGE_DWELL_MS lets it go (its colour eases back in two
-// steps). Each name is styled by a `::highlight(...)` rule in comments-review.css.
+// whose text no longer holds those words drops the mark. The pointer touching a
+// mark lets it go at once (its colour eases back in two steps). Each name is
+// styled by a `::highlight(...)` rule in comments-review.css.
 import { blockLookup, domPointAtOffset, findNearestTextOffset } from './comment-highlight';
 import {
   dismissAgentRecentMark,
   forgetAgentRecentMarks,
   type AgentRecentMark,
 } from './agent-recent-changes';
-import { RECENT_CHANGE_DWELL_MS } from './motion';
 
 interface HighlightLike {
   add(range: Range): void;
@@ -72,7 +71,6 @@ export class AgentRecentHighlightPainter {
   private timer: ReturnType<typeof setTimeout> | null = null;
   private frame = 0;
   private point: { x: number; y: number } | null = null;
-  private dwell: { id: string; timer: ReturnType<typeof setTimeout> } | null = null;
 
   constructor(
     private readonly scrollEl: HTMLElement,
@@ -106,7 +104,6 @@ export class AgentRecentHighlightPainter {
     this.timer = null;
     if (this.frame) cancelAnimationFrame(this.frame);
     this.frame = 0;
-    this.cancelDwell();
     const api = getApi();
     if (api) for (const painted of this.painted.values()) this.remove(api, painted);
     this.painted.clear();
@@ -161,7 +158,6 @@ export class AgentRecentHighlightPainter {
       if (!before || before.range !== painted.range || before.name !== painted.name) this.add(api, painted);
     }
     this.painted = next;
-    if (this.dwell && !next.has(this.dwell.id)) this.cancelDwell();
     if (gone.length > 0) forgetAgentRecentMarks(gone);
   }
 
@@ -177,37 +173,20 @@ export class AgentRecentHighlightPainter {
 
   private readonly onPointerLeave = () => {
     this.point = null;
-    this.cancelDwell();
   };
 
-  /** Which shown mark the pointer rests on, if any; resting long enough lets it go. */
+  /** Lets go of the shown mark the pointer is on, if any. */
   private hitTest(): void {
     const point = this.point;
-    let hit: Painted | null = null;
-    if (point) {
-      for (const painted of this.painted.values()) {
-        if (painted.mark.fade) continue;
-        for (const rect of painted.range.getClientRects()) {
-          if (point.x >= rect.left && point.x <= rect.right && point.y >= rect.top && point.y <= rect.bottom) {
-            hit = painted;
-            break;
-          }
+    if (!point) return;
+    for (const painted of this.painted.values()) {
+      if (painted.mark.fade) continue;
+      for (const rect of painted.range.getClientRects()) {
+        if (point.x >= rect.left && point.x <= rect.right && point.y >= rect.top && point.y <= rect.bottom) {
+          dismissAgentRecentMark(painted.mark.id);
+          return;
         }
-        if (hit) break;
       }
     }
-    if (hit?.mark.id === this.dwell?.id) return;
-    this.cancelDwell();
-    if (!hit) return;
-    const id = hit.mark.id;
-    this.dwell = { id, timer: setTimeout(() => {
-      this.dwell = null;
-      dismissAgentRecentMark(id);
-    }, RECENT_CHANGE_DWELL_MS) };
-  }
-
-  private cancelDwell(): void {
-    if (this.dwell) clearTimeout(this.dwell.timer);
-    this.dwell = null;
   }
 }
