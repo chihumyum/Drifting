@@ -40,6 +40,15 @@ import {
   validateObject,
 } from './protocol';
 
+const RETIRED_CYCLE: SyncGenerationCycleResult = Object.freeze({
+  pulledObjects: 0,
+  publishedBlobs: 0,
+  publishedSegments: 0,
+  checkpointCreated: false,
+  converged: false,
+  requiresRepull: false,
+});
+
 /** Separate failure/cursor domain, sharing the existing coordinator and native transport. */
 export class AgentChatSyncRuntime implements RegisteredSyncGenerationRuntime {
   readonly syncGenerationId: string;
@@ -141,22 +150,27 @@ export class AgentChatSyncRuntime implements RegisteredSyncGenerationRuntime {
     _triggers: ReadonlySet<SchedulerTrigger>,
     signal: AbortSignal,
   ): Promise<SyncGenerationCycleResult> {
+    // A generation can retire while this runtime is still registered: a remote
+    // project deletion applied by the reducer purges it mid-session. Like the
+    // project runtime's binding check, step aside until the next reload instead
+    // of failing every cycle (which the account settings showed as a bare
+    // "Error" over every healthy project).
+    if (await this.unboundReason()) return RETIRED_CYCLE;
     return this.lane.run(signal);
   }
 
-  private async guard(signal: AbortSignal): Promise<void> {
-    signal.throwIfAborted();
+  private async unboundReason(): Promise<string | null> {
     const [generation] = await this.options.db
       .select()
       .from(Generations)
       .where(eq(Generations.syncGenerationId, this.options.binding.syncGenerationId));
     if (!generation || generation.projectId !== this.projectId || generation.status !== 'active')
-      throw new Error('Agent chat project generation is no longer active');
+      return 'Agent chat project generation is no longer active';
     const [project] = await this.options.db
       .select({ id: Projects.id })
       .from(Projects)
       .where(eq(Projects.id, this.projectId));
-    if (!project) throw new Error('Agent chat project is no longer active');
+    if (!project) return 'Agent chat project is no longer active';
     this.projectSyncId = generation.projectSyncId;
     if (this.options.verifyAuthority !== false) {
       const [authority] = await this.options.db.select().from(Authority).limit(1);
@@ -166,8 +180,15 @@ export class AgentChatSyncRuntime implements RegisteredSyncGenerationRuntime {
         authority.mode !== this.options.provider.kind ||
         authority.transitionState !== 'stable'
       )
-        throw new Error('Agent chat provider authority changed');
+        return 'Agent chat provider authority changed';
     }
+    return null;
+  }
+
+  private async guard(signal: AbortSignal): Promise<void> {
+    signal.throwIfAborted();
+    const reason = await this.unboundReason();
+    if (reason) throw new Error(reason);
     signal.throwIfAborted();
   }
 

@@ -614,10 +614,20 @@ describe('Agent chat extension: two independent product databases', () => {
     await complete(a.db, 'conversation');
     await cycle(net.runtime(a.db));
     expect((await capture()).packageBytes).toEqual(before.packageBytes);
+    // An unbound generation stays registered until the next reload (a remote
+    // purge can retire it mid-session). It must do no provider work and must
+    // not fail: a failing chat lane showed as a bare "Error" in settings.
+    const touched = (['openGeneration', 'captureStartCursor', 'listInventory', 'listChanges', 'uploadImmutable'] as const)
+      .map((method) => vi.spyOn(net.provider, method));
+    const callsBefore = touched.map((spy) => spy.mock.calls.length);
+    const inert = { pulledObjects: 0, publishedBlobs: 0, publishedSegments: 0, checkpointCreated: false, converged: false, requiresRepull: false };
     await a.db.delete(ProjectTable).where(eq(ProjectTable.id, 'p'));
-    await expect(cycle(net.runtime(a.db))).rejects.toThrow('no longer active');
+    const deletedProject = net.runtime(a.db);
+    await expect(cycle(deletedProject)).resolves.toEqual(inert);
+    expect(deletedProject.status.lastOutcome).not.toBe('failed');
     await a.db.update(SyncGenerationTable).set({ status: 'retired', retiredAt: NOW });
-    await expect(cycle(net.runtime(a.db))).rejects.toThrow('no longer active');
+    await expect(cycle(net.runtime(a.db))).resolves.toEqual(inert);
+    expect(touched.map((spy) => spy.mock.calls.length)).toEqual(callsBefore);
   });
 
   it('converges simultaneous title edits and quarantines malformed display per branch', async () => {

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { eq } from 'drizzle-orm';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as Y from 'yjs';
 
 import { ProductFileBackedSqliteGateway } from '../../lib/agent/runtime/acceptance/p3-file-backed-sqlite';
@@ -357,6 +357,7 @@ async function createDevice(input: {
   reconcileOpenYjsDocuments?: SqliteSyncGenerationRuntimeOptions['reconcileOpenYjsDocuments'];
   onRemoteChangeCommitted?: SqliteSyncGenerationRuntimeOptions['onRemoteChangeCommitted'];
   onReferenceCoverageInvalidated?: SqliteSyncGenerationRuntimeOptions['onReferenceCoverageInvalidated'];
+  onBindingRetired?: SqliteSyncGenerationRuntimeOptions['onBindingRetired'];
   connectMarker?: RemoteObject;
   sealMaxChangeSetsPerCycle?: number;
   checkpoint?: SqliteSyncGenerationRuntimeOptions['checkpoint'];
@@ -385,6 +386,7 @@ async function createDevice(input: {
     reconcileOpenYjsDocuments: input.reconcileOpenYjsDocuments,
     onRemoteChangeCommitted: input.onRemoteChangeCommitted,
     onReferenceCoverageInvalidated: input.onReferenceCoverageInvalidated,
+    onBindingRetired: input.onBindingRetired,
     sealMaxChangeSetsPerCycle: input.sealMaxChangeSetsPerCycle,
     checkpoint: input.checkpoint,
   });
@@ -1718,14 +1720,19 @@ describe('SQLite durable SyncEngine runtime', () => {
     await authorSyncGenerationPurge(purgeWriter, 56_000);
     await cycle(purgeWriter);
 
+    // The host reloads so the retired runtimes leave the coordinator; without
+    // it a registered Agent chat lane kept failing as a bare "Error".
+    const retired = vi.fn();
     const receiver = await createDevice({
       id: 'purge-receiver',
       provider,
       localObjects,
       clockMs: 57_000,
       domainKernel: productionSyncDomainMaterializationKernel,
+      onBindingRetired: retired,
     });
     await cycle(receiver);
+    expect(retired).toHaveBeenCalledTimes(1);
 
     expect(await receiver.db.select().from(ProjectTable)).toEqual([]);
     expect(await receiver.db.select().from(SyncApplyReceiptTable)).toHaveLength(2);

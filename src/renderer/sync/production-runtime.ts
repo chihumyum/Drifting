@@ -205,6 +205,7 @@ const defaultDependencies: ProductionSyncRuntimeDependencies = {
         await cleanupDeletedProject(projectId, receipt);
         events.emit('sync:authority-changed');
       },
+      onBindingRetired: () => events.emit('sync:authority-changed'),
       reconcileOpenYjsDocuments: ({ projectId, docIds }) =>
         reconcileOpenYjsDocumentSessions(projectId, docIds),
       onRemoteChangeCommitted: ({ projectId, projectionImpact, proseDocIds }) => {

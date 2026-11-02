@@ -133,6 +133,12 @@ export interface SyncEngineCheckpointHook {
 
 export interface SqliteSyncGenerationRuntimeOptions {
   readonly onRemoteProjectDeleted?: (input: { projectId: string; receipt: ProjectDeletionReceipt }) => Promise<void>;
+  /**
+   * A cycle retired this binding (a remote `sync-generation.purge` applied by
+   * the reducer). The registered runtimes for it are now inert; the host
+   * reloads so they leave the coordinator and its diagnostics.
+   */
+  readonly onBindingRetired?: () => void;
   readonly db: DbClient;
   readonly syncGenerationId: string;
   readonly projectId?: string;
@@ -409,6 +415,7 @@ export class SqliteSyncGenerationRuntime {
   private readonly stateRepository: SqliteSyncEngineStateRepository;
   private providerGenerationPromise: Promise<ProviderGeneration> | null = null;
   private readonly onRemoteProjectDeleted: SqliteSyncGenerationRuntimeOptions['onRemoteProjectDeleted'];
+  private readonly onBindingRetired: SqliteSyncGenerationRuntimeOptions['onBindingRetired'];
   private activeTriggers: ReadonlySet<SchedulerTrigger> = new Set();
   private currentTransferProgress: SyncGenerationTransferProgress | null = null;
   private readonly lane: SyncGenerationCycleLane;
@@ -419,6 +426,7 @@ export class SqliteSyncGenerationRuntime {
     }
     this.db = options.db;
     this.onRemoteProjectDeleted = options.onRemoteProjectDeleted;
+    this.onBindingRetired = options.onBindingRetired;
     this.syncGenerationId = options.syncGenerationId;
     this.projectId = options.projectId;
     this.provider = options.provider;
@@ -510,6 +518,7 @@ export class SqliteSyncGenerationRuntime {
       const result = await this.lane.run(signal);
       await this.persistSuccessfulCycleStatus(result);
       this.emitStatus();
+      if (!(await this.bindingAllowsCycle())) this.onBindingRetired?.();
       return result;
     } catch (error) {
       if (this.provider.kind === 'hosted' && error && typeof error === 'object' &&
