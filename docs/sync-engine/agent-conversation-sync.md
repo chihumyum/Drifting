@@ -87,6 +87,16 @@ interrupt editor input. Desktop and mobile disable continuation for pending,
 conflicting and display-only histories. Transfer diagnostics share the existing
 notification surface and identify Agent conversations separately.
 
+A project generation can retire while its runtimes are still registered, most
+often when a pull applies a remote `sync-generation.purge` for a project
+deleted on another device. The chat runtime then steps aside like the project
+runtime's binding check: a cycle on an inactive generation, a missing project
+or a changed provider authority does no provider work and does not fail. The
+project runtime reports a cycle that retired its own binding, and the host
+reloads so both runtimes leave the coordinator and its diagnostics. Before
+this, the stale chat lane failed every cycle and Settings showed a bare
+`Error` over otherwise healthy projects until restart.
+
 ## Evidence and physical acceptance
 
 Generated contract evidence is in
