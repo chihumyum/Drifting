@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { designSystemDocs } from '../components/design-system-docs.test-support';
 
@@ -144,7 +145,13 @@ describe('danger buttons', () => {
 
 describe('the sign-in dialog', () => {
   const render = (presentation: 'dialog' | 'page', initialMode: 'signin' | 'signup' = 'signin') =>
-    renderToStaticMarkup(createElement(AuthFlow, { presentation, initialMode, onComplete: () => {}, onClose: () => {} }));
+    renderToStaticMarkup(
+      createElement(
+        MemoryRouter,
+        null,
+        createElement(AuthFlow, { presentation, initialMode, onComplete: () => {}, onClose: () => {} }),
+      ),
+    );
 
   it('is made of the shared controls on the desktop', () => {
     const html = render('dialog');
