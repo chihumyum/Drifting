@@ -10,8 +10,8 @@ import { thin, trace, len, rng } from '../social-preview/sand-letters.js';
 const N = 1024;
 // The sketches were tuned on a 600px tile; these keep their proportions.
 const U = 600 / N, S = N / 300, AA = 1.1 * N / 300;
-// Sand weight and the rim's strength, as chosen (sketch d1).
-const SAND = 1.1, SAND_INK = 0.86, LINE = 0.65, BLEED = 0.26, BLEED_WIDTH = 4, BEND = N * 0.012;
+// Sand weight and the rim's strength: sketch d1, made denser so the berg holds at Dock sizes.
+const SAND = 1.1, SAND_INK = 1, LINE = 0.8, BLEED = 0.26, BLEED_WIDTH = 4, BEND = N * 0.012;
 
 const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
 const smoothstep = (a, b, x) => { const t = clamp((x - a) / (b - a)); return t * t * (3 - 2 * t); };
@@ -80,8 +80,9 @@ function sand(berg, weight, seed) {
     const p = y * N + x;
     if (!berg.sil[p]) { const d = berg.dOut[p]; if (d < N * 0.012 && rand() < 0.012 * weight * (1 - d / (N * 0.012))) a[p] = 0.45 + 0.3 * rand(); continue; }
     const depth = clamp((y - berg.top) / span), edge = smoothstep(0, N * 0.012, berg.dIn[p]), gap = smoothstep(N * 0.004, N * 0.011, berg.dCrev[p]);
-    const strata = 0.5 + 0.5 * Math.sin(y * U * 0.11 + 2.2 * Math.sin(x * U * 0.012 + y * U * 0.004));
-    const dens = weight * (0.12 + 0.46 * depth ** 1.2) * (0.72 + 0.28 * strata) * gap * (0.5 + 0.5 * edge);
+    // Even with depth: banding in the density outlives the grains when the
+    // icon is scaled down and reads as contour rings in the Dock.
+    const dens = weight * (0.32 + 0.5 * depth ** 1.1) * gap * (0.8 + 0.2 * edge);
     a[p] = rand() < dens ? 0.62 + 0.38 * rand() : dens * 0.25;
   }
   return a;
