@@ -60,7 +60,7 @@
 1. 在 `main` 上把 `package.json`、`src-tauri/Cargo.toml`、`src-tauri/tauri.conf.json`
    的版本改成同一个新版本号（如 `0.1.0-alpha.2`），并写好
    `docs/releases/<版本号>.md`。第一行 `# Drifting <版本号>` 之后的正文会原样显示在
-   App 的更新提示和 设置 › 更新 里，写给用户看，保持简短。
+   App 的更新提示和 设置 › 更新 里，写给用户看，用英文写，保持简短。
 2. 本地运行 `pnpm release:check v<版本号>`，再跑 `pnpm lint`、`pnpm typecheck`、`pnpm test`。
 3. 推送提交和 tag：`git tag v<版本号> && git push origin main v<版本号>`。
 4. 等 **Release** 工作流结束。`verify` 失败不会构建；`build` 会核对签名、Gatekeeper、
