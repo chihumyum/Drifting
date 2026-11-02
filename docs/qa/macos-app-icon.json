@@ -5,18 +5,18 @@
     "scripts/check-macos-icon.mjs": "1af51a80f0ac9a79df029bea40595b26b29a17d58a6f3736476ada5cb8e036ef",
     "src-tauri/tauri.conf.json": "ba10d28912c1269c7c90b9ff7d169b568d738ae2459e6dd45ddbc51d7155804a",
     "src-tauri/tauri.macos.conf.json": "27bc8c6480840118d78e513aa52514c8820c0d424d3cc10772c48864196bce86",
-    "src/assets/icon.icns": "2635b4051ac37bd945e0ef4e3a1594fbb8b042133d433c093df496a581509422",
+    "src/assets/icon.icns": "932f5838a4c43762024852b6c5fdf1da02a065ca4d8d502e620b0fd4d508fe47",
     "src/assets/icon.icon/icon.json": "a47f93e0c7ac61fcf982a24a16d4473180327cbfbf5c8fc1477dc5767aaef71e",
     "src/assets/icon.icon/Assets/glass-bleed.png": "0b342e4e0a494cfd893fdf8493bd4f9b620e497858c483e8c41796b452afed92",
-    "src/assets/icon.icon/Assets/glass-line.png": "b6d579c50150f88a3f3de0e2b99bf170be177fd9770e781af7701d5779daf952",
-    "src/assets/icon.icon/Assets/sand.png": "d5a3a2022fc53db8176e4e17500b9ca09979ec74c5a84f3621816a019fda9c0c"
+    "src/assets/icon.icon/Assets/glass-line.png": "aac6d8b041288062da48e3ab88d23ce0348b4034eb09554cbc1a3bd2f5d05955",
+    "src/assets/icon.icon/Assets/sand.png": "7cf232cf815cf94db458f62c4d8ef6785d3a8112ec89bcf70e6782bcd5d78de9"
   },
   "bundle": {
     "minimumSystemVersion": "13.0",
     "iconName": "icon",
     "iconFile": "icon.icns",
-    "fallbackSha256": "2635b4051ac37bd945e0ef4e3a1594fbb8b042133d433c093df496a581509422",
-    "catalogSha256": "b90e65bb74ec72ad7940d419b6d94f565fc1e60f4950f31cb3181e27fff4f7f7",
+    "fallbackSha256": "932f5838a4c43762024852b6c5fdf1da02a065ca4d8d502e620b0fd4d508fe47",
+    "catalogSha256": "8e29cdc3b8b92b43e169ac6c6a4dab5659fa9de3cd2a7612f99366b9f5a0b642",
     "compiler": "Xcode 27.2 (27B52) via AssetCatalogAgent-AssetRuntime",
     "platform": "macosx",
     "appearances": [

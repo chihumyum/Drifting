@@ -37,9 +37,11 @@ What is on the icon, and why:
   with the social preview's skeleton (`../social-preview/sand-letters.js`): its
   silhouette, and the strokes that run well inside it as crevices. It fills
   about 82% of the canvas's height.
-- **Sand** fills the whole berg, light at the top and denser with depth, in
-  faint strata; the crevices are left clear and a few grains are thrown off the
-  edge. Seeds are fixed, so a rerun reproduces the same pixels.
+- **Sand** fills the whole berg, a third covered at the top and denser with
+  depth, evenly with no banding; the crevices are left clear and a few grains
+  are thrown off the edge. It is dense enough that the berg and its crevices
+  still read at the Dock's 64–128px. Seeds are fixed, so a rerun reproduces
+  the same pixels.
 - **Glass** is the outline only: a line whose width follows the interface's
   glass texture (`src/assets/design/glass-thick.png`), a narrow bleed inward
   (lifted toward white in the dark icon, like `--glass-bleed-lift`), and the
@@ -52,5 +54,7 @@ What is on the icon, and why:
 
 Tried and set aside: a letter or monogram; a waterline (glass above, sand
 below); the glass on the icon's own edge instead of the berg's; a wide bleed,
-which read as a bevel; and the berg at two thirds of the height, which left the
-icon empty.
+which read as a bevel; the berg at two thirds of the height, which left the
+icon empty; and faint strata in the sand, which the grains hid at full size but
+which survived downscaling as contour rings in the Dock, while the sparse sand
+they came with left the icon pale.
