@@ -2170,10 +2170,6 @@ html:not([data-shell-mode='mobile']) .set-trash__row.menu-surface__item::before 
   font-size: var(--ui-font-caption, 12px);
   font-variant-numeric: tabular-nums;
 }
-.set-history__meta--cost {
-  min-width: 52px;
-  text-align: right;
-}
 .set-history__delete {
   display: grid;
   place-items: center;

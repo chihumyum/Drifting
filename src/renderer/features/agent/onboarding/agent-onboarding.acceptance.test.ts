@@ -64,7 +64,7 @@ describe('Agent first-run acceptance', () => {
   it('shows once per device, skips existing Agent users, and is reset in Settings', async () => {
     const settings = await source('src/renderer/store/settings-store.ts');
     const agentSettings = await source('src/renderer/features/settings/panels/AgentSettingsPanel.tsx');
-    expect(settings).toContain('export const SETTINGS_STORAGE_VERSION = 33;');
+    expect(settings).toContain('if (version < 33) {\n          next.agentOnboardingStep');
     expect(settings).toContain('next.agentOnboardingStep = agentOnboardingStepForExistingInstall(next.lastAgentConvByProject);');
     expect(agentSettings).toContain("setStep(nextAgentOnboardingStep(step, { type: 'reset' }))");
     expect(agentSettings).toContain('<ReplayOnboardingButton />');

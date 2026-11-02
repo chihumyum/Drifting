@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { useSettingsStore, type DateFormat, type LocaleCode, type ThemeMode } from '../../../store/settings-store';
+import { useSettingsStore, type ThemeMode } from '../../../store/settings-store';
 import { UI_LOCALE_OPTIONS } from '../../../lib/i18n';
 import { ACCENT_COLOR_DEFAULT_DARK, ACCENT_COLOR_DEFAULT_LIGHT } from '../../../lib/theme';
 import { GlassSlider } from '../../../components/ui/GlassSlider';
@@ -10,7 +10,6 @@ import {
   SettingsRow,
   SettingsSectionHeader,
   SettingsSegment,
-  SettingsSelect,
   SettingsToggle,
   type SettingsRegisterRef,
 } from '../SettingsPrimitives';
@@ -175,33 +174,8 @@ export function AppearancePanel({ registerRef }: { registerRef: SettingsRegister
 
 export function LanguagePanel({ registerRef }: { registerRef: SettingsRegisterRef }) {
   const { t } = useTranslation();
-  const {
-    uiLocale,
-    setUiLocale,
-    manuscriptLocale,
-    setManuscriptLocale,
-    spellcheck,
-    setSpellcheck,
-    dateFormat,
-    setDateFormat,
-  } = useSettingsStore();
-
-  const manuscriptLocales: { code: LocaleCode; name: string; native: string }[] = [
-    {
-      code: 'zh-CN',
-      name: t('settings.language.locales.zhCN'),
-      native: t('settings.language.locales.default'),
-    },
-    {
-      code: 'zh-TW',
-      name: t('settings.language.locales.zhTW'),
-      native: t('settings.language.locales.traditional'),
-    },
-    { code: 'en', name: 'English', native: 'English' },
-    { code: 'ja', name: '日本語', native: '日本語' },
-    { code: 'ko', name: '한국어', native: '한국어' },
-    { code: 'fr', name: 'Français', native: t('settings.language.locales.beta') },
-  ];
+  const uiLocale = useSettingsStore((s) => s.uiLocale);
+  const setUiLocale = useSettingsStore((s) => s.setUiLocale);
   const normalizedUiLocale = uiLocale.startsWith('zh') ? 'zh-CN' : 'en';
 
   return (
@@ -209,7 +183,6 @@ export function LanguagePanel({ registerRef }: { registerRef: SettingsRegisterRe
       <SettingsPanelHeader
         kicker={t('settings.language.kicker')}
         title={t('settings.language.title')}
-        sub={t('settings.language.sub')}
       />
 
       <div className="set-sec">
@@ -244,50 +217,6 @@ export function LanguagePanel({ registerRef }: { registerRef: SettingsRegisterRe
             ))}
           </div>
         )}
-      </div>
-
-      <div className="set-sec">
-        <SettingsSectionHeader title={t('settings.language.manuscript')} hint="MANUSCRIPT" />
-        <SettingsRow
-          label={t('settings.language.manuscript_default')}
-          desc={t('settings.language.manuscript_default_desc')}
-          control={
-            <SettingsSelect<LocaleCode>
-              value={manuscriptLocale}
-              onChange={setManuscriptLocale}
-              ariaLabel={t('settings.language.manuscript_default')}
-              width={220}
-              options={manuscriptLocales.map((l) => ({ value: l.code, label: `${l.name} · ${l.code}` }))}
-            />
-          }
-        />
-        <SettingsRow
-          label={t('settings.language.spellcheck')}
-          desc={t('settings.language.spellcheck_desc')}
-          control={
-            <SettingsToggle
-              on={spellcheck}
-              onChange={setSpellcheck}
-              aria-label={t('settings.language.spellcheck')}
-            />
-          }
-        />
-        <SettingsRow
-          label={t('settings.language.date_format')}
-          desc={t('settings.language.date_format_desc')}
-          control={
-            <SettingsSegment<DateFormat>
-              value={dateFormat}
-              ariaLabel={t('settings.language.date_format')}
-              options={[
-                { value: 'cjk', label: t('settings.language.date_cjk') },
-                { value: 'iso', label: 'ISO' },
-                { value: 'us', label: 'US' },
-              ]}
-              onChange={setDateFormat}
-            />
-          }
-        />
       </div>
     </section>
   );

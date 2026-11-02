@@ -232,7 +232,6 @@ export function SyncPanel({
       {hostedAccountSettingsEnabled() && (
         <SettingsRow
           label={t('settings.hosted.title')}
-          desc={t('settings.hosted.description')}
           control={
             <SettingsButton onClick={() => navigate('/settings?section=account')}>
               {t('settings.hosted.manage')}
@@ -446,42 +445,17 @@ export function PrivacyPanel({ registerRef }: { registerRef: SettingsRegisterRef
 
       {settingsOnDesktop() ? (
         <SettingsNote icon="lock-shut">
-          {t('settings.privacy.noteA')} {t('settings.privacy.noteBPrefix')}
-          {t('settings.privacy.noteBStrong')}
-          {t('settings.privacy.noteBSuffix')}
+          {t(hostedSettings ? 'settings.privacy.noteHosted' : 'settings.privacy.noteLocal')}
         </SettingsNote>
       ) : (
         <div className="set-note">
-          {t('settings.privacy.noteA')}
-          <br />
-          <span className="set-mono" style={{ display: 'inline-block', marginTop: 6 }}>
-            {t('settings.privacy.noteBPrefix')} <b>{t('settings.privacy.noteBStrong')}</b>{' '}
-            {t('settings.privacy.noteBSuffix')}
-          </span>
+          {t(hostedSettings ? 'settings.privacy.noteHosted' : 'settings.privacy.noteLocal')}
         </div>
       )}
 
       {hostedSettings && (
         <div className="set-sec set-sec--after-note">
           <SettingsSectionHeader title={t('settings.privacy.dataUsage')} hint="YOUR CONTROL" />
-          <SettingsRow
-            label={t('settings.privacy.improveModels')}
-            desc={t('settings.privacy.improveModelsDesc')}
-            control={
-              <span title={t('settings.common.not_available_yet')}>
-                <SettingsToggle on={false} onChange={() => undefined} disabled />
-              </span>
-            }
-          />
-          <SettingsRow
-            label={t('settings.privacy.usageStats')}
-            desc={t('settings.privacy.usageStatsDesc')}
-            control={
-              <span title={t('settings.common.not_available_yet')}>
-                <SettingsToggle on={false} onChange={() => undefined} disabled />
-              </span>
-            }
-          />
           <SettingsRow
             label={t('settings.privacy.crashLogs')}
             desc={t('settings.privacy.crashLogsDesc')}
