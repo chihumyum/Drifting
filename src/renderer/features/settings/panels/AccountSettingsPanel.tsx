@@ -10,6 +10,8 @@ import { synchronizeHostedNow } from '../../../sync/hosted/connect';
 import { countHostedUnuploadedChanges, disconnectHosted } from '../../../sync/hosted/disconnect';
 import { formatStorageBytes, readHostedUsage, type HostedUsage } from '../../../sync/hosted/quota';
 import { HostedAccountDetails } from './HostedAccountDetails';
+import { HostedRestoreMeter } from '../../sync-status/HostedRestoreProgress';
+import { useHostedRestoreStatus } from '../../sync-status/hosted-restore-status';
 import {
   SettingsButton,
   SettingsPanelHeader,
@@ -39,6 +41,9 @@ export function AccountPanel({ registerRef }: { registerRef: SettingsRegisterRef
     generations.length && generations.every((item) => item.lastConvergedAtMs !== null)
       ? Math.min(...generations.map((item) => item.lastConvergedAtMs!))
       : null;
+  // A connect restoring this library (automatic after signing in to a new
+  // account library, or started here) shows its progress instead of the button.
+  const restore = useHostedRestoreStatus();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [usage, setUsage] = useState<HostedUsage | null>(null);
@@ -114,13 +119,29 @@ export function AccountPanel({ registerRef }: { registerRef: SettingsRegisterRef
         {user && accountReady && <ShareLinksRow />}
         <SettingsSectionHeader title={t('settings.hosted.sync_title')} />
         <SettingsRow
-          label={t(connected ? 'settings.hosted.enabled' : 'settings.hosted.disabled')}
+          label={t(
+            restore
+              ? 'settings.hosted.restore.title'
+              : connected
+                ? 'settings.hosted.enabled'
+                : 'settings.hosted.disabled',
+          )}
           desc={
-            connected
-              ? t('settings.hosted.projects', { count: authority.activeSyncGenerations })
-              : t('settings.hosted.connect_description')
+            restore
+              ? restore.text
+              : connected
+                ? t('settings.hosted.projects', { count: authority.activeSyncGenerations })
+                : t('settings.hosted.connect_description')
           }
           control={
+            restore ? (
+              <span className="set-storage">
+                <HostedRestoreMeter ratio={restore.ratio} label={t('settings.hosted.restore.title')} />
+                {restore.ratio !== null && (
+                  <span className="set-storage__share">{Math.round(restore.ratio * 100)}%</span>
+                )}
+              </span>
+            ) : (
             <SettingsButton
               variant="primary"
               disabled={busy || !accountReady || paused}
@@ -134,6 +155,7 @@ export function AccountPanel({ registerRef }: { registerRef: SettingsRegisterRef
                     : 'settings.hosted.connect',
               )}
             </SettingsButton>
+            )
           }
         />
         {connected && authority.activeSyncGenerations > 0 && (

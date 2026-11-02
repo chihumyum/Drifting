@@ -738,9 +738,9 @@
       "sign_out": "Sign out",
       "sync_title": "Hosted sync",
       "enabled": "Hosted sync connected",
-      "disabled": "Local library",
+      "disabled": "Not syncing yet",
       "projects": "Syncing {{count}} projects",
-      "connect_description": "Download this account’s cloud projects and upload this library’s projects.",
+      "connect_description": "Download this account’s cloud projects; projects created in this library upload to this account too.",
       "sync_now": "Sync now",
       "connect": "Connect and sync",
       "working": "Working…",
@@ -828,6 +828,12 @@
         "UNAUTHORIZED": "Your session expired. Sign in again.",
         "SESSION_NOT_FRESH": "Sign in again before changing your password.",
         "PASSWORD_CHANGED_SIGN_IN_REQUIRED": "Your password was changed. Sign in again with the new password to resume sync."
+      },
+      "restore": {
+        "title": "Restoring from the cloud",
+        "discovering": "Finding this account’s cloud projects…",
+        "downloading": "Downloaded {{done}} of {{total}}",
+        "activating": "Adding them to this library…"
       }
     }
   },

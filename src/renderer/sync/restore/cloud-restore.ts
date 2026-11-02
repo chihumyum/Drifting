@@ -920,12 +920,22 @@ async function resolveAttempt(input: {
   });
 }
 
+/** Asset bytes a snapshot package declares, one size per required blob. */
+export function declaredBlobBytes(candidate: Pick<RemoteSnapshotCandidate, 'package'>): number {
+  const sizes = new Map<string, number>();
+  for (const asset of candidate.package.assets) {
+    if (candidate.package.requiredBlobIds.includes(asset.blobId)) sizes.set(asset.blobId, asset.sizeBytes);
+  }
+  return [...sizes.values()].reduce((sum, size) => sum + size, 0);
+}
+
 async function restoreBlobs(input: {
   candidate: RemoteSnapshotCandidate;
   provider: ObjectLogProvider;
   objectAccess: RestoreObjectAccess;
   signal: AbortSignal;
   attemptId: string;
+  onBlobRestored?: (sizeBytes: number) => void;
 }): Promise<Map<string, LocalObjectRef>> {
   const sources = new Map<string, LocalObjectRef>();
   try {
@@ -960,6 +970,7 @@ async function restoreBlobs(input: {
         );
       }
       sources.set(blobId, decoded.sourceRef);
+      input.onBlobRestored?.(decoded.sizeBytes);
     }
     return sources;
   } catch (error) {
@@ -968,6 +979,16 @@ async function restoreBlobs(input: {
   }
 }
 
+/**
+ * Where a connect stands, for the author: finding the account's projects (and
+ * downloading their snapshot packages), downloading their assets, then adding
+ * them to the library at once.
+ */
+export type CloudRestoreProgress =
+  | { readonly phase: 'discovering' }
+  | { readonly phase: 'downloading'; readonly bytesDone: number; readonly bytesTotal: number }
+  | { readonly phase: 'activating' };
+
 export interface RestoreCloudSyncGenerationsInput {
   readonly db: DbClient;
   readonly account: CloudProviderAccount;
@@ -975,6 +996,7 @@ export interface RestoreCloudSyncGenerationsInput {
   readonly signal: AbortSignal;
   readonly attemptId?: string;
   readonly dependencies: CloudRestoreDependencies;
+  readonly onProgress?: (progress: CloudRestoreProgress) => void;
 }
 
 export interface RestoreCloudSyncGenerationsResult {
@@ -1030,6 +1052,7 @@ export async function restoreCloudSyncGenerations(
       state: 'discovering',
       nowIso: dependencies.nowIso?.() ?? new Date().toISOString(),
     });
+    input.onProgress?.({ phase: 'discovering' });
 
     const ownedAttemptSyncGenerationIds = new Set(
       attempt.generations.map((generation) => generation.sourceSyncGenerationId),
@@ -1238,6 +1261,7 @@ export async function restoreCloudSyncGenerations(
       state: 'activating',
       nowIso: dependencies.nowIso?.() ?? new Date().toISOString(),
     });
+    input.onProgress?.({ phase: 'activating' });
     let authorityCompleted = false;
     try {
       await restoreSnapshotsAtomically({
@@ -1385,7 +1409,12 @@ export async function restoreCloudSyncGenerations(
 }
 
 async function prepareRestoredSnapshots(
-  input: { db: DbClient; signal: AbortSignal; localUserId?: string },
+  input: {
+    db: DbClient;
+    signal: AbortSignal;
+    localUserId?: string;
+    onProgress?: (progress: CloudRestoreProgress) => void;
+  },
   dependencies: CloudRestoreDependencies,
   candidates: readonly RemoteSnapshotCandidate[],
   attemptId: string,
@@ -1393,6 +1422,13 @@ async function prepareRestoredSnapshots(
   const restored: RestoreCloudSyncGenerationsResult['restored'][number][] = [];
   const atomicInputs: RestoreSnapshotInputV1[] = [];
   const downloadedBlobRefs: LocalObjectRef[] = [];
+  // Asset bytes dominate a restore; the snapshot packages declare their sizes.
+  const download = { bytesDone: 0, bytesTotal: candidates.reduce((sum, candidate) => sum + declaredBlobBytes(candidate), 0) };
+  const reportDownload = (bytes: number) => {
+    download.bytesDone = Math.min(download.bytesTotal, download.bytesDone + bytes);
+    input.onProgress?.({ phase: 'downloading', ...download });
+  };
+  reportDownload(0);
   try {
     const restoreWriterIdentity =
       candidates.length > 0 ? await dependencies.loadWriterIdentity() : null;
@@ -1416,6 +1452,7 @@ async function prepareRestoredSnapshots(
           objectAccess: dependencies.objectAccess,
           signal: input.signal,
           attemptId: attemptId,
+          onBlobRestored: reportDownload,
         });
         downloadedBlobRefs.push(...blobSources.values());
         const blobLogicalKeyIds = new Map<string, string>();

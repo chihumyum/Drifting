@@ -22,6 +22,7 @@ import {
   restoreDiscoveredCloudProjects,
   type CloudRestoreDependencies,
 } from '../restore/cloud-restore';
+import { reportHostedConnectProgress } from './connect-progress';
 export function hostedRestoreDependencies(): CloudRestoreDependencies {
   const provider = createHostedProvider();
   return {
@@ -65,7 +66,26 @@ export function hostedRestoreDependencies(): CloudRestoreDependencies {
       events.emit('sync:project-changed', { projectId, projectionImpact: 'workspace' }),
   };
 }
-export async function connectHostedFromProduct(signal: AbortSignal, db: DbClient = getDb()) {
+let connecting: { db: DbClient; run: ReturnType<typeof connectOnce> } | null = null;
+
+/**
+ * Connect this library to the signed-in account: restore its cloud projects
+ * and publish this library's own. One connect runs at a time per library: a
+ * second request (Account settings while a new account library restores
+ * itself) joins the running one instead of resuming the same attempt twice.
+ * A joining caller's signal does not cancel the shared run.
+ */
+export function connectHostedFromProduct(signal: AbortSignal, db: DbClient = getDb()) {
+  if (connecting?.db === db) return connecting.run;
+  const run = connectOnce(signal, db).finally(() => {
+    if (connecting?.run === run) connecting = null;
+    reportHostedConnectProgress(null);
+  });
+  connecting = { db, run };
+  return run;
+}
+
+async function connectOnce(signal: AbortSignal, db: DbClient) {
   const session = getHostedSessionBinding();
   if (!session) throw new Error('needs-reauth');
   // Never publish a half-written built-in sample (docs/sample-project.md).
@@ -83,6 +103,7 @@ export async function connectHostedFromProduct(signal: AbortSignal, db: DbClient
     account: { accountSubject: session.accountSubject, credentialSecretRef: 'hosted.session' },
     ...(current.transitionState !== 'stable' ? { attemptId: current.attemptId } : {}),
     dependencies: hostedRestoreDependencies(),
+    onProgress: reportHostedConnectProgress,
   });
   if (result.restored.length)
     events.emit('sync:projects-restored', {

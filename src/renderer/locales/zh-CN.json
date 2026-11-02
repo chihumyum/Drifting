@@ -737,9 +737,9 @@
       "sign_out": "退出账号",
       "sync_title": "托管同步",
       "enabled": "已连接托管同步",
-      "disabled": "本地书库",
+      "disabled": "尚未同步",
       "projects": "同步 {{count}} 个项目",
-      "connect_description": "下载此账号的云端项目，并上传这个书库里的项目。",
+      "connect_description": "下载此账号的云端项目；在这个书库里新建的项目也会上传到此账号。",
       "sync_now": "立即同步",
       "connect": "连接并同步",
       "working": "正在处理…",
@@ -827,6 +827,12 @@
         "UNAUTHORIZED": "登录已过期，请重新登录。",
         "SESSION_NOT_FRESH": "请重新登录后再修改密码。",
         "PASSWORD_CHANGED_SIGN_IN_REQUIRED": "密码已修改，请使用新密码重新登录以恢复同步。"
+      },
+      "restore": {
+        "title": "正在从云端恢复",
+        "discovering": "正在查找此账号的云端项目…",
+        "downloading": "已下载 {{done}} / {{total}}",
+        "activating": "正在放进书库…"
       }
     }
   },

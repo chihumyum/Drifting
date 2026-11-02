@@ -97,7 +97,9 @@ Initial connection publishes the library's existing projects and restores valida
 activating one app-wide authority. On the desktop a new account library has no
 projects of its own, so its first connection only restores. New projects publish a genesis snapshot;
 **Sync now** waits for every binding to mount and complete a fresh cycle. The
-account panel reports the last completed sync and retry/pending state. Other
+account panel reports the last completed sync and retry/pending state. While a
+connect restores projects, the shelf and the account panel show its phase and
+download progress; a second connect request joins the running one. Other
 running clients discover projects on wakeup and periodic checks. An offline
 startup revalidates the cached session on focus and every 30 seconds, so a service
 restart does not require a new browser network event or manual login.

@@ -36,8 +36,8 @@
       "src/renderer/lib/agent/runtime/recovered-transcript.ts": "0891a2e3e4b22a2a1edf7c4450ef00908595fa62df224f366814b97ade9e7120",
       "src/renderer/lib/agent/runtime/repository-transport-persistence.ts": "5d674d888f33c8b1f469ca329cc9561b4d7a237132932b7f45339a89d9a23582",
       "src/renderer/lib/events.ts": "6a28479c48aeb6c7ca754a9b4e77026f7c7c463a3b6a09052b5fd87c3237f7b2",
-      "src/renderer/platform/contracts.ts": "84030f17b4d870667289ec725037c2b38c6cd62de7f6c02060879041f44c7618",
-      "src/renderer/platform/types.ts": "dce420dbeb273090709d5779f9410a3fa2041e28a67444c46216d92ae0ae789c",
+      "src/renderer/platform/contracts.ts": "31fefede40c83ba7a34d87a1ad759bc972db08175643aa1b352047f37d98725f",
+      "src/renderer/platform/types.ts": "9772963dd520af0f36d0cbd62b10ba998e913662f820ebba285630688bc2b99e",
       "src/renderer/schema/drizzle.ts": "e6cbb0d3c615db9a64510a4fe26d21adc5e1c356d76c6d7cf79a05ff72e9e470",
       "src/renderer/shells/mobile/workspace/MobileAgentPanel.tsx": "aed2e0929eef1031c7a6bc029c5d9541003c436d49fca41633168f343b90aec0",
       "src/renderer/sqlite-repo/agent-conversation-repo.ts": "9a6ee360bfcbf3d1613b1151107a1d76f5061c095e23e6718b28c685756a2b37",
@@ -342,7 +342,7 @@
       "command": "cargo test --manifest-path crates/drifting-core/Cargo.toml --locked --lib"
     },
     "native": {
-      "passed": 174,
+      "passed": 177,
       "failed": 0,
       "ignored": 2,
       "command": "cargo test --manifest-path src-tauri/Cargo.toml --lib --no-default-features"

@@ -37,6 +37,7 @@ import { BookImportError } from '../services/book-transfer/import-book';
 import { HostedQuotaExceededError } from '../sync/hosted/quota';
 import { BrushIcon } from '../components/ui/BrushIcon';
 import { useCharSeaEnabled, useCharSeaHold, useCharSeaShape } from '../components/char-sea/useCharSea';
+import { HostedRestoreBanner } from '../features/sync-status/HostedRestoreProgress';
 
 function WindowDragStrip() {
   if (!getPlatformRuntime().desktopWindowControls) return null;
@@ -552,6 +553,7 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
             onImportBook={() => void handleImport()}
           />
         </header>
+        <HostedRestoreBanner />
 
         {/* ─── The books, and a slip to start the next one ─── */}
         <div className="pp-grid">
