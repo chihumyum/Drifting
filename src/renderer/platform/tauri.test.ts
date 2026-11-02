@@ -221,6 +221,24 @@ describe('tauri native OpenAI and Keychain status transport', () => {
     });
   });
 
+  it('carries book bytes as a raw body with the file name in a header', async () => {
+    tauriMocks.invoke.mockResolvedValue({ saved: true });
+    const bytes = Uint8Array.from([1, 2, 3]);
+
+    await expect(tauriPlatform.bookTransfer.save('傲慢与偏见.driftingbook', bytes)).resolves.toEqual({ saved: true });
+    expect(tauriMocks.invoke).toHaveBeenCalledWith('book_transfer_save', bytes, {
+      headers: { 'x-drifting-book-file-name': encodeURIComponent('傲慢与偏见.driftingbook') },
+    });
+  });
+
+  it('reads a picked book as bytes and a canceled picker as null', async () => {
+    tauriMocks.invoke.mockResolvedValueOnce(Uint8Array.from([7, 8]).buffer);
+    await expect(tauriPlatform.bookTransfer.open()).resolves.toEqual(Uint8Array.from([7, 8]));
+    tauriMocks.invoke.mockResolvedValueOnce(new ArrayBuffer(0));
+    await expect(tauriPlatform.bookTransfer.open()).resolves.toBeNull();
+    expect(tauriMocks.invoke).toHaveBeenCalledWith('book_transfer_open', undefined);
+  });
+
   it('routes durable asset bytes through the local asset store contract', async () => {
     tauriMocks.invoke.mockResolvedValue({
       ok: true,

@@ -1,7 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 
 import type { ProjectAsset } from '../../domain/project-asset';
-import { getDb, type DbClient } from '../../lib/db';
+import { getDb, type DbClient, type DbExecutor } from '../../lib/db';
 import {
   SyncBlobStateTable,
   SyncLocalObjectTable,
@@ -45,6 +45,98 @@ function normalizeMime(value: string): string {
 
 function localObjectId(syncGenerationId: string, logicalKeyId: string): string {
   return JSON.stringify(['local-object', syncGenerationId, logicalKeyId]);
+}
+
+/** What a blob port reports after verifying one canonical source natively. */
+export interface PreparedLocalAssetBlob {
+  readonly sourceRef: LocalObjectRef;
+  readonly logicalKeyId: string;
+  readonly storedSha256: Sha256;
+  readonly contentSha256: Sha256;
+  readonly sizeBytes: number;
+}
+
+/**
+ * Record a natively verified canonical source as this SyncGeneration's local
+ * blob receipt, inside the caller's transaction. An asset.bind mutation only
+ * validates against such a receipt.
+ */
+export async function recordVerifiedLocalAssetBlobInTransaction(
+  tx: DbExecutor,
+  input: {
+    readonly syncGenerationId: string;
+    readonly asset: ProjectAsset;
+    readonly prepared: PreparedLocalAssetBlob;
+    readonly nowIso: string;
+  },
+): Promise<void> {
+  const { asset, prepared, nowIso, syncGenerationId } = input;
+  const blobId = protocolSha256(asset.sourceSha256);
+  if (
+    prepared.contentSha256 !== blobId ||
+    prepared.storedSha256 !== blobId ||
+    prepared.sizeBytes !== asset.sourceSizeBytes
+  ) {
+    throw new Error('native local asset verification changed immutable metadata');
+  }
+  const objectId = localObjectId(syncGenerationId, prepared.logicalKeyId);
+  await tx
+    .insert(SyncLocalObjectTable)
+    .values({
+      id: objectId,
+      syncGenerationId,
+      objectKind: 'blob',
+      logicalKeyId: prepared.logicalKeyId,
+      storageRef: prepared.sourceRef,
+      storedSha256: hashHex(prepared.storedSha256),
+      contentSha256: hashHex(prepared.contentSha256),
+      sizeBytes: prepared.sizeBytes,
+      codec: 'raw',
+      state: 'verified',
+      createdAt: nowIso,
+      verifiedAt: nowIso,
+    })
+    .onConflictDoUpdate({
+      target: SyncLocalObjectTable.id,
+      set: {
+        storageRef: prepared.sourceRef,
+        storedSha256: hashHex(prepared.storedSha256),
+        contentSha256: hashHex(prepared.contentSha256),
+        sizeBytes: prepared.sizeBytes,
+        state: 'verified',
+        verifiedAt: nowIso,
+      },
+    });
+  await tx
+    .insert(SyncBlobStateTable)
+    .values({
+      syncGenerationId,
+      blobId,
+      assetId: asset.id,
+      logicalKeyId: prepared.logicalKeyId,
+      contentSha256: asset.sourceSha256,
+      sizeBytes: asset.sourceSizeBytes,
+      mime: normalizeMime(asset.sourceMime),
+      localObjectId: objectId,
+      localState: 'verified',
+      remoteState: 'missing',
+      verifiedAt: nowIso,
+      updatedAt: nowIso,
+    })
+    .onConflictDoUpdate({
+      target: [SyncBlobStateTable.syncGenerationId, SyncBlobStateTable.blobId],
+      set: {
+        assetId: asset.id,
+        logicalKeyId: prepared.logicalKeyId,
+        contentSha256: asset.sourceSha256,
+        sizeBytes: asset.sourceSizeBytes,
+        mime: normalizeMime(asset.sourceMime),
+        localObjectId: objectId,
+        localState: 'verified',
+        verifiedAt: nowIso,
+        updatedAt: nowIso,
+      },
+    });
 }
 
 /**
@@ -106,77 +198,18 @@ export async function ensureLocalAuthoredAssetBlobVerified(
   });
   let recorded = false;
   try {
-    if (
-      prepared.contentSha256 !== blobId ||
-      prepared.storedSha256 !== blobId ||
-      prepared.sizeBytes !== asset.sourceSizeBytes
-    ) {
-      throw new Error('native local asset verification changed immutable metadata');
-    }
-    const objectId = localObjectId(initial.generation.syncGenerationId, prepared.logicalKeyId);
     const nowIso = dependencies.nowIso();
     await database.transaction(async (tx) => {
       const active = await findActiveSyncGenerationInTransaction(tx, asset.projectId);
       if (active?.syncGenerationId !== initial.generation.syncGenerationId) {
         throw new Error('project sync authority changed while verifying a local asset');
       }
-      await tx
-        .insert(SyncLocalObjectTable)
-        .values({
-          id: objectId,
-          syncGenerationId: active.syncGenerationId,
-          objectKind: 'blob',
-          logicalKeyId: prepared.logicalKeyId,
-          storageRef: prepared.sourceRef,
-          storedSha256: hashHex(prepared.storedSha256),
-          contentSha256: hashHex(prepared.contentSha256),
-          sizeBytes: prepared.sizeBytes,
-          codec: 'raw',
-          state: 'verified',
-          createdAt: nowIso,
-          verifiedAt: nowIso,
-        })
-        .onConflictDoUpdate({
-          target: SyncLocalObjectTable.id,
-          set: {
-            storageRef: prepared.sourceRef,
-            storedSha256: hashHex(prepared.storedSha256),
-            contentSha256: hashHex(prepared.contentSha256),
-            sizeBytes: prepared.sizeBytes,
-            state: 'verified',
-            verifiedAt: nowIso,
-          },
-        });
-      await tx
-        .insert(SyncBlobStateTable)
-        .values({
-          syncGenerationId: active.syncGenerationId,
-          blobId,
-          assetId: asset.id,
-          logicalKeyId: prepared.logicalKeyId,
-          contentSha256: asset.sourceSha256,
-          sizeBytes: asset.sourceSizeBytes,
-          mime: normalizeMime(asset.sourceMime),
-          localObjectId: objectId,
-          localState: 'verified',
-          remoteState: 'missing',
-          verifiedAt: nowIso,
-          updatedAt: nowIso,
-        })
-        .onConflictDoUpdate({
-          target: [SyncBlobStateTable.syncGenerationId, SyncBlobStateTable.blobId],
-          set: {
-            assetId: asset.id,
-            logicalKeyId: prepared.logicalKeyId,
-            contentSha256: asset.sourceSha256,
-            sizeBytes: asset.sourceSizeBytes,
-            mime: normalizeMime(asset.sourceMime),
-            localObjectId: objectId,
-            localState: 'verified',
-            verifiedAt: nowIso,
-            updatedAt: nowIso,
-          },
-        });
+      await recordVerifiedLocalAssetBlobInTransaction(tx, {
+        syncGenerationId: active.syncGenerationId,
+        asset,
+        prepared,
+        nowIso,
+      });
     });
     recorded = true;
   } finally {

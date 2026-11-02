@@ -32,6 +32,9 @@ import { readCoverStyle, subscribeCoverStyle, turnCoverStyle } from '../lib/shel
 import type { CoverStyleId } from '../lib/shelf-cover/styles';
 import { useProjectRoutePreload } from '../app/useProjectRoutePreload';
 import { useBuiltInSampleStore } from '../services/built-in-sample/first-run';
+import { exportBookToFile, importBookFromFile } from '../services/book-transfer/book-transfer.service';
+import { BookImportError } from '../services/book-transfer/import-book';
+import { HostedQuotaExceededError } from '../sync/hosted/quota';
 import { BrushIcon } from '../components/ui/BrushIcon';
 import { useCharSeaEnabled, useCharSeaHold, useCharSeaShape } from '../components/char-sea/useCharSea';
 
@@ -206,6 +209,9 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
   const [busy, setBusy] = useState(false);
   const [trashed, setTrashed] = useState<Project[]>([]);
   const [trashOpen, setTrashOpen] = useState(false);
+  const [exportingId, setExportingId] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [transferError, setTransferError] = useState<TransferError | null>(null);
 
   useProjectRoutePreload(!loading && Boolean(user?.id));
 
@@ -393,6 +399,31 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
     }
   }, [confirmDelete, busy, trashProject, loadTrashedProjects]);
 
+  const handleExport = useCallback(async (project: ProjectSummary) => {
+    if (exportingId) return;
+    setExportingId(project.id);
+    try {
+      await exportBookToFile(project.id);
+    } catch (error) {
+      log.error('Failed to export the book:', error);
+      setTransferError({ title: 'projectPicker.bookTransfer.exportFailedTitle', message: t('projectPicker.bookTransfer.exportFailed') });
+    } finally {
+      setExportingId(null);
+    }
+  }, [exportingId, t]);
+
+  const handleImport = useCallback(async () => {
+    if (importing) return;
+    try {
+      if (await importBookFromFile(() => setImporting(true))) await fetchProjects();
+    } catch (error) {
+      log.error('Failed to import the book:', error);
+      setTransferError({ title: 'projectPicker.bookTransfer.importFailedTitle', message: importErrorMessage(error, t) });
+    } finally {
+      setImporting(false);
+    }
+  }, [importing, fetchProjects, t]);
+
   const handleRestore = useCallback(
     async (id: string) => {
       if (!(await restoreProject(id))) throw new Error('Project restore did not commit');
@@ -518,6 +549,7 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
             scope="shelf"
             trashCount={trashed.length}
             onOpenTrash={() => setTrashOpen(true)}
+            onImportBook={() => void handleImport()}
           />
         </header>
 
@@ -529,12 +561,19 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
               row={row}
               onOpen={() => handleOpen(row.project.id)}
               onEdit={() => setEditing(row.project)}
+              onExport={() => void handleExport(row.project)}
+              exporting={exportingId === row.project.id}
               onDelete={() => openDelete(row.project)}
             />
           ))}
           {preparingSample && (
             <div className="pp-card pp-card--preparing" aria-busy="true">
               <LoadingStatus label={t('projectPicker.desk.preparingSample')} />
+            </div>
+          )}
+          {importing && (
+            <div className="pp-card pp-card--preparing" aria-busy="true">
+              <LoadingStatus label={t('projectPicker.desk.importing')} />
             </div>
           )}
           <SandCell
@@ -578,6 +617,9 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
           onConfirm={handleDelete}
           onClose={() => (busy ? undefined : setConfirmDelete(null))}
         />
+      )}
+      {transferError && (
+        <TransferErrorDialog error={transferError} onClose={() => setTransferError(null)} />
       )}
       {trashOpen && (
         <RecentlyDeletedDialog
@@ -692,10 +734,12 @@ interface CardProps {
   row: DecoratedRow;
   onOpen: () => void;
   onEdit: () => void;
+  onExport: () => void;
+  exporting: boolean;
   onDelete: () => void;
 }
 
-function RowActions({ onEdit, onDelete }: Pick<CardProps, 'onEdit' | 'onDelete'>) {
+function RowActions({ onEdit, onExport, exporting, onDelete }: Pick<CardProps, 'onEdit' | 'onExport' | 'exporting' | 'onDelete'>) {
   const { t } = useTranslation();
   return (
     <div className="pp-acts" onClick={(e) => e.stopPropagation()}>
@@ -710,6 +754,17 @@ function RowActions({ onEdit, onDelete }: Pick<CardProps, 'onEdit' | 'onDelete'>
       </button>
       <button
         type="button"
+        className="pp-act"
+        onClick={onExport}
+        disabled={exporting}
+        aria-busy={exporting || undefined}
+        title={t('projectPicker.desk.exportBook')}
+        aria-label={t('projectPicker.desk.exportBook')}
+      >
+        <BrushIcon name={exporting ? 'loader' : 'arrow-out'} size={15} className={exporting ? 'ui-spin' : undefined} />
+      </button>
+      <button
+        type="button"
         className="pp-act pp-act--danger"
         onClick={onDelete}
         title={t('projectPicker.desk.moveToTrash')}
@@ -721,7 +776,7 @@ function RowActions({ onEdit, onDelete }: Pick<CardProps, 'onEdit' | 'onDelete'>
   );
 }
 
-function ProjectCard({ row, onOpen, onEdit, onDelete }: CardProps) {
+function ProjectCard({ row, onOpen, onEdit, onExport, exporting, onDelete }: CardProps) {
   const { t, i18n } = useTranslation();
   const { project, meta, status, lastEditedRel, wordProgress, wordTarget } = row;
   const stats = project.stats;
@@ -744,7 +799,7 @@ function ProjectCard({ row, onOpen, onEdit, onDelete }: CardProps) {
             <h3 className="pp-card__title">{title}</h3>
             {meta.subtitle && <div className="pp-card__subtitle">{meta.subtitle}</div>}
           </div>
-          <RowActions onEdit={onEdit} onDelete={onDelete} />
+          <RowActions onEdit={onEdit} onExport={onExport} exporting={exporting} onDelete={onDelete} />
         </div>
         {project.summary && <p className="pp-card__summary">{project.summary}</p>}
         <div className="pp-card__meta">
@@ -805,6 +860,45 @@ function ProjectCard({ row, onOpen, onEdit, onDelete }: CardProps) {
 }
 
 /* ─── Desktop dialogs: the shared shell (ModalRoot/ModalCard) and controls ─── */
+
+interface TransferError {
+  /** Translation key. */
+  title: string;
+  message: string;
+}
+
+const IMPORT_ERROR_KEYS = {
+  'not-a-book': 'projectPicker.bookTransfer.notABook',
+  newer: 'projectPicker.bookTransfer.newer',
+  'too-large': 'projectPicker.bookTransfer.tooLarge',
+  invalid: 'projectPicker.bookTransfer.invalid',
+  failed: 'projectPicker.bookTransfer.importFailed',
+} as const;
+
+function importErrorMessage(error: unknown, t: (key: string) => string): string {
+  if (error instanceof HostedQuotaExceededError) return error.message;
+  if (error instanceof BookImportError) return t(IMPORT_ERROR_KEYS[error.code]);
+  return t('projectPicker.bookTransfer.importFailed');
+}
+
+function TransferErrorDialog({ error, onClose }: { error: TransferError; onClose: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <ModalRoot onClose={onClose} ariaLabel={t(error.title)}>
+      <ModalCard className="pp-dialog" width={380}>
+        <ModalHeader title={t(error.title)} />
+        <ModalBody>
+          <p role="alert">{error.message}</p>
+        </ModalBody>
+        <ModalActions>
+          <Button onClick={onClose} autoFocus>
+            {t('common.close')}
+          </Button>
+        </ModalActions>
+      </ModalCard>
+    </ModalRoot>
+  );
+}
 
 interface TrashDialogProps {
   project: ProjectSummary;

@@ -704,6 +704,10 @@ export interface TauriCommandContract {
     args: { filename: string; bytes: number[] };
     result: ArchiveSaveResult;
   };
+  /** Raw body: the book's bytes; its file name travels in a header. */
+  book_transfer_save: { args: Uint8Array; result: { saved: boolean } };
+  /** The picked book's bytes; empty when the picker was canceled. */
+  book_transfer_open: { args: undefined; result: NativeBytes };
   share_save_markdown: {
     args: { filename: string; markdown: string };
     result: ArchiveSaveResult;

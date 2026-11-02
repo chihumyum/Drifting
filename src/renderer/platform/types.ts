@@ -275,6 +275,13 @@ export interface ArchivePlatformApi {
   save(filename: string, bytes: ArrayBuffer | Uint8Array): Promise<ArchiveSaveResult>;
 }
 
+/** `.driftingbook` files (docs/book-transfer.md), through the native document pickers. */
+export interface BookTransferPlatformApi {
+  save(fileName: string, bytes: Uint8Array): Promise<{ saved: boolean }>;
+  /** The picked file's bytes, or null when the picker was canceled. */
+  open(): Promise<Uint8Array | null>;
+}
+
 export interface AILogPlatformApi {
   write(filename: string, content: string): Promise<AILogWriteResult>;
   openDir(): Promise<string>;
@@ -365,6 +372,7 @@ export interface PlatformApi {
   readonly material: MaterialPlatformApi;
   readonly assetStore: AssetStorePlatformApi;
   readonly archive: ArchivePlatformApi;
+  readonly bookTransfer: BookTransferPlatformApi;
   readonly sharing: {
     saveMarkdown(filename: string, markdown: string): Promise<ArchiveSaveResult>;
     /** Pick a destination, then lay out and write an EPUB, PDF or Word manuscript. */

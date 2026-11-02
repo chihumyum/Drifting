@@ -4,6 +4,7 @@ mod android_image_codec;
 mod app_update;
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 mod apple_image_codec;
+mod book_transfer;
 mod codex_compat;
 mod codex_images;
 mod codex_models;
@@ -311,6 +312,8 @@ pub fn run() {
             native_capabilities::asset_store_gc_orphan_imports,
             native_capabilities::asset_store_delete_asset,
             native_capabilities::archive_save,
+            book_transfer::book_transfer_save,
+            book_transfer::book_transfer_open,
             markdown_share::share_save_markdown,
             manuscript_export::manuscript_export_save,
             manuscript_export::manuscript_export_pick_cover,

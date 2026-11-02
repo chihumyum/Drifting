@@ -1,0 +1,207 @@
+{
+  "contract": {
+    "file": ".driftingbook: CBOR envelope around a payload v2 snapshot package, its commit marker and asset variants",
+    "import": "validated as a restore; every row id replaced; reducer state replayed as local authored change-sets; one transaction",
+    "sourceSha256": {
+      "docs/book-transfer.md": "906f6d2be46cbda8f8a7e57b21377a551f0854160ad12889fa46e547c16a69ee",
+      "scripts/generate-book-transfer-evidence.mjs": "282ea7789f13deacedc66aaa3c4e0d4321a2ea5ed5dec943aa94b74059e94a04",
+      "src-tauri/src/book_transfer.rs": "3fb7b4ebb4e3c0816867dcf49ce188ad748441e8a840f14c7e7e34c85d1321fa",
+      "src/renderer/components/topBars/UserMenu.tsx": "a9a33a92024e5c1090384efd11c5a2fa56cf0fd993a361ef23bed3505d136faa",
+      "src/renderer/platform/tauri.test.ts": "5c0d54308129a63d5c7e77fe27a711921fc9b147e3ebfe6aec20e2e42a562544",
+      "src/renderer/services/book-transfer/book-file.test.ts": "28c6ce9d03e450619345f3080f0fffea2f0539fd227ca443030a5804c6ee3c25",
+      "src/renderer/services/book-transfer/book-file.ts": "1b21d7b55a979f25bf770d301594c817af7d3260d8f52c517d19c9579d80c164",
+      "src/renderer/services/book-transfer/book-transfer.integration.test.ts": "c814b1bbad4f0130341f2bf1bffac817c349c1521d8ec45a7d52b7b6a007f768",
+      "src/renderer/services/book-transfer/book-transfer.service.ts": "764a90dd79608aceefad51ad3b4fffb6d72a30a4bd0b633e996fc5ceb0dc7750",
+      "src/renderer/services/book-transfer/export-book.ts": "2e0c921cea2eec25de73d6e77b24444bab0025a84e389bad0b8f896abfbfce5f",
+      "src/renderer/services/book-transfer/id-rewriter.test.ts": "643577161bb863d157de716528250430d845e356da7b2cdc9a7d70c3a5b483b2",
+      "src/renderer/services/book-transfer/id-rewriter.ts": "9fdeff8bc5ef420ee9e90d1351e0f41a14565feaedef7b8545427f25ee3eb80f",
+      "src/renderer/services/book-transfer/import-book.ts": "6b656e56b6d9f817069dab24d39fb80fd575ad6faa25de35677dece896cee663",
+      "src/renderer/services/book-transfer/reducer-replay.ts": "085f632c320fed1d2fdccd48bcf7d15b0791ecfc21dd1e9f19b424583be05abe",
+      "src/renderer/sync/assets/local-authored-blob.ts": "cb47ac2c6cea179b2e1b99f1cf9a8f6c1a91c329f46192f455b887bfd487dcb3",
+      "src/renderer/sync/checkpoint/capture.ts": "16153a9d891d95c5615a9e58081ee065b2613e2b514a10a823efe1a6ae080d4f",
+      "src/renderer/sync/checkpoint/domain-catalog.ts": "df287df6e7b7243efa2fa3236eebd6495325e57c5953cad3a2b133a9eab03466",
+      "src/renderer/sync/checkpoint/validate.ts": "8c48c6f8403a6970e3deb430cfca9ece7fe300ce47bb0ca2fd16474bc410b6cb",
+      "src/renderer/sync/journal/yjs-update.ts": "02a7a7cd35e5d3102b55b14d127b86cb88d09c0ca09ad8fb8247424d98c168f7",
+      "src/renderer/views/ProjectPickerView.tsx": "ece1be1abac87a79b21ce8b51bd8925d806b43d4a918e9f860b18358aa49b639"
+    }
+  },
+  "automated": {
+    "status": "passed",
+    "renderer": {
+      "passed": 39,
+      "failed": 0,
+      "skipped": 0,
+      "cases": [
+        {
+          "name": "book file names the file after the book",
+          "status": "passed"
+        },
+        {
+          "name": "book file refuses files that are not books, newer books and malformed asset entries",
+          "status": "passed"
+        },
+        {
+          "name": "book file round-trips the envelope byte for byte",
+          "status": "passed"
+        },
+        {
+          "name": "book id rewriter derives Plot Grid document and cell ids from their rewritten parts",
+          "status": "passed"
+        },
+        {
+          "name": "book id rewriter gives every row id a fresh one and rewrites every value that names it",
+          "status": "passed"
+        },
+        {
+          "name": "book id rewriter rewrites prose attributes, marks and embeds without touching text or block ids",
+          "status": "passed"
+        },
+        {
+          "name": "book transfer between libraries imports an exported book into another library as a new book with fresh identities",
+          "status": "passed"
+        },
+        {
+          "name": "book transfer between libraries imports the same file twice, and back into its own library, without sharing an id",
+          "status": "passed"
+        },
+        {
+          "name": "book transfer between libraries rejects a book whose asset bytes do not match, and leaves the library as it was",
+          "status": "passed"
+        },
+        {
+          "name": "book transfer between libraries rolls back the rows, the asset files and the staged blobs when activation fails",
+          "status": "passed"
+        },
+        {
+          "name": "book transfer between libraries stages the imported book for publishing when the library belongs to an account",
+          "status": "passed"
+        },
+        {
+          "name": "tauri General Agent capability advertises the renderer-local runtime on android",
+          "status": "passed"
+        },
+        {
+          "name": "tauri General Agent capability advertises the renderer-local runtime on ios",
+          "status": "passed"
+        },
+        {
+          "name": "tauri General Agent capability advertises the renderer-local runtime on linux",
+          "status": "passed"
+        },
+        {
+          "name": "tauri General Agent capability advertises the renderer-local runtime on macos",
+          "status": "passed"
+        },
+        {
+          "name": "tauri General Agent capability advertises the renderer-local runtime on windows",
+          "status": "passed"
+        },
+        {
+          "name": "tauri General Agent capability treats missing security advertisements as unsupported",
+          "status": "passed"
+        },
+        {
+          "name": "tauri lifecycle flush protocol exposes native ready and resume wake-ups without treating flushes as resumes",
+          "status": "passed"
+        },
+        {
+          "name": "tauri lifecycle flush protocol keeps suspend unconfirmed and completes shutdown only with its explicit request id",
+          "status": "passed"
+        },
+        {
+          "name": "tauri material import contract preserves the native-owned material size limit in a stable failure result",
+          "status": "passed"
+        },
+        {
+          "name": "tauri material import contract routes app-owned import cleanup through the confined native command",
+          "status": "passed"
+        },
+        {
+          "name": "tauri native OpenAI and Keychain status transport carries book bytes as a raw body with the file name in a header",
+          "status": "passed"
+        },
+        {
+          "name": "tauri native OpenAI and Keychain status transport checks Keychain existence without invoking the secret read command",
+          "status": "passed"
+        },
+        {
+          "name": "tauri native OpenAI and Keychain status transport decodes a native binary ZIP response without a JSON number array",
+          "status": "passed"
+        },
+        {
+          "name": "tauri native OpenAI and Keychain status transport drives ChatGPT sign-in through native OAuth commands that never return tokens",
+          "status": "passed"
+        },
+        {
+          "name": "tauri native OpenAI and Keychain status transport forwards AbortSignal cancellation to the active native request",
+          "status": "passed"
+        },
+        {
+          "name": "tauri native OpenAI and Keychain status transport keeps SyncEngine asset capture and restore behind opaque native refs",
+          "status": "passed"
+        },
+        {
+          "name": "tauri native OpenAI and Keychain status transport passes generated archive bytes to the native save contract",
+          "status": "passed"
+        },
+        {
+          "name": "tauri native OpenAI and Keychain status transport reads a picked book as bytes and a canceled picker as null",
+          "status": "passed"
+        },
+        {
+          "name": "tauri native OpenAI and Keychain status transport reconstructs an ordered Responses stream from native channel bytes",
+          "status": "passed"
+        },
+        {
+          "name": "tauri native OpenAI and Keychain status transport routes durable asset bytes through the local asset store contract",
+          "status": "passed"
+        },
+        {
+          "name": "tauri native OpenAI and Keychain status transport sends ChatGPT subscription requests through the same native stream with their own credential source",
+          "status": "passed"
+        },
+        {
+          "name": "tauri native OpenAI and Keychain status transport uses only opaque refs for native SyncEngine object staging",
+          "status": "passed"
+        },
+        {
+          "name": "tauri OAuth callback delivery consumes a live URL from the native queue so it cannot replay on remount",
+          "status": "passed"
+        },
+        {
+          "name": "tauri OAuth callback delivery drains a queued code and exchanges it over HTTPS before releasing a token",
+          "status": "passed"
+        },
+        {
+          "name": "tauri OAuth callback delivery opens OAuth with a persisted state and S256 PKCE verifier",
+          "status": "passed"
+        },
+        {
+          "name": "tauri OAuth callback delivery rejects an expired pending state",
+          "status": "passed"
+        },
+        {
+          "name": "tauri OAuth callback delivery rejects missing and mismatched state without consuming the valid pending state",
+          "status": "passed"
+        },
+        {
+          "name": "tauri OAuth callback delivery surfaces a failed HTTPS exchange without exposing the handoff code as a token",
+          "status": "passed"
+        }
+      ]
+    },
+    "native": {
+      "passed": 3,
+      "failed": 0,
+      "ignored": 0,
+      "command": "cargo test --manifest-path src-tauri/Cargo.toml --lib book_transfer"
+    }
+  },
+  "manual": {
+    "status": "not-run",
+    "gates": [
+      "export and import through the native pickers in a packaged desktop build",
+      "an imported book publishes to a Hosted account and restores on another device"
+    ]
+  }
+}

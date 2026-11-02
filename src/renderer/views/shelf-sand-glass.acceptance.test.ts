@@ -115,7 +115,8 @@ describe('the bookshelf in sand and glass', () => {
     expect(view).toContain('function TrashDialog(');
     expect(view).toContain('function RecentlyDeletedDialog(');
     expect(view).toContain('function ProjectFormDialog(');
-    expect(view.match(/<ModalRoot /g)).toHaveLength(3);
+    expect(view).toContain('function TransferErrorDialog(');
+    expect(view.match(/<ModalRoot /g)).toHaveLength(4);
     expect(view).toContain('<Button variant="danger" onClick={onConfirm} disabled={busy}>');
     // A destructive confirmation opens on Cancel.
     expect(view).toContain('<Button onClick={onClose} disabled={busy} autoFocus>');

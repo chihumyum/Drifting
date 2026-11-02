@@ -98,6 +98,8 @@
     "agent:debug:writes": "node scripts/agent-headless-debug-write-matrix.mjs",
     "account-libraries:evidence": "node scripts/generate-account-library-evidence.mjs",
     "account-libraries:check": "node scripts/generate-account-library-evidence.mjs --check",
+    "book-transfer:evidence": "node scripts/generate-book-transfer-evidence.mjs",
+    "book-transfer:check": "node scripts/generate-book-transfer-evidence.mjs --check",
     "agent:conversation-sync:evidence": "tsx scripts/generate-agent-conversation-sync.ts",
     "agent:conversation-sync:check": "tsx scripts/generate-agent-conversation-sync.ts --check && vitest run src/renderer/sync/agent-chat --reporter=verbose",
     "sync:compaction:evidence": "tsx scripts/generate-sync-log-compaction.ts",

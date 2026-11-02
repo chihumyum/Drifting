@@ -1242,6 +1242,7 @@
     "settings": "Settings",
     "keyboardShortcuts": "Keyboard shortcuts",
     "import": "Import",
+    "importBook": "Import book",
     "bookshelf": "Bookshelf · Switch project",
     "signingOut": "Signing out…",
     "signOut": "Sign out",
@@ -1774,6 +1775,16 @@
     }
   },
   "projectPicker": {
+    "bookTransfer": {
+      "exportFailedTitle": "Could not export",
+      "importFailedTitle": "Could not import",
+      "exportFailed": "The book could not be exported. Please try again.",
+      "notABook": "This is not a book exported from Drifting.",
+      "newer": "This book was exported by a newer Drifting. Update Drifting first.",
+      "tooLarge": "This book is too large to import.",
+      "invalid": "This file is damaged and cannot be imported.",
+      "importFailed": "The book could not be imported. Please try again."
+    },
     "loading": "Loading projects…",
     "backToShelf": "Back to shelf",
     "bookshelfShort": "Shelf",
@@ -1886,6 +1897,8 @@
       "preparingSample": "Preparing the sample project",
       "open": "Open “{{name}}”",
       "moveToTrash": "Move to Recently Deleted",
+      "exportBook": "Export this book",
+      "importing": "Importing",
       "untitled": "Untitled",
       "progress": "Progress",
       "goal": "{{pct}}% · goal {{target}} words",
