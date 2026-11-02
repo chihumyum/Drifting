@@ -46,6 +46,8 @@ const subscribeEmpty = () => () => undefined;
 const emptyViewport = () => EMPTY_OUTLINE_VIEWPORT;
 
 const OMISSION_REVEAL_LIMIT = 10;
+// Room above the first and below the last label on the expanded dots surface.
+const OUTLINE_SURFACE_BLEED = 14;
 // The compact menu width (--menu-width-compact).
 const OMISSION_REVEAL_WIDTH = 180;
 
@@ -140,7 +142,7 @@ function VisibleEditorOutlineRail({
     viewport?.configure(flat, scrollspyIds);
     viewport?.setPresentationNeeded(isVisible || isPreparing);
   }, [viewport, flat, scrollspyIds, isVisible, isPreparing]);
-  const { geometry, railHeight, primaryId: readingId } = useSyncExternalStore(
+  const { geometry, railHeight, primaryId: readingId, fit } = useSyncExternalStore(
     viewport?.subscribe ?? subscribeEmpty,
     viewport?.getSnapshot ?? emptyViewport,
     emptyViewport,
@@ -172,6 +174,14 @@ function VisibleEditorOutlineRail({
     () => layoutOutlineRailLabels(plan.labels, railHeight, labelPitch),
     [labelPitch, plan.labels, railHeight],
   );
+  // Dots expand on hover onto one lifted surface spanning the laid-out labels,
+  // so the labels read over the text and the pointer stays on the rail between them.
+  const surface = useMemo(() => {
+    if (fit !== 'dots' || laidOut.length === 0) return null;
+    const ys = laidOut.map(({ y }) => y);
+    const top = Math.min(...ys) - OUTLINE_SURFACE_BLEED;
+    return { top, height: Math.max(...ys) + OUTLINE_SURFACE_BLEED - top };
+  }, [fit, laidOut]);
   const handleWheel = (event: WheelEvent<HTMLElement>) => {
     const root = scrollElRef.current;
     if (!root) return;
@@ -249,11 +259,22 @@ function VisibleEditorOutlineRail({
         className="editor__toc-rail editor__toc-rail--edge is-active"
         aria-label={`${title} · ${t('editorOutline.aria')}`}
         data-density={plan.mode}
+        data-fit={fit}
         data-placement="edge"
         onWheel={handleWheel}
       >
-      <div className="editor__toc-labels">
+      {/* Keyed by fit: a fit change mounts fresh labels, so only hover animates
+          (the dots' delays are hover intent) and a narrow rail never shows its
+          labels over the text while it settles. */}
+      <div className="editor__toc-labels" key={fit}>
         {flat.length === 0 && emptyHint && <span className="editor__toc-empty">{emptyHint}</span>}
+        {surface && (
+          <span
+            className="hover-card-surface editor__toc-surface"
+            style={{ top: `${surface.top}px`, height: `${surface.height}px` }}
+            aria-hidden="true"
+          />
+        )}
         {laidOut.map(({ label, y }) => {
           const style = { top: `${y}px` };
 

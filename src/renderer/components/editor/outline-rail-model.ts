@@ -268,6 +268,35 @@ export function layoutOutlineRailLabels(
   return labels.map((label, index) => ({ label, y: y[index] }));
 }
 
+/**
+ * How the rail presents itself beside the paper. `labels` is the full text
+ * lane; `dots` keeps one mark per label at the same height and shows the
+ * labels only while the rail is hovered.
+ */
+export type OutlineRailFit = 'labels' | 'dots';
+
+/** The text lane's far edge from the editor area's left edge: labels start at
+ *  12px and are at most 176px wide (`.editor__toc-rail`, 190px minus 14px). */
+export const OUTLINE_RAIL_LABEL_LANE = 188;
+/** Below this gutter the widest label would come within 8px of the text. */
+export const OUTLINE_RAIL_DOTS_BELOW = OUTLINE_RAIL_LABEL_LANE + 8;
+/** Dots return to labels only with clear room. The 16px band is wider than any
+ *  re-centring that does not change the column (the 8px scrollbar appearing
+ *  moves a centred paper by 4px), so the rail never toggles at the boundary. */
+export const OUTLINE_RAIL_LABELS_AT = OUTLINE_RAIL_DOTS_BELOW + 16;
+
+/**
+ * Decide the rail's fit from the editor column's measured gutter: the space
+ * between `.editor-body`'s left edge and the paper content's left edge. It never
+ * reads the window width. An unmeasured gutter (no paper yet) keeps the
+ * previous fit.
+ */
+export function outlineRailFit(gutter: number | null, previous: OutlineRailFit): OutlineRailFit {
+  if (gutter === null || !Number.isFinite(gutter)) return previous;
+  if (previous === 'labels') return gutter < OUTLINE_RAIL_DOTS_BELOW ? 'dots' : 'labels';
+  return gutter >= OUTLINE_RAIL_LABELS_AT ? 'labels' : 'dots';
+}
+
 /** Sequential section ranges intersecting the current editor viewport. */
 export function visibleOutlineIds(
   flat: FlatOutlineEntry[],
