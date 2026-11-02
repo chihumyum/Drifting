@@ -150,6 +150,18 @@ Graph styles and the small drift-panel animation hook remain in the immediate
 shell. Animation state belongs to each wrapper mount; graph, project and editor
 instances are never cached with code.
 
+A deferred entry is fetched by an ignored `import()`, so a production build
+emits no `<link>` or preload for that chunk's CSS; development injects every
+sheet as a `<style>`, which hides the gap. `DeferredSuperViews` therefore also
+imports the stylesheets its bodies import: `graph-view.css`, `super-element.css`
+(element overview) and `super-memo-material.css` (TODO & material library).
+Without them the installed app drew the relation lines but dropped the cards
+into normal flow. `renderer-boundaries.test.ts` reads the deferred entries the
+renderer config registers (`api.deferredEntry` on each `deferredEntryPlugin`)
+and fails when any stylesheet in an entry's static import closure is outside the
+shell closure: the HTML entry plus the project route-code gate, the same rule as
+`scripts/renderer-feature-loading-closure.mjs`.
+
 Closing or switching views unsubscribes that view without aborting a shared code
 request. A late result only fills the code cache and cannot reopen the old view.
 When focus was in a removed loading control, ready content restores it to Back;

@@ -1,9 +1,90 @@
 import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
+import { transformSync } from 'esbuild';
 import ts from 'typescript';
+import viteConfiguration from '../../../vite.renderer.config';
 
 const rendererRoot = path.resolve(process.cwd(), 'src/renderer');
+const repositoryRoot = path.resolve(rendererRoot, '../..');
+
+type DeferredEntry = { id: string; entry: string };
+
+/** The renderer build's deferred entries, read from the plugins it actually registers. */
+function deferredEntries(): DeferredEntry[] {
+  const config = viteConfiguration({ command: 'serve', mode: 'development' });
+  return ((config.plugins ?? []) as unknown[]).flat(8).flatMap((plugin) => {
+    const entry = (plugin as { api?: { deferredEntry?: DeferredEntry } } | null)?.api?.deferredEntry;
+    return entry ? [entry] : [];
+  });
+}
+
+/**
+ * Static import closures as the production bundle sees them: esbuild elides
+ * type-only and unused imports exactly as Vite's transform does. Dynamic
+ * import() is not followed (Vite preloads that chunk's CSS itself), and neither
+ * is a `virtual:` deferred entry (checked as its own entry).
+ */
+function staticImportClosures(read: (file: string) => string = (file) => fs.readFileSync(file, 'utf8')) {
+  const imports = new Map<string, string[]>();
+  const resolveImport = (from: string, specifier: string): string | null => {
+    if (specifier.startsWith('virtual:') || specifier.includes('?')) return null;
+    if (!specifier.startsWith('.') && !specifier.startsWith('@/')) return specifier.endsWith('.css') ? `npm:${specifier}` : null;
+    const base = specifier.startsWith('@/')
+      ? path.join(repositoryRoot, 'src', specifier.slice(2))
+      : path.resolve(path.dirname(from), specifier);
+    const file = ['', '.ts', '.tsx', '.js', '.mjs', '/index.ts', '/index.tsx']
+      .map((extension) => base + extension)
+      .find((candidate) => fs.existsSync(candidate) && fs.statSync(candidate).isFile());
+    if (!file) throw new Error(`Unresolved import ${specifier} in ${path.relative(repositoryRoot, from)}`);
+    return file;
+  };
+  const importsOf = (file: string): string[] => {
+    const known = imports.get(file);
+    if (known) return known;
+    const found: string[] = [];
+    imports.set(file, found);
+    const loader = file.endsWith('.tsx') ? 'tsx' : file.endsWith('.ts') ? 'ts' : /\.m?js$/.test(file) ? 'js' : null;
+    if (!loader) return found;
+    const { code } = transformSync(read(file), { loader, jsx: 'preserve', sourcefile: file });
+    const ast = ts.createSourceFile(file, code, ts.ScriptTarget.Latest, false, ts.ScriptKind.JSX);
+    for (const statement of ast.statements) {
+      const specifier = (ts.isImportDeclaration(statement) || ts.isExportDeclaration(statement)) ? statement.moduleSpecifier : undefined;
+      if (!specifier || !ts.isStringLiteral(specifier)) continue;
+      const resolved = resolveImport(file, specifier.text);
+      if (resolved) found.push(resolved);
+    }
+    return found;
+  };
+  return (start: string): Set<string> => {
+    const seen = new Set<string>();
+    const pending = [path.resolve(repositoryRoot, start)];
+    for (let file = pending.pop(); file; file = pending.pop()) {
+      if (seen.has(file)) continue;
+      seen.add(file);
+      if (!file.startsWith('npm:')) pending.push(...importsOf(file));
+    }
+    return seen;
+  };
+}
+
+/**
+ * Stylesheets a deferred entry needs but the shell does not load. A deferred
+ * entry is fetched by an ignored import(), so Vite emits no <link> or preload
+ * for its CSS: the shell must already own every stylesheet the entry imports.
+ * The shell is the HTML entry plus the project route-code gate, the same
+ * closure as `scripts/renderer-feature-loading-closure.mjs`.
+ */
+function deferredStylesheetsOutsideShell(read?: (file: string) => string): string[] {
+  const closure = staticImportClosures(read);
+  const html = fs.readFileSync(path.join(repositoryRoot, 'index.html'), 'utf8');
+  const htmlEntry = /<script type="module" src="\/([^"]+)"/.exec(html)?.[1];
+  expect(htmlEntry).toBe('src/renderer/main.tsx');
+  const shell = new Set([...closure(htmlEntry!), ...closure('src/renderer/app/project-route-components.tsx')]);
+  return deferredEntries().flatMap(({ entry }) => [...closure(entry)]
+    .filter((file) => file.endsWith('.css') && !shell.has(file))
+    .map((file) => `${entry} -> ${file.startsWith('npm:') ? file : path.relative(repositoryRoot, file)}`));
+}
 
 function source(relativePath: string): string {
   return fs.readFileSync(path.join(rendererRoot, relativePath), 'utf8');
@@ -46,6 +127,29 @@ describe('renderer ownership boundaries', () => {
           .not.toContain(imported.replace(/\.(ts|tsx)$/, ''));
       }
     }
+  });
+
+  it('loads every stylesheet of a deferred entry with the shell, since its ignored import() injects none', () => {
+    expect(deferredEntries().map(({ entry }) => entry)).toEqual(expect.arrayContaining([
+      'src/renderer/shells/desktop/views/DesktopStoryGraphView.tsx',
+      'src/renderer/shells/desktop/views/DesktopSuperElementView.tsx',
+      'src/renderer/shells/desktop/views/DesktopSuperMemoMaterialView.tsx',
+      'src/renderer/features/graph/graph-ui-components.ts',
+      'src/renderer/features/settings/panels/AgentSettingsPanel.tsx',
+    ]));
+    expect(deferredStylesheetsOutsideShell()).toEqual([]);
+  });
+
+  it('reports a deferred view stylesheet the shell stops owning', () => {
+    const hoist = path.join(rendererRoot, 'shells/desktop/views/DeferredSuperViews.tsx');
+    const withoutHoist = (file: string) => {
+      const text = fs.readFileSync(file, 'utf8');
+      return file === hoist ? text.replace(/^import '[^']*\/super-(element|memo-material)\.css';$/gm, '') : text;
+    };
+    expect(deferredStylesheetsOutsideShell(withoutHoist)).toEqual([
+      'src/renderer/shells/desktop/views/DesktopSuperMemoMaterialView.tsx -> src/styles/super-memo-material.css',
+      'src/renderer/shells/desktop/views/DesktopSuperElementView.tsx -> src/styles/super-element.css',
+    ]);
   });
 
   it('keeps heavy settings code deferred while basic preferences and Trash stay reachable', () => {

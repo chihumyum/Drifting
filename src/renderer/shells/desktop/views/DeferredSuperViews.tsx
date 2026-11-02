@@ -9,7 +9,12 @@ import { DesktopSuperViewHeader } from '../components/DesktopSuperViewHeader';
 import { memoMaterialModule, superViewModules } from '../../../features/graph/deferred-graph-modules';
 import type { createDeferredModule } from '../../../lib/deferred-module';
 // These shells/styles are immediate, including while feature code is loading.
+// The view bodies arrive through deferred entries (`vite-plugins/deferred-entry.ts`),
+// whose ignored import() never injects a chunk's CSS in a production build, so
+// every stylesheet a body imports is owned here as well.
 import '../../../../styles/graph-view.css';
+import '../../../../styles/super-element.css';
+import '../../../../styles/super-memo-material.css';
 import '../../../../styles/drift-panel.css';
 import '../../../../styles/relation-edge-popover.css';
 

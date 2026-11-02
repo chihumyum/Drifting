@@ -10,6 +10,9 @@ export function deferredEntryPlugin(options: {
   let building = false;
   return {
     name: `drifting-deferred-${options.name}`,
+    // Read by the renderer architecture guard: Vite never injects the CSS of a
+    // chunk reached through this ignored import(), so the shell must own it.
+    api: { deferredEntry: { id: options.id, entry: options.entry } },
     configResolved(config) { root = config.root; building = config.command === 'build'; },
     resolveId(id) { if (id === options.id) return resolvedId; },
     load(id) {
