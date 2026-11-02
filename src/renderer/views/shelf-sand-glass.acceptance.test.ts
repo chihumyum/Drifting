@@ -164,6 +164,16 @@ describe('the sign-in dialog', () => {
     expect(render('dialog', 'signup').match(/class="ui-field /g)).toHaveLength(3);
   });
 
+  it('tabs from the email straight to the password, with Forgot password under it', () => {
+    const html = render('dialog');
+    const email = html.indexOf('type="email"');
+    const password = html.indexOf('type="password"');
+    const forgot = html.indexOf('auth.forgotPassword');
+    expect(email).toBeGreaterThanOrEqual(0);
+    expect(html.slice(email, password)).not.toMatch(/<(button|a)\b/);
+    expect(forgot).toBeGreaterThan(password);
+  });
+
   it('keeps the paused mobile page as it was', () => {
     const html = render('page');
     expect(html).toContain('class="auth-flow auth-flow--page"');

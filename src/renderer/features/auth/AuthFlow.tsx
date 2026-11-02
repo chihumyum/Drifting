@@ -299,7 +299,7 @@ export function AuthFlow({
         />
         <AuthField
           label={t('auth.fields.password')}
-          aside={
+          below={
             signin && (
               <FlowButton kind="link" onClick={() => go('forgot')}>
                 {t('auth.forgotPassword')}
@@ -461,12 +461,14 @@ function FlowError({ children, announce = true }: { children: ReactNode; announc
   );
 }
 
+/** A labelled input; `below` sits under it, so Tab goes from one input
+ * straight to the next. */
 function AuthField({
   label,
-  aside,
+  below,
   className = '',
   ...input
-}: { label: string; aside?: ReactNode } & InputHTMLAttributes<HTMLInputElement>) {
+}: { label: string; below?: ReactNode } & InputHTMLAttributes<HTMLInputElement>) {
   const id = useId();
   const glass = useContext(GlassControls);
   const field = <input id={id} className={`auth-flow__input ${className}`.trim()} {...input} />;
@@ -476,9 +478,9 @@ function AuthField({
         <label className="auth-flow__label" htmlFor={id}>
           {label}
         </label>
-        {aside}
       </div>
       {glass ? <label className="ui-field glass glass--rest glass--field">{field}</label> : field}
+      {below && <div className="auth-flow__field-foot">{below}</div>}
     </div>
   );
 }

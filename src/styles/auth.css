@@ -74,6 +74,11 @@
   gap: 12px;
 }
 
+.auth-flow__field-foot {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .auth-flow__label {
   color: hsl(var(--ink-2));
   font-size: 12px;
