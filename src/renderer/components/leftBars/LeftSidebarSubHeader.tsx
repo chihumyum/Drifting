@@ -40,9 +40,9 @@ const META_HIDE_WIDTH = 180;
 
 export function LeftSidebarSubHeader({ panel: activeLeftPanel }: { panel: LeftSidebarTab }) {
   const { t } = useTranslation();
-  // The panel's own folded groups (要素 categories, 构想 groups): with none
-  // folded the press folds them all, so the fan is shown shut; otherwise it
-  // opens them all, and the fan is shown open.
+  // The panel's own folded groups (要素 categories, 构想 groups, 章节 storyline
+  // groups): with none folded the press folds them all, so the fan is shown
+  // shut; otherwise it opens them all, and the fan is shown open.
   const [collapsedGroups] = useSidebarPanelState<Set<string>>('collapsed', () => new Set());
   const paneId = useSidebarPaneId();
   const [nodesViewMode, setChapterViewMode] = useSidebarPreference('chapterPanelViewMode');
@@ -465,12 +465,12 @@ export function LeftSidebarSubHeader({ panel: activeLeftPanel }: { panel: LeftSi
       )}
       <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
         {renderOverview()}
-        {/* "展开／折叠全部" applies to panels with collapsible groups (要素 类目
-            and, now that drifts can be grouped into folders, 构想分组). The 章节
-            panel toggles its storyline lanes individually, so it's excluded.
+        {/* "展开／折叠全部" applies wherever the panel shows collapsible groups:
+            要素 类目, 构想分组, and 章节 when grouped by storyline (全书总览 is a
+            flat list, so it has nothing to fold).
             One press opens every group or folds them all, like a folding fan:
             the fan is drawn as the press will leave it, shut or open. */}
-        {(activeLeftPanel === 'elements' || activeLeftPanel === 'drift') && (
+        {(activeLeftPanel === 'elements' || activeLeftPanel === 'drift' || chapterIsStoryline) && (
           <SubIconBtn title={t('leftSidebar.actions.collapseAll')} onClick={collapseAll}>
             <BrushIcon name={collapsedGroups.size === 0 ? 'folding-fan-closed' : 'folding-fan'} size={11} />
           </SubIconBtn>
