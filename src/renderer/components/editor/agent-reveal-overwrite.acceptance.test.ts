@@ -26,12 +26,12 @@ describe('Agent changes: in-place reveal and lingering colour (desktop)', () => 
     expect(animator).toContain('if (!getPlatformRuntime().isMobileShell) recordAgentRecentChange(entityType, id, c);');
   });
 
-  it('paints the marks as a colour without touching the prose and lets one go after a dwell', () => {
+  it('paints the marks as a colour without touching the prose and lets one go as soon as the pointer touches it', () => {
     const painter = source('src/renderer/lib/agent-recent-highlight.ts');
     expect(painter).toContain('highlights');
     expect(painter).not.toMatch(/classList|setAttribute\(|Decoration\./);
-    expect(painter).toContain('RECENT_CHANGE_DWELL_MS');
-    expect(painter).toContain('dismissAgentRecentMark(id)');
+    expect(painter).not.toMatch(/DWELL|setTimeout\(\(\) => \{\s*dismiss/);
+    expect(painter).toContain('dismissAgentRecentMark(painted.mark.id);');
     expect(painter).toContain("attributeFilter: ['aria-hidden']");
     const mount = source('src/renderer/components/editor/AgentRecentChangeHighlights.tsx');
     expect(mount).toContain('getPlatformRuntime().isMobileShell');
@@ -70,8 +70,8 @@ describe('Agent changes: in-place reveal and lingering colour (desktop)', () => 
   it('documents the reveal and the lingering colour', () => {
     const docs = designSystemDocs();
     expect(docs).toContain('揭示是原地覆盖');
-    expect(docs).toContain('写完留色到指针停住');
-    expect(docs).toContain('RECENT_CHANGE_DWELL_MS');
+    expect(docs).toContain('写完留色到指针碰到');
+    expect(docs).toContain('RECENT_CHANGE_FADE_MS');
     expect(source('docs/agent-runtime/durable-commit-review-protocol.md')).toContain('`mode="overwrite"`');
   });
 });
