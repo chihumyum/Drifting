@@ -1,0 +1,84 @@
+{
+  "kind": "macos-layered-app-icon",
+  "sources": {
+    "scripts/compile-macos-icon.mjs": "be35f55b51f188b2f253071071496ea3bb33147f71aae058ebf97143d5a3fd49",
+    "scripts/check-macos-icon.mjs": "af5117d8b0e21e3390a5a35fb739bcad87bcee9f7f6adb9ed50ea00a2a51684a",
+    "src-tauri/tauri.conf.json": "e5a5022e54a9a27040815c497bca130da49634087a27adbccfb2148e7216d785",
+    "src-tauri/tauri.macos.conf.json": "27bc8c6480840118d78e513aa52514c8820c0d424d3cc10772c48864196bce86",
+    "src/assets/icon.icns": "2635b4051ac37bd945e0ef4e3a1594fbb8b042133d433c093df496a581509422",
+    "src/assets/icon.icon/icon.json": "a47f93e0c7ac61fcf982a24a16d4473180327cbfbf5c8fc1477dc5767aaef71e",
+    "src/assets/icon.icon/Assets/glass-bleed.png": "0b342e4e0a494cfd893fdf8493bd4f9b620e497858c483e8c41796b452afed92",
+    "src/assets/icon.icon/Assets/glass-line.png": "b6d579c50150f88a3f3de0e2b99bf170be177fd9770e781af7701d5779daf952",
+    "src/assets/icon.icon/Assets/sand.png": "d5a3a2022fc53db8176e4e17500b9ca09979ec74c5a84f3621816a019fda9c0c"
+  },
+  "bundle": {
+    "minimumSystemVersion": "13.0",
+    "iconName": "icon",
+    "iconFile": "icon.icns",
+    "fallbackSha256": "2635b4051ac37bd945e0ef4e3a1594fbb8b042133d433c093df496a581509422",
+    "catalogSha256": "f6ca07f9b38ebc5231ad6c5096dbd20c59b96fcb5fdf9d59e1bd5dd16cc5baff",
+    "compiler": "Xcode 27.2 (27B52) via AssetCatalogAgent-AssetRuntime",
+    "platform": "macosx",
+    "appearances": [
+      "ISAppearanceTintable",
+      "NSAppearanceNameAqua",
+      "NSAppearanceNameDarkAqua",
+      "NSAppearanceNameSystem"
+    ],
+    "stacks": [
+      {
+        "name": "icon",
+        "appearance": "NSAppearanceNameDarkAqua"
+      },
+      {
+        "name": "icon",
+        "appearance": "NSAppearanceNameAqua"
+      },
+      {
+        "name": "icon",
+        "appearance": "ISAppearanceTintable"
+      }
+    ],
+    "groups": [
+      {
+        "name": "icon/Glass",
+        "appearance": "NSAppearanceNameDarkAqua",
+        "layers": 2
+      },
+      {
+        "name": "icon/Glass",
+        "appearance": "NSAppearanceNameAqua",
+        "layers": 2
+      },
+      {
+        "name": "icon/Glass",
+        "appearance": "ISAppearanceTintable",
+        "layers": 2
+      },
+      {
+        "name": "icon/Sand",
+        "appearance": "NSAppearanceNameDarkAqua",
+        "layers": 1
+      },
+      {
+        "name": "icon/Sand",
+        "appearance": "NSAppearanceNameAqua",
+        "layers": 1
+      },
+      {
+        "name": "icon/Sand",
+        "appearance": "ISAppearanceTintable",
+        "layers": 1
+      }
+    ],
+    "iconSizes": [
+      32,
+      64,
+      128,
+      256,
+      512,
+      1024
+    ]
+  },
+  "boundary": "Real Tauri packaging of an existing client executable, without launching it or accessing a database. Catalog metadata validates light, dark and mono stacks; macOS derives Clear/Tinted from mono. Dock switching and pre-26 hardware are not automated acceptance."
+}

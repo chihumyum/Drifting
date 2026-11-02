@@ -1,5 +1,16 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
+  "build": {
+    "beforeBundleCommand": "node scripts/compile-macos-icon.mjs"
+  },
+  "bundle": {
+    "icon": [
+      "../src/assets/icon.png",
+      "../src/assets/icon.ico",
+      "../src/assets/icon.icns",
+      "../out/macos-icon/Assets.car"
+    ]
+  },
   "app": {
     "macOSPrivateApi": false,
     "windows": [

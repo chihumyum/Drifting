@@ -14,6 +14,7 @@
 | 平台 | macOS 13+，Apple Silicon（`aarch64-apple-darwin`） |
 | 构建机 | GitHub `macos-26`，Xcode 26.6（macOS 26 SDK）。用更早的 SDK 编译，新系统会给 App 画旧样式的标题栏，红绿灯比 App 设定的位置偏下 |
 | 打包 | `.dmg`（首次安装）、`.app.tar.gz` + `.sig`（自动更新）、`latest.json`、`SHA256SUMS.txt`、`sbom.spdx.json` |
+| 图标 | macOS 打包前从 Icon Composer 源文件编译 `Assets.car`，支持浅色、深色、Clear 和 Tinted；旧系统保留 `.icns`。构建产物与 DMG 内的 App 都检查图标资产，见 `docs/qa/macos-app-icon.md` |
 | 签名 | Developer ID Application 证书；App 和外层的 DMG 都用 App Store Connect API Key 公证并 staple（DMG 那一步在 Tauri 构建之后单独做） |
 | Hosted | 连接 `vars.DRIFTING_HOSTED_ORIGIN`，开放注册；注册页链接 `https://drifting.cc/terms` 与 `https://drifting.cc/privacy` |
 | 更新 | 启动后每天最多检查一次；有新版本时通知中心出现一条，点开到 设置 › 更新；下载和安装都要用户确认；安装前先保存全部本地修改 |
@@ -74,6 +75,7 @@
 ## 冒烟检查
 
 - DMG 能打开，拖进“应用程序”后首次启动没有 Gatekeeper 拦截。
+- 切换系统的浅色、深色、Clear 和 Tinted 图标外观，程序坞与 Finder 中的冰山图标跟随变化。
 - 首次启动不需要账号，书架上能新建项目、写字，退出重开内容还在。
 - 注册新账号能收到验证码邮件，登录后本地项目上传、云端项目下载正常。
 - 设置 › 隐私、设置 › 关于 里的链接能打开 drifting.cc 和 GitHub 页面。

@@ -45,6 +45,7 @@ jobs:
       - run: node scripts/check-release.mjs "${GITHUB_REF_NAME}"
       - run: pnpm ci:contract:check
       - run: pnpm public:check
+      - run: node scripts/check-macos-icon.mjs --check
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
@@ -151,6 +152,7 @@ jobs:
           DMG_PATH=$(find "$BUNDLE/dmg" -maxdepth 1 -name '*.dmg' -print -quit)
           UPDATE_PATH=$(find "$BUNDLE/macos" -maxdepth 1 -name '*.app.tar.gz' -print -quit)
           test -d "$APP_PATH" && test -f "$DMG_PATH" && test -f "$UPDATE_PATH" && test -f "$UPDATE_PATH.sig"
+          node scripts/check-macos-icon.mjs --bundle "$APP_PATH"
           codesign --verify --deep --strict --verbose=2 "$APP_PATH"
           spctl --assess --type execute --verbose=2 "$APP_PATH"
           xcrun stapler validate "$APP_PATH"
@@ -158,6 +160,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/drifting-dmg"
           hdiutil attach "$DMG_PATH" -nobrowse -readonly -mountpoint "$RUNNER_TEMP/drifting-dmg"
           MOUNTED_APP=$(find "$RUNNER_TEMP/drifting-dmg" -maxdepth 1 -name '*.app' -print -quit)
+          node scripts/check-macos-icon.mjs --bundle "$MOUNTED_APP"
           codesign --verify --deep --strict --verbose=2 "$MOUNTED_APP"
           spctl --assess --type execute --verbose=2 "$MOUNTED_APP"
           hdiutil detach "$RUNNER_TEMP/drifting-dmg"

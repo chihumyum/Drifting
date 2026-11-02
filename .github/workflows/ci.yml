@@ -36,6 +36,7 @@ jobs:
       - run: pnpm ci:contract:check
       - run: pnpm openai:catalog:check
       - run: pnpm public:check
+      - run: node scripts/check-macos-icon.mjs --check
       - run: pnpm security:dependencies
       - run: pnpm lint
       - run: pnpm typecheck

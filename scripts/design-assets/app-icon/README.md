@@ -17,7 +17,10 @@ it). It writes:
   `glass-line.png`: white masks on the 1024-point canvas. `icon.json` gives each
   layer its colour, light and dark, so the dark icon needs no second set.
 - `src/assets/icon-master.png` — Icon Composer's macOS rendition, which
-  `pnpm icons` turns into the desktop icons.
+  `pnpm icons` turns into the static desktop icons, including the legacy macOS
+  `.icns` fallback. macOS packaging separately compiles the layered `.icon`
+  into `Assets.car` for system light/dark/clear/tinted appearances; see
+  `docs/qa/macos-app-icon.md`.
 - `out/app-icon/` — `square.png` (the icon flattened onto an opaque square in
   `icon.json`'s light colours), `favicon-32x32.png` (the macOS rendition) and
   `apple-touch-icon.png` (the square, since iOS rounds the corners itself). The
