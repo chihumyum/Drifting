@@ -1058,15 +1058,38 @@ async function upsertLifecycleLive(
       await context.tx.insert(EntityKvEntryTable).values({ id: effect.target.id, projectId: context.changeSet.projectId, ownerKind: seed.ownerKind as string, ownerId: seed.ownerId as string, namespace: seed.namespace as string, key: seed.key as string, value: seed.value as string }).onConflictDoNothing();
       return;
     case 'plot-grid-row':
+      if (!(await plotGridParentsExist(context, 'plot-grid-row', seed))) return;
       await context.tx.insert(PlotGridRowTable).values({ id: effect.target.id, documentId: seed.documentId as string, positionKey: 'pending', label: (seed.label as string | undefined) ?? '' }).onConflictDoNothing();
       return;
     case 'plot-grid-column':
+      if (!(await plotGridParentsExist(context, 'plot-grid-column', seed))) return;
       await context.tx.insert(PlotGridColumnTable).values({ id: effect.target.id, documentId: seed.documentId as string, positionKey: 'pending', label: (seed.label as string | undefined) ?? '' }).onConflictDoNothing();
       return;
     case 'plot-grid-cell':
+      if (!(await plotGridParentsExist(context, 'plot-grid-cell', seed))) return;
       await context.tx.insert(PlotGridCellTable).values({ id: effect.target.id, documentId: seed.documentId as string, rowId: seed.rowId as string, columnId: seed.columnId as string, value: (seed.value as string | undefined) ?? '' }).onConflictDoNothing();
       return;
   }
+}
+
+/**
+ * A removed grid takes its rows and columns along, and a removed row or column
+ * its cells, as on the device that removed them. A concurrent edit on another
+ * device does not bring them back.
+ */
+async function plotGridParentsExist(
+  context: SyncDomainMaterializationContext,
+  kind: 'plot-grid-row' | 'plot-grid-column' | 'plot-grid-cell',
+  seed: Readonly<Record<string, unknown>>,
+): Promise<boolean> {
+  const documentId = seed.documentId as string;
+  if (kind !== 'plot-grid-cell') {
+    const documents = await context.tx.select({ id: PlotGridDocumentTable.id }).from(PlotGridDocumentTable).where(eq(PlotGridDocumentTable.id, documentId)).limit(1);
+    return documents.length > 0;
+  }
+  const rows = await context.tx.select({ id: PlotGridRowTable.id }).from(PlotGridRowTable).where(and(eq(PlotGridRowTable.id, seed.rowId as string), eq(PlotGridRowTable.documentId, documentId))).limit(1);
+  const columns = await context.tx.select({ id: PlotGridColumnTable.id }).from(PlotGridColumnTable).where(and(eq(PlotGridColumnTable.id, seed.columnId as string), eq(PlotGridColumnTable.documentId, documentId))).limit(1);
+  return rows.length > 0 && columns.length > 0;
 }
 
 async function replaceRelationTypeEndpoints(
@@ -1187,6 +1210,10 @@ async function materializeField(context: SyncDomainMaterializationContext, effec
 async function endpointKinds(context: SyncDomainMaterializationContext, relationTypeId: string, side: 'source' | 'target'): Promise<string[]> {
   const rows = await context.tx.select({ entityKind: EntityRelationTypeEndpointKindTable.entityKind }).from(EntityRelationTypeEndpointKindTable).where(and(eq(EntityRelationTypeEndpointKindTable.relationTypeId, relationTypeId), eq(EntityRelationTypeEndpointKindTable.side, side)));
   return rows.map(({ entityKind }) => entityKind);
+}
+
+function isPlotGridSize(effect: ReducerEffect): effect is Extract<ReducerEffect, { type: 'tuple.set' }> {
+  return effect.type === 'tuple.set' && effect.target.kind === 'node-content' && effect.tuple === 'plot-grid-size';
 }
 
 async function materializeTuple(context: SyncDomainMaterializationContext, effect: Extract<ReducerEffect, { type: 'tuple.set' }>): Promise<void> {
@@ -2036,8 +2063,22 @@ export function createProductionSyncDomainMaterializationKernel(): SyncDomainMat
         context,
         scope ? context.effects.filter(scope.includes) : context.effects,
       );
+      const live = effects.filter(
+        (effect): effect is LifecycleEffect => effect.type === 'entity.lifecycle' && effect.status === 'live',
+      );
+      for (const effect of live) {
+        if (!effect.target.kind.startsWith('plot-grid-')) await upsertLifecycleLive(context, effect);
+      }
+      // A plot grid's document arrives as its size tuple, and effect-id order
+      // puts cells before their columns and rows: each parent lands first.
       for (const effect of effects) {
-        if (effect.type === 'entity.lifecycle' && effect.status === 'live') await upsertLifecycleLive(context, effect);
+        if (isPlotGridSize(effect)) await materializeTuple(context, effect);
+      }
+      for (const effect of live) {
+        if (effect.target.kind === 'plot-grid-row' || effect.target.kind === 'plot-grid-column') await upsertLifecycleLive(context, effect);
+      }
+      for (const effect of live) {
+        if (effect.target.kind === 'plot-grid-cell') await upsertLifecycleLive(context, effect);
       }
       for (const effect of effects) {
         if (effect.type === 'set.member') await materializeSet(context, effect);
@@ -2046,7 +2087,7 @@ export function createProductionSyncDomainMaterializationKernel(): SyncDomainMat
       // projected, regardless of deterministic effect-id ordering.
       for (const effect of effects) {
         if (effect.type === 'field.set') await materializeField(context, effect);
-        else if (effect.type === 'tuple.set') await materializeTuple(context, effect);
+        else if (effect.type === 'tuple.set' && !isPlotGridSize(effect)) await materializeTuple(context, effect);
         else if (effect.type === 'order.position') await materializeOrder(context, effect);
         else if (effect.type === 'yjs.update') await materializeYjsUpdate(context, effect);
         else if (effect.type === 'asset.bind') {
