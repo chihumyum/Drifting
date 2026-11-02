@@ -56,6 +56,14 @@ Library roots:
 With `DRIFTING_DB_DIR` the legacy library's databases stay in that folder and
 every other library uses a subfolder named by its relative root. Libraries
 other than `legacy` grant the asset-protocol folders of their root at startup.
+Crash reports and development logs are App-wide and stay beside the legacy
+library's databases whichever library runs.
+
+A development build cannot relaunch itself under `tauri dev`: the CLI stops its
+frontend server once the process it started exits. The macOS development
+runner (`scripts/run-signed-macos-dev.sh`) therefore passes
+`DRIFTING_DEV_RELAUNCH_MARKER`; a relaunch writes that file and exits, and the
+runner starts the binary again, forwarding stop signals to it.
 
 Renderer (`src/renderer/services/account-library.ts`):
 
@@ -88,10 +96,23 @@ an explicit, per-project decision.
 
 ## Acceptance
 
-- Rust: `cargo test --lib library_registry` covers claiming, per-owner roots,
-  switching back, conflicts, corrupt registries and subject validation.
-- Renderer: `src/renderer/services/account-library.test.ts` and
-  `src/renderer/store/auth.account-libraries.test.ts` cover classification,
-  relaunch decisions, first restore, sign-in, failed relaunch and sign-out.
-- Not yet covered: a desktop run that signs in, relaunches and restores against
-  a Hosted service, and mobile.
+`pnpm account-libraries:evidence` runs the native registry tests
+(`cargo test --lib library_registry`: claiming, per-owner roots, switching
+back, conflicts, corrupt registries, subject validation) and the renderer
+suites (`src/renderer/services/account-library.test.ts`,
+`src/renderer/store/auth.account-libraries.test.ts` and the auth and Hosted
+settings acceptance tests: classification, relaunch decisions, first restore,
+sign-in, failed relaunch, sign-out, copy) and writes
+[`acceptance/account-libraries.json`](acceptance/account-libraries.json);
+`pnpm account-libraries:check` verifies it is current.
+
+A desktop development profile (`pnpm dev:worktree --frontend-debug`) was also
+switched through the native commands on 2026-11-02: the upgraded library was
+claimed `local` with the built-in sample; activating an account library
+relaunched onto an empty shelf with its database under
+`databases/libraries/account-…`; activating `local` relaunched onto the
+original shelf, with the frontend server running throughout.
+
+Not yet covered: signing in against a Hosted service (relaunch, first restore,
+sign-out back to local, pending uploads resuming), a packaged build's
+`app.restart()`, and mobile.

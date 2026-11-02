@@ -322,7 +322,7 @@ pub async fn library_activate(
 #[cfg(desktop)]
 fn relaunch(app: &tauri::AppHandle) -> Result<(), String> {
     if !crate::request_flushed_shutdown(app, crate::state::ShutdownAction::RestartApp) {
-        app.restart();
+        crate::relaunch_app(app);
     }
     Ok(())
 }

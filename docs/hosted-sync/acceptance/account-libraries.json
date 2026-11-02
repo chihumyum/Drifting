@@ -1,0 +1,237 @@
+{
+  "contract": {
+    "registry": "libraries.json in the App-local base root; legacy library keeps the base root",
+    "switching": "relaunch through the quit flush barrier; mobile keeps one library",
+    "sourceSha256": {
+      "docs/hosted-sync/account-libraries.md": "9188e78e20f5cccbc6760db4576ac3cb5d3db515f2d7ee3df05e9f348aa38f12",
+      "scripts/generate-account-library-evidence.mjs": "769a1986d72c448a836f9ca2bfef7433444707b148573d7ff81cb7820a4af099",
+      "scripts/run-signed-macos-dev.sh": "233a4a86569c5c24a0a8ce53d05da19a80f382afaf0934b8637bd4464358165b",
+      "src-tauri/src/data_paths.rs": "f1341a29ec2b91a8df6fc11f01cac683b58b5bfb9e73bafa35c93d91e6aff9d0",
+      "src-tauri/src/library_registry.rs": "b2d5b61069fb4e589d282bc5a6f201fa3f707fc0039715fbb93b459f547b3aff",
+      "src/renderer/features/auth/SignOutDialog.tsx": "0c2e2d4835ad23643209d91884d9a6fc2e5c4f99f0210248ff0f5563df9992d3",
+      "src/renderer/features/auth/auth-entry.acceptance.test.ts": "41919e3c8317213dc5011f21dc80ab82a586dbc132278c60f3ef9ed1e7a4c02f",
+      "src/renderer/features/settings/hosted-settings-boundary.acceptance.test.ts": "dee255b2d71787034db15c17120cc73d3bfa6732c1e870880b3ed9f72e8b4ce2",
+      "src/renderer/platform/contracts.ts": "84030f17b4d870667289ec725037c2b38c6cd62de7f6c02060879041f44c7618",
+      "src/renderer/platform/tauri.ts": "12ceeacb821b776ae73e50ce1a9e4926ecb8ae884c39ae369c65774bf98c0d51",
+      "src/renderer/platform/types.ts": "dce420dbeb273090709d5779f9410a3fa2041e28a67444c46216d92ae0ae789c",
+      "src/renderer/services/account-library.test.ts": "ff80ede7ba2cdaa35f20f961d04cd7f8c4f68d006e6de9c3c79074e9d2a726c3",
+      "src/renderer/services/account-library.ts": "24fb98d68a764003d70e79161494a5801d3f6a26e185842b2840f8cc203d6486",
+      "src/renderer/services/built-in-sample/first-run.ts": "c75b39e946821a54241450b7a4298a69b3ab78997a99a2a52ad4ca5ec859368a",
+      "src/renderer/store/auth.account-libraries.test.ts": "f8c36f69cdf0db758351e960f94b90a4a4e79b13f2b4a0d0b16952830ba1eb5a",
+      "src/renderer/store/auth.test.ts": "eca28d70c43d9a735b7f79487d7c99b1c7bbf24e2c561df87a6258c2d692ae47",
+      "src/renderer/store/auth.ts": "8851ae117cfc101a1180e7297bce0cc7c80fd76e830b5e83911d9f1d112a7864"
+    }
+  },
+  "automated": {
+    "status": "passed",
+    "renderer": {
+      "passed": 47,
+      "failed": 0,
+      "skipped": 0,
+      "cases": [
+        {
+          "name": "account sign-in entry asks for local or account use before the desktop shelf mounts",
+          "status": "passed"
+        },
+        {
+          "name": "account sign-in entry holds the flow open while the library connects and keeps failures retryable",
+          "status": "passed"
+        },
+        {
+          "name": "account sign-in entry keeps the flow compact and states the sync boundary before sign-in",
+          "status": "passed"
+        },
+        {
+          "name": "account sign-in entry signs in with a dialog over the current desktop screen",
+          "status": "passed"
+        },
+        {
+          "name": "account sign-in entry starts every dialog request as a fresh flow",
+          "status": "passed"
+        },
+        {
+          "name": "account sign-in entry tells the author plainly when the library already belongs to another account",
+          "status": "passed"
+        },
+        {
+          "name": "account-isolated libraries claims a library still connecting for the account it targets",
+          "status": "passed"
+        },
+        {
+          "name": "account-isolated libraries claims an unbound upgraded library as the local library",
+          "status": "passed"
+        },
+        {
+          "name": "account-isolated libraries claims an upgraded library for the account its sync authority is bound to",
+          "status": "passed"
+        },
+        {
+          "name": "account-isolated libraries in the session flows adopts in place on the account library it already runs on",
+          "status": "passed"
+        },
+        {
+          "name": "account-isolated libraries in the session flows keeps one library where switching is unavailable",
+          "status": "passed"
+        },
+        {
+          "name": "account-isolated libraries in the session flows relaunches onto the signing-in account library before adopting the session",
+          "status": "passed"
+        },
+        {
+          "name": "account-isolated libraries in the session flows restores the previous profile when the relaunch cannot start",
+          "status": "passed"
+        },
+        {
+          "name": "account-isolated libraries in the session flows returns to the local library on an explicit sign-out, never on an expired session",
+          "status": "passed"
+        },
+        {
+          "name": "account-isolated libraries keeps an account library open for a signed-out author until an explicit choice",
+          "status": "passed"
+        },
+        {
+          "name": "account-isolated libraries keeps writing on the opened library when the registry cannot be read",
+          "status": "passed"
+        },
+        {
+          "name": "account-isolated libraries relaunches a signed-in author onto that account library and never resolves",
+          "status": "passed"
+        },
+        {
+          "name": "account-isolated libraries restores only a new account library that has never connected",
+          "status": "passed"
+        },
+        {
+          "name": "account-isolated libraries switches for another account and back to local on sign-out, only on desktop",
+          "status": "passed"
+        },
+        {
+          "name": "Hosted account edits discards profile responses that arrive after sign-out",
+          "status": "passed"
+        },
+        {
+          "name": "Hosted account edits does not adopt a delayed password response after sign-out",
+          "status": "passed"
+        },
+        {
+          "name": "Hosted account edits does not restore a revoked token when storing the new session fails",
+          "status": "passed"
+        },
+        {
+          "name": "Hosted account edits drains older profile refreshes and prevents refreshes and duplicate edits during saving",
+          "status": "passed"
+        },
+        {
+          "name": "Hosted account edits expires rejected credentials without losing the expected profile or local identity",
+          "status": "passed"
+        },
+        {
+          "name": "Hosted account edits keeps the saved profile on a rejected edit and blocks invalid requests before sending",
+          "status": "passed"
+        },
+        {
+          "name": "Hosted account edits persists and revalidates the rotated bearer before rebinding sync after a password change",
+          "status": "passed"
+        },
+        {
+          "name": "Hosted account edits saves trimmed names and avatar removal to all display state without changing the library",
+          "status": "passed"
+        },
+        {
+          "name": "Hosted account edits validates confirmation and leaves authentication intact when the old password is wrong",
+          "status": "passed"
+        },
+        {
+          "name": "Hosted sessions preserve the local writing library adopts a verified account without replacing local identity or database",
+          "status": "passed"
+        },
+        {
+          "name": "Hosted sessions preserve the local writing library does not authorize a changed token until its account is verified",
+          "status": "passed"
+        },
+        {
+          "name": "Hosted sessions preserve the local writing library does not authorize a token replaced while validating the account",
+          "status": "passed"
+        },
+        {
+          "name": "Hosted sessions preserve the local writing library does not rebind a session whose request finished after sign-out",
+          "status": "passed"
+        },
+        {
+          "name": "Hosted sessions preserve the local writing library expires authentication without closing the library or forgetting the expected account",
+          "status": "passed"
+        },
+        {
+          "name": "Hosted sessions preserve the local writing library opens the library without waiting for a stalled account request",
+          "status": "passed"
+        },
+        {
+          "name": "Hosted sessions preserve the local writing library rejects another account before binding or exporting local data",
+          "status": "passed"
+        },
+        {
+          "name": "Hosted sessions preserve the local writing library retains the session if remote sign-out fails, and clears it after a successful retry",
+          "status": "passed"
+        },
+        {
+          "name": "hosted settings boundary defaults public builds to local settings while preserving the hosted seam",
+          "status": "passed"
+        },
+        {
+          "name": "hosted settings boundary does not mount hosted telemetry controls in local-only Privacy settings",
+          "status": "passed"
+        },
+        {
+          "name": "hosted settings boundary does not mount the project-scoped import action in standalone mobile settings",
+          "status": "passed"
+        },
+        {
+          "name": "hosted settings boundary does not promise active cloud sync in always-visible local preferences",
+          "status": "passed"
+        },
+        {
+          "name": "hosted settings boundary gates both desktop and standalone-mobile account panels before mounting them",
+          "status": "passed"
+        },
+        {
+          "name": "hosted settings boundary keeps the durable hosted-service document aligned with the UI contract",
+          "status": "passed"
+        },
+        {
+          "name": "hosted settings boundary keeps the public production CSP free of an implicit hosted-service origin",
+          "status": "passed"
+        },
+        {
+          "name": "hosted settings boundary omits inert help, update and Finder actions instead of rendering dead controls",
+          "status": "passed"
+        },
+        {
+          "name": "hosted settings boundary records a local-first onboarding contract without trial or hosted-storage claims",
+          "status": "passed"
+        },
+        {
+          "name": "hosted settings boundary removes account, plan and sign-out presentation from the local user menu",
+          "status": "passed"
+        },
+        {
+          "name": "In-flight sync during a password change waits for rotation and ignores the expired request token",
+          "status": "passed"
+        }
+      ]
+    },
+    "native": {
+      "passed": 6,
+      "failed": 0,
+      "ignored": 0,
+      "command": "cargo test --manifest-path src-tauri/Cargo.toml --lib library_registry"
+    }
+  },
+  "hostedRoundTrip": {
+    "status": "not-run",
+    "gates": [
+      "sign in from the local library opens and restores the account library",
+      "sign out returns to the local library and back again resumes pending uploads",
+      "expired session keeps the account library"
+    ]
+  }
+}

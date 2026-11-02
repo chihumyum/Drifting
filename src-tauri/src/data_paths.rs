@@ -12,15 +12,24 @@ type DataPathResult<T> = Result<T, String>;
 
 pub struct DataDirectories {
     pub database_directory: PathBuf,
+    /// The legacy library's database folder. App-wide diagnostics (crash
+    /// reports, development logs) derive from it so they never move with the
+    /// running library.
+    pub diagnostics_anchor: PathBuf,
 }
 
 pub fn prepare_data_directories(app: &AppHandle) -> DataPathResult<DataDirectories> {
-    let library = crate::library_registry::running_library(&base_local_root(app)?);
-    let database_directory = match directory_override("DRIFTING_DB_DIR")? {
+    let base = base_local_root(app)?;
+    let library = crate::library_registry::running_library(&base);
+    let relative = crate::library_registry::relative_root(library);
+    let (database_directory, diagnostics_anchor) = match directory_override("DRIFTING_DB_DIR")? {
         // A moved database folder holds the legacy library; every other
         // library keeps its own folder beneath it.
-        Some(path) => path.join(crate::library_registry::relative_root(library)),
-        None => app_local_root(app)?.join(DATABASE_DIRECTORY),
+        Some(path) => (path.join(&relative), path),
+        None => (
+            base.join(&relative).join(DATABASE_DIRECTORY),
+            base.join(DATABASE_DIRECTORY),
+        ),
     };
 
     fs::create_dir_all(&database_directory).map_err(|error| {
@@ -43,7 +52,10 @@ pub fn prepare_data_directories(app: &AppHandle) -> DataPathResult<DataDirectori
         }
     }
 
-    Ok(DataDirectories { database_directory })
+    Ok(DataDirectories {
+        database_directory,
+        diagnostics_anchor,
+    })
 }
 
 /// The running library's data root: assets, sync objects, installation
