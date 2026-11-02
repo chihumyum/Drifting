@@ -479,6 +479,11 @@ async function exchangeNativeOAuthCode(
 }
 
 export const tauriPlatform: PlatformApi = {
+  library: {
+    state: () => invokeContract('library_state', undefined),
+    claimOwner: (owner) => invokeContract('library_claim_owner', { owner }),
+    activate: (owner) => invokeContract('library_activate', { owner }),
+  },
   app: {
     getInstallationIdentity: () => invokeContract('sync_installation_identity', undefined),
     getInfo: () => invokeContract('app_get_info', undefined),

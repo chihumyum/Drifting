@@ -71,7 +71,8 @@ describe('hosted settings boundary', () => {
       preAlphaGuide: Record<string, string>;
     };
     // v6 discloses content-free crash reports, which default on in Hosted builds.
-    expect(onboarding).toContain("const GUIDE_VERSION = 'v6'");
+    expect(read('src/renderer/lib/alpha-guide-key.ts')).toContain("ALPHA_GUIDE_VERSION = 'v6'");
+    expect(onboarding).toContain('alphaGuideStorageKey(userId)');
     expect(onboarding).toContain("{hosted && <li>{t('preAlphaGuide.crashReports')}</li>}");
     expect(onboarding).toContain("t('preAlphaGuide.localData')");
     expect(onboarding).toContain("{hosted && <li>{t('settings.hosted.trust')}</li>}");

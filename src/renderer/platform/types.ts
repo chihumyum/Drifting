@@ -74,6 +74,33 @@ export interface AppPlatformApi {
   getCapabilities(): Promise<PlatformCapabilities>;
 }
 
+/** Who a library belongs to; null only for the pre-registry library until claimed. */
+export type LibraryOwner = { kind: 'local' } | { kind: 'account'; subject: string };
+
+export interface LibraryState {
+  /** The library this process runs on; it never changes without a relaunch. */
+  activeId: string;
+  activeOwner: LibraryOwner | null;
+  libraries: Array<{ id: string; owner: LibraryOwner | null }>;
+}
+
+export interface LibraryActivation {
+  libraryId: string;
+  /** The App is relaunching onto that library through the quit flush barrier. */
+  restarting: boolean;
+}
+
+/**
+ * Account-isolated libraries: each owns a whole native data root. Desktop
+ * switches by relaunching; mobile cannot relaunch and rejects activation.
+ */
+export interface LibraryPlatformApi {
+  state(): Promise<LibraryState>;
+  /** Record the owner of the running, still unclaimed library. */
+  claimOwner(owner: LibraryOwner): Promise<LibraryState>;
+  activate(owner: LibraryOwner): Promise<LibraryActivation>;
+}
+
 export interface WindowPlatformApi {
   minimize(): Promise<void>;
   toggleMaximize(): Promise<boolean>;
@@ -320,6 +347,8 @@ export interface ImageGenerationPlatformApi {
 
 export interface PlatformApi {
   readonly app: AppPlatformApi;
+  /** Absent outside the native App: browser and test hosts have one library. */
+  readonly library?: LibraryPlatformApi;
   readonly window: WindowPlatformApi;
   readonly lifecycle: LifecyclePlatformApi;
   readonly auth: AuthPlatformApi;

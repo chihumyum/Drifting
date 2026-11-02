@@ -18,6 +18,7 @@ mod hosted_sync;
 mod image_pipeline;
 mod installation_identity;
 mod library_backup;
+mod library_registry;
 #[cfg(target_os = "macos")]
 mod local_lab_session;
 #[cfg(target_os = "macos")]
@@ -331,6 +332,9 @@ pub fn run() {
             #[cfg(desktop)]
             app_update::update_dismiss,
             crash_reports::diagnostics_take_native_reports,
+            library_registry::library_state,
+            library_registry::library_claim_owner,
+            library_registry::library_activate,
             #[cfg(all(debug_assertions, desktop))]
             dev_watchdog::dev_watchdog_heartbeat,
             #[cfg(all(debug_assertions, desktop))]

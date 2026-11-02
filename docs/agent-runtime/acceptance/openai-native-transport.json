@@ -1,10 +1,10 @@
 {
   "suite": "openai-native-responses-keychain-and-account-model-catalog",
   "schemaVersion": 2,
-  "generatedAt": "2026-11-02T12:58:05.130Z",
+  "generatedAt": "2026-11-02T14:48:27.032Z",
   "nodeVersion": "v22.23.1",
   "platform": "darwin",
-  "sourceSetSha256": "sha256:ec9051ce9f26c9eccb761afc37132a3f4d090e1127ae5de1f3c5fd1722c3fbad",
+  "sourceSetSha256": "sha256:154be477393c024f43235a77f1baa48b92ea204f1ca28ee24e806c59f5196527",
   "vitest": {
     "files": 5,
     "tests": 86,
