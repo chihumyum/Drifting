@@ -1,4 +1,4 @@
-import type { FlatOutlineEntry } from './outline-rail-model';
+import { outlineRailFit, type FlatOutlineEntry, type OutlineRailFit } from './outline-rail-model';
 
 export interface RailGeometry {
   offsets: Record<string, number>;
@@ -42,6 +42,19 @@ function resolveAnchor(scrollEl: HTMLElement, entry: FlatOutlineEntry): HTMLElem
   );
 }
 
+/**
+ * The editor column's own gutter: from `.editor-body`'s left edge to where the
+ * paper's text starts (the first `.page` in this scroll root, inside its
+ * padding). Side panels, the comment margin and window resizes all change it;
+ * the window width alone does not decide anything. Null before a paper exists.
+ */
+function measureGutter(root: HTMLElement, body: HTMLElement): number | null {
+  const page = root.querySelector<HTMLElement>('.page');
+  if (!page) return null;
+  const padding = Number.parseFloat(getComputedStyle(page).paddingLeft) || 0;
+  return page.getBoundingClientRect().left + padding - body.getBoundingClientRect().left;
+}
+
 function sameGeometry(a: RailGeometry, b: RailGeometry): boolean {
   if (
     Math.abs(a.contentHeight - b.contentHeight) > 0.5 ||
@@ -61,7 +74,9 @@ function sameGeometry(a: RailGeometry, b: RailGeometry): boolean {
   );
 }
 
-export const EMPTY_OUTLINE_VIEWPORT = { geometry: EMPTY_GEOMETRY, railHeight: 0, primaryId: null as string | null };
+export const EMPTY_OUTLINE_VIEWPORT = {
+  geometry: EMPTY_GEOMETRY, railHeight: 0, primaryId: null as string | null, fit: 'labels' as OutlineRailFit,
+};
 
 /** One visible rail owns geometry and reading location for its scroll viewport. */
 export class OutlineViewportController {
@@ -177,7 +192,9 @@ export class OutlineViewportController {
     const clientHeight = Math.max(1, this.root.clientHeight);
     const contentHeight = Math.max(1, this.root.scrollHeight);
     let { offsets, bottoms, fractions } = previous.geometry;
+    let fit = previous.fit;
     if (this.dirty || clientHeight !== previous.geometry.clientHeight || contentHeight !== previous.geometry.contentHeight) {
+      fit = outlineRailFit(measureGutter(this.root, this.body), previous.fit);
       const rootTop = this.root.getBoundingClientRect().top;
       offsets = {}; bottoms = {}; fractions = {};
       const bounds = new Map<HTMLElement, DOMRect>();
@@ -196,8 +213,9 @@ export class OutlineViewportController {
     const geometry = { offsets, bottoms, fractions, scrollTop, clientHeight, contentHeight };
     const primaryId = this.readingLocation(geometry);
     const railHeight = this.rail.clientHeight;
-    if (primaryId === previous.primaryId && railHeight === previous.railHeight && sameGeometry(geometry, previous.geometry)) return;
-    this.snapshot = { geometry, primaryId, railHeight };
+    if (primaryId === previous.primaryId && railHeight === previous.railHeight && fit === previous.fit &&
+        sameGeometry(geometry, previous.geometry)) return;
+    this.snapshot = { geometry, primaryId, railHeight, fit };
     for (const listener of this.listeners) listener();
   }
 

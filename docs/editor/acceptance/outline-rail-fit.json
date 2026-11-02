@@ -1,0 +1,157 @@
+{
+  "kind": "outline-rail-fit",
+  "status": "passed",
+  "generatedAt": "2026-11-02T13:10:50.382Z",
+  "sourceSha256": "464b99a58e58158758af73107b0bd55a412840c9c1ff4c144667b8f4b30c04a0",
+  "inputs": [
+    "scripts/run-outline-rail-fit-acceptance.mjs",
+    "scripts/renderer-headless-browser.mjs",
+    "scripts/renderer-outline-rail-fit.tsx",
+    "scripts/renderer-outline-rail-fit.html",
+    "src/renderer/components/editor/EditorOutlineRail.tsx",
+    "src/renderer/components/editor/outline-viewport.ts",
+    "src/renderer/components/editor/outline-rail-model.ts",
+    "src/styles/index.css",
+    "src/styles/comments-review.css",
+    "src/styles/ui-controls.css"
+  ],
+  "browser": "Chrome/156.0.8078.74",
+  "thresholds": {
+    "dotsBelowGutter": 196,
+    "labelsAtGutter": 212
+  },
+  "states": {
+    "wide": {
+      "fit": "labels",
+      "windowWidth": 1600,
+      "columnWidth": 1280,
+      "gutter": 328,
+      "labels": 16,
+      "maxLabelRight": 188,
+      "surface": null
+    },
+    "narrow": {
+      "fit": "dots",
+      "windowWidth": 1600,
+      "columnWidth": 400,
+      "gutter": 48,
+      "labels": 16,
+      "maxLabelRight": 26,
+      "surface": {
+        "visibility": "hidden",
+        "opacity": 0
+      }
+    },
+    "narrowInWideWindow": {
+      "fit": "dots",
+      "windowWidth": 2400,
+      "columnWidth": 400,
+      "gutter": 48,
+      "labels": 16,
+      "maxLabelRight": 26,
+      "surface": {
+        "visibility": "hidden",
+        "opacity": 0
+      }
+    },
+    "hovered": {
+      "fit": "dots",
+      "windowWidth": 1600,
+      "columnWidth": 400,
+      "gutter": 48,
+      "labels": 16,
+      "maxLabelRight": 188,
+      "surface": {
+        "visibility": "visible",
+        "opacity": 1
+      }
+    },
+    "left": {
+      "fit": "dots",
+      "windowWidth": 1600,
+      "columnWidth": 400,
+      "gutter": 48,
+      "labels": 16,
+      "maxLabelRight": 26,
+      "surface": {
+        "visibility": "hidden",
+        "opacity": 0
+      }
+    },
+    "keyboard": {
+      "fit": "dots",
+      "windowWidth": 1600,
+      "columnWidth": 400,
+      "gutter": 48,
+      "labels": 16,
+      "maxLabelRight": 188,
+      "surface": {
+        "visibility": "visible",
+        "opacity": 1
+      }
+    }
+  },
+  "resizeSweep": [
+    {
+      "column": 1020,
+      "gutter": 198,
+      "fit": "dots"
+    },
+    {
+      "column": 1036,
+      "gutter": 206,
+      "fit": "dots"
+    },
+    {
+      "column": 1060,
+      "gutter": 218,
+      "fit": "labels"
+    },
+    {
+      "column": 1036,
+      "gutter": 206,
+      "fit": "labels"
+    },
+    {
+      "column": 1020,
+      "gutter": 198,
+      "fit": "labels"
+    },
+    {
+      "column": 1000,
+      "gutter": 188,
+      "fit": "dots"
+    },
+    {
+      "column": 1036,
+      "gutter": 206,
+      "fit": "dots"
+    }
+  ],
+  "labelJump": {
+    "scrollTop": 4963,
+    "headingOffset": -0.21875
+  },
+  "dotJump": {
+    "scrollTop": 7063,
+    "headingOffset": -0.21875
+  },
+  "checks": {
+    "wideLabelsUnchangedAndClear": true,
+    "narrowColumnFoldsToDots": true,
+    "dotsClearOfText": true,
+    "readingLocationIsLargerDot": true,
+    "decidedByColumnNotWindow": true,
+    "hoverUnfoldsOntoSurface": true,
+    "labelTakesPointerOverText": true,
+    "surfaceBridgesGaps": true,
+    "labelClickNavigates": true,
+    "dotClickNavigates": true,
+    "leavingFoldsBack": true,
+    "keyboardFocusUnfolds": true,
+    "resizeHysteresis": true,
+    "hiddenStillUnmounts": true,
+    "noUncaughtExceptions": true
+  },
+  "boundary": "Chromium renderer with the real EditorOutlineRail, OutlineViewportController, outline model and the renderer entry's global sheets; a synthetic page of headings and prose in an editor column resized independently of the window; CDP mouse and keyboard input. No Tauri/WKWebView compositing, real ChapterEditor, Yjs content, side-panel components or physical pointer acceptance."
+}

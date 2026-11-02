@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { OUTLINE_RAIL_DOTS_BELOW, OUTLINE_RAIL_LABELS_AT } from './outline-rail-model';
 
 function source(path: string): string {
   return readFileSync(resolve(process.cwd(), path), 'utf8');
@@ -179,6 +180,95 @@ describe('semantic outline rail acceptance wiring', () => {
     expect(commentsReviewCss).not.toContain('.editor__toc-overlay');
   });
 
+  it('folds the TOC to dots by the editor column\'s own gutter and unfolds it on hover', () => {
+    const rail = source('src/renderer/components/editor/EditorOutlineRail.tsx');
+    const viewport = source('src/renderer/components/editor/outline-viewport.ts');
+    const model = source('src/renderer/components/editor/outline-rail-model.ts');
+    const commentsReviewCss = source('src/styles/comments-review.css');
+    const semanticRailCss = commentsReviewCss.slice(
+      commentsReviewCss.indexOf('Semantic TOC rail'),
+      commentsReviewCss.indexOf('Scene + Beat headers'),
+    );
+    const dots = "html:not([data-shell-mode='mobile']) .editor__toc-rail[data-fit='dots']";
+
+    // The decision is the column's measured gutter (body edge -> the paper's
+    // text), re-read on the controller's resize/mutation passes, never the window.
+    expect(viewport).toContain("root.querySelector<HTMLElement>('.page')");
+    expect(viewport).toContain('getComputedStyle(page).paddingLeft');
+    expect(viewport).toContain('body.getBoundingClientRect().left');
+    expect(viewport).toContain('fit = outlineRailFit(measureGutter(this.root, this.body), previous.fit);');
+    for (const file of [viewport, model]) expect(file).not.toMatch(/innerWidth|matchMedia|screen\.width/);
+    // The rail reads the window only to keep the omission reveal portal on screen.
+    expect(rail).not.toMatch(/matchMedia|screen\.width/);
+    expect(rail.match(/window\.innerWidth/g)).toHaveLength(1);
+    expect(semanticRailCss).not.toContain('@media');
+    // Hysteresis: dots below the lane plus clearance, labels again only with more room.
+    expect(model).toContain('export const OUTLINE_RAIL_LABEL_LANE = 188;');
+    expect(model).toContain('export const OUTLINE_RAIL_DOTS_BELOW = OUTLINE_RAIL_LABEL_LANE + 8;');
+    expect(model).toContain('export const OUTLINE_RAIL_LABELS_AT = OUTLINE_RAIL_DOTS_BELOW + 16;');
+
+    // Wide enough is unchanged: no fit rule touches the labels outside dots.
+    expect(rail).toContain('data-fit={fit}');
+    expect(semanticRailCss).toMatch(
+      /\.editor__toc-rail\s*\{[\s\S]*?left:\s*0;[\s\S]*?width:\s*min\(190px/,
+    );
+    for (const match of semanticRailCss.matchAll(/([^{}]+)\{[^{}]*\}/g)) {
+      const selector = match[1].replace(/\/\*[\s\S]*?\*\//g, '').trim();
+      if (selector.includes('data-fit') || selector.includes('editor__toc-surface')) {
+        for (const part of selector.split(',')) {
+          if (part.includes('editor__toc-surface') && !part.includes('data-fit')) continue;
+          expect(part.trim(), selector).toMatch(/^html:not\(\[data-shell-mode='mobile'\]\) \.editor__toc-rail\[data-fit='dots'\]/);
+        }
+      }
+    }
+
+    // Each label folds to one ink dot at its own height and colour; the reading
+    // location is the larger dot. Labels unfold onto a hover-card surface.
+    expect(semanticRailCss).toContain(`${dots} .editor__toc-tag::before {`);
+    expect(semanticRailCss).toMatch(/\.editor__toc-tag::before \{[^}]*background: currentColor;[^}]*\}/);
+    expect(semanticRailCss).toMatch(/\.editor__toc-tag\.is-primary \{\s*--toc-dot: 6px;\s*\}/);
+    expect(semanticRailCss).toContain(`${dots}:hover .editor__toc-tag,`);
+    expect(semanticRailCss).toContain(`${dots}:has(:focus-visible) .editor__toc-tag {`);
+    expect(semanticRailCss).toContain(`${dots}:hover .editor__toc-surface,`);
+    expect(rail).toContain('className="hover-card-surface editor__toc-surface"');
+    expect(rail).toContain("fit !== 'dots' || laidOut.length === 0");
+    // Dots and labels both navigate through the same button and jump handler.
+    expect(rail).toContain('onClick={() => jumpToEntry(entry.id)}');
+    // No accent bar on the left, no unrequested copy.
+    expect(semanticRailCss).not.toMatch(/border-left|inset-inline-start:\s*0[^}]*width:\s*[1-3]px/);
+    expect(rail).not.toContain("t('editorOutline.expand");
+    // A fit change remounts the labels, so only hover animates.
+    expect(rail).toContain('<div className="editor__toc-labels" key={fit}>');
+  });
+
+  it('records DOM-level evidence of the fit in a real browser', () => {
+    const evidence = JSON.parse(source('docs/editor/acceptance/outline-rail-fit.json')) as {
+      status: string;
+      thresholds: { dotsBelowGutter: number; labelsAtGutter: number };
+      states: Record<string, { fit: string; gutter: number; windowWidth: number; maxLabelRight: number; surface: { visibility: string } | null }>;
+      resizeSweep: Array<{ gutter: number; fit: string }>;
+      checks: Record<string, boolean>;
+    };
+    expect(evidence.status).toBe('passed');
+    expect(evidence.thresholds).toEqual({
+      dotsBelowGutter: OUTLINE_RAIL_DOTS_BELOW,
+      labelsAtGutter: OUTLINE_RAIL_LABELS_AT,
+    });
+    expect(Object.values(evidence.checks).every(Boolean)).toBe(true);
+    const { wide, narrow, narrowInWideWindow, hovered, left } = evidence.states;
+    expect(wide.fit).toBe('labels');
+    expect(wide.maxLabelRight).toBeLessThanOrEqual(wide.gutter);
+    expect(narrow.fit).toBe('dots');
+    expect(narrowInWideWindow).toMatchObject({ fit: 'dots' });
+    expect(narrowInWideWindow.windowWidth).toBeGreaterThan(narrow.windowWidth);
+    expect(hovered.surface?.visibility).toBe('visible');
+    expect(left.surface?.visibility).toBe('hidden');
+    const band = evidence.resizeSweep.filter(
+      ({ gutter }) => gutter >= OUTLINE_RAIL_DOTS_BELOW && gutter < OUTLINE_RAIL_LABELS_AT,
+    );
+    expect(new Set(band.map(({ fit }) => fit))).toEqual(new Set(['dots', 'labels']));
+  });
+
   it('keeps durable documentation aligned with the separated TOC and scrollbar', () => {
     const doc = source('docs/editor/semantic-outline-rail.md');
     expect(doc).toContain('1. `all`');
@@ -198,5 +288,9 @@ describe('semantic outline rail acceptance wiring', () => {
     expect(doc).toContain('do not synthesize the entity name');
     expect(doc).toMatch(/TOC label lane (?:stays|is)\s+blank/);
     expect(doc).toContain('physical-device');
+    expect(doc).toContain('## Fit beside the paper');
+    expect(doc).toContain('`data-fit="dots"`');
+    expect(doc).toMatch(/never\s+(?:by\s+)?the window width/);
+    expect(doc).toContain('node scripts/run-outline-rail-fit-acceptance.mjs --check');
   });
 });
