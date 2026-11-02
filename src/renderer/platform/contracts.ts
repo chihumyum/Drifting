@@ -1,4 +1,5 @@
 import type { McpClient, McpServerConnection, McpServerCreateInput, McpServerPermissionInput } from './mcp-server-contract';
+import type { LibraryActivation, LibraryOwner, LibraryState } from './types';
 /**
  * Renderer <-> Tauri command/event contracts.
  *
@@ -552,6 +553,9 @@ export interface TauriCommandContract {
   typography_list_system_fonts: { args: undefined; result: SystemFontFamily[] };
   keychain_get: { args: { key: string }; result: string | null };
   sync_installation_identity: { args: undefined; result: string };
+  library_state: { args: undefined; result: LibraryState };
+  library_claim_owner: { args: { owner: LibraryOwner }; result: LibraryState };
+  library_activate: { args: { owner: LibraryOwner }; result: LibraryActivation };
   keychain_has: { args: { key: string }; result: boolean };
   keychain_set: { args: { key: string; value: string }; result: boolean };
   keychain_delete: { args: { key: string }; result: boolean };

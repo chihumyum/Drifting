@@ -18,6 +18,7 @@ mod hosted_sync;
 mod image_pipeline;
 mod installation_identity;
 mod library_backup;
+mod library_registry;
 #[cfg(target_os = "macos")]
 mod local_lab_session;
 #[cfg(target_os = "macos")]
@@ -104,9 +105,23 @@ fn finish_shutdown(
             }
         }
         Some(ShutdownAction::ExitApp) => app.exit(0),
-        Some(ShutdownAction::RestartApp) => app.restart(),
+        Some(ShutdownAction::RestartApp) => relaunch_app(&app),
         None => {}
     }
+}
+
+/// Relaunch the App. The macOS development runner (scripts/run-signed-macos-dev.sh)
+/// relaunches the binary itself when it finds `DRIFTING_DEV_RELAUNCH_MARKER`
+/// after an exit: `tauri dev` would stop its frontend server for a process that
+/// spawned its own replacement, and macOS does not preserve a custom exit code.
+pub(crate) fn relaunch_app(app: &tauri::AppHandle) {
+    if let Some(marker) = std::env::var_os("DRIFTING_DEV_RELAUNCH_MARKER") {
+        if std::fs::write(&marker, b"relaunch\n").is_ok() {
+            app.exit(0);
+            return;
+        }
+    }
+    app.restart();
 }
 
 /// Ask the renderer to drain local persistence, then end the process with
@@ -331,6 +346,9 @@ pub fn run() {
             #[cfg(desktop)]
             app_update::update_dismiss,
             crash_reports::diagnostics_take_native_reports,
+            library_registry::library_state,
+            library_registry::library_claim_owner,
+            library_registry::library_activate,
             #[cfg(all(debug_assertions, desktop))]
             dev_watchdog::dev_watchdog_heartbeat,
             #[cfg(all(debug_assertions, desktop))]
@@ -346,7 +364,8 @@ pub fn run() {
             let data_directories = data_paths::prepare_data_directories(app.handle())
                 .map_err(std::io::Error::other)?;
             let database_directory = data_directories.database_directory;
-            let crash_directory = crash_reports::report_directory(&database_directory);
+            let crash_directory =
+                crash_reports::report_directory(&data_directories.diagnostics_anchor);
             crash_reports::install_panic_hook(
                 crash_directory.clone(),
                 app.package_info().version.to_string(),
@@ -354,7 +373,7 @@ pub fn run() {
             app.manage(crash_reports::directory_state(crash_directory));
             #[cfg(all(debug_assertions, desktop))]
             app.manage(dev_watchdog::DevWatchdog::start(
-                dev_watchdog::log_directory(&database_directory),
+                dev_watchdog::log_directory(&data_directories.diagnostics_anchor),
             ));
             let database_gateway = database::DatabaseGateway::new(database_directory)
                 .map_err(std::io::Error::other)?;

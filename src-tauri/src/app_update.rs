@@ -168,7 +168,7 @@ pub(crate) fn update_install(
     // Relaunch through the same flush barrier as an ordinary quit, so edits
     // made while the bundle was being replaced still reach SQLite.
     if !crate::request_flushed_shutdown(&app, ShutdownAction::RestartApp) {
-        app.restart();
+        crate::relaunch_app(&app);
     }
     Ok(())
 }

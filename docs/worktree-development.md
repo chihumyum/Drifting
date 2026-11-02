@@ -49,6 +49,11 @@ Each profile has:
   avoid that limitation without changing product Rust code. Changing the port
   also changes the frontend storage origin.
 
+Each profile keeps the [account-isolated libraries](hosted-sync/account-libraries.md)
+of an installed App: further libraries live under the profile's database folder
+and App-local data. Switching one relaunches the App through the macOS
+development runner, so `tauri dev` and its frontend server keep running.
+
 The launcher defaults to local-only mode and overrides inherited `DRIFTING_DB_DIR`,
 `CARGO_TARGET_DIR`, app flags and custom runners. It retains host toolchain and
 macOS signing configuration, but drops inherited app credentials, Hosted

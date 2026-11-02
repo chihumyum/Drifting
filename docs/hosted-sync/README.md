@@ -55,16 +55,21 @@ follow the account; device-bound settings stay local. See
 the current password and sign out other devices while rotating this device's
 session. The existing local library and sync ownership remain unchanged.
 
-The library remains `drifting-library.db` before login, after login, offline and
-after logout. Its domain user identity does not become a server account ID.
+Each Hosted account has its own library on the Mac and a separate local library
+holds signed-out writing; see [account-isolated libraries](account-libraries.md).
+Signing in opens the account's library (relaunching the App), signing out
+returns to the local library, and an expired session or offline use keeps the
+same library. Within every library the domain user identity stays
+`drifting-library.db`; it does not become a server account ID.
 Cached account display metadata contains no token. Production bearer sessions use an
 origin-scoped secure-storage key; another host's retired session is never read
 or migrated. Lab bundle identifiers use isolated credential services. Neither
 credential hydration nor session requests block opening the local library.
 
 The same configured app offers **Continue locally** and **Sign in / sign up and
-sync** on first use. The welcome page states that connecting downloads cloud
-projects and uploads the current local library. On the Mac this choice is a
+sync** on first use. The welcome page states that signing in opens the
+account's own library and downloads its cloud projects, while books already on
+this device stay in the local library. On the Mac this choice is a
 dialog shown before the bookshelf mounts; the existing account flow continues
 in that dialog. Authors can switch between sign-in and registration, verify
 their email, or use email-code sign-in and password recovery. When the service
@@ -87,8 +92,9 @@ Service-disabled builds show only **Continue locally**, without a sync action or
 Hosted storage claim. Neither welcome-page variant includes a quick-guide link. The `v6` seen marker is stored per local library identity; it is not tied to the
 Hosted account. Clearing WebView storage can show the guide again.
 
-Initial connection publishes existing local projects and restores validated cloud projects before
-activating one app-wide authority. New projects publish a genesis snapshot;
+Initial connection publishes the library's existing projects and restores validated cloud projects before
+activating one app-wide authority. On the desktop a new account library has no
+projects of its own, so its first connection only restores. New projects publish a genesis snapshot;
 **Sync now** waits for every binding to mount and complete a fresh cycle. The
 account panel reports the last completed sync and retry/pending state. Other
 running clients discover projects on wakeup and periodic checks. An offline
@@ -107,21 +113,24 @@ panel have been removed; local recovery has no subscription cache.
 
 An expired session stops outbound sync and keeps local writing available. Signing
 in to the same verified account resumes authentication-blocked generations.
-Another account is rejected while the library owns the current Hosted authority.
+Another account is rejected while the library owns the current Hosted authority;
+on the desktop signing in with another account opens that account's library
+instead, so the check is a safeguard.
 Pause/resume applies to the active project bindings. Disconnect first uploads
 what only this Mac holds (this installation's change sets no published segment
 covers, and verified blobs the provider lacks), showing how many remain; it does
 not wait for downloads, and **Disconnect now** stops waiting and leaves the rest
 on this Mac. Signed out or paused, nothing can upload, so Disconnect states that
 count and asks before going ahead. Either way local projects and remote copies
-are retained. Sign out stops sync and retains local data and the account binding,
-so signing back in to the same account resumes. While this Mac holds changes the
-cloud lacks, Sign out first opens a dialog that says how many: **Upload, then sign
-out** (offered only while sync can upload) waits for them, **Sign out now** leaves
-them on this Mac, and a switch also disconnects the library, for switching
-accounts. With nothing pending it signs out at once. To switch accounts,
-disconnect first (no sign-in needed); the account-mismatch dialog offers a way
-to Account settings.
+are retained. Sign out stops sync, keeps the account's library and binding on
+this Mac and, on the desktop, returns to the local library; signing back in to
+the same account resumes. While this Mac holds changes the cloud lacks, Sign out
+first opens a dialog that says how many: **Upload, then sign out** (offered only
+while sync can upload) waits for them and **Sign out now** leaves them in the
+account's library. With nothing pending it signs out at once. To switch
+accounts on the desktop, sign in with the other account. Mobile keeps one
+library: there the dialog's switch also disconnects it, and the
+account-mismatch dialog points to Account settings.
 
 ## Versioned service contract
 

@@ -13,15 +13,15 @@ import { getPlatformRuntime } from '../../platform/runtime';
 import { useCharSeaHold, useCharSeaShape } from '../char-sea/useCharSea';
 import { Button } from '../ui/Button';
 import { ModalActions, ModalBody, ModalCard, ModalHeader, ModalRoot } from '../ui/Modal';
+import { alphaGuideStorageKey } from '../../lib/alpha-guide-key';
 
-const GUIDE_VERSION = 'v6';
 const FOLDER_GUIDE_KEY = 'drifting.markdown-folder-guide.v1';
 
 function usePreAlphaGuide() {
   const userId = useAuthStore((state) => state.user?.id ?? null);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const [dismissedKey, setDismissedKey] = useState<string | null>(null);
-  const storageKey = userId ? `drifting.alpha-guide.${GUIDE_VERSION}:${userId}` : null;
+  const storageKey = userId ? alphaGuideStorageKey(userId) : null;
   const open = Boolean(
     isAuthenticated &&
     storageKey &&

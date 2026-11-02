@@ -36,6 +36,10 @@ let running: Promise<void> | null = null;
 export function startBuiltInSampleProject(): Promise<void> {
   running ??= (async () => {
     try {
+      // An account library starts from its cloud copy; a sample there would
+      // be published into the account (services/account-library.ts).
+      const { isAccountLibrary } = await import('../account-library');
+      if (isAccountLibrary()) return;
       const { ensureBuiltInSampleProject } = await import('./built-in-sample');
       const outcome = await ensureBuiltInSampleProject();
       if (outcome.kind === 'failed') log.warn('[sample] The built-in sample project was not created', outcome.error);

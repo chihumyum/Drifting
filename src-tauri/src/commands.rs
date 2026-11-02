@@ -305,7 +305,7 @@ pub fn lifecycle_complete_flush(
             }
         }
         ShutdownAction::ExitApp => app.exit(0),
-        ShutdownAction::RestartApp => app.restart(),
+        ShutdownAction::RestartApp => crate::relaunch_app(&app),
     }
     Ok(true)
 }

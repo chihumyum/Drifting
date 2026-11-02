@@ -9,6 +9,7 @@ import { useProductSyncAuthority } from '../../sync/product-authority-react';
 import { useProductSyncRuntime } from '../../sync/product-runtime-react';
 import { waitForHostedUpload } from '../../sync/hosted/disconnect';
 import { finishSignOut, useSignOutDialogStore } from './sign-out';
+import { librarySwitchingAvailable } from '../../services/account-library';
 import '../../../styles/auth.css';
 
 /** Globally mounted sign-out dialog; opened through `requestSignOut`. */
@@ -112,7 +113,9 @@ export function SignOutDialog({
               ? t('auth.signOut.uploading', { count: remaining })
               : t(disconnect ? 'auth.signOut.pendingLocal' : 'auth.signOut.pending', { count: remaining })}
           </div>
-          {connected && (
+          {/* With account libraries, signing out already leaves this account's
+              library behind; only a single-library host switches by disconnecting. */}
+          {connected && !librarySwitchingAvailable() && (
             <label className="sign-out-dialog__switch">
               <Switch
                 size="sm"

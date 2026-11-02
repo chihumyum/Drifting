@@ -19,6 +19,7 @@ import { APP_CONFIG, canUseHostedService } from '../lib/config';
 import { initDatabase } from '../lib/db';
 import { events } from '../lib/events';
 import { readHostedProfile, writeHostedProfile, type HostedProfile } from '../lib/hosted-profile';
+import { alphaGuideStorageKey } from '../lib/alpha-guide-key';
 import { startBuiltInSampleProject } from '../services/built-in-sample/first-run';
 export interface User {
   id: string;
@@ -117,6 +118,50 @@ async function assertAccountOwnership(accountId: string): Promise<void> {
       throw new Error('HOSTED_ACCOUNT_MISMATCH');
   }
 }
+/**
+ * An account always runs on its own library (services/account-library.ts).
+ * Before relaunching onto it, persist what the next process needs to adopt the
+ * session there and to skip the first-use guide this sign-in came from.
+ */
+async function openAccountLibrary(user: HostedProfile): Promise<void> {
+  const library = await import('../services/account-library');
+  if (!library.librarySwitchingAvailable() || library.runsOnAccountLibrary(user.id)) return;
+  await flushSessionTokenStorage();
+  const previousProfile = readHostedProfile();
+  writeHostedProfile(user);
+  try {
+    localStorage.setItem(alphaGuideStorageKey(LOCAL_USER_ID), 'seen');
+  } catch {
+    // Storage can be unavailable; the guide then simply shows once more.
+  }
+  try {
+    await library.openLibraryForAccount(user.id);
+  } catch (error) {
+    // The next launch must not open a library this process never switched to.
+    writeHostedProfile(previousProfile);
+    throw error;
+  }
+}
+
+let firstConnect: Promise<void> | null = null;
+
+/** A new account library restores its cloud projects once the session is verified. */
+function connectNewAccountLibrary(subject: string): void {
+  firstConnect ??= (async () => {
+    const library = await import('../services/account-library');
+    if (!(await library.needsFirstAccountConnect(subject))) return;
+    const { connectHostedFromProduct } = await import('../sync/hosted/connect');
+    await connectHostedFromProduct(new AbortController().signal);
+  })()
+    .catch((error: unknown) => {
+      // Account settings keeps "Connect and sync" retryable.
+      console.warn('[library] first account restore failed', error);
+    })
+    .finally(() => {
+      firstConnect = null;
+    });
+}
+
 export const useAuthStore = create<AuthState>()((set, get) => ({
   isAuthenticated: true,
   user: localUser,
@@ -215,6 +260,8 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     if (!ownsSession()) throw new Error('SESSION_CHANGED');
     if (!result.data?.user || result.error)
       throw new Error(result.error?.message ?? 'Session unavailable');
+    await openAccountLibrary(result.data.user);
+    if (!ownsSession()) throw new Error('SESSION_CHANGED');
     try {
       await assertAccountOwnership(result.data.user.id);
     } catch (error) {
@@ -248,6 +295,9 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     writeHostedProfile(null);
     set({ session: null, hostedUser: null, hostedStatus: 'signed-out' });
     events.emit('sync:authority-changed');
+    // Signing out leaves this account's library on disk and returns to the
+    // local library; an expired session (expireSession) never switches.
+    await (await import('../services/account-library')).openLocalLibrary();
   },
   async expireSession(expectedToken) {
     if (APP_CONFIG.LOCAL_ONLY_MODE) return;
@@ -299,6 +349,8 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
           await get().expireSession();
           return;
         }
+        await openAccountLibrary(result.data.user);
+        if (!ownsSession()) return;
         await assertAccountOwnership(result.data.user.id);
         if (!ownsSession()) return;
         await (
@@ -309,6 +361,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         writeHostedProfile(result.data.user);
         set({ session: result.data, hostedUser: result.data.user, hostedStatus: 'connected' });
         events.emit('sync:authority-changed');
+        connectNewAccountLibrary(result.data.user.id);
       } catch {
         if (ownsSession()) set({ hostedStatus: 'offline' });
       }
@@ -321,6 +374,9 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     if (bootstrap) return bootstrap;
     bootstrap = (async () => {
       await initDatabase(LOCAL_USER_ID);
+      // Settle which library this process runs on before any runtime starts;
+      // a signed-in author on the wrong library relaunches from here.
+      await (await import('../services/account-library')).settleRunningLibrary(get().hostedUser?.id ?? null);
       events.emit('db:ready');
       // A new library gets the built-in sample once, in the background and
       // before any Hosted connect (which waits for it). Never blocks startup.
