@@ -157,7 +157,7 @@ describe('Super View sand and glass acceptance', () => {
     // after the slider's own travel, the Super View push for the switch.
     expect(slider).toContain('if (performance.now() - setOff >= travelMs.current) {\n        leaveSliderGlass(handoff, rect);');
     expect(slider).toContain("'--slider-ms': `${travel?.ms ?? SPRING_MS}ms`,");
-    expect(switcher).toContain('const SWITCH_TRAVEL = { ms: SUPER_VIEW_PUSH_MS, easing: PUSH_EASING };');
+    expect(switcher).toContain('const SWITCH_TRAVEL = { ms: PUSH_MS, easing: PUSH_EASING };');
     expect(switcher).toContain('travel={SWITCH_TRAVEL}');
 
     // What a slider leaves is taken once, in the same commit, and never later.
