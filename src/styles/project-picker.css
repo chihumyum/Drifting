@@ -89,6 +89,28 @@
   margin-bottom: 18px;
 }
 
+/* A Hosted connect restoring this library's books (HostedRestoreProgress):
+   the shelf says so until they arrive, instead of looking empty. */
+.hosted-restore {
+  display: grid;
+  gap: 6px;
+  max-width: 360px;
+  margin: -6px 0 22px;
+}
+.hosted-restore__title,
+.hosted-restore__detail {
+  margin: 0;
+}
+.hosted-restore__title {
+  color: hsl(var(--ink-1));
+  font-size: var(--ui-font-secondary, 13px);
+}
+.hosted-restore__detail {
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font-family: var(--font-mono);
+  font-size: var(--ui-font-caption, 12px);
+}
+
 /* 书架 and 全部作品 name the place, like the Panel Tabs: the serif structure
    face, not the author's prose font, which stays with each book's own title. */
 .pp-head__title {

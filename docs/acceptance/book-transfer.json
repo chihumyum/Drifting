@@ -22,7 +22,7 @@
       "src/renderer/sync/checkpoint/domain-catalog.ts": "df287df6e7b7243efa2fa3236eebd6495325e57c5953cad3a2b133a9eab03466",
       "src/renderer/sync/checkpoint/validate.ts": "8c48c6f8403a6970e3deb430cfca9ece7fe300ce47bb0ca2fd16474bc410b6cb",
       "src/renderer/sync/journal/yjs-update.ts": "02a7a7cd35e5d3102b55b14d127b86cb88d09c0ca09ad8fb8247424d98c168f7",
-      "src/renderer/views/ProjectPickerView.tsx": "ece1be1abac87a79b21ce8b51bd8925d806b43d4a918e9f860b18358aa49b639"
+      "src/renderer/views/ProjectPickerView.tsx": "fc62c65f77dc46b94ab25965945702d5aae2b9d3162527bf376656a44ea89126"
     }
   },
   "automated": {

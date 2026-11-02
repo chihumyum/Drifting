@@ -21,6 +21,7 @@ vi.mock('../restore/cloud-restore', () => ({
   restoreDiscoveredCloudProjects: mocks.discover,
 }));
 import { connectHostedFromProduct } from './connect';
+import { useHostedConnectProgress } from './connect-progress';
 
 const db = {} as DbClient;
 const account = { accountSubject: 'synthetic-hosted', credentialSecretRef: 'hosted.session' };
@@ -70,4 +71,46 @@ it('asks for sign-in before touching local state when there is no Hosted session
   expect(mocks.flush).not.toHaveBeenCalled();
   expect(mocks.read).not.toHaveBeenCalled();
   expect(mocks.restore).not.toHaveBeenCalled();
+});
+
+it('joins a running connect instead of resuming the same attempt twice', async () => {
+  // Signing in to a new account library restores it automatically; pressing
+  // "Connect" in Account settings meanwhile must not start a second restore.
+  mocks.read.mockResolvedValue({ mode: 'local', transitionState: 'stable', targetMode: null, attemptId: null });
+  let finish!: (value: { restored: [] }) => void;
+  mocks.restore.mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
+  const automatic = connectHostedFromProduct(new AbortController().signal, db);
+  const pressed = connectHostedFromProduct(new AbortController().signal, db);
+  expect(pressed).toBe(automatic);
+  await vi.waitFor(() => expect(mocks.restore).toHaveBeenCalledOnce());
+  finish({ restored: [] });
+  await expect(pressed).resolves.toEqual({ restored: [] });
+
+  mocks.restore.mockResolvedValue({ restored: [] });
+  const later = connectHostedFromProduct(new AbortController().signal, db);
+  expect(later).not.toBe(automatic);
+  await later;
+  expect(mocks.restore).toHaveBeenCalledTimes(2);
+});
+
+it('publishes restore progress while connecting and clears it afterwards', async () => {
+  mocks.read.mockResolvedValue({ mode: 'local', transitionState: 'stable', targetMode: null, attemptId: null });
+  const seen: unknown[] = [];
+  mocks.restore.mockImplementation(async (input: { onProgress: (progress: unknown) => void }) => {
+    input.onProgress({ phase: 'discovering' });
+    seen.push(useHostedConnectProgress.getState().progress);
+    input.onProgress({ phase: 'downloading', bytesDone: 5, bytesTotal: 20 });
+    seen.push(useHostedConnectProgress.getState().progress);
+    return { restored: [] };
+  });
+  await connectHostedFromProduct(new AbortController().signal, db);
+  expect(seen).toEqual([{ phase: 'discovering' }, { phase: 'downloading', bytesDone: 5, bytesTotal: 20 }]);
+  expect(useHostedConnectProgress.getState().progress).toBeNull();
+
+  mocks.restore.mockImplementation(async (input: { onProgress: (progress: unknown) => void }) => {
+    input.onProgress({ phase: 'activating' });
+    throw new Error('synthetic restore failure');
+  });
+  await expect(connectHostedFromProduct(new AbortController().signal, db)).rejects.toThrow('synthetic');
+  expect(useHostedConnectProgress.getState().progress).toBeNull();
 });

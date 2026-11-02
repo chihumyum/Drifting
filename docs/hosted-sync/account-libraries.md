@@ -82,7 +82,11 @@ Renderer (`src/renderer/services/account-library.ts`):
 - After a verified session on an account library that has never connected (no
   connect attempt recorded), the account's cloud projects are restored with the
   existing connect path. A library whose sync the author disconnected stays
-  disconnected.
+  disconnected. Projects arrive together when the restore activates, so the
+  shelf and Account settings show its progress meanwhile: finding the account's
+  projects, the downloaded share of the asset bytes their snapshots declare,
+  then adding them to the library. One connect runs per library at a time; a
+  second request (such as **Connect** in Account settings) joins it.
 - `logout` returns to the local library after the session is cleared.
 
 The domain user id stays `drifting-library.db` in every library, so project

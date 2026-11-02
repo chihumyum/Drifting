@@ -1536,6 +1536,22 @@ html:not([data-shell-mode='mobile']) .ui-button.ui-button--glass:disabled::befor
   background: hsl(var(--accent));
   transition: width 140ms ease-out;
 }
+/* Working without a measurable share yet: a short segment drifts along the
+   hairline. Reduced motion keeps it still. */
+.ui-progress[data-indeterminate] .ui-progress__fill {
+  width: 28%;
+  animation: ui-progress-drift 1.6s ease-in-out infinite;
+}
+@keyframes ui-progress-drift {
+  from { left: -28%; }
+  to { left: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ui-progress[data-indeterminate] .ui-progress__fill {
+    left: 0;
+    animation: none;
+  }
+}
 
 .ui-progress--indeterminate .ui-progress__fill {
   width: 22%;

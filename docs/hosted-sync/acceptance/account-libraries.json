@@ -3,7 +3,7 @@
     "registry": "libraries.json in the App-local base root; legacy library keeps the base root",
     "switching": "relaunch through the quit flush barrier; mobile keeps one library",
     "sourceSha256": {
-      "docs/hosted-sync/account-libraries.md": "6035f077f0a7348f7e2a7dc209d55fae1c6be3476ca4725f43d1a7bf39eeb15c",
+      "docs/hosted-sync/account-libraries.md": "078081da75faa69fc283cdb40d30c8d03dcb8f437b2ed75cc005b9372af00e3c",
       "scripts/generate-account-library-evidence.mjs": "769a1986d72c448a836f9ca2bfef7433444707b148573d7ff81cb7820a4af099",
       "scripts/run-signed-macos-dev.sh": "233a4a86569c5c24a0a8ce53d05da19a80f382afaf0934b8637bd4464358165b",
       "src-tauri/src/data_paths.rs": "f1341a29ec2b91a8df6fc11f01cac683b58b5bfb9e73bafa35c93d91e6aff9d0",
