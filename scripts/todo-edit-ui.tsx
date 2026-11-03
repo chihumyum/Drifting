@@ -74,16 +74,13 @@ export function Fixture() {
             setTodo((current) => ({ ...current, bodyJson: createPlainCommentDoc(body) }));
           }} />
       </section>
-      {(['panel', 'sticky'] as const).map((presentation) => <section key={presentation} id={presentation} style={{ width: 280 }}>
-        <ReviewItemCard comment={card} projectId={todo.projectId} presentation={presentation}
+      <section id="panel" style={{ width: 280 }}>
+        <ReviewItemCard comment={card} projectId={todo.projectId}
           relations={[{ id: 'first', toKind: 'category', toId: 'Synthetic relation A' }, { id: 'second', toKind: 'category', toId: 'Synthetic relation B' }]}
           onAddRelation={() => {}} onRemoveRelation={() => {}} />
-      </section>)}
-      <section id="note" style={{ width: 280 }}>
-        <ReviewItemCard comment={{ ...card, id: 'synthetic-note', kind: 'note' }} projectId={todo.projectId} presentation="panel" />
       </section>
-      <section id="note-sticky" style={{ width: 280 }}>
-        <ReviewItemCard comment={{ ...card, id: 'synthetic-note-sticky', kind: 'note' }} projectId={todo.projectId} presentation="sticky" />
+      <section id="note" style={{ width: 280 }}>
+        <ReviewItemCard comment={{ ...card, id: 'synthetic-note', kind: 'note' }} projectId={todo.projectId} />
       </section>
       <section id="review-sort" style={{ width: 280, height: 620, display: 'flex' }}>
         <ReviewPanel key={reviewKey} focused={hasFocusedEntity ? { kind: 'node', id: 'synthetic-node' } : { kind: null, id: null }} />
@@ -140,7 +137,7 @@ async function run() {
   check('saveButtonRetriesSuccessfully', !document.querySelector('#board textarea') && board().textContent!.includes('Retry this synthetic draft'));
   await doubleClick(get('#board button[title="Delete"]'));
   check('boardActionDoesNotOpenEditor', !document.querySelector('#board textarea'));
-  const cardSurfaces = ['board', 'panel', 'sticky', 'note', 'note-sticky'];
+  const cardSurfaces = ['board', 'panel', 'note'];
   for (const surface of cardSurfaces) {
     const jumps = observations.jumps;
     body(surface).click(); await frame();
@@ -180,7 +177,7 @@ async function run() {
     }
   }
   get('#cycle-card-source').click(); await frame();
-  const surfaces = ['board', 'panel', 'sticky'];
+  const surfaces = ['board', 'panel'];
   get('#board .todo-status-toggle').click(); await frame();
   check('statusToggleResolvesAndShowsCheck', surfaces.every((surface) => get(`#${surface} .todo-status-toggle`).getAttribute('aria-pressed') === 'true'
     && !!document.querySelector(`#${surface} .todo-status-toggle svg`)) && !document.querySelector('#board textarea'));
@@ -296,7 +293,7 @@ async function run() {
   check('sourceHoverWaitsBeforeShowing', !document.querySelector('.comment-source-hover'));
   leave(board()); await hoverWait();
   check('sourceHoverCancelsOnEarlyLeave', !document.querySelector('.comment-source-hover'));
-  for (const surface of ['board', 'panel', 'sticky', 'note']) {
+  for (const surface of ['board', 'panel', 'note']) {
     const card = get(`#${surface} .workspace-list-row, #${surface} .review-card`);
     enter(card); await hoverWait(); await frame();
     const tooltip = get('.comment-source-hover');
