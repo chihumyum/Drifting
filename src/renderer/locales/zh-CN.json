@@ -125,6 +125,10 @@
     "accountAction": "登录 / 注册并同步",
     "continueLocal": "继续本地模式"
   },
+  "firstRun": {
+    "email": "用邮箱继续",
+    "local": "本地继续"
+  },
   "markdownFolderGuide": {
     "title": "Markdown 文件夹放在哪里？",
     "intro": "每个项目都会在这里保存一份 Markdown。章节和构想可以用任何编辑器修改，修改会合并回 Drifting。",
@@ -212,7 +216,10 @@
       "accent_reset": "恢复默认",
       "animations": "动效与过渡",
       "agent_edit_reveal": "改动 reveal 动画",
-      "agent_edit_reveal_desc": "逐字展示 Agent 对正文和字段的修改，以及在其他编辑器里改过的章节和构想。关闭后直接显示结果，未读改动标记保留到看过或点击标记后。"
+      "agent_edit_reveal_desc": "逐字展示 Agent 对正文和字段的修改，以及在其他编辑器里改过的章节和构想。关闭后直接显示结果，未读改动标记保留到看过或点击标记后。",
+      "guides": "引导",
+      "replay_guides": "第一次打开书时的导览",
+      "replay_guides_action": "重新显示"
     },
     "editor": {
       "kicker": "编辑器 · EDITOR",
@@ -3519,6 +3526,50 @@
       "placeholder": "当时在做什么",
       "ignore": "忽略",
       "emailSubject": "Drifting 故障补充"
+    }
+  },
+  "guide": {
+    "skip": "跳过导览",
+    "back": "上一步",
+    "next": "下一步",
+    "done": "完成",
+    "workspace": {
+      "panels": {
+        "title": "章节 · 要素 · 构想",
+        "body": "这本书的骨架。左栏还能分成两半，各开一个面板。",
+        "closedBody": "这本书的骨架都在左栏：章节、要素、构想。点这里把它打开。"
+      },
+      "superViews": {
+        "title": "全景视图",
+        "body": "整窗的全景视图，从对应面板头上的圆形按钮进入。"
+      },
+      "create": {
+        "title": "新建",
+        "body": "章节、构想、要素、故事线、类目和素材都从这里开始。"
+      },
+      "timeline": {
+        "title": "时间线",
+        "body": "故事线按书序或叙事时间排开，从稿纸下方滑上来。"
+      },
+      "agent": {
+        "title": "Agent",
+        "body": "能读、能查、能改整本书。改过的地方标在正文里，可以从历史撤回。",
+        "closedBody": "右栏里有 Agent，能读、能查、能改整本书。点这里把右栏打开。"
+      },
+      "home": {
+        "title": "项目主页",
+        "body": "鸟居回到这一页；旁边的风铃是通知。"
+      }
+    },
+    "hints": {
+      "new": "新建",
+      "scene": "场景",
+      "beat": "节拍",
+      "note": "笔记",
+      "search": "全局搜索",
+      "timeline": "时间线",
+      "driftRipens": "成熟后可以转成章节或要素",
+      "todo": "在正文里写下 TODO"
     }
   }
 }

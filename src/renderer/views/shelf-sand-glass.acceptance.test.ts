@@ -131,7 +131,7 @@ describe('the bookshelf in sand and glass', () => {
 
   it('makes a book a resting line of glass with a sand readout', () => {
     // On the desktop the sea of characters draws the resting glass (char-sea.acceptance.test.ts).
-    expect(view).toContain("className={`pp-card glass glass--rest${seaDrawn ? ' pp-card--sea' : ''}`}");
+    expect(view).toContain("className={`pp-card glass glass--rest${sample.waiting ? ' glass--waiting' : ''}${seaDrawn ? ' pp-card--sea' : ''}`}");
     expect(view).toContain('className="sand-track"');
     expect(view).toContain('<span className="sand-stroke"');
     expect(block(css, '.pp-card {', '}')).toMatch(/background: transparent;[\s\S]*box-shadow: none;/);

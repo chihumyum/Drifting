@@ -11,10 +11,10 @@ opens. Every other file is generated and read-only. The merge model, ledger and
 safeguards are in [Markdown folder two-way sync](markdown-mirror.md).
 
 The Tauri desktop client maintains one directory per project, under a folder
-that holds all of them. On the first desktop run, after the welcome card, the
-same card asks where that folder goes (`drifting.markdown-folder-guide.v1`
-marks the question answered on this device; existing installations see it once
-too). Choosing a folder sets it for every project; not choosing keeps the
+that holds all of them. On the first desktop run the first-run card asks where
+that folder goes, after its welcome in a Hosted build (a local-only build has
+no welcome); `drifting.markdown-folder-guide.v1` marks the question answered on
+this device, and existing installations see it once too. Choosing a folder sets it for every project; not choosing keeps the
 default, `<app-local-data>/markdown-projections/`. The card also offers to turn
 the folder off, in the danger ink and only after a destructive confirmation.
 

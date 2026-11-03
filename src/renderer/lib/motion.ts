@@ -84,6 +84,16 @@ export function sandDrawTimeAt(drawn: number) {
 // stays whole underneath until it is covered: the ink on the paper never thins.
 export const PAGE_BLEND_MS = 180;
 export const PAGE_BLEND_EASING = 'cubic-bezier(0.4, 0, 0.2, 1)';
+// (CSS: --motion-page-blend, --motion-page-blend-ease; the first-run card's steps cross the same way.)
+
+// First run (PreAlphaFirstRunGate): the app's name stands on the sea this long
+// before it lets go and its ring leaves the first-run card behind.
+export const FIRST_RUN_TITLE_MS = 1300;
+// The sample book a first launch wrote lands on the shelf this long after its
+// card comes up, on a ring of its own.
+export const SAMPLE_LANDING_DELAY_MS = 240;
+// The first-run card fades as the shelf comes up under it (CSS: --motion-glass-bleed).
+export const FIRST_RUN_LEAVE_MS = 240;
 
 // Waiting: a wait shorter than this shows nothing, so a quick read never
 // flashes a loading mark (CSS: --motion-loading-delay).

@@ -414,7 +414,9 @@ html:not([data-shell-mode='mobile']) .auth-flow--dialog .auth-flow__glass-button
    line on the desk with nothing under it; head, body and actions keep the
    dialog's type and spacing. On the sea of characters (CharSea) the desk is
    the sea's, the rain falls round the card, and the card's line is drawn
-   there too (`--sea` drops the CSS rim). */
+   there too (`--sea` drops the CSS rim). Its steps are panes in one place:
+   the card takes the size of the pane in front and follows it on the page-turn
+   timing while the next pane dissolves in over the last. */
 .first-run-gate {
   box-sizing: border-box;
   position: fixed;
@@ -432,21 +434,121 @@ html:not([data-shell-mode='mobile']) .auth-flow--dialog .auth-flow__glass-button
   background: transparent;
 }
 
-.first-run-gate__card {
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  width: min(100%, 560px);
-  min-width: 0;
-  border-radius: 2px;
+/* Leaving, the shelf is already coming up underneath. */
+.first-run-gate--leaving {
+  background: transparent;
+  pointer-events: none;
 }
 
-.first-run-gate__card--account {
-  width: min(100%, 400px);
+.first-run-gate__card {
+  box-sizing: border-box;
+  position: relative;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 2px;
+  transition:
+    width var(--motion-page-blend) var(--motion-page-blend-ease),
+    height var(--motion-page-blend) var(--motion-page-blend-ease);
+  animation: first-run-card-in var(--motion-glass-bleed) ease-out 120ms both;
+}
+
+.first-run-gate__card--leaving {
+  animation: first-run-card-out var(--motion-glass-bleed) ease-out both;
 }
 
 .first-run-gate__card--sea.glass::before {
   display: none;
+}
+
+.first-run-gate__pane {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: flex;
+  flex-direction: column;
+  width: min(560px, calc(100vw - 48px));
+  transform: translate(-50%, -50%);
+  animation: first-run-pane-in var(--motion-page-blend) var(--motion-page-blend-ease) both;
+}
+
+.first-run-gate__pane--welcome {
+  width: min(360px, calc(100vw - 48px));
+}
+
+.first-run-gate__pane--account {
+  width: min(400px, calc(100vw - 48px));
+}
+
+.first-run-gate__pane--leaving {
+  pointer-events: none;
+  animation: first-run-pane-out var(--motion-page-blend) var(--motion-page-blend-ease) both;
+}
+
+/* The welcome: the ways on and the crash-report note, nothing else. */
+.first-run-welcome {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 20px;
+}
+
+.first-run-welcome__way.ui-button {
+  width: 100%;
+  gap: 8px;
+}
+
+.first-run-welcome__local.ui-button {
+  align-self: center;
+  margin-top: 4px;
+}
+
+.first-run-welcome__note {
+  margin: 6px 0 0;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font-size: var(--ui-font-caption, 12px);
+  line-height: 1.5;
+  text-align: center;
+}
+
+/* The shelf comes up from the first run as a whole. */
+.first-run-arrival {
+  animation: first-run-arrive var(--motion-structural) var(--motion-structural-ease) both;
+}
+
+@keyframes first-run-card-in {
+  from { opacity: 0; }
+}
+
+@keyframes first-run-card-out {
+  to { opacity: 0; }
+}
+
+@keyframes first-run-pane-in {
+  from { opacity: 0; }
+}
+
+@keyframes first-run-pane-out {
+  to { opacity: 0; }
+}
+
+@keyframes first-run-arrive {
+  from { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .first-run-gate__card,
+  .first-run-gate__pane,
+  .first-run-arrival {
+    transition: none;
+    animation: none;
+  }
+
+  .first-run-gate__card--leaving,
+  .first-run-gate__pane--leaving {
+    animation: none;
+    visibility: hidden;
+  }
 }
 
 .first-run-gate__drag {

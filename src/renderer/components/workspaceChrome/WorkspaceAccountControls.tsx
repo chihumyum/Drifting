@@ -50,6 +50,7 @@ export function WorkspaceAccountCell() {
       <GhostIconButton
         glass="round"
         aria-pressed={homeActive}
+        data-guide-anchor="project-home"
         title={t('bottomStatusBar.projectHome')}
         aria-label={t('bottomStatusBar.projectHome')}
         onClick={() => {

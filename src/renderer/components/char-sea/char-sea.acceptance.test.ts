@@ -73,8 +73,10 @@ describe('the sea of characters under the desktop window', () => {
     const shelf = read('src/renderer/views/ProjectPickerView.tsx');
     expect(shelf).toContain("useCharSeaHold('surface', onSea);");
     expect(shelf).toContain("const shelfClass = onSea ? 'pp pp--sea' : 'pp';");
-    expect(shelf).toContain('const { attach: glassRef, drawn: seaDrawn, hoverProps: glassHover } = useCharSeaShape<HTMLElement>({ rest: 0.85, radius: 2 });');
-    expect(shelf).toContain("className={`pp-card glass glass--rest${seaDrawn ? ' pp-card--sea' : ''}`}");
+    expect(shelf).toMatch(
+      /const \{ attach: glassRef, drawn: seaDrawn, hoverProps: glassHover \} = useCharSeaShape<HTMLElement>\(\{\s*rest: 0\.85,\s*radius: 2,\s*arrive: arrives,\s*waiting: sample\.waiting,\s*\}\);/,
+    );
+    expect(shelf).toContain("className={`pp-card glass glass--rest${sample.waiting ? ' glass--waiting' : ''}${seaDrawn ? ' pp-card--sea' : ''}`}");
     expect(shelf).toContain('data-char-sea-press=""');
     expect(shelf).toContain('const { attach: newSlipRef } = useCharSeaShape<HTMLDivElement>({ rest: 0, radius: 2, hover: false });');
     const picker = read('src/styles/project-picker.css');
@@ -82,22 +84,23 @@ describe('the sea of characters under the desktop window', () => {
     expect(block(picker, '.pp-card--sea.glass::before {', '}')).toContain('display: none;');
   });
 
-  it('lays the first-run choice in the window on the sea, in the rain with no word', () => {
+  it('lays the first-run choice in the window on the sea: the name rises, lets go, and leaves the card in the rain', () => {
     const routes = read('src/renderer/app/AppRoutes.tsx');
     expect(routes).toMatch(/<PreAlphaFirstRunGate>\s*<ProjectPickerView \/>\s*<\/PreAlphaFirstRunGate>/);
-    const gate = block(
-      read('src/renderer/components/modals/PreAlphaOnboardingDialog.tsx'),
-      'export function PreAlphaFirstRunGate',
-      '\n}\n',
-    );
-    // Not a dialog over the window but a card in it, whose resting glass the sea draws.
-    expect(gate).not.toMatch(/ModalRoot|ModalCard|aria-modal/);
-    expect(gate).toContain(
-      'const { attach: cardRef, drawn: onSea } = useCharSeaShape<HTMLElement>({ rest: 0.85, radius: 2, hover: false });',
-    );
-    expect(gate).toContain("useCharSeaHold('rain', open && onSea);");
-    expect(gate).toContain("glass glass--rest glass--still${onSea ? ' first-run-gate__card--sea' : ''}");
-    expect(gate).toContain("<div className={`first-run-gate${onSea ? ' first-run-gate--sea' : ''}`}>");
+    const onboarding = read('src/renderer/components/modals/PreAlphaOnboardingDialog.tsx');
+    const gate = block(onboarding, 'export function PreAlphaFirstRunGate', '\n}\n');
+    const card = block(onboarding, 'function FirstRunCard', '\n}\n');
+    // Not a dialog over the window but a card in it, whose resting glass the sea draws, set down with no line at first.
+    expect(gate + card).not.toMatch(/ModalRoot|ModalCard|aria-modal/);
+    expect(card).toMatch(/useCharSeaShape<HTMLElement>\(\{\s*rest: leaving \? 0 : 0\.85,\s*radius: 2,\s*hover: false,\s*arrive: true,\s*\}\)/);
+    expect(card).toContain("glass glass--rest glass--still${onSea ? ' first-run-gate__card--sea' : ''}");
+    // A first run on the sea raises the name first; the rain falls through the name and round the card.
+    expect(gate).toContain("guideOpen && onSea && !reducedMotion() ? 'title' : 'card'");
+    expect(gate).toContain("useCharSeaHold('title', stage === 'title' && onSea);");
+    expect(gate).toContain("useCharSeaHold('rain', (stage === 'title' || stage === 'card') && onSea);");
+    expect(gate).toContain("window.setTimeout(() => setStage('card'), FIRST_RUN_TITLE_MS);");
+    expect(gate).toContain("className={`first-run-gate${onSea ? ' first-run-gate--sea' : ''}");
+    expect(read('src/renderer/lib/char-sea/char-sea-registry.ts')).toContain("export const CHAR_SEA_TITLE = 'Drifting';");
     const css = read('src/styles/auth.css');
     expect(block(css, '.first-run-gate {', '}')).toContain('background: var(--workspace-ui-bg);');
     expect(block(css, '.first-run-gate--sea {', '}')).toContain('background: transparent;');
@@ -109,7 +112,9 @@ describe('the sea of characters under the desktop window', () => {
 
     // Rain holds the sea live and falls at once; the word belongs to a wait, which hands its rain over.
     const component = read('src/renderer/components/char-sea/CharSea.tsx');
-    expect(component).toContain('const held = holds.loading > 0 || holds.rain > 0 || holds.surfaces > 0;');
+    expect(component).toContain('const held = holds.loading > 0 || holds.title > 0 || holds.rain > 0 || holds.surfaces > 0;');
+    // The name rises at once, and a word already standing gives way to it.
+    expect(component).toContain('sea.current?.loading(true, CHAR_SEA_TITLE);');
     expect(component).toContain('sea.current?.rain(true);');
     expect(component).toContain('return () => sea.current?.rain(false);');
     const engine = read('src/renderer/lib/char-sea/char-sea.ts');
@@ -142,6 +147,8 @@ describe('the sea of characters under the desktop window', () => {
     expect(read('src/renderer/lib/char-sea/char-sea-model.ts')).toContain('const SWAP_HEAD = 14;');
     // Still water and still glass draw one last frame, then nothing.
     expect(engine).toContain('if (quietFrames > 20) {');
+    // A frame between two steps (above 100Hz) neither moves the water nor settles it.
+    expect(engine).toContain('else if (steps) quietFrames = peak < 0.004 ? quietFrames + 1 : 0;');
     expect(engine).toContain("window.matchMedia?.('(prefers-reduced-motion: reduce)')");
     // The rim is the app's resting glass: 1px of glass-clear at 33% × 1.8, cut by the same texture and tile.
     expect(engine).toContain("import glassTextureUrl from '../../../assets/design/glass-thick.png';");
@@ -149,6 +156,34 @@ describe('the sea of characters under the desktop window', () => {
     expect(engine).toContain('const GLASS_TILE = 150;');
     // The line itself never moves: only its thickness and depth follow the water.
     expect(engine).toContain('float sd=sdBox(px,R,P.x);');
+  });
+
+  it('brings the shelf up from the first run as a whole and lands the sample on its own ring, flowing until it is opened', () => {
+    const onboarding = read('src/renderer/components/modals/PreAlphaOnboardingDialog.tsx');
+    const gate = block(onboarding, 'export function PreAlphaFirstRunGate', '\n}\n');
+    // The card fades as the shelf comes up under it; what mounts then is set down on the sea.
+    expect(gate).toContain("window.setTimeout(() => setStage('done'), FIRST_RUN_LEAVE_MS);");
+    expect(gate).toContain('<div key="shelf" className="first-run-arrival">');
+    expect(gate).toContain("<FirstRunArrival.Provider value={stage === 'leaving'}>{children}</FirstRunArrival.Provider>");
+    const css = read('src/styles/auth.css');
+    expect(block(css, '.first-run-arrival {', '}')).toContain('animation: first-run-arrive var(--motion-structural) var(--motion-structural-ease) both;');
+    expect(block(css, '.first-run-gate__card--leaving {', '}')).toContain('var(--motion-glass-bleed)');
+    // The sample a first launch wrote: its own ring, then its rim flows as glass waiting on the author.
+    const shelf = read('src/renderer/views/ProjectPickerView.tsx');
+    expect(shelf).toContain('const [arrives] = useState(arriving || lands);');
+    expect(shelf).toContain('charSeaRegistry.drop(rect.left + rect.width / 2, rect.top + rect.height / 2, SAMPLE_LANDING_DROP);');
+    expect(shelf).toContain('}, SAMPLE_LANDING_DELAY_MS);');
+    expect(shelf).toContain('noteBookOpened(id);');
+    const component = read('src/renderer/components/char-sea/CharSea.tsx');
+    expect(component).toContain('hover: entry.hover || entry.waiting,');
+    expect(component).toContain('arrive: entry.options.arrive,');
+    expect(component).toContain('charSeaRegistry.onDrop((x, y, amplitude) => sea.current?.drop(x, y, amplitude));');
+    const engine = read('src/renderer/lib/char-sea/char-sea.ts');
+    expect(engine).toContain("else if (!restShown.has(shape.id)) restShown.set(shape.id, shape.arrive ? 0 : shape.rest);");
+    // Opened, it waits no longer; the workspace tour takes over on the first book opened.
+    expect(read('src/renderer/components/first-run/first-run-shelf.ts')).toContain(
+      'useFirstRunShelfStore.setState({ sampleOpened: true });',
+    );
   });
 
   it('ebbs under the workspace a wait opened: the rings run out, untouched, then it goes off', () => {
@@ -204,7 +239,7 @@ describe('the sea of characters under the desktop window', () => {
   it('gives the landing page its own word, place, sheet and ink, while the app keeps the sea it had', () => {
     const engine = read('src/renderer/lib/char-sea/char-sea.ts');
     // Without options: "Loading" in the middle, at most 70% wide, on the app's cells, its characters as on any crest.
-    expect(engine).toContain('const word = options.word ?? LOADING_WORD;');
+    expect(engine).toContain('word = options.word ?? LOADING_WORD,');
     expect(engine).toContain('const span = options.wordSpan?.(width) ?? 0.7;');
     expect(engine).toContain('centreY: height * (options.wordCentreY ?? 0.5)');
     expect(engine).toContain('const density = options.density?.(width) ?? 1;');

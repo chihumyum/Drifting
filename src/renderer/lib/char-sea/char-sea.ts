@@ -32,7 +32,11 @@ import { CHAR_SEA_LANGUAGES, type CharSeaScript } from './char-sea-text';
  * drifts slowly through the passage's letters (CharSeaGlyphs). When the wait
  * ends the rain fades and the word is let go: one ring leaves from its outline
  * and spreads under the next page. A page that waits on the author instead (the first-run choice) has
- * only the rain: it falls round the page with no word in the middle.
+ * only the rain: it falls round the page with no word in the middle. Before
+ * that page a first run raises the app's name the same way, and lets it go
+ * when the card comes. Glass set down on the sea (that card, the sample book
+ * landing on the shelf) arrives with no resting line: the water shows its rim,
+ * then the line settles in; a line that goes eases out the same way.
  */
 
 /** A piece of glass on the page, in CSS px of the window. */
@@ -51,6 +55,11 @@ export interface CharSeaShape {
   rest: number;
   /** Whether the pointer is on it (bleed in, unevenness drifting). */
   hover: boolean;
+  /**
+   * Glass set down on the sea (the first-run card, the sample book landing):
+   * its resting line starts from nothing, so the water shows its rim first.
+   */
+  arrive?: boolean;
   /** Where the glass texture starts in the shape, as `.glass:nth-of-type` places it. */
   textureX: number;
   textureY: number;
@@ -69,8 +78,12 @@ export interface CharSea {
    */
   ebb(onStill: () => void): void;
   live(): void;
-  /** Something is loading: the rain falls and the word rises; false lets both go. */
-  loading(on: boolean): void;
+  /**
+   * Something is loading: the rain falls and the word rises; false lets both
+   * go. `word` names it (the first run raises the app's name); a word already
+   * standing gives way to it, and it rises in its place.
+   */
+  loading(on: boolean, word?: string): void;
   /** Only the rain, no word; it keeps falling while either holds it. */
   rain(on: boolean): void;
   setShapes(shapes: readonly CharSeaShape[]): void;
@@ -104,6 +117,9 @@ const WORD_BURST = 4;
 // Strength and size of the glass line, as materials.css draws it at rest.
 const GLASS_EDGE = 0.594; // --glass-edge 33% × 1.8
 const GLASS_TILE = 150;
+// A resting line that comes or goes eases to its strength at this rate a
+// second: two thirds of the way in a third of a second, settled in about one.
+const REST_EASE = 3;
 
 /**
  * What a page other than the app's own may ask of the sea: the drifting.cc
@@ -259,8 +275,13 @@ function readTheme(): Theme {
 }
 
 /** The loading word's size and the height of its middle in a window, CSS px. */
-function placeWord(context: CanvasRenderingContext2D, width: number, height: number, options: CharSeaOptions) {
-  const word = options.word ?? LOADING_WORD;
+function placeWord(
+  context: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  options: CharSeaOptions,
+  word = options.word ?? LOADING_WORD,
+) {
   const span = options.wordSpan?.(width) ?? 0.7;
   let size = height * 0.3;
   context.font = LOADING_FONT(size);
@@ -288,7 +309,13 @@ function seaLanguage(script: CharSeaScript, width: number, options: CharSeaOptio
 }
 
 /** The loading word as each water cell's share of its ink, centred across the window. */
-function loadingWordShape(water: CharSeaWater, width: number, height: number, options: CharSeaOptions): Float32Array {
+function loadingWordShape(
+  water: CharSeaWater,
+  width: number,
+  height: number,
+  options: CharSeaOptions,
+  text: string,
+): Float32Array {
   const shape = new Float32Array(water.cols * water.rows);
   const samples = 4;
   const raster = document.createElement('canvas');
@@ -296,7 +323,7 @@ function loadingWordShape(water: CharSeaWater, width: number, height: number, op
   raster.height = water.rows * samples;
   const context = raster.getContext('2d', { willReadFrequently: true });
   if (!context) return shape;
-  const { word, size, centreY } = placeWord(context, width, height, options);
+  const { word, size, centreY } = placeWord(context, width, height, options, text);
   const scale = samples / CHAR_SEA_WATER_CELL;
   context.font = LOADING_FONT(size * scale);
   const metrics = context.measureText(word);
@@ -402,6 +429,7 @@ export function createCharSea(canvas: HTMLCanvasElement, options: CharSeaOptions
   let rainHeld = false;
   let glyphs: CharSeaGlyphs | null = null;
   let glyphsDirty = false;
+  let wordText = options.word ?? LOADING_WORD;
   let wordShape: Float32Array | null = null;
   let wordCells: Uint8Array | null = null;
   // held: the spring holds the word up; time: since it began to rise; height:
@@ -418,6 +446,8 @@ export function createCharSea(canvas: HTMLCanvasElement, options: CharSeaOptions
   let shapes: CharSeaShape[] = [];
   const hoverAmount = new Map<number, number>();
   const flowOffset = new Map<number, number>();
+  // Each shape's resting line as drawn, easing toward its `rest`.
+  const restShown = new Map<number, number>();
   const shapeRect = new Float32Array(MAX_SHAPES * 4);
   const shapeParams = new Float32Array(MAX_SHAPES * 4);
   const shapeTexture = new Float32Array(MAX_SHAPES * 4);
@@ -492,15 +522,22 @@ export function createCharSea(canvas: HTMLCanvasElement, options: CharSeaOptions
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, heightTexture);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.R16F, water.cols, water.rows, 0, gl.RED, gl.FLOAT, water.heights);
-    wordShape = loadingWordShape(water, width, height, options);
-    if (word.held) water.hold(wordShape);
-    // its cells on the sheet are found when the sheet is laid (lay)
+    shapeWord();
+    if (word.held && wordShape) water.hold(wordShape);
+    layout = layoutCharSea(width, height, seaLanguage(script, width, options));
+    lay();
+  }
+
+  // The word's ink on this water, for the spring, the shader and the cells
+  // whose characters change in it (found again when the sheet is laid, `lay`).
+  function shapeWord(): void {
+    if (!water) return;
+    wordShape = loadingWordShape(water, width, height, options, wordText);
+    if (layout) wordCells = charSeaCellsCovered(layout, wordShape, water.cols, water.rows);
     gl.activeTexture(gl.TEXTURE5);
     gl.bindTexture(gl.TEXTURE_2D, wordTexture);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, water.cols, water.rows, 0, gl.RED, gl.UNSIGNED_BYTE,
       Uint8Array.from(wordShape, (share) => Math.round(share * 255)));
-    layout = layoutCharSea(width, height, seaLanguage(script, width, options));
-    lay();
   }
 
   function draw(): void {
@@ -557,7 +594,7 @@ export function createCharSea(canvas: HTMLCanvasElement, options: CharSeaOptions
     for (let i = 0; i < count; i += 1) {
       const shape = shapes[i];
       shapeRect.set([shape.x, shape.y, shape.width, shape.height], i * 4);
-      shapeParams.set([shape.radius, shape.rest, hoverAmount.get(shape.id) ?? 0, flowOffset.get(shape.id) ?? 0], i * 4);
+      shapeParams.set([shape.radius, restShown.get(shape.id) ?? shape.rest, hoverAmount.get(shape.id) ?? 0, flowOffset.get(shape.id) ?? 0], i * 4);
       shapeTexture.set([shape.textureX, shape.textureY, 0, 0], i * 4);
     }
     gl.uniform4fv(U.shape, shapeRect);
@@ -567,11 +604,13 @@ export function createCharSea(canvas: HTMLCanvasElement, options: CharSeaOptions
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
 
-  // Glass eases toward its state: the bleed comes in over about 0.24s and a
-  // hovered rim's unevenness drifts 10px a second (one 150px lap in 15s).
+  // Glass eases toward its state: the bleed comes in over about 0.24s, a
+  // hovered rim's unevenness drifts 10px a second (one 150px lap in 15s), and a
+  // resting line that comes or goes settles in about a second (REST_EASE).
   function easeGlass(dt: number): boolean {
     let moving = false;
     const k = 1 - Math.exp(-dt * 12);
+    const kRest = 1 - Math.exp(-dt * REST_EASE);
     for (const shape of shapes) {
       const target = shape.hover ? 1 : 0;
       const amount = hoverAmount.get(shape.id) ?? 0;
@@ -579,8 +618,29 @@ export function createCharSea(canvas: HTMLCanvasElement, options: CharSeaOptions
       hoverAmount.set(shape.id, next);
       if (next > 0.001) flowOffset.set(shape.id, (flowOffset.get(shape.id) ?? 0) + dt * 10 * next);
       if (target > 0 || Math.abs(target - next) > 0.01) moving = true;
+      const rest = restShown.get(shape.id) ?? shape.rest;
+      if (rest !== shape.rest) {
+        const eased = rest + (shape.rest - rest) * kRest;
+        restShown.set(shape.id, Math.abs(shape.rest - eased) < 0.005 ? shape.rest : eased);
+        moving = true;
+      }
     }
     return moving;
+  }
+
+  // A shape seen for the first time draws its line at once, unless it arrives,
+  // when the line starts from nothing; shapes gone are forgotten.
+  function noteRests(): boolean {
+    const present = new Set<number>();
+    let easing = false;
+    for (const shape of shapes) {
+      present.add(shape.id);
+      if (still) restShown.set(shape.id, shape.rest);
+      else if (!restShown.has(shape.id)) restShown.set(shape.id, shape.arrive ? 0 : shape.rest);
+      if (restShown.get(shape.id) !== shape.rest) easing = true;
+    }
+    for (const id of restShown.keys()) if (!present.has(id)) restShown.delete(id);
+    return easing;
   }
 
   // The word rises and breathes while held, and its own height eases away once
@@ -639,11 +699,13 @@ export function createCharSea(canvas: HTMLCanvasElement, options: CharSeaOptions
     accumulated += dt;
     const steps = Math.min(6, Math.floor(accumulated * CHAR_SEA_STEP_RATE));
     accumulated -= steps / CHAR_SEA_STEP_RATE;
-    let peak = steps ? 0 : 1;
+    let peak = 0;
     for (let s = 0; s < steps; s += 1) peak = Math.max(peak, water.step());
     draw();
     // Still water and still glass: one last frame, then nothing until something touches it.
-    quietFrames = peak < 0.004 && !glassMoving && !restMoving && !loadingMoving ? quietFrames + 1 : 0;
+    // Above 100Hz a frame can fall between two steps; it neither moves the water nor settles it.
+    if (glassMoving || restMoving || loadingMoving) quietFrames = 0;
+    else if (steps) quietFrames = peak < 0.004 ? quietFrames + 1 : 0;
     if (quietFrames > 20) {
       water.clear();
       draw();
@@ -707,13 +769,24 @@ export function createCharSea(canvas: HTMLCanvasElement, options: CharSeaOptions
       if (still) restScale = 1;
       kick();
     },
-    loading(on) {
+    loading(on, named) {
       if (!on) {
         letLoadingGo();
         kick();
         return;
       }
-      if (still || !water || !wordShape) return;
+      if (still || !water) return;
+      const next = named ?? options.word ?? LOADING_WORD;
+      if (next !== wordText) {
+        wordText = next;
+        shapeWord();
+        // The word standing lets go as the spring takes the new one, which rises in its place.
+        if (word.held && wordShape) {
+          water.hold(wordShape);
+          word.time = 0;
+        }
+      }
+      if (!wordShape) return;
       rain?.start();
       if (!word.held) {
         word.held = true;
@@ -735,8 +808,9 @@ export function createCharSea(canvas: HTMLCanvasElement, options: CharSeaOptions
     },
     setShapes(next) {
       shapes = next.slice(0, MAX_SHAPES);
+      const easing = noteRests();
       if (running) return;
-      if (shapes.some((shape) => shape.hover || (hoverAmount.get(shape.id) ?? 0) > 0.001)) kick();
+      if (easing || shapes.some((shape) => shape.hover || (hoverAmount.get(shape.id) ?? 0) > 0.001)) kick();
       else draw();
     },
     setScript(next) {
