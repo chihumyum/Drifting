@@ -60,38 +60,14 @@ import type { AtomicSyncWriter } from '../../usecase/sync-helpers';
 import { createCommentWithSync, createElementPatchWithSync } from '../../usecase/synced-entity-commands';
 import {
   anchorQuotation,
-  BOOK_CHAPTERS,
-  BOOK_ILLUSTRATIONS,
   buildProseDocument,
-  chapterTitle,
   createEntityLinker,
   type BookChapter,
   type BookIllustration,
   type EntityLinker,
   type ProseDocument,
 } from './book';
-import {
-  CATEGORIES,
-  CHAPTER_PLANS,
-  COMMENTS,
-  ELEMENT_PATCHES,
-  ELEMENTS,
-  FINISHED_CHAPTER,
-  IDEAS,
-  ILLUSTRATION_FOLDER,
-  ILLUSTRATION_NOTES,
-  LINK_FORMS,
-  MATERIAL_NOTES,
-  PLOT_GRID,
-  PROJECT_FACTS,
-  PROJECT_MEMORY,
-  RELATION_TYPES,
-  RELATIONS,
-  SAMPLE_PROJECT_SUMMARY,
-  STORYLINES,
-  TIMELINE_PINS,
-  VOLUMES,
-} from './showcase';
+import { PRIDE_AND_PREJUDICE, type SampleBook } from './sample-book';
 
 /** Chapters' bookOrder and narrativeOrder: 5, 10, … like chapters made in the app. */
 const CHAPTER_STRIDE = 5;
@@ -124,6 +100,8 @@ export interface WriteBookSampleInput {
   assets: Promise<ReadonlyMap<string, ImportedSampleAsset>>;
   /** Progress for diagnostics: a step name and its duration in milliseconds. */
   onStep?(step: string, milliseconds: number): void;
+  /** The book to write; the built-in sample's unless another is given. */
+  book?: SampleBook;
 }
 
 interface PreparedProse {
@@ -219,25 +197,29 @@ interface WrittenOutline {
  * Project facts and memory, element categories and elements, relation types
  * and relations between elements, storylines, acts, timeline pins and ideas.
  */
-async function writeOutline(input: WriteBookSampleInput, elementIds: ReadonlyMap<string, string>): Promise<WrittenOutline> {
+async function writeOutline(
+  input: WriteBookSampleInput,
+  book: SampleBook,
+  elementIds: ReadonlyMap<string, string>,
+): Promise<WrittenOutline> {
   const { projectId, newId } = input;
   const now = input.now();
-  const categories = await Promise.all(CATEGORIES.map(async (category) => ({
+  const categories = await Promise.all(book.categories.map(async (category) => ({
     category, id: newId(), prose: await prepareProse(category.body, newId),
   })));
-  const elements = await Promise.all(ELEMENTS.map(async (element) => ({
+  const elements = await Promise.all(book.elements.map(async (element) => ({
     element, id: elementIds.get(element.key)!, prose: await prepareProse(element.body, newId),
   })));
-  const storylines = await Promise.all(STORYLINES.map(async (storyline) => ({
+  const storylines = await Promise.all(book.storylines.map(async (storyline) => ({
     storyline, id: newId(), prose: await prepareProse(storyline.body, newId),
   })));
-  const ideas = await Promise.all(IDEAS.map(async (idea) => {
+  const ideas = await Promise.all(book.ideas.map(async (idea) => {
     const prose = await prepareProse(idea.body, newId);
     const metric = await deriveProseMetricFromJson(prose.document.contentJson);
     return { idea, id: newId(), prose, metric };
   }));
   const storylineIds = new Map(storylines.map(({ storyline, id }) => [storyline.key, id]));
-  const relationTypes = new Map<string, EntityRelationType>(RELATION_TYPES.map((type) => [type.key, {
+  const relationTypes = new Map<string, EntityRelationType>(book.relationTypes.map((type) => [type.key, {
     id: newId(),
     projectId,
     ...normalizeRelationTypeDefinition({
@@ -258,24 +240,26 @@ async function writeOutline(input: WriteBookSampleInput, elementIds: ReadonlyMap
   await input.runAtomic(projectId, async (tx, sync, changes) => {
     // Project summary and facts, as the project settings save them.
     const projects = createProjectRepository(undefined, tx);
-    const project = await projects.update(projectId, { summary: SAMPLE_PROJECT_SUMMARY, updatedAt: now });
+    const project = await projects.update(projectId, { summary: book.summary, updatedAt: now });
     if (!project) throw new Error('The sample project disappeared');
     await replaceEntityKvEntriesInTransaction(tx, changes, {
-      projectId, ownerKind: 'project', ownerId: projectId, namespace: 'facts', nextJson: stringifyKv([...PROJECT_FACTS]),
+      projectId, ownerKind: 'project', ownerId: projectId, namespace: 'facts', nextJson: stringifyKv([...book.facts]),
     });
     await sync('project', 'update', projectId, projectId, { name: project.name, summary: project.summary });
 
     // Project Memory, written by the author.
-    const memory = await createAgentMemoryRepository(projectId, tx).create({
-      id: newId(), projectId, kind: 'preference', body: PROJECT_MEMORY, targetKind: null, targetId: null,
-      targetBlockId: null, source: 'author', originRef: null, status: 'active', supersedesId: null,
-      createdAt: now, updatedAt: now, deletedAt: null,
-    });
-    await sync('agentMemory', 'create', memory.id, projectId, {
-      id: memory.id, kind: memory.kind, body: memory.body, targetKind: memory.targetKind, targetId: memory.targetId,
-      targetBlockId: memory.targetBlockId, source: memory.source, originRef: memory.originRef, status: memory.status,
-      supersedesId: memory.supersedesId, deletedAt: memory.deletedAt, createdAt: memory.createdAt, updatedAt: memory.updatedAt,
-    });
+    if (book.memory) {
+      const memory = await createAgentMemoryRepository(projectId, tx).create({
+        id: newId(), projectId, kind: 'preference', body: book.memory, targetKind: null, targetId: null,
+        targetBlockId: null, source: 'author', originRef: null, status: 'active', supersedesId: null,
+        createdAt: now, updatedAt: now, deletedAt: null,
+      });
+      await sync('agentMemory', 'create', memory.id, projectId, {
+        id: memory.id, kind: memory.kind, body: memory.body, targetKind: memory.targetKind, targetId: memory.targetId,
+        targetBlockId: memory.targetBlockId, source: memory.source, originRef: memory.originRef, status: memory.status,
+        supersedesId: memory.supersedesId, deletedAt: memory.deletedAt, createdAt: memory.createdAt, updatedAt: memory.updatedAt,
+      });
+    }
 
     // Element categories and elements (create_element_category / create_element).
     const categoryRepository = createElementCategoryRepository(projectId, tx);
@@ -321,7 +305,7 @@ async function writeOutline(input: WriteBookSampleInput, elementIds: ReadonlyMap
       await relationTypeRepository.create(type);
       await sync('entityRelationType', 'create', type.id, projectId, { ...type });
     }
-    for (const relation of RELATIONS) {
+    for (const relation of book.relations) {
       if (typeof relation.to === 'number') continue;
       await insertRelation(tx, sync, {
         projectId, id: newId(), now, type: relationTypes.get(relation.type)!,
@@ -354,9 +338,9 @@ async function writeOutline(input: WriteBookSampleInput, elementIds: ReadonlyMap
       ),
     });
 
-    // The three volumes as acts: each boundary sits just before its first chapter.
+    // The volumes as acts: each boundary sits just before its first chapter.
     const actRepository = createBookActRepository(projectId, tx);
-    for (const volume of VOLUMES) {
+    for (const volume of book.volumes) {
       const act: BookAct = {
         id: newId(), projectId, name: volume.name, color: null,
         startOrder: chapterOrder(volume.firstChapter) - CHAPTER_STRIDE / 2, driftNodeId: null, createdAt: now, updatedAt: now,
@@ -370,7 +354,7 @@ async function writeOutline(input: WriteBookSampleInput, elementIds: ReadonlyMap
 
     // Pins on the narrative timeline, which shares the chapters' coordinates.
     const markerRepository = createTimelineMarkerRepository(projectId, tx);
-    for (const pin of TIMELINE_PINS) {
+    for (const pin of book.timelinePins) {
       const marker: TimelineMarker = {
         id: newId(), projectId, narrativeOrder: chapterOrder(pin.beforeChapter) - CHAPTER_STRIDE / 2,
         label: pin.label, driftNodeId: null, createdAt: now, updatedAt: now,
@@ -425,10 +409,10 @@ async function insertRelation(
  * chain, so later chapters are prepared while earlier transactions wait on the
  * database.
  */
-function prepareChapters(newId: () => string, linker: EntityLinker): Promise<PreparedChapter>[] {
+function prepareChapters(book: SampleBook, newId: () => string, linker: EntityLinker): Promise<PreparedChapter>[] {
   const preparations: Promise<PreparedChapter>[] = [];
   let previous: Promise<unknown> = Promise.resolve();
-  for (const chapter of BOOK_CHAPTERS) {
+  for (const chapter of book.chapters) {
     const next = previous.then(() => prepareChapter(chapter, newId, linker));
     next.catch(() => undefined);
     preparations.push(next);
@@ -437,9 +421,10 @@ function prepareChapters(newId: () => string, linker: EntityLinker): Promise<Pre
   return preparations;
 }
 
-/** All 61 chapters with their storylines, in change-sets of bounded Yjs size. */
+/** Every chapter with its storylines, in change-sets of bounded Yjs size. */
 async function writeChapters(
   input: WriteBookSampleInput,
+  book: SampleBook,
   outline: WrittenOutline,
   preparations: readonly Promise<PreparedChapter>[],
 ): Promise<Map<number, PreparedChapter>> {
@@ -450,10 +435,10 @@ async function writeChapters(
     await input.runAtomic(projectId, async (tx, sync, changes) => {
       for (const prepared of batch) {
         const { number } = prepared.chapter;
-        const plan = CHAPTER_PLANS[number - 1];
+        const plan = book.chapterPlans[number - 1];
         await createNodeInTransaction(tx, sync, changes, {
           node: {
-            id: prepared.id, projectId, kind: 'chapter', title: chapterTitle(number), summary: plan.summary,
+            id: prepared.id, projectId, kind: 'chapter', title: book.chapterTitle(number), summary: plan.summary,
             bookOrder: chapterOrder(number), narrativeOrder: chapterOrder(number), driftGroupId: null,
             position: { x: 0, y: 0 }, writingStatus: 'draft', wordCount: prepared.wordCount,
             wordCountBasisKind: 'yjs', wordCountBasisHash: prepared.basisHash, wordCountBasisRevision: 1,
@@ -464,7 +449,7 @@ async function writeChapters(
       }
       await writeMembershipsInTransaction(tx, changes, projectId, batch.map((prepared) => ({
         nodeId: prepared.id,
-        storylineIds: CHAPTER_PLANS[prepared.chapter.number - 1].storylines.map((key) => outline.storylineIds.get(key)!),
+        storylineIds: book.chapterPlans[prepared.chapter.number - 1].storylines.map((key) => outline.storylineIds.get(key)!),
       })));
     });
     for (const prepared of batch) written.set(prepared.chapter.number, prepared);
@@ -486,7 +471,12 @@ async function writeChapters(
 }
 
 /** Review work on the text: relations to chapters, comments, patches, a finished chapter, a plot grid. */
-async function writeReview(input: WriteBookSampleInput, outline: WrittenOutline, chapters: Map<number, PreparedChapter>): Promise<void> {
+async function writeReview(
+  input: WriteBookSampleInput,
+  book: SampleBook,
+  outline: WrittenOutline,
+  chapters: Map<number, PreparedChapter>,
+): Promise<void> {
   const { projectId, newId, userId } = input;
   const now = input.now();
   const chapter = (number: number) => {
@@ -494,9 +484,12 @@ async function writeReview(input: WriteBookSampleInput, outline: WrittenOutline,
     if (!prepared) throw new Error(`Sample chapter ${number} was not written`);
     return prepared;
   };
+  const reviewed = book.relations.some((relation) => typeof relation.to === 'number') || book.comments.length
+    || book.elementPatches.length || book.finishedChapters.length || book.plotGrid;
+  if (!reviewed) return;
   await input.runAtomic(projectId, async (tx, sync, changes) => {
     const inline: BookNodeAtomicTransactionRunner = (_projectId, work) => work(tx, sync, changes);
-    for (const relation of RELATIONS) {
+    for (const relation of book.relations) {
       if (typeof relation.to !== 'number') continue;
       await insertRelation(tx, sync, {
         projectId, id: newId(), now, type: outline.relationTypes.get(relation.type)!,
@@ -506,7 +499,7 @@ async function writeReview(input: WriteBookSampleInput, outline: WrittenOutline,
 
     // Comments and TODOs, anchored to a selection as the editor records it.
     const commentRepository = createCommentRepository(projectId, tx);
-    for (const item of COMMENTS) {
+    for (const item of book.comments) {
       let target: Pick<Comment, 'targetKind' | 'targetId' | 'targetBlockId' | 'anchorJson' | 'targetBlockIdsJson'>;
       if (item.chapter !== undefined) {
         const prepared = chapter(item.chapter);
@@ -540,7 +533,7 @@ async function writeReview(input: WriteBookSampleInput, outline: WrittenOutline,
     }
 
     // Element patches anchored to the passage that changes the element.
-    for (const patch of ELEMENT_PATCHES) {
+    for (const patch of book.elementPatches) {
       const prepared = chapter(patch.chapter);
       const anchor = anchorQuotation(prepared.document, patch.quotation);
       await createElementPatchWithSync({
@@ -552,27 +545,32 @@ async function writeReview(input: WriteBookSampleInput, outline: WrittenOutline,
     }
 
     // The writing status the chapter-end menu sets.
-    const finished = chapter(FINISHED_CHAPTER);
-    const updated = await createBookNodeSqliteRepository(projectId, tx).update(finished.id, { writingStatus: 'finished', updatedAt: now });
-    if (!updated) throw new Error('The finished sample chapter disappeared');
-    await sync('node', 'update', finished.id, projectId, { writingStatus: 'finished' });
+    const nodes = createBookNodeSqliteRepository(projectId, tx);
+    for (const number of book.finishedChapters) {
+      const finished = chapter(number);
+      const updated = await nodes.update(finished.id, { writingStatus: 'finished', updatedAt: now });
+      if (!updated) throw new Error('A finished sample chapter disappeared');
+      await sync('node', 'update', finished.id, projectId, { writingStatus: 'finished' });
+    }
 
-    // A plot grid for the Netherfield ball.
-    const columns = PLOT_GRID.columns.map((label) => ({ id: newId(), label }));
-    const rows = PLOT_GRID.rows.map((row) => ({ id: newId(), label: row.label }));
+    // A plot grid for one crowded chapter.
+    const plotGrid = book.plotGrid;
+    if (!plotGrid) return;
+    const columns = plotGrid.columns.map((label) => ({ id: newId(), label }));
+    const rows = plotGrid.rows.map((row) => ({ id: newId(), label: row.label }));
     const cells: Record<string, string> = {};
-    PLOT_GRID.rows.forEach((row, rowIndex) => row.cells.forEach((value, columnIndex) => {
+    plotGrid.rows.forEach((row, rowIndex) => row.cells.forEach((value, columnIndex) => {
       if (value) cells[`${rows[rowIndex].id}:${columns[columnIndex].id}`] = value;
     }));
     const grid: PlotGrid = { rows, cols: columns, cells, cellW: DEFAULT_CELL_W, cellH: DEFAULT_CELL_H };
     await applyPlotGridMutationsInTransaction(tx, changes, {
-      projectId, nodeId: chapter(PLOT_GRID.chapter).id, mutations: diffPlotGrid(null, grid),
+      projectId, nodeId: chapter(plotGrid.chapter).id, mutations: diffPlotGrid(null, grid),
     });
   });
 }
 
-/** Material notes, the illustration folder and its images, and two element portraits. */
-async function writeMaterials(input: WriteBookSampleInput, outline: WrittenOutline): Promise<void> {
+/** Material notes, the illustration folder and its images, and the element portraits. */
+async function writeMaterials(input: WriteBookSampleInput, book: SampleBook, outline: WrittenOutline): Promise<void> {
   const { projectId, newId } = input;
   const assets = await input.assets;
   const now = input.now();
@@ -581,8 +579,11 @@ async function writeMaterials(input: WriteBookSampleInput, outline: WrittenOutli
     if (!imported) throw new Error(`Sample illustration ${illustration.name} was not imported`);
     return imported.asset;
   };
-  const folder: MaterialFolder = { id: newId(), projectId, name: ILLUSTRATION_FOLDER, parentFolderId: null, createdAt: now, updatedAt: now };
-  const items: LibraryItem[] = MATERIAL_NOTES.map((note, index) => {
+  const materials = book.illustrations.filter((illustration) => illustration.use === 'material');
+  const folder: MaterialFolder | null = materials.length && book.illustrationFolder
+    ? { id: newId(), projectId, name: book.illustrationFolder, parentFolderId: null, createdAt: now, updatedAt: now }
+    : null;
+  const items: LibraryItem[] = book.materialNotes.map((note, index) => {
     const blockIds = newId();
     let counter = 0;
     const content = parseNoteMarkdown(note.markdown, { nextId: () => `${blockIds}-${++counter}`, embedId: () => null });
@@ -592,26 +593,28 @@ async function writeMaterials(input: WriteBookSampleInput, outline: WrittenOutli
       folderId: null, taskTodos: true, createdAt: now, updatedAt: now,
     };
   });
-  const materials = BOOK_ILLUSTRATIONS.filter((illustration) => illustration.use === 'material');
   for (const illustration of materials) {
     items.push({
       id: newId(), projectId, title: illustration.title, kind: 'image', assetId: asset(illustration).id,
       externalUrl: null, previewImageUrl: null, bodyJson: null,
-      notesJson: createPlainCommentDoc(ILLUSTRATION_NOTES[illustration.name] ?? ''), provenanceJson: null,
-      orderKey: items.length, folderId: folder.id, taskTodos: true, createdAt: now, updatedAt: now,
+      notesJson: createPlainCommentDoc(book.illustrationNotes[illustration.name] ?? ''), provenanceJson: null,
+      orderKey: items.length, folderId: folder?.id ?? null, taskTodos: true, createdAt: now, updatedAt: now,
     });
   }
-  const portraits = ELEMENTS.filter((element) => element.portrait).map((element) => {
-    const illustration = BOOK_ILLUSTRATIONS.find((entry) => entry.name === element.portrait && entry.use === 'portrait');
+  const portraits = book.elements.filter((element) => element.portrait).map((element) => {
+    const illustration = book.illustrations.find((entry) => entry.name === element.portrait && entry.use === 'portrait');
     if (!illustration) throw new Error(`Sample portrait ${element.portrait} is not bundled`);
     return { elementId: outline.elementIds.get(element.key)!, asset: asset(illustration) };
   });
+  if (!items.length && !portraits.length) return;
 
   await input.runAtomic(projectId, async (tx, sync, changes) => {
-    await createMaterialFolderRepository(projectId, tx).create(folder);
-    await sync('materialFolder', 'create', folder.id, projectId, {
-      id: folder.id, name: folder.name, parentFolderId: folder.parentFolderId, createdAt: folder.createdAt, updatedAt: folder.updatedAt,
-    });
+    if (folder) {
+      await createMaterialFolderRepository(projectId, tx).create(folder);
+      await sync('materialFolder', 'create', folder.id, projectId, {
+        id: folder.id, name: folder.name, parentFolderId: folder.parentFolderId, createdAt: folder.createdAt, updatedAt: folder.updatedAt,
+      });
+    }
     const assetRepository = createProjectAssetSqliteRepository(projectId, tx);
     const itemRepository = createLibraryItemSqliteRepository(projectId, tx);
     for (const item of items) {
@@ -647,16 +650,17 @@ export async function writeBookSample(input: WriteBookSampleInput): Promise<void
     input.onStep?.(step, performance.now() - started);
     return result;
   };
+  const book = input.book ?? PRIDE_AND_PREJUDICE;
   const started = performance.now();
   // Element ids come first: the chapters link the names that point at them.
-  const elementIds = new Map(ELEMENTS.map((element) => [element.key, input.newId()]));
-  const linker = createEntityLinker(new Map(LINK_FORMS.map(({ form, element }) =>
-    [form, element === null ? null : elementIds.get(element)!])));
-  const preparations = prepareChapters(input.newId, linker);
+  const elementIds = new Map(book.elements.map((element) => [element.key, input.newId()]));
+  const linker = createEntityLinker(new Map(book.linkForms.map(({ form, element }) =>
+    [form, element === null ? null : elementIds.get(element)!])), book.linkBoundaries);
+  const preparations = prepareChapters(book, input.newId, linker);
   void Promise.all(preparations).then(() => input.onStep?.('chaptersPreparedAt', performance.now() - started), () => undefined);
   void input.assets.then(() => input.onStep?.('assetsReadyAt', performance.now() - started), () => undefined);
-  const outline = await time('outline', () => writeOutline(input, elementIds));
-  const chapters = await time('chapters', () => writeChapters(input, outline, preparations));
-  await time('review', () => writeReview(input, outline, chapters));
-  await time('materials', () => writeMaterials(input, outline));
+  const outline = await time('outline', () => writeOutline(input, book, elementIds));
+  const chapters = await time('chapters', () => writeChapters(input, book, outline, preparations));
+  await time('review', () => writeReview(input, book, outline, chapters));
+  await time('materials', () => writeMaterials(input, book, outline));
 }

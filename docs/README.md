@@ -87,6 +87,7 @@ truth.
 - [Database read/write performance](database-read-write-performance.md) and
   [Rust reuse](rust-reuse-performance.md)
 - [Releasing](releasing.md): GitHub Releases, signing and updates
+- [Release screenshots](release-screenshots.md): the shelf, workspace and element overview in both languages and themes, from synthetic data
 - [Platform limitations](../src-tauri/UNSUPPORTED.md)
 - Mobile (paused):
   [mobile UI foundation](mobile-ui-foundation.md),

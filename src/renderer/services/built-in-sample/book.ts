@@ -56,13 +56,19 @@ export type EntityLinker = (text: string) => { text: string; elementId: string |
 
 /**
  * A linker for the given forms (form → element id, or null for a form that
- * stays unlinked): whole words, case-sensitive, longest form first.
+ * stays unlinked): case-sensitive, longest form first, and whole words unless
+ * `boundaries` is `none` (Han text has no spaces to find a word by).
  */
-export function createEntityLinker(forms: ReadonlyMap<string, string | null>): EntityLinker {
+export function createEntityLinker(
+  forms: ReadonlyMap<string, string | null>,
+  boundaries: 'word' | 'none' = 'word',
+): EntityLinker {
   const escaped = [...forms.keys()]
     .sort((left, right) => right.length - left.length)
     .map((form) => form.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-  const pattern = new RegExp(`\\b(?:${escaped.join('|')})\\b`, 'g');
+  if (!escaped.length) return (text) => [{ text, elementId: null }];
+  const edge = boundaries === 'word' ? '\\b' : '';
+  const pattern = new RegExp(`${edge}(?:${escaped.join('|')})${edge}`, 'g');
   return (text) => {
     const runs: { text: string; elementId: string | null }[] = [];
     let last = 0;
