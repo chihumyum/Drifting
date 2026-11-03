@@ -480,6 +480,16 @@ describe('floating layers, dialogs and the controls inside them', () => {
     expect(rule(controls, "html:not([data-shell-mode='mobile']) .user-menu__name {")).toContain(
       'font-style: normal;',
     );
+    // The theme slider and the language select stay within a menu row's
+    // height (30px less 5px padding each side, 2px into it), so every row
+    // of the menu is one height.
+    const tail = rule(
+      controls,
+      "html:not([data-shell-mode='mobile']) .user-menu__item--static > :is(.glass-slider, .ui-select) {",
+    );
+    expect(tail).toContain('height: calc(24px + var(--ui-text-increment, 0px));');
+    expect(tail).toContain('min-height: 0;');
+    expect(tail).toContain('margin-block: -2px;');
   });
 
   it('makes the shared Button glass on the desktop and draws danger in its own red line', () => {
