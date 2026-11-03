@@ -2045,6 +2045,17 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
     (element: BookElement) => (element.categoryId ? categoryColorById.get(element.categoryId) : undefined) ?? undefined,
     [categoryColorById],
   );
+  // From far away the 关系 layout keeps a dozen names, the most mentioned.
+  const relateMajorIds = useMemo(() => {
+    if (!relateShown || !mentionGraph) return new Set<string>();
+    return new Set([...mentionGraph.elements]
+      .filter(([id, entry]) => entry.mentions > 0 && presentElementIds.has(id))
+      .sort((a, b) => b[1].mentions - a[1].mentions)
+      .slice(0, 12)
+      .map(([id]) => id));
+  }, [relateShown, mentionGraph, presentElementIds]);
+  // Names and role names read from far away at the size they have up close.
+  const relateFarScale = lod === 'far' ? Math.min(2.4, ISLES_LOD_ZOOM.mid / zoom) : 1;
   const relateSelectedEdges = useMemo(() => {
     const ids = new Set(focusConnected?.edgeIds ?? []);
     if (selectedEdgeId) ids.add(selectedEdgeId);
@@ -2272,7 +2283,8 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
           cursor: 'grab',
           touchAction: 'none',
           userSelect: 'none',
-        }}
+          ...(relateShown ? { '--se-far-scale': relateFarScale.toFixed(3) } : null),
+        } as React.CSSProperties}
       >
         {/* World transform — pan + zoom about origin. The transform string
             is written directly via ref by pan/zoom handlers; React state
@@ -2387,7 +2399,7 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
               fallback={isleStarts}
               edges={relateEdges}
               roleLabels={lod === 'far' || relateCrowded ? 'active' : 'all'}
-              labelScale={lod === 'far' ? Math.min(2.4, ISLES_LOD_ZOOM.mid / zoom) : 1}
+              labelScale={relateFarScale}
               activeElementId={relateDragging ?? activeIsleElement}
               selectedEdgeIds={relateSelectedEdges}
               receding={isolated && isleFocus ? 'hide' : isleFocus !== null ? 'recede' : 'none'}
@@ -2399,6 +2411,7 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
               linkSourceElementId={linkSource?.kind === 'element' ? linkSource.id : null}
               draggingElementId={relateDragging}
               pinnedElementIds={relatePinnedIds}
+              majorElementIds={relateMajorIds}
               elementCardRefs={elementCardRefs}
               edgeWidths={edgeWidths}
               onElementClick={handleElementClick}

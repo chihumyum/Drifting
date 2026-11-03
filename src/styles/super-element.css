@@ -508,6 +508,13 @@ html:not([data-shell-mode='mobile']) .se-band__name.sand-cell {
   will-change: transform;
 }
 
+/* From far, 关系 keeps the names of the most-mentioned elements and of the
+   one in focus with its neighbours, drawn large enough to read. */
+.super-view-body[data-se-lod='far'] .se-card--free:is(.is-major, .is-selected, .is-on, .is-held) .se-card__name {
+  display: inline;
+  font-size: calc(12px * var(--se-far-scale, 1));
+}
+
 .se-card.sand-cell.se-card--free.is-dragged {
   z-index: 3;
   cursor: grabbing;

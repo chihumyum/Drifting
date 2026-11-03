@@ -45,6 +45,8 @@ export interface SuperElementRelateLayerProps {
   linkSourceElementId: string | null;
   draggingElementId: string | null;
   pinnedElementIds: ReadonlySet<string>;
+  /** The most-mentioned elements: from far away they keep their names. */
+  majorElementIds: ReadonlySet<string>;
   elementCardRefs?: MutableRefObject<Map<string, HTMLDivElement>>;
   edgeWidths: { normal: number; selected: number };
   onElementClick: (element: BookElement, anchor: DOMRect, opts: { shiftKey: boolean }) => void;
@@ -68,7 +70,7 @@ interface EdgeNodes {
 const RelateLayer = forwardRef<SuperElementRelateLayerHandle, SuperElementRelateLayerProps>(function RelateLayer({
   elements, colorOf, live, fallback, edges, roleLabels, labelScale, activeElementId, selectedEdgeIds, receding,
   focusedElementId, connectedElementIds, dimmedElementIds, hiddenElementIds, markWeights,
-  linkSourceElementId, draggingElementId, pinnedElementIds, elementCardRefs, edgeWidths,
+  linkSourceElementId, draggingElementId, pinnedElementIds, majorElementIds, elementCardRefs, edgeWidths,
   onElementClick, onElementPreviewEnter, onPreviewLeave, selectEdge,
 }, ref) {
   const cells = useRef(new Map<string, HTMLDivElement>());
@@ -205,6 +207,7 @@ const RelateLayer = forwardRef<SuperElementRelateLayerHandle, SuperElementRelate
               hiddenElementIds?.has(element.id) ? 'is-gone' : '',
               draggingElementId === element.id ? 'is-dragged' : '',
               pinnedElementIds.has(element.id) ? 'is-pinned' : '',
+              majorElementIds.has(element.id) ? 'is-major' : '',
             ].filter(Boolean).join(' ')}
             style={weight !== undefined ? ({ '--se-weight': weight.toFixed(3) } as CSSProperties) : undefined}
             onClick={(event) => {

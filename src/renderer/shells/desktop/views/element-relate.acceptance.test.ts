@@ -52,6 +52,7 @@ function layer(props: Record<string, unknown> = {}) {
     linkSourceElementId: null,
     draggingElementId: null,
     pinnedElementIds: new Set(['lin']),
+    majorElementIds: new Set(['cap']),
     edgeWidths: { normal: 1.5, selected: 2.2 },
     onElementClick: noop,
     selectEdge: noop,
@@ -65,6 +66,7 @@ describe('the element overview’s 关系 layout', () => {
     expect(html.match(/class="sand-cell se-card se-card--free[^"]*"/g)).toHaveLength(3);
     expect(html).toMatch(/data-element-id="lin"[^>]*>|class="sand-cell se-card se-card--free is-pinned"/);
     expect(html).toContain('is-pinned');
+    expect(html).toContain('se-card--free is-major');
     expect(html.match(/data-super-edge="true"/g)).toHaveLength(2);
     // A directed relation names both ends, a symmetric one its shared role once.
     expect(html).toContain('<text>师父</text>');
