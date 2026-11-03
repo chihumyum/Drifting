@@ -85,8 +85,10 @@ domain + journal transaction back.
   (canonical reducer-state pages, as verified). The history it covers need not
   exist locally; journal truncation deletes it below a recorded floor
   ([phase 7](phase7-log-compaction.md#local-truncation)). A base that does not
-  match its SyncGeneration or the current profile fails closed instead of being
-  dropped. Deleting receipts lowers the receipt count that keys the cache, so
+  match its SyncGeneration, or whose profile does not
+  [resume](phase2-checkpoint-restore.md) under the current one, fails closed
+  instead of being dropped. A base installed before this build learned a new
+  target kind still resumes. Deleting receipts lowers the receipt count that keys the cache, so
   truncation invalidates the cache in each deleting transaction.
 - A rebuild starts from the first usable source: a snapshot whose explicit
   receipts are applied and whose coverage above the base floor matches SQLite's

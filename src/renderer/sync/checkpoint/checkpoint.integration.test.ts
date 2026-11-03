@@ -1264,6 +1264,55 @@ describe('provider-neutral checkpoint capture and isolated restore', () => {
     ]);
   });
 
+  it('restores and writes on a reducer base an older client captured before it knew a target kind', async () => {
+    const source = await database('older-profile-source');
+    await seedSource(source);
+    await appendTitleWrites(source, ['Draft 2', 'Draft 3'], 2);
+    // A client from before writing days produced this base; its profile simply lacks the kind.
+    const captured = await resealReducer(await capture(source), (reducer) => {
+      expect(reducer.header.profile.knownTargetKinds).toContain('writing-day');
+      return {
+        ...reducer,
+        header: {
+          ...reducer.header,
+          profile: {
+            ...reducer.header.profile,
+            knownTargetKinds: reducer.header.profile.knownTargetKinds.filter((kind) => kind !== 'writing-day'),
+          },
+        },
+      };
+    });
+
+    const target = await database('older-profile-target');
+    await stagedTarget(target);
+    await restore(target, captured);
+    expect(await target.select().from(SyncReducerBaseTable)).toMatchObject([{ syncGenerationId: SYNC_GENERATION_ID }]);
+
+    const changes = new SyncChangeBuilder();
+    changes.add({
+      target: { family: 'entity', kind: 'node', id: 'node-snapshot', incarnation: 0 },
+      action: 'field.set',
+      payload: { field: 'title', value: 'First write on an older base' },
+    });
+    await target.transaction(async (tx) => {
+      await tx.update(BookNodeTable)
+        .set({ title: 'First write on an older base', updatedAt: NOW })
+        .where(eq(BookNodeTable.id, 'node-snapshot'));
+      const clock = { nowMs: RESTORE_DEVICE_WALL_MS, nowIso: new Date(RESTORE_DEVICE_WALL_MS).toISOString() };
+      const recorded = await recordAuthoredChangeSetInTransaction(tx, {
+        ...REDUCER_IDENTITY,
+        identity: restoredWriterIdentity(),
+        clock,
+      }, changes);
+      await observeLocalAuthoredReducerInTransaction(tx, { changeSet: recorded.changeSet, clock });
+    });
+    const afterWrite = await rebuiltReducerSnapshot(target);
+    expect(afterWrite.load).toMatchObject({ source: 'base', replayedChangeSets: 1 });
+    expect(
+      await target.select({ title: BookNodeTable.title }).from(BookNodeTable).where(eq(BookNodeTable.id, 'node-snapshot')),
+    ).toEqual([{ title: 'First write on an older base' }]);
+  });
+
   it('still restores a frozen payload v1 package with its complete journal', async () => {
     const source = await database('v1-source');
     await seedSource(source);
@@ -1304,11 +1353,21 @@ describe('provider-neutral checkpoint capture and isolated restore', () => {
         },
       };
     }, 'reference-invalid', /register references a missing source mutation/u],
-    ['a different reducer profile', (reducer) => ({
+    ['a target kind this client does not know', (reducer) => ({
       ...reducer,
       header: {
         ...reducer.header,
-        profile: { ...reducer.header.profile, knownTargetKinds: reducer.header.profile.knownTargetKinds.slice(1) },
+        profile: { ...reducer.header.profile, knownTargetKinds: [...reducer.header.profile.knownTargetKinds, 'zz-future-kind'] },
+      },
+    }), 'schema-mismatch', /different reducer profile/u],
+    ['different externally materialized actions', (reducer) => ({
+      ...reducer,
+      header: {
+        ...reducer.header,
+        profile: {
+          ...reducer.header.profile,
+          externallyMaterializedActions: reducer.header.profile.externallyMaterializedActions.slice(1),
+        },
       },
     }), 'schema-mismatch', /different reducer profile/u],
     ['a foreign reducer identity', (reducer) => ({

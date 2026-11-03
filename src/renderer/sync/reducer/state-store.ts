@@ -129,6 +129,25 @@ export function persistentReducerProfileKey(profile: ReducerProfile): string | n
   return profile.validateProjection ? null : reducerProfileDescriptionKey(describeReducerProfile(profile));
 }
 
+/**
+ * Whether state persisted under `stored` can be resumed under `current`. A
+ * client that learns a new target kind still resumes state an older one
+ * produced: that profile rejected every mutation of a kind it did not
+ * classify, so the state holds none of them. Anything else must match exactly.
+ */
+export function reducerProfileResumes(
+  stored: ReducerStateProfileV2,
+  current: ReducerProfile,
+): boolean {
+  if (current.validateProjection) return false;
+  const actions = new Set<string>(current.externallyMaterializedActions ?? []);
+  return (
+    stored.knownTargetKinds.every((kind) => current.knownTargetKinds.has(kind)) &&
+    stored.externallyMaterializedActions.length === actions.size &&
+    stored.externallyMaterializedActions.every((action) => actions.has(action))
+  );
+}
+
 /** Checkpoint activation/database reset must invalidate the affected SyncGeneration. */
 export function invalidateSqliteReducerStateCache(syncGenerationId?: string): void {
   if (syncGenerationId === undefined) {
@@ -430,7 +449,7 @@ async function rebuildReducerState(
     const profileKey = persistentReducerProfileKey(profile);
     const tables = await reducerStateTables(tx);
     const base = await readSqliteReducerBaseInTransaction(tx, identity);
-    if (base && reducerProfileDescriptionKey(base.header.profile) !== profileKey) {
+    if (base && !reducerProfileResumes(base.header.profile, profile)) {
       throw new Error('this SyncGeneration was restored under a different reducer profile');
     }
     const floor = base?.state.coverage ?? new Map<string, number>();

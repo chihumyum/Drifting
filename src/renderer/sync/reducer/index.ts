@@ -9,6 +9,7 @@ export {
   persistentReducerProfileKey,
   readSqliteReducerBaseInTransaction,
   reducerProfileDescriptionKey,
+  reducerProfileResumes,
   type SqliteReducerBase,
 } from './state-store';
 export * from './types';
