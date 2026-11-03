@@ -1488,6 +1488,17 @@ entry (`.workspace-super-view-entry`, preloading `graph`); the preload scenarios
 hover, focus and click that entry. The fixture also loads `materials.css` as
 `main.tsx` does: without it round glass has no size and the entry measured 0×0.
 
+`acceptance/f7-graphs-deferred.json` is regenerated from clean `dd279779`: 94
+focused tests, both shells' fail-and-retry, continuity and Back sequences, and
+development loading pass, and no graph module is evaluated or parsed at
+startup. The shared UI/story/element entries are 31,801 / 36,768 / 112,160
+bytes; initial static JS is 2,740,522 bytes, which reflects everything since
+September rather than this repair. `pnpm perf:renderer:preload` passes its first
+four scenarios against the new entry, but `foreground-bypasses-preload` fails
+its settings check (`demandBypassedOtherPreload`, which watches
+`settings-panels` requests), so `acceptance/f7-intent-preloading.json` is not
+regenerated here.
+
 
 ## F7d — Bounded entry-intent preloading
 
