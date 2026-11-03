@@ -910,7 +910,7 @@
     "allChapters": "通览全书",
     "elements": "要素全景",
     "storyGraph": "故事图谱",
-    "todoLibrary": "TODO 与素材库",
+    "todoLibrary": "审阅与素材",
     "timeline": "时间线",
     "expandTimeline": "展开 Storyline Timeline",
     "collapseTimeline": "收起 Storyline Timeline",
@@ -1663,7 +1663,7 @@
       "create": "创建"
     },
     "super": {
-      "title": "TODO & 素材库",
+      "title": "审阅与素材",
       "meta": "{{todos}} TODO · {{comments}} 批注 · {{materials}} 素材",
       "material": "素材",
       "comments": "批注",
@@ -2194,9 +2194,10 @@
   },
   "rightSidebar": {
     "tabs": {
-      "review": "Review",
+      "review": "审阅",
       "library": "素材库",
-      "stats": "统计"
+      "stats": "统计",
+      "companion": "帮手"
     },
     "top": {
       "open": "展开右侧栏",
@@ -2221,7 +2222,7 @@
       "storylineContent": "本故事线 · 片段与材料",
       "elementContent": "本要素 · 片段与材料",
       "categoryContent": "本类目 · 片段与材料",
-      "review": "全项目 · Review",
+      "review": "全项目 · 审阅",
       "todo": "全项目 · TODO",
       "library": "全项目 · 素材库",
       "stats": {
@@ -2620,7 +2621,7 @@
     }
   },
   "reviewPanel": {
-    "title": "Review",
+    "title": "审阅",
     "type": "类型筛选",
     "scope": "范围筛选",
     "comment": "批注",
@@ -2640,7 +2641,7 @@
       "current": "当前",
       "project": "项目"
     },
-    "empty": "此范围内没有 Review 项目。",
+    "empty": "此范围内没有审阅项目。",
     "resolved": "已解决（{{count}}）",
     "newComment": "新建批注",
     "agentTaskStart": "让 Agent 处理",

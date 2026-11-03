@@ -422,7 +422,7 @@ describe('Super View sand and glass acceptance', () => {
 
   it('documents the Chip and the Super Views and closes the open gap', () => {
     const docs = designSystemDocs();
-    for (const heading of ['## Chip', '## Super View 头部', '## 关系类型菜单', '## 故事图谱', '## 卡片弹层', '## TODO 与素材库', '## 要素全景']) {
+    for (const heading of ['## Chip', '## Super View 头部', '## 关系类型菜单', '## 故事图谱', '## 卡片弹层', '## 审阅与素材', '## 要素全景']) {
       expect(docs).toContain(heading);
     }
     expect(docs).toContain('`FilterChip look="glass"`');

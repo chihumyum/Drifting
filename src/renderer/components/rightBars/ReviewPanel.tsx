@@ -51,6 +51,9 @@ type ComposeKind = 'note' | 'todo';
 interface ReviewPanelProps {
   focused: FocusedEntity;
   onOpenAgentTask?: () => string | void;
+  /** Opens the project-wide Review & Materials view (desktop), whose TODO and
+   *  comment rails hold what this panel lists. */
+  onOpenWorkbench?: () => void;
 }
 
 /** Targets whose editor shows a margin comment rail: the prose editors and
@@ -64,7 +67,7 @@ function canOwnEditorRail(kind: string | null, id: string | null): kind is Exclu
 
 const OPENABLE_GROUP_KINDS = new Set<CommentTargetKind>(['node', 'element', 'storyline', 'category', 'library_item']);
 
-export function ReviewPanel({ focused, onOpenAgentTask }: ReviewPanelProps) {
+export function ReviewPanel({ focused, onOpenAgentTask, onOpenWorkbench }: ReviewPanelProps) {
   const { t } = useTranslation();
   const emptyHints = useEmptyStateHints();
   const navigator = useWorkspaceNavigator();
@@ -386,6 +389,16 @@ export function ReviewPanel({ focused, onOpenAgentTask }: ReviewPanelProps) {
 
         <span className="review-panel__toolbar-spacer" />
         <div className="review-panel__create-actions">
+          {onOpenWorkbench && (
+            <GhostIconButton
+              glass="round"
+              className="workspace-super-view-entry"
+              title={t('bottomStatusBar.todoLibrary')}
+              aria-label={t('bottomStatusBar.todoLibrary')}
+              onClick={onOpenWorkbench}
+              icon={<BrushIcon name="lib-curio" />}
+            />
+          )}
           <GhostIconButton
             ref={sortButtonRef}
             className="review-panel__sort-button"

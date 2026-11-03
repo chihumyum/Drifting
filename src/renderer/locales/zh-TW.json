@@ -912,7 +912,7 @@
     "allChapters": "全書",
     "elements": "要素",
     "storyGraph": "故事圖譜",
-    "todoLibrary": "待辦與素材庫",
+    "todoLibrary": "審閱與素材",
     "timeline": "時間線",
     "expandTimeline": "展開故事線時間線",
     "collapseTimeline": "收合故事線時間線",
@@ -1665,7 +1665,7 @@
       "create": "建立"
     },
     "super": {
-      "title": "待辦與素材",
+      "title": "審閱與素材",
       "meta": "{{todos}} 項待辦 · {{comments}} 則註解 · {{materials}} 份素材",
       "material": "素材",
       "comments": "註解",
@@ -2203,7 +2203,8 @@
     "tabs": {
       "review": "審閱",
       "library": "素材庫",
-      "stats": "統計"
+      "stats": "統計",
+      "companion": "幫手"
     },
     "top": {
       "open": "開啟右側欄",
