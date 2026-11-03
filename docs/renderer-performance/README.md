@@ -1466,6 +1466,44 @@ tests, typecheck, lint (0 errors, 74 existing warnings), CI/public contracts,
 Agent capabilities and the configured production renderer build. The normal
 production JS excludes graph/settings fixture APIs and evaluation observers.
 
+### F7c repair (2026-11-03)
+
+By 2026-11-03 `pnpm perf:renderer:graphs` failed on `main` before its browser
+sequences ran. Later work had given two small source modules to two Super View
+entries each: the canvas hover-card hook (`canvas-hover-card.ts`, both bodies)
+and `super-element-metrics.ts` (the element body and the shared viewport edge
+layer). Rollup emitted each as its own chunk, imported statically from outside
+the startup closure and outside every retry key: the cold child the production
+guard above rejects. The hook now reaches both bodies through the shared entry
+(`graphUi.useCanvasHoverCard`); the sidebar choice helpers it used to re-export
+come straight from `hover-choices`, which the shell already loads. The element
+body keeps its metrics and hands `SuperElementViewportEdges` its stroke and hit
+widths. `renderer-boundaries.test.ts` now fails, without a build, when two Super
+View entries share a source module outside the shell. It caught a third case
+the same evening: both bodies imported the new lines legend
+(`SuperViewRelationLegend`). As desktop chrome it cannot join the shared entry
+(`features/` never imports the desktop shell), so `DeferredSuperViews` owns it
+and hands it to both bodies with `graphUi` and `driftPanel`; the renderer
+performance script's instrumentation anchors follow the new signatures.
+
+The synthetic fixture (`scripts/renderer-graphs-ui.tsx`) still mounted the
+removed `WorkspaceNavigationButtons`, so its build failed. Its preload mode now
+mounts the actual `DesktopBottomTimeline`, whose head carries the story graph
+entry (`.workspace-super-view-entry`, preloading `graph`); the preload scenarios
+hover, focus and click that entry. The fixture also loads `materials.css` as
+`main.tsx` does: without it round glass has no size and the entry measured 0×0.
+
+`acceptance/f7-graphs-deferred.json` is regenerated from clean `8bf0d10d`: 94
+focused tests, both shells' fail-and-retry, continuity and Back sequences, and
+development loading pass, and no graph module is evaluated or parsed at
+startup. The shared UI/story/element entries are 31,801 / 36,890 / 110,995
+bytes; initial static JS is 2,740,516 bytes, which reflects everything since
+September rather than this repair. `pnpm perf:renderer:preload` passes its first
+four scenarios against the new entry, but `foreground-bypasses-preload` fails
+its settings check (`demandBypassedOtherPreload`, which watches
+`settings-panels` requests), so `acceptance/f7-intent-preloading.json` is not
+regenerated here.
+
 
 ## F7d — Bounded entry-intent preloading
 

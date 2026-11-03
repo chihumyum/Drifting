@@ -4,8 +4,6 @@ import { relationArrowMarkerId, relationEdgePath } from '../../components/graph/
 import { projectSuperElementViewportEdges, sameSuperElementEdges,
   type GraphPoint, type SuperElementViewportInput, type SuperElementWorldEdge } from './super-element-edge-model';
 import { useMeasuredGraphEdges } from './useMeasuredGraphEdges';
-import { EDGE_HIT_WIDTH, SUPER_ELEMENT_EDGE_WIDTHS } from './super-element-metrics';
-import { getPlatformRuntime } from '../../platform/runtime';
 
 export type SuperElementViewportConfig = Omit<SuperElementViewportInput, 'pan' | 'zoom' | 'viewportWidth' | 'viewportHeight'>;
 interface SuperElementViewportEdgesProps {
@@ -21,10 +19,14 @@ interface SuperElementViewportEdgesProps {
   focusedEdgeIds?: ReadonlySet<string>;
   selectEdge(id: string, x: number, y: number): void;
   resolveRelationTypeLabel(id: string): string;
+  /** From the element view, which owns its metrics: importing them here too
+   *  would split them into a chunk outside every graph retry key. */
+  widths: { selected: number; normal: number };
+  hitWidth: number;
 }
 
 export function SuperElementViewportEdges({ edges, config, panRef, zoomRef, viewportRef, layerRef,
-  panningRef, revision, selectedEdgeId, focusedEdgeIds, selectEdge, resolveRelationTypeLabel,
+  panningRef, revision, selectedEdgeId, focusedEdgeIds, selectEdge, resolveRelationTypeLabel, widths, hitWidth,
 }: SuperElementViewportEdgesProps) {
   const measure = useCallback(() => {
     const viewport = viewportRef.current;
@@ -33,9 +35,6 @@ export function SuperElementViewportEdges({ edges, config, panRef, zoomRef, view
   }, [edges, config, panRef, zoomRef, viewportRef]);
   const geometry = useMeasuredGraphEdges({ measure, equals: sameSuperElementEdges, revision,
     animationWindowMs: 0, layerRef, panningRef, viewportRef, panEndEvent: 'super-element:pan-end' });
-  const widths = getPlatformRuntime().isMobileShell
-    ? SUPER_ELEMENT_EDGE_WIDTHS.mobile
-    : SUPER_ELEMENT_EDGE_WIDTHS.desktop;
   return (
     <svg
       ref={layerRef}
@@ -79,7 +78,7 @@ export function SuperElementViewportEdges({ edges, config, panRef, zoomRef, view
             <path
               d={d}
               stroke="transparent"
-              strokeWidth={EDGE_HIT_WIDTH}
+              strokeWidth={hitWidth}
               fill="none"
               style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
               onClick={(e) => {
