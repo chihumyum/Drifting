@@ -45,6 +45,9 @@ export function UserMenu({
   const accountSettingsEnabled = hostedAccountSettingsEnabled();
   // Share links belong to the signed-in Hosted account.
   const shareLinksEnabled = accountSettingsEnabled && canSignOut;
+  // Inside a book a Hosted build that is not signed in (it went on locally,
+  // or the session ended) offers sign-in too; signing out stays on the shelf.
+  const projectSignInShown = scope === 'project' && accountSettingsEnabled && !canSignOut;
   // Read the persisted mode (light/dark/system) — NOT the resolved ui-store
   // theme. The menu has to drive themeMode so that "跟随系统" actually
   // sticks; the resolver in App.tsx then writes back to ui-store.theme.
@@ -214,7 +217,7 @@ export function UserMenu({
         </MenuGroup>
 
         {scope === 'project' && (
-          <MenuGroup last>
+          <MenuGroup last={!projectSignInShown}>
             <>
               {shareLinksEnabled && (
                 <MenuItem
@@ -244,6 +247,16 @@ export function UserMenu({
                 }}
               />
             </>
+          </MenuGroup>
+        )}
+
+        {projectSignInShown && (
+          <MenuGroup last>
+            <MenuItem
+              icon={<BrushIcon name="gate-in" size={16} />}
+              label={t('settings.hosted.sign_in_sync')}
+              onClick={() => { onClose(); openSignIn(); }}
+            />
           </MenuGroup>
         )}
 

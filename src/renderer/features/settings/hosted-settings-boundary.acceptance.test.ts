@@ -119,6 +119,11 @@ describe('hosted settings boundary', () => {
     const workspace = read('src/renderer/shells/mobile/workspace/MobileRightSidebar.tsx');
     expect(menu).toContain("t('userMenu.localStatus')");
     expect(menu).toContain("scope === 'shelf' && accountSettingsEnabled &&");
+    // Inside a book a Hosted build not signed in offers sign-in; a local build never does.
+    expect(menu).toContain("const projectSignInShown = scope === 'project' && accountSettingsEnabled && !canSignOut;");
+    const projectSignIn = menu.slice(menu.indexOf('{projectSignInShown && ('));
+    expect(projectSignIn.slice(0, projectSignIn.indexOf('</MenuGroup>')))
+      .toMatch(/name="gate-in"[\s\S]*t\('settings\.hosted\.sign_in_sync'\)[\s\S]*openSignIn\(\)/);
     expect(menu).toContain("'userMenu.accountMenu' : 'userMenu.localMenu'");
     expect(shelf).toContain("'userMenu.accountMenu' : 'userMenu.localMenu'");
     expect(shelf).toContain('accountSettingsEnabled && user?.email');
