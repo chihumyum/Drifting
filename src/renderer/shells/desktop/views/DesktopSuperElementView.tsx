@@ -58,7 +58,6 @@ import { useBookElement } from '../../../usecase/useBookElement';
 import { useElementCategory } from '../../../usecase/useElementCategory';
 import { SuperElementLineThreshold } from '../components/SuperElementLineThreshold';
 import { SuperElementLayoutSwitch, SuperElementLinesRow } from '../components/SuperElementCanvasTools';
-import { SuperViewRelationLegend } from '../components/SuperViewRelationLegend';
 import { CategoryIsleDetail, CategoryIsleStrip, ElementIsleDetail, ElementIsleStrip } from '../components/ElementIsleDetail';
 import { SuperElementIsland } from '../components/SuperElementIsland';
 import { readIslandWidth } from '../components/super-element-island-width';
@@ -140,7 +139,7 @@ function buildCategoryRenderModel(
   });
 }
 
-export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps) {
+export function DesktopSuperElementView({ graphUi, driftPanel, SuperViewRelationLegend }: GraphViewProps) {
   const { DriftPanel, NodeCardPopover, RelationEdgePopover, RelationArrowMarker, relationArrowMarkerId, relationEdgePath, ElementCardPopover, SuperElementDriftEdges, SuperElementViewportEdges, buildSuperElementWorldEdges, useCanvasHoverCard } = graphUi;
   const { t } = useTranslation();
   const mobileShell = getPlatformRuntime().isMobileShell;

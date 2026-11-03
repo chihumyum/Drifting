@@ -44,7 +44,6 @@ import { chapterStorylineIds, useChapterStorylineToggle } from '../../../feature
 import type { RelationEdgePopoverAnchor } from '../../../components/graph/RelationEdgePopover';
 import type { GraphViewProps } from '../../../features/graph/graph-ui-components.types';
 import { DesktopSuperViewHeader } from '../components/DesktopSuperViewHeader';
-import { SuperViewRelationLegend } from '../components/SuperViewRelationLegend';
 import { SuperViewShell } from '../../../components/SuperViewShell';
 import { SegmentedControl } from '../../../components/ui/SegmentedControl';
 import { GlassSlider } from '../../../components/ui/GlassSlider';
@@ -99,7 +98,7 @@ function readPersistedView(): StoryGraphViewMode {
   return v === 'narrative' ? 'narrative' : 'book';
 }
 
-export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
+export function DesktopStoryGraphView({ graphUi, driftPanel, SuperViewRelationLegend }: GraphViewProps) {
   const { DriftPanel, NodeCardPopover, RelationEdgePopover, RelationArrowMarker, relationArrowMarkerId, relationEdgePath, StoryGraphDriftEdges, useCanvasHoverCard } = graphUi;
   const { t } = useTranslation();
   const mobileShell = getPlatformRuntime().isMobileShell;

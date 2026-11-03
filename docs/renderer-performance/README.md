@@ -1479,7 +1479,12 @@ guard above rejects. The hook now reaches both bodies through the shared entry
 come straight from `hover-choices`, which the shell already loads. The element
 body keeps its metrics and hands `SuperElementViewportEdges` its stroke and hit
 widths. `renderer-boundaries.test.ts` now fails, without a build, when two Super
-View entries share a source module outside the shell.
+View entries share a source module outside the shell. It caught a third case
+the same evening: both bodies imported the new lines legend
+(`SuperViewRelationLegend`). As desktop chrome it cannot join the shared entry
+(`features/` never imports the desktop shell), so `DeferredSuperViews` owns it
+and hands it to both bodies with `graphUi` and `driftPanel`; the renderer
+performance script's instrumentation anchors follow the new signatures.
 
 The synthetic fixture (`scripts/renderer-graphs-ui.tsx`) still mounted the
 removed `WorkspaceNavigationButtons`, so its build failed. Its preload mode now

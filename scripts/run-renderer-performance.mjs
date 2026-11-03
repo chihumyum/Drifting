@@ -64,9 +64,9 @@ try {
         }
         if (id.endsWith('/DesktopStoryGraphView.tsx') || id.endsWith('/DesktopSuperElementView.tsx')) {
           const anchors = id.endsWith('/DesktopStoryGraphView.tsx') ? [
-            ['export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {', 'graphDriftWork.storyShell++;'],
+            ['export function DesktopStoryGraphView({ graphUi, driftPanel, SuperViewRelationLegend }: GraphViewProps) {', 'graphDriftWork.storyShell++;'],
           ] : [
-            ['export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps) {', 'graphDriftWork.elementShell++;'],
+            ['export function DesktopSuperElementView({ graphUi, driftPanel, SuperViewRelationLegend }: GraphViewProps) {', 'graphDriftWork.elementShell++;'],
           ];
           for (const [anchor, counter] of anchors) {
             if (code.split(anchor).length !== 2) throw new Error(`Graph drift instrumentation drifted: ${anchor}`);

@@ -168,8 +168,11 @@ statically by both and covered by neither retry key. Code both bodies need
 therefore lives in the shared entry and reaches them through `graphUi` (the
 canvas hover-card hook, `useCanvasHoverCard`, is one), or has one owner: the
 element overview owns `super-element-metrics` and hands the shared viewport
-edge layer its stroke widths as props. `renderer-boundaries.test.ts` fails when
-a module two Super View entries share sits outside the shell.
+edge layer its stroke widths as props. Desktop chrome cannot sit in the shared
+entry, since `features/` never imports the desktop shell: the lines legend
+(`SuperViewRelationLegend`) belongs to the wrapper, which hands it to both
+bodies beside `graphUi` and `driftPanel`. `renderer-boundaries.test.ts` fails
+when a module two Super View entries share sits outside the shell.
 
 Closing or switching views unsubscribes that view without aborting a shared code
 request. A late result only fills the code cache and cannot reopen the old view.
