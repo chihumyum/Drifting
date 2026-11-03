@@ -1,3 +1,4 @@
+import { formatRelativeTime as relativeTime, formatCompactCount as shortWords } from '../../shared/locale-format';
 import {
   memo,
   useCallback,
@@ -49,28 +50,6 @@ type Floating = 'new' | 'agent' | null;
 
 /** Where a floating section rests above the foot of the page (dashboard.css). */
 const FLOAT_INSET = 26;
-
-function relativeTime(iso: string | number, locale: string): string {
-  const then = typeof iso === 'number' ? iso : new Date(iso).getTime();
-  const seconds = Math.max(0, Math.round((Date.now() - then) / 1000));
-  const zh = locale.startsWith('zh');
-  if (seconds < 60) return zh ? '刚刚' : 'just now';
-  const minutes = Math.round(seconds / 60);
-  if (minutes < 60) return zh ? `${minutes} 分钟前` : `${minutes} min ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return zh ? `${hours} 小时前` : `${hours} hr ago`;
-  const days = Math.round(hours / 24);
-  if (days < 30) return zh ? `${days} 天前` : `${days} days ago`;
-  return new Date(then).toLocaleDateString(locale);
-}
-
-/** 86,000 → 「8.6 万」 / 「86k」. */
-function shortWords(count: number, locale: string): string {
-  if (locale.startsWith('zh')) {
-    return count >= 10000 ? `${(count / 10000).toFixed(1).replace(/\.0$/, '')} 万` : count.toLocaleString(locale);
-  }
-  return count >= 1000 ? `${(count / 1000).toFixed(1).replace(/\.0$/, '')}k` : count.toLocaleString(locale);
-}
 
 /**
  * Project Home on the desktop: the page the stage shows when no tab is
@@ -489,7 +468,7 @@ function HomeWork() {
                 {[
                   continueStoryline?.name,
                   relativeTime(continueNode.updatedAt, i18n.language),
-                  continueWords != null ? t('dashboard.wordCount', { count: continueWords.toLocaleString() }) : null,
+                  continueWords != null ? t('dashboard.wordCount', { count: continueWords.toLocaleString(i18n.language) }) : null,
                 ]
                   .filter(Boolean)
                   .join(' · ')}

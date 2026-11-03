@@ -15,6 +15,18 @@ async function settings(persisted?: Record<string, unknown>, version = 35) {
 
 afterEach(() => vi.unstubAllGlobals());
 
+describe('interface language hydration', () => {
+  it.each([undefined, 'unsupported', null])('keeps the system choice when the saved locale is %s', async (uiLocale) => {
+    vi.stubGlobal('navigator', { languages: ['ko-KR'], language: 'ko-KR' });
+    expect((await settings({ uiLocale })).store.getState().uiLocale).toBe('ko');
+  });
+
+  it('normalizes a supported saved choice before overriding the system language', async () => {
+    vi.stubGlobal('navigator', { languages: ['ko-KR'], language: 'ko-KR' });
+    expect((await settings({ uiLocale: 'zh-Hant-HK' })).store.getState().uiLocale).toBe('zh-TW');
+  });
+});
+
 describe('entity link highlight preference', () => {
   it('preserves the existing combined treatment for fresh, old and malformed settings', async () => {
     for (const persisted of [undefined, { entityLinkColorMode: 'hover' }, { entityLinkHighlightMode: 'unknown' }, { entityLinkHighlightMode: null }]) {

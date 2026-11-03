@@ -6,7 +6,7 @@
  * the system's serif faces.
  */
 
-export type CharSeaScript = 'zh' | 'ja' | 'en' | 'ar';
+export type CharSeaScript = 'zh' | 'zh-TW' | 'ja' | 'ko' | 'en' | 'ar';
 
 export interface CharSeaLanguage {
   /** Canvas font stack for the glyph atlas. */
@@ -35,6 +35,16 @@ export const CHAR_SEA_LANGUAGES: Record<CharSeaScript, CharSeaLanguage> = {
       '守塔人说今晚不会有船。她没有回答，只是把窗推开一道缝，让海风翻动桌上的信纸。纸角卷起来，露出背面一行很淡的铅笔字，那是她自己的笔迹，可她不记得什么时候写过。' +
       '远处的雾笛响了两声，停了，又响了一声。她数着灯转过的圈数，数到第七圈的时候，海面上亮起一点很小的光，像有人在水底下划了一根火柴。' +
       '那光不往岸边来，也不往外走，只在原地一明一灭。她想起父亲说过，雾最浓的夜里，旧码头会自己记起从前的船。信封上的邮戳已经洇开了，只剩一个“北”字还看得清。',
+  },
+  'zh-TW': {
+    font: '"Songti TC", "Noto Serif CJK TC", serif',
+    loadFace: '"Songti TC"', cellWidth: 10, cellHeight: 10, size: 0.8, rtl: false,
+    text: '霧從港口那邊漫過來的時候，林嵐正把第三封信壓在燈座底下。燈塔的鐵梯被潮氣浸得發涼，她每往上走一級，腳下就響一聲，像有人在樓下跟著數。守塔人說今晚不會有船。她沒有回答，只是把窗推開一道縫，讓海風翻動桌上的信紙。紙角捲起來，露出背面一行很淡的鉛筆字，那是她自己的筆跡，可她不記得什麼時候寫過。遠處的霧笛響了兩聲，停了，又響了一聲。她數著燈轉過的圈數，數到第七圈的時候，海面上亮起一點很小的光，像有人在水底下劃了一根火柴。',
+  },
+  ko: {
+    font: '"AppleMyungjo", "Batang", "Noto Serif CJK KR", serif',
+    loadFace: '"AppleMyungjo"', cellWidth: 10, cellHeight: 10, size: 0.8, rtl: false,
+    text: '항구에서 안개가 밀려올 때, 린은 세 번째 편지를 등잔 밑에 끼워 두었다. 등대의 철제 계단은 습기를 머금어 차가웠다. 한 계단을 오를 때마다 아래에서 누군가 발걸음을 세는 듯 작은 소리가 났다. 등대지기는 오늘 밤 배가 오지 않을 거라고 말했다. 린은 대답 대신 창문을 조금 열었다. 바닷바람이 책상 위 편지지를 넘기자 뒷면에 희미한 연필 글씨가 드러났다. 분명 자신의 글씨였지만 언제 썼는지는 기억나지 않았다. 멀리서 안개 속 뱃고동이 두 번 울렸다. 등대의 빛이 일곱 번째로 바다를 비추었을 때, 물속에서 성냥을 켠 것처럼 작은 불빛 하나가 나타났다.',
   },
   ja: {
     font: '"Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", serif',
@@ -74,10 +84,12 @@ export const CHAR_SEA_LANGUAGES: Record<CharSeaScript, CharSeaLanguage> = {
   },
 };
 
-/** The script for an interface language: Chinese, Japanese and Arabic write their own; everything else Latin. */
+/** Use the interface's Chinese, Japanese, Korean or Arabic script; otherwise Latin. */
 export function charSeaScript(locale: string | undefined): CharSeaScript {
   const code = (locale ?? '').toLowerCase();
+  if (code.startsWith('zh') && /(?:tw|hk|mo|hant)/u.test(code)) return 'zh-TW';
   if (code.startsWith('zh')) return 'zh';
+  if (code.startsWith('ko')) return 'ko';
   if (code.startsWith('ja')) return 'ja';
   if (code.startsWith('ar')) return 'ar';
   return 'en';

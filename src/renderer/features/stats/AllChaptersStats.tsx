@@ -83,7 +83,7 @@ function ChapterRhythmChart({
   longest: RhythmChapter | null;
   shortest: RhythmChapter | null;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [hovered, setHovered] = useState<number | null>(null);
   const active = hovered != null ? chapters[hovered] : null;
   const untitled = t('common.untitled');
@@ -150,7 +150,7 @@ function ChapterRhythmChart({
           <div style={{ color: 'hsl(var(--ink-1))' }}>
             {t('rightSidebar.stats.titleWithWords', {
               title: active.title || untitled,
-              words: (active.wordCount || 0).toLocaleString(),
+              words: (active.wordCount || 0).toLocaleString(i18n.language),
             })}
           </div>
         ) : longest ? (
@@ -158,14 +158,14 @@ function ChapterRhythmChart({
             <div>
               {t('rightSidebar.stats.longestWithWords', {
                 title: longest.title || untitled,
-                words: (longest.wordCount || 0).toLocaleString(),
+                words: (longest.wordCount || 0).toLocaleString(i18n.language),
               })}
             </div>
             {shortest && shortest.id !== longest.id && (
               <div>
                 {t('rightSidebar.stats.shortestWithWords', {
                   title: shortest.title || untitled,
-                  words: (shortest.wordCount || 0).toLocaleString(),
+                  words: (shortest.wordCount || 0).toLocaleString(i18n.language),
                 })}
               </div>
             )}
@@ -203,7 +203,7 @@ export function AllChaptersStats({
   bookNodes: ReturnType<typeof useDataStore.getState>['bookNodes'];
   bookActs: ReturnType<typeof useDataStore.getState>['bookActs'];
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { projectId } = useWorkspaceNavigator();
   const projectWordTarget = useWritingStatsStore((s) =>
     projectId ? s.plans[projectId]?.projectWordTarget : undefined,
@@ -298,17 +298,17 @@ export function AllChaptersStats({
       <StatsSection title={t('rightSidebar.stats.bookOverview')}>
         <MetaGrid>
           <MetaK>{t('rightSidebar.stats.totalWords')}</MetaK>
-          <MetaV>{t('rightSidebar.stats.wordsValue', { count: totalWc.toLocaleString() })}</MetaV>
+          <MetaV>{t('rightSidebar.stats.wordsValue', { count: totalWc.toLocaleString(i18n.language) })}</MetaV>
           <MetaK>{t('rightSidebar.stats.chapterCount')}</MetaK>
           <MetaV>{t('rightSidebar.stats.chaptersValue', { count })}</MetaV>
           <MetaK>{t('rightSidebar.stats.averagePerChapter')}</MetaK>
-          <MetaV>{t('rightSidebar.stats.wordsValue', { count: avgWc.toLocaleString() })}</MetaV>
+          <MetaV>{t('rightSidebar.stats.wordsValue', { count: avgWc.toLocaleString(i18n.language) })}</MetaV>
         </MetaGrid>
         {targetPct != null && (
           <div style={{ marginTop: 8 }}>
             <StatsRow
               k={t('rightSidebar.stats.writtenTarget')}
-              v={`${totalWc.toLocaleString()} / ${projectWordTarget!.toLocaleString()}`}
+              v={`${totalWc.toLocaleString(i18n.language)} / ${projectWordTarget!.toLocaleString(i18n.language)}`}
             >
               <ProgressBar pct={targetPct} />
             </StatsRow>
@@ -327,7 +327,7 @@ export function AllChaptersStats({
               title: t('rightSidebar.stats.actTooltip', {
                 name: r.act.name,
                 chapters: r.cnt,
-                words: r.words.toLocaleString(),
+                words: r.words.toLocaleString(i18n.language),
               }),
             }))}
           />

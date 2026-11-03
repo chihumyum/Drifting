@@ -120,7 +120,7 @@ function VirtualChapterRowImpl({
   sandFolio = false,
   resolveEntityLinkColor,
 }: VirtualChapterRowProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const rowRef = useRef<HTMLDivElement | null>(null);
   const [content, setContent] = useState<NodeContent | null | undefined>(undefined);
   const [contentLoadError, setContentLoadError] = useState(false);
@@ -218,7 +218,7 @@ function VirtualChapterRowImpl({
   const wordsLabel =
     wordCount == null
       ? t('common.counting')
-      : t('common.wordsCount', { count: wordCount.toLocaleString() });
+      : t('common.wordsCount', { count: wordCount.toLocaleString(i18n.language) });
 
   return (
     <div

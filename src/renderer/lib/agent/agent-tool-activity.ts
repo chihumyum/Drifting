@@ -1,4 +1,4 @@
-type ActivityLanguage = 'zh' | 'en';
+import { uiTranslator as i18next } from '../locale-resources';
 
 export interface AgentPermissionActionDescription {
   summary: string;
@@ -22,7 +22,7 @@ export function describeAgentToolActivity(
   language: string,
 ): string | null {
   const args = asRecord(input);
-  const lang: ActivityLanguage = language.toLowerCase().startsWith('zh') ? 'zh' : 'en';
+  const t = i18next.getFixedT(language);
   const target = firstString(args, [
     'chapter',
     'inspiration',
@@ -43,114 +43,11 @@ export function describeAgentToolActivity(
     'ruleId',
     'patchId',
   ]);
-  const quoted = target ? quote(target, lang) : '';
+  const quoted = target ? t('agentTools.permission.quote', { text: target }) : '';
   const query = stringValue(args.query);
 
-  const labels: Record<string, [string, string]> = {
-    get_project_overview: ['了解作品全貌', 'Review the whole project'],
-    get_project_facts: ['查看项目设定', 'Review project facts'],
-    list_chapters: ['查看章节目录', 'Review chapters'],
-    read_chapter: [`阅读章节${quoted}`, `Read chapter${quoted}`],
-    list_inspirations: ['查看构想列表', 'Review ideas'],
-    read_inspiration: [`阅读构想${quoted}`, `Read idea${quoted}`],
-    list_element_categories: ['查看写作要素分类', 'Review element categories'],
-    read_element_category: [`查看写作要素分类${quoted}`, `Review element category${quoted}`],
-    list_elements: ['查看写作要素', 'Review story elements'],
-    read_element: [`查看写作要素${quoted}`, `Review story element${quoted}`],
-    get_element_patches: [`查看写作要素变化${quoted}`, `Review element evolution${quoted}`],
-    find_element_appearances: [`查找写作要素出场${quoted}`, `Find appearances of element${quoted}`],
-    generate_element_images: ['生成设定图候选', 'Generate concept images'],
-    list_storylines: ['查看故事线', 'Review storylines'],
-    read_storyline: [`查看故事线${quoted}`, `Review storyline${quoted}`],
-    list_relations: ['查看实体关系', 'Review relationships'],
-    list_entity_relations: [`查看相关实体关系${quoted}`, `Review relationships for${quoted}`],
-    list_comments: ['查看批注与待办', 'Review notes and TODOs'],
-    list_project_memory: ['查看项目记忆', 'Review project memory'],
-    list_author_rules: ['查看项目记忆', 'Review project memory'],
-    list_materials: ['查看参考素材', 'Review reference material'],
-    read_material: [`阅读参考素材${quoted}`, `Read reference material${quoted}`],
-    search_prose: [
-      query ? `检索正文“${query}”` : '检索正文',
-      query ? `Search manuscript for “${query}”` : 'Search the manuscript',
-    ],
-    search_project: [
-      query ? `检索项目“${query}”` : '检索项目',
-      query ? `Search project for “${query}”` : 'Search the project',
-    ],
-    create_chapter: [`新建章节${quoted}`, `Create chapter${quoted}`],
-    rename_chapter: [`重命名章节${quoted}`, `Rename chapter${quoted}`],
-    set_chapter_summary: [`更新章节摘要${quoted}`, `Update chapter summary${quoted}`],
-    revise_chapter: [`修改章节正文${quoted}`, `Revise chapter${quoted}`],
-    replace_chapter_body: [`重写章节正文${quoted}`, `Replace chapter manuscript${quoted}`],
-    delete_chapter: [`删除章节${quoted}`, `Delete chapter${quoted}`],
-    create_inspiration: [`新建构想${quoted}`, `Create idea${quoted}`],
-    rename_inspiration: [`重命名构想${quoted}`, `Rename idea${quoted}`],
-    set_inspiration_summary: [`更新构想摘要${quoted}`, `Update idea summary${quoted}`],
-    revise_inspiration: [`修改构想正文${quoted}`, `Revise idea${quoted}`],
-    replace_inspiration_body: [`重写构想正文${quoted}`, `Replace idea text${quoted}`],
-    delete_inspiration: [`删除构想${quoted}`, `Delete idea${quoted}`],
-    create_element: [`新建写作要素${quoted}`, `Create story element${quoted}`],
-    update_element: [`更新写作要素${quoted}`, `Update story element${quoted}`],
-    revise_element: [`修改写作要素正文${quoted}`, `Revise story element${quoted}`],
-    replace_element_body: [`重写写作要素正文${quoted}`, `Replace story element text${quoted}`],
-    delete_element: [`删除写作要素${quoted}`, `Delete story element${quoted}`],
-    create_element_category: [`新建写作要素分类${quoted}`, `Create element category${quoted}`],
-    update_element_category: [`更新写作要素分类${quoted}`, `Update element category${quoted}`],
-    replace_element_category_body: [`重写分类说明${quoted}`, `Replace category text${quoted}`],
-    delete_element_category: [`删除写作要素分类${quoted}`, `Delete element category${quoted}`],
-    create_storyline: [`新建故事线${quoted}`, `Create storyline${quoted}`],
-    update_storyline: [`更新故事线${quoted}`, `Update storyline${quoted}`],
-    revise_storyline: [`修改故事线正文${quoted}`, `Revise storyline${quoted}`],
-    replace_storyline_body: [`重写故事线正文${quoted}`, `Replace storyline text${quoted}`],
-    delete_storyline: [`删除故事线${quoted}`, `Delete storyline${quoted}`],
-    add_chapter_to_storyline: ['把章节加入故事线', 'Add chapter to storyline'],
-    remove_chapter_from_storyline: ['从故事线移除章节', 'Remove chapter from storyline'],
-    set_chapter_primary_storyline: ['设置章节主故事线', 'Set chapter primary storyline'],
-    replace_storyline_chapters: ['替换故事线章节成员', 'Replace storyline chapters'],
-    create_relation: ['新建实体关系', 'Create relationship'],
-    update_relation: [`调整实体关系${quoted}`, `Update relationship${quoted}`],
-    delete_relation: [`删除实体关系${quoted}`, `Delete relationship${quoted}`],
-    create_comment: ['添加批注或待办', 'Add a note or TODO'],
-    update_comment: [`更新批注或待办${quoted}`, `Update note or TODO${quoted}`],
-    delete_comment: [`删除批注或待办${quoted}`, `Delete note or TODO${quoted}`],
-    update_project_facts: ['更新项目设定', 'Update project facts'],
-    create_project_memory: ['记入项目记忆', 'Add to project memory'],
-    update_project_memory: ['更新项目记忆', 'Update project memory'],
-    delete_project_memory: ['删除项目记忆', 'Remove project memory'],
-    // Pre-rename tool names still appear in older transcripts.
-    create_author_rule: ['记入项目记忆', 'Add to project memory'],
-    update_author_rule: ['更新项目记忆', 'Update project memory'],
-    delete_author_rule: ['删除项目记忆', 'Remove project memory'],
-    create_element_patch: [`记录写作要素变化${quoted}`, `Record element evolution${quoted}`],
-    update_element_patch: [`更新写作要素变化${quoted}`, `Update element evolution${quoted}`],
-    delete_element_patch: [`删除写作要素变化${quoted}`, `Delete element evolution${quoted}`],
-    create_material_note: [`新建素材笔记${quoted}`, `Create material note${quoted}`],
-    revise_material_note: [`修改素材笔记${quoted}`, `Revise material note${quoted}`],
-    replace_material_note_body: [`重写素材笔记${quoted}`, `Rewrite material note${quoted}`],
-    update_material: [`整理素材${quoted}`, `Organize material${quoted}`],
-    create_material_folder: [`新建素材文件夹${quoted}`, `Create material folder${quoted}`],
-    update_material_folder: [`调整素材文件夹${quoted}`, `Update material folder${quoted}`],
-    delete_material_folder: [`删除素材文件夹${quoted}`, `Delete material folder${quoted}`],
-    read_book_structure: ['查看分幕与时间线', 'Review acts and timeline'],
-    read_plot_grid: [`查看情节表${quoted}`, `Review plot grid${quoted}`],
-    view_material: [`看素材画面${quoted}`, `Look at material${quoted}`],
-    write_plot_grid: [`填写情节表${quoted}`, `Write plot grid${quoted}`],
-    create_act: [`新建一幕${quoted}`, `Create act${quoted}`],
-    update_act: [`调整幕${quoted}`, `Update act${quoted}`],
-    delete_act: [`删除幕${quoted}`, `Delete act${quoted}`],
-    move_chapter: [`调整章节顺序${quoted}`, `Move chapter${quoted}`],
-    set_timeline_position: [`调整叙事时间线${quoted}`, `Place on timeline${quoted}`],
-    create_timeline_marker: [`添加时间刻度${quoted}`, `Add timeline marker${quoted}`],
-    update_timeline_marker: [`调整时间刻度${quoted}`, `Update timeline marker${quoted}`],
-    delete_timeline_marker: [`删除时间刻度${quoted}`, `Delete timeline marker${quoted}`],
-    read_task_plan: ['检查任务进度', 'Review task progress'],
-    update_task_plan: ['更新任务计划', 'Update task plan'],
-    update_task_step: ['更新任务步骤', 'Update task step'],
-    update_task_constraint: ['更新任务约束', 'Update task constraints'],
-    ask_user: ['向你确认下一步', 'Ask for guidance'],
-    read_tool_result: ['继续查看较长结果', 'Continue reading a long result'],
-  };
-  return labels[toolName]?.[lang === 'zh' ? 0 : 1] ?? null;
+  const key = `agentTools.activity.${toolName}${query && (toolName === 'search_prose' || toolName === 'search_project') ? '_query' : ''}`;
+  return i18next.exists(key, { lng: language }) ? t(key, { target: quoted, query }) : null;
 }
 
 /** Render validated arguments as a natural-language action first. Raw JSON is
@@ -161,156 +58,57 @@ export function describeAgentPermissionAction(
   language: string,
 ): AgentPermissionActionDescription | null {
   const args = asRecord(input);
-  const lang: ActivityLanguage = language.toLowerCase().startsWith('zh') ? 'zh' : 'en';
-  const summary =
-    describeRelationPermission(toolName, args, lang) ??
-    describeMembershipPermission(toolName, args, lang) ??
-    describeDestructivePermission(toolName, args, lang) ??
-    describeAgentToolActivity(toolName, args, language);
-  return summary
-    ? { summary, details: describePermissionPayload(args, lang) }
-    : null;
-}
-
-function describeRelationPermission(
-  toolName: string,
-  args: Record<string, unknown>,
-  lang: ActivityLanguage,
-): string | null {
-  if (toolName === 'create_relation') {
-    const from = stringValue(args.fromName);
-    const to = stringValue(args.toName);
-    if (!from || !to) return null;
-    const source = typedEntityRef(stringValue(args.fromType), from, lang);
-    const destination = typedEntityRef(stringValue(args.toType), to, lang);
-    const relationType = stringValue(args.relationType) || (lang === 'zh' ? '关联' : 'relates to');
-    return lang === 'zh'
-      ? `新建实体关系：${source} —${relationType}→ ${destination}`
-      : `Create relationship: ${source} —${relationType}→ ${destination}`;
+  const t = i18next.getFixedT(language);
+  const quote = (text: string) => text ? t('agentTools.permission.quote', { text }) : '';
+  const label = (key: string, values: Record<string, string | number> = {}) => t(`agentTools.permission.${key}`, values);
+  let summary: string | null = null;
+  if (toolName === 'create_relation' && stringValue(args.fromName) && stringValue(args.toName)) {
+    const typed = (kind: unknown, name: unknown) => {
+      const key = `agentTools.kinds.${stringValue(kind)}`;
+      return `${i18next.exists(key, { lng: language }) ? t(key) : stringValue(kind)}${quote(stringValue(name))}`;
+    };
+    summary = label('relationCreate', {
+      source: typed(args.fromType, args.fromName), destination: typed(args.toType, args.toName),
+      relationType: stringValue(args.relationType) || label('related'),
+    });
+  } else if (toolName === 'update_relation') {
+    summary = label('relationUpdate', {
+      target: quote(stringValue(args.relationId)),
+      change: stringValue(args.relationType) ? label('relationType', { target: quote(stringValue(args.relationType)) }) : label('relationClear'),
+    });
   }
-  const relationId = stringValue(args.relationId);
-  if (toolName === 'update_relation') {
-    const relationType = stringValue(args.relationType);
-    return lang === 'zh'
-      ? `调整实体关系${quote(relationId, lang)}：${relationType ? `类型改为${quote(relationType, lang)}` : '清空关系类型'}`
-      : `Update relationship${quote(relationId, lang)}: ${relationType ? `set type to${quote(relationType, lang)}` : 'clear its type'}`;
-  }
-  if (toolName === 'delete_relation') {
-    return lang === 'zh'
-      ? `删除实体关系${quote(relationId, lang)}`
-      : `Delete relationship${quote(relationId, lang)}`;
-  }
-  return null;
-}
-
-function describeMembershipPermission(
-  toolName: string,
-  args: Record<string, unknown>,
-  lang: ActivityLanguage,
-): string | null {
-  const chapter = stringValue(args.chapter);
-  const storyline = stringValue(args.storyline);
-  if (toolName === 'add_chapter_to_storyline') {
-    return lang === 'zh'
-      ? `把章节${quote(chapter, lang)}加入故事线${quote(storyline, lang)}`
-      : `Add chapter${quote(chapter, lang)} to storyline${quote(storyline, lang)}`;
-  }
-  if (toolName === 'remove_chapter_from_storyline') {
-    return lang === 'zh'
-      ? `从故事线${quote(storyline, lang)}移除章节${quote(chapter, lang)}`
-      : `Remove chapter${quote(chapter, lang)} from storyline${quote(storyline, lang)}`;
-  }
-  if (toolName === 'set_chapter_primary_storyline') {
-    return lang === 'zh'
-      ? `把故事线${quote(storyline, lang)}设为章节${quote(chapter, lang)}的主线`
-      : `Make storyline${quote(storyline, lang)} primary for chapter${quote(chapter, lang)}`;
-  }
-  if (toolName === 'replace_storyline_chapters') {
-    const count = Array.isArray(args.chapters) ? args.chapters.length : 0;
-    return lang === 'zh'
-      ? `用 ${count} 个章节替换故事线${quote(storyline, lang)}的完整成员列表`
-      : `Replace the complete membership of storyline${quote(storyline, lang)} with ${count} chapters`;
-  }
-  return null;
-}
-
-function describeDestructivePermission(
-  toolName: string,
-  args: Record<string, unknown>,
-  lang: ActivityLanguage,
-): string | null {
-  const specs: Readonly<Record<string, { field: string; zh: string; en: string }>> = {
-    delete_chapter: { field: 'chapter', zh: '删除章节', en: 'Delete chapter' },
-    delete_inspiration: { field: 'inspiration', zh: '删除构想', en: 'Delete idea' },
-    delete_element: { field: 'element', zh: '删除写作要素', en: 'Delete story element' },
-    delete_element_category: { field: 'category', zh: '删除写作要素分类', en: 'Delete element category' },
-    delete_storyline: { field: 'storyline', zh: '删除故事线', en: 'Delete storyline' },
-    delete_comment: { field: 'commentId', zh: '删除批注或待办', en: 'Delete note or TODO' },
-    delete_element_patch: { field: 'patchId', zh: '删除写作要素变化', en: 'Delete element evolution' },
+  const membership: Record<string, string> = {
+    add_chapter_to_storyline: 'membershipAdd', remove_chapter_from_storyline: 'membershipRemove',
+    set_chapter_primary_storyline: 'membershipPrimary', replace_storyline_chapters: 'membershipReplace',
   };
-  const spec = specs[toolName];
-  if (!spec) return null;
-  return `${lang === 'zh' ? spec.zh : spec.en}${quote(stringValue(args[spec.field]), lang)}`;
-}
-
-function describePermissionPayload(
-  args: Record<string, unknown>,
-  lang: ActivityLanguage,
-): string[] {
+  if (membership[toolName]) summary = label(membership[toolName], {
+    chapter: quote(stringValue(args.chapter)), storyline: quote(stringValue(args.storyline)),
+    count: Array.isArray(args.chapters) ? args.chapters.length : 0,
+  });
+  summary ??= describeAgentToolActivity(toolName, args, language);
+  if (!summary) return null;
   const details: string[] = [];
-  const body = stringValue(args.body);
-  if (body) {
-    details.push(lang === 'zh' ? `正文：${compactText(body, 180)}` : `Body: ${compactText(body, 180)}`);
-  }
-  const summary = stringValue(args.summary);
-  if (summary) {
-    details.push(lang === 'zh' ? `摘要：${compactText(summary, 140)}` : `Summary: ${compactText(summary, 140)}`);
-  }
+  if (stringValue(args.body)) details.push(label('body', { text: compactText(stringValue(args.body), 180) }));
+  if (stringValue(args.summary)) details.push(label('summary', { text: compactText(stringValue(args.summary), 140) }));
   const changes = Array.isArray(args.changes) ? args.changes : [];
   for (const value of changes.slice(0, 3)) {
     const change = asRecord(value);
-    const current = stringValue(change.currentText);
-    const revised = typeof change.revisedText === 'string' ? change.revisedText : '';
-    details.push(
-      lang === 'zh'
-        ? `把“${compactText(current, 70)}”改为“${compactText(revised, 70)}”`
-        : `Replace “${compactText(current, 70)}” with “${compactText(revised, 70)}”`,
-    );
+    details.push(label('replace', {
+      current: compactText(stringValue(change.currentText), 70),
+      revised: compactText(typeof change.revisedText === 'string' ? change.revisedText : '', 70),
+    }));
   }
-  if (changes.length > 3) {
-    details.push(lang === 'zh' ? `另有 ${changes.length - 3} 处修改` : `${changes.length - 3} more changes`);
-  }
+  if (changes.length > 3) details.push(label('moreChanges', { count: changes.length - 3 }));
   if (Array.isArray(args.chapters)) {
     const chapters = args.chapters.filter((value): value is string => typeof value === 'string');
-    details.push(
-      lang === 'zh'
-        ? `章节：${chapters.length ? chapters.join('、') : '清空成员'}`
-        : `Chapters: ${chapters.length ? chapters.join(', ') : 'clear all members'}`,
-    );
+    details.push(label('chapters', { text: chapters.length ? chapters.join(label('listSeparator')) : label('clearMembers') }));
   }
-  return details;
-}
-
-function typedEntityRef(kind: string, name: string, lang: ActivityLanguage): string {
-  const labels: Record<string, [string, string]> = {
-    chapter: ['章节', 'chapter'],
-    inspiration: ['构想', 'idea'],
-    element: ['写作要素', 'element'],
-    storyline: ['故事线', 'storyline'],
-    element_category: ['写作要素分类', 'element category'],
-  };
-  const label = labels[kind]?.[lang === 'zh' ? 0 : 1] ?? kind;
-  return `${label}${quote(name, lang)}`;
+  return { summary, details };
 }
 
 function compactText(value: string, maxLength: number): string {
   const compact = value.replace(/\s+/gu, ' ').trim();
   return compact.length > maxLength ? `${compact.slice(0, maxLength)}…` : compact;
-}
-
-function quote(value: string, lang: ActivityLanguage): string {
-  if (!value) return '';
-  return lang === 'zh' ? `「${value}」` : ` “${value}”`;
 }
 
 function asRecord(value: unknown): Record<string, unknown> {

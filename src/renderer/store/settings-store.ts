@@ -1,3 +1,4 @@
+import { matchUiLocale, normalizeUiLocale, readInitialUiLocale, type SupportedLocale } from '../../shared/ui-locales';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import type { AgentEffortChoice } from '../lib/agent/protocol';
@@ -233,11 +234,7 @@ export const AGENT_EFFORT_OPTIONS: { value: AgentEffort; label: string; short: s
   { value: 'xhigh', label: 'X-High', short: 'XHigh' },
   { value: 'max', label: 'Max', short: 'Max' },
 ];
-export type LocaleCode = 'zh-CN' | 'zh-TW' | 'en' | 'ja' | 'ko' | 'fr';
-
-function normalizeUiLocale(locale: LocaleCode): LocaleCode {
-  return locale.startsWith('zh') ? 'zh-CN' : 'en';
-}
+export type LocaleCode = SupportedLocale;
 
 interface SettingsState {
   // 编辑器既有偏好
@@ -458,7 +455,7 @@ export const useSettingsStore = create<SettingsState>()(
       setEntityLinkKindColors: (colors) =>
         set({ entityLinkKindColors: normalizeEntityLinkKindColors(colors) }),
 
-      uiLocale: 'zh-CN',
+      uiLocale: readInitialUiLocale(),
       setUiLocale: (l) => set({ uiLocale: normalizeUiLocale(l) }),
 
       agentAuth: 'apikey',
@@ -796,6 +793,7 @@ export const useSettingsStore = create<SettingsState>()(
         merged.agentTurnIterationLimit = normalizeAgentTurnIterationLimit(
           merged.agentTurnIterationLimit,
         );
+        merged.uiLocale = matchUiLocale(persistedSettings?.uiLocale) ?? current.uiLocale;
         merged.accentColor = normalizeAccentColor(merged.accentColor);
         merged.interfaceTextSize = normalizeInterfaceTextSize(merged.interfaceTextSize);
         merged.editorTextWrap = normalizeEditorTextWrap(merged.editorTextWrap);
