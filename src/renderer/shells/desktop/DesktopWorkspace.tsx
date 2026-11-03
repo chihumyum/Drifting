@@ -19,6 +19,7 @@ import { DesktopLeftSidebar } from './DesktopLeftSidebar';
 import { useInertUnderSuperView } from './useInertUnderSuperView';
 import { useWorkspaceOpening } from './useWorkspaceOpening';
 import { WorkspaceOpeningCover } from './WorkspaceOpeningCover';
+import { WorkspaceGuide } from './WorkspaceGuide';
 import { useOrganizeOnReturn } from '../../usecase/useProjectOrganize';
 
 interface DesktopWorkspaceProps {
@@ -95,6 +96,7 @@ export const DesktopWorkspace = memo(function DesktopWorkspace({
       </div>
       <WorkspaceSidebarToggles />
       <WorkspaceOpeningCover />
+      <WorkspaceGuide />
     </div>
   );
 });

@@ -1,0 +1,163 @@
+/* ── Guided tours (features/guide/CoachTour.tsx) ───────────────────
+ * The control a step is about wears a ring of waiting glass: the accent's
+ * selected rim, drifting on its own until the author moves on. Beside it a
+ * card in the hover card's shell (desk colour, 16px corners, the menu's
+ * resting glass line, the floating shadow; one text size, only the title
+ * bold). Ring and card glide to the next control together; nothing else on
+ * the page is covered or dimmed. */
+.guide-ring {
+  position: fixed;
+  z-index: calc(var(--z-popover) + 1);
+  pointer-events: none;
+  --glass-cc: hsl(var(--accent));
+  transition:
+    left var(--motion-dock-pill) var(--motion-dock-pill-ease),
+    top var(--motion-dock-pill) var(--motion-dock-pill-ease),
+    width var(--motion-dock-pill) var(--motion-dock-pill-ease),
+    height var(--motion-dock-pill) var(--motion-dock-pill-ease),
+    border-radius var(--motion-dock-pill) var(--motion-dock-pill-ease);
+}
+
+.guide-card {
+  position: fixed;
+  z-index: calc(var(--z-popover) + 2);
+  box-sizing: border-box;
+  width: 268px;
+  border: 1px solid transparent;
+  border-radius: var(--menu-radius);
+  background:
+    linear-gradient(var(--menu-surface-bg), var(--menu-surface-bg)) padding-box,
+    var(--menu-ring-texture) -14px -46px / 150px 150px border-box var(--menu-surface-bg);
+  box-shadow: var(--menu-shadow);
+  color: hsl(var(--ink-2));
+  font-family: var(--font-sans);
+  font-size: var(--ui-font-secondary, 13px);
+  line-height: var(--ui-line-body, 20px);
+  transition:
+    left var(--motion-dock-pill) var(--motion-dock-pill-ease),
+    top var(--motion-dock-pill) var(--motion-dock-pill-ease);
+}
+
+/* Until it is measured the card has no place of its own yet. */
+.guide-card[data-placed='false'] {
+  visibility: hidden;
+}
+
+.guide-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px 10px;
+  animation: guide-card-text-in 180ms ease-out both;
+}
+
+.guide-card__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.guide-card__title {
+  color: hsl(var(--ink-1));
+  font-weight: 600;
+}
+
+/* The step count and the shortcuts are index type: numbers and keys written
+   plainly, no keycaps or capsules. */
+.guide-card__count,
+.guide-card__shortcuts {
+  font-family: var(--font-mono);
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+}
+
+.guide-card__text {
+  margin: 0;
+}
+
+.guide-card__shortcuts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+}
+
+.guide-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 14px;
+  padding: 8px 0 10px;
+  border-top: 0.5px solid var(--menu-separator);
+}
+
+.guide-card__spacer {
+  flex: 1;
+}
+
+@keyframes guide-card-text-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .guide-ring,
+  .guide-card {
+    transition: none;
+  }
+
+  .guide-card__body {
+    animation: none;
+  }
+}
+
+/* ── Empty views: what can be done here ─────────────────────────────
+ * Under an empty state's sentence, the ways to start: an action in the
+ * secondary ink and its shortcut in index type, both plain (EmptyState
+ * `hints`). An empty chapter shows the same rows faintly on the paper, under
+ * where the first line goes; they leave with the first character typed. */
+.empty-state__hints {
+  display: grid;
+  grid-template-columns: auto auto;
+  column-gap: 24px;
+  row-gap: 4px;
+  margin: 4px 0 0;
+  text-align: left;
+}
+
+.empty-state__hint {
+  display: contents;
+}
+
+.empty-state__hint-keys {
+  font-family: var(--font-mono);
+  text-align: right;
+}
+
+.empty-state__hint--wide .empty-state__hint-label {
+  grid-column: 1 / -1;
+  text-align: center;
+}
+
+.paper-empty-hints {
+  display: flex;
+  justify-content: center;
+  margin-top: 96px;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font-family: var(--font-sans);
+  font-size: var(--ui-font-secondary, 13px);
+  line-height: var(--ui-line-body, 20px);
+  pointer-events: none;
+  user-select: none;
+  animation: guide-card-text-in 240ms ease-out both;
+}
+
+.paper-empty-hints .empty-state__hints {
+  column-gap: 40px;
+  row-gap: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .paper-empty-hints {
+    animation: none;
+  }
+}

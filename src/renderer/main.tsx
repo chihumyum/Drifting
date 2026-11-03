@@ -17,6 +17,7 @@ import '../styles/settings.css';
 import '../styles/agent-activity.css';
 import '../styles/desktop-typography.css';
 import '../styles/interface-fonts.css';
+import '../styles/guide.css';
 // After the app's own sheets, where Tiptap used to append its own.
 import '../styles/tiptap-base.css';
 import './lib/i18n';
