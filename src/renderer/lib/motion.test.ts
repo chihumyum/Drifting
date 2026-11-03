@@ -22,10 +22,13 @@ describe('motion vocabulary', () => {
     expect(ms(cssValue('motion-sweep'))).toBe(1125);
     expect(cssValue('motion-sweep-ease')).toBe('cubic-bezier(0.4, 0.1, 0.35, 1)');
     expect(ms(cssValue('motion-glass-bleed'))).toBe(240);
+    expect(ms(cssValue('motion-glass-bleed'))).toBe(motion.FIRST_RUN_LEAVE_MS);
     expect(ms(cssValue('motion-glass-settle'))).toBe(280);
     expect(ms(cssValue('motion-glass-press'))).toBe(40);
     expect(ms(cssValue('motion-glass-drift'))).toBe(15000);
     expect(ms(cssValue('motion-flow-fade'))).toBe(320);
+    expect(ms(cssValue('motion-page-blend'))).toBe(motion.PAGE_BLEND_MS);
+    expect(cssValue('motion-page-blend-ease')).toBe(motion.PAGE_BLEND_EASING);
     expect(ms(cssValue('motion-loading-delay'))).toBe(motion.LOADING_DELAY_MS);
     expect(motion.LOADING_DELAY_MS).toBe(240);
     expect(ms(cssValue('motion-glass-loading'))).toBe(motion.GLASS_LOADING_DRIFT_MS);

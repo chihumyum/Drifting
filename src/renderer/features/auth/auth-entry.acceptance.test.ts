@@ -36,16 +36,23 @@ describe('account sign-in entry', () => {
     const css = read('src/styles/auth.css');
 
     expect(routes).toMatch(/<PreAlphaFirstRunGate>\s*<ProjectPickerView \/>\s*<\/PreAlphaFirstRunGate>/);
-    expect(guide).toContain('if (!open) return <>{children}</>;');
-    expect(guide).toContain(
-      `<AuthFlow initialMode="signin" onBack={() => setStep('guide')} onComplete={dismiss} />`,
-    );
+    // Nothing to ask: the shelf as it is; otherwise it mounts only once the card is done.
+    expect(guide).toContain("if (stage === 'done' && !throughCard) return <>{children}</>;");
+    expect(guide).toContain("const shelf = stage === 'leaving' || stage === 'done' ? (");
+    // The welcome's ways on: Google (when the service offers it) and email go to the
+    // sign-in step in the same card, the local way dismisses the guide.
+    expect(guide).toMatch(/<AuthFlow\s+initialMode="signin"[\s\S]*?onComplete=\{dismiss\}\s*\/>/);
+    expect(guide).toContain("void startNativeOAuth('google')");
+    expect(guide).toContain('onLocal={dismiss}');
+    expect(guide).toContain("const google = !isAppClosedForPublic && providers.includes('google');");
+    // Hosted builds still say there that crash reports are sent (docs/crash-reports.md).
+    expect(guide).toContain("<p className=\"first-run-welcome__note\">{t('preAlphaGuide.crashReports')}</p>");
     // Mobile keeps the overlay guide and its full-page authentication route.
     expect(guide).toContain('if (!open || !getPlatformRuntime().isMobileShell) return null;');
     expect(guide).toContain("if (!session) navigate('/login');");
     // The desktop choice is a card in the window, not a dialog over it (char-sea.acceptance.test.ts).
     expect(css).not.toContain('first-run-gate__modal');
-    expect(css).toMatch(/\.first-run-gate__card--account \{\s*width: min\(100%, 400px\);/);
+    expect(css).toMatch(/\.first-run-gate__pane--account \{\s*width: min\(400px, calc\(100vw - 48px\)\);/);
   });
 
   it('signs in with a dialog over the current desktop screen', () => {

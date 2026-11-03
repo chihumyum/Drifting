@@ -26,8 +26,9 @@ Nothing is sent when the build has no Hosted service (public local-only source
 builds), in development builds (unless `VITE_DRIFTING_CRASH_REPORTS_IN_DEV=1`
 for acceptance against a local service), or when the author turns off
 Settings → Privacy → Send crash reports automatically. The setting defaults on
-and is disclosed in the first-launch guide (`preAlphaGuide.crashReports`, guide
-v6). With reports off, recorded native panics are still taken and discarded.
+and is disclosed on first launch (`preAlphaGuide.crashReports`, guide v6): on
+the desktop as the last line of the first-run welcome card, on mobile in the
+guide's list. With reports off, recorded native panics are still taken and discarded.
 
 ## What a report contains
 

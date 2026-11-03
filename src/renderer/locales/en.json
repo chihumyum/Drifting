@@ -126,6 +126,10 @@
     "accountAction": "Sign in / sign up and sync",
     "continueLocal": "Continue locally"
   },
+  "firstRun": {
+    "email": "Continue with email",
+    "local": "Continue locally"
+  },
   "markdownFolderGuide": {
     "title": "Where should the Markdown folder go?",
     "intro": "Every project keeps a Markdown copy here. Edit chapters and ideas in any editor and the changes merge back into Drifting.",
