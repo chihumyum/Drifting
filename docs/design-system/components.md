@@ -9,7 +9,7 @@
 | Dock 药丸、锁与 `+` | 玻璃 + 砂笔记号 | `TopTimeline`、`WorkspaceTabDock`、`tab-reorder.ts` |
 | 稿纸工具栏 | 玻璃长药丸 + 圆形玻璃按钮 | `EditorTopBar`（`.editor-bar`） |
 | 选区浮条 | 玻璃长药丸 + 短药丸；格式是另一条长药丸里的砂笔符号圆形玻璃 | `EditorSelectionBar`（`.editor-selection-bar`） |
-| 大纲 rail | 纯字；当前位置与上级都是加粗的墨字，没有砂；稿纸旁放不下时折成墨点，悬停在悬停卡底上展开 | `EditorOutlineRail`（`.editor__toc-*`） |
+| 大纲 rail | 纯字；当前位置与上级都是加粗的墨字，没有砂；稿纸旁放不下时整条自动隐藏（开关仍开着，有空间了自动回来） | `EditorOutlineRail`（`.editor__toc-*`） |
 | 滚动标记 | 砂印，悬停加深 | `EditorScrollMarkers`（`.editor__scrollmap-*`） |
 | 稿纸角同步记号 | 一枚砂笔记号（云、散砂的云、危险色「！」），悬停加深、出悬停卡 | `PaperSyncMark`（`paper-sync-mark.css`） |
 | Bottom Panel | 稿纸下面的共享壳子：一条顶边、一个拖高把手、一份高度、一行共用的 header；时间线与情节规划整块上下推开 | `BottomPanel`、`BottomPanelHeader`、`TimelineDrawer` |

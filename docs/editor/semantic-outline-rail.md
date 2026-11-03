@@ -2,8 +2,9 @@
 
 Status: built on 2026-08-03; updated on 2026-10-20 for reliable whole-book
 navigation through lazy chapter layout, on 2026-10-23 for steady scrolling
-up from a landing, and on 2026-11-02 for folding into dots when the editor
-column leaves no room beside the paper. The shared rail covers whole book, chapter/idea, element,
+up from a landing, on 2026-11-02 for folding into dots when the editor
+column leaves no room beside the paper, and on 2026-11-04 for hiding instead of
+folding. The shared rail covers whole book, chapter/idea, element,
 category, and storyline.
 
 ## Product contract
@@ -12,8 +13,8 @@ The editor has two independent navigation surfaces plus one review overlay:
 
 - A semantic TOC rail remains at the editor area's left edge. It contains only
   the existing plain-text TOC tags and distant-range omission handles. When the
-  column leaves no room beside the paper, the tags fold into dots that unfold
-  on hover (see Fit beside the paper).
+  column leaves no room beside the paper, the rail hides by itself and returns
+  once there is room (see Fit beside the paper).
 - The ordinary `.editor-scroll` scrollbar is restored at the editor area's
   right edge. It appears when the manuscript overflows and is the only
   scrollbar and scroll source of truth.
@@ -149,32 +150,28 @@ and re-run the decision; scrolling does not re-read it.
 `outlineRailFit` in `outline-rail-model.ts` holds the thresholds. The label lane
 ends 188px from the editor edge (labels start at 12px and are at most 176px
 wide). Below a gutter of 196px (the lane plus 8px) the rail switches to
-`data-fit="dots"`; it returns to labels only from 212px. The 16px band is wider
-than any re-centring that leaves the column unchanged (the 8px scrollbar
+`data-fit="hidden"`; it returns to labels only from 212px. The 16px band is
+wider than any re-centring that leaves the column unchanged (the 8px scrollbar
 appearing moves a centred paper by 4px), so the rail does not flicker at the
 boundary. Before a paper exists the previous decision stands. With the default
 720px paper the switch happens around a 1000px column.
 
 - `labels`: unchanged — the plain-text lane described above.
-- `dots`: every laid-out label keeps its height and density but folds to one
-  small ink dot at the lane's start, in the label's own colour, so the
-  viewport range and the bold-ink active path still read; the reading location
-  is a larger dot. Omission handles stay as they are. Hovering a dot, or
-  keyboard focus inside the rail, unfolds the labels in place onto one
-  hover-card surface (the desk-coloured rounded card with the resting thin glass
-  line and floating shadow, `.hover-card-surface`) spanning the laid-out labels,
-  so they read over the prose and the pointer can travel between them. Leaving
-  folds them back. Short delays act as hover intent: crossing the edge on the
-  way elsewhere does not open it, and a brief exit does not close it. A dot and
-  an unfolded label are the same button and use the same canonical jump.
+- `hidden`: the rail shows nothing (2026-11-04; it used to fold to dots that
+  unfolded on hover). Its label layer is `display: none`, so it takes no
+  pointer, no keyboard focus and has no accessible rows; the prose under it is
+  the page as usual. The `visible` preference stays on: once the column has
+  room again the labels come back by themselves. An omission reveal that was
+  open closes with it.
 
-A fit change mounts a fresh label layer (it is keyed by the fit), so only hover
-animates: a rail that opens in a narrow column never shows its labels over the
-text while the first measurement settles.
+A fit change mounts a fresh label layer (it is keyed by the fit), so a rail that
+comes back places its labels at once instead of sliding them in from where they
+last stood.
 
-The fit adds no copy, tooltip or accent bar. The `hidden` preference still
-unmounts the rail entirely. The paused mobile shell keeps its in-paper overlay;
-the dots rules apply outside `data-shell-mode='mobile'` only.
+The fit adds no copy, tooltip, dot or accent bar. The `hidden` preference still
+unmounts the rail entirely; the automatic hiding only covers its labels, so the
+controller keeps measuring. The paused mobile shell keeps its in-paper overlay;
+the hiding rule applies outside `data-shell-mode='mobile'` only.
 
 ## Geometry and lifecycle
 
@@ -232,13 +229,11 @@ pnpm exec vitest run src/renderer/components/editor/all-chapters-navigation.test
 harness with the real rail, viewport controller, outline model and the renderer
 entry's global sheets around a page of headings and prose. It keeps the window
 at 1600px and resizes only the editor column: at 1280px the labels are
-unchanged and clear of the text; at 400px (two side panels) they are dots clear
-of the text, the reading location is the larger dot, and a 2400px window does
-not change that. CDP pointer input then hovers a dot (the labels unfold onto the
-visible surface and take the pointer over the text), moves between labels,
-clicks an unfolded label and a still-folded dot (both land their heading at the top), and
-leaves (they fold back); a Tab unfolds the rail through `:focus-visible`. A
-resize sweep across both thresholds records the measured gutters and checks the
+unchanged, clear of the text and take the pointer; at 400px (two side panels)
+the rail shows nothing, the pointer where its labels stood reaches the page and
+opens nothing, Tab passes it by, and a 2400px window does not change that. Back
+at 1280px the labels return at their places and a click lands its heading at
+the top. A resize sweep across both thresholds records the measured gutters and checks the
 hysteresis, and the `hidden` preference still unmounts the rail. It does not
 establish Tauri/WKWebView compositing, the real chapter editor or physical
 pointer feel.
@@ -259,8 +254,8 @@ pnpm typecheck
 ```
 
 The tests prove all five editor mounts, left-edge TOC placement, the gutter-based
-dots fit with its hysteresis (`outline-rail-model.test.ts`,
-`outline-viewport.test.ts`) and its hover unfolding, the three density stages, viewport-based multi-entry highlighting, omission behavior,
+hidden fit with its hysteresis (`outline-rail-model.test.ts`,
+`outline-viewport.test.ts`), the three density stages, viewport-based multi-entry highlighting, omission behavior,
 absence of synthetic single-entity roots and empty-outline instructions, the
 two persisted TOC visibility choices, complete removal of the custom track and
 dual scrollbar model, and an ordinary scrollbar that appears on the right only

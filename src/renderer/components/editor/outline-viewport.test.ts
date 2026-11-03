@@ -137,7 +137,7 @@ describe('one outline viewport owns geometry and reading location', () => {
     expect(Resize.all.every(o => o.targets.size===0)).toBe(true); expect(frames.size).toBe(0);
   });
 
-  it('folds the rail to dots by its own column gutter and re-decides on resize with hysteresis', () => {
+  it('hides the rail by its own column gutter and re-decides on resize with hysteresis', () => {
     const f = fixture();
     // The editor column: body at x=300; a centred paper whose text starts 48px inside it.
     const paper = { left: 300 + 260, getBoundingClientRect: vi.fn(function(this: { left: number }) { return { left: this.left }; }) };
@@ -149,14 +149,14 @@ describe('one outline viewport owns geometry and reading location', () => {
     const notify = vi.fn(); const off = f.owner.subscribe(notify);
     // A side panel narrows the column: the paper's text now starts 48px in.
     paper.left = 300; Resize.all[0].callback(); paint();
-    expect(f.owner.getSnapshot().fit).toBe('dots'); expect(notify).toHaveBeenCalledTimes(1);
+    expect(f.owner.getSnapshot().fit).toBe('hidden'); expect(notify).toHaveBeenCalledTimes(1);
     // Scrolling never re-reads the gutter.
     const gutterReads = paper.getBoundingClientRect.mock.calls.length;
     f.scroll(120); paint();
     expect(paper.getBoundingClientRect.mock.calls.length).toBe(gutterReads);
     // Just past the collapse threshold is not enough room to return.
     paper.left = 300 + 155; Resize.all[0].callback(); paint();
-    expect(f.owner.getSnapshot().fit).toBe('dots');
+    expect(f.owner.getSnapshot().fit).toBe('hidden');
     paper.left = 300 + 170; Resize.all[0].callback(); paint();
     expect(f.owner.getSnapshot().fit).toBe('labels');
     // Without a paper the last decision stands.
