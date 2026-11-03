@@ -10,7 +10,7 @@ const log = loglevel.getLogger('ImmersiveWriting');
 
 /** The band along the window's top that brings back the traffic lights and the dock. */
 export const IMMERSIVE_PEEK_TOP_PX = 56;
-/** How near the lamp (and this sitting's words) the pointer brings them back. */
+/** How near the incense (and this sitting's words) the pointer brings them back. */
 export const IMMERSIVE_PEEK_NEAR_PX = 48;
 
 export type ImmersivePeek = 'top' | 'corner' | null;
@@ -35,7 +35,7 @@ function setTrafficLightsHidden(hidden: boolean): void {
 
 /**
  * While immersive writing is on: the traffic lights hide; the pointer at the
- * window's top edge brings them and the dock back, near the lamp the way out
+ * window's top edge brings them and the dock back, near the incense the way out
  * (`data-immersive-peek` on the workspace root), and any typing
  * sends them away again; Esc leaves; every block but the caret's fades.
  * Leaving the workspace ends immersion.
@@ -57,7 +57,7 @@ export function useImmersiveWriting(rootRef: RefObject<HTMLElement | null>): voi
       else delete root.dataset.immersivePeek;
     };
     const onPointerMove = (event: PointerEvent) => {
-      // The lamp stays in its corner while hidden, so its box is where it will show.
+      // The incense stays in its corner while hidden, so its box is where it will show.
       const control = root.querySelector<HTMLElement>('.immersive-writing-control');
       setPeek(immersivePeekAt(event.clientX, event.clientY, control?.getBoundingClientRect() ?? null));
     };

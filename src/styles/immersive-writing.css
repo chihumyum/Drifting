@@ -3,11 +3,11 @@
    workspace root). The sidebars and the Bottom Panel slide shut over their
    own kept state (Sidebar, DesktopWorkspace); here the floating chrome
    fades: the sidebar toggles, the tab dock, every pane's paper toolbar, the
-   timeline toggle and the stage's own. Immersive writing's own button (the
-   oil lamp, left of the timeline toggle) stays where it was, pressed. The
+   timeline toggle and the stage's own. Immersive writing's own button (a
+   stick of incense, left of the timeline toggle) stays where it was, pressed. The
    comment and outline rails stay as the author left them. The pointer at
    the window's top edge brings back the dock (the traffic lights come back
-   natively), near the lamp the way out (`data-immersive-peek`); typing sends
+   natively), near the incense the way out (`data-immersive-peek`); typing sends
    them away. Hidden chrome is `visibility: hidden` once faded, so it cannot
    be hit or focused. See docs/editor/immersive-writing.md. */
 .desktop-app-shell .workspace-sidebar-toggles,
@@ -50,7 +50,7 @@
   opacity: 0;
 }
 
-/* The lamp, and while immersed this sitting's words over today's sand
+/* The incense, and while immersed this sitting's words over today's sand
    stroke to its left. Round glass on the floating fill, like the timeline
    toggle beside it. */
 .immersive-writing-control {

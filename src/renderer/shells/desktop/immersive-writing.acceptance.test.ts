@@ -14,16 +14,16 @@ const selectors = (text: string) =>
 describe('immersive writing (docs/editor/immersive-writing.md)', () => {
   afterEach(() => useUiStore.setState({ immersiveWriting: false, activeSuperView: 'none' }));
 
-  it('opens from its own lamp left of the timeline toggle or ⌘⇧↩, and Esc leaves', () => {
+  it('opens from its own incense left of the timeline toggle or ⌘⇧↩, and Esc leaves', () => {
     const bar = source('src/renderer/components/editor/EditorTopBar.tsx');
     const corner = bar.slice(bar.indexOf('<div className="editor-corner">'), bar.indexOf('<div className="editor-bar'));
     expect(corner).toMatch(/\{hostsTimelineToggle && <ImmersiveWritingControl \/>\}\s+\{hostsTimelineToggle && <TimelineToggle \/>\}/);
     // Out of the pill: the toolbar no longer carries it.
     expect(bar.slice(bar.indexOf('role="toolbar"'))).not.toContain('Immersive');
     const control = source('src/renderer/components/workspaceChrome/ImmersiveWriting.tsx');
-    expect(control).toContain('icon={<BrushIcon name="oil-lamp" />}');
+    expect(control).toContain('icon={<BrushIcon name="incense" />}');
     expect(control).toContain('className="workspace-immersive-toggle glass--rest"');
-    expect(source('scripts/design-assets/brushicons.py')).toContain('"oil-lamp": (oil_lamp, 9111)');
+    expect(source('scripts/design-assets/brushicons.py')).toContain('"incense": (incense, 9101)');
     expect(getDefaultAccelerator('toggleImmersiveWriting')).toBe('Mod+Shift+Enter');
     expect(source('src/renderer/shells/desktop/useDesktopGlobalShortcuts.ts'))
       .toMatch(/bindings\.toggleImmersiveWriting\)\) \{\s+event\.preventDefault\(\);\s+toggleImmersiveWriting\(\);/);
@@ -78,7 +78,7 @@ describe('immersive writing (docs/editor/immersive-writing.md)', () => {
     }
   });
 
-  it('brings back the dock and traffic lights at the top edge and the pressed lamp where it was', () => {
+  it('brings back the dock and traffic lights at the top edge and the pressed incense where it was', () => {
     const lamp = { left: 1000, top: 740, right: 1028, bottom: 768 };
     expect(immersivePeekAt(600, 20, lamp)).toBe('top');
     expect(immersivePeekAt(990, 760, lamp)).toBe('corner');
