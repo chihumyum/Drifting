@@ -2010,23 +2010,6 @@
   gap: 8px;
 }
 
-/* Text button: no glass, the ink deepens under the pointer. */
-.todo-card__relate {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--ui-text-muted, hsl(var(--ink-4)));
-  font: var(--ui-font-caption, 11.5px) var(--font-sans);
-  cursor: pointer;
-}
-
-.todo-card__relate:hover {
-  color: hsl(var(--ink-1));
-}
-
 /* ── Sidebar material tree: folders are cells too. The pointer brings a
    ring of flowing glass; a ⌘-selection holds it still; a drag over a folder
    (or the list, for the root) makes it flow. ── */

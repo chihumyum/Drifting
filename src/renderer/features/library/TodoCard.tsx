@@ -126,7 +126,7 @@ export function TodoCard({
           <div style={{ marginTop: 2 }}>{picker(true)}</div>
         ) : (
           <div className="todo-card__footer">
-            <button type="button" className="todo-card__relate" onClick={() => setPickerOpen(true)}>
+            <button type="button" className="relation-add-button" onClick={() => setPickerOpen(true)}>
               <BrushIcon name="plus" size={10} inline /> {t('memoMaterial.menu.relation')}
             </button>
             {statusToggle}

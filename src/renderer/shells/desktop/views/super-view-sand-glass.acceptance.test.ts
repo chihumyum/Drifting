@@ -401,7 +401,18 @@ describe('Super View sand and glass acceptance', () => {
     expect(rule('.todo-card--glass .todo-card__body')).toContain('font: var(--ui-font-body, 13px)/1.4 var(--font-sans);');
     expect(rule('.todo-card--glass .todo-card__header')).toContain('font: var(--ui-font-secondary, 9px)/1.2 var(--font-mono);');
     expect(rule('.todo-card--glass .todo-card__header')).not.toMatch(/uppercase|letter-spacing/);
-    expect(rule('.todo-card__relate')).toContain('var(--ui-font-caption, 11.5px)');
+    // ＋ 关联 is one text button on all three cards and in the right sidebar:
+    // the TODO card's own and the shared relation picker's on the desktop.
+    const controls = source('src/styles/ui-controls.css');
+    const addButton = controls.match(/\n\.relation-add-button \{([^}]*)\}/)?.[1] ?? '';
+    expect(addButton).toContain('font: var(--ui-font-caption, 11.5px) var(--font-sans);');
+    expect(addButton).toContain('border: 0;');
+    expect(addButton).toContain('text-transform: none;');
+    expect(source('src/renderer/features/library/TodoCard.tsx')).toContain('className="relation-add-button"');
+    const picker = source('src/renderer/components/rightBars/EntityRelationPicker.tsx');
+    expect(picker).toContain("className={mobileShell ? 'entity-relation-picker__add' : 'entity-relation-picker__add relation-add-button'}");
+    expect(picker).toMatch(/style=\{mobileShell \? \{[^}]*dashed/);
+    expect(cards).not.toContain('.todo-card__relate');
     expect(rule('.library-item-card__title')).toContain('font: 500 var(--ui-font-body, 13px)/1.35 var(--font-sans);');
     expect(rule('.library-item-card__meta')).toContain('font: var(--ui-font-secondary, 10px)/1.4 var(--font-mono);');
     expect(rule('.library-item-card__excerpt .note-excerpt')).toContain('font-size: var(--ui-font-body, 12.5px);');
