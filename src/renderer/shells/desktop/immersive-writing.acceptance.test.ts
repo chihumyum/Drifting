@@ -101,8 +101,12 @@ describe('immersive writing (docs/editor/immersive-writing.md)', () => {
     expect(source('src/renderer/shells/desktop/useImmersiveWriting.ts')).toContain("setTrafficLightsHidden(next !== 'top')");
     expect(source('src-tauri/src/lib.rs')).toContain('commands::window_set_traffic_lights_hidden,');
     const commands = source('src-tauri/src/commands.rs');
-    // Alpha, not setHidden: unhiding relays the title bar out and loses the inset.
+    // Changing the buttons' alpha relays the title bar out at once and loses
+    // the inset, so their frames are put back in the same turn.
     expect(commands).toContain('button.setAlphaValue(if hidden { 0.0 } else { 1.0 });');
+    const command = commands.slice(commands.indexOf('pub fn window_set_traffic_lights_hidden'));
+    expect(command.indexOf('button.setFrameOrigin(origin);')).toBeGreaterThan(command.indexOf('button.setAlphaValue('));
+    expect(command.indexOf('view.setFrame(frame);')).toBeGreaterThan(command.indexOf('button.setAlphaValue('));
     expect(commands.slice(commands.indexOf('pub fn window_set_traffic_lights_hidden'))
       .slice(0, 900)).not.toContain('setHidden');
     expect(source('src/renderer/platform/contracts.ts'))

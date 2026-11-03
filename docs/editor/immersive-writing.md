@@ -71,10 +71,13 @@ modes (句, 渐隐) were not adopted.
   `::highlight(drifting-immersive-dim)`。
 - Rust `window_set_traffic_lights_hidden(hidden)`：把三个
   `standardWindowButton` 的 `alphaValue` 设成 0 或 1；非 macOS 返回不支持。
-  不用 `setHidden`：取消隐藏会让 AppKit 重新排一次标题栏，把启动时
-  `window_set_traffic_light_position` 给的位置（`18 / 23`）丢掉，红绿灯回到系统
-  默认位置、和侧栏开关不再对齐（2026-11-04 作者发现，当天改掉）。透明时按钮
-  仍在原处，但指针一到那里就已经在顶边露出区里，它们会先显出来。
+  改按钮的 alpha（和 `setHidden` 一样）会让 AppKit 当场把标题栏重排一次，丢掉
+  启动时 `window_set_traffic_light_position` 给的位置：2026-11-04 用临时探针实测，
+  关闭按钮的 x 从 `18` 跳回系统默认的 `9`，标题栏容器高 `37` 变回 `32`，而且就在
+  这次调用里同步发生，之后不会再自己变。所以命令在同一个主线程回合里先记下三个
+  按钮与容器的 frame，改完 alpha 立刻放回，中间不会有一帧画在默认位置
+  （作者两次发现红绿灯跑位：先是 `setHidden`，换成 alpha 后照旧，才查清）。
+  透明时按钮仍在原处，但指针一到那里就已经在顶边露出区里，它们会先显出来。
 
 ## Acceptance
 
