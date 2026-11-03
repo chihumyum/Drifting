@@ -72,4 +72,23 @@ describe('the sea of characters on a display of any refresh rate', () => {
     sea.drop(480, 300);
     expect(run(10)).toBeLessThan(6.5);
   });
+
+  it('keeps drawing glass set down on the sea until its resting line has settled, then stops', () => {
+    const { sea, run } = windowAt(60);
+    sea.setActive(true);
+    run(5);
+    const card = { id: 1, x: 300, y: 200, width: 360, height: 180, radius: 2, rest: 0.85, hover: false, textureX: 0, textureY: 0 };
+    // Glass that simply stands there draws once and asks for nothing more.
+    sea.setShapes([card]);
+    expect(run(1)).toBe(0);
+    // Glass that arrives eases its line in for about a second, then the sea is still again.
+    sea.setShapes([{ ...card, id: 2, arrive: true }]);
+    const settled = run(5);
+    expect(settled).toBeGreaterThan(0.8);
+    expect(settled).toBeLessThan(2.5);
+    // A line asked to go eases out the same way.
+    sea.setShapes([{ ...card, id: 2, arrive: true, rest: 0 }]);
+    expect(run(5)).toBeGreaterThan(0.8);
+  });
 });
+

@@ -37,6 +37,9 @@ import { BookImportError } from '../services/book-transfer/import-book';
 import { HostedQuotaExceededError } from '../sync/hosted/quota';
 import { BrushIcon } from '../components/ui/BrushIcon';
 import { useCharSeaEnabled, useCharSeaHold, useCharSeaShape } from '../components/char-sea/useCharSea';
+import { markSampleLanded, noteBookOpened, useFirstRunArrival, useSampleOnShelf } from '../components/first-run/first-run-shelf';
+import { charSeaRegistry } from '../lib/char-sea/char-sea-registry';
+import { SAMPLE_LANDING_DELAY_MS } from '../lib/motion';
 import { HostedRestoreBanner } from '../features/sync-status/HostedRestoreProgress';
 
 function WindowDragStrip() {
@@ -51,6 +54,8 @@ log.setLevel(loglevel.levels.DEBUG);
 // pull a restore made on another device.
 const EXPIRED_TRASH_PURGE_DELAY_MS = 2 * 60 * 1_000;
 const DAY_MS = 24 * 60 * 60 * 1_000;
+// The sample's landing ring: a little lighter than the press that opens a book (1.3).
+const SAMPLE_LANDING_DROP = 1.1;
 
 type Filter = 'all' | 'active' | 'paused';
 type Status = 'writing' | 'draft' | 'paused';
@@ -335,6 +340,7 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
 
   const handleOpen = useCallback(
     (id: string) => {
+      noteBookOpened(id);
       navigate(`/project/${id}`, {
         state: presentation === 'desktop' ? { projectEntry: 'resume-last-content' } : null,
       });
@@ -783,14 +789,40 @@ function ProjectCard({ row, onOpen, onEdit, onExport, exporting, onDelete }: Car
   const { project, meta, status, lastEditedRel, wordProgress, wordTarget } = row;
   const stats = project.stats;
   const title = project.name.trim() || t('projectPicker.desk.untitled');
+  // The sample a first launch wrote lands on its own ring and waits, its rim
+  // flowing, until it is opened; coming up from the first-run card, every
+  // book is set down on the sea.
+  const sample = useSampleOnShelf(project.id);
+  const arriving = useFirstRunArrival();
+  const [lands] = useState(sample.landing);
+  const [arrives] = useState(arriving || lands);
   // On the sea the card's resting glass is drawn by the sea, so the water can
   // reach it; elsewhere it keeps its own CSS rim.
-  const { attach: glassRef, drawn: seaDrawn, hoverProps: glassHover } = useCharSeaShape<HTMLElement>({ rest: 0.85, radius: 2 });
+  const { attach: glassRef, drawn: seaDrawn, hoverProps: glassHover } = useCharSeaShape<HTMLElement>({
+    rest: 0.85,
+    radius: 2,
+    arrive: arrives,
+    waiting: sample.waiting,
+  });
+  const card = useRef<HTMLElement | null>(null);
+  const attachCard = useCallback((element: HTMLElement | null) => {
+    card.current = element;
+    glassRef(element);
+  }, [glassRef]);
+  useEffect(() => {
+    if (!lands || !seaDrawn) return undefined;
+    markSampleLanded();
+    const timer = window.setTimeout(() => {
+      const rect = card.current?.getBoundingClientRect();
+      if (rect) charSeaRegistry.drop(rect.left + rect.width / 2, rect.top + rect.height / 2, SAMPLE_LANDING_DROP);
+    }, SAMPLE_LANDING_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [lands, seaDrawn]);
 
   return (
     <article
-      ref={glassRef}
-      className={`pp-card glass glass--rest${seaDrawn ? ' pp-card--sea' : ''}`}
+      ref={attachCard}
+      className={`pp-card glass glass--rest${sample.waiting ? ' glass--waiting' : ''}${seaDrawn ? ' pp-card--sea' : ''}`}
       data-char-sea-press=""
       {...glassHover}
     >

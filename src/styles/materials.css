@@ -30,6 +30,10 @@
   /* Sand that comes or goes as a whole fades; a change of its strength shifts. */
   --motion-sand-fade: 0.3s;
   --motion-sand-shift: 0.24s;
+  /* A page turn: the next page dissolves in, in place, over the one in front
+     (the first-run card's steps cross the same way). */
+  --motion-page-blend: 180ms;
+  --motion-page-blend-ease: cubic-bezier(0.4, 0, 0.2, 1);
   /* How long a wait runs before its loading mark shows, and how fast glass
      waiting on what it asked for drifts after that. */
   --motion-loading-delay: 240ms;

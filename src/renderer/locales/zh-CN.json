@@ -125,6 +125,10 @@
     "accountAction": "登录 / 注册并同步",
     "continueLocal": "继续本地模式"
   },
+  "firstRun": {
+    "email": "用邮箱继续",
+    "local": "本地继续"
+  },
   "markdownFolderGuide": {
     "title": "Markdown 文件夹放在哪里？",
     "intro": "每个项目都会在这里保存一份 Markdown。章节和构想可以用任何编辑器修改，修改会合并回 Drifting。",
