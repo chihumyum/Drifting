@@ -1,12 +1,23 @@
 /**
  * What the sea of characters is written in: one passage of prose per script,
  * laid one character to a cell in the reader's direction. The passages are
- * original to Drifting (no author's text is read). Fonts are the bundled
- * structure faces where the app ships them; Japanese and Arabic fall back to
- * the system's serif faces.
+ * original to Drifting (no author's text is read): the same scene in each
+ * interface language. Fonts are the bundled structure faces where the app
+ * ships them; Traditional Chinese, Korean, Japanese and Arabic fall back to
+ * the system's serif faces. The Latin passages share English's narrow cells.
  */
 
-export type CharSeaScript = 'zh' | 'zh-TW' | 'ja' | 'ko' | 'en' | 'ar';
+export type CharSeaScript = 'zh' | 'zh-TW' | 'ja' | 'ko' | 'en' | 'es' | 'de' | 'fr' | 'pt' | 'ar';
+
+/** The Latin passages' face and cells: narrow, like rows of movable type. */
+const LATIN = {
+  font: '"Newsreader Variable", Georgia, serif',
+  loadFace: '"Newsreader Variable"',
+  cellWidth: 6.5,
+  cellHeight: 10,
+  size: 0.72,
+  rtl: false,
+} as const;
 
 export interface CharSeaLanguage {
   /** Canvas font stack for the glyph atlas. */
@@ -59,16 +70,39 @@ export const CHAR_SEA_LANGUAGES: Record<CharSeaScript, CharSeaLanguage> = {
       '遠くで霧笛が二度鳴り、止まり、また一度鳴った。光が七回めぐったころ、海の上に小さな明かりがともった。水の底で誰かがマッチをすったように。',
   },
   en: {
-    font: '"Newsreader Variable", Georgia, serif',
-    loadFace: '"Newsreader Variable"',
-    cellWidth: 6.5,
-    cellHeight: 10,
-    size: 0.72,
-    rtl: false,
+    ...LATIN,
     text:
       'The fog came in from the harbour while Lin was tucking the third letter under the lamp. The iron stairs of the lighthouse were cold with damp, and every step gave a small sound, as if someone below were counting. ' +
       'The keeper said no boats would come tonight. She did not answer. She opened the window a crack and let the sea wind turn the pages on the desk, and a corner lifted to show a faint line of pencil on the back, in her own hand, though she could not remember writing it. ' +
       'Far off the foghorn sounded twice, stopped, and sounded once more. On the seventh turn of the light a small glow rose on the water, as if someone under the sea had struck a match. ',
+  },
+  es: {
+    ...LATIN,
+    text:
+      'La niebla entró desde el puerto mientras Lin metía la tercera carta bajo la lámpara. La escalera de hierro del faro estaba fría de humedad, y cada peldaño daba un sonido pequeño, como si alguien abajo fuera contando. ' +
+      'El farero dijo que esta noche no vendría ningún barco. Ella no respondió. Abrió apenas la ventana y dejó que el viento del mar pasara las hojas sobre la mesa, y una esquina se levantó y mostró en el reverso una línea tenue de lápiz, con su propia letra, aunque no recordaba haberla escrito. ' +
+      'A lo lejos la sirena de niebla sonó dos veces, calló, y sonó una vez más. En la séptima vuelta de la luz se encendió sobre el agua un brillo pequeño, como si alguien bajo el mar hubiera prendido una cerilla. ',
+  },
+  de: {
+    ...LATIN,
+    text:
+      'Der Nebel kam vom Hafen herein, während Lin den dritten Brief unter die Lampe schob. Die eiserne Treppe des Leuchtturms war kalt vor Feuchtigkeit, und jede Stufe gab einen leisen Laut, als zählte unten jemand mit. ' +
+      'Der Wärter sagte, heute Nacht komme kein Schiff. Sie antwortete nicht. Sie öffnete das Fenster einen Spalt und ließ den Seewind die Blätter auf dem Tisch wenden, und eine Ecke hob sich und zeigte auf der Rückseite eine blasse Zeile in Bleistift, in ihrer eigenen Schrift, obwohl sie sich nicht erinnern konnte, sie geschrieben zu haben. ' +
+      'In der Ferne tönte das Nebelhorn zweimal, verstummte und tönte noch einmal. Bei der siebten Drehung des Lichts glomm auf dem Wasser ein kleiner Schein auf, als hätte jemand unter dem Meer ein Streichholz angerissen. ',
+  },
+  fr: {
+    ...LATIN,
+    text:
+      'Le brouillard arriva du port pendant que Lin glissait la troisième lettre sous la lampe. L’escalier de fer du phare était froid d’humidité, et chaque marche rendait un petit bruit, comme si quelqu’un en bas comptait. ' +
+      'Le gardien dit qu’aucun bateau ne viendrait cette nuit. Elle ne répondit pas. Elle entrouvrit la fenêtre et laissa le vent du large tourner les feuilles sur la table, et un coin se souleva pour montrer au dos une ligne pâle au crayon, de sa propre main, bien qu’elle ne se souvînt pas de l’avoir écrite. ' +
+      'Au loin la corne de brume sonna deux fois, se tut, puis sonna encore. Au septième tour de la lumière, une petite lueur monta sur l’eau, comme si quelqu’un sous la mer avait frotté une allumette. ',
+  },
+  pt: {
+    ...LATIN,
+    text:
+      'A neblina veio do porto enquanto Lin colocava a terceira carta debaixo da lâmpada. A escada de ferro do farol estava fria de umidade, e cada degrau fazia um som pequeno, como se alguém lá embaixo estivesse contando. ' +
+      'O faroleiro disse que nenhum barco viria esta noite. Ela não respondeu. Abriu uma fresta da janela e deixou o vento do mar virar as folhas sobre a mesa, e um canto se ergueu e mostrou no verso uma linha fraca de lápis, com a letra dela, embora não se lembrasse de tê-la escrito. ' +
+      'Ao longe a buzina de neblina soou duas vezes, parou, e soou mais uma vez. Na sétima volta da luz, um brilho pequeno surgiu sobre a água, como se alguém debaixo do mar tivesse riscado um fósforo. ',
   },
   ar: {
     font: '"Geeza Pro", "Noto Naskh Arabic", "Traditional Arabic", serif',
@@ -84,7 +118,7 @@ export const CHAR_SEA_LANGUAGES: Record<CharSeaScript, CharSeaLanguage> = {
   },
 };
 
-/** Use the interface's Chinese, Japanese, Korean or Arabic script; otherwise Latin. */
+/** The passage for an interface language; a language without one of its own reads the English. */
 export function charSeaScript(locale: string | undefined): CharSeaScript {
   const code = (locale ?? '').toLowerCase();
   if (code.startsWith('zh') && /(?:tw|hk|mo|hant)/u.test(code)) return 'zh-TW';
@@ -92,5 +126,9 @@ export function charSeaScript(locale: string | undefined): CharSeaScript {
   if (code.startsWith('ko')) return 'ko';
   if (code.startsWith('ja')) return 'ja';
   if (code.startsWith('ar')) return 'ar';
+  if (code.startsWith('es')) return 'es';
+  if (code.startsWith('de')) return 'de';
+  if (code.startsWith('fr')) return 'fr';
+  if (code.startsWith('pt')) return 'pt';
   return 'en';
 }
