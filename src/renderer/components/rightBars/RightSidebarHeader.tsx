@@ -35,7 +35,8 @@ export function RightSidebarHeader({ paneId, activeTab, windowChrome = false }: 
           const label = tab === 'companion' ? 'Agent' : t(`rightSidebar.tabs.${tab}`);
           return (
             <PanelTab key={tab} active={activeTab === tab}
-              onClick={() => toggleTab(paneId, tab)} typography="label" aria-label={label} title={label}>
+              onClick={() => toggleTab(paneId, tab)} typography="label" aria-label={label} title={label}
+              data-guide-anchor={tab === 'companion' ? 'agent-tab' : undefined}>
               <PanelTabLabel>{label}</PanelTabLabel>
             </PanelTab>
           );

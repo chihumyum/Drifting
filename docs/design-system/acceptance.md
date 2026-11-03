@@ -19,6 +19,7 @@ pnpm exec vitest run src/renderer/views/shelf-sand-glass.acceptance.test.ts src/
 pnpm exec vitest run src/renderer/shells/desktop/views/super-view-sand-glass.acceptance.test.ts
 pnpm exec vitest run src/renderer/components/editor/comment-sand.acceptance.test.ts src/renderer/lib/comment-sand.test.ts src/renderer/components/editor/comment-anchor-highlight.acceptance.test.ts
 pnpm exec vitest run src/renderer/components/editor/agent-reveal-overwrite.acceptance.test.ts src/renderer/components/editor/agent-edit-animation.test.ts src/renderer/lib/agent-recent-changes.test.ts
+pnpm exec vitest run src/renderer/features/guide/guide.acceptance.test.ts src/renderer/features/guide/tour-geometry.test.ts
 ```
 
 所有侧栏 Tab 的视图隔离契约与合成数据验收见 [sidebar-panel-isolation](../qa/sidebar-panel-isolation.md)。
@@ -26,6 +27,8 @@ pnpm exec vitest run src/renderer/components/editor/agent-reveal-overwrite.accep
 Agent 双栏隔离使用合成 repository/transport 的真实 store 验收：`pnpm exec vitest run src/renderer/store/agent-chat-views.integration.test.ts`。覆盖独立草稿、并行准备、同会话去重、异步加载、删除、停止/授权/追加指令目标、消息投影、自动续接和外部任务导航。此证据不代表真实模型或原生窗口验收。
 
 ## 行为证据
+
+- **导览与空视图提示**：`features/guide/guide.acceptance.test.ts` 守着每一步与侧栏收起时的替代目标都对得上真实组件写出的类名或属性、两种语言都有每一句、「已看过」只记一次且能重置、只存本机不进偏好同步，以及步数、快捷键和空视图提示里的快捷键都是等宽索引字、没有边框和底色；`tour-geometry.test.ts` 覆盖双半栏合成一圈、圆形按钮的圈仍是圆的、卡片先放下面、靠窗口底边放上面并右边对齐、总在窗口里，以及圈不越过窗口上沿。2026-11-03 在隔离的 Tauri WKWebView（`dev:seed:lite --frontend-debug` + 调试桥，`1440×900`，两侧栏初始收起）走过一遍：第 1 步先圈住浮着的左栏开关并换成「点这里把它打开」，点开后 `400ms` 内圈滑到「章节 · 要素 · 构想」三个字上、换回原句；第 2–4、6 步依次圈住要素全景入口、作品主页「新建」（卡片放到上面、右边对齐）、时间线开关、鸟居与风铃；第 5 步先圈右栏开关，点开后圈到 Agent 字上；每一步「下一步」拿着焦点；完成后 `guidesSeen` 写进 `settings-storage`，重载不再出现；设置 → 外观 →「重新显示」清空后按钮变灰。新建的空书里章节、构想、要素、Review 的空状态都写出提示行（快捷键为更纱等宽、无边框无底色），空章节的稿纸写出五行提示，输入第一个字后消失。输入是合成 DOM 事件，证据不包含像素截图。
 
 - **实体自定义颜色**：`entity-editor-colors.acceptance.test.ts` 检查两个编辑器仅有一个共享 `ColorPicker`，没有预设色，且和强调色使用同一控件；覆盖任意六位 Hex（含黑白）与移动端的原生输入、既有颜色提交路径及窄栏换行；编辑器行内不显示 Hex 或「自定义颜色」文字，设置保留色值。隔离 Tauri WKWebView 的[生成证据](acceptance/entity-editor-custom-colors.json)走过两个编辑器的四种任意颜色、真实 SQLite 写入、WebView 重载回显、没有预设色、单个取色入口和聚焦取色器不写回。输入是合成 DOM 事件，证据不声明系统取色面板的物理点击或像素级视觉验收。
 

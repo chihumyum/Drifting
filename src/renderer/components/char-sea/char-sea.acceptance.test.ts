@@ -142,6 +142,8 @@ describe('the sea of characters under the desktop window', () => {
     expect(read('src/renderer/lib/char-sea/char-sea-model.ts')).toContain('const SWAP_HEAD = 14;');
     // Still water and still glass draw one last frame, then nothing.
     expect(engine).toContain('if (quietFrames > 20) {');
+    // A frame between two steps (above 100Hz) neither moves the water nor settles it.
+    expect(engine).toContain('else if (steps) quietFrames = peak < 0.004 ? quietFrames + 1 : 0;');
     expect(engine).toContain("window.matchMedia?.('(prefers-reduced-motion: reduce)')");
     // The rim is the app's resting glass: 1px of glass-clear at 33% × 1.8, cut by the same texture and tile.
     expect(engine).toContain("import glassTextureUrl from '../../../assets/design/glass-thick.png';");

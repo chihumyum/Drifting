@@ -36,6 +36,8 @@ import { useEntityCellAction } from '../../hooks/useEntityCellAction';
 import { entityKey } from '../../lib/agent/tool-entity-ref';
 import type { WorkspaceTarget } from '../../features/workspace/navigation/workspace-target';
 import { BrushIcon } from '../ui/BrushIcon';
+import { EmptyState } from '../ui/EmptyState';
+import { useEmptyStateHints } from '../../hooks/useEmptyStateHints';
 
 const log = loglevel.getLogger('ElementPanel');
 log.setLevel(loglevel.levels.ERROR);
@@ -71,6 +73,7 @@ export function ElementPanel({
   onPreviewTarget,
 }: ElementPanelProps = {}) {
   const { t } = useTranslation();
+  const emptyHints = useEmptyStateHints();
   const { bookElements, bookElementCategories } = useDataStoreFields('bookElements', 'bookElementCategories');
   const elementUi = useUiStore((s) => s.elementUi);
   const sidebarWidth = useLeftSidebarPanelWidth();
@@ -718,18 +721,11 @@ export function ElementPanel({
           })}
 
           {!hasElements && (
-            <div
-              style={{
-                fontSize: 'var(--ui-font-secondary, 12px)',
-                fontFamily: 'var(--font-sans)',
-                fontStyle: 'italic',
-                color: 'var(--ui-text-muted, hsl(var(--ink-3)))',
-                padding: '40px 20px',
-                textAlign: 'center',
-              }}
-            >
-              {t('leftSidebar.empty.noElements')}
-            </div>
+            <EmptyState
+              mark={presentation === 'desktop' ? 'element' : undefined}
+              message={t('leftSidebar.empty.noElements')}
+              hints={presentation === 'desktop' ? [emptyHints.create] : undefined}
+            />
           )}
         </div>
       </div>

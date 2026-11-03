@@ -37,6 +37,7 @@ import { type ReviewGroupMode, type ReviewScope, type ReviewSortMode } from '../
 import { useComment } from '../../usecase/useComment';
 import { useEntityRelations } from '../../usecase/useEntityRelations';
 import { EmptyState } from '../ui/EmptyState';
+import { useEmptyStateHints } from '../../hooks/useEmptyStateHints';
 import { GlassSlider } from '../ui/GlassSlider';
 import { ScopeToggle } from '../ui/ScopeToggle';
 import { GhostIconButton } from '../ui/GhostIconButton';
@@ -65,6 +66,7 @@ const OPENABLE_GROUP_KINDS = new Set<CommentTargetKind>(['node', 'element', 'sto
 
 export function ReviewPanel({ focused, onOpenAgentTask }: ReviewPanelProps) {
   const { t } = useTranslation();
+  const emptyHints = useEmptyStateHints();
   const navigator = useWorkspaceNavigator();
   const projectId = navigator.projectId;
   const userId = useAuthStore((state) => state.user?.id) ?? 'local';
@@ -437,7 +439,13 @@ export function ReviewPanel({ focused, onOpenAgentTask }: ReviewPanelProps) {
       />
 
       <div className="review-panel__list scroll-no-bar workspace-list">
-        {openItems.length === 0 && <EmptyState density="compact" message={t('reviewPanel.empty')} />}
+        {openItems.length === 0 && (
+          <EmptyState
+            density="compact"
+            message={t('reviewPanel.empty')}
+            hints={glass ? [emptyHints.todo] : undefined}
+          />
+        )}
         {renderItems(openItems, 'open')}
         {resolvedItems.length > 0 && (
           <details
