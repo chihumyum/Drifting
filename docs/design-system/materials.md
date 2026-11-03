@@ -68,7 +68,7 @@
 
 用到它们的：共用的 `GhostIconButton glass="round"`（侧栏开关、双栏按钮、Project Home、通知、时间线开关、故事图谱入口、便笺栏、素材全屏的关闭），稿纸工具栏与素材页工具栏的每个按钮（`.editor-bar__icon`），Dock 的锁与 `+`，选区浮条的格式，Agent 对话框的配置、语音、停止、补充、发送与跳到最新，设置与 Super View 的返回，构想托盘的关闭。时间线开关不再和工具栏长药丸一样高，而是和工具栏里的按钮一样大；单独停在空的 stage 上时，它的中线仍落在工具栏中线的位置（离角一个托盘留白）。
 
-唯一有意不同的一族是面板 header 里进入全书视图的圆形入口（通览全书、要素全景、TODO 与素材库）：面板 header 的图标按钮一律随 `--panel-header-scale` 放大 1.25 倍（见 [workspace.md](workspace.md)），这个入口也一样；放大前它正好填满 header 行内 padding 以内的高度（`--ui-control-height` 减 `2px`，标准字号下画出来 `32.5px`），所以有没有这个入口的面板一样高。它的图标仍是 `--glass-round-icon`，随 header 一起放大。
+唯一有意不同的一族是面板 header 里进入全书视图的圆形入口（通览全书、要素全景、审阅与素材）：面板 header 的图标按钮一律随 `--panel-header-scale` 放大 1.25 倍（见 [workspace.md](workspace.md)），这个入口也一样；放大前它正好填满 header 行内 padding 以内的高度（`--ui-control-height` 减 `2px`，标准字号下画出来 `32.5px`），所以有没有这个入口的面板一样高。它的图标仍是 `--glass-round-icon`，随 header 一起放大。
 
 不是图标按钮的圆形玻璃不按这个尺寸：作品主页浮着的新建圆（`.home-create__orb`，`46px`：作者要的大一号的圆，里面只有放大的砂笔记号）、色板（`.ui-swatch`、关系类型的色板）、数值滑块圆钮周围的晕、Review 卡与 TODO 卡里的完成开关（`22px`，像一个勾选框跟着卡片的行）、书架页头装头像的那一颗。
 

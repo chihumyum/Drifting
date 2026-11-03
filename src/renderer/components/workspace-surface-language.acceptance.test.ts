@@ -212,6 +212,17 @@ describe('workspace surface language acceptance', () => {
     );
     expect(library).toContain('onOpenWorkbench={onOpenWorkbench}');
     expect(library).toContain("title={t('bottomStatusBar.todoLibrary')}");
+    // …and from the Review panel's head, whose TODOs and comments it shelves.
+    expect(source('src/renderer/shells/desktop/DesktopRightSidebar.tsx')).toContain(
+      'onOpenAgentTask={() => revealDesktopAgentView()} onOpenWorkbench={openMaterialWorkbench} />',
+    );
+    const review = source('src/renderer/components/rightBars/ReviewPanel.tsx');
+    expect(review).toMatch(/\{onOpenWorkbench && \(\s*<GhostIconButton\s*glass="round"\s*className="workspace-super-view-entry"\s*title=\{t\('bottomStatusBar\.todoLibrary'\)\}/);
+    // Every right Panel Tab, the Agent's included, is named in the interface language.
+    expect(source('src/renderer/components/rightBars/RightSidebarHeader.tsx')).toContain('const label = t(`rightSidebar.tabs.${tab}`);');
+    const zh = JSON.parse(source('src/renderer/locales/zh-CN.json'));
+    expect(zh.rightSidebar.tabs).toEqual({ review: '审阅', library: '素材库', stats: '统计', companion: '帮手' });
+    expect(zh.memoMaterial.super.title).toBe('审阅与素材');
     expect(timeline).toContain("onClick={() => setActiveSuperView('graph')}");
     expect(timeline).toContain("title={t('bottomStatusBar.storyGraph')}");
     // Project Home from the account cell.

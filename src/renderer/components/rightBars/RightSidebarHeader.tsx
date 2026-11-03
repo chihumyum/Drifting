@@ -32,7 +32,7 @@ export function RightSidebarHeader({ paneId, activeTab, windowChrome = false }: 
       <SidebarSplitButton side="right" edge="start" />
       <PanelTabTray ref={tabTrayRef} className="rightbar-tab-tray">
         {RIGHT_SIDEBAR_TABS.map((tab) => {
-          const label = tab === 'companion' ? 'Agent' : t(`rightSidebar.tabs.${tab}`);
+          const label = t(`rightSidebar.tabs.${tab}`);
           return (
             <PanelTab key={tab} active={activeTab === tab}
               onClick={() => toggleTab(paneId, tab)} typography="label" aria-label={label} title={label}

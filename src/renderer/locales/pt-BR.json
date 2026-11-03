@@ -2214,7 +2214,8 @@
     "tabs": {
       "review": "Revisão",
       "library": "Biblioteca de materiais",
-      "stats": "Estatísticas"
+      "stats": "Estatísticas",
+      "companion": "Agent"
     },
     "top": {
       "open": "Abrir barra direita",

@@ -192,7 +192,7 @@ export function DesktopRightSidebar() {
             title={target.title}
           />}
           <SidebarPanelBody>
-            {tab === 'review' && <ReviewPanel focused={focusedForReview} onOpenAgentTask={() => revealDesktopAgentView()} />}
+            {tab === 'review' && <ReviewPanel focused={focusedForReview} onOpenAgentTask={() => revealDesktopAgentView()} onOpenWorkbench={openMaterialWorkbench} />}
             {tab === 'library' && <LibraryPanel focused={focusedForPanel} activeLibraryItemId={focusedMaterialId} onPinLibraryItem={pinLibraryItem} onOpenWorkbench={openMaterialWorkbench} />}
             {tab === 'stats' && <EntityStatsContent
               target={target}

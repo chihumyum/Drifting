@@ -2203,7 +2203,8 @@
     "tabs": {
       "review": "검토",
       "library": "자료실",
-      "stats": "통계"
+      "stats": "통계",
+      "companion": "Agent"
     },
     "top": {
       "open": "오른쪽 사이드바 열기",
