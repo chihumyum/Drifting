@@ -2768,6 +2768,8 @@
     "title": "All relation types",
     "all": "All",
     "openAllTitle": "View all relation types and filters",
+    "legendLabel": "Lines on the canvas",
+    "editTypes": "Edit types",
     "summary": "{{kinds}} types · {{relations}} relations",
     "visibleSummary": "{{visible}}/{{total}} shown",
     "filterLabel": "Canvas filters",
@@ -2869,10 +2871,6 @@
       "label": "Layout",
       "isles": "Islands",
       "relate": "Relations"
-    },
-    "legend": {
-      "label": "Lines on the canvas",
-      "editTypes": "Edit types"
     },
     "relate": {
       "relayout": "Re-arrange",

@@ -58,7 +58,8 @@ import { useElementMentionGraph } from '../../../usecase/useElementMentionGraph'
 import { useBookElement } from '../../../usecase/useBookElement';
 import { useElementCategory } from '../../../usecase/useElementCategory';
 import { SuperElementLineThreshold } from '../components/SuperElementLineThreshold';
-import { SuperElementCanvasTools } from '../components/SuperElementCanvasTools';
+import { SuperElementLayoutSwitch, SuperElementLinesRow } from '../components/SuperElementCanvasTools';
+import { SuperViewRelationLegend } from '../components/SuperViewRelationLegend';
 import { CategoryIsleDetail, CategoryIsleStrip, ElementIsleDetail, ElementIsleStrip } from '../components/ElementIsleDetail';
 import { SuperElementIsland } from '../components/SuperElementIsland';
 import { readIslandWidth } from '../components/super-element-island-width';
@@ -114,9 +115,10 @@ function viewportStorageKey(projectId: string | undefined): string | null {
   return `super-element-view:viewport:${projectId}`;
 }
 
-// The canvas's corner (the layout switch and the legend of the lines) stays
-// clear when the islands or the 关系 layout are fitted to the window.
-const CANVAS_TOOLS_RESERVE = 180;
+// Fitting the islands or the 关系 layout to the window leaves the layout
+// switch (top left) and the legend of the lines (top right) clear.
+const CANVAS_FIT_LEFT = 48;
+const CANVAS_FIT_RIGHT = 180;
 // Past this many relation lines in the window the role names follow the
 // element under the pointer or in focus only.
 const RELATE_LABEL_BUDGET = 60;
@@ -828,14 +830,14 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
       const { minX, maxX, minY, maxY } = layout.bounds;
       const width = Math.max(1, (maxX - minX) * CELL_W);
       const height = Math.max(1, (maxY - minY) * CELL_H);
-      const room = viewport.clientWidth - CANVAS_TOOLS_RESERVE - 48;
+      const room = viewport.clientWidth - CANVAS_FIT_LEFT - CANVAS_FIT_RIGHT;
       const zoom = Math.max(
         ZOOM_MIN,
         Math.min(ISLES_LOD_ZOOM.mid, room / width, (viewport.clientHeight - 96) / height),
       );
       return {
         pan: {
-          x: CANVAS_TOOLS_RESERVE + room / 2 - ((minX + maxX) / 2) * CELL_W * zoom,
+          x: CANVAS_FIT_LEFT + room / 2 - ((minX + maxX) / 2) * CELL_W * zoom,
           y: viewport.clientHeight / 2 - ((minY + maxY) / 2) * CELL_H * zoom,
         },
         zoom,
@@ -1124,18 +1126,18 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
   useEffect(() => () => {
     if (cameraFrameRef.current) cancelAnimationFrame(cameraFrameRef.current);
   }, []);
-  /** The camera that fits a 关系 layout into the window beside the canvas's corner. */
+  /** The camera that fits a 关系 layout into the window between the layout switch and the legend. */
   const fitRelate = useCallback((positions: ReadonlyMap<string, RelatePoint>) => {
     const viewport = viewportRef.current;
     if (!viewport || positions.size === 0) return null;
     const b = relateBounds(positions, relateNames);
-    const room = viewport.clientWidth - CANVAS_TOOLS_RESERVE - 48;
+    const room = viewport.clientWidth - CANVAS_FIT_LEFT - CANVAS_FIT_RIGHT;
     const width = Math.max(1, b.maxX - b.minX);
     const height = Math.max(1, b.maxY - b.minY);
     const zoom = Math.max(ZOOM_MIN, Math.min(ISLES_LOD_ZOOM.mid, room / width, (viewport.clientHeight - 96) / height));
     return {
       pan: {
-        x: CANVAS_TOOLS_RESERVE + (room - width * zoom) / 2 - b.minX * zoom,
+        x: CANVAS_FIT_LEFT + (room - width * zoom) / 2 - b.minX * zoom,
         y: (viewport.clientHeight - height * zoom) / 2 - b.minY * zoom,
       },
       zoom,
@@ -1301,6 +1303,7 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
           target?.closest('[data-relation-edge-popover]') ||
           target?.closest('[data-super-modal]') ||
           target?.closest('[data-se-tools]') ||
+          target?.closest('[data-super-view-legend]') ||
           target?.closest('button') ||
           target?.closest('a') ||
           target?.closest('input') ||
@@ -2494,13 +2497,27 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
           )}
         </div>
 
+        {!mobileShell && <SuperElementLayoutSwitch layout={layoutMode} onLayout={chooseLayout} />}
+        {/* The legend of the lines, top right; while the floating island is
+            open it steps left of the island (its card is 248px at 16px from
+            the edge, its sheet a share of the canvas at 12px). */}
         {!mobileShell && (
-          <SuperElementCanvasTools
-            layout={layoutMode}
-            onLayout={chooseLayout}
-            linesOn={linesOn}
-            linesCount={thresholdLines.length}
-            onToggleLines={() => setLinesOn((value) => !value)}
+          <SuperViewRelationLegend
+            canvas="element"
+            style={{
+              right: !islandSubject
+                ? 12
+                : islandMode === 'sheet'
+                  ? `calc(${(islandWidth * 100).toFixed(2)}% + 24px)`
+                  : 276,
+            }}
+            lead={(
+              <SuperElementLinesRow
+                linesOn={linesOn}
+                linesCount={thresholdLines.length}
+                onToggleLines={() => setLinesOn((value) => !value)}
+              />
+            )}
           />
         )}
 

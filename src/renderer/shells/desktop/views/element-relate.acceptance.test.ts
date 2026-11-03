@@ -97,12 +97,14 @@ describe('the element overview’s 关系 layout', () => {
     expect(unpinned).not.toContain('superElement.isles.unpin');
   });
 
-  it('switches layout in the canvas’s corner, keeps the islands, and moves without re-rendering the canvas', () => {
+  it('switches layout under the header on the left, keeps the islands, and moves without re-rendering the canvas', () => {
     const view = source('src/renderer/shells/desktop/views/DesktopSuperElementView.tsx');
-    // The layout and the legend sit in the canvas's corner, not in the header.
+    // The layout switch sits top left in the canvas, the legend top right; neither in the header.
     expect(view).toContain('relationControl={mobileShell}');
-    expect(view).toMatch(/<SuperElementCanvasTools\s+layout=\{layoutMode\}\s+onLayout=\{chooseLayout\}/);
-    expect(view.indexOf('<SuperElementCanvasTools')).toBeGreaterThan(view.indexOf('className="super-view-body"'));
+    expect(view).toContain('<SuperElementLayoutSwitch layout={layoutMode} onLayout={chooseLayout} />');
+    expect(view.indexOf('<SuperElementLayoutSwitch')).toBeGreaterThan(view.indexOf('className="super-view-body"'));
+    // While the floating island is open the legend steps left of it.
+    expect(view).toContain("? `calc(${(islandWidth * 100).toFixed(2)}% + 24px)`");
     // The islands stay: 群岛 renders the category boxes, 关系 the free cells and lines.
     expect(view).toContain("(!relateShown || islesPhase === 'leaving') && categoryModels.map");
     expect(view).toContain('{relateShown && (\n            <SuperElementRelateLayer');
@@ -130,28 +132,37 @@ describe('the element overview’s 关系 layout', () => {
     expect(header).toContain("relationControl && (activeSuperView === 'element' || activeSuperView === 'graph')");
     const tools = source('src/renderer/shells/desktop/components/SuperElementCanvasTools.tsx');
     expect(tools).toContain('<GlassSlider');
-    expect(tools).toContain('<RelationKindMenu');
     expect(tools).toContain("{ value: 'relate', label: t('superElement.layout.relate') }");
+    const legend = source('src/renderer/shells/desktop/components/SuperViewRelationLegend.tsx');
+    expect(legend).toContain('<RelationKindMenu');
+    // The story graph's relation kinds leave its header for the same legend, under its sticky rows.
+    const story = source('src/renderer/shells/desktop/views/DesktopStoryGraphView.tsx');
+    expect(story).toContain('relationControl={mobileShell}');
+    expect(story).toMatch(/<SuperViewRelationLegend\s+canvas="graph"\s+style=\{\{ top: \(isNarrative \? GRAPH_CONFIG\.AXIS_HEIGHT : actRailHeight\) \+ 10 \}\}/);
   });
 
-  it('styles the free cells, the role names and the corner in sand and glass', () => {
+  it('styles the free cells, the role names, the switch and the legend in sand and glass', () => {
     const css = source('src/styles/super-element.css');
+    const shared = source('src/styles/super-view-header.css');
     expect(css).toMatch(/\.se-card\.sand-cell\.se-card--free \{[^}]*background: hsl\(var\(--paper\)\);/);
     expect(css).toMatch(/\.se-relate-role > rect \{\s*fill: hsl\(var\(--paper\)\);/);
     expect(css).toMatch(/\.se-isle-lines\.is-moving \{\s*opacity: 0;/);
     expect(css).toMatch(/\.se-tools \{[^}]*top: 10px;[^}]*left: 12px;/);
+    expect(shared).toMatch(/\.super-view-legend \{[^}]*top: 10px;[^}]*right: 12px;/);
     // A shown kind of line is the ordinary state: only the row under the pointer rings.
-    expect(css).toContain(".se-legend__row.glass[aria-pressed]:not(:hover, :focus-visible, :active)::before {");
-    expect(css).toMatch(/\.se-legend__row\[aria-pressed='false'\] > \.se-legend__stroke \{\s*opacity: 0\.25;/);
+    expect(shared).toContain(".super-view-legend__row.glass[aria-pressed]:not(:hover, :focus-visible, :active)::before {");
+    expect(shared).toMatch(/\.super-view-legend__row\[aria-pressed='false'\] > \.super-view-legend__stroke \{\s*opacity: 0\.25;/);
   });
 
   it('is written down and named in both languages', () => {
     const docs = designSystemDocs();
     expect(docs).toContain('**关系**布局');
     expect(docs).toContain('画布左上角');
+    expect(docs).toContain('内容区右上角');
     const zh = JSON.parse(source('src/renderer/locales/zh-CN.json')).superElement;
     const en = JSON.parse(source('src/renderer/locales/en.json')).superElement;
-    expect([zh.layout.isles, zh.layout.relate, zh.relate.relayout, zh.legend.editTypes]).toEqual(['群岛', '关系', '重新排布', '编辑类型']);
+    expect([zh.layout.isles, zh.layout.relate, zh.relate.relayout]).toEqual(['群岛', '关系', '重新排布']);
+    expect(JSON.parse(source('src/renderer/locales/zh-CN.json')).edgeKindManager.editTypes).toBe('编辑类型');
     expect([en.layout.isles, en.layout.relate]).toEqual(['Islands', 'Relations']);
   });
 });
