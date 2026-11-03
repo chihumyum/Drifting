@@ -258,10 +258,13 @@ pub fn window_set_traffic_light_position(
 }
 
 /// Immersive writing hides the traffic lights; the window's top edge brings
-/// them back while the pointer stays there. They fade by alpha rather than
-/// `setHidden`: unhiding makes AppKit lay the title bar out again, which
-/// drops the inset `window_set_traffic_light_position` gave them. A pointer
-/// that reaches them is already in the top band that shows them.
+/// them back while the pointer stays there. Changing a standard window
+/// button's alpha (or hidden flag) makes AppKit lay the title bar out again
+/// at once, dropping the inset `window_set_traffic_light_position` gave it,
+/// so the buttons' and their container's frames are put back in the same
+/// main-thread turn: no frame ever shows them at the stock position. A
+/// pointer that reaches the faded buttons is already in the top band that
+/// shows them.
 #[tauri::command]
 pub fn window_set_traffic_lights_hidden(window: WebviewWindow, hidden: bool) -> Result<(), String> {
     #[cfg(target_os = "macos")]
@@ -271,14 +274,30 @@ pub fn window_set_traffic_lights_hidden(window: WebviewWindow, hidden: bool) -> 
                 use objc2_app_kit::{NSWindow, NSWindowButton};
 
                 let native_window: &NSWindow = &*webview.ns_window().cast();
-                for kind in [
+                let buttons: Vec<_> = [
                     NSWindowButton::CloseButton,
                     NSWindowButton::MiniaturizeButton,
                     NSWindowButton::ZoomButton,
-                ] {
-                    if let Some(button) = native_window.standardWindowButton(kind) {
-                        button.setAlphaValue(if hidden { 0.0 } else { 1.0 });
-                    }
+                ]
+                .into_iter()
+                .filter_map(|kind| native_window.standardWindowButton(kind))
+                .collect();
+                let container = buttons
+                    .first()
+                    .and_then(|button| button.superview())
+                    .and_then(|row| row.superview());
+                let container_frame = container.as_ref().map(|view| view.frame());
+                let origins: Vec<_> = buttons.iter().map(|button| button.frame().origin).collect();
+
+                for button in &buttons {
+                    button.setAlphaValue(if hidden { 0.0 } else { 1.0 });
+                }
+
+                if let (Some(view), Some(frame)) = (container.as_ref(), container_frame) {
+                    view.setFrame(frame);
+                }
+                for (button, origin) in buttons.iter().zip(origins) {
+                    button.setFrameOrigin(origin);
                 }
             })
             .map_err(|error| error.to_string())?;
