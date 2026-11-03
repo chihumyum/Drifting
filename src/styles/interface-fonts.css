@@ -49,6 +49,15 @@ html[data-shell-mode='desktop'] .workspace-panel-tab-row [data-panel-tab-label][
   top: 0.15em;
 }
 
+/* Latin labels read high beside them: Newsreader's capitals (0.68em) centre
+   about 0.1em above the line's middle. In the right row Review and Agent sit
+   next to 素材库 and 统计, so they drop 0.1em and the middle of the capitals
+   meets the same 21px line as the ideographs' ink. */
+html[data-shell-mode='desktop'] .workspace-panel-tab-row [data-panel-tab-label]:not([data-script='cjk']) {
+  position: relative;
+  top: 0.1em;
+}
+
 /* GroupHeaderCell's inline styles are retained as the mobile fallback. */
 html[data-shell-mode='desktop'] .left-sb-group-header__name {
   font-family: var(--font-structure) !important;

@@ -89,6 +89,11 @@ describe('workspace window-control row', () => {
       cssBlock(fontsCss, ".workspace-panel-tab-row [data-panel-tab-label][data-script='cjk'] {"),
     ).toMatch(/position:\s*relative;[\s\S]*top:\s*0\.15em;/);
     expect(doc).toContain('下移 `0.15em`');
+    // Latin labels in the same rows drop 0.1em so their capitals centre on that line too.
+    expect(
+      cssBlock(fontsCss, ".workspace-panel-tab-row [data-panel-tab-label]:not([data-script='cjk']) {"),
+    ).toMatch(/position:\s*relative;[\s\S]*top:\s*0\.1em;/);
+    expect(doc).toContain('拉丁标签（Review、Agent，以及英文界面的全部 Tab）下移 `0.1em`');
   });
 
   it('keeps the window draggable without a title bar', () => {
