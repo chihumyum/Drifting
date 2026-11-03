@@ -1,4 +1,4 @@
-import { commentBlockIds, commentColorKey, type Comment, type CommentTargetKind } from '../../domain/comment';
+import { commentBlockIds, commentColorKey, isNoteTaskTodo, type Comment, type CommentTargetKind } from '../../domain/comment';
 import type { AgentBlockChange } from '../../lib/agent/block-diff';
 
 export interface ScrollMarker {
@@ -20,38 +20,23 @@ export function sameScrollMarkers(a: readonly ScrollMarker[], b: readonly Scroll
   });
 }
 
-// One rebuildable lookup per immutable comments collection, shared by split and
-// retained surfaces. Weak keys release old project/generation collections.
-const commentIndexes = new WeakMap<readonly Comment[], Map<string, { comment: Comment; order: number }>>();
-function commentIndex(comments: readonly Comment[]) {
-  let index = commentIndexes.get(comments);
-  if (!index) {
-    index = new Map(comments.map((comment, order) => [comment.id, { comment, order }]));
-    commentIndexes.set(comments, index);
-  }
-  return index;
-}
-
-/** Only membership, anchor and display semantics notify the marker consumer. */
-export function createCommentMarkerSelector(projectId: string, kind: CommentTargetKind, id: string, visibleIds: readonly string[]) {
+/** Only membership, anchor and display semantics notify the marker consumer.
+ *  With the paper's comment toggle on, every open note and TODO anchored in
+ *  this paper gets a tick, the same anchors the prose draws at rest; off, none. */
+export function createCommentMarkerSelector(projectId: string, kind: CommentTargetKind, id: string, visible: boolean) {
   let input: readonly Comment[] | undefined;
   let snapshot: readonly ScrollMarker[] = EMPTY_SCROLL_MARKERS;
   return (state: { comments: readonly Comment[] }): readonly ScrollMarker[] => {
-    if (input === state.comments || visibleIds.length === 0) return snapshot;
+    if (input === state.comments || !visible) return snapshot;
     input = state.comments;
-    const index = commentIndex(input);
-    const candidates = [...new Set(visibleIds)].flatMap(id => {
-      const record = index.get(id);
-      return record ? [record] : [];
-    }).sort((a, b) => a.order - b.order);
     const next: ScrollMarker[] = [];
-    for (const { comment: c } of candidates) {
+    for (const c of input) {
       if (c.projectId !== projectId || c.targetKind !== kind || c.targetId !== id ||
-          c.targetBlockId === null || c.status === 'converted') continue;
+          c.targetBlockId === null || c.status !== 'open' || isNoteTaskTodo(c)) continue;
       const blockIds = commentBlockIds(c);
       if (blockIds.length === 0) continue;
       next.push({ key: `c:${c.id}`, blockIds,
-        cls: c.status === 'resolved' ? 'editor__scrollmap-tick--resolved' : `editor__scrollmap-tick--c-${commentColorKey(c)}`,
+        cls: `editor__scrollmap-tick--c-${commentColorKey(c)}`,
         laneCls: 'editor__scrollmap-tick--span',
         titleKey: c.kind === 'todo' ? 'editorScrollMarkers.jumpToTodo' : 'editorScrollMarkers.jumpToComment' });
     }

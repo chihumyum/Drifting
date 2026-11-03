@@ -22,6 +22,7 @@ import {
 import { VirtualChapterRow } from '../components/editor/VirtualChapterRow';
 import { AgentRecentChangeHighlights } from '../components/editor/AgentRecentChangeHighlights';
 import { CommentAnchorHighlights } from '../components/editor/CommentAnchorHighlights';
+import { useCommentMarksToggle } from '../components/editor/comment-marks';
 import {
   useEditorSurfaceLifecycle,
   useReportEditorSurfaceReady,
@@ -206,6 +207,8 @@ export function AllChaptersEditorView() {
     () => setEntityLinkInteractive(!entityLinkInteractive),
     [entityLinkInteractive, setEntityLinkInteractive],
   );
+  // One toggle for the whole book: every chapter's comment marks.
+  const commentToggle = useCommentMarksToggle(projectId, 'node', null);
 
   const { getContentByNodeId, getOutlineByNodeId } =
     useBookContent({
@@ -924,6 +927,7 @@ export function AllChaptersEditorView() {
           enabled: entityLinkInteractive,
           onToggle: toggleEntityLinkInteractive,
         }}
+        commentToggle={commentToggle}
       />
 
       <div className="editor-body">

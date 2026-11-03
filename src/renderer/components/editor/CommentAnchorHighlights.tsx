@@ -10,6 +10,7 @@ import {
 import { CommentSandPainter } from '../../lib/comment-sand';
 import { getPlatformRuntime } from '../../platform/runtime';
 import { useDataStore } from '../../store/data-store';
+import { useSettingsStore } from '../../store/settings-store';
 import { createCommentHighlightSelector } from './comment-highlight-model';
 import { useEditorSurfaceLifecycle } from './editor-surface-lifecycle-context';
 
@@ -25,17 +26,25 @@ const getNoActiveComment = () => null;
 
 /** Draws prose anchored by unresolved notes and TODOs and strengthens the
  * hovered or selected card's anchor: in sand under the prose on the desktop,
- * as a `::highlight()` wash in the paused mobile shell. Painting never mutates
- * the prose DOM; hidden surfaces stop observing prose mutations. */
+ * as a `::highlight()` wash in the paused mobile shell. With the paper's
+ * comment toggle off only that hovered or selected anchor is drawn; the rest
+ * fade out. Painting never mutates the prose DOM; hidden surfaces stop
+ * observing prose mutations. */
 export function CommentAnchorHighlights({ scrollEl, projectId, targetKind, targetId }: CommentAnchorHighlightsProps) {
   const { isVisible, isPreparing } = useEditorSurfaceLifecycle();
   const selectComments = useMemo(() => createCommentHighlightSelector(projectId, targetKind, targetId),
     [projectId, targetKind, targetId]);
-  const comments = useDataStore(selectComments);
+  const anchored = useDataStore(selectComments);
+  const marksVisible = useSettingsStore((state) => state.commentMarksVisible);
   const activeId = useSyncExternalStore(subscribeActiveCommentHighlight, getActiveCommentHighlight,
     getNoActiveComment);
   const selected = useSyncExternalStore(subscribeSelectedCommentHighlight, getSelectedCommentHighlight,
     getNoActiveComment);
+  const comments = useMemo(
+    () => marksVisible ? anchored
+      : anchored.filter((comment) => comment.id === activeId || comment.id === selected?.id),
+    [activeId, anchored, marksVisible, selected],
+  );
   const painter = useMemo(() => {
     if (!scrollEl) return null;
     return getPlatformRuntime().isMobileShell

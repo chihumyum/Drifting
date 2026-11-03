@@ -20,6 +20,7 @@ truth.
 - [Prose metrics and word counts](prose-metrics.md)
 - Editor: [chapter-end menu](editor/chapter-end-menu.md),
   [entity links](editor/entity-links.md),
+  [comments in the text](editor/comment-anchors.md),
   [Markdown sharing](editor/markdown-sharing.md),
   [outline rail](editor/semantic-outline-rail.md),
   [split tabs](editor/split-tab-preview.md),
@@ -117,8 +118,7 @@ These record past work for one checkout and are not current product truth.
   [prose metric Rust benchmark](prose-metrics-rust-benchmark.md),
   [whole-book find benchmark](rust-book-search-benchmark.md)
 - [Manual QA reports](qa/), including the
-  [Review and sticky-note rail](qa/review-sticky-note-rail-2026-08-30.md) and
-  the [native manual regression](qa/tauri-native-manual-regression.md)
+  [native manual regression](qa/tauri-native-manual-regression.md)
 - [Native and endurance acceptance](agent-runtime/native-endurance-acceptance.md)
 - [Mobile V2 design snapshot](design/mobile-v2/README.md)
 - Machine evidence in [`acceptance/`](acceptance/) and each area's `acceptance/` folder

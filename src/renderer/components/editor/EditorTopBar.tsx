@@ -66,7 +66,7 @@ export function getStatusSectionLabel(kind: NodeStatusKind, translate?: Translat
   controls stand in a vertical stack at the lower-right corner of its paper,
   one stack per editor pane, so split editors never share them.
   - Plot planner, element image, outline rail and Entity Link highlighting
-  - Margin comments with their count
+  - Comment marks in the text, with the count of open ones
   - Integrated three-dot menu driven by `editorType` + `onMenuAction`
 */
 
@@ -90,10 +90,10 @@ interface EditorTopBarProps {
   // targets the chapter at the reading line (not the whole book) — without this
   // the menu would read as operating on 通览全书.
   menuHeader?: ReactNode;
+  // Whether the prose draws its notes' and TODOs' anchors at rest.
   commentToggle?: {
     enabled: boolean;
     count: number;
-    disabled?: boolean;
     onToggle: () => void;
   };
   referenceLinkToggle?: {
@@ -182,14 +182,11 @@ export function EditorTopBar({
             type="button"
             className={`editor-bar__icon glass glass--round editor-bar__icon--comment${commentToggle.enabled ? ' editor-bar__icon--active' : ''}`}
             title={
-              commentToggle.disabled
-                ? t('editorTopBar.actions.noComments')
-                : commentToggle.enabled
-                  ? t('editorTopBar.actions.hideComments')
-                  : t('editorTopBar.actions.showComments')
+              commentToggle.enabled
+                ? t('editorTopBar.actions.hideComments')
+                : t('editorTopBar.actions.showComments')
             }
             aria-pressed={commentToggle.enabled}
-            disabled={commentToggle.disabled}
             onClick={commentToggle.onToggle}
           >
             <BrushIcon name="comment" />

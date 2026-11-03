@@ -17,8 +17,9 @@ import type { Storyline } from '../domain/storyline';
 import { ChapterEditor, type ChapterEditorRef } from '../components/editor/ChapterEditor';
 import { EditorDocumentLoadError } from '../components/editor/EditorDocumentLoadError';
 import { LoadingStatus } from '../components/ui/LoadingStatus';
-import { DesktopStickyNoteRail as StickyNoteRail } from '../features/comments/desktop/DesktopStickyNoteRail';
 import { EditorReviewLayer } from '../components/editor/EditorReviewLayer';
+import { EditorCommentComposer } from '../components/editor/EditorCommentComposer';
+import { useCommentMarksToggle } from '../components/editor/comment-marks';
 import { useEditorSurfaceLifecycle } from '../components/editor/editor-surface-lifecycle-context';
 import { PlotPlannerDock } from '../components/editor/PlotPlannerDock';
 import { eventBus } from '../lib/events';
@@ -68,7 +69,6 @@ import {
 import { useCanPromoteOnEdit, usePromoteCurrentTab, useUiStore } from '../store/ui-store';
 import { editorTabSelectionKey } from '../lib/editor-selection-memory';
 import type { EditorCommentRequest } from '../hooks/useEntityEditor';
-import { useEntityStickyNoteRail } from '../hooks/useEntityStickyNoteRail';
 import { getLiveYDoc } from '../lib/yjs-doc-registry';
 import { makeDocId } from '../lib/yjs-doc-id';
 
@@ -131,28 +131,13 @@ const NodeEditorSession = memo(function NodeEditorSession({ nodeId, projectId }:
   // Highlight agent-changed blocks/summary and clear the cell's "M" as the user
   // reads each spot in place (#17).
   useAgentChangeMarks(scrollEl, 'node', nodeId, isVisible);
-  const stickyNoteRail = useEntityStickyNoteRail('node', nodeId);
-  const marginNotes = stickyNoteRail.visible;
-  const setMarginNotes = stickyNoteRail.setVisible;
   const entityLinkInteractive = useSettingsStore((state) => state.entityLinkInteractive);
   const setEntityLinkInteractive = useSettingsStore((state) => state.setEntityLinkInteractive);
   const toggleEntityLinkInteractive = useCallback(
     () => setEntityLinkInteractive(!entityLinkInteractive),
     [entityLinkInteractive, setEntityLinkInteractive],
   );
-  const commentCount = stickyNoteRail.itemIds.length;
-  const toggleComments = useCallback(() => {
-    const next = !marginNotes;
-    setMarginNotes(next);
-    if (!next) setPendingComment(null);
-  }, [marginNotes, setMarginNotes]);
-  const handleAddCommentRequest = useCallback(
-    (request: EditorCommentRequest) => {
-      setMarginNotes(true);
-      setPendingComment(request);
-    },
-    [setMarginNotes],
-  );
+  const commentToggle = useCommentMarksToggle(activeProjectId, 'node', nodeId ?? '');
   const outlineIds = outline.map((heading) => heading.id);
   // Nest the flat H1/H2/H3 outline into the scene/beat/note tree so this
   // single-chapter TOC reads identically to the same chapter inside 通览全书.
@@ -652,12 +637,7 @@ const NodeEditorSession = memo(function NodeEditorSession({ nodeId, projectId }:
               enabled: entityLinkInteractive,
               onToggle: toggleEntityLinkInteractive,
             }}
-            commentToggle={{
-              enabled: marginNotes,
-              count: commentCount,
-              disabled: false,
-              onToggle: toggleComments,
-            }}
+            commentToggle={commentToggle}
             plotPlannerToggle={{
               enabled: plotPlannerOpen,
               onToggle: togglePlotPlanner,
@@ -695,7 +675,7 @@ const NodeEditorSession = memo(function NodeEditorSession({ nodeId, projectId }:
                 scrollToOutlineAnchor(id, scrollEl);
               }}
             />
-            <div className={`editor-scroll${marginNotes ? ' editor-scroll--comments' : ''}`} ref={setScrollEl}>
+            <div className="editor-scroll" ref={setScrollEl}>
               <div className="editor__spread">
                 <article className="page page--entity">
                   {/* Desktop folio: 「第 N 章」, the storyline's dash beside its
@@ -793,7 +773,7 @@ const NodeEditorSession = memo(function NodeEditorSession({ nodeId, projectId }:
                       onSummaryUpdate={handleSummaryUpdate}
                       onEntityClick={handleEntityClick}
                       onOutlineChange={setOutline}
-                      onAddCommentRequest={handleAddCommentRequest}
+                      onAddCommentRequest={setPendingComment}
                       showTitle={true}
                       showSummary={true}
                       editableTitle={true}
@@ -829,21 +809,18 @@ const NodeEditorSession = memo(function NodeEditorSession({ nodeId, projectId }:
                 </article>
               </div>
             </div>
-            {marginNotes && (
-              <StickyNoteRail
-                projectId={activeProjectId}
-                targetKind="node"
-                targetId={nodeId ?? ''}
-                pendingRequest={pendingComment}
-                onPendingRequestChange={setPendingComment}
-              />
-            )}
+            <EditorCommentComposer
+              projectId={activeProjectId}
+              targetKind="node"
+              targetId={nodeId}
+              request={pendingComment}
+              onClose={() => setPendingComment(null)}
+            />
             <EditorReviewLayer
               projectId={activeProjectId}
               entityType="node"
               id={nodeId}
               scrollEl={scrollEl}
-              visibleCommentIds={marginNotes ? stickyNoteRail.itemIds : undefined}
             />
           </div>
         </>

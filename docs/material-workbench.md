@@ -43,8 +43,9 @@ next to the book. They are not manuscript.
   as in the chapter panel). Notes show a short read-only excerpt of the note
   document.
 - A note tab has the entity editors' furniture: the outline rail of its
-  headings, margin comments and TODOs on its text (the shared sticky-note
-  rail, anchor highlights and scroll ticks, targeting the note), and a stats
+  headings, comments and TODOs on its text (written in the floating composer
+  beside the selection, drawn as anchors with scroll ticks under the paper's
+  comment toggle, targeting the note), and a stats
   tab section (length, checklist progress, open comments, embeds, relations)
   with the entity history entry. Image and PDF tabs keep their comment
   column; their stats section shows the file.

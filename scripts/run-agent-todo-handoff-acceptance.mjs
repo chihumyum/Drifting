@@ -31,7 +31,6 @@ const sourceFiles = [
   'src/renderer/components/rightBars/ReviewPanel.tsx',
   'src/renderer/components/leftBars/SortMenu.tsx',
   'src/renderer/store/ui-store.ts',
-  'src/renderer/components/editor/StickyNoteRail.tsx',
   'src/renderer/shells/desktop/DesktopRightSidebar.tsx',
   'src/renderer/shells/mobile/workspace/MobileRightSidebar.tsx',
   'src/styles/comments-review.css',

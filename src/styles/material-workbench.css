@@ -790,7 +790,7 @@
   line-height: 16px;
 }
 
-.region-composer {
+.comment-composer {
   position: fixed;
   z-index: var(--z-context-menu);
   width: 280px;
@@ -800,7 +800,7 @@
   background: hsl(var(--surface));
   box-shadow: 0 16px 36px -18px hsl(var(--shadow-ink) / 0.45);
 }
-.region-composer textarea {
+.comment-composer textarea {
   display: block;
   width: 100%;
   min-height: 72px;
@@ -815,7 +815,7 @@
   font-size: 13px;
   line-height: 1.5;
 }
-.region-composer__actions {
+.comment-composer__actions {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -823,15 +823,15 @@
   font-size: 12px;
   color: hsl(var(--ink-2));
 }
-.region-composer__actions label {
+.comment-composer__actions label {
   display: inline-flex;
   align-items: center;
   gap: 4px;
 }
-.region-composer__spacer {
+.comment-composer__spacer {
   flex: 1;
 }
-.region-composer:not(.region-composer--float) .region-composer__actions button {
+.comment-composer:not(.comment-composer--float) .comment-composer__actions button {
   padding: 3px 9px;
   border: 1px solid hsl(var(--rule));
   border-radius: 4px;
@@ -840,12 +840,12 @@
   font-size: 12px;
   cursor: pointer;
 }
-.region-composer:not(.region-composer--float) .region-composer__save {
+.comment-composer:not(.comment-composer--float) .comment-composer__save {
   border-color: hsl(var(--accent)) !important;
   background: hsl(var(--accent)) !important;
   color: hsl(var(--paper)) !important;
 }
-.region-composer:not(.region-composer--float) .region-composer__save:disabled {
+.comment-composer:not(.comment-composer--float) .comment-composer__save:disabled {
   opacity: 0.5;
   cursor: default;
 }
@@ -1556,9 +1556,10 @@
   animation-play-state: running;
 }
 
-/* The composer for a just-drawn region is a floating layer: the desk lifted
-   out, square, a hairline and the floating shadow. */
-.region-composer.region-composer--float {
+/* The composer for a new anchored note or TODO (a region just drawn, a
+   passage selected in the prose) is a floating layer: the desk lifted out,
+   square, a hairline and the floating shadow. */
+.comment-composer.comment-composer--float {
   padding: 8px;
   border: 0;
   border-radius: var(--menu-surface-radius, 0);
@@ -1566,7 +1567,7 @@
   box-shadow: var(--menu-surface-shadow);
 }
 
-.region-composer--float .region-composer__field > textarea {
+.comment-composer--float .comment-composer__field > textarea {
   display: block;
   width: 100%;
   min-height: 72px;
@@ -1576,7 +1577,7 @@
   background: transparent;
 }
 
-.region-composer--float .region-composer__actions {
+.comment-composer--float .comment-composer__actions {
   margin-top: 8px;
 }
 

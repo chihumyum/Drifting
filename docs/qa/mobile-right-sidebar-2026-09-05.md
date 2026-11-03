@@ -46,7 +46,7 @@ are outside this layout acceptance.
 
 ## Machine checks
 
-`review-sticky-note-rail.acceptance.test.ts` now checks the edge geometry,
+`review-panel.acceptance.test.ts` now checks the edge geometry,
 single header inset, presence boundary, upward exit and inert closing state
 instead of the retired 34px CSS entrance animation. Simulator geometry and
 frame samples also passed explicit numeric assertions before publication.

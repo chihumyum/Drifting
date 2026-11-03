@@ -85,8 +85,8 @@ describe('sand in prose (desktop)', () => {
     }
     expect(source('src/renderer/components/editor/EditorScrollMarkers.tsx'))
       .toContain("tick.key.startsWith('c:') && !getPlatformRuntime().isMobileShell");
-    expect(source('src/renderer/components/editor/StickyNoteRail.tsx'))
-      .toContain('if (glass) selectCommentHighlight(created.id);');
+    expect(source('src/renderer/components/editor/EditorCommentComposer.tsx'))
+      .toContain('if (!getPlatformRuntime().isMobileShell) selectCommentHighlight(created.id);');
     expect(source('src/renderer/lib/comment-sand.ts')).toContain('clearSelectedCommentHighlight()');
   });
 

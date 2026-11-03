@@ -24,12 +24,6 @@ import type { FocusedEntity } from '../../features/library/LibraryPanel';
 import { useWorkspaceNavigator } from '../../features/workspace/navigation/WorkspaceNavigationContext';
 import { KindMark } from '../ui/KindMark';
 import { kindMarkOfTarget } from '../ui/kind-mark';
-import {
-  addCommentToStickyNoteRail,
-  commentStickyNoteRailTarget,
-  removeCommentFromStickyNoteRail,
-  useStickyNoteRailRegistryRevision,
-} from '../../hooks/useEntityStickyNoteRail';
 import { getPlatformRuntime } from '../../platform/runtime';
 import { useAuthStore } from '../../store/auth';
 import { useDataStore } from '../../store/data-store';
@@ -54,15 +48,6 @@ interface ReviewPanelProps {
   /** Opens the project-wide Review & Materials view (desktop), whose TODO and
    *  comment rails hold what this panel lists. */
   onOpenWorkbench?: () => void;
-}
-
-/** Targets whose editor shows a margin comment rail: the prose editors and
- *  material notes (images and PDFs keep their own comment column). */
-function canOwnEditorRail(kind: string | null, id: string | null): kind is Exclude<CommentTargetKind, 'patch'> {
-  if (kind === 'library_item') {
-    return useDataStore.getState().libraryItems.some((item) => item.id === id && item.kind === 'text');
-  }
-  return kind === 'node' || kind === 'element' || kind === 'category' || kind === 'storyline';
 }
 
 const OPENABLE_GROUP_KINDS = new Set<CommentTargetKind>(['node', 'element', 'storyline', 'category', 'library_item']);
@@ -103,7 +88,6 @@ export function ReviewPanel({ focused, onOpenAgentTask, onOpenWorkbench }: Revie
   const [compactToolbar, setCompactToolbar] = useState(false);
   const [typeFiltersWidth, setTypeFiltersWidth] = useState(0);
   const [collapseTypeFilters, setCollapseTypeFilters] = useState(false);
-  useStickyNoteRailRegistryRevision();
   // A material tab scopes to its region comments, which target it directly.
   const hasCurrentScope = isCommentTargetKind(focused.kind) && Boolean(focused.id);
   const effectiveScope: ReviewScope = hasCurrentScope ? scope : 'project';
@@ -207,38 +191,6 @@ export function ReviewPanel({ focused, onOpenAgentTask, onOpenWorkbench }: Revie
   const openItems = filtered.filter((comment) => comment.status === 'open');
   const resolvedItems = filtered.filter((comment) => comment.status === 'resolved');
 
-  const railTargetFor = (comment: Comment) => {
-    if (canOwnEditorRail(comment.targetKind, comment.targetId) && comment.targetId) {
-      return { kind: comment.targetKind, id: comment.targetId };
-    }
-    const structuralRelations = (refsByComment.get(comment.id) ?? []).filter(
-      (relation) => canOwnEditorRail(relation.toKind, relation.toId),
-    );
-    const relationTarget =
-      structuralRelations.find(
-        (relation) => relation.toKind === focused.kind && relation.toId === focused.id,
-      ) ?? structuralRelations[0];
-    if (relationTarget && canOwnEditorRail(relationTarget.toKind, relationTarget.toId)) {
-      return { kind: relationTarget.toKind, id: relationTarget.toId };
-    }
-    if (canOwnEditorRail(focused.kind, focused.id) && focused.id) {
-      return { kind: focused.kind, id: focused.id };
-    }
-    return null;
-  };
-
-  const toggleSticky = (comment: Comment) => {
-    const mounted = commentStickyNoteRailTarget(comment.id);
-    if (mounted) {
-      removeCommentFromStickyNoteRail(mounted.kind, mounted.id, comment.id);
-      return;
-    }
-    const target = railTargetFor(comment);
-    if (!target) return;
-    addCommentToStickyNoteRail(target.kind, target.id, comment.id);
-    navigator.open({ entityType: target.kind, id: target.id });
-  };
-
   const createItem = async (body: string, relations: RelationTarget[]) => {
     if (!composeKind) return;
     // Materials cannot be relation targets, so both notes and TODOs about a
@@ -272,21 +224,17 @@ export function ReviewPanel({ focused, onOpenAgentTask, onOpenWorkbench }: Revie
 
   const renderCard = (comment: Comment) => {
     const relations = refsByComment.get(comment.id) ?? [];
-    const mounted = commentStickyNoteRailTarget(comment.id) !== null;
     return (
       <ReviewItemCard
         key={comment.id}
         comment={comment}
         projectId={projectId}
-        presentation="panel"
         onOpenAgentTask={onOpenAgentTask}
-        mountedInStickyRail={mounted}
         relations={relations.map((relation) => ({
           id: relation.id,
           toKind: relation.toKind,
           toId: relation.toId,
         }))}
-        onToggleStickyRail={railTargetFor(comment) !== null || mounted ? () => toggleSticky(comment) : undefined}
         onAddRelation={(target) =>
           relationUsecases.addGenericAssociation('comment', comment.id, target.kind, target.id)
         }

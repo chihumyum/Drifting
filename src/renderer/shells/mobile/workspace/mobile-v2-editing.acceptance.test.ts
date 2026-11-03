@@ -59,7 +59,6 @@ describe('Mobile V2 M4 editing/search/all-chapters acceptance wiring', () => {
     expect(accessory).not.toContain('onPointerDown=');
     expect(accessory).toContain('item.run(editor)');
     expect(css).toContain("[data-rail-toc='true'] .editor__toc-rail");
-    expect(css).toContain("[data-rail-comments='true'] .editor__margin");
     expect(css).toContain('min-height: 44px');
     expect(css).toContain('touch-action: pan-x');
   });

@@ -1065,7 +1065,6 @@ describe('workspace surface language acceptance', () => {
     const picker = source('src/styles/project-picker.css');
     const agent = source('src/styles/agent-panel.css');
     const search = source('src/styles/search.css');
-    const review = source('src/styles/comments-review.css');
 
     expect(index).toContain('--radius: 2px;');
     expect(index).toContain('--radius-xs: 1px;');
@@ -1087,12 +1086,6 @@ describe('workspace surface language acceptance', () => {
     // Global search is a floating layer: the menu shell's square corner and shadow.
     expect(block(search, '.gsearch-modal {', '.gsearch-header {')).toContain(
       'border-radius: var(--menu-surface-radius);',
-    );
-    expect(block(review, '.review-card--sticky {', '.review-card--manual')).toMatch(
-      /border-radius:\s*var\(--radius-sm\);[\s\S]*?box-shadow:\s*none;/,
-    );
-    expect(block(review, '.sticky-note-stack {', '.sticky-note-stack__layers {')).toMatch(
-      /border-radius:\s*var\(--radius-sm\);[\s\S]*?box-shadow:\s*none;/,
     );
     expect(search).not.toContain('backdrop-filter');
   });
@@ -1410,28 +1403,23 @@ describe('workspace surface language acceptance', () => {
     expect(docs).toContain('| 推波 | 一个刚到的步骤被推进来 | `1.125s`');
   });
 
-  it('dresses Review cards, sticky notes and the stats panel in sand and glass on the desktop', () => {
+  it('dresses Review cards and the stats panel in sand and glass on the desktop', () => {
     const review = source('src/styles/comments-review.css');
     const stats = source('src/styles/stats-panel.css');
     const materials = source('src/styles/materials.css');
     const card = source('src/renderer/features/comments/ReviewItemCard.tsx');
     const sourceCard = source('src/renderer/features/comments/CommentSourceHoverCard.tsx');
-    const rail = source('src/renderer/components/editor/StickyNoteRail.tsx');
     const primitives = source('src/renderer/features/stats/StatsPrimitives.tsx');
     const desktopReview = review.slice(review.indexOf('Desktop: sand and glass'));
 
     // Every material change is desktop-only; the paused mobile shell keeps its look.
-    for (const file of [card, sourceCard, rail, primitives]) expect(file).toContain('getPlatformRuntime().isMobileShell');
+    for (const file of [card, sourceCard, primitives]) expect(file).toContain('getPlatformRuntime().isMobileShell');
 
     // A Review card lays no plate: the resting glass line, drifting under the pointer.
     expect(card).toContain("' review-card--glass glass glass--rest glass--surface'");
     const plate = block(desktopReview, '.review-card.review-card--glass,', '}');
     expect(plate).toContain('background: transparent;');
     expect(plate).toContain('box-shadow: none;');
-    // A sticky note floats over the prose: the page at 80% and a faint blur.
-    const sticky = block(desktopReview, '.review-card--sticky.review-card--glass,', '}');
-    expect(sticky).toContain('background: var(--glass-fill);');
-    expect(sticky).toContain('backdrop-filter: blur(1.6px);');
     // Quotes and evidence are flat; the Agent hint is a text button with no tail.
     expect(block(desktopReview, '.review-card--glass :is(.review-card__meta', '}')).toContain('background: transparent;');
     expect(block(desktopReview, '.review-card--glass .review-card__agent-hint::after {', '}')).toContain('content: none;');
@@ -1440,17 +1428,10 @@ describe('workspace surface language acceptance', () => {
     expect(desktopReview).toContain(".todo-status-toggle--glass[aria-pressed='true'] .todo-status-toggle__tick {");
     // The source card names its sources by their sand marks.
     expect(sourceCard).toContain('kind: kindMarkOfTarget(entity.targetKind, entity.isDrift),');
-    // The rail keeps clear of the window-control row and the paper's toolbar,
-    // so neither the drag strip nor a sidebar toggle covers its buttons.
-    const railPlace = block(desktopReview, '.editor-body > .sticky-note-rail.sticky-note-rail--glass {', '}');
-    expect(railPlace).toContain('top: calc(var(--window-titlebar-height) + 4px);');
-    expect(railPlace).toContain('bottom: calc(16px + 36px + 8px);');
-    // The rail's stacking switch keeps one word; stacked is its selected glass.
-    expect(rail).toContain('aria-pressed={stacked}');
-    expect(rail).toContain('glass="round"');
-    // The retired margin notes and chips left no styles behind.
+    // The retired margin notes, chips and sticky-note rail left no styles behind.
     expect(review).not.toContain('.mnote');
     expect(review).not.toContain('.comment-chip');
+    expect(review).not.toContain('.sticky-note-rail');
 
     // The stats panel: flat type and space, rows with the cell ring, sand readouts.
     expect(primitives).toContain('className="stats-link sand-cell"');
@@ -1467,7 +1448,7 @@ describe('workspace surface language acceptance', () => {
 
     const docs = designSystemDocs();
     expect(docs).toContain('## Review 卡');
-    expect(docs).toContain('## 批注便笺');
+    expect(docs).toContain('## 批注开关与新建批注');
     expect(docs).toContain('## 统计面板');
     expect(docs).toContain('- **砂笔读数**（`.sand-stroke`）');
   });

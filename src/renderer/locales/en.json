@@ -2658,20 +2658,12 @@
     "agentTaskUnavailable": "Agent is not ready for this project",
     "agentTaskStartFailed": "Could not start Agent chat",
     "commentPlaceholder": "Write a comment…",
-    "addSticky": "Add to sticky notes",
-    "inSticky": "In sticky notes",
-    "removeSticky": "Remove from sticky notes",
     "source": "Source",
     "sourceInfo": "Source",
     "sourceFloating": "Project-level · no linked entity",
     "sourceUnavailable": "Entity unavailable",
     "sourceText": "Linked text · original excerpt",
     "sourceTextUnavailable": "No saved excerpt",
-    "stickyRail": "Sticky notes",
-    "stickyCount": "{{count}} sticky notes",
-    "expandSticky": "Expand sticky notes",
-    "stackSticky": "Stack sticky notes",
-    "clearSticky": "Remove all sticky notes",
     "groupBy": {
       "title": "Group",
       "target": "By location",
@@ -2725,12 +2717,9 @@
       "resolve": "Resolve",
       "revertToNoteTitle": "Demote to comment",
       "toNote": "To comment",
-      "toTodo": "To TODO",
-      "cancelComment": "Cancel comment",
-      "add": "Add"
+      "toTodo": "To TODO"
     },
     "composer": {
-      "newComment": "NEW COMMENT",
       "placeholder": "Write a comment…"
     },
     "entity": {
@@ -3287,9 +3276,8 @@
       "outlineRailDisplay": "TOC rail",
       "hideReferenceLinks": "Hide reference link styling",
       "showReferenceLinks": "Show reference link styling",
-      "noComments": "No sticky notes",
-      "hideComments": "Hide sticky notes",
-      "showComments": "Show sticky notes",
+      "hideComments": "Hide comment marks",
+      "showComments": "Show comment marks",
       "more": "More actions"
     },
     "outlineRailMode": {

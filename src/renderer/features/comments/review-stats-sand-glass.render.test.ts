@@ -77,20 +77,16 @@ const todo = (status: Comment['status']): Comment => ({
 
 describe('Review cards in sand and glass', () => {
   it('lays no plate on the desktop card: only the resting glass line', () => {
-    const card = inShell(createElement(ReviewItemCard, { comment: todo('open'), projectId: 'p1', presentation: 'panel' }));
+    const card = inShell(createElement(ReviewItemCard, { comment: todo('open'), projectId: 'p1' }));
     expect(card).toContain('review-card--glass glass glass--rest glass--surface');
     expect(card).not.toContain('workspace-list-row');
     expect(card).not.toContain('review-card__menu-button');
     expect(card).toContain('tabindex="0"');
     expect(card).toContain('aria-keyshortcuts="Shift+F10 ContextMenu"');
-
-    const sticky = inShell(createElement(ReviewItemCard, { comment: todo('open'), projectId: 'p1', presentation: 'sticky' }));
-    expect(sticky).toContain('review-card review-card--sticky review-card--todo review-card--glass glass glass--rest glass--surface');
-    expect(sticky).toContain('review-card__menu-button');
   });
 
   it('keeps the mobile card on its plate', () => {
-    const card = onMobile(() => inShell(createElement(ReviewItemCard, { comment: todo('open'), projectId: 'p1', presentation: 'panel' })));
+    const card = onMobile(() => inShell(createElement(ReviewItemCard, { comment: todo('open'), projectId: 'p1' })));
     expect(card).toContain('workspace-list-row glass glass--surface');
     expect(card).not.toContain('review-card--glass');
     expect(card).toContain('review-card__menu-button');

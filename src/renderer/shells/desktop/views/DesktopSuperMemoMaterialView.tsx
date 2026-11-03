@@ -1294,7 +1294,6 @@ function CommentRail({
         key={comment.id}
         comment={comment}
         projectId={projectId}
-        presentation="panel"
         relations={relations.map((r) => ({ id: r.id, toKind: r.toKind, toId: r.toId }))}
         onAddRelation={(target) =>
           relationUsecases.addGenericAssociation('comment', comment.id, target.kind, target.id)

@@ -2658,20 +2658,12 @@
     "agentTaskUnavailable": "Agent ist für dieses Projekt noch nicht bereit",
     "agentTaskStartFailed": "Agent-Chat konnte nicht gestartet werden",
     "commentPlaceholder": "Kommentar schreiben…",
-    "addSticky": "Zu Haftnotizen hinzufügen",
-    "inSticky": "In Haftnotizen",
-    "removeSticky": "Aus Haftnotizen entfernen",
     "source": "Quelle",
     "sourceInfo": "Quelle",
     "sourceFloating": "Projektebene · keine verknüpfte Entität",
     "sourceUnavailable": "Entität nicht verfügbar",
     "sourceText": "Verknüpfter Text · ursprünglicher Auszug",
     "sourceTextUnavailable": "Kein gespeicherter Auszug",
-    "stickyRail": "Haftnotizen",
-    "stickyCount": "{{count}} Haftnotizen",
-    "expandSticky": "Haftnotizen ausklappen",
-    "stackSticky": "Haftnotizen stapeln",
-    "clearSticky": "Alle Haftnotizen entfernen",
     "groupBy": {
       "title": "Gruppieren",
       "target": "Nach Position",
@@ -2725,12 +2717,9 @@
       "resolve": "Erledigen",
       "revertToNoteTitle": "In Kommentar umwandeln",
       "toNote": "Zu Kommentar",
-      "toTodo": "Zu Aufgabe",
-      "cancelComment": "Kommentar abbrechen",
-      "add": "Hinzufügen"
+      "toTodo": "Zu Aufgabe"
     },
     "composer": {
-      "newComment": "NEUER KOMMENTAR",
       "placeholder": "Kommentar schreiben…"
     },
     "entity": {
@@ -3287,9 +3276,8 @@
       "outlineRailDisplay": "Inhaltsverzeichnisleiste",
       "hideReferenceLinks": "Stil der Verweislinks ausblenden",
       "showReferenceLinks": "Stil der Verweislinks anzeigen",
-      "noComments": "Keine Haftnotizen",
-      "hideComments": "Haftnotizen ausblenden",
-      "showComments": "Haftnotizen anzeigen",
+      "hideComments": "Kommentarmarkierungen ausblenden",
+      "showComments": "Kommentarmarkierungen anzeigen",
       "more": "Weitere Aktionen"
     },
     "outlineRailMode": {

@@ -2658,20 +2658,12 @@
     "agentTaskUnavailable": "이 작품의 Agent가 아직 준비되지 않았습니다",
     "agentTaskStartFailed": "Agent 채팅을 시작하지 못했습니다",
     "commentPlaceholder": "댓글 작성…",
-    "addSticky": "스티커 메모에 추가",
-    "inSticky": "스티커 메모에 있음",
-    "removeSticky": "스티커 메모에서 제거",
     "source": "출처",
     "sourceInfo": "출처",
     "sourceFloating": "작품 수준 · 연결된 엔터티 없음",
     "sourceUnavailable": "엔터티를 사용할 수 없음",
     "sourceText": "연결된 텍스트 · 원본 발췌",
     "sourceTextUnavailable": "저장된 발췌 없음",
-    "stickyRail": "스티커 메모",
-    "stickyCount": "스티커 메모 {{count}}개",
-    "expandSticky": "스티커 메모 펼치기",
-    "stackSticky": "스티커 메모 쌓기",
-    "clearSticky": "모든 스티커 메모 제거",
     "groupBy": {
       "title": "그룹화",
       "target": "위치별",
@@ -2725,12 +2717,9 @@
       "resolve": "해결 처리",
       "revertToNoteTitle": "일반 댓글로 전환",
       "toNote": "댓글로 전환",
-      "toTodo": "할 일로 전환",
-      "cancelComment": "댓글 취소",
-      "add": "추가"
+      "toTodo": "할 일로 전환"
     },
     "composer": {
-      "newComment": "새 댓글",
       "placeholder": "댓글 작성…"
     },
     "entity": {
@@ -3287,9 +3276,8 @@
       "outlineRailDisplay": "목차 레일",
       "hideReferenceLinks": "참조 링크 스타일 숨기기",
       "showReferenceLinks": "참조 링크 스타일 표시",
-      "noComments": "스티커 메모 없음",
-      "hideComments": "스티커 메모 숨기기",
-      "showComments": "스티커 메모 표시",
+      "hideComments": "댓글 표시 숨기기",
+      "showComments": "댓글 표시 보이기",
       "more": "추가 작업"
     },
     "outlineRailMode": {

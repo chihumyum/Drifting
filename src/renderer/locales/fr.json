@@ -2669,20 +2669,12 @@
     "agentTaskUnavailable": "Agent n’est pas prêt pour ce projet",
     "agentTaskStartFailed": "Impossible de démarrer le chat Agent",
     "commentPlaceholder": "Rédiger un commentaire…",
-    "addSticky": "Ajouter aux pense-bêtes",
-    "inSticky": "Dans les pense-bêtes",
-    "removeSticky": "Retirer des pense-bêtes",
     "source": "Source",
     "sourceInfo": "Source",
     "sourceFloating": "Au niveau du projet · aucune entité liée",
     "sourceUnavailable": "Entité indisponible",
     "sourceText": "Texte lié · extrait d’origine",
     "sourceTextUnavailable": "Aucun extrait enregistré",
-    "stickyRail": "Pense-bêtes",
-    "stickyCount": "{{count}} pense-bêtes",
-    "expandSticky": "Développer les pense-bêtes",
-    "stackSticky": "Empiler les pense-bêtes",
-    "clearSticky": "Retirer tous les pense-bêtes",
     "groupBy": {
       "title": "Regrouper",
       "target": "Par emplacement",
@@ -2736,12 +2728,9 @@
       "resolve": "Résoudre",
       "revertToNoteTitle": "Convertir en commentaire",
       "toNote": "En commentaire",
-      "toTodo": "En tâche",
-      "cancelComment": "Annuler le commentaire",
-      "add": "Ajouter"
+      "toTodo": "En tâche"
     },
     "composer": {
-      "newComment": "NOUVEAU COMMENTAIRE",
       "placeholder": "Rédiger un commentaire…"
     },
     "entity": {
@@ -3298,9 +3287,8 @@
       "outlineRailDisplay": "Rail de la table des matières",
       "hideReferenceLinks": "Masquer le style des liens de référence",
       "showReferenceLinks": "Afficher le style des liens de référence",
-      "noComments": "Aucun pense-bête",
-      "hideComments": "Masquer les pense-bêtes",
-      "showComments": "Afficher les pense-bêtes",
+      "hideComments": "Masquer les marques de commentaires",
+      "showComments": "Afficher les marques de commentaires",
       "more": "Autres actions"
     },
     "outlineRailMode": {

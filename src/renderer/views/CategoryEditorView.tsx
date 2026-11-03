@@ -14,8 +14,9 @@ import { requestConfirmation } from '../store/confirmation-store';
 import { useSettingsStore } from '../store/settings-store';
 import { EditorTopBar } from '../components/editor/EditorTopBar';
 import { EntityTitleField } from '../components/editor/EntityTitleField';
-import { DesktopStickyNoteRail as StickyNoteRail } from '../features/comments/desktop/DesktopStickyNoteRail';
 import { EditorReviewLayer } from '../components/editor/EditorReviewLayer';
+import { EditorCommentComposer } from '../components/editor/EditorCommentComposer';
+import { useCommentMarksToggle } from '../components/editor/comment-marks';
 import {
   useEditorSurfaceLifecycle,
   useReportEditorSurfaceReady,
@@ -36,7 +37,6 @@ import {
 } from '../hooks/useEntityEditor';
 import { useEntityYjsDoc } from '../hooks/useEntityYjsDoc';
 import { EditorDocumentLoadError } from '../components/editor/EditorDocumentLoadError';
-import { useEntityStickyNoteRail } from '../hooks/useEntityStickyNoteRail';
 import { useCanPromoteOnEdit, usePromoteCurrentTab, useUiStore } from '../store/ui-store';
 import { editorTabSelectionKey } from '../lib/editor-selection-memory';
 import loglevel from 'loglevel';
@@ -87,27 +87,12 @@ export function CategoryEditorView({
 
   const [elementFilter, setElementFilter] = useState<ElementFilter>('all');
   const [pendingComment, setPendingComment] = useState<EditorCommentRequest | null>(null);
-  const stickyNoteRail = useEntityStickyNoteRail('category', categoryId);
-  const marginNotes = stickyNoteRail.visible;
-  const setMarginNotes = stickyNoteRail.setVisible;
+  const commentToggle = useCommentMarksToggle(projectId ?? '', 'category', categoryId ?? '');
   const entityLinkInteractive = useSettingsStore((state) => state.entityLinkInteractive);
   const setEntityLinkInteractive = useSettingsStore((state) => state.setEntityLinkInteractive);
   const toggleEntityLinkInteractive = useCallback(
     () => setEntityLinkInteractive(!entityLinkInteractive),
     [entityLinkInteractive, setEntityLinkInteractive],
-  );
-  const commentCount = stickyNoteRail.itemIds.length;
-  const toggleComments = useCallback(() => {
-    const next = !marginNotes;
-    setMarginNotes(next);
-    if (!next) setPendingComment(null);
-  }, [marginNotes, setMarginNotes]);
-  const handleAddCommentRequest = useCallback(
-    (request: EditorCommentRequest) => {
-      setMarginNotes(true);
-      setPendingComment(request);
-    },
-    [setMarginNotes],
   );
   const filteredEls = cEls.filter((e) => {
     if (elementFilter === 'all') return true;
@@ -205,7 +190,7 @@ export function CategoryEditorView({
     onPersist: handlePersist,
     placeholder: t('categoryEditor.scratchPlaceholder'),
     typewriterScrolling: true,
-    onAddCommentRequest: handleAddCommentRequest,
+    onAddCommentRequest: setPendingComment,
     selectionKey: curCategory
       ? editorTabSelectionKey(projectId, { entityType: 'category', id: curCategory.id })
       : null,
@@ -317,12 +302,7 @@ export function CategoryEditorView({
           enabled: entityLinkInteractive,
           onToggle: toggleEntityLinkInteractive,
         }}
-        commentToggle={{
-          enabled: marginNotes,
-          count: commentCount,
-          disabled: false,
-          onToggle: toggleComments,
-        }}
+        commentToggle={commentToggle}
       />
 
       <div className="editor-body">
@@ -334,7 +314,7 @@ export function CategoryEditorView({
             scrollToOutlineAnchor(id, scrollEl);
           }}
         />
-        <div className={`editor-scroll${marginNotes ? ' editor-scroll--comments' : ''}`} ref={setScrollEl}>
+        <div className="editor-scroll" ref={setScrollEl}>
           <div className="editor__spread">
           <article
             className="page page--entity"
@@ -530,21 +510,18 @@ export function CategoryEditorView({
           </article>
           </div>
         </div>
-        {marginNotes && (
-          <StickyNoteRail
-            projectId={projectId}
-            targetKind="category"
-            targetId={curCategory.id}
-            pendingRequest={pendingComment}
-            onPendingRequestChange={setPendingComment}
-          />
-        )}
+        <EditorCommentComposer
+          projectId={projectId}
+          targetKind="category"
+          targetId={curCategory.id}
+          request={pendingComment}
+          onClose={() => setPendingComment(null)}
+        />
         <EditorReviewLayer
           projectId={projectId}
           entityType="category"
           id={curCategory.id}
           scrollEl={scrollEl}
-          visibleCommentIds={marginNotes ? stickyNoteRail.itemIds : undefined}
         />
       </div>
     </div>

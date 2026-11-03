@@ -15,7 +15,6 @@ import { i18next } from '../src/renderer/lib/i18n';
 import { createCommentWithSync, deleteCommentWithSync } from '../src/renderer/usecase/synced-entity-commands';
 import { withAtomicSyncTransaction } from '../src/renderer/usecase/sync-helpers';
 import { createCommentRepository } from '../src/renderer/sqlite-repo/comment-repo';
-import { addCommentToStickyNoteRail, removeCommentFromAllStickyNoteRails } from '../src/renderer/hooks/useEntityStickyNoteRail';
 import type { Comment } from '../src/renderer/domain/comment';
 import { yUndoPluginKey } from '@tiptap/y-tiptap';
 import { useSettingsStore } from '../src/renderer/store/settings-store';
@@ -456,7 +455,6 @@ async function run() {
         await createCommentWithSync(comment);
         if (!useDataStore.getState().comments.some(c => c.id === comment.id)) useDataStore.getState().addComment(comment);
         markerCommentIds.push(comment.id);
-        addCommentToStickyNoteRail('node', nodeId, comment.id);
       }
       await waitFor(() => listeningMarkers().length === 1 && surface.querySelector('.editor__scrollmap-tick'), 'one nonempty marker viewport among twenty tabs');
       checks.markersSingleVisibleOwner = true;
@@ -774,7 +772,6 @@ async function run() {
       ensure(listeningMarkers().length === 0 && markerObservations.every(row => row.counts.dispose === 1), 'Closed marker owners leaked');
       checks.markersClosedOwnersReleased = true;
       for (const id of markerCommentIds) {
-        removeCommentFromAllStickyNoteRails(id);
         await deleteCommentWithSync(a.id, id);
         useDataStore.getState().removeComment(id);
       }

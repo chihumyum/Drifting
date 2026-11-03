@@ -65,8 +65,6 @@ describe('mobile standalone routes', () => {
     const editorAccessory = rendererSource('shells/mobile/workspace/MobileEditorAccessory.tsx');
     const railPresentation = rendererSource('components/editor/editor-rail-presentation.ts');
     const outlineRail = rendererSource('components/editor/EditorOutlineRail.tsx');
-    const commentRail = rendererSource('components/editor/StickyNoteRail.tsx');
-    const marginNotes = rendererSource('hooks/useEntityStickyNoteRail.ts');
     const bottomTimeline = rendererSource('shells/desktop/views/DesktopBottomTimeline.tsx');
     const timelinePin = rendererSource('components/timeline/TimelinePin.tsx');
     const actRail = rendererSource('components/BottomTimeline/ActRail.tsx');
@@ -191,9 +189,6 @@ describe('mobile standalone routes', () => {
     expect(railPresentation).toContain('createContext<EditorRailPresentationValue');
     expect(outlineRail).toContain('presentation?.outlineVisible');
     expect(outlineRail).toContain('presentation?.outlineLabelPitch');
-    expect(commentRail).toContain("rail.layout === 'stacked'");
-    expect(commentRail).toContain('onRemoveFromStickyRail');
-    expect(marginNotes).toContain('stickyNoteRailListeners');
     expect(nativeEntry).toContain('main_window.create = false');
     expect(nativeEntry).toContain('tauri::WebviewWindowBuilder::from_config');
     expect(nativeEntry).toContain('.with_input_accessory_view_builder(|_| None)');
@@ -219,7 +214,6 @@ describe('mobile standalone routes', () => {
     expect(css).toContain('display: flex');
     expect(css).toContain('.m-paper-row__activate');
     expect(css).toContain(".m-workspace[data-rail-toc='true'] .editor__toc-rail");
-    expect(css).toContain(".m-workspace[data-rail-comments='true'] .editor__margin");
     expect(css).toContain('.m-bottom-timeline');
     expect(css).toContain('.btl--mobile .btl__scroll');
     expect(css).toContain('touch-action: pan-x pan-y pinch-zoom');

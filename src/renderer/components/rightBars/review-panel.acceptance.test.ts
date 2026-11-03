@@ -24,8 +24,6 @@ describe('unified Review surface acceptance', () => {
     expect(card).not.toContain('markException');
     expect(useComment).not.toContain('setCommentKind');
     expect(toolRegistry).not.toContain("Type.Literal('exception')");
-    expect(panel).toContain('const structuralRelations = (refsByComment.get(comment.id) ?? [])');
-    expect(panel).toContain('navigator.open({ entityType: target.kind, id: target.id })');
     expect(
       existsSync(resolve(process.cwd(), 'src/renderer/components/rightBars/TodoPanel.tsx')),
     ).toBe(false);
@@ -46,7 +44,20 @@ describe('unified Review surface acceptance', () => {
     expect(store).toContain("merged.activeRightPanel as string) === 'todo'");
   });
 
-  it('keeps source navigation on the header arrow in both card presentations', () => {
+  it('opens the mobile general sidebar from the top', () => {
+    const css = source('src/styles/mobile-workspace.css');
+    const sidebar = source('src/renderer/shells/mobile/workspace/MobileRightSidebar.tsx');
+    const deck = source('src/renderer/shells/mobile/workspace/MobilePaperDeck.tsx');
+    expect(css).toContain('inset: 0 0 0 max(8px, env(safe-area-inset-left));');
+    expect(css).toContain('min-height: calc(44px + env(safe-area-inset-top));');
+    expect(deck).toMatch(/<AnimatePresence>[\s\S]*?<MobileRightSidebar[\s\S]*?<\/AnimatePresence>/u);
+    expect(sidebar).toContain("{ x: 28, y: '-100%' }");
+    expect(sidebar).toContain("y: reducedMotion ? 0 : '-100%'");
+    expect(sidebar).toContain('inert={!isPresent}');
+    expect(css).not.toContain('@keyframes m-right-sidebar-enter');
+  });
+
+  it('keeps source navigation on the card header arrow', () => {
     const card = source('src/renderer/features/comments/ReviewItemCard.tsx');
     const css = source('src/styles/comments-review.css');
     const zh = source('src/renderer/locales/zh-CN.json');
@@ -65,12 +76,11 @@ describe('unified Review surface acceptance', () => {
     expect(en).toContain('"jumpToText": "Jump to linked text"');
   });
 
-  it('reuses the flat workspace panel language and keeps sticky notes on the compact radius ladder', () => {
+  it('reuses the flat workspace panel language on the compact radius ladder', () => {
     const panel = source('src/renderer/components/rightBars/ReviewPanel.tsx');
     const card = source('src/renderer/features/comments/ReviewItemCard.tsx');
-    const rail = source('src/renderer/components/editor/StickyNoteRail.tsx');
     const css = source('src/styles/comments-review.css');
-    const unifiedSurface = css.slice(css.indexOf('Unified Review panel + explicit sticky-note rail'));
+    const unifiedSurface = css.slice(css.indexOf('Unified Review panel'));
 
     expect(panel).toContain('className="review-panel__toolbar workspace-panel-header-row"');
     // One of several types slides a single glass slider; this-one-or-the-project
@@ -85,19 +95,20 @@ describe('unified Review surface acceptance', () => {
     expect(panel).toContain('className="review-panel__list scroll-no-bar workspace-list"');
     expect(panel).not.toContain('<FilterChip');
     expect(panel).toContain('<GhostIconButton');
-    expect(card).toContain("presentation === 'panel' ? ' workspace-list-row glass glass--surface' : ''");
+    expect(card).toContain("glass ? ' review-card--glass glass glass--rest glass--surface' : ' workspace-list-row glass glass--surface'");
     // No right-click menu: the item's actions ride on its source hover card.
     expect(card).not.toContain('<ContextMenuSurface');
     expect(card).not.toContain('onContextMenu=');
     expect(card).toContain('actions={actions}');
     expect(card).toContain('sourceHover.open(articleRef.current)');
     expect(card).not.toContain('<footer className="review-card__actions">');
-    expect(rail).toContain('<GhostIconButton');
+    // The sticky-note rail is retired (2026-11-04): no card offers to pin itself.
+    expect(card).not.toMatch(/sticky/i);
+    expect(panel).not.toMatch(/StickyNoteRail|sticky/i);
 
-    expect(unifiedSurface).toContain('.review-card--sticky {');
-    expect(unifiedSurface).toContain('.sticky-note-stack {');
+    expect(unifiedSurface).not.toMatch(/sticky-note|review-card--sticky/);
     expect(unifiedSurface).not.toContain('.review-panel__scope-toggle {');
-    expect(unifiedSurface.match(/border-radius: var\(--radius-sm\);/g)?.length).toBeGreaterThanOrEqual(4);
+    expect(unifiedSurface.match(/border-radius: var\(--radius-sm\);/g)?.length).toBeGreaterThanOrEqual(2);
     expect(unifiedSurface).not.toContain('border-radius: 5px;');
     expect(unifiedSurface).not.toContain('border-radius: 7px;');
     expect(unifiedSurface).not.toContain('background-image:');

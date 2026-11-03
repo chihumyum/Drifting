@@ -53,11 +53,7 @@ export interface ReviewItemRelation {
 export interface ReviewItemCardProps {
   comment: Comment;
   projectId: string;
-  presentation: 'panel' | 'sticky';
-  mountedInStickyRail?: boolean;
   relations?: ReviewItemRelation[];
-  onToggleStickyRail?: () => void;
-  onRemoveFromStickyRail?: () => void;
   onAddRelation?: (target: RelationTarget) => void;
   onRemoveRelation?: (target: RelationTarget) => void;
   onOpenAgentTask?: () => string | void;
@@ -72,11 +68,7 @@ function itemIcon(comment: Comment) {
 export function ReviewItemCard({
   comment,
   projectId,
-  presentation,
-  mountedInStickyRail = false,
   relations = [],
-  onToggleStickyRail,
-  onRemoveFromStickyRail,
   onAddRelation,
   onRemoveRelation,
   onOpenAgentTask,
@@ -85,7 +77,7 @@ export function ReviewItemCard({
   // The desktop card wears the resting glass line; the paused mobile shell
   // keeps its plate (docs/design-system/components.md, Review 卡).
   const glass = !getPlatformRuntime().isMobileShell;
-  const desktopPanel = glass && presentation === 'panel';
+  const desktopPanel = glass;
   const userId = useAuthStore((state) => state.user?.id) ?? 'local';
   const commentActions = useDataStore((state) => state.commentActions);
   const taskConversationId = agentTaskConversationId(commentActions, comment.id);
@@ -101,7 +93,7 @@ export function ReviewItemCard({
   const [snapshotOpen, setSnapshotOpen] = useState(false);
   // The source card doubles as the item's action card (there is no
   // right-click menu). Desktop Review cards use Shift+F10 / the menu key;
-  // sticky cards and the mobile shell keep their explicit ⋯ entry.
+  // the mobile shell keeps its explicit ⋯ entry.
   const sourceHover = useCommentSourceHover(!editing && !snapshotOpen);
   const [cardRequested, setCardRequested] = useState(false);
   const articleRef = useRef<HTMLElement>(null);
@@ -206,14 +198,6 @@ export function ReviewItemCard({
     {
       key: 'item',
       actions: [
-        ...(presentation === 'panel' && onToggleStickyRail
-          ? [{
-              key: 'sticky',
-              label: mountedInStickyRail ? t('reviewPanel.removeSticky') : t('reviewPanel.addSticky'),
-              icon: { brush: 'sticky-note' as const },
-              onSelect: onToggleStickyRail,
-            }]
-          : []),
         {
           key: 'edit',
           label: ownedByNote ? t('reviewPanel.editInNote') : t('common.edit'),
@@ -302,8 +286,8 @@ export function ReviewItemCard({
     <>
       <article
         ref={articleRef}
-        className={`review-card review-card--${presentation} review-card--${color}${
-          glass ? ' review-card--glass glass glass--rest glass--surface' : presentation === 'panel' ? ' workspace-list-row glass glass--surface' : ''
+        className={`review-card review-card--panel review-card--${color}${
+          glass ? ' review-card--glass glass glass--rest glass--surface' : ' workspace-list-row glass glass--surface'
         }${isResolved || isConverted ? ' review-card--resolved' : ''}`}
         data-comment-id={comment.id}
         tabIndex={desktopPanel ? 0 : undefined}
@@ -359,11 +343,6 @@ export function ReviewItemCard({
               ? t('commentRail.status.resolved')
               : t('commentRail.status.open')}
         </span>
-        {presentation === 'panel' && mountedInStickyRail && (
-          <span className="review-card__sticky-state" title={t('reviewPanel.inSticky')}>
-            <BrushIcon name="sticky-note" size={11} />
-          </span>
-        )}
         {!desktopPanel && <GhostIconButton
           size="sm"
           className="review-card__menu-button"
@@ -378,16 +357,6 @@ export function ReviewItemCard({
           aria-expanded={Boolean(sourceHover.anchor)}
           aria-controls={sourceHover.anchor ? sourceHover.id : undefined}
         />}
-        {presentation === 'sticky' && onRemoveFromStickyRail && (
-          <GhostIconButton
-            size="sm"
-            className="review-card__close-button"
-            icon={<BrushIcon name="close" size={13} />}
-            onClick={onRemoveFromStickyRail}
-            title={t('reviewPanel.removeSticky')}
-            aria-label={t('reviewPanel.removeSticky')}
-          />
-        )}
       </header>
 
       {editing ? (

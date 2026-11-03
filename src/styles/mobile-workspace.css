@@ -1033,10 +1033,7 @@
 .m-review-workspace .review-panel__scope-toggle,
 .m-review-workspace .review-panel__create-actions .ghost-icon-button,
 .m-review-workspace .review-card__menu-button,
-.m-review-workspace .review-card__close-button,
-.m-workspace .review-card__menu-button,
-.m-workspace .review-card__close-button,
-.m-workspace .sticky-note-rail__toolbar .ghost-icon-button {
+.m-workspace .review-card__menu-button {
   min-width: 44px;
   min-height: 44px;
 }
@@ -2257,13 +2254,13 @@
 
 /* Mobile paper owns the only chrome. Desktop editor rails and compact mouse
    toolbar remain mounted for state continuity but do not consume the page.
-   The paper tools bar's 大纲/便笺 toggles re-admit the two shared rails as
-   in-paper overlays, sized for the narrow page. */
+   The paper tools bar's outline toggle re-admits the TOC rail as an in-paper
+   overlay, sized for the narrow page; its comments toggle shows or hides the
+   comment marks in the text. */
 .m-workspace .editor-corner,
 .m-workspace .editor-bar,
 .m-workspace .editor__toc-rail,
-.m-workspace .comment-rail,
-.m-workspace .editor__margin {
+.m-workspace .comment-rail {
   display: none !important;
 }
 
@@ -2275,25 +2272,6 @@
 .m-workspace[data-rail-toc='true'] .editor__toc-tag,
 .m-workspace[data-rail-toc='true'] .editor__toc-omission {
   left: 6px;
-}
-
-.m-workspace[data-rail-comments='true'] .editor__margin {
-  display: flex !important;
-  top: 8px;
-  right: max(8px, env(safe-area-inset-right));
-  bottom: calc(var(--m-unified-bar-height) + var(--m-unified-bar-gap) + 16px);
-  width: min(276px, calc(100% - 20px));
-  padding: 0;
-  /* Enabling notes reveals cards only; it must not tint or veil the paper. */
-  background: transparent;
-}
-
-.m-workspace[data-rail-comments='true'] .sticky-note-rail__toolbar {
-  justify-content: flex-end;
-}
-
-.m-workspace[data-rail-comments='true'] .review-card--sticky {
-  font-size: 12px;
 }
 
 .m-paper-rail-menu {
