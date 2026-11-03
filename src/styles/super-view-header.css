@@ -1190,3 +1190,102 @@ html:not([data-shell-mode='mobile']) .ui-button.ui-button--glass.ui-button--ghos
     background: hsl(var(--paper-deep));
   }
 }
+
+/* ── The legend of the lines (graph-style Super Views) ──────────── */
+/* In the top-right corner of the content (2026-11-03; the header no longer
+   holds the relation kinds): a small piece of paper with the resting thin
+   glass line, one row per kind of line the canvas draws — the line's own
+   stroke, its name, how many. Pressing a row shows or hides that kind; a
+   hidden kind fades. Only the row under the pointer rings. */
+.super-view-legend {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  z-index: 8;
+  pointer-events: none;
+}
+
+.super-view-legend > * {
+  pointer-events: auto;
+}
+
+.super-view-legend__rows {
+  display: flex;
+  flex-direction: column;
+  min-width: 148px;
+  max-width: 220px;
+  padding: 4px;
+  border-radius: 12px;
+  background: color-mix(in srgb, hsl(var(--paper)) 92%, transparent);
+}
+
+.super-view-legend__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 26px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: hsl(var(--ink-2));
+  font: 400 var(--ui-font-secondary, 13px)/1 var(--font-sans);
+  text-align: start;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.super-view-legend__row:hover {
+  color: hsl(var(--ink-1));
+}
+
+/* A shown kind is the ordinary state, not a selection: no still ring. */
+.super-view-legend__row.glass[aria-pressed]:not(:hover, :focus-visible, :active)::before {
+  opacity: 0;
+}
+
+.super-view-legend__stroke {
+  flex: none;
+  width: 14px;
+  height: 3px;
+  border-radius: 1px;
+  background: var(--legend-c, hsl(var(--ink-3)));
+  transition: opacity var(--motion-sand-shift, 0.24s) ease-out;
+}
+
+/* 正文同段 (the element overview): the sand lines' grain. */
+.super-view-legend__row.is-sand > .super-view-legend__stroke {
+  height: 4px;
+  background: radial-gradient(circle, hsl(var(--ink-3)) 0.6px, transparent 0.9px) 0 0 / 2.5px 2px;
+}
+
+.super-view-legend__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.super-view-legend__count {
+  flex-shrink: 0;
+  margin-inline-start: auto;
+  padding-inline-start: 12px;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font: 400 11px/1 var(--font-mono);
+}
+
+.super-view-legend__row[aria-pressed='false'] {
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+}
+
+.super-view-legend__row[aria-pressed='false'] > .super-view-legend__stroke {
+  opacity: 0.25;
+}
+
+.super-view-legend__row.is-edit {
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font: 400 11px/1 var(--font-mono);
+}
+
+.super-view-legend__row.is-edit:hover {
+  color: hsl(var(--ink-1));
+}

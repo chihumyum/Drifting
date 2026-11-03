@@ -139,14 +139,16 @@ describe('the element overview’s floating island', () => {
     expect(view).toContain("onEscape: () => setIslandMode('peek'),");
     // The island's editor scrolls itself instead of panning the canvas.
     expect(view).toContain("if ((e.target as Element | null)?.closest?.('[data-super-modal]')) return;");
-    // 正文同段 is the first row of the legend in the canvas's corner, above the
-    // relation types it used to share the header's 全部 menu with.
+    // 正文同段 is the first row of the legend in the content's top-right
+    // corner, above the relation types it used to share the header's 全部 menu with.
     expect(view).toContain('relationControl={mobileShell}');
     expect(view).not.toContain('relationMenuLead=');
-    expect(view.match(/<SuperElementCanvasTools/g)).toHaveLength(1);
+    expect(view).toMatch(/<SuperViewRelationLegend\s+canvas="element"/);
+    expect(view.match(/<SuperElementLinesRow/g)).toHaveLength(1);
     const tools = source('src/renderer/shells/desktop/components/SuperElementCanvasTools.tsx');
-    expect(tools.match(/className="se-legend__row is-sand glass glass--small"/g)).toHaveLength(1);
-    expect(tools.indexOf('is-sand')).toBeLessThan(tools.indexOf('relations.model.relationTypeIdOrder.filter'));
+    expect(tools.match(/className="super-view-legend__row is-sand glass glass--small"/g)).toHaveLength(1);
+    const legend = source('src/renderer/shells/desktop/components/SuperViewRelationLegend.tsx');
+    expect(legend.indexOf('{lead}')).toBeLessThan(legend.indexOf('relations.model.relationTypeIdOrder.filter'));
     // Its threshold (≥1/≥2/≥3) sits in the header where 远/中/近 was; the distance follows the zoom alone.
     expect(view.match(/<SuperElementLineThreshold value=\{lineThreshold\} onChange=\{setLineThreshold\} \/>/g)).toHaveLength(1);
     expect(view.indexOf('<SuperElementLineThreshold')).toBeGreaterThan(view.indexOf('rightSlot={'));

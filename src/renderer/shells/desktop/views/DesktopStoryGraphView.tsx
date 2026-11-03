@@ -44,6 +44,7 @@ import { chapterStorylineIds, useChapterStorylineToggle } from '../../../feature
 import type { RelationEdgePopoverAnchor } from '../../../components/graph/RelationEdgePopover';
 import type { GraphViewProps } from '../../../features/graph/graph-ui-components.types';
 import { DesktopSuperViewHeader } from '../components/DesktopSuperViewHeader';
+import { SuperViewRelationLegend } from '../components/SuperViewRelationLegend';
 import { SuperViewShell } from '../../../components/SuperViewShell';
 import { SegmentedControl } from '../../../components/ui/SegmentedControl';
 import { GlassSlider } from '../../../components/ui/GlassSlider';
@@ -1151,6 +1152,9 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
       <DesktopSuperViewHeader
         meta={totalsLabel}
         onBack={close}
+        // Desktop shows its relation kinds as the legend in the content's
+        // top-right corner (SuperViewRelationLegend), not in the header.
+        relationControl={mobileShell}
         leftSlot={
           <>
             {/* Desktop: 书序／叙事时 is one of two on the glass slider and 打散
@@ -1260,6 +1264,14 @@ export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
       />
 
       <div className="super-view-body graph-body">
+        {/* The legend of the lines, top right, under the sticky 幕 rail or
+            time axis so it never covers an act or a time point. */}
+        {!mobileShell && (
+          <SuperViewRelationLegend
+            canvas="graph"
+            style={{ top: (isNarrative ? GRAPH_CONFIG.AXIS_HEIGHT : actRailHeight) + 10 }}
+          />
+        )}
         {/* Single scroll container for the whole grid (vertical for
             many storylines, horizontal for many chapters). Rail labels
             stick to the left via `position: sticky` so they stay aligned

@@ -127,7 +127,7 @@ describe('the element overview as category islands', () => {
     expect(view).toContain('const directed = mobileShell && edge.directed;');
     expect(view).toContain('data-se-lod={mobileShell ? undefined : lod}');
     expect(view).toContain('className="ui-field glass glass--rest glass--field se-find"');
-    expect(view).toContain('<SuperElementCanvasTools');
+    expect(view).toContain('<SuperElementLayoutSwitch');
     expect(view).toContain('withElementCategoryChoices(groups, {');
     // Carrying an element changes its category; carrying an island pins it.
     expect(view).toContain('updateElement(carry.id, { categoryId: target })');
