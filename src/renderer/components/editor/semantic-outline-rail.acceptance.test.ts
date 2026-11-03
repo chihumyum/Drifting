@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { OUTLINE_RAIL_DOTS_BELOW, OUTLINE_RAIL_LABELS_AT } from './outline-rail-model';
+import { OUTLINE_RAIL_HIDDEN_BELOW, OUTLINE_RAIL_LABELS_AT } from './outline-rail-model';
 
 function source(path: string): string {
   return readFileSync(resolve(process.cwd(), path), 'utf8');
@@ -180,7 +180,7 @@ describe('semantic outline rail acceptance wiring', () => {
     expect(commentsReviewCss).not.toContain('.editor__toc-overlay');
   });
 
-  it('folds the TOC to dots by the editor column\'s own gutter and unfolds it on hover', () => {
+  it('hides the TOC by the editor column\'s own gutter and shows it again with room', () => {
     const rail = source('src/renderer/components/editor/EditorOutlineRail.tsx');
     const viewport = source('src/renderer/components/editor/outline-viewport.ts');
     const model = source('src/renderer/components/editor/outline-rail-model.ts');
@@ -189,7 +189,7 @@ describe('semantic outline rail acceptance wiring', () => {
       commentsReviewCss.indexOf('Semantic TOC rail'),
       commentsReviewCss.indexOf('Scene + Beat headers'),
     );
-    const dots = "html:not([data-shell-mode='mobile']) .editor__toc-rail[data-fit='dots']";
+    const hidden = "html:not([data-shell-mode='mobile']) .editor__toc-rail[data-fit='hidden']";
 
     // The decision is the column's measured gutter (body edge -> the paper's
     // text), re-read on the controller's resize/mutation passes, never the window.
@@ -202,71 +202,65 @@ describe('semantic outline rail acceptance wiring', () => {
     expect(rail).not.toMatch(/matchMedia|screen\.width/);
     expect(rail.match(/window\.innerWidth/g)).toHaveLength(1);
     expect(semanticRailCss).not.toContain('@media');
-    // Hysteresis: dots below the lane plus clearance, labels again only with more room.
+    // Hysteresis: hidden below the lane plus clearance, labels again only with more room.
     expect(model).toContain('export const OUTLINE_RAIL_LABEL_LANE = 188;');
-    expect(model).toContain('export const OUTLINE_RAIL_DOTS_BELOW = OUTLINE_RAIL_LABEL_LANE + 8;');
-    expect(model).toContain('export const OUTLINE_RAIL_LABELS_AT = OUTLINE_RAIL_DOTS_BELOW + 16;');
+    expect(model).toContain('export const OUTLINE_RAIL_HIDDEN_BELOW = OUTLINE_RAIL_LABEL_LANE + 8;');
+    expect(model).toContain('export const OUTLINE_RAIL_LABELS_AT = OUTLINE_RAIL_HIDDEN_BELOW + 16;');
 
-    // Wide enough is unchanged: no fit rule touches the labels outside dots.
+    // Wide enough is unchanged: no fit rule touches the labels outside hidden.
     expect(rail).toContain('data-fit={fit}');
     expect(semanticRailCss).toMatch(
       /\.editor__toc-rail\s*\{[\s\S]*?left:\s*0;[\s\S]*?width:\s*min\(190px/,
     );
     for (const match of semanticRailCss.matchAll(/([^{}]+)\{[^{}]*\}/g)) {
       const selector = match[1].replace(/\/\*[\s\S]*?\*\//g, '').trim();
-      if (selector.includes('data-fit') || selector.includes('editor__toc-surface')) {
+      if (selector.includes('data-fit')) {
         for (const part of selector.split(',')) {
-          if (part.includes('editor__toc-surface') && !part.includes('data-fit')) continue;
-          expect(part.trim(), selector).toMatch(/^html:not\(\[data-shell-mode='mobile'\]\) \.editor__toc-rail\[data-fit='dots'\]/);
+          expect(part.trim(), selector).toMatch(/^html:not\(\[data-shell-mode='mobile'\]\) \.editor__toc-rail\[data-fit='hidden'\]/);
         }
       }
     }
 
-    // Each label folds to one ink dot at its own height and colour; the reading
-    // location is the larger dot. Labels unfold onto a hover-card surface.
-    expect(semanticRailCss).toContain(`${dots} .editor__toc-tag::before {`);
-    expect(semanticRailCss).toMatch(/\.editor__toc-tag::before \{[^}]*background: currentColor;[^}]*\}/);
-    expect(semanticRailCss).toMatch(/\.editor__toc-tag\.is-primary \{\s*--toc-dot: 6px;\s*\}/);
-    expect(semanticRailCss).toContain(`${dots}:hover .editor__toc-tag,`);
-    expect(semanticRailCss).toContain(`${dots}:has(:focus-visible) .editor__toc-tag {`);
-    expect(semanticRailCss).toContain(`${dots}:hover .editor__toc-surface,`);
-    expect(rail).toContain('className="hover-card-surface editor__toc-surface"');
-    expect(rail).toContain("fit !== 'dots' || laidOut.length === 0");
-    // Dots and labels both navigate through the same button and jump handler.
-    expect(rail).toContain('onClick={() => jumpToEntry(entry.id)}');
+    // Without room the rail shows nothing at all: no dots, no hover surface.
+    expect(semanticRailCss).toMatch(new RegExp(`${hidden.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\.editor__toc-labels \\{\\s*display: none;\\s*\\}`));
+    expect(semanticRailCss).not.toMatch(/editor__toc-surface|::before|--toc-dot|:hover \.editor__toc-tag \{|\[data-fit='dots'\]/);
+    expect(rail).not.toMatch(/editor__toc-surface|hover-card-surface|'dots'/);
+    // An omission reveal open when the rail hides goes with it.
+    expect(rail).toContain('if (revealFit !== fit) {');
     // No accent bar on the left, no unrequested copy.
     expect(semanticRailCss).not.toMatch(/border-left|inset-inline-start:\s*0[^}]*width:\s*[1-3]px/);
     expect(rail).not.toContain("t('editorOutline.expand");
-    // A fit change remounts the labels, so only hover animates.
+    // A rail that comes back mounts fresh labels at their places.
     expect(rail).toContain('<div className="editor__toc-labels" key={fit}>');
   });
 
   it('records DOM-level evidence of the fit in a real browser', () => {
     const evidence = JSON.parse(source('docs/editor/acceptance/outline-rail-fit.json')) as {
       status: string;
-      thresholds: { dotsBelowGutter: number; labelsAtGutter: number };
-      states: Record<string, { fit: string; gutter: number; windowWidth: number; maxLabelRight: number; surface: { visibility: string } | null }>;
+      thresholds: { hiddenBelowGutter: number; labelsAtGutter: number };
+      states: Record<string, { fit: string; gutter: number; windowWidth: number; labels: number; labelsShown: number; maxLabelRight?: number }>;
       resizeSweep: Array<{ gutter: number; fit: string }>;
       checks: Record<string, boolean>;
     };
     expect(evidence.status).toBe('passed');
     expect(evidence.thresholds).toEqual({
-      dotsBelowGutter: OUTLINE_RAIL_DOTS_BELOW,
+      hiddenBelowGutter: OUTLINE_RAIL_HIDDEN_BELOW,
       labelsAtGutter: OUTLINE_RAIL_LABELS_AT,
     });
     expect(Object.values(evidence.checks).every(Boolean)).toBe(true);
-    const { wide, narrow, narrowInWideWindow, hovered, left } = evidence.states;
+    const { wide, narrow, narrowInWideWindow, hovered, restored } = evidence.states;
     expect(wide.fit).toBe('labels');
+    expect(wide.labelsShown).toBe(wide.labels);
     expect(wide.maxLabelRight).toBeLessThanOrEqual(wide.gutter);
-    expect(narrow.fit).toBe('dots');
-    expect(narrowInWideWindow).toMatchObject({ fit: 'dots' });
+    for (const state of [narrow, narrowInWideWindow, hovered]) {
+      expect(state).toMatchObject({ fit: 'hidden', labelsShown: 0 });
+    }
     expect(narrowInWideWindow.windowWidth).toBeGreaterThan(narrow.windowWidth);
-    expect(hovered.surface?.visibility).toBe('visible');
-    expect(left.surface?.visibility).toBe('hidden');
+    expect(restored).toMatchObject({ fit: 'labels', labelsShown: wide.labels });
     const band = evidence.resizeSweep.filter(
-      ({ gutter }) => gutter >= OUTLINE_RAIL_DOTS_BELOW && gutter < OUTLINE_RAIL_LABELS_AT,
+      ({ gutter }) => gutter >= OUTLINE_RAIL_HIDDEN_BELOW && gutter < OUTLINE_RAIL_LABELS_AT,
     );
-    expect(new Set(band.map(({ fit }) => fit))).toEqual(new Set(['dots', 'labels']));
+    expect(new Set(band.map(({ fit }) => fit))).toEqual(new Set(['hidden', 'labels']));
   });
 
   it('keeps durable documentation aligned with the separated TOC and scrollbar', () => {
@@ -289,7 +283,7 @@ describe('semantic outline rail acceptance wiring', () => {
     expect(doc).toMatch(/TOC label lane (?:stays|is)\s+blank/);
     expect(doc).toContain('physical-device');
     expect(doc).toContain('## Fit beside the paper');
-    expect(doc).toContain('`data-fit="dots"`');
+    expect(doc).toContain('`data-fit="hidden"`');
     expect(doc).toMatch(/never\s+(?:by\s+)?the window width/);
     expect(doc).toContain('node scripts/run-outline-rail-fit-acceptance.mjs --check');
   });

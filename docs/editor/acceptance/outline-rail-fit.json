@@ -1,8 +1,8 @@
 {
   "kind": "outline-rail-fit",
   "status": "passed",
-  "generatedAt": "2026-11-02T13:10:50.382Z",
-  "sourceSha256": "464b99a58e58158758af73107b0bd55a412840c9c1ff4c144667b8f4b30c04a0",
+  "generatedAt": "2026-11-03T18:58:20.379Z",
+  "sourceSha256": "552638281a9b94ed778c1d53686bd753e79781642303334256b64b28ca537261",
   "inputs": [
     "scripts/run-outline-rail-fit-acceptance.mjs",
     "scripts/renderer-headless-browser.mjs",
@@ -15,9 +15,9 @@
     "src/styles/comments-review.css",
     "src/styles/ui-controls.css"
   ],
-  "browser": "Chrome/156.0.8078.74",
+  "browser": "Chrome/156.0.8078.80",
   "thresholds": {
-    "dotsBelowGutter": 196,
+    "hiddenBelowGutter": 196,
     "labelsAtGutter": 212
   },
   "states": {
@@ -27,80 +27,53 @@
       "columnWidth": 1280,
       "gutter": 328,
       "labels": 16,
-      "maxLabelRight": 188,
-      "surface": null
+      "labelsShown": 16,
+      "maxLabelRight": 188
     },
     "narrow": {
-      "fit": "dots",
+      "fit": "hidden",
       "windowWidth": 1600,
       "columnWidth": 400,
       "gutter": 48,
       "labels": 16,
-      "maxLabelRight": 26,
-      "surface": {
-        "visibility": "hidden",
-        "opacity": 0
-      }
+      "labelsShown": 0
+    },
+    "hovered": {
+      "fit": "hidden",
+      "windowWidth": 1600,
+      "columnWidth": 400,
+      "gutter": 48,
+      "labels": 16,
+      "labelsShown": 0
     },
     "narrowInWideWindow": {
-      "fit": "dots",
+      "fit": "hidden",
       "windowWidth": 2400,
       "columnWidth": 400,
       "gutter": 48,
       "labels": 16,
-      "maxLabelRight": 26,
-      "surface": {
-        "visibility": "hidden",
-        "opacity": 0
-      }
+      "labelsShown": 0
     },
-    "hovered": {
-      "fit": "dots",
+    "restored": {
+      "fit": "labels",
       "windowWidth": 1600,
-      "columnWidth": 400,
-      "gutter": 48,
+      "columnWidth": 1280,
+      "gutter": 328,
       "labels": 16,
-      "maxLabelRight": 188,
-      "surface": {
-        "visibility": "visible",
-        "opacity": 1
-      }
-    },
-    "left": {
-      "fit": "dots",
-      "windowWidth": 1600,
-      "columnWidth": 400,
-      "gutter": 48,
-      "labels": 16,
-      "maxLabelRight": 26,
-      "surface": {
-        "visibility": "hidden",
-        "opacity": 0
-      }
-    },
-    "keyboard": {
-      "fit": "dots",
-      "windowWidth": 1600,
-      "columnWidth": 400,
-      "gutter": 48,
-      "labels": 16,
-      "maxLabelRight": 188,
-      "surface": {
-        "visibility": "visible",
-        "opacity": 1
-      }
+      "labelsShown": 16,
+      "maxLabelRight": 188
     }
   },
   "resizeSweep": [
     {
       "column": 1020,
       "gutter": 198,
-      "fit": "dots"
+      "fit": "labels"
     },
     {
       "column": 1036,
       "gutter": 206,
-      "fit": "dots"
+      "fit": "labels"
     },
     {
       "column": 1060,
@@ -120,37 +93,30 @@
     {
       "column": 1000,
       "gutter": 188,
-      "fit": "dots"
+      "fit": "hidden"
     },
     {
       "column": 1036,
       "gutter": 206,
-      "fit": "dots"
+      "fit": "hidden"
     }
   ],
   "labelJump": {
-    "scrollTop": 4963,
-    "headingOffset": -0.21875
-  },
-  "dotJump": {
-    "scrollTop": 7063,
-    "headingOffset": -0.21875
+    "scrollTop": 3423,
+    "headingOffset": 0.1875
   },
   "checks": {
     "wideLabelsUnchangedAndClear": true,
-    "narrowColumnFoldsToDots": true,
-    "dotsClearOfText": true,
-    "readingLocationIsLargerDot": true,
+    "wideLabelTakesPointer": true,
+    "narrowColumnHidesRail": true,
+    "hiddenShowsNothing": true,
+    "hiddenTakesNoPointer": true,
+    "hiddenSkipsKeyboardFocus": true,
     "decidedByColumnNotWindow": true,
-    "hoverUnfoldsOntoSurface": true,
-    "labelTakesPointerOverText": true,
-    "surfaceBridgesGaps": true,
-    "labelClickNavigates": true,
-    "dotClickNavigates": true,
-    "leavingFoldsBack": true,
-    "keyboardFocusUnfolds": true,
+    "roomRestoresLabels": true,
+    "restoredLabelNavigates": true,
     "resizeHysteresis": true,
-    "hiddenStillUnmounts": true,
+    "hiddenPreferenceStillUnmounts": true,
     "noUncaughtExceptions": true
   },
   "boundary": "Chromium renderer with the real EditorOutlineRail, OutlineViewportController, outline model and the renderer entry's global sheets; a synthetic page of headings and prose in an editor column resized independently of the window; CDP mouse and keyboard input. No Tauri/WKWebView compositing, real ChapterEditor, Yjs content, side-panel components or physical pointer acceptance."

@@ -270,20 +270,20 @@ export function layoutOutlineRailLabels(
 
 /**
  * How the rail presents itself beside the paper. `labels` is the full text
- * lane; `dots` keeps one mark per label at the same height and shows the
- * labels only while the rail is hovered.
+ * lane; `hidden` shows nothing, because the lane would reach the text. The
+ * author's TOC preference stays on: the rail comes back once there is room.
  */
-export type OutlineRailFit = 'labels' | 'dots';
+export type OutlineRailFit = 'labels' | 'hidden';
 
 /** The text lane's far edge from the editor area's left edge: labels start at
  *  12px and are at most 176px wide (`.editor__toc-rail`, 190px minus 14px). */
 export const OUTLINE_RAIL_LABEL_LANE = 188;
 /** Below this gutter the widest label would come within 8px of the text. */
-export const OUTLINE_RAIL_DOTS_BELOW = OUTLINE_RAIL_LABEL_LANE + 8;
-/** Dots return to labels only with clear room. The 16px band is wider than any
+export const OUTLINE_RAIL_HIDDEN_BELOW = OUTLINE_RAIL_LABEL_LANE + 8;
+/** A hidden rail returns only with clear room. The 16px band is wider than any
  *  re-centring that does not change the column (the 8px scrollbar appearing
  *  moves a centred paper by 4px), so the rail never toggles at the boundary. */
-export const OUTLINE_RAIL_LABELS_AT = OUTLINE_RAIL_DOTS_BELOW + 16;
+export const OUTLINE_RAIL_LABELS_AT = OUTLINE_RAIL_HIDDEN_BELOW + 16;
 
 /**
  * Decide the rail's fit from the editor column's measured gutter: the space
@@ -293,8 +293,8 @@ export const OUTLINE_RAIL_LABELS_AT = OUTLINE_RAIL_DOTS_BELOW + 16;
  */
 export function outlineRailFit(gutter: number | null, previous: OutlineRailFit): OutlineRailFit {
   if (gutter === null || !Number.isFinite(gutter)) return previous;
-  if (previous === 'labels') return gutter < OUTLINE_RAIL_DOTS_BELOW ? 'dots' : 'labels';
-  return gutter >= OUTLINE_RAIL_LABELS_AT ? 'labels' : 'dots';
+  if (previous === 'labels') return gutter < OUTLINE_RAIL_HIDDEN_BELOW ? 'hidden' : 'labels';
+  return gutter >= OUTLINE_RAIL_LABELS_AT ? 'labels' : 'hidden';
 }
 
 /** Sequential section ranges intersecting the current editor viewport. */

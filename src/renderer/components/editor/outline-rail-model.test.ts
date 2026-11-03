@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  OUTLINE_RAIL_DOTS_BELOW,
+  OUTLINE_RAIL_HIDDEN_BELOW,
   OUTLINE_RAIL_LABEL_LANE,
   OUTLINE_RAIL_LABELS_AT,
   flattenOutlineEntries,
@@ -133,27 +133,27 @@ describe('semantic outline rail fit beside the paper', () => {
   // gutter of an editor column of width w is (w - 720) / 2 + 48.
   const gutterOf = (column: number) => Math.max(0, (column - 720) / 2) + 48;
 
-  it('keeps the labels while the lane clears the text and folds to dots once it would reach it', () => {
+  it('keeps the labels while the lane clears the text and hides the rail once it would reach it', () => {
     expect(OUTLINE_RAIL_LABEL_LANE).toBe(12 + 176);
     expect(outlineRailFit(gutterOf(1280), 'labels')).toBe('labels');
-    expect(outlineRailFit(OUTLINE_RAIL_DOTS_BELOW, 'labels')).toBe('labels');
-    expect(outlineRailFit(OUTLINE_RAIL_DOTS_BELOW - 0.5, 'labels')).toBe('dots');
+    expect(outlineRailFit(OUTLINE_RAIL_HIDDEN_BELOW, 'labels')).toBe('labels');
+    expect(outlineRailFit(OUTLINE_RAIL_HIDDEN_BELOW - 0.5, 'labels')).toBe('hidden');
     // Two side panels open: a ~400px column has only the paper's own padding.
-    expect(outlineRailFit(gutterOf(400), 'labels')).toBe('dots');
-    expect(outlineRailFit(gutterOf(1000), 'labels')).toBe('dots');
+    expect(outlineRailFit(gutterOf(400), 'labels')).toBe('hidden');
+    expect(outlineRailFit(gutterOf(1000), 'labels')).toBe('hidden');
   });
 
-  it('returns to labels only with clear room, so the boundary never flickers', () => {
-    expect(OUTLINE_RAIL_LABELS_AT - OUTLINE_RAIL_DOTS_BELOW).toBeGreaterThan(4 * 2);
-    expect(outlineRailFit(OUTLINE_RAIL_DOTS_BELOW, 'dots')).toBe('dots');
-    expect(outlineRailFit(OUTLINE_RAIL_LABELS_AT - 0.5, 'dots')).toBe('dots');
-    expect(outlineRailFit(OUTLINE_RAIL_LABELS_AT, 'dots')).toBe('labels');
+  it('shows the labels again only with clear room, so the boundary never flickers', () => {
+    expect(OUTLINE_RAIL_LABELS_AT - OUTLINE_RAIL_HIDDEN_BELOW).toBeGreaterThan(4 * 2);
+    expect(outlineRailFit(OUTLINE_RAIL_HIDDEN_BELOW, 'hidden')).toBe('hidden');
+    expect(outlineRailFit(OUTLINE_RAIL_LABELS_AT - 0.5, 'hidden')).toBe('hidden');
+    expect(outlineRailFit(OUTLINE_RAIL_LABELS_AT, 'hidden')).toBe('labels');
     // A scrollbar appearing re-centres the paper by 4px back and forth.
     let fit: OutlineRailFit = 'labels';
     const settled: OutlineRailFit[] = [];
     for (const gutter of [200, 193, 197, 193, 197, 193]) settled.push((fit = outlineRailFit(gutter, fit)));
-    expect(settled).toEqual(['labels', 'dots', 'dots', 'dots', 'dots', 'dots']);
-    fit = 'dots';
+    expect(settled).toEqual(['labels', 'hidden', 'hidden', 'hidden', 'hidden', 'hidden']);
+    fit = 'hidden';
     settled.length = 0;
     for (const gutter of [214, 210, 214, 210]) settled.push((fit = outlineRailFit(gutter, fit)));
     expect(settled).toEqual(['labels', 'labels', 'labels', 'labels']);
@@ -161,7 +161,7 @@ describe('semantic outline rail fit beside the paper', () => {
 
   it('keeps the previous fit until a paper has been measured', () => {
     expect(outlineRailFit(null, 'labels')).toBe('labels');
-    expect(outlineRailFit(null, 'dots')).toBe('dots');
-    expect(outlineRailFit(Number.NaN, 'dots')).toBe('dots');
+    expect(outlineRailFit(null, 'hidden')).toBe('hidden');
+    expect(outlineRailFit(Number.NaN, 'hidden')).toBe('hidden');
   });
 });
