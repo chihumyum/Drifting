@@ -59,6 +59,7 @@ import {
   SyncProviderBindingTable,
   SyncGenerationTable,
   TimelineMarkerTable,
+  WritingDayTable,
 } from '../../schema/drizzle';
 import { createProjectAssetSqliteRepository } from '../../sqlite-repo/project-asset-repo';
 import { createPlotGridRepository, plotGridDocumentId } from '../../sqlite-repo/plot-grid-repo';
@@ -124,6 +125,7 @@ export const PRODUCTION_DOMAIN_KERNEL_COVERAGE = Object.freeze({
     'drift-group',
     'material-folder',
     'timeline-marker',
+    'writing-day',
     'kv-entry',
     'plot-grid-row',
     'plot-grid-column',
@@ -158,6 +160,11 @@ const FINITE_NUMBER = (value: CanonicalCborValue): boolean =>
   typeof value === 'number' && Number.isFinite(value);
 const NULLABLE_FINITE_NUMBER = (value: CanonicalCborValue): boolean =>
   value === null || FINITE_NUMBER(value);
+const NON_NEGATIVE_INTEGER = (value: CanonicalCborValue): boolean =>
+  typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+/** A calendar date as the writer's own device saw it, YYYY-MM-DD. */
+const DAY_KEY = (value: CanonicalCborValue): boolean =>
+  typeof value === 'string' && /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/u.test(value);
 
 function record(value: CanonicalCborValue): CborRecord | null {
   return value !== null && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Uint8Array)
@@ -317,6 +324,8 @@ const FIELD_POLICY: Readonly<Record<string, Readonly<Record<string, FieldValidat
   'drift-group': { name: NON_EMPTY_STRING, parentGroupId: NULLABLE_STRING, color: NULLABLE_STRING },
   'material-folder': { name: NON_EMPTY_STRING, parentFolderId: NULLABLE_STRING },
   'timeline-marker': { narrativeOrder: FINITE_NUMBER, label: STRING, driftNodeId: NULLABLE_STRING },
+  // Only the words change; the day and the device are a row's identity.
+  'writing-day': { words: NON_NEGATIVE_INTEGER },
   'kv-entry': {
     ownerKind: oneOf('project', 'storyline', 'element-category', 'element'),
     ownerId: NON_EMPTY_STRING,
@@ -348,6 +357,7 @@ const SEED_ONLY_POLICY: Readonly<Record<string, Readonly<Record<string, FieldVal
     wordCountBasisServerSeq: NULLABLE_FINITE_NUMBER,
   },
   'element-patch': { elementId: NON_EMPTY_STRING },
+  'writing-day': { day: DAY_KEY, deviceKey: NON_EMPTY_STRING },
 };
 
 function conflict(
@@ -456,6 +466,7 @@ function requiredSeedFields(kind: string): readonly string[] {
     case 'drift-group': return ['name'];
     case 'material-folder': return ['name'];
     case 'timeline-marker': return ['narrativeOrder'];
+    case 'writing-day': return ['day', 'deviceKey', 'words'];
     case 'kv-entry': return ['ownerKind', 'ownerId', 'namespace', 'key', 'value'];
     case 'plot-grid-row':
     case 'plot-grid-column': return ['documentId'];
@@ -1054,6 +1065,9 @@ async function upsertLifecycleLive(
     case 'timeline-marker':
       await context.tx.insert(TimelineMarkerTable).values({ id: effect.target.id, projectId: context.changeSet.projectId, narrativeOrder: seed.narrativeOrder as number, label: (seed.label as string | undefined) ?? '', driftNodeId: (seed.driftNodeId as string | null | undefined) ?? null, createdAt: seed.createdAt as string, updatedAt: seed.updatedAt as string }).onConflictDoNothing();
       return;
+    case 'writing-day':
+      await context.tx.insert(WritingDayTable).values({ id: effect.target.id, projectId: context.changeSet.projectId, day: seed.day as string, deviceKey: seed.deviceKey as string, words: seed.words as number, createdAt: seed.createdAt as string, updatedAt: seed.updatedAt as string }).onConflictDoNothing();
+      return;
     case 'kv-entry':
       await context.tx.insert(EntityKvEntryTable).values({ id: effect.target.id, projectId: context.changeSet.projectId, ownerKind: seed.ownerKind as string, ownerId: seed.ownerId as string, namespace: seed.namespace as string, key: seed.key as string, value: seed.value as string }).onConflictDoNothing();
       return;
@@ -1200,6 +1214,7 @@ async function materializeField(context: SyncDomainMaterializationContext, effec
     case 'material-folder': await context.tx.update(MaterialFolderTable).set({ [effect.field]: value, updatedAt }).where(and(eq(MaterialFolderTable.id, effect.target.id), eq(MaterialFolderTable.projectId, context.changeSet.projectId))); return;
     case 'drift-group': await context.tx.update(DriftGroupTable).set({ [effect.field]: value, updatedAt }).where(and(eq(DriftGroupTable.id, effect.target.id), eq(DriftGroupTable.projectId, context.changeSet.projectId))); return;
     case 'timeline-marker': await context.tx.update(TimelineMarkerTable).set({ [effect.field]: value, updatedAt }).where(and(eq(TimelineMarkerTable.id, effect.target.id), eq(TimelineMarkerTable.projectId, context.changeSet.projectId))); return;
+    case 'writing-day': await context.tx.update(WritingDayTable).set({ [effect.field]: value, updatedAt }).where(and(eq(WritingDayTable.id, effect.target.id), eq(WritingDayTable.projectId, context.changeSet.projectId))); return;
     case 'kv-entry': await context.tx.update(EntityKvEntryTable).set({ [effect.field]: value }).where(and(eq(EntityKvEntryTable.id, effect.target.id), eq(EntityKvEntryTable.projectId, context.changeSet.projectId))); return;
     case 'plot-grid-row': await context.tx.update(PlotGridRowTable).set({ [effect.field]: value }).where(eq(PlotGridRowTable.id, effect.target.id)); return;
     case 'plot-grid-column': await context.tx.update(PlotGridColumnTable).set({ [effect.field]: value }).where(eq(PlotGridColumnTable.id, effect.target.id)); return;
@@ -1420,6 +1435,7 @@ async function purgeEntity(context: SyncDomainMaterializationContext, effect: Li
     case 'material-folder': await context.tx.delete(MaterialFolderTable).where(and(eq(MaterialFolderTable.id, effect.target.id), eq(MaterialFolderTable.projectId, context.changeSet.projectId))); return;
     case 'drift-group': await context.tx.delete(DriftGroupTable).where(and(eq(DriftGroupTable.id, effect.target.id), eq(DriftGroupTable.projectId, context.changeSet.projectId))); return;
     case 'timeline-marker': await context.tx.delete(TimelineMarkerTable).where(and(eq(TimelineMarkerTable.id, effect.target.id), eq(TimelineMarkerTable.projectId, context.changeSet.projectId))); return;
+    case 'writing-day': await context.tx.delete(WritingDayTable).where(and(eq(WritingDayTable.id, effect.target.id), eq(WritingDayTable.projectId, context.changeSet.projectId))); return;
     case 'kv-entry': await context.tx.delete(EntityKvEntryTable).where(and(eq(EntityKvEntryTable.id, effect.target.id), eq(EntityKvEntryTable.projectId, context.changeSet.projectId))); return;
     case 'plot-grid-row': await context.tx.delete(PlotGridRowTable).where(eq(PlotGridRowTable.id, effect.target.id)); return;
     case 'plot-grid-column': await context.tx.delete(PlotGridColumnTable).where(eq(PlotGridColumnTable.id, effect.target.id)); return;

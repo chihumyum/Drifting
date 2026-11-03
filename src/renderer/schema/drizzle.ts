@@ -943,6 +943,26 @@ export const MaterialFolderTable = sqliteTable(
   ],
 );
 
+// Writing days (migration 0016, docs/writing-days.md): the words one device
+// added to one book on one day of its own calendar. A device only ever writes
+// its own rows, so two Macs never overwrite each other; a day's words are the
+// sum over devices. The shelf's heatmap reads this table.
+export const WritingDayTable = sqliteTable(
+  'writing_day',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => ProjectTable.id, { onDelete: 'cascade' }),
+    day: text('day').notNull(), // YYYY-MM-DD, the writer's local date
+    deviceKey: text('device_key').notNull(),
+    words: integer('words').notNull().default(0),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => [index('idx_writing_day_project_day').on(t.projectId, t.day)],
+);
+
 // Library Item (formerly Material)
 // `kind` is the only payload discriminator: image/pdf bind an app-owned asset,
 // url binds an external URL, and text binds a TipTap document. Picker paths and

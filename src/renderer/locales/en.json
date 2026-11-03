@@ -126,6 +126,10 @@
     "accountAction": "Sign in / sign up and sync",
     "continueLocal": "Continue locally"
   },
+  "firstRun": {
+    "email": "Continue with email",
+    "local": "Continue locally"
+  },
   "markdownFolderGuide": {
     "title": "Where should the Markdown folder go?",
     "intro": "Every project keeps a Markdown copy here. Edit chapters and ideas in any editor and the changes merge back into Drifting.",
@@ -1938,7 +1942,29 @@
         "subLocal": "Books stay here for 30 days and are then permanently deleted.",
         "empty": "No recently deleted books.",
         "confirmTitle": "Permanently delete “{{name}}”?"
-      }
+      },
+      "recent": "Last 30 days",
+      "recentLabel": "{{words}} words in the last 30 days"
+    },
+    "rail": {
+      "import": "Import book",
+      "synced": "Synced",
+      "books_one": "{{count}} book",
+      "books_other": "{{count}} books",
+      "library_one": "{{count}} book · {{words}} words",
+      "library_other": "{{count}} books · {{words}} words"
+    },
+    "heat": {
+      "label": "Writing heatmap",
+      "summary": "{{words}} words over the past year, written on {{days}} days",
+      "year": "Past year",
+      "daysWritten": "Days",
+      "streak": "Streak",
+      "today": "Today",
+      "daysUnit": "days",
+      "mon": "Mon",
+      "wed": "Wed",
+      "fri": "Fri"
     }
   },
   "dashboard": {

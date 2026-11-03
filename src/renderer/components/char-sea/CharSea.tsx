@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } fr
 import { useTranslation } from 'react-i18next';
 import '../../../styles/char-sea.css';
 import { createCharSea, type CharSea as CharSeaHandle, type CharSeaShape } from '../../lib/char-sea/char-sea';
-import { CHAR_SEA_HANDOVER_MS, charSeaRegistry } from '../../lib/char-sea/char-sea-registry';
+import { CHAR_SEA_HANDOVER_MS, CHAR_SEA_TITLE, charSeaRegistry } from '../../lib/char-sea/char-sea-registry';
 import { charSeaScript } from '../../lib/char-sea/char-sea-text';
 import { LOADING_DELAY_MS } from '../../lib/motion';
 
@@ -22,6 +22,9 @@ const EBB_LIMIT_MS = 8000;
 const EBB_PANELS = '.desktop-app-shell .sidebar-shell:not(.is-fully-hidden), .desktop-app-shell .desktop-workspace-dock';
 // A panel's edge on the window's border carries no line: it is pushed past it.
 const PAST_BORDER = 8;
+
+/** The word the water raises: the app's name for a first run, "Loading" for a wait. */
+type SeaWord = 'title' | 'loading' | null;
 
 /**
  * live: a page lies on the sea or a wait holds it. ebb: the last hold let go
@@ -52,7 +55,7 @@ export function CharSea() {
   const canvas = useRef<HTMLCanvasElement>(null);
   const sea = useRef<CharSeaHandle | null>(null);
   const holds = useSyncExternalStore(charSeaRegistry.subscribe, charSeaRegistry.getHolds, charSeaRegistry.getHolds);
-  const held = holds.loading > 0 || holds.rain > 0 || holds.surfaces > 0;
+  const held = holds.loading > 0 || holds.title > 0 || holds.rain > 0 || holds.surfaces > 0;
   const [mode, setMode] = useState<SeaMode>(held ? 'live' : 'off');
   // A hold makes it live at once; losing every hold lets it ebb. A hand-over
   // within one commit goes live → ebb → live before paint, the water untouched.
@@ -101,15 +104,22 @@ export function CharSea() {
   }, [mode]);
 
   // A wait that outlasts the loading delay: the rain falls and "Loading" rises
-  // in the middle until it ends; then both are let go and run out.
+  // in the middle until it ends. A first run raises the app's name at once,
+  // and a word already standing gives way to it. When neither holds it, the
+  // word is let go and runs out.
+  const word: SeaWord = holds.title > 0 ? 'title' : loading ? 'loading' : null;
   useEffect(() => {
-    if (!loading) return undefined;
-    const timer = window.setTimeout(() => sea.current?.loading(true), LOADING_DELAY_MS);
-    return () => {
-      window.clearTimeout(timer);
+    if (word === null) {
       sea.current?.loading(false);
-    };
-  }, [loading]);
+      return undefined;
+    }
+    if (word === 'title') {
+      sea.current?.loading(true, CHAR_SEA_TITLE);
+      return undefined;
+    }
+    const timer = window.setTimeout(() => sea.current?.loading(true), LOADING_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [word]);
 
   // A page waiting for the author (the first-run choice) lies in the rain at
   // once, with no word; a wait it takes over from lets its word go into it.
@@ -120,10 +130,12 @@ export function CharSea() {
   }, [raining]);
 
   // The hand: a light wake as it moves, a ring where it presses the bare desk
-  // or opens a book. Dialogs and menus over the page are not the sea, and an
-  // ebbing sea is no longer touched.
+  // or opens a book; a page may also drop a ring itself (a book landing).
+  // Dialogs and menus over the page are not the sea, and an ebbing sea is no
+  // longer touched.
   useEffect(() => {
     if (mode !== 'live') return undefined;
+    const stopDrops = charSeaRegistry.onDrop((x, y, amplitude) => sea.current?.drop(x, y, amplitude));
     const move = (event: PointerEvent) => sea.current?.wake(event.clientX, event.clientY);
     const down = (event: PointerEvent) => {
       if (event.button !== 0 || !(event.target instanceof Element)) return;
@@ -136,6 +148,7 @@ export function CharSea() {
     window.addEventListener('pointermove', move, { passive: true });
     window.addEventListener('pointerdown', down, { capture: true, passive: true });
     return () => {
+      stopDrops();
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerdown', down, { capture: true });
     };
@@ -171,9 +184,11 @@ export function CharSea() {
         const rect = entry.element.getBoundingClientRect();
         if (rect.bottom < -24 || rect.top > height + 24 || rect.width <= 0) return;
         const [textureX, textureY] = GLASS_TEXTURE_OFFSETS[order % GLASS_TEXTURE_OFFSETS.length];
+        // Glass waiting on the author flows as under the pointer.
         shapes.push({
           id: entry.id, x: rect.left, y: rect.top, width: rect.width, height: rect.height,
-          radius: entry.options.radius, rest: entry.options.rest, hover: entry.hover, textureX, textureY,
+          radius: entry.options.radius, rest: entry.options.rest, hover: entry.hover || entry.waiting,
+          arrive: entry.options.arrive, textureX, textureY,
         });
       });
       sea.current?.setShapes(shapes);

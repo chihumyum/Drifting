@@ -1,21 +1,30 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import loglevel from 'loglevel';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 
 import { hostedAccountSettingsEnabled } from '../../features/settings/hosted-settings-policy';
 import { AuthFlow } from '../../features/auth/AuthFlow';
+import { cancelNativeOAuth, startNativeOAuth } from '../../features/auth/native-oauth';
+import { GoogleIcon } from '../auth/OAuthIcon';
+import { FirstRunArrival } from '../first-run/first-run-shelf';
+import { firstRunStep, type FirstRunStep } from '../first-run/first-run-steps';
+import { OAUTH_PROVIDER_CONFIG, useOAuthProviders } from '../../lib/oauth-providers';
+import { FIRST_RUN_LEAVE_MS, FIRST_RUN_TITLE_MS, PAGE_BLEND_MS } from '../../lib/motion';
+import { isAppClosedForPublic } from '../../utils/appAccess';
 import { useAuthStore } from '../../store/auth';
 import { requestConfirmation } from '../../store/confirmation-store';
 import { events } from '../../lib/events';
 import { platform } from '../../platform';
 import type { MarkdownFolderSettings } from '../../platform/contracts';
 import { getPlatformRuntime } from '../../platform/runtime';
-import { useCharSeaHold, useCharSeaShape } from '../char-sea/useCharSea';
+import { useCharSeaEnabled, useCharSeaHold, useCharSeaShape } from '../char-sea/useCharSea';
 import { Button } from '../ui/Button';
 import { ModalActions, ModalBody, ModalCard, ModalHeader, ModalRoot } from '../ui/Modal';
 import { alphaGuideStorageKey } from '../../lib/alpha-guide-key';
 
 const FOLDER_GUIDE_KEY = 'drifting.markdown-folder-guide.v1';
+const log = loglevel.getLogger('FirstRun');
 
 function usePreAlphaGuide() {
   const userId = useAuthStore((state) => state.user?.id ?? null);
@@ -211,14 +220,128 @@ export function PreAlphaOnboardingDialog() {
   );
 }
 
+const reducedMotion = () =>
+  typeof window !== 'undefined' && (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
+
 /**
- * Desktop first run asks for local or account use before the shelf mounts.
- * The choice is a card laid in the window, not a dialog over it: on the sea of
- * characters the rain falls round it with no word in the middle, the hand
- * still stirs the water, and the sea draws the card's resting glass and shows
- * through it at 12%. Signing in happens in the same card, so the shelf first
- * opens with the account's cloud projects already restored. Then, once per
- * device, the same card asks where projects' Markdown folders go.
+ * The welcome: how to go on, and nothing else. Google shows when the service
+ * offers it; signing in with it moves straight to the sign-in step, which
+ * waits for the browser. Hosted builds say there that crash reports are sent.
+ */
+function FirstRunWelcome({
+  onGoogle,
+  onEmail,
+  onLocal,
+}: {
+  onGoogle(): void;
+  onEmail(): void;
+  onLocal(): void;
+}) {
+  const { t } = useTranslation();
+  const providers = useOAuthProviders();
+  // Social sign-in also creates accounts, so it is hidden while sign-up is closed.
+  const google = !isAppClosedForPublic && providers.includes('google');
+  return (
+    <div className="first-run-welcome">
+      {google && (
+        <Button className="first-run-welcome__way" onClick={onGoogle}>
+          <GoogleIcon width={14} height={14} aria-hidden />
+          {t('auth.social.continueWith', { provider: OAUTH_PROVIDER_CONFIG.google.name })}
+        </Button>
+      )}
+      <Button className="first-run-welcome__way" onClick={onEmail}>
+        {t('firstRun.email')}
+      </Button>
+      <Button className="first-run-welcome__local" variant="ghost" onClick={onLocal}>
+        {t('firstRun.local')}
+      </Button>
+      <p className="first-run-welcome__note">{t('preAlphaGuide.crashReports')}</p>
+    </div>
+  );
+}
+
+/**
+ * The card on the window: a resting glass line the sea draws, set down with no
+ * line at first so the water shows its rim. Its steps are panes in the same
+ * place; a new one dissolves in over the last while the line follows the new
+ * size (the page-turn timing). Leaving, it fades and its line eases out.
+ */
+function FirstRunCard({
+  step,
+  leaving,
+  label,
+  children,
+}: {
+  step: FirstRunStep;
+  leaving: boolean;
+  label: string;
+  children: (step: FirstRunStep) => ReactNode;
+}) {
+  const { attach: cardRef, drawn: onSea } = useCharSeaShape<HTMLElement>({
+    rest: leaving ? 0 : 0.85,
+    radius: 2,
+    hover: false,
+    arrive: true,
+  });
+  const [panes, setPanes] = useState<{ front: FirstRunStep; behind: FirstRunStep | null }>({
+    front: step,
+    behind: null,
+  });
+  if (panes.front !== step) setPanes({ front: step, behind: panes.front });
+  useEffect(() => {
+    if (!panes.behind) return undefined;
+    const timer = window.setTimeout(() => setPanes((now) => ({ ...now, behind: null })), PAGE_BLEND_MS);
+    return () => window.clearTimeout(timer);
+  }, [panes]);
+
+  // The card takes the size of the pane in front, and follows it as it changes.
+  const pane = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState<{ width: number; height: number } | null>(null);
+  useLayoutEffect(() => {
+    const element = pane.current;
+    if (!element) return undefined;
+    const measure = () => setSize({ width: element.offsetWidth, height: element.offsetHeight });
+    measure();
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
+    observer?.observe(element);
+    return () => observer?.disconnect();
+  }, [panes.front]);
+
+  const shown = panes.behind ? [panes.behind, panes.front] : [panes.front];
+  return (
+    <section
+      ref={cardRef}
+      className={`first-run-gate__card glass glass--rest glass--still${onSea ? ' first-run-gate__card--sea' : ''}${leaving ? ' first-run-gate__card--leaving' : ''}`}
+      style={size ? { width: size.width, height: size.height } : undefined}
+      aria-label={label}
+    >
+      {shown.map((name) => (
+        <div
+          key={name}
+          ref={name === panes.front ? pane : undefined}
+          className={`first-run-gate__pane first-run-gate__pane--${name}${name === panes.front ? '' : ' first-run-gate__pane--leaving'}`}
+          aria-hidden={name === panes.front ? undefined : true}
+          inert={name === panes.front ? undefined : true}
+        >
+          {children(name)}
+        </div>
+      ))}
+    </section>
+  );
+}
+
+type GateStage = 'title' | 'card' | 'leaving' | 'done';
+
+/**
+ * Desktop first run, before the shelf mounts (docs/design-system/components.md,
+ * "全屏加载与字海"). On the sea of characters the app's name rises first
+ * (FIRST_RUN_TITLE_MS), then lets go, and its ring leaves the card behind; the
+ * rain falls round the card, the hand still stirs the water, and the sea draws
+ * the card's resting glass and shows through it at 12%. Signing in happens in
+ * the same card, so the shelf first opens with the account's cloud projects
+ * already restored; then, once per device, the same card asks where projects'
+ * Markdown folders go. When nothing is left the card fades as the shelf comes
+ * up under it as a whole, and what lies on the shelf is set down on the sea.
  */
 export function PreAlphaFirstRunGate({ children }: { children: ReactNode }) {
   const { t } = useTranslation();
@@ -227,42 +350,104 @@ export function PreAlphaFirstRunGate({ children }: { children: ReactNode }) {
   const session = useAuthStore((state) => state.session);
   const { open: guideOpen, dismiss } = usePreAlphaGuide();
   const folderGuide = useMarkdownFolderGuide();
-  const [guideStep, setStep] = useState<'guide' | 'account'>('guide');
+  const onSea = useCharSeaEnabled();
+  const [signingIn, setSigningIn] = useState(false);
   const open = guideOpen || folderGuide.open;
-  const step = guideOpen ? guideStep : 'folder';
-  const { attach: cardRef, drawn: onSea } = useCharSeaShape<HTMLElement>({ rest: 0.85, radius: 2, hover: false });
-  useCharSeaHold('rain', open && onSea);
+  const step = firstRunStep({ guideOpen, folderOpen: folderGuide.open, hosted, signingIn });
 
-  if (!open) return <>{children}</>;
+  const [stage, setStage] = useState<GateStage>(() =>
+    !open ? 'done' : guideOpen && onSea && !reducedMotion() ? 'title' : 'card');
+  // Whether this mount came through the card, so the shelf keeps one place in the tree.
+  const [throughCard, setThroughCard] = useState(open);
+  if (open && (stage === 'done' || stage === 'leaving')) setStage('card');
+  if (open && !throughCard) setThroughCard(true);
+  if (!open && (stage === 'title' || stage === 'card')) setStage('leaving');
+  // The last step stays on the card while it leaves; with none yet there is no card.
+  const [shownStep, setShownStep] = useState<FirstRunStep | null>(step);
+  if (step && step !== shownStep) setShownStep(step);
 
-  const openAccount = () => {
+  useCharSeaHold('title', stage === 'title' && onSea);
+  useCharSeaHold('rain', (stage === 'title' || stage === 'card') && onSea);
+
+  useEffect(() => {
+    if (stage === 'title') {
+      const timer = window.setTimeout(() => setStage('card'), FIRST_RUN_TITLE_MS);
+      return () => window.clearTimeout(timer);
+    }
+    if (stage === 'leaving') {
+      const timer = window.setTimeout(() => setStage('done'), FIRST_RUN_LEAVE_MS);
+      return () => window.clearTimeout(timer);
+    }
+    return undefined;
+  }, [stage]);
+
+  // Without an account to choose, the welcome has one way on: it is taken.
+  useEffect(() => {
+    if (stage !== 'title' && guideOpen && !hosted) dismiss();
+  }, [stage, guideOpen, hosted, dismiss]);
+
+  if (stage === 'done' && !throughCard) return <>{children}</>;
+
+  const toAccount = (signIn: () => void) => {
     if (!hosted) return;
     if (!session) {
-      setStep('account');
+      signIn();
+      setSigningIn(true);
       return;
     }
     dismiss();
     navigate('/settings?section=account', { state: { from: '/' } });
   };
+  const renderStep = (name: FirstRunStep) =>
+    name === 'folder' ? (
+      <MarkdownFolderGuide onDone={folderGuide.dismiss} />
+    ) : name === 'account' ? (
+      <AuthFlow
+        initialMode="signin"
+        onBack={() => {
+          cancelNativeOAuth();
+          setSigningIn(false);
+        }}
+        onComplete={dismiss}
+      />
+    ) : (
+      <FirstRunWelcome
+        onGoogle={() =>
+          toAccount(() => {
+            void startNativeOAuth('google').catch((error) => log.warn('[first-run] Google sign-in did not open', error));
+          })}
+        onEmail={() => toAccount(() => undefined)}
+        onLocal={dismiss}
+      />
+    );
 
-  return (
-    <div className={`first-run-gate${onSea ? ' first-run-gate--sea' : ''}`}>
-      {getPlatformRuntime().desktopWindowControls && (
-        <div className="first-run-gate__drag" data-tauri-drag-region aria-hidden />
-      )}
-      <section
-        ref={cardRef}
-        className={`first-run-gate__card first-run-gate__card--${step} glass glass--rest glass--still${onSea ? ' first-run-gate__card--sea' : ''}`}
-        aria-label={t(step === 'folder' ? 'markdownFolderGuide.title' : 'preAlphaGuide.title')}
-      >
-        {step === 'folder' ? (
-          <MarkdownFolderGuide onDone={folderGuide.dismiss} />
-        ) : step === 'account' ? (
-          <AuthFlow initialMode="signin" onBack={() => setStep('guide')} onComplete={dismiss} />
-        ) : (
-          <PreAlphaGuide onOpenAccount={openAccount} onContinueLocal={dismiss} />
-        )}
-      </section>
+  const shelf = stage === 'leaving' || stage === 'done' ? (
+    <div key="shelf" className="first-run-arrival">
+      <FirstRunArrival.Provider value={stage === 'leaving'}>{children}</FirstRunArrival.Provider>
     </div>
+  ) : null;
+  return (
+    <>
+      {shelf}
+      {stage !== 'done' && (
+        <div
+          key="gate"
+          className={`first-run-gate${onSea ? ' first-run-gate--sea' : ''}${stage === 'leaving' ? ' first-run-gate--leaving' : ''}`}
+        >
+          {getPlatformRuntime().desktopWindowControls && (
+            <div className="first-run-gate__drag" data-tauri-drag-region aria-hidden />
+          )}
+          {stage !== 'title' && shownStep && (
+            <FirstRunCard
+              step={shownStep}
+              leaving={stage === 'leaving'}
+              label={t(shownStep === 'folder' ? 'markdownFolderGuide.title' : 'preAlphaGuide.title')}
+            >
+              {renderStep}
+            </FirstRunCard>
+          )}
+        </div>
+      )}
+    </>
   );
 }

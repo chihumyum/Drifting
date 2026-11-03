@@ -17,7 +17,8 @@ overwrites a book: it always adds a new one.
   (beside edit and move to Recently Deleted), labelled *Export this book
   (.driftingbook)*. Drifting saves pending edits, builds the file and asks
   where to save `<book name>.driftingbook`.
-- **Import**: *Import book (.driftingbook)* in the shelf's account menu. Both
+- **Import**: *Import book* with `.driftingbook` beside it, a cell in the
+  shelf's left column (its tooltip reads *Import book (.driftingbook)*). Both
   labels name the extension, so the import is not mistaken for the in-book
   manuscript import (Word, Markdown). After a file is picked an *Importing*
   card stands on the shelf until the book appears.
@@ -137,7 +138,8 @@ current.
 A desktop development profile (`pnpm dev:seed:lite --frontend-debug`) was also
 run on 2026-11-03 with only the two native pickers stubbed in the renderer: the
 card's export action produced a 5.7 MB file of the lite sample (21 chapters,
-six images and PDFs), and *Import book* in the account menu showed the
+six images and PDFs), and *Import book* (then in the account menu; since
+2026-11-03 a cell in the shelf's left column) showed the
 Importing card for about eight seconds, then the second copy. In the App's own
 database every authored table had the same row count, no id was shared, all 31
 prose documents' live text matched, every stored asset variant was present

@@ -113,7 +113,7 @@ const FIELDS_ADDED_AFTER_V1: Readonly<Record<string, Readonly<Record<string, Can
 };
 
 /** Authored tables added after format v1; an older checkpoint restores them empty. */
-const TABLES_ADDED_AFTER_V1: readonly string[] = ['material_folder'];
+const TABLES_ADDED_AFTER_V1: readonly string[] = ['material_folder', 'writing_day'];
 
 export function withNullableFieldsAddedAfterV1(
   table: string,
@@ -330,6 +330,7 @@ function assertProjectReferences(authored: AuthoredStatePayloadV1, projectId: st
   // Folder links are not checked: concurrent edits can leave a parent or a
   // material pointing at a deleted folder, which the panel shows at the root.
   uniqueIds(authored, 'material_folder');
+  uniqueIds(authored, 'writing_day');
   uniqueIds(authored, 'entity_relation');
   for (const row of rows(authored, 'node_content')) {
     if (!nodeIds.has(requireString(row, 'node_id'))) throw new SnapshotRestoreError('reference-invalid', 'node_content references a missing node');

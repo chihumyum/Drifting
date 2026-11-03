@@ -47,13 +47,15 @@ describe('the bookshelf in sand and glass', () => {
     expect(desk).not.toContain('background: hsl(var(--accent))');
     expect(desk).not.toMatch(/border(-left)?:\s*1px solid/);
     expect(desk).not.toMatch(/box-shadow:\s*0 /);
-    // The header is the shelf's name and a round glass avatar; no kicker or subtitle.
+    // The shelf's name heads the rail; no kicker or subtitle.
     expect(view).not.toContain("t('projectPicker.header.workspace')");
     expect(view).not.toContain("t('projectPicker.header.subtitle')");
-    expect(view).toContain('className="pp-head__account"');
+    expect(read('src/renderer/views/shelf/ShelfRail.tsx')).toContain(
+      `<h1 className="pp-head__title">{t('projectPicker.header.titleEm')}</h1>`,
+    );
   });
 
-  it('holds only the shelf’s name, the avatar, the books and the cover-style button at its foot', () => {
+  it('holds only the rail, the heatmap, the books and the cover-style button at its foot', () => {
     // A writer’s shelf never grows long enough to need a toolbar, a list
     // view or a footer: no filters, search, view switch or 新建作品 button.
     for (const gone of ['pp-bar', 'pp-foot', 'pp-list', 'pp-row', 'ProjectListRow', '<GlassSlider', 'pp-empty-state']) {
@@ -63,12 +65,36 @@ describe('the bookshelf in sand and glass', () => {
     // Every book, then the slip to start the next one; an empty shelf is that slip alone.
     expect(view).toContain('{decorated.map((row) => (');
     expect(view).toContain('className="pp-card pp-card--new"');
-    // Recently deleted books are kept within reach, in the avatar's menu.
+    // The rail, like the workspace's left column: import, Recently Deleted
+    // and the account cell with the library's sync state, opening the
+    // account menu upward. Import and Recently Deleted left the menu.
+    expect(view).toContain('<ShelfRail');
     expect(view).toContain('trashCount={trashed.length}');
     expect(view).toContain('onOpenTrash={() => setTrashOpen(true)}');
+    expect(view).toContain('onImport={() => void handleImport()}');
+    const rail = read('src/renderer/views/shelf/ShelfRail.tsx');
+    expect(rail).toContain('<span className="pp-rail__meta">.driftingbook</span>');
+    expect(rail).toContain("title={t('userMenu.importBook')}");
+    expect(rail).toContain("{t('projectPicker.desk.trashEntry')}");
+    expect(rail).toContain('const corner = syncLibraryCornerFor(health);');
+    expect(rail).toContain('placement="top-start"');
+    expect(block(css, '.pp-rail__cell {', '}')).toContain('background: transparent;');
+    expect(block(css, '.pp-rail {', '}')).toContain('position: sticky;');
     const menu = read('src/renderer/components/topBars/UserMenu.tsx');
-    expect(menu).toContain("{scope === 'shelf' && onOpenTrash && trashCount > 0 && (");
-    expect(menu).toContain("label={t('projectPicker.desk.trashEntry')}");
+    expect(menu).not.toContain('onOpenTrash');
+    expect(menu).not.toContain("t('userMenu.importBook')");
+    // A year of writing days above the books: sand masks coloured in CSS, a
+    // still glass card the sea draws, the book under the pointer alone.
+    expect(view).toContain('{year && <WritingHeatmap year={year} books={heatBooks} focusId={focusId} />}');
+    const heat = read('src/renderer/views/shelf/WritingHeatmap.tsx');
+    expect(heat).toContain("className={`pp-heat glass glass--rest glass--still${drawn ? ' pp-heat--sea' : ''}`}");
+    expect(heat).toContain('className="sand pp-heat__layer"');
+    expect(heat).toContain("const daily = focus ? (year.byProject[focus.id] ?? zeros) : year.total;");
+    expect(heat).toContain('<HoverCardShell anchor={hotElement} placement="top-center"');
+    expect(css).toContain('.pp-heat--sea.glass::before');
+    // Each card's last 30 days: one ink stroke per day written.
+    expect(view).toContain('<SandStrip');
+    expect(read('src/renderer/views/shelf/SandStrip.tsx')).toContain('className="sand pp-strip__sand"');
     // Below the books, one round glass button turns every cover to the next style.
     const foot = block(view, '<div className="pp-cover-style">', '</div>');
     expect(foot).toContain('glass="round"');
@@ -105,7 +131,7 @@ describe('the bookshelf in sand and glass', () => {
 
   it('makes a book a resting line of glass with a sand readout', () => {
     // On the desktop the sea of characters draws the resting glass (char-sea.acceptance.test.ts).
-    expect(view).toContain("className={`pp-card glass glass--rest${seaDrawn ? ' pp-card--sea' : ''}`}");
+    expect(view).toContain("className={`pp-card glass glass--rest${sample.waiting ? ' glass--waiting' : ''}${seaDrawn ? ' pp-card--sea' : ''}`}");
     expect(view).toContain('className="sand-track"');
     expect(view).toContain('<span className="sand-stroke"');
     expect(block(css, '.pp-card {', '}')).toMatch(/background: transparent;[\s\S]*box-shadow: none;/);

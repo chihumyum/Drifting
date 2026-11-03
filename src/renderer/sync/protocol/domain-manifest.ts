@@ -318,6 +318,24 @@ const tables: SyncDomainTablePolicy[] = [
     ],
   }),
   defineTable({
+    table: 'writing_day',
+    scope: 'project-direct',
+    disposition: 'include',
+    reason: 'The words each device added to the book on each day; the shelf heatmap follows the account.',
+    groups: [
+      group(
+        'authored',
+        'One row per book, day and device; only that device updates its words, so rows never contend.',
+        'id',
+        'project_id',
+        'day',
+        'device_key',
+        'words',
+      ),
+      group('derived', derivedClock, 'created_at', 'updated_at'),
+    ],
+  }),
+  defineTable({
     table: 'node_content',
     scope: 'project-via-reference',
     disposition: 'include',

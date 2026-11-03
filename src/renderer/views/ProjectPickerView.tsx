@@ -4,9 +4,6 @@ import { useTranslation } from 'react-i18next';
 import { projectTrashExpiresAt, useProject, type ProjectSummary } from '../usecase/useProject';
 import type { Project } from '../domain/project';
 import { useAuthStore } from '../store/auth';
-import { hostedAccountSettingsEnabled } from '../features/settings/hosted-settings-policy';
-import { UserMenu } from '../components/topBars/UserMenu';
-import { AccountAvatar } from '../components/ui/AccountAvatar';
 import { Button } from '../components/ui/Button';
 import { EmptyState } from '../components/ui/EmptyState';
 import { GhostIconButton } from '../components/ui/GhostIconButton';
@@ -16,6 +13,11 @@ import { SandCell } from '../components/ui/SandCell';
 import { parseKv } from '../domain/kv';
 import { getPlatformRuntime } from '../platform/runtime';
 import { DEFAULT_PROJECT_TARGET, useWritingStatsStore } from '../store/writing-stats-store';
+import { ShelfRail } from './shelf/ShelfRail';
+import { SandStrip } from './shelf/SandStrip';
+import { WritingHeatmap, type HeatmapBook } from './shelf/WritingHeatmap';
+import { formatShelfWords } from './shelf/shelf-format';
+import { useShelfWritingYear } from './shelf/useShelfWritingYear';
 import '../../styles/project-picker.css';
 import loglevel from 'loglevel';
 import { MobileProjectShelfContent } from '../shells/mobile/standalone/MobileProjectShelfContent';
@@ -37,6 +39,9 @@ import { BookImportError } from '../services/book-transfer/import-book';
 import { HostedQuotaExceededError } from '../sync/hosted/quota';
 import { BrushIcon } from '../components/ui/BrushIcon';
 import { useCharSeaEnabled, useCharSeaHold, useCharSeaShape } from '../components/char-sea/useCharSea';
+import { markSampleLanded, noteBookOpened, useFirstRunArrival, useSampleOnShelf } from '../components/first-run/first-run-shelf';
+import { charSeaRegistry } from '../lib/char-sea/char-sea-registry';
+import { SAMPLE_LANDING_DELAY_MS } from '../lib/motion';
 import { HostedRestoreBanner } from '../features/sync-status/HostedRestoreProgress';
 
 function WindowDragStrip() {
@@ -51,6 +56,8 @@ log.setLevel(loglevel.levels.DEBUG);
 // pull a restore made on another device.
 const EXPIRED_TRASH_PURGE_DELAY_MS = 2 * 60 * 1_000;
 const DAY_MS = 24 * 60 * 60 * 1_000;
+// The sample's landing ring: a little lighter than the press that opens a book (1.3).
+const SAMPLE_LANDING_DROP = 1.1;
 
 type Filter = 'all' | 'active' | 'paused';
 type Status = 'writing' | 'draft' | 'paused';
@@ -138,11 +145,6 @@ function statusFor(iso: string): Status {
   return 'paused';
 }
 
-function formatWordsK(words: number): string {
-  if (words < 1000) return String(words);
-  return `${(words / 1000).toFixed(1)}k`;
-}
-
 interface ProjectFormState {
   name: string;
   summary: string;
@@ -213,6 +215,8 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
   const [exportingId, setExportingId] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [transferError, setTransferError] = useState<TransferError | null>(null);
+  // The book under the pointer: the heatmap shows it alone.
+  const [focusId, setFocusId] = useState<string | null>(null);
 
   useProjectRoutePreload(!loading && Boolean(user?.id));
 
@@ -335,6 +339,7 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
 
   const handleOpen = useCallback(
     (id: string) => {
+      noteBookOpened(id);
       navigate(`/project/${id}`, {
         state: presentation === 'desktop' ? { projectEntry: 'resume-last-content' } : null,
       });
@@ -442,6 +447,18 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
   );
 
   const userInitial = (account?.name?.trim() || account?.email?.trim() || '·')[0].toUpperCase();
+  const year = useShelfWritingYear(presentation === 'desktop' && !loading && Boolean(user?.id), projects);
+  const heatBooks = useMemo<HeatmapBook[]>(
+    () => decorated.map((row) => ({
+      id: row.project.id,
+      name: row.project.name.trim() || t('projectPicker.desk.untitled'),
+      color: `hsl(var(${row.colorToken}))`,
+    })),
+    [decorated, t],
+  );
+  const libraryWords = decorated.every((row) => row.project.stats.wordsReady)
+    ? decorated.reduce((sum, row) => sum + row.project.stats.words, 0)
+    : null;
 
   if (presentation === 'mobile') {
     return (
@@ -520,94 +537,78 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
   return (
     <div className={shelfClass}>
       <WindowDragStrip />
-      <div className="pp__inner">
-        {/* ─── Header: the shelf's name and the account ─── */}
-        <header className="pp-head">
-          <h1 className="pp-head__title">{t('projectPicker.header.titleEm')}</h1>
-          <GhostIconButton
-            ref={avatarRef}
-            glass="round"
-            className="pp-head__account"
-            icon={
-              <span className="pp-head__avatar">
-                <AccountAvatar image={account?.image} initial={userInitial} />
-              </span>
-            }
-            title={t(
-              hostedAccountSettingsEnabled() ? 'userMenu.accountMenu' : 'userMenu.localMenu',
-            )}
-            aria-label={t(
-              hostedAccountSettingsEnabled() ? 'userMenu.accountMenu' : 'userMenu.localMenu',
-            )}
-            aria-haspopup="dialog"
-            aria-expanded={menuOpen}
-            onClick={() => setMenuOpen((v) => !v)}
-          />
-          <UserMenu
-            triggerRef={avatarRef}
-            open={menuOpen}
-            onClose={() => setMenuOpen(false)}
-            scope="shelf"
-            trashCount={trashed.length}
-            onOpenTrash={() => setTrashOpen(true)}
-            onImportBook={() => void handleImport()}
-          />
-        </header>
-        <HostedRestoreBanner />
+      <div className="pp__frame">
+        {/* ─── The rail: the shelf's name, import, Recently Deleted and the account ─── */}
+        <ShelfRail
+          books={decorated.length}
+          words={libraryWords}
+          trashCount={trashed.length}
+          importing={importing}
+          onImport={() => void handleImport()}
+          onOpenTrash={() => setTrashOpen(true)}
+        />
+        <div className="pp__inner">
+          <HostedRestoreBanner />
 
-        {/* ─── The books, and a slip to start the next one ─── */}
-        <div className="pp-grid">
-          {decorated.map((row) => (
-            <ProjectCard
-              key={row.project.id}
-              row={row}
-              onOpen={() => handleOpen(row.project.id)}
-              onEdit={() => setEditing(row.project)}
-              onExport={() => void handleExport(row.project)}
-              exporting={exportingId === row.project.id}
-              onDelete={() => openDelete(row.project)}
+          {/* ─── A year of writing days, every book together ─── */}
+          {year && <WritingHeatmap year={year} books={heatBooks} focusId={focusId} />}
+
+          {/* ─── The books, and a slip to start the next one ─── */}
+          <div className="pp-grid">
+            {decorated.map((row) => (
+              <ProjectCard
+                key={row.project.id}
+                row={row}
+                onOpen={() => handleOpen(row.project.id)}
+                onEdit={() => setEditing(row.project)}
+                onExport={() => void handleExport(row.project)}
+                exporting={exportingId === row.project.id}
+                onDelete={() => openDelete(row.project)}
+                recent={year ? (year.byProject[row.project.id] ?? year.days.map(() => 0)).slice(-30) : null}
+                onPointAt={(pointed) => setFocusId((current) => (pointed ? row.project.id : current === row.project.id ? null : current))}
+              />
+            ))}
+            {preparingSample && (
+              <div className="pp-card pp-card--preparing" aria-busy="true">
+                <LoadingStatus label={t('projectPicker.desk.preparingSample')} />
+              </div>
+            )}
+            {importing && (
+              <div className="pp-card pp-card--preparing" aria-busy="true">
+                <LoadingStatus label={t('projectPicker.desk.importing')} />
+              </div>
+            )}
+            <SandCell
+              ref={newSlipRef}
+              selected={false}
+              className="pp-card pp-card--new"
+              onClick={openCreate}
+              onKeyDown={(event) => activateOnEnterOrSpace(event, openCreate)}
+              role="button"
+              tabIndex={0}
+              aria-disabled={preparingSample || undefined}
+            >
+              <BrushIcon name="plus" size={22} />
+              <span>{t('projectPicker.desk.newCard')}</span>
+              <small>{t('projectPicker.desk.newCardSub')}</small>
+            </SandCell>
+          </div>
+
+          {/* ─── At the foot: turns every cover to the next style ─── */}
+          <div className="pp-cover-style">
+            <GhostIconButton
+              glass="round"
+              className="pp-cover-style__turn"
+              icon={<BrushIcon name="rotate" size={16} />}
+              title={t('projectPicker.desk.coverStyle.turn', {
+                name: t(`projectPicker.desk.coverStyle.names.${coverStyle}`),
+              })}
+              aria-label={t('projectPicker.desk.coverStyle.turn', {
+                name: t(`projectPicker.desk.coverStyle.names.${coverStyle}`),
+              })}
+              onClick={() => turnCoverStyle()}
             />
-          ))}
-          {preparingSample && (
-            <div className="pp-card pp-card--preparing" aria-busy="true">
-              <LoadingStatus label={t('projectPicker.desk.preparingSample')} />
-            </div>
-          )}
-          {importing && (
-            <div className="pp-card pp-card--preparing" aria-busy="true">
-              <LoadingStatus label={t('projectPicker.desk.importing')} />
-            </div>
-          )}
-          <SandCell
-            ref={newSlipRef}
-            selected={false}
-            className="pp-card pp-card--new"
-            onClick={openCreate}
-            onKeyDown={(event) => activateOnEnterOrSpace(event, openCreate)}
-            role="button"
-            tabIndex={0}
-            aria-disabled={preparingSample || undefined}
-          >
-            <BrushIcon name="plus" size={22} />
-            <span>{t('projectPicker.desk.newCard')}</span>
-            <small>{t('projectPicker.desk.newCardSub')}</small>
-          </SandCell>
-        </div>
-
-        {/* ─── At the foot: turns every cover to the next style ─── */}
-        <div className="pp-cover-style">
-          <GhostIconButton
-            glass="round"
-            className="pp-cover-style__turn"
-            icon={<BrushIcon name="rotate" size={16} />}
-            title={t('projectPicker.desk.coverStyle.turn', {
-              name: t(`projectPicker.desk.coverStyle.names.${coverStyle}`),
-            })}
-            aria-label={t('projectPicker.desk.coverStyle.turn', {
-              name: t(`projectPicker.desk.coverStyle.names.${coverStyle}`),
-            })}
-            onClick={() => turnCoverStyle()}
-          />
+          </div>
         </div>
       </div>
 
@@ -665,13 +666,6 @@ export interface DecoratedRow {
   createdRel: string;
   wordProgress: number | null;
   wordTarget: number;
-}
-
-/** Words as the shelf reads them: 8.6 万 in Chinese, 86.4k otherwise. */
-function formatWords(words: number, locale: string): string {
-  if (!isZh(locale)) return formatWordsK(words);
-  if (words < 10_000) return String(words);
-  return `${(words / 10_000).toFixed(1).replace(/\.0$/, '')} 万`;
 }
 
 /** The shelf's cover style (lib/shelf-cover/preference.ts), kept on this device. */
@@ -739,6 +733,10 @@ interface CardProps {
   onExport: () => void;
   exporting: boolean;
   onDelete: () => void;
+  /** Words on each of the last 30 days, today last; null until they are read. */
+  recent: readonly number[] | null;
+  /** The pointer came onto the card (true) or left it. */
+  onPointAt: (pointed: boolean) => void;
 }
 
 function RowActions({ onEdit, onExport, exporting, onDelete }: Pick<CardProps, 'onEdit' | 'onExport' | 'exporting' | 'onDelete'>) {
@@ -778,21 +776,50 @@ function RowActions({ onEdit, onExport, exporting, onDelete }: Pick<CardProps, '
   );
 }
 
-function ProjectCard({ row, onOpen, onEdit, onExport, exporting, onDelete }: CardProps) {
+function ProjectCard({ row, onOpen, onEdit, onExport, exporting, onDelete, recent, onPointAt }: CardProps) {
   const { t, i18n } = useTranslation();
   const { project, meta, status, lastEditedRel, wordProgress, wordTarget } = row;
   const stats = project.stats;
   const title = project.name.trim() || t('projectPicker.desk.untitled');
+  // The sample a first launch wrote lands on its own ring and waits, its rim
+  // flowing, until it is opened; coming up from the first-run card, every
+  // book is set down on the sea.
+  const sample = useSampleOnShelf(project.id);
+  const arriving = useFirstRunArrival();
+  const [lands] = useState(sample.landing);
+  const [arrives] = useState(arriving || lands);
   // On the sea the card's resting glass is drawn by the sea, so the water can
   // reach it; elsewhere it keeps its own CSS rim.
-  const { attach: glassRef, drawn: seaDrawn, hoverProps: glassHover } = useCharSeaShape<HTMLElement>({ rest: 0.85, radius: 2 });
+  const { attach: glassRef, drawn: seaDrawn, hoverProps: glassHover } = useCharSeaShape<HTMLElement>({
+    rest: 0.85,
+    radius: 2,
+    arrive: arrives,
+    waiting: sample.waiting,
+  });
+  const card = useRef<HTMLElement | null>(null);
+  const attachCard = useCallback((element: HTMLElement | null) => {
+    card.current = element;
+    glassRef(element);
+  }, [glassRef]);
+  useEffect(() => {
+    if (!lands || !seaDrawn) return undefined;
+    markSampleLanded();
+    const timer = window.setTimeout(() => {
+      const rect = card.current?.getBoundingClientRect();
+      if (rect) charSeaRegistry.drop(rect.left + rect.width / 2, rect.top + rect.height / 2, SAMPLE_LANDING_DROP);
+    }, SAMPLE_LANDING_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [lands, seaDrawn]);
+  const recentWords = recent ? recent.reduce((sum, words) => sum + words, 0) : 0;
 
   return (
     <article
-      ref={glassRef}
-      className={`pp-card glass glass--rest${seaDrawn ? ' pp-card--sea' : ''}`}
+      ref={attachCard}
+      className={`pp-card glass glass--rest${sample.waiting ? ' glass--waiting' : ''}${seaDrawn ? ' pp-card--sea' : ''}`}
       data-char-sea-press=""
       {...glassHover}
+      onMouseEnter={() => onPointAt(true)}
+      onMouseLeave={() => onPointAt(false)}
     >
       <BookCover row={row} />
       <div className="pp-card__body">
@@ -806,7 +833,7 @@ function ProjectCard({ row, onOpen, onEdit, onExport, exporting, onDelete }: Car
         {project.summary && <p className="pp-card__summary">{project.summary}</p>}
         <div className="pp-card__meta">
           <span>
-            <b>{stats.wordsReady ? formatWords(stats.words, i18n.language) : t('common.counting')}</b>
+            <b>{stats.wordsReady ? formatShelfWords(stats.words, i18n.language) : t('common.counting')}</b>
             {stats.wordsReady && t('projectPicker.desk.wordsUnit')}
           </span>
           <span>
@@ -822,6 +849,19 @@ function ProjectCard({ row, onOpen, onEdit, onExport, exporting, onDelete }: Car
             {t('projectPicker.desk.elementsUnit', { count: stats.elements })}
           </span>
         </div>
+        {recent && (
+          <div className="pp-card__strip">
+            <div className="pp-card__progress-k">
+              <span>{t('projectPicker.desk.recent')}</span>
+              <span>{recentWords > 0 ? `+${recentWords.toLocaleString(i18n.language)} ${t('projectPicker.desk.wordsUnit')}` : '—'}</span>
+            </div>
+            <SandStrip
+              daily={recent}
+              seed={coverSeed(project.id)}
+              label={t('projectPicker.desk.recentLabel', { words: recentWords.toLocaleString(i18n.language) })}
+            />
+          </div>
+        )}
         {wordProgress !== null && (
           <div className="pp-card__progress">
             <div className="pp-card__progress-k">
@@ -829,7 +869,7 @@ function ProjectCard({ row, onOpen, onEdit, onExport, exporting, onDelete }: Car
               <span>
                 {t('projectPicker.desk.goal', {
                   pct: Math.round(wordProgress),
-                  target: formatWords(wordTarget, i18n.language),
+                  target: formatShelfWords(wordTarget, i18n.language),
                 })}
               </span>
             </div>

@@ -23,6 +23,7 @@ export const AUTHORED_DOMAIN_ENTITY_KINDS = [
   'driftGroup',
   'materialFolder',
   'timelineMarker',
+  'writingDay',
 ] as const;
 
 export type AuthoredDomainEntityKind = (typeof AUTHORED_DOMAIN_ENTITY_KINDS)[number];
@@ -61,6 +62,7 @@ const WIRE_KIND: Readonly<Record<AuthoredDomainEntityKind, string>> = {
   driftGroup: 'drift-group',
   materialFolder: 'material-folder',
   timelineMarker: 'timeline-marker',
+  writingDay: 'writing-day',
 };
 
 /**
@@ -187,6 +189,7 @@ const AUTHORED_FIELDS: Readonly<Record<AuthoredDomainEntityKind, ReadonlySet<str
   driftGroup: new Set(['name', 'parentGroupId', 'color']),
   materialFolder: new Set(['name', 'parentFolderId']),
   timelineMarker: new Set(['narrativeOrder', 'label', 'driftNodeId']),
+  writingDay: new Set(['day', 'deviceKey', 'words']),
 };
 
 const NON_WIRE_PROJECTION_FIELDS = new Set([
