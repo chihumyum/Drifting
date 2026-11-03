@@ -437,14 +437,15 @@ function pack(points: ReadonlyMap<string, RelatePoint>): Record<string, [number,
   return out;
 }
 
+/** A book opens in 关系 unless the author chose the islands for it (2026-11-04). */
 export function parseRelateRecord(raw: string | null): RelateRecord {
-  const empty: RelateRecord = { mode: 'isles', positions: null, pins: new Map(), signature: null };
+  const empty: RelateRecord = { mode: 'relate', positions: null, pins: new Map(), signature: null };
   if (!raw) return empty;
   try {
     const data = JSON.parse(raw) as { mode?: unknown; positions?: unknown; pins?: unknown; signature?: unknown };
     const positions = data.positions ? unpack(data.positions) : null;
     return {
-      mode: data.mode === 'relate' ? 'relate' : 'isles',
+      mode: data.mode === 'isles' ? 'isles' : 'relate',
       positions: positions && positions.size > 0 ? positions : null,
       pins: unpack(data.pins),
       signature: typeof data.signature === 'string' ? data.signature : null,

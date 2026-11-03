@@ -113,9 +113,9 @@ function viewportStorageKey(projectId: string | undefined): string | null {
   return `super-element-view:viewport:${projectId}`;
 }
 
-// Fitting the islands or the 关系 layout to the window leaves the layout
-// switch (top left) and the legend of the lines (top right) clear.
-const CANVAS_FIT_LEFT = 48;
+// Fitting the islands or the 关系 layout to the window leaves the legend of
+// the lines (top right) clear; the layout switch is in the header.
+const CANVAS_FIT_LEFT = 24;
 const CANVAS_FIT_RIGHT = 180;
 // Past this many relation lines in the window the role names follow the
 // element under the pointer or in focus only.
@@ -1300,7 +1300,6 @@ export function DesktopSuperElementView({ graphUi, driftPanel, SuperViewRelation
           target?.closest('[data-super-edge]') ||
           target?.closest('[data-relation-edge-popover]') ||
           target?.closest('[data-super-modal]') ||
-          target?.closest('[data-se-tools]') ||
           target?.closest('[data-super-view-legend]') ||
           target?.closest('button') ||
           target?.closest('a') ||
@@ -2137,6 +2136,8 @@ export function DesktopSuperElementView({ graphUi, driftPanel, SuperViewRelation
     <SuperViewShell className="super-element-overlay">
       {/* Header — back + Super tabs + stats + filter controls. */}
       <DesktopSuperViewHeader
+        // 群岛 / 关系 sit in the header, before the counts.
+        metaLead={!mobileShell && <SuperElementLayoutSwitch layout={layoutMode} onLayout={chooseLayout} />}
         meta={t('superElement.meta', {
           categories: bookElementCategories.length,
           elements: bookElements.length,
@@ -2495,7 +2496,6 @@ export function DesktopSuperElementView({ graphUi, driftPanel, SuperViewRelation
           )}
         </div>
 
-        {!mobileShell && <SuperElementLayoutSwitch layout={layoutMode} onLayout={chooseLayout} />}
         {/* The legend of the lines, top right; while the floating island is
             open it steps left of the island (its card is 248px at 16px from
             the edge, its sheet a share of the canvas at 12px). */}

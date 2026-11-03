@@ -62,6 +62,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit --pretty false",
     "test": "vitest run",
     "test:renderer-architecture": "vitest run src/renderer/architecture/renderer-boundaries.test.ts",
+    "release:screenshots": "node --conditions=import --import=tsx scripts/capture-release-screenshots.ts",
     "perf:stress": "node --conditions=import --import=tsx scripts/perf-stress-baseline.ts",
     "perf:keystroke": "node --conditions=import --import=tsx scripts/perf-keystroke-write.ts",
     "perf:rust-reuse": "node scripts/benchmark-rust-reuse.mjs",

@@ -63,6 +63,9 @@
    `docs/releases/<版本号>.md`。第一行 `# Drifting <版本号>` 之后的正文会原样显示在
    App 的更新提示和 设置 › 更新 里，写给用户看，用英文写，保持简短。
 2. 本地运行 `pnpm release:check v<版本号>`，再跑 `pnpm lint`、`pnpm typecheck`、`pnpm test`。
+   然后跑 `pnpm release:screenshots`，在 `out/screenshots/<版本号>/` 得到书架、工作区和要素全景
+   的中英文、浅色深色共 12 张截图（约两分钟，期间会把 App 窗口调到最前，别动键盘和鼠标），
+   见 [release-screenshots.md](release-screenshots.md)。
 3. 推送提交和 tag：`git tag v<版本号> && git push origin main v<版本号>`。
 4. 等 **Release** 工作流结束。`verify` 失败不会构建；`build` 会核对签名、Gatekeeper、
    公证 staple 和 DMG 挂载后的 App。

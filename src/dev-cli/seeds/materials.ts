@@ -44,16 +44,30 @@ async function writeDurableFile(path: string, bytes: Uint8Array): Promise<void> 
   }
 }
 
-/** Match native asset/sync-object layouts; only the isolated profile is passed in. */
-async function importFixture(
-  database: DbClient, appLocalDataDirectory: string, projectId: string,
-  loaded: Awaited<ReturnType<typeof loadSeedAssets>>[number],
+export interface SeedAssetFiles {
+  kind: ProjectAsset['kind'];
+  sourceMime: string;
+  sourceExtension: string;
+  source: Uint8Array;
+  sha256: string;
+  width: number | null;
+  height: number | null;
+  /** Prebuilt preview bytes, written as `<variant>.jpg` beside the source. */
+  variants: readonly { variant: string; bytes: Uint8Array }[];
+}
+
+/**
+ * Write one asset as the native import leaves it, plus the verified local blob
+ * receipt an asset.bind mutation requires. Matches the native asset and
+ * sync-object layouts; only an isolated profile's directory is passed in.
+ */
+export async function writeSeedAsset(
+  database: DbClient, appLocalDataDirectory: string, projectId: string, files: SeedAssetFiles,
 ): Promise<{ asset: ProjectAsset; abandon: () => Promise<void> }> {
-  const { fixture, source, variants } = loaded;
+  const { source, variants } = files;
   const id = uuidv7();
   const directory = join(appLocalDataDirectory, 'assets', projectId, id);
-  const sourceExt = fixture.kind === 'image' ? 'png' : 'pdf';
-  const sourcePath = join(directory, `source.${sourceExt}`);
+  const sourcePath = join(directory, `source.${files.sourceExtension}`);
   let objectPath: string | null = null;
   const abandon = async () => {
     await rm(directory, { recursive: true, force: true });
@@ -64,10 +78,10 @@ async function importFixture(
     await writeDurableFile(sourcePath, source);
     for (const { variant, bytes } of variants) await writeDurableFile(join(directory, `${variant}.jpg`), bytes);
     const asset: ProjectAsset = {
-      id, projectId, kind: fixture.kind,
-      sourceMime: fixture.kind === 'image' ? 'image/png' : 'application/pdf',
-      sourceSizeBytes: source.length, sourceSha256: fixture.sha256,
-      width: fixture.width, height: fixture.height, createdAt: new Date().toISOString(),
+      id, projectId, kind: files.kind,
+      sourceMime: files.sourceMime,
+      sourceSizeBytes: source.length, sourceSha256: files.sha256,
+      width: files.width, height: files.height, createdAt: new Date().toISOString(),
     };
     // Reuse the production verifier/receipt writer with an offline file port.
     // The receipt points to actual bytes readable by native sync after launch.
@@ -99,6 +113,19 @@ async function importFixture(
     await abandon();
     throw error;
   }
+}
+
+function importFixture(
+  database: DbClient, appLocalDataDirectory: string, projectId: string,
+  loaded: Awaited<ReturnType<typeof loadSeedAssets>>[number],
+): Promise<{ asset: ProjectAsset; abandon: () => Promise<void> }> {
+  const { fixture, source, variants } = loaded;
+  return writeSeedAsset(database, appLocalDataDirectory, projectId, {
+    kind: fixture.kind,
+    sourceMime: fixture.kind === 'image' ? 'image/png' : 'application/pdf',
+    sourceExtension: fixture.kind === 'image' ? 'png' : 'pdf',
+    source, sha256: fixture.sha256, width: fixture.width, height: fixture.height, variants,
+  });
 }
 
 export async function seedMaterials(
