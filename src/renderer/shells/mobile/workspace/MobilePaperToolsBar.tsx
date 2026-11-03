@@ -14,7 +14,7 @@ export function MobilePaperToolsBar({ hidden = false, anchorRef, openRails, onTo
   const { t } = useTranslation();
   const toggles: Array<[MobilePaperRail, string]> = [
     ['toc', t('mobileWorkspace.paperAgent.outline')],
-    ['comments', t('reviewPanel.stickyRail')],
+    ['comments', t('reviewPanel.comment')],
   ];
   return <AnchoredPopover anchorRef={anchorRef} open={!hidden} onClose={onClose} placement="top-end" className="m-paper-switches" ariaLabel={t('mobileWorkspace.paperTools')}>
     {toggles.map(([rail, label]) => <button key={rail} type="button" role="switch" aria-checked={openRails[rail]} onClick={() => onToggleRail(rail)}><span>{label}</span><i aria-hidden="true" /></button>)}

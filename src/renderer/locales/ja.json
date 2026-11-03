@@ -2658,20 +2658,12 @@
     "agentTaskUnavailable": "この作品では Agent の準備ができていません",
     "agentTaskStartFailed": "Agent のチャットを開始できませんでした",
     "commentPlaceholder": "コメントを入力…",
-    "addSticky": "付箋に追加",
-    "inSticky": "付箋に追加済み",
-    "removeSticky": "付箋から削除",
     "source": "出典",
     "sourceInfo": "出典",
     "sourceFloating": "作品全体 · エンティティへのリンクなし",
     "sourceUnavailable": "エンティティを利用できません",
     "sourceText": "リンクされた本文 · 元の抜粋",
     "sourceTextUnavailable": "保存された抜粋はありません",
-    "stickyRail": "付箋",
-    "stickyCount": "{{count}}枚の付箋",
-    "expandSticky": "付箋を展開",
-    "stackSticky": "付箋を重ねる",
-    "clearSticky": "すべての付箋を削除",
     "groupBy": {
       "title": "グループ化",
       "target": "場所別",
@@ -2725,12 +2717,9 @@
       "resolve": "解決済みにする",
       "revertToNoteTitle": "通常のコメントに戻す",
       "toNote": "コメントに変換",
-      "toTodo": "TODO に変換",
-      "cancelComment": "コメントをキャンセル",
-      "add": "追加"
+      "toTodo": "TODO に変換"
     },
     "composer": {
-      "newComment": "新しいコメント",
       "placeholder": "コメントを入力…"
     },
     "entity": {
@@ -3287,9 +3276,8 @@
       "outlineRailDisplay": "目次レール",
       "hideReferenceLinks": "参照リンクの装飾を非表示",
       "showReferenceLinks": "参照リンクの装飾を表示",
-      "noComments": "付箋はありません",
-      "hideComments": "付箋を非表示",
-      "showComments": "付箋を表示",
+      "hideComments": "コメントの印を非表示",
+      "showComments": "コメントの印を表示",
       "more": "その他の操作"
     },
     "outlineRailMode": {

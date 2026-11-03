@@ -13,9 +13,8 @@ import { ArrowLeft, Ellipsis, Layers3 } from 'lucide-react';
 import { AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { EditorRailPresentationContext } from '../../../components/editor/editor-rail-presentation';
-import type { CommentTargetKind } from '../../../domain/comment';
 import type { WorkspaceTarget } from '../../../features/workspace/navigation/workspace-target';
-import { useEntityStickyNoteRail } from '../../../hooks/useEntityStickyNoteRail';
+import { useSettingsStore } from '../../../store/settings-store';
 import { getActiveEditor } from '../../../lib/active-editor';
 import {
   mobileEditorLogicalScrollTop,
@@ -229,23 +228,15 @@ export function MobilePaperDeck({
   });
   const paperToolsAnchorRef = useRef<HTMLButtonElement>(null);
   const active = session.papers.find((paper) => paper.key === session.activeKey) ?? null;
-  const activeRailTarget =
-    active && active.target.entityType !== 'all-chapters'
-      ? {
-          kind: active.target.entityType as CommentTargetKind,
-          id: active.target.id,
-        }
-      : null;
-  const stickyNoteRail = useEntityStickyNoteRail(
-    activeRailTarget?.kind ?? 'node',
-    activeRailTarget?.id,
-  );
+  // The comments tool shows or hides the comment marks in the text.
+  const commentMarksVisible = useSettingsStore((state) => state.commentMarksVisible);
+  const setCommentMarksVisible = useSettingsStore((state) => state.setCommentMarksVisible);
   const effectiveOpenRails = useMemo<Record<MobilePaperRail, boolean>>(
     () => ({
       toc: openRails.toc,
-      comments: stickyNoteRail.visible,
+      comments: commentMarksVisible,
     }),
-    [openRails.toc, stickyNoteRail.visible],
+    [openRails.toc, commentMarksVisible],
   );
   const editorActive = workspaceUi.paperMode.kind === 'edit';
   const paperChromeVisible =
@@ -724,7 +715,7 @@ export function MobilePaperDeck({
           openRails={effectiveOpenRails}
           onToggleRail={(rail) => {
             if (rail === 'comments') {
-              stickyNoteRail.setVisible(!stickyNoteRail.visible);
+              setCommentMarksVisible(!commentMarksVisible);
               return;
             }
             setOpenRails((current) => ({ ...current, [rail]: !current[rail] }));

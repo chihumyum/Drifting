@@ -52,8 +52,8 @@ describe('comment anchor highlight acceptance', () => {
     expect(css).not.toContain('::highlight(comment-hl-copilot) {');
   });
 
-  it('documents the anchor contract next to the Review rail contract', () => {
-    const doc = source('docs/qa/review-sticky-note-rail-2026-08-30.md');
+  it('documents the anchor contract with the paper comment toggle', () => {
+    const doc = source('docs/editor/comment-anchors.md');
     expect(doc).toContain('## Prose anchor highlights');
     expect(doc).toContain('comment-anchor-highlight.acceptance.test.ts');
   });

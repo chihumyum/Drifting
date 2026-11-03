@@ -77,7 +77,6 @@ if (process.argv.includes('--check')) {
       'src/renderer/features/preference-sync/preference-sync-runtime.test.ts',
       'src/renderer/features/preference-sync/preference-fields.test.ts',
       'src/renderer/features/share-links/share-inbox.integration.test.ts',
-      'src/renderer/features/share-links/reader-comment-rail.test.ts',
       'src/renderer/features/share-links/share-comment-notifications.test.ts',
       'src/shared/share-document.test.ts',
       'src/share-web/anchor.test.ts',

@@ -67,13 +67,15 @@ describe('materials in sand and glass on the desktop', () => {
     expect(regions).toContain('drawSandStroke({ width: width - SAND_FRAME_PAD * 2, height: height - SAND_FRAME_PAD * 2, dpr, seed })');
     expect(regions).toContain('const seed = seedOf(id);');
     expect(regions).toContain('selected && !wasSelected.current && !reducedMotion()');
-    // The composer is a floating layer: a paper field, note or TODO as one of
-    // a set, cancel as a text button and save as the primary.
-    expect(regions).toContain('className="region-composer region-composer--float"');
-    expect(regions).toContain('className="ui-field ui-field--area region-composer__field glass glass--rest glass--field"');
-    expect(regions).toContain('<GlassSlider');
-    expect(regions).toContain('<Button size="sm" variant="ghost" onClick={onCancel}>');
-    expect(regions).toContain('<Button size="sm" variant="primary" disabled={!body.trim()} onClick={submit}>');
+    // The composer (shared with prose selections) is a floating layer: a paper
+    // field, note or TODO as one of a set, cancel as a text button and save as
+    // the primary.
+    const composer = source('src/renderer/features/comments/CommentComposer.tsx');
+    expect(composer).toContain('className="comment-composer comment-composer--float"');
+    expect(composer).toContain('className="ui-field ui-field--area comment-composer__field glass glass--rest glass--field"');
+    expect(composer).toContain('<GlassSlider');
+    expect(composer).toContain('<Button size="sm" variant="ghost" onClick={onCancel}>');
+    expect(composer).toContain('<Button size="sm" variant="primary" disabled={!body.trim()} onClick={submit}>');
 
     const css = source('src/styles/material-workbench.css');
     const region = block(css, '.material-region.material-region--sand {', '}');

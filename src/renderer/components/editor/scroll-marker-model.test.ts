@@ -15,36 +15,38 @@ function change(patch: Partial<AgentBlockChange> = {}): AgentBlockChange {
 }
 
 describe('scoped scrollbar marker projections', () => {
-  it('requires explicit rail membership and the current project/entity/anchor', () => {
-    const comments = [comment(), comment({ id: 'hidden' }), comment({ id: 'p2', projectId: 'q' }),
+  it('follows the comment toggle and admits open anchors of the current project/entity', () => {
+    const comments = [comment(), comment({ id: 'p2', projectId: 'q' }),
       comment({ id: 'kind', targetKind: 'element' }), comment({ id: 'entity', targetId: 'm' }),
-      comment({ id: 'floating', targetBlockId: null }), comment({ id: 'converted', status: 'converted' })];
-    expect(createCommentMarkerSelector('p', 'node', 'n', comments.map(c => c.id).filter(id => id !== 'hidden'))({ comments }).map(c => c.key)).toEqual(['c:c']);
-    expect(createCommentMarkerSelector('p', 'node', 'n', [])({ comments })).toEqual([]);
+      comment({ id: 'floating', targetBlockId: null }), comment({ id: 'converted', status: 'converted' }),
+      comment({ id: 'resolved', status: 'resolved' })];
+    expect(createCommentMarkerSelector('p', 'node', 'n', true)({ comments }).map(c => c.key)).toEqual(['c:c']);
+    expect(createCommentMarkerSelector('p', 'node', 'n', false)({ comments })).toEqual([]);
   });
 
-  it('retains original collection order and handles malformed, multi-block and duplicate membership', () => {
+  it('retains original collection order and handles malformed and multi-block anchors', () => {
     const comments = [comment({ targetBlockIdsJson: 'invalid' }), comment({ id: 'multi', targetBlockIdsJson: '["a","b",null,""]' })];
-    const rows = createCommentMarkerSelector('p', 'node', 'n', ['multi', 'c', 'c'])({ comments });
+    const rows = createCommentMarkerSelector('p', 'node', 'n', true)({ comments });
     expect(rows.map(c => [c.key, c.blockIds])).toEqual([['c:c', ['b']], ['c:multi', ['a', 'b']]]);
   });
 
   it('keeps subscriber snapshots stable for unrelated comments and non-marker field updates', () => {
-    const select = createCommentMarkerSelector('p', 'node', 'n', ['c']);
+    const select = createCommentMarkerSelector('p', 'node', 'n', true);
     const store = createStore(() => ({ comments: [comment()] }));
     let snapshot = select(store.getState()); let notifications = 0;
     const off = store.subscribe(state => { const next = select(state); if (next !== snapshot) { snapshot = next; notifications++; } });
-    store.setState({ comments: [comment({ bodyJson: 'new body', priority: 'high', updatedAt: 'later' }), comment({ id: 'other' })] });
+    store.setState({ comments: [comment({ bodyJson: 'new body', priority: 'high', updatedAt: 'later' }), comment({ id: 'other', targetId: 'm' })] });
     expect(notifications).toBe(0);
     store.setState({ comments: [comment({ targetBlockIdsJson: '["b","c"]' })] });
     expect(notifications).toBe(1); expect(snapshot[0].blockIds).toEqual(['b', 'c']);
     store.setState({ comments: [comment({ status: 'resolved' })] });
-    expect(snapshot[0].cls).toBe('editor__scrollmap-tick--resolved');
+    expect(snapshot).toEqual([]);
+    store.setState({ comments: [comment()] }); expect(snapshot).toHaveLength(1);
     store.setState({ comments: [] }); expect(snapshot).toEqual([]); off();
   });
 
   it('updates family and title independently of geometry and cannot mix projects/generations', () => {
-    const select = createCommentMarkerSelector('p', 'node', 'n', ['c']);
+    const select = createCommentMarkerSelector('p', 'node', 'n', true);
     const original = select({ comments: [comment()] });
     const todo = select({ comments: [comment({ kind: 'todo' })] });
     expect(todo[0]).toMatchObject({ titleKey: 'editorScrollMarkers.jumpToTodo', cls: 'editor__scrollmap-tick--c-todo' });

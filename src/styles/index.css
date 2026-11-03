@@ -1342,8 +1342,7 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
 .editor-scroll::-webkit-scrollbar-thumb:hover {
   background: hsl(var(--ink-4));
 }
-/* `.editor-scroll--comments` 不再需要单独的宽度 —— `.editor-scroll` 已全宽，
-   评论栏由 `.editor__spread` 内部的 flex 居中容纳 .page + .editor__margin。 */
+/* `.editor__spread` centres the page inside the full-width `.editor-scroll`. */
 .editor__spread {
   display: flex;
   justify-content: center;

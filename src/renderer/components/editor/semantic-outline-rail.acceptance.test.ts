@@ -109,7 +109,7 @@ describe('semantic outline rail acceptance wiring', () => {
     );
     const editorScrollbarCss = css.slice(
       css.indexOf('.editor-scroll {'),
-      css.indexOf('/* `.editor-scroll--comments`'),
+      css.indexOf('/* `.editor__spread` centres the page'),
     );
 
     expect(rail).toContain('data-density={plan.mode}');

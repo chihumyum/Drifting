@@ -2669,20 +2669,12 @@
     "agentTaskUnavailable": "Agent aún no está listo para este proyecto",
     "agentTaskStartFailed": "No se pudo iniciar el chat de Agent",
     "commentPlaceholder": "Escribe un comentario…",
-    "addSticky": "Añadir a notas adhesivas",
-    "inSticky": "En notas adhesivas",
-    "removeSticky": "Quitar de notas adhesivas",
     "source": "Origen",
     "sourceInfo": "Origen",
     "sourceFloating": "Nivel de proyecto · sin entidad vinculada",
     "sourceUnavailable": "Entidad no disponible",
     "sourceText": "Texto vinculado · extracto original",
     "sourceTextUnavailable": "Sin extracto guardado",
-    "stickyRail": "Notas adhesivas",
-    "stickyCount": "{{count}} notas adhesivas",
-    "expandSticky": "Expandir notas adhesivas",
-    "stackSticky": "Apilar notas adhesivas",
-    "clearSticky": "Quitar todas las notas adhesivas",
     "groupBy": {
       "title": "Agrupar",
       "target": "Por ubicación",
@@ -2736,12 +2728,9 @@
       "resolve": "Resolver",
       "revertToNoteTitle": "Convertir en comentario",
       "toNote": "A comentario",
-      "toTodo": "A tarea",
-      "cancelComment": "Cancelar comentario",
-      "add": "Añadir"
+      "toTodo": "A tarea"
     },
     "composer": {
-      "newComment": "NUEVO COMENTARIO",
       "placeholder": "Escribe un comentario…"
     },
     "entity": {
@@ -3298,9 +3287,8 @@
       "outlineRailDisplay": "Barra del índice",
       "hideReferenceLinks": "Ocultar estilo de enlaces de referencia",
       "showReferenceLinks": "Mostrar estilo de enlaces de referencia",
-      "noComments": "Sin notas adhesivas",
-      "hideComments": "Ocultar notas adhesivas",
-      "showComments": "Mostrar notas adhesivas",
+      "hideComments": "Ocultar marcas de comentarios",
+      "showComments": "Mostrar marcas de comentarios",
       "more": "Más acciones"
     },
     "outlineRailMode": {

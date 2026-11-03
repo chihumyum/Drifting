@@ -1,37 +1,4 @@
 /* Comments, review lanes, inline review cards and snapshot surfaces. */
-/* Shared transparent overlay base for the editor sticky-note rail. The rail is
-   mounted against `.editor-body`, outside the native prose scroller, so its
-   cards remain available while the manuscript moves underneath. Empty regions
-   pass pointer input through to the manuscript. */
-.editor__margin {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: 240px;
-  padding: 28px 14px 12px 12px;
-  z-index: 6;
-  background: transparent;
-  pointer-events: none;
-  animation: editor-margin-fade-in 0.16s ease;
-  /* Clip cards anchored to off-screen blocks. Card top values are
-     scroll-relative (block viewport pos), so cards for blocks far above/below
-     the viewport land outside the rail's box — without clipping they leak
-     into the document and grow its scroll height, producing a spurious
-     extra scrollbar. The cards beyond the bounds are off-screen anyway. */
-  overflow: hidden;
-}
-@keyframes editor-margin-fade-in {
-  from {
-    opacity: 0;
-    transform: translateX(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
 /* Comment anchors in the paused mobile shell — painted via the CSS Custom
    Highlight API (see lib/comment-highlight.ts), NOT a CSS class: ProseMirror
    strips externally-added classes from its nodes, and a highlight can wash an
@@ -270,10 +237,6 @@
 .editor__scrollmap-tick--c-manual { --tick-c: hsl(var(--comment)); /* 胭脂 rouge */ }
 .editor__scrollmap-tick--c-copilot { --tick-c: hsl(var(--story-2)); /* 群青 abyss blue */ }
 .editor__scrollmap-tick--c-todo { --tick-c: hsl(var(--story-4)); /* 赭黄 ochre */ }
-.editor__scrollmap-tick--resolved {
-  --tick-c: hsl(var(--ink-4));
-  --tick-ink: 0.4;
-}
 @media (prefers-reduced-motion: reduce) {
   .editor__scrollmap-tick::before { animation: none; transition: none; }
 }
@@ -1677,7 +1640,7 @@ html:not([data-shell-mode='mobile']) .editor__toc-rail[data-fit='hidden'] .edito
 }
 
 /* ============================================================
-   Unified Review panel + explicit sticky-note rail
+   Unified Review panel
    ============================================================ */
 .review-panel {
   display: flex;
@@ -1763,13 +1726,6 @@ html:not([data-shell-mode='mobile']) .editor__toc-rail[data-fit='hidden'] .edito
   outline-offset: 2px;
 }
 
-.review-card--sticky {
-  border: 1px solid hsl(var(--rule));
-  border-radius: var(--radius-sm);
-  background: hsl(var(--surface));
-  box-shadow: none;
-}
-
 .review-card--manual .review-card__kind {
   color: hsl(var(--comment));
 }
@@ -1837,14 +1793,7 @@ html:not([data-shell-mode='mobile']) .editor__toc-rail[data-fit='hidden'] .edito
   color: var(--ui-text-muted, hsl(var(--ink-4)));
 }
 
-.review-card__sticky-state {
-  display: inline-flex;
-  align-items: center;
-  color: var(--ui-text-muted, hsl(var(--ink-3)));
-}
-
-.review-card__menu-button,
-.review-card__close-button {
+.review-card__menu-button {
   width: 20px;
   height: 20px;
 }
@@ -1864,8 +1813,7 @@ html:not([data-shell-mode='mobile']) .editor__toc-rail[data-fit='hidden'] .edito
 }
 
 .review-card__meta,
-.review-card__evidence,
-.review-card__quote {
+.review-card__evidence {
   margin: 3px 0 7px;
   padding: 5px 6px;
   border-radius: var(--radius-xs);
@@ -2010,8 +1958,7 @@ html:not([data-shell-mode='mobile']) .editor__toc-rail[data-fit='hidden'] .edito
   margin-top: 5px;
 }
 
-.review-card__editor textarea,
-.sticky-note-composer textarea {
+.review-card__editor textarea {
   box-sizing: border-box;
   width: 100%;
   resize: vertical;
@@ -2023,124 +1970,6 @@ html:not([data-shell-mode='mobile']) .editor__toc-rail[data-fit='hidden'] .edito
   font: var(--ui-font-secondary, 12.5px)/1.5 var(--font-sans);
 }
 
-.editor-body > .sticky-note-rail {
-  top: 8px;
-  right: 8px;
-  bottom: 8px;
-  width: min(260px, calc(100% - 24px));
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  overflow: hidden;
-  animation: sticky-note-rail-fade-in 140ms ease-out;
-}
-
-.sticky-note-rail__toolbar,
-.sticky-note-rail__list,
-.sticky-note-composer,
-.sticky-note-stack {
-  pointer-events: auto;
-}
-
-.sticky-note-rail__toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 4px;
-  min-height: 27px;
-  color: hsl(var(--ink-4));
-  font: 9px/1.2 var(--font-mono);
-}
-
-.sticky-note-rail__toolbar > span {
-  margin-right: auto;
-  padding-left: 3px;
-}
-
-.sticky-note-rail__toolbar .ghost-icon-button {
-  background: hsl(var(--page) / 0.9);
-}
-
-.sticky-note-rail__list {
-  min-height: 0;
-  overflow: auto;
-  padding: 1px 2px 8px;
-}
-
-.sticky-note-rail__list > .review-card + .review-card {
-  margin-top: 6px;
-}
-
-.sticky-note-stack {
-  position: relative;
-  isolation: isolate;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 5px 8px;
-  width: calc(100% - 6px);
-  margin: 3px 6px 6px 0;
-  padding: 9px 10px;
-  border: 1px solid hsl(var(--rule));
-  border-radius: var(--radius-sm);
-  background: hsl(var(--surface));
-  color: hsl(var(--ink-2));
-  box-shadow: none;
-  text-align: left;
-  cursor: pointer;
-}
-
-.sticky-note-stack__layers {
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-}
-
-.sticky-note-stack__layers::before,
-.sticky-note-stack__layers::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border: 1px solid hsl(var(--rule));
-  border-radius: var(--radius-sm);
-  background: hsl(var(--surface));
-}
-
-.sticky-note-stack__layers::before {
-  transform: translate(3px, 3px);
-}
-
-.sticky-note-stack__layers::after {
-  transform: translate(6px, 6px);
-}
-
-.sticky-note-stack__kind,
-.sticky-note-stack__count {
-  font: 9px/1.2 var(--font-mono);
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: hsl(var(--ink-4));
-}
-
-.sticky-note-stack__body {
-  overflow: hidden;
-  color: hsl(var(--ink-1));
-  font: 12px/1.4 var(--font-sans);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.sticky-note-stack__count {
-  align-self: center;
-  grid-row: 1 / span 2;
-  grid-column: 2;
-}
-
-@keyframes sticky-note-rail-fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
 .elem-candidate-preview__image {
   display: block;
   max-width: 100%;
@@ -2289,25 +2118,15 @@ html:not([data-shell-mode='mobile']) .editor__toc-rail[data-fit='hidden'] .edito
 .review-card--glass.glass:nth-of-type(2n + 1) { --glass-gx: var(--glass-dense-gx); --glass-gy: var(--glass-dense-gy); }
 .review-card--glass.glass:nth-of-type(2n) { --glass-gx: -168px; --glass-gy: -18px; }
 
-/* On the manuscript's edge a sticky note floats over the prose: the page at
-   80% under a faint blur, so the lines beneath show through faintly. */
-.review-card--sticky.review-card--glass,
-.review-card--sticky.review-card--glass:hover,
-.review-card--sticky.review-card--glass:focus-within {
-  background: var(--glass-fill);
-  -webkit-backdrop-filter: blur(1.6px);
-  backdrop-filter: blur(1.6px);
-}
-
-/* A suggestion's subtitle, its evidence and a quoted selection: flat, in the
-   secondary ink; quotes are indented rather than boxed. */
-.review-card--glass :is(.review-card__meta, .review-card__evidence, .review-card__quote) {
+/* A suggestion's subtitle and its evidence: flat, in the secondary ink;
+   evidence is indented rather than boxed. */
+.review-card--glass :is(.review-card__meta, .review-card__evidence) {
   margin: 2px 0 6px;
   padding: 0;
   border-radius: 0;
   background: transparent;
 }
-.review-card--glass :is(.review-card__evidence, .review-card__quote) {
+.review-card--glass .review-card__evidence {
   padding-left: 10px;
 }
 
@@ -2360,8 +2179,7 @@ html:not([data-shell-mode='mobile']) .editor__toc-rail[data-fit='hidden'] .edito
   border-radius: 16px;
   background: hsl(var(--page));
 }
-.review-card__editor .review-card__slip textarea,
-.sticky-note-composer .review-card__slip textarea {
+.review-card__editor .review-card__slip textarea {
   display: block;
   padding: 9px 13px;
   border: 0;
@@ -2401,80 +2219,6 @@ html:not([data-shell-mode='mobile']) .editor__toc-rail[data-fit='hidden'] .edito
 }
 .review-panel__resolved--glass[open] .review-panel__resolved-chevron {
   transform: rotate(90deg);
-}
-
-/* The desktop editor runs up under the window-control row (the drag strip,
-   the sidebar toggles in the window's top corners, the dock), and its lower
-   right corner holds the paper's toolbar (`.editor-corner`: 16px in, 36px
-   tall). The rail keeps clear of both, so nothing covers its buttons. */
-.editor-body > .sticky-note-rail.sticky-note-rail--glass {
-  top: calc(var(--window-titlebar-height) + 4px);
-  bottom: calc(16px + 36px + 8px);
-}
-
-/* The sticky-note rail's toolbar: its count in the index type and two round
-   glass buttons that float over whatever lies under the rail. */
-.sticky-note-rail--glass .sticky-note-rail__toolbar {
-  color: var(--ui-text-muted, hsl(var(--ink-3)));
-  font: var(--ui-font-caption, 10px)/1.2 var(--font-mono);
-}
-.sticky-note-rail--glass .sticky-note-rail__toolbar .ghost-icon-button--glass,
-.sticky-note-rail--glass .sticky-note-rail__toolbar .ghost-icon-button--glass:hover:not(:disabled) {
-  background: var(--glass-fill);
-  -webkit-backdrop-filter: blur(1.6px);
-  backdrop-filter: blur(1.6px);
-}
-
-/* Stacked notes: the ones beneath are only their resting glass lines,
-   offset down and right; the top one carries the floating plate. */
-.sticky-note-stack.sticky-note-stack--glass {
-  width: calc(100% - 8px);
-  margin: 3px 8px 8px 0;
-  padding: 10px 11px;
-  border: 0;
-  background: transparent;
-  --glass-gx: var(--glass-dense-gx);
-  --glass-gy: var(--glass-dense-gy);
-}
-.sticky-note-stack--glass .sticky-note-stack__layers {
-  z-index: -3;
-}
-.sticky-note-stack--glass .sticky-note-stack__layers::before,
-.sticky-note-stack--glass .sticky-note-stack__layers::after {
-  content: none;
-}
-.sticky-note-stack__layers > i.glass {
-  position: absolute;
-  inset: 0;
-  border-radius: var(--radius-sm);
-  --glass-gx: -168px;
-  --glass-gy: -18px;
-}
-.sticky-note-stack__layers > i.glass:first-child {
-  transform: translate(4px, 4px);
-}
-.sticky-note-stack__layers > i.glass:last-child {
-  transform: translate(8px, 8px);
-  --glass-gx: -58px;
-  --glass-gy: -186px;
-}
-.sticky-note-stack__plate {
-  position: absolute;
-  inset: 0;
-  z-index: -2;
-  border-radius: inherit;
-  background: var(--glass-fill);
-  -webkit-backdrop-filter: blur(1.6px);
-  backdrop-filter: blur(1.6px);
-  pointer-events: none;
-}
-.sticky-note-stack--glass :is(.sticky-note-stack__kind, .sticky-note-stack__count) {
-  color: var(--ui-text-muted, hsl(var(--ink-3)));
-  font: var(--ui-font-caption, 10px)/1.2 var(--font-mono);
-  letter-spacing: 0.04em;
-}
-.sticky-note-stack--glass .sticky-note-stack__body {
-  font: var(--ui-font-secondary, 12px)/1.4 var(--font-sans);
 }
 
 @media (prefers-reduced-motion: reduce) {

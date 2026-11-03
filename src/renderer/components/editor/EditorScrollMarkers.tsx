@@ -2,6 +2,7 @@ import { type CSSProperties, useEffect, useLayoutEffect, useMemo, useState, useS
 import { useTranslation } from 'react-i18next';
 import type { CommentTargetKind } from '../../domain/comment';
 import { useDataStore } from '../../store/data-store';
+import { useSettingsStore } from '../../store/settings-store';
 import { useAgentEditStore } from '../../store/agent-edit-store';
 import { entityKey } from '../../lib/agent/tool-entity-ref';
 import { selectCommentHighlight } from '../../lib/comment-highlight';
@@ -17,10 +18,7 @@ interface EditorScrollMarkersProps {
   projectId: string;
   targetKind: CommentTargetKind;
   targetId: string;
-  /** Only explicitly mounted sticky notes receive comment ticks. */
-  visibleCommentIds?: readonly string[];
 }
-const NO_VISIBLE_COMMENT_IDS: readonly string[] = [];
 const subscribeEmpty = () => () => undefined;
 const emptySnapshot = () => EMPTY_SCROLL_MARKERS;
 const NO_TICKS: readonly ScrollMarkerTick[] = [];
@@ -30,14 +28,15 @@ const LEAVE_MS = 300;
 /** Clickable overview ticks overlay the native scrollbar outside .editor-scroll.
  * Each is a sand seal pressed once (its shape and turn fixed by its key); a
  * tick that goes (a change the author has seen) stays a moment to fade out.
- * Agent ticks remain independent of sticky-note rail membership. Hidden or
- * empty surfaces own no layout listeners; canonical review stays mounted. */
-export function EditorScrollMarkers({ scrollEl, projectId, targetKind, targetId,
-  visibleCommentIds = NO_VISIBLE_COMMENT_IDS }: EditorScrollMarkersProps) {
+ * Comment ticks follow the paper's comment toggle; Agent ticks are always
+ * shown. Hidden or empty surfaces own no layout listeners; canonical review
+ * stays mounted. */
+export function EditorScrollMarkers({ scrollEl, projectId, targetKind, targetId }: EditorScrollMarkersProps) {
   const { t } = useTranslation();
   const { isVisible, isPreparing } = useEditorSurfaceLifecycle();
-  const selectComments = useMemo(() => createCommentMarkerSelector(projectId, targetKind, targetId, visibleCommentIds),
-    [projectId, targetKind, targetId, visibleCommentIds]);
+  const commentMarksVisible = useSettingsStore((state) => state.commentMarksVisible);
+  const selectComments = useMemo(() => createCommentMarkerSelector(projectId, targetKind, targetId, commentMarksVisible),
+    [projectId, targetKind, targetId, commentMarksVisible]);
   const comments = useDataStore(selectComments);
   const selectAgent = useMemo(() => {
     const select = createAgentMarkerSelector();

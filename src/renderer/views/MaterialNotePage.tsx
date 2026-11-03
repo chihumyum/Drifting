@@ -6,7 +6,6 @@ import loglevel from 'loglevel';
 
 import { useEntityYjsDoc } from '../hooks/useEntityYjsDoc';
 import { useEntityEditor, type EditorCommentRequest, type EditorPersistDerived } from '../hooks/useEntityEditor';
-import { useEntityStickyNoteRail } from '../hooks/useEntityStickyNoteRail';
 import { useLibraryItem } from '../usecase/useLibraryItem';
 import { useDataStore } from '../store/data-store';
 import { editorTabSelectionKey } from '../lib/editor-selection-memory';
@@ -19,8 +18,8 @@ import { EditorOutlineRail } from '../components/editor/EditorOutlineRail';
 import { nestHeadings } from '../components/editor/outline-rail-model';
 import { scrollToOutlineAnchor } from '../components/editor/outline-scroll';
 import { CommentAnchorHighlights } from '../components/editor/CommentAnchorHighlights';
+import { EditorCommentComposer } from '../components/editor/EditorCommentComposer';
 import { EditorScrollMarkers } from '../components/editor/EditorScrollMarkers';
-import { DesktopStickyNoteRail as StickyNoteRail } from '../features/comments/desktop/DesktopStickyNoteRail';
 import { ModalBody, ModalCard, ModalHeader, ModalRoot } from '../components/ui/Modal';
 import { MaterialEmbedWithView } from '../features/library/MaterialEmbedView';
 import { NoteFileImport } from '../lib/extensions/note-blocks';
@@ -61,18 +60,8 @@ export function MaterialNotePage({
   const [embedPickerEditor, setEmbedPickerEditor] = useState<Editor | null>(null);
   const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
 
-  // Margin comments and TODOs on the note's text, as in the entity editors.
-  const stickyNoteRail = useEntityStickyNoteRail('library_item', item.id);
-  const marginNotes = stickyNoteRail.visible;
-  const setMarginNotes = stickyNoteRail.setVisible;
+  // Comments and TODOs on the note's text, as in the entity editors.
   const [pendingComment, setPendingComment] = useState<EditorCommentRequest | null>(null);
-  const handleAddCommentRequest = useCallback(
-    (request: EditorCommentRequest) => {
-      setMarginNotes(true);
-      setPendingComment(request);
-    },
-    [setMarginNotes],
-  );
 
   const { ydoc, ydocError } = useEntityYjsDoc({
     kind: 'library-item',
@@ -158,7 +147,7 @@ export function MaterialNotePage({
     ydoc,
     onPersist: handlePersist,
     placeholder: t('materialEditor.notePlaceholder'),
-    onAddCommentRequest: handleAddCommentRequest,
+    onAddCommentRequest: setPendingComment,
     editorClass: 'prose max-w-none focus:outline-none note-prose',
     slashExtraItems: slashItems,
     selectionKey: editorTabSelectionKey(projectId, { entityType: 'library_item', id: item.id }),
@@ -192,7 +181,7 @@ export function MaterialNotePage({
         scrollspyIds={outline.map((heading) => heading.id)}
         onItemClick={(id) => scrollToOutlineAnchor(id, scrollEl)}
       />
-      <div className={`editor-scroll${marginNotes ? ' editor-scroll--comments' : ''}`} ref={setScrollEl}>
+      <div className="editor-scroll" ref={setScrollEl}>
         <div className="editor__spread">
           <article className="page page--entity material-editor__note-page">
             {header}
@@ -209,22 +198,19 @@ export function MaterialNotePage({
           </article>
         </div>
       </div>
-      {marginNotes && (
-        <StickyNoteRail
-          projectId={projectId}
-          targetKind="library_item"
-          targetId={item.id}
-          pendingRequest={pendingComment}
-          onPendingRequestChange={setPendingComment}
-        />
-      )}
+      <EditorCommentComposer
+        projectId={projectId}
+        targetKind="library_item"
+        targetId={item.id}
+        request={pendingComment}
+        onClose={() => setPendingComment(null)}
+      />
       <CommentAnchorHighlights scrollEl={scrollEl} projectId={projectId} targetKind="library_item" targetId={item.id} />
       <EditorScrollMarkers
         projectId={projectId}
         targetKind="library_item"
         targetId={item.id}
         scrollEl={scrollEl}
-        visibleCommentIds={marginNotes ? stickyNoteRail.itemIds : undefined}
       />
       {embedPickerEditor && (
         <MaterialEmbedPicker

@@ -8,7 +8,7 @@ import { useDataStore } from '../store/data-store';
 import { requestConfirmation } from '../store/confirmation-store';
 import { useCanPromoteOnEdit, usePromoteCurrentTab, useUiStore } from '../store/ui-store';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
-import { useEntityStickyNoteRail } from '../hooks/useEntityStickyNoteRail';
+import { useCommentMarksToggle } from '../components/editor/comment-marks';
 import { useLibraryItem } from '../usecase/useLibraryItem';
 import { useEntityRelations } from '../usecase/useEntityRelations';
 import { genericAssociationRelationTypeId } from '../domain/entity-relation-type';
@@ -37,7 +37,8 @@ import {
   PdfMediaStage,
   type MediaBox,
 } from '../features/library/MaterialMediaStage';
-import { MaterialRegionLayer, RegionCommentComposer, type RegionMark } from '../features/library/MaterialRegionLayer';
+import { MaterialRegionLayer, type RegionMark } from '../features/library/MaterialRegionLayer';
+import { CommentComposer } from '../features/comments/CommentComposer';
 import { ReviewItemCard } from '../features/comments/ReviewItemCard';
 import { useComment } from '../usecase/useComment';
 import { useZoomPanSurface } from '../features/library/use-zoom-pan-surface';
@@ -78,8 +79,8 @@ export function MaterialEditorView({
   const [noteReady, setNoteReady] = useState(false);
   const isMedia = item?.kind === 'image' || item?.kind === 'pdf';
   useReportEditorSurfaceReady(!item || isMedia || noteReady);
-  // Media keeps its own comment column; notes use the shared margin rail.
-  const noteComments = useEntityStickyNoteRail('library_item', isMedia ? null : libraryItemId);
+  // Media keeps its own comment column; a note's toggle shows its comments in the text.
+  const noteComments = useCommentMarksToggle(projectId, 'library_item', isMedia ? '' : libraryItemId ?? '');
   const folderUsecases = useMaterialFolder(projectId);
   const [folderPickerOpen, setFolderPickerOpen] = useState(false);
 
@@ -151,15 +152,7 @@ export function MaterialEditorView({
         editorType="library_item"
         onMenuAction={(action) => void handleMenuAction(action)}
         outlineToggle={!isMedia}
-        commentToggle={
-          isMedia
-            ? undefined
-            : {
-                enabled: noteComments.visible,
-                count: noteComments.itemIds.length,
-                onToggle: () => noteComments.setVisible(!noteComments.visible),
-              }
-        }
+        commentToggle={isMedia ? undefined : noteComments}
         hiddenMenuActions={
           isMedia
             ? [NOTE_TASK_TODOS_OFF_ACTION, NOTE_TASK_TODOS_ON_ACTION]
@@ -610,7 +603,7 @@ function MaterialMediaPage({ item, projectId, userId, onUpdate }: MaterialPagePr
                     </span>
                     {region?.page ? t('materialEditor.regions.page', { page: region.page }) : !region ? t('materialEditor.regions.whole') : null}
                   </div>
-                  <ReviewItemCard comment={comment} projectId={projectId} presentation="panel" />
+                  <ReviewItemCard comment={comment} projectId={projectId} />
                 </div>
               ))
             )}
@@ -618,8 +611,10 @@ function MaterialMediaPage({ item, projectId, userId, onUpdate }: MaterialPagePr
         )}
       </div>
       {pending && (
-        <RegionCommentComposer
+        <CommentComposer
           anchor={pending.screen}
+          label={t('materialEditor.regions.compose')}
+          placeholder={t('materialEditor.regions.placeholder')}
           onSubmit={(body, asTodo) => void createRegionComment(body, asTodo)}
           onCancel={() => setPending(null)}
         />

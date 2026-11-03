@@ -12,8 +12,9 @@ import { ElementNameConflictError } from '../domain/book-element';
 import { useElementCategory } from '../usecase/useElementCategory';
 import { EditorTopBar } from '../components/editor/EditorTopBar';
 import { EntityTitleField } from '../components/editor/EntityTitleField';
-import { DesktopStickyNoteRail as StickyNoteRail } from '../features/comments/desktop/DesktopStickyNoteRail';
 import { EditorReviewLayer } from '../components/editor/EditorReviewLayer';
+import { EditorCommentComposer } from '../components/editor/EditorCommentComposer';
+import { useCommentMarksToggle } from '../components/editor/comment-marks';
 import {
   useEditorSurfaceLifecycle,
   useReportEditorSurfaceReady,
@@ -38,7 +39,6 @@ import {
 } from '../hooks/useEntityEditor';
 import { useEntityYjsDoc } from '../hooks/useEntityYjsDoc';
 import { EditorDocumentLoadError } from '../components/editor/EditorDocumentLoadError';
-import { useEntityStickyNoteRail } from '../hooks/useEntityStickyNoteRail';
 import { useCanPromoteOnEdit, usePromoteCurrentTab, useUiStore } from '../store/ui-store';
 import { editorTabSelectionKey } from '../lib/editor-selection-memory';
 import { assetStoreService } from '../services/asset-store.service';
@@ -167,9 +167,7 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
   // Clear the cell's "M" once the user opens this element (coarse — element
   // writes arrive as structural changes; see useAgentChangeMarks).
   useAgentChangeMarks(scrollEl, 'element', elementId, isVisible);
-  const stickyNoteRail = useEntityStickyNoteRail('element', elementId);
-  const marginNotes = stickyNoteRail.visible;
-  const setMarginNotes = stickyNoteRail.setVisible;
+  const commentToggle = useCommentMarksToggle(projectId ?? '', 'element', elementId ?? '');
   const entityLinkInteractive = useSettingsStore((state) => state.entityLinkInteractive);
   const setEntityLinkInteractive = useSettingsStore((state) => state.setEntityLinkInteractive);
   const toggleEntityLinkInteractive = useCallback(
@@ -189,19 +187,6 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
     }
   }, [elementId, navigate]);
 
-  const commentCount = stickyNoteRail.itemIds.length;
-  const toggleComments = useCallback(() => {
-    const next = !marginNotes;
-    setMarginNotes(next);
-    if (!next) setPendingComment(null);
-  }, [marginNotes, setMarginNotes]);
-  const handleAddCommentRequest = useCallback(
-    (request: EditorCommentRequest) => {
-      setMarginNotes(true);
-      setPendingComment(request);
-    },
-    [setMarginNotes],
-  );
   const [syncedElementKey, setSyncedElementKey] = useState({
     routeId: elementId ?? null,
     entityId: curElement?.id ?? null,
@@ -267,7 +252,7 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
     onPersist: handlePersist,
     placeholder: t('elementEditor.bodyPlaceholder'),
     typewriterScrolling: true,
-    onAddCommentRequest: handleAddCommentRequest,
+    onAddCommentRequest: setPendingComment,
     selectionKey:
       projectId && curElement
         ? editorTabSelectionKey(projectId, { entityType: 'element', id: curElement.id })
@@ -686,12 +671,7 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
           enabled: entityLinkInteractive,
           onToggle: toggleEntityLinkInteractive,
         }}
-        commentToggle={{
-          enabled: marginNotes,
-          count: commentCount,
-          disabled: false,
-          onToggle: toggleComments,
-        }}
+        commentToggle={commentToggle}
       />
 
       {/* Mode-controlled semantic TOC beside the native scroll tree. */}
@@ -705,7 +685,7 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
           }}
         />
         <div
-          className={`editor-scroll${marginNotes ? ' editor-scroll--comments' : ''}`}
+          className="editor-scroll"
           ref={setScrollEl}
         >
           <div className="editor__spread">
@@ -932,21 +912,18 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
             </article>
           </div>
         </div>
-        {marginNotes && (
-          <StickyNoteRail
-            projectId={projectId ?? curElement.projectId}
-            targetKind="element"
-            targetId={elementId}
-            pendingRequest={pendingComment}
-            onPendingRequestChange={setPendingComment}
-          />
-        )}
+        <EditorCommentComposer
+          projectId={projectId ?? curElement.projectId}
+          targetKind="element"
+          targetId={elementId}
+          request={pendingComment}
+          onClose={() => setPendingComment(null)}
+        />
         <EditorReviewLayer
           projectId={projectId ?? curElement.projectId}
           entityType="element"
           id={elementId}
           scrollEl={scrollEl}
-          visibleCommentIds={marginNotes ? stickyNoteRail.itemIds : undefined}
         />
       </div>
 

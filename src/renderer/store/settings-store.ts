@@ -295,6 +295,9 @@ interface SettingsState {
   setOutlineRailMode: (mode: OutlineRailMode) => void;
   entityLinkInteractive: boolean;
   setEntityLinkInteractive: (on: boolean) => void;
+  /** Draw notes' and TODOs' anchors in the prose at rest; a pointed-at card's anchor always shows. */
+  commentMarksVisible: boolean;
+  setCommentMarksVisible: (on: boolean) => void;
   entityLinkColorMode: EntityLinkColorMode;
   setEntityLinkColorMode: (mode: EntityLinkColorMode) => void;
   entityLinkHighlightMode: EntityLinkHighlightMode;
@@ -435,6 +438,8 @@ export const useSettingsStore = create<SettingsState>()(
       setOutlineRailMode: (mode) => set({ outlineRailMode: normalizeOutlineRailMode(mode) }),
       entityLinkInteractive: true,
       setEntityLinkInteractive: (on) => set({ entityLinkInteractive: on }),
+      commentMarksVisible: true,
+      setCommentMarksVisible: (on) => set({ commentMarksVisible: on }),
       entityLinkColorMode: 'contextual',
       setEntityLinkColorMode: (mode) =>
         set({ entityLinkColorMode: normalizeEntityLinkColorMode(mode) }),

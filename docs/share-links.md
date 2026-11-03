@@ -78,14 +78,12 @@ every 5 minutes). Each pass (`share-inbox.ts`):
    with what readers see; resolved and converted comments show as resolved,
    reopened ones as open.
 
-Review cards and sticky notes label these comments `读者 · <name>`.
+Review cards label these comments `读者 · <name>`.
 
-**On the page at once.** While a project is open (`reader-comment-rail.ts`),
-every open reader comment goes on its entity's sticky-note rail, which opens:
-the ones already there when the project opens and each that arrives, imported
-here or synced from another device, newest on top. The rail's membership is
-session UI, so each is pinned once per session; one the author takes off stays
-off until the project opens again. Resolved ones are not pinned.
+**On the page at once.** An open reader comment anchored to a passage is drawn
+in the text like any other comment while the paper's comment toggle is on, and
+listed in the right panel's Review. (Until 2026-11-04 each was also pinned to
+the entity's sticky-note rail, which has been retired.)
 
 **Notification.** Each inbox pass that imports comments posts one notification
 per shared entity in the notification center (`share-comment-notifications.ts`):
@@ -161,8 +159,6 @@ the service's `CORS_ORIGINS` for sign-in and share requests.
   against a local service — publish with a linked entity and the folio,
   identical hashes, reader comment, import, resolution and reopening,
   withdrawal, stop sharing.
-- `src/renderer/features/share-links/reader-comment-rail.test.ts`: open reader
-  comments pinned per entity, newest on top, once per session; others left alone.
 - `src/renderer/features/share-links/share-comment-notifications.test.ts`: one
   notification per shared entity, reader and excerpt or count, entity target.
 - `pnpm hosted:acceptance` includes these suites in

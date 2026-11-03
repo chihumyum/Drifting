@@ -1873,8 +1873,9 @@ identities and the isolated credential namespace.
 ## F3f — Scoped review markers and visible geometry
 
 `EditorScrollMarkers` now composes a semantic marker projection and one
-`ScrollMarkerViewportController`. Comment projections require explicit sticky
-rail membership and the current project/entity. They share a weakly keyed lookup
+`ScrollMarkerViewportController`. Comment projections follow the paper's
+comment toggle and the current project/entity (until 2026-11-04 they required
+explicit sticky rail membership). They share a weakly keyed lookup
 for each immutable comments collection, preserve collection ordering and ignore
 body/priority/timestamp updates that do not change a tick. Agent projections read
 only the current entity's changes and ignore text, mode and provenance changes

@@ -364,7 +364,6 @@ describe('Super View sand and glass acceptance', () => {
     // Review's own cards, grouped by what they are written on.
     expect(view).toContain('groupReviewItems(openNotes, groupData)');
     expect(view).toContain('<ReviewItemCard');
-    expect(view).toContain('presentation="panel"');
     expect(view).toContain('className="review-group review-group--glass smm-comment-group"');
     expect(view).toContain('kind="note"');
     // The entity filter reaches comments written on the entity, not only related ones.

@@ -32,7 +32,7 @@ const fingerprint = () => {
 const validate = (report) => {
   assert.equal(report.status, 'passed');
   assert.equal(report.fingerprint, fingerprint(), 'Review card action evidence is stale.');
-  assert.equal(Object.keys(report.checks).length, 24);
+  assert.equal(Object.keys(report.checks).length, 23);
   assert(Object.values(report.checks).every(value => value === true));
   assert.deepEqual(report.uncaughtErrors, []);
 };
@@ -82,7 +82,6 @@ if (process.argv.includes('--check')) {
     await client.Page.navigate({ url: server.resolvedUrls.local[0] + 'scripts/todo-edit-ui.html' }); await loaded;
     await until('!!document.querySelector("#panel article")');
     await check('desktopReviewListHasNoMoreButtons', '!document.querySelector("#review-sort .review-card__menu-button")');
-    await check('desktopStickyCardsKeepMoreButtons', '!!document.querySelector("#sticky .review-card__menu-button") && !!document.querySelector("#note-sticky .review-card__menu-button")');
     for (const surface of ['panel', 'note']) {
       const card = `document.querySelector('#${surface} article')`;
       await check(`${surface}HasNoMoreButton`, `!${card}.querySelector('.review-card__menu-button')`);
@@ -133,4 +132,4 @@ if (process.argv.includes('--check')) {
     rmSync(temporary, { recursive: true, force: true });
   }
 }
-console.log('Review card actions: 24 synthetic browser checks passed.');
+console.log('Review card actions: 23 synthetic browser checks passed.');

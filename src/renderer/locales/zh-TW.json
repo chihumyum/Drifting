@@ -2658,20 +2658,12 @@
     "agentTaskUnavailable": "此作品的 Agent 尚未就緒",
     "agentTaskStartFailed": "無法啟動 Agent 對話",
     "commentPlaceholder": "撰寫註解…",
-    "addSticky": "加入便利貼",
-    "inSticky": "已加入便利貼",
-    "removeSticky": "從便利貼移除",
     "source": "來源",
     "sourceInfo": "來源",
     "sourceFloating": "作品層級 · 未連結實體",
     "sourceUnavailable": "實體無法使用",
     "sourceText": "連結文字 · 原始摘錄",
     "sourceTextUnavailable": "沒有儲存的摘錄",
-    "stickyRail": "便利貼",
-    "stickyCount": "{{count}} 張便利貼",
-    "expandSticky": "展開便利貼",
-    "stackSticky": "堆疊便利貼",
-    "clearSticky": "移除所有便利貼",
     "groupBy": {
       "title": "分組",
       "target": "依位置",
@@ -2725,12 +2717,9 @@
       "resolve": "標為已解決",
       "revertToNoteTitle": "降為一般註解",
       "toNote": "轉為註解",
-      "toTodo": "轉為待辦",
-      "cancelComment": "取消註解",
-      "add": "新增"
+      "toTodo": "轉為待辦"
     },
     "composer": {
-      "newComment": "新增註解",
       "placeholder": "撰寫註解…"
     },
     "entity": {
@@ -3287,9 +3276,8 @@
       "outlineRailDisplay": "目錄側欄",
       "hideReferenceLinks": "隱藏參照連結樣式",
       "showReferenceLinks": "顯示參照連結樣式",
-      "noComments": "沒有便利貼",
-      "hideComments": "隱藏便利貼",
-      "showComments": "顯示便利貼",
+      "hideComments": "隱藏註解痕跡",
+      "showComments": "顯示註解痕跡",
       "more": "更多操作"
     },
     "outlineRailMode": {

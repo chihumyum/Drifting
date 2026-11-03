@@ -1,6 +1,6 @@
 {
   "status": "passed",
-  "fingerprint": "307a32161a7f059ce3ef2703131b91bef2a446085d57f21e8e6aba3532dfdf28",
+  "fingerprint": "0bca1d7c474354e3f1e771619c0069ac47425a951f64b9363007c75559645292",
   "sources": [
     "src/renderer/features/comments/ReviewItemCard.tsx",
     "src/renderer/features/comments/CommentSourceHoverCard.tsx",
@@ -17,7 +17,6 @@
   ],
   "checks": {
     "desktopReviewListHasNoMoreButtons": true,
-    "desktopStickyCardsKeepMoreButtons": true,
     "panelHasNoMoreButton": true,
     "panelReachableByTabWithVisibleFocus": true,
     "panelTabFocusDoesNotOpenActions": true,
