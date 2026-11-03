@@ -56,6 +56,9 @@ open-book.png               two pages open, two lines on each
 knots.png                   a cord with knots tied along it (结绳记事)
 
 tea.png                     a cup just set down, still steaming (Project Home "recent")
+oil-lamp.png                灯盏: a flame over a shallow dish on its stand (immersive writing:
+                            only the paper lit). ALTERNATES keeps the closed eye and the
+                            stick of incense drawn for it.
 spread.png                  two heads turned outward, a dot left between them
 locate.png                  a drop-shaped pin standing on its point, a white eye in it
 new-storyline.png           a lane drawn as one level stroke, a plus above it
@@ -853,6 +856,35 @@ def tea(rng):
         brush(a, curve([(x0, 44), (x0 - 5, 34), (x0 + 3, 24), (x0 - 2, 10)], 12), T * 0.6, rng, load0=0.85, dry=0.6, taper=(0.1, 0.6))
     return a
 
+def oil_lamp(rng):
+    """灯盏: a flame over a shallow dish on its stand."""
+    a = new()
+    fill_poly(a, curve([(48, 8), (56, 24), (57, 34), (48, 42), (39, 34), (40, 24), (48, 8)], 10), rng, rough=0.6)
+    brush(a, curve([(20, 48), (32, 57), (64, 57), (76, 48)], 12), T * 0.95, rng, load0=1.0, dry=0.15, taper=(0.06, 0.06))
+    brush(a, line((48, 58), (48, 82), 12), T * 0.75, rng, load0=1.0, dry=0.1, taper=(0.0, 0.0))
+    brush(a, curve([(30, 88), (40, 83), (56, 83), (66, 88)], 12), T * 0.95, rng, load0=1.0, dry=0.2, taper=(0.06, 0.06))
+    return a
+
+def eyes_shut(rng):
+    """Alternate: 闭目, one lid drawn down in an arc, three short lashes under it."""
+    a = new()
+    brush(a, curve([(8, 40), (28, 58), (48, 64), (68, 58), (88, 40)], 20), T * 1.05, rng, load0=1.0, dry=0.3, taper=(0.08, 0.12))
+    for (x0, y0), (x1, y1) in (((28, 60), (20, 76)), ((48, 66), (48, 84)), ((68, 60), (76, 76))):
+        brush(a, line((x0, y0), (x1, y1), 10), T * 0.7, rng, load0=1.0, dry=0.4, taper=(0.0, 0.5))
+    return a
+
+def incense(rng):
+    """Alternate: 一炷香, one stick in a squat burner, its ember lit, one wisp rising."""
+    a = new()
+    fill_poly(a, curve([(24, 64), (28, 79), (40, 85), (56, 85), (68, 79), (72, 64), (24, 64)], 10), rng, rough=0.7)
+    brush(a, line((18, 63), (78, 63), 16), T * 0.8, rng, load0=1.0, dry=0.1, taper=(0.04, 0.04))
+    brush(a, line((33, 84), (29, 92), 6), T * 0.7, rng, load0=1.0, dry=0.2, taper=(0.0, 0.3))
+    brush(a, line((63, 84), (67, 92), 6), T * 0.7, rng, load0=1.0, dry=0.2, taper=(0.0, 0.3))
+    brush(a, line((48, 61), (48, 32), 16), T * 0.42, rng, load0=1.0, dry=0.0, taper=(0.0, 0.02))
+    disc(a, 48, 30, 3.6, rng, wob=0.05)
+    brush(a, curve([(48, 25), (44, 18), (51, 11), (46, 3)], 12), T * 0.42, rng, load0=0.75, dry=0.7, taper=(0.1, 0.7))
+    return a
+
 def spread(rng):
     """推开: two heads turned outward, a dot left between them."""
     a = new()
@@ -1388,7 +1420,7 @@ OBJECTS = {
     "cloud": (cloud, 2016), "checklist": (checklist, 2018), "checklist-plus": (checklist_plus, 2019),
     "sticky-note": (sticky_note, 2022), "mic": (mic, 2025), "image": (image, 2027), "image-plus": (image_plus, 2028),
     "eraser": (eraser, 2033), "share": (share, 2035), "layers": (layers, 2039), "branch": (branch, 2041),
-    "view-grid": (view_grid, 2045), "view-list": (view_list, 2046), "open-book": (open_book, 2049), "knots": (knots, 2050), "tea": (tea, 2104),
+    "view-grid": (view_grid, 2045), "view-list": (view_list, 2046), "open-book": (open_book, 2049), "knots": (knots, 2050), "tea": (tea, 2104), "oil-lamp": (oil_lamp, 9111),
     "spread": (spread, 3001), "locate": (locate, 3004), "new-storyline": (new_storyline, 3007),
     "new-category": (new_category, 3008), "folding-fan": (folding_fan, 3011), "folding-fan-closed": (folding_fan_closed, 3014),
     "arrow-down": (arrow_down, 4001), "arrow-out": (arrow_out, 4002), "arrow-in": (arrow_in, 4003),
@@ -1403,9 +1435,10 @@ OBJECTS = {
     "table": (table, 8222), "code": (code, 8230), "highlight": (highlight, 8240),
     "brush-writing": (brush_writing, 8081), "alpha-down": (alpha_down, 8091), "lanes-stagger": (lanes_stagger, 8102),
 }
-# Drawn beside the shipped folding fan and not written out: to ship one
-# instead, put it in OBJECTS under "folding-fan".
-ALTERNATES = {"folding-fan-line": (folding_fan_line, 3012), "lantern": (lantern, 3013)}
+# Drawn beside the shipped folding fan and oil lamp and not written out: to
+# ship one instead, put it in OBJECTS under the shipped icon's name.
+ALTERNATES = {"folding-fan-line": (folding_fan_line, 3012), "lantern": (lantern, 3013),
+              "eyes-shut": (eyes_shut, 9121), "incense": (incense, 9101)}
 # Frames drawn with one rng, each finished with fine grain, then laid side by side.
 STRIPS = {"thinking": (thinking, 4102)}
 masks = {}

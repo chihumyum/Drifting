@@ -93,6 +93,7 @@ export type BrushIconName =
   | 'name-seal'
   | 'new-category'
   | 'new-storyline'
+  | 'oil-lamp'
   | 'open-book'
   | 'ov-folding'
   | 'ov-iceberg'

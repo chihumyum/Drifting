@@ -14,12 +14,16 @@ const selectors = (text: string) =>
 describe('immersive writing (docs/editor/immersive-writing.md)', () => {
   afterEach(() => useUiStore.setState({ immersiveWriting: false, activeSuperView: 'none' }));
 
-  it('opens from the first button of the paper toolbar or ⌘⇧↩, and Esc leaves', () => {
+  it('opens from its own lamp left of the timeline toggle or ⌘⇧↩, and Esc leaves', () => {
     const bar = source('src/renderer/components/editor/EditorTopBar.tsx');
-    const toolbar = bar.slice(bar.indexOf('role="toolbar"'));
-    expect(toolbar.indexOf('<ImmersiveWritingToggle />')).toBeGreaterThan(0);
-    expect(toolbar.indexOf('<ImmersiveWritingToggle />')).toBeLessThan(toolbar.indexOf('plotPlannerToggle &&'));
-    expect(source('src/renderer/components/workspaceChrome/ImmersiveWriting.tsx')).toContain('<BrushIcon name="tea" />');
+    const corner = bar.slice(bar.indexOf('<div className="editor-corner">'), bar.indexOf('<div className="editor-bar'));
+    expect(corner).toMatch(/\{hostsTimelineToggle && <ImmersiveWritingControl \/>\}\s+\{hostsTimelineToggle && <TimelineToggle \/>\}/);
+    // Out of the pill: the toolbar no longer carries it.
+    expect(bar.slice(bar.indexOf('role="toolbar"'))).not.toContain('Immersive');
+    const control = source('src/renderer/components/workspaceChrome/ImmersiveWriting.tsx');
+    expect(control).toContain('icon={<BrushIcon name="oil-lamp" />}');
+    expect(control).toContain('className="workspace-immersive-toggle glass--rest"');
+    expect(source('scripts/design-assets/brushicons.py')).toContain('"oil-lamp": (oil_lamp, 9111)');
     expect(getDefaultAccelerator('toggleImmersiveWriting')).toBe('Mod+Shift+Enter');
     expect(source('src/renderer/shells/desktop/useDesktopGlobalShortcuts.ts'))
       .toMatch(/bindings\.toggleImmersiveWriting\)\) \{\s+event\.preventDefault\(\);\s+toggleImmersiveWriting\(\);/);
@@ -54,7 +58,7 @@ describe('immersive writing (docs/editor/immersive-writing.md)', () => {
 
   it('fades the floating chrome and keeps a sync problem in sight', () => {
     const rules = selectors(css());
-    for (const chrome of ['.workspace-sidebar-toggles', '.workspace-tab-dock', '.editor-corner', '.workspace-timeline-toggle--stage.ghost-icon-button']) {
+    for (const chrome of ['.workspace-sidebar-toggles', '.workspace-tab-dock', '.editor-corner > *', '.immersive-writing-control', '.workspace-timeline-toggle--stage.ghost-icon-button']) {
       expect(rules.some((rule) => rule.includes(`.desktop-app-shell[data-immersive] ${chrome}`)), chrome).toBe(true);
     }
     expect(css()).toContain(".desktop-app-shell[data-immersive] .paper-sync-mark:not([data-state='problem'])");
@@ -69,17 +73,21 @@ describe('immersive writing (docs/editor/immersive-writing.md)', () => {
       source('src/renderer/components/workspaceChrome/ImmersiveWriting.tsx'),
       source('src/renderer/features/immersive-writing/paragraph-focus.ts'),
     ].join('\n');
-    for (const untouched of ['editor__toc-rail', 'sticky-note-rail', 'outlineRailMode', 'setOutlineRailMode', 'commentToggle', 'comment-highlight']) {
+    for (const untouched of ['editor__toc-rail', 'sticky-note-rail', 'comment-rail', 'editor__margin', 'outlineRailMode', 'setOutlineRailMode', 'commentToggle', 'comment-highlight']) {
       expect(immersion, untouched).not.toContain(untouched);
     }
   });
 
-  it('brings back the dock and traffic lights at the top edge and the way out at the corner', () => {
-    expect(immersivePeekAt(600, 20, 1280, 800)).toBe('top');
-    expect(immersivePeekAt(1200, 760, 1280, 800)).toBe('corner');
-    expect(immersivePeekAt(600, 400, 1280, 800)).toBeNull();
+  it('brings back the dock and traffic lights at the top edge and the pressed lamp where it was', () => {
+    const lamp = { left: 1000, top: 740, right: 1028, bottom: 768 };
+    expect(immersivePeekAt(600, 20, lamp)).toBe('top');
+    expect(immersivePeekAt(990, 760, lamp)).toBe('corner');
+    expect(immersivePeekAt(1200, 760, lamp)).toBeNull();
+    expect(immersivePeekAt(600, 400, null)).toBeNull();
     expect(css()).toContain(".desktop-app-shell[data-immersive][data-immersive-peek='top'] .workspace-tab-dock");
-    expect(css()).toContain(".desktop-app-shell[data-immersive-peek='corner'] .immersive-writing-corner");
+    expect(css()).toContain(".desktop-app-shell[data-immersive][data-immersive-peek='corner'] .immersive-writing-control");
+    expect(source('src/renderer/components/workspaceChrome/ImmersiveWriting.tsx'))
+      .toContain('return immersive && !hostedByEditor ? <ImmersiveWritingControl stage /> : null;');
     expect(source('src/renderer/shells/desktop/useImmersiveWriting.ts')).toContain("setTrafficLightsHidden(next !== 'top')");
     expect(source('src-tauri/src/lib.rs')).toContain('commands::window_set_traffic_lights_hidden,');
     expect(source('src-tauri/src/commands.rs')).toContain('button.setHidden(hidden);');

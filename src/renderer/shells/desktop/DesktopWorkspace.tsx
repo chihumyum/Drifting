@@ -21,7 +21,7 @@ import { useWorkspaceOpening } from './useWorkspaceOpening';
 import { WorkspaceOpeningCover } from './WorkspaceOpeningCover';
 import { WorkspaceGuide } from './WorkspaceGuide';
 import { useOrganizeOnReturn } from '../../usecase/useProjectOrganize';
-import { ImmersiveWritingCorner } from '../../components/workspaceChrome/ImmersiveWriting';
+import { StageImmersiveWritingControl } from '../../components/workspaceChrome/ImmersiveWriting';
 import { useImmersiveWriting } from './useImmersiveWriting';
 
 interface DesktopWorkspaceProps {
@@ -39,9 +39,9 @@ interface DesktopWorkspaceProps {
  * chapter's plot planner, never both; the planner hides itself while no
  * chapter is in front. The open-document dots run along the paper's top on
  * the traffic-light line; the timeline toggle rests in the paper's
- * lower-right corner to the left of the editor's toolbar (whose first
- * buttons are immersive writing and the plot planner; the stage keeps a
- * fallback for when no editor is showing), so both ride above the dock when it is open. While a Super View
+ * lower-right corner to the left of the editor's toolbar, immersive writing
+ * to its own left (the toolbar's first button is the plot planner; the stage
+ * keeps a fallback for when no editor is showing), so both ride above the dock when it is open. While a Super View
  * covers the window, all of it is inert. Immersive writing withdraws all of
  * it but the paper (`data-immersive`, immersive-writing.css): the sidebars
  * and the Bottom Panel slide shut over their own kept state.
@@ -89,7 +89,7 @@ export const DesktopWorkspace = memo(function DesktopWorkspace({
             <WorkspaceTabDock />
             <StageTimelineToggle />
             <PaperSyncMark />
-            <ImmersiveWritingCorner />
+            <StageImmersiveWritingControl />
           </div>
           <TimelineDrawer open={dockPane !== null}>
             <BottomPanel show={dockPane ?? lastPane}>

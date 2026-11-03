@@ -10,14 +10,18 @@ const log = loglevel.getLogger('ImmersiveWriting');
 
 /** The band along the window's top that brings back the traffic lights and the dock. */
 export const IMMERSIVE_PEEK_TOP_PX = 56;
-/** The bottom-right corner that brings back the way out and this sitting's words. */
-export const IMMERSIVE_PEEK_CORNER_PX = { width: 240, height: 120 } as const;
+/** How near the lamp (and this sitting's words) the pointer brings them back. */
+export const IMMERSIVE_PEEK_NEAR_PX = 48;
 
 export type ImmersivePeek = 'top' | 'corner' | null;
 
-export function immersivePeekAt(x: number, y: number, width: number, height: number): ImmersivePeek {
+type PeekRect = Pick<DOMRect, 'left' | 'top' | 'right' | 'bottom'>;
+
+export function immersivePeekAt(x: number, y: number, control: PeekRect | null): ImmersivePeek {
   if (y < IMMERSIVE_PEEK_TOP_PX) return 'top';
-  if (x > width - IMMERSIVE_PEEK_CORNER_PX.width && y > height - IMMERSIVE_PEEK_CORNER_PX.height) return 'corner';
+  const near = IMMERSIVE_PEEK_NEAR_PX;
+  if (control && x > control.left - near && x < control.right + near
+    && y > control.top - near && y < control.bottom + near) return 'corner';
   return null;
 }
 
@@ -31,8 +35,8 @@ function setTrafficLightsHidden(hidden: boolean): void {
 
 /**
  * While immersive writing is on: the traffic lights hide; the pointer at the
- * window's top edge brings them and the dock back, at the bottom-right corner
- * the way out (`data-immersive-peek` on the workspace root), and any typing
+ * window's top edge brings them and the dock back, near the lamp the way out
+ * (`data-immersive-peek` on the workspace root), and any typing
  * sends them away again; Esc leaves; every block but the caret's fades.
  * Leaving the workspace ends immersion.
  */
@@ -53,7 +57,9 @@ export function useImmersiveWriting(rootRef: RefObject<HTMLElement | null>): voi
       else delete root.dataset.immersivePeek;
     };
     const onPointerMove = (event: PointerEvent) => {
-      setPeek(immersivePeekAt(event.clientX, event.clientY, window.innerWidth, window.innerHeight));
+      // The lamp stays in its corner while hidden, so its box is where it will show.
+      const control = root.querySelector<HTMLElement>('.immersive-writing-control');
+      setPeek(immersivePeekAt(event.clientX, event.clientY, control?.getBoundingClientRect() ?? null));
     };
     const onPointerLeave = () => setPeek(null);
     const onKeyDown = (event: KeyboardEvent) => {
