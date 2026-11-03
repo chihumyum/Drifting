@@ -459,6 +459,10 @@
           "label": "展开 / 收起底部时间轴",
           "desc": "切换底部时间轴的显示与隐藏"
         },
+        "toggleImmersiveWriting": {
+          "label": "沉浸写作",
+          "desc": "只留稿纸；再按一次或按 Esc 回来"
+        },
         "newEntity": {
           "label": "新建",
           "desc": "回到作品主页，新建那一排就在手边"
@@ -921,6 +925,10 @@
       "offline": "离线，Hosted 已暂停",
       "attention": "Hosted 需要处理"
     }
+  },
+  "immersiveWriting": {
+    "enter": "沉浸写作",
+    "leave": "退出沉浸写作"
   },
   "workspaceWordTally": {
     "selection": "选中",

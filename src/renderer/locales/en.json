@@ -460,6 +460,10 @@
           "label": "Toggle bottom timeline",
           "desc": "Show or hide the bottom timeline"
         },
+        "toggleImmersiveWriting": {
+          "label": "Immersive writing",
+          "desc": "Leave only the paper; press again or Esc to come back"
+        },
         "newEntity": {
           "label": "New",
           "desc": "Open Project Home with its create row in reach"
@@ -923,6 +927,10 @@
       "offline": "Hosted paused offline",
       "attention": "Hosted needs attention"
     }
+  },
+  "immersiveWriting": {
+    "enter": "Immersive writing",
+    "leave": "Leave immersive writing"
   },
   "workspaceWordTally": {
     "selection": "Selected",

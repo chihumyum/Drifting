@@ -11,6 +11,7 @@ export type ShortcutActionId =
   | 'prevTab'
   | 'nextTab'
   | 'toggleBottomTimeline'
+  | 'toggleImmersiveWriting'
   | 'newEntity'
   | 'closeProject';
 
@@ -75,6 +76,12 @@ export const SHORTCUT_ACTIONS: ShortcutActionDef[] = [
     label: 'Toggle bottom timeline',
     description: 'Show or hide the bottom timeline',
     defaultAccelerator: 'Mod+J',
+  },
+  {
+    id: 'toggleImmersiveWriting',
+    label: 'Immersive writing',
+    description: 'Leave only the paper; press again or Esc to come back',
+    defaultAccelerator: 'Mod+Shift+Enter',
   },
   {
     id: 'newEntity',

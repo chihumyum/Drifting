@@ -502,6 +502,12 @@ interface UiState {
   setPlotPlannerOpen: (open: boolean) => void;
   togglePlotPlannerOpen: () => void;
 
+  // Immersive writing: everything but the paper withdraws. The sidebars and
+  // the Bottom Panel keep their own open state underneath and come back as
+  // they were; read them through `sidebarShown`. Never persisted.
+  immersiveWriting: boolean;
+  setImmersiveWriting: (on: boolean) => void;
+
   // Whether the BottomTimeline 未归属 lane is currently visible. Persisted so
   // toggling the lane sticks across sessions; the lane itself is meaningful
   // only when the project has at least one storyline (see BottomTimeline).
@@ -950,6 +956,9 @@ export const useUiStore = create<UiState>()(
             : { plotPlannerOpen: true, bottomTimelineHidden: true },
         ),
 
+      immersiveWriting: false,
+      setImmersiveWriting: (on) => set({ immersiveWriting: on }),
+
       resizingSidebar: null,
       setResizingSidebar: (type) => set({ resizingSidebar: type }),
 
@@ -1033,6 +1042,8 @@ export const useUiStore = create<UiState>()(
           const updates: Partial<UiState> = { activeSuperView: view };
           if (view !== 'none') {
             updates.lastActiveSuperView = view;
+            // A whole-book view covers the paper: immersion ends with it.
+            updates.immersiveWriting = false;
           }
           return updates;
         });
@@ -1829,6 +1840,11 @@ export const useUiStore = create<UiState>()(
     },
   ),
 );
+
+/** Whether a sidebar shows: open, and not withdrawn by immersive writing. */
+export function sidebarShown(state: Pick<UiState, 'sidebars' | 'immersiveWriting'>, side: SidebarType): boolean {
+  return state.sidebars[side].isOpen && !state.immersiveWriting;
+}
 
 export function useProjectTabs(projectId: string | undefined | null): ProjectTabsState {
   return useUiStore(

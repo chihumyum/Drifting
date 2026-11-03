@@ -460,6 +460,10 @@
           "label": "切換底部時間線",
           "desc": "顯示或隱藏底部時間線"
         },
+        "toggleImmersiveWriting": {
+          "label": "沉浸寫作",
+          "desc": "只留頁面；再按一次或按 Esc 回來"
+        },
         "newEntity": {
           "label": "新增",
           "desc": "開啟作品首頁，並顯示新增操作列"
@@ -923,6 +927,10 @@
       "offline": "離線，Hosted 已暫停",
       "attention": "Hosted 有問題待處理"
     }
+  },
+  "immersiveWriting": {
+    "enter": "沉浸寫作",
+    "leave": "退出沉浸寫作"
   },
   "workspaceWordTally": {
     "selection": "選取",

@@ -460,6 +460,10 @@
           "label": "下部タイムラインを切り替え",
           "desc": "下部タイムラインを表示・非表示にします"
         },
+        "toggleImmersiveWriting": {
+          "label": "没入執筆",
+          "desc": "ページだけを残します。もう一度押すか Esc で戻ります。"
+        },
         "newEntity": {
           "label": "新規",
           "desc": "作品ホームを開き、新規作成行を表示します"
@@ -923,6 +927,10 @@
       "offline": "オフラインでHostedを一時停止",
       "attention": "Hostedで対応が必要です"
     }
+  },
+  "immersiveWriting": {
+    "enter": "没入執筆",
+    "leave": "没入執筆を終了"
   },
   "workspaceWordTally": {
     "selection": "選択範囲",
