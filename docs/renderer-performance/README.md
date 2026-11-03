@@ -1515,10 +1515,10 @@ Editor, the second item and the first deferred one, and intercepts
 entry. Its three checks are unchanged: Editor's code arrives while the graph
 preload is still held, it is fetched once, and the released graph does not
 replace the panel. `acceptance/f7-intent-preloading.json` is regenerated from
-clean `ff3a3d12` with all six scenarios, 94 focused tests, both shells' retry
+clean `f0a944b3` with all six scenarios, 94 focused tests, both shells' retry
 sequences and development loading passing. Initial static JS there is
-3,758,069 bytes. The 1,017,553 added since F7c above are almost all the `i18n`
-chunk (285,298 → 1,295,400 bytes), which grew when seven interface languages
+3,760,449 bytes. The 1,019,933 added since F7c above are almost all the `i18n`
+chunk (285,298 → 1,297,625 bytes), which grew when seven interface languages
 were added (`1f7a63c7`).
 
 `queued-intent-cancellation` passes but no longer proves its settings half.

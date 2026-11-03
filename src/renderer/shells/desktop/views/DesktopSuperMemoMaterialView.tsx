@@ -24,7 +24,7 @@ import { Button } from '../../../components/ui/Button';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { GhostIconButton } from '../../../components/ui/GhostIconButton';
 import { KindMark } from '../../../components/ui/KindMark';
-import type { KindMarkKind } from '../../../components/ui/kind-mark';
+import { kindMarkOfTarget, type KindMarkKind } from '../../../components/ui/kind-mark';
 import { LabelMono } from '../../../components/ui/LabelMono';
 import { useComment } from '../../../usecase/useComment';
 import { useLibraryItem } from '../../../usecase/useLibraryItem';
@@ -37,17 +37,37 @@ import {
   type FocusedEntity,
 } from '../../../components/rightBars/MemoMaterialPanel';
 import { EntityRelationPicker } from '../../../components/rightBars/EntityRelationPicker';
+import { ReviewItemCard } from '../../../features/comments/ReviewItemCard';
+import {
+  groupReviewItems,
+  reviewGroupTitle,
+  reviewTargetColor,
+  type ReviewGroup,
+  type ReviewGroupData,
+} from '../../../features/comments/review-groups';
 import { TodoStatusToggle } from '../../../features/comments/TodoStatusToggle';
+import { useWorkspaceNavigator } from '../../../features/workspace/navigation/WorkspaceNavigationContext';
 import { libraryItemMatchesQuery } from '../../../features/library/library-item-search';
 import { createPlainCommentDoc, extractTextFromCommentBody } from '../../../domain/comment';
 import { genericAssociationRelationTypeId } from '../../../domain/entity-relation-type';
-import type { Comment } from '../../../domain/comment';
+import { isStructuralEntityKind } from '../../../domain/entity-kinds';
+import type { Comment, CommentTargetKind } from '../../../domain/comment';
 import type { LibraryItem, LibraryItemKind } from '../../../domain/library-item';
 import type { EntityKind } from '../../../lib/extensions/entity-link';
 import { stepGlassFlow, trackGlassFlow } from '../../../lib/glass-flow';
 import { openLibraryItemInSystem as openInSystemApp } from '../../../features/library/open-library-item';
 import { getPlatformRuntime } from '../../../platform/runtime';
 import { BrushIcon } from '../../../components/ui/BrushIcon';
+import {
+  SMM_LIBRARY_MIN,
+  SMM_RAIL_KEY_STEP,
+  SMM_RAIL_MIN,
+  dragRailWidth,
+  readRailWidths,
+  storeRailWidths,
+  type SmmRail,
+  type SmmRailWidths,
+} from './super-memo-material-rails';
 import '../../../../styles/super-memo-material.css';
 
 const KIND_ORDER: LibraryItemKind[] = ['text', 'image', 'pdf'];
@@ -79,19 +99,21 @@ function look(
  *
  * Layout (covering the whole window, same shell as StoryGraphView /
  * SuperElementView):
- *  ┌── header (back · Super tabs · stats · search) ─────────┐
- *  ├──────────┬────────────────────────────────────────────┤
- *  │ TODO     │  素材 · kind chips · entity filter · 新建   │
- *  │          │  LibraryItem 网格 (按 kind 分组)              │
- *  ├──────────┴────────────────────────────────────────────┤
- *  │  待整理 (orphan) · 已解决 (archive)                ▾   │
- *  └────────────────────────────────────────────────────────┘
+ *  ┌── header (back · Super tabs · stats · search) ─────────────────┐
+ *  ├────────┬────────┬───────────────────────────────────────────────┤
+ *  │ TODO  ⇹│ 批注  ⇹│  素材 · kind chips · entity filter · 新建      │
+ *  │        │ 按对象 │  LibraryItem 网格 (按 kind 分组)                 │
+ *  ├────────┴────────┴───────────────────────────────────────────────┤
+ *  │  待整理 (orphan) · 已解决 (archive)                        ▾   │
+ *  └─────────────────────────────────────────────────────────────────┘
  *
- * On the desktop it is one plane: the rail and the library share the paper,
- * split by one hairline, and the drawer docks underneath as a strip of the
- * desk colour like the Bottom Panel (drag its top edge to resize when open;
- * the edge bleeds glass while it moves). All cards reuse the right-sidebar
- * primitives so actions stay in sync.
+ * On the desktop it is one plane: the rails and the library share the
+ * paper, split by hairlines, and the drawer docks underneath as a strip of
+ * the desk colour like the Bottom Panel (drag its top edge to resize when
+ * open; the edge bleeds glass while it moves). Each rail's right edge drags
+ * the rail wider the same way, and its cards flow into as many columns as
+ * fit. The paused mobile shell keeps the single TODO rail. All cards reuse
+ * the right-sidebar primitives so actions stay in sync.
  */
 export function DesktopSuperMemoMaterialView() {
   const { t } = useTranslation();
@@ -120,9 +142,18 @@ export function DesktopSuperMemoMaterialView() {
   const [query, setQuery] = useState('');
   const [hiddenKinds, setHiddenKinds] = useState<Set<LibraryItemKind>>(() => new Set());
   const [entityFilter, setEntityFilter] = useState<FocusedEntity>({ kind: null, id: null });
-  const [composeOpen, setComposeOpen] = useState<null | 'todo' | 'library_item'>(null);
+  const [composeOpen, setComposeOpen] = useState<null | 'todo' | 'note' | 'library_item'>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [drawerExpanded, setDrawerExpanded] = useState(false);
+  const [railWidths, setRailWidths] = useState<SmmRailWidths>(readRailWidths);
+  const resizeRail = useCallback(
+    (rail: SmmRail, width: number) => {
+      const next = { ...railWidths, [rail]: width };
+      setRailWidths(next);
+      storeRailWidths(next);
+    },
+    [railWidths],
+  );
 
   // Compose dialogs and material previews consume Escape themselves. The
   // shared stack is also aware of them as a safety net, then falls through to
@@ -156,29 +187,42 @@ export function DesktopSuperMemoMaterialView() {
     return map;
   }, [genericRelations]);
 
+  // The shelf holds TODOs and comments (notes); accepted suggestions
+  // ('converted') stay out of it, as they do in Review.
+  const shelvedComments = useMemo(
+    () => comments.filter((c) => c.kind === 'todo' || c.status !== 'converted'),
+    [comments],
+  );
   const todoCount = useMemo(() => comments.filter((c) => c.kind === 'todo').length, [comments]);
+  const noteCount = shelvedComments.length - todoCount;
 
-  // How many TODOs and materials each entity gathers: the entity filter shows
-  // it beside each candidate and beside the chosen one.
+  // How many TODOs, comments and materials each entity gathers: the entity
+  // filter shows it beside each candidate and beside the chosen one. A
+  // comment counts toward the entity it is written on and the ones it is
+  // related to.
   const targetCounts = useMemo(() => {
-    const todoIds = new Set(comments.filter((c) => c.kind === 'todo').map((c) => c.id));
+    const commentIds = new Set(shelvedComments.map((c) => c.id));
     const itemIds = new Set(libraryItems.map((m) => m.id));
     const sources = new Map<string, Set<string>>();
+    const gather = (key: string, from: string) => {
+      const gathered = sources.get(key) ?? new Set<string>();
+      gathered.add(from);
+      sources.set(key, gathered);
+    };
     genericRelations.forEach((r) => {
       const counted =
         r.fromKind === 'comment'
-          ? todoIds.has(r.fromId)
+          ? commentIds.has(r.fromId)
           : r.fromKind === 'library_item' && itemIds.has(r.fromId);
-      if (!counted) return;
-      const key = `${r.toKind}:${r.toId}`;
-      const from = sources.get(key) ?? new Set<string>();
-      from.add(`${r.fromKind}:${r.fromId}`);
-      sources.set(key, from);
+      if (counted) gather(`${r.toKind}:${r.toId}`, `${r.fromKind}:${r.fromId}`);
+    });
+    shelvedComments.forEach((c) => {
+      if (c.targetKind && c.targetId) gather(`${c.targetKind}:${c.targetId}`, `comment:${c.id}`);
     });
     const counts = new Map<string, number>();
     sources.forEach((from, key) => counts.set(key, from.size));
     return counts;
-  }, [comments, libraryItems, genericRelations]);
+  }, [shelvedComments, libraryItems, genericRelations]);
 
   const isRelatedToEntity = useCallback(
     (fromKind: EntityKind, fromId: string) => {
@@ -187,6 +231,13 @@ export function DesktopSuperMemoMaterialView() {
       return refs.some((r) => r.toKind === entityFilter.kind && r.toId === entityFilter.id);
     },
     [refsByFrom, entityFilter.kind, entityFilter.id],
+  );
+
+  const commentMatchesEntity = useCallback(
+    (comment: Comment) =>
+      (comment.targetKind === entityFilter.kind && comment.targetId === entityFilter.id) ||
+      isRelatedToEntity('comment', comment.id),
+    [entityFilter.kind, entityFilter.id, isRelatedToEntity],
   );
 
   const matchesQuery = useCallback(
@@ -208,24 +259,40 @@ export function DesktopSuperMemoMaterialView() {
         (c) =>
           c.kind === 'todo' &&
           c.status === 'open' &&
-          isRelatedToEntity('comment', c.id) &&
+          commentMatchesEntity(c) &&
           matchesQuery(extractTextFromCommentBody(c.bodyJson)),
       ),
-    [comments, isRelatedToEntity, matchesQuery],
+    [comments, commentMatchesEntity, matchesQuery],
   );
 
-  const resolvedTodos = useMemo(
+  // Open comments, newest first; the comment rail gathers them under what
+  // they are written on, as Review does.
+  const openNotes = useMemo(
     () =>
       comments
         .filter(
           (c) =>
-            c.kind === 'todo' &&
+            c.kind !== 'todo' &&
+            c.status === 'open' &&
+            commentMatchesEntity(c) &&
+            matchesQuery(extractTextFromCommentBody(c.bodyJson)),
+        )
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || a.id.localeCompare(b.id)),
+    [comments, commentMatchesEntity, matchesQuery],
+  );
+
+  // The archive keeps resolved TODOs and comments alike.
+  const resolvedItems = useMemo(
+    () =>
+      shelvedComments
+        .filter(
+          (c) =>
             c.status !== 'open' &&
-            isRelatedToEntity('comment', c.id) &&
+            commentMatchesEntity(c) &&
             matchesQuery(extractTextFromCommentBody(c.bodyJson)),
         )
         .sort((a, b) => (b.resolvedAt ?? '').localeCompare(a.resolvedAt ?? '')),
-    [comments, isRelatedToEntity, matchesQuery],
+    [shelvedComments, commentMatchesEntity, matchesQuery],
   );
 
   const visibleLibraryItems = useMemo(
@@ -304,6 +371,7 @@ export function DesktopSuperMemoMaterialView() {
       <DesktopSuperViewHeader
         meta={t('memoMaterial.super.meta', {
           todos: todoCount,
+          comments: noteCount,
           materials: libraryItems.length,
         })}
         onBack={closeView}
@@ -348,8 +416,23 @@ export function DesktopSuperMemoMaterialView() {
             commentUsecases={commentUsecases}
             relationUsecases={relationUsecases}
             entityRelations={genericRelations}
+            width={railWidths.todo}
+            onResize={(width) => resizeRail('todo', width)}
             onCompose={() => setComposeOpen('todo')}
           />
+
+          {!mobileShell && (
+            <CommentRail
+              projectId={projectId}
+              openNotes={openNotes}
+              refsByFrom={refsByFrom}
+              relationUsecases={relationUsecases}
+              removeRelation={removeRelation}
+              width={railWidths.comment}
+              onResize={(width) => resizeRail('comment', width)}
+              onCompose={() => setComposeOpen('note')}
+            />
+          )}
 
           <LibraryItemMain
             libraryItemsByKind={libraryItemsByKind}
@@ -365,7 +448,7 @@ export function DesktopSuperMemoMaterialView() {
             entityFilter={entityFilter}
             onEntityFilterChange={setEntityFilter}
             targetCounts={targetCounts}
-            totalItems={todoCount + libraryItems.length}
+            totalItems={shelvedComments.length + libraryItems.length}
             refsByFrom={refsByFrom}
             editingId={editingId}
             setEditingId={setEditingId}
@@ -382,7 +465,7 @@ export function DesktopSuperMemoMaterialView() {
           expanded={drawerExpanded}
           onExpandedChange={setDrawerExpanded}
           orphans={orphanLibraryItems}
-          resolvedTodos={resolvedTodos}
+          resolvedItems={resolvedItems}
           editingId={editingId}
           setEditingId={setEditingId}
           commentUsecases={commentUsecases}
@@ -407,6 +490,35 @@ export function DesktopSuperMemoMaterialView() {
               relations.map((t) =>
                 relationUsecases.addGenericAssociation('comment', created.id, t.kind, t.id),
               ),
+            );
+            setComposeOpen(null);
+          }}
+        />
+      )}
+
+      {composeOpen === 'note' && (
+        <ComposeTodoDialog
+          focused={focusedEntity}
+          kind="note"
+          onCancel={() => setComposeOpen(null)}
+          onCreate={async (body, relations) => {
+            // As in Review: a comment written while the filter holds an
+            // entity is written on that entity, not merely related to it.
+            const direct =
+              focusedEntity.kind && focusedEntity.id && isStructuralEntityKind(focusedEntity.kind)
+                ? { targetKind: focusedEntity.kind as CommentTargetKind, targetId: focusedEntity.id }
+                : {};
+            const created = await commentUsecases.createComment({
+              ...direct,
+              kind: 'note',
+              bodyJson: createPlainCommentDoc(body),
+            });
+            await Promise.all(
+              relations
+                .filter((t) => !(created.targetKind === t.kind && created.targetId === t.id))
+                .map((t) =>
+                  relationUsecases.addGenericAssociation('comment', created.id, t.kind, t.id),
+                ),
             );
             setComposeOpen(null);
           }}
@@ -910,7 +1022,95 @@ function LegacyEntityFilterButton({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TodoRail — left column. TODOs on top (action surface), pure notes below.
+// Rails — the TODO and comment columns left of the library. On the desktop
+// each is as wide as the author dragged it (RailEdge on its right line) and
+// its cards flow into as many columns as fit.
+
+/**
+ * A rail's right line, dragged to make the rail wider or narrower. While it
+ * moves the line bleeds glass by the distance travelled, like a sidebar's
+ * seam; arrow keys move a focused edge a step at a time. The rail follows
+ * the pointer directly and the width is committed once on release.
+ */
+function RailEdge({
+  label,
+  width,
+  onResize,
+}: {
+  label: string;
+  width: number;
+  onResize: (width: number) => void;
+}) {
+  // What the split leaves this rail: its width minus the other rails and the
+  // library's minimum.
+  const roomFor = (rail: HTMLElement) => {
+    const split = rail.parentElement;
+    if (!split) return Infinity;
+    const others = Array.from(split.children)
+      .filter((child) => child !== rail && child.classList.contains('smm-rail'))
+      .reduce((sum, child) => sum + child.getBoundingClientRect().width, 0);
+    return split.getBoundingClientRect().width - others - SMM_LIBRARY_MIN;
+  };
+
+  const startResize = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    const edge = event.currentTarget;
+    const rail = edge.parentElement;
+    const split = rail?.parentElement;
+    if (!rail || !split) return;
+    event.preventDefault();
+    try {
+      edge.setPointerCapture(event.pointerId);
+    } catch {
+      /* a synthetic pointer: the edge still follows while it stays over it */
+    }
+    const start = rail.getBoundingClientRect().width;
+    const room = roomFor(rail);
+    const startX = event.clientX;
+    let lastX = startX;
+    let next = start;
+    split.classList.add('is-resizing');
+    const move = (moveEvent: PointerEvent) => {
+      next = dragRailWidth(start, moveEvent.clientX - startX, room);
+      rail.style.flexBasis = `${next}px`;
+      stepGlassFlow(edge, Math.abs(moveEvent.clientX - lastX));
+      lastX = moveEvent.clientX;
+    };
+    const stop = () => {
+      edge.removeEventListener('pointermove', move);
+      edge.removeEventListener('pointerup', stop);
+      edge.removeEventListener('pointercancel', stop);
+      split.classList.remove('is-resizing');
+      onResize(next);
+    };
+    edge.addEventListener('pointermove', move);
+    edge.addEventListener('pointerup', stop);
+    edge.addEventListener('pointercancel', stop);
+  };
+
+  return (
+    <div
+      className="smm-rail__edge"
+      role="separator"
+      aria-orientation="vertical"
+      aria-label={label}
+      aria-valuemin={SMM_RAIL_MIN}
+      aria-valuenow={width}
+      tabIndex={0}
+      onPointerDown={startResize}
+      onKeyDown={(event) => {
+        if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+        const rail = event.currentTarget.parentElement;
+        if (!rail) return;
+        event.preventDefault();
+        const step = event.key === 'ArrowLeft' ? -SMM_RAIL_KEY_STEP : SMM_RAIL_KEY_STEP;
+        onResize(dragRailWidth(rail.getBoundingClientRect().width, step, roomFor(rail)));
+      }}
+    >
+      <span className="flow-line flow-line--v smm-rail__edge-flow" aria-hidden="true" />
+    </div>
+  );
+}
 
 const LEGACY_RAIL_STYLE: CSSProperties = {
   width: TODO_RAIL_WIDTH,
@@ -937,6 +1137,8 @@ function TodoRail({
   commentUsecases,
   relationUsecases,
   entityRelations,
+  width,
+  onResize,
   onCompose,
 }: {
   openTodos: Comment[];
@@ -949,6 +1151,8 @@ function TodoRail({
     toKind: EntityKind;
     toId: string;
   }>;
+  width: number;
+  onResize: (width: number) => void;
   onCompose: () => void;
 }) {
   const { t } = useTranslation();
@@ -985,7 +1189,10 @@ function TodoRail({
   };
 
   return (
-    <div {...look(mobileShell, 'smm-rail', LEGACY_RAIL_STYLE, 'smm-library-main')}>
+    <div
+      {...look(mobileShell, 'smm-rail', LEGACY_RAIL_STYLE, 'smm-library-main')}
+      style={mobileShell ? LEGACY_RAIL_STYLE : { flexBasis: width }}
+    >
       {mobileShell ? (
         <SectionHeader
           kicker="TODO"
@@ -1023,6 +1230,142 @@ function TodoRail({
           ))}
         {openTodos.map(renderTodo)}
       </div>
+      {!mobileShell && (
+        <RailEdge label={t('memoMaterial.super.resizeTodos')} width={width} onResize={onResize} />
+      )}
+    </div>
+  );
+}
+
+/**
+ * The comment rail (desktop): open comments gathered under what they are
+ * written on, like Review grouped by target — a group's head opens its
+ * thing, and on this project-wide shelf even a lone group keeps its head.
+ * Each card is Review's own card. A wide rail flows whole groups down its
+ * columns like a newspaper, so many short groups fill it rather than each
+ * taking a row of its own.
+ */
+function CommentRail({
+  projectId,
+  openNotes,
+  refsByFrom,
+  relationUsecases,
+  removeRelation,
+  width,
+  onResize,
+  onCompose,
+}: {
+  projectId: string;
+  openNotes: Comment[];
+  refsByFrom: Map<string, Array<{ id: string; toKind: EntityKind; toId: string }>>;
+  relationUsecases: ReturnType<typeof useEntityRelations>;
+  removeRelation: (fromKind: EntityKind, fromId: string, toKind: EntityKind, toId: string) => void;
+  width: number;
+  onResize: (width: number) => void;
+  onCompose: () => void;
+}) {
+  const { t } = useTranslation();
+  const navigator = useWorkspaceNavigator();
+  const {
+    bookNodes,
+    bookElements,
+    storylines,
+    bookElementCategories,
+    libraryItems,
+    primaryStorylineByNode,
+  } = useDataStoreFields(
+    'bookNodes',
+    'bookElements',
+    'storylines',
+    'bookElementCategories',
+    'libraryItems',
+    'primaryStorylineByNode',
+  );
+  const groupData = useMemo<ReviewGroupData>(
+    () => ({ bookNodes, bookElements, storylines, bookElementCategories, libraryItems }),
+    [bookNodes, bookElements, storylines, bookElementCategories, libraryItems],
+  );
+  const groups = useMemo(() => groupReviewItems(openNotes, groupData), [openNotes, groupData]);
+
+  const renderCard = (comment: Comment) => {
+    const relations = refsByFrom.get(`comment:${comment.id}`) ?? [];
+    return (
+      <ReviewItemCard
+        key={comment.id}
+        comment={comment}
+        projectId={projectId}
+        presentation="panel"
+        relations={relations.map((r) => ({ id: r.id, toKind: r.toKind, toId: r.toId }))}
+        onAddRelation={(target) =>
+          relationUsecases.addGenericAssociation('comment', comment.id, target.kind, target.id)
+        }
+        onRemoveRelation={(target) => removeRelation('comment', comment.id, target.kind, target.id)}
+      />
+    );
+  };
+
+  const renderGroup = (group: ReviewGroup) => {
+    const kind = group.targetKind;
+    const id = group.targetId;
+    const named = kind && id ? reviewGroupTitle(groupData, kind, id) : null;
+    const title = !kind
+      ? t('reviewPanel.groups.floating')
+      : named
+        ? named.title || t('common.untitled')
+        : t(kind === 'patch' ? 'reviewPanel.groups.patch' : 'reviewPanel.groups.deleted');
+    const target = named && kind && kind !== 'patch' && id ? { kind, id } : null;
+    return (
+      <section key={group.key} className="review-group review-group--glass smm-comment-group">
+        <div className="review-group__header">
+          <button
+            type="button"
+            className="review-group__title"
+            disabled={!target}
+            title={target ? t('reviewPanel.groups.open', { name: title }) : undefined}
+            onClick={() => {
+              if (target) navigator.open({ entityType: target.kind, id: target.id });
+            }}
+          >
+            <span className="review-group__glyph" aria-hidden="true">
+              {kind && kind !== 'patch' && id ? (
+                <KindMark
+                  kind={kindMarkOfTarget(kind, named?.isDrift)}
+                  seed={id}
+                  color={reviewTargetColor(groupData, primaryStorylineByNode, kind, id)}
+                />
+              ) : (
+                <BrushIcon name="enso" size={12} />
+              )}
+            </span>
+            <span className="review-group__name">{title}</span>
+          </button>
+          <span className="review-group__count">{group.items.length}</span>
+        </div>
+        <div className="smm-comment-group__cards">{group.items.map(renderCard)}</div>
+      </section>
+    );
+  };
+
+  return (
+    <div className="smm-rail smm-rail--comments" style={{ flexBasis: width }}>
+      <div className="smm-column-head">
+        <span className="smm-index">{t('memoMaterial.super.comments')}</span>
+        <span className="smm-index-count">{openNotes.length}</span>
+        <GhostIconButton
+          className="panel-header-new smm-column-head__action"
+          icon={<BrushIcon name="plus" size={13} />}
+          onClick={onCompose}
+          title={t('reviewPanel.newComment')}
+          aria-label={t('reviewPanel.newComment')}
+        />
+      </div>
+      <div className="smm-rail__list smm-rail__list--groups smm-scroll">
+        {openNotes.length === 0 && (
+          <EmptyState density="compact" message={t('memoMaterial.super.commentEmptyHint')} />
+        )}
+        {groups.length > 0 && <div className="smm-comment-columns">{groups.map(renderGroup)}</div>}
+      </div>
+      <RailEdge label={t('memoMaterial.super.resizeComments')} width={width} onResize={onResize} />
     </div>
   );
 }
@@ -1441,7 +1784,7 @@ function KindGroup({
 
 // ─────────────────────────────────────────────────────────────────────────────
 // BottomDrawer — collapsed header strip + draggable resize when expanded.
-// Body is a 2-column split: orphan libraryItems | resolved memos.
+// Body is a 2-column split: orphan libraryItems | resolved TODOs and comments.
 
 const LEGACY_DRAWER_HANDLE_STYLE: CSSProperties = {
   height: 4,
@@ -1518,7 +1861,7 @@ function BottomDrawer({
   expanded,
   onExpandedChange,
   orphans,
-  resolvedTodos,
+  resolvedItems,
   editingId,
   setEditingId,
   commentUsecases,
@@ -1531,7 +1874,7 @@ function BottomDrawer({
   expanded: boolean;
   onExpandedChange: (expanded: boolean) => void;
   orphans: LibraryItem[];
-  resolvedTodos: Comment[];
+  resolvedItems: Comment[];
   editingId: string | null;
   setEditingId: (id: string | null) => void;
   commentUsecases: ReturnType<typeof useComment>;
@@ -1652,7 +1995,7 @@ function BottomDrawer({
               <span style={{ color: 'hsl(var(--ink-5))' }}>·</span>
               <span>
                 {t('memoMaterial.super.resolved')}{' '}
-                <span style={{ color: 'hsl(var(--ink-4))' }}>{resolvedTodos.length}</span>
+                <span style={{ color: 'hsl(var(--ink-4))' }}>{resolvedItems.length}</span>
               </span>
             </span>
             <BrushIcon
@@ -1674,7 +2017,7 @@ function BottomDrawer({
               <span aria-hidden="true">·</span>
               <span>
                 {t('memoMaterial.super.resolved')}{' '}
-                <span className="smm-index-count">{resolvedTodos.length}</span>
+                <span className="smm-index-count">{resolvedItems.length}</span>
               </span>
             </span>
             <BrushIcon
@@ -1726,25 +2069,25 @@ function BottomDrawer({
             </div>
           </div>
 
-          {/* Resolved memos */}
+          {/* Resolved TODOs and comments */}
           <div {...look(mobileShell, 'smm-drawer__col', LEGACY_DRAWER_COL_STYLE)}>
             <SubHeader
               kicker={t('memoMaterial.super.resolvedHeader')}
-              count={resolvedTodos.length}
+              count={resolvedItems.length}
             />
             <div {...look(mobileShell, 'smm-drawer__resolved', LEGACY_DRAWER_RESOLVED_STYLE, 'smm-scroll')}>
-              {resolvedTodos.length === 0 &&
+              {resolvedItems.length === 0 &&
                 (mobileShell ? (
                   <div style={LEGACY_DRAWER_EMPTY_STYLE}>
-                    {t('memoMaterial.super.noResolvedTodos')}
+                    {t('memoMaterial.super.noResolved')}
                   </div>
                 ) : (
-                  <EmptyState density="compact" message={t('memoMaterial.super.noResolvedTodos')} />
+                  <EmptyState density="compact" message={t('memoMaterial.super.noResolved')} />
                 ))}
-              {resolvedTodos.map((c) => (
-                <ResolvedTodoRow
+              {resolvedItems.map((c) => (
+                <ResolvedRow
                   key={c.id}
-                  todo={c}
+                  item={c}
                   onReopen={() => commentUsecases.reopenComment(c.id)}
                   onDelete={() => commentUsecases.deleteComment(c.id)}
                 />
@@ -1794,25 +2137,32 @@ function SubHeader({ kicker, count }: { kicker: string; count: number }) {
 }
 
 /**
- * A resolved TODO in the archive. Desktop: the whole row faded, no wash, the
- * done toggle the TODO card's glass check (pressing it reopens), 「重开」 a
- * text button and delete the flat waste-basket.
+ * A resolved TODO or comment in the archive. Desktop: the whole row faded,
+ * no wash; a TODO leads with the TODO card's glass check (pressing it
+ * reopens), a comment with the comment mark; 「重开」 a text button and
+ * delete the flat waste-basket.
  */
-function ResolvedTodoRow({
-  todo,
+function ResolvedRow({
+  item,
   onReopen,
   onDelete,
 }: {
-  todo: Comment;
+  item: Comment;
   onReopen: () => void;
   onDelete: () => void;
 }) {
   const { t } = useTranslation();
-  const text = extractTextFromCommentBody(todo.bodyJson);
+  const text = extractTextFromCommentBody(item.bodyJson);
   if (!getPlatformRuntime().isMobileShell) {
     return (
       <div className="smm-resolved-row">
-        <TodoStatusToggle resolved onToggle={onReopen} />
+        {item.kind === 'todo' ? (
+          <TodoStatusToggle resolved onToggle={onReopen} />
+        ) : (
+          <span className="smm-resolved-row__mark" aria-hidden="true">
+            <BrushIcon name="comment" size={12} />
+          </span>
+        )}
         <span className="smm-resolved-row__text" title={text}>
           {text || t('memoMaterial.todo.empty')}
         </span>

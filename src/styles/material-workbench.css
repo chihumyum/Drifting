@@ -637,6 +637,21 @@
   overflow: hidden;
   mask-image: linear-gradient(to bottom, black 70%, transparent);
 }
+/* Inside a library card (TODO & Materials) the excerpt follows the interface
+   text size like the TODO and comment cards beside it; the fallbacks are the
+   compact sizes the smallest setting keeps. The clamp scales with the text. */
+.library-item-card__excerpt .note-excerpt {
+  font-size: var(--ui-font-body, 12.5px);
+}
+.library-item-card__excerpt .note-excerpt :is(h1, h2, h3) {
+  font-size: var(--ui-font-body, 13px);
+}
+.library-item-card__excerpt .note-excerpt table {
+  font-size: var(--ui-font-secondary, 11.5px);
+}
+.library-item-card__excerpt .note-excerpt--clamped {
+  max-height: 11.2em;
+}
 .note-excerpt__empty {
   color: hsl(var(--ink-4));
   font-style: italic;
@@ -1836,7 +1851,7 @@
   min-width: 0;
   overflow: hidden;
   color: hsl(var(--ink-1));
-  font: 500 13px/1.35 var(--font-sans);
+  font: 500 var(--ui-font-body, 13px)/1.35 var(--font-sans);
   text-overflow: ellipsis;
   white-space: nowrap;
   cursor: text;
@@ -1865,7 +1880,7 @@
   border-radius: inherit;
   background: transparent;
   color: hsl(var(--ink-1));
-  font: 500 13px/1.5 var(--font-sans);
+  font: 500 var(--ui-font-body, 13px)/1.5 var(--font-sans);
 }
 
 .library-item-card__meta {
@@ -1873,7 +1888,7 @@
   overflow: hidden;
   padding-left: 18px;
   color: var(--ui-text-muted, hsl(var(--ink-4)));
-  font: 10px/1.4 var(--font-mono);
+  font: var(--ui-font-secondary, 10px)/1.4 var(--font-mono);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1948,14 +1963,16 @@
   align-items: center;
   gap: 6px;
   color: var(--ui-text-muted, hsl(var(--ink-4)));
-  font: 9px/1 var(--font-mono);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  font: var(--ui-font-secondary, 9px)/1.2 var(--font-mono);
 }
 
 .todo-card__kind {
   color: var(--material-todo-c);
   font-weight: 600;
+}
+
+.todo-card--glass .todo-card__kind {
+  font-weight: 400;
 }
 
 .todo-card--glass .todo-card__header .ghost-icon-button:hover:not(:disabled) {
@@ -1975,7 +1992,7 @@
 
 .todo-card--glass .todo-card__body {
   color: hsl(var(--ink-1));
-  font: 13px/1.4 var(--font-sans);
+  font: var(--ui-font-body, 13px)/1.4 var(--font-sans);
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -2002,7 +2019,7 @@
   border: 0;
   background: transparent;
   color: var(--ui-text-muted, hsl(var(--ink-4)));
-  font: 11.5px var(--font-sans);
+  font: var(--ui-font-caption, 11.5px) var(--font-sans);
   cursor: pointer;
 }
 

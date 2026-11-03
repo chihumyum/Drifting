@@ -1,14 +1,15 @@
 /* ============================================================
    TODO 与素材库 (DesktopSuperMemoMaterialView), desktop only.
 
-   One plane: the TODO rail and the library sit on the same paper, split
-   by one hairline; the drawer of unsorted materials and resolved TODOs
-   docks underneath as a strip of the desk colour, like the Bottom Panel,
-   and its top edge bleeds glass while it opens, closes or is dragged
-   (lib/glass-flow.ts). Both column heads are one panel header high, so
-   the rail and the library start on one line; their labels are index
-   type, never upper-cased or spaced out. Space separates the groups in
-   the library's head — no divider bars, no rules under the groups.
+   One plane: the TODO and comment rails and the library sit on the same
+   paper, split by hairlines; each rail's line is dragged to make it wider.
+   The drawer of unsorted materials and resolved TODOs and comments docks
+   underneath as a strip of the desk colour, like the Bottom Panel, and its
+   top edge bleeds glass while it opens, closes or is dragged
+   (lib/glass-flow.ts). Every column head is one panel header high, so the
+   rails and the library start on one line; their labels are index type,
+   never upper-cased or spaced out. Space separates the groups in the
+   library's head — no divider bars, no rules under the groups.
 
    Every class here is set only by the desktop branch of the view; the
    paused mobile shell keeps its inline look and the hooks it has in
@@ -101,24 +102,90 @@
   margin-left: -6px;
 }
 
-/* ── TODO rail ────────────────────────────────────────────────────── */
+/* ── Rails: TODO and comments ─────────────────────────────────────── */
+/* As wide as the author dragged them (the view sets flex-basis; widths in
+   super-memo-material-rails.ts), never narrower than one card; when the
+   window is too narrow for both and the library, the rails give way first. */
 .smm-rail {
+  position: relative;
   display: flex;
-  flex: 0 0 280px;
+  flex: 0 1 280px;
   flex-direction: column;
-  width: 280px;
+  min-width: 240px;
   min-height: 0;
   border-right: 0.5px solid var(--workspace-local-border);
 }
 
+/* TODO cards flow into as many columns as fit, at least 240px each. */
 .smm-rail__list {
-  display: flex;
+  display: grid;
   flex: 1;
-  flex-direction: column;
-  gap: 6px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
+  gap: 6px 8px;
+  align-content: start;
+  align-items: start;
   min-height: 0;
   padding: 8px 10px 12px;
   overflow-y: auto;
+}
+
+.smm-rail__list > .empty-state {
+  grid-column: 1 / -1;
+}
+
+/* The comment rail: whole groups flow down as many columns as fit (at
+   least 240px each), like a newspaper, so many short groups fill a wide
+   rail instead of each taking a row. The columns sit inside the scroller,
+   so they grow downward rather than overflowing sideways. */
+.smm-rail__list--groups {
+  display: block;
+}
+
+.smm-comment-columns {
+  column-width: 240px;
+  column-gap: 8px;
+}
+
+.smm-comment-columns > .review-group.smm-comment-group {
+  display: block;
+  margin: 0;
+  padding-bottom: 12px;
+  break-inside: avoid;
+}
+
+.smm-comment-group__cards {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+/* The right line, dragged: a hairline that bleeds glass while it moves,
+   like a sidebar's seam. */
+.smm-rail__edge {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  bottom: 0;
+  z-index: 6;
+  width: 9px;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.smm-rail__edge:focus-visible {
+  outline: none;
+}
+
+.smm-rail__edge-flow {
+  left: 5px;
+  --flow-gx: -70px;
+}
+
+.smm-workspace-split.is-resizing {
+  cursor: col-resize;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 /* ── Library ──────────────────────────────────────────────────────── */
@@ -126,7 +193,7 @@
   display: flex;
   flex: 1;
   flex-direction: column;
-  min-width: 0;
+  min-width: 360px;
   min-height: 0;
 }
 
@@ -309,6 +376,15 @@
 .smm-resolved-row:hover,
 .smm-resolved-row:focus-within {
   opacity: 0.9;
+}
+
+/* A resolved comment leads with the comment mark where a TODO has its check. */
+.smm-resolved-row__mark {
+  display: inline-grid;
+  flex: 0 0 22px;
+  place-items: center;
+  height: 22px;
+  color: hsl(var(--ink-3));
 }
 
 .smm-resolved-row__text {
