@@ -21,11 +21,12 @@ export async function runPreloadAcceptance({ page, origin, clients }) {
     try {
       if (saveData) await p.client.Page.addScriptToEvaluateOnNewDocument({ source:
         'Object.defineProperty(navigator, "connection", { configurable: true, value: { saveData: true, effectiveType: "4g" } });' });
-      await p.client.Fetch.enable({ patterns: ['*graph-ui-*.js*', '*story-graph-*.js*', '*element-graph-*.js*', '*settings-panels-*.js*'].map(urlPattern => ({ urlPattern, requestStage: 'Request' })) });
+      await p.client.Fetch.enable({ patterns: ['*graph-ui-*.js*', '*story-graph-*.js*', '*element-graph-*.js*', '*PreferenceSettingsPanels-*.js*'].map(urlPattern => ({ urlPattern, requestStage: 'Request' })) });
       p.client.Fetch.requestPaused(event => {
         const url = new URL(event.request.url);
         const kind = url.pathname.includes('/graph-ui-') ? 'shared' : url.pathname.includes('/story-graph-') ? 'story' : url.pathname.includes('/element-graph-') ? 'element' : 'settings';
-        const entry = url.searchParams.has(kind === 'settings' ? 'settings-attempt' : 'graph-attempt');
+        // Standalone settings import a panel group without a retry key; its retry reloads the document.
+        const entry = kind === 'settings' || url.searchParams.has('graph-attempt');
         if (entry) requests.push({ kind, url: url.pathname + url.search });
         if (entry && gates[kind] === 'fail-once') {
           gates[kind] = 'pass';
@@ -104,11 +105,14 @@ export async function runPreloadAcceptance({ page, origin, clients }) {
   await scenario(required[4], { shared: 'hold' }, async p => {
     await p.focus('.workspace-super-view-entry'); await p.waitRequest('shared');
     await p.evaluate('window.__GRAPHS_UI__.navigate("/settings")'); await p.until('Boolean(document.querySelector(".set-rail__item"))');
-    await p.focus('.set-rail__item'); await p.evaluate('document.querySelector(".set-rail__item").click()');
-    await p.until('Boolean(document.querySelector("#appearance"))', 'actual settings panel while graph preload is held');
+    // Appearance, the first rail item, renders from the static settings shell. Editor, the
+    // second, is the first whose panel is deferred code.
+    const editorItem = '.set-rail__item:nth-of-type(2)';
+    await p.focus(editorItem); await p.evaluate(`document.querySelector(${JSON.stringify(editorItem)}).click()`);
+    await p.until('Boolean(document.querySelector("#editor"))', 'actual settings panel while graph preload is held');
     const bypassed = p.held.length === 1 && p.requests.some(r => r.kind === 'settings');
     await p.release(); await p.loadedStory();
-    return { checks: { demandBypassedOtherPreload: bypassed, settingsLoadedOnce: p.requests.filter(r => r.kind === 'settings').length === 1, lateGraphDidNotMount: await p.evaluate('!document.querySelector(".graph-overlay") && Boolean(document.querySelector("#appearance"))') } };
+    return { checks: { demandBypassedOtherPreload: bypassed, settingsLoadedOnce: p.requests.filter(r => r.kind === 'settings').length === 1, lateGraphDidNotMount: await p.evaluate('!document.querySelector(".graph-overlay") && Boolean(document.querySelector("#editor"))') } };
   });
   await scenario(required[5], {}, async p => {
     await p.focus('.workspace-super-view-entry'); await delay(350); const noSpeculation = p.requests.length === 0;
