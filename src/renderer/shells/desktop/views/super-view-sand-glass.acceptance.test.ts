@@ -184,7 +184,7 @@ describe('Super View sand and glass acceptance', () => {
 
     const workspace = source('src/renderer/shells/desktop/DesktopWorkspace.tsx');
     expect(workspace).toContain('useInertUnderSuperView(rootRef);');
-    expect(workspace).toContain('<div ref={rootRef} className="app-root desktop-app-shell">');
+    expect(workspace).toMatch(/<div\s+ref=\{rootRef\}\s+className="app-root desktop-app-shell"/);
     // The Super Views mount beside the workspace root, never inside it.
     const shell = source('src/renderer/shells/desktop/DesktopAppShell.tsx');
     expect(shell.indexOf('<DesktopOverlayHost')).toBeGreaterThan(shell.indexOf('<DesktopWorkspace'));

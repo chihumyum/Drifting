@@ -230,6 +230,7 @@ pub fn run() {
             commands::window_is_maximized,
             commands::window_close,
             commands::window_set_traffic_light_position,
+            commands::window_set_traffic_lights_hidden,
             commands::window_set_close_returns_to_shelf,
             commands::opener_open_external,
             commands::deep_link_take_pending,

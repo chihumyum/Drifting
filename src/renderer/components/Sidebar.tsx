@@ -1,5 +1,5 @@
 import { ReactNode, useState, useEffect, useRef } from 'react';
-import { useUiStore, SidebarType } from '../store/ui-store';
+import { useUiStore, SidebarType, sidebarShown } from '../store/ui-store';
 import { clampSidebarWidth } from '../lib/layout-geometry';
 import { useSidebarMetricsStore } from '../store/sidebar-metrics-store';
 import { stepGlassFlow, trackGlassFlow } from '../lib/glass-flow';
@@ -19,10 +19,13 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
   const minimumWidth = useSidebarMetricsStore((state) => state.minimumWidths[sidebarType]);
   const oppositeType: SidebarType = sidebarType === 'left' ? 'right' : 'left';
   const oppositeSidebarState = useUiStore((state) => state.sidebars[oppositeType]);
+  // Immersive writing withdraws both sidebars without touching their own
+  // open state, so they slide back as they were.
+  const immersive = useUiStore((state) => state.immersiveWriting);
   // Fallback if state is missing (should not happen with correct store setup)
-  const isExpanded = sidebarState?.isOpen ?? true;
+  const isExpanded = (sidebarState?.isOpen ?? true) && !immersive;
   const persistedWidth = sidebarState?.width ?? 280;
-  const oppositeOpenWidth = oppositeSidebarState?.isOpen ? oppositeSidebarState.width : 0;
+  const oppositeOpenWidth = oppositeSidebarState?.isOpen && !immersive ? oppositeSidebarState.width : 0;
   const expandedWidth = clampSidebarWidth(
     persistedWidth,
     sidebarType,
@@ -50,7 +53,7 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
         own.width,
         sidebarType,
         window.innerWidth,
-        opposite.isOpen ? opposite.width : 0,
+        sidebarShown(current, oppositeType) ? opposite.width : 0,
         minimumWidth,
       );
       if (next !== own.width) setSidebarWidth(sidebarType, next);
@@ -117,7 +120,7 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
         requestedWidth,
         sidebarType,
         window.innerWidth,
-        opposite.isOpen ? opposite.width : 0,
+        sidebarShown(current, oppositeType) ? opposite.width : 0,
         minimumWidth,
       );
 

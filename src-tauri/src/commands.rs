@@ -257,6 +257,37 @@ pub fn window_set_traffic_light_position(
     }
 }
 
+/// Immersive writing hides the traffic lights; the window's top edge brings
+/// them back while the pointer stays there.
+#[tauri::command]
+pub fn window_set_traffic_lights_hidden(window: WebviewWindow, hidden: bool) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        window
+            .with_webview(move |webview| unsafe {
+                use objc2_app_kit::{NSWindow, NSWindowButton};
+
+                let native_window: &NSWindow = &*webview.ns_window().cast();
+                for kind in [
+                    NSWindowButton::CloseButton,
+                    NSWindowButton::MiniaturizeButton,
+                    NSWindowButton::ZoomButton,
+                ] {
+                    if let Some(button) = native_window.standardWindowButton(kind) {
+                        button.setHidden(hidden);
+                    }
+                }
+            })
+            .map_err(|error| error.to_string())?;
+        Ok(())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (window, hidden);
+        Err("traffic-light visibility is supported only on macOS".into())
+    }
+}
+
 #[tauri::command]
 pub fn opener_open_external(app: AppHandle, url: String) -> Result<(), String> {
     let parsed = tauri::Url::parse(&url).map_err(|_| "invalid URL".to_string())?;
