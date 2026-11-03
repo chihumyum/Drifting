@@ -250,8 +250,10 @@ describe('workspace surface language acceptance', () => {
     const indexCss = source('src/styles/index.css');
 
     expect(topBar).toContain('<div className="editor-bar glass glass--rest" role="toolbar" aria-orientation="horizontal">');
-    // The corner: the timeline toggle (right-hand pane only), then the pill.
+    // The corner: immersive writing and the timeline toggle (right-hand pane
+    // only), then the pill.
     const corner = block(topBar, '<div className="editor-corner">', '<div className="editor-bar');
+    expect(corner).toContain('{hostsTimelineToggle && <ImmersiveWritingControl />}');
     expect(corner).toContain('{hostsTimelineToggle && <TimelineToggle />}');
     expect(block(indexCss, '.editor-corner {', '}')).toContain('position: absolute;');
     const mainArea = source('src/renderer/components/editor/EditorMainArea.tsx');
@@ -1209,7 +1211,7 @@ describe('workspace surface language acceptance', () => {
       // Objects and states.
       'file-text', 'comment-plus', 'rotate', 'sort', 'status-done', 'status-warning', 'status-stopped', 'cloud',
       'checklist', 'checklist-plus', 'sticky-note', 'mic', 'image', 'image-plus', 'eraser', 'share', 'layers', 'branch',
-      'view-grid', 'view-list', 'open-book', 'knots', 'case-rise', 'tea', 'spread', 'locate', 'new-storyline',
+      'view-grid', 'view-list', 'open-book', 'knots', 'case-rise', 'tea', 'oil-lamp', 'spread', 'locate', 'new-storyline',
       'new-category', 'folding-fan',
       // A closed sidebar's crescent, cleared from the committed solid one.
       'moon-left-hollow', 'moon-right-hollow',

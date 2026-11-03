@@ -11,7 +11,7 @@
 ## Geometry and ownership
 
 - `App.tsx` 只负责应用级 effects/routes；桌面工作区（`DesktopWorkspace`）只有一个 `app-row`：`Sidebar(left) + app-mid + Sidebar(right)`，三栏从窗口顶边贯通到底边。没有 `AppTopbar`、文档 Tab 栏、editor top bar 或 `BottomStatusBar`。
-- `app-mid` 拥有：透明、不占布局高度的窗口拖动条（`WorkspaceCornerControls`）、`workspace-stage` 与可选的 `workspace-dock`（Bottom Panel：Bottom Timeline 或当前章节的情节规划，二选一，装在 `TimelineDrawer` 里滑入滑出；当前不是章节时情节规划自己隐藏，Panel 收起；`BottomPanel` 是两者共用的壳子，管顶边、拖高把手、高度与共用 header，两者互换时里面的整块上下推开）。`workspace-stage` 的顶边承载居中的文档 Dock（`WorkspaceTabDock`）；右下角是每个编辑器自己的角落（`.editor-corner`）：右侧编辑器 pane 的角落先放时间线开关（`TimelineToggle`），再放工具栏，没有可见编辑器时由 stage 自己显示同一个开关（`StageTimelineToggle`）；时间线打开时右下角的控件随稿纸下沿停在时间线上方。稿纸直接延伸到窗口顶边并从拖动条下方滚过。左右侧栏开关（`WorkspaceSidebarToggles`）固定在整个窗口的两个上角，叠在三栏之上。
+- `app-mid` 拥有：透明、不占布局高度的窗口拖动条（`WorkspaceCornerControls`）、`workspace-stage` 与可选的 `workspace-dock`（Bottom Panel：Bottom Timeline 或当前章节的情节规划，二选一，装在 `TimelineDrawer` 里滑入滑出；当前不是章节时情节规划自己隐藏，Panel 收起；`BottomPanel` 是两者共用的壳子，管顶边、拖高把手、高度与共用 header，两者互换时里面的整块上下推开）。`workspace-stage` 的顶边承载居中的文档 Dock（`WorkspaceTabDock`）；右下角是每个编辑器自己的角落（`.editor-corner`）：右侧编辑器 pane 的角落先放沉浸写作开关（灯盏）与时间线开关（`TimelineToggle`），再放工具栏，没有可见编辑器时由 stage 自己显示同一个开关（`StageTimelineToggle`）；时间线打开时右下角的控件随稿纸下沿停在时间线上方。稿纸直接延伸到窗口顶边并从拖动条下方滚过。左右侧栏开关（`WorkspaceSidebarToggles`）固定在整个窗口的两个上角，叠在三栏之上。
 - 左右栏宽度与 Bottom Timeline 高度仍由各自现有的单轴 handle 独立调整。
 - Settings 与三个 Super Views 使用同样的平面化 shell：边缘对齐、无 shell gap、无 shell 圆角或阴影，以分隔线表达区域边界。
 
@@ -25,11 +25,11 @@
   - **拖拽排序有重量**：手里的药丸不用系统拖影，而是一份静止的药丸副本按 Bottom Timeline 玻璃块的临界阻尼弹簧（同一刚度）跟随指针，略落后、不回弹；其余药丸用同一弹簧曲线让位，放下时药丸从它所在处弹入新位置（`tab-reorder.ts`）。药丸被拖离药丸行一行高以上（或越过行的两端）时，它原来的位置收拢，两侧药丸接上；在行附近晃动不收拢；拖回行上时再按指针位置让出插入的空位。报告“拖出窗口”的 `dragleave` 要等 `150ms`，其间再有 `dragover` 或 `drop` 就作废（WebKit 松手前也会发一个这样的 `dragleave`，立刻收拢会让整行在松手时弹一下）。
   - **分屏**：普通药丸悬停没有卡片；把药丸拖到稿纸左半或右半即可分屏，分屏标签两半之间只是一条短竖线。分屏自己的操作在两个编辑器的中缝上（见 [components.md](components.md)）；关掉某一格用那一格标签上的 ×。
   - **滚动**：药丸放不下时药丸行横向滚动；当前药丸被挤出可视范围时立即滚动让它露出来，Dock 展开时等药丸从小点长完再滚。Dock 用左右边距定位、flex 居中到窗口控件行，不用 `transform`：在 WebKit 里，药丸行一旦溢出成为滚动区，外层带 transform 时药丸底板的模糊会让所有玻璃（静止细线、选中、悬停与切换水波）都画不出来；锁与 `+` 也不放进滚动区（sticky 玻璃会触发同一类问题）。
-- **时间线开关在稿纸右下角**。Bottom Timeline 开关（`⌘J`，`aria-pressed` 表示打开）是稿纸右下角单独的圆形玻璃按钮，在稿纸工具栏左侧，紧挨但不并入工具栏；分屏时只出现在右侧 pane 的角落；打开后时间线从稿纸下方滑上来，可拖高度。稿纸工具栏里的情节规划按钮开的是同一个位置：打开其中一个就收起另一个，两个都关就收起整个位置；两者装在同一个 Bottom Panel 里，共用一份高度、一条顶边与拖高把手、一行 header；情节规划跟着当前获得焦点的章节或构想（见 [components.md](components.md) 的情节规划）。
+- **时间线开关在稿纸右下角**。Bottom Timeline 开关（`⌘J`，`aria-pressed` 表示打开）是稿纸右下角单独的圆形玻璃按钮，在稿纸工具栏左侧，紧挨但不并入工具栏，它左边是沉浸写作的灯盏；分屏时只出现在右侧 pane 的角落；打开后时间线从稿纸下方滑上来，可拖高度。稿纸工具栏里的情节规划按钮开的是同一个位置：打开其中一个就收起另一个，两个都关就收起整个位置；两者装在同一个 Bottom Panel 里，共用一份高度、一条顶边与拖高把手、一行 header；情节规划跟着当前获得焦点的章节或构想（见 [components.md](components.md) 的情节规划）。
 - **全书视图在对应实体旁边**。通览全书在章节面板头部、要素全景在要素面板头部、审阅与素材在素材库面板工具栏与审阅面板头部（2026-11-04 起两处都有：它的 TODO 栏和批注栏放的正是审阅面板列出的东西）、全屏故事图谱在 Bottom Timeline 头部、项目主页在左栏底部的账户 cell；这些入口都是圆形玻璃按钮。`SUPER` 触发器与底部视图行移除，Super View header 内的切换器保留；某侧栏收起时，其面板里的入口随之隐藏，快捷键仍可用。
-- **稿纸的操作留在稿纸上**。editor top bar 与面包屑移除；稿纸工具栏停在每个编辑器 pane 的右下角（右侧 pane 的工具栏左边是时间线开关），分屏时各有一组，不被侧栏收走。三点菜单向上展开。
+- **稿纸的操作留在稿纸上**。editor top bar 与面包屑移除；稿纸工具栏停在每个编辑器 pane 的右下角（右侧 pane 的工具栏左边是时间线开关，再左是沉浸写作开关），分屏时各有一组，不被侧栏收走。三点菜单向上展开。
 - **字数在账户 cell 里**。账户药丸与鸟居之间放两个字数（`WorkspaceWordTally`），写法同侧栏 cell 右侧的日期：等宽 caption 字、muted 墨色，标签与数字同色，不是按钮、不加玻璃。前一个跟着获得焦点的文档（分屏时是焦点那一侧，`focusedLeafOf`），由 `deriveStatusWordMetric` 按「选中 → 本章 / 构想（通览全书里是正在编辑的那章）→ 故事线 → 全书」取最具体的一个；换一种字数时整体淡入，同一种只换数字。后一个是今日字数（全书字数相对今天第一次记录的净增，存在本机），下面一笔干砂随每日目标变长（`.sand-stroke`，目标为 0 时不画）。悬停这一段看到完整说明与全书字数。名字优先：字数只用剩下的宽度，放不下的那个整个换到看不见的第二行（`flex-wrap`），先收今日、再收当前字数，不会截掉半个；左栏收起时一起不显示。原稿纸左下角的字数组件（`WorkspaceWordCount`）不再恢复。
-- **沉浸写作只留稿纸**。稿纸工具条第一个按钮（茶碗）或 `⌘⇧↩` 进入，再按或 `Esc` 退出：两侧栏与 Bottom Panel 按各自的 `420ms` 滑走，侧栏开关、标签点、稿纸工具条淡出，红绿灯从原生侧隐藏；侧栏与 Bottom Panel 自己的开合状态不改，退出时照原样回来。批注 rail 与大纲 rail 保持进入前的开关。指针碰顶边露出红绿灯与标签点，碰右下角露出本次字数与退出按钮，一打字就收。光标所在块以外的正文淡下去，打字机滚动在沉浸中总是开着。契约见 [沉浸写作](../editor/immersive-writing.md)。
+- **沉浸写作只留稿纸**。时间线开关左边的灯盏或 `⌘⇧↩` 进入，再按或 `Esc` 退出：两侧栏与 Bottom Panel 按各自的 `420ms` 滑走，侧栏开关、标签点、时间线开关与稿纸工具条淡出，红绿灯从原生侧隐藏；侧栏与 Bottom Panel 自己的开合状态不改，退出时照原样回来。批注 rail 与大纲 rail 保持进入前的开关。指针碰顶边露出红绿灯与标签点，靠近灯盏时它在原处按下着出来、左边是本次字数，点它退出，一打字就收。光标所在块以外的正文淡下去，打字机滚动在沉浸中总是开着。契约见 [沉浸写作](../editor/immersive-writing.md)。
 - **红灯关闭项目**。项目打开时，窗口关闭按钮不再关窗：renderer 通过 `window_set_close_returns_to_shelf` 打开开关后，Rust 端拦下 `CloseRequested` 并发出 `drifting:close-to-shelf`，renderer 回到书架；书架上的关闭按钮仍按原流程 flush 并关窗。`⌘W` 关当前标签，`⇧⌘W`（`closeProject`）关项目回书架。项目名不再常驻显示。
 - **轻重分工**。Bottom Timeline 承担日常的轻量结构操作；调整故事线之间的相对关系、幕边界、时间点和叙事顺序等较重的操作在故事图谱 Super View 中进行。章节 panel 保持按故事线分组的列表。
 - Copilot 在账户 dropdown 的二级设置页。

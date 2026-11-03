@@ -7,12 +7,13 @@ modes (句, 渐隐) were not adopted.
 
 ## Product contract
 
-- **进出**。稿纸工具条的第一个按钮（茶碗砂笔图标 `tea`，`aria-pressed`
-  表示开着）或 `⌘⇧↩`（设置的快捷键里可改，`toggleImmersiveWriting`）进入；
+- **进出**。稿纸右下角时间线开关左边单独的圆形玻璃按钮（灯盏砂笔图标
+  `oil-lamp`，`aria-pressed` 表示开着；2026-11-04 从工具栏药丸里拆出、换掉了
+  原来的茶碗；和时间线开关一样只在右侧 pane 的角落）或 `⌘⇧↩`（设置的快捷键里可改，`toggleImmersiveWriting`）进入；
   再按一次快捷键或按 `Esc` 退出。`Esc` 只在没有别的东西先接住它时才退出
   （`defaultPrevented`、输入法组字中都不算）。进出都把光标放回原处，接着就能打字。
 - **收掉什么**。两侧栏、侧栏开关（连同左栏收起时浮着的同步铃）、标签点
-  Dock、每个 pane 的稿纸工具条、没有编辑器时 stage 自己的时间线开关、
+  Dock、每个 pane 的稿纸工具条、时间线开关（连同没有编辑器时 stage 自己的那个）、
   Bottom Panel（时间线或情节规划）。侧栏与 Bottom Panel 用各自原有的
   `420ms` 滑动收起；浮着的控件淡出（`--motion-glass-bleed`），淡完是
   `visibility: hidden`，点不到也聚焦不到。稿纸左下角的同步云在沉浸中不呼吸，
@@ -26,9 +27,11 @@ modes (句, 渐隐) were not adopted.
   （`sidebarShown`），所以退出时它们照进来前的样子滑回来，存着的布局从没被改过。
   打开整书视图（Super View）或离开工作区都会结束沉浸。
 - **边缘露出**。指针到窗口顶边 `56px` 内：红绿灯与标签点回来，标签点照常
-  悬停成药丸、可以换文档。指针到右下角（宽 `240px`、高 `120px`）：这一次写了
-  多少字（`+N`，与左栏「今日」同一来源：全书净增）、下面是今日那笔砂往每日
-  目标长，旁边是按下状态的茶碗，点它退出。一按不带修饰键的键就都收走；
+  悬停成药丸、可以换文档。指针到灯盏附近（离它 `48px` 以内）：灯盏在原处、按下状态，
+  左边是这一次写了多少字（`+N`，与左栏「今日」同一来源：全书净增）、下面是今日
+  那笔砂往每日目标长；点灯盏退出。换文档时这次的字数接着算。角落里其余的东西
+  （时间线开关、工具栏药丸）在沉浸中都不出来。没有编辑器角落时（作品主页），
+  stage 在同一个角落替它放一盏。一按不带修饰键的键就都收走；
   指针离开窗口也收走。
 - **段落聚焦**。光标所在的块保持原墨色，前后所有正文淡成
   `hsl(var(--ink-1) / 0.26)`。块指光标所在的文本块（段落、标题、列表项里的
@@ -42,9 +45,16 @@ modes (句, 渐隐) were not adopted.
   里；`setActiveSuperView` 打开整书视图时顺手清掉它；`sidebarShown(state, side)`。
 - `Sidebar.tsx`：展开 = `isOpen && !immersive`，对侧宽度的夹取也按显示与否算。
 - `DesktopWorkspace.tsx`：根节点 `data-immersive`；沉浸时 `dockPane` 为 `null`；
-  stage 里挂 `ImmersiveWritingCorner`；`useImmersiveWriting(rootRef)`。
-- `shells/desktop/useImmersiveWriting.ts`：沉浸期间监听指针（只在区域变化时
-  改根节点的 `data-immersive-peek`，并在进出顶边时切换原生红绿灯）、按键与
+  stage 里挂 `StageImmersiveWritingControl`；`useImmersiveWriting(rootRef)`。
+- `EditorTopBar.tsx`：角落依次是 `ImmersiveWritingControl`、`TimelineToggle`、
+  工具栏药丸，前两个只在承载时间线开关的那个角落。
+- `components/workspaceChrome/ImmersiveWriting.tsx`：灯盏按钮与这一次的字数；
+  起点（开始时的今日字数）存在 `immersiveWritingBaseline`，换文档不清零。
+- 灯盏由 `scripts/design-assets/brushicons.py` 画（`oil_lamp`，种子 `9111`）；
+  同时画过的闭目、一炷香留在 `ALTERNATES`。
+- `shells/desktop/useImmersiveWriting.ts`：沉浸期间监听指针（顶边、或灯盏的
+  实际位置附近；只在区域变化时改根节点的 `data-immersive-peek`，并在进出顶边时
+  切换原生红绿灯）、按键与
   `Esc`，并启停段落聚焦。
 - `components/workspaceChrome/immersive-writing.ts`：进入、退出、切换；回焦只给
   可见的编辑器（保活的隐藏标签页里的编辑器不接光标）。

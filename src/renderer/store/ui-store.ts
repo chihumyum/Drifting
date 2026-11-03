@@ -507,6 +507,10 @@ interface UiState {
   // they were; read them through `sidebarShown`. Never persisted.
   immersiveWriting: boolean;
   setImmersiveWriting: (on: boolean) => void;
+  // Today's words when this sitting began, once known: the corner counts
+  // the sitting from it across document switches. Cleared on every change.
+  immersiveWritingBaseline: number | null;
+  setImmersiveWritingBaseline: (words: number) => void;
 
   // Whether the BottomTimeline 未归属 lane is currently visible. Persisted so
   // toggling the lane sticks across sessions; the lane itself is meaningful
@@ -957,7 +961,9 @@ export const useUiStore = create<UiState>()(
         ),
 
       immersiveWriting: false,
-      setImmersiveWriting: (on) => set({ immersiveWriting: on }),
+      setImmersiveWriting: (on) => set({ immersiveWriting: on, immersiveWritingBaseline: null }),
+      immersiveWritingBaseline: null,
+      setImmersiveWritingBaseline: (words) => set({ immersiveWritingBaseline: words }),
 
       resizingSidebar: null,
       setResizingSidebar: (type) => set({ resizingSidebar: type }),
@@ -1044,6 +1050,7 @@ export const useUiStore = create<UiState>()(
             updates.lastActiveSuperView = view;
             // A whole-book view covers the paper: immersion ends with it.
             updates.immersiveWriting = false;
+            updates.immersiveWritingBaseline = null;
           }
           return updates;
         });
