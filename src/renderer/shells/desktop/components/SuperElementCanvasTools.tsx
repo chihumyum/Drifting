@@ -3,8 +3,8 @@ import { GlassSlider } from '../../../components/ui/GlassSlider';
 import type { ElementLayoutMode } from '../../../features/graph/element-relate-layout';
 
 /**
- * The element overview's layout (群岛 or 关系), under its header on the
- * left of the canvas. The legend of the lines sits in the top-right corner
+ * The element overview's layout (关系 or 群岛), in its header just before
+ * the counts. The legend of the lines sits in the canvas's top-right corner
  * (SuperViewRelationLegend).
  */
 export function SuperElementLayoutSwitch({ layout, onLayout }: {
@@ -13,9 +13,9 @@ export function SuperElementLayoutSwitch({ layout, onLayout }: {
 }) {
   const { t } = useTranslation();
   return (
-    <div className="se-tools" data-se-tools="">
+    <div className="se-layout-switch super-view-head__no-drag" data-tauri-drag-region="false">
       <GlassSlider
-        className="se-tools__layout"
+        className="se-layout-switch__slider"
         value={layout}
         onChange={onLayout}
         ariaLabel={t('superElement.layout.label')}

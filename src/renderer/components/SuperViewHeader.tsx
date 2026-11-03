@@ -15,6 +15,9 @@ export interface SuperViewHeaderProps {
   backLabel?: string;
   /** Primary navigation placed after the back button. */
   navigationSlot?: ReactNode;
+  /** A control placed just before the meta caption — e.g. the element
+   *  overview's layout switch. */
+  metaLead?: ReactNode;
   /** Extra controls placed in the left group after navigation and meta — e.g.
    *  view-mode toggles or scoped action buttons. */
   leftSlot?: ReactNode;
@@ -27,6 +30,7 @@ export function SuperViewHeader({
   onBack,
   backLabel,
   navigationSlot,
+  metaLead,
   leftSlot,
   rightSlot,
 }: SuperViewHeaderProps) {
@@ -68,6 +72,7 @@ export function SuperViewHeader({
           </button>
         )}
         {navigationSlot}
+        {metaLead}
         {meta != null && <em className="super-view-head__meta">{meta}</em>}
         {leftSlot}
       </div>

@@ -62,12 +62,17 @@
    的版本改成同一个新版本号（如 `0.1.0-alpha.2`），并写好
    `docs/releases/<版本号>.md`。第一行 `# Drifting <版本号>` 之后的正文会原样显示在
    App 的更新提示和 设置 › 更新 里，写给用户看，用英文写，保持简短。
-2. 本地运行 `pnpm release:check v<版本号>`，再跑 `pnpm lint`、`pnpm typecheck`、`pnpm test`。
-3. 推送提交和 tag：`git tag v<版本号> && git push origin main v<版本号>`。
-4. 等 **Release** 工作流结束。`verify` 失败不会构建；`build` 会核对签名、Gatekeeper、
+2. 跑 `pnpm release:screenshots --readme`：截英文浅色的书架、工作区和要素全景三张，写进
+   `docs/screenshots/`（README 显示的就是它们），和版本号改动一起提交。约一分钟，期间会把 App
+   窗口调到最前，别动键盘和鼠标；见 [release-screenshots.md](release-screenshots.md)。不带
+   `--readme` 则在 `out/screenshots/<版本号>/` 截中英文、浅色深色全部 12 张，不进仓库。
+3. 本地运行 `pnpm release:check v<版本号>`（它核对 README 截图是这个版本截的），再跑
+   `pnpm lint`、`pnpm typecheck`、`pnpm test`。
+4. 推送提交和 tag：`git tag v<版本号> && git push origin main v<版本号>`。
+5. 等 **Release** 工作流结束。`verify` 失败不会构建；`build` 会核对签名、Gatekeeper、
    公证 staple 和 DMG 挂载后的 App。
-5. 在 GitHub 打开草稿 Release，下载 DMG，在一台干净的 Mac 上走一遍下面的冒烟检查。
-6. 没问题就点 **Publish release**。已安装的 App 在下次启动（或在 设置 › 更新 里手动检查）时收到更新。
+6. 在 GitHub 打开草稿 Release，下载 DMG，在一台干净的 Mac 上走一遍下面的冒烟检查。
+7. 没问题就点 **Publish release**。已安装的 App 在下次启动（或在 设置 › 更新 里手动检查）时收到更新。
 
 发现问题时：草稿直接删掉、修好后用新版本号重新打 tag。已发布的版本不要改文件；
 要撤回就把它改回草稿，用户会停留在前一个已发布版本。
@@ -85,7 +90,7 @@
 ## 检查脚本
 
 `scripts/check-release.mjs`（`pnpm release:check`）核对：三处版本号一致且是 SemVer、
-tag 等于 `v<版本号>`、发布说明存在、打包仍生成更新签名产物、App 轮询的更新地址正确、
+tag 等于 `v<版本号>`、发布说明存在、README 截图（`docs/screenshots/manifest.json`）是这个版本截的且都在 README 里、打包仍生成更新签名产物、App 轮询的更新地址正确、
 构建脚本和过程宏不剥离、所有 GitHub Action 都钉在完整 commit SHA 上。
 `pnpm ci:contract:check` 核对 CI 与发布工作流的结构。
 

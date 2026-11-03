@@ -144,7 +144,10 @@ describe('the 关系 layout of the element overview', () => {
     expect(parsed.positions?.get('a')).toEqual({ x: 1.2, y: -5.7 });
     expect(parsed.pins.get('a')).toEqual({ x: 1.2, y: -5.7 });
     expect(parsed.signature).toBe('x1');
-    expect(parseRelateRecord('{not json').mode).toBe('isles');
+    // 关系 is the default; the islands only when the author chose them.
+    expect(parseRelateRecord(null).mode).toBe('relate');
+    expect(parseRelateRecord('{not json').mode).toBe('relate');
+    expect(parseRelateRecord(JSON.stringify({ v: 1, mode: 'isles', positions: null, pins: {}, signature: null })).mode).toBe('isles');
     expect(parseRelateRecord(JSON.stringify({ mode: 'relate', positions: { a: ['1', 2] } })).positions).toBeNull();
   });
 

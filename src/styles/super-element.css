@@ -573,23 +573,36 @@ html:not([data-shell-mode='mobile']) .se-band__name.sand-cell {
 }
 
 /* ── The layout switch ───────────────────────────────────────────── */
-/* Under the header on the left of the canvas: 群岛 / 关系, on the paper
-   so the lines under it do not show through. The legend of the lines is in
-   the top-right corner (super-view-header.css, .super-view-legend). */
-.se-tools {
-  position: absolute;
-  top: 10px;
-  left: 12px;
-  z-index: 8;
-  pointer-events: none;
+/* In the header, before 「x 类 · x 要素」: 群岛 / 关系 (the header gives
+   its sliders their height). The legend of the lines is in the canvas's
+   top-right corner (super-view-header.css, .super-view-legend). */
+.se-layout-switch {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
 }
 
-.se-tools > * {
-  pointer-events: auto;
+/* With the switch in it, the left group can outgrow a narrow window (the
+   English labels are long). The right group's controls keep their size and
+   the counts give way, ending in an ellipsis rather than running under the
+   search field. */
+.super-element-overlay .super-view-head__left {
+  flex: 0 1 auto;
 }
 
-.se-tools__layout {
-  background: hsl(var(--paper));
+.super-element-overlay .super-view-head__left > * {
+  flex-shrink: 0;
+}
+
+.super-element-overlay .super-view-head__right {
+  flex: 1 0 auto;
+}
+
+.super-element-overlay .super-view-head__left > .super-view-head__meta {
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* While the floating island is open the legend steps left of it. */

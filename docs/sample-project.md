@@ -98,6 +98,11 @@ variants and registered with a verified local blob receipt before they are
 bound. The imports run alongside the first transactions. No Agent runtime rows
 are written and no model is called.
 
+`write-sample.ts` takes the book as a `SampleBook` (`sample-book.ts`):
+Pride and Prejudice unless another is given. The
+[release screenshot library](release-screenshots.md) writes its other books
+with it; `createEntityLinker` links Han names without word boundaries for them.
+
 The development seed (`pnpm dev:seed`, `pnpm dev:seed:lite`) is separate: it
 stays the synthetic Chinese corpus in `services/sample-project/`, written
 through the headless Agent tool path, and its evidence is unchanged.
