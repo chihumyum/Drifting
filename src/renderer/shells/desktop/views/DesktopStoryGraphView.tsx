@@ -39,8 +39,7 @@ import { TimelinePin } from '../../../components/timeline/TimelinePin';
 import { EntityHoverCard } from '../../../features/entities/hover/EntityHoverCard';
 import type { EntityHoverTarget } from '../../../features/entities/hover/entity-hover-card-model';
 import type { EntityHoverCardPlacement } from '../../../components/ui/entity-hover-card-position';
-import { useCanvasHoverCard, withDriftGroupChoices } from '../../../features/graph/canvas-hover-card';
-import { withChapterStorylineChoices } from '../../../features/entities/hover/hover-choices';
+import { withChapterStorylineChoices, withDriftGroupChoices } from '../../../features/entities/hover/hover-choices';
 import { chapterStorylineIds, useChapterStorylineToggle } from '../../../features/entities/hover/use-hover-choice-writes';
 import type { RelationEdgePopoverAnchor } from '../../../components/graph/RelationEdgePopover';
 import type { GraphViewProps } from '../../../features/graph/graph-ui-components.types';
@@ -100,7 +99,7 @@ function readPersistedView(): StoryGraphViewMode {
 }
 
 export function DesktopStoryGraphView({ graphUi, driftPanel }: GraphViewProps) {
-  const { DriftPanel, NodeCardPopover, RelationEdgePopover, RelationArrowMarker, relationArrowMarkerId, relationEdgePath, StoryGraphDriftEdges } = graphUi;
+  const { DriftPanel, NodeCardPopover, RelationEdgePopover, RelationArrowMarker, relationArrowMarkerId, relationEdgePath, StoryGraphDriftEdges, useCanvasHoverCard } = graphUi;
   const { t } = useTranslation();
   const mobileShell = getPlatformRuntime().isMobileShell;
   const {

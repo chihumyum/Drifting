@@ -18,7 +18,7 @@ vi.mock('../../../platform/runtime', () => ({
 
 import { SuperElementCategoryBox } from '../../../features/graph/SuperElementCategoryBox';
 import { buildSuperElementCategoryModel } from '../../../features/graph/super-element-category-model';
-import { withElementCategoryChoices } from '../../../features/graph/canvas-hover-card';
+import { withElementCategoryChoices } from '../../../features/entities/hover/hover-choices';
 import { isleTicks } from '../../../features/graph/element-isles-model';
 import { ElementIsleDetail } from '../components/ElementIsleDetail';
 import type { BookElement, BookElementCategory } from '../../../domain/book-element';

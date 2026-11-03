@@ -9,3 +9,4 @@ export { SuperElementViewportEdges } from './SuperElementViewportEdges';
 export { buildSuperElementWorldEdges, superElementBandTop } from './super-element-edge-model';
 export { createGraphGeometryScheduler } from './graph-geometry-scheduler';
 export { ElementCardPopover } from './ElementCardPopover';
+export { useCanvasHoverCard } from './canvas-hover-card';
