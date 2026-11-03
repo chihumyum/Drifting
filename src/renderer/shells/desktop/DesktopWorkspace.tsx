@@ -21,6 +21,8 @@ import { useWorkspaceOpening } from './useWorkspaceOpening';
 import { WorkspaceOpeningCover } from './WorkspaceOpeningCover';
 import { WorkspaceGuide } from './WorkspaceGuide';
 import { useOrganizeOnReturn } from '../../usecase/useProjectOrganize';
+import { ImmersiveWritingCorner } from '../../components/workspaceChrome/ImmersiveWriting';
+import { useImmersiveWriting } from './useImmersiveWriting';
 
 interface DesktopWorkspaceProps {
   projectId: string;
@@ -37,10 +39,12 @@ interface DesktopWorkspaceProps {
  * chapter's plot planner, never both; the planner hides itself while no
  * chapter is in front. The open-document dots run along the paper's top on
  * the traffic-light line; the timeline toggle rests in the paper's
- * lower-right corner to the left of the editor's toolbar (whose first button
- * is the plot planner; the stage keeps a fallback for when no editor is
- * showing), so both ride above the dock when it is open. While a Super View
- * covers the window, all of it is inert.
+ * lower-right corner to the left of the editor's toolbar (whose first
+ * buttons are immersive writing and the plot planner; the stage keeps a
+ * fallback for when no editor is showing), so both ride above the dock when it is open. While a Super View
+ * covers the window, all of it is inert. Immersive writing withdraws all of
+ * it but the paper (`data-immersive`, immersive-writing.css): the sidebars
+ * and the Bottom Panel slide shut over their own kept state.
  */
 export const DesktopWorkspace = memo(function DesktopWorkspace({
   projectId,
@@ -49,13 +53,16 @@ export const DesktopWorkspace = memo(function DesktopWorkspace({
   onCloseFindPanel,
 }: DesktopWorkspaceProps) {
   const plotPlannerOpen = useUiStore((state) => state.plotPlannerOpen);
+  const immersive = useUiStore((state) => state.immersiveWriting);
   // The planner belongs to the chapter in front. Elsewhere it hides itself
   // (the panel closes, the timeline stays hidden) and comes back with the
   // next chapter, the choice to show it kept.
   const chapterInFront = useChapterInFront(projectId);
-  const dockPane: BottomPanelPane | null = plotPlannerOpen
-    ? (chapterInFront ? 'planner' : null)
-    : bottomTimelineHidden ? null : 'timeline';
+  const dockPane: BottomPanelPane | null = immersive
+    ? null
+    : plotPlannerOpen
+      ? (chapterInFront ? 'planner' : null)
+      : bottomTimelineHidden ? null : 'timeline';
   // While the panel slides shut it keeps showing what it held.
   const [lastPane, setLastPane] = useState<BottomPanelPane>(dockPane ?? 'timeline');
   if (dockPane && dockPane !== lastPane) setLastPane(dockPane);
@@ -63,8 +70,13 @@ export const DesktopWorkspace = memo(function DesktopWorkspace({
   useInertUnderSuperView(rootRef);
   useWorkspaceOpening(rootRef);
   useOrganizeOnReturn(projectId);
+  useImmersiveWriting(rootRef);
   return (
-    <div ref={rootRef} className="app-root desktop-app-shell">
+    <div
+      ref={rootRef}
+      className="app-root desktop-app-shell"
+      data-immersive={immersive ? 'true' : undefined}
+    >
       <div className="app-row desktop-workspace-row">
         <Sidebar sidebarType="left">
           <DesktopLeftSidebar />
@@ -77,6 +89,7 @@ export const DesktopWorkspace = memo(function DesktopWorkspace({
             <WorkspaceTabDock />
             <StageTimelineToggle />
             <PaperSyncMark />
+            <ImmersiveWritingCorner />
           </div>
           <TimelineDrawer open={dockPane !== null}>
             <BottomPanel show={dockPane ?? lastPane}>
