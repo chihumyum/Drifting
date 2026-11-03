@@ -32,6 +32,8 @@ import {
   type PatchCreateRequest,
 } from './patch-create-request';
 import { TodoAutoParseMount } from './TodoAutoParseMount';
+import { ChapterEmptyHints } from './ChapterEmptyHints';
+import { getPlatformRuntime } from '../../platform/runtime';
 import { useEditorSurfaceLifecycle } from './editor-surface-lifecycle-context';
 import { consumeChapterTitleFocus } from '../../features/editor/chapter-title-focus';
 const log = loglevel.getLogger('ChapterEditor');
@@ -459,6 +461,9 @@ export function ChapterEditor({
       {/* Editor Content */}
       <div className={literary ? 'page__body' : undefined} style={{ padding: compact ? '16px 24px' : '0' }}>
         {ydocError ? <EditorDocumentLoadError /> : <EditorContent editor={editor} />}
+        {literary && ready && !readOnly && !ydocError && !getPlatformRuntime().isMobileShell && (
+          <ChapterEmptyHints editor={editor} />
+        )}
       </div>
 
       <PatchCreateModal

@@ -42,6 +42,8 @@ import { entityKey } from '../../lib/agent/tool-entity-ref';
 import { subscribeSidebarCollapse } from '../../lib/sidebar-pane-events';
 import type { WorkspaceTarget } from '../../features/workspace/navigation/workspace-target';
 import { BrushIcon } from '../ui/BrushIcon';
+import { EmptyState } from '../ui/EmptyState';
+import { useEmptyStateHints } from '../../hooks/useEmptyStateHints';
 
 const log = loglevel.getLogger('DriftPanel');
 log.setLevel(loglevel.levels.WARN);
@@ -87,6 +89,7 @@ export function DriftPanel({
   onPreviewTarget,
 }: DriftPanelProps = {}) {
   const { t } = useTranslation();
+  const emptyHints = useEmptyStateHints();
   const { bookNodes } = useDataStoreFields('bookNodes');
   const driftGroups = useDataStore((s) => s.driftGroups);
   const driftGroupById = useMemo(() => new Map(driftGroups.map((group) => [group.id, group])), [driftGroups]);
@@ -654,18 +657,11 @@ export function DriftPanel({
         }}
       >
         {isEmpty ? (
-          <div
-            style={{
-              fontSize: 'var(--ui-font-secondary, 12px)',
-              fontFamily: 'var(--font-sans)',
-              fontStyle: 'italic',
-              color: 'var(--ui-text-muted, hsl(var(--ink-3)))',
-              padding: '40px 20px',
-              textAlign: 'center',
-            }}
-          >
-            {t('leftSidebar.empty.noDrifts')}
-          </div>
+          <EmptyState
+            mark={presentation === 'desktop' ? 'drift' : undefined}
+            message={t('leftSidebar.empty.noDrifts')}
+            hints={presentation === 'desktop' ? [emptyHints.create, emptyHints.driftRipens] : undefined}
+          />
         ) : (
           renderGroupBody(null, 0)
         )}
