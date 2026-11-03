@@ -3369,6 +3369,32 @@ html[data-shell-mode='mobile'] .hover-card__row {
   }
 }
 
+/* ── ＋ 关联: the text button that opens a relation picker ───────────
+ * The same word everywhere a TODO, comment or material is linked to an
+ * entity (TODO and Review cards, material cards and tabs, compose dialogs):
+ * no glass, interface type in the caption role, the ink deepens under the
+ * pointer. Desktop only; the paused mobile shell keeps its dashed box. */
+.relation-add-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  font: var(--ui-font-caption, 11.5px) var(--font-sans);
+  letter-spacing: normal;
+  text-transform: none;
+  cursor: pointer;
+  transition: color 0.12s ease-out;
+}
+
+.relation-add-button:hover,
+.relation-add-button:focus-visible {
+  color: hsl(var(--ink-1));
+  outline: none;
+}
+
 /* ── Single-line field, monospaced ──────────────────────────────────
    For what is read character by character: a key, a command, a model id,
    a path, a colour value. Index type: monospaced, no capitals, no spacing. */
