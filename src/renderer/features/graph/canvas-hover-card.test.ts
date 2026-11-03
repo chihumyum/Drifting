@@ -5,7 +5,7 @@ import type { BookNode } from '../../domain/book-node';
 import type { DriftGroup } from '../../domain/drift-group';
 import { DRIFT_MOVE_TO_GROUP_ACTION } from '../../components/editor/EditorTopBar';
 import type { HoverActionGroup } from '../../components/ui/HoverCard';
-import { withDriftGroupChoices } from './canvas-hover-card';
+import { withDriftGroupChoices } from '../entities/hover/hover-choices';
 
 const t = ((key: string) => key) as unknown as TFunction;
 

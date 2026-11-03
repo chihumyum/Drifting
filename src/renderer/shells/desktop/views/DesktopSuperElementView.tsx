@@ -26,8 +26,7 @@ import { entityHoverActions } from '../../../components/leftBars/entity-hover-ac
 import { useEntityCellAction } from '../../../hooks/useEntityCellAction';
 import { EntityHoverCard } from '../../../features/entities/hover/EntityHoverCard';
 import type { EntityHoverTarget } from '../../../features/entities/hover/entity-hover-card-model';
-import { useCanvasHoverCard, withDriftGroupChoices, withElementCategoryChoices } from '../../../features/graph/canvas-hover-card';
-import { withElementGroupChoices } from '../../../features/entities/hover/hover-choices';
+import { withDriftGroupChoices, withElementCategoryChoices, withElementGroupChoices } from '../../../features/entities/hover/hover-choices';
 import { SuperElementIsleLines } from '../../../features/graph/SuperElementIsleLines';
 import {
   SuperElementRelateLayer,
@@ -59,7 +58,6 @@ import { useBookElement } from '../../../usecase/useBookElement';
 import { useElementCategory } from '../../../usecase/useElementCategory';
 import { SuperElementLineThreshold } from '../components/SuperElementLineThreshold';
 import { SuperElementLayoutSwitch, SuperElementLinesRow } from '../components/SuperElementCanvasTools';
-import { SuperViewRelationLegend } from '../components/SuperViewRelationLegend';
 import { CategoryIsleDetail, CategoryIsleStrip, ElementIsleDetail, ElementIsleStrip } from '../components/ElementIsleDetail';
 import { SuperElementIsland } from '../components/SuperElementIsland';
 import { readIslandWidth } from '../components/super-element-island-width';
@@ -141,8 +139,8 @@ function buildCategoryRenderModel(
   });
 }
 
-export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps) {
-  const { DriftPanel, NodeCardPopover, RelationEdgePopover, RelationArrowMarker, relationArrowMarkerId, relationEdgePath, ElementCardPopover, SuperElementDriftEdges, SuperElementViewportEdges, buildSuperElementWorldEdges } = graphUi;
+export function DesktopSuperElementView({ graphUi, driftPanel, SuperViewRelationLegend }: GraphViewProps) {
+  const { DriftPanel, NodeCardPopover, RelationEdgePopover, RelationArrowMarker, relationArrowMarkerId, relationEdgePath, ElementCardPopover, SuperElementDriftEdges, SuperElementViewportEdges, buildSuperElementWorldEdges, useCanvasHoverCard } = graphUi;
   const { t } = useTranslation();
   const mobileShell = getPlatformRuntime().isMobileShell;
   const { setActive: setActiveSuperView } = useSuperViewNavigation();
@@ -2534,7 +2532,8 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
           <SuperElementViewportEdges edges={worldEdges} config={viewportConfig} panRef={panRef} zoomRef={zoomRef}
             viewportRef={viewportRef} layerRef={viewportEdgeLayerRef} panningRef={edgePanningRef}
             revision={viewportRevision} selectedEdgeId={selectedEdgeId} focusedEdgeIds={focusConnected?.edgeIds}
-            selectEdge={selectEdge} resolveRelationTypeLabel={resolveRelationTypeLabel} />
+            selectEdge={selectEdge} resolveRelationTypeLabel={resolveRelationTypeLabel}
+            widths={edgeWidths} hitWidth={EDGE_HIT_WIDTH} />
         )}
 
         {/* Sticky chapter band — rendered as a SIBLING of the world transform
