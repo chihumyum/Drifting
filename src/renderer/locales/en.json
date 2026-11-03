@@ -213,7 +213,10 @@
       "accent_reset": "Restore default",
       "animations": "Animations & transitions",
       "agent_edit_reveal": "Change reveal animation",
-      "agent_edit_reveal_desc": "Reveal Agent edits to prose and fields, and chapters and ideas edited in another editor, character by character. Turn off to show results immediately; unread change markers remain available."
+      "agent_edit_reveal_desc": "Reveal Agent edits to prose and fields, and chapters and ideas edited in another editor, character by character. Turn off to show results immediately; unread change markers remain available.",
+      "guides": "Guides",
+      "replay_guides": "Tour when a book first opens",
+      "replay_guides_action": "Show again"
     },
     "editor": {
       "kicker": "EDITOR",
@@ -3504,6 +3507,50 @@
       "placeholder": "What were you doing?",
       "ignore": "Ignore",
       "emailSubject": "Drifting crash follow-up"
+    }
+  },
+  "guide": {
+    "skip": "Skip tour",
+    "back": "Back",
+    "next": "Next",
+    "done": "Done",
+    "workspace": {
+      "panels": {
+        "title": "Chapters · Elements · Ideas",
+        "body": "The book's frame. The left sidebar can split in two, each half with its own panel.",
+        "closedBody": "The book's frame lives in the left sidebar: chapters, elements and ideas. Open it here."
+      },
+      "superViews": {
+        "title": "Whole-window views",
+        "body": "Open them from the round button in a panel's header."
+      },
+      "create": {
+        "title": "New",
+        "body": "Chapters, ideas, elements, storylines, categories and materials all start here."
+      },
+      "timeline": {
+        "title": "Timeline",
+        "body": "Storylines laid out in book order or story time, sliding up from under the page."
+      },
+      "agent": {
+        "title": "Agent",
+        "body": "Reads, searches and edits the whole book. Its changes are marked in the text and can be undone from history.",
+        "closedBody": "The Agent lives in the right sidebar and can read, search and edit the whole book. Open it here."
+      },
+      "home": {
+        "title": "Project home",
+        "body": "The gate brings you back to this page; the wind chime beside it holds notifications."
+      }
+    },
+    "hints": {
+      "new": "New",
+      "scene": "Scene",
+      "beat": "Beat",
+      "note": "Note",
+      "search": "Search everything",
+      "timeline": "Timeline",
+      "driftRipens": "When it is ready, turn it into a chapter or an element",
+      "todo": "Write TODO in the text"
     }
   }
 }

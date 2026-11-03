@@ -33,6 +33,8 @@ import { useSidebarPanelNavigation as useProjectNavigation } from '../../hooks/u
 import { subscribeSidebarCollapse } from '../../lib/sidebar-pane-events';
 import type { WorkspaceTarget } from '../../features/workspace/navigation/workspace-target';
 import { BrushIcon } from '../ui/BrushIcon';
+import { EmptyState } from '../ui/EmptyState';
+import { useEmptyStateHints } from '../../hooks/useEmptyStateHints';
 
 const log = loglevel.getLogger('ChapterPanel');
 log.setLevel(loglevel.levels.ERROR);
@@ -207,6 +209,7 @@ export function ChapterPanel({
   onPreviewTarget,
 }: ChapterPanelProps = {}) {
   const { t } = useTranslation();
+  const emptyHints = useEmptyStateHints();
   const { bookNodes, storylines, storylineNodeMapping, primaryStorylineByNode } = useDataStoreFields('bookNodes', 'storylines', 'storylineNodeMapping', 'primaryStorylineByNode');
   const nodeUi = useUiStore((s) => s.nodeUi);
   const [persistedViewMode] = useSidebarPreference('chapterPanelViewMode');
@@ -543,18 +546,11 @@ export function ChapterPanel({
             )}
             {sortedNodesGlobal.map((node) => renderNodeCard(node))}
             {!hasNodes && (
-              <div
-                style={{
-                  fontSize: 'var(--ui-font-secondary, 12px)',
-                  fontFamily: 'var(--font-sans)',
-                  fontStyle: 'italic',
-                  color: 'var(--ui-text-muted, hsl(var(--ink-3)))',
-                  padding: '40px 20px',
-                  textAlign: 'center',
-                }}
-              >
-                {t('leftSidebar.empty.noChapters')}
-              </div>
+              <EmptyState
+                mark={presentation === 'desktop' ? 'chapter' : undefined}
+                message={t('leftSidebar.empty.noChapters')}
+                hints={presentation === 'desktop' ? [emptyHints.create] : undefined}
+              />
             )}
           </>
         )}
@@ -637,18 +633,11 @@ export function ChapterPanel({
             </div>
 
             {!hasStorylines && (
-              <div
-                style={{
-                  fontSize: 'var(--ui-font-secondary, 12px)',
-                  fontFamily: 'var(--font-sans)',
-                  fontStyle: 'italic',
-                  color: 'var(--ui-text-muted, hsl(var(--ink-3)))',
-                  padding: '40px 20px',
-                  textAlign: 'center',
-                }}
-              >
-                {t('leftSidebar.empty.noStorylines')}
-              </div>
+              <EmptyState
+                mark={presentation === 'desktop' ? 'storyline' : undefined}
+                message={t('leftSidebar.empty.noStorylines')}
+                hints={presentation === 'desktop' ? [emptyHints.create] : undefined}
+              />
             )}
           </>
         )}

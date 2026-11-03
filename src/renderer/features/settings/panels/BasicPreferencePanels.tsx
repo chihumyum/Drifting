@@ -26,6 +26,8 @@ export function AppearancePanel({ registerRef }: { registerRef: SettingsRegister
   const setAccentColor = useSettingsStore((s) => s.setAccentColor);
   const agentEditRevealAnimation = useSettingsStore((s) => s.agentEditRevealAnimation);
   const setAgentEditRevealAnimation = useSettingsStore((s) => s.setAgentEditRevealAnimation);
+  const guidesSeen = useSettingsStore((s) => s.guidesSeen);
+  const resetGuides = useSettingsStore((s) => s.resetGuides);
   const resolvedTheme =
     themeMode === 'system'
       ? window.matchMedia('(prefers-color-scheme: dark)').matches
@@ -170,6 +172,19 @@ export function AppearancePanel({ registerRef }: { registerRef: SettingsRegister
           }
         />
       </div>
+      {desktop && (
+        <div className="set-sec">
+          <SettingsSectionHeader title={t('settings.appearance.guides')} hint="GUIDE" />
+          <SettingsRow
+            label={t('settings.appearance.replay_guides')}
+            control={
+              <SettingsButton variant="ghost" disabled={guidesSeen.length === 0} onClick={resetGuides}>
+                {t('settings.appearance.replay_guides_action')}
+              </SettingsButton>
+            }
+          />
+        </div>
+      )}
     </section>
   );
 }

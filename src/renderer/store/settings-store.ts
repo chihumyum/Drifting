@@ -352,6 +352,10 @@ interface SettingsState {
   setLastAgentConv: (projectId: string, convId: string) => void;
   agentOnboardingStep: AgentOnboardingStep;
   setAgentOnboardingStep: (step: AgentOnboardingStep) => void;
+  /** Guided tours this device has finished or skipped (features/guide). */
+  guidesSeen: string[];
+  markGuideSeen: (id: string) => void;
+  resetGuides: () => void;
   clearLastAgentConv: (projectId: string) => void;
   clearProjectSettings: (projectId: string) => void;
 
@@ -516,6 +520,10 @@ export const useSettingsStore = create<SettingsState>()(
         set({ agentTurnIterationLimit: normalizeAgentTurnIterationLimit(limit) }),
       agentOnboardingStep: 'new',
       setAgentOnboardingStep: (step) => set({ agentOnboardingStep: step }),
+      guidesSeen: [],
+      markGuideSeen: (id) =>
+        set((state) => (state.guidesSeen.includes(id) ? state : { guidesSeen: [...state.guidesSeen, id] })),
+      resetGuides: () => set({ guidesSeen: [] }),
       lastAgentConvByProject: {},
       setLastAgentConv: (projectId, convId) =>
         set((state) => ({
@@ -793,6 +801,9 @@ export const useSettingsStore = create<SettingsState>()(
         merged.editorTextWrap = normalizeEditorTextWrap(merged.editorTextWrap);
         merged.agentEditRevealAnimation = merged.agentEditRevealAnimation !== false;
         if (!['new', 'change', 'done'].includes(merged.agentOnboardingStep)) merged.agentOnboardingStep = 'new';
+        merged.guidesSeen = Array.isArray(merged.guidesSeen)
+          ? merged.guidesSeen.filter((id): id is string => typeof id === 'string')
+          : [];
         if (APP_CONFIG.BYOK_ONLY) {
           if (merged.agentAuth === 'hosted') merged.agentAuth = 'apikey';
         }
