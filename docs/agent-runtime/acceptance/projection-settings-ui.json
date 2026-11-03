@@ -1,7 +1,7 @@
 {
   "kind": "markdown-projection-settings-browser",
-  "generatedAt": "2026-11-03T16:12:25.922Z",
-  "sourceSha256": "dbb7ce3bab56e9647d7b875d86f635e65e2b98958338e793ecfe2d0d832cc0df",
+  "generatedAt": "2026-11-03T16:15:36.628Z",
+  "sourceSha256": "8e8e1cf55c60ca034294bdbf3af246a740d61ca3d02c2a7bb8611f5f79306c9c",
   "status": "passed",
   "synthetic": true,
   "checks": [
