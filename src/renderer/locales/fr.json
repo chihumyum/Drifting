@@ -462,6 +462,10 @@
           "label": "Basculer la chronologie inférieure",
           "desc": "Affiche ou masque la chronologie inférieure"
         },
+        "toggleImmersiveWriting": {
+          "label": "Écriture immersive",
+          "desc": "Ne garde que la page ; appuyez à nouveau ou sur Échap pour revenir"
+        },
         "newEntity": {
           "label": "Nouveau",
           "desc": "Ouvre l’accueil du projet avec la ligne de création accessible"
@@ -926,6 +930,10 @@
       "offline": "Hosted en pause hors ligne",
       "attention": "Hosted requiert votre attention"
     }
+  },
+  "immersiveWriting": {
+    "enter": "Écriture immersive",
+    "leave": "Quitter l’écriture immersive"
   },
   "workspaceWordTally": {
     "selection": "Sélection",

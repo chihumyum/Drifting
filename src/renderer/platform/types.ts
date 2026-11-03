@@ -108,6 +108,8 @@ export interface WindowPlatformApi {
   isMaximized(): Promise<boolean>;
   /** macOS desktop only. Other targets reject as unsupported. */
   setTrafficLightPosition(position: { x: number; y: number }): Promise<void>;
+  /** macOS desktop only: immersive writing hides the traffic lights. */
+  setTrafficLightsHidden(hidden: boolean): Promise<void>;
   /** While enabled, the window's close button asks to return to the shelf. */
   setCloseReturnsToShelf(enabled: boolean): Promise<void>;
   onCloseToShelf(callback: () => void): Unsubscribe;

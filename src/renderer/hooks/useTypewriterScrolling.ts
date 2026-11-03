@@ -1,6 +1,7 @@
 import { useLayoutEffect, useMemo } from 'react';
 import type { Editor } from '@tiptap/core';
 import { useSettingsStore } from '../store/settings-store';
+import { useUiStore } from '../store/ui-store';
 import { TypewriterScrollController, type TypewriterPresentation } from '../features/editor/typewriter-scroll';
 
 export {
@@ -14,7 +15,10 @@ export function useTypewriterScrolling(
   eligible: boolean,
   presentation: TypewriterPresentation,
 ): void {
-  const enabled = useSettingsStore((state) => state.typewriterMode);
+  const typewriterMode = useSettingsStore((state) => state.typewriterMode);
+  // Immersive writing keeps the caret on the typing line whatever the setting.
+  const immersive = useUiStore((state) => state.immersiveWriting);
+  const enabled = typewriterMode || immersive;
   const position = useSettingsStore((state) => state.typewriterPosition);
   const controller = useMemo(() => editor && eligible && enabled
     ? new TypewriterScrollController(editor) : null, [editor, eligible, enabled]);

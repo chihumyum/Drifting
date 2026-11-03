@@ -460,6 +460,10 @@
           "label": "Untere Zeitleiste umschalten",
           "desc": "Zeigt oder verbirgt die untere Zeitleiste"
         },
+        "toggleImmersiveWriting": {
+          "label": "Immersives Schreiben",
+          "desc": "Nur die Seite bleibt; erneut drücken oder Esc, um zurückzukehren"
+        },
         "newEntity": {
           "label": "Neu",
           "desc": "Öffnet die Projektstartseite mit erreichbarer Erstellungsleiste"
@@ -923,6 +927,10 @@
       "offline": "Hosted offline pausiert",
       "attention": "Hosted benötigt Aufmerksamkeit"
     }
+  },
+  "immersiveWriting": {
+    "enter": "Immersives Schreiben",
+    "leave": "Immersives Schreiben beenden"
   },
   "workspaceWordTally": {
     "selection": "Auswahl",

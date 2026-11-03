@@ -5,10 +5,12 @@ import {
   MANUAL_CHAPTER_WRITING_STATUSES,
   type WritingStatus,
 } from '../../domain/book-node';
+import { getPlatformRuntime } from '../../platform/runtime';
 import { useSettingsStore } from '../../store/settings-store';
 import { AnchoredPopover } from '../ui/AnchoredPopover';
 import { BrushIcon, type BrushIconName } from '../ui/BrushIcon';
 import { MenuRowIcon, type MenuRowIconSpec } from '../ui/MenuRowIcon';
+import { ImmersiveWritingToggle } from '../workspaceChrome/ImmersiveWriting';
 import { TimelineToggle } from '../workspaceChrome/WorkspaceTabDock';
 import { useEditorCornerHostsTimelineToggle } from './editor-corner';
 import { useEditorRailPresentation } from './editor-rail-presentation';
@@ -64,6 +66,7 @@ export function getStatusSectionLabel(kind: NodeStatusKind, translate?: Translat
   Shared editor actions. There is no bar or breadcrumb: the document's own
   controls stand in a vertical stack at the lower-right corner of its paper,
   one stack per editor pane, so split editors never share them.
+  - Immersive writing (desktop prose surfaces only)
   - Plot planner, element image, outline rail and Entity Link highlighting
   - Margin comments with their count
   - Integrated three-dot menu driven by `editorType` + `onMenuAction`
@@ -107,6 +110,9 @@ interface EditorTopBarProps {
   };
   // Surfaces without an outline rail (image and PDF materials) hide its toggle.
   outlineToggle?: boolean;
+  // The way into immersive writing; prose surfaces only, so by default the
+  // same surfaces as the outline rail.
+  immersiveToggle?: boolean;
   // Menu actions that do not apply to this particular entity.
   hiddenMenuActions?: readonly string[];
 }
@@ -124,6 +130,7 @@ export function EditorTopBar({
   referenceLinkToggle,
   plotPlannerToggle,
   outlineToggle = true,
+  immersiveToggle = outlineToggle,
   hiddenMenuActions,
 }: EditorTopBarProps) {
   const { t } = useTranslation();
@@ -139,6 +146,7 @@ export function EditorTopBar({
     <div className="editor-corner">
       {hostsTimelineToggle && <TimelineToggle />}
       <div className="editor-bar glass glass--rest" role="toolbar" aria-orientation="horizontal">
+        {immersiveToggle && !getPlatformRuntime().isMobile && <ImmersiveWritingToggle />}
         {plotPlannerToggle && (
           <button
             type="button"

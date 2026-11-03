@@ -5,6 +5,7 @@ import type { NavigateFunction } from 'react-router-dom';
 import { focusedLeafOf, SINGLETON_TAB_ID, tabKey, useUiStore } from '../../store/ui-store';
 import { useShortcutsStore } from '../../store/shortcuts-store';
 import { matchesAccelerator } from '../../lib/shortcuts';
+import { toggleImmersiveWriting } from '../../components/workspaceChrome/immersive-writing';
 import { getActiveEditor, saveActiveEditor } from '../../lib/active-editor';
 import { flushAllYjsDocumentsLocally } from '../../services/yjs-local-durability.service';
 import type { WorkspaceNavigator } from '../../features/workspace/navigation/workspace-target';
@@ -157,6 +158,12 @@ export function useDesktopGlobalShortcuts({
       if (matchesAccelerator(event, bindings.toggleBottomTimeline)) {
         event.preventDefault();
         useUiStore.getState().toggleBottomTimelineHidden();
+        return;
+      }
+
+      if (matchesAccelerator(event, bindings.toggleImmersiveWriting)) {
+        event.preventDefault();
+        toggleImmersiveWriting();
         return;
       }
 

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { formatAccelerator } from '../../lib/shortcuts';
 import { useShortcutsStore } from '../../store/shortcuts-store';
-import { useUiStore } from '../../store/ui-store';
+import { sidebarShown, useUiStore } from '../../store/ui-store';
 import { DOCK_COLLAPSE_DELAY_MS } from '../../lib/motion';
 import { TopTimeline } from '../topBars/TopTimeline/TopTimeline';
 import { useTimelineToggleHostedByEditor } from '../editor/editor-corner';
@@ -26,7 +26,7 @@ export function WorkspaceTabDock() {
   const toggleLocked = useUiStore((state) => state.toggleTabDockLocked);
   // With a sidebar closed its toggle floats over the desk: the row keeps
   // clear of both top corners so it stays centred.
-  const clearCorners = useUiStore((state) => !state.sidebars.left.isOpen || !state.sidebars.right.isOpen);
+  const clearCorners = useUiStore((state) => !sidebarShown(state, 'left') || !sidebarShown(state, 'right'));
   const collapseTimer = useRef<number | null>(null);
 
   const clearTimer = () => {
