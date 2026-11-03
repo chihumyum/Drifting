@@ -92,7 +92,7 @@ export function useElementRelateLayout(input: ElementRelateLayoutInput): Element
   const tweenRef = useRef<{ from: Map<string, RelatePoint>; to: ReadonlyMap<string, RelatePoint>; t0: number; done?: () => void } | null>(null);
   const frameRef = useRef(0);
   const lastRef = useRef(0);
-  const [mode, setModeState] = useState<ElementLayoutMode>('isles');
+  const [mode, setModeState] = useState<ElementLayoutMode>('relate');
   const [rest, setRest] = useState<ReadonlyMap<string, RelatePoint> | null>(null);
   const [pins, setPinsState] = useState<ReadonlyMap<string, RelatePoint>>(() => new Map());
   const [moving, setMoving] = useState(false);

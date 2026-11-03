@@ -97,12 +97,13 @@ describe('the element overview’s 关系 layout', () => {
     expect(unpinned).not.toContain('superElement.isles.unpin');
   });
 
-  it('switches layout under the header on the left, keeps the islands, and moves without re-rendering the canvas', () => {
+  it('opens in 关系, switches layout from the header, keeps the islands, and moves without re-rendering the canvas', () => {
     const view = source('src/renderer/shells/desktop/views/DesktopSuperElementView.tsx');
-    // The layout switch sits top left in the canvas, the legend top right; neither in the header.
+    // The layout switch sits in the header before the counts; the legend top right in the canvas.
     expect(view).toContain('relationControl={mobileShell}');
-    expect(view).toContain('<SuperElementLayoutSwitch layout={layoutMode} onLayout={chooseLayout} />');
-    expect(view.indexOf('<SuperElementLayoutSwitch')).toBeGreaterThan(view.indexOf('className="super-view-body"'));
+    expect(view).toContain('metaLead={!mobileShell && <SuperElementLayoutSwitch layout={layoutMode} onLayout={chooseLayout} />}');
+    expect(view.indexOf('<SuperElementLayoutSwitch')).toBeLessThan(view.indexOf('className="super-view-body"'));
+    expect(source('src/renderer/components/SuperViewHeader.tsx')).toMatch(/\{navigationSlot\}\s*\{metaLead\}\s*\{meta != null/);
     // While the floating island is open the legend steps left of it.
     expect(view).toContain("? `calc(${(islandWidth * 100).toFixed(2)}% + 24px)`");
     // The islands stay: 群岛 renders the category boxes, 关系 the free cells and lines.
@@ -124,6 +125,8 @@ describe('the element overview’s 关系 layout', () => {
     expect(view).toContain("roleLabels={lod === 'far' || relateCrowded ? 'active' : 'all'}");
 
     const hook = source('src/renderer/features/graph/useElementRelateLayout.ts');
+    // A book with no remembered choice opens in 关系.
+    expect(hook).toContain("useState<ElementLayoutMode>('relate')");
     // Reduced motion shows the end of the same run at once.
     expect(hook).toMatch(/if \(inputRef\.current\.reducedMotion\(\)\) \{\s*simulationRef\.current = null;\s*live\.current = copy\(end\);/);
     expect(hook).toContain('writeRelateRecord(projectId, {');
@@ -147,7 +150,8 @@ describe('the element overview’s 关系 layout', () => {
     expect(css).toMatch(/\.se-card\.sand-cell\.se-card--free \{[^}]*background: hsl\(var\(--paper\)\);/);
     expect(css).toMatch(/\.se-relate-role > rect \{\s*fill: hsl\(var\(--paper\)\);/);
     expect(css).toMatch(/\.se-isle-lines\.is-moving \{\s*opacity: 0;/);
-    expect(css).toMatch(/\.se-tools \{[^}]*top: 10px;[^}]*left: 12px;/);
+    expect(css).toMatch(/\.se-layout-switch \{[^}]*display: inline-flex;/);
+    expect(css).not.toContain('.se-tools');
     expect(shared).toMatch(/\.super-view-legend \{[^}]*top: 10px;[^}]*right: 12px;/);
     // A shown kind of line is the ordinary state: only the row under the pointer rings.
     expect(shared).toContain(".super-view-legend__row.glass[aria-pressed]:not(:hover, :focus-visible, :active)::before {");
@@ -157,7 +161,7 @@ describe('the element overview’s 关系 layout', () => {
   it('is written down and named in both languages', () => {
     const docs = designSystemDocs();
     expect(docs).toContain('**关系**布局');
-    expect(docs).toContain('画布左上角');
+    expect(docs).toContain('头部「x 类 · x 要素」左边');
     expect(docs).toContain('内容区右上角');
     const zh = JSON.parse(source('src/renderer/locales/zh-CN.json')).superElement;
     const en = JSON.parse(source('src/renderer/locales/en.json')).superElement;
