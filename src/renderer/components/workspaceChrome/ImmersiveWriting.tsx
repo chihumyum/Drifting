@@ -11,7 +11,7 @@ import { useUiStore } from '../../store/ui-store';
 import { toggleImmersiveWriting } from './immersive-writing';
 
 /**
- * Immersive writing's own round glass button, the oil lamp, to the left of
+ * Immersive writing's own round glass button, a stick of incense, to the left of
  * the timeline toggle in the corner that carries it (EditorTopBar). While
  * immersed the rest of the corner is gone and this button stays where it
  * was, pressed, shown only while the pointer is near it, with this sitting's
@@ -46,7 +46,7 @@ function ImmersiveWritingToggle({ immersive }: { immersive: boolean }) {
       aria-label={label}
       title={`${label} · ${formatAccelerator(accelerator)}`}
       onClick={toggleImmersiveWriting}
-      icon={<BrushIcon name="oil-lamp" />}
+      icon={<BrushIcon name="incense" />}
     />
   );
 }
