@@ -389,6 +389,26 @@ describe('Super View sand and glass acceptance', () => {
     expect(rule('.smm-main')).toContain('min-width: 360px;');
   });
 
+  it('sets TODO, comment and material cards in the same interface text roles', () => {
+    const cards = source('src/styles/material-workbench.css');
+    const rule = (selector: string) => cards.match(new RegExp(`(?:^|\\n)${selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\{([^}]*)\\}`))?.[1] ?? '';
+    // The comment card is Review's: body in the body role, its head index type in secondary.
+    const review = source('src/styles/comments-review.css');
+    expect(review).toContain('font: var(--ui-font-body, 13px)/1.4 var(--font-sans);');
+    expect(review).toContain('font: var(--ui-font-secondary, 9px)/1.2 var(--font-mono);');
+    // The TODO and material cards beside it follow the same setting; their old
+    // sizes are only the smallest setting's fallbacks.
+    expect(rule('.todo-card--glass .todo-card__body')).toContain('font: var(--ui-font-body, 13px)/1.4 var(--font-sans);');
+    expect(rule('.todo-card--glass .todo-card__header')).toContain('font: var(--ui-font-secondary, 9px)/1.2 var(--font-mono);');
+    expect(rule('.todo-card--glass .todo-card__header')).not.toMatch(/uppercase|letter-spacing/);
+    expect(rule('.todo-card__relate')).toContain('var(--ui-font-caption, 11.5px)');
+    expect(rule('.library-item-card__title')).toContain('font: 500 var(--ui-font-body, 13px)/1.35 var(--font-sans);');
+    expect(rule('.library-item-card__meta')).toContain('font: var(--ui-font-secondary, 10px)/1.4 var(--font-mono);');
+    expect(rule('.library-item-card__excerpt .note-excerpt')).toContain('font-size: var(--ui-font-body, 12.5px);');
+    // The sidebar tree keeps its compact excerpt.
+    expect(rule('.note-excerpt')).toContain('font-size: 12.5px;');
+  });
+
   it('documents the Chip and the Super Views and closes the open gap', () => {
     const docs = designSystemDocs();
     for (const heading of ['## Chip', '## Super View 头部', '## 关系类型菜单', '## 故事图谱', '## 卡片弹层', '## TODO 与素材库', '## 要素全景']) {
