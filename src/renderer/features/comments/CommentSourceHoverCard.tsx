@@ -23,7 +23,7 @@ export function CommentSourceHoverCard({ comment, relations, anchor, id, pointer
   pointer?: HoverCardPointerProps;
   actions?: HoverActionGroup[];
   onDismiss?: () => void;
-  /** Opened from the ⋯ button: focus the first row, and hand focus back on close. */
+  /** Explicitly requested by keyboard or ⋯: focus the first row, then return focus on close. */
   autoFocus?: boolean;
 }) {
   const { t } = useTranslation();

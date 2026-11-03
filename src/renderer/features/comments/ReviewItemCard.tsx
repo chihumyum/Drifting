@@ -85,6 +85,7 @@ export function ReviewItemCard({
   // The desktop card wears the resting glass line; the paused mobile shell
   // keeps its plate (docs/design-system/components.md, Review 卡).
   const glass = !getPlatformRuntime().isMobileShell;
+  const desktopPanel = glass && presentation === 'panel';
   const userId = useAuthStore((state) => state.user?.id) ?? 'local';
   const commentActions = useDataStore((state) => state.commentActions);
   const taskConversationId = agentTaskConversationId(commentActions, comment.id);
@@ -99,7 +100,8 @@ export function ReviewItemCard({
   const ownedByNote = isNoteTaskTodo(comment);
   const [snapshotOpen, setSnapshotOpen] = useState(false);
   // The source card doubles as the item's action card (there is no
-  // right-click menu); the ⋯ button shows it at once and hands it the focus.
+  // right-click menu). Desktop Review cards use Shift+F10 / the menu key;
+  // sticky cards and the mobile shell keep their explicit ⋯ entry.
   const sourceHover = useCommentSourceHover(!editing && !snapshotOpen);
   const [cardRequested, setCardRequested] = useState(false);
   const articleRef = useRef<HTMLElement>(null);
@@ -304,6 +306,8 @@ export function ReviewItemCard({
           glass ? ' review-card--glass glass glass--rest glass--surface' : presentation === 'panel' ? ' workspace-list-row glass glass--surface' : ''
         }${isResolved || isConverted ? ' review-card--resolved' : ''}`}
         data-comment-id={comment.id}
+        tabIndex={desktopPanel ? 0 : undefined}
+        aria-keyshortcuts={desktopPanel ? 'Shift+F10 ContextMenu' : undefined}
         aria-describedby={sourceHover.anchor ? sourceHover.id : undefined}
         onMouseEnter={(event) => {
           setCardRequested(false);
@@ -315,7 +319,17 @@ export function ReviewItemCard({
           clearActiveCommentHighlight(comment.id);
         }}
         onPointerDownCapture={sourceHover.dismiss}
-        onKeyDownCapture={sourceHover.dismiss}
+        onKeyDownCapture={(event) => {
+          if (desktopPanel && !editing && !snapshotOpen && event.target === event.currentTarget
+            && (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10'))) {
+            event.preventDefault();
+            event.stopPropagation();
+            setCardRequested(true);
+            sourceHover.open(event.currentTarget);
+          } else {
+            sourceHover.dismiss();
+          }
+        }}
         onContextMenuCapture={sourceHover.dismiss}
       >
       <header className="review-card__header">
@@ -350,7 +364,7 @@ export function ReviewItemCard({
             <BrushIcon name="sticky-note" size={11} />
           </span>
         )}
-        <GhostIconButton
+        {!desktopPanel && <GhostIconButton
           size="sm"
           className="review-card__menu-button"
           icon={<BrushIcon name="more" size={13} />}
@@ -363,7 +377,7 @@ export function ReviewItemCard({
           aria-label={t('common.more')}
           aria-expanded={Boolean(sourceHover.anchor)}
           aria-controls={sourceHover.anchor ? sourceHover.id : undefined}
-        />
+        />}
         {presentation === 'sticky' && onRemoveFromStickyRail && (
           <GhostIconButton
             size="sm"
