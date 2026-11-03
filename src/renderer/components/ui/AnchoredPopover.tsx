@@ -15,6 +15,7 @@ import {
   type AnchoredPopoverPlacement,
   type AnchoredPopoverPosition,
 } from './anchored-popover-position';
+import { inPopoverAbove, isTopAnchoredPopover, openAnchoredPopover } from './anchored-popover-stack';
 
 interface AnchoredPopoverProps {
   anchorRef: RefObject<HTMLElement | null>;
@@ -148,14 +149,19 @@ export function AnchoredPopover({
       focusableChildren(popover)[0]?.focus({ preventScroll: true });
     });
 
+    // Popovers stack: one opened from this one (a select's list) is not
+    // outside it, and Escape closes the top one only.
+    const closeStack = popoverAtOpen ? openAnchoredPopover(popoverAtOpen) : () => undefined;
     const handlePointerDown = (event: PointerEvent) => {
       if (!dismissOnOutside) return;
       const target = event.target as Node;
       if (localPopoverRef.current?.contains(target) || anchorRef.current?.contains(target)) return;
+      if (popoverAtOpen && inPopoverAbove(popoverAtOpen, target)) return;
       onCloseRef.current();
     };
     const handleKeyDown = (event: KeyboardEvent) => {
       if (!dismissOnEscape || event.key !== 'Escape') return;
+      if (popoverAtOpen && !isTopAnchoredPopover(popoverAtOpen)) return;
       const target = event.target;
       if (
         target instanceof HTMLElement &&
@@ -171,6 +177,7 @@ export function AnchoredPopover({
     document.addEventListener('pointerdown', handlePointerDown, true);
     document.addEventListener('keydown', handleKeyDown, true);
     return () => {
+      closeStack();
       window.cancelAnimationFrame(frame);
       document.removeEventListener('pointerdown', handlePointerDown, true);
       document.removeEventListener('keydown', handleKeyDown, true);
