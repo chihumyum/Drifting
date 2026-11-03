@@ -1504,6 +1504,36 @@ its settings check (`demandBypassedOtherPreload`, which watches
 `settings-panels` requests), so `acceptance/f7-intent-preloading.json` is not
 regenerated here.
 
+The scenario was out of date, not the code. Since `60fc4ad7` (2026-10-01) the
+standalone settings index renders Appearance and Language from the static
+settings shell (`BasicPreferencePanels`) and imports each other panel group with
+a plain `import()` and no retry key, because its explicit retry reloads the
+document. Clicking the first rail item, Appearance, requests nothing, and the
+fixture build has no `settings-panels` chunk at all. The scenario now opens
+Editor, the second item and the first deferred one, and intercepts
+`PreferenceSettingsPanels-*.js`, counting each request of it as a settings
+entry. Its three checks are unchanged: Editor's code arrives while the graph
+preload is still held, it is fetched once, and the released graph does not
+replace the panel. `acceptance/f7-intent-preloading.json` is regenerated from
+clean `fe633dc5` with all six scenarios, 94 focused tests, both shells' retry
+sequences and development loading passing. Initial static JS there is
+3,754,303 bytes. The 1,013,787 added since F7c above are almost all the `i18n`
+chunk (285,298 → 1,295,400 bytes), which grew when seven interface languages
+were added (`1f7a63c7`).
+
+`queued-intent-cancellation` passes but no longer proves its settings half.
+`60fc4ad7` also removed the preload intent from the mobile settings index, so
+focusing a rail item queues nothing and `queueWaited` / `canceledBeforeStart`
+hold trivially. The settings intents that remain (project-scope user menu,
+mobile right sidebar) are not mounted by the fixture.
+
+`node scripts/run-renderer-deferred-memo.mjs` shares this fixture
+(`?memo&preload`) and still fails. Its mounted memo sequences in both shells get
+through, but its last section focuses `.workspace-super-trigger`, which nothing
+renders any more. The Bottom Timeline entry preloads only the story graph, so
+the fixture has no memo entry with an intent. `acceptance/f7-memo-deferred.json`
+is not regenerated.
+
 
 ## F7d — Bounded entry-intent preloading
 
