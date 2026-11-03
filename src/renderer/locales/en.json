@@ -2865,6 +2865,19 @@
     "stateOff": "off",
     "resetTitle": "Reset canvas zoom and pan",
     "reset": "Reset",
+    "layout": {
+      "label": "Layout",
+      "isles": "Islands",
+      "relate": "Relations"
+    },
+    "legend": {
+      "label": "Lines on the canvas",
+      "editTypes": "Edit types"
+    },
+    "relate": {
+      "relayout": "Re-arrange",
+      "relayoutTitle": "Forget the places you dragged elements to and arrange again"
+    },
     "kind": {
       "element": "Element",
       "chapter": "Chapter"

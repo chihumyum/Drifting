@@ -37,7 +37,7 @@ describe('Super Element world edge projection', () => {
       toKind: 'element', toId: 'synthetic-element-1', relationTypeId: 'unknown',
     }), relation({ id: 'elements', toKind: 'element', toId: 'synthetic-element-1' })] }));
     expect(edges[0]).toEqual({
-      id: 'edge', refId: 'edge', fromKind: 'element', toKind: 'node',
+      id: 'edge', refId: 'edge', fromId: 'synthetic-element-0', toId: 'synthetic-node-0', fromKind: 'element', toKind: 'node',
       x1: 0, y1: -10, x2: -120, y2: 28, relationTypeId: 'directed', directed: true,
       targetInsetX: 61, targetInsetY: 34, color: '#123456', fromName: '合成人物0', toName: '合成章节0',
     });

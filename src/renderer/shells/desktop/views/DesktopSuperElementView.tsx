@@ -30,6 +30,21 @@ import { useCanvasHoverCard, withDriftGroupChoices, withElementCategoryChoices }
 import { withElementGroupChoices } from '../../../features/entities/hover/hover-choices';
 import { SuperElementIsleLines } from '../../../features/graph/SuperElementIsleLines';
 import {
+  SuperElementRelateLayer,
+  type RelateEdgeView,
+  type SuperElementRelateLayerHandle,
+} from '../../../features/graph/SuperElementRelateLayer';
+import { RELATE_MOVE_MS, relateEase, useElementRelateLayout } from '../../../features/graph/useElementRelateLayout';
+import {
+  relateBend,
+  relateBounds,
+  relateCellHalf,
+  type ElementLayoutMode,
+  type RelateNodeInput,
+  type RelatePoint,
+  type RelateSpring,
+} from '../../../features/graph/element-relate-layout';
+import {
   ISLES_LOD_ZOOM,
   isleCompanions,
   isleMarkWeight,
@@ -43,7 +58,7 @@ import { useElementMentionGraph } from '../../../usecase/useElementMentionGraph'
 import { useBookElement } from '../../../usecase/useBookElement';
 import { useElementCategory } from '../../../usecase/useElementCategory';
 import { SuperElementLineThreshold } from '../components/SuperElementLineThreshold';
-import { FilterChip } from '../../../components/ui/FilterChip';
+import { SuperElementCanvasTools } from '../components/SuperElementCanvasTools';
 import { CategoryIsleDetail, CategoryIsleStrip, ElementIsleDetail, ElementIsleStrip } from '../components/ElementIsleDetail';
 import { SuperElementIsland } from '../components/SuperElementIsland';
 import { readIslandWidth } from '../components/super-element-island-width';
@@ -97,6 +112,17 @@ import '../../../../styles/super-element.css';
 function viewportStorageKey(projectId: string | undefined): string | null {
   if (!projectId) return null;
   return `super-element-view:viewport:${projectId}`;
+}
+
+// The canvas's corner (the layout switch and the legend of the lines) stays
+// clear when the islands or the 关系 layout are fitted to the window.
+const CANVAS_TOOLS_RESERVE = 180;
+// Past this many relation lines in the window the role names follow the
+// element under the pointer or in focus only.
+const RELATE_LABEL_BUDGET = 60;
+
+function prefersReducedMotion(): boolean {
+  return typeof window !== 'undefined' && Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
 }
 
 function buildCategoryRenderModel(
@@ -632,10 +658,11 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
   const { updateElement, createElement } = useBookElement({ projectId: projectId ?? '', userId });
   const { updateCategory } = useElementCategory({ projectId: projectId ?? '', userId });
   const presentElementIds = useMemo(() => new Set(bookElements.map((el) => el.id)), [bookElements]);
-  const isleLines = useMemo(
-    () => (!mobileShell && linesOn && mentionGraph ? islePairs(mentionGraph.pairs, lineThreshold, presentElementIds) : []),
-    [mobileShell, linesOn, mentionGraph, lineThreshold, presentElementIds],
+  const thresholdLines = useMemo(
+    () => (!mobileShell && mentionGraph ? islePairs(mentionGraph.pairs, lineThreshold, presentElementIds) : []),
+    [mobileShell, mentionGraph, lineThreshold, presentElementIds],
   );
+  const isleLines = useMemo(() => (linesOn ? thresholdLines : []), [linesOn, thresholdLines]);
   const markWeights = useMemo(() => {
     if (mobileShell || !mentionGraph) return null;
     let most = 0;
@@ -652,6 +679,63 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
       .map((r) => ({ a: r.fromId, b: r.toId })),
     [entityRelations, hiddenRelationTypeIds],
   );
+  // ---- The 关系 layout (desktop) ----
+  // Beside the islands the elements can be laid out by their relations
+  // (element-relate-layout.ts): the relations the author drew pull hard,
+  // the sand lines' paragraphs a little, every element keeps the others
+  // away and rests near its island's place on a small map of the islands.
+  // What a relation line says: a directed relation its two roles, one at
+  // each end (师父 / 徒弟); a symmetric one, whose shared role often only
+  // names the kind of endpoint, its type's name once in the middle (呼应).
+  const relateRoles = useCallback((relationTypeId: string): string[] => {
+    const type = relationTypeById.get(relationTypeId);
+    if (!type) return [];
+    const presented = presentRelationType(type);
+    const source = presented.sourceRole.trim();
+    const target = presented.targetRole.trim();
+    if (type.orientation === 'directed' && source && target && source !== target) return [source, target];
+    return [presented.name];
+  }, [presentRelationType, relationTypeById]);
+  const relateNodes = useMemo<RelateNodeInput[]>(
+    () => (mobileShell ? [] : bookElements.map((el) => ({ id: el.id, name: el.name, anchor: elementCenters.get(el.id) ?? { x: 0, y: 0 } }))),
+    [mobileShell, bookElements, elementCenters],
+  );
+  const relateSprings = useMemo<RelateSpring[]>(() => {
+    if (mobileShell) return [];
+    const springs: RelateSpring[] = [];
+    for (const r of entityRelations) {
+      if (r.fromKind !== 'element' || r.toKind !== 'element' || hiddenRelationTypeIds.has(r.relationTypeId)) continue;
+      if (!presentElementIds.has(r.fromId) || !presentElementIds.has(r.toId)) continue;
+      springs.push({ a: r.fromId, b: r.toId, kind: 'relation', roles: relateRoles(r.relationTypeId) });
+    }
+    for (const pair of isleLines) springs.push({ a: pair.a, b: pair.b, kind: 'prose', count: pair.count });
+    return springs;
+  }, [mobileShell, entityRelations, hiddenRelationTypeIds, presentElementIds, relateRoles, isleLines]);
+  const relateLayerRef = useRef<SuperElementRelateLayerHandle | null>(null);
+  const relate = useElementRelateLayout({
+    projectId,
+    enabled: !mobileShell,
+    nodes: relateNodes,
+    springs: relateSprings,
+    aspect: () => {
+      const viewport = viewportRef.current;
+      return viewport && viewport.clientHeight > 0 ? viewport.clientWidth / viewport.clientHeight : 1.6;
+    },
+    reducedMotion: prefersReducedMotion,
+    onFrame: () => relateLayerRef.current?.paint(),
+  });
+  const {
+    mode: relateMode, setMode: setRelateMode, live: relateLive, rest: relateRest, pins: relatePins,
+    moving: relateMoving, current: relateCurrent, settle: settleRelateLayout, moveTo: moveRelateTo, place: placeRelate,
+    beginDrag: beginRelateDrag, dragTo: dragRelateTo, endDrag: endRelateDrag, unpin: unpinRelate, relayout: relayoutRelate,
+  } = relate;
+  // Leaving 关系, the cells first travel back to their islands.
+  const [relateLeaving, setRelateLeaving] = useState(false);
+  const layoutMode: ElementLayoutMode = mobileShell ? 'isles' : relateMode;
+  const relateShown = !mobileShell && (layoutMode === 'relate' || relateLeaving);
+  const [relateDragging, setRelateDragging] = useState<string | null>(null);
+  const relatePinnedIds = useMemo(() => new Set(relatePins.keys()), [relatePins]);
+
   const isleNeighbourhood = useMemo(
     () => (!mobileShell && isleFocus ? isleNeighbours(isleFocus, isleLines, relationPairs) : null),
     [mobileShell, isleFocus, isleLines, relationPairs],
@@ -683,6 +767,14 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
       height: (maxY - minY + 2) * CELL_H,
     };
   }, [layout.bounds]);
+
+  const relateNames = useMemo(() => new Map(bookElements.map((el) => [el.id, el.name])), [bookElements]);
+  // In 关系 the sand lines are drawn where the layout last came to rest.
+  const relateLineBounds = useMemo(() => {
+    if (!relateRest) return worldBounds;
+    const b = relateBounds(relateRest, relateNames);
+    return { left: b.minX - CELL_W, top: b.minY - CELL_H, width: b.maxX - b.minX + CELL_W * 2, height: b.maxY - b.minY + CELL_H * 2 };
+  }, [relateRest, relateNames, worldBounds]);
 
   // ---- Pan + zoom ----
   // Lazy initial state seeds the world transform so the FIRST frame already
@@ -736,13 +828,14 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
       const { minX, maxX, minY, maxY } = layout.bounds;
       const width = Math.max(1, (maxX - minX) * CELL_W);
       const height = Math.max(1, (maxY - minY) * CELL_H);
+      const room = viewport.clientWidth - CANVAS_TOOLS_RESERVE - 48;
       const zoom = Math.max(
         ZOOM_MIN,
-        Math.min(ISLES_LOD_ZOOM.mid, (viewport.clientWidth - 96) / width, (viewport.clientHeight - 96) / height),
+        Math.min(ISLES_LOD_ZOOM.mid, room / width, (viewport.clientHeight - 96) / height),
       );
       return {
         pan: {
-          x: viewport.clientWidth / 2 - ((minX + maxX) / 2) * CELL_W * zoom,
+          x: CANVAS_TOOLS_RESERVE + room / 2 - ((minX + maxX) / 2) * CELL_W * zoom,
           y: viewport.clientHeight / 2 - ((minY + maxY) / 2) * CELL_H * zoom,
         },
         zoom,
@@ -983,6 +1076,72 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
     [],
   );
 
+  // ---- Camera moves between layouts ----
+  // Switching layout carries the camera to the new layout's fit on the same
+  // ease as the elements; a wheel or a press takes the camera back.
+  const cameraFrameRef = useRef(0);
+  const stopCamera = useCallback(() => {
+    if (!cameraFrameRef.current) return;
+    cancelAnimationFrame(cameraFrameRef.current);
+    cameraFrameRef.current = 0;
+    setPan(panRef.current);
+    setZoom(zoomRef.current);
+    setPanningVisual(false);
+    window.dispatchEvent(new Event('super-element:pan-end'));
+  }, [setPanningVisual]);
+  const moveCamera = useCallback((to: { pan: { x: number; y: number }; zoom: number } | null, ms = RELATE_MOVE_MS) => {
+    if (!to) return;
+    if (cameraFrameRef.current) cancelAnimationFrame(cameraFrameRef.current);
+    cameraFrameRef.current = 0;
+    if (prefersReducedMotion()) {
+      panRef.current = to.pan;
+      zoomRef.current = to.zoom;
+      setPan(to.pan);
+      setZoom(to.zoom);
+      return;
+    }
+    const from = { pan: { ...panRef.current }, zoom: zoomRef.current };
+    const t0 = performance.now();
+    setPanningVisual(true);
+    const frame = (now: number) => {
+      const t = Math.min(1, (now - t0) / ms);
+      const k = relateEase(t);
+      panRef.current = { x: from.pan.x + (to.pan.x - from.pan.x) * k, y: from.pan.y + (to.pan.y - from.pan.y) * k };
+      zoomRef.current = from.zoom + (to.zoom - from.zoom) * k;
+      applyTransform();
+      if (t < 1) {
+        cameraFrameRef.current = requestAnimationFrame(frame);
+        return;
+      }
+      cameraFrameRef.current = 0;
+      setPan(panRef.current);
+      setZoom(zoomRef.current);
+      setPanningVisual(false);
+      window.dispatchEvent(new Event('super-element:pan-end'));
+    };
+    cameraFrameRef.current = requestAnimationFrame(frame);
+  }, [applyTransform, setPanningVisual]);
+  useEffect(() => () => {
+    if (cameraFrameRef.current) cancelAnimationFrame(cameraFrameRef.current);
+  }, []);
+  /** The camera that fits a 关系 layout into the window beside the canvas's corner. */
+  const fitRelate = useCallback((positions: ReadonlyMap<string, RelatePoint>) => {
+    const viewport = viewportRef.current;
+    if (!viewport || positions.size === 0) return null;
+    const b = relateBounds(positions, relateNames);
+    const room = viewport.clientWidth - CANVAS_TOOLS_RESERVE - 48;
+    const width = Math.max(1, b.maxX - b.minX);
+    const height = Math.max(1, b.maxY - b.minY);
+    const zoom = Math.max(ZOOM_MIN, Math.min(ISLES_LOD_ZOOM.mid, room / width, (viewport.clientHeight - 96) / height));
+    return {
+      pan: {
+        x: CANVAS_TOOLS_RESERVE + (room - width * zoom) / 2 - b.minX * zoom,
+        y: (viewport.clientHeight - height * zoom) / 2 - b.minY * zoom,
+      },
+      zoom,
+    };
+  }, [relateNames]);
+
   // Native wheel listener with passive:false so preventDefault is honored.
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -990,6 +1149,7 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
     const onWheel = (e: WheelEvent) => {
       // The island's editor scrolls itself.
       if ((e.target as Element | null)?.closest?.('[data-super-modal]')) return;
+      stopCamera();
       if (e.ctrlKey || e.metaKey) {
         // ⌘/Ctrl + wheel → zoom around cursor. Trackpad pinch-zoom on
         // macOS dispatches wheel with ctrlKey=true regardless of physical
@@ -1039,6 +1199,7 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
     clampPanXForSticky,
     clampPanYForSticky,
     clampZoomForSticky,
+    stopCamera,
   ]);
 
   // ---- Carrying (desktop) ----
@@ -1047,6 +1208,9 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
   // solver packs the rest around it). Neither captures the pointer until it
   // has moved, so a plain click still reaches the card or the name.
   const elementDragRef = useRef<{ id: string; pointerId: number; x: number; y: number; moved: boolean } | null>(null);
+  // In 关系 an element carried by the pointer is put where it lands (a pin);
+  // its neighbours follow while it moves.
+  const relateDragRef = useRef<{ id: string; pointerId: number; x: number; y: number; moved: boolean; offX: number; offY: number } | null>(null);
   const islandDragRef = useRef<{ id: string; pointerId: number; x: number; y: number; moved: boolean } | null>(null);
   const dragEndedAtRef = useRef(0);
   const ghostRef = useRef<HTMLDivElement | null>(null);
@@ -1072,9 +1236,15 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
+      stopCamera();
       if (!mobileShell && e.pointerType !== 'touch' && e.button === 0 && !e.shiftKey && !linkSource) {
         const target = e.target as Element | null;
         const card = target?.closest<HTMLElement>('[data-element-id]');
+        if (card?.dataset.elementId && relateShown) {
+          if (relateLeaving) return;
+          relateDragRef.current = { id: card.dataset.elementId, pointerId: e.pointerId, x: e.clientX, y: e.clientY, moved: false, offX: 0, offY: 0 };
+          return;
+        }
         if (card?.dataset.elementId) {
           elementDragRef.current = { id: card.dataset.elementId, pointerId: e.pointerId, x: e.clientX, y: e.clientY, moved: false };
           return;
@@ -1130,6 +1300,7 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
           target?.closest('[data-super-edge]') ||
           target?.closest('[data-relation-edge-popover]') ||
           target?.closest('[data-super-modal]') ||
+          target?.closest('[data-se-tools]') ||
           target?.closest('button') ||
           target?.closest('a') ||
           target?.closest('input') ||
@@ -1148,10 +1319,35 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
       e.currentTarget.setPointerCapture(e.pointerId);
       setPanningVisual(true);
     },
-    [setPanningVisual, mobileShell, linkSource, bookElementCategories],
+    [setPanningVisual, mobileShell, linkSource, bookElementCategories, stopCamera, relateShown, relateLeaving],
   );
   const handlePointerMove = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
+      const held = relateDragRef.current;
+      if (held && held.pointerId === e.pointerId) {
+        const rect = e.currentTarget.getBoundingClientRect();
+        const world = {
+          x: (e.clientX - rect.left - panRef.current.x) / zoomRef.current,
+          y: (e.clientY - rect.top - panRef.current.y) / zoomRef.current,
+        };
+        if (!held.moved) {
+          if (Math.abs(e.clientX - held.x) + Math.abs(e.clientY - held.y) < 5) return;
+          held.moved = true;
+          try {
+            e.currentTarget.setPointerCapture(e.pointerId);
+          } catch {
+            /* the pointer may already be gone */
+          }
+          hoverDismiss();
+          const at = relateLive.current.get(held.id) ?? world;
+          held.offX = at.x - world.x;
+          held.offY = at.y - world.y;
+          beginRelateDrag(held.id);
+          setRelateDragging(held.id);
+        }
+        dragRelateTo(held.id, { x: world.x + held.offX, y: world.y + held.offY });
+        return;
+      }
       const carry = elementDragRef.current ?? islandDragRef.current;
       if (carry && carry.pointerId === e.pointerId) {
         const rect = e.currentTarget.getBoundingClientRect();
@@ -1240,10 +1436,24 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
       applyTransform();
     },
     [applyTransform, clampPanXForSticky, clampPanYForSticky, clampZoomForSticky, hoverDismiss, bookElements,
-      bookElementCategories, categoryAtWorld],
+      bookElementCategories, categoryAtWorld, relateLive, beginRelateDrag, dragRelateTo],
   );
   const handlePointerUp = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
+      const held = relateDragRef.current;
+      if (held && held.pointerId === e.pointerId) {
+        relateDragRef.current = null;
+        if (!held.moved) return;
+        dragEndedAtRef.current = performance.now();
+        try {
+          e.currentTarget.releasePointerCapture(e.pointerId);
+        } catch {
+          /* capture may already be gone */
+        }
+        endRelateDrag(held.id);
+        setRelateDragging(null);
+        return;
+      }
       const carry = elementDragRef.current ?? islandDragRef.current;
       if (carry && carry.pointerId === e.pointerId) {
         const isElement = carry === elementDragRef.current;
@@ -1329,15 +1539,15 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
       setPanningVisual(false);
       window.dispatchEvent(new Event('super-element:pan-end'));
     },
-    [setPanningVisual, updateElement, updateCategory, placementById],
+    [setPanningVisual, updateElement, updateCategory, placementById, endRelateDrag],
   );
 
   // Reset view on demand — centers the band and resets zoom.
   const resetView = useCallback(() => {
-    const initial = initialCenter();
+    const initial = (relateShown ? fitRelate(relateLive.current) : null) ?? initialCenter();
     setPan(initial.pan);
     setZoom(initial.zoom);
-  }, [initialCenter]);
+  }, [initialCenter, relateShown, fitRelate, relateLive]);
 
   // ---- Entity click router ----
   // All shift-click pairing + popover-opening flows through here so element
@@ -1606,7 +1816,10 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
   const driftEdges = useMemo(() => projectSuperElementDriftEdges({ entityRelations,
     hiddenRelationTypeIds, driftIds, relationTypeById, resolveRelationTypeColor }),
   [entityRelations, hiddenRelationTypeIds, driftIds, relationTypeById, resolveRelationTypeColor]);
-  const driftLayoutRevision = useMemo(() => ({ elementCenters, driftNodes }), [elementCenters, driftNodes]);
+  const driftLayoutRevision = useMemo(
+    () => ({ elementCenters: relateShown ? relateRest : elementCenters, driftNodes }),
+    [relateShown, relateRest, elementCenters, driftNodes],
+  );
 
   const viewportEdgeLayerRef = useRef<SVGSVGElement | null>(null);
   const viewportConfig = useMemo(() => ({ bandSticky, edgesViewportOnly, bandHeightCells, bandTopWorldY,
@@ -1642,7 +1855,7 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
   const lod: IslesLod = islesLod(zoom);
   const flyToElement = useCallback((id: string) => {
     const viewport = viewportRef.current;
-    const center = elementCenters.get(id);
+    const center = relateShown ? (relateLive.current.get(id) ?? elementCenters.get(id)) : elementCenters.get(id);
     if (!viewport || !center) return;
     const target = Math.max(zoomRef.current, ISLES_LOD_ZOOM.mid);
     setPan({ x: viewport.clientWidth / 2 - center.x * target, y: viewport.clientHeight / 2 - center.y * target });
@@ -1650,7 +1863,7 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
     setIsleFocus(id);
     setIsleCategory(null);
     setIsolated(false);
-  }, [elementCenters]);
+  }, [elementCenters, relateShown, relateLive]);
   // The island's subject stays in the canvas left of the island: when it
   // sits under the sheet (or the card) or off screen, the canvas slides it
   // into the middle of what is left. `sheetRatio` is null for the card.
@@ -1660,7 +1873,7 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
     let x: number;
     let y: number;
     if (subject.kind === 'element') {
-      const center = elementCenters.get(subject.id);
+      const center = relateShown ? (relateLive.current.get(subject.id) ?? elementCenters.get(subject.id)) : elementCenters.get(subject.id);
       if (!center) return;
       x = center.x * zoomRef.current + panRef.current.x;
       y = center.y * zoomRef.current + panRef.current.y;
@@ -1684,14 +1897,171 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
       x: panRef.current.x + (insideX ? 0 : free / 2 - x),
       y: panRef.current.y + (insideY ? 0 : viewport.clientHeight / 2 - y),
     });
-  }, [elementCenters]);
+  }, [elementCenters, relateShown, relateLive]);
   const focusIsleElement = useCallback((id: string) => {
     setIsleFocus(id);
     setIsleCategory(null);
     revealBesideIsland({ kind: 'element', id }, islandMode === 'sheet' ? islandWidth : null);
   }, [revealBesideIsland, islandMode, islandWidth]);
+  // Where an island shows an element's mark and name at a distance: a 关系
+  // cell starts from there and goes back there, so a change of layout
+  // never jumps.
+  const isleStartsAt = useCallback((at: IslesLod) => {
+    const out = new Map<string, RelatePoint>();
+    if (mobileShell) return out;
+    const widthOf = new Map(categoryModels.map((model) => [model.categoryId, model.widthCells]));
+    for (const el of bookElements) {
+      const center = elementCenters.get(el.id);
+      if (!center) continue;
+      if (at === 'far') {
+        out.set(el.id, { x: center.x, y: center.y });
+        continue;
+      }
+      // The island cell sits 3px into its column with 7px of padding; a 关系
+      // cell has 8px. Close up the island cell's title rides at its top.
+      const colStep = cardColStep(widthOf.get(center.categoryId) ?? 1);
+      out.set(el.id, {
+        x: center.x - colStep / 2 + 3 + 7 - 8 + relateCellHalf(el.name).hw,
+        y: at === 'near' ? center.y - CELL_H / 2 + 3 + 5 + 7 : center.y,
+      });
+    }
+    return out;
+  }, [mobileShell, categoryModels, bookElements, elementCenters]);
+  const isleStarts = useMemo(() => isleStartsAt(lod), [isleStartsAt, lod]);
+  const [islesPhase, setIslesPhase] = useState<'leaving' | 'arriving' | null>(null);
+  const islesPhaseTimer = useRef(0);
+  const fadeIsles = useCallback((phase: 'leaving' | 'arriving') => {
+    window.clearTimeout(islesPhaseTimer.current);
+    if (prefersReducedMotion()) {
+      setIslesPhase(null);
+      return;
+    }
+    setIslesPhase(phase);
+    islesPhaseTimer.current = window.setTimeout(() => setIslesPhase(null), 340);
+  }, []);
+  useEffect(() => () => window.clearTimeout(islesPhaseTimer.current), []);
+  const chooseLayout = useCallback((next: ElementLayoutMode) => {
+    if (mobileShell || next === layoutMode) return;
+    hoverDismiss();
+    clearSelectedEdge();
+    if (next === 'relate') {
+      setRelateMode('relate');
+      setRelateLeaving(false);
+      // From the islands the cells start where the islands show them; caught
+      // on their way back, they turn round where they are.
+      if (!relateShown) {
+        fadeIsles('leaving');
+        placeRelate(isleStarts);
+      }
+      if (relateRest) {
+        // The layout this book was last left in, newcomers on their islands.
+        const target = new Map(relateRest);
+        for (const [id, point] of isleStarts) if (!target.has(id)) target.set(id, point);
+        moveRelateTo(target);
+        moveCamera(fitRelate(target));
+      } else {
+        moveCamera(fitRelate(settleRelateLayout(isleStarts, 1)), 900);
+      }
+      return;
+    }
+    setRelateMode('isles');
+    setRelateLeaving(true);
+    const camera = initialCenter();
+    moveRelateTo(isleStartsAt(islesLod(camera.zoom)), () => {
+      setRelateLeaving(false);
+      fadeIsles('arriving');
+    });
+    moveCamera(camera);
+  }, [mobileShell, layoutMode, relateShown, hoverDismiss, clearSelectedEdge, setRelateMode, fadeIsles, placeRelate, isleStarts,
+    relateRest, moveRelateTo, moveCamera, fitRelate, settleRelateLayout, initialCenter, isleStartsAt]);
+  // Opened in 关系 with no layout yet, or what pulls on it changed (a new
+  // relation, a filter, the threshold): settle again from where the
+  // elements are, newcomers starting from their islands. The prose has to
+  // be read first, or its lines would arrive as a second change.
+  const mentionsRead = mentionGraph !== null;
+  useEffect(() => {
+    if (!relateShown || relateLeaving || relateMoving || relateDragging || relateCurrent || !mentionsRead) return;
+    const first = relateLive.current.size === 0;
+    const start = new Map(relateLive.current);
+    for (const [id, point] of isleStarts) if (!start.has(id)) start.set(id, point);
+    const end = settleRelateLayout(start, first ? 1 : 0.4);
+    if (first) moveCamera(fitRelate(end), 900);
+  }, [relateShown, relateLeaving, relateMoving, relateDragging, relateCurrent, mentionsRead, relateLive, isleStarts,
+    settleRelateLayout, moveCamera, fitRelate]);
+  const rearrangeRelate = useCallback(() => {
+    hoverDismiss();
+    moveCamera(fitRelate(relayoutRelate()), 900);
+  }, [hoverDismiss, moveCamera, fitRelate, relayoutRelate]);
+
   const hoveredElementId = hoverPreview?.data.kind === 'element' ? hoverPreview.data.id : null;
   const activeIsleElement = mobileShell ? null : (carried?.id ?? hoveredElementId ?? isleFocus);
+  const relateEdges = useMemo<RelateEdgeView[]>(() => {
+    if (mobileShell) return [];
+    const elementEdges = worldEdges.filter((edge) => edge.fromKind === 'element' && edge.toKind === 'element');
+    const pairs = new Map<string, string[]>();
+    const pairOf = (edge: (typeof elementEdges)[number]) => (edge.fromId < edge.toId ? `${edge.fromId}|${edge.toId}` : `${edge.toId}|${edge.fromId}`);
+    for (const edge of elementEdges) {
+      const key = pairOf(edge);
+      const group = pairs.get(key);
+      if (group) group.push(edge.id); else pairs.set(key, [edge.id]);
+    }
+    return elementEdges.map((edge) => {
+      const group = pairs.get(pairOf(edge)) ?? [edge.id];
+      return {
+        id: edge.id,
+        fromId: edge.fromId,
+        toId: edge.toId,
+        color: edge.color,
+        roles: relateRoles(edge.relationTypeId),
+        bend: relateBend(group.indexOf(edge.id), group.length),
+        title: `${edge.fromName} → ${edge.toName}  ·  ${resolveRelationTypeLabel(edge.relationTypeId)}`,
+      };
+    });
+  }, [mobileShell, worldEdges, relateRoles, resolveRelationTypeLabel]);
+  // Role names on every line while the window holds few; in a crowded one,
+  // and from far away, only on the lines of the element under the pointer
+  // or in focus. The window is the whole Super View, so its size is the
+  // window's.
+  const relateCrowded = useMemo(() => {
+    if (!relateShown || !relateRest || typeof window === 'undefined') return false;
+    const inView = (point: RelatePoint) => {
+      const x = point.x * zoom + pan.x;
+      const y = point.y * zoom + pan.y;
+      return x > 0 && x < window.innerWidth && y > 0 && y < window.innerHeight;
+    };
+    let count = 0;
+    for (const edge of relateEdges) {
+      const a = relateRest.get(edge.fromId);
+      const b = relateRest.get(edge.toId);
+      if (a && b && inView(a) && inView(b)) count += 1;
+    }
+    return count > RELATE_LABEL_BUDGET;
+  }, [relateShown, relateRest, relateEdges, pan, zoom]);
+  const categoryColorById = useMemo(
+    () => new Map(bookElementCategories.map((category) => [category.id, category.color])),
+    [bookElementCategories],
+  );
+  const relateColorOf = useCallback(
+    (element: BookElement) => (element.categoryId ? categoryColorById.get(element.categoryId) : undefined) ?? undefined,
+    [categoryColorById],
+  );
+  // From far away the 关系 layout keeps a dozen names, the most mentioned.
+  const relateMajorIds = useMemo(() => {
+    if (!relateShown || !mentionGraph) return new Set<string>();
+    return new Set([...mentionGraph.elements]
+      .filter(([id, entry]) => entry.mentions > 0 && presentElementIds.has(id))
+      .sort((a, b) => b[1].mentions - a[1].mentions)
+      .slice(0, 12)
+      .map(([id]) => id));
+  }, [relateShown, mentionGraph, presentElementIds]);
+  // Names and role names read from far away at the size they have up close.
+  const relateFarScale = lod === 'far' ? Math.min(2.4, ISLES_LOD_ZOOM.mid / zoom) : 1;
+  const relateSelectedEdges = useMemo(() => {
+    const ids = new Set(focusConnected?.edgeIds ?? []);
+    if (selectedEdgeId) ids.add(selectedEdgeId);
+    return ids;
+  }, [focusConnected, selectedEdgeId]);
+
   const isleChapters = useMemo(
     () => sortedPlacedNodesAll.map((node) => ({ id: node.id, title: node.title, color: storylineColorOfNode(node.id) ?? null })),
     [sortedPlacedNodesAll, storylineColorOfNode],
@@ -1771,28 +2141,9 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
           elements: bookElements.length,
         })}
         onBack={close}
-        relationMenuLead={mobileShell ? undefined : (
-          // The automatic sand lines live with the relation filters: two
-          // elements mentioned in one paragraph of a chapter. How many
-          // times (`lineThreshold`) is set in the header.
-          <section className="relation-kind-menu__section se-lines-section">
-            <div className="relation-kind-menu__section-label">{t('superElement.isles.linesSection')}</div>
-            <div className="relation-kind-menu__chips">
-              <FilterChip
-                look="glass"
-                size="sm"
-                data-se-lines=""
-                active={linesOn}
-                markerColor="hsl(var(--ink-3))"
-                count={isleLines.length}
-                onClick={() => setLinesOn((value) => !value)}
-              >
-                {t('superElement.isles.lines')}
-              </FilterChip>
-            </div>
-            <div className="se-lines-section__hint">{t('superElement.isles.linesTitle')}</div>
-          </section>
-        )}
+        // Desktop keeps its relation types with the lines they name: the
+        // legend in the canvas's corner (SuperElementCanvasTools).
+        relationControl={mobileShell}
         rightSlot={
           <>
             {mobileShell && (
@@ -1897,6 +2248,12 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
                   />
                 </label>
                 <SuperElementLineThreshold value={lineThreshold} onChange={setLineThreshold} />
+                {layoutMode === 'relate' && (
+                  <Button variant="ghost" size="sm" onClick={rearrangeRelate} title={t('superElement.relate.relayoutTitle')}>
+                    <BrushIcon name="spread" size={13} />
+                    {t('superElement.relate.relayout')}
+                  </Button>
+                )}
                 <Button variant="ghost" size="sm" onClick={resetView} title={t('superElement.resetTitle')}>
                   <BrushIcon name="rotate" size={13} />
                   {t('superElement.reset')}
@@ -1926,7 +2283,8 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
           cursor: 'grab',
           touchAction: 'none',
           userSelect: 'none',
-        }}
+          ...(relateShown ? { '--se-far-scale': relateFarScale.toFixed(3) } : null),
+        } as React.CSSProperties}
       >
         {/* World transform — pan + zoom about origin. The transform string
             is written directly via ref by pan/zoom handlers; React state
@@ -1978,22 +2336,26 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
           {!mobileShell && (
             <SuperElementIsleLines
               pairs={isleLines}
-              centers={elementCenters}
-              bounds={worldBounds}
+              centers={relateShown ? (relateRest ?? elementCenters) : elementCenters}
+              bounds={relateShown ? relateLineBounds : worldBounds}
               active={activeIsleElement}
               visible={isolated ? isleNeighbourhood : null}
+              hidden={relateShown && (relateMoving || relateLeaving || !relateRest)}
             />
           )}
 
-          {/* Categories above + below */}
-          {categoryModels.map((model) => {
+          {/* Categories above + below; their washes fade while the elements
+              leave for 关系 or come back. */}
+          {(!relateShown || islesPhase === 'leaving') && categoryModels.map((model) => {
             const placement = placementById.get(model.categoryId);
             if (!placement) return null;
+            const leaving = relateShown;
             return (
               <SuperElementCategoryBox
                 key={model.categoryId}
                 model={model}
                 placement={placement}
+                phase={leaving ? 'leaving' : islesPhase === 'arriving' ? 'arriving' : undefined}
                 linkSourceElementId={linkSource?.kind === 'element' ? linkSource.id : null}
                 focusedElementId={focusedElementId}
                 connectedElementIds={mobileShell ? (focusConnected?.elementIds ?? null) : isleNeighbourhood}
@@ -2003,7 +2365,7 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
                 dropTarget={dropCategoryId === model.categoryId}
                 draggingElementId={carried?.id ?? null}
                 pinnedLabel={!mobileShell && model.category?.layoutMode === 'pinned' ? t('superElement.isles.pinned') : null}
-                elementCardRefs={elementCardRefs}
+                elementCardRefs={leaving ? undefined : elementCardRefs}
                 onElementClick={handleElementClick}
                 onCategoryClick={handleCategoryClick}
                 onElementPreviewEnter={handleElementPreviewEnter}
@@ -2028,7 +2390,38 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
               position. Same handover happens when 聚焦 is on — that mode
               filters edges by viewport visibility, which also needs the
               committed pan/zoom for the math. */}
-          {!bandSticky && !edgesViewportOnly && (
+          {relateShown && (
+            <SuperElementRelateLayer
+              ref={relateLayerRef}
+              elements={bookElements}
+              colorOf={relateColorOf}
+              live={relateLive}
+              fallback={isleStarts}
+              edges={relateEdges}
+              roleLabels={lod === 'far' || relateCrowded ? 'active' : 'all'}
+              labelScale={relateFarScale}
+              activeElementId={relateDragging ?? activeIsleElement}
+              selectedEdgeIds={relateSelectedEdges}
+              receding={isolated && isleFocus ? 'hide' : isleFocus !== null ? 'recede' : 'none'}
+              focusedElementId={focusedElementId}
+              connectedElementIds={isleNeighbourhood}
+              dimmedElementIds={dimmedElementIds}
+              hiddenElementIds={hiddenElementIds}
+              markWeights={markWeights}
+              linkSourceElementId={linkSource?.kind === 'element' ? linkSource.id : null}
+              draggingElementId={relateDragging}
+              pinnedElementIds={relatePinnedIds}
+              majorElementIds={relateMajorIds}
+              elementCardRefs={elementCardRefs}
+              edgeWidths={edgeWidths}
+              onElementClick={handleElementClick}
+              onElementPreviewEnter={handleElementPreviewEnter}
+              onPreviewLeave={hoverLeave}
+              selectEdge={selectEdge}
+            />
+          )}
+
+          {!relateShown && !bandSticky && !edgesViewportOnly && (
             <svg
               style={{
                 position: 'absolute',
@@ -2100,6 +2493,16 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
             </svg>
           )}
         </div>
+
+        {!mobileShell && (
+          <SuperElementCanvasTools
+            layout={layoutMode}
+            onLayout={chooseLayout}
+            linesOn={linesOn}
+            linesCount={thresholdLines.length}
+            onToggleLines={() => setLinesOn((value) => !value)}
+          />
+        )}
 
         {/* Viewport-space edge layer — rendered when EITHER 粘带 or 聚焦
             is on. Mirrors the world-space edge SVG above (path + hit-target
@@ -2193,6 +2596,8 @@ export function DesktopSuperElementView({ graphUi, driftPanel }: GraphViewProps)
                 companions={isleDetail.companions}
                 relations={isleDetail.relations}
                 isolated={isolated}
+                pinnedLabel={relateShown && relatePins.has(isleDetail.element.id) ? t('superElement.isles.pinned') : null}
+                onUnpin={relateShown && relatePins.has(isleDetail.element.id) ? () => unpinRelate(isleDetail.element.id) : undefined}
                 onIsolate={() => setIsolated((value) => !value)}
                 onFocus={focusIsleElement}
                 onEdit={growIsland}
