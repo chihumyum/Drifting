@@ -6,7 +6,7 @@ import type {
 import { platform } from '../platform';
 import { ensureLocalAuthoredAssetBlobVerified } from '../sync/assets/local-authored-blob';
 import { assertHostedQuotaAllows } from '../sync/hosted/quota';
-import { assetStoreService, extForMime } from './asset-store.service';
+import { assetStoreService, extForMime, PDF_THUMBNAIL } from './asset-store.service';
 
 export interface PrepareLocalProjectAssetInput {
   projectId: string;
@@ -103,7 +103,11 @@ export async function prepareLocalProjectAsset(
     }
 
     const [thumbnail, sha256] = await Promise.all([
-      platform.material.createThumbnailVariant(input.sourcePath, 512, 72),
+      platform.material.createThumbnailVariant(
+        input.sourcePath,
+        PDF_THUMBNAIL.size,
+        PDF_THUMBNAIL.quality,
+      ),
       sourceSha256(input.sourcePath),
     ]);
     if (!thumbnail.ok) throw new Error(thumbnail.error);

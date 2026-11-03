@@ -25,7 +25,7 @@ import { syncConnectErrorText } from '../../../sync/hosted/connect-error-text';
 import { useShareLinksDialogStore } from '../../share-links/share-links-dialog-store';
 
 export function AccountPanel({ registerRef }: { registerRef: SettingsRegisterRef }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const openSignIn = useOpenSignIn();
   const user = useAuthStore((s) => s.hostedUser);
   const status = useAuthStore((s) => s.hostedStatus);
@@ -184,7 +184,7 @@ export function AccountPanel({ registerRef }: { registerRef: SettingsRegisterRef
                     : running || waiting || !syncedAt
                       ? t('settings.hosted.pending')
                       : t('settings.hosted.last_synced', {
-                          time: new Date(syncedAt).toLocaleString(),
+                          time: new Date(syncedAt).toLocaleString(i18n.language),
                         })
             }
             control={

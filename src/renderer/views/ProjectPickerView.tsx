@@ -1,3 +1,4 @@
+import { formatRelativeTime as formatRelative } from '../../shared/locale-format';
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -89,41 +90,6 @@ function glyphFor(name: string): string {
   // Match first letter / CJK char with Unicode aware regex
   const m = trimmed.match(/[\p{L}\p{N}]/u);
   return (m ? m[0] : trimmed[0]).toUpperCase();
-}
-
-function isZh(locale: string): boolean {
-  return locale.startsWith('zh');
-}
-
-function formatRelative(iso: string, locale: string): string {
-  if (!iso) return '—';
-  const then = new Date(iso).getTime();
-  if (Number.isNaN(then)) return '—';
-  const diff = Math.max(0, Date.now() - then);
-  const min = 60_000;
-  const hr = 60 * min;
-  const day = 24 * hr;
-  const zh = isZh(locale);
-  if (diff < min) return zh ? '刚刚' : 'just now';
-  if (diff < hr) {
-    const n = Math.floor(diff / min);
-    return zh ? `${n} 分钟前` : `${n} min ago`;
-  }
-  if (diff < day) {
-    const n = Math.floor(diff / hr);
-    return zh ? `${n} 小时前` : `${n} hr ago`;
-  }
-  if (diff < 2 * day) return zh ? '昨天' : 'yesterday';
-  if (diff < 30 * day) {
-    const n = Math.floor(diff / day);
-    return zh ? `${n} 天前` : `${n} days ago`;
-  }
-  if (diff < 365 * day) {
-    const n = Math.floor(diff / (30 * day));
-    return zh ? `${n} 月前` : `${n} mo ago`;
-  }
-  const n = Math.floor(diff / (365 * day));
-  return zh ? `${n} 年前` : `${n} yr ago`;
 }
 
 function formatCreated(iso: string): string {
@@ -953,7 +919,7 @@ interface TrashDialogProps {
 /** Moving a book to Recently Deleted; it can come back for 30 days, but the
  * button still says danger, and the dialog opens on Cancel. */
 function TrashDialog({ project, error, busy, onConfirm, onClose }: TrashDialogProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const stats = project.stats;
   const title = t('projectPicker.desk.trashTitle', { name: project.name });
   return (
@@ -963,7 +929,7 @@ function TrashDialog({ project, error, busy, onConfirm, onClose }: TrashDialogPr
         <ModalBody>
           <p>
             {t('projectPicker.trash.body', {
-              words: stats.wordsReady ? stats.words.toLocaleString() : t('common.counting'),
+              words: stats.wordsReady ? stats.words.toLocaleString(i18n.language) : t('common.counting'),
               nodes: stats.chapters,
               elements: stats.elements,
             })}
@@ -1236,7 +1202,7 @@ interface DeleteModalProps {
 }
 
 function DeleteModal({ project, error, busy, onConfirm, onClose }: DeleteModalProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !busy) onClose();
@@ -1264,7 +1230,7 @@ function DeleteModal({ project, error, busy, onConfirm, onClose }: DeleteModalPr
         <div className="pp-modal__body">
           <p className="pp-modal__sub">
             {t('projectPicker.trash.body', {
-              words: stats.wordsReady ? stats.words.toLocaleString() : t('common.counting'),
+              words: stats.wordsReady ? stats.words.toLocaleString(i18n.language) : t('common.counting'),
               nodes: stats.chapters,
               elements: stats.elements,
             })}

@@ -77,13 +77,45 @@ function staticImportClosures(read: (file: string) => string = (file) => fs.read
  */
 function deferredStylesheetsOutsideShell(read?: (file: string) => string): string[] {
   const closure = staticImportClosures(read);
-  const html = fs.readFileSync(path.join(repositoryRoot, 'index.html'), 'utf8');
-  const htmlEntry = /<script type="module" src="\/([^"]+)"/.exec(html)?.[1];
-  expect(htmlEntry).toBe('src/renderer/main.tsx');
-  const shell = new Set([...closure(htmlEntry!), ...closure('src/renderer/app/project-route-components.tsx')]);
+  const shell = shellClosure(closure);
   return deferredEntries().flatMap(({ entry }) => [...closure(entry)]
     .filter((file) => file.endsWith('.css') && !shell.has(file))
     .map((file) => `${entry} -> ${file.startsWith('npm:') ? file : path.relative(repositoryRoot, file)}`));
+}
+
+/** The Super View entries (`vite-plugins/deferred-super-views.ts`). */
+const superViewEntryIds = ['virtual:graph-ui', 'virtual:story-graph', 'virtual:element-graph', 'virtual:memo-material'];
+
+/**
+ * Source modules that two Super View entries import but the shell does not.
+ * Rollup splits each into a chunk both entries import statically: outside the
+ * shell and outside the entries' retry keys, so a failed fetch of it cannot
+ * be retried (`scripts/run-renderer-deferred-graphs.mjs` rejects it as a cold
+ * dependency). Such code belongs behind the graph UI facade or with one owner.
+ * The settings entries nest by design and have their own entry benchmark.
+ */
+function superViewModulesSharedOutsideShell(read?: (file: string) => string): string[] {
+  const closure = staticImportClosures(read);
+  const shell = shellClosure(closure);
+  const owners = new Map<string, string[]>();
+  const entries = deferredEntries().filter(({ id }) => superViewEntryIds.includes(id));
+  expect(entries.map(({ id }) => id).sort()).toEqual([...superViewEntryIds].sort());
+  for (const { entry } of entries) {
+    for (const file of closure(entry)) {
+      if (file.startsWith('npm:') || file.endsWith('.css') || shell.has(file)) continue;
+      owners.set(file, [...(owners.get(file) ?? []), entry]);
+    }
+  }
+  return [...owners].filter(([, entries]) => entries.length > 1)
+    .map(([file, entries]) => `${path.relative(repositoryRoot, file)} <- ${entries.join(', ')}`);
+}
+
+/** The shell: the HTML entry plus the project route-code gate. */
+function shellClosure(closure: ReturnType<typeof staticImportClosures>): Set<string> {
+  const html = fs.readFileSync(path.join(repositoryRoot, 'index.html'), 'utf8');
+  const htmlEntry = /<script type="module" src="\/([^"]+)"/.exec(html)?.[1];
+  expect(htmlEntry).toBe('src/renderer/main.tsx');
+  return new Set([...closure(htmlEntry!), ...closure('src/renderer/app/project-route-components.tsx')]);
 }
 
 function source(relativePath: string): string {
@@ -138,6 +170,21 @@ describe('renderer ownership boundaries', () => {
       'src/renderer/features/settings/panels/AgentSettingsPanel.tsx',
     ]));
     expect(deferredStylesheetsOutsideShell()).toEqual([]);
+  });
+
+  it('gives every module two Super View entries share to the shell or the graph UI facade', () => {
+    expect(superViewModulesSharedOutsideShell()).toEqual([]);
+  });
+
+  it('reports a module two Super View entries share outside the shell', () => {
+    const story = path.join(rendererRoot, 'shells/desktop/views/DesktopStoryGraphView.tsx');
+    const sharedHook = (file: string) => {
+      const text = fs.readFileSync(file, 'utf8');
+      return file === story ? `${text}\nexport { useCanvasHoverCard } from '../../../features/graph/canvas-hover-card';` : text;
+    };
+    expect(superViewModulesSharedOutsideShell(sharedHook)).toEqual([
+      'src/renderer/features/graph/canvas-hover-card.ts <- src/renderer/features/graph/graph-ui-components.ts, src/renderer/shells/desktop/views/DesktopStoryGraphView.tsx',
+    ]);
   });
 
   it('reports a deferred view stylesheet the shell stops owning', () => {

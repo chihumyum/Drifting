@@ -45,7 +45,7 @@ export function TrashPanel() {
 }
 
 function TrashPanelInner({ projectId, userId }: { projectId: string; userId: string }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const nodeUC = useBookNode({ projectId, userId });
   const elementUC = useBookElement({ projectId, userId });
   const storylineUC = useStoryline({ projectId, userId });
@@ -175,7 +175,7 @@ function TrashPanelInner({ projectId, userId }: { projectId: string; userId: str
               <div key={`${it.kind}:${it.id}`} className="set-trash__row menu-surface__item">
                 <KindMark kind={it.kind} seed={it.id} title={t(`trashPanel.kind.${it.kind}`)} />
                 <span className="set-trash__label">{it.label}</span>
-                <span className="set-trash__when">{new Date(it.deletedAt).toLocaleString()}</span>
+                <span className="set-trash__when">{new Date(it.deletedAt).toLocaleString(i18n.language)}</span>
                 <span className="set-trash__actions">
                   <Button variant="ghost" size="sm" disabled={busy} onClick={() => void restore(it)}>
                     <BrushIcon name="rotate" size={12} />
@@ -237,7 +237,7 @@ function TrashPanelInner({ projectId, userId }: { projectId: string; userId: str
                 <td style={{ padding: '8px 4px', color: 'hsl(var(--ink-3))' }}>{t(`trashPanel.kind.${it.kind}`)}</td>
                 <td style={{ padding: '8px 4px' }}>{it.label}</td>
                 <td style={{ padding: '8px 4px', color: 'hsl(var(--ink-4))', fontSize: 11 }}>
-                  {new Date(it.deletedAt).toLocaleString()}
+                  {new Date(it.deletedAt).toLocaleString(i18n.language)}
                 </td>
                 <td style={{ padding: '8px 4px', textAlign: 'right', whiteSpace: 'nowrap' }}>
                   <button className="set-btn" disabled={busy} onClick={() => void restore(it)}>

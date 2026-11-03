@@ -1,9 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import { useHoverPreview, type EntityHoverTarget } from '../entities/hover/entity-hover-card-model';
 
-// The Super View cards unfold the same choice sections as the sidebars'.
-export { withDriftGroupChoices, withElementCategoryChoices } from '../entities/hover/hover-choices';
-
 /**
  * Hover-card state for the Super View canvases, where the cards carry what
  * the right-click menus used to. While `blocked` (a click popover, link

@@ -50,7 +50,7 @@ export function MobileEntityPreviewSheet({
   onClose: () => void;
   onInsert: () => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const presentation = useMobilePaperPresentation(target);
   const data = useDataStoreFields(
     'bookNodes',
@@ -76,7 +76,7 @@ export function MobileEntityPreviewSheet({
         fields.push({ label: '状态', value: statusLabel(node.writingStatus) });
         fields.push({
           label: '字数',
-          value: canonicalWordCount(node)?.toLocaleString() ?? t('common.counting'),
+          value: canonicalWordCount(node)?.toLocaleString(i18n.language) ?? t('common.counting'),
         });
         if (isChapter(node)) {
           const storyline = data.storylines.find(

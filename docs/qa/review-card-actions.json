@@ -1,0 +1,51 @@
+{
+  "status": "passed",
+  "fingerprint": "307a32161a7f059ce3ef2703131b91bef2a446085d57f21e8e6aba3532dfdf28",
+  "sources": [
+    "src/renderer/features/comments/ReviewItemCard.tsx",
+    "src/renderer/features/comments/CommentSourceHoverCard.tsx",
+    "src/renderer/features/comments/use-comment-source-hover.ts",
+    "src/renderer/features/comments/CommentBodyEditor.tsx",
+    "src/renderer/features/comments/review-stats-sand-glass.render.test.ts",
+    "src/renderer/features/entities/hover/entity-hover-card-model.ts",
+    "src/renderer/components/ui/HoverCard.tsx",
+    "src/styles/comments-review.css",
+    "src/styles/ui-controls.css",
+    "scripts/todo-edit-ui.html",
+    "scripts/todo-edit-ui.tsx",
+    "scripts/run-review-card-actions-acceptance.mjs"
+  ],
+  "checks": {
+    "desktopReviewListHasNoMoreButtons": true,
+    "desktopStickyCardsKeepMoreButtons": true,
+    "panelHasNoMoreButton": true,
+    "panelReachableByTabWithVisibleFocus": true,
+    "panelTabFocusDoesNotOpenActions": true,
+    "panelShiftF10OpensActions": true,
+    "panelActionsUseFixedBodyPortal": true,
+    "panelEscapeRestoresCardFocus": true,
+    "panelMenuKeyOpensActions": true,
+    "panelKeyboardEditKeepsEditorFocus": true,
+    "panelEditorShortcutDoesNotReopenActions": true,
+    "panelPointerHoverStillOpensActions": true,
+    "panelPointerCanReachActions": true,
+    "noteHasNoMoreButton": true,
+    "noteReachableByTabWithVisibleFocus": true,
+    "noteTabFocusDoesNotOpenActions": true,
+    "noteShiftF10OpensActions": true,
+    "noteActionsUseFixedBodyPortal": true,
+    "noteEscapeRestoresCardFocus": true,
+    "noteMenuKeyOpensActions": true,
+    "noteKeyboardEditKeepsEditorFocus": true,
+    "noteEditorShortcutDoesNotReopenActions": true,
+    "notePointerHoverStillOpensActions": true,
+    "notePointerCanReachActions": true
+  },
+  "uncaughtErrors": [],
+  "boundary": {
+    "data": "synthetic",
+    "input": "Chromium CDP pointer and keyboard",
+    "sqlite": "not_run",
+    "nativeInteraction": "not_run"
+  }
+}

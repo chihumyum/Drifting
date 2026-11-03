@@ -27,6 +27,7 @@ vi.mock('./asset-store.service', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./asset-store.service')>();
   return {
     extForMime: actual.extForMime,
+    PDF_THUMBNAIL: actual.PDF_THUMBNAIL,
     assetStoreService: {
       beginImport: mocks.beginImport,
       copyFile: mocks.copyFile,

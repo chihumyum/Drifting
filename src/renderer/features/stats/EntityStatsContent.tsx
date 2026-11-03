@@ -318,7 +318,7 @@ function ChapterStats({
   primaryStorylineId: string | null;
   chapterNumber: number | null;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const storyline = primaryStorylineId
     ? storylines.find((s) => s.id === primaryStorylineId)
     : undefined;
@@ -371,7 +371,7 @@ function ChapterStats({
       <StatsSection title={t('rightSidebar.stats.wordRhythm')} topBorder>
         <StatsRow
           k={t('rightSidebar.stats.chapterWordCount')}
-          v={canonicalWordCount(node)?.toLocaleString() ?? t('common.counting')}
+          v={canonicalWordCount(node)?.toLocaleString(i18n.language) ?? t('common.counting')}
         />
         <StatsRow
           k={t('rightSidebar.stats.paragraphSentence')}
@@ -457,7 +457,7 @@ function StorylineStats({
   bookElements: ReturnType<typeof useDataStore.getState>['bookElements'];
   categories: ReturnType<typeof useDataStore.getState>['bookElementCategories'];
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const total = nodes.length;
   const chapterNodes = nodes.filter(isChapter);
   const metricsReady = chapterNodes.every(hasCanonicalWordCount);
@@ -536,7 +536,7 @@ function StorylineStats({
               v={
                 metricsReady
                   ? t('rightSidebar.stats.wordsPerChapterValue', {
-                      words: avgWc.toLocaleString(),
+                      words: avgWc.toLocaleString(i18n.language),
                     })
                   : t('common.counting')
               }

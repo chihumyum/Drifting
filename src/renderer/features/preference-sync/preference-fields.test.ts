@@ -39,7 +39,8 @@ describe('synced preference fields', () => {
     expect(applyPreference('caretColor', 'red')).toBe(false);
     expect(applyPreference('entityLinkColorMode', 'rainbow')).toBe(false);
     expect(applyPreference('entityLinkColorMode', 'kind')).toBe(true);
-    expect(applyPreference('uiLocale', 'fr')).toBe(false);
+    expect(applyPreference('uiLocale', 'fr')).toBe(true);
+    expect(applyPreference('uiLocale', 'xx')).toBe(false);
     expect(applyPreference('agentTurnIterationLimit', null)).toBe(true);
     expect(settings.getState().agentTurnIterationLimit).toBeNull();
     expect(applyPreference('editorFontSource', 'system-mono')).toBe(false);

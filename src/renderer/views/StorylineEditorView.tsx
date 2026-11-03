@@ -53,7 +53,7 @@ type ChapterFilter = 'all' | 'written' | 'unwritten';
 export function StorylineEditorView({
   storylineIdOverride,
 }: { storylineIdOverride?: string } = {}) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { isCommandActive, isVisible } = useEditorSurfaceLifecycle();
   const params = useParams<{ projectId: string; storylineId: string }>();
   const projectId = params.projectId;
@@ -573,7 +573,7 @@ export function StorylineEditorView({
                           </div>
                           <div className="mgr-row__meta">
                             <span>
-                              <b>{exactWords?.toLocaleString() ?? t('common.counting')}</b>
+                              <b>{exactWords?.toLocaleString(i18n.language) ?? t('common.counting')}</b>
                               {exactWords != null && t('common.words')}
                             </span>
                             <span>

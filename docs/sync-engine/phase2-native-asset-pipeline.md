@@ -22,7 +22,9 @@ verified.
   Native-only paths and credentials remain protected boundaries, but the Hosted
   operator is trusted with the stored blob bytes.
 - Image display/thumbnail variants are deliberately absent from the protocol.
-  They are rebuildable projections. PDF and image source bytes are exact.
+  They are rebuildable projections, rebuilt from the source on first read (see
+  [`../local-assets.md`](../local-assets.md)). PDF and image source bytes are
+  exact.
 
 ## Journal-to-provider ordering
 

@@ -8,6 +8,8 @@ import { SuperElementViewportEdges } from '../features/graph/SuperElementViewpor
 import { StoryGraphDriftEdges } from '../features/graph/StoryGraphDriftEdges';
 import { useSuperElementTransform } from '../features/graph/useSuperElementTransform';
 import type { SuperElementWorldEdge } from '../features/graph/super-element-edge-model';
+import { EDGE_HIT_WIDTH, SUPER_ELEMENT_EDGE_WIDTHS } from '../features/graph/super-element-metrics';
+import { getPlatformRuntime } from '../platform/runtime';
 import { createDomGraphFixture } from './graph-geometry-scenarios';
 import driftStyles from '../../styles/drift-panel.css?raw';
 import graphStyles from '../../styles/graph-view.css?raw';
@@ -55,7 +57,8 @@ async function viewportScenario() {
       createElement('div', { ref: bandRef, style: { position: 'absolute', left: 0, top: 0, transformOrigin: '0 0' } },
         createElement('div', { 'data-band-node': true, style: { position: 'absolute', left: -15, top: 0, width: 110, height: 56 } })),
       createElement(SuperElementViewportEdges, { edges: source, config, panRef, zoomRef, viewportRef, layerRef,
-        panningRef, revision: 0, selectedEdgeId: null, focusedEdgeIds, selectEdge, resolveRelationTypeLabel }));
+        panningRef, revision: 0, selectedEdgeId: null, focusedEdgeIds, selectEdge, resolveRelationTypeLabel,
+        widths: SUPER_ELEMENT_EDGE_WIDTHS[getPlatformRuntime().isMobileShell ? 'mobile' : 'desktop'], hitWidth: EDGE_HIT_WIDTH }));
   }
   const path = () => host.querySelector('path[stroke="transparent"]')?.getAttribute('d');
   const aligned = () => {

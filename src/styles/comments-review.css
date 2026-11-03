@@ -1837,6 +1837,11 @@ html:not([data-shell-mode='mobile']) .editor__toc-rail[data-fit='dots']:has(:foc
   flex: 0 0 auto;
 }
 
+.review-card--panel[tabindex='0']:focus-visible {
+  outline: 1px solid hsl(var(--ink-2));
+  outline-offset: 2px;
+}
+
 .review-card--sticky {
   border: 1px solid hsl(var(--rule));
   border-radius: var(--radius-sm);

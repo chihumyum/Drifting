@@ -8,9 +8,8 @@ import { useNavigate } from 'react-router-dom';
  * to DesktopAppShell when a shelf item is opened.
  */
 export function MobileWorkspaceDeferredView() {
-  const { i18n } = useTranslation();
+  const { t } = useTranslation();
   const navigate = useNavigate();
-  const isZh = i18n.language.startsWith('zh');
 
   return (
     <main className="m-workspace-deferred">
@@ -18,22 +17,18 @@ export function MobileWorkspaceDeferredView() {
         <button
           type="button"
           onClick={() => navigate('/', { replace: true })}
-          aria-label={isZh ? '返回书架' : 'Back to shelf'}
+          aria-label={t('projectPicker.backToShelf')}
         >
           <ArrowLeft size={20} aria-hidden="true" />
         </button>
         <strong>Drifting</strong>
       </header>
       <section>
-        <span>{isZh ? '移动工作区' : 'Mobile workspace'}</span>
-        <h1>{isZh ? '这部分会使用新的工作区方案' : 'This area will use the new workspace design'}</h1>
-        <p>
-          {isZh
-            ? '登录、书架与设置可以独立使用；章节编辑和工作区暂时保持未接入状态。'
-            : 'Authentication, shelf and settings remain available while the mobile writing workspace is intentionally deferred.'}
-        </p>
+        <span>{t('mobileWorkspace.deferred.label')}</span>
+        <h1>{t('mobileWorkspace.deferred.title')}</h1>
+        <p>{t('mobileWorkspace.deferred.body')}</p>
         <button type="button" onClick={() => navigate('/', { replace: true })}>
-          {isZh ? '返回书架' : 'Back to shelf'}
+          {t('projectPicker.backToShelf')}
         </button>
       </section>
     </main>

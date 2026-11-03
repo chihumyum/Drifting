@@ -6,6 +6,7 @@ import { useSuperViewNavigation } from '../../../hooks/useSuperViewNavigation';
 import { useSuperViewEscapeStack } from '../../../hooks/useSuperViewEscapeStack';
 import { useDriftPanelAnim } from '../../../hooks/useDriftPanelAnim';
 import { DesktopSuperViewHeader } from '../components/DesktopSuperViewHeader';
+import { SuperViewRelationLegend } from '../components/SuperViewRelationLegend';
 import { memoMaterialModule, superViewModules } from '../../../features/graph/deferred-graph-modules';
 import type { createDeferredModule } from '../../../lib/deferred-module';
 // These shells/styles are immediate, including while feature code is loading.
@@ -71,7 +72,7 @@ function DeferredSuperView<T>({ resource, render }: {
 function DeferredGraphView({ view }: { view: keyof typeof superViewModules }) {
   const driftPanel = useDriftPanelAnim();
   return <DeferredSuperView resource={superViewModules[view]}
-    render={({ View, graphUi }) => <View graphUi={graphUi} driftPanel={driftPanel} />} />;
+    render={({ View, graphUi }) => <View graphUi={graphUi} driftPanel={driftPanel} SuperViewRelationLegend={SuperViewRelationLegend} />} />;
 }
 
 export function DeferredStoryGraphView() { return <DeferredGraphView view="graph" />; }

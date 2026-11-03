@@ -196,6 +196,25 @@ selection precedence, and older/malformed snapshot fallback.
 checks and source fingerprint. Saves in this fixture use an in-memory callback;
 SQLite persistence and native interaction are not claimed by that report.
 
+### Desktop Review action entry (2026-11-03)
+
+Desktop Review panel Comment and TODO cards omit the redundant ⋯ button.
+Pointer hover still opens the shared source/action card. Tab focuses the Review
+card with a visible outline; Shift+F10 or the ContextMenu key opens its actions
+and focuses the first enabled row. Escape closes the actions and returns focus
+to the Review card. Shortcuts inside the body editor remain owned by that editor.
+Manuscript sticky cards and the paused mobile shell keep their ⋯ entry.
+
+`pnpm exec node scripts/run-review-card-actions-acceptance.mjs` regenerates
+`docs/qa/review-card-actions.json`. Its 24 checks use the existing synthetic card
+fixture and real Chromium pointer/keyboard input to cover Comment and TODO hover,
+moving into the action card, Tab reachability and visible focus, both keyboard
+shortcuts, portal placement, Escape focus return, and keyboard-initiated editing.
+The existing `review-stats-sand-glass.render.test.ts` also checks the desktop,
+sticky and mobile rendering boundary. Append `--check` to verify the recorded
+checks and source fingerprint. This evidence covers the renderer; it does not
+claim SQLite writes or native WKWebView interaction.
+
 ## Validation boundary
 
 Automated acceptance and TypeScript validation cover source wiring and state

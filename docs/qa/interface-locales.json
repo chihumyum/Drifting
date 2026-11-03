@@ -1,0 +1,187 @@
+{
+  "kind": "nine-language-interface",
+  "status": "passed",
+  "sourceSha256": "41084e425db711e9e042be336b534557d159c1f90adf6ad3c55f1d262d6ab52f",
+  "sources": [
+    "scripts/check-ui-locales.ts",
+    "scripts/generate-startup-locales.mjs",
+    "public/startup.js",
+    "src/shared/ui-locales.ts",
+    "src/shared/startup-preferences.ts",
+    "src/shared/locale-format.ts",
+    "src/renderer/lib/i18n.ts",
+    "src/renderer/lib/locale-resources.ts",
+    "src/share-web/i18n.ts",
+    "src/renderer/lib/agent/agent-tool-activity.ts",
+    "src/renderer/features/settings/panels/BasicPreferencePanels.tsx",
+    "src/renderer/components/topBars/UserMenu.tsx",
+    "src/renderer/store/settings-store.ts",
+    "src/renderer/features/preference-sync/preference-fields.ts",
+    "src/renderer/shells/mobile/MobileWorkspaceDeferredView.tsx",
+    "src/renderer/shells/mobile/standalone/MobileProjectShelfContent.tsx",
+    "src/renderer/lib/char-sea/char-sea-text.ts",
+    "src/renderer/views/shelf/shelf-format.ts",
+    "src/styles/interface-fonts.css",
+    "src/renderer/locales/zh-CN.json",
+    "src/renderer/locales/zh-TW.json",
+    "src/renderer/locales/en.json",
+    "src/renderer/locales/ja.json",
+    "src/renderer/locales/ko.json",
+    "src/renderer/locales/es.json",
+    "src/renderer/locales/de.json",
+    "src/renderer/locales/fr.json",
+    "src/renderer/locales/pt-BR.json",
+    "src/share-web/locales/zh-CN.json",
+    "src/share-web/locales/zh-TW.json",
+    "src/share-web/locales/en.json",
+    "src/share-web/locales/ja.json",
+    "src/share-web/locales/ko.json",
+    "src/share-web/locales/es.json",
+    "src/share-web/locales/de.json",
+    "src/share-web/locales/fr.json",
+    "src/share-web/locales/pt-BR.json"
+  ],
+  "locales": [
+    "zh-CN",
+    "zh-TW",
+    "en",
+    "ja",
+    "ko",
+    "es",
+    "de",
+    "fr",
+    "pt-BR"
+  ],
+  "catalogs": [
+    {
+      "surface": "application",
+      "locale": "zh-CN",
+      "strings": 2915,
+      "placeholderContract": "passed",
+      "keyCoverage": "complete"
+    },
+    {
+      "surface": "application",
+      "locale": "zh-TW",
+      "strings": 2922,
+      "placeholderContract": "passed",
+      "keyCoverage": "complete"
+    },
+    {
+      "surface": "application",
+      "locale": "en",
+      "strings": 2922,
+      "placeholderContract": "passed",
+      "keyCoverage": "complete"
+    },
+    {
+      "surface": "application",
+      "locale": "ja",
+      "strings": 2922,
+      "placeholderContract": "passed",
+      "keyCoverage": "complete"
+    },
+    {
+      "surface": "application",
+      "locale": "ko",
+      "strings": 2922,
+      "placeholderContract": "passed",
+      "keyCoverage": "complete"
+    },
+    {
+      "surface": "application",
+      "locale": "es",
+      "strings": 2937,
+      "placeholderContract": "passed",
+      "keyCoverage": "complete"
+    },
+    {
+      "surface": "application",
+      "locale": "de",
+      "strings": 2922,
+      "placeholderContract": "passed",
+      "keyCoverage": "complete"
+    },
+    {
+      "surface": "application",
+      "locale": "fr",
+      "strings": 2937,
+      "placeholderContract": "passed",
+      "keyCoverage": "complete"
+    },
+    {
+      "surface": "application",
+      "locale": "pt-BR",
+      "strings": 2937,
+      "placeholderContract": "passed",
+      "keyCoverage": "complete"
+    },
+    {
+      "surface": "share-reader",
+      "locale": "zh-CN",
+      "strings": 53,
+      "placeholderContract": "passed",
+      "keyCoverage": "complete"
+    },
+    {
+      "surface": "share-reader",
+      "locale": "zh-TW",
+      "strings": 53,
+      "placeholderContract": "passed",
+      "keyCoverage": "complete"
+    },
+    {
+      "surface": "share-reader",
+      "locale": "en",
+      "strings": 53,
+      "placeholderContract": "passed",
+      "keyCoverage": "complete"
+    },
+    {
+      "surface": "share-reader",
+      "locale": "ja",
+      "strings": 53,
+      "placeholderContract": "passed",
+      "keyCoverage": "complete"
+    },
+    {
+      "surface": "share-reader",
+      "locale": "ko",
+      "strings": 53,
+      "placeholderContract": "passed",
+      "keyCoverage": "complete"
+    },
+    {
+      "surface": "share-reader",
+      "locale": "es",
+      "strings": 53,
+      "placeholderContract": "passed",
+      "keyCoverage": "complete"
+    },
+    {
+      "surface": "share-reader",
+      "locale": "de",
+      "strings": 53,
+      "placeholderContract": "passed",
+      "keyCoverage": "complete"
+    },
+    {
+      "surface": "share-reader",
+      "locale": "fr",
+      "strings": 53,
+      "placeholderContract": "passed",
+      "keyCoverage": "complete"
+    },
+    {
+      "surface": "share-reader",
+      "locale": "pt-BR",
+      "strings": 53,
+      "placeholderContract": "passed",
+      "keyCoverage": "complete"
+    }
+  ],
+  "limitations": [
+    "Automated coverage and browser behavior do not constitute native-speaker review.",
+    "Right-to-left languages are outside this milestone."
+  ]
+}

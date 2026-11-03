@@ -1,6 +1,6 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom';
-import { WorkspaceNavigationButtons } from '../src/renderer/components/topBars/WorkspaceNavigationButtons';
+import { DesktopBottomTimeline } from '../src/renderer/shells/desktop/views/DesktopBottomTimeline';
 import { MobileSettingsView } from '../src/renderer/shells/mobile/standalone/MobileSettingsView';
 import { useUiStore } from '../src/renderer/store/ui-store';
 import { createRoot } from 'react-dom/client';
@@ -20,6 +20,7 @@ import { genericAssociationRelationType } from '../src/renderer/domain/entity-re
 import { useDataStore } from '../src/renderer/store/data-store';
 import '../src/renderer/lib/i18n';
 import '../src/styles/index.css';
+import '../src/styles/materials.css';
 import '../src/styles/ui-controls.css';
 import '../src/styles/desktop-shell.css';
 import '../src/styles/settings.css';
@@ -88,7 +89,8 @@ export function Fixture() {
     <SuperViewRelationUiProvider projectId={projectId} key={projectId}>
       <SuperViewNavigationProvider value={navigation}>
         <Draft />
-        {preload && (route.pathname === '/settings' ? <MobileSettingsView /> : <WorkspaceNavigationButtons />)}
+        {/* The story graph's workspace entry sits in the Bottom Timeline head. */}
+        {preload && (route.pathname === '/settings' ? <MobileSettingsView /> : <DesktopBottomTimeline />)}
         {mobile ? <MobileSuperViewHost active={active === 'none' ? null : active} onActiveChange={(next) => setActive(next ?? 'none')} returnPointCaptured />
           : <>{active === 'graph' && <StoryGraphView />}{active === 'element' && <SuperElementView />}{active === 'memo-material' && <SuperMemoMaterialView />}</>}
       </SuperViewNavigationProvider>
