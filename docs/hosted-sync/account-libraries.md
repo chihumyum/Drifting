@@ -26,7 +26,7 @@ account in both directions and left the previous account's sync state behind.
 
 Bringing a book from one library into another is a separate, explicit step:
 export it as a `.driftingbook` file from the shelf in one library and import it
-from the shelf's account menu in the other. The import adds a new book with
+from the shelf's left column in the other. The import adds a new book with
 fresh identities and, in an account library, publishes it like any new book;
 see [moving a book between libraries](../book-transfer.md).
 

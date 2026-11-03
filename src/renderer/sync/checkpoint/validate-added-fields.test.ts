@@ -34,8 +34,9 @@ describe('checkpoints captured before a table existed', () => {
       { table: 'library_item', rows: [] },
       { table: 'material_folder', rows: [] },
       { table: 'node_content', rows: [] },
+      { table: 'writing_day', rows: [] },
     ]);
-    const current = [...entries, { table: 'material_folder', rows: [] }];
+    const current = [...entries, { table: 'material_folder', rows: [] }, { table: 'writing_day', rows: [] }];
     expect(withTablesAddedAfterV1(current)).toBe(current);
   });
 });

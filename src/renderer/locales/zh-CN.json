@@ -1937,7 +1937,27 @@
         "subLocal": "作品在这里保留 30 天，到期后自动永久删除。",
         "empty": "最近没有删除的作品。",
         "confirmTitle": "永久删除《{{name}}》？"
-      }
+      },
+      "recent": "近 30 天",
+      "recentLabel": "近 30 天写了 {{words}} 字"
+    },
+    "rail": {
+      "import": "导入书",
+      "synced": "已同步",
+      "books": "{{count}} 本",
+      "library": "{{count}} 本 · {{words}}字"
+    },
+    "heat": {
+      "label": "写作热力图",
+      "summary": "过去一年写了 {{words}} 字，在写 {{days}} 天",
+      "year": "过去一年",
+      "daysWritten": "在写",
+      "streak": "连续",
+      "today": "今天",
+      "daysUnit": "天",
+      "mon": "一",
+      "wed": "三",
+      "fri": "五"
     }
   },
   "dashboard": {

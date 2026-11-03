@@ -28,11 +28,6 @@ interface UserMenuProps {
   scope?: 'project' | 'shelf';
   /** Where the menu opens relative to its trigger. */
   placement?: AnchoredPopoverPlacement;
-  /** The shelf's recently deleted books: shown only while there are some. */
-  trashCount?: number;
-  onOpenTrash?: () => void;
-  /** The shelf's import of a `.driftingbook` file into the open library. */
-  onImportBook?: () => void;
 }
 
 export function UserMenu({
@@ -41,9 +36,6 @@ export function UserMenu({
   onClose,
   scope = 'project',
   placement = 'bottom-end',
-  trashCount = 0,
-  onOpenTrash,
-  onImportBook,
 }: UserMenuProps) {
   const { t } = useTranslation();
   const user = useAuthStore((s) => s.hostedUser);
@@ -221,27 +213,6 @@ export function UserMenu({
               intent={settingsIntent}
               onClick={() => {
                 navigate('/settings?section=sync', { state: { from: '/' } });
-                onClose();
-              }}
-            />
-          )}
-          {scope === 'shelf' && onImportBook && (
-            <MenuItem
-              icon={<BrushIcon name="arrow-in" size={16} />}
-              label={t('userMenu.importBook')}
-              onClick={() => {
-                onImportBook();
-                onClose();
-              }}
-            />
-          )}
-          {scope === 'shelf' && onOpenTrash && trashCount > 0 && (
-            <MenuItem
-              icon={<BrushIcon name="trash" size={16} />}
-              label={t('projectPicker.desk.trashEntry')}
-              meta={String(trashCount)}
-              onClick={() => {
-                onOpenTrash();
                 onClose();
               }}
             />

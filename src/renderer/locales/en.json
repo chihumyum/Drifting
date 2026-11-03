@@ -1942,7 +1942,29 @@
         "subLocal": "Books stay here for 30 days and are then permanently deleted.",
         "empty": "No recently deleted books.",
         "confirmTitle": "Permanently delete “{{name}}”?"
-      }
+      },
+      "recent": "Last 30 days",
+      "recentLabel": "{{words}} words in the last 30 days"
+    },
+    "rail": {
+      "import": "Import book",
+      "synced": "Synced",
+      "books_one": "{{count}} book",
+      "books_other": "{{count}} books",
+      "library_one": "{{count}} book · {{words}} words",
+      "library_other": "{{count}} books · {{words}} words"
+    },
+    "heat": {
+      "label": "Writing heatmap",
+      "summary": "{{words}} words over the past year, written on {{days}} days",
+      "year": "Past year",
+      "daysWritten": "Days",
+      "streak": "Streak",
+      "today": "Today",
+      "daysUnit": "days",
+      "mon": "Mon",
+      "wed": "Wed",
+      "fri": "Fri"
     }
   },
   "dashboard": {

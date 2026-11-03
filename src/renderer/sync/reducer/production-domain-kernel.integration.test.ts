@@ -40,6 +40,7 @@ import {
   SyncGenerationPurgeTable,
   SyncGenerationTable,
   SyncMutationTable,
+  WritingDayTable,
   YjsDocumentRevisionProvenanceTable,
   YjsDocumentRevisionTable,
   yjsUpdates,
@@ -490,6 +491,44 @@ describe('production SyncDomainMaterializationKernel on file-backed SQLite', () 
     ]);
     expect(await db.select().from(SyncApplyReceiptTable)).toHaveLength(1);
     expect((await db.select().from(SyncChangeSetTable)).filter(({ origin }) => origin === 'local')).toEqual([]);
+  });
+
+  it('lands another device’s writing day and lets only its words change afterwards', async () => {
+    const db = await createDatabase();
+    const id = 'writing-day-remote';
+    await apply(db, await changeSet(1, [{
+      action: 'entity.create', kind: 'writing-day', id,
+      payload: { seed: { day: '2026-11-03', deviceKey: 'device-remote', words: 420 } },
+    }]));
+    const words = async () => (await db.select({ day: WritingDayTable.day, deviceKey: WritingDayTable.deviceKey, words: WritingDayTable.words })
+      .from(WritingDayTable));
+    expect(await words()).toEqual([{ day: '2026-11-03', deviceKey: 'device-remote', words: 420 }]);
+
+    await apply(db, await changeSet(2, [{
+      action: 'field.set', kind: 'writing-day', id, payload: { field: 'words', value: 655 },
+    }]));
+    expect((await words())[0]?.words).toBe(655);
+
+    // The day and the device are the row's identity; words are whole and never negative.
+    for (const [index, payload] of [
+      { field: 'day', value: '2026-11-04' },
+      { field: 'words', value: -3 },
+      { field: 'words', value: 12.5 },
+    ].entries()) {
+      await apply(db, await changeSet(3 + index, [{ action: 'field.set', kind: 'writing-day', id, payload }]));
+      expect(await words()).toEqual([{ day: '2026-11-03', deviceKey: 'device-remote', words: 655 }]);
+    }
+    const conflicts = await db.select().from(SyncConflictTable);
+    expect(conflicts.length).toBeGreaterThan(0);
+    expect(conflicts.every((entry) => entry.targetKind === 'writing-day')).toBe(true);
+
+    const badSeed = await apply(db, await changeSet(6, [{
+      action: 'entity.create', kind: 'writing-day', id: 'writing-day-bad',
+      payload: { seed: { day: '3 Nov', deviceKey: 'device-remote', words: 10 } },
+    }]));
+    expect(badSeed.effects.filter((effect) => effect.type === 'entity.lifecycle' && effect.target.id === 'writing-day-bad'))
+      .toMatchObject([{ materialize: false }]);
+    expect(await words()).toHaveLength(1);
   });
 
   it('moves a project to and from the trash by last-writer-wins, whatever the arrival order', async () => {

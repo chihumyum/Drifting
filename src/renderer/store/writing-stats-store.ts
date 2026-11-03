@@ -283,3 +283,89 @@ export function deriveWritingStats(
 
   return { todayWords, weekWords, monthDaysWritten, streakDays, weekDaily };
 }
+
+// ─── A year of writing days (the shelf's heatmap) ───────────────
+// The rows come from SQLite `writing_day` (docs/writing-days.md), already
+// summed over devices; this side only lays them on the calendar.
+
+export interface WritingDayTotal {
+  projectId: string;
+  day: ISODate;
+  words: number;
+}
+
+/** Columns of the heatmap: whole weeks, Monday first, the last one holding today. */
+export const WRITING_YEAR_WEEKS = 53;
+
+function weekdayIndex(iso: ISODate): number {
+  const [y, m, d] = iso.split('-').map(Number);
+  return (new Date(y, (m ?? 1) - 1, d ?? 1).getDay() + 6) % 7;
+}
+
+/** The Monday that starts the heatmap whose last week holds `today`. */
+export function writingYearStart(today: ISODate = todayKey()): ISODate {
+  return addDays(today, -weekdayIndex(today) - (WRITING_YEAR_WEEKS - 1) * 7);
+}
+
+export interface WritingYear {
+  /** Every day from the first Monday through today, in order. */
+  days: ISODate[];
+  /** Words on each of `days`, every book together. */
+  total: number[];
+  /** Words on each of `days`, per book that has any. */
+  byProject: Record<string, number[]>;
+}
+
+export function deriveWritingYear(rows: readonly WritingDayTotal[], today: ISODate = todayKey()): WritingYear {
+  const days: ISODate[] = [];
+  for (let day = writingYearStart(today); day <= today; day = addDays(day, 1)) days.push(day);
+  const index = new Map(days.map((day, i) => [day, i]));
+  const total = days.map(() => 0);
+  const byProject: Record<string, number[]> = {};
+  for (const row of rows) {
+    const i = index.get(row.day);
+    const words = Math.floor(row.words);
+    if (i === undefined || !(words > 0)) continue;
+    (byProject[row.projectId] ??= days.map(() => 0))[i] += words;
+    total[i] += words;
+  }
+  return { days, total, byProject };
+}
+
+export interface WritingDaysSummary {
+  words: number;
+  daysWritten: number;
+  /** Consecutive days with words ending today, as deriveWritingStats counts them. */
+  streakDays: number;
+  todayWords: number;
+}
+
+export function summarizeWritingDays(daily: readonly number[]): WritingDaysSummary {
+  let words = 0;
+  let daysWritten = 0;
+  for (const value of daily) {
+    words += value;
+    if (value > 0) daysWritten += 1;
+  }
+  let streakDays = 0;
+  for (let i = daily.length - 1; i >= 0 && daily[i] > 0; i--) streakDays += 1;
+  return { words, daysWritten, streakDays, todayWords: daily[daily.length - 1] ?? 0 };
+}
+
+/**
+ * Four levels from the quartiles of the days written, like a contribution
+ * graph: a day at or under the first is level 1, over the third is level 4.
+ */
+export function writingDayThresholds(daily: readonly number[]): readonly [number, number, number] {
+  const written = daily.filter((value) => value > 0).sort((a, b) => a - b);
+  const at = (fraction: number) => written[Math.min(written.length - 1, Math.floor(fraction * written.length))] ?? 1;
+  return [at(0.25), at(0.5), at(0.75)];
+}
+
+export function writingDayLevel(words: number, thresholds: readonly [number, number, number]): 0 | 1 | 2 | 3 | 4 {
+  if (!(words > 0)) return 0;
+  if (words <= thresholds[0]) return 1;
+  if (words <= thresholds[1]) return 2;
+  if (words <= thresholds[2]) return 3;
+  return 4;
+}

@@ -40,6 +40,7 @@ const LIFECYCLE_ROWS: Readonly<Record<string, readonly [table: string, column: s
   'book-act': ['book_act', 'id'],
   'drift-group': ['drift_group', 'id'],
   'material-folder': ['material_folder', 'id'],
+  'writing-day': ['writing_day', 'id'],
   'timeline-marker': ['timeline_marker', 'id'],
   'kv-entry': ['entity_kv_entry', 'id'],
   'plot-grid-row': ['plot_grid_row', 'id'],
