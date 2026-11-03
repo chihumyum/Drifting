@@ -17,7 +17,7 @@ describe('sand in prose (desktop)', () => {
   it('draws comment anchors in sand on the desktop and keeps the mobile wash', () => {
     const mount = source('src/renderer/components/editor/CommentAnchorHighlights.tsx');
     expect(mount).toMatch(/isMobileShell\s*\?\s*new CommentHighlightPainter\(scrollEl\)\s*:\s*new CommentSandPainter\(scrollEl\)/);
-    expect(mount).toContain('painter.update(comments, activeId, selected)');
+    expect(mount).toContain('painter.update(comments, activeId, selected, pointed)');
     expect(mount).toContain('painter.dispose()');
     expect(mount).toContain('const presented = isVisible || isPreparing;');
   });

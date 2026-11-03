@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { anchorTextMatches, findNearestTextOffset } from './comment-highlight';
+import {
+  anchorTextMatches,
+  findNearestTextOffset,
+  getPointedCommentHighlights,
+  setPointedCommentHighlights,
+  subscribePointedCommentHighlights,
+} from './comment-highlight';
 
 describe('comment highlight anchor recovery', () => {
   it('rejects unrelated text even when stale offsets still form a range', () => {
@@ -16,5 +22,20 @@ describe('comment highlight anchor recovery', () => {
   it('does not invent a range when the captured phrase disappeared', () => {
     expect(findNearestTextOffset('rewritten prose', 'old phrase', 4)).toBeNull();
     expect(findNearestTextOffset('anything', '', 0)).toBeNull();
+  });
+});
+
+describe('comments pointed at in the prose', () => {
+  it('notifies only when the pointed set changes', () => {
+    let notified = 0;
+    const off = subscribePointedCommentHighlights(() => { notified += 1; });
+    setPointedCommentHighlights(['a', 'b']);
+    setPointedCommentHighlights(['a', 'b']);
+    expect(getPointedCommentHighlights()).toEqual(['a', 'b']);
+    setPointedCommentHighlights([]);
+    setPointedCommentHighlights([]);
+    expect(getPointedCommentHighlights()).toEqual([]);
+    expect(notified).toBe(2);
+    off();
   });
 });

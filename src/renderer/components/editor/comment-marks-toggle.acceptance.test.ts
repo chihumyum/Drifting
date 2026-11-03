@@ -62,7 +62,10 @@ describe('the paper comment toggle and composer (sticky-note rail retired 2026-1
       expect(editor).toContain('commentToggle={commentToggle}');
     }
     expect(source('src/renderer/views/MaterialEditorView.tsx')).toContain('commentToggle={isMedia ? undefined : noteComments}');
-    expect(source('src/renderer/views/AllChaptersEditorView.tsx')).toContain("useCommentMarksToggle(projectId, 'node', null)");
+    // The whole book counts its chapters' anchors, not its ideas'.
+    expect(source('src/renderer/views/AllChaptersEditorView.tsx')).toContain("useCommentMarksToggle(projectId, 'node', null, chapterIds)");
+    expect(source('src/renderer/views/AllChaptersEditorView.tsx')).toContain('new Set(orderedNodes.map((node) => node.id))');
+    expect(toggle).toContain('within.has(comment.targetId)');
     const bar = source('src/renderer/components/editor/EditorTopBar.tsx');
     expect(bar).toContain("t('editorTopBar.actions.hideComments')");
     expect(bar).not.toContain('noComments');
@@ -78,6 +81,41 @@ describe('the paper comment toggle and composer (sticky-note rail retired 2026-1
     const markers = source('src/renderer/components/editor/EditorScrollMarkers.tsx');
     expect(markers).toContain('createCommentMarkerSelector(projectId, targetKind, targetId, commentMarksVisible)');
     expect(source('src/renderer/components/editor/scroll-marker-model.ts')).toContain('if (input === state.comments || !visible) return snapshot;');
+  });
+
+  it('lights the card of an anchor the pointer rests on in the prose', () => {
+    const painter = source('src/renderer/lib/comment-sand.ts');
+    // Found from the measured line boxes (the layer takes no pointer), at most once a frame.
+    expect(painter).toContain("this.scrollEl.addEventListener('pointermove', this.onPointerMove);");
+    expect(painter).toContain("this.scrollEl.addEventListener('pointerleave', this.onPointerLeave);");
+    expect(painter).toContain('if (boxesContain(mark.boxes, pointer.x - origin.left, pointer.y - origin.top)) ids.push(mark.id);');
+    expect(painter).toContain('if (event.buttons !== 0) return this.onPointerLeave();');
+    expect(painter).toContain('export const POINT_INTENT_MS = 120;');
+    expect(painter).toContain('createPointIntent((ids) => setPointedCommentHighlights(ids))');
+    // Its swash turns as when its card is pointed at.
+    expect(painter).toContain('this.activeId === comment.id || this.pointed.has(comment.id)');
+    const highlights = source('src/renderer/components/editor/CommentAnchorHighlights.tsx');
+    expect(highlights).toContain('painter.update(comments, activeId, selected, pointed)');
+    // With the toggle off no anchor is drawn, so the prose points at nothing.
+    expect(highlights).toContain('anchored.filter((comment) => comment.id === activeId || comment.id === selected?.id)');
+    // The card brings its glass in and comes into view only where its list is on screen.
+    const card = source('src/renderer/features/comments/ReviewItemCard.tsx');
+    expect(card).toContain('const pointed = useProsePointedCard(comment.id, articleRef);');
+    expect(card).toContain("${pointed ? ' review-card--pointed' : ''}");
+    const hook = source('src/renderer/features/comments/use-prose-pointed-card.ts');
+    expect(hook).toContain('if (view.width === 0 || view.right <= 0 || view.left >= window.innerWidth) return;');
+    expect(hook).toContain('scroller.scrollBy({ top: delta');
+    expect(hook).not.toContain('scrollIntoView');
+    const css = source('src/styles/comments-review.css');
+    expect(css).toContain('.review-card--glass.review-card--pointed { --glass-g: 1; --glass-sp: 1; }');
+    // Real line boxes and mouse input in Chromium.
+    const evidence = JSON.parse(source('docs/editor/acceptance/prose-point.json')) as { status: string; checks: Record<string, boolean> };
+    expect(evidence.status).toBe('passed');
+    expect(Object.keys(evidence.checks)).toEqual(expect.arrayContaining([
+      'waitsForIntent', 'restingPointsAtAnchor', 'pointedSwashIsHot', 'pastTheEndLetsGoAtOnce',
+      'passingOverLightsNothing', 'draggingPointsAtNothing', 'followsScrolledLines', 'leavingScrollerLetsGo',
+    ]));
+    expect(Object.values(evidence.checks).every(Boolean)).toBe(true);
   });
 
   it('records the behaviour in the design system', () => {

@@ -24,12 +24,21 @@
 // a comment draws its anchor again along the lines); everything else fades in
 // or out as a whole, and pointing at a comment's card turns it to a sparser
 // swash of the same grains, a little stronger (the CSS cross-fades the two).
+//
+// The layer takes no pointer, so pointing at an anchor in the prose is found
+// from the line boxes already measured: on a pointer move (at most once a
+// frame) the painter looks up which marks' lines hold the pointer and, once it
+// has rested on them for POINT_INTENT_MS, publishes them
+// (setPointedCommentHighlights). Their cards light up and their swashes turn
+// as when their cards are pointed at. A drag (a selection being made) points
+// at nothing.
 import { commentColorKey, type Comment } from '../domain/comment';
 import {
   blockLookup,
   clearSelectedCommentHighlight,
   commentHighlightNames,
   commentRanges,
+  setPointedCommentHighlights,
   type SelectedCommentHighlight,
 } from './comment-highlight';
 import { SAND_DRAW_MS, SAND_DRAW_PER_LINE_MS, SAND_FADE_MS, sandDrawTimeAt } from './motion';
@@ -45,6 +54,8 @@ const SWASH_H = 64;
 const SWASH_TAIL = 12;
 // Rows within this much of the viewport (above and below) are measured.
 const NEAR_MARGIN = '100% 0px';
+/** How long the pointer rests on an anchor in the prose before its card lights up. */
+export const POINT_INTENT_MS = 120;
 
 interface LineBox {
   x: number;
@@ -142,6 +153,48 @@ function lineBoxes(ranges: readonly Range[], host: HTMLElement, scratch: Range):
     }));
 }
 
+/** Whether a point (in the boxes' host content coordinates) lies on one of the lines. */
+export function boxesContain(boxes: readonly LineBox[], x: number, y: number): boolean {
+  return boxes.some((box) => x >= box.x && x < box.x + box.w && y >= box.y && y < box.y + box.h);
+}
+
+const sameIds = (a: readonly string[], b: readonly string[]) =>
+  a.length === b.length && a.every((id, index) => id === b[index]);
+
+/**
+ * Hover intent for anchors in the prose: a set of anchors is committed once
+ * the pointer has rested on it for `delay`; leaving every anchor commits the
+ * empty set at once.
+ */
+export function createPointIntent(commit: (ids: readonly string[]) => void, delay = POINT_INTENT_MS) {
+  let committed: readonly string[] = [];
+  let candidate: readonly string[] | null = null;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const wait = () => {
+    if (timer !== null) clearTimeout(timer);
+    timer = null;
+    candidate = null;
+  };
+  const propose = (ids: readonly string[]) => {
+    if (ids.length === 0) {
+      wait();
+      if (committed.length > 0) commit((committed = []));
+      return;
+    }
+    if (sameIds(ids, committed)) return wait();
+    if (candidate && sameIds(ids, candidate)) return;
+    wait();
+    candidate = ids;
+    timer = setTimeout(() => {
+      timer = null;
+      committed = candidate ?? [];
+      candidate = null;
+      commit(committed);
+    }, delay);
+  };
+  return { propose, reset: () => propose([]) };
+}
+
 function sameBoxes(a: readonly LineBox[], b: readonly LineBox[]): boolean {
   return a.length === b.length &&
     a.every((box, index) => box.x === b[index].x && box.y === b[index].y && box.w === b[index].w && box.h === b[index].h);
@@ -205,6 +258,10 @@ export class CommentSandPainter {
   private comments: readonly Comment[] = [];
   private activeId: string | null = null;
   private selected: SelectedCommentHighlight | null = null;
+  private pointed: ReadonlySet<string> = new Set();
+  private pointer: { x: number; y: number } | null = null;
+  private pointFrame = 0;
+  private readonly pointIntent = createPointIntent((ids) => setPointedCommentHighlights(ids));
   private marks = new Map<string, Mark>();
   private hosts = new Map<HTMLElement, Host>();
   private attached = false;
@@ -244,6 +301,8 @@ export class CommentSandPainter {
       }
       for (const host of this.hosts.values()) this.watch(host);
       this.scrollEl.addEventListener('pointerdown', this.onPointerDown, true);
+      this.scrollEl.addEventListener('pointermove', this.onPointerMove);
+      this.scrollEl.addEventListener('pointerleave', this.onPointerLeave);
       this.scrollEl.addEventListener('beforeinput', this.onBeforeInput, true);
       document.fonts?.addEventListener?.('loadingdone', this.onFontsLoaded);
     }
@@ -251,10 +310,16 @@ export class CommentSandPainter {
     return () => this.detach();
   }
 
-  update(comments: readonly Comment[], activeId: string | null, selected: SelectedCommentHighlight | null): void {
+  update(
+    comments: readonly Comment[],
+    activeId: string | null,
+    selected: SelectedCommentHighlight | null,
+    pointed: readonly string[] = [],
+  ): void {
     this.comments = comments;
     this.activeId = activeId;
     this.selected = selected;
+    this.pointed = new Set(pointed);
     if (this.attached) this.resolve();
   }
 
@@ -278,7 +343,10 @@ export class CommentSandPainter {
     if (this.frame) cancelAnimationFrame(this.frame);
     this.frame = 0;
     this.scrollEl.removeEventListener('pointerdown', this.onPointerDown, true);
+    this.scrollEl.removeEventListener('pointermove', this.onPointerMove);
+    this.scrollEl.removeEventListener('pointerleave', this.onPointerLeave);
     this.scrollEl.removeEventListener('beforeinput', this.onBeforeInput, true);
+    this.onPointerLeave();
     document.fonts?.removeEventListener?.('loadingdone', this.onFontsLoaded);
   }
 
@@ -288,6 +356,48 @@ export class CommentSandPainter {
       clearSelectedCommentHighlight();
     }
   };
+
+  private readonly onPointerMove = (event: PointerEvent) => {
+    if (event.pointerType === 'touch') return;
+    // Making a selection is not pointing at a comment.
+    if (event.buttons !== 0) return this.onPointerLeave();
+    this.pointer = { x: event.clientX, y: event.clientY };
+    if (!this.pointFrame) {
+      this.pointFrame = requestAnimationFrame(() => {
+        this.pointFrame = 0;
+        this.pointAt();
+      });
+    }
+  };
+
+  private readonly onPointerLeave = () => {
+    this.pointer = null;
+    if (this.pointFrame) cancelAnimationFrame(this.pointFrame);
+    this.pointFrame = 0;
+    this.pointIntent.reset();
+  };
+
+  /** The marks whose measured lines hold the pointer. */
+  private pointAt(): void {
+    const pointer = this.pointer;
+    if (!pointer) return;
+    const ids: string[] = [];
+    const origins = new Map<HTMLElement, { left: number; top: number }>();
+    for (const mark of this.marks.values()) {
+      if (!mark.host || mark.leaving || mark.boxes.length === 0) continue;
+      let origin = origins.get(mark.host);
+      if (!origin) {
+        const rect = mark.host.getBoundingClientRect();
+        origin = {
+          left: rect.left + mark.host.clientLeft - mark.host.scrollLeft,
+          top: rect.top + mark.host.clientTop - mark.host.scrollTop,
+        };
+        origins.set(mark.host, origin);
+      }
+      if (boxesContain(mark.boxes, pointer.x - origin.left, pointer.y - origin.top)) ids.push(mark.id);
+    }
+    this.pointIntent.propose(ids);
+  }
 
   private readonly onBeforeInput = () => {
     if (this.selected) clearSelectedCommentHighlight();
@@ -360,7 +470,7 @@ export class CommentSandPainter {
     const wanted = new Set<string>();
     for (const comment of this.comments) {
       const selected = this.selected?.id === comment.id;
-      const hot = selected || this.activeId === comment.id;
+      const hot = selected || this.activeId === comment.id || this.pointed.has(comment.id);
       if (commentHighlightNames(comment, hot ? comment.id : null).length === 0) continue;
       const ranges = commentRanges(lookup, comment);
       const hostEl = ranges.length > 0 ? this.hostElementFor(ranges[0].startContainer) : null;

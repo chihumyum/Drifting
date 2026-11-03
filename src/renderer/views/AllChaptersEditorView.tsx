@@ -207,8 +207,6 @@ export function AllChaptersEditorView() {
     () => setEntityLinkInteractive(!entityLinkInteractive),
     [entityLinkInteractive, setEntityLinkInteractive],
   );
-  // One toggle for the whole book: every chapter's comment marks.
-  const commentToggle = useCommentMarksToggle(projectId, 'node', null);
 
   const { getContentByNodeId, getOutlineByNodeId } =
     useBookContent({
@@ -283,6 +281,9 @@ export function AllChaptersEditorView() {
     () => bookNodes.filter(isChapter).sort((a, b) => a.bookOrder - b.bookOrder),
     [bookNodes],
   );
+  // One toggle for the whole book; its count is the chapters' open anchors.
+  const chapterIds = useMemo(() => new Set(orderedNodes.map((node) => node.id)), [orderedNodes]);
+  const commentToggle = useCommentMarksToggle(projectId, 'node', null, chapterIds);
   const hasCanonicalProseForCurrentBook =
     orderedNodes.length === 0 ||
     orderedNodes.some((node) => readyContentNodeIds.has(node.id));

@@ -361,7 +361,7 @@ export class CommentHighlightPainter {
   }
 }
 
-// The comment whose Review, sticky-note or TODO card is under the pointer.
+// The comment whose Review or TODO card is under the pointer.
 let activeCommentId: string | null = null;
 const activeCommentListeners = new Set<() => void>();
 
@@ -416,4 +416,26 @@ export function getSelectedCommentHighlight(): SelectedCommentHighlight | null {
 export function subscribeSelectedCommentHighlight(listener: () => void): () => void {
   selectedCommentListeners.add(listener);
   return () => selectedCommentListeners.delete(listener);
+}
+
+// The comments whose anchors the pointer rests on in the prose (desktop): their
+// cards light up as if pointed at. Empty when the pointer is on nothing.
+const NO_POINTED_COMMENTS: readonly string[] = [];
+let pointedCommentIds: readonly string[] = NO_POINTED_COMMENTS;
+const pointedCommentListeners = new Set<() => void>();
+
+export function setPointedCommentHighlights(ids: readonly string[]): void {
+  const next = ids.length === 0 ? NO_POINTED_COMMENTS : ids;
+  if (next.length === pointedCommentIds.length && next.every((id, index) => id === pointedCommentIds[index])) return;
+  pointedCommentIds = next;
+  pointedCommentListeners.forEach((listener) => listener());
+}
+
+export function getPointedCommentHighlights(): readonly string[] {
+  return pointedCommentIds;
+}
+
+export function subscribePointedCommentHighlights(listener: () => void): () => void {
+  pointedCommentListeners.add(listener);
+  return () => pointedCommentListeners.delete(listener);
 }
