@@ -3,10 +3,10 @@
   "kind": "renderer_deferred_graphs",
   "status": "passed",
   "mode": "deferred",
-  "generatedAt": "2026-11-03T16:36:28.092Z",
+  "generatedAt": "2026-11-03T17:02:14.785Z",
   "source": {
-    "commit": "f0a944b3bcb8da87d1c78af2fc16212c70ea6f4c",
-    "fingerprint": "68f3e0b1b1d15179c62238902f3a6c0dee485a7b9eabb8742d2c53f843b50503",
+    "commit": "9d115af7e5bd997df5d5225533368cdb85b02870",
+    "fingerprint": "a2d03ead0349f0e977e3270176bbe6b27b71d7921f5d6487c02f23f7a1a646f0",
     "dirty": false
   },
   "environment": {
@@ -39,7 +39,7 @@
       "initial": true
     },
     {
-      "file": "assets/index-B8C2J3bk.js",
+      "file": "assets/index-DSFqEvYP.js",
       "bytes": 479292,
       "entry": true,
       "facade": "index.html",
@@ -92,7 +92,7 @@
         "assets/entity-relation-type-repo-CdAdxJrk.js"
       ],
       "css": [
-        "assets/index-mQLxQghp.css"
+        "assets/index-Mkkyt6-V.css"
       ],
       "targets": [],
       "initial": true
@@ -360,7 +360,7 @@
       "initial": false
     },
     {
-      "file": "assets/story-graph-Csxwkcgr.js",
+      "file": "assets/story-graph-Dcbigard.js",
       "bytes": 36938,
       "entry": true,
       "facade": "src/renderer/shells/desktop/views/DesktopStoryGraphView.tsx",
@@ -374,7 +374,7 @@
         "assets/project-store-CI4CRIkG.js",
         "assets/graph-view-CT0hbJPB.js",
         "assets/useRelationTypePresentation-XPS63NJ_.js",
-        "assets/SuperViewShell-C5b7ypoD.js",
+        "assets/SuperViewShell-D1iyccA4.js",
         "assets/EntityHoverCard-DUGc6tz-.js",
         "assets/RelationTypeField-Cd4EDkNs.js",
         "assets/book-act-_HTBPvC7.js",
@@ -413,7 +413,7 @@
       "initial": false
     },
     {
-      "file": "assets/element-graph-xxgcXvjS.js",
+      "file": "assets/element-graph-D6hQMBtu.js",
       "bytes": 110995,
       "entry": true,
       "facade": "src/renderer/shells/desktop/views/DesktopSuperElementView.tsx",
@@ -425,14 +425,14 @@
         "assets/project-store-CI4CRIkG.js",
         "assets/SandCell-CV-_s5Q1.js",
         "assets/useRelationTypePresentation-XPS63NJ_.js",
-        "assets/SuperViewShell-C5b7ypoD.js",
+        "assets/SuperViewShell-D1iyccA4.js",
         "assets/EntityHoverCard-DUGc6tz-.js",
         "assets/book-act-_HTBPvC7.js",
         "assets/RelationTypeField-Cd4EDkNs.js",
         "assets/events-mrzQ2dfo.js",
         "assets/GlassSlider-BgowdgOU.js",
         "assets/HoverCard-BHgyGZEe.js",
-        "assets/super-element-CAhI1gPh.js",
+        "assets/super-element-DeM_L_Bt.js",
         "assets/quota-DXHy-dVA.js",
         "assets/EmptyState-BBLU4eZV.js",
         "assets/deferred-module-CGMhGXl8.js",
@@ -474,7 +474,7 @@
         "assets/synced-entity-commands--0KKtVeu.js",
         "assets/project-repo-sUuoEXrD.js",
         "assets/workspace-prose-file-C-kyGUNM.js",
-        "assets/bottom-timeline-CuLAmUOS.js",
+        "assets/bottom-timeline-XAtYb_bv.js",
         "assets/agent-chat-store-DB15-0qC.js",
         "assets/repository-iXHiqZCI.js",
         "assets/useComment-CddWMapf.js",
@@ -622,8 +622,8 @@
       "initial": true
     },
     {
-      "file": "assets/memo-material-D3VG3RU7.js",
-      "bytes": 54749,
+      "file": "assets/memo-material-1jltrTy3.js",
+      "bytes": 54751,
       "entry": true,
       "facade": "src/renderer/shells/desktop/views/DesktopSuperMemoMaterialView.tsx",
       "imports": [
@@ -631,15 +631,15 @@
         "assets/react-vendor-FHqoRFXt.js",
         "assets/project-store-CI4CRIkG.js",
         "assets/useRelationTypePresentation-XPS63NJ_.js",
-        "assets/SuperViewShell-C5b7ypoD.js",
-        "assets/super-memo-material-BfGiqzCl.js",
+        "assets/SuperViewShell-D1iyccA4.js",
+        "assets/super-memo-material-D_Fv6id6.js",
         "assets/GlassSlider-BgowdgOU.js",
         "assets/anchored-popover-position-DNcZ-w_y.js",
         "assets/EmptyState-BBLU4eZV.js",
         "assets/quota-DXHy-dVA.js",
         "assets/KindMark-B21QDM5m.js",
         "assets/useComment-CddWMapf.js",
-        "assets/bottom-timeline-CuLAmUOS.js",
+        "assets/bottom-timeline-XAtYb_bv.js",
         "assets/comment-BQim56no.js",
         "assets/scroll-to-block-C1hdQWnJ.js",
         "assets/HoverCard-BHgyGZEe.js",
@@ -855,7 +855,7 @@
       "initial": false
     },
     {
-      "file": "assets/FeedbackDialog-Xvsscl29.js",
+      "file": "assets/FeedbackDialog-CtXuyg51.js",
       "bytes": 7412,
       "entry": false,
       "facade": "src/renderer/features/feedback/FeedbackDialog.tsx",
@@ -865,7 +865,7 @@
         "assets/anchored-popover-position-DNcZ-w_y.js",
         "assets/quota-DXHy-dVA.js",
         "assets/SegmentedControl-DMyjpc3X.js",
-        "assets/index-B8C2J3bk.js",
+        "assets/index-DSFqEvYP.js",
         "assets/project-store-CI4CRIkG.js",
         "assets/prose-hydrate-client-BFUdD3BA.js",
         "assets/sanitized-summary-DVWkBD3h.js",
@@ -1241,7 +1241,7 @@
       "initial": true
     },
     {
-      "file": "assets/project-route-components-Dw0EgxgM.js",
+      "file": "assets/project-route-components-DKoo2L8y.js",
       "bytes": 859808,
       "entry": false,
       "facade": "src/renderer/app/project-route-components.tsx",
@@ -1254,7 +1254,7 @@
         "assets/active-editor-Dc7ypA2K.js",
         "assets/notification-store-Djl50lxU.js",
         "assets/connect-CdxYWnp7.js",
-        "assets/index-B8C2J3bk.js",
+        "assets/index-DSFqEvYP.js",
         "assets/events-mrzQ2dfo.js",
         "assets/useDriftingAgentRuntime-DcK06UIx.js",
         "assets/SandCell-CV-_s5Q1.js",
@@ -1263,10 +1263,10 @@
         "assets/EntityHoverCard-DUGc6tz-.js",
         "assets/RelationTypeField-Cd4EDkNs.js",
         "assets/relation-edge-popover-DPdauJGO.js",
-        "assets/SuperViewShell-C5b7ypoD.js",
+        "assets/SuperViewShell-D1iyccA4.js",
         "assets/useComment-CddWMapf.js",
         "assets/useProject-DTpjtKk3.js",
-        "assets/super-element-CAhI1gPh.js",
+        "assets/super-element-DeM_L_Bt.js",
         "assets/useRelationTypePresentation-XPS63NJ_.js",
         "assets/element-category-repo-3sagz9b8.js",
         "assets/comment-repo-CLibZuP9.js",
@@ -1286,9 +1286,9 @@
         "assets/ColorPicker-BVENgo57.js",
         "assets/comment-BQim56no.js",
         "assets/markdown-projection-status-C_9UhDpr.js",
-        "assets/bottom-timeline-CuLAmUOS.js",
+        "assets/bottom-timeline-XAtYb_bv.js",
         "assets/deferred-module-CGMhGXl8.js",
-        "assets/super-memo-material-BfGiqzCl.js",
+        "assets/super-memo-material-D_Fv6id6.js",
         "assets/yjs-prose-command-BOS6qOj2.js",
         "assets/shortcuts-store-sV5_ORpa.js",
         "assets/shortcuts-DI0iaH52.js",
@@ -1427,7 +1427,7 @@
       "initial": false
     },
     {
-      "file": "assets/super-element-CAhI1gPh.js",
+      "file": "assets/super-element-DeM_L_Bt.js",
       "bytes": 148975,
       "entry": false,
       "facade": null,
@@ -1441,7 +1441,7 @@
         "assets/RelationTypeField-Cd4EDkNs.js",
         "assets/storyline-B2xXkhs9.js",
         "assets/useRelationTypePresentation-XPS63NJ_.js",
-        "assets/SuperViewShell-C5b7ypoD.js",
+        "assets/SuperViewShell-D1iyccA4.js",
         "assets/events-mrzQ2dfo.js",
         "assets/yjs-prose-command-BOS6qOj2.js",
         "assets/GlassSlider-BgowdgOU.js",
@@ -1451,7 +1451,7 @@
         "assets/node-repo-BCyDnaZE.js",
         "assets/scroll-to-block-C1hdQWnJ.js",
         "assets/useDriftingAgentRuntime-DcK06UIx.js",
-        "assets/bottom-timeline-CuLAmUOS.js",
+        "assets/bottom-timeline-XAtYb_bv.js",
         "assets/quota-DXHy-dVA.js",
         "assets/native-asset-pipeline-CFoDVRcD.js",
         "assets/HoverCard-BHgyGZEe.js",
@@ -1666,7 +1666,7 @@
       "initial": false
     },
     {
-      "file": "assets/super-memo-material-BfGiqzCl.js",
+      "file": "assets/super-memo-material-D_Fv6id6.js",
       "bytes": 12640,
       "entry": false,
       "facade": null,
@@ -1677,7 +1677,7 @@
         "assets/project-store-CI4CRIkG.js",
         "assets/quota-DXHy-dVA.js",
         "assets/anchored-popover-position-DNcZ-w_y.js",
-        "assets/bottom-timeline-CuLAmUOS.js",
+        "assets/bottom-timeline-XAtYb_bv.js",
         "assets/GlassSlider-BgowdgOU.js",
         "assets/note-markdown-B_Kwq3tF.js"
       ],
@@ -1688,8 +1688,8 @@
       "initial": false
     },
     {
-      "file": "assets/bottom-timeline-CuLAmUOS.js",
-      "bytes": 31005,
+      "file": "assets/bottom-timeline-XAtYb_bv.js",
+      "bytes": 31120,
       "entry": false,
       "facade": null,
       "imports": [
@@ -1773,7 +1773,7 @@
       "initial": false
     },
     {
-      "file": "assets/SuperViewShell-C5b7ypoD.js",
+      "file": "assets/SuperViewShell-D1iyccA4.js",
       "bytes": 36190,
       "entry": false,
       "facade": null,
@@ -2406,13 +2406,13 @@
       "initial": false
     },
     {
-      "file": "assets/reader-comment-rail-_ZDvyvh3.js",
+      "file": "assets/reader-comment-rail-DVaVMgi0.js",
       "bytes": 3065,
       "entry": false,
       "facade": "src/renderer/features/share-links/reader-comment-rail.ts",
       "imports": [
         "assets/project-store-CI4CRIkG.js",
-        "assets/super-element-CAhI1gPh.js",
+        "assets/super-element-DeM_L_Bt.js",
         "assets/anchored-popover-position-DNcZ-w_y.js",
         "assets/react-vendor-FHqoRFXt.js",
         "assets/tiptap-BL2pavt1.js",
@@ -2468,8 +2468,8 @@
         "assets/SegmentedControl-DMyjpc3X.js",
         "assets/auth-dialog-store-JFWNRNvC.js",
         "assets/share-link-store-B2fZkSst.js",
-        "assets/SuperViewShell-C5b7ypoD.js",
-        "assets/bottom-timeline-CuLAmUOS.js",
+        "assets/SuperViewShell-D1iyccA4.js",
+        "assets/bottom-timeline-XAtYb_bv.js",
         "assets/agent-chat-store-DB15-0qC.js",
         "assets/repository-iXHiqZCI.js",
         "assets/useComment-CddWMapf.js",
@@ -2555,13 +2555,13 @@
       "initial": false
     },
     {
-      "file": "assets/docx-Jw6xZtad.js",
+      "file": "assets/docx-qyR4XNH2.js",
       "bytes": 407408,
       "entry": false,
       "facade": "src/renderer/services/import/docx.ts",
       "imports": [
         "assets/react-vendor-FHqoRFXt.js",
-        "assets/index-B8C2J3bk.js",
+        "assets/index-DSFqEvYP.js",
         "assets/jszip.min-DVeep1eZ.js",
         "assets/tiptap-BL2pavt1.js",
         "assets/yjs-prose-command-BOS6qOj2.js",
@@ -2639,7 +2639,7 @@
       "assets/entity-relation-type-repo-CdAdxJrk.js",
       "assets/events-mrzQ2dfo.js",
       "assets/i18n-DZwJaDbp.js",
-      "assets/index-B8C2J3bk.js",
+      "assets/index-DSFqEvYP.js",
       "assets/library-state-repo-B8td0vNi.js",
       "assets/local-authored-blob-85P_g3BB.js",
       "assets/location-link-catalog-CrRC-90e.js",
@@ -2691,8 +2691,8 @@
       "assets/entity-relation-type-repo-CdAdxJrk.js",
       "assets/events-mrzQ2dfo.js",
       "assets/i18n-DZwJaDbp.js",
-      "assets/index-B8C2J3bk.js",
-      "assets/index-mQLxQghp.css",
+      "assets/index-DSFqEvYP.js",
+      "assets/index-Mkkyt6-V.css",
       "assets/library-state-repo-B8td0vNi.js",
       "assets/local-authored-blob-85P_g3BB.js",
       "assets/location-link-catalog-CrRC-90e.js",
@@ -2748,19 +2748,19 @@
         },
         {
           "kind": "story",
-          "url": "/assets/story-graph-_p988UFr.js?graph-attempt=1"
+          "url": "/assets/story-graph-B92GuQkX.js?graph-attempt=1"
         },
         {
           "kind": "story",
-          "url": "/assets/story-graph-_p988UFr.js?graph-attempt=2"
+          "url": "/assets/story-graph-B92GuQkX.js?graph-attempt=2"
         },
         {
           "kind": "element",
-          "url": "/assets/element-graph-Lf04bRrq.js?graph-attempt=1"
+          "url": "/assets/element-graph-MCyDw-kL.js?graph-attempt=1"
         },
         {
           "kind": "element",
-          "url": "/assets/element-graph-Lf04bRrq.js?graph-attempt=2"
+          "url": "/assets/element-graph-MCyDw-kL.js?graph-attempt=2"
         }
       ]
     },
@@ -2791,19 +2791,19 @@
         },
         {
           "kind": "story",
-          "url": "/assets/story-graph-_p988UFr.js?graph-attempt=1"
+          "url": "/assets/story-graph-B92GuQkX.js?graph-attempt=1"
         },
         {
           "kind": "story",
-          "url": "/assets/story-graph-_p988UFr.js?graph-attempt=2"
+          "url": "/assets/story-graph-B92GuQkX.js?graph-attempt=2"
         },
         {
           "kind": "element",
-          "url": "/assets/element-graph-Lf04bRrq.js?graph-attempt=1"
+          "url": "/assets/element-graph-MCyDw-kL.js?graph-attempt=1"
         },
         {
           "kind": "element",
-          "url": "/assets/element-graph-Lf04bRrq.js?graph-attempt=2"
+          "url": "/assets/element-graph-MCyDw-kL.js?graph-attempt=2"
         }
       ]
     }
@@ -2812,472 +2812,472 @@
     {
       "name": "renderer ownership boundaries keeps super view bodies and shared graph UI behind their owned deferred entries",
       "status": "passed",
-      "durationMs": 856.3704170000001
+      "durationMs": 854.711083
     },
     {
       "name": "renderer ownership boundaries loads every stylesheet of a deferred entry with the shell, since its ignored import() injects none",
       "status": "passed",
-      "durationMs": 1099.1735410000001
+      "durationMs": 1107.823
     },
     {
       "name": "renderer ownership boundaries gives every module two Super View entries share to the shell or the graph UI facade",
       "status": "passed",
-      "durationMs": 1053.5096669999998
+      "durationMs": 1063.194458
     },
     {
       "name": "renderer ownership boundaries reports a module two Super View entries share outside the shell",
       "status": "passed",
-      "durationMs": 1040.6550829999996
+      "durationMs": 1048.7526660000003
     },
     {
       "name": "renderer ownership boundaries reports a deferred view stylesheet the shell stops owning",
       "status": "passed",
-      "durationMs": 1000.8092079999997
+      "durationMs": 1030.0946249999997
     },
     {
       "name": "renderer ownership boundaries keeps heavy settings code deferred while basic preferences and Trash stay reachable",
       "status": "passed",
-      "durationMs": 595.6934169999995
+      "durationMs": 598.6083330000001
     },
     {
       "name": "renderer ownership boundaries requires explicit workspace fields or selectors in product consumers",
       "status": "passed",
-      "durationMs": 274.8892080000005
+      "durationMs": 275.7302920000002
     },
     {
       "name": "renderer ownership boundaries keeps shared features independent from the desktop shell and desktop navigation store",
       "status": "passed",
-      "durationMs": 10.687458000000333
+      "durationMs": 10.422833000000537
     },
     {
       "name": "renderer ownership boundaries keeps mobile shell code independent from desktop shell and desktop navigation state",
       "status": "passed",
-      "durationMs": 3.1622080000006463
+      "durationMs": 3.312084000000141
     },
     {
       "name": "renderer ownership boundaries keeps the app entry small and delegates project UI to DesktopAppShell",
       "status": "passed",
-      "durationMs": 0.2702079999999114
+      "durationMs": 0.26583300000038435
     },
     {
       "name": "renderer ownership boundaries contains child-route subscriptions inside the desktop navigation boundary",
       "status": "passed",
-      "durationMs": 0.22612500000013824
+      "durationMs": 0.22933300000022427
     },
     {
       "name": "renderer ownership boundaries keeps compatibility barrels thin after feature extraction",
       "status": "passed",
-      "durationMs": 0.6309580000006463
+      "durationMs": 0.601875000000291
     },
     {
       "name": "Super View Escape stack returns the most recently opened active layer",
       "status": "passed",
-      "durationMs": 1.1265840000000082
+      "durationMs": 1.0005000000000024
     },
     {
       "name": "Super View Escape stack ignores a newer layer after it becomes inactive",
       "status": "passed",
-      "durationMs": 0.16583299999999213
+      "durationMs": 0.16437500000000682
     },
     {
       "name": "Super View Escape stack returns null at the Super View root",
       "status": "passed",
-      "durationMs": 0.09487500000000182
+      "durationMs": 0.08845800000000281
     },
     {
       "name": "Super View Escape stack dispatches exactly one child action and does not exit the root",
       "status": "passed",
-      "durationMs": 0.3425420000000088
+      "durationMs": 0.3264159999999947
     },
     {
       "name": "Super View Escape stack returns to the previous editor surface from the root",
       "status": "passed",
-      "durationMs": 0.21104199999999196
+      "durationMs": 0.2680830000000185
     },
     {
       "name": "deferred module ownership does not expose a speculative failure and retries automatically on first demand",
       "status": "passed",
-      "durationMs": 1.5643750000000125
+      "durationMs": 1.599333999999999
     },
     {
       "name": "deferred module ownership promotes an in-flight preload to demand without a second fetch and exposes its failure",
       "status": "passed",
-      "durationMs": 0.3601250000000107
+      "durationMs": 0.6161250000000109
     },
     {
       "name": "deferred module ownership shares successful preloaded code and coalesces reentrant demand notifications",
       "status": "passed",
-      "durationMs": 0.24225000000001273
+      "durationMs": 0.5311670000000106
     },
     {
       "name": "deferred module ownership stays idle until requested and shares concurrent and successful loads",
       "status": "passed",
-      "durationMs": 0.549666000000002
+      "durationMs": 1.0634170000000154
     },
     {
       "name": "deferred module ownership publishes a local error and retries a rejected loader only when requested",
       "status": "passed",
-      "durationMs": 0.23045799999999872
+      "durationMs": 0.654042000000004
     },
     {
       "name": "deferred module ownership handles synchronous loader failure without leaving a stuck loading state",
       "status": "passed",
-      "durationMs": 0.08500000000000796
+      "durationMs": 0.2146669999999915
     },
     {
       "name": "deferred module ownership does not notify closed consumers and retains code for a later owner",
       "status": "passed",
-      "durationMs": 0.267832999999996
+      "durationMs": 0.9835000000000207
     },
     {
       "name": "bounded deferred preloading waits for intent scheduling, keeps only the latest queued entry and cancels before start",
       "status": "passed",
-      "durationMs": 2.947667000000024
+      "durationMs": 2.056042000000005
     },
     {
       "name": "bounded deferred preloading allows one active speculative load and one queued successor, without blocking foreground demand",
       "status": "passed",
-      "durationMs": 0.9799170000000004
+      "durationMs": 0.7411249999999967
     },
     {
       "name": "bounded deferred preloading starts the queued preload only after the active import settles",
       "status": "passed",
-      "durationMs": 0.7524579999999901
+      "durationMs": 0.3911250000000024
     },
     {
       "name": "bounded deferred preloading lets a canceled control release its queued successor without canceling another owner",
       "status": "passed",
-      "durationMs": 0.9625420000000133
+      "durationMs": 0.2890830000000051
     },
     {
       "name": "bounded deferred preloading attempts each resource speculatively once, leaves failed demand alone and permits explicit retry",
       "status": "passed",
-      "durationMs": 1.7992500000000007
+      "durationMs": 0.7411249999999967
     },
     {
       "name": "bounded deferred preloading rechecks eligibility after waiting, including a queued task behind an active import",
       "status": "passed",
-      "durationMs": 0.22720800000001873
+      "durationMs": 0.17958299999999383
     },
     {
       "name": "drift card move-to-group choices unfolds root first, then the tree depth-first with sub-groups as paths, the current one checked",
       "status": "passed",
-      "durationMs": 1.8270420000000058
+      "durationMs": 1.6354160000000775
     },
     {
       "name": "drift card move-to-group choices treats a pointer at a missing group as root and lifts orphaned sub-groups to the top",
       "status": "passed",
-      "durationMs": 0.22729200000003402
+      "durationMs": 0.23816600000009203
     },
     {
       "name": "drift card move-to-group choices leaves the action out when there are no groups to move into",
       "status": "passed",
-      "durationMs": 0.08541700000000674
+      "durationMs": 0.08570800000006784
     },
     {
       "name": "chapter lane pointer lifecycle arms before movement and commits one valid drop exactly once",
       "status": "passed",
-      "durationMs": 13.67816700000003
+      "durationMs": 4.30254199999996
     },
     {
       "name": "chapter lane pointer lifecycle performs zero writes for early pan, invalid target, cancel, pinch, and explicit cancel",
       "status": "passed",
-      "durationMs": 2.0997919999999795
+      "durationMs": 3.4327920000000063
     },
     {
       "name": "chapter lane pointer lifecycle opens the shared menu after a stationary hold without starting or writing",
       "status": "passed",
-      "durationMs": 0.43366600000001654
+      "durationMs": 0.8135000000000332
     },
     {
       "name": "chapter lane pointer lifecycle keeps a weighted slab in its lane until the pointer passes the next lane middle",
       "status": "passed",
-      "durationMs": 0.7307080000000497
+      "durationMs": 2.782624999999996
     },
     {
       "name": "chapter lane pointer lifecycle wears the colour of the lane it is over, once per lane, and leaves the source alone",
       "status": "passed",
-      "durationMs": 2.1828749999999673
+      "durationMs": 1.7123750000000086
     },
     {
       "name": "chapter lane drag preserves the exact grabbed point for narrow holding chips and full cards",
       "status": "passed",
-      "durationMs": 0.8929580000000072
+      "durationMs": 2.0605410000000006
     },
     {
       "name": "chapter lane drag accepts every real and synthetic lane for both placed and unplaced chapters",
       "status": "passed",
-      "durationMs": 0.39858300000000213
+      "durationMs": 0.6024170000000026
     },
     {
       "name": "chapter lane drag delegates membership and order to one atomic move command",
       "status": "passed",
-      "durationMs": 1.8599590000000035
+      "durationMs": 1.0942909999999983
     },
     {
       "name": "chapter lane drag persists a continuous book-axis coordinate without slot conversion",
       "status": "passed",
-      "durationMs": 0.41987500000000466
+      "durationMs": 0.21862499999997453
     },
     {
       "name": "chapter lane drag clears primary and memberships before placing into the unaffiliated lane",
       "status": "passed",
-      "durationMs": 0.2289999999999992
+      "durationMs": 0.19454200000001265
     },
     {
       "name": "chapter lane drag commits one valid pointer drop exactly once and ignores invalid completion",
       "status": "passed",
-      "durationMs": 0.16433299999999917
+      "durationMs": 0.16550000000000864
     },
     {
       "name": "element islands reads far, middle and near from the zoom, and each distance lands in its own band",
       "status": "passed",
-      "durationMs": 2.2690000000000055
+      "durationMs": 1.3638749999999789
     },
     {
       "name": "element islands keys a pair the same whichever element comes first",
       "status": "passed",
-      "durationMs": 0.30562499999999204
+      "durationMs": 0.15533300000001304
     },
     {
       "name": "element islands draws only pairs at the threshold between elements still on the canvas",
       "status": "passed",
-      "durationMs": 0.8107909999999947
+      "durationMs": 0.7484169999999892
     },
     {
       "name": "element islands accepts custom positive integer thresholds and filters pairs with the same rule as presets",
       "status": "passed",
-      "durationMs": 0.3272079999999846
+      "durationMs": 0.30562499999999204
     },
     {
       "name": "element islands counts drawn lines and drawn relations as neighbours, itself included",
       "status": "passed",
-      "durationMs": 0.1993750000000034
+      "durationMs": 0.2425839999999937
     },
     {
       "name": "element islands lists who an element is mentioned with most, most first",
       "status": "passed",
-      "durationMs": 0.11400000000000432
+      "durationMs": 0.15583300000000122
     },
     {
       "name": "element islands sizes marks on a square-root scale, and an unmentioned element has none",
       "status": "passed",
-      "durationMs": 0.13000000000002387
+      "durationMs": 0.6334579999999903
     },
     {
       "name": "element islands lays an element out across the book in order and sums up where it appears",
       "status": "passed",
-      "durationMs": 0.48216600000000653
+      "durationMs": 0.8282080000000178
     },
     {
       "name": "the 关系 layout of the element overview settles from the islands in one run without cells on top of each other",
       "status": "passed",
-      "durationMs": 23.269874999999985
+      "durationMs": 27.392541000000023
     },
     {
       "name": "the 关系 layout of the element overview is deterministic: a run played tick by tick ends where the run computed at once does",
       "status": "passed",
-      "durationMs": 28.054583000000008
+      "durationMs": 31.462999999999965
     },
     {
       "name": "the 关系 layout of the element overview pulls related elements closer than the islands held them",
       "status": "passed",
-      "durationMs": 7.5100419999999986
+      "durationMs": 8.503332999999998
     },
     {
       "name": "the 关系 layout of the element overview keeps a dragged element where it was put while the rest settle around it",
       "status": "passed",
-      "durationMs": 11.436542000000003
+      "durationMs": 13.120834000000002
     },
     {
       "name": "the 关系 layout of the element overview writes a directed relation’s roles off each end and a symmetric one’s in the middle",
       "status": "passed",
-      "durationMs": 1.5170840000000112
+      "durationMs": 1.692707999999982
     },
     {
       "name": "the 关系 layout of the element overview remembers the layout per project and survives a corrupt record",
       "status": "passed",
-      "durationMs": 0.29195900000001984
+      "durationMs": 1.5487079999999764
     },
     {
       "name": "the 关系 layout of the element overview settles again when what pulls on the layout changes",
       "status": "passed",
-      "durationMs": 0.39058399999998983
+      "durationMs": 0.6255419999999958
     },
     {
       "name": "the 关系 layout of the element overview keeps a few hundred elements apart within the same run, a protagonist with thirty relations among them",
       "status": "passed",
-      "durationMs": 111.08420799999999
+      "durationMs": 113.82329199999998
     },
     {
       "name": "graph endpoint measurement measures unique DOM identities once, including aliases and self edges",
       "status": "passed",
-      "durationMs": 4.22145900000001
+      "durationMs": 2.8701249999999874
     },
     {
       "name": "graph endpoint measurement does not retain measurements across frames or measure a dangling edge",
       "status": "passed",
-      "durationMs": 1.2359580000000108
+      "durationMs": 0.6341669999999908
     },
     {
       "name": "graph endpoint measurement skips equal output but invalidates geometry, styles, identity, order and removal",
       "status": "passed",
-      "durationMs": 0.7224159999999813
+      "durationMs": 0.2871250000000032
     },
     {
       "name": "graph endpoint measurement projects drift to element links in either direction before resolving visible DOM",
       "status": "passed",
-      "durationMs": 1.9860419999999976
+      "durationMs": 0.3707080000000076
     },
     {
       "name": "graph geometry frame scheduler coalesces event bursts with animation frames and stops at the finite deadline",
       "status": "passed",
-      "durationMs": 1.6675419999999974
+      "durationMs": 1.8108330000000024
     },
     {
       "name": "graph geometry frame scheduler measures once after a suspended animation frame resumes beyond the deadline",
       "status": "passed",
-      "durationMs": 0.2086670000000055
+      "durationMs": 0.22354099999999733
     },
     {
       "name": "graph geometry frame scheduler cancels scheduled work and rejects later invalidations after disposal",
       "status": "passed",
-      "durationMs": 0.1791249999999991
+      "durationMs": 0.1773330000000044
     },
     {
       "name": "mobile Planning gesture ownership separates tap, arm, drag, menu, early pan, pinch, and cancellation",
       "status": "passed",
-      "durationMs": 0.9733750000000043
+      "durationMs": 2.028416000000007
     },
     {
       "name": "mobile Planning gesture ownership gives background movement to pan and a second pointer to pinch",
       "status": "passed",
-      "durationMs": 0.21774999999999523
+      "durationMs": 0.5530409999999932
     },
     {
       "name": "mobile Planning gesture ownership autoscrolls proportionally, stops centrally, and clamps at both ends",
       "status": "passed",
-      "durationMs": 0.15449999999999875
+      "durationMs": 0.23312500000000114
     },
     {
       "name": "Story Graph drift presentation lifetime keeps published snapshots stable and shifts only the crossed slots",
       "status": "passed",
-      "durationMs": 1.5920419999999922
+      "durationMs": 1.492666999999983
     },
     {
       "name": "Story Graph drift presentation lifetime clears immediately on close/cancel, ignores late hover and permits a new lifetime",
       "status": "passed",
-      "durationMs": 0.28191699999999287
+      "durationMs": 0.2687919999999906
     },
     {
       "name": "Story Graph drift presentation lifetime notifies exactly the changed slots across forward, reverse, source replacement and cancellation",
       "status": "passed",
-      "durationMs": 24.028208000000006
+      "durationMs": 34.15300000000002
     },
     {
       "name": "Story Graph drift presentation lifetime keeps adjacent hover notifications local in 5000 cards and bounds far targets to subscribed slots",
       "status": "passed",
-      "durationMs": 9.074667000000005
+      "durationMs": 11.08824999999996
     },
     {
       "name": "Story Graph drift read model classifies either drift endpoint, keeps direction/order and excludes hidden/ordinary edges",
       "status": "passed",
-      "durationMs": 1.3070419999999956
+      "durationMs": 2.4781250000000057
     },
     {
       "name": "Story Graph drift read model preserves override, source-storyline, target-storyline and accent precedence",
       "status": "passed",
-      "durationMs": 0.3984169999999949
+      "durationMs": 0.8692080000000146
     },
     {
       "name": "Super Element world edge projection preserves order, labels, colors, direction and target insets in either orientation",
       "status": "passed",
-      "durationMs": 4.288457999999991
+      "durationMs": 3.5956669999999917
     },
     {
       "name": "Super Element world edge projection excludes hidden, unsupported, missing-position and either-endpoint drift relations",
       "status": "passed",
-      "durationMs": 0.6565830000000119
+      "durationMs": 0.6505000000000223
     },
     {
       "name": "Super Element world edge projection rebuilds labels for replacement snapshots and retains first-match and fallback labels",
       "status": "passed",
-      "durationMs": 0.5267080000000135
+      "durationMs": 0.623457999999971
     },
     {
       "name": "Super Element viewport edge projection invalidates labels and endpoint metadata even if all positions are unchanged",
       "status": "passed",
-      "durationMs": 0.37795900000000415
+      "durationMs": 0.3273749999999609
     },
     {
       "name": "Super Element viewport edge projection aligns top-sticky nodes without double-counting the band world offset",
       "status": "passed",
-      "durationMs": 0.3181669999999883
+      "durationMs": 0.30579199999999673
     },
     {
       "name": "Super Element viewport edge projection aligns the bottom-sticky and naturally visible band in both endpoint directions",
       "status": "passed",
-      "durationMs": 0.16758399999997664
+      "durationMs": 0.1685420000000022
     },
     {
       "name": "Super Element viewport edge projection keeps non-sticky node endpoints at the natural position when only focus is enabled",
       "status": "passed",
-      "durationMs": 0.14349999999998886
+      "durationMs": 0.2261670000000322
     },
     {
       "name": "Super Element viewport edge projection filters element cards outside the viewport or behind the sticky band, retaining touching boundaries",
       "status": "passed",
-      "durationMs": 0.5860410000000229
+      "durationMs": 0.6625420000000304
     },
     {
       "name": "Super Element viewport edge projection matches the band transform for a band taller than the viewport and fractional zoom",
       "status": "passed",
-      "durationMs": 0.3810839999999871
+      "durationMs": 0.5079999999999814
     },
     {
       "name": "Super View canvas pinch keeps the authored world point under a moving midpoint",
       "status": "passed",
-      "durationMs": 0.8909579999999977
+      "durationMs": 0.9219580000000036
     },
     {
       "name": "Super View canvas pinch clamps scale without losing midpoint anchoring",
       "status": "passed",
-      "durationMs": 0.1943330000000003
+      "durationMs": 0.19350000000000023
     },
     {
       "name": "super-view relation menu model only treats relations whose two endpoints can render on Element as canvas instances",
       "status": "passed",
-      "durationMs": 1.8971659999999986
+      "durationMs": 0.8699170000000152
     },
     {
       "name": "super-view relation menu model orders used Element types before available types and folds off-canvas types",
       "status": "passed",
-      "durationMs": 0.8130829999999918
+      "durationMs": 0.7330410000000143
     },
     {
       "name": "super-view relation menu model uses node-to-node as the renderable Story Graph contract",
       "status": "passed",
-      "durationMs": 0.18274999999999864
+      "durationMs": 0.17391699999998878
     },
     {
       "name": "timeline preview publication publishes only the latest marker and act coordinates once per frame, without mutating an earlier snapshot",
       "status": "passed",
-      "durationMs": 2.009124999999983
+      "durationMs": 2.463458000000003
     },
     {
       "name": "timeline preview publication clears immediately before a display frame and does not resurrect a cancelled drag",
       "status": "passed",
-      "durationMs": 0.3093340000000069
+      "durationMs": 0.3684169999999938
     },
     {
       "name": "timeline preview publication retains another active marker, releases after the last subscriber, and allows StrictMode resubscription",
       "status": "passed",
-      "durationMs": 0.308667000000014
+      "durationMs": 0.3315420000000131
     },
     {
       "name": "timeline preview publication keeps independently mounted timelines isolated",
       "status": "passed",
-      "durationMs": 0.13937500000000114
+      "durationMs": 0.14595800000000736
     }
   ],
   "devGraphs": "passed",
@@ -3305,7 +3305,7 @@
           "onlySelectedCode": true,
           "firstOpenWithoutFallback": true
         },
-        "clickToObservedGraphMs": 10.799999713897705,
+        "clickToObservedGraphMs": 10.800000190734863,
         "requests": [
           {
             "kind": "shared",
@@ -3313,7 +3313,7 @@
           },
           {
             "kind": "story",
-            "url": "/assets/story-graph-_p988UFr.js?graph-attempt=1"
+            "url": "/assets/story-graph-B92GuQkX.js?graph-attempt=1"
           }
         ]
       },
@@ -3338,7 +3338,7 @@
           },
           {
             "kind": "story",
-            "url": "/assets/story-graph-_p988UFr.js?graph-attempt=1"
+            "url": "/assets/story-graph-B92GuQkX.js?graph-attempt=1"
           }
         ]
       },
@@ -3358,7 +3358,7 @@
           },
           {
             "kind": "story",
-            "url": "/assets/story-graph-_p988UFr.js?graph-attempt=1"
+            "url": "/assets/story-graph-B92GuQkX.js?graph-attempt=1"
           }
         ]
       },
@@ -3378,11 +3378,11 @@
           },
           {
             "kind": "settings",
-            "url": "/assets/PreferenceSettingsPanels-B5MQiZLE.js"
+            "url": "/assets/PreferenceSettingsPanels-rOgDRYHC.js"
           },
           {
             "kind": "story",
-            "url": "/assets/story-graph-_p988UFr.js?graph-attempt=1"
+            "url": "/assets/story-graph-B92GuQkX.js?graph-attempt=1"
           }
         ]
       },
@@ -3401,7 +3401,7 @@
           },
           {
             "kind": "story",
-            "url": "/assets/story-graph-_p988UFr.js?graph-attempt=1"
+            "url": "/assets/story-graph-B92GuQkX.js?graph-attempt=1"
           }
         ]
       }
