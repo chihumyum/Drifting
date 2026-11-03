@@ -12,7 +12,8 @@ process.chdir(root);
 const localeEvidence = JSON.parse(readFileSync('docs/qa/interface-locales.json', 'utf8'));
 const files = [...localeEvidence.sources, 'scripts/interface-locales-ui.tsx', 'scripts/interface-locales-ui.html', 'scripts/run-interface-locales.mjs',
   'src/styles/index.css', 'src/styles/ui-controls.css', 'src/styles/desktop-typography.css',
-  'src/renderer/components/ui/GlassSelect.tsx', 'src/renderer/components/ui/AnchoredPopover.tsx'];
+  'src/renderer/components/ui/GlassSelect.tsx', 'src/renderer/components/ui/AnchoredPopover.tsx',
+  'src/renderer/components/ui/anchored-popover-stack.ts'];
 const fingerprint = () => { const h = createHash('sha256'); for (const file of files) h.update(file).update(readFileSync(file)); return h.digest('hex'); };
 const output = 'docs/qa/interface-locales-browser.json';
 const textSizes = ['smallest', 'small', 'standard', 'large', 'largest'];
@@ -42,6 +43,15 @@ if (process.argv.includes('--check')) {
       const result = await client.Runtime.evaluate({ expression, awaitPromise: true, returnByValue: true });
       assert.equal(result.exceptionDetails, undefined, JSON.stringify(result.exceptionDetails)); return result.result.value;
     };
+    const pointerClick = async (selector, index = 0) => {
+      const point = await evaluate(`(()=>{
+        const element=document.querySelectorAll(${JSON.stringify(selector)})[${index}];
+        element.scrollIntoView({block:'nearest'});
+        const box=element.getBoundingClientRect();return {x:box.x+box.width/2,y:box.y+box.height/2};
+      })()`);
+      await client.Input.dispatchMouseEvent({ type: 'mousePressed', ...point, button: 'left', clickCount: 1 });
+      await client.Input.dispatchMouseEvent({ type: 'mouseReleased', ...point, button: 'left', clickCount: 1 });
+    };
     const settle = () => evaluate('document.fonts.ready.then(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))))');
     const ready = () => evaluate(`new Promise((resolve,reject)=>{let tries=0; const poll=()=>{if(window.__INTERFACE_LOCALES__?.ready()) resolve(true);else if(++tries>200)reject(new Error('Fixture timeout'));else setTimeout(poll,50)};poll()})`);
     for (const width of [1280, 800]) {
@@ -64,7 +74,7 @@ if (process.argv.includes('--check')) {
         const reload = client.Page.loadEventFired(); await client.Page.reload(); await reload; await ready(); await settle();
         assert.equal(await evaluate('__INTERFACE_LOCALES__.locale()'), locale);
         // Check the real account-menu picker too, including its nested body portal.
-        await evaluate("document.querySelector('#account-trigger').click()"); await settle();
+        await pointerClick('#account-trigger'); await settle();
         for (const textSize of textSizes) {
           await evaluate(`document.documentElement.dataset.interfaceTextSize=${JSON.stringify(textSize)}`); await settle();
           const layout = await evaluate(`(()=>{
@@ -94,10 +104,12 @@ if (process.argv.includes('--check')) {
           }
         }
         await evaluate("document.documentElement.dataset.interfaceTextSize='standard'"); await settle();
-        await evaluate("document.querySelector('.user-menu .ui-select').click()"); await settle();
+        await pointerClick('.user-menu .ui-select'); await settle();
         assert.equal(await evaluate("document.querySelectorAll('[role=option]').length"), 9);
-        await evaluate(`document.querySelectorAll('[role=option]')[${index}].click()`); await settle();
-        await evaluate("document.querySelector('#account-trigger').click()"); await settle();
+        await pointerClick('[role=option]', index); await settle();
+        assert.equal(await evaluate('__INTERFACE_LOCALES__.locale()'), locale);
+        assert(await evaluate("!!document.querySelector('.user-menu')"), 'The account menu must survive selecting its nested language option');
+        await pointerClick('#account-trigger'); await settle();
         samples.push({ width, ...sample, portal: menu.portal, fixed: menu.fixed, restart: 'passed', accountMenu: 'passed' });
         if (width === 800 && ['ja', 'ko', 'de', 'zh-TW'].includes(locale)) {
           mkdirSync('.qa', { recursive: true }); writeFileSync(`.qa/interface-locales-${locale}.png`, Buffer.from((await client.Page.captureScreenshot()).data, 'base64'));

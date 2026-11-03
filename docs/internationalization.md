@@ -117,6 +117,8 @@ It also measures the open account menu for every locale at all five interface
 text sizes: 90 layouts across the two window widths. Labels must remain on one
 line, selected values must fit, and the controls must not overlap. These checks
 reproduce the former full-width dropdown squeezing the label to zero width.
+Account-menu options are chosen with pointer events, verifying that the parent
+menu remains open while interacting with its portalled language list.
 Uncommitted visual samples include the open English and Brazilian Portuguese
 account menus at standard and largest text sizes under `.qa/`.
 
