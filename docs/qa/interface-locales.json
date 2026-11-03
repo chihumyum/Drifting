@@ -1,7 +1,7 @@
 {
   "kind": "nine-language-interface",
   "status": "passed",
-  "sourceSha256": "41084e425db711e9e042be336b534557d159c1f90adf6ad3c55f1d262d6ab52f",
+  "sourceSha256": "628aa2aa9033f078994454f8d72a686be58eb55c096d9cb51f57c851e848ef9b",
   "sources": [
     "scripts/check-ui-locales.ts",
     "scripts/generate-startup-locales.mjs",
@@ -22,6 +22,7 @@
     "src/renderer/lib/char-sea/char-sea-text.ts",
     "src/renderer/views/shelf/shelf-format.ts",
     "src/styles/interface-fonts.css",
+    "src/styles/ui-controls.css",
     "src/renderer/locales/zh-CN.json",
     "src/renderer/locales/zh-TW.json",
     "src/renderer/locales/en.json",

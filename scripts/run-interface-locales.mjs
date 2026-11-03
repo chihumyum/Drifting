@@ -10,13 +10,17 @@ import { closeHeadlessSession, launchHeadlessBrowser } from './renderer-headless
 const root = path.resolve(import.meta.dirname, '..');
 process.chdir(root);
 const localeEvidence = JSON.parse(readFileSync('docs/qa/interface-locales.json', 'utf8'));
-const files = [...localeEvidence.sources, 'scripts/interface-locales-ui.tsx', 'scripts/interface-locales-ui.html', 'scripts/run-interface-locales.mjs'];
+const files = [...localeEvidence.sources, 'scripts/interface-locales-ui.tsx', 'scripts/interface-locales-ui.html', 'scripts/run-interface-locales.mjs',
+  'src/styles/index.css', 'src/styles/ui-controls.css', 'src/styles/desktop-typography.css',
+  'src/renderer/components/ui/GlassSelect.tsx', 'src/renderer/components/ui/AnchoredPopover.tsx'];
 const fingerprint = () => { const h = createHash('sha256'); for (const file of files) h.update(file).update(readFileSync(file)); return h.digest('hex'); };
 const output = 'docs/qa/interface-locales-browser.json';
+const textSizes = ['smallest', 'small', 'standard', 'large', 'largest'];
 if (process.argv.includes('--check')) {
   const report = JSON.parse(readFileSync(output, 'utf8'));
   assert.equal(report.sourceSha256, fingerprint()); assert.equal(report.status, 'passed');
   assert.equal(report.samples.length, localeEvidence.locales.length * 2);
+  assert.equal(report.accountMenuLayouts.length, localeEvidence.locales.length * 2 * textSizes.length);
 } else {
   const temporary = mkdtempSync(path.join(tmpdir(), 'drifting-ui-locales-'));
   let browser, client, server;
@@ -32,7 +36,7 @@ if (process.argv.includes('--check')) {
     browser = await launchHeadlessBrowser({ profile: path.join(temporary, 'profile') });
     client = await CDP({ port: browser.port, target: await CDP.New({ port: browser.port }) });
     await client.Page.enable(); await client.Runtime.enable();
-    const errors = [], samples = [];
+    const errors = [], samples = [], accountMenuLayouts = [];
     client.Runtime.exceptionThrown(({ exceptionDetails }) => errors.push(exceptionDetails.exception?.description ?? exceptionDetails.text));
     const evaluate = async expression => {
       const result = await client.Runtime.evaluate({ expression, awaitPromise: true, returnByValue: true });
@@ -61,6 +65,35 @@ if (process.argv.includes('--check')) {
         assert.equal(await evaluate('__INTERFACE_LOCALES__.locale()'), locale);
         // Check the real account-menu picker too, including its nested body portal.
         await evaluate("document.querySelector('#account-trigger').click()"); await settle();
+        for (const textSize of textSizes) {
+          await evaluate(`document.documentElement.dataset.interfaceTextSize=${JSON.stringify(textSize)}`); await settle();
+          const layout = await evaluate(`(()=>{
+            const select=document.querySelector('.user-menu .ui-select');
+            const row=select.closest('.user-menu__item'), label=row.children[1], value=select.querySelector('.ui-select__value');
+            const range=document.createRange(); range.selectNodeContents(label);
+            const lines=new Set([...range.getClientRects()].map(rect=>Math.round(rect.top))).size;
+            const themeLabel=document.querySelector('.user-menu__item--static').children[1];
+            const themeRange=document.createRange();themeRange.selectNodeContents(themeLabel);
+            const themeLines=new Set([...themeRange.getClientRects()].map(rect=>Math.round(rect.top))).size;
+            const menu=document.querySelector('.user-menu').getBoundingClientRect();
+            const labelBounds=label.getBoundingClientRect(), selectBounds=select.getBoundingClientRect();
+            return {label:label.textContent,lines,themeLines,labelWidth:labelBounds.width,selectWidth:selectBounds.width,
+              valueClipped:value.scrollWidth>value.clientWidth+1,overlap:labelBounds.right>selectBounds.left,
+              menuInViewport:menu.left>=0&&menu.right<=innerWidth,rowHeight:row.getBoundingClientRect().height};
+          })()`);
+          if (layout.lines !== 1 || layout.valueClipped || layout.overlap) {
+            mkdirSync('.qa', { recursive: true }); writeFileSync('.qa/interface-locales-menu-failure.png', Buffer.from((await client.Page.captureScreenshot()).data, 'base64'));
+          }
+          assert.equal(layout.lines, 1, `${locale}/${textSize}: account language label wraps: ${JSON.stringify(layout)}`);
+          assert.equal(layout.themeLines, 1, `${locale}/${textSize}: account theme label wraps`);
+          assert(!layout.valueClipped, `${locale}/${textSize}: selected language is clipped`);
+          assert(!layout.overlap && layout.menuInViewport, `${locale}/${textSize}: account language control overflows`);
+          accountMenuLayouts.push({width,locale,textSize,...layout});
+          if (width === 800 && ['en', 'pt-BR'].includes(locale) && ['standard', 'largest'].includes(textSize)) {
+            mkdirSync('.qa', { recursive: true }); writeFileSync(`.qa/interface-locales-menu-${locale}-${textSize}.png`, Buffer.from((await client.Page.captureScreenshot()).data, 'base64'));
+          }
+        }
+        await evaluate("document.documentElement.dataset.interfaceTextSize='standard'"); await settle();
         await evaluate("document.querySelector('.user-menu .ui-select').click()"); await settle();
         assert.equal(await evaluate("document.querySelectorAll('[role=option]').length"), 9);
         await evaluate(`document.querySelectorAll('[role=option]')[${index}].click()`); await settle();
@@ -72,7 +105,7 @@ if (process.argv.includes('--check')) {
       }
     }
     assert.deepEqual(errors, []); assert.equal(fingerprint(), before);
-    writeFileSync(output, JSON.stringify({ kind: 'nine-language-interface-browser', status: 'passed', sourceSha256: before, samples, errors,
+    writeFileSync(output, JSON.stringify({ kind: 'nine-language-interface-browser', status: 'passed', sourceSha256: before, samples, accountMenuLayouts, errors,
       limitations: ['Production React/CSS in Chromium using synthetic text. Native WKWebView and native-speaker review are separate.'] }, null, 2) + '\n');
     console.log(`Passed ${samples.length} real-control language/reload samples.`);
   } finally { await closeHeadlessSession({ client, browser, server }); }

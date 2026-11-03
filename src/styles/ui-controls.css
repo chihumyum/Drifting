@@ -749,8 +749,12 @@ html:not([data-shell-mode='mobile']) .menu-surface__item.is-current:not(:hover):
 }
 
 /* Account menu (UserMenu). On the desktop its rows run edge to edge, groups
-   are parted by 8px of space and the head has no rule under it; theme and
-   language are GlassSliders. The mobile shelf keeps its ruled groups. */
+   are parted by 8px of space and the head has no rule under it; theme uses
+   a slider and language uses a dropdown. Mobile keeps its ruled groups. */
+.user-menu {
+  width: max(var(--menu-width-wide), 20em);
+}
+
 .user-menu__head {
   display: flex;
   align-items: center;
@@ -839,6 +843,13 @@ html:not([data-shell-mode='mobile']) .user-menu__group--last {
 
 .user-menu__slider {
   margin-left: auto;
+}
+
+/* A menu control shares its row with an icon and label. The form field's
+   default full width would consume their space and wrap the label by letter. */
+.user-menu .ui-select {
+  width: auto;
+  flex: 0 1 auto;
 }
 
 html:not([data-shell-mode='mobile']) .user-menu__item--static::before {
