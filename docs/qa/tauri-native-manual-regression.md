@@ -73,8 +73,8 @@ OS / API level：
 | 范围                   | 自动化已覆盖                                                                                         | 仍需手工验证                                                          |
 | ---------------------- | ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
 | Android secure storage | Rust key 校验；Kotlin 格式、损坏、上限测试；instrumented test 源码                                   | 真 Keystore、跨进程/重启、覆盖升级、卸载、真实密文检查、厂商差异      |
-| OAuth Server           | state、PKCE、HMAC binding、redirect allowlist、过期、一次性兑换、敏感 payload 解析                   | 真实 Google、浏览器 cookie、真实 PostgreSQL 竞争、deep link、生产日志 |
-| OAuth renderer         | warm/queued callback、state 不匹配、过期、exchange 失败                                              | 冷启动 callback、浏览器取消、断网、系统切换、session 持久化           |
+| OAuth Server           | 服务端仓库 `bun test src/native-oauth`：S256、请求校验、往返后浏览器不留会话、重放、错 verifier/redirect、code 过期、取消、provider state 过期、未验证邮箱不被接管；HTTP 验收在 PostgreSQL 上重跑往返 | 真实 Google、生产日志、并发兑换 |
+| OAuth renderer         | warm/queued callback、state 不匹配、过期回报、浏览器取消、App 内取消后迟到回调、exchange 失败、无 flow 挂载时打开登录框、服务端声明 provider | 系统浏览器经 LaunchServices 回到正式包、断网、系统切换               |
 | 图片 pipeline          | 普通图片、方向、格式嗅探、尺寸/内存上限；macOS ImageIO HEIC/AVIF                                     | iOS 真机、Android 系统 codec、照片选择器、两个真实 UI 入口            |
 | General Agent          | 生成能力清单、功能 checklist、SQLite/Yjs 故障与恢复、领域写入、长任务、compaction、provider/MCP 合同 | 付费 provider 抽检、桌面/iOS/Android UI、后台恢复、触摸与软键盘       |
 | 构建                   | macOS 测试、iOS/Android Rust 交叉编译、Android APK/Kotlin 编译                                       | 安装、权限、后台生命周期、低内存、不同厂商设备                        |
@@ -105,9 +105,10 @@ OAuth staging 必须满足：
 - 兼容服务实现当前版本化 native OAuth handoff contract。
 - `API_BASE_URL`、`BETTER_AUTH_URL` 是同一个公开 HTTPS origin。
 - 已设置稳定的 `BETTER_AUTH_SECRET`、`GOOGLE_CLIENT_ID` 和 `GOOGLE_CLIENT_SECRET`。
-- Google Console callback 是 `https://api.drifting.cc/api/auth/callback/google`，或 staging 的等价地址。
-- 测试设备已注册 `drifting://auth/callback`。
-- 当前 `src/renderer/features/auth/AuthFlow.tsx` 中 `SOCIAL_LOGIN_ENABLED` 默认为 `false`。OAuth 手测必须使用一个仅供 QA、明确开启该开关的构建；测完不要把开关误带入正式 beta。
+- Google Console 里是 **Web application** 类型的 OAuth 客户端，callback 是 `https://api.drifting.cc/api/auth/callback/google`，或 staging 的等价地址。
+- `GET /api/auth/providers` 列出 `google`。App 只在服务端声明时显示「用 Google 继续」，不需要专门的 QA 构建。
+- 测试设备已注册 `drifting://auth/callback`。worktree 开发版和 `--build-app` 包用自己的 `drifting-test-…` scheme，收不到这个回调；在本机验证 renderer 链路可以用 `open -a <包> "drifting://auth/callback?…"` 把回调直接投给它（下方记录）。
+- 本地服务端（`docker-compose.yml` 默认 `DRIFTING_OAUTH_MOCK=1`）用进程内的模拟 Google，同意页可以填任意合成邮箱，见服务端 `docs/native-oauth-v1.md`。
 
 ### 3.2 最小设备矩阵
 
@@ -208,7 +209,7 @@ adb exec-out run-as cc.drifting.client sh -c 'grep -R -a -F "manual-test-canary"
 - [ ] `OA-12` `P2` 两个客户端同时兑换同一 code；真实 PostgreSQL 中只能一个成功。
 - [ ] `OA-13` `P0` 回调 URI/浏览器历史只能出现短期 `code` 和 `nativeState`，绝不能有 `token` 或 Bearer。
 - [ ] `OA-14` `P1` initiation、callback、exchange 响应都有 `Cache-Control: no-store`；callback 还有 `Referrer-Policy: no-referrer`。
-- [ ] `OA-15` `P1` `native_auth_code` 只含 hash、challenge、session id、redirect 和时间戳，无 raw code、bearer、verifier。
+- [ ] `OA-15` `P1` Better Auth `verification` 表里的 handoff 行，identifier 是 code 的 SHA-256，value 只有 user id、challenge 和 redirect，加过期时间；无 raw code、bearer、verifier。
 - [ ] `OA-16` `P0` client/server 日志搜索 canary、`codeVerifier`、`Bearer ` 和测试 token，结果为空。
 - [ ] `OA-17` `P1` 成功或失败后 pending state/verifier 已清除；不得在流程完成后残留。
 
@@ -221,7 +222,22 @@ curl -i https://api.drifting.cc/api/auth/native-exchange \
   --data "{\"code\":\"bad\",\"codeVerifier\":\"$SENTINEL\",\"redirectUri\":\"drifting://auth/callback\"}"
 ```
 
-预期为 `400 invalid_grant`，响应包含 `Cache-Control: no-store`，Server 日志中搜索 `$SENTINEL` 没有结果。
+预期为 `400 INVALID_GRANT`，响应包含 `Cache-Control: no-store`，Server 日志中搜索 `$SENTINEL` 没有结果。
+
+### 2026-11-03 本机记录（模拟 Google）
+
+- 构建：客户端 `claude/awesome-khayyam-30547f`（Google 登录分支），`pnpm dev:worktree --build-app --online --instance oauth`
+  打出的已签名 Debug 包（独立身份 `cc.drifting.wt.waa1a8525ec02`），`DRIFTING_HOSTED_ORIGIN=http://localhost:3000`；
+  服务端 `claude/google-oauth-20261103` 的本地 Docker，`DRIFTING_OAUTH_MOCK=1`。macOS 27.0.1，Apple Silicon。
+- 浏览器一段在 Claude 内置浏览器里完成（同一条 `oauth-redirect` URL，state 与 challenge 取自 App 的 pending state），
+  交接页给出的 `drifting://auth/callback?…` 用 `open -a` 投给 Debug 包。
+- `OA-01`：点击「用 Google 继续」打开系统浏览器，按钮变「等待浏览器授权…」并出现「取消」。PASS。
+- `OA-02`（热）：回调后兑换 token、写入该包自己的钥匙串服务（键按服务 origin 区分）、连接并重启进账号书库；服务端该用户恰好 1 个会话。PASS。
+- `OA-04`（冷）：拿到 pending state 后退出 App，浏览器完成授权，回调冷启动 App；App 自己打开登录框接手并进入账号书库。用同一 code 和真实 verifier 重放兑换得到 400。PASS。
+- `OA-05`：同意页点「取消」，App 显示「已在浏览器中取消登录。」，按钮恢复可重试。PASS。
+- App 内点「取消」后再完成浏览器授权并投递回调：App 不兑换、界面不变，服务端该用户 0 个会话。PASS。
+- 未覆盖：真实 Google、系统浏览器经 LaunchServices 把 `drifting://` 交给正式签名的 `cc.drifting.client` 包
+  （这台机器上 `drifting:` 的默认处理者是一个旧的 Electron 包，且正式版 Drifting.app 正在使用，没有去改）、断网、`OA-07` 等待 10 分钟（自动化覆盖）。
 
 `drifting://` 仍是未验证 custom scheme。人工回归可以证明流程可用和 PKCE 防重放，但不能消除其他 App 抢占 scheme 的发布风险；公开分发前仍需 iOS Universal Links / Android App Links。
 

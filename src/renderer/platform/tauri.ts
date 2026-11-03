@@ -588,6 +588,10 @@ export const tauriPlatform: PlatformApi = {
           if (!result) continue;
           const pending = consumePendingNativeOAuth(result.nativeState);
           if (!pending) continue;
+          if (pending.status === 'expired') {
+            callback({ token: null, error: 'expired' });
+            continue;
+          }
           if (result.error) {
             callback({ token: null, error: result.error });
             continue;
@@ -595,8 +599,8 @@ export const tauriPlatform: PlatformApi = {
           try {
             const token = await exchangeNativeOAuthCode(
               result.code!,
-              pending.codeVerifier,
-              pending.redirectUri,
+              pending.secret.codeVerifier,
+              pending.secret.redirectUri,
             );
             if (active) callback({ token, error: null });
           } catch (error) {

@@ -120,6 +120,27 @@ describe('account sign-in entry', () => {
     expect(en.settings.hosted.sign_in_sync_description).toMatch(/own library[\s\S]*not brought into the account[\s\S]*local library/);
   });
 
+  it('offers the providers the service declares above email sign-in, and finishes them from anywhere', () => {
+    const flow = read('src/renderer/features/auth/AuthFlow.tsx');
+    const app = read('src/renderer/App.tsx');
+    const effect = read('src/renderer/app/effects/NativeOAuthEffects.tsx');
+    const zh = JSON.parse(read('src/renderer/locales/zh-CN.json')) as Locale;
+
+    // Social sign-in is on; which providers show is the service's answer (docs/hosted-sync/README.md).
+    expect(flow).not.toContain('SOCIAL_LOGIN_ENABLED');
+    expect(flow).toContain('const providers = useOAuthProviders();');
+    expect(flow).toContain('const social = isAppClosedForPublic ? [] : providers;');
+    expect(flow.indexOf('className="auth-flow__social"')).toBeLessThan(flow.indexOf("label={t('auth.fields.email')}"));
+    expect(flow).toContain('<FlowButton kind="text" onClick={cancelNativeOAuth}>');
+    // One listener for the whole app, so a cold start or a closed dialog still signs in.
+    expect(app).toContain('<NativeOAuthEffects />');
+    expect(effect).toContain('if (!hostedAccountSettingsEnabled()) return undefined;');
+    expect(flow).not.toContain('platform.auth.onOAuthCallback');
+    const errors = zh.auth.errors as Record<string, string>;
+    for (const key of ['oauthCancelled', 'oauthExpired', 'oauthAccountNotLinked', 'oauthFailed'])
+      expect(errors[key]).not.toMatch(/OAuth|access_denied/);
+  });
+
   it('holds the flow open while the library connects and keeps failures retryable', () => {
     const flow = read('src/renderer/features/auth/AuthFlow.tsx');
 
