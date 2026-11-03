@@ -852,6 +852,19 @@ html:not([data-shell-mode='mobile']) .user-menu__group--last {
   flex: 0 1 auto;
 }
 
+/* A row's own control (the theme slider, the language select) stands within
+   the row: 24px tall, reaching 2px into the row's padding, so every row of
+   the menu keeps the one height of a menu row. */
+html:not([data-shell-mode='mobile']) .user-menu__item--static > :is(.glass-slider, .ui-select) {
+  height: calc(24px + var(--ui-text-increment, 0px));
+  min-height: 0;
+  margin-block: -2px;
+}
+
+html:not([data-shell-mode='mobile']) .user-menu__item--static > .ui-select {
+  padding-block: 0;
+}
+
 html:not([data-shell-mode='mobile']) .user-menu__item--static::before {
   display: none;
 }
