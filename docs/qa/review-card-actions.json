@@ -1,6 +1,6 @@
 {
   "status": "passed",
-  "fingerprint": "0bca1d7c474354e3f1e771619c0069ac47425a951f64b9363007c75559645292",
+  "fingerprint": "8ef2bb62d170553bce3bc09727169538bf8513624f5c6f60028cdb98cb7d9e4d",
   "sources": [
     "src/renderer/features/comments/ReviewItemCard.tsx",
     "src/renderer/features/comments/CommentSourceHoverCard.tsx",

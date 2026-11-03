@@ -1,0 +1,49 @@
+{
+  "kind": "prose-point",
+  "status": "passed",
+  "generatedAt": "2026-11-03T19:58:07.217Z",
+  "sourceSha256": "7abe43c325d345d18d0437641c205d5cb4b62160d0cf52bedb92ba94bbc0aa37",
+  "inputs": [
+    "scripts/run-prose-point-acceptance.mjs",
+    "scripts/renderer-headless-browser.mjs",
+    "scripts/renderer-prose-point.ts",
+    "scripts/renderer-prose-point.html",
+    "src/renderer/lib/comment-sand.ts",
+    "src/renderer/lib/comment-highlight.ts",
+    "src/styles/comments-review.css"
+  ],
+  "browser": "Chrome/156.0.8078.80",
+  "results": {
+    "beforeIntent": [],
+    "afterIntent": [
+      "A"
+    ],
+    "statesWhilePointed": [
+      "hot",
+      "rest"
+    ],
+    "pastTheEnd": [],
+    "statesAfterLeaving": [
+      "rest",
+      "rest"
+    ],
+    "passingOver": [],
+    "dragging": [],
+    "afterScroll": [
+      "B"
+    ],
+    "leftScroller": []
+  },
+  "checks": {
+    "waitsForIntent": true,
+    "restingPointsAtAnchor": true,
+    "pointedSwashIsHot": true,
+    "pastTheEndLetsGoAtOnce": true,
+    "passingOverLightsNothing": true,
+    "draggingPointsAtNothing": true,
+    "followsScrolledLines": true,
+    "leavingScrollerLetsGo": true,
+    "noUncaughtExceptions": true
+  },
+  "boundary": "Chromium with the real CommentSandPainter, comment-highlight stores and global sheets over synthetic paragraphs with two text-anchored notes; CDP mouse input. Not the real editor, the Review panel (the card side is covered by review-stats-sand-glass.render.test.ts) or WKWebView."
+}

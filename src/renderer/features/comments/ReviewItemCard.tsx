@@ -27,6 +27,7 @@ import { CommentBodyEditor } from './CommentBodyEditor';
 import { TodoStatusToggle } from './TodoStatusToggle';
 import { CommentSourceHoverCard } from './CommentSourceHoverCard';
 import { useCommentSourceHover } from './use-comment-source-hover';
+import { useProsePointedCard } from './use-prose-pointed-card';
 import { buildTodoAgentTask } from './todo-agent-task';
 import { BrushIcon } from '../../components/ui/BrushIcon';
 
@@ -97,6 +98,8 @@ export function ReviewItemCard({
   const sourceHover = useCommentSourceHover(!editing && !snapshotOpen);
   const [cardRequested, setCardRequested] = useState(false);
   const articleRef = useRef<HTMLElement>(null);
+  // Its anchor pointed at in the prose lights the card as the pointer would.
+  const pointed = useProsePointedCard(comment.id, articleRef);
   // A card removed under the pointer never receives mouseleave.
   useEffect(() => () => clearActiveCommentHighlight(comment.id), [comment.id]);
   const selectedRelations = useMemo(
@@ -288,7 +291,7 @@ export function ReviewItemCard({
         ref={articleRef}
         className={`review-card review-card--panel review-card--${color}${
           glass ? ' review-card--glass glass glass--rest glass--surface' : ' workspace-list-row glass glass--surface'
-        }${isResolved || isConverted ? ' review-card--resolved' : ''}`}
+        }${isResolved || isConverted ? ' review-card--resolved' : ''}${pointed ? ' review-card--pointed' : ''}`}
         data-comment-id={comment.id}
         tabIndex={desktopPanel ? 0 : undefined}
         aria-keyshortcuts={desktopPanel ? 'Shift+F10 ContextMenu' : undefined}

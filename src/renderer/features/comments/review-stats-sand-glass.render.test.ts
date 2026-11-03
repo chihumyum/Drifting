@@ -19,6 +19,7 @@ import { CommentBodyEditor } from './CommentBodyEditor';
 import { ReviewItemCard } from './ReviewItemCard';
 import { TodoStatusToggle } from './TodoStatusToggle';
 import { reviewTargetColor } from './review-groups';
+import { setPointedCommentHighlights } from '../../lib/comment-highlight';
 import {
   Notes,
   ProgressBar,
@@ -76,6 +77,17 @@ const todo = (status: Comment['status']): Comment => ({
 });
 
 describe('Review cards in sand and glass', () => {
+  it('lights a card whose anchor is pointed at in the prose', () => {
+    const comment = todo('open');
+    expect(inShell(createElement(ReviewItemCard, { comment, projectId: 'p1' }))).not.toContain('review-card--pointed');
+    setPointedCommentHighlights([comment.id]);
+    try {
+      expect(inShell(createElement(ReviewItemCard, { comment, projectId: 'p1' }))).toContain('review-card--pointed');
+    } finally {
+      setPointedCommentHighlights([]);
+    }
+  });
+
   it('lays no plate on the desktop card: only the resting glass line', () => {
     const card = inShell(createElement(ReviewItemCard, { comment: todo('open'), projectId: 'p1' }));
     expect(card).toContain('review-card--glass glass glass--rest glass--surface');

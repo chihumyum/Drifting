@@ -2117,6 +2117,14 @@ html:not([data-shell-mode='mobile']) .editor__toc-rail[data-fit='hidden'] .edito
 }
 .review-card--glass.glass:nth-of-type(2n + 1) { --glass-gx: var(--glass-dense-gx); --glass-gy: var(--glass-dense-gy); }
 .review-card--glass.glass:nth-of-type(2n) { --glass-gx: -168px; --glass-gy: -18px; }
+/* Its anchor pointed at in the prose: the card brings its glass in as it does
+   under the pointer (use-prose-pointed-card.ts). */
+.review-card--glass.review-card--pointed { --glass-g: 1; --glass-sp: 1; }
+.review-card--glass.review-card--pointed::before {
+  opacity: 1;
+  animation-play-state: running;
+  transition: opacity var(--motion-glass-bleed) ease-out, box-shadow var(--motion-glass-bleed) ease-out;
+}
 
 /* A suggestion's subtitle and its evidence: flat, in the secondary ink;
    evidence is indented rather than boxed. */

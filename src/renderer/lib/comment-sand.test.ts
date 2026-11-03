@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { drawTimings, swashFit } from './comment-sand';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { boxesContain, createPointIntent, drawTimings, POINT_INTENT_MS, swashFit } from './comment-sand';
 import { SAND_DRAW_MS, SAND_DRAW_PER_LINE_MS } from './motion';
 
 describe('comment anchor sand', () => {
@@ -35,5 +35,53 @@ describe('comment anchor sand', () => {
     expect(last.delay + last.duration).toBeCloseTo(whole, 6);
     // Easing out: the first line, though as long as the second, is drawn faster.
     expect(three[0].duration).toBeLessThan(three[1].duration);
+  });
+});
+
+describe('pointing at an anchor in the prose', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('finds the point on a measured line, not between lines or past a line end', () => {
+    const boxes = [{ x: 40, y: 10, w: 300, h: 24 }, { x: 40, y: 34, w: 120, h: 24 }];
+    expect(boxesContain(boxes, 41, 11)).toBe(true);
+    expect(boxesContain(boxes, 150, 40)).toBe(true);
+    expect(boxesContain(boxes, 200, 40)).toBe(false);
+    expect(boxesContain(boxes, 39, 20)).toBe(false);
+    expect(boxesContain(boxes, 100, 58)).toBe(false);
+  });
+
+  it('lights the anchors only once the pointer has rested on them', () => {
+    vi.useFakeTimers();
+    const commits: (readonly string[])[] = [];
+    const intent = createPointIntent((ids) => commits.push(ids));
+    expect(POINT_INTENT_MS).toBe(120);
+    intent.propose(['a']);
+    vi.advanceTimersByTime(POINT_INTENT_MS - 1);
+    intent.propose(['a']);
+    expect(commits).toEqual([]);
+    vi.advanceTimersByTime(1);
+    expect(commits).toEqual([['a']]);
+    // Resting there commits nothing more; overlapping anchors light together.
+    intent.propose(['a']);
+    intent.propose(['a', 'b']);
+    vi.advanceTimersByTime(POINT_INTENT_MS);
+    expect(commits).toEqual([['a'], ['a', 'b']]);
+  });
+
+  it('lets go at once, and a pointer only passing over lights nothing', () => {
+    vi.useFakeTimers();
+    const commits: (readonly string[])[] = [];
+    const intent = createPointIntent((ids) => commits.push(ids));
+    intent.propose(['a']);
+    vi.advanceTimersByTime(POINT_INTENT_MS);
+    intent.propose([]);
+    expect(commits).toEqual([['a'], []]);
+    intent.propose(['b']);
+    vi.advanceTimersByTime(POINT_INTENT_MS / 2);
+    intent.propose([]);
+    vi.advanceTimersByTime(POINT_INTENT_MS);
+    expect(commits).toEqual([['a'], []]);
+    intent.reset();
+    expect(commits).toEqual([['a'], []]);
   });
 });

@@ -1,8 +1,8 @@
 {
   "kind": "outline-rail-fit",
   "status": "passed",
-  "generatedAt": "2026-11-03T18:58:20.379Z",
-  "sourceSha256": "552638281a9b94ed778c1d53686bd753e79781642303334256b64b28ca537261",
+  "generatedAt": "2026-11-03T20:00:04.927Z",
+  "sourceSha256": "6eba415b9ddedbcd9e6ddc8b54106face2eaabb2e7c13ba7a58e5694131f5488",
   "inputs": [
     "scripts/run-outline-rail-fit-acceptance.mjs",
     "scripts/renderer-headless-browser.mjs",
