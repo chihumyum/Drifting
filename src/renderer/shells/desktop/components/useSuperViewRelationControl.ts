@@ -59,6 +59,20 @@ export function useSuperViewRelationControl(canvas: SuperViewRelationCanvas) {
       model.worldRelationTypeIds.has(relationTypeId) ||
       (driftPanelOpen && model.driftDerivedRelationTypeIds.has(relationTypeId)),
   );
+  // What the desktop canvas draws now, kind by kind (its legend): a
+  // relation touching an inspiration only while the drift panel is open,
+  // and on the element overview only relations between elements (the
+  // desktop has no chapter band to end the others on).
+  const drawnCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const relation of model.canvasRelations) {
+      const drift = (relation.fromKind === 'node' && driftNodeIds.has(relation.fromId))
+        || (relation.toKind === 'node' && driftNodeIds.has(relation.toId));
+      if (drift ? !driftPanelOpen : canvas === 'element' && (relation.fromKind !== 'element' || relation.toKind !== 'element')) continue;
+      counts.set(relation.relationTypeId, (counts.get(relation.relationTypeId) ?? 0) + 1);
+    }
+    return counts;
+  }, [canvas, driftNodeIds, driftPanelOpen, model.canvasRelations]);
   const labelOf = useCallback((relationTypeId: string) => {
     const relationType = relationTypeById.get(relationTypeId);
     return relationType ? presentRelationType(relationType).name : t('relationTypes.missing');
@@ -85,7 +99,7 @@ export function useSuperViewRelationControl(canvas: SuperViewRelationCanvas) {
     deleteRelationType: relationTypeUsecases.deleteRelationType,
   };
   return {
-    model, headerRelationTypeIds, labelOf, resolveRelationTypeColor, hiddenRelationTypeIds, toggleRelationTypeId,
-    driftPanelOpen, typeCount: entityRelationTypes.length, menuProps,
+    model, headerRelationTypeIds, drawnCounts, labelOf, resolveRelationTypeColor, hiddenRelationTypeIds,
+    toggleRelationTypeId, driftPanelOpen, typeCount: entityRelationTypes.length, menuProps,
   };
 }

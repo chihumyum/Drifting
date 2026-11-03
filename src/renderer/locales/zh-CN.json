@@ -2761,6 +2761,8 @@
     "title": "全部关联类型",
     "all": "全部",
     "openAllTitle": "查看全部关联类型与筛选",
+    "legendLabel": "画布上的线",
+    "editTypes": "编辑类型",
     "summary": "{{kinds}} 类 · {{relations}} 条关联",
     "visibleSummary": "显示 {{visible}}/{{total}}",
     "filterLabel": "画布筛选",
@@ -2862,10 +2864,6 @@
       "label": "布局",
       "isles": "群岛",
       "relate": "关系"
-    },
-    "legend": {
-      "label": "画布上的线",
-      "editTypes": "编辑类型"
     },
     "relate": {
       "relayout": "重新排布",
