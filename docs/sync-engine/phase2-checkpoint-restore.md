@@ -100,9 +100,15 @@ statement, so capture failed. Payload v2 removes both bounds:
 - Validation accepts the reducer section only if coverage equals the package
   frontier, every receipt is a carried change-set beyond it with a matching
   signature, every carried change-set is covered or receipted, every register
-  source is a carried mutation, the profile equals the local one, and the state
-  has no purge or open conflict. Carried rows pass the same mutation-row
-  checks as v1.
+  source is a carried mutation, the profile resumes under the local one, and
+  the state has no purge or open conflict. Carried rows pass the same
+  mutation-row checks as v1.
+- A profile resumes under the local one when its externally materialized
+  actions are the same and each of its target kinds is one the local profile
+  knows. A build that only learned new target kinds therefore restores
+  checkpoints an older build captured: that build rejected every mutation of a
+  kind it did not classify, so its state holds none of them. A profile naming
+  a kind this build does not know, or other external actions, is refused.
 - Restore inserts the carried rows as `origin='remote'`, writes the implied
   metadata rows and installs the verified pages unchanged as the
   SyncGeneration's `sync_reducer_base`. Later rebuilds start from that base
@@ -140,8 +146,11 @@ covers:
   frontier, restore as reducer base, a canonical state equal to the source, and
   a local write reduced on top of the base;
 - payload v1 restore with its complete journal and no base;
+- a base an older build captured before it knew `writing-day` restores and
+  takes a local write;
 - re-sealed compacted states with wrong coverage, a missing receipt, a missing
-  register source, another profile or another identity;
+  register source, a target kind this build does not know, other external
+  actions or another identity;
 - typed authored rows plus reducer ancestry/clock materialization;
 - applied segment-head round-trip, fresh restore writer sequence/HLC anchoring,
   and source-history non-publication semantics;

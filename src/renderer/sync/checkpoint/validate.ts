@@ -22,10 +22,9 @@ import {
 import {
   decodeReducerStatePagesV2,
   LOCAL_SQLITE_REDUCER_PROFILE,
-  persistentReducerProfileKey,
   productionSyncDomainMaterializationKernel,
   reducerLaneKey,
-  reducerProfileDescriptionKey,
+  reducerProfileResumes,
   reducerReceiptSignature,
   reducerStateFromSnapshot,
   sqliteReplayReducerProfile,
@@ -771,10 +770,8 @@ async function parseReducerV2(packageValue: SnapshotPackageV2): Promise<{ reduce
   ) {
     throw new SnapshotRestoreError('identity-mismatch', 'Reducer state identity differs from the package');
   }
-  const localProfile = persistentReducerProfileKey(
-    sqliteReplayReducerProfile(LOCAL_SQLITE_REDUCER_PROFILE, productionSyncDomainMaterializationKernel),
-  );
-  if (reducerProfileDescriptionKey(header.profile) !== localProfile) {
+  const localProfile = sqliteReplayReducerProfile(LOCAL_SQLITE_REDUCER_PROFILE, productionSyncDomainMaterializationKernel);
+  if (!reducerProfileResumes(header.profile, localProfile)) {
     throw new SnapshotRestoreError('schema-mismatch', 'Reducer state was produced under a different reducer profile');
   }
   const verified = await assertJournalRows(journal, packageValue);
