@@ -123,7 +123,7 @@ export type AgentToolSearch = 'off' | 'auto' | 'on';
 
 /** Product default for a fresh General Agent installation. */
 export const AGENT_TOOL_SEARCH_DEFAULT: AgentToolSearch = 'auto';
-export const SETTINGS_STORAGE_VERSION = 34;
+export const SETTINGS_STORAGE_VERSION = 35;
 
 /**
  * The Agent panel's first run (features/agent/onboarding): `new` until the
@@ -750,6 +750,12 @@ export const useSettingsStore = create<SettingsState>()(
         if (version < 34) {
           const retired = next as unknown as Record<string, unknown>;
           for (const key of RETIRED_UNWIRED_SETTINGS) delete retired[key];
+        }
+        if (version < 35) {
+          // Rebase the labels without resizing an author's saved UI preference.
+          if (next.interfaceTextSize === 'small') next.interfaceTextSize = 'smallest';
+          else if (next.interfaceTextSize === 'standard') next.interfaceTextSize = 'small';
+          else if (next.interfaceTextSize === 'large') next.interfaceTextSize = 'standard';
         }
         return next;
       },

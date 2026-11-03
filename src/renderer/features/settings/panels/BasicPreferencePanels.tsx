@@ -124,9 +124,11 @@ export function AppearancePanel({ registerRef }: { registerRef: SettingsRegister
                 onChange={setInterfaceTextSize}
                 ariaLabel={t('settings.appearance.interface_text_size')}
                 options={[
+                  { value: 'smallest', label: t('settings.appearance.interface_text_smallest') },
                   { value: 'small', label: t('settings.appearance.interface_text_small') },
                   { value: 'standard', label: t('settings.appearance.interface_text_standard') },
                   { value: 'large', label: t('settings.appearance.interface_text_large') },
+                  { value: 'largest', label: t('settings.appearance.interface_text_largest') },
                 ]}
               />
             }

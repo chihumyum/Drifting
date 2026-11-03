@@ -193,9 +193,11 @@
     "appearance": {
       "interface_text_size": "界面字号",
       "interface_text_size_desc": "调整此设备的桌面界面文字大小。正文使用编辑器中的字号设置。",
+      "interface_text_smallest": "最小",
       "interface_text_small": "较小",
       "interface_text_standard": "标准",
       "interface_text_large": "较大",
+      "interface_text_largest": "最大",
       "kicker": "外观 · APPEARANCE",
       "title": "书桌的光线，由你决定。",
       "sub": "挑一个最合眼的写作界面明度与强调色。",

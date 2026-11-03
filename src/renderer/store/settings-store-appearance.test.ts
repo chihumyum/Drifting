@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-async function settings(persisted?: Record<string, unknown>) {
+async function settings(persisted?: Record<string, unknown>, version = 35) {
   vi.resetModules();
   const values = new Map<string, string>();
-  if (persisted) values.set('settings-storage', JSON.stringify({ state: persisted, version: 30 }));
+  if (persisted) values.set('settings-storage', JSON.stringify({ state: persisted, version }));
   vi.stubGlobal('localStorage', {
     getItem: (key: string) => values.get(key) ?? null,
     setItem: (key: string, value: string) => { values.set(key, value); },
@@ -77,7 +77,7 @@ describe('desktop interface text preference', () => {
     }
   });
 
-  it.each(['small', 'large'] as const)('restores %s UI text without changing the author typography', async (size) => {
+  it.each(['smallest', 'small', 'standard', 'large', 'largest'] as const)('restores %s UI text without changing the author typography', async (size) => {
     const { store, values } = await settings({ bodyFontSize: 21, lineHeight: 1.8 });
     store.getState().setInterfaceTextSize(size);
     const persisted = JSON.parse(values.get('settings-storage')!).state;
@@ -91,6 +91,29 @@ describe('desktop interface text preference', () => {
     expect(afterReset.interfaceTextSize).toBe('standard');
     expect(afterReset.bodyFontSize).toBe(21);
   });
+
+  it.each([
+    ['small', 'smallest'],
+    ['standard', 'small'],
+    ['large', 'standard'],
+  ] as const)('renames the saved %s size to %s exactly once', async (before, after) => {
+    for (const version of [30, 34]) {
+      const { store, values } = await settings({ interfaceTextSize: before, bodyFontSize: 21 }, version);
+      expect(store.getState().interfaceTextSize).toBe(after);
+      const persisted = JSON.parse(values.get('settings-storage')!);
+      expect(persisted.version).toBe(35);
+      expect(persisted.state.interfaceTextSize).toBe(after);
+      const reloaded = (await settings(persisted.state, persisted.version)).store.getState();
+      expect(reloaded.interfaceTextSize).toBe(after);
+      expect(reloaded.bodyFontSize).toBe(21);
+    }
+  });
+
+  it('uses the new standard when old storage has no valid size', async () => {
+    for (const interfaceTextSize of [undefined, null, 'tiny']) {
+      expect((await settings({ interfaceTextSize }, 34)).store.getState().interfaceTextSize).toBe('standard');
+    }
+  });
 });
 
 describe('retired unwired preferences', () => {
@@ -103,7 +126,7 @@ describe('retired unwired preferences', () => {
       improveModelsWithManuscripts: true,
       sendUsageStats: true,
     };
-    const { store, values } = await settings({ ...retired, themeMode: 'dark' });
+    const { store, values } = await settings({ ...retired, themeMode: 'dark' }, 30);
     const state = store.getState();
     for (const key of Object.keys(retired)) expect(state).not.toHaveProperty(key);
     expect(state.themeMode).toBe('dark');

@@ -1,0 +1,1058 @@
+{
+  "kind": "interface-text-sizes",
+  "fingerprint": "f85589b8664ce0d35d81502cacc493ca6faae9a916d7b7dcd475b251cc6b1ab9",
+  "sources": [
+    "scripts/run-interface-text-sizes.mjs",
+    "scripts/interface-text-sizes-ui.html",
+    "scripts/interface-text-sizes-ui.tsx",
+    "src/renderer/lib/interface-typography.ts",
+    "src/renderer/store/settings-store.ts",
+    "src/renderer/store/settings-store-appearance.test.ts",
+    "src/renderer/features/settings/panels/BasicPreferencePanels.tsx",
+    "src/renderer/features/settings/SettingsPrimitives.tsx",
+    "src/renderer/components/ui/GlassSlider.tsx",
+    "src/renderer/components/ui/ContextMenuSurface.tsx",
+    "src/styles/desktop-typography.css",
+    "src/styles/settings.css",
+    "src/styles/ui-controls.css",
+    "src/styles/index.css",
+    "src/styles/interface-fonts.css",
+    "src/renderer/locales/zh-CN.json",
+    "src/renderer/locales/en.json"
+  ],
+  "runs": [
+    {
+      "status": "passed",
+      "viewport": [
+        1280,
+        800
+      ],
+      "samples": [
+        {
+          "locale": "zh-CN",
+          "theme": "light",
+          "size": "smallest",
+          "fonts": [
+            11,
+            11,
+            11,
+            11,
+            11
+          ],
+          "checks": {
+            "labels": true,
+            "selected": true,
+            "immediate": true,
+            "persisted": true,
+            "roles": true,
+            "spacing": true,
+            "menu": true,
+            "controlsFit": true,
+            "settingsFit": true,
+            "viewport": true,
+            "prose": true
+          }
+        },
+        {
+          "locale": "zh-CN",
+          "theme": "light",
+          "size": "small",
+          "fonts": [
+            14,
+            13,
+            12,
+            15,
+            16
+          ],
+          "checks": {
+            "labels": true,
+            "selected": true,
+            "immediate": true,
+            "persisted": true,
+            "roles": true,
+            "spacing": true,
+            "menu": true,
+            "controlsFit": true,
+            "settingsFit": true,
+            "viewport": true,
+            "prose": true
+          }
+        },
+        {
+          "locale": "zh-CN",
+          "theme": "light",
+          "size": "standard",
+          "fonts": [
+            16,
+            15,
+            14,
+            17,
+            18
+          ],
+          "checks": {
+            "labels": true,
+            "selected": true,
+            "immediate": true,
+            "persisted": true,
+            "roles": true,
+            "spacing": true,
+            "menu": true,
+            "controlsFit": true,
+            "settingsFit": true,
+            "viewport": true,
+            "prose": true
+          }
+        },
+        {
+          "locale": "zh-CN",
+          "theme": "light",
+          "size": "large",
+          "fonts": [
+            18,
+            17,
+            16,
+            19,
+            20
+          ],
+          "checks": {
+            "labels": true,
+            "selected": true,
+            "immediate": true,
+            "persisted": true,
+            "roles": true,
+            "spacing": true,
+            "menu": true,
+            "controlsFit": true,
+            "settingsFit": true,
+            "viewport": true,
+            "prose": true
+          }
+        },
+        {
+          "locale": "zh-CN",
+          "theme": "light",
+          "size": "largest",
+          "fonts": [
+            20,
+            19,
+            18,
+            21,
+            22
+          ],
+          "checks": {
+            "labels": true,
+            "selected": true,
+            "immediate": true,
+            "persisted": true,
+            "roles": true,
+            "spacing": true,
+            "menu": true,
+            "controlsFit": true,
+            "settingsFit": true,
+            "viewport": true,
+            "prose": true
+          }
+        },
+        {
+          "locale": "zh-CN",
+          "theme": "dark",
+          "size": "smallest",
+          "fonts": [
+            11,
+            11,
+            11,
+            11,
+            11
+          ],
+          "checks": {
+            "labels": true,
+            "selected": true,
+            "immediate": true,
+            "persisted": true,
+            "roles": true,
+            "spacing": true,
+            "menu": true,
+            "controlsFit": true,
+            "settingsFit": true,
+            "viewport": true,
+            "prose": true
+          }
+        },
+        {
+          "locale": "zh-CN",
+          "theme": "dark",
+          "size": "small",
+          "fonts": [
+            14,
+            13,
+            12,
+            15,
+            16
+          ],
+          "checks": {
+            "labels": true,
+            "selected": true,
+            "immediate": true,
+            "persisted": true,
+            "roles": true,
+            "spacing": true,
+            "menu": true,
+            "controlsFit": true,
+            "settingsFit": true,
+            "viewport": true,
+            "prose": true
+          }
+        },
+        {
+          "locale": "zh-CN",
+          "theme": "dark",
+          "size": "standard",
+          "fonts": [
+            16,
+            15,
+            14,
+            17,
+            18
+          ],
+          "checks": {
+            "labels": true,
+            "selected": true,
+            "immediate": true,
+            "persisted": true,
+            "roles": true,
+            "spacing": true,
+            "menu": true,
+            "controlsFit": true,
+            "settingsFit": true,
+            "viewport": true,
+            "prose": true
+          }
+        },
+        {
+          "locale": "zh-CN",
+          "theme": "dark",
+          "size": "large",
+          "fonts": [
+            18,
+            17,
+            16,
+            19,
+            20
+          ],
+          "checks": {
+            "labels": true,
+            "selected": true,
+            "immediate": true,
+            "persisted": true,
+            "roles": true,
+            "spacing": true,
+            "menu": true,
+            "controlsFit": true,
+            "settingsFit": true,
+            "viewport": true,
+            "prose": true
+          }
+        },
+        {
+          "locale": "zh-CN",
+          "theme": "dark",
+          "size": "largest",
+          "fonts": [
+            20,
+            19,
+            18,
+            21,
+            22
+          ],
+          "checks": {
+            "labels": true,
+            "selected": true,
+            "immediate": true,
+            "persisted": true,
+            "roles": true,
+            "spacing": true,
+            "menu": true,
+            "controlsFit": true,
+            "settingsFit": true,
+            "viewport": true,
+            "prose": true
+          }
+        },
+        {
+          "locale": "en",
+          "theme": "light",
+          "size": "smallest",
+          "fonts": [
+            11,
+            11,
+            11,
+            11,
+            11
+          ],
+          "checks": {
+            "labels": true,
+            "selected": true,
+            "immediate": true,
+            "persisted": true,
+            "roles": true,
+            "spacing": true,
+            "menu": true,
+            "controlsFit": true,
+            "settingsFit": true,
+            "viewport": true,
+            "prose": true
+          }
+        },
+        {
+          "locale": "en",
+          "theme": "light",
+          "size": "small",
+          "fonts": [
+            14,
+            13,
+            12,
+            15,
+            16
+          ],
+          "checks": {
+            "labels": true,
+            "selected": true,
+            "immediate": true,
+            "persisted": true,
+            "roles": true,
+            "spacing": true,
+            "menu": true,
+            "controlsFit": true,
+            "settingsFit": true,
+            "viewport": true,
+            "prose": true
+          }
+        },
+        {
+          "locale": "en",
+          "theme": "light",
+          "size": "standard",
+          "fonts": [
+            16,
+            15,
+            14,
+            17,
+            18
+          ],
+          "checks": {
+            "labels": true,
+            "selected": true,
+            "immediate": true,
+            "persisted": true,
+            "roles": true,
+            "spacing": true,
+            "menu": true,
+            "controlsFit": true,
+            "settingsFit": true,
+            "viewport": true,
+            "prose": true
+          }
+        },
+        {
+          "locale": "en",
+          "theme": "light",
+          "size": "large",
+          "fonts": [
+            18,
+            17,
+            16,
+            19,
+            20
+          ],
+          "checks": {
+            "labels": true,
+            "selected": true,
+            "immediate": true,
+            "persisted": true,
+            "roles": true,
+            "spacing": true,
+            "menu": true,
+            "controlsFit": true,
+            "settingsFit": true,
+            "viewport": true,
+            "prose": true
+          }
+        },
+        {
+          "locale": "en",
+          "theme": "light",
+          "size": "largest",
+          "fonts": [
+            20,
+            19,
+            18,
+            21,
+            22
+          ],
+          "checks": {
+            "labels": true,
+            "selected": true,
+            "immediate": true,
+            "persisted": true,
+            "roles": true,
+            "spacing": true,
+            "menu": true,
+            "controlsFit": true,
+            "settingsFit": true,
+            "viewport": true,
+            "prose": true
+          }
+        },
+        {
+          "locale": "en",
+          "theme": "dark",
+          "size": "smallest",
+          "fonts": [
+            11,
+            11,
+            11,
+            11,
+            11
+          ],
+          "checks": {
+            "labels": true,
+            "selected": true,
+            "immediate": true,
+            "persisted": true,
+            "roles": true,
+            "spacing": true,
+            "menu": true,
+            "controlsFit": true,
+            "settingsFit": true,
+            "viewport": true,
+            "prose": true
+          }
+        },
+        {
+          "locale": "en",
+          "theme": "dark",
+          "size": "small",
+          "fonts": [
+            14,
+            13,
+            12,
+            15,
+            16
+          ],
+          "checks": {
+            "labels": true,
+            "selected": true,
+            "immediate": true,
+            "persisted": true,
+            "roles": true,
+            "spacing": true,
+            "menu": true,
+            "controlsFit": true,
+            "settingsFit": true,
+            "viewport": true,
+            "prose": true
+          }
+        },
+        {
+          "locale": "en",
+          "theme": "dark",
+          "size": "standard",
+          "fonts": [
+            16,
+            15,
+            14,
+            17,
+            18
+          ],
+          "checks": {
+            "labels": true,
+            "selected": true,
+            "immediate": true,
+            "persisted": true,
+            "roles": true,
+            "spacing": true,
+            "menu": true,
+            "controlsFit": true,
+            "settingsFit": true,
+            "viewport": true,
+            "prose": true
+          }
+        },
+        {
+          "locale": "en",
+          "theme": "dark",
+          "size": "large",
+          "fonts": [
+            18,
+            17,
+            16,
+            19,
+            20
+          ],
+          "checks": {
+            "labels": true,
+            "selected": true,
+            "immediate": true,
+            "persisted": true,
+            "roles": true,
+            "spacing": true,
+            "menu": true,
+            "controlsFit": true,
+            "settingsFit": true,
+            "viewport": true,
+            "prose": true
+          }
+        },
+        {
+          "locale": "en",
+          "theme": "dark",
+          "size": "largest",
+          "fonts": [
+            20,
+            19,
+            18,
+            21,
+            22
+          ],
+          "checks": {
+            "labels": true,
+            "selected": true,
+            "immediate": true,
+            "persisted": true,
+            "roles": true,
+            "spacing": true,
+            "menu": true,
+            "controlsFit": true,
+            "settingsFit": true,
+            "viewport": true,
+            "prose": true
+          }
+        }
+      ],
+      "mobileFallback": true,
+      "mobileProse": true,
+      "reloaded": {
+        "size": "largest",
+        "selected": "largest",
+        "prose": 21
+      }
+    },
+    {
+      "status": "passed",
+      "viewport": [
+        800,
+        800
+      ],
+      "samples": [
+        {
+          "locale": "zh-CN",
+          "theme": "light",
+          "size": "smallest",
+          "fonts": [
+            11,
+            11,
+            11,
+            11,
+            11
+          ],
+          "checks": {
+            "labels": true,
+            "selected": true,
+            "immediate": true,
+            "persisted": true,
+            "roles": true,
+            "spacing": true,
+            "menu": true,
+            "controlsFit": true,
+            "settingsFit": true,
+            "viewport": true,
+            "prose": true
+          }
+        },
+        {
+          "locale": "zh-CN",
+          "theme": "light",
+          "size": "small",
+          "fonts": [
+            14,
+            13,
+            12,
+            15,
+            16
+          ],
+          "checks": {
+            "labels": true,
+            "selected": true,
+            "immediate": true,
+            "persisted": true,
+            "roles": true,
+            "spacing": true,
+            "menu": true,
+            "controlsFit": true,
+            "settingsFit": true,
+            "viewport": true,
+            "prose": true
+          }
+        },
+        {
+          "locale": "zh-CN",
+          "theme": "light",
+          "size": "standard",
+          "fonts": [
+            16,
+            15,
+            14,
+            17,
+            18
+          ],
+          "checks": {
+            "labels": true,
+            "selected": true,
+            "immediate": true,
+            "persisted": true,
+            "roles": true,
+            "spacing": true,
+            "menu": true,
+            "controlsFit": true,
+            "settingsFit": true,
+            "viewport": true,
+            "prose": true
+          }
+        },
+        {
+          "locale": "zh-CN",
+          "theme": "light",
+          "size": "large",
+          "fonts": [
+            18,
+            17,
+            16,
+            19,
+            20
+          ],
+          "checks": {
+            "labels": true,
+            "selected": true,
+            "immediate": true,
+            "persisted": true,
+            "roles": true,
+            "spacing": true,
+            "menu": true,
+            "controlsFit": true,
+            "settingsFit": true,
+            "viewport": true,
+            "prose": true
+          }
+        },
+        {
+          "locale": "zh-CN",
+          "theme": "light",
+          "size": "largest",
+          "fonts": [
+            20,
+            19,
+            18,
+            21,
+            22
+          ],
+          "checks": {
+            "labels": true,
+            "selected": true,
+            "immediate": true,
+            "persisted": true,
+            "roles": true,
+            "spacing": true,
+            "menu": true,
+            "controlsFit": true,
+            "settingsFit": true,
+            "viewport": true,
+            "prose": true
+          }
+        },
+        {
+          "locale": "zh-CN",
+          "theme": "dark",
+          "size": "smallest",
+          "fonts": [
+            11,
+            11,
+            11,
+            11,
+            11
+          ],
+          "checks": {
+            "labels": true,
+            "selected": true,
+            "immediate": true,
+            "persisted": true,
+            "roles": true,
+            "spacing": true,
+            "menu": true,
+            "controlsFit": true,
+            "settingsFit": true,
+            "viewport": true,
+            "prose": true
+          }
+        },
+        {
+          "locale": "zh-CN",
+          "theme": "dark",
+          "size": "small",
+          "fonts": [
+            14,
+            13,
+            12,
+            15,
+            16
+          ],
+          "checks": {
+            "labels": true,
+            "selected": true,
+            "immediate": true,
+            "persisted": true,
+            "roles": true,
+            "spacing": true,
+            "menu": true,
+            "controlsFit": true,
+            "settingsFit": true,
+            "viewport": true,
+            "prose": true
+          }
+        },
+        {
+          "locale": "zh-CN",
+          "theme": "dark",
+          "size": "standard",
+          "fonts": [
+            16,
+            15,
+            14,
+            17,
+            18
+          ],
+          "checks": {
+            "labels": true,
+            "selected": true,
+            "immediate": true,
+            "persisted": true,
+            "roles": true,
+            "spacing": true,
+            "menu": true,
+            "controlsFit": true,
+            "settingsFit": true,
+            "viewport": true,
+            "prose": true
+          }
+        },
+        {
+          "locale": "zh-CN",
+          "theme": "dark",
+          "size": "large",
+          "fonts": [
+            18,
+            17,
+            16,
+            19,
+            20
+          ],
+          "checks": {
+            "labels": true,
+            "selected": true,
+            "immediate": true,
+            "persisted": true,
+            "roles": true,
+            "spacing": true,
+            "menu": true,
+            "controlsFit": true,
+            "settingsFit": true,
+            "viewport": true,
+            "prose": true
+          }
+        },
+        {
+          "locale": "zh-CN",
+          "theme": "dark",
+          "size": "largest",
+          "fonts": [
+            20,
+            19,
+            18,
+            21,
+            22
+          ],
+          "checks": {
+            "labels": true,
+            "selected": true,
+            "immediate": true,
+            "persisted": true,
+            "roles": true,
+            "spacing": true,
+            "menu": true,
+            "controlsFit": true,
+            "settingsFit": true,
+            "viewport": true,
+            "prose": true
+          }
+        },
+        {
+          "locale": "en",
+          "theme": "light",
+          "size": "smallest",
+          "fonts": [
+            11,
+            11,
+            11,
+            11,
+            11
+          ],
+          "checks": {
+            "labels": true,
+            "selected": true,
+            "immediate": true,
+            "persisted": true,
+            "roles": true,
+            "spacing": true,
+            "menu": true,
+            "controlsFit": true,
+            "settingsFit": true,
+            "viewport": true,
+            "prose": true
+          }
+        },
+        {
+          "locale": "en",
+          "theme": "light",
+          "size": "small",
+          "fonts": [
+            14,
+            13,
+            12,
+            15,
+            16
+          ],
+          "checks": {
+            "labels": true,
+            "selected": true,
+            "immediate": true,
+            "persisted": true,
+            "roles": true,
+            "spacing": true,
+            "menu": true,
+            "controlsFit": true,
+            "settingsFit": true,
+            "viewport": true,
+            "prose": true
+          }
+        },
+        {
+          "locale": "en",
+          "theme": "light",
+          "size": "standard",
+          "fonts": [
+            16,
+            15,
+            14,
+            17,
+            18
+          ],
+          "checks": {
+            "labels": true,
+            "selected": true,
+            "immediate": true,
+            "persisted": true,
+            "roles": true,
+            "spacing": true,
+            "menu": true,
+            "controlsFit": true,
+            "settingsFit": true,
+            "viewport": true,
+            "prose": true
+          }
+        },
+        {
+          "locale": "en",
+          "theme": "light",
+          "size": "large",
+          "fonts": [
+            18,
+            17,
+            16,
+            19,
+            20
+          ],
+          "checks": {
+            "labels": true,
+            "selected": true,
+            "immediate": true,
+            "persisted": true,
+            "roles": true,
+            "spacing": true,
+            "menu": true,
+            "controlsFit": true,
+            "settingsFit": true,
+            "viewport": true,
+            "prose": true
+          }
+        },
+        {
+          "locale": "en",
+          "theme": "light",
+          "size": "largest",
+          "fonts": [
+            20,
+            19,
+            18,
+            21,
+            22
+          ],
+          "checks": {
+            "labels": true,
+            "selected": true,
+            "immediate": true,
+            "persisted": true,
+            "roles": true,
+            "spacing": true,
+            "menu": true,
+            "controlsFit": true,
+            "settingsFit": true,
+            "viewport": true,
+            "prose": true
+          }
+        },
+        {
+          "locale": "en",
+          "theme": "dark",
+          "size": "smallest",
+          "fonts": [
+            11,
+            11,
+            11,
+            11,
+            11
+          ],
+          "checks": {
+            "labels": true,
+            "selected": true,
+            "immediate": true,
+            "persisted": true,
+            "roles": true,
+            "spacing": true,
+            "menu": true,
+            "controlsFit": true,
+            "settingsFit": true,
+            "viewport": true,
+            "prose": true
+          }
+        },
+        {
+          "locale": "en",
+          "theme": "dark",
+          "size": "small",
+          "fonts": [
+            14,
+            13,
+            12,
+            15,
+            16
+          ],
+          "checks": {
+            "labels": true,
+            "selected": true,
+            "immediate": true,
+            "persisted": true,
+            "roles": true,
+            "spacing": true,
+            "menu": true,
+            "controlsFit": true,
+            "settingsFit": true,
+            "viewport": true,
+            "prose": true
+          }
+        },
+        {
+          "locale": "en",
+          "theme": "dark",
+          "size": "standard",
+          "fonts": [
+            16,
+            15,
+            14,
+            17,
+            18
+          ],
+          "checks": {
+            "labels": true,
+            "selected": true,
+            "immediate": true,
+            "persisted": true,
+            "roles": true,
+            "spacing": true,
+            "menu": true,
+            "controlsFit": true,
+            "settingsFit": true,
+            "viewport": true,
+            "prose": true
+          }
+        },
+        {
+          "locale": "en",
+          "theme": "dark",
+          "size": "large",
+          "fonts": [
+            18,
+            17,
+            16,
+            19,
+            20
+          ],
+          "checks": {
+            "labels": true,
+            "selected": true,
+            "immediate": true,
+            "persisted": true,
+            "roles": true,
+            "spacing": true,
+            "menu": true,
+            "controlsFit": true,
+            "settingsFit": true,
+            "viewport": true,
+            "prose": true
+          }
+        },
+        {
+          "locale": "en",
+          "theme": "dark",
+          "size": "largest",
+          "fonts": [
+            20,
+            19,
+            18,
+            21,
+            22
+          ],
+          "checks": {
+            "labels": true,
+            "selected": true,
+            "immediate": true,
+            "persisted": true,
+            "roles": true,
+            "spacing": true,
+            "menu": true,
+            "controlsFit": true,
+            "settingsFit": true,
+            "viewport": true,
+            "prose": true
+          }
+        }
+      ],
+      "mobileFallback": true,
+      "mobileProse": true,
+      "reloaded": {
+        "size": "largest",
+        "selected": "largest",
+        "prose": 21
+      }
+    }
+  ],
+  "errors": []
+}

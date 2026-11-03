@@ -1,8 +1,9 @@
 /** Display preference only; manuscript typography has its own owner. */
-export type InterfaceTextSize = 'small' | 'standard' | 'large';
+export type InterfaceTextSize = 'smallest' | 'small' | 'standard' | 'large' | 'largest';
 
 export function normalizeInterfaceTextSize(value: unknown): InterfaceTextSize {
-  return value === 'small' || value === 'large' ? value : 'standard';
+  return value === 'smallest' || value === 'small' || value === 'large' || value === 'largest'
+    ? value : 'standard';
 }
 
 export function applyInterfaceTextSize(value: unknown): void {

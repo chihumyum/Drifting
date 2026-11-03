@@ -194,9 +194,11 @@
     "appearance": {
       "interface_text_size": "Interface text size",
       "interface_text_size_desc": "Adjust desktop interface text on this device. Manuscript text uses the editor font size.",
+      "interface_text_smallest": "Smallest",
       "interface_text_small": "Smaller",
       "interface_text_standard": "Standard",
       "interface_text_large": "Larger",
+      "interface_text_largest": "Largest",
       "kicker": "APPEARANCE",
       "title": "You decide the light at your desk.",
       "sub": "Pick the brightness and accent that feel best for the writing surface.",

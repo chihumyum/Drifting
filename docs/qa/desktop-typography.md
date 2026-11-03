@@ -1,5 +1,10 @@
 # Desktop typography acceptance
 
+Historical three-size acceptance below predates the 2026-11-03 rebase. Current
+five-size values, migration and reproducible evidence are documented in
+[Interface text sizes](interface-text-sizes.md). The older fixture and report
+are retained as historical coverage, not evidence for the current five-size UI.
+
 The desktop UI uses readable semantic sizes following Apple's [Typography](https://developer.apple.com/cn/design/human-interface-guidelines/typography) guidance. Standard remains the default, with body/secondary/caption roles of 14/13/12 CSS px; Larger adds 2px. Smaller restores each component's original font size through its existing fallback: menu 12.5px, panel tab 11.5px, footer 10px, settings description 12px and section heading 10px. It keeps Standard's spacing and improved contrast. These are product choices, not a pt-to-px conversion or a claim of native Dynamic Type support.
 
 ## Reproduce
