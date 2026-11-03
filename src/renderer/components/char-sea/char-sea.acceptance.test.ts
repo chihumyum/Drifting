@@ -100,11 +100,17 @@ describe('the sea of characters under the desktop window', () => {
     expect(gate).toContain("useCharSeaHold('rain', (stage === 'title' || stage === 'card') && onSea);");
     expect(gate).toContain("window.setTimeout(() => setStage('card'), FIRST_RUN_TITLE_MS);");
     expect(gate).toContain("className={`first-run-gate${onSea ? ' first-run-gate--sea' : ''}");
+    // The interface language waits in the window's corner the whole way, as the account menu offers it.
+    expect(gate).toContain("{stage !== 'title' && shownStep && <FirstRunLanguage leaving={stage === 'leaving'} />}");
+    const language = block(onboarding, 'function FirstRunLanguage', '\n}\n');
+    expect(language).toContain('onChange={setUiLocale}');
+    expect(language).toContain('options={UI_LOCALE_OPTIONS.map((locale) => ({ value: locale.code, label: locale.native }))}');
     expect(read('src/renderer/lib/char-sea/char-sea-registry.ts')).toContain("export const CHAR_SEA_TITLE = 'Drifting';");
     const css = read('src/styles/auth.css');
     expect(block(css, '.first-run-gate {', '}')).toContain('background: var(--workspace-ui-bg);');
     expect(block(css, '.first-run-gate--sea {', '}')).toContain('background: transparent;');
     expect(block(css, '.first-run-gate__card--sea.glass::before {', '}')).toContain('display: none;');
+    expect(block(css, '.first-run-gate__language {', '}')).toMatch(/position: fixed;\s*right: 20px;\s*bottom: 16px;/);
     // A card that steps through a flow takes its drawn rim with it.
     expect(read('src/renderer/components/char-sea/useCharSea.ts')).toContain(
       'new ResizeObserver(() => charSeaRegistry.resized())',

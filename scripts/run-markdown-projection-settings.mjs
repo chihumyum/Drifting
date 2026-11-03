@@ -240,7 +240,9 @@ if (process.argv.includes('--check')) {
     assert.equal((await text('.first-run-gate')).includes('Markdown 文件夹放在哪里？'), true);
     assert.equal(await text('.markdown-folder-guide__label'), '默认位置');
     assert.equal(await text('.markdown-folder-guide__path'), '/synthetic/default/markdown-projections');
-    assert.deepEqual(await evaluate(`${buttons('.first-run-gate')}.map(b => b.textContent)`), ['关闭 Markdown 文件夹', '选择文件夹…', '使用默认位置']);
+    // The card's own actions; the interface language waits apart in the window's corner.
+    assert.deepEqual(await evaluate(`${buttons('.first-run-gate__card')}.map(b => b.textContent)`), ['关闭 Markdown 文件夹', '选择文件夹…', '使用默认位置']);
+    assert.equal(await evaluate("!!document.querySelector('.first-run-gate__language .ui-select')"), true);
     assert.equal(await dangerInk('.first-run-gate', '关闭 Markdown 文件夹'), true);
     writeFileSync('.qa/projection-settings/first-run-zh.png', Buffer.from((await client.Page.captureScreenshot({ format: 'png' })).data, 'base64'));
     checks.push('the first run asks where the Markdown folder goes, showing the default, before the shelf');
