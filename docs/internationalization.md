@@ -53,6 +53,12 @@ this does not change the author's manuscript-font preference. The character sea
 also has Traditional Chinese and Hangul passages. Latin locales retain its Latin
 script; this decorative passage is not manuscript text.
 
+Inside the account menu, the language dropdown takes its content width rather
+than the full form-field width, leaving room for the icon and language label.
+The label stays on one line and the full selected native language name remains
+visible across all five interface text sizes. The account menu grows with the
+interface font size so the adjacent theme control retains its label space too.
+
 ## Translation contract
 
 English is the missing-key fallback. Preserve interpolation names and formatting
@@ -107,7 +113,14 @@ controls and styles with synthetic text at 1280px and 800px. It covers all nine
 settings choices, account-menu choices, fixed body portals, no horizontal page
 overflow, immediate document language, unchanged synthetic text and saved choices
 after a browser reload. Only unrelated project-settings preloading is stubbed.
-Uncommitted visual samples are written under `.qa/`.
+It also measures the open account menu for every locale at all five interface
+text sizes: 90 layouts across the two window widths. Labels must remain on one
+line, selected values must fit, and the controls must not overlap. These checks
+reproduce the former full-width dropdown squeezing the label to zero width.
+Account-menu options are chosen with pointer events, verifying that the parent
+menu remains open while interacting with its portalled language list.
+Uncommitted visual samples include the open English and Brazilian Portuguese
+account menus at standard and largest text sizes under `.qa/`.
 
 For native DOM acceptance, start an isolated checkout profile:
 
@@ -120,7 +133,9 @@ node scripts/run-native-interface-locales.mjs
 Complete the first-run guide in this synthetic profile before collecting. The
 collector refuses an app whose native name is not a worktree-test identity. It
 opens the language settings route, uses the real picker, reloads WKWebView for
-each locale and restores the original choice. The native report contains no
+each locale, and checks the actual shelf account menu at all five text sizes
+(45 layouts), including its nested language list. It restores the original choice.
+The native report contains no
 account, manuscript, credential or personal-path data. It records DOM input and
 WebView reload, not physical pointer/keyboard acceptance or OS process restart.
 

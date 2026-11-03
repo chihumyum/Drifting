@@ -15,7 +15,7 @@ const evaluate = expression => command('evaluate', '--expression', expression);
 const isolated = evaluate("window.__DRIFTING_FRONTEND_DEBUG_V1__.snapshot().runtime.appInfo.name.startsWith('Drifting Test ')");
 assert.equal(isolated, true, 'Native language acceptance requires an isolated worktree App');
 const original = evaluate("import('/src/renderer/store/settings-store.ts').then(m=>m.useSettingsStore.getState().uiLocale)");
-const samples = [];
+const samples = [], accountMenuLayouts = [];
 try {
   evaluate("location.hash='/settings?section=language'");
   await delay(1000);
@@ -43,11 +43,52 @@ try {
     evaluate('setTimeout(()=>location.reload(),50); true'); await delay(900);
     const restored = evaluate("import('/src/renderer/store/settings-store.ts').then(({useSettingsStore})=>({locale:useSettingsStore.getState().uiLocale,lang:document.documentElement.lang}))");
     assert.equal(restored.locale, locale); assert.equal(restored.lang, locale);
+    const layouts = evaluate(`(async()=>{
+      const wait=()=>new Promise(r=>setTimeout(r,120));
+      const previousSize=document.documentElement.dataset.interfaceTextSize;
+      location.hash='/';
+      const deadline=Date.now()+5000;
+      while(Date.now()<deadline&&!document.querySelector('.pp-rail__account'))await wait();
+      const trigger=document.querySelector('.pp-rail__account'); if(!trigger)throw new Error('Shelf account menu missing');
+      const result=[];
+      try{
+        trigger.click(); await wait();
+        for(const textSize of ['smallest','small','standard','large','largest']){
+          document.documentElement.dataset.interfaceTextSize=textSize; await document.fonts.ready; await wait();
+          const select=document.querySelector('.user-menu .ui-select'), row=select.closest('.user-menu__item');
+          const label=row.children[1], value=select.querySelector('.ui-select__value');
+          const range=document.createRange();range.selectNodeContents(label);
+          const themeRange=document.createRange();themeRange.selectNodeContents(document.querySelector('.user-menu__item--static').children[1]);
+          const menu=document.querySelector('.user-menu').getBoundingClientRect();
+          result.push({textSize,label:label.textContent,lines:new Set([...range.getClientRects()].map(r=>Math.round(r.top))).size,
+            themeLines:new Set([...themeRange.getClientRects()].map(r=>Math.round(r.top))).size,
+            valueClipped:value.scrollWidth>value.clientWidth+1,
+            overlap:label.getBoundingClientRect().right>select.getBoundingClientRect().left,
+            menuInViewport:menu.left>=0&&menu.right<=innerWidth,rowHeight:row.getBoundingClientRect().height});
+        }
+        document.querySelector('.user-menu .ui-select').click();await wait();
+        const list=document.querySelector('[role=listbox]');
+        if(list.parentElement!==document.body||getComputedStyle(list).position!=='fixed')throw new Error('Account language list must portal to body');
+        list.querySelectorAll('[role=option]')[${catalog.locales.indexOf(locale)}].click();await wait();
+      }finally{
+        if(document.querySelector('.user-menu'))trigger.click();
+        if(previousSize===undefined)delete document.documentElement.dataset.interfaceTextSize;
+        else document.documentElement.dataset.interfaceTextSize=previousSize;
+        location.hash='/settings?section=language';await wait();
+      }
+      return result;
+    })()`);
+    for (const layout of layouts) {
+      assert.equal(layout.lines, 1, `${locale}/${layout.textSize}: language label wraps`);
+      assert.equal(layout.themeLines, 1, `${locale}/${layout.textSize}: theme label wraps`);
+      assert(!layout.valueClipped && !layout.overlap && layout.menuInViewport, `${locale}/${layout.textSize}: language control overflows`);
+      accountMenuLayouts.push({ locale, ...layout });
+    }
     samples.push({ ...sample, webViewReload: 'passed' });
   }
   writeFileSync('docs/qa/interface-locales-native.json', JSON.stringify({ kind: 'nine-language-interface-native', status: 'passed',
     sourceSha256: catalog.sourceSha256, platform: 'macos-tauri-wkwebview', profile: 'isolated-worktree',
-    samples, limitations: ['Authenticated DOM input in WKWebView; this does not claim physical pointer or keyboard acceptance, native-speaker review, or OS process restart.'],
+    samples, accountMenuLayouts, limitations: ['Authenticated DOM input in WKWebView; this does not claim physical pointer or keyboard acceptance, native-speaker review, or OS process restart.'],
   }, null, 2) + '\n');
   console.log(`Passed ${samples.length} native locale/reload samples.`);
 } finally {

@@ -1,7 +1,7 @@
 {
   "kind": "nine-language-interface",
   "status": "passed",
-  "sourceSha256": "41084e425db711e9e042be336b534557d159c1f90adf6ad3c55f1d262d6ab52f",
+  "sourceSha256": "8443ceeab0e8665ad5e897c89e0ee206e1fd952b729bdde46edde41e45bec40c",
   "sources": [
     "scripts/check-ui-locales.ts",
     "scripts/generate-startup-locales.mjs",
@@ -22,6 +22,7 @@
     "src/renderer/lib/char-sea/char-sea-text.ts",
     "src/renderer/views/shelf/shelf-format.ts",
     "src/styles/interface-fonts.css",
+    "src/styles/ui-controls.css",
     "src/renderer/locales/zh-CN.json",
     "src/renderer/locales/zh-TW.json",
     "src/renderer/locales/en.json",
@@ -56,63 +57,63 @@
     {
       "surface": "application",
       "locale": "zh-CN",
-      "strings": 2915,
+      "strings": 2919,
       "placeholderContract": "passed",
       "keyCoverage": "complete"
     },
     {
       "surface": "application",
       "locale": "zh-TW",
-      "strings": 2922,
+      "strings": 2926,
       "placeholderContract": "passed",
       "keyCoverage": "complete"
     },
     {
       "surface": "application",
       "locale": "en",
-      "strings": 2922,
+      "strings": 2926,
       "placeholderContract": "passed",
       "keyCoverage": "complete"
     },
     {
       "surface": "application",
       "locale": "ja",
-      "strings": 2922,
+      "strings": 2926,
       "placeholderContract": "passed",
       "keyCoverage": "complete"
     },
     {
       "surface": "application",
       "locale": "ko",
-      "strings": 2922,
+      "strings": 2926,
       "placeholderContract": "passed",
       "keyCoverage": "complete"
     },
     {
       "surface": "application",
       "locale": "es",
-      "strings": 2937,
+      "strings": 2941,
       "placeholderContract": "passed",
       "keyCoverage": "complete"
     },
     {
       "surface": "application",
       "locale": "de",
-      "strings": 2922,
+      "strings": 2926,
       "placeholderContract": "passed",
       "keyCoverage": "complete"
     },
     {
       "surface": "application",
       "locale": "fr",
-      "strings": 2937,
+      "strings": 2941,
       "placeholderContract": "passed",
       "keyCoverage": "complete"
     },
     {
       "surface": "application",
       "locale": "pt-BR",
-      "strings": 2937,
+      "strings": 2941,
       "placeholderContract": "passed",
       "keyCoverage": "complete"
     },
