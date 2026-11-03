@@ -27,6 +27,9 @@ export interface ElementIsleDetailProps {
     onSelect?: () => void;
   }[];
   isolated: boolean;
+  /** In the 关系 layout, an element the author has dragged into place: 已固定, with a way back. */
+  pinnedLabel?: string | null;
+  onUnpin?: () => void;
   onIsolate: () => void;
   onFocus: (elementId: string) => void;
   /** Grow the card into the island's editor. */
@@ -45,7 +48,7 @@ export interface ElementIsleDetailProps {
  */
 export function ElementIsleDetail({
   name, summary, categoryName, color, mentions, ticks, companions, relations,
-  isolated, onIsolate, onFocus, onEdit, onOpen,
+  isolated, pinnedLabel, onUnpin, onIsolate, onFocus, onEdit, onOpen,
 }: ElementIsleDetailProps) {
   const { t } = useTranslation();
   const appearance = isleAppearance(ticks);
@@ -57,7 +60,12 @@ export function ElementIsleDetail({
           title={name}
           mark={{ kind: 'element', color }}
           index={t('superElement.isles.island.mentions', { count: mentions })}
-          detail={<span className="hover-card__tag"><KindMark kind="category" color={color} />{categoryName}</span>}
+          detail={(
+            <>
+              <span className="hover-card__tag"><KindMark kind="category" color={color} />{categoryName}</span>
+              {pinnedLabel && <span className="se-detail__pinned">{pinnedLabel}</span>}
+            </>
+          )}
         />
         {summary && <div className="hover-card__text">{summary}</div>}
       </div>
@@ -133,6 +141,7 @@ export function ElementIsleDetail({
         )}
 
         <div className="hover-card__section">
+          {onUnpin && <HoverCardRow icon={{ brush: 'rotate' }} label={t('superElement.isles.unpin')} onClick={onUnpin} />}
           <HoverCardRow
             icon={{ brush: 'locate' }}
             label={isolated ? t('superElement.isles.detail.showAll') : t('superElement.isles.detail.isolate')}

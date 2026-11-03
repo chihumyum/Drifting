@@ -127,7 +127,7 @@ describe('the element overview’s floating island', () => {
     expect(strip).toContain('superElement.isles.island.mostMentioned');
   });
 
-  it('mounts the workspace editors on the overview, moves 正文同段 into the relation menu and its threshold into the header', () => {
+  it('mounts the workspace editors on the overview, puts 正文同段 in the canvas legend and its threshold in the header', () => {
     const view = source('src/renderer/shells/desktop/views/DesktopSuperElementView.tsx');
     expect(view).toContain('<ElementEditorView key={islandSubject.id} elementIdOverride={islandSubject.id} />');
     expect(view).toContain('<CategoryEditorView key={islandSubject.id} categoryIdOverride={islandSubject.id} />');
@@ -139,9 +139,14 @@ describe('the element overview’s floating island', () => {
     expect(view).toContain("onEscape: () => setIslandMode('peek'),");
     // The island's editor scrolls itself instead of panning the canvas.
     expect(view).toContain("if ((e.target as Element | null)?.closest?.('[data-super-modal]')) return;");
-    expect(view).toContain('relationMenuLead={mobileShell ? undefined : (');
-    expect(view.match(/data-se-lines=""/g)).toHaveLength(1);
-    expect(view.indexOf('data-se-lines=""')).toBeLessThan(view.indexOf('rightSlot={'));
+    // 正文同段 is the first row of the legend in the canvas's corner, above the
+    // relation types it used to share the header's 全部 menu with.
+    expect(view).toContain('relationControl={mobileShell}');
+    expect(view).not.toContain('relationMenuLead=');
+    expect(view.match(/<SuperElementCanvasTools/g)).toHaveLength(1);
+    const tools = source('src/renderer/shells/desktop/components/SuperElementCanvasTools.tsx');
+    expect(tools.match(/className="se-legend__row is-sand glass glass--small"/g)).toHaveLength(1);
+    expect(tools.indexOf('is-sand')).toBeLessThan(tools.indexOf('relations.model.relationTypeIdOrder.filter'));
     // Its threshold (≥1/≥2/≥3) sits in the header where 远/中/近 was; the distance follows the zoom alone.
     expect(view.match(/<SuperElementLineThreshold value=\{lineThreshold\} onChange=\{setLineThreshold\} \/>/g)).toHaveLength(1);
     expect(view.indexOf('<SuperElementLineThreshold')).toBeGreaterThan(view.indexOf('rightSlot={'));

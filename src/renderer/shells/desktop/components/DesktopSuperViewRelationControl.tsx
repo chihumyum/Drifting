@@ -1,20 +1,11 @@
-import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { isDrift } from '../../../domain/book-node';
-import {
-  buildSuperViewRelationMenuModel,
-  type SuperViewRelationCanvas,
-} from '../../../features/graph/super-view-relation-menu-model';
-import { useSuperViewRelationUi } from '../../../features/graph/super-view-relation-ui-context';
-import { useProjectNavigation } from '../../../hooks/useProjectNavigation';
-import { useRelationTypePresentation } from '../../../hooks/useRelationTypePresentation';
-import { useDataStoreFields } from '../../../store/use-data-store-fields';
-import { useEntityRelationTypes } from '../../../usecase/useEntityRelationTypes';
+import type { SuperViewRelationCanvas } from '../../../features/graph/super-view-relation-menu-model';
 import { FilterChip } from '../../../components/ui/FilterChip';
 import { HeaderChipStrip } from '../../../components/ui/HeaderChipStrip';
 import { RelationKindMenu } from '../../../components/ui/RelationKindMenu';
-import { defaultRelationTypeColor } from '../../../components/ui/relation-type-color';
 import { getPlatformRuntime } from '../../../platform/runtime';
+import { useSuperViewRelationControl } from './useSuperViewRelationControl';
 
 export function DesktopSuperViewRelationControl({ canvas, lead }: {
   canvas: SuperViewRelationCanvas;
@@ -22,59 +13,21 @@ export function DesktopSuperViewRelationControl({ canvas, lead }: {
   lead?: ReactNode;
 }) {
   const { t } = useTranslation();
-  const { projectId } = useProjectNavigation();
-  const presentRelationType = useRelationTypePresentation();
-  const { bookNodes, entityRelations, entityRelationTypes } = useDataStoreFields('bookNodes', 'entityRelations', 'entityRelationTypes');
   const {
-    hiddenRelationTypeIds,
-    driftPanelOpen,
-    toggleRelationTypeId,
-    edgeKindMeta,
-  } = useSuperViewRelationUi(canvas);
-  const relationTypeUsecases = useEntityRelationTypes({ projectId: projectId ?? '' });
+    model, headerRelationTypeIds, labelOf, resolveRelationTypeColor, hiddenRelationTypeIds, toggleRelationTypeId,
+    driftPanelOpen, typeCount, menuProps,
+  } = useSuperViewRelationControl(canvas);
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
   // Desktop draws the relation types as chips and 全部 as a word toggle;
   // the paused mobile shell keeps the paper chips and the bordered trigger.
   const mobileShell = getPlatformRuntime().isMobileShell;
 
-  const driftNodeIds = useMemo(
-    () => new Set(bookNodes.filter(isDrift).map((node) => node.id)),
-    [bookNodes],
-  );
-  const model = useMemo(
-    () =>
-      buildSuperViewRelationMenuModel({
-        canvas,
-        relationTypes: entityRelationTypes,
-        relations: entityRelations,
-        driftNodeIds,
-      }),
-    [canvas, driftNodeIds, entityRelationTypes, entityRelations],
-  );
-  const relationTypeById = useMemo(
-    () => new Map(entityRelationTypes.map((type) => [type.id, type])),
-    [entityRelationTypes],
-  );
-  const resolveRelationTypeColor = useCallback(
-    (relationTypeId: string) =>
-      edgeKindMeta.meta[relationTypeId]?.color ?? defaultRelationTypeColor(relationTypeId),
-    [edgeKindMeta.meta],
-  );
-  const headerRelationTypeIds = model.relationTypeIdOrder.filter(
-    (relationTypeId) =>
-      model.worldRelationTypeIds.has(relationTypeId) ||
-      (driftPanelOpen && model.driftDerivedRelationTypeIds.has(relationTypeId)),
-  );
-
   return (
     <>
       <HeaderChipStrip>
         {headerRelationTypeIds.map((relationTypeId) => {
-          const relationType = relationTypeById.get(relationTypeId);
-          const label = relationType
-            ? presentRelationType(relationType).name
-            : t('relationTypes.missing');
+          const label = labelOf(relationTypeId);
           const active = !hiddenRelationTypeIds.has(relationTypeId);
           return (
             <FilterChip
@@ -117,32 +70,19 @@ export function DesktopSuperViewRelationControl({ canvas, lead }: {
         >
           <span>{t('edgeKindManager.all')}</span>
           <span className={mobileShell ? 'relation-kind-menu-trigger__count' : 'ui-word-toggle__count'}>
-            {entityRelationTypes.length}
+            {typeCount}
           </span>
         </button>
         <RelationKindMenu
           open={open}
           onClose={() => setOpen(false)}
           anchorRef={buttonRef}
-          relationTypeIds={model.relationTypeIdOrder}
-          driftDerivedRelationTypeIds={model.driftDerivedRelationTypeIds}
-          hiddenRelationTypeIds={hiddenRelationTypeIds}
-          onToggleRelationTypeId={toggleRelationTypeId}
-          relationTypeCounts={model.relationTypeCounts}
-          resolveRelationTypeColor={resolveRelationTypeColor}
-          setRelationTypeColor={edgeKindMeta.setColor}
-          clearRelationTypeColor={edgeKindMeta.clearColor}
-          removeRelationTypeMeta={edgeKindMeta.remove}
-          allProjectRelations={entityRelations}
-          relationTypes={entityRelationTypes}
+          {...menuProps}
           relationTypeGroups={{
             usedTypes: model.usedTypes,
             availableTypes: model.availableTypes,
             otherTypes: model.otherTypes,
           }}
-          createRelationType={relationTypeUsecases.createRelationType}
-          updateRelationType={relationTypeUsecases.updateRelationType}
-          deleteRelationType={relationTypeUsecases.deleteRelationType}
           lead={lead}
         />
       </div>

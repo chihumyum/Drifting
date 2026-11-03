@@ -11,6 +11,8 @@ export interface SuperElementIsleLinesProps {
   active: string | null;
   /** While only one element's neighbourhood is shown, the elements still drawn. */
   visible: ReadonlySet<string> | null;
+  /** The elements are moving (the 关系 layout settling): the lines step aside until they rest. */
+  hidden?: boolean;
 }
 
 // The canvas is world-sized and rides the world transform, so panning and
@@ -79,7 +81,7 @@ function useThemeRevision() {
 
 /** The lines the prose draws between elements, in sand, under the cards. */
 export const SuperElementIsleLines = memo(function SuperElementIsleLines({
-  pairs, centers, bounds, active, visible,
+  pairs, centers, bounds, active, visible, hidden = false,
 }: SuperElementIsleLinesProps) {
   const ref = useRef<HTMLCanvasElement | null>(null);
   const theme = useThemeRevision();
@@ -108,7 +110,7 @@ export const SuperElementIsleLines = memo(function SuperElementIsleLines({
   return (
     <canvas
       ref={ref}
-      className="se-isle-lines"
+      className={hidden ? 'se-isle-lines is-moving' : 'se-isle-lines'}
       aria-hidden
       width={Math.max(1, Math.round(bounds.width * scale))}
       height={Math.max(1, Math.round(bounds.height * scale))}

@@ -36,7 +36,7 @@ async function viewportScenario() {
   const panningRef = { current: false }; const bandStickyRef = { current: true };
   const bandHeightCellsRef = { current: 1 }; const bandTopWorldYRef = { current: 100 }; const bandWorldLeftRef = { current: 0 };
   const config = { bandSticky: true, edgesViewportOnly: false, bandHeightCells: 1, bandTopWorldY: 100, cellWidth: 96, cellHeight: 56 };
-  const edges: SuperElementWorldEdge[] = [{ id: 'edge', refId: 'edge', fromKind: 'element', toKind: 'node',
+  const edges: SuperElementWorldEdge[] = [{ id: 'edge', refId: 'edge', fromId: 'element', toId: 'chapter', fromKind: 'element', toKind: 'node',
     x1: 20, y1: 200, x2: 40, y2: 128, fromName: '人物', toName: '章节', color: '#123456',
     directed: false, relationTypeId: 'type', targetInsetX: 61, targetInsetY: 34 }];
   let cardCommits = 0; let labels = 0; let transform = () => {};

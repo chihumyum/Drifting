@@ -18,15 +18,17 @@ const SWITCH_TRAVEL = { ms: PUSH_MS, easing: PUSH_EASING };
 export function DesktopSuperViewHeader(props: Omit<SuperViewHeaderProps, 'navigationSlot'> & {
   /** The view's own line controls, first in the relation menu (全部). */
   relationMenuLead?: ReactNode;
+  /** False: the view keeps its relation types in its own canvas (the element overview's legend). */
+  relationControl?: boolean;
 }) {
   const { t } = useTranslation();
   const { active: activeSuperView, setActive: setActiveSuperView } = useSuperViewNavigation();
-  const { rightSlot, relationMenuLead, ...headerProps } = props;
+  const { rightSlot, relationMenuLead, relationControl = true, ...headerProps } = props;
   const graphIntent = useSuperViewPreloadIntent('graph');
   const elementIntent = useSuperViewPreloadIntent('element');
   const memoIntent = useSuperViewPreloadIntent('memo-material');
   const relationCanvas =
-    activeSuperView === 'element' || activeSuperView === 'graph' ? activeSuperView : null;
+    relationControl && (activeSuperView === 'element' || activeSuperView === 'graph') ? activeSuperView : null;
   const intentOf = (id: SuperViewId) =>
     id === 'graph' ? graphIntent : id === 'element' ? elementIntent : memoIntent;
 

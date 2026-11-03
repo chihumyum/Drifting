@@ -2831,6 +2831,19 @@
     "stateOff": "关",
     "resetTitle": "重置画布缩放与平移",
     "reset": "重置",
+    "layout": {
+      "label": "布局",
+      "isles": "群岛",
+      "relate": "关系"
+    },
+    "legend": {
+      "label": "画布上的线",
+      "editTypes": "编辑类型"
+    },
+    "relate": {
+      "relayout": "重新排布",
+      "relayoutTitle": "清除拖动固定的位置，重新排布"
+    },
     "kind": {
       "element": "要素",
       "chapter": "章节"

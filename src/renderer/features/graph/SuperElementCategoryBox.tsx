@@ -60,6 +60,8 @@ export interface CategoryBoxProps {
   draggingElementId?: string | null;
   /** The author has moved this island by hand. */
   pinnedLabel?: string | null;
+  /** The washes fade while the elements leave for the 关系 layout or come back from it. */
+  phase?: 'leaving' | 'arriving';
 }
 
 function CategoryBox({
@@ -81,6 +83,7 @@ function CategoryBox({
   dropTarget = false,
   draggingElementId,
   pinnedLabel,
+  phase,
 }: CategoryBoxProps) {
   const { t } = useTranslation();
   const { category, groups, widthCells, heightCells, totalElements } = model;
@@ -263,7 +266,7 @@ function CategoryBox({
   if (desktop) {
     return (
       <div
-        className={dropTarget ? 'se-category is-drop' : 'se-category'}
+        className={['se-category', dropTarget ? 'is-drop' : '', phase ? `is-${phase}` : ''].filter(Boolean).join(' ')}
         data-se-category={model.categoryId}
         style={
           {

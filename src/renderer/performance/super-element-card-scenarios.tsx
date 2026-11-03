@@ -57,15 +57,12 @@ export async function runSuperElementCardScenarios() {
         // The desktop islands have no chapter band, so no chapter cards.
         if (cards.length !== elements || nodes.length !== 0) throw new Error('Full graph fixture did not mount every card.');
         // The toggle that reaches every card: the islands' 正文同段 lines,
-        // first in the relation menu (全部).
-        const relationMenu = host.querySelector<HTMLButtonElement>('.relation-kind-menu-anchor > button')!;
-        flushSync(() => relationMenu.click());
-        const focus = document.querySelector<HTMLButtonElement>('[data-se-lines]')!;
+        // the first row of the legend in the canvas's corner.
+        const focus = host.querySelector<HTMLButtonElement>('[data-se-lines]')!;
         resetWork(); const started = performance.now();
         for (let index = 0; index < 20; index++) flushSync(() => focus.click());
         const focusMs = performance.now() - started; const focusWork = { ...superElementCardWork };
         const focusModeReturned = focus.getAttribute('aria-pressed') === 'true';
-        flushSync(() => relationMenu.click());
         const viewport = host.querySelector<HTMLElement>('.super-view-body')!;
         resetWork();
         for (let index = 0; index < 100; index++) viewport.dispatchEvent(new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaX: 1, deltaY: 1 }));

@@ -26,6 +26,8 @@ export interface SuperElementWorldEdge {
   toKind: 'element' | 'node';
   id: string;
   refId: string;
+  fromId: string;
+  toId: string;
   x1: number;
   y1: number;
   x2: number;
@@ -81,6 +83,8 @@ export function buildSuperElementWorldEdges(input: SuperElementEdgeInput): Super
       toKind: toIsEl ? 'element' : 'node',
       id: ref.id,
       refId: ref.id,
+      fromId: ref.fromId,
+      toId: ref.toId,
       x1: fromPt.x,
       y1: fromPt.y,
       x2: toPt.x,
