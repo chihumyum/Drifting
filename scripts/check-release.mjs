@@ -1,8 +1,9 @@
 // Release preflight (docs/releasing.md): the version agrees everywhere, the tag
-// names it, release notes exist, the README's screenshots were captured for it,
-// the bundle still produces signed updater artifacts for the endpoint the app
-// polls, build tools stay unstripped, the app is built with Xcode 26 or later,
-// and every Action is pinned.
+// names it, release notes exist, the README's screenshots are all there and
+// shown (they are refreshed only when the author asks, so they may be from an
+// earlier version), the bundle still produces signed updater artifacts for the
+// endpoint the app polls, build tools stay unstripped, the app is built with
+// Xcode 26 or later, and every Action is pinned.
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
@@ -31,15 +32,13 @@ export function checkRelease({ tag } = {}) {
   if (!fs.existsSync(path.join(root, `docs/releases/${version}.md`))) {
     errors.push(`release notes docs/releases/${version}.md are missing`);
   }
-  // The README shows this version's screenshots (pnpm release:screenshots --readme).
+  // The README's screenshots (pnpm release:screenshots --readme) are all there
+  // and shown. A release does not retake them: the author asks when to.
   const screenshots = 'docs/screenshots/manifest.json';
   if (!fs.existsSync(path.join(root, screenshots))) {
     errors.push(`${screenshots} is missing: run pnpm release:screenshots --readme`);
   } else {
     const shots = JSON.parse(read(screenshots));
-    if (shots.version !== version) {
-      errors.push(`the README screenshots are from ${shots.version}, not ${version}: run pnpm release:screenshots --readme`);
-    }
     const readme = read('README.md');
     for (const entry of shots.files ?? []) {
       if (!fs.existsSync(path.join(root, 'docs/screenshots', entry.file))) errors.push(`docs/screenshots/${entry.file} is missing`);

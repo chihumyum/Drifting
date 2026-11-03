@@ -2,16 +2,17 @@
 
 Status: **current tooling** (2026-11-04). One command captures the shelf, the
 workspace and the element overview of the real macOS app, from synthetic data.
-Every release refreshes the README's three:
+The README's three are refreshed only when the author asks for screenshots
+(2026-11-04); a release does not retake them:
 
 ```bash
 pnpm release:screenshots --readme
 ```
 
-Run it on a Mac during release preparation ([releasing.md](releasing.md),
-step 2) and commit `docs/screenshots/` with the version bump;
-`pnpm release:check` (locally and in the Release workflow) fails while the
-README's screenshots are from another version. It takes about a minute once
+Run it on a Mac when asked ([releasing.md](releasing.md), step 2) and commit
+`docs/screenshots/` with that change; `pnpm release:check` (locally and in the
+Release workflow) only checks that the README's screenshots are all there and
+shown, whichever version took them. It takes about a minute once
 the profile's Rust build exists (the first run compiles it, about five
 minutes) and **takes the screen**: the app's window comes to the front for each
 capture, and the app that was in front gets its place back at the end. Leave

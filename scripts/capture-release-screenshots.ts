@@ -22,7 +22,7 @@
  *
  * --readme captures the English light scenes only and also writes them, 2000
  * pixels wide as WebP, with their manifest to docs/screenshots/, which the
- * README shows; every release commits them (scripts/check-release.mjs).
+ * README shows; they are retaken only when the author asks (docs/releasing.md).
  */
 import { execFileSync, spawn, spawnSync, type SpawnOptions } from 'node:child_process';
 import { createHash } from 'node:crypto';
