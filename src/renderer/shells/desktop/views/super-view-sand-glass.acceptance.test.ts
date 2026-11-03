@@ -357,6 +357,38 @@ describe('Super View sand and glass acceptance', () => {
     expect(css).not.toMatch(/-132px|420ms|15s linear/);
   });
 
+  it('shelves comments beside the TODOs and lets each rail be dragged wider into more columns', () => {
+    const view = source('src/renderer/shells/desktop/views/DesktopSuperMemoMaterialView.tsx');
+    // The comment rail is desktop-only and sits between the TODOs and the library.
+    expect(view).toMatch(/<TodoRail[\s\S]*\{!mobileShell && \(\s*<CommentRail[\s\S]*<LibraryItemMain/);
+    // Review's own cards, grouped by what they are written on.
+    expect(view).toContain('groupReviewItems(openNotes, groupData)');
+    expect(view).toContain('<ReviewItemCard');
+    expect(view).toContain('presentation="panel"');
+    expect(view).toContain('className="review-group review-group--glass smm-comment-group"');
+    expect(view).toContain('kind="note"');
+    // The entity filter reaches comments written on the entity, not only related ones.
+    expect(view).toContain('comment.targetKind === entityFilter.kind && comment.targetId === entityFilter.id');
+    // Both rails carry a dragged edge that bleeds glass and is remembered.
+    expect(view.match(/<RailEdge label=/g)).toHaveLength(2);
+    expect(view).toContain('role="separator"');
+    expect(view).toContain('stepGlassFlow(edge, Math.abs(moveEvent.clientX - lastX))');
+    expect(view).toContain('<span className="flow-line flow-line--v smm-rail__edge-flow" aria-hidden="true" />');
+    expect(view).toContain('storeRailWidths(next)');
+
+    const css = source('src/styles/super-memo-material.css');
+    const rule = (selector: string) => css.match(new RegExp(`(?:^|\\n)${selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\{([^}]*)\\}`))?.[1] ?? '';
+    expect(rule('.smm-rail')).toContain('min-width: 240px;');
+    expect(rule('.smm-rail')).not.toMatch(/(^|\s)width:/);
+    // TODO cards fill a grid; comment groups flow whole down newspaper columns.
+    expect(rule('.smm-rail__list')).toContain('grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));');
+    expect(view).toContain('<div className="smm-comment-columns">{groups.map(renderGroup)}</div>');
+    expect(rule('.smm-comment-columns')).toContain('column-width: 240px;');
+    expect(rule('.smm-comment-columns > .review-group.smm-comment-group')).toContain('break-inside: avoid;');
+    expect(rule('.smm-rail__edge')).toContain('cursor: col-resize;');
+    expect(rule('.smm-main')).toContain('min-width: 360px;');
+  });
+
   it('documents the Chip and the Super Views and closes the open gap', () => {
     const docs = designSystemDocs();
     for (const heading of ['## Chip', '## Super View 头部', '## 关系类型菜单', '## 故事图谱', '## 卡片弹层', '## TODO 与素材库', '## 要素全景']) {
