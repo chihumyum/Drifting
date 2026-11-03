@@ -639,11 +639,13 @@ export function createCharSea(canvas: HTMLCanvasElement, options: CharSeaOptions
     accumulated += dt;
     const steps = Math.min(6, Math.floor(accumulated * CHAR_SEA_STEP_RATE));
     accumulated -= steps / CHAR_SEA_STEP_RATE;
-    let peak = steps ? 0 : 1;
+    let peak = 0;
     for (let s = 0; s < steps; s += 1) peak = Math.max(peak, water.step());
     draw();
     // Still water and still glass: one last frame, then nothing until something touches it.
-    quietFrames = peak < 0.004 && !glassMoving && !restMoving && !loadingMoving ? quietFrames + 1 : 0;
+    // Above 100Hz a frame can fall between two steps; it neither moves the water nor settles it.
+    if (glassMoving || restMoving || loadingMoving) quietFrames = 0;
+    else if (steps) quietFrames = peak < 0.004 ? quietFrames + 1 : 0;
     if (quietFrames > 20) {
       water.clear();
       draw();
