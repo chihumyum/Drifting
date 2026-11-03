@@ -20,6 +20,9 @@ import type { MarkdownFolderSettings } from '../../platform/contracts';
 import { getPlatformRuntime } from '../../platform/runtime';
 import { useCharSeaEnabled, useCharSeaHold, useCharSeaShape } from '../char-sea/useCharSea';
 import { Button } from '../ui/Button';
+import { GlassSelect } from '../ui/GlassSelect';
+import { UI_LOCALE_OPTIONS } from '../../lib/i18n';
+import { useSettingsStore } from '../../store/settings-store';
 import { ModalActions, ModalBody, ModalCard, ModalHeader, ModalRoot } from '../ui/Modal';
 import { alphaGuideStorageKey } from '../../lib/alpha-guide-key';
 
@@ -330,6 +333,26 @@ function FirstRunCard({
   );
 }
 
+/**
+ * The interface language, out of the way in the window's corner: the card,
+ * the sea's passage and everything after follow it at once.
+ */
+function FirstRunLanguage({ leaving }: { leaving: boolean }) {
+  const { t } = useTranslation();
+  const uiLocale = useSettingsStore((state) => state.uiLocale);
+  const setUiLocale = useSettingsStore((state) => state.setUiLocale);
+  return (
+    <div className={`first-run-gate__language${leaving ? ' first-run-gate__language--leaving' : ''}`}>
+      <GlassSelect
+        value={uiLocale}
+        onChange={setUiLocale}
+        ariaLabel={t('userMenu.language')}
+        options={UI_LOCALE_OPTIONS.map((locale) => ({ value: locale.code, label: locale.native }))}
+      />
+    </div>
+  );
+}
+
 type GateStage = 'title' | 'card' | 'leaving' | 'done';
 
 /**
@@ -340,8 +363,9 @@ type GateStage = 'title' | 'card' | 'leaving' | 'done';
  * the card's resting glass and shows through it at 12%. Signing in happens in
  * the same card, so the shelf first opens with the account's cloud projects
  * already restored; then, once per device, the same card asks where projects'
- * Markdown folders go. When nothing is left the card fades as the shelf comes
- * up under it as a whole, and what lies on the shelf is set down on the sea.
+ * Markdown folders go. The interface language waits in the window's corner
+ * the whole way. When nothing is left the card fades as the shelf comes up
+ * under it as a whole, and what lies on the shelf is set down on the sea.
  */
 export function PreAlphaFirstRunGate({ children }: { children: ReactNode }) {
   const { t } = useTranslation();
@@ -446,6 +470,7 @@ export function PreAlphaFirstRunGate({ children }: { children: ReactNode }) {
               {renderStep}
             </FirstRunCard>
           )}
+          {stage !== 'title' && shownStep && <FirstRunLanguage leaving={stage === 'leaving'} />}
         </div>
       )}
     </>

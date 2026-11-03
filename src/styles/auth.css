@@ -485,6 +485,19 @@ html:not([data-shell-mode='mobile']) .auth-flow--dialog .auth-flow__glass-button
   animation: first-run-pane-out var(--motion-page-blend) var(--motion-page-blend-ease) both;
 }
 
+/* The interface language, out of the way in the window's corner; it comes
+   and goes with the card. */
+.first-run-gate__language {
+  position: fixed;
+  right: 20px;
+  bottom: 16px;
+  animation: first-run-card-in var(--motion-glass-bleed) ease-out 120ms both;
+}
+
+.first-run-gate__language--leaving {
+  animation: first-run-card-out var(--motion-glass-bleed) ease-out both;
+}
+
 /* The welcome: the ways on and the crash-report note, nothing else. */
 .first-run-welcome {
   display: flex;
@@ -539,13 +552,15 @@ html:not([data-shell-mode='mobile']) .auth-flow--dialog .auth-flow__glass-button
 @media (prefers-reduced-motion: reduce) {
   .first-run-gate__card,
   .first-run-gate__pane,
+  .first-run-gate__language,
   .first-run-arrival {
     transition: none;
     animation: none;
   }
 
   .first-run-gate__card--leaving,
-  .first-run-gate__pane--leaving {
+  .first-run-gate__pane--leaving,
+  .first-run-gate__language--leaving {
     animation: none;
     visibility: hidden;
   }
