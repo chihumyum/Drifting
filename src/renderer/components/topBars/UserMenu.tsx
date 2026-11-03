@@ -17,6 +17,7 @@ import { useOpenSignIn } from '../../features/auth/auth-dialog-store';
 import { requestSignOut } from '../../features/auth/sign-out';
 import { AccountAvatar } from '../ui/AccountAvatar';
 import { BrushIcon } from '../ui/BrushIcon';
+import { GlassSelect } from '../ui/GlassSelect';
 import { GlassSlider } from '../ui/GlassSlider';
 
 const log = loglevel.getLogger('UserMenu');
@@ -71,7 +72,7 @@ export function UserMenu({
 
   const displayName = user?.name?.trim() || user?.email?.split('@')[0] || t('common.local');
   const initial = displayName.charAt(0).toUpperCase();
-  const normalizedUiLocale = uiLocale.startsWith('zh') ? 'zh-CN' : 'en';
+  const normalizedUiLocale = uiLocale;
   const desktop = !getPlatformRuntime().isMobileShell;
   return (
     <AnchoredPopover
@@ -154,32 +155,15 @@ export function UserMenu({
             icon={<BrushIcon name="wen" size={16} />}
             label={t('userMenu.language')}
             tail={
-              desktop ? (
-                <GlassSlider
-                  className="user-menu__slider"
-                  ariaLabel={t('userMenu.language')}
-                  value={normalizedUiLocale}
-                  onChange={(code) => setUiLocale(code)}
-                  options={UI_LOCALE_OPTIONS.map((locale) => ({
-                    value: locale.code,
-                    label: locale.code === 'zh-CN' ? '中' : 'EN',
-                    title: locale.name,
-                  }))}
-                />
-              ) : (
-                <div onClick={(e) => e.stopPropagation()} className="user-menu__switch">
-                  {UI_LOCALE_OPTIONS.map((locale) => (
-                    <ThemeSwitchBtn
-                      key={locale.code}
-                      active={normalizedUiLocale === locale.code}
-                      onClick={() => setUiLocale(locale.code)}
-                      title={locale.name}
-                    >
-                      {locale.code === 'zh-CN' ? '中' : 'EN'}
-                    </ThemeSwitchBtn>
-                  ))}
-                </div>
-              )
+              <GlassSelect
+                value={normalizedUiLocale}
+                onChange={setUiLocale}
+                ariaLabel={t('userMenu.language')}
+                options={UI_LOCALE_OPTIONS.map((locale) => ({
+                  value: locale.code,
+                  label: locale.native,
+                }))}
+              />
             }
           />
           {scope === 'project' && (

@@ -2,14 +2,15 @@ import { useTranslation } from 'react-i18next';
 import { useSettingsStore, type ThemeMode } from '../../../store/settings-store';
 import { UI_LOCALE_OPTIONS } from '../../../lib/i18n';
 import { ACCENT_COLOR_DEFAULT_DARK, ACCENT_COLOR_DEFAULT_LIGHT } from '../../../lib/theme';
+import { GlassSelect } from '../../../components/ui/GlassSelect';
 import { GlassSlider } from '../../../components/ui/GlassSlider';
 import {
   SettingsButton,
   SettingsColor,
   SettingsPanelHeader,
   SettingsRow,
-  SettingsSectionHeader,
   SettingsSegment,
+  SettingsSectionHeader,
   SettingsToggle,
   type SettingsRegisterRef,
 } from '../SettingsPrimitives';
@@ -193,7 +194,7 @@ export function LanguagePanel({ registerRef }: { registerRef: SettingsRegisterRe
   const { t } = useTranslation();
   const uiLocale = useSettingsStore((s) => s.uiLocale);
   const setUiLocale = useSettingsStore((s) => s.setUiLocale);
-  const normalizedUiLocale = uiLocale.startsWith('zh') ? 'zh-CN' : 'en';
+  const normalizedUiLocale = uiLocale;
 
   return (
     <section className="set-panel" ref={registerRef} id="language">
@@ -209,7 +210,7 @@ export function LanguagePanel({ registerRef }: { registerRef: SettingsRegisterRe
             label={t('settings.language.ui_locale')}
             desc={t('settings.language.ui_locale_desc')}
             control={
-              <SettingsSegment
+              <GlassSelect
                 value={normalizedUiLocale}
                 onChange={setUiLocale}
                 ariaLabel={t('settings.language.ui_locale')}

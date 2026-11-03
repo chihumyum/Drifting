@@ -9,3 +9,13 @@ describe('share reader errors', () => {
     expect(errorText('MAIL_QUOTA_EXHAUSTED')).toMatch(/tomorrow|明天/);
   });
 });
+
+// Each translation keeps opaque authored values and authentication errors intact.
+describe('localized share reader', () => {
+  it('preserves author names, emails and chapter numbers', () => {
+    expect(t.sharedBy('Synthetic Ω')).toContain('Synthetic Ω');
+    expect(t.codeSent('synthetic@example.invalid')).toContain('synthetic@example.invalid');
+    expect(t.chapterNumber(42)).toContain('42');
+    expect(errorText('unknown-error')).toBe(t.errors.fallback);
+  });
+});

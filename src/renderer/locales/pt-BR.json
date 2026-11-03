@@ -1,0 +1,3749 @@
+{
+  "markdownShare": {
+    "title": "Compartilhar Markdown",
+    "menu": "Compartilhar",
+    "wholeBook": "Todos os capítulos na ordem de leitura",
+    "currentBody": "O texto completo deste documento",
+    "readOnly": "Somente leitura",
+    "preview": "Código Markdown, somente leitura",
+    "proseOnly": "Inclui títulos, texto e resumos dos capítulos. Comentários e notas de planejamento permanecem privados.",
+    "characters": "{{count}} caracteres",
+    "loading": "Preparando o Markdown completo…",
+    "loadFailed": "Não foi possível ler o documento completo. Tente novamente.",
+    "retry": "Tentar novamente",
+    "copy": "Copiar tudo",
+    "copying": "Copiando…",
+    "save": "Salvar .md",
+    "saving": "Salvando…",
+    "copied": "Todo o Markdown foi copiado",
+    "saved": "Markdown salvo",
+    "failed": "Não foi possível concluir a ação. Tente novamente ou selecione e copie o texto."
+  },
+  "manuscriptExport": {
+    "menu": "Exportar manuscrito",
+    "title": "Exportar manuscrito",
+    "loading": "Lendo capítulos…",
+    "loadFailed": "Não foi possível ler os capítulos. Tente novamente.",
+    "retry": "Tentar novamente",
+    "format": "Formato",
+    "scope": "Escopo",
+    "wholeBook": "Livro inteiro",
+    "selectedChapters": "Capítulos selecionados",
+    "chapterCount_one": "{{count}} capítulo",
+    "chapterCount_other": "{{count}} capítulos",
+    "selectAll": "Selecionar tudo",
+    "selectNone": "Desmarcar tudo",
+    "contents": "Conteúdo",
+    "actTitles": "Títulos dos atos",
+    "chapterTitles": "Títulos dos capítulos",
+    "outlineHeadings": "Títulos de unidades narrativas e notas",
+    "bookInfo": "Informações do livro",
+    "bookTitle": "Título",
+    "author": "Autor",
+    "cover": "Capa",
+    "chooseCover": "Escolher imagem",
+    "changeCover": "Alterar",
+    "removeCover": "Remover",
+    "export": "Exportar {{format}}",
+    "exporting": "Exportando…",
+    "saved": "Exportado",
+    "failed": "A exportação não foi concluída. Tente novamente.",
+    "coverFailed": "Não foi possível ler esta imagem.",
+    "untitledChapter": "Capítulo sem título",
+    "untitledAct": "Ato sem título",
+    "chapterCount_many": "{{count}} capítulos"
+  },
+  "shareLink": {
+    "dialogTitle": "Compartilhar",
+    "title": "Link de compartilhamento",
+    "signIn": "Entrar",
+    "create": "Criar link de compartilhamento",
+    "creating": "Criando…",
+    "url": "Link de compartilhamento",
+    "copy": "Copiar link",
+    "copied": "Link copiado",
+    "allowComments": "Permitir comentários",
+    "revision": "Versão {{revision}}",
+    "stop": "Parar de compartilhar",
+    "confirmStop": "Parar de compartilhar? O link deixará de funcionar",
+    "stopping": "Parando…",
+    "failed": "A ação não foi concluída. Verifique a conexão e tente novamente.",
+    "reauth": "Sua sessão expirou. Entre novamente e tente outra vez.",
+    "readerBadge": "Leitor",
+    "listTitle": "Links compartilhados",
+    "listLoading": "Carregando links compartilhados…",
+    "listEmpty": "Nada foi compartilhado ainda",
+    "otherProject": "Não está neste dispositivo",
+    "open": "Abrir",
+    "view": "Visualizar",
+    "count": "{{count}} compartilhados"
+  },
+  "sidebarLayout": {
+    "split": "Restaurar duas colunas"
+  },
+  "appShell": {
+    "viewLoadFailed": "Não foi possível carregar esta tela. Tente novamente.",
+    "checkingAuthentication": "Verificando autenticação…",
+    "loadingProject": "Abrindo projeto…",
+    "preparingWorkspace": "Preparando seu espaço de trabalho…",
+    "readingProject": "Lendo o conteúdo do projeto…",
+    "syncingProject": "Atualizando a estrutura do projeto…",
+    "syncingProjectDetail": "Mesclando alterações de capítulos, material de referência e estrutura do Hosted. O projeto não poderá ser editado até o fim da atualização.",
+    "projectLoadFailedTitle": "Não foi possível abrir este projeto",
+    "projectLoadFailedDetail": "Nenhum dado foi alterado. Verifique o banco de dados local e tente novamente.",
+    "projectRefreshFailedTitle": "Não foi possível aplicar as alterações do Hosted",
+    "projectRefreshFailedDetail": "O espaço de trabalho completo anterior continua preservado. Tente carregar o projeto novamente.",
+    "unexpectedTitle": "O Drifting encontrou um erro inesperado",
+    "unexpectedDetail": "A tela atual foi interrompida para evitar novas alterações.",
+    "retry": "Tentar novamente"
+  },
+  "databaseRecovery": {
+    "title": "A atualização da biblioteca foi interrompida com segurança",
+    "detail": "O Drifting não abriu projetos nem configurações. O banco anterior e uma cópia de segurança verificada permanecem disponíveis enquanto você decide o que fazer.",
+    "errorCode": "Etapa da falha",
+    "version": "Versão do banco de dados",
+    "unknownVersion": "Versão de desenvolvimento anterior",
+    "safetyBackup": "Cópia de segurança",
+    "retry": "Tentar atualização isolada novamente",
+    "retrying": "Tentando novamente…",
+    "restore": "Restaurar cópia de segurança",
+    "restoring": "Verificando e restaurando…",
+    "restoreConfirm": "O Drifting primeiro migra e verifica um banco candidato criado desta cópia. O banco ativo só será substituído se todas as verificações passarem. Continuar?",
+    "export": "Exportar cópia de segurança",
+    "exported": "A cópia de segurança foi exportada.",
+    "openDirectory": "Abrir pasta de backups",
+    "copyDiagnostics": "Copiar diagnóstico seguro",
+    "copied": "Foi copiado um resumo de diagnóstico sem dados sensíveis.",
+    "exit": "Sair do Drifting",
+    "actionFailed": "A recuperação não foi concluída. Nenhum banco de dados não verificado foi ativado."
+  },
+  "preAlphaGuide": {
+    "title": "Boas-vindas ao Drifting Alpha",
+    "intro": "Comece a escrever sem uma conta. Projetos e textos são salvos primeiro neste dispositivo.",
+    "localData": "Não é preciso ter conta no Drifting. Projetos, textos, relações, lixeira e histórico ficam no diretório local do aplicativo.",
+    "byok": "O Agent é experimental e exige sua própria chave de modelo ou assinatura do ChatGPT. Solicitações, custos e termos de dados seguem o provedor escolhido. As chaves ficam no chaveiro do sistema.",
+    "crashReports": "O aplicativo envia relatórios de falha sem o texto do manuscrito para ajudar a corrigir problemas. Desative em Configurações → Privacidade.",
+    "settingsHint": "Continue localmente para criar seu primeiro projeto e começar a escrever.",
+    "accountAction": "Entrar / cadastrar-se e sincronizar",
+    "continueLocal": "Continuar localmente"
+  },
+  "firstRun": {
+    "email": "Continuar com e-mail",
+    "local": "Continuar localmente"
+  },
+  "markdownFolderGuide": {
+    "title": "Onde colocar a pasta Markdown?",
+    "intro": "Cada projeto mantém uma cópia Markdown aqui. Edite capítulos e ideias em qualquer editor e as alterações serão mescladas no Drifting.",
+    "default": "Local padrão",
+    "chosen": "Pasta escolhida",
+    "choose": "Escolher pasta…",
+    "useDefault": "Usar local padrão",
+    "continue": "Continuar"
+  },
+  "settings": {
+    "increase_value": "Aumentar {{label}}",
+    "decrease_value": "Diminuir {{label}}",
+    "loading": "Carregando configurações…",
+    "loadFailed": "Não foi possível carregar as configurações. Tente novamente.",
+    "title": "Configurações",
+    "search_placeholder": "Buscar configurações…",
+    "close": "Fechar",
+    "local_user": "Usuário local",
+    "groups": {
+      "account": "Conta",
+      "localData": "Dados locais",
+      "preferences": "Preferências",
+      "intelligence": "Inteligência",
+      "control": "Controle",
+      "about": "Sobre"
+    },
+    "rail": {
+      "account": "Conta",
+      "subscription": "Assinatura",
+      "trash": "Lixeira",
+      "appearance": "Aparência",
+      "editor": "Editor",
+      "language": "Idioma",
+      "models": "Modelos e API",
+      "agent": "Agent geral · Experimental",
+      "keys": "Teclado",
+      "sync": "Sincronização e dados",
+      "updates": "Atualizações",
+      "privacy": "Privacidade",
+      "about_app": "Sobre o Drifting"
+    },
+    "common": {
+      "save": "Salvar",
+      "cancel": "Cancelar",
+      "edit": "Editar",
+      "delete": "Excluir",
+      "manageKeys": "Gerenciar chaves de API",
+      "connect": "Conectar",
+      "disconnect": "Desconectar",
+      "test_connection": "Testar conexão",
+      "open_in_browser": "Abrir no navegador"
+    },
+    "account": {
+      "export_all": "Exportar Markdown com relações",
+      "export_all_desc": "Exporta todos os projetos desta biblioteca local com capítulos, ideias, elementos, comentários, notas de pesquisa e links wiki bidirecionais. Não inclui imagens nem PDFs. O arquivo Markdown não pode ser importado de volta no Drifting.",
+      "export_all_btn": "Exportar ZIP de Markdown",
+      "exporting": "Exportando…",
+      "export_done": "{{count}} documentos Markdown exportados.",
+      "export_failed": "Falha ao exportar: {{error}}"
+    },
+    "trash": {
+      "kicker": "LIXEIRA",
+      "title": "Conteúdo excluído temporariamente.",
+      "sub": "Mantido neste dispositivo até você restaurar ou excluir permanentemente."
+    },
+    "appearance": {
+      "interface_text_size": "Tamanho do texto da interface",
+      "interface_text_size_desc": "Ajusta o texto da interface de desktop neste dispositivo. O manuscrito usa o tamanho de fonte do editor.",
+      "interface_text_smallest": "Mínimo",
+      "interface_text_small": "Menor",
+      "interface_text_standard": "Padrão",
+      "interface_text_large": "Maior",
+      "interface_text_largest": "Máximo",
+      "kicker": "APARÊNCIA",
+      "title": "Você escolhe a luz da sua mesa.",
+      "sub": "Escolha o brilho e a cor de destaque mais confortáveis para escrever.",
+      "theme": "Tema",
+      "theme_desc": "Claro, escuro ou conforme o sistema.",
+      "light": "Claro",
+      "dark": "Escuro",
+      "system": "Seguir o sistema",
+      "accent": "Cor de destaque",
+      "accent_color": "Destaque da interface",
+      "accent_color_desc": "Usada em botões, foco e estados ativos sem alterar o cursor do editor.",
+      "accent_reset": "Restaurar padrão",
+      "animations": "Animações e transições",
+      "agent_edit_reveal": "Animação das alterações",
+      "agent_edit_reveal_desc": "Revela caractere por caractere as edições do Agent em textos e campos e as alterações de capítulos e ideias feitas em outro editor. Desative para mostrar tudo imediatamente; as marcas de alterações não lidas permanecem.",
+      "guides": "Guias",
+      "replay_guides": "Apresentação ao abrir um livro pela primeira vez",
+      "replay_guides_action": "Mostrar novamente"
+    },
+    "editor": {
+      "kicker": "EDITOR",
+      "title": "Como as letras chegam à página.",
+      "sub": "Tipografia e comportamento de escrita do editor, independentes da exportação.",
+      "preview": "Prévia",
+      "preview_h1": "Título 1",
+      "preview_h2": "Título 2",
+      "preview_h3": "Título 3",
+      "preview_p1": "O silêncio se espalhou entre eles como a maré sobre a pedra. Por fim ela falou, a voz quase levada pelo vento, chegando a um ponto em que ele mal conseguia ouvi-la.",
+      "preview_p2": "“Você vai voltar?” Ele não respondeu de imediato. Observou o sol afundar no mar e só depois de muito tempo assentiu, sem saber se aquilo era promessa ou compaixão.",
+      "preview_p3": "O vento veio por cima do quebra-mar, trazendo sal e umidade. Ela apertou o casaco, não perguntou mais nada e guardou a pergunta dentro de si.",
+      "preview_p4": "Ao longe, o farol acendia e apagava, como se contasse o que ninguém conseguia dizer. As ondas dobravam em seu ruído cada palavra dita e não dita.",
+      "preview_p5": "Anos depois ele ainda se lembrava daquela tarde e da despedida que nunca conseguiu dizer. Sempre que o vento do mar atravessava a janela, o silêncio voltava nítido, como se nunca tivesse partido. (Este parágrafo demonstra o recuo com Tab.)",
+      "preview_p6": "Depois seguiram para vidas diferentes. As luzes da cidade apagavam a lembrança e tornavam a acendê-la. Mas o mar, o pôr do sol e aquela hora sempre voltavam pontualmente.",
+      "typesetting": "Diagramação",
+      "reset_style": "Restaurar estilo recomendado",
+      "font_source": "Fonte do conteúdo",
+      "font_scope_desc": "Aplica-se ao texto, títulos, resumos, textos longos de entidades, campos, alterações, referências e prévia tipográfica. Interface, barras laterais, diálogos e cartões usam a fonte sem serifa comum. A escolha é local e não integra o conteúdo sincronizado pelo SyncEngine.",
+      "font_system_serif": "Serifada do sistema",
+      "font_system_serif_desc": "Usa a fonte serifada do sistema",
+      "font_system_sans": "Sem serifa do sistema",
+      "font_system_sans_desc": "Usa a fonte sem serifa do sistema",
+      "font_system_mono": "Monoespaçada do sistema",
+      "font_system_mono_desc": "Usa ui-monospace, SF Mono ou equivalente da plataforma",
+      "font_system_custom": "Fonte do sistema",
+      "font_imported": "Fonte importada",
+      "font_not_configured": "Nenhuma família de fontes definida",
+      "font_not_imported": "Nenhum arquivo de fonte importado",
+      "font_loading": "Lendo fonte local…",
+      "font_system_title": "Usar uma fonte instalada no sistema",
+      "font_system_help": "Escolha uma fonte detectada neste dispositivo ou digite o nome da família.",
+      "font_system_loading": "Carregando lista de fontes…",
+      "font_system_loaded": "{{count}} famílias de fontes carregadas.",
+      "font_system_unavailable": "Esta plataforma não lista fontes automaticamente. Digite o nome da família.",
+      "font_system_placeholder": "Escolher fonte do sistema",
+      "font_system_manual": "Não está na lista? Digite o nome da família",
+      "font_system_manual_placeholder": "Por exemplo: Charter",
+      "font_use": "Usar",
+      "font_system_required": "Primeiro digite o nome de uma família de fontes do sistema.",
+      "font_system_applied": "Fonte do sistema selecionada. Confira na prévia acima se ela está instalada.",
+      "font_import_title": "Importar arquivo de fonte",
+      "font_import_help": "Aceita fontes regulares ou variáveis TTF, OTF, WOFF e WOFF2 de até 64 MB.",
+      "font_import": "Importar fonte",
+      "font_importing": "Processando…",
+      "font_replace": "Substituir",
+      "font_remove": "Remover",
+      "font_import_done": "A fonte foi salva neste dispositivo e aplicada ao conteúdo escrito.",
+      "font_remove_done": "A cópia da fonte armazenada pelo aplicativo foi removida.",
+      "font_error_empty": "Este arquivo de fonte está vazio.",
+      "font_error_format": "Apenas arquivos TTF, OTF, WOFF e WOFF2 são aceitos.",
+      "font_error_size": "O arquivo de fonte deve ter no máximo 64 MB.",
+      "font_error_invalid": "Não foi possível decodificar o arquivo. Escolha uma fonte regular ou variável válida.",
+      "font_error_storage": "O armazenamento local de fontes está indisponível. Reinicie o aplicativo e tente novamente.",
+      "font_error_unknown": "Não foi possível processar a fonte. Tente outro arquivo.",
+      "font_size": "Tamanho da fonte",
+      "font_size_desc": "Só afeta o editor; a exportação não muda.",
+      "line_height": "Altura da linha",
+      "text_wrap": "Quebra de linha",
+      "text_wrap_desc": "Estável preenche cada linha e mantém quebras anteriores ao editar adiante. Equilibrado ajusta o parágrafo inteiro. Aplica-se imediatamente e fica salvo neste dispositivo.",
+      "text_wrap_stable": "Estável",
+      "text_wrap_pretty": "Equilibrado",
+      "indent": "Recuo de parágrafo",
+      "indent_desc": "Somente no editor. A exportação tem configurações próprias.",
+      "indent_none": "Nenhum",
+      "indent_one": "1 caractere",
+      "indent_two": "2 caracteres",
+      "tab_indent": "Recuo com Tab",
+      "tab_indent_desc": "Largura de cada nível de recuo com Tab; Shift+Tab diminui o recuo.",
+      "chars_count": "{{count}} caracteres",
+      "paragraph_spacing": "Espaçamento entre parágrafos",
+      "paragraph_spacing_desc": "Espaçamento comum a parágrafos e títulos de todos os níveis, relativo ao tamanho do texto; somente no editor.",
+      "page_width": "Largura da página",
+      "page_width_desc": "Largura do papel no editor; o texto preenche a área com margens fixas.",
+      "flow": "Fluxo de escrita",
+      "typewriter_mode": "Modo máquina de escrever",
+      "typewriter_mode_desc": "Mantém a linha ativa numa posição fixa ao digitar ou mover o cursor. Somente no editor.",
+      "typewriter_position": "Posição da linha de digitação",
+      "typewriter_position_desc": "Percentual a partir do topo: 25% alto, 50% central, 75% baixo.",
+      "caret_color": "Cor do cursor",
+      "caret_color_desc": "Escolha a cor do cursor de inserção de texto.",
+      "entity_link_style": "Destaque de links de entidades",
+      "entity_link_style_desc": "Use cores por vínculo, uma cor por tipo de entidade, cores do vínculo apenas ao passar o mouse ou texto na cor normal com uma faixa.",
+      "entity_link_style_contextual": "Por vínculo",
+      "entity_link_style_kind": "Por tipo",
+      "entity_link_style_hover": "Só ao passar o mouse",
+      "entity_link_style_prose": "Texto",
+      "entity_link_highlight": "Tratamento do destaque de links",
+      "entity_link_highlight_desc": "Destaque links com faixa, texto colorido ou ambos. Também se aplica ao passar o mouse.",
+      "entity_link_highlight_band": "Faixa colorida",
+      "entity_link_highlight_text": "Cor do texto",
+      "entity_link_highlight_both": "Ambos",
+      "entity_link_band_style": "Estilo de faixa dos links",
+      "entity_link_band_style_desc": "Use uma faixa suave contínua ou uma linha de pequenos pontos abaixo do texto.",
+      "entity_link_band_style_wash": "Faixa contínua",
+      "entity_link_band_style_dots": "Pontos finos",
+      "entity_link_kind_element": "Elemento",
+      "entity_link_kind_chapter": "Capítulo",
+      "entity_link_kind_drift": "Ideia",
+      "entity_link_kind_patch": "Evolução",
+      "entity_link_kind_category": "Categoria",
+      "entity_link_kind_storyline": "Linha narrativa",
+      "auto_element_link": "Links automáticos de elementos",
+      "auto_element_link_desc": "Reconhece nomes de elementos existentes ao digitar e cria links para suas páginas."
+    },
+    "language": {
+      "kicker": "IDIOMA",
+      "title": "O idioma da interface.",
+      "ui_locale": "Idioma da interface",
+      "ui_locale_desc": "Idioma dos menus, botões e mensagens. Seu texto não é alterado."
+    },
+    "sync": {
+      "local_kicker": "DADOS LOCAIS",
+      "local_title": "Seu trabalho fica neste dispositivo.",
+      "local_sub": "Sem conta Drifting ou nuvem hospedada. Exporte uma cópia legível quando quiser.",
+      "local_data": "Dados locais",
+      "backup": {
+        "exportTitle": "Backup da biblioteca",
+        "exportDesc": "Reúne os bancos de todos os projetos, imagens e PDFs originais num arquivo .drifting, para restaurar ou mudar de computador.",
+        "exportButton": "Exportar backup…",
+        "exporting": "Fazendo backup…",
+        "exported": "“{{file}}” foi salvo.",
+        "summary": "{{projects}} projetos, {{assets}} arquivos de recursos, {{size}}.",
+        "missingAssets": "Faltam {{count}} recursos neste dispositivo; eles não foram incluídos no backup.",
+        "restoreTitle": "Restaurar de um backup",
+        "restoreDesc": "Substitui a biblioteca atual por um backup .drifting. Antes, uma cópia da biblioteca atual é salva.",
+        "restoreButton": "Escolher backup…",
+        "inspecting": "Verificando…",
+        "restoring": "Restaurando…",
+        "openSafety": "Abrir cópias anteriores à restauração",
+        "restoreConfirm": "Substituir a biblioteca atual por “{{file}}”.\n\nCriado em: {{date}}\nConteúdo: {{summary}}\nProjetos: {{projects}}\n\nUma cópia prévia da biblioteca atual será salva e poderá ser aberta em “Abrir cópias anteriores à restauração”. O Drifting será recarregado ao terminar.",
+        "restoreConfirmButton": "Substituir e restaurar",
+        "noProjects": "(sem projetos)",
+        "loading": "Lendo status da sincronização…",
+        "syncConnected": "Não é possível fazer backup ou restaurar com a sincronização ativa. Desconecte-a primeiro em Conta.",
+        "errors": {
+          "sync-connected": "Não é possível fazer backup ou restaurar com a sincronização ativa. Desconecte-a primeiro em Conta.",
+          "invalid": "Este arquivo não é um backup válido do Drifting ou está danificado. A biblioteca atual não foi alterada.",
+          "newer": "Este backup foi criado numa versão mais recente do Drifting. Atualize o aplicativo antes de restaurá-lo.",
+          "unknown": "A operação não foi concluída e a biblioteca atual não foi alterada: {{detail}}"
+        }
+      },
+      "history": "Histórico de versões",
+      "auto_snapshot": "Snapshots automáticos",
+      "auto_snapshot_desc": "Criados aproximadamente a cada 15 minutos após alterações no texto ou nas entidades; mantidos localmente por 30 dias com redução automática.",
+      "auto_snapshot_active": "Ativo",
+      "import_files": "Importar",
+      "import_files_desc": "De Word (.docx), Markdown ou texto simples.",
+      "select_file": "Escolher arquivo…",
+      "projection": {
+        "title": "Pasta Markdown",
+        "description": "Cada projeto tem Markdown estruturado para leitura local, busca e ferramentas externas. Com o Drifting aberto, edições de capítulos e ideias em outros editores são mescladas. Os demais arquivos são gerados e somente leitura.",
+        "reveal": "Mostrar no Finder",
+        "defaultLocation": "Todos os projetos · Local padrão",
+        "customLocation": "Todos os projetos · Local personalizado",
+        "locationHint": "Dentro há uma pasta por projeto, apenas neste dispositivo. Ao trocar o local, as pastas antigas ficam onde estão.",
+        "choose": "Escolher pasta",
+        "reset": "Restaurar local padrão",
+        "openProject": "Abra um projeto para ver seu status ou definir um local próprio.",
+        "projectDefault": "“{{project}}” · Segue o local geral",
+        "projectCustom": "“{{project}}” · Local próprio",
+        "chooseProject": "Escolher para este projeto",
+        "resetProject": "Seguir o local geral",
+        "ready": "Atualizado",
+        "error": "Falha na atualização",
+        "pending": "Atualizando",
+        "copy": "Copiar caminho",
+        "refresh": "Atualizar agora",
+        "copied": "Caminho copiado",
+        "changed": "Local alterado e Markdown regenerado nele. As pastas antigas ficam onde estavam.",
+        "turnOff": "Desativar pasta Markdown",
+        "offTitle": "Desativar a pasta Markdown?",
+        "offWarning": "Nenhum projeto gravará Markdown. Editores e Agents externos verão os arquivos atuais; edições externas não serão mais mescladas no Drifting. Os arquivos existentes permanecem. Reative em Configurações → Sincronização e dados.",
+        "offHint": "Desativada: não grava Markdown nem mescla edições externas. Os arquivos existentes permanecem.",
+        "turnOn": "Ativar",
+        "preserved_one": "1 arquivo antigo editado foi preservado em .drifting/preserved.",
+        "preserved_other": "{{count}} arquivos antigos editados foram preservados em .drifting/preserved.",
+        "issue": {
+          "frontmatter": "{{path}}: as propriedades iniciais estão malformadas. Não será mesclado nem sobrescrito até a correção.",
+          "identity": "{{path}}: drifting-id aponta para outro capítulo; não mesclado. Arquivo preservado em .drifting/preserved.",
+          "empty": "{{path}}: texto esvaziado; não mesclado. Arquivo preservado em .drifting/preserved. Esvazie o capítulo no Drifting se for intencional.",
+          "lineage": "{{path}}: capítulo restaurado ou redefinido no Drifting; não é possível mesclar automaticamente. Arquivo preservado em .drifting/preserved.",
+          "missing": "{{path}}: este capítulo foi excluído no Drifting.",
+          "encoding": "{{path}}: não está em UTF-8; não lido. Arquivo preservado em .drifting/preserved.",
+          "too-large": "{{path}}: grande demais; não lido. Arquivo preservado em .drifting/preserved.",
+          "unreadable": "{{path}}: não foi possível ler."
+        },
+        "preserved_many": "{{count}} arquivos antigos editados foram preservados em .drifting/preserved."
+      }
+    },
+    "keys": {
+      "kicker": "TECLADO",
+      "title": "Escreva sem sair do teclado.",
+      "sub": "Clique num atalho para alterá-lo. Esc cancela a captura.",
+      "allActions": "Todas as ações · {{count}}",
+      "allActionsShort": "Todas as ações · {{count}}",
+      "recording": "Capturando",
+      "resetOneTitle": "Clique duas vezes para restaurar o padrão",
+      "pressNewCombo": "Pressione uma nova combinação…",
+      "resetAll": "Restaurar todos os padrões",
+      "resetAllDesc": "Redefine todos os atalhos.",
+      "reset": "Restaurar",
+      "conflict": "{{accelerator}} já é usado por “{{action}}”",
+      "actions": {
+        "closeActiveTab": {
+          "label": "Fechar aba ativa",
+          "desc": "Fecha a aba ativa no dock inferior"
+        },
+        "findInEditor": {
+          "label": "Buscar no editor atual",
+          "desc": "Busca texto no editor aberto"
+        },
+        "globalSearch": {
+          "label": "Busca global",
+          "desc": "Busca em capítulos, linhas narrativas, elementos e categorias"
+        },
+        "saveCurrentEditor": {
+          "label": "Salvar editor atual",
+          "desc": "Salva o editor atual e grava todos os documentos abertos no armazenamento local"
+        },
+        "goBack": {
+          "label": "Voltar",
+          "desc": "Volta à página anterior, como no navegador"
+        },
+        "goForward": {
+          "label": "Avançar",
+          "desc": "Avança à próxima página visitada, como no navegador"
+        },
+        "prevTab": {
+          "label": "Aba anterior",
+          "desc": "Percorre as abas abertas à esquerda"
+        },
+        "nextTab": {
+          "label": "Próxima aba",
+          "desc": "Percorre as abas abertas à direita"
+        },
+        "toggleBottomTimeline": {
+          "label": "Alternar linha do tempo inferior",
+          "desc": "Mostra ou oculta a linha do tempo inferior"
+        },
+        "newEntity": {
+          "label": "Novo",
+          "desc": "Abre o início do projeto com a linha de criação acessível"
+        },
+        "closeProject": {
+          "label": "Fechar projeto",
+          "desc": "Fecha este projeto e volta à estante"
+        }
+      }
+    },
+    "update": {
+      "kicker": "ATUALIZAÇÕES",
+      "title": "Instale novas versões quando quiser.",
+      "sub": "Após iniciar, o Drifting verifica novos lançamentos no GitHub no máximo uma vez por dia. O download e a instalação sempre esperam sua decisão.",
+      "current_version": "Versão atual",
+      "channel_desc": "Apple Silicon · macOS 13 ou posterior",
+      "unavailable": "Esta compilação não tem chave de assinatura do atualizador e não pode buscar atualizações. Versões baixadas do GitHub podem.",
+      "check": "Nova versão",
+      "check_action": "Buscar atualizações",
+      "checking": "Verificando…",
+      "no_update": "Você está atualizado.",
+      "available_version": "Drifting {{version}} está disponível",
+      "download": "Baixar",
+      "downloading": "Baixando e verificando a assinatura…",
+      "downloading_progress": "Baixando e verificando… {{progress}}%",
+      "install": "Instalar e reiniciar…",
+      "confirm_install": "Instalar e reiniciar",
+      "install_migration_safety": "Se a nova versão precisar atualizar dados locais, a próxima inicialização criará e verificará um snapshot de segurança. A troca só ocorre após a migração passar nas verificações.",
+      "dismiss": "Agora não",
+      "installing": "Salvando e instalando…",
+      "save_failed": "Não foi possível salvar as alterações locais; a atualização não foi instalada. Seu texto continua aberto. Tente novamente em instantes.",
+      "check_failed": "Não foi possível buscar atualizações agora, talvez por falta de conexão. Tente mais tarde; esta versão continua funcionando.",
+      "error": "Atualização interrompida: {{error}}",
+      "states": {
+        "checking": "Verificando…",
+        "available": "Pronto para baixar.",
+        "downloading": "Baixando e verificando…",
+        "installing": "Salvando alterações e instalando; o Drifting será reiniciado ao terminar…",
+        "ready": "Baixado e verificado. Pronto para instalar.",
+        "error": "Atualização interrompida. A versão atual não mudou."
+      }
+    },
+    "privacy": {
+      "kicker": "PRIVACIDADE",
+      "title": "Os limites do seu manuscrito.",
+      "sub": "Uma visão clara dos dados usados ou não pelo Drifting e de quando eles saem da sua máquina.",
+      "dataUsage": "Uso de dados",
+      "crashLogs": "Enviar diagnósticos de falha automaticamente",
+      "crashLogsDesc": "Envia ao mantenedor locais de erros sem dados sensíveis, versão e plataforma para diagnosticar falhas. Não inclui texto do manuscrito e pode ser desativado a qualquer momento.",
+      "diagnostics": "Resumo de diagnóstico sem dados sensíveis",
+      "diagnosticsDesc": "Copia versão, plataforma, disponibilidade de funções, contagens e categorias de erros de sincronização e status de atualização. Sem manuscrito, credenciais, identificadores de projeto ou caminhos absolutos; nunca é enviado automaticamente.",
+      "copyDiagnostics": "Copiar resumo",
+      "diagnosticsCopied": "Resumo de diagnóstico sem dados sensíveis copiado.",
+      "diagnosticsCopyFailed": "Não foi possível escrever na área de transferência. A permissão pode estar indisponível.",
+      "fullPolicy": "Ver política de privacidade completa",
+      "lastUpdated": "Última atualização: 2026-10-31",
+      "noteHosted": "Seu trabalho é salvo primeiro neste dispositivo. Só chega ao servidor Drifting ao conectar Hosted (projetos e recursos originais) ou criar um link (a parte compartilhada). Com a sincronização, preferências de aparência, tipografia e atalhos acompanham sua conta. Feedback enviado e diagnósticos de falha, se ativados abaixo, chegam ao mantenedor; os diagnósticos não contêm texto do manuscrito. Solicitações de IA e transcrição vão diretamente ao provedor escolhido, sem passar pelo Drifting, sob os termos de dados e treinamento dele. Extensões MCP remotas adicionadas também usam a rede.",
+      "noteLocal": "Esta compilação nunca contata um servidor Drifting; seu trabalho fica neste dispositivo. IA e transcrição vão diretamente ao provedor escolhido, sob os termos de dados e treinamento dele. Extensões MCP remotas adicionadas também usam a rede."
+    },
+    "about": {
+      "kicker": "SOBRE",
+      "title": "Drifting",
+      "sub": "A experiência definitiva de escrita",
+      "version": "Versão",
+      "channel": "Canal",
+      "channelPreAlpha": "Alpha",
+      "engine": "Motor",
+      "credits": "Créditos e licenças",
+      "fonts": "Fontes",
+      "fontsDesc": "Inter Tight · Fontes do sistema · Fontes importadas",
+      "openSource": "Dependências de código aberto",
+      "viewList": "Ver lista",
+      "sourceCode": "Código-fonte",
+      "sourceCodeDesc": "Código correspondente a este cliente AGPL",
+      "viewSource": "Ver código-fonte",
+      "license": "Licença do cliente",
+      "licenseDesc": "GNU AGPL v3 ou posterior",
+      "viewLicense": "Ver licença",
+      "knownIssues": "Problemas conhecidos",
+      "knownIssuesDesc": "Limitações conhecidas da versão Alpha atual",
+      "contact": "Contato",
+      "support": "Suporte Alpha",
+      "supportDesc": "Instruções de solução de problemas e relato seguro",
+      "emailTeam": "Enviar e-mail à equipe",
+      "writeEmail": "Escrever e-mail",
+      "submitFeedback": "Enviar feedback",
+      "submitFeedbackDesc": "Pode incluir um diagnóstico sem dados sensíveis; nunca o texto do manuscrito.",
+      "submitFeedbackMailDesc": "Abre um e-mail vazio. O Drifting não anexa conteúdo do manuscrito automaticamente.",
+      "feedback": "Feedback…",
+      "tagline": "Para quem escreve acordado até altas horas da noite."
+    },
+    "models": {
+      "kicker": "PROVEDORES DE MODELOS",
+      "title": "Os serviços aos quais a IA do Drifting se conecta.",
+      "sub": "Cada provedor guarda uma chave neste dispositivo. As conectadas na apresentação inicial do Agent também aparecem aqui para testar, substituir ou desconectar.",
+      "credentialsTitle": "Provedores de modelos",
+      "credentialsDesc": "As chaves ficam apenas no chaveiro deste dispositivo; não são sincronizadas nem passam pelo Drifting. Escolha provedor e modelo no menu de configuração do campo do Agent.",
+      "providers": {
+        "deepseek": "Usado pelo Agent geral.",
+        "anthropic": "Usado pelo Agent geral.",
+        "openai": "Usado pelo Agent geral.",
+        "openaiCodex": "Experimental: entre pelo fluxo de dispositivo Codex da OpenAI para usar o Agent geral com sua assinatura ChatGPT e os modelos oferecidos à sua conta. Também é usado nas imagens de elementos. A OpenAI não oferece contrato para terceiros nessa via, que pode parar sem aviso; o uso conta no seu plano ChatGPT.",
+        "dashscope": "Usado apenas para transcrição de voz (Qwen3-ASR). Crie uma chave API no console Alibaba Cloud Bailian."
+      },
+      "speechTitle": "Transcrição de voz",
+      "speechDesc": "Credencial de transcrição da entrada de voz, separada dos provedores de chat. Inclui nomes de elementos e ambientação do projeto para corrigir nomes próprios. Solicitações vão diretamente ao Bailian e a chave fica só no chaveiro do sistema."
+    },
+    "byokProvider": {
+      "ownKey": "Chave própria",
+      "notConnected": "Não conectado",
+      "keyPlaceholder": "Cole a chave…",
+      "testing": "Testando…",
+      "available": "Disponível",
+      "editKey": "Editar chave",
+      "invalidKey": "Chave inválida",
+      "requestFailed": "Falha na solicitação (provedor indisponível ou problema de rede)"
+    },
+    "codexSubscription": {
+      "name": "Assinatura ChatGPT",
+      "signedInAs": "Conectado",
+      "notSignedIn": "Não conectado",
+      "signIn": "Entrar com ChatGPT",
+      "signOut": "Sair",
+      "openVerification": "Abrir página de verificação",
+      "codeLabel": "Código de uso único",
+      "codeHint": "Digite na página de dispositivos da OpenAI; o Drifting verifica até você aprovar",
+      "exchanging": "Aprovado, concluindo entrada…",
+      "plan": "Plano",
+      "startFailed": "Não foi possível iniciar a entrada. Verifique a rede e tente novamente.",
+      "cancelled": "Entrada cancelada.",
+      "failure": {
+        "expired": "O código expirou antes da aprovação.",
+        "provider_rejected": "A OpenAI recusou a entrada.",
+        "network_failed": "Não foi possível contatar a OpenAI.",
+        "invalid_response": "A OpenAI retornou uma resposta inesperada.",
+        "storage_failed": "Não foi possível salvar a entrada no chaveiro."
+      }
+    },
+    "agent": {
+      "kicker": "AGENT GERAL · EXPERIMENTAL",
+      "title": "O Agent experimental na barra direita, capaz de executar ações.",
+      "sub": "Usa suas chaves ou assinatura ChatGPT, enviando solicitações diretamente ao provedor escolhido. Revise cada alteração; aplicam-se os custos, privacidade, retenção, termos de treinamento e riscos de saída dele.",
+      "unavailableTitle": "O ambiente do Agent geral não está instalado",
+      "unavailableStatus": "Nenhum transporte ativo",
+      "unavailableReason": "Esta janela não tem um driver de modelo ou ambiente de ferramentas utilizável para o Agent.",
+      "unavailableFuture": "Reabra o projeto. Se persistir, verifique a versão do aplicativo e a chave API do provedor escolhido.",
+      "chatConfigTitle": "Configuração do chat",
+      "chatConfigDesc": "Escolha provedor, modelo e esforço de raciocínio no menu do campo do Agent à direita. Gerencie chaves e assinatura ChatGPT em Modelos e API.",
+      "modelOptions": {
+        "deepseek-v4-flash": {
+          "label": "DeepSeek Flash · rápido",
+          "short": "Flash"
+        },
+        "deepseek-v4-pro": {
+          "label": "DeepSeek Pro · estável",
+          "short": "Pro"
+        },
+        "claude-sonnet-5": {
+          "label": "Claude Sonnet 5 · equilibrado",
+          "short": "Sonnet 5"
+        },
+        "claude-haiku-4-5-20251001": {
+          "label": "Claude Haiku 4.5 · rápido",
+          "short": "Haiku 4.5"
+        },
+        "gpt-5.6-sol": {
+          "label": "GPT-5.6 Sol · vanguarda",
+          "short": "5.6 Sol"
+        },
+        "gpt-5.6-terra": {
+          "label": "GPT-5.6 Terra · equilibrado",
+          "short": "5.6 Terra"
+        },
+        "gpt-5.6-luna": {
+          "label": "GPT-5.6 Luna · eficiente",
+          "short": "5.6 Luna"
+        }
+      },
+      "effortOptions": {
+        "minimal": "Mínimo",
+        "low": "Baixo",
+        "medium": "Médio",
+        "high": "Alto",
+        "xhigh": "Muito alto",
+        "max": "Máximo",
+        "ultra": "Ultra"
+      },
+      "extensions": {
+        "title": "Extensões MCP",
+        "desc": "Conecta ferramentas externas ao projeto. stdio só no desktop; Streamable HTTP também funciona no celular. Ferramentas desconhecidas usam escrita com confirmação por padrão.",
+        "add": "Adicionar servidor",
+        "addTitle": "Adicionar servidor MCP",
+        "editTitle": "Editar servidor MCP",
+        "empty": "Este projeto não tem servidores MCP.",
+        "noProject": "Abra um projeto para configurar MCP.",
+        "loadFailed": "Não foi possível carregar a configuração MCP.",
+        "name": "Nome",
+        "transport": "Transporte",
+        "command": "Caminho absoluto do executável",
+        "args": "Argumentos (um por linha)",
+        "cwd": "Diretório de trabalho absoluto (opcional)",
+        "url": "Endpoint MCP",
+        "publicEnv": "Ambiente público (NAME=value por linha)",
+        "publicHeaders": "Cabeçalhos públicos (NAME=value por linha)",
+        "secretEnv": "Ambiente secreto (NAME=value por linha)",
+        "secretHeaders": "Cabeçalhos secretos (NAME=value por linha)",
+        "secretHint": "Valores secretos ficam apenas no chaveiro do sistema. Deixe um valor existente vazio para mantê-lo.",
+        "reconnect": "Reconectar",
+        "enable": "Ativar",
+        "disable": "Desativar",
+        "notChecked": "Ainda não conectado",
+        "deleteConfirm": "Excluir o servidor MCP “{{name}}”? As permissões persistentes também serão revogadas.",
+        "grantsTitle": "Permissões persistentes",
+        "grantsDesc": "Cada permissão é vinculada exatamente ao projeto, à configuração, ao esquema da ferramenta e ao hash dos argumentos.",
+        "noGrants": "Nenhuma permissão persistente.",
+        "revoke": "Revogar",
+        "policy": {
+          "autoRead": "Leitura · automática",
+          "askRead": "Leitura · perguntar",
+          "askWrite": "Escrita · perguntar",
+          "disabled": "Desativado"
+        }
+      },
+      "mcpAccess": {
+        "projectionDescription": "Agents externos também podem editar capítulos e ideias da cópia Markdown diretamente. Configure em Sincronização e dados → Dados locais.",
+        "title": "Acesso de agentes externos",
+        "desc": "Permita que Codex, Claude Code ou Antigravity acessem “{{project}}”. Cada conexão se limita a este projeto.",
+        "name": "Nome da conexão",
+        "permission": "Permissão de acesso",
+        "connectionPermission": "Permissão de acesso de {{name}}",
+        "permissionUpdated": "Permissão aplicada e cliente avisado para atualizar as ferramentas. Se ainda mostrar as antigas, reinicie a conexão MCP dele.",
+        "read": "Somente leitura",
+        "write": "Permitir alterações",
+        "full": "Permitir alterações e operações destrutivas",
+        "create": "Criar conexão",
+        "local": "Apenas acesso local. Mantenha Drifting e o projeto abertos. Revogar bloqueia novas solicitações imediatamente; alterações confirmadas permanecem.",
+        "config": "Configuração da conexão",
+        "revoke": "Revogar",
+        "copy": "Copiar configuração MCP",
+        "copied": "Copiado. Adicione esta configuração aos ajustes MCP do agente externo.",
+        "connect": "Conectar {{client}}",
+        "connectAction": "Conectar",
+        "automatic": "Adiciona acesso MCP ao cliente local automaticamente, sem copiar configuração nem executar comandos.",
+        "manual": "Outros clientes · Configuração manual",
+        "reinstall": "Reconfigurar",
+        "installed": "{{client}} configurado. Reabra o cliente ou reinicie seu servidor MCP para carregar a conexão; siga as aprovações de ferramentas no primeiro uso.",
+        "revoked": "Acesso revogado e configuração instalada automaticamente removida.",
+        "revokedWarning": "Acesso revogado. A configuração do cliente mudou ou não pôde ser atualizada; remova esta conexão no cliente."
+      },
+      "replayOnboarding": "Mostrar a apresentação inicial novamente"
+    },
+    "agentLimits": {
+      "title": "Limites de execução",
+      "desc": "Limita iterações do modelo por trecho. Ao atingir o limite, salva o progresso e retoma automaticamente tarefas contínuas autorizadas; tarefas pausadas também podem continuar manualmente. Vale no próximo trecho.",
+      "iterationLabel": "Máximo de iterações por turno",
+      "iterationOption": "{{value}} iterações",
+      "unlimited": "Ilimitado",
+      "unlimitedHint": "Sem limite, só para quando você interrompe o turno."
+    },
+    "agentMemory": {
+      "title": "Memória do projeto"
+    },
+    "agentUsage": {
+      "usage": "Uso",
+      "usageDesc": "Tokens usados pelo Agent neste projeto, registrados a cada turno retornado; a entrada inclui leituras de cache. Veja este mês ou todo o período.",
+      "noProjectUsage": "Abra um projeto para ver o uso do Agent.",
+      "month": "Este mês",
+      "all": "Todo o período",
+      "tokenCard": "Tokens · {{scope}}",
+      "conversationsTurns": "Conversas / turnos",
+      "history": "Histórico de conversas",
+      "historyDesc": "Todas as conversas do Agent deste projeto. A exclusão é recuperável e sincroniza com o histórico à direita sem afetar outros projetos.",
+      "clearHistory": "Limpar histórico",
+      "noProjectHistory": "Abra um projeto para gerenciar o histórico de conversas.",
+      "noHistory": "Ainda não há conversas. Envie uma mensagem ao Agent para começar.",
+      "untitled": "Sem título",
+      "deleteConversation": "Excluir esta conversa",
+      "clearConfirm": "Limpar todo o histórico? Isso removerá {{count}} conversas do Agent deste projeto."
+    },
+    "hosted": {
+      "title": "Conta e sincronização Hosted",
+      "description": "Seu texto é salvo primeiro neste dispositivo. Conecte uma conta para sincronizar projetos entre seus dispositivos.",
+      "no_account": "Não conectado",
+      "sign_in": "Entrar / Cadastrar-se",
+      "sign_out": "Sair",
+      "sync_title": "Sincronização Hosted",
+      "enabled": "Sincronização Hosted conectada",
+      "disabled": "Ainda sem sincronização",
+      "projects": "Sincronizando {{count}} projetos",
+      "connect_description": "Baixa os projetos na nuvem desta conta; projetos criados nesta biblioteca também serão enviados a ela.",
+      "sync_now": "Sincronizar agora",
+      "connect": "Conectar e sincronizar",
+      "working": "Em andamento…",
+      "automatic": "Sincronização automática ativada",
+      "paused": "Sincronização pausada",
+      "automatic_description": "Sincroniza com o aplicativo aberto e online. Aguarde a conclusão antes de trocar de dispositivo.",
+      "pause": "Pausar",
+      "resume": "Retomar",
+      "disconnect": "Desconectar sincronização",
+      "disconnect_description": "Envia as alterações que só existem neste Mac e então desconecta. Projetos locais e cópias na nuvem são mantidos.",
+      "disconnect_uploading": "Enviando alterações exclusivas deste Mac: faltam {{count}}. Desconectar agora deixa o restante apenas neste Mac.",
+      "disconnect_now": "Desconectar agora",
+      "disconnect_unuploaded": "{{count}} alterações não foram enviadas. Após desconectar, ficarão apenas neste Mac.",
+      "disconnect_anyway": "Desconectar mesmo assim",
+      "done": "Concluído",
+      "session": {
+        "signed-out": "Não é preciso ter conta para escrever localmente.",
+        "checking": "Verificando conta…",
+        "connected": "Conta conectada",
+        "offline": "Offline. Você pode continuar escrevendo localmente.",
+        "needs-reauth": "Sessão expirada. Entre novamente na mesma conta."
+      },
+      "manage": "Gerenciar conta e sincronização",
+      "back_to_library": "Voltar à biblioteca local",
+      "trust": "Hosted armazena projetos e recursos originais no serviço conectado. Esse serviço pode ler seu conteúdo.",
+      "onboarding": "Entre ou crie uma conta Drifting para abrir a biblioteca própria dela e baixar seus projetos da nuvem. Os livros deste dispositivo permanecem aqui. Você também pode escrever localmente e entrar depois em Conta.",
+      "storage": "Armazenamento Hosted",
+      "storage_description": "{{used}} de {{quota}} usados. Anexos contam; texto e estrutura não têm limite.",
+      "quota_blocked": "Hosted está cheio e um anexo não pôde ser enviado, impedindo a continuação da sincronização. Exclua anexos ou projetos desnecessários para retomar. O conteúdo local não é afetado.",
+      "progress": "Progresso da sincronização",
+      "retrying": "A sincronização não foi concluída. Seu texto está salvo localmente; tentando novamente automaticamente.",
+      "not_started": "Não foi possível iniciar a sincronização. Seu texto está salvo aqui; reabra o Drifting para tentar novamente.",
+      "pending": "Sincronizando ou aguardando a conclusão.",
+      "last_synced": "Última sincronização concluída: {{time}}",
+      "sign_in_sync": "Entrar e sincronizar",
+      "sign_in_sync_description": "Entrar abre a biblioteca própria da conta e baixa seus projetos, sem levar os livros deste dispositivo para a conta. Sair retorna à biblioteca local.",
+      "profile_title": "Perfil",
+      "display_name": "Nome de exibição",
+      "avatar": "Avatar",
+      "avatar_description": "JPG, PNG ou WebP, até 5 MB.",
+      "choose_avatar": "Escolher imagem",
+      "crop_title": "Ajustar avatar",
+      "crop_description": "Arraste a imagem ou use as setas para posicioná-la e depois ajuste o zoom.",
+      "crop_zoom": "Zoom",
+      "crop_confirm": "Usar este avatar",
+      "remove_avatar": "Remover",
+      "save_profile": "Salvar perfil",
+      "profile_saved": "Perfil salvo.",
+      "password_title": "Senha",
+      "current_password": "Senha atual",
+      "new_password": "Nova senha",
+      "confirm_password": "Confirmar nova senha",
+      "password_description": "De 8 a 128 caracteres.",
+      "password_sessions": "Alterar a senha desconecta outros dispositivos. Este continua conectado.",
+      "change_password": "Alterar senha",
+      "password_saved": "Senha alterada. Outros dispositivos precisam entrar novamente.",
+      "connect_errors": {
+        "local_project_sync_conflict": "O mesmo projeto neste Mac e na nuvem tem registros de sincronização diferentes (pasta copiada ou backup de outro Mac restaurado). Para não sobrescrever nenhum lado, a sincronização não foi conectada. Você pode continuar escrevendo localmente.",
+        "local_project_sync_conflict_named": "{{projects}} neste Mac e na nuvem têm registros diferentes (pasta copiada ou backup de outro Mac restaurado). A sincronização não foi conectada para evitar sobrescritas. Você pode escrever localmente.",
+        "project_name": "“{{name}}”",
+        "project_separator": ", ",
+        "blocked_update": "Os dados da nuvem vêm de uma versão mais recente do Drifting. Atualize o aplicativo antes de conectar.",
+        "blocked_corrupt": "Os dados da nuvem não passaram nas verificações; sincronização não conectada. Escreva para support@drifting.cc.",
+        "restore_failed": "A conexão da sincronização não terminou. Você pode escrever localmente e tentar mais tarde.",
+        "interrupted": "A última conexão foi interrompida. Tente novamente.",
+        "cancelled": "Cancelado.",
+        "disconnect_failed": "A desconexão não terminou. Tente novamente mais tarde.",
+        "unknown": "A sincronização não terminou ({{code}}). Você pode continuar escrevendo localmente."
+      },
+      "account_errors": {
+        "generic": "Não foi possível concluir a solicitação. Verifique a conexão e tente novamente.",
+        "INVALID_PROFILE_NAME": "Digite um nome de exibição de 1 a 80 caracteres.",
+        "INVALID_AVATAR": "Não foi possível usar a imagem. Escolha outra JPG, PNG ou WebP.",
+        "AVATAR_FILE_TYPE": "Escolha uma imagem JPG, PNG ou WebP.",
+        "AVATAR_FILE_SIZE": "Escolha uma imagem de até 5 MB.",
+        "CURRENT_PASSWORD_REQUIRED": "Digite sua senha atual.",
+        "INVALID_PASSWORD_LENGTH": "A nova senha deve ter de 8 a 128 caracteres.",
+        "PASSWORD_MISMATCH": "As novas senhas não coincidem.",
+        "PASSWORD_UNCHANGED": "Escolha uma senha diferente.",
+        "INVALID_PASSWORD": "A senha atual está incorreta.",
+        "PASSWORD_TOO_SHORT": "A nova senha deve ter pelo menos 8 caracteres.",
+        "PASSWORD_TOO_LONG": "A nova senha deve ter no máximo 128 caracteres.",
+        "ACCOUNT_NOT_CONNECTED": "Reconecte sua conta antes de fazer alterações.",
+        "SESSION_CHANGED": "Sua sessão mudou. Entre novamente antes de continuar.",
+        "UNAUTHORIZED": "Sua sessão expirou. Entre novamente.",
+        "SESSION_NOT_FRESH": "Entre novamente antes de alterar a senha.",
+        "PASSWORD_CHANGED_SIGN_IN_REQUIRED": "Senha alterada. Entre com a nova senha para retomar a sincronização."
+      },
+      "restore": {
+        "title": "Restaurando da nuvem",
+        "discovering": "Buscando projetos desta conta na nuvem…",
+        "downloading": "{{done}} de {{total}} baixados",
+        "activating": "Adicionando a esta biblioteca…"
+      }
+    }
+  },
+  "common": {
+    "customColor": "Cor personalizada",
+    "local": "Local",
+    "loading": "Carregando…",
+    "confirm": "Confirmar",
+    "edit": "Editar",
+    "more": "Mais ações",
+    "close": "Fechar",
+    "delete": "Excluir",
+    "deleted_paren": "(excluído)",
+    "cancel": "Cancelar",
+    "save": "Salvar",
+    "saving": "Salvando…",
+    "saveFailed": "Não foi possível salvar as alterações. Tente novamente.",
+    "creating": "Criando…",
+    "processing": "Processando…",
+    "counting": "Contando…",
+    "retry": "Tentar novamente",
+    "untitled": "Sem título",
+    "words": "palavras",
+    "wordsCount": "{{count}} palavras",
+    "chapters": "capítulos",
+    "days": "dias",
+    "storylinesUnit": " linhas narrativas",
+    "elementsUnit": " elementos",
+    "categoriesUnit": " categorias",
+    "itemsUnit": " itens"
+  },
+  "navigation": {
+    "back": "Voltar"
+  },
+  "entityCellAction": {
+    "confirmDeleteNode": "Excluir o nó “{{name}}”?",
+    "confirmDeleteElement": "Excluir o elemento “{{name}}”?",
+    "confirmDeleteCategory": "Excluir a categoria “{{name}}”?\n\nSeus elementos irão para “Sem categoria” (categoryId ficará vazio).",
+    "confirmDeleteStoryline": "Excluir a linha narrativa “{{name}}”?",
+    "actionFailed": "A ação falhou. Tente novamente."
+  },
+  "driftPanel": {
+    "tabLabel": "Ideias",
+    "expandTitle": "Expandir {{label}}",
+    "collapseTitle": "Recolher {{label}}"
+  },
+  "agentActivity": {
+    "markSeen": "Marcar alterações do Agent como lidas",
+    "unviewedChangeCount_one": "{{count}} alteração do Agent não lida",
+    "unviewedChangeCount_other": "{{count}} alterações do Agent não lidas",
+    "working": "Agent está trabalhando",
+    "addedHere": "Adicionado pelo Agent; o texto completo será revelado na primeira abertura",
+    "changedHere": "O Agent acabou de alterar isto",
+    "externalChangedHere": "Alterado em outro editor",
+    "markExternalSeen": "Marcar como lido",
+    "groupBodyAdded": "O Agent adicionou este grupo; o texto completo será revelado na primeira abertura",
+    "groupBodyChanged": "O Agent acabou de alterar o texto deste grupo",
+    "childChanges": "Alterações do Agent não lidas em subitens",
+    "unviewedChangeCount_many": "{{count}} alterações do Agent não lidas"
+  },
+  "bottomStatusBar": {
+    "workspaceViews": "Visualizações do espaço de trabalho",
+    "projectHome": "Início do projeto",
+    "allChapters": "Livro inteiro",
+    "elements": "Elementos",
+    "storyGraph": "Grafo da história",
+    "todoLibrary": "Tarefas e biblioteca de materiais",
+    "timeline": "Linha do tempo",
+    "expandTimeline": "Expandir linha do tempo narrativa",
+    "collapseTimeline": "Recolher linha do tempo narrativa",
+    "storageLocal": "No dispositivo",
+    "storage": {
+      "local": "No dispositivo",
+      "syncing": "Sincronizando com Hosted",
+      "checking": "Verificando alterações no Hosted",
+      "applying": "Aplicando alterações do Hosted",
+      "synced": "Hosted atualizado",
+      "paused": "Sincronização Hosted pausada",
+      "offline": "Hosted pausado por estar offline",
+      "attention": "Hosted precisa de atenção"
+    }
+  },
+  "workspaceWordTally": {
+    "selection": "Seleção",
+    "chapter": "Capítulo",
+    "drift": "Ideia",
+    "storyline": "Linha narrativa",
+    "book": "Livro",
+    "today": "Hoje",
+    "counting": "contando",
+    "part": "{{label}} {{formatted}} palavras",
+    "todayPart": "Hoje +{{formatted}} palavras",
+    "todayGoalPart": "Hoje +{{formatted}} palavras (meta {{goal}})"
+  },
+  "nodeHoverPreview": {
+    "noSummary": "Sem resumo"
+  },
+  "editorScrollMarkers": {
+    "jumpToTodo": "Ir para a tarefa",
+    "jumpToComment": "Ir para o comentário",
+    "jumpToChange": "Ir para a alteração"
+  },
+  "findResults": {
+    "truncated": "Primeiros {{shown}} de {{total}}"
+  },
+  "findPanel": {
+    "currentPlaceholder": "Buscar no editor atual…",
+    "bookPlaceholder": "Buscar no livro inteiro…",
+    "previousTitle": "Anterior (Shift+Enter)",
+    "nextTitle": "Próximo (Enter)",
+    "closeTitle": "Fechar (Esc)",
+    "wholeBook": "Livro inteiro",
+    "untitledChapter": "Capítulo sem título"
+  },
+  "chapterEditor": {
+    "untitledChapter": "Capítulo sem título"
+  },
+  "chapterEnd": {
+    "trigger": "Ações no fim do capítulo",
+    "triggerFinished": "Ações no fim do capítulo (concluído)",
+    "insertAfter": "Novo capítulo depois",
+    "markFinished": "Marcar como concluído",
+    "markDraft": "Voltar a rascunho",
+    "review": {
+      "idle": "Revisão do Agent",
+      "starting": "Iniciando…",
+      "running": "Revisando · abrir"
+    },
+    "defaultTitle": "Novo capítulo",
+    "firstChapter": "Escrever o primeiro capítulo"
+  },
+  "virtualChapterRow": {
+    "chapter": "Capítulo",
+    "chapterNumber": "Capítulo {{n}}"
+  },
+  "editorOutline": {
+    "aria": "Estrutura",
+    "sectionCount": "{{count}} seções",
+    "hiddenItems": "{{count}} itens distantes; passe o mouse para mostrar"
+  },
+  "relationPicker": {
+    "addRelation": "Vincular",
+    "collapse": "Recolher",
+    "searchPlaceholder": "Buscar capítulos / elementos / linhas narrativas…",
+    "jumpTo": "Ir para {{label}}",
+    "removeRelation": "Remover vínculo",
+    "untitledChapter": "Capítulo sem título",
+    "untitledDrift": "Ideia sem título",
+    "untitledElement": "Elemento sem título",
+    "untitledStoryline": "Linha narrativa sem título",
+    "groups": {
+      "chapters": "Capítulos",
+      "drifts": "Ideias",
+      "elements": "Elementos",
+      "storylines": "Linhas narrativas",
+      "categories": "Categorias"
+    }
+  },
+  "todoPanel": {
+    "empty": "Ainda não há tarefas. Use o botão + no canto superior direito para criar uma.",
+    "newTodo": "Nova tarefa"
+  },
+  "editChapterStoryline": {
+    "title": "Editar linhas narrativas do capítulo",
+    "empty": "Este projeto ainda não tem linhas narrativas.",
+    "include": "Incluir {{name}}",
+    "main": "Principal",
+    "unaffiliate": "Remover vínculos de pertencimento",
+    "updateFailed": "Não foi possível atualizar as linhas narrativas do capítulo. Tente novamente."
+  },
+  "elementGroupPicker": {
+    "title": "Mover para grupo",
+    "searchPlaceholder": "Buscar ou criar grupo…",
+    "createGroup": "Criar grupo “{{name}}”",
+    "noGroup": "Sem grupo"
+  },
+  "elementCategoryCreateMenu": {
+    "openCreateMenu": "Adicionar a esta categoria",
+    "title": "Adicionar a “{{name}}”",
+    "newElement": "Novo elemento",
+    "newGroup": "Novo grupo…",
+    "groupTitle": "Novo grupo",
+    "groupNameLabel": "Nome do grupo",
+    "groupNamePlaceholder": "Digite um nome de grupo",
+    "groupCreatesFirstElement": "O grupo é criado junto com seu primeiro elemento.",
+    "duplicateGroup": "Já existe um grupo com esse nome.",
+    "createGroup": "Criar e abrir o primeiro elemento",
+    "back": "Voltar ao menu de criação"
+  },
+  "trashPanel": {
+    "noProject": "Abra um projeto primeiro.",
+    "title": "Lixeira",
+    "retention": "Mantido localmente até você excluir",
+    "clear": "Esvaziar lixeira",
+    "empty": "A lixeira está vazia.",
+    "confirmPurge": "Excluir “{{label}}” permanentemente? Esta ação não pode ser desfeita.",
+    "confirmPurgeAll": "Esvaziar a lixeira? Todos os {{count}} itens serão excluídos permanentemente, sem possibilidade de desfazer.",
+    "columns": {
+      "type": "Tipo",
+      "name": "Nome",
+      "deletedAt": "Excluído em"
+    },
+    "restore": "Restaurar",
+    "purgeNow": "Excluir agora",
+    "kind": {
+      "chapter": "Capítulo",
+      "drift": "Ideia",
+      "element": "Elemento",
+      "storyline": "Linha narrativa",
+      "category": "Categoria de elementos"
+    }
+  },
+  "kvEditor": {
+    "keyPlaceholder": "Campo · chave",
+    "valuePlaceholder": "Conteúdo · valor",
+    "templateKeyPlaceholder": "Nome do campo · chave (ex.: ponto de vista)",
+    "templateValuePlaceholder": "Padrão / dica · valor",
+    "empty": "— Ainda não há campos —",
+    "templateEmpty": "— Sem campos de modelo; novos subitens não terão campos preenchidos automaticamente —",
+    "addField": "Adicionar campo",
+    "removeRow": "Remover linha"
+  },
+  "patchCreateModal": {
+    "title": "Nova evolução de elemento",
+    "subtitle": "Vincula uma evolução de elemento ao texto selecionado",
+    "targetElement": "Elemento de destino",
+    "changeElement": "Alterar",
+    "searchElement": "Buscar elementos…",
+    "noElements": "Nenhum elemento correspondente",
+    "newElement": "Novo",
+    "createElement": "Criar elemento “{{name}}”",
+    "patchTitle": "Título (opcional)",
+    "titlePlaceholder": "Resuma esta evolução em uma frase…",
+    "body": "Texto da evolução",
+    "bodyPlaceholder": "Descreva o que mudou para este elemento aqui…",
+    "createPatch": "Criar evolução"
+  },
+  "plotGrid": {
+    "clear": "Limpar",
+    "clearTitle": "Limpar conteúdo do planejamento narrativo",
+    "clearConfirm": "Limpar todos os nomes de linhas e colunas e textos das células? Estrutura, dimensões e manuscrito serão preservados. Não é possível desfazer.",
+    "columnPlaceholder": "Coluna",
+    "rowPlaceholder": "Linha",
+    "deleteColumn": "Excluir esta coluna",
+    "deleteRow": "Excluir esta linha",
+    "addColumn": "Adicionar coluna",
+    "addRow": "Adicionar linha",
+    "resize": "Arraste para ajustar tamanho e proporções",
+    "title": "Enredo",
+    "addRowShort": "Linha",
+    "addColumnShort": "Coluna",
+    "orientationLabel": "Orientação da tabela",
+    "orientationRow": "Horizontal",
+    "orientationColumn": "Vertical",
+    "rowHeader": "Cabeçalho de linha",
+    "columnHeader": "Cabeçalho de coluna",
+    "headerPosition": "{{index}} de {{count}}",
+    "headerMenu": "Menu do cabeçalho",
+    "rename": "Renomear",
+    "move": "Mover",
+    "moveUp": "Mover para cima",
+    "moveDown": "Mover para baixo",
+    "moveLeft": "Mover à esquerda",
+    "moveRight": "Mover à direita",
+    "insertRowAbove": "Inserir linha acima",
+    "insertRowBelow": "Inserir linha abaixo",
+    "insertColumnLeft": "Inserir coluna à esquerda",
+    "insertColumnRight": "Inserir coluna à direita",
+    "deleteClears": "Limpa {{count}} células",
+    "lastAxis": "Mantenha pelo menos uma linha e uma coluna",
+    "cellEditor": "Editar célula",
+    "cellPosition": "Linha {{row}}/{{rows}} · Coluna {{col}}/{{cols}}",
+    "thisRow": "Esta linha",
+    "done": "Concluir",
+    "emptyCell": "Escreva algo…",
+    "fit": "Ajustar",
+    "fitTitle": "Ajusta a tabela inteira à janela. Novas linhas e colunas passam a exceder a área em vez de comprimi-la"
+  },
+  "editorMainArea": {
+    "openDashboard": "Abrir início do projeto",
+    "emptyHint": "Hora de começar a escrever",
+    "openOnSide": "Abrir à {{side}}",
+    "side": {
+      "left": "esquerda",
+      "right": "direita"
+    }
+  },
+  "driftBind": {
+    "title": "Vincular ideia",
+    "markerSubtitle": "Escolha uma ideia para este marcador temporal",
+    "actSubtitle": "Escolha uma estrutura ou nota para este ato",
+    "searchPlaceholder": "Buscar ideias…",
+    "noMatches": "Nenhuma ideia correspondente",
+    "empty": "Não há ideias disponíveis: já foram usadas ou ainda não existem"
+  },
+  "agentConfirm": {
+    "allowDelete": "Permitir exclusão"
+  },
+  "snapshotHistory": {
+    "aria": "Snapshots do histórico",
+    "title": "Snapshots do histórico · 30 dias",
+    "restoreSuccess": "Versão selecionada restaurada. O estado anterior foi salvo primeiro como um novo snapshot.",
+    "restoreFailed": "Falha na restauração: {{error}}",
+    "loading": "Carregando…",
+    "empty": "Ainda não há snapshots. Após editar o texto, um é salvo automaticamente a cada 15 minutos aproximadamente.",
+    "restoring": "Restaurando…",
+    "confirmRestore": "Confirmar substituição da versão atual",
+    "restoreTitle": "Restaura texto e campos desta versão. Antes, salva um snapshot do estado atual.",
+    "restore": "Restaurar…",
+    "kind": {
+      "node": "Capítulo",
+      "element": "Elemento",
+      "storyline": "Linha narrativa",
+      "category": "Categoria",
+      "library_item": "Nota"
+    }
+  },
+  "notifications": {
+    "title": "Notificações",
+    "clear": "Limpar",
+    "empty": "Nenhuma notificação",
+    "remove": "Remover",
+    "organize": {
+      "source": "Agent"
+    },
+    "markdownFolder": {
+      "source": "Pasta Markdown",
+      "preserved_one": "{{count}} arquivo editado preservado em .drifting/preserved",
+      "preserved_other": "{{count}} arquivos editados preservados em .drifting/preserved",
+      "issue": {
+        "frontmatter": "Propriedades iniciais malformadas; sem mescla nem sobrescrita até a correção",
+        "identity": "drifting-id aponta para outro capítulo; não mesclado, arquivo preservado",
+        "empty": "Texto esvaziado; não mesclado, arquivo preservado",
+        "lineage": "Capítulo restaurado ou redefinido; sem mescla automática, arquivo preservado",
+        "missing": "Este capítulo foi excluído no Drifting",
+        "encoding": "Não está em UTF-8; não lido, arquivo preservado",
+        "too-large": "Grande demais; não lido, arquivo preservado",
+        "unreadable": "Não foi possível ler"
+      },
+      "overlap": "Este parágrafo foi alterado no Drifting e no arquivo.",
+      "preserved_many": "{{count}} arquivos editados preservados em .drifting/preserved"
+    },
+    "cloudSync": {
+      "source": "Sincronização na nuvem",
+      "syncing": "Sincronizando…",
+      "downloading": "Baixando da nuvem…",
+      "uploadingAssets": "Enviando recursos…",
+      "uploadingChanges": "Enviando alterações…",
+      "applying": "Mesclando alterações da nuvem…",
+      "finishing": "Finalizando sincronização…",
+      "completed": "Sincronização na nuvem concluída",
+      "stopped": "Sincronização na nuvem interrompida",
+      "failed": "Falha na sincronização na nuvem",
+      "failureCode": "Código de erro: {{code}}",
+      "bytesKnown": "{{transferred}} / {{total}}",
+      "bytesDiscovered": "{{transferred}} transferidos",
+      "objectsKnown": "{{completed}} / {{total}} itens",
+      "objectsDiscovered": "{{completed}} itens processados",
+      "progressLabel": "Progresso da sincronização na nuvem",
+      "agentChat": "Conversas do Agent",
+      "pending": "O histórico ainda tem dados pendentes"
+    },
+    "time": {
+      "justNow": "agora mesmo",
+      "minutesAgo": "há {{count}} min",
+      "hoursAgo": "há {{count}} h",
+      "daysAgo": "há {{count}} dias"
+    },
+    "shareComments": {
+      "source": "Comentário de leitor",
+      "count": "{{count}} novos comentários",
+      "single": "{{name}}: {{body}}"
+    },
+    "appUpdate": {
+      "source": "Atualizações",
+      "available": "Drifting {{version}} está disponível",
+      "installed": "Atualizado para Drifting {{version}}"
+    },
+    "crashFollowUp": {
+      "source": "Drifting"
+    }
+  },
+  "paperSync": {
+    "label": "Status da sincronização",
+    "retrying": "A sincronização não foi concluída",
+    "retryingDetail": "Seu texto está salvo neste dispositivo. Tentando novamente automaticamente.",
+    "offline": "Offline",
+    "offlineDetail": "Você pode continuar escrevendo localmente.",
+    "offlinePending": "{{count}} itens aguardando sincronização",
+    "notStarted": "Não foi possível iniciar a sincronização",
+    "notStartedDetail": "Seu texto continua salvo neste dispositivo.",
+    "failing": "Falha na sincronização na nuvem",
+    "failingCode": "Erro: {{code}} · {{count}} vezes seguidas",
+    "quota": "Armazenamento Hosted cheio",
+    "reauth": "Sessão expirada",
+    "reauthDetail": "Entre novamente na mesma conta.",
+    "retry": "Tentar novamente",
+    "signIn": "Entrar novamente",
+    "openSettings": "Abrir configurações",
+    "restored": "Sincronização retomada"
+  },
+  "userMenu": {
+    "accountMenu": "Menu da conta",
+    "localMenu": "Menu da biblioteca local",
+    "localStatus": "LOCAL · NESTE DISPOSITIVO",
+    "theme": "Tema",
+    "themeLight": "Claro",
+    "themeLightShort": "Claro",
+    "themeDark": "Escuro",
+    "themeDarkShort": "Escuro",
+    "themeSystem": "Seguir o sistema",
+    "themeSystemShort": "Sistema",
+    "language": "Idioma",
+    "settings": "Configurações",
+    "keyboardShortcuts": "Atalhos de teclado",
+    "import": "Importar",
+    "importBook": "Importar livro (.driftingbook)",
+    "bookshelf": "Estante · Trocar projeto",
+    "signingOut": "Saindo…",
+    "signOut": "Sair",
+    "feedback": "Enviar feedback"
+  },
+  "agentPanel": {
+    "newConversation": "Novo chat",
+    "unavailable": "O Agent está indisponível.",
+    "unavailableTitle": "O ambiente do Agent geral não está instalado",
+    "unavailableReason": "Esta janela não tem um driver de modelo ou ambiente de ferramentas utilizável para o Agent.",
+    "unavailableFuture": "Reabra o projeto. Se persistir, verifique a versão do aplicativo e a chave API do provedor escolhido.",
+    "checking": "Verificando…",
+    "common": {
+      "none": "Nenhum"
+    },
+    "context": {
+      "tokens": "{{count}} tokens",
+      "progressAria": "Uso atual do contexto do Agent",
+      "tooltip": "{{used}} / {{limit}} tokens ({{percent}}%)\nReserva de saída: {{output}} · Margem de segurança: {{safety}}",
+      "modalAria": "Detalhes de uso do contexto do Agent",
+      "kicker": "Chamada ao modelo {{iteration}}",
+      "title": "Uso do contexto",
+      "summary": "{{used}} / {{limit}} ({{percent}}%)",
+      "description": "Baseado no último plano de contexto verificado enviado ao modelo, não no uso acumulado do chat inteiro.",
+      "allocation": {
+        "title": "Distribuição da janela",
+        "aria": "Distribuição de entrada, reserva de saída, margem de segurança e espaço livre",
+        "input": "Entrada atual",
+        "output": "Reserva de saída",
+        "safety": "Margem de segurança",
+        "free": "Espaço livre"
+      },
+      "breakdownTitle": "Conteúdo da entrada atual",
+      "sources": "{{count}} fontes",
+      "categories": {
+        "system_prompt": "Instruções do sistema",
+        "user_messages": "Mensagens do usuário",
+        "assistant_messages": "Mensagens do Agent",
+        "thinking": "Raciocínio",
+        "tool_calls": "Chamadas de ferramentas",
+        "tool_results": "Resultados de ferramentas",
+        "write_receipts": "Gravações confirmadas",
+        "write_reviews": "Revisões de gravação",
+        "write_reverts": "Reversões de edições",
+        "freshness": "Evidências de atualidade",
+        "task_plan": "Plano da tarefa",
+        "task_constraints": "Restrições da tarefa",
+        "compaction_summaries": "Resumos de compactação",
+        "tool_definitions": "Definições de ferramentas",
+        "provider_overhead": "Formatação do provedor"
+      },
+      "detailsTitle": "Detalhes do planejamento",
+      "pinned": "Contexto fixado",
+      "pinnedDetail": "{{total}} total · {{semantic}} semântico · {{recent}} turnos recentes · {{count}} fontes",
+      "compaction": "Compactação",
+      "compactionDetail": "{{saved}} economizados · {{stages}} · {{count}} resumos",
+      "compactionNone": "Esta chamada não precisou de compactação",
+      "compactionStages": {
+        "drop_discardable": "Descartar contexto dispensável",
+        "deterministic_summaries": "Resumos determinísticos",
+        "full_compactor": "Compactação completa"
+      },
+      "coverage": "Cobertura das fontes originais",
+      "coverageDetail": "{{represented}} / {{canonical}} fontes representadas · {{discarded}} descartadas",
+      "toolDefinitions": "Detalhes das definições de ferramentas",
+      "orthogonalNote": "Fixação, compactação e cobertura são visões da entrada atual que podem se sobrepor às categorias acima; não são somadas novamente ao total."
+    },
+    "tool": {
+      "input": "Entrada",
+      "result": "Resultado"
+    },
+    "thinking": {
+      "streaming": "Pensando…",
+      "done": "Registro do raciocínio"
+    },
+    "config": {
+      "title": "Modelo e raciocínio",
+      "aria": "Configurações de modelo e raciocínio",
+      "model": "Modelo",
+      "switchModel": "Trocar modelo",
+      "modelsLoading": "Atualizando modelos do ChatGPT…",
+      "modelsRetry": "Não foi possível atualizar modelos · Tentar novamente",
+      "modelsRefresh": "Atualizar modelos",
+      "modelsUpdated": "Atualizado {{time}}",
+      "modelsStale": "Mostrando modelos de {{time}}",
+      "modelUnavailable": "O modelo escolhido não está no catálogo atual. Atualize ou escolha outro.",
+      "reasoning": "Raciocínio",
+      "extendedThinking": "Raciocínio ampliado",
+      "extendedThinkingTitle": "Usa o modo de raciocínio nativo verificado do provedor escolhido. Só para novos turnos.",
+      "reasoningUnavailable": "O modelo não oferece um modo de raciocínio verificado.",
+      "effort": "Esforço · {{effort}}",
+      "effortLabel": "Esforço",
+      "notSupported": "Não compatível",
+      "edits": "Edições",
+      "dangerousOperations": "Permitir ações perigosas",
+      "dangerousOperationsTitle": "Permite ao Agent excluir capítulos, ideias, elementos, relações, notas e outros objetos sem perguntar a cada vez. Só afeta chamadas futuras; isolamento, validação, verificações de concorrência e registros persistentes continuam ativos.",
+      "memory": "Memória",
+      "memoryTitle": "Memória do projeto mantida por você e pelo Agent; lida em todas as conversas.",
+      "manageMemory": "Memória do projeto",
+      "noMemory": "Sem memória do projeto",
+      "approveMemory": "Ativar"
+    },
+    "memoryKind": {
+      "veto": "Veto",
+      "directive": "Diretriz",
+      "preference": "Preferência"
+    },
+    "usage": {
+      "turnUsage": "Uso do turno",
+      "inputDetail": "Entrada {{input}} (cache lido {{cacheRead}} · gravado {{cacheWrite}} · líquido {{net}})",
+      "outputTurns": "Saída {{output}} · turnos {{turns}}",
+      "timingDetail": "Total {{total}}ms · API {{api}}ms · local {{local}}ms",
+      "timingHint": "(total≈API indica latência do modelo; muita leitura de cache e quase nenhuma gravação significam prefixo em cache e tempo concentrado em saída ou raciocínio)",
+      "workedFor": "O Agent trabalhou {{duration}}",
+      "workDetail": "O Agent trabalhou {{duration}} neste turno",
+      "sentAt": "Enviado às {{time}}",
+      "turnsShort": "{{count}} turnos",
+      "sessionTitle": "Total de tokens, custos e chamadas desta sessão",
+      "session": "Sessão",
+      "toolsCount": "{{count}} ferramentas"
+    },
+    "entity": {
+      "created": "Criado",
+      "edited": "Editado"
+    },
+    "pending": {
+      "now": "Pensando…",
+      "withSeconds": "Pensando · {{seconds}}s",
+      "committing": "Salvando…",
+      "cancelling": "Parando…"
+    },
+    "budget": {
+      "title": "Este contexto precisa de continuação",
+      "body": "O progresso está preservado. Continue do estado persistido; cotas de rodadas de ferramentas ou tokens acumulados não interrompem a tarefa.",
+      "continue": "Continuar tarefa"
+    },
+    "longTask": {
+      "title": "O plano da tarefa não terminou",
+      "body": "O turno terminou normalmente, mas há trabalho pendente no plano salvo. Continue da primeira etapa incompleta."
+    },
+    "slice": {
+      "saved": "Progresso salvo",
+      "preparing": "Progresso salvo. Preparando continuação…",
+      "continuing": "Progresso salvo. Continuando…",
+      "paused": "Continue para retomar o progresso salvo."
+    },
+    "autoContinue": {
+      "waitingReviewTitle": "Aguardando revisão das edições",
+      "waitingReviewBody": "Todas as etapas executáveis aguardam revisão. Resolva as edições pendentes e continue.",
+      "noProgressTitle": "A execução contínua não avançou o plano salvo",
+      "noProgressBody": "O Agent repetiu dois trechos sem avançar o plano persistido e pausou antes de gastar mais. Verifique o último erro de ferramenta e continue quando estiver pronto.",
+      "safetyTitle": "Execução contínua pausada",
+      "safetyBody": "O progresso está preservado. Revise o estado atual e continue quando estiver pronto."
+    },
+    "todos": {
+      "plan": "Plano"
+    },
+    "setup": {
+      "title": "O Agent não está conectado",
+      "hosted": "O modo de assinatura Hosted está selecionado, mas não está pronto. Entre e assine em Configurações.",
+      "apiKey": "Não há chave API salva para este provedor. Conclua BYOK em Configurações.",
+      "byok": "Não há chave API salva para este provedor. Conclua BYOK em Configurações.",
+      "openSettings": "Abrir configurações"
+    },
+    "toolbar": {
+      "renameTitle": "Renomear chat atual",
+      "historyTitle": "Histórico de chats",
+      "history": "Histórico",
+      "newTitle": "Iniciar novo chat",
+      "workingMemory": "Memória de trabalho",
+      "chat": "Chat"
+    },
+    "workingMemory": {
+      "title": "Memória de trabalho",
+      "filename": "WORKING_MEMORY.md",
+      "description": "Contexto recente e relevante compartilhado por todos os chats do Agent geral. O contexto antigo é compactado ou esquecido automaticamente.",
+      "loading": "Carregando memória de trabalho…",
+      "edit": "Editar",
+      "preview": "Prévia",
+      "clear": "Limpar",
+      "create": "Criar memória de trabalho",
+      "editorLabel": "Editar WORKING_MEMORY.md",
+      "tokens": "Cerca de {{count}} tokens",
+      "budgetTitle": "Sem limite; solicita consolidação após 20k e 40k tokens e em todo turno acima de 80k",
+      "updated": "{{time}} · atualizado por {{by}}",
+      "author": "autor",
+      "agent": "Agent",
+      "neverUpdated": "Ainda não escrita",
+      "emptyTitle": "Ainda não há memória de trabalho",
+      "emptyBody": "O Agent registra apenas mudanças recentes importantes que possam afetar o trabalho posterior.",
+      "saved": "Memória de trabalho salva.",
+      "cleared": "Memória de trabalho limpa.",
+      "conflictDraftPreserved": "Outro Agent atualizou a memória de trabalho. Seu rascunho foi preservado; copie-o e reabra para mesclá-lo com a versão mais recente.",
+      "conflictClear": "Outro Agent atualizou a memória; ela não foi limpa. Revise o conteúdo recente e tente novamente.",
+      "failed": "Não foi possível salvar a memória de trabalho.",
+      "clearConfirm": "Limpar a memória de trabalho? Isso não exclui manuscrito, regras de longo prazo ou histórico."
+    },
+    "history": {
+      "loadEarlier": "Carregar mensagens anteriores",
+      "empty": "Ainda sem histórico",
+      "untitled": "Sem título",
+      "rename": "Renomear",
+      "delete": "Excluir chat"
+    },
+    "empty": {
+      "start": "Envie uma mensagem ao Agent para começar. Ele pode ler e editar capítulos, elementos e relações deste projeto."
+    },
+    "mobile": {
+      "currentProject": "Projeto atual",
+      "contextAria": "Contexto do turno",
+      "contextProject": "Projeto",
+      "contextParagraph": "Parágrafo",
+      "contextCurrent": "Atual",
+      "empty": "Faça uma pergunta ou dê uma instrução ao Agent. Ele lê e altera capítulos, elementos e relações; as mudanças aparecem como evidências.",
+      "actionsAria": "Ações da resposta",
+      "evidenceAria": "Evidências do turno",
+      "evidenceTitle": "Evidências do turno",
+      "latest": "↓ Mais recente",
+      "retry": "Tentar última solicitação novamente",
+      "target": {
+        "dashboard": "Início do projeto",
+        "allChapters": "Todos os capítulos",
+        "untitledNode": "Capítulo sem título",
+        "untitledStoryline": "Linha narrativa sem título",
+        "untitledElement": "Elemento sem título",
+        "untitledCategory": "Categoria sem título",
+        "deleted": "Item excluído"
+      },
+      "action": {
+        "copy": "Copiar",
+        "inspiration": "Salvar como ideia",
+        "todo": "Adicionar tarefa",
+        "pending": "Em andamento…",
+        "copied": "Copiado",
+        "inspirationDone": "Salvo como ideia",
+        "todoDone": "Adicionado às tarefas",
+        "failed": "Falha na ação"
+      }
+    },
+    "turnChanges": "Alterações do turno",
+    "jumpLatest": "Ir para o mais recente",
+    "control": {
+      "permissionTitle": "O Agent solicita uma ação",
+      "destructiveHint": "Exclui ou substitui conteúdo existente e exige sua confirmação",
+      "arguments": "Ver argumentos originais",
+      "deny": "Negar",
+      "allow": {
+        "once": "Permitir uma vez",
+        "session": "Permitir nesta sessão",
+        "project": "Permitir neste projeto"
+      },
+      "questionTitle": "O Agent precisa da sua decisão",
+      "answerHint": "Digite e envie sua resposta abaixo para continuar a etapa atual.",
+      "recoveredTitle": "Uma espera interrompida foi recuperada",
+      "recoveredBody": "A execução original não existe mais. O Drifting não aprovará automaticamente, repetirá gravações nem simulará uma retomada. Encerre a espera com segurança e envie uma nova instrução.",
+      "endRecovered": "Encerrar etapa pendente"
+    },
+    "composer": {
+      "placeholder": "Pergunte ao Agent… (Cmd/Ctrl+Enter)",
+      "steerPlaceholder": "Complemente ou corrija a tarefa em andamento…",
+      "answerPlaceholder": "Responda à pergunta do Agent…",
+      "stop": "Parar",
+      "stopAfterToolTitle": "Para o turno quando a ferramenta atual chegar a um ponto seguro e desativa a continuação automática",
+      "steer": "Orientar",
+      "steerTitle": "Adiciona ou corrige instruções após a operação atual terminar",
+      "answer": "Responder",
+      "send": "Enviar"
+    },
+    "historySync": {
+      "pending": "Esta conversa está sincronizando. Continue quando o histórico estiver pronto.",
+      "archive": "Este arquivo pode ser lido, mas não continuado.",
+      "conflict": "Esta conversa tem dados ausentes ou em conflito e ainda não pode continuar."
+    },
+    "onboarding": {
+      "connect": "Conectar um modelo",
+      "try": "Experimentar",
+      "experimental": "Experimental",
+      "getKey": "Obter chave API",
+      "history": "Histórico de versões",
+      "saveFailed": "Não foi possível salvar a chave no chaveiro.",
+      "prompts": {
+        "commentChapter": "Deixe dois comentários em “{{chapter}}”",
+        "tightenChapter": "Enxugue o parágrafo inicial de “{{chapter}}”",
+        "relateElements": "Organize a relação entre {{first}} e {{second}}",
+        "completeElement": "Complete os detalhes de “{{element}}”",
+        "extractElements": "Encontre pessoas e lugares em “{{chapter}}” e adicione como elementos",
+        "outline": "Esboce capítulos para uma estrutura em três atos",
+        "interview": "Faça perguntas para dar forma a esta história",
+        "castCharacters": "Crie três personagens principais"
+      }
+    }
+  },
+  "voiceAgent": {
+    "entryAria": "Escrita por voz",
+    "title": "Escrita por voz",
+    "expand": "Expandir escrita por voz",
+    "collapse": "Recolher para botão flutuante",
+    "endSession": "Encerrar sessão de voz",
+    "record": "Iniciar gravação",
+    "stopRecord": "Parar gravação",
+    "tapToStop": "toque para parar",
+    "recording": "Capturando",
+    "transcribing": "Transcrevendo…",
+    "corrected": "{{count}} nomes próprios corrigidos pela lista de elementos",
+    "retry": "Tentar transcrição novamente",
+    "empty": "Pressione o microfone e conte a história. A transcrição aparece abaixo; envie-a para o Agent trabalhar com o contexto do projeto.",
+    "hint": "A transcrição considera nomes de elementos e ambientação para reconhecer melhor nomes próprios.",
+    "composerPlaceholder": "Revise a transcrição e envie ao Agent",
+    "error": {
+      "noKey": "Sem chave de transcrição (Alibaba Cloud Bailian)",
+      "unsupported": "API do microfone indisponível (falta navigator.mediaDevices)",
+      "micDenied": "Microfone indisponível; verifique as permissões do sistema",
+      "recordingFailed": "A gravação não terminou corretamente; verifique as permissões e tente novamente",
+      "auth": "Chave de transcrição inválida ou expirada",
+      "segmentRejected": "O serviço de transcrição recusou este segmento",
+      "transcribeFailed": "Falha na transcrição; gravação preservada. Tente novamente"
+    }
+  },
+  "memoMaterial": {
+    "error": {
+      "openFile": "Não foi possível abrir o arquivo: {{error}}",
+      "createFailed": "Não foi possível criar o material: {{error}}",
+      "pickFailed": "Não foi possível importar o arquivo: {{error}}",
+      "fileTooLarge": "O arquivo excede o limite de {{maxSizeMiB}} MiB; o Drifting não pode copiá-lo para a biblioteca local."
+    },
+    "empty": {
+      "noRelated": "Nenhum material vinculado ao item atual.",
+      "noMaterials": "Ainda não há materiais. Use o “+” no canto superior direito."
+    },
+    "toolbar": {
+      "all": "Todos",
+      "allShort": "Todos",
+      "current": "Item atual",
+      "currentShort": "Atual",
+      "count": "{{count}} materiais",
+      "newMaterial": "Novo material"
+    },
+    "kind": {
+      "text": "Nota",
+      "image": "Imagem",
+      "pdf": "PDF"
+    },
+    "menu": {
+      "type": "Tipo: {{type}}",
+      "relationCount": "{{count}} itens vinculados",
+      "noRelations": "Sem vínculos",
+      "addRelation": "Vincular…",
+      "relation": "Vincular",
+      "openInSystem": "Abrir no aplicativo do sistema",
+      "deleteMaterial": "Excluir material"
+    },
+    "todo": {
+      "empty": "(tarefa vazia)"
+    },
+    "card": {
+      "collapseImage": "Recolher imagem",
+      "expandImage": "Expandir imagem",
+      "collapseSnippet": "Recolher nota",
+      "expandSnippet": "Expandir nota",
+      "collapse": "Recolher",
+      "expand": "Expandir",
+      "addSnippetBody": "Escreva nesta nota…",
+      "fullscreenImage": "Ver imagem em tela cheia",
+      "snippetPlaceholder": "Escreva sua nota…"
+    },
+    "preview": {
+      "generating": "Gerando prévia…",
+      "open": "Abrir",
+      "expandFullscreenTitle": "Expandir em tela cheia (etapa 2)",
+      "fullscreen": "Tela cheia",
+      "closeEsc": "Fechar (Esc)",
+      "noImage": "Não é possível visualizar a imagem",
+      "noPdf": "Não é possível visualizar o PDF",
+      "openPdfFailed": "Não é possível abrir o PDF",
+      "renderPdfFailed": "Não é possível renderizar o PDF",
+      "loadingPdf": "Carregando PDF…",
+      "pages": "Páginas",
+      "previousPage": "Anterior",
+      "nextPage": "Próxima",
+      "loading": "Carregando…"
+    },
+    "archive": {
+      "reopen": "Reabrir"
+    },
+    "dialog": {
+      "currentItem": "(item atual)",
+      "newTodo": "Nova tarefa",
+      "todoPlaceholder": "Conteúdo da tarefa…",
+      "newMaterial": "Novo material",
+      "titlePlaceholder": "Título",
+      "chooseFile": "Escolher arquivo…",
+      "openingPicker": "Abrindo seletor…",
+      "creating": "Criando…",
+      "importingImage": "Importando imagem…",
+      "importingPdf": "Importando PDF…",
+      "importingFileDetail": "Copiando o original, gerando prévias e verificando o hash local.",
+      "create": "Criar"
+    },
+    "super": {
+      "title": "Tarefas e materiais",
+      "meta": "{{todos}} tarefas · {{materials}} materiais",
+      "material": "Material",
+      "kind": "Tipo",
+      "searchPlaceholder": "Buscar título ou texto…",
+      "hideKind": "Clique para ocultar este tipo",
+      "showKind": "Clique para mostrar",
+      "all": "Todos",
+      "relations": "Relações",
+      "entityFilterActiveTitle": "Mostrar apenas itens vinculados a “{{label}}”",
+      "entityFilterTitle": "Filtrar por entidade",
+      "clearEntityFilter": "Limpar filtro de relações",
+      "entityFilterAll": "Relações · Todas",
+      "entityFilterHint": "Escolha uma entidade para mostrar só notas e materiais vinculados",
+      "todoEmptyHint": "Use + para criar uma tarefa ou converta um comentário do editor",
+      "newMaterialButton": "Novo material",
+      "noMaterials": "Este projeto ainda não tem materiais.",
+      "noFilteredMaterials": "Nenhum material corresponde aos filtros.",
+      "collapseDrawer": "Recolher gaveta",
+      "expandDrawer": "Expandir gaveta",
+      "orphans": "Não organizado",
+      "resolved": "Resolvido",
+      "orphanHeader": "Não organizado · Materiais sem vínculos",
+      "resolvedHeader": "Resolvido · Arquivo de tarefas",
+      "noOrphans": "Todos os materiais estão vinculados a pelo menos uma entidade.",
+      "noResolvedTodos": "Ainda não há tarefas concluídas.",
+      "reopenShort": "Reabrir"
+    }
+  },
+  "auth": {
+    "dialogLabel": "Conta",
+    "signOut": {
+      "title": "Sair",
+      "pending": "Há {{count}} alterações deste Mac ausentes na nuvem. Se sair agora, ficam aqui e serão enviadas ao entrar novamente nesta conta.",
+      "pendingLocal": "Há {{count}} alterações ausentes na nuvem. Se sair agora, ficam apenas neste Mac.",
+      "uploading": "Enviando alterações deste Mac: faltam {{count}}.",
+      "disconnect": "Também desconectar a sincronização desta biblioteca",
+      "uploadFirst": "Enviar e depois sair",
+      "now": "Sair agora",
+      "stopWaiting": "Sair sem esperar"
+    },
+    "titles": {
+      "signin": "Entrar no Drifting",
+      "signup": "Criar conta",
+      "otp": "Entrar com um código",
+      "forgot": "Redefinir senha",
+      "verify": "Verifique seu e-mail"
+    },
+    "signIn": "Entrar",
+    "signUp": "Cadastrar-se",
+    "createAccount": "Criar conta",
+    "signingIn": "Entrando…",
+    "creating": "Criando…",
+    "sendCode": "Enviar código",
+    "resend": "Reenviar código",
+    "useOtp": "Entrar com código por e-mail",
+    "forgotPassword": "Esqueceu a senha?",
+    "noAccount": "Ainda não tem conta?",
+    "hasAccount": "Já tem conta?",
+    "back": "Voltar",
+    "backToSignIn": "Voltar para entrar",
+    "changeEmail": "Usar outro e-mail",
+    "fields": {
+      "penName": "Pseudônimo",
+      "penNamePlaceholder": "ex.: Ada",
+      "email": "E-mail",
+      "emailPlaceholder": "your@email.com",
+      "password": "Senha",
+      "passwordSignupPlaceholder": "Pelo menos 10 caracteres",
+      "code": "Código de verificação",
+      "codePlaceholder": "6 dígitos"
+    },
+    "social": {
+      "waiting": "Aguardando autorização no navegador…",
+      "continueWith": "Continuar com {{provider}}",
+      "or": "ou"
+    },
+    "legal": {
+      "agree": "Ao se cadastrar, você concorda com os",
+      "terms": "Termos",
+      "termsUnavailable": "O operador não configurou os termos de serviço.",
+      "and": "e",
+      "privacy": "Política de privacidade"
+    },
+    "forgot": {
+      "sub": "Digite o e-mail da conta para receber um código.",
+      "codeSub": "Código enviado para {{email}}. Digite-o e escolha uma nova senha.",
+      "done": "Senha redefinida. Você já pode entrar.",
+      "newPassword": "Nova senha",
+      "confirmPassword": "Confirmar nova senha",
+      "passwordMismatch": "As senhas não coincidem.",
+      "resetFailed": "Falha ao redefinir a senha. Confira o código e tente novamente.",
+      "resetSubmit": "Redefinir senha"
+    },
+    "otp": {
+      "emailSub": "Enviaremos um código de 6 dígitos válido por 10 minutos.",
+      "codeSub": "Enviado para {{email}}. O código vale por 10 minutos."
+    },
+    "verify": {
+      "sent": "Enviado para {{email}}. O código vale por 10 minutos.",
+      "sending": "Enviando código para {{email}}…",
+      "verifying": "Verificando…",
+      "submit": "Verificar e entrar"
+    },
+    "sync": {
+      "title": "Sincronizando sua biblioteca",
+      "detail": "Sincronizando os projetos desta conta. Mantenha o aplicativo aberto até terminar.",
+      "failedTitle": "A sincronização não terminou",
+      "failedDetail": "Você pode escrever localmente. Tente agora ou escolha depois “Conectar e sincronizar” em Conta.",
+      "retry": "Tentar novamente",
+      "later": "Agora não",
+      "accountMismatchTitle": "Esta biblioteca pertence a outra conta",
+      "accountMismatch": "Uma biblioteca conecta a uma conta Drifting, e a deste Mac já pertence a outra. Não foi conectada. Para trocar, desconecte a sincronização em Conta (sem entrar na conta anterior) e entre nesta. Projetos locais e cópias na nuvem são preservados.",
+      "accountMismatchOk": "OK",
+      "accountMismatchOpenAccount": "Desconectar sincronização"
+    },
+    "errors": {
+      "signInFailed": "Falha ao entrar",
+      "signUpFailed": "Falha no cadastro",
+      "signInCheck": "Falha ao entrar. Confira o e-mail e a senha.",
+      "signUpRetry": "Falha no cadastro. Tente mais tarde.",
+      "oauthFailed": "A entrada não foi concluída. Tente novamente.",
+      "oauthCancelled": "Entrada cancelada no navegador.",
+      "oauthExpired": "O tempo para entrar expirou. Comece novamente.",
+      "oauthAccountNotLinked": "Este e-mail está cadastrado, mas não verificado. Entre primeiro por e-mail para verificá-lo.",
+      "sessionFailed": "Não foi possível carregar a sessão. Tente novamente.",
+      "browserFailed": "Não foi possível abrir o navegador. Tente novamente.",
+      "sendFailed": "Falha no envio",
+      "sendRetry": "Falha no envio. Tente mais tarde.",
+      "sendCodeFailed": "Não foi possível enviar o código",
+      "verifyFailed": "Falha na verificação",
+      "signupClosed": "O Drifting ainda está em desenvolvimento. Os cadastros ainda não estão abertos.",
+      "mailQuotaExhausted": "Os e-mails de verificação de hoje acabaram. O Drifting funciona sem conta: continue escrevendo aqui e volte amanhã para entrar e ativar a sincronização.",
+      "mailDeliveryFailed": "Não é possível enviar e-mails de verificação agora. O Drifting funciona sem conta: escreva aqui e entre mais tarde para ativar a sincronização."
+    }
+  },
+  "projectPicker": {
+    "bookTransfer": {
+      "exportFailedTitle": "Não foi possível exportar",
+      "importFailedTitle": "Não foi possível importar",
+      "exportFailed": "Não foi possível exportar o livro. Tente novamente.",
+      "notABook": "Este livro não foi exportado do Drifting.",
+      "newer": "Este livro foi exportado por uma versão mais recente do Drifting. Atualize primeiro.",
+      "tooLarge": "Este livro é grande demais para importar.",
+      "invalid": "Este arquivo está danificado e não pode ser importado.",
+      "importFailed": "Não foi possível importar o livro. Tente novamente."
+    },
+    "loading": "Carregando projetos…",
+    "backToShelf": "Voltar à estante",
+    "bookshelfShort": "Estante",
+    "untitledProject": "Projeto sem título",
+    "newProject": "Novo projeto",
+    "allProjectsCn": "Projetos",
+    "allProjectsEn": "Todos os projetos",
+    "projectCount": "{{filtered}} / {{total}} livros",
+    "empty": "Ainda não há projetos. Use + Novo projeto para começar.",
+    "newBookLine1": "Novo projeto",
+    "newBookLine2": "NOVO LIVRO",
+    "newBookSubtitle": "Um novo livro começa aqui",
+    "newBookInline": "Novo projeto · NOVO LIVRO",
+    "nodesLabel": "capítulos · nós",
+    "header": {
+      "workspace": "SEU ESPAÇO DE TRABALHO",
+      "studio": "ESTÚDIO DE ESCRITA DRIFTING",
+      "userPlan": "DRIFTING · ESPAÇO DE TRABALHO",
+      "titleEm": "Estante",
+      "title": "",
+      "subtitle": "Alterne, crie e organize seus projetos de escrita."
+    },
+    "footer": {
+      "brand": "Estúdio de escrita Drifting",
+      "local": "local"
+    },
+    "filters": {
+      "all": "Todos",
+      "active": "Ativo",
+      "paused": "Pausado"
+    },
+    "status": {
+      "writing": "Escrevendo",
+      "draft": "Rascunho",
+      "paused": "Pausado"
+    },
+    "source": {
+      "cloud": "NUVEM · SINCRONIZADO",
+      "localDraft": "LOCAL · RASCUNHO"
+    },
+    "trash": {
+      "kicker": "MOVER PARA A LIXEIRA",
+      "titlePrefix": "Mover para excluídos recentemente",
+      "body": "Este livro ({{words}} palavras · {{nodes}} capítulos · {{elements}} elementos) sai da estante. Pode ser restaurado por 30 dias em excluídos recentemente; depois será excluído permanentemente.",
+      "remoteNote": "Também sai dos outros dispositivos. Dados Hosted e cópia Markdown permanecem até a exclusão permanente.",
+      "localNote": "O conteúdo e a cópia Markdown permanecem até a exclusão permanente.",
+      "confirm": "Mover para excluídos recentemente",
+      "moving": "Movendo…",
+      "failed": "Não foi possível mover o projeto. Tente novamente.",
+      "entry": "Excluídos recentemente · {{count}}",
+      "listKicker": "EXCLUÍDOS RECENTEMENTE",
+      "listTitle": "Projetos excluídos recentemente",
+      "listSub": "Projetos ficam aqui 30 dias e depois são excluídos permanentemente com seus dados Hosted.",
+      "listSubLocal": "Projetos ficam aqui 30 dias e depois são excluídos permanentemente.",
+      "empty": "Nenhum projeto excluído recentemente.",
+      "expiresIn_one": "Exclusão permanente em {{count}} dia",
+      "expiresIn_other": "Exclusão permanente em {{count}} dias",
+      "expiresSoon": "Exclusão permanente pendente",
+      "restore": "Restaurar",
+      "restoring": "Restaurando…",
+      "restoreFailed": "Não foi possível restaurar o projeto. Tente novamente.",
+      "deleteNow": "Excluir agora",
+      "permanentBody": "Exclua permanentemente agora, sem esperar 30 dias. Não é possível desfazer.",
+      "expiresIn_many": "Exclusão permanente em {{count}} dias"
+    },
+    "delete": {
+      "everywhere": "Excluir localmente e do Hosted",
+      "remoteBody": "Exclui permanentemente do Hosted o projeto, snapshots, anexos e conversas do Agent, removendo-o de outros dispositivos. Dados locais só são removidos após confirmação do Hosted. Offline ou falha preservam o projeto local.",
+      "localBody": "Hosted está desativado nesta versão. Projetos antes sincronizados exigem acesso ao Hosted e exclusão remota confirmada antes de remover a cópia local.",
+      "connectRequired": "Conecte Hosted antes de excluir este projeto e seus dados remotos. O projeto local foi preservado.",
+      "accountRequired": "Entre na conta Hosted do projeto e tente novamente. O projeto local foi preservado.",
+      "syncChanged": "A conexão ou o projeto mudou. Tente novamente após a transição.",
+      "failed": "Exclusão incompleta; projeto local preservado. Confira conexão e suporte à exclusão remota no servidor e tente novamente.",
+      "titlePrefix": "Excluir",
+      "deleting": "Excluindo…"
+    },
+    "form": {
+      "editKicker": "EDITAR PROJETO",
+      "createKicker": "NOVO PROJETO",
+      "editTitle": "Editar",
+      "createTitle": "Criar",
+      "createTitleEm": "um livro",
+      "nameLabel": "Título",
+      "namePlaceholder": "ex.: A luz do cabo Norte",
+      "summaryLabel": "Resumo",
+      "summaryPlaceholder": "Descreva o livro em uma ou duas frases.",
+      "createSubmit": "Criar"
+    },
+    "desk": {
+      "newCard": "Novo livro",
+      "newCardSub": "Comece com uma página em branco",
+      "coverStyle": {
+        "turn": "Mudar capa · atual {{name}}",
+        "names": {
+          "sand": "Areia",
+          "ridge": "Cristas",
+          "quipu": "Cordões com nós",
+          "weave": "Trama tecida",
+          "topo": "Curvas de nível",
+          "cyanotype": "Cianotipia",
+          "rings": "Anéis de árvore",
+          "field": "Campos de cor",
+          "cutout": "Papel recortado",
+          "riso": "Risografia",
+          "stars": "Mapa estelar",
+          "strata": "Estratos",
+          "bauhaus": "Bauhaus",
+          "chars": "Mar de letras"
+        }
+      },
+      "preparingSample": "Preparando projeto de exemplo",
+      "open": "Abrir “{{name}}”",
+      "moveToTrash": "Mover para excluídos recentemente",
+      "exportBook": "Exportar este livro (.driftingbook)",
+      "importing": "Importando",
+      "untitled": "Sem título",
+      "progress": "Progresso",
+      "goal": "{{pct}}% · meta {{target}} palavras",
+      "wordsUnit": "palavras",
+      "chaptersUnit_one": "capítulo",
+      "chaptersUnit_other": "capítulos",
+      "storylinesUnit_one": "linha narrativa",
+      "storylinesUnit_other": "linhas narrativas",
+      "elementsUnit_one": "elemento",
+      "elementsUnit_other": "elementos",
+      "trashEntry": "Excluídos recentemente",
+      "trashTitle": "Mover “{{name}}” para excluídos recentemente?",
+      "form": {
+        "createTitle": "Novo livro",
+        "editTitle": "Editar “{{name}}”",
+        "nameLabel": "Título",
+        "summaryLabel": "Resumo"
+      },
+      "trashList": {
+        "title": "Excluídos recentemente",
+        "sub": "Livros ficam aqui 30 dias e depois são excluídos permanentemente com seus dados Hosted.",
+        "subLocal": "Livros ficam aqui 30 dias e depois são excluídos permanentemente.",
+        "empty": "Nenhum livro excluído recentemente.",
+        "confirmTitle": "Excluir “{{name}}” permanentemente?"
+      },
+      "recent": "Últimos 30 dias",
+      "recentLabel": "{{words}} palavras nos últimos 30 dias",
+      "chaptersUnit_many": "capítulos",
+      "storylinesUnit_many": "linhas narrativas",
+      "elementsUnit_many": "elementos"
+    },
+    "rail": {
+      "import": "Importar livro",
+      "synced": "Sincronizado",
+      "books_one": "{{count}} livro",
+      "books_other": "{{count}} livros",
+      "library_one": "{{count}} livro · {{words}} palavras",
+      "library_other": "{{count}} livros · {{words}} palavras",
+      "books_many": "{{count}} livros",
+      "library_many": "{{count}} livros · {{words}} palavras"
+    },
+    "heat": {
+      "label": "Mapa de atividade de escrita",
+      "summary": "{{words}} palavras no último ano, escritas em {{days}} dias",
+      "year": "Último ano",
+      "daysWritten": "Dias",
+      "streak": "Sequência",
+      "today": "Hoje",
+      "daysUnit": "dias",
+      "mon": "seg.",
+      "wed": "qua.",
+      "fri": "sex."
+    },
+    "mobile": {
+      "search": "Buscar projetos",
+      "singleView": "Mostrar um projeto por vez",
+      "filters": "Filtros de projetos",
+      "actions": "Ações de {{name}}"
+    }
+  },
+  "dashboard": {
+    "profilePlaceholder": "Escreva a premissa, tese ou sinopse",
+    "wordCount": "{{count}} palavras",
+    "wordsLabel": "palavras",
+    "storylineSummary": "{{total}} capítulos · {{done}} concluídos · {{draft}} rascunhos · {{todo}} pendentes",
+    "chaptersTitle": "{{count}} capítulos",
+    "hero": {
+      "projectHome": "INÍCIO DO PROJETO",
+      "draft": "VOL. I — RASCUNHO",
+      "since": "DESDE {{date}}",
+      "projectName": "Nome do projeto",
+      "renameProject": "Clique para renomear o projeto"
+    },
+    "metrics": {
+      "storylines": "Linhas narrativas",
+      "nodes": "Nós de capítulos",
+      "elements": "Elementos",
+      "words": "Palavras escritas",
+      "lastTouched": "Última edição"
+    },
+    "chips": {
+      "all": "Todos",
+      "draft": "Rascunho",
+      "todo": "Não iniciado",
+      "done": "Concluir"
+    },
+    "actions": {
+      "storyGraph": "Grafo da história",
+      "elementOverview": "Visão dos elementos",
+      "allChapters": "Todos os capítulos",
+      "newChapter": "Novo capítulo",
+      "newStoryline": "Nova linha narrativa",
+      "newStorylineLong": "Nova linha narrativa",
+      "newCategory": "Nova categoria"
+    },
+    "continue": {
+      "kicker": "CONTINUAR ESCREVENDO",
+      "noBody": "Ainda sem texto",
+      "revisions": " revisões",
+      "resume": "Continuar escrevendo",
+      "noChapters": "Ainda não há capítulos",
+      "emptyTitle": "Comece com uma página em branco",
+      "emptySub": "Crie uma linha narrativa e escreva o primeiro capítulo."
+    },
+    "today": {
+      "kicker": "HOJE",
+      "goal": "Meta",
+      "streak": "Sequência",
+      "week": "Esta semana",
+      "month": "Este mês"
+    },
+    "sections": {
+      "storylines": "Linhas narrativas",
+      "storylinesShort": "Linhas narrativas",
+      "elementCategories": "Categorias de elementos",
+      "elementCategoriesShort": "Categorias de elementos",
+      "recent": "Atividade recente",
+      "recentShort": "Recente",
+      "writingPlan": "Plano de escrita",
+      "writingPlanShort": "Plano de escrita",
+      "projectProfile": "Apresentação do projeto",
+      "projectProfileShort": "Apresentação do projeto",
+      "projectFacts": "Dados do projeto",
+      "projectFactsShort": "Dados do projeto",
+      "storylineTemplate": "Modelo de linha narrativa",
+      "storylineTemplateShort": "Modelo de linha narrativa"
+    },
+    "empty": {
+      "noElements": "Sem elementos",
+      "noActivity": "Sem atividade",
+      "noFields": "Sem campos",
+      "noTemplateFields": "Ainda sem campos de modelo. Adicione ponto de vista, protagonista ou cronologia."
+    },
+    "plan": {
+      "project": "Projeto",
+      "projectTarget": "Meta do projeto",
+      "dailyTarget": "Meta diária",
+      "wordsPerDay": "palavras / dia",
+      "projectHint": "Meta do livro inteiro. Defina 0 para ocultar o progresso.",
+      "dailyHint": "Referência para o progresso diário e as sequências.",
+      "projectProgress": "Progresso do projeto",
+      "todayProgress": "Progresso de hoje",
+      "noProjectGoal": "Sem meta definida",
+      "noDailyGoal": "Sem meta diária"
+    },
+    "footer": {
+      "localReady": "Dados locais prontos"
+    }
+  },
+  "importDialog": {
+    "title": "Importar arquivos",
+    "closeBlocked": "Aguarde a importação atual terminar",
+    "descriptionA": "Cada importação aceita um tipo de destino. Formatos:",
+    "descriptionB": "Selecione vários arquivos ou uma pasta; extensões não aceitas são ignoradas.",
+    "targetTitle": "Destino",
+    "storylineTitle": "Linha narrativa",
+    "categoryTitle": "Categoria",
+    "filesTitle": "Arquivos",
+    "chooseFiles": "Escolher arquivos",
+    "chooseFolder": "Escolher pasta",
+    "clear": "Limpar",
+    "noStorylines": "Não há linhas narrativas. Crie uma primeiro ou importe como ideias.",
+    "noCategories": "Não há categorias de elementos. Crie uma primeiro.",
+    "importing": "Importando…",
+    "start": "Iniciar importação ({{count}})",
+    "targets": {
+      "chapter": {
+        "label": "Capítulo",
+        "desc": "Nó do texto principal: aparece na linha do tempo e conta nas estatísticas."
+      },
+      "element": {
+        "label": "Elemento",
+        "desc": "Referências como personagens, lugares ou objetos. Exige categoria."
+      },
+      "inspiration": {
+        "label": "Ideia",
+        "desc": "Cartão de ideia flutuante, independente das linhas narrativas."
+      }
+    },
+    "status": {
+      "pending": "pendente",
+      "parsing": "analisando",
+      "ready": "pronto",
+      "committed": "importado",
+      "error": "erro"
+    },
+    "summary": {
+      "done": "Concluir",
+      "ok": "importado",
+      "failed": "falha"
+    }
+  },
+  "leftSidebar": {
+    "tabs": {
+      "chapters": "Capítulos",
+      "elements": "Elementos",
+      "drifts": "Ideias"
+    },
+    "top": {
+      "search": "Buscar",
+      "open": "Abrir barra esquerda",
+      "close": "Fechar barra esquerda"
+    },
+    "uncategorized": "Sem categoria",
+    "empty": {
+      "noElements": "Ainda não há elementos.",
+      "noChapters": "Ainda não há capítulos.",
+      "noStorylines": "Ainda não há linhas narrativas.",
+      "noDrifts": "Ainda não há ideias."
+    },
+    "meta": {
+      "chapters": "{{count}} capítulos",
+      "elements": "{{categories}} categorias · {{elements}} elementos",
+      "drifts": "{{count}} ideias"
+    },
+    "groups": {
+      "renameElementGroupTitle": "Clique duas vezes para renomear o grupo",
+      "addElementToGroup": "Novo elemento neste grupo",
+      "newChapterInStoryline": "Novo capítulo nesta linha narrativa",
+      "unaffiliated": "Sem vínculo",
+      "newDriftInGroup": "Nova ideia aqui",
+      "newSubGroup": "Novo subgrupo",
+      "clickCollapseRename": "Clique para recolher · clique duplo para renomear",
+      "moveDriftToRoot": "Raiz (tirar do grupo)",
+      "driftCount_one": "{{count}} ideia",
+      "driftCount_other": "{{count}} ideias",
+      "moveGroupToRoot": "Raiz (mover ao nível superior)",
+      "rename": "Renomear",
+      "moveToGroup": "Mover para grupo…",
+      "deleteGroup": "Excluir grupo",
+      "moveDriftTitle": "Mover ideia para grupo",
+      "moveGroupTitle": "Mover grupo para",
+      "driftCount_many": "{{count}} ideias"
+    },
+    "viewMode": {
+      "storylineTitle": "Por linha narrativa · voltar à visão do livro",
+      "globalTitle": "Visão do livro · agrupar por linha narrativa",
+      "chapterSummary": "{{storylines}} linhas narrativas · {{chapters}} capítulos",
+      "elementCompactTitle": "Índice compacto · mudar para lista de nomes",
+      "elementListTitle": "Lista de nomes · mudar para índice compacto"
+    },
+    "actions": {
+      "collapseAll": "Expandir ou recolher tudo",
+      "sort": "Ordenar",
+      "newChapter": "Novo capítulo",
+      "newStoryline": "Nova linha narrativa",
+      "newCategory": "Nova categoria",
+      "newDrift": "Nova ideia",
+      "newDriftGroup": "Novo grupo"
+    },
+    "sort": {
+      "createdAt": "Data de criação",
+      "updatedAt": "Data de atualização",
+      "title": "Título A–Z",
+      "bookOrder": "Ordem de leitura",
+      "narrativeOrder": "Ordem narrativa",
+      "alphabet": "Alfabética",
+      "storylineOrder": "Ordem das linhas narrativas",
+      "showDate": "Mostrar data",
+      "showWordCount": "Mostrar contagem de palavras",
+      "showBoth": "Mostrar palavras e data",
+      "showNone": "Não mostrar nenhum",
+      "duplicatesAll": "Mostrar em todos os grupos vinculados",
+      "duplicatesPrimary": "Mostrar apenas na linha narrativa principal",
+      "drifts": "Ordenar ideias",
+      "elements": "Ordenar elementos",
+      "categoryElements": "Ordenar elementos nas categorias",
+      "storylineChapters": "Ordenar capítulos nas linhas narrativas",
+      "chapters": "Ordenar capítulos",
+      "cellMetaGroup": "Borda direita da célula",
+      "duplicatesGroup": "Capítulos com várias linhas narrativas",
+      "outerStorylinesGroup": "Linhas narrativas externas",
+      "outerCategoriesGroup": "Categorias externas"
+    }
+  },
+  "rightSidebar": {
+    "tabs": {
+      "review": "Revisão",
+      "library": "Biblioteca de materiais",
+      "stats": "Estatísticas"
+    },
+    "top": {
+      "open": "Abrir barra direita",
+      "close": "Fechar barra direita"
+    },
+    "status": {
+      "done": "Concluir",
+      "draft": "Rascunho",
+      "todo": "A escrever",
+      "discarded": "Descartado"
+    },
+    "targets": {
+      "dashboard": "Início do projeto",
+      "allChapters": "Livro inteiro"
+    },
+    "kickers": {
+      "noTab": "Nenhuma aba aberta",
+      "dashboard": "Visão do projeto",
+      "allChapters": "Livro inteiro · ritmo",
+      "chapterContent": "Este capítulo · fragmentos e materiais",
+      "driftContent": "Esta ideia · fragmentos e materiais",
+      "storylineContent": "Esta linha narrativa · fragmentos e materiais",
+      "elementContent": "Este elemento · fragmentos e materiais",
+      "categoryContent": "Esta categoria · fragmentos e materiais",
+      "review": "Projeto · Revisão",
+      "todo": "Projeto · Tarefas",
+      "library": "Projeto · Biblioteca",
+      "stats": {
+        "all-chapters": "Livro inteiro · ritmo",
+        "chapter": "Este capítulo · estatísticas",
+        "drift": "Esta ideia · estatísticas",
+        "storyline": "Esta linha narrativa · estatísticas",
+        "element": "Este elemento · estatísticas",
+        "category": "Esta categoria · estatísticas",
+        "none": "Projeto · estatísticas",
+        "material": "Este material · Detalhes"
+      },
+      "materialContent": "Material"
+    },
+    "empty": {
+      "missingChapter": "Capítulo atual não encontrado.",
+      "missingStoryline": "Linha narrativa atual não encontrada.",
+      "missingElement": "Elemento atual não encontrado.",
+      "missingCategory": "Categoria atual não encontrada.",
+      "noStats": "O início não mostra estatísticas individuais. Abra um capítulo, elemento ou linha narrativa.",
+      "missingMaterial": "Este material não foi encontrado."
+    },
+    "stats": {
+      "jumpTo": "Ir para “{{name}}”",
+      "titleWithWords": "{{title}} ({{words}} palavras)",
+      "longestWithWords": "Mais longo · {{title}} ({{words}} palavras)",
+      "shortestWithWords": "Mais curto · {{title}} ({{words}} palavras)",
+      "noChapters": "Ainda não há capítulos. Comece o primeiro para ver aqui o ritmo do livro.",
+      "bookOverview": "Visão do livro",
+      "totalWords": "Total de palavras",
+      "wordsValue": "{{count}} palavras",
+      "chapterCount": "Capítulos",
+      "chaptersValue": "{{count}} capítulos",
+      "averagePerChapter": "Média por capítulo",
+      "writtenTarget": "Escrito / meta",
+      "chapterWordCount": "Contagem de palavras",
+      "actRhythm": "Ritmo dos atos",
+      "actTooltip": "{{name}} · {{chapters}} capítulos · {{words}} palavras",
+      "actMeta": "{{chapters}} capítulos · {{wordsK}}k · {{pct}}%",
+      "completion": "Conclusão",
+      "noActiveProgress": "Todos os capítulos estão descartados ou sem progresso.",
+      "statusCount": "{{status}} {{count}} capítulos",
+      "discardedParen": " (descartados {{count}})",
+      "chapterLengthRhythm": "Ritmo da extensão dos capítulos",
+      "snapshotTitle": "Ver e restaurar versões anteriores desta entidade (30 dias)",
+      "snapshotButton": "Snapshots do histórico…",
+      "driftCoordinates": "Coordenadas da ideia",
+      "chapterCoordinates": "Coordenadas do capítulo",
+      "storyline": "Linha narrativa",
+      "type": "Tipo",
+      "driftFreeFragment": "Ideia · flutuante",
+      "chapter": "Capítulo",
+      "bookPosition": "Posição no livro",
+      "chapterOrdinal": "Capítulo {{count}}",
+      "lastModified": "Última modificação",
+      "wordRhythm": "Palavras · ritmo",
+      "paragraphSentence": "Parágrafos / frases",
+      "paragraphSentenceValue": "{{paragraphs}} parágrafos · {{sentences}} frases",
+      "dialogueRatio": "Proporção de diálogo",
+      "thisFragmentElements": "Elementos desta ideia",
+      "thisChapterElements": "Elementos deste capítulo",
+      "noMentionedElements": "Ainda não há elementos mencionados com @ no texto.",
+      "loading": "Carregando estatísticas…",
+      "openEntity": "Abrir “{{name}}”",
+      "storylineCoordinates": "Coordenadas da linha narrativa",
+      "recent": "Recente",
+      "writingProgress": "Progresso da escrita",
+      "storylineNoChapters": "Esta linha narrativa ainda não tem capítulos.",
+      "averageWords": "Média de palavras",
+      "wordsPerChapterValue": "{{words}} palavras / capítulo",
+      "storylineCoreElements": "Elementos centrais desta linha narrativa",
+      "storylineNoMentionedElements": "Nenhum elemento mencionado com @ nos capítulos desta linha narrativa.",
+      "moreLowAppearanceElements": "Mais {{count}} elementos com menos aparições",
+      "elementCoordinates": "Coordenadas do elemento",
+      "category": "Categoria",
+      "name": "Nome",
+      "updated": "Atualizado",
+      "references": "Referências",
+      "categoryCoordinates": "Coordenadas da categoria",
+      "elementCount": "Número de elementos",
+      "elementsValue": "{{count}} elementos",
+      "health": "Estado",
+      "categoryNoElements": "Esta categoria ainda não tem elementos.",
+      "appeared": "Com aparições",
+      "averageAppearance": "Média de aparições",
+      "avgChaptersPerElement": "{{count}} capítulos / elemento",
+      "unappearedElements": "Elementos sem aparições",
+      "allElementsAppeared": "Todos os elementos já apareceram no texto.",
+      "moreUnappearedElements": "Mais {{count}} sem aparições",
+      "storylineDistribution": "Distribuição das linhas narrativas",
+      "floatingStoryline": "Flutuante / sem vínculo",
+      "materialCoordinates": "Material",
+      "created": "Criado",
+      "noteShape": "Nota",
+      "noteWords": "Extensão",
+      "noteTasks": "Tarefas",
+      "noteTasksValue": "{{done}} / {{total}} concluídas",
+      "openComments": "Comentários e tarefas pendentes",
+      "materialFile": "Arquivo",
+      "fileType": "Tipo",
+      "fileSize": "Tamanho",
+      "dimensions": "Dimensões",
+      "embeddedMaterials": "Materiais incorporados",
+      "materialRelations": "Vinculado a"
+    }
+  },
+  "topTimeline": {
+    "singletons": {
+      "dashboard": "Início do projeto",
+      "allChapters": "Livro inteiro"
+    },
+    "untitled": {
+      "chapter": "Capítulo sem título",
+      "drift": "Ideia sem título",
+      "storyline": "Linha narrativa sem título",
+      "element": "Elemento sem título",
+      "category": "Categoria sem título",
+      "library_item": "Material sem título"
+    },
+    "menu": {
+      "closePane": "Fechar painel",
+      "extractTab": "Extrair como aba",
+      "swapPanes": "Trocar painéis",
+      "unsplit": "Remover divisão",
+      "close": "Fechar",
+      "openRight": "Abrir à direita",
+      "openLeft": "Abrir à esquerda",
+      "closeOthers": "Fechar outras",
+      "closeRight": "Fechar abas à direita",
+      "closeAll": "Fechar tudo"
+    },
+    "newEntity": "Criar entidade",
+    "splitControls": "Dividir",
+    "closeTab": "Fechar aba",
+    "closePane": "Fechar painel",
+    "dockLock": "Manter aberto",
+    "dockUnlock": "Recolher para pontos"
+  },
+  "mobileTimeline": {
+    "create": "Novo",
+    "createChapter": "Novo capítulo",
+    "createMarker": "Novo marcador",
+    "atEnd": "no final",
+    "here": "aqui",
+    "more": "Mais",
+    "spread": "Distribuir: espaçar uniformemente capítulos sobrepostos",
+    "visibleStorylines": "Linhas narrativas a mostrar",
+    "tracksLabel": "Trilhas narrativas",
+    "filterAll": "Todos",
+    "openPaper": "Abrir manuscrito",
+    "movePosition": "Mover posição…",
+    "placeInto": "Posicionar…",
+    "movePositionHint": "Toque num espaço para posicionar entre os vizinhos",
+    "placeAtEnd": "Posicionar no final",
+    "placeHere": "Posicionar aqui",
+    "placing": "Movendo “{{title}}” — toque numa posição",
+    "moving": "Movendo o ponto de “{{title}}”",
+    "dragOrder": "{{view}} {{order}}",
+    "unplaceHint": "Limpa a coordenada narrativa",
+    "bookViewOnly": "Só na visão do livro",
+    "narrativeViewOnly": "Só na visão narrativa",
+    "primaryStoryline": "Linha narrativa principal",
+    "storylineHint": "Toque para mudar a linha narrativa principal",
+    "writingStatus": "Estado da escrita",
+    "status": {
+      "draft": "Rascunho",
+      "finished": "Concluído",
+      "discarded": "Deixado de lado"
+    },
+    "moveBoundary": "Mover limite",
+    "moveBoundaryHint": "Pressione a alça de limite na margem da trilha",
+    "moveMarker": "Mover marcador",
+    "moveMarkerHint": "Pressione a cabeça do marcador na margem da trilha",
+    "unplacedHint": "Puxe para cima para ver · arraste para posicionar",
+    "chapterNumber": "Capítulo {{index}}",
+    "current": "atual",
+    "bookIndex": "ordem do livro {{index}}",
+    "wordCount": "{{count}} palavras",
+    "clusterTitle": "Capítulos {{from}}–{{to}} · {{count}}",
+    "clusterHint": "toque para ampliar",
+    "noChapters": "Ainda não há capítulos. Toque em + ou pressione a margem da trilha."
+  },
+  "bottomTimeline": {
+    "marker": {
+      "defaultLabel": "Marcador",
+      "boundTitle": "Ideia vinculada · clique para abrir",
+      "editingTitle": "Enter salva; deixe vazio para excluir",
+      "renameTitle": "Clique duas vezes para renomear",
+      "dragTitle": "Arraste para ajustar a posição"
+    },
+    "axis": {
+      "title": "Marcos narrativos: use + ou clique duplo no eixo vazio para adicionar um marco arrastável",
+      "needChapter": "É preciso ao menos um capítulo para adicionar um marco",
+      "addPin": "Adicionar marco temporal",
+      "time": "Tempo"
+    },
+    "empty": {
+      "noChaptersInStoryline": "Sem capítulos nesta linha · clique duplo para criar"
+    },
+    "view": {
+      "toggleTitle": "Visualização: ordem do livro / tempo narrativo",
+      "book": "Livro",
+      "bookTitle": "Ordem do livro: por ordem de leitura",
+      "narrative": "Tempo narrativo",
+      "narrativeTitle": "Tempo narrativo: ordem cronológica do universo da história, incluindo flashbacks"
+    },
+    "unaffiliated": {
+      "show": "Mostrar sem atribuição",
+      "hide": "Ocultar sem atribuição",
+      "showTitle": "Mostrar faixa sem atribuição",
+      "hideTitle": "Ocultar faixa sem atribuição"
+    },
+    "unplaced": {
+      "label": "Não posicionados",
+      "title": "Capítulos não posicionados na linha do tempo narrativa",
+      "empty": "Todos os capítulos estão na linha do tempo narrativa"
+    },
+    "spread": {
+      "needTwo": "São necessários pelo menos dois capítulos para distribuir",
+      "title": "Distribuir: reorganizar {{mode}} para separar os nós sobrepostos"
+    },
+    "locateCurrent": "Localizar capítulo atual",
+    "synthetic": {
+      "book": "Livro",
+      "unaffiliated": "Sem vínculo"
+    },
+    "storyline": {
+      "openTitle": "Abrir “{{name}}”",
+      "chapterCount": "{{count}} cap."
+    },
+    "menu": {
+      "moveToUnaffiliated": "Mover para sem atribuição",
+      "detachFromNarrative": "Voltar para não posicionados",
+      "createChapterHere": "Criar capítulo aqui",
+      "startActHere": "Iniciar novo ato aqui"
+    },
+    "pinMenu": {
+      "openDrift": "Abrir ideia",
+      "unbind": "Desvincular e restaurar como rótulo simples",
+      "bindDrift": "Vincular ideia…",
+      "rename": "Renomear",
+      "deleteMarker": "Excluir marcador"
+    },
+    "railMenu": {
+      "addMarkerHere": "Criar marcador aqui"
+    },
+    "act": {
+      "railLabel": "Ato",
+      "needChapter": "É necessário pelo menos um capítulo para dividir em atos",
+      "newAct": "Novo ato",
+      "emptyTrackTitle": "Clique duas vezes aqui ou em + no cabeçalho para criar um ato",
+      "chapterCount": "{{count}} capítulos",
+      "actNote": "Nota do ato",
+      "openActNoteTitle": "Abrir nota do ato (ideia vinculada)",
+      "dragBoundary": "Arraste para ajustar o limite do ato",
+      "createHere": "Criar ato aqui",
+      "startHere": "Iniciar novo ato aqui",
+      "openActNote": "Abrir nota do ato",
+      "unbindDrift": "Desvincular ideia",
+      "deleteMergeNext": "Excluir este ato e mesclar com o próximo",
+      "deleteMergePrev": "Excluir este ato e mesclar com o anterior"
+    }
+  },
+  "storyGraph": {
+    "title": "Grafo da história",
+    "meta": "{{storylines}} linhas narrativas · {{placed}}/{{total}} capítulos",
+    "spread": "Distribuir",
+    "spreadAria": "Distribuir nós",
+    "axis": {
+      "time": "Tempo",
+      "addMarkerHint": "Clique duas vezes em um espaço vazio para adicionar um marcador"
+    },
+    "lane": {
+      "chapterCount": "{{count}} capítulos"
+    },
+    "node": {
+      "titleWithWords": "{{title}} · {{count}} palavras",
+      "titleCounting": "{{title}} · contando palavras"
+    },
+    "drift": {
+      "allAnchored": "Todos os cartões de ideias estão ancorados na linha do tempo narrativa",
+      "empty": "Ainda não há ideias · crie uma no painel Ideias",
+      "cardTitle": "{{title}} · {{count}} palavras · Shift-clique para iniciar uma relação",
+      "cardTitleCounting": "{{title}} · contando palavras · Shift-clique para iniciar uma relação"
+    },
+    "edge": {
+      "uncategorized": "Sem categoria",
+      "hideKind": "Ocultar “{{label}}”",
+      "showKind": "Mostrar “{{label}}”",
+      "hintTitle": "Segure Shift e clique em dois nós para criar uma relação",
+      "hint": "Shift-clique em dois nós para criar uma relação",
+      "delete": "Excluir relação",
+      "linkSourcePrefix": "Início selecionado: ",
+      "linkSourceSuffix": " · clique em outro nó para criar uma relação",
+      "newTitle": "Nova relação",
+      "kindLabel": "Tipo de relação",
+      "kindPlaceholder": "Escolha um tipo de relação existente",
+      "detailsTitle": "Detalhes da relação",
+      "create": "Criar"
+    },
+    "menu": {
+      "startEdgeFromNode": "Criar relação a partir deste nó",
+      "startEdgeFromDrift": "Criar relação a partir desta ideia",
+      "deleteAllEdges": "Excluir todas as relações deste nó ({{count}})"
+    }
+  },
+  "referencesPanel": {
+    "loading": "Carregando…",
+    "updateFailed": "Não foi possível atualizar as referências. Tentando novamente…",
+    "relationKind": {
+      "placeholder": "Tipo de relação…",
+      "editTitle": "Editar tipo de relação",
+      "empty": "Tipo de relação"
+    },
+    "deleted": {
+      "element": "(elemento excluído)",
+      "node": "(capítulo excluído)",
+      "category": "(categoria excluída)",
+      "storyline": "(linha narrativa excluída)"
+    },
+    "kind": {
+      "element": "Elemento",
+      "node": "Capítulo",
+      "category": "Categoria",
+      "storyline": "Linha narrativa",
+      "patch": "Evolução"
+    },
+    "sections": {
+      "relations": "Relações",
+      "incoming": "Links de entrada",
+      "outgoing": "Referências"
+    },
+    "actions": {
+      "add": "Adicionar",
+      "remove": "Remover relação",
+      "jump": "Ir para esta entidade",
+      "linkEntity": "Vincular entidade"
+    },
+    "filters": {
+      "all": "Todos"
+    },
+    "picker": {
+      "placeholder": "Buscar entidades vinculáveis…",
+      "empty": "Nenhuma opção"
+    },
+    "empty": {
+      "incoming": "Nenhum conteúdo faz referência a este item ainda",
+      "outgoing": "Este texto ainda não faz referência a outras entidades"
+    },
+    "meta": {
+      "blocksSpans": "{{blocks}} blocos · {{spans}} menções",
+      "spans": "{{count}} menções"
+    }
+  },
+  "patchEditorCard": {
+    "deletedChapter": "(capítulo excluído)",
+    "untitledChapter": "(capítulo sem título)",
+    "titlePlaceholder": "Título da evolução (opcional)",
+    "anchor": {
+      "sourceDeleted": "{{title}} · parágrafo original excluído",
+      "sourceBlock": "{{title}} · parágrafo",
+      "noChapter": "Sem capítulo",
+      "viewSnapshotTitle": "{{label}} · ver instantâneo original",
+      "invalidJumpTitle": "De {{label}} · texto original excluído; clique para abrir o capítulo",
+      "jumpTitle": "De {{label}} · clique para ir",
+      "changeChapter": "Alterar capítulo atribuído",
+      "editSourceChapter": "Editar capítulo de origem",
+      "assignTo": "Atribuir a",
+      "noChapters": "Este projeto ainda não tem capítulos",
+      "blockLevel": "Bloco"
+    },
+    "review": {
+      "agentDelete": "exclusão do Agent",
+      "agentChange": "alteração do Agent",
+      "agentAdd": "adição do Agent",
+      "confirmDelete": "Confirmar exclusão",
+      "acceptChange": "Aceitar alteração",
+      "keepPatch": "Manter esta evolução",
+      "restore": "Restaurar sem excluir",
+      "rejectChange": "Rejeitar alteração",
+      "discardAndDelete": "Descartar e excluir",
+      "titleField": "Título"
+    },
+    "actions": {
+      "expand": "Expandir",
+      "collapse": "Recolher",
+      "deletePatch": "Excluir evolução"
+    },
+    "invalid": {
+      "label": "Inválida",
+      "viewSnapshotTitle": "O texto ancorado foi excluído do capítulo · ver instantâneo original",
+      "title": "O texto ancorado foi excluído do capítulo; esta evolução é inválida e está excluída da revisão de consistência"
+    },
+    "snapshot": {
+      "kicker": "Instantâneo original · excluído do capítulo"
+    }
+  },
+  "reviewPanel": {
+    "title": "Revisão",
+    "type": "Filtrar por tipo",
+    "scope": "Filtrar por escopo",
+    "comment": "Comentário",
+    "completed": "Concluído",
+    "jumpToText": "Ir para o texto vinculado",
+    "filters": {
+      "all": "Ambos",
+      "comment": "Comentários",
+      "todo": "Tarefas"
+    },
+    "filtersCompact": {
+      "all": "Todos",
+      "comment": "Notas",
+      "todo": "Tarefa"
+    },
+    "scopes": {
+      "current": "Atual",
+      "project": "Projeto"
+    },
+    "empty": "Não há itens de revisão neste escopo.",
+    "resolved": "Resolvidos ({{count}})",
+    "newComment": "Novo comentário",
+    "agentTaskStart": "Pedir ao Agent para resolver",
+    "agentTaskStarting": "Iniciando…",
+    "agentTaskOpen": "Abrir chat do Agent",
+    "agentTaskRunning": "Agent está trabalhando",
+    "agentTaskUnavailable": "O Agent ainda não está pronto para este projeto",
+    "agentTaskStartFailed": "Não foi possível iniciar o chat do Agent",
+    "commentPlaceholder": "Escreva um comentário…",
+    "addSticky": "Adicionar às notas adesivas",
+    "inSticky": "Nas notas adesivas",
+    "removeSticky": "Remover das notas adesivas",
+    "source": "Origem",
+    "sourceInfo": "Origem",
+    "sourceFloating": "Nível do projeto · sem entidade vinculada",
+    "sourceUnavailable": "Entidade indisponível",
+    "sourceText": "Texto vinculado · trecho original",
+    "sourceTextUnavailable": "Nenhum trecho salvo",
+    "stickyRail": "Notas adesivas",
+    "stickyCount": "{{count}} notas adesivas",
+    "expandSticky": "Expandir notas adesivas",
+    "stackSticky": "Empilhar notas adesivas",
+    "clearSticky": "Remover todas as notas adesivas",
+    "groupBy": {
+      "title": "Agrupar",
+      "target": "Por localização",
+      "flat": "Nenhum"
+    },
+    "groups": {
+      "floating": "Não vinculados",
+      "deleted": "Excluídos",
+      "patch": "Evolução do elemento",
+      "open": "Abrir {{name}}",
+      "expand": "Expandir {{name}}",
+      "collapse": "Recolher {{name}}"
+    },
+    "editInNote": "Editar na nota",
+    "noteTaskHint": "Da lista de tarefas de uma nota. Clique duas vezes para editar na nota."
+  },
+  "commentRail": {
+    "aria": {
+      "margin": "Comentários do manuscrito"
+    },
+    "color": {
+      "todo": "Tarefa",
+      "manual": "COMENTÁRIO"
+    },
+    "snapshot": {
+      "aria": "Instantâneo do bloco de origem",
+      "title": "Origem vinculada · instantâneo da criação · {{count}} parágrafos",
+      "changed": "Excluído/alterado",
+      "emptyBlock": "(parágrafo vazio)"
+    },
+    "status": {
+      "resolved": "resolvido",
+      "open": "aberto"
+    },
+    "card": {
+      "emptyComment": "Comentário vazio"
+    },
+    "original": {
+      "title": "Texto alterado · ver a origem vinculada no momento da criação",
+      "deleted": "Original excluído · ver",
+      "changed": "Texto alterado · ver original"
+    },
+    "actions": {
+      "close": "Fechar",
+      "collapse": "Recolher",
+      "collapseToChip": "Recolher em etiqueta",
+      "expand": "Expandir",
+      "accept": "Aceitar",
+      "reject": "Rejeitar",
+      "reopen": "Reabrir",
+      "resolve": "Resolver",
+      "revertToNoteTitle": "Converter em comentário",
+      "toNote": "Para comentário",
+      "toTodo": "Para tarefa",
+      "cancelComment": "Cancelar comentário",
+      "add": "Adicionar"
+    },
+    "composer": {
+      "newComment": "NOVO COMENTÁRIO",
+      "placeholder": "Escreva um comentário…"
+    },
+    "entity": {
+      "title": "Nota do capítulo",
+      "placeholder": "Escreva uma nota do capítulo sem ancorá-la a um parágrafo…",
+      "newNote": "Nova nota do capítulo",
+      "noteCount": "{{count}} notas do capítulo"
+    }
+  },
+  "globalSearch": {
+    "entity": {
+      "node": "Capítulo",
+      "storyline": "Linha narrativa",
+      "element": "Elemento",
+      "category": "Categoria"
+    },
+    "field": {
+      "title": "Título",
+      "name": "Nome",
+      "summary": "Resumo",
+      "body": "Corpo"
+    },
+    "fallback": {
+      "untitled": "(sem título)",
+      "unnamed": "(sem nome)"
+    },
+    "placeholder": "Buscar títulos, resumos e textos de capítulos, linhas narrativas, elementos e categorias…",
+    "stats": "{{groups}} itens · {{occurrences}} ocorrências",
+    "closeTitle": "Fechar (Esc)",
+    "emptyPrompt": "Digite uma palavra-chave para buscar em todas as entidades deste projeto",
+    "noResults": "Nenhuma ocorrência encontrada",
+    "truncated": "…mais {{count}} ocultas"
+  },
+  "fieldReview": {
+    "acceptTitle": "Aceitar esta alteração",
+    "rejectTitle": "Rejeitar e restaurar"
+  },
+  "agentEditAnimator": {
+    "reviewAll": "Revisar todas as edições de texto do Agent",
+    "pendingCount": "{{count}} pendentes",
+    "acceptAll": "Aceitar tudo",
+    "rejectAll": "Rejeitar tudo",
+    "op": {
+      "new": "Adicionar",
+      "deleted": "Excluir",
+      "changed": "Reescrever"
+    }
+  },
+  "patchesSection": {
+    "add": "Novo",
+    "empty": "- Ainda não há evoluções. Selecione texto em um capítulo e escolha “Nova evolução” na barra acima para ancorá-la a este elemento -"
+  },
+  "edgeKindManager": {
+    "title": "Todos os tipos de relação",
+    "all": "Todos",
+    "openAllTitle": "Ver todos os tipos de relação e filtros",
+    "legendLabel": "Linhas da tela",
+    "editTypes": "Editar tipos",
+    "summary": "{{kinds}} tipos · {{relations}} relações",
+    "visibleSummary": "{{visible}}/{{total}} exibidos",
+    "filterLabel": "Filtros da tela",
+    "noCanvasRelations": "Ainda não há relações filtráveis nesta tela",
+    "manageLabel": "Gerenciar tipos",
+    "relationCountTitle": "{{count}} relações usam “{{label}}”",
+    "empty": "Ainda não há relações nesta visualização",
+    "changeColor": "Alterar cor",
+    "changeColorLabel": "Alterar cor de {{label}}",
+    "resetColor": "Restaurar cor padrão"
+  },
+  "relationTypes": {
+    "title": "Definições dos tipos de relação",
+    "usedOnCanvas": "Usado nesta tela",
+    "availableOnCanvas": "Disponível aqui · sem instâncias",
+    "otherTypes": "Tipos de outras telas",
+    "usageSummary": "{{canvas}} nesta tela · {{project}} no projeto",
+    "create": "Novo",
+    "createInline": "Criar tipo de relação",
+    "chooseExisting": "Escolher tipo existente",
+    "name": "Nome",
+    "direction": "Direção",
+    "directed": "Direcionada",
+    "symmetric": "Simétrica",
+    "endpointRole": "Papel das extremidades",
+    "sourceRole": "Papel de origem",
+    "targetRole": "Papel de destino",
+    "defaultSourceRole": "Origem",
+    "defaultTargetRole": "Destino",
+    "description": "Descrição",
+    "allowedEntities": "Entidades permitidas",
+    "allowedSources": "Entidades de origem permitidas",
+    "allowedTargets": "Entidades de destino permitidas",
+    "cancel": "Cancelar",
+    "save": "Salvar",
+    "symmetricSummary": "Simétrica · {{role}}",
+    "emptySelector": "Primeiro crie um tipo em Todos os tipos de relação",
+    "inUse": "Ainda há relações que usam este tipo",
+    "delete": "Excluir tipo de relação",
+    "builtIn": "Integrado",
+    "builtInLocked": "Os tipos de relação integrados não podem ser editados nem excluídos",
+    "missing": "Tipo de relação ausente",
+    "confirmDelete": "Excluir o tipo de relação “{{name}}”?",
+    "swap": "Inverter extremidades da relação",
+    "pendingIncoming": "Esta entidade ← destino",
+    "pendingOutgoing": "Esta entidade → destino",
+    "selectConfigured": "Escolher tipo de relação",
+    "ariaLabel": "Tipo de relação",
+    "genericAssociation": {
+      "name": "Associação",
+      "description": "Associação de objetos com um clique para tarefas e materiais.",
+      "sourceRole": "Item associado",
+      "targetRole": "Objeto"
+    },
+    "entityKinds": {
+      "node": "Capítulo ou ideia",
+      "element": "Elemento",
+      "patch": "Evolução do elemento",
+      "category": "Categoria de elementos",
+      "storyline": "Linha narrativa",
+      "comment": "Comentário",
+      "library_item": "Material"
+    }
+  },
+  "entityEditor": {
+    "bodyLoadError": "Não foi possível carregar o corpo do texto, que agora está somente para leitura. As alterações no texto não serão salvas aqui para proteger o conteúdo existente.",
+    "contextMenu": {
+      "format": "Formato",
+      "addComment": "Adicionar comentário",
+      "addPatch": "Nova evolução"
+    }
+  },
+  "elementCardPopover": {
+    "aria": {
+      "card": "Cartão do elemento"
+    },
+    "summaryShortPlaceholder": "Resumo…",
+    "syncNote": "As alterações são sincronizadas com o editor completo"
+  },
+  "superElement": {
+    "title": "Visão dos elementos",
+    "meta": "{{categories}} categorias · {{elements}} elementos",
+    "linkHint": "Escolha um segundo elemento ou capítulo · Esc cancela",
+    "linkHintFrom": "De",
+    "linkHintTo": "para… escolha um segundo elemento ou capítulo; Esc cancela",
+    "focusOffTitle": "Desativar foco e mostrar todas as linhas de relação",
+    "focusOnTitle": "Ativar foco e mostrar apenas as relações dos elementos visíveis",
+    "focusToggle": "Foco · {{state}}",
+    "focus": "Foco",
+    "stickyOffTitle": "Desativar faixa de capítulos fixa",
+    "stickyOnTitle": "Ativar faixa fixa para mantê-la na borda visível ao deslocar a tela",
+    "stickyToggle": "Faixa fixa · {{state}}",
+    "sticky": "Faixa fixa",
+    "stateOn": "ativado",
+    "stateOff": "desativado",
+    "resetTitle": "Redefinir zoom e posição da tela",
+    "reset": "Redefinir",
+    "layout": {
+      "label": "Disposição",
+      "isles": "Ilhas",
+      "relate": "Relações"
+    },
+    "relate": {
+      "relayout": "Reorganizar",
+      "relayoutTitle": "Esquecer as posições para onde você arrastou os elementos e reorganizar"
+    },
+    "kind": {
+      "element": "Elemento",
+      "chapter": "Capítulo"
+    },
+    "manualRelationTitle": "Nova relação manual",
+    "relationVerb": "Referências",
+    "unnamedCategory": "Categoria sem título",
+    "uncategorized": "Sem categoria",
+    "startEdgeFromElement": "Criar relação a partir deste elemento",
+    "startEdgeFromDrift": "Criar relação a partir desta ideia",
+    "isles": {
+      "lines": "Mesmo parágrafo",
+      "linesSection": "Linhas automáticas",
+      "linesTitle": "Uma linha cor de areia une dois elementos mencionados no mesmo parágrafo de um capítulo",
+      "threshold": "Mínimo de parágrafos juntos",
+      "thresholdLabel": "Conexões por parágrafo",
+      "thresholdHint": "Mostra uma linha automática quando dois elementos compartilham pelo menos o número de parágrafos selecionado.",
+      "customThreshold": "Personalizado",
+      "customThresholdHint": "Digite um número inteiro de pelo menos 1",
+      "atLeast": "≥{{count}}",
+      "find": "Encontrar elemento",
+      "newElement": "Novo elemento aqui",
+      "unpin": "Voltar ao layout automático",
+      "pinned": "Fixado",
+      "island": {
+        "openInTab": "Abrir em uma aba",
+        "collapse": "Voltar ao cartão",
+        "resize": "Arraste para redimensionar a ilha",
+        "fold": "Recolher",
+        "unfold": "Expandir",
+        "categoryMeta": "{{count}} elementos",
+        "mentions": "{{count}} menções",
+        "unmentioned": "Não aparece no texto",
+        "mostMentioned": "Mais mencionados primeiro",
+        "element": "Elemento",
+        "category": "Categoria"
+      },
+      "detail": {
+        "meta": "{{category}} · {{count}} menções",
+        "appearance": "Aparições",
+        "appeared": "Em {{appeared}}/{{total}} capítulos · primeira {{first}} · última {{last}} · maior intervalo {{gap}}",
+        "never": "Ainda não mencionado no texto",
+        "tick": "{{section}} {{title}} · {{count}}",
+        "tickAbsent": "{{section}} {{title}}",
+        "companions": "Costumam aparecer juntos",
+        "times": "× {{count}}",
+        "relations": "Relações",
+        "isolate": "Somente este",
+        "showAll": "Mostrar tudo",
+        "edit": "Editar",
+        "close": "Fechar"
+      }
+    },
+    "empty": {
+      "noStorylines": "Ainda não há linhas narrativas",
+      "noCategories": "Ainda não há categorias de elementos",
+      "categoryEmpty": "Vazio",
+      "categoryNoElements": "Ainda não há elementos"
+    }
+  },
+  "nodeCardPopover": {
+    "aria": {
+      "card": "Cartão do capítulo"
+    },
+    "summaryPlaceholder": "Escreva um resumo…",
+    "expandTitle": "Expandir para editor compacto",
+    "expand": "Expandir edição",
+    "openFullTitle": "Ir para o editor completo",
+    "openInEditor": "Abrir no editor",
+    "compactEdit": "Edição compacta",
+    "collapseTitle": "Recolher em cartão",
+    "collapse": "Recolher",
+    "fullEditor": "Editor completo",
+    "loading": "Carregando…",
+    "wordSync": "{{count}} palavras · alterações sincronizadas com o editor completo"
+  },
+  "nodeEditor": {
+    "alerts": {
+      "needStoryline": "Crie uma linha narrativa na barra lateral esquerda ou na linha do tempo antes de converter uma ideia em capítulo.",
+      "needCategory": "Crie uma categoria na visão geral dos elementos antes de converter uma ideia em elemento.",
+      "conversionFailed": "A conversão falhou. Tente novamente.",
+      "statusUpdateFailed": "Não foi possível atualizar o status de escrita. Tente novamente.",
+      "deleteFailed": "Não foi possível excluir o nó. Tente novamente."
+    },
+    "deleteConfirm": "Excluir o nó “{{name}}”?",
+    "folio": {
+      "chapter": "Capítulo",
+      "chapterNumber": "Capítulo {{n}}",
+      "drift": "Ideia"
+    },
+    "empty": {
+      "noStorylines": "Ainda não há linhas narrativas",
+      "noStoryline": "Sem linha narrativa",
+      "noDrifts": "Ainda não há ideias",
+      "noChapters": "Sem capítulos"
+    },
+    "meta": {
+      "words": "{{count}} palavras",
+      "storylines": "{{count}} linhas narrativas"
+    },
+    "outline": {
+      "title": "Capítulo · ESTRUTURA"
+    },
+    "groupMove": {
+      "title": "Mover para grupo",
+      "root": "(Raiz · sem grupo)"
+    },
+    "conversion": {
+      "toChapter": "Converter em capítulo",
+      "toElement": "Converter em elemento",
+      "chapterSubtitle": "Escolha a linha narrativa desta ideia. O status será redefinido para rascunho.",
+      "elementSubtitle": "Escolha a categoria desta ideia. A ideia será excluída e seu conteúdo será movido para um novo elemento.",
+      "noStorylines": "Nenhuma linha narrativa disponível",
+      "noCategories": "Nenhuma categoria disponível",
+      "converting": "Convertendo…"
+    }
+  },
+  "storylineEditor": {
+    "untitled": "Linha narrativa sem título",
+    "loading": "Carregando linha narrativa…",
+    "deleteConfirm": "Excluir a linha narrativa “{{name}}”?",
+    "folio": "Linha narrativa",
+    "alerts": {
+      "deleteFailed": "Não foi possível excluir a linha narrativa. Tente novamente."
+    },
+    "scratchPlaceholder": "Anotações desta linha narrativa: notas rápidas, ideias, lembretes de estilo…",
+    "summaryPlaceholder": "Resumo desta linha narrativa em uma frase…",
+    "nodeTemplatePlaceholder": "Crie uma estrutura padrão de capítulo com H1 / H2 / H3; novos capítulos a usarão…",
+    "outlineTitle": "{{name}} · ESTRUTURA",
+    "sections": {
+      "overview": "Visão geral",
+      "scratchShort": "Anotações",
+      "scratch": "Anotações",
+      "facts": "Dados",
+      "nodeTemplate": "Modelo de capítulo",
+      "chapters": "Sequência de capítulos"
+    },
+    "labels": {
+      "color": "Cor"
+    },
+    "meta": {
+      "chapters": "{{count}} capítulos",
+      "kWords": "{{count}} mil palavras",
+      "facts": "Dados de chave e valor desta linha narrativa",
+      "nodeTemplate": "Estrutura padrão para novos capítulos",
+      "chaptersWords": "{{chapters}} capítulos · {{words}} mil palavras"
+    },
+    "filters": {
+      "all": "Todos",
+      "written": "Escritos",
+      "unwritten": "Não iniciado"
+    },
+    "empty": {
+      "noFacts": "Ainda não há campos. Se o modelo do projeto definir campos, eles serão preenchidos ao criar a linha narrativa.",
+      "noChapterSummary": "Ainda não há resumo em uma frase",
+      "noFilteredChapters": "Nenhum capítulo para este filtro"
+    },
+    "actions": {
+      "openChapter": "Abrir capítulo"
+    }
+  },
+  "categoryEditor": {
+    "untitled": "Categoria sem título",
+    "loading": "Carregando categoria…",
+    "deleteConfirm": "Excluir a categoria “{{name}}”?\n\nOs elementos desta categoria serão movidos para “Sem categoria”.",
+    "folio": "Categoria",
+    "alerts": {
+      "deleteFailed": "Não foi possível excluir a categoria. Tente novamente."
+    },
+    "scratchPlaceholder": "Anotações desta categoria: princípios de criação, regras de nomes, regras para candidatos de IA…",
+    "elementTemplatePlaceholder": "Crie uma estrutura padrão de elemento com H1 / H2 / H3; novos elementos a usarão…",
+    "sections": {
+      "overview": "Visão geral",
+      "scratchShort": "Anotações",
+      "scratch": "Anotações",
+      "elementTemplateShort": "Modelo de elemento",
+      "elementTemplate": "Modelo de elemento",
+      "templateKv": "Modelo de campos",
+      "elements": "Lista de elementos"
+    },
+    "labels": {
+      "elementCount": "Elementos",
+      "role": "Função"
+    },
+    "meta": {
+      "elements": "{{count}} elementos",
+      "items": "{{count}} itens",
+      "elementTemplate": "Estrutura padrão para novos elementos",
+      "templateKv": "Campos padrão para novos elementos"
+    },
+    "filters": {
+      "used": "Preenchidos",
+      "unused": "Vazio"
+    },
+    "empty": {
+      "noCategories": "Ainda não há categorias",
+      "noTemplateFields": "Ainda não há campos no modelo. Adicione chaves como apelido, facção ou primeira aparição.",
+      "noRole": "Ainda não há descrição da função em uma frase",
+      "noFilteredElements": "Nenhum elemento para este filtro"
+    },
+    "actions": {
+      "openElement": "Abrir elemento"
+    }
+  },
+  "elementEditor": {
+    "untitled": "Elemento sem título",
+    "deleteConfirm": "Excluir o elemento “{{name}}”?",
+    "folio": "Elemento",
+    "bodyPlaceholder": "Como é este elemento durante a história?",
+    "summaryPlaceholder": "Descrição da função em uma frase…",
+    "sketch": "Esboço",
+    "sketchWithCategory": "{{category}} · esboço",
+    "portrait": {
+      "add": "Adicionar imagem",
+      "import": "Importar",
+      "replace": "Substituir",
+      "view": "Ver imagem ampliada",
+      "loading": "Carregando imagem",
+      "remove": "Remover imagem",
+      "importing": "Importando",
+      "importFailed": "A importação da imagem falhou. Tente novamente.",
+      "removeFailed": "Não foi possível remover a imagem. Tente novamente.",
+      "loadFailed": "Não foi possível carregar a imagem."
+    },
+    "imageEntry": {
+      "label": "Imagem do elemento",
+      "generate": "Gerar…",
+      "addFromFile": "Adicionar de arquivo…",
+      "replaceFromFile": "Substituir por arquivo…",
+      "remove": "Remover imagem"
+    },
+    "imageGeneration": {
+      "generate": "Gerar",
+      "generateTitle": "Gerar opções de imagem conceitual com sua assinatura do ChatGPT",
+      "title": "Gerar imagem conceitual",
+      "style": "Estilo artístico do projeto",
+      "stylePlaceholder": "Ex.: aquarela suave, nórdico do século XIX, luz lateral suave",
+      "styleHint": "Salvo como dado do projeto “美术风格” e adicionado a cada geração; deixe em branco para o Agent escolher.",
+      "extra": "Orientações extras para esta geração",
+      "extraPlaceholder": "Opcional. Ex.: aparência em uma noite chuvosa, enfatizar a decadência",
+      "count": "Imagens",
+      "quota": "{{percent}}% do limite de imagens usado, redefine em {{reset}}",
+      "submit": "Gerar com Agent",
+      "needsSignIn": "Primeiro entre com sua assinatura do ChatGPT em Configurações → Modelos e API.",
+      "candidates": "Imagens candidatas",
+      "candidatesHint": "Mantidas apenas neste dispositivo e removidas após 30 dias",
+      "starting": "Iniciando…",
+      "running": "Gerando · Ver",
+      "setPortrait": "Definir como imagem do elemento",
+      "keep": "Manter como material",
+      "discard": "Descartar",
+      "startFailed": "Não foi possível iniciar a geração: {{error}}",
+      "actionFailed": "A ação falhou: {{error}}",
+      "taskTitle": "Imagem conceitual: {{name}}",
+      "prompt": "Descrição",
+      "size": "Tamanho"
+    },
+    "sections": {
+      "overview": "Visão geral",
+      "bio": "Biografia",
+      "bioTitle": "Biografia",
+      "facts": "Dados",
+      "patches": "Evoluções"
+    },
+    "meta": {
+      "facts": "apelido / categoria / ano de nascimento / primeira aparição…"
+    },
+    "empty": {
+      "noFacts": "Ainda não há campos. Se o modelo da categoria definir campos, eles serão preenchidos ao criar o elemento.",
+      "selectElement": "Selecione um elemento para editar",
+      "noCategories": "Ainda não há categorias"
+    },
+    "alerts": {
+      "renameConflict": "Não é possível renomear: “{{name}}” já é usado como nome ou apelido do elemento “{{conflicting}}”.",
+      "aliasConflict": "Não é possível adicionar o apelido: “{{name}}” já é usado pelo elemento “{{conflicting}}”.",
+      "groupUpdateFailed": "Não foi possível atualizar o grupo. Tente novamente.",
+      "deleteFailed": "Não foi possível excluir o elemento. Tente novamente."
+    },
+    "alias": {
+      "remove": "Remover apelido",
+      "addFirst": "Adicionar apelido",
+      "add": "Apelido"
+    },
+    "group": {
+      "title": "Grupo · {{category}}",
+      "placeholder": "Busque ou crie um grupo… (em branco = sem grupo)",
+      "noGroup": "(Sem grupo)",
+      "empty": "Esta categoria ainda não tem grupos.",
+      "create": "Criar grupo “{{name}}”"
+    },
+    "category": {
+      "change": "Alterar categoria",
+      "newOption": "Nova categoria…",
+      "newTitle": "Nova categoria",
+      "namePlaceholder": "Nome da categoria…",
+      "create": "Criar"
+    }
+  },
+  "allChapters": {
+    "title": "Ler todos os capítulos",
+    "outlineTitle": "Ler todos os capítulos · ESTRUTURA",
+    "untitledChapter": "Capítulo sem título",
+    "menuHeader": "Ações: {{title}}",
+    "currentAt": "Em {{title}}",
+    "actOrdinal": "Ato {{n}}",
+    "empty": {
+      "noChapters": "Este projeto ainda não tem capítulos.",
+      "noChaptersShort": "Ainda não há capítulos"
+    },
+    "actions": {
+      "backHome": "Voltar ao início do projeto"
+    }
+  },
+  "mobileWorkspace": {
+    "paperAgent": {
+      "outline": "Estrutura",
+      "placeholder": "Pergunte ao Agent…",
+      "plot": "Enredo",
+      "timeline": "Linha do tempo",
+      "recent": "Sessões recentes",
+      "allSessions": "Todas as sessões",
+      "searchSessions": "Buscar sessões",
+      "loadFailed": "Não foi possível carregar esta sessão. Escolha novamente ou inicie uma nova conversa.",
+      "steer": "Enviar"
+    },
+    "projectActions": {
+      "menu": "Opções do projeto",
+      "details": "Detalhes do projeto",
+      "summary": "Resumo do projeto",
+      "goals": "Metas de escrita",
+      "trash": "Lixeira do projeto",
+      "delete": "Excluir projeto",
+      "deleteBody": "Mover “{{name}}” para Excluídos recentemente? Você pode restaurá-lo por 30 dias nessa seção da estante no computador; depois disso, será excluído permanentemente.",
+      "deleteFailed": "Não foi possível excluir o projeto. Tente novamente.",
+      "saveFailed": "Não foi possível salvar as alterações. Tente novamente.",
+      "invalidGoal": "Digite um número inteiro de palavras maior ou igual a 0.",
+      "goalsDevice": "As metas de escrita são salvas neste dispositivo para o início, a estante e as estatísticas de escrita."
+    },
+    "unifiedBar": "Barra do espaço de trabalho móvel",
+    "openPapers": "Páginas abertas",
+    "dismissKeyboard": "Ocultar teclado",
+    "paperStats": {
+      "open": "Ver estatísticas da página atual",
+      "dismiss": "Puxe para baixo para fechar as estatísticas"
+    },
+    "editorAccessory": {
+      "undo": "Desfazer",
+      "redo": "Refazer",
+      "label": "Barra de formatação",
+      "format": "Formato",
+      "expand": "Mostrar formatação",
+      "collapse": "Ocultar formatação",
+      "paragraph": "Corpo",
+      "heading1": "Título 1",
+      "heading2": "Título 2",
+      "heading3": "Título 3",
+      "blockquote": "Citação",
+      "bold": "Negrito",
+      "italic": "Itálico",
+      "underline": "Sublinhado",
+      "strike": "Tachado"
+    },
+    "search": {
+      "open": "Buscar",
+      "paperScope": "Página",
+      "projectScope": "Buscar no projeto inteiro"
+    },
+    "superView": {
+      "label": "Visualização ampliada independente",
+      "navigation": "Alternar visualização ampliada",
+      "relationMode": "Criar relação",
+      "relationModeOn": "Escolher início"
+    },
+    "deferred": {
+      "label": "Espaço de trabalho móvel",
+      "title": "Esta área usará o novo design do espaço de trabalho",
+      "body": "O acesso à conta, a estante e as configurações continuam disponíveis enquanto o espaço de escrita móvel aguarda desenvolvimento."
+    }
+  },
+  "mobileEditorRails": {
+    "controls": "Navegação de página e notas adesivas",
+    "menu": "Navegação de página e notas adesivas",
+    "toc": "Barra do sumário",
+    "comments": "Barra de notas adesivas"
+  },
+  "editorTopBar": {
+    "actions": {
+      "collapsePlotPlanner": "Recolher planejador de enredo",
+      "expandPlotPlanner": "Expandir planejador de enredo",
+      "outlineRailDisplay": "Barra do sumário",
+      "hideReferenceLinks": "Ocultar estilo dos links de referência",
+      "showReferenceLinks": "Mostrar estilo dos links de referência",
+      "noComments": "Sem notas adesivas",
+      "hideComments": "Ocultar notas adesivas",
+      "showComments": "Mostrar notas adesivas",
+      "more": "Mais ações"
+    },
+    "outlineRailMode": {
+      "visible": "Mostrar sumário",
+      "hidden": "Ocultar sumário"
+    },
+    "status": {
+      "draft": "Rascunho",
+      "finished": "Concluído",
+      "discarded": "Descartado",
+      "drifting": "À deriva",
+      "resting": "Em repouso"
+    },
+    "statusSection": {
+      "chapter": "Estado da escrita",
+      "drift": "Status da ideia"
+    },
+    "menu": {
+      "convertToChapter": "Converter em capítulo…",
+      "convertToElement": "Converter em elemento…",
+      "moveToGroup": "Mover para grupo…",
+      "editStorylines": "Editar linhas narrativas",
+      "changeCategory": "Alterar categoria",
+      "changeGroup": "Alterar grupo",
+      "deleteNode": "Excluir nó",
+      "deleteElement": "Excluir elemento",
+      "deleteCategory": "Excluir categoria",
+      "deleteStoryline": "Excluir linha narrativa",
+      "openMaterialInSystem": "Abrir no aplicativo padrão",
+      "deleteMaterial": "Excluir material",
+      "noteTaskTodosOff": "Parar de sincronizar a lista com as tarefas",
+      "noteTaskTodosOn": "Sincronizar lista com as tarefas",
+      "moveMaterialToFolder": "Mover para pasta…"
+    }
+  },
+  "projectMemory": {
+    "title": "Memória do projeto",
+    "short": "Memória",
+    "desc": "Seus pensamentos, intenções, hábitos e instruções permanentes para esta obra. Você e o Agent podem editar, e toda conversa lê esse conteúdo. Os fatos da história devem ficar nos elementos, linhas narrativas e outros objetos.",
+    "placeholder": "Escreva algo para lembrar… (⌘↩ para salvar)",
+    "add": "Adicionar",
+    "empty": "Ainda não há memória do projeto.",
+    "edit": "Editar",
+    "save": "Salvar",
+    "cancel": "Cancelar",
+    "delete": "Excluir",
+    "inactive": "Inativa",
+    "enable": "Ativar",
+    "deleteConfirm": "Excluir esta memória? As próximas conversas não vão mais lê-la."
+  },
+  "projectHome": {
+    "kicker": "Início do projeto",
+    "since": "Início do projeto · desde {{date}}",
+    "views": {
+      "overview": "Visão geral",
+      "settings": "Configurações"
+    },
+    "readout": "{{chapters}} capítulos · {{storylines}} linhas narrativas · {{elements}} elementos",
+    "words": "{{words}} palavras",
+    "wordsOfTarget": "{{words}} / {{target}} palavras",
+    "today": "Hoje {{today}} / {{goal}} · sequência de {{streak}} dias",
+    "todayNoGoal": "Hoje {{today}} · sequência de {{streak}} dias",
+    "todayShort": "Hoje {{today}}",
+    "continue": {
+      "title": "Continuar",
+      "empty": "Ainda não há capítulos."
+    },
+    "book": {
+      "title": "O livro",
+      "storylineCount": "{{done}} / {{total}} capítulos",
+      "noStorylines": "Ainda não há linhas narrativas."
+    },
+    "create": {
+      "title": "Novo",
+      "kinds": {
+        "chapter": "Capítulo",
+        "drift": "Ideia",
+        "element": "Elemento",
+        "storyline": "Linha narrativa",
+        "category": "Categoria",
+        "material": "Material"
+      },
+      "picksLabel": {
+        "chapter": "Qual linha narrativa",
+        "drift": "Qual grupo",
+        "element": "Qual categoria",
+        "material": "Qual tipo de material"
+      },
+      "picks": {
+        "unaffiliated": "Sem vínculo",
+        "root": "Nível superior",
+        "newCategory": "Crie uma categoria primeiro",
+        "text": "Texto",
+        "image": "Imagem…",
+        "pdf": "PDF…"
+      },
+      "failed": "Não criado: {{error}}",
+      "defaults": {
+        "storyline": "Nova linha narrativa"
+      }
+    },
+    "agent": {
+      "placeholder": "Pergunte sobre o livro ou dê uma tarefa ao Agent…"
+    },
+    "settings": {
+      "projectTarget": "Meta do livro",
+      "dailyGoal": "Meta diária",
+      "checkin": "Revisão diária",
+      "organize": "Organização automática"
+    }
+  },
+  "organize": {
+    "notify": {
+      "running": "Organizando o que você escreveu da última vez",
+      "completed": "O que você escreveu da última vez foi organizado",
+      "failed": "A organização não foi concluída",
+      "interrupted": "A organização foi interrompida"
+    },
+    "counts": {
+      "created_one": "{{count}} novo elemento",
+      "created_other": "{{count}} novos elementos",
+      "updated_one": "{{count}} elemento atualizado",
+      "updated_other": "{{count}} elementos atualizados",
+      "patches_one": "{{count}} alteração",
+      "patches_other": "{{count}} alterações",
+      "relations_one": "{{count}} relação",
+      "relations_other": "{{count}} relações",
+      "none": "Nada para organizar",
+      "created_many": "{{count}} novos elementos",
+      "updated_many": "{{count}} elementos atualizados",
+      "patches_many": "{{count}} alterações",
+      "relations_many": "{{count}} relações"
+    }
+  },
+  "projectAgent": {
+    "title": "Agent",
+    "titleShort": "Chat e revisão",
+    "placeholder": "Converse com o Agent sobre esta obra… (⌘↩ para enviar)",
+    "send": "Enviar",
+    "checkinTitle": "Revisão",
+    "checkinRunning": "O Agent está lendo suas alterações recentes…",
+    "checkinFailed": "A revisão não foi concluída: {{error}}",
+    "checkNow": "Revisar agora",
+    "checkinEmpty": "Não há nada nas alterações recentes que precise da sua atenção.",
+    "checkinNever": "Ao abrir o projeto, o Agent lê as alterações desde a última vez e deixa as perguntas que deseja fazer ou o trabalho que deseja realizar.",
+    "lastCheckin": "Última revisão {{time}}",
+    "disabled": "As revisões estão desativadas",
+    "enable": "Ativar revisões",
+    "disable": "Desativar revisões",
+    "openConversation": "Abrir conversa",
+    "dismiss": "Dispensar",
+    "startFailed": "Não foi possível iniciar: {{error}}",
+    "start": "Entregar ao Agent",
+    "started": "Entregue ao Agent · abrir conversa"
+  },
+  "hostedQuota": {
+    "exceeded": "O armazenamento Hosted está cheio ({{used}} de {{quota}} usados), então este anexo não foi importado. O texto e a estrutura continuam sincronizando; exclua anexos ou projetos desnecessários para liberar espaço."
+  },
+  "materialEditor": {
+    "crumb": "Materiais",
+    "missing": "Este material não existe mais.",
+    "deleteConfirm": "Excluir o material “{{title}}”? Esta ação não pode ser desfeita.",
+    "deleteFailed": "Não foi possível excluir o material.",
+    "descriptionPlaceholder": "Adicione uma descrição…",
+    "zoomIn": "Ampliar",
+    "zoomOut": "Reduzir",
+    "zoomReset": "Ajustar à visualização",
+    "toolbar": "Ferramentas de materiais",
+    "provenance": {
+      "generated": "Gerado por IA · {{model}} · {{date}}",
+      "prompt": "Descrição",
+      "style": "Estilo",
+      "direction": "Orientações do autor",
+      "formerPortrait": "Retrato anterior de “{{name}}”"
+    },
+    "notePlaceholder": "Escreva uma nota… (digite / para tabelas, tarefas e materiais)",
+    "slash": {
+      "bulletList": "Lista com marcadores",
+      "orderedList": "Lista numerada",
+      "taskList": "Lista de tarefas",
+      "table": "Tabela",
+      "codeBlock": "Bloco de código",
+      "callout": "Quadro de destaque",
+      "highlight": "Realce",
+      "material": "Inserir material…"
+    },
+    "table": {
+      "toolbar": "Tabela",
+      "addRow": "Adicionar linha",
+      "addColumn": "Adicionar coluna",
+      "deleteRow": "Excluir linha",
+      "deleteColumn": "Excluir coluna",
+      "headerRow": "Linha de cabeçalho",
+      "deleteTable": "Excluir tabela"
+    },
+    "embed": {
+      "missing": "Este material foi excluído.",
+      "pickerTitle": "Inserir material",
+      "importFile": "Importar imagem ou PDF…",
+      "importing": "Importando…",
+      "empty": "Ainda não há materiais de imagem ou PDF.",
+      "pastedImage": "Imagem colada",
+      "pastedPdf": "PDF colado"
+    },
+    "regions": {
+      "draw": "Comentar uma região",
+      "stopDrawing": "Parar de comentar",
+      "drawHint": "Arraste sobre a imagem para marcar uma região",
+      "compose": "Comentário de região",
+      "placeholder": "O que acha desta parte? (⌘↩ para salvar)",
+      "asTodo": "Como tarefa",
+      "save": "Salvar",
+      "kindLabel": "Tipo de comentário",
+      "kindNote": "Comentário",
+      "kindTodo": "Tarefa",
+      "listLabel": "Comentários deste material",
+      "empty": "Arraste sobre a imagem ou página para adicionar o primeiro comentário.",
+      "page": "Página {{page}}",
+      "whole": "Material inteiro",
+      "createFailed": "Não foi possível salvar o comentário."
+    },
+    "todo": {
+      "toolbar": "Item de tarefa",
+      "promote": "Transformar em tarefa",
+      "linked": "Sincronizado como tarefa",
+      "unlink": "Manter como caixa de seleção"
+    }
+  },
+  "materialFolders": {
+    "root": "Todos os materiais",
+    "untitled": "Nova pasta",
+    "tree": "Pastas de materiais",
+    "breadcrumb": "Caminho da pasta",
+    "empty": "Ainda não há materiais. Use o botão Nova pasta acima para organizá-los.",
+    "deleteConfirm": "Excluir a pasta “{{name}}”? Todo o conteúdo sobe um nível; nenhum material é excluído.",
+    "menu": {
+      "newFolder": "Nova pasta",
+      "newSubfolder": "Nova pasta dentro",
+      "rename": "Renomear",
+      "delete": "Excluir pasta",
+      "open": "Abrir",
+      "move": "Mover para pasta…",
+      "moveSelection": "Mover {{count}} itens para pasta…",
+      "deleteSelection": "Excluir {{count}} itens",
+      "expandAll": "Expandir tudo dentro",
+      "collapseAll": "Recolher tudo dentro",
+      "expandPreview": "Mostrar prévia completa",
+      "collapsePreview": "Ocultar prévia completa"
+    },
+    "picker": {
+      "title": "Mover para pasta",
+      "newPlaceholder": "Nome da nova pasta",
+      "createAndMove": "Criar e mover"
+    },
+    "deleteSelectionConfirm": "Excluir os {{count}} itens selecionados? Os materiais são excluídos; o conteúdo das pastas excluídas sobe um nível."
+  },
+  "scopeToggle": {
+    "label": "Atual",
+    "hintOff": "Somente o que pertence ao item atual",
+    "hintOn": "Mostrando apenas o item atual; clique novamente para ver o projeto inteiro"
+  },
+  "feedback": {
+    "title": "Enviar feedback",
+    "placeholder": "Um problema ou uma ideia",
+    "contact": "E-mail para resposta",
+    "contactPlaceholder": "Opcional",
+    "attachDiagnostics": "Anexar diagnósticos sem dados sensíveis",
+    "preview": "Prévia",
+    "hidePreview": "Ocultar",
+    "cancel": "Cancelar",
+    "send": "Enviar",
+    "sending": "Enviando…",
+    "sent": "Enviado",
+    "close": "Fechar",
+    "failed": "Não foi possível enviar",
+    "sendByEmail": "Enviar por e-mail",
+    "emailSubject": "Feedback do Drifting",
+    "crash": {
+      "title": "O Drifting teve um problema na última vez",
+      "placeholder": "O que você estava fazendo?",
+      "ignore": "Ignorar",
+      "emailSubject": "Acompanhamento de falha do Drifting"
+    }
+  },
+  "guide": {
+    "skip": "Pular apresentação",
+    "back": "Voltar",
+    "next": "Próxima",
+    "done": "Concluir",
+    "workspace": {
+      "panels": {
+        "title": "Capítulos · Elementos · Ideias",
+        "body": "A estrutura do livro. A barra lateral esquerda pode ser dividida em duas, cada metade com seu próprio painel.",
+        "closedBody": "A estrutura do livro fica na barra lateral esquerda: capítulos, elementos e ideias. Abra aqui."
+      },
+      "superViews": {
+        "title": "Visualizações de janela inteira",
+        "body": "Abra pelo botão redondo no cabeçalho de um painel."
+      },
+      "create": {
+        "title": "Novo",
+        "body": "Capítulos, ideias, elementos, linhas narrativas, categorias e materiais são criados aqui."
+      },
+      "timeline": {
+        "title": "Linha do tempo",
+        "body": "As linhas narrativas aparecem sob a página, na ordem do livro ou no tempo da história."
+      },
+      "agent": {
+        "title": "Agent",
+        "body": "Lê, pesquisa e edita o livro inteiro. As alterações são marcadas no texto e podem ser desfeitas pelo histórico.",
+        "closedBody": "O Agent fica na barra lateral direita e pode ler, pesquisar e editar o livro inteiro. Abra aqui."
+      },
+      "home": {
+        "title": "Início do projeto",
+        "body": "A porta traz você de volta a esta página; o sino de vento ao lado reúne as notificações."
+      }
+    },
+    "hints": {
+      "new": "Novo",
+      "scene": "Cena",
+      "beat": "Unidade narrativa",
+      "note": "Nota",
+      "search": "Buscar em tudo",
+      "timeline": "Linha do tempo",
+      "driftRipens": "Quando estiver pronta, transforme em capítulo ou elemento",
+      "todo": "Escreva TODO no texto"
+    }
+  },
+  "agentTools": {
+    "activity": {
+      "get_project_overview": "Revisar o projeto inteiro",
+      "get_project_facts": "Revisar dados do projeto",
+      "list_chapters": "Revisar capítulos",
+      "read_chapter": "Ler capítulo{{target}}",
+      "list_inspirations": "Revisar ideias",
+      "read_inspiration": "Ler ideia{{target}}",
+      "list_element_categories": "Revisar categorias de elementos",
+      "read_element_category": "Revisar categoria de elementos{{target}}",
+      "list_elements": "Revisar elementos da história",
+      "read_element": "Revisar elemento da história{{target}}",
+      "get_element_patches": "Revisar evolução do elemento{{target}}",
+      "find_element_appearances": "Buscar aparições do elemento{{target}}",
+      "generate_element_images": "Gerar imagens conceituais",
+      "list_storylines": "Revisar linhas narrativas",
+      "read_storyline": "Revisar linha narrativa{{target}}",
+      "list_relations": "Revisar relações",
+      "list_entity_relations": "Revisar relações de{{target}}",
+      "list_comments": "Revisar notas e tarefas",
+      "list_project_memory": "Revisar memória do projeto",
+      "list_author_rules": "Revisar memória do projeto",
+      "list_materials": "Revisar material de referência",
+      "read_material": "Ler material de referência{{target}}",
+      "create_chapter": "Criar capítulo{{target}}",
+      "rename_chapter": "Renomear capítulo{{target}}",
+      "set_chapter_summary": "Atualizar resumo do capítulo{{target}}",
+      "revise_chapter": "Revisar capítulo{{target}}",
+      "replace_chapter_body": "Substituir manuscrito do capítulo{{target}}",
+      "delete_chapter": "Excluir capítulo{{target}}",
+      "create_inspiration": "Criar ideia{{target}}",
+      "rename_inspiration": "Renomear ideia{{target}}",
+      "set_inspiration_summary": "Atualizar resumo da ideia{{target}}",
+      "revise_inspiration": "Revisar ideia{{target}}",
+      "replace_inspiration_body": "Substituir texto da ideia{{target}}",
+      "delete_inspiration": "Excluir ideia{{target}}",
+      "create_element": "Criar elemento da história{{target}}",
+      "update_element": "Atualizar elemento da história{{target}}",
+      "revise_element": "Revisar elemento da história{{target}}",
+      "replace_element_body": "Substituir texto do elemento da história{{target}}",
+      "delete_element": "Excluir elemento da história{{target}}",
+      "create_element_category": "Criar categoria de elementos{{target}}",
+      "update_element_category": "Atualizar categoria de elementos{{target}}",
+      "replace_element_category_body": "Substituir texto da categoria{{target}}",
+      "delete_element_category": "Excluir categoria de elementos{{target}}",
+      "create_storyline": "Criar linha narrativa{{target}}",
+      "update_storyline": "Atualizar linha narrativa{{target}}",
+      "revise_storyline": "Revisar linha narrativa{{target}}",
+      "replace_storyline_body": "Substituir texto da linha narrativa{{target}}",
+      "delete_storyline": "Excluir linha narrativa{{target}}",
+      "add_chapter_to_storyline": "Adicionar capítulo à linha narrativa",
+      "remove_chapter_from_storyline": "Remover capítulo da linha narrativa",
+      "set_chapter_primary_storyline": "Definir linha narrativa principal do capítulo",
+      "replace_storyline_chapters": "Substituir capítulos da linha narrativa",
+      "create_relation": "Criar relação",
+      "update_relation": "Atualizar relação{{target}}",
+      "delete_relation": "Excluir relação{{target}}",
+      "create_comment": "Adicionar nota ou tarefa",
+      "update_comment": "Atualizar nota ou tarefa{{target}}",
+      "delete_comment": "Excluir nota ou tarefa{{target}}",
+      "update_project_facts": "Atualizar dados do projeto",
+      "create_project_memory": "Adicionar à memória do projeto",
+      "update_project_memory": "Atualizar memória do projeto",
+      "delete_project_memory": "Remover memória do projeto",
+      "create_author_rule": "Adicionar à memória do projeto",
+      "update_author_rule": "Atualizar memória do projeto",
+      "delete_author_rule": "Remover memória do projeto",
+      "create_element_patch": "Registrar evolução do elemento{{target}}",
+      "update_element_patch": "Atualizar evolução do elemento{{target}}",
+      "delete_element_patch": "Excluir evolução do elemento{{target}}",
+      "create_material_note": "Criar nota de material{{target}}",
+      "revise_material_note": "Revisar nota de material{{target}}",
+      "replace_material_note_body": "Reescrever nota de material{{target}}",
+      "update_material": "Organizar material{{target}}",
+      "create_material_folder": "Criar pasta de materiais{{target}}",
+      "update_material_folder": "Atualizar pasta de materiais{{target}}",
+      "delete_material_folder": "Excluir pasta de materiais{{target}}",
+      "read_book_structure": "Revisar atos e linha do tempo",
+      "read_plot_grid": "Revisar grade de enredo{{target}}",
+      "view_material": "Ver material{{target}}",
+      "write_plot_grid": "Escrever grade de enredo{{target}}",
+      "create_act": "Criar ato{{target}}",
+      "update_act": "Atualizar ato{{target}}",
+      "delete_act": "Excluir ato{{target}}",
+      "move_chapter": "Mover capítulo{{target}}",
+      "set_timeline_position": "Posicionar na linha do tempo{{target}}",
+      "create_timeline_marker": "Adicionar marcador na linha do tempo{{target}}",
+      "update_timeline_marker": "Atualizar marcador na linha do tempo{{target}}",
+      "delete_timeline_marker": "Excluir marcador da linha do tempo{{target}}",
+      "read_task_plan": "Revisar progresso da tarefa",
+      "update_task_plan": "Atualizar plano da tarefa",
+      "update_task_step": "Atualizar etapa da tarefa",
+      "update_task_constraint": "Atualizar restrições da tarefa",
+      "ask_user": "Pedir orientação",
+      "read_tool_result": "Continuar lendo um resultado longo",
+      "search_prose": "Buscar no manuscrito",
+      "search_project": "Buscar no projeto",
+      "search_prose_query": "Buscar “{{query}}” no manuscrito",
+      "search_project_query": "Buscar “{{query}}” no projeto"
+    },
+    "permission": {
+      "related": "está relacionado a",
+      "relationCreate": "Criar relação: {{source}} —{{relationType}}→ {{destination}}",
+      "relationUpdate": "Atualizar relação{{target}}: {{change}}",
+      "relationType": "definir tipo como{{target}}",
+      "relationClear": "limpar o tipo",
+      "membershipAdd": "Adicionar capítulo{{chapter}} à linha narrativa{{storyline}}",
+      "membershipRemove": "Remover capítulo{{chapter}} da linha narrativa{{storyline}}",
+      "membershipPrimary": "Definir a linha narrativa{{storyline}} como principal do capítulo{{chapter}}",
+      "membershipReplace": "Substituir todos os membros da linha narrativa{{storyline}} por {{count}} capítulos",
+      "body": "Corpo: {{text}}",
+      "summary": "Resumo: {{text}}",
+      "replace": "Substituir “{{current}}” por “{{revised}}”",
+      "moreChanges": "Mais {{count}} alterações",
+      "chapters": "Capítulos: {{text}}",
+      "clearMembers": "limpar todos os membros",
+      "quote": " “{{text}}”",
+      "listSeparator": ", "
+    },
+    "kinds": {
+      "chapter": "capítulo",
+      "inspiration": "ideia",
+      "element": "elemento",
+      "storyline": "linha narrativa",
+      "element_category": "categoria de elementos"
+    }
+  },
+  "startup": {
+    "loading": "Iniciando o Drifting"
+  }
+}

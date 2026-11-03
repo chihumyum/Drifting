@@ -146,7 +146,12 @@
     "mcp:smoke": "node scripts/mcp-live-smoke.mjs",
     "core:test": "pnpm core:fixtures:check && cargo test --manifest-path crates/drifting-core/Cargo.toml --locked && cargo test --manifest-path crates/drifting-document/Cargo.toml --locked && cargo test --manifest-path crates/drifting-prose/Cargo.toml --locked",
     "core:fixtures:generate": "tsx --conditions=import scripts/prose-journal-oracle.ts",
-    "core:fixtures:check": "tsx --conditions=import scripts/prose-journal-oracle.ts --check"
+    "core:fixtures:check": "tsx --conditions=import scripts/prose-journal-oracle.ts --check",
+    "locales:bootstrap": "node scripts/generate-startup-locales.mjs",
+    "locales:evidence": "tsx scripts/check-ui-locales.ts --write",
+    "locales:check": "node scripts/generate-startup-locales.mjs --check && tsx scripts/check-ui-locales.ts",
+    "locales:browser": "node scripts/run-interface-locales.mjs",
+    "locales:native": "node scripts/run-native-interface-locales.mjs"
   },
   "keywords": [
     "tauri",

@@ -126,7 +126,7 @@ function MarkdownFolderSection({ projectRuntimeMounted }: { projectRuntimeMounte
 }
 
 function ProjectProjectionSettings({ projectId, projectName }: { projectId: string; projectName: string }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const projection = useSyncExternalStore(subscribeMarkdownProjectionStatus,
     () => getMarkdownProjectionStatus(projectId));
   const { busy, run, report } = useAction();
@@ -142,7 +142,7 @@ function ProjectProjectionSettings({ projectId, projectName }: { projectId: stri
       )}
       <p role="status" className="set-row__desc" style={{ marginTop: 8 }}>
         {t(`settings.sync.projection.${projection?.state === 'ready' ? 'ready' : projection?.state === 'error' ? 'error' : 'pending'}`)}
-        {projection?.generatedAt ? ` · ${new Date(projection.generatedAt).toLocaleString()}` : ''}
+        {projection?.generatedAt ? ` · ${new Date(projection.generatedAt).toLocaleString(i18n.language)}` : ''}
         {projection?.error ? ` · ${projection.error}` : ''}
       </p>
       {projection?.mirrorIssues?.map(issue => (
