@@ -81,3 +81,16 @@ and seven images from Hugh Thomson's illustrations, all in
 - **Our additions.** Chapter summaries, element notes, relations, storylines,
   timeline pins, comments, ideas and material notes in `showcase.ts` were
   written for Drifting and are AGPL-3.0-or-later like the rest of the client.
+
+## README screenshots
+
+`docs/screenshots/` (`shelf.webp`, `workspace.webp`, `elements.webp`) are
+captured from the app by `pnpm release:screenshots --readme`
+([docs/release-screenshots.md](docs/release-screenshots.md)). Everything in
+them is the app's own interface and the release screenshot library: Pride and
+Prejudice and Hugh Thomson's illustrations as described under
+[Built-in sample book](#built-in-sample-book), and books, names, prose and
+writing days written or generated for Drifting
+(`src/dev-cli/seeds/showcase/`, AGPL-3.0-or-later like the rest of the
+client). No author's manuscript or personal data is used.
+

@@ -2,7 +2,7 @@
 /**
  * Release screenshots of the macOS desktop app (docs/release-screenshots.md).
  *
- *   pnpm release:screenshots [--locale en|zh-CN] [--theme light|dark] [--background]
+ *   pnpm release:screenshots [--readme] [--locale en|zh-CN] [--theme light|dark] [--background]
  *                            [--position <x>,<y>] [--output <dir>] [--keep-open]
  *
  * For each interface language: reseeds the isolated `release-screenshots`
@@ -19,12 +19,17 @@
  * --background leaves focus alone: the window must then stay visible where it
  * is (or at --position), and its traffic lights are grey. --keep-open leaves
  * the last language's app running for a look around.
+ *
+ * --readme captures the English light scenes only and also writes them, 2000
+ * pixels wide as WebP, with their manifest to docs/screenshots/, which the
+ * README shows; every release commits them (scripts/check-release.mjs).
  */
 import { execFileSync, spawn, spawnSync, type SpawnOptions } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { EventEmitter } from 'node:events';
-import { existsSync, mkdirSync, openSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -37,6 +42,10 @@ const INSTANCE = 'release-screenshots';
 const LIBRARY = 'drifting-library.db';
 /** Wide enough for the English element overview's header in one line. */
 const WINDOW = { width: 1600, height: 1000 };
+/** The README's screenshots: committed, so small (WebP) and no wider than a Retina README needs. */
+const README_DIRECTORY = 'docs/screenshots';
+const README_WIDTH = 2000;
+const README_SCENES = ['shelf', 'workspace', 'elements'] as const;
 const LOCALES = ['en', 'zh-CN'] as const;
 const THEMES = ['light', 'dark'] as const;
 type Locale = (typeof LOCALES)[number];
@@ -50,14 +59,14 @@ const WORKSPACE: Record<Locale, { chapter: number; tabs: number[] }> = {
 
 interface Options {
   locales: Locale[]; themes: Theme[]; background: boolean; position: [number, number] | null;
-  output: string; keepOpen: boolean;
+  output: string; keepOpen: boolean; readme: boolean;
 }
 
 function parseArguments(args: string[]): Options {
   const version = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8')).version as string;
   const options: Options = {
     locales: [...LOCALES], themes: [...THEMES], background: false, position: null,
-    output: path.join(root, 'out', 'screenshots', version), keepOpen: false,
+    output: path.join(root, 'out', 'screenshots', version), keepOpen: false, readme: false,
   };
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index];
@@ -69,6 +78,7 @@ function parseArguments(args: string[]): Options {
     if (argument === '--') continue;
     else if (argument === '--background') options.background = true;
     else if (argument === '--keep-open') options.keepOpen = true;
+    else if (argument === '--readme') options.readme = true;
     else if (argument === '--output') options.output = path.resolve(value());
     else if (argument === '--locale') {
       const locale = value();
@@ -83,6 +93,10 @@ function parseArguments(args: string[]): Options {
       if (!Number.isFinite(x) || !Number.isFinite(y)) throw new Error('--position is <x>,<y> in screen points');
       options.position = [x, y];
     } else throw new Error(`Unknown argument ${argument}`);
+  }
+  if (options.readme) {
+    options.locales = ['en'];
+    options.themes = ['light'];
   }
   return options;
 }
@@ -370,6 +384,38 @@ async function main() {
   };
   writeFileSync(path.join(options.output, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
   console.log(`[screenshots] ${shots.length} screenshots in ${path.relative(root, options.output)} (${manifest.seconds} s)`);
+  if (options.readme) writeReadmeScreenshots(options.output, manifest);
+}
+
+/** The English light scenes, resized and encoded as WebP for the README, with their manifest. */
+function writeReadmeScreenshots(output: string, manifest: { version: string; recordedAt: string; source: unknown; window: unknown }) {
+  try {
+    execFileSync('cwebp', ['-version'], { stdio: 'ignore' });
+  } catch {
+    throw new Error('The README screenshots are WebP: install cwebp (brew install webp) and run again');
+  }
+  const directory = path.join(root, README_DIRECTORY);
+  mkdirSync(directory, { recursive: true });
+  const scratch = mkdtempSync(path.join(tmpdir(), 'drifting-readme-shots-'));
+  const files = [];
+  try {
+    for (const scene of README_SCENES) {
+      const resized = path.join(scratch, `${scene}.png`);
+      execFileSync('sips', ['--resampleWidth', String(README_WIDTH), path.join(output, `en-light-${scene}.png`), '--out', resized], { stdio: 'ignore' });
+      const file = path.join(directory, `${scene}.webp`);
+      execFileSync('cwebp', ['-quiet', '-q', '90', '-metadata', 'none', resized, '-o', file]);
+      const bytes = readFileSync(file);
+      files.push({ file: `${scene}.webp`, scene, ...pngSize(resized), bytes: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex') });
+    }
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
+  }
+  const readme = {
+    schemaVersion: 1, version: manifest.version, recordedAt: manifest.recordedAt, source: manifest.source,
+    window: manifest.window, locale: 'en', theme: 'light', files,
+  };
+  writeFileSync(path.join(directory, 'manifest.json'), `${JSON.stringify(readme, null, 2)}\n`);
+  console.log(`[screenshots] README screenshots for ${manifest.version} in ${README_DIRECTORY}: ${files.map((entry) => `${entry.file} ${Math.round(entry.bytes / 1024)} KB`).join(', ')}`);
 }
 
 main().catch((error) => { console.error(error instanceof Error ? error.message : error); process.exitCode = 1; });
