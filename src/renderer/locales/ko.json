@@ -460,6 +460,10 @@
           "label": "하단 타임라인 전환",
           "desc": "하단 타임라인을 표시하거나 숨깁니다"
         },
+        "toggleImmersiveWriting": {
+          "label": "몰입 쓰기",
+          "desc": "페이지만 남깁니다. 다시 누르거나 Esc로 돌아옵니다."
+        },
         "newEntity": {
           "label": "새로 만들기",
           "desc": "작품 홈을 열고 생성 작업줄을 표시합니다"
@@ -923,6 +927,10 @@
       "offline": "오프라인으로 Hosted 일시정지",
       "attention": "Hosted 확인 필요"
     }
+  },
+  "immersiveWriting": {
+    "enter": "몰입 쓰기",
+    "leave": "몰입 쓰기 종료"
   },
   "workspaceWordTally": {
     "selection": "선택 영역",

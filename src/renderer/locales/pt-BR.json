@@ -462,6 +462,10 @@
           "label": "Alternar linha do tempo inferior",
           "desc": "Mostra ou oculta a linha do tempo inferior"
         },
+        "toggleImmersiveWriting": {
+          "label": "Escrita imersiva",
+          "desc": "Fica só a página; pressione de novo ou Esc para voltar"
+        },
         "newEntity": {
           "label": "Novo",
           "desc": "Abre o início do projeto com a linha de criação acessível"
@@ -926,6 +930,10 @@
       "offline": "Hosted pausado por estar offline",
       "attention": "Hosted precisa de atenção"
     }
+  },
+  "immersiveWriting": {
+    "enter": "Escrita imersiva",
+    "leave": "Sair da escrita imersiva"
   },
   "workspaceWordTally": {
     "selection": "Seleção",

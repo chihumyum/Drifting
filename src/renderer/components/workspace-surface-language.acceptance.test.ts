@@ -116,7 +116,8 @@ describe('workspace surface language acceptance', () => {
     expect(account.indexOf('<WorkspaceWordTally />')).toBeLessThan(account.indexOf('<GhostIconButton'));
     expect(tally).toContain('deriveStatusWordMetric({');
     expect(tally).toContain('focusedLeafOf(activeTab)');
-    expect(tally).toContain('dailyGoalProgress(todayWords, dailyWordGoal)');
+    expect(tally).toContain('useTodayWords(projectId)');
+    expect(source('src/renderer/components/workspaceChrome/useTodayWords.ts')).toContain('dailyGoalProgress(todayWords, dailyWordGoal)');
     expect(tally).toContain('className="sand-stroke sidebar-account-cell__goal"');
     expect(tally).not.toContain('glass');
     const pill = block(shell, '.sidebar-account-cell__account {', '}');
