@@ -258,7 +258,10 @@ pub fn window_set_traffic_light_position(
 }
 
 /// Immersive writing hides the traffic lights; the window's top edge brings
-/// them back while the pointer stays there.
+/// them back while the pointer stays there. They fade by alpha rather than
+/// `setHidden`: unhiding makes AppKit lay the title bar out again, which
+/// drops the inset `window_set_traffic_light_position` gave them. A pointer
+/// that reaches them is already in the top band that shows them.
 #[tauri::command]
 pub fn window_set_traffic_lights_hidden(window: WebviewWindow, hidden: bool) -> Result<(), String> {
     #[cfg(target_os = "macos")]
@@ -274,7 +277,7 @@ pub fn window_set_traffic_lights_hidden(window: WebviewWindow, hidden: bool) -> 
                     NSWindowButton::ZoomButton,
                 ] {
                     if let Some(button) = native_window.standardWindowButton(kind) {
-                        button.setHidden(hidden);
+                        button.setAlphaValue(if hidden { 0.0 } else { 1.0 });
                     }
                 }
             })

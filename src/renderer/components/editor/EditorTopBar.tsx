@@ -134,12 +134,11 @@ export function EditorTopBar({
   const hostsTimelineToggle = useEditorCornerHostsTimelineToggle();
 
   return (
-    // The paper's lower-right corner: immersive writing and the Bottom
-    // Timeline toggle (on the right-hand pane only), each a round glass
-    // button of its own, then the document's own controls as one horizontal
-    // glass pill, each control a round glass button inside it.
+    // The paper's lower-right corner: the Bottom Timeline toggle, then the
+    // document's own controls as one horizontal glass pill, each control a
+    // round glass button inside it, then immersive writing. The two round
+    // buttons of their own stand on the right-hand pane only.
     <div className="editor-corner">
-      {hostsTimelineToggle && <ImmersiveWritingControl />}
       {hostsTimelineToggle && <TimelineToggle />}
       <div className="editor-bar glass glass--rest" role="toolbar" aria-orientation="horizontal">
         {plotPlannerToggle && (
@@ -215,6 +214,7 @@ export function EditorTopBar({
         {shareRequest && <MarkdownShareDialog target={shareRequest} onClose={() => setShareRequest(null)} />}
         {exportRequest && <ManuscriptExportDialog target={exportRequest} onClose={() => setExportRequest(null)} />}
       </div>
+      {hostsTimelineToggle && <ImmersiveWritingControl />}
     </div>
   );
 }

@@ -14,12 +14,14 @@ const selectors = (text: string) =>
 describe('immersive writing (docs/editor/immersive-writing.md)', () => {
   afterEach(() => useUiStore.setState({ immersiveWriting: false, activeSuperView: 'none' }));
 
-  it('opens from its own incense left of the timeline toggle or ⌘⇧↩, and Esc leaves', () => {
+  it('opens from its own incense right of the toolbar or ⌘⇧↩, and Esc leaves', () => {
     const bar = source('src/renderer/components/editor/EditorTopBar.tsx');
-    const corner = bar.slice(bar.indexOf('<div className="editor-corner">'), bar.indexOf('<div className="editor-bar'));
-    expect(corner).toMatch(/\{hostsTimelineToggle && <ImmersiveWritingControl \/>\}\s+\{hostsTimelineToggle && <TimelineToggle \/>\}/);
-    // Out of the pill: the toolbar no longer carries it.
-    expect(bar.slice(bar.indexOf('role="toolbar"'))).not.toContain('Immersive');
+    // Out of the pill, the corner's last control: timeline toggle, pill, incense.
+    const corner = bar.slice(bar.indexOf('<div className="editor-corner">'), bar.indexOf('function OutlineRailToggle'));
+    expect(corner).toMatch(/\{hostsTimelineToggle && <TimelineToggle \/>\}\s+<div className="editor-bar/);
+    expect(corner).toMatch(/<\/div>\s+\{hostsTimelineToggle && <ImmersiveWritingControl \/>\}\s+<\/div>\s+\);\s+\}/);
+    const pill = corner.slice(corner.indexOf('role="toolbar"'), corner.indexOf('{hostsTimelineToggle && <ImmersiveWritingControl />}'));
+    expect(pill).not.toContain('Immersive');
     const control = source('src/renderer/components/workspaceChrome/ImmersiveWriting.tsx');
     expect(control).toContain('icon={<BrushIcon name="incense" />}');
     expect(control).toContain('className="workspace-immersive-toggle glass--rest"');
@@ -78,19 +80,31 @@ describe('immersive writing (docs/editor/immersive-writing.md)', () => {
     }
   });
 
-  it('brings back the dock and traffic lights at the top edge and the pressed incense where it was', () => {
-    const lamp = { left: 1000, top: 740, right: 1028, bottom: 768 };
-    expect(immersivePeekAt(600, 20, lamp)).toBe('top');
-    expect(immersivePeekAt(990, 760, lamp)).toBe('corner');
-    expect(immersivePeekAt(1200, 760, lamp)).toBeNull();
+  it('brings back the dock and traffic lights at the top edge and the pressed incense in the stage corner', () => {
+    const exit = { left: 1236, top: 752, right: 1264, bottom: 780 };
+    expect(immersivePeekAt(600, 20, exit)).toBe('top');
+    expect(immersivePeekAt(1200, 770, exit)).toBe('corner');
+    expect(immersivePeekAt(1000, 770, exit)).toBeNull();
     expect(immersivePeekAt(600, 400, null)).toBeNull();
     expect(css()).toContain(".desktop-app-shell[data-immersive][data-immersive-peek='top'] .workspace-tab-dock");
-    expect(css()).toContain(".desktop-app-shell[data-immersive][data-immersive-peek='corner'] .immersive-writing-control");
-    expect(source('src/renderer/components/workspaceChrome/ImmersiveWriting.tsx'))
-      .toContain('return immersive && !hostedByEditor ? <ImmersiveWritingControl stage /> : null;');
+    expect(css()).toContain(".desktop-app-shell[data-immersive][data-immersive-peek='corner'] .immersive-writing-control--stage {");
+    // Immersed, the way out is the stage's own, in its lower-right corner,
+    // not the editor corner's button left of the (now hidden) toolbar.
+    const control = source('src/renderer/components/workspaceChrome/ImmersiveWriting.tsx');
+    expect(control).toContain('<div className="immersive-writing-control immersive-writing-control--stage">');
+    expect(control).toContain('<ImmersiveWritingToggle immersive />');
+    expect(source('src/renderer/shells/desktop/useImmersiveWriting.ts'))
+      .toContain("root.querySelector<HTMLElement>('.immersive-writing-control--stage')");
+    const stage = selectors(css()).indexOf('.immersive-writing-control--stage');
+    expect(stage).toBeGreaterThanOrEqual(0);
+    expect(css()).toMatch(/\.immersive-writing-control--stage \{\s+position: absolute;\s+z-index: 20;\s+right: 16px;\s+bottom: calc\(16px \+ var\(--glass-tray-padding\)\);/);
     expect(source('src/renderer/shells/desktop/useImmersiveWriting.ts')).toContain("setTrafficLightsHidden(next !== 'top')");
     expect(source('src-tauri/src/lib.rs')).toContain('commands::window_set_traffic_lights_hidden,');
-    expect(source('src-tauri/src/commands.rs')).toContain('button.setHidden(hidden);');
+    const commands = source('src-tauri/src/commands.rs');
+    // Alpha, not setHidden: unhiding relays the title bar out and loses the inset.
+    expect(commands).toContain('button.setAlphaValue(if hidden { 0.0 } else { 1.0 });');
+    expect(commands.slice(commands.indexOf('pub fn window_set_traffic_lights_hidden'))
+      .slice(0, 900)).not.toContain('setHidden');
     expect(source('src/renderer/platform/contracts.ts'))
       .toContain('window_set_traffic_lights_hidden: { args: { hidden: boolean }; result: void };');
   });
