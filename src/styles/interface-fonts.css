@@ -104,3 +104,21 @@ html[data-shell-mode='desktop'] :is(
   font-style: normal;
   letter-spacing: normal;
 }
+
+/* Prefer the selected writing system's glyph forms over SC fallbacks.
+   Latin roles and the author's independent manuscript font stay unchanged. */
+html[data-shell-mode='desktop']:lang(zh-TW) {
+  --font-structure: 'Newsreader Variable', 'Songti TC', 'Noto Serif CJK TC', 'PMingLiU', serif;
+  --font-ui: 'Source Sans 3 Variable', 'PingFang TC', 'Noto Sans CJK TC', 'Microsoft JhengHei', sans-serif;
+  --font-mono: ui-monospace, 'PingFang TC', 'Noto Sans Mono CJK TC', monospace;
+}
+html[data-shell-mode='desktop']:lang(ja) {
+  --font-structure: 'Newsreader Variable', 'Hiragino Mincho ProN', 'Yu Mincho', 'Noto Serif CJK JP', serif;
+  --font-ui: 'Source Sans 3 Variable', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', 'Noto Sans CJK JP', sans-serif;
+  --font-mono: ui-monospace, 'Hiragino Kaku Gothic ProN', 'Noto Sans Mono CJK JP', monospace;
+}
+html[data-shell-mode='desktop']:lang(ko) {
+  --font-structure: 'Newsreader Variable', 'AppleMyungjo', 'Batang', 'Noto Serif CJK KR', serif;
+  --font-ui: 'Source Sans 3 Variable', 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans CJK KR', sans-serif;
+  --font-mono: ui-monospace, 'Apple SD Gothic Neo', 'Noto Sans Mono CJK KR', monospace;
+}

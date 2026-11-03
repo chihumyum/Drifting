@@ -297,7 +297,7 @@ function MaterialRelations({
 
 /** Origin line: who made this material (author import, generation, old portrait). */
 function MaterialProvenanceLine({ item }: { item: LibraryItem }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const provenance = parseMaterialProvenance(item.provenanceJson);
   const elementName = useDataStore((state) => {
     if (provenance?.origin !== 'element-portrait') return null;
@@ -317,7 +317,7 @@ function MaterialProvenanceLine({ item }: { item: LibraryItem }) {
         >
           {t('materialEditor.provenance.generated', {
             model: generation.model,
-            date: new Date(generation.generatedAt).toLocaleDateString(),
+            date: new Date(generation.generatedAt).toLocaleDateString(i18n.language),
           })}
           {glass && <BrushIcon name="chevron-right" size={9} inline />}
         </button>

@@ -18,7 +18,7 @@ import { dailyGoalProgress, deriveStatusWordMetric } from '../status-word-metric
  * first (desktop-shell.css).
  */
 export function WorkspaceWordTally() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { projectId } = useProjectNavigation();
   const { openTabs, activeTabKey } = useProjectTabs(projectId);
   const { bookNodes, storylineNodeMapping } = useDataStoreFields('bookNodes', 'storylineNodeMapping');
@@ -51,17 +51,17 @@ export function WorkspaceWordTally() {
 
   const label = t(`workspaceWordTally.${metric.kind}`);
   const counting = t('workspaceWordTally.counting');
-  const format = (count: number | null) => (count == null ? counting : count.toLocaleString());
+  const format = (count: number | null) => (count == null ? counting : count.toLocaleString(i18n.language));
   const summary = [
     t('workspaceWordTally.part', { label, formatted: format(metric.count) }),
     todayWords == null
       ? null
       : dailyWordGoal > 0
         ? t('workspaceWordTally.todayGoalPart', {
-            formatted: todayWords.toLocaleString(),
-            goal: dailyWordGoal.toLocaleString(),
+            formatted: todayWords.toLocaleString(i18n.language),
+            goal: dailyWordGoal.toLocaleString(i18n.language),
           })
-        : t('workspaceWordTally.todayPart', { formatted: todayWords.toLocaleString() }),
+        : t('workspaceWordTally.todayPart', { formatted: todayWords.toLocaleString(i18n.language) }),
     metric.kind === 'book'
       ? null
       : t('workspaceWordTally.part', {
@@ -80,7 +80,7 @@ export function WorkspaceWordTally() {
       <span className="sidebar-account-cell__count sidebar-account-cell__count--today">
         <span>{t('workspaceWordTally.today')}</span>
         <span className="sidebar-account-cell__figure">
-          {todayWords == null ? counting : `+${todayWords.toLocaleString()}`}
+          {todayWords == null ? counting : `+${todayWords.toLocaleString(i18n.language)}`}
         </span>
         {progress != null && (
           <span

@@ -33,15 +33,15 @@ function diagnosticSummary(failure: DatabaseOpenFailureData): string {
 }
 
 export function DatabaseRecoveryBoundary({ failure }: { failure: DatabaseOpenFailure }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const primaryRef = useRef<HTMLButtonElement>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const sessionId = failure.recoverySessionId;
   const backup = failure.safetyBackup;
   const created = useMemo(
-    () => (backup ? new Date(backup.createdAtMs).toLocaleString() : null),
-    [backup],
+    () => (backup ? new Date(backup.createdAtMs).toLocaleString(i18n.language) : null),
+    [backup, i18n.language],
   );
 
   useEffect(() => {

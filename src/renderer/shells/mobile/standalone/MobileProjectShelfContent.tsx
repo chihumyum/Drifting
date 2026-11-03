@@ -88,7 +88,6 @@ export function MobileProjectShelfContent({
   const viewRef = useRef(view);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const focusSearchOnOverviewRef = useRef(false);
-  const isZh = i18n.language.startsWith('zh');
   const accountSettingsEnabled = hostedAccountSettingsEnabled();
 
   useEffect(() => {
@@ -204,7 +203,7 @@ export function MobileProjectShelfContent({
               type="button"
               className="m-shelf__corner-button"
               onClick={() => showOverview(true)}
-              aria-label={isZh ? '搜索项目' : 'Search projects'}
+              aria-label={t('projectPicker.mobile.search')}
             >
               <Search size={18} aria-hidden="true" />
             </button>
@@ -248,12 +247,12 @@ export function MobileProjectShelfContent({
                   <span className="m-shelf-pager__meta">
                     {project.stats.chapters} {t('common.chapters')} ·{' '}
                     {project.stats.wordsReady
-                      ? `${project.stats.words.toLocaleString()} ${t('common.words')}`
+                      ? `${project.stats.words.toLocaleString(i18n.language)} ${t('common.words')}`
                       : t('common.counting')}{' '}
                     · {lastEditedRel}
                   </span>
                   <span className="m-shelf-pager__continue">
-                    <span>{isZh ? '继续写作' : 'Continue writing'}</span>
+                    <span>{t('dashboard.continue.resume')}</span>
                     <ArrowRight size={14} strokeWidth={2} aria-hidden="true" />
                   </span>
                 </button>
@@ -292,7 +291,7 @@ export function MobileProjectShelfContent({
             type="button"
             className="m-shelf__view-toggle is-active"
             onClick={showPager}
-            aria-label={isZh ? '切换到单本浏览' : 'Show one project at a time'}
+            aria-label={t('projectPicker.mobile.singleView')}
             aria-pressed="true"
           >
             <LayoutGrid size={18} strokeWidth={1.8} aria-hidden="true" />
@@ -320,8 +319,8 @@ export function MobileProjectShelfContent({
             type="search"
             value={query}
             onChange={(event) => onQueryChange(event.target.value)}
-            placeholder={isZh ? '搜索项目' : 'Search projects'}
-            aria-label={isZh ? '搜索项目' : 'Search projects'}
+            placeholder={t('projectPicker.mobile.search')}
+            aria-label={t('projectPicker.mobile.search')}
           />
         </label>
         <button type="button" className="m-shelf__create" onClick={onCreate}>
@@ -330,7 +329,7 @@ export function MobileProjectShelfContent({
         </button>
       </section>
 
-      <nav className="m-shelf__filters" aria-label={isZh ? '项目筛选' : 'Project filters'}>
+      <nav className="m-shelf__filters" aria-label={t('projectPicker.mobile.filters')}>
         {(
           [
             ['all', t('projectPicker.filters.all'), counts.all],
@@ -387,7 +386,7 @@ export function MobileProjectShelfContent({
                     <span className="m-shelf-card__meta">
                       <span>
                         {project.stats.wordsReady
-                          ? `${project.stats.words.toLocaleString()} ${t('common.words')}`
+                          ? `${project.stats.words.toLocaleString(i18n.language)} ${t('common.words')}`
                           : t('common.counting')}
                       </span>
                       <span>
@@ -412,7 +411,7 @@ export function MobileProjectShelfContent({
                   type="button"
                   className="m-shelf-card__more"
                   onClick={() => setActionsProjectId(actionsOpen ? null : project.id)}
-                  aria-label={isZh ? `${project.name} 操作` : `${project.name} actions`}
+                  aria-label={t('projectPicker.mobile.actions', { name: project.name })}
                   aria-expanded={actionsOpen}
                 >
                   <MoreHorizontal size={20} aria-hidden="true" />

@@ -460,13 +460,14 @@ describe('floating layers, dialogs and the controls inside them', () => {
     expect(search).toContain('--search-find-match-bg:        hsl(var(--accent) / 0.16);');
   });
 
-  it('parts the account menu by hairlines and sets theme and language with GlassSliders', () => {
+  it('parts the account menu by hairlines and sets theme with a slider and language with a dropdown', () => {
     const menu = source('src/renderer/components/topBars/UserMenu.tsx');
     const controls = source('src/styles/ui-controls.css');
 
-    expect(menu.match(/<GlassSlider/g)).toHaveLength(2);
+    expect(menu.match(/<GlassSlider/g)).toHaveLength(1);
+    expect(menu).toContain('<GlassSelect');
     expect(menu).not.toContain("borderBottom: last ? 'none'");
-    // The mobile shelf keeps its older switch; the desktop has the sliders.
+    // Both shells share the language dropdown; desktop theme keeps its slider.
     expect(menu).toContain('const desktop = !getPlatformRuntime().isMobileShell;');
     expect(rule(controls, "html:not([data-shell-mode='mobile']) .user-menu__group {")).toContain(
       'border-bottom: 0;',

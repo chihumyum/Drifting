@@ -69,7 +69,8 @@ describe('Ideas / 构想 terminology acceptance', () => {
     const workspace = source('src/renderer/lib/agent/runtime/drifting-workspace-tool-runtime.ts');
     const prompt = source('src/renderer/lib/agent/runtime/system-prompt.ts');
 
-    expect(activity).toContain("list_inspirations: ['查看构想列表', 'Review ideas']");
+    expect(activity).toContain('agentTools.activity.');
+    expect(JSON.parse(source('src/renderer/locales/zh-CN.json')).agentTools.activity.list_inspirations).toBe('查看构想列表');
     expect(workspace).toContain("'/drifts': '构想'");
     expect(prompt).toContain('Call drift nodes ideas in English and 构想 in Chinese; they are not element categories.');
   });

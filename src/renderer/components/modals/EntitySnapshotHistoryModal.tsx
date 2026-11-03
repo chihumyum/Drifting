@@ -72,7 +72,7 @@ function toVm(row: EntitySnapshotSummary): RowVm {
 }
 
 export function EntitySnapshotHistoryModal() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [target, setTarget] = useState<Target | null>(null);
   const [rows, setRows] = useState<RowVm[] | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
@@ -184,7 +184,7 @@ export function EntitySnapshotHistoryModal() {
                 <div className="snapshot-history-modal__top">
                   <span className="snapshot-history-modal__time">{formatTime(row.createdAt)}</span>
                   <span className="snapshot-history-modal__words">
-                    {t('common.wordsCount', { count: row.words.toLocaleString() })}
+                    {t('common.wordsCount', { count: row.words.toLocaleString(i18n.language) })}
                   </span>
                   {row.metaLabel && <span className="snapshot-history-modal__meta">{row.metaLabel}</span>}
                   <span className="snapshot-history-modal__actions">

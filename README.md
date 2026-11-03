@@ -12,6 +12,8 @@ macOS 13+ · Apple Silicon · Early development
 
 [English](#english) | [简体中文](#简体中文)
 
+Interface: 简体中文 · 繁體中文 · English · 日本語 · 한국어 · Español · Deutsch · Français · Português (Brasil). [Localization](docs/internationalization.md).
+
 https://github.com/user-attachments/assets/54473d28-e047-4fce-9e6c-9e300cf83e8d
 
 <img width="1552" height="1012" alt="Screenshot 2026-11-02 at 4 54 53 PM" src="https://github.com/user-attachments/assets/28733411-98d7-4be4-8bd3-e84be7de2b5d" />

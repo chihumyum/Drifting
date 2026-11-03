@@ -1,0 +1,3734 @@
+{
+  "markdownShare": {
+    "title": "Markdownを共有",
+    "menu": "共有",
+    "wholeBook": "すべての章を原稿順に",
+    "currentBody": "この文書の全文",
+    "readOnly": "読み取り専用",
+    "preview": "Markdownソース（読み取り専用）",
+    "proseOnly": "見出し、本文、章のあらすじを含みます。コメントと構成メモは公開されません。",
+    "characters": "{{count}}文字",
+    "loading": "Markdownの全文を準備中…",
+    "loadFailed": "全文を読み込めませんでした。再試行してください。",
+    "retry": "再試行",
+    "copy": "すべてコピー",
+    "copying": "コピー中…",
+    "save": ".mdで保存",
+    "saving": "保存中…",
+    "copied": "Markdownの全文をコピーしました",
+    "saved": "Markdownを保存しました",
+    "failed": "操作を完了できませんでした。再試行するか、テキストを選択してコピーしてください。"
+  },
+  "manuscriptExport": {
+    "menu": "原稿をエクスポート",
+    "title": "原稿をエクスポート",
+    "loading": "章を読み込み中…",
+    "loadFailed": "章を読み込めませんでした。再試行してください。",
+    "retry": "再試行",
+    "format": "形式",
+    "scope": "対象範囲",
+    "wholeBook": "全編",
+    "selectedChapters": "選択した章",
+    "chapterCount_one": "{{count}}章",
+    "chapterCount_other": "{{count}}章",
+    "selectAll": "すべて選択",
+    "selectNone": "選択をすべて解除",
+    "contents": "内容",
+    "actTitles": "幕のタイトル",
+    "chapterTitles": "章のタイトル",
+    "outlineHeadings": "ビートとメモの見出し",
+    "bookInfo": "作品情報",
+    "bookTitle": "タイトル",
+    "author": "著者",
+    "cover": "表紙",
+    "chooseCover": "画像を選択",
+    "changeCover": "変更",
+    "removeCover": "削除",
+    "export": "{{format}}でエクスポート",
+    "exporting": "エクスポート中…",
+    "saved": "エクスポートしました",
+    "failed": "エクスポートを完了できませんでした。再試行してください。",
+    "coverFailed": "この画像を読み込めませんでした。",
+    "untitledChapter": "無題の章",
+    "untitledAct": "無題の幕"
+  },
+  "shareLink": {
+    "dialogTitle": "共有",
+    "title": "共有リンク",
+    "signIn": "ログイン",
+    "create": "共有リンクを作成",
+    "creating": "作成中…",
+    "url": "共有リンク",
+    "copy": "リンクをコピー",
+    "copied": "リンクをコピーしました",
+    "allowComments": "コメントを許可",
+    "revision": "バージョン{{revision}}",
+    "stop": "共有を停止",
+    "confirmStop": "共有を停止しますか？リンクは無効になります",
+    "stopping": "停止中…",
+    "failed": "完了できませんでした。接続を確認して再試行してください。",
+    "reauth": "ログインの有効期限が切れました。再度ログインしてお試しください。",
+    "readerBadge": "読者",
+    "listTitle": "共有リンク一覧",
+    "listLoading": "共有リンクを読み込み中…",
+    "listEmpty": "共有中の内容はありません",
+    "otherProject": "この端末にはありません",
+    "open": "開く",
+    "view": "表示",
+    "count": "{{count}}件を共有中"
+  },
+  "sidebarLayout": {
+    "split": "2列表示に戻す"
+  },
+  "appShell": {
+    "viewLoadFailed": "この画面を読み込めませんでした。再試行してください。",
+    "checkingAuthentication": "認証状態を確認中…",
+    "loadingProject": "作品を開いています…",
+    "preparingWorkspace": "ワークスペースを準備中…",
+    "readingProject": "作品の内容を読み込み中…",
+    "syncingProject": "作品の構成を更新中…",
+    "syncingProjectDetail": "Hostedの章、参考資料、作品構成の変更を統合中です。完了するまで作品を編集できません。",
+    "projectLoadFailedTitle": "この作品を開けませんでした",
+    "projectLoadFailedDetail": "データは変更されていません。ローカルデータベースを確認して再試行してください。",
+    "projectRefreshFailedTitle": "Hostedの変更を適用できませんでした",
+    "projectRefreshFailedDetail": "直前の完全なワークスペースは保全されています。作品を再読み込みしてください。",
+    "unexpectedTitle": "Driftingで予期しないエラーが発生しました",
+    "unexpectedDetail": "これ以上変更が行われないよう、現在の画面を停止しました。",
+    "retry": "もう一度試す"
+  },
+  "databaseRecovery": {
+    "title": "ライブラリの更新を安全に停止しました",
+    "detail": "Driftingは作品や設定を開いていません。次の操作を選ぶ間も、以前のデータベースと検証済みの安全コピーは保全されます。",
+    "errorCode": "失敗した段階",
+    "version": "データベースのバージョン",
+    "unknownVersion": "以前の開発版",
+    "safetyBackup": "安全コピー",
+    "retry": "隔離環境で更新を再試行",
+    "retrying": "再試行中…",
+    "restore": "安全コピーを復元",
+    "restoring": "確認・復元中…",
+    "restoreConfirm": "この安全コピーから候補データベースを作成し、移行と検証を行います。すべての確認に合格した場合のみ現在のデータベースを置き換えます。続行しますか？",
+    "export": "安全コピーをエクスポート",
+    "exported": "安全コピーをエクスポートしました。",
+    "openDirectory": "バックアップフォルダを開く",
+    "copyDiagnostics": "安全な診断情報をコピー",
+    "copied": "機密情報を除いた診断概要をコピーしました。",
+    "exit": "Driftingを終了",
+    "actionFailed": "復旧を完了できませんでした。未検証のデータベースは有効化されていません。"
+  },
+  "preAlphaGuide": {
+    "title": "Drifting Alphaへようこそ",
+    "intro": "アカウントなしで執筆できます。作品と本文はまずこの端末に保存されます。",
+    "localData": "Driftingのアカウントは不要です。作品、本文、関係、ごみ箱、履歴はアプリのローカルデータフォルダに保存されます。",
+    "byok": "Agentは試験提供中です。ご自身のモデル用キーまたはChatGPTのサブスクリプションが必要です。リクエスト、料金、データの扱いは選択した提供元に従います。キーはシステムのキーチェーンに保存されます。",
+    "crashReports": "問題の修正に役立てるため、原稿を含まない障害レポートを送信します。「設定 → プライバシー」で無効にできます。",
+    "settingsHint": "ローカルで続けて最初の作品を作り、執筆を始めましょう。",
+    "accountAction": "ログイン／登録して同期",
+    "continueLocal": "ローカルで続ける"
+  },
+  "firstRun": {
+    "email": "メールで続ける",
+    "local": "ローカルで続ける"
+  },
+  "markdownFolderGuide": {
+    "title": "Markdownフォルダの保存先は？",
+    "intro": "各作品のMarkdownコピーをここに保存します。他のエディタで章やアイデアを編集すると、変更がDriftingに統合されます。",
+    "default": "既定の場所",
+    "chosen": "選択したフォルダ",
+    "choose": "フォルダを選択…",
+    "useDefault": "既定の場所を使用",
+    "continue": "続ける"
+  },
+  "settings": {
+    "increase_value": "{{label}}を増やす",
+    "decrease_value": "{{label}}を減らす",
+    "loading": "設定を読み込み中…",
+    "loadFailed": "設定を読み込めませんでした。再試行してください。",
+    "title": "設定",
+    "search_placeholder": "設定を検索…",
+    "close": "閉じる",
+    "local_user": "ローカルユーザー",
+    "groups": {
+      "account": "アカウント",
+      "localData": "ローカルデータ",
+      "preferences": "環境設定",
+      "intelligence": "AI機能",
+      "control": "管理",
+      "about": "このアプリについて"
+    },
+    "rail": {
+      "account": "アカウント",
+      "subscription": "サブスクリプション",
+      "trash": "ごみ箱",
+      "appearance": "外観",
+      "editor": "エディタ",
+      "language": "言語",
+      "models": "モデルとAPI",
+      "agent": "汎用Agent・試験提供",
+      "keys": "キーボード",
+      "sync": "同期とデータ",
+      "updates": "アップデート",
+      "privacy": "プライバシー",
+      "about_app": "Driftingについて"
+    },
+    "common": {
+      "save": "保存",
+      "cancel": "キャンセル",
+      "edit": "編集",
+      "delete": "削除",
+      "manageKeys": "APIキーを管理",
+      "connect": "接続",
+      "disconnect": "切断",
+      "test_connection": "接続をテスト",
+      "open_in_browser": "ブラウザで開く"
+    },
+    "account": {
+      "export_all": "相互リンク付きMarkdownをエクスポート",
+      "export_all_desc": "このローカルライブラリの全作品を、章、アイデア、要素、コメント、資料メモと双方向Wikiリンク付きで出力します。画像とPDFは含まれず、このMarkdownアーカイブはDriftingへ再インポートできません。",
+      "export_all_btn": "MarkdownのZIPをエクスポート",
+      "exporting": "エクスポート中…",
+      "export_done": "Markdown文書を{{count}}件エクスポートしました。",
+      "export_failed": "エクスポート失敗：{{error}}"
+    },
+    "trash": {
+      "kicker": "ごみ箱",
+      "title": "仮削除された内容。",
+      "sub": "復元または完全削除するまで、この端末に保存されます。"
+    },
+    "appearance": {
+      "interface_text_size": "画面の文字サイズ",
+      "interface_text_size_desc": "この端末のデスクトップ画面の文字サイズを調整します。原稿にはエディタの文字サイズが適用されます。",
+      "interface_text_smallest": "最小",
+      "interface_text_small": "小さめ",
+      "interface_text_standard": "標準",
+      "interface_text_large": "大きめ",
+      "interface_text_largest": "最大",
+      "kicker": "外観",
+      "title": "机に落ちる光は、あなた次第。",
+      "sub": "執筆画面に合う明るさとアクセントカラーを選べます。",
+      "theme": "テーマ",
+      "theme_desc": "ライト、ダーク、またはシステムに合わせる。",
+      "light": "ライト",
+      "dark": "ダーク",
+      "system": "システムに合わせる",
+      "accent": "アクセントカラー",
+      "accent_color": "画面のアクセント",
+      "accent_color_desc": "ボタン、フォーカス、選択状態に使います。エディタのカーソル色は変わりません。",
+      "accent_reset": "既定値に戻す",
+      "animations": "アニメーションと画面遷移",
+      "agent_edit_reveal": "変更を表示するアニメーション",
+      "agent_edit_reveal_desc": "Agentによる本文・項目の編集と、他のエディタでの章・アイデアの編集を一文字ずつ表示します。無効にすると結果を即時表示します。未読の変更マークは残ります。",
+      "guides": "ガイド",
+      "replay_guides": "作品を初めて開くときのガイド",
+      "replay_guides_action": "もう一度表示"
+    },
+    "editor": {
+      "kicker": "エディタ",
+      "title": "文字を紙にどう置くか。",
+      "sub": "エディタの書体と執筆動作。出力設定とは独立しています。",
+      "preview": "プレビュー",
+      "preview_h1": "見出し1",
+      "preview_h2": "見出し2",
+      "preview_h3": "見出し3",
+      "preview_p1": "沈黙が、石を覆う潮のように二人の間に広がった。やがて彼女が口を開いた。風にさらわれそうな声は、彼がかろうじて聞き取れるところに落ちた。",
+      "preview_p2": "「戻ってくる？」彼はすぐには答えなかった。海に沈む夕日を見つめ、長い間を置いてうなずいた。それが約束なのか、憐れみなのか、自分にもわからなかった。",
+      "preview_p3": "防波堤を越えて、塩と湿り気を含んだ風が来た。彼女はコートをかき合わせ、もう何も尋ねず、問いを胸の内にしまった。",
+      "preview_p4": "遠くの灯台が明滅していた。誰も口にできないことを数えているようだった。波は、語られた言葉も語られなかった言葉も、その響きの中へ折り込んでいった。",
+      "preview_p5": "何年たっても、彼はあの夕暮れと、ついに言えなかった別れを覚えていた。海風が窓を渡るたび、あの沈黙は、一度も去らなかったかのように鮮明によみがえった。（Tabによる字下げの例です。）",
+      "preview_p6": "その後、二人は別々の人生を歩んだ。街の灯りが記憶を薄め、また照らした。それでも海と夕日とあのひとときは、いつも時を違えず戻ってきた。",
+      "typesetting": "組版",
+      "reset_style": "推奨スタイルに戻す",
+      "font_source": "本文のフォント",
+      "font_scope_desc": "章の本文、エンティティのタイトル・要約・長文、項目値、変化記録、参照内容、組版プレビューに適用します。画面、サイドバー、ダイアログ、ノードカードは共通のサンセリフ体です。フォント選択は端末固有で、執筆内容のSyncEngine同期対象に含まれません。",
+      "font_system_serif": "システムのセリフ体",
+      "font_system_serif_desc": "システムのセリフ体を使用",
+      "font_system_sans": "システムのサンセリフ体",
+      "font_system_sans_desc": "システムのサンセリフ体を使用",
+      "font_system_mono": "システムの等幅書体",
+      "font_system_mono_desc": "ui-monospace、SF Monoなど、この環境の等幅書体を使用",
+      "font_system_custom": "システムフォント",
+      "font_imported": "インポートしたフォント",
+      "font_not_configured": "フォントファミリー未指定",
+      "font_not_imported": "フォントファイル未登録",
+      "font_loading": "ローカルフォントを読み込み中…",
+      "font_system_title": "インストール済みのフォントを使う",
+      "font_system_help": "この端末から読み込まれたフォントを選ぶか、ファミリー名を入力してください。",
+      "font_system_loading": "フォント一覧を読み込み中…",
+      "font_system_loaded": "{{count}}種類のフォントファミリーを読み込みました。",
+      "font_system_unavailable": "この環境ではフォントを自動取得できません。ファミリー名を入力してください。",
+      "font_system_placeholder": "システムフォントを選択",
+      "font_system_manual": "一覧にない場合はファミリー名を入力",
+      "font_system_manual_placeholder": "例：Charter",
+      "font_use": "使用",
+      "font_system_required": "まずシステムフォントのファミリー名を入力してください。",
+      "font_system_applied": "指定のフォントに切り替えました。上のプレビューで、インストールされているか確認してください。",
+      "font_import_title": "フォントファイルをインポート",
+      "font_import_help": "TTF、OTF、WOFF、WOFF2の標準・可変フォントに対応。上限64 MB。",
+      "font_import": "フォントをインポート",
+      "font_importing": "処理中…",
+      "font_replace": "置き換え",
+      "font_remove": "削除",
+      "font_import_done": "フォントをこの端末に保存し、執筆内容に適用しました。",
+      "font_remove_done": "アプリが保存したフォントのコピーを削除しました。",
+      "font_error_empty": "フォントファイルが空です。",
+      "font_error_format": "TTF、OTF、WOFF、WOFF2のみ対応しています。",
+      "font_error_size": "フォントファイルは64 MB以下にしてください。",
+      "font_error_invalid": "ファイルを読み取れません。有効な標準フォントまたは可変フォントを選んでください。",
+      "font_error_storage": "ローカルのフォント保存領域を利用できません。アプリを再起動してお試しください。",
+      "font_error_unknown": "このフォントを処理できませんでした。別のファイルをお試しください。",
+      "font_size": "文字サイズ",
+      "font_size_desc": "エディタ表示のみに適用し、出力には影響しません。",
+      "line_height": "行の高さ",
+      "text_wrap": "折り返し",
+      "text_wrap_desc": "「安定」は各行を埋め、後方を編集しても前の改行を保ちます。「整形」は段落全体で折り返しを調整します。即時反映し、この端末に保存します。",
+      "text_wrap_stable": "安定",
+      "text_wrap_pretty": "整形",
+      "indent": "段落の字下げ",
+      "indent_desc": "エディタ表示専用です。出力には別の設定を使います。",
+      "indent_none": "なし",
+      "indent_one": "1文字",
+      "indent_two": "2文字",
+      "tab_indent": "Tabで字下げ",
+      "tab_indent_desc": "Tabで増やす段落字下げ1段分の幅です。Shift+Tabで戻せます。",
+      "chars_count": "{{count}}文字",
+      "paragraph_spacing": "段落の間隔",
+      "paragraph_spacing_desc": "本文段落と各レベルの見出しに共通の間隔です。本文の文字サイズを基準とし、エディタ表示だけに適用します。",
+      "page_width": "用紙の幅",
+      "page_width_desc": "エディタの用紙幅です。本文は固定の余白を除いた幅に収まります。",
+      "flow": "執筆の流れ",
+      "typewriter_mode": "タイプライターモード",
+      "typewriter_mode_desc": "入力やカーソル移動中、現在の行を画面内の一定位置に保ちます。エディタ表示のみに適用します。",
+      "typewriter_position": "入力行の位置",
+      "typewriter_position_desc": "エディタ上端からの割合：25%は上、50%は中央、75%は下。",
+      "caret_color": "カーソルの色",
+      "caret_color_desc": "本文の入力カーソルの色を選びます。",
+      "entity_link_style": "エンティティリンクの強調",
+      "entity_link_style_desc": "所属先の色、種類別の色、ホバー時だけ所属先の色、または本文色と色帯を使います。",
+      "entity_link_style_contextual": "所属先別",
+      "entity_link_style_kind": "種類別",
+      "entity_link_style_hover": "ホバー時のみ",
+      "entity_link_style_prose": "本文",
+      "entity_link_highlight": "エンティティリンクの強調方法",
+      "entity_link_highlight_desc": "色帯、文字色、または両方でリンクを強調します。ホバー時の強調にも適用します。",
+      "entity_link_highlight_band": "色帯",
+      "entity_link_highlight_text": "文字色",
+      "entity_link_highlight_both": "両方",
+      "entity_link_band_style": "リンクの色帯スタイル",
+      "entity_link_band_style_desc": "柔らかな連続した色帯、または文字の下に細かな点列を表示します。",
+      "entity_link_band_style_wash": "連続した色帯",
+      "entity_link_band_style_dots": "細かな点",
+      "entity_link_kind_element": "要素",
+      "entity_link_kind_chapter": "章",
+      "entity_link_kind_drift": "アイデア",
+      "entity_link_kind_patch": "変化記録",
+      "entity_link_kind_category": "カテゴリ",
+      "entity_link_kind_storyline": "ストーリーライン",
+      "auto_element_link": "要素を自動リンク",
+      "auto_element_link_desc": "入力中に既存の要素名を認識し、そのページにリンクします。"
+    },
+    "language": {
+      "kicker": "言語",
+      "title": "画面に使う言葉。",
+      "ui_locale": "表示言語",
+      "ui_locale_desc": "メニュー、ボタン、メッセージの言語です。執筆内容には影響しません。"
+    },
+    "sync": {
+      "local_kicker": "ローカルデータ",
+      "local_title": "作品はこの端末に。",
+      "local_sub": "Driftingのアカウントやクラウドは使いません。いつでも読めるコピーを出力できます。",
+      "local_data": "ローカルデータ",
+      "backup": {
+        "exportTitle": "ライブラリのバックアップ",
+        "exportDesc": "全作品のデータベースと元の画像・PDFを1つの.driftingファイルにまとめます。復元や他のパソコンへの移行に使えます。",
+        "exportButton": "バックアップを出力…",
+        "exporting": "バックアップ中…",
+        "exported": "「{{file}}」を保存しました。",
+        "summary": "{{projects}}作品、素材{{assets}}ファイル、{{size}}。",
+        "missingAssets": "この端末にない素材{{count}}件はバックアップされませんでした。",
+        "restoreTitle": "バックアップから復元",
+        "restoreDesc": ".driftingバックアップで現在のライブラリを置き換えます。実行前に現在のコピーを保存します。",
+        "restoreButton": "バックアップを選択…",
+        "inspecting": "検証中…",
+        "restoring": "復元中…",
+        "openSafety": "復元前のコピーを開く",
+        "restoreConfirm": "「{{file}}」で現在のライブラリを置き換えます。\n\n作成日時：{{date}}\n内容：{{summary}}\n作品：{{projects}}\n\n現在のライブラリは復元前コピーとして保存します。「復元前のコピーを開く」から確認できます。完了後、Driftingを再読み込みします。",
+        "restoreConfirmButton": "置き換えて復元",
+        "noProjects": "（作品なし）",
+        "loading": "同期状態を読み込み中…",
+        "syncConnected": "同期中はライブラリをバックアップ・復元できません。まず「アカウント」で同期を切断してください。",
+        "errors": {
+          "sync-connected": "同期中はライブラリをバックアップ・復元できません。まず「アカウント」で同期を切断してください。",
+          "invalid": "有効なDriftingバックアップではないか、破損しています。現在のライブラリは変更されていません。",
+          "newer": "新しいバージョンのDriftingで作成されたバックアップです。アプリを更新してから復元してください。",
+          "unknown": "操作を完了できませんでした。現在のライブラリは変更されていません：{{detail}}"
+        }
+      },
+      "history": "バージョン履歴",
+      "auto_snapshot": "自動スナップショット",
+      "auto_snapshot_desc": "本文やエンティティの変更後、約15分ごとに作成します。ローカルで30日間保存し、自動的に間引きます。",
+      "auto_snapshot_active": "有効",
+      "import_files": "インポート",
+      "import_files_desc": "Word（.docx）、Markdown、プレーンテキストから。",
+      "select_file": "ファイルを選択…",
+      "projection": {
+        "title": "Markdownフォルダ",
+        "description": "各作品の構造化Markdownを、ローカル閲覧、検索、外部ツールに利用できます。Driftingの起動中は他のエディタで章やアイデアを編集し、変更を統合できます。他のファイルは自動生成・読み取り専用です。",
+        "reveal": "Finderで表示",
+        "defaultLocation": "全作品・既定の場所",
+        "customLocation": "全作品・指定した場所",
+        "locationHint": "この端末上で作品ごとにフォルダを作ります。場所を変更しても、以前のフォルダはそのまま残ります。",
+        "choose": "フォルダを選択",
+        "reset": "既定の場所に戻す",
+        "openProject": "作品を開くと、更新状態の確認や個別の保存先設定ができます。",
+        "projectDefault": "「{{project}}」・全作品の設定に従う",
+        "projectCustom": "「{{project}}」・個別の場所",
+        "chooseProject": "この作品の場所を選択",
+        "resetProject": "全作品の設定に従う",
+        "ready": "最新です",
+        "error": "更新失敗",
+        "pending": "更新中",
+        "copy": "パスをコピー",
+        "refresh": "今すぐ更新",
+        "copied": "パスをコピーしました",
+        "changed": "保存先を変更し、新しい場所にMarkdownを生成しました。以前のフォルダは元の場所に残ります。",
+        "turnOff": "Markdownフォルダを無効化",
+        "offTitle": "Markdownフォルダを無効にしますか？",
+        "offWarning": "全作品のMarkdown出力を停止します。外部エディタやAgentには現在のファイルだけが残り、外部での編集はDriftingに統合されなくなります。既存ファイルは移動しません。「設定 → 同期とデータ」で再開できます。",
+        "offHint": "無効：Markdownを出力せず、外部編集も統合しません。既存ファイルは元の場所に残ります。",
+        "turnOn": "有効にする",
+        "preserved_one": "編集済みの旧ファイル1件を.drifting/preservedに保存しました。",
+        "preserved_other": "編集済みの旧ファイル{{count}}件を.drifting/preservedに保存しました。",
+        "issue": {
+          "frontmatter": "{{path}}：冒頭のプロパティ形式が不正です。修正されるまで統合も上書きもしません。",
+          "identity": "{{path}}：drifting-idが別の章を指すため統合しません。.drifting/preservedに保存しました。",
+          "empty": "{{path}}：本文が空のため統合しません。.drifting/preservedに保存しました。章を空にするにはDriftingで操作してください。",
+          "lineage": "{{path}}：Driftingで章が復元・リセットされたため、自動統合できません。.drifting/preservedに保存しました。",
+          "missing": "{{path}}：この章はDriftingで削除されています。",
+          "encoding": "{{path}}：UTF-8ではないため読み込みません。.drifting/preservedに保存しました。",
+          "too-large": "{{path}}：大きすぎるため読み込みません。.drifting/preservedに保存しました。",
+          "unreadable": "{{path}}：読み込めませんでした。"
+        }
+      }
+    },
+    "keys": {
+      "kicker": "キーボード",
+      "title": "キーボードから手を離さずに。",
+      "sub": "ショートカットをクリックして変更します。Escで記録を取り消します。",
+      "allActions": "全操作・{{count}}件",
+      "allActionsShort": "全操作・{{count}}",
+      "recording": "記録中",
+      "resetOneTitle": "ダブルクリックで既定値に戻す",
+      "pressNewCombo": "新しい組み合わせを押す…",
+      "resetAll": "すべて既定値に戻す",
+      "resetAllDesc": "すべてのショートカットをリセットします。",
+      "reset": "復元",
+      "conflict": "{{accelerator}}は「{{action}}」で使用中です",
+      "actions": {
+        "closeActiveTab": {
+          "label": "現在のタブを閉じる",
+          "desc": "下部Dockの現在のタブを閉じます"
+        },
+        "findInEditor": {
+          "label": "現在のエディタ内を検索",
+          "desc": "現在開いているエディタのテキストを検索します"
+        },
+        "globalSearch": {
+          "label": "全体を検索",
+          "desc": "章、ストーリーライン、要素、カテゴリを横断して検索します"
+        },
+        "saveCurrentEditor": {
+          "label": "現在のエディタを保存",
+          "desc": "現在のエディタを保存し、開いている全文書をローカルに書き込みます"
+        },
+        "goBack": {
+          "label": "戻る",
+          "desc": "ブラウザの「戻る」のように、前に開いたページへ戻ります"
+        },
+        "goForward": {
+          "label": "進む",
+          "desc": "ブラウザの「進む」のように、次の訪問済みページへ進みます"
+        },
+        "prevTab": {
+          "label": "前のタブ",
+          "desc": "開いているタブを左へ移動します"
+        },
+        "nextTab": {
+          "label": "次のタブ",
+          "desc": "開いているタブを右へ移動します"
+        },
+        "toggleBottomTimeline": {
+          "label": "下部タイムラインを切り替え",
+          "desc": "下部タイムラインを表示・非表示にします"
+        },
+        "newEntity": {
+          "label": "新規",
+          "desc": "作品ホームを開き、新規作成行を表示します"
+        },
+        "closeProject": {
+          "label": "作品を閉じる",
+          "desc": "作品を閉じて本棚へ戻ります"
+        }
+      }
+    },
+    "update": {
+      "kicker": "アップデート",
+      "title": "新しいバージョンは、好きなときに。",
+      "sub": "起動後、GitHubの新規リリースを1日1回まで確認します。ダウンロードとインストールは、あなたの操作を待ちます。",
+      "current_version": "現在のバージョン",
+      "channel_desc": "Apple Silicon・macOS 13以降",
+      "unavailable": "このビルドには更新署名キーがなく、更新を確認できません。GitHubからダウンロードしたリリース版では利用できます。",
+      "check": "新しいバージョン",
+      "check_action": "アップデートを確認",
+      "checking": "確認中…",
+      "no_update": "最新のバージョンです。",
+      "available_version": "Drifting {{version}}を利用できます",
+      "download": "ダウンロード",
+      "downloading": "ダウンロード・署名検証中…",
+      "downloading_progress": "ダウンロード・検証中… {{progress}}%",
+      "install": "インストールして再起動…",
+      "confirm_install": "インストールして再起動",
+      "install_migration_safety": "新しい版でデータ更新が必要な場合、次回起動時に検証済みの安全スナップショットを作成し、移行の検証に合格してから切り替えます。",
+      "dismiss": "今はしない",
+      "installing": "保存・インストール中…",
+      "save_failed": "変更を保存できなかったため、更新をインストールしませんでした。原稿は開いたままです。少し待って再試行してください。",
+      "check_failed": "更新を確認できません。接続がない可能性があります。後ほど再試行してください。現在の版は引き続き使えます。",
+      "error": "更新を停止しました：{{error}}",
+      "states": {
+        "checking": "確認中…",
+        "available": "ダウンロードできます。",
+        "downloading": "ダウンロード・検証中…",
+        "installing": "変更を保存してインストールしています。完了後にDriftingが再起動します…",
+        "ready": "ダウンロードと検証が完了しました。インストールできます。",
+        "error": "更新を停止しました。現在の版は変更されていません。"
+      }
+    },
+    "privacy": {
+      "kicker": "プライバシー",
+      "title": "原稿を守る境界。",
+      "sub": "Driftingが何を使い、何を使わず、いつデータが端末の外へ送られるかを説明します。",
+      "dataUsage": "データの利用",
+      "crashLogs": "障害の診断情報を自動送信",
+      "crashLogsDesc": "機密情報を除いたエラー箇所、バージョン、環境を開発者へ送信し、障害の調査に役立てます。原稿は含みません。いつでも無効にできます。",
+      "diagnostics": "機密情報を除いた診断概要",
+      "diagnosticsDesc": "バージョン、環境、機能の利用可否、同期件数・エラー種別、更新状態をコピーします。原稿、認証情報、作品ID、絶対パスは含まず、自動送信もしません。",
+      "copyDiagnostics": "概要をコピー",
+      "diagnosticsCopied": "機密情報を除いた診断概要をコピーしました。",
+      "diagnosticsCopyFailed": "クリップボードへ書き込めません。アクセス権限がない可能性があります。",
+      "fullPolicy": "プライバシーポリシー全文",
+      "lastUpdated": "最終更新：2026-10-31",
+      "noteHosted": "作品はまずこの端末に保存されます。Hosted同期を接続すると作品と元の素材が、共有リンクを作ると共有部分だけがDriftingのサーバーへ送られます。同期中は外観、組版、ショートカットなどの設定もアカウントに同期します。送信したフィードバックと、下で有効にした場合の障害診断も開発者へ届きます。診断に原稿は含みません。AI・音声文字起こしはDriftingを経由せず端末から選択した提供元へ直接送信され、その提供元のデータ・学習規約が適用されます。追加したリモートMCP拡張もネットワークを使います。",
+      "noteLocal": "このビルドはDriftingのサーバーへ接続せず、作品は端末に残ります。AI・音声文字起こしは端末から選択した提供元へ直接送られ、その提供元のデータ・学習規約が適用されます。追加したリモートMCP拡張もネットワークを使います。"
+    },
+    "about": {
+      "kicker": "このアプリについて",
+      "title": "Drifting",
+      "sub": "最高の執筆体験を",
+      "version": "バージョン",
+      "channel": "リリースチャンネル",
+      "channelPreAlpha": "Alpha",
+      "engine": "エンジン",
+      "credits": "謝辞とライセンス",
+      "fonts": "フォント",
+      "fontsDesc": "Inter Tight・システムフォント・ユーザー登録フォント",
+      "openSource": "オープンソースの依存ライブラリ",
+      "viewList": "一覧を見る",
+      "sourceCode": "ソースコード",
+      "sourceCodeDesc": "このAGPLクライアントに対応するソースコード",
+      "viewSource": "ソースを見る",
+      "license": "クライアントのライセンス",
+      "licenseDesc": "GNU AGPL v3以降",
+      "viewLicense": "ライセンスを見る",
+      "knownIssues": "既知の問題",
+      "knownIssuesDesc": "現在のAlpha版の既知の制限",
+      "contact": "連絡先",
+      "support": "Alphaサポート",
+      "supportDesc": "問題の解決方法と安全な報告手順",
+      "emailTeam": "チームにメールする",
+      "writeEmail": "メールを作成",
+      "submitFeedback": "フィードバックを送る",
+      "submitFeedbackDesc": "機密情報を除いた診断概要を添付できます。原稿は含みません。",
+      "submitFeedbackMailDesc": "空のメールを開きます。Driftingは原稿の内容を自動添付しません。",
+      "feedback": "フィードバック…",
+      "tagline": "夜更けまで書き続ける人へ。"
+    },
+    "models": {
+      "kicker": "モデル提供元",
+      "title": "DriftingのAI機能が接続するサービス。",
+      "sub": "提供元ごとにこの端末へ1つのキーを保存します。Agentの初回ガイドで接続したキーもここでテスト、変更、切断できます。",
+      "credentialsTitle": "モデル提供元",
+      "credentialsDesc": "キーはこの端末のシステムキーチェーンだけに保存し、他の端末に同期せずDriftingも経由しません。Agent入力欄の設定メニューで提供元とモデルを選びます。",
+      "providers": {
+        "deepseek": "汎用Agentで使用します。",
+        "anthropic": "汎用Agentで使用します。",
+        "openai": "汎用Agentで使用します。",
+        "openaiCodex": "試験機能：OpenAIのCodex端末認証でログインし、ご自身のChatGPT契約と利用可能なモデルで汎用Agentを動かします。要素の設定画生成にも使います。この経路にOpenAIの第三者向け契約はなく、予告なく使えなくなる場合があります。使用量はChatGPTプランに計上されます。",
+        "dashscope": "音声入力の文字起こし専用です（Qwen3-ASR）。Alibaba Cloud BailianのコンソールでAPIキーを作成してください。"
+      },
+      "speechTitle": "音声文字起こし",
+      "speechDesc": "上のチャット提供元とは別の、音声入力用認証情報です。固有名詞の補正のため作品の要素名や設定名を添えます。端末からBailianへ直接送信し、キーはシステムキーチェーンだけに保存します。"
+    },
+    "byokProvider": {
+      "ownKey": "自分のキー",
+      "notConnected": "未接続",
+      "keyPlaceholder": "キーを貼り付け…",
+      "testing": "テスト中…",
+      "available": "利用可能",
+      "editKey": "キーを編集",
+      "invalidKey": "無効なキー",
+      "requestFailed": "リクエスト失敗（提供元またはネットワークの問題）"
+    },
+    "codexSubscription": {
+      "name": "ChatGPTサブスクリプション",
+      "signedInAs": "ログイン済み",
+      "notSignedIn": "未ログイン",
+      "signIn": "ChatGPTでログイン",
+      "signOut": "ログアウト",
+      "openVerification": "認証ページを開く",
+      "codeLabel": "ワンタイムコード",
+      "codeHint": "OpenAIの端末認証ページに入力してください。承認されるまでDriftingが確認します",
+      "exchanging": "承認済み、ログインを完了中…",
+      "plan": "プラン",
+      "startFailed": "ログインを開始できません。接続を確認して再試行してください。",
+      "cancelled": "ログインを取り消しました。",
+      "failure": {
+        "expired": "承認される前にコードの期限が切れました。",
+        "provider_rejected": "OpenAIがログインを拒否しました。",
+        "network_failed": "OpenAIに接続できませんでした。",
+        "invalid_response": "OpenAIから予期しない応答が返されました。",
+        "storage_failed": "ログイン情報をキーチェーンに保存できませんでした。"
+      }
+    },
+    "agent": {
+      "kicker": "汎用AGENT・試験提供",
+      "title": "右サイドバーで操作を行う、試験提供中のAgent。",
+      "sub": "ご自身のモデルキーまたはChatGPT契約で動作し、端末から提供元へ直接送信します。変更は毎回確認してください。料金、プライバシー、保存期間、学習規約、出力リスクは提供元に従います。",
+      "unavailableTitle": "汎用Agentのランタイムが未導入です",
+      "unavailableStatus": "有効な通信経路がありません",
+      "unavailableReason": "このウィンドウには利用可能なAgentモデルドライバまたはツール実行環境がありません。",
+      "unavailableFuture": "作品を開き直してください。解消しない場合はアプリの版と提供元のAPIキーを確認してください。",
+      "chatConfigTitle": "チャット設定",
+      "chatConfigDesc": "右側のAgent入力欄で提供元、モデル、推論強度を選びます。キーとChatGPT契約は「モデルとAPI」で管理します。",
+      "modelOptions": {
+        "deepseek-v4-flash": {
+          "label": "DeepSeek Flash・高速",
+          "short": "Flash"
+        },
+        "deepseek-v4-pro": {
+          "label": "DeepSeek Pro・安定",
+          "short": "Pro"
+        },
+        "claude-sonnet-5": {
+          "label": "Claude Sonnet 5・バランス",
+          "short": "Sonnet 5"
+        },
+        "claude-haiku-4-5-20251001": {
+          "label": "Claude Haiku 4.5・高速",
+          "short": "Haiku 4.5"
+        },
+        "gpt-5.6-sol": {
+          "label": "GPT-5.6 Sol・最先端",
+          "short": "5.6 Sol"
+        },
+        "gpt-5.6-terra": {
+          "label": "GPT-5.6 Terra・バランス",
+          "short": "5.6 Terra"
+        },
+        "gpt-5.6-luna": {
+          "label": "GPT-5.6 Luna・効率重視",
+          "short": "5.6 Luna"
+        }
+      },
+      "effortOptions": {
+        "minimal": "最小",
+        "low": "低",
+        "medium": "中",
+        "high": "高",
+        "xhigh": "非常に高い",
+        "max": "最大",
+        "ultra": "極めて高い"
+      },
+      "extensions": {
+        "title": "MCP拡張",
+        "desc": "外部ツールを作品に接続します。stdioはデスクトップ専用、Streamable HTTPは両環境対応です。未知のツールは既定で「書き込み・確認」です。",
+        "add": "サーバーを追加",
+        "addTitle": "MCPサーバーを追加",
+        "editTitle": "MCPサーバーを編集",
+        "empty": "この作品にMCPサーバーはありません。",
+        "noProject": "作品を開いてMCPを設定してください。",
+        "loadFailed": "MCP設定を読み込めませんでした。",
+        "name": "名前",
+        "transport": "通信方式",
+        "command": "実行ファイルの絶対パス",
+        "args": "引数（1行に1つ）",
+        "cwd": "作業ディレクトリの絶対パス（任意）",
+        "url": "MCPエンドポイント",
+        "publicEnv": "公開環境変数（1行にNAME=value）",
+        "publicHeaders": "公開ヘッダー（1行にNAME=value）",
+        "secretEnv": "機密環境変数（1行にNAME=value）",
+        "secretHeaders": "機密ヘッダー（1行にNAME=value）",
+        "secretHint": "機密値はシステムキーチェーンだけに保存します。既存の値を空欄にすると元の値を保ちます。",
+        "reconnect": "再接続",
+        "enable": "有効化",
+        "disable": "無効化",
+        "notChecked": "まだ接続していません",
+        "deleteConfirm": "MCPサーバー「{{name}}」を削除しますか？継続許可も取り消されます。",
+        "grantsTitle": "継続許可",
+        "grantsDesc": "各許可は作品、サーバー設定、ツールスキーマ、引数ハッシュに厳密に結び付いています。",
+        "noGrants": "継続許可はありません。",
+        "revoke": "取り消す",
+        "policy": {
+          "autoRead": "読み取り・自動",
+          "askRead": "読み取り・確認",
+          "askWrite": "書き込み・確認",
+          "disabled": "無効"
+        }
+      },
+      "mcpAccess": {
+        "projectionDescription": "外部AgentもMarkdownコピーを利用でき、章・アイデアのファイルを直接編集できます。「同期とデータ → ローカルデータ」で設定します。",
+        "title": "外部Agentのアクセス",
+        "desc": "Codex、Claude Code、Antigravityなどに「{{project}}」へのアクセスを許可します。各接続の範囲はこの作品だけです。",
+        "name": "接続名",
+        "permission": "アクセス権限",
+        "connectionPermission": "{{name}}のアクセス権限",
+        "permissionUpdated": "権限を適用し、ツール更新をクライアントに通知しました。古いツールが残る場合はMCP接続を再起動してください。",
+        "read": "読み取り専用",
+        "write": "変更を許可",
+        "full": "変更と破壊的操作を許可",
+        "create": "接続を作成",
+        "local": "ローカルアクセス専用です。Driftingと作品を開いたままにしてください。接続を取り消すと新規リクエストを即座に拒否します。確定済みの変更は残ります。",
+        "config": "接続設定",
+        "revoke": "取り消す",
+        "copy": "MCP設定をコピー",
+        "copied": "コピーしました。外部AgentのMCP設定に追加してください。",
+        "connect": "{{client}}を接続",
+        "connectAction": "接続",
+        "automatic": "ローカルクライアントへMCPアクセスを自動追加します。設定のコピーや端末コマンドは不要です。",
+        "manual": "その他のクライアント・手動設定",
+        "reinstall": "再設定",
+        "installed": "{{client}}を設定しました。クライアントまたはMCPサーバーを再起動して接続を読み込み、初回はツール承認の案内に従ってください。",
+        "revoked": "アクセスを取り消し、自動追加したクライアント設定を削除しました。",
+        "revokedWarning": "アクセスを取り消しました。クライアント設定が変更済みか更新できません。クライアント側でこの接続を削除してください。"
+      },
+      "replayOnboarding": "初回ガイドをもう一度表示"
+    },
+    "agentLimits": {
+      "title": "実行上限",
+      "desc": "実行区間ごとのモデル反復回数を制限します。上限で進捗を保存し、許可された継続タスクは自動再開します。停止中のタスクは手動でも続行できます。次の区間から適用します。",
+      "iterationLabel": "1ターンのモデル反復上限",
+      "iterationOption": "{{value}}回",
+      "unlimited": "無制限",
+      "unlimitedHint": "無制限では、自分でターンを停止するまで続きます。"
+    },
+    "agentMemory": {
+      "title": "作品の記憶"
+    },
+    "agentUsage": {
+      "usage": "使用量",
+      "usageDesc": "各ターンの応答に基づき、この作品でAgentが使ったトークンを記録します。入力にはキャッシュ読み取りを含みます。今月または全期間を表示できます。",
+      "noProjectUsage": "作品を開いてAgentの使用量を確認してください。",
+      "month": "今月",
+      "all": "全期間",
+      "tokenCard": "{{scope}} トークン",
+      "conversationsTurns": "会話／ターン",
+      "history": "会話履歴",
+      "historyDesc": "この作品のAgent会話一覧です。削除は仮削除で、右側の履歴に反映されます。他の作品には影響しません。",
+      "clearHistory": "履歴を消去",
+      "noProjectHistory": "作品を開いて会話履歴を管理してください。",
+      "noHistory": "会話はまだありません。Agentにメッセージを送って始めましょう。",
+      "untitled": "無題",
+      "deleteConversation": "この会話を削除",
+      "clearConfirm": "履歴をすべて消去しますか？この作品のAgent会話{{count}}件を削除します。"
+    },
+    "hosted": {
+      "title": "アカウントとHosted同期",
+      "description": "原稿はまずこの端末に保存します。アカウントを接続すると、自分の端末間で作品を同期できます。",
+      "no_account": "未ログイン",
+      "sign_in": "ログイン／登録",
+      "sign_out": "ログアウト",
+      "sync_title": "Hosted同期",
+      "enabled": "Hosted同期に接続済み",
+      "disabled": "未同期",
+      "projects": "{{count}}作品を同期中",
+      "connect_description": "このアカウントのクラウド作品を取得します。このライブラリで作る作品も同じアカウントへ送信します。",
+      "sync_now": "今すぐ同期",
+      "connect": "接続して同期",
+      "working": "処理中…",
+      "automatic": "自動同期が有効です",
+      "paused": "同期を一時停止中",
+      "automatic_description": "アプリが開いていてオンラインの間に同期します。端末を切り替える前に完了を待ってください。",
+      "pause": "一時停止",
+      "resume": "再開",
+      "disconnect": "同期を切断",
+      "disconnect_description": "このMacだけにある変更を送信してから切断します。ローカル作品とクラウドのコピーは残ります。",
+      "disconnect_uploading": "このMacだけの変更を送信中：残り{{count}}件。今切断すると残りはこのMacだけに残ります。",
+      "disconnect_now": "今すぐ切断",
+      "disconnect_unuploaded": "{{count}}件が未送信です。切断するとこのMacだけに残ります。",
+      "disconnect_anyway": "それでも切断",
+      "done": "完了",
+      "session": {
+        "signed-out": "ローカル執筆にアカウントは不要です。",
+        "checking": "アカウントを確認中…",
+        "connected": "アカウント接続済み",
+        "offline": "オフラインです。ローカルで執筆を続けられます。",
+        "needs-reauth": "セッションが切れました。同じアカウントで再ログインしてください。"
+      },
+      "manage": "アカウントと同期を管理",
+      "back_to_library": "ローカルライブラリへ戻る",
+      "trust": "Hosted同期では作品と元の素材を接続先サービスに保存します。そのサービスは内容を読み取れます。",
+      "onboarding": "Driftingにログイン・登録して、専用ライブラリとクラウド作品を開きます。この端末の既存作品はそのまま残ります。先にローカルで執筆し、後からアカウント設定でログインすることもできます。",
+      "storage": "Hostedストレージ",
+      "storage_description": "{{quota}}中{{used}}を使用。添付ファイルを計上し、原稿と構成には上限がありません。",
+      "quota_blocked": "Hostedの容量不足で添付を送信できず、作品の同期が止まっています。不要な添付や作品を削除すると再開します。ローカルの内容には影響しません。",
+      "progress": "同期の進捗",
+      "retrying": "同期が完了しませんでした。原稿はローカルに保存済みです。自動再試行します。",
+      "not_started": "同期を開始できません。原稿は端末に保存されています。Driftingを開き直してください。",
+      "pending": "同期中、または完了待ちです。",
+      "last_synced": "前回の同期完了：{{time}}",
+      "sign_in_sync": "ログインして同期",
+      "sign_in_sync_description": "ログインするとアカウント専用ライブラリと作品を開きます。端末の作品はアカウントへ移しません。ログアウトするとローカルライブラリに戻ります。",
+      "profile_title": "プロフィール",
+      "display_name": "表示名",
+      "avatar": "アバター",
+      "avatar_description": "JPG、PNG、WebP。最大5 MB。",
+      "choose_avatar": "画像を選択",
+      "crop_title": "アバターを調整",
+      "crop_description": "画像をドラッグするか矢印キーで位置を決め、拡大率を調整してください。",
+      "crop_zoom": "拡大率",
+      "crop_confirm": "このアバターを使う",
+      "remove_avatar": "削除",
+      "save_profile": "プロフィールを保存",
+      "profile_saved": "プロフィールを保存しました。",
+      "password_title": "パスワード",
+      "current_password": "現在のパスワード",
+      "new_password": "新しいパスワード",
+      "confirm_password": "新しいパスワードを確認",
+      "password_description": "8〜128文字。",
+      "password_sessions": "パスワードを変えると他の端末からログアウトします。この端末はログインを保ちます。",
+      "change_password": "パスワードを変更",
+      "password_saved": "パスワードを変更しました。他の端末では再ログインが必要です。",
+      "connect_errors": {
+        "local_project_sync_conflict": "このMacとクラウドの同じ作品が異なる同期記録を持っています（ライブラリフォルダのコピー、または別のMacのバックアップ復元）。上書きを防ぐため接続しませんでした。ローカルでは執筆を続けられます。",
+        "local_project_sync_conflict_named": "このMacとクラウドの{{projects}}は異なる同期記録です（フォルダのコピー、または別のMacのバックアップ復元）。上書きを防ぐため接続しませんでした。ローカルでは執筆を続けられます。",
+        "project_name": "「{{name}}」",
+        "project_separator": "、",
+        "blocked_update": "クラウドデータは新しいDriftingの版で作られています。アプリを更新してから同期を接続してください。",
+        "blocked_corrupt": "クラウドデータが検証に合格せず、同期を接続しませんでした。support@drifting.ccへご連絡ください。",
+        "restore_failed": "同期の接続が完了しませんでした。ローカルで書き続け、後で再試行できます。",
+        "interrupted": "前回の同期接続が中断されました。再試行してください。",
+        "cancelled": "取り消しました。",
+        "disconnect_failed": "同期の切断が完了しませんでした。後ほど再試行してください。",
+        "unknown": "同期が完了しませんでした（{{code}}）。ローカルで執筆を続けられます。"
+      },
+      "account_errors": {
+        "generic": "リクエストを完了できません。接続を確認して再試行してください。",
+        "INVALID_PROFILE_NAME": "表示名は1〜80文字で入力してください。",
+        "INVALID_AVATAR": "この画像は使えません。別のJPG、PNG、WebPを選んでください。",
+        "AVATAR_FILE_TYPE": "JPG、PNG、WebPを選んでください。",
+        "AVATAR_FILE_SIZE": "5 MB以下の画像を選んでください。",
+        "CURRENT_PASSWORD_REQUIRED": "現在のパスワードを入力してください。",
+        "INVALID_PASSWORD_LENGTH": "新しいパスワードは8〜128文字にしてください。",
+        "PASSWORD_MISMATCH": "新しいパスワードが一致しません。",
+        "PASSWORD_UNCHANGED": "別のパスワードを選んでください。",
+        "INVALID_PASSWORD": "現在のパスワードが正しくありません。",
+        "PASSWORD_TOO_SHORT": "新しいパスワードは8文字以上必要です。",
+        "PASSWORD_TOO_LONG": "新しいパスワードは128文字以下にしてください。",
+        "ACCOUNT_NOT_CONNECTED": "変更する前にアカウントを再接続してください。",
+        "SESSION_CHANGED": "ログインセッションが変わりました。再ログインして続行してください。",
+        "UNAUTHORIZED": "セッションが切れました。再ログインしてください。",
+        "SESSION_NOT_FRESH": "パスワード変更前に再ログインしてください。",
+        "PASSWORD_CHANGED_SIGN_IN_REQUIRED": "パスワードを変更しました。新しいパスワードでログインして同期を再開してください。"
+      },
+      "restore": {
+        "title": "クラウドから復元中",
+        "discovering": "アカウントのクラウド作品を検索中…",
+        "downloading": "{{total}}件中{{done}}件を取得",
+        "activating": "ライブラリに追加中…"
+      }
+    }
+  },
+  "common": {
+    "customColor": "カスタムカラー",
+    "local": "ローカル",
+    "loading": "読み込み中…",
+    "confirm": "確認",
+    "edit": "編集",
+    "more": "その他の操作",
+    "close": "閉じる",
+    "delete": "削除",
+    "deleted_paren": "（削除済み）",
+    "cancel": "キャンセル",
+    "save": "保存",
+    "saving": "保存中…",
+    "saveFailed": "変更を保存できませんでした。再試行してください。",
+    "creating": "作成中…",
+    "processing": "処理中…",
+    "counting": "集計中…",
+    "retry": "再試行",
+    "untitled": "無題",
+    "words": "文字",
+    "wordsCount": "{{count}}文字",
+    "chapters": "章",
+    "days": "日",
+    "storylinesUnit": " ストーリーライン",
+    "elementsUnit": " 要素",
+    "categoriesUnit": " カテゴリ",
+    "itemsUnit": " 件"
+  },
+  "navigation": {
+    "back": "戻る"
+  },
+  "entityCellAction": {
+    "confirmDeleteNode": "ノード「{{name}}」を削除しますか？",
+    "confirmDeleteElement": "要素「{{name}}」を削除しますか？",
+    "confirmDeleteCategory": "カテゴリ「{{name}}」を削除しますか？\n\n所属する要素は「未分類」へ移動します（categoryIdは空になります）。",
+    "confirmDeleteStoryline": "ストーリーライン「{{name}}」を削除しますか？",
+    "actionFailed": "操作に失敗しました。再試行してください。"
+  },
+  "driftPanel": {
+    "tabLabel": "アイデア",
+    "expandTitle": "{{label}}を展開",
+    "collapseTitle": "{{label}}を折りたたむ"
+  },
+  "agentActivity": {
+    "markSeen": "Agentの変更を既読にする",
+    "unviewedChangeCount_one": "Agentの未読変更{{count}}件",
+    "unviewedChangeCount_other": "Agentの未読変更{{count}}件",
+    "working": "Agentが作業中",
+    "addedHere": "Agentが追加しました。初回に全文を順に表示します",
+    "changedHere": "Agentが変更したばかりです",
+    "externalChangedHere": "他のエディタで変更されました",
+    "markExternalSeen": "既読にする",
+    "groupBodyAdded": "Agentがグループを追加しました。初回に全文を順に表示します",
+    "groupBodyChanged": "Agentがこのグループの本文を変更しました",
+    "childChanges": "子項目にAgentの未読変更があります"
+  },
+  "bottomStatusBar": {
+    "workspaceViews": "ワークスペースの表示",
+    "projectHome": "作品ホーム",
+    "allChapters": "全編",
+    "elements": "要素",
+    "storyGraph": "物語グラフ",
+    "todoLibrary": "TODOと資料庫",
+    "timeline": "タイムライン",
+    "expandTimeline": "ストーリーラインのタイムラインを展開",
+    "collapseTimeline": "ストーリーラインのタイムラインを折りたたむ",
+    "storageLocal": "端末内",
+    "storage": {
+      "local": "端末内",
+      "syncing": "Hostedと同期中",
+      "checking": "Hostedの更新を確認中",
+      "applying": "Hostedの変更を適用中",
+      "synced": "Hostedは最新です",
+      "paused": "Hosted同期を一時停止中",
+      "offline": "オフラインでHostedを一時停止",
+      "attention": "Hostedで対応が必要です"
+    }
+  },
+  "workspaceWordTally": {
+    "selection": "選択範囲",
+    "chapter": "章",
+    "drift": "アイデア",
+    "storyline": "ストーリーライン",
+    "book": "全編",
+    "today": "今日",
+    "counting": "集計中",
+    "part": "{{label}} {{formatted}}文字",
+    "todayPart": "今日 +{{formatted}}文字",
+    "todayGoalPart": "今日 +{{formatted}}文字（目標{{goal}}）"
+  },
+  "nodeHoverPreview": {
+    "noSummary": "要約なし"
+  },
+  "editorScrollMarkers": {
+    "jumpToTodo": "TODOへ移動",
+    "jumpToComment": "コメントへ移動",
+    "jumpToChange": "変更箇所へ移動"
+  },
+  "findResults": {
+    "truncated": "先頭{{shown}}件を表示・全{{total}}件"
+  },
+  "findPanel": {
+    "currentPlaceholder": "現在のエディタ内を検索…",
+    "bookPlaceholder": "全編を検索…",
+    "previousTitle": "前へ（Shift+Enter）",
+    "nextTitle": "次へ（Enter）",
+    "closeTitle": "閉じる（Esc）",
+    "wholeBook": "全編",
+    "untitledChapter": "無題の章"
+  },
+  "chapterEditor": {
+    "untitledChapter": "無題の章"
+  },
+  "chapterEnd": {
+    "trigger": "章末の操作",
+    "triggerFinished": "章末の操作（完成）",
+    "insertAfter": "後に章を追加",
+    "markFinished": "完成にする",
+    "markDraft": "下書きに戻す",
+    "review": {
+      "idle": "Agentにレビューを依頼",
+      "starting": "開始中…",
+      "running": "レビュー中・開く"
+    },
+    "defaultTitle": "新しい章",
+    "firstChapter": "最初の章を書く"
+  },
+  "virtualChapterRow": {
+    "chapter": "章",
+    "chapterNumber": "第{{n}}章"
+  },
+  "editorOutline": {
+    "aria": "アウトライン",
+    "sectionCount": "{{count}}セクション",
+    "hiddenItems": "離れた項目{{count}}件・ホバーで表示"
+  },
+  "relationPicker": {
+    "addRelation": "リンク",
+    "collapse": "折りたたむ",
+    "searchPlaceholder": "章／要素／ストーリーラインを検索…",
+    "jumpTo": "{{label}}へ移動",
+    "removeRelation": "リンクを削除",
+    "untitledChapter": "無題の章",
+    "untitledDrift": "無題のアイデア",
+    "untitledElement": "無題の要素",
+    "untitledStoryline": "無題のストーリーライン",
+    "groups": {
+      "chapters": "章",
+      "drifts": "アイデア",
+      "elements": "要素",
+      "storylines": "ストーリーライン",
+      "categories": "カテゴリ"
+    }
+  },
+  "todoPanel": {
+    "empty": "TODOはまだありません。右上の＋から追加できます。",
+    "newTodo": "新しいTODO"
+  },
+  "editChapterStoryline": {
+    "title": "章のストーリーラインを編集",
+    "empty": "この作品にはまだストーリーラインがありません。",
+    "include": "{{name}}に含める",
+    "main": "主軸",
+    "unaffiliate": "所属なしにする",
+    "updateFailed": "章のストーリーラインを更新できませんでした。再試行してください。"
+  },
+  "elementGroupPicker": {
+    "title": "グループへ移動",
+    "searchPlaceholder": "グループを検索・作成…",
+    "createGroup": "グループ「{{name}}」を作成",
+    "noGroup": "グループなし"
+  },
+  "elementCategoryCreateMenu": {
+    "openCreateMenu": "このカテゴリに追加",
+    "title": "「{{name}}」に追加",
+    "newElement": "新しい要素",
+    "newGroup": "新しいグループ…",
+    "groupTitle": "新しいグループ",
+    "groupNameLabel": "グループ名",
+    "groupNamePlaceholder": "グループ名を入力",
+    "groupCreatesFirstElement": "最初の要素と同時にグループを作成します。",
+    "duplicateGroup": "同名のグループがすでにあります。",
+    "createGroup": "最初の要素を作成して開く",
+    "back": "作成メニューへ戻る"
+  },
+  "trashPanel": {
+    "noProject": "先に作品を開いてください。",
+    "title": "ごみ箱",
+    "retention": "削除するまでローカルに保存",
+    "clear": "ごみ箱を空にする",
+    "empty": "ごみ箱は空です。",
+    "confirmPurge": "「{{label}}」を完全に削除しますか？取り消せません。",
+    "confirmPurgeAll": "ごみ箱を空にしますか？全{{count}}件を完全に削除します。取り消せません。",
+    "columns": {
+      "type": "種類",
+      "name": "名前",
+      "deletedAt": "削除日時"
+    },
+    "restore": "復元",
+    "purgeNow": "今すぐ削除",
+    "kind": {
+      "chapter": "章",
+      "drift": "アイデア",
+      "element": "要素",
+      "storyline": "ストーリーライン",
+      "category": "要素カテゴリ"
+    }
+  },
+  "kvEditor": {
+    "keyPlaceholder": "項目・キー",
+    "valuePlaceholder": "内容・値",
+    "templateKeyPlaceholder": "項目名・キー（例：視点）",
+    "templateValuePlaceholder": "既定値／ヒント・値",
+    "empty": "— 項目はありません —",
+    "templateEmpty": "— テンプレート項目未設定。新しい子項目には自動追加しません —",
+    "addField": "項目を追加",
+    "removeRow": "行を削除"
+  },
+  "patchCreateModal": {
+    "title": "要素の変化記録を作成",
+    "subtitle": "選択したテキストに要素の変化記録を結び付けます",
+    "targetElement": "対象の要素",
+    "changeElement": "変更",
+    "searchElement": "要素を検索…",
+    "noElements": "一致する要素なし",
+    "newElement": "新規",
+    "createElement": "要素「{{name}}」を作成",
+    "patchTitle": "タイトル（任意）",
+    "titlePlaceholder": "今回の変化を一文で…",
+    "body": "変化記録の本文",
+    "bodyPlaceholder": "この箇所で要素に起きた変化を記述…",
+    "createPatch": "変化記録を作成"
+  },
+  "plotGrid": {
+    "clear": "消去",
+    "clearTitle": "プロット表の内容を消去",
+    "clearConfirm": "プロット表の行名、列名、セル内テキストをすべて消去しますか？表の構造・寸法と本文は保ちます。取り消せません。",
+    "columnPlaceholder": "列",
+    "rowPlaceholder": "行",
+    "deleteColumn": "この列を削除",
+    "deleteRow": "この行を削除",
+    "addColumn": "列を追加",
+    "addRow": "行を追加",
+    "resize": "ドラッグでセルの大きさと比率を調整",
+    "title": "プロット",
+    "addRowShort": "行",
+    "addColumnShort": "列",
+    "orientationLabel": "表の向き",
+    "orientationRow": "横方向",
+    "orientationColumn": "縦方向",
+    "rowHeader": "行見出し",
+    "columnHeader": "列見出し",
+    "headerPosition": "{{count}}件中{{index}}番目",
+    "headerMenu": "見出しメニュー",
+    "rename": "名前を変更",
+    "move": "移動",
+    "moveUp": "上へ移動",
+    "moveDown": "下へ移動",
+    "moveLeft": "左へ移動",
+    "moveRight": "右へ移動",
+    "insertRowAbove": "上に行を挿入",
+    "insertRowBelow": "下に行を挿入",
+    "insertColumnLeft": "左に列を挿入",
+    "insertColumnRight": "右に列を挿入",
+    "deleteClears": "{{count}}セルを消去",
+    "lastAxis": "行と列をそれぞれ1つ以上残す必要があります",
+    "cellEditor": "セルを編集",
+    "cellPosition": "行{{row}}/{{rows}}・列{{col}}/{{cols}}",
+    "thisRow": "この行",
+    "done": "完了",
+    "emptyCell": "何か書いてみましょう…",
+    "fit": "画面に合わせる",
+    "fitTitle": "表全体をウィンドウに合わせます。その後に行や列を追加しても縮めず、画面外へ広がります"
+  },
+  "editorMainArea": {
+    "openDashboard": "作品ホームを開く",
+    "emptyHint": "さあ、書き始めましょう",
+    "openOnSide": "{{side}}側で開く",
+    "side": {
+      "left": "左",
+      "right": "右"
+    }
+  },
+  "driftBind": {
+    "title": "アイデアを関連付け",
+    "markerSubtitle": "この時間マーカーのアイデアを選ぶ",
+    "actSubtitle": "この幕の構想・メモを選ぶ",
+    "searchPlaceholder": "アイデアを検索…",
+    "noMatches": "一致するアイデアなし",
+    "empty": "関連付けられるアイデアがありません。未作成か、すでに使用されています"
+  },
+  "agentConfirm": {
+    "allowDelete": "削除を許可"
+  },
+  "snapshotHistory": {
+    "aria": "履歴スナップショット",
+    "title": "履歴スナップショット・30日間",
+    "restoreSuccess": "選択した版に復元しました。直前の状態は新しいスナップショットとして保存済みです。",
+    "restoreFailed": "復元に失敗：{{error}}",
+    "loading": "読み込み中…",
+    "empty": "スナップショットはまだありません。本文の編集後、約15分ごとに自動保存します。",
+    "restoring": "復元中…",
+    "confirmRestore": "現在の版の上書きを確認",
+    "restoreTitle": "本文と項目をこの版に復元します。現在の状態は先にスナップショットに保存します。",
+    "restore": "復元…",
+    "kind": {
+      "node": "章",
+      "element": "要素",
+      "storyline": "ストーリーライン",
+      "category": "カテゴリ",
+      "library_item": "メモ"
+    }
+  },
+  "notifications": {
+    "title": "通知",
+    "clear": "消去",
+    "empty": "通知なし",
+    "remove": "削除",
+    "organize": {
+      "source": "Agent"
+    },
+    "markdownFolder": {
+      "source": "Markdownフォルダ",
+      "preserved_one": "編集済みファイル{{count}}件を.drifting/preservedに保存",
+      "preserved_other": "編集済みファイル{{count}}件を.drifting/preservedに保存",
+      "issue": {
+        "frontmatter": "冒頭のプロパティ形式が不正です。修正まで統合も上書きもしません",
+        "identity": "drifting-idが別の章を指しています。統合せずファイルを保存しました",
+        "empty": "本文が空です。統合せずファイルを保存しました",
+        "lineage": "章が復元・リセットされています。自動統合せずファイルを保存しました",
+        "missing": "この章はDriftingで削除されています",
+        "encoding": "UTF-8ではありません。読み込まずファイルを保存しました",
+        "too-large": "大きすぎます。読み込まずファイルを保存しました",
+        "unreadable": "読み込めませんでした"
+      },
+      "overlap": "この段落はDriftingとファイルの両方で変更されています。"
+    },
+    "cloudSync": {
+      "source": "クラウド同期",
+      "syncing": "同期中…",
+      "downloading": "クラウドから取得中…",
+      "uploadingAssets": "素材を送信中…",
+      "uploadingChanges": "変更を送信中…",
+      "applying": "クラウドの変更を統合中…",
+      "finishing": "同期を完了中…",
+      "completed": "クラウド同期完了",
+      "stopped": "クラウド同期を停止",
+      "failed": "クラウド同期に失敗",
+      "failureCode": "エラーコード：{{code}}",
+      "bytesKnown": "{{transferred}} / {{total}}",
+      "bytesDiscovered": "{{transferred}}転送済み",
+      "objectsKnown": "{{completed}} / {{total}}件",
+      "objectsDiscovered": "{{completed}}件処理済み",
+      "progressLabel": "クラウド同期の進捗",
+      "agentChat": "Agentの会話",
+      "pending": "会話履歴に未処理のデータがあります"
+    },
+    "time": {
+      "justNow": "たった今",
+      "minutesAgo": "{{count}}分前",
+      "hoursAgo": "{{count}}時間前",
+      "daysAgo": "{{count}}日前"
+    },
+    "shareComments": {
+      "source": "読者のコメント",
+      "count": "新しいコメント{{count}}件",
+      "single": "{{name}}：{{body}}"
+    },
+    "appUpdate": {
+      "source": "アップデート",
+      "available": "Drifting {{version}}を利用できます",
+      "installed": "Drifting {{version}}に更新しました"
+    },
+    "crashFollowUp": {
+      "source": "Drifting"
+    }
+  },
+  "paperSync": {
+    "label": "同期状態",
+    "retrying": "同期を完了できませんでした",
+    "retryingDetail": "原稿は端末に保存済みです。自動再試行します。",
+    "offline": "オフライン",
+    "offlineDetail": "ローカルで執筆を続けられます。",
+    "offlinePending": "{{count}}件が同期待ち",
+    "notStarted": "同期を開始できませんでした",
+    "notStartedDetail": "原稿はこの端末に保存されています。",
+    "failing": "クラウド同期に失敗",
+    "failingCode": "エラーコード：{{code}}・{{count}}回連続",
+    "quota": "Hostedストレージがいっぱいです",
+    "reauth": "セッション期限切れ",
+    "reauthDetail": "同じアカウントで再ログインしてください。",
+    "retry": "再試行",
+    "signIn": "再ログイン",
+    "openSettings": "設定を開く",
+    "restored": "同期を再開しました"
+  },
+  "userMenu": {
+    "accountMenu": "アカウントメニュー",
+    "localMenu": "ローカルライブラリのメニュー",
+    "localStatus": "ローカル・この端末に保存",
+    "theme": "テーマ",
+    "themeLight": "ライト",
+    "themeLightShort": "ライト",
+    "themeDark": "ダーク",
+    "themeDarkShort": "ダーク",
+    "themeSystem": "システムに合わせる",
+    "themeSystemShort": "システム",
+    "language": "言語",
+    "settings": "設定",
+    "keyboardShortcuts": "キーボードショートカット",
+    "import": "インポート",
+    "importBook": "作品をインポート（.driftingbook）",
+    "bookshelf": "本棚・作品を切り替え",
+    "signingOut": "ログアウト中…",
+    "signOut": "ログアウト",
+    "feedback": "フィードバックを送る"
+  },
+  "agentPanel": {
+    "newConversation": "新しいチャット",
+    "unavailable": "Agentを利用できません。",
+    "unavailableTitle": "汎用Agentのランタイムが未導入です",
+    "unavailableReason": "このウィンドウには利用可能なAgentモデルドライバまたはツール実行環境がありません。",
+    "unavailableFuture": "作品を開き直してください。解消しない場合はアプリの版と提供元のAPIキーを確認してください。",
+    "checking": "確認中…",
+    "common": {
+      "none": "なし"
+    },
+    "context": {
+      "tokens": "{{count}}トークン",
+      "progressAria": "現在のAgentコンテキスト使用量",
+      "tooltip": "{{used}} / {{limit}}トークン（{{percent}}%）\n出力予約：{{output}}・安全余裕：{{safety}}",
+      "modalAria": "Agentコンテキスト使用量の詳細",
+      "kicker": "モデル呼び出し{{iteration}}回目",
+      "title": "コンテキスト使用量",
+      "summary": "{{used}} / {{limit}}（{{percent}}%）",
+      "description": "実際にモデルへ送った最新の検証済みコンテキスト構成です。会話全体の累積トークン使用量ではありません。",
+      "allocation": {
+        "title": "ウィンドウの配分",
+        "aria": "入力、出力予約、安全余裕、空き領域の配分",
+        "input": "現在の入力",
+        "output": "出力の予約領域",
+        "safety": "安全余裕",
+        "free": "空き領域"
+      },
+      "breakdownTitle": "現在の入力の内訳",
+      "sources": "{{count}}件のソース",
+      "categories": {
+        "system_prompt": "システムプロンプト",
+        "user_messages": "ユーザーメッセージ",
+        "assistant_messages": "Agentのメッセージ",
+        "thinking": "思考",
+        "tool_calls": "ツール呼び出し",
+        "tool_results": "ツールの結果",
+        "write_receipts": "確定した書き込み",
+        "write_reviews": "書き込みのレビュー",
+        "write_reverts": "編集の取り消し",
+        "freshness": "鮮度の根拠",
+        "task_plan": "タスク計画",
+        "task_constraints": "タスク制約",
+        "compaction_summaries": "圧縮の要約",
+        "tool_definitions": "ツール定義",
+        "provider_overhead": "提供元の付加情報"
+      },
+      "detailsTitle": "計画の詳細",
+      "pinned": "固定コンテキスト",
+      "pinnedDetail": "全{{total}}・意味{{semantic}}・直近ターン{{recent}}・{{count}}ソース",
+      "compaction": "コンテキスト圧縮",
+      "compactionDetail": "{{saved}}削減・{{stages}}・要約{{count}}件",
+      "compactionNone": "今回は圧縮不要でした",
+      "compactionStages": {
+        "drop_discardable": "削除可能なコンテキストを除外",
+        "deterministic_summaries": "決定的な要約",
+        "full_compactor": "全体圧縮"
+      },
+      "coverage": "原本ソースの網羅率",
+      "coverageDetail": "{{canonical}}ソース中{{represented}}件を反映・{{discarded}}件除外",
+      "toolDefinitions": "ツール定義の詳細",
+      "orthogonalNote": "固定・圧縮・網羅率は現在の入力を別の観点で示すもので、上の分類と重複します。ウィンドウ合計には重ねて加算しません。"
+    },
+    "tool": {
+      "input": "入力",
+      "result": "結果"
+    },
+    "thinking": {
+      "streaming": "思考中…",
+      "done": "思考の記録"
+    },
+    "config": {
+      "title": "モデルと推論",
+      "aria": "モデル・推論の設定",
+      "model": "モデル",
+      "switchModel": "モデルを切り替え",
+      "modelsLoading": "ChatGPTモデルを更新中…",
+      "modelsRetry": "モデルを更新できません・再試行",
+      "modelsRefresh": "モデル一覧を更新",
+      "modelsUpdated": "{{time}}に更新",
+      "modelsStale": "{{time}}時点のモデルを表示",
+      "modelUnavailable": "選択したモデルは現在の一覧にありません。更新するか別のモデルを選んでください。",
+      "reasoning": "推論",
+      "extendedThinking": "拡張思考",
+      "extendedThinkingTitle": "提供元の検証済みネイティブ推論モードを使います。新しく送るターンだけに適用します。",
+      "reasoningUnavailable": "選択モデルに検証済みの思考モードはありません。",
+      "effort": "強度・{{effort}}",
+      "effortLabel": "強度",
+      "notSupported": "未対応",
+      "edits": "編集",
+      "dangerousOperations": "危険な操作を許可",
+      "dangerousOperationsTitle": "有効にすると、章、アイデア、要素、関係、メモなどをAgentが毎回の確認なしで削除できます。以後の呼び出しにのみ適用し、作品分離、引数検証、競合検査、永続的な受領記録は維持します。",
+      "memory": "記憶",
+      "memoryTitle": "あなたとAgentが共同で保つ作品の記憶です。すべての会話で読みます。",
+      "manageMemory": "作品の記憶",
+      "noMemory": "作品の記憶なし",
+      "approveMemory": "有効化"
+    },
+    "memoryKind": {
+      "veto": "禁止事項",
+      "directive": "指示",
+      "preference": "好み"
+    },
+    "usage": {
+      "turnUsage": "ターンの使用量",
+      "inputDetail": "入力{{input}}（キャッシュ読取{{cacheRead}}・書込{{cacheWrite}}・正味{{net}}）",
+      "outputTurns": "出力{{output}}・{{turns}}ターン",
+      "timingDetail": "合計{{total}}ms・API {{api}}ms・ローカル{{local}}ms",
+      "timingHint": "（合計≒APIならモデル側の待ち時間です。キャッシュ読取が多く書込がほぼゼロなら、前置部分は保存済みで、各ターンは主に出力・思考に時間を使っています）",
+      "workedFor": "Agentの作業時間：{{duration}}",
+      "workDetail": "このターンのAgent作業時間は{{duration}}です",
+      "sentAt": "{{time}}に送信",
+      "turnsShort": "{{count}}ターン",
+      "sessionTitle": "このセッションのトークン・費用・ツール呼び出し合計",
+      "session": "セッション",
+      "toolsCount": "{{count}}ツール"
+    },
+    "entity": {
+      "created": "作成済み",
+      "edited": "編集済み"
+    },
+    "pending": {
+      "now": "思考中…",
+      "withSeconds": "思考中・{{seconds}}秒",
+      "committing": "保存中…",
+      "cancelling": "停止中…"
+    },
+    "budget": {
+      "title": "このコンテキストは続行が必要です",
+      "body": "進捗は保全されています。続行すると保存済み状態から再開します。ツール反復や累積トークン上限でタスクを打ち切りません。",
+      "continue": "タスクを続行"
+    },
+    "longTask": {
+      "title": "タスク計画が未完了です",
+      "body": "ターンは正常終了しましたが、保存された計画に未完了の作業があります。最初の未完了手順から続けてください。"
+    },
+    "slice": {
+      "saved": "進捗を保存しました",
+      "preparing": "進捗を保存しました。続行を準備中…",
+      "continuing": "進捗を保存しました。続行中…",
+      "paused": "続行すると保存した進捗から再開します。"
+    },
+    "autoContinue": {
+      "waitingReviewTitle": "編集のレビュー待ち",
+      "waitingReviewBody": "現在進められる手順はすべてレビュー待ちです。保留中の編集を確認してから続行してください。",
+      "noProgressTitle": "連続実行で保存できる進捗がありません",
+      "noProgressBody": "Agentが2区間続けて計画を進めなかったため、追加消費の前に停止しました。最後のツールエラーを確認し、準備後に続行してください。",
+      "safetyTitle": "連続実行を一時停止",
+      "safetyBody": "進捗は保全されています。状態を確認してから続行してください。"
+    },
+    "todos": {
+      "plan": "プラン"
+    },
+    "setup": {
+      "title": "Agent未接続",
+      "hosted": "Hosted契約モードですが、まだ利用できません。設定でログイン・契約してください。",
+      "apiKey": "選択した提供元のAPIキーがありません。設定でBYOKを完了してください。",
+      "byok": "選択した提供元のAPIキーがありません。設定でBYOKを完了してください。",
+      "openSettings": "設定を開く"
+    },
+    "toolbar": {
+      "renameTitle": "現在のチャット名を変更",
+      "historyTitle": "チャット履歴",
+      "history": "履歴",
+      "newTitle": "新しいチャットを開始",
+      "workingMemory": "作業記憶",
+      "chat": "チャット"
+    },
+    "workingMemory": {
+      "title": "作業記憶",
+      "filename": "WORKING_MEMORY.md",
+      "description": "汎用Agentの全チャットで共有する最近の重要な作業背景です。古い情報は自動圧縮・忘却されます。",
+      "loading": "作業記憶を読み込み中…",
+      "edit": "編集",
+      "preview": "プレビュー",
+      "clear": "消去",
+      "create": "作業記憶を作成",
+      "editorLabel": "WORKING_MEMORY.mdを編集",
+      "tokens": "約{{count}}トークン",
+      "budgetTitle": "上限なし。2万・4万トークン超で各1回、8万超では毎ターン整理を依頼します",
+      "updated": "{{time}}・更新者{{by}}",
+      "author": "作者",
+      "agent": "Agent",
+      "neverUpdated": "まだ記録されていません",
+      "emptyTitle": "作業記憶はまだありません",
+      "emptyBody": "Agentは後の作業に影響する最近の重要な変更だけを記録します。",
+      "saved": "作業記憶を保存しました。",
+      "cleared": "作業記憶を消去しました。",
+      "conflictDraftPreserved": "別のAgentが作業記憶を更新しました。草稿は保全されています。コピーしてから開き直し、最新版と統合してください。",
+      "conflictClear": "別のAgentが更新したため、消去しませんでした。最新の内容を確認して再試行してください。",
+      "failed": "作業記憶を保存できませんでした。",
+      "clearConfirm": "作業記憶を消去しますか？原稿、長期ルール、チャット履歴は削除しません。"
+    },
+    "history": {
+      "loadEarlier": "以前のメッセージを読み込む",
+      "empty": "チャット履歴なし",
+      "untitled": "無題",
+      "rename": "名前を変更",
+      "delete": "チャットを削除"
+    },
+    "empty": {
+      "start": "Agentにメッセージを送って始めましょう。この作品の章、要素、関係を読み書きできます。"
+    },
+    "mobile": {
+      "currentProject": "現在の作品",
+      "contextAria": "ターンのコンテキスト",
+      "contextProject": "作品",
+      "contextParagraph": "段落",
+      "contextCurrent": "現在",
+      "empty": "Agentへの質問や指示を入力してください。作品の章・要素・関係を読み書きし、変更を操作記録として示します。",
+      "actionsAria": "回答の操作",
+      "evidenceAria": "ターンの操作記録",
+      "evidenceTitle": "ターンの操作記録",
+      "latest": "↓ 最新",
+      "retry": "前のリクエストを再試行",
+      "target": {
+        "dashboard": "作品ホーム",
+        "allChapters": "すべての章",
+        "untitledNode": "無題の章",
+        "untitledStoryline": "無題のストーリーライン",
+        "untitledElement": "無題の要素",
+        "untitledCategory": "無題のカテゴリ",
+        "deleted": "削除済みの項目"
+      },
+      "action": {
+        "copy": "コピー",
+        "inspiration": "アイデアとして保存",
+        "todo": "TODOに追加",
+        "pending": "処理中…",
+        "copied": "コピーしました",
+        "inspirationDone": "アイデアとして保存しました",
+        "todoDone": "TODOに追加しました",
+        "failed": "操作に失敗しました"
+      }
+    },
+    "turnChanges": "ターンの変更",
+    "jumpLatest": "最新へ移動",
+    "control": {
+      "permissionTitle": "Agentが操作を求めています",
+      "destructiveHint": "既存内容を削除・置換するため、確認が必要です",
+      "arguments": "生の引数を表示",
+      "deny": "拒否",
+      "allow": {
+        "once": "今回だけ許可",
+        "session": "このセッションで許可",
+        "project": "この作品で許可"
+      },
+      "questionTitle": "Agentが判断を求めています",
+      "answerHint": "下に回答を入力して送信すると、この手順を続けます。",
+      "recoveredTitle": "中断された待機を復旧しました",
+      "recoveredBody": "元の実行状態はもうありません。Driftingは自動承認や書き込みの再実行をせず、再開したようにも扱いません。待機を安全に終了し、新たな指示を送ってください。",
+      "endRecovered": "保留中の手順を終了"
+    },
+    "composer": {
+      "placeholder": "Agentに質問…（Cmd/Ctrl+Enter）",
+      "steerPlaceholder": "実行中のタスクに補足・修正…",
+      "answerPlaceholder": "Agentの質問に回答…",
+      "stop": "停止",
+      "stopAfterToolTitle": "現在のツールが安全な区切りに達したら停止し、自動続行も無効にします",
+      "steer": "追加指示",
+      "steerTitle": "現在の操作が終わったら、実行中タスクの指示を追加・修正します",
+      "answer": "回答",
+      "send": "送信"
+    },
+    "historySync": {
+      "pending": "会話を同期中です。履歴の準備ができたら続行できます。",
+      "archive": "閲覧専用のアーカイブです。読むことはできますが続行できません。",
+      "conflict": "データの欠落または競合があり、まだ続行できません。"
+    },
+    "onboarding": {
+      "connect": "モデルを接続",
+      "try": "試す",
+      "experimental": "試験提供",
+      "getKey": "APIキーを取得",
+      "history": "バージョン履歴",
+      "saveFailed": "キーをキーチェーンに保存できませんでした。",
+      "prompts": {
+        "commentChapter": "「{{chapter}}」にコメントを2つ付けて",
+        "tightenChapter": "「{{chapter}}」の冒頭段落を引き締めて",
+        "relateElements": "{{first}}と{{second}}の関係を整理して",
+        "completeElement": "「{{element}}」の設定を補って",
+        "extractElements": "「{{chapter}}」の人物と場所を見つけて要素に追加して",
+        "outline": "三幕構成の章立てを考えて",
+        "interview": "いくつか質問して、この物語の形を整えて",
+        "castCharacters": "主要人物を3人作って"
+      }
+    }
+  },
+  "voiceAgent": {
+    "entryAria": "音声で執筆",
+    "title": "音声で執筆",
+    "expand": "音声執筆を展開",
+    "collapse": "フローティングボタンに縮小",
+    "endSession": "音声セッションを終了",
+    "record": "録音開始",
+    "stopRecord": "録音停止",
+    "tapToStop": "タップして停止",
+    "recording": "記録中",
+    "transcribing": "文字起こし中…",
+    "corrected": "要素一覧を基に固有名詞を{{count}}件補正",
+    "retry": "文字起こしを再試行",
+    "empty": "マイクを押して物語を話してください。文字起こしが下の入力欄に入り、送信するとAgentが作品の背景と合わせて扱います。",
+    "hint": "固有名詞の精度を高めるため、作品の要素名や設定名を文字起こしに反映します。",
+    "composerPlaceholder": "ここで文字起こしを確認し、Agentに送信",
+    "error": {
+      "noKey": "文字起こし用キー未設定（Alibaba Cloud Bailian）",
+      "unsupported": "この画面でマイクAPIを利用できません（navigator.mediaDevicesなし）",
+      "micDenied": "マイクを利用できません。システム権限を確認してください",
+      "recordingFailed": "録音を完了できませんでした。マイク権限を確認して再試行してください",
+      "auth": "文字起こし用キーが無効か期限切れです",
+      "segmentRejected": "文字起こしサービスがこの部分を拒否しました",
+      "transcribeFailed": "文字起こしに失敗しました。録音は保持しています。再試行できます"
+    }
+  },
+  "memoMaterial": {
+    "error": {
+      "openFile": "ファイルを開けません：{{error}}",
+      "createFailed": "資料を作成できません：{{error}}",
+      "pickFailed": "ファイルをインポートできません：{{error}}",
+      "fileTooLarge": "ファイルが上限の{{maxSizeMiB}} MiBを超えており、ローカル資料庫にコピーできません。"
+    },
+    "empty": {
+      "noRelated": "現在の項目に関連資料はありません。",
+      "noMaterials": "資料はまだありません。右上の「+」で作成できます。"
+    },
+    "toolbar": {
+      "all": "すべて",
+      "allShort": "すべて",
+      "current": "現在の項目",
+      "currentShort": "現在",
+      "count": "{{count}}件の資料",
+      "newMaterial": "新しい資料"
+    },
+    "kind": {
+      "text": "メモ",
+      "image": "画像",
+      "pdf": "PDF"
+    },
+    "menu": {
+      "type": "種類：{{type}}",
+      "relationCount": "関連項目{{count}}件",
+      "noRelations": "リンクなし",
+      "addRelation": "関連付け…",
+      "relation": "リンク",
+      "openInSystem": "システムのアプリで開く",
+      "deleteMaterial": "資料を削除"
+    },
+    "todo": {
+      "empty": "（空のTODO）"
+    },
+    "card": {
+      "collapseImage": "画像を折りたたむ",
+      "expandImage": "画像を展開",
+      "collapseSnippet": "メモを折りたたむ",
+      "expandSnippet": "メモを展開",
+      "collapse": "折りたたむ",
+      "expand": "展開",
+      "addSnippetBody": "このメモに書く…",
+      "fullscreenImage": "画像を全画面で表示",
+      "snippetPlaceholder": "メモを書く…"
+    },
+    "preview": {
+      "generating": "プレビューを生成中…",
+      "open": "開く",
+      "expandFullscreenTitle": "全画面に展開（第2段階）",
+      "fullscreen": "全画面",
+      "closeEsc": "閉じる（Esc）",
+      "noImage": "画像をプレビューできません",
+      "noPdf": "PDFをプレビューできません",
+      "openPdfFailed": "PDFを開けません",
+      "renderPdfFailed": "PDFを描画できません",
+      "loadingPdf": "PDFを読み込み中…",
+      "pages": "ページ",
+      "previousPage": "前へ",
+      "nextPage": "次へ",
+      "loading": "読み込み中…"
+    },
+    "archive": {
+      "reopen": "開き直す"
+    },
+    "dialog": {
+      "currentItem": "（現在の項目）",
+      "newTodo": "新しいTODO",
+      "todoPlaceholder": "TODOの内容…",
+      "newMaterial": "新しい資料",
+      "titlePlaceholder": "タイトル",
+      "chooseFile": "ファイルを選択…",
+      "openingPicker": "選択画面を開いています…",
+      "creating": "作成中…",
+      "importingImage": "画像をインポート中…",
+      "importingPdf": "PDFをインポート中…",
+      "importingFileDetail": "原本をコピーし、プレビューを作り、ローカル内容のハッシュを検証しています。",
+      "create": "作成"
+    },
+    "super": {
+      "title": "TODOと資料",
+      "meta": "TODO {{todos}}件・資料{{materials}}件",
+      "material": "資料",
+      "kind": "種類",
+      "searchPlaceholder": "タイトル・本文を検索…",
+      "hideKind": "クリックでこの種類を隠す",
+      "showKind": "クリックで表示",
+      "all": "すべて",
+      "relations": "関係",
+      "entityFilterActiveTitle": "「{{label}}」に関連する項目のみ表示",
+      "entityFilterTitle": "エンティティで絞り込み",
+      "clearEntityFilter": "関連フィルターを解除",
+      "entityFilterAll": "関係・すべて",
+      "entityFilterHint": "関連するメモ・資料だけを表示するエンティティを選択",
+      "todoEmptyHint": "＋でTODOを作るか、エディタのコメントカードから追加できます",
+      "newMaterialButton": "新しい資料",
+      "noMaterials": "この作品に資料はまだありません。",
+      "noFilteredMaterials": "条件に一致する資料はありません。",
+      "collapseDrawer": "引き出しを閉じる",
+      "expandDrawer": "引き出しを開く",
+      "orphans": "未整理",
+      "resolved": "解決済み",
+      "orphanHeader": "未整理・未関連の資料",
+      "resolvedHeader": "解決済み・TODOアーカイブ",
+      "noOrphans": "すべての資料が1つ以上のエンティティに関連付いています。",
+      "noResolvedTodos": "完了したTODOはまだありません。",
+      "reopenShort": "開き直す"
+    }
+  },
+  "auth": {
+    "dialogLabel": "アカウント",
+    "signOut": {
+      "title": "ログアウト",
+      "pending": "このMacの未送信変更は{{count}}件です。今ログアウトしても端末に残り、同じアカウントへ再ログインすると送信します。",
+      "pendingLocal": "このMacの未送信変更は{{count}}件です。今ログアウトすると、このMacだけに残ります。",
+      "uploading": "このMacの変更を送信中、残り{{count}}件。",
+      "disconnect": "ライブラリの同期も切断",
+      "uploadFirst": "送信してからログアウト",
+      "now": "今すぐログアウト",
+      "stopWaiting": "待たずにログアウト"
+    },
+    "titles": {
+      "signin": "Driftingにログイン",
+      "signup": "アカウントを作成",
+      "otp": "コードでログイン",
+      "forgot": "パスワードをリセット",
+      "verify": "メールアドレスを確認"
+    },
+    "signIn": "ログイン",
+    "signUp": "登録",
+    "createAccount": "アカウントを作成",
+    "signingIn": "ログイン中…",
+    "creating": "作成中…",
+    "sendCode": "コードを送信",
+    "resend": "コードを再送",
+    "useOtp": "メールのコードでログイン",
+    "forgotPassword": "パスワードをお忘れですか？",
+    "noAccount": "アカウントをお持ちでない方",
+    "hasAccount": "アカウントをお持ちの方",
+    "back": "戻る",
+    "backToSignIn": "ログインへ戻る",
+    "changeEmail": "別のメールアドレスを使う",
+    "fields": {
+      "penName": "ペンネーム",
+      "penNamePlaceholder": "例：Ada",
+      "email": "メールアドレス",
+      "emailPlaceholder": "your@email.com",
+      "password": "パスワード",
+      "passwordSignupPlaceholder": "10文字以上",
+      "code": "認証コード",
+      "codePlaceholder": "6桁の数字"
+    },
+    "social": {
+      "waiting": "ブラウザでの認証待ち…",
+      "continueWith": "{{provider}}で続ける",
+      "or": "または"
+    },
+    "legal": {
+      "agree": "登録により、次に同意します：",
+      "terms": "利用規約",
+      "termsUnavailable": "運営者が利用規約を設定していません。",
+      "and": "と",
+      "privacy": "プライバシーポリシー"
+    },
+    "forgot": {
+      "sub": "アカウントのメールアドレスを入力すると、認証コードを送ります。",
+      "codeSub": "{{email}}にコードを送りました。コードと新しいパスワードを入力してください。",
+      "done": "パスワードをリセットしました。ログインできます。",
+      "newPassword": "新しいパスワード",
+      "confirmPassword": "新しいパスワードを確認",
+      "passwordMismatch": "パスワードが一致しません。",
+      "resetFailed": "リセットできませんでした。コードを確認して再試行してください。",
+      "resetSubmit": "パスワードをリセット"
+    },
+    "otp": {
+      "emailSub": "有効期限10分の6桁コードを送ります。",
+      "codeSub": "{{email}}へ送信済み。コードは10分間有効です。"
+    },
+    "verify": {
+      "sent": "{{email}}へ送信済み。コードは10分間有効です。",
+      "sending": "{{email}}へコードを送信中…",
+      "verifying": "検証中…",
+      "submit": "確認してログイン"
+    },
+    "sync": {
+      "title": "ライブラリを同期中",
+      "detail": "アカウントの作品を同期しています。完了するまでアプリを開いたままにしてください。",
+      "failedTitle": "同期が完了しませんでした",
+      "failedDetail": "ローカルで執筆を続けられます。今再試行するか、後でアカウント設定の「接続して同期」を選んでください。",
+      "retry": "再試行",
+      "later": "今はしない",
+      "accountMismatchTitle": "このライブラリは別のアカウントのものです",
+      "accountMismatch": "ライブラリは1つのDriftingアカウントに接続します。このMacのライブラリは別のアカウントに属するため接続しませんでした。切り替えるには「アカウント」で同期を切断し（元のアカウントへのログインは不要）、このアカウントにログインしてください。ローカル作品とクラウドコピーは保全されます。",
+      "accountMismatchOk": "OK",
+      "accountMismatchOpenAccount": "同期を切断"
+    },
+    "errors": {
+      "signInFailed": "ログイン失敗",
+      "signUpFailed": "登録失敗",
+      "signInCheck": "ログインできません。メールアドレスとパスワードを確認してください。",
+      "signUpRetry": "登録できません。後ほど再試行してください。",
+      "oauthFailed": "ログインが完了しませんでした。再試行してください。",
+      "oauthCancelled": "ブラウザでログインが取り消されました。",
+      "oauthExpired": "ログインがタイムアウトしました。やり直してください。",
+      "oauthAccountNotLinked": "このメールは登録済みですが未確認です。まずメールでログインし、確認してください。",
+      "sessionFailed": "ログインセッションを読み込めません。再試行してください。",
+      "browserFailed": "ブラウザを開けません。再試行してください。",
+      "sendFailed": "送信失敗",
+      "sendRetry": "送信できません。後ほど再試行してください。",
+      "sendCodeFailed": "認証コードを送信できません",
+      "verifyFailed": "認証失敗",
+      "signupClosed": "Driftingは開発中です。登録はまだ受け付けていません。",
+      "mailQuotaExhausted": "本日の認証メール枠を使い切りました。Driftingはアカウントなしでも利用できます。この端末で執筆を続け、明日ログインして同期を有効にしてください。",
+      "mailDeliveryFailed": "認証メールを今は送れません。Driftingはアカウントなしでも利用できます。端末で執筆し、後でログインして同期を有効にしてください。"
+    }
+  },
+  "projectPicker": {
+    "bookTransfer": {
+      "exportFailedTitle": "エクスポートできませんでした",
+      "importFailedTitle": "インポートできませんでした",
+      "exportFailed": "作品をエクスポートできません。再試行してください。",
+      "notABook": "Driftingから出力した作品ではありません。",
+      "newer": "新しいDriftingから出力された作品です。先に更新してください。",
+      "tooLarge": "作品が大きすぎてインポートできません。",
+      "invalid": "ファイルが破損しており、インポートできません。",
+      "importFailed": "作品をインポートできません。再試行してください。"
+    },
+    "loading": "作品を読み込み中…",
+    "backToShelf": "本棚へ戻る",
+    "bookshelfShort": "本棚",
+    "untitledProject": "無題の作品",
+    "newProject": "新しい作品",
+    "allProjectsCn": "作品",
+    "allProjectsEn": "すべての作品",
+    "projectCount": "{{filtered}} / {{total}}作品",
+    "empty": "作品はまだありません。「＋新しい作品」で始めましょう。",
+    "newBookLine1": "新しい作品",
+    "newBookLine2": "新しい作品",
+    "newBookSubtitle": "新しい一冊は、ここから",
+    "newBookInline": "新しい作品・新しい一冊",
+    "nodesLabel": "章・ノード",
+    "header": {
+      "workspace": "あなたのワークスペース",
+      "studio": "DRIFTING 執筆スタジオ",
+      "userPlan": "DRIFTING・ワークスペース",
+      "titleEm": "本棚",
+      "title": "",
+      "subtitle": "執筆作品の切り替え、作成、整理を。"
+    },
+    "footer": {
+      "brand": "Drifting 執筆スタジオ",
+      "local": "ローカル"
+    },
+    "filters": {
+      "all": "すべて",
+      "active": "有効",
+      "paused": "一時停止"
+    },
+    "status": {
+      "writing": "執筆中",
+      "draft": "下書き",
+      "paused": "一時停止"
+    },
+    "source": {
+      "cloud": "クラウド・同期済み",
+      "localDraft": "ローカル・下書き"
+    },
+    "trash": {
+      "kicker": "ごみ箱へ移動",
+      "titlePrefix": "最近削除した項目へ移動",
+      "body": "作品（{{words}}文字・{{nodes}}章・{{elements}}要素）を本棚から移動します。「最近削除した項目」から30日以内に復元でき、その後は完全削除します。",
+      "remoteNote": "他の端末からも移動します。完全削除まではHostedデータと読めるMarkdownコピーを保ちます。",
+      "localNote": "完全削除まで内容と読めるMarkdownコピーを保ちます。",
+      "confirm": "最近削除した項目へ移動",
+      "moving": "移動中…",
+      "failed": "作品を移動できません。再試行してください。",
+      "entry": "最近削除・{{count}}件",
+      "listKicker": "最近削除した項目",
+      "listTitle": "最近削除した作品",
+      "listSub": "作品は30日間保管し、その後Hostedデータも含め完全削除します。",
+      "listSubLocal": "作品は30日間保管し、その後完全削除します。",
+      "empty": "最近削除した作品はありません。",
+      "expiresIn_one": "{{count}}日後に完全削除",
+      "expiresIn_other": "{{count}}日後に完全削除",
+      "expiresSoon": "完全削除待ち",
+      "restore": "復元",
+      "restoring": "復元中…",
+      "restoreFailed": "作品を復元できません。再試行してください。",
+      "deleteNow": "今すぐ削除",
+      "permanentBody": "30日を待たず今すぐ完全削除します。取り消せません。"
+    },
+    "delete": {
+      "everywhere": "ローカルとHostedから削除",
+      "remoteBody": "Hostedの作品、スナップショット、添付、Agent会話を完全削除し、他の端末からも除きます。Hostedの削除確認後にだけローカルを削除します。オフラインや失敗時はローカル作品を保ちます。",
+      "localBody": "このビルドはHosted無効です。同期済みの作品は、Hostedへの接続とリモート削除の確認後にのみローカルコピーを削除できます。",
+      "connectRequired": "作品とリモートデータを削除する前にHostedへ接続してください。ローカル作品は保全済みです。",
+      "accountRequired": "この作品のHostedアカウントでログインして再試行してください。ローカル作品は保全済みです。",
+      "syncChanged": "同期接続または作品が変わりました。切り替え後に再試行してください。",
+      "failed": "削除未完了のためローカル作品を保ちました。接続とサーバーのリモート削除対応を確認して再試行してください。",
+      "titlePrefix": "削除",
+      "deleting": "削除中…"
+    },
+    "form": {
+      "editKicker": "作品を編集",
+      "createKicker": "新しい作品",
+      "editTitle": "編集",
+      "createTitle": "作成",
+      "createTitleEm": "一冊の本",
+      "nameLabel": "タイトル",
+      "namePlaceholder": "例：北の岬の灯",
+      "summaryLabel": "要約",
+      "summaryPlaceholder": "作品を1〜2文で紹介してください。",
+      "createSubmit": "作成"
+    },
+    "desk": {
+      "newCard": "新しい一冊",
+      "newCardSub": "白紙から始める",
+      "coverStyle": {
+        "turn": "表紙スタイルを変更・現在{{name}}",
+        "names": {
+          "sand": "砂の筆",
+          "ridge": "稜線",
+          "quipu": "結び紐",
+          "weave": "織物",
+          "topo": "等高線",
+          "cyanotype": "サイアノタイプ",
+          "rings": "年輪",
+          "field": "色面",
+          "cutout": "切り紙",
+          "riso": "リソグラフ",
+          "stars": "星図",
+          "strata": "地層",
+          "bauhaus": "バウハウス",
+          "chars": "文字の海"
+        }
+      },
+      "preparingSample": "サンプル作品を準備中",
+      "open": "「{{name}}」を開く",
+      "moveToTrash": "最近削除した項目へ移動",
+      "exportBook": "この作品を出力（.driftingbook）",
+      "importing": "インポート中",
+      "untitled": "無題",
+      "progress": "進捗",
+      "goal": "{{pct}}%・目標{{target}}文字",
+      "wordsUnit": "文字",
+      "chaptersUnit_one": "章",
+      "chaptersUnit_other": "章",
+      "storylinesUnit_one": "ストーリーライン",
+      "storylinesUnit_other": "ストーリーライン",
+      "elementsUnit_one": "要素",
+      "elementsUnit_other": "要素",
+      "trashEntry": "最近削除した項目",
+      "trashTitle": "「{{name}}」を最近削除した項目へ移しますか？",
+      "form": {
+        "createTitle": "新しい一冊",
+        "editTitle": "「{{name}}」を編集",
+        "nameLabel": "タイトル",
+        "summaryLabel": "要約"
+      },
+      "trashList": {
+        "title": "最近削除した項目",
+        "sub": "作品は30日間保管し、その後Hostedデータも含め完全削除します。",
+        "subLocal": "作品は30日間保管し、その後完全削除します。",
+        "empty": "最近削除した作品はありません。",
+        "confirmTitle": "「{{name}}」を完全に削除しますか？"
+      },
+      "recent": "過去30日間",
+      "recentLabel": "過去30日間で{{words}}語"
+    },
+    "rail": {
+      "import": "本を読み込む",
+      "synced": "同期済み",
+      "books_one": "{{count}}冊",
+      "books_other": "{{count}}冊",
+      "library_one": "{{count}}冊 · {{words}}語",
+      "library_other": "{{count}}冊 · {{words}}語"
+    },
+    "heat": {
+      "label": "執筆ヒートマップ",
+      "summary": "過去1年間で{{words}}語、{{days}}日間執筆",
+      "year": "過去1年間",
+      "daysWritten": "日数",
+      "streak": "連続執筆",
+      "today": "今日",
+      "daysUnit": "日",
+      "mon": "月",
+      "wed": "水",
+      "fri": "金"
+    },
+    "mobile": {
+      "search": "作品を検索",
+      "singleView": "作品を1つずつ表示",
+      "filters": "作品のフィルター",
+      "actions": "{{name}}の操作"
+    }
+  },
+  "dashboard": {
+    "profilePlaceholder": "作品の前提、テーマ、あらすじを書く",
+    "wordCount": "{{count}}文字",
+    "wordsLabel": "文字",
+    "storylineSummary": "全{{total}}章・完成{{done}}・下書き{{draft}}・未着手{{todo}}",
+    "chaptersTitle": "{{count}}章",
+    "hero": {
+      "projectHome": "作品ホーム",
+      "draft": "第I巻 ― 下書き",
+      "since": "{{date}}より",
+      "projectName": "作品名",
+      "renameProject": "クリックで作品名を変更"
+    },
+    "metrics": {
+      "storylines": "ストーリーライン",
+      "nodes": "章ノード",
+      "elements": "要素",
+      "words": "執筆文字数",
+      "lastTouched": "最終更新"
+    },
+    "chips": {
+      "all": "すべて",
+      "draft": "下書き",
+      "todo": "未着手",
+      "done": "完了"
+    },
+    "actions": {
+      "storyGraph": "物語グラフ",
+      "elementOverview": "要素一覧",
+      "allChapters": "すべての章",
+      "newChapter": "新しい章",
+      "newStoryline": "新しいストーリーライン",
+      "newStorylineLong": "新しいストーリーライン",
+      "newCategory": "新しいカテゴリ"
+    },
+    "continue": {
+      "kicker": "執筆を続ける",
+      "noBody": "本文はまだありません",
+      "revisions": " 回の改訂",
+      "resume": "執筆を続ける",
+      "noChapters": "章はまだありません",
+      "emptyTitle": "白紙から始める",
+      "emptySub": "ストーリーラインを作り、最初の章を書きましょう。"
+    },
+    "today": {
+      "kicker": "今日",
+      "goal": "目標",
+      "streak": "連続執筆",
+      "week": "今週",
+      "month": "今月"
+    },
+    "sections": {
+      "storylines": "ストーリーライン",
+      "storylinesShort": "ストーリーライン",
+      "elementCategories": "要素カテゴリ",
+      "elementCategoriesShort": "要素カテゴリ",
+      "recent": "最近の活動",
+      "recentShort": "最近",
+      "writingPlan": "執筆計画",
+      "writingPlanShort": "執筆計画",
+      "projectProfile": "作品紹介",
+      "projectProfileShort": "作品紹介",
+      "projectFacts": "作品設定",
+      "projectFactsShort": "作品設定",
+      "storylineTemplate": "ストーリーラインのテンプレート",
+      "storylineTemplateShort": "ストーリーラインのテンプレート"
+    },
+    "empty": {
+      "noElements": "要素なし",
+      "noActivity": "活動なし",
+      "noFields": "項目なし",
+      "noTemplateFields": "テンプレート項目はまだありません。視点・主人公・時系列などを追加できます。"
+    },
+    "plan": {
+      "project": "作品",
+      "projectTarget": "作品全体の目標",
+      "dailyTarget": "1日の目標",
+      "wordsPerDay": "文字／日",
+      "projectHint": "全編の文字数目標です。0にすると目標進捗を隠します。",
+      "dailyHint": "今日の進捗と連続執筆日数の基準です。",
+      "projectProgress": "作品の進捗",
+      "todayProgress": "今日の進捗",
+      "noProjectGoal": "目標未設定",
+      "noDailyGoal": "1日の目標未設定"
+    },
+    "footer": {
+      "localReady": "ローカルデータ準備完了"
+    }
+  },
+  "importDialog": {
+    "title": "ファイルをインポート",
+    "closeBlocked": "現在のインポートが終わるまでお待ちください",
+    "descriptionA": "1回のインポートで指定できる種類は1つです。対応形式：",
+    "descriptionB": "複数ファイルまたは1つのフォルダを選べます。未対応の拡張子は無視します。",
+    "targetTitle": "対象",
+    "storylineTitle": "ストーリーライン",
+    "categoryTitle": "カテゴリ",
+    "filesTitle": "ファイル",
+    "chooseFiles": "ファイルを選択",
+    "chooseFolder": "フォルダを選択",
+    "clear": "消去",
+    "noStorylines": "ストーリーラインがありません。先に作成するか、アイデアとしてインポートしてください。",
+    "noCategories": "要素カテゴリがありません。先に作成してください。",
+    "importing": "インポート中…",
+    "start": "インポート開始（{{count}}）",
+    "targets": {
+      "chapter": {
+        "label": "章",
+        "desc": "本編のノードです。タイムラインに入り、文字数に計上します。"
+      },
+      "element": {
+        "label": "要素",
+        "desc": "人物・場所・物などの設定資料です。カテゴリが必要です。"
+      },
+      "inspiration": {
+        "label": "アイデア",
+        "desc": "ストーリーラインから独立したアイデアカード。"
+      }
+    },
+    "status": {
+      "pending": "保留中",
+      "parsing": "解析中",
+      "ready": "準備完了",
+      "committed": "インポート済み",
+      "error": "エラー"
+    },
+    "summary": {
+      "done": "完了",
+      "ok": "インポート済み",
+      "failed": "失敗"
+    }
+  },
+  "leftSidebar": {
+    "tabs": {
+      "chapters": "章",
+      "elements": "要素",
+      "drifts": "アイデア"
+    },
+    "top": {
+      "search": "検索",
+      "open": "左サイドバーを開く",
+      "close": "左サイドバーを閉じる"
+    },
+    "uncategorized": "未分類",
+    "empty": {
+      "noElements": "要素はまだありません。",
+      "noChapters": "章はまだありません。",
+      "noStorylines": "ストーリーラインはまだありません。",
+      "noDrifts": "アイデアはまだありません。"
+    },
+    "meta": {
+      "chapters": "{{count}}章",
+      "elements": "{{categories}}カテゴリ・{{elements}}要素",
+      "drifts": "{{count}}件のアイデア"
+    },
+    "groups": {
+      "renameElementGroupTitle": "ダブルクリックでグループ名を変更",
+      "addElementToGroup": "このグループに要素を追加",
+      "newChapterInStoryline": "このストーリーラインに章を追加",
+      "unaffiliated": "所属なし",
+      "newDriftInGroup": "ここにアイデアを追加",
+      "newSubGroup": "サブグループを追加",
+      "clickCollapseRename": "クリックで折りたたむ・ダブルクリックで名前変更",
+      "moveDriftToRoot": "最上位（グループから移動）",
+      "driftCount_one": "{{count}}件のアイデア",
+      "driftCount_other": "{{count}}件のアイデア",
+      "moveGroupToRoot": "最上位（トップへ移動）",
+      "rename": "名前を変更",
+      "moveToGroup": "グループへ移動…",
+      "deleteGroup": "グループを削除",
+      "moveDriftTitle": "アイデアをグループへ移動",
+      "moveGroupTitle": "グループの移動先"
+    },
+    "viewMode": {
+      "storylineTitle": "ストーリーライン別・全編一覧に切り替え",
+      "globalTitle": "全編一覧・ストーリーライン別にする",
+      "chapterSummary": "{{storylines}}ストーリーライン・{{chapters}}章",
+      "elementCompactTitle": "簡易索引・名前一覧に切り替え",
+      "elementListTitle": "名前一覧・簡易索引に切り替え"
+    },
+    "actions": {
+      "collapseAll": "すべて展開・折りたたみ",
+      "sort": "並べ替え",
+      "newChapter": "新しい章",
+      "newStoryline": "新しいストーリーライン",
+      "newCategory": "新しいカテゴリ",
+      "newDrift": "新しいアイデア",
+      "newDriftGroup": "新しいグループ"
+    },
+    "sort": {
+      "createdAt": "作成日時",
+      "updatedAt": "更新日時",
+      "title": "タイトル A–Z",
+      "bookOrder": "読む順番",
+      "narrativeOrder": "物語の順番",
+      "alphabet": "文字順",
+      "storylineOrder": "ストーリーライン順",
+      "showDate": "日付を表示",
+      "showWordCount": "文字数を表示",
+      "showBoth": "文字数と日付を表示",
+      "showNone": "どちらも隠す",
+      "duplicatesAll": "関連する全グループに表示",
+      "duplicatesPrimary": "主ストーリーラインにのみ表示",
+      "drifts": "アイデアを並べ替え",
+      "elements": "要素を並べ替え",
+      "categoryElements": "カテゴリ内の要素を並べ替え",
+      "storylineChapters": "ストーリーライン内の章を並べ替え",
+      "chapters": "章を並べ替え",
+      "cellMetaGroup": "セルの右端",
+      "duplicatesGroup": "複数ストーリーラインの章",
+      "outerStorylinesGroup": "外側のストーリーライン",
+      "outerCategoriesGroup": "外側のカテゴリ"
+    }
+  },
+  "rightSidebar": {
+    "tabs": {
+      "review": "レビュー",
+      "library": "資料庫",
+      "stats": "統計"
+    },
+    "top": {
+      "open": "右サイドバーを開く",
+      "close": "右サイドバーを閉じる"
+    },
+    "status": {
+      "done": "完了",
+      "draft": "下書き",
+      "todo": "執筆予定",
+      "discarded": "不採用"
+    },
+    "targets": {
+      "dashboard": "作品ホーム",
+      "allChapters": "全編"
+    },
+    "kickers": {
+      "noTab": "開いたタブなし",
+      "dashboard": "作品概要",
+      "allChapters": "全編・ペース",
+      "chapterContent": "この章・断片と資料",
+      "driftContent": "このアイデア・断片と資料",
+      "storylineContent": "このストーリーライン・断片と資料",
+      "elementContent": "この要素・断片と資料",
+      "categoryContent": "このカテゴリ・断片と資料",
+      "review": "作品・レビュー",
+      "todo": "作品・TODO",
+      "library": "作品・資料庫",
+      "stats": {
+        "all-chapters": "全編・ペース",
+        "chapter": "この章・詳細統計",
+        "drift": "このアイデア・詳細統計",
+        "storyline": "このストーリーライン・詳細統計",
+        "element": "この要素・詳細統計",
+        "category": "このカテゴリ・詳細統計",
+        "none": "作品・詳細統計",
+        "material": "この資料・詳細"
+      },
+      "materialContent": "資料"
+    },
+    "empty": {
+      "missingChapter": "現在の章が見つかりません。",
+      "missingStoryline": "現在のストーリーラインが見つかりません。",
+      "missingElement": "現在の要素が見つかりません。",
+      "missingCategory": "現在のカテゴリが見つかりません。",
+      "noStats": "作品ホームに項目別統計はありません。章・要素・ストーリーラインを開いてください。",
+      "missingMaterial": "この資料が見つかりません。"
+    },
+    "stats": {
+      "jumpTo": "「{{name}}」へ移動",
+      "titleWithWords": "{{title}}（{{words}}文字）",
+      "longestWithWords": "最長・{{title}}（{{words}}文字）",
+      "shortestWithWords": "最短・{{title}}（{{words}}文字）",
+      "noChapters": "章はまだありません。最初の章を書くと全編のペースを表示します。",
+      "bookOverview": "全編一覧",
+      "totalWords": "総文字数",
+      "wordsValue": "{{count}}文字",
+      "chapterCount": "章",
+      "chaptersValue": "{{count}}章",
+      "averagePerChapter": "1章の平均",
+      "writtenTarget": "執筆済み／目標",
+      "chapterWordCount": "文字数",
+      "actRhythm": "幕ごとのリズム",
+      "actTooltip": "{{name}}・{{chapters}}章・{{words}}文字",
+      "actMeta": "{{chapters}}章・{{wordsK}}k文字・{{pct}}%",
+      "completion": "完成度",
+      "noActiveProgress": "全章が不採用か、まだ進捗がありません。",
+      "statusCount": "{{status}} {{count}}章",
+      "discardedParen": "（不採用{{count}}）",
+      "chapterLengthRhythm": "章の長さのリズム",
+      "snapshotTitle": "この項目の履歴を閲覧・復元（30日間）",
+      "snapshotButton": "履歴スナップショット…",
+      "driftCoordinates": "アイデアの位置",
+      "chapterCoordinates": "章の位置",
+      "storyline": "ストーリーライン",
+      "type": "種類",
+      "driftFreeFragment": "アイデア・自由配置",
+      "chapter": "章",
+      "bookPosition": "本の中の位置",
+      "chapterOrdinal": "第{{count}}章",
+      "lastModified": "最終更新",
+      "wordRhythm": "文字数・リズム",
+      "paragraphSentence": "段落／文",
+      "paragraphSentenceValue": "{{paragraphs}}段落・{{sentences}}文",
+      "dialogueRatio": "会話の割合",
+      "thisFragmentElements": "このアイデアの要素",
+      "thisChapterElements": "この章の要素",
+      "noMentionedElements": "本文に@で言及した要素はありません。",
+      "loading": "統計を読み込み中…",
+      "openEntity": "「{{name}}」を開く",
+      "storylineCoordinates": "ストーリーラインの位置",
+      "recent": "最近",
+      "writingProgress": "執筆の進捗",
+      "storylineNoChapters": "このストーリーラインに章はまだありません。",
+      "averageWords": "平均文字数",
+      "wordsPerChapterValue": "{{words}}文字／章",
+      "storylineCoreElements": "このストーリーラインの主要要素",
+      "storylineNoMentionedElements": "このストーリーラインの章に@で言及した要素はありません。",
+      "moreLowAppearanceElements": "登場の少ない要素がほかに{{count}}件",
+      "elementCoordinates": "要素の位置",
+      "category": "カテゴリ",
+      "name": "名前",
+      "updated": "更新済み",
+      "references": "参照",
+      "categoryCoordinates": "カテゴリの位置",
+      "elementCount": "要素数",
+      "elementsValue": "{{count}}要素",
+      "health": "健全性",
+      "categoryNoElements": "このカテゴリに要素はまだありません。",
+      "appeared": "登場済み",
+      "averageAppearance": "平均登場数",
+      "avgChaptersPerElement": "{{count}}章／要素",
+      "unappearedElements": "未登場の要素",
+      "allElementsAppeared": "全要素が本文に登場しています。",
+      "moreUnappearedElements": "ほかに未登場{{count}}件",
+      "storylineDistribution": "ストーリーラインの分布",
+      "floatingStoryline": "自由配置／所属なし",
+      "materialCoordinates": "資料",
+      "created": "作成済み",
+      "noteShape": "メモ",
+      "noteWords": "長さ",
+      "noteTasks": "TODO",
+      "noteTasksValue": "{{done}} / {{total}}完了",
+      "openComments": "未解決コメントとTODO",
+      "materialFile": "ファイル",
+      "fileType": "種類",
+      "fileSize": "サイズ",
+      "dimensions": "寸法",
+      "embeddedMaterials": "埋め込み資料",
+      "materialRelations": "関連先"
+    }
+  },
+  "topTimeline": {
+    "singletons": {
+      "dashboard": "作品ホーム",
+      "allChapters": "全編"
+    },
+    "untitled": {
+      "chapter": "無題の章",
+      "drift": "無題のアイデア",
+      "storyline": "無題のストーリーライン",
+      "element": "無題の要素",
+      "category": "無題のカテゴリ",
+      "library_item": "無題の資料"
+    },
+    "menu": {
+      "closePane": "ペインを閉じる",
+      "extractTab": "タブとして取り出す",
+      "swapPanes": "ペインを入れ替え",
+      "unsplit": "分割を解除",
+      "close": "閉じる",
+      "openRight": "右側で開く",
+      "openLeft": "左側で開く",
+      "closeOthers": "他のタブを閉じる",
+      "closeRight": "右側のタブを閉じる",
+      "closeAll": "すべて閉じる"
+    },
+    "newEntity": "エンティティを作成",
+    "splitControls": "分割",
+    "closeTab": "タブを閉じる",
+    "closePane": "ペインを閉じる",
+    "dockLock": "開いたままにする",
+    "dockUnlock": "点表示に戻す"
+  },
+  "mobileTimeline": {
+    "create": "新規",
+    "createChapter": "新しい章",
+    "createMarker": "新しいマーカー",
+    "atEnd": "末尾に",
+    "here": "ここ",
+    "more": "その他",
+    "spread": "広げる：重なった章を等間隔に配置",
+    "visibleStorylines": "表示するストーリーライン",
+    "tracksLabel": "ストーリーラインのレーン",
+    "filterAll": "すべて",
+    "openPaper": "原稿を開く",
+    "movePosition": "位置を移動…",
+    "placeInto": "配置…",
+    "movePositionHint": "空きをタップし、隣同士の中点に配置します",
+    "placeAtEnd": "末尾に配置",
+    "placeHere": "ここに配置",
+    "placing": "「{{title}}」を移動中 ― 場所をタップ",
+    "moving": "「{{title}}」の点を移動中",
+    "dragOrder": "{{view}} {{order}}",
+    "unplaceHint": "物語の座標を解除します",
+    "bookViewOnly": "全編表示のみ",
+    "narrativeViewOnly": "物語表示のみ",
+    "primaryStoryline": "主ストーリーライン",
+    "storylineHint": "タップして主ストーリーラインを変更",
+    "writingStatus": "執筆状態",
+    "status": {
+      "draft": "下書き",
+      "finished": "完成",
+      "discarded": "保留"
+    },
+    "moveBoundary": "境界を移動",
+    "moveBoundaryHint": "レーン脇の境界ハンドルを長押し",
+    "moveMarker": "マーカーを移動",
+    "moveMarkerHint": "レーン脇のマーカー頭部を長押し",
+    "unplacedHint": "上へ引いて表示・外へドラッグして配置",
+    "chapterNumber": "第{{index}}章",
+    "current": "現在",
+    "bookIndex": "本の順番{{index}}",
+    "wordCount": "{{count}}文字",
+    "clusterTitle": "第{{from}}〜{{to}}章・{{count}}章",
+    "clusterHint": "タップして拡大",
+    "noChapters": "章はまだありません。＋かレーン脇の長押しで追加できます。"
+  },
+  "bottomTimeline": {
+    "marker": {
+      "defaultLabel": "マーカー",
+      "boundTitle": "アイデア関連付け済み・クリックで開く",
+      "editingTitle": "Enterで保存、空欄で削除",
+      "renameTitle": "ダブルクリックで名前変更",
+      "dragTitle": "ドラッグで位置調整"
+    },
+    "axis": {
+      "title": "物語の時点マーカー：＋または軸の空白をダブルクリックして、移動可能なマーカーを追加",
+      "needChapter": "マーカー追加には1章以上必要です",
+      "addPin": "時間マーカーを追加",
+      "time": "時間"
+    },
+    "empty": {
+      "noChaptersInStoryline": "このストーリーラインに章なし・ダブルクリックで作成"
+    },
+    "view": {
+      "toggleTitle": "表示：本の順序／物語内の時間",
+      "book": "全編",
+      "bookTitle": "本の順序：読む順番で並べる",
+      "narrative": "物語内の時間",
+      "narrativeTitle": "物語内の時間：回想を含め、作中の時系列で並べる"
+    },
+    "unaffiliated": {
+      "show": "未所属を表示",
+      "hide": "未所属を非表示",
+      "showTitle": "未所属のレーンを表示",
+      "hideTitle": "未所属のレーンを非表示"
+    },
+    "unplaced": {
+      "label": "未配置",
+      "title": "物語のタイムラインに未配置の章",
+      "empty": "すべての章が物語のタイムラインに配置されています"
+    },
+    "spread": {
+      "needTwo": "分散するには章が2つ以上必要です",
+      "title": "分散：{{mode}}を並べ直し、ノードの重なりを解消"
+    },
+    "locateCurrent": "現在の章へ移動",
+    "synthetic": {
+      "book": "全編",
+      "unaffiliated": "所属なし"
+    },
+    "storyline": {
+      "openTitle": "「{{name}}」を開く",
+      "chapterCount": "{{count}}章"
+    },
+    "menu": {
+      "moveToUnaffiliated": "未所属に移動",
+      "detachFromNarrative": "未配置に戻す",
+      "createChapterHere": "ここに章を作成",
+      "startActHere": "ここから新しい幕を開始"
+    },
+    "pinMenu": {
+      "openDrift": "アイデアを開く",
+      "unbind": "関連付けを解除し、通常のラベルに戻す",
+      "bindDrift": "アイデアを関連付け…",
+      "rename": "名前を変更",
+      "deleteMarker": "マーカーを削除"
+    },
+    "railMenu": {
+      "addMarkerHere": "ここにマーカーを作成"
+    },
+    "act": {
+      "railLabel": "幕",
+      "needChapter": "幕を分けるには章が1つ以上必要です",
+      "newAct": "新しい幕",
+      "emptyTrackTitle": "ここをダブルクリックするか、見出しの + をクリックして幕を作成",
+      "chapterCount": "{{count}}章",
+      "actNote": "幕のメモ",
+      "openActNoteTitle": "幕のメモを開く（関連付けられたアイデア）",
+      "dragBoundary": "ドラッグして幕の境界を調整",
+      "createHere": "ここに幕を作成",
+      "startHere": "ここから新しい幕を開始",
+      "openActNote": "幕のメモを開く",
+      "unbindDrift": "アイデアの関連付けを解除",
+      "deleteMergeNext": "この幕を削除して次の幕に統合",
+      "deleteMergePrev": "この幕を削除して前の幕に統合"
+    }
+  },
+  "storyGraph": {
+    "title": "物語グラフ",
+    "meta": "{{storylines}}本のストーリーライン · {{placed}}/{{total}}章",
+    "spread": "分散",
+    "spreadAria": "ノードを分散",
+    "axis": {
+      "time": "時間",
+      "addMarkerHint": "空いている場所をダブルクリックしてマーカーを追加"
+    },
+    "lane": {
+      "chapterCount": "{{count}}章"
+    },
+    "node": {
+      "titleWithWords": "{{title}} · {{count}}語",
+      "titleCounting": "{{title}} · 語数を集計中"
+    },
+    "drift": {
+      "allAnchored": "すべてのアイデアカードが物語のタイムラインに固定されています",
+      "empty": "アイデアはまだありません · アイデアパネルで作成できます",
+      "cardTitle": "{{title}} · {{count}}語 · Shift を押しながらクリックして関係の作成を開始",
+      "cardTitleCounting": "{{title}} · 語数を集計中 · Shift を押しながらクリックして関係の作成を開始"
+    },
+    "edge": {
+      "uncategorized": "未分類",
+      "hideKind": "「{{label}}」を非表示",
+      "showKind": "「{{label}}」を表示",
+      "hintTitle": "Shift を押しながら2つのノードをクリックして関係を作成",
+      "hint": "Shift を押しながら2つのノードをクリックして関係を作成",
+      "delete": "関係を削除",
+      "linkSourcePrefix": "選択した始点：",
+      "linkSourceSuffix": " · 別のノードをクリックして関係を作成",
+      "newTitle": "新しい関係",
+      "kindLabel": "関係の種類",
+      "kindPlaceholder": "既存の関係の種類を選択",
+      "detailsTitle": "関係の詳細",
+      "create": "作成"
+    },
+    "menu": {
+      "startEdgeFromNode": "このノードから関係を作成",
+      "startEdgeFromDrift": "このアイデアから関係を作成",
+      "deleteAllEdges": "このノードの関係をすべて削除（{{count}}件）"
+    }
+  },
+  "referencesPanel": {
+    "loading": "読み込み中…",
+    "updateFailed": "参照を更新できませんでした。再試行中…",
+    "relationKind": {
+      "placeholder": "関係の種類…",
+      "editTitle": "関係の種類を編集",
+      "empty": "関係の種類"
+    },
+    "deleted": {
+      "element": "（削除された要素）",
+      "node": "（削除された章）",
+      "category": "（削除されたカテゴリ）",
+      "storyline": "（削除されたストーリーライン）"
+    },
+    "kind": {
+      "element": "要素",
+      "node": "章",
+      "category": "カテゴリ",
+      "storyline": "ストーリーライン",
+      "patch": "変化記録"
+    },
+    "sections": {
+      "relations": "関係",
+      "incoming": "バックリンク",
+      "outgoing": "参照"
+    },
+    "actions": {
+      "add": "追加",
+      "remove": "関係を削除",
+      "jump": "このエンティティへ移動",
+      "linkEntity": "エンティティをリンク"
+    },
+    "filters": {
+      "all": "すべて"
+    },
+    "picker": {
+      "placeholder": "リンク可能なエンティティを検索…",
+      "empty": "選択肢がありません"
+    },
+    "empty": {
+      "incoming": "この項目を参照する内容はまだありません",
+      "outgoing": "この本文には他のエンティティへの参照がまだありません"
+    },
+    "meta": {
+      "blocksSpans": "{{blocks}}ブロック · {{spans}}件の言及",
+      "spans": "{{count}}件の言及"
+    }
+  },
+  "patchEditorCard": {
+    "deletedChapter": "（削除された章）",
+    "untitledChapter": "（無題の章）",
+    "titlePlaceholder": "変化記録のタイトル（任意）",
+    "anchor": {
+      "sourceDeleted": "{{title}} · 元の段落は削除済み",
+      "sourceBlock": "{{title}} · 段落",
+      "noChapter": "章なし",
+      "viewSnapshotTitle": "{{label}} · 元のスナップショットを表示",
+      "invalidJumpTitle": "出典：{{label}} · 原文は削除済み。クリックして章を開く",
+      "jumpTitle": "出典：{{label}} · クリックして移動",
+      "changeChapter": "所属する章を変更",
+      "editSourceChapter": "出典の章を編集",
+      "assignTo": "割り当て先",
+      "noChapters": "この作品には章がまだありません",
+      "blockLevel": "ブロック"
+    },
+    "review": {
+      "agentDelete": "Agent による削除",
+      "agentChange": "Agent による変更",
+      "agentAdd": "Agent による追加",
+      "confirmDelete": "削除を確定",
+      "acceptChange": "変更を採用",
+      "keepPatch": "この変化記録を保持",
+      "restore": "削除せずに復元",
+      "rejectChange": "変更を却下",
+      "discardAndDelete": "破棄して削除",
+      "titleField": "タイトル"
+    },
+    "actions": {
+      "expand": "展開",
+      "collapse": "折りたたむ",
+      "deletePatch": "変化記録を削除"
+    },
+    "invalid": {
+      "label": "無効",
+      "viewSnapshotTitle": "紐付けられた本文は章から削除済み · 元のスナップショットを表示",
+      "title": "紐付けられた本文が章から削除されたため、この変化記録は無効となり、整合性レビューの対象から除外されます"
+    },
+    "snapshot": {
+      "kicker": "元のスナップショット · 章から削除済み"
+    }
+  },
+  "reviewPanel": {
+    "title": "レビュー",
+    "type": "種類で絞り込み",
+    "scope": "範囲で絞り込み",
+    "comment": "コメント",
+    "completed": "完了",
+    "jumpToText": "リンクされた本文へ移動",
+    "filters": {
+      "all": "両方",
+      "comment": "コメント",
+      "todo": "TODO"
+    },
+    "filtersCompact": {
+      "all": "すべて",
+      "comment": "メモ",
+      "todo": "TODO"
+    },
+    "scopes": {
+      "current": "現在",
+      "project": "作品"
+    },
+    "empty": "この範囲にレビュー項目はありません。",
+    "resolved": "解決済み（{{count}}件）",
+    "newComment": "新しいコメント",
+    "agentTaskStart": "Agent に対応を依頼",
+    "agentTaskStarting": "開始中…",
+    "agentTaskOpen": "Agent のチャットを開く",
+    "agentTaskRunning": "Agentが作業中",
+    "agentTaskUnavailable": "この作品では Agent の準備ができていません",
+    "agentTaskStartFailed": "Agent のチャットを開始できませんでした",
+    "commentPlaceholder": "コメントを入力…",
+    "addSticky": "付箋に追加",
+    "inSticky": "付箋に追加済み",
+    "removeSticky": "付箋から削除",
+    "source": "出典",
+    "sourceInfo": "出典",
+    "sourceFloating": "作品全体 · エンティティへのリンクなし",
+    "sourceUnavailable": "エンティティを利用できません",
+    "sourceText": "リンクされた本文 · 元の抜粋",
+    "sourceTextUnavailable": "保存された抜粋はありません",
+    "stickyRail": "付箋",
+    "stickyCount": "{{count}}枚の付箋",
+    "expandSticky": "付箋を展開",
+    "stackSticky": "付箋を重ねる",
+    "clearSticky": "すべての付箋を削除",
+    "groupBy": {
+      "title": "グループ化",
+      "target": "場所別",
+      "flat": "なし"
+    },
+    "groups": {
+      "floating": "未添付",
+      "deleted": "削除済み",
+      "patch": "要素の変化記録",
+      "open": "{{name}}を開く",
+      "expand": "{{name}}を展開",
+      "collapse": "{{name}}を折りたたむ"
+    },
+    "editInNote": "メモで編集",
+    "noteTaskHint": "メモのチェックリストからの項目です。ダブルクリックしてメモ内で編集できます。"
+  },
+  "commentRail": {
+    "aria": {
+      "margin": "原稿のコメント"
+    },
+    "color": {
+      "todo": "TODO",
+      "manual": "コメント"
+    },
+    "snapshot": {
+      "aria": "出典ブロックのスナップショット",
+      "title": "リンク先の出典 · 作成時のスナップショット · {{count}}段落",
+      "changed": "削除／変更済み",
+      "emptyBlock": "（空の段落）"
+    },
+    "status": {
+      "resolved": "解決済み",
+      "open": "未解決"
+    },
+    "card": {
+      "emptyComment": "空のコメント"
+    },
+    "original": {
+      "title": "本文は変更されています · 作成時のリンク先を表示",
+      "deleted": "原文は削除済み · 表示",
+      "changed": "本文は変更済み · 原文を表示"
+    },
+    "actions": {
+      "close": "閉じる",
+      "collapse": "折りたたむ",
+      "collapseToChip": "チップに折りたたむ",
+      "expand": "展開",
+      "accept": "採用",
+      "reject": "却下",
+      "reopen": "開き直す",
+      "resolve": "解決済みにする",
+      "revertToNoteTitle": "通常のコメントに戻す",
+      "toNote": "コメントに変換",
+      "toTodo": "TODO に変換",
+      "cancelComment": "コメントをキャンセル",
+      "add": "追加"
+    },
+    "composer": {
+      "newComment": "新しいコメント",
+      "placeholder": "コメントを入力…"
+    },
+    "entity": {
+      "title": "章のメモ",
+      "placeholder": "段落に紐付けない章のメモを入力…",
+      "newNote": "新しい章のメモ",
+      "noteCount": "{{count}}件の章のメモ"
+    }
+  },
+  "globalSearch": {
+    "entity": {
+      "node": "章",
+      "storyline": "ストーリーライン",
+      "element": "要素",
+      "category": "カテゴリ"
+    },
+    "field": {
+      "title": "タイトル",
+      "name": "名前",
+      "summary": "要約",
+      "body": "本文"
+    },
+    "fallback": {
+      "untitled": "（無題）",
+      "unnamed": "（名前なし）"
+    },
+    "placeholder": "章、ストーリーライン、要素、カテゴリのタイトル、概要、本文を検索…",
+    "stats": "{{groups}}項目 · {{occurrences}}件一致",
+    "closeTitle": "閉じる（Esc）",
+    "emptyPrompt": "キーワードを入力して、この作品のすべてのエンティティを検索",
+    "noResults": "一致する項目がありません",
+    "truncated": "…ほか{{count}}件は非表示"
+  },
+  "fieldReview": {
+    "acceptTitle": "この変更を採用",
+    "rejectTitle": "却下して復元"
+  },
+  "agentEditAnimator": {
+    "reviewAll": "Agent による本文の編集をすべてレビュー",
+    "pendingCount": "{{count}}件保留中",
+    "acceptAll": "すべて採用",
+    "rejectAll": "すべて却下",
+    "op": {
+      "new": "追加",
+      "deleted": "削除",
+      "changed": "書き直し"
+    }
+  },
+  "patchesSection": {
+    "add": "新規",
+    "empty": "- 変化記録はまだありません。章の本文を選択し、上のバーで「新しい変化記録」を選ぶと、この要素に紐付けられます -"
+  },
+  "edgeKindManager": {
+    "title": "すべての関係の種類",
+    "all": "すべて",
+    "openAllTitle": "すべての関係の種類とフィルターを表示",
+    "legendLabel": "キャンバス上の線",
+    "editTypes": "種類を編集",
+    "summary": "{{kinds}}種類 · {{relations}}件の関係",
+    "visibleSummary": "{{visible}}/{{total}}を表示",
+    "filterLabel": "キャンバスのフィルター",
+    "noCanvasRelations": "このキャンバスには絞り込める関係がまだありません",
+    "manageLabel": "種類を管理",
+    "relationCountTitle": "{{count}}件の関係が「{{label}}」を使用",
+    "empty": "このビューには関係がまだありません",
+    "changeColor": "色を変更",
+    "changeColorLabel": "{{label}}の色を変更",
+    "resetColor": "既定の色に戻す"
+  },
+  "relationTypes": {
+    "title": "関係の種類の定義",
+    "usedOnCanvas": "このキャンバスで使用中",
+    "availableOnCanvas": "ここで利用可能 · 使用例なし",
+    "otherTypes": "他のキャンバスの種類",
+    "usageSummary": "このキャンバスで{{canvas}}件 · 作品全体で{{project}}件",
+    "create": "新規",
+    "createInline": "関係の種類を作成",
+    "chooseExisting": "既存の種類を選択",
+    "name": "名前",
+    "direction": "方向",
+    "directed": "有向",
+    "symmetric": "対称",
+    "endpointRole": "端点の役割",
+    "sourceRole": "始点の役割",
+    "targetRole": "終点の役割",
+    "defaultSourceRole": "出典",
+    "defaultTargetRole": "対象",
+    "description": "説明",
+    "allowedEntities": "許可するエンティティ",
+    "allowedSources": "始点として許可するエンティティ",
+    "allowedTargets": "終点として許可するエンティティ",
+    "cancel": "キャンセル",
+    "save": "保存",
+    "symmetricSummary": "対称 · {{role}}",
+    "emptySelector": "先に「すべての関係の種類」で種類を作成してください",
+    "inUse": "この種類を使用している関係があります",
+    "delete": "関係の種類を削除",
+    "builtIn": "組み込み",
+    "builtInLocked": "組み込みの関係の種類は編集・削除できません",
+    "missing": "関係の種類が見つかりません",
+    "confirmDelete": "関係の種類「{{name}}」を削除しますか？",
+    "swap": "関係の始点と終点を入れ替え",
+    "pendingIncoming": "このエンティティ ← 対象",
+    "pendingOutgoing": "このエンティティ → 対象",
+    "selectConfigured": "関係の種類を選択",
+    "ariaLabel": "関係の種類",
+    "genericAssociation": {
+      "name": "関連",
+      "description": "TODO や資料をワンクリックで対象に関連付けます。",
+      "sourceRole": "関連する項目",
+      "targetRole": "対象"
+    },
+    "entityKinds": {
+      "node": "章またはアイデア",
+      "element": "要素",
+      "patch": "要素の変化記録",
+      "category": "要素カテゴリ",
+      "storyline": "ストーリーライン",
+      "comment": "コメント",
+      "library_item": "資料"
+    }
+  },
+  "entityEditor": {
+    "bodyLoadError": "本文の読み込みに失敗したため、読み取り専用になっています。既存の内容を保護するため、ここでの本文の変更は保存されません。",
+    "contextMenu": {
+      "format": "形式",
+      "addComment": "コメントを追加",
+      "addPatch": "新しい変化記録"
+    }
+  },
+  "elementCardPopover": {
+    "aria": {
+      "card": "要素カード"
+    },
+    "summaryShortPlaceholder": "概要…",
+    "syncNote": "変更はフルエディターに同期されます"
+  },
+  "superElement": {
+    "title": "要素一覧",
+    "meta": "{{categories}}カテゴリ・{{elements}}要素",
+    "linkHint": "2つ目の要素または章を選択 · Esc でキャンセル",
+    "linkHintFrom": "始点",
+    "linkHintTo": "終点…2つ目の要素または章を選択。Esc でキャンセル",
+    "focusOffTitle": "フォーカスをオフにして、すべての関係線を表示",
+    "focusOnTitle": "フォーカスをオンにして、表示範囲内の要素の関係のみ表示",
+    "focusToggle": "フォーカス · {{state}}",
+    "focus": "フォーカス",
+    "stickyOffTitle": "章バンドの追従をオフ",
+    "stickyOnTitle": "章バンドの追従をオンにして、移動中も表示範囲の端に固定",
+    "stickyToggle": "バンド追従 · {{state}}",
+    "sticky": "バンド追従",
+    "stateOn": "オン",
+    "stateOff": "オフ",
+    "resetTitle": "キャンバスのズームと位置をリセット",
+    "reset": "リセット",
+    "layout": {
+      "label": "レイアウト",
+      "isles": "島々",
+      "relate": "関係"
+    },
+    "relate": {
+      "relayout": "再配置",
+      "relayoutTitle": "ドラッグで固定した要素の位置を解除して再配置"
+    },
+    "kind": {
+      "element": "要素",
+      "chapter": "章"
+    },
+    "manualRelationTitle": "手動の関係を作成",
+    "relationVerb": "参照",
+    "unnamedCategory": "無題のカテゴリ",
+    "uncategorized": "未分類",
+    "startEdgeFromElement": "この要素から関係を作成",
+    "startEdgeFromDrift": "このアイデアから関係を作成",
+    "isles": {
+      "lines": "同じ段落",
+      "linesSection": "自動の線",
+      "linesTitle": "同じ章の段落内で言及された2つの要素を砂色の線で結びます",
+      "threshold": "共に登場する段落数の下限",
+      "thresholdLabel": "段落のつながり",
+      "thresholdHint": "2つの要素が共に登場する段落数が選択した数以上の場合に、自動の線を表示します。",
+      "customThreshold": "カスタム",
+      "customThresholdHint": "1以上の整数を入力",
+      "atLeast": "≥{{count}}",
+      "find": "要素を検索",
+      "newElement": "ここに要素を作成",
+      "unpin": "自動配置に戻す",
+      "pinned": "固定済み",
+      "island": {
+        "openInTab": "タブで開く",
+        "collapse": "カードに戻す",
+        "resize": "ドラッグして島のサイズを変更",
+        "fold": "折りたたむ",
+        "unfold": "展開",
+        "categoryMeta": "{{count}}要素",
+        "mentions": "{{count}}件の言及",
+        "unmentioned": "本文に登場しない",
+        "mostMentioned": "言及が多い順",
+        "element": "要素",
+        "category": "カテゴリ"
+      },
+      "detail": {
+        "meta": "{{category}} · {{count}}件の言及",
+        "appearance": "登場",
+        "appeared": "{{appeared}}/{{total}}章に登場 · 初登場 {{first}} · 最終 {{last}} · 最長の間隔 {{gap}}",
+        "never": "本文ではまだ言及されていません",
+        "tick": "{{section}} {{title}} · {{count}}",
+        "tickAbsent": "{{section}} {{title}}",
+        "companions": "よく一緒に登場",
+        "times": "× {{count}}",
+        "relations": "関係",
+        "isolate": "これだけ表示",
+        "showAll": "すべて表示",
+        "edit": "編集",
+        "close": "閉じる"
+      }
+    },
+    "empty": {
+      "noStorylines": "ストーリーラインはまだありません",
+      "noCategories": "要素のカテゴリはまだありません",
+      "categoryEmpty": "空",
+      "categoryNoElements": "要素はまだありません"
+    }
+  },
+  "nodeCardPopover": {
+    "aria": {
+      "card": "章カード"
+    },
+    "summaryPlaceholder": "概要を入力…",
+    "expandTitle": "コンパクトエディターに展開",
+    "expand": "編集を展開",
+    "openFullTitle": "フルエディターへ移動",
+    "openInEditor": "エディターで開く",
+    "compactEdit": "コンパクト編集",
+    "collapseTitle": "カードに折りたたむ",
+    "collapse": "折りたたむ",
+    "fullEditor": "フルエディター",
+    "loading": "読み込み中…",
+    "wordSync": "{{count}}語 · 変更はフルエディターに同期されます"
+  },
+  "nodeEditor": {
+    "alerts": {
+      "needStoryline": "アイデアを章に変換するには、先に左サイドバーまたはタイムラインでストーリーラインを作成してください。",
+      "needCategory": "アイデアを要素に変換するには、先に要素の一覧でカテゴリを作成してください。",
+      "conversionFailed": "変換に失敗しました。もう一度お試しください。",
+      "statusUpdateFailed": "執筆状態を更新できませんでした。もう一度お試しください。",
+      "deleteFailed": "ノードを削除できませんでした。もう一度お試しください。"
+    },
+    "deleteConfirm": "ノード「{{name}}」を削除しますか？",
+    "folio": {
+      "chapter": "章",
+      "chapterNumber": "第{{n}}章",
+      "drift": "アイデア"
+    },
+    "empty": {
+      "noStorylines": "ストーリーラインはまだありません",
+      "noStoryline": "ストーリーラインなし",
+      "noDrifts": "アイデアはまだありません",
+      "noChapters": "章なし"
+    },
+    "meta": {
+      "words": "{{count}}文字",
+      "storylines": "{{count}}本のストーリーライン"
+    },
+    "outline": {
+      "title": "章 · アウトライン"
+    },
+    "groupMove": {
+      "title": "グループへ移動",
+      "root": "（ルート · グループなし）"
+    },
+    "conversion": {
+      "toChapter": "章に変換",
+      "toElement": "要素に変換",
+      "chapterSubtitle": "このアイデアを所属させるストーリーラインを選択します。状態は下書きに戻ります。",
+      "elementSubtitle": "このアイデアを所属させるカテゴリを選択します。アイデアは削除され、内容は新しい要素に移されます。",
+      "noStorylines": "利用できるストーリーラインがありません",
+      "noCategories": "利用できるカテゴリがありません",
+      "converting": "変換中…"
+    }
+  },
+  "storylineEditor": {
+    "untitled": "無題のストーリーライン",
+    "loading": "ストーリーラインを読み込み中…",
+    "deleteConfirm": "ストーリーライン「{{name}}」を削除しますか？",
+    "folio": "ストーリーライン",
+    "alerts": {
+      "deleteFailed": "ストーリーラインを削除できませんでした。もう一度お試しください。"
+    },
+    "scratchPlaceholder": "このストーリーラインの走り書き：簡単なメモ、アイデア、文体の注意点など…",
+    "summaryPlaceholder": "このストーリーラインを一文で要約…",
+    "nodeTemplatePlaceholder": "H1 / H2 / H3 で章のひな形を作成。新しい章に適用されます…",
+    "outlineTitle": "{{name}} · アウトライン",
+    "sections": {
+      "overview": "概要",
+      "scratchShort": "走り書き",
+      "scratch": "走り書き",
+      "facts": "設定情報",
+      "nodeTemplate": "章のテンプレート",
+      "chapters": "章の順序"
+    },
+    "labels": {
+      "color": "色"
+    },
+    "meta": {
+      "chapters": "{{count}}章",
+      "kWords": "{{count}}千語",
+      "facts": "このストーリーラインのキーと値による設定情報",
+      "nodeTemplate": "新しい章の既定の構成",
+      "chaptersWords": "{{chapters}}章 · {{words}}千語"
+    },
+    "filters": {
+      "all": "すべて",
+      "written": "執筆済み",
+      "unwritten": "未着手"
+    },
+    "empty": {
+      "noFacts": "フィールドはまだありません。作品のテンプレートに定義がある場合、ストーリーラインの作成時に入力されます。",
+      "noChapterSummary": "一文の要約はまだありません",
+      "noFilteredChapters": "条件に合う章はありません"
+    },
+    "actions": {
+      "openChapter": "章を開く"
+    }
+  },
+  "categoryEditor": {
+    "untitled": "無題のカテゴリ",
+    "loading": "カテゴリを読み込み中…",
+    "deleteConfirm": "カテゴリ「{{name}}」を削除しますか？\n\nこのカテゴリの要素は「未分類」に移されます。",
+    "folio": "カテゴリ",
+    "alerts": {
+      "deleteFailed": "カテゴリを削除できませんでした。もう一度お試しください。"
+    },
+    "scratchPlaceholder": "このカテゴリの走り書き：設計方針、命名規則、AI 候補のルールなど…",
+    "elementTemplatePlaceholder": "H1 / H2 / H3 で要素のひな形を作成。新しい要素に適用されます…",
+    "sections": {
+      "overview": "概要",
+      "scratchShort": "走り書き",
+      "scratch": "走り書き",
+      "elementTemplateShort": "要素のテンプレート",
+      "elementTemplate": "要素のテンプレート",
+      "templateKv": "フィールドのテンプレート",
+      "elements": "要素一覧"
+    },
+    "labels": {
+      "elementCount": "要素",
+      "role": "役割"
+    },
+    "meta": {
+      "elements": "{{count}}要素",
+      "items": "{{count}}項目",
+      "elementTemplate": "新しい要素の既定の構成",
+      "templateKv": "新しい要素の既定のフィールド"
+    },
+    "filters": {
+      "used": "記入済み",
+      "unused": "空"
+    },
+    "empty": {
+      "noCategories": "カテゴリはまだありません",
+      "noTemplateFields": "テンプレートのフィールドはまだありません。別名、所属、初登場などのキーを追加できます。",
+      "noRole": "一文の役割説明はまだありません",
+      "noFilteredElements": "条件に合う要素はありません"
+    },
+    "actions": {
+      "openElement": "要素を開く"
+    }
+  },
+  "elementEditor": {
+    "untitled": "無題の要素",
+    "deleteConfirm": "要素「{{name}}」を削除しますか？",
+    "folio": "要素",
+    "bodyPlaceholder": "物語が進む時点で、この要素はどのような状態ですか？",
+    "summaryPlaceholder": "役割を一文で説明…",
+    "sketch": "スケッチ",
+    "sketchWithCategory": "{{category}} · スケッチ",
+    "portrait": {
+      "add": "画像を追加",
+      "import": "インポート",
+      "replace": "置き換え",
+      "view": "画像を拡大表示",
+      "loading": "画像を読み込み中",
+      "remove": "画像を削除",
+      "importing": "インポート中",
+      "importFailed": "画像の読み込みに失敗しました。もう一度お試しください。",
+      "removeFailed": "画像を削除できませんでした。もう一度お試しください。",
+      "loadFailed": "画像を読み込めませんでした。"
+    },
+    "imageEntry": {
+      "label": "要素の画像",
+      "generate": "生成…",
+      "addFromFile": "ファイルから追加…",
+      "replaceFromFile": "ファイルから置き換え…",
+      "remove": "画像を削除"
+    },
+    "imageGeneration": {
+      "generate": "生成",
+      "generateTitle": "ChatGPT のサブスクリプションでコンセプト画像の候補を生成",
+      "title": "コンセプト画像を生成",
+      "style": "作品のアートスタイル",
+      "stylePlaceholder": "例：落ち着いた水彩、19世紀の北欧、柔らかなサイドライト",
+      "styleHint": "作品の設定情報「美术风格」として保存され、毎回の生成に追加されます。空欄の場合は Agent が選びます。",
+      "extra": "今回の追加指示",
+      "extraPlaceholder": "任意。例：雨の夜の様子、荒廃を強調",
+      "count": "画像数",
+      "quota": "画像の上限の{{percent}}%を使用済み。{{reset}}にリセット",
+      "submit": "Agent で生成",
+      "needsSignIn": "先に「設定 → モデルと API」で ChatGPT のサブスクリプションにサインインしてください。",
+      "candidates": "画像の候補",
+      "candidatesHint": "この端末にのみ保存され、30日後に削除されます",
+      "starting": "開始中…",
+      "running": "生成中 · 表示",
+      "setPortrait": "要素の画像に設定",
+      "keep": "資料として保存",
+      "discard": "破棄",
+      "startFailed": "生成を開始できませんでした：{{error}}",
+      "actionFailed": "操作に失敗しました：{{error}}",
+      "taskTitle": "コンセプト画像：{{name}}",
+      "prompt": "説明",
+      "size": "サイズ"
+    },
+    "sections": {
+      "overview": "概要",
+      "bio": "略歴",
+      "bioTitle": "略歴",
+      "facts": "設定情報",
+      "patches": "変化記録"
+    },
+    "meta": {
+      "facts": "別名／カテゴリ／生年／初登場など…"
+    },
+    "empty": {
+      "noFacts": "フィールドはまだありません。カテゴリのテンプレートに定義がある場合、要素の作成時に入力されます。",
+      "selectElement": "編集する要素を選択",
+      "noCategories": "カテゴリはまだありません"
+    },
+    "alerts": {
+      "renameConflict": "名前を変更できません。「{{name}}」は要素「{{conflicting}}」の名前または別名として使用されています。",
+      "aliasConflict": "別名を追加できません。「{{name}}」は要素「{{conflicting}}」で使用されています。",
+      "groupUpdateFailed": "グループを更新できませんでした。もう一度お試しください。",
+      "deleteFailed": "要素を削除できませんでした。もう一度お試しください。"
+    },
+    "alias": {
+      "remove": "別名を削除",
+      "addFirst": "別名を追加",
+      "add": "別名"
+    },
+    "group": {
+      "title": "グループ · {{category}}",
+      "placeholder": "グループを検索または作成…（空欄＝グループなし）",
+      "noGroup": "（グループなし）",
+      "empty": "このカテゴリにはグループがまだありません。",
+      "create": "グループ「{{name}}」を作成"
+    },
+    "category": {
+      "change": "カテゴリを変更",
+      "newOption": "新しいカテゴリ…",
+      "newTitle": "新しいカテゴリ",
+      "namePlaceholder": "カテゴリ名…",
+      "create": "作成"
+    }
+  },
+  "allChapters": {
+    "title": "すべての章を読む",
+    "outlineTitle": "すべての章を読む · アウトライン",
+    "untitledChapter": "無題の章",
+    "menuHeader": "操作：{{title}}",
+    "currentAt": "現在位置：{{title}}",
+    "actOrdinal": "第{{n}}幕",
+    "empty": {
+      "noChapters": "この作品には章がまだありません。",
+      "noChaptersShort": "章はまだありません"
+    },
+    "actions": {
+      "backHome": "作品ホームに戻る"
+    }
+  },
+  "mobileWorkspace": {
+    "paperAgent": {
+      "outline": "アウトライン",
+      "placeholder": "Agent に質問…",
+      "plot": "プロット",
+      "timeline": "タイムライン",
+      "recent": "最近のセッション",
+      "allSessions": "すべてのセッション",
+      "searchSessions": "セッションを検索",
+      "loadFailed": "このセッションを読み込めませんでした。選び直すか、新しい会話を始めてください。",
+      "steer": "送信"
+    },
+    "projectActions": {
+      "menu": "作品のオプション",
+      "details": "作品の詳細",
+      "summary": "作品の概要",
+      "goals": "執筆目標",
+      "trash": "作品のゴミ箱",
+      "delete": "作品を削除",
+      "deleteBody": "「{{name}}」を「最近削除した項目」に移動しますか？30日間はデスクトップ版の本棚の「最近削除した項目」から復元できます。その後は完全に削除されます。",
+      "deleteFailed": "作品を削除できませんでした。もう一度お試しください。",
+      "saveFailed": "変更を保存できませんでした。再試行してください。",
+      "invalidGoal": "0以上の整数で語数を入力してください。",
+      "goalsDevice": "執筆目標はこの端末に保存され、ホーム、本棚、執筆統計で使われます。"
+    },
+    "unifiedBar": "モバイルワークスペースバー",
+    "openPapers": "開いているページ",
+    "dismissKeyboard": "キーボードを閉じる",
+    "paperStats": {
+      "open": "現在のページの統計を表示",
+      "dismiss": "下に引いて統計を閉じる"
+    },
+    "editorAccessory": {
+      "undo": "元に戻す",
+      "redo": "やり直す",
+      "label": "編集書式ツールバー",
+      "format": "形式",
+      "expand": "書式設定を表示",
+      "collapse": "書式設定を非表示",
+      "paragraph": "本文",
+      "heading1": "見出し1",
+      "heading2": "見出し2",
+      "heading3": "見出し3",
+      "blockquote": "引用",
+      "bold": "太字",
+      "italic": "斜体",
+      "underline": "下線",
+      "strike": "取り消し線"
+    },
+    "search": {
+      "open": "検索",
+      "paperScope": "ページ",
+      "projectScope": "作品全体を検索"
+    },
+    "superView": {
+      "label": "独立スーパービュー",
+      "navigation": "スーパービューを切り替え",
+      "relationMode": "関係を作成",
+      "relationModeOn": "始点を選択"
+    },
+    "deferred": {
+      "label": "モバイルワークスペース",
+      "title": "この画面には新しいワークスペースのデザインを採用します",
+      "body": "モバイル版の執筆ワークスペースは今後の対応となりますが、認証、本棚、設定は引き続き利用できます。"
+    }
+  },
+  "mobileEditorRails": {
+    "controls": "ページ移動と付箋",
+    "menu": "ページ移動と付箋",
+    "toc": "目次レール",
+    "comments": "付箋レール"
+  },
+  "editorTopBar": {
+    "actions": {
+      "collapsePlotPlanner": "プロットプランナーを折りたたむ",
+      "expandPlotPlanner": "プロットプランナーを展開",
+      "outlineRailDisplay": "目次レール",
+      "hideReferenceLinks": "参照リンクの装飾を非表示",
+      "showReferenceLinks": "参照リンクの装飾を表示",
+      "noComments": "付箋はありません",
+      "hideComments": "付箋を非表示",
+      "showComments": "付箋を表示",
+      "more": "その他の操作"
+    },
+    "outlineRailMode": {
+      "visible": "目次を表示",
+      "hidden": "目次を非表示"
+    },
+    "status": {
+      "draft": "下書き",
+      "finished": "完成",
+      "discarded": "不採用",
+      "drifting": "漂流中",
+      "resting": "停泊中"
+    },
+    "statusSection": {
+      "chapter": "執筆状態",
+      "drift": "アイデアの状態"
+    },
+    "menu": {
+      "convertToChapter": "章に変換…",
+      "convertToElement": "要素に変換…",
+      "moveToGroup": "グループへ移動…",
+      "editStorylines": "ストーリーラインを編集",
+      "changeCategory": "カテゴリを変更",
+      "changeGroup": "グループを変更",
+      "deleteNode": "ノードを削除",
+      "deleteElement": "要素を削除",
+      "deleteCategory": "カテゴリを削除",
+      "deleteStoryline": "ストーリーラインを削除",
+      "openMaterialInSystem": "既定のアプリで開く",
+      "deleteMaterial": "資料を削除",
+      "noteTaskTodosOff": "チェックリストの TODO 同期を停止",
+      "noteTaskTodosOn": "チェックリストを TODO に同期",
+      "moveMaterialToFolder": "フォルダーに移動…"
+    }
+  },
+  "projectMemory": {
+    "title": "作品の記憶",
+    "short": "記憶",
+    "desc": "この作品についての考え、意図、習慣、継続的な指示を記録します。あなたと Agent の双方が編集でき、すべての会話で読み込まれます。物語の事実は要素やストーリーラインなどの対象に記録してください。",
+    "placeholder": "覚えておくことを入力…（⌘↩ で保存）",
+    "add": "追加",
+    "empty": "作品のメモリーはまだありません。",
+    "edit": "編集",
+    "save": "保存",
+    "cancel": "キャンセル",
+    "delete": "削除",
+    "inactive": "無効",
+    "enable": "有効化",
+    "deleteConfirm": "このメモリーを削除しますか？今後の会話では読み込まれなくなります。"
+  },
+  "projectHome": {
+    "kicker": "作品ホーム",
+    "since": "作品ホーム · {{date}}から",
+    "views": {
+      "overview": "概要",
+      "settings": "設定"
+    },
+    "readout": "{{chapters}}章 · {{storylines}}本のストーリーライン · {{elements}}件の要素",
+    "words": "{{words}}語",
+    "wordsOfTarget": "{{words}} / {{target}}語",
+    "today": "今日 {{today}} / {{goal}} · {{streak}}日連続",
+    "todayNoGoal": "今日 {{today}} · {{streak}}日連続",
+    "todayShort": "今日 {{today}}",
+    "continue": {
+      "title": "続ける",
+      "empty": "章はまだありません。"
+    },
+    "book": {
+      "title": "本書",
+      "storylineCount": "{{done}} / {{total}}章",
+      "noStorylines": "ストーリーラインはまだありません。"
+    },
+    "create": {
+      "title": "新規",
+      "kinds": {
+        "chapter": "章",
+        "drift": "アイデア",
+        "element": "要素",
+        "storyline": "ストーリーライン",
+        "category": "カテゴリ",
+        "material": "資料"
+      },
+      "picksLabel": {
+        "chapter": "ストーリーラインを選択",
+        "drift": "グループを選択",
+        "element": "カテゴリを選択",
+        "material": "資料の種類を選択"
+      },
+      "picks": {
+        "unaffiliated": "所属なし",
+        "root": "最上位",
+        "newCategory": "先にカテゴリを作成",
+        "text": "テキスト",
+        "image": "画像…",
+        "pdf": "PDF…"
+      },
+      "failed": "作成できませんでした：{{error}}",
+      "defaults": {
+        "storyline": "新しいストーリーライン"
+      }
+    },
+    "agent": {
+      "placeholder": "作品について質問したり、Agent に作業を依頼したり…"
+    },
+    "settings": {
+      "projectTarget": "本全体の目標",
+      "dailyGoal": "1日の目標",
+      "checkin": "毎日のチェックイン",
+      "organize": "自動整理"
+    }
+  },
+  "organize": {
+    "notify": {
+      "running": "前回書いた内容を整理中",
+      "completed": "前回書いた内容を整理しました",
+      "failed": "整理は完了しませんでした",
+      "interrupted": "整理が中断されました"
+    },
+    "counts": {
+      "created_one": "{{count}}件の新しい要素",
+      "created_other": "{{count}}件の新しい要素",
+      "updated_one": "{{count}}件の要素を更新",
+      "updated_other": "{{count}}件の要素を更新",
+      "patches_one": "{{count}}件の変更",
+      "patches_other": "{{count}}件の変更",
+      "relations_one": "{{count}}件の関係",
+      "relations_other": "{{count}}件の関係",
+      "none": "整理する内容はありません"
+    }
+  },
+  "projectAgent": {
+    "title": "Agent",
+    "titleShort": "チャットとチェックイン",
+    "placeholder": "Agent とこの作品について話す…（⌘↩ で送信）",
+    "send": "送信",
+    "checkinTitle": "チェックイン",
+    "checkinRunning": "Agent が最近の変更を読んでいます…",
+    "checkinFailed": "チェックインが完了しませんでした：{{error}}",
+    "checkNow": "今すぐチェックイン",
+    "checkinEmpty": "最近の変更に、対応が必要な事項はありません。",
+    "checkinNever": "作品を開くと、Agent が前回からの変更を読み、尋ねたい質問や進めたい作業を残します。",
+    "lastCheckin": "前回のチェックイン {{time}}",
+    "disabled": "チェックインはオフです",
+    "enable": "チェックインをオンにする",
+    "disable": "チェックインをオフにする",
+    "openConversation": "会話を開く",
+    "dismiss": "閉じる",
+    "startFailed": "開始できませんでした：{{error}}",
+    "start": "Agent に任せる",
+    "started": "Agent に依頼済み · 会話を開く"
+  },
+  "hostedQuota": {
+    "exceeded": "Hosted のストレージがいっぱい（{{used}} / {{quota}}使用済み）のため、この添付ファイルは読み込まれませんでした。本文と構成の同期は継続します。不要な添付ファイルや作品を削除して空き容量を確保してください。"
+  },
+  "materialEditor": {
+    "crumb": "資料",
+    "missing": "この資料は存在しません。",
+    "deleteConfirm": "資料「{{title}}」を削除しますか？この操作は取り消せません。",
+    "deleteFailed": "資料を削除できませんでした。",
+    "descriptionPlaceholder": "説明を追加…",
+    "zoomIn": "拡大",
+    "zoomOut": "縮小",
+    "zoomReset": "表示範囲に合わせる",
+    "toolbar": "資料ツール",
+    "provenance": {
+      "generated": "AI 生成 · {{model}} · {{date}}",
+      "prompt": "説明",
+      "style": "スタイル",
+      "direction": "作者の指示",
+      "formerPortrait": "「{{name}}」の以前の画像"
+    },
+    "notePlaceholder": "メモを入力…（/ で表、TODO、資料を挿入）",
+    "slash": {
+      "bulletList": "箇条書き",
+      "orderedList": "番号付きリスト",
+      "taskList": "TODO リスト",
+      "table": "表",
+      "codeBlock": "コードブロック",
+      "callout": "コールアウト",
+      "highlight": "ハイライト",
+      "material": "資料を挿入…"
+    },
+    "table": {
+      "toolbar": "表",
+      "addRow": "行を追加",
+      "addColumn": "列を追加",
+      "deleteRow": "行を削除",
+      "deleteColumn": "列を削除",
+      "headerRow": "見出し行",
+      "deleteTable": "表を削除"
+    },
+    "embed": {
+      "missing": "この資料は削除されています。",
+      "pickerTitle": "資料を挿入",
+      "importFile": "画像または PDF を読み込む…",
+      "importing": "インポート中…",
+      "empty": "画像や PDF の資料はまだありません。",
+      "pastedImage": "貼り付けた画像",
+      "pastedPdf": "貼り付けた PDF"
+    },
+    "regions": {
+      "draw": "範囲にコメント",
+      "stopDrawing": "コメントを終了",
+      "drawHint": "画像上をドラッグして範囲を指定",
+      "compose": "範囲のコメント",
+      "placeholder": "この部分について…（⌘↩ で保存）",
+      "asTodo": "TODO にする",
+      "save": "保存",
+      "kindLabel": "コメントの種類",
+      "kindNote": "コメント",
+      "kindTodo": "TODO",
+      "listLabel": "この資料へのコメント",
+      "empty": "画像やページ上をドラッグして、最初のコメントを追加します。",
+      "page": "{{page}}ページ",
+      "whole": "資料全体",
+      "createFailed": "コメントを保存できませんでした。"
+    },
+    "todo": {
+      "toolbar": "TODO 項目",
+      "promote": "TODO にする",
+      "linked": "TODO として同期済み",
+      "unlink": "チェックボックスのままにする"
+    }
+  },
+  "materialFolders": {
+    "root": "すべての資料",
+    "untitled": "新しいフォルダー",
+    "tree": "資料フォルダー",
+    "breadcrumb": "フォルダーのパス",
+    "empty": "資料はまだありません。上の「新しいフォルダー」ボタンで整理できます。",
+    "deleteConfirm": "フォルダー「{{name}}」を削除しますか？中の項目はすべて1つ上の階層に移ります。資料は削除されません。",
+    "menu": {
+      "newFolder": "新しいフォルダー",
+      "newSubfolder": "中にフォルダーを作成",
+      "rename": "名前を変更",
+      "delete": "フォルダーを削除",
+      "open": "開く",
+      "move": "フォルダーに移動…",
+      "moveSelection": "{{count}}項目をフォルダーに移動…",
+      "deleteSelection": "{{count}}項目を削除",
+      "expandAll": "中の項目をすべて展開",
+      "collapseAll": "中の項目をすべて折りたたむ",
+      "expandPreview": "完全なプレビューを表示",
+      "collapsePreview": "完全なプレビューを非表示"
+    },
+    "picker": {
+      "title": "フォルダーに移動",
+      "newPlaceholder": "新しいフォルダー名",
+      "createAndMove": "作成して移動"
+    },
+    "deleteSelectionConfirm": "選択した{{count}}項目を削除しますか？資料は削除されます。削除したフォルダーの中身は1つ上の階層に移ります。"
+  },
+  "scopeToggle": {
+    "label": "現在",
+    "hintOff": "現在の項目に属するものだけ表示",
+    "hintOn": "現在の項目のみ表示中。もう一度クリックして作品全体を表示"
+  },
+  "feedback": {
+    "title": "フィードバックを送る",
+    "placeholder": "問題やアイデア",
+    "contact": "返信先メールアドレス",
+    "contactPlaceholder": "任意",
+    "attachDiagnostics": "機密情報を除去した診断情報を添付",
+    "preview": "プレビュー",
+    "hidePreview": "非表示",
+    "cancel": "キャンセル",
+    "send": "送信",
+    "sending": "送信中…",
+    "sent": "送信済み",
+    "close": "閉じる",
+    "failed": "送信できませんでした",
+    "sendByEmail": "メールで送信",
+    "emailSubject": "Drifting へのフィードバック",
+    "crash": {
+      "title": "前回の使用時に Drifting で問題が発生しました",
+      "placeholder": "そのとき何をしていましたか？",
+      "ignore": "無視",
+      "emailSubject": "Drifting のクラッシュについて"
+    }
+  },
+  "guide": {
+    "skip": "ツアーをスキップ",
+    "back": "戻る",
+    "next": "次へ",
+    "done": "完了",
+    "workspace": {
+      "panels": {
+        "title": "章 · 要素 · アイデア",
+        "body": "本の骨組みです。左サイドバーは2つに分割でき、それぞれに別のパネルを表示できます。",
+        "closedBody": "本の骨組みは左サイドバーにあります。章、要素、アイデアをここから開きます。"
+      },
+      "superViews": {
+        "title": "ウィンドウ全体のビュー",
+        "body": "パネルの見出しにある丸いボタンから開きます。"
+      },
+      "create": {
+        "title": "新規",
+        "body": "章、アイデア、要素、ストーリーライン、カテゴリ、資料はすべてここから作成します。"
+      },
+      "timeline": {
+        "title": "タイムライン",
+        "body": "ページの下から引き出し、ストーリーラインを本の順序や物語内の時間で表示します。"
+      },
+      "agent": {
+        "title": "Agent",
+        "body": "本全体を読み、検索し、編集します。変更は本文に表示され、履歴から元に戻せます。",
+        "closedBody": "Agent は右サイドバーにあり、本全体を読んだり検索・編集したりできます。ここから開きます。"
+      },
+      "home": {
+        "title": "作品ホーム",
+        "body": "門のボタンでこのページに戻れます。隣の風鈴に通知が届きます。"
+      }
+    },
+    "hints": {
+      "new": "新規",
+      "scene": "シーン",
+      "beat": "ビート",
+      "note": "メモ",
+      "search": "すべてを検索",
+      "timeline": "タイムライン",
+      "driftRipens": "準備ができたら、章や要素に変換できます",
+      "todo": "本文に TODO と入力"
+    }
+  },
+  "agentTools": {
+    "activity": {
+      "get_project_overview": "作品全体を確認",
+      "get_project_facts": "作品の設定情報を確認",
+      "list_chapters": "章を確認",
+      "read_chapter": "章を読む{{target}}",
+      "list_inspirations": "アイデアを確認",
+      "read_inspiration": "アイデアを読む{{target}}",
+      "list_element_categories": "要素のカテゴリを確認",
+      "read_element_category": "要素のカテゴリを確認{{target}}",
+      "list_elements": "物語の要素を確認",
+      "read_element": "物語の要素を確認{{target}}",
+      "get_element_patches": "要素の変化を確認{{target}}",
+      "find_element_appearances": "要素の登場箇所を検索{{target}}",
+      "generate_element_images": "コンセプト画像を生成",
+      "list_storylines": "ストーリーラインを確認",
+      "read_storyline": "ストーリーラインを確認{{target}}",
+      "list_relations": "関係を確認",
+      "list_entity_relations": "関係を確認{{target}}",
+      "list_comments": "メモと TODO を確認",
+      "list_project_memory": "作品のメモリーを確認",
+      "list_author_rules": "作品のメモリーを確認",
+      "list_materials": "参考資料を確認",
+      "read_material": "参考資料を読む{{target}}",
+      "create_chapter": "章を作成{{target}}",
+      "rename_chapter": "章の名前を変更{{target}}",
+      "set_chapter_summary": "章の概要を更新{{target}}",
+      "revise_chapter": "章を改稿{{target}}",
+      "replace_chapter_body": "章の本文を置換{{target}}",
+      "delete_chapter": "章を削除{{target}}",
+      "create_inspiration": "アイデアを作成{{target}}",
+      "rename_inspiration": "アイデアの名前を変更{{target}}",
+      "set_inspiration_summary": "アイデアの概要を更新{{target}}",
+      "revise_inspiration": "アイデアを改稿{{target}}",
+      "replace_inspiration_body": "アイデアの本文を置換{{target}}",
+      "delete_inspiration": "アイデアを削除{{target}}",
+      "create_element": "物語の要素を作成{{target}}",
+      "update_element": "物語の要素を更新{{target}}",
+      "revise_element": "物語の要素を改稿{{target}}",
+      "replace_element_body": "物語の要素の本文を置換{{target}}",
+      "delete_element": "物語の要素を削除{{target}}",
+      "create_element_category": "要素のカテゴリを作成{{target}}",
+      "update_element_category": "要素のカテゴリを更新{{target}}",
+      "replace_element_category_body": "カテゴリの本文を置換{{target}}",
+      "delete_element_category": "要素のカテゴリを削除{{target}}",
+      "create_storyline": "ストーリーラインを作成{{target}}",
+      "update_storyline": "ストーリーラインを更新{{target}}",
+      "revise_storyline": "ストーリーラインを改稿{{target}}",
+      "replace_storyline_body": "ストーリーラインの本文を置換{{target}}",
+      "delete_storyline": "ストーリーラインを削除{{target}}",
+      "add_chapter_to_storyline": "章をストーリーラインに追加",
+      "remove_chapter_from_storyline": "ストーリーラインから章を削除",
+      "set_chapter_primary_storyline": "章のメインストーリーラインを設定",
+      "replace_storyline_chapters": "ストーリーラインの章を置換",
+      "create_relation": "関係を作成",
+      "update_relation": "関係を更新{{target}}",
+      "delete_relation": "関係を削除{{target}}",
+      "create_comment": "メモまたは TODO を追加",
+      "update_comment": "メモまたは TODO を更新{{target}}",
+      "delete_comment": "メモまたは TODO を削除{{target}}",
+      "update_project_facts": "作品の設定情報を更新",
+      "create_project_memory": "作品のメモリーに追加",
+      "update_project_memory": "作品のメモリーを更新",
+      "delete_project_memory": "作品のメモリーを削除",
+      "create_author_rule": "作品のメモリーに追加",
+      "update_author_rule": "作品のメモリーを更新",
+      "delete_author_rule": "作品のメモリーを削除",
+      "create_element_patch": "要素の変化を記録{{target}}",
+      "update_element_patch": "要素の変化を更新{{target}}",
+      "delete_element_patch": "要素の変化を削除{{target}}",
+      "create_material_note": "資料のメモを作成{{target}}",
+      "revise_material_note": "資料のメモを改稿{{target}}",
+      "replace_material_note_body": "資料のメモを書き直す{{target}}",
+      "update_material": "資料を整理{{target}}",
+      "create_material_folder": "資料フォルダーを作成{{target}}",
+      "update_material_folder": "資料フォルダーを更新{{target}}",
+      "delete_material_folder": "資料フォルダーを削除{{target}}",
+      "read_book_structure": "幕とタイムラインを確認",
+      "read_plot_grid": "プロットグリッドを確認{{target}}",
+      "view_material": "資料を見る{{target}}",
+      "write_plot_grid": "プロットグリッドを記入{{target}}",
+      "create_act": "幕を作成{{target}}",
+      "update_act": "幕を更新{{target}}",
+      "delete_act": "幕を削除{{target}}",
+      "move_chapter": "章を移動{{target}}",
+      "set_timeline_position": "タイムラインに配置{{target}}",
+      "create_timeline_marker": "タイムラインにマーカーを追加{{target}}",
+      "update_timeline_marker": "タイムラインのマーカーを更新{{target}}",
+      "delete_timeline_marker": "タイムラインのマーカーを削除{{target}}",
+      "read_task_plan": "タスクの進捗を確認",
+      "update_task_plan": "タスクの計画を更新",
+      "update_task_step": "タスクの手順を更新",
+      "update_task_constraint": "タスクの制約を更新",
+      "ask_user": "方針を尋ねる",
+      "read_tool_result": "長い結果の続きを読む",
+      "search_prose": "原稿を検索",
+      "search_project": "作品を検索",
+      "search_prose_query": "原稿で「{{query}}」を検索",
+      "search_project_query": "作品で「{{query}}」を検索"
+    },
+    "permission": {
+      "related": "関連する",
+      "relationCreate": "関係を作成：{{source}} —{{relationType}}→ {{destination}}",
+      "relationUpdate": "関係を更新{{target}}：{{change}}",
+      "relationType": "種類を設定{{target}}",
+      "relationClear": "種類をクリア",
+      "membershipAdd": "章{{chapter}}をストーリーライン{{storyline}}に追加",
+      "membershipRemove": "ストーリーライン{{storyline}}から章{{chapter}}を削除",
+      "membershipPrimary": "ストーリーライン{{storyline}}を章{{chapter}}のメインに設定",
+      "membershipReplace": "ストーリーライン{{storyline}}の章構成全体を{{count}}章に置き換え",
+      "body": "本文：{{text}}",
+      "summary": "概要：{{text}}",
+      "replace": "「{{current}}」を「{{revised}}」に置換",
+      "moreChanges": "ほか{{count}}件の変更",
+      "chapters": "章：{{text}}",
+      "clearMembers": "すべての所属を解除",
+      "quote": "「{{text}}」",
+      "listSeparator": "、"
+    },
+    "kinds": {
+      "chapter": "章",
+      "inspiration": "アイデア",
+      "element": "要素",
+      "storyline": "ストーリーライン",
+      "element_category": "要素のカテゴリ"
+    }
+  },
+  "startup": {
+    "loading": "Drifting を起動しています"
+  }
+}

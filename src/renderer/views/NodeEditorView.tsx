@@ -89,7 +89,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
 // Routing changes every tab switch. The retained editor session only receives
 // its stable owner IDs; unrelated routes must not rebuild all hidden editors.
 const NodeEditorSession = memo(function NodeEditorSession({ nodeId, projectId }: { nodeId: string; projectId?: string }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { navigateToElement, leaveDeletedEntity, openEntity } = useProjectNavigation();
   const { isCommandActive, isVisible, reportReady } = useEditorSurfaceLifecycle();
   const userId = useAuthStore((state) => state.user?.id);
@@ -718,7 +718,7 @@ const NodeEditorSession = memo(function NodeEditorSession({ nodeId, projectId }:
                         {canonicalWordCount(curNode) == null
                           ? t('common.counting')
                           : t('nodeEditor.meta.words', {
-                              count: canonicalWordCount(curNode)!.toLocaleString(),
+                              count: canonicalWordCount(curNode)!.toLocaleString(i18n.language),
                             })}
                       </span>
                     </div>
@@ -737,7 +737,7 @@ const NodeEditorSession = memo(function NodeEditorSession({ nodeId, projectId }:
                         {canonicalWordCount(curNode) == null
                           ? t('common.counting')
                           : t('nodeEditor.meta.words', {
-                              count: canonicalWordCount(curNode)!.toLocaleString(),
+                              count: canonicalWordCount(curNode)!.toLocaleString(i18n.language),
                             })}
                       </span>
                     </div>
@@ -755,7 +755,7 @@ const NodeEditorSession = memo(function NodeEditorSession({ nodeId, projectId }:
                         {canonicalWordCount(curNode) == null
                           ? t('common.counting')
                           : t('nodeEditor.meta.words', {
-                              count: canonicalWordCount(curNode)!.toLocaleString(),
+                              count: canonicalWordCount(curNode)!.toLocaleString(i18n.language),
                             })}
                       </span>
                     </div>
@@ -773,7 +773,7 @@ const NodeEditorSession = memo(function NodeEditorSession({ nodeId, projectId }:
                         {canonicalWordCount(curNode) == null
                           ? t('common.counting')
                           : t('nodeEditor.meta.words', {
-                              count: canonicalWordCount(curNode)!.toLocaleString(),
+                              count: canonicalWordCount(curNode)!.toLocaleString(i18n.language),
                             })}
                       </span>
                     </div>

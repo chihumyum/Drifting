@@ -1,0 +1,120 @@
+{
+  "kind": "nine-language-interface-native",
+  "status": "passed",
+  "sourceSha256": "41084e425db711e9e042be336b534557d159c1f90adf6ad3c55f1d262d6ab52f",
+  "platform": "macos-tauri-wkwebview",
+  "profile": "isolated-worktree",
+  "samples": [
+    {
+      "locale": "zh-CN",
+      "lang": "zh-CN",
+      "language": "zh-CN",
+      "saved": "zh-CN",
+      "portal": true,
+      "fixed": "fixed",
+      "title": "界面用什么语言对你说话。",
+      "selected": "中文（简体）",
+      "overflow": false,
+      "webViewReload": "passed"
+    },
+    {
+      "locale": "zh-TW",
+      "lang": "zh-TW",
+      "language": "zh-TW",
+      "saved": "zh-TW",
+      "portal": true,
+      "fixed": "fixed",
+      "title": "介面使用的語言。",
+      "selected": "中文（繁體）",
+      "overflow": false,
+      "webViewReload": "passed"
+    },
+    {
+      "locale": "en",
+      "lang": "en",
+      "language": "en",
+      "saved": "en",
+      "portal": true,
+      "fixed": "fixed",
+      "title": "What language the UI speaks.",
+      "selected": "English",
+      "overflow": false,
+      "webViewReload": "passed"
+    },
+    {
+      "locale": "ja",
+      "lang": "ja",
+      "language": "ja",
+      "saved": "ja",
+      "portal": true,
+      "fixed": "fixed",
+      "title": "画面に使う言葉。",
+      "selected": "日本語",
+      "overflow": false,
+      "webViewReload": "passed"
+    },
+    {
+      "locale": "ko",
+      "lang": "ko",
+      "language": "ko",
+      "saved": "ko",
+      "portal": true,
+      "fixed": "fixed",
+      "title": "화면에서 사용하는 언어.",
+      "selected": "한국어",
+      "overflow": false,
+      "webViewReload": "passed"
+    },
+    {
+      "locale": "es",
+      "lang": "es",
+      "language": "es",
+      "saved": "es",
+      "portal": true,
+      "fixed": "fixed",
+      "title": "El idioma de la interfaz.",
+      "selected": "Español",
+      "overflow": false,
+      "webViewReload": "passed"
+    },
+    {
+      "locale": "de",
+      "lang": "de",
+      "language": "de",
+      "saved": "de",
+      "portal": true,
+      "fixed": "fixed",
+      "title": "Die Sprache der Oberfläche.",
+      "selected": "Deutsch",
+      "overflow": false,
+      "webViewReload": "passed"
+    },
+    {
+      "locale": "fr",
+      "lang": "fr",
+      "language": "fr",
+      "saved": "fr",
+      "portal": true,
+      "fixed": "fixed",
+      "title": "La langue de l’interface.",
+      "selected": "Français",
+      "overflow": false,
+      "webViewReload": "passed"
+    },
+    {
+      "locale": "pt-BR",
+      "lang": "pt-BR",
+      "language": "pt-BR",
+      "saved": "pt-BR",
+      "portal": true,
+      "fixed": "fixed",
+      "title": "O idioma da interface.",
+      "selected": "Português (Brasil)",
+      "overflow": false,
+      "webViewReload": "passed"
+    }
+  ],
+  "limitations": [
+    "Authenticated DOM input in WKWebView; this does not claim physical pointer or keyboard acceptance, native-speaker review, or OS process restart."
+  ]
+}

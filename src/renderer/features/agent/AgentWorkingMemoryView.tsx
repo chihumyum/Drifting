@@ -31,7 +31,7 @@ function markdownHtml(value: string): string {
  * one primary button. The paused mobile shell keeps its outlined fallback.
  */
 export function AgentWorkingMemoryView({ projectId }: { projectId: string }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { snapshot, loading, refresh } = useAgentWorkingMemory(projectId);
   const [mode, setMode] = useState<'preview' | 'edit'>('preview');
   const [draft, setDraft] = useState('');
@@ -60,7 +60,7 @@ export function AgentWorkingMemoryView({ projectId }: { projectId: string }) {
 
   const updatedText = snapshot?.updatedAt
     ? t('agentPanel.workingMemory.updated', {
-        time: new Date(snapshot.updatedAt).toLocaleString(),
+        time: new Date(snapshot.updatedAt).toLocaleString(i18n.language),
         by:
           snapshot.updatedBy === 'author'
             ? t('agentPanel.workingMemory.author')
