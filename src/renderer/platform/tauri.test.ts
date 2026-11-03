@@ -34,6 +34,7 @@ vi.mock('../lib/config', () => ({
 
 import { tauriPlatform } from './tauri';
 import {
+  clearPendingNativeOAuth,
   createPendingNativeOAuth,
   createPkceCodeChallenge,
   NATIVE_OAUTH_REDIRECT_URI,
@@ -692,21 +693,47 @@ describe('tauri OAuth callback delivery', () => {
     stop();
   });
 
-  it('rejects an expired pending state', async () => {
+  it('reports an expired pending state without exchanging its code', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-07-21T00:00:00.000Z'));
     const nativeState = await newPendingState();
     vi.advanceTimersByTime(NATIVE_OAUTH_STATE_TTL_MS + 1);
-    const expiredUrl = callbackUrl('F'.repeat(43), nativeState);
-    pendingUrls.push(expiredUrl);
+    pendingUrls.push(callbackUrl('F'.repeat(43), 'ef'.repeat(32)));
+    pendingUrls.push(callbackUrl('F'.repeat(43), nativeState));
     const callback = vi.fn();
 
     const stop = tauriPlatform.auth.onOAuthCallback(callback);
     await vi.runAllTimersAsync();
 
-    expect(callback).not.toHaveBeenCalled();
+    // A stranger's state stays silent; the author's own expired sign-in is reported once.
+    expect(callback).toHaveBeenCalledOnce();
+    expect(callback).toHaveBeenCalledWith({ token: null, error: 'expired' });
     expect(exchangeFetch).not.toHaveBeenCalled();
     expect(storage.getItem('drifting.native_oauth_state')).toBeNull();
+    stop();
+  });
+
+  it('delivers a cancel from the browser and ignores callbacks after the flow is abandoned', async () => {
+    const nativeState = await newPendingState();
+    const callback = vi.fn();
+    const stop = tauriPlatform.auth.onOAuthCallback(callback);
+    await vi.waitFor(() => expect(eventHandler).toBeTypeOf('function'));
+
+    const cancelled = `drifting://auth/callback?error=access_denied&nativeState=${nativeState}`;
+    pendingUrls.push(cancelled);
+    eventHandler?.({ payload: { urls: [cancelled] } });
+    await vi.waitFor(() => expect(callback).toHaveBeenCalledOnce());
+    expect(callback).toHaveBeenCalledWith({ token: null, error: 'access_denied' });
+    expect(exchangeFetch).not.toHaveBeenCalled();
+
+    const abandoned = await newPendingState();
+    clearPendingNativeOAuth();
+    const late = callbackUrl('H'.repeat(43), abandoned);
+    pendingUrls.push(late);
+    eventHandler?.({ payload: { urls: [late] } });
+    await vi.waitFor(() => expect(pendingUrls).toEqual([]));
+    expect(callback).toHaveBeenCalledOnce();
+    expect(exchangeFetch).not.toHaveBeenCalled();
     stop();
   });
 

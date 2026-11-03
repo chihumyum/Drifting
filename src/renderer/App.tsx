@@ -6,6 +6,7 @@ import { ShareLinksDialogHost } from './features/share-links/ShareLinksDialogHos
 import { FeedbackDialogHost } from './features/feedback/FeedbackDialogHost';
 import { AppEffects } from './app/effects/AppEffects';
 import { LocationDeepLinkEffects } from './app/effects/LocationDeepLinkEffects';
+import { NativeOAuthEffects } from './app/effects/NativeOAuthEffects';
 import { RenderErrorBoundary } from './app/components/RenderErrorBoundary';
 import { AppRoutes } from './app/AppRoutes';
 import { getPlatformRuntime } from './platform/runtime';
@@ -33,6 +34,7 @@ function AppContents() {
       {seaEnabled && <CharSea />}
       <AppEffects />
       <LocationDeepLinkEffects />
+      <NativeOAuthEffects />
       <PreAlphaOnboardingDialog />
       <AppRoutes />
       <AuthDialogHost />

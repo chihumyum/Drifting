@@ -20,7 +20,7 @@ import { authClient } from '../../lib/auth-client';
 import { setSessionToken } from '../../lib/session-token';
 import { platform } from '../../platform';
 import { events } from '../../lib/events';
-import { OAUTH_PROVIDER_CONFIG, OAUTH_PROVIDERS, type SupportedOAuthProvider } from '../../lib/oauth-providers';
+import { OAUTH_PROVIDER_CONFIG, useOAuthProviders, type SupportedOAuthProvider } from '../../lib/oauth-providers';
 import { isAppClosedForPublic } from '../../utils/appAccess';
 import { APP_CONFIG } from '../../lib/config';
 import { Button } from '../../components/ui/Button';
@@ -28,17 +28,18 @@ import { GhostIconButton } from '../../components/ui/GhostIconButton';
 import { LoadingStatus } from '../../components/ui/LoadingStatus';
 import type { AuthEntryMode } from './auth-dialog-store';
 import { authErrorMessage } from './auth-errors';
+import {
+  cancelNativeOAuth,
+  nativeOAuthErrorKey,
+  startNativeOAuth,
+  useNativeOAuthOutcome,
+  useNativeOAuthStore,
+} from './native-oauth';
 import '../../../styles/auth.css';
 import { BrushIcon } from '../../components/ui/BrushIcon';
 
 /** The sync error shown when the library already belongs to another account. */
 const ACCOUNT_MISMATCH = 'HOSTED_ACCOUNT_MISMATCH';
-
-// Social sign-in is OFF for the BYOK-only beta: Google OAuth still injects a
-// cookie that the bearer-token flow does not use. The block stays behind this
-// flag for a proper pass later. Typed `boolean` (not literal false) so the
-// gated JSX still type-checks and its handlers don't read as dead code.
-const SOCIAL_LOGIN_ENABLED: boolean = false;
 
 type Step = AuthEntryMode | 'otp' | 'forgot' | 'verify' | 'syncing';
 
@@ -78,7 +79,9 @@ export function AuthFlow({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
-  const [oauthLoading, setOauthLoading] = useState<SupportedOAuthProvider | null>(null);
+  // Social sign-in runs in the system browser; the service declares the providers.
+  const providers = useOAuthProviders();
+  const oauthWaiting = useNativeOAuthStore((state) => state.waiting);
   const operation = useRef<AbortController | null>(null);
   const onCompleteRef = useRef(onComplete);
   useLayoutEffect(() => {
@@ -99,6 +102,8 @@ export function AuthFlow({
   // The account is verified at this point; connecting the library downloads
   // its cloud projects and uploads this library. Failures stay retryable.
   const connect = useCallback(async () => {
+    // Signing in any other way abandons a browser sign-in still in progress.
+    cancelNativeOAuth();
     operation.current?.abort();
     const controller = new AbortController();
     operation.current = controller;
@@ -126,28 +131,22 @@ export function AuthFlow({
     }
   }, [t]);
 
-  useEffect(
-    () =>
-      platform.auth.onOAuthCallback(({ token, error: callbackError }) => {
-        setOauthLoading(null);
-        if (callbackError || !token) {
-          setError(t('auth.errors.oauthFailed'));
-          return;
-        }
-        setSessionToken(token);
-        void connect();
-      }),
-    [connect, t],
-  );
+  useNativeOAuthOutcome((outcome) => {
+    if ('token' in outcome) {
+      setSessionToken(outcome.token);
+      void connect();
+      return;
+    }
+    setStep((current) => (current === 'signup' ? 'signup' : 'signin'));
+    setError(t(nativeOAuthErrorKey(outcome.error)));
+  });
 
   const handleOAuth = async (provider: SupportedOAuthProvider) => {
     setError(null);
-    setOauthLoading(provider);
     try {
-      await platform.auth.openOAuthBrowser(provider);
+      await startNativeOAuth(provider);
     } catch {
       setError(t('auth.errors.browserFailed'));
-      setOauthLoading(null);
     }
   };
 
@@ -270,10 +269,42 @@ export function AuthFlow({
     body = <VerifyForm email={email} password={password} onSignedIn={connect} />;
   } else {
     const signin = step === 'signin';
+    // Social sign-in also creates accounts, so it is hidden while sign-up is closed.
+    const social = isAppClosedForPublic ? [] : providers;
     body = (
       <form className="auth-flow__body" onSubmit={submitCredentials}>
         {signin && <p className="auth-flow__lead">{t('settings.hosted.sign_in_sync_description')}</p>}
         {error && <FlowError>{error}</FlowError>}
+        {social.length > 0 && (
+          <div className="auth-flow__social">
+            {social.map((provider) => {
+              const { name: providerName, Icon } = OAUTH_PROVIDER_CONFIG[provider];
+              return (
+                <FlowButton
+                  key={provider}
+                  kind="secondary"
+                  block
+                  className="auth-flow__provider"
+                  onClick={() => void handleOAuth(provider)}
+                  disabled={busy || oauthWaiting !== null}
+                >
+                  <Icon width={14} height={14} aria-hidden />
+                  {oauthWaiting === provider
+                    ? t('auth.social.waiting')
+                    : t('auth.social.continueWith', { provider: providerName })}
+                </FlowButton>
+              );
+            })}
+            {oauthWaiting && (
+              <FlowButton kind="text" onClick={cancelNativeOAuth}>
+                {t('common.cancel')}
+              </FlowButton>
+            )}
+            <div className="auth-flow__divider" role="separator">
+              <span>{t('auth.social.or')}</span>
+            </div>
+          </div>
+        )}
         {!signin && (
           <AuthField
             label={t('auth.fields.penName')}
@@ -342,27 +373,6 @@ export function AuthFlow({
               {t('auth.legal.privacy')}
             </a>
           </p>
-        )}
-        {SOCIAL_LOGIN_ENABLED && (
-          <div className="auth-flow__social">
-            {OAUTH_PROVIDERS.map((provider) => {
-              const { name: providerName, Icon } = OAUTH_PROVIDER_CONFIG[provider];
-              return (
-                <button
-                  key={provider}
-                  type="button"
-                  className="auth-flow__button auth-flow__button--block"
-                  onClick={() => void handleOAuth(provider)}
-                  disabled={busy || oauthLoading !== null}
-                >
-                  <Icon width={14} height={14} aria-hidden />
-                  {oauthLoading === provider
-                    ? t('auth.social.waiting')
-                    : t('auth.social.continueWith', { provider: providerName })}
-                </button>
-              );
-            })}
-          </div>
         )}
       </form>
     );

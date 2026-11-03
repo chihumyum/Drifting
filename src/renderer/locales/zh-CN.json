@@ -1722,7 +1722,8 @@
     },
     "social": {
       "waiting": "等待浏览器授权…",
-      "continueWith": "用 {{provider}} 继续"
+      "continueWith": "用 {{provider}} 继续",
+      "or": "或"
     },
     "legal": {
       "agree": "注册即表示同意",
@@ -1768,7 +1769,10 @@
       "signUpFailed": "注册失败",
       "signInCheck": "登录失败，请检查邮箱和密码",
       "signUpRetry": "注册失败，请稍后重试",
-      "oauthFailed": "OAuth 登录失败，请重试。",
+      "oauthFailed": "登录没有完成，请重试。",
+      "oauthCancelled": "已在浏览器中取消登录。",
+      "oauthExpired": "登录等待超时，请重新开始。",
+      "oauthAccountNotLinked": "这个邮箱已注册但还没验证，请先用邮箱登录并完成验证。",
       "sessionFailed": "无法获取登录状态，请重试。",
       "browserFailed": "无法打开浏览器，请重试。",
       "sendFailed": "发送失败",

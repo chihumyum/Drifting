@@ -1724,7 +1724,8 @@
     },
     "social": {
       "waiting": "Waiting for browser authorization…",
-      "continueWith": "Continue with {{provider}}"
+      "continueWith": "Continue with {{provider}}",
+      "or": "or"
     },
     "legal": {
       "agree": "By signing up, you agree to the",
@@ -1770,7 +1771,10 @@
       "signUpFailed": "Sign up failed",
       "signInCheck": "Sign in failed. Check your email and password.",
       "signUpRetry": "Sign up failed. Please try again later.",
-      "oauthFailed": "OAuth sign in failed. Please try again.",
+      "oauthFailed": "Sign-in didn't finish. Please try again.",
+      "oauthCancelled": "Sign-in was cancelled in the browser.",
+      "oauthExpired": "Sign-in timed out. Please start again.",
+      "oauthAccountNotLinked": "This email is registered but not verified yet. Sign in with your email first to verify it.",
       "sessionFailed": "Could not load the sign-in session. Please try again.",
       "browserFailed": "Could not open the browser. Please try again.",
       "sendFailed": "Send failed",

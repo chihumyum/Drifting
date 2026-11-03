@@ -1,12 +1,14 @@
-export const GoogleIcon = () => {
+import type { ComponentProps } from 'react';
+
+/** Google's mark in its own colours; sized by the caller (14px in the sign-in flow). */
+export const GoogleIcon = ({ width = 14, height = 14, ...props }: ComponentProps<'svg'>) => {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      x="0px"
-      y="0px"
-      width="100"
-      height="100"
+      width={width}
+      height={height}
       viewBox="0 0 48 48"
+      {...props}
     >
       <path
         fill="#FFC107"

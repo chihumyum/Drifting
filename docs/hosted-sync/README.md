@@ -79,7 +79,31 @@ cannot mail a code today (`MAIL_QUOTA_EXHAUSTED`) or right now
 so and that Drifting works fully without an account: the author keeps writing
 on this device and signs in to sync later. The share-link reader shows a shorter
 version of the same notice. Successful
-authentication connects the library before opening the shelf. An existing
+authentication connects the library before opening the shelf.
+
+Above the email fields the flow offers **Continue with Google** when the service
+declares it: `GET /api/auth/providers` lists the providers the deployment
+registered, and the client shows the ones it knows
+(`src/renderer/lib/oauth-providers.ts`, keyed by the same provider name, so
+WeChat later is one entry and an icon). An older service, an error, offline use,
+a local-only build or closed sign-up shows none, and email sign-in is unchanged.
+The button opens the system browser at `/api/auth/oauth-redirect/:provider` with
+a 256-bit state and an S256 PKCE challenge kept in WebView storage for ten
+minutes. The service answers the provider callback with a page that opens
+`drifting://auth/callback` with a two-minute single-use code; the app trades it
+with its verifier at `/api/auth/native-exchange` for a bearer token, stored in
+secure storage like any other session, and the browser keeps no session (service
+contract: the service's `docs/native-oauth-v1.md`). One listener for the whole
+app (`NativeOAuthEffects`) receives every callback, so a callback that arrives
+after the dialog closed, or that launches the app cold, opens the sign-in dialog
+and finishes there. While the browser is open the button reads *Waiting for
+browser authorization…* with **Cancel**; cancelling forgets the pending state, so
+a later callback is ignored. A cancel in the browser, a sign-in that outlives the
+pending state, and a Google email that already belongs to an unverified account
+each get their own sentence. The whole path stays behind the hosted-service gate
+in `src/renderer/lib/config.ts`.
+
+An existing
 session instead offers **Manage account and sync**. Later sign-in (user menu or
 Account settings) opens the same compact dialog over the current screen instead of a
 full-page route; the dialog stays open while the library connects. Mobile keeps

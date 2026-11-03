@@ -227,6 +227,28 @@
   gap: 8px;
 }
 
+.auth-flow__provider {
+  gap: 8px;
+}
+
+/* Hairlines either side of a quiet "or" between social and email sign-in. */
+.auth-flow__divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 2px;
+  color: hsl(var(--ink-4));
+  font-size: 11px;
+}
+
+.auth-flow__divider::before,
+.auth-flow__divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--menu-separator, hsl(var(--ink-1) / 0.14));
+}
+
 .auth-flow__actions {
   display: flex;
   justify-content: flex-end;

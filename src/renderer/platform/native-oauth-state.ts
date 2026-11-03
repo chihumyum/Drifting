@@ -114,13 +114,26 @@ export async function createPendingNativeOAuth(): Promise<NativeOAuthInitiation>
   return { nativeState, codeVerifier, codeChallenge, redirectUri, expiresAt };
 }
 
+/** Abandons the pending sign-in, so a callback that arrives later is ignored. */
+export function clearPendingNativeOAuth(): void {
+  try {
+    stateStorage().removeItem(STORAGE_KEY);
+  } catch {
+    // Without storage there is no pending state to abandon.
+  }
+}
+
+export type PendingNativeOAuthMatch =
+  | { status: 'valid'; secret: NativeOAuthExchangeSecret }
+  | { status: 'expired' };
+
 /**
  * Constant-time state match followed by synchronous single-use cleanup. The
  * verifier is released only to the adapter that performs the HTTPS exchange.
+ * A match whose state has expired is reported, so the author learns the
+ * sign-in timed out; an unknown or mismatched state returns null.
  */
-export function consumePendingNativeOAuth(
-  candidate: string | null,
-): NativeOAuthExchangeSecret | null {
+export function consumePendingNativeOAuth(candidate: string | null): PendingNativeOAuthMatch | null {
   const storage = (() => {
     try {
       return stateStorage();
@@ -132,14 +145,6 @@ export function consumePendingNativeOAuth(
 
   const pending = readPendingState(storage);
   if (!pending) return null;
-  if (pending.expiresAt <= Date.now()) {
-    try {
-      storage.removeItem(STORAGE_KEY);
-    } catch {
-      // Expired state remains unusable even if cleanup is unavailable.
-    }
-    return null;
-  }
 
   const supplied = candidate ?? '';
   const matches =
@@ -152,5 +157,9 @@ export function consumePendingNativeOAuth(
     // If single-use cleanup cannot be guaranteed, do not release the verifier.
     return null;
   }
-  return { codeVerifier: pending.codeVerifier, redirectUri: pending.redirectUri };
+  if (pending.expiresAt <= Date.now()) return { status: 'expired' };
+  return {
+    status: 'valid',
+    secret: { codeVerifier: pending.codeVerifier, redirectUri: pending.redirectUri },
+  };
 }
