@@ -1,7 +1,7 @@
 {
   "kind": "nine-language-interface-native",
   "status": "passed",
-  "sourceSha256": "628aa2aa9033f078994454f8d72a686be58eb55c096d9cb51f57c851e848ef9b",
+  "sourceSha256": "bf9a15c672bfcd7765700779a55fdf5c439c634eda1ce339fbb8d5dd1273c040",
   "platform": "macos-tauri-wkwebview",
   "profile": "isolated-worktree",
   "samples": [
