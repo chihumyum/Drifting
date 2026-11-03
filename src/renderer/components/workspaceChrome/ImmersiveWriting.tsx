@@ -2,7 +2,6 @@ import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BrushIcon } from '../ui/BrushIcon';
 import { GhostIconButton } from '../ui/GhostIconButton';
-import { useTimelineToggleHostedByEditor } from '../editor/editor-corner';
 import { useTodayWords } from './useTodayWords';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { formatAccelerator } from '../../lib/shortcuts';
@@ -11,27 +10,35 @@ import { useUiStore } from '../../store/ui-store';
 import { toggleImmersiveWriting } from './immersive-writing';
 
 /**
- * Immersive writing's own round glass button, a stick of incense, to the left of
- * the timeline toggle in the corner that carries it (EditorTopBar). While
- * immersed the rest of the corner is gone and this button stays where it
- * was, pressed, shown only while the pointer is near it, with this sitting's
- * words to its left (immersive-writing.css).
+ * Immersive writing's own round glass button, a stick of incense, right of
+ * the paper's toolbar in the corner that carries the timeline toggle
+ * (EditorTopBar), so it is the corner's last control. While immersed that
+ * whole corner fades with the rest of the chrome.
  */
-export function ImmersiveWritingControl({ stage = false }: { stage?: boolean }) {
+export function ImmersiveWritingControl() {
   const immersive = useUiStore((state) => state.immersiveWriting);
   return (
-    <div className={`immersive-writing-control${stage ? ' immersive-writing-control--stage' : ''}`}>
-      {immersive && <SittingWords />}
+    <div className="immersive-writing-control">
       <ImmersiveWritingToggle immersive={immersive} />
     </div>
   );
 }
 
-/** With no editor corner showing (Project Home), the stage keeps the way out while immersed. */
+/**
+ * The way out while immersed: the same button, pressed, in the stage's own
+ * lower-right corner — where the corner's incense stood — with this
+ * sitting's words to its left; shown only while the pointer is near it
+ * (immersive-writing.css).
+ */
 export function StageImmersiveWritingControl() {
-  const hostedByEditor = useTimelineToggleHostedByEditor();
   const immersive = useUiStore((state) => state.immersiveWriting);
-  return immersive && !hostedByEditor ? <ImmersiveWritingControl stage /> : null;
+  if (!immersive) return null;
+  return (
+    <div className="immersive-writing-control immersive-writing-control--stage">
+      <SittingWords />
+      <ImmersiveWritingToggle immersive />
+    </div>
+  );
 }
 
 function ImmersiveWritingToggle({ immersive }: { immersive: boolean }) {

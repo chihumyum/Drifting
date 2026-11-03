@@ -3,12 +3,12 @@
    workspace root). The sidebars and the Bottom Panel slide shut over their
    own kept state (Sidebar, DesktopWorkspace); here the floating chrome
    fades: the sidebar toggles, the tab dock, every pane's paper toolbar, the
-   timeline toggle and the stage's own. Immersive writing's own button (a
-   stick of incense, left of the timeline toggle) stays where it was, pressed. The
-   comment and outline rails stay as the author left them. The pointer at
-   the window's top edge brings back the dock (the traffic lights come back
-   natively), near the incense the way out (`data-immersive-peek`); typing sends
-   them away. Hidden chrome is `visibility: hidden` once faded, so it cannot
+   timeline toggle and immersive writing's own button (a stick of incense,
+   right of the toolbar). The way out is that button, pressed, in the stage's
+   lower-right corner, where it stood. The comment and outline rails stay as the author left them. The
+   pointer at the window's top edge brings back the dock (the traffic lights
+   come back natively), near the stage's corner the way out
+   (`data-immersive-peek`); typing sends them away. Hidden chrome is `visibility: hidden` once faded, so it cannot
    be hit or focused. See docs/editor/immersive-writing.md. */
 .desktop-app-shell .workspace-sidebar-toggles,
 .desktop-app-shell .workspace-tab-dock,
@@ -38,7 +38,7 @@
 }
 
 .desktop-app-shell[data-immersive][data-immersive-peek='top'] .workspace-tab-dock,
-.desktop-app-shell[data-immersive][data-immersive-peek='corner'] .immersive-writing-control {
+.desktop-app-shell[data-immersive][data-immersive-peek='corner'] .immersive-writing-control--stage {
   opacity: 1;
   visibility: visible;
   transition: opacity var(--motion-glass-bleed) ease-out;
@@ -50,9 +50,9 @@
   opacity: 0;
 }
 
-/* The incense, and while immersed this sitting's words over today's sand
-   stroke to its left. Round glass on the floating fill, like the timeline
-   toggle beside it. */
+/* The incense, round glass on the floating fill like the timeline toggle;
+   in the stage's corner while immersed, this sitting's words over today's
+   sand stroke to its left. */
 .immersive-writing-control {
   display: flex;
   flex-shrink: 0;
@@ -60,8 +60,9 @@
   gap: 12px;
 }
 
-/* With no editor corner showing, the stage keeps the way out in the same
-   corner while immersed (where its own timeline toggle would stand). */
+/* Immersed, the way out sits in the stage's own lower-right corner, on the
+   toolbar's middle line: where the corner's incense stood (or, with no
+   editor showing, where the stage's own timeline toggle stands). */
 .immersive-writing-control--stage {
   position: absolute;
   z-index: 20;

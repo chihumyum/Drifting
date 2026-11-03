@@ -250,11 +250,12 @@ describe('workspace surface language acceptance', () => {
     const indexCss = source('src/styles/index.css');
 
     expect(topBar).toContain('<div className="editor-bar glass glass--rest" role="toolbar" aria-orientation="horizontal">');
-    // The corner: immersive writing and the timeline toggle (right-hand pane
-    // only), then the pill.
+    // The corner: the timeline toggle (right-hand pane only), the pill, then
+    // immersive writing (right-hand pane only).
     const corner = block(topBar, '<div className="editor-corner">', '<div className="editor-bar');
-    expect(corner).toContain('{hostsTimelineToggle && <ImmersiveWritingControl />}');
     expect(corner).toContain('{hostsTimelineToggle && <TimelineToggle />}');
+    expect(topBar.indexOf('{hostsTimelineToggle && <ImmersiveWritingControl />}'))
+      .toBeGreaterThan(topBar.indexOf('{exportRequest && <ManuscriptExportDialog'));
     expect(block(indexCss, '.editor-corner {', '}')).toContain('position: absolute;');
     const mainArea = source('src/renderer/components/editor/EditorMainArea.tsx');
     expect(mainArea.match(/<TrailingEditorPaneContext\.Provider value>/g)).toHaveLength(2);
