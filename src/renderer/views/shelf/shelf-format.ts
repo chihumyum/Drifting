@@ -1,8 +1,8 @@
-/** Words as the shelf writes them: 8.6 万 in Chinese, 86.4k otherwise. */
+import { formatCompactCount } from '../../../shared/locale-format';
+
+/** Counts follow the selected interface language. */
 export function formatShelfWords(words: number, locale: string): string {
-  if (!locale.startsWith('zh')) return words < 1000 ? String(words) : `${(words / 1000).toFixed(1)}k`;
-  if (words < 10_000) return String(words);
-  return `${(words / 10_000).toFixed(1).replace(/\.0$/, '')} 万`;
+  return formatCompactCount(words, locale);
 }
 
 /** The heatmap's month under a week's column: 11月, Nov. */

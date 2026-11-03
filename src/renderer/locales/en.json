@@ -460,6 +460,10 @@
           "label": "Toggle bottom timeline",
           "desc": "Show or hide the bottom timeline"
         },
+        "toggleImmersiveWriting": {
+          "label": "Immersive writing",
+          "desc": "Leave only the paper; press again or Esc to come back"
+        },
         "newEntity": {
           "label": "New",
           "desc": "Open Project Home with its create row in reach"
@@ -923,6 +927,10 @@
       "offline": "Hosted paused offline",
       "attention": "Hosted needs attention"
     }
+  },
+  "immersiveWriting": {
+    "enter": "Immersive writing",
+    "leave": "Leave immersive writing"
   },
   "workspaceWordTally": {
     "selection": "Selected",
@@ -1969,6 +1977,12 @@
       "mon": "Mon",
       "wed": "Wed",
       "fri": "Fri"
+    },
+    "mobile": {
+      "search": "Search projects",
+      "singleView": "Show one project at a time",
+      "filters": "Project filters",
+      "actions": "{{name}} actions"
     }
   },
   "dashboard": {
@@ -3252,6 +3266,11 @@
       "navigation": "Switch Super View",
       "relationMode": "Create relation",
       "relationModeOn": "Choose start"
+    },
+    "deferred": {
+      "label": "Mobile workspace",
+      "title": "This area will use the new workspace design",
+      "body": "Authentication, shelf and settings remain available while the mobile writing workspace is intentionally deferred."
     }
   },
   "mobileEditorRails": {
@@ -3593,5 +3612,135 @@
       "driftRipens": "When it is ready, turn it into a chapter or an element",
       "todo": "Write TODO in the text"
     }
+  },
+  "agentTools": {
+    "activity": {
+      "get_project_overview": "Review the whole project",
+      "get_project_facts": "Review project facts",
+      "list_chapters": "Review chapters",
+      "read_chapter": "Read chapter{{target}}",
+      "list_inspirations": "Review ideas",
+      "read_inspiration": "Read idea{{target}}",
+      "list_element_categories": "Review element categories",
+      "read_element_category": "Review element category{{target}}",
+      "list_elements": "Review story elements",
+      "read_element": "Review story element{{target}}",
+      "get_element_patches": "Review element evolution{{target}}",
+      "find_element_appearances": "Find appearances of element{{target}}",
+      "generate_element_images": "Generate concept images",
+      "list_storylines": "Review storylines",
+      "read_storyline": "Review storyline{{target}}",
+      "list_relations": "Review relationships",
+      "list_entity_relations": "Review relationships for{{target}}",
+      "list_comments": "Review notes and TODOs",
+      "list_project_memory": "Review project memory",
+      "list_author_rules": "Review project memory",
+      "list_materials": "Review reference material",
+      "read_material": "Read reference material{{target}}",
+      "create_chapter": "Create chapter{{target}}",
+      "rename_chapter": "Rename chapter{{target}}",
+      "set_chapter_summary": "Update chapter summary{{target}}",
+      "revise_chapter": "Revise chapter{{target}}",
+      "replace_chapter_body": "Replace chapter manuscript{{target}}",
+      "delete_chapter": "Delete chapter{{target}}",
+      "create_inspiration": "Create idea{{target}}",
+      "rename_inspiration": "Rename idea{{target}}",
+      "set_inspiration_summary": "Update idea summary{{target}}",
+      "revise_inspiration": "Revise idea{{target}}",
+      "replace_inspiration_body": "Replace idea text{{target}}",
+      "delete_inspiration": "Delete idea{{target}}",
+      "create_element": "Create story element{{target}}",
+      "update_element": "Update story element{{target}}",
+      "revise_element": "Revise story element{{target}}",
+      "replace_element_body": "Replace story element text{{target}}",
+      "delete_element": "Delete story element{{target}}",
+      "create_element_category": "Create element category{{target}}",
+      "update_element_category": "Update element category{{target}}",
+      "replace_element_category_body": "Replace category text{{target}}",
+      "delete_element_category": "Delete element category{{target}}",
+      "create_storyline": "Create storyline{{target}}",
+      "update_storyline": "Update storyline{{target}}",
+      "revise_storyline": "Revise storyline{{target}}",
+      "replace_storyline_body": "Replace storyline text{{target}}",
+      "delete_storyline": "Delete storyline{{target}}",
+      "add_chapter_to_storyline": "Add chapter to storyline",
+      "remove_chapter_from_storyline": "Remove chapter from storyline",
+      "set_chapter_primary_storyline": "Set chapter primary storyline",
+      "replace_storyline_chapters": "Replace storyline chapters",
+      "create_relation": "Create relationship",
+      "update_relation": "Update relationship{{target}}",
+      "delete_relation": "Delete relationship{{target}}",
+      "create_comment": "Add a note or TODO",
+      "update_comment": "Update note or TODO{{target}}",
+      "delete_comment": "Delete note or TODO{{target}}",
+      "update_project_facts": "Update project facts",
+      "create_project_memory": "Add to project memory",
+      "update_project_memory": "Update project memory",
+      "delete_project_memory": "Remove project memory",
+      "create_author_rule": "Add to project memory",
+      "update_author_rule": "Update project memory",
+      "delete_author_rule": "Remove project memory",
+      "create_element_patch": "Record element evolution{{target}}",
+      "update_element_patch": "Update element evolution{{target}}",
+      "delete_element_patch": "Delete element evolution{{target}}",
+      "create_material_note": "Create material note{{target}}",
+      "revise_material_note": "Revise material note{{target}}",
+      "replace_material_note_body": "Rewrite material note{{target}}",
+      "update_material": "Organize material{{target}}",
+      "create_material_folder": "Create material folder{{target}}",
+      "update_material_folder": "Update material folder{{target}}",
+      "delete_material_folder": "Delete material folder{{target}}",
+      "read_book_structure": "Review acts and timeline",
+      "read_plot_grid": "Review plot grid{{target}}",
+      "view_material": "Look at material{{target}}",
+      "write_plot_grid": "Write plot grid{{target}}",
+      "create_act": "Create act{{target}}",
+      "update_act": "Update act{{target}}",
+      "delete_act": "Delete act{{target}}",
+      "move_chapter": "Move chapter{{target}}",
+      "set_timeline_position": "Place on timeline{{target}}",
+      "create_timeline_marker": "Add timeline marker{{target}}",
+      "update_timeline_marker": "Update timeline marker{{target}}",
+      "delete_timeline_marker": "Delete timeline marker{{target}}",
+      "read_task_plan": "Review task progress",
+      "update_task_plan": "Update task plan",
+      "update_task_step": "Update task step",
+      "update_task_constraint": "Update task constraints",
+      "ask_user": "Ask for guidance",
+      "read_tool_result": "Continue reading a long result",
+      "search_prose": "Search the manuscript",
+      "search_project": "Search the project",
+      "search_prose_query": "Search manuscript for “{{query}}”",
+      "search_project_query": "Search project for “{{query}}”"
+    },
+    "permission": {
+      "related": "relates to",
+      "relationCreate": "Create relationship: {{source}} —{{relationType}}→ {{destination}}",
+      "relationUpdate": "Update relationship{{target}}: {{change}}",
+      "relationType": "set type to{{target}}",
+      "relationClear": "clear its type",
+      "membershipAdd": "Add chapter{{chapter}} to storyline{{storyline}}",
+      "membershipRemove": "Remove chapter{{chapter}} from storyline{{storyline}}",
+      "membershipPrimary": "Make storyline{{storyline}} primary for chapter{{chapter}}",
+      "membershipReplace": "Replace the complete membership of storyline{{storyline}} with {{count}} chapters",
+      "body": "Body: {{text}}",
+      "summary": "Summary: {{text}}",
+      "replace": "Replace “{{current}}” with “{{revised}}”",
+      "moreChanges": "{{count}} more changes",
+      "chapters": "Chapters: {{text}}",
+      "clearMembers": "clear all members",
+      "quote": " “{{text}}”",
+      "listSeparator": ", "
+    },
+    "kinds": {
+      "chapter": "chapter",
+      "inspiration": "idea",
+      "element": "element",
+      "storyline": "storyline",
+      "element_category": "element category"
+    }
+  },
+  "startup": {
+    "loading": "Starting Drifting"
   }
 }

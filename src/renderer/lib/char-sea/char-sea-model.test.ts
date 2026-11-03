@@ -60,7 +60,14 @@ describe('the sea of characters', () => {
     expect(charSeaScript('ja')).toBe('ja');
     expect(charSeaScript('ar-EG')).toBe('ar');
     expect(charSeaScript('en')).toBe('en');
-    expect(charSeaScript('fr')).toBe('en');
+    expect(charSeaScript('zh-TW')).toBe('zh-TW');
+    expect(charSeaScript('ko')).toBe('ko');
+    // Every Latin interface language writes its own passage; one without falls back to English.
+    expect(charSeaScript('es')).toBe('es');
+    expect(charSeaScript('de')).toBe('de');
+    expect(charSeaScript('fr')).toBe('fr');
+    expect(charSeaScript('pt-BR')).toBe('pt');
+    expect(charSeaScript('it')).toBe('en');
     expect(charSeaScript(undefined)).toBe('en');
   });
 

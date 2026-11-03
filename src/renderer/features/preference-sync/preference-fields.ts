@@ -1,3 +1,4 @@
+import { SUPPORTED_LOCALES } from '../../../shared/ui-locales';
 import {
   normalizeEntityLinkBandStyle,
   normalizeEntityLinkColorMode,
@@ -68,7 +69,7 @@ export const PREFERENCE_FIELDS: readonly PreferenceField[] = [
   ),
   setting('autoElementLinkEnabled', boolean),
   // Language and Agent limits
-  setting('uiLocale', oneOf('zh-CN', 'en')),
+  setting('uiLocale', oneOf(...SUPPORTED_LOCALES)),
   setting(
     'agentTurnIterationLimit',
     (value) => (value === null ? null : number(value)),

@@ -1,0 +1,106 @@
+/* ─── Immersive writing (沉浸写作) ────────────────────────────────────
+   Everything but the paper withdraws (`data-immersive` on the desktop
+   workspace root). The sidebars and the Bottom Panel slide shut over their
+   own kept state (Sidebar, DesktopWorkspace); here the floating chrome
+   fades: the sidebar toggles, the tab dock, every pane's paper toolbar and
+   the stage's own timeline toggle. The comment and outline rails stay as
+   the author left them. The pointer at the window's top edge brings back
+   the dock (the traffic lights come back natively), at the bottom-right
+   corner the way out (`data-immersive-peek`); typing sends them away.
+   Hidden chrome is `visibility: hidden` once faded, so it cannot be hit or
+   focused. See docs/editor/immersive-writing.md. */
+.desktop-app-shell .workspace-sidebar-toggles,
+.desktop-app-shell .workspace-tab-dock,
+.desktop-app-shell .editor-corner {
+  transition: opacity var(--motion-glass-bleed) ease-out;
+}
+
+.desktop-app-shell[data-immersive] .workspace-sidebar-toggles,
+.desktop-app-shell[data-immersive] .workspace-tab-dock,
+.desktop-app-shell[data-immersive] .editor-corner,
+.desktop-app-shell[data-immersive] .workspace-timeline-toggle--stage.ghost-icon-button {
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity var(--motion-glass-bleed) ease-out,
+    visibility 0s linear var(--motion-glass-bleed);
+}
+
+.desktop-app-shell[data-immersive][data-immersive-peek='top'] .workspace-tab-dock {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity var(--motion-glass-bleed) ease-out;
+}
+
+/* Syncing breathes on the paper's corner while the author types; immersed it
+   keeps quiet. A problem still shows. */
+.desktop-app-shell[data-immersive] .paper-sync-mark:not([data-state='problem']) {
+  opacity: 0;
+}
+
+/* The stage's lower-right corner while immersed: this sitting's words over
+   today's sand stroke, then the way out, pressed. */
+.immersive-writing-corner {
+  position: absolute;
+  z-index: 20;
+  right: 16px;
+  bottom: calc(16px + var(--glass-tray-padding));
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity var(--motion-glass-bleed) ease-out,
+    visibility 0s linear var(--motion-glass-bleed);
+}
+
+.desktop-app-shell[data-immersive-peek='corner'] .immersive-writing-corner {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity var(--motion-glass-bleed) ease-out;
+}
+
+.immersive-writing-corner__words {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  font-family: var(--font-mono);
+  font-size: var(--ui-font-caption, 9.5px);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.sand-stroke.immersive-writing-corner__goal {
+  --sand-stroke-h: 4px;
+  position: absolute;
+  bottom: 1px;
+  left: -1px;
+  max-width: calc(100% + 2px);
+}
+
+.immersive-writing-corner__leave.ghost-icon-button {
+  flex-shrink: 0;
+  background: var(--glass-fill);
+  -webkit-backdrop-filter: blur(1.6px);
+  backdrop-filter: blur(1.6px);
+}
+
+/* Paragraph focus: every block but the caret's, painted as a highlight
+   (features/immersive-writing/paragraph-focus.ts), so the editor's DOM is
+   never restyled while the author types. */
+::highlight(drifting-immersive-dim) {
+  color: hsl(var(--ink-1) / 0.26);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .desktop-app-shell .workspace-sidebar-toggles,
+  .desktop-app-shell .workspace-tab-dock,
+  .desktop-app-shell .editor-corner,
+  .immersive-writing-corner {
+    transition: none;
+  }
+}

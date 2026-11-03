@@ -1,4 +1,4 @@
-import type { ProjectAsset, ProjectAssetVariant } from '../domain/project-asset';
+import type { ProjectAsset, ProjectAssetKind, ProjectAssetVariant } from '../domain/project-asset';
 import { platform } from '../platform';
 
 export type StoredAssetFile = {
@@ -16,6 +16,14 @@ export function projectAssetVariantExt(
 ): string {
   return variant === 'source' ? extForMime(asset.sourceMime) : 'jpg';
 }
+
+/** The PDF thumbnail derivative, shared by import and rebuild. */
+export const PDF_THUMBNAIL = { size: 512, quality: 72 } as const;
+
+const DERIVED_VARIANTS: Record<ProjectAssetKind, readonly ProjectAssetVariant[]> = {
+  image: ['display', 'thumbnail'],
+  pdf: ['thumbnail'],
+};
 
 function assertOk<T extends { ok: true } | { ok: false; error: string }>(
   result: T,
@@ -116,17 +124,18 @@ export const assetStoreService = {
     );
   },
 
+  /** A missing display or thumbnail is rebuilt from the source before it is reported missing. */
   async requireVariant(
     projectId: string,
     asset: ProjectAsset,
     variant: ProjectAssetVariant,
   ): Promise<StoredAssetFile> {
-    const stored = await assetStoreService.getPath(
-      projectId,
-      asset.id,
-      variant,
-      projectAssetVariantExt(asset, variant),
-    );
+    const ext = projectAssetVariantExt(asset, variant);
+    let stored = await assetStoreService.getPath(projectId, asset.id, variant, ext);
+    if (!stored && DERIVED_VARIANTS[asset.kind].includes(variant)) {
+      await rebuildDerivatives(projectId, asset);
+      stored = await assetStoreService.getPath(projectId, asset.id, variant, ext);
+    }
     if (!stored) throw new Error(`Local asset ${asset.id} is missing its ${variant} variant`);
     return stored;
   },
@@ -139,3 +148,53 @@ export const assetStoreService = {
     );
   },
 };
+
+const activeRebuilds = new Map<string, Promise<void>>();
+
+/**
+ * Sync and some book files carry only the source, so a library that received
+ * an asset that way has no display or thumbnail until a read rebuilds them.
+ * Concurrent reads of one asset share a single rebuild.
+ */
+function rebuildDerivatives(projectId: string, asset: ProjectAsset): Promise<void> {
+  const key = `${projectId}:${asset.id}`;
+  const active = activeRebuilds.get(key);
+  if (active) return active;
+  const rebuild = (async () => {
+    const sourceExt = projectAssetVariantExt(asset, 'source');
+    const source = await assetStoreService.getPath(projectId, asset.id, 'source', sourceExt);
+    if (!source) return;
+    const derivatives = await prepareDerivatives(asset.kind, source.filePath);
+    // Deleting the asset removes its directory. A write after that would leave
+    // an unmarked directory that restart GC never collects.
+    if (!(await assetStoreService.getPath(projectId, asset.id, 'source', sourceExt))) return;
+    await Promise.all(
+      derivatives.map(([variant, bytes]) =>
+        assetStoreService.writeBytes(projectId, asset.id, variant, 'jpg', bytes),
+      ),
+    );
+  })().finally(() => activeRebuilds.delete(key));
+  activeRebuilds.set(key, rebuild);
+  return rebuild;
+}
+
+async function prepareDerivatives(
+  kind: ProjectAssetKind,
+  sourcePath: string,
+): Promise<Array<[ProjectAssetVariant, ArrayBuffer]>> {
+  if (kind === 'image') {
+    const prepared = await platform.material.prepareImage(sourcePath);
+    if (!prepared.ok) throw new Error(prepared.error);
+    return [
+      ['display', prepared.display.bytes],
+      ['thumbnail', prepared.thumbnail.bytes],
+    ];
+  }
+  const thumbnail = await platform.material.createThumbnailVariant(
+    sourcePath,
+    PDF_THUMBNAIL.size,
+    PDF_THUMBNAIL.quality,
+  );
+  if (!thumbnail.ok) throw new Error(thumbnail.error);
+  return [['thumbnail', thumbnail.bytes]];
+}

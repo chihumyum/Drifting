@@ -1,13 +1,11 @@
-import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { sumCanonicalChapterWordCounts } from '../../domain/book-node';
 import { useWholeBookEditingStore } from '../../features/editor/whole-book-editing';
 import { useEditorSelectionWordCount } from '../../hooks/useEditorSelectionWordCount';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { focusedLeafOf, tabKey, useProjectTabs } from '../../store/ui-store';
 import { useDataStoreFields } from '../../store/use-data-store-fields';
-import { deriveWritingStats, useWritingStatsStore } from '../../store/writing-stats-store';
-import { dailyGoalProgress, deriveStatusWordMetric } from '../status-word-metric';
+import { deriveStatusWordMetric } from '../status-word-metric';
+import { useTodayWords } from './useTodayWords';
 
 /**
  * The word counts in the account cell, between the account pill and Project
@@ -18,12 +16,11 @@ import { dailyGoalProgress, deriveStatusWordMetric } from '../status-word-metric
  * first (desktop-shell.css).
  */
 export function WorkspaceWordTally() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { projectId } = useProjectNavigation();
   const { openTabs, activeTabKey } = useProjectTabs(projectId);
   const { bookNodes, storylineNodeMapping } = useDataStoreFields('bookNodes', 'storylineNodeMapping');
-  const writingHistory = useWritingStatsStore((state) => state.history[projectId]);
-  const dailyWordGoal = useWritingStatsStore((state) => state.getPlan(projectId).dailyWordGoal);
+  const { projectWordCount, todayWords, dailyWordGoal, progress } = useTodayWords(projectId);
   const selectedWordCount = useEditorSelectionWordCount();
   const wholeBookEditingChapterId = useWholeBookEditingStore(
     (state) => state.chapterByProject[projectId] ?? null,
@@ -31,7 +28,6 @@ export function WorkspaceWordTally() {
 
   const activeTab = openTabs.find((tab) => tabKey(tab) === activeTabKey);
   const activeLeaf = activeTab ? focusedLeafOf(activeTab) : null;
-  const projectWordCount = useMemo(() => sumCanonicalChapterWordCounts(bookNodes), [bookNodes]);
   const metric = deriveStatusWordMetric({
     selectedWordCount,
     activeLeaf,
@@ -40,28 +36,19 @@ export function WorkspaceWordTally() {
     storylineNodeMapping,
     projectWordCount,
   });
-  const todayWords = useMemo(
-    () =>
-      projectWordCount.ready
-        ? deriveWritingStats(writingHistory, projectWordCount.count).todayWords
-        : null,
-    [projectWordCount, writingHistory],
-  );
-  const progress = dailyGoalProgress(todayWords, dailyWordGoal);
-
   const label = t(`workspaceWordTally.${metric.kind}`);
   const counting = t('workspaceWordTally.counting');
-  const format = (count: number | null) => (count == null ? counting : count.toLocaleString());
+  const format = (count: number | null) => (count == null ? counting : count.toLocaleString(i18n.language));
   const summary = [
     t('workspaceWordTally.part', { label, formatted: format(metric.count) }),
     todayWords == null
       ? null
       : dailyWordGoal > 0
         ? t('workspaceWordTally.todayGoalPart', {
-            formatted: todayWords.toLocaleString(),
-            goal: dailyWordGoal.toLocaleString(),
+            formatted: todayWords.toLocaleString(i18n.language),
+            goal: dailyWordGoal.toLocaleString(i18n.language),
           })
-        : t('workspaceWordTally.todayPart', { formatted: todayWords.toLocaleString() }),
+        : t('workspaceWordTally.todayPart', { formatted: todayWords.toLocaleString(i18n.language) }),
     metric.kind === 'book'
       ? null
       : t('workspaceWordTally.part', {
@@ -80,7 +67,7 @@ export function WorkspaceWordTally() {
       <span className="sidebar-account-cell__count sidebar-account-cell__count--today">
         <span>{t('workspaceWordTally.today')}</span>
         <span className="sidebar-account-cell__figure">
-          {todayWords == null ? counting : `+${todayWords.toLocaleString()}`}
+          {todayWords == null ? counting : `+${todayWords.toLocaleString(i18n.language)}`}
         </span>
         {progress != null && (
           <span

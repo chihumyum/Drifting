@@ -21,7 +21,7 @@ function formatBytes(bytes: number): string {
 
 /** Complete `.drifting` backup and restore for the local library (desktop). */
 export function LibraryBackupSettings() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const userId = useAuthStore((state) => state.user.id);
   const authority = useProductSyncAuthority();
   const [busy, setBusy] = useState<Busy>(null);
@@ -85,7 +85,7 @@ export function LibraryBackupSettings() {
       const confirmed = await requestConfirmation(
         t('settings.sync.backup.restoreConfirm', {
           file: inspected.fileName ?? '',
-          date: new Date(summary.createdAtMs).toLocaleString(),
+          date: new Date(summary.createdAtMs).toLocaleString(i18n.language),
           summary: summaryText(summary),
           projects: projectNames || t('settings.sync.backup.noProjects'),
         }),

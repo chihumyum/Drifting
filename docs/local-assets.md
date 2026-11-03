@@ -58,6 +58,14 @@ assets/<projectId>/<assetId>/thumbnail.jpg
 projections. The renderer accesses all three through the typed `assetStore`
 platform contract; it does not construct filesystem paths or use HTTP fallback.
 
+Sync carries only the source, and a book file may too, so a library that
+received an asset that way starts without derivatives. When
+`assetStoreService.requireVariant` finds a display or thumbnail missing, it
+rebuilds them from the source with the import's own settings (an image gets
+both, a PDF only its thumbnail) before reporting the variant missing.
+Concurrent reads of one asset share a rebuild, and a rebuild whose source
+disappeared meanwhile (the asset was deleted) writes nothing.
+
 ## Import transaction boundary
 
 1. The native picker returns a temporary app-owned import path.
@@ -116,6 +124,9 @@ reachable source blob by SHA-256.
 
 - `src/renderer/services/local-project-asset.service.test.ts` covers successful
   import, cleanup, and the delayed-sibling write failure.
+- `src/renderer/services/asset-store-derivatives.test.ts` covers rebuilding a
+  missing display or thumbnail from the source, the shared rebuild, and the
+  deleted-meanwhile and undecodable-source cases.
 - `src/renderer/services/local-project-assets.acceptance.test.ts` locks the
   clean model, local-only platform path, and absence of retired upload/runtime
   concepts.
