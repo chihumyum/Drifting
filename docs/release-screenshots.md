@@ -1,18 +1,35 @@
 # Release screenshots
 
 Status: **current tooling** (2026-11-04). One command captures the shelf, the
-workspace and the element overview of the real macOS app, in English and
-Chinese, light and dark: twelve PNGs per release.
+workspace and the element overview of the real macOS app, from synthetic data.
+Every release refreshes the README's three:
 
 ```bash
-pnpm release:screenshots
+pnpm release:screenshots --readme
 ```
 
 Run it on a Mac during release preparation ([releasing.md](releasing.md),
-step 2). It takes about two minutes once the profile's Rust build exists (the
-first run compiles it, about five minutes) and **takes the screen**: the app's
-window comes to the front for each capture, and the app that was in front gets
-its place back at the end. Leave the keyboard and pointer alone while it runs.
+step 2) and commit `docs/screenshots/` with the version bump;
+`pnpm release:check` (locally and in the Release workflow) fails while the
+README's screenshots are from another version. It takes about a minute once
+the profile's Rust build exists (the first run compiles it, about five
+minutes) and **takes the screen**: the app's window comes to the front for each
+capture, and the app that was in front gets its place back at the end. Leave
+the keyboard and pointer alone while it runs.
+
+Without `--readme` it captures every scene in English and Chinese, light and
+dark — twelve PNGs in `out/screenshots/<version>/`, not committed — in about
+two minutes.
+
+## The README's screenshots
+
+`docs/screenshots/` holds `shelf.webp`, `workspace.webp` and `elements.webp`:
+the English light scenes resized to 2000 pixels wide (twice the README's
+column, for Retina screens) and encoded as WebP at quality 90 with `cwebp`
+(`brew install webp`), about 480 KB together, so a release adds little to the
+repository. `manifest.json` beside them records the version, the commit they
+were captured from and each file's size and SHA-256. The README shows them in
+that order under the video.
 
 ## What it produces
 

@@ -16,9 +16,11 @@ Interface: 简体中文 · 繁體中文 · English · 日本語 · 한국어 · 
 
 https://github.com/user-attachments/assets/54473d28-e047-4fce-9e6c-9e300cf83e8d
 
-<img width="1552" height="1012" alt="Screenshot 2026-11-02 at 4 54 53 PM" src="https://github.com/user-attachments/assets/28733411-98d7-4be4-8bd3-e84be7de2b5d" />
+![The Bookshelf: every book with its cover, and a year of writing days](docs/screenshots/shelf.webp)
 
-<img width="1840" height="1196" alt="Screenshot 2026-11-02 at 4 52 19 PM" src="https://github.com/user-attachments/assets/bfcef0bf-4c47-4a42-882a-02d32d49f421" />
+![Writing a chapter: chapters by storyline, linked names, comments in Review and the timeline below](docs/screenshots/workspace.webp)
+
+![The element overview: characters, places and lore as a graph of their relations](docs/screenshots/elements.webp)
 
 ## English
 
