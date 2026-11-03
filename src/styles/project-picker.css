@@ -1,12 +1,15 @@
 /* Bookshelf — a flat desk. The words are written straight on the desk's own
    colour (--workspace-ui-bg); each book's cover is the one slip of paper on
    it, its storylines drawn on it in the shelf's cover style (lib/shelf-cover;
-   sand by default, lib/sand-cover.ts). The page holds only the shelf's name,
-   the avatar, the books and, at its foot, the round button that turns the
-   cover style. Glass is what the hand presses: the avatar, that button and
-   the cards' rim. Sand is what is left: covers, progress, icons and marks.
-   No white boxes, solid frames, washes, accent blocks or shadows. The paused
-   mobile shelf (mobile-project-shelf.css) keeps `.pp-modal*` at the end. */
+   sand by default, lib/sand-cover.ts). A left column like the workspace's
+   holds the shelf's name, the import, Recently Deleted and the account cell
+   with the library's sync state; beside it, a year of writing days, the
+   books and, at the foot, the round button that turns the cover style. Glass
+   is what the hand presses: the rail's cells, the account, that button and
+   the cards' rim. Sand is what is left: covers, the heatmap's days, the 30-day
+   strips, progress, icons and marks. No white boxes, solid frames, washes,
+   accent blocks or shadows. The paused mobile shelf (mobile-project-shelf.css)
+   keeps `.pp-modal*` at the end. */
 
 /* Nothing on the shelf is text to copy, so a double click on the open desk
    doesn't select the nearest word (the new-book slip's line). */
@@ -38,6 +41,10 @@
   display: none;
 }
 
+.pp-heat--sea.glass::before {
+  display: none;
+}
+
 .pp *,
 .pp *::before,
 .pp *::after {
@@ -64,6 +71,14 @@
   background-clip: padding-box;
 }
 
+/* The rail and the main column; the rail stays put while the books scroll. */
+.pp__frame {
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr);
+  align-items: start;
+  min-height: 100%;
+}
+
 .pp__inner {
   display: flex;
   flex-direction: column;
@@ -73,20 +88,16 @@
   padding: 44px 56px 32px;
 }
 
+.pp__frame > .pp__inner {
+  width: min(100%, 1180px);
+  min-height: 100vh;
+  padding: 44px 40px 32px 16px;
+}
+
 .pp-empty {
   display: grid;
   min-height: 240px;
   place-items: center;
-}
-
-/* ─── Header: the shelf's name and a round glass avatar ─── */
-
-.pp-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  margin-bottom: 18px;
 }
 
 /* A Hosted connect restoring this library's books (HostedRestoreProgress):
@@ -95,7 +106,7 @@
   display: grid;
   gap: 6px;
   max-width: 360px;
-  margin: -6px 0 22px;
+  margin: 0 0 18px;
 }
 .hosted-restore__title,
 .hosted-restore__detail {
@@ -111,8 +122,8 @@
   font-size: var(--ui-font-caption, 12px);
 }
 
-/* 书架 and 全部作品 name the place, like the Panel Tabs: the serif structure
-   face, not the author's prose font, which stays with each book's own title. */
+/* 书架 names the place, like the Panel Tabs: the serif structure face, not
+   the author's prose font, which stays with each book's own title. */
 .pp-head__title {
   margin: 0;
   color: hsl(var(--ink-1));
@@ -120,13 +131,95 @@
   letter-spacing: 0.04em;
 }
 
-.pp-head__account.ghost-icon-button {
-  width: 34px;
-  height: 34px;
+/* ─── The rail: the shelf's name, import, Recently Deleted, the account ─── */
+
+.pp-rail {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  padding: 52px 12px 14px 16px;
 }
 
-.pp-head__avatar {
+.pp-rail .pp-head__title {
+  padding: 0 10px;
+}
+
+.pp-rail__library {
+  margin: 10px 10px 0;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  font: 400 var(--ui-font-caption, 12px) / 1.4 var(--font-mono);
+}
+
+.pp-rail__grow {
+  flex: 1;
+}
+
+/* A cell like the sidebars': no wash; under the pointer a ring of glass. */
+.pp-rail__cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: hsl(var(--ink-2));
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--ui-font-body, 14px);
+  text-align: left;
+}
+
+.pp-rail__cell .brush-icon {
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+}
+
+.pp-rail__cell:hover {
+  color: hsl(var(--ink-1));
+}
+
+.pp-rail__cell:disabled {
+  cursor: default;
+}
+
+.pp-rail__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pp-rail__meta {
+  margin-left: auto;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  font: 400 var(--ui-font-caption, 12px) / 1 var(--font-mono);
+}
+
+/* The account cell: the avatar, the name and the library's sync state; the
+   menu opens upward from it, as from the workspace's. */
+.pp-rail__account {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin-top: 6px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: hsl(var(--ink-2));
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.pp-rail__avatar {
   display: grid;
+  flex: none;
   width: 24px;
   height: 24px;
   overflow: hidden;
@@ -135,6 +228,214 @@
   color: hsl(var(--paper));
   font: italic 500 12px/1 var(--font-sans);
   place-items: center;
+}
+
+.pp-rail__who {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.pp-rail__name {
+  overflow: hidden;
+  color: hsl(var(--ink-1));
+  font-size: var(--ui-font-body, 14px);
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pp-rail__status {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  font: 400 var(--ui-font-caption, 12px) / 1.3 var(--font-mono);
+  white-space: nowrap;
+}
+
+.pp-rail__status > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pp-rail__status--danger {
+  color: hsl(var(--destructive));
+}
+
+/* A transfer breathes, as the paper's corner cloud does. */
+.pp-rail__status--moving .brush-icon {
+  animation: pp-breathe 1.8s ease-in-out infinite;
+}
+
+@keyframes pp-breathe {
+  50% { opacity: 0.3; }
+}
+
+/* ─── A year of writing days: one dab of sand for each day written ─── */
+
+.pp-heat {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 14px 28px;
+  margin-bottom: 14px;
+  padding: 14px 18px 16px;
+  border-radius: 2px;
+  background: transparent;
+}
+
+.pp-heat__scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.pp-heat__scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.pp-heat__months {
+  position: relative;
+  height: 18px;
+  margin-left: 22px;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  font: 400 11px/1 var(--font-mono);
+}
+
+.pp-heat__months span {
+  position: absolute;
+  top: 0;
+  white-space: nowrap;
+}
+
+.pp-heat__body {
+  display: flex;
+  gap: 6px;
+}
+
+.pp-heat__weekdays {
+  display: grid;
+  flex: none;
+  grid-template-rows: repeat(7, 14px);
+  width: 16px;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  font: 400 10px/11px var(--font-mono);
+}
+
+.pp-heat__cells {
+  position: relative;
+  flex: none;
+}
+
+.pp-heat__layer {
+  position: absolute;
+  inset: 0;
+}
+
+/* The loose grains of the days without words stay the ink's. */
+.pp-heat__layer:first-child {
+  --sand-c: hsl(var(--ink-3));
+}
+
+.pp-heat__hot {
+  position: absolute;
+  width: 13px;
+  height: 13px;
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 1px hsl(var(--ink-2) / 0.55);
+  pointer-events: none;
+}
+
+.pp-heat__nums {
+  display: grid;
+  flex: 1 1 150px;
+  gap: 7px;
+  min-width: 0;
+  margin: 0 0 2px;
+}
+
+.pp-heat__nums > div {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+.pp-heat__nums dt {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  width: 5.2em;
+  overflow: hidden;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  font-size: var(--ui-font-secondary, 13px);
+  white-space: nowrap;
+}
+
+.pp-heat__nums dt.pp-heat__book {
+  width: auto;
+  max-width: 8em;
+  color: hsl(var(--ink-1));
+  font-family: var(--font-content);
+}
+
+.pp-heat__book span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pp-heat__nums dd {
+  margin: 0;
+  color: var(--ui-text-muted, hsl(var(--ink-4)));
+  font: 400 var(--ui-font-caption, 12px) / 1 var(--font-mono);
+  white-space: nowrap;
+}
+
+.pp-heat__nums b {
+  margin-right: 3px;
+  color: hsl(var(--ink-1));
+  font: 400 15px/1 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.pp-heat__mark {
+  width: 9px;
+  height: 9px;
+}
+
+/* The day's hover card: a row per book, its mark, its name, its words. */
+.pp-heat__books {
+  display: grid;
+  gap: 2px;
+  padding: 2px 0 4px;
+}
+
+.pp-heat__books-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 12px;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+}
+
+.pp-heat__books-row span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--font-content);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pp-heat__books-row b {
+  color: hsl(var(--ink-1));
+  font: 400 var(--ui-font-caption, 12px) / 1.4 var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 
 /* ─── Covers: a slip of paper, one sand band per storyline ─── */
@@ -281,6 +582,36 @@
   margin-right: 3px;
   color: hsl(var(--ink-2));
   font-weight: 400;
+}
+
+/* The last 30 days: one upright stroke in ink for each day written, loose
+   grain for each day without (views/shelf/SandStrip). */
+.pp-card__strip {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: auto;
+  padding-top: 14px;
+}
+
+.pp-strip {
+  position: relative;
+  height: 20px;
+}
+
+.pp-strip__sand {
+  position: absolute;
+  inset: 0;
+  --sand-c: hsl(var(--ink-2));
+}
+
+.pp-card__strip ~ .pp-card__progress {
+  margin-top: 0;
+  padding-top: 12px;
+}
+
+.pp-card__strip ~ .pp-card__foot--end {
+  margin-top: 10px;
 }
 
 /* Progress is one dry stroke in ink (the stats panel's readout); what is left
@@ -655,6 +986,18 @@
   .pp__inner {
     padding-right: 32px;
     padding-left: 32px;
+  }
+
+  .pp__frame > .pp__inner {
+    padding-right: 24px;
+    padding-left: 8px;
+  }
+}
+
+/* Beside the rail two columns of books need the room of a wide window. */
+@media (max-width: 1080px) {
+  .pp__frame .pp-grid {
+    grid-template-columns: 1fr;
   }
 }
 

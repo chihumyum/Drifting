@@ -29,6 +29,7 @@ import {
   SyncEntityLifecycleTable,
   SyncOrderRegisterTable,
   TimelineMarkerTable,
+  WritingDayTable,
 } from '../../schema/drizzle';
 import {
   entityKvOrderScope,
@@ -91,6 +92,7 @@ const TABLES_BY_NAME = Object.freeze({
   project_asset: ProjectAssetTable,
   storylines: StorylineTable,
   timeline_marker: TimelineMarkerTable,
+  writing_day: WritingDayTable,
 });
 
 export type SnapshotDomainTableNameV1 = keyof typeof TABLES_BY_NAME;
@@ -121,6 +123,7 @@ const INSERT_ORDER: readonly SnapshotDomainTableNameV1[] = Object.freeze([
   'book_act',
   'timeline_marker',
   'agent_memory',
+  'writing_day',
 ]);
 
 function policyFor(tableName: SnapshotDomainTableNameV1) {
@@ -167,7 +170,7 @@ export async function captureAuthoredTablesV1(
   projectId: string,
 ): Promise<readonly SnapshotTableRowsV1[]> {
   const [projects, assets, kvEntries, categories, storylines, groups, nodes, elements, patches, relationTypes,
-    relations, comments, commentActions, libraryItems, acts, markers, memories, folders] = await Promise.all([
+    relations, comments, commentActions, libraryItems, acts, markers, memories, folders, writingDays] = await Promise.all([
     tx.select().from(ProjectTable).where(eq(ProjectTable.id, projectId)),
     tx.select().from(ProjectAssetTable).where(eq(ProjectAssetTable.projectId, projectId)),
     tx.select().from(EntityKvEntryTable).where(eq(EntityKvEntryTable.projectId, projectId)),
@@ -186,6 +189,7 @@ export async function captureAuthoredTablesV1(
     tx.select().from(TimelineMarkerTable).where(eq(TimelineMarkerTable.projectId, projectId)),
     tx.select().from(AgentMemoryTable).where(eq(AgentMemoryTable.projectId, projectId)),
     tx.select().from(MaterialFolderTable).where(eq(MaterialFolderTable.projectId, projectId)),
+    tx.select().from(WritingDayTable).where(eq(WritingDayTable.projectId, projectId)),
   ]);
   if (projects.length !== 1) throw new Error(`Project ${projectId} does not exist exactly once`);
 
@@ -259,6 +263,7 @@ export async function captureAuthoredTablesV1(
     project_asset: assets,
     storylines,
     timeline_marker: markers,
+    writing_day: writingDays,
   };
   return SNAPSHOT_DOMAIN_TABLE_NAMES_V1.map((tableName) =>
     serializeTable(tableName as SnapshotDomainTableNameV1, values[tableName as SnapshotDomainTableNameV1]),
@@ -334,6 +339,7 @@ export async function materializeAuthoredTablesV1(
       case 'library_item': await tx.insert(LibraryItemTable).values(rows as (typeof LibraryItemTable.$inferInsert)[]); break;
       case 'book_act': await tx.insert(BookActTable).values(rows as (typeof BookActTable.$inferInsert)[]); break;
       case 'timeline_marker': await tx.insert(TimelineMarkerTable).values(rows as (typeof TimelineMarkerTable.$inferInsert)[]); break;
+      case 'writing_day': await tx.insert(WritingDayTable).values(rows as (typeof WritingDayTable.$inferInsert)[]); break;
       case 'agent_memory': await tx.insert(AgentMemoryTable).values(rows as (typeof AgentMemoryTable.$inferInsert)[]); break;
     }
   }

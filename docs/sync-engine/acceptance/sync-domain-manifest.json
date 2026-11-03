@@ -2,17 +2,17 @@
   "protocol": "drifting.sync.domain-manifest",
   "version": 1,
   "schemaSource": "src/renderer/schema/drizzle.ts",
-  "schemaSha256": "26e8c9c1a9ef15e548d224f955fe3fcb09f05af0bf29ad39acbb37d0a5b5d05e",
+  "schemaSha256": "7b7de1147e9448f1f227b8160ff2f127dea960e9c0c10309c1764d16f1925d23",
   "gate": "Every Drizzle table and column must have one explicit class and non-empty reason.",
   "summary": {
-    "tableCount": 99,
-    "fieldCount": 1021,
-    "includedTableCount": 27,
+    "tableCount": 100,
+    "fieldCount": 1028,
+    "includedTableCount": 28,
     "excludedTableCount": 72,
     "classCounts": {
-      "authored": 176,
+      "authored": 181,
       "crdt": 10,
-      "derived": 94,
+      "derived": 96,
       "device-local": 385,
       "secret": 5,
       "transport": 332,
@@ -6709,6 +6709,56 @@
           "classification": "derived",
           "disposition": "exclude",
           "reason": "SQLite trigger-owned workspace read coverage; a fresh reader captures the full project."
+        }
+      ]
+    },
+    {
+      "table": "writing_day",
+      "scope": "project-direct",
+      "disposition": "include",
+      "reason": "The words each device added to the book on each day; the shelf heatmap follows the account.",
+      "fields": [
+        {
+          "field": "created_at",
+          "classification": "derived",
+          "disposition": "exclude",
+          "reason": "Projection of the winning change-set clock; it is rebuilt locally and is not merge authority."
+        },
+        {
+          "field": "day",
+          "classification": "authored",
+          "disposition": "include",
+          "reason": "One row per book, day and device; only that device updates its words, so rows never contend."
+        },
+        {
+          "field": "device_key",
+          "classification": "authored",
+          "disposition": "include",
+          "reason": "One row per book, day and device; only that device updates its words, so rows never contend."
+        },
+        {
+          "field": "id",
+          "classification": "authored",
+          "disposition": "include",
+          "reason": "One row per book, day and device; only that device updates its words, so rows never contend."
+        },
+        {
+          "field": "project_id",
+          "classification": "authored",
+          "disposition": "include",
+          "reason": "One row per book, day and device; only that device updates its words, so rows never contend."
+        },
+        {
+          "field": "updated_at",
+          "classification": "derived",
+          "disposition": "exclude",
+          "reason": "Projection of the winning change-set clock; it is rebuilt locally and is not merge authority."
+        },
+        {
+          "field": "words",
+          "classification": "authored",
+          "disposition": "include",
+          "reason": "One row per book, day and device; only that device updates its words, so rows never contend."
         }
       ]
     },

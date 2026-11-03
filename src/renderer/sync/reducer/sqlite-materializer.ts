@@ -67,6 +67,7 @@ export const SQLITE_REDUCER_V1_TARGET_KINDS = new Set([
   'drift-group',
   'material-folder',
   'timeline-marker',
+  'writing-day',
   'membership',
   'alias',
   'kv-entry',

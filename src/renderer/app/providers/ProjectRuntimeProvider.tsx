@@ -12,6 +12,7 @@ import { useDataStore, type WorkspaceDataProjection } from '../../store/data-sto
 import { useUiStore } from '../../store/ui-store';
 import { sumCanonicalChapterWordCounts } from '../../domain/book-node';
 import { useWritingStatsStore } from '../../store/writing-stats-store';
+import { createWritingDayRecorder } from '../../services/writing-days/writing-day-recorder';
 import { useProseMetricsStatusStore } from '../../store/prose-metrics-status-store';
 import { useProjectStore } from '../../store/project-store';
 import { useBookNode } from '../../usecase/useBookNode';
@@ -253,6 +254,9 @@ export function ProjectRuntimeProvider({
   }, [bootState.status, projectId]);
 
   useEffect(() => {
+    // The day's words also go to SQLite (docs/writing-days.md) for the
+    // shelf's heatmap, which follows the account.
+    const writingDay = createWritingDayRecorder(projectId);
     const tick = () => {
       if (useProseMetricsStatusStore.getState().byProject[projectId] !== 'ready') return;
       const dataState = useDataStore.getState();
@@ -261,8 +265,22 @@ export function ProjectRuntimeProvider({
       const total = sumCanonicalChapterWordCounts(nodes);
       if (total.ready) {
         useWritingStatsStore.getState().recordTotalWords(projectId, total.count);
+        writingDay.observe(total.count);
       }
     };
+    // Words that arrive from another device were written there.
+    const remoteChanged = (event: { projectId: string }) => {
+      if (event.projectId === projectId) writingDay.remoteChanged();
+    };
+    const projectsRestored = (event: { projectIds: string[] }) => {
+      if (event.projectIds.includes(projectId)) writingDay.remoteChanged();
+    };
+    const hidden = () => {
+      if (document.visibilityState === 'hidden') void writingDay.flush();
+    };
+    events.on('sync:project-changed', remoteChanged);
+    events.on('sync:projects-restored', projectsRestored);
+    document.addEventListener('visibilitychange', hidden);
     tick();
     const unsubscribeData = useDataStore.subscribe((next, previous) => {
       if (next.bookNodes !== previous.bookNodes || next.workspaceProjectId !== previous.workspaceProjectId) tick();
@@ -273,6 +291,10 @@ export function ProjectRuntimeProvider({
     return () => {
       unsubscribeData();
       unsubscribeStatus();
+      events.off('sync:project-changed', remoteChanged);
+      events.off('sync:projects-restored', projectsRestored);
+      document.removeEventListener('visibilitychange', hidden);
+      writingDay.dispose();
     };
   }, [projectId]);
 

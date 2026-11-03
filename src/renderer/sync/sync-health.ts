@@ -263,11 +263,20 @@ const NONE: SyncCornerState = Object.freeze({ kind: 'none' });
 /** What the paper's corner shows for one book. A problem wins over offline, retrying and syncing. */
 export function syncCornerFor(health: SyncHealthSnapshot, projectId: string | null): SyncCornerState {
   if (!health.hosted || !projectId) return NONE;
+  return cornerOf(health, health.generations.filter((generation) => generation.projectId === projectId));
+}
+
+/** The whole library's state, as the shelf's account cell says it: every book together. */
+export function syncLibraryCornerFor(health: SyncHealthSnapshot): SyncCornerState {
+  if (!health.hosted) return NONE;
+  return cornerOf(health, health.generations);
+}
+
+function cornerOf(health: SyncHealthSnapshot, own: SyncHealthSnapshot['generations']): SyncCornerState {
   if (health.globalProblem) {
     return { kind: 'problem', problem: health.globalProblem, errorCode: null, failures: 0, syncGenerationIds: [] };
   }
   if (health.paused) return NONE;
-  const own = health.generations.filter((generation) => generation.projectId === projectId);
   const problem = own.find((generation) => generation.problem === 'quota') ?? own.find((generation) => generation.problem);
   if (problem?.problem) {
     return {
