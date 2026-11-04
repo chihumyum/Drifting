@@ -20,7 +20,6 @@ Usage:
   pnpm drifting ops inspect --db <file> [--project <id>]
   pnpm drifting scenario run <file> --project <id> --db <file>
   pnpm drifting agent turn --project <id> --bridge http://127.0.0.1:4317 --prompt <text>
-  pnpm drifting agent review --project <id> --bridge http://127.0.0.1:4317 --review-id <id> --decision accept|reject
   pnpm drifting frontend serve --platform android|ios|desktop [--device <id>]
   pnpm drifting frontend status|snapshot|query|wait|style|hit-test [--input <json|@file>]
   pnpm drifting frontend tap|type|scroll|drag|pinch|evaluate [--input <json|@file>]
@@ -325,38 +324,8 @@ async function run(argv: readonly string[]): Promise<{
               ? { conversationId: input.conversationId }
               : {}),
             ...(typeof input.timeoutMs === 'number' ? { timeoutMs: input.timeoutMs } : {}),
-            ...(typeof input.editMode === 'string' ? { editMode: input.editMode } : {}),
             ...(typeof input.thinking === 'string' ? { thinking: input.thinking } : {}),
             ...(typeof input.effort === 'string' ? { effort: input.effort } : {}),
-          },
-        });
-        return {
-          envelope: successEnvelope({
-            command,
-            requestId: options.requestId,
-            startedAt,
-            mode,
-            data,
-            projectId,
-          }),
-          human: options.output === 'human',
-          exitCode: 0,
-        };
-      }
-      if (parsed.command[1] === 'review') {
-        const reviewId = requiredString(input.reviewId, '--review-id');
-        const decision = requiredString(input.decision, '--decision');
-        if (!['accept', 'reject'].includes(decision))
-          throw new CliError('INVALID_ARGUMENT', '--decision must be accept or reject');
-        const data = await bridgeRequest({
-          bridgeUrl,
-          endpoint: '/review',
-          body: {
-            projectId,
-            reviewId,
-            decision,
-            ...(typeof input.blockId === 'string' ? { blockId: input.blockId } : {}),
-            ...(typeof input.note === 'string' ? { note: input.note } : {}),
           },
         });
         return {

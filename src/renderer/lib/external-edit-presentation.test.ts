@@ -28,9 +28,9 @@ describe('external edit presentation', () => {
     presentExternalEdits('node', 'c1', plan);
     const pending = useAgentEditStore.getState().pending['node:c1']!;
     expect(pending.lastSource).toBe('file');
-    expect(pending.changes.map((item) => [item.blockId, item.source, item.mode])).toEqual([
-      ['p1', 'file', 'auto'],
-      ['p2', 'file', 'auto'],
+    expect(pending.changes.map((item) => [item.blockId, item.source])).toEqual([
+      ['p1', 'file'],
+      ['p2', 'file'],
     ]);
   });
 
@@ -54,7 +54,7 @@ describe('external edit presentation', () => {
   });
 
   it('leaves a paragraph with a pending Agent review to the Agent', () => {
-    useAgentEditStore.getState().recordReview('node', 'c1', [change('p1', 'a', 'b')], 'auto', { effectId: 'effect-1', reviewId: 'review-1' });
+    useAgentEditStore.getState().recordReview('node', 'c1', [change('p1', 'a', 'b')], { effectId: 'effect-1', reviewId: 'review-1' });
     presentExternalEdits('node', 'c1', planExternalEdits('node', 'c1', [change('p1', 'b', 'c'), change('p2', 'x', 'y')]));
     const pending = useAgentEditStore.getState().pending['node:c1']!;
     expect(pending.changes.find((item) => item.blockId === 'p1')).toMatchObject({ reviewId: 'review-1', newText: 'b' });

@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AgentChatTranscript } from '../domain/agent-chat-transcript';
 import { useAgentChatStore } from './agent-chat-store';
-import { useAgentEditStore } from './agent-edit-store';
 import { useSettingsStore } from './settings-store';
 import { createAgentChatJournalScope } from '../lib/agent/runtime/chat-journal-dedup';
 import { createInactiveAgentAutomaticContinuation } from '../lib/agent/runtime/long-task-auto-continuation';
@@ -23,11 +22,10 @@ vi.mock('../sync/agent-chat/repository', () => ({ AgentConversationSyncRepositor
 vi.mock('../usecase/useAgentMemory', () => ({ loadActiveMemoryHints: ports.memories }));
 vi.mock('../usecase/useAgentWorkingMemory', () => ({ prepareAgentWorkingMemoryForTurn: ports.working, takeWorkingMemoryConsolidationNotice: () => false }));
 
-const initial = useAgentChatStore.getState(); const initialEdits = useAgentEditStore.getState();
+const initial = useAgentChatStore.getState();
 const initialSettings = useSettingsStore.getState();
 const projectId = 'synthetic-preparation-project'; const conversationId = 'synthetic-preparation-conversation';
 const sessionId = 'synthetic-preparation-session';
-const revert = { projectId, sessionId, entityType: 'node' as const, id: 'synthetic-node', blockId: 'synthetic-block', op: 'changed' as const, restoredText: 'Synthetic restored prose' };
 function run() {
   return { projectId, transcript: AgentChatTranscript.from([]), runtimeSessionId: sessionId,
     journalScope: createAgentChatJournalScope(), controlStatus: null, pendingControl: null, lastTerminal: null,
@@ -46,16 +44,14 @@ beforeEach(() => {
   });
   useAgentChatStore.setState({ ...initial, boundProjectId: projectId, activeConvId: conversationId,
     runs: { [conversationId]: run(), target: run() }, prompt: 'Synthetic author prompt', refreshList: () => undefined }, true);
-  useAgentEditStore.setState({ pendingReverts: [revert] });
 });
 afterEach(() => {
   restoreTransport(); useAgentChatStore.setState(initial, true);
-  useAgentEditStore.setState(initialEdits, true); useSettingsStore.setState(initialSettings, true);
+  useSettingsStore.setState(initialSettings, true);
 });
 
 describe('chat send preparation ownership', () => {
   it('does not inject mobile context metadata into the model prompt', async () => {
-    useAgentEditStore.setState({ pendingReverts: [] });
     const turnContext = [{
       kind: 'workspace' as const,
       projectId,
@@ -100,7 +96,7 @@ describe('chat send preparation ownership', () => {
 
   for (const stage of ['memories', 'working'] as const) {
     for (const action of ['new', 'load', 'project', 'delete', 'abort'] as const) {
-      it(`does not consume review context or start after ${action} during ${stage}`, async () => {
+      it(`does not start after ${action} during ${stage}`, async () => {
         const pending = deferred<never[]>();
         if (stage === 'memories') ports.memories.mockImplementationOnce(() => pending.promise);
         else ports.working.mockImplementationOnce(async () => { await pending.promise; return null; });
@@ -115,7 +111,6 @@ describe('chat send preparation ownership', () => {
           if (action === 'abort') state.abort();
         } finally { pending.resolve([]); await sending; }
         expect(ports.start).not.toHaveBeenCalled();
-        expect(useAgentEditStore.getState().pendingReverts).toEqual([revert]);
         expect(useAgentChatStore.getState().runningTurns).toEqual({});
         expect(useAgentChatStore.getState().starting).toBe(false);
         if (stage === 'memories') expect(ports.working).not.toHaveBeenCalled();
@@ -142,7 +137,6 @@ describe('chat send preparation ownership', () => {
     } finally { first.resolve([]); second.resolve([]); await Promise.all([firstSend, secondSend]); }
     expect(ports.start).toHaveBeenCalledTimes(1);
     expect(ports.start.mock.calls[0][0].prompt).toBe('Synthetic newer intent');
-    expect(useAgentEditStore.getState().pendingReverts).toEqual([revert]);
     expect(useAgentChatStore.getState().starting).toBe(false);
   });
 
@@ -154,10 +148,8 @@ describe('chat send preparation ownership', () => {
     const input = ports.start.mock.calls[0][0];
     expect(input).toMatchObject({ projectId, route: { kind: 'chat', projectId, conversationId }, resume: sessionId,
       memories: [{ kind: 'preference', body: 'Synthetic approved hint' }], workingMemory: { contentMd: 'Synthetic working context', revision: 7, approxTokens: 8 } });
-    expect(input.prompt).toContain('用户拒绝并还原了以下改动');
-    expect(input.prompt.endsWith('Synthetic author prompt')).toBe(true);
+    expect(input.prompt).toBe('Synthetic author prompt');
     expect(useAgentChatStore.getState().runs[conversationId].transcript.toArray()[0]).toMatchObject({ kind: 'user', text: 'Synthetic author prompt' });
-    expect(useAgentEditStore.getState().pendingReverts).toEqual([]);
   });
 
   for (const action of ['new', 'load', 'stopAfterTool'] as const) {
@@ -272,6 +264,5 @@ describe('chat send preparation ownership', () => {
     expect(useAgentChatStore.getState().runs[conversationId].transcript.toArray()).toEqual([]);
     expect(useAgentChatStore.getState().starting).toBe(false);
     expect(ports.start).not.toHaveBeenCalled();
-    expect(useAgentEditStore.getState().pendingReverts).toEqual([revert]);
   });
 });

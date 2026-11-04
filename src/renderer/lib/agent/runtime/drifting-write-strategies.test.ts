@@ -155,8 +155,8 @@ describe('Drifting write strategies', () => {
       { ok: true },
       prepared,
     );
-    // Simulate a crash after the inverse usecase committed but before the
-    // canonical review advanced from revert_started to reverted.
+    // Simulate a crash after the inverse usecase committed but before its
+    // caller recorded the outcome.
     updateNodeField('node-1', 'title', 'Old title');
     const reviewContext = context();
 
@@ -606,7 +606,6 @@ describe('Drifting write strategies', () => {
       expect.objectContaining({
         blockId: 'block-a',
         op: 'changed',
-        mode: 'auto',
         reviewId,
       }),
     ]);

@@ -284,8 +284,7 @@
       "authority": "sqlite",
       "coverage": "workflow_only",
       "commands": [
-        "agent turn",
-        "agent review"
+        "agent turn"
       ],
       "table": "agent_conversation",
       "note": "Conversation lifecycle is owned by Agent transport."
@@ -338,7 +337,6 @@
       "coverage": "inspect_reconcile",
       "commands": [
         "agent turn",
-        "agent review",
         "ops inspect"
       ],
       "table": "agent_permission_grant",

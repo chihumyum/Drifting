@@ -36,7 +36,6 @@ function continuationPlanState(
     status,
     scopeKind: status === 'none' ? null : 'whole_book_chapters',
     runnableStepCount: status === 'active' ? 1 : 0,
-    waitingReviewStepCount: 0,
     manifestStatus: status === 'none' ? 'not_applicable' : 'current',
     needsManifestReconciliation: false,
     needsFinalization: false,

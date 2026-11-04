@@ -37,7 +37,7 @@ const sources = [
   ...['AgentEditAnimator', 'FieldReview', 'PatchEditorCard', 'ChapterEditor'].map(name => `src/renderer/components/editor/${name}.tsx`),
   ...['ElementEditorView', 'StorylineEditorView', 'CategoryEditorView'].map(name => `src/renderer/views/${name}.tsx`),
   'src/renderer/components/ui/ElementIdentityTile.tsx', 'src/renderer/features/agent/AgentComposerConfig.tsx',
-  'src/renderer/features/editor/agent-decoration-projection.ts', 'src/renderer/lib/agent/agent-edit-mode.ts',
+  'src/renderer/features/editor/agent-decoration-projection.ts',
   'src/renderer/lib/agent/tool-registry.ts', 'src/renderer/lib/agent/runtime/drifting-workspace-tool-contract.ts',
   'src/renderer/lib/agent/runtime/drifting-write-strategies.ts', 'src/renderer/lib/agent/runtime/drifting-write-tool-runtime.ts',
   'src/styles/agent-activity.css', 'src/styles/ui-controls.css', 'src/renderer/locales/en.json', 'src/renderer/locales/zh-CN.json',

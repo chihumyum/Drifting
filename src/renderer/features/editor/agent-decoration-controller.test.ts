@@ -106,7 +106,7 @@ describe('Agent decoration composition ownership', () => {
 });
 
 describe('Agent reveal appearance preference', () => {
-  it('treats old approval receipts as automatic and removes every mask when motion is off', () => {
+  it('reads changes cached with the retired review mode as reveals and removes every mask when motion is off', () => {
     const changes = ['auto', 'approve'].map((mode) => ({
       blockId: mode, mode: mode as 'auto' | 'approve', op: 'new' as const,
       oldText: '', newText: `Synthetic ${mode}`, afterPrevId: null,
@@ -116,7 +116,7 @@ describe('Agent reveal appearance preference', () => {
     expect(f.decorations().filter((d) => d.spec.agentAutoRevealMask)).toHaveLength(2);
     f.binding.setRevealAnimationEnabled(false);
     expect(f.decorations().filter((d) => d.spec.agentAutoRevealMask)).toHaveLength(0);
-    expect(f.decorations()).toHaveLength(0); // no retired approval diff
+    expect(f.decorations()).toHaveLength(0);
     expect(state.pending['node:target'].changes).toEqual(changes);
     f.binding.setRevealAnimationEnabled(true);
     expect(f.decorations().filter((d) => d.spec.agentAutoRevealMask)).toHaveLength(2);

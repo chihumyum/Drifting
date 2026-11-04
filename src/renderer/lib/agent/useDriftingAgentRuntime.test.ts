@@ -5,10 +5,7 @@ import type {
   PersistedAgentRuntimeWriteReview,
 } from '../../domain/agent-runtime-write-effect';
 import type { AgentRuntimeWriteEffectRepository } from '../../sqlite-repo/agent-runtime-write-effect-repo';
-import {
-  retireLegacyAgentReviewPersistence,
-  useAgentEditStore,
-} from '../../store/agent-edit-store';
+import { useAgentEditStore } from '../../store/agent-edit-store';
 import { reconcileAgentEditReviewCache } from './useDriftingAgentRuntime';
 
 const REVIEW_ID = 'agent-review:agent-write:legacy';
@@ -19,63 +16,6 @@ afterEach(() => {
 });
 
 describe('Agent edit review cache reconciliation', () => {
-  it('retires post-write review UI during persisted-state migration without removing legacy staging', () => {
-    const migrated = retireLegacyAgentReviewPersistence({
-      pending: {
-        'node:node-1': {
-          entityType: 'node',
-          id: 'node-1',
-          changes: [
-            {
-              blockId: 'reviewed-block',
-              op: 'changed',
-              oldText: 'Before',
-              newText: 'After',
-              afterPrevId: null,
-              reviewId: REVIEW_ID,
-              effectId: EFFECT_ID,
-            },
-            {
-              blockId: 'legacy-block',
-              op: 'changed',
-              oldText: 'Legacy before',
-              newText: 'Legacy after',
-              afterPrevId: null,
-            },
-          ],
-        },
-      },
-      pendingReverts: [],
-      reviewBatches: {
-        [REVIEW_ID]: {
-          effectId: EFFECT_ID,
-          reviewId: REVIEW_ID,
-          entityType: 'node',
-          id: 'node-1',
-          changes: [],
-        },
-      },
-      reviewOrder: [REVIEW_ID],
-      settledReviewIds: { 'already-settled': true },
-    });
-
-    expect(migrated).toMatchObject({
-      pending: {
-        'node:node-1': {
-          entityType: 'node',
-          id: 'node-1',
-          changes: [{ blockId: 'legacy-block' }],
-        },
-      },
-      reviewBatches: {},
-      reviewOrder: [],
-      settledReviewIds: {
-        'already-settled': true,
-        [REVIEW_ID]: true,
-      },
-    });
-  });
-
   it('removes a localStorage ghost when SQLite has no matching review', async () => {
     seedLegacyReviewBatch();
     const repository = repositoryStub({ review: null, effect: null });
@@ -99,7 +39,7 @@ describe('Agent edit review cache reconciliation', () => {
     expect(useAgentEditStore.getState().pending).toEqual({});
   });
 
-  it('keeps a canonical pending review and removes it after settlement', async () => {
+  it('keeps a canonical pending receipt and removes it after settlement', async () => {
     seedLegacyReviewBatch();
     const pending = legacyReview('pending');
     const repository = repositoryStub({
@@ -146,7 +86,6 @@ function seedLegacyReviewBatch(): void {
         afterPrevId: null,
       },
     ],
-    'approve',
     { effectId: EFFECT_ID, reviewId: REVIEW_ID },
   );
 }

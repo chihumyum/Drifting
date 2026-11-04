@@ -194,42 +194,6 @@ export function createAgentEditSeenTracker(onSeen: (change: AgentBlockChange) =>
   };
 }
 
-/** The visible mutation produced by rejecting an already-applied Agent change. */
-export function inverseAgentEditReveal(
-  change: AgentBlockChange,
-): AgentBlockChange {
-  if (change.op === 'new') {
-    return {
-      ...change,
-      op: 'deleted',
-      oldText: change.newText,
-      newText: '',
-    };
-  }
-  if (change.op === 'deleted') {
-    return {
-      ...change,
-      op: 'new',
-      oldText: '',
-      newText: change.oldText,
-    };
-  }
-  return {
-    ...change,
-    oldText: change.newText,
-    newText: change.oldText,
-  };
-}
-
-export function bulkAgentEditRevealChanges(
-  changes: readonly AgentBlockChange[],
-  decision: 'accepted' | 'reverted',
-): AgentBlockChange[] {
-  return decision === 'accepted'
-    ? [...changes]
-    : changes.map(inverseAgentEditReveal);
-}
-
 /** A reveal's text as it plays in place: unchanged text, and each place where
  * old words become new ones (`next`). A place that only adds is `new`; one
  * that replaces words is `chg`; one that only deletes has no `next`. */

@@ -16,14 +16,14 @@ const TEST_GROUPS = {
     'src/renderer/lib/agent/runtime/repository-transport-persistence.test.ts',
     'src/renderer/lib/agent/runtime/repository-transport-persistence-v2.integration.test.ts',
   ],
-  writeAndReviewLedger: [
+  writeAndSettlementLedger: [
     'src/renderer/sqlite-repo/agent-runtime-write-effect-repo.integration.test.ts',
     'src/renderer/lib/agent/runtime/drifting-write-tool-runtime.test.ts',
     'src/renderer/lib/agent/runtime/drifting-write-recovery.integration.test.ts',
+    'src/renderer/schema/retire-review-mode-migration.integration.test.ts',
   ],
   fileSqliteAndYjsProduct: [
     'src/renderer/lib/agent/runtime/drifting-product-composition.integration.test.ts',
-    'src/renderer/lib/agent/chapter-prose-review.test.ts',
   ],
   editorProjectionAndAnimation: [
     'src/renderer/store/agent-edit-store.test.ts',
@@ -47,6 +47,7 @@ const LINT_FILES = [
 ];
 const HASHED_SOURCE_FILES = [
   'drizzle/0000_local_first_baseline.sql',
+  'drizzle/0018_retire_review_mode.sql',
   'drizzle/meta/_journal.json',
   'docs/agent-runtime/durable-commit-review-protocol.md',
   'src/renderer/domain/agent-runtime-write-effect.ts',
@@ -63,25 +64,29 @@ const REQUIRED_ASSERTIONS = {
   lostSqliteCommitAcknowledgement:
     'adopts one exact history when SQLite committed but the first commit acknowledgement was lost',
   orderedBlockLedger:
-    'persists ordered block decisions and atomically settles mixed/all-reverted reviews',
-  runtimeBlockRecovery:
-    'settles prose review blocks durably and retries an entered block inverse during project hydration',
-  localProjectionLoss:
-    'rebuilds a lost inline review from file SQLite and settles mixed blocks against Yjs',
-  postYjsSettlementFault:
-    'recovers when Yjs reverted but the durable block-settlement acknowledgement failed',
-  unrelatedAuthorEdit:
-    'preserves unrelated author edits while reverting only the certified Agent block',
-  sameBlockAuthorConflict:
-    'refuses to overwrite author text changed after the Agent edit',
-  yjsPersistenceRetry:
-    'retries idempotently when Yjs changed but the first persistence acknowledgement failed',
-  rejectedAnimationDirection:
-    'turns every bulk rejection into the visible inverse animation',
+    'persists ordered settlement blocks and settles the receipt atomically with the last one',
+  projectReceiptRecovery:
+    'settles a pending block receipt during project hydration',
+  sessionReceiptRecovery:
+    'settles a pending block receipt during session hydration',
+  missingReceiptRecovery:
+    'recovers and settles a missing settlement receipt without replaying editor UI',
+  postCommitSettlementFault:
+    'settles a prose receipt whose acknowledgement failed after Yjs committed during project hydration',
+  migrationKeepsReceipts:
+    'drops the reject/revert columns and keeps every settlement receipt and block',
+  migrationRefusesReviewDecision:
+    'refuses a database holding a review reject decision and leaves it unchanged',
+  migrationRefusesBlockDecision:
+    'refuses a database holding a block reject decision and leaves it unchanged',
+  receiptBatchIdempotence:
+    'records a receipt batch once and clears it only when settlement resolves it',
+  retiredCacheMigration:
+    'reads a v1 cache without its retired reject queue and drops a v0 cache',
   nativeScrollRevealCoordinates:
     'keeps reveal coordinates stable inside the native scrolling content tree',
   sqliteProjectionWins:
-    'replaces stale local decisions with the exact SQLite-backed projection',
+    'keeps a canonical pending receipt and removes it after settlement',
 };
 
 function parseOptions(argv) {
@@ -256,8 +261,8 @@ export async function runMilestoneCAcceptance(options = parseOptions([])) {
     const lint = processGate(lintExecution);
     const capabilities = processGate(capabilityExecution);
     const summary = {
-      suite: 'milestone-c-durable-commit-and-inline-review',
-      schemaVersion: 1,
+      suite: 'milestone-c-durable-commit-and-settlement-receipts',
+      schemaVersion: 2,
       nodeVersion: process.version,
       platform: process.platform,
       gitHead: await gitHead(),
@@ -265,7 +270,7 @@ export async function runMilestoneCAcceptance(options = parseOptions([])) {
       storageReplay: {
         sqlite:
           'real file-backed SQLite from the current local-first baseline with injected transaction faults',
-        prose: 'real Yjs snapshots/updates and guarded block inverses',
+        prose: 'real Yjs snapshots/updates committed through the prose coordinator',
         localProjection: 'Zustand/localStorage state deliberately cleared and rebuilt',
         networkRequired: false,
       },

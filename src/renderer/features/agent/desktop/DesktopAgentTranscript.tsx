@@ -169,36 +169,32 @@ export const DesktopAgentTranscript = memo(forwardRef<AgentTranscriptHandle, { c
           {continuationReason && (
             <div className="agt-control-card agt-control-card--glass glass glass--waiting" role="status">
               <strong>
-                {automaticContinuation?.stopReason === 'waiting_review'
-                  ? t('agentPanel.autoContinue.waitingReviewTitle')
-                  : automaticContinuation?.stopReason === 'no_progress'
-                    ? t('agentPanel.autoContinue.noProgressTitle')
-                    : iterationBoundary
-                      ? t('agentPanel.slice.saved')
-                      : continuationReason === 'budget_exceeded'
-                        ? t('agentPanel.budget.title', {
-                            defaultValue: '本次上下文需要续接',
-                          })
-                        : t('agentPanel.longTask.title', {
-                            defaultValue: '任务计划尚未完成',
-                          })}
+                {automaticContinuation?.stopReason === 'no_progress'
+                  ? t('agentPanel.autoContinue.noProgressTitle')
+                  : iterationBoundary
+                    ? t('agentPanel.slice.saved')
+                    : continuationReason === 'budget_exceeded'
+                      ? t('agentPanel.budget.title', {
+                          defaultValue: '本次上下文需要续接',
+                        })
+                      : t('agentPanel.longTask.title', {
+                          defaultValue: '任务计划尚未完成',
+                        })}
               </strong>
               <span>
-                {automaticContinuation?.stopReason === 'waiting_review'
-                  ? t('agentPanel.autoContinue.waitingReviewBody')
-                  : automaticContinuation?.stopReason === 'no_progress'
-                    ? t('agentPanel.autoContinue.noProgressBody')
-                    : iterationBoundary
-                      ? t('agentPanel.slice.paused')
-                      : continuationReason === 'budget_exceeded'
-                        ? t('agentPanel.budget.body', {
-                            defaultValue:
-                              '已完成的进度会保留。继续后，Agent 会从持久化状态恢复并接着处理。',
-                          })
-                        : t('agentPanel.longTask.body', {
-                            defaultValue:
-                              '本轮已正常结束，但同一会话的持久化任务计划仍有未完成内容。你可以继续执行下一步。',
-                          })}
+                {automaticContinuation?.stopReason === 'no_progress'
+                  ? t('agentPanel.autoContinue.noProgressBody')
+                  : iterationBoundary
+                    ? t('agentPanel.slice.paused')
+                    : continuationReason === 'budget_exceeded'
+                      ? t('agentPanel.budget.body', {
+                          defaultValue:
+                            '已完成的进度会保留。继续后，Agent 会从持久化状态恢复并接着处理。',
+                        })
+                      : t('agentPanel.longTask.body', {
+                          defaultValue:
+                            '本轮已正常结束，但同一会话的持久化任务计划仍有未完成内容。你可以继续执行下一步。',
+                        })}
               </span>
               <div className="agt-control-card__actions">
                 <button

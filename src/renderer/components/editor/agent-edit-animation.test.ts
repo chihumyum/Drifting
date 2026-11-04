@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { AgentBlockChange } from '../../lib/agent/block-diff';
 import {
-  agentEditAnimationKey,
   agentEditOpaqueBackground,
   agentEditRectInScrollHost,
   agentEditRevealCount,
@@ -10,7 +9,6 @@ import {
   agentRevealFrame,
   agentRevealPieces,
   agentRevealSteps,
-  bulkAgentEditRevealChanges,
   createAgentEditSeenTracker,
 } from './agent-edit-animation';
 import { createAgentMarkerSelector } from './scroll-marker-model';
@@ -27,7 +25,6 @@ function change(
     afterPrevId: 'previous-block',
     oldText,
     newText,
-    mode: 'approve',
     reviewId,
   };
 }
@@ -68,14 +65,13 @@ describe('Agent edit commit animation planning', () => {
     expect(agentEditRevealTiming(1000, 49).durationMs).toBe(833);
   });
 
-  it('counts pending and active prose once, including inverse commits and overlapping reviews', () => {
+  it('counts pending and active prose once, including overlapping receipts', () => {
     const pending = change('new', 'review-a', '', 'New');
     const overlapping = change('changed', 'review-b', 'New', 'Newer');
     const field = { ...pending, blockId: 'field:summary', field: { kind: 'summary' as const, label: 'Summary' } };
     expect(agentEditRevealCount(
       [pending, overlapping, field],
       new Map([['active', pending]]).values(),
-      bulkAgentEditRevealChanges([pending], 'reverted'),
     )).toBe(2);
   });
 
@@ -93,7 +89,7 @@ describe('Agent edit commit animation planning', () => {
 
   it('keeps unread gutter markers without animation until each result has stayed in view', () => {
     vi.useFakeTimers();
-    const visible = { ...change('changed', 'visible', 'Old', 'New'), blockId: 'visible', mode: 'auto' as const };
+    const visible = { ...change('changed', 'visible', 'Old', 'New'), blockId: 'visible' };
     const offscreen = { ...visible, blockId: 'offscreen' };
     let pending = [visible, offscreen];
     const markers = createAgentMarkerSelector();
@@ -177,34 +173,6 @@ describe('Agent edit commit animation planning', () => {
     expect(agentEditOpaqueBackground(['transparent', 'rgba(0, 0, 0, 0)'])).toBe(
       '#fff',
     );
-  });
-
-  it('keeps every bulk-accepted review even when two effects touch one block', () => {
-    const changes = [
-      change('changed', 'review-a', 'A', 'B'),
-      change('changed', 'review-b', 'B', 'C'),
-    ];
-    const reveals = bulkAgentEditRevealChanges(changes, 'accepted');
-
-    expect(reveals).toEqual(changes);
-    expect(new Set(reveals.map(agentEditAnimationKey)).size).toBe(2);
-  });
-
-  it('turns every bulk rejection into the visible inverse animation', () => {
-    const reveals = bulkAgentEditRevealChanges(
-      [
-        change('new', 'review-new', '', '新增'),
-        change('deleted', 'review-delete', '删除', ''),
-        change('changed', 'review-change', '旧', '新'),
-      ],
-      'reverted',
-    );
-
-    expect(reveals).toEqual([
-      expect.objectContaining({ op: 'deleted', oldText: '新增', newText: '' }),
-      expect.objectContaining({ op: 'new', oldText: '', newText: '删除' }),
-      expect.objectContaining({ op: 'changed', oldText: '新', newText: '旧' }),
-    ]);
   });
 });
 

@@ -55,13 +55,13 @@ describe('scoped scrollbar marker projections', () => {
     expect(select({ comments: [comment({ source: 'copilot' })] })[0].cls).toBe('editor__scrollmap-tick--c-copilot');
   });
 
-  it('projects prose operations and ignores text, mode and review provenance changes', () => {
+  it('projects prose operations and ignores text and receipt provenance changes', () => {
     const select = createAgentMarkerSelector();
     const original = select([change(), change({ blockId: 'new', op: 'new' }), change({ blockId: 'gone', op: 'deleted', afterPrevId: 'b' })]);
     expect(original.map(c => [c.laneCls, c.blockIds])).toEqual([
       ['editor__scrollmap-tick--lane1', ['b']], ['editor__scrollmap-tick--lane0', ['new']], ['editor__scrollmap-tick--lane2', ['b']],
     ]);
-    expect(select([change({ newText: 'streamed', reviewId: 'review', mode: 'approve' }), change({ blockId: 'new', op: 'new' }), change({ blockId: 'gone', op: 'deleted', afterPrevId: 'b' })])).toBe(original);
+    expect(select([change({ newText: 'streamed', reviewId: 'review' }), change({ blockId: 'new', op: 'new' }), change({ blockId: 'gone', op: 'deleted', afterPrevId: 'b' })])).toBe(original);
     expect(select([change({ op: 'deleted' })])[0].blockIds).toEqual([]);
     expect(select(undefined)).toEqual([]);
   });

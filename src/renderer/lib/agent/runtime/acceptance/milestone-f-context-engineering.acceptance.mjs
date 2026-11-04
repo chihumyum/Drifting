@@ -155,7 +155,7 @@ const REQUIRED_ASSERTIONS = {
   domainReadProgressPresentation:
     'retains full-read and current-summary state without transport vocabulary',
   wholeChapterSummaryReview:
-    'commits whole-chapter prose and summary together and restores the summary when one block is rejected',
+    'commits whole-chapter prose and summary together as one authored change',
   wholeChapterSummaryRollback:
     'rolls back prose, summary, Yjs receipt, and sync journal when their shared transaction fails',
   artifactRestart: 'pages exact Unicode content after closing and reopening the repository',

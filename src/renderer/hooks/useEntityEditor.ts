@@ -515,8 +515,8 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
         // are disabled, so listKeymap is gone) and the browser default blurs
         // the editor. Always consumes Tab; in notes only after lists/tables.
         profile === 'note' ? noteParagraphIndent : ParagraphIndent,
-        // In-place agent-edit diff decorations (approve mode). Inert until
-        // useEntityEditor pushes a DecorationSet for node editors (below).
+        // Agent-edit auto-reveal mask decorations. Inert until the decoration
+        // controller pushes a DecorationSet for this editor.
         AgentDiffDecoration,
         // These callbacks are registered with ProseMirror and execute later,
         // outside React render. They intentionally read latest-value refs.

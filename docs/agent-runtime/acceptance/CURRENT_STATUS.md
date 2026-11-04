@@ -51,8 +51,8 @@ pnpm agent:capabilities:check
   2026-11-04. Every runtime session belongs to a chat conversation: migration
   `0017` (2026-11-05) dropped the retired Goal route columns and the Claude
   SDK session pointer, and refuses a database that still holds a Goal session.
-- SQLite owns the durable runtime journal, effects, permissions, plans, review
-  decisions, and receipts. Live Yjs owns prose. Renderer stores and
+- SQLite owns the durable runtime journal, effects, permissions, plans, and
+  write settlement receipts. Live Yjs owns prose. Renderer stores and
   localStorage are rebuildable presentation projections.
 - Agent domain writes execute through renderer-owned use cases with revision
   checks, durable receipts, guarded inverses, and the same authored change-set
@@ -155,10 +155,12 @@ pnpm agent:capabilities:check
   measured service scope and browser/provider limitations.
 
 - Agent changes commit directly; no editor offers accept/reject or review-all
-  controls (since 2026-10-17). Each prose write keeps a durable per-block
-  SQLite receipt and a guarded Yjs inverse for recovery, and restart recovery
-  does not depend on localStorage. The author undoes an Agent edit from entity
-  snapshot history. See
+  controls (since 2026-10-17). Migration `0018` (2026-11-05) retired the
+  reject/revert review states and their columns and refuses a database that
+  still holds a reject decision. Each prose write keeps a durable SQLite
+  settlement receipt that restart recovery settles without localStorage; every
+  certified write keeps its guarded effect-level inverse. The author undoes an
+  Agent edit from entity snapshot history. See
   [`../durable-commit-review-protocol.md`](../durable-commit-review-protocol.md).
 - Added and Modified markers in the text and sidebar are unread projections of
   committed effects.
@@ -317,7 +319,7 @@ The internal developer CLI is shipped as `pnpm drifting`. It exposes the
 generated General Agent domain reads/writes against an exclusively opened,
 automatically backed-up local database; guarded scalar resource lifecycle for
 projects, acts, drift groups, timeline markers and library items; the existing
-loopback Agent turn/review bridge; real authenticated server HTTP requests; and
+loopback Agent turn bridge; real authenticated server HTTP requests; and
 versioned workspace scenarios. JSON envelopes are the default coding-agent
 protocol, and `workspace describe [tool]` exposes the exact production input
 schemas for generated domain reads and writes.

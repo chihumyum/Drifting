@@ -19,77 +19,71 @@ const changes: AgentBlockChange[] = [
   },
 ];
 
-describe('Agent edit review block decisions', () => {
+describe('Agent edit receipt presentation', () => {
   beforeEach(() => {
     useAgentEditStore.getState().clearAll();
   });
 
-  it('keeps the effect batch but removes only the decided block from the editor projection', () => {
+  it('records a receipt batch once and clears it only when settlement resolves it', () => {
     const store = useAgentEditStore.getState();
     expect(
-      store.recordReview('node', 'node-1', changes, 'approve', {
+      store.recordReview('node', 'node-1', changes, {
         effectId: 'effect-1',
         reviewId: 'review-1',
       }),
     ).toBe(true);
-
-    useAgentEditStore.getState().syncReviewBlockDecisions('review-1', { 'block-a': 'accepted' });
-
-    const state = useAgentEditStore.getState();
-    expect(state.reviewBatches['review-1']).toMatchObject({
-      changes,
-      blockDecisions: { 'block-a': 'accepted' },
-    });
-    expect(state.pending['node:node-1']?.changes.map((change) => change.blockId)).toEqual([
-      'block-b',
-    ]);
-  });
-
-  it('rebuilds no visual block after every block has a decision, until canonical settlement clears the batch', () => {
-    const store = useAgentEditStore.getState();
-    store.recordReview('node', 'node-1', changes, 'approve', {
-      effectId: 'effect-1',
-      reviewId: 'review-1',
-    });
-    store.syncReviewBlockDecisions('review-1', {
-      'block-a': 'accepted',
-      'block-b': 'reverted',
-    });
-
-    expect(useAgentEditStore.getState().pending['node:node-1']).toBeUndefined();
-    expect(useAgentEditStore.getState().reviewBatches['review-1']).toBeDefined();
-
-    useAgentEditStore.getState().resolveReviews(['review-1']);
-    expect(useAgentEditStore.getState().reviewBatches['review-1']).toBeUndefined();
-    expect(useAgentEditStore.getState().settledReviewIds['review-1']).toBe(true);
-  });
-
-  it('replaces stale local decisions with the exact SQLite-backed projection', () => {
-    const store = useAgentEditStore.getState();
-    store.recordReview('node', 'node-1', changes, 'approve', {
-      effectId: 'effect-1',
-      reviewId: 'review-1',
-    });
-    store.syncReviewBlockDecisions('review-1', { 'block-a': 'accepted' });
-
-    useAgentEditStore.getState().syncReviewBlockDecisions('review-1', {
-      'block-b': 'reverted',
-      unknown: 'accepted',
-    });
+    expect(
+      store.recordReview('node', 'node-1', changes, {
+        effectId: 'effect-1',
+        reviewId: 'review-1',
+      }),
+    ).toBe(false);
 
     const state = useAgentEditStore.getState();
-    expect(state.reviewBatches['review-1']?.blockDecisions).toEqual({
-      'block-b': 'reverted',
+    expect(state.reviewBatches['review-1']).toEqual({
+      effectId: 'effect-1',
+      reviewId: 'review-1',
+      entityType: 'node',
+      id: 'node-1',
+      changes: changes.map((change) => ({
+        ...change,
+        effectId: 'effect-1',
+        reviewId: 'review-1',
+      })),
     });
     expect(state.pending['node:node-1']?.changes.map((change) => change.blockId)).toEqual([
       'block-a',
+      'block-b',
     ]);
 
-    const pending = state.pending;
-    useAgentEditStore.getState().syncReviewBlockDecisions('review-1', {
-      'block-b': 'reverted',
+    useAgentEditStore.getState().resolveReviews(['review-1']);
+    expect(useAgentEditStore.getState().reviewBatches['review-1']).toBeUndefined();
+    expect(useAgentEditStore.getState().pending['node:node-1']).toBeUndefined();
+    expect(useAgentEditStore.getState().settledReviewIds['review-1']).toBe(true);
+  });
+
+  it('reads a v1 cache without its retired reject queue and drops a v0 cache', async () => {
+    const migrate = useAgentEditStore.persist.getOptions().migrate!;
+    const staleChange = { ...changes[0], mode: 'approve' };
+    const migrated = (await migrate(
+      {
+        pending: {
+          'node:node-1': { entityType: 'node', id: 'node-1', changes: [staleChange] },
+        },
+        additions: {},
+        pendingReverts: [{ projectId: 'project-1', blockId: 'block-a' }],
+        reviewBatches: {},
+        reviewOrder: [],
+        settledReviewIds: { 'review-old': true },
+      },
+      1,
+    )) as Record<string, unknown>;
+    expect(migrated).not.toHaveProperty('pendingReverts');
+    expect(migrated).toMatchObject({
+      pending: { 'node:node-1': { changes: [staleChange] } },
+      settledReviewIds: { 'review-old': true },
     });
-    expect(useAgentEditStore.getState().pending).toBe(pending);
+    expect(await migrate({ pending: { 'node:node-1': {} } }, 0)).toEqual({});
   });
 
   it('persists an Added marker and seeds first-open prose as auto reveal blocks', () => {
@@ -103,9 +97,7 @@ describe('Agent edit review block decisions', () => {
       'block-a',
       'block-b',
     ]);
-    expect(useAgentEditStore.getState().pending['node:node-added']?.changes).toEqual(
-      changes.map((change) => ({ ...change, mode: 'auto' })),
-    );
+    expect(useAgentEditStore.getState().pending['node:node-added']?.changes).toEqual(changes);
 
     useAgentEditStore.getState().resolveBlocks('node', 'node-added', ['block-a', 'block-b']);
     useAgentEditStore.getState().resolveAddition('node', 'node-added');
@@ -114,7 +106,7 @@ describe('Agent edit review block decisions', () => {
 
   it('does not overwrite a later durable review when first-open Added reveal is seeded', () => {
     const store = useAgentEditStore.getState();
-    store.recordReview('node', 'node-added', [changes[0]], 'approve', {
+    store.recordReview('node', 'node-added', [changes[0]], {
       effectId: 'effect-later',
       reviewId: 'review-later',
     });
@@ -124,27 +116,24 @@ describe('Agent edit review block decisions', () => {
     expect(useAgentEditStore.getState().pending['node:node-added']?.changes).toEqual([
       {
         ...changes[0],
-        mode: 'approve',
         effectId: 'effect-later',
         reviewId: 'review-later',
       },
-      { ...changes[1], mode: 'auto' },
+      changes[1],
     ]);
   });
 
-  it('purges only the deleted project\'s persisted edit presentation and reverts', () => {
+  it('purges only the deleted project\'s persisted edit presentation', () => {
     const store = useAgentEditStore.getState();
-    store.recordReview('node', 'node-delete', changes, 'approve', {
+    store.recordReview('node', 'node-delete', changes, {
       effectId: 'effect-delete',
       reviewId: 'review-delete',
     });
-    store.recordReview('element', 'element-keep', changes, 'approve', {
+    store.recordReview('element', 'element-keep', changes, {
       effectId: 'effect-keep',
       reviewId: 'review-keep',
     });
     store.recordAddition('storyline', 'storyline-delete');
-    store.recordRevert('project-delete', 'node', 'node-delete', changes[0]);
-    store.recordRevert('project-keep', 'element', 'element-keep', changes[0]);
     useAgentEditStore.setState({
       settledReviewIds: { 'settled-delete': true, 'settled-keep': true },
     });
@@ -160,16 +149,13 @@ describe('Agent edit review block decisions', () => {
     expect(state.additions['storyline:storyline-delete']).toBeUndefined();
     expect(state.reviewBatches['review-delete']).toBeUndefined();
     expect(state.settledReviewIds['settled-delete']).toBeUndefined();
-    expect(state.pendingReverts).toEqual([
-      expect.objectContaining({ projectId: 'project-keep', id: 'element-keep' }),
-    ]);
     expect(state.reviewBatches['review-keep']).toBeDefined();
     expect(state.settledReviewIds['settled-keep']).toBe(true);
   });
 
-  it('leaves a fully reviewed new file in approve mode instead of seeding auto reveal', () => {
+  it('does not seed an Added reveal over blocks a durable receipt already shows', () => {
     const store = useAgentEditStore.getState();
-    store.recordReview('node', 'node-added', changes, 'approve', {
+    store.recordReview('node', 'node-added', changes, {
       effectId: 'effect-created',
       reviewId: 'review-created',
     });
@@ -179,7 +165,6 @@ describe('Agent edit review block decisions', () => {
     expect(useAgentEditStore.getState().pending['node:node-added']?.changes).toEqual(
       changes.map((change) => ({
         ...change,
-        mode: 'approve',
         effectId: 'effect-created',
         reviewId: 'review-created',
       })),
@@ -212,7 +197,7 @@ describe('Agent edit review block decisions', () => {
     });
 
     expect(
-      store.recordReview('node', 'node-1', changes, 'auto', {
+      store.recordReview('node', 'node-1', changes, {
         effectId: 'effect-guarded',
         reviewId: 'review-guarded',
       }),
@@ -226,7 +211,6 @@ describe('Agent edit review block decisions', () => {
     expect(useAgentEditStore.getState().pending['node:node-1']?.changes).toEqual(
       changes.map((change) => ({
         ...change,
-        mode: 'auto',
         effectId: 'effect-guarded',
         reviewId: 'review-guarded',
       })),
@@ -238,31 +222,11 @@ describe('Agent edit review block decisions', () => {
     store.stageAutoRevealGuard('node', 'node-1', 'review-empty', ['block-a']);
 
     expect(
-      store.recordReview('node', 'node-1', [], 'auto', {
+      store.recordReview('node', 'node-1', [], {
         effectId: 'effect-empty',
         reviewId: 'review-empty',
       }),
     ).toBe(false);
     expect(useAgentEditStore.getState().autoRevealGuards['review-empty']).toBeUndefined();
-  });
-
-  it('delivers rejected edit feedback only to the Agent session that authored it', () => {
-    const store = useAgentEditStore.getState();
-    store.recordRevert('project-1', 'node', 'node-1', {
-      ...changes[0],
-      effectId: 'agent-write:session-a:turn-a:call-a',
-    });
-    store.recordRevert('project-1', 'node', 'node-1', {
-      ...changes[1],
-      effectId: 'agent-write:session-b:turn-b:call-b',
-    });
-
-    expect(store.drainReverts('project-1', 'session-a')).toEqual([
-      expect.objectContaining({ sessionId: 'session-a', blockId: 'block-a' }),
-    ]);
-    expect(store.drainReverts('project-1', 'session-a')).toEqual([]);
-    expect(store.drainReverts('project-1', 'session-b')).toEqual([
-      expect.objectContaining({ sessionId: 'session-b', blockId: 'block-b' }),
-    ]);
   });
 });

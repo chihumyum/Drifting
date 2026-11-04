@@ -19,7 +19,6 @@ export type AgentAutomaticContinuationStopReason =
   | 'not_applicable'
   | 'task_completed'
   | 'task_not_active'
-  | 'waiting_review'
   | 'no_progress'
   | 'no_actionable_work'
   | 'turn_failed'
@@ -59,7 +58,6 @@ export interface AgentLongTaskPlanContinuationState {
   status: AgentRuntimeTaskStatus | 'none';
   scopeKind: AgentRuntimeTaskScopeKind | null;
   runnableStepCount: number;
-  waitingReviewStepCount: number;
   manifestStatus: AgentRuntimeTaskChapterManifestState['status'] | 'unknown';
   needsManifestReconciliation: boolean;
   needsFinalization: boolean;
@@ -184,7 +182,6 @@ export function summarizeLongTaskPlanForContinuation(
       status: 'none',
       scopeKind: null,
       runnableStepCount: 0,
-      waitingReviewStepCount: 0,
       manifestStatus: 'not_applicable',
       needsManifestReconciliation: false,
       needsFinalization: false,
@@ -198,7 +195,6 @@ export function summarizeLongTaskPlanForContinuation(
   const needsManifestReconciliation = manifestStatus === 'drifted';
 
   let runnableStepCount = 0;
-  let waitingReviewStepCount = 0;
   for (const step of plan.steps) {
     if (step.status === 'pending' || step.status === 'in_progress') {
       runnableStepCount += 1;
@@ -206,11 +202,9 @@ export function summarizeLongTaskPlanForContinuation(
     }
     if (step.status !== 'blocked' || !step.reviewEvidence) continue;
     const review = step.reviewEvidence;
-    if (review.outcome === 'pending' || review.reviewStatus === 'revert_started') {
-      waitingReviewStepCount += 1;
-    } else if (review.reviewStatus !== 'missing') {
-      // A settled acceptance/rejection/revert is new durable evidence the Agent
-      // must fold back into this blocked step before continuing.
+    if (review.outcome !== 'pending' && review.reviewStatus !== 'missing') {
+      // A settled write is new durable evidence the Agent must fold back into
+      // this blocked step before continuing.
       runnableStepCount += 1;
     }
   }
@@ -222,7 +216,6 @@ export function summarizeLongTaskPlanForContinuation(
     status: plan.task.status,
     scopeKind: plan.task.scopeKind,
     runnableStepCount,
-    waitingReviewStepCount,
     manifestStatus,
     needsManifestReconciliation,
     needsFinalization:
@@ -298,9 +291,6 @@ export function decideAgentAutomaticContinuation(input: {
     plan.needsFinalization
   ) {
     return { kind: 'schedule' };
-  }
-  if (plan.waitingReviewStepCount > 0) {
-    return { kind: 'stop', status: 'paused', reason: 'waiting_review' };
   }
   return { kind: 'stop', status: 'paused', reason: 'no_actionable_work' };
 }

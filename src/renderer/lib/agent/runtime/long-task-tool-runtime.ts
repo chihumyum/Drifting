@@ -645,8 +645,7 @@ function nextActionableStep(plan: AgentRuntimeTaskPlan) {
       step.status === 'blocked' &&
       step.reviewEvidence !== null &&
       step.reviewEvidence.outcome !== 'pending' &&
-      step.reviewEvidence.reviewStatus !== 'missing' &&
-      step.reviewEvidence.reviewStatus !== 'revert_started',
+      step.reviewEvidence.reviewStatus !== 'missing',
   );
   return (
     plan.steps.find((step) => step.status === 'in_progress') ??

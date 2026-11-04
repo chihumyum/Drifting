@@ -36,7 +36,7 @@ export function attachAgentDecorationController(input: {
     lastReady = value;
     input.onReady(value);
   };
-  const hasProjection = () => projection.approveChanges.length > 0 || (revealAnimationEnabled && projection.autoRevealBlockIds !== undefined);
+  const hasProjection = () => revealAnimationEnabled && projection.autoRevealBlockIds !== undefined;
   const flush = () => {
     if (disposed || editor.isDestroyed) return;
     if (!dirty) { ready(true); return; }
@@ -45,7 +45,7 @@ export function attachAgentDecorationController(input: {
       const current = AgentDiffPluginKey.getState(editor.state);
       if (!current) throw new Error('Agent decoration plugin is missing');
       const next = hasProjection()
-        ? buildAgentEditorDecorations(editor.state.doc, projection.approveChanges, revealAnimationEnabled ? projection.autoRevealBlockIds : undefined)
+        ? buildAgentEditorDecorations(editor.state.doc, projection.autoRevealBlockIds)
         : DecorationSet.empty;
       if (current !== DecorationSet.empty || next !== DecorationSet.empty) {
         editor.view.dispatch(editor.state.tr.setMeta(AgentDiffPluginKey, next));
@@ -83,9 +83,9 @@ export function attachAgentDecorationController(input: {
     if (disposed || editor.isDestroyed) return;
     if ((nativeComposition || editor.view.composing) && hasProjection()) {
       // The plugin already maps the existing decorations through this edit.
-      // Rebuilding a diff can remove a deletion widget before marked text;
-      // WebKit may then select the whole IME composition. Avoid this extra
-      // rewrite until commit, without hiding prose or correcting selection.
+      // Rebuilding them mid-composition can make WebKit select the whole IME
+      // composition. Avoid this extra rewrite until commit, without hiding
+      // prose or correcting selection.
       dirty = true;
       return;
     }

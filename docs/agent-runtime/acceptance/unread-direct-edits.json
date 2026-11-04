@@ -1,8 +1,8 @@
 {
   "kind": "agent_unread_direct_edits_acceptance",
   "status": "passed",
-  "generatedAt": "2026-11-02T14:38:46.867Z",
-  "sourceSha256": "8844843b7dd3d1d03cde47ed1e2e7ec92bc0a60760bde09e82c8b938eeb0f02e",
+  "generatedAt": "2026-11-04T17:21:59.403Z",
+  "sourceSha256": "f2a5e87713d45a3325a164d912fc9ce18965ed4780404fbc92407cc7381f298b",
   "suites": [
     "src/renderer/store/agent-unread-acknowledgement.test.ts",
     "src/renderer/components/ui/entity-hover-card-model.test.ts",
@@ -41,7 +41,7 @@
       "status": "passed"
     },
     {
-      "name": "Agent edit cache quota recovery evicts an oversized first-open cache without truncating live prose or changing the v1 envelope",
+      "name": "Agent edit cache quota recovery evicts an oversized first-open cache without truncating live prose or changing the v2 envelope",
       "status": "passed"
     },
     {
@@ -53,43 +53,35 @@
       "status": "passed"
     },
     {
-      "name": "Agent edit review block decisions keeps the effect batch but removes only the decided block from the editor projection",
+      "name": "Agent edit receipt presentation records a receipt batch once and clears it only when settlement resolves it",
       "status": "passed"
     },
     {
-      "name": "Agent edit review block decisions rebuilds no visual block after every block has a decision, until canonical settlement clears the batch",
+      "name": "Agent edit receipt presentation reads a v1 cache without its retired reject queue and drops a v0 cache",
       "status": "passed"
     },
     {
-      "name": "Agent edit review block decisions replaces stale local decisions with the exact SQLite-backed projection",
+      "name": "Agent edit receipt presentation persists an Added marker and seeds first-open prose as auto reveal blocks",
       "status": "passed"
     },
     {
-      "name": "Agent edit review block decisions persists an Added marker and seeds first-open prose as auto reveal blocks",
+      "name": "Agent edit receipt presentation does not overwrite a later durable review when first-open Added reveal is seeded",
       "status": "passed"
     },
     {
-      "name": "Agent edit review block decisions does not overwrite a later durable review when first-open Added reveal is seeded",
+      "name": "Agent edit receipt presentation purges only the deleted project's persisted edit presentation",
       "status": "passed"
     },
     {
-      "name": "Agent edit review block decisions purges only the deleted project's persisted edit presentation and reverts",
+      "name": "Agent edit receipt presentation does not seed an Added reveal over blocks a durable receipt already shows",
       "status": "passed"
     },
     {
-      "name": "Agent edit review block decisions leaves a fully reviewed new file in approve mode instead of seeding auto reveal",
+      "name": "Agent edit receipt presentation atomically replaces a pre-live auto guard with its canonical review projection",
       "status": "passed"
     },
     {
-      "name": "Agent edit review block decisions atomically replaces a pre-live auto guard with its canonical review projection",
-      "status": "passed"
-    },
-    {
-      "name": "Agent edit review block decisions clears a pre-live guard when canonical projection proves there is no review",
-      "status": "passed"
-    },
-    {
-      "name": "Agent edit review block decisions delivers rejected edit feedback only to the Agent session that authored it",
+      "name": "Agent edit receipt presentation clears a pre-live guard when canonical projection proves there is no review",
       "status": "passed"
     },
     {
@@ -105,7 +97,19 @@
       "status": "passed"
     },
     {
-      "name": "Agent unread acknowledgement defaults to direct writes and cannot activate author review in a production renderer",
+      "name": "interface language hydration keeps the system choice when the saved locale is undefined",
+      "status": "passed"
+    },
+    {
+      "name": "interface language hydration keeps the system choice when the saved locale is unsupported",
+      "status": "passed"
+    },
+    {
+      "name": "interface language hydration keeps the system choice when the saved locale is null",
+      "status": "passed"
+    },
+    {
+      "name": "interface language hydration normalizes a supported saved choice before overriding the system language",
       "status": "passed"
     },
     {
@@ -149,11 +153,39 @@
       "status": "passed"
     },
     {
+      "name": "desktop interface text preference restores smallest UI text without changing the author typography",
+      "status": "passed"
+    },
+    {
       "name": "desktop interface text preference restores small UI text without changing the author typography",
       "status": "passed"
     },
     {
+      "name": "desktop interface text preference restores standard UI text without changing the author typography",
+      "status": "passed"
+    },
+    {
       "name": "desktop interface text preference restores large UI text without changing the author typography",
+      "status": "passed"
+    },
+    {
+      "name": "desktop interface text preference restores largest UI text without changing the author typography",
+      "status": "passed"
+    },
+    {
+      "name": "desktop interface text preference renames the saved small size to smallest exactly once",
+      "status": "passed"
+    },
+    {
+      "name": "desktop interface text preference renames the saved standard size to small exactly once",
+      "status": "passed"
+    },
+    {
+      "name": "desktop interface text preference renames the saved large size to standard exactly once",
+      "status": "passed"
+    },
+    {
+      "name": "desktop interface text preference uses the new standard when old storage has no valid size",
       "status": "passed"
     },
     {
@@ -174,50 +206,6 @@
     },
     {
       "name": "editor line wrapping preference restores stable wrapping with the recommended editor style",
-      "status": "passed"
-    },
-    {
-      "name": "Agent decoration composition ownership defers updates from the native capture event, before PM marks itself composing",
-      "status": "passed"
-    },
-    {
-      "name": "Agent decoration composition ownership still installs required new review masks during composition",
-      "status": "passed"
-    },
-    {
-      "name": "Agent decoration composition ownership a subsequent composition cancels the previous flush and blur releases the native guard",
-      "status": "passed"
-    },
-    {
-      "name": "Agent decoration composition ownership disposes listeners and pending work even after the editor was destroyed",
-      "status": "passed"
-    },
-    {
-      "name": "Agent reveal appearance preference treats old approval receipts as automatic and removes every mask when motion is off",
-      "status": "passed"
-    },
-    {
-      "name": "Agent reveal appearance preference does not hide guard prose when animation starts disabled",
-      "status": "passed"
-    },
-    {
-      "name": "Agent reveal appearance preference does not hide added prose when animation starts disabled",
-      "status": "passed"
-    },
-    {
-      "name": "Agent decoration semantic selection ignores other entities and non-prose field updates",
-      "status": "passed"
-    },
-    {
-      "name": "Agent decoration semantic selection keeps prose identity when unrelated field changes are merged into an entity",
-      "status": "passed"
-    },
-    {
-      "name": "Agent decoration semantic selection isolates guards by entity kind and compares retained guard identities",
-      "status": "passed"
-    },
-    {
-      "name": "Agent decoration semantic selection preserves pre-live to durable review handoff and Added mask-all semantics",
       "status": "passed"
     },
     {
@@ -293,6 +281,50 @@
       "status": "passed"
     },
     {
+      "name": "Agent decoration composition ownership defers updates from the native capture event, before PM marks itself composing",
+      "status": "passed"
+    },
+    {
+      "name": "Agent decoration composition ownership still installs required new review masks during composition",
+      "status": "passed"
+    },
+    {
+      "name": "Agent decoration composition ownership a subsequent composition cancels the previous flush and blur releases the native guard",
+      "status": "passed"
+    },
+    {
+      "name": "Agent decoration composition ownership disposes listeners and pending work even after the editor was destroyed",
+      "status": "passed"
+    },
+    {
+      "name": "Agent reveal appearance preference reads changes cached with the retired review mode as reveals and removes every mask when motion is off",
+      "status": "passed"
+    },
+    {
+      "name": "Agent reveal appearance preference does not hide guard prose when animation starts disabled",
+      "status": "passed"
+    },
+    {
+      "name": "Agent reveal appearance preference does not hide added prose when animation starts disabled",
+      "status": "passed"
+    },
+    {
+      "name": "Agent decoration semantic selection ignores other entities and non-prose field updates",
+      "status": "passed"
+    },
+    {
+      "name": "Agent decoration semantic selection keeps prose identity when unrelated field changes are merged into an entity",
+      "status": "passed"
+    },
+    {
+      "name": "Agent decoration semantic selection isolates guards by entity kind and compares retained guard identities",
+      "status": "passed"
+    },
+    {
+      "name": "Agent decoration semantic selection preserves pre-live to durable review handoff and Added mask-all semantics",
+      "status": "passed"
+    },
+    {
       "name": "classifies Agent prose and field writes as direct automatic changes",
       "status": "passed"
     },
@@ -333,7 +365,7 @@
       "status": "passed"
     },
     {
-      "name": "workspace domain CRUD transactions MCP writes use Yjs, durable receipts, read coverage and the existing inverse review",
+      "name": "workspace domain CRUD transactions MCP writes use Yjs, durable receipts, read coverage and a settled receipt",
       "status": "passed"
     },
     {
@@ -358,10 +390,6 @@
     },
     {
       "name": "workspace domain CRUD transactions rejects a relation whose two endpoints are the same authored object",
-      "status": "passed"
-    },
-    {
-      "name": "workspace domain CRUD transactions keeps every textual block of a newly created object pending in approve mode",
       "status": "passed"
     },
     {
@@ -445,19 +473,11 @@
       "status": "passed"
     },
     {
-      "name": "Drifting Agent product composition keeps safe metadata writes automatic when inline prose review is enabled",
+      "name": "Drifting Agent product composition commits a metadata write directly without a permission request or settlement receipt",
       "status": "passed"
     },
     {
-      "name": "Drifting Agent product composition writes prose immediately in approve mode and creates an inline editor review",
-      "status": "passed"
-    },
-    {
-      "name": "Drifting Agent product composition rebuilds a lost inline review from file SQLite and settles mixed blocks against Yjs",
-      "status": "passed"
-    },
-    {
-      "name": "Drifting Agent product composition recovers when Yjs reverted but the durable block-settlement acknowledgement failed",
+      "name": "Drifting Agent product composition settles a prose receipt whose acknowledgement failed after Yjs committed during project hydration",
       "status": "passed"
     },
     {
@@ -477,11 +497,11 @@
       "status": "passed"
     },
     {
-      "name": "Drifting Agent product composition routes whole-file prose replacement through the inline editor review",
+      "name": "Drifting Agent product composition settles a whole-file prose replacement and projects its unread receipt",
       "status": "passed"
     },
     {
-      "name": "Drifting Agent product composition commits whole-chapter prose and summary together and restores the summary when one block is rejected",
+      "name": "Drifting Agent product composition commits whole-chapter prose and summary together as one authored change",
       "status": "passed"
     },
     {
@@ -601,7 +621,7 @@
       "status": "passed"
     },
     {
-      "name": "DriftingWriteToolRuntime recovers and automatically settles a missing legacy approval review without replaying editor UI",
+      "name": "DriftingWriteToolRuntime recovers and settles a missing settlement receipt without replaying editor UI",
       "status": "passed"
     },
     {
@@ -609,11 +629,11 @@
       "status": "passed"
     },
     {
-      "name": "DriftingWriteToolRuntime settles legacy blocks after an entered inverse during project hydration",
+      "name": "DriftingWriteToolRuntime settles a pending block receipt during project hydration",
       "status": "passed"
     },
     {
-      "name": "DriftingWriteToolRuntime settles legacy blocks after an entered inverse during session hydration",
+      "name": "DriftingWriteToolRuntime settles a pending block receipt during session hydration",
       "status": "passed"
     },
     {

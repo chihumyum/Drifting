@@ -54,18 +54,10 @@ const keyOf = agentEditAnimationKey;
 const sel = (blockId: string): string => `[data-block-id="${CSS.escape(blockId)}"]`;
 
 /** The DOM element a change hangs on: the block itself, or — for a deletion —
- *  its in-place struck ghost (approve mode), else its surviving predecessor, else
- *  the first prose block. */
+ *  its surviving predecessor, else the first prose block. */
 function anchorEl(scrollEl: HTMLElement, c: AgentBlockChange): HTMLElement | null {
   if (c.op === 'deleted') {
-    // Approve mode renders the deleted text as an in-place struck widget tagged
-    // with the block id — anchor to it directly: it's always in the right editor
-    // at the right spot, even for a first-block deletion (no predecessor).
-    const ghost = scrollEl.querySelector(
-      `[data-agent-deleted-block="${CSS.escape(c.blockId)}"]`,
-    ) as HTMLElement | null;
-    if (ghost) return ghost;
-    // Auto mode (no ghost): hang on the surviving predecessor…
+    // Hang on the surviving predecessor…
     if (c.afterPrevId) {
       const prev = scrollEl.querySelector(sel(c.afterPrevId)) as HTMLElement | null;
       if (prev) return prev;
@@ -88,14 +80,12 @@ function intersectsViewport(el: HTMLElement, scrollEl: HTMLElement): boolean {
   return r.bottom > v.top && r.top < v.bottom && r.right > v.left && r.left < v.right;
 }
 
-/** A deletion is anchored to its surviving PREDECESSOR (so the control sits just
- *  below it) only in the no-ghost fallback; when anchored to the in-place ghost
- *  or the first block, it hugs that element's TOP. */
+/** A deletion anchored to its surviving PREDECESSOR sits just below it; one
+ *  anchored to the first block hugs that block's TOP. */
 function deletionHangsBelow(el: HTMLElement, c: AgentBlockChange): boolean {
   return (
     c.op === 'deleted' &&
     c.afterPrevId != null &&
-    !el.classList.contains('agent-diff-deleted-block') &&
     el.hasAttribute('data-block-id')
   );
 }
@@ -298,8 +288,8 @@ function RevealOverlay({
     (node: HTMLDivElement | null) => {
       roRef.current?.disconnect();
       roRef.current = null;
-      // Only deletions stack, and only when a measure sink is wired (the approve
-      // commit reveal passes none) — skip the observer otherwise.
+      // Only deletions stack, and only when a measure sink is wired — skip the
+      // observer otherwise.
       if (!node || !isDeletion || !onMeasureRef.current) return;
       const report = () => onMeasureRef.current?.(key, node.getBoundingClientRect().height);
       report();
@@ -357,10 +347,9 @@ function RevealOverlay({
 
   if (!rect || !revealAnimationEnabled) return null;
 
-  // A deletion hangs just BELOW its surviving predecessor (no-ghost fallback);
-  // anchored to its in-place ghost or the first block, it sits at that top.
+  // A deletion hangs just BELOW its surviving predecessor; anchored to the
+  // first block, it sits at that top.
   const aEl = anchorEl(scrollEl, change);
-  const onGhost = !!aEl && aEl.classList.contains('agent-diff-deleted-block');
   const top = aEl && deletionHangsBelow(aEl, change) ? rect.top + rect.height : rect.top;
   const pos: CSSProperties & { '--agent-reveal-ground-fade-duration': string } = {
     ...rect.prose,
@@ -374,9 +363,8 @@ function RevealOverlay({
     transitionDuration: `${exitMs}ms`,
     '--agent-reveal-ground-fade-duration': `${GROUND_FADE_MS}ms`,
     // Keep occluding the anchor when the animation switches between the old and
-    // new text layouts. A deletion over its struck ghost must cover that ghost
-    // until the owner removes both together. Unanchored deletions use auto-height.
-    minHeight: change.op === 'deleted' ? (onGhost ? rect.height : undefined) : rect.height,
+    // new text layouts. Deletions have no block of their own and use auto-height.
+    minHeight: change.op === 'deleted' ? undefined : rect.height,
   };
   return (
     <div
@@ -398,11 +386,7 @@ export function AgentEditAnimator({ scrollEl, entityType, id }: AgentEditAnimato
   const editKey = id ? entityKey(entityType, id) : null;
   const entry = editKey ? pending[editKey] : undefined;
   const allChanges = entry?.changes ?? EMPTY;
-  // Old approval-mode receipts are presentation-only too; canonical recovery
-  // settles their remaining decisions without asking the author.
-  const changes = useMemo(() => allChanges.filter((c) => !c.field).map((c) =>
-    c.mode === 'auto' ? c : { ...c, mode: 'auto' as const },
-  ), [allChanges]);
+  const changes = useMemo(() => allChanges.filter((c) => !c.field), [allChanges]);
   const changesKey = changes.map(keyOf).join('|');
   const autoChanges = changes;
 

@@ -22,12 +22,10 @@ const proseSchema = new Schema({
 function change(
   blockId: string,
   op: AgentBlockChange['op'],
-  mode: AgentBlockChange['mode'],
 ): AgentBlockChange {
   return {
     blockId,
     op,
-    mode,
     oldText: op === 'new' ? '' : `old:${blockId}`,
     newText: op === 'deleted' ? '' : `new:${blockId}`,
     afterPrevId: null,
@@ -56,9 +54,8 @@ function maskedBlockIds(
       { id: 'existing', text: '现存文件里已经写入的新正文' },
       { id: 'blank', text: '' },
       { id: 'added', text: '新文件里尚未进入视口的正文' },
-      { id: 'approve', text: '等待人工审阅的正文' },
+      { id: 'field', text: '只属于结构化字段的正文' },
     ]),
-    [],
     blockIds,
   );
   return decorations
@@ -68,12 +65,12 @@ function maskedBlockIds(
 }
 
 describe('Agent prose reveal masks', () => {
-  it('selects changed/new auto edits in existing files but not deletes or approve mode', () => {
+  it('selects changed/new prose edits but not deletes or structured fields', () => {
     const changes = [
-      change('existing', 'changed', 'auto'),
-      change('added', 'new', 'auto'),
-      change('deleted', 'deleted', 'auto'),
-      change('approve', 'changed', 'approve'),
+      change('existing', 'changed'),
+      change('added', 'new'),
+      change('deleted', 'deleted'),
+      { ...change('field', 'changed'), field: { kind: 'summary' as const, label: 'Summary' } },
     ];
 
     expect(planAgentAutoRevealMask(changes)).toEqual(['existing', 'added']);
@@ -85,7 +82,7 @@ describe('Agent prose reveal masks', () => {
 
   it('masks every textual block before an Added file has stable ids', () => {
     expect(planAgentAutoRevealMask([], true)).toBeNull();
-    expect(maskedBlockIds(null)).toEqual(['existing', 'added', 'approve']);
+    expect(maskedBlockIds(null)).toEqual(['existing', 'added', 'field']);
   });
 
   it('masks a pre-live guarded block before its canonical pending review exists', () => {
@@ -97,8 +94,8 @@ describe('Agent prose reveal masks', () => {
     ]);
   });
 
-  it('removes the mask projection once no auto changed/new block remains', () => {
-    expect(planAgentAutoRevealMask([change('deleted', 'deleted', 'auto')])).toBeUndefined();
+  it('removes the mask projection once no changed/new block remains', () => {
+    expect(planAgentAutoRevealMask([change('deleted', 'deleted')])).toBeUndefined();
     expect(maskedBlockIds(undefined)).toEqual([]);
   });
 });

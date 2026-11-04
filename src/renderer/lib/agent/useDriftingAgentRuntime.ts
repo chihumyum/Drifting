@@ -134,8 +134,7 @@ export async function reconcileAgentEditReviewCache(
         review.sessionId !== effect.sessionId ||
         review.turnId !== effect.turnId ||
         review.toolCallId !== effect.toolCallId ||
-        review.status === 'accepted_effect' ||
-        review.status === 'reverted'
+        review.status === 'accepted_effect'
       ) {
         stale.push(reviewId);
       }
@@ -147,55 +146,6 @@ export async function reconcileAgentEditReviewCache(
     useAgentEditStore.getState().resolveReviews(stale);
   }
   return stale;
-}
-
-/** Canonical editor-review actions. */
-export async function acceptDriftingAgentWriteReview(
-  reviewId: string,
-  decisionNote?: unknown,
-) {
-  return driftingProductComposition.tools.acceptReview(
-    reviewId,
-    decisionNote,
-  );
-}
-
-export async function rejectDriftingAgentWriteReview(
-  reviewId: string,
-  decisionNote?: unknown,
-  signal?: AbortSignal,
-) {
-  return driftingProductComposition.tools.rejectReview(
-    reviewId,
-    decisionNote,
-    signal,
-  );
-}
-
-export async function acceptDriftingAgentWriteReviewBlock(
-  reviewId: string,
-  blockId: string,
-  decisionNote?: unknown,
-) {
-  return driftingProductComposition.tools.acceptReviewBlock(
-    reviewId,
-    blockId,
-    decisionNote,
-  );
-}
-
-export async function rejectDriftingAgentWriteReviewBlock(
-  reviewId: string,
-  blockId: string,
-  decisionNote?: unknown,
-  signal?: AbortSignal,
-) {
-  return driftingProductComposition.tools.rejectReviewBlock(
-    reviewId,
-    blockId,
-    decisionNote,
-    signal,
-  );
 }
 
 // One product transport per renderer lifetime. React Strict Mode may mount,

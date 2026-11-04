@@ -8,8 +8,8 @@ counts and milestone boundaries live in
 This is a development-only control path for exercising the real renderer-owned
 General Agent without clicking through the Agent panel. It does **not** create a
 second runtime: the mounted App still owns the production composition, current
-project stores, renderer use cases, live Yjs writes, durable journal, review
-ledger, provider credential, context planner, and compactor.
+project stores, renderer use cases, live Yjs writes, durable journal, write
+receipts, provider credential, context planner, and compactor.
 
 The local broker accepts a turn over HTTP, the DEV renderer claims it, and the
 caller receives NDJSON containing every canonical journal entry plus a terminal
@@ -37,8 +37,9 @@ machine report to
 [`acceptance/milestone-b-tool-reliability.json`](acceptance/milestone-b-tool-reliability.json).
 Use the live bridge below for product-data and real-provider behavior.
 
-For durable turn/write/review regression, including real file SQLite, Yjs,
-localStorage loss, partial block decisions and injected acknowledgement faults:
+For durable turn/write/settlement regression, including real file SQLite, Yjs,
+localStorage loss, receipt-settlement recovery and injected acknowledgement
+faults:
 
 ```bash
 pnpm eval:agent:durability
@@ -272,7 +273,6 @@ Useful `pnpm agent:debug:turn` options:
 --conversation <id>                 # resume a durable conversation
 --permission allow_once             # automatically allow permission requests once
 --permission deny                   # automatically deny permission requests
---edit-mode approve                 # keep writes pending for review in this turn
 --answer 'text'                     # queued ask_user answer; repeatable
 --auto-continue                     # follow the durable plan until a stable stop
 --thinking adaptive                 # enable the selected provider's reasoning
@@ -292,10 +292,11 @@ a matching outline paragraph exists, the bridge gives that complete paragraph
 in the same result. The model should not need to inventory the whole project or
 learn any storage name before creating the chapter and its summary.
 
-## Reversible write matrix
+## Write matrix
 
 After copying the active SQLite database, run every provider-exposed write
-through the real renderer and immediately reject its durable review:
+through the real renderer. Agent writes commit directly, so every write stays in
+that copy:
 
 ```bash
 pnpm agent:debug:writes -- \
@@ -307,29 +308,13 @@ Use `--list` or repeated `--only <scenario-id>` flags while diagnosing one
 tool. `--disposable-db` is a mandatory operator acknowledgement: first launch
 the mounted App against an explicit copy of the SQLite project database, never
 the primary App database. The matrix uses a run-unique marker, accepts
-semantically equivalent workspace mutations, and stops if a committed write
-cannot be reverted; keep the pre-run database copy until the final domain
-readback has passed.
+semantically equivalent workspace mutations, and stops if a prose write leaves
+its settlement receipt unsettled. Discard the copy afterwards.
 
 The write-matrix client parses only `--project`, `--disposable-db`, `--list`,
 repeated `--only <scenario-id>`, `--timeout-ms`, `--url` and `--help`. The
 richer conversation/permission/thinking options listed above belong to
 `pnpm agent:debug:turn`, not to this matrix.
-
-Settle a pending review through the same live product composition (including
-the exact Yjs inverse on reject):
-
-```bash
-pnpm agent:debug:review -- \
-  --project synthetic-project-0001 \
-  --review 'agent-review:agent-write:…' \
-  --block 'block-id' \
-  --decision reject \
-  --note 'headless inverse smoke'
-```
-
-Omit `--block` to settle every still-pending block. Supplying it settles only
-that block through the same compare-and-set path used by the editor badge.
 
 The raw endpoint is also curl-friendly:
 
@@ -387,7 +372,7 @@ run adds evidence that deterministic gates cannot preserve.
 - The renderer refuses non-loopback broker URLs, and the bridge module is loaded
   only in Vite DEV when `VITE_DRIFTING_AGENT_DEBUG_URL` is explicitly set.
 - Requests run against the currently opened real project. A write prompt can
-  mutate it and follows the same durable inline-review policy as the Agent panel. Back up
+  mutate it and commits directly, exactly as from the Agent panel. Back up
   valuable projects or use a disposable test draft.
 - A new conversation is used by default. Pass `--conversation` only when testing
   durable resume/context behavior.
@@ -395,8 +380,8 @@ run adds evidence that deterministic gates cannot preserve.
   authorizes the same continuous execution used by the Agent panel. There is no
   aggregate model-round, tool-call, token, duration, cost, or slice quota.
   Two automatic slices without durable plan progress pause the sequence.
-  Pending review, permission/user input, failure, navigation, or an explicit
-  stop pauses it immediately. This authorization is renderer-memory-only and
+  Permission/user input, failure, navigation, or an explicit stop pauses it
+  immediately. This authorization is renderer-memory-only and
   is never resumed automatically after an App restart.
 - The explicit DEV request watchdog defaults to ten minutes and accepts up to
   twelve hours. Expiry aborts the test client and is recorded as test

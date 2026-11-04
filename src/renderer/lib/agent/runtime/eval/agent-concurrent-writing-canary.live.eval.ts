@@ -23,7 +23,6 @@ import { useAgentEditStore } from '../../../../store/agent-edit-store';
 import { useDataStore } from '../../../../store/data-store';
 import { useProjectStore } from '../../../../store/project-store';
 import { useSettingsStore } from '../../../../store/settings-store';
-import { setAgentEditModeOverride } from '../../agent-edit-mode';
 import type { AgentToolContext, AgentWriteApi } from '../../tool-handlers';
 import { ProductFileBackedSqliteGateway } from '../acceptance/p3-file-backed-sqlite';
 import { createDriftingAgentProductComposition } from '../drifting-product-composition';
@@ -294,8 +293,6 @@ describe.skipIf(!LIVE_EVAL_ENABLED)('General Agent concurrent DeepSeek writing c
         await seedDatabase(database);
         await hydrateStores(database);
         useAgentEditStore.getState().clearAll();
-        setAgentEditModeOverride('auto');
-        setAgentEditModeOverride(null);
 
         const productDriver = new DriftingAgentModelDriver({
           defaultModel: model,
@@ -548,7 +545,6 @@ describe.skipIf(!LIVE_EVAL_ENABLED)('General Agent concurrent DeepSeek writing c
         useProjectStore.setState(initialProjectState, true);
         useSettingsStore.setState(initialSettingsState, true);
         useAgentEditStore.getState().clearAll();
-        setAgentEditModeOverride(null);
       }
     },
     6 * 60_000,

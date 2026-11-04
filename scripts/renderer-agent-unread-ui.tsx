@@ -39,7 +39,7 @@ useDataStore.setState({
 useUiStore.setState({ chapterViewMode: 'storyline', elementPanelViewMode: 'compact' } as never);
 let serial = 0;
 const opens: unknown[] = [];
-const write = (type: 'node' | 'element' | 'storyline' | 'category', id: string) => useAgentEditStore.getState().recordReview(type, id, [{ blockId: 'paragraph', op: 'changed', oldText: 'Synthetic before', newText: 'Synthetic after', afterPrevId: null }], 'auto', { reviewId: `review-${++serial}`, effectId: `effect-${serial}` });
+const write = (type: 'node' | 'element' | 'storyline' | 'category', id: string) => useAgentEditStore.getState().recordReview(type, id, [{ blockId: 'paragraph', op: 'changed', oldText: 'Synthetic before', newText: 'Synthetic after', afterPrevId: null }], { reviewId: `review-${++serial}`, effectId: `effect-${serial}` });
 let showEditor: (id: string | null) => void = () => {};
 const pulse = async () => { for (let i = 0; i < 3; i++) await new Promise(requestAnimationFrame); };
 const assert = (ok: unknown, message: string) => { if (!ok) throw new Error(message); };

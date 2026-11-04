@@ -1415,8 +1415,6 @@
       "paused": "Fortsetzen, um vom gespeicherten Fortschritt weiterzumachen."
     },
     "autoContinue": {
-      "waitingReviewTitle": "Wartet auf Änderungsprüfung",
-      "waitingReviewBody": "Alle derzeit ausführbaren Schritte warten auf Prüfung. Entscheide über die offenen Änderungen und fahre fort.",
       "noProgressTitle": "Fortlaufender Lauf ohne dauerhaften Fortschritt",
       "noProgressBody": "Agent hat in zwei Abschnitten den gespeicherten Plan nicht vorangebracht und vor weiterem Verbrauch pausiert. Prüfe den letzten Werkzeugfehler und fahre dann fort.",
       "safetyTitle": "Fortlaufender Lauf pausiert",

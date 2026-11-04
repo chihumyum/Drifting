@@ -11,7 +11,7 @@ import { agentRecentHighlightName } from './agent-recent-highlight';
 import { RECENT_CHANGE_FADE_MS } from './motion';
 
 function change(blockId: string, oldText: string, newText: string, op: AgentBlockChange['op'] = 'changed'): AgentBlockChange {
-  return { op, blockId, afterPrevId: null, oldText, newText, mode: 'auto', reviewId: 'r' };
+  return { op, blockId, afterPrevId: null, oldText, newText, reviewId: 'r' };
 }
 
 afterEach(() => {

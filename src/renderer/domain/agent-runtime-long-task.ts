@@ -174,14 +174,9 @@ export interface AgentRuntimeTaskStepReviewEvidence {
     | 'authorized_effect'
     | 'pending'
     | 'accepted'
-    | 'rejected'
     | 'accepted_effect'
-    | 'revert_started'
-    | 'reverted'
-    | 'revert_failed'
-    | 'revert_unavailable'
     | 'missing';
-  outcome: 'pending' | 'accepted_target_write' | 'rejected_or_reverted' | 'invalid';
+  outcome: 'pending' | 'accepted_target_write' | 'invalid';
   acceptedTargetEvidence: boolean;
   toolName: string | null;
   settledAt: string | null;

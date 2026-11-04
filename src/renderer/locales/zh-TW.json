@@ -1415,8 +1415,6 @@
       "paused": "繼續即可從已儲存進度接續。"
     },
     "autoContinue": {
-      "waitingReviewTitle": "等待修改審閱",
-      "waitingReviewBody": "目前所有可執行步驟都在等待審閱。請處理待審修改，再繼續此任務。",
       "noProgressTitle": "連續執行未產生可持續的進度",
       "noProgressBody": "Agent 連續兩段執行都未推進持久化計畫，因此在繼續消耗前暫停。請查看最後的工具錯誤，準備好後再繼續。",
       "safetyTitle": "連續執行已暫停",

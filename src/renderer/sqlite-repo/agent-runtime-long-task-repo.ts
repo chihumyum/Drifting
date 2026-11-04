@@ -608,12 +608,7 @@ const TASK_STEP_REVIEW_STATUSES = new Set([
   'authorized_effect',
   'pending',
   'accepted',
-  'rejected',
   'accepted_effect',
-  'revert_started',
-  'reverted',
-  'revert_failed',
-  'revert_unavailable',
 ]);
 
 interface TaskWriteEvidenceIdentity {
@@ -900,14 +895,6 @@ function evaluateTaskStepReviewEvidence(input: {
     outcome = 'invalid';
   } else if (acceptedTargetEvidence) {
     outcome = 'accepted_target_write';
-  } else if (
-    reviewStatus === 'rejected' ||
-    reviewStatus === 'revert_started' ||
-    reviewStatus === 'reverted' ||
-    reviewStatus === 'revert_failed' ||
-    reviewStatus === 'revert_unavailable'
-  ) {
-    outcome = 'rejected_or_reverted';
   } else {
     outcome = 'pending';
   }

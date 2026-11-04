@@ -95,7 +95,6 @@
     "test:agent-runtime": "vitest run src/renderer/lib/agent/runtime --reporter=dot",
     "agent:debug:server": "node scripts/agent-headless-debug-server.mjs",
     "agent:debug:turn": "node scripts/agent-headless-debug-turn.mjs",
-    "agent:debug:review": "node scripts/agent-headless-debug-review.mjs",
     "agent:debug:writes": "node scripts/agent-headless-debug-write-matrix.mjs",
     "account-libraries:evidence": "node scripts/generate-account-library-evidence.mjs",
     "account-libraries:check": "node scripts/generate-account-library-evidence.mjs --check",

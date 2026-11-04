@@ -3,8 +3,8 @@ import type { AgentBlockChange } from '../../lib/agent/block-diff';
 import { createAgentDecorationSelector, type AgentDecorationSnapshot } from './agent-decoration-projection';
 
 const empty = (): AgentDecorationSnapshot => ({ pending: {}, additions: {}, autoRevealGuards: {} });
-const change = (blockId: string, mode: 'auto' | 'approve' = 'auto'): AgentBlockChange => ({
-  blockId, mode, op: 'changed', oldText: '旧合成正文', newText: '新合成正文', afterPrevId: null,
+const change = (blockId: string): AgentBlockChange => ({
+  blockId, op: 'changed', oldText: '旧合成正文', newText: '新合成正文', afterPrevId: null,
 });
 
 describe('Agent decoration semantic selection', () => {
@@ -25,7 +25,7 @@ describe('Agent decoration semantic selection', () => {
     expect(select({ ...state, pending: { 'node:target': {
       ...state.pending['node:target'], changes: [prose, { ...change('field:summary'), field: { kind: 'summary', label: '摘要' } }],
     } } })).toBe(before);
-    expect(select(empty())).toEqual({ approveChanges: [], autoRevealBlockIds: undefined });
+    expect(select(empty())).toEqual({ autoRevealBlockIds: undefined });
   });
 
   it('isolates guards by entity kind and compares retained guard identities', () => {
@@ -44,12 +44,14 @@ describe('Agent decoration semantic selection', () => {
   it('preserves pre-live to durable review handoff and Added mask-all semantics', () => {
     const select = createAgentDecorationSelector('node', 'target');
     expect(select({ ...empty(), additions: { 'node:target': { entityType: 'node', id: 'target', revealBlockIds: null } } }).autoRevealBlockIds).toBeNull();
-    const auto = change('block', 'auto');
+    const edited = change('block');
     expect(select({ ...empty(), pending: { 'node:target': {
-      entityType: 'node', id: 'target', changes: [auto, { ...change('deleted', 'auto'), op: 'deleted' }],
-    } } })).toEqual({ approveChanges: [], autoRevealBlockIds: ['block'] });
+      entityType: 'node', id: 'target', changes: [edited, { ...change('deleted'), op: 'deleted' }],
+    } } })).toEqual({ autoRevealBlockIds: ['block'] });
+    // A cached change stamped with the retired review mode is an ordinary reveal.
+    const retiredMode = { ...edited, mode: 'approve' } as AgentBlockChange;
     expect(select({ ...empty(), pending: { 'node:target': {
-      entityType: 'node', id: 'target', changes: [{ ...auto, mode: 'approve' }],
-    } } })).toEqual({ approveChanges: [], autoRevealBlockIds: ['block'] });
+      entityType: 'node', id: 'target', changes: [retiredMode],
+    } } })).toEqual({ autoRevealBlockIds: ['block'] });
   });
 });

@@ -2,33 +2,29 @@
  * General Agent prose-edit presentation state (#3 / #4).
  *
  * General Agent prose writes enter this store only after their Yjs mutation,
- * durable effect result, and canonical SQLite review have committed. The store
- * is therefore a rebuildable editor projection, never review authority or prose
- * truth. It remembers which blocks changed and their before/after text for
- * unread ticks and viewport reveals. Sidebar acknowledgement consumes this
- * presentation without mutating prose. Historical approval receipts and their
- * guarded inverse metadata remain readable for canonical recovery.
+ * durable effect result, and canonical SQLite settlement receipt have
+ * committed. The store is therefore a rebuildable editor projection, never
+ * write authority or prose truth. It remembers which blocks changed and their
+ * before/after text for unread ticks and viewport reveals. Sidebar
+ * acknowledgement consumes this presentation without mutating prose.
  *
  * Keyed `${entityType}:${id}` like the activity store.
  *
  * Best-effort, bounded localStorage cache so presentation can survive a reload.
  * Storage failure must never escape a store action or interrupt an editor.
- * The v1 migration retires batches from the previously removed review protocol;
- * SQLite reconciliation remains authoritative for all new durable batches.
+ * SQLite reconciliation remains authoritative for every durable batch.
  */
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { entityKey, type ActivityEntityType } from '../lib/agent/tool-entity-ref';
-import { mergeBlockChanges, type AgentBlockChange, type AgentFieldRef } from '../lib/agent/block-diff';
+import { mergeBlockChanges, type AgentBlockChange } from '../lib/agent/block-diff';
 import { parseDocId, proseEntityTypeForDocKind } from '../lib/yjs-doc-id';
 import { createAgentEditStorage } from './agent-edit-storage';
-
-export type AgentEditMode = 'auto' | 'approve';
 
 export interface PendingEntityEdits {
   entityType: ActivityEntityType;
   id: string;
-  /** Outstanding unread changes, including readable historical mode metadata. */
+  /** Outstanding unread changes. */
   changes: AgentBlockChange[];
   /** Who changed the entity most recently; absent means the Agent. */
   lastSource?: 'agent' | 'file';
@@ -63,55 +59,24 @@ export interface AgentEditReviewBatch {
   reviewId: string;
   entityType: ActivityEntityType;
   id: string;
-  /**
-   * Exact per-effect diff, before cross-effect visual merging. Durable review
-   * settlement must consume these batches in reverse reviewOrder and call the
-   * Agent runtime's guarded inverse; it must never locally replay old text.
-   */
+  /** Exact per-effect diff, before cross-effect visual merging. */
   changes: AgentBlockChange[];
-  /** Per-block author decisions made before the effect-level review settles.
-   * The original changes stay intact for audit/retry; visual projection only
-   * includes blocks not present in this map. */
-  blockDecisions?: Record<string, AgentBlockReviewDecision>;
 }
 
-export type AgentBlockReviewDecision = 'accepted' | 'reverted';
-
-/**
- * A block edit the user REJECTED (approve-mode ✗) and that was successfully
- * reverted in the doc. The agent ran `bypassPermissions`, so it believes its
- * edit stuck — this is queued and fed into its NEXT turn's prompt so its mental
- * model of the manuscript stays in sync. Project-scoped because the edit-store
- * key carries no projectId and a revert in one project must not leak into
- * another project's conversation.
- */
-export interface RevertRecord {
-  projectId: string;
-  /** Durable General Agent owner. Missing only for legacy/manual staging. */
-  sessionId?: string;
-  entityType: ActivityEntityType;
-  id: string;
-  blockId: string;
-  op: AgentBlockChange['op'];
-  /** The text the block was restored TO ('' when the rejected edit was a brand-new
-   *  block that got removed). */
-  restoredText: string;
-  /** Present when the rejected edit was a NON-PROSE field (summary / kv / …), so
-   *  the agent-facing revert note can name the field instead of "a paragraph". */
-  field?: AgentFieldRef;
-}
+type PersistedAgentEditState = Pick<
+  AgentEditState,
+  'pending' | 'additions' | 'reviewBatches' | 'reviewOrder' | 'settledReviewIds'
+>;
 
 interface AgentEditState {
-  /** entityKey → pending block edits awaiting reveal/approval. */
+  /** entityKey → unread block edits awaiting reveal/acknowledgement. */
   pending: Record<string, PendingEntityEdits>;
   /** entityKey → Agent-created prose entity awaiting its first full reveal. */
   additions: Record<string, AgentAddedEntity>;
   /** reviewId → blocks masked immediately before a committed live Yjs merge. */
   autoRevealGuards: Record<string, AgentAutoRevealGuard>;
-  /** Rejected-then-reverted edits awaiting delivery to the agent's next turn. */
-  pendingReverts: RevertRecord[];
   /**
-   * Independent persistent idempotency/provenance ledger for runtime reviews.
+   * Independent persistent idempotency/provenance ledger for runtime receipts.
    * `pending` is a visual aggregate and cannot answer whether an older effect
    * was already recorded after a later effect touched the same block.
    */
@@ -127,7 +92,6 @@ interface AgentEditState {
     entityType: ActivityEntityType,
     id: string,
     changes: AgentBlockChange[],
-    mode: AgentEditMode,
   ) => void;
   /**
    * Record what an edit made in another editor changed (docs/markdown-mirror.md).
@@ -136,14 +100,13 @@ interface AgentEditState {
    */
   recordExternal: (entityType: ActivityEntityType, id: string, changes: AgentBlockChange[]) => void;
   /**
-   * Record one deterministic durable Agent review exactly once. Returns false
+   * Record one deterministic durable Agent receipt exactly once. Returns false
    * for a replay of the same reviewId.
    */
   recordReview: (
     entityType: ActivityEntityType,
     id: string,
     changes: AgentBlockChange[],
-    mode: AgentEditMode,
     provenance: { effectId: string; reviewId: string },
   ) => boolean;
   /** Install a mask before a durable auto write merges into an open Y.Doc. */
@@ -159,8 +122,8 @@ interface AgentEditState {
   recordAddition: (entityType: ActivityEntityType, id: string) => void;
   /**
    * Seed the first-open reveal after ProseMirror has assigned stable block ids.
-   * Existing durable review blocks win on overlap so an Added presentation can
-   * never downgrade or silently accept a later approve-mode edit.
+   * Existing durable receipt blocks win on overlap so an Added presentation
+   * never takes over a later edit's provenance.
    */
   beginAdditionReveal: (
     entityType: ActivityEntityType,
@@ -175,29 +138,14 @@ interface AgentEditState {
    * batches. Idempotent for duplicate settlement notifications.
    */
   resolveReviews: (reviewIds: string[]) => void;
-  /** Replace the rebuildable local block projection with SQLite authority. */
-  syncReviewBlockDecisions: (
-    reviewId: string,
-    decisions: Readonly<Record<string, AgentBlockReviewDecision>>,
-  ) => void;
-  /** A block's reveal animation finished (auto) or it was approved/rejected
-   *  (approve) — drop it; the entity clears once nothing is left. */
+  /** A block's reveal finished or was acknowledged — drop it; the entity
+   *  clears once nothing is left. */
   resolveBlocks: (entityType: ActivityEntityType, id: string, blockIds: string[]) => void;
-  /** Queue a rejected-then-reverted edit for the agent's next turn. */
-  recordRevert: (
-    projectId: string,
-    entityType: ActivityEntityType,
-    id: string,
-    change: AgentBlockChange,
-  ) => void;
-  /** Take queued reverts belonging to this exact Agent session. Legacy rows
-   * without an owner are delivered only when sessionId is absent. */
-  drainReverts: (projectId: string, sessionId?: string | null) => RevertRecord[];
   /** Drop an entity's whole pending set (e.g. the user dismissed it). */
   clear: (entityType: ActivityEntityType, id: string) => void;
   /** Acknowledge current presentation; SQLite/Yjs writes are already committed. */
   markSeen: (keys: readonly string[]) => void;
-  /** Remove every persisted presentation/revert receipt owned by a deleted project. */
+  /** Remove every persisted presentation receipt owned by a deleted project. */
   clearProject: (projectId: string, proseDocIds: string[], reviewIds: string[]) => void;
   /** New prompt / project switch — forget everything. */
   clearAll: () => void;
@@ -209,20 +157,16 @@ export const useAgentEditStore = create<AgentEditState>()(
       pending: {},
       additions: {},
       autoRevealGuards: {},
-      pendingReverts: [],
       reviewBatches: {},
       reviewOrder: [],
       settledReviewIds: {},
 
-      record: (entityType, id, changes, mode) => {
+      record: (entityType, id, changes) => {
         if (changes.length === 0) return;
         const key = entityKey(entityType, id);
-        // Current writes stamp auto; historical tests may stage old approval
-        // receipts to exercise recovery. Merging keeps the latest metadata.
-        const stamped = changes.map((c) => ({ ...c, mode }));
         set((s) => {
           const prev = s.pending[key];
-          const merged = prev ? mergeBlockChanges(prev.changes, stamped) : stamped;
+          const merged = prev ? mergeBlockChanges(prev.changes, changes) : changes;
           if (merged.length === 0) {
             if (!prev) return s;
             const next = { ...s.pending };
@@ -240,7 +184,7 @@ export const useAgentEditStore = create<AgentEditState>()(
         );
         const stamped = changes
           .filter((change) => !change.field && !reviewed.has(change.blockId))
-          .map((change) => ({ ...change, mode: 'auto' as const, source: 'file' as const }));
+          .map((change) => ({ ...change, source: 'file' as const }));
         if (stamped.length === 0) return;
         set((s) => {
           const prev = s.pending[key];
@@ -259,7 +203,6 @@ export const useAgentEditStore = create<AgentEditState>()(
         entityType,
         id,
         changes,
-        mode,
         provenance,
       ) => {
         if (
@@ -273,7 +216,6 @@ export const useAgentEditStore = create<AgentEditState>()(
         const key = entityKey(entityType, id);
         const stamped = changes.map((change) => ({
           ...change,
-          mode,
           effectId: provenance.effectId,
           reviewId: provenance.reviewId,
         }));
@@ -300,11 +242,11 @@ export const useAgentEditStore = create<AgentEditState>()(
             reviewBatches: {
               ...state.reviewBatches,
               [provenance.reviewId]: {
-                ...provenance,
+                effectId: provenance.effectId,
+                reviewId: provenance.reviewId,
                 entityType,
                 id,
                 changes: stamped,
-                blockDecisions: {},
               },
             },
             reviewOrder: [...state.reviewOrder, provenance.reviewId],
@@ -371,9 +313,7 @@ export const useAgentEditStore = create<AgentEditState>()(
 
         const existing = state.pending[key];
         const occupied = new Set(existing?.changes.map((change) => change.blockId) ?? []);
-        const seeded = changes
-          .filter((change) => !occupied.has(change.blockId))
-          .map((change) => ({ ...change, mode: 'auto' as const }));
+        const seeded = changes.filter((change) => !occupied.has(change.blockId));
         const revealBlockIds = seeded.map((change) => change.blockId);
         set((current) => ({
           additions: {
@@ -444,42 +384,6 @@ export const useAgentEditStore = create<AgentEditState>()(
         });
       },
 
-      syncReviewBlockDecisions: (reviewId, decisions) => {
-        set((state) => {
-          const batch = state.reviewBatches[reviewId];
-          if (!batch) return state;
-          const known = new Set(batch.changes.map((change) => change.blockId));
-          const canonical = Object.fromEntries(
-            Object.entries(decisions).filter(
-              ([blockId, decision]) =>
-                known.has(blockId) &&
-                (decision === 'accepted' || decision === 'reverted'),
-            ),
-          ) as Record<string, AgentBlockReviewDecision>;
-          if (
-            JSON.stringify(batch.blockDecisions ?? {}) ===
-            JSON.stringify(canonical)
-          ) {
-            return state;
-          }
-          const reviewBatches = {
-            ...state.reviewBatches,
-            [reviewId]: {
-              ...batch,
-              blockDecisions: canonical,
-            },
-          };
-          return {
-            reviewBatches,
-            pending: rebuildVisualPending(
-              state.pending,
-              reviewBatches,
-              state.reviewOrder,
-            ),
-          };
-        });
-      },
-
       resolveBlocks: (entityType, id, blockIds) => {
         const key = entityKey(entityType, id);
         const drop = new Set(blockIds);
@@ -492,35 +396,6 @@ export const useAgentEditStore = create<AgentEditState>()(
           else next[key] = { ...entry, changes };
           return { pending: next };
         });
-      },
-
-      recordRevert: (projectId, entityType, id, change) => {
-        const sessionId = agentSessionIdFromEffectId(change.effectId);
-        set((s) => ({
-          pendingReverts: [
-            ...s.pendingReverts,
-            {
-              projectId,
-              ...(sessionId ? { sessionId } : {}),
-              entityType,
-              id,
-              blockId: change.blockId,
-              op: change.op,
-              restoredText: change.oldText,
-              field: change.field,
-            },
-          ],
-        }));
-      },
-
-      drainReverts: (projectId, sessionId = null) => {
-        const all = get().pendingReverts;
-        const owns = (record: RevertRecord): boolean =>
-          record.projectId === projectId &&
-          (sessionId ? record.sessionId === sessionId : !record.sessionId);
-        const mine = all.filter(owns);
-        if (mine.length) set({ pendingReverts: all.filter((record) => !owns(record)) });
-        return mine;
       },
 
       clear: (entityType, id) => {
@@ -572,7 +447,7 @@ export const useAgentEditStore = create<AgentEditState>()(
         });
       },
 
-      clearProject: (projectId, proseDocIds, reviewIds) => {
+      clearProject: (_projectId, proseDocIds, reviewIds) => {
         const projectEntityKeys = new Set<string>();
         for (const docId of proseDocIds) {
           const parsed = parseDocId(docId);
@@ -605,9 +480,6 @@ export const useAgentEditStore = create<AgentEditState>()(
                   !removedReviewIds.has(guard.reviewId),
               ),
             ),
-            pendingReverts: state.pendingReverts.filter(
-              (record) => record.projectId !== projectId,
-            ),
             reviewBatches: Object.fromEntries(
               Object.entries(state.reviewBatches).filter(
                 ([reviewId]) => !removedReviewIds.has(reviewId),
@@ -630,7 +502,6 @@ export const useAgentEditStore = create<AgentEditState>()(
           pending: {},
           additions: {},
           autoRevealGuards: {},
-          pendingReverts: [],
           reviewBatches: {},
           reviewOrder: [],
           settledReviewIds: {},
@@ -639,19 +510,23 @@ export const useAgentEditStore = create<AgentEditState>()(
     {
       name: 'agent-edit-pending',
       storage: createAgentEditStorage(),
-      version: 1,
-      migrate: (persistedState, version) =>
-        version < 1
-          ? retireLegacyAgentReviewPersistence(persistedState)
-          : persistedState,
-      // Only the data — methods come from the initializer on every load. Reverts
-      // persist too, so a reject survives a reload before the next turn drains it.
+      version: 2,
+      // v0 caches belonged to the superseded pre-runtime review protocol and
+      // are dropped. v1 caches also carried the retired reject queue
+      // (`pendingReverts`); everything else is kept. Changes stamped with the
+      // retired `mode` are read like any other unread change.
+      migrate: (persistedState, version) => {
+        if (version < 1 || !isRecord(persistedState)) return {} as PersistedAgentEditState;
+        const state = { ...persistedState };
+        delete state.pendingReverts;
+        return state as unknown as PersistedAgentEditState;
+      },
+      // Only the data — methods come from the initializer on every load.
       // `autoRevealGuards` is intentionally absent: it only bridges one live
       // merge to the canonical review projection in the current renderer.
       partialize: (s) => ({
         pending: s.pending,
         additions: s.additions,
-        pendingReverts: s.pendingReverts,
         reviewBatches: s.reviewBatches,
         reviewOrder: s.reviewOrder,
         settledReviewIds: s.settledReviewIds,
@@ -659,101 +534,6 @@ export const useAgentEditStore = create<AgentEditState>()(
     },
   ),
 );
-
-function agentSessionIdFromEffectId(effectId: string | undefined): string | null {
-  const prefix = 'agent-write:';
-  if (!effectId?.startsWith(prefix)) return null;
-  const separator = effectId.indexOf(':', prefix.length);
-  if (separator <= prefix.length) return null;
-  return effectId.slice(prefix.length, separator);
-}
-
-/**
- * Retire review batches created by the superseded pre-v1 protocol at hydration
- * time. Changes without a reviewId belong to legacy local staging and remain.
- * Retired ids are remembered so a delayed old receipt cannot recreate them.
- */
-export function retireLegacyAgentReviewPersistence(
-  persistedState: unknown,
-): unknown {
-  if (!isRecord(persistedState)) return persistedState;
-
-  const state = persistedState as Partial<
-    Pick<
-      AgentEditState,
-      | 'pending'
-      | 'pendingReverts'
-      | 'reviewBatches'
-      | 'reviewOrder'
-      | 'settledReviewIds'
-    >
-  >;
-  const retiredReviewIds = new Set<string>();
-
-  if (Array.isArray(state.reviewOrder)) {
-    for (const reviewId of state.reviewOrder) {
-      if (typeof reviewId === 'string' && reviewId.length > 0) {
-        retiredReviewIds.add(reviewId);
-      }
-    }
-  }
-  if (isRecord(state.reviewBatches)) {
-    for (const [reviewId, rawBatch] of Object.entries(state.reviewBatches)) {
-      if (reviewId.length > 0) retiredReviewIds.add(reviewId);
-      if (
-        isRecord(rawBatch) &&
-        typeof rawBatch.reviewId === 'string' &&
-        rawBatch.reviewId.length > 0
-      ) {
-        retiredReviewIds.add(rawBatch.reviewId);
-      }
-    }
-  }
-
-  const pending: Record<string, PendingEntityEdits> = {};
-  if (isRecord(state.pending)) {
-    for (const [key, rawEntry] of Object.entries(state.pending)) {
-      if (!isRecord(rawEntry) || !Array.isArray(rawEntry.changes)) continue;
-      const changes = rawEntry.changes.filter((rawChange): rawChange is AgentBlockChange => {
-        if (!isRecord(rawChange)) return false;
-        if (typeof rawChange.reviewId === 'string' && rawChange.reviewId.length > 0) {
-          retiredReviewIds.add(rawChange.reviewId);
-          return false;
-        }
-        return true;
-      });
-      if (
-        changes.length > 0 &&
-        typeof rawEntry.entityType === 'string' &&
-        typeof rawEntry.id === 'string'
-      ) {
-        pending[key] = {
-          entityType: rawEntry.entityType as ActivityEntityType,
-          id: rawEntry.id,
-          changes,
-        };
-      }
-    }
-  }
-
-  const settledReviewIds: Record<string, true> = {};
-  if (isRecord(state.settledReviewIds)) {
-    for (const [reviewId, settled] of Object.entries(state.settledReviewIds)) {
-      if (settled === true) settledReviewIds[reviewId] = true;
-    }
-  }
-  for (const reviewId of retiredReviewIds) {
-    settledReviewIds[reviewId] = true;
-  }
-
-  return {
-    ...state,
-    pending,
-    reviewBatches: {},
-    reviewOrder: [],
-    settledReviewIds,
-  };
-}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -776,16 +556,13 @@ function rebuildVisualPending(
     if (!batch) continue;
     const key = entityKey(batch.entityType, batch.id);
     const previousEntry = rebuilt[key];
-    const unresolved = batch.changes.filter(
-      (change) => !batch.blockDecisions?.[change.blockId],
-    );
-    if (unresolved.length === 0) continue;
+    if (batch.changes.length === 0) continue;
     rebuilt[key] = {
       entityType: batch.entityType,
       id: batch.id,
       changes: previousEntry
-        ? mergeBlockChanges(previousEntry.changes, unresolved)
-        : [...unresolved],
+        ? mergeBlockChanges(previousEntry.changes, batch.changes)
+        : [...batch.changes],
     };
   }
   return rebuilt;

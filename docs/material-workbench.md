@@ -282,8 +282,8 @@ direct domain tools listed in
   is unchanged; new lines become TODOs when the note editor next reconciles,
   exactly as typed ones do. Note writes go through the Yjs persistence
   coordinator on `library-item:<id>` with the note's Yjs revision as their
-  freshness. Notes stay outside the book, so there is no paragraph review: a
-  note write is accepted or rejected as a whole through its exact Yjs inverse.
+  freshness. Notes stay outside the book: a note write commits, and reverts,
+  as a whole through its exact Yjs inverse.
 - `update_material` renames, files or describes a material;
   `create_material_folder`, `update_material_folder` and
   `delete_material_folder` organize the tree with the panel's rules (no loops,

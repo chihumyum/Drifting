@@ -36,7 +36,6 @@ import {
   updateElementPatchWithSync,
   type ElementPatchAtomicTransactionRunner,
 } from '../../../usecase/synced-entity-commands';
-import { effectiveAgentEditMode } from '../agent-edit-mode';
 import {
   agentAuthoredJournal,
   appendAgentDomainMutation,
@@ -80,7 +79,8 @@ interface ElementPatchCommandPayload {
     version: 1;
     effectId: string;
     reviewId: string;
-    mode: 'auto' | 'approve';
+    /** Persisted format key. Agent writes always commit directly. */
+    mode: 'auto';
   };
 }
 
@@ -227,7 +227,7 @@ async function preparePayload(
     version: 1 as const,
     effectId,
     reviewId: `agent-review:${effectId}`,
-    mode: effectiveAgentEditMode(),
+    mode: 'auto' as const,
   };
 
   if (toolName === 'create_element_patch') {
@@ -774,7 +774,7 @@ function parsePayload(
     review.version !== 1 ||
     review.effectId !== payload.effectId ||
     review.reviewId !== `agent-review:${payload.effectId}` ||
-    (review.mode !== 'auto' && review.mode !== 'approve')
+    review.mode !== 'auto'
   ) {
     throw new Error(
       'The persisted element patch review snapshot is invalid',

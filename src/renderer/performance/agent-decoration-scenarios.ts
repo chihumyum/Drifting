@@ -28,9 +28,8 @@ function attachLegacyReference(editor: Editor, id: string) {
     const entry = state.pending[`node:${id}`];
     const addition = state.additions[`node:${id}`];
     const guards = Object.values(state.autoRevealGuards).flatMap((guard) => guard.entityType === 'node' && guard.id === id ? guard.blockIds : []);
-    const approve = entry?.changes.filter((item) => !item.field && (item.mode ?? 'approve') === 'approve') ?? [];
     const mask = planAgentAutoRevealMask(entry?.changes ?? [], addition?.revealBlockIds === null, guards);
-    const set = approve.length > 0 || mask !== undefined ? buildAgentEditorDecorations(editor.state.doc, approve, mask) : DecorationSet.empty;
+    const set = mask !== undefined ? buildAgentEditorDecorations(editor.state.doc, mask) : DecorationSet.empty;
     editor.view.dispatch(editor.state.tr.setMeta(AgentDiffPluginKey, set));
   };
   recompute();
@@ -97,7 +96,7 @@ export function runAgentDecorationScenarios() {
       }));
     }
     counts.legacy = 0; counts.scoped = 0;
-    for (let index = 0; index < 100; index++) useAgentEditStore.getState().record('node', 'unrelated', [{ ...change(), newText: `合成${index}` }], 'approve');
+    for (let index = 0; index < 100; index++) useAgentEditStore.getState().record('node', 'unrelated', [{ ...change(), newText: `合成${index}` }]);
     const unrelated = { ...counts };
     check('unrelated-store-updates-do-not-dispatch', unrelated.legacy === 2_000 && unrelated.scoped === 0);
     counts.scoped = 0;
@@ -117,12 +116,12 @@ export function runAgentDecorationScenarios() {
     check('prepare-flushes-mask-before-ready', ready[1] === true && Boolean(scoped[1].view.dom.querySelector('.agent-auto-reveal-pending')));
     const masked = scoped[1].view.dom.querySelector('.agent-auto-reveal-pending')!;
     check('mask-hides-remote-prose', Boolean(masked.textContent?.includes('远端')) && getComputedStyle(masked).opacity === '0' && masked.getBoundingClientRect().height > 0);
-    useAgentEditStore.getState().recordReview('node', 'synthetic-editor-1', [change()], 'auto', { effectId: 'synthetic-effect', reviewId: 'synthetic-guard' });
+    useAgentEditStore.getState().recordReview('node', 'synthetic-editor-1', [change()], { effectId: 'synthetic-effect', reviewId: 'synthetic-guard' });
     check('guard-to-durable-projection-keeps-mask', Boolean(scoped[1].view.dom.querySelector('.agent-auto-reveal-pending')));
 
     const initialProse = JSON.stringify(scoped[0].getJSON());
     scoped[0].commands.setTextSelection(2);
-    useAgentEditStore.getState().record('node', 'synthetic-editor-0', [change()], 'approve');
+    useAgentEditStore.getState().record('node', 'synthetic-editor-0', [change()]);
     check('review-does-not-change-prose-or-selection', initialProse === JSON.stringify(scoped[0].getJSON()) && scoped[0].state.selection.from === 2);
     scoped[0].view.dispatch(closeHistory(scoped[0].state.tr));
     scoped[0].commands.insertContent('验');

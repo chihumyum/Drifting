@@ -1419,8 +1419,6 @@
       "paused": "Continue para retomar o progresso salvo."
     },
     "autoContinue": {
-      "waitingReviewTitle": "Aguardando revisão das edições",
-      "waitingReviewBody": "Todas as etapas executáveis aguardam revisão. Resolva as edições pendentes e continue.",
       "noProgressTitle": "A execução contínua não avançou o plano salvo",
       "noProgressBody": "O Agent repetiu dois trechos sem avançar o plano persistido e pausou antes de gastar mais. Verifique o último erro de ferramenta e continue quando estiver pronto.",
       "safetyTitle": "Execução contínua pausada",
