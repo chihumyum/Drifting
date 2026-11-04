@@ -1,4 +1,4 @@
-import { Fragment, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useDataStoreFields } from '../../../store/use-data-store-fields';
@@ -19,15 +19,18 @@ export function EntityHoverCard({
   pointer,
   actions,
   onDismiss,
+  maxHeight,
 }: {
   target: EntityHoverTarget;
   anchor: HTMLElement;
   placement?: EntityHoverCardPlacement;
-  /** From the owner's hover state, so the pointer can reach the actions. */
+  /** From the owner's hover state, so the pointer can reach the card. */
   pointer?: HoverCardPointerProps;
   /** What the thing's right-click menu used to offer, as the card's rows. */
   actions?: HoverActionGroup[];
   onDismiss?: () => void;
+  /** Taller content scrolls inside the card. */
+  maxHeight?: number;
 }) {
   const { t } = useTranslation();
   const state = useDataStoreFields(
@@ -48,7 +51,7 @@ export function EntityHoverCard({
   if (!content && !hasActions) return null;
   return (
     <HoverCardShell anchor={anchor} placement={placement} label={content?.title ?? undefined}
-      pointer={pointer} actions={actions} onDismiss={onDismiss}>
+      pointer={pointer} actions={actions} onDismiss={onDismiss} maxHeight={maxHeight}>
       {content && <EntityHoverCardBody content={content} showStatus={!choosesStatus} />}
     </HoverCardShell>
   );
@@ -86,10 +89,10 @@ function EntityHoverCardBody({ content, showStatus }: { content: EntityHoverCard
       {content.kv.length > 0 && (
         <dl className="hover-card__kv">
           {content.kv.map((row, index) => (
-            <Fragment key={`${row.key}:${index}`}>
+            <div key={`${row.key}:${index}`} className="hover-card__kv-row">
               <dt>{row.key}</dt>
               <dd>{row.value}</dd>
-            </Fragment>
+            </div>
           ))}
         </dl>
       )}

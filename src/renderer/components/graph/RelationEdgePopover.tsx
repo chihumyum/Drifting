@@ -114,10 +114,14 @@ export function RelationEdgePopover({
             index={t(`relationTypes.${orientation}`)}
           />
           <dl className="hover-card__kv">
-            <dt>{presentation.sourceRole}</dt>
-            <dd className="hover-card__tag">{sourceMark ?? endMark(relation.fromKind, relation.fromId)}{sourceLabel}</dd>
-            <dt>{presentation.targetRole}</dt>
-            <dd className="hover-card__tag">{targetMark ?? endMark(relation.toKind, relation.toId)}{targetLabel}</dd>
+            <div className="hover-card__kv-row">
+              <dt>{presentation.sourceRole}</dt>
+              <dd className="hover-card__tag">{sourceMark ?? endMark(relation.fromKind, relation.fromId)}{sourceLabel}</dd>
+            </div>
+            <div className="hover-card__kv-row">
+              <dt>{presentation.targetRole}</dt>
+              <dd className="hover-card__tag">{targetMark ?? endMark(relation.toKind, relation.toId)}{targetLabel}</dd>
+            </div>
           </dl>
           {presentation.description && (
             <div className="hover-card__text">{presentation.description}</div>

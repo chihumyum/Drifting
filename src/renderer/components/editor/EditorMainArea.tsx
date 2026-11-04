@@ -47,6 +47,8 @@ import { editorStageWaiting, setEditorStageWaiting } from './editor-stage-waitin
 import { LOADING_DELAY_MS } from '../../lib/motion';
 
 const PROJECT_HOME_SURFACE_KEY = 'project-home';
+/** A link's card covers at most this much of the page; the rest scrolls inside it. */
+const PROSE_HOVER_CARD_MAX_HEIGHT = 480;
 
 interface WorkspaceSurfaceDescriptor {
   revisionKey: string;
@@ -225,6 +227,8 @@ export function EditorMainArea() {
     preview: entityHoverPreview,
     onEnter: entityHoverEnter,
     onLeave: entityHoverLeave,
+    dismiss: entityHoverDismiss,
+    card: entityHoverCard,
   } = useHoverPreview<EntityHoverTarget>();
 
   const handleEntityLinkMouseOver = useCallback(
@@ -346,11 +350,15 @@ export function EditorMainArea() {
 
       {committedRevisionKey === null && <EditorStageLoadingSurface />}
 
+      {/* The pointer can cross into a link's card and scroll what does not fit. */}
       {entityHoverPreview && (
         <EntityHoverCard
           target={entityHoverPreview.data}
           anchor={entityHoverPreview.anchor}
           placement="bottom-start"
+          pointer={entityHoverCard}
+          onDismiss={entityHoverDismiss}
+          maxHeight={PROSE_HOVER_CARD_MAX_HEIGHT}
         />
       )}
 
