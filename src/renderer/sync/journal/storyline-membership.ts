@@ -210,3 +210,40 @@ export async function appendAuthoredNodeStorylineProjectionInTransaction(
   });
   return projection;
 }
+
+/**
+ * A chapter deleted for good leaves every storyline it was in: its link rows
+ * go (foreign keys are not enforced) and each live membership tag is removed
+ * from its storyline's OR-set. The primary-storyline register is owned by the
+ * chapter and ends with the chapter's purge in the same change-set, so it is
+ * not written: a field write on a purged owner cannot materialize and would
+ * fail the whole transaction.
+ */
+export async function appendAuthoredNodeStorylinePurgeInTransaction(
+  tx: DbExecutor,
+  changes: SyncChangeBuilder,
+  input: { readonly projectId: string; readonly nodeId: string },
+): Promise<void> {
+  await tx.delete(NodeStorylineLinkTable).where(eq(NodeStorylineLinkTable.nodeId, input.nodeId));
+  const tagsByStoryline = new Map<string, string[]>();
+  for (const { storylineId, addTag } of await liveMembershipTags(tx, input.projectId, input.nodeId)) {
+    const tags = tagsByStoryline.get(storylineId) ?? [];
+    tags.push(addTag);
+    tagsByStoryline.set(storylineId, tags);
+  }
+  for (const storylineId of [...tagsByStoryline.keys()].sort(compareUtf8Bytewise)) {
+    changes.add({
+      action: 'set.remove',
+      target: {
+        family: 'set',
+        kind: STORYLINE_MEMBERSHIP_SET_KIND,
+        id: storylineId,
+        incarnation: 0,
+      },
+      payload: {
+        memberId: input.nodeId,
+        observedAddTags: [...tagsByStoryline.get(storylineId)!].sort(compareUtf8Bytewise),
+      },
+    });
+  }
+}

@@ -1054,6 +1054,8 @@
     },
     "restore": "복원",
     "purgeNow": "지금 삭제",
+    "restoreFailed": "복원 실패: {{error}}",
+    "purgeFailed": "삭제 실패: {{error}}",
     "kind": {
       "chapter": "장",
       "drift": "아이디어",

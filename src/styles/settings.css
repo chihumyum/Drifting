@@ -2360,6 +2360,12 @@ html:not([data-shell-mode='mobile']) .set-trash__row.menu-surface__item::before 
   gap: 12px;
   margin: 18px 0 8px;
 }
+.set-trash__failure {
+  margin: 0 0 8px;
+  color: hsl(var(--destructive));
+  font-size: var(--ui-font-caption, 12px);
+  overflow-wrap: anywhere;
+}
 .set-trash__row > .kind-mark {
   flex: none;
 }

@@ -53,6 +53,9 @@ function TrashPanelInner({ projectId, userId }: { projectId: string; userId: str
 
   const [items, setItems] = useState<TrashItem[]>([]);
   const [busy, setBusy] = useState(false);
+  // The last restore / delete that failed, shown under the head until the next
+  // action: a failed write rolls back whole, so the row simply stays.
+  const [failure, setFailure] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     setBusy(true);
@@ -92,15 +95,23 @@ function TrashPanelInner({ projectId, userId }: { projectId: string; userId: str
     void reload();
   }, [reload]);
 
+  const describeFailure = (key: 'restoreFailed' | 'purgeFailed', error: unknown) =>
+    t(`trashPanel.${key}`, { error: error instanceof Error ? error.message : String(error) });
+
   const restore = async (item: TrashItem) => {
-    if (item.kind === 'chapter' || item.kind === 'drift') {
-      await nodeUC.restoreNode(item.id);
-    } else if (item.kind === 'element') {
-      await elementUC.restoreElement(item.id);
-    } else if (item.kind === 'storyline') {
-      await storylineUC.restoreStoryline(item.id);
-    } else if (item.kind === 'category') {
-      await categoryUC.restoreCategory(item.id);
+    setFailure(null);
+    try {
+      if (item.kind === 'chapter' || item.kind === 'drift') {
+        await nodeUC.restoreNode(item.id);
+      } else if (item.kind === 'element') {
+        await elementUC.restoreElement(item.id);
+      } else if (item.kind === 'storyline') {
+        await storylineUC.restoreStoryline(item.id);
+      } else if (item.kind === 'category') {
+        await categoryUC.restoreCategory(item.id);
+      }
+    } catch (error) {
+      setFailure(describeFailure('restoreFailed', error));
     }
     await reload();
   };
@@ -129,7 +140,12 @@ function TrashPanelInner({ projectId, userId }: { projectId: string; userId: str
       t('trashPanel.confirmPurge', { label: item.label }),
     );
     if (!confirmed) return;
-    await purgeOne(item);
+    setFailure(null);
+    try {
+      await purgeOne(item);
+    } catch (error) {
+      setFailure(describeFailure('purgeFailed', error));
+    }
     await reload();
   };
 
@@ -141,11 +157,16 @@ function TrashPanelInner({ projectId, userId }: { projectId: string; userId: str
       t('trashPanel.confirmPurgeAll', { count: items.length }),
     );
     if (!confirmed) return;
+    setFailure(null);
     setBusy(true);
     try {
       for (const item of items) {
         await purgeOne(item);
       }
+    } catch (error) {
+      // Each row is its own transaction: the ones before the failure are gone,
+      // the failed one and the rest stay listed.
+      setFailure(describeFailure('purgeFailed', error));
     } finally {
       setBusy(false);
     }
@@ -165,6 +186,11 @@ function TrashPanelInner({ projectId, userId }: { projectId: string; userId: str
             {t('trashPanel.clear')}
           </Button>
         </div>
+        {failure && (
+          <p role="alert" className="set-trash__failure">
+            {failure}
+          </p>
+        )}
         {busy && items.length === 0 ? (
           <LoadingStatus label={t('referencesPanel.loading')} />
         ) : items.length === 0 ? (
@@ -217,6 +243,11 @@ function TrashPanelInner({ projectId, userId }: { projectId: string; userId: str
           </button>
         </div>
       </div>
+      {failure && (
+        <p role="alert" style={{ margin: '0 0 12px', color: 'hsl(var(--destructive))', fontSize: 12 }}>
+          {failure}
+        </p>
+      )}
       {busy && items.length === 0 ? (
         <div style={{ color: 'hsl(var(--ink-4))', fontSize: 13 }}>{t('referencesPanel.loading')}</div>
       ) : items.length === 0 ? (
