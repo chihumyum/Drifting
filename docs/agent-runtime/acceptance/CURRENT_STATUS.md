@@ -1,6 +1,6 @@
 # Current Drifting Agent Runtime status
 
-Updated: 2026-11-04
+Updated: 2026-11-05
 
 This document is the current human-readable product and verification boundary.
 Historical phase reports and dated provider runs are evidence for their
@@ -48,7 +48,9 @@ pnpm agent:capabilities:check
   CLI, a sidecar, or a remote runner. `sidecar` and `remote` remain transport
   kinds without an implementation. The transport publishes one stream, the
   canonical runtime journal; the older event projection was removed on
-  2026-11-04.
+  2026-11-04. Every runtime session belongs to a chat conversation: migration
+  `0017` (2026-11-05) dropped the retired Goal route columns and the Claude
+  SDK session pointer, and refuses a database that still holds a Goal session.
 - SQLite owns the durable runtime journal, effects, permissions, plans, review
   decisions, and receipts. Live Yjs owns prose. Renderer stores and
   localStorage are rebuildable presentation projections.

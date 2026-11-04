@@ -700,9 +700,7 @@ export function createLocalGeneralAgentTransport(
 }
 
 function routeKeyFor(route: AgentStartRoute): string {
-  return route.kind === 'chat'
-    ? `chat:${route.projectId}:${route.conversationId ?? ''}`
-    : `goal:${route.projectId}:${route.goalRunId ?? ''}:${route.chapterId ?? ''}`;
+  return `chat:${route.projectId}:${route.conversationId ?? ''}`;
 }
 
 function createTransportJournal(

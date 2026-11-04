@@ -881,14 +881,7 @@ function buildSession(
     id: existing?.id ?? input.candidateSessionId,
     projectId: input.route.projectId,
     routeKind: input.route.kind,
-    conversationId:
-      input.route.kind === 'chat'
-        ? input.route.conversationId ?? null
-        : null,
-    goalRunId:
-      input.route.kind === 'goal' ? input.route.goalRunId ?? null : null,
-    chapterId:
-      input.route.kind === 'goal' ? input.route.chapterId ?? null : null,
+    conversationId: input.route.conversationId ?? null,
     provider: input.provider,
     model: input.model,
     providerEpoch:
@@ -903,37 +896,21 @@ function buildSession(
 function routeLookup(route: AgentStartRoute): Parameters<
   AgentRuntimePersistenceRepository['findSessionForRoute']
 >[0] {
-  return route.kind === 'chat'
-    ? {
-        projectId: route.projectId,
-        routeKind: 'chat',
-        conversationId: route.conversationId ?? null,
-      }
-    : {
-        projectId: route.projectId,
-        routeKind: 'goal',
-        goalRunId: route.goalRunId ?? null,
-        chapterId: route.chapterId ?? null,
-      };
+  return {
+    projectId: route.projectId,
+    routeKind: 'chat',
+    conversationId: route.conversationId ?? null,
+  };
 }
 
 function routeFromSession(
   session: PersistedAgentRuntimeSession,
 ): AgentStartRoute {
-  return session.routeKind === 'chat'
-    ? {
-        kind: 'chat',
-        projectId: session.projectId,
-        ...(session.conversationId
-          ? { conversationId: session.conversationId }
-          : {}),
-      }
-    : {
-        kind: 'goal',
-        projectId: session.projectId,
-        ...(session.goalRunId ? { goalRunId: session.goalRunId } : {}),
-        ...(session.chapterId ? { chapterId: session.chapterId } : {}),
-      };
+  return {
+    kind: 'chat',
+    projectId: session.projectId,
+    ...(session.conversationId ? { conversationId: session.conversationId } : {}),
+  };
 }
 
 function sameRoute(
@@ -946,13 +923,7 @@ function sameRoute(
   ) {
     return false;
   }
-  return route.kind === 'chat'
-    ? session.conversationId === (route.conversationId ?? null) &&
-        session.goalRunId === null &&
-        session.chapterId === null
-    : session.conversationId === null &&
-        session.goalRunId === (route.goalRunId ?? null) &&
-        session.chapterId === (route.chapterId ?? null);
+  return session.conversationId === (route.conversationId ?? null);
 }
 
 function runtimeMessageId(turnId: string, index: number): string {

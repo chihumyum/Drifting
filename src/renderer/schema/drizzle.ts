@@ -1050,14 +1050,8 @@ export const AgentConversationTable = sqliteTable(
       .references(() => ProjectTable.id, { onDelete: 'cascade' }),
     title: text('title').notNull().default(''),
     source: text('source').$type<'chat' | 'external_mcp'>().notNull().default('chat'),
-    // The SDK session to `resume` for context continuity; null until the first
-    // turn reports one. If the SDK's transcript file is gone, resuming starts
-    // fresh — the conversation stays viewable from messagesJson regardless.
-    sdkSessionId: text('sdk_session_id'),
-    // Provider-neutral runtime session currently attached to this conversation.
-    // Kept alongside sdkSessionId during the compatibility window: old Claude
-    // conversations can still be inspected while new turns recover from the
-    // canonical runtime tables below.
+    // Provider-neutral runtime session currently attached to this conversation;
+    // new turns recover from the canonical runtime tables below.
     runtimeSessionId: text('runtime_session_id'),
     // Which credentials the conversation last ran under ('byok' | 'hosted').
     mode: text('mode').notNull().default('byok'),
@@ -1089,8 +1083,6 @@ export const AgentRuntimeSessionTable = sqliteTable(
     conversationId: text('conversation_id').references(() => AgentConversationTable.id, {
       onDelete: 'cascade',
     }),
-    goalRunId: text('goal_run_id'),
-    chapterId: text('chapter_id'),
     provider: text('provider').notNull(),
     model: text('model'),
     // Bumped whenever provider-side resumable state is replaced. Recovery must
@@ -1104,16 +1096,11 @@ export const AgentRuntimeSessionTable = sqliteTable(
   (t) => [
     index('idx_agent_runtime_session_project').on(t.projectId),
     index('idx_agent_runtime_session_conversation').on(t.conversationId),
-    index('idx_agent_runtime_session_goal').on(t.projectId, t.goalRunId),
     index('idx_agent_runtime_session_recovery').on(t.projectId, t.status, t.updatedAt),
     uniqueIndex('uniq_agent_runtime_session_project_identity').on(t.id, t.projectId),
     check(
       'agent_runtime_session_route_shape_check',
-      sql`(${t.routeKind} = 'chat'
-          and ${t.conversationId} is not null
-          and ${t.goalRunId} is null
-          and ${t.chapterId} is null)
-        or (${t.routeKind} = 'goal' and ${t.conversationId} is null)`,
+      sql`${t.routeKind} = 'chat' and ${t.conversationId} is not null`,
     ),
   ],
 );
@@ -1436,8 +1423,6 @@ export const AgentRuntimeWriteEffectTable = sqliteTable(
     projectId: text('project_id').notNull(),
     routeKind: text('route_kind').notNull(),
     conversationId: text('conversation_id'),
-    goalRunId: text('goal_run_id'),
-    chapterId: text('chapter_id'),
     sessionId: text('session_id').notNull(),
     turnId: text('turn_id').notNull(),
     toolCallId: text('tool_call_id').notNull(),

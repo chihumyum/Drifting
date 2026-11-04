@@ -598,7 +598,6 @@ interface DurableTaskStepReviewRow {
   effectTurnId: string;
   effectToolCallId: string;
   effectToolName: string;
-  effectChapterId: string | null;
   effectArgumentsJson: string;
   effectForwardJson: string | null;
   effectResultJson: string | null;
@@ -656,7 +655,7 @@ function collectTaskWriteEvidenceIdentity(
   evidence: DurableTaskStepReviewRow,
 ): TaskWriteEvidenceIdentity {
   const identity: TaskWriteEvidenceIdentity = {
-    ids: new Set(evidence.effectChapterId ? [evidence.effectChapterId] : []),
+    ids: new Set(),
     names: new Set(),
     operations: new Set([stableTaskText(evidence.effectToolName)]),
     paths: [],
@@ -1300,7 +1299,6 @@ export function createAgentRuntimeLongTaskRepository(
             effectTurnId: AgentRuntimeWriteEffectTable.turnId,
             effectToolCallId: AgentRuntimeWriteEffectTable.toolCallId,
             effectToolName: AgentRuntimeWriteEffectTable.toolName,
-            effectChapterId: AgentRuntimeWriteEffectTable.chapterId,
             effectArgumentsJson: AgentRuntimeWriteEffectTable.argumentsJson,
             effectForwardJson: AgentRuntimeWriteEffectTable.forwardJson,
             effectResultJson: AgentRuntimeWriteEffectTable.resultJson,
@@ -1329,7 +1327,6 @@ export function createAgentRuntimeLongTaskRepository(
           effectTurnId: AgentRuntimeWriteEffectTable.turnId,
           effectToolCallId: AgentRuntimeWriteEffectTable.toolCallId,
           effectToolName: AgentRuntimeWriteEffectTable.toolName,
-          effectChapterId: AgentRuntimeWriteEffectTable.chapterId,
           effectArgumentsJson: AgentRuntimeWriteEffectTable.argumentsJson,
           effectForwardJson: AgentRuntimeWriteEffectTable.forwardJson,
           effectResultJson: AgentRuntimeWriteEffectTable.resultJson,
@@ -1367,7 +1364,6 @@ export function createAgentRuntimeLongTaskRepository(
                   effectTurnId: effect.effectTurnId,
                   effectToolCallId: effect.effectToolCallId,
                   effectToolName: effect.effectToolName,
-                  effectChapterId: effect.effectChapterId,
                   effectArgumentsJson: effect.effectArgumentsJson,
                   effectForwardJson: effect.effectForwardJson,
                   effectResultJson: effect.effectResultJson,

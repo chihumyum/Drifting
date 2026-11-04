@@ -35,7 +35,7 @@ vi.mock('../usecase/useAgentWorkingMemory', () => ({ prepareAgentWorkingMemoryFo
 vi.mock('../lib/agent/runtime/recovered-transcript', () => ({ loadCanonicalAgentChatProjection: ports.projection, findCanonicalAgentChatSessionId: async () => null }));
 vi.mock('../sqlite-repo/agent-runtime-long-task-repo', () => ({ createAgentRuntimeLongTaskRepository: () => ({ getLatestPlan: async () => null }) }));
 const otherProject = 'synthetic-other-project';
-const conversation = (id: string): AgentConversation => ({ id, projectId, title: id, mode: 'byok', sdkSessionId: null, runtimeSessionId: null, messages: [], createdAt: '2026-10-01', updatedAt: '2026-10-01' });
+const conversation = (id: string): AgentConversation => ({ id, projectId, title: id, mode: 'byok', runtimeSessionId: null, messages: [], createdAt: '2026-10-01', updatedAt: '2026-10-01' });
 const initial = useAgentChatStore.getState(); const initialEdits = useAgentEditStore.getState();
 const initialUi = useUiStore.getState();
 const listeners = new Set<(entry: AgentRuntimeJournalEntry) => void>();

@@ -32,8 +32,6 @@ function session(
     projectId: 'project-1',
     routeKind: 'chat',
     conversationId: 'conversation-1',
-    goalRunId: null,
-    chapterId: null,
     provider: 'provider-old',
     model: 'model-old',
     providerEpoch: 2,

@@ -121,8 +121,6 @@ function session(
     projectId: 'project-1',
     routeKind: 'chat',
     conversationId: 'conversation-1',
-    goalRunId: null,
-    chapterId: null,
     provider: 'deepseek',
     model: 'deepseek-chat',
     providerEpoch: 0,

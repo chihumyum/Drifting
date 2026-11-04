@@ -85,10 +85,9 @@ describe('AgentRuntime structured completion tool', () => {
       sessionId: 'review-session',
       turnId: 'review-turn',
       route: {
-        kind: 'goal',
+        kind: 'chat',
         projectId: 'project-1',
-        goalRunId: 'review-goal-1',
-        chapterId: 'chapter-1',
+        conversationId: 'review-conversation-1',
       },
       prompt: 'judge this chapter',
       reasoning: { enabled: true, effort: 'high' },

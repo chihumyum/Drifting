@@ -17,8 +17,8 @@ beforeEach(async () => {
   fixture = await createWorkspaceProjectionFixture();
   await createAgentConversationRepository().create({ id: 'synthetic-conversation', projectId: WORKSPACE_TEST_INPUT.projectId, title: 'Synthetic', mode: 'byok', messages: [], createdAt: AT, updatedAt: AT });
   await repository.acceptTurn({
-    session: { id: SESSION, projectId: WORKSPACE_TEST_INPUT.projectId, conversationId: 'synthetic-conversation', routeKind: 'chat', goalRunId: null,
-      chapterId: null, provider: 'synthetic', model: 'scripted', providerEpoch: 0, status: 'pending', createdAt: AT, updatedAt: AT, endedAt: null },
+    session: { id: SESSION, projectId: WORKSPACE_TEST_INPUT.projectId, conversationId: 'synthetic-conversation', routeKind: 'chat',
+      provider: 'synthetic', model: 'scripted', providerEpoch: 0, status: 'pending', createdAt: AT, updatedAt: AT, endedAt: null },
     turn: { id: TURN, sessionId: SESSION, ordinal: 0, status: 'accepted', promptMessageId: 'synthetic-prompt', acceptedAt: AT, startedAt: null,
       endedAt: null, errorCode: null, errorMessage: null, updatedAt: AT },
     promptMessage: { id: 'synthetic-prompt', sessionId: SESSION, turnId: TURN, ordinal: 0, role: 'user', status: 'complete', content: 'Synthetic request', createdAt: AT, completedAt: AT },
