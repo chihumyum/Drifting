@@ -227,6 +227,24 @@ describe('Agent workbench writes', () => {
     expect(await fixture.item(NOTE_ID)).toMatchObject({ folderId: restored!.id });
   });
 
+  it('still rejects filing a material after its folder was deleted and restored twice', async () => {
+    await fixture.write('file-2', 'update_material', { material: '灯塔笔记', folder: '人物' });
+    await fixture.write('delete-2', 'delete_material_folder', { folder: '人物' }, 'author_approved');
+    await fixture.revert('delete-2');
+    const [first] = await fixture.folders();
+    // Deleting the restored folder again and rejecting that gives a third id;
+    // the filing still names the first.
+    await fixture.write('delete-3', 'delete_material_folder', { folder: '人物' }, 'author_approved');
+    await fixture.revert('delete-3');
+    const [second] = await fixture.folders();
+    expect(new Set([FOLDER_ID, first!.id, second!.id]).size).toBe(3);
+    expect(await fixture.item(NOTE_ID)).toMatchObject({ folderId: second!.id });
+
+    await fixture.revert('file-2');
+    expect(await fixture.item(NOTE_ID)).toMatchObject({ folderId: null });
+    expect(await fixture.folders()).toEqual([expect.objectContaining({ id: second!.id, name: '人物' })]);
+  });
+
   it('creates a note from Markdown and removes it on reject while it is untouched', async () => {
     const result = await fixture.write('note-1', 'create_material_note', {
       title: '潮汐',
@@ -358,6 +376,47 @@ describe('Agent book structure writes', () => {
     expect(await fixture.markers()).toEqual([]);
     await fixture.revert('marker-3');
     expect((await fixture.markers())[0]).toMatchObject({ label: '1938 年春', narrativeOrder: 12.5 });
+  });
+
+  it('rejects a whole review stack that ends in deleting an act or a marker, newest first', async () => {
+    // The review panel rejects one entity's writes newest first. Rejecting the
+    // delete brings the act back under a new id (sync never revives a purged
+    // one); every earlier write still names the old id and must reject too.
+    await fixture.write('stack-1', 'create_act', { firstChapter: '第二章' });
+    const [created] = await fixture.acts();
+    await fixture.write('stack-2', 'move_chapter', { chapter: '第一章', after: '第三章' });
+    await fixture.write('stack-3', 'update_act', { act: '第一幕', name: '起' });
+    await fixture.write('stack-4', 'create_timeline_marker', { label: '1937 年冬', before: '第二章' });
+    await fixture.write('stack-5', 'update_timeline_marker', { marker: '1937 年冬', label: '1938 年春' });
+    await fixture.write('stack-6', 'delete_timeline_marker', { marker: '1938 年春' }, 'author_approved');
+    expect(await fixture.write('stack-7', 'delete_act', { act: '起' }, 'author_approved')).toMatchObject({ ok: true });
+    expect(await fixture.acts()).toEqual([]);
+    expect(await fixture.markers()).toEqual([]);
+
+    await fixture.revert('stack-7');
+    const [restored] = await fixture.acts();
+    expect(restored).toMatchObject({ name: '起', startOrder: 2.5, createdAt: created!.createdAt });
+    expect(restored!.id).not.toBe(created!.id);
+    expect(useDataStore.getState().bookActs).toEqual([expect.objectContaining({ id: restored!.id, name: '起' })]);
+
+    await fixture.revert('stack-6');
+    const [marker] = await fixture.markers();
+    expect(marker).toMatchObject({ label: '1938 年春', narrativeOrder: 5 });
+    expect(useDataStore.getState().timelineMarkers).toEqual([expect.objectContaining({ label: '1938 年春' })]);
+    await fixture.revert('stack-5');
+    expect(await fixture.markers()).toEqual([expect.objectContaining({ id: marker!.id, label: '1937 年冬' })]);
+    await fixture.revert('stack-4');
+    expect(await fixture.markers()).toEqual([]);
+    expect(useDataStore.getState().timelineMarkers).toEqual([]);
+
+    await fixture.revert('stack-3');
+    expect(await fixture.acts()).toEqual([expect.objectContaining({ id: restored!.id, name: '第一幕' })]);
+    expect(useDataStore.getState().bookActs).toEqual([expect.objectContaining({ name: '第一幕' })]);
+    await fixture.revert('stack-2');
+    expect(await fixture.order('chapter-one')).toBe(0);
+    await fixture.revert('stack-1');
+    expect(await fixture.acts()).toEqual([]);
+    expect(useDataStore.getState().bookActs).toEqual([]);
   });
 });
 

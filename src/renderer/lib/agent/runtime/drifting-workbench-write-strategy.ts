@@ -1,3 +1,5 @@
+import { and, eq } from 'drizzle-orm';
+
 import type {
   AgentRuntimeEntityWriteSnapshot,
   PersistedAgentRuntimeEntityWriteReceipt,
@@ -5,6 +7,7 @@ import type {
 import type { PersistedAgentRuntimeWriteExpectation } from '../../../domain/agent-runtime-freshness';
 import type { PersistedAgentRuntimeWriteEffect } from '../../../domain/agent-runtime-write-effect';
 import { getDb, type DbExecutor } from '../../../lib/db';
+import { AgentRuntimeEntityWriteReceiptTable, AgentRuntimeWriteEffectTable } from '../../../schema/drizzle';
 import {
   createAgentRuntimeEntityWriteReceiptRepository,
   type AgentRuntimeEntityWriteReceiptRepository,
@@ -36,6 +39,11 @@ const COMMANDS: ReadonlyMap<string, AnyCommand> = new Map(
 
 for (const name of WORKBENCH_COMMAND_NAMES) {
   if (!COMMANDS.has(name)) throw new Error(`Workbench command "${name}" has no implementation`);
+}
+for (const command of COMMANDS.values()) {
+  if (command.restoredIds && !command.scope.renameIds) {
+    throw new Error(`Workbench command "${command.name}" restores ids its scope cannot rename`);
+  }
 }
 
 const SCOPES: ReadonlyMap<string, AnyScope> = new Map(
@@ -337,12 +345,21 @@ export function createDriftingWorkbenchWriteStrategy(
           if (again) return again;
           const current = await scope.load(tx, payload.projectId, payload.scopeId);
           const currentRevision = await workbenchScopeRevision(scope, current);
-          if (currentRevision !== forward.resultRevision) {
+          // A later hard delete that was already rejected brought its row back
+          // under a new id; this write's images still name the old one.
+          const laterRestorations = await restoredIdsInScope(tx, payload);
+          const restored = idRenamer([...(command.restoredIds?.(payload.extra) ?? []), ...laterRestorations]);
+          const renamed = (state: unknown) => (restored ? scope.renameIds!(state, restored) : state);
+          const expectedCurrent =
+            laterRestorations.length > 0
+              ? await workbenchScopeRevision(scope, renamed(snapshotState(forward.postimage, payload)))
+              : forward.resultRevision;
+          if (currentRevision !== expectedCurrent) {
             throw new Error('这处结构在 Agent 修改之后又变过，无法精确撤销；请手动调整');
           }
           await command.assertInverseSafe?.(tx, payload.projectId, payload.extra);
-          const before = (payload.preimage.value as { state: unknown }).state;
-          const target = command.inverseImage ? command.inverseImage(before, payload.extra) : before;
+          const before = snapshotState(payload.preimage, payload);
+          const target = renamed(command.inverseImage ? command.inverseImage(before, payload.extra) : before);
           const targetRevision = await workbenchScopeRevision(scope, target);
           const at = now();
           const changes = journal.createChangeSet();
@@ -357,12 +374,12 @@ export function createDriftingWorkbenchWriteStrategy(
             journal,
             at,
           });
-          const restored = await scope.load(tx, payload.projectId, payload.scopeId);
-          const restoredRevision = await workbenchScopeRevision(scope, restored);
-          if (restoredRevision !== targetRevision) {
+          const reverted = await scope.load(tx, payload.projectId, payload.scopeId);
+          const revertedRevision = await workbenchScopeRevision(scope, reverted);
+          if (revertedRevision !== targetRevision) {
             throw new Error(`${toolName} could not restore its exact preimage`);
           }
-          const postimage = snapshot(scope, payload.projectId, payload.scopeId, restored, restoredRevision);
+          const postimage = snapshot(scope, payload.projectId, payload.scopeId, reverted, revertedRevision);
           const persisted = await repo.persist({
             id: receiptId(payload, 'inverse'),
             effectId: payload.effectId,
@@ -373,8 +390,9 @@ export function createDriftingWorkbenchWriteStrategy(
             toolName: payload.toolName as PersistedAgentRuntimeEntityWriteReceipt['toolName'],
             entityKind: WORKBENCH_SNAPSHOT_KIND,
             entityId: payload.scopeId,
+            // Pairs this inverse with its forward, even when ids were renamed.
             expectedRevision: forward.resultRevision,
-            resultRevision: restoredRevision,
+            resultRevision: revertedRevision,
             preimage: payload.preimage,
             preimageHash: await hashEntityWriteValue(payload.preimage),
             postimage,
@@ -421,6 +439,73 @@ function parsePayload(value: unknown, toolName: string): WorkbenchPayload {
     throw new Error(`${toolName} lost its prepared workbench payload`);
   }
   return value as WorkbenchPayload;
+}
+
+function snapshotState(image: AgentRuntimeEntityWriteSnapshot | null, payload: WorkbenchPayload): unknown {
+  const value = image?.kind === WORKBENCH_SNAPSHOT_KIND ? (image.value as { scope?: unknown; state?: unknown }) : null;
+  if (!value || value.scope !== payload.scope || !value.state || typeof value.state !== 'object') {
+    throw new Error(`${payload.toolName} has no workbench image to revert from`);
+  }
+  return value.state;
+}
+
+/**
+ * `[deletedId, restoredId]` pairs of every rejected hard delete in this scope
+ * instance. A purged id never comes back, so a pair can only name a row in
+ * the images of writes made before its delete; for any other write it renames
+ * nothing.
+ */
+async function restoredIdsInScope(
+  tx: DbExecutor,
+  payload: WorkbenchPayload,
+): Promise<Array<readonly [string, string]>> {
+  const rows = await tx
+    .select({
+      toolName: AgentRuntimeEntityWriteReceiptTable.toolName,
+      inverseJson: AgentRuntimeWriteEffectTable.inverseJson,
+    })
+    .from(AgentRuntimeEntityWriteReceiptTable)
+    .innerJoin(
+      AgentRuntimeWriteEffectTable,
+      eq(AgentRuntimeWriteEffectTable.id, AgentRuntimeEntityWriteReceiptTable.effectId),
+    )
+    .where(
+      and(
+        eq(AgentRuntimeEntityWriteReceiptTable.projectId, payload.projectId),
+        eq(AgentRuntimeEntityWriteReceiptTable.entityKind, WORKBENCH_SNAPSHOT_KIND),
+        eq(AgentRuntimeEntityWriteReceiptTable.entityId, payload.scopeId),
+        eq(AgentRuntimeEntityWriteReceiptTable.direction, 'inverse'),
+      ),
+    );
+  const pairs: Array<readonly [string, string]> = [];
+  for (const row of rows) {
+    const command = COMMANDS.get(row.toolName);
+    if (!command?.restoredIds || command.scope.kind !== payload.scope) continue;
+    let stored: unknown = null;
+    try {
+      stored = row.inverseJson === null ? null : JSON.parse(row.inverseJson);
+    } catch {
+      // parsePayload below reports the unreadable payload.
+    }
+    const inverse = parsePayload(stored, row.toolName);
+    if (inverse.scopeId !== payload.scopeId) continue;
+    pairs.push(...command.restoredIds(inverse.extra));
+  }
+  return pairs;
+}
+
+/** Follows chains: a restored row can be deleted and restored again. */
+function idRenamer(pairs: ReadonlyArray<readonly [string, string]>): ((id: string) => string) | null {
+  if (pairs.length === 0) return null;
+  const next = new Map(pairs);
+  return (id) => {
+    let current = id;
+    for (let steps = 0; next.has(current); steps += 1) {
+      if (steps >= next.size) throw new Error('Restored workbench ids form a cycle');
+      current = next.get(current)!;
+    }
+    return current;
+  };
 }
 
 function receiptId(payload: WorkbenchPayload, direction: 'forward' | 'inverse'): string {
