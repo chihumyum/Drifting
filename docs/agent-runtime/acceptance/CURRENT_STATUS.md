@@ -1,6 +1,6 @@
 # Current Drifting Agent Runtime status
 
-Updated: 2026-10-31
+Updated: 2026-11-04
 
 This document is the current human-readable product and verification boundary.
 Historical phase reports and dated provider runs are evidence for their
@@ -45,7 +45,10 @@ pnpm agent:capabilities:check
   tables, provider settings, prompts, or eval corpora.
 - The provider-neutral local runtime is installed by the renderer on every
   Tauri target. Current execution does not depend on the removed Node/Claude
-  CLI, a sidecar, or a remote runner.
+  CLI, a sidecar, or a remote runner. `sidecar` and `remote` remain transport
+  kinds without an implementation. The transport publishes one stream, the
+  canonical runtime journal; the older event projection was removed on
+  2026-11-04.
 - SQLite owns the durable runtime journal, effects, permissions, plans, review
   decisions, and receipts. Live Yjs owns prose. Renderer stores and
   localStorage are rebuildable presentation projections.

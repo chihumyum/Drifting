@@ -892,8 +892,8 @@ describe('AgentRuntime tool search integration', () => {
       createId: (kind) => `${kind}-id`,
     });
     const done = new Promise<void>((resolve) => {
-      transport.subscribeEvents(({ event }) => {
-        if (event.type === 'done') resolve();
+      transport.subscribeJournal(({ event }) => {
+        if (event.type === 'turn_finished') resolve();
       });
     });
 

@@ -125,7 +125,6 @@ describe('Drifting Agent capability manifest', () => {
         DEFAULT_AGENT_RUNTIME_LIMITS.maxInputTokens,
         DEFAULT_AGENT_RUNTIME_LIMITS.maxOutputTokens,
         DEFAULT_AGENT_RUNTIME_LIMITS.maxTotalTokens,
-        DEFAULT_AGENT_RUNTIME_LIMITS.maxCostUsd,
         DEFAULT_AGENT_RUNTIME_LIMITS.maxDurationMs,
         DEFAULT_AGENT_RUNTIME_LIMITS.maxOutputTokensPerIteration,
       ].every((limit) => limit === null),

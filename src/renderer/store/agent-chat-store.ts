@@ -617,11 +617,6 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
           model: settings.agentModel,
           effort: settings.agentEffort,
           thinking: settings.agentThinking,
-          // The runtime always consults the product selection strategy; the
-          // author's persisted `agentToolSearch` preference is applied there
-          // (off = complete stable surface, auto/on = bounded author-domain
-          // relevance selection), so runtime-level bypass is not a user mode.
-          toolSearch: 'on',
           toolAccess,
           resume: run.runtimeSessionId ?? undefined,
           ...projectContext,

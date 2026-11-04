@@ -17,7 +17,9 @@ Explicit token-budget synthesis retains the same definitions with
 `tool_choice=none`. A model-iteration cap keeps normal tools through the last
 allowed iteration, then checkpoints for host-owned continuation without asking
 the model to explain a temporary tool restriction.
-`off` remains the full-schema option. Actual catalog or access changes may change
+`off` remains the full-schema option: the provider receives every installed
+schema, stable for the turn. `auto` and `on` currently behave identically; the
+product installs no relevance selector. Actual catalog or access changes may change
 the next turn's directory; this is not a promise of cache hits across such changes.
 
 Canonical history, approvals, scheduler access, execution generations and write
