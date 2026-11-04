@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AgentRuntimeWriteEffectRepository } from '../../../sqlite-repo/agent-runtime-write-effect-repo';
 import {
-  buildAgentWriteReviewFeedback,
   loadAgentAuthoredReadProgressContextRows,
   loadAgentDurableWriteReceiptContextRows,
   loadAgentWriteReviewContextRows,
@@ -10,69 +9,6 @@ import { planAgentModelContext } from './context-message-adapter';
 import type { AgentModelMessage } from './types';
 
 describe('Agent write review feedback', () => {
-  it('reports accepted, reverted, and failed inverse decisions from canonical rows', async () => {
-    const repository = {
-      loadSnapshot: async () => ({
-        effects: [
-          effect('effect-accepted', 'rename_node', { node: 'A', title: 'B' }),
-          effect('effect-reverted', 'set_node_summary', {
-            node: 'A',
-            summary: 'x',
-          }),
-          effect('effect-failed', 'rename_node', {
-            node: 'A',
-            title: 'C',
-          }),
-        ],
-        reviews: [
-          review('review-accepted', 'effect-accepted', 'accepted_effect', 1),
-          review('review-reverted', 'effect-reverted', 'reverted', 2),
-          review('review-failed', 'effect-failed', 'revert_failed', 3),
-          review('review-pending', 'effect-accepted', 'pending', 4),
-        ],
-      }),
-    } as unknown as AgentRuntimeWriteEffectRepository;
-
-    const feedback = await buildAgentWriteReviewFeedback('session-1', repository);
-
-    expect(feedback).toContain('作品内容「A」');
-    expect(feedback).not.toContain('rename_node');
-    expect(feedback).not.toContain('已经完成且由作者保留');
-    expect(feedback).toContain('已被用户拒绝并精确撤销');
-    expect(feedback).toContain('自动撤销失败');
-    expect(feedback).not.toContain('review-pending');
-  });
-
-  it('returns no prompt material when the session has no settled reviews', async () => {
-    const repository = {
-      loadSnapshot: async () => ({ effects: [], reviews: [] }),
-    } as unknown as AgentRuntimeWriteEffectRepository;
-    await expect(buildAgentWriteReviewFeedback('session-1', repository)).resolves.toBe('');
-  });
-
-  it('tells the next turn to re-read after a mixed block-by-block decision', async () => {
-    const repository = {
-      loadSnapshot: async () => ({
-        effects: [effect('effect-mixed', 'edit_file', { path: '/chapters/01/prose.md' })],
-        reviews: [
-          review('review-mixed', 'effect-mixed', 'accepted_effect', 1, {
-            schemaVersion: 1,
-            kind: 'block_review',
-            decisions: [
-              { blockId: 'a', decision: 'accepted' },
-              { blockId: 'b', decision: 'reverted' },
-            ],
-          }),
-        ],
-      }),
-    } as unknown as AgentRuntimeWriteEffectRepository;
-
-    const feedback = await buildAgentWriteReviewFeedback('session-1', repository);
-
-    expect(feedback).toContain('接受 1 处、还原 1 处');
-    expect(feedback).toContain('继续编辑前先重新读取');
-  });
-
   it('keeps workspace coordination details out of model-facing review rows', async () => {
     const repository = {
       loadSnapshot: async () => ({
@@ -223,7 +159,7 @@ describe('Agent write review feedback', () => {
     expect(content).not.toContain('已有可靠完成证据并属于当前稿件');
   });
 
-  it('collapses same-target unsettled decisions into one current domain state', async () => {
+  it('collapses same-target receipts into one current domain state', async () => {
     const repository = {
       loadSnapshot: async () => ({
         effects: [
@@ -238,7 +174,7 @@ describe('Agent write review feedback', () => {
             'turn-3',
           ),
           effect(
-            'effect-reverting',
+            'effect-appended',
             'append_paragraph',
             {
               entity: '第一章',
@@ -249,7 +185,7 @@ describe('Agent write review feedback', () => {
         ],
         reviews: [
           review('review-pending', 'effect-pending', 'pending', 1),
-          review('review-reverting', 'effect-reverting', 'revert_started', 2),
+          review('review-appended', 'effect-appended', 'accepted', 2),
         ],
         turnOrdinalsById: {
           'turn-3': 3,
@@ -261,10 +197,10 @@ describe('Agent write review feedback', () => {
     const rows = await loadAgentWriteReviewContextRows('session-1', repository);
 
     expect(rows).toHaveLength(1);
-    expect(rows.map((row) => row.sourceId)).toEqual(['write-review:review-reverting']);
+    expect(rows.map((row) => row.sourceId)).toEqual(['write-review:review-appended']);
     expect(rows.every((row) => row.kind === 'write_review')).toBe(true);
     expect(rows.map((row) => row.turnOrdinal)).toEqual([7]);
-    expect(rows[0].content).toContain('正在还原');
+    expect(rows[0].content).toContain('已有可靠完成证据并属于当前稿件');
     expect(rows[0].content).not.toMatch(/审阅|标记|等待作者/u);
     expect(rows[0].durableWriteCoverage).toHaveLength(2);
   });
@@ -736,13 +672,11 @@ function review(
   effectId: string,
   status: string,
   tick: number,
-  decisionNote: unknown = null,
 ) {
   return {
     id,
     effectId,
     status,
-    decisionNote,
     createdAt: `2026-07-30T00:00:${String(tick).padStart(2, '0')}.000Z`,
     updatedAt: `2026-07-30T00:00:0${tick}.000Z`,
   } as never;

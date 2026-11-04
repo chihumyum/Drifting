@@ -67,7 +67,6 @@ import {
 } from '../../../sqlite-repo/comment-repo';
 import { createProjectRepository } from '../../../sqlite-repo/project-repo';
 import { createStorylineRepository } from '../../../sqlite-repo/storyline-repo';
-import { useAgentEditStore } from '../../../store/agent-edit-store';
 import { useDataStore, type EntityRelationLink } from '../../../store/data-store';
 import type { EntityAtomicTransactionRunner } from '../../../usecase/synced-entity-commands';
 import {
@@ -76,10 +75,6 @@ import {
   replaceEntityKvEntriesInTransaction,
 } from '../../../usecase/normalized-kv-alias-authority';
 import { appendAuthoredLifecycleRestoreInTransaction } from '../../../usecase/sync-lifecycle-restore';
-import { effectiveAgentEditMode } from '../agent-edit-mode';
-import { computeBlockChanges, type AgentBlockChange } from '../block-diff';
-import { revertEntityBlock } from '../chapter-prose';
-import type { ProseEntityType } from '../../yjs-doc-id';
 import { throwIfAgentAborted } from './errors';
 import { deterministicAgentEntityId, hashEntityWriteValue } from './entity-write-revision';
 import {
@@ -167,92 +162,6 @@ interface StructuralWritePayload {
   expectedRevision: string;
   preimage: AgentRuntimeEntityWriteSnapshot | null;
   mutation: StructuralMutation;
-  reviewSnapshot: {
-    version: 1;
-    effectId: string;
-    reviewId: string;
-    mode: 'auto' | 'approve';
-  };
-}
-
-interface StructuralCreatedProseReview {
-  entityType: ProseEntityType;
-  entityId: string;
-  changes: AgentBlockChange[];
-}
-
-const EMPTY_PROSE_CONTENT_JSON = '{"type":"doc","content":[]}';
-
-/**
- * A structural create owns reviewable prose only when its initial body contains
- * textual blocks with stable ids. Auto mode continues through the Added reveal;
- * approve mode is promoted by the write runtime into a durable block review.
- */
-export function structuralCreatedProseReviewMode(value: unknown): 'auto' | 'approve' | null {
-  if (
-    !value ||
-    typeof value !== 'object' ||
-    Array.isArray(value) ||
-    (value as { kind?: unknown }).kind !== 'structural_write_command'
-  ) {
-    return null;
-  }
-  const payload = value as StructuralWritePayload;
-  return createdProseReview(payload) ? payload.reviewSnapshot.mode : null;
-}
-
-function createdProseReview(payload: StructuralWritePayload): StructuralCreatedProseReview | null {
-  if (
-    !payload.mutation ||
-    typeof payload.mutation !== 'object' ||
-    !payload.reviewSnapshot ||
-    typeof payload.reviewSnapshot !== 'object' ||
-    payload.reviewSnapshot.effectId !== payload.effectId ||
-    payload.reviewSnapshot.reviewId !== `agent-review:${payload.effectId}` ||
-    (payload.reviewSnapshot.mode !== 'auto' && payload.reviewSnapshot.mode !== 'approve')
-  ) {
-    throw new Error('The structural create lost its prose-review provenance');
-  }
-
-  let entityType: ProseEntityType;
-  let contentJson: string;
-  switch (payload.mutation.kind) {
-    case 'create_node':
-      if (payload.toolName !== 'create_node' || payload.entityKind !== 'node') {
-        throw new Error('The created node review conflicts with its structural payload');
-      }
-      entityType = 'node';
-      contentJson = payload.mutation.contentJson;
-      break;
-    case 'create_element':
-      if (payload.toolName !== 'create_element' || payload.entityKind !== 'element') {
-        throw new Error('The created element review conflicts with its structural payload');
-      }
-      entityType = 'element';
-      contentJson = payload.mutation.value.contentJson;
-      break;
-    case 'create_storyline':
-      if (payload.toolName !== 'create_storyline' || payload.entityKind !== 'storyline') {
-        throw new Error('The created storyline review conflicts with its structural payload');
-      }
-      entityType = 'storyline';
-      contentJson = payload.mutation.value.contentJson;
-      break;
-    case 'create_category':
-      if (payload.toolName !== 'create_category' || payload.entityKind !== 'category') {
-        throw new Error('The created category review conflicts with its structural payload');
-      }
-      entityType = 'category';
-      contentJson = payload.mutation.value.contentJson;
-      break;
-    default:
-      return null;
-  }
-
-  const changes = computeBlockChanges(EMPTY_PROSE_CONTENT_JSON, contentJson).filter(
-    (change) => change.op === 'new' && change.newText.trim().length > 0,
-  );
-  return changes.length > 0 ? { entityType, entityId: payload.entityId, changes } : null;
 }
 
 function numericChapterOrdinal(title: string): number | null {
@@ -367,56 +276,6 @@ export function createDriftingStructuralWriteStrategy(
       };
     },
 
-    async projectReview(effect, _context, blockDecisions) {
-      const payload = parsePayload(effect.forward, toolName);
-      assertEffect(effect, payload);
-      const review = createdProseReview(payload);
-      if (!review || payload.reviewSnapshot.mode !== 'approve') return;
-      const state = useAgentEditStore.getState();
-      state.recordReview(
-        review.entityType,
-        review.entityId,
-        review.changes,
-        'approve',
-        payload.reviewSnapshot,
-      );
-      if (blockDecisions) {
-        useAgentEditStore
-          .getState()
-          .syncReviewBlockDecisions(payload.reviewSnapshot.reviewId, blockDecisions);
-      }
-    },
-
-    async reviewBlocks(effect) {
-      const payload = parsePayload(effect.forward, toolName);
-      assertEffect(effect, payload);
-      const review = createdProseReview(payload);
-      return review
-        ? review.changes.map((change, ordinal) => ({
-            blockId: change.blockId,
-            ordinal,
-          }))
-        : [];
-    },
-
-    async applyReviewBlockInverse(effect, blockId, context, signal) {
-      throwIfAgentAborted(signal);
-      const payload = parsePayload(effect.forward, toolName);
-      assertEffect(effect, payload);
-      const review = createdProseReview(payload);
-      const change = review?.changes.find((candidate) => candidate.blockId === blockId);
-      if (!review || !change) {
-        throw new Error(`The durable created-prose review has no block "${blockId}"`);
-      }
-      await revertEntityBlock(review.entityType, review.entityId, change, context);
-      throwIfAgentAborted(signal);
-      return {
-        kind: 'structural_created_prose_block_revert',
-        reviewId: payload.reviewSnapshot.reviewId,
-        blockId,
-      };
-    },
-
     async applyInverse(effect, _context, signal) {
       throwIfAgentAborted(signal);
       const payload = parsePayload(effect.inverse, toolName);
@@ -455,12 +314,6 @@ async function preparePayload(
     effectId,
     toolName,
     projectId,
-    reviewSnapshot: {
-      version: 1 as const,
-      effectId,
-      reviewId: `agent-review:${effectId}`,
-      mode: effectiveAgentEditMode(),
-    },
   };
 
   if (toolName.startsWith('create_') || toolName === 'add_relation') {

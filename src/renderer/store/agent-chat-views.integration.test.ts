@@ -8,7 +8,6 @@ import { AgentChatTranscript } from '../domain/agent-chat-transcript';
 import { useAgentChatStore } from './agent-chat-store';
 import { createAgentChatViewSource } from './agent-chat-view-source';
 import type { AgentConversation } from '../domain/agent-conversation';
-import { useAgentEditStore } from './agent-edit-store';
 import { useSettingsStore } from './settings-store';
 import { createAgentChatJournalScope } from '../lib/agent/runtime/chat-journal-dedup';
 import { armAgentAutomaticContinuation, createInactiveAgentAutomaticContinuation } from '../lib/agent/runtime/long-task-auto-continuation';
@@ -36,13 +35,12 @@ vi.mock('../lib/agent/runtime/recovered-transcript', () => ({ loadCanonicalAgent
 vi.mock('../sqlite-repo/agent-runtime-long-task-repo', () => ({ createAgentRuntimeLongTaskRepository: () => ({ getLatestPlan: async () => null }) }));
 const otherProject = 'synthetic-other-project';
 const conversation = (id: string): AgentConversation => ({ id, projectId, title: id, mode: 'byok', runtimeSessionId: null, messages: [], createdAt: '2026-10-01', updatedAt: '2026-10-01' });
-const initial = useAgentChatStore.getState(); const initialEdits = useAgentEditStore.getState();
+const initial = useAgentChatStore.getState();
 const initialUi = useUiStore.getState();
 const listeners = new Set<(entry: AgentRuntimeJournalEntry) => void>();
 const initialSettings = useSettingsStore.getState();
 const projectId = 'synthetic-preparation-project'; const conversationId = 'synthetic-preparation-conversation';
 const sessionId = 'synthetic-preparation-session';
-const revert = { projectId, sessionId, entityType: 'node' as const, id: 'synthetic-node', blockId: 'synthetic-block', op: 'changed' as const, restoredText: 'Synthetic restored prose' };
 function run() {
   return { projectId, transcript: AgentChatTranscript.from([]), runtimeSessionId: sessionId,
     journalScope: createAgentChatJournalScope(), controlStatus: null, pendingControl: null, lastTerminal: null,
@@ -61,12 +59,11 @@ beforeEach(() => {
   });
   useAgentChatStore.setState({ ...initial, boundProjectId: projectId, activeConvId: conversationId,
     runs: { [conversationId]: run(), target: { ...run(), runtimeSessionId: 'synthetic-second-session' } }, prompt: 'Synthetic author prompt', refreshList: () => undefined }, true);
-  useAgentEditStore.setState({ pendingReverts: [revert] });
 });
 afterEach(() => {
   vi.useRealTimers(); useUiStore.setState(initialUi, true);
   restoreTransport(); useAgentChatStore.setState(initial, true);
-  useAgentEditStore.setState(initialEdits, true); useSettingsStore.setState(initialSettings, true);
+  useSettingsStore.setState(initialSettings, true);
 });
 
 async function settle() { for (let index = 0; index < 20; index++) await Promise.resolve(); }

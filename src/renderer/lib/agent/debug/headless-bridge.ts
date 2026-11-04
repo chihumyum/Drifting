@@ -12,12 +12,6 @@ import type {
 } from '../runtime/types';
 import { useAgentChatStore } from '../../../store/agent-chat-store';
 import { useSettingsStore } from '../../../store/settings-store';
-import {
-  acceptDriftingAgentWriteReview,
-  acceptDriftingAgentWriteReviewBlock,
-  rejectDriftingAgentWriteReview,
-  rejectDriftingAgentWriteReviewBlock,
-} from '../useDriftingAgentRuntime';
 
 const EVENT_BATCH_DELAY_MS = 24;
 const RETRY_DELAY_MS = 1_000;
@@ -42,23 +36,9 @@ interface DebugTurnRequest {
   permissionMode: PermissionMode;
   userInputs: string[];
   autoContinue: boolean;
-  editMode?: 'auto' | 'approve';
   thinking?: AgentThinkingChoice;
   effort?: AgentEffortChoice;
 }
-
-interface DebugReviewRequest {
-  kind: 'review';
-  requestId: string;
-  projectId: string;
-  reviewId: string;
-  blockId?: string;
-  decision: 'accept' | 'reject';
-  note?: string;
-  timeoutMs: number;
-}
-
-type DebugRequest = DebugTurnRequest | DebugReviewRequest;
 
 interface InstallHeadlessBridgeOptions {
   projectId: string;
@@ -214,11 +194,7 @@ async function consumeDebugRequestStream(
           const payload = JSON.parse(line) as unknown;
           if (isRecord(payload) && payload.type === 'request') {
             const request = parseDebugRequest(payload.request, projectId);
-            if (request.kind === 'turn') {
-              await executeDebugTurn(baseUrl, request, signal);
-            } else {
-              await executeDebugReview(baseUrl, request, signal);
-            }
+            await executeDebugTurn(baseUrl, request, signal);
           }
         }
         newline = buffered.indexOf('\n');
@@ -229,31 +205,11 @@ async function consumeDebugRequestStream(
   }
 }
 
-function parseDebugRequest(value: unknown, projectId: string): DebugRequest {
+function parseDebugRequest(value: unknown, projectId: string): DebugTurnRequest {
   if (!isRecord(value)) throw new Error('Agent debug broker returned an invalid request');
   if (value.projectId !== projectId) throw new Error('Agent debug request project does not match');
   if (typeof value.requestId !== 'string') {
     throw new Error('Agent debug request is missing requestId');
-  }
-  if (value.kind === 'review') {
-    if (
-      typeof value.reviewId !== 'string' ||
-      (value.decision !== 'accept' && value.decision !== 'reject')
-    ) {
-      throw new Error('Agent debug review request is invalid');
-    }
-    return {
-      kind: 'review',
-      requestId: value.requestId,
-      projectId,
-      reviewId: value.reviewId,
-      ...(typeof value.blockId === 'string' && value.blockId.trim()
-        ? { blockId: value.blockId.trim() }
-        : {}),
-      decision: value.decision,
-      ...(typeof value.note === 'string' ? { note: value.note } : {}),
-      timeoutMs: 120_000,
-    };
   }
   if (value.kind !== 'turn' || typeof value.prompt !== 'string') {
     throw new Error('Agent debug turn request is missing kind or prompt');
@@ -278,9 +234,6 @@ function parseDebugRequest(value: unknown, projectId: string): DebugRequest {
     userInputs: Array.isArray(value.userInputs)
       ? value.userInputs.filter((item): item is string => typeof item === 'string')
       : [],
-    ...(value.editMode === 'auto' || value.editMode === 'approve'
-      ? { editMode: value.editMode }
-      : {}),
     ...(value.thinking === 'adaptive' || value.thinking === 'off'
       ? { thinking: value.thinking }
       : {}),
@@ -294,92 +247,6 @@ function parseDebugRequest(value: unknown, projectId: string): DebugRequest {
       ? { effort: value.effort }
       : {}),
   };
-}
-
-async function executeDebugReview(
-  baseUrl: URL,
-  request: DebugReviewRequest,
-  signal: AbortSignal,
-): Promise<void> {
-  const emitter = new DebugEventBatcher(baseUrl, request.requestId);
-  emitter.emit({
-    type: 'bridge_started',
-    projectId: request.projectId,
-    operation: 'review',
-  });
-  try {
-    if (signal.aborted) throw new DOMException('Debug bridge stopped', 'AbortError');
-    const context = getActiveAgentToolContext();
-    if (!context || context.projectId !== request.projectId) {
-      throw new Error('The requested project does not have an active renderer tool context');
-    }
-    if (useAgentChatStore.getState().runningConvId) {
-      throw new Error('A review cannot settle while an Agent turn is running');
-    }
-    const note = request.note ? { note: request.note } : undefined;
-    const result = request.blockId
-      ? request.decision === 'accept'
-        ? await acceptDriftingAgentWriteReviewBlock(request.reviewId, request.blockId, note)
-        : await rejectDriftingAgentWriteReviewBlock(request.reviewId, request.blockId, note, signal)
-      : request.decision === 'accept'
-        ? await acceptDriftingAgentWriteReview(request.reviewId, note)
-        : await rejectDriftingAgentWriteReview(request.reviewId, note, signal);
-    const blockResult = request.blockId
-      ? (result as Awaited<ReturnType<typeof acceptDriftingAgentWriteReviewBlock>>)
-      : null;
-    emitter.emit({
-      type: 'review_result',
-      result: {
-        review: {
-          id: result.review.id,
-          status: result.review.status,
-          effectId: result.review.effectId,
-          revertEffect: result.review.revertEffect,
-          errorCode: result.review.errorCode,
-          errorMessage: result.review.errorMessage,
-          acceptedAt: result.review.acceptedAt,
-          rejectedAt: result.review.rejectedAt,
-          settledAt: result.review.settledAt,
-        },
-        effect: {
-          id: result.effect.id,
-          phase: result.effect.phase,
-          toolName: result.effect.toolName,
-        },
-        ...(blockResult
-          ? {
-              block: {
-                reviewId: blockResult.block.reviewId,
-                blockId: blockResult.block.blockId,
-                ordinal: blockResult.block.ordinal,
-                status: blockResult.block.status,
-                decisionNote: blockResult.block.decisionNote,
-                settledAt: blockResult.block.settledAt,
-                errorCode: blockResult.block.errorCode,
-                errorMessage: blockResult.block.errorMessage,
-              },
-            }
-          : {}),
-      },
-    });
-    emitter.emit({
-      type: 'bridge_completed',
-      projectId: request.projectId,
-      operation: 'review',
-      reviewId: result.review.id,
-      ...(request.blockId ? { blockId: request.blockId } : {}),
-      status: result.review.status,
-    });
-    await emitter.finish();
-  } catch (error) {
-    emitter.emit({
-      type: 'bridge_failed',
-      projectId: request.projectId,
-      operation: 'review',
-      error: error instanceof Error ? error.message : String(error),
-    });
-    await emitter.finish().catch(() => undefined);
-  }
 }
 
 async function executeDebugTurn(

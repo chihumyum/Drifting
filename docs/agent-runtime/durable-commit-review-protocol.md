@@ -1,4 +1,4 @@
-# Durable turn, write and editor-review protocol
+# Durable turn, write and settlement-receipt protocol
 
 This document defines the Milestone C transaction boundary. It is normative:
 tests may add stronger guarantees, but product code must not introduce a second
@@ -13,12 +13,15 @@ Pre-execution permissions for destructive operations remain independent.
 The tool registry and generated capability inventory classify ordinary prose,
 field and patch updates as automatic.
 
-SQLite review rows remain internal durable receipts and recovery evidence.
-Existing pending reviews automatically keep their committed changes on project
-hydration or interrupted-turn recovery. Previously entered block inverses finish
-through their original guarded recovery before remaining blocks settle.
-Historical `approve` snapshot values remain readable; no product setting or
-debug request can select that mode. A test-only override exercises old receipts.
+SQLite review rows are internal settlement receipts, not author decisions.
+Migration `0018` (2026-11-05) retired the reject/revert half of the old review
+protocol: its states and the columns that recorded them are gone, and a
+database still holding a reject decision is refused rather than losing it. A
+receipt left unsettled by a crash settles on project hydration or
+interrupted-turn recovery. Every certified write still persists its preimage
+and guarded effect-level inverse; that inverse backs the Revert column of the
+generated capability inventory and is not an author-facing action. The author
+undoes an Agent edit from entity snapshot history.
 
 Sidebar A/M markers, group counts and tab dots are unread presentation.
 Clicking an item marker marks only that entity read; a group count marks its
@@ -48,16 +51,16 @@ hosted-service acceptance are not part of this report.
 | --- | --- | --- |
 | Manuscript prose | live Yjs document plus its persisted updates | editor DOM, `contentJson`, reveal overlays |
 | Agent write execution | SQLite `agent_runtime_write_effect` state machine and certified receipt | tool result presentation |
-| Write settlement and historical decisions | SQLite review plus ordered review-block rows | Zustand/localStorage unread badges and reveal masks |
+| Write settlement | SQLite settlement receipt plus ordered receipt-block rows | Zustand/localStorage unread badges and reveal masks |
 | Conversation adoption | committed SQLite turn checkpoint with the exact history hash | in-memory provider history and panel rendering |
 | Animation | none; deliberately ephemeral | React reveal/commit maps |
 
-LocalStorage is never permission, mutation or review authority. Losing it may
-lose only unread presentation; opening a project settles historical unresolved
-reviews from SQLite and immutable write evidence.
+LocalStorage is never permission, mutation or settlement authority. Losing it
+may lose only unread presentation; opening a project settles unsettled receipts
+from SQLite and immutable write evidence.
 
 The `agent-edit-pending` localStorage cache is best-effort and limited to
-512 Ki UTF-16 code units for the complete serialized v1 envelope (about 1 MiB
+512 Ki UTF-16 code units for the complete serialized v2 envelope (about 1 MiB
 of text). Before/after prose and review batches can otherwise exceed the shared
 WebView quota during Added first-open seeding. Oversized or corrupt caches are
 discarded on read. Oversized snapshots, quota errors, and unavailable storage
@@ -65,18 +68,18 @@ never escape store actions: the complete live projection stays in memory and
 only this cache key is evicted, if storage permits, so a stale snapshot cannot
 resurrect an acknowledged reveal on reload. Other storage keys are untouched.
 Persistence resumes on the next write that fits. Reload under storage pressure
-may lose unread/reveal presentation and historical cached feedback; manuscript
-content and canonical write/review decisions remain in Yjs/SQLite. This requires
+may lose unread/reveal presentation; manuscript content and canonical write
+receipts remain in Yjs/SQLite. This requires
 no database migration or reset. Acceptance injects storage failures into the
 production store and exhausts real localStorage in an isolated Chromium origin
 before exercising reveal and sidebar acknowledgement. Native WKWebView quota
 acceptance is not covered by that browser report.
 
-For an auto-mode prose write targeting an editor whose live `Y.Doc` is open,
+For a prose write targeting an editor whose live `Y.Doc` is open,
 the renderer installs an ephemeral block guard synchronously after the SQLite
 transaction commits and immediately before the committed update enters that
 `Y.Doc`. The guard is presentation only, is never persisted, and cannot create
-or settle a review. Canonical review projection replaces the guard and pending
+or settle a receipt. Canonical receipt projection replaces the guard and pending
 mask in one store transition; a failed live merge removes it. This closes the
 post-commit window without weakening Yjs or SQLite authority.
 
@@ -94,37 +97,43 @@ claimed/confirmed ---------------------------------------> declined/failed
   before mutation; an irreversible write must not claim an exact inverse.
 - A renderer receipt may prove an entered mutation committed after restart.
   Without proof, the effect is `uncertain` and is never blindly replayed.
-- A review may be created only for a `result_committed` effect and carries the
-  same effect/session/turn/tool-call provenance.
+- A settlement receipt may be created only for a `result_committed` effect and
+  carries the same effect/session/turn/tool-call provenance.
 
-## Historical review-block recovery state machine
+## Settlement receipt state machine
 
 ```text
-pending -----------------------------> accepted
-   |
-   +-> revert_started -> reverted
-             |
-             +-> revert_failed -> revert_started
+receipt: pending -> accepted -> accepted_effect
+block:   pending -> accepted
 ```
 
-- Block identity and order are derived from the immutable certified write
-  effect, then inserted in the same transaction as the parent review.
-- Accepting a block is one SQLite compare-and-set.
-- Rejecting a block first commits `revert_started`, then runs the guarded Yjs
-  inverse, then commits `reverted`. A crash at either boundary is recoverable.
-- Once every block is terminal, the repository settles the parent review in the
-  same transaction: all reverted becomes `reverted`; any accepted block becomes
-  `accepted_effect`. The canonical decision note contains the ordered decisions.
-- Whole-effect review operations remain compatibility paths for effects that do
-  not expose block review. Current automatic writes settle their effect-level receipt immediately.
+- A certified prose write creates one deterministic receipt right after its
+  effect reaches `result_committed`, then settles it to `accepted_effect` before
+  its editor projection. Metadata and structural writes create none.
+- A receipt that owns ordered block rows settles through them: each block is
+  one SQLite compare-and-set, and the repository settles the parent receipt in
+  the same transaction as its last block. A receipt without blocks settles
+  through its own `pending -> accepted -> accepted_effect` compare-and-set.
+  Current writes create receipts without blocks.
+- Every transition is idempotent: replaying an already applied transition
+  returns the settled row unchanged.
+- Project hydration and interrupted-turn recovery settle every `pending` or
+  `accepted` receipt of the mounted project; neither replays the write nor its
+  editor projection.
+- Migration `0018` dropped `decision_note_json`, `revert_effect_json`,
+  `error_code`, `error_message`, `rejected_at` and `revert_started_at` from the
+  receipt and the same columns (minus `rejected_at`) from its blocks. Its
+  guard aborts the migration, leaving the source database untouched, when any
+  receipt is outside `pending`/`accepted`/`accepted_effect` or any block is
+  outside `pending`/`accepted`.
 
 ## Turn adoption rule
 
 A completed model response is adopted into future provider context only after
 the exact durable turn checkpoint commits. A failed commit must not mutate the
 in-memory adopted history. Independently committed manuscript effects remain
-real and are reconciled through their own ledger; their review/decision evidence
-is pinned into the next context instead of pretending the failed turn committed.
+real and are reconciled through their own ledger; their settlement receipts are
+pinned into the next context instead of pretending the failed turn committed.
 
 This deliberately separates two facts that can coexist:
 
@@ -151,15 +160,10 @@ history.
 | After claim/confirm, before mutation | `claimed`/`confirmed` | replay the unentered operation with the same idempotency key |
 | After `mutation_started`, before Yjs mutation | entered effect, no receipt | strategy inspection proves no commit or leaves `uncertain`; never blind replay |
 | After Yjs mutation, before `effect_committed` | entered effect plus product receipt/revision | reconcile receipt and commit the original canonical result |
-| After result, before review insert | `result_committed`, no review | deterministically recreate the provenance-bound review and ordered blocks |
-| After review insert, before local projection | pending SQLite review | settle committed changes automatically on project hydration |
-| After block accept, before local projection | block `accepted` | hydration hides only that block and preserves the rest |
-| After `revert_started`, before Yjs inverse | block `revert_started`, agent postimage present | retry the guarded inverse |
-| After Yjs inverse, before `reverted` | block `revert_started`, preimage already present | idempotent inverse recognizes/restores the same preimage, then records `reverted` |
-| Concurrent unrelated author edit | live Yjs contains both histories | inverse touches only the certified block; unrelated blocks survive |
-| Concurrent edit of the same certified block | postimage no longer matches | fail closed as `revert_failed`; never overwrite the author silently |
-| After all blocks terminal, before UI cleanup | terminal parent review | hydration removes the batch; animation may be lost but content/decision cannot change |
-| After model execution, before turn commit | effects may be committed, turn checkpoint absent | do not adopt provider history; surface commit failure and pin independent effect/review evidence next turn |
+| After result, before receipt insert | `result_committed`, no settlement receipt | deterministically recreate the provenance-bound receipt and settle it |
+| After receipt insert, before settlement | `pending` or `accepted` receipt | settle it on project hydration or interrupted-turn recovery |
+| After settlement, before local projection | `accepted_effect` receipt | the write stands; only unread presentation may be lost |
+| After model execution, before turn commit | effects may be committed, turn checkpoint absent | do not adopt provider history; surface commit failure and pin independent effect/receipt evidence next turn |
 
 ## Added first-open presentation
 
@@ -177,7 +181,7 @@ sidebar marker explicitly acknowledges it before opening.
 
 Creation treats every textual top-level block as `new` and, when reveal
 animation is enabled, masks the durable live block before paint until its reveal
-completes. Historical approval-mode creates settle automatically during recovery.
+completes.
 
 Stable block ids come from the schema-safe creation seed. Before those ids are
 materialized, a ProseMirror decoration masks initial textual blocks; after
@@ -198,7 +202,7 @@ Machine coverage for this preference lives in `settings-store-appearance.test.ts
 `agent-decoration-controller.test.ts`, and `agent-edit-animation.test.ts`.
 
 Prose reveal speed follows the current editor's outstanding paragraph count,
-including offscreen pending changes and active reveal overlays. Review/block
+including offscreen pending changes and active reveal overlays. Receipt/block
 identity deduplicates a pending change and its overlay; fields and other editors
 do not inflate this count.
 Each overlay samples the count when it starts. Relative to the original pace,
@@ -270,26 +274,25 @@ runtime replay tests, and the domain CRUD/Yjs integration suites.
 Milestone C cannot close from mocked UI tests alone. Its gate must exercise:
 
 1. the real Drizzle migrations against a file-backed SQLite database;
-2. multi-block accept, mixed accept/reject and reject-all settlement;
+2. ordered receipt blocks settling their parent receipt atomically;
 3. duplicate actions and invalid compare-and-set transitions;
-4. loss/corruption of localStorage followed by project hydration;
-5. restart from every `revert_started` boundary;
-6. Yjs unrelated-author edits and same-block conflict behavior;
-7. turn commit success, transient retry and permanent fail-closed context
+4. a receipt left unsettled after the prose committed, settled on project or
+   session hydration without replaying the write;
+5. loss of localStorage followed by project hydration;
+6. turn commit success, transient retry and permanent fail-closed context
    adoption;
-8. deterministic report generation plus full typecheck/test/capability drift
+7. deterministic report generation plus full typecheck/test/capability drift
    gates.
 
 Native animation appearance still requires user visual acceptance, but the
-animation selection and accepted/reverted direction must be covered by pure
-tests. Reveal overlays and their per-block controls must portal into the
-positioned in-flow editor spread and use scroll-content coordinates; they must
-not chase asynchronously scrolled prose from a fixed body layer. Animation
-failure never changes the durable decision. With reveal animation enabled in
-auto mode, every already-durable
-`new` or `changed` prose block is masked in the real ProseMirror flow until its
-overlay completes, for existing files and Added first-open prose alike. The
-completed overlay and real block swap atomically; the finished live text must
-never paint underneath a duplicate reveal. Tests must cover the pre-live guard
-running before `Y.applyUpdate`, its atomic handoff to the provenance-bound
-review, and the ordinary pending-mask lifecycle.
+animation selection must be covered by pure tests. Reveal overlays must portal
+into the positioned in-flow editor spread and use scroll-content coordinates;
+they must not chase asynchronously scrolled prose from a fixed body layer.
+Animation failure never changes the durable write. With reveal animation
+enabled, every already-durable `new` or `changed` prose block is masked in the
+real ProseMirror flow until its overlay completes, for existing files and Added
+first-open prose alike. The completed overlay and real block swap atomically;
+the finished live text must never paint underneath a duplicate reveal. Tests
+must cover the pre-live guard running before `Y.applyUpdate`, its atomic
+handoff to the provenance-bound receipt, and the ordinary pending-mask
+lifecycle.

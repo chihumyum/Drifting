@@ -101,7 +101,6 @@ import { proseDocId, isProseEntityType, type ProseEntityType } from '../yjs-doc-
 import { eventBus } from '../events';
 import { requestAgentConfirm } from '../../store/confirmation-store';
 import { useAgentEditStore } from '../../store/agent-edit-store';
-import { effectiveAgentEditMode } from './agent-edit-mode';
 import type { AgentBlockChange } from './block-diff';
 import { entityKey, type ActivityEntityType } from './tool-entity-ref';
 import { summaryFieldChange, kvFieldChanges, patchFieldChange, fieldBlockId } from './field-diff';
@@ -127,7 +126,7 @@ function mergeKv(existingJson: string | null | undefined, updates: KvEntry[]): s
 }
 
 /**
- * Seed the reviewable local edit surface with NON-PROSE field edits. General Agent
+ * Seed the unread local edit surface with NON-PROSE field edits. General Agent
  * writes carry durable provenance and are hard-authorized before dispatch, so
  * they must never create a second post-write approval control here.
  */
@@ -138,7 +137,7 @@ function recordFieldChanges(
   changes: AgentBlockChange[],
 ): void {
   if (ctx.provenance || changes.length === 0) return;
-  useAgentEditStore.getState().record(entityType, id, changes, effectiveAgentEditMode());
+  useAgentEditStore.getState().record(entityType, id, changes);
 }
 
 /** Patch ids this element has SOFT-deleted (agent ran delete_element_patch, but

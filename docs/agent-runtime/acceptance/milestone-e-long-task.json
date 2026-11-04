@@ -3,8 +3,8 @@
   "schemaVersion": 1,
   "nodeVersion": "v22.23.1",
   "platform": "darwin",
-  "gitHead": "410e5b8719666be9d268a99802df5b4f01aa836a",
-  "sourceSetSha256": "sha256:bbe840e8268f740866f73d9b3fe9eb7a67b6a237dd25ad51ac74f51fc7c50db9",
+  "gitHead": "aafecab3abc717df8eecf31cca3daaf7562a5e4d",
+  "sourceSetSha256": "sha256:9430e08010c5308e9b3a289fb7d55228728787be62fa50171a8a47a2da625169",
   "execution": {
     "defaultTaskBudgets": "unlimited",
     "safeStop": "after-current-tool",
@@ -25,8 +25,8 @@
       "discovered": 18
     },
     "tests": {
-      "total": 262,
-      "passed": 262,
+      "total": 260,
+      "passed": 260,
       "failed": 0,
       "pending": 0,
       "todo": 0
@@ -80,8 +80,8 @@
         "requiredFiles": 3,
         "discoveredFiles": 3,
         "tests": {
-          "total": 59,
-          "passed": 59,
+          "total": 57,
+          "passed": 57,
           "failed": 0,
           "pending": 0
         },
@@ -104,8 +104,8 @@
         "matches": 1,
         "passed": true
       },
-      "mixedReviewProgress": {
-        "requiredName": "continues independent runnable work while another step awaits review and pauses for review-only work",
+      "mixedReceiptProgress": {
+        "requiredName": "schedules runnable work and pauses when only unsettled steps remain",
         "matches": 1,
         "passed": true
       },

@@ -33,15 +33,12 @@ import { v7 as uuidv7 } from 'uuid';
 import { useSettingsStore } from './settings-store';
 import { useProjectStore } from './project-store';
 import { useAgentActivityStore } from './agent-activity-store';
-import { useDataStore } from './data-store';
-import { useAgentEditStore } from './agent-edit-store';
-import type { ActivityEntityType } from '../lib/agent/tool-entity-ref';
 import { AgentConversationLoadGuard, createAgentConversationListController } from '../lib/agent/runtime/chat-conversation-navigation';
 import { createAgentConversationRemovalOwner } from '../lib/agent/runtime/chat-conversation-removal';
 import type { AgentConversationRemovalReceipt } from '../sqlite-repo/agent-conversation-repo';
 import { hydrateAgentConversationRun } from '../lib/agent/runtime/chat-conversation-hydration';
 import { createAgentChatStartOwner } from '../lib/agent/runtime/chat-start-owner';
-import { buildAgentChatRevertNote, prepareAgentChatMemories } from '../lib/agent/runtime/chat-send-preparation';
+import { prepareAgentChatMemories } from '../lib/agent/runtime/chat-send-preparation';
 import { createAgentConversationRepository } from '../sqlite-repo/agent-conversation-repo';
 import { createAgentRuntimeLongTaskRepository } from '../sqlite-repo/agent-runtime-long-task-repo';
 import type {
@@ -98,24 +95,6 @@ function deriveTitle(text: string): string {
   const t = text.replace(/\s+/g, ' ').trim();
   if (!t) return 'New chat';
   return t.length > 40 ? `${t.slice(0, 40)}…` : t;
-}
-
-/** Human name for a prose entity, from the in-memory data store (mirrors
- *  tool-handlers' entityLabel). */
-function entityDisplayName(entityType: ActivityEntityType, id: string): string {
-  const s = useDataStore.getState();
-  switch (entityType) {
-    case 'node':
-      return s.bookNodes.find((n) => n.id === id)?.title ?? id;
-    case 'element':
-      return s.bookElements.find((e) => e.id === id)?.name ?? id;
-    case 'storyline':
-      return s.storylines.find((sl) => sl.id === id)?.name ?? id;
-    case 'category':
-      return s.bookElementCategories.find((c) => c.id === id)?.name ?? id;
-    default:
-      return id;
-  }
 }
 
 // ---- store -----------------------------------------------------------------
@@ -593,19 +572,11 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       });
       if (!prepared || !isCurrentStart() || !start.submit()) return;
 
-      // Drain rejected edits only once all cancellable preflight reads are done.
-      // The visible transcript keeps the original user text; only the provider
-      // prompt receives this system context.
-      const reverts = useAgentEditStore
-        .getState()
-        .drainReverts(projectId, run.runtimeSessionId);
-      // Durable write-review decisions are first-class pinned context rows in
-      // the product composition. Do not duplicate them into every user prompt;
+      // Durable write receipts are first-class pinned context rows in the
+      // product composition. Do not duplicate them into every user prompt;
       // that legacy path grew long tasks quadratically and blurred authorship.
-      const promptNotes = reverts.length ? [buildAgentChatRevertNote(reverts, entityDisplayName)] : [];
-      const promptToSend = promptNotes.length ? `${promptNotes.join('\n\n')}\n\n${text}` : text;
       const r = await (async () => generalAgentTransport.start({
-          prompt: promptToSend,
+          prompt: text,
           promptSource: isRuntimeContinuation ? 'runtime_continuation' : 'author',
           route: { kind: 'chat', projectId, conversationId: cid },
           projectId,

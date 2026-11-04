@@ -206,7 +206,7 @@ describe('DriftingWriteToolRuntime', () => {
     expect(repository.api.createReview).not.toHaveBeenCalled();
   });
 
-  it('recovers and automatically settles a missing legacy approval review without replaying editor UI', async () => {
+  it('recovers and settles a missing settlement receipt without replaying editor UI', async () => {
     const repository = memoryRepository();
     const createReview = repository.api.createReview.bind(repository.api);
     let failReviewCreation = true;
@@ -226,7 +226,7 @@ describe('DriftingWriteToolRuntime', () => {
           reviewSnapshot: {
             effectId,
             reviewId: `agent-review:${effectId}`,
-            mode: 'approve' as const,
+            mode: 'auto' as const,
           },
         };
         return {
@@ -354,11 +354,17 @@ describe('DriftingWriteToolRuntime', () => {
     expect(repository.reviews()).toEqual([]);
   });
 
-  it.each(['project', 'session'] as const)('settles legacy blocks after an entered inverse during %s hydration', async (scope) => {
+  it.each(['project', 'session'] as const)('settles a pending block receipt during %s hydration', async (scope) => {
     const repository = memoryRepository();
-    const applyReviewBlockInverse = vi.fn(
-      async (_effect, blockId: string) => ({ restoredBlock: blockId }),
-    );
+    const createReview = repository.api.createReview.bind(repository.api);
+    let failReviewCreation = true;
+    repository.api.createReview = vi.fn(async (input) => {
+      if (failReviewCreation) {
+        failReviewCreation = false;
+        throw new Error('review storage unavailable');
+      }
+      return createReview(input);
+    });
     const projectReview = vi.fn(async () => undefined);
     const strategy: DriftingWriteStrategy = {
       prepare: async (writeRequest) => {
@@ -368,7 +374,7 @@ describe('DriftingWriteToolRuntime', () => {
           reviewSnapshot: {
             effectId,
             reviewId: `agent-review:${effectId}`,
-            mode: 'approve' as const,
+            mode: 'auto' as const,
           },
         };
         return {
@@ -384,11 +390,6 @@ describe('DriftingWriteToolRuntime', () => {
         kind: 'yjs_prose',
         handlerResult: result,
       }),
-      reviewBlocks: async () => [
-        { blockId: 'paragraph-a', ordinal: 0 },
-        { blockId: 'paragraph-b', ordinal: 1 },
-      ],
-      applyReviewBlockInverse,
       projectReview,
       applyInverse: async () => ({ ok: true }),
     };
@@ -401,55 +402,44 @@ describe('DriftingWriteToolRuntime', () => {
     const reviewId = `agent-review:${effectId}`;
 
     await expect(runtime.execute(input)).resolves.toMatchObject({
-      ok: true,
-      presentation: { review: { id: reviewId, status: 'pending' } },
+      ok: false,
+      error: 'review storage unavailable',
     });
-    expect(repository.reviewBlocks(reviewId)).toMatchObject([
-      { blockId: 'paragraph-a', status: 'pending' },
-      { blockId: 'paragraph-b', status: 'pending' },
-    ]);
-
+    const effect = repository.effect(effectId);
+    // A receipt with ordered blocks whose settlement stopped half way.
+    await repository.api.createReview({
+      id: reviewId,
+      effectId,
+      sessionId: effect.sessionId,
+      turnId: effect.turnId,
+      toolCallId: effect.toolCallId,
+      createdAt: iso(20),
+      blocks: [
+        { blockId: 'paragraph-a', ordinal: 0 },
+        { blockId: 'paragraph-b', ordinal: 1 },
+      ],
+    });
     await repository.api.transitionReviewBlock({
       reviewId,
-      blockId: 'paragraph-b',
+      blockId: 'paragraph-a',
       expectedStatus: 'pending',
-      nextStatus: 'revert_started',
-      decisionNote: 'reject after restart',
-      at: iso(20),
+      nextStatus: 'accepted',
+      at: iso(21),
     });
+
     if (scope === 'project') {
-      await expect(runtime.reconcileProjectReviews('project-1')).resolves.toEqual({ projected: 0, unresolved: 0 });
+      await expect(runtime.reconcileProjectReviews('project-1')).resolves.toEqual({ settled: 1, unresolved: 0 });
     } else {
       await expect(runtime.reconcileInterruptedWrites('session-1')).resolves.toEqual({ inspected: 0, reconciled: 0, unresolved: 0, issues: [] });
     }
-    expect(applyReviewBlockInverse).toHaveBeenCalledOnce();
     expect(repository.reviewBlocks(reviewId)).toMatchObject([
       { blockId: 'paragraph-a', status: 'accepted' },
-      { blockId: 'paragraph-b', status: 'reverted' },
+      { blockId: 'paragraph-b', status: 'accepted' },
     ]);
-    // Hydration completes the entered inverse and keeps the remaining committed
-    // block automatically; no author action or new projection is required.
-    expect(repository.reviews()[0].status).toBe('accepted_effect');
-
-    const settled = await runtime.acceptReviewBlock(
-      reviewId,
-      'paragraph-a',
-      'accept remaining block',
-    );
-    expect(settled).toMatchObject({
-      review: { status: 'accepted_effect' },
-      block: { status: 'accepted' },
-    });
-    expect(repository.reviews()[0]).toMatchObject({
-      status: 'accepted_effect',
-      decisionNote: {
-        kind: 'block_review',
-        decisions: [
-          { blockId: 'paragraph-a', decision: 'accepted' },
-          { blockId: 'paragraph-b', decision: 'reverted' },
-        ],
-      },
-    });
+    expect(repository.reviews()).toEqual([
+      expect.objectContaining({ id: reviewId, status: 'accepted_effect' }),
+    ]);
+    expect(projectReview).not.toHaveBeenCalled();
   });
 
   it('fails closed on an unavailable write before claiming an effect', async () => {
@@ -835,15 +825,14 @@ function memoryRepository() {
         return { outcome: 'duplicate' as const, review: existing };
       }
       const review: PersistedAgentRuntimeWriteReview = {
-        ...input,
+        id: input.id,
+        effectId: input.effectId,
+        sessionId: input.sessionId,
+        turnId: input.turnId,
+        toolCallId: input.toolCallId,
+        createdAt: input.createdAt,
         status: 'pending',
-        decisionNote: null,
-        revertEffect: null,
-        errorCode: null,
-        errorMessage: null,
         acceptedAt: null,
-        rejectedAt: null,
-        revertStartedAt: null,
         settledAt: null,
         updatedAt: input.createdAt,
       };
@@ -855,12 +844,7 @@ function memoryRepository() {
           blockId: block.blockId,
           ordinal: block.ordinal,
           status: 'pending',
-          decisionNote: null,
-          revertEffect: null,
-          errorCode: null,
-          errorMessage: null,
           createdAt: input.createdAt,
-          revertStartedAt: null,
           settledAt: null,
           updatedAt: input.createdAt,
         });
@@ -893,34 +877,22 @@ function memoryRepository() {
       if (!current || !review || current.status !== transition.expectedStatus) {
         throw new Error('invalid test review block transition');
       }
-      const next = transitionReviewBlock(current, transition);
+      const next = {
+        ...current,
+        status: transition.nextStatus,
+        settledAt: transition.at,
+        updatedAt: transition.at,
+      };
       reviewBlocks.set(key, next);
       const blocks = [...reviewBlocks.values()]
         .filter((block) => block.reviewId === transition.reviewId)
         .sort((left, right) => left.ordinal - right.ordinal);
       let settledReview = review;
-      if (
-        blocks.length > 0 &&
-        blocks.every(
-          (block) => block.status === 'accepted' || block.status === 'reverted',
-        )
-      ) {
-        const allReverted = blocks.every(
-          (block) => block.status === 'reverted',
-        );
+      if (blocks.length > 0 && blocks.every((block) => block.status === 'accepted')) {
         settledReview = {
           ...review,
-          status: allReverted ? 'reverted' : 'accepted_effect',
-          decisionNote: {
-            schemaVersion: 1,
-            kind: 'block_review',
-            decisions: blocks.map((block) => ({
-              blockId: block.blockId,
-              decision: block.status,
-            })),
-          },
-          acceptedAt: allReverted ? review.acceptedAt : transition.at,
-          rejectedAt: allReverted ? transition.at : review.rejectedAt,
+          status: 'accepted_effect',
+          acceptedAt: transition.at,
           settledAt: transition.at,
           updatedAt: transition.at,
         };
@@ -1027,83 +999,9 @@ function transitionReview(
     status: transition.nextStatus,
     updatedAt: transition.at,
   };
-  switch (transition.nextStatus) {
-    case 'accepted':
-      return {
-        ...base,
-        acceptedAt: transition.at,
-        decisionNote: transition.decisionNote ?? null,
-      };
-    case 'rejected':
-      return {
-        ...base,
-        rejectedAt: transition.at,
-        decisionNote: transition.decisionNote ?? null,
-      };
-    case 'accepted_effect':
-      return { ...base, settledAt: transition.at };
-    case 'revert_started':
-      return {
-        ...base,
-        revertStartedAt: transition.at,
-        settledAt: null,
-        errorCode: null,
-        errorMessage: null,
-      };
-    case 'reverted':
-      return {
-        ...base,
-        settledAt: transition.at,
-        revertEffect: transition.revertEffect,
-      };
-    case 'revert_failed':
-    case 'revert_unavailable':
-      return {
-        ...base,
-        settledAt: transition.at,
-        errorCode: transition.errorCode,
-        errorMessage: transition.errorMessage ?? null,
-      };
-  }
-}
-
-function transitionReviewBlock(
-  current: PersistedAgentRuntimeWriteReviewBlock,
-  transition: AgentRuntimeWriteReviewBlockTransition,
-): PersistedAgentRuntimeWriteReviewBlock {
-  const base = {
-    ...current,
-    status: transition.nextStatus,
-    updatedAt: transition.at,
-  };
-  switch (transition.nextStatus) {
-    case 'accepted':
-      return {
-        ...base,
-        decisionNote: transition.decisionNote ?? null,
-        settledAt: transition.at,
-      };
-    case 'revert_started':
-      return {
-        ...base,
-        decisionNote: transition.decisionNote ?? current.decisionNote,
-        revertStartedAt: transition.at,
-        settledAt: null,
-      };
-    case 'reverted':
-      return {
-        ...base,
-        revertEffect: transition.revertEffect,
-        settledAt: transition.at,
-      };
-    case 'revert_failed':
-      return {
-        ...base,
-        errorCode: transition.errorCode,
-        errorMessage: transition.errorMessage ?? null,
-        settledAt: transition.at,
-      };
-  }
+  return transition.nextStatus === 'accepted'
+    ? { ...base, acceptedAt: transition.at }
+    : { ...base, settledAt: transition.at };
 }
 
 function updateNode(id: string, updates: { title?: string; summary?: string }): void {

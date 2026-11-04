@@ -1415,8 +1415,6 @@
       "paused": "계속하면 저장된 진행 상황에서 재개합니다."
     },
     "autoContinue": {
-      "waitingReviewTitle": "수정 검토 대기",
-      "waitingReviewBody": "현재 실행 가능한 단계가 모두 검토를 기다립니다. 보류 중인 수정을 검토한 뒤 계속하세요.",
       "noProgressTitle": "연속 실행에서 지속 가능한 진전이 없습니다",
       "noProgressBody": "Agent가 두 구간 연속 저장된 계획을 진전시키지 못해 추가 사용 전에 일시정지했습니다. 마지막 도구 오류를 확인한 뒤 계속하세요.",
       "safetyTitle": "연속 실행 일시정지",

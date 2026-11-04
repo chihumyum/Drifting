@@ -56,6 +56,8 @@ Yjs content through commit. The [historical investigation baseline](acceptance/e
 recorded one review-decoration rebuild during composition; the current report
 requires zero. Neither baseline nor current Chromium run reproduces the author's
 spontaneous expanded-selection symptom; neither uses WebKit or the macOS IME.
+The runner's pending-review mode and the approve-mode diff decorations it
+exercised were removed on 2026-11-05; the generated reports predate that.
 
 The author's follow-up screenshot shows both the highlighted marked text and
 the status bar's selected-word count. That count reads ProseMirror TextSelection,

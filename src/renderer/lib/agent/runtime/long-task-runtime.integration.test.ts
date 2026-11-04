@@ -314,7 +314,6 @@ async function createAcceptedWriteReview(
     reviewId,
     expectedStatus: 'pending',
     nextStatus: 'accepted',
-    decisionNote: 'accepted in test',
     at: NOW,
   });
   await repository.transitionReview({
@@ -487,7 +486,6 @@ async function createProjectWriteReview(test: Fixture, settle: boolean): Promise
       reviewId,
       expectedStatus: 'pending',
       nextStatus: 'accepted',
-      decisionNote: 'auto mode',
       at: NOW,
     });
     await repository.transitionReview({

@@ -19,7 +19,7 @@ project structure remains authoritative in SQLite.
    restarts paid or mutating work unattended.
 3. Stop means: do not schedule another tool; let the currently entered tool
    reach its durable boundary, then terminate the turn. Already committed
-   effects remain governed by their receipts/reviews.
+   effects remain governed by their receipts.
 4. A running-turn correction is steering. It is journaled once and appended as
    a user model message exactly once at the next model boundary.
 5. Product-generated continuation prompts enter canonical model history but
@@ -129,9 +129,9 @@ finding quote against the exact source, and binds its own evidence ref. Wrong
 targets, forged quotes, incomplete pages and provider-invented refs fail and
 roll the step command back. The verified evidence reconstructs after restart.
 
-A legacy pending inline review blocks only its own step. Independent pending or
-in-progress steps remain runnable. A blocked step becomes actionable again
-only when durable review evidence is settled; missing or `revert_started`
+A write whose settlement receipt is still unsettled blocks only its own step.
+Independent pending or in-progress steps remain runnable. A blocked step
+becomes actionable again only when its durable receipt is settled; missing
 evidence is not runnable.
 
 ## Continuation state machine
@@ -143,7 +143,7 @@ checkpoints the completed tool results and ends the slice without a tool-free
 model summary. The renderer records **Progress saved** in the usage row and
 shows **Progress saved. Preparing to continue…** while checking the plan, then
 **Progress saved. Continuing…** only once the scheduler has queued continuation.
-Paused, stopped, review-only and failed states never promise automatic work.
+Paused, stopped and failed states never promise automatic work.
 Both desktop and mobile render this host-owned status; it is not a fabricated
 assistant message and never becomes provider history. Canonical replay and
 portable conversation display retain the saved-progress marker. Actual tool,
@@ -155,7 +155,7 @@ The durable plan and renderer-lifetime continuation authorization are separate:
 ```text
 author turn -> armed -> terminal -> evaluate durable plan
                                |-> runnable/reconcile/finalize -> next slice
-                               |-> review-only/user/permission -> paused
+                               |-> user/permission/no actionable work -> paused
                                |-> two stagnant auto slices -> paused
                                |-> task terminal -> off
 ```
@@ -172,9 +172,10 @@ checklist; failed or declined writes never commit and still count as stagnant.
 This is a loop-safety rule, not a work quota; a progressing task can run for
 arbitrarily many slices.
 
-Mixed state is handled deliberately: if one step awaits review and another is
-runnable, continuation schedules the runnable work. `waiting_review` pauses
-only when no independent work, manifest reconciliation, or finalization remains.
+Mixed state is handled deliberately: if one step waits for its receipt to
+settle and another is runnable, continuation schedules the runnable work. It
+pauses with `no_actionable_work` only when no independent work, manifest
+reconciliation, or finalization remains.
 
 ## Author controls and restart
 
@@ -231,7 +232,7 @@ pnpm eval:agent:long-task
 
 The gate covers the current product SQLite baseline, command-receipt rollback,
 manifest mutation/reconciliation, close/reopen, product Yjs composition,
-multi-turn pinned context, mixed review state, unlimited progressing work,
+multi-turn pinned context, mixed receipt state, unlimited progressing work,
 committed writes as progress, stagnation pause, safe stop, exact steering,
 terminal manual resume, hidden continuation prompts, turns surviving a crashed
 workspace view, released-turn reconciliation, TypeScript, targeted ESLint, and

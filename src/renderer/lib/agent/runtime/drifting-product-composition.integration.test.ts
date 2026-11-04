@@ -33,7 +33,6 @@ import { useDataStore } from '../../../store/data-store';
 import { useProjectStore } from '../../../store/project-store';
 import { useSettingsStore } from '../../../store/settings-store';
 import { persistBookNodeUpdateWithSync } from '../../../usecase/book-node-write';
-import { setAgentEditModeOverride } from '../agent-edit-mode';
 import type { AgentToolContext, AgentWriteApi } from '../tool-handlers';
 import { ProductFileBackedSqliteGateway } from './acceptance/p3-file-backed-sqlite';
 import {
@@ -591,8 +590,6 @@ describe.sequential('Drifting Agent product composition', () => {
     useProjectStore.setState(initialProjectState, true);
     useSettingsStore.setState(initialSettingsState, true);
     useAgentEditStore.getState().clearAll();
-    setAgentEditModeOverride('auto');
-    setAgentEditModeOverride(null);
   });
 
   afterEach(async () => {
@@ -603,7 +600,6 @@ describe.sequential('Drifting Agent product composition', () => {
     useDataStore.setState(initialDataState, true);
     useProjectStore.setState(initialProjectState, true);
     useSettingsStore.setState(initialSettingsState, true);
-    setAgentEditModeOverride(null);
   });
 
   it('finishes an unchanged turn in one model round without a Working Memory call', async () => {
@@ -673,13 +669,12 @@ describe.sequential('Drifting Agent product composition', () => {
     ).toBe(NODE_ID);
   });
 
-  it('keeps safe metadata writes automatic when inline prose review is enabled', async () => {
+  it('commits a metadata write directly without a permission request or settlement receipt', async () => {
     const turnId = 'turn-hard-approval';
     const readCallId = 'summary-read-approved';
     const writeCallId = 'summary-approved';
     const summary = 'Approved summary.';
     const effectId = `agent-write:${SESSION_ID}:${turnId}:${writeCallId}`;
-    setAgentEditModeOverride('approve');
     harness = await ProductAgentHarness.create([
       {
         name: 'read the current summary',
@@ -741,23 +736,23 @@ describe.sequential('Drifting Agent product composition', () => {
     harness.driver.assertExhausted();
   });
 
-  it('writes prose immediately in approve mode and creates an inline editor review', async () => {
-    const turnId = 'turn-inline-review';
-    const readCallId = 'prose-read-reviewed';
-    const writeCallId = 'prose-write-reviewed';
-    const appendedText = 'A paragraph waiting for inline review.';
+  it('settles a prose receipt whose acknowledgement failed after Yjs committed during project hydration', async () => {
+    const turnId = 'turn-receipt-settlement-fault';
+    const readCallId = 'receipt-fault-read';
+    const writeCallId = 'receipt-fault-append';
+    const appendedText = 'Paragraph committed across a settlement fault.';
     const effectId = `agent-write:${SESSION_ID}:${turnId}:${writeCallId}`;
     const reviewId = `agent-review:${effectId}`;
-    setAgentEditModeOverride('approve');
+    const commandId = `agent-prose:${SESSION_ID}:${turnId}:${writeCallId}`;
     harness = await ProductAgentHarness.create([
       {
-        name: 'read prose before reviewed edit',
+        name: 'read before the settlement fault',
         steps: toolCallSteps(readCallId, 'read_chapter', {
           chapter: NODE_TITLE,
         }),
       },
       {
-        name: 'append prose for inline review',
+        name: 'append across the settlement fault',
         steps: toolCallSteps(writeCallId, 'revise_chapter', {
           chapter: NODE_TITLE,
           changes: [
@@ -769,258 +764,50 @@ describe.sequential('Drifting Agent product composition', () => {
         }),
       },
       {
-        name: 'finish reviewed prose turn',
-        steps: finalSteps('The paragraph is visible in the editor.'),
+        name: 'finish after the settlement fault',
+        steps: finalSteps('The paragraph was saved.'),
       },
     ]);
-    const seedState = await createYjsProseSeedState(CONTENT_JSON);
-    expect((await harness.composition.proseCoordinator.readBase(DOC_ID, seedState)).revision).toBe(
-      0,
+    harness.gateway.failNextExecute(
+      (sql, parameters) =>
+        /^update\s+["`]?agent_runtime_write_review["`]?\s/iu.test(sql.trim()) &&
+        parameters[0] === 'accepted',
+      'lost receipt settlement acknowledgement',
     );
 
     await harness.runTurn(turnId, 'Append one paragraph to Chapter One.');
 
+    // The prose committed once; only its settlement receipt is left pending.
     expect((await harness.contentRepository.findByNodeId(NODE_ID))?.contentJson).toContain(
       appendedText,
     );
     expect(await harness.composition.repositories.writeEffects.getEffect(effectId)).toMatchObject({
       phase: 'result_committed',
-      authorization: { kind: 'automatic', requestId: null },
     });
     expect(await harness.composition.repositories.writeEffects.getReview(reviewId)).toMatchObject({
-      effectId,
-      status: 'pending',
-    });
-    const editorState = useAgentEditStore.getState();
-    expect(editorState.reviewBatches[reviewId]).toMatchObject({
-      effectId,
-      reviewId,
-      entityType: 'node',
-      id: NODE_ID,
-    });
-    expect(editorState.pending[`node:${NODE_ID}`]?.changes).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          mode: 'approve',
-          reviewId,
-        }),
-      ]),
-    );
-    expect(
-      harness.events.filter(
-        (event) => event.turnId === turnId && event.event.type === 'permission_requested',
-      ),
-    ).toEqual([]);
-    expect(harness.scalar('SELECT count(*) FROM sync_change_set')).toBe(1);
-    expect(
-      harness.scalar("SELECT count(*) FROM sync_mutation WHERE target_kind = 'prose-document'"),
-    ).toBe(1);
-    expect(
-      harness.scalar("SELECT count(*) FROM sync_mutation WHERE target_kind = 'node'"),
-    ).toBe(0);
-
-    const rejected = await harness.composition.tools.rejectReview(
-      reviewId,
-      'Reject from editor test',
-    );
-    expect(await harness.composition.repositories.writeEffects.listReviewBlocks(reviewId)).toEqual([
-      expect.objectContaining({ status: 'reverted' }),
-    ]);
-    expect(rejected.review).toMatchObject({
-      id: reviewId,
-      status: 'reverted',
-    });
-    expect((await harness.contentRepository.findByNodeId(NODE_ID))?.contentJson).not.toContain(
-      appendedText,
-    );
-    harness.driver.assertExhausted();
-  });
-
-  it('rebuilds a lost inline review from file SQLite and settles mixed blocks against Yjs', async () => {
-    const turnId = 'turn-inline-review-restart';
-    const writeCallId = 'workspace-reviewed-edit';
-    const replacement = 'Accepted rewrite.\n\nRejected extra paragraph.';
-    const effectId = `agent-write:${SESSION_ID}:${turnId}:${writeCallId}`;
-    const reviewId = `agent-review:${effectId}`;
-    setAgentEditModeOverride('approve');
-    harness = await ProductAgentHarness.create([
-      {
-        name: 'read authored prose before mixed review',
-        steps: toolCallSteps('workspace-reviewed-read', 'read_chapter', {
-          chapter: NODE_TITLE,
-        }),
-      },
-      {
-        name: 'create two reviewable prose blocks',
-        steps: toolCallSteps(writeCallId, 'revise_chapter', {
-          chapter: NODE_TITLE,
-          changes: [
-            {
-              currentText: 'Before the Agent.',
-              revisedText: replacement,
-            },
-          ],
-        }),
-      },
-      {
-        name: 'finish mixed review turn',
-        steps: finalSteps('The two paragraph changes are ready in the editor.'),
-      },
-    ]);
-    await harness.runTurn(turnId, 'Rewrite the opening and add one paragraph.', 1, 'auto');
-
-    const blocks = await harness.composition.repositories.writeEffects.listReviewBlocks(reviewId);
-    expect(blocks).toHaveLength(2);
-    expect(blocks[0]).toMatchObject({
-      blockId: 'opening-block',
-      ordinal: 0,
       status: 'pending',
     });
 
-    // Simulate complete localStorage loss. SQLite + immutable effect evidence
-    // must rebuild both editor diffs without replaying the write.
     useAgentEditStore.getState().clearAll();
     await expect(harness.composition.tools.reconcileProjectReviews(PROJECT_ID)).resolves.toEqual({
-      projected: 1,
+      settled: 1,
       unresolved: 0,
     });
-    expect(
-      useAgentEditStore
-        .getState()
-        .pending[`node:${NODE_ID}`]?.changes.map((change) => change.blockId),
-    ).toEqual(blocks.map((block) => block.blockId));
-
-    await expect(
-      harness.composition.tools.acceptReviewBlock(
-        reviewId,
-        blocks[0]!.blockId,
-        'Keep the rewritten opening',
-      ),
-    ).resolves.toMatchObject({
-      review: { status: 'pending' },
-      block: { status: 'accepted' },
-    });
-
-    // Lose the local projection again after a partial decision. Hydration must
-    // hide the accepted block and keep exactly the undecided paragraph.
-    useAgentEditStore.getState().clearAll();
-    await harness.composition.tools.reconcileProjectReviews(PROJECT_ID);
-    expect(
-      useAgentEditStore
-        .getState()
-        .pending[`node:${NODE_ID}`]?.changes.map((change) => change.blockId),
-    ).toEqual([blocks[1]!.blockId]);
-
-    await expect(
-      harness.composition.tools.rejectReviewBlock(
-        reviewId,
-        blocks[1]!.blockId,
-        'Remove the extra paragraph',
-      ),
-    ).resolves.toMatchObject({
-      review: { status: 'accepted_effect' },
-      block: { status: 'reverted' },
-    });
-    expect(
-      await harness.composition.repositories.writeEffects.listReviewBlocks(reviewId),
-    ).toMatchObject([
-      { blockId: blocks[0]!.blockId, status: 'accepted' },
-      { blockId: blocks[1]!.blockId, status: 'reverted' },
-    ]);
     expect(await harness.composition.repositories.writeEffects.getReview(reviewId)).toMatchObject({
       status: 'accepted_effect',
-      decisionNote: {
-        kind: 'block_review',
-        decisions: [
-          { blockId: blocks[0]!.blockId, decision: 'accepted' },
-          { blockId: blocks[1]!.blockId, decision: 'reverted' },
-        ],
-      },
-    });
-    const content = (await harness.contentRepository.findByNodeId(NODE_ID))?.contentJson ?? '';
-    expect(content).toContain('Accepted rewrite.');
-    expect(content).not.toContain('Rejected extra paragraph.');
-    await expect(harness.composition.tools.reconcileProjectReviews(PROJECT_ID)).resolves.toEqual({
-      projected: 0,
-      unresolved: 0,
-    });
-    harness.driver.assertExhausted();
-  });
-
-  it('recovers when Yjs reverted but the durable block-settlement acknowledgement failed', async () => {
-    const turnId = 'turn-inline-review-fault';
-    const readCallId = 'fault-reviewed-read';
-    const writeCallId = 'fault-reviewed-append';
-    const appendedText = 'Paragraph removed across a settlement fault.';
-    const effectId = `agent-write:${SESSION_ID}:${turnId}:${writeCallId}`;
-    const reviewId = `agent-review:${effectId}`;
-    setAgentEditModeOverride('approve');
-    harness = await ProductAgentHarness.create([
-      {
-        name: 'read before faulted review',
-        steps: toolCallSteps(readCallId, 'read_chapter', {
-          chapter: NODE_TITLE,
-        }),
-      },
-      {
-        name: 'append before faulted review',
-        steps: toolCallSteps(writeCallId, 'revise_chapter', {
-          chapter: NODE_TITLE,
-          changes: [
-            {
-              currentText: 'Before the Agent.',
-              revisedText: `Before the Agent.\n\n${appendedText}`,
-            },
-          ],
-        }),
-      },
-      {
-        name: 'finish faulted review turn',
-        steps: finalSteps('The paragraph is pending inline review.'),
-      },
-    ]);
-    await harness.runTurn(turnId, 'Append a temporary paragraph.');
-    const [block] = await harness.composition.repositories.writeEffects.listReviewBlocks(reviewId);
-    expect(block).toMatchObject({ status: 'pending' });
-
-    harness.gateway.failNextExecute(
-      (sql, parameters) =>
-        sql.includes('agent_runtime_write_review_block') && parameters[0] === 'reverted',
-      'lost block settlement acknowledgement',
-    );
-    const first = await harness.composition.tools.rejectReviewBlock(
-      reviewId,
-      block!.blockId,
-      'Reject across injected fault',
-    );
-    expect(first).toMatchObject({
-      review: { status: 'pending' },
-      block: {
-        status: 'revert_failed',
-        errorCode: 'WRITE_BLOCK_REVERT_FAILED',
-      },
-    });
-    expect((await harness.contentRepository.findByNodeId(NODE_ID))?.contentJson).not.toContain(
-      appendedText,
-    );
-
-    // Restart/project hydration retries the guarded inverse. It observes that
-    // the preimage is already present, repairs projection if needed, and only
-    // then commits the terminal block/review rows.
-    useAgentEditStore.getState().clearAll();
-    await expect(harness.composition.tools.reconcileProjectReviews(PROJECT_ID)).resolves.toEqual({
-      projected: 0,
-      unresolved: 0,
+      settledAt: expect.any(String),
     });
     expect(
-      await harness.composition.repositories.writeEffects.listReviewBlocks(reviewId),
-    ).toMatchObject([{ status: 'reverted' }]);
-    expect(await harness.composition.repositories.writeEffects.getReview(reviewId)).toMatchObject({
-      status: 'reverted',
+      harness.scalar(
+        "SELECT count(*) FROM yjs_prose_command_receipt WHERE command_id = '" + commandId + "'",
+      ),
+    ).toBe(1);
+    // Hydration settles the receipt without replaying an editor projection.
+    expect(useAgentEditStore.getState().pending).toEqual({});
+    await expect(harness.composition.tools.reconcileProjectReviews(PROJECT_ID)).resolves.toEqual({
+      settled: 0,
+      unresolved: 0,
     });
-    expect((await harness.contentRepository.findByNodeId(NODE_ID))?.contentJson).not.toContain(
-      appendedText,
-    );
     harness.driver.assertExhausted();
   });
 
@@ -1087,7 +874,7 @@ describe.sequential('Drifting Agent product composition', () => {
     });
     expect(harness.scalar('SELECT count(*) FROM agent_runtime_write_review')).toBe(1);
     expect(useAgentEditStore.getState().pending[`node:${NODE_ID}`]?.changes).toEqual(
-      expect.arrayContaining([expect.objectContaining({ mode: 'auto', reviewId })]),
+      expect.arrayContaining([expect.objectContaining({ reviewId })]),
     );
     expect(harness.scalar('SELECT count(*) FROM sync_change_set')).toBe(1);
     expect(
@@ -1384,7 +1171,7 @@ describe.sequential('Drifting Agent product composition', () => {
     });
     expect(harness.scalar('SELECT count(*) FROM agent_runtime_write_review')).toBe(1);
     expect(useAgentEditStore.getState().pending[`node:${NODE_ID}`]?.changes).toEqual(
-      expect.arrayContaining([expect.objectContaining({ mode: 'auto', reviewId })]),
+      expect.arrayContaining([expect.objectContaining({ reviewId })]),
     );
     expect(
       await harness.composition.repositories.freshness.getReadReceipt(
@@ -1410,13 +1197,12 @@ describe.sequential('Drifting Agent product composition', () => {
     harness.driver.assertExhausted();
   });
 
-  it('routes whole-file prose replacement through the inline editor review', async () => {
+  it('settles a whole-file prose replacement and projects its unread receipt', async () => {
     const turnId = 'turn-workspace-whole-prose-review';
     const writeCallId = 'workspace-whole-prose-write';
     const replacement = 'Before the Agent, revised.\n\nA second reviewed paragraph.';
     const effectId = `agent-write:${SESSION_ID}:${turnId}:${writeCallId}`;
     const reviewId = `agent-review:${effectId}`;
-    setAgentEditModeOverride('approve');
     harness = await ProductAgentHarness.create([
       {
         name: 'read prose before complete replacement',
@@ -1433,7 +1219,7 @@ describe.sequential('Drifting Agent product composition', () => {
       },
       {
         name: 'finish whole-file prose replacement',
-        steps: finalSteps('The complete chapter replacement is ready for review.'),
+        steps: finalSteps('The complete chapter replacement is saved.'),
       },
     ]);
 
@@ -1449,8 +1235,9 @@ describe.sequential('Drifting Agent product composition', () => {
     });
     expect(await harness.composition.repositories.writeEffects.getReview(reviewId)).toMatchObject({
       effectId,
-      status: 'pending',
+      status: 'accepted_effect',
     });
+    expect(await harness.composition.repositories.writeEffects.listReviewBlocks(reviewId)).toEqual([]);
     expect(useAgentEditStore.getState().reviewBatches[reviewId]).toMatchObject({
       effectId,
       reviewId,
@@ -1461,14 +1248,13 @@ describe.sequential('Drifting Agent product composition', () => {
     harness.driver.assertExhausted();
   });
 
-  it('commits whole-chapter prose and summary together and restores the summary when one block is rejected', async () => {
+  it('commits whole-chapter prose and summary together as one authored change', async () => {
     const turnId = 'turn-workspace-prose-summary-review';
     const writeCallId = 'workspace-prose-summary-write';
     const replacement = '第一段已经收紧。\n\n第二段保留余韵。';
     const summary = '两段正文在同一场景内完成收束。';
     const effectId = `agent-write:${SESSION_ID}:${turnId}:${writeCallId}`;
     const reviewId = `agent-review:${effectId}`;
-    setAgentEditModeOverride('approve');
     harness = await ProductAgentHarness.create([
       {
         name: 'read prose before prose and summary replacement',
@@ -1511,19 +1297,10 @@ describe.sequential('Drifting Agent product composition', () => {
     ).toBe(1);
     expect(harness.scalar('SELECT count(*) FROM sync_change_set')).toBe(1);
 
-    const blocks = await harness.composition.repositories.writeEffects.listReviewBlocks(reviewId);
-    expect(blocks.length).toBeGreaterThan(0);
-    await expect(
-      harness.composition.tools.rejectReviewBlock(
-        reviewId,
-        blocks[0]!.blockId,
-        'Reject one changed passage',
-      ),
-    ).resolves.toMatchObject({ block: { status: 'reverted' } });
-    expect((await harness.nodeRepository.findById(NODE_ID))?.summary).toBe(INITIAL_SUMMARY);
-    expect(useDataStore.getState().bookNodes.find((node) => node.id === NODE_ID)?.summary).toBe(
-      INITIAL_SUMMARY,
-    );
+    expect(await harness.composition.repositories.writeEffects.getReview(reviewId)).toMatchObject({
+      effectId,
+      status: 'accepted_effect',
+    });
     harness.driver.assertExhausted();
   });
 

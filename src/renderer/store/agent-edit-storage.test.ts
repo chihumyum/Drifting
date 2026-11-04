@@ -36,18 +36,18 @@ describe('Agent edit cache quota recovery', () => {
 
     expect(() => store.beginAdditionReveal('category', 'synthetic-category', [change])).not.toThrow();
     expect(useAgentEditStore.getState().pending['category:synthetic-category'].changes).toEqual([
-      { ...change, mode: 'auto' },
+      change,
     ]);
     expect(values.has(key)).toBe(false);
     expect(() => store.resolveBlocks('category', 'synthetic-category', [change.blockId])).not.toThrow();
     expect(() => store.resolveAddition('category', 'synthetic-category')).not.toThrow();
     expect(useAgentEditStore.getState().additions).toEqual({});
 
-    expect(() => store.recordReview('node', 'synthetic-node', [change], 'auto', {
+    expect(() => store.recordReview('node', 'synthetic-node', [change], {
       reviewId: 'synthetic-review', effectId: 'synthetic-effect',
     })).not.toThrow();
     expect(() => store.markSeen(['node:synthetic-node'])).not.toThrow();
-    expect(store.recordReview('node', 'synthetic-node', [change], 'auto', {
+    expect(store.recordReview('node', 'synthetic-node', [change], {
       reviewId: 'synthetic-review', effectId: 'synthetic-effect',
     })).toBe(false);
     expect(useAgentEditStore.getState().pending).toEqual({});
@@ -60,7 +60,7 @@ describe('Agent edit cache quota recovery', () => {
     expect(JSON.parse(values.get(key)!).state.additions['node:later-node']).toBeDefined();
   });
 
-  it('evicts an oversized first-open cache without truncating live prose or changing the v1 envelope', async () => {
+  it('evicts an oversized first-open cache without truncating live prose or changing the v2 envelope', async () => {
     const store = useAgentEditStore.getState();
     store.recordAddition('node', 'long-node');
     const largeChange = { ...change, newText: '合'.repeat(AGENT_EDIT_CACHE_MAX_CHARS) };
@@ -73,7 +73,7 @@ describe('Agent edit cache quota recovery', () => {
     store.resolveBlocks('node', 'long-node', [change.blockId]);
     const saved = values.get(key)!;
     expect(saved.length).toBeLessThanOrEqual(AGENT_EDIT_CACHE_MAX_CHARS);
-    expect(JSON.parse(saved).version).toBe(1);
+    expect(JSON.parse(saved).version).toBe(2);
     useAgentEditStore.setState({ additions: {} });
     values.set(key, saved);
     await useAgentEditStore.persist.rehydrate();

@@ -92,8 +92,7 @@ function useAgentAddedFileReveal(
 /**
  * The review surface for ONE prose editor, as a single mountable unit: the
  * comment anchor highlights, the colored scrollbar ticks (overview ruler) + the
- * reveal / approve overlay (✓/✗ in approve mode, typewriter reveal in auto
- * mode). Mounted once
+ * Agent edit reveal overlay (typewriter reveal). Mounted once
  * per prose editor — chapter / element / storyline / category — so the review
  * wiring is identical everywhere and future review pieces are added in one file.
  *

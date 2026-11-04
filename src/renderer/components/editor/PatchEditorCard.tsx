@@ -14,12 +14,6 @@ import { useDataStore } from '../../store/data-store';
 import { useAgentEditStore } from '../../store/agent-edit-store';
 import { entityKey } from '../../lib/agent/tool-entity-ref';
 import {
-  approveDurableAgentReviewsForEntity,
-} from '../../lib/agent/durable-review-actions';
-import {
-  acceptDriftingAgentWriteReview,
-} from '../../lib/agent/useDriftingAgentRuntime';
-import {
   deleteElementPatchWithSync,
   updateElementPatchWithSync,
 } from '../../usecase/synced-entity-commands';
@@ -118,7 +112,7 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
   }, [patch.id, projectId, onDelete]);
 
   // The Agent write already committed. Keep its unread presentation until the
-  // card comes into view, then settle any historical durable review receipt.
+  // card comes into view, then acknowledge it.
   const cardRef = useRef<HTMLDivElement>(null);
   const patchChange = useAgentEditStore((s) => {
     const entry = s.pending[entityKey('element', patch.elementId)];
@@ -126,8 +120,6 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
       entry?.changes.find((c) => c.field?.kind === 'patch' && c.field.key === patch.id) ?? null
     );
   });
-  const reviewBatches = useAgentEditStore((s) => s.reviewBatches);
-  const reviewOrder = useAgentEditStore((s) => s.reviewOrder);
   const reviewMode = patchChange ? 'auto' : null;
   const isDeleting = patchChange?.op === 'deleted';
   const isChanged = patchChange?.op === 'changed';
@@ -135,39 +127,16 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
     const c = patchChange;
     if (!c) return;
     if (c.reviewId) {
-      void approveDurableAgentReviewsForEntity({
-        entityType: 'element',
-        id: patch.elementId,
-        batches: { reviewBatches, reviewOrder },
-        matchesBatch: (batch) =>
-          batch.changes.some(
-            (change) =>
-              change.field?.kind === 'patch' &&
-              change.field.key === patch.id,
-          ),
-        acceptReview: acceptDriftingAgentWriteReview,
-        onAllAccepted: (reviewIds) => {
-          useAgentEditStore.getState().resolveReviews([...reviewIds]);
-          onChange?.();
-        },
-      }).catch((error) => {
-        log.error('Failed to accept durable Agent patch review:', error);
-      });
+      // A settled Agent receipt: acknowledging clears only its presentation.
+      useAgentEditStore.getState().resolveReviews([c.reviewId]);
+      onChange?.();
       return;
     }
     // Accept = the agent's action stands: a create stays; a (soft) delete is
     // committed for real now.
     useAgentEditStore.getState().resolveBlocks('element', patch.elementId, [c.blockId]);
     if (c.op === 'deleted') void handleDelete();
-  }, [
-    patchChange,
-    patch.elementId,
-    patch.id,
-    reviewBatches,
-    reviewOrder,
-    onChange,
-    handleDelete,
-  ]);
+  }, [patchChange, patch.elementId, onChange, handleDelete]);
 
   // Auto mode: once the card is on screen, settle (keep) after a brief beat.
   const acceptRef = useRef(acceptPatch);

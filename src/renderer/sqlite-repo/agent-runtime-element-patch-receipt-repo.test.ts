@@ -95,7 +95,7 @@ function provenance(input: {
       version: 1,
       effectId: input.effectId,
       reviewId: `agent-review:${input.effectId}`,
-      mode: 'approve',
+      mode: 'auto',
     },
   };
   return {

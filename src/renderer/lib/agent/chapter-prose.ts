@@ -32,7 +32,6 @@ import { parseDocId, proseDocId, proseEntityTypeForDocKind, type ProseEntityType
 import { getLiveYDoc } from '../yjs-doc-registry';
 import { useDataStore } from '../../store/data-store';
 import { useAgentEditStore } from '../../store/agent-edit-store';
-import { effectiveAgentEditMode } from './agent-edit-mode';
 import { createYjsRepository } from '../../sqlite-repo/yjs-repo';
 import { flushOpenYjsDocument } from '../../services/yjs-local-durability.service';
 import { maybeCaptureSnapshotHistory } from '../../services/snapshot-history.service';
@@ -131,34 +130,6 @@ function newParagraph(text: string): Y.XmlElement {
   el.setAttribute('id', uuidv7());
   if (text) el.insert(0, [new Y.XmlText(text)]);
   return el;
-}
-
-/** Like {@link newParagraph} but keeps a SPECIFIC block id — used when reverting
- *  a deletion, so the restored block carries its ORIGINAL uuid (the edit store,
- *  activity spots and comment anchors are all keyed on it) instead of a fresh one
- *  that would orphan every reference to the block. */
-function newParagraphWithId(blockId: string, text: string): Y.XmlElement {
-  const el = new Y.XmlElement('paragraph');
-  el.setAttribute('id', blockId);
-  if (text) el.insert(0, [new Y.XmlText(text)]);
-  return el;
-}
-
-/** Re-insert a single block with a KNOWN id after `afterBlockId` (or at the top
- *  when null). Used only to undo a deletion — preserves the original block id. */
-export function yInsertBlockWithId(
-  frag: Y.XmlFragment,
-  afterBlockId: string | null,
-  blockId: string,
-  text: string,
-): void {
-  let at = 0;
-  if (afterBlockId) {
-    const i = blockIndexInFrag(frag, afterBlockId);
-    if (i < 0) throw new Error(`after block "${afterBlockId}" not found`);
-    at = i + 1;
-  }
-  frag.insert(at, [newParagraphWithId(blockId, text)]);
 }
 
 /**
@@ -510,9 +481,7 @@ export async function writeEntityProse(
   // Only non-runtime/manual callers use post-write visual staging. The General
   // Agent's durable provenance proves it crossed the pre-execution gate.
   if (!ctx.provenance && changes.length) {
-    useAgentEditStore
-      .getState()
-      .record(entityType, id, changes, effectiveAgentEditMode());
+    useAgentEditStore.getState().record(entityType, id, changes);
   }
 
   return { contentJson, blockIds, changes };
@@ -656,9 +625,8 @@ export async function unlinkEntityFromChapterProse(
 
 /**
  * Apply a body edit to an element — thin shim over {@link writeEntityProse}.
- * Routing through the generic path means element edits now RECORD into the
- * review store (reveal / approve / ticks) like every other prose entity, instead
- * of silently auto-applying.
+ * Routing through the generic path means element edits RECORD into the
+ * unread store (reveal / ticks) like every other prose entity.
  */
 export async function writeElementProse(
   ctx: AgentToolContext,
@@ -667,163 +635,4 @@ export async function writeElementProse(
   jsonMutate: (currentJson: string) => string,
 ): Promise<{ contentJson: string; blockIds: string[]; changes: AgentBlockChange[] }> {
   return writeEntityProse(ctx, 'element', elementId, yMutate, jsonMutate);
-}
-
-/**
- * Undo a single agent block change on any prose entity (approve-mode "reject").
- * Applies the inverse edit through the Yjs doc with a NON-agent origin, so it
- * persists + journals like an ordinary user edit and does NOT re-record into the
- * edit store:
- *   - changed → restore the block's old text
- *   - new     → remove the block
- *   - deleted → re-insert the old text after its anchor, preserving the ORIGINAL
- *               block id so the restored block stays tracked (not a fresh uuid)
- * Live doc when the entity is open in an editor (the usual case while reviewing);
- * else a transient doc rehydrated from SQLite.
- */
-const REVERT_ORIGIN = 'agent-revert';
-
-function blockTextInFrag(frag: Y.XmlFragment, blockId: string): string | null {
-  const index = blockIndexInFrag(frag, blockId);
-  if (index < 0) return null;
-  const block = frag.toArray()[index];
-  if (!(block instanceof Y.XmlElement)) {
-    throw new Error(`Block "${blockId}" is not an element`);
-  }
-  const textOf = (node: unknown): string => {
-    if (node instanceof Y.XmlText) return node.toString();
-    if (node instanceof Y.XmlElement || node instanceof Y.XmlFragment) {
-      return node.toArray().map((child) => textOf(child)).join('');
-    }
-    return '';
-  };
-  return textOf(block);
-}
-
-/**
- * Guard a block-level review inverse against author edits made after the Agent
- * write. Returning false means the exact inverse is already present, which
- * makes a retry after a renderer/database failure idempotent.
- */
-function applyGuardedBlockRevert(
-  frag: Y.XmlFragment,
-  change: AgentBlockChange,
-  projectId: string | null,
-  docId: string,
-): boolean {
-  const currentText = blockTextInFrag(frag, change.blockId);
-  if (change.op === 'changed') {
-    if (currentText === change.oldText) return false;
-    if (currentText !== change.newText) {
-      throw new Error(
-        `Block "${change.blockId}" changed after the Agent edit; refusing to overwrite author text`,
-      );
-    }
-    yReplaceBlockText(frag, { blockId: change.blockId }, change.oldText);
-    relinkBlockMentions(frag, [change.blockId], projectId, docId);
-    return true;
-  }
-  if (change.op === 'new') {
-    if (currentText === null) return false;
-    if (currentText !== change.newText) {
-      throw new Error(
-        `New Agent block "${change.blockId}" changed after insertion; refusing to remove author text`,
-      );
-    }
-    yRemoveBlocks(frag, [change.blockId]);
-    return true;
-  }
-  if (currentText === change.oldText) return false;
-  if (currentText !== null) {
-    throw new Error(
-      `Deleted Agent block "${change.blockId}" was recreated with different text`,
-    );
-  }
-  yInsertBlockWithId(frag, change.afterPrevId, change.blockId, change.oldText);
-  relinkBlockMentions(frag, [change.blockId], projectId, docId);
-  return true;
-}
-
-export async function revertEntityBlock(
-  entityType: ProseEntityType,
-  id: string,
-  change: AgentBlockChange,
-  context?: AgentToolContext,
-  projectIdOverride?: string,
-): Promise<void> {
-  const docId = proseDocId(entityType, id);
-  const persistProjection = async (doc: Y.Doc): Promise<void> => {
-    if (!context) return;
-    await persistBody(
-      context,
-      entityType,
-      id,
-      JSON.stringify(yDocToProsemirrorJSON(doc, 'default')),
-    );
-  };
-
-  const live = getLiveYDoc(docId);
-  if (live) {
-    // The live editor's shared session persists + journals it. Do not
-    // settle the durable block review until that asynchronous local queue has
-    // acknowledged the inverse, otherwise a reload can retain text whose badge
-    // already disappeared.
-    live.transact(
-      () => applyGuardedBlockRevert(live.getXmlFragment('default'), change, context?.projectId ?? projectIdOverride ?? useDataStore.getState().workspaceProjectId, docId),
-      REVERT_ORIGIN,
-    );
-    await flushOpenYjsDocument(docId);
-    // Await the ordinary materialized projection too. If this acknowledgement
-    // fails after Yjs committed, the durable block stays retryable and the next
-    // guarded pass observes the preimage then repairs only the projection.
-    await persistProjection(live);
-    return;
-  }
-
-  const yrepo = createYjsRepository();
-  if (await yrepo.hasDocState(docId)) {
-    const projectId = context?.projectId ?? projectIdOverride;
-    if (!projectId) {
-      throw new Error(`Closed prose revert for ${docId} requires projectId`);
-    }
-    const doc = new Y.Doc();
-    try {
-      const snap = await yrepo.getSnapshot(docId);
-      if (snap) Y.applyUpdate(doc, snap.stateBlob, 'load');
-      const replayedUpdates = await yrepo.listUpdates(docId);
-      for (const update of replayedUpdates) {
-        Y.applyUpdate(doc, update.updateBlob, 'load');
-      }
-      const diff: Uint8Array[] = [];
-      const onUpdate = (u: Uint8Array, origin: unknown) => {
-        if (origin === REVERT_ORIGIN) diff.push(new Uint8Array(u));
-      };
-      doc.on('update', onUpdate);
-      doc.transact(
-        () => applyGuardedBlockRevert(doc.getXmlFragment('default'), change, projectId, docId),
-        REVERT_ORIGIN,
-      );
-      doc.off('update', onUpdate);
-      for (const u of diff) {
-        await appendAuthoredYjsUpdate(
-          projectId,
-          docId,
-          u,
-          { kind: 'agent' },
-        );
-      }
-      if (diff.length > 0) {
-        const fullState = Y.encodeStateAsUpdate(doc);
-        await yrepo.upsertSnapshot(docId, fullState, {
-          advanceRevision: false,
-        });
-        // Leave update-log compaction to the shared document owner.
-      }
-      await persistProjection(doc);
-    } finally {
-      doc.destroy();
-    }
-    return;
-  }
-  throw new Error(`Prose document "${docId}" is unavailable for block review`);
 }

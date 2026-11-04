@@ -8,43 +8,6 @@ import { workspaceAuthoredReadStateFromArguments } from './drifting-workspace-to
 import { projectAuthoredTextForModel } from './workspace-prose-file';
 
 const MAX_FEEDBACK_ITEMS = 20;
-const SETTLED_REVIEW_STATUSES = new Set([
-  'accepted_effect',
-  'reverted',
-  'revert_failed',
-  'revert_unavailable',
-]);
-const PINNED_REVIEW_STATUSES = new Set([
-  'pending',
-  'accepted',
-  'rejected',
-  'revert_started',
-  'accepted_effect',
-  'reverted',
-  'revert_failed',
-  'revert_unavailable',
-]);
-
-function isSettledReviewStatus(status: string): boolean {
-  return SETTLED_REVIEW_STATUSES.has(status);
-}
-
-function blockReviewDecisionCounts(note: unknown): { accepted: number; reverted: number } | null {
-  if (!note || typeof note !== 'object' || Array.isArray(note)) return null;
-  const record = note as Record<string, unknown>;
-  if (record.kind !== 'block_review' || record.schemaVersion !== 1) return null;
-  if (!Array.isArray(record.decisions)) return null;
-  let accepted = 0;
-  let reverted = 0;
-  for (const item of record.decisions) {
-    if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
-    const decision = (item as Record<string, unknown>).decision;
-    if (decision === 'accepted') accepted += 1;
-    else if (decision === 'reverted') reverted += 1;
-    else return null;
-  }
-  return accepted + reverted > 0 ? { accepted, reverted } : null;
-}
 
 function writeCoverage(
   effect: {
@@ -68,64 +31,11 @@ function writeCoverage(
 }
 
 /**
- * Canonical user-decision feedback appended to the next model prompt.
+ * First-class context rows for durable write settlement receipts.
  *
- * Decisions are read from SQLite rather than the display/edit localStorage
- * cache. Repeating a settled decision after restart is harmless and preferable
- * to losing the fact that an edit was rejected or its inverse failed.
- */
-export async function buildAgentWriteReviewFeedback(
-  sessionId: string,
-  repository: AgentRuntimeWriteEffectRepository = createAgentRuntimeWriteEffectRepository(),
-): Promise<string> {
-  if (!sessionId) return '';
-  const snapshot = await repository.loadSnapshot(sessionId);
-  const effects = new Map(snapshot.effects.map((effect) => [effect.id, effect]));
-  const settled = snapshot.reviews
-    .filter((review) => isSettledReviewStatus(review.status))
-    .sort(
-      (left, right) =>
-        right.updatedAt.localeCompare(left.updatedAt) || right.id.localeCompare(left.id),
-    )
-    .slice(0, MAX_FEEDBACK_ITEMS);
-  if (settled.length === 0) return '';
-
-  const lines = settled.flatMap((review) => {
-    const effect = effects.get(review.effectId);
-    if (!effect) return [];
-    const prefix = `- ${describeAgentWriteTarget(effect.toolName, effect.arguments)}`;
-    switch (review.status) {
-      case 'accepted_effect':
-        {
-          const blockDecisions = blockReviewDecisionCounts(review.decisionNote);
-          if (blockDecisions?.reverted) {
-            return [
-              `${prefix} 已逐段审阅：接受 ${blockDecisions.accepted} 处、还原 ${blockDecisions.reverted} 处；以当前正文为准，继续编辑前先重新读取。`,
-            ];
-          }
-        }
-        return [];
-      case 'reverted':
-        return [`${prefix} 已被用户拒绝并精确撤销，不要假设该改动仍然存在。`];
-      case 'revert_failed':
-        return [`${prefix} 被用户拒绝，但自动撤销失败；重新读取实体后再提出任何后续改动。`];
-      case 'revert_unavailable':
-        return [`${prefix} 被用户拒绝，但没有安全逆操作；不要重试，先请求用户处理。`];
-      default:
-        return [];
-    }
-  });
-  return lines.length > 0 ? ['[Current author review decisions]', ...lines].join('\n') : '';
-}
-
-/**
- * First-class context rows for current durable review decisions.
- *
- * Unlike the legacy prompt prefix, these rows retain canonical provenance and
- * remain semantically pinned by the context planner. Pending/in-progress
- * decisions are never trimmed; settled history is bounded because accepted
- * domain state must be re-read through tools rather than growing an eternal
- * prompt log.
+ * These rows retain canonical provenance and remain semantically pinned by the
+ * context planner. History is bounded because committed domain state must be
+ * re-read through tools rather than growing an eternal prompt log.
  */
 export async function loadAgentWriteReviewContextRows(
   sessionId: string,
@@ -136,7 +46,6 @@ export async function loadAgentWriteReviewContextRows(
   const snapshot = await repository.loadSnapshot(sessionId);
   const effects = new Map(snapshot.effects.map((effect) => [effect.id, effect]));
   const eligible = snapshot.reviews
-    .filter((review) => PINNED_REVIEW_STATUSES.has(review.status))
     .filter((review) => effects.has(review.effectId))
     .sort(
       (left, right) =>
@@ -202,7 +111,6 @@ export async function loadAgentWriteReviewContextRows(
     turnOrdinal: state.latest.turnOrdinal,
     kind: 'write_review',
     content: modelFacingReviewState(
-      state.latest.review,
       state.latest.effect,
       unresolvedModelFacingRemainingWork(state.latest.effect.arguments, snapshot.effects),
     ),
@@ -242,7 +150,7 @@ function uniqueWriteCoverage(
  * the planner compact old create/update/delete calls without pretending that
  * the effects were merely conversational history.
  *
- * Effects with an unsettled editor review are represented by their own pinned
+ * Effects with a settlement receipt are represented by their own pinned
  * semantic review row rather than duplicated here. Failed/uncertain writes are
  * never covered.
  */
@@ -254,9 +162,7 @@ export async function loadAgentDurableWriteReceiptContextRows(
   if (!sessionId) return [];
   const snapshot = await repository.loadSnapshot(sessionId);
   const reviewedEffectIds = new Set(
-    snapshot.reviews
-      .filter((review) => PINNED_REVIEW_STATUSES.has(review.status))
-      .map((review) => review.effectId),
+    snapshot.reviews.map((review) => review.effectId),
   );
   const committed = snapshot.effects
     .filter(
@@ -343,21 +249,11 @@ export async function loadAgentAuthoredReadProgressContextRows(
 ): Promise<AgentContextSupplementalPinnedRow[]> {
   if (!sessionId || !options.currentTurnId) return [];
   const snapshot = await repository.loadSnapshot(sessionId);
-  const inapplicableEffectIds = new Set(
-    snapshot.reviews
-      .filter((review) =>
-        ['rejected', 'revert_started', 'reverted', 'revert_failed', 'revert_unavailable'].includes(
-          review.status,
-        ),
-      )
-      .map((review) => review.effectId),
-  );
   const candidates = snapshot.effects
     .filter(
       (effect) =>
         effect.turnId === options.currentTurnId &&
-        effect.phase === 'result_committed' &&
-        !inapplicableEffectIds.has(effect.id),
+        effect.phase === 'result_committed',
     )
     .flatMap((effect) => {
       const state = workspaceAuthoredReadStateFromArguments(effect.arguments);
@@ -444,39 +340,13 @@ function withSentenceTerminal(value: string): string {
 }
 
 function modelFacingReviewState(
-  review: {
-    status: string;
-    decisionNote: unknown;
-    errorMessage?: string | null;
-  },
   effect: { toolName: string; arguments: unknown },
   remaining: string | null = modelFacingRemainingWork(effect.arguments),
 ): string {
   const target = describeAgentWriteTarget(effect.toolName, effect.arguments);
-  const remainingSuffix = remaining ? `仍待完成：${remaining}。` : '';
-  const blockDecisions = blockReviewDecisionCounts(review.decisionNote);
-  if (review.status === 'accepted_effect' && blockDecisions?.reverted) {
-    return `${target}当前保留 ${blockDecisions.accepted} 处修改、还原 ${blockDecisions.reverted} 处。${remainingSuffix}作者改变了上次结果；继续修改该段前先读取当前正文。`;
-  }
-  switch (review.status) {
-    case 'pending':
-    case 'accepted':
-    case 'accepted_effect':
-      return remaining
-        ? `${target}当前已保存的部分属于稿件。${remainingSuffix}`
-        : `${target}已有可靠完成证据并属于当前稿件。`;
-    case 'rejected':
-    case 'revert_started':
-      return `${target}的改动已被作者拒绝，正在还原。依赖它继续编辑前先读取当前内容。`;
-    case 'reverted':
-      return `${target}的上一轮修改已被作者拒绝并还原。继续修改该处前先读取当前正文。`;
-    case 'revert_failed':
-      return `${target}的改动被作者拒绝，但自动还原失败。继续编辑前先读取当前内容。`;
-    case 'revert_unavailable':
-      return `${target}的改动被作者拒绝，但无法安全还原。不要重试，等待作者处理。`;
-    default:
-      return `${target}的审阅状态已变化。继续修改该处前先读取当前正文。`;
-  }
+  return remaining
+    ? `${target}当前已保存的部分属于稿件。仍待完成：${remaining}。`
+    : `${target}已有可靠完成证据并属于当前稿件。`;
 }
 
 function summarizeDomainTargets(targets: readonly string[]): string {

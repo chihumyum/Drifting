@@ -104,9 +104,8 @@ const SCENARIOS = [
     read: 'list_comments',
     prompt: `${COMMON} 请先浏览批注，然后创建一条指向章节「${PROJECT_TEST_NODE}」的普通批注，正文为「${MARKER} temporary comment」。`,
   },
-  // Keep rename last because metadata writes are automatic rather than inline
-  // editor reviews. The changed authored name must not invalidate later scenarios in
-  // the disposable database.
+  // Keep rename last: every write commits directly, and the changed authored
+  // name must not invalidate later scenarios in the disposable database.
   {
     id: 'rename-node',
     write: 'rename_chapter',
@@ -149,8 +148,8 @@ function usage() {
     '  pnpm agent:debug:writes -- --project <id> --disposable-db [--only <scenario>]',
     '',
     'Required safety flag: --disposable-db. Never point this command at the primary App database.',
-    'Inline prose reviews are immediately rejected. Automatic and confirm-before',
-    'structured writes remain only in the disposable database and are removed with it.',
+    'Every write commits directly and remains only in the disposable database,',
+    'which is removed with it.',
     'Use --list to print scenario ids.',
   ].join('\n');
 }
@@ -213,31 +212,12 @@ function parseReviewFromToolResult(event) {
   }
 }
 
-async function rejectReview(options, review) {
-  const payloads = await requestNdjson(options.url, '/review', {
-    projectId: options.projectId,
-    reviewId: review.id,
-    decision: 'reject',
-    note: `Automated headless write-matrix rollback for ${review.toolName}`,
-  });
-  const failed = payloads.find((payload) => payload.type === 'bridge_failed');
-  if (failed) throw new Error(`review ${review.id} rollback failed: ${failed.error}`);
-  const result = payloads.find((payload) => payload.type === 'review_result')?.result;
-  const terminal = payloads.find((payload) => payload.type === 'bridge_completed');
-  if (!terminal || result?.review?.status !== 'reverted') {
-    throw new Error(
-      `review ${review.id} did not revert (status=${result?.review?.status ?? terminal?.status ?? 'missing'})`,
-    );
-  }
-}
-
 async function runScenario(options, scenario) {
   const payloads = await requestNdjson(options.url, '/turn', {
     projectId: options.projectId,
     prompt: scenario.prompt,
     timeoutMs: options.timeoutMs,
     permissionMode: 'manual',
-    editMode: 'approve',
     userInputs: [],
     newConversation: true,
   });
@@ -246,74 +226,46 @@ async function runScenario(options, scenario) {
   const results = events.filter((event) => event.type === 'tool_result');
   const reviews = results.map(parseReviewFromToolResult).filter(Boolean);
   const expectedWriteNames = [scenario.write];
-  let successfulWriteResult = null;
-  let reviewWasReverted = false;
-  let primaryError = null;
-  try {
-    const bridgeFailure = payloads.find((payload) => payload.type === 'bridge_failed');
-    if (bridgeFailure) throw new Error(bridgeFailure.error);
-    const completed = payloads.find((payload) => payload.type === 'bridge_completed');
-    if (!completed || completed.outcome !== 'completed') {
-      throw new Error(`turn outcome=${completed?.outcome ?? 'missing'}`);
-    }
-    const expectedCalls = calls.filter((call) => expectedWriteNames.includes(call.name));
-    if (expectedCalls.length < 1 || expectedCalls.length > 2) {
-      throw new Error(
-        `${expectedWriteNames.join('/')} call count=${expectedCalls.length}, expected 1 or one schema-correction retry`,
-      );
-    }
-    if (!calls.some((call) => call.name === scenario.read)) {
-      throw new Error(`missing prerequisite read ${scenario.read}`);
-    }
-    const unexpectedWrites = calls
-      .filter((call) => PROVIDER_WRITES.has(call.name) && !expectedWriteNames.includes(call.name))
-      .map((call) => call.name);
-    if (unexpectedWrites.length) {
-      throw new Error(`unexpected writes: ${unexpectedWrites.join(', ')}`);
-    }
-    const writeResults = results.filter((event) => expectedWriteNames.includes(event.name));
-    const successfulWriteResults = writeResults.filter((event) => event.ok);
-    if (successfulWriteResults.length !== 1) {
-      throw new Error(
-        `${expectedWriteNames.join('/')} successful result count=${successfulWriteResults.length}, expected 1; ` +
-          `results=${writeResults.map((result) => `${result.ok ? 'ok' : 'error'}:${result.content}`).join(' | ') || 'missing'}`,
-      );
-    }
-    successfulWriteResult = successfulWriteResults[0];
-    const pendingReviews = reviews.filter(
-      (review) => expectedWriteNames.includes(review.toolName) && review.status === 'pending',
-    );
-    const successfulCallId = successfulWriteResults[0].callId;
-    if (
-      pendingReviews.length > 1 ||
-      (pendingReviews.length === 1 && pendingReviews[0].callId !== successfulCallId)
-    ) {
-      throw new Error(`${scenario.write} created an invalid pending review set`);
-    }
-  } catch (error) {
-    primaryError = error;
+  const fail = (message) => {
+    throw new Error(`${scenario.id}: ${message}`);
+  };
+  const bridgeFailure = payloads.find((payload) => payload.type === 'bridge_failed');
+  if (bridgeFailure) fail(bridgeFailure.error);
+  const completed = payloads.find((payload) => payload.type === 'bridge_completed');
+  if (!completed || completed.outcome !== 'completed') {
+    fail(`turn outcome=${completed?.outcome ?? 'missing'}`);
   }
-
-  let rollbackError = null;
-  for (const review of [...reviews].reverse()) {
-    try {
-      await rejectReview(options, review);
-      reviewWasReverted = true;
-    } catch (error) {
-      rollbackError ??= error;
-    }
-  }
-  if (rollbackError) {
-    throw new Error(
-      `${scenario.id}: ${primaryError ? `${primaryError.message}; ` : ''}${rollbackError.message}`,
+  const expectedCalls = calls.filter((call) => expectedWriteNames.includes(call.name));
+  if (expectedCalls.length < 1 || expectedCalls.length > 2) {
+    fail(
+      `${expectedWriteNames.join('/')} call count=${expectedCalls.length}, expected 1 or one schema-correction retry`,
     );
   }
-  if (primaryError) throw new Error(`${scenario.id}: ${primaryError.message}`);
-  if (!successfulWriteResult) throw new Error(`${scenario.id}: successful write result missing`);
+  if (!calls.some((call) => call.name === scenario.read)) {
+    fail(`missing prerequisite read ${scenario.read}`);
+  }
+  const unexpectedWrites = calls
+    .filter((call) => PROVIDER_WRITES.has(call.name) && !expectedWriteNames.includes(call.name))
+    .map((call) => call.name);
+  if (unexpectedWrites.length) fail(`unexpected writes: ${unexpectedWrites.join(', ')}`);
+  const writeResults = results.filter((event) => expectedWriteNames.includes(event.name));
+  const successfulWriteResults = writeResults.filter((event) => event.ok);
+  if (successfulWriteResults.length !== 1) {
+    fail(
+      `${expectedWriteNames.join('/')} successful result count=${successfulWriteResults.length}, expected 1; ` +
+        `results=${writeResults.map((result) => `${result.ok ? 'ok' : 'error'}:${result.content}`).join(' | ') || 'missing'}`,
+    );
+  }
+  // Agent writes commit directly: a prose write's settlement receipt is
+  // already settled when its result returns.
+  const unsettled = reviews.filter(
+    (review) => expectedWriteNames.includes(review.toolName) && review.status !== 'accepted_effect',
+  );
+  if (unsettled.length > 0) {
+    fail(`unsettled receipt status ${unsettled.map((review) => review.status).join(', ')}`);
+  }
   console.log(
-    reviewWasReverted
-      ? `[PASS] ${scenario.id} -> ${successfulWriteResult.name} -> review reverted`
-      : `[PASS] ${scenario.id} -> ${successfulWriteResult.name} -> automatic/confirmed in disposable DB`,
+    `[PASS] ${scenario.id} -> ${successfulWriteResults[0].name} -> committed in disposable DB`,
   );
 }
 
@@ -344,7 +296,7 @@ async function main() {
 
   const health = await fetch(new URL('/health', options.url)).then((response) => response.json());
   if (!health.ok) throw new Error('Agent debug broker is not healthy');
-  console.log(`[agent-debug] running ${selected.length} reversible write scenarios`);
+  console.log(`[agent-debug] running ${selected.length} write scenarios`);
   for (const scenario of selected) await runScenario(options, scenario);
   console.log(`[PASS] write matrix ${selected.length}/${selected.length}`);
 }

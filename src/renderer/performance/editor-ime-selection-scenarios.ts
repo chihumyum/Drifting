@@ -21,7 +21,7 @@ export interface ImeSelectionProbeOptions {
 }
 
 /** Driven by CDP Input.imeSetComposition, not hand-dispatched DOM events. */
-export function createImeSelectionProbe(review: boolean, linked = false, options: ImeSelectionProbeOptions = {}) {
+export function createImeSelectionProbe(linked = false, options: ImeSelectionProbeOptions = {}) {
   const previous = useAgentEditStore.getState();
   useAgentEditStore.getState().clearAll();
   const host = document.createElement('div'); document.body.append(host);
@@ -34,19 +34,16 @@ export function createImeSelectionProbe(review: boolean, linked = false, options
       { type: 'text', text: '正文' }] }] });
   if (options.linkRange) editor.view.dispatch(editor.state.tr.addMark(options.linkRange[0], options.linkRange[1],
     editor.schema.marks.entityLink.create({ targetKind: 'element', targetId: 'synthetic-target' })).setMeta('addToHistory', false));
-  if (review) useAgentEditStore.getState().record('node', 'synthetic-ime-selection', [{ blockId: 'synthetic-ime-block',
-    op: 'changed', oldText: '旧合成正文', newText: '合成正文', afterPrevId: null }], 'approve');
   const controller = attachAgentDecorationController({ editor, entityType: 'node', entityId: 'synthetic-ime-selection',
     store: useAgentEditStore, presentationNeeded: true, onReady: () => {}, onError: error => { throw error; } });
   editor.commands.setTextSelection(options.caret ?? 5); editor.view.focus();
   if (options.boldOff) editor.view.dispatch(editor.state.tr.setStoredMarks([]));
-  let widget = editor.view.dom.querySelector('.agent-diff-del');
-  const transactions: { composing: boolean; docChanged: boolean; steps: string[]; review: boolean; sync: boolean }[] = [];
+  const transactions: { composing: boolean; docChanged: boolean; steps: string[]; decoration: boolean; sync: boolean }[] = [];
   let decorationTransactions = 0, trustedCompositionStarts = 0;
   const onTransaction = ({ transaction }: { transaction: Transaction }) => {
     if (transaction.getMeta(AgentDiffPluginKey)) decorationTransactions++;
     transactions.push({ composing: editor.view.composing, docChanged: transaction.docChanged,
-      steps: transaction.steps.map(step => step.toJSON().stepType), review: Boolean(transaction.getMeta(AgentDiffPluginKey)), sync: isChangeOrigin(transaction) });
+      steps: transaction.steps.map(step => step.toJSON().stepType), decoration: Boolean(transaction.getMeta(AgentDiffPluginKey)), sync: isChangeOrigin(transaction) });
   };
   editor.on('transaction', onTransaction);
   const onStart = (event: CompositionEvent) => { if (event.isTrusted) trustedCompositionStarts++; };
@@ -78,16 +75,16 @@ export function createImeSelectionProbe(review: boolean, linked = false, options
   };
   const snapshot = () => {
     const selection = document.getSelection();
-    return { review, linked, composing: editor.view.composing, trustedCompositionStarts, decorationTransactions, transactions: transactions.slice(),
-      originalWidgetConnected: widget?.isConnected ?? null, focused: document.activeElement === editor.view.dom,
+    return { linked, composing: editor.view.composing, trustedCompositionStarts, decorationTransactions, transactions: transactions.slice(),
+      focused: document.activeElement === editor.view.dom,
       domCollapsed: selection?.isCollapsed, domSelectedText: selection?.toString(),
       pmAnchor: editor.state.selection.anchor, pmHead: editor.state.selection.head,
-      text: editor.state.doc.textContent, reviewTint: Boolean(editor.view.dom.querySelector('.agent-diff-changed')),
+      text: editor.state.doc.textContent,
       linkedText: linkedText(), boldText: markedText('bold'), cursorWrapperInsertions, textNodeRemovals, nodeRemovals,
       yjsMatches: editor.schema.nodeFromJSON(yDocToProsemirrorJSON(doc, 'default')).eq(editor.state.doc) };
   };
   return { snapshot,
-    arm() { widget = editor.view.dom.querySelector('.agent-diff-del'); decorationTransactions = 0; cursorWrapperInsertions = 0; textNodeRemovals = 0; nodeRemovals = 0; transactions.length = 0; return snapshot(); }, dispose() {
+    arm() { decorationTransactions = 0; cursorWrapperInsertions = 0; textNodeRemovals = 0; nodeRemovals = 0; transactions.length = 0; return snapshot(); }, dispose() {
     separators.disconnect();
     controller.dispose(); editor.off('transaction', onTransaction); editor.view.dom.removeEventListener('compositionstart', onStart);
     editor.destroy(); doc.destroy(); host.remove();
@@ -97,8 +94,8 @@ export function createImeSelectionProbe(review: boolean, linked = false, options
 
 let probe: ReturnType<typeof createImeSelectionProbe> | null = null;
 export const imeSelectionProbe = {
-  start(review: boolean, linked = false, options: ImeSelectionProbeOptions = {}) {
-    probe?.dispose(); probe = createImeSelectionProbe(review, linked, options); return probe.snapshot();
+  start(linked = false, options: ImeSelectionProbeOptions = {}) {
+    probe?.dispose(); probe = createImeSelectionProbe(linked, options); return probe.snapshot();
   },
   snapshot() { if (!probe) throw new Error('IME probe is not active'); return probe.snapshot(); },
   arm() { if (!probe) throw new Error('IME probe is not active'); return probe.arm(); },

@@ -74,11 +74,11 @@ capability inventory.
 | Entity relations                                       | SQLite                                     | relation store and semantic links        |
 | Storyline membership and primary assignment            | SQLite link graph                          | storyline/node mapping stores            |
 | Project memory                                         | SQLite                                     | PROJECT_MEMORY.md prompt projection      |
-| Review decisions                                       | SQLite ordered review blocks               | editor review badges and animations      |
+| Write settlement                                       | SQLite settlement receipts                 | editor unread badges and animations      |
 | Cross-device delivery                                  | transactional local sync outbox            | SyncEngine provider object-log sync      |
 
-LocalStorage and Zustand are projections. They cannot independently approve,
-reject, create, delete, or revert an Agent mutation. Prose writes never mutate
+LocalStorage and Zustand are projections. They cannot independently create,
+delete, or revert an Agent mutation. Prose writes never mutate
 stale `contentJson` as their source of truth.
 
 ### Authored prose schema boundary
@@ -253,7 +253,7 @@ names, and that image is everything at once:
   its transaction;
 - **receipt** — pre- and postimage are stored as one `authoring_scope`
   snapshot;
-- **inverse** — rejecting applies the same diff backwards after proving the
+- **inverse** — reverting applies the same diff backwards after proving the
   scope still matches the postimage.
 
 Scopes leave out what other writers change constantly, so ordinary work never
@@ -263,12 +263,12 @@ grid. Sync never revives a purged id, so the inverse of a hard delete (a
 material folder, an act, a timeline marker) recreates the row under a new id
 planned with the forward write; everything else is restored exactly. The
 images of earlier writes in the scope still name the old id, so once such a
-reject has committed, rejecting any earlier write first renames its post- and
+revert has committed, reverting any earlier write first renames its post- and
 preimage through every committed restoration in the scope (chains included)
 and then compares exactly as usual. A purged id never comes back, so a
 restoration can only rename rows of writes made before its delete. This keeps
-the review panel's newest-first reject of a whole stack — create, move,
-rename, then delete an act — working down to the first write.
+a newest-first revert of a whole stack — create, move, rename, then delete an
+act — working down to the first write.
 
 | Scope              | Read                  | Commands |
 | ------------------ | --------------------- | -------- |
@@ -291,8 +291,8 @@ Agent reads and writes the whole grid as one Markdown table (column labels in
 the header after an empty corner, row labels in the first column). Its image
 has no axis ids: applying an image — forward or inverse — lays the table over
 the stored grid so an unchanged label keeps its row or column, leftovers are
-reused by position and the rest are new. Rejecting removed rows therefore
-recreates them under fresh ids and still matches exactly, and rejecting the
+reused by position and the rest are new. Reverting removed rows therefore
+recreates them under fresh ids and still matches exactly, and reverting the
 first write of a grid leaves the same shape with every label and cell
 cleared, since a plot grid document cannot be deleted. An open planner
 remounts on the new grid (`plot-grid:changed`).

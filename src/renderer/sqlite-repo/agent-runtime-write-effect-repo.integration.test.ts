@@ -286,7 +286,6 @@ describe('agent runtime write-effect persistence against real SQLite', () => {
   async function completeEffect(
     writes: AgentRuntimeWriteEffectRepository,
     effectId: string,
-    reversibility: 'exact' | 'irreversible' = 'exact',
   ): Promise<void> {
     await writes.transitionEffect({
       effectId,
@@ -301,9 +300,8 @@ describe('agent runtime write-effect persistence against real SQLite', () => {
       observedRevision: { kind: 'revision', value: 7 },
       preimage: { text: 'before' },
       forward: { text: 'after' },
-      inverse:
-        reversibility === 'exact' ? { text: 'before' } : null,
-      reversibility,
+      inverse: { text: 'before' },
+      reversibility: 'exact',
       at: at(5),
     });
     await writes.transitionEffect({
@@ -481,7 +479,6 @@ describe('agent runtime write-effect persistence against real SQLite', () => {
       reviewId: review.id,
       expectedStatus: 'pending',
       nextStatus: 'accepted',
-      decisionNote: { source: 'author', note: '保留' },
       at: at(9),
     });
     await writes.transitionReview({
@@ -502,7 +499,6 @@ describe('agent runtime write-effect persistence against real SQLite', () => {
     });
     expect(snapshot.reviews[0]).toMatchObject({
       status: 'accepted_effect',
-      decisionNote: { source: 'author', note: '保留' },
       acceptedAt: at(9),
       settledAt: at(10),
     });
@@ -547,131 +543,82 @@ describe('agent runtime write-effect persistence against real SQLite', () => {
     });
   });
 
-  it('persists ordered block decisions and atomically settles mixed/all-reverted reviews', async () => {
+  it('persists ordered settlement blocks and settles the receipt atomically with the last one', async () => {
     const { runtime, writes } = await setup();
-    const mixed = await createClaimedEffect(runtime, writes, 'call-block-mixed');
-    await completeEffect(writes, mixed.effect.id);
-    const mixedReview = {
-      id: 'review-block-mixed',
-      effectId: mixed.effect.id,
-      sessionId: mixed.effect.sessionId,
-      turnId: mixed.effect.turnId,
-      toolCallId: mixed.effect.toolCallId,
+    const blocked = await createClaimedEffect(runtime, writes, 'call-block-settled');
+    await completeEffect(writes, blocked.effect.id);
+    const blockReview = {
+      id: 'review-block-settled',
+      effectId: blocked.effect.id,
+      sessionId: blocked.effect.sessionId,
+      turnId: blocked.effect.turnId,
+      toolCallId: blocked.effect.toolCallId,
       createdAt: at(8),
       blocks: [
         { blockId: 'paragraph-a', ordinal: 0 },
         { blockId: 'paragraph-b', ordinal: 1 },
       ],
     };
-    expect((await writes.createReview(mixedReview)).outcome).toBe('inserted');
-    expect((await writes.createReview(mixedReview)).outcome).toBe('duplicate');
+    expect((await writes.createReview(blockReview)).outcome).toBe('inserted');
+    expect((await writes.createReview(blockReview)).outcome).toBe('duplicate');
+    await expect(
+      writes.createReview({
+        ...blockReview,
+        blocks: [{ blockId: 'paragraph-b', ordinal: 0 }],
+      }),
+    ).rejects.toMatchObject({ code: 'REVIEW_CONFLICT' });
     await expect(
       writes.transitionReview({
-        reviewId: mixedReview.id,
+        reviewId: blockReview.id,
         expectedStatus: 'pending',
         nextStatus: 'accepted',
         at: at(9),
       }),
     ).rejects.toMatchObject({ code: 'INVALID_REVIEW_TRANSITION' });
 
-    const accepted = {
-      reviewId: mixedReview.id,
+    const first = {
+      reviewId: blockReview.id,
       blockId: 'paragraph-a',
       expectedStatus: 'pending' as const,
       nextStatus: 'accepted' as const,
-      decisionNote: 'keep paragraph a',
       at: at(9),
     };
-    expect((await writes.transitionReviewBlock(accepted)).review.status).toBe(
+    expect((await writes.transitionReviewBlock(first)).review.status).toBe(
       'pending',
     );
-    expect((await writes.transitionReviewBlock(accepted)).outcome).toBe(
+    expect((await writes.transitionReviewBlock(first)).outcome).toBe(
       'duplicate',
     );
-    await writes.transitionReviewBlock({
-      reviewId: mixedReview.id,
-      blockId: 'paragraph-b',
-      expectedStatus: 'pending',
-      nextStatus: 'revert_started',
-      decisionNote: 'restore paragraph b',
-      at: at(10),
-    });
-    expect(await writes.listReviewBlocks(mixedReview.id)).toMatchObject([
-      { blockId: 'paragraph-a', ordinal: 0, status: 'accepted' },
-      { blockId: 'paragraph-b', ordinal: 1, status: 'revert_started' },
+    expect(await writes.listReviewBlocks(blockReview.id)).toMatchObject([
+      { blockId: 'paragraph-a', ordinal: 0, status: 'accepted', settledAt: at(9) },
+      { blockId: 'paragraph-b', ordinal: 1, status: 'pending', settledAt: null },
     ]);
-    const mixedSettled = await writes.transitionReviewBlock({
-      reviewId: mixedReview.id,
-      blockId: 'paragraph-b',
-      expectedStatus: 'revert_started',
-      nextStatus: 'reverted',
-      revertEffect: { revision: 'yjs:restored-b' },
-      at: at(11),
-    });
-    expect(mixedSettled.review).toMatchObject({
-      status: 'accepted_effect',
-      decisionNote: {
-        schemaVersion: 1,
-        kind: 'block_review',
-        decisions: [
-          { blockId: 'paragraph-a', decision: 'accepted' },
-          { blockId: 'paragraph-b', decision: 'reverted' },
-        ],
-      },
-      settledAt: at(11),
-    });
     expect(
       (await writes.listPendingReviewsForProject('project-1')).map(
         (review) => review.id,
       ),
-    ).not.toContain(mixedReview.id);
+    ).toContain(blockReview.id);
 
-    const reverted = await createClaimedEffect(
-      runtime,
-      writes,
-      'call-block-reverted',
-    );
-    await completeEffect(writes, reverted.effect.id);
-    const revertedReview = {
-      id: 'review-block-reverted',
-      effectId: reverted.effect.id,
-      sessionId: reverted.effect.sessionId,
-      turnId: reverted.effect.turnId,
-      toolCallId: reverted.effect.toolCallId,
-      createdAt: at(12),
-      blocks: [
-        { blockId: 'paragraph-c', ordinal: 0 },
-        { blockId: 'paragraph-d', ordinal: 1 },
-      ],
-    };
-    await writes.createReview(revertedReview);
-    for (const [index, blockId] of ['paragraph-c', 'paragraph-d'].entries()) {
-      await writes.transitionReviewBlock({
-        reviewId: revertedReview.id,
-        blockId,
-        expectedStatus: 'pending',
-        nextStatus: 'revert_started',
-        at: at(13 + index * 2),
-      });
-      await writes.transitionReviewBlock({
-        reviewId: revertedReview.id,
-        blockId,
-        expectedStatus: 'revert_started',
-        nextStatus: 'reverted',
-        revertEffect: { blockId, restored: true },
-        at: at(14 + index * 2),
-      });
-    }
-    expect(await writes.getReview(revertedReview.id)).toMatchObject({
-      status: 'reverted',
-      revertEffect: {
-        kind: 'block_review_revert',
-        blocks: [
-          { blockId: 'paragraph-c', effect: { blockId: 'paragraph-c', restored: true } },
-          { blockId: 'paragraph-d', effect: { blockId: 'paragraph-d', restored: true } },
-        ],
-      },
+    const settled = await writes.transitionReviewBlock({
+      reviewId: blockReview.id,
+      blockId: 'paragraph-b',
+      expectedStatus: 'pending',
+      nextStatus: 'accepted',
+      at: at(10),
     });
+    expect(settled.review).toMatchObject({
+      status: 'accepted_effect',
+      acceptedAt: at(10),
+      settledAt: at(10),
+    });
+    await expect(
+      writes.transitionReviewBlock({ ...first, at: at(11) }),
+    ).resolves.toMatchObject({ outcome: 'duplicate' });
+    expect(
+      (await writes.listPendingReviewsForProject('project-1')).map(
+        (review) => review.id,
+      ),
+    ).not.toContain(blockReview.id);
 
     expect(gateway?.database.prepare('PRAGMA foreign_key_check').all()).toEqual(
       [],
@@ -803,155 +750,6 @@ describe('agent runtime write-effect persistence against real SQLite', () => {
       status: 'running',
       errorCode: null,
       completedAt: null,
-    });
-  });
-
-  it('settles reversible rejection in order and records irreversible unavailability', async () => {
-    const { runtime, writes } = await setup();
-    const reversible = await createClaimedEffect(
-      runtime,
-      writes,
-      'call-reversible',
-    );
-    await completeEffect(writes, reversible.effect.id);
-    const reversibleReview = {
-      id: 'review-reversible',
-      effectId: reversible.effect.id,
-      sessionId: reversible.effect.sessionId,
-      turnId: reversible.effect.turnId,
-      toolCallId: reversible.effect.toolCallId,
-      createdAt: at(8),
-    };
-    await writes.createReview(reversibleReview);
-    await writes.transitionReview({
-      reviewId: reversibleReview.id,
-      expectedStatus: 'pending',
-      nextStatus: 'rejected',
-      decisionNote: { note: '撤销' },
-      at: at(9),
-    });
-    await writes.transitionReview({
-      reviewId: reversibleReview.id,
-      expectedStatus: 'rejected',
-      nextStatus: 'revert_started',
-      at: at(10),
-    });
-    await writes.transitionReview({
-      reviewId: reversibleReview.id,
-      expectedStatus: 'revert_started',
-      nextStatus: 'reverted',
-      revertEffect: { revision: 9, restored: true },
-      at: at(11),
-    });
-    expect(await writes.getReview(reversibleReview.id)).toMatchObject({
-      status: 'reverted',
-      revertEffect: { revision: 9, restored: true },
-      settledAt: at(11),
-    });
-
-    const retryable = await createClaimedEffect(
-      runtime,
-      writes,
-      'call-retryable-revert',
-    );
-    await completeEffect(writes, retryable.effect.id);
-    const retryableReview = {
-      id: 'review-retryable-revert',
-      effectId: retryable.effect.id,
-      sessionId: retryable.effect.sessionId,
-      turnId: retryable.effect.turnId,
-      toolCallId: retryable.effect.toolCallId,
-      createdAt: at(12),
-    };
-    await writes.createReview(retryableReview);
-    await writes.transitionReview({
-      reviewId: retryableReview.id,
-      expectedStatus: 'pending',
-      nextStatus: 'rejected',
-      at: at(13),
-    });
-    await writes.transitionReview({
-      reviewId: retryableReview.id,
-      expectedStatus: 'rejected',
-      nextStatus: 'revert_started',
-      at: at(14),
-    });
-    await writes.transitionReview({
-      reviewId: retryableReview.id,
-      expectedStatus: 'revert_started',
-      nextStatus: 'revert_failed',
-      errorCode: 'TRANSIENT_CONFLICT',
-      errorMessage: 'retry me',
-      at: at(15),
-    });
-    await writes.transitionReview({
-      reviewId: retryableReview.id,
-      expectedStatus: 'revert_failed',
-      nextStatus: 'revert_started',
-      at: at(16),
-    });
-    expect(await writes.getReview(retryableReview.id)).toMatchObject({
-      status: 'revert_started',
-      errorCode: null,
-      errorMessage: null,
-      settledAt: null,
-    });
-    await writes.transitionReview({
-      reviewId: retryableReview.id,
-      expectedStatus: 'revert_started',
-      nextStatus: 'reverted',
-      revertEffect: { revision: 10, restored: true },
-      at: at(17),
-    });
-
-    const irreversible = await createClaimedEffect(
-      runtime,
-      writes,
-      'call-irreversible',
-    );
-    await completeEffect(writes, irreversible.effect.id, 'irreversible');
-    const irreversibleReview = {
-      id: 'review-irreversible',
-      effectId: irreversible.effect.id,
-      sessionId: irreversible.effect.sessionId,
-      turnId: irreversible.effect.turnId,
-      toolCallId: irreversible.effect.toolCallId,
-      createdAt: at(12),
-    };
-    await writes.createReview(irreversibleReview);
-    await writes.transitionReview({
-      reviewId: irreversibleReview.id,
-      expectedStatus: 'pending',
-      nextStatus: 'rejected',
-      at: at(13),
-    });
-    await expect(
-      writes.transitionReview({
-        reviewId: irreversibleReview.id,
-        expectedStatus: 'rejected',
-        nextStatus: 'revert_started',
-        at: at(14),
-      }),
-    ).rejects.toMatchObject({ code: 'INVALID_REVIEW_TRANSITION' });
-    await writes.transitionReview({
-      reviewId: irreversibleReview.id,
-      expectedStatus: 'rejected',
-      nextStatus: 'revert_unavailable',
-      errorCode: 'IRREVERSIBLE_EFFECT',
-      errorMessage: 'The author explicitly confirmed an irreversible effect.',
-      at: at(14),
-    });
-    expect(await writes.getReview(irreversibleReview.id)).toMatchObject({
-      status: 'revert_unavailable',
-      errorCode: 'IRREVERSIBLE_EFFECT',
-      settledAt: at(14),
-    });
-
-    expect(gateway?.database.prepare('PRAGMA foreign_key_check').all()).toEqual(
-      [],
-    );
-    expect(gateway?.database.prepare('PRAGMA integrity_check').get()).toEqual({
-      integrity_check: 'ok',
     });
   });
 });

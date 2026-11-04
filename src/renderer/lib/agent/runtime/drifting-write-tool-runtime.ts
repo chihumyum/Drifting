@@ -1,9 +1,7 @@
 import { Value } from '@sinclair/typebox/value';
-import { effectiveAgentEditMode } from '../agent-edit-mode';
 import type {
   PersistedAgentRuntimeWriteEffect,
   PersistedAgentRuntimeWriteReview,
-  PersistedAgentRuntimeWriteReviewBlock,
 } from '../../../domain/agent-runtime-write-effect';
 import type {
   AgentRuntimeExpectedRevision,
@@ -46,7 +44,6 @@ import {
   type DriftingWriteStrategy,
   type PreparedDriftingWriteEffect,
 } from './drifting-write-strategies';
-import { structuralCreatedProseReviewMode } from './drifting-structural-write-strategy';
 import type { YjsProsePersistenceCoordinator } from './yjs-prose-persistence-coordinator';
 import { getDb, type DbExecutor } from '../../../lib/db';
 import type { AgentRuntimeElementPatchReceiptRepository } from '../../../sqlite-repo/agent-runtime-element-patch-receipt-repo';
@@ -133,12 +130,6 @@ export interface DriftingWriteToolRuntimeOptions {
 export interface AgentWriteReviewDecisionResult {
   review: PersistedAgentRuntimeWriteReview;
   effect: PersistedAgentRuntimeWriteEffect;
-}
-
-export interface AgentWriteReviewBlockDecisionResult
-  extends AgentWriteReviewDecisionResult {
-  block: PersistedAgentRuntimeWriteReviewBlock;
-  blocks: readonly PersistedAgentRuntimeWriteReviewBlock[];
 }
 
 export interface AgentInterruptedWriteReconciliationResult {
@@ -364,93 +355,38 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
         });
       }
     }
-    // Complete decisions already entered before retiring the old review UI.
-    // Only then keep the remaining committed blocks, so an interrupted inverse
-    // cannot leave this session paused on a now-hidden pending review.
-    await this.reconcileInterruptedReviewBlocks(sessionId, signal);
+    // Settle receipts a crash left between `accepted` and `accepted_effect`,
+    // then any committed prose write whose receipt row is still missing.
     await this.reconcileInterruptedReviewStates(sessionId, signal);
-    await this.reconcileCommittedEditorReviews(effects, active);
+    await this.reconcileCommittedEditorReviews(effects);
     return result;
   }
 
-  /** Rebuild pending editor reviews from SQLite even when localStorage vanished. */
+  /**
+   * Project hydration: settle every unsettled receipt of the mounted project.
+   * Agent writes commit directly, so a `pending` or `accepted` receipt only
+   * means the renderer stopped before settlement finished.
+   */
   async reconcileProjectReviews(
     projectId: string,
     signal: AbortSignal = new AbortController().signal,
-  ): Promise<{ projected: number; unresolved: number }> {
+  ): Promise<{ settled: number; unresolved: number }> {
     const context = this.getContext();
     if (!context || context.projectId !== projectId) {
       throw new Error('The Agent review project is not mounted');
     }
-    const result = { projected: 0, unresolved: 0 };
+    const result = { settled: 0, unresolved: 0 };
     const reviews = await this.repository.listPendingReviewsForProject(projectId);
     for (const candidate of reviews) {
       try {
         throwIfAgentAborted(signal);
-        if (candidate.status === 'accepted') {
-          await this.acceptReview(candidate.id, candidate.decisionNote);
-          continue;
-        }
-        if (candidate.status === 'rejected') {
-          await this.rejectReview(
-            candidate.id,
-            candidate.decisionNote,
-            signal,
-          );
-          continue;
-        }
-        if (candidate.status === 'revert_started') {
-          await this.repository.transitionReview({
-            reviewId: candidate.id,
-            expectedStatus: 'revert_started',
-            nextStatus: 'revert_failed',
-            errorCode: 'WRITE_REVERT_INTERRUPTED',
-            errorMessage:
-              'The renderer stopped after inverse execution began; the inverse was not replayed. Re-read the entity before any further edit.',
-            at: this.now(),
-          });
-          continue;
-        }
-        if (candidate.status !== 'pending') continue;
-        const effect = await this.requireEffect(candidate.effectId);
-        const strategy = this.resolveStrategy(effect.toolName);
-        if (strategy?.reviewBlocks) {
-          await this.ensureCommittedReview(
-            effect,
-            'approve',
-            strategy,
-            context,
-          );
-        }
-        const blocks = await this.repository.listReviewBlocks(candidate.id);
-        for (const block of blocks) {
-          if (
-            block.status !== 'revert_started' &&
-            block.status !== 'revert_failed'
-          ) {
-            continue;
-          }
-          await this.rejectReviewBlock(
-            candidate.id,
-            block.blockId,
-            block.decisionNote,
-            signal,
-          );
-        }
-        const review = await this.requireReview(candidate.id);
-        if (review.status !== 'pending') continue;
-        if (effectiveAgentEditMode() === 'auto') {
-          await this.acceptReview(candidate.id, 'Author review mode retired; keep committed changes');
-          continue;
-        }
-        if (!strategy?.projectReview) continue;
-        await this.projectCommittedReview(effect, strategy, context);
-        result.projected += 1;
+        await this.acceptReview(candidate.id);
+        result.settled += 1;
       } catch (error) {
         if (isAgentAbort(error, signal)) throw error;
         result.unresolved += 1;
         console.warn(
-          `[agent] project review ${candidate.id} could not be rebuilt`,
+          `[agent] project review ${candidate.id} could not be settled`,
           error,
         );
       }
@@ -460,13 +396,11 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
 
   /**
    * Close the small, intentional transaction seam between result commit and
-   * review-row creation. Automatic reviews are settled but not visually replayed
-   * after restart; a pending approve-mode review is projected back into the
-   * editor only after its canonical row has been recovered.
+   * receipt creation. Recovered receipts are settled but not visually replayed
+   * after restart.
    */
   private async reconcileCommittedEditorReviews(
     effects: readonly PersistedAgentRuntimeWriteEffect[],
-    context: AgentToolContext,
   ): Promise<void> {
     const committed = effects.filter(
       (effect) => effect.phase === 'result_committed' && effect.authorization,
@@ -474,21 +408,8 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
     for (const effect of committed) {
       try {
         const tool = requireReconciliationTool(effect);
-        const descriptor = activeEditorReview(effect, tool);
-        if (!descriptor) continue;
-        const strategy = this.resolveStrategy(tool.name);
-        const review = await this.ensureCommittedReview(
-          effect,
-          descriptor.mode,
-          strategy,
-          context,
-        );
-        if (review.status !== 'pending') continue;
-        if (effectiveAgentEditMode() === 'auto') {
-          await this.acceptReview(review.id, 'Author review mode retired; keep committed changes');
-          continue;
-        }
-        await this.projectCommittedReview(effect, strategy, context);
+        if (!activeEditorReviewId(effect, tool)) continue;
+        await this.ensureCommittedReview(effect);
       } catch (error) {
         console.warn(
           `[agent] committed editor review ${effect.id} could not be recovered`,
@@ -498,104 +419,39 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
     }
   }
 
-  /** Resume only idempotent, guarded paragraph inverses. */
-  private async reconcileInterruptedReviewBlocks(
-    sessionId: string,
-    signal: AbortSignal,
-  ): Promise<void> {
-    const reviews = (await this.repository.listReviews(sessionId)).filter(
-      (review) => review.status === 'pending',
-    );
-    for (const review of reviews) {
-      const blocks = await this.repository.listReviewBlocks(review.id);
-      for (const block of blocks) {
-        if (
-          block.status !== 'revert_started' &&
-          block.status !== 'revert_failed'
-        ) {
-          continue;
-        }
-        throwIfAgentAborted(signal);
-        await this.rejectReviewBlock(
-          review.id,
-          block.blockId,
-          block.decisionNote,
-          signal,
-        );
-      }
-    }
-  }
-
-  /**
-   * Finish author decisions that were durably recorded before a renderer
-   * crash. `accepted` and `rejected` are safe resumable boundaries. An
-   * already-entered inverse has no universal receipt contract, so
-   * `revert_started` is settled fail-closed instead of replaying a mutation
-   * that may already have happened.
-   */
+  /** Finish a settlement a renderer crash left at `accepted`. */
   private async reconcileInterruptedReviewStates(
     sessionId: string,
     signal: AbortSignal,
   ): Promise<void> {
     const reviews = (await this.repository.listReviews(sessionId)).filter(
-      (review) =>
-        review.status === 'accepted' ||
-        review.status === 'rejected' ||
-        review.status === 'revert_started',
+      (review) => review.status === 'accepted',
     );
     for (const review of reviews) {
       throwIfAgentAborted(signal);
-      if (review.status === 'accepted') {
-        await this.acceptReview(review.id, review.decisionNote);
-        continue;
-      }
-      if (review.status === 'rejected') {
-        await this.rejectReview(review.id, review.decisionNote, signal);
-        continue;
-      }
-      await this.repository.transitionReview({
-        reviewId: review.id,
-        expectedStatus: 'revert_started',
-        nextStatus: 'revert_failed',
-        errorCode: 'WRITE_REVERT_INTERRUPTED',
-        errorMessage:
-          'The renderer stopped after inverse execution began; the inverse was not replayed. Re-read the entity before any further edit.',
-        at: this.now(),
-      });
+      await this.acceptReview(review.id);
     }
   }
 
-  async acceptReview(
-    reviewId: string,
-    decisionNote: unknown = null,
-  ): Promise<AgentWriteReviewDecisionResult> {
-    let review = await this.requireReview(reviewId);
+  /**
+   * Settle one receipt to `accepted_effect`. A receipt that owns durable
+   * blocks settles through its blocks; the repository then settles the
+   * receipt atomically with the last one. Idempotent for settled receipts.
+   */
+  async acceptReview(reviewId: string): Promise<AgentWriteReviewDecisionResult> {
+    const review = await this.requireReview(reviewId);
     const effect = await this.requireEffect(review.effectId);
-    const context = this.requireEffectContext(effect);
-    const strategy = this.resolveStrategy(effect.toolName);
-    if (review.status === 'pending' && strategy?.reviewBlocks) {
-      review = await this.ensureCommittedReview(
-        effect,
-        'approve',
-        strategy,
-        context,
-      );
-    }
     const blocks = await this.repository.listReviewBlocks(reviewId);
     if (blocks.length > 0) {
       for (const block of blocks) {
-        if (block.status === 'accepted' || block.status === 'reverted') continue;
-        if (block.status !== 'pending') {
-          throw new Error(
-            `Agent review block ${reviewId}/${block.blockId} cannot be accepted from ${block.status}`,
-          );
-        }
-        const result = await this.acceptReviewBlock(
+        if (block.status === 'accepted') continue;
+        await this.repository.transitionReviewBlock({
           reviewId,
-          block.blockId,
-          decisionNote,
-        );
-        review = result.review;
+          blockId: block.blockId,
+          expectedStatus: 'pending',
+          nextStatus: 'accepted',
+          at: this.now(),
+        });
       }
       return { review: await this.requireReview(reviewId), effect };
     }
@@ -606,7 +462,6 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
               reviewId,
               expectedStatus: 'pending',
               nextStatus: 'accepted',
-              decisionNote,
               at: this.now(),
             })
           ).review
@@ -623,241 +478,6 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
           ).review
         : accepted;
     return { review: settled, effect };
-  }
-
-  async acceptReviewBlock(
-    reviewId: string,
-    blockId: string,
-    decisionNote: unknown = null,
-  ): Promise<AgentWriteReviewBlockDecisionResult> {
-    let review = await this.requireReview(reviewId);
-    const effect = await this.requireEffect(review.effectId);
-    this.requireEffectContext(effect);
-    let blocks = await this.repository.listReviewBlocks(reviewId);
-    let block = requireReviewBlock(reviewId, blockId, blocks);
-    if (block.status === 'pending') {
-      const result = await this.repository.transitionReviewBlock({
-        reviewId,
-        blockId,
-        expectedStatus: 'pending',
-        nextStatus: 'accepted',
-        decisionNote,
-        at: this.now(),
-      });
-      review = result.review;
-      block = result.block;
-      blocks = result.blocks;
-    } else if (block.status !== 'accepted') {
-      throw new Error(
-        `Agent review block ${reviewId}/${blockId} cannot be accepted from ${block.status}`,
-      );
-    }
-    return { review, effect, block, blocks };
-  }
-
-  async rejectReviewBlock(
-    reviewId: string,
-    blockId: string,
-    decisionNote: unknown = null,
-    signal: AbortSignal = new AbortController().signal,
-  ): Promise<AgentWriteReviewBlockDecisionResult> {
-    let review = await this.requireReview(reviewId);
-    const effect = await this.requireEffect(review.effectId);
-    const context = this.requireEffectContext(effect);
-    const strategy = this.resolveStrategy(effect.toolName);
-    if (!strategy?.applyReviewBlockInverse) {
-      throw new Error(
-        `Agent review ${reviewId} has no certified block inverse`,
-      );
-    }
-    let blocks = await this.repository.listReviewBlocks(reviewId);
-    let block = requireReviewBlock(reviewId, blockId, blocks);
-    if (block.status === 'reverted') {
-      return { review, effect, block, blocks };
-    }
-    if (block.status === 'pending' || block.status === 'revert_failed') {
-      const result = await this.repository.transitionReviewBlock({
-        reviewId,
-        blockId,
-        expectedStatus: block.status,
-        nextStatus: 'revert_started',
-        decisionNote,
-        at: this.now(),
-      });
-      review = result.review;
-      block = result.block;
-      blocks = result.blocks;
-    }
-    if (block.status !== 'revert_started') {
-      throw new Error(
-        `Agent review block ${reviewId}/${blockId} cannot be reverted from ${block.status}`,
-      );
-    }
-    try {
-      throwIfAgentAborted(signal);
-      const revertEffect = await strategy.applyReviewBlockInverse(
-        effect,
-        blockId,
-        withProvenance(context, effect, signal),
-        signal,
-      );
-      throwIfAgentAborted(signal);
-      const result = await this.repository.transitionReviewBlock({
-        reviewId,
-        blockId,
-        expectedStatus: 'revert_started',
-        nextStatus: 'reverted',
-        revertEffect,
-        at: this.now(),
-      });
-      return {
-        review: result.review,
-        effect,
-        block: result.block,
-        blocks: result.blocks,
-      };
-    } catch (error) {
-      if (isAgentAbort(error, signal)) throw error;
-      const result = await this.repository.transitionReviewBlock({
-        reviewId,
-        blockId,
-        expectedStatus: 'revert_started',
-        nextStatus: 'revert_failed',
-        errorCode: 'WRITE_BLOCK_REVERT_FAILED',
-        errorMessage: publicWriteError(error),
-        at: this.now(),
-      });
-      return {
-        review: result.review,
-        effect,
-        block: result.block,
-        blocks: result.blocks,
-      };
-    }
-  }
-
-  async rejectReview(
-    reviewId: string,
-    decisionNote: unknown = null,
-    signal: AbortSignal = new AbortController().signal,
-  ): Promise<AgentWriteReviewDecisionResult> {
-    let review = await this.requireReview(reviewId);
-    const effect = await this.requireEffect(review.effectId);
-    const context = this.requireEffectContext(effect);
-    const strategy = this.resolveStrategy(effect.toolName);
-    if (review.status === 'pending' && strategy?.reviewBlocks) {
-      review = await this.ensureCommittedReview(
-        effect,
-        'approve',
-        strategy,
-        context,
-      );
-    }
-    const blocks = await this.repository.listReviewBlocks(reviewId);
-    if (blocks.length > 0) {
-      for (const block of [...blocks].reverse()) {
-        if (block.status === 'accepted' || block.status === 'reverted') continue;
-        const result = await this.rejectReviewBlock(
-          reviewId,
-          block.blockId,
-          decisionNote,
-          signal,
-        );
-        if (result.block.status !== 'reverted') {
-          return { review: result.review, effect };
-        }
-        review = result.review;
-      }
-      return { review: await this.requireReview(reviewId), effect };
-    }
-    if (!strategy || !effect.inverse || effect.reversibility !== 'exact') {
-      if (review.status === 'pending') {
-        review = (
-          await this.repository.transitionReview({
-            reviewId,
-            expectedStatus: 'pending',
-            nextStatus: 'rejected',
-            decisionNote,
-            at: this.now(),
-          })
-        ).review;
-      }
-      if (review.status === 'rejected') {
-        review = (
-          await this.repository.transitionReview({
-            reviewId,
-            expectedStatus: 'rejected',
-            nextStatus: 'revert_unavailable',
-            errorCode: 'WRITE_INVERSE_UNAVAILABLE',
-            errorMessage: 'This write has no certified exact inverse.',
-            at: this.now(),
-          })
-        ).review;
-      }
-      return { review, effect };
-    }
-
-    if (review.status === 'pending') {
-      review = (
-        await this.repository.transitionReview({
-          reviewId,
-          expectedStatus: 'pending',
-          nextStatus: 'rejected',
-          decisionNote,
-          at: this.now(),
-        })
-      ).review;
-    }
-    if (review.status === 'rejected') {
-      review = (
-        await this.repository.transitionReview({
-          reviewId,
-          expectedStatus: 'rejected',
-          nextStatus: 'revert_started',
-          at: this.now(),
-        })
-      ).review;
-    }
-    if (review.status === 'revert_failed' && review.errorCode === 'WRITE_REVERT_FAILED') {
-      review = (
-        await this.repository.transitionReview({
-          reviewId,
-          expectedStatus: 'revert_failed',
-          nextStatus: 'revert_started',
-          at: this.now(),
-        })
-      ).review;
-    }
-    if (review.status !== 'revert_started') return { review, effect };
-
-    try {
-      const revertEffect = await strategy.applyInverse(
-        effect,
-        withProvenance(context, effect, signal),
-        signal,
-      );
-      review = (
-        await this.repository.transitionReview({
-          reviewId,
-          expectedStatus: 'revert_started',
-          nextStatus: 'reverted',
-          revertEffect,
-          at: this.now(),
-        })
-      ).review;
-    } catch (error) {
-      review = (
-        await this.repository.transitionReview({
-          reviewId,
-          expectedStatus: 'revert_started',
-          nextStatus: 'revert_failed',
-          errorCode: 'WRITE_REVERT_FAILED',
-          errorMessage: publicWriteError(error),
-          at: this.now(),
-        })
-      ).review;
-    }
-    return { review, effect };
   }
 
   private async executeCertifiedWrite(
@@ -1269,14 +889,8 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
         const result = persistedExecutionResult(effect.result);
         projectWorkspaceCreatedAddition(effect, result);
         if (effect.authorization) {
-          const descriptor = activeEditorReview(effect, tool);
-          if (!descriptor) return result;
-          const review = await this.ensureCommittedReview(
-            effect,
-            descriptor.mode,
-            strategy,
-            context,
-          );
+          if (!activeEditorReviewId(effect, tool)) return result;
+          const review = await this.ensureCommittedReview(effect);
           await this.projectCommittedReview(effect, strategy, context);
           return withCanonicalReviewStatus(result, review);
         }
@@ -1284,7 +898,7 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
         // crash could leave their deterministic review row missing.
         return withCanonicalReviewStatus(
           result,
-          await this.ensureLegacyCommittedReview(effect),
+          await this.ensureCommittedReview(effect),
         );
       }
       case 'effect_committed': {
@@ -1354,8 +968,7 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
     if (!effect.authorization) {
       return this.settleLegacyCommittedEffect(effect, tool, handlerResult);
     }
-    const descriptor = activeEditorReview(effect, tool);
-    const reviewId = descriptor?.id ?? null;
+    const reviewId = activeEditorReviewId(effect, tool);
     const useDomainPresentation =
       domainWriteName(tool.name) && hasPreparedDomainEnvelope(effect.arguments);
     const visibleResult =
@@ -1379,7 +992,7 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
               visibleResult as ReturnType<typeof workspaceVisibleWriteResult>,
             ),
           }
-          : descriptor
+          : reviewId
           ? {
               modelData:
                 `${describeAgentWriteTarget(effect.toolName, effect.arguments)}已更新。` +
@@ -1401,16 +1014,11 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
     // provider-facing `modelData`. The latter is intentionally natural prose
     // and no longer exposes storage fields such as `operation: "created"`.
     projectWorkspaceCreatedAddition(effect, result);
-    if (descriptor) {
+    if (reviewId) {
       // The repository intentionally requires a result-committed effect before
       // it will create the review row. Projection remains last, so the badge
       // can never race a missing review even if the renderer crashes here.
-      const review = await this.ensureCommittedReview(
-        effect,
-        descriptor.mode,
-        strategy,
-        context,
-      );
+      const review = await this.ensureCommittedReview(effect);
       await this.projectCommittedReview(effect, strategy, context);
       return withCanonicalReviewStatus(result, review);
     }
@@ -1455,63 +1063,26 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
     });
     return withCanonicalReviewStatus(
       result,
-      await this.ensureLegacyCommittedReview(effect),
+      await this.ensureCommittedReview(effect),
     );
   }
 
-  private async ensureLegacyCommittedReview(
-    effect: PersistedAgentRuntimeWriteEffect,
-  ): Promise<PersistedAgentRuntimeWriteReview> {
-    return this.ensureCommittedReview(
-      effect,
-      legacyEffectReviewMode(effect.forward) ?? 'approve',
-    );
-  }
-
+  /** Create the deterministic settlement receipt once, then settle it. */
   private async ensureCommittedReview(
     effect: PersistedAgentRuntimeWriteEffect,
-    mode: 'auto' | 'approve',
-    strategy?: DriftingWriteStrategy,
-    context?: AgentToolContext,
   ): Promise<PersistedAgentRuntimeWriteReview> {
-    const blocks =
-      mode === 'approve' && strategy?.reviewBlocks && context
-        ? await strategy.reviewBlocks(effect, context)
-        : [];
-    let review = (
+    const reviewId = writeReviewId(effect.id);
+    if (!(await this.repository.getReview(reviewId))) {
       await this.repository.createReview({
-        id: writeReviewId(effect.id),
+        id: reviewId,
         effectId: effect.id,
         sessionId: effect.sessionId,
         turnId: effect.turnId,
         toolCallId: effect.toolCallId,
         createdAt: this.now(),
-        ...(blocks.length > 0 ? { blocks } : {}),
-      })
-    ).review;
-    if (mode !== 'auto') return review;
-    if (review.status === 'pending') {
-      review = (
-        await this.repository.transitionReview({
-          reviewId: review.id,
-          expectedStatus: 'pending',
-          nextStatus: 'accepted',
-          decisionNote: 'auto mode',
-          at: this.now(),
-        })
-      ).review;
+      });
     }
-    if (review.status === 'accepted') {
-      review = (
-        await this.repository.transitionReview({
-          reviewId: review.id,
-          expectedStatus: 'accepted',
-          nextStatus: 'accepted_effect',
-          at: this.now(),
-        })
-      ).review;
-    }
-    return review;
+    return (await this.acceptReview(reviewId)).review;
   }
 
   private async projectCommittedReview(
@@ -1521,17 +1092,7 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
   ): Promise<void> {
     if (!strategy?.projectReview || !context) return;
     try {
-      const blocks = await this.repository.listReviewBlocks(
-        writeReviewId(effect.id),
-      );
-      const decisions = Object.fromEntries(
-        blocks.flatMap((block) =>
-          block.status === 'accepted' || block.status === 'reverted'
-            ? [[block.blockId, block.status] as const]
-            : [],
-        ),
-      );
-      await strategy.projectReview(effect, context, decisions);
+      await strategy.projectReview(effect, context);
     } catch (error) {
       console.warn(
         '[agent] durable prose review could not be projected into the editor',
@@ -2780,25 +2341,18 @@ function recordString(value: unknown, key: string): string | null {
     : null;
 }
 
-function activeEditorReview(
+/** A certified prose write owns a settlement receipt and an editor projection. */
+function activeEditorReviewId(
   effect: PersistedAgentRuntimeWriteEffect,
   tool: RegisteredTool,
-): { id: string; mode: 'auto' | 'approve' } | null {
+): string | null {
   if (tool.approval !== 'automatic' && tool.approval !== 'review_after') return null;
   if (!effect.forward || typeof effect.forward !== 'object' || Array.isArray(effect.forward)) {
     return null;
   }
-  const kind = (effect.forward as { kind?: unknown }).kind;
-  const structuralMode =
-    kind === 'structural_write_command'
-      ? structuralCreatedProseReviewMode(effect.forward)
-      : null;
-  if (kind !== 'yjs_prose' && structuralMode !== 'approve') {
-    // Auto-mode structural creates use the Added first-open reveal. An approve-
-    // mode create with textual prose joins the durable block-review path below;
-    // metadata-only writes still complete without a fake editor review.
-    return null;
-  }
+  // Structural creates use the Added first-open reveal; metadata-only writes
+  // complete without an editor receipt.
+  if ((effect.forward as { kind?: unknown }).kind !== 'yjs_prose') return null;
   const reviewSnapshot = (effect.forward as { reviewSnapshot?: unknown })
     .reviewSnapshot;
   if (
@@ -2807,40 +2361,11 @@ function activeEditorReview(
     Array.isArray(reviewSnapshot) ||
     (reviewSnapshot as { effectId?: unknown }).effectId !== effect.id ||
     (reviewSnapshot as { reviewId?: unknown }).reviewId !==
-      writeReviewId(effect.id) ||
-    ((reviewSnapshot as { mode?: unknown }).mode !== 'auto' &&
-      (reviewSnapshot as { mode?: unknown }).mode !== 'approve')
+      writeReviewId(effect.id)
   ) {
     throw new Error('The committed prose write lost its editor-review provenance');
   }
-  return {
-    id: writeReviewId(effect.id),
-    mode: (reviewSnapshot as { mode: 'auto' | 'approve' }).mode,
-  };
-}
-
-function legacyEffectReviewMode(value: unknown): 'auto' | 'approve' | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  const snapshot = (value as { reviewSnapshot?: unknown }).reviewSnapshot;
-  if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) {
-    return null;
-  }
-  const mode = (snapshot as { mode?: unknown }).mode;
-  return mode === 'auto' || mode === 'approve' ? mode : null;
-}
-
-function requireReviewBlock(
-  reviewId: string,
-  blockId: string,
-  blocks: readonly PersistedAgentRuntimeWriteReviewBlock[],
-): PersistedAgentRuntimeWriteReviewBlock {
-  const block = blocks.find((candidate) => candidate.blockId === blockId);
-  if (!block) {
-    throw new Error(
-      `Agent review ${reviewId} has no durable block "${blockId}"`,
-    );
-  }
-  return block;
+  return writeReviewId(effect.id);
 }
 
 function persistedHandlerResult(value: unknown): unknown {

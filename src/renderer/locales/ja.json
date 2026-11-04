@@ -1415,8 +1415,6 @@
       "paused": "続行すると保存した進捗から再開します。"
     },
     "autoContinue": {
-      "waitingReviewTitle": "編集のレビュー待ち",
-      "waitingReviewBody": "現在進められる手順はすべてレビュー待ちです。保留中の編集を確認してから続行してください。",
       "noProgressTitle": "連続実行で保存できる進捗がありません",
       "noProgressBody": "Agentが2区間続けて計画を進めなかったため、追加消費の前に停止しました。最後のツールエラーを確認し、準備後に続行してください。",
       "safetyTitle": "連続実行を一時停止",

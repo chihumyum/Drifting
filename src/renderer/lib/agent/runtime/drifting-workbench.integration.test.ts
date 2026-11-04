@@ -23,7 +23,6 @@ import { withAtomicSyncTransaction } from '../../../usecase/sync-helpers';
 import { useAgentEditStore } from '../../../store/agent-edit-store';
 import { useDataStore } from '../../../store/data-store';
 import { useProjectStore } from '../../../store/project-store';
-import { setAgentEditModeOverride } from '../agent-edit-mode';
 import type { AgentToolContext } from '../tool-handlers';
 import { ProductFileBackedSqliteGateway } from './acceptance/p3-file-backed-sqlite';
 import { createTestAgentAuthoredJournal } from './agent-authored-journal.test-support';
@@ -147,7 +146,6 @@ describe('Agent workbench writes', () => {
 
   beforeEach(async () => {
     secureStorage.clear();
-    setAgentEditModeOverride(null);
     useAgentEditStore.getState().clearAll();
     fixture = await WorkbenchFixture.create();
   });

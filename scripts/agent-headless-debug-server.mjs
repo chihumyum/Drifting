@@ -119,9 +119,6 @@ function validateTurnRequest(value) {
   ) {
     throw new Error('userInputs must be an array of strings');
   }
-  if (value.editMode !== undefined && value.editMode !== 'auto' && value.editMode !== 'approve') {
-    throw new Error('editMode must be auto or approve');
-  }
   if (value.thinking !== undefined && value.thinking !== 'adaptive' && value.thinking !== 'off') {
     throw new Error('thinking must be adaptive or off');
   }
@@ -146,46 +143,10 @@ function validateTurnRequest(value) {
     permissionMode: value.permissionMode ?? 'manual',
     autoContinue: value.autoContinue === true,
     userInputs: value.userInputs ?? [],
-    ...(value.editMode === 'auto' || value.editMode === 'approve'
-      ? { editMode: value.editMode }
-      : {}),
     ...(value.thinking === 'adaptive' || value.thinking === 'off'
       ? { thinking: value.thinking }
       : {}),
     ...(typeof value.effort === 'string' ? { effort: value.effort } : {}),
-  };
-}
-
-function validateReviewRequest(value) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    throw new Error('Review request must be a JSON object');
-  }
-  if (typeof value.projectId !== 'string' || value.projectId.trim() === '') {
-    throw new Error('projectId is required');
-  }
-  if (typeof value.reviewId !== 'string' || value.reviewId.trim() === '') {
-    throw new Error('reviewId is required');
-  }
-  if (value.decision !== 'accept' && value.decision !== 'reject') {
-    throw new Error('decision must be accept or reject');
-  }
-  if (value.note !== undefined && typeof value.note !== 'string') {
-    throw new Error('note must be a string');
-  }
-  if (
-    value.blockId !== undefined &&
-    (typeof value.blockId !== 'string' || value.blockId.trim() === '')
-  ) {
-    throw new Error('blockId must be a non-empty string');
-  }
-  return {
-    kind: 'review',
-    projectId: value.projectId.trim(),
-    reviewId: value.reviewId.trim(),
-    decision: value.decision,
-    ...(typeof value.blockId === 'string' ? { blockId: value.blockId.trim() } : {}),
-    ...(value.note?.trim() ? { note: value.note.trim() } : {}),
-    timeoutMs: 120_000,
   };
 }
 
@@ -328,12 +289,6 @@ function startBroker({ host, port }) {
 
       if (request.method === 'POST' && url.pathname === '/turn') {
         const input = validateTurnRequest(await readJson(request));
-        enqueue(input, response);
-        return;
-      }
-
-      if (request.method === 'POST' && url.pathname === '/review') {
-        const input = validateReviewRequest(await readJson(request));
         enqueue(input, response);
         return;
       }

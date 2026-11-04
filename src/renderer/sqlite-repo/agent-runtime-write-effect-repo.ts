@@ -178,14 +178,8 @@ function reviewToDomain(
     turnId: row.turnId,
     toolCallId: row.toolCallId,
     status: row.status as PersistedAgentRuntimeWriteReview['status'],
-    decisionNote: parseNullableJson(row.decisionNoteJson),
-    revertEffect: parseNullableJson(row.revertEffectJson),
-    errorCode: row.errorCode ?? null,
-    errorMessage: row.errorMessage ?? null,
     createdAt: row.createdAt,
     acceptedAt: row.acceptedAt ?? null,
-    rejectedAt: row.rejectedAt ?? null,
-    revertStartedAt: row.revertStartedAt ?? null,
     settledAt: row.settledAt ?? null,
     updatedAt: row.updatedAt,
   };
@@ -200,12 +194,7 @@ function reviewBlockToDomain(
     blockId: row.blockId,
     ordinal: row.ordinal,
     status: row.status as PersistedAgentRuntimeWriteReviewBlock['status'],
-    decisionNote: parseNullableJson(row.decisionNoteJson),
-    revertEffect: parseNullableJson(row.revertEffectJson),
-    errorCode: row.errorCode ?? null,
-    errorMessage: row.errorMessage ?? null,
     createdAt: row.createdAt,
-    revertStartedAt: row.revertStartedAt ?? null,
     settledAt: row.settledAt ?? null,
     updatedAt: row.updatedAt,
   };
@@ -291,58 +280,6 @@ function sameEffectTransitionResult(
   }
 }
 
-function sameReviewTransitionResult(
-  review: PersistedAgentRuntimeWriteReview,
-  transition: AgentRuntimeWriteReviewTransition,
-): boolean {
-  if (review.status !== transition.nextStatus) return false;
-  switch (transition.nextStatus) {
-    case 'accepted':
-    case 'rejected':
-      return sameJson(
-        review.decisionNote,
-        transition.decisionNote === undefined
-          ? null
-          : transition.decisionNote,
-      );
-    case 'accepted_effect':
-    case 'revert_started':
-      return true;
-    case 'reverted':
-      return sameJson(review.revertEffect, transition.revertEffect);
-    case 'revert_failed':
-    case 'revert_unavailable':
-      return (
-        review.errorCode === transition.errorCode &&
-        review.errorMessage === (transition.errorMessage ?? null)
-      );
-  }
-}
-
-function sameReviewBlockTransitionResult(
-  block: PersistedAgentRuntimeWriteReviewBlock,
-  transition: AgentRuntimeWriteReviewBlockTransition,
-): boolean {
-  if (block.status !== transition.nextStatus) return false;
-  switch (transition.nextStatus) {
-    case 'accepted':
-    case 'revert_started':
-      return sameJson(
-        block.decisionNote,
-        transition.decisionNote === undefined
-          ? null
-          : transition.decisionNote,
-      );
-    case 'reverted':
-      return sameJson(block.revertEffect, transition.revertEffect);
-    case 'revert_failed':
-      return (
-        block.errorCode === transition.errorCode &&
-        block.errorMessage === (transition.errorMessage ?? null)
-      );
-  }
-}
-
 export function createAgentRuntimeWriteEffectRepository(
   dbOverride?: DbExecutor,
 ): AgentRuntimeWriteEffectRepository {
@@ -417,6 +354,7 @@ export function createAgentRuntimeWriteEffectRepository(
     return rows.map(reviewBlockToDomain);
   };
 
+  /** Once every durable block is accepted, the review settles atomically. */
   const settleReviewFromBlocks = async (
     review: PersistedAgentRuntimeWriteReview,
     blocks: readonly PersistedAgentRuntimeWriteReviewBlock[],
@@ -426,45 +364,15 @@ export function createAgentRuntimeWriteEffectRepository(
     if (
       review.status !== 'pending' ||
       blocks.length === 0 ||
-      blocks.some(
-        (block) => block.status !== 'accepted' && block.status !== 'reverted',
-      )
+      blocks.some((block) => block.status !== 'accepted')
     ) {
       return review;
     }
-    const decisions = blocks.map((block) => ({
-      blockId: block.blockId,
-      decision: block.status,
-    }));
-    const allReverted = blocks.every((block) => block.status === 'reverted');
-    const status = allReverted ? 'reverted' : 'accepted_effect';
-    const decisionNote = {
-      schemaVersion: 1,
-      kind: 'block_review',
-      decisions,
-    };
     await executor
       .update(AgentRuntimeWriteReviewTable)
       .set({
-        status,
-        decisionNoteJson: canonicalAgentRuntimeJson(decisionNote),
-        ...(allReverted
-          ? {
-              rejectedAt: at,
-              revertStartedAt:
-                blocks
-                  .map((block) => block.revertStartedAt)
-                  .filter((value): value is string => value !== null)
-                  .sort()[0] ?? at,
-              revertEffectJson: canonicalAgentRuntimeJson({
-                kind: 'block_review_revert',
-                blocks: blocks.map((block) => ({
-                  blockId: block.blockId,
-                  effect: block.revertEffect,
-                })),
-              }),
-            }
-          : { acceptedAt: at }),
+        status: 'accepted_effect',
+        acceptedAt: at,
         settledAt: at,
         updatedAt: at,
       })
@@ -475,7 +383,7 @@ export function createAgentRuntimeWriteEffectRepository(
         ),
       );
     const settled = await getReview(review.id, executor);
-    if (!settled || settled.status !== status) {
+    if (!settled || settled.status !== 'accepted_effect') {
       throw new AgentRuntimeWritePersistenceConflictError(
         'INVALID_REVIEW_BLOCK_TRANSITION',
         `Write review ${review.id} lost its atomic block settlement.`,
@@ -940,8 +848,6 @@ export function createAgentRuntimeWriteEffectRepository(
             inArray(AgentRuntimeWriteReviewTable.status, [
               'pending',
               'accepted',
-              'rejected',
-              'revert_started',
             ]),
           ),
         )
@@ -986,7 +892,7 @@ export function createAgentRuntimeWriteEffectRepository(
           );
         }
         if (block.status !== transition.expectedStatus) {
-          if (sameReviewBlockTransitionResult(block, transition)) {
+          if (block.status === transition.nextStatus) {
             const blocks = await listReviewBlocks(transition.reviewId, tx);
             review = await settleReviewFromBlocks(
               review,
@@ -1013,49 +919,13 @@ export function createAgentRuntimeWriteEffectRepository(
           );
         }
 
-        const values: Partial<
-          typeof AgentRuntimeWriteReviewBlockTable.$inferInsert
-        > = {
-          status: transition.nextStatus,
-          updatedAt: transition.at,
-        };
-        switch (transition.nextStatus) {
-          case 'accepted':
-            values.decisionNoteJson =
-              transition.decisionNote === undefined ||
-              transition.decisionNote === null
-                ? null
-                : canonicalAgentRuntimeJson(transition.decisionNote);
-            values.settledAt = transition.at;
-            break;
-          case 'revert_started':
-            values.decisionNoteJson =
-              transition.decisionNote === undefined ||
-              transition.decisionNote === null
-                ? block.decisionNote === null
-                  ? null
-                  : canonicalAgentRuntimeJson(block.decisionNote)
-                : canonicalAgentRuntimeJson(transition.decisionNote);
-            values.revertStartedAt = transition.at;
-            values.settledAt = null;
-            values.errorCode = null;
-            values.errorMessage = null;
-            break;
-          case 'reverted':
-            values.revertEffectJson = canonicalAgentRuntimeJson(
-              transition.revertEffect,
-            );
-            values.settledAt = transition.at;
-            break;
-          case 'revert_failed':
-            values.errorCode = transition.errorCode;
-            values.errorMessage = transition.errorMessage ?? null;
-            values.settledAt = transition.at;
-            break;
-        }
         await tx
           .update(AgentRuntimeWriteReviewBlockTable)
-          .set(values)
+          .set({
+            status: transition.nextStatus,
+            settledAt: transition.at,
+            updatedAt: transition.at,
+          })
           .where(
             and(
               eq(
@@ -1121,7 +991,7 @@ export function createAgentRuntimeWriteEffectRepository(
           );
         }
         if (current.status !== transition.expectedStatus) {
-          if (sameReviewTransitionResult(current, transition)) {
+          if (current.status === transition.nextStatus) {
             return { outcome: 'duplicate' as const, review: current };
           }
           throw new AgentRuntimeWritePersistenceConflictError(
@@ -1150,72 +1020,18 @@ export function createAgentRuntimeWriteEffectRepository(
 
         const values: Partial<
           typeof AgentRuntimeWriteReviewTable.$inferInsert
-        > = {
-          status: transition.nextStatus,
-          updatedAt: transition.at,
-        };
-        switch (transition.nextStatus) {
-          case 'accepted':
-            values.acceptedAt = transition.at;
-            values.decisionNoteJson =
-              transition.decisionNote === undefined ||
-              transition.decisionNote === null
-                ? null
-                : canonicalAgentRuntimeJson(transition.decisionNote);
-            break;
-          case 'rejected':
-            values.rejectedAt = transition.at;
-            values.decisionNoteJson =
-              transition.decisionNote === undefined ||
-              transition.decisionNote === null
-                ? null
-                : canonicalAgentRuntimeJson(transition.decisionNote);
-            break;
-          case 'accepted_effect':
-            values.settledAt = transition.at;
-            break;
-          case 'revert_started':
-            if (
-              (effect.reversibility !== 'exact' &&
-                effect.reversibility !== 'compensating') ||
-              effect.inverse === null
-            ) {
-              throw new AgentRuntimeWritePersistenceConflictError(
-                'INVALID_REVIEW_TRANSITION',
-                `Write effect ${effect.id} has no executable inverse.`,
-              );
-            }
-            values.revertStartedAt = transition.at;
-            values.settledAt = null;
-            values.errorCode = null;
-            values.errorMessage = null;
-            break;
-          case 'reverted':
-            values.revertEffectJson = canonicalAgentRuntimeJson(
-              transition.revertEffect,
-            );
-            values.settledAt = transition.at;
-            break;
-          case 'revert_failed':
-            values.errorCode = transition.errorCode;
-            values.errorMessage = transition.errorMessage ?? null;
-            values.settledAt = transition.at;
-            break;
-          case 'revert_unavailable':
-            if (
-              effect.reversibility === 'exact' ||
-              effect.reversibility === 'compensating'
-            ) {
-              throw new AgentRuntimeWritePersistenceConflictError(
-                'INVALID_REVIEW_TRANSITION',
-                `Reversible write effect ${effect.id} must attempt its inverse.`,
-              );
-            }
-            values.errorCode = transition.errorCode;
-            values.errorMessage = transition.errorMessage ?? null;
-            values.settledAt = transition.at;
-            break;
-        }
+        > =
+          transition.nextStatus === 'accepted'
+            ? {
+                status: 'accepted',
+                acceptedAt: transition.at,
+                updatedAt: transition.at,
+              }
+            : {
+                status: 'accepted_effect',
+                settledAt: transition.at,
+                updatedAt: transition.at,
+              };
 
         await tx
           .update(AgentRuntimeWriteReviewTable)

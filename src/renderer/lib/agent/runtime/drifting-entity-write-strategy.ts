@@ -56,7 +56,6 @@ import {
   updateStorylineWithSync,
   type EntityAtomicTransactionRunner,
 } from '../../../usecase/synced-entity-commands';
-import { effectiveAgentEditMode } from '../agent-edit-mode';
 import {
   agentAuthoredJournal,
   appendAgentDomainMutation,
@@ -117,7 +116,8 @@ interface EntityWriteCommandPayload {
     version: 1;
     effectId: string;
     reviewId: string;
-    mode: 'auto' | 'approve';
+    /** Persisted format key. Agent writes always commit directly. */
+    mode: 'auto';
   };
 }
 
@@ -272,7 +272,7 @@ async function preparePayload(
       version: 1 as const,
       effectId,
       reviewId: `agent-review:${effectId}`,
-      mode: effectiveAgentEditMode(),
+      mode: 'auto' as const,
     },
   };
 
@@ -1142,8 +1142,7 @@ function parsePayload(
     payload.reviewSnapshot.effectId !== payload.effectId ||
     payload.reviewSnapshot.reviewId !==
       `agent-review:${payload.effectId}` ||
-    (payload.reviewSnapshot.mode !== 'auto' &&
-      payload.reviewSnapshot.mode !== 'approve')
+    payload.reviewSnapshot.mode !== 'auto'
   ) {
     throw new Error('The persisted entity write payload is inconsistent');
   }

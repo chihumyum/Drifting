@@ -1415,8 +1415,6 @@
       "paused": "Continue to resume from saved progress."
     },
     "autoContinue": {
-      "waitingReviewTitle": "Waiting for edit review",
-      "waitingReviewBody": "Every currently actionable step is waiting for review. Settle the pending edits, then continue this task.",
       "noProgressTitle": "Continuous run made no durable progress",
       "noProgressBody": "The Agent repeated two slices without advancing its durable plan, so the run paused before spending more. Inspect the last tool error, then continue when ready.",
       "safetyTitle": "Continuous run paused",

@@ -62,7 +62,7 @@ function step(
 }
 
 describe('long-task auto continuation', () => {
-  it('distinguishes runnable work, pending reviews, and finalization', () => {
+  it('distinguishes runnable work, unsettled receipts, and finalization', () => {
     const summary = summarizeLongTaskPlanForContinuation(
       'session-1',
       plan([
@@ -96,7 +96,6 @@ describe('long-task auto continuation', () => {
       taskId: 'task-1',
       revision: 1,
       runnableStepCount: 2,
-      waitingReviewStepCount: 1,
       needsFinalization: false,
     });
 
@@ -140,7 +139,7 @@ describe('long-task auto continuation', () => {
     });
   });
 
-  it('continues independent runnable work while another step awaits review and pauses for review-only work', () => {
+  it('schedules runnable work and pauses when only unsettled steps remain', () => {
     const automatic = markAutomaticContinuationTerminal(armAgentAutomaticContinuation(null, 100), {
       turnId: 'turn-1',
       costUsd: 0.01,
@@ -161,28 +160,11 @@ describe('long-task auto continuation', () => {
     expect(
       decideAgentAutomaticContinuation({
         automatic,
-        plan: {
-          ...basePlan,
-          runnableStepCount: 0,
-          waitingReviewStepCount: 1,
-        },
+        plan: { ...basePlan, runnableStepCount: 0 },
         terminalOutcome: 'completed',
         nowMs: 200,
       }),
-    ).toEqual({ kind: 'stop', status: 'paused', reason: 'waiting_review' });
-
-    expect(
-      decideAgentAutomaticContinuation({
-        automatic,
-        plan: {
-          ...basePlan,
-          runnableStepCount: 1,
-          waitingReviewStepCount: 1,
-        },
-        terminalOutcome: 'completed',
-        nowMs: 200,
-      }),
-    ).toEqual({ kind: 'schedule' });
+    ).toEqual({ kind: 'stop', status: 'paused', reason: 'no_actionable_work' });
   });
 
   it('continues a planless task across physical context boundaries', () => {

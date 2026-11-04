@@ -14,14 +14,13 @@ import { useAgentActivityStore } from './agent-activity-store';
 import { useAgentEditStore } from './agent-edit-store';
 import { collectAgentUnreadMarks } from '../hooks/useAgentUnreadMarks';
 import { createAgentDecorationSelector } from '../features/editor/agent-decoration-projection';
-import { effectiveAgentEditMode, setAgentEditModeOverride } from '../lib/agent/agent-edit-mode';
 import type { ActivityEntityType } from '../lib/agent/tool-entity-ref';
 
-function write(entityType: ActivityEntityType, id: string, reviewId: string, mode: 'auto' | 'approve' = 'auto') {
+function write(entityType: ActivityEntityType, id: string, reviewId: string) {
   useAgentEditStore.getState().recordReview(entityType, id, [
     { blockId: 'paragraph', op: 'changed', oldText: 'Synthetic before', newText: 'Synthetic after', afterPrevId: null },
     { blockId: 'field:summary', op: 'changed', oldText: 'Old summary', newText: 'New summary', afterPrevId: null, field: { kind: 'summary', label: 'Summary' } },
-  ], mode, { reviewId, effectId: `effect-${reviewId}` });
+  ], { reviewId, effectId: `effect-${reviewId}` });
 }
 
 const unread = () => {
@@ -32,9 +31,8 @@ const unread = () => {
 beforeEach(() => {
   useAgentActivityStore.getState().clearAll();
   useAgentEditStore.getState().clearAll();
-  setAgentEditModeOverride(null);
 });
-afterEach(() => { vi.unstubAllEnvs(); setAgentEditModeOverride(null); values.clear(); });
+afterEach(() => { values.clear(); });
 
 describe('Agent unread acknowledgement', () => {
   it('clears prose, fields and Added presentation only for the clicked entity kind and id', () => {
@@ -48,7 +46,7 @@ describe('Agent unread acknowledgement', () => {
     expect(useAgentEditStore.getState().additions).toEqual({});
     expect(useAgentActivityStore.getState().active).toEqual({ 'node:other-running': active });
     expect(createAgentDecorationSelector('node', 'same-id')(useAgentEditStore.getState()))
-      .toEqual({ approveChanges: [], autoRevealBlockIds: undefined });
+      .toEqual({ autoRevealBlockIds: undefined });
   });
 
   it('persists acknowledgement and prevents receipt replay from resurrecting a reveal', async () => {
@@ -67,7 +65,7 @@ describe('Agent unread acknowledgement', () => {
   });
 
   it('acknowledges a group scope without clearing another group or an incoming write guard', () => {
-    write('storyline', 'story', 'story-review', 'approve');
+    write('storyline', 'story', 'story-review');
     write('node', 'child', 'child-review');
     write('node', 'outside', 'outside-review');
     useAgentEditStore.getState().stageAutoRevealGuard('node', 'child', 'incoming', ['next-paragraph']);
@@ -75,12 +73,5 @@ describe('Agent unread acknowledgement', () => {
     expect(Object.keys(unread())).toEqual(['node:outside']);
     expect(useAgentEditStore.getState().autoRevealGuards.incoming.blockIds).toEqual(['next-paragraph']);
     expect(useAgentEditStore.getState().reviewBatches['outside-review']).toBeDefined();
-  });
-
-  it('defaults to direct writes and cannot activate author review in a production renderer', () => {
-    expect(effectiveAgentEditMode()).toBe('auto');
-    vi.stubEnv('MODE', 'production');
-    setAgentEditModeOverride('approve');
-    expect(effectiveAgentEditMode()).toBe('auto');
   });
 });

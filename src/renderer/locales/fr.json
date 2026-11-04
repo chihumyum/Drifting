@@ -1419,8 +1419,6 @@
       "paused": "Continuez pour reprendre la progression enregistrée."
     },
     "autoContinue": {
-      "waitingReviewTitle": "En attente de relecture des modifications",
-      "waitingReviewBody": "Toutes les étapes réalisables attendent une relecture. Traitez les modifications en attente, puis continuez.",
       "noProgressTitle": "L’exécution continue n’a pas produit de progrès persistant",
       "noProgressBody": "Agent a répété deux segments sans faire avancer le plan persistant et s’est arrêté avant de consommer davantage. Vérifiez la dernière erreur d’outil, puis reprenez.",
       "safetyTitle": "Exécution continue en pause",

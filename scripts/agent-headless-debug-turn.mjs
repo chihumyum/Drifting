@@ -44,7 +44,6 @@ function parseArgs(argv) {
     else if (arg === '--url') options.url = next();
     else if (arg === '--timeout-ms') options.timeoutMs = Number(next());
     else if (arg === '--permission') options.permissionMode = next();
-    else if (arg === '--edit-mode') options.editMode = next();
     else if (arg === '--thinking') options.thinking = next();
     else if (arg === '--effort') options.effort = next();
     else if (arg === '--show-thinking') options.showThinking = true;
@@ -66,7 +65,6 @@ function usage() {
     '  --prompt-file <path>            Read the prompt from a UTF-8 file',
     '  --conversation <id>             Resume an existing Agent conversation',
     '  --permission manual|allow_once|deny',
-    '  --edit-mode auto|approve         Override review mode for this turn only',
     '  --thinking adaptive|off          Override reasoning mode for this turn only',
     '  --effort low|medium|high|xhigh|max  Override reasoning effort for this turn only',
     '  --show-thinking                  Print each complete model reasoning pass',
@@ -389,9 +387,6 @@ async function main() {
   }
   const prompt = await readPrompt(options);
   if (!options.projectId || !prompt?.trim()) throw new Error('--project and a prompt are required');
-  if (options.editMode && options.editMode !== 'auto' && options.editMode !== 'approve') {
-    throw new Error('--edit-mode must be auto or approve');
-  }
   if (options.thinking && options.thinking !== 'adaptive' && options.thinking !== 'off') {
     throw new Error('--thinking must be adaptive or off');
   }
@@ -461,7 +456,6 @@ async function main() {
         timeoutMs: options.timeoutMs,
         permissionMode: options.permissionMode,
         autoContinue: options.autoContinue === true,
-        ...(options.editMode ? { editMode: options.editMode } : {}),
         ...(options.thinking ? { thinking: options.thinking } : {}),
         ...(options.effort ? { effort: options.effort } : {}),
         userInputs: options.userInputs,

@@ -17,8 +17,6 @@ import { deriveProseMetricFromJson } from '@drifting/prose-metrics';
 import { extractOutline, serializeOutline } from '../../outline';
 import { proseDocId, type ProseEntityType } from '../../yjs-doc-id';
 import { computeBlockChanges, type AgentBlockChange } from '../block-diff';
-import { revertEntityBlock } from '../chapter-prose';
-import { effectiveAgentEditMode } from '../agent-edit-mode';
 import {
   BookElementTable,
   BookNodeTable,
@@ -128,29 +126,14 @@ export interface DriftingWriteStrategy {
     signal: AbortSignal,
   ): Promise<{ handlerResult: unknown; committedEffect: unknown } | null>;
   /**
-   * Rebuild the editor-only review/reveal projection after the canonical review
-   * row and result receipt exist. It must never mutate domain state.
+   * Rebuild the editor-only unread/reveal projection after the canonical
+   * settlement receipt and result exist. It must never mutate domain state.
    */
   projectReview?(
     effect: PersistedAgentRuntimeWriteEffect,
     context: AgentToolContext,
-    blockDecisions?: Readonly<Record<string, 'accepted' | 'reverted'>>,
   ): Promise<void> | void;
-  /** Immutable paragraph identities represented by this review batch. */
-  reviewBlocks?(
-    effect: PersistedAgentRuntimeWriteEffect,
-    context: AgentToolContext,
-  ): Promise<readonly { blockId: string; ordinal: number }[]>;
-  /**
-   * Apply one guarded paragraph inverse. This operation must be idempotent so a
-   * durable `revert_started` row can resume after renderer interruption.
-   */
-  applyReviewBlockInverse?(
-    effect: PersistedAgentRuntimeWriteEffect,
-    blockId: string,
-    context: AgentToolContext,
-    signal: AbortSignal,
-  ): Promise<unknown>;
+  /** Guarded exact inverse of a committed effect (the certified Revert). */
   applyInverse(
     effect: PersistedAgentRuntimeWriteEffect,
     context: AgentToolContext,
@@ -380,35 +363,9 @@ function workspaceEditStrategy(
       );
     },
 
-    async projectReview(effect, context, blockDecisions) {
+    async projectReview(effect, context) {
       const { command, strategy } = resolve(effect.arguments);
-      await strategy.projectReview?.(
-        innerEffect(effect, command),
-        context,
-        blockDecisions,
-      );
-    },
-
-    async reviewBlocks(effect, context) {
-      const { command, strategy } = resolve(effect.arguments);
-      return strategy.reviewBlocks
-        ? strategy.reviewBlocks(innerEffect(effect, command), context)
-        : [];
-    },
-
-    async applyReviewBlockInverse(effect, blockId, context, signal) {
-      const { command, strategy } = resolve(effect.arguments);
-      if (!strategy.applyReviewBlockInverse) {
-        throw new Error(
-          `Tool "${command.name}" has no block-review inverse`,
-        );
-      }
-      return strategy.applyReviewBlockInverse(
-        innerEffect(effect, command),
-        blockId,
-        context,
-        signal,
-      );
+      await strategy.projectReview?.(innerEffect(effect, command), context);
     },
 
     async applyInverse(effect, context, signal) {
@@ -492,10 +449,9 @@ function nodeFieldStrategy(field: 'title' | 'summary'): DriftingWriteStrategy {
         throw new Error('The node for this Agent review no longer exists');
       }
       // A process can die after the exact inverse usecase commits but before
-      // the review row advances from revert_started to reverted. Re-entering
-      // review settlement must recognize that durable postimage instead of
-      // applying the inverse twice or misclassifying a successful revert as a
-      // conflict.
+      // its caller records the outcome. Re-entering the inverse must recognize
+      // that durable postimage instead of applying it twice or misclassifying
+      // a successful revert as a conflict.
       if (current[field] === inverse.value) {
         return {
           kind: 'node_field_revert',
@@ -567,8 +523,8 @@ interface PersistedProseCommandPayload {
   /** Optional chapter/drift summary committed with the same SQLite/Yjs receipt. */
   nodeSummary?: PersistedNodeSummaryChange;
   /**
-   * A durable UI-review baseline only. It is never a prose write source and
-   * must validate against the command's canonical Yjs base hash before use.
+   * A durable unread-projection baseline only. It is never a prose write source
+   * and must validate against the command's canonical Yjs base hash before use.
    */
   reviewSnapshot: PersistedProseReviewSnapshot;
 }
@@ -582,7 +538,8 @@ interface PersistedProseReviewSnapshot {
   baseStateHash: string;
   /** Present on v2. Hashes the exact semantic PM review baseline. */
   baseContentHash?: string;
-  mode: 'auto' | 'approve';
+  /** Persisted format key. Agent writes always commit directly. */
+  mode: 'auto';
 }
 
 interface ProseHandlerResult {
@@ -655,12 +612,10 @@ function proseWriteStrategy(
         operation,
         ...(base.sourceKind === 'seed' ? { seedStateUpdate } : {}),
       });
-      const reviewMode = effectiveAgentEditMode();
       const reviewSnapshot = await proseReviewSnapshot(
         request.idempotencyKey,
         beforeContentJson,
         base.stateHash,
-        reviewMode,
       );
       const payload: PersistedProseCommandPayload = {
         kind: 'yjs_prose',
@@ -712,15 +667,12 @@ function proseWriteStrategy(
       const execution = parseProseExecution(prepared.execution);
       const payload = parseProsePayload(prepared.forward);
       const entityType = proseExecutionEntityType(execution);
-      const guardedBlockIds =
-        payload.reviewSnapshot.mode === 'auto'
-          ? computeBlockChanges(
-              execution.beforeContentJson,
-              execution.command.prepared.projection.contentJson,
-            )
-              .filter((change) => change.op !== 'deleted')
-              .map((change) => change.blockId)
-          : [];
+      const guardedBlockIds = computeBlockChanges(
+        execution.beforeContentJson,
+        execution.command.prepared.projection.contentJson,
+      )
+        .filter((change) => change.op !== 'deleted')
+        .map((change) => change.blockId);
       const result = await commitProseCommand(
         coordinator,
         execution,
@@ -829,48 +781,18 @@ function proseWriteStrategy(
       };
     },
 
-    async projectReview(effect, _context, blockDecisions) {
+    async projectReview(effect) {
       const { payload, changes } =
         await verifiedProseReviewChanges(effect);
-      recordVisibleProseReview(
+      useAgentEditStore.getState().recordReview(
         prosePayloadEntityType(payload),
         payload.nodeId,
         changes,
-        payload.reviewSnapshot,
-        blockDecisions,
+        {
+          effectId: payload.reviewSnapshot.effectId,
+          reviewId: payload.reviewSnapshot.reviewId,
+        },
       );
-    },
-
-    async reviewBlocks(effect) {
-      const { changes } = await verifiedProseReviewChanges(effect);
-      return changes.map((change, ordinal) => ({
-        blockId: change.blockId,
-        ordinal,
-      }));
-    },
-
-    async applyReviewBlockInverse(effect, blockId, context, signal) {
-      throwIfAgentAborted(signal);
-      const { payload, changes } = await verifiedProseReviewChanges(effect);
-      const change = changes.find((candidate) => candidate.blockId === blockId);
-      if (!change) {
-        throw new Error(
-          `The durable prose review has no block "${blockId}"`,
-        );
-      }
-      await revertNodeSummaryForPartialReview(payload, effect.projectId, context);
-      await revertEntityBlock(
-        prosePayloadEntityType(payload),
-        payload.nodeId,
-        change,
-        context,
-      );
-      throwIfAgentAborted(signal);
-      return {
-        kind: 'yjs_prose_block_revert',
-        reviewId: payload.reviewSnapshot.reviewId,
-        blockId,
-      };
     },
 
     async applyInverse(effect, _context, signal) {
@@ -1019,31 +941,6 @@ function contentJsonFromState(stateUpdate: Uint8Array): string {
   }
 }
 
-function recordVisibleProseReview(
-  entityType: ProseEntityType,
-  entityId: string,
-  changes: readonly AgentBlockChange[],
-  provenance: Pick<
-    PersistedProseReviewSnapshot,
-    'effectId' | 'reviewId' | 'mode'
-  >,
-  blockDecisions?: Readonly<Record<string, 'accepted' | 'reverted'>>,
-): void {
-  const editState = useAgentEditStore.getState();
-  editState.recordReview(
-    entityType,
-    entityId,
-    [...changes],
-    provenance.mode,
-    provenance,
-  );
-  if (blockDecisions) {
-    useAgentEditStore
-      .getState()
-      .syncReviewBlockDecisions(provenance.reviewId, blockDecisions);
-  }
-}
-
 async function verifiedProseReviewChanges(
   effect: PersistedAgentRuntimeWriteEffect,
 ): Promise<{
@@ -1111,45 +1008,10 @@ function assertCurrentNodeSummary(
   }
 }
 
-async function revertNodeSummaryForPartialReview(
-  payload: PersistedProseCommandPayload,
-  projectId: string,
-  context: AgentToolContext,
-): Promise<void> {
-  if (!payload.nodeSummary) return;
-  const node = useDataStore
-    .getState()
-    .bookNodes.find(
-      (candidate) =>
-        candidate.id === payload.nodeId && candidate.projectId === projectId,
-    );
-  if (!node) throw new Error('The chapter for this Agent review no longer exists');
-  if (node.summary === payload.nodeSummary.before) return;
-  if (node.summary !== payload.nodeSummary.after) {
-    throw new Error(
-      'The chapter summary changed after the Agent write; exact review is unavailable',
-    );
-  }
-  await context.write.updateNode(
-    node.id,
-    { summary: payload.nodeSummary.before },
-    { expectedRevision: node.updatedAt },
-  );
-  const reverted = useDataStore
-    .getState()
-    .bookNodes.find(
-      (candidate) => candidate.id === node.id && candidate.projectId === projectId,
-    );
-  if (!reverted || reverted.summary !== payload.nodeSummary.before) {
-    throw new Error('The chapter summary review inverse did not settle exactly');
-  }
-}
-
 async function proseReviewSnapshot(
   idempotencyKey: string,
   baseContentJson: string,
   baseStateHash: string,
-  mode: 'auto' | 'approve',
 ): Promise<PersistedProseReviewSnapshot> {
   const effectId = proseWriteEffectId(idempotencyKey);
   return {
@@ -1160,7 +1022,7 @@ async function proseReviewSnapshot(
     baseContentJson,
     baseStateHash,
     baseContentHash: await hashProseMirrorContentJson(baseContentJson),
-    mode,
+    mode: 'auto',
   };
 }
 
@@ -1904,8 +1766,7 @@ function parseProsePayload(value: unknown): PersistedProseCommandPayload {
     !(reviewSnapshot as { reviewId: string }).reviewId.trim() ||
     typeof (reviewSnapshot as { baseContentJson?: unknown })
       .baseContentJson !== 'string' ||
-    ((reviewSnapshot as { mode?: unknown }).mode !== 'auto' &&
-      (reviewSnapshot as { mode?: unknown }).mode !== 'approve') ||
+    (reviewSnapshot as { mode?: unknown }).mode !== 'auto' ||
     !/^sha256:[0-9a-f]{64}$/.test(
       String(
         (reviewSnapshot as { baseStateHash?: unknown }).baseStateHash ?? '',

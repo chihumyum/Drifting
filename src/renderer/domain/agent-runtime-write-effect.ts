@@ -1,8 +1,8 @@
 /**
- * Canonical persistence contracts for Agent write effects and editor review
- * settlement. New writes cross a provenance-bound authorization gate before an
- * effect may be claimed. Reviewable prose writes then create a canonical review
- * after their Yjs mutation commits. These contracts are provider-neutral and
+ * Canonical persistence contracts for Agent write effects and their settlement
+ * receipts. New writes cross a provenance-bound authorization gate before an
+ * effect may be claimed. Prose writes then create a settlement receipt after
+ * their Yjs mutation commits. These contracts are provider-neutral and
  * describe durable local execution boundaries, not provider tool-call messages.
  */
 
@@ -152,15 +152,15 @@ export type AgentRuntimeWriteEffectTransition =
       errorMessage?: string | null;
     };
 
+/**
+ * Internal settlement receipt for a result-committed write. General Agent
+ * writes commit directly, so a review only advances to `accepted_effect`; the
+ * author-facing reject/revert states were retired by migration 0018.
+ */
 export type AgentRuntimeWriteReviewStatus =
   | 'pending'
   | 'accepted'
-  | 'rejected'
-  | 'accepted_effect'
-  | 'revert_started'
-  | 'reverted'
-  | 'revert_failed'
-  | 'revert_unavailable';
+  | 'accepted_effect';
 
 export interface PersistedAgentRuntimeWriteReview {
   id: string;
@@ -169,14 +169,8 @@ export interface PersistedAgentRuntimeWriteReview {
   turnId: string;
   toolCallId: string;
   status: AgentRuntimeWriteReviewStatus;
-  decisionNote: unknown | null;
-  revertEffect: unknown | null;
-  errorCode: string | null;
-  errorMessage: string | null;
   createdAt: string;
   acceptedAt: string | null;
-  rejectedAt: string | null;
-  revertStartedAt: string | null;
   settledAt: string | null;
   updatedAt: string;
 }
@@ -195,12 +189,7 @@ export interface CreateAgentRuntimeWriteReview {
   }[];
 }
 
-export type AgentRuntimeWriteReviewBlockStatus =
-  | 'pending'
-  | 'accepted'
-  | 'revert_started'
-  | 'reverted'
-  | 'revert_failed';
+export type AgentRuntimeWriteReviewBlockStatus = 'pending' | 'accepted';
 
 export interface PersistedAgentRuntimeWriteReviewBlock {
   reviewId: string;
@@ -208,100 +197,31 @@ export interface PersistedAgentRuntimeWriteReviewBlock {
   blockId: string;
   ordinal: number;
   status: AgentRuntimeWriteReviewBlockStatus;
-  decisionNote: unknown | null;
-  revertEffect: unknown | null;
-  errorCode: string | null;
-  errorMessage: string | null;
   createdAt: string;
-  revertStartedAt: string | null;
   settledAt: string | null;
   updatedAt: string;
 }
 
-export type AgentRuntimeWriteReviewBlockTransition =
-  | {
-      reviewId: string;
-      blockId: string;
-      expectedStatus: 'pending';
-      nextStatus: 'accepted' | 'revert_started';
-      decisionNote?: unknown | null;
-      at: string;
-    }
-  | {
-      reviewId: string;
-      blockId: string;
-      expectedStatus: 'revert_failed';
-      nextStatus: 'revert_started';
-      decisionNote?: unknown | null;
-      at: string;
-    }
-  | {
-      reviewId: string;
-      blockId: string;
-      expectedStatus: 'revert_started';
-      nextStatus: 'reverted';
-      revertEffect: unknown;
-      at: string;
-    }
-  | {
-      reviewId: string;
-      blockId: string;
-      expectedStatus: 'revert_started';
-      nextStatus: 'revert_failed';
-      errorCode: string;
-      errorMessage?: string | null;
-      at: string;
-    };
+export interface AgentRuntimeWriteReviewBlockTransition {
+  reviewId: string;
+  blockId: string;
+  expectedStatus: 'pending';
+  nextStatus: 'accepted';
+  at: string;
+}
 
 export type AgentRuntimeWriteReviewTransition =
   | {
       reviewId: string;
       expectedStatus: 'pending';
-      nextStatus: 'accepted' | 'rejected';
+      nextStatus: 'accepted';
       at: string;
-      decisionNote?: unknown | null;
     }
   | {
       reviewId: string;
       expectedStatus: 'accepted';
       nextStatus: 'accepted_effect';
       at: string;
-    }
-  | {
-      reviewId: string;
-      expectedStatus: 'rejected';
-      nextStatus: 'revert_started';
-      at: string;
-    }
-  | {
-      /** Retry a failed, receipt-backed inverse after its transient conflict clears. */
-      reviewId: string;
-      expectedStatus: 'revert_failed';
-      nextStatus: 'revert_started';
-      at: string;
-    }
-  | {
-      reviewId: string;
-      expectedStatus: 'rejected';
-      nextStatus: 'revert_unavailable';
-      at: string;
-      errorCode: string;
-      errorMessage?: string | null;
-    }
-  | {
-      reviewId: string;
-      expectedStatus: 'revert_started';
-      nextStatus: 'reverted';
-      at: string;
-      revertEffect: unknown;
-    }
-  | {
-      reviewId: string;
-      expectedStatus: 'revert_started';
-      nextStatus: 'revert_failed';
-      at: string;
-      errorCode: string;
-      errorMessage?: string | null;
     };
 
 export interface AgentRuntimeWritePersistenceSnapshot {

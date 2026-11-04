@@ -1,10 +1,10 @@
 {
   "suite": "milestone-f-literary-context-engineering",
   "schemaVersion": 1,
-  "nodeVersion": "v24.4.0",
+  "nodeVersion": "v22.23.1",
   "platform": "darwin",
-  "gitHead": "10acda3b6e93b5c5c7cf8e4217c98f4584b20f1a",
-  "sourceSetSha256": "sha256:ba4f1cd958df8906507a74ced0e09a718d79a6f7c74ae5b5025c4ec5ec406509",
+  "gitHead": "aafecab3abc717df8eecf31cca3daaf7562a5e4d",
+  "sourceSetSha256": "sha256:7bef92bd0c599fb0c6ad4702d92c527544171df600bfb175b6af8d66ed6d3c8a",
   "corpusPolicy": {
     "committedTruth": "distilled fog-harbor golden fixture",
     "syntheticProse": "generated at test runtime only; machine report stores counts and bytes, never prose",
@@ -96,8 +96,8 @@
       "discovered": 22
     },
     "tests": {
-      "total": 289,
-      "passed": 289,
+      "total": 293,
+      "passed": 293,
       "failed": 0,
       "pending": 0,
       "todo": 0
@@ -129,8 +129,8 @@
         "requiredFiles": 5,
         "discoveredFiles": 5,
         "tests": {
-          "total": 84,
-          "passed": 84,
+          "total": 86,
+          "passed": 86,
           "failed": 0,
           "pending": 0
         },
@@ -162,8 +162,8 @@
         "requiredFiles": 6,
         "discoveredFiles": 6,
         "tests": {
-          "total": 91,
-          "passed": 91,
+          "total": 93,
+          "passed": 93,
           "failed": 0,
           "pending": 0
         },
@@ -367,7 +367,7 @@
         "passed": true
       },
       "wholeChapterSummaryReview": {
-        "requiredName": "commits whole-chapter prose and summary together and restores the summary when one block is rejected",
+        "requiredName": "commits whole-chapter prose and summary together as one authored change",
         "matches": 1,
         "passed": true
       },

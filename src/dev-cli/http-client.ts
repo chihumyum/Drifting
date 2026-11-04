@@ -87,7 +87,7 @@ export async function serverRequest(input: {
 
 export async function bridgeRequest(input: {
   bridgeUrl: string;
-  endpoint: '/turn' | '/review';
+  endpoint: '/turn';
   body: Record<string, unknown>;
 }): Promise<unknown> {
   const url = checkedUrl(input.bridgeUrl, input.endpoint, true);

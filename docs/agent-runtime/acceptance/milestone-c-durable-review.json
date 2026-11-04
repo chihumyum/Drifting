@@ -1,13 +1,13 @@
 {
-  "suite": "milestone-c-durable-commit-and-inline-review",
-  "schemaVersion": 1,
-  "nodeVersion": "v24.4.0",
+  "suite": "milestone-c-durable-commit-and-settlement-receipts",
+  "schemaVersion": 2,
+  "nodeVersion": "v22.23.1",
   "platform": "darwin",
-  "gitHead": "94e9bbca72fba3a23922da389e7ba121436d7f3b",
-  "sourceSetSha256": "sha256:36b72869e27d6204749d4006bee538e2c16e9590d2943a8826c2122e246c8904",
+  "gitHead": "aafecab3abc717df8eecf31cca3daaf7562a5e4d",
+  "sourceSetSha256": "sha256:1f71ac6c2287da027c8bc866c85e6aa21722d97276fb68fcfa17098126a787f9",
   "storageReplay": {
     "sqlite": "real file-backed SQLite from the current local-first baseline with injected transaction faults",
-    "prose": "real Yjs snapshots/updates and guarded block inverses",
+    "prose": "real Yjs snapshots/updates committed through the prose coordinator",
     "localProjection": "Zustand/localStorage state deliberately cleared and rebuilt",
     "networkRequired": false
   },
@@ -17,8 +17,8 @@
       "discovered": 11
     },
     "tests": {
-      "total": 89,
-      "passed": 89,
+      "total": 129,
+      "passed": 129,
       "failed": 0,
       "pending": 0,
       "todo": 0
@@ -28,30 +28,30 @@
         "requiredFiles": 3,
         "discoveredFiles": 3,
         "tests": {
-          "total": 27,
-          "passed": 27,
+          "total": 43,
+          "passed": 43,
           "failed": 0,
           "pending": 0
         },
         "passed": true
       },
-      "writeAndReviewLedger": {
-        "requiredFiles": 3,
-        "discoveredFiles": 3,
+      "writeAndSettlementLedger": {
+        "requiredFiles": 4,
+        "discoveredFiles": 4,
         "tests": {
-          "total": 19,
-          "passed": 19,
+          "total": 23,
+          "passed": 23,
           "failed": 0,
           "pending": 0
         },
         "passed": true
       },
       "fileSqliteAndYjsProduct": {
-        "requiredFiles": 2,
-        "discoveredFiles": 2,
+        "requiredFiles": 1,
+        "discoveredFiles": 1,
         "tests": {
-          "total": 22,
-          "passed": 22,
+          "total": 25,
+          "passed": 25,
           "failed": 0,
           "pending": 0
         },
@@ -61,8 +61,8 @@
         "requiredFiles": 3,
         "discoveredFiles": 3,
         "tests": {
-          "total": 21,
-          "passed": 21,
+          "total": 38,
+          "passed": 38,
           "failed": 0,
           "pending": 0
         },
@@ -86,42 +86,52 @@
         "passed": true
       },
       "orderedBlockLedger": {
-        "requiredName": "persists ordered block decisions and atomically settles mixed/all-reverted reviews",
+        "requiredName": "persists ordered settlement blocks and settles the receipt atomically with the last one",
         "matches": 1,
         "passed": true
       },
-      "runtimeBlockRecovery": {
-        "requiredName": "settles prose review blocks durably and retries an entered block inverse during project hydration",
+      "projectReceiptRecovery": {
+        "requiredName": "settles a pending block receipt during project hydration",
         "matches": 1,
         "passed": true
       },
-      "localProjectionLoss": {
-        "requiredName": "rebuilds a lost inline review from file SQLite and settles mixed blocks against Yjs",
+      "sessionReceiptRecovery": {
+        "requiredName": "settles a pending block receipt during session hydration",
         "matches": 1,
         "passed": true
       },
-      "postYjsSettlementFault": {
-        "requiredName": "recovers when Yjs reverted but the durable block-settlement acknowledgement failed",
+      "missingReceiptRecovery": {
+        "requiredName": "recovers and settles a missing settlement receipt without replaying editor UI",
         "matches": 1,
         "passed": true
       },
-      "unrelatedAuthorEdit": {
-        "requiredName": "preserves unrelated author edits while reverting only the certified Agent block",
+      "postCommitSettlementFault": {
+        "requiredName": "settles a prose receipt whose acknowledgement failed after Yjs committed during project hydration",
         "matches": 1,
         "passed": true
       },
-      "sameBlockAuthorConflict": {
-        "requiredName": "refuses to overwrite author text changed after the Agent edit",
+      "migrationKeepsReceipts": {
+        "requiredName": "drops the reject/revert columns and keeps every settlement receipt and block",
         "matches": 1,
         "passed": true
       },
-      "yjsPersistenceRetry": {
-        "requiredName": "retries idempotently when Yjs changed but the first persistence acknowledgement failed",
+      "migrationRefusesReviewDecision": {
+        "requiredName": "refuses a database holding a review reject decision and leaves it unchanged",
         "matches": 1,
         "passed": true
       },
-      "rejectedAnimationDirection": {
-        "requiredName": "turns every bulk rejection into the visible inverse animation",
+      "migrationRefusesBlockDecision": {
+        "requiredName": "refuses a database holding a block reject decision and leaves it unchanged",
+        "matches": 1,
+        "passed": true
+      },
+      "receiptBatchIdempotence": {
+        "requiredName": "records a receipt batch once and clears it only when settlement resolves it",
+        "matches": 1,
+        "passed": true
+      },
+      "retiredCacheMigration": {
+        "requiredName": "reads a v1 cache without its retired reject queue and drops a v0 cache",
         "matches": 1,
         "passed": true
       },
@@ -131,7 +141,7 @@
         "passed": true
       },
       "sqliteProjectionWins": {
-        "requiredName": "replaces stale local decisions with the exact SQLite-backed projection",
+        "requiredName": "keeps a canonical pending receipt and removes it after settlement",
         "matches": 1,
         "passed": true
       }

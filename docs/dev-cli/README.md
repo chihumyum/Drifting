@@ -5,7 +5,7 @@ scriptable CRUD, Agent workflows, and server API checks. It is not an end-user
 shell and it does not introduce a second business layer: authored workspace
 commands reuse the production General Agent domain runtime, SQLite
 transactions, freshness guards, Yjs prose coordinator, one provider-neutral
-authored change-set, write receipts, and exact inverse/review machinery.
+authored change-set, write receipts, and exact inverse machinery.
 
 Run it from the repository root:
 
@@ -116,9 +116,9 @@ pnpm drifting ops inspect --db <database.db> --project <project-id>
 
 ## Agent and server modes
 
-`agent turn` and `agent review` call the existing loopback renderer bridge, so
-the open App remains the owner of credentials, live stores, Yjs, reviews, and
-the provider transport:
+`agent turn` calls the existing loopback renderer bridge, so the open App
+remains the owner of credentials, live stores, Yjs, write receipts, and the
+provider transport:
 
 ```bash
 pnpm agent:debug:server

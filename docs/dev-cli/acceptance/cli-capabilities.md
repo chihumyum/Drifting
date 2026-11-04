@@ -32,12 +32,12 @@
 | writing_day | workspace | sqlite | workflow_only | workspace resource list<br>workspace resource get | Words per book, day and device for the shelf heatmap; only the open book's recorder writes them. |
 | project_asset | workspace | sqlite | workflow_only | workspace resource list<br>workspace resource get | Local asset import owns writes; source bytes live in app-owned storage. |
 | block_section | ops | derived | derived_rebuild | ops inspect | Rolling summaries from the retired Copilot; no longer produced. |
-| agent_conversation | agent | sqlite | workflow_only | agent turn<br>agent review | Conversation lifecycle is owned by Agent transport. |
+| agent_conversation | agent | sqlite | workflow_only | agent turn | Conversation lifecycle is owned by Agent transport. |
 | agent_runtime | agent | sqlite | inspect_reconcile | ops inspect | Sessions, turns, messages, events, tool calls, checkpoints, tasks and receipts are append-only runtime evidence. |
 | agent_memory | workspace | sqlite | full_lifecycle | workspace call | Project-scoped durable memories through certified domain commands. |
 | agent_working_memory | agent | sqlite | workflow_only | agent turn | Long-turn document is owned by the Agent working-memory runtime. |
 | agent_mcp_server | agent | sqlite | workflow_only | — | MCP configuration remains owned by the App runtime; credentials stay in secure storage. |
-| agent_permission_grant | agent | sqlite | inspect_reconcile | agent turn<br>agent review<br>ops inspect | Durable exact grants are policy evidence, not generic records. |
+| agent_permission_grant | agent | sqlite | inspect_reconcile | agent turn<br>ops inspect | Durable exact grants are policy evidence, not generic records. |
 | entity_snapshot_history | ops | sqlite | workflow_only | ops inspect | Restore uses the history-restore Yjs origin and guarded workflow. |
 | markdown_mirror_file | ops | sqlite | workflow_only | ops inspect | Device-local ledger of the Markdown folder; only the folder sync workflow writes it. |
 | library_state | ops | sqlite | workflow_only | ops inspect | Device-local library state such as the built-in sample marker; only the first-run workflow writes it. |

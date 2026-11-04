@@ -220,7 +220,6 @@ try {
     // following: the configuration in which WebKit lost the composition.
     const modes = [
       { mode: 'plain-prose', options: {} },
-      { mode: 'pending-review', review: true, options: {} },
       { mode: 'linked-prose', linked: true, options: {} },
       { mode: 'after-link-cursor-wrapper', linked: true, commit: '想', options: { caret: 3 } },
       { mode: 'after-link-compose-inside', linked: true, commit: '想', options: { caret: 3, composeInsideLink: true } },
@@ -233,8 +232,8 @@ try {
       { mode: 'line-start-link-baseline', linked: true, commit: '想', options: { caret: 1 } },
       { mode: 'line-start-link-compose-inside', linked: true, commit: '想', options: { caret: 1, composeInsideLink: true } },
     ];
-    for (const { mode, review = false, linked = false, commit = '合成', options } of modes) {
-      await probe(`start(${review}, ${linked}, ${JSON.stringify(options)})`);
+    for (const { mode, linked = false, commit = '合成', options } of modes) {
+      await probe(`start(${linked}, ${JSON.stringify(options)})`);
       await new Promise(resolve => setTimeout(resolve, 50));
       const initial = await probe('arm()');
       for (const text of ['A', 'AS', 'ASD', 'ASDF', 'ASDFF', 'ASDFFA']) {
@@ -251,7 +250,6 @@ try {
       check(`${prefix}:no-decoration-rebuild-during-composition`, during.decorationTransactions === 0);
       check(`${prefix}:caret-stays-collapsed`, during.domCollapsed && during.pmAnchor === during.pmHead && during.focused);
       check(`${prefix}:commit-preserves-prose-and-yjs`, !committed.composing && committed.text === expectedText && committed.yjsMatches && committed.focused && committed.domCollapsed);
-      if (review) check(`${prefix}:review-refreshes-after-commit`, committed.reviewTint && committed.decorationTransactions > 0);
       if (options.caret === 1) {
         check(`${prefix}:link-text-unchanged-after-commit`, committed.linkedText === '合成');
         if (options.composeInsideLink) {

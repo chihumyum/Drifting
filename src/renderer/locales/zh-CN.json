@@ -1413,8 +1413,6 @@
       "paused": "继续后，Agent 会从已保存的进度接着处理。"
     },
     "autoContinue": {
-      "waitingReviewTitle": "等待编辑审批",
-      "waitingReviewBody": "当前可执行步骤都在等待审批。处理待审改动后，再继续此任务。",
       "noProgressTitle": "连续执行未产生持久化进展",
       "noProgressBody": "Agent 连续两个切片都没有推进持久化计划，已在继续消耗前暂停。请检查最后一次工具错误，确认后再继续。",
       "safetyTitle": "连续执行已暂停",

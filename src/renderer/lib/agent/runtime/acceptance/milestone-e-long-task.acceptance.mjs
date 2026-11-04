@@ -93,8 +93,8 @@ const REQUIRED_ASSERTIONS = {
     'reconciles added, removed, renamed, reordered, and restored chapters atomically across restart',
   productPlanPinned:
     'persists a whole-book plan, resolves named targets, and pins it into the next turn',
-  mixedReviewProgress:
-    'continues independent runnable work while another step awaits review and pauses for review-only work',
+  mixedReceiptProgress:
+    'schedules runnable work and pauses when only unsettled steps remain',
   metadataCannotDefeatWatchdog:
     'does not mistake a metadata-only revision bump for task progress',
   manifestAutoContinuation:

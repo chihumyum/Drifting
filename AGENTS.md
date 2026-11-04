@@ -72,7 +72,9 @@ Guidance for coding agents working in this standalone Drifting client repository
 - Live Yjs CRDT state is prose truth; `contentJson` is only a seed or cache.
 - Automated prose writes go through `writeChapterProse` or the live `Y.Doc`.
 - Drift nodes may be free-floating and `mainStorylineId` may be nullable.
-- Agent review decisions are durable in SQLite while prose remains in Yjs.
+- Agent writes commit directly. Their settlement receipts are durable in
+  SQLite while prose remains in Yjs; migration `0018` retired the reject/revert
+  review states. Undo goes through entity snapshot history.
 - Preserve the renderer-owned, provider-neutral Agent protocol and its
   `local`/`sidecar`/`remote` seam. The generated capability inventory is the
   authority for the current tool surface; see
