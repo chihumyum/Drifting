@@ -146,8 +146,6 @@ export class ExternalToolSession {
       projectId: grant.projectId,
       routeKind: 'chat',
       conversationId,
-      goalRunId: null,
-      chapterId: null,
       provider: 'mcp',
       model: null,
       providerEpoch: 0,

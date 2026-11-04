@@ -92,9 +92,7 @@ async function waitUntil(predicate: () => boolean, label: string): Promise<void>
 }
 
 function routeKey(route: AgentStartRoute): string {
-  return route.kind === 'chat'
-    ? `chat:${route.projectId}:${route.conversationId ?? ''}`
-    : `goal:${route.projectId}:${route.goalRunId ?? ''}:${route.chapterId ?? ''}`;
+  return `chat:${route.projectId}:${route.conversationId ?? ''}`;
 }
 
 class PersistenceError extends Error {

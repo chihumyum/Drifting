@@ -2,18 +2,18 @@
   "protocol": "drifting.sync.domain-manifest",
   "version": 1,
   "schemaSource": "src/renderer/schema/drizzle.ts",
-  "schemaSha256": "7b7de1147e9448f1f227b8160ff2f127dea960e9c0c10309c1764d16f1925d23",
+  "schemaSha256": "c69fb54b39cd0f50de3706f758fe06ac503991fbd7d49af3d0d8ba5ebce9537d",
   "gate": "Every Drizzle table and column must have one explicit class and non-empty reason.",
   "summary": {
     "tableCount": 100,
-    "fieldCount": 1028,
+    "fieldCount": 1023,
     "includedTableCount": 28,
     "excludedTableCount": 72,
     "classCounts": {
       "authored": 181,
       "crdt": 10,
       "derived": 96,
-      "device-local": 385,
+      "device-local": 380,
       "secret": 5,
       "transport": 332,
       "extension": 19
@@ -316,12 +316,6 @@
         },
         {
           "field": "runtime_session_id",
-          "classification": "device-local",
-          "disposition": "exclude",
-          "reason": "Agent execution, review, receipt, session, or diagnostic state is intentionally device-local in sync v1."
-        },
-        {
-          "field": "sdk_session_id",
           "classification": "device-local",
           "disposition": "exclude",
           "reason": "Agent execution, review, receipt, session, or diagnostic state is intentionally device-local in sync v1."
@@ -1349,12 +1343,6 @@
       "reason": "Agent execution, review, receipt, session, or diagnostic state is intentionally device-local in sync v1.",
       "fields": [
         {
-          "field": "chapter_id",
-          "classification": "device-local",
-          "disposition": "exclude",
-          "reason": "Agent execution, review, receipt, session, or diagnostic state is intentionally device-local in sync v1."
-        },
-        {
           "field": "conversation_id",
           "classification": "device-local",
           "disposition": "exclude",
@@ -1368,12 +1356,6 @@
         },
         {
           "field": "ended_at",
-          "classification": "device-local",
-          "disposition": "exclude",
-          "reason": "Agent execution, review, receipt, session, or diagnostic state is intentionally device-local in sync v1."
-        },
-        {
-          "field": "goal_run_id",
           "classification": "device-local",
           "disposition": "exclude",
           "reason": "Agent execution, review, receipt, session, or diagnostic state is intentionally device-local in sync v1."
@@ -2025,12 +2007,6 @@
           "reason": "Agent execution, review, receipt, session, or diagnostic state is intentionally device-local in sync v1."
         },
         {
-          "field": "chapter_id",
-          "classification": "device-local",
-          "disposition": "exclude",
-          "reason": "Agent execution, review, receipt, session, or diagnostic state is intentionally device-local in sync v1."
-        },
-        {
           "field": "claimed_at",
           "classification": "device-local",
           "disposition": "exclude",
@@ -2092,12 +2068,6 @@
         },
         {
           "field": "forward_json",
-          "classification": "device-local",
-          "disposition": "exclude",
-          "reason": "Agent execution, review, receipt, session, or diagnostic state is intentionally device-local in sync v1."
-        },
-        {
-          "field": "goal_run_id",
           "classification": "device-local",
           "disposition": "exclude",
           "reason": "Agent execution, review, receipt, session, or diagnostic state is intentionally device-local in sync v1."

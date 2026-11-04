@@ -886,8 +886,6 @@ function persistedEffect(
     projectId: 'project-1',
     routeKind: 'chat',
     conversationId: 'conversation-1',
-    goalRunId: null,
-    chapterId: null,
     sessionId: 'session-1',
     turnId: 'turn-1',
     toolCallId: 'agent-tool:session-1:turn-1:call-1',

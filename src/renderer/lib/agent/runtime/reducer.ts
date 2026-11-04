@@ -69,12 +69,6 @@ function sameRoute(a: AgentRuntimeRoute, b: AgentRuntimeRoute): boolean {
   if (a.kind === 'chat' && b.kind === 'chat') {
     return a.conversationId === b.conversationId;
   }
-  if (a.kind === 'goal' && b.kind === 'goal') {
-    return (
-      a.goalRunId === b.goalRunId &&
-      a.chapterId === b.chapterId
-    );
-  }
   return a.kind === 'test' && b.kind === 'test';
 }
 

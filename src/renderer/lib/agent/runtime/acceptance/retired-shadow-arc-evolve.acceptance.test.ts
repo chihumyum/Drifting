@@ -48,6 +48,10 @@ describe('retired Shadow, Element Arc, and Goal Evolve product boundary', () => 
     expect(schema).not.toContain("'shadow_job'");
     expect(schema).not.toContain("'element_arc'");
     expect(schema).not.toContain("'ai_usage'");
+    // Migration 0017 dropped the Goal route columns and the Claude SDK session pointer.
+    expect(schema).not.toContain("'goal_run_id'");
+    expect(schema).not.toContain("'sdk_session_id'");
+    expect(read('src/renderer/lib/agent/runtime/types.ts')).not.toContain("kind: 'goal'");
     expect(Object.keys(packageJson.scripts).some((name) => name.startsWith('eval:shadow'))).toBe(
       false,
     );

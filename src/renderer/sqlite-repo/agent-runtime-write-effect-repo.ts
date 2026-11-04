@@ -123,8 +123,6 @@ function effectToDomain(
     projectId: row.projectId,
     routeKind: row.routeKind as PersistedAgentRuntimeWriteEffect['routeKind'],
     conversationId: row.conversationId ?? null,
-    goalRunId: row.goalRunId ?? null,
-    chapterId: row.chapterId ?? null,
     sessionId: row.sessionId,
     turnId: row.turnId,
     toolCallId: row.toolCallId,
@@ -218,12 +216,7 @@ function sameJson(a: unknown, b: unknown): boolean {
 }
 
 function assertRouteShape(claim: ClaimAgentRuntimeWriteEffect): void {
-  const valid =
-    claim.routeKind === 'chat'
-      ? Boolean(claim.conversationId) &&
-        claim.goalRunId === null &&
-        claim.chapterId === null
-      : claim.conversationId === null;
+  const valid = claim.routeKind === 'chat' && Boolean(claim.conversationId);
   if (!valid) {
     throw new AgentRuntimeWritePersistenceConflictError(
       'WRITE_PROVENANCE_MISMATCH',
@@ -253,8 +246,6 @@ function sameClaimIdentity(
     effect.projectId === claim.projectId &&
     effect.routeKind === claim.routeKind &&
     effect.conversationId === claim.conversationId &&
-    effect.goalRunId === claim.goalRunId &&
-    effect.chapterId === claim.chapterId &&
     effect.sessionId === claim.sessionId &&
     effect.turnId === claim.turnId &&
     effect.toolCallId === claim.toolCallId &&
@@ -554,9 +545,7 @@ export function createAgentRuntimeWriteEffectRepository(
           !session ||
           session.projectId !== claim.projectId ||
           session.routeKind !== claim.routeKind ||
-          (session.conversationId ?? null) !== claim.conversationId ||
-          (session.goalRunId ?? null) !== claim.goalRunId ||
-          (session.chapterId ?? null) !== claim.chapterId
+          (session.conversationId ?? null) !== claim.conversationId
         ) {
           throw new AgentRuntimeWritePersistenceConflictError(
             'WRITE_PROVENANCE_MISMATCH',
@@ -605,8 +594,6 @@ export function createAgentRuntimeWriteEffectRepository(
           projectId: claim.projectId,
           routeKind: claim.routeKind,
           conversationId: claim.conversationId,
-          goalRunId: claim.goalRunId,
-          chapterId: claim.chapterId,
           sessionId: claim.sessionId,
           turnId: claim.turnId,
           toolCallId: claim.toolCallId,

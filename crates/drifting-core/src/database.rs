@@ -2868,8 +2868,8 @@ mod tests {
         gateway
             .execute(
                 "INSERT INTO agent_conversation \
-                 (id, project_id, title, sdk_session_id, created_at, updated_at) \
-                 VALUES ('conversation-1', 'project-1', 'Recovery', 'legacy-sdk-session', \
+                 (id, project_id, title, created_at, updated_at) \
+                 VALUES ('conversation-1', 'project-1', 'Recovery', \
                  '2026-07-30T00:00:00Z', '2026-07-30T00:00:00Z')"
                     .into(),
                 Vec::new(),
@@ -3121,7 +3121,7 @@ mod tests {
 
         let attached = gateway
             .query(
-                "SELECT sdk_session_id, runtime_session_id FROM agent_conversation \
+                "SELECT runtime_session_id FROM agent_conversation \
                  WHERE id = 'conversation-1'"
                     .into(),
                 Vec::new(),
@@ -3131,10 +3131,7 @@ mod tests {
             .expect("read attached runtime session");
         assert_eq!(
             attached.rows,
-            [vec![
-                DatabaseValue::Text("legacy-sdk-session".into()),
-                DatabaseValue::Text("session-1".into())
-            ]]
+            [vec![DatabaseValue::Text("session-1".into())]]
         );
         let integrity = gateway
             .query(

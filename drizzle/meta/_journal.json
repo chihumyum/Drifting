@@ -120,6 +120,13 @@
       "when": 1793712784125,
       "tag": "0016_writing_day",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1793808514787,
+      "tag": "0017_retire_goal_route_and_sdk_session",
+      "breakpoints": true
     }
   ]
 }

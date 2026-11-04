@@ -22,7 +22,7 @@ vi.mock('../lib/agent/runtime/recovered-transcript', () => ({ findCanonicalAgent
 const initial = useAgentChatStore.getState(); const settings = useSettingsStore.getState();
 const projectId = 'synthetic-navigation-project'; const otherProject = 'synthetic-navigation-other';
 const row = (id: string): AgentConversationSummary => ({ id, title: id, mode: 'byok', updatedAt: '2026-09-13T00:00:00.000Z' });
-const conversation = (id: string): AgentConversation => ({ ...row(id), projectId, sdkSessionId: null, runtimeSessionId: null, messages: [{ kind: 'assistant', text: 'Synthetic cache' }], createdAt: '2026-09-13T00:00:00.000Z' });
+const conversation = (id: string): AgentConversation => ({ ...row(id), projectId, runtimeSessionId: null, messages: [{ kind: 'assistant', text: 'Synthetic cache' }], createdAt: '2026-09-13T00:00:00.000Z' });
 const run = () => ({ projectId, transcript: AgentChatTranscript.from([]), runtimeSessionId: null,
   journalScope: createAgentChatJournalScope(), controlStatus: null, pendingControl: null, lastTerminal: null,
   longTaskPlanState: null, contextUsage: null, automaticContinuation: createInactiveAgentAutomaticContinuation() });

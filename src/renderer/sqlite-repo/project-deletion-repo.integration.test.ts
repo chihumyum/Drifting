@@ -6,6 +6,7 @@ import { eq, inArray } from 'drizzle-orm';
 
 import { ProductFileBackedSqliteGateway } from '../lib/agent/runtime/acceptance/p3-file-backed-sqlite';
 import {
+  AgentConversationTable,
   AgentRuntimeResultArtifactTable,
   AgentRuntimeResultBlobTable,
   AgentRuntimeSessionTable,
@@ -78,10 +79,18 @@ async function seedAgentArtifact(
   const writeCallId = `write-call-${suffix}`;
   const writeIdempotencyKey = `write-idempotency-${suffix}`;
 
+  const conversationId = `conversation-${suffix}`;
+  await db.insert(AgentConversationTable).values({
+    id: conversationId,
+    projectId,
+    createdAt: NOW,
+    updatedAt: NOW,
+  });
   await db.insert(AgentRuntimeSessionTable).values({
     id: sessionId,
     projectId,
-    routeKind: 'goal',
+    routeKind: 'chat',
+    conversationId,
     provider: 'deepseek',
     createdAt: NOW,
     updatedAt: NOW,
@@ -134,7 +143,8 @@ async function seedAgentArtifact(
   await db.insert(AgentRuntimeWriteEffectTable).values({
     id: `effect-${suffix}`,
     projectId,
-    routeKind: 'goal',
+    routeKind: 'chat',
+    conversationId,
     sessionId,
     turnId,
     toolCallId: writeToolCallId,

@@ -18,10 +18,8 @@ import { AgentChatTranscript } from '../domain/agent-chat-transcript';
  * conversation.
  *
  * Display transcript is persisted to SQLite (agent_conversation) on each
- * canonical `turn_finished`. New provider-neutral sessions use
- * `runtimeSessionId`. The legacy
- * `sdkSessionId` remains readable on old conversations but is never
- * reinterpreted as a self-hosted runtime session.
+ * canonical `turn_finished`. Provider-neutral sessions use
+ * `runtimeSessionId`.
  */
 import { create } from 'zustand';
 import {
@@ -492,7 +490,6 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
             title: background?.title ?? deriveTitle(text),
             mode: convMode,
             messages: isRuntimeContinuation ? [] : [userMessage],
-            sdkSessionId: null,
             runtimeSessionId: null,
             createdAt: now,
             updatedAt: now,

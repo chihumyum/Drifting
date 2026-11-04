@@ -116,9 +116,7 @@ export type AgentToolSearchChoice = 'off' | 'auto' | 'on';
 export type AgentToolAccessChoice = 'read_only' | 'read_write';
 export type AgentPromptSource = 'author' | 'runtime_continuation';
 
-export type AgentStartRoute =
-  | { kind: 'chat'; projectId: string; conversationId?: string }
-  | { kind: 'goal'; projectId: string; goalRunId?: string; chapterId?: string };
+export type AgentStartRoute = { kind: 'chat'; projectId: string; conversationId?: string };
 
 export interface AgentStartInput {
   prompt: string;

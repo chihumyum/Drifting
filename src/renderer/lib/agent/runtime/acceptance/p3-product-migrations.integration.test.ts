@@ -230,7 +230,8 @@ describe('product file-backed migration acceptance', () => {
     const journal = JSON.parse(
       readFileSync(new URL('meta/_journal.json', DRIZZLE_DIRECTORY), 'utf8'),
     ) as { entries: Array<{ idx: number; tag: string; when: number }> };
-    expect(journal.entries).toHaveLength(17);
+    expect(journal.entries).toHaveLength(18);
+    expect(journal.entries[17]?.tag).toBe('0017_retire_goal_route_and_sdk_session');
     expect(journal.entries[16]?.tag).toBe('0016_writing_day');
     expect(journal.entries[15]?.tag).toBe('0015_library_state');
     expect(journal.entries[14]?.tag).toBe('0014_retire_google_drive_sync');
@@ -282,7 +283,7 @@ describe('product file-backed migration acceptance', () => {
           "SELECT count(*) AS count FROM sqlite_schema WHERE type = 'index' AND name NOT LIKE 'sqlite_%'",
         )
         .get(),
-    ).toEqual({ count: 209 });
+    ).toEqual({ count: 208 });
     expect(first.database.prepare('PRAGMA integrity_check').all()).toEqual([
       { integrity_check: 'ok' },
     ]);

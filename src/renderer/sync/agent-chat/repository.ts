@@ -835,7 +835,6 @@ export class AgentConversationSyncRepository {
           ...conversation,
           id: forkId,
           runtimeSessionId: null,
-          sdkSessionId: null,
           createdAt: now,
           updatedAt: now,
         });
