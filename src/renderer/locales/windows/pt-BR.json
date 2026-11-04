@@ -1,0 +1,53 @@
+{
+  "preAlphaGuide": {
+    "byok": "O Agent é experimental e exige sua própria chave de modelo ou assinatura do ChatGPT. Solicitações, custos e termos de dados seguem o provedor escolhido. As chaves ficam no Gerenciador de Credenciais do Windows."
+  },
+  "settings": {
+    "sync": {
+      "projection": {
+        "reveal": "Mostrar no Explorador de Arquivos"
+      }
+    },
+    "update": {
+      "channel_desc": "Windows 10/11 · x64 e ARM64"
+    },
+    "codexSubscription": {
+      "failure": {
+        "storage_failed": "Não foi possível salvar a entrada no Gerenciador de Credenciais do Windows."
+      }
+    },
+    "agent": {
+      "extensions": {
+        "secretHint": "Valores secretos ficam apenas no Gerenciador de Credenciais do Windows. Deixe um valor existente vazio para mantê-lo."
+      }
+    },
+    "hosted": {
+      "disconnect_description": "Envia as alterações que só existem neste PC e então desconecta. Projetos locais e cópias na nuvem são mantidos.",
+      "disconnect_uploading": "Enviando alterações exclusivas deste PC: faltam {{count}}. Desconectar agora deixa o restante apenas neste PC.",
+      "disconnect_unuploaded": "{{count}} alterações não foram enviadas. Após desconectar, ficarão apenas neste PC.",
+      "connect_errors": {
+        "local_project_sync_conflict": "O mesmo projeto neste PC e na nuvem tem registros de sincronização diferentes (pasta copiada ou backup de outro PC restaurado). Para não sobrescrever nenhum lado, a sincronização não foi conectada. Você pode continuar escrevendo localmente.",
+        "local_project_sync_conflict_named": "{{projects}} neste PC e na nuvem têm registros diferentes (pasta copiada ou backup de outro PC restaurado). A sincronização não foi conectada para evitar sobrescritas. Você pode escrever localmente."
+      }
+    },
+    "models": {
+      "credentialsDesc": "As chaves ficam apenas no Gerenciador de Credenciais do Windows deste dispositivo; não são sincronizadas nem passam pelo Drifting. Escolha provedor e modelo no menu de configuração do campo do Agent.",
+      "speechDesc": "Credencial de transcrição da entrada de voz, separada dos provedores de chat. Inclui nomes de elementos e ambientação do projeto para corrigir nomes próprios. Solicitações vão diretamente ao Bailian e a chave fica só no Gerenciador de Credenciais do Windows."
+    }
+  },
+  "agentPanel": {
+    "onboarding": {
+      "saveFailed": "Não foi possível salvar a chave no Gerenciador de Credenciais do Windows."
+    }
+  },
+  "auth": {
+    "signOut": {
+      "pending": "Há {{count}} alterações deste PC ausentes na nuvem. Se sair agora, ficam aqui e serão enviadas ao entrar novamente nesta conta.",
+      "pendingLocal": "Há {{count}} alterações ausentes na nuvem. Se sair agora, ficam apenas neste PC.",
+      "uploading": "Enviando alterações deste PC: faltam {{count}}."
+    },
+    "sync": {
+      "accountMismatch": "Uma biblioteca conecta a uma conta Drifting, e a deste PC já pertence a outra. Não foi conectada. Para trocar, desconecte a sincronização em Conta (sem entrar na conta anterior) e entre nesta. Projetos locais e cópias na nuvem são preservados."
+    }
+  }
+}

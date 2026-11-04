@@ -1,0 +1,53 @@
+{
+  "preAlphaGuide": {
+    "byok": "Agent ist experimentell und benötigt deinen eigenen Modellschlüssel oder ein ChatGPT-Abo. Anfragen, Kosten und Datenbedingungen richten sich nach dem gewählten Anbieter. Schlüssel bleiben in der Windows-Anmeldeinformationsverwaltung."
+  },
+  "settings": {
+    "sync": {
+      "projection": {
+        "reveal": "Im Explorer anzeigen"
+      }
+    },
+    "update": {
+      "channel_desc": "Windows 10/11 · x64 und ARM64"
+    },
+    "codexSubscription": {
+      "failure": {
+        "storage_failed": "Die Anmeldung konnte nicht in der Windows-Anmeldeinformationsverwaltung gespeichert werden."
+      }
+    },
+    "agent": {
+      "extensions": {
+        "secretHint": "Geheime Werte werden nur in der Windows-Anmeldeinformationsverwaltung gespeichert. Vorhandene Werte leer lassen, um sie zu behalten."
+      }
+    },
+    "hosted": {
+      "disconnect_description": "Lädt nur auf diesem PC vorhandene Änderungen hoch und trennt dann. Lokale Projekte und Cloudkopien bleiben erhalten.",
+      "disconnect_uploading": "Änderungen nur von diesem PC werden hochgeladen: {{count}} übrig. Beim sofortigen Trennen bleiben die übrigen nur hier.",
+      "disconnect_unuploaded": "{{count}} Änderungen wurden nicht hochgeladen. Nach dem Trennen liegen sie nur auf diesem PC.",
+      "connect_errors": {
+        "local_project_sync_conflict": "Dasselbe Projekt auf diesem PC und in der Cloud hat verschiedene Synchronisierungsdatensätze (Ordner kopiert oder Sicherung eines anderen PCs wiederhergestellt). Zum Schutz beider Seiten wurde nicht verbunden. Du kannst lokal weiterschreiben.",
+        "local_project_sync_conflict_named": "{{projects}} auf diesem PC und in der Cloud haben verschiedene Synchronisierungsdatensätze (Ordner kopiert oder Sicherung eines anderen PCs wiederhergestellt). Zum Schutz beider Seiten wurde nicht verbunden. Lokales Schreiben bleibt möglich."
+      }
+    },
+    "models": {
+      "credentialsDesc": "Schlüssel liegen nur im Systemschlüsselbund dieses Geräts. Sie werden weder synchronisiert noch über Drifting geleitet. Anbieter und Modell wählst du im Konfigurationsmenü des Agent-Eingabefelds.",
+      "speechDesc": "Transkriptionszugang für Spracheingabe, getrennt von den Chat-Anbietern. Element- und Weltdetailsnamen werden zur Korrektur von Eigennamen mitgesendet. Anfragen gehen direkt an Bailian; der Schlüssel liegt nur im Systemschlüsselbund."
+    }
+  },
+  "agentPanel": {
+    "onboarding": {
+      "saveFailed": "Schlüssel konnte nicht in der Windows-Anmeldeinformationsverwaltung gespeichert werden."
+    }
+  },
+  "auth": {
+    "signOut": {
+      "pending": "{{count}} Änderungen dieses PCs fehlen noch in der Cloud. Beim Abmelden bleiben sie hier und werden beim erneuten Anmelden in dieses Konto hochgeladen.",
+      "pendingLocal": "{{count}} Änderungen fehlen in der Cloud. Beim Abmelden bleiben sie nur auf diesem PC.",
+      "uploading": "Änderungen dieses PCs werden hochgeladen: {{count}} übrig."
+    },
+    "sync": {
+      "accountMismatch": "Eine Bibliothek verbindet sich mit genau einem Drifting-Konto. Die dieses PCs gehört bereits einem anderen; daher wurde nicht verbunden. Trenne unter Konto die Synchronisierung (ohne Anmeldung im alten Konto) und melde dich dann hier an. Lokale Projekte und Cloudkopien bleiben erhalten."
+    }
+  }
+}

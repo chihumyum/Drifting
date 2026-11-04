@@ -1,0 +1,53 @@
+{
+  "preAlphaGuide": {
+    "byok": "Agent 是實驗性功能，需要你自己的模型金鑰或 ChatGPT 訂閱；請求、費用和資料條款依所選服務商而定。金鑰保存在 Windows 認證管理員中。"
+  },
+  "settings": {
+    "sync": {
+      "projection": {
+        "reveal": "在檔案總管中顯示"
+      }
+    },
+    "update": {
+      "channel_desc": "Windows 10/11 · x64 與 ARM64"
+    },
+    "codexSubscription": {
+      "failure": {
+        "storage_failed": "無法將登入資訊儲存至 Windows 認證管理員。"
+      }
+    },
+    "agent": {
+      "extensions": {
+        "secretHint": "機密值僅寫入 Windows 認證管理員。現有欄位留白即可保留原值。"
+      }
+    },
+    "hosted": {
+      "disconnect_description": "先上傳僅存於這部電腦的變更，再中斷連線。本機作品與雲端副本都會保留。",
+      "disconnect_uploading": "正在上傳僅存於此電腦的變更：剩 {{count}} 項。現在中斷會讓其餘變更只留在此電腦。",
+      "disconnect_unuploaded": "尚有 {{count}} 項變更未上傳；中斷後僅留在此電腦。",
+      "connect_errors": {
+        "local_project_sync_conflict": "此電腦與雲端的同一作品屬於不同同步記錄（資料庫資料夾曾被複製，或從另一部電腦的備份還原）。為避免覆寫任一方，未連接同步；仍可繼續本機寫作。",
+        "local_project_sync_conflict_named": "此電腦與雲端的 {{projects}} 屬於不同同步記錄（資料庫資料夾曾被複製，或從另一部電腦的備份還原）。為避免覆寫任一方，未連接同步；仍可繼續本機寫作。"
+      }
+    },
+    "models": {
+      "credentialsDesc": "金鑰只寫入此裝置的 Windows 認證管理員，不會同步到其他裝置或經過 Drifting。請在 Agent 輸入框的設定選單選擇服務商與模型。",
+      "speechDesc": "語音輸入的轉錄憑證，與上方聊天服務商分開。轉錄時會附上此作品的要素與設定名稱，以校正專有名詞；請求從本裝置直接送往百鍊，金鑰僅存在 Windows 認證管理員。"
+    }
+  },
+  "agentPanel": {
+    "onboarding": {
+      "saveFailed": "無法將金鑰儲存至 Windows 認證管理員。"
+    }
+  },
+  "auth": {
+    "signOut": {
+      "pending": "此電腦尚有 {{count}} 項變更未傳至雲端。現在登出會保留在此電腦，重新登入此帳號後上傳。",
+      "pendingLocal": "此電腦尚有 {{count}} 項變更未傳至雲端。現在登出後，這些變更只會保留在此電腦。",
+      "uploading": "正在上傳此電腦的變更，剩 {{count}} 項。"
+    },
+    "sync": {
+      "accountMismatch": "一個資料庫只能連接一個 Drifting 帳號，而此電腦的資料庫已屬於另一個帳號，因此未連接。要切換，請先在「帳號」中中斷同步（不必登入原帳號），再登入此帳號。本機作品與雲端副本都會保留。"
+    }
+  }
+}

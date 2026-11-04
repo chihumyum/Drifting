@@ -1,0 +1,53 @@
+{
+  "preAlphaGuide": {
+    "byok": "Agent 是实验功能，需要你自己的模型密钥或 ChatGPT 订阅；请求、费用和数据条款由你选择的服务商决定。密钥只保存在 Windows 凭据管理器。"
+  },
+  "settings": {
+    "sync": {
+      "projection": {
+        "reveal": "在文件资源管理器中打开"
+      }
+    },
+    "update": {
+      "channel_desc": "Windows 10/11 · x64 与 ARM64"
+    },
+    "codexSubscription": {
+      "failure": {
+        "storage_failed": "登录信息无法保存到 Windows 凭据管理器。"
+      }
+    },
+    "agent": {
+      "extensions": {
+        "secretHint": "私密值只写入 Windows 凭据管理器。编辑时保留空值代表沿用现有密钥。"
+      }
+    },
+    "hosted": {
+      "disconnect_description": "先把本机还没上传的改动传完，再断开。本地项目和云端副本都会保留。",
+      "disconnect_uploading": "正在把本机还没上传的改动传上去，还剩 {{count}} 条。直接断开的话，没传完的只留在这台电脑上。",
+      "disconnect_unuploaded": "本机还有 {{count}} 条改动没传上去，断开后它们只留在这台电脑上。",
+      "connect_errors": {
+        "local_project_sync_conflict": "这台电脑上有项目和云端的同一个项目分属两份不同的同步记录（比如复制过书库文件夹，或在另一台电脑上从备份恢复过）。为了不覆盖任何一边的内容，这次没有连接同步。本地写作不受影响。",
+        "local_project_sync_conflict_named": "{{projects}}在这台电脑上的副本和云端的那份分属两份不同的同步记录（比如复制过书库文件夹，或在另一台电脑上从备份恢复过）。为了不覆盖任何一边的内容，这次没有连接同步。本地写作不受影响。"
+      }
+    },
+    "models": {
+      "credentialsDesc": "密钥只写入本机的 Windows 凭据管理器，不会同步到其他设备，也不经过 Drifting。Agent 用哪家服务商、哪个模型，在 Agent 输入框的配置菜单里选。",
+      "speechDesc": "语音输入的转写凭据，独立于上方对话模型。转写会携带本项目的要素与设定名以纠正专有名词；请求从本机直连百炼，Key 仅存 Windows 凭据管理器。"
+    }
+  },
+  "agentPanel": {
+    "onboarding": {
+      "saveFailed": "无法保存到 Windows 凭据管理器。"
+    }
+  },
+  "auth": {
+    "signOut": {
+      "pending": "这台电脑上还有 {{count}} 条改动没传上去。直接登出的话，它们留在这台电脑上，下次登录同一个账号时接着传。",
+      "pendingLocal": "这台电脑上还有 {{count}} 条改动没传上去。直接登出的话，它们只留在这台电脑上。",
+      "uploading": "正在把这台电脑上的改动传上去，还剩 {{count}} 条。"
+    },
+    "sync": {
+      "accountMismatch": "一个书库只能连一个 Drifting 账号，这台电脑上的书库已经连着另一个账号，所以没有连到这个账号。要换成这个账号，请先在「账号」里断开同步（不用登录原账号），再用这个账号登录。断开后本地项目和云端副本都会保留。"
+    }
+  }
+}

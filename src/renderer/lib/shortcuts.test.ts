@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { matchesAccelerator } from './shortcuts';
+import { formatAccelerator, matchesAccelerator, platformShortcut } from './shortcuts';
 
 const runtime = vi.hoisted(() => ({ nativePlatform: 'macos' }));
 vi.mock('../platform/runtime', () => ({ getPlatformRuntime: () => runtime }));
@@ -43,6 +43,20 @@ describe('shifted bracket accelerators', () => {
       expect(matchesAccelerator(keyEvent({ key: '}', metaKey: false, ctrlKey: true }), 'Mod+Shift+]'))
         .toBe(true);
       expect(matchesAccelerator(keyEvent({ key: '}' }), 'Mod+Shift+]')).toBe(false);
+    } finally {
+      runtime.nativePlatform = 'macos';
+    }
+  });
+});
+
+describe('platform keyboard hints', () => {
+  it('reads Apple glyphs on macOS and Ctrl on Windows', () => {
+    expect(platformShortcut('⌘↩', 'Ctrl+Enter')).toBe('⌘↩');
+    expect(formatAccelerator('Mod+Shift+F')).toBe('⌘⇧F');
+    runtime.nativePlatform = 'windows';
+    try {
+      expect(platformShortcut('⌘↩', 'Ctrl+Enter')).toBe('Ctrl+Enter');
+      expect(formatAccelerator('Mod+Shift+F')).toBe('Ctrl+Shift+F');
     } finally {
       runtime.nativePlatform = 'macos';
     }

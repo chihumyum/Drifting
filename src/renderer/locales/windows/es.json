@@ -1,0 +1,53 @@
+{
+  "preAlphaGuide": {
+    "byok": "Agent es experimental y requiere tu propia clave de modelo o una suscripción a ChatGPT. Las solicitudes, costes y condiciones de datos dependen del proveedor elegido. Las claves se guardan en el Administrador de credenciales de Windows."
+  },
+  "settings": {
+    "sync": {
+      "projection": {
+        "reveal": "Mostrar en el Explorador de archivos"
+      }
+    },
+    "update": {
+      "channel_desc": "Windows 10/11 · x64 y ARM64"
+    },
+    "codexSubscription": {
+      "failure": {
+        "storage_failed": "No se pudo guardar la sesión en el Administrador de credenciales de Windows."
+      }
+    },
+    "agent": {
+      "extensions": {
+        "secretHint": "Los secretos solo se guardan en el Administrador de credenciales de Windows. Deja vacío un valor existente para conservarlo."
+      }
+    },
+    "hosted": {
+      "disconnect_description": "Sube los cambios exclusivos de este PC y después desconecta. Conserva proyectos locales y copias en la nube.",
+      "disconnect_uploading": "Subiendo cambios exclusivos de este PC: quedan {{count}}. Si desconectas ahora, el resto solo estará en este PC.",
+      "disconnect_unuploaded": "Hay {{count}} cambios sin subir. Al desconectar quedarán solo en este PC.",
+      "connect_errors": {
+        "local_project_sync_conflict": "El mismo proyecto de este PC y de la nube tiene registros de sincronización distintos (se copió la carpeta o se restauró una copia de otro PC). Para no sobrescribir ninguno, no se conectó la sincronización. Puedes seguir escribiendo en local.",
+        "local_project_sync_conflict_named": "{{projects}} en este PC y en la nube tienen registros de sincronización distintos (carpeta copiada o copia restaurada desde otro PC). Para evitar sobrescrituras no se conectó la sincronización. Puedes escribir en local."
+      }
+    },
+    "models": {
+      "credentialsDesc": "Las claves solo se guardan en el Administrador de credenciales de Windows de este dispositivo; no se sincronizan ni pasan por Drifting. Elige proveedor y modelo en el menú de configuración del cuadro de Agent.",
+      "speechDesc": "Credencial de transcripción para entrada de voz, separada de los proveedores de chat. Incluye nombres de elementos y ambientación para corregir nombres propios. Las solicitudes van directamente a Bailian y la clave solo queda en el Administrador de credenciales de Windows."
+    }
+  },
+  "agentPanel": {
+    "onboarding": {
+      "saveFailed": "No se pudo guardar la clave en el Administrador de credenciales de Windows."
+    }
+  },
+  "auth": {
+    "signOut": {
+      "pending": "Hay {{count}} cambios de este PC que la nube no tiene. Si sales ahora, quedarán aquí y se subirán cuando vuelvas a esta cuenta.",
+      "pendingLocal": "Hay {{count}} cambios que la nube no tiene. Si sales ahora, quedarán solo en este PC.",
+      "uploading": "Subiendo cambios de este PC: quedan {{count}}."
+    },
+    "sync": {
+      "accountMismatch": "Una biblioteca solo conecta con una cuenta Drifting y la de este PC ya pertenece a otra. No se ha conectado. Para cambiar, desconecta la sincronización en Cuenta (sin entrar en la cuenta anterior) y entra con esta. Se conservan proyectos locales y copias en la nube."
+    }
+  }
+}

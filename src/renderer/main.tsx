@@ -21,7 +21,9 @@ import '../styles/interface-fonts.css';
 import '../styles/guide.css';
 // After the app's own sheets, where Tiptap used to append its own.
 import '../styles/tiptap-base.css';
-import './lib/i18n';
+import { i18next } from './lib/i18n';
+import { uiTranslator } from './lib/locale-resources';
+import { applyPlatformCopy } from './lib/platform-copy';
 import { hydratePlatformRuntime } from './platform/runtime';
 import { applyInitialThemeBeforeRender } from './lib/initial-theme';
 import { installCrashReporting } from './services/diagnostics/crash-reporter';
@@ -66,6 +68,7 @@ const queryClient = new QueryClient({
 async function bootstrap() {
   applyInitialThemeBeforeRender();
   const runtime = await hydratePlatformRuntime();
+  applyPlatformCopy([i18next, uiTranslator], runtime.nativePlatform);
   // Development-only: the native side logs renderer stalls over one second.
   if (import.meta.env.DEV && runtime.target === 'desktop') {
     void import('./lib/dev-watchdog').then(({ installDevWatchdog }) => {
