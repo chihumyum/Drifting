@@ -84,8 +84,12 @@ What is on the page, and why:
   a search or a language model asks first, as plain statements: how Drifting
   differs from Scrivener and Novelcrafter (with a five-row comparison table:
   runs as, price, source, offline, AI), offline use and accounts, price and
-  license, AI and models, Obsidian, systems and languages. Each question is
-  an `h3` under the sheet's `h2`. Claims about the other two stay to what
+  license, AI and models, Obsidian, bringing a Scrivener project, losing and
+  backing up a manuscript, sync, systems and languages. Each question is an
+  `h3` under the sheet's `h2`, and the first sentence of each answer is the
+  answer (a quoting model takes the first sentence or two). `build.mjs` writes
+  the same questions and answers into each page's head as FAQPage JSON-LD in
+  that page's language, so keep each answer one `<p>` right under its `h3`. Claims about the other two stay to what
   their makers say (2026-11-04: Scrivener is bought once and has no AI of its
   own; Novelcrafter is a subscription web app that needs a connection and
   takes your own key or a local model). Since 2026-11-04 the site and README
