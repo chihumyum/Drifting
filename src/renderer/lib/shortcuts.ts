@@ -9,6 +9,15 @@ function usesAppleShortcuts(): boolean {
   return platform === 'macos' || platform === 'ios';
 }
 
+/**
+ * A hint written for one platform's keyboard, such as `⌘↩` beside a composer
+ * on Apple platforms and `Ctrl+Enter` elsewhere. Use `formatAccelerator` for
+ * hints built from a configurable accelerator.
+ */
+export function platformShortcut(apple: string, other: string): string {
+  return usesAppleShortcuts() ? apple : other;
+}
+
 export interface ParsedAccelerator {
   mod: boolean;
   shift: boolean;

@@ -1,0 +1,89 @@
+name: Windows
+
+# Windows preview builds (docs/windows.md). Runs the Rust library tests on
+# Windows and builds unsigned NSIS installers for x64 and ARM64 that sign in to
+# Hosted. Nothing is published: the installers are workflow artifacts for
+# manual acceptance in a Windows machine or virtual machine.
+on:
+  push:
+    branches: ['claude/windows-port', 'windows/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust-tests:
+    name: windows / rust tests
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master, toolchain input
+        with:
+          toolchain: 1.96.0
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: src-tauri
+          key: tests
+      # tauri::generate_context! needs the frontend folder to exist; the tests
+      # do not load it.
+      - run: mkdir -p dist && echo '<!doctype html>' > dist/index.html
+        shell: bash
+      - run: cargo test --manifest-path src-tauri/Cargo.toml --locked --lib
+
+  installer:
+    name: windows / installer (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: windows-latest
+            target: x86_64-pc-windows-msvc
+          - arch: arm64
+            runner: windows-11-arm
+            target: aarch64-pc-windows-msvc
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    env:
+      NODE_OPTIONS: --max-old-space-size=4096
+      DRIFTING_HOSTED_ORIGIN: ${{ vars.DRIFTING_HOSTED_ORIGIN }}
+      VITE_TERMS_URL: https://drifting.cc/terms
+      VITE_PRIVACY_URL: https://drifting.cc/privacy
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22.23.1
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master, toolchain input
+        with:
+          toolchain: 1.96.0
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: src-tauri
+          key: ${{ matrix.target }}
+      - run: corepack enable
+      - run: corepack prepare pnpm@10.17.1 --activate
+      - run: pnpm install --frozen-lockfile
+      - name: Build the unsigned installer
+        run: node scripts/run-desktop-tauri.mjs build --online --target ${{ matrix.target }} --bundles nsis
+      - name: Name the installer by commit
+        shell: bash
+        run: |
+          INSTALLER=$(find "src-tauri/target/${{ matrix.target }}/release/bundle/nsis" -maxdepth 1 -name '*.exe' -print -quit)
+          test -f "$INSTALLER"
+          mkdir -p out/windows
+          cp "$INSTALLER" "out/windows/Drifting-preview-${GITHUB_SHA::8}-${{ matrix.arch }}-setup.exe"
+          ls -l out/windows
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: drifting-windows-${{ matrix.arch }}-${{ github.sha }}
+          path: out/windows/*.exe
+          if-no-files-found: error
+          retention-days: 14

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { matchesAccelerator } from '../../../lib/shortcuts';
+import { matchesAccelerator, platformShortcut } from '../../../lib/shortcuts';
 import { getPlatformRuntime } from '../../../platform/runtime';
 import { useSettingsPanels } from '../useSettingsPanels';
 import { SettingsLoadStatus } from '../SettingsLoadStatus';
@@ -393,7 +393,7 @@ function SetHead({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
-        <span className="ui-field__meta">⌘F</span>
+        <span className="ui-field__meta">{platformShortcut('⌘F', 'Ctrl+F')}</span>
       </label>
     </div>
   );

@@ -47,6 +47,7 @@ import { LibraryItemFullscreenPreview } from '../features/library/LibraryItemPre
 import { MaterialNotePage } from './MaterialNotePage';
 import { BrushIcon } from '../components/ui/BrushIcon';
 import { getPlatformRuntime } from '../platform/runtime';
+import { platformShortcut } from '../lib/shortcuts';
 
 const log = loglevel.getLogger('MaterialEditorView');
 log.setLevel(loglevel.levels.ERROR);
@@ -614,7 +615,7 @@ function MaterialMediaPage({ item, projectId, userId, onUpdate }: MaterialPagePr
         <CommentComposer
           anchor={pending.screen}
           label={t('materialEditor.regions.compose')}
-          placeholder={t('materialEditor.regions.placeholder')}
+          placeholder={t('materialEditor.regions.placeholder', { shortcut: platformShortcut('⌘↩', 'Ctrl+Enter') })}
           onSubmit={(body, asTodo) => void createRegionComment(body, asTodo)}
           onCancel={() => setPending(null)}
         />
