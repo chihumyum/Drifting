@@ -468,10 +468,15 @@ fn same_directory(a: &Path, b: &Path) -> bool {
             _ => false,
         }
     }
+    // Windows has no stable file identity in std; GetFinalPathNameByHandleW
+    // (behind canonicalize) spells one folder one way, whatever letter case
+    // reached it, so a case-only rename is recognized as the same folder.
     #[cfg(not(unix))]
     {
-        let _ = (a, b);
-        false
+        match (fs::canonicalize(a), fs::canonicalize(b)) {
+            (Ok(a), Ok(b)) => a == b,
+            _ => false,
+        }
     }
 }
 
