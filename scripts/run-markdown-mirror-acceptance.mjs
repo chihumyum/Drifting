@@ -15,6 +15,7 @@ const reportPath = 'docs/agent-runtime/acceptance/markdown-mirror.json';
 const tests = [
   'src/renderer/services/markdown-mirror/authored-file.test.ts',
   'src/renderer/services/markdown-mirror/reconcile-yjs.test.ts',
+  'src/renderer/lib/agent/yjs-entity-relink.test.ts',
   'src/renderer/services/markdown-mirror/ingest.integration.test.ts',
   'src/renderer/services/markdown-mirror/mirror.integration.test.ts',
   'src/renderer/services/markdown-projection.service.test.ts',
@@ -31,6 +32,8 @@ const files = [
   'src/renderer/services/markdown-projection.service.ts',
   'src/renderer/sqlite-repo/markdown-mirror-repo.ts',
   'src/renderer/lib/agent/runtime/workspace-prose-file.ts',
+  'src/renderer/lib/agent/yjs-entity-relink.ts',
+  'src/renderer/lib/entity-link-inheritance.ts',
   ...tests,
 ];
 const fingerprint = () => {

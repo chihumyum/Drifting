@@ -20,6 +20,7 @@ import {
   type YjsProseNode,
   type YjsProseTextNode,
 } from '../../lib/agent/runtime/yjs-prose-command';
+import { entityLinksInside } from '../../lib/entity-link-inheritance';
 import { isEntityLinkMarkKey } from '../../lib/location-link';
 
 /** A paragraph pair larger than this is replaced between its common ends. */
@@ -282,16 +283,48 @@ export function diffText(before: string, after: string): Edit[] {
   ];
 }
 
+/**
+ * The entity links each inserting edit keeps: those its whole change (the
+ * edits between two unchanged stretches) lies inside, in `before`'s attributes
+ * per UTF-16 unit of the current text.
+ */
+function insertedLinks(edits: readonly Edit[], before: readonly Marks[]): Map<number, Marks> {
+  const links = new Map<number, Marks>();
+  let old = 0;
+  for (let index = 0; index < edits.length; ) {
+    if (edits[index]!.kind === 'equal') {
+      old += edits[index]!.text.length;
+      index += 1;
+      continue;
+    }
+    const start = old;
+    let end = index;
+    for (; end < edits.length && edits[end]!.kind !== 'equal'; end += 1) {
+      if (edits[end]!.kind === 'delete') old += edits[end]!.text.length;
+    }
+    const inherited = entityLinksInside(before[start - 1], before[old], before.slice(start, old)) as Marks;
+    if (Object.keys(inherited).length > 0) {
+      for (let edit = index; edit < end; edit += 1) links.set(edit, inherited);
+    }
+    index = end;
+  }
+  return links;
+}
+
 function reconcileText(text: Y.XmlText, desiredRuns: readonly YjsProseTextNode[]): boolean {
   const runs: Run[] = desiredRuns.map((run) => ({ text: run.text, marks: authoredMarks(run.marks) }));
-  const current = (text.toDelta() as { insert: unknown }[])
-    .map((delta) => (typeof delta.insert === 'string' ? delta.insert : ''))
-    .join('');
+  const deltas = (text.toDelta() as { insert: unknown; attributes?: Marks }[]).filter(
+    (delta): delta is { insert: string; attributes?: Marks } => typeof delta.insert === 'string',
+  );
+  const current = deltas.map((delta) => delta.insert).join('');
+  const before = deltas.flatMap((delta) => Array<Marks>(delta.insert.length).fill(delta.attributes ?? {}));
   const wanted = runs.map((run) => run.text).join('');
+  const edits = diffText(current, wanted);
+  const inherited = insertedLinks(edits, before);
   let changed = false;
   let cursor = 0;
   let desiredOffset = 0;
-  for (const edit of diffText(current, wanted)) {
+  edits.forEach((edit, index) => {
     if (edit.kind === 'equal') {
       cursor += edit.text.length;
       desiredOffset += edit.text.length;
@@ -301,14 +334,14 @@ function reconcileText(text: Y.XmlText, desiredRuns: readonly YjsProseTextNode[]
     } else {
       for (const piece of piecesWithMarks(runs, desiredOffset, edit.text)) {
         // Explicit attributes: inserted text takes exactly these marks and
-        // never inherits a neighbouring entity link.
-        text.insert(cursor, piece.text, { ...piece.marks });
+        // joins an entity link only when written inside it.
+        text.insert(cursor, piece.text, { ...piece.marks, ...inherited.get(index) });
         cursor += piece.text.length;
       }
       desiredOffset += edit.text.length;
       changed = true;
     }
-  }
+  });
   // Formatting: apply the marks the file asks for where they differ.
   let offset = 0;
   for (const delta of text.toDelta() as { insert: unknown; attributes?: Record<string, unknown> }[]) {

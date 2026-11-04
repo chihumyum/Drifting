@@ -1,7 +1,7 @@
 {
   "kind": "markdown-folder-two-way",
-  "generatedAt": "2026-11-01T17:56:59.101Z",
-  "sourceSha256": "da8879bc5a20d5a685672ca5f8d5043828730a9e67fce290f90c654b88f55e9a",
+  "generatedAt": "2026-11-04T15:54:04.132Z",
+  "sourceSha256": "a9b8f61ab0223532fe2f70f608bf414b14b1d22c1d022c67e2de439a973d5965",
   "status": "passed",
   "synthetic": true,
   "checks": {
@@ -42,8 +42,15 @@
       "src/renderer/services/markdown-mirror/reconcile-yjs.test.ts › merging a Markdown file edit as a concurrent peer applies formatting from the file and never touches entity links",
       "src/renderer/services/markdown-mirror/reconcile-yjs.test.ts › merging a Markdown file edit as a concurrent peer rebuilds only the inline content when a line break appears",
       "src/renderer/services/markdown-mirror/reconcile-yjs.test.ts › merging a Markdown file edit as a concurrent peer changes nothing when the file still says what the base says",
+      "src/renderer/services/markdown-mirror/reconcile-yjs.test.ts › a file edit inside an entity link keeps a name respelled character by character in its link",
+      "src/renderer/services/markdown-mirror/reconcile-yjs.test.ts › a file edit inside an entity link keeps a name respelled in a rebuilt paragraph in its link",
+      "src/renderer/services/markdown-mirror/reconcile-yjs.test.ts › a file edit inside an entity link does not join two links when the text between them changes",
       "src/renderer/services/markdown-mirror/reconcile-yjs.test.ts › character diff never splits a surrogate pair",
-      "src/renderer/services/markdown-mirror/reconcile-yjs.test.ts › character diff falls back to one replacement for a huge rewritten paragraph"
+      "src/renderer/services/markdown-mirror/reconcile-yjs.test.ts › character diff falls back to one replacement for a huge rewritten paragraph",
+      "src/renderer/lib/agent/yjs-entity-relink.test.ts › relinking names in written prose links a name split across text children and links as one link, with the link already there",
+      "src/renderer/lib/agent/yjs-entity-relink.test.ts › relinking names in written prose finds names at their real offsets in text that already carries links",
+      "src/renderer/lib/agent/yjs-entity-relink.test.ts › relinking names in written prose leaves linked names alone and reads no name across other formatting",
+      "src/renderer/lib/agent/yjs-entity-relink.test.ts › relinking names in written prose touches only the blocks it is given"
     ],
     "native": [
       "markdown_projection::tests::a_folder_managed_by_another_installation_is_refused",

@@ -294,7 +294,9 @@ direct domain tools listed in
   A note body is not part of the image, so typing in a note never makes a
   filing write stale.
 - Rejecting a folder delete recreates the folder under a new id — sync never
-  revives a purged id — and refiles everything that was in it. Rejecting a
+  revives a purged id — and refiles everything that was in it. Earlier writes
+  that named the old folder can still be rejected afterwards: their images
+  are renamed to the restored id first. Rejecting a
   created note deletes it only while it is unchanged and has no comments.
 - The Agent never deletes materials. Deleting a note-task TODO through the
   Agent removes its line like any other deletion.
