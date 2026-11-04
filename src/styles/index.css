@@ -123,11 +123,11 @@
     /* Authored content owns an independent font preference. Desktop UI font
        roles are supplied by interface-fonts.css; mobile keeps its fallback. */
     --font-prose-system-serif:
-      ui-serif, 'Songti SC', STSong, 'Source Han Serif SC', 'Noto Serif CJK SC', Georgia,
-      'Times New Roman', serif;
+      ui-serif, 'Songti SC', STSong, 'Source Han Serif SC', 'Noto Serif CJK SC',
+      'Noto Serif SC Variable', Georgia, 'Times New Roman', serif;
     --font-prose-system-sans:
-      -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Segoe UI', system-ui,
-      sans-serif;
+      -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Segoe UI',
+      'Microsoft YaHei', system-ui, sans-serif;
     --font-prose-mono:
       ui-monospace, 'SFMono-Regular', 'SF Mono', Menlo, Monaco, Consolas, 'Liberation Mono',
       'PingFang SC', 'Hiragino Sans GB', monospace;
