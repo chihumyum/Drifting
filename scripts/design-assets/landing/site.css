@@ -46,6 +46,9 @@
      than the ground, so the site's own controls take less of it. */
   --glass-float: color-mix(in srgb, hsl(var(--page)) 40%, transparent);
   --glass-texture: url({{asset:glass-thick.png}});
+  /* The app's menus (index.css --menu-*, materials.css --menu-ring-texture). */
+  --menu-ring: url({{asset:glass-ring.png}});
+  --menu-shadow: 0 16px 30px -16px hsl(30 6% 12% / 0.38);
   --glass-round-size: 28px;
   --motion-structural: 420ms;
   --motion-structural-ease: cubic-bezier(0.32, 0.72, 0, 1);
@@ -74,6 +77,8 @@
     --glass-bleed-lift: 45%;
     --pigment-blend: normal;
     --pigment-lift: 14%;
+    --menu-ring: url({{asset:glass-ring-dark.png}});
+    --menu-shadow: 0 16px 30px -16px hsl(0 0% 0% / 0.62);
     color-scheme: dark;
   }
 }
@@ -93,6 +98,8 @@
   --glass-bleed-lift: 45%;
   --pigment-blend: normal;
   --pigment-lift: 14%;
+  --menu-ring: url({{asset:glass-ring-dark.png}});
+  --menu-shadow: 0 16px 30px -16px hsl(0 0% 0% / 0.62);
   color-scheme: dark;
 }
 
@@ -369,31 +376,76 @@ a.su:hover::after { opacity: 1; }
   border-block-end: 1px solid currentColor;
   transform: translateY(-2px) rotate(45deg);
 }
+/* The language menu is the app's menu (ui-controls.css .menu-surface): 240
+   wide, 16px corners on a still glass rim drawn as its background (a menu
+   scrolls; a pseudo-element would scroll away), 30px rows of 14px words
+   standing in 6px, a ring of glass under the pointer, and the page's own
+   language darker with a tick at its far end. */
 .language-switcher > nav {
   position: fixed;
   top: calc(54px + env(safe-area-inset-top, 0px));
   right: max(16px, env(safe-area-inset-right, 0px));
   box-sizing: border-box;
-  width: max-content;
-  min-width: 180px;
+  width: 240px;
   max-width: calc(100vw - 32px);
   max-height: calc(100dvh - 68px - env(safe-area-inset-top, 0px));
   overflow: auto;
-  padding: 6px;
-  border: 1px solid var(--rule);
-  border-radius: 12px;
-  background: hsl(var(--paper-deep));
-  box-shadow: 0 8px 28px hsl(var(--ink-1) / 0.12);
+  padding: 6px 0;
+  border: 1px solid transparent;
+  border-radius: 16px;
+  background:
+    linear-gradient(hsl(var(--paper-deep)), hsl(var(--paper-deep))) padding-box,
+    var(--menu-ring) -14px -46px / 150px 150px border-box hsl(var(--paper-deep));
+  box-shadow: var(--menu-shadow);
+  font: 400 14px/20px var(--font-ui);
 }
 .language-switcher > nav a {
-  display: block;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-sizing: border-box;
+  width: calc(100% - 12px);
+  min-height: 30px;
+  margin-inline: 6px;
   padding: 5px 10px;
-  border-radius: 5px;
-  color: hsl(var(--ink-1));
+  border-radius: 4px;
+  color: hsl(var(--ink-2));
   text-decoration: none;
 }
-.language-switcher > nav a:is(:hover, :focus-visible, [aria-current='page']) {
-  background: hsl(var(--ink-1) / 0.07);
+.language-switcher > nav a:focus-visible { outline: none; }
+.language-switcher > nav a::before {
+  --menu-line: color-mix(in srgb, var(--glass-clear), hsl(var(--ink-3)) 30%);
+  --glass-gx: -30px;
+  --glass-gy: -64px;
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--menu-line) 82%, transparent),
+    inset 0 0 3px 0.5px color-mix(in srgb, var(--menu-line) 28%, transparent);
+  -webkit-mask-image: var(--glass-texture);
+  mask-image: var(--glass-texture);
+  -webkit-mask-size: 150px 150px;
+  mask-size: 150px 150px;
+  opacity: 0;
+  animation: glass-flow var(--motion-glass-drift) linear infinite paused;
+  transition: opacity 0.18s ease-out;
+}
+.language-switcher > nav a:is(:hover, :focus-visible)::before { opacity: 1; animation-play-state: running; }
+.language-switcher > nav a:active::before { --menu-line: color-mix(in srgb, var(--glass-clear), hsl(var(--ink-3)) 55%); }
+.language-switcher > nav a[aria-current='page'] { color: hsl(var(--ink-1)); font-weight: 500; }
+.language-switcher > nav a[aria-current='page']::after {
+  content: '';
+  flex: none;
+  width: 12px;
+  height: 12px;
+  margin-inline-start: auto;
+  background: currentColor;
+  -webkit-mask: url({{asset:icons/check.png}}) center / contain no-repeat;
+  mask: url({{asset:icons/check.png}}) center / contain no-repeat;
 }
 .information-note { margin: 0; }
 
@@ -411,6 +463,20 @@ a.su:hover::after { opacity: 1; }
   --font-ui: 'Inter Tight Variable', 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans CJK KR', sans-serif;
   --font-structure: 'Newsreader Variable', AppleMyungjo, Batang, 'Noto Serif CJK KR', serif;
   --font-content: var(--font-structure);
+}
+/* Korean is set with spaces between words and breaks only there: a line
+   never splits 편집기 into 편 / 집기. */
+:root:lang(ko) body { word-break: keep-all; overflow-wrap: break-word; }
+/* Japanese has no spaces. Running text may break between any two characters,
+   as Japanese is set, but a heading or the tagline breaks only where its copy
+   marks a phrase boundary with <wbr> (or after punctuation), never inside
+   エディター. Not auto-phrase: Safari lacks it, and every browser should
+   break where the copy says. */
+/* And no line starts with ー or a small kana, as in strict Japanese setting. */
+:root:lang(ja) body { line-break: strict; }
+:root:lang(ja) :is(h1, h2, h3, .tagline) {
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
 .bar .glass {
