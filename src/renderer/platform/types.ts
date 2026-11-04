@@ -112,6 +112,8 @@ export interface WindowPlatformApi {
   setTrafficLightsHidden(hidden: boolean): Promise<void>;
   /** While enabled, the window's close button asks to return to the shelf. */
   setCloseReturnsToShelf(enabled: boolean): Promise<void>;
+  /** Windows only: the native title bar follows Drifting's light or dark theme. */
+  setTheme(theme: 'light' | 'dark'): Promise<void>;
   onCloseToShelf(callback: () => void): Unsubscribe;
 }
 

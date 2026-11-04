@@ -6,7 +6,7 @@ pub use drifting_core::database::{
 use drifting_core::database_transport::{CompactDatabaseQueryResult, CompactDatabaseValue};
 use drifting_core::file_io::{durable_replace_file, temporary_sibling};
 use serde::Serialize;
-use std::fs::{self, File};
+use std::fs;
 use tauri::{AppHandle, State};
 use tauri_plugin_dialog::{DialogExt, FileAccessMode, PickerMode};
 use tauri_plugin_opener::OpenerExt;

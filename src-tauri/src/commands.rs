@@ -257,6 +257,30 @@ pub fn window_set_traffic_light_position(
     }
 }
 
+/// Windows keeps its native title bar, which otherwise follows the system
+/// theme instead of Drifting's own light or dark choice. Elsewhere the window
+/// keeps following the system: macOS draws Drifting's own top area under a
+/// transparent title bar.
+#[tauri::command]
+pub fn window_set_theme(window: WebviewWindow, theme: String) -> Result<(), String> {
+    let theme = match theme.as_str() {
+        "light" => tauri::Theme::Light,
+        "dark" => tauri::Theme::Dark,
+        _ => return Err("window theme must be light or dark".into()),
+    };
+    #[cfg(target_os = "windows")]
+    {
+        window
+            .set_theme(Some(theme))
+            .map_err(|error| error.to_string())
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = (window, theme);
+        Err("the window theme follows the system on this platform".into())
+    }
+}
+
 /// Immersive writing hides the traffic lights; the window's top edge brings
 /// them back while the pointer stays there. Changing a standard window
 /// button's alpha (or hidden flag) makes AppKit lay the title bar out again

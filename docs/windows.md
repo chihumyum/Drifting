@@ -43,8 +43,8 @@ Node on Windows, because Node refuses to spawn `pnpm.cmd` without a shell.
 - **Window.** Windows keeps its native title bar. The macOS overlay title bar,
   traffic-light inset and immersive writing's hidden traffic lights apply to
   macOS only. The close button still returns an open book to the shelf; on the
-  shelf it saves and quits. The native title bar follows the Windows theme, not
-  Drifting's own light/dark choice.
+  shelf it saves and quits. The native title bar follows Drifting's own light
+  or dark theme (`window_set_theme`, Windows only).
 - **Fonts.** The interface fonts are bundled, so Chinese and Latin interface
   text matches macOS. The prose system serif falls back to the bundled Noto
   Serif SC rather than SimSun; the system sans names Microsoft YaHei. PDF export
