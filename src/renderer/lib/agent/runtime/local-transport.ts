@@ -1,7 +1,6 @@
 import type {
   AgentAbortInput,
   AgentCancelPendingControlInput,
-  AgentEventEnvelope,
   AgentListPendingControlsInput,
   AgentPendingControl,
   AgentPermissionResolutionInput,
@@ -16,7 +15,6 @@ import type {
 import type { GeneralAgentResult, GeneralAgentTransport } from '../transport';
 import { AgentRuntime } from './runtime';
 import { AgentRuntimeControlChannel, AgentRuntimeControlError } from './control-plane';
-import { LegacyAgentEventProjector } from './legacy-projection';
 import { buildDriftingAgentSystemPrompt } from './system-prompt';
 import type { AgentRuntimeContextPlanningOptions } from './runtime-context-planning';
 import type {
@@ -147,11 +145,9 @@ function resolveRoute(input: AgentStartInput): AgentStartRoute | null {
 }
 
 /**
- * Provider-neutral in-process implementation of the existing transport seam.
- *
- * It is deliberately not installed by default. A future provider adapter can
- * inject an `AgentModelDriver`; Drifting's product remains explicitly
- * unsupported until that adapter and its credential boundary are ready.
+ * Provider-neutral in-process implementation of the transport seam, and the
+ * only one that exists. `useDriftingAgentRuntime` installs it on every Tauri
+ * target; the model driver routes to the author's selected provider.
  */
 export class LocalGeneralAgentTransport implements GeneralAgentTransport {
   readonly capability = { available: true, kind: 'local' as const };
@@ -166,7 +162,6 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
   private readonly driverId: string;
   private readonly persistence?: AgentTransportPersistence;
   private readonly wallNowMs: () => number;
-  private readonly listeners = new Set<(event: AgentEventEnvelope) => void>();
   private readonly journalListeners = new Set<(entry: AgentRuntimeJournalEntry) => void>();
   private readonly sessions = new Map<string, LocalSessionState>();
   private readonly routeSessionIds = new Map<string, string>();
@@ -335,8 +330,6 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
     active.sessionId = session.id;
     const control = new AgentRuntimeControlChannel(session.id, turnId);
     active.control = control;
-    const projector = new LegacyAgentEventProjector(session.id);
-    let terminalEvents: AgentEventEnvelope['event'][] = [];
     let terminalEntry: AgentRuntimeJournalEntry | null = null;
     let didStart = false;
 
@@ -345,21 +338,18 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
       acknowledgeStart = resolve;
     });
 
-    const publishProjected = (entry: AgentRuntimeJournalEntry): void => {
+    // The terminal entry is held back until the turn's durable commit settles,
+    // so subscribers never see a completed turn whose messages were not kept.
+    const publishEntry = (entry: AgentRuntimeJournalEntry): void => {
       if (entry.event.type === 'turn_started') {
         didStart = true;
         acknowledgeStart(true);
       }
-      const events = projector.project(entry);
       if (entry.event.type === 'turn_finished') {
         terminalEntry = entry;
-        terminalEvents = events;
         return;
       }
       this.publishJournal(entry);
-      for (const event of events) {
-        this.publish({ turnId, event });
-      }
     };
 
     // Transient entries carry the character-level thinking stream that the
@@ -367,19 +357,14 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
     // subscribers exactly like durable entries but are never persisted.
     const publishTransient = (entry: AgentRuntimeJournalEntry): void => {
       this.publishJournal(entry);
-      for (const event of projector.project(entry)) {
-        this.publish({ turnId, event });
-      }
     };
 
     const publishTerminal = (): void => {
-      if (terminalEntry) this.publishJournal(terminalEntry);
+      const entry = terminalEntry;
       terminalEntry = null;
-      for (const event of terminalEvents) {
-        if (event.type === 'done') this.releaseActiveTurn(active);
-        this.publish({ turnId, event });
-      }
-      terminalEvents = [];
+      if (!entry) return;
+      this.publishJournal(entry);
+      this.releaseActiveTurn(active);
     };
 
     // Limits may be a live getter (for example the settings store) so a changed
@@ -408,7 +393,7 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
         ...(turnLimits ? { limits: turnLimits } : {}),
         signal: controller.signal,
         control,
-        onEntry: publishProjected,
+        onEntry: publishEntry,
         onTransientEntry: publishTransient,
       })
       .then(async (result) => {
@@ -449,7 +434,7 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
         }
         publishTerminal();
       })
-      .catch((error: unknown) => {
+      .catch(() => {
         acknowledgeStart(false);
         this.releaseActiveTurn(active);
         if (!didStart) return;
@@ -462,10 +447,6 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
           this.publishJournal(failClosedCommitTerminal(terminalEntry));
         }
         terminalEntry = null;
-        terminalEvents = [];
-        const message = error instanceof Error ? error.message : String(error);
-        this.publish({ turnId, event: { type: 'error', message } });
-        this.publish({ turnId, event: { type: 'done' } });
       })
       .finally(() => {
         this.releaseActiveTurn(active);
@@ -634,28 +615,6 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
         this.journalListeners.delete(callback);
       },
     };
-  }
-
-  subscribeEvents(callback: (event: AgentEventEnvelope) => void): GeneralAgentResult<() => void> {
-    this.listeners.add(callback);
-    return {
-      ok: true,
-      value: () => {
-        this.listeners.delete(callback);
-      },
-    };
-  }
-
-  private publish(envelope: AgentEventEnvelope): void {
-    for (const listener of this.listeners) {
-      try {
-        listener(envelope);
-      } catch (error) {
-        // UI projections cannot break runtime progress or other subscribers,
-        // but a dropped projection must stay diagnosable.
-        console.error('[agent] event listener failed', error);
-      }
-    }
   }
 
   private publishJournal(entry: AgentRuntimeJournalEntry): void {

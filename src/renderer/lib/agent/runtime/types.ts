@@ -551,7 +551,6 @@ export interface AgentRuntimeLimits {
   maxInputTokens: number | null;
   maxOutputTokens: number | null;
   maxTotalTokens: number | null;
-  maxCostUsd: number | null;
   maxDurationMs: number | null;
   /** Optional caller ceiling; null does not impose a per-invocation output budget. */
   maxOutputTokensPerIteration: number | null;

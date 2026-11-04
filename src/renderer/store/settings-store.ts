@@ -112,13 +112,12 @@ export type AgentEffort = AgentEffortChoice;
 /** Extended-thinking mode: 'adaptive' = model decides; 'off' = disabled. */
 export type AgentThinking = 'adaptive' | 'off';
 /**
- * Provider-neutral runtime tool selection, consumed live by the product
- * composition's selection strategy (`drifting-product-tool-selection.ts`).
- *  - 'off':  expose the complete installed surface, stable per iteration
- *            (also the provider prefix-cache-friendly configuration).
- *  - 'auto': run bounded author-domain relevance selection when the installed
- *            surface exceeds the runtime auto threshold.
- *  - 'on':   always run the bounded relevance selector.
+ * How the product composition frames the installed tools for the provider,
+ * read at the start of each turn (see docs/agent-runtime/tool-discovery.md).
+ *  - 'off':        send every installed tool schema, stable for the turn.
+ *  - 'auto'/'on':  send only the fixed `tool_search` and `call_tool`
+ *                  entrypoints; the model fetches schemas as tool results.
+ *                  The two values currently behave identically.
  */
 export type AgentToolSearch = 'off' | 'auto' | 'on';
 

@@ -1,7 +1,6 @@
 import type {
   AgentAbortInput,
   AgentCancelPendingControlInput,
-  AgentEventEnvelope,
   AgentListPendingControlsInput,
   AgentPendingControl,
   AgentPermissionResolutionInput,
@@ -14,12 +13,14 @@ import type {
 } from './protocol';
 import type { AgentRuntimeJournalEntry } from './runtime/types';
 
+/**
+ * Placeholder until the project runtime installs a transport. The product
+ * installs the local in-process runtime on mount; `sidecar` and `remote` are
+ * reserved seams with no implementation today.
+ */
 export const GENERAL_AGENT_UNSUPPORTED = {
   code: 'GENERAL_AGENT_UNSUPPORTED',
-  message:
-    'General Agent is not enabled because no production model driver and Drifting tool adapter are installed yet.',
-  future:
-    'A provider adapter can implement the local runtime, sidecar, or authenticated remote transport without changing the renderer chat contract.',
+  message: 'General Agent is unavailable until the project runtime installs its transport.',
 } as const;
 
 export type GeneralAgentTransportKind = 'unsupported' | 'local' | 'sidecar' | 'remote';
@@ -60,8 +61,6 @@ export interface GeneralAgentTransport {
   subscribeJournal(
     callback: (entry: AgentRuntimeJournalEntry) => void,
   ): GeneralAgentResult<() => void>;
-  /** @deprecated Compatibility projection for goal/eval consumers. */
-  subscribeEvents(callback: (event: AgentEventEnvelope) => void): GeneralAgentResult<() => void>;
 }
 
 function unsupportedResult<T = void>(): GeneralAgentResult<T> {
@@ -92,7 +91,6 @@ export const unsupportedGeneralAgentTransport: GeneralAgentTransport = {
   abort: async () => unsupportedResult(),
   resetSession: async () => unsupportedResult(),
   subscribeJournal: () => unsupportedResult(),
-  subscribeEvents: () => unsupportedResult(),
 };
 
 let activeTransport: GeneralAgentTransport = unsupportedGeneralAgentTransport;
@@ -102,13 +100,7 @@ interface JournalRelaySubscription {
   cleanup: (() => void) | null;
 }
 
-interface EventRelaySubscription {
-  callback: (event: AgentEventEnvelope) => void;
-  cleanup: (() => void) | null;
-}
-
 const journalRelaySubscriptions = new Set<JournalRelaySubscription>();
-const eventRelaySubscriptions = new Set<EventRelaySubscription>();
 
 function bindJournalRelay(subscription: JournalRelaySubscription): boolean {
   subscription.cleanup?.();
@@ -119,21 +111,9 @@ function bindJournalRelay(subscription: JournalRelaySubscription): boolean {
   return true;
 }
 
-function bindEventRelay(subscription: EventRelaySubscription): boolean {
-  subscription.cleanup?.();
-  subscription.cleanup = null;
-  const result = activeTransport.subscribeEvents(subscription.callback);
-  if (!result.ok) return false;
-  subscription.cleanup = result.value;
-  return true;
-}
-
 function rebindRelaySubscriptions(): void {
   for (const subscription of journalRelaySubscriptions) {
     bindJournalRelay(subscription);
-  }
-  for (const subscription of eventRelaySubscriptions) {
-    bindEventRelay(subscription);
   }
 }
 
@@ -163,19 +143,6 @@ export const generalAgentTransport: GeneralAgentTransport = {
       ok: true,
       value: () => {
         if (!journalRelaySubscriptions.delete(subscription)) return;
-        subscription.cleanup?.();
-        subscription.cleanup = null;
-      },
-    };
-  },
-  subscribeEvents: (callback) => {
-    const subscription: EventRelaySubscription = { callback, cleanup: null };
-    if (!bindEventRelay(subscription)) return unsupportedResult();
-    eventRelaySubscriptions.add(subscription);
-    return {
-      ok: true,
-      value: () => {
-        if (!eventRelaySubscriptions.delete(subscription)) return;
         subscription.cleanup?.();
         subscription.cleanup = null;
       },

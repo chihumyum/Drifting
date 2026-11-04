@@ -5,7 +5,7 @@ import { EnvCredentialsProvider } from '../ai/credentials/env';
 import { platform } from '../../platform';
 import type { GeneralAgentAuthStatus } from './protocol';
 import { createDriftingAgentProductComposition } from './runtime';
-import { installGeneralAgentTransport, type GeneralAgentTransport } from './transport';
+import { installGeneralAgentTransport } from './transport';
 import { useAgentEditStore } from '../../store/agent-edit-store';
 import { useProjectStore } from '../../store/project-store';
 import type { AgentRuntimeWriteEffectRepository } from '../../sqlite-repo/agent-runtime-write-effect-repo';
@@ -69,16 +69,6 @@ function readAgentRuntimeLimits(): { maxModelIterations: number | null } {
   return {
     maxModelIterations: useSettingsStore.getState().agentTurnIterationLimit,
   };
-}
-
-export function createDriftingLocalAgentTransport(): GeneralAgentTransport {
-  return createDriftingAgentProductComposition({
-    authStatus: readLocalAgentAuthStatus,
-    allowDangerousOperations: () =>
-      useSettingsStore.getState().agentAllowDangerousOperations,
-    limits: readAgentRuntimeLimits,
-    ...debugRuntimeOverrides,
-  }).transport;
 }
 
 const driftingProductComposition = createDriftingAgentProductComposition({

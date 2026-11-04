@@ -50,10 +50,6 @@ describe('General Agent transport boundary', () => {
         error: GENERAL_AGENT_UNSUPPORTED.message,
       });
     }
-    expect(generalAgentTransport.subscribeEvents(vi.fn())).toMatchObject({
-      ok: false,
-      code: GENERAL_AGENT_UNSUPPORTED.code,
-    });
     expect(generalAgentTransport.subscribeJournal(vi.fn())).toMatchObject({
       ok: false,
       code: GENERAL_AGENT_UNSUPPORTED.code,
@@ -81,7 +77,6 @@ describe('General Agent transport boundary', () => {
       abort: async () => ({ ok: true, value: undefined }),
       resetSession: async () => ({ ok: true, value: undefined }),
       subscribeJournal: () => ({ ok: true, value: () => undefined }),
-      subscribeEvents: () => ({ ok: true, value: () => undefined }),
     };
     const restore = installGeneralAgentTransport(transport);
     try {
@@ -100,11 +95,8 @@ describe('General Agent transport boundary', () => {
   it('moves existing stream subscriptions across transport replacement', () => {
     const journalA = new Set<(entry: never) => void>();
     const journalB = new Set<(entry: never) => void>();
-    const eventsA = new Set<(event: never) => void>();
-    const eventsB = new Set<(event: never) => void>();
     const transport = (
       journal: Set<(entry: never) => void>,
-      events: Set<(event: never) => void>,
       kind: 'local' | 'remote',
     ): GeneralAgentTransport => ({
       capability: { available: true, kind },
@@ -131,42 +123,26 @@ describe('General Agent transport boundary', () => {
           value: () => journal.delete(callback as (entry: never) => void),
         };
       },
-      subscribeEvents: (callback) => {
-        events.add(callback as (event: never) => void);
-        return {
-          ok: true,
-          value: () => events.delete(callback as (event: never) => void),
-        };
-      },
     });
-    const first = transport(journalA, eventsA, 'local');
-    const second = transport(journalB, eventsB, 'remote');
+    const first = transport(journalA, 'local');
+    const second = transport(journalB, 'remote');
     const restoreFirst = installGeneralAgentTransport(first);
     const onJournal = vi.fn();
-    const onEvent = vi.fn();
     const journalSubscription = generalAgentTransport.subscribeJournal(onJournal);
-    const eventSubscription = generalAgentTransport.subscribeEvents(onEvent);
     expect(journalSubscription.ok).toBe(true);
-    expect(eventSubscription.ok).toBe(true);
     const restoreSecond = installGeneralAgentTransport(second);
     try {
       expect(journalA.size).toBe(0);
-      expect(eventsA.size).toBe(0);
       expect(journalB.size).toBe(1);
-      expect(eventsB.size).toBe(1);
 
       restoreSecond();
       expect(journalA.size).toBe(1);
-      expect(eventsA.size).toBe(1);
       expect(journalB.size).toBe(0);
-      expect(eventsB.size).toBe(0);
     } finally {
       if (journalSubscription.ok) journalSubscription.value();
-      if (eventSubscription.ok) eventSubscription.value();
       restoreSecond();
       restoreFirst();
     }
     expect(journalA.size).toBe(0);
-    expect(eventsA.size).toBe(0);
   });
 });

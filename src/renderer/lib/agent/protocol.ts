@@ -6,12 +6,6 @@
  * this protocol without reintroducing a renderer -> shell dependency.
  */
 
-export interface AgentTodoItem {
-  content: string;
-  status: 'pending' | 'in_progress' | 'completed';
-  activeForm?: string;
-}
-
 export type AgentControlStatus =
   | 'running'
   | 'waiting_permission'
@@ -113,49 +107,6 @@ export interface AgentCancelPendingControlInput {
   reason?: string;
 }
 
-export type AgentEvent =
-  | { type: 'system'; text: string }
-  | { type: 'assistant'; text: string }
-  | { type: 'assistant_delta'; text: string }
-  | { type: 'thinking_delta'; text: string }
-  | { type: 'thinking'; text: string }
-  | { type: 'tool_use'; id: string; name: string; input?: unknown }
-  | { type: 'todos'; items: AgentTodoItem[] }
-  | { type: 'tool_result'; id: string; ok: boolean; text: string }
-  | { type: 'result'; ok: boolean; text: string }
-  | {
-      type: 'usage';
-      inputTokens: number;
-      outputTokens: number;
-      cacheReadTokens: number;
-      cacheCreationTokens: number;
-      costUsd: number;
-      turns: number;
-      durationMs: number;
-      durationApiMs: number;
-    }
-  | { type: 'session'; id: string }
-  | { type: 'control_state'; status: AgentControlStatus }
-  | { type: 'permission_request'; request: AgentPermissionRequest }
-  | {
-      type: 'permission_resolved';
-      resolution: AgentPermissionResolutionInput;
-    }
-  | { type: 'user_input_request'; request: AgentUserInputRequest }
-  | {
-      type: 'user_input_received';
-      response: AgentUserInputResponseInput;
-    }
-  | { type: 'steering_received'; messageId: string; text: string }
-  | { type: 'stop_after_tool_requested' }
-  | { type: 'error'; message: string }
-  | { type: 'done' };
-
-export interface AgentEventEnvelope {
-  turnId: string;
-  event: AgentEvent;
-}
-
 export type AgentMode = 'oauth' | 'apikey' | 'hosted';
 export type AgentProviderChoice = 'deepseek' | 'anthropic' | 'openai' | 'openai-codex';
 export type AgentModelChoice = string;
@@ -232,13 +183,3 @@ export function isGeneralAgentUsable(
       ? status.apiKeyConnected
       : status.byokConnected;
 }
-
-export interface ToolExecRequest {
-  id: string;
-  name: string;
-  args: Record<string, unknown>;
-}
-
-export type ToolExecResult =
-  | { id: string; ok: true; data: unknown }
-  | { id: string; ok: false; error: string };
