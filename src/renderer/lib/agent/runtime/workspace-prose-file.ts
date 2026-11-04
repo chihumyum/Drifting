@@ -14,6 +14,7 @@ import {
   readableLocationHref,
   type LocationResolver,
 } from '../../location-link';
+import { entityLinksInside } from '../../entity-link-inheritance';
 import {
   normalizeAgentLocationLink,
   normalizeAgentMarkdownLink,
@@ -1009,10 +1010,25 @@ function replaceMarkedText(
   ) {
     suffix += 1;
   }
+  // Text written inside one entity link (a character respelled within a
+  // name) stays in it; anything else arrives without links.
+  const marksAt = (index: number) => sliceTextNodes(textNodes, index, index + 1)[0]?.marks ?? {};
+  const linkedBefore = prefix > 0 && suffix > 0 && Object.keys(marksAt(prefix - 1)).some(isEntityLinkMarkKey);
+  const links = linkedBefore
+    ? (entityLinksInside(
+        marksAt(prefix - 1),
+        marksAt(previous.length - suffix),
+        sliceTextNodes(textNodes, prefix, previous.length - suffix).map((node) => node.marks ?? {}),
+      ) as NonNullable<YjsProseTextNode['marks']>)
+    : {};
   return mergeTextNodes([
     ...sliceTextNodes(textNodes, 0, prefix),
     ...(nextText.length - suffix > prefix
-      ? [{ kind: 'text' as const, text: nextText.slice(prefix, nextText.length - suffix) }]
+      ? [{
+          kind: 'text' as const,
+          text: nextText.slice(prefix, nextText.length - suffix),
+          ...(Object.keys(links).length > 0 ? { marks: links } : {}),
+        }]
       : []),
     ...sliceTextNodes(textNodes, previous.length - suffix, previous.length),
   ]);
