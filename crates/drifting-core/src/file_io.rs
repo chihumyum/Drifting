@@ -64,6 +64,22 @@ pub fn sync_directory(path: &Path) -> io::Result<()> {
     File::open(path)?.sync_all()
 }
 
+/// Windows has no directory fsync (see `windows_move_write_through`): NTFS
+/// journals directory metadata, and replacements that must be durable use
+/// MoveFileExW with WRITE_THROUGH. Callers keep the same barrier points and
+/// the same validation, so a symlinked or missing directory fails alike.
+#[cfg(windows)]
+pub fn sync_directory(path: &Path) -> io::Result<()> {
+    let metadata = fs::symlink_metadata(path)?;
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "durability barrier requires a real directory",
+        ));
+    }
+    Ok(())
+}
+
 #[cfg(unix)]
 pub fn durable_replace_file(temporary: &Path, path: &Path) -> io::Result<()> {
     rename_then_sync_parent(
