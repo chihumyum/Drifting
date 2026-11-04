@@ -54,7 +54,9 @@ const withAssets = (text) => text.replace(/\{\{asset:([^}]+)\}\}/g, (_, rel) => 
   copyFileSync(path.join(design, rel), path.join(out, 'assets', name));
   return `/assets/${name}`;
 });
-let page = withAssets(readFileSync(path.join(here, 'index.html'), 'utf8'));
+// The version the hero and the structured data name is the app's own.
+const { version } = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8'));
+let page = withAssets(readFileSync(path.join(here, 'index.html'), 'utf8')).replaceAll('{{version}}', version);
 let css = withAssets(readFileSync(path.join(here, 'site.css'), 'utf8'));
 
 // The fonts, served from the site so a visit asks nothing of another host:

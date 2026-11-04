@@ -94,7 +94,7 @@ describe('Ideas / 构想 terminology acceptance', () => {
         `漂流节点|构想|${previousLabel}`,
       ],
     };
-    const files = ['README.md', 'docs', 'src/renderer'].flatMap((path) =>
+    const files = ['README.md', 'README.zh-CN.md', 'docs', 'src/renderer'].flatMap((path) =>
       collectTextFiles(resolve(process.cwd(), path)),
     );
     const violations = files

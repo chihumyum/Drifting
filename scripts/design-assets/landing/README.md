@@ -80,6 +80,21 @@ What is on the page, and why:
   `src/assets/design/sand/wordmark-drifting.png`, and `site.css` shows it as a
   mask in ink inside the bar's pill. The link keeps the word as text for
   readers and search engines.
+- **Questions.** After Your data, a sheet in purple answers what a reader,
+  a search or a language model asks first, as plain statements: how Drifting
+  differs from Scrivener and Novelcrafter (with a five-row comparison table:
+  runs as, price, source, offline, AI), offline use and accounts, price and
+  license, AI and models, Obsidian, systems and languages. Each question is
+  an `h3` under the sheet's `h2`. Claims about the other two stay to what
+  their makers say (2026-11-04: Scrivener is bought once and has no AI of its
+  own; Novelcrafter is a subscription web app that needs a connection and
+  takes your own key or a local model). Since 2026-11-04 the site and README
+  may name Scrivener and Novelcrafter. The site's `llms.txt` (written in the
+  site repository) carries the same facts; change both together. The English
+  page writes language names in English: outside its link to `/zh` it holds
+  no Chinese.
+- **The version** in the hero's line and the structured data's
+  `softwareVersion` is `{{version}}`, filled from `package.json`.
 - **Copy** comes from the README in both languages. `index.html` says
   everything twice, each piece marked `data-l="zh"` or `data-l="en"` (the head's
   title, description, canonical and sharing tags too); `build.mjs` writes each
@@ -97,7 +112,7 @@ What is on the page, and why:
   (`hreflang` `en`, `zh` and `x-default` → `/`), a title that says what Drifting
   is, its locale, the sharing card (`/og.png`, with its size and alt text) and,
   as JSON-LD, the site's name and languages and the app as a free, open-source
-  macOS download. The page's outline is the
+  macOS download, with its description and version. The page's outline is the
   word (`h1`) and one `h2` per sheet: the corners' page titles, the headings
   typed in the Markdown corner and the book's title are styled elements, not
   headings. `robots.txt` and `sitemap.xml` belong to the site repository; a new
