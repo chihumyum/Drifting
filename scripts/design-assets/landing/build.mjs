@@ -135,10 +135,27 @@ function inLanguage(html, lang) {
   }
   return kept + html.slice(at);
 }
+// The questions sheet again as FAQPage structured data, in the page's language,
+// so the answers a reader sees are the ones a search engine or a model reads.
+function withQuestions(html, lang) {
+  const sheet = /<section\b[^>]*\sid="faq"[^>]*>([\s\S]*?)<\/section>/.exec(html)?.[1];
+  if (!sheet) throw new Error('build.mjs: the questions sheet (#faq) is missing');
+  const entities = { amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'" };
+  const plain = (fragment) => fragment.replace(/<[^>]+>/g, '').replace(/&(amp|lt|gt|quot|#39);/g, (_, name) => entities[name]).replace(/\s+/g, ' ').trim();
+  const questions = [...sheet.matchAll(/<div class="q">\s*<h3>([\s\S]*?)<\/h3>\s*<p>([\s\S]*?)<\/p>/g)].map(([, question, answer]) => ({
+    '@type': 'Question',
+    name: plain(question),
+    acceptedAnswer: { '@type': 'Answer', text: plain(answer) },
+  }));
+  if (questions.length !== (sheet.match(/<h3>/g) ?? []).length) throw new Error('build.mjs: every question in #faq needs its <p> answer right under its <h3>');
+  const data = { '@context': 'https://schema.org', '@type': 'FAQPage', inLanguage: lang === 'zh' ? 'zh-Hans' : 'en', mainEntity: questions };
+  const script = `<script type="application/ld+json">\n${JSON.stringify(data, null, 1).replace(/</g, '\\u003c')}\n</script>\n</head>`;
+  return html.replace('</head>', script);
+}
 const informationPages = others.filter((name) => name !== '404.html').map((name) => name.slice(0, -'.html'.length));
 if (!page.includes('<html lang="en">')) throw new Error('build.mjs: index.html must open with <html lang="en">');
 for (const [lang, home] of Object.entries(HOMES)) {
-  let text = inLanguage(page, lang).replace('<html lang="en">', `<html lang="${home.lang}" data-lang="${lang}">`);
+  let text = withQuestions(inLanguage(page, lang), lang).replace('<html lang="en">', `<html lang="${home.lang}" data-lang="${lang}">`);
   // A link to an information page opens it in this page's language.
   for (const name of informationPages) text = text.replaceAll(`href="/${name}"`, `href="/${name}#${lang}"`);
   if (/\sdata-l=/.test(text)) throw new Error(`build.mjs: ${home.file} still holds a data-l mark`);
