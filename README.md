@@ -14,8 +14,6 @@ English | [简体中文](README.zh-CN.md)
 
 Interface: 简体中文 · 繁體中文 · English · 日本語 · 한국어 · Español · Deutsch · Français · Português (Brasil). [Localization](docs/internationalization.md).
 
-https://github.com/user-attachments/assets/54473d28-e047-4fce-9e6c-9e300cf83e8d
-
 ![The Bookshelf: every book with its cover, and a year of writing days](docs/screenshots/shelf.webp)
 
 ![Writing a chapter: chapters by storyline, linked names, comments in Review and the timeline below](docs/screenshots/workspace.webp)
