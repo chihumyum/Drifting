@@ -105,6 +105,8 @@ What is on the page, and why:
   language's page with only its own pieces, unmarked, so a search engine reads
   one language at one address, and the sea writes in that page's script. A link
   from a home page to an information page carries the page's `#zh` or `#en`.
+  Build from source opens the README in the page's language (`README.md` or
+  `README.zh-CN.md`, at its build heading).
   Theme follows the system, or the round button.
 - **Nothing from another host.** Fonts are the app's own `@fontsource-variable`
   faces, copied as only the slices holding a character a page (this one, and
