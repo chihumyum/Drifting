@@ -18,6 +18,7 @@ import {
   repairEditedLinks,
   type IsLinkName,
 } from './entity-link-repair';
+import { linkRegisteredNames } from './entity-link-name-runs';
 
 export interface EntityLinkRef {
   targetKind: EntityKind;
@@ -291,34 +292,9 @@ function runAutoDetect(view: EditorView, markType: MarkType): void {
   const repaired = pending.length > 0 && repairEditedLinks(tr, pending, linkNameMatcher(st));
   const matcher = autoDetectEnabled ? getMergedMatcher(autoDetectTargets) : null;
 
-  let modified = false;
-  if (matcher) tr.doc.descendants((node, pos) => {
-    if (!node.isText || !node.text) return;
-    const text = node.text;
-    matcher.lastIndex = 0;
-    let match: RegExpExecArray | null;
-    while ((match = matcher.exec(text)) !== null) {
-      const name = match[0];
-      const target = autoDetectTargets.get(name);
-      if (!target) continue;
-      // A PM text node is a uniform mark run, so one check covers it: if it
-      // already links to this target, every match inside is already linked.
-      const already = node.marks.some(
-        (m) =>
-          m.type === markType &&
-          m.attrs.targetKind === target.kind &&
-          m.attrs.targetId === target.id,
-      );
-      if (already) continue;
-      const from = pos + match.index;
-      tr.addMark(
-        from,
-        from + name.length,
-        markType.create({ targetKind: target.kind, targetId: target.id, targetBlockId: null }),
-      );
-      modified = true;
-    }
-  });
+  // Names are read across link boundaries, so a name an edit left partly
+  // linked is linked whole again (entity-link-name-runs.ts).
+  const modified = matcher ? linkRegisteredNames(tr, markType, matcher, autoDetectTargets) : false;
   if (!modified && !repaired && !pending.length) return;
   if (modified) tr.setMeta(META_FLAG, true);
   tr.setMeta('addToHistory', false);

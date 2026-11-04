@@ -124,6 +124,31 @@ not a registered name of their target are left alone. The rule lives in
 `src/renderer/lib/extensions/entity-link-repair.ts`, covered by
 `entity-link-repair.test.ts`.
 
+## Names split across links
+
+A name is read within a stretch of a paragraph whose formatting is the same
+apart from Entity Links: bold or italic still splits a name, a link boundary
+does not. A name only partly linked to its target is linked whole with the link
+already on it, so it becomes one link (a deep link stays a deep link).
+
+Until 2026-11-04 every pass searched one text node at a time. A Markdown file
+edit that respelled 安娜蒂 as 安纳蒂 left 安 and 蒂 linked and 纳 plain, and no
+later pass could see 安纳蒂 there even after it became an alias. Now:
+
+- the editor's debounced auto-link pass, which runs after every document change
+  including the one that loads a chapter, links such names whole
+  (`entity-link-name-runs.ts`), so existing split links mend when their chapter
+  is opened and the full spelling is a registered name;
+- written prose (agent writes and Markdown file edits) is relinked the same way
+  across a paragraph's text children (`lib/agent/yjs-entity-relink.ts`);
+- a Markdown file edit or agent text replacement keeps text written inside one
+  link in that link (`lib/entity-link-inheritance.ts`), so a respelled name
+  stays one link even before its new spelling is registered. Text written at a
+  link's edge, or in place of text that was outside it, does not join it.
+
+Retroactive linking of a newly created element (`retroactive-entity-links.ts`)
+still searches one text node at a time; a new element has no links to mend.
+
 ## Acceptance
 
 Machine-checkable coverage lives in:
@@ -135,6 +160,9 @@ Machine-checkable coverage lives in:
   inherited bold, text geometry across enabled/disabled states, and reload;
   generates `docs/editor/acceptance/entity-link-highlight.json`)
 - `src/renderer/lib/extensions/entity-link.test.ts`
+- `src/renderer/lib/extensions/entity-link-name-runs.test.ts` and
+  `src/renderer/lib/agent/yjs-entity-relink.test.ts` (names split across
+  links and text children are linked whole; other formatting still splits)
 - `src/renderer/components/ui/entity-hover-card-model.test.ts`
 - `src/renderer/components/ui/entity-hover-card-position.test.ts`
 - `src/renderer/domain/node-storyline-state.test.ts`
@@ -146,6 +174,8 @@ pnpm exec vitest run \
   src/renderer/lib/entity-link-appearance.test.ts \
   src/renderer/store/settings-store-appearance.test.ts \
   src/renderer/lib/extensions/entity-link.test.ts \
+  src/renderer/lib/extensions/entity-link-name-runs.test.ts \
+  src/renderer/lib/agent/yjs-entity-relink.test.ts \
   src/renderer/components/ui/entity-hover-card-model.test.ts \
   src/renderer/components/ui/entity-hover-card-position.test.ts \
   src/renderer/domain/node-storyline-state.test.ts

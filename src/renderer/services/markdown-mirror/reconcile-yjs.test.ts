@@ -151,6 +151,71 @@ describe('merging a Markdown file edit as a concurrent peer', () => {
   });
 });
 
+describe('a file edit inside an entity link', () => {
+  const annati = { entityLink: { targetKind: 'element', targetId: 'annati', targetBlockId: null } };
+  const mitch = { entityLink: { targetKind: 'element', targetId: 'mitch', targetBlockId: null } };
+
+  /** A paragraph whose runs share one Y.XmlText, so the file edit is merged character by character. */
+  function oneTextChild(runs: Array<[string, Record<string, unknown>?]>): Y.Doc {
+    const doc = docWith([paragraph('p1', '…')]);
+    const element = doc.getXmlFragment('default').get(0) as Y.XmlElement;
+    element.delete(0, element.length);
+    const text = new Y.XmlText();
+    element.insert(0, [text]);
+    let offset = 0;
+    for (const [insert, attributes] of runs) {
+      text.insert(offset, insert, attributes ?? {});
+      offset += insert.length;
+    }
+    return doc;
+  }
+
+  async function merged(base: Y.Doc, content: string) {
+    const { update } = await fileEdit(base, content);
+    const current = clone(base);
+    Y.applyUpdate(current, update);
+    return snapshotYjsProseBlocks(current)[0]!.content!;
+  }
+
+  it('keeps a name respelled character by character in its link', async () => {
+    const base = oneTextChild([['安娜蒂', annati], ['对米契说。']]);
+    expect(await merged(base, '安纳蒂对米契说。')).toEqual([
+      { kind: 'text', text: '安纳蒂', marks: annati },
+      { kind: 'text', text: '对米契说。' },
+    ]);
+  });
+
+  it('keeps a name respelled in a rebuilt paragraph in its link', async () => {
+    const base = docWith([
+      {
+        id: 'p1',
+        type: 'paragraph',
+        content: [
+          { kind: 'text', text: '安娜蒂', marks: annati as never },
+          { kind: 'text', text: '对' },
+          { kind: 'text', text: '米契', marks: mitch as never },
+          { kind: 'text', text: '说。' },
+        ],
+      },
+    ]);
+    expect(await merged(base, '安纳蒂对米契说。')).toEqual([
+      { kind: 'text', text: '安纳蒂', marks: annati },
+      { kind: 'text', text: '对' },
+      { kind: 'text', text: '米契', marks: mitch },
+      { kind: 'text', text: '说。' },
+    ]);
+  });
+
+  it('does not join two links when the text between them changes', async () => {
+    const base = oneTextChild([['米契', mitch], ['，'], ['米契', mitch]]);
+    expect(await merged(base, '米契。米契')).toEqual([
+      { kind: 'text', text: '米契', marks: mitch },
+      { kind: 'text', text: '。' },
+      { kind: 'text', text: '米契', marks: mitch },
+    ]);
+  });
+});
+
 describe('character diff', () => {
   it('never splits a surrogate pair', () => {
     const edits = diffText('雨😀夜', '雨😃夜');
