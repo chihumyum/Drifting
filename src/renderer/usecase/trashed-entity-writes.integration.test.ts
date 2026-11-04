@@ -29,9 +29,10 @@ import { removeStorylineMembershipsInTransaction } from './storyline-membership-
 import { appendAuthoredLifecycleRestoreInTransaction } from './sync-lifecycle-restore';
 
 /*
- * Writes that reach a node in the Trash, or one purged in the same change-set,
- * must still pass the local post-write validation: a register or seed that
- * cannot land would otherwise fail the whole command.
+ * Writes that reach a node in the Trash must still pass the local post-write
+ * validation: a register or seed that cannot land would otherwise fail the
+ * whole command. Deleting a node for good is covered by
+ * book-node-purge.integration.test.ts.
  */
 
 const PROJECT_ID = 'project-trashed-writes';
@@ -141,16 +142,6 @@ async function book() {
       projectId: PROJECT_ID, entityType: 'node', entityId: id,
     });
   });
-  // What purgeNode and the hard-delete branch of deleteNode write.
-  const purgeChapter = () => run(PROJECT_ID, 'domain.authored-write', async ({ tx, changes }) => {
-    await createBookNodeSqliteRepository(PROJECT_ID, tx).delete(CHAPTER_ID);
-    await appendAuthoredNodeStorylineProjectionInTransaction(tx, changes, {
-      projectId: PROJECT_ID, nodeId: CHAPTER_ID,
-    });
-    appendAuthoredDomainMutation(changes, {
-      entityType: 'node', mutationType: 'delete', entityId: CHAPTER_ID, projectId: PROJECT_ID,
-    });
-  });
   const leaveStoryline = () => run(PROJECT_ID, 'domain.authored-write', async ({ tx, changes }) => {
     await tx.delete(NodeStorylineLinkTable).where(and(
       eq(NodeStorylineLinkTable.nodeId, CHAPTER_ID),
@@ -167,7 +158,7 @@ async function book() {
     }));
   // deleteGroup moves only the drifts on the board; the row is what restore sees.
   const deleteGroup = () => db.delete(DriftGroupTable).where(eq(DriftGroupTable.id, GROUP_ID));
-  return { db, create, trash, restore, purgeChapter, leaveStoryline, removeStoryline, deleteGroup };
+  return { db, create, trash, restore, leaveStoryline, removeStoryline, deleteGroup };
 }
 
 async function lastChangeSetMutations(db: DbClient) {
@@ -187,29 +178,7 @@ async function liveMembershipTags(db: DbClient) {
     .filter((tag) => tag.removedByChangeSetId === null);
 }
 
-describe('storyline membership of a chapter that is not live', () => {
-  it('purges a chapter from the Trash and drops its membership with it', async () => {
-    const { db, create, trash, purgeChapter } = await book();
-    await trash(await create('chapter'));
-    await purgeChapter();
-
-    expect(await db.select().from(BookNodeTable)).toEqual([]);
-    expect(await lastChangeSetMutations(db)).toEqual([
-      { action: 'set.remove', targetKind: 'membership' },
-      { action: 'entity.purge', targetKind: 'node' },
-    ]);
-    expect(await liveMembershipTags(db)).toEqual([]);
-  });
-
-  it('hard-deletes a live chapter on a storyline', async () => {
-    const { db, create, purgeChapter } = await book();
-    await create('chapter');
-    await purgeChapter();
-
-    expect(await db.select().from(BookNodeTable)).toEqual([]);
-    expect(await liveMembershipTags(db)).toEqual([]);
-  });
-
+describe('storyline membership of a chapter in the Trash', () => {
   it('takes a chapter in the Trash off a storyline', async () => {
     const { db, create, trash, leaveStoryline } = await book();
     await trash(await create('chapter'));

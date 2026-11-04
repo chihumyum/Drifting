@@ -99,8 +99,6 @@ async function readAuthoredProjection(
   if (node && node.kind !== 'chapter') {
     throw new Error(`Only chapter nodes may have storyline membership: ${nodeId}`);
   }
-  // A purged chapter keeps no membership, whatever link rows are left.
-  if (!node) return { storylineIds: [], primaryStorylineId: null, nodeLive: false };
 
   const rows = await tx
     .select({
@@ -123,7 +121,7 @@ async function readAuthoredProjection(
   return {
     storylineIds: rows.map(({ storylineId }) => storylineId),
     primaryStorylineId: primaryRows[0]?.storylineId ?? null,
-    nodeLive: node.deletedAt === null,
+    nodeLive: node !== undefined && node.deletedAt === null,
   };
 }
 
@@ -133,9 +131,11 @@ async function readAuthoredProjection(
  * once per affected node, after every domain row mutation in the same outer
  * authored transaction.
  *
- * A chapter that is purged or in the Trash gets only the membership diff: its
- * primary register cannot land on a node that is not live, and a restore
- * writes the register again for the new incarnation.
+ * A chapter in the Trash gets only the membership diff (deleting a storyline
+ * takes its trashed chapters off it too): its primary register cannot land on
+ * a node that is not live, and a restore writes the register again for the
+ * new incarnation. A chapter deleted for good goes through
+ * {@link appendAuthoredNodeStorylinePurgeInTransaction} instead.
  */
 export async function appendAuthoredNodeStorylineProjectionInTransaction(
   tx: DbExecutor,
