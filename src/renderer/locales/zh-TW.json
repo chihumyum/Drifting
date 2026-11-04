@@ -1054,6 +1054,8 @@
     },
     "restore": "還原",
     "purgeNow": "立即刪除",
+    "restoreFailed": "還原失敗：{{error}}",
+    "purgeFailed": "刪除失敗：{{error}}",
     "kind": {
       "chapter": "章節",
       "drift": "構想",

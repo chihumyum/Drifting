@@ -1052,6 +1052,8 @@
     },
     "restore": "恢复",
     "purgeNow": "立刻删除",
+    "restoreFailed": "恢复失败：{{error}}",
+    "purgeFailed": "删除失败：{{error}}",
     "kind": {
       "chapter": "章节",
       "drift": "构想",

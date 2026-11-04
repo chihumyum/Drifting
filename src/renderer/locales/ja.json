@@ -1054,6 +1054,8 @@
     },
     "restore": "復元",
     "purgeNow": "今すぐ削除",
+    "restoreFailed": "復元に失敗：{{error}}",
+    "purgeFailed": "削除に失敗：{{error}}",
     "kind": {
       "chapter": "章",
       "drift": "アイデア",

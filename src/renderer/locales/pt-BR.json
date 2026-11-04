@@ -1057,6 +1057,8 @@
     },
     "restore": "Restaurar",
     "purgeNow": "Excluir agora",
+    "restoreFailed": "Falha na restauração: {{error}}",
+    "purgeFailed": "Falha na exclusão: {{error}}",
     "kind": {
       "chapter": "Capítulo",
       "drift": "Ideia",

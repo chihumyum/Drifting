@@ -1057,6 +1057,8 @@
     },
     "restore": "Restaurer",
     "purgeNow": "Supprimer maintenant",
+    "restoreFailed": "Échec de restauration : {{error}}",
+    "purgeFailed": "Échec de suppression : {{error}}",
     "kind": {
       "chapter": "Chapitre",
       "drift": "Idée",

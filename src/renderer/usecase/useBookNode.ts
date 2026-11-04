@@ -25,6 +25,7 @@ import {
   withoutRelationsForEntity,
 } from './entity-relation-cleanup';
 import { persistBookNodeUpdateWithSync } from './book-node-write';
+import { deleteNodeForGoodInTransaction, purgeTrashedNode } from './book-node-purge';
 import { deriveProseMetricFromJson } from '@drifting/prose-metrics';
 import { appendAuthoredNodeStorylineProjectionInTransaction } from '../sync/journal/storyline-membership';
 import { appendAuthoredProseSeedInTransaction } from '../sync/journal/yjs-update';
@@ -670,24 +671,12 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
           useDataStore.getState().setEntityRelations(previousRelations);
         },
         effect: () =>
-          withAtomicSyncTransaction(activeProjectId, async (tx, sync, changes) => {
-            await deleteEntityRelationsInTransaction(
-              tx,
-              sync,
-              activeProjectId,
-              'node',
-              id,
-            );
-            const result = await createBookNodeSqliteRepository(activeProjectId, tx).delete(id);
-            if (existing.kind === 'chapter') {
-              await appendAuthoredNodeStorylineProjectionInTransaction(tx, changes, {
-                projectId: activeProjectId,
-                nodeId: id,
-              });
-            }
-            await sync('node', 'delete', id, activeProjectId);
-            return result;
-          }),
+          withAtomicSyncTransaction(activeProjectId, (tx, sync, changes) =>
+            deleteNodeForGoodInTransaction(tx, sync, changes, {
+              projectId: activeProjectId,
+              nodeId: id,
+            }),
+          ),
       });
     },
     [ensureDb, userId, getNodesState, setNodesState, activeProjectId],
@@ -708,23 +697,12 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
   );
 
   // Permanently delete an already-trashed node — the "立刻删除" path in the
-  // trash UI. node_content and storyline links cascade off the FK; the node is
-  // not in the active store (soft-deleted) so nothing to mutate there.
+  // trash UI (book-node-purge.ts). The node is not in the active store
+  // (soft-deleted) so nothing to mutate there.
   const purgeNode = useCallback(
     async (id: string) => {
       await ensureDb();
-      await withAtomicSyncTransaction(activeProjectId, async (tx, sync, changes) => {
-        await deleteEntityRelationsInTransaction(tx, sync, activeProjectId, 'node', id);
-        const existing = await createBookNodeSqliteRepository(activeProjectId, tx).findById(id);
-        await createBookNodeSqliteRepository(activeProjectId, tx).delete(id);
-        if (existing?.kind === 'chapter') {
-          await appendAuthoredNodeStorylineProjectionInTransaction(tx, changes, {
-            projectId: activeProjectId,
-            nodeId: id,
-          });
-        }
-        await sync('node', 'delete', id, activeProjectId);
-      });
+      await purgeTrashedNode(activeProjectId, id);
       const relations = useDataStore.getState().entityRelations;
       useDataStore
         .getState()
