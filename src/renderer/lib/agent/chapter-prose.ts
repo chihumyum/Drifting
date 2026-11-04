@@ -40,7 +40,7 @@ import { createBookContentRepository } from '../../sqlite-repo/content-repo';
 import { hydrateProseJson } from './prose-hydrate-client';
 import { materializeCanonicalNodeProse } from '../../services/node-prose-metrics.service';
 import { computeBlockChanges, type AgentBlockChange } from './block-diff';
-import { detectEntityLinkSpans } from '../extensions/entity-link';
+import { relinkYjsBlocks } from './yjs-entity-relink';
 import { selectProseAutoDetectConfig } from '../entity-link-names';
 import { useSettingsStore } from '../../store/settings-store';
 import type { AgentToolContext } from './tool-handlers';
@@ -73,9 +73,10 @@ function setBlockText(el: Y.XmlElement, text: string): void {
  * blocks as PLAIN text, so without this an edit silently strips the inline
  * @-mention marks the inline-mention projection — and where_does_entity_appear /
  * read_node — read. Mirrors the editor's auto-detect (same registered
- * targets), idempotent (re-formatting the same span is a no-op). Must run INSIDE
- * the agent transaction so the marks land with the edit. Each touched block is
- * plain text at this point (just written), so positions align with the string.
+ * targets), idempotent (a name already linked to its target is left alone).
+ * Must run INSIDE the agent transaction so the marks land with the edit. A
+ * Markdown file edit keeps its blocks' other marks, so names are read across
+ * text children and links (yjs-entity-relink.ts).
  */
 export function relinkBlockMentions(frag: Y.XmlFragment, blockIds: string[], projectId: string | null, docId: string): void {
   const source = parseDocId(docId);
@@ -85,19 +86,7 @@ export function relinkBlockMentions(frag: Y.XmlFragment, blockIds: string[], pro
     useDataStore.getState(), useSettingsStore.getState().autoElementLinkEnabled,
     projectId, sourceKind, source.entityId,
   );
-  for (const blockId of blockIds) {
-    const idx = blockIndexInFrag(frag, blockId);
-    if (idx < 0) continue;
-    const el = frag.toArray()[idx];
-    if (!(el instanceof Y.XmlElement)) continue;
-    for (const child of el.toArray()) {
-      if (!(child instanceof Y.XmlText)) continue;
-      const text = child.toString();
-      for (const span of detectEntityLinkSpans(text, config)) {
-        child.format(span.from, span.to - span.from, { entityLink: span.attrs });
-      }
-    }
-  }
+  relinkYjsBlocks(frag, blockIds, config);
 }
 
 /**
