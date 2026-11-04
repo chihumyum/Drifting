@@ -5,9 +5,8 @@
 import enso from '../../../src/assets/design/icons/enso.png';
 import inkDisc from '../../../src/assets/design/icons/ink-disc.png';
 import taiji from '../../../src/assets/design/icons/taiji.png';
+import { DOC_LANG_KEY, LANG_KEY, THEME_KEY, homeFor, readPreference, savePreference } from './locales.mjs';
 
-const LANG_KEY = 'drifting.landing.lang';
-const THEME_KEY = 'drifting.landing.theme';
 const THEME_ICONS = { system: taiji, light: enso, dark: inkDisc };
 const THEME_LABELS = {
   zh: { system: '跟随系统', light: '浅色', dark: '深色' },
@@ -18,10 +17,8 @@ const SHEET_TEXTURE_OFFSETS = [[14, 46], [96, 132], [168, 18], [58, 186]];
 // On a narrow window the sea needs a denser sheet of characters.
 export const seaDensity = (width) => (width < 600 ? 1.7 : width < 960 ? 1.3 : 1);
 
-// The language button keeps the choice. On the home page it is a link to the
-// page in the other language; on the information pages it switches the page
-// between its zh and en copy. The theme button steps system → light → dark; a
-// pick lasts only for this tab, so the next visit follows the system again.
+// Home pages share a language menu. The information pages have two languages
+// and keep their own preference. Theme choices last for the current tab.
 export function startBar({ onTheme = () => {}, onLang = () => {} } = {}) {
   const root = document.documentElement;
   const system = matchMedia('(prefers-color-scheme: dark)');
@@ -38,10 +35,12 @@ export function startBar({ onTheme = () => {}, onLang = () => {} } = {}) {
     root.classList.toggle('dark', isDark());
     const theme = pick();
     themeIcon.style.setProperty('--i', `url(${THEME_ICONS[theme]})`);
-    themeButton.setAttribute('aria-label', THEME_LABELS[lang()][theme]);
-    themeButton.title = THEME_LABELS[lang()][theme];
-    // An information page's name in the bar leads to the home page in the language it shows.
-    homeLink?.setAttribute('href', lang() === 'zh' ? '/zh' : '/');
+    const label = themeButton.getAttribute(`data-theme-${theme}`) ?? THEME_LABELS[lang()][theme];
+    themeButton.setAttribute('aria-label', label);
+    themeButton.title = label;
+    // Return from information pages to the chosen home language when available.
+    const savedHome = homeFor(readPreference(LANG_KEY));
+    homeLink?.setAttribute('href', savedHome?.path ?? (lang() === 'zh' ? '/zh' : '/'));
     onTheme();
   }
   themeButton.addEventListener('click', () => {
@@ -56,20 +55,29 @@ export function startBar({ onTheme = () => {}, onLang = () => {} } = {}) {
   });
   new MutationObserver(sync).observe(root, { attributes: true, attributeFilter: ['data-theme'] });
   system.addEventListener('change', sync);
-  const langButton = document.getElementById('lang-btn');
-  if (langButton instanceof HTMLAnchorElement) {
-    langButton.addEventListener('click', () => {
-      try {
-        localStorage.setItem(LANG_KEY, langButton.hreflang);
-      } catch {}
+  const switcher = document.querySelector('.language-switcher');
+  if (switcher) {
+    switcher.addEventListener('click', (event) => {
+      const link = event.target.closest('a[data-locale]');
+      if (!link) return;
+      savePreference(LANG_KEY, link.dataset.locale);
+      switcher.open = false;
     });
-  } else langButton.addEventListener('click', () => {
+    document.addEventListener('pointerdown', (event) => {
+      if (!switcher.contains(event.target)) switcher.open = false;
+    });
+    switcher.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape' || !switcher.open) return;
+      switcher.open = false;
+      switcher.querySelector('summary').focus();
+    });
+  }
+  const langButton = document.getElementById('lang-btn');
+  langButton?.addEventListener('click', () => {
     const next = lang() === 'zh' ? 'en' : 'zh';
     root.dataset.lang = next;
     root.lang = next === 'zh' ? 'zh-CN' : 'en';
-    try {
-      localStorage.setItem(LANG_KEY, next);
-    } catch {}
+    savePreference(DOC_LANG_KEY, next);
     sync();
     onLang(next);
   });

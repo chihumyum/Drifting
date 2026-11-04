@@ -9,31 +9,40 @@ node scripts/design-assets/landing/build.mjs                       # writes out/
 node scripts/design-assets/landing/build.mjs ../site --og card.png # another directory, with the sharing card
 ```
 
-It writes the home page in English (`index.html`, served at `/`) and in Chinese
-(`zh.html`, served at `/zh`), `assets/` and `fonts/` (and `og.png` with `--og`;
-use `social-preview/`'s `dark.png`), and leaves everything else in the
-directory alone. Every page links `/legal/favicon-32x32.png` and
-`/legal/apple-touch-icon.png`, which the site serves; `app-icon/render.sh`
-renders both from the app icon.
+The build writes nine static home pages, shared assets and fonts, and the
+sitemap. Pass `--og` with the sharing card to replace `og.png`. The site
+serves its policy and support pages beside the generated homes. The sitemap
+reads those pages' English update dates from their HTML.
 
-What is shared, and where it comes from:
+`locales.mjs` uses the app's language registry and maps its codes to website
+paths. English is `/`, Simplified Chinese is `/zh`, Traditional Chinese is
+`/zh-tw`, and Brazilian Portuguese is `/pt-br`. The other languages use
+`/ja`, `/ko`, `/es`, `/de` and `/fr`.
 
-- `site.css` → `/assets/site.css`: the app's tokens, glass, sand marks, the bar,
-  the sheets, the footer, the font faces, and the information pages' heading and
-  prose. The home page's own layout stays inline in `index.html`.
-- `prefs.js` → `/assets/prefs.js`, in each page's head: the language (a `#zh` or
-  `#en` link, the visitor's last choice, then the browser's) and a theme picked
-  in this tab, applied before the page paints. Without a pick the theme follows
-  the system on every visit; a pick lasts only for the tab (sessionStorage). On
-  the home page the language picks the page: `/` opens `/zh` for a visitor who
-  reads Chinese or follows a `#zh` link, `/zh#en` opens `/#en`, and `/zh` never
-  sends a reader away unasked. The information pages show the language picked.
-- `site.mjs`: the language and theme buttons, the sheets whose glass the sea
-  draws, and the pointer's ripples. On the home page the language button is a
-  link to the other page (following it keeps the choice); on the information
-  pages it switches the page in place, and the bar's name leads to `/` or `/zh`
-  by the language shown. `entry.mjs` (→ `/assets/landing.js`) and `pages.mjs`
-  (→ `/assets/pages.js`, the information pages' script) both bundle it.
+- `index.html` contains one layout. The `copy/*.json` files supply each
+  locale's visible copy, demo text, labels, metadata and installation
+  instructions. Write complete phrases and keep the inline links, emphasis,
+  entity marks and code samples in their translated context.
+- `prefs.js` applies theme and language before paint. The default home
+  honors an explicit language hash, then the saved manual choice, then the
+  first supported browser language. It preserves query parameters and section
+  anchors when it routes to the matching page. Localized URLs retain their
+  own language. `/#en` explicitly opens English, including when storage is
+  unavailable. Existing `#zh` links and saved `zh` choices still open
+  Simplified Chinese.
+- The header uses a native disclosure with ordinary language links. Its
+  selected name stays on one line, and the full list fits the viewport.
+  Choosing a language saves the home preference. The support and policy
+  pages use their own two-language preference and links into their available
+  copy. The home links label this scope in the footer.
+- `site.css` shares the app's glass, sand and font roles. The site serves its
+  own font files and prefers the matching system families for Traditional
+  Chinese, Japanese and Korean glyphs. The app's character sea uses the
+  page's language. On narrow screens the primary download links are in the
+  hero and closing section.
+- `site.mjs` owns the language and theme controls and the shared sea
+  behavior. The build bundles it into `/assets/landing.js` and
+  `/assets/pages.js`.
 
 What is on the page, and why:
 
@@ -89,40 +98,45 @@ What is on the page, and why:
   `h3` under the sheet's `h2`, and the first sentence of each answer is the
   answer (a quoting model takes the first sentence or two). `build.mjs` writes
   the same questions and answers into each page's head as FAQPage JSON-LD in
-  that page's language, so keep each answer one `<p>` right under its `h3`. Claims about the other two stay to what
+  that page's language. Keep each answer one `<p>` right under its `h3`. Claims about the other two follow what
   their makers say (2026-11-04: Scrivener is bought once and has no AI of its
   own; Novelcrafter is a subscription web app that needs a connection and
   takes your own key or a local model). Since 2026-11-04 the site and README
   may name Scrivener and Novelcrafter. The site's `llms.txt` (written in the
   site repository) carries the same facts; change both together. The English
-  page writes language names in English: outside its link to `/zh` it holds
-  no Chinese.
+  page writes language names in English in its body copy. The picker uses
+  every language's native name.
 - **The version** in the hero's line and the structured data's
   `softwareVersion` is `{{version}}`, filled from `package.json`.
-- **Copy** comes from the README in both languages. `index.html` says
-  everything twice, each piece marked `data-l="zh"` or `data-l="en"` (the head's
-  title, description, canonical and sharing tags too); `build.mjs` writes each
-  language's page with only its own pieces, unmarked, so a search engine reads
-  one language at one address, and the sea writes in that page's script. A link
-  from a home page to an information page carries the page's `#zh` or `#en`.
-  Build from source opens the README in the page's language (`README.md` or
-  `README.zh-CN.md`, at its build heading).
-  Theme follows the system, or the round button.
+- **The demos** use the page's copy. The raw Markdown and typing animation
+  read the same sentences as the static manuscript. The Agent compares a
+  localized original with the localized edit. Panel tabs wrap as whole
+  labels and the selection block measures the active tab's bounds.
 - **Nothing from another host.** Fonts are the app's own `@fontsource-variable`
   faces, copied as only the slices holding a character a page (this one, and
   the information pages already in the directory) or the sea writes, under the app's family names so the sea's font stacks find them. The
   site's privacy policy says it loads no third-party resources; keep it true.
-- **For search engines and sharing.** Each page's head names its address
-  (`canonical`, `og:url`: `https://drifting.cc/` or `https://drifting.cc/zh`,
-  on the host the app, README and policies link to) and both languages'
-  (`hreflang` `en`, `zh` and `x-default` → `/`), a title that says what Drifting
-  is, its locale, the sharing card (`/og.png`, with its size and alt text) and,
-  as JSON-LD, the site's name and languages and the app as a free, open-source
-  macOS download, with its description and version. The page's outline is the
-  word (`h1`) and one `h2` per sheet: the corners' page titles, the headings
-  typed in the Markdown corner and the book's title are styled elements, not
-  headings. `robots.txt` and `sitemap.xml` belong to the site repository; a new
-  page there goes into the sitemap too.
+- **For search engines and sharing.** Every home has its own canonical URL,
+  localized title and description, sharing metadata, and reciprocal
+  `hreflang` links. The English root is `x-default`. Visible FAQ copy and
+  FAQPage data come from the same rendering. The build writes the home
+  entries to the sitemap together with the information pages.
+
+## Multilingual acceptance
+
+Build into a checkout of Showcase and check its generated site:
+
+```sh
+node scripts/design-assets/landing/build.mjs /path/to/Drifting-Showcase/site
+node scripts/design-assets/landing/check.mjs /path/to/Drifting-Showcase/site scripts/design-assets/landing/acceptance/multilingual.json
+```
+
+The Chromium collector uses an isolated profile and checks real pointer
+selection, Escape, the active language, all three demos, layout at 1280,
+390 and 320 CSS pixels, locale matching and persistence. Pass a third
+argument to save screenshots of the 390px Traditional Chinese, Japanese,
+German and Brazilian Portuguese menus. The Showcase routing tests cover
+every localized URL, assets, metadata and the sitemap.
 
 ## Markdown title acceptance
 

@@ -124,6 +124,7 @@ describe('the serif structure face beyond the sidebars', () => {
     }
     expect(block(landing, '.grp small {')).toContain('var(--font-mono)');
     expect(block(landing, '.sb-tab [data-script="cjk"] {')).toContain('top: 0.15em;');
-    expect(landing.match(/data-l="zh" data-script="cjk"/g)).toHaveLength(5);
+    expect(landing.match(/<span\{\{cjk-attr\}\}>/g)).toHaveLength(6);
+    expect(read('scripts/design-assets/landing/build.mjs')).toContain("'cjk-attr': cjk ? ' data-script=\"cjk\"' : ''");
   });
 });

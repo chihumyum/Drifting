@@ -358,6 +358,61 @@ a.su:hover::after { opacity: 1; }
   mask: url({{asset:sand/wordmark-drifting.png}}) center / contain no-repeat;
 }
 .bar-actions { display: flex; align-items: center; gap: 8px; }
+.language-switcher > summary { cursor: pointer; list-style: none; white-space: nowrap; }
+.language-switcher > summary::-webkit-details-marker { display: none; }
+.language-switcher > summary::after {
+  content: '';
+  width: 5px;
+  height: 5px;
+  margin-inline-start: 6px;
+  border-inline-end: 1px solid currentColor;
+  border-block-end: 1px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+}
+.language-switcher > nav {
+  position: fixed;
+  top: calc(54px + env(safe-area-inset-top, 0px));
+  right: max(16px, env(safe-area-inset-right, 0px));
+  box-sizing: border-box;
+  width: max-content;
+  min-width: 180px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100dvh - 68px - env(safe-area-inset-top, 0px));
+  overflow: auto;
+  padding: 6px;
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  background: hsl(var(--paper-deep));
+  box-shadow: 0 8px 28px hsl(var(--ink-1) / 0.12);
+}
+.language-switcher > nav a {
+  display: block;
+  padding: 5px 10px;
+  border-radius: 5px;
+  color: hsl(var(--ink-1));
+  text-decoration: none;
+}
+.language-switcher > nav a:is(:hover, :focus-visible, [aria-current='page']) {
+  background: hsl(var(--ink-1) / 0.07);
+}
+.information-note { margin: 0; }
+
+:root:lang(zh-TW) {
+  --font-ui: 'Inter Tight Variable', 'PingFang TC', 'Noto Sans CJK TC', sans-serif;
+  --font-structure: 'Newsreader Variable', 'Songti TC', 'Noto Serif CJK TC', serif;
+  --font-content: var(--font-structure);
+}
+:root:lang(ja) {
+  --font-ui: 'Inter Tight Variable', 'Hiragino Sans', 'Yu Gothic', 'Noto Sans CJK JP', sans-serif;
+  --font-structure: 'Newsreader Variable', 'Hiragino Mincho ProN', 'Yu Mincho', 'Noto Serif CJK JP', serif;
+  --font-content: var(--font-structure);
+}
+:root:lang(ko) {
+  --font-ui: 'Inter Tight Variable', 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans CJK KR', sans-serif;
+  --font-structure: 'Newsreader Variable', AppleMyungjo, Batang, 'Noto Serif CJK KR', serif;
+  --font-content: var(--font-structure);
+}
+
 .bar .glass {
   background: var(--glass-float);
   -webkit-backdrop-filter: blur(1.6px);
@@ -471,6 +526,11 @@ footer a[aria-current="page"] { color: hsl(var(--ink-1)); }
 
 @media (max-width: 640px) {
   .bar .pill--sm { padding: 0 11px; }
+}
+@media (max-width: 480px) {
+  :root[data-landing] .bar-dl { display: none; }
+  :root[data-landing] .brand { padding-inline: 10px; }
+  :root[data-landing] .brand::after { height: 12px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .glass::before { animation: none !important; }
