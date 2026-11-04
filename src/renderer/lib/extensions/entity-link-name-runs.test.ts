@@ -1,9 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getSchema, type JSONContent } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
-import { EditorState } from '@tiptap/pm/state';
+import { EditorState, type Plugin, type Transaction } from '@tiptap/pm/state';
 
-import { EntityLink } from './entity-link';
+import { EntityLink, type AutoDetectTarget } from './entity-link';
 import { forEachNameRun, linkRegisteredNames } from './entity-link-name-runs';
 
 const schema = getSchema([StarterKit, EntityLink.configure({ composeInsideLink: false })]);
@@ -89,5 +89,49 @@ describe('auto-linking names across link boundaries', () => {
     );
 
     expect(texts).toEqual(['安纳', '蒂', '米契']);
+  });
+});
+
+describe('a newly opened document', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** The extension's plugins on a view stand-in, as Tiptap mounts them; nothing in the document changes afterwards. */
+  function open(...paragraphs: JSONContent[][]) {
+    const extension = EntityLink.configure({
+      composeInsideLink: false,
+      autoDetectEnabled: true,
+      autoDetectTargets: targets as Map<string, AutoDetectTarget>,
+    });
+    const plugins = extension.config.addProseMirrorPlugins!.call({ type: linkType, options: extension.options } as never) as Plugin[];
+    const view = {
+      state: EditorState.create({ doc: state(...paragraphs).doc, plugins }),
+      dom: { querySelectorAll: () => [] },
+      composing: false,
+      isDestroyed: false,
+      dispatch(tr: Transaction) {
+        view.state = view.state.apply(tr);
+      },
+    };
+    for (const plugin of plugins) plugin.spec.view?.(view as never);
+    return view;
+  }
+
+  it('mends a partly linked name once loaded, and links nothing new', () => {
+    vi.useFakeTimers();
+    const view = open([link('安', 'annati'), plain('纳'), link('蒂', 'annati'), plain('对米契说。')]);
+    vi.advanceTimersByTime(500);
+
+    expect(runs(view.state)).toEqual([[['安纳蒂', ['annati']], ['对米契说。', []]]]);
+  });
+
+  it('writes nothing to a document without partly linked names', () => {
+    vi.useFakeTimers();
+    const view = open([plain('安纳蒂对'), link('米契', 'mitch'), plain('说。')]);
+    const before = view.state.doc;
+    vi.advanceTimersByTime(500);
+
+    expect(view.state.doc).toBe(before);
   });
 });

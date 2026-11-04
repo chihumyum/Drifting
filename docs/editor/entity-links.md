@@ -135,10 +135,13 @@ Until 2026-11-04 every pass searched one text node at a time. A Markdown file
 edit that respelled 安娜蒂 as 安纳蒂 left 安 and 蒂 linked and 纳 plain, and no
 later pass could see 安纳蒂 there even after it became an alias. Now:
 
-- the editor's debounced auto-link pass, which runs after every document change
-  including the one that loads a chapter, links such names whole
-  (`entity-link-name-runs.ts`), so existing split links mend when their chapter
-  is opened and the full spelling is a registered name;
+- the editor's debounced auto-link pass links such names whole after every
+  document change (`entity-link-name-runs.ts`). Collaboration renders a loaded
+  Yjs document while plugin views are still being created, so no change
+  reaches the pass on open; instead a new editor view schedules one pass that
+  only mends names already partly linked and links nothing new. Existing split
+  links therefore mend when their chapter is opened, once the full spelling is
+  a registered name;
 - written prose (agent writes and Markdown file edits) is relinked the same way
   across a paragraph's text children (`lib/agent/yjs-entity-relink.ts`);
 - a Markdown file edit or agent text replacement keeps text written inside one
