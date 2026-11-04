@@ -261,7 +261,14 @@ makes a workbench write stale: the library image has no note bodies, the
 structure image has no titles or prose, a plot grid image is one chapter's
 grid. Sync never revives a purged id, so the inverse of a hard delete (a
 material folder, an act, a timeline marker) recreates the row under a new id
-planned with the forward write; everything else is restored exactly.
+planned with the forward write; everything else is restored exactly. The
+images of earlier writes in the scope still name the old id, so once such a
+reject has committed, rejecting any earlier write first renames its post- and
+preimage through every committed restoration in the scope (chains included)
+and then compares exactly as usual. A purged id never comes back, so a
+restoration can only rename rows of writes made before its delete. This keeps
+the review panel's newest-first reject of a whole stack — create, move,
+rename, then delete an act — working down to the first write.
 
 | Scope              | Read                  | Commands |
 | ------------------ | --------------------- | -------- |

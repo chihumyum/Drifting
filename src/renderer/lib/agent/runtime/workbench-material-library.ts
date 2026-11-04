@@ -268,6 +268,16 @@ export const MATERIAL_LIBRARY_SCOPE: WorkbenchScope<MaterialLibraryState> = {
   load: (db, projectId) => loadLibrary(db, projectId),
   apply: applyLibrary,
   project: (projectId) => projectLibrary(projectId),
+  // Only folders are ever restored under a new id; materials point at them.
+  renameIds: (state, rename) => {
+    const folderId = (id: string | null) => (id === null ? null : rename(id));
+    return {
+      folders: state.folders
+        .map((folder) => ({ ...folder, id: rename(folder.id), parentFolderId: folderId(folder.parentFolderId) }))
+        .sort(byId),
+      items: state.items.map((item) => ({ ...item, folderId: folderId(item.folderId) })),
+    };
+  },
 };
 
 const projectScope = (projectId: string) => projectId;
@@ -392,15 +402,12 @@ const deleteMaterialFolder: WorkbenchCommand<MaterialLibraryState> = {
       } satisfies RestoredFolderExtra,
     };
   },
-  inverseImage(before, extra) {
-    const { deletedFolderId, restoredFolderId } = extra as RestoredFolderExtra;
-    const remap = (id: string | null) => (id === deletedFolderId ? restoredFolderId : id);
-    return {
-      folders: before.folders
-        .map((entry) => ({ ...entry, id: remap(entry.id)!, parentFolderId: remap(entry.parentFolderId) }))
-        .sort(byId),
-      items: before.items.map((item) => ({ ...item, folderId: remap(item.folderId) })),
-    };
+  restoredIds(extra) {
+    const { deletedFolderId, restoredFolderId } = (extra ?? {}) as Partial<RestoredFolderExtra>;
+    if (typeof deletedFolderId !== 'string' || typeof restoredFolderId !== 'string') {
+      throw new Error('删除记录不完整，无法撤销');
+    }
+    return [[deletedFolderId, restoredFolderId]];
   },
 };
 

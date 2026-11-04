@@ -41,6 +41,12 @@ export interface WorkbenchScope<S> {
   apply(tx: DbExecutor, input: WorkbenchApplyInput<S>): Promise<void>;
   /** Refresh renderer stores after a committed forward or inverse. */
   project(projectId: string, scopeId: string): Promise<void>;
+  /**
+   * The same image with every row id, and every reference to one, passed
+   * through `rename`. Required by a scope whose commands declare
+   * `restoredIds`.
+   */
+  renameIds?(state: S, rename: (id: string) => string): S;
 }
 
 export interface WorkbenchResolution {
@@ -74,12 +80,16 @@ export interface WorkbenchCommand<S> {
   plan(state: S, args: Readonly<Record<string, unknown>>, context: WorkbenchPlanContext): Promise<WorkbenchPlan<S>>;
   /** Refuse an inverse that would discard later author work outside the image. */
   assertInverseSafe?(tx: DbExecutor, projectId: string, extra: unknown): Promise<void>;
-  /**
-   * The image a reject restores, when it cannot be the preimage itself. Sync
-   * never revives a purged id, so undoing a hard delete recreates the row
-   * under a new id planned in `extra`; everything else is restored exactly.
-   */
+  /** The image a reject restores, when it cannot be the preimage itself. */
   inverseImage?(before: S, extra: unknown): S;
+  /**
+   * Sync never revives a purged id, so rejecting a hard delete recreates the
+   * row under a new id planned in `extra`: `[deletedId, restoredId]` pairs.
+   * The runtime applies them to this command's preimage and, once this
+   * reject committed, to the images of every earlier write in the scope, so
+   * those can still be rejected exactly.
+   */
+  restoredIds?(extra: unknown): ReadonlyArray<readonly [deletedId: string, restoredId: string]>;
 }
 
 /** The requested state is already current: a successful no-op, not a failure. */

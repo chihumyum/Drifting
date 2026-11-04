@@ -217,6 +217,12 @@ export const BOOK_STRUCTURE_SCOPE: WorkbenchScope<BookStructureState> = {
   load: (db, projectId) => loadStructure(db, projectId),
   apply: applyStructure,
   project: (projectId) => projectStructure(projectId),
+  // Acts and markers are referenced by nothing else in the image.
+  renameIds: (state, rename) => ({
+    ...state,
+    acts: state.acts.map((act) => ({ ...act, id: rename(act.id) })).sort(byId),
+    markers: state.markers.map((marker) => ({ ...marker, id: rename(marker.id) })).sort(byId),
+  }),
 };
 
 // ---- Names, the only thing the Agent passes --------------------------------
@@ -500,9 +506,18 @@ function withMarker(state: BookStructureState, marker: StructureMarker): BookStr
   return { ...state, markers: [...state.markers.filter((entry) => entry.id !== marker.id), marker].sort(byId) };
 }
 
+/** A deleted act or marker comes back under a new id: sync never revives a purged one. */
 interface RestoredRowExtra {
   deletedId: string;
   restoredId: string;
+}
+
+function restoredRow(extra: unknown): ReadonlyArray<readonly [string, string]> {
+  const { deletedId, restoredId } = (extra ?? {}) as Partial<RestoredRowExtra>;
+  if (typeof deletedId !== 'string' || typeof restoredId !== 'string') {
+    throw new Error('删除记录不完整，无法撤销');
+  }
+  return [[deletedId, restoredId]];
 }
 
 const createAct: WorkbenchCommand<BookStructureState> = {
@@ -587,13 +602,7 @@ const deleteAct: WorkbenchCommand<BookStructureState> = {
       } satisfies RestoredRowExtra,
     };
   },
-  inverseImage(before, extra) {
-    const { deletedId, restoredId } = extra as RestoredRowExtra;
-    return {
-      ...before,
-      acts: before.acts.map((act) => (act.id === deletedId ? { ...act, id: restoredId } : act)).sort(byId),
-    };
-  },
+  restoredIds: restoredRow,
 };
 
 const moveChapter: WorkbenchCommand<BookStructureState> = {
@@ -776,13 +785,7 @@ const deleteTimelineMarker: WorkbenchCommand<BookStructureState> = {
       } satisfies RestoredRowExtra,
     };
   },
-  inverseImage(before, extra) {
-    const { deletedId, restoredId } = extra as RestoredRowExtra;
-    return {
-      ...before,
-      markers: before.markers.map((marker) => (marker.id === deletedId ? { ...marker, id: restoredId } : marker)).sort(byId),
-    };
-  },
+  restoredIds: restoredRow,
 };
 
 export const BOOK_STRUCTURE_COMMANDS = [
