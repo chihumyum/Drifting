@@ -33,7 +33,6 @@ import { useDataStore } from '../../../store/data-store';
 import { useProjectStore } from '../../../store/project-store';
 import { useSettingsStore } from '../../../store/settings-store';
 import { persistBookNodeUpdateWithSync } from '../../../usecase/book-node-write';
-import type { AgentEventEnvelope } from '../protocol';
 import { setAgentEditModeOverride } from '../agent-edit-mode';
 import type { AgentToolContext, AgentWriteApi } from '../tool-handlers';
 import { ProductFileBackedSqliteGateway } from './acceptance/p3-file-backed-sqlite';
@@ -44,7 +43,7 @@ import {
 } from './drifting-product-composition';
 import { getDriftingWriteStrategy } from './drifting-write-strategies';
 import { ScriptedFakeDriver, type ScriptedDriverRound, type ScriptedDriverStep } from './testing';
-import type { AgentToolExecutionRequest } from './types';
+import type { AgentRuntimeJournalEntry, AgentToolExecutionRequest } from './types';
 import { createYjsProseSeedState } from './yjs-prose-command';
 import { createTestAgentAuthoredJournal } from './agent-authored-journal.test-support';
 
@@ -186,9 +185,9 @@ function finalSteps(text: string): ScriptedDriverStep[] {
   ];
 }
 
-async function waitForDone(events: AgentEventEnvelope[], count: number): Promise<void> {
+async function waitForDone(events: AgentRuntimeJournalEntry[], count: number): Promise<void> {
   for (let index = 0; index < 1_000; index += 1) {
-    if (events.filter((event) => event.event.type === 'done').length >= count) {
+    if (events.filter((event) => event.event.type === 'turn_finished').length >= count) {
       return;
     }
     await new Promise<void>((resolve) => setTimeout(resolve, 0));
@@ -218,7 +217,7 @@ class DeclaredContextFakeDriver extends ScriptedFakeDriver {
 }
 
 class ProductAgentHarness {
-  readonly events: AgentEventEnvelope[] = [];
+  readonly events: AgentRuntimeJournalEntry[] = [];
   readonly nodeRepository;
   readonly contentRepository;
   readonly composition: DriftingAgentProductComposition;
@@ -241,8 +240,8 @@ class ProductAgentHarness {
       authoredJournal: this.authoredJournal,
       createId: (kind) => (kind === 'session' ? SESSION_ID : `unexpected-${kind}`),
     });
-    const subscription = this.composition.transport.subscribeEvents((event) =>
-      this.events.push(event),
+    const subscription = this.composition.transport.subscribeJournal((entry) =>
+      this.events.push(entry),
     );
     if (!subscription.ok) {
       throw new Error(subscription.error);
@@ -312,7 +311,13 @@ class ProductAgentHarness {
     expect(started).toEqual({ ok: true, value: undefined });
     await waitForDone(this.events, expectedDoneCount);
     expect(
-      this.events.filter((event) => event.turnId === turnId && event.event.type === 'error'),
+      this.events.filter(
+        (event) =>
+          event.turnId === turnId &&
+          event.event.type === 'turn_finished' &&
+          event.event.outcome !== 'completed' &&
+          event.event.outcome !== 'aborted',
+      ),
     ).toEqual([]);
   }
 
@@ -713,7 +718,7 @@ describe.sequential('Drifting Agent product composition', () => {
     expect(harness.scalar('SELECT count(*) FROM agent_runtime_write_review')).toBe(0);
     expect(
       harness.events.filter(
-        (event) => event.turnId === turnId && event.event.type === 'permission_request',
+        (event) => event.turnId === turnId && event.event.type === 'permission_requested',
       ),
     ).toEqual([]);
     const journalTypes = harness
@@ -804,7 +809,7 @@ describe.sequential('Drifting Agent product composition', () => {
     );
     expect(
       harness.events.filter(
-        (event) => event.turnId === turnId && event.event.type === 'permission_request',
+        (event) => event.turnId === turnId && event.event.type === 'permission_requested',
       ),
     ).toEqual([]);
     expect(harness.scalar('SELECT count(*) FROM sync_change_set')).toBe(1);
@@ -1663,7 +1668,7 @@ describe.sequential('Drifting Agent product composition', () => {
   it('stores a cited passage as a paragraph anchor whose lines follow later edits', async () => {
     const toolText = (callId: string) =>
       harness!.events.flatMap((event) =>
-        event.event.type === 'tool_result' && event.event.id === callId ? [event.event] : [],
+        event.event.type === 'tool_result' && event.event.callId === callId ? [event.event] : [],
       )[0];
     const cite = (callId: string, line: number, current: string, revised: string) =>
       toolCallSteps(callId, 'revise_element', {
@@ -1704,7 +1709,7 @@ describe.sequential('Drifting Agent product composition', () => {
         attrs: { targetKind: 'node', targetId: NODE_ID, targetBlockId: 'opening-block', targetEndBlockId: null },
       }],
     });
-    expect(toolText('cite-read-element')?.text).toContain(
+    expect(toolText('cite-read-element')?.content).toContain(
       '"locationLinks":[{"href":"drifting:chapters/Chapter One/prose.md#L1","text":"the opening"}]',
     );
 
@@ -1713,10 +1718,10 @@ describe.sequential('Drifting Agent product composition', () => {
     expect(toolText('shift-write')?.ok).toBe(true);
     // The Agent's own insertion made its earlier line numbers stale.
     expect(toolText('stale-cite')).toMatchObject({ ok: false });
-    expect(toolText('stale-cite')?.text).toContain('"Chapter One" changed after you read it');
+    expect(toolText('stale-cite')?.content).toContain('"Chapter One" changed after you read it');
     // The stored anchor follows its paragraph to the new line.
-    expect(toolText('shift-read-element')?.text).toContain('"href":"drifting:chapters/Chapter One/prose.md#L3"');
-    expect(toolText('fresh-read-chapter')?.text).toMatch(/3\tBefore the Agent\./u);
+    expect(toolText('shift-read-element')?.content).toContain('"href":"drifting:chapters/Chapter One/prose.md#L3"');
+    expect(toolText('fresh-read-chapter')?.content).toMatch(/3\tBefore the Agent\./u);
     harness.driver.assertExhausted();
   });
 

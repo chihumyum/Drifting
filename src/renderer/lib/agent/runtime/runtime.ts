@@ -70,7 +70,6 @@ export const DEFAULT_AGENT_RUNTIME_LIMITS: AgentRuntimeLimits = {
   maxInputTokens: null,
   maxOutputTokens: null,
   maxTotalTokens: null,
-  maxCostUsd: null,
   maxDurationMs: null,
   maxOutputTokensPerIteration: null,
   maxToolArgumentBytes: 64 * 1024,
@@ -932,9 +931,6 @@ export class AgentRuntime {
       if (limits.maxTotalTokens !== null && totalTokens > limits.maxTotalTokens) {
         budget(`maxTotalTokens exceeded: ${totalTokens} > ${limits.maxTotalTokens}`);
       }
-      if (limits.maxCostUsd !== null && usage.costUsd > limits.maxCostUsd) {
-        budget(`maxCostUsd exceeded: ${usage.costUsd} > ${limits.maxCostUsd}`);
-      }
     };
     const checkBeforeWork = (): void => {
       throwIfStopped();
@@ -1498,13 +1494,6 @@ export class AgentRuntime {
         state.usage.inputTokens >= limits.maxInputTokens
       ) {
         budget('No input token budget remains for another model iteration');
-      }
-      if (
-        state.modelIterations > 0 &&
-        limits.maxCostUsd !== null &&
-        state.usage.costUsd >= limits.maxCostUsd
-      ) {
-        budget('No cost budget remains for another model iteration');
       }
       const usedTotalTokens = state.usage.inputTokens + state.usage.outputTokens;
       const remainingOutputTokens =

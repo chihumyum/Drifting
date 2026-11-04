@@ -209,9 +209,10 @@ provider rejects (HTTP 4xx) reports OpenAI's identifier fields (`type`,
 
 ## Context and compaction
 
-The plan, active constraints, current manifest state, a bounded actionable step
-window, and durable command coverage are semantic-pinned context rows. Full
-steps remain pageable through `read_task_plan`. Internal SQLite/chapter ids are
+The plan, active constraints, current manifest state, the single next
+actionable step (`AGENT_LONG_TASK_PINNED_STEP_LIMIT = 1`), and durable command
+coverage are semantic-pinned context rows. Every other step stays pageable
+through `read_task_plan`. Internal SQLite/chapter ids are
 removed from provider projections. Compaction may summarize ordinary history;
 it cannot discard these pinned continuity facts or work-kind-specific accepted
 write/verified-read evidence.

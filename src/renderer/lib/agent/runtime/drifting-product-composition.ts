@@ -52,7 +52,6 @@ import {
   DynamicAgentToolRegistry,
 } from './dynamic-tool-runtime';
 import { DriftingReadToolRuntime } from './drifting-read-tool-runtime';
-import { createDriftingProductToolSelectionStrategy } from './drifting-product-tool-selection';
 import { TOOL_SEARCH, CALL_TOOL } from './tool-discovery';
 import {
   createDriftingWriteToolRuntime,
@@ -379,7 +378,6 @@ export function createDriftingAgentProductComposition(
     tools: toolRuntime,
     toolDiscovery: () =>
       (options.toolSelectionMode?.() ?? useSettingsStore.getState().agentToolSearch) !== 'off',
-    toolSelector: createDriftingProductToolSelectionStrategy(),
     permissionPolicy: createDynamicAwareAgentPermissionPolicy(
       createElementImageAwarePermissionPolicy(
         createAgentWorkingMemoryAwarePermissionPolicy(

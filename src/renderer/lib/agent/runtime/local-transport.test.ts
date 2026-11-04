@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import type { AgentChatMessage } from '../../../domain/agent-conversation';
-import type { AgentEventEnvelope } from '../protocol';
 import { applyAgentChatJournalEntry } from './chat-journal-projection';
 import { LocalGeneralAgentTransport } from './local-transport';
 import { ManualAgentClock, ScriptedFakeDriver } from './testing';
@@ -56,12 +55,12 @@ class ConcurrentTransportDriver implements AgentModelDriver {
   }
 }
 
-async function waitForDone(events: AgentEventEnvelope[], count: number): Promise<void> {
+async function waitForDone(events: AgentRuntimeJournalEntry[], count: number): Promise<void> {
   for (let index = 0; index < 100; index += 1) {
-    if (events.filter((event) => event.event.type === 'done').length >= count) return;
+    if (events.filter((event) => event.event.type === 'turn_finished').length >= count) return;
     await new Promise<void>((resolve) => setTimeout(resolve, 0));
   }
-  throw new Error(`Expected ${count} done event(s)`);
+  throw new Error(`Expected ${count} finished turn(s)`);
 }
 
 describe('LocalGeneralAgentTransport', () => {
@@ -73,9 +72,9 @@ describe('LocalGeneralAgentTransport', () => {
       createId: (kind) =>
         kind === 'session' ? `session-${(sessionOrdinal += 1)}` : `generated-${kind}`,
     });
-    const events: AgentEventEnvelope[] = [];
+    const events: AgentRuntimeJournalEntry[] = [];
     const journal: AgentRuntimeJournalEntry[] = [];
-    transport.subscribeEvents((event) => events.push(event));
+    transport.subscribeJournal((entry) => events.push(entry));
     transport.subscribeJournal((entry) => journal.push(entry));
 
     const initialCount = 40;
@@ -123,8 +122,8 @@ describe('LocalGeneralAgentTransport', () => {
     expect(driver.maxActiveStreams).toBe(initialCount + 1);
     const firstEvents = events.filter((event) => event.turnId === 'turn-0');
     const secondEvents = events.filter((event) => event.turnId === 'turn-1');
-    expect(firstEvents[firstEvents.length - 1]?.event.type).toBe('done');
-    expect(secondEvents[secondEvents.length - 1]?.event.type).toBe('done');
+    expect(firstEvents[firstEvents.length - 1]?.event.type).toBe('turn_finished');
+    expect(secondEvents[secondEvents.length - 1]?.event.type).toBe('turn_finished');
     expect(
       journal.find(
         (entry) => entry.turnId === 'turn-0' && entry.event.type === 'turn_finished',
@@ -160,9 +159,9 @@ describe('LocalGeneralAgentTransport', () => {
       driver,
       createId: (kind) => `${kind}-thinking`,
     });
-    const events: AgentEventEnvelope[] = [];
+    const events: AgentRuntimeJournalEntry[] = [];
     const journal: AgentRuntimeJournalEntry[] = [];
-    transport.subscribeEvents((event) => events.push(event));
+    transport.subscribeJournal((entry) => events.push(entry));
     transport.subscribeJournal((entry) => journal.push(entry));
     await transport.start({
       prompt: 'think first',
@@ -191,13 +190,6 @@ describe('LocalGeneralAgentTransport', () => {
       { kind: 'thinking', text: '想一想', streaming: false },
     ]);
 
-    // Legacy consumers receive the streamed chunks once, with no duplicate
-    // from the consolidated durable row.
-    expect(
-      events.flatMap((envelope) =>
-        envelope.event.type === 'thinking_delta' ? [envelope.event.text] : [],
-      ),
-    ).toEqual(['想', '一想']);
     driver.assertExhausted();
   });
 
@@ -253,9 +245,9 @@ describe('LocalGeneralAgentTransport', () => {
       permissionPolicy: { decide: () => ({ decision: 'ask' }) },
       createId: (kind) => `${kind}-permission`,
     });
-    const events: AgentEventEnvelope[] = [];
+    const events: AgentRuntimeJournalEntry[] = [];
     const journal: AgentRuntimeJournalEntry[] = [];
-    transport.subscribeEvents((event) => events.push(event));
+    transport.subscribeJournal((entry) => events.push(entry));
     transport.subscribeJournal((entry) => journal.push(entry));
     await transport.start({
       prompt: 'write',
@@ -263,13 +255,13 @@ describe('LocalGeneralAgentTransport', () => {
       route: { kind: 'chat', projectId: 'project-1' },
     });
     for (let index = 0; index < 100; index += 1) {
-      if (events.some((event) => event.event.type === 'permission_request')) {
+      if (events.some((event) => event.event.type === 'permission_requested')) {
         break;
       }
       await new Promise<void>((resolve) => setTimeout(resolve, 0));
     }
-    const requestEvent = events.find((event) => event.event.type === 'permission_request')?.event;
-    if (!requestEvent || requestEvent.type !== 'permission_request') {
+    const requestEvent = events.find((event) => event.event.type === 'permission_requested')?.event;
+    if (!requestEvent || requestEvent.type !== 'permission_requested') {
       throw new Error('missing permission request');
     }
     await expect(
@@ -314,17 +306,9 @@ describe('LocalGeneralAgentTransport', () => {
       type: 'tool_args_delta',
       delta: '{"expectedRevision":"rev-1"}',
     });
-    expect(events.map((event) => event.event.type)).toEqual(
-      expect.arrayContaining([
-        'permission_request',
-        'permission_resolved',
-        'control_state',
-        'done',
-      ]),
-    );
   });
 
-  it('projects canonical entries, keeps session history, and emits done last once per turn', async () => {
+  it('publishes canonical entries, keeps session history, and finishes each turn once', async () => {
     const clock = new ManualAgentClock();
     const driver = new ScriptedFakeDriver({
       rounds: [
@@ -361,8 +345,8 @@ describe('LocalGeneralAgentTransport', () => {
       clock,
       createId: (kind) => `${kind}-fixed`,
     });
-    const events: AgentEventEnvelope[] = [];
-    const subscription = transport.subscribeEvents((event) => events.push(event));
+    const events: AgentRuntimeJournalEntry[] = [];
+    const subscription = transport.subscribeJournal((entry) => events.push(entry));
     expect(subscription.ok).toBe(true);
 
     expect(
@@ -394,23 +378,20 @@ describe('LocalGeneralAgentTransport', () => {
     const first = events.filter((event) => event.turnId === 'turn-1');
     const second = events.filter((event) => event.turnId === 'turn-2');
     for (const turn of [first, second]) {
-      expect(turn.map((event) => event.event.type)).toEqual([
-        'session',
-        'assistant_delta',
-        'control_state',
-        'usage',
-        'result',
-        'done',
-      ]);
-      expect(turn.filter((event) => event.event.type === 'done')).toHaveLength(1);
-      expect(turn[turn.length - 1].event.type).toBe('done');
-      expect(turn[0].event).toEqual({ type: 'session', id: 'session-fixed' });
+      expect(turn[0]?.event.type).toBe('turn_started');
+      expect(turn[0]?.sessionId).toBe('session-fixed');
+      expect(turn.some((event) => event.event.type === 'text_delta')).toBe(true);
+      expect(turn.filter((event) => event.event.type === 'turn_finished')).toHaveLength(1);
+      expect(turn[turn.length - 1]?.event).toMatchObject({
+        type: 'turn_finished',
+        outcome: 'completed',
+      });
     }
     driver.assertExhausted();
     clock.assertIdle();
   });
 
-  it('aborts an active local turn and remains resettable after the final done', async () => {
+  it('aborts an active local turn and remains resettable after its terminal', async () => {
     const clock = new ManualAgentClock();
     const driver = new ScriptedFakeDriver({
       rounds: [{ steps: [{ op: 'wait', gate: 'waiting-provider' }] }],
@@ -420,8 +401,8 @@ describe('LocalGeneralAgentTransport', () => {
       clock,
       createId: (kind) => `${kind}-abort`,
     });
-    const events: AgentEventEnvelope[] = [];
-    transport.subscribeEvents((event) => events.push(event));
+    const events: AgentRuntimeJournalEntry[] = [];
+    transport.subscribeJournal((entry) => events.push(entry));
 
     const started = transport.start({
       prompt: 'wait',
@@ -433,13 +414,12 @@ describe('LocalGeneralAgentTransport', () => {
     expect(await transport.abort()).toEqual({ ok: true, value: undefined });
     await waitForDone(events, 1);
 
-    expect(events.map((event) => event.event.type)).toEqual([
-      'session',
-      'control_state',
-      'control_state',
-      'usage',
-      'done',
-    ]);
+    expect(events[0]?.event.type).toBe('turn_started');
+    expect(events.filter((event) => event.event.type === 'turn_finished')).toHaveLength(1);
+    expect(events[events.length - 1]?.event).toMatchObject({
+      type: 'turn_finished',
+      outcome: 'aborted',
+    });
     expect(await transport.resetSession()).toEqual({ ok: true, value: undefined });
     driver.assertExhausted();
     clock.assertIdle();
@@ -460,8 +440,8 @@ describe('LocalGeneralAgentTransport', () => {
         },
       },
     });
-    const events: AgentEventEnvelope[] = [];
-    transport.subscribeEvents((event) => events.push(event));
+    const events: AgentRuntimeJournalEntry[] = [];
+    transport.subscribeJournal((entry) => events.push(entry));
 
     expect(
       await transport.start({
@@ -472,18 +452,13 @@ describe('LocalGeneralAgentTransport', () => {
     ).toEqual({ ok: true, value: undefined });
     await waitForDone(events, 1);
 
-    expect(events.map((event) => event.event.type)).toEqual([
-      'session',
-      'control_state',
-      'usage',
-      'error',
-      'done',
-    ]);
-    expect(events[3].event).toEqual({
-      type: 'error',
+    const terminals = events.filter((event) => event.event.type === 'turn_finished');
+    expect(terminals).toHaveLength(1);
+    expect(terminals[0]?.event).toMatchObject({
+      outcome: 'failed',
       message: 'Agent journal persistence failed',
     });
-    expect(events.filter((event) => event.event.type === 'done')).toHaveLength(1);
+    expect(events[events.length - 1]).toBe(terminals[0]);
     driver.assertExhausted();
     clock.assertIdle();
   });
@@ -518,9 +493,9 @@ describe('LocalGeneralAgentTransport', () => {
       persistence,
       createId: (kind) => `${kind}-commit`,
     });
-    const events: AgentEventEnvelope[] = [];
+    const events: AgentRuntimeJournalEntry[] = [];
     const journal: AgentRuntimeJournalEntry[] = [];
-    transport.subscribeEvents((event) => events.push(event));
+    transport.subscribeJournal((entry) => events.push(entry));
     transport.subscribeJournal((entry) => journal.push(entry));
 
     await expect(
@@ -577,9 +552,9 @@ describe('LocalGeneralAgentTransport', () => {
       persistence,
       createId: (kind) => `${kind}-retry`,
     });
-    const events: AgentEventEnvelope[] = [];
+    const events: AgentRuntimeJournalEntry[] = [];
     const journal: AgentRuntimeJournalEntry[] = [];
-    transport.subscribeEvents((event) => events.push(event));
+    transport.subscribeJournal((entry) => events.push(entry));
     transport.subscribeJournal((entry) => journal.push(entry));
 
     await expect(
@@ -592,7 +567,11 @@ describe('LocalGeneralAgentTransport', () => {
     await waitForDone(events, 1);
 
     expect(commitAttempts).toBe(2);
-    expect(events.some((entry) => entry.event.type === 'error')).toBe(false);
+    expect(
+      events
+        .filter((entry) => entry.event.type === 'turn_finished')
+        .map((entry) => entry.event),
+    ).toEqual([expect.objectContaining({ outcome: 'completed' })]);
     expect(journal[journal.length - 1]?.event).toMatchObject({
       type: 'turn_finished',
       outcome: 'completed',
@@ -643,8 +622,8 @@ describe('LocalGeneralAgentTransport', () => {
       createId: (kind) =>
         kind === 'session' ? `session-${++sessionCounter}` : `turn-${sessionCounter}`,
     });
-    const events: AgentEventEnvelope[] = [];
-    transport.subscribeEvents((event) => events.push(event));
+    const events: AgentRuntimeJournalEntry[] = [];
+    transport.subscribeJournal((entry) => events.push(entry));
 
     await transport.start({
       prompt: 'A1',
@@ -655,9 +634,9 @@ describe('LocalGeneralAgentTransport', () => {
     });
     await waitForDone(events, 1);
     const sessionA = events.find(
-      (event) => event.turnId === 'turn-a1' && event.event.type === 'session',
+      (event) => event.turnId === 'turn-a1' && event.event.type === 'turn_started',
     );
-    if (sessionA?.event.type !== 'session') throw new Error('missing session A');
+    if (!sessionA) throw new Error('missing session A');
 
     await transport.start({
       prompt: 'B1',
@@ -669,14 +648,14 @@ describe('LocalGeneralAgentTransport', () => {
     await transport.start({
       prompt: 'A2',
       turnId: 'turn-a2',
-      resume: sessionA.event.id,
+      resume: sessionA.sessionId,
       route: { kind: 'chat', projectId: 'project-a', conversationId: 'conversation-a' },
     });
     await waitForDone(events, 3);
 
     const sessionIds = events
-      .filter((event) => event.event.type === 'session')
-      .map((event) => (event.event.type === 'session' ? event.event.id : ''));
+      .filter((event) => event.event.type === 'turn_started')
+      .map((event) => event.sessionId);
     expect(sessionIds).toEqual(['session-1', 'session-2', 'session-1']);
     driver.assertExhausted();
     clock.assertIdle();
@@ -764,9 +743,9 @@ describe('LocalGeneralAgentTransport', () => {
       clock,
       createId: (kind) => `${kind}-write-history`,
     });
-    const events: AgentEventEnvelope[] = [];
+    const events: AgentRuntimeJournalEntry[] = [];
     let abortIssued = false;
-    transport.subscribeEvents((event) => {
+    transport.subscribeJournal((event) => {
       events.push(event);
       if (
         !abortIssued &&
@@ -786,14 +765,14 @@ describe('LocalGeneralAgentTransport', () => {
     });
     await waitForDone(events, 1);
     const session = events.find(
-      (event) => event.turnId === 'turn-write' && event.event.type === 'session',
+      (event) => event.turnId === 'turn-write' && event.event.type === 'turn_started',
     );
-    if (session?.event.type !== 'session') throw new Error('missing write session');
+    if (!session) throw new Error('missing write session');
 
     await transport.start({
       prompt: 'continue',
       turnId: 'turn-continue',
-      resume: session.event.id,
+      resume: session.sessionId,
       route: { kind: 'chat', projectId: 'project-1', conversationId: 'conversation-1' },
     });
     await waitForDone(events, 2);
@@ -824,8 +803,8 @@ describe('LocalGeneralAgentTransport', () => {
       }),
       createId: (kind) => `${kind}-capabilities`,
     });
-    const events: AgentEventEnvelope[] = [];
-    transport.subscribeEvents((event) => events.push(event));
+    const events: AgentRuntimeJournalEntry[] = [];
+    transport.subscribeJournal((entry) => events.push(entry));
 
     await expect(transport.authStatus()).resolves.toEqual({
       ok: true,
@@ -867,8 +846,8 @@ describe('LocalGeneralAgentTransport', () => {
       driver,
       createId: (kind) => `${kind}-route`,
     });
-    const events: AgentEventEnvelope[] = [];
-    transport.subscribeEvents((event) => events.push(event));
+    const events: AgentRuntimeJournalEntry[] = [];
+    transport.subscribeJournal((entry) => events.push(entry));
 
     await expect(transport.start({ prompt: 'missing' })).resolves.toMatchObject({
       ok: false,
@@ -931,9 +910,9 @@ describe('LocalGeneralAgentTransport', () => {
       limits: () => ({ maxModelIterations: 1 }),
       createId: (kind) => `${kind}-limit`,
     });
-    const events: AgentEventEnvelope[] = [];
+    const events: AgentRuntimeJournalEntry[] = [];
     const journal: AgentRuntimeJournalEntry[] = [];
-    transport.subscribeEvents((event) => events.push(event));
+    transport.subscribeJournal((entry) => events.push(entry));
     transport.subscribeJournal((entry) => journal.push(entry));
 
     await transport.start({

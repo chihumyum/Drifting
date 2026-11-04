@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { AgentEventEnvelope, AgentStartRoute } from '../protocol';
+import type { AgentStartRoute } from '../protocol';
 import { LocalGeneralAgentTransport } from './local-transport';
 import { ScriptedFakeDriver } from './testing';
 import type {
@@ -73,14 +73,14 @@ function budgetSteps() {
   ];
 }
 
-async function waitForDone(events: AgentEventEnvelope[], count: number): Promise<void> {
+async function waitForDone(events: AgentRuntimeJournalEntry[], count: number): Promise<void> {
   for (let index = 0; index < 100; index += 1) {
-    if (events.filter((event) => event.event.type === 'done').length >= count) {
+    if (events.filter((event) => event.event.type === 'turn_finished').length >= count) {
       return;
     }
     await new Promise<void>((resolve) => setTimeout(resolve, 0));
   }
-  throw new Error(`Expected ${count} done event(s)`);
+  throw new Error(`Expected ${count} finished turn(s)`);
 }
 
 async function waitUntil(predicate: () => boolean, label: string): Promise<void> {
@@ -228,8 +228,8 @@ describe('LocalGeneralAgentTransport persistence boundary', () => {
       persistence,
       createId: (kind) => `${kind}-durable`,
     });
-    const firstEvents: AgentEventEnvelope[] = [];
-    first.subscribeEvents((event) => firstEvents.push(event));
+    const firstEvents: AgentRuntimeJournalEntry[] = [];
+    first.subscribeJournal((entry) => firstEvents.push(entry));
 
     await expect(
       first.start({
@@ -266,8 +266,8 @@ describe('LocalGeneralAgentTransport persistence boundary', () => {
       persistence,
       createId: (kind) => `${kind}-after-restart`,
     });
-    const restartedEvents: AgentEventEnvelope[] = [];
-    restarted.subscribeEvents((event) => restartedEvents.push(event));
+    const restartedEvents: AgentRuntimeJournalEntry[] = [];
+    restarted.subscribeJournal((entry) => restartedEvents.push(entry));
 
     await expect(
       restarted.start({
@@ -321,8 +321,8 @@ describe('LocalGeneralAgentTransport persistence boundary', () => {
       persistence,
       createId: (kind) => `${kind}-commit-gate`,
     });
-    const events: AgentEventEnvelope[] = [];
-    transport.subscribeEvents((event) => events.push(event));
+    const events: AgentRuntimeJournalEntry[] = [];
+    transport.subscribeJournal((entry) => events.push(entry));
 
     await expect(
       transport.start({
@@ -337,7 +337,7 @@ describe('LocalGeneralAgentTransport persistence boundary', () => {
     );
 
     expect(persistence.order).toContain('commit-start:turn-gated');
-    expect(events.some((event) => event.event.type === 'done')).toBe(false);
+    expect(events.some((event) => event.event.type === 'turn_finished')).toBe(false);
     releaseCommit();
     await waitForDone(events, 1);
     expect(persistence.order).toContain('commit-done:turn-gated');
@@ -377,8 +377,8 @@ describe('LocalGeneralAgentTransport persistence boundary', () => {
       persistence,
       createId: (kind) => `${kind}-budget-v2`,
     });
-    const events: AgentEventEnvelope[] = [];
-    transport.subscribeEvents((event) => events.push(event));
+    const events: AgentRuntimeJournalEntry[] = [];
+    transport.subscribeJournal((entry) => events.push(entry));
 
     await expect(
       transport.start({
@@ -443,8 +443,8 @@ describe('LocalGeneralAgentTransport persistence boundary', () => {
       persistence,
       createId: (kind) => `${kind}-unused`,
     });
-    const events: AgentEventEnvelope[] = [];
-    transport.subscribeEvents((event) => events.push(event));
+    const events: AgentRuntimeJournalEntry[] = [];
+    transport.subscribeJournal((entry) => events.push(entry));
 
     await transport.start({
       prompt: 'retry safely',
