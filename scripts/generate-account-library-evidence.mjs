@@ -19,12 +19,15 @@ const rendererSuites = [
   'src/renderer/features/auth/auth-entry.acceptance.test.ts',
   'src/renderer/features/settings/hosted-settings-boundary.acceptance.test.ts',
 ];
+// `macos_relaunch` is compiled on macOS only.
+const nativeFilters = ['library_registry', 'macos_relaunch'];
 const sourceFiles = [
   'docs/hosted-sync/account-libraries.md',
   'scripts/generate-account-library-evidence.mjs',
   'scripts/run-signed-macos-dev.sh',
   'src-tauri/src/data_paths.rs',
   'src-tauri/src/library_registry.rs',
+  'src-tauri/src/macos_relaunch.rs',
   'src/renderer/features/auth/SignOutDialog.tsx',
   'src/renderer/platform/contracts.ts',
   'src/renderer/platform/tauri.ts',
@@ -38,7 +41,8 @@ const sourceFiles = [
 const sha = (file) => createHash('sha256').update(readFileSync(file)).digest('hex');
 const contract = {
   registry: 'libraries.json in the App-local base root; legacy library keeps the base root',
-  switching: 'relaunch through the quit flush barrier; mobile keeps one library',
+  switching:
+    'relaunch through the quit flush barrier; a packaged macOS App reopens through LaunchServices; mobile keeps one library',
   sourceSha256: Object.fromEntries(sourceFiles.map((file) => [file, sha(file)])),
 };
 
@@ -61,7 +65,7 @@ if (process.argv.includes('--check')) {
     const result = JSON.parse(readFileSync(jsonPath, 'utf8'));
     const native = spawnSync(
       'cargo',
-      ['test', '--manifest-path', 'src-tauri/Cargo.toml', '--lib', 'library_registry'],
+      ['test', '--manifest-path', 'src-tauri/Cargo.toml', '--lib', '--', ...nativeFilters],
       { encoding: 'utf8' },
     );
     if (native.status !== 0) throw new Error(`Native tests failed\n${native.stdout}\n${native.stderr}`);
@@ -83,7 +87,7 @@ if (process.argv.includes('--check')) {
           passed: Number(totals[1]),
           failed: Number(totals[2]),
           ignored: Number(totals[3]),
-          command: 'cargo test --manifest-path src-tauri/Cargo.toml --lib library_registry',
+          command: `cargo test --manifest-path src-tauri/Cargo.toml --lib -- ${nativeFilters.join(' ')}`,
         },
       },
       hostedRoundTrip: {

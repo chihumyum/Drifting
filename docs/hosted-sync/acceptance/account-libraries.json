@@ -1,19 +1,20 @@
 {
   "contract": {
     "registry": "libraries.json in the App-local base root; legacy library keeps the base root",
-    "switching": "relaunch through the quit flush barrier; mobile keeps one library",
+    "switching": "relaunch through the quit flush barrier; a packaged macOS App reopens through LaunchServices; mobile keeps one library",
     "sourceSha256": {
-      "docs/hosted-sync/account-libraries.md": "078081da75faa69fc283cdb40d30c8d03dcb8f437b2ed75cc005b9372af00e3c",
-      "scripts/generate-account-library-evidence.mjs": "769a1986d72c448a836f9ca2bfef7433444707b148573d7ff81cb7820a4af099",
+      "docs/hosted-sync/account-libraries.md": "cf3851495574d9590730404b5e79739278e1da09afdf9f2c10b7d7b20b8d4186",
+      "scripts/generate-account-library-evidence.mjs": "44c205443807016224b122db0cc7efb5dd412c7e4b554a766736f73557267574",
       "scripts/run-signed-macos-dev.sh": "233a4a86569c5c24a0a8ce53d05da19a80f382afaf0934b8637bd4464358165b",
       "src-tauri/src/data_paths.rs": "f1341a29ec2b91a8df6fc11f01cac683b58b5bfb9e73bafa35c93d91e6aff9d0",
       "src-tauri/src/library_registry.rs": "b2d5b61069fb4e589d282bc5a6f201fa3f707fc0039715fbb93b459f547b3aff",
+      "src-tauri/src/macos_relaunch.rs": "9408249a5ea11b5f154ae6b74cc43a53fb2a56c6fb4ed5d6c74314dc73a7133e",
       "src/renderer/features/auth/SignOutDialog.tsx": "0c2e2d4835ad23643209d91884d9a6fc2e5c4f99f0210248ff0f5563df9992d3",
-      "src/renderer/features/auth/auth-entry.acceptance.test.ts": "41919e3c8317213dc5011f21dc80ab82a586dbc132278c60f3ef9ed1e7a4c02f",
-      "src/renderer/features/settings/hosted-settings-boundary.acceptance.test.ts": "dee255b2d71787034db15c17120cc73d3bfa6732c1e870880b3ed9f72e8b4ce2",
-      "src/renderer/platform/contracts.ts": "31fefede40c83ba7a34d87a1ad759bc972db08175643aa1b352047f37d98725f",
-      "src/renderer/platform/tauri.ts": "1d44718e58ee72f8b51c001ad9a7504d6304add0cd225ef550dc1aacad172e32",
-      "src/renderer/platform/types.ts": "9772963dd520af0f36d0cbd62b10ba998e913662f820ebba285630688bc2b99e",
+      "src/renderer/features/auth/auth-entry.acceptance.test.ts": "0ea6b091beca505c70f9d39a6e95590b290e3bb29cf440f571e24f7fc4a60318",
+      "src/renderer/features/settings/hosted-settings-boundary.acceptance.test.ts": "69f0b03639b0d7d6e6cb6d0cb50d8bb44316fc0d9ca56df4c5e0c286c9f63d27",
+      "src/renderer/platform/contracts.ts": "0807b99087e5875862035e181126f3efdb14fde9bddd8358d264013e6afc8b4e",
+      "src/renderer/platform/tauri.ts": "6bfce3a101dfcd74a92fab08ca350c959199926b73dcfcdef7ef63344cf3e365",
+      "src/renderer/platform/types.ts": "52a6afc494e27889e1655d4b556c220c826e9b7a5f5e1e838803cecd09476975",
       "src/renderer/services/account-library.test.ts": "ff80ede7ba2cdaa35f20f961d04cd7f8c4f68d006e6de9c3c79074e9d2a726c3",
       "src/renderer/services/account-library.ts": "24fb98d68a764003d70e79161494a5801d3f6a26e185842b2840f8cc203d6486",
       "src/renderer/services/built-in-sample/first-run.ts": "c75b39e946821a54241450b7a4298a69b3ab78997a99a2a52ad4ca5ec859368a",
@@ -25,7 +26,7 @@
   "automated": {
     "status": "passed",
     "renderer": {
-      "passed": 47,
+      "passed": 48,
       "failed": 0,
       "skipped": 0,
       "cases": [
@@ -39,6 +40,10 @@
         },
         {
           "name": "account sign-in entry keeps the flow compact and states the sync boundary before sign-in",
+          "status": "passed"
+        },
+        {
+          "name": "account sign-in entry offers the providers the service declares above email sign-in, and finishes them from anywhere",
           "status": "passed"
         },
         {
@@ -220,10 +225,10 @@
       ]
     },
     "native": {
-      "passed": 6,
+      "passed": 9,
       "failed": 0,
       "ignored": 0,
-      "command": "cargo test --manifest-path src-tauri/Cargo.toml --lib library_registry"
+      "command": "cargo test --manifest-path src-tauri/Cargo.toml --lib -- library_registry macos_relaunch"
     }
   },
   "hostedRoundTrip": {

@@ -24,6 +24,8 @@ mod library_registry;
 mod local_lab_session;
 #[cfg(target_os = "macos")]
 mod macos_quit;
+#[cfg(target_os = "macos")]
+mod macos_relaunch;
 mod manuscript_export;
 mod markdown_projection;
 mod mcp_http;
@@ -115,12 +117,22 @@ fn finish_shutdown(
 /// relaunches the binary itself when it finds `DRIFTING_DEV_RELAUNCH_MARKER`
 /// after an exit: `tauri dev` would stop its frontend server for a process that
 /// spawned its own replacement, and macOS does not preserve a custom exit code.
+/// A packaged macOS App reopens through LaunchServices so its new window comes
+/// to the front (see `macos_relaunch`).
 pub(crate) fn relaunch_app(app: &tauri::AppHandle) {
     if let Some(marker) = std::env::var_os("DRIFTING_DEV_RELAUNCH_MARKER") {
         if std::fs::write(&marker, b"relaunch\n").is_ok() {
             app.exit(0);
             return;
         }
+    }
+    #[cfg(target_os = "macos")]
+    match macos_relaunch::relaunch_after_exit() {
+        Ok(()) => {
+            app.exit(0);
+            return;
+        }
+        Err(error) => eprintln!("[relaunch] LaunchServices relaunch unavailable: {error}"),
     }
     app.restart();
 }

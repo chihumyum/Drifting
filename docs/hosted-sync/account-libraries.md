@@ -68,6 +68,14 @@ runner (`scripts/run-signed-macos-dev.sh`) therefore passes
 `DRIFTING_DEV_RELAUNCH_MARKER`; a relaunch writes that file and exits, and the
 runner starts the binary again, forwarding stop signals to it.
 
+A packaged macOS App relaunches through LaunchServices
+(`src-tauri/src/macos_relaunch.rs`): a detached helper waits for the process
+to exit, then reopens the bundle with `open -n`, passing on its `DRIFTING_*`
+environment and arguments. `AppHandle::restart` spawned the executable
+directly, which macOS does not activate, so after signing in or out (or an
+installed update) the new window opened behind other Apps. Other platforms,
+and a macOS binary outside an `.app`, still use `AppHandle::restart`.
+
 Renderer (`src/renderer/services/account-library.ts`):
 
 - `checkSession` opens the database, then settles the running library before
@@ -120,6 +128,11 @@ relaunched onto an empty shelf with its database under
 `databases/libraries/account-…`; activating `local` relaunched onto the
 original shelf, with the frontend server running throughout.
 
+A packaged Debug build (`pnpm dev:worktree --build-app`) relaunched through
+the quit flush barrier on 2026-11-04, triggered by a temporary hook that was
+not committed: with `AppHandle::restart` the new process opened behind Safari;
+through `macos_relaunch` it was the front App, the old process had exited, and
+its `DRIFTING_*` environment was carried over.
+
 Not yet covered: signing in against a Hosted service (relaunch, first restore,
-sign-out back to local, pending uploads resuming), a packaged build's
-`app.restart()`, and mobile.
+sign-out back to local, pending uploads resuming), and mobile.
