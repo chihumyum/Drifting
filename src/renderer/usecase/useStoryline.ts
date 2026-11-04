@@ -12,8 +12,8 @@ import { v7 as uuidv7 } from 'uuid';
 import { initDatabase } from '../lib/db';
 import { withOptimisticUpdate } from './optimistic';
 import { withAtomicSyncTransaction } from './sync-helpers';
+import { removeStorylineMembershipsInTransaction } from './storyline-membership-removal';
 import { canUseFeature, ensureFeatureAccess } from '../lib/feature-access';
-import { eq } from 'drizzle-orm';
 import {
   deleteEntityRelationsInTransaction,
   withoutRelationsForEntity,
@@ -508,9 +508,6 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
       const nodesGoingUnaffiliated = Object.entries(prevPrimaryStorylineByNode)
         .filter(([, slId]) => slId === id)
         .map(([nid]) => nid);
-      const nodesLosingSecondaryMembership = (prevForwardMapping[id] ?? []).filter(
-        (nodeId) => !nodesGoingUnaffiliated.includes(nodeId),
-      );
 
       // Drop any tabs pointing at this storyline first — by the time apply()
       // mutates the entity store the tab lookup would already render
@@ -562,29 +559,13 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
               'storyline',
               id,
             );
-            const { NodeStorylineLinkTable } = await import('../schema/drizzle');
-            if (nodesGoingUnaffiliated.length > 0) {
-              const { inArray } = await import('drizzle-orm');
-              await tx
-                .delete(NodeStorylineLinkTable)
-                .where(inArray(NodeStorylineLinkTable.nodeId, nodesGoingUnaffiliated));
-            }
             // Soft-deleting a storyline does not trigger an FK cascade. Remove
-            // every remaining secondary membership explicitly so a reload
-            // cannot resurrect links that the optimistic store already hid.
-            await tx
-              .delete(NodeStorylineLinkTable)
-              .where(eq(NodeStorylineLinkTable.storylineId, id));
-            const affectedNodeIds = [...new Set([
-              ...nodesGoingUnaffiliated,
-              ...nodesLosingSecondaryMembership,
-            ])].sort(compareUtf8Bytewise);
-            for (const nodeId of affectedNodeIds) {
-              await appendAuthoredNodeStorylineProjectionInTransaction(tx, changes, {
-                projectId: activeProjectId,
-                nodeId,
-              });
-            }
+            // every membership explicitly so a reload cannot resurrect links
+            // that the optimistic store already hid.
+            await removeStorylineMembershipsInTransaction(tx, changes, {
+              projectId: activeProjectId,
+              storylineId: id,
+            });
             const storylineRepoTx = createStorylineRepository(activeProjectId, tx);
             if (canUseFeature('trash')) {
               await storylineRepoTx.softDeleteStoryline(id);

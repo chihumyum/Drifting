@@ -89,13 +89,14 @@ async function readAuthoredProjection(
   tx: DbExecutor,
   projectId: string,
   nodeId: string,
-): Promise<AuthoredNodeStorylineProjection> {
+): Promise<AuthoredNodeStorylineProjection & { readonly nodeLive: boolean }> {
   const nodes = await tx
-    .select({ kind: BookNodeTable.kind })
+    .select({ kind: BookNodeTable.kind, deletedAt: BookNodeTable.deletedAt })
     .from(BookNodeTable)
     .where(and(eq(BookNodeTable.id, nodeId), eq(BookNodeTable.projectId, projectId)))
     .limit(1);
-  if (nodes[0] && nodes[0].kind !== 'chapter') {
+  const node = nodes[0];
+  if (node && node.kind !== 'chapter') {
     throw new Error(`Only chapter nodes may have storyline membership: ${nodeId}`);
   }
 
@@ -120,6 +121,7 @@ async function readAuthoredProjection(
   return {
     storylineIds: rows.map(({ storylineId }) => storylineId),
     primaryStorylineId: primaryRows[0]?.storylineId ?? null,
+    nodeLive: node !== undefined && node.deletedAt === null,
   };
 }
 
@@ -128,6 +130,12 @@ async function readAuthoredProjection(
  * plus the node's independent primary-storyline LWW register. Call exactly
  * once per affected node, after every domain row mutation in the same outer
  * authored transaction.
+ *
+ * A chapter in the Trash gets only the membership diff (deleting a storyline
+ * takes its trashed chapters off it too): its primary register cannot land on
+ * a node that is not live, and a restore writes the register again for the
+ * new incarnation. A chapter deleted for good goes through
+ * {@link appendAuthoredNodeStorylinePurgeInTransaction} instead.
  */
 export async function appendAuthoredNodeStorylineProjectionInTransaction(
   tx: DbExecutor,
@@ -139,7 +147,7 @@ export async function appendAuthoredNodeStorylineProjectionInTransaction(
     readonly forceReincarnation?: boolean;
   },
 ): Promise<AuthoredNodeStorylineProjection> {
-  const projection = await readAuthoredProjection(tx, input.projectId, input.nodeId);
+  const { nodeLive, ...projection } = await readAuthoredProjection(tx, input.projectId, input.nodeId);
   const currentTags = await liveMembershipTags(tx, input.projectId, input.nodeId);
   const currentByStoryline = new Map<string, string[]>();
   for (const { storylineId, addTag } of currentTags) {
@@ -186,6 +194,7 @@ export async function appendAuthoredNodeStorylineProjectionInTransaction(
     }
   }
 
+  if (!nodeLive) return projection;
   changes.add({
     action: 'field.set',
     target: {
