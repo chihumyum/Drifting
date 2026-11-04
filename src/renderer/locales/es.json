@@ -1057,6 +1057,8 @@
     },
     "restore": "Restaurar",
     "purgeNow": "Eliminar ahora",
+    "restoreFailed": "Error al restaurar: {{error}}",
+    "purgeFailed": "Error al eliminar: {{error}}",
     "kind": {
       "chapter": "Capítulo",
       "drift": "Idea",

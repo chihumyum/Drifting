@@ -1054,6 +1054,8 @@
     },
     "restore": "Restore",
     "purgeNow": "Delete now",
+    "restoreFailed": "Restore failed: {{error}}",
+    "purgeFailed": "Delete failed: {{error}}",
     "kind": {
       "chapter": "Chapter",
       "drift": "Idea",

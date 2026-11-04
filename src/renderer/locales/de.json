@@ -1054,6 +1054,8 @@
     },
     "restore": "Wiederherstellen",
     "purgeNow": "Jetzt löschen",
+    "restoreFailed": "Wiederherstellung fehlgeschlagen: {{error}}",
+    "purgeFailed": "Löschen fehlgeschlagen: {{error}}",
     "kind": {
       "chapter": "Kapitel",
       "drift": "Idee",
