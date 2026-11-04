@@ -11,11 +11,11 @@
 
 | 项 | 值 |
 | --- | --- |
-| 平台 | macOS 13+，Apple Silicon（`aarch64-apple-darwin`） |
+| 平台 | macOS 13+，Apple Silicon（`aarch64-apple-darwin`）；Windows 10/11 x64 与 ARM64（预览，见 [windows.md](windows.md)） |
 | 构建机 | GitHub `macos-26`，Xcode 26.6（macOS 26 SDK）。用更早的 SDK 编译，新系统会给 App 画旧样式的标题栏，红绿灯比 App 设定的位置偏下 |
-| 打包 | `.dmg`（首次安装）、`.app.tar.gz` + `.sig`（自动更新）、`latest.json`、`SHA256SUMS.txt`、`sbom.spdx.json` |
+| 打包 | `.dmg`（首次安装）、`.app.tar.gz` + `.sig`（自动更新）、`latest.json`、`SHA256SUMS.txt`、`sbom.spdx.json`；Windows 为 `Drifting_<版本号>_windows_<x64\|arm64>-setup.exe` + `.sig`（安装与自动更新同一个文件） |
 | 图标 | macOS 打包前从 Icon Composer 源文件编译 `Assets.car`，支持浅色、深色、Clear 和 Tinted；旧系统保留 `.icns`。构建产物与 DMG 内的 App 都检查图标资产，见 `docs/qa/macos-app-icon.md` |
-| 签名 | Developer ID Application 证书；App 和外层的 DMG 都用 App Store Connect API Key 公证并 staple（DMG 那一步在 Tauri 构建之后单独做） |
+| 签名 | Developer ID Application 证书；App 和外层的 DMG 都用 App Store Connect API Key 公证并 staple（DMG 那一步在 Tauri 构建之后单独做）。Windows 安装包暂不做 Authenticode 签名，首次运行 SmartScreen 会提示；自动更新仍由同一把更新密钥签名校验 |
 | Hosted | 连接 `vars.DRIFTING_HOSTED_ORIGIN`，开放注册；注册页链接 `https://drifting.cc/terms` 与 `https://drifting.cc/privacy` |
 | 更新 | 启动后每天最多检查一次；有新版本时通知中心出现一条，点开到 设置 › 更新；下载和安装都要用户确认；安装前先保存全部本地修改 |
 
@@ -71,7 +71,10 @@
    `pnpm lint`、`pnpm typecheck`、`pnpm test`。
 4. 推送提交和 tag：`git tag v<版本号> && git push origin main v<版本号>`。
 5. 等 **Release** 工作流结束。`verify` 失败不会构建；`build` 会核对签名、Gatekeeper、
-   公证 staple 和 DMG 挂载后的 App。
+   公证 staple 和 DMG 挂载后的 App。`build-windows` 在 `windows-latest` 和
+   `windows-11-arm` 上各出一个安装包；Mac 草稿建好后，`release-windows` 把它们传进同一个
+   草稿，并把 `windows-x86_64`、`windows-aarch64` 写进 `latest.json`。Windows 构建失败时
+   Mac 草稿照样完整，可以只重跑失败的任务，或先发只有 Mac 的版本。
 6. 在 GitHub 打开草稿 Release，下载 DMG，在一台干净的 Mac 上走一遍下面的冒烟检查。
 7. 没问题就点 **Publish release**。已安装的 App 在下次启动（或在 设置 › 更新 里手动检查）时收到更新。
 
@@ -87,6 +90,8 @@
 - 设置 › 隐私、设置 › 关于 里的链接能打开 drifting.cc 和 GitHub 页面。
 - 从上一个已发布版本升级：通知中心出现新版本提示，下载、安装、自动重启后出现
   “已更新到”通知，项目、素材、账号和模型密钥都还在。
+- Windows：在 Windows 11（ARM 虚拟机也可以）装对应的 `-setup.exe`，不需要管理员权限；
+  按 [windows.md](windows.md) 的手动验收清单走一遍，至少包括微软拼音输入、登录、退出重开。
 
 ## 检查脚本
 

@@ -193,3 +193,104 @@ jobs:
           else
             gh release create "$GITHUB_REF_NAME" "$RELEASE_DIR"/* --verify-tag --draft --title "Drifting ${VERSION}" --notes-file "$NOTES_FILE"
           fi
+
+  # Windows installers and their signed updater artifacts. They join the draft
+  # only after the macOS build has created it, so a failed Windows build never
+  # holds back the macOS release (docs/windows.md). The installers are not
+  # Authenticode-signed yet: SmartScreen warns on first launch.
+  build-windows:
+    name: build (windows ${{ matrix.arch }})
+    needs: verify
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: windows-latest
+            target: x86_64-pc-windows-msvc
+          - arch: arm64
+            runner: windows-11-arm
+            target: aarch64-pc-windows-msvc
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    environment: release
+    env:
+      NODE_OPTIONS: --max-old-space-size=4096
+      DRIFTING_HOSTED_ORIGIN: ${{ vars.DRIFTING_HOSTED_ORIGIN }}
+      VITE_TERMS_URL: https://drifting.cc/terms
+      VITE_PRIVACY_URL: https://drifting.cc/privacy
+      DRIFTING_UPDATER_PUBLIC_KEY: ${{ vars.DRIFTING_UPDATER_PUBLIC_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22.23.1
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master, toolchain input
+        with:
+          toolchain: 1.96.0
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: src-tauri
+          key: ${{ matrix.target }}
+      - run: corepack enable
+      - run: corepack prepare pnpm@10.17.1 --activate
+      - run: pnpm install --frozen-lockfile
+      - name: Build the installer and its signed updater artifact
+        run: node scripts/run-desktop-tauri.mjs build --online --target ${{ matrix.target }} --bundles nsis
+      - name: Collect release files
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          INSTALLER=$(find "src-tauri/target/${{ matrix.target }}/release/bundle/nsis" -maxdepth 1 -name '*-setup.exe' -print -quit)
+          test -f "$INSTALLER" && test -f "$INSTALLER.sig"
+          NAME="Drifting_${VERSION}_windows_${{ matrix.arch }}-setup.exe"
+          mkdir -p out/windows-release
+          cp "$INSTALLER" "out/windows-release/$NAME"
+          cp "$INSTALLER.sig" "out/windows-release/$NAME.sig"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: windows-release-${{ matrix.arch }}
+          path: out/windows-release/*
+          if-no-files-found: error
+          retention-days: 7
+
+  release-windows:
+    name: add Windows to the draft release
+    needs: [build, build-windows]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: release
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22.23.1
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: windows-release-*
+          path: windows-release
+          merge-multiple: true
+      - name: Add the installers and windows-x86_64 / windows-aarch64 to latest.json
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          test "$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq .isDraft)" = "true"
+          gh release download "$GITHUB_REF_NAME" -p latest.json -p SHA256SUMS.txt -D release-manifest
+          BASE="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}"
+          for pair in x64:windows-x86_64 arm64:windows-aarch64; do
+            ARCH=${pair%%:*}
+            PLATFORM=${pair##*:}
+            NAME="Drifting_${VERSION}_windows_${ARCH}-setup.exe"
+            test -f "windows-release/$NAME" && test -f "windows-release/$NAME.sig"
+            node scripts/merge-update-manifest.mjs --manifest release-manifest/latest.json \
+              --platform "$PLATFORM" --url "$BASE/$NAME" \
+              --signature-file "windows-release/$NAME.sig" --version "$VERSION"
+          done
+          (cd windows-release && sha256sum ./*) >> release-manifest/SHA256SUMS.txt
+          gh release upload "$GITHUB_REF_NAME" windows-release/* release-manifest/latest.json release-manifest/SHA256SUMS.txt --clobber
