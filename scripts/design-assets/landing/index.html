@@ -1,69 +1,14 @@
 <!doctype html>
-<html lang="en">
+<html lang="{{html-lang}}" data-lang="{{locale}}" data-script="{{script}}" data-landing>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<!-- build.mjs writes this page twice, / in English and /zh in Chinese: each keeps
-     the elements marked with its data-l (dropping the mark) and drops the others'. -->
-<title data-l="en">Drifting — Open-source, local-first novel writing app for Mac</title>
-<title data-l="zh">Drifting — 开源、本地优先的 Mac 长篇小说写作软件</title>
-<meta data-l="en" name="description" content="Open-source, local-first novel writing app for Mac: the ease of a Markdown editor, the scaffolding of a classic writing studio, and an Agent for the whole book.">
-<meta data-l="zh" name="description" content="开源、本地优先的 Mac 长篇小说写作软件：Markdown 的轻快，传统写作软件的脚手架，再加一个照看整本书的 Agent。">
-<link data-l="en" rel="canonical" href="https://drifting.cc/">
-<link data-l="zh" rel="canonical" href="https://drifting.cc/zh">
-<link rel="alternate" hreflang="en" href="https://drifting.cc/">
-<link rel="alternate" hreflang="zh" href="https://drifting.cc/zh">
-<link rel="alternate" hreflang="x-default" href="https://drifting.cc/">
-<meta property="og:type" content="website">
-<meta property="og:site_name" content="Drifting">
-<meta data-l="en" property="og:url" content="https://drifting.cc/">
-<meta data-l="zh" property="og:url" content="https://drifting.cc/zh">
-<meta property="og:title" content="Drifting">
-<meta data-l="en" property="og:description" content="Open-source, local-first novel writing app for Mac: the ease of a Markdown editor, the scaffolding of a classic writing studio, and an Agent for the whole book.">
-<meta data-l="zh" property="og:description" content="开源、本地优先的 Mac 长篇小说写作软件：Markdown 的轻快，传统写作软件的脚手架，再加一个照看整本书的 Agent。">
-<meta data-l="en" property="og:locale" content="en_US">
-<meta data-l="en" property="og:locale:alternate" content="zh_CN">
-<meta data-l="zh" property="og:locale" content="zh_CN">
-<meta data-l="zh" property="og:locale:alternate" content="en_US">
-<meta property="og:image" content="https://drifting.cc/og.png">
-<meta property="og:image:type" content="image/png">
-<meta property="og:image:width" content="2560">
-<meta property="og:image:height" content="1280">
-<meta data-l="en" property="og:image:alt" content="DRIFTING written in a sea of characters, over the tagline: the ease of a Markdown editor, the scaffolding of a classic writing studio, and an Agent for the whole book.">
-<meta data-l="zh" property="og:image:alt" content="字海拼出的 DRIFTING，下方是英文标语：The ease of a Markdown editor, the scaffolding of a classic writing studio, and an Agent for the whole book.">
-<meta name="twitter:card" content="summary_large_image">
+
+{{metadata}}
 <link rel="icon" type="image/png" sizes="32x32" href="/legal/favicon-32x32.png">
 <link rel="apple-touch-icon" href="/legal/apple-touch-icon.png">
 <link rel="stylesheet" href="/assets/site.css">
-<!-- For search engines: the site's name and languages, and the app as a free, open-source download. -->
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@graph": [
-    {
-      "@type": "WebSite",
-      "name": "Drifting",
-      "url": "https://drifting.cc/",
-      "inLanguage": ["en", "zh-Hans"]
-    },
-    {
-      "@type": "SoftwareApplication",
-      "name": "Drifting",
-      "url": "https://drifting.cc/",
-      "image": "https://drifting.cc/og.png",
-      "description": "Open-source, local-first novel writing app for Mac: the ease of a Markdown editor, the scaffolding of a classic writing studio like Scrivener, and an AI Agent for the whole book.",
-      "softwareVersion": "{{version}}",
-      "operatingSystem": "macOS 13 or later",
-      "processorRequirements": "Apple Silicon",
-      "downloadUrl": "https://github.com/chihumyum/Drifting/releases/latest",
-      "license": "https://spdx.org/licenses/AGPL-3.0-or-later.html",
-      "isAccessibleForFree": true,
-      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
-      "sameAs": ["https://github.com/chihumyum/Drifting"]
-    }
-  ]
-}
-</script>
+{{software-schema}}
 <style>
 /* Layout: the site is the app's shelf. A sea of characters lies under the whole
    window; the word rises out of it while the page waits at the top, bursts as
@@ -103,7 +48,7 @@
   text-wrap: balance;
   text-shadow: 0 0 14px hsl(var(--paper-deep)), 0 0 4px hsl(var(--paper-deep)), 0 0 2px hsl(var(--paper-deep));
 }
-:root[data-lang="zh"] .tagline { letter-spacing: 0.04em; }
+:root[data-script="cjk"] .tagline { letter-spacing: 0.04em; }
 .cta { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
 .cta .glass { background: color-mix(in srgb, hsl(var(--paper-deep)) 70%, transparent); }
 .meta {
@@ -114,6 +59,7 @@
   text-shadow: 0 0 8px hsl(var(--paper-deep)), 0 0 3px hsl(var(--paper-deep));
 }
 .meta span + span::before { content: '·'; margin: 0 0.6em; color: hsl(var(--ink-4)); }
+.meta > span { display: inline-block; white-space: nowrap; }
 
 /* ── Sheets ───────────────────────────────────────────────────────── */
 main { display: grid; gap: clamp(48px, 9vh, 96px); padding-bottom: clamp(64px, 10vh, 112px); }
@@ -131,7 +77,7 @@ h2 {
   letter-spacing: -0.01em;
   text-wrap: balance;
 }
-:root[data-lang="zh"] h2 { letter-spacing: 0.02em; }
+:root[data-script="cjk"] h2 { letter-spacing: 0.02em; }
 .points { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; color: hsl(var(--ink-2)); font-size: 15px; line-height: 1.72; }
 .points li { display: grid; grid-template-columns: 12px minmax(0, 1fr); gap: 10px; }
 .points li::before {
@@ -192,11 +138,11 @@ h2 {
 .pg-title { margin: 0 0 8px; font: 400 31px/1.3 var(--font-content); letter-spacing: -0.01em; }
 .pg-rule { height: 1px; margin: 0 0 20px; border: 0; background: var(--rule); }
 .pg-body { font: 400 15px/1.75 var(--font-content); color: hsl(var(--ink-1)); }
-:root[data-lang="zh"] .pg-body { letter-spacing: 0.01em; }
+:root[data-script="cjk"] .pg-body { letter-spacing: 0.01em; }
 .pg-body :is(p, .h1, .h2) { margin: 0 0 0.95em; }
 .pg-body .h1 { font-size: 1.6em; font-weight: 500; line-height: 1.6; letter-spacing: -0.01em; }
 .pg-body .h2 { font-size: 1.26em; font-weight: 500; line-height: 1.6; letter-spacing: -0.01em; }
-:root[data-lang="zh"] .pg-body .h2 { letter-spacing: 0.02em; }
+:root[data-script="cjk"] .pg-body .h2 { letter-spacing: 0.02em; }
 .pg-body .md { color: hsl(var(--ink-4)); }
 .pg-sub { margin: -2px 0 16px; font: 400 12px/1.4 var(--font-ui); color: hsl(var(--ink-3)); }
 .caret { display: inline-block; width: 1.5px; height: 1.05em; margin-left: 1px; vertical-align: -0.14em; background: hsl(var(--ink-2)); animation: blink 0.9s steps(1) infinite; }
@@ -250,17 +196,16 @@ h2 {
    of ice (265ms, slow to start, then fast) and the block rides the same push,
    its glass running with the distance it moves (--flow, glass-flow.ts). The
    sidebar's toggle sits in the row beside them. */
-.sb-top { display: flex; align-items: center; gap: 3px; height: 40px; padding: 0 6px 0 13px; box-shadow: inset 0 -1px var(--rule); }
+.sb-top { display: flex; align-items: center; gap: 3px; min-height: 40px; padding: 0 6px 0 13px; box-shadow: inset 0 -1px var(--rule); }
 .sb-top .lights { margin-right: 9px; }
 .sb-toggle { display: grid; place-items: center; flex: none; width: 26px; height: 26px; color: var(--ui-muted); }
 .sb-toggle .ic { width: 15px; height: 15px; }
-.sb-tabs { position: relative; display: flex; flex: 1; align-self: stretch; min-width: 0; gap: 8px; }
+.sb-tabs { position: relative; display: flex; flex: 1; flex-wrap: wrap; align-self: stretch; min-width: 0; column-gap: 8px; }
 .sb-tab-block.glass {
   --glass-gx: calc(var(--flow, 0) * 1.2px - 14px);
   --glass-gy: -46px;
   position: absolute;
   top: 2px;
-  bottom: 2px;
   left: 0;
   width: 0;
   z-index: 0;
@@ -276,6 +221,7 @@ h2 {
   align-items: center;
   justify-content: center;
   margin: 2px 0;
+  min-height: 36px;
   /* The app's panel tab keeps 8px each side of its word (ui-controls.css), so
      the glass block never touches the word even when the row is full. */
   padding: 0 8px;
@@ -375,11 +321,11 @@ h2 {
 .sb-right { border-left: 1px solid var(--rule); }
 .sb-right .sb-top { padding: 0 6px; }
 /* The conversation's own row: its title, then working memory, history and a new chat. */
-.agt-head { display: flex; align-items: center; gap: 6px; height: 38px; padding: 0 9px 0 11px; }
-.agt-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 500 12.5px/16px var(--font-ui); color: hsl(var(--ink-2)); }
-.agt-acts { display: flex; flex: none; gap: 2px; }
+.agt-head { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; min-height: 38px; padding: 4px 9px 4px 11px; }
+.agt-title { flex: 1 1 7em; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 500 12.5px/16px var(--font-ui); color: hsl(var(--ink-2)); }
+.agt-acts { display: flex; flex-wrap: wrap; gap: 2px; }
 .agt-act { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px; font: 400 12.5px/18px var(--font-ui); color: var(--ui-muted); white-space: nowrap; }
-:root[data-lang="zh"] :is(.agt-title, .agt-act) { letter-spacing: 0.04em; }
+:root[data-script="cjk"] :is(.agt-title, .agt-act) { letter-spacing: 0.04em; }
 .agt-act .ic { width: 10px; height: 10px; }
 .agt { display: flex; flex-direction: column; gap: 8px; flex: 1; padding: 10px 11px 0; }
 .agt > .step { transition: opacity var(--motion-sand-fade) ease, translate var(--motion-structural) var(--motion-structural-ease); }
@@ -411,7 +357,7 @@ h2 {
 .qa { display: grid; gap: 28px; min-width: 0; padding-top: 4px; }
 .q { display: grid; gap: 8px; min-width: 0; }
 .q h3 { margin: 0; font: 400 19px/1.45 var(--font-content); color: hsl(var(--ink-1)); text-wrap: balance; }
-:root[data-lang="zh"] .q h3 { letter-spacing: 0.02em; }
+:root[data-script="cjk"] .q h3 { letter-spacing: 0.02em; }
 .q p { margin: 0; max-width: 40em; color: hsl(var(--ink-2)); font-size: 15px; line-height: 1.72; }
 .q a { color: inherit; text-decoration-color: hsl(var(--ink-1) / 0.3); text-underline-offset: 0.18em; }
 .cmp-wrap { margin-top: 10px; overflow-x: auto; }
@@ -463,10 +409,9 @@ h2 {
 <header class="bar">
   <a class="brand glass glass--rest" href="#top" aria-label="Drifting">DRIFTING</a>
   <div class="bar-actions">
-    <a class="glass glass--primary pill pill--sm bar-dl" href="https://github.com/chihumyum/Drifting/releases/latest" target="_blank" rel="noopener"><span data-l="zh">下载</span><span data-l="en">Download</span></a>
-    <a class="glass glass--rest pill pill--sm" id="lang-btn" data-l="en" href="/zh" hreflang="zh" lang="zh-CN">中文</a>
-    <a class="glass glass--rest pill pill--sm" id="lang-btn" data-l="zh" href="/" hreflang="en" lang="en">English</a>
-    <button class="glass glass--rest round" id="theme-btn" type="button"><i class="ic" id="theme-ic"></i></button>
+    <a class="glass glass--primary pill pill--sm bar-dl" href="https://github.com/chihumyum/Drifting/releases/latest" target="_blank" rel="noopener"><span>{{copy:download.short}}</span></a>
+    {{language-menu}}
+    <button class="glass glass--rest round" id="theme-btn" type="button" aria-label="{{theme-label}}" {{theme-attrs}}><i class="ic" id="theme-ic"></i></button>
   </div>
 </header>
 
@@ -474,15 +419,14 @@ h2 {
   <section class="hero">
     <h1 class="word">DRIFTING</h1>
     <p class="tagline">
-      <span data-l="zh"><a class="su" href="#markdown" style="--c: var(--c-blue)">Markdown</a> 的轻快，传统写作软件的<a class="su" href="#studio" style="--c: var(--c-ochre)">脚手架</a>，再加一个照看整本书的 <a class="su" href="#agent" style="--c: var(--c-green)">Agent</a>。</span>
-      <span data-l="en">The ease of a <a class="su" href="#markdown" style="--c: var(--c-blue)">Markdown</a> editor, the <a class="su" href="#studio" style="--c: var(--c-ochre)">scaffolding</a> of a classic writing studio, and an <a class="su" href="#agent" style="--c: var(--c-green)">Agent</a> for the whole book.</span>
+      <span>{{copy:hero.tagline}}</span>
     </p>
     <div class="cta">
-      <a class="glass glass--primary pill" href="https://github.com/chihumyum/Drifting/releases/latest" target="_blank" rel="noopener"><span data-l="zh">下载 Mac 版</span><span data-l="en">Download for Mac</span></a>
+      <a class="glass glass--primary pill" href="https://github.com/chihumyum/Drifting/releases/latest" target="_blank" rel="noopener"><span>{{copy:download.mac}}</span></a>
       <a class="glass glass--rest pill" href="https://github.com/chihumyum/Drifting" target="_blank" rel="noopener">GitHub</a>
     </div>
     <p class="meta">
-      <span>macOS 13+</span><span>Apple Silicon</span><span data-l="zh">开源 · 本地优先</span><span data-l="en">Open source · Local-first</span><span>{{version}}</span>
+      <span>macOS 13+</span><span>Apple Silicon</span><span>{{copy:hero.values}}</span><span>{{version}}</span>
     </p>
   </section>
 
@@ -490,12 +434,12 @@ h2 {
   <section class="sheet glass" data-sea id="markdown" style="--sec: var(--c-blue)">
     <div class="pillar">
       <div class="pillar-text">
-        <div class="kind"><i class="mk mk-seal"></i><span data-l="zh">写</span><span data-l="en">Write</span></div>
-        <h2><span data-l="zh">像 Markdown 编辑器一样写</span><span data-l="en">Writes like a Markdown editor</span></h2>
+        <div class="kind"><i class="mk mk-seal"></i><span>{{copy:write.kicker}}</span></div>
+        <h2><span>{{copy:write.title}}</span></h2>
         <ul class="points">
-          <li><span data-l="zh">一张安静的稿纸，手不离键盘。输入 <code>#</code>、<code>##</code>、<code>###</code> 就开始一个场景、节拍或笔记；<code>**粗体**</code>、<code>*斜体*</code>、<code>&gt;</code> 和 <code>---</code> <span class="sh">边打边成形</span>。</span><span data-l="en">One quiet page and the keyboard. Type <code>#</code>, <code>##</code> or <code>###</code> to start a scene, a beat or a note; <code>**bold**</code>, <code>*italic*</code>, <code>&gt;</code> and <code>---</code> <span class="sh">take shape as you type</span>.</span></li>
-          <li><span data-l="zh">每个项目同时也是一个 Markdown 文件夹。在 Obsidian 或任何文本编辑器里改过的章节和构想，会合并回 Drifting。</span><span data-l="en">Every project is also a folder of Markdown files. Edit chapters and ideas in Obsidian or any text editor, and the changes merge back into Drifting.</span></li>
-          <li><span data-l="zh">单篇或整本书都可以复制、保存为 Markdown；可以导入 <code>.md</code>、<code>.txt</code>、<code>.docx</code>。</span><span data-l="en">Copy or save any document, or the whole book, as Markdown. Import <code>.md</code>, <code>.txt</code> and <code>.docx</code>.</span></li>
+          <li><span>{{copy:write.syntax}}</span></li>
+          <li><span>{{copy:write.files}}</span></li>
+          <li><span>{{copy:write.transfer}}</span></li>
         </ul>
       </div>
 
@@ -506,23 +450,23 @@ h2 {
               <i class="mk mk-seal" style="--c: var(--c-red)"></i><i class="mk mk-seal on" style="--c: var(--c-red)"></i><i class="mk mk-square" style="--c: var(--c-purple)"></i><i class="mk mk-spiral"></i>
             </div>
             <article class="pg">
-              <div class="folio"><span>Chapter III</span><span>·</span><b style="--c: var(--c-red)"><span data-l="zh">寻信</span><span data-l="en">The letters</span></b></div>
-              <div class="pg-title"><span data-l="zh">雾</span><span data-l="en">Fog</span></div>
+              <div class="folio"><span>{{copy:story.chapter}}</span><span>·</span><b style="--c: var(--c-red)"><span>{{copy:story.line}}</span></b></div>
+              <div class="pg-title"><span>{{copy:story.fog}}</span></div>
               <hr class="pg-rule">
               <div class="pg-body">
-                <p><span data-l="zh">雾从港口那边漫过来的时候，林岚正把第三封信压在灯座底下。</span><span data-l="en">The fog came in from the harbour while Lin was tucking the third letter under the lamp.</span></p>
+                <p><span>{{copy:story.opening}}</span></p>
                 <div class="typed"><div id="md-typed">
-                  <div class="h1"><span data-l="zh">铁梯</span><span data-l="en">The stairs</span></div>
-                  <p><span data-l="zh">她每往上走一级，脚下就响一声，像有人在楼下<strong>跟着数</strong>。</span><span data-l="en">Every step gave a small sound, as if someone below were <strong>counting</strong>.</span></p>
-                  <div class="h2"><span data-l="zh">第七圈</span><span data-l="en">The seventh turn</span></div>
-                  <p><span data-l="zh">海面上亮起一点很小的光。</span><span data-l="en">A small glow rose on the water.</span></p>
+                  <div class="h1"><span>{{copy:story.stairs}}</span></div>
+                  <p><span>{{copy:story.steps}}</span></p>
+                  <div class="h2"><span>{{copy:story.seventh}}</span></div>
+                  <p><span>{{copy:story.glow}}</span></p>
                 </div></div>
               </div>
             </article>
           </div>
         </div>
         <div class="win txt" aria-label="Markdown">
-          <div class="txt-top"><span class="lights"><i></i><i></i><i></i></span><span><span data-l="zh">雾.md — 正文</span><span data-l="en">Fog.md — Manuscript</span></span></div>
+          <div class="txt-top"><span class="lights"><i></i><i></i><i></i></span><span><span>{{copy:story.filename}}</span></span></div>
           <div class="raw-wrap"><pre class="raw raw-ghost" id="md-raw-ghost" aria-hidden="true"></pre><pre class="raw raw-live" id="md-raw"></pre></div>
         </div>
       </div>
@@ -533,21 +477,21 @@ h2 {
   <section class="sheet glass" data-sea id="studio" style="--sec: var(--c-ochre)">
     <div class="pillar">
       <div class="pillar-text">
-        <div class="kind"><i class="mk mk-square"></i><span data-l="zh">搭</span><span data-l="en">Build</span></div>
-        <h2><span data-l="zh">传统写作软件的脚手架</span><span data-l="en">The scaffolding of a classic writing studio</span></h2>
+        <div class="kind"><i class="mk mk-square"></i><span>{{copy:studio.kicker}}</span></div>
+        <h2><span>{{copy:studio.title}}</span></h2>
         <ul class="points">
-          <li><span data-l="zh">按章写，也可以在一个视图里通读、修改整本书。</span><span data-l="en">Write chapter by chapter, or read and edit the whole book in one view.</span></li>
-          <li><span data-l="zh">用<b>要素</b>整理人物、地点、物品和设定；用<span class="sh"><b>补丁</b></span>记录要素随情节发生的变化，紧挨着引起变化的那段原文。</span><span data-l="en"><b>Elements</b> for characters, places, objects and lore. <span class="sh"><b>Patches</b></span> record how an element changes, next to the passage that changes it.</span></li>
-          <li><span data-l="zh"><b>故事线</b>、按书序或叙事时间排列的时间线，以及每章一张情节表。</span><span data-l="en"><b>Storylines</b>, a timeline in book order or narrative time, and a plot grid for each chapter.</span></li>
-          <li><span data-l="zh">整本书或选定章节可以导出为 EPUB、PDF、Word 成稿。</span><span data-l="en">Export the book, or chosen chapters, as EPUB, PDF or Word.</span></li>
+          <li><span>{{copy:studio.whole}}</span></li>
+          <li><span>{{copy:studio.elements}}</span></li>
+          <li><span>{{copy:studio.timeline}}</span></li>
+          <li><span>{{copy:studio.export}}</span></li>
         </ul>
         <ul class="tools">
-          <li style="--c: var(--c-blue)"><i class="ic" style="--i:url({{asset:icons/ov-folding.png}})"></i><span data-l="zh">通览全书</span><span data-l="en">Whole book</span></li>
-          <li style="--c: var(--c-red)"><i class="ic" style="--i:url({{asset:icons/bamboo.png}})"></i><span data-l="zh">时间线</span><span data-l="en">Timeline</span></li>
-          <li style="--c: var(--c-teal)"><i class="ic" style="--i:url({{asset:icons/ov-iceberg.png}})"></i><span data-l="zh">要素全景</span><span data-l="en">Element overview</span></li>
-          <li style="--c: var(--c-ochre)"><i class="ic" style="--i:url({{asset:icons/lib-curio.png}})"></i><span data-l="zh">素材库</span><span data-l="en">Materials</span></li>
-          <li style="--c: var(--c-red)"><i class="ic" style="--i:url({{asset:icons/torii.png}})"></i><span data-l="zh">作品主页</span><span data-l="en">Project Home</span></li>
-          <li style="--c: var(--c-purple)"><i class="ic" style="--i:url({{asset:icons/comment.png}})"></i><span data-l="zh">批注</span><span data-l="en">Comments</span></li>
+          <li style="--c: var(--c-blue)"><i class="ic" style="--i:url({{asset:icons/ov-folding.png}})"></i><span>{{copy:tool.whole}}</span></li>
+          <li style="--c: var(--c-red)"><i class="ic" style="--i:url({{asset:icons/bamboo.png}})"></i><span>{{copy:tool.timeline}}</span></li>
+          <li style="--c: var(--c-teal)"><i class="ic" style="--i:url({{asset:icons/ov-iceberg.png}})"></i><span>{{copy:tool.elements}}</span></li>
+          <li style="--c: var(--c-ochre)"><i class="ic" style="--i:url({{asset:icons/lib-curio.png}})"></i><span>{{copy:tool.materials}}</span></li>
+          <li style="--c: var(--c-red)"><i class="ic" style="--i:url({{asset:icons/torii.png}})"></i><span>{{copy:tool.home}}</span></li>
+          <li style="--c: var(--c-purple)"><i class="ic" style="--i:url({{asset:icons/comment.png}})"></i><span>{{copy:tool.comments}}</span></li>
           <li style="--c: var(--c-green)"><i class="ic" style="--i:url({{asset:icons/checklist.png}})"></i>TODO</li>
         </ul>
       </div>
@@ -560,42 +504,42 @@ h2 {
               <span class="sb-toggle"><i class="ic" style="--i:url({{asset:icons/moon-left.png}})"></i></span>
               <div class="sb-tabs">
                 <i class="sb-tab-block glass is-on" aria-hidden="true"></i>
-                <button class="sb-tab is-on" type="button" data-tab="nodes"><span data-l="zh" data-script="cjk">章节</span><span data-l="en">Chapters</span></button>
-                <button class="sb-tab" type="button" data-tab="elements"><span data-l="zh" data-script="cjk">要素</span><span data-l="en">Elements</span></button>
-                <button class="sb-tab" type="button" data-tab="drifts"><span data-l="zh" data-script="cjk">构想</span><span data-l="en">Ideas</span></button>
+                <button class="sb-tab is-on" type="button" data-tab="nodes"><span{{cjk-attr}}>{{copy:ui.chapters}}</span></button>
+                <button class="sb-tab" type="button" data-tab="elements"><span{{cjk-attr}}>{{copy:ui.elements}}</span></button>
+                <button class="sb-tab" type="button" data-tab="drifts"><span{{cjk-attr}}>{{copy:ui.ideas}}</span></button>
               </div>
             </div>
             <div class="sb-panes">
             <div class="sb-pane" data-pane="nodes">
-              <div class="sb-head"><span><span data-l="zh">1 条故事线 · 4 章</span><span data-l="en">1 storyline · 4 chapters</span></span><span class="sb-acts"><span class="sb-act sb-act--ov"><i class="ic" style="--i:url({{asset:icons/ov-folding.png}})"></i></span><span class="sb-act"><i class="ic" style="--i:url({{asset:icons/sort.png}})"></i></span><span class="sb-act sb-act--new"><i class="ic" style="--i:url({{asset:icons/new-storyline.png}})"></i></span></span></div>
-              <div class="grp"><i class="mk mk-dash" style="--c: var(--c-red)"></i><span data-l="zh">寻信</span><span data-l="en">The letters</span><small>3</small><i class="ic grp-chev" style="--i:url({{asset:icons/chevron-down.png}})"></i></div>
-              <button class="cell" type="button" data-k="letters" style="--c: var(--c-red)"><span class="mkb"><i class="mk mk-seal"></i></span><span><span data-l="zh">来信</span><span data-l="en">Letters</span></span><time>10/29</time></button>
-              <button class="cell" type="button" data-k="fog" style="--c: var(--c-red)" aria-current="true"><span class="mkb"><i class="mk mk-seal"></i></span><span><span data-l="zh">雾</span><span data-l="en">Fog</span></span><time>10/31</time></button>
-              <button class="cell" type="button" data-k="seventh" style="--c: var(--c-red)"><span class="mkb"><i class="mk mk-seal"></i></span><span><span data-l="zh">第七圈</span><span data-l="en">The seventh turn</span></span><time>11/01</time></button>
-              <div class="grp"><i class="mk mk-dash" style="--c: var(--ink-4)"></i><span data-l="zh">未归属</span><span data-l="en">Unassigned</span><small>1</small><i class="ic grp-chev" style="--i:url({{asset:icons/chevron-down.png}})"></i></div>
-              <button class="cell" type="button" data-k="harbour" style="--c: var(--ink-4)"><span class="mkb"><i class="mk mk-seal"></i></span><span><span data-l="zh">港口</span><span data-l="en">Harbour</span></span><time>10/26</time></button>
+              <div class="sb-head"><span><span>{{copy:ui.storylineCount}}</span></span><span class="sb-acts"><span class="sb-act sb-act--ov"><i class="ic" style="--i:url({{asset:icons/ov-folding.png}})"></i></span><span class="sb-act"><i class="ic" style="--i:url({{asset:icons/sort.png}})"></i></span><span class="sb-act sb-act--new"><i class="ic" style="--i:url({{asset:icons/new-storyline.png}})"></i></span></span></div>
+              <div class="grp"><i class="mk mk-dash" style="--c: var(--c-red)"></i><span>{{copy:story.line}}</span><small>3</small><i class="ic grp-chev" style="--i:url({{asset:icons/chevron-down.png}})"></i></div>
+              <button class="cell" type="button" data-k="letters" style="--c: var(--c-red)"><span class="mkb"><i class="mk mk-seal"></i></span><span><span>{{copy:story.letters}}</span></span><time>{{date:10-29}}</time></button>
+              <button class="cell" type="button" data-k="fog" style="--c: var(--c-red)" aria-current="true"><span class="mkb"><i class="mk mk-seal"></i></span><span><span>{{copy:story.fog}}</span></span><time>{{date:10-31}}</time></button>
+              <button class="cell" type="button" data-k="seventh" style="--c: var(--c-red)"><span class="mkb"><i class="mk mk-seal"></i></span><span><span>{{copy:story.seventh}}</span></span><time>{{date:11-01}}</time></button>
+              <div class="grp"><i class="mk mk-dash" style="--c: var(--ink-4)"></i><span>{{copy:ui.unassigned}}</span><small>1</small><i class="ic grp-chev" style="--i:url({{asset:icons/chevron-down.png}})"></i></div>
+              <button class="cell" type="button" data-k="harbour" style="--c: var(--ink-4)"><span class="mkb"><i class="mk mk-seal"></i></span><span><span>{{copy:story.harbour}}</span></span><time>{{date:10-26}}</time></button>
             </div>
             <div class="sb-pane off" data-pane="elements">
-              <div class="sb-head"><span><span data-l="zh">2 类 · 4 要素</span><span data-l="en">2 categories · 4 elements</span></span><span class="sb-acts"><span class="sb-act sb-act--ov"><i class="ic" style="--i:url({{asset:icons/ov-iceberg.png}})"></i></span><span class="sb-act"><i class="ic" style="--i:url({{asset:icons/folding-fan-closed.png}})"></i></span><span class="sb-act"><i class="ic" style="--i:url({{asset:icons/sort.png}})"></i></span><span class="sb-act sb-act--new"><i class="ic" style="--i:url({{asset:icons/new-category.png}})"></i></span></span></div>
+              <div class="sb-head"><span><span>{{copy:ui.categoryCount}}</span></span><span class="sb-acts"><span class="sb-act sb-act--ov"><i class="ic" style="--i:url({{asset:icons/ov-iceberg.png}})"></i></span><span class="sb-act"><i class="ic" style="--i:url({{asset:icons/folding-fan-closed.png}})"></i></span><span class="sb-act"><i class="ic" style="--i:url({{asset:icons/sort.png}})"></i></span><span class="sb-act sb-act--new"><i class="ic" style="--i:url({{asset:icons/new-category.png}})"></i></span></span></div>
               <div class="cat" style="--c: var(--c-purple)">
-                <div class="cat-legend"><i class="mk mk-corner"></i><span data-l="zh">人物</span><span data-l="en">Characters</span><i class="ic grp-chev" style="--i:url({{asset:icons/chevron-down.png}})"></i></div>
+                <div class="cat-legend"><i class="mk mk-corner"></i><span>{{copy:ui.characters}}</span><i class="ic grp-chev" style="--i:url({{asset:icons/chevron-down.png}})"></i></div>
                 <div class="cat-grid">
-                  <button class="cell" type="button" data-k="lin" style="--c: var(--c-purple)"><span class="mkb"><i class="mk mk-square"></i></span><span><span data-l="zh">林岚</span><span data-l="en">Lin</span></span></button>
-                  <button class="cell" type="button" data-k="keeper" style="--c: var(--c-purple)"><span class="mkb"><i class="mk mk-square"></i></span><span><span data-l="zh">守塔人</span><span data-l="en">The keeper</span></span></button>
-                  <button class="cell" type="button" data-k="father" style="--c: var(--c-purple)"><span class="mkb"><i class="mk mk-square"></i></span><span><span data-l="zh">父亲</span><span data-l="en">Her father</span></span></button>
+                  <button class="cell" type="button" data-k="lin" style="--c: var(--c-purple)"><span class="mkb"><i class="mk mk-square"></i></span><span><span>{{copy:story.lin}}</span></span></button>
+                  <button class="cell" type="button" data-k="keeper" style="--c: var(--c-purple)"><span class="mkb"><i class="mk mk-square"></i></span><span><span>{{copy:story.keeper}}</span></span></button>
+                  <button class="cell" type="button" data-k="father" style="--c: var(--c-purple)"><span class="mkb"><i class="mk mk-square"></i></span><span><span>{{copy:story.father}}</span></span></button>
                 </div>
               </div>
               <div class="cat" style="--c: var(--c-teal)">
-                <div class="cat-legend"><i class="mk mk-corner"></i><span data-l="zh">地点</span><span data-l="en">Places</span><i class="ic grp-chev" style="--i:url({{asset:icons/chevron-down.png}})"></i></div>
+                <div class="cat-legend"><i class="mk mk-corner"></i><span>{{copy:ui.places}}</span><i class="ic grp-chev" style="--i:url({{asset:icons/chevron-down.png}})"></i></div>
                 <div class="cat-grid">
-                  <button class="cell" type="button" data-k="pier" style="--c: var(--c-teal)"><span class="mkb"><i class="mk mk-square"></i></span><span><span data-l="zh">旧码头</span><span data-l="en">The old pier</span></span></button>
+                  <button class="cell" type="button" data-k="pier" style="--c: var(--c-teal)"><span class="mkb"><i class="mk mk-square"></i></span><span><span>{{copy:story.pier}}</span></span></button>
                 </div>
               </div>
             </div>
             <div class="sb-pane off" data-pane="drifts">
-              <div class="sb-head"><span><span data-l="zh">2 条构想</span><span data-l="en">2 ideas</span></span><span class="sb-acts"><span class="sb-act"><i class="ic" style="--i:url({{asset:icons/folding-fan-closed.png}})"></i></span><span class="sb-act"><i class="ic" style="--i:url({{asset:icons/sort.png}})"></i></span><span class="sb-act"><i class="ic" style="--i:url({{asset:icons/folder-plus.png}})"></i></span><span class="sb-act sb-act--new"><i class="ic" style="--i:url({{asset:icons/plus.png}})"></i></span></span></div>
-              <button class="cell" type="button" data-k="match" style="--c: var(--ink-3)"><span class="mkb"><i class="mk mk-spiral"></i></span><span><span data-l="zh">水底的火柴</span><span data-l="en">A match under the sea</span></span><time>10/30</time></button>
-              <button class="cell" type="button" data-k="pencil" style="--c: var(--ink-3)"><span class="mkb"><i class="mk mk-spiral"></i></span><span><span data-l="zh">背面的铅笔字</span><span data-l="en">Pencil on the back</span></span><time>10/31</time></button>
+              <div class="sb-head"><span><span>{{copy:ui.ideaCount}}</span></span><span class="sb-acts"><span class="sb-act"><i class="ic" style="--i:url({{asset:icons/folding-fan-closed.png}})"></i></span><span class="sb-act"><i class="ic" style="--i:url({{asset:icons/sort.png}})"></i></span><span class="sb-act"><i class="ic" style="--i:url({{asset:icons/folder-plus.png}})"></i></span><span class="sb-act sb-act--new"><i class="ic" style="--i:url({{asset:icons/plus.png}})"></i></span></span></div>
+              <button class="cell" type="button" data-k="match" style="--c: var(--ink-3)"><span class="mkb"><i class="mk mk-spiral"></i></span><span><span>{{copy:story.match}}</span></span><time>{{date:10-30}}</time></button>
+              <button class="cell" type="button" data-k="pencil" style="--c: var(--ink-3)"><span class="mkb"><i class="mk mk-spiral"></i></span><span><span>{{copy:story.pencil}}</span></span><time>{{date:10-31}}</time></button>
             </div>
             </div>
             <canvas class="cell-frame" aria-hidden="true"></canvas>
@@ -607,59 +551,59 @@ h2 {
             <div class="panels">
               <article class="pg" data-p="harbour">
                 <div class="folio"><span>Chapter I</span></div>
-                <div class="pg-title"><span data-l="zh">港口</span><span data-l="en">Harbour</span></div><hr class="pg-rule">
-                <div class="pg-body"><p><span data-l="zh">信封上的邮戳已经洇开了，只剩一个“北”字还看得清。</span><span data-l="en">The postmark had run; only one letter of it could still be read.</span></p></div>
+                <div class="pg-title"><span>{{copy:story.harbour}}</span></div><hr class="pg-rule">
+                <div class="pg-body"><p><span>{{copy:story.postmark}}</span></p></div>
               </article>
               <article class="pg" data-p="letters">
-                <div class="folio"><span>Chapter II</span><span>·</span><b style="--c: var(--c-red)"><span data-l="zh">寻信</span><span data-l="en">The letters</span></b></div>
-                <div class="pg-title"><span data-l="zh">来信</span><span data-l="en">Letters</span></div><hr class="pg-rule">
-                <div class="pg-body"><p><span data-l="zh">她想起<span class="ent" style="--c: var(--c-purple)">父亲</span>说过，雾最浓的夜里，<span class="ent" style="--c: var(--c-teal)">旧码头</span>会自己记起从前的船。</span><span data-l="en">She remembered <span class="ent" style="--c: var(--c-purple)">her father</span> saying that on the thickest nights <span class="ent" style="--c: var(--c-teal)">the old pier</span> remembers the boats it once had.</span></p></div>
+                <div class="folio"><span>Chapter II</span><span>·</span><b style="--c: var(--c-red)"><span>{{copy:story.line}}</span></b></div>
+                <div class="pg-title"><span>{{copy:story.letters}}</span></div><hr class="pg-rule">
+                <div class="pg-body"><p><span>{{copy:story.fatherMemory}}</span></p></div>
               </article>
               <article class="pg on" data-p="fog">
-                <div class="folio"><span>Chapter III</span><span>·</span><b style="--c: var(--c-red)"><span data-l="zh">寻信</span><span data-l="en">The letters</span></b></div>
-                <div class="pg-title"><span data-l="zh">雾</span><span data-l="en">Fog</span></div><hr class="pg-rule">
+                <div class="folio"><span>{{copy:story.chapter}}</span><span>·</span><b style="--c: var(--c-red)"><span>{{copy:story.line}}</span></b></div>
+                <div class="pg-title"><span>{{copy:story.fog}}</span></div><hr class="pg-rule">
                 <div class="pg-body">
-                  <p><span data-l="zh">雾从港口那边漫过来的时候，<span class="ent" style="--c: var(--c-purple)">林岚</span>正把第三封信压在灯座底下。灯塔的铁梯被潮气浸得发凉。</span><span data-l="en">The fog came in from the harbour while <span class="ent" style="--c: var(--c-purple)">Lin</span> was tucking the third letter under the lamp.</span></p>
-                  <p><span data-l="zh"><span class="ent" style="--c: var(--c-purple)">守塔人</span>说今晚不会有船。她没有回答，只是把窗推开一道缝。</span><span data-l="en"><span class="ent" style="--c: var(--c-purple)">The keeper</span> said no boats would come tonight. She did not answer.</span></p>
+                  <p><span>{{copy:story.openingTagged}}</span></p>
+                  <p><span>{{copy:story.keeperTagged}}</span></p>
                 </div>
               </article>
               <article class="pg" data-p="seventh">
-                <div class="folio"><span>Chapter IV</span><span>·</span><b style="--c: var(--c-red)"><span data-l="zh">寻信</span><span data-l="en">The letters</span></b></div>
-                <div class="pg-title"><span data-l="zh">第七圈</span><span data-l="en">The seventh turn</span></div><hr class="pg-rule">
-                <div class="pg-body"><p><span data-l="zh">远处的雾笛响了两声，停了，又响了一声。她数着灯转过的圈数，数到第七圈的时候，海面上亮起一点很小的光。</span><span data-l="en">Far off the foghorn sounded twice, stopped, and sounded once more. On the seventh turn of the light a small glow rose on the water.</span></p></div>
+                <div class="folio"><span>Chapter IV</span><span>·</span><b style="--c: var(--c-red)"><span>{{copy:story.line}}</span></b></div>
+                <div class="pg-title"><span>{{copy:story.seventh}}</span></div><hr class="pg-rule">
+                <div class="pg-body"><p><span>{{copy:story.foghorn}}</span></p></div>
               </article>
               <article class="pg" data-p="lin">
-                <div class="folio"><b style="--c: var(--c-purple)"><span data-l="zh">人物</span><span data-l="en">Character</span></b></div>
-                <div class="pg-title"><span data-l="zh">林岚</span><span data-l="en">Lin</span></div><hr class="pg-rule">
+                <div class="folio"><b style="--c: var(--c-purple)"><span>{{copy:ui.character}}</span></b></div>
+                <div class="pg-title"><span>{{copy:story.lin}}</span></div><hr class="pg-rule">
                 <ul class="patches">
-                  <li style="--c: var(--c-red)"><i class="mk mk-seal"></i><span><span class="k"><span data-l="zh">雾 ·</span><span data-l="en">Fog ·</span></span> <span data-l="zh">在信纸背面认出自己的笔迹，却不记得写过。</span><span data-l="en">Finds a line in her own hand on the back of a letter, and cannot remember writing it.</span></span></li>
-                  <li style="--c: var(--c-red)"><i class="mk mk-seal"></i><span><span class="k"><span data-l="zh">第七圈 ·</span><span data-l="en">The seventh turn ·</span></span> <span data-l="zh">数到第七圈时看见水上的光。</span><span data-l="en">Sees the glow on the water at the seventh turn.</span></span></li>
+                  <li style="--c: var(--c-red)"><i class="mk mk-seal"></i><span><span class="k"><span>{{copy:story.fogLabel}}</span></span> <span>{{copy:story.handwriting}}</span></span></li>
+                  <li style="--c: var(--c-red)"><i class="mk mk-seal"></i><span><span class="k"><span>{{copy:story.seventhLabel}}</span></span> <span>{{copy:story.glowSeen}}</span></span></li>
                 </ul>
               </article>
               <article class="pg" data-p="keeper">
-                <div class="folio"><b style="--c: var(--c-purple)"><span data-l="zh">人物</span><span data-l="en">Character</span></b></div>
-                <div class="pg-title"><span data-l="zh">守塔人</span><span data-l="en">The keeper</span></div><hr class="pg-rule">
-                <ul class="patches"><li style="--c: var(--c-red)"><i class="mk mk-seal"></i><span><span class="k"><span data-l="zh">雾 ·</span><span data-l="en">Fog ·</span></span> <span data-l="zh">说今晚不会有船。</span><span data-l="en">Says no boats will come tonight.</span></span></li></ul>
+                <div class="folio"><b style="--c: var(--c-purple)"><span>{{copy:ui.character}}</span></b></div>
+                <div class="pg-title"><span>{{copy:story.keeper}}</span></div><hr class="pg-rule">
+                <ul class="patches"><li style="--c: var(--c-red)"><i class="mk mk-seal"></i><span><span class="k"><span>{{copy:story.fogLabel}}</span></span> <span>{{copy:story.keeperSummary}}</span></span></li></ul>
               </article>
               <article class="pg" data-p="father">
-                <div class="folio"><b style="--c: var(--c-purple)"><span data-l="zh">人物</span><span data-l="en">Character</span></b></div>
-                <div class="pg-title"><span data-l="zh">父亲</span><span data-l="en">Her father</span></div><hr class="pg-rule">
-                <div class="pg-body"><p><span data-l="zh">雾最浓的夜里，旧码头会自己记起从前的船。</span><span data-l="en">On the thickest nights the old pier remembers the boats it once had.</span></p></div>
+                <div class="folio"><b style="--c: var(--c-purple)"><span>{{copy:ui.character}}</span></b></div>
+                <div class="pg-title"><span>{{copy:story.father}}</span></div><hr class="pg-rule">
+                <div class="pg-body"><p><span>{{copy:story.pierMemory}}</span></p></div>
               </article>
               <article class="pg" data-p="pier">
-                <div class="folio"><b style="--c: var(--c-teal)"><span data-l="zh">地点</span><span data-l="en">Place</span></b></div>
-                <div class="pg-title"><span data-l="zh">旧码头</span><span data-l="en">The old pier</span></div><hr class="pg-rule">
-                <div class="pg-body"><p><span data-l="zh">那光不往岸边来，也不往外走，只在原地一明一灭。</span><span data-l="en">The light comes no nearer the shore and goes no further out; it only brightens and fades where it is.</span></p></div>
+                <div class="folio"><b style="--c: var(--c-teal)"><span>{{copy:ui.place}}</span></b></div>
+                <div class="pg-title"><span>{{copy:story.pier}}</span></div><hr class="pg-rule">
+                <div class="pg-body"><p><span>{{copy:story.light}}</span></p></div>
               </article>
               <article class="pg" data-p="match">
-                <div class="folio"><span data-l="zh">构想</span><span data-l="en">Idea</span></div>
-                <div class="pg-title"><span data-l="zh">水底的火柴</span><span data-l="en">A match under the sea</span></div><hr class="pg-rule">
-                <div class="pg-body"><p><span data-l="zh">海面上亮起一点很小的光，像有人在水底下划了一根火柴。</span><span data-l="en">A small glow on the water, as if someone under the sea had struck a match.</span></p></div>
+                <div class="folio"><span>{{copy:ui.idea}}</span></div>
+                <div class="pg-title"><span>{{copy:story.match}}</span></div><hr class="pg-rule">
+                <div class="pg-body"><p><span>{{copy:story.matchText}}</span></p></div>
               </article>
               <article class="pg" data-p="pencil">
-                <div class="folio"><span data-l="zh">构想</span><span data-l="en">Idea</span></div>
-                <div class="pg-title"><span data-l="zh">背面的铅笔字</span><span data-l="en">Pencil on the back</span></div><hr class="pg-rule">
-                <div class="pg-body"><p><span data-l="zh">纸角卷起来，露出背面一行很淡的铅笔字，那是她自己的笔迹。</span><span data-l="en">A corner lifted to show a faint line of pencil on the back, in her own hand.</span></p></div>
+                <div class="folio"><span>{{copy:ui.idea}}</span></div>
+                <div class="pg-title"><span>{{copy:story.pencil}}</span></div><hr class="pg-rule">
+                <div class="pg-body"><p><span>{{copy:story.pencilText}}</span></p></div>
               </article>
             </div>
           </div>
@@ -672,13 +616,13 @@ h2 {
   <section class="sheet glass" data-sea id="agent" style="--sec: var(--c-green)">
     <div class="pillar">
       <div class="pillar-text">
-        <div class="kind"><i class="mk mk-icon" style="--m:url({{asset:icons/shikigami.png}})"></i><span data-l="zh">照看</span><span data-l="en">Tend</span></div>
-        <h2><span data-l="zh">照看整本书的 Agent</span><span data-l="en">An Agent for the whole book</span></h2>
+        <div class="kind"><i class="mk mk-icon" style="--m:url({{asset:icons/shikigami.png}})"></i><span>{{copy:agent.kicker}}</span></div>
+        <h2><span>{{copy:agent.title}}</span></h2>
         <ul class="points">
-          <li><span data-l="zh">可以用自己的 DeepSeek、Anthropic、OpenAI 密钥，也可以登录 ChatGPT 订阅（实验性）。不用 AI 也能正常写作。</span><span data-l="en">Bring your own key for DeepSeek, Anthropic or OpenAI, or sign in with a ChatGPT subscription (experimental). Writing never requires AI.</span></li>
-          <li><span data-l="zh">Agent 能读、搜索和修改你的项目：正文、要素、关联、故事线、素材、TODO。它的改动会在正文里<span class="sh">标出</span>，可以从历史快照撤回。</span><span data-l="en">The Agent reads, searches and edits your project: prose, elements, relations, storylines, materials, TODOs. Its edits are <span class="sh">marked</span> in the text and can be undone from history.</span></li>
-          <li><span data-l="zh">你离开一阵再回来时，它可以把上次写的内容整理进要素、补丁和关联；它不会自行改动正文。</span><span data-l="en">When you come back after a break, it can file what you wrote into elements, patches and relations. It never edits prose on its own.</span></li>
-          <li><span data-l="zh">Codex、Claude Code、Antigravity 可以通过 MCP 连接到某一个项目，默认只读。</span><span data-l="en">Codex, Claude Code and Antigravity can connect to one project through MCP, read-only by default.</span></li>
+          <li><span>{{copy:agent.providers}}</span></li>
+          <li><span>{{copy:agent.edits}}</span></li>
+          <li><span>{{copy:agent.organize}}</span></li>
+          <li><span>{{copy:agent.mcp}}</span></li>
         </ul>
       </div>
 
@@ -689,12 +633,12 @@ h2 {
               <i class="mk mk-seal on" style="--c: var(--c-red)"></i><i class="mk mk-square" style="--c: var(--c-purple)"></i>
             </div>
             <article class="pg">
-              <div class="folio"><span>Chapter III</span><span>·</span><b style="--c: var(--c-red)"><span data-l="zh">寻信</span><span data-l="en">The letters</span></b></div>
-              <div class="pg-title"><span data-l="zh">雾</span><span data-l="en">Fog</span></div><hr class="pg-rule">
+              <div class="folio"><span>{{copy:story.chapter}}</span><span>·</span><b style="--c: var(--c-red)"><span>{{copy:story.line}}</span></b></div>
+              <div class="pg-title"><span>{{copy:story.fog}}</span></div><hr class="pg-rule">
               <div class="pg-body">
-                <p><span data-l="zh">雾从港口那边漫过来的时候，林岚正把第三封信压在灯座底下。</span><span data-l="en">The fog came in from the harbour while Lin was tucking the third letter under the lamp.</span></p>
-                <p class="edit" id="ag-edit"><span data-l="zh">守塔人说今晚不会有船。</span><span data-l="en">The keeper said no boats would come tonight.</span></p>
-                <p><span data-l="zh">她没有回答，只是把窗推开一道缝，让海风翻动桌上的信纸。</span><span data-l="en">She did not answer. She opened the window a crack and let the sea wind turn the pages.</span></p>
+                <p><span>{{copy:story.opening}}</span></p>
+                <p class="edit" id="ag-edit"><span>{{copy:story.agentAfter}}</span></p>
+                <p><span>{{copy:story.window}}</span></p>
               </div>
             </article>
           </div>
@@ -702,23 +646,23 @@ h2 {
             <div class="sb-top">
               <div class="sb-tabs">
                 <i class="sb-tab-block glass is-on" aria-hidden="true"></i>
-                <span class="sb-tab">Review</span><span class="sb-tab"><span data-l="zh" data-script="cjk">素材库</span><span data-l="en">Library</span></span><span class="sb-tab"><span data-l="zh" data-script="cjk">统计</span><span data-l="en">Stats</span></span><span class="sb-tab is-on">Agent</span>
+                <span class="sb-tab"><span{{cjk-attr}}>{{copy:ui.review}}</span></span><span class="sb-tab"><span{{cjk-attr}}>{{copy:ui.library}}</span></span><span class="sb-tab"><span{{cjk-attr}}>{{copy:ui.stats}}</span></span><span class="sb-tab is-on">Agent</span>
               </div>
               <span class="sb-toggle"><i class="ic" style="--i:url({{asset:icons/moon-right.png}})"></i></span>
             </div>
             <div class="agt-head">
-              <span class="agt-title"><span data-l="zh">守塔人的话太满了，帮我收成一句</span><span data-l="en">The keeper says too much</span></span>
-              <span class="agt-acts"><span class="agt-act"><span data-l="zh">工作记忆</span><span data-l="en">Working memory</span></span><span class="agt-act"><i class="ic" style="--i:url({{asset:icons/stitched.png}})"></i><span data-l="zh">历史</span><span data-l="en">History</span></span><span class="agt-act"><i class="ic" style="--i:url({{asset:icons/plus.png}})"></i><span data-l="zh">新对话</span><span data-l="en">New chat</span></span></span>
+              <span class="agt-title"><span>{{copy:agent.chat}}</span></span>
+              <span class="agt-acts"><span class="agt-act"><span>{{copy:ui.memory}}</span></span><span class="agt-act"><i class="ic" style="--i:url({{asset:icons/stitched.png}})"></i><span>{{copy:ui.history}}</span></span><span class="agt-act"><i class="ic" style="--i:url({{asset:icons/plus.png}})"></i><span>{{copy:ui.newChat}}</span></span></span>
             </div>
             <div class="agt" id="ag-log">
-              <div class="agt-user glass glass--rest glass--still step"><span data-l="zh">守塔人的话太满了，帮我收成一句，别动林岚的部分。</span><span data-l="en">The keeper says too much. Pare it down to one line, and leave Lin alone.</span></div>
-              <div class="agt-tool glass glass--rest glass--still glass--wide step"><i class="ic" style="--i:url({{asset:icons/status-done.png}})"></i><span><span data-l="zh">阅读章节「雾」</span><span data-l="en">Read chapter “Fog”</span></span></div>
-              <div class="agt-tool glass glass--rest glass--still step"><i class="ic" style="--i:url({{asset:icons/status-done.png}})"></i><span><span data-l="zh">查找写作要素出场「守塔人」</span><span data-l="en">Find appearances of element “The keeper”</span></span></div>
-              <div class="agt-tool glass glass--rest glass--still glass--wide step"><i class="ic" style="--i:url({{asset:icons/status-done.png}})"></i><span><span data-l="zh">修改章节正文「雾」</span><span data-l="en">Revise chapter “Fog”</span></span></div>
-              <div class="agt-text step"><span data-l="zh">改好了：守塔人那句收成了一句，已在正文里标出。林岚的部分没有动。</span><span data-l="en">Done. The keeper’s line is down to one sentence and marked in the text. Lin’s parts are untouched.</span></div>
+              <div class="agt-user glass glass--rest glass--still step"><span>{{copy:agent.prompt}}</span></div>
+              <div class="agt-tool glass glass--rest glass--still glass--wide step"><i class="ic" style="--i:url({{asset:icons/status-done.png}})"></i><span><span>{{copy:agent.read}}</span></span></div>
+              <div class="agt-tool glass glass--rest glass--still step"><i class="ic" style="--i:url({{asset:icons/status-done.png}})"></i><span><span>{{copy:agent.find}}</span></span></div>
+              <div class="agt-tool glass glass--rest glass--still glass--wide step"><i class="ic" style="--i:url({{asset:icons/status-done.png}})"></i><span><span>{{copy:agent.revise}}</span></span></div>
+              <div class="agt-text step"><span>{{copy:agent.answer}}</span></div>
             </div>
             <div class="agt-composer glass glass--rest">
-              <div class="agt-ph"><span data-l="zh">询问 Agent…</span><span data-l="en">Ask the agent…</span></div>
+              <div class="agt-ph"><span>{{copy:agent.placeholder}}</span></div>
               <div class="agt-bar">
                 <span class="agt-tray glass glass--rest"><span class="rb"><i class="ic" style="--i:url({{asset:icons/dharma-wheel.png}})"></i></span><span class="rb"><i class="ic" style="--i:url({{asset:icons/mic.png}})"></i></span></span>
                 <span class="rb send glass glass--primary"><i class="ic" style="--i:url({{asset:icons/lift.png}})"></i></span>
@@ -734,17 +678,16 @@ h2 {
   <section class="sheet glass" data-sea id="data" style="--sec: var(--c-teal)">
     <div class="data">
       <div class="pillar-text">
-        <div class="kind"><i class="mk mk-slip"></i><span data-l="zh">存</span><span data-l="en">Keep</span></div>
-        <h2><span data-l="zh">你的数据</span><span data-l="en">Your data</span></h2>
+        <div class="kind"><i class="mk mk-slip"></i><span>{{copy:data.kicker}}</span></div>
+        <h2><span>{{copy:data.title}}</span></h2>
         <ul class="points">
-          <li><span data-l="zh">所有内容保存在你的 Mac 上，断网也能写，<span class="sh">不需要账号</span>。</span><span data-l="en">Everything is stored on your Mac and works offline. <span class="sh">No account needed.</span></span></li>
-          <li><span data-l="zh">所有项目可以导出为 Markdown ZIP；整个资料库可以备份成能恢复的 <code>.drifting</code> 文件。</span><span data-l="en">Export every project as a Markdown ZIP, or back up the whole library as a restorable <code>.drifting</code> file.</span></li>
-          <li><span data-l="zh">删除的项目会在「最近删除」里保留 30 天。</span><span data-l="en">Deleted projects stay in Recently Deleted for 30 days.</span></li>
+          <li><span>{{copy:data.offline}}</span></li>
+          <li><span>{{copy:data.export}}</span></li>
+          <li><span>{{copy:data.deleted}}</span></li>
         </ul>
       </div>
       <p class="account">
-        <span data-l="zh">注册账号后，可以在多台 Mac 之间同步，并把章节分享成网页给读者阅读和评论。同步内容没有端到端加密。详见<a href="/privacy">隐私政策</a>和<a href="/terms">服务条款</a>。</span>
-        <span data-l="en">With an account you can sync between Macs and share a chapter as a web page that readers can comment on. Synced projects are not end-to-end encrypted. See the <a href="/privacy">privacy policy</a> and <a href="/terms">terms</a>.</span>
+        <span>{{copy:data.hosted}}</span>
       </p>
     </div>
   </section>
@@ -753,59 +696,59 @@ h2 {
   <section class="sheet glass" data-sea id="faq" style="--sec: var(--c-purple)">
     <div class="faq">
       <div class="pillar-text">
-        <div class="kind"><i class="mk mk-star"></i><span data-l="zh">问</span><span data-l="en">Ask</span></div>
-        <h2><span data-l="zh">常见问题</span><span data-l="en">Questions</span></h2>
+        <div class="kind"><i class="mk mk-star"></i><span>{{copy:faq.kicker}}</span></div>
+        <h2><span>{{copy:faq.title}}</span></h2>
       </div>
       <div class="qa">
         <div class="q">
-          <h3><span data-l="zh">和 Scrivener、Novelcrafter 有什么不同？</span><span data-l="en">How is it different from Scrivener and Novelcrafter?</span></h3>
-          <p><span data-l="zh">Drifting 是免费、开源、能离线用的 Mac 应用，既有 Scrivener 式的章节、大纲、人物和资料，也有能读写整个项目的 AI Agent。Scrivener 是老牌的桌面写作软件，没有内置 AI；Novelcrafter 是带 AI 的网页写作工具，需要联网。Drifting 的稿件存在你的 Mac 上，同时是一份 Markdown 文件夹。</span><span data-l="en">Drifting is a free, open-source Mac app that works offline, with Scrivener-style chapters, outline, characters and research and an AI Agent that reads and edits the whole project. Scrivener is a long-standing desktop writing studio with no built-in AI; Novelcrafter is a web app for writing with AI, and needs a connection. Drifting keeps your manuscripts on your Mac as a folder of Markdown files.</span></p>
+          <h3><span>{{copy:faq.compare.q}}</span></h3>
+          <p><span>{{copy:faq.compare.a}}</span></p>
           <div class="cmp-wrap">
             <table class="cmp">
               <thead>
                 <tr><th scope="col"></th><th scope="col"><span class="su" style="--c: var(--sec)">Drifting</span></th><th scope="col">Scrivener</th><th scope="col">Novelcrafter</th></tr>
               </thead>
               <tbody>
-                <tr><th scope="row"><span data-l="zh">形式</span><span data-l="en">Runs as</span></th><td><span data-l="zh">Mac 应用</span><span data-l="en">Mac app</span></td><td><span data-l="zh">Mac、Windows、iOS 应用</span><span data-l="en">Mac, Windows and iOS apps</span></td><td><span data-l="zh">网页应用</span><span data-l="en">Web app</span></td></tr>
-                <tr><th scope="row"><span data-l="zh">价格</span><span data-l="en">Price</span></th><td><span data-l="zh">免费</span><span data-l="en">Free</span></td><td><span data-l="zh">一次性购买</span><span data-l="en">One-time purchase</span></td><td><span data-l="zh">订阅</span><span data-l="en">Subscription</span></td></tr>
-                <tr><th scope="row"><span data-l="zh">源码</span><span data-l="en">Source</span></th><td><span data-l="zh">开源（AGPL）</span><span data-l="en">Open source (AGPL)</span></td><td><span data-l="zh">不公开</span><span data-l="en">Closed</span></td><td><span data-l="zh">不公开</span><span data-l="en">Closed</span></td></tr>
-                <tr><th scope="row"><span data-l="zh">离线</span><span data-l="en">Offline</span></th><td><span data-l="zh">可以</span><span data-l="en">Yes</span></td><td><span data-l="zh">可以</span><span data-l="en">Yes</span></td><td><span data-l="zh">需要联网</span><span data-l="en">Needs a connection</span></td></tr>
-                <tr><th scope="row">AI</th><td><span data-l="zh">读写整个项目的 Agent，用你自己的密钥</span><span data-l="en">An Agent for the whole project, on your own key</span></td><td><span data-l="zh">没有内置</span><span data-l="en">None built in</span></td><td><span data-l="zh">用你自己的密钥或本地模型</span><span data-l="en">Your own key or a local model</span></td></tr>
+                <tr><th scope="row"><span>{{copy:compare.platform}}</span></th><td><span>{{copy:compare.mac}}</span></td><td><span>{{copy:compare.desktop}}</span></td><td><span>{{copy:compare.web}}</span></td></tr>
+                <tr><th scope="row"><span>{{copy:compare.price}}</span></th><td><span>{{copy:compare.free}}</span></td><td><span>{{copy:compare.once}}</span></td><td><span>{{copy:compare.subscription}}</span></td></tr>
+                <tr><th scope="row"><span>{{copy:compare.source}}</span></th><td><span>{{copy:compare.open}}</span></td><td><span>{{copy:compare.closed}}</span></td><td><span>{{copy:compare.closed}}</span></td></tr>
+                <tr><th scope="row"><span>{{copy:compare.offline}}</span></th><td><span>{{copy:compare.yes}}</span></td><td><span>{{copy:compare.yes}}</span></td><td><span>{{copy:compare.online}}</span></td></tr>
+                <tr><th scope="row">AI</th><td><span>{{copy:compare.agent}}</span></td><td><span>{{copy:compare.noAi}}</span></td><td><span>{{copy:compare.model}}</span></td></tr>
               </tbody>
             </table>
           </div>
         </div>
         <div class="q">
-          <h3><span data-l="zh">能导入 Scrivener 的项目吗？</span><span data-l="en">Can I bring my Scrivener project?</span></h3>
-          <p><span data-l="zh">不能直接打开 <code>.scriv</code> 项目。可以先在 Scrivener 里把稿子编译成 Word（<code>.docx</code>）或纯文本，再导入 Drifting；Drifting 可以导入 <code>.md</code>、<code>.txt</code>、<code>.docx</code>。</span><span data-l="en">Not directly: Drifting does not open <code>.scriv</code> projects. Compile the manuscript to Word (<code>.docx</code>) or plain text in Scrivener and import that; Drifting imports <code>.md</code>, <code>.txt</code> and <code>.docx</code>.</span></p>
+          <h3><span>{{copy:faq.scrivener.q}}</span></h3>
+          <p><span>{{copy:faq.scrivener.a}}</span></p>
         </div>
         <div class="q">
-          <h3><span data-l="zh">能离线用吗？需要账号吗？</span><span data-l="en">Does it work offline? Do I need an account?</span></h3>
-          <p><span data-l="zh">能离线用，也不需要账号。所有内容保存在你的 Mac 上。只有 AI Agent 要联网连接你选的模型服务；账号只用于在多台 Mac 之间同步和分享章节。</span><span data-l="en">It works offline, with no account. Everything is stored on your Mac. Only the AI Agent goes online, to reach the model service you choose; an account is only for syncing between Macs and sharing chapters.</span></p>
+          <h3><span>{{copy:faq.offline.q}}</span></h3>
+          <p><span>{{copy:faq.offline.a}}</span></p>
         </div>
         <div class="q">
-          <h3><span data-l="zh">免费吗？开源吗？</span><span data-l="en">Is it free? Is it open source?</span></h3>
-          <p><span data-l="zh">免费下载。源码以 AGPL-3.0-or-later 许可证公开在 <a href="https://github.com/chihumyum/Drifting" target="_blank" rel="noopener">GitHub</a> 上，也可以自己从源码构建。</span><span data-l="en">Free to download. The source is on <a href="https://github.com/chihumyum/Drifting" target="_blank" rel="noopener">GitHub</a> under AGPL-3.0-or-later, and you can build it yourself.</span></p>
+          <h3><span>{{copy:faq.free.q}}</span></h3>
+          <p><span>{{copy:faq.free.a}}</span></p>
         </div>
         <div class="q">
-          <h3><span data-l="zh">一定要用 AI 吗？支持哪些模型？</span><span data-l="en">Do I have to use AI? Which models does it support?</span></h3>
-          <p><span data-l="zh">不用 AI 也能正常写作。Agent 可以用你自己的 DeepSeek、Anthropic、OpenAI 密钥，也可以登录 ChatGPT 订阅（实验性）。目前不支持本地模型。</span><span data-l="en">Writing never requires AI. The Agent works with your own DeepSeek, Anthropic or OpenAI key, or a ChatGPT subscription (experimental). Local models are not supported yet.</span></p>
+          <h3><span>{{copy:faq.ai.q}}</span></h3>
+          <p><span>{{copy:faq.ai.a}}</span></p>
         </div>
         <div class="q">
-          <h3><span data-l="zh">能和 Obsidian 一起用吗？</span><span data-l="en">Can I use it with Obsidian?</span></h3>
-          <p><span data-l="zh">可以。每个项目同时是一个 Markdown 文件夹，在 Obsidian 或任何文本编辑器里改过的章节和构想会合并回 Drifting。成稿可以导出为 EPUB、PDF、Word。</span><span data-l="en">Yes. Every project is also a folder of Markdown files; chapters and ideas edited in Obsidian or any text editor merge back into Drifting. Export the book as EPUB, PDF or Word.</span></p>
+          <h3><span>{{copy:faq.obsidian.q}}</span></h3>
+          <p><span>{{copy:faq.obsidian.a}}</span></p>
         </div>
         <div class="q">
-          <h3><span data-l="zh">稿子会丢吗？怎么备份？</span><span data-l="en">Could I lose my manuscript? How do I back it up?</span></h3>
-          <p><span data-l="zh">稿件在你自己的 Mac 上，有历史快照，删除的项目在「最近删除」里保留 30 天，整个资料库可以备份成能恢复的 <code>.drifting</code> 文件。Drifting 仍在早期开发，重要的稿件请另外保留副本。</span><span data-l="en">Your manuscripts stay on your Mac, with history snapshots, Recently Deleted for 30 days, and a backup of the whole library as a restorable <code>.drifting</code> file. Drifting is in early development: keep independent copies of manuscripts that matter.</span></p>
+          <h3><span>{{copy:faq.backup.q}}</span></h3>
+          <p><span>{{copy:faq.backup.a}}</span></p>
         </div>
         <div class="q">
-          <h3><span data-l="zh">能在多台 Mac 之间同步吗？</span><span data-l="en">Can I sync between Macs?</span></h3>
-          <p><span data-l="zh">可以，注册账号后就能同步，也可以把章节分享成网页给读者阅读和评论。同步内容没有端到端加密。</span><span data-l="en">Yes, with an account, which also lets you share a chapter as a web page readers can comment on. Synced projects are not end-to-end encrypted.</span></p>
+          <h3><span>{{copy:faq.sync.q}}</span></h3>
+          <p><span>{{copy:faq.sync.a}}</span></p>
         </div>
         <div class="q">
-          <h3><span data-l="zh">支持哪些系统和语言？</span><span data-l="en">Which systems and languages?</span></h3>
-          <p><span data-l="zh">目前只支持 Apple Silicon 上的 macOS 13 及以上。界面有简体中文、繁體中文、English、日本語、한국어、Español、Deutsch、Français、Português (Brasil)。</span><span data-l="en">macOS 13 or later on Apple Silicon, for now. The interface is in English, Simplified and Traditional Chinese, Japanese, Korean, Spanish, German, French and Brazilian Portuguese.</span></p>
+          <h3><span>{{copy:faq.system.q}}</span></h3>
+          <p><span>{{copy:faq.system.a}}</span></p>
         </div>
       </div>
     </div>
@@ -816,19 +759,19 @@ h2 {
       <div class="cover" id="book-cover">
       </div>
       <div class="book-body">
-        <div class="book-title"><span data-l="zh">潮汐灯塔</span><span data-l="en">The Tide Light</span></div>
-        <div class="book-sub"><span data-l="zh">第一卷 · 雾</span><span data-l="en">Book one · Fog</span></div>
-        <div class="book-meta"><span><b>4</b><span data-l="zh">章</span><span data-l="en">chapters</span></span><span><b>3</b><span data-l="zh">条故事线</span><span data-l="en">storylines</span></span><span><b>12,480</b><span data-l="zh">字</span><span data-l="en">words</span></span></div>
+        <div class="book-title"><span>{{copy:story.book}}</span></div>
+        <div class="book-sub"><span>{{copy:story.volume}}</span></div>
+        <div class="book-meta"><span><b>4</b><span>{{copy:count.chapters}}</span></span><span><b>3</b><span>{{copy:count.storylines}}</span></span><span><b>{{word-count}}</b><span>{{copy:count.words}}</span></span></div>
         <div class="book-progress"></div>
       </div>
     </article>
     <div class="closing-text">
-      <h2><span data-l="zh">支持 Apple Silicon 上的 macOS 13 及以上</span><span data-l="en">For macOS 13 or later on Apple Silicon</span></h2>
-      <p><span data-l="zh">仍在早期开发。作者每天都在用它写作，它也在频繁变化。重要的稿件请另外保留副本，并先看一下<a href="https://github.com/chihumyum/Drifting/blob/main/KNOWN_ISSUES.md" target="_blank" rel="noopener">已知问题</a>。</span><span data-l="en">Early development. Drifting is used daily by its author and changes often. Keep independent copies of manuscripts that matter, and read the <a href="https://github.com/chihumyum/Drifting/blob/main/KNOWN_ISSUES.md" target="_blank" rel="noopener">known issues</a>.</span></p>
+      <h2><span>{{copy:closing.title}}</span></h2>
+      <p><span>{{copy:closing.notice}}</span></p>
+      <p>{{copy:closing.install}}</p>
       <div class="cta">
-        <a class="glass glass--primary pill" href="https://github.com/chihumyum/Drifting/releases/latest" target="_blank" rel="noopener"><span data-l="zh">下载 Mac 版</span><span data-l="en">Download for Mac</span></a>
-        <a data-l="zh" class="glass glass--rest pill" href="https://github.com/chihumyum/Drifting/blob/main/README.zh-CN.md#%E4%BB%8E%E6%BA%90%E7%A0%81%E6%9E%84%E5%BB%BA" target="_blank" rel="noopener">从源码构建</a>
-        <a data-l="en" class="glass glass--rest pill" href="https://github.com/chihumyum/Drifting#build-from-source" target="_blank" rel="noopener">Build from source</a>
+        <a class="glass glass--primary pill" href="https://github.com/chihumyum/Drifting/releases/latest" target="_blank" rel="noopener"><span>{{copy:download.mac}}</span></a>
+        <a class="glass glass--rest pill" href="{{readme}}" target="_blank" rel="noopener">{{copy:download.build}}</a>
       </div>
     </div>
   </section>
@@ -836,12 +779,13 @@ h2 {
 
 <footer class="layer">
   <nav>
-    <a href="/support"><span data-l="zh">支持</span><span data-l="en">Support</span></a>
-    <a href="/privacy"><span data-l="zh">隐私政策</span><span data-l="en">Privacy</span></a>
-    <a href="/terms"><span data-l="zh">服务条款</span><span data-l="en">Terms</span></a>
-    <a href="https://github.com/chihumyum/Drifting/issues" target="_blank" rel="noopener"><span data-l="zh">报告问题</span><span data-l="en">Report a bug</span></a>
+    <a href="/support"><span>{{copy:footer.support}}</span></a>
+    <a href="/privacy"><span>{{copy:footer.privacy}}</span></a>
+    <a href="/terms"><span>{{copy:footer.terms}}</span></a>
+    <a href="https://github.com/chihumyum/Drifting/issues" target="_blank" rel="noopener"><span>{{copy:footer.bug}}</span></a>
     <a href="https://github.com/chihumyum/Drifting" target="_blank" rel="noopener">GitHub</a>
   </nav>
+{{information-note}}
   <div><span class="addr">support@drifting.cc</span> · AGPL-3.0-or-later</div>
 </footer>
 
@@ -851,8 +795,7 @@ h2 {
   var S = window.DriftingSea;
   var root = document.documentElement;
   var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  // The page is written in one language (/ in English, /zh in Chinese); its button opens the other.
-  function lang() { return root.dataset.lang === 'en' ? 'en' : 'zh'; }
+  var cjk = root.dataset.script === 'cjk';
 
   /* ── Theme (site.mjs) ── */
   var bar = S.startBar({
@@ -867,7 +810,7 @@ h2 {
   if (!sea || reduce) root.classList.add('still-word');
   if (sea) {
     sea.refreshTheme();
-    sea.setScript(lang());
+    sea.setScript({{sea-script}});
     sea.setActive(true);
     // The rain falls the whole way down the page, as on the app's first-run page:
     // its heads and trails keep changing the characters they pass.
@@ -952,7 +895,9 @@ h2 {
     var to = chosen.offsetLeft;
     block.style.transition = moving ? 'transform ' + PUSH_MS + 'ms ' + PUSH_EASE + ', width ' + PUSH_MS + 'ms ' + PUSH_EASE : 'none';
     block.style.transform = 'translateX(' + to + 'px)';
+    block.style.top = chosen.offsetTop + 'px';
     block.style.width = chosen.offsetWidth + 'px';
+    block.style.height = chosen.offsetHeight + 'px';
     block.dataset.seated = '1';
     if (!moving) return;
     // Its glass runs with the distance it travels, and stands still once it lands.
@@ -1014,8 +959,13 @@ h2 {
 
   /* Write: each line takes shape as it is typed, and the Markdown file beside it is saved. */
   var MD = {
-    zh: { first: '雾从港口那边漫过来的时候，林岚正把第三封信压在灯座底下。', lines: ['# 铁梯', '她每往上走一级，脚下就响一声，像有人在楼下**跟着数**。', '## 第七圈', '海面上亮起一点很小的光。'] },
-    en: { first: 'The fog came in from the harbour while Lin was tucking the third letter under the lamp.', lines: ['# The stairs', 'Every step gave a small sound, as if someone below were **counting**.', '## The seventh turn', 'A small glow rose on the water.'] },
+    first: document.querySelector('#vg-md .pg-body > p').textContent,
+    lines: Array.from(document.querySelectorAll('#md-typed > *'), function (line) {
+      var prefix = line.classList.contains('h1') ? '# ' : line.classList.contains('h2') ? '## ' : '';
+      var clone = line.cloneNode(true);
+      clone.querySelectorAll('strong').forEach(function (bold) { bold.replaceWith('**' + bold.textContent + '**'); });
+      return prefix + clone.textContent;
+    }),
   };
   var rawBox = document.getElementById('md-raw');
   var rawGhost = document.getElementById('md-raw-ghost');
@@ -1030,11 +980,11 @@ h2 {
     box.innerHTML = '';
     ['---', 'drifting-id: 3f9c2a', '---'].forEach(function (t) { box.appendChild(rawLine(t, 'fm')); });
     box.appendChild(rawLine(''));
-    box.appendChild(rawLine(MD[lang()].first));
+    box.appendChild(rawLine(MD.first));
     lines.forEach(function (t) { box.appendChild(rawLine('')); box.appendChild(rawLine(t)); });
   }
-  fillRaw(MD[lang()].lines);
-  fillRaw(MD[lang()].lines, rawGhost);
+  fillRaw(MD.lines);
+  fillRaw(MD.lines, rawGhost);
   // The finished page, hidden, holds the height while the lines are typed over it.
   (function () {
     var live = document.getElementById('md-typed');
@@ -1048,8 +998,8 @@ h2 {
   settle.md = function () {
     var box = document.getElementById('md-typed');
     box.style.opacity = '';
-    box.innerHTML = MD[lang()].lines.map(function (l) { return renderLine(l, false).outerHTML; }).join('');
-    fillRaw(MD[lang()].lines);
+    box.innerHTML = MD.lines.map(function (l) { return renderLine(l, false).outerHTML; }).join('');
+    fillRaw(MD.lines);
   };
   function renderLine(raw, caret) {
     var kind = 'p', body = raw;
@@ -1064,7 +1014,7 @@ h2 {
   }
   function playMarkdown(alive) {
     var box = document.getElementById('md-typed');
-    var lines = MD[lang()].lines;
+    var lines = MD.lines;
     box.style.opacity = '0';
     return (async function () {
       await wait(320);
@@ -1084,7 +1034,7 @@ h2 {
           box.replaceChild(next, el);
           el = next;
           var ch = line[j];
-          await wait(ch === ' ' || ch === '*' || ch === '#' ? 70 : (lang() === 'zh' ? 100 : 40) + Math.random() * 50);
+          await wait(ch === ' ' || ch === '*' || ch === '#' ? 70 : (cjk ? 100 : 40) + Math.random() * 50);
         }
         if (!alive()) return;
         box.replaceChild(renderLine(raw, false), el);
@@ -1099,11 +1049,8 @@ h2 {
   loop(document.getElementById('vg-md'), 'md', playMarkdown, 3200);
 
   /* Tend: the ask, its steps arriving one by one, the edit erased and written into the page. */
-  var AG = {
-    zh: { old: '守塔人说，今晚这样的大雾，港口里不会有任何一条船敢出来，你就别再等了，等也是白等。', now: '守塔人说今晚不会有船。' },
-    en: { old: 'The keeper said that in a fog like this not a single boat would dare come out tonight, so she might as well stop waiting.', now: 'The keeper said no boats would come tonight.' },
-  };
   var edit = document.getElementById('ag-edit');
+  var AG = { old: {{agent-before}}, now: edit.textContent };
   var steps = Array.prototype.slice.call(document.querySelectorAll('#ag-log .step'));
   var DONE = 'url({{asset:icons/status-done.png}})', LOADER = 'url({{asset:icons/loader.png}})';
   function setEdit(html) { edit.innerHTML = html; }
@@ -1115,7 +1062,7 @@ h2 {
     return { head: a.slice(0, p), tail: a.slice(a.length - s), gone: a.slice(p, a.length - s), come: b.slice(p, b.length - s) };
   }
   function settleEdit() {
-    var d = diffOf(AG[lang()]);
+    var d = diffOf(AG);
     setEdit(esc(d.head) + '<span class="ins-done">' + esc(d.come) + '</span>' + esc(d.tail));
   }
   settleEdit();
@@ -1126,7 +1073,7 @@ h2 {
     var clone = agentPage.cloneNode(true);
     var e = clone.querySelector('#ag-edit');
     e.removeAttribute('id');
-    e.textContent = AG[lang()].old;
+    e.textContent = AG.old;
     clone.style.cssText = 'position:absolute;left:0;top:0;visibility:hidden;pointer-events:none;min-height:0;max-width:none;width:' + (agentPage.clientWidth - padX) + 'px';
     agentPage.parentNode.appendChild(clone);
     var tallest = clone.offsetHeight;
@@ -1145,7 +1092,7 @@ h2 {
     });
   };
   function playAgent(alive) {
-    var a = AG[lang()].old, d = diffOf(AG[lang()]);
+    var a = AG.old, d = diffOf(AG);
     var head = d.head, tail = d.tail, gone = d.gone, come = d.come;
     steps.forEach(function (st) { st.classList.add('wait'); });
     return (async function () {
@@ -1179,7 +1126,7 @@ h2 {
             for (var n = 1; n <= come.length; n++) {
               if (!alive()) return;
               setEdit(esc(head) + '<span class="ins">' + esc(come.slice(0, n)) + '</span><span class="caret"></span>' + esc(tail));
-              await wait(lang() === 'zh' ? 85 : 38);
+              await wait(cjk ? 85 : 38);
             }
             await wait(700);
             if (!alive()) return;

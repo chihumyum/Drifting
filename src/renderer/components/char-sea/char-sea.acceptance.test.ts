@@ -267,28 +267,15 @@ describe('the sea of characters under the desktop window', () => {
     for (const file of ['index.html', 'site.css']) {
       expect(read(`scripts/design-assets/landing/${file}`)).not.toMatch(/<link(?![^>]*rel="(?:canonical|alternate)")[^>]+href="https?:|<script[^>]+src="https?:|url\(["']?https?:|@import|fonts\.googleapis/);
     }
-    // Search engines and sharing: the page is written once per language, / in English and /zh
-    // in Chinese, each naming its own address and the other's; it says what the app is, and its
-    // outline is the word and the sections' headings; the corners' page titles are not headings.
+    // The builder supplies each language's metadata and menu. The Showcase
+    // routing tests check them on the generated pages.
     const build = read('scripts/design-assets/landing/build.mjs');
-    expect(build).toContain("const HOMES = { en: { file: 'index.html', lang: 'en' }, zh: { file: 'zh.html', lang: 'zh-CN' } };");
-    expect(build).toContain('function inLanguage(html, lang) {');
-    for (const [lang, url] of [['en', 'https://drifting.cc/'], ['zh', 'https://drifting.cc/zh']]) {
-      expect(page).toMatch(new RegExp(`<title data-l="${lang}">Drifting — [^<]+</title>`));
-      expect(page).toContain(`<link data-l="${lang}" rel="canonical" href="${url}">`);
-      expect(page).toContain(`<meta data-l="${lang}" property="og:url" content="${url}">`);
-      expect(page).toContain(`<link rel="alternate" hreflang="${lang}" href="${url}">`);
+    for (const placeholder of ['metadata', 'software-schema', 'language-menu']) {
+      expect(page).toContain(`{{${placeholder}}}`);
     }
-    expect(page).toContain('<link rel="alternate" hreflang="x-default" href="https://drifting.cc/">');
-    expect(page).toContain('<a class="glass glass--rest pill pill--sm" id="lang-btn" data-l="en" href="/zh" hreflang="zh" lang="zh-CN">中文</a>');
-    expect(page).not.toContain('langHooks');
-    expect(page).toContain('<meta property="og:site_name" content="Drifting">');
-    const data = JSON.parse(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(page)?.[1] ?? 'null');
-    const app = data['@graph'].find((node: { '@type': string }) => node['@type'] === 'SoftwareApplication');
-    expect(app).toMatchObject({ name: 'Drifting', offers: { price: '0' }, downloadUrl: 'https://github.com/chihumyum/Drifting/releases/latest' });
-    expect(app.operatingSystem).toContain('macOS');
-    expect(app.license).toContain('AGPL-3.0-or-later');
-    expect([...page.matchAll(/<h([1-6])\b/g)].map((m) => m[1]).join('')).toBe('122222');
+    // The word and the sheets define the outline. Only FAQ questions add a third level.
+    expect([...page.matchAll(/<h([12])\b/g)].map((m) => m[1]).join('')).toBe('1222222');
+    expect(page.replace(/<section\b[^>]*id="faq"[\s\S]*?<\/section>/, '')).not.toMatch(/<h[3-6]\b/);
     expect(page).toContain("var el = document.createElement(kind === 'p' ? 'p' : 'div');");
     expect(build).toContain("path.join(root, 'node_modules/@fontsource-variable', face)");
     // A tab switch in the workspace corners pushes the panels and slides the glass block as the app does.
@@ -307,11 +294,8 @@ describe('the sea of characters under the desktop window', () => {
     expect(site).toContain(':is(.pill, .round, .brand).glass:active { --glass-g: 1.7; --glass-sp: 1.3; }');
     // The theme follows the system on every visit: a pick is kept for the tab only.
     const prefs = read('scripts/design-assets/landing/prefs.js');
-    expect(prefs).toContain("sessionStorage.getItem('drifting.landing.theme')");
-    expect(prefs).not.toContain("localStorage.getItem('drifting.landing.theme')");
-    // / opens /zh for a visitor who reads Chinese (or a #zh link); /zh never sends a reader away unasked.
-    expect(prefs).toContain('if (lang !== written && page && (hash || atHome)) location.replace(new URL(page.href).pathname + location.hash);');
-    expect(read('scripts/design-assets/landing/site.mjs')).toContain('localStorage.setItem(LANG_KEY, langButton.hreflang);');
+    expect(prefs).toContain('sessionStorage.getItem(THEME_KEY)');
+    expect(prefs).not.toContain('localStorage.getItem(THEME_KEY)');
   });
 
   it('is written down in the design system', () => {

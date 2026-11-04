@@ -1,16 +1,14 @@
 #!/usr/bin/env node
 // Build drifting.cc's home page and the look its other pages share:
 //   node scripts/design-assets/landing/build.mjs [out-dir] [--og card.png]
-// Writes the home page in English (index.html, served at /) and in Chinese
-// (zh.html, served at /zh), assets/ (site.css, prefs.js, the landing and
-// information page scripts, masks and icons) and fonts/ (out/landing by
-// default), replacing only those; --og copies the sharing card in as og.png.
-// Point it at the site's served directory to update the site: the information
-// pages there link /assets/site.css, /assets/prefs.js and /assets/pages.js.
+// Generates the localized homes, shared assets, fonts and sitemap. The
+// site's own information pages beside them supply the sitemap dates.
 import { build } from 'esbuild';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { HOMES, ORIGIN } from './locales.mjs';
+import { charSeaScript } from '../../../src/renderer/lib/char-sea/char-sea-text.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '../../..');
@@ -20,9 +18,14 @@ const og = ogAt >= 0 ? path.resolve(args[ogAt + 1]) : null;
 const [outArg] = args.filter((arg, index) => !arg.startsWith('--') && !(ogAt >= 0 && index === ogAt + 1));
 const out = path.resolve(outArg ?? path.join(root, 'out/landing'));
 
-// The home page in each language: the file, and its <html lang>.
-const HOMES = { en: { file: 'index.html', lang: 'en' }, zh: { file: 'zh.html', lang: 'zh-CN' } };
-const homeFiles = Object.values(HOMES).map((home) => home.file);
+const homeFiles = HOMES.map(({ file }) => file);
+const copy = new Map(HOMES.map(({ locale }) => [locale, JSON.parse(readFileSync(path.join(here, 'copy', locale + '.json'), 'utf8'))]));
+const keys = Object.keys(copy.get('en')).sort().join('\n');
+for (const [locale, strings] of copy) {
+  if (Object.keys(strings).sort().join('\n') !== keys || Object.values(strings).some((value) => typeof value !== 'string' || !value.trim())) {
+    throw new Error(`Incomplete landing copy for ${locale}`);
+  }
+}
 
 // Only what this script writes is replaced: the site's own pages beside it stay,
 // and so does the sharing card unless a new one is given.
@@ -33,7 +36,7 @@ mkdirSync(path.join(out, 'fonts'), { recursive: true });
 // The scripts: the sea, frame and cover straight from the app's source, and
 // the bar every page shares (site.mjs).
 await build({
-  entryPoints: { landing: path.join(here, 'entry.mjs'), pages: path.join(here, 'pages.mjs') },
+  entryPoints: { landing: path.join(here, 'entry.mjs'), pages: path.join(here, 'pages.mjs'), prefs: path.join(here, 'prefs.js') },
   bundle: true,
   format: 'iife',
   minify: true,
@@ -45,7 +48,6 @@ await build({
   legalComments: 'none',
   logLevel: 'warning',
 });
-copyFileSync(path.join(here, 'prefs.js'), path.join(out, 'assets/prefs.js'));
 
 // The masks and icons the page and the shared sheet name, each copied once.
 const design = path.join(root, 'src/assets/design');
@@ -56,7 +58,7 @@ const withAssets = (text) => text.replace(/\{\{asset:([^}]+)\}\}/g, (_, rel) => 
 });
 // The version the hero and the structured data name is the app's own.
 const { version } = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8'));
-let page = withAssets(readFileSync(path.join(here, 'index.html'), 'utf8')).replaceAll('{{version}}', version);
+const template = withAssets(readFileSync(path.join(here, 'index.html'), 'utf8')).replaceAll('{{version}}', version);
 let css = withAssets(readFileSync(path.join(here, 'site.css'), 'utf8'));
 
 // The fonts, served from the site so a visit asks nothing of another host:
@@ -65,7 +67,8 @@ let css = withAssets(readFileSync(path.join(here, 'site.css'), 'utf8'));
 // directory. The families keep the app's names, so the sea's own font stacks
 // (char-sea-text.ts) find them.
 const others = readdirSync(out).filter((name) => name.endsWith('.html') && !homeFiles.includes(name));
-const written = [page, readFileSync(path.join(root, 'src/renderer/lib/char-sea/char-sea-text.ts'), 'utf8'),
+const pages = HOMES.map((home) => [home.file, renderHome(home)]);
+const written = [pages.map(([, html]) => html).join(''), readFileSync(path.join(root, 'src/renderer/lib/char-sea/char-sea-text.ts'), 'utf8'),
   ...others.map((name) => readFileSync(path.join(out, name), 'utf8'))].join('');
 const used = [...new Set([...written].map((char) => char.codePointAt(0)))];
 const covers = (ranges) => ranges.split(',').some((range) => {
@@ -91,50 +94,100 @@ for (const face of ['inter-tight', 'newsreader', 'noto-serif-sc']) {
 }
 css = css.replace('{{fonts}}', faces);
 
-for (const [name, text] of [['index.html', page], ['site.css', css]]) {
+for (const [name, text] of [...pages, ['site.css', css]]) {
   const left = text.match(/\{\{[^}]*\}\}/);
   if (left) throw new Error(`build.mjs: unfilled placeholder ${left[0]} in ${name}`);
 }
 if (og) copyFileSync(og, path.join(out, 'og.png'));
 writeFileSync(path.join(out, 'assets/site.css'), css);
 
-// The page says everything in both languages, each piece marked data-l. A page
-// in one language keeps the pieces marked with it, dropping the mark, and drops
-// the others' with all they hold (and their line, when they had one to
-// themselves), so a search engine reads one language at one address.
-function inLanguage(html, lang) {
-  const marked = /<([a-z][a-z0-9]*)\b([^<>]*?)\sdata-l="(zh|en)"([^<>]*)>/g;
-  let kept = '';
-  let at = 0;
-  for (const match of html.matchAll(marked)) {
-    if (match.index < at) continue;
-    const [tag, name, before, which, after] = match;
-    kept += html.slice(at, match.index);
-    at = match.index + tag.length;
-    if (which === lang) {
-      kept += `<${name}${before}${after}>`;
-      continue;
-    }
-    if (!['link', 'meta'].includes(name)) {
-      const nested = new RegExp(`<(/?)${name}\\b[^>]*>`, 'g');
-      nested.lastIndex = at;
-      for (let depth = 1; depth > 0;) {
-        const next = nested.exec(html);
-        if (!next) throw new Error(`build.mjs: <${name} data-l="${which}"> is never closed`);
-        depth += next[1] ? -1 : 1;
-        at = nested.lastIndex;
-      }
-    }
-    const lead = /\n[ \t]*$/.exec(kept);
-    const trail = /[ \t]*\n/y;
-    trail.lastIndex = at;
-    if (lead && trail.test(html)) {
-      kept = kept.slice(0, lead.index + 1);
-      at = trail.lastIndex;
-    }
-  }
-  return kept + html.slice(at);
+function attribute(text) {
+  return text.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
+
+function jsonScript(data) {
+  return `<script type="application/ld+json">\n${JSON.stringify(data, null, 2).replace(/</g, '\\u003c')}\n</script>`;
+}
+
+function renderHome(home) {
+  const { locale, path: urlPath, cjk, infoLang } = home;
+  const strings = copy.get(locale);
+  const title = attribute(strings['meta.title']);
+  const description = attribute(strings['meta.description']);
+  const url = ORIGIN + urlPath;
+  const alternates = HOMES.map(({ path, hreflang }) => `<link rel="alternate" hreflang="${hreflang}" href="${ORIGIN}${path}">`);
+  const metadata = [
+    `<title>${title}</title>`,
+    `<meta name="description" content="${description}">`,
+    `<link rel="canonical" href="${url}">`,
+    ...alternates,
+    `<link rel="alternate" hreflang="x-default" href="${ORIGIN}/">`,
+    '<meta property="og:type" content="website">',
+    '<meta property="og:site_name" content="Drifting">',
+    `<meta property="og:url" content="${url}">`,
+    `<meta property="og:title" content="${title}">`,
+    `<meta property="og:description" content="${description}">`,
+    `<meta property="og:locale" content="${home.ogLocale}">`,
+    ...HOMES.filter((other) => other !== home).map(({ ogLocale }) => `<meta property="og:locale:alternate" content="${ogLocale}">`),
+    `<meta property="og:image" content="${ORIGIN}/og.png">`,
+    '<meta property="og:image:type" content="image/png">',
+    '<meta property="og:image:width" content="2560">',
+    '<meta property="og:image:height" content="1280">',
+    `<meta property="og:image:alt" content="${attribute(strings['meta.image'])}">`,
+    '<meta name="twitter:card" content="summary_large_image">',
+  ].join('\n');
+
+  const schema = jsonScript({
+    '@context': 'https://schema.org',
+    '@graph': [
+      { '@type': 'WebSite', name: 'Drifting', url: ORIGIN + '/', inLanguage: HOMES.map(({ hreflang }) => hreflang) },
+      {
+        '@type': 'SoftwareApplication', name: 'Drifting', url, inLanguage: home.hreflang,
+        image: ORIGIN + '/og.png', description: strings['meta.description'], softwareVersion: version,
+        operatingSystem: 'macOS 13+', processorRequirements: 'Apple Silicon',
+        downloadUrl: 'https://github.com/chihumyum/Drifting/releases/latest',
+        license: 'https://spdx.org/licenses/AGPL-3.0-or-later.html',
+        isAccessibleForFree: true, offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+        sameAs: ['https://github.com/chihumyum/Drifting'],
+      },
+    ],
+  });
+  const label = attribute(strings['language.label']);
+  const links = HOMES.map((option) => {
+    const href = option.path === '/' ? '/#en' : option.path;
+    return `<a href="${href}" lang="${option.locale}" hreflang="${option.hreflang}" data-locale="${option.locale}"${option === home ? ' aria-current="page"' : ''}>${option.label}</a>`;
+  }).join('\n        ');
+  const menu = `<details class="language-switcher">
+      <summary class="glass glass--rest pill pill--sm" aria-label="${label} · ${home.label}">${home.label}</summary>
+      <nav aria-label="${label}">
+        ${links}
+      </nav>
+    </details>`;
+  const replacements = {
+    metadata, 'software-schema': schema, 'language-menu': menu, 'html-lang': locale, locale,
+    script: cjk ? 'cjk' : 'latin', 'cjk-attr': cjk ? ' data-script="cjk"' : '',
+    'sea-script': JSON.stringify(charSeaScript(locale)),
+    'agent-before': JSON.stringify(strings['story.agentBefore']).replace(/</g, '\\u003c'),
+    'theme-attrs': ['system', 'light', 'dark'].map((theme) => `data-theme-${theme}="${attribute(strings['theme.' + theme])}"`).join(' '),
+    'theme-label': attribute(strings['theme.system']),
+    'information-note': locale === 'en' || locale === 'zh-CN' ? '' : `<p class="information-note">${strings['footer.information']}</p>`,
+    readme: infoLang === 'zh'
+      ? 'https://github.com/chihumyum/Drifting/blob/main/README.zh-CN.md#%E4%BB%8E%E6%BA%90%E7%A0%81%E6%9E%84%E5%BB%BA'
+      : 'https://github.com/chihumyum/Drifting#build-from-source',
+    'word-count': new Intl.NumberFormat(locale).format(12480),
+  };
+  let html = template.replace(/\{\{([^}]+)\}\}/g, (token, key) => {
+    if (key.startsWith('copy:')) return strings[key.slice(5)] ?? token;
+    if (key.startsWith('date:')) {
+      const [month, day] = key.slice(5).split('-').map(Number);
+      return new Intl.DateTimeFormat(locale, { month: 'numeric', day: 'numeric', timeZone: 'UTC' }).format(Date.UTC(2026, month - 1, day));
+    }
+    return replacements[key] ?? token;
+  });
+  for (const name of ['support', 'privacy', 'terms']) html = html.replaceAll(`href="/${name}"`, `href="/${name}#${infoLang}"`);
+  return withQuestions(html, home.hreflang);
+}
+
 // The questions sheet again as FAQPage structured data, in the page's language,
 // so the answers a reader sees are the ones a search engine or a model reads.
 function withQuestions(html, lang) {
@@ -148,19 +201,26 @@ function withQuestions(html, lang) {
     acceptedAnswer: { '@type': 'Answer', text: plain(answer) },
   }));
   if (questions.length !== (sheet.match(/<h3>/g) ?? []).length) throw new Error('build.mjs: every question in #faq needs its <p> answer right under its <h3>');
-  const data = { '@context': 'https://schema.org', '@type': 'FAQPage', inLanguage: lang === 'zh' ? 'zh-Hans' : 'en', mainEntity: questions };
-  const script = `<script type="application/ld+json">\n${JSON.stringify(data, null, 1).replace(/</g, '\\u003c')}\n</script>\n</head>`;
-  return html.replace('</head>', script);
+  return html.replace('</head>', jsonScript({
+    '@context': 'https://schema.org', '@type': 'FAQPage', inLanguage: lang, mainEntity: questions,
+  }) + '\n</head>');
 }
-const informationPages = others.filter((name) => name !== '404.html').map((name) => name.slice(0, -'.html'.length));
-if (!page.includes('<html lang="en">')) throw new Error('build.mjs: index.html must open with <html lang="en">');
-for (const [lang, home] of Object.entries(HOMES)) {
-  let text = withQuestions(inLanguage(page, lang), lang).replace('<html lang="en">', `<html lang="${home.lang}" data-lang="${lang}">`);
-  // A link to an information page opens it in this page's language.
-  for (const name of informationPages) text = text.replaceAll(`href="/${name}"`, `href="/${name}#${lang}"`);
-  if (/\sdata-l=/.test(text)) throw new Error(`build.mjs: ${home.file} still holds a data-l mark`);
-  writeFileSync(path.join(out, home.file), text);
-}
+
+for (const [file, html] of pages) writeFileSync(path.join(out, file), html);
+const sitemap = [
+  ...HOMES.map(({ path }) => ({ path })),
+  ...others.filter((name) => name !== '404.html').map((name) => {
+    const text = readFileSync(path.join(out, name), 'utf8');
+    const lastmod = /Last updated (\d{4}-\d{2}-\d{2})/.exec(text)?.[1];
+    return { path: '/' + name.slice(0, -5), lastmod };
+  }),
+];
+writeFileSync(path.join(out, 'sitemap.xml'), [
+  '<?xml version="1.0" encoding="UTF-8"?>',
+  '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+  ...sitemap.map(({ path, lastmod }) => `  <url><loc>${ORIGIN}${path}</loc>${lastmod ? `<lastmod>${lastmod}</lastmod>` : ''}</url>`),
+  '</urlset>', '',
+].join('\n'));
 for (const name of others) {
   const text = readFileSync(path.join(out, name), 'utf8');
   for (const asset of ['/assets/site.css', '/assets/prefs.js', '/assets/pages.js']) {
