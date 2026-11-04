@@ -309,7 +309,6 @@ export interface AgentModelDriver {
 
 export type AgentRuntimeRoute =
   | { kind: 'chat'; projectId: string; conversationId?: string }
-  | { kind: 'goal'; projectId: string; goalRunId?: string; chapterId?: string }
   | { kind: 'test'; projectId?: string };
 
 export interface AgentRuntimeContext {

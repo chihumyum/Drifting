@@ -82,6 +82,8 @@ Guidance for coding agents working in this standalone Drifting client repository
 
 - Standalone Shadow CI, Element Arc, and Goal Evolve are retired. Do not restore
   their panels, routes, storage, or eval harnesses as separate products.
+  Migration `0017` dropped the Goal route columns and the Claude SDK
+  `sdk_session_id`; every runtime session belongs to a chat conversation.
 - Copilot (element extraction and patch suggestions, rolling block summaries,
   ⇧⌘I inline edit and inline ask) was retired on 2026-10-30; proactive AI goes
   through the Agent. Do not restore its UI, settings, runtime or the Google

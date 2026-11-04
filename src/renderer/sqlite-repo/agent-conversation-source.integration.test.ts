@@ -78,7 +78,7 @@ describe('internal chat and external MCP conversation ownership', () => {
   it('excludes MCP inserts, updates and completed tool turns from chat sync while retaining audit rows', async () => {
     const runtime = createAgentRuntimePersistenceRepository(fixture.db);
     await runtime.createSession({ id: 'mcp:synthetic', projectId: INPUT.projectId, routeKind: 'chat',
-      conversationId: MCP_ID, goalRunId: null, chapterId: null, provider: 'mcp', model: null,
+      conversationId: MCP_ID, provider: 'mcp', model: null,
       providerEpoch: 0, status: 'idle', createdAt: NOW, updatedAt: NOW, endedAt: null });
     await runtime.createTurn({ id: 'external-turn', sessionId: 'mcp:synthetic', ordinal: 1, status: 'running',
       promptMessageId: null, acceptedAt: NOW, startedAt: NOW, endedAt: null, errorCode: null, errorMessage: null, updatedAt: NOW });

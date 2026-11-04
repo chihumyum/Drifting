@@ -507,7 +507,6 @@ async function seedProductDatabase(database: DbClient): Promise<void> {
     id: CONVERSATION_ID,
     projectId: PROJECT_ID,
     title: 'Product composition acceptance',
-    sdkSessionId: null,
     runtimeSessionId: null,
     mode: 'byok',
     messagesJson: '[]',

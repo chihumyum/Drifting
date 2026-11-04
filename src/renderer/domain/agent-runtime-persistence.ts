@@ -16,15 +16,13 @@ export type AgentRuntimeSessionStatus =
   | 'failed'
   | 'aborted';
 
-export type PersistedAgentRuntimeRouteKind = 'chat' | 'goal';
+export type PersistedAgentRuntimeRouteKind = 'chat';
 
 export interface PersistedAgentRuntimeSession {
   id: string;
   projectId: string;
   routeKind: PersistedAgentRuntimeRouteKind;
   conversationId: string | null;
-  goalRunId: string | null;
-  chapterId: string | null;
   provider: string;
   model: string | null;
   providerEpoch: number;

@@ -9,7 +9,7 @@ export function createAgentRecoveryFixture(turnCount: number) {
   const route = { kind: 'chat' as const, projectId: 'synthetic-recovery-project', conversationId: 'synthetic-recovery-conversation' };
   const usage = { inputTokens: 2, outputTokens: 3, cacheReadTokens: 0, cacheWriteTokens: 0, costUsd: 0 };
   const snapshot: AgentRuntimeRecoverySnapshot = {
-    session: { id: sessionId, projectId: route.projectId, routeKind: 'chat', conversationId: route.conversationId, goalRunId: null, chapterId: null,
+    session: { id: sessionId, projectId: route.projectId, routeKind: 'chat', conversationId: route.conversationId,
       provider: 'synthetic-provider', model: null, providerEpoch: 0, status: 'idle', createdAt: now, updatedAt: now, endedAt: null },
     turns: [], messages: [], events: [], toolCalls: [], checkpoints: [],
   };

@@ -101,9 +101,6 @@ export function buildDriftingAgentSystemPrompt(
     );
   }
 
-  if (route.kind === 'goal' && route.chapterId) {
-    lines.push(`This goal turn is scoped to chapter "${route.chapterId}".`);
-  }
   const facts = (input.projectFacts ?? [])
     .slice(0, 32)
     .map(({ key, value }) => {

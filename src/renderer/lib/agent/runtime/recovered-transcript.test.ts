@@ -60,8 +60,6 @@ function snapshot(): AgentRuntimeRecoverySnapshot {
       projectId: 'project-1',
       routeKind: 'chat',
       conversationId: 'conversation-1',
-      goalRunId: null,
-      chapterId: null,
       provider: 'test-driver',
       model: null,
       providerEpoch: 0,

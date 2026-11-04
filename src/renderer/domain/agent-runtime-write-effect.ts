@@ -35,10 +35,8 @@ export interface AgentRuntimeWriteAuthorization {
 
 export interface AgentRuntimeWriteRouteProvenance {
   projectId: string;
-  routeKind: 'chat' | 'goal';
+  routeKind: 'chat';
   conversationId: string | null;
-  goalRunId: string | null;
-  chapterId: string | null;
 }
 
 export interface PersistedAgentRuntimeWriteEffect

@@ -1881,24 +1881,13 @@ function durableWriteRoute(route: AgentRuntimeRoute) {
   if (route.kind === 'test' || !route.projectId) {
     throw new Error('A durable Agent write requires a project route');
   }
-  if (route.kind === 'chat') {
-    if (!route.conversationId) {
-      throw new Error('A durable Agent write requires a conversation');
-    }
-    return {
-      projectId: route.projectId,
-      routeKind: 'chat' as const,
-      conversationId: route.conversationId,
-      goalRunId: null,
-      chapterId: null,
-    };
+  if (!route.conversationId) {
+    throw new Error('A durable Agent write requires a conversation');
   }
   return {
     projectId: route.projectId,
-    routeKind: 'goal' as const,
-    conversationId: null,
-    goalRunId: route.goalRunId ?? null,
-    chapterId: route.chapterId ?? null,
+    routeKind: 'chat' as const,
+    conversationId: route.conversationId,
   };
 }
 

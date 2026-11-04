@@ -1030,28 +1030,16 @@ function persistedRoute(snapshot: AgentRuntimeRecoverySnapshot): AgentRuntimeRou
   if (!isNonEmptyString(session.projectId)) {
     corruption('INVALID_ROUTE', 'Agent runtime session has no projectId.');
   }
-  if (session.routeKind === 'chat') {
-    if (
-      !isNonEmptyString(session.conversationId) ||
-      session.goalRunId !== null ||
-      session.chapterId !== null
-    ) {
-      corruption('INVALID_ROUTE', 'Chat Agent session has inconsistent route fields.');
-    }
-    return {
-      kind: 'chat',
-      projectId: session.projectId,
-      conversationId: session.conversationId,
-    };
-  }
-  if (session.routeKind !== 'goal' || session.conversationId !== null) {
+  if (session.routeKind !== 'chat') {
     corruption('INVALID_ROUTE', 'Agent runtime session has an unsupported route.');
   }
+  if (!isNonEmptyString(session.conversationId)) {
+    corruption('INVALID_ROUTE', 'Chat Agent session has inconsistent route fields.');
+  }
   return {
-    kind: 'goal',
+    kind: 'chat',
     projectId: session.projectId,
-    ...(session.goalRunId ? { goalRunId: session.goalRunId } : {}),
-    ...(session.chapterId ? { chapterId: session.chapterId } : {}),
+    conversationId: session.conversationId,
   };
 }
 
@@ -1520,21 +1508,6 @@ function parseStoredRoute(value: unknown, path: string): AgentRuntimeRoute {
       kind: 'chat',
       projectId: value.projectId,
       ...(value.conversationId ? { conversationId: value.conversationId } : {}),
-    };
-  }
-  if (value.kind === 'goal') {
-    if (
-      !isNonEmptyString(value.projectId) ||
-      (value.goalRunId !== undefined && !isNonEmptyString(value.goalRunId)) ||
-      (value.chapterId !== undefined && !isNonEmptyString(value.chapterId))
-    ) {
-      corruption('EVENT_PAYLOAD_INVALID', `${path} has invalid goal fields.`);
-    }
-    return {
-      kind: 'goal',
-      projectId: value.projectId,
-      ...(value.goalRunId ? { goalRunId: value.goalRunId } : {}),
-      ...(value.chapterId ? { chapterId: value.chapterId } : {}),
     };
   }
   corruption('EVENT_PAYLOAD_INVALID', `${path}.kind is unsupported.`);

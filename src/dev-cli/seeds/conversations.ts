@@ -35,7 +35,7 @@ export async function seedConversations(
     const history: AgentModelMessage[] = [];
     let messageOrdinal = 0;
     const session: PersistedAgentRuntimeSession = {
-      id: sessionId, projectId, routeKind: 'chat', conversationId, goalRunId: null, chapterId: null,
+      id: sessionId, projectId, routeKind: 'chat', conversationId,
       provider: 'development-seed', model: null, providerEpoch: 0, status: 'idle',
       createdAt: startedAt, updatedAt: startedAt, endedAt: null,
     };

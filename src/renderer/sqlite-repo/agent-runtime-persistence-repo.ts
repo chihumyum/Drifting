@@ -130,10 +130,8 @@ export interface AgentRuntimePersistenceRepository {
   listRecoverableSessions(projectId?: string): Promise<PersistedAgentRuntimeSession[]>;
   findSessionForRoute(input: {
     projectId: string;
-    routeKind: 'chat' | 'goal';
+    routeKind: 'chat';
     conversationId?: string | null;
-    goalRunId?: string | null;
-    chapterId?: string | null;
   }): Promise<PersistedAgentRuntimeSession | null>;
 
   createTurn(turn: PersistedAgentRuntimeTurn): Promise<void>;
@@ -252,8 +250,6 @@ function sessionToDomain(
     ...row,
     routeKind: row.routeKind as PersistedAgentRuntimeSession['routeKind'],
     conversationId: row.conversationId ?? null,
-    goalRunId: row.goalRunId ?? null,
-    chapterId: row.chapterId ?? null,
     model: row.model ?? null,
     status: row.status as AgentRuntimeSessionStatus,
     endedAt: row.endedAt ?? null,
@@ -351,9 +347,7 @@ function sameSessionIdentity(
     a.id === b.id &&
     a.projectId === b.projectId &&
     a.routeKind === b.routeKind &&
-    a.conversationId === b.conversationId &&
-    a.goalRunId === b.goalRunId &&
-    a.chapterId === b.chapterId
+    a.conversationId === b.conversationId
   );
 }
 
@@ -824,30 +818,14 @@ export function createAgentRuntimePersistenceRepository(
         eq(AgentRuntimeSessionTable.status, 'interrupted'),
         eq(AgentRuntimeSessionTable.status, 'failed'),
       )!;
-      const route =
-        input.routeKind === 'chat'
-          ? and(
-              eq(AgentRuntimeSessionTable.projectId, input.projectId),
-              eq(AgentRuntimeSessionTable.routeKind, 'chat'),
-              input.conversationId
-                ? eq(
-                    AgentRuntimeSessionTable.conversationId,
-                    input.conversationId,
-                  )
-                : isNull(AgentRuntimeSessionTable.conversationId),
-              usable,
-            )
-          : and(
-              eq(AgentRuntimeSessionTable.projectId, input.projectId),
-              eq(AgentRuntimeSessionTable.routeKind, 'goal'),
-              input.goalRunId
-                ? eq(AgentRuntimeSessionTable.goalRunId, input.goalRunId)
-                : isNull(AgentRuntimeSessionTable.goalRunId),
-              input.chapterId
-                ? eq(AgentRuntimeSessionTable.chapterId, input.chapterId)
-                : isNull(AgentRuntimeSessionTable.chapterId),
-              usable,
-            );
+      const route = and(
+        eq(AgentRuntimeSessionTable.projectId, input.projectId),
+        eq(AgentRuntimeSessionTable.routeKind, 'chat'),
+        input.conversationId
+          ? eq(AgentRuntimeSessionTable.conversationId, input.conversationId)
+          : isNull(AgentRuntimeSessionTable.conversationId),
+        usable,
+      );
       const rows = await dbProvider()
         .select()
         .from(AgentRuntimeSessionTable)
@@ -1072,13 +1050,7 @@ export function createAgentRuntimePersistenceRepository(
             `Agent runtime session ${session.id} was reused for a different route.`,
           );
         }
-        if (
-          session.routeKind === 'chat'
-            ? !session.conversationId ||
-              session.goalRunId !== null ||
-              session.chapterId !== null
-            : session.conversationId !== null
-        ) {
+        if (session.routeKind !== 'chat' || !session.conversationId) {
           throw new AgentRuntimePersistenceConflictError(
             'ROUTE_OWNERSHIP_MISMATCH',
             `Agent runtime session ${session.id} has an invalid ${session.routeKind} route shape.`,

@@ -222,8 +222,6 @@ function completeSnapshot(): AgentRuntimeRecoverySnapshot {
       projectId: PROJECT_ID,
       routeKind: 'chat',
       conversationId: CONVERSATION_ID,
-      goalRunId: null,
-      chapterId: null,
       provider: 'deepseek',
       model: 'deepseek-chat',
       providerEpoch: 0,

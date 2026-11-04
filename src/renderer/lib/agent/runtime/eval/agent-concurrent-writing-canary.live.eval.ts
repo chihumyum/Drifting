@@ -596,7 +596,6 @@ async function seedDatabase(database: DbClient): Promise<void> {
       id,
       projectId: PROJECT_ID,
       title: `Concurrent DeepSeek canary ${index + 1}`,
-      sdkSessionId: null,
       runtimeSessionId: null,
       mode: 'byok',
       messagesJson: '[]',
