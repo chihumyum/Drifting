@@ -2851,6 +2851,13 @@ svg.super-viewport-edges[data-panning='1'] {
   padding-bottom: 6px;
 }
 
+/* More below: the words fade out at the card's lower edge until the end is
+   scrolled into view. */
+.hover-card__body--more {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 32px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 32px), transparent);
+}
+
 .hover-card__head {
   display: flex;
   align-items: baseline;
@@ -2918,21 +2925,32 @@ svg.super-viewport-edges[data-panning='1'] {
   overflow-wrap: anywhere;
 }
 
+/* Facts run in: the key leads in muted ink and its value follows on the same
+   line, then wraps the card's full width, so a long key never squeezes its
+   value into a column one character wide. */
 .hover-card__kv {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  gap: 0 14px;
   margin: 8px 0 0;
 }
 
+.hover-card__kv-row {
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.hover-card__kv-row + .hover-card__kv-row {
+  margin-top: 4px;
+}
+
 .hover-card__kv dt {
+  display: inline;
+  margin-right: 8px;
   color: var(--ui-text-muted, hsl(var(--ink-3)));
 }
 
 .hover-card__kv dd {
+  display: inline;
   margin: 0;
   color: hsl(var(--ink-2));
-  overflow-wrap: anywhere;
 }
 
 /* What a review item's passage says: the author's prose on a slip of paper. */

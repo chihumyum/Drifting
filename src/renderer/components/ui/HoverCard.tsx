@@ -126,14 +126,30 @@ export function HoverCardShell({
     );
   }, [anchor, placement, maxHeight]);
 
+  // Whether the body holds more than it shows below: its lower edge then fades.
+  const [moreBelow, setMoreBelow] = useState(false);
+  const updateMoreBelow = useCallback(() => {
+    const body = bodyRef.current;
+    setMoreBelow(Boolean(body && body.scrollTop + body.clientHeight < body.scrollHeight - 1));
+  }, []);
+
   useLayoutEffect(() => {
     updatePosition();
+    updateMoreBelow();
     if (typeof ResizeObserver === 'undefined') return undefined;
-    const observer = new ResizeObserver(updatePosition);
+    const observer = new ResizeObserver(() => {
+      updatePosition();
+      updateMoreBelow();
+    });
     if (cardRef.current) observer.observe(cardRef.current);
+    // A body taller than the card grows without resizing the card.
+    for (const child of Array.from(bodyRef.current?.children ?? [])) observer.observe(child);
     observer.observe(anchor);
     return () => observer.disconnect();
-  }, [anchor, updatePosition]);
+  }, [anchor, updatePosition, updateMoreBelow]);
+
+  // Placing the card can change how much of its body fits.
+  useLayoutEffect(updateMoreBelow, [position, updateMoreBelow]);
 
   // Scrolling the list the anchor sits in slides the anchor away from the
   // pointer: the card goes rather than riding along. Other scrolls (the
@@ -245,7 +261,8 @@ export function HoverCardShell({
       }}
     >
       {children != null && (
-        <div ref={bodyRef} className="hover-card__body hover-preview-content">
+        <div ref={bodyRef} className={`hover-card__body hover-preview-content${moreBelow ? ' hover-card__body--more' : ''}`}
+          onScroll={updateMoreBelow}>
           {children}
         </div>
       )}

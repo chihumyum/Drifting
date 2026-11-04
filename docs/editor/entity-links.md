@@ -84,13 +84,23 @@ The card is portaled to `body`, positioned with `position: fixed`, and flips or
 clamps to stay inside the viewport. It leads with the entity's name, since the
 same card also stands alone over truncated timeline tiles and graph cards.
 It displays the summary first, followed by metadata already available from the
-renderer store. Its maximum height is `min(720px, viewport - 24px)` so summaries
-can expand substantially before the card scrolls.
+renderer store. Its maximum height is `min(720px, viewport - 24px)`; an Entity
+Link's card in prose covers at most `min(480px, viewport - 24px)` of the page.
+What does not fit scrolls inside the card, and while more is below, its body
+fades out over its last 32px.
 
-The card shares the menus' surface tokens (`--menu-surface-bg`,
-`--menu-surface-radius`, `--menu-surface-shadow`): the sidebar's opaque colour,
-square corners, a half-pixel hairline and the floating shadow, so menus and
-hover cards read as one lifted piece of the desk.
+The pointer can cross from an Entity Link into its card (the owner's hover
+state gives it `HOVER_CARD_GRACE_MS`), so a long card can be scrolled and read;
+leaving the card, pressing outside it or Escape closes it. Wheeling over the
+link itself also scrolls a long card.
+
+Key/value facts run in: the key leads in muted ink, its value follows on the
+same line and wraps across the card's full width, so a long key such as
+「第六章之后（已定未写）」 never squeezes its value into a column one character
+wide. Relation cards in the story graph use the same rows.
+
+The card wears `.hover-card-surface`: the sidebar's opaque colour, 16px
+corners, a resting glass edge and the floating shadow.
 
 The metadata model performs no database query. It can show chapter status, word
 count and storyline membership; Idea status, word count and group path; Element
@@ -168,6 +178,8 @@ Machine-checkable coverage lives in:
   links and text children are linked whole; other formatting still splits)
 - `src/renderer/components/ui/entity-hover-card-model.test.ts`
 - `src/renderer/components/ui/entity-hover-card-position.test.ts`
+- `src/renderer/components/ui/hover-card-long-content.acceptance.test.ts`
+  (enterable prose card capped at 480px, run-in facts, lower-edge fade)
 - `src/renderer/domain/node-storyline-state.test.ts`
 
 Run the focused checks with:
