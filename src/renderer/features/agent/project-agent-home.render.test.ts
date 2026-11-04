@@ -75,7 +75,7 @@ describe('Project Home Agent entry rendering', () => {
     });
     const html = render();
     expect(html).toContain('data-debug-id="project-agent-home"');
-    expect(html).toContain('placeholder="projectAgent.placeholder"');
+    expect(html).toContain('placeholder="projectAgent.placeholder(');
     expect(html).toContain('projectAgent.lastCheckin(');
     expect(html).toContain('「第三章」');
     expect(html).toContain('ask title');
@@ -122,7 +122,7 @@ describe('Project Home Agent entry rendering', () => {
     const html = renderToStaticMarkup(createElement(ProjectMemoryEditor, { projectId: 'project-1' }));
     expect(html).toContain('projectMemory.desc');
     expect(html).toContain('projectMemory.empty');
-    expect(html).toContain('placeholder="projectMemory.placeholder"');
+    expect(html).toContain('placeholder="projectMemory.placeholder(');
   });
 
   it('has every rendered string in both locales', () => {

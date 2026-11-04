@@ -28,13 +28,23 @@ jobs:
           toolchain: 1.96.0
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
-          workspaces: src-tauri
+          workspaces: |
+            src-tauri
+            crates/drifting-core
           key: tests
       # tauri::generate_context! needs the frontend folder to exist; the tests
       # do not load it.
       - run: mkdir -p dist && echo '<!doctype html>' > dist/index.html
         shell: bash
       - run: cargo test --manifest-path src-tauri/Cargo.toml --locked --lib
+      # The database, migration safety snapshots, backups and the asset store
+      # live in drifting-core; run its tests even when the app's tests fail.
+      - if: ${{ !cancelled() }}
+        run: cargo test --manifest-path crates/drifting-core/Cargo.toml --locked
+      - if: ${{ !cancelled() }}
+        run: cargo test --manifest-path crates/drifting-document/Cargo.toml --locked
+      - if: ${{ !cancelled() }}
+        run: cargo test --manifest-path crates/drifting-prose/Cargo.toml --locked
 
   installer:
     name: windows / installer (${{ matrix.arch }})

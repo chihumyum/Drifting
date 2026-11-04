@@ -141,8 +141,7 @@ pub async fn database_recovery_export_safety_backup(
         let outcome = fs::copy(&source, &temporary)
             .map_err(|error| format!("failed to copy database safety backup: {error}"))
             .and_then(|_| {
-                File::open(&temporary)
-                    .and_then(|file| file.sync_all())
+                drifting_core::file_io::sync_file(&temporary)
                     .map_err(|error| format!("failed to finalize database safety export: {error}"))
             })
             .and_then(|_| {

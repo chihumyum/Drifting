@@ -1907,7 +1907,7 @@ mod tests {
             write_projection(root, "p", "first".into(), vec![entry("prose.md", "text")]).unwrap();
         // A folder from before names is renamed in place.
         let named = name_folder(root, "p", "潮汐灯塔").unwrap();
-        let directory = root.join("markdown-projections/潮汐灯塔");
+        let directory = root.join("markdown-projections").join("潮汐灯塔");
         assert_eq!(
             named.previous_directory.as_deref(),
             Some(hashed.directory.as_str())

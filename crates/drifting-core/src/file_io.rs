@@ -27,6 +27,17 @@ pub fn ensure_parent_directory(path: &Path) -> io::Result<()> {
     Ok(())
 }
 
+/// Flush a finished file's contents and metadata to disk. Unix can fsync a
+/// read-only descriptor; Windows' FlushFileBuffers needs a handle with write
+/// access, so a read-only handle fails there with "access denied".
+pub fn sync_file(path: &Path) -> io::Result<()> {
+    #[cfg(windows)]
+    let file = OpenOptions::new().write(true).open(path)?;
+    #[cfg(not(windows))]
+    let file = File::open(path)?;
+    file.sync_all()
+}
+
 pub fn temporary_sibling(path: &Path) -> io::Result<PathBuf> {
     let filename = path
         .file_name()

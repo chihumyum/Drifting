@@ -997,8 +997,7 @@ pub(crate) fn snapshot_connection_into(
     connection
         .execute("VACUUM INTO ?1", params![destination_text])
         .map_err(|error| format!("failed to snapshot the library database: {error}"))?;
-    File::open(destination)
-        .and_then(|file| file.sync_all())
+    crate::file_io::sync_file(destination)
         .map_err(|error| format!("failed to finalize the library database snapshot: {error}"))
 }
 
@@ -1701,15 +1700,13 @@ fn migrate_shadow_candidate(
             .map_err(|error| ("snapshot-copy", "candidate-copy-failed", error))?;
         fs::copy(backup_path, &candidate)
             .map_err(|error| ("snapshot-copy", "candidate-copy-failed", error.to_string()))?;
-        File::open(&candidate)
-            .and_then(|file| file.sync_all())
-            .map_err(|error| {
-                (
-                    "candidate-fsync",
-                    "candidate-fsync-failed",
-                    error.to_string(),
-                )
-            })?;
+        crate::file_io::sync_file(&candidate).map_err(|error| {
+            (
+                "candidate-fsync",
+                "candidate-fsync-failed",
+                error.to_string(),
+            )
+        })?;
         migration_fault("candidate-fsync")
             .map_err(|error| ("candidate-fsync", "candidate-fsync-failed", error))?;
 
@@ -1733,15 +1730,13 @@ fn migrate_shadow_candidate(
         validate_database_truth(&connection)
             .map_err(|error| ("integrity-check", "integrity-check-failed", error))?;
         drop(connection);
-        File::open(&candidate)
-            .and_then(|file| file.sync_all())
-            .map_err(|error| {
-                (
-                    "candidate-fsync",
-                    "candidate-fsync-failed",
-                    error.to_string(),
-                )
-            })?;
+        crate::file_io::sync_file(&candidate).map_err(|error| {
+            (
+                "candidate-fsync",
+                "candidate-fsync-failed",
+                error.to_string(),
+            )
+        })?;
         migration_fault("post-migration-fsync")
             .map_err(|error| ("candidate-fsync", "candidate-fsync-failed", error))?;
 
@@ -1933,11 +1928,9 @@ fn create_pre_update_safety_backup(
         .map_err(|error| {
             format!("failed to create the pre-update database safety backup: {error}")
         })?;
-    File::open(&destination)
-        .and_then(|file| file.sync_all())
-        .map_err(|error| {
-            format!("failed to durably finalize the database safety backup: {error}")
-        })?;
+    crate::file_io::sync_file(&destination).map_err(|error| {
+        format!("failed to durably finalize the database safety backup: {error}")
+    })?;
     sync_database_directory(&directory)
         .map_err(|error| format!("failed to durably record the database safety backup: {error}"))?;
     retain_recent_database_safety_backups(&directory)?;
@@ -3442,9 +3435,7 @@ mod tests {
                 )
                 .expect("seed new authority");
             drop(replacement);
-            std::fs::File::open(&backup_path)
-                .and_then(|file| file.sync_all())
-                .expect("sync replacement source");
+            crate::file_io::sync_file(&backup_path).expect("sync replacement source");
             let receipt = create_recovery_receipt(
                 directory.path(),
                 &database_path,
