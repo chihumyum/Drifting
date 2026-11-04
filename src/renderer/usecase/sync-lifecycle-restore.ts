@@ -7,6 +7,7 @@ import { proseDocId, type ProseEntityType } from '../lib/yjs-doc-id';
 import {
   BookElementTable,
   BookNodeTable,
+  DriftGroupTable,
   ElementCategoryTable,
   NodeContentTable,
   ProjectAssetTable,
@@ -84,21 +85,46 @@ async function appendFullProseRestore(
   });
 }
 
+/**
+ * A drift's group can be deleted while the drift is in the Trash: deleting a
+ * group moves only the drifts on the board. Such a drift comes back at the
+ * top level rather than pointing at a group that no longer exists.
+ */
+async function withoutDeletedDriftGroup<T extends { id: string; driftGroupId: string | null }>(
+  tx: DbExecutor,
+  projectId: string,
+  node: T,
+): Promise<T> {
+  if (node.driftGroupId === null) return node;
+  const groups = await tx
+    .select({ id: DriftGroupTable.id })
+    .from(DriftGroupTable)
+    .where(and(eq(DriftGroupTable.id, node.driftGroupId), eq(DriftGroupTable.projectId, projectId)))
+    .limit(1);
+  if (groups.length > 0) return node;
+  await tx
+    .update(BookNodeTable)
+    .set({ driftGroupId: null })
+    .where(and(eq(BookNodeTable.id, node.id), eq(BookNodeTable.projectId, projectId)));
+  return { ...node, driftGroupId: null };
+}
+
 async function appendNodeRestore(
   tx: DbExecutor,
   changes: SyncChangeBuilder,
   projectId: string,
   nodeId: string,
 ): Promise<void> {
-  const [node] = await tx
+  const [found] = await tx
     .select()
     .from(BookNodeTable)
     .where(and(eq(BookNodeTable.id, nodeId), eq(BookNodeTable.projectId, projectId)))
     .limit(1);
-  if (!node) restoreMissing('node', nodeId);
-  if (node.deletedAt !== null) {
+  if (!found) restoreMissing('node', nodeId);
+  if (found.deletedAt !== null) {
     throw new Error(`Cannot journal node:${nodeId} restore before clearing deletedAt`);
   }
+  const node = await withoutDeletedDriftGroup(tx, projectId, found);
   const [content] = await tx
     .select({ contentJson: NodeContentTable.contentJson })
     .from(NodeContentTable)
