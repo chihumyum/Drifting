@@ -49,7 +49,6 @@ const TEST_FILES = [...new Set(Object.values(TEST_GROUPS).flat())];
 const LINT_FILES = [
   'src/renderer/lib/agent/runtime/tool-discovery.ts',
   'src/renderer/lib/agent/runtime/system-prompt.ts',
-  'src/renderer/lib/agent/runtime/drifting-product-tool-selection.ts',
   'src/renderer/lib/agent/runtime/drivers/openai-responses-driver.ts',
   'src/renderer/lib/agent/runtime/drivers/anthropic-messages-driver.ts',
   'src/renderer/lib/agent/runtime/drivers/openai-compatible-completion-driver.ts',
