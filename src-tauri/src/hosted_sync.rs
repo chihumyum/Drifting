@@ -251,9 +251,7 @@ async fn transfer(app: &AppHandle, input: &HostedRequest) -> Result<Value, Strin
         tokio::fs::rename(&temporary, &path)
             .await
             .map_err(|_| "LOCAL_OBJECT_MISSING")?;
-        std::fs::File::open(parent)
-            .and_then(|directory| directory.sync_all())
-            .map_err(|_| "LOCAL_OBJECT_MISSING")?;
+        drifting_core::file_io::sync_directory(parent).map_err(|_| "LOCAL_OBJECT_MISSING")?;
         return Ok(json!({"destinationRef":destination,"storedSha256":actual,"sizeBytes":size}));
     }
     let mut stream = response.bytes_stream();

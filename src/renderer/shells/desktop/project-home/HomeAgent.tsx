@@ -13,6 +13,7 @@ import type { OrganizeRun, OrganizeRunEntity } from '../../../store/project-orga
 import { describeOrganizeCounts } from '../../../usecase/useProjectOrganize';
 import type { WorkspaceEntityType } from '../../../features/workspace/navigation/workspace-target';
 import type { HomeAgentModel } from './useHomeAgent';
+import { platformShortcut } from '../../../lib/shortcuts';
 
 function CardMark({ card }: { card: StoredCheckinCard }) {
   const node = useDataStore((state) =>
@@ -150,7 +151,7 @@ function Composer({
         }}
       />
       <span className="home-agent__composer-foot">
-        {showHint && <span className="home-agent__hint">⌘↵</span>}
+        {showHint && <span className="home-agent__hint">{platformShortcut('⌘↵', 'Ctrl+Enter')}</span>}
         <button
           type="button"
           className="home-agent__send glass glass--primary glass--round"

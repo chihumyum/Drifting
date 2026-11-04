@@ -33,7 +33,8 @@ requireMatch(ci, /RENDERER_RESULT: \$\{\{ needs\.client-renderer\.result \}\}/u,
 const rustAction = 'dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de';
 for (const [name, workflow, expectedCount] of [
   ['ordinary CI', ci, 1],
-  ['release', release, 2],
+  // verify, the macOS build and the Windows build
+  ['release', release, 3],
 ]) {
   if (workflow.split(rustAction).length - 1 !== expectedCount)
     errors.push(`${name} must use the pinned Rust action that accepts the toolchain input`);

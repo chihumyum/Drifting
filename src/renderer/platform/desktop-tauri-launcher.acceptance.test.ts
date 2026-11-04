@@ -11,6 +11,7 @@ const {
   createDesktopTauriConfigOverride,
   createDesktopTauriEnvironment,
   prepareDesktopSigning,
+  tauriCliInvocation,
 } = desktopLauncher;
 
 const temporaryDirectories: string[] = [];
@@ -176,5 +177,17 @@ describe('desktop Tauri environment', () => {
         environment: { DRIFTING_UPDATER_PUBLIC_KEY: 'release-public-key' },
       }),
     ).toBeNull();
+  });
+});
+
+describe('Tauri CLI invocation', () => {
+  it('runs the CLI entry script with Node on Windows and pnpm exec elsewhere', () => {
+    const windows = tauriCliInvocation({ platform: 'win32', nodeExecutable: 'C:\\node\\node.exe' });
+    expect(windows.executable).toBe('C:\\node\\node.exe');
+    expect(windows.arguments).toHaveLength(1);
+    expect(windows.arguments[0]).toMatch(/node_modules[\\/]@tauri-apps[\\/]cli[\\/]tauri\.js$/);
+    const mac = tauriCliInvocation({ platform: 'darwin' });
+    expect(mac.executable).toBe('pnpm');
+    expect(mac.arguments).toEqual(['--dir', expect.any(String), 'exec', 'tauri']);
   });
 });

@@ -514,8 +514,7 @@ fn stage_into(
         .map_err(|_| "backup-invalid: the backup database cannot be opened".to_string())?;
     validate_staged_candidate(&connection, project_user_id, now_iso)?;
     drop(connection);
-    File::open(&candidate)
-        .and_then(|file| file.sync_all())
+    crate::file_io::sync_file(&candidate)
         .map_err(|error| format!("failed to finalize the restore candidate: {error}"))?;
 
     let manifest_bytes = serde_json::to_vec(&manifest)

@@ -723,7 +723,6 @@ fn reject_symlinked_asset_path(
     Ok(())
 }
 
-#[cfg(unix)]
 use drifting_core::file_io::sync_directory;
 #[cfg(windows)]
 use drifting_core::file_io::windows_move_write_through;

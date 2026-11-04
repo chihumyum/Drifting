@@ -1,0 +1,53 @@
+{
+  "preAlphaGuide": {
+    "byok": "Agent는 실험 기능이며 본인의 모델 키 또는 ChatGPT 구독이 필요합니다. 요청, 비용, 데이터 약관은 선택한 제공업체를 따릅니다. 키는 Windows 자격 증명 관리자에 저장됩니다."
+  },
+  "settings": {
+    "sync": {
+      "projection": {
+        "reveal": "파일 탐색기에서 보기"
+      }
+    },
+    "update": {
+      "channel_desc": "Windows 10/11 · x64 및 ARM64"
+    },
+    "codexSubscription": {
+      "failure": {
+        "storage_failed": "로그인 정보를 Windows 자격 증명 관리자에 저장할 수 없습니다."
+      }
+    },
+    "agent": {
+      "extensions": {
+        "secretHint": "비밀 값은 Windows 자격 증명 관리자에만 저장됩니다. 기존 값을 유지하려면 비워 두세요."
+      }
+    },
+    "hosted": {
+      "disconnect_description": "이 PC에만 있는 변경을 업로드한 뒤 연결을 해제합니다. 로컬 작품과 클라우드 사본은 유지됩니다.",
+      "disconnect_uploading": "이 PC에만 있는 변경 업로드 중: {{count}}개 남음. 지금 해제하면 나머지는 이 PC에만 남습니다.",
+      "disconnect_unuploaded": "변경 {{count}}개가 업로드되지 않았습니다. 해제하면 이 PC에만 남습니다.",
+      "connect_errors": {
+        "local_project_sync_conflict": "이 PC와 클라우드의 같은 작품이 서로 다른 동기화 기록입니다(라이브러리 폴더 복사 또는 다른 PC의 백업 복원). 어느 쪽도 덮어쓰지 않도록 연결하지 않았습니다. 로컬 집필은 계속할 수 있습니다.",
+        "local_project_sync_conflict_named": "이 PC와 클라우드의 {{projects}}은(는) 서로 다른 동기화 기록입니다(폴더 복사 또는 다른 PC의 백업 복원). 덮어쓰기를 방지하려고 연결하지 않았습니다. 로컬 집필은 계속할 수 있습니다."
+      }
+    },
+    "models": {
+      "credentialsDesc": "키는 이 기기의 Windows 자격 증명 관리자에만 저장되며 다른 기기로 동기화되거나 Drifting을 거치지 않습니다. Agent 입력창의 설정 메뉴에서 제공업체와 모델을 선택하세요.",
+      "speechDesc": "위의 채팅 제공업체와 별개인 음성 입력 전사 인증 정보입니다. 고유명사 교정을 위해 작품의 요소·설정 이름을 함께 보냅니다. 요청은 기기에서 Bailian으로 직접 전송되며 키는 Windows 자격 증명 관리자에만 저장됩니다."
+    }
+  },
+  "agentPanel": {
+    "onboarding": {
+      "saveFailed": "키를 Windows 자격 증명 관리자에 저장할 수 없습니다."
+    }
+  },
+  "auth": {
+    "signOut": {
+      "pending": "이 PC에 클라우드에 없는 변경이 {{count}}개 있습니다. 지금 로그아웃하면 이 PC에 남고 같은 계정에 다시 로그인하면 업로드됩니다.",
+      "pendingLocal": "이 PC에 클라우드에 없는 변경이 {{count}}개 있습니다. 지금 로그아웃하면 이 PC에만 남습니다.",
+      "uploading": "이 PC의 변경 업로드 중: {{count}}개 남음."
+    },
+    "sync": {
+      "accountMismatch": "라이브러리는 한 Drifting 계정에 연결됩니다. 이 PC의 라이브러리는 이미 다른 계정에 속해 연결하지 않았습니다. 바꾸려면 계정에서 동기화를 해제한 뒤(기존 계정 로그인 불필요) 이 계정으로 로그인하세요. 로컬 작품과 클라우드 사본은 유지됩니다."
+    }
+  }
+}

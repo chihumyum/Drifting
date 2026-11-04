@@ -406,8 +406,7 @@ fn finalize_protocol_stage(
     if size_bytes != expected_size_bytes {
         return Err("local sync protocol stage size does not match its finalization".into());
     }
-    File::open(path)
-        .and_then(|file| file.sync_all())
+    drifting_core::file_io::sync_file(path)
         .map_err(|_| "could not durably finalize local sync protocol object".to_string())?;
     Ok(LocalObjectResult {
         source_ref,

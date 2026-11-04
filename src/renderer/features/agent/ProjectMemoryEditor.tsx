@@ -6,6 +6,7 @@ import { requestConfirmation } from '../../store/confirmation-store';
 import { useAgentMemory } from '../../usecase/useAgentMemory';
 import { BrushIcon } from '../../components/ui/BrushIcon';
 import '../../../styles/project-memory.css';
+import { platformShortcut } from '../../lib/shortcuts';
 
 /**
  * PROJECT_MEMORY.md as the author sees it: plain-text entries in document
@@ -159,7 +160,7 @@ export function ProjectMemoryEditor({
           className="pmem__textarea"
           value={draft}
           rows={2}
-          placeholder={t('projectMemory.placeholder')}
+          placeholder={t('projectMemory.placeholder', { shortcut: platformShortcut('⌘↩', 'Ctrl+Enter') })}
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={(event) => submitOnModEnter(event, () => void add())}
         />

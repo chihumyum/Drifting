@@ -44,6 +44,7 @@ import { markSampleLanded, noteBookOpened, useFirstRunArrival, useSampleOnShelf 
 import { charSeaRegistry } from '../lib/char-sea/char-sea-registry';
 import { SAMPLE_LANDING_DELAY_MS } from '../lib/motion';
 import { HostedRestoreBanner } from '../features/sync-status/HostedRestoreProgress';
+import { platformShortcut } from '../lib/shortcuts';
 
 function WindowDragStrip() {
   if (!getPlatformRuntime().desktopWindowControls) return null;
@@ -1187,8 +1188,7 @@ function ProjectFormDialog({ mode, project, busy, onSubmit, onClose }: ProjectFo
 }
 
 function submitShortcut(): string {
-  const mac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
-  return mac ? '⌘↵' : 'Ctrl+↵';
+  return platformShortcut('⌘↵', 'Ctrl+Enter');
 }
 
 /* ─── The paused mobile shelf's modals ─── */

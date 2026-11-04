@@ -39,11 +39,18 @@ pub(crate) fn report_directory(database_directory: &Path) -> PathBuf {
         .join("native")
 }
 
+/// The author's home folder, which reports replace with `~`: `HOME` on Unix,
+/// `USERPROFILE` (C:\Users\<name>) on Windows, where `HOME` is usually unset.
+fn home_directory() -> Option<String> {
+    ["HOME", "USERPROFILE"]
+        .into_iter()
+        .filter_map(|key| std::env::var_os(key).and_then(|home| home.into_string().ok()))
+        .find(|home| !home.is_empty())
+}
+
 fn bounded(mut value: String) -> String {
-    if let Some(home) = std::env::var_os("HOME").and_then(|home| home.into_string().ok()) {
-        if !home.is_empty() {
-            value = value.replace(&home, "~");
-        }
+    if let Some(home) = home_directory() {
+        value = value.replace(&home, "~");
     }
     if value.len() > MAX_FIELD_BYTES {
         let mut end = MAX_FIELD_BYTES;
@@ -161,7 +168,7 @@ mod tests {
         let report = NativeCrashReport {
             message: bounded(format!(
                 "boom in {}/notes",
-                std::env::var("HOME").unwrap_or_default()
+                home_directory().unwrap_or_default()
             )),
             location: "src/lib.rs:1".into(),
             thread: "main".into(),

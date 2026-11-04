@@ -70,6 +70,16 @@ function AppearanceEffects() {
       .catch((error) => log.warn('Native window-control positioning is unavailable:', error));
   }, []);
 
+  // Windows keeps its native title bar; it follows Drifting's theme, not the system's.
+  const uiTheme = useUiStore((state) => state.theme);
+  useEffect(() => {
+    const runtime = getPlatformRuntime();
+    if (runtime.nativePlatform !== 'windows' || !runtime.desktopWindowControls) return;
+    void platform.window
+      .setTheme(uiTheme)
+      .catch((error) => log.warn('Native title-bar theme is unavailable:', error));
+  }, [uiTheme]);
+
   return null;
 }
 

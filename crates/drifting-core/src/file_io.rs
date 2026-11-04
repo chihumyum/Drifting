@@ -27,6 +27,17 @@ pub fn ensure_parent_directory(path: &Path) -> io::Result<()> {
     Ok(())
 }
 
+/// Flush a finished file's contents and metadata to disk. Unix can fsync a
+/// read-only descriptor; Windows' FlushFileBuffers needs a handle with write
+/// access, so a read-only handle fails there with "access denied".
+pub fn sync_file(path: &Path) -> io::Result<()> {
+    #[cfg(windows)]
+    let file = OpenOptions::new().write(true).open(path)?;
+    #[cfg(not(windows))]
+    let file = File::open(path)?;
+    file.sync_all()
+}
+
 pub fn temporary_sibling(path: &Path) -> io::Result<PathBuf> {
     let filename = path
         .file_name()
@@ -62,6 +73,22 @@ pub fn sync_directory(path: &Path) -> io::Result<()> {
         ));
     }
     File::open(path)?.sync_all()
+}
+
+/// Windows has no directory fsync (see `windows_move_write_through`): NTFS
+/// journals directory metadata, and replacements that must be durable use
+/// MoveFileExW with WRITE_THROUGH. Callers keep the same barrier points and
+/// the same validation, so a symlinked or missing directory fails alike.
+#[cfg(windows)]
+pub fn sync_directory(path: &Path) -> io::Result<()> {
+    let metadata = fs::symlink_metadata(path)?;
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "durability barrier requires a real directory",
+        ));
+    }
+    Ok(())
 }
 
 #[cfg(unix)]

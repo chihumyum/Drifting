@@ -468,10 +468,15 @@ fn same_directory(a: &Path, b: &Path) -> bool {
             _ => false,
         }
     }
+    // Windows has no stable file identity in std; GetFinalPathNameByHandleW
+    // (behind canonicalize) spells one folder one way, whatever letter case
+    // reached it, so a case-only rename is recognized as the same folder.
     #[cfg(not(unix))]
     {
-        let _ = (a, b);
-        false
+        match (fs::canonicalize(a), fs::canonicalize(b)) {
+            (Ok(a), Ok(b)) => a == b,
+            _ => false,
+        }
     }
 }
 
@@ -1907,7 +1912,7 @@ mod tests {
             write_projection(root, "p", "first".into(), vec![entry("prose.md", "text")]).unwrap();
         // A folder from before names is renamed in place.
         let named = name_folder(root, "p", "潮汐灯塔").unwrap();
-        let directory = root.join("markdown-projections/潮汐灯塔");
+        let directory = root.join("markdown-projections").join("潮汐灯塔");
         assert_eq!(
             named.previous_directory.as_deref(),
             Some(hashed.directory.as_str())

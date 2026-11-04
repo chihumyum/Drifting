@@ -187,6 +187,21 @@ function writeTemporaryTauriConfig(configuration) {
   return { directory, filePath };
 }
 
+/**
+ * How the Tauri CLI is started. Elsewhere through `pnpm exec`; on Windows Node
+ * refuses to spawn `pnpm.cmd` without a shell (EINVAL), and a shell would
+ * re-split paths with spaces, so Node runs the CLI's own entry script.
+ */
+export function tauriCliInvocation({ platform = process.platform, nodeExecutable = process.execPath } = {}) {
+  if (platform === 'win32') {
+    return {
+      executable: nodeExecutable,
+      arguments: [path.join(repoDir, 'node_modules', '@tauri-apps', 'cli', 'tauri.js')],
+    };
+  }
+  return { executable: 'pnpm', arguments: ['--dir', repoDir, 'exec', 'tauri'] };
+}
+
 export async function runDesktopTauri(rawArguments = process.argv.slice(2)) {
   const [command, ...forwarded] = rawArguments;
   if (!supportedCommands.has(command)) {
@@ -236,7 +251,6 @@ export async function runDesktopTauri(rawArguments = process.argv.slice(2)) {
     }
   }
 
-  const pnpmExecutable = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
   const temporaryConfig = tauriConfigOverride
     ? writeTemporaryTauriConfig(tauriConfigOverride)
     : null;
@@ -246,9 +260,10 @@ export async function runDesktopTauri(rawArguments = process.argv.slice(2)) {
   let exitSignal = null;
 
   try {
+    const cli = tauriCliInvocation();
     const child = spawn(
-      pnpmExecutable,
-      ['--dir', repoDir, 'exec', 'tauri', command, ...effectiveArguments],
+      cli.executable,
+      [...cli.arguments, command, ...effectiveArguments],
       {
         cwd: repoDir,
         env: environment,

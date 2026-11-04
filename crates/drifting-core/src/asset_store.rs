@@ -172,7 +172,7 @@ impl AssetStore {
             }
             let marker = directory.join(MARKER);
             fs::write(&marker, self.session.as_bytes())?;
-            fs::File::open(&marker)?.sync_all()?;
+            crate::file_io::sync_file(&marker)?;
             sync_directory(&directory)?;
             let size_bytes = atomic_copy_capped(source, &path, limit)?;
             let mut hasher = Sha256::new();

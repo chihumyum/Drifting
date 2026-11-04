@@ -13,6 +13,7 @@ import {
 } from '../../usecase/useProjectCheckin';
 import '../../../styles/project-agent-home.css';
 import { BrushIcon } from '../../components/ui/BrushIcon';
+import { platformShortcut } from '../../lib/shortcuts';
 
 /**
  * The Project Home Agent entry: a composer that opens a General Agent
@@ -113,7 +114,7 @@ export function ProjectAgentHomeView({
           className="pagent__input"
           value={draft}
           rows={2}
-          placeholder={t('projectAgent.placeholder')}
+          placeholder={t('projectAgent.placeholder', { shortcut: platformShortcut('⌘↩', 'Ctrl+Enter') })}
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {

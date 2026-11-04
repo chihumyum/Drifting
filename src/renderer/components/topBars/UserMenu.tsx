@@ -19,6 +19,7 @@ import { AccountAvatar } from '../ui/AccountAvatar';
 import { BrushIcon } from '../ui/BrushIcon';
 import { GlassSelect } from '../ui/GlassSelect';
 import { GlassSlider } from '../ui/GlassSlider';
+import { platformShortcut } from '../../lib/shortcuts';
 
 const log = loglevel.getLogger('UserMenu');
 
@@ -175,7 +176,7 @@ export function UserMenu({
                 icon={<BrushIcon name="dharma-wheel" size={16} />}
                 label={t('userMenu.settings')}
                 intent={settingsIntent}
-                meta="⌘,"
+                meta={platformShortcut('⌘,', 'Ctrl+,')}
                 onClick={() => {
                   events.emit('settings:open', {});
                   onClose();
@@ -185,7 +186,7 @@ export function UserMenu({
                 icon={<BrushIcon name="movable-type" size={16} />}
                 label={t('userMenu.keyboardShortcuts')}
                 intent={settingsIntent}
-                meta="⌘K ⌘/"
+                meta={platformShortcut('⌘K ⌘/', 'Ctrl+K Ctrl+/')}
                 onClick={() => {
                   events.emit('settings:open', { railId: 'keys' });
                   onClose();

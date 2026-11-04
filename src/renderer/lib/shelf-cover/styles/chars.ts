@@ -24,7 +24,7 @@ export const chars: ArtStyle = {
     const oy = (H - rows * ch) / 2;
     const lanes = lanesOf(S.length);
     const meander = S.map(() => noise1d(rows + 1, 4 + rand() * 6, rand));
-    const font = book.latin ? 'ui-monospace, Menlo, monospace' : '"Songti SC", "Noto Serif SC", serif';
+    const font = book.latin ? 'ui-monospace, Menlo, Consolas, monospace' : '"Songti SC", "Noto Serif SC Variable", "Noto Serif SC", serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     for (let r = 0; r < rows; r++) {

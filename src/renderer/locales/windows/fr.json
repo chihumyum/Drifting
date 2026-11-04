@@ -1,0 +1,53 @@
+{
+  "preAlphaGuide": {
+    "byok": "Agent est expérimental et nécessite votre clé de modèle ou un abonnement ChatGPT. Les requêtes, coûts et conditions de traitement des données dépendent du fournisseur choisi. Les clés restent dans le Gestionnaire d’identification Windows."
+  },
+  "settings": {
+    "sync": {
+      "projection": {
+        "reveal": "Afficher dans l’Explorateur de fichiers"
+      }
+    },
+    "update": {
+      "channel_desc": "Windows 10/11 · x64 et ARM64"
+    },
+    "codexSubscription": {
+      "failure": {
+        "storage_failed": "Impossible d’enregistrer la connexion dans le Gestionnaire d’identification Windows."
+      }
+    },
+    "agent": {
+      "extensions": {
+        "secretHint": "Les secrets restent dans le Gestionnaire d’identification Windows. Laissez une valeur existante vide pour la conserver."
+      }
+    },
+    "hosted": {
+      "disconnect_description": "Téléverse les modifications présentes uniquement sur ce PC, puis déconnecte. Les projets locaux et copies cloud sont conservés.",
+      "disconnect_uploading": "Téléversement des modifications propres à ce PC : {{count}} restantes. Déconnecter maintenant laisse les autres uniquement sur ce PC.",
+      "disconnect_unuploaded": "{{count}} modifications non téléversées. Après déconnexion, elles resteront uniquement sur ce PC.",
+      "connect_errors": {
+        "local_project_sync_conflict": "Le même projet sur ce PC et dans le cloud correspond à deux historiques de synchronisation différents (dossier copié ou sauvegarde d’un autre PC restaurée). La connexion a été refusée pour éviter tout écrasement. Vous pouvez écrire en local.",
+        "local_project_sync_conflict_named": "{{projects}} sur ce PC et dans le cloud ont des historiques distincts (dossier copié ou sauvegarde d’un autre PC restaurée). La connexion a été refusée pour éviter tout écrasement. Vous pouvez écrire en local."
+      }
+    },
+    "models": {
+      "credentialsDesc": "Les clés restent uniquement dans le Gestionnaire d’identification Windows de cet appareil, sans synchronisation ni passage par Drifting. Choisissez fournisseur et modèle dans le menu de configuration de la saisie Agent.",
+      "speechDesc": "Identifiant de transcription vocale, distinct des fournisseurs de chat. Les noms d’éléments et de contexte du projet sont transmis pour corriger les noms propres. Les requêtes vont directement à Bailian ; la clé reste dans le Gestionnaire d’identification Windows."
+    }
+  },
+  "agentPanel": {
+    "onboarding": {
+      "saveFailed": "Impossible d’enregistrer la clé dans le Gestionnaire d’identification Windows."
+    }
+  },
+  "auth": {
+    "signOut": {
+      "pending": "{{count}} modifications de ce PC manquent dans le cloud. En vous déconnectant, elles restent ici et seront envoyées à votre retour sur ce compte.",
+      "pendingLocal": "{{count}} modifications manquent dans le cloud. En vous déconnectant, elles restent uniquement sur ce PC.",
+      "uploading": "Envoi des modifications de ce PC : {{count}} restantes."
+    },
+    "sync": {
+      "accountMismatch": "Une bibliothèque se connecte à un seul compte Drifting. Celle de ce PC appartient déjà à un autre, donc la connexion n’a pas été faite. Déconnectez la synchronisation dans Compte (sans vous connecter à l’ancien), puis connectez ce compte. Projets locaux et copies cloud sont conservés."
+    }
+  }
+}

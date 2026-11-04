@@ -48,7 +48,7 @@ export const CHAR_SEA_LANGUAGES: Record<CharSeaScript, CharSeaLanguage> = {
       '那光不往岸边来，也不往外走，只在原地一明一灭。她想起父亲说过，雾最浓的夜里，旧码头会自己记起从前的船。信封上的邮戳已经洇开了，只剩一个“北”字还看得清。',
   },
   'zh-TW': {
-    font: '"Songti TC", "Noto Serif CJK TC", serif',
+    font: '"Songti TC", "Noto Serif CJK TC", "PMingLiU", serif',
     loadFace: '"Songti TC"', cellWidth: 10, cellHeight: 10, size: 0.8, rtl: false,
     text: '霧從港口那邊漫過來的時候，林嵐正把第三封信壓在燈座底下。燈塔的鐵梯被潮氣浸得發涼，她每往上走一級，腳下就響一聲，像有人在樓下跟著數。守塔人說今晚不會有船。她沒有回答，只是把窗推開一道縫，讓海風翻動桌上的信紙。紙角捲起來，露出背面一行很淡的鉛筆字，那是她自己的筆跡，可她不記得什麼時候寫過。遠處的霧笛響了兩聲，停了，又響了一聲。她數著燈轉過的圈數，數到第七圈的時候，海面上亮起一點很小的光，像有人在水底下劃了一根火柴。',
   },
