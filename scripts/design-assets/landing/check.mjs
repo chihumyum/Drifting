@@ -107,9 +107,39 @@ try {
           agentHeaderFits:document.querySelector('.agt-head').scrollWidth<=document.querySelector('.agt-head').clientWidth+1,
           example:document.querySelector('#md-raw').textContent,
           agent:document.querySelector('#ag-edit').textContent,
-          download:document.querySelector('.hero .cta a').href};
+          download:document.querySelector('.hero .cta a').href,
+          // The menu is the app's: 240 wide (or the window less its gutters), 16px corners,
+          // and the page's own language ticked.
+          menuStyle:box.width===Math.min(240,innerWidth-32)&&getComputedStyle(menu).borderTopLeftRadius==='16px'
+            &&getComputedStyle(menu.querySelector('[aria-current=page]'),'::after').webkitMaskImage.includes('check'),
+          // Where each heading and the tagline wrap: the characters on either side of every
+          // line break, and whether a space or a <wbr> lies between them.
+          wraps:[...document.querySelectorAll('.tagline, main h2, main h3')].flatMap((element)=>{
+            const walker=document.createTreeWalker(element, NodeFilter.SHOW_TEXT|NodeFilter.SHOW_ELEMENT);
+            const found=[]; let previous=null, top=null, gap=false;
+            for (let node=walker.nextNode(); node; node=walker.nextNode()) {
+              if (node.nodeType===1) { if (node.tagName==='WBR') gap=true; continue; }
+              for (let i=0;i<node.data.length;i+=1) {
+                const ch=node.data[i];
+                if (/\\s/.test(ch)) { gap=true; continue; }
+                const range=document.createRange(); range.setStart(node,i); range.setEnd(node,i+1);
+                const rect=range.getBoundingClientRect();
+                if (top!==null&&rect.top>top+rect.height/2) found.push({before:previous, after:ch, gap});
+                if (top===null||rect.top>top+rect.height/2) top=rect.top;
+                previous=ch; gap=false;
+              }
+            }
+            return found;
+          })};
       })()`);
-      for (const key of ['menuFits', 'headerFits', 'triggerFits', 'pageFits', 'tabsFit', 'agentHeaderFits']) assert(geometry[key], `${locale} at ${width}px: ${key}`);
+      for (const key of ['menuFits', 'headerFits', 'triggerFits', 'pageFits', 'tabsFit', 'agentHeaderFits', 'menuStyle']) assert(geometry[key], `${locale} at ${width}px: ${key}`);
+      // Korean breaks only between words; Japanese headings only at their marked phrases
+      // (or after punctuation). Neither splits a word across lines.
+      if (locale === 'ko' || locale === 'ja') {
+        for (const wrap of geometry.wraps) {
+          assert(wrap.gap || /[、。，．・？！：；）」』]/.test(wrap.before), `${locale} at ${width}px breaks inside a word: ${wrap.before}|${wrap.after}`);
+        }
+      }
       assert.equal(geometry.options, 9);
       assert.equal(geometry.selected, locale);
       assert(geometry.example.includes(copy['story.opening']));
@@ -127,7 +157,8 @@ try {
       await pointerClick('#studio-sb [data-tab="elements"]');
       await pointerClick('#studio-sb [data-k="lin"]');
       assert(await evaluate("document.querySelector('[data-p=lin]').classList.contains('on')"));
-      const { example, agent, download, ...layout } = geometry;
+      const { example, agent, download, wraps, ...layout } = geometry;
+      if (locale === 'ko' || locale === 'ja') layout.headingWraps = `${wraps.length} breaks, none inside a word`;
       layouts.push({ width, locale, ...layout, markdownDemo: 'passed', studioDemo: 'passed', agentDemo: 'passed', download: 'passed' });
     }
   }

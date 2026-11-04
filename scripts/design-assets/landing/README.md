@@ -31,14 +31,22 @@ paths. English is `/`, Simplified Chinese is `/zh`, Traditional Chinese is
   unavailable. Existing `#zh` links and saved `zh` choices still open
   Simplified Chinese.
 - The header uses a native disclosure with ordinary language links. Its
-  selected name stays on one line, and the full list fits the viewport.
+  selected name stays on one line, and the full list fits the viewport. The
+  list is drawn as the app's menu (`ui-controls.css` `.menu-surface`): 240
+  wide, 16px corners on the still glass rim (`glass-ring.png`, drawn as a
+  background), 30px rows of 14px words standing in 6px, a glass ring under
+  the pointer, and the page's own language in ink-1 with a tick at its end.
   Choosing a language saves the home preference. The support and policy
   pages use their own two-language preference and links into their available
   copy. The home links label this scope in the footer.
 - `site.css` shares the app's glass, sand and font roles. The site serves its
   own font files and prefers the matching system families for Traditional
-  Chinese, Japanese and Korean glyphs. The app's character sea uses the
-  page's language. On narrow screens the primary download links are in the
+  Chinese, Japanese and Korean glyphs. Korean breaks only between words
+  (`word-break: keep-all`). Japanese running text breaks between characters
+  under strict rules; headings and the tagline break only at the phrase
+  boundaries their copy marks with `<wbr>` or after punctuation, in every
+  browser (not `auto-phrase`, which Safari lacks). Mark new Japanese headings
+  the same way. The app's character sea uses the page's language. On narrow screens the primary download links are in the
   hero and closing section.
 - `site.mjs` owns the language and theme controls and the shared sea
   behavior. The build bundles it into `/assets/landing.js` and
@@ -135,7 +143,9 @@ The Chromium collector uses an isolated profile and checks real pointer
 selection, Escape, the active language, all three demos, layout at 1280,
 390 and 320 CSS pixels, locale matching and persistence. Pass a third
 argument to save screenshots of the 390px Traditional Chinese, Japanese,
-German and Brazilian Portuguese menus. The Showcase routing tests cover
+German and Brazilian Portuguese menus. At every width it also checks the menu's
+size, corners and tick, and that no Korean or Japanese heading or tagline
+breaks a line inside a word. The Showcase routing tests cover
 every localized URL, assets, metadata and the sitemap.
 
 ## Markdown title acceptance
