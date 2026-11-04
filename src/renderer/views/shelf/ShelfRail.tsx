@@ -67,13 +67,17 @@ export function ShelfRail({ books, words, trashCount, importing, onImport, onOpe
         onClick={onImport}
       >
         <BrushIcon name={importing ? 'loader' : 'arrow-in'} size={16} className={importing ? 'ui-spin' : undefined} />
-        <span className="pp-rail__label">{t('projectPicker.rail.import')}</span>
-        <span className="pp-rail__meta">.driftingbook</span>
+        <span className="pp-rail__text">
+          <span className="pp-rail__label">{t('projectPicker.rail.import')}</span>
+          <span className="pp-rail__meta">.driftingbook</span>
+        </span>
       </button>
       <button type="button" className="pp-rail__cell glass" onClick={onOpenTrash}>
         <BrushIcon name="trash" size={16} />
-        <span className="pp-rail__label">{t('projectPicker.desk.trashEntry')}</span>
-        {trashCount > 0 && <span className="pp-rail__meta">{trashCount}</span>}
+        <span className="pp-rail__text">
+          <span className="pp-rail__label">{t('projectPicker.desk.trashEntry')}</span>
+          {trashCount > 0 && <span className="pp-rail__meta">{trashCount}</span>}
+        </span>
       </button>
       <button
         ref={triggerRef}

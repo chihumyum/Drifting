@@ -79,6 +79,13 @@ describe('the bookshelf in sand and glass', () => {
     expect(rail).toContain('const corner = syncLibraryCornerFor(health);');
     expect(rail).toContain('placement="top-start"');
     expect(block(css, '.pp-rail__cell {', '}')).toContain('background: transparent;');
+    // Label and meta are never cut short: the meta goes under the label where
+    // both do not fit on one line (English), and a long label wraps.
+    expect(block(css, '.pp-rail__cell {', '}')).toContain('min-height: 32px;');
+    expect(block(css, '.pp-rail__text {', '}')).toContain('flex-wrap: wrap;');
+    const label = block(css, '.pp-rail__label {', '}');
+    expect(label).not.toContain('text-overflow: ellipsis');
+    expect(label).not.toContain('white-space: nowrap');
     expect(block(css, '.pp-rail {', '}')).toContain('position: sticky;');
     const menu = read('src/renderer/components/topBars/UserMenu.tsx');
     expect(menu).not.toContain('onOpenTrash');
