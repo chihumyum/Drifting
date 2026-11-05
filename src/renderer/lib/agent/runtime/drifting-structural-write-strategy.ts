@@ -68,6 +68,7 @@ import {
 import { createProjectRepository } from '../../../sqlite-repo/project-repo';
 import { createStorylineRepository } from '../../../sqlite-repo/storyline-repo';
 import { useDataStore, type EntityRelationLink } from '../../../store/data-store';
+import { events } from '../../events';
 import type { EntityAtomicTransactionRunner } from '../../../usecase/synced-entity-commands';
 import {
   cloneEntityKvEntriesInTransaction,
@@ -2242,8 +2243,14 @@ function snapshotName(snapshot: AgentRuntimeEntityWriteSnapshot | null): string 
   return snapshot.value.id;
 }
 
-function projectSnapshot(
-  payload: StructuralWritePayload,
+/**
+ * Mirrors a committed write into the data store. A new element is also
+ * announced as created, so every open editor links prose that already named
+ * it, as when the author creates one (useBookElement.createElement).
+ * Exported for tests.
+ */
+export function projectSnapshot(
+  payload: Pick<StructuralWritePayload, 'entityKind' | 'entityId'>,
   snapshot: AgentRuntimeEntityWriteSnapshot | null,
 ): void {
   const data = useDataStore.getState();
@@ -2265,7 +2272,10 @@ function projectSnapshot(
   } else if (snapshot.kind === 'element') {
     const exists = data.bookElements.some((item) => item.id === snapshot.value.id);
     if (exists) data.updateBookElement(snapshot.value.id, snapshot.value);
-    else data.addBookElement(snapshot.value);
+    else {
+      data.addBookElement(snapshot.value);
+      events.emit('element:element-created', { element: snapshot.value });
+    }
   } else if (snapshot.kind === 'storyline') {
     const exists = data.storylines.some((item) => item.id === snapshot.value.id);
     if (exists) data.updateStoryline(snapshot.value.id, snapshot.value);
