@@ -83,7 +83,8 @@ function main() {
   // x264 at a near-lossless quality: the screen's flat paper and still text
   // make the file a seventh of the render's while the text stays crisp.
   execFileSync('ffmpeg', ['-v', 'error', '-y', ...inputs, '-filter_complex', filter, '-map', '0:v', '-map', '[a]',
-    '-c:v', 'libx264', '-preset', 'slow', '-crf', '18', '-pix_fmt', 'yuv420p',
+    // 4K takes a long time at `slow`; `medium` costs it little at CRF 18.
+    '-c:v', 'libx264', '-preset', options.size === 2160 ? 'medium' : 'slow', '-crf', '18', '-pix_fmt', 'yuv420p',
     '-color_primaries', 'bt709', '-color_trc', 'bt709', '-colorspace', 'bt709',
     '-c:a', 'aac', '-b:a', '192k', '-shortest', '-movflags', '+faststart', final], { stdio: 'inherit' });
   console.log(`[compose] ${path.relative(root, final)}`);
