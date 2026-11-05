@@ -23,7 +23,7 @@
       "docs/crash-reports.md": "sha256:4767edce971512e86b046606d75cf05030b02a18dd8d6c45192507103509f527",
       "docs/sentry-observability.md": "sha256:dd9590ffeba6e597bc67e28d49ce3ffc5688be66fef9bcb543703022e7897963",
       "docs/worktree-development.md": "sha256:2724296cef86904e49537a67ac8efe3d12250a25d48836894d1f8ff91e557752",
-      "package.json": "sha256:c85739ea72f61a96e123d5bbfe37bd7dd1340c851b5277ca953a176d35f17a54",
+      "package.json": "sha256:4a6f7fb313efa1e8d4e8a4e061c4b817875af5b773e2f0fcec77998bf82dab19",
       "pnpm-lock.yaml": "sha256:65ab3f8d4e7eaa538566acfea27294904a718b5de77bbb51907f017c7a1739dd",
       "pnpm-workspace.yaml": "sha256:25c6867abe08ae8573ca4dc2e9bf19da3f6163952c868148808d8355b536599e",
       "scripts/check-frontend-debug-release.mjs": "sha256:4b23b372810e017c7131739dd2437e2742d537e22c3ebb7dff0d613d9df50fcf",
@@ -31,7 +31,7 @@
       "scripts/renderer-headless-browser.mjs": "sha256:4b16c348700d3ae57ccc13e679f557c116a84c6d688992e11a8dd6114290510f",
       "scripts/renderer-sentry-acceptance.html": "sha256:4b0b7d85dcd7a7ede09538f81942f9adc44a27f7aaaf5abf1ff0842dab8d7e95",
       "scripts/renderer-sentry-acceptance.ts": "sha256:8207c0bb4401ed9026553cf76fbb49c87504bc6234871b301a92a6c5de7ed8ca",
-      "scripts/run-desktop-tauri.mjs": "sha256:5c83f50b47403e439aa91ce9e3303a63cfd58097b2e1206590cfb3ef86c2235f",
+      "scripts/run-desktop-tauri.mjs": "sha256:44e35add512388eea4689f43217a0d823205e816549c87e87989272bb671ee77",
       "scripts/run-hosted-client.mjs": "sha256:6ae15929a131bca10537c69cc51b5e799f8a33b9cdcd94f061d12f0c0bbe8e81",
       "scripts/run-sentry-browser.mjs": "sha256:1eb97d4faae9b5d4389c2453cc2b78388376e947493c682921f80405b686a02b",
       "scripts/run-worktree-dev.mjs": "sha256:05900de18172dbe379901e27ab0ed9affd464e82699a6ea25f1bdc8ffe07e561",
@@ -39,9 +39,9 @@
       "scripts/sentry-packaged-acceptance.ts": "sha256:710b59ceb7c86d6814ad718152f9c2c5f042cdf9d5a072fbcb9e31f1cd1ee722",
       "scripts/verify-sentry-cloud.mjs": "sha256:8a74bf919a4a6cc99a8317bdc8d303ab6b377697c009257d9f1fea7161e73367",
       "scripts/verify-sentry-packaged.mjs": "sha256:b583b3d71d0b9c1d93073caa1921bf5795de6e72f76b29077ca829ddf7fb963c",
-      "src/renderer/locales/en.json": "sha256:94e0168b07d5a52186979cd44e881ca4e6496413a1bd82b1a17cf5cef4117dab",
-      "src/renderer/locales/zh-CN.json": "sha256:d9b23a5e2dc9c8d91c90089224ed4694d9bf40e5042b986029a986589f20e64e",
-      "src/renderer/platform/desktop-tauri-launcher.acceptance.test.ts": "sha256:df1a4b678ffca76d96acf8cd90338066e8f20bcc34bb9fe2de7a013201917084",
+      "src/renderer/locales/en.json": "sha256:12bf62b3471508a6abe00a055636573d0df62fe64a55c5e72a2f33f796d2222f",
+      "src/renderer/locales/zh-CN.json": "sha256:b7e54cd1d0f7d04e405d12fc333a4aa6b9844059ec23e1bb37e8c5c562a9fc91",
+      "src/renderer/platform/desktop-tauri-launcher.acceptance.test.ts": "sha256:36ecd46d7e7d453ab0b4815f81a6c32cbd8e3449bacd4d4acda9df60b58bc7c6",
       "src/renderer/platform/sentry-environment.acceptance.test.ts": "sha256:6455ae63404c4981649d2378bda5cdbfb2c9dcea25d29c9c8a225d7599ec2353",
       "src/renderer/platform/worktree-dev-launcher.acceptance.test.ts": "sha256:6399941c1e0db3691c847d325e4c823b4f2cd5ab1afbb181cbbc0b5885454ce3",
       "src/renderer/services/diagnostics/crash-reporter.test.ts": "sha256:ce28d10a158243a99a162f304d80213764d92c701351ffa55b36087091cf1aa2",
@@ -52,8 +52,8 @@
       "src/renderer/services/diagnostics/sentry-policy.ts": "sha256:a4b16e18ea94733be5b934197ab0cfce92a33ae976bb4ccf660a0c7289531429",
       "src/renderer/services/diagnostics/sentry-reporter.test.ts": "sha256:9ade8e7041ac436a10a3d41bff55f4cd5c60dd5e99ecae0562f93693dc5d3fc3",
       "src/renderer/services/diagnostics/sentry-reporter.ts": "sha256:772ad6d19fade1352eec03d5e9fc6615609bac1bbe220e53897da98cfe13535e",
-      "src/renderer/services/update/update-service.test.ts": "sha256:5ca74cd074dec726c18f04e65b9775f2e1acc66f14a03a0047be2ccf99ab9246",
-      "src/renderer/services/update/update-service.ts": "sha256:52a9757087662a3d5b451e8c5907b25e4785c026ac7052ba1489f0c369ffc19d",
+      "src/renderer/services/update/update-service.test.ts": "sha256:2998d11ba2813e618301bc102d11b3522d7ab5ae7118d94953344877889d584e",
+      "src/renderer/services/update/update-service.ts": "sha256:4425c4533f0305c163bfa942ac21044dd3afaf5e770c57c5651e3d34beb087db",
       "src/renderer/sync/production-runtime.ts": "sha256:20e0a27fc945166179c7b4cad50a4c10eeaf6bde3903a8042507de267ee6f812",
       "src/renderer/vite-env.d.ts": "sha256:45c50b731418801e17d7db2c29ceaaec6c74d66d53216b705ac85cb38b0631ea",
       "vite.renderer.config.ts": "sha256:5ea85df6f0cc54f7ad3d14cb71d8967f6dc8c2ce8e99efd9441dcdb08bce2408"
@@ -62,7 +62,7 @@
   "automated": {
     "status": "passed",
     "command": "pnpm exec vitest run src/renderer/services/diagnostics src/renderer/services/update/update-service.test.ts src/renderer/platform/sentry-environment.acceptance.test.ts src/renderer/platform/desktop-tauri-launcher.acceptance.test.ts src/renderer/platform/worktree-dev-launcher.acceptance.test.ts",
-    "passed": 97,
+    "passed": 103,
     "failed": 0,
     "skipped": 0,
     "cases": [
@@ -84,6 +84,10 @@
       },
       {
         "name": "builds a bounded payload with the author’s words and only the sanitized summary",
+        "status": "passed"
+      },
+      {
+        "name": "checks automatically at most every 3 hours",
         "status": "passed"
       },
       {
@@ -175,6 +179,14 @@
         "status": "passed"
       },
       {
+        "name": "does not check automatically while an update is downloading or downloaded",
+        "status": "passed"
+      },
+      {
+        "name": "does not look up an update found in this launch again before the interval",
+        "status": "passed"
+      },
+      {
         "name": "drops ambient scope, request, prose, credentials and untrusted stack locations",
         "status": "passed"
       },
@@ -188,6 +200,10 @@
       },
       {
         "name": "honors opt-out both before initialization and after the SDK is initialized",
+        "status": "passed"
+      },
+      {
+        "name": "installs a found update in one click: download, verify, save every local write, install",
         "status": "passed"
       },
       {
@@ -319,6 +335,10 @@
         "status": "passed"
       },
       {
+        "name": "keeps offering a found update while an automatic check refreshes it",
+        "status": "passed"
+      },
+      {
         "name": "keeps retries identifiable and distinguishes accepted, rejected and failed delivery",
         "status": "passed"
       },
@@ -331,11 +351,19 @@
         "status": "passed"
       },
       {
-        "name": "keeps the verified update ready and installs nothing when saving fails",
+        "name": "keeps the verified download and installs nothing when saving fails; a retry does not download again",
         "status": "passed"
       },
       {
         "name": "keeps unsent reports for the next launch and drops rejected ones",
+        "status": "passed"
+      },
+      {
+        "name": "leaves the running version alone when the download fails, and downloads again on retry",
+        "status": "passed"
+      },
+      {
+        "name": "looks up an update found before a relaunch at once, and stops once it is installed",
         "status": "passed"
       },
       {
@@ -387,7 +415,7 @@
         "status": "passed"
       },
       {
-        "name": "reports a native install failure after a successful save",
+        "name": "reports a native install failure after a successful save; a retry installs the kept bytes",
         "status": "passed"
       },
       {
@@ -408,10 +436,6 @@
       },
       {
         "name": "sanitized diagnostic summary exports counts and safe codes without identifiers, content, paths, or raw errors",
-        "status": "passed"
-      },
-      {
-        "name": "saves every local write before the native install and relaunch",
         "status": "passed"
       },
       {

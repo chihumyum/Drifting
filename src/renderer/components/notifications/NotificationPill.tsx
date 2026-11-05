@@ -5,6 +5,7 @@
  *   - task just finished  → the result's ink seal for FLASH_MS, then the bell
  *   - a sync problem lasts → the danger seal, until it resolves
  *   - a crash follow-up is unread → its warning seal, until the center opens
+ *   - a found update is unread   → the update mark, until the center opens
  *   - otherwise           → the bell (furin)
  * Clicking toggles the notification center, which opens upward from it.
  */
@@ -19,6 +20,7 @@ import { Button } from '../ui/Button';
 import { EmptyState } from '../ui/EmptyState';
 import { GhostIconButton } from '../ui/GhostIconButton';
 import { useNotificationStore, type AppNotification } from '../../store/notification-store';
+import { isUnreadUpdateAvailable } from '../../services/update/update-notice';
 import { useFeedbackDialogStore } from '../../features/feedback/feedback-dialog-store';
 import { syncActionsFor, useSyncStatusActions, type SyncStatusAction } from '../../features/sync-status/sync-status-actions';
 import '../../../styles/notifications.css';
@@ -132,6 +134,8 @@ export function NotificationPill({ opens = 'down', floating = false }: {
   const syncProblem = items.some((n) => n.syncProblem);
   // A crash the author has not looked at keeps its seal on the bell.
   const unreadFollowUp = items.some((n) => n.source === 'crash-follow-up' && !n.read);
+  // A found update keeps its mark on the bell until the center opens.
+  const unreadUpdate = items.find(isUnreadUpdateAvailable);
   const headUpdatedAt = items.length ? items[0].updatedAt : 0;
 
   // When a task reaches a terminal state, flash its result icon for FLASH_MS.
@@ -207,7 +211,8 @@ export function NotificationPill({ opens = 'down', floating = false }: {
 
   const now = useNow(drawsCenter);
 
-  // Priority: a sync problem > active work (source-specific blink) > flash result icon > bell.
+  // Priority: a sync problem > active work (source-specific blink) > flash result icon
+  // > unread crash follow-up > unread found update > bell.
   let iconEl: React.ReactNode;
   let iconColor: string | undefined;
   if (syncProblem) {
@@ -234,6 +239,9 @@ export function NotificationPill({ opens = 'down', floating = false }: {
   } else if (unreadFollowUp) {
     iconColor = 'hsl(var(--destructive))';
     iconEl = <BrushIcon name="status-warning" size={15} />;
+  } else if (unreadUpdate) {
+    iconColor = toneColor(unreadUpdate);
+    iconEl = <BrushIcon name="rotate" size={15} />;
   } else {
     iconColor = undefined;
     iconEl = <BrushIcon name="furin" />;

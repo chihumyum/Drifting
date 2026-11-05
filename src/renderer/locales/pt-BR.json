@@ -132,11 +132,9 @@
   },
   "markdownFolderGuide": {
     "title": "Onde colocar a pasta Markdown?",
-    "intro": "Cada projeto mantém uma cópia Markdown aqui. Edite capítulos e ideias em qualquer editor e as alterações serão mescladas no Drifting.",
-    "default": "Local padrão",
+    "intro": "Cada projeto mantém uma cópia Markdown na pasta que você escolher. Edite capítulos e ideias em qualquer editor e as alterações serão mescladas no Drifting.",
     "chosen": "Pasta escolhida",
     "choose": "Escolher pasta…",
-    "useDefault": "Usar local padrão",
     "continue": "Continuar"
   },
   "settings": {
@@ -480,7 +478,7 @@
     "update": {
       "kicker": "ATUALIZAÇÕES",
       "title": "Instale novas versões quando quiser.",
-      "sub": "Após iniciar, o Drifting verifica novos lançamentos no GitHub no máximo uma vez por dia. O download e a instalação sempre esperam sua decisão.",
+      "sub": "Enquanto está aberto, o Drifting verifica novos lançamentos no GitHub a cada 3 horas. A instalação sempre espera sua decisão.",
       "current_version": "Versão atual",
       "channel_desc": "Apple Silicon · macOS 13 ou posterior",
       "unavailable": "Esta compilação não tem chave de assinatura do atualizador e não pode buscar atualizações. Versões baixadas do GitHub podem.",
@@ -489,11 +487,9 @@
       "checking": "Verificando…",
       "no_update": "Você está atualizado.",
       "available_version": "Drifting {{version}} está disponível",
-      "download": "Baixar",
       "downloading": "Baixando e verificando a assinatura…",
       "downloading_progress": "Baixando e verificando… {{progress}}%",
-      "install": "Instalar e reiniciar…",
-      "confirm_install": "Instalar e reiniciar",
+      "install": "Instalar e reiniciar",
       "install_migration_safety": "Se a nova versão precisar atualizar dados locais, a próxima inicialização criará e verificará um snapshot de segurança. A troca só ocorre após a migração passar nas verificações.",
       "dismiss": "Agora não",
       "installing": "Salvando e instalando…",
@@ -502,7 +498,7 @@
       "error": "Atualização interrompida: {{error}}",
       "states": {
         "checking": "Verificando…",
-        "available": "Pronto para baixar.",
+        "available": "Pronto para instalar.",
         "downloading": "Baixando e verificando…",
         "installing": "Salvando alterações e instalando; o Drifting será reiniciado ao terminar…",
         "ready": "Baixado e verificado. Pronto para instalar.",

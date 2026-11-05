@@ -131,11 +131,9 @@
   },
   "markdownFolderGuide": {
     "title": "Markdownフォルダの保存先は？",
-    "intro": "各作品のMarkdownコピーをここに保存します。他のエディタで章やアイデアを編集すると、変更がDriftingに統合されます。",
-    "default": "既定の場所",
+    "intro": "各作品のMarkdownコピーを選んだフォルダに保存します。他のエディタで章やアイデアを編集すると、変更がDriftingに統合されます。",
     "chosen": "選択したフォルダ",
     "choose": "フォルダを選択…",
-    "useDefault": "既定の場所を使用",
     "continue": "続ける"
   },
   "settings": {
@@ -478,7 +476,7 @@
     "update": {
       "kicker": "アップデート",
       "title": "新しいバージョンは、好きなときに。",
-      "sub": "起動後、GitHubの新規リリースを1日1回まで確認します。ダウンロードとインストールは、あなたの操作を待ちます。",
+      "sub": "起動中は3時間ごとにGitHubの新規リリースを確認します。インストールは、あなたの操作を待ちます。",
       "current_version": "現在のバージョン",
       "channel_desc": "Apple Silicon・macOS 13以降",
       "unavailable": "このビルドには更新署名キーがなく、更新を確認できません。GitHubからダウンロードしたリリース版では利用できます。",
@@ -487,11 +485,9 @@
       "checking": "確認中…",
       "no_update": "最新のバージョンです。",
       "available_version": "Drifting {{version}}を利用できます",
-      "download": "ダウンロード",
       "downloading": "ダウンロード・署名検証中…",
       "downloading_progress": "ダウンロード・検証中… {{progress}}%",
-      "install": "インストールして再起動…",
-      "confirm_install": "インストールして再起動",
+      "install": "インストールして再起動",
       "install_migration_safety": "新しい版でデータ更新が必要な場合、次回起動時に検証済みの安全スナップショットを作成し、移行の検証に合格してから切り替えます。",
       "dismiss": "今はしない",
       "installing": "保存・インストール中…",
@@ -500,7 +496,7 @@
       "error": "更新を停止しました：{{error}}",
       "states": {
         "checking": "確認中…",
-        "available": "ダウンロードできます。",
+        "available": "インストールできます。",
         "downloading": "ダウンロード・検証中…",
         "installing": "変更を保存してインストールしています。完了後にDriftingが再起動します…",
         "ready": "ダウンロードと検証が完了しました。インストールできます。",
