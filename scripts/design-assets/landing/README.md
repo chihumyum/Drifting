@@ -51,7 +51,7 @@ paths. English is `/`, Simplified Chinese is `/zh`, Traditional Chinese is
 - **Downloads.** The hero and the closing section each offer the Mac and the
   Windows installer, and the closing install text links the Windows ARM64
   installer. The links name the files of the latest published release
-  (`releases/latest/download/Drifting_<version>_aarch64.dmg` and
+  (`releases/latest/download/Drifting_<version>_macos_arm64.dmg` and
   `…_windows_x64-setup.exe` / `…_windows_arm64-setup.exe`), with the version
   from `package.json`, so build and deploy the site only after that release is
   published. The Mac button leads by default; for a Windows visitor

@@ -13,7 +13,7 @@
 | --- | --- |
 | 平台 | macOS 13+，Apple Silicon（`aarch64-apple-darwin`）；Windows 10/11 x64 与 ARM64（预览，见 [windows.md](windows.md)） |
 | 构建机 | GitHub `macos-26`，Xcode 26.6（macOS 26 SDK）。用更早的 SDK 编译，新系统会给 App 画旧样式的标题栏，红绿灯比 App 设定的位置偏下 |
-| 打包 | `.dmg`（首次安装）、`.app.tar.gz` + `.sig`（自动更新）、`latest.json`、`SHA256SUMS.txt`、`sbom.spdx.json`；Windows 为 `Drifting_<版本号>_windows_<x64\|arm64>-setup.exe` + `.sig`（安装与自动更新同一个文件） |
+| 打包 | `Drifting_<版本号>_macos_arm64.dmg`（首次安装）、`.app.tar.gz` + `.sig`（自动更新）、`latest.json`、`SHA256SUMS.txt`、`sbom.spdx.json`；Windows 为 `Drifting_<版本号>_windows_<x64\|arm64>-setup.exe` + `.sig`（安装与自动更新同一个文件） |
 | 图标 | macOS 打包前从 Icon Composer 源文件编译 `Assets.car`，支持浅色、深色、Clear 和 Tinted；旧系统保留 `.icns`。构建产物与 DMG 内的 App 都检查图标资产，见 `docs/qa/macos-app-icon.md` |
 | 签名 | Developer ID Application 证书；App 和外层的 DMG 都用 App Store Connect API Key 公证并 staple（DMG 那一步在 Tauri 构建之后单独做）。Windows 安装包暂不做 Authenticode 签名，首次运行 SmartScreen 会提示；自动更新仍由同一把更新密钥签名校验 |
 | Hosted | 连接 `vars.DRIFTING_HOSTED_ORIGIN`，开放注册；注册页链接 `https://drifting.cc/terms` 与 `https://drifting.cc/privacy` |
@@ -61,7 +61,8 @@
 1. 在 `main` 上把 `package.json`、`src-tauri/Cargo.toml`、`src-tauri/tauri.conf.json`
    的版本改成同一个新版本号（如 `0.1.0-alpha.2`），并写好
    `docs/releases/<版本号>.md`。第一行 `# Drifting <版本号>` 之后的正文会原样显示在
-   App 的更新提示和 设置 › 更新 里，写给用户看，用英文写，保持简短。
+   App 的更新提示和 设置 › 更新 里，写给用户看，保持简短。中英双语（2026-11-05 作者定）：先写中文条目和
+   结尾提醒，空一行，再写同样内容的英文。App 按纯文本显示（保留换行，不渲染 Markdown），所以不要用标题或分隔线。
 2. README 截图**只在作者说要截时才截**（2026-11-04 作者定），发版本身不截：那时跑
    `pnpm release:screenshots --readme`，截英文浅色的书架、工作区和要素全景三张写进
    `docs/screenshots/`（README 显示的就是它们），和当次改动一起提交。约一分钟，期间会把 App
@@ -78,7 +79,7 @@
 6. 在 GitHub 打开草稿 Release，下载 DMG，在一台干净的 Mac 上走一遍下面的冒烟检查。
 7. 没问题就点 **Publish release**。已安装的 App 在下次启动（或在 设置 › 更新 里手动检查）时收到更新。
 8. Publish 之后重建并部署官网：首页的下载按钮按文件名直接下载最新 Release 的
-   `Drifting_<版本号>_aarch64.dmg` 和 Windows 安装包，版本号取自 `package.json`。
+   `Drifting_<版本号>_macos_arm64.dmg` 和 Windows 安装包，版本号取自 `package.json`。
    在 Drifting-Showcase 里运行
    `node <客户端>/scripts/design-assets/landing/build.mjs site`，跑它的测试后推送 main
    （推送就是部署）；见 `scripts/design-assets/landing/README.md`。

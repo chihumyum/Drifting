@@ -16,7 +16,7 @@ const root = path.resolve(directory);
 // The download buttons fetch the latest release's installers by name (build.mjs).
 const { version } = JSON.parse(readFileSync(new URL('../../../package.json', import.meta.url), 'utf8'));
 const RELEASE = 'https://github.com/chihumyum/Drifting/releases/latest/download/';
-const INSTALLERS = { mac: `${RELEASE}Drifting_${version}_aarch64.dmg`, windows: `${RELEASE}Drifting_${version}_windows_x64-setup.exe` };
+const INSTALLERS = { mac: `${RELEASE}Drifting_${version}_macos_arm64.dmg`, windows: `${RELEASE}Drifting_${version}_windows_x64-setup.exe` };
 const fingerprint = createHash('sha256');
 for (const file of [...HOMES.map(({ file }) => file), 'assets/prefs.js', 'assets/site.css', 'assets/landing.js', 'assets/pages.js', 'sitemap.xml']) {
   fingerprint.update(file).update('\0').update(readFileSync(path.join(root, file)));
