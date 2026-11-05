@@ -28,6 +28,7 @@ const listed = (id: string, extra: Partial<ByokListedModel> = {}): ByokListedMod
   maxOutputTokens: null,
   adaptiveThinking: null,
   efforts: null,
+  defaultEffort: null,
   ...extra,
 });
 
@@ -64,6 +65,11 @@ describe('General Agent provider contract', () => {
   it('bundles each provider’s current models as the offline fallback', () => {
     expect(DEFAULT_AGENT_MODEL).toBe('deepseek-flash');
     expect(ids('deepseek')).toEqual(['deepseek-flash', 'deepseek-v4-pro']);
+    for (const model of agentProviderOption('deepseek').models) {
+      // DeepSeek's model list: 1,048,576-token window, 393,216 output, low/high/max.
+      expect(model.context).toMatchObject({ contextWindowTokens: 1_048_576, maxOutputTokens: 393_216 });
+      expect(model.reasoning).toMatchObject({ thinkingModes: ['off', 'adaptive'], efforts: ['low', 'high', 'max'] });
+    }
     expect(ids('anthropic')).toEqual([
       'claude-sonnet-5-5',
       'claude-opus-5-5',
@@ -114,7 +120,8 @@ describe('General Agent provider contract', () => {
   });
 
   it('normalizes thinking and effort inside each model capability profile', () => {
-    expect(normalizeAgentProviderEffort('deepseek', 'deepseek-v4-pro', 'low')).toBe('high');
+    expect(normalizeAgentProviderEffort('deepseek', 'deepseek-v4-pro', 'medium')).toBe('high');
+    expect(normalizeAgentProviderEffort('deepseek', 'deepseek-v4-pro', 'low')).toBe('low');
     expect(normalizeAgentProviderEffort('deepseek', 'deepseek-v4-pro', 'max')).toBe('max');
     expect(
       normalizeAgentProviderThinking('anthropic', 'claude-haiku-4-5-20251001', 'adaptive'),
@@ -191,7 +198,9 @@ describe('General Agent provider contract', () => {
 
     setByokModelCatalog('deepseek', [listed('deepseek-v4-pro'), listed('deepseek-flash'), listed('deepseek-v5')]);
     expect(ids('deepseek')).toEqual(['deepseek-flash', 'deepseek-v4-pro', 'deepseek-v5']);
+    // A list entry without specs keeps a conservative profile.
     expect(resolveAgentProviderReasoningProfile('deepseek', 'deepseek-v5').efforts).toEqual(['high', 'max']);
+    expect(resolveAgentProviderContextProfile('deepseek', 'deepseek-v5').contextWindowTokens).toBe(128_000);
 
     // A list with no model the Agent can drive keeps the bundled offer.
     setByokModelCatalog('openai', [listed('gpt-4o'), listed('o3')]);
@@ -199,6 +208,40 @@ describe('General Agent provider contract', () => {
     expect(ids('openai')).toEqual(['gpt-6-astra', 'gpt-6.1-sol', 'gpt-6.1-terra', 'gpt-6-luna']);
     setByokModelCatalog('deepseek', null);
     expect(ids('deepseek')).toEqual(['deepseek-flash', 'deepseek-v4-pro']);
+  });
+
+  it('takes DeepSeek limits and effort levels from its model list', () => {
+    setByokModelCatalog('deepseek', [
+      listed('deepseek-flash', {
+        displayName: 'DeepSeek-V4.1-Flash',
+        contextWindow: 1_048_576,
+        maxOutputTokens: 393_216,
+        efforts: ['low', 'high', 'max'],
+        defaultEffort: 'high',
+      }),
+      listed('deepseek-v5', {
+        displayName: 'DeepSeek-V5',
+        contextWindow: 2_097_152,
+        maxOutputTokens: 524_288,
+        efforts: ['low', 'medium', 'high', 'max', 'ultra'],
+        defaultEffort: 'medium',
+      }),
+    ]);
+    expect(agentProviderModelOption('deepseek', 'deepseek-flash')).toMatchObject({
+      label: 'DeepSeek Flash · fast',
+      context: { contextWindowTokens: 1_048_576, maxOutputTokens: 393_216 },
+    });
+    expect(agentProviderModelOption('deepseek', 'deepseek-v5')).toMatchObject({
+      label: 'DeepSeek-V5',
+      context: { id: 'deepseek-v5:agent-listed-v1', contextWindowTokens: 2_097_152, maxOutputTokens: 524_288 },
+      reasoning: {
+        thinkingModes: ['off', 'adaptive'],
+        efforts: ['low', 'medium', 'high', 'max'],
+        defaultThinking: 'off',
+        defaultEffort: 'medium',
+      },
+    });
+    expect(normalizeAgentProviderEffort('deepseek', 'deepseek-v5', 'xhigh')).toBe('medium');
   });
 
   it('takes Anthropic limits and capabilities from the Models API', () => {
@@ -259,9 +302,11 @@ describe('General Agent provider contract', () => {
       thinkingModes: ['off'],
       efforts: [],
     });
+    // An entry without specs is treated like any unknown choice.
     expect(agentProviderModelOption('anthropic', 'claude-legacy-bare')).toMatchObject({
       context: { contextWindowTokens: 128_000, maxOutputTokens: 32_000 },
-      reasoning: { thinkingModes: ['off'], efforts: [] },
+      reasoning: { thinkingModes: ['adaptive'], efforts: ['low', 'medium', 'high'] },
+      forcedToolChoice: false,
     });
   });
 });

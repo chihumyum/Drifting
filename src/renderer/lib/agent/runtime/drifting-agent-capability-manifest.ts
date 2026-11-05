@@ -396,7 +396,7 @@ export function buildDriftingAgentCapabilityManifest(): DriftingAgentCapabilityM
         cache: 'memory-only-five-minutes-with-stale-response-fencing',
         fallback: 'last-successful-provider-list-then-bundled-models',
         savedSelection: 'provider-shaped-id-preserved-across-restart-and-list-failure',
-        unknownMetadata: 'anthropic-models-api-limits-and-capabilities;otherwise-bundled-profile-or-128k-window-reasoning-on',
+        unknownMetadata: 'anthropic-and-deepseek-list-limits-and-efforts;openai-ids-only-bundled-profile-or-128k-window-reasoning-on',
         acceptance: 'synthetic-list-and-native-projection-tests;live-provider-lists-unverified',
       },
       certifiedProviders: AGENT_PROVIDER_OPTIONS.map((provider) => ({

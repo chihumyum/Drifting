@@ -49,7 +49,7 @@ import {
   type AIUsage,
 } from '../../types';
 
-export type DeepSeekReasoningEffort = 'high' | 'max';
+export type DeepSeekReasoningEffort = 'low' | 'high' | 'max';
 
 export interface DeepSeekProviderConfig {
   apiKey: string;
@@ -69,8 +69,8 @@ export interface DeepSeekProviderConfig {
   thinking?: boolean;
   /**
    * Reasoning effort when thinking is enabled. Defaults to 'high'. Ignored
-   * when thinking is disabled. (DeepSeek maps low/medium → high server-side
-   * anyway, so we only expose the meaningful values.)
+   * when thinking is disabled. DeepSeek accepts low, high and max (its model
+   * list says which each model supports); medium maps to high, xhigh to max.
    */
   reasoningEffort?: DeepSeekReasoningEffort;
 }
@@ -470,7 +470,8 @@ function buildChatMessages(
 function normalizeDeepSeekReasoningEffort(
   effort: NonNullable<AICompletionRequest['reasoningEffort']>,
 ): DeepSeekReasoningEffort {
-  return effort === 'max' || effort === 'xhigh' ? 'max' : 'high';
+  if (effort === 'max' || effort === 'xhigh' || effort === 'ultra') return 'max';
+  return effort === 'low' || effort === 'minimal' ? 'low' : 'high';
 }
 
 function buildChatTools(
