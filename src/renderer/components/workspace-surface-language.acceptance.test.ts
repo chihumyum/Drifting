@@ -1,10 +1,16 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { resolve, sep } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { designSystemDocs } from './design-system-docs.test-support';
 
 function source(path: string): string {
   return readFileSync(resolve(process.cwd(), path), 'utf8');
+}
+
+/** Every file under src/renderer, as '/'-separated paths on Windows too. */
+function rendererFiles(): string[] {
+  return (readdirSync(resolve(process.cwd(), 'src/renderer'), { recursive: true }) as string[])
+    .map((file) => file.split(sep).join('/'));
 }
 
 function block(text: string, start: string, end: string): string {
@@ -1242,7 +1248,7 @@ describe('workspace surface language acceptance', () => {
   });
 
   it('keeps lucide out of the desktop renderer outside the paused mobile shell', () => {
-    const files = (readdirSync(resolve(process.cwd(), 'src/renderer'), { recursive: true }) as string[])
+    const files = rendererFiles()
       .filter((file) => /\.tsx?$/.test(file) && !file.includes('.test.') && !file.startsWith('shells/mobile/'));
     expect(files.length).toBeGreaterThan(100);
     for (const file of files) {
@@ -1273,7 +1279,7 @@ describe('workspace surface language acceptance', () => {
       text
         .replace(/\/\*[\s\S]*?\*\//g, (comment) => comment.replace(/[^\n]/g, ' '))
         .replace(/(^|[^:])\/\/.*$/gm, '$1');
-    const files = (readdirSync(resolve(process.cwd(), 'src/renderer'), { recursive: true }) as string[]).filter(
+    const files = rendererFiles().filter(
       (file) =>
         /\.tsx?$/.test(file) &&
         !file.includes('.test.') &&
