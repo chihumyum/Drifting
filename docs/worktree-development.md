@@ -81,7 +81,10 @@ Existing acceptance collectors keep their own fixture workflows.
 Keep one running launcher per profile. To get fresh state, choose a new
 `--instance` name; there is deliberately no automatic reset/delete operation.
 On macOS/Linux, stop the launcher with SIGINT or SIGTERM to stop its owned
-process group. Release build commands are unchanged.
+process group. Windows has neither: Ctrl+C in its terminal, or
+`taskkill /PID <launcher pid> /T /F` from automation, stops the launcher, which
+ends the Tauri CLI's process tree ([Developing on Windows](windows.md#developing-on-windows)).
+Release build commands are unchanged.
 
 ## Isolated macOS Debug packages
 

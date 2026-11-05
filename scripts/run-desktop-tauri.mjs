@@ -17,6 +17,7 @@ import { resolveMacosDevSigningIdentity } from './select-macos-dev-signing-ident
 import { hostedEnvironment, normalizeHostedOrigin } from './hosted-environment.mjs';
 import { sentrySecurityOverride } from './sentry-environment.mjs';
 import { describeDevAgentKeys, devAgentKeyEnvironment, devAgentKeyRoots } from './dev-agent-keys.mjs';
+import { packageBinInvocation } from './package-bin.mjs';
 
 const scriptPath = fileURLToPath(import.meta.url);
 const repoDir = path.resolve(path.dirname(scriptPath), '..');
@@ -168,7 +169,7 @@ export function isLinkedGitWorktree(directory = repoDir, run = spawnSync) {
     encoding: 'utf8',
   });
   if (result.status !== 0 || typeof result.stdout !== 'string') return false;
-  const [gitDirectory, commonDirectory] = result.stdout.trim().split('\n');
+  const [gitDirectory, commonDirectory] = result.stdout.trim().split(/\r?\n/u);
   return Boolean(gitDirectory && commonDirectory) && path.resolve(gitDirectory) !== path.resolve(commonDirectory);
 }
 
@@ -192,16 +193,12 @@ function writeTemporaryTauriConfig(configuration) {
 /**
  * How the Tauri CLI is started. Elsewhere through `pnpm exec`; on Windows Node
  * refuses to spawn `pnpm.cmd` without a shell (EINVAL), and a shell would
- * re-split paths with spaces, so Node runs the CLI's own entry script.
+ * re-split paths with spaces, so Node runs the CLI's own entry script
+ * (scripts/package-bin.mjs).
  */
-export function tauriCliInvocation({ platform = process.platform, nodeExecutable = process.execPath } = {}) {
-  if (platform === 'win32') {
-    return {
-      executable: nodeExecutable,
-      arguments: [path.join(repoDir, 'node_modules', '@tauri-apps', 'cli', 'tauri.js')],
-    };
-  }
-  return { executable: 'pnpm', arguments: ['--dir', repoDir, 'exec', 'tauri'] };
+export function tauriCliInvocation({ platform = process.platform, nodeExecutable = process.execPath, root = repoDir } = {}) {
+  if (platform === 'win32') return packageBinInvocation('tauri', { root, platform, nodeExecutable });
+  return { executable: 'pnpm', arguments: ['--dir', root, 'exec', 'tauri'] };
 }
 
 export async function runDesktopTauri(rawArguments = process.argv.slice(2)) {

@@ -3,6 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync } from 'nod
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { runInNewContext } from 'node:vm';
 import { createServer } from 'vite';
 import { transformSync } from 'esbuild';
@@ -146,7 +147,7 @@ describe('native development performance audit', () => {
       dom: { elements: 10, editors: 1 }, mutations: {}, errors: [], componentRenders: [], renderCalls: { ChapterPanel: 2 }, commitErrors: 0, observerMs: 0, snapshotMs: 0 });
     writeFileSync(path.join(audit, 'samples.jsonl'), [sample(2000, 9000, false), sample(3000, 5000, true), sample(5000, 17, true)].map(s => JSON.stringify(s)).join('\n'));
     try {
-      const json = execFileSync(process.execPath, [new URL('../../../scripts/native-performance-audit.mjs', import.meta.url).pathname, audit, 'summarize'], { encoding: 'utf8' });
+      const json = execFileSync(process.execPath, [fileURLToPath(new URL('../../../scripts/native-performance-audit.mjs', import.meta.url)), audit, 'summarize'], { encoding: 'utf8' });
       const report = JSON.parse(json);
       expect(report.observations).toMatchObject({ samples: 3, visibleSamples: 2, focusOnlySamples: 1, comparableSamples: 1 });
       expect(report.phases[0].metrics.frameGaps).toMatchObject({ count: 1, max: 17 });

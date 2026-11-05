@@ -7,6 +7,8 @@ import viteConfiguration from '../../../vite.renderer.config';
 
 const rendererRoot = path.resolve(process.cwd(), 'src/renderer');
 const repositoryRoot = path.resolve(rendererRoot, '../..');
+/** A repository-relative path with '/' separators, as on macOS and Linux. */
+const repositoryPath = (file: string) => path.relative(repositoryRoot, file).split(path.sep).join('/');
 
 type DeferredEntry = { id: string; entry: string };
 
@@ -34,7 +36,7 @@ function staticImportClosures(read: (file: string) => string = (file) => fs.read
       ? path.join(repositoryRoot, 'src', specifier.slice(2))
       : path.resolve(path.dirname(from), specifier);
     const file = ['', '.ts', '.tsx', '.js', '.mjs', '/index.ts', '/index.tsx']
-      .map((extension) => base + extension)
+      .map((extension) => path.normalize(base + extension))
       .find((candidate) => fs.existsSync(candidate) && fs.statSync(candidate).isFile());
     if (!file) throw new Error(`Unresolved import ${specifier} in ${path.relative(repositoryRoot, from)}`);
     return file;
@@ -80,7 +82,7 @@ function deferredStylesheetsOutsideShell(read?: (file: string) => string): strin
   const shell = shellClosure(closure);
   return deferredEntries().flatMap(({ entry }) => [...closure(entry)]
     .filter((file) => file.endsWith('.css') && !shell.has(file))
-    .map((file) => `${entry} -> ${file.startsWith('npm:') ? file : path.relative(repositoryRoot, file)}`));
+    .map((file) => `${entry} -> ${file.startsWith('npm:') ? file : repositoryPath(file)}`));
 }
 
 /** The Super View entries (`vite-plugins/deferred-super-views.ts`). */
@@ -107,7 +109,7 @@ function superViewModulesSharedOutsideShell(read?: (file: string) => string): st
     }
   }
   return [...owners].filter(([, entries]) => entries.length > 1)
-    .map(([file, entries]) => `${path.relative(repositoryRoot, file)} <- ${entries.join(', ')}`);
+    .map(([file, entries]) => `${repositoryPath(file)} <- ${entries.join(', ')}`);
 }
 
 /** The shell: the HTML entry plus the project route-code gate. */

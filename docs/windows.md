@@ -10,6 +10,7 @@ push to `claude/windows-port` or a `windows/**` branch, and are not published.
 | Job | Runner | Result |
 | --- | --- | --- |
 | `windows / rust tests` | `windows-latest` (x64) | `cargo test --lib` for the Tauri crate on Windows |
+| `windows / developer commands` | `windows-latest` (x64) | the contributor commands below: install, typecheck, lint, tests, launcher manifests, developer CLI |
 | `windows / installer (x64)` | `windows-latest` | unsigned NSIS installer, Hosted sign-in enabled |
 | `windows / installer (arm64)` | `windows-11-arm` | the same for Windows on Arm |
 
@@ -28,8 +29,8 @@ published release that ships Windows. Installing an update saves every local
 write first; the updater then quits Drifting, runs the installer in passive
 mode and reopens it.
 
-The desktop runner (`scripts/run-desktop-tauri.mjs`) starts the Tauri CLI with
-Node on Windows, because Node refuses to spawn `pnpm.cmd` without a shell.
+To build and run Drifting from source on Windows, see
+[Developing on Windows](#developing-on-windows).
 
 ## What differs on Windows
 
@@ -107,6 +108,73 @@ Node on Windows, because Node refuses to spawn `pnpm.cmd` without a shell.
 ## Not available on Windows yet
 
 - Authenticode-signed installers.
+
+## Developing on Windows
+
+Windows 10 or 11, x64 or ARM64, can run the development app and the source
+checks. Install once:
+
+- **Node.js 22.23.1 or newer** (the official installer), then pnpm through
+  Corepack in an administrator terminal: `corepack enable`, then
+  `corepack prepare pnpm@10.17.1 --activate`.
+- **Rust 1.96** with the MSVC toolchain from [rustup](https://rustup.rs):
+  `x86_64-pc-windows-msvc` on x64, `aarch64-pc-windows-msvc` on ARM64.
+- **Visual Studio Build Tools** (or Visual Studio) with the **Desktop
+  development with C++** workload, which brings MSVC and the Windows SDK. On
+  ARM64 also select the ARM64 build tools.
+- **WebView2 Runtime.** Windows 11 has it; on Windows 10 install the Evergreen
+  runtime if it is missing.
+- **Git for Windows.** The launchers call `git` to tell a linked worktree from
+  the main checkout. Clone into a short path such as `C:\src\Drifting`: Cargo's
+  build folders inside a worktree profile are deep, and Windows limits paths
+  to 260 characters unless long paths are turned on.
+
+The repository's `.gitattributes` checks every text file out with LF line
+endings whatever `core.autocrlf` says; patches, generated evidence and source
+fingerprints depend on it. In PowerShell, quote an `--input '@file.json'`
+argument; Windows PowerShell 5.1 also drops the double quotes inside inline
+JSON passed to `pnpm drifting`, so give it the JSON as a file there.
+
+These commands work as on macOS:
+
+| Command | Notes |
+| --- | --- |
+| `pnpm install --frozen-lockfile` | no install scripts beyond esbuild's |
+| `pnpm dev`, `pnpm dev:online` | in a linked worktree `pnpm dev` starts its isolated profile |
+| `pnpm dev:worktree` with `--print-config`, `--no-watch`, `--instance`, `--port`, `--online`, `--frontend-debug`, `--agent-debug`, `--performance-audit`, `--release-perf` | `--build-app` is macOS only |
+| `pnpm dev:seed`, `pnpm dev:seed:lite` | |
+| `pnpm tauri:build`, `pnpm tauri:build:debug` | unsigned; add `--bundles nsis` for the installer alone, as CI does |
+| `pnpm lint`, `pnpm typecheck`, `pnpm test` | |
+| `pnpm ci:contract:check`, `pnpm public:check`, `pnpm agent:capabilities:check`, `pnpm release:check` | |
+| `pnpm core:test` | needs the MSVC toolchain |
+| `pnpm drifting …`, including `frontend serve --platform desktop` | see [frontend-debug.md](frontend-debug.md) |
+| `pnpm frontend:debug:check` | |
+| `pnpm dev:check` | checks the macOS signing scripts only; Windows needs no certificate |
+| `pnpm dev:commands:check` | starts each tool the launchers use, prints both profile manifests, asks the developer CLI for help and seeds a lite library into a temporary folder; launches no app |
+
+What differs from macOS:
+
+- **No code signing.** `pnpm dev` and local builds need no certificate. The
+  signed runner `scripts/run-signed-macos-dev.sh` is Cargo's runner for Apple
+  targets only and never runs on Windows.
+- **Tools start without a shell.** Node cannot spawn `pnpm.cmd` or another
+  `.cmd` shim without a shell (EINVAL), and a shell would re-split paths with
+  spaces. On Windows the launchers run each tool's own entry script with Node
+  instead of `pnpm exec` (`scripts/package-bin.mjs`); Tauri's
+  `beforeDevCommand` still runs `pnpm exec vite` through `cmd`.
+- **Stopping a launcher.** Windows has no process groups or catchable
+  SIGTERM. Ctrl+C reaches every process in the terminal, and the launcher then
+  ends the Tauri CLI's process tree (Cargo, Vite and the app) with
+  `taskkill /T /F`. Automation stops a launcher with
+  `taskkill /PID <launcher pid> /T /F`.
+- **Profile storage.** A worktree profile's App-local data is under
+  `%LOCALAPPDATA%\<identifier>`, its WebView2 data persists per profile (macOS
+  uses an ephemeral store), and its secrets go to Windows Credential Manager.
+- **Not on Windows:** `--build-app`, the iOS commands and
+  `frontend serve --platform ios`, `pnpm release:screenshots`, the native
+  performance scripts (`perf:stress`, `perf:renderer:native`) and the
+  crash-recovery acceptances that need POSIX SIGKILL. Tests that need POSIX
+  signals are skipped on Windows. The Android commands are untested there.
 
 ## Manual acceptance (Windows 11, including Arm virtual machines)
 
