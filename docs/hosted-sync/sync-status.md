@@ -85,6 +85,8 @@ transfers no longer add a row per cycle or make the bell blink.
 - When the problem resolves, the same row becomes an ordinary "Sync resumed"
   row.
 
+On the shelf the bell sits beside the account cell at the foot of the rail
+and opens the center upward.
 While the left sidebar is closed, a second bell floats under the left toggle.
 It opens the center downward. The center is drawn only by the bell that
 opened it (`centerOwner`).

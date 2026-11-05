@@ -1,7 +1,7 @@
 {
   "kind": "markdown-projection-settings-browser",
-  "generatedAt": "2026-11-05T19:54:47.924Z",
-  "sourceSha256": "4410e000396b49d6ab4da9a609d4d78a06c42a48671411d8d298d558a7b4aaf6",
+  "generatedAt": "2026-11-05T20:52:27.089Z",
+  "sourceSha256": "2df902a1723bbba50e6c35e52e7a37b713a5ae720a4a92d85d466a89d39f4132",
   "status": "passed",
   "synthetic": true,
   "checks": [
@@ -9,11 +9,12 @@
     "an edited file that cannot merge and preserved copies are reported",
     "Show in Finder opens the open project's folder",
     "canceling folder selection preserves the current location",
-    "choosing and restoring the location for all projects updates the shown path",
+    "choosing the location for all projects updates the shown path, and there is no default to restore",
     "a location of the project's own, update and follow-all-projects use the current project",
     "a failed folder change shows an error and preserves the previous path",
     "turning the folder off is drawn in the danger ink, asks first with Cancel focused, and leaves only Turn on",
     "turning it back on restores the location and project controls",
+    "with no location chosen nothing shows a path, Finder and Update now wait, and Choose folder leads; choosing one writes the open project there",
     "Chinese controls wrap without horizontal overflow at two desktop widths",
     "with no project open the location and switch remain, and Finder opens the folder holding projects",
     "the first run asks the author to choose the Markdown folder, offering no default, before the shelf",

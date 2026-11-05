@@ -1098,29 +1098,35 @@ mod local {
     /// What a connecting client is told. A connection reaches whichever book
     /// is open, so it learns the book and its folder from
     /// get_project_overview; one limited to a single book is told where that
-    /// book's folder is. Once the author turned the Markdown folder off, the
-    /// client is told so instead.
+    /// book's folder is. Once the author turned the Markdown folder off, or
+    /// while no location is chosen for that book, the client is told so instead.
     fn initialize_instructions(root: &Path, project_id: Option<&str>) -> String {
-        let folder = if crate::markdown_projection::folder_enabled(root) {
-            let location = match project_id {
-                None => {
-                    "for each book; get_project_overview reports the open book's directory".into()
-                }
-                Some(project_id) => {
-                    let directory = crate::markdown_projection::resolved_project_directory(
-                        root, project_id,
-                    )
-                    .map(|path| path.display().to_string())
-                    .unwrap_or_else(|_| {
-                        "an unavailable output location (check Settings → Sync & Data → Local data)"
-                            .into()
-                    });
+        let resolved = project_id.map(|project_id| {
+            crate::markdown_projection::resolved_project_directory(root, project_id)
+        });
+        let unset = resolved.as_ref().is_some_and(|resolved| {
+            resolved
+                .as_ref()
+                .is_err_and(|error| error == crate::markdown_projection::NO_LOCATION)
+        });
+        let folder = if !crate::markdown_projection::folder_enabled(root) {
+            "The author turned the Markdown folder off: Drifting neither updates files on disk nor merges edits made there, so read and write through tools only.".into()
+        } else if unset {
+            "The author has not chosen where this project's Markdown folder goes: Drifting writes no files on disk, so read and write through tools only.".into()
+        } else {
+            let location = match resolved {
+                None => "for each book with a chosen location; get_project_overview reports the open book's directory, or that no location is chosen".into(),
+                Some(resolved) => {
+                    let directory = resolved
+                        .map(|path| path.display().to_string())
+                        .unwrap_or_else(|_| {
+                            "an unavailable output location (check Settings → Sync & Data → Local data)"
+                                .into()
+                        });
                     format!("for this project at {directory}")
                 }
             };
             format!("A structured Markdown folder is automatically maintained {location}. Start with 开始阅读.md and 正文/目录.md. Each chapter, drift, element and storyline is one file named by title; chapters are numbered in reading order and grouped by existing acts, elements use their existing categories. 注释与待办.md groups comments by target; 素材 holds the materials in their folders and 素材/附件 their local image/PDF sources. .drifting/manifest.json records full entity identities, their current readable paths, canonical sourceVersion values and file SHA-256 hashes. Filenames can change after rename or reorder: resolve identities through the manifest. The projection uses relative Markdown links to whole files, without block anchors. Physical file lines and hashes differ from read_chapter. The manifest records generation time and file SHA-256 hashes; check freshness and hashes before citing a disk snapshot. Projection refresh is asynchronous while the project is open. The folder is named after the book and renamed with it; get_project_overview reports its current directory and status, including after the book is renamed or the output location changes. Chapter and drift files are TWO-WAY: their frontmatter holds drifting-id, 写作状态 and 摘要, then the prose. While Drifting runs, an edit saved to one merges into Drifting as the author's own edit, without Agent review; never change drifting-id, and creating, deleting or renaming files is not synced. Every other file is generated and READ-ONLY: edits there are overwritten. Use authorized MCP write tools for edits that should be reviewed. The directory is local to the Mac running Drifting.")
-        } else {
-            "The author turned the Markdown folder off: Drifting neither updates files on disk nor merges edits made there, so read and write through tools only.".into()
         };
         let (scope, book) = match project_id {
             None => (
@@ -1426,9 +1432,35 @@ mod local {
         }
 
         #[test]
+        fn initialize_says_when_no_markdown_folder_location_is_chosen() {
+            let (_dir, _server, _grant, credential) = book_fixture();
+            let mut client = connect(&credential);
+            assert_eq!(
+                read_frame(&mut client, MAX_FRAME).unwrap().unwrap()["ok"],
+                true
+            );
+            let response = request(&mut client, 1, "initialize");
+            let instructions = response["result"]["instructions"].as_str().unwrap();
+            assert!(
+                instructions.contains("has not chosen where this project's Markdown folder goes")
+            );
+            assert!(!instructions.contains("TWO-WAY"));
+            assert!(!instructions.contains("markdown-projections"));
+        }
+
+        #[test]
         fn socket_authentication_project_scope_revocation_and_duplicate_ids() {
             let (_dir, server, grant, mut credential) = book_fixture();
             let project_id = grant.project_id.as_deref().unwrap();
+            let chosen = tempfile::tempdir().unwrap();
+            let root = server.directory.parent().unwrap();
+            crate::markdown_projection::set_default_root(
+                root,
+                chosen.path().to_string_lossy().into_owned(),
+            )
+            .unwrap();
+            let directory =
+                crate::markdown_projection::resolved_project_directory(root, project_id).unwrap();
             credential.token = "incorrect".into();
             assert_eq!(
                 read_frame(&mut connect(&credential), MAX_FRAME)
@@ -1449,14 +1481,7 @@ mod local {
             assert!(instructions.contains("Every other file is generated and READ-ONLY"));
             assert!(instructions.contains("drifting:chapters/<title>/prose.md#L12-L18"));
             assert!(instructions.contains(&format!("drifting://open/{project_id}/")));
-            assert!(instructions.contains(
-                &crate::markdown_projection::project_directory(
-                    server.directory.parent().unwrap(),
-                    project_id
-                )
-                .to_string_lossy()
-                .to_string()
-            ));
+            assert!(instructions.contains(directory.to_str().unwrap()));
             assert_eq!(
                 request(&mut client, 2, "tools/list")["error"]["code"],
                 -32002

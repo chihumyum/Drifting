@@ -406,7 +406,8 @@ export interface PlatformApi {
     /** Names the project's folder for its book, renaming the folder already written. */
     nameFolder(projectId: string, title: string): Promise<MarkdownProjectionNamedFolder>;
     folder(): Promise<MarkdownFolderSettings>;
-    setDefaultRoot(customRoot: string | null): Promise<MarkdownFolderSettings>;
+    /** Chooses where projects without a location of their own are written. */
+    setDefaultRoot(location: string): Promise<MarkdownFolderSettings>;
     setEnabled(enabled: boolean): Promise<MarkdownFolderSettings>;
     /** Shows the project's folder in Finder, or with no project the folder holding them. */
     open(projectId: string | null): Promise<void>;

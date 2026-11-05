@@ -213,14 +213,23 @@
   font: 400 var(--ui-font-caption, 12px) / 1 var(--font-mono);
 }
 
+/* The account cell and the notification bell share the rail's last line,
+   as they share the foot of the workspace's left sidebar. */
+.pp-rail__foot {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+}
+
 /* The account cell: the avatar, the name and the library's sync state; the
    menu opens upward from it, as from the workspace's. */
 .pp-rail__account {
   display: flex;
+  flex: 1;
   align-items: center;
   gap: 10px;
-  width: 100%;
-  margin-top: 6px;
+  min-width: 0;
   padding: 8px 10px;
   border: 0;
   border-radius: 12px;

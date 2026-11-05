@@ -1,8 +1,11 @@
 import type { MarkdownProjectionInfo } from '../platform/contracts';
 
 export type MarkdownProjectionStatus = Partial<MarkdownProjectionInfo> & {
-  /** `off` once the author turned the Markdown folder off. */
-  state: 'pending' | 'ready' | 'error' | 'off';
+  /**
+   * `off` once the author turned the Markdown folder off; `unset` while the
+   * project follows all projects and no location is chosen for them.
+   */
+  state: 'pending' | 'ready' | 'error' | 'off' | 'unset';
   error?: string;
   /** Authored files edited outside Drifting that could not be merged, and why. */
   mirrorIssues?: { path: string; reason: string; docId?: string }[];
