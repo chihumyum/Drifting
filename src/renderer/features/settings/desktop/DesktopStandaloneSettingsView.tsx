@@ -8,7 +8,10 @@ import { BrushIcon, type BrushIconName } from '../../../components/ui/BrushIcon'
 type StandaloneSettingsId =
   | 'account'
   | 'appearance'
+  | 'editor'
   | 'language'
+  | 'models'
+  | 'keys'
   | 'sync'
   | 'updates'
   | 'privacy'
@@ -25,18 +28,26 @@ interface StandaloneSettingsGroup {
   items: StandaloneSettingsItem[];
 }
 
+// The project settings without what belongs to the open book (its trash, the
+// Agent's memory, usage and tools). Each panel loads only when it is selected.
 const STANDALONE_SETTINGS_GROUPS: StandaloneSettingsGroup[] = [
   { labelKey: 'settings.groups.account', items: [{ id: 'account', icon: 'name-seal', labelKey: 'settings.rail.account' }] },
   {
     labelKey: 'settings.groups.preferences',
     items: [
       { id: 'appearance', icon: 'taiji', labelKey: 'settings.rail.appearance' },
+      { id: 'editor', icon: 'edit', labelKey: 'settings.rail.editor' },
       { id: 'language', icon: 'wen', labelKey: 'settings.rail.language' },
     ],
   },
   {
+    labelKey: 'settings.groups.intelligence',
+    items: [{ id: 'models', icon: 'inkstone', labelKey: 'settings.rail.models' }],
+  },
+  {
     labelKey: 'settings.groups.control',
     items: [
+      { id: 'keys', icon: 'movable-type', labelKey: 'settings.rail.keys' },
       { id: 'sync', icon: 'cloud', labelKey: 'settings.rail.sync' },
       { id: 'updates', icon: 'rotate', labelKey: 'settings.rail.updates' },
     ],

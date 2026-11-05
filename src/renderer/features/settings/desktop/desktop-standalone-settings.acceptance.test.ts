@@ -31,4 +31,31 @@ describe('desktop standalone settings', () => {
     expect(settings).not.toContain('AgentPanel');
     expect(settings).not.toContain('ProjectRuntimeProvider');
   });
+
+  it('offers every setting that does not belong to the open book, each loaded on selection', () => {
+    const settings = read(
+      'src/renderer/features/settings/desktop/DesktopStandaloneSettingsView.tsx',
+    );
+    const panels = read('src/renderer/features/settings/StandaloneSettingsPanel.tsx');
+    const rail = settings.slice(
+      settings.indexOf('const STANDALONE_SETTINGS_GROUPS'),
+      settings.indexOf('const STANDALONE_SETTINGS_IDS'),
+    );
+    const ids = [...rail.matchAll(/\{ id: '([a-z]+)'/g)].map((match) => match[1]);
+
+    expect(ids).toEqual([
+      'account', 'appearance', 'editor', 'language', 'models',
+      'keys', 'sync', 'updates', 'privacy', 'about',
+    ]);
+    expect(rail).toContain("labelKey: 'settings.groups.intelligence'");
+    // The trash and the Agent panel read the open book; they stay in the project.
+    expect(ids).not.toContain('trash');
+    expect(ids).not.toContain('agent');
+
+    expect(panels).toContain("await import('./panels/PreferenceSettingsPanels')");
+    expect(panels).toContain("await import('./panels/IntelligenceSettingsPanels')");
+    expect(panels).toContain("case 'keys': return <KeysPanel registerRef={REGISTER_NOOP} />;");
+    expect(panels).not.toContain('AgentSettingsPanel');
+    expect(panels).not.toContain('TrashSettingsPanel');
+  });
 });
