@@ -1403,10 +1403,6 @@
       "session": "工作階段",
       "toolsCount": "{{count}} 個工具"
     },
-    "entity": {
-      "created": "已建立",
-      "edited": "已編輯"
-    },
     "pending": {
       "now": "思考中…",
       "withSeconds": "思考中 · {{seconds}} 秒",

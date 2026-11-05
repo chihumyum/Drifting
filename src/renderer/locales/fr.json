@@ -1407,10 +1407,6 @@
       "session": "Session",
       "toolsCount": "{{count}} outils"
     },
-    "entity": {
-      "created": "Créé",
-      "edited": "Modifié"
-    },
     "pending": {
       "now": "Réflexion…",
       "withSeconds": "Réflexion · {{seconds}} s",

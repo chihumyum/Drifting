@@ -577,7 +577,6 @@ const panelCss = `
 .agt-pending span:last-child { margin-left: 2px; }
 .agt-entity-links { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px 2px 2px; }
 .agt-entity-chip { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 8px; border: 0; border-radius: 2px; background: transparent; color: hsl(var(--ink-1)); font: inherit; font-size: var(--agent-font-secondary, 11.5px); cursor: pointer; }
-.agt-entity-chip__op { font-size: var(--agent-font-caption, 10.5px); opacity: 0.55; }
 .agt-history__running-dot { display: inline-block; width: 7px; height: 7px; margin-right: 5px; border-radius: 50%; background: hsl(var(--accent)); flex-shrink: 0; animation: agtHistoryRunPulse 1.4s ease-in-out infinite; }
 @keyframes agtHistoryRunPulse { 0%, 100% { opacity: 0.35; transform: scale(0.85); } 50% { opacity: 1; transform: scale(1); } }
 `;
