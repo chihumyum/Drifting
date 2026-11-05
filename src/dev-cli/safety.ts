@@ -1,7 +1,7 @@
 import { access, lstat, mkdir, realpath, readdir } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { homedir } from 'node:os';
-import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, join, resolve, sep } from 'node:path';
 import { spawn } from 'node:child_process';
 import { CliError } from './protocol';
 
@@ -77,7 +77,7 @@ export async function resolveDatabaseTarget(
   return {
     path: canonical,
     isUserData: userDataRoots.some(
-      (root) => canonical.startsWith(`${root}/`) || canonical === root,
+      (root) => canonical.startsWith(`${root}${sep}`) || canonical === root,
     ),
   };
 }
