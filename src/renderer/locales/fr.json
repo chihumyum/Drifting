@@ -3089,7 +3089,7 @@
     },
     "labels": {
       "elementCount": "Éléments",
-      "role": "Rôle"
+      "summary": "Résumé"
     },
     "meta": {
       "elements": "{{count}} éléments",
@@ -3103,7 +3103,7 @@
     "empty": {
       "noCategories": "Aucune catégorie pour le moment",
       "noTemplateFields": "Aucun champ de modèle pour le moment. Ajoutez des clés comme alias, faction ou première apparition.",
-      "noRole": "Aucune description du rôle en une phrase",
+      "noSummary": "Aucun résumé pour le moment",
       "noFilteredElements": "Aucun élément pour ce filtre"
     },
     "actions": {
@@ -3115,7 +3115,7 @@
     "deleteConfirm": "Supprimer l’élément « {{name}} » ?",
     "folio": "Élément",
     "bodyPlaceholder": "Comment est cet élément au moment où se déroule l’histoire ?",
-    "summaryPlaceholder": "Description du rôle en une phrase…",
+    "summaryPlaceholder": "Résumé en une phrase…",
     "sketch": "Esquisse",
     "sketchWithCategory": "{{category}} · esquisse",
     "portrait": {

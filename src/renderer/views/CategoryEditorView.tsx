@@ -466,9 +466,9 @@ export function CategoryEditorView({
 
                 <div className={`mgr-list${glass ? ' mgr-list--glass' : ''}`}>
                   {filteredEls.map((e) => {
-                    const role = e.summary || '';
+                    const summary = e.summary || '';
                     const hasContent =
-                      Boolean(role) || Boolean(e.contentJson && e.contentJson !== '{}');
+                      Boolean(summary) || Boolean(e.contentJson && e.contentJson !== '{}');
                     return (
                       <div
                         key={e.id}
@@ -489,13 +489,13 @@ export function CategoryEditorView({
                             )}
                             <span>{e.name || t('common.untitled')}</span>
                           </div>
-                          <div className={`mgr-row__summary${role ? '' : ' mgr-row__summary--empty'}`}>
-                            {role || t('categoryEditor.empty.noRole')}
+                          <div className={`mgr-row__summary${summary ? '' : ' mgr-row__summary--empty'}`}>
+                            {summary || t('categoryEditor.empty.noSummary')}
                           </div>
                         </div>
                         <div className="mgr-row__wc">
-                          <span className="mgr-row__wc-v">{role ? '·' : '—'}</span>
-                          <span className="mgr-row__wc-k">{t('categoryEditor.labels.role')}</span>
+                          <span className="mgr-row__wc-v">{summary ? '·' : '—'}</span>
+                          <span className="mgr-row__wc-k">{t('categoryEditor.labels.summary')}</span>
                         </div>
                         <div className="mgr-row__open" title={t('categoryEditor.actions.openElement')}><BrushIcon name="arrow-forward" size={14} /></div>
                         {glass && <i className="cell-ring" aria-hidden="true" />}

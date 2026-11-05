@@ -3078,7 +3078,7 @@
     },
     "labels": {
       "elementCount": "Elements",
-      "role": "Role"
+      "summary": "Summary"
     },
     "meta": {
       "elements": "{{count}} elements",
@@ -3092,7 +3092,7 @@
     "empty": {
       "noCategories": "No categories yet",
       "noTemplateFields": "No template fields yet. Add keys such as alias, faction, or first appearance.",
-      "noRole": "No one-sentence role yet",
+      "noSummary": "No summary yet",
       "noFilteredElements": "No elements for this filter"
     },
     "actions": {
@@ -3104,7 +3104,7 @@
     "deleteConfirm": "Delete element \"{{name}}\"?",
     "folio": "Element",
     "bodyPlaceholder": "What is this element when the story is happening?",
-    "summaryPlaceholder": "One-sentence role description…",
+    "summaryPlaceholder": "One-sentence summary…",
     "sketch": "Sketch",
     "sketchWithCategory": "{{category}} · sketch",
     "portrait": {
