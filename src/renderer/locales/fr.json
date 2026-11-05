@@ -297,6 +297,8 @@
       "page_width": "Largeur de page",
       "page_width_desc": "Largeur du papier dans l’éditeur ; le texte la remplit avec des marges fixes.",
       "flow": "Rythme d’écriture",
+      "auto_immersive": "Écriture immersive dès la saisie",
+      "auto_immersive_desc": "Dès que vous écrivez dans le texte, les barres latérales et les outils se retirent ; Échap ou un clic hors du texte les fait revenir.",
       "typewriter_mode": "Mode machine à écrire",
       "typewriter_mode_desc": "Maintient la ligne active à une position stable lors de la saisie ou du déplacement du curseur. Uniquement dans l’éditeur.",
       "typewriter_position": "Position de la ligne de saisie",

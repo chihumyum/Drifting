@@ -296,6 +296,8 @@
       "page_width": "Seitenbreite",
       "page_width_desc": "Papierbreite im Editor; der Text füllt sie mit festen Rändern aus.",
       "flow": "Schreibfluss",
+      "auto_immersive": "Immersives Schreiben beim Tippen",
+      "auto_immersive_desc": "Sobald du im Text schreibst, treten Seitenleisten und Werkzeuge zurück; Esc oder ein Klick außerhalb des Textes holt sie zurück.",
       "typewriter_mode": "Schreibmaschinenmodus",
       "typewriter_mode_desc": "Hält die aktuelle Textzeile beim Tippen oder Bewegen des Cursors an einer festen Bildschirmposition. Nur im Editor.",
       "typewriter_position": "Position der Schreibzeile",

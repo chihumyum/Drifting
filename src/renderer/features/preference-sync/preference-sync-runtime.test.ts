@@ -79,7 +79,7 @@ describe('preference sync runtime', () => {
     const { stop } = await runtime();
     await vi.waitFor(() => expect(service.state.puts.length).toBe(1));
     expect(Object.keys(service.state.bag).sort()).toEqual([
-      'accentColor', 'agentEditRevealAnimation', 'agentTurnIterationLimit', 'autoElementLinkEnabled',
+      'accentColor', 'agentEditRevealAnimation', 'agentTurnIterationLimit', 'autoElementLinkEnabled', 'autoImmersiveWriting',
       'bodyFontSize', 'caretColor', 'editorIndentStep', 'entityLinkBandStyle', 'entityLinkColorMode',
       'entityLinkHighlightMode', 'entityLinkKindColors', 'lineHeight', 'maxLineWidth', 'paragraphIndent',
       'paragraphSpacing', 'shortcutBindings', 'themeMode', 'typewriterMode', 'typewriterPosition', 'uiLocale',

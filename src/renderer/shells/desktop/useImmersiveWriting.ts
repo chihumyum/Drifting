@@ -2,8 +2,14 @@ import { useEffect, type RefObject } from 'react';
 import loglevel from 'loglevel';
 import { platform } from '../../platform';
 import { getPlatformRuntime } from '../../platform/runtime';
+import { useSettingsStore } from '../../store/settings-store';
 import { useUiStore } from '../../store/ui-store';
-import { leaveImmersiveWriting } from '../../components/workspaceChrome/immersive-writing';
+import {
+  enterImmersiveWriting,
+  isStageEditorTarget,
+  leaveImmersiveWriting,
+} from '../../components/workspaceChrome/immersive-writing';
+import { isPressElsewhere, isTypingInput, isTypingKey } from '../../features/immersive-writing/auto-immersion';
 import { startParagraphFocus } from '../../features/immersive-writing/paragraph-focus';
 
 const log = loglevel.getLogger('ImmersiveWriting');
@@ -38,12 +44,65 @@ function setTrafficLightsHidden(hidden: boolean): void {
  * window's top edge brings them and the dock back, near the stage's corner
  * the way out (`data-immersive-peek` on the workspace root), and any typing
  * sends them away again; Esc leaves; every block but the caret's fades.
- * Leaving the workspace ends immersion.
+ * Leaving the workspace ends immersion. With 打字时自动沉浸 on, typing in
+ * the stage's editor begins it, and a press off the text ends a sitting
+ * begun that way.
  */
 export function useImmersiveWriting(rootRef: RefObject<HTMLElement | null>): void {
   const immersive = useUiStore((state) => state.immersiveWriting);
+  const byTyping = useUiStore((state) => state.immersiveWritingByTyping);
+  const auto = useSettingsStore((state) => state.autoImmersiveWriting);
 
   useEffect(() => () => useUiStore.getState().setImmersiveWriting(false), []);
+
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!auto || immersive || !root) return undefined;
+    let pending: number | null = null;
+    // After the event's own handlers: ProseMirror ends its composition on
+    // compositionend and splits the block on Enter's keydown.
+    const enterFrom = (target: EventTarget | null) => {
+      if (pending != null) return;
+      pending = window.setTimeout(() => {
+        pending = null;
+        if (isStageEditorTarget(target, root.querySelector('.desktop-workspace-stage'))) {
+          enterImmersiveWriting({ byTyping: true });
+        }
+      }, 0);
+    };
+    const onInput = (event: Event) => {
+      if (isTypingInput(event as Partial<InputEvent>)) enterFrom(event.target);
+    };
+    const onCompositionEnd = (event: CompositionEvent) => {
+      if (event.data) enterFrom(event.target);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (isTypingKey(event)) enterFrom(event.target);
+    };
+    document.addEventListener('input', onInput, true);
+    document.addEventListener('compositionend', onCompositionEnd, true);
+    document.addEventListener('keydown', onKeyDown, true);
+    return () => {
+      if (pending != null) window.clearTimeout(pending);
+      document.removeEventListener('input', onInput, true);
+      document.removeEventListener('compositionend', onCompositionEnd, true);
+      document.removeEventListener('keydown', onKeyDown, true);
+    };
+  }, [auto, immersive, rootRef]);
+
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!immersive || !byTyping || !root) return undefined;
+    // The press itself lands as usual: on the dock, the outline rail, the margin.
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.button !== 0) return;
+      if (isPressElsewhere(event.target instanceof Element ? event.target : null, root)) {
+        leaveImmersiveWriting({ refocus: false });
+      }
+    };
+    window.addEventListener('pointerdown', onPointerDown, true);
+    return () => window.removeEventListener('pointerdown', onPointerDown, true);
+  }, [immersive, byTyping, rootRef]);
 
   useEffect(() => {
     const root = rootRef.current;

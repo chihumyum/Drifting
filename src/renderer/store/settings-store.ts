@@ -283,6 +283,9 @@ interface SettingsState {
   // Restore all of the above editor typography/layout fields to
   // EDITOR_STYLE_DEFAULTS in one shot.
   resetEditorStyle: () => void;
+  /** Typing in the paper begins immersive writing (desktop); Esc or a press off the text ends it. */
+  autoImmersiveWriting: boolean;
+  setAutoImmersiveWriting: (on: boolean) => void;
   /** Keep the active prose caret line at a stable viewport position. */
   typewriterMode: boolean;
   setTypewriterMode: (enabled: boolean) => void;
@@ -420,6 +423,8 @@ export const useSettingsStore = create<SettingsState>()(
       editorTextWrap: EDITOR_STYLE_DEFAULTS.editorTextWrap,
       setEditorTextWrap: (mode) => set({ editorTextWrap: normalizeEditorTextWrap(mode) }),
       resetEditorStyle: () => set({ ...EDITOR_STYLE_DEFAULTS }),
+      autoImmersiveWriting: false,
+      setAutoImmersiveWriting: (on) => set({ autoImmersiveWriting: on }),
       typewriterMode: false,
       setTypewriterMode: (enabled) => set({ typewriterMode: enabled }),
       typewriterPosition: TYPEWRITER_POSITION_DEFAULT,
@@ -840,6 +845,7 @@ export const useSettingsStore = create<SettingsState>()(
         if (merged.editorFontSource === 'system-custom' && !merged.editorSystemFontFamily) {
           merged.editorFontSource = EDITOR_STYLE_DEFAULTS.editorFontSource;
         }
+        merged.autoImmersiveWriting = merged.autoImmersiveWriting === true;
         merged.typewriterMode = merged.typewriterMode === true;
         merged.typewriterPosition = clamp(
           merged.typewriterPosition,

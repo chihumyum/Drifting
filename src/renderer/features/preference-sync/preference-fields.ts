@@ -56,6 +56,7 @@ export const PREFERENCE_FIELDS: readonly PreferenceField[] = [
   setting('paragraphSpacing', number, (value) => settings().setParagraphSpacing(value)),
   setting('maxLineWidth', number, (value) => settings().setMaxLineWidth(value)),
   // Writing
+  setting('autoImmersiveWriting', boolean),
   setting('typewriterMode', boolean),
   setting('typewriterPosition', number, (value) => settings().setTypewriterPosition(value)),
   setting('caretColor', exact(normalizeCaretColor)),
