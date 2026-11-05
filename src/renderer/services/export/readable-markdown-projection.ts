@@ -19,6 +19,8 @@ import { readableFileStem } from './readable-file-stem';
 const HOME = '开始阅读.md';
 const CONTENTS = '正文/目录.md';
 const COMMENTS = '注释与待办.md';
+const MATERIALS = '素材';
+const ATTACHMENTS = `${MATERIALS}/附件`;
 const STATUS: Record<string, string> = { draft: '草稿', finished: '已完成', discarded: '已搁置', drifting: '漂浮中', resting: '休眠', open: '未完成', resolved: '已解决', converted: '已转换' };
 const byteLength = (value: string) => new TextEncoder().encode(value).length;
 const key = (kind: string, id: string) => `${kind}:${id}`;
@@ -30,7 +32,7 @@ function shortId(value: string): string {
 }
 
 class Paths {
-  private used = new Set([HOME, CONTENTS, COMMENTS, '导出说明.md', '正文', '构想', '要素', '故事线', '资料', '资料/附件', '.drifting'].map(path => path.toLowerCase()));
+  private used = new Set([HOME, CONTENTS, COMMENTS, '导出说明.md', '正文', '构想', '要素', '故事线', MATERIALS, ATTACHMENTS, '.drifting'].map(path => path.toLowerCase()));
   claim(parent: string, title: string, identity: string, extension = '.md'): string {
     const stem = readableFileStem(title);
     let suffix = '';
@@ -130,23 +132,23 @@ export async function buildReadableMarkdownProjection(source: LocalRelationalMar
   for (const storyline of graph.storylines.filter(item => !item.deletedAt).sort(compare)) {
     addProse('storyline', storyline.id, storyline.name, paths.claim('故事线', storyline.name, key('storyline', storyline.id)), storyline.contentJson ?? '{}', storyline.summary);
   }
-  // Material folders become directories under 资料, as drift groups do
-  // under 构想. Links left dangling by concurrent edits fall back to 资料.
+  // Material folders become directories under 素材, as drift groups do
+  // under 构想. Links left dangling by concurrent edits fall back to 素材.
   const folders = new Map(graph.materialFolders.map(folder => [folder.id, folder]));
   const folderParents = effectiveParentFolderIds(graph.materialFolders);
   const folderPaths = new Map<string, string>();
   const folderPath = (id: string): string => {
     if (folderPaths.has(id)) return folderPaths.get(id)!;
     const folder = folders.get(id);
-    if (!folder) return '资料';
+    if (!folder) return MATERIALS;
     const parent = folderParents.get(id) ?? null;
-    const path = paths.claim(parent ? folderPath(parent) : '资料', folder.name, key('material-folder', id), '');
+    const path = paths.claim(parent ? folderPath(parent) : MATERIALS, folder.name, key('material-folder', id), '');
     folderPaths.set(id, path);
     return path;
   };
   for (const folder of [...folders.values()].sort(compare)) folderPath(folder.id);
   for (const item of [...graph.libraryItems].sort(compare)) {
-    const directory = item.folderId && folders.has(item.folderId) ? folderPath(item.folderId) : '资料';
+    const directory = item.folderId && folders.has(item.folderId) ? folderPath(item.folderId) : MATERIALS;
     add('library_item', item.id, item.title, paths.claim(directory, item.title, key('library_item', item.id)));
   }
   const home = add('project', project.id, project.name, HOME, { summary: project.summary });
@@ -202,7 +204,7 @@ export async function buildReadableMarkdownProjection(source: LocalRelationalMar
     let sourcePath = attachments.get(assetId);
     if (!sourcePath) {
       const ext = extForMime(asset.sourceMime);
-      sourcePath = paths.claim('资料/附件', document.title, key('asset', asset.id), `.${ext}`);
+      sourcePath = paths.claim(ATTACHMENTS, document.title, key('asset', asset.id), `.${ext}`);
       assets.set(sourcePath, { path: sourcePath, assetId, variant: 'source', ext, sourceSha256: asset.sourceSha256, sourceSizeBytes: asset.sourceSizeBytes });
       attachments.set(assetId, sourcePath);
     }
@@ -210,7 +212,7 @@ export async function buildReadableMarkdownProjection(source: LocalRelationalMar
     const ext = extForMime(asset.sourceMime);
     if (asset.kind === 'image' && !['png', 'jpg', 'gif', 'webp', 'bmp', 'svg', 'avif'].includes(ext)) {
       const existing = [...assets.values()].find(item => item.assetId === assetId && item.variant === 'display');
-      preview = existing?.path ?? paths.claim('资料/附件', `${document.title}（预览）`, key('preview', assetId), '.jpg');
+      preview = existing?.path ?? paths.claim(ATTACHMENTS, `${document.title}（预览）`, key('preview', assetId), '.jpg');
       assets.set(preview, { path: preview, assetId, variant: 'display', ext: 'jpg', sourceSha256: null, sourceSizeBytes: null });
     }
     document.sections.unshift(`## 附件\n\n![${markdownLabel(document.title)}](${relativeMarkdownHref(document.path, preview)})\n\n[原始文件](${relativeMarkdownHref(document.path, sourcePath)})`);
@@ -307,14 +309,14 @@ export async function buildReadableMarkdownProjection(source: LocalRelationalMar
     ...['构想', 'element', 'storyline', 'library_item'].flatMap(kind => {
       const targets = kind === '构想' ? nodes.filter(node => node.kind !== 'chapter').map(node => documents.get(key('node', node.id))!)
         : [...documents.values()].filter(document => document.kind === kind);
-      return targets.length ? [`## ${kind === 'element' ? '要素' : kind === 'storyline' ? '故事线' : kind === 'library_item' ? '资料' : kind}`, links(home, targets)] : [];
+      return targets.length ? [`## ${kind === 'element' ? '要素' : kind === 'storyline' ? '故事线' : kind === 'library_item' ? '素材' : kind}`, links(home, targets)] : [];
     }),
     ...(graph.comments.length ? [`- [注释与待办](${relativeMarkdownHref(HOME, COMMENTS)})`] : []),
     '- [导出说明](%E5%AF%BC%E5%87%BA%E8%AF%B4%E6%98%8E.md)',
   ];
   entries.push({ path: HOME, text: [`# ${markdownLabel(home.title)}`, markdownShareSummary(project.summary),
     `生成时间：${now.toISOString()}\n\n章节和构想文件可以在任何编辑器里修改，Drifting 运行时会把修改合并回来。其余文件由 Drifting 生成，只读，刷新会覆盖修改。`, ...navigation].filter(Boolean).join('\n\n') + '\n' });
-  entries.push({ path: '导出说明.md', text: '# 关于这份书稿\n\n从“开始阅读.md”进入，或按“正文”目录中的编号阅读章节。章节和构想各是一份可编辑的正文文件：开头的属性里是 drifting-id、写作状态和摘要，下面是正文，场景、节拍、笔记标题用 #、##、###。要素和故事线各是一份完整文件，摘要在开头，正文在中间，相关内容在末尾。\n\n要素按已有分类组织，构想沿用已有分组。注释与待办按所属对象汇总。图片和 PDF 位于“资料/附件”，可在 Obsidian 中预览。\n\n此目录兼容 Obsidian，既可独立作为 Vault，也可整体放入已有 Vault 的子目录。重命名或调序后，Drifting 会更新内部链接；外部笔记中的旧文件链接可能失效。\n\n章节和构想是双向的：在任何编辑器里保存后，Drifting 运行时会把修改合并进原稿，和在 Drifting 里打字的修改互不覆盖；关着 Drifting 时的修改会在下次打开项目时合并。一行换行即另起一段。不要改 drifting-id。新建、删除、改名或移动文件暂不会同步到 Drifting，删掉的章节文件会重新生成。其余文件是只读的阅读副本，刷新会覆盖修改。无法合并的文件会另存到 .drifting/preserved。磁盘阅读不能替代工具的写前读取。\n\n.drifting/manifest.json 保存生成时间、文件 SHA-256、实体与路径映射和 sourceVersion。文件物理行号与哈希不同于 MCP read_chapter 的行号和版本；修改前请通过工具重新读取。正文不带段落锚点，引用和关联链接打开整份文件。\n\n投影不包含完整数据库和 CRDT 历史，不能替代可恢复备份。项目关闭后保留最后快照，重新打开或手动刷新后更新。\n' });
+  entries.push({ path: '导出说明.md', text: '# 关于这份书稿\n\n从“开始阅读.md”进入，或按“正文”目录中的编号阅读章节。章节和构想各是一份可编辑的正文文件：开头的属性里是 drifting-id、写作状态和摘要，下面是正文，场景、节拍、笔记标题用 #、##、###。要素和故事线各是一份完整文件，摘要在开头，正文在中间，相关内容在末尾。\n\n要素按已有分类组织，构想沿用已有分组。注释与待办按所属对象汇总。图片和 PDF 位于“素材/附件”，可在 Obsidian 中预览。\n\n此目录兼容 Obsidian，既可独立作为 Vault，也可整体放入已有 Vault 的子目录。重命名或调序后，Drifting 会更新内部链接；外部笔记中的旧文件链接可能失效。\n\n章节和构想是双向的：在任何编辑器里保存后，Drifting 运行时会把修改合并进原稿，和在 Drifting 里打字的修改互不覆盖；关着 Drifting 时的修改会在下次打开项目时合并。一行换行即另起一段。不要改 drifting-id。新建、删除、改名或移动文件暂不会同步到 Drifting，删掉的章节文件会重新生成。其余文件是只读的阅读副本，刷新会覆盖修改。无法合并的文件会另存到 .drifting/preserved。磁盘阅读不能替代工具的写前读取。\n\n.drifting/manifest.json 保存生成时间、文件 SHA-256、实体与路径映射和 sourceVersion。文件物理行号与哈希不同于 MCP read_chapter 的行号和版本；修改前请通过工具重新读取。正文不带段落锚点，引用和关联链接打开整份文件。\n\n投影不包含完整数据库和 CRDT 历史，不能替代可恢复备份。项目关闭后保留最后快照，重新打开或手动刷新后更新。\n' });
   return { entries: entries.sort((a, b) => a.path.localeCompare(b.path, 'en')), assets: [...assets.values()],
     documents: [...documents.values()].map(({ key, path, title, anchor, sourceVersion }) => ({ key, path, title, anchor, sourceVersion })), documentCount: documents.size };
 }
