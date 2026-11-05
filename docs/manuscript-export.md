@@ -19,10 +19,10 @@ frames. Its sections are
 | --- | --- |
 | Format | EPUB / PDF / Word (`GlassSlider`) |
 | Scope | Whole book / Selected chapters; the chapter list (whole-row toggles grouped under their acts, select all/none) folds open under the slider |
-| Contents | Act titles (only when the book has acts), chapter titles, beat and note headings (`Switch`) |
+| Contents | Act titles (only when the book has acts), chapter titles (`Switch`) |
 | Book details | Title (defaults to the project name), author, optional cover image |
 
-The author name is remembered on this device for every book; format, the three
+The author name is remembered on this device for every book; format, the
 switches and an edited title are remembered per project (browser storage,
 never synced, never required). Export first asks where to save, then lays the
 file out natively and writes it; cancelling the save dialog is a no-op. The
@@ -30,8 +30,9 @@ dialog stays open with **Exported** or the failure so another format can follow.
 
 ## What enters the manuscript
 
-The five-level outline decides: acts and chapters are structure, scenes (`h1`)
-are manuscript headings, beats (`h2`) and notes (`h3`) are outline markers.
+Acts and chapters are structure. H1, H2 and H3 are three heading levels whose
+meaning the author decides, so the export treats them alike and always takes
+all three; there is no switch for them (2026-11-06).
 
 - **Whole book** is every chapter in book order except chapters marked
   *discarded* (折笔). In *Selected chapters* the author ticks any chapter,
@@ -41,12 +42,10 @@ are manuscript headings, beats (`h2`) and notes (`h3`) are outline markers.
   Word Heading 1, PDF part page). Acts without exported chapters drop out.
 - Chapter titles off keeps chapters as page/file boundaries and in navigation
   (EPUB nav and NCX, PDF bookmarks); the printed contents page is omitted.
-- Beat and note headings are left out by default; only the heading line goes,
-  the prose under it stays. The switch brings them back.
 - Never exported: drifts, elements, storylines, categories, materials,
   comments, TODOs, chapter summaries, plot grids, Agent state.
 - Inline marks kept: bold, italic, underline, strike. Hard line breaks,
-  blockquotes, horizontal rules (scene breaks), centre/right alignment and
+  blockquotes, horizontal rules (separators), centre/right alignment and
   Tab indent levels are kept. `http(s):` and `mailto:` links stay links;
   entity links and any other link keep only their text. Leading and trailing
   empty paragraphs of a chapter are trimmed; empty lines inside stay.
@@ -98,12 +97,16 @@ follow the outline:
 | --- | --- | --- |
 | Act | Heading 1 | — |
 | Chapter | Heading 2 | Heading 1 |
-| Scene (`h1`) | Heading 3 | Heading 2 |
-| Beat (`h2`) | Heading 4 | Heading 3 |
-| Note (`h3`) | Heading 5 | Heading 4 |
+| H1 | Heading 3 | Heading 2 |
+| H2 | Heading 4 | Heading 3 |
+| H3 | Heading 5 | Heading 4 |
+
+Acts and chapters are centred display titles. H1–H3 only step down in size
+and keep the author's own alignment from the paper, in Word as in EPUB
+(`level-1`…`level-3` classes) and PDF.
 
 Body text is Normal (12 pt, justified, 1.5 lines, two-character first-line
-indent in CJK books), quotes use Quote, scene breaks a centred Scene Break
+indent in CJK books), quotes use Quote, separators a centred Separator
 paragraph (`*  *  *`). Acts and chapters start on a new page. A4 pages; East
 Asian text is set in SimSun / PMingLiU / Yu Mincho / Batang by script with
 Times New Roman for Latin, and `compressPunctuation` is on. The cover and
@@ -186,7 +189,7 @@ node scripts/run-manuscript-export-acceptance.mjs --check  # verify freshness
 
 - The vitest suite builds a synthetic book in a file-backed SQLite database
   (pre-act chapter, two acts, a discarded chapter, a drift, a trashed chapter,
-  scene/beat/note headings, marks, links, quote, scene break, hard break,
+  H1/H2/H3 headings, marks, links, quote, separator, hard break,
   alignment, indent) and proves book order, exclusions, option handling,
   live/persisted/seed precedence and all-or-nothing failure. It also keeps
   `src-tauri/src/manuscript_export/fixtures/sample-manuscript.json` equal to
@@ -245,7 +248,7 @@ On 2026-10-31 the dialog was driven through the desktop debug bridge
   0 fatals, errors, warnings and infos for the whole-book EPUB above and for
   sample variants without a cover, without acts and with hidden chapter titles,
   a Latin book with `& < > " '` in its title, author and chapter title plus an
-  empty chapter, and one with beat and note headings.
+  empty chapter, and one with H2 and H3 headings.
 
 The test window sat behind other windows (`visibilityState: hidden`), so the
 fold-open transition was measured with transitions disabled; the native save

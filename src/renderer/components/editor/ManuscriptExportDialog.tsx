@@ -29,7 +29,6 @@ interface StoredPreferences {
     format?: ManuscriptFormat;
     actTitles?: boolean;
     chapterTitles?: boolean;
-    outlineHeadings?: boolean;
     title?: string;
   }>;
 }
@@ -71,7 +70,6 @@ export function ManuscriptExportDialog({ target, onClose }: {
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set(target.chapterId ? [target.chapterId] : []));
   const [actTitles, setActTitles] = useState(projectPreferences.actTitles ?? true);
   const [chapterTitles, setChapterTitles] = useState(projectPreferences.chapterTitles ?? true);
-  const [outlineHeadings, setOutlineHeadings] = useState(projectPreferences.outlineHeadings ?? false);
   const [title, setTitle] = useState(projectPreferences.title ?? '');
   const [author, setAuthor] = useState(stored.author ?? '');
   const [cover, setCover] = useState<ManuscriptCover | null>(null);
@@ -143,7 +141,7 @@ export function ManuscriptExportDialog({ target, onClose }: {
       projects: {
         ...stored.projects,
         [target.projectId]: {
-          format, actTitles, chapterTitles, outlineHeadings,
+          format, actTitles, chapterTitles,
           ...(title.trim() && title.trim() !== outline.projectTitle ? { title: title.trim() } : {}),
         },
       },
@@ -155,7 +153,6 @@ export function ManuscriptExportDialog({ target, onClose }: {
         chapterIds: scope === 'book' ? null : chapterIds,
         actTitles: hasActs && actTitles,
         chapterTitles,
-        outlineHeadings,
         title,
         author,
         cover,
@@ -274,11 +271,6 @@ export function ManuscriptExportDialog({ target, onClose }: {
                   <span>{t('manuscriptExport.chapterTitles')}</span>
                   <Switch size="sm" checked={chapterTitles} disabled={running} onCheckedChange={setChapterTitles}
                     aria-label={t('manuscriptExport.chapterTitles')} />
-                </label>
-                <label className="manuscript-export__switch">
-                  <span>{t('manuscriptExport.outlineHeadings')}</span>
-                  <Switch size="sm" checked={outlineHeadings} disabled={running} onCheckedChange={setOutlineHeadings}
-                    aria-label={t('manuscriptExport.outlineHeadings')} />
                 </label>
               </section>
 

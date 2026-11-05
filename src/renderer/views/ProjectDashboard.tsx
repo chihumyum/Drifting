@@ -22,7 +22,7 @@ import { useProjectNavigation } from '../hooks/useProjectNavigation';
 import { useRecentEntitiesStore } from '../store/recent-entities-store';
 import { useWritingStatsStore, deriveWritingStats } from '../store/writing-stats-store';
 import { useEditorSurfaceLifecycle } from '../components/editor/editor-surface-lifecycle-context';
-import { KvEditor } from '../components/editor/KvEditor';
+import { KvAddButton, KvEditor, type KvEditorHandle } from '../components/editor/KvEditor';
 import { ProjectMemoryEditor } from '../features/agent/ProjectMemoryEditor';
 import { HomeCreateFloat, HomeCreateTiles } from '../shells/desktop/project-home/HomeCreate';
 import { lastHomeCreateKind, useHomeCreate } from '../shells/desktop/project-home/useHomeCreate';
@@ -622,6 +622,8 @@ function ProfileEditor({ summary, onPersist }: { summary: string; onPersist: (ne
 
 function HomeSettings({ memoryRef }: { memoryRef: RefObject<HTMLElement | null> }) {
   const { t, i18n } = useTranslation();
+  const factsRef = useRef<KvEditorHandle>(null);
+  const storylineTemplateRef = useRef<KvEditorHandle>(null);
   const { projectId } = useProjectNavigation();
   const userId = useAuthStore((state) => state.user?.id);
   const currentProject = useProjectStore((s) => s.currentProject);
@@ -723,8 +725,11 @@ function HomeSettings({ memoryRef }: { memoryRef: RefObject<HTMLElement | null> 
         <div className="dash-sec__head">
           <BrushIcon name="dharma-wheel" size={15} />
           <h2 className="dash-sec__title">{t('dashboard.sections.projectFacts')}</h2>
+          <span className="dash-sec__spacer" />
+          <KvAddButton className="dash-text-button" onClick={() => factsRef.current?.addRow()} />
         </div>
         <KvEditor
+          ref={factsRef}
           key={`project-kv-${currentProject.id}`}
           valueJson={currentProject.kvJson}
           onPersist={(kvJson) => {
@@ -738,8 +743,11 @@ function HomeSettings({ memoryRef }: { memoryRef: RefObject<HTMLElement | null> 
         <div className="dash-sec__head">
           <BrushIcon name="bamboo" size={15} />
           <h2 className="dash-sec__title">{t('dashboard.sections.storylineTemplate')}</h2>
+          <span className="dash-sec__spacer" />
+          <KvAddButton className="dash-text-button" onClick={() => storylineTemplateRef.current?.addRow()} />
         </div>
         <KvEditor
+          ref={storylineTemplateRef}
           key={`project-storyline-template-${currentProject.id}`}
           valueJson={currentProject.storylineTemplateKvJson}
           onPersist={(storylineTemplateKvJson) => {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FilterChip } from '../components/ui/FilterChip';
 import { GlassSlider } from '../components/ui/GlassSlider';
@@ -27,7 +27,7 @@ import { useAgentChangeMarks } from '../hooks/useAgentChangeMarks';
 import { EditorOutlineRail } from '../components/editor/EditorOutlineRail';
 import { nestHeadings, type OutlineEntry } from '../components/editor/outline-rail-model';
 import { ElementTemplateEditor } from '../components/editor/ElementTemplateEditor';
-import { KvEditor } from '../components/editor/KvEditor';
+import { KvAddButton, KvEditor, type KvEditorHandle } from '../components/editor/KvEditor';
 import { FieldReview, FieldReviewStrip } from '../components/editor/FieldReview';
 import { useFieldReview } from '../hooks/useFieldReview';
 import { scrollToOutlineAnchor } from '../components/editor/outline-scroll';
@@ -54,6 +54,7 @@ export function StorylineEditorView({
   storylineIdOverride,
 }: { storylineIdOverride?: string } = {}) {
   const { t, i18n } = useTranslation();
+  const kvRef = useRef<KvEditorHandle>(null);
   const { isCommandActive, isVisible } = useEditorSurfaceLifecycle();
   const params = useParams<{ projectId: string; storylineId: string }>();
   const projectId = params.projectId;
@@ -428,8 +429,8 @@ export function StorylineEditorView({
             {/* 札记 — free-form notes (TipTap body). Leads the sections, right
                 under the hero; its H1/H2/H3 headings nest under this anchor in
                 the TOC. */}
-            <h2 id="sl-scratch" className="page__scene">
-              <span className="page__scene-title">{t('storylineEditor.sections.scratch')}</span>
+            <h2 id="sl-scratch" className="page__section">
+              <span className="page__section-title">{t('storylineEditor.sections.scratch')}</span>
             </h2>
             <div className="elem-body">
               {ydocError ? <EditorDocumentLoadError /> : <EditorContent editor={editor} />}
@@ -437,9 +438,9 @@ export function StorylineEditorView({
 
             {/* 字段 — storyline's own KV facts (seeded from project's storyline
                 template at creation, owned thereafter). */}
-            <h2 id="sl-kv" className="page__scene">
-              <span className="page__scene-title">{t('storylineEditor.sections.facts')}</span>
-              <span className="page__scene-meta">{t('storylineEditor.meta.facts')}</span>
+            <h2 id="sl-kv" className="page__section">
+              <span className="page__section-title">{t('storylineEditor.sections.facts')}</span>
+              <KvAddButton onClick={() => kvRef.current?.addRow()} />
             </h2>
             <div className="elem-body">
               <FieldReviewStrip
@@ -447,6 +448,7 @@ export function StorylineEditorView({
                 onAccept={fieldReview.accept}
               />
               <KvEditor
+                ref={kvRef}
                 key={`sl-kv-${currentStoryline.id}`}
                 valueJson={currentStoryline.kvJson}
                 onPersist={commitKv}
@@ -458,9 +460,9 @@ export function StorylineEditorView({
             {/* 章节模版 — TipTap doc seeded into new nodes under this
                 storyline. Editing only affects future nodes; existing nodes
                 are untouched. */}
-            <h2 id="sl-node-template" className="page__scene">
-              <span className="page__scene-title">{t('storylineEditor.sections.nodeTemplate')}</span>
-              <span className="page__scene-meta">{t('storylineEditor.meta.nodeTemplate')}</span>
+            <h2 id="sl-node-template" className="page__section">
+              <span className="page__section-title">{t('storylineEditor.sections.nodeTemplate')}</span>
+              <span className="page__section-meta">{t('storylineEditor.meta.nodeTemplate')}</span>
             </h2>
             <div className="elem-body">
               <ElementTemplateEditor
@@ -474,9 +476,9 @@ export function StorylineEditorView({
             {/* 章节序列 — chapters on this storyline (omitted when none). */}
             {sNodes.length > 0 && (
               <>
-                <h2 id="sl-chapters" className="page__scene">
-                  <span className="page__scene-title">{t('storylineEditor.sections.chapters')}</span>
-                  <span className="page__scene-meta">
+                <h2 id="sl-chapters" className="page__section">
+                  <span className="page__section-title">{t('storylineEditor.sections.chapters')}</span>
+                  <span className="page__section-meta">
                     {metricsReady
                       ? t('storylineEditor.meta.chaptersWords', {
                           chapters: sNodes.length,

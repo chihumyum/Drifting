@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { KvEntry, KvList } from '../../domain/kv';
 import { parseKv, stringifyKv } from '../../domain/kv';
@@ -30,6 +30,23 @@ interface Props {
   // the FieldReviewStrip above) — hidden here so the diff and the applied row
   // aren't both on screen. The row reappears once its change resolves.
   suppressKeys?: Set<string>;
+  // The section header owns the add button (KvAddButton) and calls addRow().
+  ref?: Ref<KvEditorHandle>;
+}
+
+export interface KvEditorHandle {
+  /** Open a blank row (or reuse a trailing blank one) and put the caret in its name. */
+  addRow: () => void;
+}
+
+/** The section's add button: a text action at the right of its header. */
+export function KvAddButton({ onClick, className = 'refs-section__text-action' }: { onClick: () => void; className?: string }) {
+  const { t } = useTranslation();
+  return (
+    <button type="button" className={className} onClick={onClick}>
+      <BrushIcon name="plus" size={10} inline /> {t('kvEditor.addField')}
+    </button>
+  );
 }
 
 // Lightweight key/value table editor used wherever an entity (or template)
@@ -48,6 +65,7 @@ export function KvEditor({
   emptyHint,
   readOnly = false,
   suppressKeys,
+  ref,
 }: Props) {
   const { t } = useTranslation();
   const initialList = parseKv(valueJson);
@@ -86,12 +104,27 @@ export function KvEditor({
     setRows((prev) => prev.map((row, i) => (i === idx ? { ...row, value } : row)));
   };
   const handleBlur = () => commit(rows);
-  const handleAdd = () => {
-    const next: KvList = [...rows, { key: '', value: '' }];
-    setRows(next);
-    // Don't persist on add — the new row is blank and stringifyKv would
-    // strip it anyway. Persist happens on blur after the user types.
-  };
+  // Which row's name takes the caret on the next render (set by addRow).
+  const [focusIndex, setFocusIndex] = useState<number | null>(null);
+  useImperativeHandle(
+    ref,
+    () => ({
+      addRow: () => {
+        if (readOnly) return;
+        const current = rows;
+        const last = current[current.length - 1];
+        if (last && !last.key.trim() && !last.value.trim()) {
+          setFocusIndex(current.length - 1);
+          return;
+        }
+        // Don't persist on add — the new row is blank and stringifyKv would
+        // strip it anyway. Persist happens on blur after the user types.
+        setRows([...current, { key: '', value: '' }]);
+        setFocusIndex(current.length);
+      },
+    }),
+    [readOnly, rows],
+  );
   const handleRemove = (idx: number) => {
     const next = rows.filter((_, i) => i !== idx);
     setRows(next);
@@ -128,6 +161,8 @@ export function KvEditor({
                 valuePlaceholder={resolvedValuePlaceholder}
                 readOnly={readOnly}
                 glass={glass}
+                focusKey={focusIndex === idx}
+                onFocused={() => setFocusIndex(null)}
                 onKeyChange={(key) => handleChangeKey(idx, key)}
                 onValueChange={(value) => handleChangeValue(idx, value)}
                 onBlur={handleBlur}
@@ -136,11 +171,6 @@ export function KvEditor({
             ),
           )}
         </div>
-      )}
-      {!readOnly && (
-        <button type="button" className="kv-editor__add" onClick={handleAdd}>
-          <BrushIcon name="plus" size={10} inline /> {t('kvEditor.addField')}
-        </button>
       )}
     </div>
   );
@@ -152,6 +182,8 @@ interface RowProps {
   valuePlaceholder: string;
   readOnly: boolean;
   glass: boolean;
+  focusKey: boolean;
+  onFocused: () => void;
   onKeyChange: (key: string) => void;
   onValueChange: (value: string) => void;
   onBlur: () => void;
@@ -164,18 +196,27 @@ function KvRow({
   valuePlaceholder,
   readOnly,
   glass,
+  focusKey,
+  onFocused,
   onKeyChange,
   onValueChange,
   onBlur,
   onRemove,
 }: RowProps) {
   const { t } = useTranslation();
+  const keyRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!focusKey) return;
+    keyRef.current?.focus();
+    onFocused();
+  }, [focusKey, onFocused]);
   const glassClass = glass
     ? readOnly ? ' glass glass--rest glass--still' : ' glass glass--rest glass--field'
     : '';
   return (
     <div className={`kv-editor__row${glassClass}`} role="listitem">
       <input
+        ref={keyRef}
         type="text"
         className="kv-editor__key"
         value={row.key}

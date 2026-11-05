@@ -81,8 +81,8 @@ async function inspectEpub(file) {
   for (const href of spine) body += await zip.file(href).async('string');
   check('epub: spine reads titles, then contents, then the body in order', inOrder(body, ['雾港来信（合成样书）', '目录', ...ORDER]));
   check('epub: CJK punctuation survives verbatim', PUNCTUATION.every(fragment => body.includes(fragment)));
-  check('epub: beat/note headings, drifts, discarded chapters and private links stay out',
-    !/节拍：|注记：|PRIVATE|drifting:\/\//.test(body));
+  check('epub: H1, H2 and H3 headings all enter the book', ['一　雨夜', '信使抵达', '核对潮汐表'].every(title => body.includes(title)));
+  check('epub: drifts, discarded chapters and private links stay out', !/PRIVATE|drifting:\/\//.test(body));
   const cover = manifest.find(item => item.properties.includes('cover-image'));
   check('epub: cover image is declared and is a JPEG', cover?.type === 'image/jpeg'
     && (await zip.file(cover.href).async('nodebuffer')).subarray(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff])));
@@ -107,10 +107,10 @@ async function inspectDocx(file) {
   const document = await zip.file('word/document.xml').async('string');
   const headings = [...document.matchAll(/<w:pStyle w:val="(Heading\d|Title|Subtitle)"\/>.*?<\/w:pPr>(.*?)<\/w:p>/g)]
     .map(([, style, runs]) => [style, [...runs.matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/g)].map(match => match[1]).join('')]);
-  check('docx: acts are Heading 1, chapters Heading 2 and scenes Heading 3, in book order',
+  check('docx: acts are Heading 1, chapters Heading 2 and H1–H3 Heading 3–5, in book order',
     JSON.stringify(headings.filter(([style]) => style.startsWith('Heading')).map(([style, text]) => `${style}:${text}`))
       === JSON.stringify(['Heading2:序章　灯下', 'Heading1:第一卷　潮起', 'Heading2:第一章　来信', 'Heading3:一　雨夜',
-        'Heading3:二　旧信', 'Heading2:第二章　旧港', 'Heading1:第二卷　雾散', 'Heading2:第三章　返航']), headings);
+        'Heading4:信使抵达', 'Heading5:核对潮汐表', 'Heading3:二　旧信', 'Heading2:第二章　旧港', 'Heading1:第二卷　雾散', 'Heading2:第三章　返航']), headings);
   const text = run('textutil', ['-convert', 'txt', '-stdout', file]);
   check('docx: macOS textutil opens the package and reads the book in order', inOrder(text, ['雾港来信（合成样书）', '合成作者', ...ORDER]));
   check('docx: CJK punctuation survives verbatim', PUNCTUATION.every(fragment => text.includes(fragment)));
@@ -140,7 +140,8 @@ function inspectPdf(file) {
   const titles = ORDER.map(title => title.replace(/\u3000/g, ' '));
   check('pdf: extracted text reads the title page, contents and body in order', inOrder(text, ['雾港来信（合成样书）', '目录', ...titles, ...titles]));
   check('pdf: CJK punctuation is extractable verbatim', PUNCTUATION.every(fragment => text.replace(/\n/g, '').includes(fragment)));
-  check('pdf: beat/note headings, drifts and discarded chapters stay out', !/节拍：|注记：|PRIVATE|不应出现/.test(text));
+  check('pdf: H1, H2 and H3 headings all enter the book', ['一 雨夜', '信使抵达', '核对潮汐表'].every(title => text.includes(title)));
+  check('pdf: drifts and discarded chapters stay out', !/PRIVATE|不应出现/.test(text));
   // Line-by-line layout: no line begins with a closing mark or ends with an opening one.
   const layout = run('pdftotext', ['-enc', 'UTF-8', '-layout', file, '-']).split('\n').map(line => line.trim()).filter(Boolean);
   const startsBadly = layout.filter(line => CLOSING.includes(line[0]));
@@ -188,7 +189,7 @@ if (process.argv.includes('--check')) {
       platform: `${process.platform}-${process.arch}`, krilla,
       debugBuildMilliseconds: timings, outputs, checks,
       boundaries: {
-        sample: 'synthetic book from manuscript-export.acceptance.test.ts: one pre-act chapter, two acts, a discarded chapter, a drift, a trashed chapter, scene/beat/note headings, marks, links, quote, scene break, hard break and a generated cover',
+        sample: 'synthetic book from manuscript-export.acceptance.test.ts: one pre-act chapter, two acts, a discarded chapter, a drift, a trashed chapter, H1/H2/H3 headings, marks, links, quote, separator, hard break and a generated cover',
         epubcheck: 'the W3C epubcheck jar runs only when EPUBCHECK_JAR is set; otherwise the Rust test checks the OCF, package, navigation, NCX and XHTML rules it enforces',
         word: 'macOS textutil and the Rust test parse the package; Microsoft Word itself is not driven',
         pdfFonts: 'installed system fonts of the machine that ran this report; another computer may pick other faces from the same lists',

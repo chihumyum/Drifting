@@ -3,7 +3,7 @@
    One contiguous grid that fills its host. Desktop hosts it in the dock
    under the paper, which it shares with the Bottom Timeline (only one of
    the two at a time), and draws it as the chapter's own little timeline:
-   each row a lane named on the left, each column a beat along the top, each
+   each row a lane named on the left, each column named along the top, each
    cell a slip of paper written straight into. The mobile paper tool hosts
    the same grid as a hairline table under its own header. Cells stretch on
    both axes down to a per-presentation minimum, then the overflowing axis
@@ -271,7 +271,7 @@
 }
 
 /* ── Desktop: lanes. Lane names sit on the desk in the serif structure face,
-   beats along the top in the index face; the lanes are the page's white,
+   column names along the top in the index face; the lanes are the page's white,
    parted by half-pixel lines in the desk colour, like the timeline's tracks.
    Each cell is a slip of paper with a resting line of clear glass; under the
    pointer its glass bleeds and drifts, and holding the caret it is the still
@@ -320,7 +320,7 @@
   font-size: 12.5px;
   line-height: 1.5;
 }
-/* The slips take the dense patches, a different one each beat. */
+/* The slips take the dense patches, a different one each column. */
 .planner-wrap[data-presentation='desktop'] .pl-cell.glass {
   --glass-gx: var(--glass-dense-gx);
   --glass-gy: var(--glass-dense-gy);

@@ -28,7 +28,7 @@ html[data-shell-mode='desktop'] :is(
   .left-sb-group-header__name,
   .left-sb-group-header__frame-label,
   .btl-rail__name,
-  .page__scene-title,
+  .page__section-title,
   .refs-section__title,
   .dash-sec__title
 ) {
@@ -67,8 +67,7 @@ html[data-shell-mode='desktop'] .left-sb-group-header__name {
   text-transform: none !important;
 }
 
-/* Index: subheaders, filters, secondary groups and their metadata, and the
-   one line an empty editor section says (.ui-section-empty). */
+/* Index: subheaders, filters, secondary groups and their metadata. */
 html[data-shell-mode='desktop'] :is(
   .workspace-panel-header-row,
   .left-sb-inline-group-header,
@@ -76,8 +75,7 @@ html[data-shell-mode='desktop'] :is(
   .review-group__count,
   .review-card__kind,
   .review-card__status,
-  .review-card__time,
-  .ui-section-empty
+  .review-card__time
 ) {
   font-family: var(--font-mono);
   font-weight: 400;

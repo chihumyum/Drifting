@@ -36,7 +36,6 @@
     "contents": "Contenido",
     "actTitles": "Títulos de actos",
     "chapterTitles": "Títulos de capítulos",
-    "outlineHeadings": "Títulos de unidades narrativas y notas",
     "bookInfo": "Datos del libro",
     "bookTitle": "Título",
     "author": "Autor",
@@ -987,7 +986,7 @@
   },
   "chapterEditor": {
     "untitledChapter": "Capítulo sin título",
-    "subtitlePlaceholder": "Un subtítulo o un epígrafe…",
+    "synopsisPlaceholder": "Sinopsis…",
     "summaryPlaceholder": "Haz clic para añadir un resumen…"
   },
   "chapterEnd": {
@@ -1092,8 +1091,8 @@
     "valuePlaceholder": "Contenido · valor",
     "templateKeyPlaceholder": "Nombre de campo · clave (p. ej., punto de vista)",
     "templateValuePlaceholder": "Valor predeterminado / pista",
-    "empty": "— Aún no hay campos —",
-    "templateEmpty": "— Sin campos de plantilla; los nuevos elementos secundarios no rellenarán filas automáticamente —",
+    "empty": "Aún no hay campos",
+    "templateEmpty": "Sin campos de plantilla; los nuevos elementos secundarios no rellenarán filas automáticamente",
     "addField": "Añadir campo",
     "removeRow": "Quitar fila"
   },
@@ -2605,7 +2604,8 @@
     },
     "empty": {
       "incoming": "Ningún contenido hace referencia a esto todavía",
-      "outgoing": "Este texto aún no hace referencia a otras entidades"
+      "outgoing": "Este texto aún no hace referencia a otras entidades",
+      "relations": "Aún no hay relaciones"
     },
     "meta": {
       "blocksSpans": "{{blocks}} bloques · {{spans}} menciones",
@@ -3055,7 +3055,6 @@
     "meta": {
       "chapters": "{{count}} capítulos",
       "kWords": "{{count}} mil palabras",
-      "facts": "Datos de clave y valor de esta trama",
       "nodeTemplate": "Estructura predeterminada de capítulos nuevos",
       "chaptersWords": "{{chapters}} capítulos · {{words}} mil palabras"
     },
@@ -3099,8 +3098,7 @@
     "meta": {
       "elements": "{{count}} elementos",
       "items": "{{count}} elementos",
-      "elementTemplate": "Estructura predeterminada de elementos nuevos",
-      "templateKv": "Campos predeterminados de elementos nuevos"
+      "elementTemplate": "Estructura predeterminada de elementos nuevos"
     },
     "filters": {
       "used": "Completos",
@@ -3175,9 +3173,6 @@
       "bioTitle": "Biografía",
       "facts": "Datos",
       "patches": "Evoluciones"
-    },
-    "meta": {
-      "facts": "alias / categoría / año de nacimiento / primera aparición…"
     },
     "empty": {
       "noFacts": "Aún no hay campos. Si la plantilla de la categoría define campos, se rellenan al crear el elemento.",
@@ -3625,9 +3620,6 @@
       }
     },
     "hints": {
-      "scene": "Escena",
-      "beat": "Unidad narrativa",
-      "note": "Nota",
       "search": "Buscar en todo",
       "timeline": "Cronología",
       "driftRipens": "Cuando esté lista, conviértela en un capítulo o un elemento",

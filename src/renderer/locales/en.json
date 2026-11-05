@@ -36,7 +36,6 @@
     "contents": "Contents",
     "actTitles": "Act titles",
     "chapterTitles": "Chapter titles",
-    "outlineHeadings": "Beat and note headings",
     "bookInfo": "Book details",
     "bookTitle": "Title",
     "author": "Author",
@@ -984,7 +983,7 @@
   },
   "chapterEditor": {
     "untitledChapter": "Untitled chapter",
-    "subtitlePlaceholder": "A subtitle, or an epigraph…",
+    "synopsisPlaceholder": "Synopsis…",
     "summaryPlaceholder": "Click to add a summary…"
   },
   "chapterEnd": {
@@ -2594,7 +2593,8 @@
     },
     "empty": {
       "incoming": "No content references this yet",
-      "outgoing": "This prose does not reference other entities yet"
+      "outgoing": "This prose does not reference other entities yet",
+      "relations": "No relations yet"
     },
     "meta": {
       "blocksSpans": "{{blocks}} blocks · {{spans}} mentions",
@@ -3044,7 +3044,6 @@
     "meta": {
       "chapters": "{{count}} chapters",
       "kWords": "{{count}}k words",
-      "facts": "Key/value notes for this storyline",
       "nodeTemplate": "Default skeleton for new chapters",
       "chaptersWords": "{{chapters}} chapters · {{words}}k words"
     },
@@ -3088,8 +3087,7 @@
     "meta": {
       "elements": "{{count}} elements",
       "items": "{{count}} items",
-      "elementTemplate": "Default skeleton for new elements",
-      "templateKv": "Default fields for new elements"
+      "elementTemplate": "Default skeleton for new elements"
     },
     "filters": {
       "used": "Filled",
@@ -3164,9 +3162,6 @@
       "bioTitle": "Biography",
       "facts": "Facts",
       "patches": "Patches"
-    },
-    "meta": {
-      "facts": "alias / category / birth year / first appearance …"
     },
     "empty": {
       "noFacts": "No fields yet. If the category template defines fields, they are filled when the element is created.",
@@ -3610,9 +3605,6 @@
       }
     },
     "hints": {
-      "scene": "Scene",
-      "beat": "Beat",
-      "note": "Note",
       "search": "Search everything",
       "timeline": "Timeline",
       "driftRipens": "When it is ready, turn it into a chapter or an element",

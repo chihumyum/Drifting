@@ -272,7 +272,7 @@ describe('normalized Plot Grid authored writer', () => {
     const otherGrid: PlotGrid = {
       ...GRID,
       rows: [{ id: 'other-row', label: 'Other character' }],
-      cols: [{ id: 'other-column', label: 'Other beat' }],
+      cols: [{ id: 'other-column', label: 'Other column' }],
       cells: { 'other-row:other-column': 'Other plan' },
     };
     await runner(db)(PROJECT_ID, 'plot-grid.mutate', ({ tx, changes }) =>
@@ -286,7 +286,7 @@ describe('normalized Plot Grid authored writer', () => {
       docId: `node-content:${NODE_ID}`, updateBlob: Buffer.from(Y.encodeStateAsUpdate(prose)), createdAt: NOW,
     });
     prose.destroy();
-    await db.update(NodeContentTable).set({ contentJson: '{"type":"doc"}', outlineJson: '["Scene"]' })
+    await db.update(NodeContentTable).set({ contentJson: '{"type":"doc"}', outlineJson: '["H1"]' })
       .where(eq(NodeContentTable.nodeId, NODE_ID));
     const contentBefore = await db.select().from(NodeContentTable);
     const proseBefore = await db.select().from(yjsUpdates);

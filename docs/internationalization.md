@@ -72,8 +72,6 @@ Korean do not need an English singular form.
 | --- | --- | --- | --- | --- | --- | --- |
 | Chapter | 章 | 장 | Capítulo | Kapitel | Chapitre | Capítulo |
 | Act | 幕 | 막 | Acto | Akt | Acte | Ato |
-| Scene | シーン | 장면 | Escena | Szene | Scène | Cena |
-| Beat | ビート | 비트 | Unidad narrativa | Erzählschritt | Unité narrative | Unidade narrativa |
 | Note | メモ | 메모 | Nota | Notiz | Note | Nota |
 | Idea | アイデア | 아이디어 | Idea | Idee | Idée | Ideia |
 | Element | 要素 | 요소 | Elemento | Element | Élément | Elemento |

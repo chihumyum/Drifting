@@ -607,7 +607,7 @@ describe('Obsidian projection interoperability', () => {
 });
 
 describe('reader-facing Markdown tree', () => {
-  it('preserves act boundaries, drift folders and scene/beat/note levels in complete named documents', async () => {
+  it('preserves act boundaries, drift folders and H1/H2/H3 levels in complete named documents', async () => {
     const source = await sourceFixture();
     const graph = source.books[0]!.graph;
     graph.acts.push({ id: 'act-a', projectId: PROJECT_ID, name: '第一幕', startOrder: 2, color: null, driftNodeId: null, createdAt: NOW, updatedAt: NOW });
@@ -615,16 +615,16 @@ describe('reader-facing Markdown tree', () => {
       { id: 'g2', projectId: PROJECT_ID, name: '未采用', parentGroupId: 'g1', color: null, sortOrder: null, createdAt: NOW, updatedAt: NOW });
     graph.nodes.push({ ...graph.nodes[0]!, id: 'drift-a', kind: 'drift', title: '窗边的片段', writingStatus: 'drifting', bookOrder: null, driftGroupId: 'g2' });
     graph.nodeContents.push({ ...graph.nodeContents[0]!, nodeId: 'drift-a', contentJson: JSON.stringify({ type: 'doc', content: [1, 2, 3].map(level => ({
-      type: 'heading', attrs: { id: `level-${level}`, level }, content: [{ type: 'text', text: ['场景', '节拍', '笔记'][level - 1] }],
+      type: 'heading', attrs: { id: `level-${level}`, level }, content: [{ type: 'text', text: `H${level}` }],
     })) }) });
     const result = await buildRelationalMarkdownEntries(source, true);
     expect(projectedDocument(result, 'node', SNAPSHOT_NODE_ID).path).toMatch(/^正文\/001 /u);
     expect(projectedDocument(result, 'node', UPDATE_NODE_ID).path).toBe('正文/01 第一幕/002 Update chapter.md');
     const drift = projectedDocument(result, 'node', 'drift-a');
     expect(drift.path).toBe('构想/片段/未采用/窗边的片段.md');
-    expect(drift.text).toContain('## 场景');
-    expect(drift.text).toContain('### 节拍');
-    expect(drift.text).toContain('#### 笔记');
+    expect(drift.text).toContain('## H1');
+    expect(drift.text).toContain('### H2');
+    expect(drift.text).toContain('#### H3');
     const contents = result.entries.find(entry => entry.path === '正文/目录.md')!.text;
     expect(contents.indexOf('Snapshot')).toBeLessThan(contents.indexOf('第一幕'));
     expect(contents.indexOf('第一幕')).toBeLessThan(contents.indexOf('Update chapter'));

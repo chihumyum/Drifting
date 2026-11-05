@@ -241,7 +241,7 @@ describe('entity editors in sand and glass', () => {
     );
     expect(structure).toBeDefined();
     const [, list, body] = structure!;
-    expect(list).toContain('.page__scene-title');
+    expect(list).toContain('.page__section-title');
     expect(list).toContain('.refs-section__title');
     expect(body).toContain('font-family: var(--font-structure);');
     expect(body).toContain('font-style: normal;');
@@ -252,22 +252,25 @@ describe('entity editors in sand and glass', () => {
       'src/renderer/views/CategoryEditorView.tsx',
       'src/renderer/views/StorylineEditorView.tsx',
     ]) {
-      expect(source(path), path).toContain('<span className="page__scene-title">');
+      expect(source(path), path).toContain('<span className="page__section-title">');
     }
     for (const path of ['src/renderer/components/editor/ReferencesPanel.tsx', 'src/renderer/components/editor/PatchesSection.tsx']) {
       expect(source(path), path).toContain('<span className="refs-section__title">');
     }
   });
 
-  it('says an empty section in one centred line of small mono', () => {
+  it('says an empty section like an empty template body: the gray content serif, no dashes', () => {
     shell.mobile = false;
     const empty = renderToStaticMarkup(createElement(KvEditor, { valueJson: '[]', onPersist: () => {}, emptyHint: 'none yet' }));
     expect(empty).toContain('class="kv-editor__empty ui-section-empty"');
+    // The add button lives in the section header now, not under the rows.
+    expect(empty).not.toContain('kvEditor.addField');
+    expect(empty).not.toContain('<button');
 
     const notes = [
       ['src/renderer/components/editor/KvEditor.tsx', 'kv-editor__empty', 1],
       ['src/renderer/components/editor/PatchesSection.tsx', 'refs-empty', 1],
-      ['src/renderer/components/editor/ReferencesPanel.tsx', 'refs-empty', 2],
+      ['src/renderer/components/editor/ReferencesPanel.tsx', 'refs-empty', 3],
       ['src/renderer/components/editor/ReferencesPanel.tsx', 'refs-picker__empty', 1],
       ['src/renderer/views/StorylineEditorView.tsx', 'mgr-empty', 1],
       ['src/renderer/views/CategoryEditorView.tsx', 'mgr-empty', 1],
@@ -278,21 +281,68 @@ describe('entity editors in sand and glass', () => {
       expect(view.split(`className="${name} ui-section-empty"`).length - 1, `${path} ${name}`).toBe(count);
       expect(view, `${path} ${name}`).not.toContain(`className="${name}"`);
     }
+    // An empty relation section says so too.
+    expect(source('src/renderer/components/editor/ReferencesPanel.tsx')).toContain("t('referencesPanel.empty.relations')");
 
     const controls = source('src/styles/ui-controls.css');
-    const [note] = rules(controls, ['.ui-section-empty']);
+    const [note, onPaper] = rules(controls, ['.ui-section-empty']);
     expect(note[0]).toBe("html:not([data-shell-mode='mobile']) .ui-section-empty");
-    expect(note[1]).toContain('font-size: var(--ui-font-caption, 11px);');
+    expect(note[1]).toContain('font-family: var(--font-content);');
+    expect(note[1]).toContain('color: hsl(var(--ink-4));');
     expect(note[1]).toContain('font-style: normal;');
-    expect(note[1]).toContain('text-align: center;');
-    expect(note[1]).not.toMatch(/font-family|background|border/);
+    expect(note[1]).toContain('text-align: left;');
+    expect(note[1]).toContain('text-transform: none;');
+    expect(note[1]).not.toMatch(/background|border|::before|::after/);
+    // On an entity's paper it is the size of the body it stands in for, like the
+    // template placeholder (.ProseMirror p.is-editor-empty in index.css).
+    expect(onPaper[0]).toBe("html:not([data-shell-mode='mobile']) .page--entity .ui-section-empty:not(.refs-picker__empty)");
+    expect(onPaper[1]).toContain('font-size: var(--editor-font-size, 17.5px);');
+    expect(onPaper[1]).toContain('line-height: var(--editor-line-height, 1.75);');
+    const placeholder = rules(source('src/styles/index.css'), ['.is-editor-empty']);
+    expect(placeholder[0][1]).toContain('color: hsl(var(--ink-4));');
 
+    // It is no longer index type.
     const fonts = source('src/styles/interface-fonts.css');
     const index = [...fonts.matchAll(/html\[data-shell-mode='desktop'\] :is\(([^)]*)\) \{([^}]*)\}/g)].find(
       ([, list]) => list.includes('.workspace-panel-header-row'),
     );
-    expect(index?.[1]).toContain('.ui-section-empty');
-    expect(index?.[2]).toContain('font-family: var(--font-mono);');
+    expect(index?.[1]).not.toContain('.ui-section-empty');
+
+    // No locale wraps an editor section's empty line in dashes.
+    const keys = [
+      'kvEditor.empty', 'kvEditor.templateEmpty', 'referencesPanel.picker.empty',
+      'referencesPanel.empty.incoming', 'referencesPanel.empty.outgoing', 'referencesPanel.empty.relations',
+      'patchesSection.empty', 'storylineEditor.empty.noFacts', 'storylineEditor.empty.noFilteredChapters',
+      'storylineEditor.empty.noChapterSummary', 'categoryEditor.empty.noTemplateFields',
+      'categoryEditor.empty.noFilteredElements', 'categoryEditor.empty.noRole', 'elementEditor.empty.noFacts',
+    ];
+    for (const locale of ['zh-CN', 'zh-TW', 'en', 'ja', 'ko', 'de', 'fr', 'es', 'pt-BR']) {
+      const catalog = JSON.parse(source(`src/renderer/locales/${locale}.json`));
+      for (const key of keys) {
+        const text = key.split('.').reduce((node, part) => node?.[part], catalog) as unknown;
+        expect(typeof text, `${locale}:${key}`).toBe('string');
+        expect(text as string, `${locale}:${key}`).not.toMatch(/^\s*—|—\s*$/);
+      }
+    }
+  });
+
+  it('puts 新增字段 at the right of each field section header', () => {
+    for (const path of [
+      'src/renderer/views/ElementEditorView.tsx',
+      'src/renderer/views/StorylineEditorView.tsx',
+      'src/renderer/views/CategoryEditorView.tsx',
+    ]) {
+      const view = source(path);
+      expect(view, path).toContain('<KvAddButton onClick={() => kvRef.current?.addRow()} />');
+      expect(view, path).toContain('ref={kvRef}');
+      expect(view, path).not.toMatch(/meta\.(facts|templateKv)/);
+    }
+    const home = source('src/renderer/views/ProjectDashboard.tsx');
+    expect(home.split('<KvAddButton className="dash-text-button"').length - 1).toBe(2);
+    const editors = source('src/styles/entity-editors.css');
+    expect(editors).not.toContain('.kv-editor__add');
+    const [header] = rules(editors, ['.page__section']).filter(([selector]) => selector.includes('.refs-section__text-action'));
+    expect(header[1]).toContain('text-transform: none;');
   });
 
   it('documents the entity editors in the component catalogue', () => {
@@ -301,6 +351,6 @@ describe('entity editors in sand and glass', () => {
     expect(docs).toContain('`entity-editor-glass.acceptance.test.ts`');
     expect(docs).toContain('只有光标');
     expect(docs).toContain('`.ui-section-empty`');
-    expect(docs).toContain('`.page__scene-title`');
+    expect(docs).toContain('`.page__section-title`');
   });
 });

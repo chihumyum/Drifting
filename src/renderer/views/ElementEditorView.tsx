@@ -21,7 +21,7 @@ import {
 } from '../components/editor/editor-surface-lifecycle-context';
 import { EditorOutlineRail } from '../components/editor/EditorOutlineRail';
 import { nestHeadings, type OutlineEntry } from '../components/editor/outline-rail-model';
-import { KvEditor } from '../components/editor/KvEditor';
+import { KvAddButton, KvEditor, type KvEditorHandle } from '../components/editor/KvEditor';
 import { FieldReview, FieldReviewStrip } from '../components/editor/FieldReview';
 import { useFieldReview } from '../hooks/useFieldReview';
 import { scrollToOutlineAnchor } from '../components/editor/outline-scroll';
@@ -66,6 +66,7 @@ log.setLevel(loglevel.levels.ERROR);
 
 export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: string } = {}) {
   const { t } = useTranslation();
+  const kvRef = useRef<KvEditorHandle>(null);
   const { isCommandActive, isVisible } = useEditorSurfaceLifecycle();
   const navigate = useNavigate();
   const { leaveDeletedEntity } = useProjectNavigation();
@@ -864,8 +865,8 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
               {/* 记·传 — the element's free-form biography (TipTap body). Sits
                 directly under the hero so the prose leads; structured 字段
                 follow. Its H1/H2/H3 headings nest under this anchor in the TOC. */}
-              <h2 id="el-bio" className="page__scene">
-                <span className="page__scene-title">{t('elementEditor.sections.bioTitle')}</span>
+              <h2 id="el-bio" className="page__section">
+                <span className="page__section-title">{t('elementEditor.sections.bioTitle')}</span>
               </h2>
               <div className="elem-body">
                 {ydocError ? <EditorDocumentLoadError /> : <EditorContent editor={editor} />}
@@ -873,9 +874,9 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
 
               {/* 字段 — element's own KV facts. Seeded at creation from the
                 category's elementTemplateKvJson; owned thereafter. */}
-              <h2 id="el-kv" className="page__scene">
-                <span className="page__scene-title">{t('elementEditor.sections.facts')}</span>
-                <span className="page__scene-meta">{t('elementEditor.meta.facts')}</span>
+              <h2 id="el-kv" className="page__section">
+                <span className="page__section-title">{t('elementEditor.sections.facts')}</span>
+                <KvAddButton onClick={() => kvRef.current?.addRow()} />
               </h2>
               <div className="elem-body">
                 <FieldReviewStrip
@@ -883,6 +884,7 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
                   onAccept={fieldReview.accept}
                 />
                 <KvEditor
+                  ref={kvRef}
                   key={`el-kv-${curElement.id}`}
                   valueJson={curElement.kvJson}
                   onPersist={commitKv}

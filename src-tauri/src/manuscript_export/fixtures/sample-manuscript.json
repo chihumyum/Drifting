@@ -47,6 +47,15 @@
           ]
         },
         {
+          "type": "heading",
+          "level": 2,
+          "runs": [
+            {
+              "text": "信使抵达"
+            }
+          ]
+        },
+        {
           "type": "paragraph",
           "runs": [
             {
@@ -86,6 +95,15 @@
                   "text": "见字如面：港口的雾，今年来得早了些。"
                 }
               ]
+            }
+          ]
+        },
+        {
+          "type": "heading",
+          "level": 3,
+          "runs": [
+            {
+              "text": "核对潮汐表"
             }
           ]
         },
