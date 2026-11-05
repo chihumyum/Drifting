@@ -7,19 +7,39 @@ existing **MCP extensions** settings remain the outbound client.
 
 ## Connect
 
-1. Open the project in Drifting, then Settings → General Agent → External agent access.
+1. In Drifting, open Settings → General Agent → External agent access, or, on
+   the shelf, Settings → External agent access. No book needs to be open.
 2. In the **Codex**, **Claude Code**, or **Antigravity** row, choose **Read only** (the default),
    **Allow changes**, or **Allow changes and destructive operations**, then click **Connect**.
-   Drifting creates the project grant and installs the client entry automatically.
+   Drifting creates the grant and installs the client entry automatically.
 3. Reopen the client or restart its MCP server to load the entry. Follow any tool
    approval prompts in that client. No terminal command, CLI installation, pasted
    configuration, model login, or Keychain permission is needed for this setup.
-4. Keep Drifting and the authorized project open. Switching to the shelf or
-   another project stops access. After restarting Drifting, reconnect the client
-   and read targets again before editing.
+4. Keep Drifting open. Each client connects once and works in whichever book is
+   open; on the shelf its tools are unavailable. After restarting Drifting,
+   reconnect the client and read targets again before editing.
+
+A connection belongs to the library it was made in (each signed-in account has
+its own) and reaches every book in it, one at a time: the book open in Drifting.
+Switching books cancels pending requests, and the first tool call a session
+makes after a switch is refused before anything runs, telling the client to
+call `get_project_overview` (which reports the open book's name, `bookId` and
+Markdown folder) and read again; reads and the tools that need them start over
+in the new book, and entity ids do not carry between books. Listing tools does
+not count as looking again. Each external session's conversation record belongs
+to the book it was working in.
+
+Connections made by earlier versions covered a single book, with one client
+entry per book (`drifting_<hash>` per book). They keep working in that book
+only and are listed, with the book's name, under **Other clients · Manual
+setup**. Connecting or reconfiguring a client revokes that client's per-book
+connections and removes their entries from the same configuration file; if one
+of those entries was changed outside Drifting or cannot be written, access is
+still revoked and the UI asks you to remove the leftover `drifting_` entry.
+Per-book manual connections stay until revoked.
 
 Each client has one row and one permission selector. Before connecting, its
-selection applies only to that client's new project grant; after connecting,
+selection applies only to that client's new grant; after connecting,
 the same row shows the saved permission and configuration/revocation actions.
 There is no global permission selector or duplicate configured-client button.
 Changing an existing connection's permission immediately persists the
@@ -48,8 +68,8 @@ Automatic setup edits only the named MCP entry in the client user configuration:
 `~/.claude.json` for Claude Code, or `~/.gemini/config/mcp_config.json` for Antigravity.
 Antigravity uses `mcpServers` entries with `command` and `args` for stdio;
 reconfiguration preserves its `disabled` and `disabledTools` controls.
-Names are stable per Drifting installation and project; other projects and MCP
-servers are preserved. Existing configuration is backed up next to the original
+Names are stable per Drifting installation and library; other MCP servers are
+preserved. Existing configuration is backed up next to the original
 as `*.drifting-backup-*` with owner-only access. Writes use a same-directory
 atomic rename, reject malformed or unsafe files and detected concurrent edits,
 and preserve Codex comments, JSON numeric precision, and unrelated client settings. Tool approval and
@@ -64,7 +84,7 @@ configuration. The command points to the app executable, with arguments
 under `[mcp_servers.drifting]`; JSON clients can use `mcpServers.drifting`.
 Credentials are never embedded in the copied or installed configuration.
 Manual connections are managed inside the same expanded section. Draft
-permissions are scoped to the project and client; revoking an installed client
+permissions are scoped to the client; revoking an installed client
 returns its row to the read-only default for a future connection.
 
 Client format references: [official OpenAI documentation](https://learn.chatgpt.com/docs/extend/mcp?surface=cli),
@@ -96,7 +116,7 @@ External MCP client
   → private Unix socket, beside the library's connection files or in the
     user's own cache folder when that path is too long (macOS),
     or a loopback TCP port (Windows)
-  → native connection grant and mounted-project check
+  → native connection grant and open-book check
   → renderer ExternalToolSession
   → canonical validation + permission policy + shared Agent scheduler
   → production domain tools / live Yjs / SQLite / authored sync journal
@@ -120,9 +140,10 @@ stream exactly as on the socket, and nothing listens beyond loopback.
 This is a local OS-user trust boundary, not isolation from malicious software
 already running with that user's filesystem privileges.
 
-The native boundary checks the grant on every request, binds it to its project,
-limits frames/connections/in-flight requests, and rejects duplicate request IDs.
-Disconnect, cancellation, revocation and project detach cancel pending renderer
+The native boundary checks the grant on every request, sends it only to the open
+book (or, for a per-book connection, only to its book), limits
+frames/connections/in-flight requests, and rejects duplicate request IDs.
+Disconnect, cancellation, revocation and closing or switching the book cancel pending renderer
 requests. An interrupted mutation may already have committed: inspect its
 result before retrying. Calls are never automatically replayed after restart.
 
@@ -217,12 +238,19 @@ custom paths, reset, collision protection, retry and MCP initialization paths.
 The older packaged Mac reports below predate this update and do not certify its
 native folder picker UI.
 
+The 2026-11-06 change to connections that reach whichever book is open has
+native socket acceptance (open-book dispatch, the refused first call after a
+switch, per-book connections kept to their book, retirement of a client's
+per-book entries including a changed one), renderer bridge and settings-state
+tests, and a run in a development App. The packaged Mac reports below predate
+it.
+
 `pnpm mcp:acceptance` runs the actual domain-runtime/SQLite integration cases and
 native IPC/authentication and client-configuration tests, then generates
 [`acceptance/local-mcp.json`](acceptance/local-mcp.json). `pnpm mcp:check` verifies
 its source fingerprint. Fixtures contain synthetic text only.
 The same collector includes `AgentMcpAccessState.test.ts` for client grouping,
-saved grant preservation, project isolation and permission mapping. These UI
+saved grant preservation, per-book connections listed apart and permission mapping. These UI
 state checks do not install or alter real client configurations.
 Permission-change regressions cover live socket notifications to multiple
 sessions, fresh native grant dispatch, persistence and failed updates, read/write

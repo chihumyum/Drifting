@@ -12,18 +12,18 @@ export type BuiltInSamplePhase = 'idle' | 'checking' | 'creating' | 'settled';
 interface BuiltInSampleState {
   phase: BuiltInSamplePhase;
   /**
-   * A sample project that is not complete yet (being written, or left behind
-   * by an interrupted attempt). Shelves hide it until it is published.
+   * Sample projects that are not complete yet (being written, or left behind
+   * by an interrupted attempt). Shelves hide them until all are published.
    */
-  pendingProjectId: string | null;
-  /** The sample this launch created, once complete. */
-  createdProjectId: string | null;
+  pendingProjectIds: readonly string[];
+  /** The samples this launch created, once complete. */
+  createdProjectIds: readonly string[];
 }
 
 export const useBuiltInSampleStore = create<BuiltInSampleState>(() => ({
   phase: 'idle',
-  pendingProjectId: null,
-  createdProjectId: null,
+  pendingProjectIds: [],
+  createdProjectIds: [],
 }));
 
 let running: Promise<void> | null = null;
@@ -62,12 +62,12 @@ export function waitForBuiltInSampleProject(): Promise<void> {
 
 /** Projects a shelf should list: never an unfinished sample. */
 export function withoutPendingSampleProject<T extends { id: string }>(projects: readonly T[]): T[] {
-  const pending = useBuiltInSampleStore.getState().pendingProjectId;
-  return pending ? projects.filter((project) => project.id !== pending) : [...projects];
+  const pending = useBuiltInSampleStore.getState().pendingProjectIds;
+  return pending.length ? projects.filter((project) => !pending.includes(project.id)) : [...projects];
 }
 
 /** Test seam: forget the in-flight run and the observed phase. */
 export function resetBuiltInSampleForTests(): void {
   running = null;
-  useBuiltInSampleStore.setState({ phase: 'idle', pendingProjectId: null, createdProjectId: null });
+  useBuiltInSampleStore.setState({ phase: 'idle', pendingProjectIds: [], createdProjectIds: [] });
 }

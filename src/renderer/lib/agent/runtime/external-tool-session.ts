@@ -16,6 +16,8 @@ export const MCP_PRESENTATION_META_KEY = 'cc.drifting/presentation';
 
 export interface ExternalToolSessionOptions {
   sessionId: string;
+  /** The book this session works in: the one open when it began. */
+  projectId: string;
   grant: McpServerGrant;
   composition: DriftingAgentProductComposition;
   /** Ensures the conversation exists in the same database as the composition. */
@@ -36,7 +38,7 @@ export class ExternalToolSession {
     this.context = {
       route: {
         kind: 'chat',
-        projectId: options.grant.projectId,
+        projectId: options.projectId,
         conversationId: `${options.sessionId}:conversation`,
       },
     };
@@ -137,13 +139,13 @@ export class ExternalToolSession {
   }
 
   private async initialize(): Promise<void> {
-    const { grant, sessionId, composition, ensureConversation } = this.options;
+    const { grant, projectId, sessionId, composition, ensureConversation } = this.options;
     const conversationId = `${sessionId}:conversation`;
     await ensureConversation(conversationId, grant);
     const at = new Date().toISOString();
     await composition.repositories.runtime.createSession({
       id: sessionId,
-      projectId: grant.projectId,
+      projectId,
       routeKind: 'chat',
       conversationId,
       provider: 'mcp',

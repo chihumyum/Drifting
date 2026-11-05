@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AccountAvatar } from '../../../components/ui/AccountAvatar';
 import { BrushIcon, type BrushIconName } from '../../../components/ui/BrushIcon';
@@ -14,15 +15,19 @@ interface SettingsRailItem<Id extends string> {
 }
 
 export function DesktopSettingsRail<Id extends string>({
-  items, active, activeSection, onSelect,
+  items, active, activeSection, searching, onSelect,
 }: {
   items: SettingsRailItem<Id>[];
   active: Id;
   activeSection: string | null;
+  /** A search lists its matches open; folding is for browsing the whole rail. */
+  searching: boolean;
   onSelect: (id: Id, section?: SettingsNavigationSection) => void;
 }) {
   const { t } = useTranslation();
   const user = useAuthStore((s) => s.hostedUser);
+  // Every panel opens with its sections listed; a fold lasts while Settings is open.
+  const [folded, setFolded] = useState<ReadonlySet<string>>(() => new Set());
   const name = user?.name ?? user?.email ?? t('settings.local_user');
   // The email under a display name; a local author reads where the books live.
   const meta = user ? (user.name ? user.email : null) : t('settings.hosted.disabled');
@@ -33,6 +38,11 @@ export function DesktopSettingsRail<Id extends string>({
     if (group && group.name === item.group) group.items.push(item);
     else groups.push({ name: item.group, items: [item] });
   }
+  const toggle = (id: string) => setFolded((previous) => {
+    const next = new Set(previous);
+    if (!next.delete(id)) next.add(id);
+    return next;
+  });
 
   return (
     <nav className="set-rail" aria-label={t('settings.title')}>
@@ -53,43 +63,71 @@ export function DesktopSettingsRail<Id extends string>({
           <div className="set-rail__group-title">{group.name}</div>
           {group.items.map(item => {
             const selected = active === item.id;
+            const foldable = item.sections.length > 0 && !searching;
+            const open = !foldable || !folded.has(item.id);
+            // A folded panel's current section is out of sight; its row stands in.
+            const current = selected && (!activeSection || !open);
+            const sectionsId = `set-rail-sections-${item.id}`;
             return (
               <div key={item.id}>
-                <button
-                  type="button"
-                  className={
-                    'set-rail__item' +
-                    (selected ? ' set-rail__item--active' : '') +
-                    (selected && !activeSection ? ' is-current' : '')
-                  }
-                  aria-current={selected && !activeSection ? 'location' : undefined}
-                  aria-controls={item.id}
-                  onClick={() => onSelect(item.id)}
-                >
-                  <span className="set-rail__glyph" aria-hidden="true">{item.icon && <BrushIcon name={item.icon} size={14} />}</span>
-                  <span className="set-rail__label">{item.label}</span>
-                  {item.badge && (
-                    <span className={'set-rail__badge' + (item.badge.tone === 'warn' ? ' set-rail__badge--warn' : '')}>
-                      {item.badge.text}
-                    </span>
+                <div className="set-rail__row">
+                  <button
+                    type="button"
+                    className={
+                      'set-rail__item' +
+                      (foldable ? ' set-rail__item--foldable' : '') +
+                      (selected ? ' set-rail__item--active' : '') +
+                      (current ? ' is-current' : '')
+                    }
+                    aria-current={current ? 'location' : undefined}
+                    aria-controls={item.id}
+                    onClick={() => onSelect(item.id)}
+                  >
+                    <span className="set-rail__glyph" aria-hidden="true">{item.icon && <BrushIcon name={item.icon} size={14} />}</span>
+                    <span className="set-rail__label">{item.label}</span>
+                    {item.badge && (
+                      <span className={'set-rail__badge' + (item.badge.tone === 'warn' ? ' set-rail__badge--warn' : '')}>
+                        {item.badge.text}
+                      </span>
+                    )}
+                  </button>
+                  {foldable && (
+                    <button
+                      type="button"
+                      className="set-rail__fold"
+                      aria-expanded={open}
+                      aria-controls={sectionsId}
+                      aria-label={t(open ? 'settings.rail_collapse' : 'settings.rail_expand', { label: item.label })}
+                      onClick={() => toggle(item.id)}
+                    >
+                      <BrushIcon
+                        name="chevron-right"
+                        size={11}
+                        className={'set-rail__fold-chevron' + (open ? ' set-rail__fold-chevron--open' : '')}
+                      />
+                    </button>
                   )}
-                </button>
+                </div>
                 {item.sections.length > 0 && (
-                  <ul className="set-rail__sections">
-                    {item.sections.map(section => (
-                      <li key={section.id}>
-                        <button
-                          type="button"
-                          className={'set-rail__section' + (selected && activeSection === section.id ? ' set-rail__section--active is-current' : '')}
-                          aria-current={selected && activeSection === section.id ? 'location' : undefined}
-                          aria-controls={section.id}
-                          onClick={() => onSelect(item.id, section)}
-                        >
-                          {section.label}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
+                  <div className={'set-rail__sections-fold' + (open ? ' is-open' : '')}>
+                    <div className="set-rail__sections-clip">
+                      <ul className="set-rail__sections" id={sectionsId} inert={!open}>
+                        {item.sections.map(section => (
+                          <li key={section.id}>
+                            <button
+                              type="button"
+                              className={'set-rail__section' + (selected && activeSection === section.id ? ' set-rail__section--active is-current' : '')}
+                              aria-current={selected && activeSection === section.id ? 'location' : undefined}
+                              aria-controls={section.id}
+                              onClick={() => onSelect(item.id, section)}
+                            >
+                              {section.label}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
                 )}
               </div>
             );

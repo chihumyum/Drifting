@@ -341,7 +341,9 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
       let data: unknown;
       switch (request.name) {
         case 'get_project_overview':
-          data = (await this.canonicalRead(request, 'get_overview', {}, 'project-overview')).value;
+          // An external connection follows whichever book is open; bookId
+          // tells it which one, and fills drifting://open/<bookId>/ links.
+          data = { bookId: projectId, ...asRecord((await this.canonicalRead(request, 'get_overview', {}, 'project-overview')).value) };
           if (getMarkdownProjectionStatus(projectId)?.state === 'off') data = { ...asRecord(data),
             markdownProjection: { state: 'off',
               instructions: 'The author turned the Markdown folder off: Drifting neither updates files on disk nor merges edits made there. Read and write through tools.' } };

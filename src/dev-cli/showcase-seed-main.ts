@@ -24,6 +24,8 @@ async function main(): Promise<void> {
   const { seedShowcaseLibrary } = await import('./seeds/showcase/library');
   const result = await seedShowcaseLibrary({
     databasePath: option(args, '--db'), appLocalDataDirectory: option(args, '--app-local-data'), locale,
+    // The promo recording's shelf also carries the 阿Q正传 sample it opens.
+    withAQ: args.includes('--with-a-q'),
   });
   console.log(JSON.stringify(result));
 }
