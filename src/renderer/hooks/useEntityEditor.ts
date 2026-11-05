@@ -19,6 +19,7 @@ import { useEntityEditorSession } from '../features/editor/useEntityEditorSessio
 import type { EditorPersistDerived } from '../features/editor/entity-editor-session';
 export type { EditorPersistDerived } from '../features/editor/entity-editor-session';
 import { BlockId, isBlockType } from '../lib/extensions/block-id';
+import { InlineMarkdownRules } from '../lib/extensions/inline-markdown-rules';
 import { ParagraphIndent } from '../lib/extensions/paragraph-indent';
 import {
   noteOnlyExtensions,
@@ -488,6 +489,10 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
         // undoRedo is left on alongside it, ProseMirror's history plugin
         // collides with the Yjs binding and crashes on first edit.
         profileStarterKit(profile, { undoRedo: ydoc ? false : { depth: editorUndoDepth } }),
+        // `**粗体**`, `*斜体*`, `~~删除线~~` right after a character, which
+        // StarterKit's rules (start of block or after a space) never see in
+        // Chinese prose.
+        InlineMarkdownRules,
         Underline,
         Link.configure({ openOnClick: false, autolink: true }),
         TextAlign.configure({
