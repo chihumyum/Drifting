@@ -95,9 +95,35 @@ MCP servers, dynamic tools, secrets, permissions and lifecycle ownership.
   settled tool card. It executes nothing locally, does not count against the
   tool-call budget, and never enters canonical history; the items themselves
   travel in the exact response replay of the active tool loop, which the API
-  accepts with `store: false`. DeepSeek and Anthropic have no web search.
-  Verified live on the API-key route; the ChatGPT subscription route mirrors
-  the CLI's body but has not been exercised against a live account.
+  accepts with `store: false`. Verified live on the API-key route; the ChatGPT
+  subscription route mirrors the CLI's body but has not been exercised against
+  a live account.
+- The Anthropic Messages route lists Anthropic's server-side web search,
+  `{"type":"web_search_20250305","name":"web_search","max_uses":5}`, after the
+  function tools under the same offer rule (every tool-bearing request except a
+  `required` choice). Keeping it listed through forced calls and `none` also
+  keeps the tool set that thinking signatures are bound to unchanged inside a
+  turn. The basic version is deliberate: the dynamic-filtering versions run
+  searches inside code-execution containers this driver does not manage, and
+  `max_uses` bounds one response's search cost. A `server_tool_use` block's
+  streamed query is kept, and each `web_search_tool_result` becomes one
+  `provider_tool` event (`web_search` with that query; `ok` is false when the
+  result is an error object), including a result that arrives one response
+  later because the search was requested beside a client tool call. Text
+  `citations_delta` events are accumulated. When a response that used a server
+  tool ends in `tool_use`, its whole content — thinking, text with citations,
+  search blocks with their encrypted results, and `tool_use` filled from the
+  canonical arguments — is replayed in its original order for the active tool
+  loop instead of being rebuilt from canonical blocks; nothing enters canonical
+  history. A `pause_turn` is resumed inside the same attempt by sending the
+  paused content back unchanged as a trailing assistant message, at most four
+  times (then the iteration finishes `unknown`), and usage is summed across the
+  resumptions, taking cumulative input from `message_delta` when reported. A
+  400 whose body names web search (the organization disabled it in the Claude
+  Console, or the model lacks it) is resent once without the tool, and that
+  key fingerprint and model stay without it until the app restarts. Searches
+  cost $10 per 1,000 on top of tokens. Covered by synthetic stream and replay
+  tests; not yet exercised against a live account. DeepSeek has no web search.
 - On the current DeepSeek/OpenAI-compatible route, a tool-capable sample is
   buffered until its complete tool/usage/finish contract validates. Before any
   Agent event or effect escapes, parse/network/rate-limit failures, malformed

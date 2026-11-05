@@ -301,6 +301,7 @@ describe('Anthropic Messages Agent driver', () => {
           input_schema: request().tools[0]?.inputSchema,
           cache_control: { type: 'ephemeral' },
         },
+        { type: 'web_search_20250305', name: 'web_search', max_uses: 5 },
       ],
     });
     expect(fetchMock.mock.calls[0]?.[1]?.headers).toMatchObject({
@@ -405,12 +406,15 @@ describe('Anthropic Messages Agent driver', () => {
     expect(JSON.stringify(second.tools)).toBe(JSON.stringify(first.tools));
     expect(JSON.stringify(second.system)).toBe(JSON.stringify(first.system));
 
-    // Breakpoint 1: only the last tool schema carries the marker.
+    // Breakpoint 1: only the last function tool schema carries the marker;
+    // the hosted web search after it is covered by the system breakpoint.
     const toolBlocks = second.tools as Array<Record<string, unknown>>;
     expect(toolBlocks.map((tool) => tool.cache_control)).toEqual([
       undefined,
       { type: 'ephemeral' },
+      undefined,
     ]);
+    expect(toolBlocks[2]).toEqual({ type: 'web_search_20250305', name: 'web_search', max_uses: 5 });
     // Breakpoint 2: the system tail carries the marker.
     expect(second.system).toEqual([
       {
@@ -839,5 +843,322 @@ describe('Anthropic default fetch', () => {
     } finally {
       globalThis.fetch = original;
     }
+  });
+});
+
+describe('Anthropic hosted web search', () => {
+  const last = <T,>(items: readonly T[]): T | undefined => items[items.length - 1];
+  const WEB_SEARCH = { type: 'web_search_20250305', name: 'web_search', max_uses: 5 };
+  const QUERY = '水浒传 拳打镇关西';
+  const RESULTS = [
+    {
+      type: 'web_search_result',
+      url: 'https://zh.wikisource.org/wiki/x',
+      title: '水浒传/第三回',
+      encrypted_content: 'opaque-result',
+      page_age: null,
+    },
+  ];
+  const CITATION = {
+    type: 'web_search_result_location',
+    url: 'https://zh.wikisource.org/wiki/x',
+    title: '水浒传/第三回',
+    encrypted_index: 'opaque-index',
+    cited_text: '鲁提辖拳打镇关西',
+  };
+
+  function stopped(stopReason: string, usage: Record<string, number> = { output_tokens: 9 }) {
+    return [
+      { type: 'message_delta', delta: { stop_reason: stopReason }, usage },
+      { type: 'message_stop' },
+    ];
+  }
+
+  function searchBlocks(first: number, id = 'srvtoolu_1', content: unknown = RESULTS) {
+    return [
+      { type: 'content_block_start', index: first, content_block: { type: 'server_tool_use', id, name: 'web_search', input: {} } },
+      { type: 'content_block_delta', index: first, delta: { type: 'input_json_delta', partial_json: `{"query":"${QUERY}"}` } },
+      { type: 'content_block_stop', index: first },
+      { type: 'content_block_start', index: first + 1, content_block: { type: 'web_search_tool_result', tool_use_id: id, content } },
+      { type: 'content_block_stop', index: first + 1 },
+    ];
+  }
+
+  function bodiesFetch(responses: readonly string[], bodies: Record<string, unknown>[]) {
+    return async (_input: RequestInfo | URL, init?: RequestInit) => {
+      bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+      return new Response(responses[bodies.length - 1], { status: 200 });
+    };
+  }
+
+  const endTurn = sse([
+    { type: 'message_start', message: { usage: { input_tokens: 1 } } },
+    ...stopped('end_turn'),
+  ]);
+
+  it.each([
+    { label: 'auto', choice: undefined, offered: true },
+    { label: 'a forced call', choice: { force: 'search' } as const, offered: true },
+    { label: 'the none synthesis boundary', choice: 'none' as const, offered: true },
+    { label: 'a required choice', choice: 'required' as const, offered: false },
+  ])('is listed after the function tools for $label', async ({ choice, offered }) => {
+    const bodies: Record<string, unknown>[] = [];
+    const driver = new AnthropicMessagesAgentDriver({ apiKey: 'test', fetch: bodiesFetch([endTurn], bodies) });
+    await collect(driver, request(choice ? { toolChoice: choice } : {}));
+    const tools = bodies[0]?.tools as Array<Record<string, unknown>>;
+    expect(tools.map((tool) => tool.name)).toEqual(offered ? ['search', 'web_search'] : ['search']);
+    if (offered) expect(tools[1]).toEqual(WEB_SEARCH);
+  });
+
+  it('is not offered on a tool-free request', async () => {
+    const bodies: Record<string, unknown>[] = [];
+    const driver = new AnthropicMessagesAgentDriver({ apiKey: 'test', fetch: bodiesFetch([endTurn], bodies) });
+    await collect(driver, request({ tools: [] }));
+    expect(bodies[0]?.tools).toBeUndefined();
+  });
+
+  it('reports each search once and replays the response verbatim, thinking and citations included', async () => {
+    const bodies: Record<string, unknown>[] = [];
+    const driver = new AnthropicMessagesAgentDriver({
+      apiKey: 'test',
+      fetch: bodiesFetch([
+        sse([
+          { type: 'message_start', message: { usage: { input_tokens: 100, cache_read_input_tokens: 40 } } },
+          { type: 'content_block_start', index: 0, content_block: { type: 'thinking', thinking: '', signature: '' } },
+          { type: 'content_block_delta', index: 0, delta: { type: 'thinking_delta', thinking: 'Look it up.' } },
+          { type: 'content_block_delta', index: 0, delta: { type: 'signature_delta', signature: 'signed-1' } },
+          { type: 'content_block_stop', index: 0 },
+          ...searchBlocks(1),
+          { type: 'content_block_start', index: 3, content_block: { type: 'thinking', thinking: '', signature: '' } },
+          { type: 'content_block_delta', index: 3, delta: { type: 'thinking_delta', thinking: 'Quote it.' } },
+          { type: 'content_block_delta', index: 3, delta: { type: 'signature_delta', signature: 'signed-2' } },
+          { type: 'content_block_stop', index: 3 },
+          { type: 'content_block_start', index: 4, content_block: { type: 'text', text: '', citations: null } },
+          { type: 'content_block_delta', index: 4, delta: { type: 'citations_delta', citation: CITATION } },
+          { type: 'content_block_delta', index: 4, delta: { type: 'text_delta', text: '原文在第三回。' } },
+          { type: 'content_block_stop', index: 4 },
+          { type: 'content_block_start', index: 5, content_block: { type: 'tool_use', id: 'tool-1', name: 'search', input: {} } },
+          { type: 'content_block_delta', index: 5, delta: { type: 'input_json_delta', partial_json: '{"query":"镇关西"}' } },
+          { type: 'content_block_stop', index: 5 },
+          ...stopped('tool_use', { output_tokens: 30, input_tokens: 2400, cache_read_input_tokens: 40 }),
+        ]),
+        endTurn,
+      ], bodies),
+    });
+
+    const first = await collect(driver, request({ reasoning: { enabled: true } }));
+    expect(first.filter((event) => event.type === 'provider_tool')).toEqual([
+      { type: 'provider_tool', callId: 'srvtoolu_1', name: 'web_search', input: { query: QUERY }, ok: true },
+    ]);
+    expect(first).toContainEqual({ type: 'text_delta', text: '原文在第三回。' });
+    expect(first).toContainEqual({
+      type: 'usage',
+      usage: { inputTokens: 2400, outputTokens: 30, cacheReadTokens: 40, cacheWriteTokens: 0, costUsd: 0 },
+    });
+    expect(last(first)).toEqual({ type: 'finish', reason: 'tool_use' });
+
+    await collect(driver, request({
+      iteration: 2,
+      reasoning: { enabled: true },
+      context: {
+        systemPrompt: 'Use only certified tools.',
+        messages: [
+          { type: 'model_message', sourceIds: ['u1'], message: { role: 'user', content: 'Search rain.' } },
+          {
+            type: 'model_message',
+            sourceIds: ['a1'],
+            message: {
+              role: 'assistant',
+              content: [
+                { type: 'thinking', text: 'Look it up.Quote it.' },
+                { type: 'tool_call', callId: 'tool-1', name: 'search', arguments: { query: '镇关西' }, rawArguments: '{"query":"镇关西"}' },
+              ],
+            },
+          },
+          {
+            type: 'model_message',
+            sourceIds: ['t1'],
+            message: { role: 'tool', content: [{ callId: 'tool-1', name: 'search', ok: true, content: '{"matches":[]}' }] },
+          },
+        ],
+      },
+    }));
+
+    expect(bodies[1]?.messages).toEqual([
+      { role: 'user', content: [{ type: 'text', text: 'Search rain.' }] },
+      {
+        role: 'assistant',
+        content: [
+          { type: 'thinking', thinking: 'Look it up.', signature: 'signed-1' },
+          { type: 'server_tool_use', id: 'srvtoolu_1', name: 'web_search', input: { query: QUERY } },
+          { type: 'web_search_tool_result', tool_use_id: 'srvtoolu_1', content: RESULTS },
+          { type: 'thinking', thinking: 'Quote it.', signature: 'signed-2' },
+          { type: 'text', text: '原文在第三回。', citations: [CITATION] },
+          { type: 'tool_use', id: 'tool-1', name: 'search', input: { query: '镇关西' } },
+        ],
+      },
+      {
+        role: 'user',
+        content: [{
+          type: 'tool_result',
+          tool_use_id: 'tool-1',
+          content: '{"matches":[]}',
+          is_error: false,
+          cache_control: { type: 'ephemeral' },
+        }],
+      },
+    ]);
+    expect(JSON.stringify(bodies[1]?.tools)).toBe(JSON.stringify(bodies[0]?.tools));
+  });
+
+  it('reports a failed search as not ok and labels a deferred result with its earlier query', async () => {
+    const bodies: Record<string, unknown>[] = [];
+    const driver = new AnthropicMessagesAgentDriver({
+      apiKey: 'test',
+      fetch: bodiesFetch([
+        sse([
+          { type: 'message_start', message: { usage: { input_tokens: 10 } } },
+          ...searchBlocks(0, 'srvtoolu_err', { type: 'web_search_tool_result_error', error_code: 'max_uses_exceeded' }),
+          // A search requested beside a client call runs in the next request.
+          { type: 'content_block_start', index: 2, content_block: { type: 'server_tool_use', id: 'srvtoolu_later', name: 'web_search', input: {} } },
+          { type: 'content_block_delta', index: 2, delta: { type: 'input_json_delta', partial_json: '{"query":"rain"}' } },
+          { type: 'content_block_stop', index: 2 },
+          { type: 'content_block_start', index: 3, content_block: { type: 'tool_use', id: 'tool-2', name: 'search', input: { query: 'rain' } } },
+          { type: 'content_block_stop', index: 3 },
+          ...stopped('tool_use'),
+        ]),
+        sse([
+          { type: 'message_start', message: { usage: { input_tokens: 10 } } },
+          { type: 'content_block_start', index: 0, content_block: { type: 'web_search_tool_result', tool_use_id: 'srvtoolu_later', content: [] } },
+          { type: 'content_block_stop', index: 0 },
+          ...stopped('end_turn'),
+        ]),
+      ], bodies),
+    });
+    const first = await collect(driver);
+    expect(first.filter((event) => event.type === 'provider_tool')).toEqual([
+      { type: 'provider_tool', callId: 'srvtoolu_err', name: 'web_search', input: { query: QUERY }, ok: false },
+    ]);
+    const second = await collect(driver, request({
+      iteration: 2,
+      context: {
+        systemPrompt: 'Use only certified tools.',
+        messages: [
+          { type: 'model_message', sourceIds: ['u1'], message: { role: 'user', content: 'Search rain.' } },
+          {
+            type: 'model_message',
+            sourceIds: ['a1'],
+            message: {
+              role: 'assistant',
+              content: [{ type: 'tool_call', callId: 'tool-2', name: 'search', arguments: { query: 'rain' }, rawArguments: '{"query":"rain"}' }],
+            },
+          },
+          {
+            type: 'model_message',
+            sourceIds: ['t1'],
+            message: { role: 'tool', content: [{ callId: 'tool-2', name: 'search', ok: true, content: '[]' }] },
+          },
+        ],
+      },
+    }));
+    expect(second.filter((event) => event.type === 'provider_tool')).toEqual([
+      { type: 'provider_tool', callId: 'srvtoolu_later', name: 'web_search', input: { query: 'rain' }, ok: true },
+    ]);
+    const assistant = (bodies[1]?.messages as Array<{ role: string; content: Array<Record<string, unknown>> }>)[1]!;
+    expect(assistant.content.map((block) => block.type)).toEqual([
+      'server_tool_use',
+      'web_search_tool_result',
+      'server_tool_use',
+      'tool_use',
+    ]);
+  });
+
+  it('resumes a paused search turn by sending the paused content back unchanged', async () => {
+    const bodies: Record<string, unknown>[] = [];
+    const driver = new AnthropicMessagesAgentDriver({
+      apiKey: 'test',
+      fetch: bodiesFetch([
+        sse([
+          { type: 'message_start', message: { usage: { input_tokens: 50 } } },
+          { type: 'content_block_start', index: 0, content_block: { type: 'server_tool_use', id: 'srvtoolu_p', name: 'web_search', input: {} } },
+          { type: 'content_block_delta', index: 0, delta: { type: 'input_json_delta', partial_json: `{"query":"${QUERY}"}` } },
+          { type: 'content_block_stop', index: 0 },
+          ...stopped('pause_turn', { output_tokens: 5 }),
+        ]),
+        sse([
+          { type: 'message_start', message: { usage: { input_tokens: 70 } } },
+          { type: 'content_block_start', index: 0, content_block: { type: 'web_search_tool_result', tool_use_id: 'srvtoolu_p', content: RESULTS } },
+          { type: 'content_block_stop', index: 0 },
+          { type: 'content_block_start', index: 1, content_block: { type: 'text', text: '' } },
+          { type: 'content_block_delta', index: 1, delta: { type: 'text_delta', text: '找到了。' } },
+          { type: 'content_block_stop', index: 1 },
+          ...stopped('end_turn', { output_tokens: 6 }),
+        ]),
+      ], bodies),
+    });
+
+    const events = await collect(driver);
+    expect(bodies).toHaveLength(2);
+    expect(last(bodies[1]?.messages as unknown[])).toEqual({
+      role: 'assistant',
+      content: [{ type: 'server_tool_use', id: 'srvtoolu_p', name: 'web_search', input: { query: QUERY } }],
+    });
+    expect(JSON.stringify(bodies[1]?.tools)).toBe(JSON.stringify(bodies[0]?.tools));
+    expect(events.filter((event) => event.type === 'provider_tool')).toEqual([
+      { type: 'provider_tool', callId: 'srvtoolu_p', name: 'web_search', input: { query: QUERY }, ok: true },
+    ]);
+    expect(events.slice(-2)).toEqual([
+      { type: 'usage', usage: { inputTokens: 120, outputTokens: 11, cacheReadTokens: 0, cacheWriteTokens: 0, costUsd: 0 } },
+      { type: 'finish', reason: 'end_turn' },
+    ]);
+  });
+
+  it('gives up after a bounded number of pauses', async () => {
+    const pausedResponse = () => sse([
+      { type: 'message_start', message: { usage: { input_tokens: 1 } } },
+      { type: 'content_block_start', index: 0, content_block: { type: 'server_tool_use', id: `srvtoolu_${Math.random()}`, name: 'web_search', input: {} } },
+      { type: 'content_block_stop', index: 0 },
+      ...stopped('pause_turn'),
+    ]);
+    const fetchMock = vi.fn(async () => new Response(pausedResponse(), { status: 200 }));
+    const driver = new AnthropicMessagesAgentDriver({ apiKey: 'test', fetch: fetchMock, providerAttemptRetry: NO_RETRY });
+    const events = await collect(driver);
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(last(events)).toEqual({ type: 'finish', reason: 'unknown' });
+  });
+
+  it('drops the tool for the key and model when the organization has disabled web search', async () => {
+    const bodies: Record<string, unknown>[] = [];
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as { tools: Array<Record<string, unknown>> };
+      bodies.push(body);
+      if (body.tools.some((tool) => tool.name === 'web_search')) {
+        return new Response(JSON.stringify({
+          type: 'error',
+          error: { type: 'invalid_request_error', message: 'Web search is not enabled for this organization.' },
+        }), { status: 400 });
+      }
+      return new Response(endTurn, { status: 200 });
+    });
+    const options = { apiKey: 'org-without-web-search', fetch: fetchMock, providerAttemptRetry: NO_RETRY };
+    expect(last(await collect(new AnthropicMessagesAgentDriver(options))))
+      .toEqual({ type: 'finish', reason: 'end_turn' });
+    expect(bodies.map((body) => (body.tools as Array<{ name: string }>).map((tool) => tool.name)))
+      .toEqual([['search', 'web_search'], ['search']]);
+
+    // The next turn builds a fresh driver; the refusal is remembered.
+    await collect(new AnthropicMessagesAgentDriver(options));
+    expect(bodies).toHaveLength(3);
+    expect((bodies[2]?.tools as Array<{ name: string }>).map((tool) => tool.name)).toEqual(['search']);
+  });
+
+  it('does not retry an unrelated 400 without the tool', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      type: 'error',
+      error: { type: 'invalid_request_error', message: 'max_tokens: must be positive' },
+    }), { status: 400 }));
+    const driver = new AnthropicMessagesAgentDriver({ apiKey: 'test', fetch: fetchMock, providerAttemptRetry: NO_RETRY });
+    await expect(collect(driver)).rejects.toThrow('Anthropic request failed.');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

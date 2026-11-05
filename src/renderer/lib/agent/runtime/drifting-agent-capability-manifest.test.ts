@@ -220,11 +220,21 @@ describe('Drifting Agent capability manifest', () => {
       acceptance: 'synthetic-catalog-and-native-projection-tests;live-account-unverified',
     });
     expect(platform.hostedWebSearch).toMatchObject({
-      providers: ['openai', 'openai-codex'],
-      tool: 'web_search-external-web-access',
       offer: 'every-tool-bearing-request-except-required-choice',
-      acceptance: 'synthetic-stream-and-replay-tests;live-api-verified;live-subscription-unverified',
+      routes: [
+        {
+          providers: ['openai', 'openai-codex'],
+          tool: 'web_search-external-web-access',
+          acceptance: 'synthetic-stream-and-replay-tests;live-api-verified;live-subscription-unverified',
+        },
+        {
+          providers: ['anthropic'],
+          tool: 'web_search_20250305-max-uses-5',
+          acceptance: 'synthetic-stream-and-replay-tests;live-api-unverified',
+        },
+      ],
     });
+    expect(platform.hostedWebSearch.routes.flatMap((route) => route.providers)).not.toContain('deepseek');
     expect(platform.certifiedProviders.map((item) => item.provider)).toEqual([
       'deepseek',
       'anthropic',

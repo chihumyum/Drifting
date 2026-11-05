@@ -61,7 +61,13 @@ General Agent 默认不设置单次或累计输出上限；摘要压缩也不再
 
 General Agent 当前认证 DeepSeek、Anthropic、OpenAI 三种多轮 tool protocol，另有复用 OpenAI Responses 契约的实验性 `openai-codex` 订阅路由。
 
-联网搜索没有开关：选 OpenAI（API key）或 ChatGPT 订阅时，Agent 每次带工具的请求都附带 OpenAI 托管的 `web_search`，由模型自己决定搜不搜；搜索在 OpenAI 服务器上完成，对话里显示为「搜索网页“…”」「打开网页 …」两类已完成的步骤卡。DeepSeek 与 Anthropic 暂无联网搜索。契约见 [provider-extension-protocol.md](agent-runtime/provider-extension-protocol.md)。
+联网搜索没有开关，用的都是厂商自带的搜索，由模型自己决定搜不搜：
+
+- 选 OpenAI（API key）或 ChatGPT 订阅时，Agent 每次带工具的请求都附带 OpenAI 托管的 `web_search`，搜索在 OpenAI 服务器上完成，对话里显示为「搜索网页“…”」「打开网页 …」两类已完成的步骤卡。
+- 选 Anthropic 时附带 Anthropic 服务器端的 `web_search_20250305`（每次请求最多搜 5 次），对话里显示为「搜索网页“…”」步骤卡。Anthropic 按次另收搜索费（每千次 10 美元），搜到的内容按输入 token 计费。组织管理员在 Claude Console 关掉了网页搜索、或所选模型不支持时，请求会被拒（400），Agent 就去掉这个工具重发，同一把 Key 和模型在本次运行期间不再带它。
+- DeepSeek 暂无联网搜索。
+
+契约见 [provider-extension-protocol.md](agent-runtime/provider-extension-protocol.md)。
 
 ## 运行时边界
 

@@ -150,13 +150,16 @@ export interface DriftingAgentCapabilityManifest {
       acceptance: string;
     };
     hostedWebSearch: {
-      providers: readonly ['openai', 'openai-codex'];
-      tool: 'web_search-external-web-access';
       offer: 'every-tool-bearing-request-except-required-choice';
       execution: 'provider-server-side-inside-the-buffered-attempt';
       journal: 'provider_tool_used-settled-transcript-card-outside-canonical-history';
-      replay: 'web_search_call-items-verbatim-in-the-active-tool-loop';
-      acceptance: 'synthetic-stream-and-replay-tests;live-api-verified;live-subscription-unverified';
+      routes: ReadonlyArray<{
+        providers: readonly string[];
+        tool: string;
+        replay: string;
+        fallback: string;
+        acceptance: string;
+      }>;
     };
     apiKeyModelDiscovery: {
       providers: readonly string[];
@@ -398,13 +401,25 @@ export function buildDriftingAgentCapabilityManifest(): DriftingAgentCapabilityM
         acceptance: 'synthetic-catalog-and-native-projection-tests;live-account-unverified',
       },
       hostedWebSearch: {
-        providers: ['openai', 'openai-codex'],
-        tool: 'web_search-external-web-access',
         offer: 'every-tool-bearing-request-except-required-choice',
         execution: 'provider-server-side-inside-the-buffered-attempt',
         journal: 'provider_tool_used-settled-transcript-card-outside-canonical-history',
-        replay: 'web_search_call-items-verbatim-in-the-active-tool-loop',
-        acceptance: 'synthetic-stream-and-replay-tests;live-api-verified;live-subscription-unverified',
+        routes: [
+          {
+            providers: ['openai', 'openai-codex'],
+            tool: 'web_search-external-web-access',
+            replay: 'web_search_call-items-verbatim-in-the-active-tool-loop',
+            fallback: 'none',
+            acceptance: 'synthetic-stream-and-replay-tests;live-api-verified;live-subscription-unverified',
+          },
+          {
+            providers: ['anthropic'],
+            tool: 'web_search_20250305-max-uses-5',
+            replay: 'whole-response-content-verbatim-in-the-active-tool-loop;pause_turn-resumed-at-most-4-times',
+            fallback: 'a-400-naming-web-search-resends-without-it-for-that-key-and-model-until-restart',
+            acceptance: 'synthetic-stream-and-replay-tests;live-api-unverified',
+          },
+        ],
       },
       apiKeyModelDiscovery: {
         providers: BYOK_AGENT_PROVIDERS,

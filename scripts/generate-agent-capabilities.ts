@@ -238,7 +238,12 @@ function renderMarkdown(manifest: ReturnType<typeof buildDriftingAgentCapability
         ),
       )
       .join('; ')}`,
-    `- Hosted web search: ${codeList(manifest.providerExtensionPlatform.hostedWebSearch.providers)} offer \`${manifest.providerExtensionPlatform.hostedWebSearch.tool}\` on \`${manifest.providerExtensionPlatform.hostedWebSearch.offer}\`; execution=\`${manifest.providerExtensionPlatform.hostedWebSearch.execution}\`; journal=\`${manifest.providerExtensionPlatform.hostedWebSearch.journal}\`; replay=\`${manifest.providerExtensionPlatform.hostedWebSearch.replay}\`; acceptance=\`${manifest.providerExtensionPlatform.hostedWebSearch.acceptance}\`. Other providers have no web search.`,
+    `- Hosted web search on \`${manifest.providerExtensionPlatform.hostedWebSearch.offer}\`; execution=\`${manifest.providerExtensionPlatform.hostedWebSearch.execution}\`; journal=\`${manifest.providerExtensionPlatform.hostedWebSearch.journal}\`. Routes: ${manifest.providerExtensionPlatform.hostedWebSearch.routes
+      .map(
+        (route) =>
+          `${codeList(route.providers)} offer \`${route.tool}\`; replay=\`${route.replay}\`; fallback=\`${route.fallback}\`; acceptance=\`${route.acceptance}\``,
+      )
+      .join('; ')}. Other providers have no web search.`,
     `- MCP protocol: \`${manifest.providerExtensionPlatform.mcpProtocolVersion}\``,
     `- MCP transports: ${codeList(manifest.providerExtensionPlatform.transports)}`,
     `- Stdio targets: \`${manifest.providerExtensionPlatform.stdioTargets}\``,

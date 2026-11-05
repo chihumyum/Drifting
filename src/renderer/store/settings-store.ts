@@ -638,8 +638,9 @@ export const useSettingsStore = create<SettingsState>()(
           // Dropped three knobs the user never needed to control: manuscript
           // upload, request timeout, and the model-web-search toggle. None were
           // ever consumed by a runtime. Web search has no setting: on the
-          // OpenAI routes (API key and ChatGPT subscription) the General Agent
-          // is offered OpenAI's hosted web search with its tools.
+          // OpenAI routes (API key and ChatGPT subscription) and the Anthropic
+          // route the General Agent is offered the provider's own hosted web
+          // search with its tools.
           const drop = next as Record<string, unknown>;
           for (const k of ['uploadFullManuscript', 'allowWebSearch', 'requestTimeoutSec']) {
             delete drop[k];

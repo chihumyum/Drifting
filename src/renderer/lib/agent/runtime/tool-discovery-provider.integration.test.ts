@@ -84,6 +84,8 @@ describe('Fixed discovery prefix on provider wires', () => {
     } });
     await run(driver);
     expect(bodies.every((body) => JSON.stringify(body.tools) === JSON.stringify(bodies[0]!.tools))).toBe(true);
+    // The hosted web search belongs to the fixed prefix, synthesis included.
+    expect(bodies[3]!.tools).toContainEqual({ type: 'web_search_20250305', name: 'web_search', max_uses: 5 });
     expect(bodies.every((body) => JSON.stringify(body.system) === JSON.stringify(bodies[0]!.system))).toBe(true);
     expect(JSON.stringify(bodies[0]!.tools)).not.toContain('syntheticReplacement');
     expect(JSON.stringify(bodies[1]!.messages)).toContain('syntheticReplacement');
