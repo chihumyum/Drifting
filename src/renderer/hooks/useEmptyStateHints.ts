@@ -11,9 +11,7 @@ export function useEmptyStateHints() {
   const { t } = useTranslation();
   const bindings = useShortcutsStore((state) => state.bindings);
   const shortcut = (action: ShortcutActionId) => formatAccelerator(bindings[action]);
-  const create: EmptyStateHint = { label: t('guide.hints.new'), keys: shortcut('newEntity') };
   return {
-    create,
     /**
      * An empty paper: the Markdown for the three heading levels, then the two
      * ways around the book. H1–H3 are named only by level; what a level means

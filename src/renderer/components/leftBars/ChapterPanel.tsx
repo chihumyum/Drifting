@@ -34,7 +34,6 @@ import { subscribeSidebarCollapse } from '../../lib/sidebar-pane-events';
 import type { WorkspaceTarget } from '../../features/workspace/navigation/workspace-target';
 import { BrushIcon } from '../ui/BrushIcon';
 import { EmptyState } from '../ui/EmptyState';
-import { useEmptyStateHints } from '../../hooks/useEmptyStateHints';
 
 const log = loglevel.getLogger('ChapterPanel');
 log.setLevel(loglevel.levels.ERROR);
@@ -209,7 +208,6 @@ export function ChapterPanel({
   onPreviewTarget,
 }: ChapterPanelProps = {}) {
   const { t } = useTranslation();
-  const emptyHints = useEmptyStateHints();
   const { bookNodes, storylines, storylineNodeMapping, primaryStorylineByNode } = useDataStoreFields('bookNodes', 'storylines', 'storylineNodeMapping', 'primaryStorylineByNode');
   const nodeUi = useUiStore((s) => s.nodeUi);
   const [persistedViewMode] = useSidebarPreference('chapterPanelViewMode');
@@ -549,7 +547,6 @@ export function ChapterPanel({
               <EmptyState
                 mark={presentation === 'desktop' ? 'chapter' : undefined}
                 message={t('leftSidebar.empty.noChapters')}
-                hints={presentation === 'desktop' ? [emptyHints.create] : undefined}
               />
             )}
           </>
@@ -636,7 +633,6 @@ export function ChapterPanel({
               <EmptyState
                 mark={presentation === 'desktop' ? 'storyline' : undefined}
                 message={t('leftSidebar.empty.noStorylines')}
-                hints={presentation === 'desktop' ? [emptyHints.create] : undefined}
               />
             )}
           </>
