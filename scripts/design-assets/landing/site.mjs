@@ -88,6 +88,35 @@ export function startBar({ onTheme = () => {}, onLang = () => {} } = {}) {
 // Every [data-sea] element is a sheet on the sea: the sea draws its glass
 // outline and keeps its characters off it. [data-sea-hover] sheets bleed glass
 // under the pointer. Returns the function that re-measures them.
+// The home page offers the Mac and the Windows installer side by side, Mac
+// first. A Windows visitor's Windows button takes the primary glass and leads
+// each row, and the header's Download fetches that visitor's installer.
+export function isWindowsVisitor(nav = navigator) {
+  const platform = nav.userAgentData?.platform || nav.platform || '';
+  return /^win/i.test(platform) || /Windows NT/.test(nav.userAgent || '');
+}
+
+export function leadWithVisitorPlatform(doc = document, nav = navigator) {
+  const platform = isWindowsVisitor(nav) ? 'windows' : 'mac';
+  for (const row of doc.querySelectorAll('.downloads')) {
+    const lead = row.querySelector(`[data-platform="${platform}"]`);
+    if (!lead) continue;
+    for (const link of row.querySelectorAll('[data-platform]')) {
+      link.classList.toggle('glass--primary', link === lead);
+      link.classList.toggle('glass--rest', link !== lead);
+    }
+    row.insertBefore(lead, row.firstElementChild);
+  }
+  const header = doc.querySelector('.bar-dl');
+  const installer = doc.querySelector(`.downloads [data-platform="${platform}"]`);
+  if (header && installer) {
+    header.href = installer.href;
+    header.removeAttribute('target');
+    header.removeAttribute('rel');
+  }
+  return platform;
+}
+
 export function laySheets(sea) {
   const sheets = [...document.querySelectorAll('[data-sea]')];
   const hovering = new Set();

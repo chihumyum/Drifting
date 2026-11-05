@@ -77,6 +77,11 @@
    Mac 草稿照样完整，可以只重跑失败的任务，或先发只有 Mac 的版本。
 6. 在 GitHub 打开草稿 Release，下载 DMG，在一台干净的 Mac 上走一遍下面的冒烟检查。
 7. 没问题就点 **Publish release**。已安装的 App 在下次启动（或在 设置 › 更新 里手动检查）时收到更新。
+8. Publish 之后重建并部署官网：首页的下载按钮按文件名直接下载最新 Release 的
+   `Drifting_<版本号>_aarch64.dmg` 和 Windows 安装包，版本号取自 `package.json`。
+   在 Drifting-Showcase 里运行
+   `node <客户端>/scripts/design-assets/landing/build.mjs site`，跑它的测试后推送 main
+   （推送就是部署）；见 `scripts/design-assets/landing/README.md`。
 
 发现问题时：草稿直接删掉、修好后用新版本号重新打 tag。已发布的版本不要改文件；
 要撤回就把它改回草稿，用户会停留在前一个已发布版本。

@@ -1,6 +1,6 @@
 {
   "status": "passed",
-  "sourceSha256": "6ade61a63c1f2fe928cf67371cffbe93593c93bbb2c92acf13def2680b657e37",
+  "sourceSha256": "1f55db1e47451c0a7fac2e09bbbba8b9e7eaae8d3f84497233285664b0744c1b",
   "layouts": [
     {
       "width": 1280,
@@ -31,7 +31,7 @@
       "tabsFit": true,
       "agentHeaderFits": true,
       "menuStyle": true,
-      "headingWraps": "5 breaks, none inside a word",
+      "headingWraps": "4 breaks, none inside a word",
       "markdownDemo": "passed",
       "studioDemo": "passed",
       "agentDemo": "passed",
@@ -117,7 +117,7 @@
       "tabsFit": true,
       "agentHeaderFits": true,
       "menuStyle": true,
-      "headingWraps": "5 breaks, none inside a word",
+      "headingWraps": "4 breaks, none inside a word",
       "markdownDemo": "passed",
       "studioDemo": "passed",
       "agentDemo": "passed",
@@ -427,7 +427,7 @@
       "tabsFit": true,
       "agentHeaderFits": true,
       "menuStyle": true,
-      "headingWraps": "14 breaks, none inside a word",
+      "headingWraps": "13 breaks, none inside a word",
       "markdownDemo": "passed",
       "studioDemo": "passed",
       "agentDemo": "passed",
@@ -515,6 +515,7 @@
     }
   ],
   "manual": [
+    "Windows visitor gets the Windows installer first",
     "explicit locale URL",
     "pointer switching",
     "saved choice across visits",

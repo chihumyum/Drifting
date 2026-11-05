@@ -59,6 +59,16 @@ const withAssets = (text) => text.replace(/\{\{asset:([^}]+)\}\}/g, (_, rel) => 
 // The version the hero and the structured data name is the app's own.
 const { version } = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8'));
 const template = withAssets(readFileSync(path.join(here, 'index.html'), 'utf8')).replaceAll('{{version}}', version);
+// The download buttons fetch the installers of the latest published release
+// by name, so the site is built from the version that release carries
+// (docs/releasing.md: rebuild and deploy the site after Publish).
+const RELEASE = 'https://github.com/chihumyum/Drifting/releases/latest/download/';
+const downloads = {
+  'download-mac': `${RELEASE}Drifting_${version}_aarch64.dmg`,
+  'download-windows': `${RELEASE}Drifting_${version}_windows_x64-setup.exe`,
+  'download-windows-arm': `${RELEASE}Drifting_${version}_windows_arm64-setup.exe`,
+};
+const withDownloads = (text) => text.replace(/\{\{(download-[a-z-]+)\}\}/g, (token, key) => downloads[key] ?? token);
 let css = withAssets(readFileSync(path.join(here, 'site.css'), 'utf8'));
 
 // The fonts, served from the site so a visit asks nothing of another host:
@@ -144,7 +154,8 @@ function renderHome(home) {
       {
         '@type': 'SoftwareApplication', name: 'Drifting', url, inLanguage: home.hreflang,
         image: ORIGIN + '/og.png', description: strings['meta.description'], softwareVersion: version,
-        operatingSystem: 'macOS 13+', processorRequirements: 'Apple Silicon',
+        // Apple Silicon Macs; Windows on x64 and Arm (a preview).
+        operatingSystem: 'macOS 13+, Windows 10, Windows 11',
         downloadUrl: 'https://github.com/chihumyum/Drifting/releases/latest',
         license: 'https://spdx.org/licenses/AGPL-3.0-or-later.html',
         isAccessibleForFree: true, offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
@@ -175,9 +186,10 @@ function renderHome(home) {
       ? 'https://github.com/chihumyum/Drifting/blob/main/README.zh-CN.md#%E4%BB%8E%E6%BA%90%E7%A0%81%E6%9E%84%E5%BB%BA'
       : 'https://github.com/chihumyum/Drifting#build-from-source',
     'word-count': new Intl.NumberFormat(locale).format(12480),
+    ...downloads,
   };
   let html = template.replace(/\{\{([^}]+)\}\}/g, (token, key) => {
-    if (key.startsWith('copy:')) return strings[key.slice(5)] ?? token;
+    if (key.startsWith('copy:')) return strings[key.slice(5)] === undefined ? token : withDownloads(strings[key.slice(5)]);
     if (key.startsWith('date:')) {
       const [month, day] = key.slice(5).split('-').map(Number);
       return new Intl.DateTimeFormat(locale, { month: 'numeric', day: 'numeric', timeZone: 'UTC' }).format(Date.UTC(2026, month - 1, day));

@@ -13,6 +13,10 @@ import { HOMES, LANG_KEY } from './locales.mjs';
 const [directory, reportPath, screenshots] = process.argv.slice(2);
 if (!directory) throw new Error('Usage: node scripts/design-assets/landing/check.mjs <site directory> [report JSON] [screenshots directory]');
 const root = path.resolve(directory);
+// The download buttons fetch the latest release's installers by name (build.mjs).
+const { version } = JSON.parse(readFileSync(new URL('../../../package.json', import.meta.url), 'utf8'));
+const RELEASE = 'https://github.com/chihumyum/Drifting/releases/latest/download/';
+const INSTALLERS = { mac: `${RELEASE}Drifting_${version}_aarch64.dmg`, windows: `${RELEASE}Drifting_${version}_windows_x64-setup.exe` };
 const fingerprint = createHash('sha256');
 for (const file of [...HOMES.map(({ file }) => file), 'assets/prefs.js', 'assets/site.css', 'assets/landing.js', 'assets/pages.js', 'sitemap.xml']) {
   fingerprint.update(file).update('\0').update(readFileSync(path.join(root, file)));
@@ -108,6 +112,8 @@ try {
           example:document.querySelector('#md-raw').textContent,
           agent:document.querySelector('#ag-edit').textContent,
           download:document.querySelector('.hero .cta a').href,
+          windowsDownload:document.querySelector('.hero .cta [data-platform=windows]').href,
+          armDownload:document.querySelector('.closing-text a[href$="_windows_arm64-setup.exe"]')?.href ?? null,
           // The menu is the app's: 240 wide (or the window less its gutters), 16px corners,
           // and the page's own language ticked.
           menuStyle:box.width===Math.min(240,innerWidth-32)&&getComputedStyle(menu).borderTopLeftRadius==='16px'
@@ -147,7 +153,9 @@ try {
       assert(geometry.example.includes('## ' + copy['story.seventh']));
       assert(geometry.example.includes('**'));
       assert.equal(geometry.agent, copy['story.agentAfter']);
-      assert.equal(geometry.download, 'https://github.com/chihumyum/Drifting/releases/latest');
+      assert.equal(geometry.download, INSTALLERS.mac);
+      assert.equal(geometry.windowsDownload, INSTALLERS.windows);
+      assert.equal(geometry.armDownload, `${RELEASE}Drifting_${version}_windows_arm64-setup.exe`);
       if (screenshots && width === 390 && ['zh-TW', 'ja', 'de', 'pt-BR'].includes(locale)) {
         mkdirSync(screenshots, { recursive: true });
         writeFileSync(path.join(screenshots, `landing-${locale}-390.png`), Buffer.from((await client.Page.captureScreenshot()).data, 'base64'));
@@ -157,7 +165,7 @@ try {
       await pointerClick('#studio-sb [data-tab="elements"]');
       await pointerClick('#studio-sb [data-k="lin"]');
       assert(await evaluate("document.querySelector('[data-p=lin]').classList.contains('on')"));
-      const { example, agent, download, wraps, ...layout } = geometry;
+      const { example, agent, download, windowsDownload, armDownload, wraps, ...layout } = geometry;
       if (locale === 'ko' || locale === 'ja') layout.headingWraps = `${wraps.length} breaks, none inside a word`;
       layouts.push({ width, locale, ...layout, markdownDemo: 'passed', studioDemo: 'passed', agentDemo: 'passed', download: 'passed' });
     }
@@ -198,6 +206,26 @@ try {
   await evaluate(`localStorage.setItem(${JSON.stringify(LANG_KEY)}, 'zh'); true`);
   await go('/', 'zh-CN');
 
+  // A Windows visitor's Windows installer leads each row in the primary glass,
+  // and the header's Download fetches it.
+  await client.Emulation.setUserAgentOverride({
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Drifting Landing Acceptance Chrome',
+    acceptLanguage: 'zh-CN', platform: 'Win32',
+    userAgentMetadata: { platform: 'Windows', platformVersion: '15.0.0', architecture: 'x86', model: '', mobile: false },
+  });
+  await go('/zh', 'zh-CN');
+  const visitor = await evaluate(`(()=> [...document.querySelectorAll('.downloads')].map((row)=>{
+    const first=row.querySelector('a');
+    return {platform:first.dataset.platform, primary:first.classList.contains('glass--primary'),
+      others:[...row.querySelectorAll('[data-platform]')].filter((link)=>link!==first&&link.classList.contains('glass--primary')).length};
+  }).concat([{header:document.querySelector('.bar-dl').href, target:document.querySelector('.bar-dl').target}]))()`);
+  const header = visitor.pop();
+  assert.equal(visitor.length, 2);
+  for (const row of visitor) assert.deepEqual(row, { platform: 'windows', primary: true, others: 0 });
+  assert.deepEqual(header, { header: INSTALLERS.windows, target: '' });
+  // Back to the Japanese browser the storage check below expects.
+  await setLanguage('ja-JP');
+
   const blocked = await client.Page.addScriptToEvaluateOnNewDocument({
     source: 'Storage.prototype.getItem = Storage.prototype.setItem = function () { throw new Error("Storage blocked"); };',
   });
@@ -214,7 +242,7 @@ try {
     sourceSha256: fingerprint.digest('hex'),
     layouts,
     automatic,
-    manual: ['explicit locale URL', 'pointer switching', 'saved choice across visits', 'information pages keep the home choice', 'English with Japanese browser', 'legacy Chinese choice', 'storage unavailable'],
+    manual: ['Windows visitor gets the Windows installer first', 'explicit locale URL', 'pointer switching', 'saved choice across visits', 'information pages keep the home choice', 'English with Japanese browser', 'legacy Chinese choice', 'storage unavailable'],
   };
   if (reportPath) writeFileSync(reportPath, JSON.stringify(report, null, 2) + '\n');
   console.log(`Passed ${layouts.length} layouts, ${automatic.length} browser language matches and ${report.manual.length} preference checks.`);

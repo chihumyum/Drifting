@@ -5,7 +5,7 @@
 import { charSeaSupported, charSeaWordBox, createCharSea } from '../../../src/renderer/lib/char-sea/char-sea';
 import { COVER_MASK_WIDTH, COVER_MASK_HEIGHT, coverSeed, drawSandCover } from '../../../src/renderer/lib/sand-cover';
 import { SAND_FRAME_PAD, drawSandStroke, paintSandStroke, rgbOfComputedColour } from '../../../src/renderer/lib/sand-frame';
-import { laySheets, seaDensity, startBar, stirSea } from './site.mjs';
+import { laySheets, leadWithVisitorPlatform, seaDensity, startBar, stirSea } from './site.mjs';
 
 // The app now hands cover files back asynchronously. This static demo keeps
 // its one-off alpha-to-PNG conversion here, beside its DOM consumer.
@@ -51,5 +51,6 @@ window.DriftingSea = {
   sandCoverMaskUrl,
   startBar,
   laySheets,
+  leadWithVisitorPlatform,
   stirSea,
 };

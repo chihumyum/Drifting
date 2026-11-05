@@ -1,13 +1,13 @@
 # Drifting
 
-开源、本地优先的 Mac 长篇小说写作软件。
+开源、本地优先的长篇小说写作软件，支持 Mac 与 Windows。
 
 **Markdown 的轻快，传统写作软件的脚手架，再加一个照看整本书的 Agent。**
 
-[下载 Mac 版](https://github.com/chihumyum/Drifting/releases/latest) ·
+[下载 Mac 与 Windows 版](https://github.com/chihumyum/Drifting/releases/latest) ·
 [官网](https://drifting.cc/zh) · [文档](docs/README.md)
 
-macOS 13+ · Apple Silicon · 早期开发中
+macOS 13+ · Windows 10/11 · 早期开发中
 
 [English](README.md) | 简体中文
 
@@ -19,7 +19,7 @@ macOS 13+ · Apple Silicon · 早期开发中
 
 ![要素全景：人物、地点和设定，以及它们之间的关系图](docs/screenshots/elements.webp)
 
-Drifting 是一个开源、本地优先的 Mac 长篇小说写作软件。写起来像 Markdown 编辑器；
+Drifting 是一个开源、本地优先的长篇小说写作软件，支持 Mac 与 Windows。写起来像 Markdown 编辑器；
 像 Scrivener 这类传统写作软件那样，用章节和大纲、人物和世界设定、故事线和资料把一本书搭起来；
 还有一个能读、能查、能动手修改整个项目的 AI Agent。
 
@@ -28,8 +28,13 @@ Drifting 是一个开源、本地优先的 Mac 长篇小说写作软件。写起
 
 ## 下载
 
-支持 Apple Silicon 上的 macOS 13 及以上。在
-[GitHub Releases](https://github.com/chihumyum/Drifting/releases/latest) 下载 `.dmg`。
+在 [GitHub Releases](https://github.com/chihumyum/Drifting/releases/latest) 下载：
+
+- **Mac**：Apple Silicon 上的 macOS 13 及以上，下载 `.dmg`。
+- **Windows**（预览版）：Windows 10、11，下载 `Drifting_<版本号>_windows_x64-setup.exe`，
+  ARM 处理器的电脑下载 `…_arm64-setup.exe`，运行即可安装，不需要管理员权限。见
+  [Windows](docs/windows.md)。
+
 有新版本时 App 会提示，何时安装由你决定。第一次打开会带一个示例作品，可以随便看，也可以删掉。
 
 ## 像 Markdown 编辑器一样写
@@ -68,22 +73,22 @@ Drifting 是一个开源、本地优先的 Mac 长篇小说写作软件。写起
 
 ## 你的数据
 
-- 所有内容保存在你的 Mac 上，断网也能写，不需要账号。
+- 所有内容保存在你的电脑上，断网也能写，不需要账号。
 - 所有项目可以导出为 Markdown ZIP；整个资料库可以备份成能恢复的 `.drifting` 文件。
 - 删除的项目会在「最近删除」里保留 30 天。
 
-注册账号后，可以在多台 Mac 之间同步，并把章节分享成网页给读者阅读和评论。同步内容没有端到端加密。
+注册账号后，可以在多台电脑之间同步，并把章节分享成网页给读者阅读和评论。同步内容没有端到端加密。
 详见[隐私政策](https://drifting.cc/privacy)和[服务条款](https://drifting.cc/terms)。
 
 ## 和 Scrivener、Novelcrafter 的区别
 
 Scrivener 是老牌的桌面写作软件，没有内置 AI；Novelcrafter 是带 AI 的网页写作工具，需要联网。
-Drifting 保留了前者的脚手架，加上一个照看整本书的 Agent，做成一个免费、开源的 Mac 应用，
-稿件以 Markdown 文件的形式存在你的 Mac 上。
+Drifting 保留了前者的脚手架，加上一个照看整本书的 Agent，做成一个免费、开源的 Mac 与 Windows 应用，
+稿件以 Markdown 文件的形式存在你的电脑上。
 
 | | Drifting | Scrivener | Novelcrafter |
 | --- | --- | --- | --- |
-| 形式 | Mac 应用 | Mac、Windows、iOS 应用 | 网页应用 |
+| 形式 | Mac 与 Windows 应用 | Mac、Windows、iOS 应用 | 网页应用 |
 | 价格 | 免费 | 一次性购买 | 订阅 |
 | 源码 | 开源（AGPL） | 不公开 | 不公开 |
 | 离线 | 可以 | 可以 | 需要联网 |
@@ -98,7 +103,8 @@ Drifting 保留了前者的脚手架，加上一个照看整本书的 Agent，�
 
 Drifting 使用 Tauri、Rust、React 和 TypeScript。源码构建在本地运行，不需要账号；Hosted
 同步服务另行运营，不在此仓库中。在 macOS 上运行需要 Xcode 和你自己的 Apple Development 证书，
-见[开发环境配置](docs/contributor-quick-start.md)。
+见[开发环境配置](docs/contributor-quick-start.md)；在 Windows 上见
+[在 Windows 上开发](docs/windows.md#developing-on-windows)。
 
 ```bash
 pnpm install --frozen-lockfile
