@@ -48,6 +48,16 @@ paths. English is `/`, Simplified Chinese is `/zh`, Traditional Chinese is
   browser (not `auto-phrase`, which Safari lacks). Mark new Japanese headings
   the same way. The app's character sea uses the page's language. On narrow screens the primary download links are in the
   hero and closing section.
+- **Downloads.** The hero and the closing section each offer the Mac and the
+  Windows installer, and the closing install text links the Windows ARM64
+  installer. The links name the files of the latest published release
+  (`releases/latest/download/Drifting_<version>_aarch64.dmg` and
+  `…_windows_x64-setup.exe` / `…_windows_arm64-setup.exe`), with the version
+  from `package.json`, so build and deploy the site only after that release is
+  published. The Mac button leads by default; for a Windows visitor
+  (`leadWithVisitorPlatform` in `site.mjs`) the Windows button takes the
+  primary glass and leads each row, and the header's Download fetches the
+  Windows installer instead of opening the releases page.
 - `site.mjs` owns the language and theme controls and the shared sea
   behavior. The build bundles it into `/assets/landing.js` and
   `/assets/pages.js`.
@@ -145,7 +155,9 @@ selection, Escape, the active language, all three demos, layout at 1280,
 argument to save screenshots of the 390px Traditional Chinese, Japanese,
 German and Brazilian Portuguese menus. At every width it also checks the menu's
 size, corners and tick, and that no Korean or Japanese heading or tagline
-breaks a line inside a word. The Showcase routing tests cover
+breaks a line inside a word. It checks that the buttons fetch this
+version's Mac, Windows and Windows ARM64 installers, and that a Windows
+visitor gets the Windows installer first. The Showcase routing tests cover
 every localized URL, assets, metadata and the sitemap.
 
 ## Markdown title acceptance

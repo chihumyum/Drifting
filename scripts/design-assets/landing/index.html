@@ -421,12 +421,13 @@ h2 {
     <p class="tagline">
       <span>{{copy:hero.tagline}}</span>
     </p>
-    <div class="cta">
-      <a class="glass glass--primary pill" href="https://github.com/chihumyum/Drifting/releases/latest" target="_blank" rel="noopener"><span>{{copy:download.mac}}</span></a>
+    <div class="cta downloads">
+      <a class="glass glass--primary pill" data-platform="mac" href="{{download-mac}}"><span>{{copy:download.mac}}</span></a>
+      <a class="glass glass--rest pill" data-platform="windows" href="{{download-windows}}"><span>{{copy:download.windows}}</span></a>
       <a class="glass glass--rest pill" href="https://github.com/chihumyum/Drifting" target="_blank" rel="noopener">GitHub</a>
     </div>
     <p class="meta">
-      <span>macOS 13+</span><span>Apple Silicon</span><span>{{copy:hero.values}}</span><span>{{version}}</span>
+      <span>macOS 13+</span><span>Windows 10/11</span><span>{{copy:hero.values}}</span><span>{{version}}</span>
     </p>
   </section>
 
@@ -769,8 +770,9 @@ h2 {
       <h2><span>{{copy:closing.title}}</span></h2>
       <p><span>{{copy:closing.notice}}</span></p>
       <p>{{copy:closing.install}}</p>
-      <div class="cta">
-        <a class="glass glass--primary pill" href="https://github.com/chihumyum/Drifting/releases/latest" target="_blank" rel="noopener"><span>{{copy:download.mac}}</span></a>
+      <div class="cta downloads">
+        <a class="glass glass--primary pill" data-platform="mac" href="{{download-mac}}"><span>{{copy:download.mac}}</span></a>
+        <a class="glass glass--rest pill" data-platform="windows" href="{{download-windows}}"><span>{{copy:download.windows}}</span></a>
         <a class="glass glass--rest pill" href="{{readme}}" target="_blank" rel="noopener">{{copy:download.build}}</a>
       </div>
     </div>
@@ -796,6 +798,9 @@ h2 {
   var root = document.documentElement;
   var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
   var cjk = root.dataset.script === 'cjk';
+
+  /* ── Downloads: the visitor's own platform first (site.mjs) ── */
+  S.leadWithVisitorPlatform();
 
   /* ── Theme (site.mjs) ── */
   var bar = S.startBar({

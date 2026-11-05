@@ -1,14 +1,14 @@
 # Drifting
 
-An open-source, local-first novel writing app for Mac.
+An open-source, local-first novel writing app for Mac and Windows.
 
 **The ease of a Markdown editor, the scaffolding of a classic writing studio, and
 an Agent for the whole book.**
 
-[Download for Mac](https://github.com/chihumyum/Drifting/releases/latest) ·
+[Download for Mac and Windows](https://github.com/chihumyum/Drifting/releases/latest) ·
 [Website](https://drifting.cc/) · [Documentation](docs/README.md)
 
-macOS 13+ · Apple Silicon · Early development
+macOS 13+ · Windows 10/11 · Early development
 
 English | [简体中文](README.zh-CN.md)
 
@@ -20,7 +20,7 @@ Interface: 简体中文 · 繁體中文 · English · 日本語 · 한국어 · 
 
 ![The element overview: characters, places and lore as a graph of their relations](docs/screenshots/elements.webp)
 
-Drifting is an open-source, local-first novel writing app for Mac. It writes
+Drifting is an open-source, local-first novel writing app for Mac and Windows. It writes
 like a Markdown editor, builds a book the way classic writing studios like
 Scrivener do — chapters and outline, characters and world, storylines and
 research — and comes with an AI Agent that can read, search and edit the whole
@@ -32,8 +32,14 @@ Keep independent copies of manuscripts that matter, and read the
 
 ## Download
 
-macOS 13 or later on Apple Silicon. Download the `.dmg` from
-[GitHub Releases](https://github.com/chihumyum/Drifting/releases/latest).
+From [GitHub Releases](https://github.com/chihumyum/Drifting/releases/latest):
+
+- **Mac**: macOS 13 or later on Apple Silicon. Download the `.dmg`.
+- **Windows** (preview): Windows 10 or 11. Download
+  `Drifting_<version>_windows_x64-setup.exe`, or `…_arm64-setup.exe` for a PC
+  with an Arm processor, and run it; it needs no administrator rights. See
+  [Windows](docs/windows.md).
+
 The app tells you when a new version is out; you choose when to install it.
 The first launch opens a sample project you can explore or delete.
 
@@ -85,12 +91,12 @@ The first launch opens a sample project you can explore or delete.
 
 ## Your data
 
-- Everything is stored on your Mac and works offline. No account needed.
+- Everything is stored on your computer and works offline. No account needed.
 - Export every project as a Markdown ZIP, or back up the whole library as a
   restorable `.drifting` file.
 - Deleted projects stay in Recently Deleted for 30 days.
 
-With an account you can sync between Macs and share a chapter as a web page
+With an account you can sync between computers and share a chapter as a web page
 that readers can comment on. Synced projects are not end-to-end encrypted. See
 the [privacy policy](https://drifting.cc/privacy) and
 [terms](https://drifting.cc/terms).
@@ -100,12 +106,12 @@ the [privacy policy](https://drifting.cc/privacy) and
 Scrivener is a long-standing desktop writing studio with no built-in AI;
 Novelcrafter is a web app for writing with AI that needs a connection. Drifting
 keeps the scaffolding of the first and adds an Agent for the whole book, in a
-free, open-source Mac app that keeps your manuscripts on your Mac as Markdown
-files.
+free, open-source app for Mac and Windows that keeps your manuscripts on your
+computer as Markdown files.
 
 | | Drifting | Scrivener | Novelcrafter |
 | --- | --- | --- | --- |
-| Runs as | Mac app | Mac, Windows and iOS apps | Web app |
+| Runs as | Mac and Windows apps | Mac, Windows and iOS apps | Web app |
 | Price | Free | One-time purchase | Subscription |
 | Source | Open source (AGPL) | Closed | Closed |
 | Offline | Yes | Yes | Needs a connection |
@@ -123,6 +129,7 @@ Drifting is built with Tauri, Rust, React and TypeScript. Source builds run
 locally without an account; the Hosted sync service is operated separately and
 is not part of this repository. Running on macOS needs Xcode and your own Apple
 Development certificate; see the [contributor quick start](docs/contributor-quick-start.md).
+On Windows, see [Developing on Windows](docs/windows.md#developing-on-windows).
 
 ```bash
 pnpm install --frozen-lockfile
