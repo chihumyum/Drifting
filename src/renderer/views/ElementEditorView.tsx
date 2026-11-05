@@ -21,7 +21,7 @@ import {
 } from '../components/editor/editor-surface-lifecycle-context';
 import { EditorOutlineRail } from '../components/editor/EditorOutlineRail';
 import { nestHeadings, type OutlineEntry } from '../components/editor/outline-rail-model';
-import { KvEditor } from '../components/editor/KvEditor';
+import { KvAddButton, KvEditor, type KvEditorHandle } from '../components/editor/KvEditor';
 import { FieldReview, FieldReviewStrip } from '../components/editor/FieldReview';
 import { useFieldReview } from '../hooks/useFieldReview';
 import { scrollToOutlineAnchor } from '../components/editor/outline-scroll';
@@ -66,6 +66,7 @@ log.setLevel(loglevel.levels.ERROR);
 
 export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: string } = {}) {
   const { t } = useTranslation();
+  const kvRef = useRef<KvEditorHandle>(null);
   const { isCommandActive, isVisible } = useEditorSurfaceLifecycle();
   const navigate = useNavigate();
   const { leaveDeletedEntity } = useProjectNavigation();
@@ -875,7 +876,7 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
                 category's elementTemplateKvJson; owned thereafter. */}
               <h2 id="el-kv" className="page__scene">
                 <span className="page__scene-title">{t('elementEditor.sections.facts')}</span>
-                <span className="page__scene-meta">{t('elementEditor.meta.facts')}</span>
+                <KvAddButton onClick={() => kvRef.current?.addRow()} />
               </h2>
               <div className="elem-body">
                 <FieldReviewStrip
@@ -883,6 +884,7 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
                   onAccept={fieldReview.accept}
                 />
                 <KvEditor
+                  ref={kvRef}
                   key={`el-kv-${curElement.id}`}
                   valueJson={curElement.kvJson}
                   onPersist={commitKv}

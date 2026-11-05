@@ -1087,8 +1087,8 @@
     "valuePlaceholder": "内容 · value",
     "templateKeyPlaceholder": "字段名 · key (e.g. 视角)",
     "templateValuePlaceholder": "默认值 / 提示 · value",
-    "empty": "— 尚无 KV 字段 —",
-    "templateEmpty": "— 尚未定义任何模版字段。新建子项时不会自动填充任何 KV —",
+    "empty": "尚无 KV 字段",
+    "templateEmpty": "尚未定义任何模版字段。新建子项时不会自动填充任何 KV",
     "addField": "新增字段",
     "removeRow": "移除这一行"
   },
@@ -2583,11 +2583,12 @@
     },
     "picker": {
       "placeholder": "搜索可关联的实体…",
-      "empty": "— 没有可选项 —"
+      "empty": "没有可选项"
     },
     "empty": {
-      "incoming": "— 尚未被任何内容引用 —",
-      "outgoing": "— 正文中尚未引用其他实体 —"
+      "incoming": "尚未被任何内容引用",
+      "outgoing": "正文中尚未引用其他实体",
+      "relations": "尚无关联"
     },
     "meta": {
       "blocksSpans": "{{blocks}} 处 · {{spans}} 次",
@@ -2780,7 +2781,7 @@
   },
   "patchesSection": {
     "add": "新建",
-    "empty": "— 尚无补丁。在章节里选中文本，点浮条上的「新建补丁」可锚定到此要素 —"
+    "empty": "尚无补丁。在章节里选中文本，点浮条上的「新建补丁」可锚定到此要素"
   },
   "edgeKindManager": {
     "title": "全部关联类型",
@@ -3037,7 +3038,6 @@
     "meta": {
       "chapters": "{{count}} 章",
       "kWords": "{{count}}k 字",
-      "facts": "本线的 key/value 备忘",
       "nodeTemplate": "新章节的默认骨架",
       "chaptersWords": "{{chapters}} 章 · {{words}}k 字"
     },
@@ -3047,9 +3047,9 @@
       "unwritten": "未起"
     },
     "empty": {
-      "noFacts": "— 尚无字段。新建故事线时若项目模版已定义，会自动填充 —",
-      "noChapterSummary": "— 尚未填写一句话摘要 —",
-      "noFilteredChapters": "— 此筛选下暂无章节 —"
+      "noFacts": "尚无字段。新建故事线时若项目模版已定义，会自动填充",
+      "noChapterSummary": "尚未填写一句话摘要",
+      "noFilteredChapters": "此筛选下暂无章节"
     },
     "actions": {
       "openChapter": "打开章节"
@@ -3081,8 +3081,7 @@
     "meta": {
       "elements": "{{count}} 要素",
       "items": "{{count}} 个",
-      "elementTemplate": "新要素的默认骨架",
-      "templateKv": "新要素的默认字段"
+      "elementTemplate": "新要素的默认骨架"
     },
     "filters": {
       "used": "已填写",
@@ -3090,9 +3089,9 @@
     },
     "empty": {
       "noCategories": "还没有类目",
-      "noTemplateFields": "— 尚未定义模版字段。可添加如 别名 / 阵营 / 首次出场 等键名 —",
-      "noRole": "— 尚未填写一句话角色 —",
-      "noFilteredElements": "— 此筛选下暂无要素 —"
+      "noTemplateFields": "尚未定义模版字段。可添加如 别名 / 阵营 / 首次出场 等键名",
+      "noRole": "尚未填写一句话角色",
+      "noFilteredElements": "此筛选下暂无要素"
     },
     "actions": {
       "openElement": "打开要素"
@@ -3158,11 +3157,8 @@
       "facts": "字段 · facts",
       "patches": "补丁"
     },
-    "meta": {
-      "facts": "alias / 类目 / 生年 / 首次出场 …"
-    },
     "empty": {
-      "noFacts": "— 尚无字段。新建要素时若类目模版已定义，会自动填充 —",
+      "noFacts": "尚无字段。新建要素时若类目模版已定义，会自动填充",
       "selectElement": "选择一个要素进行编辑",
       "noCategories": "还没有类目"
     },

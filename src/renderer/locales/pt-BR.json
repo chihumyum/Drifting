@@ -1092,8 +1092,8 @@
     "valuePlaceholder": "Conteúdo · valor",
     "templateKeyPlaceholder": "Nome do campo · chave (ex.: ponto de vista)",
     "templateValuePlaceholder": "Padrão / dica · valor",
-    "empty": "— Ainda não há campos —",
-    "templateEmpty": "— Sem campos de modelo; novos subitens não terão campos preenchidos automaticamente —",
+    "empty": "Ainda não há campos",
+    "templateEmpty": "Sem campos de modelo; novos subitens não terão campos preenchidos automaticamente",
     "addField": "Adicionar campo",
     "removeRow": "Remover linha"
   },
@@ -2605,7 +2605,8 @@
     },
     "empty": {
       "incoming": "Nenhum conteúdo faz referência a este item ainda",
-      "outgoing": "Este texto ainda não faz referência a outras entidades"
+      "outgoing": "Este texto ainda não faz referência a outras entidades",
+      "relations": "Ainda não há relações"
     },
     "meta": {
       "blocksSpans": "{{blocks}} blocos · {{spans}} menções",
@@ -3055,7 +3056,6 @@
     "meta": {
       "chapters": "{{count}} capítulos",
       "kWords": "{{count}} mil palavras",
-      "facts": "Dados de chave e valor desta linha narrativa",
       "nodeTemplate": "Estrutura padrão para novos capítulos",
       "chaptersWords": "{{chapters}} capítulos · {{words}} mil palavras"
     },
@@ -3099,8 +3099,7 @@
     "meta": {
       "elements": "{{count}} elementos",
       "items": "{{count}} itens",
-      "elementTemplate": "Estrutura padrão para novos elementos",
-      "templateKv": "Campos padrão para novos elementos"
+      "elementTemplate": "Estrutura padrão para novos elementos"
     },
     "filters": {
       "used": "Preenchidos",
@@ -3175,9 +3174,6 @@
       "bioTitle": "Biografia",
       "facts": "Dados",
       "patches": "Evoluções"
-    },
-    "meta": {
-      "facts": "apelido / categoria / ano de nascimento / primeira aparição…"
     },
     "empty": {
       "noFacts": "Ainda não há campos. Se o modelo da categoria definir campos, eles serão preenchidos ao criar o elemento.",

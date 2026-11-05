@@ -1089,8 +1089,8 @@
     "valuePlaceholder": "내용 · 값",
     "templateKeyPlaceholder": "필드 이름 · 키(예: 시점)",
     "templateValuePlaceholder": "기본값 / 힌트 · 값",
-    "empty": "— 아직 필드가 없습니다 —",
-    "templateEmpty": "— 템플릿 필드가 없어 새 하위 항목에 자동으로 채우지 않습니다 —",
+    "empty": "아직 필드가 없습니다",
+    "templateEmpty": "템플릿 필드가 없어 새 하위 항목에 자동으로 채우지 않습니다",
     "addField": "필드 추가",
     "removeRow": "행 제거"
   },
@@ -2594,7 +2594,8 @@
     },
     "empty": {
       "incoming": "아직 이 항목을 참조하는 내용이 없습니다",
-      "outgoing": "이 본문은 아직 다른 엔터티를 참조하지 않습니다"
+      "outgoing": "이 본문은 아직 다른 엔터티를 참조하지 않습니다",
+      "relations": "아직 관계가 없습니다"
     },
     "meta": {
       "blocksSpans": "블록 {{blocks}}개 · 언급 {{spans}}개",
@@ -3044,7 +3045,6 @@
     "meta": {
       "chapters": "{{count}}개 장",
       "kWords": "{{count}}천 단어",
-      "facts": "이 스토리라인의 키/값 설정 정보",
       "nodeTemplate": "새 장의 기본 구조",
       "chaptersWords": "{{chapters}}장 · {{words}}천 단어"
     },
@@ -3088,8 +3088,7 @@
     "meta": {
       "elements": "요소 {{count}}개",
       "items": "항목 {{count}}개",
-      "elementTemplate": "새 요소의 기본 구조",
-      "templateKv": "새 요소의 기본 필드"
+      "elementTemplate": "새 요소의 기본 구조"
     },
     "filters": {
       "used": "작성됨",
@@ -3164,9 +3163,6 @@
       "bioTitle": "생애",
       "facts": "설정 정보",
       "patches": "변화 기록"
-    },
-    "meta": {
-      "facts": "별칭 / 분류 / 출생 연도 / 첫 등장…"
     },
     "empty": {
       "noFacts": "아직 필드가 없습니다. 분류 템플릿에 필드가 정의되어 있으면 요소를 만들 때 채워집니다.",

@@ -721,6 +721,9 @@ export function ReferencesPanel({
             </div>
           )}
 
+          {manualRelations.length === 0 && !showLinkPicker && (
+            <div className="refs-empty ui-section-empty">{t('referencesPanel.empty.relations')}</div>
+          )}
           <div className="refs-rel-grid">
             {manualRelations.map((rel) => (
               <div
