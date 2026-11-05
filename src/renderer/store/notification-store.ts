@@ -74,6 +74,8 @@ export interface AppNotificationEvent {
    * says it resolved.
    */
   syncProblem?: SyncProblemReport | null;
+  /** Arrives already read, for a notice the author opened in an earlier launch. */
+  read?: boolean;
 }
 
 export interface AppNotification {
@@ -152,7 +154,7 @@ export const useNotificationStore = create<NotificationStore>((set) => ({
           error: e.syncProblem === null ? e.error : e.error ?? existing.error,
           progress: e.progress,
           updatedAt: e.at,
-          read: state === 'running' ? existing.read : false,
+          read: e.read ?? (state === 'running' ? existing.read : false),
         };
         // Move the touched row to the front.
         const rest = s.items.filter((n) => n.id !== e.id);
@@ -176,7 +178,7 @@ export const useNotificationStore = create<NotificationStore>((set) => ({
         progress: e.progress,
         startedAt: e.at,
         updatedAt: e.at,
-        read: false,
+        read: e.read ?? false,
       };
       return { items: [fresh, ...s.items].slice(0, MAX_ITEMS) };
     }),
