@@ -141,6 +141,23 @@ jobs:
           mkdir -p out/windows
           cp "$INSTALLER" "out/windows/Drifting-preview-${GITHUB_SHA::8}-${{ matrix.arch }}-setup.exe"
           ls -l out/windows
+      # An installer that builds can still hold an App that exits at start
+      # (11-05: the updater plugin lacked its configuration). Install it for
+      # this user, open Drifting and require it still running 20 seconds later.
+      - name: Install and open the App
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem out/windows/*.exe | Select-Object -First 1
+          Start-Process -FilePath $installer.FullName -ArgumentList '/S' -Wait
+          $app = Join-Path $env:LOCALAPPDATA 'Drifting\drifting.exe'
+          if (-not (Test-Path $app)) { throw "the installer did not install $app" }
+          $stderr = Join-Path $env:RUNNER_TEMP 'drifting-stderr.txt'
+          $process = Start-Process -FilePath $app -RedirectStandardError $stderr -PassThru
+          Start-Sleep -Seconds 20
+          $exited = $process.HasExited
+          Get-Content $stderr -ErrorAction SilentlyContinue
+          if ($exited) { throw "Drifting exited at start with code $($process.ExitCode)" }
+          Stop-Process -Id $process.Id -Force
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: drifting-windows-${{ matrix.arch }}-${{ github.sha }}

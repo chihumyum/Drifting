@@ -613,13 +613,29 @@
       "chatConfigTitle": "대화 설정",
       "chatConfigDesc": "오른쪽 Agent 입력창의 설정 메뉴에서 제공업체·모델·추론 강도를 선택합니다. 키와 ChatGPT 구독은 ‘모델 및 API’에서 관리합니다.",
       "modelOptions": {
-        "deepseek-v4-flash": {
+        "deepseek-flash": {
           "label": "DeepSeek Flash · 빠름",
           "short": "Flash"
         },
         "deepseek-v4-pro": {
           "label": "DeepSeek Pro · 안정적",
           "short": "Pro"
+        },
+        "claude-sonnet-5-5": {
+          "label": "Claude Sonnet 5.5 · 균형",
+          "short": "Sonnet 5.5"
+        },
+        "claude-opus-5-5": {
+          "label": "Claude Opus 5.5 · 안정적",
+          "short": "Opus 5.5"
+        },
+        "claude-fable-5-1": {
+          "label": "Claude Fable 5.1 · 최첨단",
+          "short": "Fable 5.1"
+        },
+        "claude-haiku-5-5": {
+          "label": "Claude Haiku 5.5 · 빠름",
+          "short": "Haiku 5.5"
         },
         "claude-sonnet-5": {
           "label": "Claude Sonnet 5 · 균형",

@@ -12,22 +12,34 @@ MCP servers, dynamic tools, secrets, permissions and lifecycle ownership.
 - DeepSeek uses Chat Completions with native `thinking` and top-level
   `reasoning_effort`. During a thinking tool round, Drifting omits
   `tool_choice` and replays the exact `reasoning_content` on the next iteration.
-- Anthropic uses native Messages streaming. Sonnet 5 exposes adaptive thinking
-  plus `low` through `max` effort; its signed thinking/redacted-thinking blocks
-  are retained verbatim only for the active tool loop. Haiku 4.5 exposes no
-  certified thinking/effort controls in the current catalog.
-- OpenAI is the GPT-5.6 family (`gpt-5.6-sol`, `gpt-5.6-terra`,
-  `gpt-5.6-luna`) on the Responses API. Thinking-off maps to reasoning effort
-  `none`; thinking-on maps to the selected `low` through `max` effort. Requests
-  use `store: false`, request encrypted reasoning content, and replay the exact
-  response output items only inside the active tool loop.
+- DeepSeek, Anthropic and OpenAI API-key models come from each provider's own
+  model-list endpoint, read natively with the stored key; the bundled catalog
+  is the offline fallback and the source of explicit wire profiles. Anthropic
+  and DeepSeek lists publish context windows, output ceilings and effort
+  levels, which win over bundled values; OpenAI's list carries ids only. A
+  provider-shaped saved model id survives restarts and list outages; the
+  provider stays the authority on whether the key may use it. See
+  [provider settings](../ai-provider-settings.md#api-key-模型列表).
+- Anthropic uses native Messages streaming. Models expose adaptive thinking
+  and the `low` through `max` effort levels the Models API publishes; signed
+  thinking/redacted-thinking blocks are retained verbatim only for the active
+  tool loop. Models that cannot turn thinking off (Opus 5.5, Sonnet 5.5,
+  Haiku 5.5, Fable 5.1 and unknown listed models) always think and always
+  replay; models that reject a forced `tool_choice` receive `auto`. Haiku 4.5
+  exposes no certified thinking/effort controls.
+- OpenAI uses the Responses API (bundled: `gpt-6-astra`, `gpt-6.1-sol`,
+  `gpt-6.1-terra`, `gpt-6-luna`). Thinking-off maps to reasoning effort `none`
+  only for models that accept it; thinking-on maps to the selected `low`
+  through `max` effort. Requests use `store: false`, request encrypted
+  reasoning content, and replay the exact response output items only inside
+  the active tool loop.
 - `openai-codex` is the experimental ChatGPT subscription route. It sends the
   Responses body through the same native host to the Codex
   backend, authorized by the author's own ChatGPT sign-in obtained with the
   official Codex device-code OAuth flow. The body mirrors the official CLI:
   no `max_output_tokens`, and summary/verbosity only when supported by the
   selected model. Native model discovery populates the picker from the current
-  account catalog; the bundled GPT-5.6 list is a fallback. Catalog requests and
+  account catalog; the bundled OpenAI list is a fallback. Catalog requests and
   OAuth headers share the reviewed version in `src-tauri/codex-compatibility.json`.
   Account/credential-scoped native ETags support 304 revalidation, and HTTP
   freshness is capped at five minutes. Upstream release review reports never

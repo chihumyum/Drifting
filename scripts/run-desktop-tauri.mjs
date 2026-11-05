@@ -141,11 +141,17 @@ export function createDesktopTauriConfigOverride({
 
   const debug = tauriArguments.includes('--debug') || tauriArguments.includes('-d');
   const updaterPublicKey = environment.DRIFTING_UPDATER_PUBLIC_KEY?.trim();
+  // The key remains an environment-owned release input. Whenever it is set,
+  // Cargo compiles it in and the App starts the updater plugin
+  // (app_update.rs), which needs this plugin configuration as well; the
+  // bundler needs it too when it signs updater artifacts.
+  const updater = updaterPublicKey ? { plugins: { updater: { pubkey: updaterPublicKey } } } : {};
   // Preview builds (docs/windows.md) compile the public key in, so they can
   // update to a published release, but sign no updater artifacts of their own.
   if (debug || !updaterPublicKey || environment.DRIFTING_UPDATER_ARTIFACTS === 'off') {
     return {
       ...override,
+      ...updater,
       bundle: {
         createUpdaterArtifacts: false,
         ...(macosSigningIdentity
@@ -155,9 +161,7 @@ export function createDesktopTauriConfigOverride({
     };
   }
 
-  // The key remains an environment-owned release input. Tauri's bundler also
-  // needs it in plugin configuration when createUpdaterArtifacts is enabled.
-  return { ...override, plugins: { updater: { pubkey: updaterPublicKey } } };
+  return { ...override, ...updater };
 }
 
 /**
@@ -241,7 +245,7 @@ export async function runDesktopTauri(rawArguments = process.argv.slice(2)) {
 
   if (command === 'build') {
     console.log(
-      tauriConfigOverride?.plugins?.updater
+      tauriConfigOverride?.plugins?.updater && tauriConfigOverride.bundle?.createUpdaterArtifacts !== false
         ? 'Signed updater artifacts: configured for this release build'
         : 'Signed updater artifacts: disabled for this local/debug build',
     );

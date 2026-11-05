@@ -444,18 +444,11 @@ fn validate_request(input: &OpenAIResponsesRequestInput) -> Result<(), String> {
         .get("model")
         .and_then(serde_json::Value::as_str)
         .unwrap_or("");
-    let model_allowed = match input.credential_source {
-        OpenAIResponsesCredentialSource::ApiKey => {
-            matches!(model, "gpt-5.6-sol" | "gpt-5.6-terra" | "gpt-5.6-luna")
-        }
-        // Subscription models are discovered per account; the provider remains
-        // the entitlement authority. A saved choice is never silently replaced.
-        OpenAIResponsesCredentialSource::ChatgptSubscription => {
-            crate::codex_models::valid_model_slug(model)
-        }
-    };
-    if !model_allowed {
-        return Err("OPENAI_INVALID_REQUEST: model is not certified".into());
+    // Both routes discover their models (the key's `/v1/models` list or the
+    // subscription catalog); the provider remains the entitlement authority,
+    // so only the identifier's shape is checked here.
+    if !crate::codex_models::valid_model_slug(model) {
+        return Err("OPENAI_INVALID_REQUEST: model is invalid".into());
     }
     Ok(())
 }
@@ -531,19 +524,28 @@ mod tests {
         let mut invalid = input("{}");
         invalid.request_id = "../openai".into();
         assert!(validate_request(&invalid).is_err());
-        assert!(
-            validate_request(&input(r#"{"model":"gpt-4o","stream":true,"store":false}"#)).is_err()
-        );
+        assert!(validate_request(&input(r#"{"model":"","stream":true,"store":false}"#)).is_err());
+        assert!(validate_request(&input(
+            r#"{"model":"gpt-6-astra","stream":false,"store":false}"#
+        ))
+        .is_err());
     }
 
     #[test]
-    fn subscription_accepts_discovered_models_without_broadening_api_key_models() {
-        let mut request = input(r#"{"model":"gpt-next","stream":true,"store":false}"#);
-        assert!(validate_request(&request).is_err());
-        request.credential_source = OpenAIResponsesCredentialSource::ChatgptSubscription;
-        assert!(validate_request(&request).is_ok());
-        request.body = r#"{"model":"bad/slug","stream":true,"store":false}"#.into();
-        assert!(validate_request(&request).is_err());
+    fn both_routes_accept_discovered_models_but_not_malformed_ids() {
+        for source in [
+            OpenAIResponsesCredentialSource::ApiKey,
+            OpenAIResponsesCredentialSource::ChatgptSubscription,
+        ] {
+            let mut request = input(r#"{"model":"gpt-next","stream":true,"store":false}"#);
+            request.credential_source = source;
+            assert!(validate_request(&request).is_ok());
+            request.body = r#"{"model":"bad/slug","stream":true,"store":false}"#.into();
+            assert!(validate_request(&request).is_err());
+            request.body =
+                r#"{"model":"https://example.test/model","stream":true,"store":false}"#.into();
+            assert!(validate_request(&request).is_err());
+        }
     }
 
     #[test]

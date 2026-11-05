@@ -4,6 +4,7 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import type { AgentEffortChoice } from '../lib/agent/protocol';
 import {
   AGENT_PROVIDER_OPTIONS,
+  DEFAULT_AGENT_MODEL,
   DEFAULT_AGENT_PROVIDER,
   agentProviderOption,
   normalizeAgentProviderEffort,
@@ -484,7 +485,7 @@ export const useSettingsStore = create<SettingsState>()(
             ),
           };
         }),
-      agentModel: 'deepseek-v4-flash',
+      agentModel: DEFAULT_AGENT_MODEL,
       setAgentModel: (m) =>
         set((state) => {
           const agentModel = normalizeAgentProviderModel(state.agentProvider, m);

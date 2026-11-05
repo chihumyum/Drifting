@@ -4,7 +4,7 @@
 //! The renderer can request checks and present metadata, but the endpoint,
 //! signature verification, downloaded bytes, and installation remain native.
 
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 
 use serde::Serialize;
@@ -48,6 +48,10 @@ pub(crate) enum UpdateDownloadEvent {
     Finished,
 }
 
+/// Why the signed updater did not start, when it did not. An updater that
+/// cannot start leaves Drifting usable: only update checks report it.
+static UPDATER_UNAVAILABLE: OnceLock<String> = OnceLock::new();
+
 fn updater_public_key() -> Result<&'static str, String> {
     option_env!("DRIFTING_UPDATER_PUBLIC_KEY")
         .map(str::trim)
@@ -55,16 +59,30 @@ fn updater_public_key() -> Result<&'static str, String> {
         .ok_or_else(|| "This build is not configured with the updater public key".to_string())
 }
 
-pub(crate) fn install_plugin_if_configured(app: &AppHandle) -> Result<(), String> {
+fn updater_ready() -> Result<(), String> {
+    updater_public_key()?;
+    match UPDATER_UNAVAILABLE.get() {
+        Some(reason) => Err(reason.clone()),
+        None => Ok(()),
+    }
+}
+
+/// Starts the updater plugin when the public key is compiled in. A plugin that
+/// fails to start (for example a build without `plugins.updater`) is recorded
+/// rather than returned, so the App still opens.
+pub(crate) fn install_plugin_if_configured(app: &AppHandle) {
     let Ok(public_key) = updater_public_key() else {
-        return Ok(());
+        return;
     };
-    app.plugin(
+    if let Err(error) = app.plugin(
         tauri_plugin_updater::Builder::new()
             .pubkey(public_key)
             .build(),
-    )
-    .map_err(|error| format!("could not initialize the signed updater: {error}"))
+    ) {
+        let reason = format!("could not initialize the signed updater: {error}");
+        eprintln!("{reason}");
+        let _ = UPDATER_UNAVAILABLE.set(reason);
+    }
 }
 
 #[tauri::command]
@@ -72,7 +90,7 @@ pub(crate) async fn update_check(
     app: AppHandle,
     state: State<'_, AppUpdateState>,
 ) -> Result<Option<UpdateMetadata>, String> {
-    updater_public_key()?;
+    updater_ready()?;
     let endpoint = UPDATE_ENDPOINT
         .parse()
         .map_err(|error| format!("Updater endpoint is invalid: {error}"))?;

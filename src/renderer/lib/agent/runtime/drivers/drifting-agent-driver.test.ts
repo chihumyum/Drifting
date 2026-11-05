@@ -252,6 +252,30 @@ describe('DriftingAgentModelDriver', () => {
     expect(createProviderDriver).not.toHaveBeenCalled();
   });
 
+  it('routes a model the provider lists, or a saved choice it may own, without a release', async () => {
+    const createProviderDriver = vi.fn(async () => ({
+      id: 'fixture',
+      capabilities: { reasoning: true },
+      async *stream(): AsyncIterable<AgentModelStreamEvent> {
+        yield { type: 'finish', reason: 'end_turn' };
+      },
+    }));
+    const driver = new DriftingAgentModelDriver({ createProviderDriver });
+    for (const [provider, model] of [
+      ['openai', 'gpt-6.2-nova'],
+      ['anthropic', 'claude-opus-6'],
+      ['deepseek', 'deepseek-v4-flash'],
+    ] as const) {
+      for await (const event of driver.stream({ ...request(), provider, model })) void event;
+    }
+    expect(createProviderDriver.mock.calls).toEqual([
+      ['openai', 'gpt-6.2-nova'],
+      ['anthropic', 'claude-opus-6'],
+      // The retired DeepSeek id is sent as its successor.
+      ['deepseek', 'deepseek-flash'],
+    ]);
+  });
+
   it('reuses one provider driver across tool iterations and releases it at turn end', async () => {
     const createProviderDriver = vi.fn(async () => ({
       id: 'fixture-deepseek',

@@ -615,13 +615,29 @@
       "chatConfigTitle": "Configuration de la conversation",
       "chatConfigDesc": "Choisissez fournisseur, modèle et effort de raisonnement dans le menu de la saisie Agent à droite. Les clés et l’abonnement ChatGPT se gèrent dans Modèles et API.",
       "modelOptions": {
-        "deepseek-v4-flash": {
+        "deepseek-flash": {
           "label": "DeepSeek Flash · rapide",
           "short": "Flash"
         },
         "deepseek-v4-pro": {
           "label": "DeepSeek Pro · stable",
           "short": "Pro"
+        },
+        "claude-sonnet-5-5": {
+          "label": "Claude Sonnet 5.5 · équilibré",
+          "short": "Sonnet 5.5"
+        },
+        "claude-opus-5-5": {
+          "label": "Claude Opus 5.5 · stable",
+          "short": "Opus 5.5"
+        },
+        "claude-fable-5-1": {
+          "label": "Claude Fable 5.1 · de pointe",
+          "short": "Fable 5.1"
+        },
+        "claude-haiku-5-5": {
+          "label": "Claude Haiku 5.5 · rapide",
+          "short": "Haiku 5.5"
         },
         "claude-sonnet-5": {
           "label": "Claude Sonnet 5 · équilibré",

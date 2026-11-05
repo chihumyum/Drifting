@@ -14,7 +14,7 @@
  *   - tool-call arguments arrive as a JSON STRING and must be parsed
  *   - abortSignal flows through SDK request options to the underlying fetch
  *
- * Thinking mode (deepseek-v4-flash / -pro default to thinking-on):
+ * Thinking mode (deepseek-flash / deepseek-v4-pro default to thinking-on):
  *   - Default on/off comes from provider config; a single request can override
  *     it via `request.thinking` (inline-ask forces reasoning on this way)
  *   - Sent as `{ thinking: { type: 'enabled' | 'disabled' }, reasoning_effort }`
@@ -39,6 +39,7 @@
  */
 import OpenAI from 'openai';
 import type { LLMProvider } from './provider';
+import { defaultAgentProviderModel } from '../../../agent/runtime/agent-provider-contract';
 import {
   AIError,
   type AICompletionChunk,
@@ -48,7 +49,7 @@ import {
   type AIUsage,
 } from '../../types';
 
-export type DeepSeekReasoningEffort = 'high' | 'max';
+export type DeepSeekReasoningEffort = 'low' | 'high' | 'max';
 
 export interface DeepSeekProviderConfig {
   apiKey: string;
@@ -68,14 +69,14 @@ export interface DeepSeekProviderConfig {
   thinking?: boolean;
   /**
    * Reasoning effort when thinking is enabled. Defaults to 'high'. Ignored
-   * when thinking is disabled. (DeepSeek maps low/medium → high server-side
-   * anyway, so we only expose the meaningful values.)
+   * when thinking is disabled. DeepSeek accepts low, high and max (its model
+   * list says which each model supports); medium maps to high, xhigh to max.
    */
   reasoningEffort?: DeepSeekReasoningEffort;
 }
 
 const DEFAULT_BASE_URL = 'https://api.deepseek.com/v1';
-const DEFAULT_MODEL = 'deepseek-v4-flash';
+const DEFAULT_MODEL = defaultAgentProviderModel('deepseek');
 
 export class DeepSeekProvider implements LLMProvider {
   readonly id = 'deepseek';
@@ -469,7 +470,8 @@ function buildChatMessages(
 function normalizeDeepSeekReasoningEffort(
   effort: NonNullable<AICompletionRequest['reasoningEffort']>,
 ): DeepSeekReasoningEffort {
-  return effort === 'max' || effort === 'xhigh' ? 'max' : 'high';
+  if (effort === 'max' || effort === 'xhigh' || effort === 'ultra') return 'max';
+  return effort === 'low' || effort === 'minimal' ? 'low' : 'high';
 }
 
 function buildChatTools(

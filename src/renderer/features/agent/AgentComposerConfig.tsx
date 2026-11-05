@@ -16,6 +16,7 @@ import { AnchoredPopover } from '../../components/ui/AnchoredPopover';
 import { agentProviderModelOption } from '../../lib/agent/runtime/agent-provider-contract';
 import { codexModelCatalog } from '../../lib/agent/codex-model-catalog';
 import { useCodexModelCatalog } from './useCodexModelCatalog';
+import { useByokModelLists } from './useByokModelLists';
 import { BrushIcon } from '../../components/ui/BrushIcon';
 
 /**
@@ -61,6 +62,7 @@ export function AgentComposerConfig({
   const [view, setView] = useState<'main' | 'model' | 'memory'>('main');
   const triggerRef = useRef<HTMLButtonElement>(null);
   const catalog = useCodexModelCatalog(open && view === 'model');
+  useByokModelLists(open && view === 'model');
 
   const modelOption = agentProviderModelOption(agentProvider, agentModel);
   const reasoningProfile = resolveAgentProviderReasoningProfile(agentProvider, agentModel);

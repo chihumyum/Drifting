@@ -27,7 +27,7 @@ import {
   AGENT_LONG_TASK_TOOL_CONTRACTS,
 } from './long-task-tool-contract';
 import { AGENT_AUTHOR_CONTROL_CONTRACT } from './system-prompt';
-import { AGENT_PROVIDER_OPTIONS } from './agent-provider-contract';
+import { AGENT_PROVIDER_OPTIONS, BYOK_AGENT_PROVIDERS } from './agent-provider-contract';
 import { DRIFTING_MCP_PROTOCOL_VERSION } from './mcp-transport';
 import { DRIFTING_AGENT_CONCURRENCY_CONTRACT } from './agent-concurrency-contract';
 import {
@@ -157,6 +157,17 @@ export interface DriftingAgentCapabilityManifest {
       journal: 'provider_tool_used-settled-transcript-card-outside-canonical-history';
       replay: 'web_search_call-items-verbatim-in-the-active-tool-loop';
       acceptance: 'synthetic-stream-and-replay-tests;live-api-verified;live-subscription-unverified';
+    };
+    apiKeyModelDiscovery: {
+      providers: readonly string[];
+      catalog: string;
+      offered: string;
+      refresh: string;
+      cache: string;
+      fallback: string;
+      savedSelection: string;
+      unknownMetadata: string;
+      acceptance: string;
     };
     certifiedProviders: Array<{
       provider: string;
@@ -394,6 +405,17 @@ export function buildDriftingAgentCapabilityManifest(): DriftingAgentCapabilityM
         journal: 'provider_tool_used-settled-transcript-card-outside-canonical-history',
         replay: 'web_search_call-items-verbatim-in-the-active-tool-loop',
         acceptance: 'synthetic-stream-and-replay-tests;live-api-verified;live-subscription-unverified',
+      },
+      apiKeyModelDiscovery: {
+        providers: BYOK_AGENT_PROVIDERS,
+        catalog: 'native-provider-model-endpoints-with-keychain-key;key-never-in-renderer',
+        offered: 'bundled-order-first-then-newest;openai-gpt5-plus-text-models-without-snapshots-or-specialist-families',
+        refresh: 'composer-menu-open-focus-online;key-change-invalidates',
+        cache: 'memory-only-five-minutes-with-stale-response-fencing',
+        fallback: 'last-successful-provider-list-then-bundled-models',
+        savedSelection: 'provider-shaped-id-preserved-across-restart-and-list-failure',
+        unknownMetadata: 'anthropic-and-deepseek-list-limits-and-efforts;openai-ids-only-bundled-profile-or-128k-window-reasoning-on',
+        acceptance: 'synthetic-list-and-native-projection-tests;live-provider-lists-unverified',
       },
       certifiedProviders: AGENT_PROVIDER_OPTIONS.map((provider) => ({
         provider: provider.value,

@@ -22,6 +22,7 @@ import type {
 import {
   resolveAgentProviderContextProfile,
   agentProviderModelOption,
+  defaultAgentProviderModel,
   type AgentProviderModelOption,
   type OpenAIResponsesProviderId,
 } from '../agent-provider-contract';
@@ -81,7 +82,7 @@ export class OpenAIResponsesAgentDriver implements AgentModelDriver {
     if (!apiKey && !options.transport) throw new Error('OpenAI API key is empty');
     this.apiKey = apiKey || null;
     this.provider = options.provider ?? 'openai';
-    this.defaultModel = options.defaultModel ?? 'gpt-5.6-sol';
+    this.defaultModel = options.defaultModel ?? defaultAgentProviderModel(this.provider);
     this.defaultModelOption = agentProviderModelOption(this.provider, this.defaultModel);
     this.capabilities = {
       reasoning: true,

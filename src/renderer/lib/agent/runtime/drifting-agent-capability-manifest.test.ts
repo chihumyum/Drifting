@@ -231,26 +231,34 @@ describe('Drifting Agent capability manifest', () => {
       'openai',
       'openai-codex',
     ]);
+    expect(platform.apiKeyModelDiscovery).toMatchObject({
+      providers: ['deepseek', 'anthropic', 'openai'],
+      catalog: 'native-provider-model-endpoints-with-keychain-key;key-never-in-renderer',
+      fallback: 'last-successful-provider-list-then-bundled-models',
+      savedSelection: 'provider-shaped-id-preserved-across-restart-and-list-failure',
+    });
     expect(
       platform.certifiedProviders
         .find((item) => item.provider === 'openai-codex')
         ?.models.map((model) => model.wireContract),
     ).toEqual([
-      'gpt-5.6-sol:responses-codex-v1',
-      'gpt-5.6-terra:responses-codex-v1',
-      'gpt-5.6-luna:responses-codex-v1',
+      'gpt-6-astra:responses-codex-v1',
+      'gpt-6.1-sol:responses-codex-v1',
+      'gpt-6.1-terra:responses-codex-v1',
+      'gpt-6-luna:responses-codex-v1',
     ]);
     expect(
       platform.certifiedProviders.find((item) => item.provider === 'openai')?.models,
     ).toEqual([
       expect.objectContaining({
-        id: 'gpt-5.6-sol',
-        wireContract: 'gpt-5.6-sol:responses-v1',
-        thinkingModes: ['off', 'adaptive'],
+        id: 'gpt-6-astra',
+        wireContract: 'gpt-6-astra:responses-v1',
+        thinkingModes: ['adaptive'],
         efforts: ['low', 'medium', 'high', 'xhigh', 'max'],
       }),
-      expect.objectContaining({ id: 'gpt-5.6-terra' }),
-      expect.objectContaining({ id: 'gpt-5.6-luna' }),
+      expect.objectContaining({ id: 'gpt-6.1-sol' }),
+      expect.objectContaining({ id: 'gpt-6.1-terra', thinkingModes: ['off', 'adaptive'] }),
+      expect.objectContaining({ id: 'gpt-6-luna' }),
     ]);
     expect(platform).toMatchObject({
       mcpProtocolVersion: '2025-06-18',

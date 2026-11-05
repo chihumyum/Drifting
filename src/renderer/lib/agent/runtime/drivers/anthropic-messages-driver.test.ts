@@ -118,6 +118,55 @@ describe('Anthropic Messages Agent driver', () => {
     expect(body?.tool_choice).toEqual({ type: 'tool', name: 'search' });
   });
 
+  it.each(['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-fable-5-1'])(
+    'asks %s with auto tool choice and keeps its always-on thinking',
+    async (model) => {
+      const bodies: Record<string, unknown>[] = [];
+      const driver = new AnthropicMessagesAgentDriver({
+        apiKey: 'test',
+        defaultModel: model,
+        fetch: async (_input, init) => {
+          bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+          return new Response(
+            sse([
+              { type: 'message_start', message: { usage: { input_tokens: 1 } } },
+              { type: 'message_delta', delta: { stop_reason: 'end_turn' }, usage: { output_tokens: 1 } },
+              { type: 'message_stop' },
+            ]),
+            { status: 200 },
+          );
+        },
+      });
+
+      // These models answer forced `any` / `tool` choices with a 400.
+      await collect(driver, request({ model, toolChoice: { force: 'search' } }));
+      await collect(
+        driver,
+        request({
+          model,
+          reasoning: { enabled: false },
+          executionMode: 'required_tool_non_reasoning',
+          toolChoice: 'required',
+        }),
+      );
+      await collect(driver, request({ model, toolChoice: 'none' }));
+
+      expect(bodies.map((body) => body.tool_choice)).toEqual([
+        { type: 'auto' },
+        { type: 'auto' },
+        { type: 'none' },
+      ]);
+      for (const body of bodies.slice(0, 2)) {
+        expect(body).toMatchObject({
+          model,
+          thinking: { type: 'adaptive', display: 'summarized' },
+          output_config: { effort: 'high' },
+        });
+        expect(body).not.toHaveProperty('temperature');
+      }
+    },
+  );
+
   it('uses a required non-reasoning action sample without changing the turn setting', async () => {
     let body: Record<string, unknown> | undefined;
     const driver = new AnthropicMessagesAgentDriver({

@@ -21,6 +21,8 @@ import type {
   AssetVariant,
   CodexLoginProjection,
   CodexModelCatalogResponse,
+  ByokModelCatalogResponse,
+  ByokModelProvider,
   CodexImagesGenerateInput,
   CodexImagesGenerateResult,
   CodexSubscriptionStatus,
@@ -334,6 +336,11 @@ export interface CodexSubscriptionPlatformApi extends OpenAIResponsesPlatformApi
   logout(): Promise<boolean>;
 }
 
+export interface ByokModelsPlatformApi {
+  /** The provider's own model list, read natively with the stored API key. */
+  list(provider: ByokModelProvider): Promise<ByokModelCatalogResponse>;
+}
+
 export type ImageInboxEntry = ImageInboxCandidate & {
   /** Webview-loadable URL for the candidate image. */
   fileUrl: string;
@@ -411,5 +418,6 @@ export interface PlatformApi {
   readonly mcpHttp: McpHttpPlatformApi;
   readonly openAIResponses: OpenAIResponsesPlatformApi;
   readonly codexSubscription: CodexSubscriptionPlatformApi;
+  readonly byokModels: ByokModelsPlatformApi;
   readonly imageGeneration: ImageGenerationPlatformApi;
 }
