@@ -97,7 +97,8 @@ struct Manifest {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectionInfo {
-    directory: String,
+    /// None while the project follows all projects and no location is chosen.
+    directory: Option<String>,
     custom_root: Option<String>,
     generated_at: Option<String>,
     read_only: bool,
@@ -108,13 +109,14 @@ pub struct ProjectionInfo {
 
 /// Where projects without a location of their own are written, and whether
 /// the folder is on at all. Device-local, like each project's own location.
+/// There is no default: until the author chooses, nothing is written.
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FolderSettings {
     /// Holds the folder of every project without a location of its own.
-    directory: String,
-    /// The location the author chose; the app's data folder when unset.
-    custom_root: Option<String>,
+    directory: Option<String>,
+    /// The location the author chose; None until one is chosen.
+    root: Option<String>,
     enabled: bool,
 }
 
@@ -176,6 +178,8 @@ fn named_directory(settings: &OutputSettings, output: &Path, project_id: &str) -
 
 const SETTINGS: &str = "markdown-projection-settings.json";
 const TURNED_OFF: &str = "The Markdown folder is turned off";
+/// A project follows all projects and the author has not chosen where they go.
+pub(crate) const NO_LOCATION: &str = "No location is chosen for the Markdown folder";
 
 #[derive(Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -185,8 +189,9 @@ struct OutputSettings {
     /// ` 3`… when another folder had it first.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     folders: BTreeMap<String, String>,
-    /// Where a project without a location of its own is written; the app's
-    /// data folder when unset.
+    /// Where a project without a location of its own is written. There is no
+    /// default: unset, such a project is not written at all (but see
+    /// `default_location` for devices that wrote before this rule).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     default_root: Option<PathBuf>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
@@ -234,18 +239,36 @@ fn selected_directory(path: String) -> Result<PathBuf, String> {
     fs::canonicalize(path).map_err(|e| e.to_string())
 }
 
+/// Where projects without a location of their own go, if anywhere. Until
+/// 2026-11-06 a device that had not chosen wrote under the app's data folder;
+/// once that folder holds projects it stays this device's location.
+fn default_location(settings: &OutputSettings, root: &Path) -> Result<Option<PathBuf>, String> {
+    match &settings.default_root {
+        Some(chosen) => Ok(Some(chosen.clone())),
+        None if inspect(&root.join("markdown-projections"), true)? => Ok(Some(root.to_path_buf())),
+        None => Ok(None),
+    }
+}
+
 fn default_output(settings: &OutputSettings, root: &Path) -> Result<PathBuf, String> {
     match &settings.default_root {
         Some(chosen) => {
             chosen_root(chosen)?;
             Ok(chosen.clone())
         }
-        None => Ok(root.to_path_buf()),
+        None => default_location(settings, root)?.ok_or_else(|| NO_LOCATION.into()),
     }
 }
 
-/// The project's own location, else the chosen default, else the app's data
-/// folder. The label names a location chosen for this project.
+/// Whether the project has somewhere to go: its own location or the one
+/// chosen for all projects.
+fn located(settings: &OutputSettings, root: &Path, project_id: &str) -> Result<bool, String> {
+    Ok(settings.roots.contains_key(project_id) || default_location(settings, root)?.is_some())
+}
+
+/// The project's own location, else the one chosen for all projects;
+/// `NO_LOCATION` when neither is set. The label names a location chosen for
+/// this project.
 fn output_root_in(
     settings: &OutputSettings,
     root: &Path,
@@ -293,49 +316,36 @@ fn probe_writable(directory: &Path) -> Result<(), String> {
     fs::remove_file(probe).map_err(|e| e.to_string())
 }
 
-fn folder_settings_in(settings: &OutputSettings, root: &Path) -> FolderSettings {
-    let output = settings.default_root.as_deref().unwrap_or(root);
-    FolderSettings {
-        directory: output
-            .join("markdown-projections")
-            .to_string_lossy()
-            .into_owned(),
-        custom_root: settings
-            .default_root
-            .as_ref()
-            .map(|path| path.to_string_lossy().into_owned()),
+fn folder_settings_in(settings: &OutputSettings, root: &Path) -> Result<FolderSettings, String> {
+    let location = default_location(settings, root)?;
+    Ok(FolderSettings {
+        directory: location.as_ref().map(|path| {
+            path.join("markdown-projections")
+                .to_string_lossy()
+                .into_owned()
+        }),
+        root: location.map(|path| path.to_string_lossy().into_owned()),
         enabled: !settings.disabled,
-    }
+    })
 }
 
 fn folder_settings(root: &Path) -> Result<FolderSettings, String> {
-    Ok(folder_settings_in(&read_settings(root)?, root))
+    folder_settings_in(&read_settings(root)?, root)
 }
 
 /// Chooses where projects without a location of their own are written. Their
 /// folders at the old location stay where they are.
-pub(crate) fn set_default_root(
-    root: &Path,
-    custom_root: Option<String>,
-) -> Result<FolderSettings, String> {
+pub(crate) fn set_default_root(root: &Path, location: String) -> Result<FolderSettings, String> {
     let _guard = WRITER.lock().map_err(|_| "Projection writer unavailable")?;
     let mut settings = read_settings(root)?;
-    let app_folder = fs::canonicalize(root).map_err(|e| e.to_string())?;
-    // Choosing the app's own data folder is choosing the default.
-    let selected = custom_root
-        .map(selected_directory)
-        .transpose()?
-        .filter(|path| *path != app_folder);
-    let parent = selected
-        .as_deref()
-        .unwrap_or(root)
-        .join("markdown-projections");
+    let selected = selected_directory(location)?;
+    let parent = selected.join("markdown-projections");
     ensure_directory(&parent)?;
     // Check writability before persisting a new location.
     probe_writable(&parent)?;
-    settings.default_root = selected;
+    settings.default_root = Some(selected);
     write_settings(root, &settings)?;
-    Ok(folder_settings_in(&settings, root))
+    folder_settings_in(&settings, root)
 }
 
 /// Turning the folder off keeps its files where they are; turning it back on
@@ -345,17 +355,19 @@ pub(crate) fn set_enabled(root: &Path, enabled: bool) -> Result<FolderSettings, 
     let mut settings = read_settings(root)?;
     settings.disabled = !enabled;
     write_settings(root, &settings)?;
-    Ok(folder_settings_in(&settings, root))
+    folder_settings_in(&settings, root)
 }
 
 /// The project's folder once it was written, else the folder holding projects.
 fn folder_to_open(root: &Path, project_id: Option<&str>) -> Result<PathBuf, String> {
     let settings = read_settings(root)?;
     if let Some(project_id) = project_id {
-        let (output, _) = output_root_in(&settings, root, project_id)?;
-        let directory = named_directory(&settings, &output, project_id);
-        if inspect(&directory, true)? {
-            return Ok(directory);
+        if located(&settings, root, project_id)? {
+            let (output, _) = output_root_in(&settings, root, project_id)?;
+            let directory = named_directory(&settings, &output, project_id);
+            if inspect(&directory, true)? {
+                return Ok(directory);
+            }
         }
     }
     let output = default_output(&settings, root)?;
@@ -376,6 +388,12 @@ pub(crate) fn set_output_root(
     validate_project(project_id)?;
     let mut settings = read_settings(root)?;
     let selected = custom_root.map(selected_directory).transpose()?;
+    if selected.is_none() && default_location(&settings, root)?.is_none() {
+        // Following all projects, which have no location yet: nothing to write.
+        settings.roots.remove(project_id);
+        write_settings(root, &settings)?;
+        return Ok(unlocated(!settings.disabled));
+    }
     let output = match &selected {
         Some(path) => path.clone(),
         None => default_output(&settings, root)?,
@@ -505,7 +523,7 @@ pub(crate) fn name_folder(
     validate_project(project_id)?;
     validate_folder_name(title)?;
     let mut settings = read_settings(root)?;
-    if settings.disabled {
+    if settings.disabled || !located(&settings, root, project_id)? {
         return Ok(NamedFolder {
             info: info(root, project_id)?,
             previous_directory: None,
@@ -743,25 +761,42 @@ fn read_owned_manifest(root: &Path, project_id: &str) -> Result<Option<Manifest>
     Ok(owned)
 }
 
+/// A project with nowhere to go: nothing is written or read until a location is chosen.
+fn unlocated(enabled: bool) -> ProjectionInfo {
+    ProjectionInfo {
+        directory: None,
+        custom_root: None,
+        generated_at: None,
+        read_only: false,
+        reverse_sync: true,
+        enabled,
+    }
+}
+
 fn info(root: &Path, project_id: &str) -> Result<ProjectionInfo, String> {
     let settings = read_settings(root)?;
+    validate_project(project_id)?;
     if settings.disabled {
-        validate_project(project_id)?;
         // Nothing at the location is read while off, so it may even be gone.
         let custom = settings.roots.get(project_id);
-        let output = custom
-            .or(settings.default_root.as_ref())
-            .map_or(root, PathBuf::as_path);
+        let Some(output) = custom.cloned().or(default_location(&settings, root)?) else {
+            return Ok(unlocated(false));
+        };
         return Ok(ProjectionInfo {
-            directory: named_directory(&settings, output, project_id)
-                .to_string_lossy()
-                .into_owned(),
+            directory: Some(
+                named_directory(&settings, &output, project_id)
+                    .to_string_lossy()
+                    .into_owned(),
+            ),
             custom_root: custom.map(|path| path.to_string_lossy().into_owned()),
             generated_at: None,
             read_only: false,
             reverse_sync: true,
             enabled: false,
         });
+    }
+    if !located(&settings, root, project_id)? {
+        return Ok(unlocated(true));
     }
     let (output, custom_root) = output_root_in(&settings, root, project_id)?;
     let directory = named_directory(&settings, &output, project_id);
@@ -784,7 +819,7 @@ fn info_at(
         _ => None,
     };
     Ok(ProjectionInfo {
-        directory: directory.to_string_lossy().into_owned(),
+        directory: Some(directory.to_string_lossy().into_owned()),
         custom_root,
         generated_at: manifest.map(|m| m.generated_at),
         read_only: false,
@@ -1414,7 +1449,9 @@ fn write_projection_with_documents(
 
 fn remove_projection(root: &Path, project_id: &str) -> Result<(), String> {
     let _guard = WRITER.lock().map_err(|_| "Projection writer unavailable")?;
-    info(root, project_id)?;
+    if info(root, project_id)?.directory.is_none() {
+        return forget_output_root(root, project_id);
+    }
     let directory = resolved_project_directory(root, project_id)?;
     let Some(manifest) = read_owned_manifest(&directory, project_id)? else {
         return forget_output_root(root, project_id);
@@ -1521,10 +1558,10 @@ pub async fn markdown_projection_folder(app: tauri::AppHandle) -> Result<FolderS
 #[tauri::command]
 pub async fn markdown_projection_set_default_root(
     app: tauri::AppHandle,
-    custom_root: Option<String>,
+    location: String,
 ) -> Result<FolderSettings, String> {
     let root = crate::data_paths::app_local_root(&app)?;
-    tauri::async_runtime::spawn_blocking(move || set_default_root(&root, custom_root))
+    tauri::async_runtime::spawn_blocking(move || set_default_root(&root, location))
         .await
         .map_err(|e| e.to_string())?
 }
@@ -1627,6 +1664,11 @@ pub async fn markdown_projection_read(
 #[cfg(test)]
 mod tests {
     use super::*;
+    /// A device that wrote before a location had to be chosen keeps the app's
+    /// data folder; most tests start from there.
+    fn legacy_location(root: &Path) {
+        fs::create_dir_all(root.join("markdown-projections")).unwrap();
+    }
     fn entry(path: &str, text: &str) -> Entry {
         Entry {
             path: path.into(),
@@ -1765,6 +1807,7 @@ mod tests {
     #[test]
     fn attachments_are_verified_hashed_read_only_and_removed_without_touching_vault_settings() {
         let temp = tempfile::tempdir().unwrap();
+        legacy_location(temp.path());
         let root = temp.path();
         let image = asset(root, "p", "image", "png", b"synthetic image bytes");
         let pdf = asset(root, "p", "document", "pdf", b"%PDF-1.4 synthetic test");
@@ -1776,7 +1819,7 @@ mod tests {
             vec![image, pdf],
         )
         .unwrap();
-        let directory = PathBuf::from(result.directory);
+        let directory = PathBuf::from(result.directory.clone().unwrap());
         let path = "project/assets/id-image/source.png";
         let file = directory.join(path);
         assert_eq!(fs::read(&file).unwrap(), b"synthetic image bytes");
@@ -1818,6 +1861,7 @@ mod tests {
     #[test]
     fn mirrors_written_under_the_retired_material_directory_move_to_the_new_one() {
         let temp = tempfile::tempdir().unwrap();
+        legacy_location(temp.path());
         let root = temp.path();
         let mut image = asset(root, "p", "image", "png", b"synthetic image bytes");
         image.path = "资料/附件/地图.png".into();
@@ -1829,7 +1873,7 @@ mod tests {
             vec![image],
         )
         .unwrap();
-        let directory = PathBuf::from(result.directory);
+        let directory = PathBuf::from(result.directory.clone().unwrap());
         fs::write(directory.join("资料/调研/作者自己的.txt"), "kept").unwrap();
         let mut image = asset(root, "p", "image", "png", b"synthetic image bytes");
         image.path = "素材/附件/地图.png".into();
@@ -1861,6 +1905,7 @@ mod tests {
     #[test]
     fn missing_corrupt_or_unowned_attachments_never_replace_the_previous_snapshot() {
         let temp = tempfile::tempdir().unwrap();
+        legacy_location(temp.path());
         let root = temp.path();
         let result = write_projection(
             root,
@@ -1869,7 +1914,7 @@ mod tests {
             vec![entry("index.md", "previous")],
         )
         .unwrap();
-        let directory = PathBuf::from(result.directory);
+        let directory = PathBuf::from(result.directory.clone().unwrap());
         for failure in ["missing", "corrupt", "collision"] {
             let mut image = asset(root, "p", "image", "png", b"synthetic image");
             match failure {
@@ -1903,6 +1948,7 @@ mod tests {
     #[test]
     fn unsupported_image_previews_copy_only_from_the_project_owned_display_variant() {
         let temp = tempfile::tempdir().unwrap();
+        legacy_location(temp.path());
         let root = temp.path();
         let original = asset(root, "p", "image", "heic", b"synthetic HEIC");
         fs::write(root.join("assets/p/image/display.jpg"), b"synthetic JPEG").unwrap();
@@ -1923,8 +1969,11 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            fs::read(Path::new(&result.directory).join("project/assets/id-image/display.jpg"))
-                .unwrap(),
+            fs::read(
+                Path::new(&result.directory.clone().unwrap())
+                    .join("project/assets/id-image/display.jpg")
+            )
+            .unwrap(),
             b"synthetic JPEG"
         );
     }
@@ -1962,6 +2011,7 @@ mod tests {
     #[test]
     fn folders_are_named_after_the_book_and_follow_its_title() {
         let local = tempfile::tempdir().unwrap();
+        legacy_location(local.path());
         let root = local.path();
         let hashed =
             write_projection(root, "p", "first".into(), vec![entry("prose.md", "text")]).unwrap();
@@ -1970,16 +2020,22 @@ mod tests {
         let directory = root.join("markdown-projections").join("潮汐灯塔");
         assert_eq!(
             named.previous_directory.as_deref(),
-            Some(hashed.directory.as_str())
+            Some(hashed.directory.clone().unwrap().as_str())
         );
-        assert_eq!(named.info.directory, directory.to_string_lossy());
+        assert_eq!(
+            named.info.directory.clone().unwrap(),
+            directory.to_string_lossy()
+        );
         assert_eq!(named.info.generated_at.as_deref(), Some("first"));
-        assert!(!Path::new(&hashed.directory).exists());
+        assert!(!Path::new(&hashed.directory.clone().unwrap()).exists());
         assert_eq!(
             fs::read_to_string(directory.join("prose.md")).unwrap(),
             "text"
         );
-        assert_eq!(info(root, "p").unwrap().directory, named.info.directory);
+        assert_eq!(
+            info(root, "p").unwrap().directory.clone().unwrap(),
+            named.info.directory.clone().unwrap()
+        );
         assert_eq!(resolved_project_directory(root, "p").unwrap(), directory);
         assert_eq!(folder_to_open(root, Some("p")).unwrap(), directory);
         let again = name_folder(root, "p", "潮汐灯塔").unwrap();
@@ -2037,25 +2093,28 @@ mod tests {
         fs::write(parent.join("Book/notes.md"), "user file").unwrap();
         let first = name_folder(root, "p", "Book").unwrap();
         assert_eq!(
-            first.info.directory,
+            first.info.directory.clone().unwrap(),
             parent.join("Book 2").to_string_lossy()
         );
         write_projection(root, "p", "now".into(), vec![entry("prose.md", "p")]).unwrap();
         let second = name_folder(root, "q", "Book").unwrap();
         assert_eq!(
-            second.info.directory,
+            second.info.directory.clone().unwrap(),
             parent.join("Book 3").to_string_lossy()
         );
         write_projection(root, "q", "now".into(), vec![entry("prose.md", "q")]).unwrap();
         // The number stays even once the plain title is free again.
         fs::remove_dir_all(parent.join("Book")).unwrap();
         let kept = name_folder(root, "p", "Book").unwrap();
-        assert_eq!(kept.info.directory, parent.join("Book 2").to_string_lossy());
+        assert_eq!(
+            kept.info.directory.clone().unwrap(),
+            parent.join("Book 2").to_string_lossy()
+        );
         assert_eq!(kept.previous_directory, None);
         // A new title drops it.
         let renamed = name_folder(root, "p", "Other").unwrap();
         assert_eq!(
-            renamed.info.directory,
+            renamed.info.directory.clone().unwrap(),
             parent.join("Other").to_string_lossy()
         );
         assert_eq!(
@@ -2075,6 +2134,7 @@ mod tests {
     #[test]
     fn naming_waits_while_the_folder_is_off() {
         let local = tempfile::tempdir().unwrap();
+        legacy_location(local.path());
         let root = local.path();
         let hashed =
             write_projection(root, "p", "first".into(), vec![entry("prose.md", "text")]).unwrap();
@@ -2082,34 +2142,108 @@ mod tests {
         let named = name_folder(root, "p", "Book").unwrap();
         assert!(!named.info.enabled);
         assert_eq!(named.previous_directory, None);
-        assert!(Path::new(&hashed.directory).exists());
+        assert!(Path::new(&hashed.directory.clone().unwrap()).exists());
         assert!(read_settings(root).unwrap().folders.is_empty());
     }
 
     #[test]
-    fn default_location_holds_projects_without_their_own_and_keeps_old_folders() {
+    fn nothing_is_written_until_a_location_is_chosen() {
         let local = tempfile::tempdir().unwrap();
         let chosen = tempfile::tempdir().unwrap();
         let own = tempfile::tempdir().unwrap();
         let root = local.path();
-        let original =
-            write_projection(root, "p", "first".into(), vec![entry("prose.md", "old")]).unwrap();
-        let folder =
-            set_default_root(root, Some(chosen.path().to_string_lossy().into_owned())).unwrap();
+        let folder = folder_settings(root).unwrap();
+        assert_eq!(
+            (folder.directory, folder.root, folder.enabled),
+            (None, None, true)
+        );
+        let unset = info(root, "p").unwrap();
+        assert_eq!((unset.directory, unset.enabled), (None, true));
+        assert_eq!(
+            write_projection(root, "p", "now".into(), vec![entry("prose.md", "text")])
+                .err()
+                .as_deref(),
+            Some(NO_LOCATION)
+        );
+        assert_eq!(name_folder(root, "p", "Book").unwrap().info.directory, None);
+        assert_eq!(
+            folder_to_open(root, Some("p")).err().as_deref(),
+            Some(NO_LOCATION)
+        );
+        assert_eq!(set_output_root(root, "p", None).unwrap().directory, None);
+        remove_projection(root, "p").unwrap();
+        assert!(!root.join("markdown-projections").exists());
+        // A project with a location of its own is written all the same.
+        set_output_root(root, "own", Some(own.path().to_string_lossy().into_owned())).unwrap();
+        let written =
+            write_projection(root, "own", "now".into(), vec![entry("prose.md", "text")]).unwrap();
+        assert!(written.directory.clone().unwrap().starts_with(
+            fs::canonicalize(own.path())
+                .unwrap()
+                .to_string_lossy()
+                .as_ref()
+        ));
+        assert_eq!(info(root, "p").unwrap().directory, None);
+        // Choosing one, even the app's own data folder, is a choice.
+        let folder = set_default_root(root, chosen.path().to_string_lossy().into_owned()).unwrap();
         let canonical = fs::canonicalize(chosen.path()).unwrap();
         assert_eq!(
-            folder.custom_root.as_deref(),
+            folder.root.as_deref(),
             Some(canonical.to_string_lossy().as_ref())
         );
+        write_projection(root, "p", "now".into(), vec![entry("prose.md", "text")]).unwrap();
+        assert!(project_directory(&canonical, "p").join("prose.md").exists());
+        let app = set_default_root(root, root.to_string_lossy().into_owned()).unwrap();
         assert_eq!(
-            folder.directory,
+            app.root.as_deref(),
+            Some(fs::canonicalize(root).unwrap().to_string_lossy().as_ref())
+        );
+        assert!(set_default_root(root, "relative/path".into()).is_err());
+        assert_eq!(folder_settings(root).unwrap().root, app.root);
+    }
+
+    #[test]
+    fn a_device_that_wrote_under_the_app_folder_keeps_it_as_its_location() {
+        let local = tempfile::tempdir().unwrap();
+        let root = local.path();
+        legacy_location(root);
+        let folder = folder_settings(root).unwrap();
+        assert_eq!(
+            folder.root.as_deref(),
+            Some(root.to_string_lossy().as_ref())
+        );
+        assert_eq!(
+            folder.directory.unwrap(),
+            root.join("markdown-projections").to_string_lossy()
+        );
+        let written =
+            write_projection(root, "p", "now".into(), vec![entry("prose.md", "text")]).unwrap();
+        assert_eq!(
+            written.directory.clone().unwrap(),
+            project_directory(root, "p").to_string_lossy()
+        );
+    }
+
+    #[test]
+    fn the_location_for_all_projects_holds_those_without_their_own_and_keeps_old_folders() {
+        let local = tempfile::tempdir().unwrap();
+        let chosen = tempfile::tempdir().unwrap();
+        let own = tempfile::tempdir().unwrap();
+        let root = local.path();
+        legacy_location(root);
+        let original =
+            write_projection(root, "p", "first".into(), vec![entry("prose.md", "old")]).unwrap();
+        let folder = set_default_root(root, chosen.path().to_string_lossy().into_owned()).unwrap();
+        let canonical = fs::canonicalize(chosen.path()).unwrap();
+        assert_eq!(
+            folder.directory.clone().unwrap(),
             canonical.join("markdown-projections").to_string_lossy()
         );
-        // The project follows the new default; its own choice is still unset.
+        // The project follows the new location; its own choice is still unset.
         let moved = info(root, "p").unwrap();
         assert_eq!(moved.custom_root, None);
         assert_eq!(
-            moved.directory,
+            moved.directory.clone().unwrap(),
             project_directory(&canonical, "p").to_string_lossy()
         );
         write_projection(root, "p", "second".into(), vec![entry("prose.md", "new")]).unwrap();
@@ -2118,35 +2252,31 @@ mod tests {
             "new"
         );
         assert_eq!(
-            fs::read_to_string(Path::new(&original.directory).join("prose.md")).unwrap(),
+            fs::read_to_string(Path::new(&original.directory.clone().unwrap()).join("prose.md"))
+                .unwrap(),
             "old"
         );
-        // A location chosen for the project wins, and resetting it returns to the default.
+        // A location chosen for the project wins, and following all projects returns to theirs.
         set_output_root(root, "p", Some(own.path().to_string_lossy().into_owned())).unwrap();
         assert!(info(root, "p").unwrap().custom_root.is_some());
         let reset = set_output_root(root, "p", None).unwrap();
         assert_eq!(reset.directory, moved.directory);
-        // Choosing the app's own folder is the default.
-        let folder = set_default_root(root, Some(root.to_string_lossy().into_owned())).unwrap();
-        assert_eq!(folder.custom_root, None);
-        assert_eq!(info(root, "p").unwrap().directory, original.directory);
-        assert!(set_default_root(root, Some("relative/path".into())).is_err());
-        assert_eq!(folder_settings(root).unwrap().custom_root, None);
     }
 
     #[test]
-    fn unavailable_default_location_does_not_fall_back_and_can_be_reset() {
+    fn unavailable_location_does_not_fall_back_and_can_be_chosen_again() {
         let local = tempfile::tempdir().unwrap();
         let chosen = tempfile::tempdir().unwrap();
+        let again = tempfile::tempdir().unwrap();
         let root = local.path();
-        set_default_root(root, Some(chosen.path().to_string_lossy().into_owned())).unwrap();
+        set_default_root(root, chosen.path().to_string_lossy().into_owned()).unwrap();
         chosen.close().unwrap();
         assert!(
             write_projection(root, "p", "now".into(), vec![entry("prose.md", "text")]).is_err()
         );
         assert!(!project_directory(root, "p").exists());
         assert!(folder_to_open(root, Some("p")).is_err());
-        set_default_root(root, None).unwrap();
+        set_default_root(root, again.path().to_string_lossy().into_owned()).unwrap();
         write_projection(root, "p", "now".into(), vec![entry("prose.md", "text")]).unwrap();
     }
 
@@ -2154,6 +2284,7 @@ mod tests {
     fn turned_off_folder_is_neither_written_nor_read_and_keeps_its_files() {
         let local = tempfile::tempdir().unwrap();
         let root = local.path();
+        legacy_location(root);
         let written =
             write_projection(root, "p", "first".into(), vec![entry("prose.md", "kept")]).unwrap();
         assert!(written.enabled);
@@ -2177,17 +2308,19 @@ mod tests {
         )
         .is_err());
         assert_eq!(
-            fs::read_to_string(Path::new(&written.directory).join("prose.md")).unwrap(),
+            fs::read_to_string(Path::new(&written.directory.clone().unwrap()).join("prose.md"))
+                .unwrap(),
             "kept"
         );
         // A location that went missing is no error while off.
         let gone = tempfile::tempdir().unwrap();
+        let again = tempfile::tempdir().unwrap();
         set_enabled(root, true).unwrap();
-        set_default_root(root, Some(gone.path().to_string_lossy().into_owned())).unwrap();
+        set_default_root(root, gone.path().to_string_lossy().into_owned()).unwrap();
         set_enabled(root, false).unwrap();
         gone.close().unwrap();
         assert!(!info(root, "p").unwrap().enabled);
-        set_default_root(root, None).unwrap();
+        set_default_root(root, again.path().to_string_lossy().into_owned()).unwrap();
         assert!(set_enabled(root, true).unwrap().enabled);
         assert!(info(root, "p").unwrap().enabled);
         write_projection(root, "p", "third".into(), vec![entry("prose.md", "new")]).unwrap();
@@ -2196,6 +2329,7 @@ mod tests {
     #[test]
     fn opening_shows_the_project_folder_once_written_else_the_folder_holding_projects() {
         let local = tempfile::tempdir().unwrap();
+        legacy_location(local.path());
         let root = local.path();
         assert_eq!(
             folder_to_open(root, Some("p")).unwrap(),
@@ -2206,7 +2340,7 @@ mod tests {
             write_projection(root, "p", "now".into(), vec![entry("prose.md", "text")]).unwrap();
         assert_eq!(
             folder_to_open(root, Some("p")).unwrap(),
-            PathBuf::from(&written.directory)
+            PathBuf::from(&written.directory.clone().unwrap())
         );
         assert_eq!(
             folder_to_open(root, None).unwrap(),
@@ -2217,6 +2351,7 @@ mod tests {
     #[test]
     fn custom_output_persists_per_project_resets_and_preserves_old_snapshots() {
         let local = tempfile::tempdir().unwrap();
+        legacy_location(local.path());
         let custom = tempfile::tempdir().unwrap();
         let root = local.path();
         let original =
@@ -2238,40 +2373,60 @@ mod tests {
         );
         assert_eq!(selected.generated_at, None);
         // Fresh reads resolve persisted settings without renderer/in-memory state.
-        assert_eq!(info(root, "p").unwrap().directory, selected.directory);
         assert_eq!(
-            resolved_project_directory(root, "p").unwrap(),
-            PathBuf::from(&selected.directory)
+            info(root, "p").unwrap().directory.clone().unwrap(),
+            selected.directory.clone().unwrap()
         );
         assert_eq!(
-            info(root, "other").unwrap().directory,
+            resolved_project_directory(root, "p").unwrap(),
+            PathBuf::from(&selected.directory.clone().unwrap())
+        );
+        assert_eq!(
+            info(root, "other").unwrap().directory.clone().unwrap(),
             project_directory(root, "other").to_string_lossy()
         );
         fs::write(custom.path().join("notes.md"), "user file").unwrap();
         write_projection(root, "p", "second".into(), vec![entry("prose.md", "new")]).unwrap();
         assert_eq!(
-            fs::read_to_string(Path::new(&selected.directory).join("prose.md")).unwrap(),
+            fs::read_to_string(Path::new(&selected.directory.clone().unwrap()).join("prose.md"))
+                .unwrap(),
             "new"
         );
         assert_eq!(
-            fs::read_to_string(Path::new(&original.directory).join("prose.md")).unwrap(),
+            fs::read_to_string(Path::new(&original.directory.clone().unwrap()).join("prose.md"))
+                .unwrap(),
             "old"
         );
         let reset = set_output_root(root, "p", None).unwrap();
-        assert_eq!(reset.directory, original.directory);
+        assert_eq!(
+            reset.directory.clone().unwrap(),
+            original.directory.clone().unwrap()
+        );
         assert_eq!(reset.custom_root, None);
-        assert!(Path::new(&selected.directory).join("prose.md").exists());
+        assert!(Path::new(&selected.directory.clone().unwrap())
+            .join("prose.md")
+            .exists());
         set_output_root(
             root,
             "p",
             Some(custom.path().to_string_lossy().into_owned()),
         )
         .unwrap();
-        fs::write(Path::new(&selected.directory).join("user.md"), "unmanaged").unwrap();
+        fs::write(
+            Path::new(&selected.directory.clone().unwrap()).join("user.md"),
+            "unmanaged",
+        )
+        .unwrap();
         remove_projection(root, "p").unwrap();
-        assert!(!Path::new(&selected.directory).join("prose.md").exists());
-        assert!(Path::new(&selected.directory).join("user.md").exists());
-        assert!(Path::new(&original.directory).join("prose.md").exists());
+        assert!(!Path::new(&selected.directory.clone().unwrap())
+            .join("prose.md")
+            .exists());
+        assert!(Path::new(&selected.directory.clone().unwrap())
+            .join("user.md")
+            .exists());
+        assert!(Path::new(&original.directory.clone().unwrap())
+            .join("prose.md")
+            .exists());
         assert_eq!(
             fs::read_to_string(custom.path().join("notes.md")).unwrap(),
             "user file"
@@ -2282,6 +2437,7 @@ mod tests {
     #[test]
     fn a_location_where_the_name_is_taken_is_accepted_and_written_around_it() {
         let local = tempfile::tempdir().unwrap();
+        legacy_location(local.path());
         let custom = tempfile::tempdir().unwrap();
         let root = local.path();
         name_folder(root, "p", "Book").unwrap();
@@ -2303,7 +2459,7 @@ mod tests {
         let named = name_folder(root, "p", "Book").unwrap();
         let canonical = fs::canonicalize(custom.path()).unwrap();
         assert_eq!(
-            named.info.directory,
+            named.info.directory.clone().unwrap(),
             canonical
                 .join("markdown-projections/Book 2")
                 .to_string_lossy()
@@ -2339,6 +2495,7 @@ mod tests {
     #[test]
     fn unavailable_custom_output_does_not_fallback_and_can_be_reset() {
         let local = tempfile::tempdir().unwrap();
+        legacy_location(local.path());
         let custom = tempfile::tempdir().unwrap();
         set_output_root(
             local.path(),
@@ -2386,7 +2543,7 @@ mod tests {
             vec![entry("prose.md", "first")],
         )
         .unwrap();
-        let directory = Path::new(&selected.directory);
+        let directory = PathBuf::from(selected.directory.clone().unwrap());
         fs::write(directory.join("new.md"), "user file").unwrap();
         assert!(write_projection(
             local.path(),
@@ -2408,6 +2565,7 @@ mod tests {
     #[test]
     fn interrupted_projection_claims_can_be_retried_and_cleaned_up() {
         let local = tempfile::tempdir().unwrap();
+        legacy_location(local.path());
         write_projection(
             local.path(),
             "p",
@@ -2471,6 +2629,7 @@ mod tests {
     #[test]
     fn markdown_projection_is_incremental_read_only_and_removes_only_owned_files() {
         let temp = tempfile::tempdir().unwrap();
+        legacy_location(temp.path());
         let root = temp.path();
         let project = "synthetic-project";
         let result = write_projection(
@@ -2480,7 +2639,7 @@ mod tests {
             vec![entry("chapters/a/prose.md", "雨😀"), entry("old.md", "old")],
         )
         .unwrap();
-        let directory = PathBuf::from(result.directory);
+        let directory = PathBuf::from(result.directory.clone().unwrap());
         let body = directory.join("chapters/a/prose.md");
         let before = fs::metadata(&body).unwrap().modified().unwrap();
         fs::write(directory.join("user.md"), "unmanaged").unwrap();
@@ -2540,6 +2699,7 @@ mod tests {
     #[cfg(unix)]
     fn markdown_projection_rejects_symlink_parent_and_preserves_external_target() {
         let temp = tempfile::tempdir().unwrap();
+        legacy_location(temp.path());
         write_projection(temp.path(), "p", "now".into(), vec![entry("ok.md", "safe")]).unwrap();
         let outside = tempfile::tempdir().unwrap();
         std::os::unix::fs::symlink(
@@ -2586,6 +2746,7 @@ mod tests {
     fn authored_files_are_writable_and_never_replace_unread_edits() {
         use std::os::unix::fs::PermissionsExt;
         let temp = tempfile::tempdir().unwrap();
+        legacy_location(temp.path());
         let root = temp.path();
         let chapter = "正文/001 雨夜.md";
         let first = write_authored(
@@ -2593,7 +2754,7 @@ mod tests {
             vec![authored(chapter, "A", None), entry("开始阅读.md", "home")],
             "first",
         );
-        let directory = PathBuf::from(first.info.directory);
+        let directory = PathBuf::from(first.info.directory.clone().unwrap());
         let file = directory.join(chapter);
         assert_eq!(
             fs::metadata(&file).unwrap().permissions().mode() & 0o777,
@@ -2629,6 +2790,7 @@ mod tests {
     #[cfg(unix)]
     fn upgrading_a_read_only_projection_keeps_edited_files() {
         let temp = tempfile::tempdir().unwrap();
+        legacy_location(temp.path());
         let root = temp.path();
         let untouched = "正文/001 雨夜.md";
         let edited = "正文/002 晨雾.md";
@@ -2639,7 +2801,7 @@ mod tests {
             vec![entry(untouched, "old one"), entry(edited, "old two")],
         )
         .unwrap();
-        let directory = PathBuf::from(info.directory);
+        let directory = PathBuf::from(info.directory.clone().unwrap());
         edit(&directory.join(edited), "author two");
 
         let result = write_authored(
@@ -2675,9 +2837,10 @@ mod tests {
     #[cfg(unix)]
     fn an_abandoned_authored_file_with_unread_edits_is_preserved() {
         let temp = tempfile::tempdir().unwrap();
+        legacy_location(temp.path());
         let root = temp.path();
         let first = write_authored(root, vec![authored("正文/001 雨夜.md", "A", None)], "one");
-        let directory = PathBuf::from(first.info.directory);
+        let directory = PathBuf::from(first.info.directory.clone().unwrap());
         edit(&directory.join("正文/001 雨夜.md"), "edited");
         let renamed = write_authored(root, vec![authored("正文/001 夜雨.md", "A", None)], "two");
         assert_eq!(renamed.preserved, vec!["正文/001 雨夜.md".to_string()]);
@@ -2692,10 +2855,11 @@ mod tests {
     #[cfg(unix)]
     fn authored_files_are_read_back_by_stat_then_bytes() {
         let temp = tempfile::tempdir().unwrap();
+        legacy_location(temp.path());
         let root = temp.path();
         let chapter = "正文/001 雨夜.md";
         let info = write_authored(root, vec![authored(chapter, "雨", None)], "one").info;
-        let directory = PathBuf::from(info.directory);
+        let directory = PathBuf::from(info.directory.clone().unwrap());
         let request = |known_size, known_modified_ms, force| ReadRequest {
             path: chapter.into(),
             known_size,
@@ -2745,9 +2909,10 @@ mod tests {
     #[test]
     fn a_folder_managed_by_another_installation_is_refused() {
         let temp = tempfile::tempdir().unwrap();
+        legacy_location(temp.path());
         let root = temp.path();
         let info = write_authored(root, vec![authored("正文/001 雨夜.md", "A", None)], "one").info;
-        let directory = PathBuf::from(info.directory);
+        let directory = PathBuf::from(info.directory.clone().unwrap());
         fs::remove_file(directory.join(OWNER)).unwrap();
         fs::write(
             directory.join(OWNER),

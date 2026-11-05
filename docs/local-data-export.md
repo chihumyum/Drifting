@@ -13,26 +13,35 @@ safeguards are in [Markdown folder two-way sync](markdown-mirror.md).
 The Tauri desktop client maintains one directory per project, under a folder
 that holds all of them. On the first desktop run the first-run card asks where
 that folder goes, after its welcome in a Hosted build (a local-only build has
-no welcome); `drifting.markdown-folder-guide.v1` marks the question answered on
-this device, and existing installations see it once too. The card offers no
+no welcome); `drifting.markdown-folder-guide.v2` marks the question answered on
+this device. The key was `v1` until 2026-11-06, when the folder lost its
+default location, so every device is asked once more. The card offers no
 default: Choose folder is its primary action, and Continue appears only once a
 folder is chosen (one already chosen on this device counts); that folder is
 then the location for every project. The card also offers to turn the folder
-off, in the danger ink and only after a destructive confirmation. Restore
-default location in Settings still returns to
-`<app-local-data>/markdown-projections/`.
+off, in the danger ink and only after a destructive confirmation.
+
+There is no default location. Until the author chooses one, a project without
+a location of its own is neither written nor read back: its status is `unset`
+(directory `null`), MCP initialization and `get_project_overview` say no
+location is chosen instead of giving a path, and Show in Finder waits. Before
+2026-11-06 a device that had not chosen wrote under
+`<app-local-data>/markdown-projections/`; when that folder exists it remains
+the device's location (shown as chosen), so those devices keep writing where
+they did. Choosing the app's data folder in the picker is stored like any
+other choice.
 
 **Settings → Sync & Data → Local data → Markdown folder** shows the location
-for all projects with Choose folder and Restore default location, a **Show in
-Finder** button (the open project's folder once written, otherwise the folder
-holding projects), and, with a project open, that project's path, status,
-issues and a location of its own (Choose for this project / Follow all
-projects), Copy path and Update now. **Turn off Markdown folder** is the danger
-button at the end; it asks first, with Cancel focused.
+for all projects (or "No location chosen", with Choose folder as the primary
+button), a **Show in Finder** button (the open project's folder once written,
+otherwise the folder holding projects), and, with a project open, that
+project's path, status, issues and a location of its own (Choose for this
+project / Follow all projects), Copy path and Update now. **Turn off Markdown
+folder** is the danger button at the end; it asks first, with Cancel focused.
+There is no Restore default location.
 
 A project's folder is `<location>/markdown-projections/<book title>/`, where
-the location is the project's own, else the one chosen for all projects, else
-the app's local data folder. The title goes through the same rules as chapter
+the location is the project's own, else the one chosen for all projects. The title goes through the same rules as chapter
 file names (`readableFileStem`). When another folder there already has the
 name (a book of the same title, or a folder the author made), the name takes
 ` 2`, ` 3`… and keeps that number while the title stays. Renaming the book
@@ -248,8 +257,8 @@ through `setDefaultRoot` (the native picker was not driven) received the
 sample project's 62 Markdown files; Show in Finder opened that project's
 folder; Turn off asked first with Cancel focused, then wrote `disabled` and
 stopped writing; a chapter file edited while off did not merge until Turn on,
-then merged; Restore default location regenerated the project under the app's
-data folder with that edit and kept the old folder.
+then merged; Restore default location (removed on 2026-11-06) regenerated the
+project under the app's data folder with that edit and kept the old folder.
 
 Book-named folders were walked through the same way on 2026-11-02 (not part of
 a report): the sample book's folder was created as `潮汐灯塔(轻量功能样本)` (the

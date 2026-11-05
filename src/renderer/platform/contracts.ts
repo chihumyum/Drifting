@@ -29,7 +29,8 @@ export interface MarkdownProjectionDocument {
 }
 
 export interface MarkdownProjectionInfo {
-  directory: string;
+  /** Null while the project follows all projects and no location is chosen: nothing is written. */
+  directory: string | null;
   customRoot: string | null;
   generatedAt: string | null;
   readOnly: false;
@@ -44,12 +45,15 @@ export interface MarkdownProjectionNamedFolder extends MarkdownProjectionInfo {
   previousDirectory: string | null;
 }
 
-/** Where projects without a location of their own are written, and whether the folder is on. */
+/**
+ * Where projects without a location of their own are written, and whether the
+ * folder is on. There is no default: until the author chooses, nothing is written.
+ */
 export interface MarkdownFolderSettings {
-  /** Holds the folder of every project without a location of its own. */
-  directory: string;
-  /** The location the author chose; the app's data folder when null. */
-  customRoot: string | null;
+  /** Holds the folder of every project without a location of its own; null until chosen. */
+  directory: string | null;
+  /** The location the author chose; null until one is chosen. */
+  root: string | null;
   enabled: boolean;
 }
 
@@ -762,7 +766,7 @@ export interface TauriCommandContract {
   markdown_projection_info: { args: { projectId: string }; result: MarkdownProjectionInfo };
   markdown_projection_name_folder: { args: { projectId: string; title: string }; result: MarkdownProjectionNamedFolder };
   markdown_projection_folder: { args: undefined; result: MarkdownFolderSettings };
-  markdown_projection_set_default_root: { args: { customRoot: string | null }; result: MarkdownFolderSettings };
+  markdown_projection_set_default_root: { args: { location: string }; result: MarkdownFolderSettings };
   markdown_projection_set_enabled: { args: { enabled: boolean }; result: MarkdownFolderSettings };
   markdown_projection_open: { args: { projectId: string | null }; result: void };
   markdown_projection_pick_output_root: { args: { title: string }; result: string | null };

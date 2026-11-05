@@ -63,22 +63,23 @@ if (process.argv.includes('--check')) {
     Object.assign(getPlatformRuntime(), { target: 'desktop', isMacDesktop: true });
     useProjectStore.setState({ currentProject: { id: 'synthetic', name: 'Synthetic project' } });
     const api = window.__PROJECTION_UI__ = { calls: [], nextRoot: null, fail: false, publish, locale: language => i18next.changeLanguage(language),
-      folder: { directory: '/synthetic/default/markdown-projections', customRoot: null, enabled: true } };
+      folder: { directory: '/synthetic/first/markdown-projections', root: '/synthetic/first', enabled: true } };
     platform.markdownProjection.pickOutputRoot = async () => api.nextRoot;
     platform.markdownProjection.folder = async () => api.folder;
     platform.markdownProjection.setDefaultRoot = async root => {
       api.calls.push(['default', root]);
       if (api.fail) throw new Error('Synthetic folder is not writable');
-      return api.folder = { ...api.folder, customRoot: root, directory: (root ?? '/synthetic/default') + '/markdown-projections' };
+      return api.folder = { ...api.folder, root, directory: root + '/markdown-projections' };
     };
     platform.markdownProjection.setEnabled = async enabled => { api.calls.push(['enabled', enabled]); return api.folder = { ...api.folder, enabled }; };
     platform.markdownProjection.open = async projectId => { api.calls.push(['open', projectId]); };
     platform.mcpServer.list = async () => [];
-    publish('synthetic', { state: 'ready', directory: '/synthetic/default/markdown-projections/project-id', customRoot: null, generatedAt: '2026-10-03T00:00:00Z', readOnly: false, reverseSync: true, enabled: true });
+    publish('synthetic', { state: 'ready', directory: '/synthetic/first/markdown-projections/project-id', customRoot: null, generatedAt: '2026-10-03T00:00:00Z', readOnly: false, reverseSync: true, enabled: true });
     const renderer = createRoot(document.getElementById('root'));
-    api.render = mounted => renderer.render(<>
+    // A new key mounts the panel afresh, so it reads the folder settings again.
+    api.render = (mounted, key = 0) => renderer.render(<>
       <main style={{ maxWidth: 820, padding: 30, margin: 'auto' }}>
-        <section id="projection"><MarkdownProjectionSettings projectRuntimeMounted={mounted} /></section>
+        <section id="projection" key={key}><MarkdownProjectionSettings projectRuntimeMounted={mounted} /></section>
         <section id="mcp"><AgentMcpAccessSettings open /></section>
       </main>
       <ConfirmationDialog />
@@ -86,7 +87,7 @@ if (process.argv.includes('--check')) {
     // The desktop first run past its welcome: the Markdown folder step comes next.
     api.renderGate = () => {
       localStorage.setItem('drifting.alpha-guide.v6:synthetic-user', 'seen');
-      localStorage.removeItem('drifting.markdown-folder-guide.v1');
+      localStorage.removeItem('drifting.markdown-folder-guide.v2');
       useAuthStore.setState({ isAuthenticated: true, user: { id: 'synthetic-user' }, session: null });
       // A new key mounts a fresh gate, as a new launch would.
       renderer.render(<MemoryRouter key={api.launches = (api.launches ?? 0) + 1}>
@@ -105,12 +106,17 @@ if (process.argv.includes('--check')) {
         if (id === path.join(root, 'src/renderer/services/markdown-projection.service.ts')) return `
           import { publishMarkdownProjectionStatus as publish } from '/src/renderer/services/markdown-projection-status';
           import { platform } from '/src/renderer/platform';
-          export const setMarkdownFolderDefaultRoot = root => platform.markdownProjection.setDefaultRoot(root);
+          // The open project follows all projects here, so it is captured at the new location.
+          export async function setMarkdownFolderDefaultRoot(root) {
+            const next = await platform.markdownProjection.setDefaultRoot(root);
+            publish('synthetic', { state: 'ready', directory: next.directory + '/project-id', customRoot: null, generatedAt: '2026-10-03T00:02:00Z' });
+            return next;
+          }
           export const setMarkdownFolderEnabled = enabled => platform.markdownProjection.setEnabled(enabled);
           export async function setMarkdownProjectionOutputRoot(projectId, customRoot) {
             const api = window.__PROJECTION_UI__; api.calls.push(['set', projectId, customRoot]);
             if (api.fail) throw new Error('Synthetic folder is not writable');
-            publish(projectId, { state: 'ready', directory: (customRoot ?? '/synthetic/default') + '/markdown-projections/project-id', customRoot, generatedAt: '2026-10-03T00:01:00Z' });
+            publish(projectId, { state: 'ready', directory: (customRoot ?? api.folder.root) + '/markdown-projections/project-id', customRoot, generatedAt: '2026-10-03T00:01:00Z' });
           }
           export async function refreshMarkdownProjection(projectId) { window.__PROJECTION_UI__.calls.push(['refresh', projectId]); }
         `;
@@ -148,7 +154,7 @@ if (process.argv.includes('--check')) {
     const projectCode = "document.querySelectorAll('#projection code')[1]?.textContent ?? ''";
     await client.Emulation.setDeviceMetricsOverride({ width: 1100, height: 1000, deviceScaleFactor: 1, mobile: false });
     await client.Page.navigate({ url: `http://127.0.0.1:${server.httpServer.address().port}/${fixture}/index.html` });
-    await until("document.querySelectorAll('#projection button').length === 8");
+    await until("document.querySelectorAll('#projection button').length === 7");
     await evaluate("__PROJECTION_UI__.locale('en')");
     await until("document.querySelector('#projection').textContent.includes('Choose for this project')");
     assert.equal(await evaluate("document.querySelectorAll('#mcp code').length"), 0);
@@ -172,24 +178,23 @@ if (process.argv.includes('--check')) {
     await click('Choose folder');
     await until("document.querySelector('#projection code').textContent === '/synthetic/custom/markdown-projections'");
     assert.deepEqual(await calls(), [['default', '/synthetic/custom']]);
-    assert.equal((await text('#projection')).includes('All projects · Custom location'), true);
-    await click('Restore default location');
-    await until("document.querySelector('#projection code').textContent === '/synthetic/default/markdown-projections'");
-    assert.deepEqual(await calls(), [['default', null]]);
-    checks.push('choosing and restoring the location for all projects updates the shown path');
+    assert.equal(await evaluate("document.querySelector('#projection code').previousElementSibling.textContent"), 'All projects');
+    assert.equal((await text('#projection')).includes('Restore default location'), false);
+    assert.equal(await evaluate(`${buttons('#projection')}.some(b => /default/i.test(b.textContent))`), false);
+    checks.push('choosing the location for all projects updates the shown path, and there is no default to restore');
     await evaluate("__PROJECTION_UI__.nextRoot = '/synthetic/own'");
     await click('Choose for this project');
     await until(`${projectCode}.startsWith('/synthetic/own/')`);
     await click('Update now');
     await until('__PROJECTION_UI__.calls.length === 2');
     await click('Follow all projects');
-    await until(`${projectCode}.startsWith('/synthetic/default/')`);
+    await until(`${projectCode}.startsWith('/synthetic/custom/')`);
     assert.deepEqual(await calls(), [['set', 'synthetic', '/synthetic/own'], ['refresh', 'synthetic'], ['set', 'synthetic', null]]);
     checks.push('a location of the project\'s own, update and follow-all-projects use the current project');
     await evaluate('__PROJECTION_UI__.fail = true');
     await click('Choose folder');
     await until("document.querySelector('#projection [role=alert]')");
-    assert.equal(await text('#projection code'), '/synthetic/default/markdown-projections');
+    assert.equal(await text('#projection code'), '/synthetic/custom/markdown-projections');
     await evaluate('__PROJECTION_UI__.fail = false');
     await calls();
     checks.push('a failed folder change shows an error and preserves the previous path');
@@ -213,6 +218,24 @@ if (process.argv.includes('--check')) {
     await until("document.querySelector('#projection').textContent.includes('Turn off Markdown folder')");
     assert.deepEqual(await calls(), [['enabled', true]]);
     checks.push('turning it back on restores the location and project controls');
+    // A device with no location chosen: nothing is written and nothing claims a place.
+    await evaluate("__PROJECTION_UI__.folder = { directory: null, root: null, enabled: true }");
+    await evaluate("__PROJECTION_UI__.publish('synthetic', { state: 'unset', directory: null, customRoot: null, generatedAt: undefined })");
+    await evaluate('__PROJECTION_UI__.render(true, 1)');
+    await until("document.querySelector('#projection').textContent.includes('All projects · No location chosen')");
+    assert.equal(await evaluate("document.querySelectorAll('#projection code').length"), 0);
+    assert.equal(await evaluate(`${button('#projection', 'Show in Finder')}.disabled`), true);
+    assert.equal(await evaluate(`${button('#projection', 'Choose folder')}.className.includes('primary')`), true);
+    assert.equal((await text('#projection [role=status]')).includes('No location chosen'), true);
+    assert.equal(await evaluate(`${button('#projection', 'Update now')}.disabled`), true);
+    assert.equal(await evaluate(`${button('#projection', 'Copy path')}.disabled`), true);
+    await evaluate("__PROJECTION_UI__.nextRoot = '/synthetic/custom'");
+    await click('Choose folder');
+    await until("document.querySelector('#projection code')?.textContent === '/synthetic/custom/markdown-projections'");
+    await until(`${projectCode}.startsWith('/synthetic/custom/')`);
+    assert.deepEqual(await calls(), [['default', '/synthetic/custom']]);
+    assert.equal(await evaluate(`${button('#projection', 'Show in Finder')}.disabled`), false);
+    checks.push('with no location chosen nothing shows a path, Finder and Update now wait, and Choose folder leads; choosing one writes the open project there');
     await evaluate("__PROJECTION_UI__.locale('zh-CN')");
     await until("document.querySelector('#projection').textContent.includes('为本项目单独选择')");
     await evaluate("__PROJECTION_UI__.nextRoot = '/synthetic/custom'");
@@ -227,20 +250,20 @@ if (process.argv.includes('--check')) {
     checks.push('Chinese controls wrap without horizontal overflow at two desktop widths');
     await evaluate('__PROJECTION_UI__.render(false)');
     await until("document.querySelector('#projection').textContent.includes('打开项目后')");
-    assert.equal(await evaluate(`${buttons('#projection')}.length`), 4);
+    assert.equal(await evaluate(`${buttons('#projection')}.length`), 3);
     await click('在访达中打开');
     await until('__PROJECTION_UI__.calls.length === 1');
     assert.deepEqual(await calls(), [['open', null]]);
     checks.push('with no project open the location and switch remain, and Finder opens the folder holding projects');
     await client.Emulation.setDeviceMetricsOverride({ width: 1100, height: 800, deviceScaleFactor: 1, mobile: false });
-    await evaluate("__PROJECTION_UI__.folder = { directory: '/synthetic/default/markdown-projections', customRoot: null, enabled: true }");
+    await evaluate("__PROJECTION_UI__.folder = { directory: null, root: null, enabled: true }");
     await evaluate('__PROJECTION_UI__.renderGate()');
     await until(`document.querySelector('.first-run-gate') && ${button('.first-run-gate__card', '选择文件夹…')}`);
     assert.equal(await evaluate("document.querySelector('#shelf')"), null);
     assert.equal((await text('.first-run-gate')).includes('Markdown 文件夹放在哪里？'), true);
     // No default is offered: no location, and no way on but choosing or turning the folder off.
     assert.equal(await evaluate("document.querySelector('.markdown-folder-guide__location')"), null);
-    assert.equal((await text('.first-run-gate')).includes('/synthetic/default'), false);
+    assert.equal(await evaluate("document.querySelectorAll('.first-run-gate code').length"), 0);
     // The card's own actions; the interface language waits apart in the window's corner.
     assert.deepEqual(await evaluate(`${buttons('.first-run-gate__card')}.map(b => b.textContent)`), ['关闭 Markdown 文件夹', '选择文件夹…']);
     assert.equal(await evaluate(`${button('.first-run-gate__card', '选择文件夹…')}.className.includes('ui-button--primary')`), true);
@@ -267,13 +290,13 @@ if (process.argv.includes('--check')) {
     assert.equal(await evaluate("document.activeElement?.textContent"), '继续');
     await click('继续', '.first-run-gate');
     await until("document.querySelector('#shelf')");
-    assert.equal(await evaluate("localStorage.getItem('drifting.markdown-folder-guide.v1')"), 'seen');
+    assert.equal(await evaluate("localStorage.getItem('drifting.markdown-folder-guide.v2')"), 'seen');
     checks.push('a chosen folder becomes the location for all projects and the shelf opens after it');
     await evaluate('__PROJECTION_UI__.renderGate()');
     await until("document.querySelector('.markdown-folder-guide__path')?.textContent === '/synthetic/chosen/markdown-projections'");
     assert.deepEqual(await evaluate(`${buttons('.first-run-gate__card')}.map(b => b.textContent)`), ['关闭 Markdown 文件夹', '选择文件夹…', '继续']);
     checks.push('a folder already chosen on this device lets the first run go on without choosing again');
-    await evaluate("__PROJECTION_UI__.folder = { directory: '/synthetic/default/markdown-projections', customRoot: null, enabled: true }");
+    await evaluate("__PROJECTION_UI__.folder = { directory: null, root: null, enabled: true }");
     await evaluate('__PROJECTION_UI__.renderGate()');
     await until(`${button('.first-run-gate__card', '选择文件夹…')} && !document.querySelector('.markdown-folder-guide__path')`);
     await click('关闭 Markdown 文件夹', '.first-run-gate');

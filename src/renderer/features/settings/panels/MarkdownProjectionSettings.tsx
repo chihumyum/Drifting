@@ -34,8 +34,10 @@ function useAction() {
 
 /**
  * Where every project's Markdown folder goes, the open project's own folder,
- * and the switch for all of them. Turning the folder off is the danger action
- * and asks first: external editors and Agents then lose the book.
+ * and the switch for all of them. There is no default location: until the
+ * author chooses one, projects without their own are not written. Turning the
+ * folder off is the danger action and asks first: external editors and Agents
+ * then lose the book.
  */
 export function MarkdownProjectionSettings({ projectRuntimeMounted }: { projectRuntimeMounted: boolean }) {
   if (getPlatformRuntime().target !== 'desktop') return null;
@@ -57,6 +59,10 @@ function MarkdownFolderSection({ projectRuntimeMounted }: { projectRuntimeMounte
     return () => { live = false; };
   }, []);
   const openProject = project && projectRuntimeMounted ? project : null;
+  const projection = useSyncExternalStore(subscribeMarkdownProjectionStatus,
+    () => (openProject ? getMarkdownProjectionStatus(openProject.id) : undefined));
+  // Finder opens the project's folder, else the folder holding projects: one of them must exist.
+  const revealable = Boolean(folder?.directory || projection?.directory);
   const change = (action: () => Promise<MarkdownFolderSettings>, done?: string) => run(async () => {
     const next = await action();
     if (mounted.current) setFolder(next);
@@ -90,7 +96,7 @@ function MarkdownFolderSection({ projectRuntimeMounted }: { projectRuntimeMounte
             {t('settings.sync.projection.turnOn')}
           </SettingsButton>
         ) : (
-          <SettingsButton disabled={busy || !folder} onClick={() => void run(() => platform.markdownProjection.open(openProject?.id ?? null))}>
+          <SettingsButton disabled={busy || !revealable} onClick={() => void run(() => platform.markdownProjection.open(openProject?.id ?? null))}>
             {t('settings.sync.projection.reveal')}
           </SettingsButton>
         )}
@@ -100,15 +106,14 @@ function MarkdownFolderSection({ projectRuntimeMounted }: { projectRuntimeMounte
       {folder?.enabled && (
         <>
           <div style={{ marginTop: 8 }}>
-            <div className="set-row__desc">{t(folder.customRoot ? 'settings.sync.projection.customLocation' : 'settings.sync.projection.defaultLocation')}</div>
-            <code style={{ display: 'block', overflowWrap: 'anywhere', fontSize: 12, marginTop: 4 }}>{folder.directory}</code>
+            <div className="set-row__desc">
+              {t(folder.directory ? 'settings.sync.projection.allProjects' : 'settings.sync.projection.allProjectsUnset')}
+            </div>
+            {folder.directory && <code style={{ display: 'block', overflowWrap: 'anywhere', fontSize: 12, marginTop: 4 }}>{folder.directory}</code>}
           </div>
           <p className="set-row__desc" style={{ marginTop: 4 }}>{t('settings.sync.projection.locationHint')}</p>
           <div className="set-actions set-actions--below">
-            <SettingsButton disabled={busy} onClick={() => void chooseDefault()}>{t('settings.sync.projection.choose')}</SettingsButton>
-            <SettingsButton disabled={busy || !folder.customRoot} onClick={() => void change(async () => (await service()).setMarkdownFolderDefaultRoot(null), t('settings.sync.projection.changed'))}>
-              {t('settings.sync.projection.reset')}
-            </SettingsButton>
+            <SettingsButton variant={folder.directory ? undefined : 'primary'} disabled={busy} onClick={() => void chooseDefault()}>{t('settings.sync.projection.choose')}</SettingsButton>
           </div>
         </>
       )}
@@ -141,7 +146,7 @@ function ProjectProjectionSettings({ projectId, projectName }: { projectId: stri
         <code style={{ display: 'block', overflowWrap: 'anywhere', fontSize: 12, marginTop: 4 }}>{projection.directory}</code>
       )}
       <p role="status" className="set-row__desc" style={{ marginTop: 8 }}>
-        {t(`settings.sync.projection.${projection?.state === 'ready' ? 'ready' : projection?.state === 'error' ? 'error' : 'pending'}`)}
+        {t(`settings.sync.projection.${projection?.state === 'ready' || projection?.state === 'error' || projection?.state === 'unset' ? projection.state : 'pending'}`)}
         {projection?.generatedAt ? ` · ${new Date(projection.generatedAt).toLocaleString(i18n.language)}` : ''}
         {projection?.error ? ` · ${projection.error}` : ''}
       </p>
@@ -165,7 +170,7 @@ function ProjectProjectionSettings({ projectId, projectName }: { projectId: stri
           await navigator.clipboard.writeText(projection!.directory!);
           return t('settings.sync.projection.copied');
         })}>{t('settings.sync.projection.copy')}</SettingsButton>
-        <SettingsButton disabled={busy || !projection} onClick={() => void run(async () => {
+        <SettingsButton disabled={busy || !projection || projection.state === 'unset'} onClick={() => void run(async () => {
           await (await service()).refreshMarkdownProjection(projectId);
         })}>{t('settings.sync.projection.refresh')}</SettingsButton>
       </div>

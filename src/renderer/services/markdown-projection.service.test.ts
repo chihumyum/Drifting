@@ -3,14 +3,14 @@ const fixture = vi.hoisted(() => ({
   database: {} as object,
   composing: false,
   committed: (_event: { projectId: string }) => undefined as void,
-  read: vi.fn(), build: vi.fn(), flush: vi.fn(), write: vi.fn(), info: vi.fn(), remove: vi.fn(), setOutputRoot: vi.fn(), setEnabled: vi.fn(), nameFolder: vi.fn(),
+  read: vi.fn(), build: vi.fn(), flush: vi.fn(), write: vi.fn(), info: vi.fn(), remove: vi.fn(), setOutputRoot: vi.fn(), setEnabled: vi.fn(), setDefaultRoot: vi.fn(), nameFolder: vi.fn(),
   known: new Map<string, string>(), disposeRenderer: vi.fn(),
   mirror: {
     scan: vi.fn(), prepare: vi.fn(), settle: vi.fn(), relocate: vi.fn(), dispose: vi.fn(),
     exclusive: <T,>(work: () => Promise<T>) => work(),
   },
 }));
-vi.mock('../platform', () => ({ platform: { markdownProjection: { info: fixture.info, write: fixture.write, remove: fixture.remove, setOutputRoot: fixture.setOutputRoot, setEnabled: fixture.setEnabled, nameFolder: fixture.nameFolder } } }));
+vi.mock('../platform', () => ({ platform: { markdownProjection: { info: fixture.info, write: fixture.write, remove: fixture.remove, setOutputRoot: fixture.setOutputRoot, setEnabled: fixture.setEnabled, setDefaultRoot: fixture.setDefaultRoot, nameFolder: fixture.nameFolder } } }));
 vi.mock('../lib/db', () => ({ getDbIfInitialized: () => fixture.database }));
 vi.mock('../lib/active-editor', () => ({ getActiveEditor: () => ({ view: { composing: fixture.composing } }) }));
 vi.mock('../sync/journal/authored-transaction', () => ({ onAuthoredChangeCommitted: (callback: typeof fixture.committed) => {
@@ -24,7 +24,7 @@ vi.mock('./export/markdown-projection-client', () => ({ createMarkdownProjection
 }) }));
 import {
   createProjectionWorker, installMarkdownProjection, MIRROR_SCAN_MS, PROJECTION_MAX_WAIT_MS, PROJECTION_QUIET_MS,
-  refreshMarkdownProjection, setMarkdownFolderEnabled, setMarkdownProjectionOutputRoot,
+  refreshMarkdownProjection, setMarkdownFolderDefaultRoot, setMarkdownFolderEnabled, setMarkdownProjectionOutputRoot,
 } from './markdown-projection.service';
 import { getMarkdownProjectionStatus } from './markdown-projection-status';
 import { flushMarkdownProjections } from './markdown-projection-lifecycle';
@@ -337,6 +337,34 @@ describe('Markdown projection scheduling', () => {
       expect(fixture.write).toHaveBeenCalledTimes(1);
       await vi.advanceTimersByTimeAsync(PROJECTION_QUIET_MS);
       expect(fixture.write).toHaveBeenCalledTimes(2);
+    } finally {
+      await dispose();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('neither scans nor writes while no location is chosen, then captures once one is', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('document', { visibilityState: 'visible' });
+    const info = { customRoot: null, generatedAt: null, readOnly: false, reverseSync: true, enabled: true };
+    fixture.info.mockResolvedValue({ ...info, directory: null });
+    fixture.setDefaultRoot.mockImplementation(async (location: string) => {
+      fixture.info.mockResolvedValue({ ...info, directory: `${location}/markdown-projections/project` });
+      return { directory: `${location}/markdown-projections`, root: location, enabled: true };
+    });
+    const dispose = installMarkdownProjection('synthetic');
+    try {
+      await vi.advanceTimersByTimeAsync(0);
+      expect(getMarkdownProjectionStatus('synthetic')).toMatchObject({ state: 'unset', directory: null });
+      fixture.committed({ projectId: 'synthetic' });
+      await vi.advanceTimersByTimeAsync(PROJECTION_QUIET_MS + MIRROR_SCAN_MS * 3);
+      expect(fixture.write).not.toHaveBeenCalled();
+      expect(fixture.mirror.scan).not.toHaveBeenCalled();
+      await setMarkdownFolderDefaultRoot('/synthetic/chosen');
+      expect(fixture.setDefaultRoot).toHaveBeenCalledWith('/synthetic/chosen');
+      expect(fixture.write).toHaveBeenCalledOnce();
+      expect(fixture.mirror.scan).toHaveBeenLastCalledWith('/synthetic/chosen/markdown-projections/project', { force: true });
+      expect(getMarkdownProjectionStatus('synthetic')).toMatchObject({ state: 'ready' });
     } finally {
       await dispose();
       vi.unstubAllGlobals();
