@@ -707,7 +707,7 @@
       "mcpAccess": {
         "projectionDescription": "Los Agent externos también pueden editar capítulos e ideas en la copia Markdown. Configúralo en Sincronización y datos → Datos locales.",
         "title": "Acceso de agentes externos",
-        "desc": "Permite a Codex, Claude Code o Antigravity acceder a «{{project}}». Cada conexión se limita a este proyecto.",
+        "desc": "Permite a Codex, Claude Code o Antigravity acceder al libro que tienes abierto. Conecta cada herramienta una vez; te sigue al cambiar de libro.",
         "name": "Nombre de conexión",
         "permission": "Permiso de acceso",
         "connectionPermission": "Permiso de acceso de {{name}}",
@@ -716,7 +716,7 @@
         "write": "Permitir cambios",
         "full": "Permitir cambios y operaciones destructivas",
         "create": "Crear conexión",
-        "local": "Solo acceso local. Mantén Drifting y el proyecto abiertos. Revocar bloquea las nuevas solicitudes de inmediato; los cambios confirmados permanecen.",
+        "local": "Solo acceso local. Mantén Drifting abierto; el acceso se pausa mientras estás en la estantería. Revocar bloquea las nuevas solicitudes de inmediato; los cambios confirmados permanecen.",
         "config": "Configuración de conexión",
         "revoke": "Revocar",
         "copy": "Copiar configuración MCP",
@@ -727,6 +727,7 @@
         "manual": "Otros clientes · Configuración manual",
         "reinstall": "Reconfigurar",
         "installed": "{{client}} configurado. Reabre el cliente o reinicia su servidor MCP para cargar la conexión; sigue las solicitudes de aprobación de herramientas al usarlo por primera vez.",
+        "installedLeftover": "{{client}} configurado y sus conexiones anteriores por libro revocadas, pero una de sus entradas del cliente cambió o no pudo actualizarse; elimina en el cliente la entrada antigua que empieza por drifting_.",
         "revoked": "Acceso revocado y configuración instalada automáticamente eliminada.",
         "revokedWarning": "Acceso revocado. La configuración del cliente cambió o no pudo actualizarse; elimina la conexión en el cliente."
       },
