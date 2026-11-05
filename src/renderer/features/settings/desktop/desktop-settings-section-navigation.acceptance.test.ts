@@ -147,6 +147,10 @@ describe('desktop settings section navigation', () => {
     expect(item).toContain('gap: 9px;');
     expect(rule('.set-rail__glyph')).toContain('width: 16px;');
     expect(rule(`${desktop} .set-rail__sections`)).toContain('padding: 0 0 4px 25px;');
+    // The current place is its ring and its ink, never a heavier word.
+    const current = rule(`${desktop} .set-rail__item--active,\n${desktop} .set-rail__section--active`);
+    expect(current).toContain('font-weight: 400;');
+    expect(css.slice(css.indexOf(`${desktop} .set-rail`))).not.toMatch(/set-rail__(?:item|section)--active[^{]*\{[^}]*font-weight: [5-9]00/);
     expect(rule('.set-rail__section')).toContain('padding: 0 8px;');
     expect(designSystemDocs()).toContain('二级的字从一级的字那一列开始');
   });

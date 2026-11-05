@@ -1719,8 +1719,11 @@ html[data-shell-mode='mobile'] .set-overlay {
   box-shadow: none;
   color: hsl(var(--ink-1));
 }
-:where(html:not([data-shell-mode='mobile'])) .set-rail__item--active {
-  font-weight: 500;
+/* The current place shows in its still ring and the ink, never a heavier
+   or larger word. */
+:where(html:not([data-shell-mode='mobile'])) .set-rail__item--active,
+:where(html:not([data-shell-mode='mobile'])) .set-rail__section--active {
+  font-weight: 400;
 }
 :where(html:not([data-shell-mode='mobile'])) .set-rail__glyph,
 :where(html:not([data-shell-mode='mobile'])) .set-rail__item--active .set-rail__glyph {
