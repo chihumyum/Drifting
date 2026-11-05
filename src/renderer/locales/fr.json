@@ -709,7 +709,7 @@
       "mcpAccess": {
         "projectionDescription": "Les Agent externes peuvent aussi éditer directement chapitres et idées de la copie Markdown. Réglez-la dans Synchronisation et données → Données locales.",
         "title": "Accès des agents externes",
-        "desc": "Autorise Codex, Claude Code ou Antigravity à accéder à « {{project}} ». Chaque connexion se limite à ce projet.",
+        "desc": "Autorise Codex, Claude Code ou Antigravity à accéder au livre ouvert. Connectez chaque outil une fois ; il vous suit quand vous changez de livre.",
         "name": "Nom de la connexion",
         "permission": "Droit d’accès",
         "connectionPermission": "Droit d’accès de {{name}}",
@@ -718,7 +718,7 @@
         "write": "Autoriser les modifications",
         "full": "Autoriser les modifications et opérations destructives",
         "create": "Créer une connexion",
-        "local": "Accès local uniquement. Gardez Drifting et ce projet ouverts. Révoquer bloque immédiatement les nouvelles requêtes ; les modifications validées restent.",
+        "local": "Accès local uniquement. Gardez Drifting ouvert ; l’accès est suspendu tant que vous êtes dans la bibliothèque. Révoquer bloque immédiatement les nouvelles requêtes ; les modifications validées restent.",
         "config": "Configuration de connexion",
         "revoke": "Révoquer",
         "copy": "Copier la configuration MCP",
@@ -729,6 +729,7 @@
         "manual": "Autres clients · Configuration manuelle",
         "reinstall": "Reconfigurer",
         "installed": "{{client}} est configuré. Rouvrez le client ou redémarrez son serveur MCP ; suivez ses demandes d’autorisation des outils à la première utilisation.",
+        "installedLeftover": "{{client}} est configuré et ses anciennes connexions par livre sont révoquées, mais l’une de leurs entrées client a changé ou n’a pas pu être mise à jour ; supprimez dans le client l’ancienne entrée commençant par drifting_.",
         "revoked": "Accès révoqué et configuration client installée automatiquement supprimée.",
         "revokedWarning": "Accès révoqué. La configuration client a changé ou n’a pas pu être mise à jour ; supprimez cette connexion dans le client."
       },

@@ -709,7 +709,7 @@
       "mcpAccess": {
         "projectionDescription": "Agents externos também podem editar capítulos e ideias da cópia Markdown diretamente. Configure em Sincronização e dados → Dados locais.",
         "title": "Acesso de agentes externos",
-        "desc": "Permita que Codex, Claude Code ou Antigravity acessem “{{project}}”. Cada conexão se limita a este projeto.",
+        "desc": "Permita que Codex, Claude Code ou Antigravity acessem o livro aberto. Conecte cada ferramenta uma vez; ela acompanha você ao trocar de livro.",
         "name": "Nome da conexão",
         "permission": "Permissão de acesso",
         "connectionPermission": "Permissão de acesso de {{name}}",
@@ -718,7 +718,7 @@
         "write": "Permitir alterações",
         "full": "Permitir alterações e operações destrutivas",
         "create": "Criar conexão",
-        "local": "Apenas acesso local. Mantenha Drifting e o projeto abertos. Revogar bloqueia novas solicitações imediatamente; alterações confirmadas permanecem.",
+        "local": "Apenas acesso local. Mantenha Drifting aberto; o acesso pausa enquanto você está na estante. Revogar bloqueia novas solicitações imediatamente; alterações confirmadas permanecem.",
         "config": "Configuração da conexão",
         "revoke": "Revogar",
         "copy": "Copiar configuração MCP",
@@ -729,6 +729,7 @@
         "manual": "Outros clientes · Configuração manual",
         "reinstall": "Reconfigurar",
         "installed": "{{client}} configurado. Reabra o cliente ou reinicie seu servidor MCP para carregar a conexão; siga as aprovações de ferramentas no primeiro uso.",
+        "installedLeftover": "{{client}} configurado e suas conexões anteriores por livro revogadas, mas uma das entradas do cliente mudou ou não pôde ser atualizada; remova no cliente a entrada antiga que começa com drifting_.",
         "revoked": "Acesso revogado e configuração instalada automaticamente removida.",
         "revokedWarning": "Acesso revogado. A configuração do cliente mudou ou não pôde ser atualizada; remova esta conexão no cliente."
       },

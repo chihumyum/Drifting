@@ -707,7 +707,7 @@
       "mcpAccess": {
         "projectionDescription": "外部 Agent 也能使用 Markdown 投影，其中章節與構想檔案可直接編輯。在「同步與資料 → 本機資料」設定。",
         "title": "外部 Agent 存取",
-        "desc": "允許 Codex、Claude Code、Antigravity 等工具存取「{{project}}」。每條連線僅限此作品。",
+        "desc": "允許 Codex、Claude Code、Antigravity 等工具存取你目前開啟的作品。每個工具只需連線一次，換作品後會跟著切換。",
         "name": "連線名稱",
         "permission": "存取權限",
         "connectionPermission": "{{name}} 的存取權限",
@@ -716,7 +716,7 @@
         "write": "允許修改",
         "full": "允許修改與破壞性操作",
         "create": "建立連線",
-        "local": "僅限本機存取。請保持 Drifting 與此作品開啟。撤銷連線會立即阻擋新請求，已提交的變更仍會保留。",
+        "local": "僅限本機存取。請保持 Drifting 開啟；返回書架時會暫停存取。撤銷連線會立即阻擋新請求，已提交的變更仍會保留。",
         "config": "連線設定",
         "revoke": "撤銷",
         "copy": "複製 MCP 設定",
@@ -727,6 +727,7 @@
         "manual": "其他用戶端 · 手動設定",
         "reinstall": "重新設定",
         "installed": "已設定 {{client}}。請重新開啟用戶端或重新啟動其 MCP 伺服器載入連線，初次使用時依其工具核准提示操作。",
+        "installedLeftover": "已設定 {{client}}，舊的按作品連線也已撤銷，但其中一條用戶端設定已變更或無法更新，請在用戶端刪除以 drifting_ 開頭的舊項目。",
         "revoked": "已撤銷存取，並移除自動安裝的用戶端設定。",
         "revokedWarning": "已撤銷存取。用戶端設定已變更或無法更新，請在用戶端移除此連線。"
       },

@@ -5,7 +5,8 @@ import { AgentConversationTable } from '../../schema/drizzle';
 import { getDriftingAgentProductComposition } from './useDriftingAgentRuntime';
 import { ExternalToolSession } from './runtime/external-tool-session';
 
-/** Installed only while the authorized project runtime is fully mounted. */
+/** Installed while a book's runtime is fully mounted; connections reach
+ *  whichever book this is, except one limited to another book. */
 export async function installMcpServerBridge(projectId: string): Promise<() => void> {
   const sessions = new Map<string, ExternalToolSession>();
   const requests = new Map<string, { controller: AbortController; sessionId: string }>();
@@ -36,7 +37,7 @@ export async function installMcpServerBridge(projectId: string): Promise<() => v
     const controller = new AbortController();
     requests.set(event.requestId, { controller, sessionId: event.sessionId });
     try {
-      if (disposed || event.grant.projectId !== projectId)
+      if (disposed || (event.grant.projectId !== undefined && event.grant.projectId !== projectId))
         throw new Error('Authorized project is not open');
       let session = sessions.get(event.sessionId);
       if (!session) {
@@ -47,6 +48,7 @@ export async function installMcpServerBridge(projectId: string): Promise<() => v
         const sessionId = `${event.sessionId}:${event.epoch.slice(0, 16)}`;
         session = new ExternalToolSession({
           sessionId,
+          projectId,
           grant: event.grant,
           composition: getDriftingAgentProductComposition(),
           ensureConversation: async (id, grant) => {
