@@ -1,6 +1,7 @@
 // Plans the finished video from a take's timeline (README.md, "How a take
 // becomes a video"): which instant of the recording each output frame shows
-// (Agent waits run faster; paragraphs typed quickly play at a steady pace), where
+// (Agent waits run faster; paragraphs typed quickly play at a steady pace; the
+// whole may be sped up by `pace`), where
 // the camera looks and how close, the opening on a desktop with a Dock, and
 // where the pointer, its clicks, the speed badge and the end card are drawn.
 // compose.swift renders exactly this; nothing here reads pixels.
@@ -51,6 +52,12 @@ export interface PlanOptions {
   badgeFrom: number;
   /** Seconds of the closing card; 0 for none. */
   endCard: number;
+  /**
+   * How much faster than recorded the video plays once the window has opened
+   * (1 = as typed). Quick paragraphs and Agent waits speed up with it; the
+   * opening and the end card, and every sound, keep their own pace.
+   */
+  pace: number;
 }
 
 export interface PlanFrame {
@@ -128,6 +135,7 @@ interface Segment { from: number; to: number; speed: number; agent: boolean }
  * from the keystrokes in them).
  */
 function segmentsOf(events: TimelineEvent[], options: PlanOptions): Segment[] {
+  const { pace } = options;
   const segments: Segment[] = [];
   let agent: TimelineEvent | null = null;
   let quick: TimelineEvent | null = null;
@@ -136,13 +144,15 @@ function segmentsOf(events: TimelineEvent[], options: PlanOptions): Segment[] {
     if (event.name === 'agent.start') agent = event;
     else if (event.name === 'agent.end' && agent) {
       const length = event.t - agent.t;
-      segments.push({ from: agent.t, to: event.t, speed: Math.round(clamp(length / options.agentWaitSeconds, 1, 60)), agent: true });
+      // A whole number, as the badge shows it.
+      const speed = Math.round(clamp(length * pace / options.agentWaitSeconds, 1, 60));
+      segments.push({ from: agent.t, to: event.t, speed: Math.max(pace, speed), agent: true });
       agent = null;
     } else if (event.name === 'quick.start') quick = event;
     else if (event.name === 'quick.end' && quick) {
       const from = quick.t, to = event.t;
       const keys = events.filter((key) => (key.type === 'type' || key.type === 'key') && key.t >= from && key.t < to).length;
-      if (keys > 0) segments.push({ from, to, speed: clamp(QUICK_CPS / (keys / (to - from)), 0.05, 1), agent: false });
+      if (keys > 0) segments.push({ from, to, speed: clamp(QUICK_CPS * pace / (keys / (to - from)), 0.05, pace), agent: false });
       quick = null;
     }
   }
@@ -154,11 +164,11 @@ function segmentsOf(events: TimelineEvent[], options: PlanOptions): Segment[] {
  * easing the speed towards each stretch's, so a change of pace never jolts.
  * Returns parallel arrays (recording → output), both increasing.
  */
-function timeMap(start: number, end: number, segments: Segment[]) {
+function timeMap(start: number, end: number, segments: Segment[], pace: number, paceFrom: number) {
   const step = 1 / 480;
   const source: number[] = [start];
   const output: number[] = [0];
-  const speedAt = (t: number) => segments.find((segment) => t >= segment.from && t < segment.to)?.speed ?? 1;
+  const speedAt = (t: number) => segments.find((segment) => t >= segment.from && t < segment.to)?.speed ?? (t < paceFrom ? 1 : pace);
   let speed = speedAt(start);
   for (let t = start; t < end; t += step) {
     const target = speedAt(t);
@@ -353,7 +363,8 @@ export function planVideo(timeline: Timeline, options: PlanOptions): Plan {
   const start = introClick ? Math.max(0, introClick.t - 1.8) : Math.max(0, firstType - 1.1);
   const stop = events.find((event) => event.type === 'record.stop')?.t ?? events[events.length - 1].t;
   const segments = segmentsOf(events, options);
-  const map = timeMap(start, stop, segments);
+  // The opening (the Dock, the window opening, the Dock hiding) plays as drawn.
+  const map = timeMap(start, stop, segments, options.pace, introOpen ? introOpen.t + 1.2 : start);
   const recorded = map.output[map.output.length - 1];
   const sourceAt = (out: number) => interpolate(map.output, map.source, out);
   const outputAt = (src: number) => interpolate(map.source, map.output, src);

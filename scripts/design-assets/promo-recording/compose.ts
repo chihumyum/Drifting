@@ -2,12 +2,12 @@
 /**
  * Turns a recorded take into the finished video (README.md).
  *
- *   pnpm promo:compose --take <name> [--size 1080|1440|2160] [--music <file>] [--no-badge] [--no-end-card]
+ *   pnpm promo:compose --take <name> [--size 1080|1440|2160] [--pace <x>] [--music <file>] [--no-badge] [--no-end-card]
  *
  * Plans the frames from out/promo-recording/<take>/timeline.json (plan.ts),
  * renders them from raw.mov with compose.swift, synthesizes the keystrokes
  * and clicks (sound.ts) and encodes everything into <take>/promo.mp4 (H.264
- * with x264, AAC).
+ * with x264, AAC); with --pace other than 1, into promo[-<size>]-<x>x.mp4.
  */
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
@@ -29,7 +29,7 @@ const CARD = {
 };
 
 function parseArguments(args: string[]) {
-  const options = { take: '', size: 1080 as keyof typeof SIZES, music: null as string | null, badge: true, endCard: true };
+  const options = { take: '', size: 1080 as keyof typeof SIZES, pace: 1, music: null as string | null, badge: true, endCard: true };
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index];
     const value = () => {
@@ -43,12 +43,16 @@ function parseArguments(args: string[]) {
       const size = Number(value());
       if (!(size in SIZES)) throw new Error('--size is 1080, 1440 or 2160');
       options.size = size as keyof typeof SIZES;
+    } else if (argument === '--pace') {
+      const pace = Number(value());
+      if (!(pace >= 0.5 && pace <= 4)) throw new Error('--pace is between 0.5 and 4');
+      options.pace = pace;
     } else if (argument === '--music') options.music = path.resolve(value());
     else if (argument === '--no-badge') options.badge = false;
     else if (argument === '--no-end-card') options.endCard = false;
     else throw new Error(`Unknown argument ${argument}`);
   }
-  if (!options.take) throw new Error('Usage: pnpm promo:compose --take <name> [--size 1080|1440|2160] [--music <file>] [--no-badge] [--no-end-card]');
+  if (!options.take) throw new Error('Usage: pnpm promo:compose --take <name> [--size 1080|1440|2160] [--pace <x>] [--music <file>] [--no-badge] [--no-end-card]');
   return options;
 }
 
@@ -61,6 +65,7 @@ function main() {
   const [width, height] = SIZES[options.size];
   const plan = planVideo(timeline, {
     fps: 60, width, height, agentWaitSeconds: 4.5, badgeFrom: options.badge ? 2.5 : Infinity, endCard: options.endCard ? 3.4 : 0,
+    pace: options.pace,
   });
   const planPath = path.join(directory, 'plan.json');
   writeFileSync(planPath, JSON.stringify({ ...plan, ...(options.endCard ? { card: CARD } : {}) }));
@@ -74,7 +79,7 @@ function main() {
 
   const effects = path.join(directory, 'effects.wav');
   renderSound(plan, effects);
-  const final = path.join(directory, options.size === 1080 ? 'promo.mp4' : `promo-${options.size}.mp4`);
+  const final = path.join(directory, `${options.size === 1080 ? 'promo' : `promo-${options.size}`}${options.pace === 1 ? '' : `-${options.pace}x`}.mp4`);
   const inputs = ['-i', silent, '-i', effects, ...(options.music ? ['-i', options.music] : [])];
   const fadeOut = Math.max(0, plan.duration - 2.5).toFixed(2);
   const filter = options.music
