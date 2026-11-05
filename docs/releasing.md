@@ -17,7 +17,7 @@
 | 图标 | macOS 打包前从 Icon Composer 源文件编译 `Assets.car`，支持浅色、深色、Clear 和 Tinted；旧系统保留 `.icns`。构建产物与 DMG 内的 App 都检查图标资产，见 `docs/qa/macos-app-icon.md` |
 | 签名 | Developer ID Application 证书；App 和外层的 DMG 都用 App Store Connect API Key 公证并 staple（DMG 那一步在 Tauri 构建之后单独做）。Windows 安装包暂不做 Authenticode 签名，首次运行 SmartScreen 会提示；自动更新仍由同一把更新密钥签名校验 |
 | Hosted | 连接 `vars.DRIFTING_HOSTED_ORIGIN`，开放注册；注册页链接 `https://drifting.cc/terms` 与 `https://drifting.cc/privacy` |
-| 更新 | 启动后每天最多检查一次；有新版本时通知中心出现一条，点开到 设置 › 更新；下载和安装都要用户确认；安装前先保存全部本地修改 |
+| 更新 | 启动时和开着时每 3 小时最多检查一次；有新版本时通知中心出现一条，铃铛留一个更新记号，打开通知中心才消失（重启前没打开过，启动时立刻重查、记号回来）；点开到 设置 › 更新，点一次「安装并重启」就下载、校验签名、保存全部本地修改、安装并重启；下载中和下载好待安装时不做自动检查 |
 
 源码默认仍是纯本地构建（`pnpm dev`、`pnpm tauri:build`），不含 Hosted，也不能检查更新。
 
@@ -78,7 +78,7 @@
    草稿，并把 `windows-x86_64`、`windows-aarch64` 写进 `latest.json`。Windows 构建失败时
    Mac 草稿照样完整，可以只重跑失败的任务，或先发只有 Mac 的版本。
 6. 在 GitHub 打开草稿 Release，下载 DMG，在一台干净的 Mac 上走一遍下面的冒烟检查。
-7. 没问题就点 **Publish release**。已安装的 App 在下次启动（或在 设置 › 更新 里手动检查）时收到更新。
+7. 没问题就点 **Publish release**。已安装的 App 在下次启动时、开着的 App 在 3 小时左右内收到更新（也可在 设置 › 更新 里手动检查）。
 8. Publish 之后重建并部署官网：首页的下载按钮按文件名直接下载最新 Release 的
    `Drifting_<版本号>_macos_arm64.dmg` 和 Windows 安装包，版本号取自 `package.json`。
    在 Drifting-Showcase 里运行
