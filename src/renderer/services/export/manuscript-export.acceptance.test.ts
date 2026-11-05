@@ -103,7 +103,7 @@ async function fixture() {
 }
 
 const OPTIONS: ManuscriptExportOptions = {
-  chapterIds: null, actTitles: true, chapterTitles: true, headingLevels: [1, 2, 3],
+  chapterIds: null, actTitles: true, chapterTitles: true,
   title: '', author: '合成作者', cover: null,
 };
 const CONTEXT = { locale: 'zh-CN', now: new Date('2026-10-31T08:00:00.000Z') };
@@ -158,22 +158,19 @@ describe('manuscript export acceptance', () => {
     ]);
   });
 
-  it('honours chapter selection, hidden act and chapter titles and the heading levels left out', async () => {
+  it('honours chapter selection and hidden act and chapter titles, and always keeps every heading level', async () => {
     await fixture();
     const selected = await readManuscript(PROJECT, { ...OPTIONS, chapterIds: ['c4', 'c3', 'c1'], actTitles: false,
-      chapterTitles: false, headingLevels: [1, 3], title: '  自定书名  ' }, LABELS, CONTEXT);
+      chapterTitles: false, title: '  自定书名  ' }, LABELS, CONTEXT);
     expect(selected.title).toBe('自定书名');
     // Book order, not selection order; an explicitly chosen discarded chapter is included.
     expect(structure(selected.sections)).toEqual(['chapter:第一章　来信', 'chapter:废稿　不应出现', 'chapter:第三章　返航']);
     expect(selected.sections.every(section => section.kind === 'chapter' && !section.showTitle)).toBe(true);
     const first = selected.sections[0];
-    // Leaving H2 out drops only its heading line; the prose under it stays.
+    // Hidden chapter titles leave the prose's own H1–H3 alone.
     expect(first.kind === 'chapter' && first.blocks.filter(block => block.type === 'heading')
       .map(block => block.type === 'heading' && [block.level, block.runs[0]?.text])).toEqual([
-      [1, '一　雨夜'], [3, '核对潮汐表'], [1, '二　旧信']]);
-    expect(JSON.stringify(first)).toContain('信封上只写着《雾港来信》四个字');
-    const headingsOnly = await readManuscript(PROJECT, { ...OPTIONS, chapterIds: ['c1'], headingLevels: [] }, LABELS, CONTEXT);
-    expect(JSON.stringify(headingsOnly)).not.toMatch(/一\u3000雨夜|信使抵达|核对潮汐表|二\u3000旧信/);
+      [1, '一　雨夜'], [2, '信使抵达'], [3, '核对潮汐表'], [1, '二　旧信']]);
     const withActs = await readManuscript(PROJECT, { ...OPTIONS, chapterIds: ['c4'] }, LABELS, CONTEXT);
     expect(structure(withActs.sections)).toEqual(['act:第二卷　雾散', 'chapter:第三章　返航']);
     await expect(readManuscript(PROJECT, { ...OPTIONS, chapterIds: [] }, LABELS, CONTEXT)).rejects.toThrow('No chapters');

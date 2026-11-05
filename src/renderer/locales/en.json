@@ -2589,7 +2589,8 @@
     },
     "empty": {
       "incoming": "No content references this yet",
-      "outgoing": "This prose does not reference other entities yet"
+      "outgoing": "This prose does not reference other entities yet",
+      "relations": "No relations yet"
     },
     "meta": {
       "blocksSpans": "{{blocks}} blocks · {{spans}} mentions",
@@ -3039,7 +3040,6 @@
     "meta": {
       "chapters": "{{count}} chapters",
       "kWords": "{{count}}k words",
-      "facts": "Key/value notes for this storyline",
       "nodeTemplate": "Default skeleton for new chapters",
       "chaptersWords": "{{chapters}} chapters · {{words}}k words"
     },
@@ -3083,8 +3083,7 @@
     "meta": {
       "elements": "{{count}} elements",
       "items": "{{count}} items",
-      "elementTemplate": "Default skeleton for new elements",
-      "templateKv": "Default fields for new elements"
+      "elementTemplate": "Default skeleton for new elements"
     },
     "filters": {
       "used": "Filled",
@@ -3159,9 +3158,6 @@
       "bioTitle": "Biography",
       "facts": "Facts",
       "patches": "Patches"
-    },
-    "meta": {
-      "facts": "alias / category / birth year / first appearance …"
     },
     "empty": {
       "noFacts": "No fields yet. If the category template defines fields, they are filled when the element is created.",
