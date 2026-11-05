@@ -18,7 +18,11 @@ Groups are `chapters`, `drifts`, `elements`, `categories` and `storylines`;
 elements also accept the Agent workspace path `elements/<category>/<name>/body.md`.
 `#L12`, `#L12-L18` and `#L12-18` are accepted; without a fragment the link opens
 the entity. A blank separator line cites the block above it. Names escape `%`,
-`/`, `\`, `#` and `?`; a Markdown destination also encodes spaces (`%20`). A
+`/`, `\`, `#` and `?`; a Markdown destination also encodes spaces (`%20`). When
+the Agent's answer leaves a space in a `drifting:` destination (a chapter named
+`第七章 革命`), its Markdown renderer encodes it before parsing, so the link
+still opens instead of staying on screen as text
+(`src/renderer/features/agent/agent-markdown.ts`). A
 duplicated, empty or `id-`-prefixed name renders as the stable `id-<id>`
 directory instead. The parser and resolver live in `src/renderer/lib/location-link.ts`.
 

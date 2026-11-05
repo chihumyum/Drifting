@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { parseLocationHref } from '../../lib/location-link';
 import { renderAgentMarkdown } from './agent-markdown';
 
 describe('renderAgentMarkdown', () => {
@@ -17,5 +18,16 @@ describe('renderAgentMarkdown', () => {
 
   it('escapes raw HTML from the model', () => {
     expect(renderAgentMarkdown('<img src=x onerror=alert(1)> **ok**')).toContain('&lt;img');
+  });
+
+  it('links a cited passage whose chapter title has a space', () => {
+    const html = renderAgentMarkdown('正文停在[阿Q第一次高喊](drifting:chapters/第七章 革命/prose.md#L11-L13)，尚未写完。');
+    expect(html).not.toContain('](drifting:');
+    const href = /<a href="([^"]+)">阿Q第一次高喊<\/a>/.exec(html)?.[1];
+    expect(href).toBeTruthy();
+    expect(parseLocationHref(href!)).toMatchObject({ group: 'chapters', reference: '第七章 革命', startLine: 11, endLine: 13 });
+    // Titles without spaces and ordinary links are left as they were.
+    expect(renderAgentMarkdown('[雨夜](drifting:chapters/雨夜/prose.md#L12)')).toContain('<a href="drifting:chapters/');
+    expect(renderAgentMarkdown('[a b](https://example.com/a b)')).not.toContain('<a href="https://example.com/a%20b"');
   });
 });

@@ -31,9 +31,21 @@ export function escapeAgentHtml(text: string): string {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;');
 }
 
+/**
+ * The Agent cites passages as `[…](drifting:chapters/第七章 革命/prose.md#L11-L13)`
+ * (system prompt), naming a chapter by its title. A title with a space makes
+ * the destination invalid Markdown and the whole link stays on screen as
+ * text; its spaces are encoded so it parses, and `parseLocationHref` decodes
+ * them again.
+ */
+function encodeLocationDestinations(markdown: string): string {
+  return markdown.replace(/\]\((drifting:[^()\n]*?)\)/g, (link, destination: string) =>
+    destination.includes(' ') ? `](${destination.replace(/ /g, '%20')})` : link);
+}
+
 /** Markdown the caller has already escaped (escapeAgentHtml), as HTML. */
 export function renderEscapedAgentMarkdown(escaped: string): string {
-  return agentMarked.parse(escaped) as string;
+  return agentMarked.parse(encodeLocationDestinations(escaped)) as string;
 }
 
 export function renderAgentMarkdown(text: string): string {
