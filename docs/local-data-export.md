@@ -103,7 +103,7 @@ the authoritative incremental Yjs save path is independent of this deferral.
     分类说明.md
     林岚.md
 故事线/主线.md
-资料/
+素材/
   建筑参考.md
   附件/建筑参考.pdf
 注释与待办.md
@@ -159,8 +159,11 @@ through authorized tools for current coordinates before a write.
 
 Referenced live element portraits and library image/PDF sources are copied from
 the current project's app-owned asset store into
-`资料/附件/<readable owner title>.<ext>`. Notes contain relative embeds and an
-original-file link. Unsupported source image formats (for example HEIC and TIFF)
+`素材/附件/<readable owner title>.<ext>`. Notes contain relative embeds and an
+original-file link. Mirrors written before 2026-11-05 used `资料/` for materials
+and attachments; the native writer still accepts that prefix in an existing
+manifest, so the next refresh writes everything under `素材/` and removes the
+old generated files. Files the author added there stay. Unsupported source image formats (for example HEIC and TIFF)
 include the existing JPEG display derivative for preview. Copying is local-only;
 no remote download or hosted API is triggered. Missing metadata, missing local
 bytes, source size/hash mismatch or unavailable preview rejects the refresh before

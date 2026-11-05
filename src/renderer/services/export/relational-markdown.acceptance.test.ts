@@ -599,7 +599,7 @@ describe('Obsidian projection interoperability', () => {
     graph.assets.push({ id: 'missing', projectId: PROJECT_ID, kind: 'image', sourceMime: 'image/heic',
       sourceSizeBytes: 1, sourceSha256: 'a'.repeat(64), width: 1, height: 1, createdAt: NOW });
     const result = await buildRelationalMarkdownEntries(source, true);
-    expect(result.assets.map(asset => asset.path)).toEqual(['资料/附件/Hero.heic', '资料/附件/Hero(预览).jpg']);
+    expect(result.assets.map(asset => asset.path)).toEqual(['素材/附件/Hero.heic', '素材/附件/Hero(预览).jpg']);
     expect(projectedDocument(result, 'element', ELEMENT_ID).text).toContain('%28%E9%A2%84%E8%A7%88%29.jpg)');
     // Manual ZIP remains a readable migration archive, without binary copies.
     expect((await buildRelationalMarkdownEntries(source)).assets).toEqual([]);
@@ -650,8 +650,8 @@ describe('reader-facing Markdown tree', () => {
     graph.libraryItems[0] = { ...graph.libraryItems[0]!, folderId: 'folder-b' };
     graph.libraryItems.push({ ...graph.libraryItems[0]!, id: 'library-0002', title: 'Loose note', folderId: 'loop-b' });
     const readable = await buildRelationalMarkdownEntries(source, true);
-    expect(projectedDocument(readable, 'library_item', 'library-0001').path).toBe('资料/调研/地图/Local note.md');
-    expect(projectedDocument(readable, 'library_item', 'library-0002').path).toBe('资料/甲/乙/Loose note.md');
+    expect(projectedDocument(readable, 'library_item', 'library-0001').path).toBe('素材/调研/地图/Local note.md');
+    expect(projectedDocument(readable, 'library_item', 'library-0002').path).toBe('素材/甲/乙/Loose note.md');
     const relational = await buildRelationalMarkdownEntries(source);
     const note = relational.entries.find(entry => entry.path.includes('/notes/library/') && entry.text.includes('Local note'))!;
     expect(note.text).toContain('folder: "调研/地图"');
