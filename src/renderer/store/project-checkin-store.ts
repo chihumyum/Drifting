@@ -5,8 +5,8 @@ import type { CheckinCard } from '../lib/agent/checkin/checkin-prompt';
 /**
  * Project Home check-in state. Device-local on purpose: each device sees the
  * changes it can read and decides its own cadence, and nothing here is
- * authored project data (accepted cards become Agent sessions or TODOs, and
- * memory upkeep lands in the synced Project Memory).
+ * authored project data: the check-in writes nothing else, and opened cards
+ * become ordinary Agent sessions.
  */
 
 export type CheckinCardStatus = 'open' | 'started';

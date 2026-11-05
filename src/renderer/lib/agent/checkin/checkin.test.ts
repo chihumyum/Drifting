@@ -73,6 +73,8 @@ describe('check-in prompt and result', () => {
     expect(CHECKIN_SYSTEM_PROMPT).toContain('between zero and four cards');
     expect(CHECKIN_SYSTEM_PROMPT).toContain('Its title is the question itself, or the work you want to do');
     expect(CHECKIN_SYSTEM_PROMPT).toContain('story facts never belong there');
+    expect(CHECKIN_SYSTEM_PROMPT).toContain('Memory upkeep is a card too');
+    expect(Object.keys(checkinToolSchema.properties)).toEqual(['cards']);
     expect(CHECKIN_SYSTEM_PROMPT).toContain('Literary choices belong to the author');
     expect(CHECKIN_SYSTEM_PROMPT).toContain('language the author writes in');
   });
@@ -97,7 +99,7 @@ describe('check-in prompt and result', () => {
     expect(context).not.toContain('node-internal-id');
   });
 
-  it('resolves refs, drops unknown memory ids and cards without a task', () => {
+  it('resolves refs, drops cards without a task and ignores memory edits', () => {
     const parsed = parseCheckinToolArguments(
       JSON.stringify({
         cards: [
@@ -105,16 +107,13 @@ describe('check-in prompt and result', () => {
           { title: '没有任务的卡片', detail: '没有 instruction 的卡片会被丢弃。', instruction: '  ' },
           { title: '核对码头的描述', instruction: '对照前文核对码头的描述，并把差异记成待办。', target: 'c9' },
         ],
-        workingMemoryEdits: [{ oldText: '- 修第三章', newText: '' }, { oldText: '', newText: 'x' }],
+        // Earlier check-ins edited memory directly; those fields are ignored now.
+        workingMemoryEdits: [{ oldText: '- 修第三章', newText: '' }],
         memoryAdd: ['作者偏好短句。'],
-        memoryUpdate: [
-          { memoryId: 'mem-1', body: '结局保持开放，但要有回声。' },
-          { memoryId: 'unknown', body: 'ignored' },
-        ],
-        memoryDelete: ['mem-1', 'unknown', 'mem-1'],
+        memoryUpdate: [{ memoryId: 'mem-1', body: '结局保持开放，但要有回声。' }],
+        memoryDelete: ['mem-1'],
       }),
       documents,
-      new Set(['mem-1']),
     );
     expect(parsed.cards).toHaveLength(2);
     expect(parsed.cards[0]).toMatchObject({
@@ -123,18 +122,15 @@ describe('check-in prompt and result', () => {
     });
     expect(parsed.cards[1]).toMatchObject({ title: '核对码头的描述', detail: '', target: null });
     expect(parsed.cards[0]).not.toHaveProperty('kind');
-    expect(parsed.workingMemoryEdits).toEqual([{ oldText: '- 修第三章', newText: '' }]);
-    expect(parsed.memoryAdd).toEqual(['作者偏好短句。']);
-    expect(parsed.memoryUpdate).toEqual([{ memoryId: 'mem-1', body: '结局保持开放，但要有回声。' }]);
-    expect(parsed.memoryDelete).toEqual(['mem-1']);
+    expect(Object.keys(parsed)).toEqual(['cards']);
   });
 
   it('rejects malformed or schema-invalid results instead of applying part of them', () => {
-    expect(() => parseCheckinToolArguments('{', documents, new Set())).toThrow('malformed');
+    expect(() => parseCheckinToolArguments('{', documents)).toThrow('malformed');
     expect(() =>
-      parseCheckinToolArguments(JSON.stringify({ cards: [{ kind: 'todo', title: 't' }] }), documents, new Set()),
+      parseCheckinToolArguments(JSON.stringify({ cards: [{ kind: 'todo', title: 't' }] }), documents),
     ).toThrow('invalid');
-    expect(() => parseCheckinToolArguments('{"cards":null}', documents, new Set())).toThrow('invalid');
+    expect(() => parseCheckinToolArguments('{"cards":null}', documents)).toThrow('invalid');
   });
 
   it('accepts a result carrying an echoed schema keyword or null optional fields', () => {
@@ -149,10 +145,8 @@ describe('check-in prompt and result', () => {
         maxItems: 4,
         type: 'object',
         memoryAdd: null,
-        workingMemoryEdits: [{ oldText: '- 修第三章', newText: '', note: 'done' }],
       }),
       documents,
-      new Set(),
     );
     expect(parsed.cards).toEqual([
       { title: '核对码头的描述', detail: '', instruction: '对照前文核对码头的描述。', target: null },
@@ -163,8 +157,6 @@ describe('check-in prompt and result', () => {
         target: { entityType: 'node', entityId: 'node-internal-id', title: '第三章 雾港' },
       },
     ]);
-    expect(parsed.memoryAdd).toEqual([]);
-    expect(parsed.workingMemoryEdits).toEqual([{ oldText: '- 修第三章', newText: '' }]);
   });
 
   it('keeps at most four cards without asking providers to enforce it', () => {
@@ -172,7 +164,6 @@ describe('check-in prompt and result', () => {
     const parsed = parseCheckinToolArguments(
       JSON.stringify({ cards: Array.from({ length: 6 }, () => card) }),
       documents,
-      new Set(),
     );
     expect(parsed.cards).toHaveLength(CHECKIN_MAX_CARDS);
   });

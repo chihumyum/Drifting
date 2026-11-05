@@ -12,7 +12,7 @@ a card runs until the author opens it.
 
 One switch in Home's 设定 view, 主动建议 (`projectHome.settings.proactive`,
 `useProjectCheckinStore.enabled`, default on), controls all proactive Agent
-work: the check-in with its memory upkeep, and the organize card. It replaced
+work: the check-in and the organize card. It replaced
 the separate 每日签到 and 自动整理 switches on 2026-11-05; author-facing text
 no longer says 签到. Code and docs keep the name check-in.
 
@@ -80,14 +80,22 @@ renderer state (`localStorage`). They are not authored data and do not sync.
   ChatGPT subscription route, GPT-6.1 Terra): the model had returned the
   schema's old `maxItems: 4` beside `cards`. Parsing now drops fields the schema does not
   name and `null` optional fields (DeepSeek returned `"target": null`) before
-  validating; a result still invalid after that writes nothing.
-- Output: up to four cards, plus optional memory upkeep — new, revised or
-  deleted Project Memory entries and passage edits to Working Memory
-  (revision CAS; a concurrent edit wins, and a passage that no longer matches
-  leaves the document untouched). Working Memory above 20,000 tokens is left
-  out of the request. Unknown refs and memory ids are dropped; an invalid
-  result writes nothing.
-- The check-in never edits the manuscript or project objects.
+  validating; a result still invalid after that is rejected whole.
+- Output: up to four cards and nothing else. The request carries Project
+  Memory (with memory ids) and Working Memory, but Working Memory above 20,000
+  tokens is left out. Unknown refs are dropped.
+- The check-in writes nothing: not the manuscript, not project objects, not
+  Project Memory or Working Memory. Since 2026-11-05 memory upkeep is a card
+  like any other work: when Working Memory holds lasting author context, stale
+  or finished detail, or Project Memory has duplicates, the check-in proposes
+  one card whose instruction names the passages and entries and says what to
+  move, merge or delete. Opening it hands that to a General Agent session,
+  which edits memory with its ordinary tools (`create_project_memory`,
+  `update_project_memory`, `delete_project_memory`, `edit_working_memory`).
+  Memory fields an older check-in result still carries are dropped while
+  parsing. A live probe the same day (DeepSeek Flash and GPT-6.1 Terra, two
+  requests each, a duplicate Project Memory pair and a lasting preference in
+  Working Memory) returned such a card every time.
 
 ## Cards
 
