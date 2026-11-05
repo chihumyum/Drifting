@@ -98,6 +98,17 @@ describe('relinking names in written prose', () => {
 
     expect(links(fragment)).toEqual([['安纳蒂', []]]);
   });
+
+  it('links only the given targets across every block, still letting a longer name win', () => {
+    const withShortName = {
+      autoDetectEnabled: true,
+      autoDetectTargets: new Map<string, AutoDetectTarget>([...config.autoDetectTargets, ['安', { kind: 'element', id: 'an' }]]),
+    };
+    const { fragment } = paragraph([['安纳蒂对米契说：安心。']]);
+    relinkYjsBlocks(fragment, 'all', withShortName, [{ kind: 'element', id: 'an' }]);
+
+    expect(links(fragment)).toEqual([['安纳蒂对米契说：', []], ['安', ['entityLink:an']], ['心。', []]]);
+  });
 });
 
 describe('linking names in what the Agent writes', () => {
