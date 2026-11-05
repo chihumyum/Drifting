@@ -2,7 +2,7 @@
 /**
  * Turns a recorded take into the finished video (README.md).
  *
- *   pnpm promo:compose --take <name> [--size 1080|1440|2160] [--music <file>] [--no-badge]
+ *   pnpm promo:compose --take <name> [--size 1080|1440|2160] [--music <file>] [--no-badge] [--no-end-card]
  *
  * Plans the frames from out/promo-recording/<take>/timeline.json (plan.ts),
  * renders them from raw.mov with compose.swift, synthesizes the keystrokes
@@ -21,9 +21,15 @@ import { renderSound } from './sound';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '../../..');
 const SIZES = { 1080: [1920, 1080], 1440: [2560, 1440], 2160: [3840, 2160] } as const;
+/** The closing card, in the language of the recorded interface (README.zh-CN.md's line). */
+const CARD = {
+  title: 'Drifting',
+  line: 'Markdown 的轻快，传统写作软件的脚手架，再加一个照看整本书的 Agent。',
+  url: 'drifting.cc',
+};
 
 function parseArguments(args: string[]) {
-  const options = { take: '', size: 1080 as keyof typeof SIZES, music: null as string | null, badge: true };
+  const options = { take: '', size: 1080 as keyof typeof SIZES, music: null as string | null, badge: true, endCard: true };
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index];
     const value = () => {
@@ -39,9 +45,10 @@ function parseArguments(args: string[]) {
       options.size = size as keyof typeof SIZES;
     } else if (argument === '--music') options.music = path.resolve(value());
     else if (argument === '--no-badge') options.badge = false;
+    else if (argument === '--no-end-card') options.endCard = false;
     else throw new Error(`Unknown argument ${argument}`);
   }
-  if (!options.take) throw new Error('Usage: pnpm promo:compose --take <name> [--size 1080|1440|2160] [--music <file>] [--no-badge]');
+  if (!options.take) throw new Error('Usage: pnpm promo:compose --take <name> [--size 1080|1440|2160] [--music <file>] [--no-badge] [--no-end-card]');
   return options;
 }
 
@@ -52,15 +59,17 @@ function main() {
   if (!existsSync(timelinePath)) throw new Error(`No take ${options.take} (missing ${path.relative(root, timelinePath)})`);
   const timeline = JSON.parse(readFileSync(timelinePath, 'utf8')) as Timeline & { theme?: 'light' | 'dark' };
   const [width, height] = SIZES[options.size];
-  const plan = planVideo(timeline, { fps: 60, width, height, agentWaitSeconds: 4.5, badgeFrom: options.badge ? 2.5 : Infinity });
+  const plan = planVideo(timeline, {
+    fps: 60, width, height, agentWaitSeconds: 4.5, badgeFrom: options.badge ? 2.5 : Infinity, endCard: options.endCard ? 3.4 : 0,
+  });
   const planPath = path.join(directory, 'plan.json');
-  writeFileSync(planPath, JSON.stringify(plan));
+  writeFileSync(planPath, JSON.stringify({ ...plan, ...(options.endCard ? { card: CARD } : {}) }));
   console.log(`[compose] ${plan.frames.length} frames, ${plan.duration.toFixed(1)} s, ${plan.sounds.length} sounds`);
 
   const binary = buildSwiftTool('compose');
   const silent = path.join(directory, `video-${options.size}.mov`);
   const result = spawnSync(binary, ['--plan', planPath, '--source', path.join(directory, 'raw.mov'), '--out', silent,
-    '--theme', timeline.theme ?? 'light'], { stdio: 'inherit' });
+    '--theme', timeline.theme ?? 'light', '--icon', path.join(root, 'src', 'assets', 'icon.png')], { stdio: 'inherit' });
   if (result.status !== 0) throw new Error(`Rendering failed (exit ${result.status ?? result.signal})`);
 
   const effects = path.join(directory, 'effects.wav');

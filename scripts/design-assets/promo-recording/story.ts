@@ -5,6 +5,9 @@
 //
 //   <!-- slow -->  <!-- normal -->  <!-- fast -->   its pace
 //   <!-- typo 瓜→刮 -->                             mistype the first 瓜 as 刮, then correct it
+//   <!-- skip -->                                   typed off camera: the video cuts over it
+//   <!-- ask -->                                    before writing it, ask the Agent the front
+//                                                   matter's `ask` (a reference to look up)
 //
 // Without a pace comment a heading is slow, dialogue (opening with a quote
 // mark) normal and narration fast.
@@ -15,6 +18,10 @@ export interface StoryParagraph {
   text: string;
   pace: Pace;
   typo: { intended: string; typed: string } | null;
+  /** Typed quickly while the video cuts from the paragraph before to the one after. */
+  skip: boolean;
+  /** Ask the Agent the story's `ask` before this paragraph. */
+  ask: boolean;
 }
 
 export interface Story {
@@ -26,6 +33,8 @@ export interface Story {
   links: string[];
   /** Project Memory the book starts with, as an author would have told the Agent before. */
   memory: string | null;
+  /** What the author asks the Agent mid-chapter (a reference to look up on the web). */
+  ask: string | null;
   paragraphs: StoryParagraph[];
 }
 
@@ -55,6 +64,8 @@ export function parseStory(source: string): Story {
   const paragraphs: StoryParagraph[] = [];
   let pace: Pace | null = null;
   let typo: StoryParagraph['typo'] = null;
+  let skip = false;
+  let ask = false;
   for (const block of text.slice(match[0].length).split(/\n\s*\n/)) {
     const lines = block.split('\n').map((line) => line.trim()).filter(Boolean);
     const prose: string[] = [];
@@ -67,22 +78,30 @@ export function parseStory(source: string): Story {
         const [intended, typed] = argument.split('→');
         if (!intended || !typed) throw new Error(`Bad typo directive: ${line}`);
         typo = { intended, typed };
-      } else throw new Error(`Unknown directive: ${line}`);
+      } else if (word === 'skip') skip = true;
+      else if (word === 'ask') ask = true;
+      else throw new Error(`Unknown directive: ${line}`);
     }
     if (!prose.length) continue;
     const paragraph = prose.join('');
     if (typo && !paragraph.includes(typo.intended)) throw new Error(`The typo's ${typo.intended} is not in: ${paragraph}`);
-    paragraphs.push({ text: paragraph, pace: pace ?? defaultPace(paragraph), typo });
+    if (skip && typo) throw new Error(`A skipped paragraph has no typo to show: ${paragraph}`);
+    paragraphs.push({ text: paragraph, pace: pace ?? defaultPace(paragraph), typo, skip, ask });
     pace = null;
     typo = null;
+    skip = false;
+    ask = false;
   }
   if (!paragraphs.length) throw new Error('The story has no paragraphs');
+  if (paragraphs[0].skip) throw new Error('The first paragraph is the opening shot; it cannot be skipped');
+  if (paragraphs.some((paragraph) => paragraph.ask) && !meta.get('ask')) throw new Error('An <!-- ask --> needs `ask` in the front matter');
   return {
     book: required('book'),
     chapter: required('chapter'),
     organize: required('organize'),
     links: (meta.get('links') ?? '').split(/[,，、]/).map((name) => name.trim()).filter(Boolean),
     memory: meta.get('memory') || null,
+    ask: meta.get('ask') || null,
     paragraphs,
   };
 }

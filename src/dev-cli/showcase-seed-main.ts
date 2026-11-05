@@ -1,7 +1,8 @@
 // `pnpm release:screenshots` runs this before each launch of its profile:
 //   tsx --conditions=import src/dev-cli/showcase-seed-main.ts --db <library.db> --app-local-data <dir> --locale en|zh-CN
 // It seeds a new release screenshot library (docs/release-screenshots.md) and
-// prints one JSON result line.
+// prints one JSON result line. The promo recording
+// (scripts/design-assets/promo-recording) seeds its shelf with it too.
 
 import { installHeadlessRendererGlobals } from './headless-globals';
 
