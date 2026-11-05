@@ -20,10 +20,13 @@ only be built on Windows; the macOS checkout never cross-compiles them.
 The installer is per user (`installMode: currentUser`): it needs no
 administrator rights, installs under `%LOCALAPPDATA%`, and registers the
 `drifting:` link for sign-in. Its pages are in Simplified Chinese or English.
-It is not Authenticode-signed, so Windows SmartScreen shows "Windows protected
-your PC" on first launch (More info → Run anyway). Updater artifacts and the
-updater key are not part of preview builds; an automatic update check there
-only logs a failure.
+It is not Authenticode-signed, so Windows SmartScreen may show "Windows
+protected your PC" on first launch (More info → Run anyway). Preview builds
+compile the updater public key in but sign no updates of their own
+(`DRIFTING_UPDATER_ARTIFACTS=off`): an installed preview updates to the next
+published release that ships Windows. Installing an update saves every local
+write first; the updater then quits Drifting, runs the installer in passive
+mode and reopens it.
 
 The desktop runner (`scripts/run-desktop-tauri.mjs`) starts the Tauri CLI with
 Node on Windows, because Node refuses to spawn `pnpm.cmd` without a shell.
@@ -50,7 +53,21 @@ Node on Windows, because Node refuses to spawn `pnpm.cmd` without a shell.
   Serif SC rather than SimSun; the system sans names Microsoft YaHei. PDF export
   already lists SimSun and Microsoft YaHei.
 - **Secrets.** Model keys and sign-in sessions use Windows Credential Manager
-  through `keyring`.
+  through `keyring`. One credential holds 2560 bytes of UTF-16, so values
+  longer than 1200 characters (the ChatGPT subscription's OAuth tokens, Hosted
+  sessions) are split across credentials by `secure_storage::chunked`: the
+  head names the generation, part count and SHA-256, a write lands the new
+  parts before the head, and a damaged part fails the read. Nothing falls back
+  to a file.
+- **Browser behaviour.** WebView2's browser shortcuts are off (F5 and Ctrl+R
+  no longer reload the interface, Ctrl+P no longer prints, Alt+Left no longer
+  navigates; the keys still reach Drifting). Right-click keeps WebView2's
+  editing items (cut, copy, paste, emoji, spelling) and drops Back, Reload,
+  Save as, Print and the other browser items (`windows_webview.rs`).
+- **HEIC, HEIF and AVIF** decode through the Windows Imaging Component, as
+  macOS uses ImageIO (`windows_image_codec.rs`). WIC needs the Store codecs:
+  HEIF Image Extensions with HEVC Video Extensions for iPhone photos, AV1
+  Video Extension for AVIF. Without them the import names what to install.
 - **Durability.** Windows has no directory fsync. File replacement uses
   `MoveFileExW` with `MOVEFILE_WRITE_THROUGH`; the directory barrier
   (`sync_directory`) validates the directory and relies on NTFS journaling.
@@ -61,8 +78,7 @@ Node on Windows, because Node refuses to spawn `pnpm.cmd` without a shell.
 
 - External Agents over local MCP (Codex, Claude Code, Antigravity): the bridge
   is a Unix socket; the settings section is hidden on Windows.
-- HEIC and AVIF images, which macOS decodes with ImageIO.
-- Signed installers and in-app updates through GitHub Releases.
+- Authenticode-signed installers.
 
 ## Manual acceptance (Windows 11, including Arm virtual machines)
 
@@ -88,3 +104,7 @@ installer runs natively. The interface is the same WebView2 (Chromium) in both.
    writes.
 8. Export EPUB, PDF and Word; open the PDF and check Chinese glyphs.
 9. Display scaling at 125% and 150%; light and dark themes; immersive writing.
+10. Press F5, Ctrl+R and Ctrl+P while writing: nothing reloads or prints.
+    Right-click on text and on empty paper: only editing items appear.
+11. Sign in to the ChatGPT subscription; quit and reopen: still signed in.
+12. Import a HEIC photo and an AVIF image (with the Store codecs installed).
