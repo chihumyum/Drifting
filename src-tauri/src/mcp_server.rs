@@ -17,6 +17,7 @@ pub enum Client {
 
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub struct Installation {
     client: Client,
     config_path: std::path::PathBuf,
@@ -25,6 +26,7 @@ pub struct Installation {
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub struct Grant {
     pub id: String,
     pub name: String,
@@ -39,6 +41,7 @@ pub struct Grant {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub struct CreateInput {
     name: String,
     project_id: String,
@@ -48,6 +51,7 @@ pub struct CreateInput {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub struct PermissionInput {
     id: String,
     access: String,
@@ -1482,6 +1486,7 @@ pub fn run_stdio_cli() -> Option<Result<(), String>> {
 }
 
 #[tauri::command]
+#[cfg_attr(not(target_os = "macos"), allow(unused_variables))]
 pub fn mcp_server_list(
     app: tauri::AppHandle,
     state: State<'_, McpServerState>,
@@ -1492,6 +1497,7 @@ pub fn mcp_server_list(
     Err("Local MCP is available on macOS".into())
 }
 #[tauri::command]
+#[cfg_attr(not(target_os = "macos"), allow(unused_variables))]
 pub fn mcp_server_create(
     app: tauri::AppHandle,
     state: State<'_, McpServerState>,
@@ -1503,6 +1509,7 @@ pub fn mcp_server_create(
     Err("Local MCP is available on macOS".into())
 }
 #[tauri::command]
+#[cfg_attr(not(target_os = "macos"), allow(unused_variables))]
 pub fn mcp_server_connect(
     app: tauri::AppHandle,
     state: State<'_, McpServerState>,
@@ -1515,6 +1522,7 @@ pub fn mcp_server_connect(
     Err("Local MCP is available on macOS".into())
 }
 #[tauri::command]
+#[cfg_attr(not(target_os = "macos"), allow(unused_variables))]
 pub fn mcp_server_revoke(
     app: tauri::AppHandle,
     state: State<'_, McpServerState>,
@@ -1526,6 +1534,7 @@ pub fn mcp_server_revoke(
     Err("Local MCP is available on macOS".into())
 }
 #[tauri::command]
+#[cfg_attr(not(target_os = "macos"), allow(unused_variables))]
 pub fn mcp_server_update_permission(
     app: tauri::AppHandle,
     state: State<'_, McpServerState>,
@@ -1537,6 +1546,7 @@ pub fn mcp_server_update_permission(
     Err("Local MCP is available on macOS".into())
 }
 #[tauri::command]
+#[cfg_attr(not(target_os = "macos"), allow(unused_variables))]
 pub fn mcp_server_attach(
     app: tauri::AppHandle,
     state: State<'_, McpServerState>,
@@ -1549,11 +1559,13 @@ pub fn mcp_server_attach(
     Err("Local MCP is available on macOS".into())
 }
 #[tauri::command]
+#[cfg_attr(not(target_os = "macos"), allow(unused_variables))]
 pub fn mcp_server_detach(state: State<'_, McpServerState>, epoch: String) {
     #[cfg(target_os = "macos")]
     local::detach(&state, &epoch);
 }
 #[tauri::command]
+#[cfg_attr(not(target_os = "macos"), allow(unused_variables))]
 pub fn mcp_server_complete(
     state: State<'_, McpServerState>,
     epoch: String,

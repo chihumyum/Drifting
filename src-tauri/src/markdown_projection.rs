@@ -272,6 +272,8 @@ pub fn resolved_project_directory(root: &Path, project_id: &str) -> Result<PathB
 }
 
 /// Whether the author left the folder on; an unreadable setting counts as on.
+/// Read by the macOS-only local MCP bridge.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub fn folder_enabled(root: &Path) -> bool {
     read_settings(root).map_or(true, |settings| !settings.disabled)
 }
