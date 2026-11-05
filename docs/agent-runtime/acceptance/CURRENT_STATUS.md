@@ -202,12 +202,13 @@ pnpm agent:capabilities:check
   and returns up to four cards — each a question to ask or work to do — plus
   memory upkeep. It never writes the manuscript; opening a card hands its task
   to an ordinary General Agent session. See `../project-checkin.md`.
-- On desktop, returning to the app (first open in an app run, or input after
-  30 minutes away) starts a background read-write General Agent session that
-  folds the author's own chapter and idea prose since the last pass into
-  elements, element changes and relations. The left sidebar bell reports it and
-  Project Home shows its reply and touched objects; the check-in runs after it.
-  See `../project-organize.md`.
+- On desktop, Project Home offers an organize card for the author's own
+  chapter and idea prose since the last organize, worked out locally without a
+  model. Opening it starts a background read-write General Agent session that
+  folds that prose into elements, element changes and relations. The left
+  sidebar bell reports it and Project Home shows its reply and touched objects;
+  a check-in that comes up meanwhile runs after it. Home's 主动建议 switch
+  turns off the check-in and this card together. See `../project-organize.md`.
 - Every project has one rolling Markdown `WORKING_MEMORY.md` shared across its
   General Agent conversations. The runtime injects the current revision at turn
   start. Writes are optional: call `edit_working_memory` only when important

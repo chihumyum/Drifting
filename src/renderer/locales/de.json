@@ -3400,11 +3400,13 @@
     "settings": {
       "projectTarget": "Buchziel",
       "dailyGoal": "Tagesziel",
-      "checkin": "Täglicher Check-in",
-      "organize": "Automatisch ordnen"
+      "proactive": "Proaktive Vorschläge"
     }
   },
   "organize": {
+    "offer": {
+      "title": "Deinen letzten Text in Elemente ordnen"
+    },
     "notify": {
       "running": "Dein letzter Text wird geordnet",
       "completed": "Dein letzter Text wurde geordnet",
@@ -3428,15 +3430,15 @@
     "titleShort": "Chat & Check-in",
     "placeholder": "Mit Agent über dieses Werk sprechen… ({{shortcut}} zum Senden)",
     "send": "Senden",
-    "checkinTitle": "Check-in",
+    "checkinTitle": "Proaktive Vorschläge",
     "checkinRunning": "Agent liest deine letzten Änderungen…",
-    "checkinFailed": "Check-in nicht abgeschlossen: {{error}}",
+    "checkinFailed": "Deine letzten Änderungen wurden nicht fertig gelesen: {{error}}",
     "checkinEmpty": "Deine letzten Änderungen erfordern keine Aufmerksamkeit.",
     "checkinNever": "Beim Öffnen des Projekts liest Agent die Änderungen seit dem letzten Mal und hinterlässt Fragen oder Aufgaben, die er bearbeiten möchte.",
-    "lastCheckin": "Letzter Check-in {{time}}",
-    "disabled": "Check-ins sind ausgeschaltet",
-    "enable": "Check-ins einschalten",
-    "disable": "Check-ins ausschalten",
+    "lastCheckin": "Zuletzt gelesen {{time}}",
+    "disabled": "Proaktive Vorschläge sind aus",
+    "enable": "Proaktive Vorschläge einschalten",
+    "disable": "Proaktive Vorschläge ausschalten",
     "openConversation": "Gespräch öffnen",
     "dismiss": "Verwerfen",
     "startFailed": "Konnte nicht gestartet werden: {{error}}",

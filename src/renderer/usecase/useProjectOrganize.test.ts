@@ -51,8 +51,10 @@ vi.mock('../store/agent-chat-store', async () => {
 
 const { useAgentChatStore } = await import('../store/agent-chat-store');
 const { useNotificationStore } = await import('../store/notification-store');
+const { useProjectCheckinStore } = await import('../store/project-checkin-store');
 const { readProjectOrganize, useProjectOrganizeStore } = await import('../store/project-organize-store');
-const { maybeRunProjectOrganize, recoverInterruptedOrganize } = await import('./useProjectOrganize');
+const { dismissOrganizeOffer, recoverInterruptedOrganize, refreshOrganizeOffer, startProjectOrganize } =
+  await import('./useProjectOrganize');
 
 const chapter: CheckinChangedDocument = {
   ref: 'c1',
@@ -80,33 +82,81 @@ function setChat(patch: Record<string, unknown>) {
   (useAgentChatStore as unknown as { setState: (patch: Record<string, unknown>) => void }).setState(patch);
 }
 
-describe('organize on return', () => {
+describe('organize card', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     transport.usable = true;
     delta.hasCheckinDelta.mockResolvedValue(true);
     delta.collectCheckinDelta.mockResolvedValue([chapter]);
-    useProjectOrganizeStore.setState({ enabled: true, projects: {}, active: {} });
+    useProjectOrganizeStore.setState({ projects: {}, active: {}, offers: {} });
+    useProjectCheckinStore.setState({ enabled: true });
     useNotificationStore.setState({ items: [], centerOpen: false });
     setChat({ runningTurns: {}, runs: {}, send: vi.fn() });
   });
 
-  it('organizes the author prose in a background session and hands over to the check-in', async () => {
+  const offer = () => useProjectOrganizeStore.getState().offers.p1 ?? null;
+
+  it('offers the author prose as a card without starting anything', async () => {
+    await refreshOrganizeOffer('p1');
+
+    expect(delta.collectCheckinDelta).toHaveBeenCalledWith('p1', expect.any(String), 12, {
+      sources: ['user'],
+      objectKinds: ['chapter', 'idea'],
+    });
+    expect(offer()).toEqual({ sinceIso: expect.any(String), documents: ['第一章'] });
+    expect(useAgentChatStore.getState().send).not.toHaveBeenCalled();
+    expect(useNotificationStore.getState().items).toEqual([]);
+    expect(checkin.maybeRunProjectCheckin).not.toHaveBeenCalled();
+    expect(readProjectOrganize('p1')).toMatchObject({ horizonAt: null, run: null });
+  });
+
+  it('offers nothing while proactive suggestions are off or no provider can run', async () => {
+    useProjectOrganizeStore.getState().setOffer('p1', { sinceIso: 'x', documents: ['第一章'] });
+    useProjectCheckinStore.setState({ enabled: false });
+    await refreshOrganizeOffer('p1');
+    expect(offer()).toBeNull();
+
+    useProjectCheckinStore.setState({ enabled: true });
+    transport.usable = false;
+    await refreshOrganizeOffer('p1');
+    expect(offer()).toBeNull();
+    expect(delta.hasCheckinDelta).not.toHaveBeenCalled();
+  });
+
+  it('offers nothing when the author wrote nothing new, and moves past reformatting', async () => {
+    delta.hasCheckinDelta.mockResolvedValueOnce(false);
+    await refreshOrganizeOffer('p1');
+    expect(offer()).toBeNull();
+    expect(readProjectOrganize('p1').horizonAt).toBeNull();
+
+    delta.collectCheckinDelta.mockResolvedValueOnce([{ ...chapter, digest: '（只有格式或空白变化）' }]);
+    await refreshOrganizeOffer('p1');
+    expect(offer()).toBeNull();
+    expect(readProjectOrganize('p1').horizonAt).not.toBeNull();
+  });
+
+  it('skipping the card leaves the prose written so far unorganized', async () => {
+    await refreshOrganizeOffer('p1');
+    dismissOrganizeOffer('p1');
+    expect(offer()).toBeNull();
+    expect(readProjectOrganize('p1').horizonAt).not.toBeNull();
+    expect(useAgentChatStore.getState().send).not.toHaveBeenCalled();
+  });
+
+  it('organizes in a background session once the author opens the card, then hands over to the check-in', async () => {
+    await refreshOrganizeOffer('p1');
     const send = vi.fn(async (options: { onStarted?: (id: string) => void }) => {
       setChat({ runningTurns: { 'conv-1': 'turn-1' }, runs: { 'conv-1': liveRun([], null) } });
       options.onStarted?.('conv-1');
     });
     setChat({ send });
 
-    const pending = maybeRunProjectOrganize('p1');
-    // Claimed before any await, so a check-in fired by the same return waits.
+    const pending = startProjectOrganize('p1');
+    // Claimed before any await, so a check-in that comes up meanwhile waits.
     expect(useProjectOrganizeStore.getState().active.p1).toBe(true);
+    expect(offer()).toBeNull();
     await pending;
 
-    expect(delta.collectCheckinDelta).toHaveBeenCalledWith('p1', expect.any(String), 12, {
-      sources: ['user'],
-      objectKinds: ['chapter', 'idea'],
-    });
     expect(send).toHaveBeenCalledWith(
       expect.objectContaining({
         toolAccess: 'read_write',
@@ -124,6 +174,7 @@ describe('organize on return', () => {
     });
     expect(checkin.maybeRunProjectCheckin).not.toHaveBeenCalled();
 
+    delta.hasCheckinDelta.mockResolvedValue(false);
     setChat({
       runningTurns: {},
       runs: {
@@ -157,48 +208,27 @@ describe('organize on return', () => {
     expect(checkin.maybeRunProjectCheckin).toHaveBeenCalledWith('p1', '雾港纪事', { afterOrganize: true });
   });
 
-  it('reports a failed session and keeps its prose for a later return', async () => {
+  it('reports a failed session and offers its prose again', async () => {
     setChat({
       send: vi.fn(async (options: { onStarted?: (id: string) => void }) => {
         setChat({ runs: { 'conv-2': liveRun([{ kind: 'user', text: '整理' }], 'failed') } });
         options.onStarted?.('conv-2');
       }),
     });
-    await maybeRunProjectOrganize('p1');
+    await startProjectOrganize('p1');
     expect(readProjectOrganize('p1')).toMatchObject({ horizonAt: null, run: { status: 'failed' } });
-    expect(readProjectOrganize('p1').lastFailureAt).not.toBeNull();
     expect(useNotificationStore.getState().items[0]).toMatchObject({ state: 'failed', source: 'agent-organize' });
     expect(checkin.maybeRunProjectCheckin).toHaveBeenCalledWith('p1', '雾港纪事', { afterOrganize: false });
+    await vi.waitFor(() => expect(offer()).toMatchObject({ documents: ['第一章'] }));
   });
 
-  it('starts nothing when the author wrote nothing new or only reformatted', async () => {
-    delta.hasCheckinDelta.mockResolvedValueOnce(false);
-    await maybeRunProjectOrganize('p1');
-    delta.collectCheckinDelta.mockResolvedValueOnce([{ ...chapter, digest: '（只有格式或空白变化）' }]);
-    await maybeRunProjectOrganize('p1');
-    const send = useAgentChatStore.getState().send;
-    expect(send).not.toHaveBeenCalled();
-    expect(readProjectOrganize('p1').horizonAt).not.toBeNull();
-    expect(useNotificationStore.getState().items).toEqual([]);
-    expect(checkin.maybeRunProjectCheckin).toHaveBeenCalledTimes(2);
+  it('tells the card when the session cannot start and keeps offering it', async () => {
+    setChat({ send: vi.fn(async () => {}) });
+    await expect(startProjectOrganize('p1')).rejects.toThrow('could not start');
+    expect(readProjectOrganize('p1').run).toBeNull();
     expect(useProjectOrganizeStore.getState().active.p1).toBe(false);
-  });
-
-  it('skips quietly while no Agent provider is connected', async () => {
-    transport.usable = false;
-    await maybeRunProjectOrganize('p1');
-    expect(useAgentChatStore.getState().send).not.toHaveBeenCalled();
-    expect(readProjectOrganize('p1')).toMatchObject({ horizonAt: null, lastFailureAt: null, run: null });
-    expect(useNotificationStore.getState().items).toEqual([]);
     expect(checkin.maybeRunProjectCheckin).toHaveBeenCalledWith('p1', '雾港纪事', { afterOrganize: false });
-  });
-
-  it('leaves the check-in alone when organizing is turned off', async () => {
-    useProjectOrganizeStore.setState({ enabled: false });
-    await maybeRunProjectOrganize('p1');
-    expect(delta.hasCheckinDelta).not.toHaveBeenCalled();
-    expect(checkin.maybeRunProjectCheckin).not.toHaveBeenCalled();
-    expect(useProjectOrganizeStore.getState().active.p1).toBeUndefined();
+    await vi.waitFor(() => expect(offer()).toMatchObject({ documents: ['第一章'] }));
   });
 
   it('marks a run cut off by a quit as interrupted without moving the horizon', () => {

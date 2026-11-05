@@ -1,7 +1,7 @@
 {
   "kind": "nine-language-interface",
   "status": "passed",
-  "sourceSha256": "290cf04db6aaae2a4c2aaf374d678811988514ead331f300ae2e8e2d1e9752d9",
+  "sourceSha256": "d46d8a7728e5c810673f3c74ecca8b0d3e56f57dfa62dfe00aaf06924c2e1cdc",
   "sources": [
     "scripts/check-ui-locales.ts",
     "scripts/generate-startup-locales.mjs",

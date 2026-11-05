@@ -68,8 +68,8 @@ The first launch opens a sample project you can explore or delete.
 - **Materials** for research: notes, images and PDFs in folders, each opening as
   a tab. Comment on a region of an image or PDF.
 - Full-window views: **Element overview**, **Story graph**, and **TODO &
-  Materials**. **Project Home** gathers progress, quick creation and a daily
-  check-in.
+  Materials**. **Project Home** gathers progress, quick creation and the Agent's
+  proactive suggestions.
 - Comments and TODOs are anchored to the text. History snapshots, word counts,
   daily goals and streaks.
 - Export the book, or chosen chapters, as EPUB, PDF or Word.
@@ -82,9 +82,10 @@ The first launch opens a sample project you can explore or delete.
   storylines, materials, TODOs. Its edits are marked in the text and can be
   undone from history.
 - Project Memory keeps the preferences and rules you give it. TODOs, chapter
-  reviews and check-in cards can run as background Agent sessions.
-- When you come back after a break, it can file what you wrote into elements,
-  patches and relations. It never edits prose on its own.
+  reviews and suggestion cards can run as background Agent sessions.
+- After you write, Project Home offers to file what you wrote into elements,
+  patches and relations; it runs only when you open that card and never edits
+  prose on its own.
 - **External agents**: Codex, Claude Code and Antigravity can connect to one
   project through MCP, read-only by default. See
   [external agent setup](docs/agent-runtime/local-mcp.md).

@@ -1,14 +1,20 @@
 /**
- * Organize on return: when the author comes back to the app, a background
- * read-write General Agent folds the prose they wrote last time into the
- * project's elements, element changes and relations. The bell at the foot of
- * the left sidebar reports the run and leads to Project Home, which shows the
- * result. The check-in waits for it and runs after it.
+ * Organize card: Project Home offers to fold the prose the author wrote since
+ * the last organize into the project's elements, element changes and
+ * relations. Nothing runs until the author opens the card; then a background
+ * read-write General Agent does the work. The bell at the foot of the left
+ * sidebar reports the run, Home shows the result, and a check-in that comes
+ * up meanwhile waits for it.
  */
 import { useEffect } from 'react';
 import loglevel from 'loglevel';
 import { v7 as uuidv7 } from 'uuid';
-import { collectCheckinDelta, hasCheckinDelta, type CheckinDeltaFilter } from '../lib/agent/checkin/checkin-delta';
+import {
+  collectCheckinDelta,
+  hasCheckinDelta,
+  type CheckinChangedDocument,
+  type CheckinDeltaFilter,
+} from '../lib/agent/checkin/checkin-delta';
 import {
   buildOrganizeTask,
   hasOrganizableChange,
@@ -21,10 +27,10 @@ import { generalAgentTransport } from '../lib/agent/transport';
 import { i18next } from '../lib/i18n';
 import { useAgentChatStore } from '../store/agent-chat-store';
 import { useNotificationStore } from '../store/notification-store';
+import { useProjectCheckinStore } from '../store/project-checkin-store';
 import {
-  decideOrganize,
   newOrganizeRun,
-  ORGANIZE_AWAY_MS,
+  organizeSince,
   readProjectOrganize,
   useProjectOrganizeStore,
   type OrganizeRun,
@@ -45,8 +51,6 @@ const RELATION_TOOLS = new Set(['create_relation', 'update_relation', 'delete_re
 
 /** Runs whose conversations this app run is watching. */
 const watchedRuns = new Set<string>();
-/** Projects whose open already counted as a return in this app run. */
-const openedThisRun = new Set<string>();
 
 function projectNameOf(projectId: string): string {
   const state = useProjectStore.getState();
@@ -135,6 +139,8 @@ function settleRun(projectId: string, run: OrganizeRun): void {
   const settled = readProjectOrganize(projectId).run;
   if (settled?.id === run.id) notifyOrganize(projectId, settled);
   releaseToCheckin(projectId, status === 'completed');
+  // Prose the run did not cover, or a failed run's, is offered again.
+  void refreshOrganizeOffer(projectId);
 }
 
 /** Follow a run's conversation until it stops, then record and report it. */
@@ -172,33 +178,73 @@ export function recoverInterruptedOrganize(projectId: string): void {
 }
 
 /**
- * Organize the author's prose since the horizon, if any. The project is
- * claimed synchronously so a check-in triggered by the same return waits.
+ * The author's own prose since the horizon that carries content: null when
+ * none changed, empty when the changes were formatting only.
  */
-export async function maybeRunProjectOrganize(
+async function organizableDocuments(
   projectId: string,
-  options: { force?: boolean } = {},
-): Promise<void> {
+  sinceIso: string,
+): Promise<CheckinChangedDocument[] | null> {
+  if (!(await hasCheckinDelta(projectId, sinceIso, ORGANIZE_FILTER))) return null;
+  return (
+    await collectCheckinDelta(projectId, sinceIso, MAX_ORGANIZE_DOCUMENTS, ORGANIZE_FILTER)
+  ).filter(hasOrganizableChange);
+}
+
+/**
+ * Work out Project Home's organize card from local history; no model is
+ * asked. Home's check-in switch covers this card too, and it waits while the
+ * selected Agent provider cannot run. Formatting-only changes move the
+ * horizon without a card.
+ */
+export async function refreshOrganizeOffer(projectId: string): Promise<void> {
   const store = useProjectOrganizeStore.getState();
   if (store.active[projectId]) return;
-  if (!store.enabled && !options.force) return;
+  if (!useProjectCheckinStore.getState().enabled || !(await generalAgentUsable())) {
+    store.setOffer(projectId, null);
+    return;
+  }
+  const now = new Date();
+  const sinceIso = organizeSince(now, readProjectOrganize(projectId));
+  const documents = await organizableDocuments(projectId, sinceIso);
+  // The author may have opened the card while this was reading.
+  if (useProjectOrganizeStore.getState().active[projectId]) return;
+  if (!documents?.length) {
+    if (documents) useProjectOrganizeStore.getState().advanceHorizon(projectId, now.toISOString());
+    useProjectOrganizeStore.getState().setOffer(projectId, null);
+    return;
+  }
+  useProjectOrganizeStore.getState().setOffer(projectId, {
+    sinceIso,
+    documents: documents.map((document) => document.title),
+  });
+}
+
+/** × on the card: the prose written so far is not organized. */
+export function dismissOrganizeOffer(projectId: string): void {
+  const store = useProjectOrganizeStore.getState();
+  store.advanceHorizon(projectId, new Date().toISOString());
+  store.setOffer(projectId, null);
+}
+
+/**
+ * The author opened the organize card: hand the prose since the horizon, read
+ * again now, to a background General Agent session. The project is claimed
+ * synchronously so a check-in that comes up meanwhile waits. Failures to
+ * start are thrown for the card to show.
+ */
+export async function startProjectOrganize(projectId: string): Promise<void> {
+  const store = useProjectOrganizeStore.getState();
+  if (store.active[projectId]) return;
   store.setActive(projectId, true);
+  store.setOffer(projectId, null);
   let handedOff = false;
   try {
     const now = new Date();
-    const decision = await decideOrganize({
-      now,
-      enabled: store.enabled,
-      force: options.force === true,
-      record: readProjectOrganize(projectId),
-      hasChangesSince: (sinceIso) => hasCheckinDelta(projectId, sinceIso, ORGANIZE_FILTER),
-    });
-    if (!decision.run || !(await generalAgentUsable())) return;
-    const documents = (
-      await collectCheckinDelta(projectId, decision.sinceIso, MAX_ORGANIZE_DOCUMENTS, ORGANIZE_FILTER)
-    ).filter(hasOrganizableChange);
-    if (documents.length === 0) {
-      useProjectOrganizeStore.getState().advanceHorizon(projectId, now.toISOString());
+    const sinceIso = organizeSince(now, readProjectOrganize(projectId));
+    const documents = await organizableDocuments(projectId, sinceIso);
+    if (!documents?.length) {
+      if (documents) useProjectOrganizeStore.getState().advanceHorizon(projectId, now.toISOString());
       return;
     }
     const task = buildOrganizeTask(documents);
@@ -217,62 +263,39 @@ export async function maybeRunProjectOrganize(
     });
     if (!conversationId) {
       log.warn('Organize session did not start', projectId);
-      useProjectOrganizeStore.getState().failAttempt(projectId, new Date().toISOString());
-      return;
+      throw new Error('The Agent session could not start.');
     }
     const run = newOrganizeRun({
       id: uuidv7(),
       conversationId,
       startedAt: now.toISOString(),
-      sinceIso: decision.sinceIso,
+      sinceIso,
       documents: documents.map((document) => document.title),
     });
     useProjectOrganizeStore.getState().startRun(projectId, run);
     notifyOrganize(projectId, run);
     handedOff = true;
     watchOrganizeRun(projectId, run);
-  } catch (error) {
-    log.error('Organize failed to start', projectId, error);
-    useProjectOrganizeStore.getState().failAttempt(projectId, new Date().toISOString());
   } finally {
-    if (!handedOff) releaseToCheckin(projectId, false);
+    if (!handedOff) {
+      releaseToCheckin(projectId, false);
+      void refreshOrganizeOffer(projectId);
+    }
   }
 }
 
 /**
- * Mounted by the desktop workspace. The first open of a project in an app
- * run is a return; so is the first focus, pointer or key after being away
- * (window in the background, or no input) for `ORGANIZE_AWAY_MS`.
+ * Mounted by Project Home: settle a run a quit cut off, and keep the organize
+ * card current on open, on window focus and when the check-in switch changes.
  */
-export function useOrganizeOnReturn(projectId: string): void {
+export function useOrganizeOffer(projectId: string): void {
+  const enabled = useProjectCheckinStore((state) => state.enabled);
   useEffect(() => {
+    if (!projectId) return;
     recoverInterruptedOrganize(projectId);
-    let lastPresenceAt = Date.now();
-    if (!openedThisRun.has(projectId)) {
-      openedThisRun.add(projectId);
-      void maybeRunProjectOrganize(projectId);
-    }
-    const onPresence = () => {
-      const now = Date.now();
-      const returned = now - lastPresenceAt >= ORGANIZE_AWAY_MS;
-      lastPresenceAt = now;
-      if (returned) void maybeRunProjectOrganize(projectId);
-    };
-    const onLeave = () => {
-      lastPresenceAt = Date.now();
-    };
-    const onVisibility = () => (document.visibilityState === 'visible' ? onPresence() : onLeave());
-    window.addEventListener('focus', onPresence);
-    window.addEventListener('blur', onLeave);
-    window.addEventListener('pointerdown', onPresence, { capture: true, passive: true });
-    window.addEventListener('keydown', onPresence, { capture: true });
-    document.addEventListener('visibilitychange', onVisibility);
-    return () => {
-      window.removeEventListener('focus', onPresence);
-      window.removeEventListener('blur', onLeave);
-      window.removeEventListener('pointerdown', onPresence, { capture: true });
-      window.removeEventListener('keydown', onPresence, { capture: true });
-      document.removeEventListener('visibilitychange', onVisibility);
-    };
-  }, [projectId]);
+    const refresh = () => void refreshOrganizeOffer(projectId);
+    refresh();
+    window.addEventListener('focus', refresh);
+    return () => window.removeEventListener('focus', refresh);
+  }, [projectId, enabled]);
 }

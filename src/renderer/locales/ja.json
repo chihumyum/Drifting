@@ -3400,11 +3400,13 @@
     "settings": {
       "projectTarget": "本全体の目標",
       "dailyGoal": "1日の目標",
-      "checkin": "毎日のチェックイン",
-      "organize": "自動整理"
+      "proactive": "プロアクティブな提案"
     }
   },
   "organize": {
+    "offer": {
+      "title": "前回書いた内容を要素に整理する"
+    },
     "notify": {
       "running": "前回書いた内容を整理中",
       "completed": "前回書いた内容を整理しました",
@@ -3428,15 +3430,15 @@
     "titleShort": "チャットとチェックイン",
     "placeholder": "Agent とこの作品について話す…（{{shortcut}} で送信）",
     "send": "送信",
-    "checkinTitle": "チェックイン",
+    "checkinTitle": "プロアクティブな提案",
     "checkinRunning": "Agent が最近の変更を読んでいます…",
-    "checkinFailed": "チェックインが完了しませんでした：{{error}}",
+    "checkinFailed": "最近の変更を読み終えられませんでした：{{error}}",
     "checkinEmpty": "最近の変更に、対応が必要な事項はありません。",
     "checkinNever": "作品を開くと、Agent が前回からの変更を読み、尋ねたい質問や進めたい作業を残します。",
-    "lastCheckin": "前回のチェックイン {{time}}",
-    "disabled": "チェックインはオフです",
-    "enable": "チェックインをオンにする",
-    "disable": "チェックインをオフにする",
+    "lastCheckin": "前回の確認 {{time}}",
+    "disabled": "プロアクティブな提案はオフです",
+    "enable": "プロアクティブな提案をオンにする",
+    "disable": "プロアクティブな提案をオフにする",
     "openConversation": "会話を開く",
     "dismiss": "閉じる",
     "startFailed": "開始できませんでした：{{error}}",

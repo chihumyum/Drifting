@@ -9,7 +9,7 @@ import { ENTITY_MARK, entityRefName } from '../../../features/agent/entity-ref-n
 import { useWorkspaceNavigator } from '../../../features/workspace/navigation/WorkspaceNavigationContext';
 import { useDataStore } from '../../../store/data-store';
 import type { StoredCheckinCard } from '../../../store/project-checkin-store';
-import type { OrganizeRun, OrganizeRunEntity } from '../../../store/project-organize-store';
+import type { OrganizeRunEntity } from '../../../store/project-organize-store';
 import { describeOrganizeCounts } from '../../../usecase/useProjectOrganize';
 import type { WorkspaceEntityType } from '../../../features/workspace/navigation/workspace-target';
 import type { HomeAgentModel } from './useHomeAgent';
@@ -37,9 +37,9 @@ function plainSummary(text: string): string {
     .trim();
 }
 
-function organizeDocuments(run: OrganizeRun): string {
-  const shown = run.documents.slice(0, 3).filter(Boolean).join(' · ');
-  return run.documents.length > 3 ? `${shown} …` : shown;
+function organizeDocuments(documents: readonly string[]): string {
+  const shown = documents.slice(0, 3).filter(Boolean).join(' · ');
+  return documents.length > 3 ? `${shown} …` : shown;
 }
 
 function OrganizeChip({ entity }: { entity: OrganizeRunEntity }) {
@@ -91,7 +91,7 @@ function OrganizeCard({ agent }: { agent: HomeAgentModel }) {
           ) : (
             <BrushIcon name="shikigami" size={12} />
           )}
-          {organizeDocuments(run)}
+          {organizeDocuments(run.documents)}
         </span>
         <span className="home-agent__card-title">{t(`organize.notify.${run.status}`)}</span>
         {detail && <span className="home-agent__card-detail home-agent__organize-summary">{detail}</span>}
@@ -120,6 +120,47 @@ function OrganizeCard({ agent }: { agent: HomeAgentModel }) {
           <BrushIcon name="close" size={12} />
         </button>
       )}
+    </article>
+  );
+}
+
+/** The organize card: the prose written since the last organize, for the Agent. */
+function OrganizeOfferCard({ agent }: { agent: HomeAgentModel }) {
+  const { t } = useTranslation();
+  const offer = agent.organizeOffer;
+  if (!offer) return null;
+  return (
+    <article
+      className="home-agent__card glass glass--rest glass--surface"
+      data-debug-id="project-home-organize-offer"
+    >
+      <button
+        type="button"
+        className="home-agent__card-open"
+        disabled={agent.busyCard !== null}
+        onClick={() => void agent.startOrganize()}
+      >
+        <span className="home-agent__card-target">
+          <BrushIcon name="shikigami" size={12} />
+          {organizeDocuments(offer.documents)}
+        </span>
+        <span className="home-agent__card-title">{t('organize.offer.title')}</span>
+        <span className="home-agent__card-go">{t('projectAgent.start')}</span>
+      </button>
+      {agent.offerError && (
+        <p className="home-agent__notice is-error" role="alert">
+          {t('projectAgent.startFailed', { error: agent.offerError })}
+        </p>
+      )}
+      <button
+        type="button"
+        className="home-agent__dismiss"
+        aria-label={t('projectAgent.dismiss')}
+        title={t('projectAgent.dismiss')}
+        onClick={agent.dismissOrganizeOffer}
+      >
+        <BrushIcon name="close" size={12} />
+      </button>
     </article>
   );
 }
@@ -217,8 +258,9 @@ export function HomeAgentFlow({
 
       <OrganizeCard agent={agent} />
 
-      {record.cards.length > 0 && (
+      {(record.cards.length > 0 || agent.organizeOffer) && (
         <div className="home-agent__cards">
+          <OrganizeOfferCard agent={agent} />
           {record.cards.map((card) => (
             <article key={card.id} className="home-agent__card glass glass--rest glass--surface">
               <button
@@ -275,7 +317,7 @@ export function HomeAgentFloat({
   const organize = agent.organize;
   return (
     <div className="home-agent home-agent--float">
-      {(agent.record.cards.length > 0 || organize) && (
+      {(agent.record.cards.length > 0 || organize || agent.organizeOffer) && (
         <div className="home-agent__minis">
           {organize && (
             <div className="home-agent__mini glass glass--rest glass--surface glass--small">
@@ -304,6 +346,29 @@ export function HomeAgentFloat({
                   <BrushIcon name="close" size={12} />
                 </button>
               )}
+            </div>
+          )}
+          {agent.organizeOffer && (
+            <div className="home-agent__mini glass glass--rest glass--surface glass--small">
+              <button
+                type="button"
+                className="home-agent__mini-open"
+                title={t('organize.offer.title')}
+                disabled={agent.busyCard !== null}
+                onClick={() => void agent.startOrganize()}
+              >
+                <BrushIcon name="shikigami" size={12} />
+                <span className="home-agent__mini-title">{t('organize.offer.title')}</span>
+              </button>
+              <button
+                type="button"
+                className="home-agent__dismiss"
+                aria-label={t('projectAgent.dismiss')}
+                title={t('projectAgent.dismiss')}
+                onClick={agent.dismissOrganizeOffer}
+              >
+                <BrushIcon name="close" size={12} />
+              </button>
             </div>
           )}
           {agent.record.cards.map((card) => (

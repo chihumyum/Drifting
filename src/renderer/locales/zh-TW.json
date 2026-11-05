@@ -3400,11 +3400,13 @@
     "settings": {
       "projectTarget": "全書目標",
       "dailyGoal": "每日目標",
-      "checkin": "每日巡閱",
-      "organize": "自動整理"
+      "proactive": "主動建議"
     }
   },
   "organize": {
+    "offer": {
+      "title": "把你上次撰寫的內容整理進要素"
+    },
     "notify": {
       "running": "正在整理你上次撰寫的內容",
       "completed": "已整理你上次撰寫的內容",
@@ -3428,15 +3430,15 @@
     "titleShort": "對話與巡閱",
     "placeholder": "與 Agent 討論這部作品…（{{shortcut}} 傳送）",
     "send": "傳送",
-    "checkinTitle": "巡閱",
+    "checkinTitle": "主動建議",
     "checkinRunning": "Agent 正在閱讀你最近的變更…",
-    "checkinFailed": "巡閱未完成：{{error}}",
+    "checkinFailed": "沒能看完最近的變更：{{error}}",
     "checkinEmpty": "最近的變更中，沒有需要你處理的事項。",
     "checkinNever": "開啟作品時，Agent 會閱讀自上次以來的變更，並留下想詢問的問題或建議進行的工作。",
-    "lastCheckin": "上次巡閱 {{time}}",
-    "disabled": "巡閱已關閉",
-    "enable": "開啟巡閱",
-    "disable": "關閉巡閱",
+    "lastCheckin": "上次查看 {{time}}",
+    "disabled": "主動建議已關閉",
+    "enable": "開啟主動建議",
+    "disable": "關閉主動建議",
     "openConversation": "開啟對話",
     "dismiss": "略過",
     "startFailed": "無法啟動：{{error}}",

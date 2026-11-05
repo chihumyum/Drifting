@@ -3393,11 +3393,13 @@
     "settings": {
       "projectTarget": "全书目标",
       "dailyGoal": "每日目标",
-      "checkin": "每日签到",
-      "organize": "自动整理"
+      "proactive": "主动建议"
     }
   },
   "organize": {
+    "offer": {
+      "title": "把上次写的整理进要素"
+    },
     "notify": {
       "running": "正在整理上次写的内容",
       "completed": "整理好了上次写的内容",
@@ -3421,15 +3423,15 @@
     "titleShort": "对话与签到",
     "placeholder": "和 Agent 聊聊这部作品……（{{shortcut}} 发送）",
     "send": "发送",
-    "checkinTitle": "签到",
+    "checkinTitle": "主动建议",
     "checkinRunning": "Agent 正在看你最近的改动……",
-    "checkinFailed": "签到没有完成：{{error}}",
+    "checkinFailed": "没能看完最近的改动：{{error}}",
     "checkinEmpty": "最近的改动里没有需要你处理的事。",
     "checkinNever": "打开项目时，Agent 会看看你上次以来的改动，留下想问你的问题或想做的事。",
-    "lastCheckin": "上次签到 {{time}}",
-    "disabled": "签到已关闭",
-    "enable": "开启签到",
-    "disable": "关闭签到",
+    "lastCheckin": "上次查看 {{time}}",
+    "disabled": "主动建议已关闭",
+    "enable": "开启主动建议",
+    "disable": "关闭主动建议",
     "openConversation": "查看对话",
     "dismiss": "忽略",
     "startFailed": "没能开始：{{error}}",

@@ -21,7 +21,7 @@ beforeEach(() => {
   readiness.canAgentProviderRun.mockImplementation(async () => readiness.ready);
   readiness.ready = true;
   delta.hasCheckinDelta.mockImplementation(async () => false);
-  useProjectOrganizeStore.setState({ enabled: true, projects: {}, active: {} });
+  useProjectOrganizeStore.setState({ projects: {}, active: {}, offers: {} });
   useProjectCheckinStore.setState({ enabled: true, projects: {}, running: {} });
 });
 
