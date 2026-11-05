@@ -1,7 +1,7 @@
 {
   "kind": "nine-language-interface",
   "status": "passed",
-  "sourceSha256": "12e8758c17cadf66eafab4b60287ead9bc3f959294603e53c1ab7bcd07f89662",
+  "sourceSha256": "394cb64067f5febee37972146b56e9c56433073cfa2b79bd8250e0fe2dccecc5",
   "sources": [
     "scripts/check-ui-locales.ts",
     "scripts/generate-startup-locales.mjs",
@@ -57,63 +57,63 @@
     {
       "surface": "application",
       "locale": "zh-CN",
-      "strings": 2928,
+      "strings": 2929,
       "placeholderContract": "passed",
       "keyCoverage": "complete"
     },
     {
       "surface": "application",
       "locale": "zh-TW",
-      "strings": 2935,
+      "strings": 2936,
       "placeholderContract": "passed",
       "keyCoverage": "complete"
     },
     {
       "surface": "application",
       "locale": "en",
-      "strings": 2935,
+      "strings": 2936,
       "placeholderContract": "passed",
       "keyCoverage": "complete"
     },
     {
       "surface": "application",
       "locale": "ja",
-      "strings": 2935,
+      "strings": 2936,
       "placeholderContract": "passed",
       "keyCoverage": "complete"
     },
     {
       "surface": "application",
       "locale": "ko",
-      "strings": 2935,
+      "strings": 2936,
       "placeholderContract": "passed",
       "keyCoverage": "complete"
     },
     {
       "surface": "application",
       "locale": "es",
-      "strings": 2950,
+      "strings": 2951,
       "placeholderContract": "passed",
       "keyCoverage": "complete"
     },
     {
       "surface": "application",
       "locale": "de",
-      "strings": 2935,
+      "strings": 2936,
       "placeholderContract": "passed",
       "keyCoverage": "complete"
     },
     {
       "surface": "application",
       "locale": "fr",
-      "strings": 2950,
+      "strings": 2951,
       "placeholderContract": "passed",
       "keyCoverage": "complete"
     },
     {
       "surface": "application",
       "locale": "pt-BR",
-      "strings": 2950,
+      "strings": 2951,
       "placeholderContract": "passed",
       "keyCoverage": "complete"
     },

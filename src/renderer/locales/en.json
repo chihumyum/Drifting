@@ -981,6 +981,7 @@
   },
   "chapterEditor": {
     "untitledChapter": "Untitled chapter",
+    "untitledDrift": "Untitled idea",
     "synopsisPlaceholder": "Synopsis…",
     "summaryPlaceholder": "Click to add a summary…"
   },
@@ -1082,12 +1083,12 @@
     }
   },
   "kvEditor": {
-    "keyPlaceholder": "Field · key",
-    "valuePlaceholder": "Content · value",
-    "templateKeyPlaceholder": "Field name · key (e.g. POV)",
-    "templateValuePlaceholder": "Default / hint · value",
-    "empty": "- No KV fields yet -",
-    "templateEmpty": "- No template fields defined yet. New child items will not auto-fill any KV rows -",
+    "keyPlaceholder": "Field",
+    "valuePlaceholder": "Content",
+    "templateKeyPlaceholder": "Field name, e.g. POV",
+    "templateValuePlaceholder": "Default or hint",
+    "empty": "No fields yet",
+    "templateEmpty": "No template fields yet. New items won't get any fields filled in",
     "addField": "Add field",
     "removeRow": "Remove row"
   },
@@ -1690,7 +1691,7 @@
       "clearEntityFilter": "Clear relation filter",
       "entityFilterAll": "Relations · All",
       "entityFilterHint": "Choose an entity to show only linked memos / materials",
-      "todoEmptyHint": "Click + to create a TODO, or promote one from an editor comment card",
+      "todoEmptyHint": "Click + to create a TODO, or choose To TODO on a comment card",
       "commentEmptyHint": "Click + to add a comment, or select text in an editor to leave one",
       "newMaterialButton": "New material",
       "noMaterials": "No materials in this project yet.",
@@ -3020,7 +3021,7 @@
     "alerts": {
       "deleteFailed": "Failed to delete storyline. Please try again."
     },
-    "scratchPlaceholder": "Scratch notes for this storyline: quick notes, ideas, style reminders…",
+    "scratchPlaceholder": "Scratch notes for this storyline: quick notes, style reminders…",
     "summaryPlaceholder": "One-sentence summary for this storyline…",
     "nodeTemplatePlaceholder": "Write a default chapter skeleton with H1 / H2 / H3; new chapters will use it…",
     "outlineTitle": "{{name}} · OUTLINE",
@@ -3047,7 +3048,7 @@
       "unwritten": "Not started"
     },
     "empty": {
-      "noFacts": "No fields yet. If the project template defines fields, they are filled when the storyline is created.",
+      "noFacts": "No fields yet. When a storyline is created, the Storyline template on project home fills them in.",
       "noChapterSummary": "No one-sentence summary yet",
       "noFilteredChapters": "No chapters for this filter"
     },
@@ -3063,7 +3064,7 @@
     "alerts": {
       "deleteFailed": "Failed to delete category. Please try again."
     },
-    "scratchPlaceholder": "Scratch notes for this category: design principles, naming rules, AI candidate rules…",
+    "scratchPlaceholder": "Scratch notes for this category: design principles, naming rules…",
     "elementTemplatePlaceholder": "Write a default element skeleton with H1 / H2 / H3; new elements will use it…",
     "sections": {
       "overview": "Overview",
@@ -3158,7 +3159,7 @@
       "patches": "Patches"
     },
     "empty": {
-      "noFacts": "No fields yet. If the category template defines fields, they are filled when the element is created.",
+      "noFacts": "No fields yet. When an element is created, its category's Field template fills them in.",
       "selectElement": "Select an element to edit",
       "noCategories": "No categories yet"
     },
