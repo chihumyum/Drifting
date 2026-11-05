@@ -78,6 +78,8 @@
       const { LOCAL_USER_ID } = await import('/src/renderer/store/auth.ts');
       localStorage.setItem('drifting.markdown-folder-guide.v1', 'seen');
       localStorage.setItem(alphaGuideStorageKey(LOCAL_USER_ID), 'seen');
+      // The workspace tour's first bubble would sit over the chapter list.
+      settings.getState().markGuideSeen('workspace-tour');
       settings.getState().setUiLocale(locale);
       settings.getState().setThemeMode(theme);
       // Persisted stores write on change; give them a moment before the reload,
