@@ -636,6 +636,60 @@ export async function unlinkEntityFromChapterProse(
   }
 }
 
+// Automatic links are deterministic normalization, not an author or Agent edit.
+const NAME_LINK_ORIGIN = 'element-name-backfill';
+
+/**
+ * Link the registered names of `elementIds` in one CLOSED prose document, the
+ * way opening it would, and journal the change as a system revision. Names are
+ * read against every registered name (a longer one wins) but only these
+ * elements' are linked. Returns whether it wrote. An open document is left to
+ * its editor, which links a created element itself; a seed-only body with no
+ * Yjs state is linked when it is first opened.
+ */
+export async function linkElementsInClosedProse(
+  projectId: string,
+  entityType: ProseEntityType,
+  id: string,
+  elementIds: readonly string[],
+): Promise<boolean> {
+  const docId = proseDocId(entityType, id);
+  if (getLiveYDoc(docId)) return false;
+  const config = writtenProseLinkConfig(projectId, entityType, id);
+  const wanted = new Set(elementIds);
+  const targets = [...new Map([...config.autoDetectTargets.values()]
+    .filter((target) => target.kind === 'element' && wanted.has(target.id))
+    .map((target) => [target.id, target])).values()];
+  if (targets.length === 0) return false;
+  const yrepo = createYjsRepository();
+  if (!(await yrepo.hasDocState(docId))) return false;
+  const doc = new Y.Doc();
+  try {
+    const snap = await yrepo.getSnapshot(docId);
+    if (snap) Y.applyUpdate(doc, snap.stateBlob, 'load');
+    for (const update of await yrepo.listUpdates(docId)) Y.applyUpdate(doc, update.updateBlob, 'load');
+    const diff: Uint8Array[] = [];
+    const onUpdate = (update: Uint8Array, origin: unknown) => {
+      if (origin === NAME_LINK_ORIGIN) diff.push(new Uint8Array(update));
+    };
+    doc.on('update', onUpdate);
+    doc.transact(() => {
+      relinkYjsBlocks(doc.getXmlFragment('default'), 'all', config, targets);
+    }, NAME_LINK_ORIGIN);
+    doc.off('update', onUpdate);
+    // An editor that opened meanwhile links the names itself.
+    if (diff.length === 0 || getLiveYDoc(docId)) return false;
+    // Rows only: a transient rehydration never compacts (see writeProseDoc).
+    await appendAuthoredYjsUpdate(projectId, docId, Y.mergeUpdates(diff), { kind: 'system' });
+    if (entityType === 'node') {
+      await persistNodeContentProjection(id, JSON.stringify(yDocToProsemirrorJSON(doc, 'default')));
+    }
+    return true;
+  } finally {
+    doc.destroy();
+  }
+}
+
 /**
  * Apply a body edit to an element — thin shim over {@link writeEntityProse}.
  * Routing through the generic path means element edits RECORD into the

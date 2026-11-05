@@ -186,12 +186,26 @@ Now:
   as static prose, so a row's names are linked when it becomes the focused
   editor, not when it scrolls into view. A document whose names are
   all linked receives no write. A view that cannot be edited (no Yjs document
-  yet, a load error) writes nothing.
+  yet, a load error) writes nothing;
+- creating an element (by the author or the Agent) links its
+  names in the project's closed prose: chapters, ideas and the bodies of other
+  elements, storylines and categories
+  (`services/element-name-backfill.service.ts`, retained by the project
+  runtime). Open editors link it themselves, as before. Names are read against
+  every registered name, so a longer name still wins, but only the created
+  elements' names are linked: a closed chapter is not otherwise rewritten.
+  Documents are visited one at a time, each once for every element queued for
+  it, and the change is journaled as a `system` revision; a chapter's
+  `contentJson` cache is refreshed with it. Nothing is written while an Agent
+  turn runs in the project, because a link landing between an Agent's read and
+  its write would make that write stale; elements the Agent creates during a
+  turn are linked when the turn ends. A seed-only body without Yjs state, or
+  an element deleted before its turn came, is skipped.
 
-Each pass is a local authored change: it is journaled and synced like typing,
-is not an undo step, and does not count as the author typing. A chapter never
-opened after its names were registered still has them as plain text, because
-creating an element only relinks the editors open at that moment.
+Each pass is a local change: it is journaled and synced like typing, is not
+an undo step, and does not count as the author typing. A name or alias added
+to an existing element is still linked in a closed document only when that
+document is opened.
 
 ## Acceptance
 
@@ -212,6 +226,10 @@ Machine-checkable coverage lives in:
 - `src/renderer/lib/agent/runtime/drifting-product-composition.integration.test.ts`
   (an Agent body rewrite and a created chapter are stored with their names
   linked)
+- `src/renderer/services/element-name-backfill.integration.test.ts` (a
+  created element is linked in closed chapters only after the running Agent
+  turn ends, open chapters are left to their editor, several elements share
+  one write per chapter, a deleted element links nothing)
 - `src/renderer/components/ui/entity-hover-card-model.test.ts`
 - `src/renderer/components/ui/entity-hover-card-position.test.ts`
 - `src/renderer/components/ui/hover-card-long-content.acceptance.test.ts`
@@ -227,6 +245,7 @@ pnpm exec vitest run \
   src/renderer/lib/extensions/entity-link.test.ts \
   src/renderer/lib/extensions/entity-link-name-runs.test.ts \
   src/renderer/lib/agent/yjs-entity-relink.test.ts \
+  src/renderer/services/element-name-backfill.integration.test.ts \
   src/renderer/components/ui/entity-hover-card-model.test.ts \
   src/renderer/components/ui/entity-hover-card-position.test.ts \
   src/renderer/domain/node-storyline-state.test.ts

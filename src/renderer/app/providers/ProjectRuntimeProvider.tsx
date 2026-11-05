@@ -25,6 +25,7 @@ import { useEntityRelationTypes } from '../../usecase/useEntityRelationTypes';
 import { useComment } from '../../usecase/useComment';
 import { useProject } from '../../usecase/useProject';
 import { retainProjectReferenceIndex } from '../../services/reference-index.service';
+import { retainElementNameBackfill } from '../../services/element-name-backfill.service';
 import {
   NodeProseMetricRevisionConflictError,
   reconcileProjectProseMetrics,
@@ -304,6 +305,11 @@ export function ProjectRuntimeProvider({
       cancel();
       release?.();
     };
+  }, [bootAttempt, bootKey, bootState.key, bootState.status, projectId]);
+
+  useEffect(() => {
+    if (bootState.key !== bootKey || bootState.status !== 'ready') return undefined;
+    return retainElementNameBackfill(projectId);
   }, [bootAttempt, bootKey, bootState.key, bootState.status, projectId]);
 
   useEffect(() => {
