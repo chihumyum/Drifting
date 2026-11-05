@@ -382,6 +382,28 @@ describe('DeepSeekProvider.stream', () => {
     });
   });
 
+  it.each([
+    ['low', 'low'],
+    ['minimal', 'low'],
+    ['medium', 'high'],
+    ['high', 'high'],
+    ['xhigh', 'max'],
+  ] as const)('sends the %s effort as DeepSeek %s', async (effort, wire) => {
+    const { requests } = installSseFetch([
+      completionChunk({
+        choices: [{ index: 0, delta: { content: 'done' }, finish_reason: 'stop' }],
+      }),
+      completionChunk({
+        choices: [],
+        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+      }),
+      '[DONE]',
+    ]);
+    const provider = new DeepSeekProvider({ apiKey: 'test-key', baseURL: 'https://deepseek.test/v1' });
+    await collect(provider.stream({ ...streamRequest, tools: [], thinking: true, reasoningEffort: effort }));
+    expect(requests[0]?.body).toMatchObject({ thinking: { type: 'enabled' }, reasoning_effort: wire });
+  });
+
   it('rejects an already-aborted stream without sending or yielding a successful terminal chunk', async () => {
     const { fetchMock } = installSseFetch(['[DONE]']);
     const controller = new AbortController();

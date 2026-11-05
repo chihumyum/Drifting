@@ -14,7 +14,9 @@ MCP servers, dynamic tools, secrets, permissions and lifecycle ownership.
   `tool_choice` and replays the exact `reasoning_content` on the next iteration.
 - DeepSeek, Anthropic and OpenAI API-key models come from each provider's own
   model-list endpoint, read natively with the stored key; the bundled catalog
-  is the offline fallback and the source of explicit wire profiles. A
+  is the offline fallback and the source of explicit wire profiles. Anthropic
+  and DeepSeek lists publish context windows, output ceilings and effort
+  levels, which win over bundled values; OpenAI's list carries ids only. A
   provider-shaped saved model id survives restarts and list outages; the
   provider stays the authority on whether the key may use it. See
   [provider settings](../ai-provider-settings.md#api-key-模型列表).

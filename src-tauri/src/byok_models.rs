@@ -29,6 +29,8 @@ const MAX_LIST_BYTES: usize = 4 * 1024 * 1024;
 const MAX_MODELS: usize = 2_000;
 const MAX_ANTHROPIC_PAGES: usize = 10;
 const ANTHROPIC_EFFORTS: [&str; 5] = ["low", "medium", "high", "xhigh", "max"];
+/// Every level an Agent profile can name; the renderer narrows it per model.
+const EFFORTS: [&str; 7] = ["minimal", "low", "medium", "high", "xhigh", "max", "ultra"];
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -63,6 +65,8 @@ pub struct ByokModel {
     max_output_tokens: Option<u64>,
     adaptive_thinking: Option<bool>,
     efforts: Option<Vec<String>>,
+    /// The level the provider uses when a request names none.
+    default_effort: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -192,9 +196,33 @@ fn listed_entries(value: &Value) -> Result<&Vec<Value>, String> {
     Ok(entries)
 }
 
-/// OpenAI-compatible `GET /models` (OpenAI and DeepSeek): identifiers and the
-/// creation time only. Fine-tune ids carry `:` and owner fields name accounts,
-/// so neither crosses.
+fn display_name(entry: &Value, key: &str) -> Option<String> {
+    entry
+        .get(key)
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|name| !name.is_empty() && name.len() <= 200 && !name.chars().any(char::is_control))
+        .map(str::to_owned)
+}
+
+fn context_tokens(entry: &Value, key: &str) -> Option<u64> {
+    entry
+        .get(key)
+        .and_then(Value::as_u64)
+        .filter(|tokens| (8_192..=10_000_000).contains(tokens))
+}
+
+fn output_tokens(entry: &Value, key: &str) -> Option<u64> {
+    entry
+        .get(key)
+        .and_then(Value::as_u64)
+        .filter(|tokens| (256..=10_000_000).contains(tokens))
+}
+
+/// OpenAI-compatible `GET /models`. OpenAI publishes identifiers and creation
+/// times only; DeepSeek adds a display name, the context window, the output
+/// ceiling and the thinking effort levels with their default. Fine-tune ids
+/// carry `:` and owner fields name accounts, so neither crosses.
 fn project_listed_ids(value: &Value) -> Result<Vec<ByokModel>, String> {
     let mut seen = HashSet::new();
     let mut models = Vec::new();
@@ -209,13 +237,33 @@ fn project_listed_ids(value: &Value) -> Result<Vec<ByokModel>, String> {
         if !seen.insert(id.to_owned()) {
             continue;
         }
+        let effort = entry.get("effort");
+        let efforts = effort
+            .and_then(|effort| effort.get("supported_levels"))
+            .and_then(Value::as_array)
+            .map(|levels| {
+                EFFORTS
+                    .into_iter()
+                    .filter(|level| levels.iter().any(|listed| listed.as_str() == Some(*level)))
+                    .map(str::to_owned)
+                    .collect::<Vec<_>>()
+            });
         models.push(ByokModel {
             id: id.to_owned(),
+            display_name: display_name(entry, "name"),
             created: entry
                 .get("created")
                 .and_then(Value::as_i64)
                 .filter(|seconds| *seconds > 0),
-            ..ByokModel::default()
+            context_window: context_tokens(entry, "context_window"),
+            max_output_tokens: output_tokens(entry, "max_output_tokens"),
+            adaptive_thinking: None,
+            default_effort: effort
+                .and_then(|effort| effort.get("default_level"))
+                .and_then(Value::as_str)
+                .filter(|level| efforts.iter().flatten().any(|listed| listed == level))
+                .map(str::to_owned),
+            efforts,
         });
     }
     // An empty or unrecognized list must not replace a working catalog.
@@ -264,28 +312,16 @@ fn project_anthropic_page(
         };
         models.push(ByokModel {
             id: id.to_owned(),
-            display_name: entry
-                .get("display_name")
-                .and_then(Value::as_str)
-                .map(str::trim)
-                .filter(|name| {
-                    !name.is_empty() && name.len() <= 200 && !name.chars().any(char::is_control)
-                })
-                .map(str::to_owned),
+            display_name: display_name(entry, "display_name"),
             created: None,
-            context_window: entry
-                .get("max_input_tokens")
-                .and_then(Value::as_u64)
-                .filter(|tokens| (8_192..=10_000_000).contains(tokens)),
-            max_output_tokens: entry
-                .get("max_tokens")
-                .and_then(Value::as_u64)
-                .filter(|tokens| (256..=10_000_000).contains(tokens)),
+            context_window: context_tokens(entry, "max_input_tokens"),
+            max_output_tokens: output_tokens(entry, "max_tokens"),
             adaptive_thinking: capabilities.and_then(|_| {
                 supported(&["thinking", "types", "adaptive"])
                     .or(supported(&["thinking"]).map(|_| false))
             }),
             efforts,
+            default_effort: None,
         });
     }
     Ok(())
@@ -329,9 +365,50 @@ mod tests {
         assert_eq!(models[0].id, "synthetic-next");
         assert_eq!(models[0].created, Some(1_790_000_000));
         assert_eq!(models[1].created, None);
+        // OpenAI publishes no specs: they stay unknown.
+        assert_eq!(models[0].context_window, None);
+        assert_eq!(models[0].efforts, None);
         let projection = serde_json::to_string(&models).unwrap();
         assert!(!projection.contains("org-synthetic"));
         assert!(!projection.contains("ft:"));
+    }
+
+    #[test]
+    fn projects_deepseek_specs_and_effort_levels() {
+        let value = serde_json::json!({ "object": "list", "data": [
+            {
+                "id": "deepseek-synthetic", "object": "model", "owned_by": "deepseek",
+                "name": "DeepSeek Synthetic", "context_window": 1_048_576,
+                "max_output_tokens": 393_216, "input_modalities": ["text", "image"],
+                "effort": { "supported_levels": ["high", "low", "max", "turbo"], "default_level": "high" },
+                "api_capabilities": { "anthropic_messages": { "system_prompt_update": "in-history" } }
+            },
+            {
+                "id": "deepseek-synthetic-small", "context_window": 12, "max_output_tokens": 2,
+                "effort": { "supported_levels": [], "default_level": "high" }
+            }
+        ]});
+        let models = project_listed_ids(&value).unwrap();
+        assert_eq!(
+            models[0].display_name.as_deref(),
+            Some("DeepSeek Synthetic")
+        );
+        assert_eq!(models[0].context_window, Some(1_048_576));
+        assert_eq!(models[0].max_output_tokens, Some(393_216));
+        assert_eq!(
+            models[0].efforts.as_deref(),
+            Some(&["low".to_owned(), "high".to_owned(), "max".to_owned()][..])
+        );
+        assert_eq!(models[0].default_effort.as_deref(), Some("high"));
+        assert_eq!(models[0].adaptive_thinking, None);
+        // Out-of-range limits are unknown; a default outside the levels is dropped.
+        assert_eq!(models[1].context_window, None);
+        assert_eq!(models[1].max_output_tokens, None);
+        assert_eq!(models[1].efforts.as_deref(), Some(&[][..]));
+        assert_eq!(models[1].default_effort, None);
+        let projection = serde_json::to_string(&models).unwrap();
+        assert!(!projection.contains("in-history"));
+        assert!(!projection.contains("turbo"));
     }
 
     #[test]

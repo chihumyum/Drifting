@@ -473,6 +473,8 @@ export interface ByokListedModel {
   maxOutputTokens: number | null;
   adaptiveThinking: boolean | null;
   efforts: string[] | null;
+  /** The level the provider uses when a request names none. */
+  defaultEffort: string | null;
 }
 
 export interface ByokModelCatalogResponse {

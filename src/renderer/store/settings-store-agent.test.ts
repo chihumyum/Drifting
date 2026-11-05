@@ -122,10 +122,10 @@ describe('General Agent product settings', () => {
         agentModel: 'gpt-6-astra',
       });
       useSettingsStore.getState().setAgentThinking('adaptive');
-      useSettingsStore.getState().setAgentEffort('low');
+      useSettingsStore.getState().setAgentEffort('xhigh');
       expect(useSettingsStore.getState()).toMatchObject({
         agentThinking: 'adaptive',
-        agentEffort: 'low',
+        agentEffort: 'xhigh',
       });
 
       useSettingsStore.getState().setAgentProvider('deepseek');

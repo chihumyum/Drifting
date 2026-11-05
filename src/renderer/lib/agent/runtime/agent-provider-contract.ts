@@ -77,9 +77,15 @@ const FULL_EFFORTS: readonly AgentEffortChoice[] = ['low', 'medium', 'high', 'xh
 const ADAPTIVE_REASONING = reasoningProfile(['off', 'adaptive'], FULL_EFFORTS);
 /** Models whose provider rejects turning reasoning off (no `none` effort / disabled thinking). */
 const ALWAYS_REASONING = reasoningProfile(['adaptive'], FULL_EFFORTS);
+/** A DeepSeek model whose list entry publishes no effort levels. */
 const DEEPSEEK_REASONING = reasoningProfile(
   ['off', 'adaptive'],
   ['high', 'max'],
+);
+/** The levels DeepSeek's model list publishes for its current models. */
+const DEEPSEEK_CURRENT_REASONING = reasoningProfile(
+  ['off', 'adaptive'],
+  ['low', 'high', 'max'],
 );
 const NO_REASONING = reasoningProfile(['off'], []);
 
@@ -120,15 +126,15 @@ export const AGENT_PROVIDER_OPTIONS: readonly AgentProviderOption[] = Object.fre
         value: 'deepseek-flash',
         label: 'DeepSeek Flash · fast',
         short: 'DeepSeek Flash',
-        context: profile('deepseek-flash:agent-v3', 200_000, null, 512),
-        reasoning: DEEPSEEK_REASONING,
+        context: profile('deepseek-flash:agent-v4', 1_048_576, 393_216, 512),
+        reasoning: DEEPSEEK_CURRENT_REASONING,
       },
       {
         value: 'deepseek-v4-pro',
         label: 'DeepSeek Pro · steady',
         short: 'DeepSeek Pro',
-        context: profile('deepseek-v4-pro:agent-v3', 200_000, null, 512),
-        reasoning: DEEPSEEK_REASONING,
+        context: profile('deepseek-v4-pro:agent-v4', 1_048_576, 393_216, 512),
+        reasoning: DEEPSEEK_CURRENT_REASONING,
       },
     ]),
   },
@@ -331,7 +337,9 @@ function byokModelOption(
   const known = knownByokModel(provider, id);
   const label = known?.label ?? listed?.displayName ?? id;
   const short = known?.short ?? listed?.displayName ?? id;
-  if (provider !== 'anthropic' || !listed) {
+  const published = listed && (listed.contextWindow !== null || listed.maxOutputTokens !== null
+    || listed.adaptiveThinking !== null || listed.efforts !== null);
+  if (!published || provider === 'openai') {
     if (known) return known;
     return {
       value: id,
@@ -350,8 +358,35 @@ function byokModelOption(
       ...(provider === 'anthropic' ? { forcedToolChoice: false } : {}),
     };
   }
-  // The Anthropic Models API publishes limits and capabilities; they win over
-  // a bundled profile so a provider change reaches the wire without a release.
+  // DeepSeek's and Anthropic's model lists publish limits and capabilities;
+  // they win over a bundled profile so a provider change reaches the wire
+  // without a release.
+  const contextWindow = listed.contextWindow ?? known?.context.contextWindowTokens ?? UNKNOWN_CONTEXT_TOKENS;
+  if (provider === 'deepseek') {
+    const efforts = listed.efforts
+      ? FULL_EFFORTS.filter((effort) => listed.efforts!.includes(effort))
+      : known?.reasoning.efforts ?? DEEPSEEK_REASONING.efforts;
+    const maxOutput = listed.maxOutputTokens ?? known?.context.maxOutputTokens ?? null;
+    return {
+      value: id,
+      label,
+      short,
+      context: profile(
+        `${id}:agent-listed-v1`,
+        contextWindow,
+        maxOutput === null ? null : Math.min(maxOutput, contextWindow),
+        512,
+      ),
+      // Thinking can always be turned off; the levels apply when it is on.
+      reasoning: reasoningProfile(
+        efforts.length ? ['off', 'adaptive'] : ['off'],
+        efforts,
+        'off',
+        efforts.find((effort) => effort === listed.defaultEffort)
+          ?? (efforts.includes('high') ? 'high' : efforts[0] ?? 'high'),
+      ),
+    };
+  }
   const efforts = listed.efforts
     ? FULL_EFFORTS.filter((effort) => listed.efforts!.includes(effort))
     : listed.adaptiveThinking ? ['low', 'medium', 'high'] as const : [];
@@ -363,7 +398,6 @@ function byokModelOption(
     : known?.reasoning.thinkingModes.includes('off')
       ? reasoningProfile(['off', 'adaptive'], efforts)
       : reasoningProfile(['adaptive'], efforts);
-  const contextWindow = listed.contextWindow ?? known?.context.contextWindowTokens ?? UNKNOWN_CONTEXT_TOKENS;
   const maxOutput = listed.maxOutputTokens ?? known?.context.maxOutputTokens ?? UNKNOWN_ANTHROPIC_OUTPUT_TOKENS;
   return {
     value: id,

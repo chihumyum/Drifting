@@ -10,7 +10,7 @@ import {
 
 const model = (id: string): ByokListedModel => ({
   id, displayName: null, created: null, contextWindow: null,
-  maxOutputTokens: null, adaptiveThinking: null, efforts: null,
+  maxOutputTokens: null, adaptiveThinking: null, efforts: null, defaultEffort: null,
 });
 function deferred<T>() {
   let resolve!: (value: T) => void;
