@@ -98,7 +98,7 @@ fn blocks_html(blocks: &[Block], heading_base: u8, first: &mut bool, out: &mut S
         match block {
             Block::Heading { level, runs, align } => {
                 let tag = (heading_base + level).min(6);
-                let role = ["scene", "beat", "note"][(*level as usize).clamp(1, 3) - 1];
+                let role = ["level-1", "level-2", "level-3"][(*level as usize).clamp(1, 3) - 1];
                 out.push_str(&format!("<h{tag}{}>", classes(*align, 0, false, role)));
                 runs_html(runs, out);
                 out.push_str(&format!("</h{tag}>\n"));
@@ -127,7 +127,7 @@ fn blocks_html(blocks: &[Block], heading_base: u8, first: &mut bool, out: &mut S
                 *first = true;
             }
             Block::Break => {
-                out.push_str("<hr class=\"scene-break\"/>\n");
+                out.push_str("<hr class=\"separator\"/>\n");
                 *first = true;
             }
         }
@@ -146,11 +146,11 @@ fn stylesheet(book: &Book<'_>) -> String {
          .center { text-align: center; } .right { text-align: right; }\n\
          .part-title { margin: 30% 0 0; font-size: 1.6em; text-align: center; }\n\
          .chapter-title { margin: 2.5em 0 2em; font-size: 1.4em; text-align: center; }\n\
-         .scene { margin: 1.6em 0 0.8em; font-size: 1.1em; text-align: center; }\n\
-         .beat { margin: 1.2em 0 0.6em; font-size: 1em; }\n\
-         .note { margin: 1em 0 0.5em; font-size: 0.95em; }\n\
+         .level-1 { margin: 1.6em 0 0.8em; font-size: 1.1em; }\n\
+         .level-2 { margin: 1.2em 0 0.6em; font-size: 1em; }\n\
+         .level-3 { margin: 1em 0 0.5em; font-size: 0.95em; }\n\
          blockquote { margin: 0.8em 2em; }\n\
-         hr.scene-break { width: 20%; margin: 1.5em auto; border: none; border-top: 1px solid currentColor; }\n\
+         hr.separator { width: 20%; margin: 1.5em auto; border: none; border-top: 1px solid currentColor; }\n\
          .titlepage { margin-top: 30%; text-align: center; }\n\
          .titlepage .book-title { font-size: 1.8em; margin: 0 0 1.2em; }\n\
          .titlepage .book-author { font-size: 1.1em; text-indent: 0; text-align: center; }\n\

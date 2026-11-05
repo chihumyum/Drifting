@@ -38,7 +38,7 @@ const LATIN = ['The harbour lamps went out one by one', 'a gull complained somew
 const filler = (bank: string[], count: number, joiner: string, end: string) => Array.from({ length: count }, (_, index) =>
   p(text(Array.from({ length: 4 + (index % 3) }, (_, part) => bank[(index * 5 + part * 3) % bank.length]).join(joiner) + end)));
 
-/** Synthetic chapters: CJK punctuation, mixed Latin, marks, links and outline headings. */
+/** Synthetic chapters: CJK punctuation, mixed Latin, marks, links and H1–H3 headings. */
 const CHAPTERS: { id: string; title: string; order: number; status?: string; prose: string }[] = [
   { id: 'c0', title: '序章　灯下', order: 1, prose: doc(
     p(),
@@ -48,12 +48,12 @@ const CHAPTERS: { id: string; title: string; order: number; status?: string; pro
   ) },
   { id: 'c1', title: '第一章　来信', order: 2, prose: doc(
     h(1, '一　雨夜'),
-    h(2, '节拍：信使抵达'),
+    h(2, '信使抵达'),
     p(text('信封上只写着《雾港来信》四个字，邮戳是二〇二六年十月。')),
     p(text('“你确定是寄给我的吗？”她问。'), text('信使', { type: 'bold' }), text('没有回答，只把'),
       text('Drifting 2026', { type: 'italic' }), text('字样的徽章翻了过来。')),
     { type: 'blockquote', content: [p(text('见字如面：港口的雾，今年来得早了些。'))] },
-    h(3, '注记：核对潮汐表'),
+    h(3, '核对潮汐表'),
     p(text('她在页边画了一道'), text('下划线', { type: 'underline' }), text('，又把旧地址'),
       text('划掉', { type: 'strike' }), text('。')),
     { type: 'horizontalRule' },
@@ -103,7 +103,7 @@ async function fixture() {
 }
 
 const OPTIONS: ManuscriptExportOptions = {
-  chapterIds: null, actTitles: true, chapterTitles: true, outlineHeadings: false,
+  chapterIds: null, actTitles: true, chapterTitles: true, headingLevels: [1, 2, 3],
   title: '', author: '合成作者', cover: null,
 };
 const CONTEXT = { locale: 'zh-CN', now: new Date('2026-10-31T08:00:00.000Z') };
@@ -123,13 +123,13 @@ describe('manuscript export acceptance', () => {
     expect(structure(book.sections)).toEqual(['chapter:序章　灯下', 'act:第一卷　潮起', 'chapter:第一章　来信',
       'chapter:第二章　旧港', 'act:第二卷　雾散', 'chapter:第三章　返航']);
     const serialized = JSON.stringify(book);
-    expect(serialized).not.toMatch(/PRIVATE|PLAN|节拍：|注记：|drifting:\/\/|private-element/);
+    expect(serialized).not.toMatch(/PRIVATE|PLAN|drifting:\/\/|private-element/);
     expect(serialized).toContain('“今夜无船。”');
     expect(serialized).toContain('——又展开——再折好……');
     expect(serialized).toContain('「雾散之前，不要出海。」（这句话她听过很多遍。）');
   });
 
-  it('maps prose to scene headings, marked runs, quotes, scene breaks, alignment and indent', async () => {
+  it('maps prose to H1–H3 headings, marked runs, quotes, separators, alignment and indent', async () => {
     await fixture();
     const book = await readManuscript(PROJECT, OPTIONS, LABELS, CONTEXT);
     const chapter = (title: string) => book.sections.find(section => section.title === title);
@@ -142,11 +142,14 @@ describe('manuscript export acceptance', () => {
     ]);
     const first = chapter('第一章　来信');
     expect(first?.kind === 'chapter' && first.blocks.map(block => block.type)).toEqual([
-      'heading', 'paragraph', 'paragraph', 'quote', 'paragraph', 'break', 'heading', 'paragraph']);
-    expect(first?.kind === 'chapter' && first.blocks[2]).toEqual({ type: 'paragraph', runs: [
+      'heading', 'heading', 'paragraph', 'paragraph', 'quote', 'heading', 'paragraph', 'break', 'heading', 'paragraph']);
+    expect(first?.kind === 'chapter' && first.blocks.filter(block => block.type === 'heading')
+      .map(block => block.type === 'heading' && [block.level, block.runs[0]?.text])).toEqual([
+      [1, '一　雨夜'], [2, '信使抵达'], [3, '核对潮汐表'], [1, '二　旧信']]);
+    expect(first?.kind === 'chapter' && first.blocks[3]).toEqual({ type: 'paragraph', runs: [
       { text: '“你确定是寄给我的吗？”她问。' }, { text: '信使', bold: true }, { text: '没有回答，只把' },
       { text: 'Drifting 2026', italic: true }, { text: '字样的徽章翻了过来。' }] });
-    expect(first?.kind === 'chapter' && first.blocks[7]).toEqual({ type: 'paragraph', runs: [
+    expect(first?.kind === 'chapter' && first.blocks[9]).toEqual({ type: 'paragraph', runs: [
       { text: '参见' }, { text: '雾港志', href: 'https://example.com/fog-harbor' }, { text: '与内部条目，以及林岚的回信。' }] });
     const second = chapter('第二章　旧港');
     expect(second?.kind === 'chapter' && second.blocks.slice(1, 3)).toEqual([
@@ -155,18 +158,22 @@ describe('manuscript export acceptance', () => {
     ]);
   });
 
-  it('honours chapter selection, hidden act and chapter titles and optional outline headings', async () => {
+  it('honours chapter selection, hidden act and chapter titles and the heading levels left out', async () => {
     await fixture();
     const selected = await readManuscript(PROJECT, { ...OPTIONS, chapterIds: ['c4', 'c3', 'c1'], actTitles: false,
-      chapterTitles: false, outlineHeadings: true, title: '  自定书名  ' }, LABELS, CONTEXT);
+      chapterTitles: false, headingLevels: [1, 3], title: '  自定书名  ' }, LABELS, CONTEXT);
     expect(selected.title).toBe('自定书名');
     // Book order, not selection order; an explicitly chosen discarded chapter is included.
     expect(structure(selected.sections)).toEqual(['chapter:第一章　来信', 'chapter:废稿　不应出现', 'chapter:第三章　返航']);
     expect(selected.sections.every(section => section.kind === 'chapter' && !section.showTitle)).toBe(true);
     const first = selected.sections[0];
+    // Leaving H2 out drops only its heading line; the prose under it stays.
     expect(first.kind === 'chapter' && first.blocks.filter(block => block.type === 'heading')
       .map(block => block.type === 'heading' && [block.level, block.runs[0]?.text])).toEqual([
-      [1, '一　雨夜'], [2, '节拍：信使抵达'], [3, '注记：核对潮汐表'], [1, '二　旧信']]);
+      [1, '一　雨夜'], [3, '核对潮汐表'], [1, '二　旧信']]);
+    expect(JSON.stringify(first)).toContain('信封上只写着《雾港来信》四个字');
+    const headingsOnly = await readManuscript(PROJECT, { ...OPTIONS, chapterIds: ['c1'], headingLevels: [] }, LABELS, CONTEXT);
+    expect(JSON.stringify(headingsOnly)).not.toMatch(/一\u3000雨夜|信使抵达|核对潮汐表|二\u3000旧信/);
     const withActs = await readManuscript(PROJECT, { ...OPTIONS, chapterIds: ['c4'] }, LABELS, CONTEXT);
     expect(structure(withActs.sections)).toEqual(['act:第二卷　雾散', 'chapter:第三章　返航']);
     await expect(readManuscript(PROJECT, { ...OPTIONS, chapterIds: [] }, LABELS, CONTEXT)).rejects.toThrow('No chapters');
@@ -204,8 +211,8 @@ describe('manuscript export acceptance', () => {
     await expect(readManuscript(PROJECT, OPTIONS, LABELS, CONTEXT)).rejects.toThrow();
     const controller = new AbortController(); controller.abort();
     await expect(readManuscript(PROJECT, OPTIONS, LABELS, CONTEXT, controller.signal)).rejects.toThrow();
-    expect(() => proseToManuscriptBlocks('[]', false)).toThrow('Invalid prose document');
-    expect(proseToManuscriptBlocks('{}', false)).toEqual([]);
+    expect(() => proseToManuscriptBlocks('[]')).toThrow('Invalid prose document');
+    expect(proseToManuscriptBlocks('{}')).toEqual([]);
     expect(manuscriptFilename('../雾港/来信', 'epub')).toBe('-雾港-来信.epub');
     expect(new TextEncoder().encode(manuscriptFilename('长'.repeat(100), 'docx')).length).toBeLessThan(160);
   });

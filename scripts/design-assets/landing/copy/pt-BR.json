@@ -6,7 +6,7 @@
   "hero.values": "Código aberto · Local por padrão",
   "write.kicker": "Escrever",
   "write.title": "Escreva como em um editor Markdown",
-  "write.syntax": "Uma página tranquila e o teclado. Digite <code>#</code>, <code>##</code> ou <code>###</code> para iniciar uma cena, unidade narrativa ou nota. <code>**Negrito**</code>, <code>*itálico*</code>, <code>&gt;</code> e <code>---</code> <span class=\"sh\">ganham forma enquanto você digita</span>.",
+  "write.syntax": "Uma página tranquila e o teclado. Digite <code>#</code>, <code>##</code> ou <code>###</code> para iniciar um H1, H2 ou H3. <code>**Negrito**</code>, <code>*itálico*</code>, <code>&gt;</code> e <code>---</code> <span class=\"sh\">ganham forma enquanto você digita</span>.",
   "write.files": "Cada projeto tem sua própria pasta de arquivos Markdown. Edite capítulos e ideias no Obsidian ou em qualquer editor de texto e as mudanças serão incorporadas ao Drifting.",
   "write.transfer": "Copie ou salve um documento ou o livro inteiro em Markdown. Importe arquivos <code>.md</code>, <code>.txt</code> e <code>.docx</code>.",
   "story.line": "À procura das cartas",

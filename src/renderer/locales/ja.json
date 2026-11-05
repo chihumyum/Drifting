@@ -36,7 +36,6 @@
     "contents": "内容",
     "actTitles": "幕のタイトル",
     "chapterTitles": "章のタイトル",
-    "outlineHeadings": "ビートとメモの見出し",
     "bookInfo": "作品情報",
     "bookTitle": "タイトル",
     "author": "著者",
@@ -984,7 +983,7 @@
   },
   "chapterEditor": {
     "untitledChapter": "無題の章",
-    "subtitlePlaceholder": "副題、またはエピグラフ…",
+    "synopsisPlaceholder": "あらすじ…",
     "summaryPlaceholder": "クリックして概要を追加…"
   },
   "chapterEnd": {
@@ -3610,9 +3609,6 @@
       }
     },
     "hints": {
-      "scene": "シーン",
-      "beat": "ビート",
-      "note": "メモ",
       "search": "すべてを検索",
       "timeline": "タイムライン",
       "driftRipens": "準備ができたら、章や要素に変換できます",

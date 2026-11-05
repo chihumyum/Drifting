@@ -379,8 +379,8 @@ export function CategoryEditorView({
             {/* 札记 — free-form notes (TipTap body). Leads the sections, right
                 under the hero; its H1/H2/H3 headings nest under this anchor in
                 the TOC. */}
-            <h2 id="cat-scratch" className="page__scene">
-              <span className="page__scene-title">{t('categoryEditor.sections.scratch')}</span>
+            <h2 id="cat-scratch" className="page__section">
+              <span className="page__section-title">{t('categoryEditor.sections.scratch')}</span>
             </h2>
             <div className="elem-body">
               {ydocError ? <EditorDocumentLoadError /> : <EditorContent editor={editor} />}
@@ -389,9 +389,9 @@ export function CategoryEditorView({
             {/* 要素模版 — TipTap doc seeded into newly-created elements under
                 this category. Editing here only affects future elements;
                 existing element bodies are untouched. */}
-            <h2 id="cat-template" className="page__scene">
-              <span className="page__scene-title">{t('categoryEditor.sections.elementTemplate')}</span>
-              <span className="page__scene-meta">{t('categoryEditor.meta.elementTemplate')}</span>
+            <h2 id="cat-template" className="page__section">
+              <span className="page__section-title">{t('categoryEditor.sections.elementTemplate')}</span>
+              <span className="page__section-meta">{t('categoryEditor.meta.elementTemplate')}</span>
             </h2>
             <div className="elem-body">
               <ElementTemplateEditor
@@ -405,9 +405,9 @@ export function CategoryEditorView({
             {/* 字段模版 — KV template seeded into new elements under this
                 category. Existing elements stay untouched when this changes
                 (same contract as the TipTap template above). */}
-            <h2 id="cat-template-kv" className="page__scene">
-              <span className="page__scene-title">{t('categoryEditor.sections.templateKv')}</span>
-              <span className="page__scene-meta">{t('categoryEditor.meta.templateKv')}</span>
+            <h2 id="cat-template-kv" className="page__section">
+              <span className="page__section-title">{t('categoryEditor.sections.templateKv')}</span>
+              <span className="page__section-meta">{t('categoryEditor.meta.templateKv')}</span>
             </h2>
             <div className="elem-body">
               <FieldReviewStrip
@@ -427,9 +427,9 @@ export function CategoryEditorView({
             {/* 要素清单 — elements in this category (omitted when none). */}
             {cEls.length > 0 && (
               <>
-                <h2 id="cat-elements" className="page__scene">
-                  <span className="page__scene-title">{t('categoryEditor.sections.elements')}</span>
-                  <span className="page__scene-meta">{t('categoryEditor.meta.items', { count: cEls.length })}</span>
+                <h2 id="cat-elements" className="page__section">
+                  <span className="page__section-title">{t('categoryEditor.sections.elements')}</span>
+                  <span className="page__section-meta">{t('categoryEditor.meta.items', { count: cEls.length })}</span>
                 </h2>
 
                 <div className={`mgr-toolbar${glass ? ' mgr-toolbar--glass' : ''}`}>

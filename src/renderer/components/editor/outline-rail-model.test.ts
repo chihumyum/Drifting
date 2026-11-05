@@ -20,10 +20,10 @@ function chapter(index: number, childCount = 0): OutlineEntry {
     level: 2,
     text: `Chapter ${index}`,
     children: Array.from({ length: childCount }, (_, child) => ({
-      id: `chapter-${index}-scene-${child}`,
+      id: `chapter-${index}-h1-${child}`,
       kind: 'heading' as const,
       level: 1 as const,
-      text: `Scene ${child}`,
+      text: `H1 ${child}`,
     })),
   };
 }
@@ -31,7 +31,7 @@ function chapter(index: number, childCount = 0): OutlineEntry {
 describe('semantic outline rail density planning', () => {
   it('keeps every chapter and nested heading when the rail has room', () => {
     const flat = flattenOutlineEntries([chapter(1, 2), chapter(2, 2)]);
-    const plan = planOutlineRail(flat, 'chapter-1-scene-0', 500);
+    const plan = planOutlineRail(flat, 'chapter-1-h1-0', 500);
 
     expect(plan.mode).toBe('all');
     expect(plan.labels.map((label) => label.key)).toEqual(flat.map((entry) => entry.id));
@@ -39,23 +39,23 @@ describe('semantic outline rail density planning', () => {
 
   it('collapses non-current chapter descendants before dropping chapter labels', () => {
     const flat = flattenOutlineEntries(Array.from({ length: 12 }, (_, index) => chapter(index, 3)));
-    const plan = planOutlineRail(flat, 'chapter-6-scene-1', 300);
+    const plan = planOutlineRail(flat, 'chapter-6-h1-1', 300);
     const ids = plan.labels.flatMap((label) => (label.type === 'entry' ? [label.entry.id] : []));
 
     expect(plan.mode).toBe('active-branch');
     expect(ids).toContain('chapter-0');
     expect(ids).toContain('chapter-11');
-    expect(ids).toContain('chapter-6-scene-0');
-    expect(ids).toContain('chapter-6-scene-2');
-    expect(ids).not.toContain('chapter-5-scene-0');
-    expect(ids).not.toContain('chapter-7-scene-0');
+    expect(ids).toContain('chapter-6-h1-0');
+    expect(ids).toContain('chapter-6-h1-2');
+    expect(ids).not.toContain('chapter-5-h1-0');
+    expect(ids).not.toContain('chapter-7-h1-0');
   });
 
   it('windows hundreds of chapters around the current one with two omission handles', () => {
     const flat = flattenOutlineEntries(
       Array.from({ length: 240 }, (_, index) => chapter(index, index === 120 ? 2 : 0)),
     );
-    const plan = planOutlineRail(flat, 'chapter-120-scene-0', 360);
+    const plan = planOutlineRail(flat, 'chapter-120-h1-0', 360);
     const entries = plan.labels.filter((label) => label.type === 'entry');
     const omissions = plan.labels.filter((label) => label.type === 'omission');
 
@@ -63,7 +63,7 @@ describe('semantic outline rail density planning', () => {
     expect(plan.labels.length).toBeLessThanOrEqual(plan.capacity);
     expect(omissions).toHaveLength(2);
     expect(entries.some((label) => label.entry.id === 'chapter-120')).toBe(true);
-    expect(entries.some((label) => label.entry.id === 'chapter-120-scene-0')).toBe(true);
+    expect(entries.some((label) => label.entry.id === 'chapter-120-h1-0')).toBe(true);
     expect(entries.some((label) => label.entry.id === 'chapter-0')).toBe(false);
     expect(entries.some((label) => label.entry.id === 'chapter-239')).toBe(false);
   });
@@ -90,7 +90,7 @@ describe('semantic outline rail density planning', () => {
 
   it('reduces density and preserves touch pitch for the mobile rail', () => {
     const flat = flattenOutlineEntries(Array.from({ length: 20 }, (_, index) => chapter(index, 1)));
-    const plan = planOutlineRail(flat, 'chapter-10-scene-0', 500, {}, 34);
+    const plan = planOutlineRail(flat, 'chapter-10-h1-0', 500, {}, 34);
     const laidOut = layoutOutlineRailLabels(plan.labels, 500, 34);
 
     expect(plan.capacity).toBe(Math.floor((500 - 18) / 34));
@@ -108,22 +108,22 @@ describe('semantic outline rail density planning', () => {
         level: 2,
         text: 'Chapter',
         children: [
-          { id: 'scene-a', kind: 'heading', level: 1, text: 'A' },
-          { id: 'scene-b', kind: 'heading', level: 1, text: 'B' },
-          { id: 'scene-c', kind: 'heading', level: 1, text: 'C' },
+          { id: 'h1-a', kind: 'heading', level: 1, text: 'A' },
+          { id: 'h1-b', kind: 'heading', level: 1, text: 'B' },
+          { id: 'h1-c', kind: 'heading', level: 1, text: 'C' },
         ],
       },
     ]);
     const visible = visibleOutlineIds(
       flat,
-      { chapter: 0, 'scene-a': 100, 'scene-b': 300, 'scene-c': 600 },
+      { chapter: 0, 'h1-a': 100, 'h1-b': 300, 'h1-c': 600 },
       250,
       650,
       900,
     );
 
     expect([...visible]).toEqual(
-      expect.arrayContaining(['chapter', 'scene-a', 'scene-b', 'scene-c']),
+      expect.arrayContaining(['chapter', 'h1-a', 'h1-b', 'h1-c']),
     );
   });
 });

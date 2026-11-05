@@ -6,7 +6,7 @@
   "hero.values": "開放原始碼 · 本機優先",
   "write.kicker": "寫",
   "write.title": "像用 Markdown 編輯器一樣寫作",
-  "write.syntax": "一張安靜的稿紙，雙手留在鍵盤上。輸入 <code>#</code>、<code>##</code> 或 <code>###</code> 開始場景、節拍或筆記。<code>**粗體**</code>、<code>*斜體*</code>、<code>&gt;</code> 和 <code>---</code> <span class=\"sh\">邊打邊成形</span>。",
+  "write.syntax": "一張安靜的稿紙，雙手留在鍵盤上。輸入 <code>#</code>、<code>##</code> 或 <code>###</code> 開始 H1、H2 或 H3。<code>**粗體**</code>、<code>*斜體*</code>、<code>&gt;</code> 和 <code>---</code> <span class=\"sh\">邊打邊成形</span>。",
   "write.files": "每部作品也有一個 Markdown 資料夾。在 Obsidian 或其他文字編輯器修改章節與構想，變更會合併回 Drifting。",
   "write.transfer": "可將單篇文件或整本書複製、儲存為 Markdown，也能匯入 <code>.md</code>、<code>.txt</code> 與 <code>.docx</code>。",
   "story.line": "尋信",

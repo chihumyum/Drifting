@@ -42,11 +42,12 @@ on the active path is bold ink. A jump the author clicked draws the swipe
 along the label; arriving by scrolling fades it in. No selected item acquires
 a frame, chip, background wash, or decorative left spine.
 
-The five structural levels remain act / chapter / scene / beat / note. `h1`
-maps to scene, `h2` to beat, and `h3` to note in every editor.
+The outline's levels are act / chapter / H1 / H2 / H3 in every editor. H1–H3
+are the prose's heading levels; their meaning is the author's, so the rail
+names them by level only.
 All TOC labels use upright text, including the tags revealed by omission handles.
 Hierarchy remains expressed through font size, weight, family, and colour;
-act and beat labels no longer use italics that can clip at the text boundary.
+act and H2 labels no longer use italics that can clip at the text boundary.
 Acts are set in the serif structure face with no leading dash, and no tag
 carries a trailing branch dot.
 
