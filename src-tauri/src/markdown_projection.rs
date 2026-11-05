@@ -566,8 +566,19 @@ fn validate_project(project_id: &str) -> Result<(), String> {
     Ok(())
 }
 
+// Directories that hold app-owned attachment copies. Mirrors written before
+// 2026-11-05 kept them in 资料/附件/; that prefix still validates so an older
+// manifest can be read and the next write removes those files.
+const ATTACHMENT_DIRECTORIES: [&str; 3] = ["project/assets/id-", "素材/附件/", "资料/附件/"];
+
+fn in_attachment_directory(path: &str) -> bool {
+    ATTACHMENT_DIRECTORIES
+        .iter()
+        .any(|directory| path.starts_with(directory))
+}
+
 fn validate_path(path: &str) -> Result<(), String> {
-    let attachment = (path.starts_with("project/assets/id-") || path.starts_with("资料/附件/"))
+    let attachment = in_attachment_directory(path)
         && path
             .rsplit('.')
             .next()
@@ -1070,8 +1081,7 @@ fn write_projection_with_documents(
         drifting_core::asset_store::AssetStore::new(root.join("assets"), "markdown-projection");
     for asset in assets {
         validate_path(&asset.path)?;
-        if !(asset.path.starts_with("project/assets/id-") || asset.path.starts_with("资料/附件/"))
-            || !ASSET_EXTENSIONS.contains(&asset.ext.as_str())
+        if !in_attachment_directory(&asset.path) || !ASSET_EXTENSIONS.contains(&asset.ext.as_str())
         {
             return Err("Invalid projection attachment".into());
         }
@@ -1803,6 +1813,49 @@ mod tests {
         assert!(directory.join(".obsidian/app.json").exists());
         assert!(!file.exists());
         assert!(root.join("assets/p/image/source.png").exists());
+    }
+
+    #[test]
+    fn mirrors_written_under_the_retired_material_directory_move_to_the_new_one() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        let mut image = asset(root, "p", "image", "png", b"synthetic image bytes");
+        image.path = "资料/附件/地图.png".into();
+        let result = write_projection_with_assets(
+            root,
+            "p",
+            "first".into(),
+            vec![entry("资料/调研/笔记.md", "note")],
+            vec![image],
+        )
+        .unwrap();
+        let directory = PathBuf::from(result.directory);
+        fs::write(directory.join("资料/调研/作者自己的.txt"), "kept").unwrap();
+        let mut image = asset(root, "p", "image", "png", b"synthetic image bytes");
+        image.path = "素材/附件/地图.png".into();
+        write_projection_with_assets(
+            root,
+            "p",
+            "second".into(),
+            vec![entry("素材/调研/笔记.md", "note")],
+            vec![image],
+        )
+        .unwrap();
+        assert_eq!(
+            fs::read(directory.join("素材/附件/地图.png")).unwrap(),
+            b"synthetic image bytes"
+        );
+        assert_eq!(
+            fs::read_to_string(directory.join("素材/调研/笔记.md")).unwrap(),
+            "note"
+        );
+        assert!(!directory.join("资料/附件").exists());
+        assert!(!directory.join("资料/调研/笔记.md").exists());
+        // A file the author put there is not Drifting's to remove.
+        assert_eq!(
+            fs::read_to_string(directory.join("资料/调研/作者自己的.txt")).unwrap(),
+            "kept"
+        );
     }
 
     #[test]

@@ -1,7 +1,7 @@
 {
   "kind": "markdown-folder-two-way",
-  "generatedAt": "2026-11-04T15:54:04.132Z",
-  "sourceSha256": "a9b8f61ab0223532fe2f70f608bf414b14b1d22c1d022c67e2de439a973d5965",
+  "generatedAt": "2026-11-05T14:15:39.572Z",
+  "sourceSha256": "561f7486edff450f411d8467723fef45cd5be2722dda71511361d6d42f67c2a3",
   "status": "passed",
   "synthetic": true,
   "checks": {
@@ -21,6 +21,10 @@
       "src/renderer/services/markdown-projection.service.test.ts › Markdown projection scheduling captures pending work before the folder is turned off, then neither scans nor writes until it is back on",
       "src/renderer/services/markdown-projection.service.test.ts › Markdown projection scheduling names the folder after the book before writing, and moves the ledger with a renamed folder",
       "src/renderer/services/markdown-projection.service.test.ts › Markdown projection scheduling reports failure and allows a later refresh without blocking the author",
+      "src/renderer/lib/agent/yjs-entity-relink.test.ts › relinking names in written prose links a name split across text children and links as one link, with the link already there",
+      "src/renderer/lib/agent/yjs-entity-relink.test.ts › relinking names in written prose finds names at their real offsets in text that already carries links",
+      "src/renderer/lib/agent/yjs-entity-relink.test.ts › relinking names in written prose leaves linked names alone and reads no name across other formatting",
+      "src/renderer/lib/agent/yjs-entity-relink.test.ts › relinking names in written prose touches only the blocks it is given",
       "src/renderer/services/markdown-mirror/authored-file.test.ts › authored Markdown files reads back exactly what Drifting wrote",
       "src/renderer/services/markdown-mirror/authored-file.test.ts › authored Markdown files accepts the shapes other editors rewrite frontmatter into",
       "src/renderer/services/markdown-mirror/authored-file.test.ts › authored Markdown files keeps the body when the frontmatter is removed and refuses a broken one",
@@ -46,11 +50,7 @@
       "src/renderer/services/markdown-mirror/reconcile-yjs.test.ts › a file edit inside an entity link keeps a name respelled in a rebuilt paragraph in its link",
       "src/renderer/services/markdown-mirror/reconcile-yjs.test.ts › a file edit inside an entity link does not join two links when the text between them changes",
       "src/renderer/services/markdown-mirror/reconcile-yjs.test.ts › character diff never splits a surrogate pair",
-      "src/renderer/services/markdown-mirror/reconcile-yjs.test.ts › character diff falls back to one replacement for a huge rewritten paragraph",
-      "src/renderer/lib/agent/yjs-entity-relink.test.ts › relinking names in written prose links a name split across text children and links as one link, with the link already there",
-      "src/renderer/lib/agent/yjs-entity-relink.test.ts › relinking names in written prose finds names at their real offsets in text that already carries links",
-      "src/renderer/lib/agent/yjs-entity-relink.test.ts › relinking names in written prose leaves linked names alone and reads no name across other formatting",
-      "src/renderer/lib/agent/yjs-entity-relink.test.ts › relinking names in written prose touches only the blocks it is given"
+      "src/renderer/services/markdown-mirror/reconcile-yjs.test.ts › character diff falls back to one replacement for a huge rewritten paragraph"
     ],
     "native": [
       "markdown_projection::tests::a_folder_managed_by_another_installation_is_refused",
@@ -68,6 +68,7 @@
       "markdown_projection::tests::markdown_projection_is_incremental_read_only_and_removes_only_owned_files",
       "markdown_projection::tests::markdown_projection_rejects_symlink_parent_and_preserves_external_target",
       "markdown_projection::tests::markdown_projection_rejects_unsafe_paths_and_duplicates_before_writing",
+      "markdown_projection::tests::mirrors_written_under_the_retired_material_directory_move_to_the_new_one",
       "markdown_projection::tests::missing_corrupt_or_unowned_attachments_never_replace_the_previous_snapshot",
       "markdown_projection::tests::naming_waits_while_the_folder_is_off",
       "markdown_projection::tests::opening_shows_the_project_folder_once_written_else_the_folder_holding_projects",

@@ -308,8 +308,9 @@ from their projection: GFM tables, `- [ ]` task lists, code fences, `> [!note]`
 callouts, `==highlights==`, and embeds and mentions as links in each export's
 own style (wiki links in the relational ZIP, relative links in the readable
 projection). Retired url rows export as the notes they became. The readable
-projection nests materials in their folders under 资料; the relational export
-records the path as `folder` metadata and keeps its flat layout.
+projection nests materials in their folders under 素材 (资料 before
+2026-11-05); the relational export records the path as `folder` metadata and
+keeps its flat layout.
 
 ## Compatibility
 
