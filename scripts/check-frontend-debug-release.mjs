@@ -6,6 +6,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { packageBinInvocation } from './package-bin.mjs';
+
 const scriptPath = fileURLToPath(import.meta.url);
 const coreDir = path.resolve(path.dirname(scriptPath), '..');
 const outputDir = await mkdtemp(path.join(tmpdir(), 'drifting-frontend-release-'));
@@ -28,13 +30,13 @@ async function filesUnder(directory) {
 }
 
 try {
-  const pnpmExecutable = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
+  // `pnpm exec vite`; on Windows Node runs Vite's entry script (scripts/package-bin.mjs).
+  const vite = packageBinInvocation('vite', { root: coreDir });
   const code = await new Promise((resolve, reject) => {
     const child = spawn(
-      pnpmExecutable,
+      vite.executable,
       [
-        'exec',
-        'vite',
+        ...vite.arguments,
         'build',
         '--config',
         'vite.renderer.config.ts',

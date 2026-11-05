@@ -8,6 +8,7 @@ import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { packageBinInvocation } from './package-bin.mjs';
 import {
   assertWorktreePortAvailable,
   createWorktreePlan,
@@ -43,10 +44,13 @@ export function seededArguments(args) {
   return parseSeededArguments(args).launchArguments;
 }
 
-function runSeedProcess({ root, databasePath, appLocalDataDirectory, preset }) {
+/** Seeds `databasePath` (an empty or missing library) in a child process; returns seed-main's JSON result. */
+export function runSeedProcess({ root, databasePath, appLocalDataDirectory, preset }) {
+  // `pnpm exec tsx`; on Windows Node runs tsx's entry script (scripts/package-bin.mjs).
+  const tsx = packageBinInvocation('tsx', { root });
   const result = spawnSync(
-    process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm',
-    ['exec', 'tsx', '--conditions=import', 'src/dev-cli/seed-main.ts', '--db', databasePath, '--app-local-data', appLocalDataDirectory, '--preset', preset],
+    tsx.executable,
+    [...tsx.arguments, '--conditions=import', 'src/dev-cli/seed-main.ts', '--db', databasePath, '--app-local-data', appLocalDataDirectory, '--preset', preset],
     {
       cwd: root,
       stdio: ['ignore', 'pipe', 'inherit'],
@@ -54,8 +58,9 @@ function runSeedProcess({ root, databasePath, appLocalDataDirectory, preset }) {
       env: { ...process.env, NODE_OPTIONS: [process.env.NODE_OPTIONS, '--no-warnings'].filter(Boolean).join(' ') },
     },
   );
+  if (result.error) throw new Error(`Seeding ${databasePath} could not start: ${result.error.message}`);
   if (result.status !== 0) throw new Error(`Seeding ${databasePath} failed (exit ${result.status ?? result.signal}).`);
-  return JSON.parse(result.stdout.trim().split('\n').pop());
+  return JSON.parse(result.stdout.trim().split(/\r?\n/u).pop());
 }
 
 export async function runSeededDev(args = process.argv.slice(2), {
