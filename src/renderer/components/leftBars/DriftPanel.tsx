@@ -660,7 +660,7 @@ export function DriftPanel({
           <EmptyState
             mark={presentation === 'desktop' ? 'drift' : undefined}
             message={t('leftSidebar.empty.noDrifts')}
-            hints={presentation === 'desktop' ? [emptyHints.create, emptyHints.driftRipens] : undefined}
+            hints={presentation === 'desktop' ? [emptyHints.driftRipens] : undefined}
           />
         ) : (
           renderGroupBody(null, 0)
