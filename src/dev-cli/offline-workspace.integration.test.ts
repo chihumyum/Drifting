@@ -6,6 +6,8 @@ import { fileURLToPath } from 'node:url';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
+// @ts-expect-error Executable tooling intentionally lives outside the TS graph.
+import { pnpmInvocation } from '../../scripts/package-bin.mjs';
 import { ProjectTable } from '../renderer/schema/drizzle';
 import { installHeadlessRendererGlobals } from './headless-globals';
 import { DEV_CLI_TABLE_MODEL_COVERAGE } from './manifest';
@@ -183,9 +185,12 @@ describe('offline workspace CLI runtime', () => {
 
     const environment = { ...process.env };
     delete environment.NODE_OPTIONS;
+    // Windows cannot spawn pnpm.cmd without a shell; Node runs pnpm's entry there.
+    const pnpm = pnpmInvocation();
     const launched = spawnSync(
-      process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm',
+      pnpm.executable,
       [
+        ...pnpm.arguments,
         'dev:cli',
         'workspace',
         'call',
@@ -205,7 +210,7 @@ describe('offline workspace CLI runtime', () => {
 
     expect(launched.status, `${launched.stdout}\n${launched.stderr}`).toBe(0);
     const jsonLine = launched.stdout
-      .split('\n')
+      .split(/\r?\n/u)
       .find((line) => line.startsWith('{"ok"'));
     expect(jsonLine, launched.stdout).toBeTruthy();
     expect(JSON.parse(jsonLine ?? '{}')).toMatchObject({

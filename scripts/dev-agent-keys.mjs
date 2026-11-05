@@ -41,7 +41,8 @@ export function mainCheckoutRoot(directory, run = spawnSync) {
 /** This checkout first, then the main checkout when this is a linked worktree. */
 export function devAgentKeyRoots(directory, run = spawnSync) {
   // Git reports real paths; compare real paths so the main checkout is read once.
-  const real = (root) => (existsSync(root) ? realpathSync(root) : path.resolve(root));
+  // The native resolver also expands Windows 8.3 short names (RUNNER~1).
+  const real = (root) => (existsSync(root) ? realpathSync.native(root) : path.resolve(root));
   return [...new Set([directory, mainCheckoutRoot(directory, run)].filter(Boolean).map(real))];
 }
 

@@ -46,8 +46,10 @@ For separate terminals, run `pnpm drifting frontend serve --platform ios` or
 
 ## Desktop acceptance
 
-Desktop UI acceptance needs no iOS Simulator. Start the daemon in desktop mode,
-then launch an isolated worktree profile with the explicit opt-in:
+Desktop UI acceptance needs no iOS Simulator; on Windows the same commands
+drive WebView2 ([Developing on Windows](windows.md#developing-on-windows)).
+Start the daemon in desktop mode, then launch an isolated worktree profile with
+the explicit opt-in:
 
 ```bash
 pnpm drifting frontend serve --platform desktop

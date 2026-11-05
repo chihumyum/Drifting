@@ -87,8 +87,10 @@ requireCondition(
 // with the published 0.35.3 source (excluding Cargo's marker/lock and our note).
 const taoRoot = 'src-tauri/vendor/tao';
 const sha256 = (value) => createHash('sha256').update(value).digest('hex');
+// Digest '/'-separated relative paths, as listed on macOS and Linux.
 const taoFiles = readdirSync(taoRoot, { recursive: true })
   .filter((file) => statSync(path.join(taoRoot, file)).isFile() && file !== 'VENDORED.md')
+  .map((file) => file.split(path.sep).join('/'))
   .sort();
 const taoView = readFileSync(`${taoRoot}/src/platform_impl/ios/view.rs`, 'utf8');
 const taoDigest = sha256(taoFiles.map((file) => {

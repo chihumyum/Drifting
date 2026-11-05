@@ -25,6 +25,7 @@
     "dev:seed:lite": "node scripts/run-seeded-dev.mjs --lite",
     "seed:acceptance": "tsx --conditions=import scripts/check-development-seed.ts",
     "dev:check": "node scripts/check-macos-dev-signing.mjs",
+    "dev:commands:check": "node scripts/check-developer-commands.mjs",
     "dev:local": "pnpm tauri:dev",
     "dev:online": "node scripts/run-desktop-tauri.mjs dev --online",
     "start": "pnpm tauri:dev",

@@ -11,11 +11,17 @@ own providers only when developing optional network features.
 - On macOS: full Xcode, its command-line tools, and your own Apple Development
   certificate **with its private key**. The launcher checks revocation online.
   A Developer ID distribution certificate and a maintainer's team are not needed.
+- On Windows: the MSVC Rust toolchain, Visual Studio Build Tools with the C++
+  workload and WebView2; no certificate. See
+  [Developing on Windows](windows.md#developing-on-windows).
 
-The supported target is macOS 13+ on Apple Silicon. Windows, Linux and Intel
-Macs can run source checks but are not release targets.
+The supported release target is macOS 13+ on Apple Silicon; Windows 10/11 (x64
+and ARM64) has [preview builds](windows.md). Windows runs the development app
+and the source checks; Linux and Intel Macs can run source checks.
 
 ## Set up macOS signing once
+
+Windows and Linux skip this section.
 
 1. Open Xcode and finish its requested component setup. Select that Xcode in
    Settings → Locations → Command Line Tools.

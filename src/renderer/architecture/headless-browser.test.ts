@@ -27,7 +27,8 @@ it('returns immediately for a child already terminated by a signal', () => {
     await withDeadline(stopBrowserProcess(child), 100, 'already-exited cleanup');
   `)).not.toThrow();
 });
-it('escalates a real SIGTERM-resistant child and observes its SIGKILL exit', () => {
+// Windows has no catchable SIGTERM: kill() ends the child at once.
+it.skipIf(process.platform === 'win32')('escalates a real SIGTERM-resistant child and observes its SIGKILL exit', () => {
   expect(() => run(`
     const child = spawn(process.execPath, ['-e', 'process.on("SIGTERM",()=>{}); console.log("ready"); setInterval(()=>{},1000)']);
     await new Promise(resolve => child.stdout.once('data', resolve));

@@ -21,7 +21,11 @@ for (const target of ['AARCH64', 'X86_64']) {
     failures.push(`desktop launcher does not set ${setting} to the signed runner`);
   }
 }
-if ((runnerStat.mode & 0o111) === 0) failures.push('macOS dev runner is not executable');
+// NTFS keeps no executable bit; on Windows check the mode Git records instead.
+const runnerExecutable = process.platform === 'win32'
+  ? /^100755 /u.test(spawnSync('git', ['ls-files', '--stage', '--', 'scripts/run-signed-macos-dev.sh'], { cwd: root, encoding: 'utf8' }).stdout ?? '')
+  : (runnerStat.mode & 0o111) !== 0;
+if (!runnerExecutable) failures.push('macOS dev runner is not executable');
 if (!runnerSource.includes('--identifier "$DEV_CODE_IDENTIFIER"')) {
   failures.push('macOS dev runner does not apply the stable code identifier');
 }

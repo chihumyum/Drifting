@@ -116,7 +116,8 @@ function harness({ failure = '', bundle = 'cc.drifting.client', origin = 'https:
   return { dependencies, execute };
 }
 
-describe('standalone iOS Release build and install', () => {
+// iOS builds need Xcode, so only macOS runs these.
+describe.skipIf(process.platform !== 'darwin')('standalone iOS Release build and install', () => {
   it('allows device discovery but rejects unsupported build overrides', () => {
     expect(parseIosDeviceReleaseArguments(['--', '--online', '--no-launch'], {})).toEqual({
       device: '', online: true, launch: false, help: false,
