@@ -965,7 +965,9 @@
     "untitledChapter": "Untitled chapter"
   },
   "chapterEditor": {
-    "untitledChapter": "Untitled chapter"
+    "untitledChapter": "Untitled chapter",
+    "subtitlePlaceholder": "A subtitle, or an epigraph…",
+    "summaryPlaceholder": "Click to add a summary…"
   },
   "chapterEnd": {
     "trigger": "Chapter end actions",

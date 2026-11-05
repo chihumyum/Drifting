@@ -965,7 +965,9 @@
     "untitledChapter": "無題の章"
   },
   "chapterEditor": {
-    "untitledChapter": "無題の章"
+    "untitledChapter": "無題の章",
+    "subtitlePlaceholder": "副題、またはエピグラフ…",
+    "summaryPlaceholder": "クリックして概要を追加…"
   },
   "chapterEnd": {
     "trigger": "章末の操作",

@@ -965,7 +965,9 @@
     "untitledChapter": "제목 없는 장"
   },
   "chapterEditor": {
-    "untitledChapter": "제목 없는 장"
+    "untitledChapter": "제목 없는 장",
+    "subtitlePlaceholder": "부제 또는 제사…",
+    "summaryPlaceholder": "클릭하여 요약 추가…"
   },
   "chapterEnd": {
     "trigger": "장 끝 작업",
