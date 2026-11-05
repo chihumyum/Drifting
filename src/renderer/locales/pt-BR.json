@@ -132,11 +132,9 @@
   },
   "markdownFolderGuide": {
     "title": "Onde colocar a pasta Markdown?",
-    "intro": "Cada projeto mantém uma cópia Markdown aqui. Edite capítulos e ideias em qualquer editor e as alterações serão mescladas no Drifting.",
-    "default": "Local padrão",
+    "intro": "Cada projeto mantém uma cópia Markdown na pasta que você escolher. Edite capítulos e ideias em qualquer editor e as alterações serão mescladas no Drifting.",
     "chosen": "Pasta escolhida",
     "choose": "Escolher pasta…",
-    "useDefault": "Usar local padrão",
     "continue": "Continuar"
   },
   "settings": {
