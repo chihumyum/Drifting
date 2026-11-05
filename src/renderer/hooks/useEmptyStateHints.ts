@@ -11,9 +11,7 @@ export function useEmptyStateHints() {
   const { t } = useTranslation();
   const bindings = useShortcutsStore((state) => state.bindings);
   const shortcut = (action: ShortcutActionId) => formatAccelerator(bindings[action]);
-  const create: EmptyStateHint = { label: t('guide.hints.new'), keys: shortcut('newEntity') };
   return {
-    create,
     /** An empty chapter's paper: the Markdown that starts its outline, then the two ways around the book. */
     paper: [
       { label: t('guide.hints.scene'), keys: '#' },
