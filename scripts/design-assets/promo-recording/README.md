@@ -112,7 +112,9 @@ alpha), `events.jsonl` (the rig's), `marks.jsonl` (the script's) and
   the next move as macOS does, with a ripple at each click.
 - `compose.swift` renders the frames with Core Image: the window scaled from its
   Retina pixels with a Lanczos filter on a quiet backdrop with a soft shadow,
-  then the pointer, ripples and badge, into H.264.
+  then the pointer, ripples and badge, into a high-bitrate intermediate
+  (`video-<size>.mov`); `ffmpeg` encodes the final `promo.mp4` with x264 at CRF
+  18, about 40 MB for two minutes at 1080p.
 - `sound.ts` synthesizes a soft click for every keystroke and pointer click at
   its output time from shaped noise (no recordings, no pitched tones);
   `--music <file>` mixes a track under it, faded out at the end.

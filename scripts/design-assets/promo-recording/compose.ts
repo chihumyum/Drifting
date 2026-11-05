@@ -6,7 +6,8 @@
  *
  * Plans the frames from out/promo-recording/<take>/timeline.json (plan.ts),
  * renders them from raw.mov with compose.swift, synthesizes the keystrokes
- * and clicks (sound.ts) and muxes everything into <take>/promo.mp4.
+ * and clicks (sound.ts) and encodes everything into <take>/promo.mp4 (H.264
+ * with x264, AAC).
  */
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
@@ -70,8 +71,12 @@ function main() {
   const filter = options.music
     ? `[2:a]volume=-14dB,afade=t=out:st=${fadeOut}:d=2.5[m];[1:a][m]amix=inputs=2:duration=first:normalize=0[a]`
     : '[1:a]anull[a]';
+  // x264 at a near-lossless quality: the screen's flat paper and still text
+  // make the file a seventh of the render's while the text stays crisp.
   execFileSync('ffmpeg', ['-v', 'error', '-y', ...inputs, '-filter_complex', filter, '-map', '0:v', '-map', '[a]',
-    '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-shortest', '-movflags', '+faststart', final], { stdio: 'inherit' });
+    '-c:v', 'libx264', '-preset', 'slow', '-crf', '18', '-pix_fmt', 'yuv420p',
+    '-color_primaries', 'bt709', '-color_trc', 'bt709', '-colorspace', 'bt709',
+    '-c:a', 'aac', '-b:a', '192k', '-shortest', '-movflags', '+faststart', final], { stdio: 'inherit' });
   console.log(`[compose] ${path.relative(root, final)}`);
 }
 
