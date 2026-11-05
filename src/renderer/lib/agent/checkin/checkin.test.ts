@@ -3,7 +3,9 @@ import type { CheckinChangedDocument } from './checkin-delta';
 import { describeChangedPassage, digestDocumentChanges } from './checkin-delta';
 import {
   buildCheckinContext,
+  CHECKIN_MAX_CARDS,
   CHECKIN_SYSTEM_PROMPT,
+  checkinToolSchema,
   parseCheckinToolArguments,
 } from './checkin-prompt';
 
@@ -132,5 +134,62 @@ describe('check-in prompt and result', () => {
     expect(() =>
       parseCheckinToolArguments(JSON.stringify({ cards: [{ kind: 'todo', title: 't' }] }), documents, new Set()),
     ).toThrow('invalid');
+    expect(() => parseCheckinToolArguments('{"cards":null}', documents, new Set())).toThrow('invalid');
+  });
+
+  it('accepts a result carrying an echoed schema keyword or null optional fields', () => {
+    // The author's check-in failed with "/maxItems Unexpected property": the
+    // model returned the cards array's limit beside the cards themselves.
+    const parsed = parseCheckinToolArguments(
+      JSON.stringify({
+        cards: [
+          { title: '核对码头的描述', detail: null, instruction: '对照前文核对码头的描述。', target: null, kind: 'todo' },
+          { title: '第三章结尾要停在哪？', instruction: '和作者讨论第三章的结尾。', target: 'c1' },
+        ],
+        maxItems: 4,
+        type: 'object',
+        memoryAdd: null,
+        workingMemoryEdits: [{ oldText: '- 修第三章', newText: '', note: 'done' }],
+      }),
+      documents,
+      new Set(),
+    );
+    expect(parsed.cards).toEqual([
+      { title: '核对码头的描述', detail: '', instruction: '对照前文核对码头的描述。', target: null },
+      {
+        title: '第三章结尾要停在哪？',
+        detail: '',
+        instruction: '和作者讨论第三章的结尾。',
+        target: { entityType: 'node', entityId: 'node-internal-id', title: '第三章 雾港' },
+      },
+    ]);
+    expect(parsed.memoryAdd).toEqual([]);
+    expect(parsed.workingMemoryEdits).toEqual([{ oldText: '- 修第三章', newText: '' }]);
+  });
+
+  it('keeps at most four cards without asking providers to enforce it', () => {
+    const card = { title: '一个问题', instruction: '问作者一个问题。' };
+    const parsed = parseCheckinToolArguments(
+      JSON.stringify({ cards: Array.from({ length: 6 }, () => card) }),
+      documents,
+      new Set(),
+    );
+    expect(parsed.cards).toHaveLength(CHECKIN_MAX_CARDS);
+  });
+
+  it('gives every provider route a structure-only schema', () => {
+    // OpenAI, the ChatGPT subscription, Anthropic and DeepSeek all receive
+    // this schema verbatim, so it must not carry limits a model could echo.
+    const structural = new Set(['type', 'properties', 'required', 'items', 'additionalProperties', 'description']);
+    const keywords = new Set<string>();
+    const walk = (node: unknown, inProperties: boolean) => {
+      if (!node || typeof node !== 'object' || Array.isArray(node)) return;
+      for (const [key, value] of Object.entries(node)) {
+        if (!inProperties) keywords.add(key);
+        walk(value, !inProperties && key === 'properties');
+      }
+    };
+    walk(JSON.parse(JSON.stringify(checkinToolSchema)), false);
+    expect([...keywords].filter((keyword) => !structural.has(keyword))).toEqual([]);
   });
 });

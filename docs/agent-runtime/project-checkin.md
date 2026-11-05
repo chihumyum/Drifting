@@ -29,18 +29,19 @@ the subscription route; `canAgentProviderRun` in
 `src/renderer/lib/agent/agent-provider-readiness.ts`, shared with the Agent
 panel's connect rows), nothing runs automatically and nothing is recorded, so
 the first open after a model is connected checks in. A missing-key failure
-stored by an earlier attempt is cleared. *Check in now* still runs and shows
-why it cannot.
+stored by an earlier attempt is cleared.
 
-`decideCheckin` (`src/renderer/store/project-checkin-store.ts`) runs one
-macrotask after Home mount and window focus, and when an organize pass settles:
+The check-in is automatic; Home has no button that starts one (removed
+2026-11-05). `decideCheckin` (`src/renderer/store/project-checkin-store.ts`)
+is asked one macrotask after Project Home mounts, on every window focus while
+Home is mounted — once visited, Home stays mounted behind the open tabs for
+the rest of the book session — and when an organize pass settles:
 
-0. Never while an organize pass (`project-organize.md`) holds the project,
-   unless forced; the pass runs the check-in when it settles and, after a
-   completed pass, skips the cooldown below.
-1. Never while disabled (unless forced) or already running, and at most once
-   per 90 minutes per project and device unless the author presses *Check in
-   now*.
+0. Never while an organize pass (`project-organize.md`) holds the project;
+   the pass runs the check-in when it settles and, after a completed pass,
+   skips the cooldown below.
+1. Never while disabled or already running, and at most once per 90 minutes
+   per project and device.
 2. Prose changed since the last check-in horizon (or the last 7 days) by the
    author, the Agent or another device: check in over those changes.
 3. Otherwise, after at least 6 hours away from the project with no unanswered
@@ -60,6 +61,17 @@ renderer state (`localStorage`). They are not authored data and do not sync.
 - One `single_request` model call with the author's selected Agent provider
   and model, forced to `submit_project_checkin`. The prompt states principles
   only and never prescribes story content.
+- Every route receives the tool schema verbatim as a non-strict tool: OpenAI
+  and the ChatGPT subscription through Responses (`strict: false`), Anthropic
+  as `input_schema`, DeepSeek as Chat Completions `parameters`. The schema
+  therefore carries structure only (`type`, `properties`, `required`, `items`,
+  `additionalProperties`, `description`); the card count and text lengths are
+  stated in descriptions and enforced while parsing. On 2026-11-05 a check-in
+  failed with `/maxItems Unexpected property` (the author's app was on the
+  ChatGPT subscription route, GPT-6.1 Terra): the model had returned the
+  schema's old `maxItems: 4` beside `cards`. Parsing now drops fields the schema does not
+  name and `null` optional fields (DeepSeek returned `"target": null`) before
+  validating; a result still invalid after that writes nothing.
 - Output: up to four cards, plus optional memory upkeep — new, revised or
   deleted Project Memory entries and passage edits to Working Memory
   (revision CAS; a concurrent edit wins, and a passage that no longer matches
@@ -88,6 +100,7 @@ v1 TODO card becomes a task to record that TODO.
 ```bash
 pnpm exec vitest run src/renderer/lib/agent/checkin \
   src/renderer/store/project-checkin-store.test.ts \
+  src/renderer/usecase/useProjectCheckin.test.ts \
   src/renderer/features/agent/project-agent-home.render.test.ts \
   src/renderer/app/project-home.acceptance.test.ts
 ```

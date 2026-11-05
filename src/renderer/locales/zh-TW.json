@@ -3431,7 +3431,6 @@
     "checkinTitle": "巡閱",
     "checkinRunning": "Agent 正在閱讀你最近的變更…",
     "checkinFailed": "巡閱未完成：{{error}}",
-    "checkNow": "立即巡閱",
     "checkinEmpty": "最近的變更中，沒有需要你處理的事項。",
     "checkinNever": "開啟作品時，Agent 會閱讀自上次以來的變更，並留下想詢問的問題或建議進行的工作。",
     "lastCheckin": "上次巡閱 {{time}}",

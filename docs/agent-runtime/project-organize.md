@@ -74,7 +74,7 @@ A pass claims its project synchronously, before any read. A check-in started
 by the same return — Home schedules its open and focus check-ins one macrotask
 later — waits, and the pass runs the check-in when it settles. After a
 completed pass that check-in skips the 90-minute cooldown, so its cards see the
-organized records. *Check in now* is never deferred.
+organized records.
 
 ## Acceptance
 

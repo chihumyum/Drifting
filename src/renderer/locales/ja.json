@@ -3431,7 +3431,6 @@
     "checkinTitle": "チェックイン",
     "checkinRunning": "Agent が最近の変更を読んでいます…",
     "checkinFailed": "チェックインが完了しませんでした：{{error}}",
-    "checkNow": "今すぐチェックイン",
     "checkinEmpty": "最近の変更に、対応が必要な事項はありません。",
     "checkinNever": "作品を開くと、Agent が前回からの変更を読み、尋ねたい質問や進めたい作業を残します。",
     "lastCheckin": "前回のチェックイン {{time}}",
