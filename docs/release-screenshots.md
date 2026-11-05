@@ -78,14 +78,17 @@ another checkout's) before seeding.
 
 `scripts/capture-release-screenshots.ts`, per language:
 
-1. starts a frontend debug bridge in-process, removes the instance's library,
+1. starts a frontend debug bridge in-process (the launch and window helpers are
+   shared with the promo recording in `scripts/desktop-app-session.ts`),
+   removes the instance's library,
    asset store and Markdown folder, and seeds a new library
    (`src/dev-cli/showcase-seed-main.ts`);
 2. launches the instance's Debug build (`dev:worktree --instance
    release-screenshots --no-watch --frontend-debug`) and sizes and places its
    window with System Events;
 3. evaluates `scripts/release-screenshots-scenes.js` in the renderer: set the
-   language and theme and mark the first-run guides seen, reload, then wait for
+   language and theme and mark the first-run guides (and the workspace tour)
+   seen, reload, then wait for
    each scene to settle (every cover drawn; the chapter text shown and
    scrolled to the top; the 关系 layout at rest), closing popovers, the caret
    and the selection;

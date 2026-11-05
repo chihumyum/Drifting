@@ -968,7 +968,9 @@
     "untitledChapter": "Capítulo sem título"
   },
   "chapterEditor": {
-    "untitledChapter": "Capítulo sem título"
+    "untitledChapter": "Capítulo sem título",
+    "subtitlePlaceholder": "Um subtítulo ou uma epígrafe…",
+    "summaryPlaceholder": "Clique para adicionar um resumo…"
   },
   "chapterEnd": {
     "trigger": "Ações no fim do capítulo",

@@ -365,6 +365,7 @@ function StaticChapterBody({
   onActivate: (coords: { clientX: number; clientY: number }) => void;
   onEntityClick?: (ref: EntityLinkRef) => void;
 }) {
+  const { t } = useTranslation();
   const touchStartRef = useRef<{
     pointerId: number;
     clientX: number;
@@ -449,7 +450,7 @@ function StaticChapterBody({
       style={{ cursor: 'text' }}
     >
       <h1 className="page__title" style={{ margin: '0 0 10px' }}>
-        {title || 'Untitled Chapter'}
+        {title || t('chapterEditor.untitledChapter')}
       </h1>
       {summary ? (
         <p className="page__sub" style={{ marginBottom: 28 }}>

@@ -965,7 +965,9 @@
     "untitledChapter": "未命名章節"
   },
   "chapterEditor": {
-    "untitledChapter": "未命名章節"
+    "untitledChapter": "未命名章節",
+    "subtitlePlaceholder": "副標題，或一句題記…",
+    "summaryPlaceholder": "點擊新增摘要…"
   },
   "chapterEnd": {
     "trigger": "章末操作",

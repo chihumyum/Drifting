@@ -965,7 +965,9 @@
     "untitledChapter": "Unbenanntes Kapitel"
   },
   "chapterEditor": {
-    "untitledChapter": "Unbenanntes Kapitel"
+    "untitledChapter": "Unbenanntes Kapitel",
+    "subtitlePlaceholder": "Ein Untertitel oder ein Motto…",
+    "summaryPlaceholder": "Klicken, um eine Zusammenfassung hinzuzufügen…"
   },
   "chapterEnd": {
     "trigger": "Aktionen am Kapitelende",

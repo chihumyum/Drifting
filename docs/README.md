@@ -28,7 +28,8 @@ truth.
   [element summary](editor/element-summary.md),
   [block spacing](editor/block-spacing.md),
   [title wrapping](editor/title-wrapping.md),
-  [Ideas / 构想 terminology](editor/drift-terminology.md)
+  [Ideas / 构想 terminology](editor/drift-terminology.md),
+  [Markdown as you type](editor/markdown-typing.md)
 
 ## Data, privacy and sync
 
@@ -90,6 +91,7 @@ truth.
 - [Releasing](releasing.md): GitHub Releases, signing and updates
 - [Windows preview](windows.md): unsigned x64 and Arm installers built in CI, platform differences and manual acceptance
 - [Release screenshots](release-screenshots.md): the shelf, workspace and element overview in both languages and themes, from synthetic data
+- [Promo recording](../scripts/design-assets/promo-recording/README.md): the real app typing a story and working the Agent, composed into a video
 - [Platform limitations](../src-tauri/UNSUPPORTED.md)
 - Mobile (paused):
   [mobile UI foundation](mobile-ui-foundation.md),

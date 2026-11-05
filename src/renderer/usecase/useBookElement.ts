@@ -223,9 +223,9 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
       });
       // Let every open editor retroactively link prose that already mentioned
       // this element before it existed. Auto-detect only fires on freshly-typed
-      // text, so without this, earlier blocks stay unlinked. Covers all creation
-      // paths (Agent tools, @-picker create, manual add) since
-      // they all funnel through here.
+      // text, so without this, earlier blocks stay unlinked. Covers the
+      // author's paths (@-picker create, manual add); the Agent's writes
+      // announce theirs from drifting-structural-write-strategy.
       events.emit('element:element-created', { element: created });
       return created;
     },

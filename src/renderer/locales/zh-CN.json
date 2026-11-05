@@ -963,7 +963,9 @@
     "untitledChapter": "无标题章节"
   },
   "chapterEditor": {
-    "untitledChapter": "无标题章节"
+    "untitledChapter": "无标题章节",
+    "subtitlePlaceholder": "副标题，或一句题记…",
+    "summaryPlaceholder": "点击添加摘要…"
   },
   "chapterEnd": {
     "trigger": "章末操作",

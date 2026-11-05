@@ -390,11 +390,11 @@ export function ChapterEditor({
                 />
               ) : literary ? (
                 <h1 className="page__title" style={{ margin: '0 0 10px' }}>
-                  {titleValue || 'Untitled Chapter'}
+                  {titleValue || t('chapterEditor.untitledChapter')}
                 </h1>
               ) : (
                 <div style={{ fontSize: 20, fontWeight: 600, background: 'transparent' }}>
-                  {titleValue || 'Untitled Chapter'}
+                  {titleValue || t('chapterEditor.untitledChapter')}
                 </div>
               )}
             </div>
@@ -412,7 +412,7 @@ export function ChapterEditor({
                 <textarea
                   ref={summaryRef}
                   value={summaryValue}
-                  placeholder={literary ? 'A subtitle, or an epigraph…' : 'Click to add summary...'}
+                  placeholder={literary ? t('chapterEditor.subtitlePlaceholder') : t('chapterEditor.summaryPlaceholder')}
                   onChange={(e) => setSummaryValue(e.target.value)}
                   onBlur={handleSummarySave}
                   onKeyDown={(e) => {
@@ -447,7 +447,7 @@ export function ChapterEditor({
                 ) : null
               ) : (
                 <div style={{ fontSize: 14, fontWeight: 400, background: 'transparent' }}>
-                  {summaryValue || (editableSummary ? 'Click to add summary...' : '')}
+                  {summaryValue || (editableSummary ? t('chapterEditor.summaryPlaceholder') : '')}
                 </div>
               )}
             </div>
