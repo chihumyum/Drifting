@@ -145,6 +145,8 @@
     "search_placeholder": "搜尋設定…",
     "close": "關閉",
     "local_user": "本機使用者",
+    "rail_expand": "展開{{label}}",
+    "rail_collapse": "收合{{label}}",
     "groups": {
       "account": "帳號",
       "localData": "本機資料",

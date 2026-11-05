@@ -181,7 +181,7 @@
   background: hsl(var(--surface));
   box-shadow: inset 0 0 0 1px hsl(var(--rule));
 }
-/* Desktop only: every panel's sections, always expanded. */
+/* Desktop only: every panel's sections, listed open until folded. */
 .set-rail__sections {
   list-style: none;
   margin: 0 0 4px;
@@ -1631,14 +1631,20 @@ html[data-shell-mode='mobile'] .set-overlay {
 :where(html:not([data-shell-mode='mobile'])) .set-rail__group {
   margin-bottom: 10px;
 }
+/* The rail's three levels share one size. A group (本地数据, 偏好, 智能)
+   names a part of the page the way a Panel Tab names a destination: the
+   serif structure face at one weight. Panels and their sections stay in the
+   UI face, the sections' words starting where their panel's do. */
 :where(html:not([data-shell-mode='mobile'])) .set-rail__group-title {
   margin: 0;
   padding: 4px 8px;
+  font-family: var(--font-structure);
   font-weight: 400;
-  color: var(--ui-text-muted, hsl(var(--ink-4)));
-  font-size: var(--ui-font-caption, 12px);
-  line-height: var(--ui-line-caption, 16px);
-  letter-spacing: 0;
+  font-optical-sizing: auto;
+  color: hsl(var(--ink-1));
+  font-size: var(--ui-font-body, 14px);
+  line-height: var(--ui-line-body, 20px);
+  letter-spacing: normal;
   text-transform: none;
 }
 :where(html:not([data-shell-mode='mobile'])) .set-rail__item {
@@ -1648,14 +1654,76 @@ html[data-shell-mode='mobile'] .set-overlay {
   color: hsl(var(--ink-2));
   font-size: var(--ui-font-body, 14px);
 }
+/* The glyph's 16px and the row's 9px gap: a section's words start under its
+   panel's name, not under the glyph. */
+:where(html:not([data-shell-mode='mobile'])) .set-rail__sections {
+  margin: 0;
+  padding: 0 0 4px 25px;
+}
+:where(html:not([data-shell-mode='mobile'])) .set-rail__section {
+  font-size: var(--ui-font-body, 14px);
+}
+/* A panel with sections folds them away from the chevron at its row's end.
+   The row is one menu row: the pointer over the chevron rings the whole row,
+   and the chevron only darkens. */
+:where(html:not([data-shell-mode='mobile'])) .set-rail__row {
+  position: relative;
+}
+:where(html:not([data-shell-mode='mobile'])) .set-rail__item--foldable {
+  padding-right: 30px;
+}
+:where(html:not([data-shell-mode='mobile'])) .set-rail__fold {
+  position: absolute;
+  top: 0;
+  right: 2px;
+  bottom: 0;
+  display: grid;
+  width: 26px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  cursor: pointer;
+}
+:where(html:not([data-shell-mode='mobile'])) .set-rail__fold:hover,
+:where(html:not([data-shell-mode='mobile'])) .set-rail__fold:focus-visible {
+  outline: none;
+  color: hsl(var(--ink-1));
+}
+:where(html:not([data-shell-mode='mobile'])) .set-rail__fold-chevron {
+  transition: transform var(--motion-glass-settle) var(--motion-structural-ease);
+}
+:where(html:not([data-shell-mode='mobile'])) .set-rail__fold-chevron--open {
+  transform: rotate(90deg);
+}
+:where(html:not([data-shell-mode='mobile'])) .set-rail__sections-fold {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows var(--motion-glass-settle) var(--motion-structural-ease),
+    opacity 0.2s ease-out;
+}
+:where(html:not([data-shell-mode='mobile'])) .set-rail__sections-fold.is-open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+:where(html:not([data-shell-mode='mobile'])) .set-rail__sections-clip {
+  min-height: 0;
+  overflow: hidden;
+}
 :where(html:not([data-shell-mode='mobile'])) .set-rail__item:hover,
 :where(html:not([data-shell-mode='mobile'])) .set-rail__item--active {
   background: transparent;
   box-shadow: none;
   color: hsl(var(--ink-1));
 }
-:where(html:not([data-shell-mode='mobile'])) .set-rail__item--active {
-  font-weight: 500;
+/* The current place shows in its still ring and the ink, never a heavier
+   or larger word. */
+:where(html:not([data-shell-mode='mobile'])) .set-rail__item--active,
+:where(html:not([data-shell-mode='mobile'])) .set-rail__section--active {
+  font-weight: 400;
 }
 :where(html:not([data-shell-mode='mobile'])) .set-rail__glyph,
 :where(html:not([data-shell-mode='mobile'])) .set-rail__item--active .set-rail__glyph {
@@ -1689,6 +1757,8 @@ html[data-shell-mode='mobile'] .set-overlay {
   transition: opacity 0.18s ease-out;
 }
 :where(html:not([data-shell-mode='mobile'])) .set-rail__item:hover::before,
+:where(html:not([data-shell-mode='mobile'])) .set-rail__row:hover > .set-rail__item::before,
+:where(html:not([data-shell-mode='mobile'])) .set-rail__row:has(> .set-rail__fold:focus-visible) > .set-rail__item::before,
 :where(html:not([data-shell-mode='mobile'])) .set-rail__item:focus-visible::before,
 :where(html:not([data-shell-mode='mobile'])) .set-rail__section:hover::before,
 :where(html:not([data-shell-mode='mobile'])) .set-rail__section:focus-visible::before {
@@ -2468,6 +2538,10 @@ html:not([data-shell-mode='mobile']) .set-trash__actions .ui-button.ui-button--g
   :where(html:not([data-shell-mode='mobile'])) .set-rail__item::before,
   :where(html:not([data-shell-mode='mobile'])) .set-rail__section::before {
     animation: none;
+  }
+  :where(html:not([data-shell-mode='mobile'])) .set-rail__fold-chevron,
+  :where(html:not([data-shell-mode='mobile'])) .set-rail__sections-fold {
+    transition: none;
   }
 }
 

@@ -145,6 +145,8 @@
     "search_placeholder": "Einstellungen durchsuchen…",
     "close": "Schließen",
     "local_user": "Lokaler Benutzer",
+    "rail_expand": "{{label}} ausklappen",
+    "rail_collapse": "{{label}} einklappen",
     "groups": {
       "account": "Konto",
       "localData": "Lokale Daten",
