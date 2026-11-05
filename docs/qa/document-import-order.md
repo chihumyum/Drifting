@@ -21,3 +21,18 @@ files, staging copies, backups and verification details remain outside this repo
 
 Author manuscripts, derived chapter files and import receipts remain outside the
 repository and are never used as committed test fixtures.
+
+## Titles
+
+An imported file's title is not written twice. A level-1 heading that opens
+the document (Markdown `# …`, Word's Title or Heading 1) becomes the title and
+leaves the body. Without one, the title is the file name without its extension
+or a short ordering number (`01 第一章 序.md` → 第一章 序; years such as
+`2024-11-05` stay), and an opening line that only repeats it leaves the body.
+Headings further down stay in the text as scene, beat and note headings; a
+plain-text file's first sentence no longer becomes its title. The dialog still
+shows each title for editing before anything is created.
+
+Machine-checkable regression: `pnpm exec vitest run src/renderer/services/import/title.test.ts`,
+and the document import scenario in the renderer performance harness
+(`docxTitleAndUnicode`, `markdownHeadingAndBold`).

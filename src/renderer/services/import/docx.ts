@@ -20,6 +20,7 @@ import Link from '@tiptap/extension-link';
 import TextAlign from '@tiptap/extension-text-align';
 import type { JSONContent } from '@tiptap/core';
 import { EntityLink } from '../../lib/extensions/entity-link';
+import { takeTitle } from './title';
 import type { ParsedDoc } from './types';
 
 const PARSER_EXTENSIONS = [
@@ -40,22 +41,6 @@ const PARSER_EXTENSIONS = [
   TextAlign.configure({ types: ['heading', 'paragraph'] }),
   EntityLink,
 ];
-
-function filenameStem(filename: string): string {
-  const dot = filename.lastIndexOf('.');
-  return (dot > 0 ? filename.slice(0, dot) : filename).trim() || filename;
-}
-
-function guessTitle(html: string, fallback: string): string {
-  // Mammoth emits <h1>title</h1> when the docx has a Title or Heading 1
-  // at the top of the body. Fall back to the filename stem.
-  const m = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
-  if (m) {
-    const text = m[1].replace(/<[^>]+>/g, '').trim();
-    if (text) return text.slice(0, 80);
-  }
-  return fallback;
-}
 
 export async function parseDocx(file: File): Promise<ParsedDoc> {
   const buf = await file.arrayBuffer();
@@ -80,7 +65,7 @@ export async function parseDocx(file: File): Promise<ParsedDoc> {
   );
 
   const html = result.value;
-  const doc = generateJSON(html, PARSER_EXTENSIONS) as JSONContent;
+  const { doc, title } = takeTitle(generateJSON(html, PARSER_EXTENSIONS) as JSONContent, file.name);
   const warnings: string[] = [];
   if (/<img\b/i.test(html)) warnings.push('Images were not imported because the editor does not support embedded images yet.');
   for (const m of result.messages ?? []) {
@@ -89,7 +74,7 @@ export async function parseDocx(file: File): Promise<ParsedDoc> {
 
   return {
     doc,
-    guessedTitle: guessTitle(html, filenameStem(file.name)),
+    guessedTitle: title,
     filename: file.name,
     format: 'docx',
     warnings: warnings.length ? warnings : undefined,

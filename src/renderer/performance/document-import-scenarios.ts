@@ -13,15 +13,18 @@ export async function runDocumentImportScenarios() {
   zip.file('word/styles.xml', '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:style w:type="paragraph" w:styleId="Title"><w:name w:val="Title"/></w:style></w:styles>');
   zip.file('word/_rels/document.xml.rels', '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="styles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>');
   const docx = await parseDocx(new File([await zip.generateAsync({ type: 'arraybuffer' })], 'synthetic.docx'));
-  const markdown = await parseMarkdown(new File(['# 合成章节\n\n**正文 & 安全导入**'], 'synthetic.md'));
+  const markdown = await parseMarkdown(new File(['# 合成章节\n\n**正文 & 安全导入**\n\n## 合成小节\n\n后文'], 'synthetic.md'));
   const text = await parseTxt(new File(['第一段\n换行\n\n第二段'], 'synthetic.txt'));
   const hasMark = (node: JSONContent, type: string): boolean => Boolean(node.marks?.some(mark => mark.type === type) || node.content?.some(child => hasMark(child, type)));
   let corruptRejected = false;
   try { await parseDocx(new File(['synthetic invalid zip'], 'broken.docx')); } catch { corruptRejected = true; }
   const checks = {
-    docxTitleAndUnicode: docx.guessedTitle === '合成章节' && JSON.stringify(docx.doc).includes('正文 & 安全导入'),
+    // The title leaves the body, so it is not written twice.
+    docxTitleAndUnicode: docx.guessedTitle === '合成章节' && JSON.stringify(docx.doc).includes('正文 & 安全导入')
+      && !JSON.stringify(docx.doc).includes('合成章节'),
     docxBold: hasMark(docx.doc, 'bold'),
-    markdownHeadingAndBold: markdown.doc.content?.[0]?.type === 'heading' && hasMark(markdown.doc, 'bold'),
+    markdownHeadingAndBold: markdown.guessedTitle === '合成章节' && markdown.doc.content?.[0]?.type === 'paragraph'
+      && Boolean(markdown.doc.content?.some(node => node.type === 'heading')) && hasMark(markdown.doc, 'bold'),
     plainTextParagraphsAndBreaks: text.doc.content?.length === 2 && text.doc.content[0].content?.some(node => node.type === 'hardBreak'),
     corruptDocxRejected: corruptRejected,
     importedEditorUndoRedo: true,
