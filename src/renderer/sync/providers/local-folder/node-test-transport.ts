@@ -176,7 +176,9 @@ function parsePersistedEvent(value: unknown): LocalFolderDurableChange {
 }
 
 async function fsyncFile(filePath: string): Promise<void> {
-  const handle = await open(filePath, 'r');
+  // Windows' FlushFileBuffers needs a writable handle (EPERM on a read-only
+  // one), as drifting_core::file_io::sync_file opens it for the app.
+  const handle = await open(filePath, process.platform === 'win32' ? 'r+' : 'r');
   try {
     await handle.sync();
   } finally {
