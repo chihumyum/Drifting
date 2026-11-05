@@ -1,10 +1,11 @@
-// The built-in sample project (docs/sample-project.md). A brand-new local
-// library gets Pride and Prejudice, taken apart into a working project, once.
-// It is written in a few authored transactions through the same repositories
-// and journal as the author's own actions (./write-sample.ts), so the sample
-// is an ordinary project: SQLite rows, live Yjs prose and app-owned asset
-// bytes. A durable `library_state` marker makes it once-only per library;
-// deleting the sample never brings it back.
+// The built-in sample projects (docs/sample-project.md). A brand-new local
+// library gets two books taken apart into working projects, once: Pride and
+// Prejudice, and 阿Q正传 left half written. Each is written in a few authored
+// transactions through the same repositories and journal as the author's own
+// actions (./write-sample.ts), so a sample is an ordinary project: SQLite rows,
+// live Yjs prose and app-owned asset bytes. Both land or neither does. A
+// durable `library_state` marker makes them once-only per library; deleting a
+// sample never brings it back.
 
 import { eq, inArray } from 'drizzle-orm';
 import loglevel from 'loglevel';
@@ -30,8 +31,10 @@ import type { BookNodeAtomicTransactionRunner } from '../../usecase/book-node-wr
 import { createProjectInTransaction } from '../../usecase/project-create';
 import { withAtomicSyncTransaction } from '../../usecase/sync-helpers';
 import { assetStoreService } from '../asset-store.service';
-import { BOOK_ILLUSTRATIONS, type BookIllustration } from './book';
+import { A_Q_PROJECT_NAME, A_Q_ZHENGZHUAN } from './a-q';
+import type { BookIllustration } from './book';
 import { useBuiltInSampleStore } from './first-run';
+import { PRIDE_AND_PREJUDICE, type SampleBook } from './sample-book';
 import { SAMPLE_PROJECT_NAME } from './showcase';
 import { writeBookSample, type ImportedSampleAsset } from './write-sample';
 
@@ -41,7 +44,19 @@ const log = loglevel.getLogger('BuiltInSample');
 
 export const BUILT_IN_SAMPLE_STATE_KEY = 'built-in-sample';
 /** The recipe a library received; recorded for diagnostics and later recipes. */
-export const BUILT_IN_SAMPLE_RECIPE = 'pride-and-prejudice-v1';
+export const BUILT_IN_SAMPLE_RECIPE = 'pride-and-prejudice-v1+a-q-zhengzhuan-v1';
+
+export interface BuiltInSampleBook {
+  /** The project's name on the shelf. */
+  name: string;
+  book: SampleBook;
+}
+
+/** What a new library receives, written in this order. */
+export const BUILT_IN_SAMPLES: readonly BuiltInSampleBook[] = [
+  { name: SAMPLE_PROJECT_NAME, book: PRIDE_AND_PREJUDICE },
+  { name: A_Q_PROJECT_NAME, book: A_Q_ZHENGZHUAN },
+];
 /** Interrupted or failed attempts are retried on later launches up to this many times. */
 export const BUILT_IN_SAMPLE_MAX_ATTEMPTS = 3;
 
@@ -54,7 +69,10 @@ export interface BuiltInSampleMarker {
    */
   status: 'creating' | 'created' | 'failed' | 'skipped';
   recipe: string;
+  /** The first sample's project. */
   projectId: string | null;
+  /** Every sample project claimed so far, in order (absent in markers before 阿Q正传). */
+  projectIds?: string[];
   attempts: number;
   reason?: string;
   /** Wall-clock milliseconds the created sample took, for diagnostics. */
@@ -65,7 +83,7 @@ export interface BuiltInSampleMarker {
 }
 
 export type BuiltInSampleOutcome =
-  | { kind: 'created'; projectId: string; durationMs: number }
+  | { kind: 'created'; projectId: string; projectIds: string[]; durationMs: number }
   | { kind: 'skipped'; reason: 'already-created' | 'not-a-new-library' | 'attempts-exhausted' }
   | { kind: 'failed'; error: unknown };
 
@@ -81,6 +99,8 @@ export interface BuiltInSampleDependencies {
   newId(): string;
   /** Diagnostics: one step of the sample and how long it took. */
   onStep?(step: string, milliseconds: number): void;
+  /** The books to write; `BUILT_IN_SAMPLES` unless a test narrows it. */
+  samples?: readonly BuiltInSampleBook[];
 }
 
 class LibraryNoLongerNew extends Error {}
@@ -117,10 +137,11 @@ async function projectExists(database: DbClient, projectId: string): Promise<boo
 async function importIllustrations(
   dependencies: BuiltInSampleDependencies,
   projectId: string,
+  illustrations: readonly BookIllustration[],
   imported: ImportedSampleAsset[],
 ): Promise<ReadonlyMap<string, ImportedSampleAsset>> {
   const byName = new Map<string, ImportedSampleAsset>();
-  const results = await Promise.allSettled(BOOK_ILLUSTRATIONS.map(async (illustration) => {
+  const results = await Promise.allSettled(illustrations.map(async (illustration) => {
     const entry = await dependencies.importAsset(projectId, illustration);
     imported.push(entry);
     byName.set(illustration.name, entry);
@@ -165,11 +186,16 @@ export async function ensureBuiltInSampleProject(
   let attempts = marker?.attempts ?? 0;
   try {
     // An earlier attempt was interrupted (quit mid-way) or could not clean up
-    // after itself. Its project was never shown; remove it before deciding.
-    if (marker?.projectId && (marker.status === 'creating' || marker.status === 'failed')) {
-      store.setState({ pendingProjectId: marker.projectId });
-      if (await projectExists(database, marker.projectId)) await dependencies.discardProject(marker.projectId);
-      store.setState({ pendingProjectId: null });
+    // after itself. Its projects were never shown; remove them before deciding.
+    const leftOver = marker && (marker.status === 'creating' || marker.status === 'failed')
+      ? marker.projectIds ?? (marker.projectId ? [marker.projectId] : [])
+      : [];
+    if (leftOver.length) {
+      store.setState({ pendingProjectIds: leftOver });
+      for (const projectId of [...leftOver].reverse()) {
+        if (await projectExists(database, projectId)) await dependencies.discardProject(projectId);
+      }
+      store.setState({ pendingProjectIds: [] });
     }
     if (await libraryHasContent(database)) {
       await writeMarker({ status: 'skipped', projectId: null, attempts, reason: 'not-a-new-library' });
@@ -183,7 +209,8 @@ export async function ensureBuiltInSampleProject(
     return { kind: 'failed', error };
   }
 
-  const projectId = dependencies.newId();
+  const samples = dependencies.samples ?? BUILT_IN_SAMPLES;
+  const projectIds = samples.map(() => dependencies.newId());
   attempts += 1;
   const { runAtomic } = dependencies;
   const started = performance.now();
@@ -192,78 +219,96 @@ export async function ensureBuiltInSampleProject(
     steps[step] = Math.round(milliseconds);
     dependencies.onStep?.(step, milliseconds);
   };
-  store.setState({ phase: 'creating', pendingProjectId: projectId });
-  let claimed = false;
+  // Every sample stays off the shelf until all of them are written.
+  store.setState({ phase: 'creating', pendingProjectIds: projectIds });
+  /** Projects whose rows (and claim) have committed: removed together on failure. */
+  const claimed: string[] = [];
   const imported: ImportedSampleAsset[] = [];
-  let assets: Promise<ReadonlyMap<string, ImportedSampleAsset>> | null = null;
+  const imports: Promise<ReadonlyMap<string, ImportedSampleAsset>>[] = [];
   try {
-    const now = dependencies.now();
-    // The project row and the claim commit together: a later launch either
-    // sees no project and no claim, or a claim naming this partial project.
-    await runAtomic(projectId, async (tx, sync, changes) => {
-      const [other] = await tx.select({ id: ProjectTable.id }).from(ProjectTable).limit(1);
-      if (other) throw new LibraryNoLongerNew();
-      await createProjectInTransaction(tx, sync, changes, {
+    for (const [index, sample] of samples.entries()) {
+      const projectId = projectIds[index];
+      const sampleStarted = performance.now();
+      const now = dependencies.now();
+      // A project row and its claim commit together: a later launch either sees
+      // no project and no claim, or a claim naming every partial project.
+      await runAtomic(projectId, async (tx, sync, changes) => {
+        if (index === 0) {
+          const [other] = await tx.select({ id: ProjectTable.id }).from(ProjectTable).limit(1);
+          if (other) throw new LibraryNoLongerNew();
+        }
+        await createProjectInTransaction(tx, sync, changes, {
+          projectId,
+          userId: dependencies.userId,
+          name: sample.name,
+          now,
+        });
+        await createLibraryStateRepository(tx).write<BuiltInSampleMarker>(
+          BUILT_IN_SAMPLE_STATE_KEY,
+          {
+            status: 'creating', recipe: BUILT_IN_SAMPLE_RECIPE, projectId: projectIds[0],
+            projectIds: [...claimed, projectId], attempts, updatedAt: now,
+          },
+          now,
+        );
+      });
+      claimed.push(projectId);
+      // The first sample's steps keep their names; later ones are prefixed.
+      const sampleStep = (step: string, milliseconds: number) => onStep(index === 0 ? step : `${index + 1}:${step}`, milliseconds);
+      sampleStep('claim', performance.now() - (index === 0 ? started : sampleStarted));
+
+      const assets = importIllustrations(dependencies, projectId, sample.book.illustrations, imported);
+      imports.push(assets);
+      assets.catch(() => undefined);
+      await writeBookSample({
+        database,
         projectId,
         userId: dependencies.userId,
-        name: SAMPLE_PROJECT_NAME,
-        now,
+        runAtomic,
+        now: dependencies.now,
+        newId: dependencies.newId,
+        assets,
+        book: sample.book,
+        onStep: sampleStep,
       });
-      await createLibraryStateRepository(tx).write<BuiltInSampleMarker>(
-        BUILT_IN_SAMPLE_STATE_KEY,
-        { status: 'creating', recipe: BUILT_IN_SAMPLE_RECIPE, projectId, attempts, updatedAt: now },
-        now,
-      );
-    });
-    claimed = true;
-    onStep('claim', performance.now() - started);
-
-    assets = importIllustrations(dependencies, projectId, imported);
-    assets.catch(() => undefined);
-    await writeBookSample({
-      database,
-      projectId,
-      userId: dependencies.userId,
-      runAtomic,
-      now: dependencies.now,
-      newId: dependencies.newId,
-      assets,
-      onStep,
-    });
+    }
     for (const entry of imported) {
       await entry.commit().catch((error) => log.warn('[sample] Asset import marker was not cleared', error));
     }
     const durationMs = Math.round(performance.now() - started);
-    await writeMarker({ status: 'created', projectId, attempts, durationMs, steps });
-    store.setState({ pendingProjectId: null, createdProjectId: projectId });
-    log.info(`[sample] Built-in sample created in ${durationMs} ms`);
-    return { kind: 'created', projectId, durationMs };
+    await writeMarker({ status: 'created', projectId: projectIds[0], projectIds, attempts, durationMs, steps });
+    store.setState({ pendingProjectIds: [], createdProjectIds: projectIds });
+    log.info(`[sample] ${samples.length} built-in samples created in ${durationMs} ms`);
+    return { kind: 'created', projectId: projectIds[0], projectIds, durationMs };
   } catch (error) {
     // Imports still in flight finish first, so every imported file is abandoned.
-    await assets?.catch(() => undefined);
+    await Promise.allSettled(imports);
     for (const entry of imported) await entry.abandon().catch(() => undefined);
     if (error instanceof LibraryNoLongerNew) {
-      store.setState({ pendingProjectId: null });
+      store.setState({ pendingProjectIds: [] });
       await writeMarker({ status: 'skipped', projectId: null, attempts: attempts - 1, reason: 'not-a-new-library' })
         .catch((markerError) => log.warn('[sample] Could not record the skipped sample', markerError));
       return { kind: 'skipped', reason: 'not-a-new-library' };
     }
-    if (claimed) {
+    if (claimed.length) {
       try {
-        if (await projectExists(database, projectId)) await dependencies.discardProject(projectId);
-        store.setState({ pendingProjectId: null });
+        for (const projectId of [...claimed].reverse()) {
+          if (await projectExists(database, projectId)) await dependencies.discardProject(projectId);
+        }
+        store.setState({ pendingProjectIds: [] });
       } catch (cleanupError) {
-        // Keep it hidden; the next launch removes it before retrying.
-        log.warn('[sample] The partial sample project could not be removed yet', cleanupError);
+        // Keep them hidden; the next launch removes them before retrying.
+        log.warn('[sample] The partial sample projects could not be removed yet', cleanupError);
       }
       await writeMarker({
         status: 'failed',
-        projectId,
+        projectId: claimed[0],
+        projectIds: claimed,
         attempts,
         reason: error instanceof Error ? error.message : String(error),
       }).catch((markerError) => log.warn('[sample] Could not record the failed sample', markerError));
     } else {
-      store.setState({ pendingProjectId: null });
+      store.setState({ pendingProjectIds: [] });
     }
     return { kind: 'failed', error };
   }

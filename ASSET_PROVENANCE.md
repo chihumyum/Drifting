@@ -82,6 +82,26 @@ and seven images from Hugh Thomson's illustrations, all in
   timeline pins, comments, ideas and material notes in `showcase.ts` were
   written for Drifting and are AGPL-3.0-or-later like the rest of the client.
 
+The second sample bundles the first six chapters of Lu Xun's 阿Q正传 (first
+published 1921–22) in `src/renderer/services/built-in-sample/a-q/text.json`.
+
+- **Edition.** Volume one of the 1948 Complete Works (魯迅全集, 魯迅先生紀念委員會),
+  scan pages 380–437, as transcribed on Chinese Wikisource (page 阿Q正傳, fetched
+  through the MediaWiki API on 6 November 2026 in Wikisource's simplified
+  rendering). No modern annotated edition or its notes are used.
+- **Public-domain basis.** Lu Xun died in 1936. The text is in the public
+  domain in mainland China (life plus 50 years), in countries whose term is the
+  author's life plus 70 years or less, and in the United States (published
+  before 1931). Wikisource marks the page as public domain.
+- **What was taken.** Only the chapter headings and paragraphs of chapters one
+  to six. `scripts/build-a-q-sample.py` drops Wikisource's page furniture,
+  converts the edition's corner-bracket quotation marks to “” and ‘’, replaces
+  the variant 偸 with 偷 and corrects seven transcription slips it lists.
+- **Our additions.** Everything else in `a-q.ts` (chapter summaries, the three
+  planned chapters' summaries, elements, relations, storylines, timeline pins,
+  comments, ideas, patches, the plot grid and material notes) was written for
+  Drifting and is AGPL-3.0-or-later like the rest of the client.
+
 ## README screenshots
 
 `docs/screenshots/` (`shelf.webp`, `workspace.webp`, `elements.webp`) are
