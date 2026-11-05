@@ -1366,8 +1366,6 @@
       "aria": "模型與推理設定",
       "model": "模型",
       "switchModel": "切換模型",
-      "modelsUpdated": "更新於 {{time}}",
-      "modelsStale": "顯示 {{time}} 的模型清單",
       "modelUnavailable": "目前目錄中沒有選取的模型，請選擇其他模型。",
       "reasoning": "推理",
       "extendedThinking": "延伸思考",

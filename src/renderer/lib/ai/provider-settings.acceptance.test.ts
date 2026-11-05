@@ -74,6 +74,8 @@ describe('central AI provider settings acceptance', () => {
     expect(composer).toContain("useByokModelLists(open && view === 'model')");
     expect(composer).not.toContain('codexModelCatalog.refresh');
     expect(composer).not.toContain('modelsRefresh');
+    // Nothing to act on without a button: no catalog time or stale notice either.
+    expect(composer).not.toMatch(/modelsUpdated|modelsStale/);
   });
 
   it('lets the Agent panel first run only add a tested key or pick a route that can run', async () => {

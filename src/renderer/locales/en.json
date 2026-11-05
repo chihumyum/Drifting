@@ -1366,8 +1366,6 @@
       "aria": "Model and reasoning settings",
       "model": "Model",
       "switchModel": "Switch model",
-      "modelsUpdated": "Updated {{time}}",
-      "modelsStale": "Showing models from {{time}}",
       "modelUnavailable": "The selected model is absent from the current catalog. Choose another model.",
       "reasoning": "Reasoning",
       "extendedThinking": "Extended thinking",

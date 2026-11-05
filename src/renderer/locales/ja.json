@@ -1366,8 +1366,6 @@
       "aria": "モデル・推論の設定",
       "model": "モデル",
       "switchModel": "モデルを切り替え",
-      "modelsUpdated": "{{time}}に更新",
-      "modelsStale": "{{time}}時点のモデルを表示",
       "modelUnavailable": "選択したモデルは現在の一覧にありません。別のモデルを選んでください。",
       "reasoning": "推論",
       "extendedThinking": "拡張思考",

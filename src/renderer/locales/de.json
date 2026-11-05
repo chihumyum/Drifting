@@ -1366,8 +1366,6 @@
       "aria": "Modell- und Denkeinstellungen",
       "model": "Modell",
       "switchModel": "Modell wechseln",
-      "modelsUpdated": "Aktualisiert {{time}}",
-      "modelsStale": "Modellliste von {{time}}",
       "modelUnavailable": "Das gewählte Modell fehlt im aktuellen Katalog. Wähle ein anderes.",
       "reasoning": "Schlussfolgern",
       "extendedThinking": "Erweitertes Denken",
