@@ -14,6 +14,7 @@ works, and moves only when the next action would leave the frame.
 ```bash
 pnpm promo:record --story <story.md> --take <name>   # takes the screen for several minutes
 pnpm promo:compose --take <name>                      # out/promo-recording/<name>/promo.mp4
+pnpm promo:compose --take <name> --size 2160 --pace 1.5   # 4K, played half as fast again: promo-2160-1.5x.mp4
 ```
 
 Without `--story` the recording types `sample-story.zh-CN.md`, a short
@@ -128,7 +129,10 @@ alpha), `events.jsonl` (the rig's), `marks.jsonl` (the script's) and
   recording it shows: everything at its own pace except each Agent wait,
   squeezed into about 4.5 seconds with a badge showing how much
   (`--no-badge` drops it), and quick paragraphs, slowed to a steady 8
-  characters a second.
+  characters a second. `--pace <x>` plays all of it `x` times faster once the
+  window has opened (quick paragraphs at 8·x a second, Agent waits in 4.5/x
+  seconds); the opening, the end card and the sounds keep their own pace, and
+  the camera's moves, timed in output seconds, stay as smooth.
 - The camera holds still. A framing is chosen when something new starts — a
   `shot` mark, the start of immersive writing (the paper's column, about 2×,
   the caret's line just under the middle), a prompt or a field being typed
