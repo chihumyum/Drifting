@@ -42,6 +42,7 @@ mod sync_object_store;
 mod system_fonts;
 #[cfg(target_os = "macos")]
 mod webview_media;
+mod windows_webview;
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -443,6 +444,8 @@ pub fn run() {
             if let Some(window) = app.get_webview_window("main") {
                 #[cfg(target_os = "macos")]
                 webview_media::enable_media_devices(&window)?;
+                #[cfg(target_os = "windows")]
+                windows_webview::configure(&window)?;
                 window.show()?;
             }
             #[cfg(target_os = "macos")]
