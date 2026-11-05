@@ -131,11 +131,9 @@
   },
   "markdownFolderGuide": {
     "title": "Where should the Markdown folder go?",
-    "intro": "Every project keeps a Markdown copy here. Edit chapters and ideas in any editor and the changes merge back into Drifting.",
-    "default": "Default location",
+    "intro": "Every project keeps a Markdown copy in the folder you choose. Edit chapters and ideas in any editor and the changes merge back into Drifting.",
     "chosen": "Chosen folder",
     "choose": "Choose folder…",
-    "useDefault": "Use default location",
     "continue": "Continue"
   },
   "settings": {
@@ -478,7 +476,7 @@
     "update": {
       "kicker": "UPDATES",
       "title": "Install new versions when you choose.",
-      "sub": "After startup, Drifting checks GitHub for a new release at most once a day. Downloading and installing always wait for you.",
+      "sub": "Drifting checks GitHub for a new release every 3 hours while it runs. Installing always waits for you.",
       "current_version": "Current version",
       "channel_desc": "Apple Silicon · macOS 13+",
       "unavailable": "This build has no updater signing key, so it cannot check for updates. Releases downloaded from GitHub can.",
@@ -487,11 +485,9 @@
       "checking": "Checking…",
       "no_update": "You're up to date.",
       "available_version": "Drifting {{version}} is available",
-      "download": "Download",
       "downloading": "Downloading and verifying the signature…",
       "downloading_progress": "Downloading and verifying… {{progress}}%",
-      "install": "Install and restart…",
-      "confirm_install": "Install and restart",
+      "install": "Install and restart",
       "install_migration_safety": "If the new version needs to upgrade local data, the next launch first makes a verified safety snapshot and switches over only after the migration passes its checks.",
       "dismiss": "Not now",
       "installing": "Saving and installing…",
@@ -500,7 +496,7 @@
       "error": "Update stopped: {{error}}",
       "states": {
         "checking": "Checking…",
-        "available": "Ready to download.",
+        "available": "Ready to install.",
         "downloading": "Downloading and verifying…",
         "installing": "Saving your changes and installing; Drifting restarts when done…",
         "ready": "Downloaded and verified. Ready to install.",
@@ -984,6 +980,7 @@
   },
   "chapterEditor": {
     "untitledChapter": "Untitled chapter",
+    "untitledDrift": "Untitled idea",
     "synopsisPlaceholder": "Synopsis…",
     "summaryPlaceholder": "Click to add a summary…"
   },
@@ -1085,12 +1082,12 @@
     }
   },
   "kvEditor": {
-    "keyPlaceholder": "Field · key",
-    "valuePlaceholder": "Content · value",
-    "templateKeyPlaceholder": "Field name · key (e.g. POV)",
-    "templateValuePlaceholder": "Default / hint · value",
-    "empty": "- No KV fields yet -",
-    "templateEmpty": "- No template fields defined yet. New child items will not auto-fill any KV rows -",
+    "keyPlaceholder": "Field",
+    "valuePlaceholder": "Content",
+    "templateKeyPlaceholder": "Field name, e.g. POV",
+    "templateValuePlaceholder": "Default or hint",
+    "empty": "No fields yet",
+    "templateEmpty": "No template fields yet. New items won't get any fields filled in",
     "addField": "Add field",
     "removeRow": "Remove row"
   },
@@ -1693,7 +1690,7 @@
       "clearEntityFilter": "Clear relation filter",
       "entityFilterAll": "Relations · All",
       "entityFilterHint": "Choose an entity to show only linked memos / materials",
-      "todoEmptyHint": "Click + to create a TODO, or promote one from an editor comment card",
+      "todoEmptyHint": "Click + to create a TODO, or choose To TODO on a comment card",
       "commentEmptyHint": "Click + to add a comment, or select text in an editor to leave one",
       "newMaterialButton": "New material",
       "noMaterials": "No materials in this project yet.",
@@ -3023,7 +3020,7 @@
     "alerts": {
       "deleteFailed": "Failed to delete storyline. Please try again."
     },
-    "scratchPlaceholder": "Scratch notes for this storyline: quick notes, ideas, style reminders…",
+    "scratchPlaceholder": "Scratch notes for this storyline: quick notes, style reminders…",
     "summaryPlaceholder": "One-sentence summary for this storyline…",
     "nodeTemplatePlaceholder": "Write a default chapter skeleton with H1 / H2 / H3; new chapters will use it…",
     "outlineTitle": "{{name}} · OUTLINE",
@@ -3050,7 +3047,7 @@
       "unwritten": "Not started"
     },
     "empty": {
-      "noFacts": "No fields yet. If the project template defines fields, they are filled when the storyline is created.",
+      "noFacts": "No fields yet. When a storyline is created, the Storyline template on project home fills them in.",
       "noChapterSummary": "No one-sentence summary yet",
       "noFilteredChapters": "No chapters for this filter"
     },
@@ -3066,7 +3063,7 @@
     "alerts": {
       "deleteFailed": "Failed to delete category. Please try again."
     },
-    "scratchPlaceholder": "Scratch notes for this category: design principles, naming rules, AI candidate rules…",
+    "scratchPlaceholder": "Scratch notes for this category: design principles, naming rules…",
     "elementTemplatePlaceholder": "Write a default element skeleton with H1 / H2 / H3; new elements will use it…",
     "sections": {
       "overview": "Overview",
@@ -3079,7 +3076,7 @@
     },
     "labels": {
       "elementCount": "Elements",
-      "role": "Role"
+      "summary": "Summary"
     },
     "meta": {
       "elements": "{{count}} elements",
@@ -3093,7 +3090,7 @@
     "empty": {
       "noCategories": "No categories yet",
       "noTemplateFields": "No template fields yet. Add keys such as alias, faction, or first appearance.",
-      "noRole": "No one-sentence role yet",
+      "noSummary": "No summary yet",
       "noFilteredElements": "No elements for this filter"
     },
     "actions": {
@@ -3105,7 +3102,7 @@
     "deleteConfirm": "Delete element \"{{name}}\"?",
     "folio": "Element",
     "bodyPlaceholder": "What is this element when the story is happening?",
-    "summaryPlaceholder": "One-sentence role description…",
+    "summaryPlaceholder": "One-sentence summary…",
     "sketch": "Sketch",
     "sketchWithCategory": "{{category}} · sketch",
     "portrait": {
@@ -3161,7 +3158,7 @@
       "patches": "Patches"
     },
     "empty": {
-      "noFacts": "No fields yet. If the category template defines fields, they are filled when the element is created.",
+      "noFacts": "No fields yet. When an element is created, its category's Field template fills them in.",
       "selectElement": "Select an element to edit",
       "noCategories": "No categories yet"
     },

@@ -99,11 +99,12 @@ function ToolRow({ msg }: { msg: Extract<ChatMsg, { kind: 'tool' }> }) {
     return null;
   const summary = (
     <>
-      <span style={{ opacity: 0.7, width: 12, display: 'inline-block' }}>
+      {/* The mark stands centred on the row's flex line, not on the text
+          baseline: Han characters sit higher than a baseline-aligned glyph. */}
+      <span style={toolMark}>
         <BrushIcon
           name={icon}
           size={10}
-          inline
           style={msg.status === 'running' ? { animation: 'drift-spin 0.9s linear infinite' } : undefined}
         />
       </span>
@@ -668,6 +669,15 @@ const toolSummary: React.CSSProperties = {
   cursor: 'pointer',
   listStyle: 'none',
   userSelect: 'none',
+};
+
+const toolMark: React.CSSProperties = {
+  display: 'flex',
+  flex: 'none',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: 12,
+  opacity: 0.7,
 };
 
 const toolName: React.CSSProperties = {

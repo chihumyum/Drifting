@@ -296,7 +296,6 @@ export function UpdatePanel({ registerRef }: { registerRef: SettingsRegisterRef 
     UpdateService.getState,
     UpdateService.getState,
   );
-  const [installArmed, setInstallArmed] = useState(false);
   const updaterAvailable =
     getPlatformRuntime().capabilities?.featureStatus.appUpdater === 'available';
   const busy =
@@ -342,26 +341,15 @@ export function UpdatePanel({ registerRef }: { registerRef: SettingsRegisterRef 
                 : t(`settings.update.states.${update.phase}`))
             }
             control={
-              update.phase === 'available' ? (
-                <SettingsButton variant="primary" onClick={() => void UpdateService.download()}>
-                  {t('settings.update.download')}
-                </SettingsButton>
-              ) : update.phase === 'ready' ? (
-                installArmed ? (
-                  <div className="set-actions">
-                    <SettingsButton variant="primary" onClick={() => void UpdateService.install()}>
-                      {t('settings.update.confirm_install')}
-                    </SettingsButton>
-                    <SettingsButton onClick={() => setInstallArmed(false)}>{t('common.cancel')}</SettingsButton>
-                  </div>
-                ) : (
-                  <SettingsButton variant="primary" onClick={() => setInstallArmed(true)}>
-                    {t('settings.update.install')}
-                  </SettingsButton>
-                )
-              ) : update.phase === 'installing' ? (
+              update.phase === 'downloading' || update.phase === 'installing' ? (
                 <SettingsButton variant="primary" disabled>
-                  {t('settings.update.installing')}
+                  {update.phase === 'installing' ? t('settings.update.installing') : t('settings.update.install')}
+                </SettingsButton>
+              ) : update.update ? (
+                // One click downloads, verifies, saves, installs and relaunches;
+                // a failure is shown in the update state below.
+                <SettingsButton variant="primary" onClick={() => void UpdateService.install().catch(() => undefined)}>
+                  {t('settings.update.install')}
                 </SettingsButton>
               ) : (
                 <SettingsButton disabled={busy} onClick={() => void UpdateService.check({ manual: true })}>
@@ -379,7 +367,7 @@ export function UpdatePanel({ registerRef }: { registerRef: SettingsRegisterRef 
                 : t('settings.update.downloading_progress', { progress })}
             </div>
           )}
-          {update.phase === 'ready' && (
+          {update.update && !busy && (
             <SettingsNote>{t('settings.update.install_migration_safety')}</SettingsNote>
           )}
           {update.error && (
@@ -395,10 +383,7 @@ export function UpdatePanel({ registerRef }: { registerRef: SettingsRegisterRef 
             <SettingsButton
               className="set-update-dismiss"
               disabled={busy}
-              onClick={() => {
-                setInstallArmed(false);
-                void UpdateService.dismiss();
-              }}
+              onClick={() => void UpdateService.dismiss()}
             >
               {t('settings.update.dismiss')}
             </SettingsButton>

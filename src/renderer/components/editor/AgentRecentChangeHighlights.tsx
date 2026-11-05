@@ -13,7 +13,8 @@ interface AgentRecentChangeHighlightsProps {
 }
 
 /** Keeps the words the Agent just wrote coloured on the desktop (added green,
- * rewritten purple) until the author's pointer rests on them. Painting never
+ * rewritten purple) until the author's pointer touches them, or they scroll
+ * under a pointer held still. Painting never
  * mutates the prose DOM; hidden surfaces release their ranges. */
 export function AgentRecentChangeHighlights({ scrollEl, entityType, targetId }: AgentRecentChangeHighlightsProps) {
   const { isVisible, isPreparing } = useEditorSurfaceLifecycle();

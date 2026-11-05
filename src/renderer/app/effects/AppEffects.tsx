@@ -249,11 +249,20 @@ function RestoredProjectUiEffects() {
   return null;
 }
 
+/**
+ * How often an open app asks whether the automatic update check is due. The
+ * service itself runs it at most every AUTO_CHECK_INTERVAL_MS (3 hours); the
+ * short tick keeps that true across sleep, which pauses timers.
+ */
+const UPDATE_CHECK_TICK_MS = 10 * 60 * 1_000;
+
 function UpdaterEffects() {
   useEffect(() => {
     let stopNotifications: (() => void) | null = null;
+    let tick: number | null = null;
     const check = () => {
       stopNotifications ??= installUpdateNotifications();
+      tick ??= window.setInterval(check, UPDATE_CHECK_TICK_MS);
       void UpdateService.check().catch((error) =>
         log.warn('Automatic update check failed:', error),
       );
@@ -261,6 +270,7 @@ function UpdaterEffects() {
     events.on('db:ready', check);
     return () => {
       events.off('db:ready', check);
+      if (tick !== null) window.clearInterval(tick);
       stopNotifications?.();
     };
   }, []);

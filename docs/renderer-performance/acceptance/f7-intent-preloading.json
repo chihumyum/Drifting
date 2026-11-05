@@ -3,18 +3,18 @@
   "kind": "renderer_deferred_graphs",
   "status": "passed",
   "mode": "deferred",
-  "generatedAt": "2026-11-05T19:59:43.444Z",
+  "generatedAt": "2026-11-05T19:55:36.102Z",
   "source": {
-    "commit": "448fb1c64cfd004223b32850e3290c447e12ba77",
-    "fingerprint": "6ba3631f5ee1d8b28984ff437334b6bf7decbffe40dfb283aaaae98c378ed0aa",
-    "dirty": false
+    "commit": "3766ed2e2bf5a0a7b02cb3308022964d7f664f3b",
+    "fingerprint": "0650c594a61da23ad0b4542f1fe7543b29a2502a38c5a9db1c15262e6a188dd3",
+    "dirty": true
   },
   "environment": {
     "platform": "darwin",
     "node": "v22.23.1",
     "browser": "Chrome/156.0.8078.80"
   },
-  "initialJsBytes": 3800830,
+  "initialJsBytes": 3797350,
   "chunks": [
     {
       "file": "assets/react-vendor-FHqoRFXt.js",
@@ -39,59 +39,59 @@
       "initial": true
     },
     {
-      "file": "assets/index-CS44vLK_.js",
-      "bytes": 508791,
+      "file": "assets/index-nL3h4fGR.js",
+      "bytes": 508185,
       "entry": true,
       "facade": "index.html",
       "imports": [
         "assets/tiptap-AK4u0TRO.js",
         "assets/react-vendor-FHqoRFXt.js",
-        "assets/i18n-B6JXBa3u.js",
+        "assets/i18n-C7DcMsYH.js",
         "assets/anchored-popover-position-CJ7UyGsC.js",
-        "assets/shortcuts-w42KonKR.js",
-        "assets/HostedRestoreProgress-8At1INDR.js",
-        "assets/serialize-Cvc1L9Bn.js",
-        "assets/connect-CeNCWPt7.js",
+        "assets/shortcuts-BrmzNJmd.js",
+        "assets/HostedRestoreProgress-C2EouqMz.js",
+        "assets/serialize-BBuOlfeP.js",
+        "assets/connect-YW3xuKSd.js",
         "assets/events-mrzQ2dfo.js",
-        "assets/quota-DKV3nm2j.js",
+        "assets/quota-CRj_arMl.js",
         "assets/LoadingStatus-DRqSAbAC.js",
         "assets/project-store-BMELb2tT.js",
-        "assets/SettingsPrimitives-BgGVXcA8.js",
+        "assets/SettingsPrimitives-D654oXzS.js",
         "assets/auth-dialog-store-CrFq8GJ7.js",
         "assets/SegmentedControl-DGAPW4qo.js",
-        "assets/account-library-CGm8nOJg.js",
+        "assets/account-library-CVS-2lYq.js",
         "assets/HoverCard-r5Zy-SIj.js",
-        "assets/BasicPreferencePanels-DAX3bpyH.js",
+        "assets/BasicPreferencePanels-CbUxAe6o.js",
         "assets/active-editor-Dc7ypA2K.js",
-        "assets/persistence-lifecycle-CaMy2Kot.js",
-        "assets/tauri-transport-DPuvOPcs.js",
-        "assets/repository-1q_9SR9M.js",
-        "assets/chapter-prose-C3RVeuSc.js",
-        "assets/native-asset-pipeline-Da94tWmJ.js",
-        "assets/runtime-Ch1LWSw-.js",
+        "assets/persistence-lifecycle-97TG3rYV.js",
+        "assets/tauri-transport-ybILvtb4.js",
+        "assets/repository-C7v4hpK6.js",
+        "assets/chapter-prose-SSiE07Po.js",
+        "assets/native-asset-pipeline-XuAs70Ai.js",
+        "assets/runtime-APPkwiud.js",
         "assets/notification-store-Bjb5Ek7L.js",
-        "assets/location-link-catalog-DSe0UddE.js",
+        "assets/location-link-catalog-B6fWfdzy.js",
         "assets/open-entity-link-BInTx_Gd.js",
-        "assets/useProject-HyLpHHyC.js",
+        "assets/useProject-D5qpKmVj.js",
         "assets/EmptyState-D_-ezGFl.js",
         "assets/SandCell-C6IbxQr8.js",
         "assets/deferred-module-CrnwMWz0.js",
         "assets/GlassSlider-BMBz86FK.js",
-        "assets/library-state-repo-BVn_CX_x.js",
-        "assets/sync-helpers-C4tFuDwJ.js",
+        "assets/library-state-repo-BJrb2n-r.js",
+        "assets/sync-helpers-Jt2m1H-L.js",
         "assets/readable-file-stem-CeiswDJL.js",
-        "assets/local-authored-blob-BNEU3flg.js",
+        "assets/local-authored-blob-Budey_cQ.js",
         "assets/agent-provider-contract-B9GPzTSR.js",
         "assets/KindMark-DzfA2Zmx.js",
         "assets/ColorPicker-D8bYYEQ6.js",
         "assets/markdown-projection-lifecycle-BSRGeCXb.js",
-        "assets/agent-edit-store-GRWRZr2D.js",
-        "assets/node-repo-Bp-Zbx2T.js",
-        "assets/yjs-prose-command-DohUCJPQ.js",
+        "assets/agent-edit-store-CDAJSLEq.js",
+        "assets/node-repo-C9mRBxW6.js",
+        "assets/yjs-prose-command-PWob-kBi.js",
         "assets/scroll-to-block-C1hdQWnJ.js",
-        "assets/project-repo-CzYwIwAP.js",
-        "assets/project-create-CZIXUuWT.js",
-        "assets/entity-relation-type-repo-qOqJH4Un.js"
+        "assets/project-repo-BKAwFXGp.js",
+        "assets/project-create-B5yqyvVz.js",
+        "assets/entity-relation-type-repo-DTTZmcMc.js"
       ],
       "css": [
         "assets/index-Wt6pCYxx.css"
@@ -100,54 +100,54 @@
       "initial": true
     },
     {
-      "file": "assets/graph-ui-DjNn3H3D.js",
+      "file": "assets/graph-ui-C4OPkejt.js",
       "bytes": 31622,
       "entry": true,
       "facade": "src/renderer/features/graph/graph-ui-components.ts",
       "imports": [
         "assets/tiptap-AK4u0TRO.js",
-        "assets/relation-edge-popover-DAa_tL8e.js",
+        "assets/relation-edge-popover-yYm5dSnY.js",
         "assets/anchored-popover-position-CJ7UyGsC.js",
         "assets/KindMark-DzfA2Zmx.js",
         "assets/react-vendor-FHqoRFXt.js",
-        "assets/serialize-Cvc1L9Bn.js",
-        "assets/EntityHoverCard-CU5E0CXs.js",
-        "assets/FieldReview-CS9R8q4e.js",
-        "assets/quota-DKV3nm2j.js",
+        "assets/serialize-BBuOlfeP.js",
+        "assets/EntityHoverCard-Gx5AIWkc.js",
+        "assets/FieldReview-Z6ylJmhL.js",
+        "assets/quota-CRj_arMl.js",
         "assets/HoverCard-r5Zy-SIj.js",
-        "assets/useRelationTypePresentation-Ck4eU-RF.js",
-        "assets/chapter-prose-C3RVeuSc.js",
+        "assets/useRelationTypePresentation-DuQTVySH.js",
+        "assets/chapter-prose-SSiE07Po.js",
         "assets/LoadingStatus-DRqSAbAC.js",
-        "assets/synced-entity-commands-DxaOtoc3.js",
-        "assets/storyline-repo-DKHbErmM.js",
-        "assets/project-repo-CzYwIwAP.js",
-        "assets/comment-repo-C6tcu8Uw.js",
-        "assets/sync-helpers-C4tFuDwJ.js",
+        "assets/synced-entity-commands-DPrPIlmA.js",
+        "assets/storyline-repo-BBmQQ9Am.js",
+        "assets/project-repo-BKAwFXGp.js",
+        "assets/comment-repo-BbjfLwrT.js",
+        "assets/sync-helpers-Jt2m1H-L.js",
         "assets/events-mrzQ2dfo.js",
         "assets/comment-CIKXhnuH.js",
         "assets/EmptyState-D_-ezGFl.js",
-        "assets/yjs-prose-command-DohUCJPQ.js",
-        "assets/useComment-DVCRpW8g.js",
-        "assets/library-item-repo-xmwMPgAX.js",
-        "assets/entity-relation-cleanup-BflB8n5k.js",
-        "assets/library-item-deletion-4_W-JxgA.js",
-        "assets/agent-edit-store-GRWRZr2D.js",
-        "assets/shortcuts-w42KonKR.js",
+        "assets/yjs-prose-command-PWob-kBi.js",
+        "assets/useComment-CyiePJ3F.js",
+        "assets/library-item-repo-lnfUNK3l.js",
+        "assets/entity-relation-cleanup-CIWWZPug.js",
+        "assets/library-item-deletion-CbbU3KKF.js",
+        "assets/agent-edit-store-CDAJSLEq.js",
+        "assets/shortcuts-BrmzNJmd.js",
         "assets/shortcuts-store-CL1HqTMm.js",
-        "assets/node-repo-Bp-Zbx2T.js",
-        "assets/plot-grid-write-CneFcUmd.js",
+        "assets/node-repo-C9mRBxW6.js",
+        "assets/plot-grid-write-BBW0iytV.js",
         "assets/agent-provider-contract-B9GPzTSR.js",
-        "assets/inline-mention-repo-DvB-avvH.js",
-        "assets/book-act-repo-DXRCgk0V.js",
+        "assets/inline-mention-repo-B1VNs_Pz.js",
+        "assets/book-act-repo-zwkUtktW.js",
         "assets/book-act-_HTBPvC7.js",
         "assets/active-editor-Dc7ypA2K.js",
         "assets/open-entity-link-BInTx_Gd.js",
         "assets/scroll-to-block-C1hdQWnJ.js",
-        "assets/field-diff-CI3OHYPU.js",
-        "assets/i18n-B6JXBa3u.js",
-        "assets/tauri-transport-DPuvOPcs.js",
-        "assets/local-authored-blob-BNEU3flg.js",
-        "assets/native-asset-pipeline-Da94tWmJ.js"
+        "assets/field-diff-vaErjlmn.js",
+        "assets/i18n-C7DcMsYH.js",
+        "assets/tauri-transport-ybILvtb4.js",
+        "assets/local-authored-blob-Budey_cQ.js",
+        "assets/native-asset-pipeline-XuAs70Ai.js"
       ],
       "css": [],
       "targets": [
@@ -156,39 +156,39 @@
       "initial": false
     },
     {
-      "file": "assets/settings-control-z9Ce38X5.js",
+      "file": "assets/settings-control-1GZVAVgB.js",
       "bytes": 48649,
       "entry": true,
       "facade": "src/renderer/features/settings/panels/AccountControlSettingsPanels.ts",
       "imports": [
         "assets/tiptap-AK4u0TRO.js",
         "assets/react-vendor-FHqoRFXt.js",
-        "assets/serialize-Cvc1L9Bn.js",
+        "assets/serialize-BBuOlfeP.js",
         "assets/auth-dialog-store-CrFq8GJ7.js",
-        "assets/HostedRestoreProgress-8At1INDR.js",
+        "assets/HostedRestoreProgress-C2EouqMz.js",
         "assets/events-mrzQ2dfo.js",
-        "assets/connect-CeNCWPt7.js",
-        "assets/quota-DKV3nm2j.js",
-        "assets/SettingsPrimitives-BgGVXcA8.js",
+        "assets/connect-YW3xuKSd.js",
+        "assets/quota-CRj_arMl.js",
+        "assets/SettingsPrimitives-D654oXzS.js",
         "assets/anchored-popover-position-CJ7UyGsC.js",
-        "assets/share-link-store-DaS1_6NA.js",
-        "assets/markdown-projection-status-LV2Xk1oS.js",
-        "assets/note-markdown-DfjP4plh.js",
-        "assets/relational-markdown.local-source-BN-Vw8eh.js",
+        "assets/share-link-store-0V4ipuHZ.js",
+        "assets/markdown-projection-status-nCbIA8oR.js",
+        "assets/note-markdown-CfRdLrvZ.js",
+        "assets/relational-markdown.local-source-RdQCwM5b.js",
         "assets/comment-CIKXhnuH.js",
         "assets/sanitized-summary-DVWkBD3h.js",
         "assets/shortcuts-store-CL1HqTMm.js",
-        "assets/shortcuts-w42KonKR.js",
-        "assets/persistence-lifecycle-CaMy2Kot.js",
+        "assets/shortcuts-BrmzNJmd.js",
+        "assets/persistence-lifecycle-97TG3rYV.js",
         "assets/project-store-BMELb2tT.js",
-        "assets/native-asset-pipeline-Da94tWmJ.js",
-        "assets/tauri-transport-DPuvOPcs.js",
-        "assets/i18n-B6JXBa3u.js",
+        "assets/native-asset-pipeline-XuAs70Ai.js",
+        "assets/tauri-transport-ybILvtb4.js",
+        "assets/i18n-C7DcMsYH.js",
         "assets/GlassSlider-BMBz86FK.js",
         "assets/SegmentedControl-DGAPW4qo.js",
         "assets/agent-provider-contract-B9GPzTSR.js",
         "assets/book-act-_HTBPvC7.js",
-        "assets/markdown-share-BZLePu3d.js",
+        "assets/markdown-share-CbJhpu2J.js",
         "assets/readable-file-stem-CeiswDJL.js",
         "assets/markdown-projection-lifecycle-BSRGeCXb.js",
         "assets/active-editor-Dc7ypA2K.js"
@@ -198,100 +198,99 @@
       "initial": false
     },
     {
-      "file": "assets/HostedRestoreProgress-8At1INDR.js",
+      "file": "assets/HostedRestoreProgress-C2EouqMz.js",
       "bytes": 15884,
       "entry": false,
       "facade": null,
       "imports": [
         "assets/anchored-popover-position-CJ7UyGsC.js",
         "assets/react-vendor-FHqoRFXt.js",
-        "assets/serialize-Cvc1L9Bn.js",
+        "assets/serialize-BBuOlfeP.js",
         "assets/events-mrzQ2dfo.js",
-        "assets/connect-CeNCWPt7.js",
-        "assets/persistence-lifecycle-CaMy2Kot.js",
-        "assets/shortcuts-w42KonKR.js",
+        "assets/connect-YW3xuKSd.js",
+        "assets/persistence-lifecycle-97TG3rYV.js",
+        "assets/shortcuts-BrmzNJmd.js",
         "assets/tiptap-AK4u0TRO.js",
-        "assets/quota-DKV3nm2j.js"
+        "assets/quota-CRj_arMl.js"
       ],
       "css": [],
       "targets": [],
       "initial": true
     },
     {
-      "file": "assets/settings-agent-CnofRYHy.js",
-      "bytes": 20514,
+      "file": "assets/settings-agent-CfDfymBP.js",
+      "bytes": 25621,
       "entry": true,
       "facade": "src/renderer/features/settings/panels/AgentSettingsPanel.tsx",
       "imports": [
         "assets/tiptap-AK4u0TRO.js",
-        "assets/AgentMcpAccessSettings-CjaBfW5k.js",
         "assets/react-vendor-FHqoRFXt.js",
-        "assets/project-store-BMELb2tT.js",
-        "assets/agent-chat-store-CYnPnGCb.js",
-        "assets/agent-onboarding-BDmYKQSz.js",
-        "assets/chapter-prose-C3RVeuSc.js",
         "assets/anchored-popover-position-CJ7UyGsC.js",
+        "assets/project-store-BMELb2tT.js",
+        "assets/SettingsPrimitives-D654oXzS.js",
+        "assets/agent-chat-store-BgPOHt47.js",
+        "assets/agent-onboarding-D4XJAcNG.js",
+        "assets/chapter-prose-SSiE07Po.js",
         "assets/EmptyState-D_-ezGFl.js",
         "assets/SegmentedControl-DGAPW4qo.js",
-        "assets/SettingsPrimitives-BgGVXcA8.js",
+        "assets/agent-provider-contract-B9GPzTSR.js",
+        "assets/GlassSlider-BMBz86FK.js",
         "assets/events-mrzQ2dfo.js",
-        "assets/repository-1q_9SR9M.js",
-        "assets/serialize-Cvc1L9Bn.js",
-        "assets/library-item-deletion-4_W-JxgA.js",
-        "assets/agent-edit-store-GRWRZr2D.js",
-        "assets/library-item-repo-xmwMPgAX.js",
-        "assets/comment-repo-C6tcu8Uw.js",
-        "assets/entity-relation-cleanup-BflB8n5k.js",
-        "assets/sync-helpers-C4tFuDwJ.js",
-        "assets/agent-memory-repo-D0lr_w3A.js",
-        "assets/shortcuts-w42KonKR.js",
+        "assets/repository-C7v4hpK6.js",
+        "assets/serialize-BBuOlfeP.js",
+        "assets/library-item-deletion-CbbU3KKF.js",
+        "assets/agent-edit-store-CDAJSLEq.js",
+        "assets/library-item-repo-lnfUNK3l.js",
+        "assets/comment-repo-BbjfLwrT.js",
+        "assets/entity-relation-cleanup-CIWWZPug.js",
+        "assets/sync-helpers-Jt2m1H-L.js",
+        "assets/agent-memory-repo-F8MpFhil.js",
+        "assets/shortcuts-BrmzNJmd.js",
         "assets/build-default-client-DPn7Un-4.js",
         "assets/types-BRMYK13e.js",
-        "assets/agent-provider-contract-B9GPzTSR.js",
         "assets/image-inbox-store-nTGEyUmV.js",
-        "assets/markdown-projection-status-LV2Xk1oS.js",
+        "assets/markdown-projection-status-nCbIA8oR.js",
         "assets/book-act-_HTBPvC7.js",
-        "assets/plot-grid-write-CneFcUmd.js",
-        "assets/node-repo-Bp-Zbx2T.js",
-        "assets/yjs-prose-command-DohUCJPQ.js",
-        "assets/note-markdown-DfjP4plh.js",
-        "assets/material-folder-repo-B0dom1GZ.js",
-        "assets/location-link-catalog-DSe0UddE.js",
+        "assets/plot-grid-write-BBW0iytV.js",
+        "assets/node-repo-C9mRBxW6.js",
+        "assets/yjs-prose-command-PWob-kBi.js",
+        "assets/note-markdown-CfRdLrvZ.js",
+        "assets/material-folder-repo-DQzsrhp5.js",
+        "assets/location-link-catalog-B6fWfdzy.js",
         "assets/comment-CIKXhnuH.js",
-        "assets/inline-mention-repo-DvB-avvH.js",
-        "assets/synced-entity-commands-DxaOtoc3.js",
-        "assets/storyline-repo-DKHbErmM.js",
-        "assets/project-repo-CzYwIwAP.js",
-        "assets/field-diff-CI3OHYPU.js",
-        "assets/book-act-repo-DXRCgk0V.js",
+        "assets/inline-mention-repo-B1VNs_Pz.js",
+        "assets/synced-entity-commands-DPrPIlmA.js",
+        "assets/storyline-repo-BBmQQ9Am.js",
+        "assets/project-repo-BKAwFXGp.js",
+        "assets/field-diff-vaErjlmn.js",
+        "assets/book-act-repo-zwkUtktW.js",
         "assets/storyline-DadORQHB.js",
-        "assets/entity-relation-type-repo-qOqJH4Un.js",
-        "assets/element-category-repo-CenZL46f.js",
-        "assets/workspace-prose-file-CVMCI-CU.js",
+        "assets/entity-relation-type-repo-DTTZmcMc.js",
+        "assets/element-category-repo-BOkZOrpP.js",
+        "assets/workspace-prose-file-DNv3e70E.js",
         "assets/codex-model-catalog-BxwCA6rC.js",
-        "assets/KindMark-DzfA2Zmx.js",
-        "assets/GlassSlider-BMBz86FK.js"
+        "assets/KindMark-DzfA2Zmx.js"
       ],
       "css": [],
       "targets": [],
       "initial": false
     },
     {
-      "file": "assets/location-link-catalog-DSe0UddE.js",
+      "file": "assets/location-link-catalog-B6fWfdzy.js",
       "bytes": 1755,
       "entry": false,
       "facade": null,
       "imports": [
-        "assets/serialize-Cvc1L9Bn.js",
+        "assets/serialize-BBuOlfeP.js",
         "assets/anchored-popover-position-CJ7UyGsC.js",
-        "assets/chapter-prose-C3RVeuSc.js"
+        "assets/chapter-prose-SSiE07Po.js"
       ],
       "css": [],
       "targets": [],
       "initial": true
     },
     {
-      "file": "assets/settings-intelligence-CDM2zRzl.js",
+      "file": "assets/settings-intelligence-CVrzh9Fh.js",
       "bytes": 11096,
       "entry": true,
       "facade": "src/renderer/features/settings/panels/IntelligenceSettingsPanels.tsx",
@@ -303,7 +302,7 @@
         "assets/test-provider-connection-1BUuPCIX.js",
         "assets/events-mrzQ2dfo.js",
         "assets/anchored-popover-position-CJ7UyGsC.js",
-        "assets/SettingsPrimitives-BgGVXcA8.js",
+        "assets/SettingsPrimitives-D654oXzS.js",
         "assets/types-BRMYK13e.js",
         "assets/agent-provider-contract-B9GPzTSR.js",
         "assets/codex-model-catalog-BxwCA6rC.js",
@@ -315,7 +314,7 @@
       "initial": false
     },
     {
-      "file": "assets/settings-preference-Dd0kRvL_.js",
+      "file": "assets/settings-preference-Dwi6-JdM.js",
       "bytes": 16984,
       "entry": true,
       "facade": "src/renderer/features/settings/panels/PreferenceSettingsPanels.tsx",
@@ -323,29 +322,29 @@
         "assets/tiptap-AK4u0TRO.js",
         "assets/react-vendor-FHqoRFXt.js",
         "assets/anchored-popover-position-CJ7UyGsC.js",
-        "assets/SettingsPrimitives-BgGVXcA8.js",
-        "assets/BasicPreferencePanels-DAX3bpyH.js",
+        "assets/SettingsPrimitives-D654oXzS.js",
+        "assets/BasicPreferencePanels-CbUxAe6o.js",
         "assets/KindMark-DzfA2Zmx.js",
         "assets/ColorPicker-D8bYYEQ6.js",
         "assets/agent-provider-contract-B9GPzTSR.js",
         "assets/GlassSlider-BMBz86FK.js",
         "assets/SegmentedControl-DGAPW4qo.js",
-        "assets/i18n-B6JXBa3u.js"
+        "assets/i18n-C7DcMsYH.js"
       ],
       "css": [],
       "targets": [],
       "initial": false
     },
     {
-      "file": "assets/BasicPreferencePanels-DAX3bpyH.js",
+      "file": "assets/BasicPreferencePanels-CbUxAe6o.js",
       "bytes": 8481,
       "entry": false,
       "facade": null,
       "imports": [
         "assets/tiptap-AK4u0TRO.js",
         "assets/anchored-popover-position-CJ7UyGsC.js",
-        "assets/i18n-B6JXBa3u.js",
-        "assets/SettingsPrimitives-BgGVXcA8.js",
+        "assets/i18n-C7DcMsYH.js",
+        "assets/SettingsPrimitives-D654oXzS.js",
         "assets/GlassSlider-BMBz86FK.js",
         "assets/ColorPicker-D8bYYEQ6.js"
       ],
@@ -354,7 +353,7 @@
       "initial": true
     },
     {
-      "file": "assets/SettingsPrimitives-BgGVXcA8.js",
+      "file": "assets/SettingsPrimitives-D654oXzS.js",
       "bytes": 7531,
       "entry": false,
       "facade": null,
@@ -383,7 +382,7 @@
       "initial": false
     },
     {
-      "file": "assets/story-graph-CPOb-ByR.js",
+      "file": "assets/story-graph-B5U4cdG4.js",
       "bytes": 37051,
       "entry": true,
       "facade": "src/renderer/shells/desktop/views/DesktopStoryGraphView.tsx",
@@ -394,43 +393,43 @@
         "assets/KindMark-DzfA2Zmx.js",
         "assets/anchored-popover-position-CJ7UyGsC.js",
         "assets/SandCell-C6IbxQr8.js",
-        "assets/serialize-Cvc1L9Bn.js",
-        "assets/graph-view-BELsPRaZ.js",
-        "assets/useRelationTypePresentation-Ck4eU-RF.js",
-        "assets/SuperViewShell-DVXjeJFZ.js",
-        "assets/EntityHoverCard-CU5E0CXs.js",
-        "assets/RelationTypeField-DbHJTrMJ.js",
+        "assets/serialize-BBuOlfeP.js",
+        "assets/graph-view-CtVRUbv5.js",
+        "assets/useRelationTypePresentation-DuQTVySH.js",
+        "assets/SuperViewShell-AKfU3lm6.js",
+        "assets/EntityHoverCard-Gx5AIWkc.js",
+        "assets/RelationTypeField-DCf8uUTD.js",
         "assets/book-act-_HTBPvC7.js",
         "assets/events-mrzQ2dfo.js",
         "assets/SegmentedControl-DGAPW4qo.js",
-        "assets/quota-DKV3nm2j.js",
+        "assets/quota-CRj_arMl.js",
         "assets/agent-provider-contract-B9GPzTSR.js",
         "assets/deferred-module-CrnwMWz0.js",
         "assets/HoverCard-r5Zy-SIj.js",
-        "assets/local-authored-blob-BNEU3flg.js",
-        "assets/native-asset-pipeline-Da94tWmJ.js",
-        "assets/entity-relation-type-repo-qOqJH4Un.js",
-        "assets/sync-helpers-C4tFuDwJ.js",
+        "assets/local-authored-blob-Budey_cQ.js",
+        "assets/native-asset-pipeline-XuAs70Ai.js",
+        "assets/entity-relation-type-repo-DTTZmcMc.js",
+        "assets/sync-helpers-Jt2m1H-L.js",
         "assets/project-store-BMELb2tT.js",
-        "assets/storyline-repo-DKHbErmM.js",
-        "assets/inline-mention-repo-DvB-avvH.js",
-        "assets/chapter-prose-C3RVeuSc.js",
-        "assets/agent-edit-store-GRWRZr2D.js",
-        "assets/node-repo-Bp-Zbx2T.js",
-        "assets/shortcuts-w42KonKR.js",
-        "assets/yjs-prose-command-DohUCJPQ.js",
-        "assets/entity-relation-cleanup-BflB8n5k.js",
-        "assets/book-act-repo-DXRCgk0V.js",
-        "assets/element-category-repo-CenZL46f.js",
+        "assets/storyline-repo-BBmQQ9Am.js",
+        "assets/inline-mention-repo-B1VNs_Pz.js",
+        "assets/chapter-prose-SSiE07Po.js",
+        "assets/agent-edit-store-CDAJSLEq.js",
+        "assets/node-repo-C9mRBxW6.js",
+        "assets/shortcuts-BrmzNJmd.js",
+        "assets/yjs-prose-command-PWob-kBi.js",
+        "assets/entity-relation-cleanup-CIWWZPug.js",
+        "assets/book-act-repo-zwkUtktW.js",
+        "assets/element-category-repo-BOkZOrpP.js",
         "assets/storyline-DadORQHB.js",
         "assets/shortcuts-store-CL1HqTMm.js",
         "assets/active-editor-Dc7ypA2K.js",
         "assets/share-links-BaMGsV7M.js",
         "assets/LoadingStatus-DRqSAbAC.js",
         "assets/auth-dialog-store-CrFq8GJ7.js",
-        "assets/share-link-store-DaS1_6NA.js",
-        "assets/i18n-B6JXBa3u.js",
-        "assets/tauri-transport-DPuvOPcs.js"
+        "assets/share-link-store-0V4ipuHZ.js",
+        "assets/i18n-C7DcMsYH.js",
+        "assets/tauri-transport-ybILvtb4.js"
       ],
       "css": [],
       "targets": [
@@ -439,7 +438,7 @@
       "initial": false
     },
     {
-      "file": "assets/element-graph-va7W7bUj.js",
+      "file": "assets/element-graph-BNhP3TkW.js",
       "bytes": 110978,
       "entry": true,
       "facade": "src/renderer/shells/desktop/views/DesktopSuperElementView.tsx",
@@ -448,36 +447,36 @@
         "assets/react-vendor-FHqoRFXt.js",
         "assets/KindMark-DzfA2Zmx.js",
         "assets/anchored-popover-position-CJ7UyGsC.js",
-        "assets/serialize-Cvc1L9Bn.js",
+        "assets/serialize-BBuOlfeP.js",
         "assets/SandCell-C6IbxQr8.js",
-        "assets/useRelationTypePresentation-Ck4eU-RF.js",
-        "assets/SuperViewShell-DVXjeJFZ.js",
-        "assets/EntityHoverCard-CU5E0CXs.js",
+        "assets/useRelationTypePresentation-DuQTVySH.js",
+        "assets/SuperViewShell-AKfU3lm6.js",
+        "assets/EntityHoverCard-Gx5AIWkc.js",
         "assets/book-act-_HTBPvC7.js",
-        "assets/RelationTypeField-DbHJTrMJ.js",
+        "assets/RelationTypeField-DCf8uUTD.js",
         "assets/events-mrzQ2dfo.js",
         "assets/GlassSlider-BMBz86FK.js",
         "assets/HoverCard-r5Zy-SIj.js",
-        "assets/super-element-Ck9IOPcX.js",
-        "assets/quota-DKV3nm2j.js",
+        "assets/super-element-DlGNasKG.js",
+        "assets/quota-CRj_arMl.js",
         "assets/EmptyState-D_-ezGFl.js",
         "assets/agent-provider-contract-B9GPzTSR.js",
         "assets/deferred-module-CrnwMWz0.js",
-        "assets/local-authored-blob-BNEU3flg.js",
-        "assets/native-asset-pipeline-Da94tWmJ.js",
-        "assets/entity-relation-type-repo-qOqJH4Un.js",
-        "assets/sync-helpers-C4tFuDwJ.js",
+        "assets/local-authored-blob-Budey_cQ.js",
+        "assets/native-asset-pipeline-XuAs70Ai.js",
+        "assets/entity-relation-type-repo-DTTZmcMc.js",
+        "assets/sync-helpers-Jt2m1H-L.js",
         "assets/project-store-BMELb2tT.js",
-        "assets/storyline-repo-DKHbErmM.js",
-        "assets/inline-mention-repo-DvB-avvH.js",
-        "assets/chapter-prose-C3RVeuSc.js",
-        "assets/agent-edit-store-GRWRZr2D.js",
-        "assets/node-repo-Bp-Zbx2T.js",
-        "assets/shortcuts-w42KonKR.js",
-        "assets/yjs-prose-command-DohUCJPQ.js",
-        "assets/entity-relation-cleanup-BflB8n5k.js",
-        "assets/book-act-repo-DXRCgk0V.js",
-        "assets/element-category-repo-CenZL46f.js",
+        "assets/storyline-repo-BBmQQ9Am.js",
+        "assets/inline-mention-repo-B1VNs_Pz.js",
+        "assets/chapter-prose-SSiE07Po.js",
+        "assets/agent-edit-store-CDAJSLEq.js",
+        "assets/node-repo-C9mRBxW6.js",
+        "assets/shortcuts-BrmzNJmd.js",
+        "assets/yjs-prose-command-PWob-kBi.js",
+        "assets/entity-relation-cleanup-CIWWZPug.js",
+        "assets/book-act-repo-zwkUtktW.js",
+        "assets/element-category-repo-BOkZOrpP.js",
         "assets/storyline-DadORQHB.js",
         "assets/shortcuts-store-CL1HqTMm.js",
         "assets/active-editor-Dc7ypA2K.js",
@@ -485,31 +484,31 @@
         "assets/LoadingStatus-DRqSAbAC.js",
         "assets/SegmentedControl-DGAPW4qo.js",
         "assets/auth-dialog-store-CrFq8GJ7.js",
-        "assets/share-link-store-DaS1_6NA.js",
-        "assets/FieldReview-CS9R8q4e.js",
+        "assets/share-link-store-0V4ipuHZ.js",
+        "assets/FieldReview-Z6ylJmhL.js",
         "assets/open-entity-link-BInTx_Gd.js",
         "assets/scroll-to-block-C1hdQWnJ.js",
-        "assets/library-item-deletion-4_W-JxgA.js",
-        "assets/library-item-repo-xmwMPgAX.js",
-        "assets/comment-repo-C6tcu8Uw.js",
-        "assets/field-diff-CI3OHYPU.js",
-        "assets/synced-entity-commands-DxaOtoc3.js",
-        "assets/project-repo-CzYwIwAP.js",
-        "assets/bottom-timeline-C46BxGCb.js",
+        "assets/library-item-deletion-CbbU3KKF.js",
+        "assets/library-item-repo-lnfUNK3l.js",
+        "assets/comment-repo-BbjfLwrT.js",
+        "assets/field-diff-vaErjlmn.js",
+        "assets/synced-entity-commands-DPrPIlmA.js",
+        "assets/project-repo-BKAwFXGp.js",
+        "assets/bottom-timeline-TOo-g0rH.js",
         "assets/comment-CIKXhnuH.js",
         "assets/codex-subscription-CDfhnxjO.js",
         "assets/codex-model-catalog-BxwCA6rC.js",
         "assets/image-inbox-store-nTGEyUmV.js",
-        "assets/agent-chat-store-CYnPnGCb.js",
-        "assets/repository-1q_9SR9M.js",
-        "assets/agent-memory-repo-D0lr_w3A.js",
-        "assets/useComment-DVCRpW8g.js",
-        "assets/useProject-HyLpHHyC.js",
-        "assets/project-create-CZIXUuWT.js",
+        "assets/agent-chat-store-BgPOHt47.js",
+        "assets/repository-C7v4hpK6.js",
+        "assets/agent-memory-repo-F8MpFhil.js",
+        "assets/useComment-CyiePJ3F.js",
+        "assets/useProject-D5qpKmVj.js",
+        "assets/project-create-B5yqyvVz.js",
         "assets/ColorPicker-D8bYYEQ6.js",
-        "assets/external-edit-presentation-D0-y87l9.js",
-        "assets/i18n-B6JXBa3u.js",
-        "assets/tauri-transport-DPuvOPcs.js"
+        "assets/external-edit-presentation-D3IhXpsj.js",
+        "assets/i18n-C7DcMsYH.js",
+        "assets/tauri-transport-ybILvtb4.js"
       ],
       "css": [],
       "targets": [
@@ -518,22 +517,22 @@
       "initial": false
     },
     {
-      "file": "assets/useProject-HyLpHHyC.js",
+      "file": "assets/useProject-D5qpKmVj.js",
       "bytes": 8800,
       "entry": false,
       "facade": null,
       "imports": [
         "assets/anchored-popover-position-CJ7UyGsC.js",
         "assets/react-vendor-FHqoRFXt.js",
-        "assets/project-repo-CzYwIwAP.js",
-        "assets/serialize-Cvc1L9Bn.js",
-        "assets/sync-helpers-C4tFuDwJ.js",
-        "assets/project-create-CZIXUuWT.js",
+        "assets/project-repo-BKAwFXGp.js",
+        "assets/serialize-BBuOlfeP.js",
+        "assets/sync-helpers-Jt2m1H-L.js",
+        "assets/project-create-B5yqyvVz.js",
         "assets/project-store-BMELb2tT.js",
-        "assets/chapter-prose-C3RVeuSc.js",
+        "assets/chapter-prose-SSiE07Po.js",
         "assets/SandCell-C6IbxQr8.js",
         "assets/HoverCard-r5Zy-SIj.js",
-        "assets/agent-edit-store-GRWRZr2D.js"
+        "assets/agent-edit-store-CDAJSLEq.js"
       ],
       "css": [],
       "targets": [],
@@ -609,13 +608,13 @@
       "initial": true
     },
     {
-      "file": "assets/shortcuts-w42KonKR.js",
+      "file": "assets/shortcuts-BrmzNJmd.js",
       "bytes": 13100,
       "entry": false,
       "facade": null,
       "imports": [
         "assets/anchored-popover-position-CJ7UyGsC.js",
-        "assets/serialize-Cvc1L9Bn.js"
+        "assets/serialize-BBuOlfeP.js"
       ],
       "css": [],
       "targets": [],
@@ -634,46 +633,46 @@
       "initial": true
     },
     {
-      "file": "assets/memo-material-ItW_LLsf.js",
+      "file": "assets/memo-material-FIeUklkg.js",
       "bytes": 54860,
       "entry": true,
       "facade": "src/renderer/shells/desktop/views/DesktopSuperMemoMaterialView.tsx",
       "imports": [
         "assets/tiptap-AK4u0TRO.js",
         "assets/react-vendor-FHqoRFXt.js",
-        "assets/serialize-Cvc1L9Bn.js",
-        "assets/useRelationTypePresentation-Ck4eU-RF.js",
-        "assets/SuperViewShell-DVXjeJFZ.js",
-        "assets/super-memo-material-BKTdFPQv.js",
+        "assets/serialize-BBuOlfeP.js",
+        "assets/useRelationTypePresentation-DuQTVySH.js",
+        "assets/SuperViewShell-AKfU3lm6.js",
+        "assets/super-memo-material-Cffyx6S2.js",
         "assets/GlassSlider-BMBz86FK.js",
         "assets/anchored-popover-position-CJ7UyGsC.js",
         "assets/EmptyState-D_-ezGFl.js",
-        "assets/quota-DKV3nm2j.js",
+        "assets/quota-CRj_arMl.js",
         "assets/KindMark-DzfA2Zmx.js",
-        "assets/useComment-DVCRpW8g.js",
-        "assets/bottom-timeline-C46BxGCb.js",
+        "assets/useComment-CyiePJ3F.js",
+        "assets/bottom-timeline-TOo-g0rH.js",
         "assets/comment-CIKXhnuH.js",
         "assets/project-store-BMELb2tT.js",
         "assets/scroll-to-block-C1hdQWnJ.js",
         "assets/HoverCard-r5Zy-SIj.js",
         "assets/deferred-module-CrnwMWz0.js",
         "assets/events-mrzQ2dfo.js",
-        "assets/local-authored-blob-BNEU3flg.js",
-        "assets/native-asset-pipeline-Da94tWmJ.js",
-        "assets/entity-relation-type-repo-qOqJH4Un.js",
-        "assets/sync-helpers-C4tFuDwJ.js",
-        "assets/note-markdown-DfjP4plh.js",
-        "assets/agent-chat-store-CYnPnGCb.js",
-        "assets/repository-1q_9SR9M.js",
-        "assets/library-item-deletion-4_W-JxgA.js",
-        "assets/agent-edit-store-GRWRZr2D.js",
-        "assets/library-item-repo-xmwMPgAX.js",
-        "assets/comment-repo-C6tcu8Uw.js",
-        "assets/entity-relation-cleanup-BflB8n5k.js",
-        "assets/agent-memory-repo-D0lr_w3A.js",
+        "assets/local-authored-blob-Budey_cQ.js",
+        "assets/native-asset-pipeline-XuAs70Ai.js",
+        "assets/entity-relation-type-repo-DTTZmcMc.js",
+        "assets/sync-helpers-Jt2m1H-L.js",
+        "assets/note-markdown-CfRdLrvZ.js",
+        "assets/agent-chat-store-BgPOHt47.js",
+        "assets/repository-C7v4hpK6.js",
+        "assets/library-item-deletion-CbbU3KKF.js",
+        "assets/agent-edit-store-CDAJSLEq.js",
+        "assets/library-item-repo-lnfUNK3l.js",
+        "assets/comment-repo-BbjfLwrT.js",
+        "assets/entity-relation-cleanup-CIWWZPug.js",
+        "assets/agent-memory-repo-F8MpFhil.js",
         "assets/agent-provider-contract-B9GPzTSR.js",
-        "assets/i18n-B6JXBa3u.js",
-        "assets/tauri-transport-DPuvOPcs.js"
+        "assets/i18n-C7DcMsYH.js",
+        "assets/tauri-transport-ybILvtb4.js"
       ],
       "css": [],
       "targets": [],
@@ -690,12 +689,12 @@
       "initial": true
     },
     {
-      "file": "assets/repository-1q_9SR9M.js",
+      "file": "assets/repository-C7v4hpK6.js",
       "bytes": 163804,
       "entry": false,
       "facade": null,
       "imports": [
-        "assets/serialize-Cvc1L9Bn.js",
+        "assets/serialize-BBuOlfeP.js",
         "assets/anchored-popover-position-CJ7UyGsC.js",
         "assets/events-mrzQ2dfo.js"
       ],
@@ -746,7 +745,7 @@
       "initial": true
     },
     {
-      "file": "assets/quota-DKV3nm2j.js",
+      "file": "assets/quota-CRj_arMl.js",
       "bytes": 3826,
       "entry": false,
       "facade": null,
@@ -754,9 +753,9 @@
         "assets/tiptap-AK4u0TRO.js",
         "assets/react-vendor-FHqoRFXt.js",
         "assets/anchored-popover-position-CJ7UyGsC.js",
-        "assets/serialize-Cvc1L9Bn.js",
-        "assets/i18n-B6JXBa3u.js",
-        "assets/tauri-transport-DPuvOPcs.js"
+        "assets/serialize-BBuOlfeP.js",
+        "assets/i18n-C7DcMsYH.js",
+        "assets/tauri-transport-ybILvtb4.js"
       ],
       "css": [],
       "targets": [],
@@ -775,7 +774,7 @@
       "initial": true
     },
     {
-      "file": "assets/serialize-Cvc1L9Bn.js",
+      "file": "assets/serialize-BBuOlfeP.js",
       "bytes": 743625,
       "entry": false,
       "facade": null,
@@ -800,8 +799,8 @@
       "initial": true
     },
     {
-      "file": "assets/i18n-B6JXBa3u.js",
-      "bytes": 1304443,
+      "file": "assets/i18n-C7DcMsYH.js",
+      "bytes": 1300716,
       "entry": false,
       "facade": null,
       "imports": [
@@ -862,17 +861,17 @@
       "initial": true
     },
     {
-      "file": "assets/sentry-reporter-Bq557Z7x.js",
+      "file": "assets/sentry-reporter-B_41l9_n.js",
       "bytes": 63199,
       "entry": false,
       "facade": "src/renderer/services/diagnostics/sentry-reporter.ts",
       "imports": [
         "assets/anchored-popover-position-CJ7UyGsC.js",
-        "assets/shortcuts-w42KonKR.js",
+        "assets/shortcuts-BrmzNJmd.js",
         "assets/react-vendor-FHqoRFXt.js",
         "assets/agent-provider-contract-B9GPzTSR.js",
         "assets/tiptap-AK4u0TRO.js",
-        "assets/serialize-Cvc1L9Bn.js",
+        "assets/serialize-BBuOlfeP.js",
         "assets/events-mrzQ2dfo.js"
       ],
       "css": [],
@@ -880,7 +879,7 @@
       "initial": false
     },
     {
-      "file": "assets/ShareLinksDialog-B7JM6fCq.js",
+      "file": "assets/ShareLinksDialog-CcS3p59p.js",
       "bytes": 4310,
       "entry": false,
       "facade": "src/renderer/features/share-links/ShareLinksDialog.tsx",
@@ -889,18 +888,18 @@
         "assets/react-vendor-FHqoRFXt.js",
         "assets/anchored-popover-position-CJ7UyGsC.js",
         "assets/EmptyState-D_-ezGFl.js",
-        "assets/quota-DKV3nm2j.js",
+        "assets/quota-CRj_arMl.js",
         "assets/KindMark-DzfA2Zmx.js",
         "assets/LoadingStatus-DRqSAbAC.js",
         "assets/SegmentedControl-DGAPW4qo.js",
-        "assets/serialize-Cvc1L9Bn.js",
+        "assets/serialize-BBuOlfeP.js",
         "assets/share-links-BaMGsV7M.js",
-        "assets/share-link-store-DaS1_6NA.js",
+        "assets/share-link-store-0V4ipuHZ.js",
         "assets/agent-provider-contract-B9GPzTSR.js",
-        "assets/i18n-B6JXBa3u.js",
-        "assets/tauri-transport-DPuvOPcs.js",
+        "assets/i18n-C7DcMsYH.js",
+        "assets/tauri-transport-ybILvtb4.js",
         "assets/events-mrzQ2dfo.js",
-        "assets/shortcuts-w42KonKR.js",
+        "assets/shortcuts-BrmzNJmd.js",
         "assets/project-store-BMELb2tT.js"
       ],
       "css": [],
@@ -908,7 +907,7 @@
       "initial": false
     },
     {
-      "file": "assets/FeedbackDialog-D1zVqVXb.js",
+      "file": "assets/FeedbackDialog-CdxPy3UC.js",
       "bytes": 7479,
       "entry": false,
       "facade": "src/renderer/features/feedback/FeedbackDialog.tsx",
@@ -916,53 +915,53 @@
         "assets/tiptap-AK4u0TRO.js",
         "assets/react-vendor-FHqoRFXt.js",
         "assets/anchored-popover-position-CJ7UyGsC.js",
-        "assets/quota-DKV3nm2j.js",
+        "assets/quota-CRj_arMl.js",
         "assets/SegmentedControl-DGAPW4qo.js",
-        "assets/index-CS44vLK_.js",
-        "assets/serialize-Cvc1L9Bn.js",
-        "assets/shortcuts-w42KonKR.js",
+        "assets/index-nL3h4fGR.js",
+        "assets/serialize-BBuOlfeP.js",
+        "assets/shortcuts-BrmzNJmd.js",
         "assets/sanitized-summary-DVWkBD3h.js",
-        "assets/HostedRestoreProgress-8At1INDR.js",
+        "assets/HostedRestoreProgress-C2EouqMz.js",
         "assets/notification-store-Bjb5Ek7L.js",
         "assets/agent-provider-contract-B9GPzTSR.js",
-        "assets/i18n-B6JXBa3u.js",
-        "assets/tauri-transport-DPuvOPcs.js",
-        "assets/connect-CeNCWPt7.js",
+        "assets/i18n-C7DcMsYH.js",
+        "assets/tauri-transport-ybILvtb4.js",
+        "assets/connect-YW3xuKSd.js",
         "assets/events-mrzQ2dfo.js",
-        "assets/persistence-lifecycle-CaMy2Kot.js",
+        "assets/persistence-lifecycle-97TG3rYV.js",
         "assets/markdown-projection-lifecycle-BSRGeCXb.js",
         "assets/active-editor-Dc7ypA2K.js",
-        "assets/native-asset-pipeline-Da94tWmJ.js",
+        "assets/native-asset-pipeline-XuAs70Ai.js",
         "assets/LoadingStatus-DRqSAbAC.js",
         "assets/project-store-BMELb2tT.js",
-        "assets/SettingsPrimitives-BgGVXcA8.js",
+        "assets/SettingsPrimitives-D654oXzS.js",
         "assets/GlassSlider-BMBz86FK.js",
         "assets/auth-dialog-store-CrFq8GJ7.js",
-        "assets/account-library-CGm8nOJg.js",
+        "assets/account-library-CVS-2lYq.js",
         "assets/HoverCard-r5Zy-SIj.js",
         "assets/KindMark-DzfA2Zmx.js",
-        "assets/BasicPreferencePanels-DAX3bpyH.js",
+        "assets/BasicPreferencePanels-CbUxAe6o.js",
         "assets/ColorPicker-D8bYYEQ6.js",
-        "assets/repository-1q_9SR9M.js",
-        "assets/chapter-prose-C3RVeuSc.js",
-        "assets/agent-edit-store-GRWRZr2D.js",
-        "assets/node-repo-Bp-Zbx2T.js",
-        "assets/sync-helpers-C4tFuDwJ.js",
-        "assets/yjs-prose-command-DohUCJPQ.js",
-        "assets/runtime-Ch1LWSw-.js",
-        "assets/location-link-catalog-DSe0UddE.js",
+        "assets/repository-C7v4hpK6.js",
+        "assets/chapter-prose-SSiE07Po.js",
+        "assets/agent-edit-store-CDAJSLEq.js",
+        "assets/node-repo-C9mRBxW6.js",
+        "assets/sync-helpers-Jt2m1H-L.js",
+        "assets/yjs-prose-command-PWob-kBi.js",
+        "assets/runtime-APPkwiud.js",
+        "assets/location-link-catalog-B6fWfdzy.js",
         "assets/open-entity-link-BInTx_Gd.js",
         "assets/scroll-to-block-C1hdQWnJ.js",
-        "assets/useProject-HyLpHHyC.js",
-        "assets/project-repo-CzYwIwAP.js",
-        "assets/project-create-CZIXUuWT.js",
-        "assets/entity-relation-type-repo-qOqJH4Un.js",
+        "assets/useProject-D5qpKmVj.js",
+        "assets/project-repo-BKAwFXGp.js",
+        "assets/project-create-B5yqyvVz.js",
+        "assets/entity-relation-type-repo-DTTZmcMc.js",
         "assets/SandCell-C6IbxQr8.js",
         "assets/deferred-module-CrnwMWz0.js",
         "assets/EmptyState-D_-ezGFl.js",
-        "assets/library-state-repo-BVn_CX_x.js",
+        "assets/library-state-repo-BJrb2n-r.js",
         "assets/readable-file-stem-CeiswDJL.js",
-        "assets/local-authored-blob-BNEU3flg.js"
+        "assets/local-authored-blob-Budey_cQ.js"
       ],
       "css": [
         "assets/FeedbackDialog-aZPdLucd.css"
@@ -981,32 +980,32 @@
       "initial": false
     },
     {
-      "file": "assets/share-inbox-runtime-CmvjdW-u.js",
+      "file": "assets/share-inbox-runtime-djGXPkhO.js",
       "bytes": 5451,
       "entry": false,
       "facade": "src/renderer/features/share-links/share-inbox-runtime.ts",
       "imports": [
-        "assets/serialize-Cvc1L9Bn.js",
+        "assets/serialize-BBuOlfeP.js",
         "assets/events-mrzQ2dfo.js",
         "assets/anchored-popover-position-CJ7UyGsC.js",
-        "assets/runtime-Ch1LWSw-.js",
+        "assets/runtime-APPkwiud.js",
         "assets/comment-CIKXhnuH.js",
-        "assets/comment-repo-C6tcu8Uw.js",
-        "assets/entity-relation-cleanup-BflB8n5k.js",
-        "assets/sync-helpers-C4tFuDwJ.js",
-        "assets/share-link-store-DaS1_6NA.js",
-        "assets/i18n-B6JXBa3u.js",
+        "assets/comment-repo-BbjfLwrT.js",
+        "assets/entity-relation-cleanup-CIWWZPug.js",
+        "assets/sync-helpers-Jt2m1H-L.js",
+        "assets/share-link-store-0V4ipuHZ.js",
+        "assets/i18n-C7DcMsYH.js",
         "assets/notification-store-Bjb5Ek7L.js",
         "assets/react-vendor-FHqoRFXt.js",
         "assets/tiptap-AK4u0TRO.js",
         "assets/agent-provider-contract-B9GPzTSR.js",
-        "assets/persistence-lifecycle-CaMy2Kot.js",
+        "assets/persistence-lifecycle-97TG3rYV.js",
         "assets/markdown-projection-lifecycle-BSRGeCXb.js",
         "assets/active-editor-Dc7ypA2K.js",
-        "assets/native-asset-pipeline-Da94tWmJ.js",
-        "assets/connect-CeNCWPt7.js",
-        "assets/tauri-transport-DPuvOPcs.js",
-        "assets/shortcuts-w42KonKR.js",
+        "assets/native-asset-pipeline-XuAs70Ai.js",
+        "assets/connect-YW3xuKSd.js",
+        "assets/tauri-transport-ybILvtb4.js",
+        "assets/shortcuts-BrmzNJmd.js",
         "assets/project-store-BMELb2tT.js"
       ],
       "css": [],
@@ -1014,41 +1013,41 @@
       "initial": false
     },
     {
-      "file": "assets/preference-sync-runtime-CtIN7MFO.js",
+      "file": "assets/preference-sync-runtime-B8CmEkaQ.js",
       "bytes": 6359,
       "entry": false,
       "facade": "src/renderer/features/preference-sync/preference-sync-runtime.ts",
       "imports": [
-        "assets/serialize-Cvc1L9Bn.js",
+        "assets/serialize-BBuOlfeP.js",
         "assets/anchored-popover-position-CJ7UyGsC.js",
         "assets/events-mrzQ2dfo.js",
-        "assets/HostedRestoreProgress-8At1INDR.js",
-        "assets/runtime-Ch1LWSw-.js",
+        "assets/HostedRestoreProgress-C2EouqMz.js",
+        "assets/runtime-APPkwiud.js",
         "assets/shortcuts-store-CL1HqTMm.js",
         "assets/react-vendor-FHqoRFXt.js",
         "assets/tiptap-AK4u0TRO.js",
         "assets/agent-provider-contract-B9GPzTSR.js",
-        "assets/connect-CeNCWPt7.js",
-        "assets/persistence-lifecycle-CaMy2Kot.js",
+        "assets/connect-YW3xuKSd.js",
+        "assets/persistence-lifecycle-97TG3rYV.js",
         "assets/markdown-projection-lifecycle-BSRGeCXb.js",
         "assets/active-editor-Dc7ypA2K.js",
-        "assets/native-asset-pipeline-Da94tWmJ.js",
-        "assets/tauri-transport-DPuvOPcs.js",
-        "assets/shortcuts-w42KonKR.js",
-        "assets/quota-DKV3nm2j.js",
-        "assets/i18n-B6JXBa3u.js"
+        "assets/native-asset-pipeline-XuAs70Ai.js",
+        "assets/tauri-transport-ybILvtb4.js",
+        "assets/shortcuts-BrmzNJmd.js",
+        "assets/quota-CRj_arMl.js",
+        "assets/i18n-C7DcMsYH.js"
       ],
       "css": [],
       "targets": [],
       "initial": false
     },
     {
-      "file": "assets/index-DxWmOXHI.js",
+      "file": "assets/index-DpD1ZHt-.js",
       "bytes": 3795,
       "entry": false,
       "facade": null,
       "imports": [
-        "assets/serialize-Cvc1L9Bn.js",
+        "assets/serialize-BBuOlfeP.js",
         "assets/anchored-popover-position-CJ7UyGsC.js",
         "assets/react-vendor-FHqoRFXt.js",
         "assets/agent-provider-contract-B9GPzTSR.js",
@@ -1060,14 +1059,14 @@
       "initial": false
     },
     {
-      "file": "assets/account-library-CGm8nOJg.js",
+      "file": "assets/account-library-CVS-2lYq.js",
       "bytes": 2415,
       "entry": false,
       "facade": "src/renderer/services/account-library.ts",
       "imports": [
         "assets/anchored-popover-position-CJ7UyGsC.js",
-        "assets/serialize-Cvc1L9Bn.js",
-        "assets/persistence-lifecycle-CaMy2Kot.js",
+        "assets/serialize-BBuOlfeP.js",
+        "assets/persistence-lifecycle-97TG3rYV.js",
         "assets/react-vendor-FHqoRFXt.js",
         "assets/agent-provider-contract-B9GPzTSR.js",
         "assets/tiptap-AK4u0TRO.js",
@@ -1080,25 +1079,25 @@
       "initial": true
     },
     {
-      "file": "assets/tauri-transport-DPuvOPcs.js",
+      "file": "assets/tauri-transport-ybILvtb4.js",
       "bytes": 8716,
       "entry": false,
       "facade": null,
       "imports": [
         "assets/anchored-popover-position-CJ7UyGsC.js",
-        "assets/serialize-Cvc1L9Bn.js"
+        "assets/serialize-BBuOlfeP.js"
       ],
       "css": [],
       "targets": [],
       "initial": true
     },
     {
-      "file": "assets/session-recovery-B8-FVgU2.js",
+      "file": "assets/session-recovery-CAEDeuSk.js",
       "bytes": 765,
       "entry": false,
       "facade": "src/renderer/sync/hosted/session-recovery.ts",
       "imports": [
-        "assets/serialize-Cvc1L9Bn.js",
+        "assets/serialize-BBuOlfeP.js",
         "assets/anchored-popover-position-CJ7UyGsC.js",
         "assets/react-vendor-FHqoRFXt.js",
         "assets/agent-provider-contract-B9GPzTSR.js",
@@ -1130,173 +1129,173 @@
       "initial": false
     },
     {
-      "file": "assets/built-in-sample-B1hhKWpN.js",
+      "file": "assets/built-in-sample-Kne0hPSM.js",
       "bytes": 765714,
       "entry": false,
       "facade": "src/renderer/services/built-in-sample/built-in-sample.ts",
       "imports": [
         "assets/anchored-popover-position-CJ7UyGsC.js",
-        "assets/serialize-Cvc1L9Bn.js",
-        "assets/library-state-repo-BVn_CX_x.js",
-        "assets/local-authored-blob-BNEU3flg.js",
-        "assets/project-create-CZIXUuWT.js",
-        "assets/sync-helpers-C4tFuDwJ.js",
+        "assets/serialize-BBuOlfeP.js",
+        "assets/library-state-repo-BJrb2n-r.js",
+        "assets/local-authored-blob-Budey_cQ.js",
+        "assets/project-create-B5yqyvVz.js",
+        "assets/sync-helpers-Jt2m1H-L.js",
         "assets/comment-CIKXhnuH.js",
-        "assets/yjs-prose-command-DohUCJPQ.js",
-        "assets/material-folder-repo-B0dom1GZ.js",
-        "assets/agent-memory-repo-D0lr_w3A.js",
-        "assets/book-act-repo-DXRCgk0V.js",
-        "assets/comment-repo-C6tcu8Uw.js",
-        "assets/node-repo-Bp-Zbx2T.js",
-        "assets/element-category-repo-CenZL46f.js",
-        "assets/storyline-repo-DKHbErmM.js",
-        "assets/entity-relation-type-repo-qOqJH4Un.js",
-        "assets/library-item-repo-xmwMPgAX.js",
-        "assets/project-repo-CzYwIwAP.js",
-        "assets/plot-grid-write-CneFcUmd.js",
-        "assets/synced-entity-commands-DxaOtoc3.js",
+        "assets/yjs-prose-command-PWob-kBi.js",
+        "assets/material-folder-repo-DQzsrhp5.js",
+        "assets/agent-memory-repo-F8MpFhil.js",
+        "assets/book-act-repo-zwkUtktW.js",
+        "assets/comment-repo-BbjfLwrT.js",
+        "assets/node-repo-C9mRBxW6.js",
+        "assets/element-category-repo-BOkZOrpP.js",
+        "assets/storyline-repo-BBmQQ9Am.js",
+        "assets/entity-relation-type-repo-DTTZmcMc.js",
+        "assets/library-item-repo-lnfUNK3l.js",
+        "assets/project-repo-BKAwFXGp.js",
+        "assets/plot-grid-write-BBW0iytV.js",
+        "assets/synced-entity-commands-DPrPIlmA.js",
         "assets/react-vendor-FHqoRFXt.js",
         "assets/agent-provider-contract-B9GPzTSR.js",
         "assets/tiptap-AK4u0TRO.js",
         "assets/events-mrzQ2dfo.js",
-        "assets/native-asset-pipeline-Da94tWmJ.js"
+        "assets/native-asset-pipeline-XuAs70Ai.js"
       ],
       "css": [],
       "targets": [],
       "initial": false
     },
     {
-      "file": "assets/library-state-repo-BVn_CX_x.js",
+      "file": "assets/library-state-repo-BJrb2n-r.js",
       "bytes": 426,
       "entry": false,
       "facade": null,
       "imports": [
-        "assets/serialize-Cvc1L9Bn.js"
+        "assets/serialize-BBuOlfeP.js"
       ],
       "css": [],
       "targets": [],
       "initial": true
     },
     {
-      "file": "assets/project-create-CZIXUuWT.js",
+      "file": "assets/project-create-B5yqyvVz.js",
       "bytes": 687,
       "entry": false,
       "facade": null,
       "imports": [
-        "assets/serialize-Cvc1L9Bn.js",
-        "assets/project-repo-CzYwIwAP.js",
-        "assets/entity-relation-type-repo-qOqJH4Un.js"
+        "assets/serialize-BBuOlfeP.js",
+        "assets/project-repo-BKAwFXGp.js",
+        "assets/entity-relation-type-repo-DTTZmcMc.js"
       ],
       "css": [],
       "targets": [],
       "initial": true
     },
     {
-      "file": "assets/local-authored-blob-BNEU3flg.js",
+      "file": "assets/local-authored-blob-Budey_cQ.js",
       "bytes": 3132,
       "entry": false,
       "facade": null,
       "imports": [
-        "assets/serialize-Cvc1L9Bn.js",
-        "assets/native-asset-pipeline-Da94tWmJ.js"
+        "assets/serialize-BBuOlfeP.js",
+        "assets/native-asset-pipeline-XuAs70Ai.js"
       ],
       "css": [],
       "targets": [],
       "initial": true
     },
     {
-      "file": "assets/entity-relation-type-repo-qOqJH4Un.js",
+      "file": "assets/entity-relation-type-repo-DTTZmcMc.js",
       "bytes": 3095,
       "entry": false,
       "facade": null,
       "imports": [
-        "assets/serialize-Cvc1L9Bn.js"
+        "assets/serialize-BBuOlfeP.js"
       ],
       "css": [],
       "targets": [],
       "initial": true
     },
     {
-      "file": "assets/native-asset-pipeline-Da94tWmJ.js",
+      "file": "assets/native-asset-pipeline-XuAs70Ai.js",
       "bytes": 5896,
       "entry": false,
       "facade": null,
       "imports": [
         "assets/anchored-popover-position-CJ7UyGsC.js",
-        "assets/serialize-Cvc1L9Bn.js"
+        "assets/serialize-BBuOlfeP.js"
       ],
       "css": [],
       "targets": [],
       "initial": true
     },
     {
-      "file": "assets/delete-project-HPFOGgQm.js",
+      "file": "assets/delete-project-BEKhcmbO.js",
       "bytes": 1126,
       "entry": false,
       "facade": "src/renderer/sync/hosted/delete-project.ts",
       "imports": [
-        "assets/serialize-Cvc1L9Bn.js",
+        "assets/serialize-BBuOlfeP.js",
         "assets/anchored-popover-position-CJ7UyGsC.js",
-        "assets/persistence-lifecycle-CaMy2Kot.js",
+        "assets/persistence-lifecycle-97TG3rYV.js",
         "assets/events-mrzQ2dfo.js",
-        "assets/connect-CeNCWPt7.js",
-        "assets/runtime-Ch1LWSw-.js",
-        "assets/tauri-transport-DPuvOPcs.js",
+        "assets/connect-YW3xuKSd.js",
+        "assets/runtime-APPkwiud.js",
+        "assets/tauri-transport-ybILvtb4.js",
         "assets/react-vendor-FHqoRFXt.js",
         "assets/tiptap-AK4u0TRO.js",
         "assets/agent-provider-contract-B9GPzTSR.js",
         "assets/markdown-projection-lifecycle-BSRGeCXb.js",
         "assets/active-editor-Dc7ypA2K.js",
-        "assets/native-asset-pipeline-Da94tWmJ.js"
+        "assets/native-asset-pipeline-XuAs70Ai.js"
       ],
       "css": [],
       "targets": [],
       "initial": false
     },
     {
-      "file": "assets/runtime-Ch1LWSw-.js",
+      "file": "assets/runtime-APPkwiud.js",
       "bytes": 8312,
       "entry": false,
       "facade": null,
       "imports": [
         "assets/anchored-popover-position-CJ7UyGsC.js",
-        "assets/serialize-Cvc1L9Bn.js",
+        "assets/serialize-BBuOlfeP.js",
         "assets/events-mrzQ2dfo.js",
-        "assets/persistence-lifecycle-CaMy2Kot.js",
-        "assets/native-asset-pipeline-Da94tWmJ.js",
-        "assets/connect-CeNCWPt7.js",
-        "assets/tauri-transport-DPuvOPcs.js"
+        "assets/persistence-lifecycle-97TG3rYV.js",
+        "assets/native-asset-pipeline-XuAs70Ai.js",
+        "assets/connect-YW3xuKSd.js",
+        "assets/tauri-transport-ybILvtb4.js"
       ],
       "css": [],
       "targets": [],
       "initial": true
     },
     {
-      "file": "assets/connect-CeNCWPt7.js",
+      "file": "assets/connect-YW3xuKSd.js",
       "bytes": 183479,
       "entry": false,
       "facade": null,
       "imports": [
-        "assets/serialize-Cvc1L9Bn.js",
+        "assets/serialize-BBuOlfeP.js",
         "assets/events-mrzQ2dfo.js",
-        "assets/persistence-lifecycle-CaMy2Kot.js",
-        "assets/native-asset-pipeline-Da94tWmJ.js",
+        "assets/persistence-lifecycle-97TG3rYV.js",
+        "assets/native-asset-pipeline-XuAs70Ai.js",
         "assets/anchored-popover-position-CJ7UyGsC.js",
-        "assets/tauri-transport-DPuvOPcs.js"
+        "assets/tauri-transport-ybILvtb4.js"
       ],
       "css": [],
       "targets": [],
       "initial": true
     },
     {
-      "file": "assets/persistence-lifecycle-CaMy2Kot.js",
+      "file": "assets/persistence-lifecycle-97TG3rYV.js",
       "bytes": 1347,
       "entry": false,
       "facade": "src/renderer/lib/persistence-lifecycle.ts",
       "imports": [
         "assets/markdown-projection-lifecycle-BSRGeCXb.js",
         "assets/anchored-popover-position-CJ7UyGsC.js",
-        "assets/serialize-Cvc1L9Bn.js",
+        "assets/serialize-BBuOlfeP.js",
         "assets/active-editor-Dc7ypA2K.js",
         "assets/react-vendor-FHqoRFXt.js",
         "assets/agent-provider-contract-B9GPzTSR.js",
@@ -1308,102 +1307,102 @@
       "initial": true
     },
     {
-      "file": "assets/project-route-components-OKJHPcwm.js",
-      "bytes": 861601,
+      "file": "assets/project-route-components-DpFFh4Ts.js",
+      "bytes": 863279,
       "entry": false,
       "facade": "src/renderer/app/project-route-components.tsx",
       "imports": [
         "assets/tiptap-AK4u0TRO.js",
         "assets/anchored-popover-position-CJ7UyGsC.js",
         "assets/react-vendor-FHqoRFXt.js",
-        "assets/serialize-Cvc1L9Bn.js",
+        "assets/serialize-BBuOlfeP.js",
         "assets/HoverCard-r5Zy-SIj.js",
         "assets/active-editor-Dc7ypA2K.js",
         "assets/notification-store-Bjb5Ek7L.js",
         "assets/project-store-BMELb2tT.js",
-        "assets/connect-CeNCWPt7.js",
-        "assets/index-CS44vLK_.js",
+        "assets/connect-YW3xuKSd.js",
+        "assets/index-nL3h4fGR.js",
         "assets/events-mrzQ2dfo.js",
-        "assets/agent-onboarding-BDmYKQSz.js",
+        "assets/agent-onboarding-D4XJAcNG.js",
         "assets/SandCell-C6IbxQr8.js",
-        "assets/sync-helpers-C4tFuDwJ.js",
-        "assets/chapter-prose-C3RVeuSc.js",
-        "assets/EntityHoverCard-CU5E0CXs.js",
-        "assets/RelationTypeField-DbHJTrMJ.js",
-        "assets/relation-edge-popover-DAa_tL8e.js",
-        "assets/SuperViewShell-DVXjeJFZ.js",
-        "assets/useComment-DVCRpW8g.js",
-        "assets/useProject-HyLpHHyC.js",
-        "assets/super-element-Ck9IOPcX.js",
-        "assets/useRelationTypePresentation-Ck4eU-RF.js",
-        "assets/book-act-repo-DXRCgk0V.js",
-        "assets/comment-repo-C6tcu8Uw.js",
-        "assets/material-folder-repo-B0dom1GZ.js",
-        "assets/storyline-repo-DKHbErmM.js",
-        "assets/element-category-repo-CenZL46f.js",
-        "assets/entity-relation-type-repo-qOqJH4Un.js",
-        "assets/library-item-repo-xmwMPgAX.js",
-        "assets/node-repo-Bp-Zbx2T.js",
-        "assets/project-repo-CzYwIwAP.js",
+        "assets/sync-helpers-Jt2m1H-L.js",
+        "assets/chapter-prose-SSiE07Po.js",
+        "assets/EntityHoverCard-Gx5AIWkc.js",
+        "assets/RelationTypeField-DCf8uUTD.js",
+        "assets/relation-edge-popover-yYm5dSnY.js",
+        "assets/SuperViewShell-AKfU3lm6.js",
+        "assets/useComment-CyiePJ3F.js",
+        "assets/useProject-D5qpKmVj.js",
+        "assets/super-element-DlGNasKG.js",
+        "assets/agent-chat-store-BgPOHt47.js",
+        "assets/useRelationTypePresentation-DuQTVySH.js",
+        "assets/book-act-repo-zwkUtktW.js",
+        "assets/comment-repo-BbjfLwrT.js",
+        "assets/material-folder-repo-DQzsrhp5.js",
+        "assets/storyline-repo-BBmQQ9Am.js",
+        "assets/element-category-repo-BOkZOrpP.js",
+        "assets/entity-relation-type-repo-DTTZmcMc.js",
+        "assets/library-item-repo-lnfUNK3l.js",
+        "assets/node-repo-C9mRBxW6.js",
+        "assets/project-repo-BKAwFXGp.js",
         "assets/GlassSlider-BMBz86FK.js",
         "assets/LoadingStatus-DRqSAbAC.js",
-        "assets/FieldReview-CS9R8q4e.js",
+        "assets/FieldReview-Z6ylJmhL.js",
         "assets/KindMark-DzfA2Zmx.js",
         "assets/open-entity-link-BInTx_Gd.js",
-        "assets/agent-chat-store-CYnPnGCb.js",
-        "assets/quota-DKV3nm2j.js",
+        "assets/quota-CRj_arMl.js",
         "assets/ColorPicker-D8bYYEQ6.js",
         "assets/comment-CIKXhnuH.js",
-        "assets/markdown-projection-status-LV2Xk1oS.js",
-        "assets/super-memo-material-BKTdFPQv.js",
-        "assets/bottom-timeline-C46BxGCb.js",
+        "assets/markdown-projection-status-nCbIA8oR.js",
+        "assets/super-memo-material-Cffyx6S2.js",
+        "assets/bottom-timeline-TOo-g0rH.js",
         "assets/deferred-module-CrnwMWz0.js",
-        "assets/yjs-prose-command-DohUCJPQ.js",
-        "assets/shortcuts-w42KonKR.js",
+        "assets/yjs-prose-command-PWob-kBi.js",
+        "assets/shortcuts-BrmzNJmd.js",
         "assets/shortcuts-store-CL1HqTMm.js",
         "assets/book-act-_HTBPvC7.js",
-        "assets/agent-edit-store-GRWRZr2D.js",
+        "assets/agent-edit-store-CDAJSLEq.js",
         "assets/build-default-client-DPn7Un-4.js",
         "assets/codex-subscription-CDfhnxjO.js",
-        "assets/i18n-B6JXBa3u.js",
-        "assets/repository-1q_9SR9M.js",
+        "assets/i18n-C7DcMsYH.js",
+        "assets/repository-C7v4hpK6.js",
         "assets/agent-provider-contract-B9GPzTSR.js",
         "assets/EmptyState-D_-ezGFl.js",
         "assets/SegmentedControl-DGAPW4qo.js",
         "assets/share-links-BaMGsV7M.js",
-        "assets/HostedRestoreProgress-8At1INDR.js",
+        "assets/HostedRestoreProgress-C2EouqMz.js",
         "assets/auth-dialog-store-CrFq8GJ7.js",
-        "assets/graph-view-BELsPRaZ.js",
-        "assets/library-item-deletion-4_W-JxgA.js",
+        "assets/graph-view-CtVRUbv5.js",
+        "assets/library-item-deletion-CbbU3KKF.js",
         "assets/test-provider-connection-1BUuPCIX.js",
         "assets/codex-model-catalog-BxwCA6rC.js",
-        "assets/inline-mention-repo-DvB-avvH.js",
-        "assets/SettingsPrimitives-BgGVXcA8.js",
+        "assets/inline-mention-repo-B1VNs_Pz.js",
+        "assets/SettingsPrimitives-D654oXzS.js",
         "assets/scroll-to-block-C1hdQWnJ.js",
-        "assets/persistence-lifecycle-CaMy2Kot.js",
+        "assets/persistence-lifecycle-97TG3rYV.js",
         "assets/markdown-projection-lifecycle-BSRGeCXb.js",
-        "assets/native-asset-pipeline-Da94tWmJ.js",
-        "assets/tauri-transport-DPuvOPcs.js",
-        "assets/account-library-CGm8nOJg.js",
-        "assets/BasicPreferencePanels-DAX3bpyH.js",
-        "assets/runtime-Ch1LWSw-.js",
-        "assets/location-link-catalog-DSe0UddE.js",
-        "assets/library-state-repo-BVn_CX_x.js",
+        "assets/native-asset-pipeline-XuAs70Ai.js",
+        "assets/tauri-transport-ybILvtb4.js",
+        "assets/account-library-CVS-2lYq.js",
+        "assets/BasicPreferencePanels-CbUxAe6o.js",
+        "assets/runtime-APPkwiud.js",
+        "assets/location-link-catalog-B6fWfdzy.js",
+        "assets/library-state-repo-BJrb2n-r.js",
         "assets/readable-file-stem-CeiswDJL.js",
-        "assets/local-authored-blob-BNEU3flg.js",
-        "assets/project-create-CZIXUuWT.js",
+        "assets/local-authored-blob-Budey_cQ.js",
+        "assets/project-create-B5yqyvVz.js",
         "assets/image-inbox-store-nTGEyUmV.js",
-        "assets/plot-grid-write-CneFcUmd.js",
-        "assets/note-markdown-DfjP4plh.js",
-        "assets/synced-entity-commands-DxaOtoc3.js",
-        "assets/field-diff-CI3OHYPU.js",
-        "assets/agent-memory-repo-D0lr_w3A.js",
+        "assets/plot-grid-write-BBW0iytV.js",
+        "assets/note-markdown-CfRdLrvZ.js",
+        "assets/synced-entity-commands-DPrPIlmA.js",
+        "assets/field-diff-vaErjlmn.js",
+        "assets/agent-memory-repo-F8MpFhil.js",
         "assets/storyline-DadORQHB.js",
-        "assets/workspace-prose-file-CVMCI-CU.js",
+        "assets/workspace-prose-file-DNv3e70E.js",
         "assets/types-BRMYK13e.js",
-        "assets/entity-relation-cleanup-BflB8n5k.js",
-        "assets/share-link-store-DaS1_6NA.js",
-        "assets/external-edit-presentation-D0-y87l9.js"
+        "assets/entity-relation-cleanup-CIWWZPug.js",
+        "assets/share-link-store-0V4ipuHZ.js",
+        "assets/external-edit-presentation-D3IhXpsj.js"
       ],
       "css": [
         "assets/project-route-components-B-KADCCp.css"
@@ -1412,32 +1411,32 @@
       "initial": false
     },
     {
-      "file": "assets/relation-edge-popover-DAa_tL8e.js",
-      "bytes": 16454,
+      "file": "assets/relation-edge-popover-yYm5dSnY.js",
+      "bytes": 16482,
       "entry": false,
       "facade": null,
       "imports": [
         "assets/tiptap-AK4u0TRO.js",
         "assets/react-vendor-FHqoRFXt.js",
-        "assets/FieldReview-CS9R8q4e.js",
-        "assets/chapter-prose-C3RVeuSc.js",
+        "assets/FieldReview-Z6ylJmhL.js",
+        "assets/chapter-prose-SSiE07Po.js",
         "assets/LoadingStatus-DRqSAbAC.js",
         "assets/anchored-popover-position-CJ7UyGsC.js",
-        "assets/synced-entity-commands-DxaOtoc3.js",
-        "assets/serialize-Cvc1L9Bn.js",
+        "assets/synced-entity-commands-DPrPIlmA.js",
+        "assets/serialize-BBuOlfeP.js",
         "assets/events-mrzQ2dfo.js",
-        "assets/useRelationTypePresentation-Ck4eU-RF.js",
-        "assets/EntityHoverCard-CU5E0CXs.js",
+        "assets/useRelationTypePresentation-DuQTVySH.js",
+        "assets/EntityHoverCard-Gx5AIWkc.js",
         "assets/comment-CIKXhnuH.js",
         "assets/EmptyState-D_-ezGFl.js",
         "assets/KindMark-DzfA2Zmx.js",
-        "assets/quota-DKV3nm2j.js",
-        "assets/yjs-prose-command-DohUCJPQ.js",
-        "assets/useComment-DVCRpW8g.js",
-        "assets/shortcuts-w42KonKR.js",
+        "assets/quota-CRj_arMl.js",
+        "assets/yjs-prose-command-PWob-kBi.js",
+        "assets/useComment-CyiePJ3F.js",
+        "assets/shortcuts-BrmzNJmd.js",
         "assets/shortcuts-store-CL1HqTMm.js",
-        "assets/node-repo-Bp-Zbx2T.js",
-        "assets/plot-grid-write-CneFcUmd.js"
+        "assets/node-repo-C9mRBxW6.js",
+        "assets/plot-grid-write-BBW0iytV.js"
       ],
       "css": [
         "assets/relation-edge-popover-CPwYBypA.css"
@@ -1446,8 +1445,8 @@
       "initial": false
     },
     {
-      "file": "assets/agent-onboarding-BDmYKQSz.js",
-      "bytes": 750339,
+      "file": "assets/agent-onboarding-D4XJAcNG.js",
+      "bytes": 750321,
       "entry": false,
       "facade": null,
       "imports": [
@@ -1455,40 +1454,40 @@
         "assets/react-vendor-FHqoRFXt.js",
         "assets/anchored-popover-position-CJ7UyGsC.js",
         "assets/project-store-BMELb2tT.js",
-        "assets/agent-chat-store-CYnPnGCb.js",
-        "assets/shortcuts-w42KonKR.js",
+        "assets/agent-chat-store-BgPOHt47.js",
+        "assets/shortcuts-BrmzNJmd.js",
         "assets/build-default-client-DPn7Un-4.js",
-        "assets/repository-1q_9SR9M.js",
+        "assets/repository-C7v4hpK6.js",
         "assets/agent-provider-contract-B9GPzTSR.js",
         "assets/events-mrzQ2dfo.js",
-        "assets/serialize-Cvc1L9Bn.js",
+        "assets/serialize-BBuOlfeP.js",
         "assets/image-inbox-store-nTGEyUmV.js",
-        "assets/markdown-projection-status-LV2Xk1oS.js",
+        "assets/markdown-projection-status-nCbIA8oR.js",
         "assets/book-act-_HTBPvC7.js",
-        "assets/plot-grid-write-CneFcUmd.js",
-        "assets/yjs-prose-command-DohUCJPQ.js",
-        "assets/note-markdown-DfjP4plh.js",
-        "assets/material-folder-repo-B0dom1GZ.js",
-        "assets/library-item-repo-xmwMPgAX.js",
-        "assets/location-link-catalog-DSe0UddE.js",
-        "assets/chapter-prose-C3RVeuSc.js",
+        "assets/plot-grid-write-BBW0iytV.js",
+        "assets/yjs-prose-command-PWob-kBi.js",
+        "assets/note-markdown-CfRdLrvZ.js",
+        "assets/material-folder-repo-DQzsrhp5.js",
+        "assets/library-item-repo-lnfUNK3l.js",
+        "assets/location-link-catalog-B6fWfdzy.js",
+        "assets/chapter-prose-SSiE07Po.js",
         "assets/comment-CIKXhnuH.js",
-        "assets/comment-repo-C6tcu8Uw.js",
-        "assets/sync-helpers-C4tFuDwJ.js",
-        "assets/library-item-deletion-4_W-JxgA.js",
-        "assets/node-repo-Bp-Zbx2T.js",
-        "assets/inline-mention-repo-DvB-avvH.js",
-        "assets/synced-entity-commands-DxaOtoc3.js",
-        "assets/agent-edit-store-GRWRZr2D.js",
-        "assets/field-diff-CI3OHYPU.js",
-        "assets/agent-memory-repo-D0lr_w3A.js",
-        "assets/book-act-repo-DXRCgk0V.js",
+        "assets/comment-repo-BbjfLwrT.js",
+        "assets/sync-helpers-Jt2m1H-L.js",
+        "assets/library-item-deletion-CbbU3KKF.js",
+        "assets/node-repo-C9mRBxW6.js",
+        "assets/inline-mention-repo-B1VNs_Pz.js",
+        "assets/synced-entity-commands-DPrPIlmA.js",
+        "assets/agent-edit-store-CDAJSLEq.js",
+        "assets/field-diff-vaErjlmn.js",
+        "assets/agent-memory-repo-F8MpFhil.js",
+        "assets/book-act-repo-zwkUtktW.js",
         "assets/storyline-DadORQHB.js",
-        "assets/storyline-repo-DKHbErmM.js",
-        "assets/project-repo-CzYwIwAP.js",
-        "assets/entity-relation-type-repo-qOqJH4Un.js",
-        "assets/element-category-repo-CenZL46f.js",
-        "assets/workspace-prose-file-CVMCI-CU.js",
+        "assets/storyline-repo-BBmQQ9Am.js",
+        "assets/project-repo-BKAwFXGp.js",
+        "assets/entity-relation-type-repo-DTTZmcMc.js",
+        "assets/element-category-repo-BOkZOrpP.js",
+        "assets/workspace-prose-file-DNv3e70E.js",
         "assets/types-BRMYK13e.js",
         "assets/codex-model-catalog-BxwCA6rC.js"
       ],
@@ -1538,21 +1537,21 @@
       "initial": false
     },
     {
-      "file": "assets/graph-view-BELsPRaZ.js",
+      "file": "assets/graph-view-CtVRUbv5.js",
       "bytes": 22900,
       "entry": false,
       "facade": null,
       "imports": [
-        "assets/serialize-Cvc1L9Bn.js",
+        "assets/serialize-BBuOlfeP.js",
         "assets/tiptap-AK4u0TRO.js",
         "assets/react-vendor-FHqoRFXt.js",
         "assets/book-act-_HTBPvC7.js",
-        "assets/useRelationTypePresentation-Ck4eU-RF.js",
-        "assets/RelationTypeField-DbHJTrMJ.js",
+        "assets/useRelationTypePresentation-DuQTVySH.js",
+        "assets/RelationTypeField-DCf8uUTD.js",
         "assets/HoverCard-r5Zy-SIj.js",
         "assets/anchored-popover-position-CJ7UyGsC.js",
         "assets/KindMark-DzfA2Zmx.js",
-        "assets/EntityHoverCard-CU5E0CXs.js"
+        "assets/EntityHoverCard-Gx5AIWkc.js"
       ],
       "css": [
         "assets/graph-view-CM6dC1MA.css"
@@ -1561,45 +1560,45 @@
       "initial": false
     },
     {
-      "file": "assets/super-element-Ck9IOPcX.js",
-      "bytes": 145651,
+      "file": "assets/super-element-DlGNasKG.js",
+      "bytes": 146652,
       "entry": false,
       "facade": null,
       "imports": [
         "assets/tiptap-AK4u0TRO.js",
         "assets/react-vendor-FHqoRFXt.js",
-        "assets/FieldReview-CS9R8q4e.js",
-        "assets/serialize-Cvc1L9Bn.js",
+        "assets/FieldReview-Z6ylJmhL.js",
+        "assets/serialize-BBuOlfeP.js",
         "assets/project-store-BMELb2tT.js",
         "assets/anchored-popover-position-CJ7UyGsC.js",
-        "assets/EntityHoverCard-CU5E0CXs.js",
-        "assets/RelationTypeField-DbHJTrMJ.js",
-        "assets/inline-mention-repo-DvB-avvH.js",
-        "assets/useRelationTypePresentation-Ck4eU-RF.js",
-        "assets/SuperViewShell-DVXjeJFZ.js",
+        "assets/EntityHoverCard-Gx5AIWkc.js",
+        "assets/RelationTypeField-DCf8uUTD.js",
+        "assets/inline-mention-repo-B1VNs_Pz.js",
+        "assets/useRelationTypePresentation-DuQTVySH.js",
+        "assets/SuperViewShell-AKfU3lm6.js",
         "assets/events-mrzQ2dfo.js",
-        "assets/yjs-prose-command-DohUCJPQ.js",
+        "assets/yjs-prose-command-PWob-kBi.js",
         "assets/GlassSlider-BMBz86FK.js",
         "assets/KindMark-DzfA2Zmx.js",
-        "assets/synced-entity-commands-DxaOtoc3.js",
-        "assets/agent-edit-store-GRWRZr2D.js",
-        "assets/node-repo-Bp-Zbx2T.js",
+        "assets/synced-entity-commands-DPrPIlmA.js",
+        "assets/agent-edit-store-CDAJSLEq.js",
+        "assets/node-repo-C9mRBxW6.js",
         "assets/scroll-to-block-C1hdQWnJ.js",
-        "assets/bottom-timeline-C46BxGCb.js",
-        "assets/quota-DKV3nm2j.js",
-        "assets/native-asset-pipeline-Da94tWmJ.js",
+        "assets/bottom-timeline-TOo-g0rH.js",
+        "assets/quota-CRj_arMl.js",
+        "assets/native-asset-pipeline-XuAs70Ai.js",
         "assets/HoverCard-r5Zy-SIj.js",
         "assets/comment-CIKXhnuH.js",
-        "assets/chapter-prose-C3RVeuSc.js",
+        "assets/chapter-prose-SSiE07Po.js",
         "assets/SegmentedControl-DGAPW4qo.js",
         "assets/codex-subscription-CDfhnxjO.js",
         "assets/image-inbox-store-nTGEyUmV.js",
-        "assets/agent-chat-store-CYnPnGCb.js",
-        "assets/useComment-DVCRpW8g.js",
-        "assets/useProject-HyLpHHyC.js",
+        "assets/agent-chat-store-BgPOHt47.js",
+        "assets/useComment-CyiePJ3F.js",
+        "assets/useProject-D5qpKmVj.js",
         "assets/ColorPicker-D8bYYEQ6.js",
-        "assets/library-item-deletion-4_W-JxgA.js",
-        "assets/external-edit-presentation-D0-y87l9.js"
+        "assets/library-item-deletion-CbbU3KKF.js",
+        "assets/external-edit-presentation-D3IhXpsj.js"
       ],
       "css": [
         "assets/super-element-CKAb6z7t.css"
@@ -1608,27 +1607,27 @@
       "initial": false
     },
     {
-      "file": "assets/FieldReview-CS9R8q4e.js",
+      "file": "assets/FieldReview-Z6ylJmhL.js",
       "bytes": 78786,
       "entry": false,
       "facade": null,
       "imports": [
         "assets/react-vendor-FHqoRFXt.js",
         "assets/tiptap-AK4u0TRO.js",
-        "assets/yjs-prose-command-DohUCJPQ.js",
+        "assets/yjs-prose-command-PWob-kBi.js",
         "assets/anchored-popover-position-CJ7UyGsC.js",
         "assets/events-mrzQ2dfo.js",
         "assets/active-editor-Dc7ypA2K.js",
-        "assets/chapter-prose-C3RVeuSc.js",
+        "assets/chapter-prose-SSiE07Po.js",
         "assets/KindMark-DzfA2Zmx.js",
-        "assets/serialize-Cvc1L9Bn.js",
-        "assets/EntityHoverCard-CU5E0CXs.js",
-        "assets/useRelationTypePresentation-Ck4eU-RF.js",
+        "assets/serialize-BBuOlfeP.js",
+        "assets/EntityHoverCard-Gx5AIWkc.js",
+        "assets/useRelationTypePresentation-DuQTVySH.js",
         "assets/HoverCard-r5Zy-SIj.js",
         "assets/open-entity-link-BInTx_Gd.js",
-        "assets/agent-edit-store-GRWRZr2D.js",
-        "assets/library-item-deletion-4_W-JxgA.js",
-        "assets/field-diff-CI3OHYPU.js"
+        "assets/agent-edit-store-CDAJSLEq.js",
+        "assets/library-item-deletion-CbbU3KKF.js",
+        "assets/field-diff-vaErjlmn.js"
       ],
       "css": [],
       "targets": [],
@@ -1647,12 +1646,12 @@
       "initial": false
     },
     {
-      "file": "assets/field-diff-CI3OHYPU.js",
+      "file": "assets/field-diff-vaErjlmn.js",
       "bytes": 924,
       "entry": false,
       "facade": null,
       "imports": [
-        "assets/serialize-Cvc1L9Bn.js"
+        "assets/serialize-BBuOlfeP.js"
       ],
       "css": [],
       "targets": [],
@@ -1685,38 +1684,38 @@
       "initial": false
     },
     {
-      "file": "assets/RelationTypeField-DbHJTrMJ.js",
+      "file": "assets/RelationTypeField-DCf8uUTD.js",
       "bytes": 87785,
       "entry": false,
       "facade": null,
       "imports": [
         "assets/react-vendor-FHqoRFXt.js",
-        "assets/serialize-Cvc1L9Bn.js",
-        "assets/node-repo-Bp-Zbx2T.js",
-        "assets/sync-helpers-C4tFuDwJ.js",
+        "assets/serialize-BBuOlfeP.js",
+        "assets/node-repo-C9mRBxW6.js",
+        "assets/sync-helpers-Jt2m1H-L.js",
         "assets/anchored-popover-position-CJ7UyGsC.js",
-        "assets/useRelationTypePresentation-Ck4eU-RF.js",
+        "assets/useRelationTypePresentation-DuQTVySH.js",
         "assets/HoverCard-r5Zy-SIj.js",
-        "assets/EntityHoverCard-CU5E0CXs.js",
-        "assets/element-category-repo-CenZL46f.js",
-        "assets/entity-relation-cleanup-BflB8n5k.js",
-        "assets/chapter-prose-C3RVeuSc.js",
+        "assets/EntityHoverCard-Gx5AIWkc.js",
+        "assets/element-category-repo-BOkZOrpP.js",
+        "assets/entity-relation-cleanup-CIWWZPug.js",
+        "assets/chapter-prose-SSiE07Po.js",
         "assets/storyline-DadORQHB.js",
-        "assets/storyline-repo-DKHbErmM.js",
+        "assets/storyline-repo-BBmQQ9Am.js",
         "assets/project-store-BMELb2tT.js",
         "assets/tiptap-AK4u0TRO.js",
         "assets/GlassSlider-BMBz86FK.js",
         "assets/KindMark-DzfA2Zmx.js",
-        "assets/quota-DKV3nm2j.js",
+        "assets/quota-CRj_arMl.js",
         "assets/SandCell-C6IbxQr8.js",
-        "assets/shortcuts-w42KonKR.js",
+        "assets/shortcuts-BrmzNJmd.js",
         "assets/shortcuts-store-CL1HqTMm.js",
         "assets/active-editor-Dc7ypA2K.js",
         "assets/share-links-BaMGsV7M.js",
         "assets/LoadingStatus-DRqSAbAC.js",
         "assets/SegmentedControl-DGAPW4qo.js",
         "assets/auth-dialog-store-CrFq8GJ7.js",
-        "assets/share-link-store-DaS1_6NA.js"
+        "assets/share-link-store-0V4ipuHZ.js"
       ],
       "css": [
         "assets/RelationTypeField-Cow7ZwbO.css"
@@ -1725,24 +1724,24 @@
       "initial": false
     },
     {
-      "file": "assets/EntityHoverCard-CU5E0CXs.js",
+      "file": "assets/EntityHoverCard-Gx5AIWkc.js",
       "bytes": 30599,
       "entry": false,
       "facade": null,
       "imports": [
         "assets/react-vendor-FHqoRFXt.js",
-        "assets/serialize-Cvc1L9Bn.js",
+        "assets/serialize-BBuOlfeP.js",
         "assets/HoverCard-r5Zy-SIj.js",
-        "assets/storyline-repo-DKHbErmM.js",
-        "assets/inline-mention-repo-DvB-avvH.js",
-        "assets/chapter-prose-C3RVeuSc.js",
-        "assets/useRelationTypePresentation-Ck4eU-RF.js",
+        "assets/storyline-repo-BBmQQ9Am.js",
+        "assets/inline-mention-repo-B1VNs_Pz.js",
+        "assets/chapter-prose-SSiE07Po.js",
+        "assets/useRelationTypePresentation-DuQTVySH.js",
         "assets/events-mrzQ2dfo.js",
-        "assets/sync-helpers-C4tFuDwJ.js",
-        "assets/entity-relation-cleanup-BflB8n5k.js",
+        "assets/sync-helpers-Jt2m1H-L.js",
+        "assets/entity-relation-cleanup-CIWWZPug.js",
         "assets/anchored-popover-position-CJ7UyGsC.js",
-        "assets/node-repo-Bp-Zbx2T.js",
-        "assets/book-act-repo-DXRCgk0V.js",
+        "assets/node-repo-C9mRBxW6.js",
+        "assets/book-act-repo-zwkUtktW.js",
         "assets/book-act-_HTBPvC7.js",
         "assets/tiptap-AK4u0TRO.js",
         "assets/KindMark-DzfA2Zmx.js"
@@ -1762,19 +1761,19 @@
       "initial": false
     },
     {
-      "file": "assets/inline-mention-repo-DvB-avvH.js",
+      "file": "assets/inline-mention-repo-B1VNs_Pz.js",
       "bytes": 2162,
       "entry": false,
       "facade": null,
       "imports": [
-        "assets/serialize-Cvc1L9Bn.js"
+        "assets/serialize-BBuOlfeP.js"
       ],
       "css": [],
       "targets": [],
       "initial": false
     },
     {
-      "file": "assets/super-memo-material-BKTdFPQv.js",
+      "file": "assets/super-memo-material-Cffyx6S2.js",
       "bytes": 36476,
       "entry": false,
       "facade": null,
@@ -1782,16 +1781,16 @@
         "assets/tiptap-AK4u0TRO.js",
         "assets/react-vendor-FHqoRFXt.js",
         "assets/comment-CIKXhnuH.js",
-        "assets/serialize-Cvc1L9Bn.js",
-        "assets/quota-DKV3nm2j.js",
+        "assets/serialize-BBuOlfeP.js",
+        "assets/quota-CRj_arMl.js",
         "assets/anchored-popover-position-CJ7UyGsC.js",
         "assets/GlassSlider-BMBz86FK.js",
-        "assets/bottom-timeline-C46BxGCb.js",
-        "assets/useRelationTypePresentation-Ck4eU-RF.js",
-        "assets/note-markdown-DfjP4plh.js",
-        "assets/agent-chat-store-CYnPnGCb.js",
+        "assets/bottom-timeline-TOo-g0rH.js",
+        "assets/useRelationTypePresentation-DuQTVySH.js",
+        "assets/note-markdown-CfRdLrvZ.js",
+        "assets/agent-chat-store-BgPOHt47.js",
         "assets/scroll-to-block-C1hdQWnJ.js",
-        "assets/useComment-DVCRpW8g.js",
+        "assets/useComment-CyiePJ3F.js",
         "assets/HoverCard-r5Zy-SIj.js",
         "assets/KindMark-DzfA2Zmx.js"
       ],
@@ -1802,7 +1801,7 @@
       "initial": false
     },
     {
-      "file": "assets/bottom-timeline-C46BxGCb.js",
+      "file": "assets/bottom-timeline-TOo-g0rH.js",
       "bytes": 8171,
       "entry": false,
       "facade": null,
@@ -1811,8 +1810,8 @@
         "assets/react-vendor-FHqoRFXt.js",
         "assets/anchored-popover-position-CJ7UyGsC.js",
         "assets/HoverCard-r5Zy-SIj.js",
-        "assets/serialize-Cvc1L9Bn.js",
-        "assets/useRelationTypePresentation-Ck4eU-RF.js"
+        "assets/serialize-BBuOlfeP.js",
+        "assets/useRelationTypePresentation-DuQTVySH.js"
       ],
       "css": [
         "assets/bottom-timeline-CwbapwVL.css"
@@ -1821,76 +1820,76 @@
       "initial": false
     },
     {
-      "file": "assets/useComment-DVCRpW8g.js",
+      "file": "assets/useComment-CyiePJ3F.js",
       "bytes": 14263,
       "entry": false,
       "facade": null,
       "imports": [
         "assets/react-vendor-FHqoRFXt.js",
-        "assets/serialize-Cvc1L9Bn.js",
+        "assets/serialize-BBuOlfeP.js",
         "assets/events-mrzQ2dfo.js",
-        "assets/sync-helpers-C4tFuDwJ.js",
-        "assets/library-item-repo-xmwMPgAX.js",
-        "assets/useRelationTypePresentation-Ck4eU-RF.js",
+        "assets/sync-helpers-Jt2m1H-L.js",
+        "assets/library-item-repo-lnfUNK3l.js",
+        "assets/useRelationTypePresentation-DuQTVySH.js",
         "assets/HoverCard-r5Zy-SIj.js",
-        "assets/entity-relation-cleanup-BflB8n5k.js",
-        "assets/library-item-deletion-4_W-JxgA.js",
+        "assets/entity-relation-cleanup-CIWWZPug.js",
+        "assets/library-item-deletion-CbbU3KKF.js",
         "assets/anchored-popover-position-CJ7UyGsC.js",
-        "assets/comment-repo-C6tcu8Uw.js"
+        "assets/comment-repo-BbjfLwrT.js"
       ],
       "css": [],
       "targets": [],
       "initial": false
     },
     {
-      "file": "assets/agent-chat-store-CYnPnGCb.js",
+      "file": "assets/agent-chat-store-BgPOHt47.js",
       "bytes": 87945,
       "entry": false,
       "facade": null,
       "imports": [
         "assets/events-mrzQ2dfo.js",
-        "assets/repository-1q_9SR9M.js",
+        "assets/repository-C7v4hpK6.js",
         "assets/anchored-popover-position-CJ7UyGsC.js",
         "assets/project-store-BMELb2tT.js",
-        "assets/library-item-deletion-4_W-JxgA.js",
-        "assets/serialize-Cvc1L9Bn.js",
+        "assets/library-item-deletion-CbbU3KKF.js",
+        "assets/serialize-BBuOlfeP.js",
         "assets/react-vendor-FHqoRFXt.js",
-        "assets/agent-memory-repo-D0lr_w3A.js",
-        "assets/sync-helpers-C4tFuDwJ.js"
+        "assets/agent-memory-repo-F8MpFhil.js",
+        "assets/sync-helpers-Jt2m1H-L.js"
       ],
       "css": [],
       "targets": [],
       "initial": false
     },
     {
-      "file": "assets/library-item-deletion-4_W-JxgA.js",
+      "file": "assets/library-item-deletion-CbbU3KKF.js",
       "bytes": 3781,
       "entry": false,
       "facade": null,
       "imports": [
-        "assets/agent-edit-store-GRWRZr2D.js",
+        "assets/agent-edit-store-CDAJSLEq.js",
         "assets/anchored-popover-position-CJ7UyGsC.js",
-        "assets/library-item-repo-xmwMPgAX.js",
-        "assets/serialize-Cvc1L9Bn.js",
-        "assets/comment-repo-C6tcu8Uw.js",
-        "assets/entity-relation-cleanup-BflB8n5k.js",
-        "assets/sync-helpers-C4tFuDwJ.js"
+        "assets/library-item-repo-lnfUNK3l.js",
+        "assets/serialize-BBuOlfeP.js",
+        "assets/comment-repo-BbjfLwrT.js",
+        "assets/entity-relation-cleanup-CIWWZPug.js",
+        "assets/sync-helpers-Jt2m1H-L.js"
       ],
       "css": [],
       "targets": [],
       "initial": false
     },
     {
-      "file": "assets/SuperViewShell-DVXjeJFZ.js",
+      "file": "assets/SuperViewShell-AKfU3lm6.js",
       "bytes": 36251,
       "entry": false,
       "facade": null,
       "imports": [
         "assets/react-vendor-FHqoRFXt.js",
-        "assets/serialize-Cvc1L9Bn.js",
-        "assets/entity-relation-type-repo-qOqJH4Un.js",
-        "assets/useRelationTypePresentation-Ck4eU-RF.js",
-        "assets/sync-helpers-C4tFuDwJ.js",
+        "assets/serialize-BBuOlfeP.js",
+        "assets/entity-relation-type-repo-DTTZmcMc.js",
+        "assets/useRelationTypePresentation-DuQTVySH.js",
+        "assets/sync-helpers-Jt2m1H-L.js",
         "assets/tiptap-AK4u0TRO.js",
         "assets/deferred-module-CrnwMWz0.js",
         "assets/anchored-popover-position-CJ7UyGsC.js",
@@ -1906,15 +1905,15 @@
       "initial": false
     },
     {
-      "file": "assets/useRelationTypePresentation-Ck4eU-RF.js",
+      "file": "assets/useRelationTypePresentation-DuQTVySH.js",
       "bytes": 9137,
       "entry": false,
       "facade": null,
       "imports": [
         "assets/anchored-popover-position-CJ7UyGsC.js",
-        "assets/local-authored-blob-BNEU3flg.js",
-        "assets/quota-DKV3nm2j.js",
-        "assets/serialize-Cvc1L9Bn.js",
+        "assets/local-authored-blob-Budey_cQ.js",
+        "assets/quota-CRj_arMl.js",
+        "assets/serialize-BBuOlfeP.js",
         "assets/react-vendor-FHqoRFXt.js",
         "assets/tiptap-AK4u0TRO.js",
         "assets/HoverCard-r5Zy-SIj.js"
@@ -1936,26 +1935,26 @@
       "initial": false
     },
     {
-      "file": "assets/entity-relation-cleanup-BflB8n5k.js",
+      "file": "assets/entity-relation-cleanup-CIWWZPug.js",
       "bytes": 532,
       "entry": false,
       "facade": null,
       "imports": [
-        "assets/serialize-Cvc1L9Bn.js"
+        "assets/serialize-BBuOlfeP.js"
       ],
       "css": [],
       "targets": [],
       "initial": false
     },
     {
-      "file": "assets/share-link-store-DaS1_6NA.js",
+      "file": "assets/share-link-store-0V4ipuHZ.js",
       "bytes": 10354,
       "entry": false,
       "facade": null,
       "imports": [
         "assets/anchored-popover-position-CJ7UyGsC.js",
-        "assets/serialize-Cvc1L9Bn.js",
-        "assets/shortcuts-w42KonKR.js",
+        "assets/serialize-BBuOlfeP.js",
+        "assets/shortcuts-BrmzNJmd.js",
         "assets/project-store-BMELb2tT.js"
       ],
       "css": [],
@@ -1975,26 +1974,26 @@
       "initial": false
     },
     {
-      "file": "assets/material-folder-repo-B0dom1GZ.js",
+      "file": "assets/material-folder-repo-DQzsrhp5.js",
       "bytes": 6653,
       "entry": false,
       "facade": null,
       "imports": [
-        "assets/serialize-Cvc1L9Bn.js",
-        "assets/yjs-prose-command-DohUCJPQ.js"
+        "assets/serialize-BBuOlfeP.js",
+        "assets/yjs-prose-command-PWob-kBi.js"
       ],
       "css": [],
       "targets": [],
       "initial": false
     },
     {
-      "file": "assets/plot-grid-write-CneFcUmd.js",
+      "file": "assets/plot-grid-write-BBW0iytV.js",
       "bytes": 3614,
       "entry": false,
       "facade": null,
       "imports": [
-        "assets/serialize-Cvc1L9Bn.js",
-        "assets/node-repo-Bp-Zbx2T.js",
+        "assets/serialize-BBuOlfeP.js",
+        "assets/node-repo-C9mRBxW6.js",
         "assets/anchored-popover-position-CJ7UyGsC.js"
       ],
       "css": [],
@@ -2002,12 +2001,12 @@
       "initial": false
     },
     {
-      "file": "assets/element-category-repo-CenZL46f.js",
+      "file": "assets/element-category-repo-BOkZOrpP.js",
       "bytes": 2909,
       "entry": false,
       "facade": null,
       "imports": [
-        "assets/serialize-Cvc1L9Bn.js",
+        "assets/serialize-BBuOlfeP.js",
         "assets/anchored-popover-position-CJ7UyGsC.js"
       ],
       "css": [],
@@ -2015,88 +2014,40 @@
       "initial": false
     },
     {
-      "file": "assets/book-act-repo-DXRCgk0V.js",
+      "file": "assets/book-act-repo-zwkUtktW.js",
       "bytes": 3009,
       "entry": false,
       "facade": null,
       "imports": [
-        "assets/serialize-Cvc1L9Bn.js"
+        "assets/serialize-BBuOlfeP.js"
       ],
       "css": [],
       "targets": [],
       "initial": false
     },
     {
-      "file": "assets/agent-memory-repo-D0lr_w3A.js",
+      "file": "assets/agent-memory-repo-F8MpFhil.js",
       "bytes": 2222,
       "entry": false,
       "facade": null,
       "imports": [
-        "assets/serialize-Cvc1L9Bn.js"
+        "assets/serialize-BBuOlfeP.js"
       ],
       "css": [],
       "targets": [],
       "initial": false
     },
     {
-      "file": "assets/library-item-repo-xmwMPgAX.js",
+      "file": "assets/library-item-repo-lnfUNK3l.js",
       "bytes": 2222,
       "entry": false,
       "facade": null,
       "imports": [
-        "assets/serialize-Cvc1L9Bn.js"
+        "assets/serialize-BBuOlfeP.js"
       ],
       "css": [],
       "targets": [],
       "initial": false
-    },
-    {
-      "file": "assets/AgentMcpAccessSettings-CjaBfW5k.js",
-      "bytes": 5688,
-      "entry": false,
-      "facade": "src/renderer/components/agent/AgentMcpAccessSettings.tsx",
-      "imports": [
-        "assets/tiptap-AK4u0TRO.js",
-        "assets/react-vendor-FHqoRFXt.js",
-        "assets/anchored-popover-position-CJ7UyGsC.js",
-        "assets/project-store-BMELb2tT.js",
-        "assets/SettingsPrimitives-BgGVXcA8.js",
-        "assets/agent-provider-contract-B9GPzTSR.js",
-        "assets/GlassSlider-BMBz86FK.js",
-        "assets/SegmentedControl-DGAPW4qo.js"
-      ],
-      "css": [],
-      "targets": [],
-      "initial": false
-    },
-    {
-      "file": "assets/markdown-projection-lifecycle-BSRGeCXb.js",
-      "bytes": 219,
-      "entry": false,
-      "facade": null,
-      "imports": [],
-      "css": [],
-      "targets": [],
-      "initial": true
-    },
-    {
-      "file": "assets/chapter-prose-C3RVeuSc.js",
-      "bytes": 44700,
-      "entry": false,
-      "facade": null,
-      "imports": [
-        "assets/serialize-Cvc1L9Bn.js",
-        "assets/agent-edit-store-GRWRZr2D.js",
-        "assets/node-repo-Bp-Zbx2T.js",
-        "assets/shortcuts-w42KonKR.js",
-        "assets/anchored-popover-position-CJ7UyGsC.js",
-        "assets/react-vendor-FHqoRFXt.js",
-        "assets/sync-helpers-C4tFuDwJ.js",
-        "assets/yjs-prose-command-DohUCJPQ.js"
-      ],
-      "css": [],
-      "targets": [],
-      "initial": true
     },
     {
       "file": "assets/notification-store-Bjb5Ek7L.js",
@@ -2105,58 +2056,6 @@
       "facade": null,
       "imports": [
         "assets/anchored-popover-position-CJ7UyGsC.js"
-      ],
-      "css": [],
-      "targets": [],
-      "initial": true
-    },
-    {
-      "file": "assets/sync-helpers-C4tFuDwJ.js",
-      "bytes": 13001,
-      "entry": false,
-      "facade": null,
-      "imports": [
-        "assets/serialize-Cvc1L9Bn.js",
-        "assets/anchored-popover-position-CJ7UyGsC.js"
-      ],
-      "css": [],
-      "targets": [],
-      "initial": true
-    },
-    {
-      "file": "assets/project-repo-CzYwIwAP.js",
-      "bytes": 2160,
-      "entry": false,
-      "facade": null,
-      "imports": [
-        "assets/serialize-Cvc1L9Bn.js",
-        "assets/anchored-popover-position-CJ7UyGsC.js"
-      ],
-      "css": [],
-      "targets": [],
-      "initial": true
-    },
-    {
-      "file": "assets/node-repo-Bp-Zbx2T.js",
-      "bytes": 6831,
-      "entry": false,
-      "facade": null,
-      "imports": [
-        "assets/serialize-Cvc1L9Bn.js",
-        "assets/anchored-popover-position-CJ7UyGsC.js"
-      ],
-      "css": [],
-      "targets": [],
-      "initial": true
-    },
-    {
-      "file": "assets/agent-edit-store-GRWRZr2D.js",
-      "bytes": 17224,
-      "entry": false,
-      "facade": null,
-      "imports": [
-        "assets/anchored-popover-position-CJ7UyGsC.js",
-        "assets/serialize-Cvc1L9Bn.js"
       ],
       "css": [],
       "targets": [],
@@ -2173,25 +2072,120 @@
       "initial": true
     },
     {
-      "file": "assets/yjs-prose-command-DohUCJPQ.js",
-      "bytes": 110709,
+      "file": "assets/chapter-prose-SSiE07Po.js",
+      "bytes": 45553,
       "entry": false,
       "facade": null,
       "imports": [
-        "assets/tiptap-AK4u0TRO.js",
-        "assets/serialize-Cvc1L9Bn.js"
+        "assets/serialize-BBuOlfeP.js",
+        "assets/agent-edit-store-CDAJSLEq.js",
+        "assets/node-repo-C9mRBxW6.js",
+        "assets/shortcuts-BrmzNJmd.js",
+        "assets/anchored-popover-position-CJ7UyGsC.js",
+        "assets/react-vendor-FHqoRFXt.js",
+        "assets/sync-helpers-Jt2m1H-L.js",
+        "assets/yjs-prose-command-PWob-kBi.js"
       ],
       "css": [],
       "targets": [],
       "initial": true
     },
     {
-      "file": "assets/storyline-repo-DKHbErmM.js",
-      "bytes": 5708,
+      "file": "assets/agent-edit-store-CDAJSLEq.js",
+      "bytes": 17224,
       "entry": false,
       "facade": null,
       "imports": [
-        "assets/serialize-Cvc1L9Bn.js",
+        "assets/anchored-popover-position-CJ7UyGsC.js",
+        "assets/serialize-BBuOlfeP.js"
+      ],
+      "css": [],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/project-repo-BKAwFXGp.js",
+      "bytes": 2160,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/serialize-BBuOlfeP.js",
+        "assets/anchored-popover-position-CJ7UyGsC.js"
+      ],
+      "css": [],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/node-repo-C9mRBxW6.js",
+      "bytes": 6831,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/serialize-BBuOlfeP.js",
+        "assets/anchored-popover-position-CJ7UyGsC.js"
+      ],
+      "css": [],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/sync-helpers-Jt2m1H-L.js",
+      "bytes": 13001,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/serialize-BBuOlfeP.js",
+        "assets/anchored-popover-position-CJ7UyGsC.js"
+      ],
+      "css": [],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/markdown-projection-lifecycle-BSRGeCXb.js",
+      "bytes": 219,
+      "entry": false,
+      "facade": null,
+      "imports": [],
+      "css": [],
+      "targets": [],
+      "initial": true
+    },
+    {
+      "file": "assets/workspace-prose-file-DNv3e70E.js",
+      "bytes": 16779,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/serialize-BBuOlfeP.js",
+        "assets/yjs-prose-command-PWob-kBi.js",
+        "assets/anchored-popover-position-CJ7UyGsC.js",
+        "assets/chapter-prose-SSiE07Po.js"
+      ],
+      "css": [],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/markdown-projection-status-nCbIA8oR.js",
+      "bytes": 2827,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/serialize-BBuOlfeP.js"
+      ],
+      "css": [],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/external-edit-presentation-D3IhXpsj.js",
+      "bytes": 2124,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/agent-edit-store-CDAJSLEq.js",
         "assets/anchored-popover-position-CJ7UyGsC.js"
       ],
       "css": [],
@@ -2199,17 +2193,64 @@
       "initial": false
     },
     {
-      "file": "assets/synced-entity-commands-DxaOtoc3.js",
+      "file": "assets/book-act-_HTBPvC7.js",
+      "bytes": 1828,
+      "entry": false,
+      "facade": null,
+      "imports": [],
+      "css": [],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/note-markdown-CfRdLrvZ.js",
+      "bytes": 3105,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/serialize-BBuOlfeP.js"
+      ],
+      "css": [],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/synced-entity-commands-DPrPIlmA.js",
       "bytes": 8538,
       "entry": false,
       "facade": null,
       "imports": [
-        "assets/serialize-Cvc1L9Bn.js",
-        "assets/storyline-repo-DKHbErmM.js",
-        "assets/project-repo-CzYwIwAP.js",
-        "assets/comment-repo-C6tcu8Uw.js",
-        "assets/sync-helpers-C4tFuDwJ.js",
+        "assets/serialize-BBuOlfeP.js",
+        "assets/storyline-repo-BBmQQ9Am.js",
+        "assets/project-repo-BKAwFXGp.js",
+        "assets/comment-repo-BbjfLwrT.js",
+        "assets/sync-helpers-Jt2m1H-L.js",
         "assets/anchored-popover-position-CJ7UyGsC.js"
+      ],
+      "css": [],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/storyline-repo-BBmQQ9Am.js",
+      "bytes": 5708,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/serialize-BBuOlfeP.js",
+        "assets/anchored-popover-position-CJ7UyGsC.js"
+      ],
+      "css": [],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/comment-repo-BbjfLwrT.js",
+      "bytes": 4162,
+      "entry": false,
+      "facade": null,
+      "imports": [
+        "assets/serialize-BBuOlfeP.js"
       ],
       "css": [],
       "targets": [],
@@ -2226,65 +2267,32 @@
       "initial": false
     },
     {
-      "file": "assets/book-act-_HTBPvC7.js",
-      "bytes": 1828,
-      "entry": false,
-      "facade": null,
-      "imports": [],
-      "css": [],
-      "targets": [],
-      "initial": false
-    },
-    {
-      "file": "assets/comment-repo-C6tcu8Uw.js",
-      "bytes": 4162,
+      "file": "assets/yjs-prose-command-PWob-kBi.js",
+      "bytes": 110709,
       "entry": false,
       "facade": null,
       "imports": [
-        "assets/serialize-Cvc1L9Bn.js"
+        "assets/tiptap-AK4u0TRO.js",
+        "assets/serialize-BBuOlfeP.js"
       ],
       "css": [],
       "targets": [],
-      "initial": false
+      "initial": true
     },
     {
-      "file": "assets/markdown-projection-status-LV2Xk1oS.js",
-      "bytes": 2827,
-      "entry": false,
-      "facade": null,
-      "imports": [
-        "assets/serialize-Cvc1L9Bn.js"
-      ],
-      "css": [],
-      "targets": [],
-      "initial": false
-    },
-    {
-      "file": "assets/note-markdown-DfjP4plh.js",
-      "bytes": 3105,
-      "entry": false,
-      "facade": null,
-      "imports": [
-        "assets/serialize-Cvc1L9Bn.js"
-      ],
-      "css": [],
-      "targets": [],
-      "initial": false
-    },
-    {
-      "file": "assets/relational-markdown.local-source-BN-Vw8eh.js",
+      "file": "assets/relational-markdown.local-source-RdQCwM5b.js",
       "bytes": 19143,
       "entry": false,
       "facade": null,
       "imports": [
-        "assets/markdown-projection-status-LV2Xk1oS.js",
-        "assets/note-markdown-DfjP4plh.js",
+        "assets/markdown-projection-status-nCbIA8oR.js",
+        "assets/note-markdown-CfRdLrvZ.js",
         "assets/book-act-_HTBPvC7.js",
         "assets/comment-CIKXhnuH.js",
-        "assets/serialize-Cvc1L9Bn.js",
+        "assets/serialize-BBuOlfeP.js",
         "assets/anchored-popover-position-CJ7UyGsC.js",
-        "assets/markdown-share-BZLePu3d.js",
-        "assets/shortcuts-w42KonKR.js",
+        "assets/markdown-share-CbJhpu2J.js",
+        "assets/shortcuts-BrmzNJmd.js",
         "assets/readable-file-stem-CeiswDJL.js"
       ],
       "css": [],
@@ -2292,93 +2300,65 @@
       "initial": false
     },
     {
-      "file": "assets/markdown-share-BZLePu3d.js",
+      "file": "assets/markdown-share-CbJhpu2J.js",
       "bytes": 1077,
       "entry": false,
       "facade": null,
       "imports": [
-        "assets/serialize-Cvc1L9Bn.js"
+        "assets/serialize-BBuOlfeP.js"
       ],
       "css": [],
       "targets": [],
       "initial": false
     },
     {
-      "file": "assets/workspace-prose-file-CVMCI-CU.js",
-      "bytes": 16779,
-      "entry": false,
-      "facade": null,
-      "imports": [
-        "assets/serialize-Cvc1L9Bn.js",
-        "assets/yjs-prose-command-DohUCJPQ.js",
-        "assets/anchored-popover-position-CJ7UyGsC.js",
-        "assets/chapter-prose-C3RVeuSc.js"
-      ],
-      "css": [],
-      "targets": [],
-      "initial": false
-    },
-    {
-      "file": "assets/external-edit-presentation-D0-y87l9.js",
-      "bytes": 2124,
-      "entry": false,
-      "facade": null,
-      "imports": [
-        "assets/agent-edit-store-GRWRZr2D.js",
-        "assets/anchored-popover-position-CJ7UyGsC.js"
-      ],
-      "css": [],
-      "targets": [],
-      "initial": false
-    },
-    {
-      "file": "assets/markdown-projection.service-CIVhIKIN.js",
+      "file": "assets/markdown-projection.service-JcJqSaid.js",
       "bytes": 30769,
       "entry": false,
       "facade": "src/renderer/services/markdown-projection.service.ts",
       "imports": [
         "assets/markdown-projection-lifecycle-BSRGeCXb.js",
         "assets/anchored-popover-position-CJ7UyGsC.js",
-        "assets/markdown-projection-status-LV2Xk1oS.js",
-        "assets/serialize-Cvc1L9Bn.js",
+        "assets/markdown-projection-status-nCbIA8oR.js",
+        "assets/serialize-BBuOlfeP.js",
         "assets/active-editor-Dc7ypA2K.js",
         "assets/events-mrzQ2dfo.js",
-        "assets/relational-markdown.local-source-BN-Vw8eh.js",
+        "assets/relational-markdown.local-source-RdQCwM5b.js",
         "assets/readable-file-stem-CeiswDJL.js",
-        "assets/workspace-prose-file-CVMCI-CU.js",
-        "assets/yjs-prose-command-DohUCJPQ.js",
-        "assets/agent-edit-store-GRWRZr2D.js",
-        "assets/chapter-prose-C3RVeuSc.js",
-        "assets/node-repo-Bp-Zbx2T.js",
-        "assets/external-edit-presentation-D0-y87l9.js",
-        "assets/sync-helpers-C4tFuDwJ.js",
+        "assets/workspace-prose-file-DNv3e70E.js",
+        "assets/yjs-prose-command-PWob-kBi.js",
+        "assets/agent-edit-store-CDAJSLEq.js",
+        "assets/chapter-prose-SSiE07Po.js",
+        "assets/node-repo-C9mRBxW6.js",
+        "assets/external-edit-presentation-D3IhXpsj.js",
+        "assets/sync-helpers-Jt2m1H-L.js",
         "assets/comment-CIKXhnuH.js",
-        "assets/i18n-B6JXBa3u.js",
-        "assets/synced-entity-commands-DxaOtoc3.js",
+        "assets/i18n-C7DcMsYH.js",
+        "assets/synced-entity-commands-DPrPIlmA.js",
         "assets/notification-store-Bjb5Ek7L.js",
         "assets/react-vendor-FHqoRFXt.js",
         "assets/agent-provider-contract-B9GPzTSR.js",
         "assets/tiptap-AK4u0TRO.js",
-        "assets/note-markdown-DfjP4plh.js",
+        "assets/note-markdown-CfRdLrvZ.js",
         "assets/book-act-_HTBPvC7.js",
-        "assets/markdown-share-BZLePu3d.js",
-        "assets/shortcuts-w42KonKR.js",
-        "assets/storyline-repo-DKHbErmM.js",
-        "assets/project-repo-CzYwIwAP.js",
-        "assets/comment-repo-C6tcu8Uw.js"
+        "assets/markdown-share-CbJhpu2J.js",
+        "assets/shortcuts-BrmzNJmd.js",
+        "assets/storyline-repo-BBmQQ9Am.js",
+        "assets/project-repo-BKAwFXGp.js",
+        "assets/comment-repo-BbjfLwrT.js"
       ],
       "css": [],
       "targets": [],
       "initial": false
     },
     {
-      "file": "assets/imported-history-HKT_Z882.js",
+      "file": "assets/imported-history-Cc_sG58t.js",
       "bytes": 1489,
       "entry": false,
       "facade": "src/renderer/sync/agent-chat/imported-history.ts",
       "imports": [
-        "assets/serialize-Cvc1L9Bn.js",
-        "assets/repository-1q_9SR9M.js",
+        "assets/serialize-BBuOlfeP.js",
+        "assets/repository-C7v4hpK6.js",
         "assets/anchored-popover-position-CJ7UyGsC.js",
         "assets/react-vendor-FHqoRFXt.js",
         "assets/agent-provider-contract-B9GPzTSR.js",
@@ -2390,13 +2370,13 @@
       "initial": false
     },
     {
-      "file": "assets/seed-By_OLP93.js",
+      "file": "assets/seed-YfVukqjh.js",
       "bytes": 3520,
       "entry": false,
       "facade": "src/renderer/sync/agent-chat/seed.ts",
       "imports": [
-        "assets/serialize-Cvc1L9Bn.js",
-        "assets/repository-1q_9SR9M.js",
+        "assets/serialize-BBuOlfeP.js",
+        "assets/repository-C7v4hpK6.js",
         "assets/anchored-popover-position-CJ7UyGsC.js",
         "assets/react-vendor-FHqoRFXt.js",
         "assets/agent-provider-contract-B9GPzTSR.js",
@@ -2408,12 +2388,12 @@
       "initial": false
     },
     {
-      "file": "assets/y-prosemirror-B2q1wBaL.js",
+      "file": "assets/y-prosemirror-L8A_FQ85.js",
       "bytes": 5179,
       "entry": false,
       "facade": null,
       "imports": [
-        "assets/serialize-Cvc1L9Bn.js",
+        "assets/serialize-BBuOlfeP.js",
         "assets/tiptap-AK4u0TRO.js",
         "assets/anchored-popover-position-CJ7UyGsC.js",
         "assets/react-vendor-FHqoRFXt.js",
@@ -2450,15 +2430,15 @@
       "initial": false
     },
     {
-      "file": "assets/markdown-share.service-DYy7t1qR.js",
+      "file": "assets/markdown-share.service-PjXf2kx0.js",
       "bytes": 2795,
       "entry": false,
       "facade": "src/renderer/services/export/markdown-share.service.ts",
       "imports": [
         "assets/book-act-_HTBPvC7.js",
-        "assets/serialize-Cvc1L9Bn.js",
-        "assets/shortcuts-w42KonKR.js",
-        "assets/markdown-share-BZLePu3d.js",
+        "assets/serialize-BBuOlfeP.js",
+        "assets/shortcuts-BrmzNJmd.js",
+        "assets/markdown-share-CbJhpu2J.js",
         "assets/anchored-popover-position-CJ7UyGsC.js",
         "assets/react-vendor-FHqoRFXt.js",
         "assets/agent-provider-contract-B9GPzTSR.js",
@@ -2470,39 +2450,39 @@
       "initial": false
     },
     {
-      "file": "assets/manuscript-export.service-B0rvmp5n.js",
+      "file": "assets/manuscript-export.service-DOwIqIqW.js",
       "bytes": 3769,
       "entry": false,
       "facade": "src/renderer/services/export/manuscript-export.service.ts",
       "imports": [
         "assets/book-act-_HTBPvC7.js",
-        "assets/serialize-Cvc1L9Bn.js",
-        "assets/shortcuts-w42KonKR.js",
-        "assets/RelationTypeField-DbHJTrMJ.js",
+        "assets/serialize-BBuOlfeP.js",
+        "assets/shortcuts-BrmzNJmd.js",
+        "assets/RelationTypeField-DCf8uUTD.js",
         "assets/anchored-popover-position-CJ7UyGsC.js",
         "assets/react-vendor-FHqoRFXt.js",
         "assets/agent-provider-contract-B9GPzTSR.js",
         "assets/tiptap-AK4u0TRO.js",
         "assets/events-mrzQ2dfo.js",
-        "assets/node-repo-Bp-Zbx2T.js",
-        "assets/sync-helpers-C4tFuDwJ.js",
-        "assets/useRelationTypePresentation-Ck4eU-RF.js",
-        "assets/local-authored-blob-BNEU3flg.js",
-        "assets/native-asset-pipeline-Da94tWmJ.js",
-        "assets/quota-DKV3nm2j.js",
-        "assets/i18n-B6JXBa3u.js",
-        "assets/tauri-transport-DPuvOPcs.js",
+        "assets/node-repo-C9mRBxW6.js",
+        "assets/sync-helpers-Jt2m1H-L.js",
+        "assets/useRelationTypePresentation-DuQTVySH.js",
+        "assets/local-authored-blob-Budey_cQ.js",
+        "assets/native-asset-pipeline-XuAs70Ai.js",
+        "assets/quota-CRj_arMl.js",
+        "assets/i18n-C7DcMsYH.js",
+        "assets/tauri-transport-ybILvtb4.js",
         "assets/HoverCard-r5Zy-SIj.js",
         "assets/KindMark-DzfA2Zmx.js",
-        "assets/EntityHoverCard-CU5E0CXs.js",
-        "assets/storyline-repo-DKHbErmM.js",
-        "assets/inline-mention-repo-DvB-avvH.js",
-        "assets/chapter-prose-C3RVeuSc.js",
-        "assets/agent-edit-store-GRWRZr2D.js",
-        "assets/yjs-prose-command-DohUCJPQ.js",
-        "assets/entity-relation-cleanup-BflB8n5k.js",
-        "assets/book-act-repo-DXRCgk0V.js",
-        "assets/element-category-repo-CenZL46f.js",
+        "assets/EntityHoverCard-Gx5AIWkc.js",
+        "assets/storyline-repo-BBmQQ9Am.js",
+        "assets/inline-mention-repo-B1VNs_Pz.js",
+        "assets/chapter-prose-SSiE07Po.js",
+        "assets/agent-edit-store-CDAJSLEq.js",
+        "assets/yjs-prose-command-PWob-kBi.js",
+        "assets/entity-relation-cleanup-CIWWZPug.js",
+        "assets/book-act-repo-zwkUtktW.js",
+        "assets/element-category-repo-BOkZOrpP.js",
         "assets/storyline-DadORQHB.js",
         "assets/project-store-BMELb2tT.js",
         "assets/GlassSlider-BMBz86FK.js",
@@ -2514,48 +2494,48 @@
         "assets/LoadingStatus-DRqSAbAC.js",
         "assets/SegmentedControl-DGAPW4qo.js",
         "assets/auth-dialog-store-CrFq8GJ7.js",
-        "assets/share-link-store-DaS1_6NA.js"
+        "assets/share-link-store-0V4ipuHZ.js"
       ],
       "css": [],
       "targets": [],
       "initial": false
     },
     {
-      "file": "assets/share-link-publisher-Cvvq703a.js",
+      "file": "assets/share-link-publisher-JfWVAnXM.js",
       "bytes": 1817,
       "entry": false,
       "facade": "src/renderer/features/share-links/share-link-publisher.ts",
       "imports": [
         "assets/active-editor-Dc7ypA2K.js",
         "assets/events-mrzQ2dfo.js",
-        "assets/markdown-projection.service-CIVhIKIN.js",
-        "assets/serialize-Cvc1L9Bn.js",
-        "assets/share-link-store-DaS1_6NA.js",
+        "assets/markdown-projection.service-JcJqSaid.js",
+        "assets/serialize-BBuOlfeP.js",
+        "assets/share-link-store-0V4ipuHZ.js",
         "assets/markdown-projection-lifecycle-BSRGeCXb.js",
         "assets/anchored-popover-position-CJ7UyGsC.js",
         "assets/react-vendor-FHqoRFXt.js",
         "assets/agent-provider-contract-B9GPzTSR.js",
         "assets/tiptap-AK4u0TRO.js",
-        "assets/markdown-projection-status-LV2Xk1oS.js",
-        "assets/relational-markdown.local-source-BN-Vw8eh.js",
-        "assets/note-markdown-DfjP4plh.js",
+        "assets/markdown-projection-status-nCbIA8oR.js",
+        "assets/relational-markdown.local-source-RdQCwM5b.js",
+        "assets/note-markdown-CfRdLrvZ.js",
         "assets/book-act-_HTBPvC7.js",
         "assets/comment-CIKXhnuH.js",
-        "assets/markdown-share-BZLePu3d.js",
-        "assets/shortcuts-w42KonKR.js",
+        "assets/markdown-share-CbJhpu2J.js",
+        "assets/shortcuts-BrmzNJmd.js",
         "assets/readable-file-stem-CeiswDJL.js",
-        "assets/workspace-prose-file-CVMCI-CU.js",
-        "assets/yjs-prose-command-DohUCJPQ.js",
-        "assets/chapter-prose-C3RVeuSc.js",
-        "assets/agent-edit-store-GRWRZr2D.js",
-        "assets/node-repo-Bp-Zbx2T.js",
-        "assets/sync-helpers-C4tFuDwJ.js",
-        "assets/external-edit-presentation-D0-y87l9.js",
-        "assets/i18n-B6JXBa3u.js",
-        "assets/synced-entity-commands-DxaOtoc3.js",
-        "assets/storyline-repo-DKHbErmM.js",
-        "assets/project-repo-CzYwIwAP.js",
-        "assets/comment-repo-C6tcu8Uw.js",
+        "assets/workspace-prose-file-DNv3e70E.js",
+        "assets/yjs-prose-command-PWob-kBi.js",
+        "assets/chapter-prose-SSiE07Po.js",
+        "assets/agent-edit-store-CDAJSLEq.js",
+        "assets/node-repo-C9mRBxW6.js",
+        "assets/sync-helpers-Jt2m1H-L.js",
+        "assets/external-edit-presentation-D3IhXpsj.js",
+        "assets/i18n-C7DcMsYH.js",
+        "assets/synced-entity-commands-DPrPIlmA.js",
+        "assets/storyline-repo-BBmQQ9Am.js",
+        "assets/project-repo-BKAwFXGp.js",
+        "assets/comment-repo-BbjfLwrT.js",
         "assets/notification-store-Bjb5Ek7L.js",
         "assets/project-store-BMELb2tT.js"
       ],
@@ -2564,52 +2544,52 @@
       "initial": false
     },
     {
-      "file": "assets/mcp-server-bridge-BTN3x5Q_.js",
-      "bytes": 8244,
+      "file": "assets/mcp-server-bridge-CeyKaJeN.js",
+      "bytes": 8208,
       "entry": false,
       "facade": "src/renderer/lib/agent/mcp-server-bridge.ts",
       "imports": [
         "assets/anchored-popover-position-CJ7UyGsC.js",
-        "assets/serialize-Cvc1L9Bn.js",
-        "assets/agent-onboarding-BDmYKQSz.js",
-        "assets/repository-1q_9SR9M.js",
+        "assets/serialize-BBuOlfeP.js",
+        "assets/agent-onboarding-D4XJAcNG.js",
+        "assets/repository-C7v4hpK6.js",
         "assets/react-vendor-FHqoRFXt.js",
         "assets/agent-provider-contract-B9GPzTSR.js",
         "assets/tiptap-AK4u0TRO.js",
         "assets/events-mrzQ2dfo.js",
         "assets/project-store-BMELb2tT.js",
-        "assets/agent-chat-store-CYnPnGCb.js",
-        "assets/library-item-deletion-4_W-JxgA.js",
-        "assets/agent-edit-store-GRWRZr2D.js",
-        "assets/library-item-repo-xmwMPgAX.js",
-        "assets/comment-repo-C6tcu8Uw.js",
-        "assets/entity-relation-cleanup-BflB8n5k.js",
-        "assets/sync-helpers-C4tFuDwJ.js",
-        "assets/agent-memory-repo-D0lr_w3A.js",
-        "assets/shortcuts-w42KonKR.js",
+        "assets/agent-chat-store-BgPOHt47.js",
+        "assets/library-item-deletion-CbbU3KKF.js",
+        "assets/agent-edit-store-CDAJSLEq.js",
+        "assets/library-item-repo-lnfUNK3l.js",
+        "assets/comment-repo-BbjfLwrT.js",
+        "assets/entity-relation-cleanup-CIWWZPug.js",
+        "assets/sync-helpers-Jt2m1H-L.js",
+        "assets/agent-memory-repo-F8MpFhil.js",
+        "assets/shortcuts-BrmzNJmd.js",
         "assets/build-default-client-DPn7Un-4.js",
         "assets/types-BRMYK13e.js",
         "assets/image-inbox-store-nTGEyUmV.js",
-        "assets/markdown-projection-status-LV2Xk1oS.js",
+        "assets/markdown-projection-status-nCbIA8oR.js",
         "assets/book-act-_HTBPvC7.js",
-        "assets/plot-grid-write-CneFcUmd.js",
-        "assets/node-repo-Bp-Zbx2T.js",
-        "assets/yjs-prose-command-DohUCJPQ.js",
-        "assets/note-markdown-DfjP4plh.js",
-        "assets/material-folder-repo-B0dom1GZ.js",
-        "assets/location-link-catalog-DSe0UddE.js",
-        "assets/chapter-prose-C3RVeuSc.js",
+        "assets/plot-grid-write-BBW0iytV.js",
+        "assets/node-repo-C9mRBxW6.js",
+        "assets/yjs-prose-command-PWob-kBi.js",
+        "assets/note-markdown-CfRdLrvZ.js",
+        "assets/material-folder-repo-DQzsrhp5.js",
+        "assets/location-link-catalog-B6fWfdzy.js",
+        "assets/chapter-prose-SSiE07Po.js",
         "assets/comment-CIKXhnuH.js",
-        "assets/inline-mention-repo-DvB-avvH.js",
-        "assets/synced-entity-commands-DxaOtoc3.js",
-        "assets/storyline-repo-DKHbErmM.js",
-        "assets/project-repo-CzYwIwAP.js",
-        "assets/field-diff-CI3OHYPU.js",
-        "assets/book-act-repo-DXRCgk0V.js",
+        "assets/inline-mention-repo-B1VNs_Pz.js",
+        "assets/synced-entity-commands-DPrPIlmA.js",
+        "assets/storyline-repo-BBmQQ9Am.js",
+        "assets/project-repo-BKAwFXGp.js",
+        "assets/field-diff-vaErjlmn.js",
+        "assets/book-act-repo-zwkUtktW.js",
         "assets/storyline-DadORQHB.js",
-        "assets/entity-relation-type-repo-qOqJH4Un.js",
-        "assets/element-category-repo-CenZL46f.js",
-        "assets/workspace-prose-file-CVMCI-CU.js",
+        "assets/entity-relation-type-repo-DTTZmcMc.js",
+        "assets/element-category-repo-BOkZOrpP.js",
+        "assets/workspace-prose-file-DNv3e70E.js",
         "assets/codex-model-catalog-BxwCA6rC.js"
       ],
       "css": [],
@@ -2627,14 +2607,15 @@
       "initial": false
     },
     {
-      "file": "assets/markdown-D6fnzIEy.js",
-      "bytes": 1446,
+      "file": "assets/markdown-CLwgNYn5.js",
+      "bytes": 1168,
       "entry": false,
       "facade": "src/renderer/services/import/markdown.ts",
       "imports": [
         "assets/tiptap-AK4u0TRO.js",
-        "assets/serialize-Cvc1L9Bn.js",
-        "assets/yjs-prose-command-DohUCJPQ.js",
+        "assets/serialize-BBuOlfeP.js",
+        "assets/yjs-prose-command-PWob-kBi.js",
+        "assets/title-BULiC4Ua.js",
         "assets/react-vendor-FHqoRFXt.js",
         "assets/anchored-popover-position-CJ7UyGsC.js",
         "assets/agent-provider-contract-B9GPzTSR.js",
@@ -2645,61 +2626,72 @@
       "initial": false
     },
     {
-      "file": "assets/docx-DEZ_WCzD.js",
-      "bytes": 407475,
+      "file": "assets/title-BULiC4Ua.js",
+      "bytes": 613,
+      "entry": false,
+      "facade": null,
+      "imports": [],
+      "css": [],
+      "targets": [],
+      "initial": false
+    },
+    {
+      "file": "assets/docx-CGmnADTN.js",
+      "bytes": 407300,
       "entry": false,
       "facade": "src/renderer/services/import/docx.ts",
       "imports": [
         "assets/react-vendor-FHqoRFXt.js",
-        "assets/index-CS44vLK_.js",
+        "assets/index-nL3h4fGR.js",
         "assets/jszip.min-DVeep1eZ.js",
         "assets/tiptap-AK4u0TRO.js",
-        "assets/yjs-prose-command-DohUCJPQ.js",
-        "assets/i18n-B6JXBa3u.js",
+        "assets/yjs-prose-command-PWob-kBi.js",
+        "assets/title-BULiC4Ua.js",
+        "assets/i18n-C7DcMsYH.js",
         "assets/anchored-popover-position-CJ7UyGsC.js",
         "assets/agent-provider-contract-B9GPzTSR.js",
-        "assets/shortcuts-w42KonKR.js",
-        "assets/serialize-Cvc1L9Bn.js",
+        "assets/shortcuts-BrmzNJmd.js",
+        "assets/serialize-BBuOlfeP.js",
         "assets/events-mrzQ2dfo.js",
-        "assets/HostedRestoreProgress-8At1INDR.js",
-        "assets/connect-CeNCWPt7.js",
-        "assets/persistence-lifecycle-CaMy2Kot.js",
+        "assets/HostedRestoreProgress-C2EouqMz.js",
+        "assets/connect-YW3xuKSd.js",
+        "assets/persistence-lifecycle-97TG3rYV.js",
         "assets/markdown-projection-lifecycle-BSRGeCXb.js",
         "assets/active-editor-Dc7ypA2K.js",
-        "assets/native-asset-pipeline-Da94tWmJ.js",
-        "assets/tauri-transport-DPuvOPcs.js",
-        "assets/quota-DKV3nm2j.js",
+        "assets/native-asset-pipeline-XuAs70Ai.js",
+        "assets/tauri-transport-ybILvtb4.js",
+        "assets/quota-CRj_arMl.js",
         "assets/LoadingStatus-DRqSAbAC.js",
         "assets/project-store-BMELb2tT.js",
-        "assets/SettingsPrimitives-BgGVXcA8.js",
+        "assets/SettingsPrimitives-D654oXzS.js",
         "assets/GlassSlider-BMBz86FK.js",
         "assets/SegmentedControl-DGAPW4qo.js",
         "assets/auth-dialog-store-CrFq8GJ7.js",
-        "assets/account-library-CGm8nOJg.js",
+        "assets/account-library-CVS-2lYq.js",
         "assets/HoverCard-r5Zy-SIj.js",
         "assets/KindMark-DzfA2Zmx.js",
-        "assets/BasicPreferencePanels-DAX3bpyH.js",
+        "assets/BasicPreferencePanels-CbUxAe6o.js",
         "assets/ColorPicker-D8bYYEQ6.js",
-        "assets/repository-1q_9SR9M.js",
-        "assets/chapter-prose-C3RVeuSc.js",
-        "assets/agent-edit-store-GRWRZr2D.js",
-        "assets/node-repo-Bp-Zbx2T.js",
-        "assets/sync-helpers-C4tFuDwJ.js",
-        "assets/runtime-Ch1LWSw-.js",
+        "assets/repository-C7v4hpK6.js",
+        "assets/chapter-prose-SSiE07Po.js",
+        "assets/agent-edit-store-CDAJSLEq.js",
+        "assets/node-repo-C9mRBxW6.js",
+        "assets/sync-helpers-Jt2m1H-L.js",
+        "assets/runtime-APPkwiud.js",
         "assets/notification-store-Bjb5Ek7L.js",
-        "assets/location-link-catalog-DSe0UddE.js",
+        "assets/location-link-catalog-B6fWfdzy.js",
         "assets/open-entity-link-BInTx_Gd.js",
         "assets/scroll-to-block-C1hdQWnJ.js",
-        "assets/useProject-HyLpHHyC.js",
-        "assets/project-repo-CzYwIwAP.js",
-        "assets/project-create-CZIXUuWT.js",
-        "assets/entity-relation-type-repo-qOqJH4Un.js",
+        "assets/useProject-D5qpKmVj.js",
+        "assets/project-repo-BKAwFXGp.js",
+        "assets/project-create-B5yqyvVz.js",
+        "assets/entity-relation-type-repo-DTTZmcMc.js",
         "assets/SandCell-C6IbxQr8.js",
         "assets/deferred-module-CrnwMWz0.js",
         "assets/EmptyState-D_-ezGFl.js",
-        "assets/library-state-repo-BVn_CX_x.js",
+        "assets/library-state-repo-BJrb2n-r.js",
         "assets/readable-file-stem-CeiswDJL.js",
-        "assets/local-authored-blob-BNEU3flg.js"
+        "assets/local-authored-blob-Budey_cQ.js"
       ],
       "css": [],
       "targets": [],
@@ -2709,110 +2701,110 @@
   "initial": {
     "evaluated": [],
     "parsed": [
-      "assets/BasicPreferencePanels-DAX3bpyH.js",
+      "assets/BasicPreferencePanels-CbUxAe6o.js",
       "assets/ColorPicker-D8bYYEQ6.js",
       "assets/EmptyState-D_-ezGFl.js",
       "assets/GlassSlider-BMBz86FK.js",
-      "assets/HostedRestoreProgress-8At1INDR.js",
+      "assets/HostedRestoreProgress-C2EouqMz.js",
       "assets/HoverCard-r5Zy-SIj.js",
       "assets/KindMark-DzfA2Zmx.js",
       "assets/LoadingStatus-DRqSAbAC.js",
       "assets/SandCell-C6IbxQr8.js",
       "assets/SegmentedControl-DGAPW4qo.js",
-      "assets/SettingsPrimitives-BgGVXcA8.js",
-      "assets/account-library-CGm8nOJg.js",
+      "assets/SettingsPrimitives-D654oXzS.js",
+      "assets/account-library-CVS-2lYq.js",
       "assets/active-editor-Dc7ypA2K.js",
-      "assets/agent-edit-store-GRWRZr2D.js",
+      "assets/agent-edit-store-CDAJSLEq.js",
       "assets/agent-provider-contract-B9GPzTSR.js",
       "assets/anchored-popover-position-CJ7UyGsC.js",
       "assets/auth-dialog-store-CrFq8GJ7.js",
-      "assets/chapter-prose-C3RVeuSc.js",
-      "assets/connect-CeNCWPt7.js",
+      "assets/chapter-prose-SSiE07Po.js",
+      "assets/connect-YW3xuKSd.js",
       "assets/deferred-module-CrnwMWz0.js",
-      "assets/entity-relation-type-repo-qOqJH4Un.js",
+      "assets/entity-relation-type-repo-DTTZmcMc.js",
       "assets/events-mrzQ2dfo.js",
-      "assets/i18n-B6JXBa3u.js",
-      "assets/index-CS44vLK_.js",
-      "assets/library-state-repo-BVn_CX_x.js",
-      "assets/local-authored-blob-BNEU3flg.js",
-      "assets/location-link-catalog-DSe0UddE.js",
+      "assets/i18n-C7DcMsYH.js",
+      "assets/index-nL3h4fGR.js",
+      "assets/library-state-repo-BJrb2n-r.js",
+      "assets/local-authored-blob-Budey_cQ.js",
+      "assets/location-link-catalog-B6fWfdzy.js",
       "assets/markdown-projection-lifecycle-BSRGeCXb.js",
-      "assets/native-asset-pipeline-Da94tWmJ.js",
-      "assets/node-repo-Bp-Zbx2T.js",
+      "assets/native-asset-pipeline-XuAs70Ai.js",
+      "assets/node-repo-C9mRBxW6.js",
       "assets/notification-store-Bjb5Ek7L.js",
       "assets/open-entity-link-BInTx_Gd.js",
-      "assets/persistence-lifecycle-CaMy2Kot.js",
-      "assets/project-create-CZIXUuWT.js",
-      "assets/project-repo-CzYwIwAP.js",
+      "assets/persistence-lifecycle-97TG3rYV.js",
+      "assets/project-create-B5yqyvVz.js",
+      "assets/project-repo-BKAwFXGp.js",
       "assets/project-store-BMELb2tT.js",
-      "assets/quota-DKV3nm2j.js",
+      "assets/quota-CRj_arMl.js",
       "assets/react-vendor-FHqoRFXt.js",
       "assets/readable-file-stem-CeiswDJL.js",
-      "assets/repository-1q_9SR9M.js",
-      "assets/runtime-Ch1LWSw-.js",
+      "assets/repository-C7v4hpK6.js",
+      "assets/runtime-APPkwiud.js",
       "assets/scroll-to-block-C1hdQWnJ.js",
-      "assets/serialize-Cvc1L9Bn.js",
-      "assets/shortcuts-w42KonKR.js",
-      "assets/sync-helpers-C4tFuDwJ.js",
-      "assets/tauri-transport-DPuvOPcs.js",
+      "assets/serialize-BBuOlfeP.js",
+      "assets/shortcuts-BrmzNJmd.js",
+      "assets/sync-helpers-Jt2m1H-L.js",
+      "assets/tauri-transport-ybILvtb4.js",
       "assets/tiptap-AK4u0TRO.js",
-      "assets/useProject-HyLpHHyC.js",
-      "assets/yjs-prose-command-DohUCJPQ.js",
+      "assets/useProject-D5qpKmVj.js",
+      "assets/yjs-prose-command-PWob-kBi.js",
       "startup.js"
     ],
     "requested": [
       "",
-      "assets/BasicPreferencePanels-DAX3bpyH.js",
+      "assets/BasicPreferencePanels-CbUxAe6o.js",
       "assets/ColorPicker-D8bYYEQ6.js",
       "assets/EmptyState-D_-ezGFl.js",
       "assets/GlassSlider-BMBz86FK.js",
-      "assets/HostedRestoreProgress-8At1INDR.js",
+      "assets/HostedRestoreProgress-C2EouqMz.js",
       "assets/HoverCard-r5Zy-SIj.js",
       "assets/KindMark-DzfA2Zmx.js",
       "assets/LoadingStatus-DC1HORF4.css",
       "assets/LoadingStatus-DRqSAbAC.js",
       "assets/SandCell-C6IbxQr8.js",
       "assets/SegmentedControl-DGAPW4qo.js",
-      "assets/SettingsPrimitives-BgGVXcA8.js",
-      "assets/account-library-CGm8nOJg.js",
+      "assets/SettingsPrimitives-D654oXzS.js",
+      "assets/account-library-CVS-2lYq.js",
       "assets/active-editor-Dc7ypA2K.js",
-      "assets/agent-edit-store-GRWRZr2D.js",
+      "assets/agent-edit-store-CDAJSLEq.js",
       "assets/agent-provider-contract-B9GPzTSR.js",
       "assets/anchored-popover-position-CJ7UyGsC.js",
       "assets/auth-dialog-store-CrFq8GJ7.js",
-      "assets/chapter-prose-C3RVeuSc.js",
-      "assets/connect-CeNCWPt7.js",
+      "assets/chapter-prose-SSiE07Po.js",
+      "assets/connect-YW3xuKSd.js",
       "assets/deferred-module-CrnwMWz0.js",
-      "assets/entity-relation-type-repo-qOqJH4Un.js",
+      "assets/entity-relation-type-repo-DTTZmcMc.js",
       "assets/events-mrzQ2dfo.js",
-      "assets/i18n-B6JXBa3u.js",
-      "assets/index-CS44vLK_.js",
+      "assets/i18n-C7DcMsYH.js",
       "assets/index-Wt6pCYxx.css",
-      "assets/library-state-repo-BVn_CX_x.js",
-      "assets/local-authored-blob-BNEU3flg.js",
-      "assets/location-link-catalog-DSe0UddE.js",
+      "assets/index-nL3h4fGR.js",
+      "assets/library-state-repo-BJrb2n-r.js",
+      "assets/local-authored-blob-Budey_cQ.js",
+      "assets/location-link-catalog-B6fWfdzy.js",
       "assets/markdown-projection-lifecycle-BSRGeCXb.js",
-      "assets/native-asset-pipeline-Da94tWmJ.js",
-      "assets/node-repo-Bp-Zbx2T.js",
+      "assets/native-asset-pipeline-XuAs70Ai.js",
+      "assets/node-repo-C9mRBxW6.js",
       "assets/notification-store-Bjb5Ek7L.js",
       "assets/open-entity-link-BInTx_Gd.js",
-      "assets/persistence-lifecycle-CaMy2Kot.js",
-      "assets/project-create-CZIXUuWT.js",
-      "assets/project-repo-CzYwIwAP.js",
+      "assets/persistence-lifecycle-97TG3rYV.js",
+      "assets/project-create-B5yqyvVz.js",
+      "assets/project-repo-BKAwFXGp.js",
       "assets/project-store-BMELb2tT.js",
-      "assets/quota-DKV3nm2j.js",
+      "assets/quota-CRj_arMl.js",
       "assets/react-vendor-FHqoRFXt.js",
       "assets/readable-file-stem-CeiswDJL.js",
-      "assets/repository-1q_9SR9M.js",
-      "assets/runtime-Ch1LWSw-.js",
+      "assets/repository-C7v4hpK6.js",
+      "assets/runtime-APPkwiud.js",
       "assets/scroll-to-block-C1hdQWnJ.js",
-      "assets/serialize-Cvc1L9Bn.js",
-      "assets/shortcuts-w42KonKR.js",
-      "assets/sync-helpers-C4tFuDwJ.js",
-      "assets/tauri-transport-DPuvOPcs.js",
+      "assets/serialize-BBuOlfeP.js",
+      "assets/shortcuts-BrmzNJmd.js",
+      "assets/sync-helpers-Jt2m1H-L.js",
+      "assets/tauri-transport-ybILvtb4.js",
       "assets/tiptap-AK4u0TRO.js",
-      "assets/useProject-HyLpHHyC.js",
-      "assets/yjs-prose-command-DohUCJPQ.js",
+      "assets/useProject-D5qpKmVj.js",
+      "assets/yjs-prose-command-PWob-kBi.js",
       "startup.js"
     ]
   },
@@ -2836,27 +2828,27 @@
       "requests": [
         {
           "kind": "shared",
-          "url": "/assets/graph-ui-DBkktqoY.js?graph-attempt=1"
+          "url": "/assets/graph-ui-Cg_gWiMv.js?graph-attempt=1"
         },
         {
           "kind": "shared",
-          "url": "/assets/graph-ui-DBkktqoY.js?graph-attempt=2"
+          "url": "/assets/graph-ui-Cg_gWiMv.js?graph-attempt=2"
         },
         {
           "kind": "story",
-          "url": "/assets/story-graph-Ds-JV7W3.js?graph-attempt=1"
+          "url": "/assets/story-graph-q3jhrtQM.js?graph-attempt=1"
         },
         {
           "kind": "story",
-          "url": "/assets/story-graph-Ds-JV7W3.js?graph-attempt=2"
+          "url": "/assets/story-graph-q3jhrtQM.js?graph-attempt=2"
         },
         {
           "kind": "element",
-          "url": "/assets/element-graph-DQiqVEQJ.js?graph-attempt=1"
+          "url": "/assets/element-graph-DVXPPRTi.js?graph-attempt=1"
         },
         {
           "kind": "element",
-          "url": "/assets/element-graph-DQiqVEQJ.js?graph-attempt=2"
+          "url": "/assets/element-graph-DVXPPRTi.js?graph-attempt=2"
         }
       ]
     },
@@ -2879,27 +2871,27 @@
       "requests": [
         {
           "kind": "shared",
-          "url": "/assets/graph-ui-DBkktqoY.js?graph-attempt=1"
+          "url": "/assets/graph-ui-Cg_gWiMv.js?graph-attempt=1"
         },
         {
           "kind": "shared",
-          "url": "/assets/graph-ui-DBkktqoY.js?graph-attempt=2"
+          "url": "/assets/graph-ui-Cg_gWiMv.js?graph-attempt=2"
         },
         {
           "kind": "story",
-          "url": "/assets/story-graph-Ds-JV7W3.js?graph-attempt=1"
+          "url": "/assets/story-graph-q3jhrtQM.js?graph-attempt=1"
         },
         {
           "kind": "story",
-          "url": "/assets/story-graph-Ds-JV7W3.js?graph-attempt=2"
+          "url": "/assets/story-graph-q3jhrtQM.js?graph-attempt=2"
         },
         {
           "kind": "element",
-          "url": "/assets/element-graph-DQiqVEQJ.js?graph-attempt=1"
+          "url": "/assets/element-graph-DVXPPRTi.js?graph-attempt=1"
         },
         {
           "kind": "element",
-          "url": "/assets/element-graph-DQiqVEQJ.js?graph-attempt=2"
+          "url": "/assets/element-graph-DVXPPRTi.js?graph-attempt=2"
         }
       ]
     }
@@ -2908,472 +2900,472 @@
     {
       "name": "renderer ownership boundaries keeps super view bodies and shared graph UI behind their owned deferred entries",
       "status": "passed",
-      "durationMs": 1299.283375
+      "durationMs": 1486.3997919999997
     },
     {
       "name": "renderer ownership boundaries loads every stylesheet of a deferred entry with the shell, since its ignored import() injects none",
       "status": "passed",
-      "durationMs": 1941.6061670000004
+      "durationMs": 2075.464375
     },
     {
       "name": "renderer ownership boundaries gives every module two Super View entries share to the shell or the graph UI facade",
       "status": "passed",
-      "durationMs": 1712.8567090000006
+      "durationMs": 2022.028875
     },
     {
       "name": "renderer ownership boundaries reports a module two Super View entries share outside the shell",
       "status": "passed",
-      "durationMs": 2247.797084
+      "durationMs": 1881.2274169999991
     },
     {
       "name": "renderer ownership boundaries reports a deferred view stylesheet the shell stops owning",
       "status": "passed",
-      "durationMs": 2296.9767079999992
+      "durationMs": 1650.6087079999998
     },
     {
       "name": "renderer ownership boundaries keeps heavy settings code deferred while basic preferences and Trash stay reachable",
       "status": "passed",
-      "durationMs": 797.6723330000004
+      "durationMs": 831.9907089999997
     },
     {
       "name": "renderer ownership boundaries requires explicit workspace fields or selectors in product consumers",
       "status": "passed",
-      "durationMs": 378.5114589999994
+      "durationMs": 376.6687500000007
     },
     {
       "name": "renderer ownership boundaries keeps shared features independent from the desktop shell and desktop navigation store",
       "status": "passed",
-      "durationMs": 11.456459000000905
+      "durationMs": 15.199916999999914
     },
     {
       "name": "renderer ownership boundaries keeps mobile shell code independent from desktop shell and desktop navigation state",
       "status": "passed",
-      "durationMs": 3.646999999999025
+      "durationMs": 5.090834000000541
     },
     {
       "name": "renderer ownership boundaries keeps the app entry small and delegates project UI to DesktopAppShell",
       "status": "passed",
-      "durationMs": 0.3215409999993426
+      "durationMs": 0.4258750000008149
     },
     {
       "name": "renderer ownership boundaries contains child-route subscriptions inside the desktop navigation boundary",
       "status": "passed",
-      "durationMs": 0.24545800000123563
+      "durationMs": 0.2840839999989839
     },
     {
       "name": "renderer ownership boundaries keeps compatibility barrels thin after feature extraction",
       "status": "passed",
-      "durationMs": 0.6130420000008598
+      "durationMs": 0.6360420000000886
     },
     {
       "name": "Super View Escape stack returns the most recently opened active layer",
       "status": "passed",
-      "durationMs": 1.0059170000000108
+      "durationMs": 2.221292000000062
     },
     {
       "name": "Super View Escape stack ignores a newer layer after it becomes inactive",
       "status": "passed",
-      "durationMs": 0.15995799999996052
+      "durationMs": 0.47270899999989524
     },
     {
       "name": "Super View Escape stack returns null at the Super View root",
       "status": "passed",
-      "durationMs": 0.08991600000001654
+      "durationMs": 0.27520800000002055
     },
     {
       "name": "Super View Escape stack dispatches exactly one child action and does not exit the root",
       "status": "passed",
-      "durationMs": 0.3315420000000131
+      "durationMs": 1.692042000000015
     },
     {
       "name": "Super View Escape stack returns to the previous editor surface from the root",
       "status": "passed",
-      "durationMs": 0.2008339999999862
+      "durationMs": 0.33495799999991505
     },
     {
       "name": "deferred module ownership does not expose a speculative failure and retries automatically on first demand",
       "status": "passed",
-      "durationMs": 2.044291000000044
+      "durationMs": 1.6474999999999795
     },
     {
       "name": "deferred module ownership promotes an in-flight preload to demand without a second fetch and exposes its failure",
       "status": "passed",
-      "durationMs": 1.1965000000000146
+      "durationMs": 0.3825840000000085
     },
     {
       "name": "deferred module ownership shares successful preloaded code and coalesces reentrant demand notifications",
       "status": "passed",
-      "durationMs": 0.47962499999999864
+      "durationMs": 0.18074999999998909
     },
     {
       "name": "deferred module ownership stays idle until requested and shares concurrent and successful loads",
       "status": "passed",
-      "durationMs": 1.073582999999985
+      "durationMs": 0.4868340000000444
     },
     {
       "name": "deferred module ownership publishes a local error and retries a rejected loader only when requested",
       "status": "passed",
-      "durationMs": 0.7182080000000042
+      "durationMs": 1.7008749999999964
     },
     {
       "name": "deferred module ownership handles synchronous loader failure without leaving a stuck loading state",
       "status": "passed",
-      "durationMs": 0.48124999999998863
+      "durationMs": 0.2277080000000069
     },
     {
       "name": "deferred module ownership does not notify closed consumers and retains code for a later owner",
       "status": "passed",
-      "durationMs": 0.4651660000000106
+      "durationMs": 0.4948330000000283
     },
     {
       "name": "bounded deferred preloading waits for intent scheduling, keeps only the latest queued entry and cancels before start",
       "status": "passed",
-      "durationMs": 2.5900419999999826
+      "durationMs": 3.0955000000000155
     },
     {
       "name": "bounded deferred preloading allows one active speculative load and one queued successor, without blocking foreground demand",
       "status": "passed",
-      "durationMs": 0.364750000000015
+      "durationMs": 0.3856670000000122
     },
     {
       "name": "bounded deferred preloading starts the queued preload only after the active import settles",
       "status": "passed",
-      "durationMs": 0.5492500000000291
+      "durationMs": 0.22879199999999855
     },
     {
       "name": "bounded deferred preloading lets a canceled control release its queued successor without canceling another owner",
       "status": "passed",
-      "durationMs": 0.43379199999998264
+      "durationMs": 0.13579200000003766
     },
     {
       "name": "bounded deferred preloading attempts each resource speculatively once, leaves failed demand alone and permits explicit retry",
       "status": "passed",
-      "durationMs": 2.077374999999961
+      "durationMs": 0.7016670000000431
     },
     {
       "name": "bounded deferred preloading rechecks eligibility after waiting, including a queued task behind an active import",
       "status": "passed",
-      "durationMs": 0.25620900000001257
+      "durationMs": 0.17862500000001091
     },
     {
       "name": "drift card move-to-group choices unfolds root first, then the tree depth-first with sub-groups as paths, the current one checked",
       "status": "passed",
-      "durationMs": 1.9559999999999036
+      "durationMs": 2.77929099999983
     },
     {
       "name": "drift card move-to-group choices treats a pointer at a missing group as root and lifts orphaned sub-groups to the top",
       "status": "passed",
-      "durationMs": 0.3731669999999667
+      "durationMs": 0.2665830000000824
     },
     {
       "name": "drift card move-to-group choices leaves the action out when there are no groups to move into",
       "status": "passed",
-      "durationMs": 0.3770830000000842
+      "durationMs": 0.0913749999999709
     },
     {
       "name": "chapter lane pointer lifecycle arms before movement and commits one valid drop exactly once",
       "status": "passed",
-      "durationMs": 5.563499999999976
+      "durationMs": 7.095792000000074
     },
     {
       "name": "chapter lane pointer lifecycle performs zero writes for early pan, invalid target, cancel, pinch, and explicit cancel",
       "status": "passed",
-      "durationMs": 3.023416999999995
+      "durationMs": 4.5017500000000155
     },
     {
       "name": "chapter lane pointer lifecycle opens the shared menu after a stationary hold without starting or writing",
       "status": "passed",
-      "durationMs": 1.2274999999999636
+      "durationMs": 0.4412919999999758
     },
     {
       "name": "chapter lane pointer lifecycle keeps a weighted slab in its lane until the pointer passes the next lane middle",
       "status": "passed",
-      "durationMs": 1.7707080000000133
+      "durationMs": 0.7717910000000074
     },
     {
       "name": "chapter lane pointer lifecycle wears the colour of the lane it is over, once per lane, and leaves the source alone",
       "status": "passed",
-      "durationMs": 1.4362919999999804
+      "durationMs": 3.5486250000000155
     },
     {
       "name": "chapter lane drag preserves the exact grabbed point for narrow holding chips and full cards",
       "status": "passed",
-      "durationMs": 0.8292500000000018
+      "durationMs": 1.9423749999999984
     },
     {
       "name": "chapter lane drag accepts every real and synthetic lane for both placed and unplaced chapters",
       "status": "passed",
-      "durationMs": 0.2909999999999968
+      "durationMs": 0.6751250000000084
     },
     {
       "name": "chapter lane drag delegates membership and order to one atomic move command",
       "status": "passed",
-      "durationMs": 1.0468329999999924
+      "durationMs": 2.5355830000000026
     },
     {
       "name": "chapter lane drag persists a continuous book-axis coordinate without slot conversion",
       "status": "passed",
-      "durationMs": 0.21470899999999915
+      "durationMs": 0.701625000000007
     },
     {
       "name": "chapter lane drag clears primary and memberships before placing into the unaffiliated lane",
       "status": "passed",
-      "durationMs": 0.18891699999997513
+      "durationMs": 0.3085829999999987
     },
     {
       "name": "chapter lane drag commits one valid pointer drop exactly once and ignores invalid completion",
       "status": "passed",
-      "durationMs": 0.1510420000000181
+      "durationMs": 0.19395900000000665
     },
     {
       "name": "element islands reads far, middle and near from the zoom, and each distance lands in its own band",
       "status": "passed",
-      "durationMs": 2.3965410000000134
+      "durationMs": 2.394500000000022
     },
     {
       "name": "element islands keys a pair the same whichever element comes first",
       "status": "passed",
-      "durationMs": 0.4904170000000079
+      "durationMs": 0.19608299999998735
     },
     {
       "name": "element islands draws only pairs at the threshold between elements still on the canvas",
       "status": "passed",
-      "durationMs": 0.9451660000000004
+      "durationMs": 0.8392499999999927
     },
     {
       "name": "element islands accepts custom positive integer thresholds and filters pairs with the same rule as presets",
       "status": "passed",
-      "durationMs": 0.3367080000000158
+      "durationMs": 0.3341250000000002
     },
     {
       "name": "element islands counts drawn lines and drawn relations as neighbours, itself included",
       "status": "passed",
-      "durationMs": 0.20324999999999704
+      "durationMs": 0.20766700000001492
     },
     {
       "name": "element islands lists who an element is mentioned with most, most first",
       "status": "passed",
-      "durationMs": 0.1175839999999937
+      "durationMs": 0.11983299999999986
     },
     {
       "name": "element islands sizes marks on a square-root scale, and an unmentioned element has none",
       "status": "passed",
-      "durationMs": 0.132000000000005
+      "durationMs": 0.13175000000001091
     },
     {
       "name": "element islands lays an element out across the book in order and sums up where it appears",
       "status": "passed",
-      "durationMs": 0.4813340000000039
+      "durationMs": 0.9949589999999944
     },
     {
       "name": "the 关系 layout of the element overview settles from the islands in one run without cells on top of each other",
       "status": "passed",
-      "durationMs": 43.03908299999995
+      "durationMs": 55.518125000000055
     },
     {
       "name": "the 关系 layout of the element overview is deterministic: a run played tick by tick ends where the run computed at once does",
       "status": "passed",
-      "durationMs": 35.37458300000003
+      "durationMs": 35.23487499999999
     },
     {
       "name": "the 关系 layout of the element overview pulls related elements closer than the islands held them",
       "status": "passed",
-      "durationMs": 18.936166000000014
+      "durationMs": 7.358875000000012
     },
     {
       "name": "the 关系 layout of the element overview keeps a dragged element where it was put while the rest settle around it",
       "status": "passed",
-      "durationMs": 13.746708000000012
+      "durationMs": 14.711874999999964
     },
     {
       "name": "the 关系 layout of the element overview writes a directed relation’s roles off each end and a symmetric one’s in the middle",
       "status": "passed",
-      "durationMs": 2.484958000000006
+      "durationMs": 3.29954100000009
     },
     {
       "name": "the 关系 layout of the element overview remembers the layout per project and survives a corrupt record",
       "status": "passed",
-      "durationMs": 1.6009169999999813
+      "durationMs": 0.8002079999999978
     },
     {
       "name": "the 关系 layout of the element overview settles again when what pulls on the layout changes",
       "status": "passed",
-      "durationMs": 0.5325420000000349
+      "durationMs": 0.7000000000000455
     },
     {
       "name": "the 关系 layout of the element overview keeps a few hundred elements apart within the same run, a protagonist with thirty relations among them",
       "status": "passed",
-      "durationMs": 143.199791
+      "durationMs": 146.0764999999999
     },
     {
       "name": "graph endpoint measurement measures unique DOM identities once, including aliases and self edges",
       "status": "passed",
-      "durationMs": 4.5881669999999986
+      "durationMs": 2.391124999999988
     },
     {
       "name": "graph endpoint measurement does not retain measurements across frames or measure a dangling edge",
       "status": "passed",
-      "durationMs": 1.9294170000000008
+      "durationMs": 2.473041999999964
     },
     {
       "name": "graph endpoint measurement skips equal output but invalidates geometry, styles, identity, order and removal",
       "status": "passed",
-      "durationMs": 0.41200000000003456
+      "durationMs": 1.3487910000000056
     },
     {
       "name": "graph endpoint measurement projects drift to element links in either direction before resolving visible DOM",
       "status": "passed",
-      "durationMs": 0.4047499999999786
+      "durationMs": 1.0570410000000265
     },
     {
       "name": "graph geometry frame scheduler coalesces event bursts with animation frames and stops at the finite deadline",
       "status": "passed",
-      "durationMs": 1.308250000000001
+      "durationMs": 2.0742919999999856
     },
     {
       "name": "graph geometry frame scheduler measures once after a suspended animation frame resumes beyond the deadline",
       "status": "passed",
-      "durationMs": 0.21433299999999633
+      "durationMs": 0.9088329999999871
     },
     {
       "name": "graph geometry frame scheduler cancels scheduled work and rejects later invalidations after disposal",
       "status": "passed",
-      "durationMs": 0.18616700000001174
+      "durationMs": 0.8032090000000096
     },
     {
       "name": "mobile Planning gesture ownership separates tap, arm, drag, menu, early pan, pinch, and cancellation",
       "status": "passed",
-      "durationMs": 4.516625000000005
+      "durationMs": 2.699832999999984
     },
     {
       "name": "mobile Planning gesture ownership gives background movement to pan and a second pointer to pinch",
       "status": "passed",
-      "durationMs": 0.30245800000000145
+      "durationMs": 1.150166999999982
     },
     {
       "name": "mobile Planning gesture ownership autoscrolls proportionally, stops centrally, and clamps at both ends",
       "status": "passed",
-      "durationMs": 0.1759580000000085
+      "durationMs": 0.5126249999999857
     },
     {
       "name": "Story Graph drift presentation lifetime keeps published snapshots stable and shifts only the crossed slots",
       "status": "passed",
-      "durationMs": 3.3931249999999977
+      "durationMs": 4.335166000000015
     },
     {
       "name": "Story Graph drift presentation lifetime clears immediately on close/cancel, ignores late hover and permits a new lifetime",
       "status": "passed",
-      "durationMs": 0.6288340000000403
+      "durationMs": 1.4842090000000212
     },
     {
       "name": "Story Graph drift presentation lifetime notifies exactly the changed slots across forward, reverse, source replacement and cancellation",
       "status": "passed",
-      "durationMs": 30.903832999999963
+      "durationMs": 62.605833000000075
     },
     {
       "name": "Story Graph drift presentation lifetime keeps adjacent hover notifications local in 5000 cards and bounds far targets to subscribed slots",
       "status": "passed",
-      "durationMs": 18.41754199999997
+      "durationMs": 13.369042000000036
     },
     {
       "name": "Story Graph drift read model classifies either drift endpoint, keeps direction/order and excludes hidden/ordinary edges",
       "status": "passed",
-      "durationMs": 2.372000000000014
+      "durationMs": 2.2852499999999907
     },
     {
       "name": "Story Graph drift read model preserves override, source-storyline, target-storyline and accent precedence",
       "status": "passed",
-      "durationMs": 0.2977499999999793
+      "durationMs": 0.4246249999999918
     },
     {
       "name": "Super Element world edge projection preserves order, labels, colors, direction and target insets in either orientation",
       "status": "passed",
-      "durationMs": 2.3138329999999883
+      "durationMs": 3.6162919999999303
     },
     {
       "name": "Super Element world edge projection excludes hidden, unsupported, missing-position and either-endpoint drift relations",
       "status": "passed",
-      "durationMs": 0.37274999999999636
+      "durationMs": 0.9865409999999883
     },
     {
       "name": "Super Element world edge projection rebuilds labels for replacement snapshots and retains first-match and fallback labels",
       "status": "passed",
-      "durationMs": 0.25824999999997544
+      "durationMs": 0.6548330000000533
     },
     {
       "name": "Super Element viewport edge projection invalidates labels and endpoint metadata even if all positions are unchanged",
       "status": "passed",
-      "durationMs": 0.2874170000000049
+      "durationMs": 0.5185000000000173
     },
     {
       "name": "Super Element viewport edge projection aligns top-sticky nodes without double-counting the band world offset",
       "status": "passed",
-      "durationMs": 0.3018329999999878
+      "durationMs": 0.34970799999996416
     },
     {
       "name": "Super Element viewport edge projection aligns the bottom-sticky and naturally visible band in both endpoint directions",
       "status": "passed",
-      "durationMs": 0.15512499999999818
+      "durationMs": 0.17458300000009785
     },
     {
       "name": "Super Element viewport edge projection keeps non-sticky node endpoints at the natural position when only focus is enabled",
       "status": "passed",
-      "durationMs": 0.13879199999996672
+      "durationMs": 0.14737500000001091
     },
     {
       "name": "Super Element viewport edge projection filters element cards outside the viewport or behind the sticky band, retaining touching boundaries",
       "status": "passed",
-      "durationMs": 1.1021669999999517
+      "durationMs": 1.431791999999973
     },
     {
       "name": "Super Element viewport edge projection matches the band transform for a band taller than the viewport and fractional zoom",
       "status": "passed",
-      "durationMs": 0.47579200000001265
+      "durationMs": 0.5054169999999658
     },
     {
       "name": "Super View canvas pinch keeps the authored world point under a moving midpoint",
       "status": "passed",
-      "durationMs": 2.179374999999993
+      "durationMs": 2.703000000000003
     },
     {
       "name": "Super View canvas pinch clamps scale without losing midpoint anchoring",
       "status": "passed",
-      "durationMs": 0.483208999999988
+      "durationMs": 0.6758750000000191
     },
     {
       "name": "super-view relation menu model only treats relations whose two endpoints can render on Element as canvas instances",
       "status": "passed",
-      "durationMs": 0.8935000000000173
+      "durationMs": 0.978082999999998
     },
     {
       "name": "super-view relation menu model orders used Element types before available types and folds off-canvas types",
       "status": "passed",
-      "durationMs": 0.797458000000006
+      "durationMs": 1.5773340000000076
     },
     {
       "name": "super-view relation menu model uses node-to-node as the renderable Story Graph contract",
       "status": "passed",
-      "durationMs": 0.5271670000000199
+      "durationMs": 0.2074169999999924
     },
     {
       "name": "timeline preview publication publishes only the latest marker and act coordinates once per frame, without mutating an earlier snapshot",
       "status": "passed",
-      "durationMs": 1.6995000000000005
+      "durationMs": 5.5206249999999955
     },
     {
       "name": "timeline preview publication clears immediately before a display frame and does not resurrect a cancelled drag",
       "status": "passed",
-      "durationMs": 0.3691249999999968
+      "durationMs": 0.3527909999999679
     },
     {
       "name": "timeline preview publication retains another active marker, releases after the last subscriber, and allows StrictMode resubscription",
       "status": "passed",
-      "durationMs": 0.3679580000000442
+      "durationMs": 0.32958399999995436
     },
     {
       "name": "timeline preview publication keeps independently mounted timelines isolated",
       "status": "passed",
-      "durationMs": 0.15870899999998755
+      "durationMs": 0.15287499999999454
     }
   ],
   "devGraphs": "passed",
@@ -3401,15 +3393,15 @@
           "onlySelectedCode": true,
           "firstOpenWithoutFallback": true
         },
-        "clickToObservedGraphMs": 19.299999713897705,
+        "clickToObservedGraphMs": 17.09999990463257,
         "requests": [
           {
             "kind": "shared",
-            "url": "/assets/graph-ui-DBkktqoY.js?graph-attempt=1"
+            "url": "/assets/graph-ui-Cg_gWiMv.js?graph-attempt=1"
           },
           {
             "kind": "story",
-            "url": "/assets/story-graph-Ds-JV7W3.js?graph-attempt=1"
+            "url": "/assets/story-graph-q3jhrtQM.js?graph-attempt=1"
           }
         ]
       },
@@ -3426,15 +3418,15 @@
         "requests": [
           {
             "kind": "shared",
-            "url": "/assets/graph-ui-DBkktqoY.js?graph-attempt=1"
+            "url": "/assets/graph-ui-Cg_gWiMv.js?graph-attempt=1"
           },
           {
             "kind": "shared",
-            "url": "/assets/graph-ui-DBkktqoY.js?graph-attempt=2"
+            "url": "/assets/graph-ui-Cg_gWiMv.js?graph-attempt=2"
           },
           {
             "kind": "story",
-            "url": "/assets/story-graph-Ds-JV7W3.js?graph-attempt=1"
+            "url": "/assets/story-graph-q3jhrtQM.js?graph-attempt=1"
           }
         ]
       },
@@ -3450,11 +3442,11 @@
         "requests": [
           {
             "kind": "shared",
-            "url": "/assets/graph-ui-DBkktqoY.js?graph-attempt=1"
+            "url": "/assets/graph-ui-Cg_gWiMv.js?graph-attempt=1"
           },
           {
             "kind": "story",
-            "url": "/assets/story-graph-Ds-JV7W3.js?graph-attempt=1"
+            "url": "/assets/story-graph-q3jhrtQM.js?graph-attempt=1"
           }
         ]
       },
@@ -3470,15 +3462,15 @@
         "requests": [
           {
             "kind": "shared",
-            "url": "/assets/graph-ui-DBkktqoY.js?graph-attempt=1"
+            "url": "/assets/graph-ui-Cg_gWiMv.js?graph-attempt=1"
           },
           {
             "kind": "settings",
-            "url": "/assets/PreferenceSettingsPanels-BEDuFT1T.js"
+            "url": "/assets/PreferenceSettingsPanels-CRiS6kIJ.js"
           },
           {
             "kind": "story",
-            "url": "/assets/story-graph-Ds-JV7W3.js?graph-attempt=1"
+            "url": "/assets/story-graph-q3jhrtQM.js?graph-attempt=1"
           }
         ]
       },
@@ -3493,11 +3485,11 @@
         "requests": [
           {
             "kind": "shared",
-            "url": "/assets/graph-ui-DBkktqoY.js?graph-attempt=1"
+            "url": "/assets/graph-ui-Cg_gWiMv.js?graph-attempt=1"
           },
           {
             "kind": "story",
-            "url": "/assets/story-graph-Ds-JV7W3.js?graph-attempt=1"
+            "url": "/assets/story-graph-q3jhrtQM.js?graph-attempt=1"
           }
         ]
       }

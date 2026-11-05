@@ -131,11 +131,9 @@
   },
   "markdownFolderGuide": {
     "title": "Markdownフォルダの保存先は？",
-    "intro": "各作品のMarkdownコピーをここに保存します。他のエディタで章やアイデアを編集すると、変更がDriftingに統合されます。",
-    "default": "既定の場所",
+    "intro": "各作品のMarkdownコピーを選んだフォルダに保存します。他のエディタで章やアイデアを編集すると、変更がDriftingに統合されます。",
     "chosen": "選択したフォルダ",
     "choose": "フォルダを選択…",
-    "useDefault": "既定の場所を使用",
     "continue": "続ける"
   },
   "settings": {
@@ -478,7 +476,7 @@
     "update": {
       "kicker": "アップデート",
       "title": "新しいバージョンは、好きなときに。",
-      "sub": "起動後、GitHubの新規リリースを1日1回まで確認します。ダウンロードとインストールは、あなたの操作を待ちます。",
+      "sub": "起動中は3時間ごとにGitHubの新規リリースを確認します。インストールは、あなたの操作を待ちます。",
       "current_version": "現在のバージョン",
       "channel_desc": "Apple Silicon・macOS 13以降",
       "unavailable": "このビルドには更新署名キーがなく、更新を確認できません。GitHubからダウンロードしたリリース版では利用できます。",
@@ -487,11 +485,9 @@
       "checking": "確認中…",
       "no_update": "最新のバージョンです。",
       "available_version": "Drifting {{version}}を利用できます",
-      "download": "ダウンロード",
       "downloading": "ダウンロード・署名検証中…",
       "downloading_progress": "ダウンロード・検証中… {{progress}}%",
-      "install": "インストールして再起動…",
-      "confirm_install": "インストールして再起動",
+      "install": "インストールして再起動",
       "install_migration_safety": "新しい版でデータ更新が必要な場合、次回起動時に検証済みの安全スナップショットを作成し、移行の検証に合格してから切り替えます。",
       "dismiss": "今はしない",
       "installing": "保存・インストール中…",
@@ -500,7 +496,7 @@
       "error": "更新を停止しました：{{error}}",
       "states": {
         "checking": "確認中…",
-        "available": "ダウンロードできます。",
+        "available": "インストールできます。",
         "downloading": "ダウンロード・検証中…",
         "installing": "変更を保存してインストールしています。完了後にDriftingが再起動します…",
         "ready": "ダウンロードと検証が完了しました。インストールできます。",
@@ -984,6 +980,7 @@
   },
   "chapterEditor": {
     "untitledChapter": "無題の章",
+    "untitledDrift": "無題のアイデア",
     "synopsisPlaceholder": "あらすじ…",
     "summaryPlaceholder": "クリックして概要を追加…"
   },
@@ -1085,12 +1082,12 @@
     }
   },
   "kvEditor": {
-    "keyPlaceholder": "項目・キー",
-    "valuePlaceholder": "内容・値",
-    "templateKeyPlaceholder": "項目名・キー（例：視点）",
-    "templateValuePlaceholder": "既定値／ヒント・値",
+    "keyPlaceholder": "項目",
+    "valuePlaceholder": "内容",
+    "templateKeyPlaceholder": "項目名（例：視点）",
+    "templateValuePlaceholder": "既定値またはヒント",
     "empty": "項目はありません",
-    "templateEmpty": "テンプレート項目未設定。新しい子項目には自動追加しません",
+    "templateEmpty": "テンプレート項目はまだありません。新しく作るときに自動入力されません",
     "addField": "項目を追加",
     "removeRow": "行を削除"
   },
@@ -1693,7 +1690,7 @@
       "clearEntityFilter": "関連フィルターを解除",
       "entityFilterAll": "関係・すべて",
       "entityFilterHint": "関連するメモ・資料だけを表示するエンティティを選択",
-      "todoEmptyHint": "＋でTODOを作るか、エディタのコメントカードから追加できます",
+      "todoEmptyHint": "＋でTODOを作るか、コメントカードの「TODO に変換」を使います",
       "commentEmptyHint": "＋でコメントを作るか、エディタで文字を選んでコメントできます",
       "newMaterialButton": "新しい資料",
       "noMaterials": "この作品に資料はまだありません。",
@@ -3023,7 +3020,7 @@
     "alerts": {
       "deleteFailed": "ストーリーラインを削除できませんでした。もう一度お試しください。"
     },
-    "scratchPlaceholder": "このストーリーラインの走り書き：簡単なメモ、アイデア、文体の注意点など…",
+    "scratchPlaceholder": "このストーリーラインの走り書き：簡単なメモ、文体の注意点など…",
     "summaryPlaceholder": "このストーリーラインを一文で要約…",
     "nodeTemplatePlaceholder": "H1 / H2 / H3 で章のひな形を作成。新しい章に適用されます…",
     "outlineTitle": "{{name}} · アウトライン",
@@ -3050,7 +3047,7 @@
       "unwritten": "未着手"
     },
     "empty": {
-      "noFacts": "フィールドはまだありません。作品のテンプレートに定義がある場合、ストーリーラインの作成時に入力されます。",
+      "noFacts": "フィールドはまだありません。ストーリーラインを作成すると、作品ホームの「ストーリーラインのテンプレート」から入力されます。",
       "noChapterSummary": "一文の要約はまだありません",
       "noFilteredChapters": "条件に合う章はありません"
     },
@@ -3066,7 +3063,7 @@
     "alerts": {
       "deleteFailed": "カテゴリを削除できませんでした。もう一度お試しください。"
     },
-    "scratchPlaceholder": "このカテゴリの走り書き：設計方針、命名規則、AI 候補のルールなど…",
+    "scratchPlaceholder": "このカテゴリの走り書き：設計方針、命名規則など…",
     "elementTemplatePlaceholder": "H1 / H2 / H3 で要素のひな形を作成。新しい要素に適用されます…",
     "sections": {
       "overview": "概要",
@@ -3079,7 +3076,7 @@
     },
     "labels": {
       "elementCount": "要素",
-      "role": "役割"
+      "summary": "要約"
     },
     "meta": {
       "elements": "{{count}}要素",
@@ -3093,7 +3090,7 @@
     "empty": {
       "noCategories": "カテゴリはまだありません",
       "noTemplateFields": "テンプレートのフィールドはまだありません。別名、所属、初登場などのキーを追加できます。",
-      "noRole": "一文の役割説明はまだありません",
+      "noSummary": "要約はまだありません",
       "noFilteredElements": "条件に合う要素はありません"
     },
     "actions": {
@@ -3105,7 +3102,7 @@
     "deleteConfirm": "要素「{{name}}」を削除しますか？",
     "folio": "要素",
     "bodyPlaceholder": "物語が進む時点で、この要素はどのような状態ですか？",
-    "summaryPlaceholder": "役割を一文で説明…",
+    "summaryPlaceholder": "一文で要約…",
     "sketch": "スケッチ",
     "sketchWithCategory": "{{category}} · スケッチ",
     "portrait": {
@@ -3161,7 +3158,7 @@
       "patches": "変化記録"
     },
     "empty": {
-      "noFacts": "フィールドはまだありません。カテゴリのテンプレートに定義がある場合、要素の作成時に入力されます。",
+      "noFacts": "フィールドはまだありません。要素を作成すると、カテゴリの「フィールドのテンプレート」から入力されます。",
       "selectElement": "編集する要素を選択",
       "noCategories": "カテゴリはまだありません"
     },

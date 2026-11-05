@@ -132,11 +132,9 @@
   },
   "markdownFolderGuide": {
     "title": "¿Dónde guardar la carpeta Markdown?",
-    "intro": "Cada proyecto conserva aquí una copia Markdown. Edita capítulos e ideas en cualquier editor y los cambios se integrarán en Drifting.",
-    "default": "Ubicación predeterminada",
+    "intro": "Cada proyecto conserva una copia Markdown en la carpeta que elijas. Edita capítulos e ideas en cualquier editor y los cambios se integrarán en Drifting.",
     "chosen": "Carpeta elegida",
     "choose": "Elegir carpeta…",
-    "useDefault": "Usar ubicación predeterminada",
     "continue": "Continuar"
   },
   "settings": {
@@ -480,7 +478,7 @@
     "update": {
       "kicker": "ACTUALIZACIONES",
       "title": "Instala nuevas versiones cuando tú decidas.",
-      "sub": "Al iniciar, Drifting consulta GitHub como máximo una vez al día. La descarga e instalación siempre esperan tu decisión.",
+      "sub": "Mientras está abierto, Drifting consulta GitHub cada 3 horas. La instalación siempre espera tu decisión.",
       "current_version": "Versión actual",
       "channel_desc": "Apple Silicon · macOS 13 o posterior",
       "unavailable": "Esta compilación no tiene clave de firma del actualizador y no puede buscar actualizaciones. Las versiones descargadas de GitHub sí pueden.",
@@ -489,11 +487,9 @@
       "checking": "Comprobando…",
       "no_update": "Ya tienes la última versión.",
       "available_version": "Drifting {{version}} está disponible",
-      "download": "Descargar",
       "downloading": "Descargando y verificando la firma…",
       "downloading_progress": "Descargando y verificando… {{progress}}%",
-      "install": "Instalar y reiniciar…",
-      "confirm_install": "Instalar y reiniciar",
+      "install": "Instalar y reiniciar",
       "install_migration_safety": "Si la nueva versión necesita actualizar datos locales, al arrancar se crea y verifica una instantánea de seguridad. Solo se cambia a los datos migrados tras superar las comprobaciones.",
       "dismiss": "Ahora no",
       "installing": "Guardando e instalando…",
@@ -502,7 +498,7 @@
       "error": "Actualización detenida: {{error}}",
       "states": {
         "checking": "Comprobando…",
-        "available": "Lista para descargar.",
+        "available": "Lista para instalar.",
         "downloading": "Descargando y verificando…",
         "installing": "Guardando cambios e instalando; Drifting se reiniciará al terminar…",
         "ready": "Descargada y verificada. Lista para instalar.",
@@ -987,6 +983,7 @@
   },
   "chapterEditor": {
     "untitledChapter": "Capítulo sin título",
+    "untitledDrift": "Idea sin título",
     "synopsisPlaceholder": "Sinopsis…",
     "summaryPlaceholder": "Haz clic para añadir un resumen…"
   },
@@ -1088,12 +1085,12 @@
     }
   },
   "kvEditor": {
-    "keyPlaceholder": "Campo · clave",
-    "valuePlaceholder": "Contenido · valor",
-    "templateKeyPlaceholder": "Nombre de campo · clave (p. ej., punto de vista)",
-    "templateValuePlaceholder": "Valor predeterminado / pista",
+    "keyPlaceholder": "Campo",
+    "valuePlaceholder": "Contenido",
+    "templateKeyPlaceholder": "Nombre del campo, p. ej., punto de vista",
+    "templateValuePlaceholder": "Valor predeterminado o pista",
     "empty": "Aún no hay campos",
-    "templateEmpty": "Sin campos de plantilla; los nuevos elementos secundarios no rellenarán filas automáticamente",
+    "templateEmpty": "Aún no hay campos de plantilla. Los elementos nuevos no tendrán campos rellenados",
     "addField": "Añadir campo",
     "removeRow": "Quitar fila"
   },
@@ -1697,7 +1694,7 @@
       "clearEntityFilter": "Quitar filtro de relaciones",
       "entityFilterAll": "Relaciones · Todas",
       "entityFilterHint": "Elige una entidad para mostrar solo notas y materiales vinculados",
-      "todoEmptyHint": "Pulsa + para crear una tarea o conviértela desde un comentario del editor",
+      "todoEmptyHint": "Pulsa + para crear una tarea o elige «A tarea» en una tarjeta de comentario",
       "commentEmptyHint": "Pulsa + para crear un comentario o selecciona texto en el editor para comentar",
       "newMaterialButton": "Nuevo material",
       "noMaterials": "Este proyecto aún no tiene materiales.",
@@ -3034,7 +3031,7 @@
     "alerts": {
       "deleteFailed": "No se pudo eliminar la trama. Inténtalo de nuevo."
     },
-    "scratchPlaceholder": "Notas rápidas de esta trama: apuntes, ideas, recordatorios de estilo…",
+    "scratchPlaceholder": "Notas rápidas de esta trama: apuntes, recordatorios de estilo…",
     "summaryPlaceholder": "Resumen de esta trama en una frase…",
     "nodeTemplatePlaceholder": "Crea una estructura de capítulo con H1 / H2 / H3; los capítulos nuevos la usarán…",
     "outlineTitle": "{{name}} · ESQUEMA",
@@ -3061,7 +3058,7 @@
       "unwritten": "Sin empezar"
     },
     "empty": {
-      "noFacts": "Aún no hay campos. Si la plantilla del proyecto define campos, se rellenan al crear la trama.",
+      "noFacts": "Aún no hay campos. Al crear una trama, la Plantilla de trama del inicio del proyecto los rellena.",
       "noChapterSummary": "Aún no hay resumen en una frase",
       "noFilteredChapters": "No hay capítulos para este filtro"
     },
@@ -3077,7 +3074,7 @@
     "alerts": {
       "deleteFailed": "No se pudo eliminar la categoría. Inténtalo de nuevo."
     },
-    "scratchPlaceholder": "Apuntes de esta categoría: principios de diseño, reglas de nombres, reglas de candidatos de IA…",
+    "scratchPlaceholder": "Apuntes de esta categoría: principios de diseño, reglas de nombres…",
     "elementTemplatePlaceholder": "Crea una estructura de elemento con H1 / H2 / H3; los elementos nuevos la usarán…",
     "sections": {
       "overview": "Vista general",
@@ -3090,7 +3087,7 @@
     },
     "labels": {
       "elementCount": "Elementos",
-      "role": "Función"
+      "summary": "Resumen"
     },
     "meta": {
       "elements": "{{count}} elementos",
@@ -3104,7 +3101,7 @@
     "empty": {
       "noCategories": "Aún no hay categorías",
       "noTemplateFields": "Aún no hay campos de plantilla. Añade claves como alias, facción o primera aparición.",
-      "noRole": "Aún no hay función en una frase",
+      "noSummary": "Aún no hay resumen",
       "noFilteredElements": "No hay elementos para este filtro"
     },
     "actions": {
@@ -3116,7 +3113,7 @@
     "deleteConfirm": "¿Eliminar el elemento «{{name}}»?",
     "folio": "Elemento",
     "bodyPlaceholder": "¿Cómo es este elemento durante la historia?",
-    "summaryPlaceholder": "Describe su función en una frase…",
+    "summaryPlaceholder": "Resumen en una frase…",
     "sketch": "Boceto",
     "sketchWithCategory": "{{category}} · boceto",
     "portrait": {
@@ -3172,7 +3169,7 @@
       "patches": "Evoluciones"
     },
     "empty": {
-      "noFacts": "Aún no hay campos. Si la plantilla de la categoría define campos, se rellenan al crear el elemento.",
+      "noFacts": "Aún no hay campos. Al crear un elemento, la Plantilla de campos de su categoría los rellena.",
       "selectElement": "Selecciona un elemento para editar",
       "noCategories": "Aún no hay categorías"
     },

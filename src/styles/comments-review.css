@@ -345,8 +345,9 @@
    words come in green, rewritten words purple, and the old words are deleted
    or overwritten without a mark of their own. When the reveal hands over to
    the real paragraph, the same words stay coloured (::highlight(agent-recent-*),
-   lib/agent-recent-highlight.ts) until the author's pointer rests on them,
-   then ease back to ink in two steps. The in-place review decorations, kept in
+   lib/agent-recent-highlight.ts) until the author's pointer touches them —
+   moving onto them, or them scrolling under a still pointer — then ease back
+   to ink in two steps. The in-place review decorations, kept in
    the code for old receipts, use the same inks. The faint wash on a whole
    changed block is gone: the colours already say where the Agent wrote. The
    inks are the story green and purple, deep enough to read on the paper. */
