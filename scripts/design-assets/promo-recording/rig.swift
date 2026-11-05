@@ -232,6 +232,65 @@ final class Puppet {
 
   func pointerLocation() -> CGPoint { CGEvent(source: nil)?.location ?? .zero }
 
+  /**
+   * Input must only ever reach the target app. Before every keystroke, click
+   * and scroll the rig asks the window server which app owns the frontmost
+   * ordinary window (and, for the pointer, the window under it); if it is
+   * not the target the input is not posted and the command fails, so a
+   * recording stops instead of typing into whatever came to the front.
+   */
+  func ownerOfFrontWindow(at point: CGPoint? = nil) -> pid_t? {
+    guard let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else { return nil }
+    for info in list {
+      guard (info[kCGWindowLayer as String] as? Int) == 0,
+            let owner = info[kCGWindowOwnerPID as String] as? Int,
+            let bounds = info[kCGWindowBounds as String] as? [String: Double] else { continue }
+      let alpha = info[kCGWindowAlpha as String] as? Double ?? 1
+      if alpha <= 0.01 { continue }
+      let rect = CGRect(x: bounds["X"] ?? 0, y: bounds["Y"] ?? 0, width: bounds["Width"] ?? 0, height: bounds["Height"] ?? 0)
+      if rect.width < 40 || rect.height < 40 { continue }
+      if let point, !rect.contains(point) { continue }
+      return pid_t(owner)
+    }
+    return nil
+  }
+
+  /**
+   * The app in front, as LaunchServices has it (`lsappinfo front`): the one
+   * the system routes the keyboard to. Asked fresh each time; a long-running
+   * tool's own workspace notifications would go stale.
+   */
+  func frontApplication() -> pid_t? {
+    func run(_ arguments: [String]) -> String? {
+      let process = Process()
+      process.executableURL = URL(fileURLWithPath: "/usr/bin/lsappinfo")
+      process.arguments = arguments
+      let pipe = Pipe()
+      process.standardOutput = pipe
+      process.standardError = FileHandle.nullDevice
+      do { try process.run() } catch { return nil }
+      let data = pipe.fileHandleForReading.readDataToEndOfFile()
+      process.waitUntilExit()
+      return String(data: data, encoding: .utf8)
+    }
+    guard let asn = run(["front"])?.trimmingCharacters(in: .whitespacesAndNewlines), !asn.isEmpty,
+          let info = run(["info", "-only", "pid", asn]),
+          let range = info.range(of: #"pid = [0-9]+"#, options: .regularExpression),
+          let value = info[range].split(separator: " ").last else { return nil }
+    return pid_t(String(value))
+  }
+
+  func requireTarget(at point: CGPoint? = nil, for what: String) throws {
+    guard pid != 0 else { throw RigError("No target (target a pid first)") }
+    let front = frontApplication()
+    let window = point == nil ? pid : ownerOfFrontWindow(at: point)
+    if front == pid && window == pid { return }
+    let stray = front != pid ? front : window
+    let name = stray.flatMap { NSRunningApplication(processIdentifier: $0)?.localizedName } ?? "nothing"
+    log.write("guard", ["what": what, "app": name, "front": Int(front ?? 0), "window": Int(window ?? 0)])
+    throw RigError("Stopped before \(what): \(name) is \(front != pid ? "in front" : "under the pointer"), not the target app")
+  }
+
   func sleep(_ seconds: Double) async {
     if seconds > 0 { try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000)) }
   }
@@ -280,6 +339,7 @@ final class Puppet {
   func down() throws {
     let frame = try window()
     let at = pointerLocation()
+    try requireTarget(at: at, for: "a press")
     postMouse(.leftMouseDown, at: at)
     buttonDown = true
     log.write("pointer.down", ["x": at.x - frame.x, "y": at.y - frame.y])
@@ -296,6 +356,7 @@ final class Puppet {
   func click(count: Int) async throws {
     let frame = try window()
     let at = pointerLocation()
+    try requireTarget(at: at, for: "a click")
     for index in 1...max(1, count) {
       postMouse(.leftMouseDown, at: at, clickState: Int64(index))
       log.write("pointer.down", ["x": at.x - frame.x, "y": at.y - frame.y, "click": index])
@@ -310,7 +371,8 @@ final class Puppet {
    * Scrolls the content under the pointer by `dy` points (positive: further
    * down the page), as a trackpad would: small pixel steps, eased, at 60 Hz.
    */
-  func scroll(dy: Double, duration: Double) async {
+  func scroll(dy: Double, duration: Double) async throws {
+    try requireTarget(at: pointerLocation(), for: "a scroll")
     let steps = max(1, Int((duration * 60).rounded()))
     var sent = 0.0
     for step in 1...steps {
@@ -320,6 +382,7 @@ final class Puppet {
       let delta = target - sent
       sent = target
       if delta != 0, let event = CGEvent(scrollWheelEvent2Source: source, units: .pixel, wheelCount: 1, wheel1: Int32(-delta), wheel2: 0, wheel3: 0) {
+        try requireTarget(at: pointerLocation(), for: "a scroll")
         event.post(tap: .cghidEventTap)
       }
       log.write("scroll", ["dy": delta])
@@ -350,19 +413,21 @@ final class Puppet {
       default: throw RigError("Unknown modifier \(modifier)")
       }
     }
+    try requireTarget(for: "the key \(name)")
     for keyDown in [true, false] {
       guard let event = CGEvent(keyboardEventSource: source, virtualKey: code, keyDown: keyDown) else { continue }
       event.flags = flags
-      event.post(tap: .cghidEventTap)
+      event.postToPid(pid)
     }
     log.write("key", ["key": name, "modifiers": modifiers])
   }
 
   /** One character as the keyboard would send it: its own key where it has one, else the text itself. */
+  /** Keys go to the target's process only (`postToPid`), never to whatever has the keyboard. */
   func typeCharacter(_ character: Character) {
     let text = String(character)
     if text == "\n" || text == "\r" {
-      for keyDown in [true, false] { CGEvent(keyboardEventSource: source, virtualKey: 36, keyDown: keyDown)?.post(tap: .cghidEventTap) }
+      for keyDown in [true, false] { CGEvent(keyboardEventSource: source, virtualKey: 36, keyDown: keyDown)?.postToPid(pid) }
       log.write("key", ["key": "return"])
       return
     }
@@ -371,7 +436,7 @@ final class Puppet {
     for keyDown in [true, false] {
       guard let event = CGEvent(keyboardEventSource: source, virtualKey: code, keyDown: keyDown) else { continue }
       event.keyboardSetUnicodeString(stringLength: units.count, unicodeString: &units)
-      event.post(tap: .cghidEventTap)
+      event.postToPid(pid)
     }
     log.write("type", ["text": text])
   }
@@ -380,9 +445,12 @@ final class Puppet {
    * Types `text` at about `cps` characters a second, each gap varied by
    * `jitter`, with longer rests after punctuation as a writer pauses.
    */
-  func type(_ text: String, cps: Double, jitter: Double, pauses: Bool) async {
+  func type(_ text: String, cps: Double, jitter: Double, pauses: Bool) async throws {
     let base = 1 / max(cps, 0.5)
-    for character in text {
+    for (index, character) in text.enumerated() {
+      // Every few characters, the target must still be in front: a recording
+      // stops rather than typing on behind another app.
+      if index % 6 == 0 { try requireTarget(for: "typing") }
       typeCharacter(character)
       var gap = base * (1 + (next() * 2 - 1) * jitter)
       if pauses {
@@ -473,7 +541,7 @@ struct Rig {
           case "pointer.up": try puppet.up()
           case "pointer.click": try await puppet.click(count: Int(number("count") ?? 1))
           case "pointer.scroll":
-            await puppet.scroll(dy: number("dy") ?? 0, duration: number("duration") ?? 0.6)
+            try await puppet.scroll(dy: number("dy") ?? 0, duration: number("duration") ?? 0.6)
           case "pointer.where":
             let frame = try puppet.window()
             let at = puppet.pointerLocation()
@@ -483,7 +551,7 @@ struct Rig {
             try puppet.press(key, modifiers: command["modifiers"] as? [String] ?? [])
           case "key.type":
             guard let text = command["text"] as? String else { throw RigError("key.type needs text") }
-            await puppet.type(text, cps: number("cps") ?? 8, jitter: number("jitter") ?? 0.35, pauses: command["pauses"] as? Bool ?? true)
+            try await puppet.type(text, cps: number("cps") ?? 8, jitter: number("jitter") ?? 0.35, pauses: command["pauses"] as? Bool ?? true)
           case "input.keyboard":
             result["source"] = try puppet.selectKeyboardLayout()
           case "input.restore":

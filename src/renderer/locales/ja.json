@@ -3679,6 +3679,12 @@
       "create_relation": "関係を作成",
       "update_relation": "関係を更新{{target}}",
       "delete_relation": "関係を削除{{target}}",
+      "list_relation_types": "関係の種類を確認",
+      "create_relation_type": "関係の種類を作成{{target}}",
+      "update_relation_type": "関係の種類を調整{{target}}",
+      "delete_relation_type": "関係の種類を削除{{target}}",
+      "tool_search": "使えるツールを探す",
+      "call_tool": "ツールを使う",
       "create_comment": "メモまたは TODO を追加",
       "update_comment": "メモまたは TODO を更新{{target}}",
       "delete_comment": "メモまたは TODO を削除{{target}}",
@@ -3720,7 +3726,11 @@
       "search_prose": "原稿を検索",
       "search_project": "作品を検索",
       "search_prose_query": "原稿で「{{query}}」を検索",
-      "search_project_query": "作品で「{{query}}」を検索"
+      "search_project_query": "作品で「{{query}}」を検索",
+      "web_search": "ウェブを検索",
+      "web_search_query": "ウェブで「{{query}}」を検索",
+      "web_open_page": "ウェブページを開く",
+      "web_open_page_site": "{{site}} のページを開く"
     },
     "permission": {
       "related": "関連する",

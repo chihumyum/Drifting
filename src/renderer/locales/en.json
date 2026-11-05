@@ -3679,6 +3679,12 @@
       "create_relation": "Create relationship",
       "update_relation": "Update relationship{{target}}",
       "delete_relation": "Delete relationship{{target}}",
+      "list_relation_types": "Review relation types",
+      "create_relation_type": "Create relation type{{target}}",
+      "update_relation_type": "Adjust relation type{{target}}",
+      "delete_relation_type": "Delete relation type{{target}}",
+      "tool_search": "Look up tools",
+      "call_tool": "Use a tool",
       "create_comment": "Add a note or TODO",
       "update_comment": "Update note or TODO{{target}}",
       "delete_comment": "Delete note or TODO{{target}}",
@@ -3720,7 +3726,11 @@
       "search_prose": "Search the manuscript",
       "search_project": "Search the project",
       "search_prose_query": "Search manuscript for “{{query}}”",
-      "search_project_query": "Search project for “{{query}}”"
+      "search_project_query": "Search project for “{{query}}”",
+      "web_search": "Search the web",
+      "web_search_query": "Search the web for “{{query}}”",
+      "web_open_page": "Open a web page",
+      "web_open_page_site": "Open a page on {{site}}"
     },
     "permission": {
       "related": "relates to",

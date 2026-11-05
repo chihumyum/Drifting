@@ -287,12 +287,26 @@ export type AgentModelStopReason =
   | 'content_filter'
   | 'unknown';
 
+/**
+ * A tool the provider ran on its own servers inside one response (OpenAI's
+ * hosted web search). The runtime never executes it: it is reported once,
+ * complete, so the transcript can show what the model looked up.
+ */
+export type AgentProviderToolName = 'web_search' | 'web_open_page';
+
 export type AgentModelStreamEvent =
   | { type: 'text_delta'; text: string }
   | { type: 'thinking_delta'; text: string }
   | { type: 'tool_call_start'; callId: string; name: string }
   | { type: 'tool_args_delta'; callId: string; delta: string }
   | { type: 'tool_call_end'; callId: string }
+  | {
+      type: 'provider_tool';
+      callId: string;
+      name: AgentProviderToolName;
+      input: Record<string, string>;
+      ok: boolean;
+    }
   | { type: 'usage'; usage: AgentRuntimeUsage }
   | { type: 'finish'; reason: AgentModelStopReason };
 
@@ -641,6 +655,20 @@ export type AgentRuntimeEvent =
       callId: string;
       name: string;
       access: AgentToolDefinition['access'];
+    }
+  | {
+      /**
+       * A provider-hosted tool (web search) the model used inside one model
+       * iteration. Informational: nothing executes locally, it adds nothing
+       * to the canonical conversation (the driver replays the provider's own
+       * items), and it never counts against the tool-call budget.
+       */
+      type: 'provider_tool_used';
+      iteration: number;
+      callId: string;
+      name: string;
+      input: Record<string, unknown>;
+      ok: boolean;
     }
   | {
       type: 'permission_requested';

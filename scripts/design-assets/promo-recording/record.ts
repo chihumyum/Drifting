@@ -3,16 +3,17 @@
  * Records the real app writing a story (README.md).
  *
  *   pnpm promo:record --story <file.md> [--take <name>] [--theme light|dark]
- *                     [--model deepseek-v4-pro] [--no-agent] [--keep-open]
+ *                     [--provider openai] [--model gpt-5.6-sol] [--no-agent] [--keep-open]
  *
- * Seeds the isolated `promo-recording` profile with the screenshot shelf and
- * a new book holding one empty chapter, launches its Debug build with the
- * frontend debug bridge, and records its window with the rig (rig.swift)
- * while the rig types the story with real keystrokes and then works the
- * Agent with the real pointer: asks it to organize the chapter into
- * elements, points at a name it linked, opens the element overview, and
- * starts the chapter-end review. The Agent is the real model, keyed from
- * the checkout's .env.local like every development profile.
+ * Seeds the isolated `promo-recording` profile with the screenshot shelf,
+ * launches its Debug build with the frontend debug bridge, and records its
+ * window with the rig (rig.swift) while the rig, with the real pointer and
+ * keyboard, creates the story's book from the shelf, its chapter from
+ * Project Home, and writes it in immersive writing — asking the Agent
+ * mid-chapter to look up a reference on the web — then asks the Agent to
+ * organize the chapter into elements, points at a name it linked, opens the
+ * element overview and starts the chapter-end review. The Agent is the real
+ * model, keyed from the checkout's .env.local like every development profile.
  *
  * Writes out/promo-recording/<take>/: raw.mov (the window, Retina pixels, no
  * pointer), events.jsonl (every input the rig posted) and timeline.json
@@ -26,8 +27,9 @@ import { fileURLToPath } from 'node:url';
 import {
   bringToFront, frontmostPid, mainWindow, openDesktopApp, placeWindow, sceneRunner, sleep, type WindowInfo,
 } from '../../desktop-app-session';
+import { dockSpot } from './plan';
 import { buildSwiftTool, Rig } from './rig-client';
-import { parseStory, type Pace, type Story } from './story';
+import { parseStory, type Pace } from './story';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '../../..');
@@ -35,20 +37,22 @@ const INSTANCE = 'promo-recording';
 const LIBRARY = 'drifting-library.db';
 const WINDOW = { width: 1600, height: 1000 };
 const LOCALE = 'zh-CN';
-/** Keystrokes a second while recording; compose.ts speeds the faster paces up further. */
-const TYPING_CPS: Record<Pace, number> = { slow: 4.5, normal: 9, fast: 16 };
+/** Keystrokes a second, as the video plays them: a writer who knows what comes next, not a stenographer. */
+const TYPING_CPS: Record<Pace, number> = { slow: 3.4, normal: 5.6, fast: 8.2 };
+/** Paragraphs marked quick are typed this fast; the video plays them at a steady 8 a second. */
+const QUICK_CPS = 45;
 const AGENT_START_TIMEOUT = 20_000;
 const AGENT_TIMEOUT = 10 * 60_000;
 
 interface Options {
-  story: string; take: string; theme: 'light' | 'dark'; model: string; agent: boolean; keepOpen: boolean;
+  story: string; take: string; theme: 'light' | 'dark'; provider: string; model: string; agent: boolean; keepOpen: boolean;
   position: [number, number] | null;
 }
 
 function parseArguments(args: string[]): Options {
   const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\..*/, '').replace('T', '-');
   const options: Options = {
-    story: path.join(here, 'sample-story.zh-CN.md'), take: stamp, theme: 'light', model: 'deepseek-v4-pro',
+    story: path.join(here, 'sample-story.zh-CN.md'), take: stamp, theme: 'light', provider: 'openai', model: 'gpt-5.6-sol',
     agent: true, keepOpen: false, position: null,
   };
   for (let index = 0; index < args.length; index += 1) {
@@ -65,7 +69,8 @@ function parseArguments(args: string[]): Options {
       const theme = value();
       if (theme !== 'light' && theme !== 'dark') throw new Error('--theme is light or dark');
       options.theme = theme;
-    } else if (argument === '--model') options.model = value();
+    } else if (argument === '--provider') options.provider = value();
+    else if (argument === '--model') options.model = value();
     else if (argument === '--no-agent') options.agent = false;
     else if (argument === '--keep-open') options.keepOpen = true;
     else if (argument === '--position') {
@@ -91,10 +96,9 @@ function resetProfile(databaseDirectory: string, appLocalDataDirectory: string) 
   }
 }
 
-function seedLibrary(databasePath: string, appLocalDataDirectory: string, story: Story): SeededLibrary {
+function seedLibrary(databasePath: string, appLocalDataDirectory: string): SeededLibrary {
   const result = spawnSync('pnpm', ['exec', 'tsx', '--conditions=import', 'src/dev-cli/showcase-seed-main.ts',
-    '--db', databasePath, '--app-local-data', appLocalDataDirectory, '--locale', LOCALE,
-    '--open-book', story.book, '--open-chapter', story.chapter, ...(story.memory ? ['--open-memory', story.memory] : [])], {
+    '--db', databasePath, '--app-local-data', appLocalDataDirectory, '--locale', LOCALE], {
     cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'],
     env: { ...process.env, NODE_OPTIONS: [process.env.NODE_OPTIONS, '--no-warnings'].filter(Boolean).join(' ') },
   });
@@ -105,6 +109,11 @@ function seedLibrary(databasePath: string, appLocalDataDirectory: string, story:
 // ---------------------------------------------------------------- recording
 
 interface Rect { x: number; y: number; width: number; height: number }
+
+const union = (a: Rect, b: Rect): Rect => {
+  const left = Math.min(a.x, b.x), top = Math.min(a.y, b.y);
+  return { x: left, y: top, width: Math.max(a.x + a.width, b.x + b.width) - left, height: Math.max(a.y + a.height, b.y + b.height) - top };
+};
 
 async function main() {
   const options = parseArguments(process.argv.slice(2));
@@ -122,8 +131,8 @@ async function main() {
     instance: INSTANCE, tag: 'promo', logName: `promo-${options.take}.log`,
     prepare({ databaseDirectory, appLocalDataDirectory }) {
       resetProfile(databaseDirectory, appLocalDataDirectory);
-      console.log(`[promo] seeding 《${story.book}》`);
-      library = seedLibrary(path.join(databaseDirectory, LIBRARY), appLocalDataDirectory, story);
+      console.log('[promo] seeding the shelf');
+      library = seedLibrary(path.join(databaseDirectory, LIBRARY), appLocalDataDirectory);
     },
   });
   const seeded = library as SeededLibrary | null;
@@ -136,17 +145,14 @@ async function main() {
   try {
     placeWindow(pid, WINDOW, options.position);
     await scenes.install();
-    await scenes.runReloading('prepare', { locale: LOCALE, theme: options.theme, provider: 'deepseek', model: options.model });
-    const openBook = () => scenes.run<{ viewport: { width: number; height: number; dpr: number } }>('open', {
-      projectId: seeded.main.projectId, name: seeded.main.name, chapterId: seeded.main.chapters[0].id,
-    });
-    let opened = await openBook();
+    await scenes.runReloading('prepare', { locale: LOCALE, theme: options.theme, provider: options.provider, model: options.model });
+    let shelf = await scenes.run<{ viewport: { width: number; height: number; dpr: number }; card: Rect }>('shelf');
     // A first use of a feature can make the development server reload the
-    // page; warm everything up until a pass leaves the page alone.
+    // page; warm everything up in another book until a pass leaves the page alone.
     for (let attempt = 1; ; attempt += 1) {
       let reloaded = false;
       try {
-        await scenes.run('warmup');
+        await scenes.run('warmupBook', { name: seeded.main.name });
         await sleep(3000);
         reloaded = await session.evaluate<string>('typeof window.__driftingPromo') !== 'object';
       } catch {
@@ -162,13 +168,13 @@ async function main() {
         if (Date.now() > deadline) throw new Error('The renderer did not come back after its reload');
         await sleep(500);
       }
-      opened = await openBook();
     }
+    shelf = await scenes.run('shelf');
     bringToFront(pid);
     await sleep(800);
     const window = mainWindow(pid);
     if (!window) throw new Error('The app has no window');
-    const offset = { x: (window.width - opened.viewport.width) / 2, y: window.height - opened.viewport.height };
+    const offset = { x: (window.width - shelf.viewport.width) / 2, y: window.height - shelf.viewport.height };
 
     const clock = await rig.syncClock();
     console.log(`[promo] rig clock synced (round trip ${(clock.roundTrip * 1000).toFixed(1)} ms)`);
@@ -182,6 +188,7 @@ async function main() {
     const toWindow = (point: { x: number; y: number }) => ({ x: point.x + offset.x, y: point.y + offset.y });
     const rectToWindow = (rect: Rect) => ({ ...rect, ...toWindow(rect) });
     const centre = (rect: Rect) => toWindow({ x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 });
+    const grow = (rect: Rect, x: number, y = x): Rect => ({ x: rect.x - x, y: rect.y - y, width: rect.width + 2 * x, height: rect.height + 2 * y });
     const rectOf = async (selector: string, text?: string, timeout = 15_000): Promise<Rect> => {
       const deadline = Date.now() + timeout;
       for (;;) {
@@ -191,15 +198,25 @@ async function main() {
         await sleep(250);
       }
     };
+    const until = async <T>(scene: string, what: string, options: Record<string, unknown> = {}, timeout = 30_000): Promise<NonNullable<T>> => {
+      const deadline = Date.now() + timeout;
+      for (;;) {
+        const value = await scenes.run<T>(scene, options);
+        if (value) return value as NonNullable<T>;
+        if (Date.now() > deadline) throw new Error(`Timed out waiting for ${what}`);
+        await sleep(250);
+      }
+    };
     const moveTo = async (point: { x: number; y: number }, duration?: number) =>
       rig.send('pointer.move', { ...point, ...(duration ? { duration } : {}) });
-    /** Points at a control, lets the hand settle, clicks it. */
+    /** Points at a control, lets the hand settle, clicks it. The camera moves only if the control is out of its frame. */
     const clickOn = async (rect: Rect, name: string, zoom?: number) => {
       mark('target', { target: name, rect: rectToWindow(rect), ...(zoom ? { zoom } : {}) });
       await moveTo(centre(rect));
       await sleep(180);
       await rig.send('pointer.click');
     };
+    const shortcut = (key: string, ...modifiers: string[]) => rig.send('key.press', { key, modifiers });
 
     // While the rig types, sample where the caret is, for the camera.
     let sampling = false;
@@ -213,26 +230,29 @@ async function main() {
         await sleep(90);
       }
     };
-    const typeText = async (text: string, pace: Pace, kind: string, typo: { intended: string; typed: string } | null = null, zoom?: number) => {
-      const column = await scenes.run<{ text: Rect; paper: Rect } | null>('column');
-      mark('type.start', { pace, kind, text, ...(zoom ? { zoom } : {}),
-        column: column ? { text: rectToWindow(column.text), paper: rectToWindow(column.paper) } : null });
-      sampling = true;
-      const sampler = sampleCaret();
-      const cps = TYPING_CPS[pace];
+    interface TypeOptions { typo?: { intended: string; typed: string } | null; zoom?: number; focus?: Rect; cps?: number; pauses?: boolean }
+    /** Types `text` with real keystrokes; `focus` (viewport) is the box the camera frames for a prompt or a field. */
+    const typeText = async (text: string, pace: Pace, kind: 'prose' | 'prompt' | 'field', options: TypeOptions = {}) => {
+      mark('type.start', { pace, kind, text, ...(options.zoom ? { zoom: options.zoom } : {}),
+        ...(options.focus ? { focus: rectToWindow(options.focus) } : {}) });
+      sampling = kind === 'prose';
+      const sampler = sampling ? sampleCaret() : Promise.resolve();
+      const cps = options.cps ?? TYPING_CPS[pace];
+      const pauses = options.pauses ?? true;
+      const typo = options.typo;
       if (typo) {
         const at = text.indexOf(typo.intended);
         await rig.send('key.type', { text: text.slice(0, at), cps });
         await rig.send('key.type', { text: typo.typed, cps, pauses: false });
-        await sleep(450);
+        await sleep(650);
         for (let index = 0; index < [...typo.typed].length; index += 1) {
           await rig.send('key.press', { key: 'backspace' });
-          await sleep(120);
+          await sleep(160);
         }
-        await sleep(200);
+        await sleep(300);
         await rig.send('key.type', { text: text.slice(at), cps });
       } else {
-        await rig.send('key.type', { text, cps });
+        await rig.send('key.type', { text, cps, pauses });
       }
       sampling = false;
       await sampler;
@@ -240,11 +260,10 @@ async function main() {
     };
     /** What the camera should look at from now on: a window rectangle (viewport pixels), or the whole canvas. */
     const shot = (rect: Rect | null, zoom?: number) => mark('shot', { rect: rect ? rectToWindow(rect) : null, ...(zoom ? { zoom } : {}) });
-    /** The Agent's transcript in the right sidebar, above its composer. */
-    const agentPanel = async (): Promise<Rect> => {
+    /** The bottom of the Agent's panel: its newest lines and the composer under them. */
+    const agentFoot = async (height = 300): Promise<Rect> => {
       const composer = await rectOf('.agt-composer');
-      const top = opened.viewport.height * 0.3;
-      return { x: composer.x - 12, y: top, width: composer.width + 24, height: composer.y + composer.height - top };
+      return { x: composer.x - 12, y: composer.y - height, width: composer.width + 24, height: height + composer.height };
     };
     const waitForAgent = async (what: string) => {
       const startDeadline = Date.now() + AGENT_START_TIMEOUT;
@@ -252,7 +271,7 @@ async function main() {
         if (Date.now() > startDeadline) throw new Error(`The Agent did not start ${what}`);
         await sleep(300);
       }
-      shot(await agentPanel(), 1.55);
+      shot(await agentFoot(260), 2.0);
       mark('agent.start', { what });
       console.log(`[promo] the Agent is ${what}…`);
       const deadline = Date.now() + AGENT_TIMEOUT;
@@ -262,82 +281,246 @@ async function main() {
       }
       mark('agent.end', { what });
     };
+    /** Shows the right sidebar's tab `label`, clicking it only if it is not showing already (a second click closes it). */
+    const rightTab = async (label: string, name: string) => {
+      const tab = await rectOf('.rightbar-tab-tray button', label);
+      const active = await scenes.run<boolean>('tabActive', { label });
+      if (!active) await clickOn(tab, name);
+    };
+    const immersive = async (on: boolean) => {
+      if (await scenes.run<boolean>('immersive') === on) return;
+      await shortcut('return', 'cmd', 'shift');
+      await sleep(1000);
+    };
+    /**
+     * Writing from here on: immersive, the camera on the paper's column — at
+     * once, or (`frame` false) from the first caret the camera tolerates.
+     */
+    const startWriting = async (frame = true) => {
+      await immersive(true);
+      const column = await until<{ text: Rect; paper: Rect }>('column', 'the paper');
+      const caret = frame ? await scenes.run<Rect | null>('caret') : null;
+      mark('writing', { column: { text: rectToWindow(column.text), paper: rectToWindow(column.paper) },
+        ...(caret ? { rect: rectToWindow(caret) } : {}) });
+    };
 
-    // Off camera: the caret into the empty chapter, the pointer to rest on the paper's margin.
-    const end = await scenes.run<{ x: number; y: number }>('end');
-    await moveTo(toWindow(end), 0.2);
-    await rig.send('pointer.click');
-    const column = await scenes.run<{ text: Rect; paper: Rect }>('column');
-    await moveTo(toWindow({ x: column.paper.x + column.paper.width - 30, y: column.paper.y + 240 }), 0.2);
+    // Off camera: the pointer parked where Drifting's icon will be in the opening's Dock.
+    const dock = dockSpot(window);
+    await moveTo(dock, 0.2);
     await sleep(600);
 
     await rig.send('record.start', { out: path.join(output, 'raw.mov'), fps: 60 });
     recording = true;
     console.log('[promo] recording');
-    await sleep(1500);
+    await sleep(600);
+
+    // The opening: Drifting clicked in the Dock (drawn by compose), its window opening on the shelf.
+    mark('phase', { phase: 'open' });
+    await sleep(1900);
+    mark('intro.click', dock);
+    await sleep(260);
+    mark('intro.open');
+    await sleep(1700);
+
+    // A new book, named in the dialog.
+    mark('phase', { phase: 'new-book' });
+    // The new-book card closes the shelf, below the books: scroll down to it.
+    let card = shelf.card;
+    if (card.y + card.height > shelf.viewport.height - 40) {
+      await moveTo(toWindow({ x: shelf.viewport.width * 0.55, y: shelf.viewport.height * 0.55 }));
+      await sleep(250);
+      await rig.send('pointer.scroll', { dy: card.y + card.height - shelf.viewport.height + 90, duration: 1.1 });
+      await sleep(900);
+      card = await rectOf('.pp-card--new');
+    }
+    await clickOn(card, 'new-book');
+    const dialog = await until<{ card: Rect; field: Rect; create: Rect }>('newBookDialog', 'the new-book dialog');
+    await sleep(500);
+    await typeText(story.book, 'slow', 'field', { focus: grow(dialog.card, 20), zoom: 1.9 });
+    await sleep(500);
+    // The rig posts keys to the app's process only; make sure they arrive.
+    const typed = await scenes.run<{ value: string } | null>('newBookDialog');
+    if (typed?.value !== story.book) throw new Error(`The keystrokes did not reach the app (the name field holds "${typed?.value ?? ''}")`);
+    await clickOn(dialog.create, 'create');
+    shot(null);
+    const projectId = await until<string>('projectId', 'the new book to open');
+    console.log(`[promo] created 《${story.book}》 (${projectId})`);
+    if (story.memory) await scenes.run('remember', { body: story.memory });
+    await sleep(2600);
+
+    // Its first chapter, from Project Home, and its title.
+    mark('phase', { phase: 'new-chapter' });
+    await clickOn(await rectOf('.home-create__tile', '章节'), 'new-chapter');
+    const title = await until<Rect>('title', 'the new chapter');
+    await sleep(1400);
+    await clickOn(title, 'title');
+    await sleep(350);
+    // The click leaves a caret in 新章节; select it all to type over it.
+    await shortcut('a', 'cmd');
+    await sleep(350);
+    await typeText(story.chapter, 'slow', 'field', { focus: grow(title, 60, 40), zoom: 2.2 });
+    const titled = await scenes.run<string | null>('titleValue');
+    if (titled !== story.chapter) throw new Error(`The chapter title reads "${titled ?? ''}", not "${story.chapter}"`);
+    await sleep(400);
+    await rig.send('key.press', { key: 'return' });
+    await sleep(700);
+    // Fold the timeline away; one chapter has none to speak of (off camera: it is closed in immersive writing anyway).
+    await scenes.run('timeline', { hidden: true });
 
     mark('phase', { phase: 'write' });
+    // The opening line frames itself, close.
+    await startWriting(false);
+    await sleep(900);
+    let quickOpen = false;
     for (const [index, paragraph] of story.paragraphs.entries()) {
       const last = index === story.paragraphs.length - 1;
-      // The opening line close up; then the whole app, while the writer takes a breath.
-      await typeText(last ? paragraph.text : `${paragraph.text}\n`, paragraph.pace, 'prose', paragraph.typo, index === 0 ? 2.6 : undefined);
+      if (paragraph.ask && story.ask && options.agent) {
+        if (quickOpen) { mark('quick.end'); quickOpen = false; }
+        await askAgent(story.ask);
+        await startWriting();
+        await sleep(700);
+      }
+      const text = last ? paragraph.text : `${paragraph.text}\n`;
+      if (paragraph.quick) {
+        if (!quickOpen) { mark('quick.start'); quickOpen = true; }
+        await typeText(text, paragraph.pace, 'prose', { cps: QUICK_CPS, pauses: false });
+        continue;
+      }
+      if (quickOpen) { mark('quick.end'); quickOpen = false; }
+      // The opening line, close up; then the page.
+      await typeText(text, index === 0 ? 'slow' : paragraph.pace, 'prose', { typo: paragraph.typo, ...(index === 0 ? { zoom: 2.5 } : {}) });
       if (index === 0) {
-        await sleep(1300);
-        shot(null);
-        await sleep(2400);
+        await sleep(1200);
+        const caret = await scenes.run<Rect | null>('caret');
+        if (caret) mark('writing', { column: await columnMark(), rect: rectToWindow(caret) });
+        await sleep(600);
       }
     }
-    await sleep(1000);
+    if (quickOpen) { mark('quick.end'); quickOpen = false; }
+    await sleep(1400);
+    mark('writing.end');
+    await immersive(false);
+    shot(null);
+    await sleep(1600);
 
-    if (options.agent) {
-      mark('phase', { phase: 'organize' });
-      await clickOn(await rectOf('.rightbar-tab-tray button', '帮手'), 'agent-tab');
+    async function columnMark() {
+      const column = await until<{ text: Rect; paper: Rect }>('column', 'the paper');
+      return { text: rectToWindow(column.text), paper: rectToWindow(column.paper) };
+    }
+
+    /** Mid-chapter: out of immersive writing, asks the Agent to look something up, reads its answer. */
+    async function askAgent(question: string) {
+      mark('phase', { phase: 'ask' });
+      await sleep(600);
+      mark('writing.end');
+      await immersive(false);
+      shot(null);
+      await sleep(700);
+      await rightTab('帮手', 'agent-tab');
       await sleep(900);
       await clickOn(await rectOf('.agt-composer__text'), 'composer');
       await sleep(300);
-      await typeText(story.organize, 'normal', 'prompt');
+      await typeText(question, 'normal', 'prompt', { focus: await agentFoot(120), zoom: 2.3 });
       await sleep(500);
       await rig.send('key.press', { key: 'return' });
-      // A hand leaves the composer once the prompt is sent.
       await sleep(400);
+      // The hand rests on the paper while the Agent works.
+      const column = await until<{ text: Rect; paper: Rect }>('column', 'the paper');
+      await moveTo(toWindow({ x: column.paper.x + column.paper.width - 40, y: column.paper.y + 420 }));
+      await waitForAgent('looking it up');
+      await sleep(600);
+      // Its answer from the top: the search, then the passage and where it is from.
+      let reply = await until<Rect & { scrollable: number }>('reply', 'the answer');
+      const panel = await agentFoot(Math.min(560, shelf.viewport.height * 0.6));
+      await moveTo(centre({ ...panel, height: panel.height - 120 }));
+      await sleep(300);
+      const top = await scenes.run<Rect & { top: number }>('replyTop');
+      if (top && top.top < 0) {
+        await rig.send('pointer.scroll', { dy: top.top - 20, duration: 0.8 });
+        await sleep(700);
+        reply = await until<Rect & { scrollable: number }>('reply', 'the answer');
+      }
+      shot({ ...reply, height: Math.min(reply.height, 330) }, 2.4);
+      await sleep(5200);
+      if (reply.height > 330) {
+        await rig.send('pointer.scroll', { dy: Math.min(reply.height - 280, 420), duration: 1.6 });
+        await sleep(3600);
+      }
+      // Back to the newest line, so the panel follows the Agent again.
+      await rig.send('pointer.scroll', { dy: 4000, duration: 0.6 });
+      await sleep(400);
+      shot(null);
+      await sleep(700);
+      // Back to the chapter's end.
+      await clickOn(await until<{ x: number; y: number; width?: number; height?: number }>('endRect', 'the chapter end') as Rect, 'chapter-end-line');
+      await sleep(500);
+    }
+
+    if (options.agent) {
+      mark('phase', { phase: 'organize' });
+      await rightTab('帮手', 'agent-tab');
+      await sleep(700);
+      await clickOn(await rectOf('.agt-composer__text'), 'composer');
+      await sleep(300);
+      await typeText(story.organize, 'normal', 'prompt', { focus: await agentFoot(120), zoom: 2.3 });
+      await sleep(500);
+      await rig.send('key.press', { key: 'return' });
+      await sleep(400);
+      const column = await until<{ text: Rect; paper: Rect }>('column', 'the paper');
       await moveTo(toWindow({ x: column.paper.x + column.paper.width - 40, y: column.paper.y + 420 }));
       await waitForAgent('organizing');
       // What it changed, listed under its answer.
-      const composer = await rectOf('.agt-composer');
-      shot({ x: composer.x - 12, y: composer.y - 330, width: composer.width + 24, height: 330 + composer.height }, 1.9);
-      await sleep(2200);
+      shot(await agentFoot(330), 2.2);
+      await sleep(3000);
 
       mark('phase', { phase: 'links' });
       const links = await scenes.run<{ text: string; rect: Rect }[]>('links', { names: story.links.length ? story.links : null });
       mark('links', { links: links.map((link) => ({ text: link.text, rect: rectToWindow(link.rect) })) });
       const hovered = links.find((link) => link.text.includes(story.links[0] ?? '')) ?? links[0];
       if (hovered) {
-        shot({ x: column.text.x - 40, y: hovered.rect.y - 220, width: column.text.width + 80, height: 520 }, 1.6);
-        await sleep(1000);
+        shot({ x: column.text.x - 40, y: hovered.rect.y - 220, width: column.text.width + 80, height: 520 }, 1.7);
+        await sleep(1200);
         mark('target', { target: 'link', rect: rectToWindow(hovered.rect) });
         await moveTo(centre(hovered.rect));
-        shot({ x: hovered.rect.x - 160, y: hovered.rect.y - 40, width: 560, height: 360 }, 2.0);
-        await sleep(2700);
+        const card = await until<Rect>('hoverCard', 'the hover card', {}, 8000).catch(() => null);
+        const both = card ? union(hovered.rect, card) : { x: hovered.rect.x - 160, y: hovered.rect.y - 40, width: 560, height: 360 };
+        shot(grow(both, 30), 2.3);
+        await sleep(3400);
       } else console.warn('[promo] no linked names in view to point at');
 
       mark('phase', { phase: 'elements' });
-      await clickOn(await rectOf('.workspace-panel-tab-row button', '要素'), 'elements-tab');
+      shot(null);
       await sleep(900);
+      await clickOn(await rectOf('.workspace-panel-tab-row button', '要素'), 'elements-tab');
+      await sleep(600);
+      // The elements it made, listed on the left.
+      const list = await scenes.run<Rect | null>('rect', { selector: '.sidebar-shell__content' });
+      if (list) shot({ ...list, height: Math.min(list.height, 520) }, 1.9);
+      await sleep(2200);
       await clickOn(await rectOf('.workspace-super-view-entry'), 'element-overview');
       shot(null);
-      await sleep(2600);
-      // Closer on the elements and the lines between them, once they settle.
-      const cards = await scenes.run<Rect | null>('cards');
-      if (cards) shot({ x: cards.x - 90, y: cards.y - 70, width: cards.width + 180, height: cards.height + 140 });
-      await sleep(3600);
+      await sleep(2800);
+      // Closer on one person and the people and things around them, once the layout settles.
+      const cluster = await scenes.run<Rect | null>('cluster', { name: story.links[0] ?? '', count: 4 });
+      if (cluster) shot(grow(cluster, 70, 50), 2.3);
+      await sleep(4200);
+      shot(null);
+      await sleep(900);
       await rig.send('key.press', { key: 'escape' });
       await sleep(1200);
+      // Escape closes the overview unless something inside it held the key;
+      // then its back button does, as a hand would.
+      if (await scenes.run<string>('superView') !== 'none') {
+        await clickOn(await rectOf('.super-view-head__back'), 'overview-back');
+        await sleep(1200);
+      }
+      if (await scenes.run<string>('superView') !== 'none') throw new Error('The element overview did not close');
       await clickOn(await rectOf('.workspace-panel-tab-row button', '章节'), 'chapters-tab');
       await sleep(800);
 
       mark('phase', { phase: 'review' });
       let ornament = await rectOf('.page__ornament-trigger');
-      const viewportHeight = opened.viewport.height;
+      const viewportHeight = shelf.viewport.height;
       if (ornament.y + ornament.height > viewportHeight - 80 || ornament.y < 80) {
         // Bring the chapter's end into view the way a hand would.
         await moveTo(centre({ ...column.text, height: 1, y: Math.min(viewportHeight - 200, column.text.y + 300) }));
@@ -351,27 +534,30 @@ async function main() {
       await clickOn(await rectOf('.chapter-end-menu__item[data-action="review"]'), 'review');
       await waitForAgent('reviewing');
       await sleep(1200);
-      await clickOn(await rectOf('.rightbar-tab-tray button', '审阅'), 'review-tab');
-      await sleep(600);
+      // The sidebar's top: its tabs and where the comments will be.
+      const panel = await agentFoot(Math.min(560, viewportHeight * 0.6));
+      shot({ x: panel.x, y: 0, width: panel.width, height: 460 }, 1.7);
+      await sleep(700);
+      await rightTab('审阅', 'review-tab');
+      await sleep(700);
       // Close enough to read the first comment, then the comments anchored in
       // the prose and listed beside it.
-      const panel = await agentPanel();
       shot({ x: panel.x, y: 70, width: panel.width, height: 300 }, 2.2);
-      await sleep(3400);
-      shot({ x: column.paper.x, y: 50, width: opened.viewport.width - column.paper.x - 10, height: opened.viewport.height - 100 });
-      await sleep(4200);
+      await sleep(3600);
+      shot({ x: column.paper.x, y: 50, width: shelf.viewport.width - column.paper.x - 10, height: viewportHeight - 100 });
+      await sleep(4400);
     }
 
     mark('phase', { phase: 'outro' });
     shot(null);
-    await sleep(2600);
+    await sleep(2400);
     const stopped = await rig.send('record.stop');
     recording = false;
     console.log(`[promo] recorded ${stopped.frames} frames (${stopped.dropped} dropped)`);
 
     writeTimeline(output, {
       story: { file: options.story, book: story.book, chapter: story.chapter },
-      theme: options.theme, model: options.model, window, viewport: opened.viewport, offset,
+      theme: options.theme, provider: options.provider, model: options.model, window, viewport: shelf.viewport, offset,
       recording: stopped,
     });
     console.log(`[promo] take ${options.take} in ${path.relative(root, output)}; next: pnpm promo:compose --take ${options.take}`);

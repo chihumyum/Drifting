@@ -178,6 +178,12 @@ function applyEvent(state: AgentRuntimeState, event: AgentRuntimeEvent, wallTime
       assertActiveIteration(state, event.iteration);
       return { ...state, thinkingText: state.thinkingText + event.text };
 
+    case 'provider_tool_used':
+      // Informational: a hosted tool ran inside the active model response.
+      assertRunning(state, event);
+      assertActiveIteration(state, event.iteration);
+      return state;
+
     case 'tool_call_started': {
       assertRunning(state, event);
       assertActiveIteration(state, event.iteration);

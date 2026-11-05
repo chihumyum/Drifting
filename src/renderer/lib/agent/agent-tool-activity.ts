@@ -45,9 +45,12 @@ export function describeAgentToolActivity(
   ]);
   const quoted = target ? t('agentTools.permission.quote', { text: target }) : '';
   const query = stringValue(args.query);
+  // A provider-hosted page read names its site, not the whole address.
+  const site = toolName === 'web_open_page' ? siteOf(stringValue(args.url)) : '';
 
-  const key = `agentTools.activity.${toolName}${query && (toolName === 'search_prose' || toolName === 'search_project') ? '_query' : ''}`;
-  return i18next.exists(key, { lng: language }) ? t(key, { target: quoted, query }) : null;
+  const suffix = query && QUERY_LABELLED_TOOLS.has(toolName) ? '_query' : site ? '_site' : '';
+  const key = `agentTools.activity.${toolName}${suffix}`;
+  return i18next.exists(key, { lng: language }) ? t(key, { target: quoted, query, site }) : null;
 }
 
 /** Render validated arguments as a natural-language action first. Raw JSON is
@@ -109,6 +112,18 @@ export function describeAgentPermissionAction(
 function compactText(value: string, maxLength: number): string {
   const compact = value.replace(/\s+/gu, ' ').trim();
   return compact.length > maxLength ? `${compact.slice(0, maxLength)}…` : compact;
+}
+
+/** Tools whose label quotes the search they ran (project, manuscript, web). */
+const QUERY_LABELLED_TOOLS: ReadonlySet<string> = new Set(['search_prose', 'search_project', 'web_search']);
+
+function siteOf(url: string): string {
+  if (!url) return '';
+  try {
+    return new URL(url).hostname.replace(/^www\./u, '');
+  } catch {
+    return '';
+  }
 }
 
 function asRecord(value: unknown): Record<string, unknown> {

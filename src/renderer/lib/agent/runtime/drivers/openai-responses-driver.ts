@@ -177,15 +177,18 @@ export class OpenAIResponsesAgentDriver implements AgentModelDriver {
         ? { text: { verbosity: 'medium' } } : {}),
       ...(request.tools.length > 0
         ? {
-            tools: request.tools.map((tool) => ({
-              type: 'function',
-              name: tool.name,
-              description: tool.description,
-              parameters: tool.inputSchema,
-              // Preserve the canonical schema's optional fields. Responses can
-              // otherwise normalize them into required fields in strict mode.
-              strict: false,
-            })),
+            tools: [
+              ...request.tools.map((tool) => ({
+                type: 'function',
+                name: tool.name,
+                description: tool.description,
+                parameters: tool.inputSchema,
+                // Preserve the canonical schema's optional fields. Responses can
+                // otherwise normalize them into required fields in strict mode.
+                strict: false,
+              })),
+              ...(offersHostedWebSearch(request.toolChoice) ? [HOSTED_WEB_SEARCH_TOOL] : []),
+            ],
             tool_choice: openAIToolChoice(request.toolChoice),
           }
         : {}),
@@ -220,6 +223,8 @@ export class OpenAIResponsesAgentDriver implements AgentModelDriver {
     // items by output index so the active tool loop can reconstruct the exact
     // replay batch without trusting deltas or inventing provider state.
     const streamedOutputByIndex = new Map<number, ResponsesItem>();
+    // Hosted searches run on OpenAI's side; each is reported once, complete.
+    const reportedSearchIds = new Set<string>();
     let terminalSeen = false;
 
     for await (const event of parseSseJson(response, request.signal)) {
@@ -281,6 +286,10 @@ export class OpenAIResponsesAgentDriver implements AgentModelDriver {
           if (streamedOutputByIndex.has(outputIndex)) throw invalidStream();
           streamedOutputByIndex.set(outputIndex, structuredClone(item));
         }
+        if (item.type === 'web_search_call') {
+          yield hostedSearchEvent(item, reportedSearchIds);
+          continue;
+        }
         if (item.type !== 'function_call') continue;
         const state = callsByItemId.get(nonBlankString(item.id, 'function item id'));
         if (!state || state.ended) throw invalidStream();
@@ -310,6 +319,13 @@ export class OpenAIResponsesAgentDriver implements AgentModelDriver {
           streamedOutputByIndex,
         );
         finishOpenFunctionCalls(callsByItemId, output);
+        // A terminal output may carry a search whose `output_item.done` the
+        // stream never sent; report it before the iteration finishes.
+        for (const item of output) {
+          if (item.type !== 'web_search_call') continue;
+          if (reportedSearchIds.has(nonBlankString(item.id, 'web search item id'))) continue;
+          yield hostedSearchEvent(item, reportedSearchIds);
+        }
         const replay = output.map((item) => structuredClone(item));
         if (reasoningEnabled) {
           for (const callId of responseFunctionCallIds(output)) {
@@ -339,6 +355,45 @@ export class OpenAIResponsesAgentDriver implements AgentModelDriver {
     }
     if (!terminalSeen) throw invalidStream();
   }
+}
+
+/**
+ * OpenAI's hosted web search, offered on both Responses routes with the same
+ * spec the official Codex CLI sends in its live mode. It runs server-side
+ * inside one response; its `web_search_call` items are replayed verbatim with
+ * the rest of the output during the active tool loop.
+ */
+const HOSTED_WEB_SEARCH_TOOL = { type: 'web_search', external_web_access: true } as const;
+
+/**
+ * Listed with every tool-bearing request, so the tool list (and with it the
+ * prompt-cache prefix) stays identical from the first tool iteration through
+ * a forced call and the `none` synthesis boundary, where it simply is not
+ * called. Never with `required`, which a hosted search alone could otherwise
+ * satisfy without the function call the caller requires.
+ */
+function offersHostedWebSearch(choice: AgentModelRequest['toolChoice']): boolean {
+  return choice !== 'required';
+}
+
+function hostedSearchEvent(
+  item: ResponsesItem,
+  reported: Set<string>,
+): Extract<AgentModelStreamEvent, { type: 'provider_tool' }> {
+  const callId = nonBlankString(item.id, 'web search item id');
+  if (reported.has(callId)) throw invalidStream();
+  reported.add(callId);
+  const action = optionalRecord(item.action);
+  const ok = item.status === 'completed';
+  if (action?.type === 'open_page' || action?.type === 'find_in_page') {
+    const url = typeof action.url === 'string' && action.url.trim() ? action.url : null;
+    return { type: 'provider_tool', callId, name: 'web_open_page', input: url ? { url } : {}, ok };
+  }
+  const queries = Array.isArray(action?.queries) ? action.queries : [];
+  const query = [action?.query, ...queries].find(
+    (value): value is string => typeof value === 'string' && value.trim().length > 0,
+  );
+  return { type: 'provider_tool', callId, name: 'web_search', input: query ? { query } : {}, ok };
 }
 
 function openAIToolChoice(

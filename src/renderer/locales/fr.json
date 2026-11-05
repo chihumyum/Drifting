@@ -3694,6 +3694,12 @@
       "create_relation": "Créer une relation",
       "update_relation": "Mettre à jour la relation{{target}}",
       "delete_relation": "Supprimer la relation{{target}}",
+      "list_relation_types": "Consulter les types de relation",
+      "create_relation_type": "Créer le type de relation{{target}}",
+      "update_relation_type": "Ajuster le type de relation{{target}}",
+      "delete_relation_type": "Supprimer le type de relation{{target}}",
+      "tool_search": "Chercher des outils",
+      "call_tool": "Utiliser un outil",
       "create_comment": "Ajouter une note ou une tâche",
       "update_comment": "Mettre à jour la note ou tâche{{target}}",
       "delete_comment": "Supprimer la note ou tâche{{target}}",
@@ -3735,7 +3741,11 @@
       "search_prose": "Rechercher dans le manuscrit",
       "search_project": "Rechercher dans le projet",
       "search_prose_query": "Rechercher « {{query}} » dans le manuscrit",
-      "search_project_query": "Rechercher « {{query}} » dans le projet"
+      "search_project_query": "Rechercher « {{query}} » dans le projet",
+      "web_search": "Rechercher sur le web",
+      "web_search_query": "Rechercher « {{query}} » sur le web",
+      "web_open_page": "Ouvrir une page web",
+      "web_open_page_site": "Ouvrir une page de {{site}}"
     },
     "permission": {
       "related": "est lié à",

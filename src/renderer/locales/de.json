@@ -3679,6 +3679,12 @@
       "create_relation": "Beziehung erstellen",
       "update_relation": "Beziehung aktualisieren{{target}}",
       "delete_relation": "Beziehung löschen{{target}}",
+      "list_relation_types": "Beziehungsarten prüfen",
+      "create_relation_type": "Beziehungsart anlegen{{target}}",
+      "update_relation_type": "Beziehungsart anpassen{{target}}",
+      "delete_relation_type": "Beziehungsart löschen{{target}}",
+      "tool_search": "Werkzeuge suchen",
+      "call_tool": "Ein Werkzeug verwenden",
       "create_comment": "Notiz oder Aufgabe hinzufügen",
       "update_comment": "Notiz oder Aufgabe aktualisieren{{target}}",
       "delete_comment": "Notiz oder Aufgabe löschen{{target}}",
@@ -3720,7 +3726,11 @@
       "search_prose": "Manuskript durchsuchen",
       "search_project": "Projekt durchsuchen",
       "search_prose_query": "Im Manuskript nach „{{query}}“ suchen",
-      "search_project_query": "Im Projekt nach „{{query}}“ suchen"
+      "search_project_query": "Im Projekt nach „{{query}}“ suchen",
+      "web_search": "Im Web suchen",
+      "web_search_query": "Im Web nach „{{query}}“ suchen",
+      "web_open_page": "Webseite öffnen",
+      "web_open_page_site": "Seite auf {{site}} öffnen"
     },
     "permission": {
       "related": "steht in Beziehung zu",

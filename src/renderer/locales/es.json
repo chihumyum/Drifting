@@ -3694,6 +3694,12 @@
       "create_relation": "Crear relación",
       "update_relation": "Actualizar relación{{target}}",
       "delete_relation": "Eliminar relación{{target}}",
+      "list_relation_types": "Revisar tipos de relación",
+      "create_relation_type": "Crear tipo de relación{{target}}",
+      "update_relation_type": "Ajustar tipo de relación{{target}}",
+      "delete_relation_type": "Eliminar tipo de relación{{target}}",
+      "tool_search": "Buscar herramientas",
+      "call_tool": "Usar una herramienta",
       "create_comment": "Añadir nota o tarea",
       "update_comment": "Actualizar nota o tarea{{target}}",
       "delete_comment": "Eliminar nota o tarea{{target}}",
@@ -3735,7 +3741,11 @@
       "search_prose": "Buscar en el manuscrito",
       "search_project": "Buscar en el proyecto",
       "search_prose_query": "Buscar «{{query}}» en el manuscrito",
-      "search_project_query": "Buscar «{{query}}» en el proyecto"
+      "search_project_query": "Buscar «{{query}}» en el proyecto",
+      "web_search": "Buscar en la web",
+      "web_search_query": "Buscar «{{query}}» en la web",
+      "web_open_page": "Abrir una página web",
+      "web_open_page_site": "Abrir una página de {{site}}"
     },
     "permission": {
       "related": "se relaciona con",

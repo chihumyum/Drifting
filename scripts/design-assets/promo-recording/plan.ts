@@ -1,11 +1,18 @@
 // Plans the finished video from a take's timeline (README.md, "How a take
 // becomes a video"): which instant of the recording each output frame shows
-// (typing and Agent waits run faster), where the camera looks and how close,
-// and where the pointer, its clicks and the speed badge are drawn. compose.swift
-// renders exactly this; nothing here reads pixels.
+// (Agent waits run faster; paragraphs typed quickly play at a steady pace), where
+// the camera looks and how close, the opening on a desktop with a Dock, and
+// where the pointer, its clicks, the speed badge and the end card are drawn.
+// compose.swift renders exactly this; nothing here reads pixels.
 //
 // Coordinates: window points (top-left origin) in the timeline; canvas points
 // in the plan — the window centred on a 16:9 backdrop a little larger than it.
+//
+// The camera holds still. A framing is chosen when something new happens
+// (a shot, the start of writing, a prompt being typed) and kept while the
+// action stays well inside it; only when the caret or the next click would
+// leave its safe area does the camera move, once, to bring it back in. The
+// moves are eased with a critically damped spring.
 
 export interface Rect { x: number; y: number; width: number; height: number }
 type Pace = 'slow' | 'normal' | 'fast';
@@ -22,6 +29,7 @@ export interface TimelineEvent {
   kind?: string;
   zoom?: number;
   rect?: Rect | null;
+  focus?: Rect | null;
   column?: { text: Rect; paper: Rect } | null;
   what?: string;
   scale?: number;
@@ -37,10 +45,12 @@ export interface PlanOptions {
   fps: number;
   width: number;
   height: number;
-  /** Seconds a Agent wait is squeezed into, at most. */
+  /** Seconds an Agent wait is squeezed into, at most. */
   agentWaitSeconds: number;
   /** Speed badges for stretches at least this fast; Infinity for none. */
   badgeFrom: number;
+  /** Seconds of the closing card; 0 for none. */
+  endCard: number;
 }
 
 export interface PlanFrame {
@@ -59,6 +69,12 @@ export interface PlanFrame {
    * scale it applied and where the content starts, in points of the frame.
    */
   k?: [number, number, number];
+  /** The window opening: opacity and scale about its centre (absent: shown, 1). */
+  w?: [number, number];
+  /** The Dock: opacity, how far it has slid down (canvas points), the icon's bounce (points), the running dot's opacity. */
+  d?: [number, number, number, number];
+  /** The closing card's opacity. */
+  e?: number;
 }
 
 export interface Plan {
@@ -66,40 +82,68 @@ export interface Plan {
   canvas: { width: number; height: number };
   window: Rect;
   pixelScale: number;
+  /** The Dock's icon: centre (canvas points) and size. */
+  dock: { x: number; y: number; size: number } | null;
   frames: PlanFrame[];
   /** Output seconds of each keystroke and click, for the sound. */
   sounds: { t: number; kind: 'key' | 'space' | 'return' | 'click' }[];
   duration: number;
 }
 
-const TYPING_SPEED: Record<Pace, number> = { slow: 2, normal: 4, fast: 10 };
-/** Close to one framing for all writing, so the camera does not breathe with every line's pace. */
-const TYPING_ZOOM: Record<Pace, number> = { slow: 1.85, normal: 1.8, fast: 1.7 };
+/** The window's share of the canvas height: the backdrop shows around it in wide shots. */
+const WINDOW_SHARE = 0.88;
 const MAX_ZOOM = 2.7;
 /** The camera moves towards what is about to happen this much (output seconds) early. */
-const LEAD = 0.3;
+const LEAD = 0.35;
+/** How far past the window's edge (canvas points) a close camera may look, so a panel at the edge can sit nearer the middle. */
+const EDGE = 70;
+/** Characters a second the video plays paragraphs typed quickly (`<!-- quick -->`) at. */
+const QUICK_CPS = 8;
+/** The Dock's icon size and the gap under its shelf, canvas points. */
+const DOCK_ICON = 46;
+const DOCK_GAP = 6;
+const DOCK_PAD = 7;
+
+/**
+ * Where Drifting's icon sits in the opening's Dock, in window points: centred
+ * under the window, on the canvas's bottom margin. The recording parks the real
+ * pointer there before it starts, so the hand that clicks it carries on from it.
+ */
+export function dockSpot(windowSize: { width: number; height: number }) {
+  const margin = (windowSize.height / WINDOW_SHARE - windowSize.height) / 2;
+  return { x: windowSize.width / 2, y: windowSize.height + margin - DOCK_GAP - DOCK_PAD - DOCK_ICON / 2 };
+}
 
 const clamp = (value: number, low: number, high: number) => Math.min(high, Math.max(low, value));
+const ease = (f: number) => { const x = clamp(f, 0, 1); return x * x * (3 - 2 * x); };
+const easeOut = (f: number) => 1 - (1 - clamp(f, 0, 1)) ** 3;
 
 // ---------------------------------------------------------------- time
 
-/** Recording seconds → playback speed: typing by pace, Agent waits squeezed. */
-function speedSegments(events: TimelineEvent[], options: PlanOptions): { from: number; to: number; speed: number; agent: boolean }[] {
-  const segments: { from: number; to: number; speed: number; agent: boolean }[] = [];
-  let open: TimelineEvent | null = null;
+interface Segment { from: number; to: number; speed: number; agent: boolean }
+
+/**
+ * Recording stretches that do not play at their own pace: Agent waits
+ * squeezed, paragraphs typed quickly slowed to a steady QUICK_CPS (measured
+ * from the keystrokes in them).
+ */
+function segmentsOf(events: TimelineEvent[], options: PlanOptions): Segment[] {
+  const segments: Segment[] = [];
   let agent: TimelineEvent | null = null;
+  let quick: TimelineEvent | null = null;
   for (const event of events) {
     if (event.type !== 'mark') continue;
-    if (event.name === 'type.start') open = event;
-    else if (event.name === 'type.end' && open) {
-      // A line the recording frames specially (the opening) plays as typed.
-      segments.push({ from: open.t, to: event.t, speed: open.zoom ? 1 : TYPING_SPEED[open.pace ?? 'normal'], agent: false });
-      open = null;
-    } else if (event.name === 'agent.start') agent = event;
+    if (event.name === 'agent.start') agent = event;
     else if (event.name === 'agent.end' && agent) {
       const length = event.t - agent.t;
-      segments.push({ from: agent.t, to: event.t, speed: Math.round(clamp(length / options.agentWaitSeconds, 1, 40)), agent: true });
+      segments.push({ from: agent.t, to: event.t, speed: Math.round(clamp(length / options.agentWaitSeconds, 1, 60)), agent: true });
       agent = null;
+    } else if (event.name === 'quick.start') quick = event;
+    else if (event.name === 'quick.end' && quick) {
+      const from = quick.t, to = event.t;
+      const keys = events.filter((key) => (key.type === 'type' || key.type === 'key') && key.t >= from && key.t < to).length;
+      if (keys > 0) segments.push({ from, to, speed: clamp(QUICK_CPS / (keys / (to - from)), 0.05, 1), agent: false });
+      quick = null;
     }
   }
   return segments.sort((a, b) => a.from - b.from);
@@ -110,7 +154,7 @@ function speedSegments(events: TimelineEvent[], options: PlanOptions): { from: n
  * easing the speed towards each stretch's, so a change of pace never jolts.
  * Returns parallel arrays (recording → output), both increasing.
  */
-function timeMap(start: number, end: number, segments: ReturnType<typeof speedSegments>) {
+function timeMap(start: number, end: number, segments: Segment[]) {
   const step = 1 / 480;
   const source: number[] = [start];
   const output: number[] = [0];
@@ -142,60 +186,128 @@ function interpolate(xs: number[], ys: number[], x: number): number {
 
 // ---------------------------------------------------------------- camera
 
-interface Target { cx: number; cy: number; z: number }
+interface Framing { cx: number; cy: number; z: number }
 
-/** What the camera wants to look at, at each recording time. */
-function cameraTargets(events: TimelineEvent[], toCanvas: (x: number, y: number) => [number, number], canvas: { width: number; height: number }) {
-  const fit = (rect: Rect, pad: number, low: number, high: number): Target => {
+/**
+ * The framings the camera holds, each from its recording time until the
+ * next: decided once from the marks, so between them nothing moves.
+ */
+function cameraKeyframes(events: TimelineEvent[], toCanvas: (x: number, y: number) => [number, number], canvas: { width: number; height: number }) {
+  const wide: Framing = { cx: canvas.width / 2, cy: canvas.height / 2, z: 1 };
+  const view = (framing: Framing) => ({ width: canvas.width / framing.z, height: canvas.height / framing.z });
+  /** The framing that shows `rect` (window points) with `pad` around it, at most `high` close. */
+  const fit = (rect: Rect, pad: number, high: number, low = 1): Framing => {
     const [x, y] = toCanvas(rect.x + rect.width / 2, rect.y + rect.height / 2);
     const z = Math.min(canvas.width / (rect.width + pad * 2), canvas.height / (rect.height + pad * 2));
     return { cx: x, cy: y, z: clamp(z, low, high) };
   };
-  const wide: Target = { cx: canvas.width / 2, cy: canvas.height / 2, z: 1 };
-  // Each directive holds from its time until the next.
-  const directives: { t: number; target(t: number): Target }[] = [];
-  const carets = events.filter((event) => event.type === 'caret' && event.rect) as (TimelineEvent & { rect: Rect })[];
-  const caretAt = (t: number): Rect | null => {
-    let found: Rect | null = null;
-    for (const caret of carets) { if (caret.t <= t) found = caret.rect; else break; }
-    return found;
+  /**
+   * The same framing if `rect` lies inside its safe area (`inset` of the view
+   * kept clear on every side), else the least move that brings it in —
+   * zooming out only if it cannot fit.
+   */
+  const ensure = (framing: Framing, rect: Rect, inset: number): Framing => {
+    const [left, top] = toCanvas(rect.x, rect.y);
+    const right = left + rect.width, bottom = top + rect.height;
+    let { cx, cy, z } = framing;
+    const fits = () => {
+      const size = view({ cx, cy, z });
+      return rect.width <= size.width * (1 - 2 * inset) && rect.height <= size.height * (1 - 2 * inset);
+    };
+    while (z > 1 && !fits()) z = Math.max(1, z / 1.12);
+    const size = view({ cx, cy, z });
+    const safeLeft = cx - size.width * (0.5 - inset), safeRight = cx + size.width * (0.5 - inset);
+    const safeTop = cy - size.height * (0.5 - inset), safeBottom = cy + size.height * (0.5 - inset);
+    // Move past the edge by a little more than needed, so the next action
+    // nearby does not need another move.
+    const slack = (span: number) => span * 0.08;
+    if (left < safeLeft) cx -= safeLeft - left + slack(size.width);
+    else if (right > safeRight) cx += right - safeRight + slack(size.width);
+    if (top < safeTop) cy -= safeTop - top + slack(size.height);
+    else if (bottom > safeBottom) cy += bottom - safeBottom + slack(size.height);
+    return { cx, cy, z };
   };
-  for (const [index, event] of events.entries()) {
+  const same = (a: Framing, b: Framing) => Math.abs(a.cx - b.cx) < 1 && Math.abs(a.cy - b.cy) < 1 && Math.abs(Math.log(a.z / b.z)) < 0.01;
+
+  const keyframes: { t: number; framing: Framing }[] = [];
+  let current = wide;
+  const hold = (t: number, framing: Framing) => {
+    if (same(framing, current)) return;
+    current = framing;
+    keyframes.push({ t, framing });
+  };
+  keyframes.push({ t: -Infinity, framing: wide });
+
+  /** While writing, the paper's column at a fixed closeness; the caret's line just under the middle. */
+  let writing: { zoom: number; x: number } | null = null;
+  let typing: TimelineEvent | null = null;
+  let framedOpening = false;
+  const writingAt = (caret: Rect, zoom: number, x: number): Framing => {
+    const [, y] = toCanvas(0, caret.y + caret.height / 2);
+    return { cx: toCanvas(x, 0)[0], cy: y - (canvas.height / zoom) * 0.06, z: zoom };
+  };
+  /** The caret band the camera tolerates while writing, as fractions of the view's height. */
+  const band = { top: 0.3, bottom: 0.74 };
+
+  for (const event of events) {
+    if (event.type === 'caret' && event.rect && typing?.kind === 'prose') {
+      const caret = event.rect;
+      if (typing.zoom) {
+        // The opening line, close, framed once where it starts.
+        if (!framedOpening) hold(event.t, writingAt(caret, typing.zoom, caret.x + (canvas.width / typing.zoom) * 0.22));
+        framedOpening = true;
+        continue;
+      }
+      if (!writing) { hold(event.t, ensure(current, caret, 0.15)); continue; }
+      const size = view(current);
+      const [, y] = toCanvas(0, caret.y + caret.height / 2);
+      const top = current.cy - size.height / 2;
+      const f = (y - top) / size.height;
+      if (current.z !== writing.zoom || f < band.top || f > band.bottom) hold(event.t, writingAt(caret, writing.zoom, writing.x));
+      continue;
+    }
     if (event.type !== 'mark') continue;
-    if (event.name === 'type.start') {
-      const end = events.slice(index).find((later) => later.type === 'mark' && later.name === 'type.end')?.t ?? Infinity;
-      const zoom = event.zoom ?? (event.kind === 'prompt' ? 1.9 : TYPING_ZOOM[event.pace ?? 'normal']);
-      const column = event.column?.text ?? null;
-      const first = carets.find((caret) => caret.t >= event.t && caret.t <= end)?.rect ?? null;
-      directives.push({
-        t: event.t,
-        target: (t) => {
-          const caret = caretAt(Math.min(t, end)) ?? first;
-          if (!caret) return column ? fit(column, 80, 1, zoom) : wide;
-          // The caret's line a little below the middle, so what was just
-          // written fills the frame above it.
-          const [x, y] = toCanvas(
-            column && event.kind !== 'prompt' ? column.x + column.width / 2 : caret.x,
-            caret.y + caret.height / 2 - (event.kind === 'prompt' ? 0 : (canvas.height / zoom) * 0.14),
-          );
-          return { cx: x, cy: y, z: zoom };
-        },
-      });
-    } else if (event.name === 'shot') {
-      const target = event.rect ? fit(event.rect, 40, 1, event.zoom ?? MAX_ZOOM) : wide;
-      if (event.rect && event.zoom) target.z = event.zoom;
-      directives.push({ t: event.t, target: () => target });
-    } else if (event.name === 'target' && event.rect) {
-      const target = fit(event.rect, 230, 1.15, event.zoom ?? 2.1);
-      directives.push({ t: event.t, target: () => target });
+    switch (event.name) {
+      case 'shot': {
+        if (!event.rect) { hold(event.t, wide); break; }
+        const framing = fit(event.rect, 40, event.zoom ?? MAX_ZOOM);
+        if (event.zoom) framing.z = event.zoom;
+        hold(event.t, framing);
+        break;
+      }
+      case 'writing': {
+        const paper = event.column?.paper;
+        if (!paper) break;
+        const zoom = clamp(canvas.width / (paper.width + 300), 1.2, MAX_ZOOM);
+        writing = { zoom, x: paper.x + paper.width / 2 };
+        if (event.rect) hold(event.t, writingAt(event.rect, zoom, writing.x));
+        break;
+      }
+      case 'writing.end':
+        writing = null;
+        break;
+      case 'type.start':
+        typing = event;
+        // A prompt or a field: the box it is typed in, close enough to read.
+        if (event.focus && event.kind !== 'prose') hold(event.t, fit(event.focus, 36, event.zoom ?? 2.2));
+        break;
+      case 'type.end':
+        typing = null;
+        break;
+      case 'target':
+        if (!event.rect) break;
+        // A click the framing already shows needs no move; an explicit zoom frames it anew.
+        if (event.zoom) hold(event.t, fit(event.rect, 230, event.zoom, 1.15));
+        else hold(event.t, ensure(current, event.rect, 0.14));
+        break;
+      default:
+        break;
     }
   }
-  directives.sort((a, b) => a.t - b.t);
-  return (t: number): Target => {
-    let current: (typeof directives)[number] | null = null;
-    for (const directive of directives) { if (directive.t <= t) current = directive; else break; }
-    // Before the first directive, already where it will look.
-    return (current ?? directives[0])?.target(t) ?? wide;
+  return (t: number): Framing => {
+    let found = keyframes[0].framing;
+    for (const keyframe of keyframes) { if (keyframe.t <= t) found = keyframe.framing; else break; }
+    return found;
   };
 }
 
@@ -221,22 +333,31 @@ class Spring {
 export function planVideo(timeline: Timeline, options: PlanOptions): Plan {
   const { events } = timeline;
   const windowSize = { width: timeline.recording.pointWidth, height: timeline.recording.pointHeight };
-  const canvasHeight = windowSize.height / 0.86;
+  const canvasHeight = windowSize.height / WINDOW_SHARE;
   const canvas = { width: canvasHeight * (options.width / options.height), height: canvasHeight };
   const windowRect: Rect = {
     x: (canvas.width - windowSize.width) / 2, y: (canvas.height - windowSize.height) / 2, ...windowSize,
   };
   const toCanvas = (x: number, y: number): [number, number] => [x + windowRect.x, y + windowRect.y];
+  const mark = (name: string) => events.find((event) => event.type === 'mark' && event.name === name);
+
+  // The opening: a desktop, a Dock, a click on Drifting, its window opening.
+  const introClick = mark('intro.click');
+  const introOpen = mark('intro.open');
+  const dock = introClick ? (() => {
+    const [x, y] = toCanvas(introClick.x ?? windowSize.width / 2, introClick.y ?? windowSize.height + 40);
+    return { x, y, size: DOCK_ICON };
+  })() : null;
 
   const firstType = events.find((event) => event.type === 'mark' && event.name === 'type.start')?.t ?? 0;
-  const start = Math.max(0, firstType - 1.1);
+  const start = introClick ? Math.max(0, introClick.t - 1.8) : Math.max(0, firstType - 1.1);
   const stop = events.find((event) => event.type === 'record.stop')?.t ?? events[events.length - 1].t;
-  const segments = speedSegments(events, options);
+  const segments = segmentsOf(events, options);
   const map = timeMap(start, stop, segments);
-  const duration = map.output[map.output.length - 1];
+  const recorded = map.output[map.output.length - 1];
   const sourceAt = (out: number) => interpolate(map.output, map.source, out);
   const outputAt = (src: number) => interpolate(map.source, map.output, src);
-  const targetAt = cameraTargets(events, toCanvas, canvas);
+  const framingAt = cameraKeyframes(events, toCanvas, canvas);
 
   // Pointer samples, presses and when typing hides it (as macOS does).
   const pointer = events.filter((event) => event.type === 'pointer' || event.type === 'pointer.down' || event.type === 'pointer.up');
@@ -245,10 +366,20 @@ export function planVideo(timeline: Timeline, options: PlanOptions): Plan {
     if (event.type === 'pointer.down') presses.push({ down: event.t, up: Infinity, x: event.x ?? 0, y: event.y ?? 0 });
     else if (event.type === 'pointer.up' && presses.length) presses[presses.length - 1].up = event.t;
   }
+  if (introClick) presses.push({ down: introClick.t, up: introClick.t + 0.09, x: introClick.x ?? 0, y: introClick.y ?? 0 });
+  presses.sort((a, b) => a.down - b.down);
   const typing = events.filter((event) => event.type === 'type' || event.type === 'key').map((event) => event.t);
   // Moves made before the video starts (placing the caret off camera) do not show it.
   const moving = events.filter((event) => event.type === 'pointer' && event.t >= start).map((event) => event.t);
+  const firstRealMove = introOpen ? moving.find((time) => time > introOpen.t) ?? Infinity : -Infinity;
   const pointerAt = (t: number): [number, number] => {
+    // The opening's hand: from the middle of the desktop to Drifting in the Dock.
+    if (introClick && dock && t < firstRealMove) {
+      const from: [number, number] = [canvas.width * 0.64, canvas.height * 0.42];
+      const f = ease((t - start - 0.35) / (introClick.t - 0.12 - start - 0.35));
+      const lift = Math.sin(Math.PI * f) * canvas.height * 0.05;
+      return [from[0] + (dock.x - from[0]) * f - windowRect.x, from[1] + (dock.y - from[1]) * f - lift - windowRect.y];
+    }
     let last: TimelineEvent | null = null;
     let next: TimelineEvent | null = null;
     for (const event of pointer) { if (event.t <= t) last = event; else { next = event; break; } }
@@ -261,6 +392,7 @@ export function planVideo(timeline: Timeline, options: PlanOptions): Plan {
   };
   /** Shown from the first move after typing until the next keystroke. */
   const pointerShown = (t: number) => {
+    if (introClick && t < firstRealMove) return true;
     const lastKey = typing.filter((time) => time <= t).pop() ?? -Infinity;
     const lastMove = moving.filter((time) => time <= t).pop() ?? -Infinity;
     return lastMove > lastKey;
@@ -274,16 +406,17 @@ export function planVideo(timeline: Timeline, options: PlanOptions): Plan {
   };
 
   const frames: PlanFrame[] = [];
-  const count = Math.floor(duration * options.fps);
   const dt = 1 / options.fps;
-  // Already where the first shot looks, rather than zooming in from afar.
-  const initial = targetAt(Math.max(sourceAt(LEAD), firstType + 0.2));
-  const springs = { x: new Spring(initial.cx, 4.2), y: new Spring(initial.cy, 4.2), z: new Spring(Math.log(initial.z), 3.0) };
+  const recordedCount = Math.floor(recorded * options.fps);
+  const endCount = Math.round(options.endCard * options.fps);
+  const initial = framingAt(sourceAt(0));
+  const springs = { x: new Spring(initial.cx, 3.6), y: new Spring(initial.cy, 3.6), z: new Spring(Math.log(initial.z), 3.0) };
   let alpha = 0;
-  for (let frame = 0; frame < count; frame += 1) {
+  for (let frame = 0; frame < recordedCount + endCount; frame += 1) {
+    const ending = frame >= recordedCount;
     const out = frame * dt;
-    const s = sourceAt(out);
-    const target = targetAt(sourceAt(out + LEAD));
+    const s = sourceAt(Math.min(out, recorded));
+    const target = ending ? { cx: canvas.width / 2, cy: canvas.height / 2, z: 1 } : framingAt(sourceAt(Math.min(out + LEAD, recorded)));
     springs.x.step(target.cx, dt);
     springs.y.step(target.cy, dt);
     springs.z.step(Math.log(target.z), dt);
@@ -292,18 +425,16 @@ export function planVideo(timeline: Timeline, options: PlanOptions): Plan {
     const cw = canvas.width / z;
     const ch = canvas.height / z;
     const inside = clamp((z - 1) / 0.35, 0, 1);
-    const bounds = {
-      left: windowRect.x * inside, top: windowRect.y * inside,
-      right: canvas.width - windowRect.x * inside, bottom: canvas.height - windowRect.y * inside,
-    };
+    const marginX = Math.max(0, windowRect.x - EDGE) * inside, marginY = Math.max(0, windowRect.y - EDGE * 0.5) * inside;
+    const bounds = { left: marginX, top: marginY, right: canvas.width - marginX, bottom: canvas.height - marginY };
     const cx = bounds.right - bounds.left <= cw ? (bounds.left + bounds.right) / 2 : clamp(springs.x.value, bounds.left + cw / 2, bounds.right - cw / 2);
     const cy = bounds.bottom - bounds.top <= ch ? (bounds.top + bounds.bottom) / 2 : clamp(springs.y.value, bounds.top + ch / 2, bounds.bottom - ch / 2);
 
     const [wx, wy] = pointerAt(s);
     const [px, py] = toCanvas(wx, wy);
-    alpha = clamp(alpha + (pointerShown(s) ? 1 : -1) * dt / 0.15, 0, 1);
+    alpha = clamp(alpha + ((pointerShown(s) && !ending) ? 1 : -1) * dt / 0.15, 0, 1);
     const pressed = presses.find((press) => s >= press.down && s < press.up + 0.02);
-    const ripples = presses
+    const ripples = ending ? [] : presses
       .map((press) => ({ ...press, age: out - outputAt(press.down) }))
       .filter((press) => press.age >= 0 && press.age < 0.5)
       .map((press): [number, number, number, number] => {
@@ -315,13 +446,34 @@ export function planVideo(timeline: Timeline, options: PlanOptions): Plan {
     const shrunk = content && content.scale !== undefined && Math.abs(content.scale - 1) > 0.002
       ? [content.scale, content.x ?? 0, content.y ?? 0] as [number, number, number] : null;
     const segment = segments.find((candidate) => s >= candidate.from && s < candidate.to);
-    // Typing is plainly sped up; the badge marks the Agent's waits, which the video squeezes most.
-    const badge = segment && segment.agent && segment.speed >= options.badgeFrom ? `×${segment.speed}` : null;
+    // The badge marks the Agent's waits, which the video squeezes.
+    const badge = !ending && segment && segment.agent && segment.speed >= options.badgeFrom ? `×${segment.speed}` : null;
+
+
+    // The opening: the window appears when Drifting is clicked in the Dock, which then hides.
+    let windowState: [number, number] | null = null;
+    let dockState: [number, number, number, number] | null = null;
+    if (introClick && introOpen && dock) {
+      const opened = (s - introOpen.t) / 0.42;
+      if (opened < 1) windowState = [round(easeOut(opened)), Math.round((0.93 + 0.07 * easeOut(opened)) * 1e4) / 1e4];
+      const hidden = ease((s - introOpen.t - 0.75) / 0.4);
+      if (hidden < 1) {
+        const sinceClick = s - introClick.t;
+        // One launch bounce while the app opens.
+        const bounce = sinceClick > 0 && sinceClick < 0.62 ? Math.sin(Math.PI * sinceClick / 0.62) * DOCK_ICON * 0.42 : 0;
+        dockState = [round(1 - hidden), round(hidden * (DOCK_ICON + DOCK_GAP + DOCK_PAD * 2 + 8)), round(bounce), sinceClick > 0.05 ? 1 : 0];
+      }
+    }
+    const endOpacity = ending ? round(ease((frame - recordedCount) / (options.fps * 0.7))) : 0;
+
     frames.push({
       s: Math.round(s * 1e4) / 1e4, cx: round(cx), cy: round(cy), z: Math.round(z * 1e4) / 1e4,
       px: round(px), py: round(py), pa: round(alpha), pp: pressed ? 0.86 : 1,
       r: ripples.map(([x, y, radius, opacity]) => [round(x), round(y), round(radius), round(opacity)]), b: badge, ba: badge ? 1 : 0,
       ...(shrunk ? { k: shrunk } : {}),
+      ...(windowState ? { w: windowState } : {}),
+      ...(dockState ? { d: dockState } : {}),
+      ...(endOpacity > 0 ? { e: endOpacity } : {}),
     });
   }
   // Fade the badge in and out over a few frames.
@@ -341,10 +493,12 @@ export function planVideo(timeline: Timeline, options: PlanOptions): Plan {
     else if (event.type === 'key') sounds.push({ t: outputAt(event.t), kind: event.key === 'return' ? 'return' : 'key' });
     else if (event.type === 'pointer.down') sounds.push({ t: outputAt(event.t), kind: 'click' });
   }
+  if (introClick) sounds.push({ t: outputAt(introClick.t), kind: 'click' });
+  sounds.sort((a, b) => a.t - b.t);
   return {
     fps: options.fps, width: options.width, height: options.height, canvas, window: windowRect,
     pixelScale: timeline.recording.pixelWidth / timeline.recording.pointWidth,
-    frames, sounds, duration: count * dt,
+    dock, frames, sounds, duration: (recordedCount + endCount) * dt,
   };
 }
 

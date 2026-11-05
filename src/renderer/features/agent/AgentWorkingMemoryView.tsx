@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
-import { marked } from 'marked';
 import { useTranslation } from 'react-i18next';
 import {
   AGENT_WORKING_MEMORY_PERSISTENT_NOTICE_TOKENS,
@@ -15,11 +14,9 @@ import { requestConfirmation } from '../../store/confirmation-store';
 import { getPlatformRuntime } from '../../platform/runtime';
 import { BrushIcon } from '../../components/ui/BrushIcon';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { renderAgentMarkdown } from './agent-markdown';
 
-function markdownHtml(value: string): string {
-  const escaped = value.replace(/&/gu, '&amp;').replace(/</gu, '&lt;');
-  return marked.parse(escaped, { breaks: true, gfm: true, async: false }) as string;
-}
+const markdownHtml = renderAgentMarkdown;
 
 /**
  * WORKING_MEMORY.md, shared by every General Agent conversation.

@@ -5,7 +5,7 @@
 // move the real pointer there; everything on camera is done with real input.
 // Rectangles are viewport CSS pixels: {x, y, width, height}.
 (() => {
-  const VERSION = 1;
+  const VERSION = 2;
   if (window.__driftingPromo && window.__driftingPromo.version === VERSION) return 'already';
   const P = { version: VERSION, jobs: {} };
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -75,6 +75,180 @@
       if (model) settings.getState().setAgentModel(model);
       setTimeout(() => location.reload(), 600);
       return { locale, theme, provider: settings.getState().agentProvider, model: settings.getState().agentModel };
+    },
+
+    /** The shelf, every cover drawn, scrolled to the top; where the new-book card is. */
+    async shelf() {
+      if (location.hash.includes('/project/')) location.hash = '#/';
+      await waitFor(() => document.querySelector('.pp-card--new') && document.querySelectorAll('button.pp-hit').length > 0, 60000, 'the shelf');
+      await waitFor(() => [...document.querySelectorAll('.pp-cover')].every((cover) => cover.querySelector('.pp-cover__art, .pp-cover__band')),
+        60000, 'every cover');
+      const scrolling = scroller(document.querySelector('.pp-card--new'));
+      if (scrolling) scrolling.scrollTop = 0;
+      await document.fonts.ready;
+      await frame();
+      await sleep(1500);
+      if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+      return { viewport: P.scenes.viewport(), card: box(document.querySelector('.pp-card--new').getBoundingClientRect()) };
+    },
+
+    /**
+     * Off camera, opens a book on the shelf and everything the take will open
+     * on camera in its own book (the Agent's panel, the element overview,
+     * immersive writing), so the development server has compiled them before
+     * the take starts; then back to the shelf.
+     */
+    async warmupBook({ name }) {
+      const { ui } = await stores();
+      const card = await waitFor(() => [...document.querySelectorAll('button.pp-hit')]
+        .find((button) => (button.getAttribute('aria-label') || '').includes(name)), 60000, `the ${name} card`);
+      card.click();
+      await waitFor(() => location.hash.includes('/project/'), 30000, 'the book to open');
+      await sleep(2500);
+      const state = ui.getState();
+      state.setSidebarOpen('left', true);
+      state.setSidebarOpen('right', true);
+      const show = (side, tab) => {
+        const current = ui.getState();
+        if (current.desktopSidebarTabs[side].panes[0].tab === tab) return;
+        if (side === 'left') current.toggleLeftSidebarTab('primary', tab);
+        else current.toggleRightSidebarTab('primary', tab);
+      };
+      show('right', 'companion');
+      await waitFor(() => document.querySelector('.agt-composer__text'), 30000, 'the Agent panel');
+      await sleep(1200);
+      show('left', 'elements');
+      await sleep(800);
+      ui.getState().setActiveSuperView('element');
+      await sleep(3000);
+      ui.getState().setActiveSuperView('none');
+      await sleep(800);
+      ui.getState().setImmersiveWriting(true);
+      await sleep(1200);
+      ui.getState().setImmersiveWriting(false);
+      await sleep(800);
+      show('left', 'nodes');
+      show('right', 'review');
+      await sleep(800);
+      location.hash = '#/';
+      await sleep(1500);
+      return 'warm';
+    },
+
+    /** The new-book dialog: its name field and its create button. */
+    newBookDialog() {
+      const dialog = document.querySelector('.modal-root__dialog');
+      if (!dialog || !visible(dialog)) return null;
+      const field = dialog.querySelector('input');
+      const create = [...dialog.querySelectorAll('button')].find((button) => button.classList.contains('ui-button--primary'));
+      const card = dialog.querySelector('.modal-card') || dialog;
+      return { card: box(card.getBoundingClientRect()), field: box(field.getBoundingClientRect()), create: box(create.getBoundingClientRect()), value: field.value };
+    },
+
+    /** The open book's id, once the workspace shows it. */
+    projectId() {
+      const match = location.hash.match(/\/project\/([^/?#]+)/);
+      return match ? match[1] : null;
+    },
+
+    /** Project Memory the author had told the Agent before (not on camera). */
+    async remember({ body }) {
+      const projectId = P.scenes.projectId();
+      if (!projectId) throw new Error('No book is open');
+      const { createMemory } = await import('/src/renderer/usecase/useAgentMemory.ts');
+      await createMemory(projectId, { kind: 'directive', body, source: 'author', status: 'active' });
+      return 'remembered';
+    },
+
+    /** The chapter's title field. */
+    title() {
+      const field = [...document.querySelectorAll('textarea.page__title')].find(visible);
+      return field ? box(field.getBoundingClientRect()) : null;
+    },
+
+    titleValue() {
+      const field = [...document.querySelectorAll('textarea.page__title')].find(visible);
+      return field ? field.value : null;
+    },
+
+    async superView() {
+      const { ui } = await stores();
+      return ui.getState().activeSuperView;
+    },
+
+    async immersive() {
+      const { ui } = await stores();
+      return ui.getState().immersiveWriting;
+    },
+
+    /** The Agent's answer since the author's last message, as much of it as the panel shows. */
+    reply() {
+      const bubbles = [...document.querySelectorAll('.agt-user-bubble')].filter(visible);
+      const last = bubbles[bubbles.length - 1];
+      const composer = document.querySelector('.agt-composer');
+      if (!last || !composer) return null;
+      const scroll = scroller(last);
+      const view = scroll ? scroll.getBoundingClientRect() : { top: 0, bottom: composer.getBoundingClientRect().top };
+      const top = Math.max(last.getBoundingClientRect().bottom + 4, view.top);
+      const answers = [...document.querySelectorAll('.agent-md, .agt-tool')].filter((element) => visible(element)
+        && element.getBoundingClientRect().top >= last.getBoundingClientRect().bottom - 1);
+      const bottom = Math.min(view.bottom, Math.max(top + 40, ...answers.map((element) => element.getBoundingClientRect().bottom)));
+      const panel = composer.getBoundingClientRect();
+      return { x: panel.x, y: top, width: panel.width, height: bottom - top, scrollable: scroll ? scroll.scrollHeight - scroll.clientHeight : 0 };
+    },
+
+    /** Whether the right sidebar's tab `label` is the one showing. */
+    tabActive({ label }) {
+      const tab = [...document.querySelectorAll('.rightbar-tab-tray button')].find((button) => button.getAttribute('aria-label') === label);
+      return Boolean(tab && tab.getAttribute('aria-pressed') === 'true');
+    },
+
+    /** Folds the bottom timeline away (or back), off camera. */
+    async timeline({ hidden }) {
+      const { ui } = await stores();
+      ui.getState().setBottomTimelineHidden(hidden);
+      return hidden;
+    },
+
+    /** How far above the Agent panel's visible top its answer starts (negative: scrolled out of view). */
+    replyTop() {
+      const bubbles = [...document.querySelectorAll('.agt-user-bubble')].filter(visible);
+      const last = bubbles[bubbles.length - 1];
+      if (!last) return null;
+      const scroll = scroller(last);
+      const view = scroll ? scroll.getBoundingClientRect().top : 0;
+      return { top: last.getBoundingClientRect().bottom - view };
+    },
+
+    /** The chapter's last block, to click into at its end. */
+    endRect() {
+      const root = editor();
+      if (!root) return null;
+      const blocks = root.querySelectorAll(':scope > *');
+      const last = blocks[blocks.length - 1] || root;
+      const rect = last.getBoundingClientRect();
+      return { x: rect.x + Math.max(0, rect.width - 40), y: rect.y, width: 30, height: Math.max(rect.height, 20) };
+    },
+
+    /** An entity's hover card while it is open. */
+    hoverCard() {
+      const card = [...document.querySelectorAll('.hover-card-surface')].find(visible);
+      return card ? box(card.getBoundingClientRect()) : null;
+    },
+
+    /** The element overview's card for `name` and its nearest neighbours, together. */
+    cluster({ name, count }) {
+      const cards = [...document.querySelectorAll('.se-card--free')].filter(visible)
+        .map((element) => ({ text: element.textContent || '', rect: element.getBoundingClientRect() }));
+      const centre = (rect) => [rect.left + rect.width / 2, rect.top + rect.height / 2];
+      const anchor = cards.find((card) => card.text.includes(name)) || cards[0];
+      if (!anchor) return null;
+      const [ax, ay] = centre(anchor.rect);
+      const near = cards.map((card) => ({ card, distance: Math.hypot(centre(card.rect)[0] - ax, centre(card.rect)[1] - ay) }))
+        .sort((a, b) => a.distance - b.distance).slice(0, count + 1).map((entry) => entry.card.rect);
+      const left = Math.min(...near.map((rect) => rect.left)), top = Math.min(...near.map((rect) => rect.top));
+      const right = Math.max(...near.map((rect) => rect.right)), bottom = Math.max(...near.map((rect) => rect.bottom));
+      return { x: left, y: top, width: right - left, height: bottom - top };
     },
 
     /** The book open on its chapter, chapters on the left and Review on the right. */

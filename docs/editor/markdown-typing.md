@@ -38,3 +38,13 @@ adds input and paste rules for a marker right after a character:
 The two rule sets never both fire: StarterKit's handles a marker after a space
 or at the start, these handle the rest. `inline-markdown-rules.test.ts` covers
 what each rule matches.
+
+## The Agent's answers
+
+The Agent panel renders answers and working memory with `marked`, whose strict
+CommonMark rule has the same blind spot: a closing `**` right after full-width
+punctuation and right before a character (`**出处：**明·方汝浩`) is not read as
+the end of bold. `src/renderer/features/agent/agent-markdown.ts` gives the
+panel its own `Marked` instance with one inline extension that takes `**…**`
+on one line as bold when it has text inside, without touching the shared
+instance the import and export code uses; `agent-markdown.test.ts` covers it.

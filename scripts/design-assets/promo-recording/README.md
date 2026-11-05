@@ -1,12 +1,15 @@
 # Promo recording
 
-A promo video of the real app at work: a script plays the author, typing a
-short story into an empty chapter with real keystrokes, then asks the Agent to
-organize the chapter into elements and to review it. The take is recorded from
-the app's own window and composed afterwards into a finished video whose camera
-follows what happens: close on the caret while the author types, out to the
-whole window at the reveal, onto the Agent's panel while it works, onto the
-names it linked, the element overview and the comments it left.
+A promo video of the real app at work: a script plays the author. Drifting
+opens from the Dock on its shelf; the author creates a new book, gives it a
+first chapter and writes a short story into it in immersive writing with real
+keystrokes, stopping once to ask the Agent to look up a passage of a classic
+on the web; then asks the Agent to organize the chapter into elements and to
+review it. The take is recorded from the app's own window and composed
+afterwards into a finished video with a steady camera: it frames each thing
+that happens and holds there, the paper while the author writes, the dialog
+or the composer while something is typed into it, the Agent's panel while it
+works, and moves only when the next action would leave the frame.
 
 ```bash
 pnpm promo:record --story <story.md> --take <name>   # takes the screen for several minutes
@@ -22,9 +25,12 @@ example `out/promo-recording/stories/`.
 
 - macOS with the terminal (or app) that runs the scripts allowed **Screen
   Recording** and **Accessibility** in System Settings › Privacy & Security.
-- The Agent uses DeepSeek, keyed from the checkout's `.env.local` like every
-  development profile (`docs/worktree-development.md`, "Agent keys in
-  development"). `--model` picks the model (default `deepseek-v4-pro`).
+- The Agent uses OpenAI with the API key from the checkout's `.env.local`, like
+  every development profile (`docs/worktree-development.md`, "Agent keys in
+  development"): its hosted web search is what looks the passage up
+  (`docs/agent-runtime/provider-extension-protocol.md`). `--provider` and
+  `--model` pick another (default `openai`, `gpt-5.6-sol`); DeepSeek has no web
+  search, so a story with an `ask` needs OpenAI.
 - `ffmpeg` on the `PATH` for the final mux.
 
 While `promo:record` runs, leave the keyboard and pointer alone: the window must
@@ -39,23 +45,32 @@ it restores the previous one when it finishes.
 book: 华强买瓜
 chapter: 瓜摊
 organize: 把这一章出现的人物、地点和物件整理成要素，再连上它们之间的关系。
+ask: 下一场写有人来瓜摊找茬。名著里有类似的场面吗？上网找一段原文，摘三四句，附上出处。
 links: 刘华强, 素娟
 memory: 第一人称叙述者是郝哥。整理人物要素时，别名不要用「我」「她」这类代词。
 ---
 
 吸铁石。
 
+<!-- quick -->
+我的脑子当场死了机。…
+
+<!-- ask -->
+# 保熟吗
+
 <!-- slow -->
 <!-- typo 块→快 -->
 “两块钱一斤。”
-
-# 十分钟前
 …
 ```
 
-- `book` and `chapter` name the new book and its one empty chapter; the shelf
+- `book` and `chapter` are what the author names the new book (in the shelf's
+  new-book dialog) and its first chapter (made from Project Home); the shelf
   around it is the release screenshot shelf (`docs/release-screenshots.md`).
 - `organize` is what the author types to the Agent once the chapter is written.
+- `ask` (optional) is what the author asks the Agent before the paragraph marked
+  `<!-- ask -->`: out of immersive writing, in the Agent's panel; the camera
+  reads the answer from its top, then the author goes back to the chapter.
 - `links` are the names to point at once the Agent has made them elements; the
   first visible one is hovered so its card opens.
 - `memory` (optional) is Project Memory the book starts with, as if the author
@@ -67,17 +82,29 @@ memory: 第一人称叙述者是郝哥。整理人物要素时，别名不要用
   `<!-- normal -->`, `<!-- fast -->`) or a typo the writer corrects
   (`<!-- typo 块→快 -->` types 快 where the first 块 is, pauses, deletes it and
   goes on). Without one, headings are slow, dialogue (opening with a quote mark)
-  normal and narration fast.
+  normal and narration fast. The opening line is always slow and close.
+- `<!-- quick -->` before a paragraph types it at 45 characters a second, to
+  keep a take short; the video plays it back at a steady 8 a second, so it
+  still reads as writing. Nothing is cut: every paragraph is typed on camera.
 
 ## How a take is recorded
 
-`record.ts` seeds the isolated `promo-recording` profile (the screenshot shelf
-plus the new book, via `src/dev-cli/showcase-seed-main.ts --open-book`),
-launches its Debug build with the frontend debug bridge and sets the interface
-to Chinese, the theme and the Agent model. Before recording it opens, off
-camera, everything the take will open on camera (`scenes.js` `warmup`): the
+`record.ts` seeds the isolated `promo-recording` profile with the screenshot
+shelf (`src/dev-cli/showcase-seed-main.ts`), launches its Debug build with the
+frontend debug bridge and sets the interface to Chinese, the theme and the
+Agent model. Before recording it opens, off camera, in a book of the shelf,
+everything the take will open on camera (`scenes.js` `warmupBook`): the
 development server optimizes a dependency on first use and reloads the page,
 which must not happen mid-take.
+
+The take then runs as the author would: the pointer parked where Drifting's
+icon will be in the opening's Dock (below the window), the shelf's new-book
+card, the name typed into the dialog, 新建, Project Home's 新建 · 章节, the
+chapter's title, Return into the page, `⌘⇧↩` into immersive writing (its
+typewriter scrolling keeps the caret's line in the middle of the window), the
+story, `⌘⇧↩` out for the Agent. Typing is recorded at the pace the video plays
+it: about 3.4 characters a second for slow lines, 5.6 for dialogue and 8.2 for
+narration, with pauses after punctuation.
 
 `rig.swift` (compiled into `out/promo-recording/bin/`) is one process that
 records the window with ScreenCaptureKit at its Retina pixels, without the
@@ -98,21 +125,32 @@ alpha), `events.jsonl` (the rig's), `marks.jsonl` (the script's) and
 `compose.ts` plans and renders it:
 
 - `plan.ts` decides, for each output frame at 60 fps, which instant of the
-  recording it shows: narration typing runs 4× and dialogue 2× faster than it
-  was typed, headings and lines marked slow at their own pace, and each Agent
-  wait is squeezed into about 4.5 seconds; speeds ease into each other. A
-  badge shows how much each Agent wait was sped up (`--no-badge` drops it);
-  typing needs none, it is plainly fast.
-- The camera follows marks: while typing, the text column at the caret's line
-  (a little below the middle, about 1.8× close, the opening line closer);
-  otherwise the last `shot` or `target` mark (every click is one). It is
-  a critically damped spring in output time (zoom in log space), moving a third
-  of a second ahead of what happens, and it stays on the window once zoomed in.
+  recording it shows: everything at its own pace except each Agent wait,
+  squeezed into about 4.5 seconds with a badge showing how much
+  (`--no-badge` drops it), and quick paragraphs, slowed to a steady 8
+  characters a second.
+- The camera holds still. A framing is chosen when something new starts — a
+  `shot` mark, the start of immersive writing (the paper's column, about 2×,
+  the caret's line just under the middle), a prompt or a field being typed
+  (the box it is typed in) — and kept while the action stays inside it: a
+  click inside the frame's safe area, or a caret within its middle band, moves
+  nothing; one outside moves the camera once, a little further than needed.
+  The moves are a critically damped spring in output time (zoom in log space),
+  a third of a second ahead of what happens; once zoomed in it stays on the
+  window.
+- The opening is drawn: a desktop of the backdrop with a Dock holding only
+  Drifting's icon (`src/assets/icon.png`), the pointer coming to it, a click,
+  one launch bounce, and the recorded window growing in from it before the
+  Dock hides. A real Dock would show the recording machine's own apps, and a
+  development build's Dock name is not the product's.
+- After the last shot a closing card fades in (`--no-end-card` drops it): the
+  icon, the name, the README's one-line description and the address.
 - The pointer is drawn from the rig's samples, hidden from a keystroke until
   the next move as macOS does, with a ripple at each click.
 - `compose.swift` renders the frames with Core Image: the window scaled from its
   Retina pixels with a Lanczos filter on a quiet backdrop with a soft shadow,
-  then the pointer, ripples and badge, into a high-bitrate intermediate
+  the opening's Dock, then the pointer, ripples and badge, and the closing card,
+  into a high-bitrate intermediate
   (`video-<size>.mov`); `ffmpeg` encodes the final `promo.mp4` with x264 at CRF
   18, about 40 MB for two minutes at 1080p.
 - `sound.ts` synthesizes a soft click for every keystroke and pointer click at

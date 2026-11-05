@@ -1151,6 +1151,25 @@ function parseRuntimeEvent(value: unknown, path: string): AgentRuntimeEvent {
         ...(value.consolidated === true ? { consolidated: true as const } : {}),
       };
 
+    case 'provider_tool_used':
+      if (
+        !isPositiveInteger(value.iteration) ||
+        !isNonEmptyString(value.callId) ||
+        !isNonEmptyString(value.name) ||
+        !isRecord(value.input) ||
+        typeof value.ok !== 'boolean'
+      ) {
+        corruption('EVENT_PAYLOAD_INVALID', `${path} has an invalid provider hosted tool.`);
+      }
+      return {
+        type: 'provider_tool_used',
+        iteration: value.iteration,
+        callId: value.callId,
+        name: value.name,
+        input: toCanonicalJsonValue(value.input, `${path}.input`) as Record<string, unknown>,
+        ok: value.ok,
+      };
+
     case 'tool_call_started':
       if (
         !isPositiveInteger(value.iteration) ||

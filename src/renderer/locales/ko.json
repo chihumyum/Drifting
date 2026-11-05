@@ -3679,6 +3679,12 @@
       "create_relation": "관계 만들기",
       "update_relation": "관계 업데이트{{target}}",
       "delete_relation": "관계 삭제{{target}}",
+      "list_relation_types": "관계 유형 확인",
+      "create_relation_type": "관계 유형 만들기{{target}}",
+      "update_relation_type": "관계 유형 조정{{target}}",
+      "delete_relation_type": "관계 유형 삭제{{target}}",
+      "tool_search": "사용할 도구 찾기",
+      "call_tool": "도구 사용",
       "create_comment": "메모 또는 할 일 추가",
       "update_comment": "메모 또는 할 일 업데이트{{target}}",
       "delete_comment": "메모 또는 할 일 삭제{{target}}",
@@ -3720,7 +3726,11 @@
       "search_prose": "원고 검색",
       "search_project": "작품 검색",
       "search_prose_query": "원고에서 “{{query}}” 검색",
-      "search_project_query": "작품에서 “{{query}}” 검색"
+      "search_project_query": "작품에서 “{{query}}” 검색",
+      "web_search": "웹 검색",
+      "web_search_query": "웹에서 “{{query}}” 검색",
+      "web_open_page": "웹 페이지 열기",
+      "web_open_page_site": "{{site}} 페이지 열기"
     },
     "permission": {
       "related": "연관됨",

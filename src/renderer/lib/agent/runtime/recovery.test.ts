@@ -1117,6 +1117,55 @@ describe('Agent runtime canonical recovery', () => {
     );
   });
 
+  it('recovers a journal with a provider-hosted web search without touching provider history', async () => {
+    const runtimeEvents = completeEvents().map(
+      (row) => (row.payload as { event: AgentRuntimeEvent }).event,
+    );
+    runtimeEvents.splice(3, 0, {
+      type: 'provider_tool_used',
+      iteration: 1,
+      callId: 'ws_1',
+      name: 'web_search',
+      input: { query: 'Alice' },
+      ok: true,
+    });
+    const snapshot = completeSnapshot();
+    snapshot.events = runtimeEvents.map((runtimeEvent, index) => event(index + 1, runtimeEvent));
+
+    const result = await recoverAgentRuntimeSnapshot(snapshot);
+
+    expect(result.repairs).toEqual([]);
+    expect(result.providerHistory).toEqual(
+      completeMessages().map((row) => ({ role: row.role, content: row.content })),
+    );
+    // The canonical transcript is rebuilt from provider history, where a
+    // hosted search never enters; the panel's journal fold shows its card.
+    expect(result.transcript.map((message) => message.kind === 'tool' ? message.id : message.kind))
+      .toEqual(['user', 'assistant', 'call-1', 'assistant', 'usage']);
+  });
+
+  it('fails closed on a malformed provider-hosted tool event', async () => {
+    const snapshot = completeSnapshot();
+    snapshot.events = [
+      ...snapshot.events.slice(0, 3),
+      event(4, {
+        type: 'provider_tool_used',
+        iteration: 1,
+        callId: 'ws_1',
+        name: 'web_search',
+        input: 'Alice' as unknown as Record<string, unknown>,
+        ok: true,
+      }),
+      ...snapshot.events.slice(3).map((row) =>
+        event(row.seq + 1, (row.payload as { event: AgentRuntimeEvent }).event),
+      ),
+    ];
+
+    await expect(recoverAgentRuntimeSnapshot(snapshot)).rejects.toSatisfy(
+      (error: unknown) => failureCode(error) === 'EVENT_PAYLOAD_INVALID',
+    );
+  });
+
   it('fails closed on a sequence gap', async () => {
     const snapshot = completeSnapshot();
     snapshot.events.splice(3, 1);

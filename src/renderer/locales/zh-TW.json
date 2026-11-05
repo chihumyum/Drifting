@@ -3679,6 +3679,12 @@
       "create_relation": "建立關係",
       "update_relation": "更新關係{{target}}",
       "delete_relation": "刪除關係{{target}}",
+      "list_relation_types": "查看關係類型",
+      "create_relation_type": "新建關係類型{{target}}",
+      "update_relation_type": "調整關係類型{{target}}",
+      "delete_relation_type": "刪除關係類型{{target}}",
+      "tool_search": "查找可用工具",
+      "call_tool": "呼叫工具",
       "create_comment": "新增備註或待辦事項",
       "update_comment": "更新備註或待辦事項{{target}}",
       "delete_comment": "刪除備註或待辦事項{{target}}",
@@ -3720,7 +3726,11 @@
       "search_prose": "搜尋稿件",
       "search_project": "搜尋作品",
       "search_prose_query": "在稿件中搜尋「{{query}}」",
-      "search_project_query": "在作品中搜尋「{{query}}」"
+      "search_project_query": "在作品中搜尋「{{query}}」",
+      "web_search": "搜尋網頁",
+      "web_search_query": "搜尋網頁「{{query}}」",
+      "web_open_page": "開啟網頁",
+      "web_open_page_site": "開啟網頁 {{site}}"
     },
     "permission": {
       "related": "關聯至",

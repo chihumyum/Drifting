@@ -80,6 +80,24 @@ MCP servers, dynamic tools, secrets, permissions and lifecycle ownership.
   intended only for subsequent reads, such as `read_chapter.version`. Runtime
   schema validation still runs before execution. See the
   [official function-calling contract](https://developers.openai.com/api/docs/guides/function-calling#strict-mode).
+- Both OpenAI Responses routes also list OpenAI's hosted web search,
+  `{"type":"web_search","external_web_access":true}` (the spec the official
+  Codex CLI sends in its live mode), after the function tools of every
+  tool-bearing request. It stays listed through forced calls and the `none`
+  synthesis boundary so the tool list, and with it the prompt-cache prefix,
+  never changes inside a tool loop; only a `required` choice omits it, since a
+  search alone would otherwise satisfy that choice. The search runs on OpenAI's
+  servers inside the buffered attempt. Each completed `web_search_call` item
+  (from `output_item.done`, or from the terminal output when the stream lacked
+  one) becomes one `provider_tool` stream event — `web_search` with its query,
+  or `web_open_page` with the URL for `open_page`/`find_in_page` — that the
+  runtime journals as `provider_tool_used` and the chat projection shows as a
+  settled tool card. It executes nothing locally, does not count against the
+  tool-call budget, and never enters canonical history; the items themselves
+  travel in the exact response replay of the active tool loop, which the API
+  accepts with `store: false`. DeepSeek and Anthropic have no web search.
+  Verified live on the API-key route; the ChatGPT subscription route mirrors
+  the CLI's body but has not been exercised against a live account.
 - On the current DeepSeek/OpenAI-compatible route, a tool-capable sample is
   buffered until its complete tool/usage/finish contract validates. Before any
   Agent event or effect escapes, parse/network/rate-limit failures, malformed
