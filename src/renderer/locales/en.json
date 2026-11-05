@@ -3400,11 +3400,13 @@
     "settings": {
       "projectTarget": "Book target",
       "dailyGoal": "Daily goal",
-      "checkin": "Daily check-in",
-      "organize": "Auto-organize"
+      "proactive": "Proactive suggestions"
     }
   },
   "organize": {
+    "offer": {
+      "title": "Organize what you wrote last time into elements"
+    },
     "notify": {
       "running": "Organizing what you wrote last time",
       "completed": "Organized what you wrote last time",
@@ -3428,15 +3430,15 @@
     "titleShort": "Chat & check-in",
     "placeholder": "Talk with the Agent about this work… ({{shortcut}} to send)",
     "send": "Send",
-    "checkinTitle": "Check-in",
+    "checkinTitle": "Proactive suggestions",
     "checkinRunning": "The Agent is reading your recent changes…",
-    "checkinFailed": "The check-in did not finish: {{error}}",
+    "checkinFailed": "Couldn’t finish reading your recent changes: {{error}}",
     "checkinEmpty": "Nothing in your recent changes needs your attention.",
     "checkinNever": "When you open the project, the Agent reads what changed since last time and leaves the questions it wants to ask or the work it wants to do.",
-    "lastCheckin": "Last check-in {{time}}",
-    "disabled": "Check-ins are off",
-    "enable": "Turn on check-ins",
-    "disable": "Turn off check-ins",
+    "lastCheckin": "Last read {{time}}",
+    "disabled": "Proactive suggestions are off",
+    "enable": "Turn on proactive suggestions",
+    "disable": "Turn off proactive suggestions",
     "openConversation": "Open conversation",
     "dismiss": "Dismiss",
     "startFailed": "Could not start: {{error}}",

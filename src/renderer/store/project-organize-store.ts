@@ -7,8 +7,8 @@ import {
 } from '../lib/agent/organize/organize-task';
 
 /**
- * Organize-on-return state. Device-local on purpose, like the check-in: each
- * device organizes the prose its author wrote there, and a run is only a
+ * Organize state. Device-local on purpose, like the check-in: each device
+ * offers to organize the prose its author wrote there, and a run is only a
  * pointer to an ordinary Agent conversation plus what it reported. The
  * elements, element changes and relations it writes are authored project data.
  */
@@ -41,62 +41,46 @@ export interface OrganizeRun {
 }
 
 export interface ProjectOrganizeRecord {
-  /** Author prose written before this moment has been organized. */
+  /** Author prose written before this moment has been organized or skipped. */
   horizonAt: string | null;
-  lastFailureAt: string | null;
   run: OrganizeRun | null;
 }
 
 export const EMPTY_PROJECT_ORGANIZE: ProjectOrganizeRecord = Object.freeze({
   horizonAt: null,
-  lastFailureAt: null,
   run: null,
 }) as ProjectOrganizeRecord;
 
-/** Away from the app this long, then back: the previous session has ended. */
-export const ORGANIZE_AWAY_MS = 30 * 60 * 1000;
-/** How far back the first organize looks. */
-export const ORGANIZE_FIRST_LOOKBACK_MS = 24 * 60 * 60 * 1000;
-/** Prose older than this is never organized automatically. */
-export const ORGANIZE_MAX_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
-/** A failed run is retried on a return at least this much later. */
-export const ORGANIZE_FAILURE_BACKOFF_MS = 6 * 60 * 60 * 1000;
-
-export type OrganizeDecision =
-  | { run: false; reason: 'disabled' | 'backoff' | 'nothing-new' }
-  | { run: true; sinceIso: string };
-
 /**
- * Decide whether a return should organize. Only the author's own prose since
- * the horizon counts; `hasChangesSince` is only called when it can matter.
+ * Project Home's organize card: the author's own prose written since the
+ * horizon, waiting for the author to hand it to the Agent.
  */
-export async function decideOrganize(input: {
-  now: Date;
-  enabled: boolean;
-  force: boolean;
-  record: ProjectOrganizeRecord;
-  hasChangesSince: (sinceIso: string) => Promise<boolean>;
-}): Promise<OrganizeDecision> {
-  if (!input.enabled && !input.force) return { run: false, reason: 'disabled' };
-  const now = input.now.getTime();
-  const lastFailure = input.record.lastFailureAt ? Date.parse(input.record.lastFailureAt) : 0;
-  if (!input.force && now - lastFailure < ORGANIZE_FAILURE_BACKOFF_MS) {
-    return { run: false, reason: 'backoff' };
-  }
-  const oldest = new Date(now - ORGANIZE_MAX_LOOKBACK_MS).toISOString();
-  const horizon = input.record.horizonAt ?? new Date(now - ORGANIZE_FIRST_LOOKBACK_MS).toISOString();
-  const since = horizon > oldest ? horizon : oldest;
-  if (!(await input.hasChangesSince(since))) return { run: false, reason: 'nothing-new' };
-  return { run: true, sinceIso: since };
+export interface OrganizeOffer {
+  sinceIso: string;
+  /** Titles of the prose objects that would be handed to the Agent. */
+  documents: string[];
+}
+
+/** How far back the first organize card looks. */
+export const ORGANIZE_FIRST_LOOKBACK_MS = 24 * 60 * 60 * 1000;
+/** Prose older than this is never offered. */
+export const ORGANIZE_MAX_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** The start of the author prose an organize card covers. */
+export function organizeSince(now: Date, record: ProjectOrganizeRecord): string {
+  const oldest = new Date(now.getTime() - ORGANIZE_MAX_LOOKBACK_MS).toISOString();
+  const horizon = record.horizonAt ?? new Date(now.getTime() - ORGANIZE_FIRST_LOOKBACK_MS).toISOString();
+  return horizon > oldest ? horizon : oldest;
 }
 
 interface ProjectOrganizeState {
-  enabled: boolean;
   projects: Record<string, ProjectOrganizeRecord>;
-  /** Transient: projects deciding on or running an organize pass in this window. */
+  /** Transient: projects starting or running an organize pass in this window. */
   active: Record<string, boolean>;
-  setEnabled: (enabled: boolean) => void;
+  /** Transient: the organize card each project's Home shows. */
+  offers: Record<string, OrganizeOffer | null>;
   setActive: (projectId: string, active: boolean) => void;
+  setOffer: (projectId: string, offer: OrganizeOffer | null) => void;
   startRun: (projectId: string, run: OrganizeRun) => void;
   /** Settle a run; a completed run also moves the horizon to its start. */
   finishRun: (
@@ -104,9 +88,8 @@ interface ProjectOrganizeState {
     runId: string,
     patch: Pick<OrganizeRun, 'status'> & Partial<Omit<OrganizeRun, 'id' | 'conversationId'>>,
   ) => void;
-  /** Nothing worth organizing before this moment. */
+  /** Nothing to organize before this moment: formatting only, or skipped. */
   advanceHorizon: (projectId: string, horizonIso: string) => void;
-  failAttempt: (projectId: string, atIso: string) => void;
   dismissRun: (projectId: string, runId: string) => void;
 }
 
@@ -126,28 +109,24 @@ export const useProjectOrganizeStore = create<ProjectOrganizeState>()(
           return { projects: { ...state.projects, [projectId]: { ...current, ...patch(current) } } };
         });
       return {
-        enabled: true,
         projects: {},
         active: {},
-        setEnabled: (enabled) => set({ enabled }),
+        offers: {},
         setActive: (projectId, active) =>
           set((state) => ({ active: { ...state.active, [projectId]: active } })),
+        setOffer: (projectId, offer) =>
+          set((state) => ({ offers: { ...state.offers, [projectId]: offer } })),
         startRun: (projectId, run) => patchRecord(projectId, () => ({ run })),
         finishRun: (projectId, runId, patch) =>
           patchRecord(projectId, (record) => {
             if (record.run?.id !== runId) return {};
             const run = { ...record.run, ...patch };
-            return patch.status === 'completed'
-              ? { run, horizonAt: record.run.startedAt, lastFailureAt: null }
-              : patch.status === 'failed'
-                ? { run, lastFailureAt: patch.finishedAt ?? new Date().toISOString() }
-                : { run };
+            return patch.status === 'completed' ? { run, horizonAt: record.run.startedAt } : { run };
           }),
         advanceHorizon: (projectId, horizonIso) =>
           patchRecord(projectId, (record) =>
             record.horizonAt && record.horizonAt >= horizonIso ? {} : { horizonAt: horizonIso },
           ),
-        failAttempt: (projectId, atIso) => patchRecord(projectId, () => ({ lastFailureAt: atIso })),
         dismissRun: (projectId, runId) =>
           patchRecord(projectId, (record) =>
             record.run?.id === runId ? { run: { ...record.run, dismissed: true } } : {},
@@ -156,12 +135,25 @@ export const useProjectOrganizeStore = create<ProjectOrganizeState>()(
     },
     {
       name: 'project-organize',
-      version: 1,
+      version: 2,
       storage: createJSONStorage(() => localStorage),
-      partialize: (state) => ({ enabled: state.enabled, projects: state.projects }),
+      partialize: (state) => ({ projects: state.projects }),
+      migrate: (persisted) => migrateProjectOrganizeState(persisted),
     },
   ),
 );
+
+/** v1 had an automatic-organize switch and a failure backoff; v2 has neither. */
+export function migrateProjectOrganizeState(persisted: unknown): {
+  projects: Record<string, ProjectOrganizeRecord>;
+} {
+  const state = (persisted ?? {}) as { projects?: Record<string, Partial<ProjectOrganizeRecord>> };
+  const projects: Record<string, ProjectOrganizeRecord> = {};
+  for (const [projectId, record] of Object.entries(state.projects ?? {})) {
+    projects[projectId] = { horizonAt: record.horizonAt ?? null, run: record.run ?? null };
+  }
+  return { projects };
+}
 
 export function readProjectOrganize(projectId: string): ProjectOrganizeRecord {
   return recordFor(useProjectOrganizeStore.getState(), projectId);

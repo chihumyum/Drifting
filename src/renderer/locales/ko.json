@@ -3400,11 +3400,13 @@
     "settings": {
       "projectTarget": "책 전체 목표",
       "dailyGoal": "일일 목표",
-      "checkin": "일일 체크인",
-      "organize": "자동 정리"
+      "proactive": "능동적 제안"
     }
   },
   "organize": {
+    "offer": {
+      "title": "지난번에 쓴 내용을 요소로 정리하기"
+    },
     "notify": {
       "running": "지난번에 쓴 내용을 정리하는 중",
       "completed": "지난번에 쓴 내용 정리 완료",
@@ -3428,15 +3430,15 @@
     "titleShort": "채팅 및 체크인",
     "placeholder": "Agent와 이 작품에 대해 이야기하세요… ({{shortcut}}로 전송)",
     "send": "보내기",
-    "checkinTitle": "체크인",
+    "checkinTitle": "능동적 제안",
     "checkinRunning": "Agent가 최근 변경 사항을 읽는 중…",
-    "checkinFailed": "체크인이 완료되지 않았습니다: {{error}}",
+    "checkinFailed": "최근 변경 사항을 다 읽지 못했습니다: {{error}}",
     "checkinEmpty": "최근 변경 사항에 주의가 필요한 항목이 없습니다.",
     "checkinNever": "작품을 열면 Agent가 지난번 이후의 변경 사항을 읽고 묻고 싶은 질문이나 진행하고 싶은 작업을 남깁니다.",
-    "lastCheckin": "마지막 체크인 {{time}}",
-    "disabled": "체크인이 꺼져 있습니다",
-    "enable": "체크인 켜기",
-    "disable": "체크인 끄기",
+    "lastCheckin": "마지막 확인 {{time}}",
+    "disabled": "능동적 제안이 꺼져 있습니다",
+    "enable": "능동적 제안 켜기",
+    "disable": "능동적 제안 끄기",
     "openConversation": "대화 열기",
     "dismiss": "닫기",
     "startFailed": "시작하지 못했습니다: {{error}}",

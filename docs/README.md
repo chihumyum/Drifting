@@ -59,7 +59,7 @@ truth.
 - [Model providers and API keys](ai-provider-settings.md)
 - [First Agent conversation](agent-runtime/agent-onboarding.md): connecting a model in the panel
 - [Project Home check-in](agent-runtime/project-checkin.md) and
-  [organize on return](agent-runtime/project-organize.md)
+  [organize card](agent-runtime/project-organize.md)
 - [External agent access (local MCP)](agent-runtime/local-mcp.md)
 - [Tool discovery](agent-runtime/tool-discovery.md)
 - Runtime protocols:

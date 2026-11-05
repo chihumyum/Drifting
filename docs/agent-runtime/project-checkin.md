@@ -3,9 +3,18 @@
 Status: shipped 2026-10-12 (Tauri client, desktop and mobile Project Home).
 
 Project Home carries a General Agent entry for project-level discussion and a
-small set of check-in cards prepared from recent changes. The check-in is the
-first step of proactive project awareness: it runs when the author arrives,
-not continuously.
+small set of task cards: the check-in's, prepared from recent changes, and the
+organize card (`project-organize.md`). The check-in is the only proactive
+Agent work: it runs when the author arrives, not continuously, and nothing on
+a card runs until the author opens it.
+
+## The 主动建议 switch
+
+One switch in Home's 设定 view, 主动建议 (`projectHome.settings.proactive`,
+`useProjectCheckinStore.enabled`, default on), controls all proactive Agent
+work: the check-in with its memory upkeep, and the organize card. It replaced
+the separate 每日签到 and 自动整理 switches on 2026-11-05; author-facing text
+no longer says 签到. Code and docs keep the name check-in.
 
 ## Agent entry
 
@@ -14,7 +23,7 @@ not continuously.
   dock's `+` (see `design-system/components.md`, 「作品主页」). The check-in
   cards sit above the conversation box. Sending opens a new General Agent
   conversation in the right sidebar with the author's text as an ordinary
-  author turn. Turning the check-in on or off lives in Home's 设定 view.
+  author turn.
 - Mobile: the first section of the Home flow. It opens the full-screen voice
   Agent surface, which is the mobile Agent conversation surface.
 - The entry uses the ordinary read-write General Agent and its tools. There is
@@ -91,9 +100,10 @@ records, adding notes or TODOs, or a mix — and prose edits commit directly and
 The check-in never decides which tool runs.
 
 Clicking a started card reopens its conversation. A new check-in replaces
-unopened cards. The × in the corner dismisses a card; check-ins can be turned off from the
-same section. Stored v1 cards (question/action/todo) migrate to this shape; a
-v1 TODO card becomes a task to record that TODO.
+unopened cards. The × in the corner dismisses a card. On desktop the organize
+card comes first; the check-in prompt leaves general element upkeep to it.
+Stored v1 cards (question/action/todo) migrate to this shape; a v1 TODO card
+becomes a task to record that TODO.
 
 ## Acceptance
 

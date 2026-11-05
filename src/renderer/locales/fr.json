@@ -3411,11 +3411,13 @@
     "settings": {
       "projectTarget": "Objectif du livre",
       "dailyGoal": "Objectif quotidien",
-      "checkin": "Point quotidien",
-      "organize": "Organisation automatique"
+      "proactive": "Suggestions proactives"
     }
   },
   "organize": {
+    "offer": {
+      "title": "Ranger votre dernière session d’écriture dans les éléments"
+    },
     "notify": {
       "running": "Organisation de votre dernière session d’écriture",
       "completed": "Votre dernière session d’écriture a été organisée",
@@ -3443,15 +3445,15 @@
     "titleShort": "Chat et point",
     "placeholder": "Parlez de cette œuvre avec Agent… ({{shortcut}} pour envoyer)",
     "send": "Envoyer",
-    "checkinTitle": "Point",
+    "checkinTitle": "Suggestions proactives",
     "checkinRunning": "Agent lit vos modifications récentes…",
-    "checkinFailed": "Le point n’a pas abouti : {{error}}",
+    "checkinFailed": "Lecture de vos modifications récentes inachevée : {{error}}",
     "checkinEmpty": "Rien dans vos modifications récentes ne nécessite votre attention.",
     "checkinNever": "À l’ouverture du projet, Agent lit les changements depuis la dernière fois et laisse les questions qu’il souhaite poser ou le travail qu’il souhaite effectuer.",
-    "lastCheckin": "Dernier point {{time}}",
-    "disabled": "Les points sont désactivés",
-    "enable": "Activer les points",
-    "disable": "Désactiver les points",
+    "lastCheckin": "Dernière lecture {{time}}",
+    "disabled": "Les suggestions proactives sont désactivées",
+    "enable": "Activer les suggestions proactives",
+    "disable": "Désactiver les suggestions proactives",
     "openConversation": "Ouvrir la conversation",
     "dismiss": "Ignorer",
     "startFailed": "Impossible de démarrer : {{error}}",

@@ -20,7 +20,6 @@ import { useInertUnderSuperView } from './useInertUnderSuperView';
 import { useWorkspaceOpening } from './useWorkspaceOpening';
 import { WorkspaceOpeningCover } from './WorkspaceOpeningCover';
 import { WorkspaceGuide } from './WorkspaceGuide';
-import { useOrganizeOnReturn } from '../../usecase/useProjectOrganize';
 import { StageImmersiveWritingControl } from '../../components/workspaceChrome/ImmersiveWriting';
 import { useImmersiveWriting } from './useImmersiveWriting';
 
@@ -69,7 +68,6 @@ export const DesktopWorkspace = memo(function DesktopWorkspace({
   const rootRef = useRef<HTMLDivElement>(null);
   useInertUnderSuperView(rootRef);
   useWorkspaceOpening(rootRef);
-  useOrganizeOnReturn(projectId);
   useImmersiveWriting(rootRef);
   return (
     <div

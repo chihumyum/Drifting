@@ -3411,11 +3411,13 @@
     "settings": {
       "projectTarget": "Meta do livro",
       "dailyGoal": "Meta diária",
-      "checkin": "Revisão diária",
-      "organize": "Organização automática"
+      "proactive": "Sugestões proativas"
     }
   },
   "organize": {
+    "offer": {
+      "title": "Organizar em elementos o que você escreveu da última vez"
+    },
     "notify": {
       "running": "Organizando o que você escreveu da última vez",
       "completed": "O que você escreveu da última vez foi organizado",
@@ -3443,15 +3445,15 @@
     "titleShort": "Chat e revisão",
     "placeholder": "Converse com o Agent sobre esta obra… ({{shortcut}} para enviar)",
     "send": "Enviar",
-    "checkinTitle": "Revisão",
+    "checkinTitle": "Sugestões proativas",
     "checkinRunning": "O Agent está lendo suas alterações recentes…",
-    "checkinFailed": "A revisão não foi concluída: {{error}}",
+    "checkinFailed": "Não foi possível terminar de ler suas alterações recentes: {{error}}",
     "checkinEmpty": "Não há nada nas alterações recentes que precise da sua atenção.",
     "checkinNever": "Ao abrir o projeto, o Agent lê as alterações desde a última vez e deixa as perguntas que deseja fazer ou o trabalho que deseja realizar.",
-    "lastCheckin": "Última revisão {{time}}",
-    "disabled": "As revisões estão desativadas",
-    "enable": "Ativar revisões",
-    "disable": "Desativar revisões",
+    "lastCheckin": "Última leitura {{time}}",
+    "disabled": "As sugestões proativas estão desativadas",
+    "enable": "Ativar sugestões proativas",
+    "disable": "Desativar sugestões proativas",
     "openConversation": "Abrir conversa",
     "dismiss": "Dispensar",
     "startFailed": "Não foi possível iniciar: {{error}}",

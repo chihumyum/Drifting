@@ -18,7 +18,6 @@ import { useProjectStore } from '../store/project-store';
 import { useUiStore } from '../store/ui-store';
 import { useShortcutsStore } from '../store/shortcuts-store';
 import { useProjectCheckinStore } from '../store/project-checkin-store';
-import { useProjectOrganizeStore } from '../store/project-organize-store';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
 import { useRecentEntitiesStore } from '../store/recent-entities-store';
 import { useWritingStatsStore, deriveWritingStats } from '../store/writing-stats-store';
@@ -634,8 +633,6 @@ function HomeSettings({ memoryRef }: { memoryRef: RefObject<HTMLElement | null> 
   const setDailyWordGoal = useWritingStatsStore((s) => s.setDailyWordGoal);
   const checkinEnabled = useProjectCheckinStore((s) => s.enabled);
   const setCheckinEnabled = useProjectCheckinStore((s) => s.setEnabled);
-  const organizeEnabled = useProjectOrganizeStore((s) => s.enabled);
-  const setOrganizeEnabled = useProjectOrganizeStore((s) => s.setEnabled);
   const projectTarget = plan?.projectWordTarget ?? 120000;
   const dailyGoal = plan?.dailyWordGoal ?? 1500;
   const total = useMemo(() => sumCanonicalChapterWordCounts(bookNodes.filter(isChapter)), [bookNodes]);
@@ -758,27 +755,13 @@ function HomeSettings({ memoryRef }: { memoryRef: RefObject<HTMLElement | null> 
       <section className="dash-sec">
         <div className="dash-sec__head">
           <BrushIcon name="shikigami" size={15} />
-          <h2 className="dash-sec__title">{t('projectHome.settings.checkin')}</h2>
+          <h2 className="dash-sec__title">{t('projectHome.settings.proactive')}</h2>
           <span className="dash-sec__spacer" />
           <Switch
             size="sm"
             checked={checkinEnabled}
             onCheckedChange={setCheckinEnabled}
-            aria-label={t('projectHome.settings.checkin')}
-          />
-        </div>
-      </section>
-
-      <section className="dash-sec">
-        <div className="dash-sec__head">
-          <BrushIcon name="shikigami" size={15} />
-          <h2 className="dash-sec__title">{t('projectHome.settings.organize')}</h2>
-          <span className="dash-sec__spacer" />
-          <Switch
-            size="sm"
-            checked={organizeEnabled}
-            onCheckedChange={setOrganizeEnabled}
-            aria-label={t('projectHome.settings.organize')}
+            aria-label={t('projectHome.settings.proactive')}
           />
         </div>
       </section>

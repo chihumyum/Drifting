@@ -33,8 +33,10 @@ navigation path.
 
 Both platforms open with a General Agent entry and the check-in cards the
 Agent prepared from recent changes (`agent-runtime/project-checkin.md`); on
-desktop the Agent section also shows the latest organize pass over what the
-author wrote last time (`agent-runtime/project-organize.md`). Both
+desktop the Agent section also offers an organize card for what the author
+wrote since the last organize and shows the latest organize run
+(`agent-runtime/project-organize.md`). Nothing on a card runs until the author
+opens it, and the 设定 view's 主动建议 switch turns all of it off. Both
 platforms edit the project's `PROJECT_MEMORY.md` (desktop: the 设定 view; mobile:
 end of the Home flow; see `agent-runtime/domain-crud-transaction-protocol.md`
 §9). The mobile entry opens the full-screen voice Agent surface.
@@ -51,6 +53,7 @@ pnpm exec vitest run src/renderer/app/project-home.acceptance.test.ts \
   src/renderer/store/project-checkin-store.test.ts \
   src/renderer/store/project-organize-store.test.ts \
   src/renderer/usecase/useProjectOrganize.test.ts \
+  src/renderer/shells/desktop/project-home/home-agent.render.test.ts \
   src/renderer/shells/desktop/project-home/project-home-create.acceptance.test.ts \
   src/renderer/shells/desktop/project-home/home-create.test.ts \
   src/renderer/store/ui-store.workspace-tabs.test.ts \
