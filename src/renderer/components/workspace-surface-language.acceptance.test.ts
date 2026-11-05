@@ -1341,6 +1341,10 @@ describe('workspace surface language acceptance', () => {
     );
     expect(messages).toContain("t.status === 'completed' ? 'task-done' : t.status === 'in_progress' ? 'task-doing' : 'task-todo'");
     expect(messages).toContain("msg.status === 'running' ? 'loader' : msg.status === 'ok' ? 'status-done' : 'status-stopped'");
+    // A step's status mark is centred on its row, not seated on the text baseline.
+    expect(messages).toContain('<span style={toolMark}>');
+    expect(block(messages, 'const toolMark: React.CSSProperties = {', '};')).toContain("alignItems: 'center',");
+    expect(block(messages, '<span style={toolMark}>', '/>')).not.toContain('inline');
     expect(source('src/renderer/features/agent/desktop/DesktopAgentPanel.tsx')).toContain('<BrushIcon name="stitched" size={11} />');
     expect(source('src/renderer/components/graph/RelationEdgePopover.tsx')).toContain(
       "const flowIcon = orientation === 'symmetric' ? 'both-ways' : 'arrow-forward';",
