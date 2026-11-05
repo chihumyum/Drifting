@@ -55,6 +55,7 @@ General Agent 默认不设置单次或累计输出上限；摘要压缩也不再
 ## 路由归属
 
 - General Agent 的 `agentProvider + agentModel + reasoning` 只在右侧对话框的 composer 配置菜单中选择。设置页保留 Agent memory、MCP 和 usage 等持久管理面。
+- 模型菜单打开时检查四个服务商有没有可用凭据，与首次引导、签到用同一个判断（`canAgentProviderRun`）：API Key 只查是否存在（开发用 `.env` Key 或 Keychain 条目），不解密；ChatGPT 订阅看是否已登录。没有凭据的服务商，其模型行照常列出但置灰、不能选，订阅的「刷新模型」也不可点；已选中的模型即使没有凭据也照常显示当前标记。保存或删除 Key、登录状态变化、窗口重新获得焦点时重新检查；检查还没答复的服务商先按可选处理。
 - standalone Shadow CI、Element Arc 与 Goal Evolve 已于 2026-08-05 移除；它们不再拥有 provider route 或独立凭据消费者。
 - Copilot（元素抽取、元素补丁建议、滚动段落摘要、⇧⌘I 内联编辑与内联「问」）已于 2026-10-30 退役，主动 AI 功能改由 Agent 承担。它的 `copilot*` 偏好由设置迁移 v32 删除；Google 只被 Copilot 使用，随之从设置页、`BYOKProvider`、provider 适配器和 `@google/genai` 依赖中移除，已存的 `byok.google` Keychain 条目不再读取。退役前最后一个提交打了 tag `copilot-retired-2026-10-30`。
 

@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   agentProviderKeySource,
   canAgentProviderRun,
+  isAgentProviderSelectable,
+  readAgentProviderReadiness,
   type AgentProviderReadinessDependencies,
 } from './agent-provider-readiness';
 
@@ -46,5 +48,31 @@ describe('Agent provider readiness', () => {
     });
     await expect(canAgentProviderRun('openai', deps)).resolves.toBe(false);
     await expect(canAgentProviderRun('openai-codex', deps)).resolves.toBe(false);
+  });
+
+  it('answers the model menu for every provider at once, counting the ChatGPT sign-in', async () => {
+    const deps = dependencies({
+      readEnvKey: (provider) => (provider === 'openai' ? 'sk-dev' : undefined),
+      hasStoredKey: vi.fn(async (provider) => provider === 'deepseek'),
+      chatgptSignedIn: vi.fn(async () => true),
+    });
+    const readiness = await readAgentProviderReadiness(
+      ['deepseek', 'anthropic', 'openai', 'openai-codex'],
+      deps,
+    );
+    expect(readiness).toEqual({
+      deepseek: true,
+      anthropic: false,
+      openai: true,
+      'openai-codex': true,
+    });
+    expect(deps.chatgptSignedIn).toHaveBeenCalledOnce();
+  });
+
+  it('greys out only a provider the check answered no for', () => {
+    expect(isAgentProviderSelectable({ anthropic: false }, 'anthropic')).toBe(false);
+    expect(isAgentProviderSelectable({ anthropic: true }, 'anthropic')).toBe(true);
+    // Not answered yet: a slow check never blocks a choice.
+    expect(isAgentProviderSelectable({}, 'deepseek')).toBe(true);
   });
 });
