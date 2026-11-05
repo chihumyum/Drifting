@@ -1,5 +1,5 @@
 // Release preflight (docs/releasing.md): the version agrees everywhere, the tag
-// names it, release notes exist, the README's screenshots are all there and
+// names it, release notes exist, each README's screenshots are all there and
 // shown (they are refreshed only when the author asks, so they may be from an
 // earlier version), the bundle still produces signed updater artifacts for the
 // endpoint the app polls, build tools stay unstripped, the app is built with
@@ -32,17 +32,21 @@ export function checkRelease({ tag } = {}) {
   if (!fs.existsSync(path.join(root, `docs/releases/${version}.md`))) {
     errors.push(`release notes docs/releases/${version}.md are missing`);
   }
-  // The README's screenshots (pnpm release:screenshots --readme) are all there
-  // and shown. A release does not retake them: the author asks when to.
-  const screenshots = 'docs/screenshots/manifest.json';
-  if (!fs.existsSync(path.join(root, screenshots))) {
-    errors.push(`${screenshots} is missing: run pnpm release:screenshots --readme`);
-  } else {
+  // Each README's screenshots (pnpm release:screenshots --readme) are all there
+  // and shown: the English README the English set, the Chinese README the
+  // Chinese set. A release does not retake them: the author asks when to.
+  for (const [readmeFile, directory, locale] of [['README.md', 'docs/screenshots', 'en'], ['README.zh-CN.md', 'docs/screenshots/zh-CN', 'zh-CN']]) {
+    const screenshots = `${directory}/manifest.json`;
+    if (!fs.existsSync(path.join(root, screenshots))) {
+      errors.push(`${screenshots} is missing: run pnpm release:screenshots --readme --locale ${locale}`);
+      continue;
+    }
     const shots = JSON.parse(read(screenshots));
-    const readme = read('README.md');
+    const readme = read(readmeFile);
+    if (shots.locale !== locale) errors.push(`${screenshots} must hold the ${locale} screenshots`);
     for (const entry of shots.files ?? []) {
-      if (!fs.existsSync(path.join(root, 'docs/screenshots', entry.file))) errors.push(`docs/screenshots/${entry.file} is missing`);
-      if (!readme.includes(`docs/screenshots/${entry.file}`)) errors.push(`README.md must show docs/screenshots/${entry.file}`);
+      if (!fs.existsSync(path.join(root, directory, entry.file))) errors.push(`${directory}/${entry.file} is missing`);
+      if (!readme.includes(`${directory}/${entry.file}`)) errors.push(`${readmeFile} must show ${directory}/${entry.file}`);
     }
   }
   if (tauriConfig.bundle?.createUpdaterArtifacts !== true) {

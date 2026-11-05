@@ -1,8 +1,8 @@
 # Release screenshots
 
-Status: **current tooling** (2026-11-04). One command captures the shelf, the
+Status: **current tooling** (2026-11-05). One command captures the shelf, the
 workspace and the element overview of the real macOS app, from synthetic data.
-The README's three are refreshed only when the author asks for screenshots
+Each README's three are refreshed only when the author asks for screenshots
 (2026-11-04); a release does not retake them:
 
 ```bash
@@ -22,15 +22,18 @@ Without `--readme` it captures every scene in English and Chinese, light and
 dark — twelve PNGs in `out/screenshots/<version>/`, not committed — in about
 two minutes.
 
-## The README's screenshots
+## The READMEs' screenshots
 
-`docs/screenshots/` holds `shelf.webp`, `workspace.webp` and `elements.webp`:
-the English light scenes resized to 2000 pixels wide (twice the README's
+`--readme` captures the light scenes in both languages (`--locale en` or
+`--locale zh-CN` retakes one). `docs/screenshots/` holds the English set, which
+README.md shows, and `docs/screenshots/zh-CN/` the Chinese set (《慢钟》), which
+README.zh-CN.md shows (2026-11-05). Each holds `shelf.webp`, `workspace.webp`
+and `elements.webp`: the light scenes resized to 2000 pixels wide (twice the README's
 column, for Retina screens) and encoded as WebP at quality 90 with `cwebp`
 (`brew install webp`), about 480 KB together, so a release adds little to the
-repository. `manifest.json` beside them records the version, the commit they
-were captured from and each file's size and SHA-256. The README shows them in
-that order under the video.
+repository. `manifest.json` beside them records the language, the version, the commit
+they were captured from and each file's size and SHA-256. Each README shows its
+set in that order; `pnpm release:check` checks both.
 
 ## What it produces
 

@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "version": "0.1.0-alpha.8",
+  "recordedAt": "2026-11-05T13:33:49.865Z",
+  "source": {
+    "commit": "f6584f9ac048d165047a9949ec42af824ecaf98e",
+    "dirty": true
+  },
+  "window": {
+    "width": 1600,
+    "height": 1000,
+    "focused": true
+  },
+  "locale": "zh-CN",
+  "theme": "light",
+  "files": [
+    {
+      "file": "shelf.webp",
+      "scene": "shelf",
+      "width": 2000,
+      "height": 1250,
+      "bytes": 202052,
+      "sha256": "b111881219dbe5d3c9ca3ab383bf95c230b19ab18cb38c875e6894b001149d24"
+    },
+    {
+      "file": "workspace.webp",
+      "scene": "workspace",
+      "width": 2000,
+      "height": 1250,
+      "bytes": 208582,
+      "sha256": "bcdebcb91df2463afed0827fe8884b08aaf00bf2bd6baa8d20617169ea9f3d57"
+    },
+    {
+      "file": "elements.webp",
+      "scene": "elements",
+      "width": 2000,
+      "height": 1250,
+      "bytes": 66592,
+      "sha256": "3c55902d9242d4463df86ad668e3a0c411ab07911e5a6bd3721b39786cdace1b"
+    }
+  ]
+}
