@@ -171,6 +171,11 @@
       return field ? field.value : null;
     },
 
+    async superView() {
+      const { ui } = await stores();
+      return ui.getState().activeSuperView;
+    },
+
     async immersive() {
       const { ui } = await stores();
       return ui.getState().immersiveWriting;

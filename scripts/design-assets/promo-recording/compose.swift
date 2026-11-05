@@ -1,8 +1,8 @@
 // Renders a planned promo video (plan.ts) from a take's raw recording
 // (README.md): every output frame shows the recording at the planned instant,
 // the window on its backdrop, framed by the planned camera, with the pointer,
-// its click ripples and the speed badge drawn on top; a dissolve across each
-// cut; the opening's Dock and the window opening from it; the closing card.
+// its click ripples and the speed badge drawn on top; the opening's Dock and
+// the window opening from it; the closing card.
 //
 //   promo-compose --plan <plan.json> --source <raw.mov> --out <video.mov> [--theme light|dark] [--icon <png>]
 //
@@ -22,7 +22,6 @@ struct PlanFrame: Decodable {
   let b: String?
   let ba: Double
   let k: [Double]?
-  let h: [Double]?
   let w: [Double]?
   let d: [Double]?
   let e: Double?
@@ -279,17 +278,10 @@ struct Compose {
 
     var current: CIImage?
     var currentTime = -Double.infinity
-    var held: CIImage?
-    var heldKey = -1.0
     var pending: CMSampleBuffer? = output.copyNextSampleBuffer()
     let started = Date()
 
     for (index, frame) in plan.frames.enumerated() {
-      // A cut's dissolve holds the last frame shown before it.
-      if let h = frame.h, h.count == 2, heldKey != h[0] {
-        held = current
-        heldKey = h[0]
-      }
       // The newest recorded frame at or before the planned instant.
       while let sample = pending, sample.presentationTimeStamp.seconds <= frame.s + 1e-4 {
         if let pixels = sample.imageBuffer {
@@ -336,23 +328,8 @@ struct Compose {
         lanczos.aspectRatio = 1
         let windowTopLeft = toOutput(window.x, window.y)
         let scaled = lanczos.outputImage!
-        var placed = scaled.transformed(by: CGAffineTransform(translationX: windowTopLeft.x - scaled.extent.minX,
+        let placed = scaled.transformed(by: CGAffineTransform(translationX: windowTopLeft.x - scaled.extent.minX,
                                                               y: windowTopLeft.y - scaled.extent.height - scaled.extent.minY))
-        if let h = frame.h, h.count == 2, let held {
-          // The frame from before the cut, placed the same way, under the new one coming in.
-          let before = CIFilter.lanczosScaleTransform()
-          before.inputImage = held
-          before.scale = Float(scale / plan.pixelScale)
-          before.aspectRatio = 1
-          let heldScaled = before.outputImage!
-          let heldPlaced = heldScaled.transformed(by: CGAffineTransform(translationX: windowTopLeft.x - heldScaled.extent.minX,
-                                                                        y: windowTopLeft.y - heldScaled.extent.height - heldScaled.extent.minY))
-          let dissolve = CIFilter.dissolveTransition()
-          dissolve.inputImage = heldPlaced
-          dissolve.targetImage = placed
-          dissolve.time = Float(h[1])
-          placed = dissolve.outputImage!
-        }
         image = faded(placed.transformed(by: opening), windowOpacity).composited(over: image)
       }
 

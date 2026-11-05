@@ -52,7 +52,7 @@ memory: 第一人称叙述者是郝哥。整理人物要素时，别名不要用
 
 吸铁石。
 
-<!-- skip -->
+<!-- quick -->
 我的脑子当场死了机。…
 
 <!-- ask -->
@@ -83,11 +83,9 @@ memory: 第一人称叙述者是郝哥。整理人物要素时，别名不要用
   (`<!-- typo 块→快 -->` types 快 where the first 块 is, pauses, deletes it and
   goes on). Without one, headings are slow, dialogue (opening with a quote mark)
   normal and narration fast. The opening line is always slow and close.
-- `<!-- skip -->` before a paragraph types it off camera, fast: the video cuts
-  from the paragraph before to the one after with a short dissolve (the paper
-  stays put in immersive writing, so only the new text fades in). Consecutive
-  skipped paragraphs make one cut. Every paragraph still ends up in the
-  chapter, for the Agent to read.
+- `<!-- quick -->` before a paragraph types it at 45 characters a second, to
+  keep a take short; the video plays it back at a steady 8 a second, so it
+  still reads as writing. Nothing is cut: every paragraph is typed on camera.
 
 ## How a take is recorded
 
@@ -129,8 +127,8 @@ alpha), `events.jsonl` (the rig's), `marks.jsonl` (the script's) and
 - `plan.ts` decides, for each output frame at 60 fps, which instant of the
   recording it shows: everything at its own pace except each Agent wait,
   squeezed into about 4.5 seconds with a badge showing how much
-  (`--no-badge` drops it), and the skipped paragraphs, cut over with a
-  0.5-second dissolve.
+  (`--no-badge` drops it), and quick paragraphs, slowed to a steady 8
+  characters a second.
 - The camera holds still. A framing is chosen when something new starts — a
   `shot` mark, the start of immersive writing (the paper's column, about 2×,
   the caret's line just under the middle), a prompt or a field being typed
@@ -150,9 +148,8 @@ alpha), `events.jsonl` (the rig's), `marks.jsonl` (the script's) and
 - The pointer is drawn from the rig's samples, hidden from a keystroke until
   the next move as macOS does, with a ripple at each click.
 - `compose.swift` renders the frames with Core Image: the window scaled from its
-  Retina pixels with a Lanczos filter on a quiet backdrop with a soft shadow
-  (across a cut, the frame before it dissolving into the frames after), the
-  opening's Dock, then the pointer, ripples and badge, and the closing card,
+  Retina pixels with a Lanczos filter on a quiet backdrop with a soft shadow,
+  the opening's Dock, then the pointer, ripples and badge, and the closing card,
   into a high-bitrate intermediate
   (`video-<size>.mov`); `ffmpeg` encodes the final `promo.mp4` with x264 at CRF
   18, about 40 MB for two minutes at 1080p.

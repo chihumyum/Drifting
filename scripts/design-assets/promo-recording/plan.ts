@@ -1,6 +1,6 @@
 // Plans the finished video from a take's timeline (README.md, "How a take
 // becomes a video"): which instant of the recording each output frame shows
-// (Agent waits run faster, skipped paragraphs are cut with a dissolve), where
+// (Agent waits run faster; paragraphs typed quickly play at a steady pace), where
 // the camera looks and how close, the opening on a desktop with a Dock, and
 // where the pointer, its clicks, the speed badge and the end card are drawn.
 // compose.swift renders exactly this; nothing here reads pixels.
@@ -69,8 +69,6 @@ export interface PlanFrame {
    * scale it applied and where the content starts, in points of the frame.
    */
   k?: [number, number, number];
-  /** A dissolve across a cut: the recording second held from before it, and how far the new frame has come in (0–1). */
-  h?: [number, number];
   /** The window opening: opacity and scale about its centre (absent: shown, 1). */
   w?: [number, number];
   /** The Dock: opacity, how far it has slid down (canvas points), the icon's bounce (points), the running dot's opacity. */
@@ -99,8 +97,8 @@ const MAX_ZOOM = 2.7;
 const LEAD = 0.35;
 /** How far past the window's edge (canvas points) a close camera may look, so a panel at the edge can sit nearer the middle. */
 const EDGE = 70;
-/** Output seconds a cut's dissolve takes. */
-const DISSOLVE = 0.5;
+/** Characters a second the video plays paragraphs typed quickly (`<!-- quick -->`) at. */
+const QUICK_CPS = 8;
 /** The Dock's icon size and the gap under its shelf, canvas points. */
 const DOCK_ICON = 46;
 const DOCK_GAP = 6;
@@ -122,24 +120,30 @@ const easeOut = (f: number) => 1 - (1 - clamp(f, 0, 1)) ** 3;
 
 // ---------------------------------------------------------------- time
 
-interface Segment { from: number; to: number; speed: number; agent: boolean; cut: boolean }
+interface Segment { from: number; to: number; speed: number; agent: boolean }
 
-/** Recording stretches that do not play at their own pace: Agent waits squeezed, skipped writing cut. */
+/**
+ * Recording stretches that do not play at their own pace: Agent waits
+ * squeezed, paragraphs typed quickly slowed to a steady QUICK_CPS (measured
+ * from the keystrokes in them).
+ */
 function segmentsOf(events: TimelineEvent[], options: PlanOptions): Segment[] {
   const segments: Segment[] = [];
   let agent: TimelineEvent | null = null;
-  let cut: TimelineEvent | null = null;
+  let quick: TimelineEvent | null = null;
   for (const event of events) {
     if (event.type !== 'mark') continue;
     if (event.name === 'agent.start') agent = event;
     else if (event.name === 'agent.end' && agent) {
       const length = event.t - agent.t;
-      segments.push({ from: agent.t, to: event.t, speed: Math.round(clamp(length / options.agentWaitSeconds, 1, 60)), agent: true, cut: false });
+      segments.push({ from: agent.t, to: event.t, speed: Math.round(clamp(length / options.agentWaitSeconds, 1, 60)), agent: true });
       agent = null;
-    } else if (event.name === 'cut.start') cut = event;
-    else if (event.name === 'cut.end' && cut) {
-      segments.push({ from: cut.t, to: event.t, speed: Infinity, agent: false, cut: true });
-      cut = null;
+    } else if (event.name === 'quick.start') quick = event;
+    else if (event.name === 'quick.end' && quick) {
+      const from = quick.t, to = event.t;
+      const keys = events.filter((key) => (key.type === 'type' || key.type === 'key') && key.t >= from && key.t < to).length;
+      if (keys > 0) segments.push({ from, to, speed: clamp(QUICK_CPS / (keys / (to - from)), 0.05, 1), agent: false });
+      quick = null;
     }
   }
   return segments.sort((a, b) => a.from - b.from);
@@ -148,36 +152,23 @@ function segmentsOf(events: TimelineEvent[], options: PlanOptions): Segment[] {
 /**
  * Output time for each recording time, stepping the recording finely and
  * easing the speed towards each stretch's, so a change of pace never jolts.
- * A cut jumps over its stretch. Returns parallel arrays (recording → output),
- * both non-decreasing, and where each cut lands in output time.
+ * Returns parallel arrays (recording → output), both increasing.
  */
 function timeMap(start: number, end: number, segments: Segment[]) {
   const step = 1 / 480;
   const source: number[] = [start];
   const output: number[] = [0];
-  const cuts: { at: number; from: number; to: number }[] = [];
-  const speedAt = (t: number) => segments.find((segment) => !segment.cut && t >= segment.from && t < segment.to)?.speed ?? 1;
+  const speedAt = (t: number) => segments.find((segment) => t >= segment.from && t < segment.to)?.speed ?? 1;
   let speed = speedAt(start);
-  for (let t = start; t < end;) {
-    const cut = segments.find((segment) => segment.cut && t >= segment.from && t < segment.to);
-    if (cut) {
-      const at = output[output.length - 1];
-      cuts.push({ at, from: cut.from, to: cut.to });
-      t = cut.to;
-      source.push(t);
-      output.push(at + 1e-6);
-      speed = 1;
-      continue;
-    }
+  for (let t = start; t < end; t += step) {
     const target = speedAt(t);
     // About 0.2 s (output) to settle on a new speed, in log space.
     const dtOut = step / speed;
     speed = Math.exp(Math.log(speed) + (Math.log(target) - Math.log(speed)) * Math.min(1, dtOut / 0.2));
-    t += step;
-    source.push(t);
+    source.push(t + step);
     output.push(output[output.length - 1] + step / speed);
   }
-  return { source, output, cuts };
+  return { source, output };
 }
 
 function interpolate(xs: number[], ys: number[], x: number): number {
@@ -365,7 +356,6 @@ export function planVideo(timeline: Timeline, options: PlanOptions): Plan {
   const map = timeMap(start, stop, segments);
   const recorded = map.output[map.output.length - 1];
   const sourceAt = (out: number) => interpolate(map.output, map.source, out);
-  const inCut = (src: number) => segments.some((segment) => segment.cut && src >= segment.from && src < segment.to);
   const outputAt = (src: number) => interpolate(map.source, map.output, src);
   const framingAt = cameraKeyframes(events, toCanvas, canvas);
 
@@ -455,13 +445,10 @@ export function planVideo(timeline: Timeline, options: PlanOptions): Plan {
     const content = contentAt(s);
     const shrunk = content && content.scale !== undefined && Math.abs(content.scale - 1) > 0.002
       ? [content.scale, content.x ?? 0, content.y ?? 0] as [number, number, number] : null;
-    const segment = segments.find((candidate) => !candidate.cut && s >= candidate.from && s < candidate.to);
+    const segment = segments.find((candidate) => s >= candidate.from && s < candidate.to);
     // The badge marks the Agent's waits, which the video squeezes.
     const badge = !ending && segment && segment.agent && segment.speed >= options.badgeFrom ? `×${segment.speed}` : null;
 
-    // A dissolve right after a cut: the last frame before it fades under the new one.
-    const cut = map.cuts.find((candidate) => out >= candidate.at && out < candidate.at + DISSOLVE);
-    const dissolve: [number, number] | null = cut ? [cut.from, ease((out - cut.at) / DISSOLVE)] : null;
 
     // The opening: the window appears when Drifting is clicked in the Dock, which then hides.
     let windowState: [number, number] | null = null;
@@ -484,7 +471,6 @@ export function planVideo(timeline: Timeline, options: PlanOptions): Plan {
       px: round(px), py: round(py), pa: round(alpha), pp: pressed ? 0.86 : 1,
       r: ripples.map(([x, y, radius, opacity]) => [round(x), round(y), round(radius), round(opacity)]), b: badge, ba: badge ? 1 : 0,
       ...(shrunk ? { k: shrunk } : {}),
-      ...(dissolve ? { h: [Math.round(dissolve[0] * 1e4) / 1e4, round(dissolve[1])] as [number, number] } : {}),
       ...(windowState ? { w: windowState } : {}),
       ...(dockState ? { d: dockState } : {}),
       ...(endOpacity > 0 ? { e: endOpacity } : {}),
@@ -502,7 +488,7 @@ export function planVideo(timeline: Timeline, options: PlanOptions): Plan {
 
   const sounds: Plan['sounds'] = [];
   for (const event of events) {
-    if (event.t < start || event.t > stop || inCut(event.t)) continue;
+    if (event.t < start || event.t > stop) continue;
     if (event.type === 'type') sounds.push({ t: outputAt(event.t), kind: event.text === ' ' ? 'space' : 'key' });
     else if (event.type === 'key') sounds.push({ t: outputAt(event.t), kind: event.key === 'return' ? 'return' : 'key' });
     else if (event.type === 'pointer.down') sounds.push({ t: outputAt(event.t), kind: 'click' });

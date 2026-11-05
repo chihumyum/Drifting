@@ -39,8 +39,8 @@ const WINDOW = { width: 1600, height: 1000 };
 const LOCALE = 'zh-CN';
 /** Keystrokes a second, as the video plays them: a writer who knows what comes next, not a stenographer. */
 const TYPING_CPS: Record<Pace, number> = { slow: 3.4, normal: 5.6, fast: 8.2 };
-/** Skipped paragraphs are typed this fast; the video cuts over them. */
-const SKIP_CPS = 45;
+/** Paragraphs marked quick are typed this fast; the video plays them at a steady 8 a second. */
+const QUICK_CPS = 45;
 const AGENT_START_TIMEOUT = 20_000;
 const AGENT_TIMEOUT = 10 * 60_000;
 
@@ -371,27 +371,22 @@ async function main() {
     // The opening line frames itself, close.
     await startWriting(false);
     await sleep(900);
-    let cutOpen = false;
+    let quickOpen = false;
     for (const [index, paragraph] of story.paragraphs.entries()) {
       const last = index === story.paragraphs.length - 1;
       if (paragraph.ask && story.ask && options.agent) {
-        if (cutOpen) { mark('cut.end'); cutOpen = false; }
+        if (quickOpen) { mark('quick.end'); quickOpen = false; }
         await askAgent(story.ask);
         await startWriting();
         await sleep(700);
       }
       const text = last ? paragraph.text : `${paragraph.text}\n`;
-      if (paragraph.skip) {
-        if (!cutOpen) { mark('cut.start'); cutOpen = true; }
-        await typeText(text, paragraph.pace, 'prose', { cps: SKIP_CPS, pauses: false });
+      if (paragraph.quick) {
+        if (!quickOpen) { mark('quick.start'); quickOpen = true; }
+        await typeText(text, paragraph.pace, 'prose', { cps: QUICK_CPS, pauses: false });
         continue;
       }
-      if (cutOpen) {
-        await sleep(300);
-        mark('cut.end');
-        cutOpen = false;
-        await sleep(500);
-      }
+      if (quickOpen) { mark('quick.end'); quickOpen = false; }
       // The opening line, close up; then the page.
       await typeText(text, index === 0 ? 'slow' : paragraph.pace, 'prose', { typo: paragraph.typo, ...(index === 0 ? { zoom: 2.5 } : {}) });
       if (index === 0) {
@@ -401,7 +396,7 @@ async function main() {
         await sleep(600);
       }
     }
-    if (cutOpen) { mark('cut.end'); cutOpen = false; }
+    if (quickOpen) { mark('quick.end'); quickOpen = false; }
     await sleep(1400);
     mark('writing.end');
     await immersive(false);
@@ -513,6 +508,13 @@ async function main() {
       await sleep(900);
       await rig.send('key.press', { key: 'escape' });
       await sleep(1200);
+      // Escape closes the overview unless something inside it held the key;
+      // then its back button does, as a hand would.
+      if (await scenes.run<string>('superView') !== 'none') {
+        await clickOn(await rectOf('.super-view-head__back'), 'overview-back');
+        await sleep(1200);
+      }
+      if (await scenes.run<string>('superView') !== 'none') throw new Error('The element overview did not close');
       await clickOn(await rectOf('.workspace-panel-tab-row button', '章节'), 'chapters-tab');
       await sleep(800);
 
