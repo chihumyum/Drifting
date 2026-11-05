@@ -1364,8 +1364,6 @@
       "aria": "模型与推理设置",
       "model": "模型",
       "switchModel": "切换模型",
-      "modelsUpdated": "更新于 {{time}}",
-      "modelsStale": "正在使用 {{time}} 的模型目录",
       "modelUnavailable": "当前目录中没有已选模型，请选择其他模型。",
       "reasoning": "推理",
       "extendedThinking": "扩展思考",

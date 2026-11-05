@@ -1366,8 +1366,6 @@
       "aria": "모델 및 추론 설정",
       "model": "모델",
       "switchModel": "모델 전환",
-      "modelsUpdated": "{{time}}에 업데이트",
-      "modelsStale": "{{time}} 기준 모델 표시",
       "modelUnavailable": "선택한 모델이 현재 목록에 없습니다. 다른 모델을 선택하세요.",
       "reasoning": "추론",
       "extendedThinking": "확장 사고",

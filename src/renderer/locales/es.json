@@ -1370,8 +1370,6 @@
       "aria": "Ajustes de modelo y razonamiento",
       "model": "Modelo",
       "switchModel": "Cambiar modelo",
-      "modelsUpdated": "Actualizado {{time}}",
-      "modelsStale": "Mostrando modelos de {{time}}",
       "modelUnavailable": "El modelo elegido no figura en el catálogo actual. Elige otro.",
       "reasoning": "Razonamiento",
       "extendedThinking": "Razonamiento ampliado",
