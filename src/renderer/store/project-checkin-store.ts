@@ -56,18 +56,17 @@ export async function decideCheckin(input: {
   now: Date;
   enabled: boolean;
   running: boolean;
-  force: boolean;
   /** An organize pass just settled; its check-in skips the cooldown. */
   afterOrganize?: boolean;
   record: ProjectCheckinRecord;
   previousOpenedAt: string | null;
   hasChangesSince: (sinceIso: string) => Promise<boolean>;
 }): Promise<CheckinDecision> {
-  if (!input.enabled && !input.force) return { run: false, reason: 'disabled' };
+  if (!input.enabled) return { run: false, reason: 'disabled' };
   if (input.running) return { run: false, reason: 'running' };
   const now = input.now.getTime();
   const lastAttempt = input.record.lastAttemptAt ? Date.parse(input.record.lastAttemptAt) : 0;
-  if (!input.force && !input.afterOrganize && now - lastAttempt < CHECKIN_ATTEMPT_COOLDOWN_MS) {
+  if (!input.afterOrganize && now - lastAttempt < CHECKIN_ATTEMPT_COOLDOWN_MS) {
     return { run: false, reason: 'cooldown' };
   }
   const lookback = new Date(now - CHECKIN_LOOKBACK_MS).toISOString();
@@ -79,7 +78,7 @@ export async function decideCheckin(input: {
   const openCards = input.record.cards.some((card) => card.status === 'open');
   const previousOpen = input.previousOpenedAt ? Date.parse(input.previousOpenedAt) : null;
   const away = previousOpen !== null && now - previousOpen >= CHECKIN_AWAY_MS;
-  if ((away || input.force) && !openCards && (await input.hasChangesSince(lookback))) {
+  if (away && !openCards && (await input.hasChangesSince(lookback))) {
     return { run: true, sinceIso: lookback, mode: 'resume' };
   }
   return { run: false, reason: 'nothing-new' };

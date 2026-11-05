@@ -51,7 +51,6 @@ export function ProjectAgentHomeView({
   record,
   running,
   enabled,
-  runNow,
 }: {
   projectId: string;
   openAgent: () => string;
@@ -59,7 +58,6 @@ export function ProjectAgentHomeView({
   record: ProjectCheckinRecord;
   running: boolean;
   enabled: boolean;
-  runNow: () => void;
 }) {
   const { t, i18n } = useTranslation();
   const [draft, setDraft] = useState('');
@@ -145,11 +143,6 @@ export function ProjectAgentHomeView({
                 : ''}
         </span>
         <span className="pagent__checkin-tools">
-          {enabled && !running && (
-            <button type="button" className="pagent__link" onClick={runNow}>
-              {t('projectAgent.checkNow')}
-            </button>
-          )}
           <button
             type="button"
             className="pagent__link"

@@ -3436,7 +3436,6 @@
     "checkinTitle": "Check-in",
     "checkinRunning": "The Agent is reading your recent changes…",
     "checkinFailed": "The check-in did not finish: {{error}}",
-    "checkNow": "Check in now",
     "checkinEmpty": "Nothing in your recent changes needs your attention.",
     "checkinNever": "When you open the project, the Agent reads what changed since last time and leaves the questions it wants to ask or the work it wants to do.",
     "lastCheckin": "Last check-in {{time}}",

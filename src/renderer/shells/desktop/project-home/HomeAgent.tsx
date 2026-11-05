@@ -203,11 +203,6 @@ export function HomeAgentFlow({
         <span className="dash-sec__spacer" />
         {running && <BrushIcon name="loader" size={12} className="ui-spin" />}
         {status && <span className="dash-ro">{status}</span>}
-        {enabled && !running && (
-          <button type="button" className="dash-text-button" onClick={agent.runNow}>
-            {t('projectAgent.checkNow')}
-          </button>
-        )}
         <button type="button" className="dash-text-button" onClick={onOpenMemory}>
           <BrushIcon name="knots" size={13} inline />
           {t('projectMemory.title')}

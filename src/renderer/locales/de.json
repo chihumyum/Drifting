@@ -3436,7 +3436,6 @@
     "checkinTitle": "Check-in",
     "checkinRunning": "Agent liest deine letzten Änderungen…",
     "checkinFailed": "Check-in nicht abgeschlossen: {{error}}",
-    "checkNow": "Jetzt einchecken",
     "checkinEmpty": "Deine letzten Änderungen erfordern keine Aufmerksamkeit.",
     "checkinNever": "Beim Öffnen des Projekts liest Agent die Änderungen seit dem letzten Mal und hinterlässt Fragen oder Aufgaben, die er bearbeiten möchte.",
     "lastCheckin": "Letzter Check-in {{time}}",

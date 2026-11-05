@@ -3451,7 +3451,6 @@
     "checkinTitle": "Revisão",
     "checkinRunning": "O Agent está lendo suas alterações recentes…",
     "checkinFailed": "A revisão não foi concluída: {{error}}",
-    "checkNow": "Revisar agora",
     "checkinEmpty": "Não há nada nas alterações recentes que precise da sua atenção.",
     "checkinNever": "Ao abrir o projeto, o Agent lê as alterações desde a última vez e deixa as perguntas que deseja fazer ou o trabalho que deseja realizar.",
     "lastCheckin": "Última revisão {{time}}",

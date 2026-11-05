@@ -26,11 +26,12 @@ beforeEach(() => {
 });
 
 describe('check-in after organizing', () => {
-  it('waits while an organize pass holds the project, unless forced', async () => {
+  it('waits while an organize pass holds the project', async () => {
     useProjectOrganizeStore.getState().setActive('p1', true);
     await maybeRunProjectCheckin('p1', '雾港纪事');
     expect(delta.hasCheckinDelta).not.toHaveBeenCalled();
-    await maybeRunProjectCheckin('p1', '雾港纪事', { force: true });
+    useProjectOrganizeStore.getState().setActive('p1', false);
+    await maybeRunProjectCheckin('p1', '雾港纪事', { afterOrganize: true });
     expect(delta.hasCheckinDelta).toHaveBeenCalled();
   });
 });
@@ -74,14 +75,16 @@ describe('check-in without a model', () => {
     expect(readProjectCheckin('p5').lastAttemptAt).not.toBeNull();
   });
 
-  it('still runs "Check in now" so the author learns why it cannot', async () => {
-    readiness.ready = false;
+  it('keeps a failed check-in for the author to see', async () => {
     delta.hasCheckinDelta.mockImplementation(async () => true);
-    runner.runProjectCheckin.mockRejectedValueOnce(new Error(MISSING_KEY));
+    runner.runProjectCheckin.mockRejectedValueOnce(new Error('The check-in result is invalid: /cards Expected array'));
 
-    await maybeRunProjectCheckin('p6', '潮汐灯塔', { force: true });
+    await maybeRunProjectCheckin('p6', '潮汐灯塔');
 
     expect(runner.runProjectCheckin).toHaveBeenCalledTimes(1);
-    expect(readProjectCheckin('p6').error).toBe(MISSING_KEY);
+    expect(readProjectCheckin('p6')).toMatchObject({
+      error: 'The check-in result is invalid: /cards Expected array',
+      lastCheckinAt: null,
+    });
   });
 });

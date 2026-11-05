@@ -27,6 +27,14 @@ export interface CheckinCard {
   target: { entityType: CheckinChangedDocument['entityType']; entityId: string; title: string } | null;
 }
 
+/**
+ * Every provider route receives this schema verbatim as a non-strict tool
+ * (OpenAI and the ChatGPT subscription through Responses with `strict: false`,
+ * Anthropic as `input_schema`, DeepSeek as Chat Completions `parameters`), so
+ * it carries structure only. Limits such as the card count live in the
+ * descriptions and are enforced while parsing: a model once returned the old
+ * `maxItems: 4` beside `cards` as if it were an argument.
+ */
 export const checkinToolSchema = Type.Object(
   {
     cards: Type.Array(
@@ -47,7 +55,9 @@ export const checkinToolSchema = Type.Object(
         },
         { additionalProperties: false },
       ),
-      { maxItems: CHECKIN_MAX_CARDS },
+      {
+        description: `Zero to ${CHECKIN_MAX_CARDS} cards, most useful first`,
+      },
     ),
     workingMemoryEdits: Type.Optional(
       Type.Array(
@@ -180,9 +190,24 @@ function text(value: unknown, limit: number): string {
   return normalized.length > limit ? `${normalized.slice(0, limit)}…` : normalized;
 }
 
+/** `null` stands for an omitted field; no field of the schema accepts it. */
+function withoutNullFields(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(withoutNullFields);
+  if (value === null || typeof value !== 'object') return value;
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([, field]) => field !== null)
+      .map(([key, field]) => [key, withoutNullFields(field)]),
+  );
+}
+
 /**
- * Validate the forced tool call. Unknown refs and memory ids are dropped
- * rather than trusted; an invalid payload is an error, never partial state.
+ * Validate the forced tool call. Fields the schema does not name and `null`
+ * optional fields are dropped first: models add them around otherwise valid
+ * results (`maxItems` beside `cards`, `"target": null`), and they carry
+ * nothing to apply. Unknown refs and memory ids are dropped rather than
+ * trusted; a payload still invalid after that is an error, never partial
+ * state.
  */
 export function parseCheckinToolArguments(
   argumentsJson: string,
@@ -195,6 +220,7 @@ export function parseCheckinToolArguments(
   } catch {
     throw new Error('The check-in returned malformed JSON.');
   }
+  raw = Value.Clean(checkinToolSchema, withoutNullFields(raw));
   if (!Value.Check(checkinToolSchema, raw)) {
     const first = [...Value.Errors(checkinToolSchema, raw)][0];
     throw new Error(`The check-in result is invalid: ${first?.path ?? ''} ${first?.message ?? ''}`.trim());

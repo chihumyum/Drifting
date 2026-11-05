@@ -47,7 +47,6 @@ function render(projectId = 'project-1') {
       record: state.projects[projectId] ?? EMPTY_PROJECT_CHECKIN,
       running: Boolean(state.running[projectId]),
       enabled: state.enabled,
-      runNow: () => undefined,
     }),
   );
 }

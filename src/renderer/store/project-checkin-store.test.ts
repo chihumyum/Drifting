@@ -17,7 +17,6 @@ function decide(
   options: {
     changesSince?: (since: string) => boolean;
     previousOpenedAt?: string | null;
-    force?: boolean;
     afterOrganize?: boolean;
     enabled?: boolean;
     running?: boolean;
@@ -30,7 +29,6 @@ function decide(
       now: NOW,
       enabled: options.enabled ?? true,
       running: options.running ?? false,
-      force: options.force ?? false,
       afterOrganize: options.afterOrganize,
       record: { ...EMPTY_PROJECT_CHECKIN, ...record },
       previousOpenedAt: options.previousOpenedAt ?? null,
@@ -58,13 +56,11 @@ describe('project check-in decision', () => {
     });
   });
 
-  it('respects the attempt cooldown unless forced', async () => {
+  it('respects the attempt cooldown except right after an organize pass', async () => {
     const record = { lastAttemptAt: ago(CHECKIN_ATTEMPT_COOLDOWN_MS - 1000) };
     const cooled = decide(record, { changesSince: () => true });
     await expect(cooled.decision).resolves.toEqual({ run: false, reason: 'cooldown' });
     expect(cooled.hasChangesSince).not.toHaveBeenCalled();
-    const forced = decide(record, { changesSince: () => true, force: true });
-    await expect(forced.decision).resolves.toMatchObject({ run: true });
     const afterOrganize = decide(record, { changesSince: () => true, afterOrganize: true });
     await expect(afterOrganize.decision).resolves.toMatchObject({ run: true });
   });
