@@ -132,11 +132,9 @@
   },
   "markdownFolderGuide": {
     "title": "¿Dónde guardar la carpeta Markdown?",
-    "intro": "Cada proyecto conserva aquí una copia Markdown. Edita capítulos e ideas en cualquier editor y los cambios se integrarán en Drifting.",
-    "default": "Ubicación predeterminada",
+    "intro": "Cada proyecto conserva una copia Markdown en la carpeta que elijas. Edita capítulos e ideas en cualquier editor y los cambios se integrarán en Drifting.",
     "chosen": "Carpeta elegida",
     "choose": "Elegir carpeta…",
-    "useDefault": "Usar ubicación predeterminada",
     "continue": "Continuar"
   },
   "settings": {

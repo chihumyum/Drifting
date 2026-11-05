@@ -131,11 +131,9 @@
   },
   "markdownFolderGuide": {
     "title": "Wo soll der Markdown-Ordner liegen?",
-    "intro": "Hier liegt eine Markdown-Kopie jedes Projekts. Bearbeite Kapitel und Ideen in beliebigen Editoren; Änderungen werden in Drifting zusammengeführt.",
-    "default": "Standardspeicherort",
+    "intro": "In dem Ordner, den du wählst, liegt eine Markdown-Kopie jedes Projekts. Bearbeite Kapitel und Ideen in beliebigen Editoren; Änderungen werden in Drifting zusammengeführt.",
     "chosen": "Gewählter Ordner",
     "choose": "Ordner auswählen…",
-    "useDefault": "Standardspeicherort verwenden",
     "continue": "Weiter"
   },
   "settings": {

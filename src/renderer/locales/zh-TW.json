@@ -131,11 +131,9 @@
   },
   "markdownFolderGuide": {
     "title": "Markdown 資料夾要放在哪裡？",
-    "intro": "每部作品都會在此保留 Markdown 副本。可用任何編輯器修改章節與構想，變更會合併回 Drifting。",
-    "default": "預設位置",
+    "intro": "每部作品都會在你選擇的資料夾裡保留 Markdown 副本。可用任何編輯器修改章節與構想，變更會合併回 Drifting。",
     "chosen": "已選資料夾",
     "choose": "選擇資料夾…",
-    "useDefault": "使用預設位置",
     "continue": "繼續"
   },
   "settings": {

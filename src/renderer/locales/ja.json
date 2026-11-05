@@ -131,11 +131,9 @@
   },
   "markdownFolderGuide": {
     "title": "Markdownフォルダの保存先は？",
-    "intro": "各作品のMarkdownコピーをここに保存します。他のエディタで章やアイデアを編集すると、変更がDriftingに統合されます。",
-    "default": "既定の場所",
+    "intro": "各作品のMarkdownコピーを選んだフォルダに保存します。他のエディタで章やアイデアを編集すると、変更がDriftingに統合されます。",
     "chosen": "選択したフォルダ",
     "choose": "フォルダを選択…",
-    "useDefault": "既定の場所を使用",
     "continue": "続ける"
   },
   "settings": {

@@ -131,11 +131,9 @@
   },
   "markdownFolderGuide": {
     "title": "Where should the Markdown folder go?",
-    "intro": "Every project keeps a Markdown copy here. Edit chapters and ideas in any editor and the changes merge back into Drifting.",
-    "default": "Default location",
+    "intro": "Every project keeps a Markdown copy in the folder you choose. Edit chapters and ideas in any editor and the changes merge back into Drifting.",
     "chosen": "Chosen folder",
     "choose": "Choose folder…",
-    "useDefault": "Use default location",
     "continue": "Continue"
   },
   "settings": {

@@ -1,7 +1,7 @@
 {
   "kind": "markdown-projection-settings-browser",
-  "generatedAt": "2026-11-03T16:15:36.628Z",
-  "sourceSha256": "8e8e1cf55c60ca034294bdbf3af246a740d61ca3d02c2a7bb8611f5f79306c9c",
+  "generatedAt": "2026-11-05T19:54:47.924Z",
+  "sourceSha256": "4410e000396b49d6ab4da9a609d4d78a06c42a48671411d8d298d558a7b4aaf6",
   "status": "passed",
   "synthetic": true,
   "checks": [
@@ -16,9 +16,10 @@
     "turning it back on restores the location and project controls",
     "Chinese controls wrap without horizontal overflow at two desktop widths",
     "with no project open the location and switch remain, and Finder opens the folder holding projects",
-    "the first run asks where the Markdown folder goes, showing the default, before the shelf",
+    "the first run asks the author to choose the Markdown folder, offering no default, before the shelf",
+    "canceling the folder picker leaves the first run waiting for a choice",
     "a chosen folder becomes the location for all projects and the shelf opens after it",
-    "not choosing keeps the default location",
+    "a folder already chosen on this device lets the first run go on without choosing again",
     "the first run can turn the folder off, only after the danger confirmation"
   ],
   "boundaries": {

@@ -132,11 +132,9 @@
   },
   "markdownFolderGuide": {
     "title": "Où placer le dossier Markdown ?",
-    "intro": "Chaque projet conserve ici une copie Markdown. Modifiez chapitres et idées dans l’éditeur de votre choix : les changements seront intégrés à Drifting.",
-    "default": "Emplacement par défaut",
+    "intro": "Chaque projet conserve une copie Markdown dans le dossier que vous choisissez. Modifiez chapitres et idées dans l’éditeur de votre choix : les changements seront intégrés à Drifting.",
     "chosen": "Dossier choisi",
     "choose": "Choisir un dossier…",
-    "useDefault": "Utiliser l’emplacement par défaut",
     "continue": "Continuer"
   },
   "settings": {
