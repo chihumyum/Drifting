@@ -2239,20 +2239,31 @@ html:not([data-shell-mode='mobile']) .empty-state--compact {
   margin-top: 2px;
 }
 
-/* Desktop: the one line an empty section of a structured editor says (no
-   fields, no patches, nothing for this filter, no mentions). Every editor
-   writes it the same way: index type (mono, from interface-fonts.css), the
-   caption size, centred, upright and unforced case. The paused mobile shell
-   keeps each consumer's own fallback. */
+/* Desktop: what an empty section says (no fields, no relations, no patches,
+   nothing for this filter, no mentions). It is written like the placeholder of
+   an empty template body: the content serif in the placeholder ink, upright,
+   from the left edge, with no dashes or rule around it. On an entity's paper it
+   takes the body size; off the paper (Project Home, the sidebar, a picker
+   list) the size of the place. The paused mobile shell keeps each consumer's
+   own fallback. */
 html:not([data-shell-mode='mobile']) .ui-section-empty {
   margin: 0;
-  padding: 12px 8px;
-  color: var(--ui-text-muted, hsl(var(--ink-4)));
-  font-size: var(--ui-font-caption, 11px);
+  padding: 0;
+  color: hsl(var(--ink-4));
+  font-family: var(--font-content);
+  font-size: var(--ui-font-body, 14px);
   font-style: normal;
-  line-height: var(--ui-line-caption, 16px);
-  text-align: center;
-  text-wrap: balance;
+  font-weight: 400;
+  line-height: var(--ui-line-body, 20px);
+  letter-spacing: normal;
+  text-align: left;
+  text-transform: none;
+  text-wrap: pretty;
+}
+
+html:not([data-shell-mode='mobile']) .page--entity .ui-section-empty:not(.refs-picker__empty) {
+  font-size: var(--editor-font-size, 17.5px);
+  line-height: var(--editor-line-height, 1.75);
 }
 
 /* Only the tab strip uses this full-width half-pixel hairline. Panel headers

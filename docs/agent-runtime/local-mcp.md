@@ -93,7 +93,8 @@ while mutations that already committed remain in the book.
 ```
 External MCP client
   → app executable in stdio mode (no GUI startup)
-  → private Unix socket in this app's data directory (macOS),
+  → private Unix socket, beside the library's connection files or in the
+    user's own cache folder when that path is too long (macOS),
     or a loopback TCP port (Windows)
   → native connection grant and mounted-project check
   → renderer ExternalToolSession
@@ -106,8 +107,14 @@ registry stores SHA-256 hashes; on macOS the client credential file is mode
 0600 inside a mode-0700 directory, on Windows it lives in the user's own app
 data, private through its inherited ACL. Tokens never enter renderer JS, copied
 config, tool arguments, or logs. No Hosted session or Keychain read is used.
-macOS listens only on the Unix socket. Windows has no such socket in the
-standard library, so it listens on `127.0.0.1` alone, on a port chosen at each
+macOS listens only on the Unix socket. Its address holds at most 103 bytes of
+path, so the socket sits beside the connection files only when that fits. In
+an installed App an account's library (`libraries/account-…/mcp`) never fits:
+its socket is `drifting-mcp/<16 hex>.sock` in the user's own cache folder
+(`/var/folders/…/C`, mode 0700, not swept while the App runs, unlike the
+temporary folder beside it), named from the MCP directory so every launch binds
+the same path. Windows has no such socket in the standard library, so it
+listens on `127.0.0.1` alone, on a port chosen at each
 launch and written into every connection file; the token authenticates each
 stream exactly as on the socket, and nothing listens beyond loopback.
 This is a local OS-user trust boundary, not isolation from malicious software

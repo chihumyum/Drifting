@@ -55,9 +55,6 @@ function OrganizeChip({ entity }: { entity: OrganizeRunEntity }) {
     >
       <KindMark kind={ENTITY_MARK[entity.entityType]} seed={entity.id} />
       <span>{name}</span>
-      <span className="home-agent__chip-op">
-        {entity.op === 'create' ? t('agentPanel.entity.created') : t('agentPanel.entity.edited')}
-      </span>
     </button>
   );
 }

@@ -3,11 +3,10 @@
  *
  * Only manuscript structure travels: acts, chapters, and in each chapter's
  * prose its H1, H2 and H3 headings, paragraphs, quotes and separators. H1–H3
- * are levels whose meaning the author decides, so all three travel unless the
- * author leaves a level out; drifts, elements, comments, TODOs, summaries and
- * planning grids never enter. The
- * native side (src-tauri/src/manuscript_export) lays the result out as EPUB,
- * Word or PDF.
+ * are levels whose meaning the author decides, so all three always travel;
+ * drifts, elements, comments, TODOs, summaries and planning grids never
+ * enter. The native side (src-tauri/src/manuscript_export) lays the result
+ * out as EPUB, Word or PDF.
  */
 import type { WritingStatus } from '../../domain/book-node';
 
@@ -28,7 +27,6 @@ export interface ManuscriptRun {
 
 /** H1, H2 and H3: three heading levels with no fixed meaning. */
 export type ManuscriptHeadingLevel = 1 | 2 | 3;
-export const MANUSCRIPT_HEADING_LEVELS: readonly ManuscriptHeadingLevel[] = [1, 2, 3];
 
 export type ManuscriptBlock =
   | { type: 'heading'; level: ManuscriptHeadingLevel; runs: ManuscriptRun[]; align?: ManuscriptAlign }
@@ -66,8 +64,6 @@ export interface ManuscriptExportOptions {
   chapterIds: readonly string[] | null;
   actTitles: boolean;
   chapterTitles: boolean;
-  /** The heading levels (H1–H3) whose lines go into the book. */
-  headingLevels: readonly ManuscriptHeadingLevel[];
   title: string;
   author: string;
   cover: ManuscriptCover | null;
@@ -159,15 +155,13 @@ function inlineRuns(nodes: readonly PmNode[] | undefined): ManuscriptRun[] {
   return runs;
 }
 
-function blocksOf(nodes: readonly PmNode[] | undefined, levels: readonly ManuscriptHeadingLevel[]): ManuscriptBlock[] {
+function blocksOf(nodes: readonly PmNode[] | undefined): ManuscriptBlock[] {
   const blocks: ManuscriptBlock[] = [];
   for (const node of nodes ?? []) {
     switch (node.type) {
       case 'heading': {
         const raw = Number(node.attrs?.level ?? 1);
         const level: ManuscriptHeadingLevel = raw >= 3 ? 3 : raw <= 1 ? 1 : 2;
-        // A level left out drops only its heading lines; the prose under them stays.
-        if (!levels.includes(level)) break;
         const runs = inlineRuns(node.content);
         if (!runs.some(run => run.text.trim())) break;
         const align = alignOf(node);
@@ -182,7 +176,7 @@ function blocksOf(nodes: readonly PmNode[] | undefined, levels: readonly Manuscr
         break;
       }
       case 'blockquote': {
-        const inner = trimBlank(blocksOf(node.content, levels));
+        const inner = trimBlank(blocksOf(node.content));
         if (inner.length) blocks.push({ type: 'quote', blocks: inner });
         break;
       }
@@ -194,7 +188,7 @@ function blocksOf(nodes: readonly PmNode[] | undefined, levels: readonly Manuscr
         if (node.content?.some(child => typeof child.text === 'string' || child.type === 'hardBreak')) {
           blocks.push({ type: 'paragraph', runs: inlineRuns(node.content) });
         } else if (node.content) {
-          blocks.push(...blocksOf(node.content, levels));
+          blocks.push(...blocksOf(node.content));
         }
     }
   }
@@ -214,10 +208,7 @@ function trimBlank(blocks: ManuscriptBlock[]): ManuscriptBlock[] {
 }
 
 /** Chapter prose (ProseMirror JSON) as manuscript blocks. Corrupt JSON throws. */
-export function proseToManuscriptBlocks(
-  contentJson: string,
-  levels: readonly ManuscriptHeadingLevel[] = MANUSCRIPT_HEADING_LEVELS,
-): ManuscriptBlock[] {
+export function proseToManuscriptBlocks(contentJson: string): ManuscriptBlock[] {
   const json: unknown = JSON.parse(contentJson);
   if (!json || typeof json !== 'object' || Array.isArray(json)) throw new Error('Invalid prose document');
   const doc = json as PmNode;
@@ -225,7 +216,7 @@ export function proseToManuscriptBlocks(
   if (doc.type !== 'doc' || (doc.content !== undefined && !Array.isArray(doc.content))) {
     throw new Error('Invalid prose document');
   }
-  return trimBlank(blocksOf(doc.content, levels));
+  return trimBlank(blocksOf(doc.content));
 }
 
 export interface ManuscriptChapterProse extends ManuscriptChapterEntry {

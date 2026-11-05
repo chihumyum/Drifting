@@ -1088,8 +1088,8 @@
     "valuePlaceholder": "内容・値",
     "templateKeyPlaceholder": "項目名・キー（例：視点）",
     "templateValuePlaceholder": "既定値／ヒント・値",
-    "empty": "— 項目はありません —",
-    "templateEmpty": "— テンプレート項目未設定。新しい子項目には自動追加しません —",
+    "empty": "項目はありません",
+    "templateEmpty": "テンプレート項目未設定。新しい子項目には自動追加しません",
     "addField": "項目を追加",
     "removeRow": "行を削除"
   },
@@ -1402,10 +1402,6 @@
       "sessionTitle": "このセッションのトークン・費用・ツール呼び出し合計",
       "session": "セッション",
       "toolsCount": "{{count}}ツール"
-    },
-    "entity": {
-      "created": "作成済み",
-      "edited": "編集済み"
     },
     "pending": {
       "now": "思考中…",
@@ -2593,7 +2589,8 @@
     },
     "empty": {
       "incoming": "この項目を参照する内容はまだありません",
-      "outgoing": "この本文には他のエンティティへの参照がまだありません"
+      "outgoing": "この本文には他のエンティティへの参照がまだありません",
+      "relations": "関係はまだありません"
     },
     "meta": {
       "blocksSpans": "{{blocks}}ブロック · {{spans}}件の言及",
@@ -3043,7 +3040,6 @@
     "meta": {
       "chapters": "{{count}}章",
       "kWords": "{{count}}千語",
-      "facts": "このストーリーラインのキーと値による設定情報",
       "nodeTemplate": "新しい章の既定の構成",
       "chaptersWords": "{{chapters}}章 · {{words}}千語"
     },
@@ -3087,8 +3083,7 @@
     "meta": {
       "elements": "{{count}}要素",
       "items": "{{count}}項目",
-      "elementTemplate": "新しい要素の既定の構成",
-      "templateKv": "新しい要素の既定のフィールド"
+      "elementTemplate": "新しい要素の既定の構成"
     },
     "filters": {
       "used": "記入済み",
@@ -3163,9 +3158,6 @@
       "bioTitle": "略歴",
       "facts": "設定情報",
       "patches": "変化記録"
-    },
-    "meta": {
-      "facts": "別名／カテゴリ／生年／初登場など…"
     },
     "empty": {
       "noFacts": "フィールドはまだありません。カテゴリのテンプレートに定義がある場合、要素の作成時に入力されます。",
