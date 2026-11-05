@@ -29,7 +29,7 @@ General Agent 默认不设置单次或累计输出上限；摘要压缩也不再
 
 明确指定的限制与已知模型规格冲突属于配置错误；压缩失败、熔断或第一次调用前无法容纳的上下文属于失败，不触发自动续接。完整合成 tool-loop 覆盖新目录模型与重启后未加载的模型，通过实际 Responses driver 验证读取工具、结果回传、每次 16,384 token 用量及自然结束；两次请求均无输出上限。更广的预算和续接审计见 [执行控制审计](agent-runtime/execution-control-audit.md)。
 
-缓存只在当前进程内保留。Rust 用凭据与账号的不可逆摘要隔离最近一次目录及 ETag；后续请求发送 `If-None-Match`，304 复用已投影的模型，不重新解析空 body。`Cache-Control: max-age` 与 `Age` 决定 renderer 的复用期限，上限五分钟；`no-cache` 每次重新验证，`no-store` 不保留原生目录或 ETag，并返回零复用期。无缓存控制时默认五分钟。同一账号更新失败保留最后一次成功目录，显示其更新时间并允许下次自动重试；首次失败使用内置列表。退出、完成新登录及凭据身份变化清空旧缓存；原生与 renderer 的 generation 都拒绝迟到的旧请求。已选择的新模型 id 在重启、目录失败或模型退役后仍保留；新目录缺少它时显示提示，发送被拒绝时显式报错，不静默换成旧模型。API Key provider 的模型列表见下一节。
+缓存只在当前进程内保留。Rust 用凭据与账号的不可逆摘要隔离最近一次目录及 ETag；后续请求发送 `If-None-Match`，304 复用已投影的模型，不重新解析空 body。`Cache-Control: max-age` 与 `Age` 决定 renderer 的复用期限，上限五分钟；`no-cache` 每次重新验证，`no-store` 不保留原生目录或 ETag，并返回零复用期。无缓存控制时默认五分钟。同一账号更新失败保留最后一次成功目录，下次自动重试；菜单不显示目录的更新时间或失败状态，与三家 API Key 列表一致；首次失败使用内置列表。退出、完成新登录及凭据身份变化清空旧缓存；原生与 renderer 的 generation 都拒绝迟到的旧请求。已选择的新模型 id 在重启、目录失败或模型退役后仍保留；新目录缺少它时显示提示，发送被拒绝时显式报错，不静默换成旧模型。API Key provider 的模型列表见下一节。
 
 同一兼容协议下的新增模型通过刷新自动出现，无需逐个发版添加名称。[OpenAI 官方目录规范](https://learn.chatgpt.com/docs/model-catalogs) 说明目录与客户端版本及账号有关，并要求版本不变时仍刷新。新协议、参数或工具能力需要更新适配器并验证后升级兼容基线；不能自动把远端最新版本写入 manifest。`pnpm openai:catalog:check` 在普通 CI 离线检查 manifest；`pnpm openai:catalog:upstream` 只读比较上游稳定版、输出 JSON 报告。`Codex compatibility review` workflow 每周一 02:23 UTC 与手动触发时执行比较、保留报告，不写源文件、不创建 PR。维护者对照 `schemaTag` 检查公开上游类型、运行下方验收及明确选择的真实模型 canary，通过后一起更新版本和 `reviewedOn`。
 

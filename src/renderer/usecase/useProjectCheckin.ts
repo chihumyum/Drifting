@@ -2,7 +2,7 @@
  * Project Home check-in orchestration: decide when to check in, run it in the
  * background, and turn opened cards into General Agent sessions.
  */
-import { useCallback, useEffect } from 'react';
+import { useEffect } from 'react';
 import { canAgentProviderRun } from '../lib/agent/agent-provider-readiness';
 import { hasCheckinDelta } from '../lib/agent/checkin/checkin-delta';
 import { runProjectCheckin } from '../lib/agent/checkin/checkin-runner';
@@ -25,10 +25,10 @@ export async function maybeRunProjectCheckin(
   projectId: string,
   projectName: string,
   /** `afterOrganize`: the organize pass that deferred this check-in finished. */
-  options: { force?: boolean; afterOrganize?: boolean } = {},
+  options: { afterOrganize?: boolean } = {},
 ): Promise<void> {
   // An organize pass in flight hands over to the check-in when it settles.
-  if (!options.force && useProjectOrganizeStore.getState().active[projectId]) return;
+  if (useProjectOrganizeStore.getState().active[projectId]) return;
   const store = useProjectCheckinStore.getState();
   const now = new Date();
   let previousOpenedAt = readProjectCheckin(projectId).lastOpenedAt;
@@ -36,17 +36,16 @@ export async function maybeRunProjectCheckin(
     openedThisRun.add(projectId);
     previousOpenedAt = store.recordOpen(projectId, now.toISOString());
   }
-  // Without a model there is nothing to ask. An automatic check-in waits,
-  // unrecorded, until one is connected, and a missing-key failure left by an
-  // earlier attempt goes. "Check in now" still runs and says why it could not.
+  // Without a model there is nothing to ask. The check-in waits, unrecorded,
+  // until one is connected, and a missing-key failure left by an earlier
+  // attempt goes.
   const ready = await canAgentProviderRun(useSettingsStore.getState().agentProvider);
   if (isMissingProviderKeyMessage(readProjectCheckin(projectId).error)) store.clearCheckinError(projectId);
-  if (!ready && !options.force) return;
+  if (!ready) return;
   const decision = await decideCheckin({
     now,
     enabled: store.enabled,
     running: Boolean(useProjectCheckinStore.getState().running[projectId]),
-    force: options.force === true,
     afterOrganize: options.afterOrganize === true,
     record: readProjectCheckin(projectId),
     previousOpenedAt,
@@ -190,9 +189,5 @@ export function useProjectCheckin(projectId: string | null, projectName: string)
     };
   }, [projectId, projectName]);
 
-  const runNow = useCallback(() => {
-    if (projectId) void maybeRunProjectCheckin(projectId, projectName, { force: true });
-  }, [projectId, projectName]);
-
-  return { record, running, enabled, runNow };
+  return { record, running, enabled };
 }

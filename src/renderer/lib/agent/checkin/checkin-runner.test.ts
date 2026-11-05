@@ -124,6 +124,27 @@ describe('project check-in runner', () => {
     expect(working.saveAgentWorkingMemory).not.toHaveBeenCalled();
   });
 
+  it('completes when the model echoes the old maxItems keyword beside its cards', async () => {
+    const outcome = await runProjectCheckin({
+      projectId: 'project-1',
+      projectName: '雾港档案',
+      sinceIso: '2026-10-11T00:00:00.000Z',
+      mode: 'resume',
+      provider: 'openai-codex',
+      model: 'gpt-6.1-terra',
+      driver: fakeDriver(
+        JSON.stringify({
+          cards: [{ title: '从第三章接着写？', instruction: '回顾第三章并问作者从哪里继续。', target: 'c1' }],
+          maxItems: 4,
+        }),
+        [],
+      ),
+    });
+    expect(outcome.cards).toEqual([
+      expect.objectContaining({ title: '从第三章接着写？', target: expect.objectContaining({ entityId: 'chapter-3' }) }),
+    ]);
+  });
+
   it('leaves a Working Memory too large for the check-in out of the request', async () => {
     working.loadAgentWorkingMemory.mockResolvedValueOnce({
       exists: true,

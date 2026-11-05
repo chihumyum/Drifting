@@ -39,7 +39,7 @@ export function AgentComposerConfig({
   /** A round glass button in the desktop composer's tray. */
   glass?: boolean;
 }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const agentProvider = useSettingsStore((s) => s.agentProvider);
   const setAgentProvider = useSettingsStore((s) => s.setAgentProvider);
   const agentModel = useSettingsStore((s) => s.agentModel);
@@ -212,22 +212,12 @@ export function AgentComposerConfig({
             {AGENT_PROVIDER_OPTIONS.map(({ value }) => agentProviderOption(value)).map((provider) => (
               <div key={provider.value}>
                 <div className={sectionClass}>{provider.label}</div>
-                {provider.value === 'openai-codex' && (
-                  <>
-                    {catalog.updatedAt !== null && (
-                      <div className={sectionClass} role="status">
-                        {t(`agentPanel.config.${catalog.state === 'error' ? 'modelsStale' : 'modelsUpdated'}`, {
-                          time: new Date(catalog.updatedAt).toLocaleString(i18n.language),
-                        })}
-                      </div>
-                    )}
-                    {catalog.state === 'ready' && agentProvider === 'openai-codex'
-                      && !provider.models.some((model) => model.value === agentModel) && (
-                      <div className={sectionClass} role="status">
-                        {t('agentPanel.config.modelUnavailable')}
-                      </div>
-                    )}
-                  </>
+                {provider.value === 'openai-codex' && catalog.state === 'ready'
+                  && agentProvider === 'openai-codex'
+                  && !provider.models.some((model) => model.value === agentModel) && (
+                  <div className={sectionClass} role="status">
+                    {t('agentPanel.config.modelUnavailable')}
+                  </div>
                 )}
                 {provider.models.map((m) => {
                   const current = provider.value === agentProvider && m.value === agentModel;
