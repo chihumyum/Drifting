@@ -340,9 +340,6 @@ export function EntityLinkChip({
     >
       <KindMark kind={ENTITY_MARK[refItem.entityType]} seed={refItem.id} color="hsl(var(--accent))" />
       <span>{name}</span>
-      <span className="agt-entity-chip__op">
-        {refItem.op === 'create' ? t('agentPanel.entity.created') : t('agentPanel.entity.edited')}
-      </span>
     </button>
   );
 }

@@ -86,16 +86,14 @@ export function linkToTarget(
 
 /**
  * Adds to `tr` a link on every registered name in its document that is not
- * already wholly linked to its target, or with `partlyLinkedOnly` only on names
- * already partly linked to it. `matcher` is a global alternation of the names
- * in `targets`, longest first. Returns whether it added any.
+ * already wholly linked to its target. `matcher` is a global alternation of
+ * the names in `targets`, longest first. Returns whether it added any.
  */
 export function linkRegisteredNames(
   tr: Transaction,
   linkType: MarkType,
   matcher: RegExp,
   targets: ReadonlyMap<string, LinkTarget>,
-  { partlyLinkedOnly = false }: { partlyLinkedOnly?: boolean } = {},
 ): boolean {
   const doc = tr.doc;
   let modified = false;
@@ -109,7 +107,7 @@ export function linkRegisteredNames(
       const from = run.from + match.index;
       const to = from + name.length;
       const existing = linkToTarget(doc, from, to, linkType, target);
-      if (existing.whole || (partlyLinkedOnly && !existing.mark)) continue;
+      if (existing.whole) continue;
       tr.addMark(
         from,
         to,

@@ -146,12 +146,9 @@ edit that respelled 安娜蒂 as 安纳蒂 left 安 and 蒂 linked and 纳 plain
 later pass could see 安纳蒂 there even after it became an alias. Now:
 
 - the editor's debounced auto-link pass links such names whole after every
-  document change (`entity-link-name-runs.ts`). Collaboration renders a loaded
-  Yjs document while plugin views are still being created, so no change
-  reaches the pass on open; instead a new editor view schedules one pass that
-  only mends names already partly linked and links nothing new. Existing split
-  links therefore mend when their chapter is opened, once the full spelling is
-  a registered name;
+  document change and once when an editor opens (`entity-link-name-runs.ts`;
+  see "Prose nobody has typed into" below). Existing split links therefore mend
+  when their chapter is opened, once the full spelling is a registered name;
 - written prose (agent writes and Markdown file edits) is relinked the same way
   across a paragraph's text children (`lib/agent/yjs-entity-relink.ts`);
 - a Markdown file edit or agent text replacement keeps text written inside one
@@ -161,6 +158,40 @@ later pass could see 安纳蒂 there even after it became an alias. Now:
 
 Retroactive linking of a newly created element (`retroactive-entity-links.ts`)
 still searches one text node at a time; a new element has no links to mend.
+
+## Prose nobody has typed into
+
+Automatic element links (Settings > Editor) were made for typing: the editor
+links registered names after each pause. Until 2026-11-06 nothing linked the
+names in prose that no one typed. A chapter the Agent created and kept writing
+showed its characters as plain text, and they counted as appearances nowhere
+(Element stats, the mention graph, the Agent's own appearance search, all fed
+by `inline_mention`), until the author typed a character into that chapter.
+Now:
+
+- the Agent links registered names in what it writes. A prose command
+  (`edit_prose_file`, `edit_block`, the chapter/element/storyline/category body
+  tools) links the names in the blocks it writes before the command is
+  prepared, so the links are part of the operation its deterministic Yjs
+  update and inverse derive from (`linkNamesInProseOperation`). The body of a
+  chapter, idea, element, storyline or category the Agent creates is linked
+  the same way (`linkNamesInProseBlocks`). Names are the open project's, minus
+  the entity being written, and none while automatic element links are off
+  (`writtenProseLinkConfig` in `lib/agent/chapter-prose.ts`). Blocks the
+  command does not write are left as they are;
+- an editor that opens runs one full auto-link pass once its document has
+  loaded, 500 ms after the view is created. It links names registered after
+  the prose was written (an element created later, a new alias) and anything
+  another path left plain. The continuous chapter view renders unfocused rows
+  as static prose, so a row's names are linked when it becomes the focused
+  editor, not when it scrolls into view. A document whose names are
+  all linked receives no write. A view that cannot be edited (no Yjs document
+  yet, a load error) writes nothing.
+
+Each pass is a local authored change: it is journaled and synced like typing,
+is not an undo step, and does not count as the author typing. A chapter never
+opened after its names were registered still has them as plain text, because
+creating an element only relinks the editors open at that moment.
 
 ## Acceptance
 
@@ -175,7 +206,12 @@ Machine-checkable coverage lives in:
 - `src/renderer/lib/extensions/entity-link.test.ts`
 - `src/renderer/lib/extensions/entity-link-name-runs.test.ts` and
   `src/renderer/lib/agent/yjs-entity-relink.test.ts` (names split across
-  links and text children are linked whole; other formatting still splits)
+  links and text children are linked whole; other formatting still splits; an
+  opened editable view links new names; Agent operations link the blocks they
+  write)
+- `src/renderer/lib/agent/runtime/drifting-product-composition.integration.test.ts`
+  (an Agent body rewrite and a created chapter are stored with their names
+  linked)
 - `src/renderer/components/ui/entity-hover-card-model.test.ts`
 - `src/renderer/components/ui/entity-hover-card-position.test.ts`
 - `src/renderer/components/ui/hover-card-long-content.acceptance.test.ts`

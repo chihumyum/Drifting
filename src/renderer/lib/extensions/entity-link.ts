@@ -211,8 +211,6 @@ const AUTO_DETECT_DEBOUNCE_MS = 500;
 interface AutoDetectViewState {
   timer: ReturnType<typeof setTimeout> | null;
   config: EntityLinkAutoDetectConfig;
-  /** The pending pass only mends names already partly linked (the one a new view schedules). */
-  mendOnly?: boolean;
 }
 const autoDetectStates = new WeakMap<EditorView, AutoDetectViewState>();
 
@@ -236,9 +234,7 @@ function getMergedMatcher(map: ReadonlyMap<string, AutoDetectTarget>): RegExp | 
   return matcher;
 }
 
-function scheduleAutoDetect(view: EditorView, markType: MarkType, state: AutoDetectViewState, mendOnly = false): void {
-  // A full pass already queued also mends; a document change upgrades a mend.
-  state.mendOnly = mendOnly && (state.timer === null || state.mendOnly === true);
+function scheduleAutoDetect(view: EditorView, markType: MarkType, state: AutoDetectViewState): void {
   if (state.timer) clearTimeout(state.timer);
   state.timer = null;
   const linking = state.config.autoDetectEnabled && state.config.autoDetectTargets.size > 0;
@@ -262,7 +258,7 @@ export function configureEntityLinkAutoDetect(editor: Editor, config: EntityLink
   if (state.config.autoDetectEnabled === config.autoDetectEnabled && state.config.autoDetectTargets === config.autoDetectTargets) return;
   state.config = config;
   // A queued typing burst must use the new names/settings; disabling cancels it.
-  if (state.timer) scheduleAutoDetect(editor.view, editor.schema.marks.entityLink, state, state.mendOnly === true);
+  if (state.timer) scheduleAutoDetect(editor.view, editor.schema.marks.entityLink, state);
 }
 
 export function isEntityLinkAutoDetectEnabled(editor: Editor): boolean {
@@ -272,8 +268,9 @@ export function isEntityLinkAutoDetectEnabled(editor: Editor): boolean {
 // Walk the whole doc and link any unlinked run matching a registered name.
 // Idempotent (skips runs already linked to the same target) so re-running is
 // safe. Dispatched addToHistory:false so auto-linking isn't an undo step. Runs
-// off the typing frame (debounced) or on demand (flushPendingAutoDetect). Also
-// clears any pending debounce timer for this view.
+// off the typing frame (debounced), once after a view opens, or on demand
+// (flushPendingAutoDetect). Also clears any pending debounce timer for this
+// view. A view that cannot be edited writes nothing.
 function runAutoDetect(view: EditorView, markType: MarkType): void {
   const st = autoDetectStates.get(view);
   if (!st) return;
@@ -281,6 +278,7 @@ function runAutoDetect(view: EditorView, markType: MarkType): void {
     clearTimeout(st.timer);
     st.timer = null;
   }
+  if (!view.editable) return;
   // Changing marks around native marked text can terminate/restart composition.
   // This also guards a timer queued before compositionstart and explicit flushes.
   if (view.composing) {
@@ -297,11 +295,8 @@ function runAutoDetect(view: EditorView, markType: MarkType): void {
   const matcher = autoDetectEnabled ? getMergedMatcher(autoDetectTargets) : null;
 
   // Names are read across link boundaries, so a name an edit left partly
-  // linked is linked whole again (entity-link-name-runs.ts). The pass a new
-  // view schedules only mends those: opening a document links nothing new.
-  const partlyLinkedOnly = st.mendOnly === true;
-  st.mendOnly = false;
-  const modified = matcher ? linkRegisteredNames(tr, markType, matcher, autoDetectTargets, { partlyLinkedOnly }) : false;
+  // linked is linked whole again (entity-link-name-runs.ts).
+  const modified = matcher ? linkRegisteredNames(tr, markType, matcher, autoDetectTargets) : false;
   if (!modified && !repaired && !pending.length) return;
   if (modified) tr.setMeta(META_FLAG, true);
   tr.setMeta('addToHistory', false);
@@ -455,9 +450,10 @@ export const EntityLink = Mark.create<EntityLinkOptions>({
           presentationStates.set(editorView, presentation);
           autoDetectStates.set(editorView, autoDetect);
           // Collaboration renders the Yjs document while plugin views are
-          // still being created, before this view can see that change. Mend
-          // the names an earlier edit left partly linked once it has loaded.
-          scheduleAutoDetect(editorView, markType, autoDetect, true);
+          // still being created, before this view can see that change. Prose
+          // nobody has typed into since (an Agent's chapter, or names
+          // registered after it was written) is linked once it has loaded.
+          scheduleAutoDetect(editorView, markType, autoDetect);
           return {
             update(view, prevState) {
               // New/replaced mark DOM is styled by renderHTML, including paste,

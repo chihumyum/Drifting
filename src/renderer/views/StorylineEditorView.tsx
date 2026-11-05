@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FilterChip } from '../components/ui/FilterChip';
 import { GlassSlider } from '../components/ui/GlassSlider';
@@ -27,7 +27,7 @@ import { useAgentChangeMarks } from '../hooks/useAgentChangeMarks';
 import { EditorOutlineRail } from '../components/editor/EditorOutlineRail';
 import { nestHeadings, type OutlineEntry } from '../components/editor/outline-rail-model';
 import { ElementTemplateEditor } from '../components/editor/ElementTemplateEditor';
-import { KvEditor } from '../components/editor/KvEditor';
+import { KvAddButton, KvEditor, type KvEditorHandle } from '../components/editor/KvEditor';
 import { FieldReview, FieldReviewStrip } from '../components/editor/FieldReview';
 import { useFieldReview } from '../hooks/useFieldReview';
 import { scrollToOutlineAnchor } from '../components/editor/outline-scroll';
@@ -54,6 +54,7 @@ export function StorylineEditorView({
   storylineIdOverride,
 }: { storylineIdOverride?: string } = {}) {
   const { t, i18n } = useTranslation();
+  const kvRef = useRef<KvEditorHandle>(null);
   const { isCommandActive, isVisible } = useEditorSurfaceLifecycle();
   const params = useParams<{ projectId: string; storylineId: string }>();
   const projectId = params.projectId;
@@ -439,7 +440,7 @@ export function StorylineEditorView({
                 template at creation, owned thereafter). */}
             <h2 id="sl-kv" className="page__section">
               <span className="page__section-title">{t('storylineEditor.sections.facts')}</span>
-              <span className="page__section-meta">{t('storylineEditor.meta.facts')}</span>
+              <KvAddButton onClick={() => kvRef.current?.addRow()} />
             </h2>
             <div className="elem-body">
               <FieldReviewStrip
@@ -447,6 +448,7 @@ export function StorylineEditorView({
                 onAccept={fieldReview.accept}
               />
               <KvEditor
+                ref={kvRef}
                 key={`sl-kv-${currentStoryline.id}`}
                 valueJson={currentStoryline.kvJson}
                 onPersist={commitKv}

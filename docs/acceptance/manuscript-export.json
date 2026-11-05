@@ -1,15 +1,15 @@
 {
   "kind": "manuscript-export-sample-book",
-  "generatedAt": "2026-11-05T19:00:31.113Z",
-  "sourceSha256": "75d256abc534fd0086640518e2d821221473a5761f61de8139eb421e4faf8ff5",
+  "generatedAt": "2026-11-05T19:17:11.966Z",
+  "sourceSha256": "0379dcebe5102eaf2d30fad2f8f99623c6ec8de0ccd1dfa62bcf35d4880df342",
   "status": "passed",
   "synthetic": true,
   "platform": "darwin-arm64",
   "krilla": "0.8.2",
   "debugBuildMilliseconds": {
-    "epub": 11,
-    "docx": 6,
-    "pdf": 646
+    "epub": 31,
+    "docx": 3,
+    "pdf": 647
   },
   "outputs": {
     "epub": {

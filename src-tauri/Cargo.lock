@@ -1055,6 +1055,7 @@ dependencies = [
  "include_dir",
  "keyring",
  "krilla",
+ "libc",
  "objc2",
  "objc2-app-kit",
  "objc2-core-foundation",

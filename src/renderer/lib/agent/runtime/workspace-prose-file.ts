@@ -15,6 +15,8 @@ import {
   type LocationResolver,
 } from '../../location-link';
 import { entityLinksInside } from '../../entity-link-inheritance';
+import type { EntityLinkAutoDetectConfig } from '../../extensions/entity-link';
+import { linkNamesInProseBlocks } from '../yjs-entity-relink';
 import {
   normalizeAgentLocationLink,
   normalizeAgentMarkdownLink,
@@ -795,6 +797,8 @@ export async function createWorkspaceProseContentJson(input: {
   content: string;
   idempotencyKey: string;
   locations?: LocationResolver;
+  /** Registered names to link in the new prose. */
+  names?: EntityLinkAutoDetectConfig;
 }): Promise<string> {
   const operation = await planWorkspaceProseFileWrite({
     blocks: [],
@@ -807,7 +811,7 @@ export async function createWorkspaceProseContentJson(input: {
   }
   const doc = new Y.Doc({ gc: false });
   try {
-    replaceYjsProseBlocks(doc, operation.blocks);
+    replaceYjsProseBlocks(doc, input.names ? linkNamesInProseBlocks(operation.blocks, input.names) : operation.blocks);
     return JSON.stringify(yDocToProsemirrorJSON(doc, 'default'));
   } finally {
     doc.destroy();

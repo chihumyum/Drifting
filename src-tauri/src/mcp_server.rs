@@ -219,8 +219,76 @@ mod local {
         result
     }
 
+    /// A Unix socket address holds at most 103 bytes of path.
+    #[cfg(unix)]
+    const MAX_SOCKET_PATH: usize = 103;
+    #[cfg(unix)]
+    const SOCKET_NAME: &str = "bridge.sock";
+    /// The socket lives beside the connection files when its path fits. An
+    /// account's library sits two folders deeper (`libraries/account-…/mcp`)
+    /// and leaves no room, so its socket lives in a short private folder
+    /// instead, named after the MCP directory: every launch binds the same
+    /// path and the connection files keep naming it.
+    #[cfg(unix)]
+    fn socket_endpoint(
+        directory: &Path,
+        short_root: impl FnOnce() -> Result<PathBuf, String>,
+    ) -> Result<PathBuf, String> {
+        use std::os::unix::ffi::OsStrExt;
+        let beside = directory.join(SOCKET_NAME);
+        if beside.as_os_str().len() <= MAX_SOCKET_PATH {
+            return Ok(beside);
+        }
+        let sockets = short_root()?.join("drifting-mcp");
+        private_directory(&sockets)?;
+        let digest = Sha256::digest(directory.as_os_str().as_bytes());
+        let name: String = digest.iter().take(8).map(|b| format!("{b:02x}")).collect();
+        let endpoint = sockets.join(format!("{name}.sock"));
+        if endpoint.as_os_str().len() > MAX_SOCKET_PATH {
+            return Err("MCP application data path is too long for local IPC".into());
+        }
+        Ok(endpoint)
+    }
+    /// This OS user's own cache folder (`/var/folders/…/C`): short, entered
+    /// by this user alone, and not swept while Drifting runs, unlike the
+    /// temporary folder beside it, which macOS empties of three-day-old files.
+    #[cfg(unix)]
+    fn user_cache_directory() -> Result<PathBuf, String> {
+        use std::os::unix::{ffi::OsStringExt, fs::MetadataExt};
+        let mut buffer = vec![0u8; 1024];
+        // SAFETY: confstr writes at most `buffer.len()` bytes, NUL included.
+        let length = unsafe {
+            libc::confstr(
+                libc::_CS_DARWIN_USER_CACHE_DIR,
+                buffer.as_mut_ptr().cast(),
+                buffer.len(),
+            )
+        };
+        if length == 0 || length > buffer.len() {
+            return Err("MCP could not find this user's private cache folder".into());
+        }
+        buffer.truncate(length - 1);
+        let path: PathBuf = PathBuf::from(std::ffi::OsString::from_vec(buffer))
+            .components()
+            .collect();
+        let meta = fs::symlink_metadata(&path).map_err(|e| e.to_string())?;
+        // SAFETY: getuid has no preconditions and cannot fail.
+        let uid = unsafe { libc::getuid() };
+        if !meta.is_dir() || shared_with_others(&meta) || meta.uid() != uid {
+            return Err("MCP cache folder must be private to this OS user".into());
+        }
+        Ok(path)
+    }
+
     impl Server {
         fn start(directory: PathBuf) -> Result<Arc<Self>, String> {
+            Self::start_with(directory, None)
+        }
+        /// `socket_root` stands in for the user's cache folder in tests.
+        fn start_with(
+            directory: PathBuf,
+            #[cfg_attr(windows, allow(unused_variables))] socket_root: Option<PathBuf>,
+        ) -> Result<Arc<Self>, String> {
             private_directory(&directory)?;
             let registry_path = directory.join("grants.json");
             let grants = if registry_path.exists() {
@@ -234,11 +302,9 @@ mod local {
                 Vec::new()
             };
             #[cfg(unix)]
-            let endpoint = directory.join("bridge.sock");
-            #[cfg(unix)]
-            if endpoint.as_os_str().len() > 103 {
-                return Err("MCP application data path is too long for local IPC".into());
-            }
+            let endpoint = socket_endpoint(&directory, || {
+                socket_root.map_or_else(user_cache_directory, Ok)
+            })?;
             #[cfg(windows)]
             let listener = Listener::bind(("127.0.0.1", 0)).map_err(|e| e.to_string())?;
             #[cfg(windows)]
@@ -251,6 +317,8 @@ mod local {
             // A moved application data folder (development launches keep theirs
             // beside the database) leaves connection files naming the old socket
             // and clients naming the old connection file; follow the move once.
+            // Only a socket that lived beside its connection files says where
+            // those files were; one in the short folder leaves the clients be.
             // On Windows the port changes at every launch: the connection files
             // follow it, and the clients keep naming the same files.
             #[cfg_attr(windows, allow(unused_mut))]
@@ -267,13 +335,18 @@ mod local {
                     continue;
                 }
                 #[cfg(unix)]
-                let previous = credential
-                    .socket_path
-                    .with_file_name(format!("connection-{}.json", grant.id));
+                let previous = (credential.socket_path.file_name() == Some(SOCKET_NAME.as_ref()))
+                    .then(|| {
+                        credential
+                            .socket_path
+                            .with_file_name(format!("connection-{}.json", grant.id))
+                    });
                 credential.socket_path = endpoint.clone();
                 write_private(&path, &credential)?;
                 #[cfg(unix)]
-                moved.push((grant.clone(), previous));
+                if let Some(previous) = previous {
+                    moved.push((grant.clone(), previous));
+                }
             }
             #[cfg(unix)]
             let listener = {
@@ -1267,6 +1340,100 @@ mod local {
                 request(&mut client, 4, "tools/list")["error"]["code"],
                 -32001
             );
+        }
+        #[test]
+        #[cfg(unix)]
+        fn a_library_too_deep_for_its_socket_listens_in_a_short_private_folder() {
+            let dir = tempfile::tempdir_in("/tmp").unwrap();
+            let directory = dir
+                .path()
+                .join("Application Support/cc.drifting.client/libraries")
+                .join(format!("account-{}", "0".repeat(32)))
+                .join("mcp");
+            fs::create_dir_all(directory.parent().unwrap()).unwrap();
+            assert!(directory.join(SOCKET_NAME).as_os_str().len() > MAX_SOCKET_PATH);
+            // A connection file left naming another socket follows this one.
+            let stale = Grant {
+                id: "synthetic-stale".into(),
+                name: "Synthetic agent".into(),
+                project_id: "synthetic-project".into(),
+                access: "read".into(),
+                allow_dangerous: false,
+                token_hash: hash("synthetic-stale-token"),
+                installation: None,
+            };
+            private_directory(&directory).unwrap();
+            write_private(
+                &directory.join("grants.json"),
+                &Registry {
+                    version: 1,
+                    grants: vec![stale.clone()],
+                },
+            )
+            .unwrap();
+            let stale_path = directory.join(format!("connection-{}.json", stale.id));
+            write_private(
+                &stale_path,
+                &Credential {
+                    version: 1,
+                    socket_path: "/tmp/drifting-mcp/0000000000000000.sock".into(),
+                    connection_id: stale.id.clone(),
+                    token: "synthetic-stale-token".into(),
+                },
+            )
+            .unwrap();
+
+            let short = tempfile::tempdir_in("/tmp").unwrap();
+            let server = Server::start_with(directory.clone(), Some(short.path().into())).unwrap();
+            let sockets = short.path().join("drifting-mcp");
+            assert!(server.endpoint.starts_with(&sockets));
+            assert!(server.endpoint.as_os_str().len() <= MAX_SOCKET_PATH);
+            assert_eq!(
+                fs::metadata(&sockets).unwrap().permissions().mode() & 0o777,
+                0o700
+            );
+            assert_eq!(
+                fs::symlink_metadata(&server.endpoint)
+                    .unwrap()
+                    .permissions()
+                    .mode()
+                    & 0o777,
+                0o600
+            );
+            // Every launch binds the same path.
+            assert_eq!(
+                socket_endpoint(&directory, || Ok(short.path().into())).unwrap(),
+                server.endpoint
+            );
+            let moved: Credential =
+                serde_json::from_slice(&read_private(&stale_path).unwrap()).unwrap();
+            assert_eq!(moved.socket_path, server.endpoint);
+
+            mount_synthetic_project(&server);
+            let created = create_connection(&server, synthetic_input(), None).unwrap();
+            let id = created["grant"]["id"].as_str().unwrap();
+            let credential: Credential =
+                serde_json::from_slice(&read_private(&server.config_path(id)).unwrap()).unwrap();
+            assert_eq!(credential.socket_path, server.endpoint);
+            assert_eq!(
+                read_frame(&mut connect(&credential), MAX_FRAME)
+                    .unwrap()
+                    .unwrap()["ok"],
+                true
+            );
+        }
+        #[test]
+        #[cfg(unix)]
+        fn the_user_cache_folder_is_short_and_private() {
+            use std::os::unix::fs::MetadataExt;
+            let path = user_cache_directory().unwrap();
+            assert!(path.is_absolute());
+            assert!(!path.as_os_str().to_string_lossy().ends_with('/'));
+            let sample = path.join("drifting-mcp").join("0123456789abcdef.sock");
+            assert!(sample.as_os_str().len() <= MAX_SOCKET_PATH);
+            let meta = fs::symlink_metadata(&path).unwrap();
+            assert_eq!(meta.permissions().mode() & 0o077, 0);
+            assert_eq!(meta.uid(), unsafe { libc::getuid() });
         }
         #[test]
         fn renderer_dispatch_preserves_authorized_scope_and_cancellation() {

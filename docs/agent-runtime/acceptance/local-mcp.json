@@ -1,7 +1,7 @@
 {
   "kind": "local-mcp-runtime-and-native-ipc",
-  "generatedAt": "2026-11-01T17:57:14.920Z",
-  "sourceSha256": "e73f3782159190a489cf92c750c7192c7004fb360b9b0ce6b68f2d06a14e45b1",
+  "generatedAt": "2026-11-05T19:24:21.237Z",
+  "sourceSha256": "25e41a4312f4ebe727858b65e9029c8119902cdc4feea7b55518216771dd117f",
   "status": "passed",
   "synthetic": true,
   "checks": [
@@ -23,66 +23,6 @@
     },
     {
       "name": "application persistence lifecycle tears down after credential loss even when the first local flush fails",
-      "status": "passed"
-    },
-    {
-      "name": "Markdown projection scheduling defers automatic full-project capture during IME but preserves explicit refresh",
-      "status": "passed"
-    },
-    {
-      "name": "Markdown projection scheduling rechecks composition after asynchronous preparation before capturing the project",
-      "status": "passed"
-    },
-    {
-      "name": "Markdown projection scheduling drains an active capture, persists the location, and refreshes there without overlap",
-      "status": "passed"
-    },
-    {
-      "name": "Markdown projection scheduling keeps automatic refresh working when changing location fails",
-      "status": "passed"
-    },
-    {
-      "name": "Markdown projection scheduling reports a failed regeneration at the new path and allows retry",
-      "status": "passed"
-    },
-    {
-      "name": "Markdown projection scheduling automatically captures the mounted project on local and remote changes and stops on database switch",
-      "status": "passed"
-    },
-    {
-      "name": "Markdown projection scheduling waits for the author to pause, without starving a continuous writer or overlapping captures",
-      "status": "passed"
-    },
-    {
-      "name": "Markdown projection scheduling publishes what was written since the last capture when the project closes, then releases it",
-      "status": "passed"
-    },
-    {
-      "name": "Markdown projection scheduling starts a reopened project only after its closing capture published",
-      "status": "passed"
-    },
-    {
-      "name": "Markdown projection scheduling captures pending changes before quitting without waiting for a pause, and nothing when current",
-      "status": "passed"
-    },
-    {
-      "name": "Markdown projection scheduling merges edited files first, writes authored files guarded, and retries a conflict",
-      "status": "passed"
-    },
-    {
-      "name": "Markdown projection scheduling looks for edits made elsewhere only while the window is visible",
-      "status": "passed"
-    },
-    {
-      "name": "Markdown projection scheduling captures pending work before the folder is turned off, then neither scans nor writes until it is back on",
-      "status": "passed"
-    },
-    {
-      "name": "Markdown projection scheduling names the folder after the book before writing, and moves the ledger with a renamed folder",
-      "status": "passed"
-    },
-    {
-      "name": "Markdown projection scheduling reports failure and allows a later refresh without blocking the author",
       "status": "passed"
     },
     {
@@ -214,6 +154,66 @@
       "status": "passed"
     },
     {
+      "name": "Markdown projection scheduling defers automatic full-project capture during IME but preserves explicit refresh",
+      "status": "passed"
+    },
+    {
+      "name": "Markdown projection scheduling rechecks composition after asynchronous preparation before capturing the project",
+      "status": "passed"
+    },
+    {
+      "name": "Markdown projection scheduling drains an active capture, persists the location, and refreshes there without overlap",
+      "status": "passed"
+    },
+    {
+      "name": "Markdown projection scheduling keeps automatic refresh working when changing location fails",
+      "status": "passed"
+    },
+    {
+      "name": "Markdown projection scheduling reports a failed regeneration at the new path and allows retry",
+      "status": "passed"
+    },
+    {
+      "name": "Markdown projection scheduling automatically captures the mounted project on local and remote changes and stops on database switch",
+      "status": "passed"
+    },
+    {
+      "name": "Markdown projection scheduling waits for the author to pause, without starving a continuous writer or overlapping captures",
+      "status": "passed"
+    },
+    {
+      "name": "Markdown projection scheduling publishes what was written since the last capture when the project closes, then releases it",
+      "status": "passed"
+    },
+    {
+      "name": "Markdown projection scheduling starts a reopened project only after its closing capture published",
+      "status": "passed"
+    },
+    {
+      "name": "Markdown projection scheduling captures pending changes before quitting without waiting for a pause, and nothing when current",
+      "status": "passed"
+    },
+    {
+      "name": "Markdown projection scheduling merges edited files first, writes authored files guarded, and retries a conflict",
+      "status": "passed"
+    },
+    {
+      "name": "Markdown projection scheduling looks for edits made elsewhere only while the window is visible",
+      "status": "passed"
+    },
+    {
+      "name": "Markdown projection scheduling captures pending work before the folder is turned off, then neither scans nor writes until it is back on",
+      "status": "passed"
+    },
+    {
+      "name": "Markdown projection scheduling names the folder after the book before writing, and moves the ledger with a renamed folder",
+      "status": "passed"
+    },
+    {
+      "name": "Markdown projection scheduling reports failure and allows a later refresh without blocking the author",
+      "status": "passed"
+    },
+    {
       "name": "MCP client access rows offers each known client once when the project has no connections",
       "status": "passed"
     },
@@ -298,7 +298,7 @@
       "status": "passed"
     },
     {
-      "name": "reader-facing Markdown tree preserves act boundaries, drift folders and scene/beat/note levels in complete named documents",
+      "name": "reader-facing Markdown tree preserves act boundaries, drift folders and H1/H2/H3 levels in complete named documents",
       "status": "passed"
     },
     {
@@ -322,7 +322,7 @@
       "status": "passed"
     },
     {
-      "name": "workspace domain CRUD transactions MCP writes use Yjs, durable receipts, read coverage and the existing inverse review",
+      "name": "workspace domain CRUD transactions MCP writes use Yjs, durable receipts, read coverage and a settled receipt",
       "status": "passed"
     },
     {
@@ -347,10 +347,6 @@
     },
     {
       "name": "workspace domain CRUD transactions rejects a relation whose two endpoints are the same authored object",
-      "status": "passed"
-    },
-    {
-      "name": "workspace domain CRUD transactions keeps every textual block of a newly created object pending in approve mode",
       "status": "passed"
     },
     {
@@ -502,6 +498,42 @@
       "status": "passed"
     },
     {
+      "name": "OpenAI Responses Agent driver offers hosted web search with 'free choice'",
+      "status": "passed"
+    },
+    {
+      "name": "OpenAI Responses Agent driver offers hosted web search with 'auto'",
+      "status": "passed"
+    },
+    {
+      "name": "OpenAI Responses Agent driver offers hosted web search with 'a forced function'",
+      "status": "passed"
+    },
+    {
+      "name": "OpenAI Responses Agent driver offers hosted web search with 'required'",
+      "status": "passed"
+    },
+    {
+      "name": "OpenAI Responses Agent driver offers hosted web search with 'none'",
+      "status": "passed"
+    },
+    {
+      "name": "OpenAI Responses Agent driver sends no tools at all, hosted ones included, for a tool-free request",
+      "status": "passed"
+    },
+    {
+      "name": "OpenAI Responses Agent driver reports each hosted search once and finishes a search-only answer as end_turn",
+      "status": "passed"
+    },
+    {
+      "name": "OpenAI Responses Agent driver rejects a stream that reports the same hosted search twice",
+      "status": "passed"
+    },
+    {
+      "name": "OpenAI Responses Agent driver replays hosted search items with the Codex tool batch when the terminal output is empty",
+      "status": "passed"
+    },
+    {
       "name": "OpenAI Responses Agent driver omits a default output cap for openai even for long responses",
       "status": "passed"
     },
@@ -574,6 +606,10 @@
       "status": "passed"
     },
     {
+      "name": "OpenAI Responses Agent driver locates a rejected request by the native identifier projection",
+      "status": "passed"
+    },
+    {
       "name": "OpenAI Responses Agent driver does not leak an authentication response body",
       "status": "passed"
     },
@@ -614,19 +650,7 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::local::tests::renderer_dispatch_preserves_authorized_scope_and_cancellation",
-      "status": "passed"
-    },
-    {
-      "name": "mcp_server::local::tests::permission_change_rejects_wrong_project_invalid_scope_and_failed_persistence",
-      "status": "passed"
-    },
-    {
-      "name": "mcp_server::local::tests::private_credentials_reject_symlinks_and_public_permissions",
-      "status": "passed"
-    },
-    {
-      "name": "mcp_server::client_config::tests::antigravity_setup_creates_nested_config_and_backs_up_before_revocation",
+      "name": "mcp_server::client_config::tests::a_moved_connection_file_rewrites_only_its_own_entry",
       "status": "passed"
     },
     {
@@ -634,15 +658,7 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::local::tests::socket_authentication_project_scope_revocation_and_duplicate_ids",
-      "status": "passed"
-    },
-    {
-      "name": "mcp_server::local::tests::permission_change_cancels_pending_requests_before_publishing_new_grant",
-      "status": "passed"
-    },
-    {
-      "name": "mcp_server::local::tests::initialize_reports_persisted_custom_projection_location",
+      "name": "mcp_server::local::tests::private_credentials_reject_symlinks_and_public_permissions",
       "status": "passed"
     },
     {
@@ -650,7 +666,35 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::local::tests::permission_changes_notify_live_clients_and_dispatch_current_grants",
+      "name": "mcp_server::client_config::tests::antigravity_setup_creates_nested_config_and_backs_up_before_revocation",
+      "status": "passed"
+    },
+    {
+      "name": "mcp_server::local::tests::the_user_cache_folder_is_short_and_private",
+      "status": "passed"
+    },
+    {
+      "name": "mcp_server::local::tests::permission_change_rejects_wrong_project_invalid_scope_and_failed_persistence",
+      "status": "passed"
+    },
+    {
+      "name": "mcp_server::local::tests::initialize_reports_persisted_custom_projection_location",
+      "status": "passed"
+    },
+    {
+      "name": "mcp_server::local::tests::permission_change_cancels_pending_requests_before_publishing_new_grant",
+      "status": "passed"
+    },
+    {
+      "name": "mcp_server::local::tests::failed_installation_rolls_back_grant_and_credentials_without_touching_config",
+      "status": "passed"
+    },
+    {
+      "name": "mcp_server::local::tests::socket_authentication_project_scope_revocation_and_duplicate_ids",
+      "status": "passed"
+    },
+    {
+      "name": "mcp_server::local::tests::renderer_dispatch_preserves_authorized_scope_and_cancellation",
       "status": "passed"
     },
     {
@@ -658,7 +702,11 @@
       "status": "passed"
     },
     {
-      "name": "mcp_server::local::tests::failed_installation_rolls_back_grant_and_credentials_without_touching_config",
+      "name": "mcp_server::local::tests::a_library_too_deep_for_its_socket_listens_in_a_short_private_folder",
+      "status": "passed"
+    },
+    {
+      "name": "mcp_server::local::tests::permission_changes_notify_live_clients_and_dispatch_current_grants",
       "status": "passed"
     },
     {
@@ -670,11 +718,7 @@
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::hidden_metadata_rejects_symlinks_before_changing_the_readable_manuscript",
-      "status": "passed"
-    },
-    {
-      "name": "markdown_projection::tests::attachments_are_verified_hashed_read_only_and_removed_without_touching_vault_settings",
+      "name": "markdown_projection::tests::a_folder_managed_by_another_installation_is_refused",
       "status": "passed"
     },
     {
@@ -686,23 +730,7 @@
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::a_folder_managed_by_another_installation_is_refused",
-      "status": "passed"
-    },
-    {
-      "name": "markdown_projection::tests::a_taken_title_gets_a_number_that_stays_while_the_title_does",
-      "status": "passed"
-    },
-    {
-      "name": "markdown_projection::tests::a_location_where_the_name_is_taken_is_accepted_and_written_around_it",
-      "status": "passed"
-    },
-    {
-      "name": "markdown_projection::tests::naming_waits_while_the_folder_is_off",
-      "status": "passed"
-    },
-    {
-      "name": "markdown_projection::tests::markdown_projection_is_incremental_read_only_and_removes_only_owned_files",
+      "name": "markdown_projection::tests::hidden_metadata_rejects_symlinks_before_changing_the_readable_manuscript",
       "status": "passed"
     },
     {
@@ -710,15 +738,7 @@
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::interrupted_projection_claims_can_be_retried_and_cleaned_up",
-      "status": "passed"
-    },
-    {
-      "name": "markdown_projection::tests::custom_output_persists_per_project_resets_and_preserves_old_snapshots",
-      "status": "passed"
-    },
-    {
-      "name": "markdown_projection::tests::output_selection_rejects_symlinked_managed_directory",
+      "name": "markdown_projection::tests::authored_files_are_writable_and_never_replace_unread_edits",
       "status": "passed"
     },
     {
@@ -726,19 +746,7 @@
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::readable_paths_reject_reserved_names_prefix_conflicts_and_case_collisions",
-      "status": "passed"
-    },
-    {
-      "name": "markdown_projection::tests::authored_files_are_writable_and_never_replace_unread_edits",
-      "status": "passed"
-    },
-    {
-      "name": "markdown_projection::tests::missing_corrupt_or_unowned_attachments_never_replace_the_previous_snapshot",
-      "status": "passed"
-    },
-    {
-      "name": "markdown_projection::tests::unsupported_image_previews_copy_only_from_the_project_owned_display_variant",
+      "name": "markdown_projection::tests::naming_waits_while_the_folder_is_off",
       "status": "passed"
     },
     {
@@ -746,19 +754,47 @@
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::default_location_holds_projects_without_their_own_and_keeps_old_folders",
+      "name": "markdown_projection::tests::mirrors_written_under_the_retired_material_directory_move_to_the_new_one",
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::readable_tree_upgrades_legacy_manifests_and_cleans_only_owned_paths",
+      "name": "markdown_projection::tests::attachments_are_verified_hashed_read_only_and_removed_without_touching_vault_settings",
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::source_assets_reject_symlinks_and_hardlinks_before_modifying_managed_output",
+      "name": "markdown_projection::tests::markdown_projection_is_incremental_read_only_and_removes_only_owned_files",
       "status": "passed"
     },
     {
-      "name": "markdown_projection::tests::upgrading_a_read_only_projection_keeps_edited_files",
+      "name": "markdown_projection::tests::missing_corrupt_or_unowned_attachments_never_replace_the_previous_snapshot",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::a_location_where_the_name_is_taken_is_accepted_and_written_around_it",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::readable_paths_reject_reserved_names_prefix_conflicts_and_case_collisions",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::output_selection_rejects_symlinked_managed_directory",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::a_taken_title_gets_a_number_that_stays_while_the_title_does",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::custom_output_persists_per_project_resets_and_preserves_old_snapshots",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::unsupported_image_previews_copy_only_from_the_project_owned_display_variant",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::interrupted_projection_claims_can_be_retried_and_cleaned_up",
       "status": "passed"
     },
     {
@@ -770,11 +806,27 @@
       "status": "passed"
     },
     {
+      "name": "markdown_projection::tests::default_location_holds_projects_without_their_own_and_keeps_old_folders",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::upgrading_a_read_only_projection_keeps_edited_files",
+      "status": "passed"
+    },
+    {
       "name": "markdown_projection::tests::unavailable_default_location_does_not_fall_back_and_can_be_reset",
       "status": "passed"
     },
     {
       "name": "markdown_projection::tests::turned_off_folder_is_neither_written_nor_read_and_keeps_its_files",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::source_assets_reject_symlinks_and_hardlinks_before_modifying_managed_output",
+      "status": "passed"
+    },
+    {
+      "name": "markdown_projection::tests::readable_tree_upgrades_legacy_manifests_and_cleans_only_owned_paths",
       "status": "passed"
     }
   ],
