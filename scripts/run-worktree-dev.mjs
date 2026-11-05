@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
@@ -8,7 +8,7 @@ import path from 'node:path';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
-import { createDesktopTauriEnvironment, prepareDesktopSigning } from './run-desktop-tauri.mjs';
+import { createDesktopTauriEnvironment, prepareDesktopSigning, tauriCliInvocation } from './run-desktop-tauri.mjs';
 import { describeDevAgentKeys, devAgentKeyEnvironment, devAgentKeyProviders, devAgentKeyRoots } from './dev-agent-keys.mjs';
 import { hostedSecurityOverride } from './hosted-environment.mjs';
 import { sentrySecurityOverride } from './sentry-environment.mjs';
@@ -250,10 +250,15 @@ export default async env => mergeConfig(await (typeof base === 'function' ? base
     ...(buildApp ? { buildApp: true, frontendDirectory,
       appBundlePath: path.join(cargoTargetDirectory, 'debug', 'bundle', 'macos', `Drifting Test ${profileId}.app`) } : {}),
   };
+  // `pnpm exec tauri`; on Windows Node runs the CLI's entry script, because it
+  // cannot spawn `pnpm.cmd` without a shell (scripts/package-bin.mjs).
+  const tauri = platform === 'win32'
+    ? tauriCliInvocation({ platform, root: worktreeRoot })
+    : { executable: 'pnpm', arguments: ['exec', 'tauri'] };
   return {
     manifest, environment, tauriConfig, viteConfigSource, viteConfigPath,
-    command: platform === 'win32' ? 'pnpm.cmd' : 'pnpm',
-    args: ['exec', 'tauri', ...(buildApp ? ['build', '--debug', '--bundles', 'app']
+    command: tauri.executable,
+    args: [...tauri.arguments, ...(buildApp ? ['build', '--debug', '--bundles', 'app']
       : ['dev', ...(releasePerf ? ['--release'] : []), ...(noWatch || releasePerf ? ['--no-watch'] : [])]), '--config', configPath],
   };
 }
@@ -298,14 +303,24 @@ export async function runWorktreeDev(args = process.argv.slice(2), {
   const child = spawnProcess(plan.command, plan.args, {
     cwd: plan.manifest.worktreeRoot, env: plan.environment, stdio: 'inherit',
     // A process group lets headless automation stop Cargo, Vite and the app,
-    // including descendants of pnpm, using a single SIGINT/SIGTERM.
+    // including descendants of pnpm, using a single SIGINT/SIGTERM. Windows
+    // has no process groups; stop() ends the process tree there instead.
     detached: process.platform !== 'win32',
   });
   const stop = signal => {
     if (!child.pid) return;
+    if (process.platform === 'win32') {
+      // kill() would end only the Tauri CLI; taskkill /T also ends the Cargo,
+      // Vite and app processes it started, and leaves no "Terminate batch
+      // job?" prompt behind after Ctrl+C. Only while the CLI still runs: an
+      // exited PID may already belong to another process.
+      if (child.exitCode === null && child.signalCode === null) {
+        spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true });
+      }
+      return;
+    }
     try {
-      if (process.platform === 'win32') child.kill(signal);
-      else process.kill(-child.pid, signal);
+      process.kill(-child.pid, signal);
     } catch (error) {
       // An already-exited group: macOS reports EPERM once pnpm reaped it.
       if (error.code !== 'ESRCH' && error.code !== 'EPERM') throw error;

@@ -1595,7 +1595,9 @@
       "openFile": "No se pudo abrir el archivo: {{error}}",
       "createFailed": "No se pudo crear el material: {{error}}",
       "pickFailed": "No se pudo importar el archivo: {{error}}",
-      "fileTooLarge": "El archivo supera el límite de {{maxSizeMiB}} MiB y Drifting no puede copiarlo a la biblioteca local."
+      "fileTooLarge": "El archivo supera el límite de {{maxSizeMiB}} MiB y Drifting no puede copiarlo a la biblioteca local.",
+      "codecUnavailable": "A este PC le falta el códec para imágenes {{format}}. Instálalo desde Microsoft Store y vuelve a importar.",
+      "codecStore": "Obtener en Microsoft Store"
     },
     "empty": {
       "noRelated": "No hay materiales vinculados al elemento actual.",
@@ -3748,5 +3750,14 @@
   },
   "startup": {
     "loading": "Iniciando Drifting"
+  },
+  "windowCaption": {
+    "label": "Ventana",
+    "close": "Cerrar",
+    "minimize": "Minimizar",
+    "maximize": "Maximizar",
+    "restore": "Restaurar",
+    "trayOpen": "Abrir Drifting",
+    "trayQuit": "Salir de Drifting"
   }
 }

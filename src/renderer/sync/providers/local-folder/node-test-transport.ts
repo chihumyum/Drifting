@@ -176,7 +176,9 @@ function parsePersistedEvent(value: unknown): LocalFolderDurableChange {
 }
 
 async function fsyncFile(filePath: string): Promise<void> {
-  const handle = await open(filePath, 'r');
+  // Windows' FlushFileBuffers needs a writable handle (EPERM on a read-only
+  // one), as drifting_core::file_io::sync_file opens it for the app.
+  const handle = await open(filePath, process.platform === 'win32' ? 'r+' : 'r');
   try {
     await handle.sync();
   } finally {
@@ -185,6 +187,9 @@ async function fsyncFile(filePath: string): Promise<void> {
 }
 
 async function fsyncDirectory(directoryPath: string): Promise<void> {
+  // Windows cannot fsync a directory (EPERM); NTFS journals the rename, as
+  // drifting_core::file_io::sync_directory relies on for the app.
+  if (process.platform === 'win32') return;
   const handle = await open(directoryPath, 'r');
   try {
     await handle.sync();

@@ -1,6 +1,8 @@
 import { execFileSync } from 'node:child_process';
 import { getTableColumns, getTableName } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
+// @ts-expect-error Executable tooling intentionally lives outside the renderer TS graph.
+import { packageBinInvocation } from '../../../../scripts/package-bin.mjs';
 import * as drizzleSchema from '../../schema/drizzle';
 import { SYNC_DOMAIN_MANIFEST_V1, getSyncDomainTablePolicy } from './domain-manifest';
 import {
@@ -50,10 +52,12 @@ describe('SyncEngine v1 domain manifest', () => {
   });
 
   it('keeps checked-in JSON and Markdown evidence current', () => {
+    // Windows cannot spawn pnpm.cmd without a shell; Node runs tsx's entry there.
+    const tsx = packageBinInvocation('tsx');
     expect(() =>
       execFileSync(
-        process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm',
-        ['exec', 'tsx', 'scripts/generate-sync-domain-manifest.ts', '--check'],
+        tsx.executable,
+        [...tsx.arguments, 'scripts/generate-sync-domain-manifest.ts', '--check'],
         { cwd: process.cwd(), stdio: 'pipe' },
       ),
     ).not.toThrow();

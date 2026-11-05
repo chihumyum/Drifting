@@ -224,7 +224,8 @@ export function ProjectRuntimeProvider({
   }, [bootKey, bootState.key, bootState.status, projectId]);
 
   useEffect(() => {
-    if (bootState.status !== 'ready' || !getPlatformRuntime().isMacDesktop) return;
+    const runtime = getPlatformRuntime();
+    if (bootState.status !== 'ready' || !(runtime.isMacDesktop || runtime.isWindowsDesktop)) return;
     let cancelled = false;
     let dispose: (() => void) | undefined;
     void import('../../lib/agent/mcp-server-bridge')

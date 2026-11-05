@@ -37,7 +37,7 @@ export function SidebarToggleButton({ side }: { side: SidebarType }) {
 export function WorkspaceSidebarToggles() {
   const runtime = getPlatformRuntime();
   return (
-    <div className="workspace-sidebar-toggles" data-leading-inset={runtime.isMacDesktop ? 'true' : undefined}>
+    <div className="workspace-sidebar-toggles" data-leading-inset={runtime.leadingWindowControls ? 'true' : undefined}>
       <SidebarToggleButton side="left" />
       <SidebarToggleButton side="right" />
       <FloatingSyncBell />

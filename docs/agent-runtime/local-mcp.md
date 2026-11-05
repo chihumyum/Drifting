@@ -93,7 +93,8 @@ while mutations that already committed remain in the book.
 ```
 External MCP client
   → app executable in stdio mode (no GUI startup)
-  → private Unix socket in this app's data directory
+  → private Unix socket in this app's data directory (macOS),
+    or a loopback TCP port (Windows)
   → native connection grant and mounted-project check
   → renderer ExternalToolSession
   → canonical validation + permission policy + shared Agent scheduler
@@ -101,9 +102,14 @@ External MCP client
 ```
 
 The native layer issues independent random 256-bit credentials. The grant
-registry stores SHA-256 hashes; the client credential file is mode 0600 inside
-a mode-0700 directory. Tokens never enter renderer JS, copied config, tool
-arguments, or logs. No TCP listener, Hosted session, or Keychain read is used.
+registry stores SHA-256 hashes; on macOS the client credential file is mode
+0600 inside a mode-0700 directory, on Windows it lives in the user's own app
+data, private through its inherited ACL. Tokens never enter renderer JS, copied
+config, tool arguments, or logs. No Hosted session or Keychain read is used.
+macOS listens only on the Unix socket. Windows has no such socket in the
+standard library, so it listens on `127.0.0.1` alone, on a port chosen at each
+launch and written into every connection file; the token authenticates each
+stream exactly as on the socket, and nothing listens beyond loopback.
 This is a local OS-user trust boundary, not isolation from malicious software
 already running with that user's filesystem privileges.
 

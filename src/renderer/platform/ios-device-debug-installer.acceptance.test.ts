@@ -11,7 +11,8 @@ const {
   parseIosDeviceDebugArguments,
 } = installer;
 
-describe('standalone iOS device Debug installer', () => {
+// iOS builds need Xcode, so only macOS runs these.
+describe.skipIf(process.platform !== 'darwin')('standalone iOS device Debug installer', () => {
   it('explicit online installation carries the origin into native configuration and bundled CSP', async () => {
     const execute = vi.fn(async (command: string) => {
       if (command === '/usr/bin/plutil') return 'cc.drifting.client\n';

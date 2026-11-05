@@ -1589,7 +1589,9 @@
       "openFile": "无法打开文件：{{error}}",
       "createFailed": "素材创建失败：{{error}}",
       "pickFailed": "无法导入文件：{{error}}",
-      "fileTooLarge": "该文件超过 {{maxSizeMiB}} MiB 素材上限，无法复制到本地素材库。"
+      "fileTooLarge": "该文件超过 {{maxSizeMiB}} MiB 素材上限，无法复制到本地素材库。",
+      "codecUnavailable": "这台电脑缺少 {{format}} 图片的解码扩展，可以从微软商店安装后再导入。",
+      "codecStore": "在微软商店获取"
     },
     "empty": {
       "noRelated": "当前条目没有关联的素材。",
@@ -3726,5 +3728,14 @@
   },
   "startup": {
     "loading": "正在启动 Drifting"
+  },
+  "windowCaption": {
+    "label": "窗口",
+    "close": "关闭",
+    "minimize": "最小化",
+    "maximize": "最大化",
+    "restore": "还原",
+    "trayOpen": "打开 Drifting",
+    "trayQuit": "退出 Drifting"
   }
 }

@@ -369,7 +369,7 @@ function SetHead({
     <div
       className="set-head app-plane"
       data-tauri-drag-region={runtime.desktopWindowControls ? 'deep' : undefined}
-      style={{ paddingLeft: runtime.isMacDesktop ? 86 : 18 }}
+      style={{ paddingLeft: runtime.isMacDesktop ? 86 : runtime.isWindowsDesktop ? 118 : 18 }}
     >
       <div className="set-head__left">
         <button

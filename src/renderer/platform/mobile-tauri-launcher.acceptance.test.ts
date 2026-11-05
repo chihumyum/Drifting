@@ -60,7 +60,8 @@ describe('mobile Tauri environment', () => {
     const destination = path.join(temporaryDirectory(), 'LocalBuild.local.xcconfig');
     writeIosLocalBuildConfig({ DRIFTING_APPLE_DEVELOPMENT_TEAM: 'SYNTH00001' }, destination);
     expect(readFileSync(destination, 'utf8')).toContain('DEVELOPMENT_TEAM = SYNTH00001\n');
-    expect(statSync(destination).mode & 0o777).toBe(0o600);
+    // NTFS reports no Unix permission bits.
+    if (process.platform !== 'win32') expect(statSync(destination).mode & 0o777).toBe(0o600);
     for (const team of ['invalid team', undefined]) {
       writeIosLocalBuildConfig({ DRIFTING_APPLE_DEVELOPMENT_TEAM: team }, destination);
       expect(readFileSync(destination, 'utf8')).toContain('DEVELOPMENT_TEAM = \n');

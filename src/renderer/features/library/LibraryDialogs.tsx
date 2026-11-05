@@ -13,6 +13,8 @@ import { GlassSlider } from '../../components/ui/GlassSlider';
 import { useEscapeToClose } from './library-item-media';
 import { BrushIcon } from '../../components/ui/BrushIcon';
 import { getPlatformRuntime } from '../../platform/runtime';
+import { ImageCodecUnavailableError } from '../../services/local-project-asset.service';
+import { WINDOWS_IMAGE_CODEC_STORE_URL } from '../../lib/windows-image-codecs';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Compose dialogs
@@ -123,6 +125,8 @@ export function ComposeLibraryItemDialog({
   const [picking, setPicking] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [operationError, setOperationError] = useState<string | null>(null);
+  // Windows without the Store codec for this image: where to get it.
+  const [codecStoreUrl, setCodecStoreUrl] = useState<string | null>(null);
   const ownedImportPathRef = useRef<string | null>(null);
   const mountedRef = useRef(true);
   const submitInFlightRef = useRef(false);
@@ -267,6 +271,7 @@ export function ComposeLibraryItemDialog({
     submitInFlightRef.current = true;
     setSubmitting(true);
     setOperationError(null);
+    setCodecStoreUrl(null);
     try {
       if (kind === 'image' || kind === 'pdf') {
         if (!pickedSourcePath) return;
@@ -296,6 +301,11 @@ export function ComposeLibraryItemDialog({
       onCancel();
     } catch (error) {
       console.warn('[material] create failed:', error);
+      if (error instanceof ImageCodecUnavailableError && error.codec && getPlatformRuntime().isWindowsDesktop) {
+        setOperationError(t('memoMaterial.error.codecUnavailable', { format: error.codec.toUpperCase() }));
+        setCodecStoreUrl(WINDOWS_IMAGE_CODEC_STORE_URL[error.codec]);
+        return;
+      }
       setOperationError(
         t('memoMaterial.error.createFailed', {
           error: error instanceof Error ? error.message : String(error),
@@ -423,6 +433,16 @@ export function ComposeLibraryItemDialog({
         >
           {glass && <BrushIcon name="status-warning" size={13} />}
           {operationError}
+          {codecStoreUrl && (
+            <Button
+              variant="ghost"
+              onClick={() => {
+                void platform.material.openExternal(codecStoreUrl);
+              }}
+            >
+              {t('memoMaterial.error.codecStore')}
+            </Button>
+          )}
         </div>
       )}
 

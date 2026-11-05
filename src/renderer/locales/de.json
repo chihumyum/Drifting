@@ -1591,7 +1591,9 @@
       "openFile": "Datei konnte nicht geöffnet werden: {{error}}",
       "createFailed": "Material konnte nicht erstellt werden: {{error}}",
       "pickFailed": "Datei konnte nicht importiert werden: {{error}}",
-      "fileTooLarge": "Die Datei überschreitet die Grenze von {{maxSizeMiB}} MiB und kann nicht in die lokale Materialsammlung kopiert werden."
+      "fileTooLarge": "Die Datei überschreitet die Grenze von {{maxSizeMiB}} MiB und kann nicht in die lokale Materialsammlung kopiert werden.",
+      "codecUnavailable": "Diesem PC fehlt der Codec für {{format}}-Bilder. Installiere ihn aus dem Microsoft Store und importiere erneut.",
+      "codecStore": "Im Microsoft Store holen"
     },
     "empty": {
       "noRelated": "Keine Materialien mit dem aktuellen Eintrag verknüpft.",
@@ -3733,5 +3735,14 @@
   },
   "startup": {
     "loading": "Drifting wird gestartet"
+  },
+  "windowCaption": {
+    "label": "Fenster",
+    "close": "Schließen",
+    "minimize": "Minimieren",
+    "maximize": "Maximieren",
+    "restore": "Wiederherstellen",
+    "trayOpen": "Drifting öffnen",
+    "trayQuit": "Drifting beenden"
   }
 }

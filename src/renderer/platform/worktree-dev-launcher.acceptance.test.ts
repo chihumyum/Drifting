@@ -30,7 +30,8 @@ function fixture() {
   writeFileSync(path.join(root, 'src-tauri/tauri.conf.json'), baseConfig);
   writeFileSync(path.join(root, 'vite-helper.ts'), 'export const port = 5173;');
   writeFileSync(path.join(root, 'vite.renderer.config.ts'), "import { port } from './vite-helper'; export default () => ({ envDir: true, server: { port, host: true, strictPort: false } });");
-  symlinkSync(path.join(repoRoot, 'node_modules'), path.join(root, 'node_modules'), 'dir');
+  // A junction needs no symlink privilege on Windows; macOS ignores the type.
+  symlinkSync(path.join(repoRoot, 'node_modules'), path.join(root, 'node_modules'), 'junction');
   return root;
 }
 
@@ -47,7 +48,7 @@ describe('isolated worktree development', () => {
     const dev = createWorktreePlan({ root, online: true, platform: 'darwin', baseEnvironment: environment });
     expect(plan.manifest.identifier).not.toBe(dev.manifest.identifier);
     expect(plan.manifest.databaseDirectory).toContain(plan.manifest.identifier);
-    expect(plan.manifest.appBundlePath).toMatch(/debug\/bundle\/macos\/Drifting Test [a-f0-9]+\.app$/);
+    expect(plan.manifest.appBundlePath).toMatch(/debug[\\/]bundle[\\/]macos[\\/]Drifting Test [a-f0-9]+\.app$/);
     expect(plan.tauriConfig.build).toMatchObject({ devUrl: null, beforeDevCommand: null,
       frontendDist: plan.manifest.frontendDirectory });
     expect(plan.tauriConfig.app.windows[0].incognito).toBe(false);
@@ -93,7 +94,7 @@ describe('isolated worktree development', () => {
       expect(other.tauriConfig.app.windows[0].dataDirectory).not.toEqual(a.tauriConfig.app.windows[0].dataDirectory);
     }
     const alias = path.join(root, 'checkout-alias');
-    symlinkSync(root, alias, 'dir');
+    symlinkSync(root, alias, 'junction');
     expect(createWorktreePlan({ root: alias, baseEnvironment: {} }).manifest).toEqual(a.manifest);
     expect(path.isAbsolute(a.environment.DRIFTING_DB_DIR)).toBe(true);
   });
@@ -114,7 +115,8 @@ describe('isolated worktree development', () => {
     const root = fixture();
     const environment = { OPENAI_API_KEY: 'sk-synthetic-not-real' };
     const ordinary = createWorktreePlan({ root, baseEnvironment: environment });
-    const release = createWorktreePlan({ root, baseEnvironment: environment, releasePerf: true });
+    // macOS's plan: on Windows Node starts the Tauri CLI's entry script instead (package-bin.mjs).
+    const release = createWorktreePlan({ root, baseEnvironment: environment, releasePerf: true, platform: 'darwin' });
     expect(parseWorktreeArguments(['--release-perf']).releasePerf).toBe(true);
     expect(release.manifest.profileId).toBe(ordinary.manifest.profileId);
     expect(release.manifest.databaseDirectory).toBe(ordinary.manifest.databaseDirectory);
@@ -173,7 +175,7 @@ describe('isolated worktree development', () => {
 
   it('refuses shared state aliases instead of following symlinked data directories', () => {
     const root = fixture();
-    symlinkSync(fixture(), path.join(root, '.local-data'), 'dir');
+    symlinkSync(fixture(), path.join(root, '.local-data'), 'junction');
     expect(() => createWorktreePlan({ root, baseEnvironment: {} })).toThrow(/refuses a symlink/);
   });
 

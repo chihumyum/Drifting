@@ -427,7 +427,8 @@ describe('P3 file-backed write path acceptance', () => {
         ),
       ).toBe(0);
     },
-    60_000,
+    // Windows runners do this file IO several times slower.
+    process.platform === 'win32' ? 240_000 : 60_000,
   );
 });
 

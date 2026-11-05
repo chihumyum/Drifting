@@ -46,8 +46,8 @@ export function SuperViewHeader({
     <div
       className="super-view-head"
       data-tauri-drag-region={runtime.desktopWindowControls ? 'deep' : undefined}
-      data-macos-window-controls={
-        runtime.isMacDesktop && runtime.desktopWindowControls ? '' : undefined
+      data-leading-window-controls={
+        runtime.leadingWindowControls && runtime.desktopWindowControls ? '' : undefined
       }
     >
       <div className="super-view-head__left">

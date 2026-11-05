@@ -5,6 +5,10 @@
 //! turned off (the keys still reach Drifting's own handlers), and the default
 //! context menu keeps its editing items (cut, copy, paste, emoji, spelling)
 //! but loses the browser's own.
+//!
+//! The native title bar goes too: the renderer draws the window buttons as a
+//! glass pill in the top-left corner (WindowsCaption.tsx). Tauri keeps the
+//! undecorated window resizable from its edges and keeps its shadow.
 
 /// Default menu items that belong to a browser, not to a writing app.
 #[cfg_attr(not(windows), allow(dead_code))]
@@ -62,6 +66,7 @@ pub(crate) fn configure(window: &tauri::WebviewWindow) -> tauri::Result<()> {
     };
     use windows::core::Interface;
 
+    window.set_decorations(false)?;
     window.with_webview(|webview| unsafe {
         let Ok(core) = webview.controller().CoreWebView2() else {
             return;

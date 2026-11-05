@@ -16,6 +16,7 @@ import { useDatabaseOpenFailure } from './platform/database-recovery-store';
 import { ConfirmationDialog } from './components/modals/ConfirmationDialog';
 import { CharSea } from './components/char-sea/CharSea';
 import { charSeaEnabled } from './components/char-sea/useCharSea';
+import { WindowsCaption } from './components/workspaceChrome/WindowsCaption';
 
 function AppContents() {
   const databaseFailure = useDatabaseOpenFailure();
@@ -51,6 +52,7 @@ export default function App() {
       <>
         <AppContents />
         <ConfirmationDialog />
+        <WindowsCaption />
       </>
     </RenderErrorBoundary>
   );

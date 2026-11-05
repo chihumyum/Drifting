@@ -17,6 +17,8 @@ describe('sanitized diagnostic summary', () => {
         isMobileShell: false,
         isExpandedTablet: false,
         isMacDesktop: true,
+        isWindowsDesktop: false,
+        leadingWindowControls: true,
         desktopWindowControls: true,
       },
       authority: {

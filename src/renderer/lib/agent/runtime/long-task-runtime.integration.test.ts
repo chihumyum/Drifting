@@ -62,7 +62,13 @@ const directories = new Set<string>();
 
 afterEach(async () => {
   await Promise.all(
-    [...directories].map((directory) => rm(directory, { recursive: true, force: true })),
+    [...directories].map((directory) =>
+      // Windows keeps a closed SQLite file busy until its last statement is
+      // collected; retry, then leave it to the system's temporary folder.
+      rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }).catch((error) => {
+        if (process.platform !== 'win32') throw error;
+      }),
+    ),
   );
   directories.clear();
 });
