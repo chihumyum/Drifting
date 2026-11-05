@@ -20,9 +20,11 @@
  * is (or at --position), and its traffic lights are grey. --keep-open leaves
  * the last language's app running for a look around.
  *
- * --readme captures the English light scenes only and also writes them, 2000
- * pixels wide as WebP, with their manifest to docs/screenshots/, which the
- * README shows; they are retaken only when the author asks (docs/releasing.md).
+ * --readme captures the light scenes only and also writes them, 2000 pixels
+ * wide as WebP, with their manifest: English to docs/screenshots/, which
+ * README.md shows, and Chinese to docs/screenshots/zh-CN/, which
+ * README.zh-CN.md shows. With --locale it retakes that language's set only.
+ * They are retaken only when the author asks (docs/releasing.md).
  */
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -40,14 +42,18 @@ const INSTANCE = 'release-screenshots';
 const LIBRARY = 'drifting-library.db';
 /** Wide enough for the English element overview's header in one line. */
 const WINDOW = { width: 1600, height: 1000 };
-/** The README's screenshots: committed, so small (WebP) and no wider than a Retina README needs. */
-const README_DIRECTORY = 'docs/screenshots';
-const README_WIDTH = 2000;
-const README_SCENES = ['shelf', 'workspace', 'elements'] as const;
 const LOCALES = ['en', 'zh-CN'] as const;
 const THEMES = ['light', 'dark'] as const;
 type Locale = (typeof LOCALES)[number];
 type Theme = (typeof THEMES)[number];
+/**
+ * The READMEs' screenshots: committed, so small (WebP) and no wider than a
+ * Retina README needs. Each README shows its own language's set
+ * (scripts/check-release.mjs checks both).
+ */
+const README_DIRECTORIES: Record<Locale, string> = { en: 'docs/screenshots', 'zh-CN': 'docs/screenshots/zh-CN' };
+const README_WIDTH = 2000;
+const README_SCENES = ['shelf', 'workspace', 'elements'] as const;
 
 /** The chapter each workspace shot opens, and the chapters open beside it as tabs (1-based). */
 const WORKSPACE: Record<Locale, { chapter: number; tabs: number[] }> = {
@@ -92,10 +98,7 @@ function parseArguments(args: string[]): Options {
       options.position = [x, y];
     } else throw new Error(`Unknown argument ${argument}`);
   }
-  if (options.readme) {
-    options.locales = ['en'];
-    options.themes = ['light'];
-  }
+  if (options.readme) options.themes = ['light'];
   return options;
 }
 
@@ -231,24 +234,26 @@ async function main() {
   };
   writeFileSync(path.join(options.output, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
   console.log(`[screenshots] ${shots.length} screenshots in ${path.relative(root, options.output)} (${manifest.seconds} s)`);
-  if (options.readme) writeReadmeScreenshots(options.output, manifest);
+  if (options.readme) {
+    for (const locale of options.locales) writeReadmeScreenshots(options.output, locale, manifest);
+  }
 }
 
-/** The English light scenes, resized and encoded as WebP for the README, with their manifest. */
-function writeReadmeScreenshots(output: string, manifest: { version: string; recordedAt: string; source: unknown; window: unknown }) {
+/** One language's light scenes, resized and encoded as WebP for its README, with their manifest. */
+function writeReadmeScreenshots(output: string, locale: Locale, manifest: { version: string; recordedAt: string; source: unknown; window: unknown }) {
   try {
     execFileSync('cwebp', ['-version'], { stdio: 'ignore' });
   } catch {
     throw new Error('The README screenshots are WebP: install cwebp (brew install webp) and run again');
   }
-  const directory = path.join(root, README_DIRECTORY);
+  const directory = path.join(root, README_DIRECTORIES[locale]);
   mkdirSync(directory, { recursive: true });
   const scratch = mkdtempSync(path.join(tmpdir(), 'drifting-readme-shots-'));
   const files = [];
   try {
     for (const scene of README_SCENES) {
       const resized = path.join(scratch, `${scene}.png`);
-      execFileSync('sips', ['--resampleWidth', String(README_WIDTH), path.join(output, `en-light-${scene}.png`), '--out', resized], { stdio: 'ignore' });
+      execFileSync('sips', ['--resampleWidth', String(README_WIDTH), path.join(output, `${locale}-light-${scene}.png`), '--out', resized], { stdio: 'ignore' });
       const file = path.join(directory, `${scene}.webp`);
       execFileSync('cwebp', ['-quiet', '-q', '90', '-metadata', 'none', resized, '-o', file]);
       const bytes = readFileSync(file);
@@ -259,10 +264,10 @@ function writeReadmeScreenshots(output: string, manifest: { version: string; rec
   }
   const readme = {
     schemaVersion: 1, version: manifest.version, recordedAt: manifest.recordedAt, source: manifest.source,
-    window: manifest.window, locale: 'en', theme: 'light', files,
+    window: manifest.window, locale, theme: 'light', files,
   };
   writeFileSync(path.join(directory, 'manifest.json'), `${JSON.stringify(readme, null, 2)}\n`);
-  console.log(`[screenshots] README screenshots for ${manifest.version} in ${README_DIRECTORY}: ${files.map((entry) => `${entry.file} ${Math.round(entry.bytes / 1024)} KB`).join(', ')}`);
+  console.log(`[screenshots] README screenshots (${locale}) for ${manifest.version} in ${README_DIRECTORIES[locale]}: ${files.map((entry) => `${entry.file} ${Math.round(entry.bytes / 1024)} KB`).join(', ')}`);
 }
 
 main().catch((error) => { console.error(error instanceof Error ? error.message : error); process.exitCode = 1; });

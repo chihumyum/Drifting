@@ -13,11 +13,11 @@ macOS 13+ · Windows 10/11 · 早期开发中
 
 界面语言：简体中文 · 繁體中文 · English · 日本語 · 한국어 · Español · Deutsch · Français · Português (Brasil)。[本地化说明](docs/internationalization.md)。
 
-![书架：每本书和它的封面，以及一年的写作日](docs/screenshots/shelf.webp)
+![书架：每本书和它的封面，以及一年的写作日](docs/screenshots/zh-CN/shelf.webp)
 
-![写一章：按故事线排列的章节、关联的名字、审阅里的批注和底部的时间线](docs/screenshots/workspace.webp)
+![写一章：按故事线排列的章节、关联的名字、审阅里的批注和底部的时间线](docs/screenshots/zh-CN/workspace.webp)
 
-![要素全景：人物、地点和设定，以及它们之间的关系图](docs/screenshots/elements.webp)
+![要素全景：人物、地点和设定，以及它们之间的关系图](docs/screenshots/zh-CN/elements.webp)
 
 Drifting 是一个开源、本地优先的长篇小说写作软件，支持 Mac 与 Windows。写起来像 Markdown 编辑器；
 像 Scrivener 这类传统写作软件那样，用章节和大纲、人物和世界设定、故事线和资料把一本书搭起来；

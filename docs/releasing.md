@@ -64,8 +64,9 @@
    App 的更新提示和 设置 › 更新 里，写给用户看，保持简短。中英双语（2026-11-05 作者定）：先写中文条目和
    结尾提醒，空一行，再写同样内容的英文。App 按纯文本显示（保留换行，不渲染 Markdown），所以不要用标题或分隔线。
 2. README 截图**只在作者说要截时才截**（2026-11-04 作者定），发版本身不截：那时跑
-   `pnpm release:screenshots --readme`，截英文浅色的书架、工作区和要素全景三张写进
-   `docs/screenshots/`（README 显示的就是它们），和当次改动一起提交。约一分钟，期间会把 App
+   `pnpm release:screenshots --readme`，截英文和中文浅色的书架、工作区和要素全景各三张，英文写进
+   `docs/screenshots/`（README.md 显示），中文写进 `docs/screenshots/zh-CN/`（README.zh-CN.md 显示）；
+   加 `--locale en` 或 `--locale zh-CN` 只重截一种语言，和当次改动一起提交。约一分钟，期间会把 App
    窗口调到最前，别动键盘和鼠标；见 [release-screenshots.md](release-screenshots.md)。不带
    `--readme` 则在 `out/screenshots/<版本号>/` 截中英文、浅色深色全部 12 张，不进仓库。
 3. 本地运行 `pnpm release:check v<版本号>`，再跑
