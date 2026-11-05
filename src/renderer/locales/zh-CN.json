@@ -35,7 +35,6 @@
     "contents": "内容",
     "actTitles": "卷标题",
     "chapterTitles": "章节标题",
-    "outlineHeadings": "节拍与注记标题",
     "bookInfo": "书籍信息",
     "bookTitle": "书名",
     "author": "作者",
@@ -982,7 +981,7 @@
   },
   "chapterEditor": {
     "untitledChapter": "无标题章节",
-    "subtitlePlaceholder": "副标题，或一句题记…",
+    "synopsisPlaceholder": "梗概…",
     "summaryPlaceholder": "点击添加摘要…"
   },
   "chapterEnd": {
@@ -3599,9 +3598,6 @@
       }
     },
     "hints": {
-      "scene": "场景",
-      "beat": "节拍",
-      "note": "笔记",
       "search": "全局搜索",
       "timeline": "时间线",
       "driftRipens": "成熟后可以转成章节或要素",

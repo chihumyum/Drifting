@@ -29,7 +29,7 @@ const reviewCss = () => source('src/styles/comments-review.css');
 const FORMAT_GLYPHS = ['fmt-paragraph', 'fmt-h1', 'fmt-h2', 'fmt-h3', 'fmt-quote', 'fmt-bold', 'fmt-italic', 'fmt-underline', 'fmt-strike'];
 
 describe('the manuscript tools in sand and glass', () => {
-  it('marks the reading location with bold ink alone and keeps an unread chapter as quiet as a scene', () => {
+  it('marks the reading location with bold ink alone and keeps an unread chapter as quiet as an H1', () => {
     const css = reviewCss();
     const rail = source('src/renderer/components/editor/EditorOutlineRail.tsx');
     // No sand under the reading location any more: it and its path are bold ink.
@@ -40,7 +40,7 @@ describe('the manuscript tools in sand and glass', () => {
     const path = rule(css, '.editor__toc-tag.is-active-path,\n.editor__toc-tag.is-primary');
     expect(path).toContain('color: hsl(var(--ink-1));');
     expect(path).toContain('font-weight: 600;');
-    // A chapter out of view is no brighter than an act or a scene.
+    // A chapter out of view is no brighter than an act or an H1.
     expect(rule(css, '.editor__toc-tag--l2')).toContain('color: hsl(var(--ink-3));');
     expect(rule(css, '.editor__toc-tag--l1')).toContain('color: hsl(var(--ink-3));');
     expect(rule(css, '.editor__toc-tag--l3')).toContain('color: hsl(var(--ink-3));');

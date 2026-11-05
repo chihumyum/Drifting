@@ -3,7 +3,7 @@
  *
  * A lightweight "mini-Excel" scratchpad authored BEFORE/while writing a
  * chapter. The author owns the meaning of rows and columns (e.g. characters ×
- * time, or beats × detail) — we impose no semantics and bind to nothing. It is
+ * time, or places × detail) — we impose no semantics and bind to nothing. It is
  * deliberately decoupled from prose: NOT derived from the text (unlike
  * outlineJson / chapter summary) and never feeds Agent context automatically;
  * the Agent reads and writes it on request as one Markdown table

@@ -842,7 +842,7 @@ html[data-shell-mode='mobile'] .editor-selection-bar.glass::before {
   font-size: 0.88em;
 }
 
-/* Five structural levels stay uniform across every editor. Their compact rail
+/* The outline's levels (act, chapter, H1–H3) stay uniform across every editor. Their compact rail
    treatment preserves the existing "deeper = quieter" hierarchy; acts are set
    in the serif structure face. */
 .editor__toc-tag--l1 {
@@ -881,7 +881,7 @@ html[data-shell-mode='mobile'] .editor-selection-bar.glass::before {
 /* Viewport intersection is expressed through text colour. The reading
    location and every level above it on its path are bold ink; nothing else
    marks it — no sand, chip, frame or wash. Out of view, a chapter is as quiet
-   as an act or a scene, so the whole book's chapter list (All Chapters) does
+   as an act or an H1, so the whole book's chapter list (All Chapters) does
    not stand out until it is read. */
 .editor__toc-tag.is-visible {
   color: hsl(var(--ink-2));
@@ -998,9 +998,9 @@ html:not([data-shell-mode='mobile']) .editor__toc-rail[data-fit='hidden'] .edito
   font-size: 9px;
 }
 
-/* Scene + Beat headers — render inside .page__body for non-chapter editors,
+/* Section headers — render inside .page__body for non-chapter editors,
    and as anchors for static section TOCs in element/storyline/category. */
-.page__scene {
+.page__section {
   font-family: var(--font-mono);
   font-size: 10px;
   text-transform: uppercase;
@@ -1014,10 +1014,10 @@ html:not([data-shell-mode='mobile']) .editor__toc-rail[data-fit='hidden'] .edito
   gap: 12px;
   font-weight: 500;
 }
-.page__scene:first-of-type {
+.page__section:first-of-type {
   margin-top: 8px;
 }
-.page__scene-title {
+.page__section-title {
   font-family: var(--font-sans);
   font-size: 16px;
   font-style: italic;
@@ -1026,7 +1026,7 @@ html:not([data-shell-mode='mobile']) .editor__toc-rail[data-fit='hidden'] .edito
   color: hsl(var(--ink-2));
   text-transform: none;
 }
-.page__scene-meta {
+.page__section-meta {
   margin-left: auto;
   font-family: var(--font-mono);
   font-size: 10px;

@@ -2,9 +2,10 @@
  * Finished-manuscript export: the book reduced to what a reader sees.
  *
  * Only manuscript structure travels: acts, chapters, and in each chapter's
- * prose its scene headings, paragraphs, quotes and scene breaks. Beat and
- * note headings are outline markers and stay out unless asked for; drifts,
- * elements, comments, TODOs, summaries and planning grids never enter. The
+ * prose its H1, H2 and H3 headings, paragraphs, quotes and separators. H1–H3
+ * are levels whose meaning the author decides, so all three travel unless the
+ * author leaves a level out; drifts, elements, comments, TODOs, summaries and
+ * planning grids never enter. The
  * native side (src-tauri/src/manuscript_export) lays the result out as EPUB,
  * Word or PDF.
  */
@@ -25,8 +26,12 @@ export interface ManuscriptRun {
   href?: string;
 }
 
+/** H1, H2 and H3: three heading levels with no fixed meaning. */
+export type ManuscriptHeadingLevel = 1 | 2 | 3;
+export const MANUSCRIPT_HEADING_LEVELS: readonly ManuscriptHeadingLevel[] = [1, 2, 3];
+
 export type ManuscriptBlock =
-  | { type: 'heading'; level: 1 | 2 | 3; runs: ManuscriptRun[]; align?: ManuscriptAlign }
+  | { type: 'heading'; level: ManuscriptHeadingLevel; runs: ManuscriptRun[]; align?: ManuscriptAlign }
   | { type: 'paragraph'; runs: ManuscriptRun[]; align?: ManuscriptAlign; indent?: number }
   | { type: 'quote'; blocks: ManuscriptBlock[] }
   | { type: 'break' };
@@ -61,8 +66,8 @@ export interface ManuscriptExportOptions {
   chapterIds: readonly string[] | null;
   actTitles: boolean;
   chapterTitles: boolean;
-  /** Beat (h2) and note (h3) headings. */
-  outlineHeadings: boolean;
+  /** The heading levels (H1–H3) whose lines go into the book. */
+  headingLevels: readonly ManuscriptHeadingLevel[];
   title: string;
   author: string;
   cover: ManuscriptCover | null;
@@ -154,15 +159,15 @@ function inlineRuns(nodes: readonly PmNode[] | undefined): ManuscriptRun[] {
   return runs;
 }
 
-function blocksOf(nodes: readonly PmNode[] | undefined, outlineHeadings: boolean): ManuscriptBlock[] {
+function blocksOf(nodes: readonly PmNode[] | undefined, levels: readonly ManuscriptHeadingLevel[]): ManuscriptBlock[] {
   const blocks: ManuscriptBlock[] = [];
   for (const node of nodes ?? []) {
     switch (node.type) {
       case 'heading': {
         const raw = Number(node.attrs?.level ?? 1);
-        const level = (raw >= 3 ? 3 : raw <= 1 ? 1 : 2) as 1 | 2 | 3;
-        // Scenes (h1) belong to the manuscript; beats and notes are outline.
-        if (level > 1 && !outlineHeadings) break;
+        const level: ManuscriptHeadingLevel = raw >= 3 ? 3 : raw <= 1 ? 1 : 2;
+        // A level left out drops only its heading lines; the prose under them stays.
+        if (!levels.includes(level)) break;
         const runs = inlineRuns(node.content);
         if (!runs.some(run => run.text.trim())) break;
         const align = alignOf(node);
@@ -177,7 +182,7 @@ function blocksOf(nodes: readonly PmNode[] | undefined, outlineHeadings: boolean
         break;
       }
       case 'blockquote': {
-        const inner = trimBlank(blocksOf(node.content, outlineHeadings));
+        const inner = trimBlank(blocksOf(node.content, levels));
         if (inner.length) blocks.push({ type: 'quote', blocks: inner });
         break;
       }
@@ -189,7 +194,7 @@ function blocksOf(nodes: readonly PmNode[] | undefined, outlineHeadings: boolean
         if (node.content?.some(child => typeof child.text === 'string' || child.type === 'hardBreak')) {
           blocks.push({ type: 'paragraph', runs: inlineRuns(node.content) });
         } else if (node.content) {
-          blocks.push(...blocksOf(node.content, outlineHeadings));
+          blocks.push(...blocksOf(node.content, levels));
         }
     }
   }
@@ -209,7 +214,10 @@ function trimBlank(blocks: ManuscriptBlock[]): ManuscriptBlock[] {
 }
 
 /** Chapter prose (ProseMirror JSON) as manuscript blocks. Corrupt JSON throws. */
-export function proseToManuscriptBlocks(contentJson: string, outlineHeadings: boolean): ManuscriptBlock[] {
+export function proseToManuscriptBlocks(
+  contentJson: string,
+  levels: readonly ManuscriptHeadingLevel[] = MANUSCRIPT_HEADING_LEVELS,
+): ManuscriptBlock[] {
   const json: unknown = JSON.parse(contentJson);
   if (!json || typeof json !== 'object' || Array.isArray(json)) throw new Error('Invalid prose document');
   const doc = json as PmNode;
@@ -217,7 +225,7 @@ export function proseToManuscriptBlocks(contentJson: string, outlineHeadings: bo
   if (doc.type !== 'doc' || (doc.content !== undefined && !Array.isArray(doc.content))) {
     throw new Error('Invalid prose document');
   }
-  return trimBlank(blocksOf(doc.content, outlineHeadings));
+  return trimBlank(blocksOf(doc.content, levels));
 }
 
 export interface ManuscriptChapterProse extends ManuscriptChapterEntry {

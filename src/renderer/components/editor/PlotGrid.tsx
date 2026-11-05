@@ -46,7 +46,7 @@ const HEADER_MENU_GROUP_STARTS = new Set(['move-back', 'insert-before', 'delete'
 /**
  * The shared Plot Grid surface: one contiguous grid that fills its host. On
  * desktop it is drawn as the chapter's own little timeline — each row a lane
- * named on the left, each column a beat along the top, each cell a slip of
+ * named on the left, each column named along the top, each cell a slip of
  * paper written straight into; the phone keeps its hairline table. Desktop
  * edits headers inline; the
  * mobile paper tool hands cell and header presses to its own sheets through
@@ -266,7 +266,7 @@ export function PlotGridEditor({
         ? getComputedStyle(document.documentElement).getPropertyValue(mobile ? '--font-sans' : '--font-structure').trim()
         : '';
     const font = mobile ? `12px ${family || 'sans-serif'}` : `500 12.5px ${family || 'serif'}`;
-    // Desktop lane names sit 14px in from the edge, 8px short of the beats,
+    // Desktop lane names sit 14px in from the edge, 8px short of the columns,
     // inside the label's own 4px each side.
     return resolvePlotGridRowHeaderWidth(measureWidestLabel(labels, font), presentation, mobile ? undefined : 30);
   }, [mobile, presentation, t, view.rows]);

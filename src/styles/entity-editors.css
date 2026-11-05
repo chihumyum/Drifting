@@ -96,7 +96,7 @@
 }
 /* A field section's 新增字段 sits at the right of its header, where the
    meta line used to be, and keeps its own case and spacing. */
-.page__scene .refs-section__text-action {
+.page__section .refs-section__text-action {
   letter-spacing: normal;
   text-transform: none;
 }

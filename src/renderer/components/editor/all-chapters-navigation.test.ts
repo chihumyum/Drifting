@@ -47,7 +47,7 @@ describe('whole-book navigation through lazy chapter layout', () => {
         setTimeout(() => { f.row.dataset.contentReady = 'true'; }, 50);
       }, 5000);
     }));
-    const result = f.navigator.navigate({ chapterId: 'far', blockId: 'scene' });
+    const result = f.navigator.navigate({ chapterId: 'far', blockId: 'h1' });
     await vi.advanceTimersByTimeAsync(5040);
     expect(f.root.scrollTo).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(500);
@@ -71,7 +71,7 @@ describe('whole-book navigation through lazy chapter layout', () => {
     const f = fixture();
     let finishRead!: () => void;
     f.prepareChapter.mockImplementationOnce(() => new Promise((resolve) => { finishRead = resolve; }));
-    const old = f.navigator.navigate({ chapterId: 'far', blockId: 'scene' });
+    const old = f.navigator.navigate({ chapterId: 'far', blockId: 'h1' });
     const latest = f.navigator.navigate({ chapterId: 'far' });
     await vi.advanceTimersByTimeAsync(500);
     const top = f.root.scrollTop;
@@ -122,7 +122,7 @@ describe('whole-book navigation through lazy chapter layout', () => {
     const hidden = { ...f.heading, closest: () => ({}) };
     f.row.querySelectorAll = () => [hidden, f.heading] as typeof f.heading[];
     const hiddenMeasure = vi.spyOn(hidden, 'getBoundingClientRect');
-    const result = f.navigator.navigate({ chapterId: 'far', blockId: 'scene' });
+    const result = f.navigator.navigate({ chapterId: 'far', blockId: 'h1' });
     await vi.advanceTimersByTimeAsync(500);
     await expect(result).resolves.toBe(true);
     expect(hiddenMeasure).not.toHaveBeenCalled();

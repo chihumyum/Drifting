@@ -6,7 +6,7 @@
   "hero.values": "Open source · Local-first",
   "write.kicker": "Write",
   "write.title": "Writes like a Markdown editor",
-  "write.syntax": "One quiet page and the keyboard. Type <code>#</code>, <code>##</code> or <code>###</code> to start a scene, a beat or a note; <code>**bold**</code>, <code>*italic*</code>, <code>&gt;</code> and <code>---</code> <span class=\"sh\">take shape as you type</span>.",
+  "write.syntax": "One quiet page and the keyboard. Type <code>#</code>, <code>##</code> or <code>###</code> to start an H1, H2 or H3; <code>**bold**</code>, <code>*italic*</code>, <code>&gt;</code> and <code>---</code> <span class=\"sh\">take shape as you type</span>.",
   "write.files": "Every project is also a folder of Markdown files. Edit chapters and ideas in Obsidian or any text editor, and the changes merge back into Drifting.",
   "write.transfer": "Copy or save any document, or the whole book, as Markdown. Import <code>.md</code>, <code>.txt</code> and <code>.docx</code>.",
   "story.line": "The letters",

@@ -1810,7 +1810,7 @@ handler to that rail; their separate `useOutlineScrollspy` has been removed.
 Whole-book view retains its controlled primary chapter. Rail density, viewport
 range styling and single-entity reading location share one scoped geometry
 snapshot. The original 80 px threshold, 24 px look-ahead, heading pin intersection
-rule and five-level semantics remain in place.
+rule and the act / chapter / H1–H3 levels remain in place.
 
 Scroll, mutation and resize requests share one pending frame. Ordinary scroll
 uses content-relative anchor bounds without querying or measuring headings

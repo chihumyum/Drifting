@@ -20,7 +20,7 @@ const GRID: PlotGrid = {
   ],
   cells: {
     'orphan:cell': 'ignored',
-    'row-a:column-a': 'Beat',
+    'row-a:column-a': 'Cell',
   },
   cellW: 200,
   cellH: 80,
@@ -39,11 +39,11 @@ describe('normalized Plot Grid domain boundary', () => {
   it('serializes only deterministic sparse coordinates in row/column order', () => {
     const serialized = serializePlotGrid(GRID);
     expect(serialized).toBe(
-      '{"rows":[{"id":"row-a","label":"A"},{"id":"row-b","label":""}],"cols":[{"id":"column-a","label":"First"},{"id":"column-b","label":""}],"cells":{"row-a:column-a":"Beat"},"cellW":200,"cellH":80}',
+      '{"rows":[{"id":"row-a","label":"A"},{"id":"row-b","label":""}],"cols":[{"id":"column-a","label":"First"},{"id":"column-b","label":""}],"cells":{"row-a:column-a":"Cell"},"cellW":200,"cellH":80}',
     );
     expect(readPlotGridProjection(serialized)).toEqual({
       ...GRID,
-      cells: { 'row-a:column-a': 'Beat' },
+      cells: { 'row-a:column-a': 'Cell' },
     });
   });
 
@@ -66,7 +66,7 @@ describe('normalized Plot Grid domain boundary', () => {
         type: 'cell.value.set',
         rowId: 'row-a',
         columnId: 'column-a',
-        value: 'Beat',
+        value: 'Cell',
       },
     ]);
   });

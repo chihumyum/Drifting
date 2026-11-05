@@ -530,7 +530,7 @@ export function AllChaptersEditorView() {
   // Scroll-spy: highlight the current reading position in the outline. Unlike a
   // plain chapter highlight this can resolve to a heading id deep inside a
   // chapter — the spy tracks the deepest heading above the reading line so the
-  // highlight reaches into the expanded scene/beat/note rows (the panel lights
+  // highlight reaches into the expanded H1/H2/H3 rows (the panel lights
   // the chapter→…→heading path) instead of stopping at the chapter (L2).
   // Reading the intro before any heading keeps the chapter itself active.
   // Deliberately does NOT push selection to the global ui-store: letting scroll
@@ -848,8 +848,8 @@ export function AllChaptersEditorView() {
   );
 
   // Whole-book outline → a flat sequence of act dividers (L1) interleaved
-  // with chapter rows (L2); each chapter nests its TipTap H1/H2/H3 outline as
-  // scene/beat/note (L3-L5). Acts are centred dividers, NOT containers — the
+  // with chapter rows (L2); each chapter nests its TipTap H1/H2/H3 outline
+  // (L3-L5). Acts are centred dividers, NOT containers — the
   // chapters that follow an act belong to it visually, the way readRows lays
   // them out. EditorOutlineRail owns dynamic density: render every nested row
   // while it fits, then keep only the active chapter's children, and finally a

@@ -2,8 +2,8 @@ export interface OutlineEntry {
   id: string;
   level: 1 | 2 | 3;
   /**
-   * Structural role in the five-level outline:
-   * act / chapter / scene(h1) / beat(h2) / note(h3).
+   * Structural role in the outline: act and chapter, then the prose's
+   * H1 / H2 / H3, three levels whose meaning the author decides.
    */
   kind?: 'act' | 'chapter' | 'section' | 'heading';
   text: string;
@@ -56,7 +56,7 @@ function clamp01(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
-/** Fold a flat h1/h2/h3 list into the scene/beat/note hierarchy. */
+/** Fold a flat H1/H2/H3 list into a tree by level. */
 export function nestHeadings(
   headings: { id: string; level: 1 | 2 | 3; text: string }[],
 ): OutlineEntry[] {

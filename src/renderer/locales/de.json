@@ -36,7 +36,6 @@
     "contents": "Inhalt",
     "actTitles": "Akttitel",
     "chapterTitles": "Kapiteltitel",
-    "outlineHeadings": "Überschriften von Erzählschritten und Notizen",
     "bookInfo": "Buchangaben",
     "bookTitle": "Titel",
     "author": "Autor",
@@ -984,7 +983,7 @@
   },
   "chapterEditor": {
     "untitledChapter": "Unbenanntes Kapitel",
-    "subtitlePlaceholder": "Ein Untertitel oder ein Motto…",
+    "synopsisPlaceholder": "Kurzfassung…",
     "summaryPlaceholder": "Klicken, um eine Zusammenfassung hinzuzufügen…"
   },
   "chapterEnd": {
@@ -3606,9 +3605,6 @@
       }
     },
     "hints": {
-      "scene": "Szene",
-      "beat": "Erzählschritt",
-      "note": "Notiz",
       "search": "Alles durchsuchen",
       "timeline": "Zeitleiste",
       "driftRipens": "Wenn sie bereit ist, in ein Kapitel oder Element umwandeln",

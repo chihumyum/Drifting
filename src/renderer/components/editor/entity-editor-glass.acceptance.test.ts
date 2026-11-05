@@ -241,7 +241,7 @@ describe('entity editors in sand and glass', () => {
     );
     expect(structure).toBeDefined();
     const [, list, body] = structure!;
-    expect(list).toContain('.page__scene-title');
+    expect(list).toContain('.page__section-title');
     expect(list).toContain('.refs-section__title');
     expect(body).toContain('font-family: var(--font-structure);');
     expect(body).toContain('font-style: normal;');
@@ -252,7 +252,7 @@ describe('entity editors in sand and glass', () => {
       'src/renderer/views/CategoryEditorView.tsx',
       'src/renderer/views/StorylineEditorView.tsx',
     ]) {
-      expect(source(path), path).toContain('<span className="page__scene-title">');
+      expect(source(path), path).toContain('<span className="page__section-title">');
     }
     for (const path of ['src/renderer/components/editor/ReferencesPanel.tsx', 'src/renderer/components/editor/PatchesSection.tsx']) {
       expect(source(path), path).toContain('<span className="refs-section__title">');
@@ -341,7 +341,7 @@ describe('entity editors in sand and glass', () => {
     expect(home.split('<KvAddButton className="dash-text-button"').length - 1).toBe(2);
     const editors = source('src/styles/entity-editors.css');
     expect(editors).not.toContain('.kv-editor__add');
-    const [header] = rules(editors, ['.page__scene']).filter(([selector]) => selector.includes('.refs-section__text-action'));
+    const [header] = rules(editors, ['.page__section']).filter(([selector]) => selector.includes('.refs-section__text-action'));
     expect(header[1]).toContain('text-transform: none;');
   });
 
@@ -351,6 +351,6 @@ describe('entity editors in sand and glass', () => {
     expect(docs).toContain('`entity-editor-glass.acceptance.test.ts`');
     expect(docs).toContain('只有光标');
     expect(docs).toContain('`.ui-section-empty`');
-    expect(docs).toContain('`.page__scene-title`');
+    expect(docs).toContain('`.page__section-title`');
   });
 });

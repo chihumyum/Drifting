@@ -28,7 +28,7 @@ html[data-shell-mode='desktop'] :is(
   .left-sb-group-header__name,
   .left-sb-group-header__frame-label,
   .btl-rail__name,
-  .page__scene-title,
+  .page__section-title,
   .refs-section__title,
   .dash-sec__title
 ) {
