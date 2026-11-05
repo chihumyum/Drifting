@@ -14,7 +14,6 @@ import { requestConfirmation } from '../../store/confirmation-store';
 import { Switch } from '../../components/ui/Switch';
 import { AnchoredPopover } from '../../components/ui/AnchoredPopover';
 import { agentProviderModelOption } from '../../lib/agent/runtime/agent-provider-contract';
-import { codexModelCatalog } from '../../lib/agent/codex-model-catalog';
 import { useCodexModelCatalog } from './useCodexModelCatalog';
 import { useByokModelLists } from './useByokModelLists';
 import { useAgentProviderReadiness } from './useAgentProviderReadiness';
@@ -215,15 +214,6 @@ export function AgentComposerConfig({
                 <div className={sectionClass}>{provider.label}</div>
                 {provider.value === 'openai-codex' && (
                   <>
-                    <button
-                      type="button"
-                      className={rowButtonClass}
-                      disabled={catalog.state === 'loading'
-                        || !isAgentProviderSelectable(providerReadiness, 'openai-codex')}
-                      onClick={() => void codexModelCatalog.refresh(true)}
-                    >
-                      {t(`agentPanel.config.${catalog.state === 'loading' ? 'modelsLoading' : catalog.state === 'error' ? 'modelsRetry' : 'modelsRefresh'}`)}
-                    </button>
                     {catalog.updatedAt !== null && (
                       <div className={sectionClass} role="status">
                         {t(`agentPanel.config.${catalog.state === 'error' ? 'modelsStale' : 'modelsUpdated'}`, {

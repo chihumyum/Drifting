@@ -19,7 +19,7 @@ ChatGPT 订阅是实验性、不受支持的路由：设置页的「ChatGPT 订�
 
 ## ChatGPT 订阅模型发现
 
-General Agent 在发现有效登录或账号变化后刷新目录；打开模型菜单和菜单打开时窗口重新获得焦点按有效期刷新，恢复联网与手动「刷新模型」强制重新验证。原生 `codex_models_list` 复用现有 Codex OAuth 凭据和固定 `https://chatgpt.com/backend-api/codex/models` 路由；`client_version` 与 OAuth User-Agent 统一读取 [`src-tauri/codex-compatibility.json`](../src-tauri/codex-compatibility.json)，目前的兼容基线为 `0.166.0`。这与 Drifting 的应用版本独立，不能继续使用开发占位值 `0.0.0`。请求拒绝重定向，限制为 30 秒、8 MiB；401 只刷新凭据后重试一次。renderer 只收到模型名称、标识、能力字段和刷新有效期，不接收 token、ETag、原始目录或其中的 instructions。
+General Agent 在发现有效登录或账号变化后刷新目录；打开模型菜单和菜单打开时窗口重新获得焦点按有效期刷新，恢复联网强制重新验证；与三家 API Key 列表一样没有手动刷新按钮。原生 `codex_models_list` 复用现有 Codex OAuth 凭据和固定 `https://chatgpt.com/backend-api/codex/models` 路由；`client_version` 与 OAuth User-Agent 统一读取 [`src-tauri/codex-compatibility.json`](../src-tauri/codex-compatibility.json)，目前的兼容基线为 `0.166.0`。这与 Drifting 的应用版本独立，不能继续使用开发占位值 `0.0.0`。请求拒绝重定向，限制为 30 秒、8 MiB；401 只刷新凭据后重试一次。renderer 只收到模型名称、标识、能力字段和刷新有效期，不接收 token、ETag、原始目录或其中的 instructions。
 
 目录保留服务端 `visibility: list` 模型的顺序和名称，不用 `supported_in_api` 过滤订阅模型。上下文和推理档位跟随目录，包括 `minimal` / `ultra`；没有 `none` 的推理模型不能关闭推理，不支持的 summary / verbosity 参数不会发送。缺少上下文元数据时采用 32,768 token 本地输入规划回退；目录没有提供的输出上限记为 `null`（未知），不能用预留量冒充模型能力。
 
@@ -55,7 +55,7 @@ General Agent 默认不设置单次或累计输出上限；摘要压缩也不再
 ## 路由归属
 
 - General Agent 的 `agentProvider + agentModel + reasoning` 只在右侧对话框的 composer 配置菜单中选择。设置页保留 Agent memory、MCP 和 usage 等持久管理面。
-- 模型菜单打开时检查四个服务商有没有可用凭据，与首次引导、签到用同一个判断（`canAgentProviderRun`）：API Key 只查是否存在（开发用 `.env` Key 或 Keychain 条目），不解密；ChatGPT 订阅看是否已登录。没有凭据的服务商，其模型行照常列出但置灰、不能选，订阅的「刷新模型」也不可点；已选中的模型即使没有凭据也照常显示当前标记。保存或删除 Key、登录状态变化、窗口重新获得焦点时重新检查；检查还没答复的服务商先按可选处理。
+- 模型菜单打开时检查四个服务商有没有可用凭据，与首次引导、签到用同一个判断（`canAgentProviderRun`）：API Key 只查是否存在（开发用 `.env` Key 或 Keychain 条目），不解密；ChatGPT 订阅看是否已登录。没有凭据的服务商，其模型行照常列出但置灰、不能选；已选中的模型即使没有凭据也照常显示当前标记。保存或删除 Key、登录状态变化、窗口重新获得焦点时重新检查；检查还没答复的服务商先按可选处理。
 - standalone Shadow CI、Element Arc 与 Goal Evolve 已于 2026-08-05 移除；它们不再拥有 provider route 或独立凭据消费者。
 - Copilot（元素抽取、元素补丁建议、滚动段落摘要、⇧⌘I 内联编辑与内联「问」）已于 2026-10-30 退役，主动 AI 功能改由 Agent 承担。它的 `copilot*` 偏好由设置迁移 v32 删除；Google 只被 Copilot 使用，随之从设置页、`BYOKProvider`、provider 适配器和 `@google/genai` 依赖中移除，已存的 `byok.google` Keychain 条目不再读取。退役前最后一个提交打了 tag `copilot-retired-2026-10-30`。
 
