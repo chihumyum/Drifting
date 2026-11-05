@@ -250,6 +250,23 @@ jobs:
           mkdir -p out/windows-release
           cp "$INSTALLER" "out/windows-release/$NAME"
           cp "$INSTALLER.sig" "out/windows-release/$NAME.sig"
+      # As in windows.yml: an installer whose App exits at start never reaches
+      # the draft. Install it for this user, open Drifting and require it still
+      # running 20 seconds later.
+      - name: Install and open the App
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem out/windows-release/*-setup.exe | Select-Object -First 1
+          Start-Process -FilePath $installer.FullName -ArgumentList '/S' -Wait
+          $app = Join-Path $env:LOCALAPPDATA 'Drifting\drifting.exe'
+          if (-not (Test-Path $app)) { throw "the installer did not install $app" }
+          $stderr = Join-Path $env:RUNNER_TEMP 'drifting-stderr.txt'
+          $process = Start-Process -FilePath $app -RedirectStandardError $stderr -PassThru
+          Start-Sleep -Seconds 20
+          $exited = $process.HasExited
+          Get-Content $stderr -ErrorAction SilentlyContinue
+          if ($exited) { throw "Drifting exited at start with code $($process.ExitCode)" }
+          Stop-Process -Id $process.Id -Force
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: windows-release-${{ matrix.arch }}
