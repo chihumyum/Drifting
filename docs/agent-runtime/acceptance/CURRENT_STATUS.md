@@ -199,9 +199,9 @@ pnpm agent:capabilities:check
 - Project Home (desktop and mobile) opens with a General Agent entry and
   device-local check-in cards: on open or focus, at most every 90 minutes, a
   single forced-tool request reads the prose changed since the last check-in
-  and returns up to four cards — each a question to ask or work to do — plus
-  memory upkeep. It never writes the manuscript; opening a card hands its task
-  to an ordinary General Agent session. See `../project-checkin.md`.
+  and returns up to four cards — each a question to ask or work to do, memory
+  upkeep included. It writes nothing itself; opening a card hands its task to
+  an ordinary General Agent session. See `../project-checkin.md`.
 - On desktop, Project Home offers an organize card for the author's own
   chapter and idea prose since the last organize, worked out locally without a
   model. Opening it starts a background read-write General Agent session that

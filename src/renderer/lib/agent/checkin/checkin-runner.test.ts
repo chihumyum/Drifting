@@ -52,7 +52,7 @@ function fakeDriver(argumentsJson: string, seen: AgentModelRequest[]): AgentMode
 describe('project check-in runner', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('makes one forced single request and applies the memory upkeep it returns', async () => {
+  it('makes one forced single request and writes nothing, memory included', async () => {
     const seen: AgentModelRequest[] = [];
     const outcome = await runProjectCheckin({
       projectId: 'project-1',
@@ -65,7 +65,12 @@ describe('project check-in runner', () => {
         JSON.stringify({
           cards: [
             { title: '把人物卡的年龄改成与第三章一致', detail: '第三章改了她的年龄。', instruction: '把要素里的年龄改成与第三章一致。', target: 'c1' },
+            {
+              title: '把「作者喜欢短句」挪进项目记忆',
+              instruction: '工作记忆里的「长期：作者喜欢短句」是长期偏好：写进项目记忆，再从工作记忆删掉这一行；合并重复的「结局保持开放」。',
+            },
           ],
+          // Fields earlier check-ins used to edit memory directly.
           workingMemoryEdits: [{ oldText: '\n- 长期：作者喜欢短句', newText: '' }],
           memoryAdd: ['作者喜欢短句。'],
           memoryUpdate: [{ memoryId: 'mem-1', body: '结局保持开放，留回声。' }],
@@ -85,27 +90,23 @@ describe('project check-in runner', () => {
     expect(seen[0]!.tools.map((tool) => tool.name)).toEqual([CHECKIN_TOOL_NAME]);
     expect(seen[0]!.context.messages).toHaveLength(1);
 
+    const message = seen[0]!.context.messages[0] as { message: { content: string } };
+    expect(message.message.content).toContain('长期：作者喜欢短句');
+    expect(message.message.content).toContain('结局保持开放。');
+
     expect(outcome.cards).toEqual([
       expect.objectContaining({
         id: expect.any(String),
         title: '把人物卡的年龄改成与第三章一致',
         target: { entityType: 'node', entityId: 'chapter-3', title: '第三章' },
       }),
+      expect.objectContaining({ title: '把「作者喜欢短句」挪进项目记忆', target: null }),
     ]);
-    expect(memory.createMemory).toHaveBeenCalledWith('project-1', {
-      kind: 'preference',
-      body: '作者喜欢短句。',
-      source: 'agent',
-      status: 'active',
-    });
-    expect(memory.updateMemoryBody).toHaveBeenCalledWith('project-1', 'mem-1', '结局保持开放，留回声。');
-    expect(memory.softDeleteMemory).toHaveBeenCalledWith('project-1', 'mem-2');
-    expect(working.saveAgentWorkingMemory).toHaveBeenCalledWith('project-1', {
-      contentMd: '# Working Memory\n\n## Recent',
-      expectedRevision: 7,
-      updatedBy: 'agent',
-    });
-    expect(outcome.memory).toEqual({ added: 1, updated: 1, deleted: 1, workingMemoryUpdated: true });
+    expect(outcome).not.toHaveProperty('memory');
+    expect(memory.createMemory).not.toHaveBeenCalled();
+    expect(memory.updateMemoryBody).not.toHaveBeenCalled();
+    expect(memory.softDeleteMemory).not.toHaveBeenCalled();
+    expect(working.saveAgentWorkingMemory).not.toHaveBeenCalled();
   });
 
   it('writes nothing when the model result is invalid', async () => {

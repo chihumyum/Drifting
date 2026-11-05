@@ -1,8 +1,8 @@
 /**
  * Project Home check-in: one read-only model request that turns the author's
- * recent changes into a few cards and keeps Working Memory / Project Memory
- * tidy. The prompt states principles only; it never prescribes what a story
- * should contain.
+ * recent changes into a few cards. It writes nothing: memory upkeep, like
+ * every other piece of work, is a card the author opens. The prompt states
+ * principles only; it never prescribes what a story should contain.
  */
 import { Type, type Static } from '@sinclair/typebox';
 import { Value } from '@sinclair/typebox/value';
@@ -59,28 +59,6 @@ export const checkinToolSchema = Type.Object(
         description: `Zero to ${CHECKIN_MAX_CARDS} cards, most useful first`,
       },
     ),
-    workingMemoryEdits: Type.Optional(
-      Type.Array(
-        Type.Object(
-          {
-            oldText: Type.String({ description: 'Exact WORKING_MEMORY.md passage; occurs once' }),
-            newText: Type.String({ description: 'Replacement; empty deletes the passage' }),
-          },
-          { additionalProperties: false },
-        ),
-        { description: 'Passage edits to WORKING_MEMORY.md, applied in order; omit when unchanged' },
-      ),
-    ),
-    memoryAdd: Type.Optional(Type.Array(Type.String(), { description: 'New PROJECT_MEMORY.md entries' })),
-    memoryUpdate: Type.Optional(
-      Type.Array(
-        Type.Object(
-          { memoryId: Type.String(), body: Type.String() },
-          { additionalProperties: false },
-        ),
-      ),
-    ),
-    memoryDelete: Type.Optional(Type.Array(Type.String({ description: 'memoryId to delete' }))),
   },
   { additionalProperties: false },
 );
@@ -88,7 +66,7 @@ export const checkinToolSchema = Type.Object(
 export type CheckinToolOutput = Static<typeof checkinToolSchema>;
 
 export const CHECKIN_TOOL_DESCRIPTION =
-  'Submit the check-in cards for the author and any memory upkeep. Call exactly once.';
+  'Submit the check-in cards for the author. Call exactly once.';
 
 export const CHECKIN_SYSTEM_PROMPT = [
   'You prepare a short check-in for an author who is opening their writing project in Drifting. You see what changed in the manuscript and project objects since the previous check-in (or, when nothing changed, their most recent work), the project memory, the shared working memory and the open TODOs. You cannot edit the manuscript here.',
@@ -96,7 +74,7 @@ export const CHECKIN_SYSTEM_PROMPT = [
   'Each card is one thing you want to ask or do. Its title is the question itself, or the work you want to do. Opening the card starts a General Agent session with its instruction; that Agent has the full project tools and chooses for itself whether to ask the author, update records, add notes or TODOs, or combine them. Make the instruction self-contained: name the objects involved, give the evidence, and say what done looks like. Ask when only the author can resolve an uncertainty, open thread or decision; propose work when the project records need upkeep. Point a card at a changed object with its ref when one applies.',
   'Literary choices belong to the author. Do not push your own taste on style, plot or characters; serve the intentions recorded in project memory. Do not duplicate open TODOs or reopen matters project memory already settles. Changes made by the Agent or synced from another device may be drafts the author has not reviewed yet.',
   'Project Home separately offers the author a card that folds their newly written prose into elements, element changes and relations. Do not propose a card that only does that general upkeep; a card about one specific inconsistency or decision is still welcome.',
-  'Memory upkeep. PROJECT_MEMORY.md holds the author\'s lasting thoughts, intentions, habits and standing instructions; story facts never belong there. WORKING_MEMORY.md holds recent shared work context. When working memory contains lasting author context, add it to project memory and delete it from working memory with passage edits; delete stale or finished detail the same way. Merge or delete duplicate project memory entries. Omit every memory field that should stay unchanged.',
+  'Memory upkeep is a card too; nothing changes until the author opens it. PROJECT_MEMORY.md holds the author\'s lasting thoughts, intentions, habits and standing instructions; story facts never belong there. WORKING_MEMORY.md holds recent shared work context. When working memory holds lasting author context that belongs in project memory, stale or finished detail, or project memory has duplicates, propose a single card that covers all of that upkeep. Its instruction identifies the passages and entries involved with short quotes and says what to move, merge or delete.',
   'Write titles, details and instructions in the language the author writes in.',
 ].join('\n\n');
 
@@ -179,10 +157,6 @@ export function buildCheckinContext(input: CheckinContextInput): string {
 
 export interface ParsedCheckin {
   cards: Omit<CheckinCard, 'id'>[];
-  workingMemoryEdits: { oldText: string; newText: string }[];
-  memoryAdd: string[];
-  memoryUpdate: { memoryId: string; body: string }[];
-  memoryDelete: string[];
 }
 
 function text(value: unknown, limit: number): string {
@@ -206,14 +180,13 @@ function withoutNullFields(value: unknown): unknown {
  * Validate the forced tool call. Fields the schema does not name and `null`
  * optional fields are dropped first: models add them around otherwise valid
  * results (`maxItems` beside `cards`, `"target": null`), and they carry
- * nothing to apply. Unknown refs and memory ids are dropped rather than
- * trusted; a payload still invalid after that is an error, never partial
- * state.
+ * nothing to use; the memory fields earlier check-ins returned go the same
+ * way. Unknown refs are dropped rather than trusted; a payload still invalid
+ * after that is an error, never partial state.
  */
 export function parseCheckinToolArguments(
   argumentsJson: string,
   documents: readonly CheckinChangedDocument[],
-  memoryIds: ReadonlySet<string>,
 ): ParsedCheckin {
   let raw: unknown;
   try {
@@ -244,15 +217,5 @@ export function parseCheckinToolArguments(
         : null,
     });
   }
-  return {
-    cards,
-    workingMemoryEdits: (output.workingMemoryEdits ?? []).filter(({ oldText }) => oldText.length > 0),
-    memoryAdd: (output.memoryAdd ?? []).map((body) => text(body, 4_000)).filter(Boolean),
-    memoryUpdate: (output.memoryUpdate ?? [])
-      .map(({ memoryId, body }) => ({ memoryId: memoryId.trim(), body: text(body, 4_000) }))
-      .filter(({ memoryId, body }) => memoryIds.has(memoryId) && body),
-    memoryDelete: [...new Set((output.memoryDelete ?? []).map((id) => id.trim()))].filter((id) =>
-      memoryIds.has(id),
-    ),
-  };
+  return { cards };
 }

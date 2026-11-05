@@ -1,29 +1,16 @@
 /**
  * Runs one Project Home check-in: gather the change digest and memory, make a
  * single forced-tool model request with the author's selected Agent provider,
- * apply the memory upkeep it returns, and hand back the cards. The manuscript
- * is never written here; accepted cards go through ordinary Agent sessions.
+ * and hand back the cards. Nothing is written here, memory included; opened
+ * cards go through ordinary Agent sessions.
  */
 import { v7 as uuidv7 } from 'uuid';
 import { isChapter } from '../../../domain/book-node';
 import { extractTextFromCommentBody } from '../../../domain/comment';
 import { useDataStore } from '../../../store/data-store';
-import {
-  createMemory,
-  loadActiveMemories,
-  softDeleteMemory,
-  updateMemoryBody,
-} from '../../../usecase/useAgentMemory';
-import {
-  loadAgentWorkingMemory,
-  saveAgentWorkingMemory,
-} from '../../../usecase/useAgentWorkingMemory';
-import {
-  AGENT_WORKING_MEMORY_NOTICE_TOKENS,
-  EMPTY_AGENT_WORKING_MEMORY_MD,
-  type AgentWorkingMemorySnapshot,
-} from '../../../domain/agent-working-memory';
-import { applyAgentWorkingMemoryEdits } from '../runtime/working-memory-document';
+import { loadActiveMemories } from '../../../usecase/useAgentMemory';
+import { loadAgentWorkingMemory } from '../../../usecase/useAgentWorkingMemory';
+import { AGENT_WORKING_MEMORY_NOTICE_TOKENS } from '../../../domain/agent-working-memory';
 import { DriftingAgentModelDriver } from '../runtime/drivers';
 import type { AgentModelDriver } from '../runtime/types';
 import { collectCheckinDelta, type CheckinChangedDocument } from './checkin-delta';
@@ -56,7 +43,6 @@ export interface ProjectCheckinRequest {
 export interface ProjectCheckinOutcome {
   cards: CheckinCard[];
   documents: number;
-  memory: { added: number; updated: number; deleted: number; workingMemoryUpdated: boolean };
 }
 
 function openTodos(projectId: string): string[] {
@@ -136,44 +122,6 @@ async function requestCheckin(
 /** Documents larger than this stay out of the check-in request. */
 const CHECKIN_WORKING_MEMORY_TOKENS = AGENT_WORKING_MEMORY_NOTICE_TOKENS[0];
 
-async function applyMemoryUpkeep(
-  projectId: string,
-  parsed: ReturnType<typeof parseCheckinToolArguments>,
-  workingMemory: AgentWorkingMemorySnapshot,
-  workingMemoryIncluded: boolean,
-): Promise<ProjectCheckinOutcome['memory']> {
-  const outcome = { added: 0, updated: 0, deleted: 0, workingMemoryUpdated: false };
-  for (const body of parsed.memoryAdd) {
-    await createMemory(projectId, { kind: 'preference', body, source: 'agent', status: 'active' });
-    outcome.added += 1;
-  }
-  for (const { memoryId, body } of parsed.memoryUpdate) {
-    if (await updateMemoryBody(projectId, memoryId, body)) outcome.updated += 1;
-  }
-  for (const memoryId of parsed.memoryDelete) {
-    await softDeleteMemory(projectId, memoryId);
-    outcome.deleted += 1;
-  }
-  if (workingMemoryIncluded && parsed.workingMemoryEdits.length > 0) {
-    // Revision CAS: a conversation that edited meanwhile wins, and an edit
-    // whose passage no longer matches leaves the document untouched.
-    try {
-      await saveAgentWorkingMemory(projectId, {
-        contentMd: applyAgentWorkingMemoryEdits(
-          workingMemory.exists ? workingMemory.contentMd : EMPTY_AGENT_WORKING_MEMORY_MD,
-          parsed.workingMemoryEdits,
-        ),
-        expectedRevision: workingMemory.revision,
-        updatedBy: 'agent',
-      });
-      outcome.workingMemoryUpdated = true;
-    } catch {
-      outcome.workingMemoryUpdated = false;
-    }
-  }
-  return outcome;
-}
-
 export async function runProjectCheckin(
   request: ProjectCheckinRequest,
 ): Promise<ProjectCheckinOutcome> {
@@ -213,21 +161,10 @@ export async function runProjectCheckin(
         feature: 'project-checkin',
       });
     const argumentsJson = await requestCheckin(driver, request, context, signal);
-    const parsed = parseCheckinToolArguments(
-      argumentsJson,
-      documents,
-      new Set(memories.map((memory) => memory.id)),
-    );
-    const memory = await applyMemoryUpkeep(
-      request.projectId,
-      parsed,
-      workingMemory,
-      workingMemoryIncluded,
-    );
+    const parsed = parseCheckinToolArguments(argumentsJson, documents);
     return {
       cards: parsed.cards.map((card) => ({ ...card, id: uuidv7() })),
       documents: documents.length,
-      memory,
     };
   } finally {
     clearTimeout(timer);
