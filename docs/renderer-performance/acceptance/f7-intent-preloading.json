@@ -3,10 +3,10 @@
   "kind": "renderer_deferred_graphs",
   "status": "passed",
   "mode": "deferred",
-  "generatedAt": "2026-11-05T20:05:33.331Z",
+  "generatedAt": "2026-11-05T20:12:49.143Z",
   "source": {
-    "commit": "e07669e7325f3dec1b26161c882871add80702ba",
-    "fingerprint": "6fe882f20d3603af5ae21899f9ede69118d6fdbe21afd31a7fd10636321a45fb",
+    "commit": "c9d2ea84886ec32a75eab872e7bf3e504ec6e342",
+    "fingerprint": "16db7c7e2ca0f759eae9dee7361ee39e95986ee0759423fecbe73a865d1adb4c",
     "dirty": false
   },
   "environment": {
@@ -14,7 +14,7 @@
     "node": "v22.23.1",
     "browser": "Chrome/156.0.8078.80"
   },
-  "initialJsBytes": 3801343,
+  "initialJsBytes": 3801525,
   "chunks": [
     {
       "file": "assets/react-vendor-FHqoRFXt.js",
@@ -39,8 +39,8 @@
       "initial": true
     },
     {
-      "file": "assets/index-CnvzOogo.js",
-      "bytes": 509232,
+      "file": "assets/index-vAZtMx5m.js",
+      "bytes": 509414,
       "entry": true,
       "facade": "index.html",
       "imports": [
@@ -908,7 +908,7 @@
       "initial": false
     },
     {
-      "file": "assets/FeedbackDialog-BPbcFsNe.js",
+      "file": "assets/FeedbackDialog-BX-Ay5_T.js",
       "bytes": 7479,
       "entry": false,
       "facade": "src/renderer/features/feedback/FeedbackDialog.tsx",
@@ -918,7 +918,7 @@
         "assets/anchored-popover-position-CJ7UyGsC.js",
         "assets/quota-Db483Vk4.js",
         "assets/SegmentedControl-DGAPW4qo.js",
-        "assets/index-CnvzOogo.js",
+        "assets/index-vAZtMx5m.js",
         "assets/serialize-CTuNbP7m.js",
         "assets/shortcuts-BZdvVxCL.js",
         "assets/sanitized-summary-DVWkBD3h.js",
@@ -1308,7 +1308,7 @@
       "initial": true
     },
     {
-      "file": "assets/project-route-components-BFS-noOI.js",
+      "file": "assets/project-route-components-TaJPxBCX.js",
       "bytes": 863347,
       "entry": false,
       "facade": "src/renderer/app/project-route-components.tsx",
@@ -1322,7 +1322,7 @@
         "assets/notification-store-D5HjjHRp.js",
         "assets/project-store-BMELb2tT.js",
         "assets/connect-uens6-sy.js",
-        "assets/index-CnvzOogo.js",
+        "assets/index-vAZtMx5m.js",
         "assets/events-mrzQ2dfo.js",
         "assets/agent-onboarding-BfgSBzId.js",
         "assets/SandCell-C6IbxQr8.js",
@@ -2656,13 +2656,13 @@
       "initial": false
     },
     {
-      "file": "assets/docx-BgXo5u-9.js",
+      "file": "assets/docx-CIhSpkYI.js",
       "bytes": 407300,
       "entry": false,
       "facade": "src/renderer/services/import/docx.ts",
       "imports": [
         "assets/react-vendor-FHqoRFXt.js",
-        "assets/index-CnvzOogo.js",
+        "assets/index-vAZtMx5m.js",
         "assets/jszip.min-DVeep1eZ.js",
         "assets/tiptap-AK4u0TRO.js",
         "assets/yjs-prose-command-BWZNkThp.js",
@@ -2744,7 +2744,7 @@
       "assets/entity-relation-type-repo-BaeSzpHX.js",
       "assets/events-mrzQ2dfo.js",
       "assets/i18n-C-fgQWG7.js",
-      "assets/index-CnvzOogo.js",
+      "assets/index-vAZtMx5m.js",
       "assets/library-state-repo-Bez0rerA.js",
       "assets/local-authored-blob-DKU71CGX.js",
       "assets/location-link-catalog-kXQGskeu.js",
@@ -2798,8 +2798,8 @@
       "assets/entity-relation-type-repo-BaeSzpHX.js",
       "assets/events-mrzQ2dfo.js",
       "assets/i18n-C-fgQWG7.js",
-      "assets/index-CnvzOogo.js",
       "assets/index-Wt6pCYxx.css",
+      "assets/index-vAZtMx5m.js",
       "assets/library-state-repo-Bez0rerA.js",
       "assets/local-authored-blob-DKU71CGX.js",
       "assets/location-link-catalog-kXQGskeu.js",
@@ -2820,13 +2820,11 @@
       "assets/scroll-to-block-C1hdQWnJ.js",
       "assets/serialize-CTuNbP7m.js",
       "assets/shortcuts-BZdvVxCL.js",
-      "assets/source-sans-3-latin-wght-normal-Bo_j9asI.woff2",
       "assets/sync-helpers-C7a-xtwU.js",
       "assets/tauri-transport-CvigV2wX.js",
       "assets/tiptap-AK4u0TRO.js",
       "assets/useProject-Bwude4p-.js",
       "assets/yjs-prose-command-BWZNkThp.js",
-      "favicon.ico",
       "startup.js"
     ]
   },
@@ -2920,474 +2918,474 @@
   ],
   "tests": [
     {
-      "name": "Super View Escape stack returns the most recently opened active layer",
-      "status": "passed",
-      "durationMs": 0.967790999999977
-    },
-    {
-      "name": "Super View Escape stack ignores a newer layer after it becomes inactive",
-      "status": "passed",
-      "durationMs": 0.1536249999999768
-    },
-    {
-      "name": "Super View Escape stack returns null at the Super View root",
-      "status": "passed",
-      "durationMs": 0.09279100000003382
-    },
-    {
-      "name": "Super View Escape stack dispatches exactly one child action and does not exit the root",
-      "status": "passed",
-      "durationMs": 0.33575000000001864
-    },
-    {
-      "name": "Super View Escape stack returns to the previous editor surface from the root",
-      "status": "passed",
-      "durationMs": 0.1992089999999962
-    },
-    {
-      "name": "deferred module ownership does not expose a speculative failure and retries automatically on first demand",
-      "status": "passed",
-      "durationMs": 4.255624999999952
-    },
-    {
-      "name": "deferred module ownership promotes an in-flight preload to demand without a second fetch and exposes its failure",
-      "status": "passed",
-      "durationMs": 0.937958999999978
-    },
-    {
-      "name": "deferred module ownership shares successful preloaded code and coalesces reentrant demand notifications",
-      "status": "passed",
-      "durationMs": 0.2651669999999626
-    },
-    {
-      "name": "deferred module ownership stays idle until requested and shares concurrent and successful loads",
-      "status": "passed",
-      "durationMs": 0.495083999999963
-    },
-    {
-      "name": "deferred module ownership publishes a local error and retries a rejected loader only when requested",
-      "status": "passed",
-      "durationMs": 0.2442919999999731
-    },
-    {
-      "name": "deferred module ownership handles synchronous loader failure without leaving a stuck loading state",
-      "status": "passed",
-      "durationMs": 0.08583299999997962
-    },
-    {
-      "name": "deferred module ownership does not notify closed consumers and retains code for a later owner",
-      "status": "passed",
-      "durationMs": 0.297916999999984
-    },
-    {
-      "name": "bounded deferred preloading waits for intent scheduling, keeps only the latest queued entry and cancels before start",
-      "status": "passed",
-      "durationMs": 2.553833000000054
-    },
-    {
-      "name": "bounded deferred preloading allows one active speculative load and one queued successor, without blocking foreground demand",
-      "status": "passed",
-      "durationMs": 0.40049999999996544
-    },
-    {
-      "name": "bounded deferred preloading starts the queued preload only after the active import settles",
-      "status": "passed",
-      "durationMs": 0.3059160000000247
-    },
-    {
-      "name": "bounded deferred preloading lets a canceled control release its queued successor without canceling another owner",
-      "status": "passed",
-      "durationMs": 0.18275000000005548
-    },
-    {
-      "name": "bounded deferred preloading attempts each resource speculatively once, leaves failed demand alone and permits explicit retry",
-      "status": "passed",
-      "durationMs": 0.5934170000000449
-    },
-    {
-      "name": "bounded deferred preloading rechecks eligibility after waiting, including a queued task behind an active import",
-      "status": "passed",
-      "durationMs": 0.13041599999996834
-    },
-    {
       "name": "renderer ownership boundaries keeps super view bodies and shared graph UI behind their owned deferred entries",
       "status": "passed",
-      "durationMs": 1841.9592079999998
+      "durationMs": 998.0652919999999
     },
     {
       "name": "renderer ownership boundaries loads every stylesheet of a deferred entry with the shell, since its ignored import() injects none",
       "status": "passed",
-      "durationMs": 2968.7984589999996
+      "durationMs": 1592.6386250000003
     },
     {
       "name": "renderer ownership boundaries gives every module two Super View entries share to the shell or the graph UI facade",
       "status": "passed",
-      "durationMs": 3383.10325
+      "durationMs": 1490.472167
     },
     {
       "name": "renderer ownership boundaries reports a module two Super View entries share outside the shell",
       "status": "passed",
-      "durationMs": 1896.7178339999991
+      "durationMs": 1525.0785420000002
     },
     {
       "name": "renderer ownership boundaries reports a deferred view stylesheet the shell stops owning",
       "status": "passed",
-      "durationMs": 1767.847749999999
+      "durationMs": 1367.359958
     },
     {
       "name": "renderer ownership boundaries keeps heavy settings code deferred while basic preferences and Trash stay reachable",
       "status": "passed",
-      "durationMs": 845.8849590000009
+      "durationMs": 671.487250000001
     },
     {
       "name": "renderer ownership boundaries requires explicit workspace fields or selectors in product consumers",
       "status": "passed",
-      "durationMs": 435.77500000000146
+      "durationMs": 327.41362500000105
     },
     {
       "name": "renderer ownership boundaries keeps shared features independent from the desktop shell and desktop navigation store",
       "status": "passed",
-      "durationMs": 11.351916999999958
+      "durationMs": 11.505832999999257
     },
     {
       "name": "renderer ownership boundaries keeps mobile shell code independent from desktop shell and desktop navigation state",
       "status": "passed",
-      "durationMs": 3.5788749999992433
+      "durationMs": 3.4630840000008902
     },
     {
       "name": "renderer ownership boundaries keeps the app entry small and delegates project UI to DesktopAppShell",
       "status": "passed",
-      "durationMs": 0.3535830000000715
+      "durationMs": 0.3239160000011907
     },
     {
       "name": "renderer ownership boundaries contains child-route subscriptions inside the desktop navigation boundary",
       "status": "passed",
-      "durationMs": 0.8312500000010914
+      "durationMs": 0.31354100000135077
     },
     {
       "name": "renderer ownership boundaries keeps compatibility barrels thin after feature extraction",
       "status": "passed",
-      "durationMs": 0.8005000000011933
+      "durationMs": 0.6667500000003201
+    },
+    {
+      "name": "Super View Escape stack returns the most recently opened active layer",
+      "status": "passed",
+      "durationMs": 1.1549170000000117
+    },
+    {
+      "name": "Super View Escape stack ignores a newer layer after it becomes inactive",
+      "status": "passed",
+      "durationMs": 0.17929200000000378
+    },
+    {
+      "name": "Super View Escape stack returns null at the Super View root",
+      "status": "passed",
+      "durationMs": 0.09116699999998445
+    },
+    {
+      "name": "Super View Escape stack dispatches exactly one child action and does not exit the root",
+      "status": "passed",
+      "durationMs": 0.3335830000000044
+    },
+    {
+      "name": "Super View Escape stack returns to the previous editor surface from the root",
+      "status": "passed",
+      "durationMs": 0.20375000000001364
+    },
+    {
+      "name": "deferred module ownership does not expose a speculative failure and retries automatically on first demand",
+      "status": "passed",
+      "durationMs": 1.5435420000000022
+    },
+    {
+      "name": "deferred module ownership promotes an in-flight preload to demand without a second fetch and exposes its failure",
+      "status": "passed",
+      "durationMs": 0.360416999999984
+    },
+    {
+      "name": "deferred module ownership shares successful preloaded code and coalesces reentrant demand notifications",
+      "status": "passed",
+      "durationMs": 0.17704100000000267
+    },
+    {
+      "name": "deferred module ownership stays idle until requested and shares concurrent and successful loads",
+      "status": "passed",
+      "durationMs": 0.4210830000000101
+    },
+    {
+      "name": "deferred module ownership publishes a local error and retries a rejected loader only when requested",
+      "status": "passed",
+      "durationMs": 0.22483299999998962
+    },
+    {
+      "name": "deferred module ownership handles synchronous loader failure without leaving a stuck loading state",
+      "status": "passed",
+      "durationMs": 0.0785410000000013
+    },
+    {
+      "name": "deferred module ownership does not notify closed consumers and retains code for a later owner",
+      "status": "passed",
+      "durationMs": 0.258041999999989
+    },
+    {
+      "name": "bounded deferred preloading waits for intent scheduling, keeps only the latest queued entry and cancels before start",
+      "status": "passed",
+      "durationMs": 1.506083999999987
+    },
+    {
+      "name": "bounded deferred preloading allows one active speculative load and one queued successor, without blocking foreground demand",
+      "status": "passed",
+      "durationMs": 0.36008300000000304
+    },
+    {
+      "name": "bounded deferred preloading starts the queued preload only after the active import settles",
+      "status": "passed",
+      "durationMs": 0.20308400000001825
+    },
+    {
+      "name": "bounded deferred preloading lets a canceled control release its queued successor without canceling another owner",
+      "status": "passed",
+      "durationMs": 0.14579200000000014
+    },
+    {
+      "name": "bounded deferred preloading attempts each resource speculatively once, leaves failed demand alone and permits explicit retry",
+      "status": "passed",
+      "durationMs": 0.5701250000000186
+    },
+    {
+      "name": "bounded deferred preloading rechecks eligibility after waiting, including a queued task behind an active import",
+      "status": "passed",
+      "durationMs": 0.14587499999998954
     },
     {
       "name": "drift card move-to-group choices unfolds root first, then the tree depth-first with sub-groups as paths, the current one checked",
       "status": "passed",
-      "durationMs": 2.568333000000166
+      "durationMs": 1.9258339999998952
     },
     {
       "name": "drift card move-to-group choices treats a pointer at a missing group as root and lifts orphaned sub-groups to the top",
       "status": "passed",
-      "durationMs": 0.30766600000015387
+      "durationMs": 0.3901660000001357
     },
     {
       "name": "drift card move-to-group choices leaves the action out when there are no groups to move into",
       "status": "passed",
-      "durationMs": 0.5691659999997682
+      "durationMs": 0.10716600000000653
     },
     {
       "name": "chapter lane pointer lifecycle arms before movement and commits one valid drop exactly once",
       "status": "passed",
-      "durationMs": 8.325333
+      "durationMs": 7.095250000000021
     },
     {
       "name": "chapter lane pointer lifecycle performs zero writes for early pan, invalid target, cancel, pinch, and explicit cancel",
       "status": "passed",
-      "durationMs": 8.111374999999953
+      "durationMs": 4.457790999999986
     },
     {
       "name": "chapter lane pointer lifecycle opens the shared menu after a stationary hold without starting or writing",
       "status": "passed",
-      "durationMs": 6.314375000000041
+      "durationMs": 1.138750000000016
     },
     {
       "name": "chapter lane pointer lifecycle keeps a weighted slab in its lane until the pointer passes the next lane middle",
       "status": "passed",
-      "durationMs": 4.263332999999989
+      "durationMs": 4.372500000000002
     },
     {
       "name": "chapter lane pointer lifecycle wears the colour of the lane it is over, once per lane, and leaves the source alone",
       "status": "passed",
-      "durationMs": 6.521875000000023
+      "durationMs": 4.533333000000027
     },
     {
       "name": "chapter lane drag preserves the exact grabbed point for narrow holding chips and full cards",
       "status": "passed",
-      "durationMs": 1.9341670000000022
+      "durationMs": 1.9252500000000055
     },
     {
       "name": "chapter lane drag accepts every real and synthetic lane for both placed and unplaced chapters",
       "status": "passed",
-      "durationMs": 0.8869169999999826
+      "durationMs": 0.9487500000000182
     },
     {
       "name": "chapter lane drag delegates membership and order to one atomic move command",
       "status": "passed",
-      "durationMs": 3.51970799999998
+      "durationMs": 2.4430000000000405
     },
     {
       "name": "chapter lane drag persists a continuous book-axis coordinate without slot conversion",
       "status": "passed",
-      "durationMs": 0.6051669999999945
+      "durationMs": 0.5233750000000441
     },
     {
       "name": "chapter lane drag clears primary and memberships before placing into the unaffiliated lane",
       "status": "passed",
-      "durationMs": 0.7119579999999814
+      "durationMs": 0.4857499999999959
     },
     {
       "name": "chapter lane drag commits one valid pointer drop exactly once and ignores invalid completion",
       "status": "passed",
-      "durationMs": 0.44670899999999847
+      "durationMs": 0.3645410000000311
     },
     {
       "name": "element islands reads far, middle and near from the zoom, and each distance lands in its own band",
       "status": "passed",
-      "durationMs": 2.5327499999999645
+      "durationMs": 1.55654100000001
     },
     {
       "name": "element islands keys a pair the same whichever element comes first",
       "status": "passed",
-      "durationMs": 0.47470899999996163
+      "durationMs": 0.5498750000000143
     },
     {
       "name": "element islands draws only pairs at the threshold between elements still on the canvas",
       "status": "passed",
-      "durationMs": 1.7399169999999913
+      "durationMs": 1.4240830000000244
     },
     {
       "name": "element islands accepts custom positive integer thresholds and filters pairs with the same rule as presets",
       "status": "passed",
-      "durationMs": 0.7808330000000296
+      "durationMs": 0.9284999999999854
     },
     {
       "name": "element islands counts drawn lines and drawn relations as neighbours, itself included",
       "status": "passed",
-      "durationMs": 0.6193339999999807
+      "durationMs": 0.6188750000000027
     },
     {
       "name": "element islands lists who an element is mentioned with most, most first",
       "status": "passed",
-      "durationMs": 0.4287090000000262
+      "durationMs": 0.3072909999999922
     },
     {
       "name": "element islands sizes marks on a square-root scale, and an unmentioned element has none",
       "status": "passed",
-      "durationMs": 0.4548330000000078
+      "durationMs": 0.3352079999999944
     },
     {
       "name": "element islands lays an element out across the book in order and sums up where it appears",
       "status": "passed",
-      "durationMs": 0.7683329999999842
+      "durationMs": 1.5101669999999956
     },
     {
       "name": "the 关系 layout of the element overview settles from the islands in one run without cells on top of each other",
       "status": "passed",
-      "durationMs": 31.600374999999985
+      "durationMs": 34.166916999999984
     },
     {
       "name": "the 关系 layout of the element overview is deterministic: a run played tick by tick ends where the run computed at once does",
       "status": "passed",
-      "durationMs": 31.236582999999996
+      "durationMs": 34.987874999999974
     },
     {
       "name": "the 关系 layout of the element overview pulls related elements closer than the islands held them",
       "status": "passed",
-      "durationMs": 8.167583000000036
+      "durationMs": 12.657333999999992
     },
     {
       "name": "the 关系 layout of the element overview keeps a dragged element where it was put while the rest settle around it",
       "status": "passed",
-      "durationMs": 12.29437500000006
+      "durationMs": 15.081250000000011
     },
     {
       "name": "the 关系 layout of the element overview writes a directed relation’s roles off each end and a symmetric one’s in the middle",
       "status": "passed",
-      "durationMs": 0.9617080000000442
+      "durationMs": 2.087083000000007
     },
     {
       "name": "the 关系 layout of the element overview remembers the layout per project and survives a corrupt record",
       "status": "passed",
-      "durationMs": 0.32954099999994924
+      "durationMs": 0.9223329999999805
     },
     {
       "name": "the 关系 layout of the element overview settles again when what pulls on the layout changes",
       "status": "passed",
-      "durationMs": 0.4774159999999483
+      "durationMs": 1.398416999999995
     },
     {
       "name": "the 关系 layout of the element overview keeps a few hundred elements apart within the same run, a protagonist with thirty relations among them",
       "status": "passed",
-      "durationMs": 246.30379200000004
+      "durationMs": 146.01133299999998
     },
     {
       "name": "graph endpoint measurement measures unique DOM identities once, including aliases and self edges",
       "status": "passed",
-      "durationMs": 3.172416999999996
+      "durationMs": 1.8592910000000131
     },
     {
       "name": "graph endpoint measurement does not retain measurements across frames or measure a dangling edge",
       "status": "passed",
-      "durationMs": 0.5765840000000253
+      "durationMs": 0.5301249999999982
     },
     {
       "name": "graph endpoint measurement skips equal output but invalidates geometry, styles, identity, order and removal",
       "status": "passed",
-      "durationMs": 0.2826669999999467
+      "durationMs": 0.2715000000000032
     },
     {
       "name": "graph endpoint measurement projects drift to element links in either direction before resolving visible DOM",
       "status": "passed",
-      "durationMs": 0.37525000000005093
+      "durationMs": 0.35870800000000713
     },
     {
       "name": "graph geometry frame scheduler coalesces event bursts with animation frames and stops at the finite deadline",
       "status": "passed",
-      "durationMs": 2.2637499999999875
+      "durationMs": 4.367291999999992
     },
     {
       "name": "graph geometry frame scheduler measures once after a suspended animation frame resumes beyond the deadline",
       "status": "passed",
-      "durationMs": 0.23399999999998045
+      "durationMs": 0.24324999999998909
     },
     {
       "name": "graph geometry frame scheduler cancels scheduled work and rejects later invalidations after disposal",
       "status": "passed",
-      "durationMs": 0.5801669999999888
+      "durationMs": 0.18950000000000955
     },
     {
       "name": "mobile Planning gesture ownership separates tap, arm, drag, menu, early pan, pinch, and cancellation",
       "status": "passed",
-      "durationMs": 2.3479580000000624
+      "durationMs": 0.9369580000000042
     },
     {
       "name": "mobile Planning gesture ownership gives background movement to pan and a second pointer to pinch",
       "status": "passed",
-      "durationMs": 0.556250000000091
+      "durationMs": 0.22695799999999622
     },
     {
       "name": "mobile Planning gesture ownership autoscrolls proportionally, stops centrally, and clamps at both ends",
       "status": "passed",
-      "durationMs": 0.355542000000014
+      "durationMs": 0.15850000000000364
     },
     {
       "name": "Story Graph drift presentation lifetime keeps published snapshots stable and shifts only the crossed slots",
       "status": "passed",
-      "durationMs": 1.524041000000011
+      "durationMs": 1.536833999999999
     },
     {
       "name": "Story Graph drift presentation lifetime clears immediately on close/cancel, ignores late hover and permits a new lifetime",
       "status": "passed",
-      "durationMs": 0.33808299999998326
+      "durationMs": 0.36574999999999136
     },
     {
       "name": "Story Graph drift presentation lifetime notifies exactly the changed slots across forward, reverse, source replacement and cancellation",
       "status": "passed",
-      "durationMs": 23.935249999999996
+      "durationMs": 23.7295
     },
     {
       "name": "Story Graph drift presentation lifetime keeps adjacent hover notifications local in 5000 cards and bounds far targets to subscribed slots",
       "status": "passed",
-      "durationMs": 7.8357090000000085
+      "durationMs": 8.351124999999996
     },
     {
       "name": "Story Graph drift read model classifies either drift endpoint, keeps direction/order and excludes hidden/ordinary edges",
       "status": "passed",
-      "durationMs": 1.1990840000000276
+      "durationMs": 1.2412089999999978
     },
     {
       "name": "Story Graph drift read model preserves override, source-storyline, target-storyline and accent precedence",
       "status": "passed",
-      "durationMs": 0.25970899999998664
+      "durationMs": 0.2573329999999885
     },
     {
       "name": "Super Element world edge projection preserves order, labels, colors, direction and target insets in either orientation",
       "status": "passed",
-      "durationMs": 1.6506659999998874
+      "durationMs": 1.7042500000000018
     },
     {
       "name": "Super Element world edge projection excludes hidden, unsupported, missing-position and either-endpoint drift relations",
       "status": "passed",
-      "durationMs": 0.27779099999997925
+      "durationMs": 0.27279199999998127
     },
     {
       "name": "Super Element world edge projection rebuilds labels for replacement snapshots and retains first-match and fallback labels",
       "status": "passed",
-      "durationMs": 0.219791999999984
+      "durationMs": 0.21804200000002538
     },
     {
       "name": "Super Element viewport edge projection invalidates labels and endpoint metadata even if all positions are unchanged",
       "status": "passed",
-      "durationMs": 0.2664589999999407
+      "durationMs": 0.2717079999999896
     },
     {
       "name": "Super Element viewport edge projection aligns top-sticky nodes without double-counting the band world offset",
       "status": "passed",
-      "durationMs": 0.3921250000000782
+      "durationMs": 0.28820799999999736
     },
     {
       "name": "Super Element viewport edge projection aligns the bottom-sticky and naturally visible band in both endpoint directions",
       "status": "passed",
-      "durationMs": 0.19754199999999855
+      "durationMs": 0.16416700000002038
     },
     {
       "name": "Super Element viewport edge projection keeps non-sticky node endpoints at the natural position when only focus is enabled",
       "status": "passed",
-      "durationMs": 0.15695800000003146
+      "durationMs": 0.1805840000000103
     },
     {
       "name": "Super Element viewport edge projection filters element cards outside the viewport or behind the sticky band, retaining touching boundaries",
       "status": "passed",
-      "durationMs": 1.4589579999999387
+      "durationMs": 1.8315000000000055
     },
     {
       "name": "Super Element viewport edge projection matches the band transform for a band taller than the viewport and fractional zoom",
       "status": "passed",
-      "durationMs": 0.6268750000000409
+      "durationMs": 0.9700419999999781
     },
     {
       "name": "Super View canvas pinch keeps the authored world point under a moving midpoint",
       "status": "passed",
-      "durationMs": 1.1635840000000144
+      "durationMs": 2.3528750000000116
     },
     {
       "name": "Super View canvas pinch clamps scale without losing midpoint anchoring",
       "status": "passed",
-      "durationMs": 0.22624999999993634
+      "durationMs": 0.7337909999999965
     },
     {
       "name": "super-view relation menu model only treats relations whose two endpoints can render on Element as canvas instances",
       "status": "passed",
-      "durationMs": 1.0317499999999882
+      "durationMs": 1.8093340000000069
     },
     {
       "name": "super-view relation menu model orders used Element types before available types and folds off-canvas types",
       "status": "passed",
-      "durationMs": 0.8095830000000035
+      "durationMs": 2.019042000000013
     },
     {
       "name": "super-view relation menu model uses node-to-node as the renderable Story Graph contract",
       "status": "passed",
-      "durationMs": 0.19233299999999076
+      "durationMs": 0.842458999999991
     },
     {
       "name": "timeline preview publication publishes only the latest marker and act coordinates once per frame, without mutating an earlier snapshot",
       "status": "passed",
-      "durationMs": 2.692625000000021
+      "durationMs": 6.326625000000007
     },
     {
       "name": "timeline preview publication clears immediately before a display frame and does not resurrect a cancelled drag",
       "status": "passed",
-      "durationMs": 0.6835409999999911
+      "durationMs": 0.8587499999999864
     },
     {
       "name": "timeline preview publication retains another active marker, releases after the last subscriber, and allows StrictMode resubscription",
       "status": "passed",
-      "durationMs": 0.35916700000001356
+      "durationMs": 0.7652500000000089
     },
     {
       "name": "timeline preview publication keeps independently mounted timelines isolated",
       "status": "passed",
-      "durationMs": 0.15491700000001174
+      "durationMs": 0.3835410000000081
     }
   ],
   "devGraphs": "passed",
@@ -3415,7 +3413,7 @@
           "onlySelectedCode": true,
           "firstOpenWithoutFallback": true
         },
-        "clickToObservedGraphMs": 21.399999618530273,
+        "clickToObservedGraphMs": 13.099999904632568,
         "requests": [
           {
             "kind": "shared",
