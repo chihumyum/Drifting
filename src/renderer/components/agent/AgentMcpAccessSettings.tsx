@@ -20,9 +20,10 @@ import {
   type McpAccessPermission,
 } from './AgentMcpAccessState';
 
-export function AgentMcpAccessSettings({ open }: { open: boolean }) {
+/** `heading` is off where the settings panel around it already names it. */
+export function AgentMcpAccessSettings({ open, heading = true }: { open: boolean; heading?: boolean }) {
   const { t } = useTranslation();
-  const project = useProjectStore((state) => state.currentProject);
+  const projects = useProjectStore((state) => state.projects);
   const [connections, setConnections] = useState<McpServerConnection[]>([]);
   const [name, setName] = useState('');
   const [draftPermissions, setDraftPermissions] = useState<Record<string, McpAccessPermission>>({});
@@ -49,7 +50,7 @@ export function AgentMcpAccessSettings({ open }: { open: boolean }) {
       active = false;
     };
   }, [open, supported]);
-  if (!supported || !project) return null;
+  if (!supported) return null;
   const run = async (action: () => Promise<void>) => {
     if (busy) return;
     setBusy(true);
@@ -63,26 +64,30 @@ export function AgentMcpAccessSettings({ open }: { open: boolean }) {
       setBusy(false);
     }
   };
-  const rows = mcpAccessRows(connections, project.id);
-  const draftPermission = (client: McpClient | 'manual') => draftPermissions[`${project.id}:${client}`] ?? 'read';
+  const rows = mcpAccessRows(connections);
+  const draftPermission = (client: McpClient | 'manual') => draftPermissions[client] ?? 'read';
   const setDraftPermission = (client: McpClient | 'manual', permission: McpAccessPermission) =>
-    setDraftPermissions(previous => ({ ...previous, [`${project.id}:${client}`]: permission }));
+    setDraftPermissions(previous => ({ ...previous, [client]: permission }));
   const connect = (client: McpClient, connection?: McpServerConnection) =>
     void run(async () => {
-      await platform.mcpServer.connect(
+      const connected = await platform.mcpServer.connect(
         {
           name: mcpClientNames[client],
-          projectId: project.id,
           ...mcpAccessGrant(connection ? mcpAccessPermission(connection) : draftPermission(client)),
         },
         client,
       );
       setMessage(
-        t('settings.agent.mcpAccess.installed', {
+        t(connected.leftover ? 'settings.agent.mcpAccess.installedLeftover' : 'settings.agent.mcpAccess.installed', {
           client: mcpClientNames[client],
         }),
       );
     });
+  // A connection an earlier version made for one book names that book.
+  const connectionName = ({ grant }: McpServerConnection) => {
+    const book = grant.projectId && projects.find(candidate => candidate.id === grant.projectId)?.name;
+    return book ? `${grant.name} · ${book}` : grant.name;
+  };
   const config = (connection: McpServerConnection) =>
     JSON.stringify(
       {
@@ -111,9 +116,9 @@ export function AgentMcpAccessSettings({ open }: { open: boolean }) {
   const renderConnection = (connection: McpServerConnection) => (
     <div key={connection.grant.id} className="set-mcp-access__item">
       <div className="set-mcp-access__row">
-        <span className="set-mcp-access__name">{connection.grant.name}</span>
+        <span className="set-mcp-access__name">{connectionName(connection)}</span>
         {permissionSelect(
-          t('settings.agent.mcpAccess.connectionPermission', { name: connection.grant.name }),
+          t('settings.agent.mcpAccess.connectionPermission', { name: connectionName(connection) }),
           mcpAccessPermission(connection),
           (value) => {
             void run(async () => {
@@ -191,9 +196,9 @@ export function AgentMcpAccessSettings({ open }: { open: boolean }) {
   );
   return (
     <div className="set-sec">
-      <SettingsSectionHeader title={t('settings.agent.mcpAccess.title')} hint="MCP" />
+      {heading && <SettingsSectionHeader title={t('settings.agent.mcpAccess.title')} hint="MCP" />}
       <p className="set-row__desc">
-        {t('settings.agent.mcpAccess.desc', { project: project.name })}
+        {t('settings.agent.mcpAccess.desc')}
       </p>
       <p className="set-row__desc set-mcp-access__note">
         {t('settings.agent.mcpAccess.projectionDescription')}
@@ -251,7 +256,6 @@ export function AgentMcpAccessSettings({ open }: { open: boolean }) {
               onClick={() => void run(async () => {
                 const connection = await platform.mcpServer.create({
                   name: name.trim(),
-                  projectId: project.id,
                   ...mcpAccessGrant(draftPermission('manual')),
                 });
                 setSelected(connection.grant.id);
