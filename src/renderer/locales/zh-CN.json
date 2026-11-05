@@ -130,11 +130,9 @@
   },
   "markdownFolderGuide": {
     "title": "Markdown 文件夹放在哪里？",
-    "intro": "每个项目都会在这里保存一份 Markdown。章节和构想可以用任何编辑器修改，修改会合并回 Drifting。",
-    "default": "默认位置",
+    "intro": "每个项目都会在你选择的文件夹里保存一份 Markdown。章节和构想可以用任何编辑器修改，修改会合并回 Drifting。",
     "chosen": "已选择",
     "choose": "选择文件夹…",
-    "useDefault": "使用默认位置",
     "continue": "继续"
   },
   "settings": {
@@ -146,6 +144,8 @@
     "search_placeholder": "搜索设定…",
     "close": "关闭",
     "local_user": "本地用户",
+    "rail_expand": "展开{{label}}",
+    "rail_collapse": "收起{{label}}",
     "groups": {
       "account": "我的账号",
       "localData": "本地数据",
@@ -477,7 +477,7 @@
     "update": {
       "kicker": "更新 · UPDATES",
       "title": "新版本由你决定何时安装。",
-      "sub": "Drifting 启动后每天最多检查一次 GitHub 上发布的新版本；下载和安装都要你确认。",
+      "sub": "Drifting 打开时每 3 小时检查一次 GitHub 上发布的新版本；安装要你确认。",
       "current_version": "当前版本",
       "channel_desc": "Apple Silicon · macOS 13+",
       "unavailable": "这个构建没有内置更新签名公钥，不能检查更新。从 GitHub Releases 下载的正式版可以。",
@@ -486,11 +486,9 @@
       "checking": "正在检查…",
       "no_update": "已是最新版本。",
       "available_version": "Drifting {{version}} 可用",
-      "download": "下载",
       "downloading": "正在下载并校验签名…",
       "downloading_progress": "正在下载并校验… {{progress}}%",
-      "install": "安装并重启…",
-      "confirm_install": "安装并重启",
+      "install": "安装并重启",
       "install_migration_safety": "如果新版本需要升级本地数据，启动时会先做一份校验过的安全快照，迁移通过检查后才启用。",
       "dismiss": "暂不更新",
       "installing": "正在保存并安装…",
@@ -499,7 +497,7 @@
       "error": "更新已停止：{{error}}",
       "states": {
         "checking": "正在检查…",
-        "available": "可以下载。",
+        "available": "可以安装。",
         "downloading": "正在下载并校验…",
         "installing": "正在保存修改并安装，完成后自动重启…",
         "ready": "已下载并通过签名校验，可以安装。",
@@ -706,7 +704,7 @@
       "mcpAccess": {
         "projectionDescription": "外部 Agent 也可使用 Markdown 投影，其中章节和构想文件可以直接修改；在「同步与数据 → 本地数据」中设置。",
         "title": "外部 Agent 访问",
-        "desc": "授权 Codex、Claude Code、Antigravity 等工具访问「{{project}}」。连接仅限这个项目。",
+        "desc": "授权 Codex、Claude Code、Antigravity 等工具访问你当前打开的书。每个工具只需连接一次，换书后跟着切换。",
         "name": "连接名称",
         "permission": "访问权限",
         "connectionPermission": "{{name}} 的访问权限",
@@ -715,7 +713,7 @@
         "write": "允许修改",
         "full": "允许修改和破坏性操作",
         "create": "创建连接",
-        "local": "仅在本机使用。请保持 Drifting 和此项目打开；撤销连接后，新请求立即失效。已提交的修改会保留。",
+        "local": "仅在本机使用。请保持 Drifting 打开；回到书架时暂停访问。撤销连接后，新请求立即失效。已提交的修改会保留。",
         "config": "连接配置",
         "revoke": "撤销",
         "copy": "复制 MCP 配置",
@@ -726,6 +724,7 @@
         "manual": "其他客户端 · 手动配置",
         "reinstall": "重新配置",
         "installed": "已配置 {{client}}。请重新打开客户端或重启它的 MCP 服务以加载连接；首次使用时按客户端提示确认工具权限。",
+        "installedLeftover": "已配置 {{client}}，旧的按书连接也已撤销，但其中一条客户端配置已被改动或无法写入，请在客户端里删掉以 drifting_ 开头的旧条目。",
         "revoked": "已撤销访问，并移除自动添加的客户端配置。",
         "revokedWarning": "访问已撤销。客户端配置已被改动或无法写入，请在客户端移除这条连接。"
       },
@@ -981,6 +980,7 @@
   },
   "chapterEditor": {
     "untitledChapter": "无标题章节",
+    "untitledDrift": "无标题构想",
     "synopsisPlaceholder": "梗概…",
     "summaryPlaceholder": "点击添加摘要…"
   },
@@ -1082,12 +1082,12 @@
     }
   },
   "kvEditor": {
-    "keyPlaceholder": "字段 · key",
-    "valuePlaceholder": "内容 · value",
-    "templateKeyPlaceholder": "字段名 · key (e.g. 视角)",
-    "templateValuePlaceholder": "默认值 / 提示 · value",
-    "empty": "尚无 KV 字段",
-    "templateEmpty": "尚未定义任何模版字段。新建子项时不会自动填充任何 KV",
+    "keyPlaceholder": "字段",
+    "valuePlaceholder": "内容",
+    "templateKeyPlaceholder": "字段名，如 视角",
+    "templateValuePlaceholder": "默认值或提示",
+    "empty": "尚无字段",
+    "templateEmpty": "尚未定义模版字段，新建时不会自动填入字段",
     "addField": "新增字段",
     "removeRow": "移除这一行"
   },
@@ -1690,7 +1690,7 @@
       "clearEntityFilter": "清除关联过滤",
       "entityFilterAll": "关联 · 全部",
       "entityFilterHint": "选择实体后只显示关联的 TODO / 素材",
-      "todoEmptyHint": "点击 ＋ 新建 TODO，或在编辑器批注卡上 ↗ 升格为 TODO",
+      "todoEmptyHint": "点击 ＋ 新建 TODO，或在批注卡上点「转 TODO」",
       "commentEmptyHint": "点击 ＋ 新建批注，或在编辑器里选中文字留批注",
       "newMaterialButton": "新建素材",
       "noMaterials": "项目里还没有素材。",
@@ -3015,16 +3015,16 @@
     "alerts": {
       "deleteFailed": "删除故事线失败，请重试。"
     },
-    "scratchPlaceholder": "札记 · scratch——本线的速记、构想、风格备忘…",
+    "scratchPlaceholder": "本线的速记、风格备忘…",
     "summaryPlaceholder": "一句话概述本线…",
     "nodeTemplatePlaceholder": "用 H1 / H2 / H3 写一份默认的章节骨架，新建章节时自动填充…",
     "outlineTitle": "{{name}} · OUTLINE",
     "sections": {
       "overview": "概述",
       "scratchShort": "札记",
-      "scratch": "札记 · scratch",
-      "facts": "字段 · facts",
-      "nodeTemplate": "章节模版 · node template",
+      "scratch": "札记",
+      "facts": "字段",
+      "nodeTemplate": "章节模版",
       "chapters": "章节序列"
     },
     "labels": {
@@ -3042,7 +3042,7 @@
       "unwritten": "未起"
     },
     "empty": {
-      "noFacts": "尚无字段。新建故事线时若项目模版已定义，会自动填充",
+      "noFacts": "尚无字段。新建故事线时，项目主页的「故事线字段模版」会自动填入",
       "noChapterSummary": "尚未填写一句话摘要",
       "noFilteredChapters": "此筛选下暂无章节"
     },
@@ -3058,15 +3058,15 @@
     "alerts": {
       "deleteFailed": "删除类目失败，请重试。"
     },
-    "scratchPlaceholder": "札记 · scratch——本类目的设计原则、命名约定、AI 候选规则…",
+    "scratchPlaceholder": "本类目的设计原则、命名约定…",
     "elementTemplatePlaceholder": "用 H1 / H2 / H3 写一份默认的要素骨架，新建要素时自动填充…",
     "sections": {
       "overview": "概述",
       "scratchShort": "札记",
-      "scratch": "札记 · scratch",
+      "scratch": "札记",
       "elementTemplateShort": "要素模版",
-      "elementTemplate": "要素模版 · template",
-      "templateKv": "字段模版 · template kv",
+      "elementTemplate": "要素模版",
+      "templateKv": "字段模版",
       "elements": "要素清单"
     },
     "labels": {
@@ -3147,13 +3147,13 @@
     },
     "sections": {
       "overview": "概述",
-      "bio": "传 · biography",
+      "bio": "传",
       "bioTitle": "记 · 传",
-      "facts": "字段 · facts",
+      "facts": "字段",
       "patches": "补丁"
     },
     "empty": {
-      "noFacts": "尚无字段。新建要素时若类目模版已定义，会自动填充",
+      "noFacts": "尚无字段。新建要素时，所属类目的「字段模版」会自动填入",
       "selectElement": "选择一个要素进行编辑",
       "noCategories": "还没有类目"
     },

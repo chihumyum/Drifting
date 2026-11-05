@@ -132,11 +132,9 @@
   },
   "markdownFolderGuide": {
     "title": "Où placer le dossier Markdown ?",
-    "intro": "Chaque projet conserve ici une copie Markdown. Modifiez chapitres et idées dans l’éditeur de votre choix : les changements seront intégrés à Drifting.",
-    "default": "Emplacement par défaut",
+    "intro": "Chaque projet conserve une copie Markdown dans le dossier que vous choisissez. Modifiez chapitres et idées dans l’éditeur de votre choix : les changements seront intégrés à Drifting.",
     "chosen": "Dossier choisi",
     "choose": "Choisir un dossier…",
-    "useDefault": "Utiliser l’emplacement par défaut",
     "continue": "Continuer"
   },
   "settings": {
@@ -148,6 +146,8 @@
     "search_placeholder": "Rechercher dans les réglages…",
     "close": "Fermer",
     "local_user": "Utilisateur local",
+    "rail_expand": "Déplier {{label}}",
+    "rail_collapse": "Replier {{label}}",
     "groups": {
       "account": "Compte",
       "localData": "Données locales",
@@ -480,7 +480,7 @@
     "update": {
       "kicker": "MISES À JOUR",
       "title": "Installez les nouvelles versions quand vous le souhaitez.",
-      "sub": "Au démarrage, Drifting vérifie GitHub au plus une fois par jour. Le téléchargement et l’installation attendent toujours votre décision.",
+      "sub": "Tant qu’il est ouvert, Drifting vérifie GitHub toutes les 3 heures. L’installation attend toujours votre décision.",
       "current_version": "Version actuelle",
       "channel_desc": "Apple Silicon · macOS 13 ou ultérieur",
       "unavailable": "Cette version n’a pas de clé de signature de mise à jour et ne peut pas en rechercher. Les versions téléchargées depuis GitHub le permettent.",
@@ -489,11 +489,9 @@
       "checking": "Vérification…",
       "no_update": "Vous êtes à jour.",
       "available_version": "Drifting {{version}} est disponible",
-      "download": "Télécharger",
       "downloading": "Téléchargement et vérification de la signature…",
       "downloading_progress": "Téléchargement et vérification… {{progress}} %",
-      "install": "Installer et redémarrer…",
-      "confirm_install": "Installer et redémarrer",
+      "install": "Installer et redémarrer",
       "install_migration_safety": "Si la nouvelle version doit migrer les données locales, le prochain démarrage crée d’abord un instantané de sécurité vérifié. Le basculement n’a lieu qu’après validation de la migration.",
       "dismiss": "Pas maintenant",
       "installing": "Enregistrement et installation…",
@@ -502,7 +500,7 @@
       "error": "Mise à jour arrêtée : {{error}}",
       "states": {
         "checking": "Vérification…",
-        "available": "Prêt à télécharger.",
+        "available": "Prêt à installer.",
         "downloading": "Téléchargement et vérification…",
         "installing": "Enregistrement des modifications et installation ; Drifting redémarrera à la fin…",
         "ready": "Téléchargé et vérifié. Prêt à installer.",
@@ -709,7 +707,7 @@
       "mcpAccess": {
         "projectionDescription": "Les Agent externes peuvent aussi éditer directement chapitres et idées de la copie Markdown. Réglez-la dans Synchronisation et données → Données locales.",
         "title": "Accès des agents externes",
-        "desc": "Autorise Codex, Claude Code ou Antigravity à accéder à « {{project}} ». Chaque connexion se limite à ce projet.",
+        "desc": "Autorise Codex, Claude Code ou Antigravity à accéder au livre ouvert. Connectez chaque outil une fois ; il vous suit quand vous changez de livre.",
         "name": "Nom de la connexion",
         "permission": "Droit d’accès",
         "connectionPermission": "Droit d’accès de {{name}}",
@@ -718,7 +716,7 @@
         "write": "Autoriser les modifications",
         "full": "Autoriser les modifications et opérations destructives",
         "create": "Créer une connexion",
-        "local": "Accès local uniquement. Gardez Drifting et ce projet ouverts. Révoquer bloque immédiatement les nouvelles requêtes ; les modifications validées restent.",
+        "local": "Accès local uniquement. Gardez Drifting ouvert ; l’accès est suspendu tant que vous êtes dans la bibliothèque. Révoquer bloque immédiatement les nouvelles requêtes ; les modifications validées restent.",
         "config": "Configuration de connexion",
         "revoke": "Révoquer",
         "copy": "Copier la configuration MCP",
@@ -729,6 +727,7 @@
         "manual": "Autres clients · Configuration manuelle",
         "reinstall": "Reconfigurer",
         "installed": "{{client}} est configuré. Rouvrez le client ou redémarrez son serveur MCP ; suivez ses demandes d’autorisation des outils à la première utilisation.",
+        "installedLeftover": "{{client}} est configuré et ses anciennes connexions par livre sont révoquées, mais l’une de leurs entrées client a changé ou n’a pas pu être mise à jour ; supprimez dans le client l’ancienne entrée commençant par drifting_.",
         "revoked": "Accès révoqué et configuration client installée automatiquement supprimée.",
         "revokedWarning": "Accès révoqué. La configuration client a changé ou n’a pas pu être mise à jour ; supprimez cette connexion dans le client."
       },
@@ -986,6 +985,7 @@
   },
   "chapterEditor": {
     "untitledChapter": "Chapitre sans titre",
+    "untitledDrift": "Idée sans titre",
     "synopsisPlaceholder": "Synopsis…",
     "summaryPlaceholder": "Cliquez pour ajouter un résumé…"
   },
@@ -1087,12 +1087,12 @@
     }
   },
   "kvEditor": {
-    "keyPlaceholder": "Champ · clé",
-    "valuePlaceholder": "Contenu · valeur",
-    "templateKeyPlaceholder": "Nom du champ · clé (ex. : point de vue)",
-    "templateValuePlaceholder": "Valeur par défaut / indication",
+    "keyPlaceholder": "Champ",
+    "valuePlaceholder": "Contenu",
+    "templateKeyPlaceholder": "Nom du champ, ex. : point de vue",
+    "templateValuePlaceholder": "Valeur par défaut ou indication",
     "empty": "Aucun champ pour le moment",
-    "templateEmpty": "Aucun champ de modèle ; les nouveaux sous-éléments ne seront pas préremplis",
+    "templateEmpty": "Aucun champ de modèle pour le moment. Les nouveaux éléments ne seront pas préremplis",
     "addField": "Ajouter un champ",
     "removeRow": "Retirer la ligne"
   },
@@ -1696,7 +1696,7 @@
       "clearEntityFilter": "Effacer le filtre de relations",
       "entityFilterAll": "Relations · Toutes",
       "entityFilterHint": "Choisissez une entité pour afficher ses notes et ressources liées",
-      "todoEmptyHint": "Cliquez sur + pour créer une tâche ou convertissez un commentaire de l’éditeur",
+      "todoEmptyHint": "Cliquez sur + pour créer une tâche ou choisissez « En tâche » sur une carte de commentaire",
       "commentEmptyHint": "Cliquez sur + pour créer un commentaire ou sélectionnez du texte dans l’éditeur pour commenter",
       "newMaterialButton": "Nouvelle ressource",
       "noMaterials": "Ce projet n’a pas encore de ressources.",
@@ -3033,7 +3033,7 @@
     "alerts": {
       "deleteFailed": "Impossible de supprimer l’intrigue. Réessayez."
     },
-    "scratchPlaceholder": "Brouillon de cette intrigue : notes rapides, idées, rappels de style…",
+    "scratchPlaceholder": "Brouillon de cette intrigue : notes rapides, rappels de style…",
     "summaryPlaceholder": "Résumé de cette intrigue en une phrase…",
     "nodeTemplatePlaceholder": "Créez une structure de chapitre avec H1 / H2 / H3 ; les nouveaux chapitres l’utiliseront…",
     "outlineTitle": "{{name}} · PLAN",
@@ -3060,7 +3060,7 @@
       "unwritten": "Non commencé"
     },
     "empty": {
-      "noFacts": "Aucun champ pour le moment. Les champs définis dans le modèle du projet sont renseignés à la création de l’intrigue.",
+      "noFacts": "Aucun champ pour le moment. À la création d’une intrigue, le Modèle d’intrigue de l’accueil du projet les renseigne.",
       "noChapterSummary": "Aucun résumé en une phrase pour le moment",
       "noFilteredChapters": "Aucun chapitre pour ce filtre"
     },
@@ -3076,7 +3076,7 @@
     "alerts": {
       "deleteFailed": "Impossible de supprimer la catégorie. Réessayez."
     },
-    "scratchPlaceholder": "Brouillon de cette catégorie : principes de conception, règles de nommage, règles de propositions IA…",
+    "scratchPlaceholder": "Brouillon de cette catégorie : principes de conception, règles de nommage…",
     "elementTemplatePlaceholder": "Créez une structure d’élément avec H1 / H2 / H3 ; les nouveaux éléments l’utiliseront…",
     "sections": {
       "overview": "Vue d’ensemble",
@@ -3171,7 +3171,7 @@
       "patches": "Évolutions"
     },
     "empty": {
-      "noFacts": "Aucun champ pour le moment. Les champs définis dans le modèle de catégorie sont renseignés à la création de l’élément.",
+      "noFacts": "Aucun champ pour le moment. À la création d’un élément, le Modèle de champs de sa catégorie les renseigne.",
       "selectElement": "Sélectionnez un élément à modifier",
       "noCategories": "Aucune catégorie pour le moment"
     },

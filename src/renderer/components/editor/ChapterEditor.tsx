@@ -46,6 +46,8 @@ interface ChapterEditorProps {
   nodeId: string;
   content: string | null; // legacy pm_json string (migration seed only)
   title?: string;
+  /** Shown while the title is empty; an idea passes its own. Defaults to an untitled chapter. */
+  untitledTitle?: string;
   summary?: string;
   projectId: string;
   ref?: Ref<ChapterEditorRef>;
@@ -99,6 +101,7 @@ export function ChapterEditor({
   nodeId,
   content,
   title = '',
+  untitledTitle,
   summary = '',
   projectId,
   ref: forwardedRef,
@@ -348,7 +351,7 @@ export function ChapterEditor({
                   ref={setTitleElement}
                   rows={1}
                   value={titleValue}
-                  placeholder={t('chapterEditor.untitledChapter')}
+                  placeholder={untitledTitle ?? t('chapterEditor.untitledChapter')}
                   onChange={(e) => setTitleValue(e.target.value.replace(/[\r\n]/g, ''))}
                   onBlur={handleTitleSave}
                   onKeyDown={(e) => {
@@ -390,11 +393,11 @@ export function ChapterEditor({
                 />
               ) : literary ? (
                 <h1 className="page__title" style={{ margin: '0 0 10px' }}>
-                  {titleValue || t('chapterEditor.untitledChapter')}
+                  {titleValue || untitledTitle || t('chapterEditor.untitledChapter')}
                 </h1>
               ) : (
                 <div style={{ fontSize: 20, fontWeight: 600, background: 'transparent' }}>
-                  {titleValue || t('chapterEditor.untitledChapter')}
+                  {titleValue || untitledTitle || t('chapterEditor.untitledChapter')}
                 </div>
               )}
             </div>

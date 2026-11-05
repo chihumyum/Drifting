@@ -131,11 +131,9 @@
   },
   "markdownFolderGuide": {
     "title": "Wo soll der Markdown-Ordner liegen?",
-    "intro": "Hier liegt eine Markdown-Kopie jedes Projekts. Bearbeite Kapitel und Ideen in beliebigen Editoren; Änderungen werden in Drifting zusammengeführt.",
-    "default": "Standardspeicherort",
+    "intro": "In dem Ordner, den du wählst, liegt eine Markdown-Kopie jedes Projekts. Bearbeite Kapitel und Ideen in beliebigen Editoren; Änderungen werden in Drifting zusammengeführt.",
     "chosen": "Gewählter Ordner",
     "choose": "Ordner auswählen…",
-    "useDefault": "Standardspeicherort verwenden",
     "continue": "Weiter"
   },
   "settings": {
@@ -147,6 +145,8 @@
     "search_placeholder": "Einstellungen durchsuchen…",
     "close": "Schließen",
     "local_user": "Lokaler Benutzer",
+    "rail_expand": "{{label}} ausklappen",
+    "rail_collapse": "{{label}} einklappen",
     "groups": {
       "account": "Konto",
       "localData": "Lokale Daten",
@@ -478,7 +478,7 @@
     "update": {
       "kicker": "UPDATES",
       "title": "Neue Versionen installieren, wenn du es möchtest.",
-      "sub": "Nach dem Start prüft Drifting GitHub höchstens einmal täglich auf neue Versionen. Herunterladen und Installieren erfolgen erst auf deine Entscheidung.",
+      "sub": "Solange Drifting läuft, prüft es GitHub alle 3 Stunden auf neue Versionen. Installiert wird erst auf deine Entscheidung.",
       "current_version": "Aktuelle Version",
       "channel_desc": "Apple Silicon · macOS 13 oder neuer",
       "unavailable": "Dieser Build hat keinen Updater-Signaturschlüssel und kann nicht nach Updates suchen. Von GitHub heruntergeladene Versionen können dies.",
@@ -487,11 +487,9 @@
       "checking": "Wird geprüft…",
       "no_update": "Du bist auf dem neuesten Stand.",
       "available_version": "Drifting {{version}} ist verfügbar",
-      "download": "Herunterladen",
       "downloading": "Download und Signaturprüfung…",
       "downloading_progress": "Download und Prüfung… {{progress}}%",
-      "install": "Installieren und neu starten…",
-      "confirm_install": "Installieren und neu starten",
+      "install": "Installieren und neu starten",
       "install_migration_safety": "Muss die neue Version lokale Daten aktualisieren, wird beim nächsten Start zuerst ein geprüfter Sicherheitsschnappschuss erstellt. Erst nach erfolgreicher Migrationsprüfung wird umgeschaltet.",
       "dismiss": "Jetzt nicht",
       "installing": "Speichern und Installieren…",
@@ -500,7 +498,7 @@
       "error": "Update angehalten: {{error}}",
       "states": {
         "checking": "Wird geprüft…",
-        "available": "Bereit zum Herunterladen.",
+        "available": "Bereit zum Installieren.",
         "downloading": "Download und Prüfung…",
         "installing": "Änderungen werden gespeichert und das Update installiert. Danach startet Drifting neu…",
         "ready": "Heruntergeladen und geprüft. Bereit zur Installation.",
@@ -707,7 +705,7 @@
       "mcpAccess": {
         "projectionDescription": "Externe Agents können Kapitel- und Ideendateien der Markdown-Abbildung direkt bearbeiten. Einrichtung unter Synchronisierung und Daten → Lokale Daten.",
         "title": "Zugriff externer Agents",
-        "desc": "Erlaube Codex, Claude Code oder Antigravity den Zugriff auf „{{project}}“. Jede Verbindung ist auf dieses Projekt begrenzt.",
+        "desc": "Erlaube Codex, Claude Code oder Antigravity den Zugriff auf das geöffnete Buch. Verbinde jedes Werkzeug einmal; es folgt dir, wenn du das Buch wechselst.",
         "name": "Verbindungsname",
         "permission": "Zugriffsberechtigung",
         "connectionPermission": "Zugriffsberechtigung für {{name}}",
@@ -716,7 +714,7 @@
         "write": "Änderungen erlauben",
         "full": "Änderungen und destruktive Aktionen erlauben",
         "create": "Verbindung erstellen",
-        "local": "Nur lokaler Zugriff. Drifting und Projekt geöffnet lassen. Ein Widerruf blockiert neue Anfragen sofort; bestätigte Änderungen bleiben erhalten.",
+        "local": "Nur lokaler Zugriff. Drifting geöffnet lassen; im Bücherregal ruht der Zugriff. Ein Widerruf blockiert neue Anfragen sofort; bestätigte Änderungen bleiben erhalten.",
         "config": "Verbindungskonfiguration",
         "revoke": "Widerrufen",
         "copy": "MCP-Konfiguration kopieren",
@@ -727,6 +725,7 @@
         "manual": "Andere Clients · Manuelle Einrichtung",
         "reinstall": "Neu einrichten",
         "installed": "{{client}} ist eingerichtet. Öffne den Client erneut oder starte seinen MCP-Server neu. Folge bei der ersten Nutzung seinen Werkzeugfreigaben.",
+        "installedLeftover": "{{client}} ist eingerichtet und seine früheren Verbindungen pro Buch sind widerrufen, aber ein Clienteintrag wurde geändert oder konnte nicht aktualisiert werden; entferne im Client den alten Eintrag, der mit drifting_ beginnt.",
         "revoked": "Zugriff widerrufen und automatisch installierte Clientkonfiguration entfernt.",
         "revokedWarning": "Zugriff widerrufen. Die Clientkonfiguration wurde geändert oder konnte nicht aktualisiert werden; entferne die Verbindung im Client."
       },
@@ -983,6 +982,7 @@
   },
   "chapterEditor": {
     "untitledChapter": "Unbenanntes Kapitel",
+    "untitledDrift": "Unbenannte Idee",
     "synopsisPlaceholder": "Kurzfassung…",
     "summaryPlaceholder": "Klicken, um eine Zusammenfassung hinzuzufügen…"
   },
@@ -1084,12 +1084,12 @@
     }
   },
   "kvEditor": {
-    "keyPlaceholder": "Feld · Schlüssel",
-    "valuePlaceholder": "Inhalt · Wert",
-    "templateKeyPlaceholder": "Feldname · Schlüssel (z. B. Perspektive)",
-    "templateValuePlaceholder": "Standard / Hinweis · Wert",
+    "keyPlaceholder": "Feld",
+    "valuePlaceholder": "Inhalt",
+    "templateKeyPlaceholder": "Feldname, z. B. Perspektive",
+    "templateValuePlaceholder": "Standardwert oder Hinweis",
     "empty": "Noch keine Felder",
-    "templateEmpty": "Keine Vorlagenfelder; neue Untereinträge erhalten keine automatisch gefüllten Felder",
+    "templateEmpty": "Noch keine Vorlagenfelder. Neue Einträge erhalten keine vorausgefüllten Felder",
     "addField": "Feld hinzufügen",
     "removeRow": "Zeile entfernen"
   },
@@ -1692,7 +1692,7 @@
       "clearEntityFilter": "Beziehungsfilter löschen",
       "entityFilterAll": "Beziehungen · Alle",
       "entityFilterHint": "Wähle eine Entität für verknüpfte Notizen und Materialien",
-      "todoEmptyHint": "Mit + eine Aufgabe erstellen oder aus einer Kommentarkarte übernehmen",
+      "todoEmptyHint": "Mit + eine Aufgabe erstellen oder auf einer Kommentarkarte „Zu Aufgabe“ wählen",
       "commentEmptyHint": "Mit + einen Kommentar erstellen oder im Editor Text markieren und kommentieren",
       "newMaterialButton": "Neues Material",
       "noMaterials": "Dieses Projekt hat noch keine Materialien.",
@@ -3022,7 +3022,7 @@
     "alerts": {
       "deleteFailed": "Handlungsstrang konnte nicht gelöscht werden. Bitte erneut versuchen."
     },
-    "scratchPlaceholder": "Notizen zu diesem Handlungsstrang: Gedanken, Ideen, Stilhinweise…",
+    "scratchPlaceholder": "Notizen zu diesem Handlungsstrang: Gedanken, Stilhinweise…",
     "summaryPlaceholder": "Diesen Handlungsstrang in einem Satz zusammenfassen…",
     "nodeTemplatePlaceholder": "Standardstruktur mit H1 / H2 / H3 erstellen; neue Kapitel verwenden diese Vorlage…",
     "outlineTitle": "{{name}} · GLIEDERUNG",
@@ -3049,7 +3049,7 @@
       "unwritten": "Nicht begonnen"
     },
     "empty": {
-      "noFacts": "Noch keine Felder. In der Projektvorlage definierte Felder werden beim Erstellen des Handlungsstrangs ausgefüllt.",
+      "noFacts": "Noch keine Felder. Beim Erstellen eines Handlungsstrangs füllt die Handlungsstrang-Vorlage auf der Projektstartseite sie aus.",
       "noChapterSummary": "Noch keine Zusammenfassung in einem Satz",
       "noFilteredChapters": "Keine Kapitel für diesen Filter"
     },
@@ -3065,7 +3065,7 @@
     "alerts": {
       "deleteFailed": "Kategorie konnte nicht gelöscht werden. Bitte erneut versuchen."
     },
-    "scratchPlaceholder": "Notizen zu dieser Kategorie: Gestaltungsprinzipien, Namensregeln, Regeln für KI-Vorschläge…",
+    "scratchPlaceholder": "Notizen zu dieser Kategorie: Gestaltungsprinzipien, Namensregeln…",
     "elementTemplatePlaceholder": "Standardstruktur mit H1 / H2 / H3 erstellen; neue Elemente verwenden diese Vorlage…",
     "sections": {
       "overview": "Übersicht",
@@ -3160,7 +3160,7 @@
       "patches": "Entwicklungen"
     },
     "empty": {
-      "noFacts": "Noch keine Felder. In der Kategorievorlage definierte Felder werden beim Erstellen des Elements ausgefüllt.",
+      "noFacts": "Noch keine Felder. Beim Erstellen eines Elements füllt die Feldvorlage seiner Kategorie sie aus.",
       "selectElement": "Element zum Bearbeiten auswählen",
       "noCategories": "Noch keine Kategorien"
     },

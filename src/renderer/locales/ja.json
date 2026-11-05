@@ -131,11 +131,9 @@
   },
   "markdownFolderGuide": {
     "title": "Markdownフォルダの保存先は？",
-    "intro": "各作品のMarkdownコピーをここに保存します。他のエディタで章やアイデアを編集すると、変更がDriftingに統合されます。",
-    "default": "既定の場所",
+    "intro": "各作品のMarkdownコピーを選んだフォルダに保存します。他のエディタで章やアイデアを編集すると、変更がDriftingに統合されます。",
     "chosen": "選択したフォルダ",
     "choose": "フォルダを選択…",
-    "useDefault": "既定の場所を使用",
     "continue": "続ける"
   },
   "settings": {
@@ -147,6 +145,8 @@
     "search_placeholder": "設定を検索…",
     "close": "閉じる",
     "local_user": "ローカルユーザー",
+    "rail_expand": "{{label}}を展開",
+    "rail_collapse": "{{label}}を折りたたむ",
     "groups": {
       "account": "アカウント",
       "localData": "ローカルデータ",
@@ -478,7 +478,7 @@
     "update": {
       "kicker": "アップデート",
       "title": "新しいバージョンは、好きなときに。",
-      "sub": "起動後、GitHubの新規リリースを1日1回まで確認します。ダウンロードとインストールは、あなたの操作を待ちます。",
+      "sub": "起動中は3時間ごとにGitHubの新規リリースを確認します。インストールは、あなたの操作を待ちます。",
       "current_version": "現在のバージョン",
       "channel_desc": "Apple Silicon・macOS 13以降",
       "unavailable": "このビルドには更新署名キーがなく、更新を確認できません。GitHubからダウンロードしたリリース版では利用できます。",
@@ -487,11 +487,9 @@
       "checking": "確認中…",
       "no_update": "最新のバージョンです。",
       "available_version": "Drifting {{version}}を利用できます",
-      "download": "ダウンロード",
       "downloading": "ダウンロード・署名検証中…",
       "downloading_progress": "ダウンロード・検証中… {{progress}}%",
-      "install": "インストールして再起動…",
-      "confirm_install": "インストールして再起動",
+      "install": "インストールして再起動",
       "install_migration_safety": "新しい版でデータ更新が必要な場合、次回起動時に検証済みの安全スナップショットを作成し、移行の検証に合格してから切り替えます。",
       "dismiss": "今はしない",
       "installing": "保存・インストール中…",
@@ -500,7 +498,7 @@
       "error": "更新を停止しました：{{error}}",
       "states": {
         "checking": "確認中…",
-        "available": "ダウンロードできます。",
+        "available": "インストールできます。",
         "downloading": "ダウンロード・検証中…",
         "installing": "変更を保存してインストールしています。完了後にDriftingが再起動します…",
         "ready": "ダウンロードと検証が完了しました。インストールできます。",
@@ -707,7 +705,7 @@
       "mcpAccess": {
         "projectionDescription": "外部AgentもMarkdownコピーを利用でき、章・アイデアのファイルを直接編集できます。「同期とデータ → ローカルデータ」で設定します。",
         "title": "外部Agentのアクセス",
-        "desc": "Codex、Claude Code、Antigravityなどに「{{project}}」へのアクセスを許可します。各接続の範囲はこの作品だけです。",
+        "desc": "Codex、Claude Code、Antigravityなどに、開いている作品へのアクセスを許可します。ツールごとに一度接続すれば、作品を切り替えても使えます。",
         "name": "接続名",
         "permission": "アクセス権限",
         "connectionPermission": "{{name}}のアクセス権限",
@@ -716,7 +714,7 @@
         "write": "変更を許可",
         "full": "変更と破壊的操作を許可",
         "create": "接続を作成",
-        "local": "ローカルアクセス専用です。Driftingと作品を開いたままにしてください。接続を取り消すと新規リクエストを即座に拒否します。確定済みの変更は残ります。",
+        "local": "ローカルアクセス専用です。Driftingを開いたままにしてください。本棚にいる間はアクセスを停止します。接続を取り消すと新規リクエストを即座に拒否します。確定済みの変更は残ります。",
         "config": "接続設定",
         "revoke": "取り消す",
         "copy": "MCP設定をコピー",
@@ -727,6 +725,7 @@
         "manual": "その他のクライアント・手動設定",
         "reinstall": "再設定",
         "installed": "{{client}}を設定しました。クライアントまたはMCPサーバーを再起動して接続を読み込み、初回はツール承認の案内に従ってください。",
+        "installedLeftover": "{{client}}を設定し、以前の作品ごとの接続も取り消しました。ただしクライアント設定の一部が変更済みか更新できません。クライアント側でdrifting_で始まる古い項目を削除してください。",
         "revoked": "アクセスを取り消し、自動追加したクライアント設定を削除しました。",
         "revokedWarning": "アクセスを取り消しました。クライアント設定が変更済みか更新できません。クライアント側でこの接続を削除してください。"
       },
@@ -983,6 +982,7 @@
   },
   "chapterEditor": {
     "untitledChapter": "無題の章",
+    "untitledDrift": "無題のアイデア",
     "synopsisPlaceholder": "あらすじ…",
     "summaryPlaceholder": "クリックして概要を追加…"
   },
@@ -1084,12 +1084,12 @@
     }
   },
   "kvEditor": {
-    "keyPlaceholder": "項目・キー",
-    "valuePlaceholder": "内容・値",
-    "templateKeyPlaceholder": "項目名・キー（例：視点）",
-    "templateValuePlaceholder": "既定値／ヒント・値",
+    "keyPlaceholder": "項目",
+    "valuePlaceholder": "内容",
+    "templateKeyPlaceholder": "項目名（例：視点）",
+    "templateValuePlaceholder": "既定値またはヒント",
     "empty": "項目はありません",
-    "templateEmpty": "テンプレート項目未設定。新しい子項目には自動追加しません",
+    "templateEmpty": "テンプレート項目はまだありません。新しく作るときに自動入力されません",
     "addField": "項目を追加",
     "removeRow": "行を削除"
   },
@@ -1692,7 +1692,7 @@
       "clearEntityFilter": "関連フィルターを解除",
       "entityFilterAll": "関係・すべて",
       "entityFilterHint": "関連するメモ・資料だけを表示するエンティティを選択",
-      "todoEmptyHint": "＋でTODOを作るか、エディタのコメントカードから追加できます",
+      "todoEmptyHint": "＋でTODOを作るか、コメントカードの「TODO に変換」を使います",
       "commentEmptyHint": "＋でコメントを作るか、エディタで文字を選んでコメントできます",
       "newMaterialButton": "新しい資料",
       "noMaterials": "この作品に資料はまだありません。",
@@ -3022,7 +3022,7 @@
     "alerts": {
       "deleteFailed": "ストーリーラインを削除できませんでした。もう一度お試しください。"
     },
-    "scratchPlaceholder": "このストーリーラインの走り書き：簡単なメモ、アイデア、文体の注意点など…",
+    "scratchPlaceholder": "このストーリーラインの走り書き：簡単なメモ、文体の注意点など…",
     "summaryPlaceholder": "このストーリーラインを一文で要約…",
     "nodeTemplatePlaceholder": "H1 / H2 / H3 で章のひな形を作成。新しい章に適用されます…",
     "outlineTitle": "{{name}} · アウトライン",
@@ -3049,7 +3049,7 @@
       "unwritten": "未着手"
     },
     "empty": {
-      "noFacts": "フィールドはまだありません。作品のテンプレートに定義がある場合、ストーリーラインの作成時に入力されます。",
+      "noFacts": "フィールドはまだありません。ストーリーラインを作成すると、作品ホームの「ストーリーラインのテンプレート」から入力されます。",
       "noChapterSummary": "一文の要約はまだありません",
       "noFilteredChapters": "条件に合う章はありません"
     },
@@ -3065,7 +3065,7 @@
     "alerts": {
       "deleteFailed": "カテゴリを削除できませんでした。もう一度お試しください。"
     },
-    "scratchPlaceholder": "このカテゴリの走り書き：設計方針、命名規則、AI 候補のルールなど…",
+    "scratchPlaceholder": "このカテゴリの走り書き：設計方針、命名規則など…",
     "elementTemplatePlaceholder": "H1 / H2 / H3 で要素のひな形を作成。新しい要素に適用されます…",
     "sections": {
       "overview": "概要",
@@ -3160,7 +3160,7 @@
       "patches": "変化記録"
     },
     "empty": {
-      "noFacts": "フィールドはまだありません。カテゴリのテンプレートに定義がある場合、要素の作成時に入力されます。",
+      "noFacts": "フィールドはまだありません。要素を作成すると、カテゴリの「フィールドのテンプレート」から入力されます。",
       "selectElement": "編集する要素を選択",
       "noCategories": "カテゴリはまだありません"
     },

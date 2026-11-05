@@ -63,7 +63,7 @@ html[data-shell-mode='desktop'] :is(.set-btn, .set-select, .set-input, .ui-butto
   line-height: 1.4;
 }
 
-html[data-shell-mode='desktop'] :is(.set-sec__title, .menu-surface__section-label, .set-rail__group-title) {
+html[data-shell-mode='desktop'] :is(.set-sec__title, .menu-surface__section-label) {
   letter-spacing: normal;
   font-weight: 500;
 }

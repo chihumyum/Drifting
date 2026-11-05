@@ -139,8 +139,8 @@ describe('workspace domain CRUD transactions', () => {
   });
 
   function mcpSession(id: string, access: 'read' | 'write', allowDangerous = false) {
-    return new ExternalToolSession({ sessionId: `mcp-test:${id}`,
-      grant: { id, name: 'Synthetic external agent', projectId: PROJECT_ID, access, allowDangerous },
+    return new ExternalToolSession({ sessionId: `mcp-test:${id}`, projectId: PROJECT_ID,
+      grant: { id, name: 'Synthetic external agent', access, allowDangerous },
       composition: fixture.composition,
       ensureConversation: async (conversationId) => {
         await fixture.database.insert(AgentConversationTable).values({ id: conversationId,
@@ -176,6 +176,8 @@ describe('workspace domain CRUD transactions', () => {
     expect(overview, JSON.stringify(overview)).toMatchObject({ isError: false });
     expect(JSON.parse(overview.content[0]!.text).markdownProjection).toMatchObject({ state: 'ready' });
     expect(JSON.parse(overview.content[0]!.text).markdownProjection).not.toHaveProperty('error');
+    // A connection follows whichever book is open; the overview names it.
+    expect(JSON.parse(overview.content[0]!.text).bookId).toBe(PROJECT_ID);
     expect(await mcpCall(reader, 'create_chapter', { title: 'Denied' })).toMatchObject({ isError: true });
     expect(await mcpCall(writer, 'create_chapter', {})).toMatchObject({ isError: true });
     expect(await mcpCall(writer, 'delete_chapter', { chapter: 'Chapter One' })).toMatchObject({ isError: true });
@@ -185,8 +187,8 @@ describe('workspace domain CRUD transactions', () => {
 
   it('MCP retries a failed session initialization instead of replaying the failure', async () => {
     let attempts = 0;
-    const session = new ExternalToolSession({ sessionId: 'mcp-test:init-retry',
-      grant: { id: 'init-retry', name: 'Synthetic external agent', projectId: PROJECT_ID, access: 'read', allowDangerous: false },
+    const session = new ExternalToolSession({ sessionId: 'mcp-test:init-retry', projectId: PROJECT_ID,
+      grant: { id: 'init-retry', name: 'Synthetic external agent', access: 'read', allowDangerous: false },
       composition: fixture.composition,
       ensureConversation: async (conversationId) => {
         if (++attempts === 1) throw new Error('Synthetic initialization failure');
@@ -284,7 +286,7 @@ describe('workspace domain CRUD transactions', () => {
     const session = mcpSession('changing', 'read');
     const other = mcpSession('unchanged', 'read');
     const update = (access: 'read' | 'write', allowDangerous = false) => session.updateGrant({
-      id: 'changing', name: 'Synthetic external agent', projectId: PROJECT_ID, access, allowDangerous,
+      id: 'changing', name: 'Synthetic external agent', access, allowDangerous,
     });
     const list = (target = session) => target.handle({ jsonrpc: '2.0', id: 0, method: 'tools/list' },
       new AbortController().signal) as Promise<{ tools: { name: string }[] }>;
@@ -323,7 +325,7 @@ describe('workspace domain CRUD transactions', () => {
     try {
       const pending = mcpCall(session, 'create_chapter', { title: 'Stale permission write' });
       await waiting;
-      session.updateGrant({ id: 'queued-permission', name: 'Synthetic', projectId: PROJECT_ID, access: 'read', allowDangerous: false });
+      session.updateGrant({ id: 'queued-permission', name: 'Synthetic', access: 'read', allowDangerous: false });
       release();
       expect(await pending).toMatchObject({ isError: true, content: [{ text: expect.stringContaining('permissions changed') }] });
       expect(fixture.scalar("SELECT count(*) FROM book_node WHERE title = 'Stale permission write'")).toBe(0);

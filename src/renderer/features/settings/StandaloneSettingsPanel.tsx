@@ -1,10 +1,12 @@
 import { useEffect, useSyncExternalStore, type ComponentType } from 'react';
+import { useTranslation } from 'react-i18next';
 import { createDeferredModule } from '../../lib/deferred-module';
 import { AppearancePanel, LanguagePanel } from './panels/BasicPreferencePanels';
+import { SettingsPanelHeader } from './SettingsPrimitives';
 import { SettingsLoadStatus } from './SettingsLoadStatus';
 import { hostedAccountSettingsEnabled } from './hosted-settings-policy';
 
-type DeferredPanelId = 'account' | 'editor' | 'models' | 'keys' | 'sync' | 'updates' | 'privacy' | 'about';
+type DeferredPanelId = 'account' | 'editor' | 'models' | 'mcp' | 'keys' | 'sync' | 'updates' | 'privacy' | 'about';
 export type StandalonePanelId = 'appearance' | 'language' | DeferredPanelId;
 type PanelContent = ComponentType<{ id: DeferredPanelId }>;
 const REGISTER_NOOP = () => undefined;
@@ -21,6 +23,20 @@ const intelligence = createDeferredModule<PanelContent>(async () => {
     return <ModelsPanel credentialsActive registerRef={REGISTER_NOOP} />;
   };
 });
+// External Agents connect to whichever book is open, so they are set up from
+// the shelf too, without the rest of the Agent settings.
+const externalAgents = createDeferredModule<PanelContent>(async () => {
+  const { AgentMcpAccessSettings } = await import('../../components/agent/AgentMcpAccessSettings');
+  return function ExternalAgentsContent() {
+    const { t } = useTranslation();
+    return (
+      <section className="set-panel" id="mcp">
+        <SettingsPanelHeader kicker="MCP" title={t('settings.agent.mcpAccess.title')} />
+        <AgentMcpAccessSettings open heading={false} />
+      </section>
+    );
+  };
+});
 const controls = createDeferredModule<PanelContent>(async () => {
   const { AccountPanel, KeysPanel, SyncPanel, UpdatePanel, PrivacyPanel, AboutPanel } = await import('./panels/AccountControlSettingsPanels');
   return function ControlContent({ id }) {
@@ -35,7 +51,7 @@ const controls = createDeferredModule<PanelContent>(async () => {
     }
   };
 });
-const panelModules = { account: controls, editor, models: intelligence,
+const panelModules = { account: controls, editor, models: intelligence, mcp: externalAgents,
   keys: controls, sync: controls, updates: controls, privacy: controls, about: controls };
 
 function DeferredStandalonePanel({ id }: { id: DeferredPanelId }) {

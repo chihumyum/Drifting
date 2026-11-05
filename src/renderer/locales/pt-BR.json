@@ -132,11 +132,9 @@
   },
   "markdownFolderGuide": {
     "title": "Onde colocar a pasta Markdown?",
-    "intro": "Cada projeto mantém uma cópia Markdown aqui. Edite capítulos e ideias em qualquer editor e as alterações serão mescladas no Drifting.",
-    "default": "Local padrão",
+    "intro": "Cada projeto mantém uma cópia Markdown na pasta que você escolher. Edite capítulos e ideias em qualquer editor e as alterações serão mescladas no Drifting.",
     "chosen": "Pasta escolhida",
     "choose": "Escolher pasta…",
-    "useDefault": "Usar local padrão",
     "continue": "Continuar"
   },
   "settings": {
@@ -148,6 +146,8 @@
     "search_placeholder": "Buscar configurações…",
     "close": "Fechar",
     "local_user": "Usuário local",
+    "rail_expand": "Expandir {{label}}",
+    "rail_collapse": "Recolher {{label}}",
     "groups": {
       "account": "Conta",
       "localData": "Dados locais",
@@ -480,7 +480,7 @@
     "update": {
       "kicker": "ATUALIZAÇÕES",
       "title": "Instale novas versões quando quiser.",
-      "sub": "Após iniciar, o Drifting verifica novos lançamentos no GitHub no máximo uma vez por dia. O download e a instalação sempre esperam sua decisão.",
+      "sub": "Enquanto está aberto, o Drifting verifica novos lançamentos no GitHub a cada 3 horas. A instalação sempre espera sua decisão.",
       "current_version": "Versão atual",
       "channel_desc": "Apple Silicon · macOS 13 ou posterior",
       "unavailable": "Esta compilação não tem chave de assinatura do atualizador e não pode buscar atualizações. Versões baixadas do GitHub podem.",
@@ -489,11 +489,9 @@
       "checking": "Verificando…",
       "no_update": "Você está atualizado.",
       "available_version": "Drifting {{version}} está disponível",
-      "download": "Baixar",
       "downloading": "Baixando e verificando a assinatura…",
       "downloading_progress": "Baixando e verificando… {{progress}}%",
-      "install": "Instalar e reiniciar…",
-      "confirm_install": "Instalar e reiniciar",
+      "install": "Instalar e reiniciar",
       "install_migration_safety": "Se a nova versão precisar atualizar dados locais, a próxima inicialização criará e verificará um snapshot de segurança. A troca só ocorre após a migração passar nas verificações.",
       "dismiss": "Agora não",
       "installing": "Salvando e instalando…",
@@ -502,7 +500,7 @@
       "error": "Atualização interrompida: {{error}}",
       "states": {
         "checking": "Verificando…",
-        "available": "Pronto para baixar.",
+        "available": "Pronto para instalar.",
         "downloading": "Baixando e verificando…",
         "installing": "Salvando alterações e instalando; o Drifting será reiniciado ao terminar…",
         "ready": "Baixado e verificado. Pronto para instalar.",
@@ -709,7 +707,7 @@
       "mcpAccess": {
         "projectionDescription": "Agents externos também podem editar capítulos e ideias da cópia Markdown diretamente. Configure em Sincronização e dados → Dados locais.",
         "title": "Acesso de agentes externos",
-        "desc": "Permita que Codex, Claude Code ou Antigravity acessem “{{project}}”. Cada conexão se limita a este projeto.",
+        "desc": "Permita que Codex, Claude Code ou Antigravity acessem o livro aberto. Conecte cada ferramenta uma vez; ela acompanha você ao trocar de livro.",
         "name": "Nome da conexão",
         "permission": "Permissão de acesso",
         "connectionPermission": "Permissão de acesso de {{name}}",
@@ -718,7 +716,7 @@
         "write": "Permitir alterações",
         "full": "Permitir alterações e operações destrutivas",
         "create": "Criar conexão",
-        "local": "Apenas acesso local. Mantenha Drifting e o projeto abertos. Revogar bloqueia novas solicitações imediatamente; alterações confirmadas permanecem.",
+        "local": "Apenas acesso local. Mantenha Drifting aberto; o acesso pausa enquanto você está na estante. Revogar bloqueia novas solicitações imediatamente; alterações confirmadas permanecem.",
         "config": "Configuração da conexão",
         "revoke": "Revogar",
         "copy": "Copiar configuração MCP",
@@ -729,6 +727,7 @@
         "manual": "Outros clientes · Configuração manual",
         "reinstall": "Reconfigurar",
         "installed": "{{client}} configurado. Reabra o cliente ou reinicie seu servidor MCP para carregar a conexão; siga as aprovações de ferramentas no primeiro uso.",
+        "installedLeftover": "{{client}} configurado e suas conexões anteriores por livro revogadas, mas uma das entradas do cliente mudou ou não pôde ser atualizada; remova no cliente a entrada antiga que começa com drifting_.",
         "revoked": "Acesso revogado e configuração instalada automaticamente removida.",
         "revokedWarning": "Acesso revogado. A configuração do cliente mudou ou não pôde ser atualizada; remova esta conexão no cliente."
       },
@@ -986,6 +985,7 @@
   },
   "chapterEditor": {
     "untitledChapter": "Capítulo sem título",
+    "untitledDrift": "Ideia sem título",
     "synopsisPlaceholder": "Sinopse…",
     "summaryPlaceholder": "Clique para adicionar um resumo…"
   },
@@ -1087,12 +1087,12 @@
     }
   },
   "kvEditor": {
-    "keyPlaceholder": "Campo · chave",
-    "valuePlaceholder": "Conteúdo · valor",
-    "templateKeyPlaceholder": "Nome do campo · chave (ex.: ponto de vista)",
-    "templateValuePlaceholder": "Padrão / dica · valor",
+    "keyPlaceholder": "Campo",
+    "valuePlaceholder": "Conteúdo",
+    "templateKeyPlaceholder": "Nome do campo, ex.: ponto de vista",
+    "templateValuePlaceholder": "Padrão ou dica",
     "empty": "Ainda não há campos",
-    "templateEmpty": "Sem campos de modelo; novos subitens não terão campos preenchidos automaticamente",
+    "templateEmpty": "Ainda não há campos de modelo. Novos itens não terão campos preenchidos",
     "addField": "Adicionar campo",
     "removeRow": "Remover linha"
   },
@@ -1696,7 +1696,7 @@
       "clearEntityFilter": "Limpar filtro de relações",
       "entityFilterAll": "Relações · Todas",
       "entityFilterHint": "Escolha uma entidade para mostrar só notas e materiais vinculados",
-      "todoEmptyHint": "Use + para criar uma tarefa ou converta um comentário do editor",
+      "todoEmptyHint": "Use + para criar uma tarefa ou escolha “Para tarefa” num cartão de comentário",
       "commentEmptyHint": "Use + para criar um comentário ou selecione um texto no editor para comentar",
       "newMaterialButton": "Novo material",
       "noMaterials": "Este projeto ainda não tem materiais.",
@@ -3033,7 +3033,7 @@
     "alerts": {
       "deleteFailed": "Não foi possível excluir a linha narrativa. Tente novamente."
     },
-    "scratchPlaceholder": "Anotações desta linha narrativa: notas rápidas, ideias, lembretes de estilo…",
+    "scratchPlaceholder": "Anotações desta linha narrativa: notas rápidas, lembretes de estilo…",
     "summaryPlaceholder": "Resumo desta linha narrativa em uma frase…",
     "nodeTemplatePlaceholder": "Crie uma estrutura padrão de capítulo com H1 / H2 / H3; novos capítulos a usarão…",
     "outlineTitle": "{{name}} · ESTRUTURA",
@@ -3060,7 +3060,7 @@
       "unwritten": "Não iniciado"
     },
     "empty": {
-      "noFacts": "Ainda não há campos. Se o modelo do projeto definir campos, eles serão preenchidos ao criar a linha narrativa.",
+      "noFacts": "Ainda não há campos. Ao criar uma linha narrativa, o Modelo de linha narrativa do início do projeto os preenche.",
       "noChapterSummary": "Ainda não há resumo em uma frase",
       "noFilteredChapters": "Nenhum capítulo para este filtro"
     },
@@ -3076,7 +3076,7 @@
     "alerts": {
       "deleteFailed": "Não foi possível excluir a categoria. Tente novamente."
     },
-    "scratchPlaceholder": "Anotações desta categoria: princípios de criação, regras de nomes, regras para candidatos de IA…",
+    "scratchPlaceholder": "Anotações desta categoria: princípios de criação, regras de nomes…",
     "elementTemplatePlaceholder": "Crie uma estrutura padrão de elemento com H1 / H2 / H3; novos elementos a usarão…",
     "sections": {
       "overview": "Visão geral",
@@ -3171,7 +3171,7 @@
       "patches": "Evoluções"
     },
     "empty": {
-      "noFacts": "Ainda não há campos. Se o modelo da categoria definir campos, eles serão preenchidos ao criar o elemento.",
+      "noFacts": "Ainda não há campos. Ao criar um elemento, o Modelo de campos da categoria os preenche.",
       "selectElement": "Selecione um elemento para editar",
       "noCategories": "Ainda não há categorias"
     },

@@ -1,7 +1,7 @@
 {
   "kind": "settings-body-search-browser",
-  "generatedAt": "2026-10-29T14:22:36.423Z",
-  "sourceSha256": "427ed2032d9f2a5330b63926e207f73a19dcdc6c7297a569c2fad071785c305d",
+  "generatedAt": "2026-11-05T20:11:32.860Z",
+  "sourceSha256": "a0743bc0d1c6c39f667138fbe98b45980ac507380bd8265cb5032ca6cf1b0ad7",
   "status": "passed",
   "synthetic": true,
   "checks": [
@@ -15,7 +15,9 @@
     "Conditional visibility adds and removes text from the active search",
     "Collapsed details are indexed only while expanded and refresh when toggled",
     "Locale changes replace indexed descriptions for an already-entered query",
-    "Category searches and clearing the query preserve the permanently expanded navigation"
+    "Category searches and clearing the query preserve the default-expanded navigation",
+    "A panel chevron folds only its own sections, out of sight and out of the tab order",
+    "A search lists matches inside a folded panel open; clearing it restores the fold until unfolded"
   ],
   "boundaries": "Headless Chrome with the real desktop Settings shell, editor/appearance panels, and synthetic deferred panels. Tauri window not exercised."
 }

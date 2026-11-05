@@ -131,11 +131,9 @@
   },
   "markdownFolderGuide": {
     "title": "Where should the Markdown folder go?",
-    "intro": "Every project keeps a Markdown copy here. Edit chapters and ideas in any editor and the changes merge back into Drifting.",
-    "default": "Default location",
+    "intro": "Every project keeps a Markdown copy in the folder you choose. Edit chapters and ideas in any editor and the changes merge back into Drifting.",
     "chosen": "Chosen folder",
     "choose": "Choose folder…",
-    "useDefault": "Use default location",
     "continue": "Continue"
   },
   "settings": {
@@ -147,6 +145,8 @@
     "search_placeholder": "Search settings…",
     "close": "Close",
     "local_user": "Local user",
+    "rail_expand": "Expand {{label}}",
+    "rail_collapse": "Collapse {{label}}",
     "groups": {
       "account": "Account",
       "localData": "Local data",
@@ -478,7 +478,7 @@
     "update": {
       "kicker": "UPDATES",
       "title": "Install new versions when you choose.",
-      "sub": "After startup, Drifting checks GitHub for a new release at most once a day. Downloading and installing always wait for you.",
+      "sub": "Drifting checks GitHub for a new release every 3 hours while it runs. Installing always waits for you.",
       "current_version": "Current version",
       "channel_desc": "Apple Silicon · macOS 13+",
       "unavailable": "This build has no updater signing key, so it cannot check for updates. Releases downloaded from GitHub can.",
@@ -487,11 +487,9 @@
       "checking": "Checking…",
       "no_update": "You're up to date.",
       "available_version": "Drifting {{version}} is available",
-      "download": "Download",
       "downloading": "Downloading and verifying the signature…",
       "downloading_progress": "Downloading and verifying… {{progress}}%",
-      "install": "Install and restart…",
-      "confirm_install": "Install and restart",
+      "install": "Install and restart",
       "install_migration_safety": "If the new version needs to upgrade local data, the next launch first makes a verified safety snapshot and switches over only after the migration passes its checks.",
       "dismiss": "Not now",
       "installing": "Saving and installing…",
@@ -500,7 +498,7 @@
       "error": "Update stopped: {{error}}",
       "states": {
         "checking": "Checking…",
-        "available": "Ready to download.",
+        "available": "Ready to install.",
         "downloading": "Downloading and verifying…",
         "installing": "Saving your changes and installing; Drifting restarts when done…",
         "ready": "Downloaded and verified. Ready to install.",
@@ -707,7 +705,7 @@
       "mcpAccess": {
         "projectionDescription": "External Agents can also use the Markdown projection; its chapter and idea files can be edited directly. Configure it in Sync & Data → Local data.",
         "title": "External agent access",
-        "desc": "Allow tools such as Codex, Claude Code, or Antigravity to access “{{project}}”. Each connection is limited to this project.",
+        "desc": "Allow tools such as Codex, Claude Code, or Antigravity to access the book you have open. Connect each tool once; it follows you when you switch books.",
         "name": "Connection name",
         "permission": "Access permission",
         "connectionPermission": "Access permission for {{name}}",
@@ -716,7 +714,7 @@
         "write": "Allow changes",
         "full": "Allow changes and destructive operations",
         "create": "Create connection",
-        "local": "Local access only. Keep Drifting and this project open. Revoking a connection immediately blocks new requests; committed changes remain.",
+        "local": "Local access only. Keep Drifting open; access pauses while you are on the shelf. Revoking a connection immediately blocks new requests; committed changes remain.",
         "config": "Connection configuration",
         "revoke": "Revoke",
         "copy": "Copy MCP configuration",
@@ -727,6 +725,7 @@
         "manual": "Other clients · Manual setup",
         "reinstall": "Reconfigure",
         "installed": "{{client}} is configured. Reopen the client or restart its MCP server to load the connection; follow its tool approval prompts on first use.",
+        "installedLeftover": "{{client}} is configured and its earlier per-book connections are revoked, but one of their client entries changed or could not be updated; remove the old entry starting with drifting_ in your client.",
         "revoked": "Access revoked and automatically installed client configuration removed.",
         "revokedWarning": "Access revoked. The client configuration changed or could not be updated; remove this connection in your client."
       },
@@ -983,6 +982,7 @@
   },
   "chapterEditor": {
     "untitledChapter": "Untitled chapter",
+    "untitledDrift": "Untitled idea",
     "synopsisPlaceholder": "Synopsis…",
     "summaryPlaceholder": "Click to add a summary…"
   },
@@ -1084,12 +1084,12 @@
     }
   },
   "kvEditor": {
-    "keyPlaceholder": "Field · key",
-    "valuePlaceholder": "Content · value",
-    "templateKeyPlaceholder": "Field name · key (e.g. POV)",
-    "templateValuePlaceholder": "Default / hint · value",
-    "empty": "- No KV fields yet -",
-    "templateEmpty": "- No template fields defined yet. New child items will not auto-fill any KV rows -",
+    "keyPlaceholder": "Field",
+    "valuePlaceholder": "Content",
+    "templateKeyPlaceholder": "Field name, e.g. POV",
+    "templateValuePlaceholder": "Default or hint",
+    "empty": "No fields yet",
+    "templateEmpty": "No template fields yet. New items won't get any fields filled in",
     "addField": "Add field",
     "removeRow": "Remove row"
   },
@@ -1692,7 +1692,7 @@
       "clearEntityFilter": "Clear relation filter",
       "entityFilterAll": "Relations · All",
       "entityFilterHint": "Choose an entity to show only linked memos / materials",
-      "todoEmptyHint": "Click + to create a TODO, or promote one from an editor comment card",
+      "todoEmptyHint": "Click + to create a TODO, or choose To TODO on a comment card",
       "commentEmptyHint": "Click + to add a comment, or select text in an editor to leave one",
       "newMaterialButton": "New material",
       "noMaterials": "No materials in this project yet.",
@@ -3022,7 +3022,7 @@
     "alerts": {
       "deleteFailed": "Failed to delete storyline. Please try again."
     },
-    "scratchPlaceholder": "Scratch notes for this storyline: quick notes, ideas, style reminders…",
+    "scratchPlaceholder": "Scratch notes for this storyline: quick notes, style reminders…",
     "summaryPlaceholder": "One-sentence summary for this storyline…",
     "nodeTemplatePlaceholder": "Write a default chapter skeleton with H1 / H2 / H3; new chapters will use it…",
     "outlineTitle": "{{name}} · OUTLINE",
@@ -3049,7 +3049,7 @@
       "unwritten": "Not started"
     },
     "empty": {
-      "noFacts": "No fields yet. If the project template defines fields, they are filled when the storyline is created.",
+      "noFacts": "No fields yet. When a storyline is created, the Storyline template on project home fills them in.",
       "noChapterSummary": "No one-sentence summary yet",
       "noFilteredChapters": "No chapters for this filter"
     },
@@ -3065,7 +3065,7 @@
     "alerts": {
       "deleteFailed": "Failed to delete category. Please try again."
     },
-    "scratchPlaceholder": "Scratch notes for this category: design principles, naming rules, AI candidate rules…",
+    "scratchPlaceholder": "Scratch notes for this category: design principles, naming rules…",
     "elementTemplatePlaceholder": "Write a default element skeleton with H1 / H2 / H3; new elements will use it…",
     "sections": {
       "overview": "Overview",
@@ -3160,7 +3160,7 @@
       "patches": "Patches"
     },
     "empty": {
-      "noFacts": "No fields yet. If the category template defines fields, they are filled when the element is created.",
+      "noFacts": "No fields yet. When an element is created, its category's Field template fills them in.",
       "selectElement": "Select an element to edit",
       "noCategories": "No categories yet"
     },

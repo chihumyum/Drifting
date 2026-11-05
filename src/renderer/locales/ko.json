@@ -131,11 +131,9 @@
   },
   "markdownFolderGuide": {
     "title": "Markdown 폴더를 어디에 둘까요?",
-    "intro": "각 작품의 Markdown 사본이 여기에 저장됩니다. 다른 편집기로 장과 아이디어를 편집하면 변경 사항이 Drifting에 병합됩니다.",
-    "default": "기본 위치",
+    "intro": "각 작품의 Markdown 사본이 선택한 폴더에 저장됩니다. 다른 편집기로 장과 아이디어를 편집하면 변경 사항이 Drifting에 병합됩니다.",
     "chosen": "선택한 폴더",
     "choose": "폴더 선택…",
-    "useDefault": "기본 위치 사용",
     "continue": "계속"
   },
   "settings": {
@@ -147,6 +145,8 @@
     "search_placeholder": "설정 검색…",
     "close": "닫기",
     "local_user": "로컬 사용자",
+    "rail_expand": "{{label}} 펼치기",
+    "rail_collapse": "{{label}} 접기",
     "groups": {
       "account": "계정",
       "localData": "로컬 데이터",
@@ -478,7 +478,7 @@
     "update": {
       "kicker": "업데이트",
       "title": "새 버전 설치 시점은 직접 정하세요.",
-      "sub": "시작 후 Drifting은 하루 최대 한 번 GitHub에서 새 버전을 확인합니다. 다운로드와 설치는 사용자가 결정합니다.",
+      "sub": "Drifting은 실행 중 3시간마다 GitHub에서 새 버전을 확인합니다. 설치는 사용자가 결정합니다.",
       "current_version": "현재 버전",
       "channel_desc": "Apple Silicon · macOS 13 이상",
       "unavailable": "이 빌드에는 업데이터 서명 키가 없어 업데이트를 확인할 수 없습니다. GitHub에서 받은 배포판에서는 사용할 수 있습니다.",
@@ -487,11 +487,9 @@
       "checking": "확인 중…",
       "no_update": "최신 버전입니다.",
       "available_version": "Drifting {{version}}을 사용할 수 있습니다",
-      "download": "다운로드",
       "downloading": "다운로드 및 서명 검증 중…",
       "downloading_progress": "다운로드 및 검증 중… {{progress}}%",
-      "install": "설치 후 다시 시작…",
-      "confirm_install": "설치 후 다시 시작",
+      "install": "설치 후 다시 시작",
       "install_migration_safety": "새 버전에서 로컬 데이터 업그레이드가 필요하면 다음 시작 시 먼저 안전 스냅샷을 만들고 검증합니다. 마이그레이션 검사를 통과해야 전환합니다.",
       "dismiss": "나중에",
       "installing": "저장 및 설치 중…",
@@ -500,7 +498,7 @@
       "error": "업데이트 중지: {{error}}",
       "states": {
         "checking": "확인 중…",
-        "available": "다운로드할 준비가 되었습니다.",
+        "available": "설치할 준비가 되었습니다.",
         "downloading": "다운로드 및 검증 중…",
         "installing": "변경 내용을 저장하고 설치 중입니다. 완료되면 Drifting이 다시 시작됩니다…",
         "ready": "다운로드와 검증이 끝났습니다. 설치할 준비가 되었습니다.",
@@ -707,7 +705,7 @@
       "mcpAccess": {
         "projectionDescription": "외부 Agent도 Markdown 사본을 이용해 장과 아이디어 파일을 직접 편집할 수 있습니다. 동기화 및 데이터 → 로컬 데이터에서 설정하세요.",
         "title": "외부 Agent 접근",
-        "desc": "Codex, Claude Code, Antigravity 등의 도구가 “{{project}}”에 접근하도록 허용합니다. 연결은 이 작품으로 제한됩니다.",
+        "desc": "Codex, Claude Code, Antigravity 등의 도구가 지금 열려 있는 작품에 접근하도록 허용합니다. 도구마다 한 번만 연결하면 작품을 바꿔도 따라갑니다.",
         "name": "연결 이름",
         "permission": "접근 권한",
         "connectionPermission": "{{name}}의 접근 권한",
@@ -716,7 +714,7 @@
         "write": "변경 허용",
         "full": "변경 및 파괴적 작업 허용",
         "create": "연결 만들기",
-        "local": "로컬 접근만 가능합니다. Drifting과 작품을 열어 두세요. 연결을 취소하면 새 요청이 즉시 차단되며 커밋된 변경은 유지됩니다.",
+        "local": "로컬 접근만 가능합니다. Drifting을 열어 두세요. 책장에 있는 동안은 접근이 멈춥니다. 연결을 취소하면 새 요청이 즉시 차단되며 커밋된 변경은 유지됩니다.",
         "config": "연결 구성",
         "revoke": "취소",
         "copy": "MCP 구성 복사",
@@ -727,6 +725,7 @@
         "manual": "다른 클라이언트 · 수동 설정",
         "reinstall": "다시 구성",
         "installed": "{{client}}을(를) 구성했습니다. 클라이언트 또는 MCP 서버를 다시 시작해 연결을 불러오고 처음 사용할 때 도구 승인 안내를 따르세요.",
+        "installedLeftover": "{{client}}을(를) 구성하고 이전의 작품별 연결도 취소했지만, 그중 클라이언트 구성 하나가 바뀌었거나 업데이트할 수 없습니다. 클라이언트에서 drifting_으로 시작하는 이전 항목을 제거하세요.",
         "revoked": "접근 권한을 취소하고 자동 설치된 클라이언트 구성을 제거했습니다.",
         "revokedWarning": "접근 권한을 취소했습니다. 클라이언트 구성이 바뀌었거나 업데이트할 수 없으므로 클라이언트에서 이 연결을 제거하세요."
       },
@@ -983,6 +982,7 @@
   },
   "chapterEditor": {
     "untitledChapter": "제목 없는 장",
+    "untitledDrift": "제목 없는 아이디어",
     "synopsisPlaceholder": "줄거리…",
     "summaryPlaceholder": "클릭하여 요약 추가…"
   },
@@ -1084,12 +1084,12 @@
     }
   },
   "kvEditor": {
-    "keyPlaceholder": "필드 · 키",
-    "valuePlaceholder": "내용 · 값",
-    "templateKeyPlaceholder": "필드 이름 · 키(예: 시점)",
-    "templateValuePlaceholder": "기본값 / 힌트 · 값",
+    "keyPlaceholder": "필드",
+    "valuePlaceholder": "내용",
+    "templateKeyPlaceholder": "필드 이름(예: 시점)",
+    "templateValuePlaceholder": "기본값 또는 힌트",
     "empty": "아직 필드가 없습니다",
-    "templateEmpty": "템플릿 필드가 없어 새 하위 항목에 자동으로 채우지 않습니다",
+    "templateEmpty": "아직 템플릿 필드가 없어 새로 만들 때 자동으로 채우지 않습니다",
     "addField": "필드 추가",
     "removeRow": "행 제거"
   },
@@ -1692,7 +1692,7 @@
       "clearEntityFilter": "관계 필터 해제",
       "entityFilterAll": "관계 · 전체",
       "entityFilterHint": "개체를 선택하면 연결된 메모·자료만 표시합니다",
-      "todoEmptyHint": "+로 할 일을 만들거나 편집기 댓글 카드에서 승격하세요",
+      "todoEmptyHint": "+로 할 일을 만들거나 댓글 카드에서 '할 일로 전환'을 누르세요",
       "commentEmptyHint": "+로 댓글을 만들거나 편집기에서 텍스트를 선택해 댓글을 남기세요",
       "newMaterialButton": "새 자료",
       "noMaterials": "이 작품에는 아직 자료가 없습니다.",
@@ -3022,7 +3022,7 @@
     "alerts": {
       "deleteFailed": "스토리라인을 삭제하지 못했습니다. 다시 시도해 주세요."
     },
-    "scratchPlaceholder": "이 스토리라인의 임시 메모: 간단한 기록, 아이디어, 문체 유의 사항…",
+    "scratchPlaceholder": "이 스토리라인의 임시 메모: 간단한 기록, 문체 유의 사항…",
     "summaryPlaceholder": "이 스토리라인의 한 문장 요약…",
     "nodeTemplatePlaceholder": "H1 / H2 / H3으로 기본 장 구조를 작성하세요. 새 장에 적용됩니다…",
     "outlineTitle": "{{name}} · 개요",
@@ -3049,7 +3049,7 @@
       "unwritten": "시작 전"
     },
     "empty": {
-      "noFacts": "아직 필드가 없습니다. 작품 템플릿에 필드가 정의되어 있으면 스토리라인을 만들 때 채워집니다.",
+      "noFacts": "아직 필드가 없습니다. 스토리라인을 만들면 작품 홈의 '스토리라인 템플릿'으로 채워집니다.",
       "noChapterSummary": "아직 한 문장 요약이 없습니다",
       "noFilteredChapters": "이 필터에 해당하는 장이 없습니다"
     },
@@ -3065,7 +3065,7 @@
     "alerts": {
       "deleteFailed": "분류를 삭제하지 못했습니다. 다시 시도해 주세요."
     },
-    "scratchPlaceholder": "이 분류의 임시 메모: 설계 원칙, 명명 규칙, AI 후보 규칙…",
+    "scratchPlaceholder": "이 분류의 임시 메모: 설계 원칙, 명명 규칙…",
     "elementTemplatePlaceholder": "H1 / H2 / H3으로 기본 요소 구조를 작성하세요. 새 요소에 적용됩니다…",
     "sections": {
       "overview": "개요",
@@ -3160,7 +3160,7 @@
       "patches": "변화 기록"
     },
     "empty": {
-      "noFacts": "아직 필드가 없습니다. 분류 템플릿에 필드가 정의되어 있으면 요소를 만들 때 채워집니다.",
+      "noFacts": "아직 필드가 없습니다. 요소를 만들면 분류의 '필드 템플릿'으로 채워집니다.",
       "selectElement": "편집할 요소 선택",
       "noCategories": "아직 분류가 없습니다"
     },

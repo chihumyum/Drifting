@@ -71,12 +71,18 @@ describe('the serif structure face beyond the sidebars', () => {
     );
   });
 
-  it('sets each settings section heading in the structure face, keeping the rail as it was', () => {
+  it('sets each settings section heading and the rail’s group names in the structure face, not its rows', () => {
     const css = read('src/styles/settings.css');
     const title = block(css, ":where(html:not([data-shell-mode='mobile'])) .set-panel__title {");
     expect(title).toContain('font-family: var(--font-structure);');
     expect(title).toContain('font-weight: 400;');
+    // 本地数据／偏好／智能 name parts of the page, as Panel Tabs name destinations.
+    const group = block(css, ":where(html:not([data-shell-mode='mobile'])) .set-rail__group-title {");
+    expect(group).toContain('font-family: var(--font-structure);');
+    expect(group).toContain('font-weight: 400;');
+    expect(read('src/styles/desktop-typography.css')).not.toContain('.set-rail__group-title');
     expect(block(css, ":where(html:not([data-shell-mode='mobile'])) .set-rail__item {")).not.toContain('--font-structure');
+    expect(block(css, ":where(html:not([data-shell-mode='mobile'])) .set-rail__section {")).not.toContain('--font-structure');
   });
 
   it('sets material folders, not materials, in the structure face', () => {
@@ -112,6 +118,7 @@ describe('the serif structure face beyond the sidebars', () => {
     expect(docs).toContain('Super View 的视图切换、设置每一节的页题');
     expect(docs).toContain('素材夹与「审阅与素材」里的种类组头、书架的页名、时间线与故事图谱的故事线泳道名、幕名');
     expect(docs).toContain('三个视图是去处，和 Panel Tab 一样用结构字');
+    expect(docs).toContain('目录的组名（本地数据、偏好、智能）2026-11-06 起也用结构字');
     expect(docs).toContain('素材夹名是结构字、素材条目是实体字');
     expect(docs).toContain('书架的页名「书架」是地方的名字，也用结构字');
     const landing = read('scripts/design-assets/landing/index.html');
