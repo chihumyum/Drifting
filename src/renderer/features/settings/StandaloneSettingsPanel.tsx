@@ -2,6 +2,7 @@ import { useEffect, useSyncExternalStore, type ComponentType } from 'react';
 import { useTranslation } from 'react-i18next';
 import { createDeferredModule } from '../../lib/deferred-module';
 import { AppearancePanel, LanguagePanel } from './panels/BasicPreferencePanels';
+import { SettingsPanelHeader } from './SettingsPrimitives';
 import { SettingsLoadStatus } from './SettingsLoadStatus';
 import { hostedAccountSettingsEnabled } from './hosted-settings-policy';
 
@@ -25,10 +26,7 @@ const intelligence = createDeferredModule<PanelContent>(async () => {
 // External Agents connect to whichever book is open, so they are set up from
 // the shelf too, without the rest of the Agent settings.
 const externalAgents = createDeferredModule<PanelContent>(async () => {
-  const [{ AgentMcpAccessSettings }, { SettingsPanelHeader }] = await Promise.all([
-    import('../../components/agent/AgentMcpAccessSettings'),
-    import('./SettingsPrimitives'),
-  ]);
+  const { AgentMcpAccessSettings } = await import('../../components/agent/AgentMcpAccessSettings');
   return function ExternalAgentsContent() {
     const { t } = useTranslation();
     return (
