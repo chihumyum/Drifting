@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { NotificationPill } from '../../components/notifications/NotificationPill';
 import { UserMenu } from '../../components/topBars/UserMenu';
 import { AccountAvatar } from '../../components/ui/AccountAvatar';
 import { BrushIcon } from '../../components/ui/BrushIcon';
@@ -16,7 +17,8 @@ import { formatShelfWords } from './shelf-format';
  * the shelf's name and how much the library holds at the top; at the foot
  * the import of a `.driftingbook`, Recently Deleted, and the account cell
  * with the library's sync state (none while writing locally), which opens
- * the account menu upward.
+ * the account menu upward, beside the notification bell, whose center opens
+ * upward too.
  */
 export function ShelfRail({ books, words, trashCount, importing, onImport, onOpenTrash }: {
   books: number;
@@ -79,29 +81,32 @@ export function ShelfRail({ books, words, trashCount, importing, onImport, onOpe
           {trashCount > 0 && <span className="pp-rail__meta">{trashCount}</span>}
         </span>
       </button>
-      <button
-        ref={triggerRef}
-        type="button"
-        className="pp-rail__account glass"
-        title={displayName}
-        aria-label={t(hostedAccountSettingsEnabled() ? 'userMenu.accountMenu' : 'userMenu.localMenu')}
-        aria-haspopup="dialog"
-        aria-expanded={menuOpen}
-        onClick={() => setMenuOpen((open) => !open)}
-      >
-        <span className="pp-rail__avatar" aria-hidden="true">
-          <AccountAvatar image={user?.image} initial={displayName.charAt(0).toUpperCase()} />
-        </span>
-        <span className="pp-rail__who">
-          <span className="pp-rail__name">{displayName}</span>
-          {status && (
-            <span className={`pp-rail__status${status.tone}`}>
-              {status.icon && <BrushIcon name={status.icon} size={12} />}
-              <span>{status.text}</span>
-            </span>
-          )}
-        </span>
-      </button>
+      <div className="pp-rail__foot">
+        <button
+          ref={triggerRef}
+          type="button"
+          className="pp-rail__account glass"
+          title={displayName}
+          aria-label={t(hostedAccountSettingsEnabled() ? 'userMenu.accountMenu' : 'userMenu.localMenu')}
+          aria-haspopup="dialog"
+          aria-expanded={menuOpen}
+          onClick={() => setMenuOpen((open) => !open)}
+        >
+          <span className="pp-rail__avatar" aria-hidden="true">
+            <AccountAvatar image={user?.image} initial={displayName.charAt(0).toUpperCase()} />
+          </span>
+          <span className="pp-rail__who">
+            <span className="pp-rail__name">{displayName}</span>
+            {status && (
+              <span className={`pp-rail__status${status.tone}`}>
+                {status.icon && <BrushIcon name={status.icon} size={12} />}
+                <span>{status.text}</span>
+              </span>
+            )}
+          </span>
+        </button>
+        <NotificationPill opens="up" />
+      </div>
       <UserMenu
         triggerRef={triggerRef}
         open={menuOpen}

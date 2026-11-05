@@ -78,6 +78,11 @@ describe('the bookshelf in sand and glass', () => {
     expect(rail).toContain("{t('projectPicker.desk.trashEntry')}");
     expect(rail).toContain('const corner = syncLibraryCornerFor(health);');
     expect(rail).toContain('placement="top-start"');
+    // The notification bell sits beside the account cell, as at the foot of
+    // the workspace's left sidebar, and its center opens upward.
+    expect(rail).toContain('<NotificationPill opens="up" />');
+    expect(block(css, '.pp-rail__foot {', '}')).toContain('display: flex;');
+    expect(block(css, '.pp-rail__account {', '}')).toContain('flex: 1;');
     expect(block(css, '.pp-rail__cell {', '}')).toContain('background: transparent;');
     // Label and meta are never cut short: the meta goes under the label where
     // both do not fit on one line (English), and a long label wraps.
