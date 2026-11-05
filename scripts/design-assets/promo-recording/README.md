@@ -161,7 +161,10 @@ alpha), `events.jsonl` (the rig's), `marks.jsonl` (the script's) and
 - After the last shot a closing card fades in (`--no-end-card` drops it): the
   icon, the name, the README's one-line description and the address.
 - The pointer is drawn from the rig's samples, hidden from a keystroke until
-  the next move as macOS does, with a ripple at each click.
+  the next move as macOS does, with a ripple at each click. A pointer resting
+  where the frame's edge cuts through it fades out until it moves again, once
+  the rest lasts over 1.2 seconds (a shorter one, while the camera passes,
+  would blink it).
 - `compose.swift` renders the frames with Core Image: the window scaled from its
   Retina pixels with a Lanczos filter on a quiet backdrop with a soft shadow,
   the opening's Dock, then the pointer, ripples and badge, and the closing card,

@@ -110,6 +110,8 @@ const QUICK_CPS = 8;
 const DOCK_ICON = 46;
 const DOCK_GAP = 6;
 const DOCK_PAD = 7;
+/** The drawn arrow's extent from its tip, canvas points (compose.swift: 12 × 19 at 1.25). */
+const POINTER_SIZE = { width: 15, height: 24 };
 
 /**
  * Where Drifting's icon sits in the opening's Dock, in window points: centred
@@ -382,6 +384,16 @@ export function planVideo(timeline: Timeline, options: PlanOptions): Plan {
   const typing = events.filter((event) => event.type === 'type' || event.type === 'key').map((event) => event.t);
   // Moves made before the video starts (placing the caret off camera) do not show it.
   const moving = events.filter((event) => event.type === 'pointer' && event.t >= start).map((event) => event.t);
+  const pointerTimes = pointer.map((event) => event.t);
+  /** When the pointer last moved or pressed, at or before `t`. */
+  const lastPointerAt = (t: number) => {
+    let low = 0, high = pointerTimes.length - 1, found = -Infinity;
+    while (low <= high) {
+      const middle = (low + high) >> 1;
+      if (pointerTimes[middle] <= t) { found = pointerTimes[middle]; low = middle + 1; } else high = middle - 1;
+    }
+    return found;
+  };
   const firstRealMove = introOpen ? moving.find((time) => time > introOpen.t) ?? Infinity : -Infinity;
   const pointerAt = (t: number): [number, number] => {
     // The opening's hand: from the middle of the desktop to Drifting in the Dock.
@@ -422,7 +434,9 @@ export function planVideo(timeline: Timeline, options: PlanOptions): Plan {
   const endCount = Math.round(options.endCard * options.fps);
   const initial = framingAt(sourceAt(0));
   const springs = { x: new Spring(initial.cx, 3.6), y: new Spring(initial.cy, 3.6), z: new Spring(Math.log(initial.z), 3.0) };
-  let alpha = 0;
+  // Per frame: whether the pointer should show, and whether it rests cut by the frame's edge.
+  const wantPointer: boolean[] = [];
+  const restingCut: boolean[] = [];
   for (let frame = 0; frame < recordedCount + endCount; frame += 1) {
     const ending = frame >= recordedCount;
     const out = frame * dt;
@@ -443,7 +457,15 @@ export function planVideo(timeline: Timeline, options: PlanOptions): Plan {
 
     const [wx, wy] = pointerAt(s);
     const [px, py] = toCanvas(wx, wy);
-    alpha = clamp(alpha + ((pointerShown(s) && !ending) ? 1 : -1) * dt / 0.15, 0, 1);
+    // A hand at rest that the frame's edge cuts through fades out rather than
+    // sitting there half drawn; it comes back as soon as it moves.
+    const view = { left: cx - cw / 2, right: cx + cw / 2, top: cy - ch / 2, bottom: cy + ch / 2 };
+    const reaches = { right: px + POINTER_SIZE.width, bottom: py + POINTER_SIZE.height };
+    const inView = px < view.right && reaches.right > view.left && py < view.bottom && reaches.bottom > view.top;
+    const cut = inView && (px < view.left || reaches.right > view.right || py < view.top || reaches.bottom > view.bottom);
+    const resting = (!introClick || s >= firstRealMove) && s - lastPointerAt(s) > 0.35;
+    wantPointer.push(pointerShown(s) && !ending);
+    restingCut.push(cut && resting);
     const pressed = presses.find((press) => s >= press.down && s < press.up + 0.02);
     const ripples = ending ? [] : presses
       .map((press) => ({ ...press, age: out - outputAt(press.down) }))
@@ -479,7 +501,7 @@ export function planVideo(timeline: Timeline, options: PlanOptions): Plan {
 
     frames.push({
       s: Math.round(s * 1e4) / 1e4, cx: round(cx), cy: round(cy), z: Math.round(z * 1e4) / 1e4,
-      px: round(px), py: round(py), pa: round(alpha), pp: pressed ? 0.86 : 1,
+      px: round(px), py: round(py), pa: 0, pp: pressed ? 0.86 : 1,
       r: ripples.map(([x, y, radius, opacity]) => [round(x), round(y), round(radius), round(opacity)]), b: badge, ba: badge ? 1 : 0,
       ...(shrunk ? { k: shrunk } : {}),
       ...(windowState ? { w: windowState } : {}),
@@ -487,6 +509,21 @@ export function planVideo(timeline: Timeline, options: PlanOptions): Plan {
       ...(endOpacity > 0 ? { e: endOpacity } : {}),
     });
   }
+  // The pointer fades in and out over 0.15 s. It hides for a cut rest only when
+  // the rest lasts: a moment cut while the camera passes would blink it.
+  const minimumRest = Math.round(1.2 * options.fps);
+  for (let index = 0; index < restingCut.length;) {
+    if (!restingCut[index]) { index += 1; continue; }
+    let end = index;
+    while (end < restingCut.length && restingCut[end]) end += 1;
+    if (end - index < minimumRest) restingCut.fill(false, index, end);
+    index = end;
+  }
+  let alpha = 0;
+  frames.forEach((frame, index) => {
+    alpha = clamp(alpha + (wantPointer[index] && !restingCut[index] ? 1 : -1) * dt / 0.15, 0, 1);
+    frame.pa = round(alpha);
+  });
   // Fade the badge in and out over a few frames.
   const labels = frames.map((frame) => frame.b);
   for (let index = 0; index < frames.length; index += 1) {
