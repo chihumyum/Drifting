@@ -3078,7 +3078,7 @@
     },
     "labels": {
       "elementCount": "要素",
-      "role": "役割"
+      "summary": "要約"
     },
     "meta": {
       "elements": "{{count}}要素",
@@ -3092,7 +3092,7 @@
     "empty": {
       "noCategories": "カテゴリはまだありません",
       "noTemplateFields": "テンプレートのフィールドはまだありません。別名、所属、初登場などのキーを追加できます。",
-      "noRole": "一文の役割説明はまだありません",
+      "noSummary": "要約はまだありません",
       "noFilteredElements": "条件に合う要素はありません"
     },
     "actions": {
@@ -3104,7 +3104,7 @@
     "deleteConfirm": "要素「{{name}}」を削除しますか？",
     "folio": "要素",
     "bodyPlaceholder": "物語が進む時点で、この要素はどのような状態ですか？",
-    "summaryPlaceholder": "役割を一文で説明…",
+    "summaryPlaceholder": "一文で要約…",
     "sketch": "スケッチ",
     "sketchWithCategory": "{{category}} · スケッチ",
     "portrait": {

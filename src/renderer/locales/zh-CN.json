@@ -3071,7 +3071,7 @@
     },
     "labels": {
       "elementCount": "要素数",
-      "role": "角色"
+      "summary": "概述"
     },
     "meta": {
       "elements": "{{count}} 要素",
@@ -3085,7 +3085,7 @@
     "empty": {
       "noCategories": "还没有类目",
       "noTemplateFields": "尚未定义模版字段。可添加如 别名 / 阵营 / 首次出场 等键名",
-      "noRole": "尚未填写一句话角色",
+      "noSummary": "尚未填写概述",
       "noFilteredElements": "此筛选下暂无要素"
     },
     "actions": {
@@ -3097,7 +3097,7 @@
     "deleteConfirm": "删除要素「{{name}}」？",
     "folio": "要素",
     "bodyPlaceholder": "故事发生时，这个要素是什么？",
-    "summaryPlaceholder": "一句话角色说明…",
+    "summaryPlaceholder": "一句话概述…",
     "sketch": "速写",
     "sketchWithCategory": "{{category}} · 速写",
     "portrait": {

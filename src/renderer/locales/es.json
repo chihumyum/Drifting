@@ -3089,7 +3089,7 @@
     },
     "labels": {
       "elementCount": "Elementos",
-      "role": "Función"
+      "summary": "Resumen"
     },
     "meta": {
       "elements": "{{count}} elementos",
@@ -3103,7 +3103,7 @@
     "empty": {
       "noCategories": "Aún no hay categorías",
       "noTemplateFields": "Aún no hay campos de plantilla. Añade claves como alias, facción o primera aparición.",
-      "noRole": "Aún no hay función en una frase",
+      "noSummary": "Aún no hay resumen",
       "noFilteredElements": "No hay elementos para este filtro"
     },
     "actions": {
@@ -3115,7 +3115,7 @@
     "deleteConfirm": "¿Eliminar el elemento «{{name}}»?",
     "folio": "Elemento",
     "bodyPlaceholder": "¿Cómo es este elemento durante la historia?",
-    "summaryPlaceholder": "Describe su función en una frase…",
+    "summaryPlaceholder": "Resumen en una frase…",
     "sketch": "Boceto",
     "sketchWithCategory": "{{category}} · boceto",
     "portrait": {

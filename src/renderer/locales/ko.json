@@ -3078,7 +3078,7 @@
     },
     "labels": {
       "elementCount": "요소",
-      "role": "역할"
+      "summary": "요약"
     },
     "meta": {
       "elements": "요소 {{count}}개",
@@ -3092,7 +3092,7 @@
     "empty": {
       "noCategories": "아직 분류가 없습니다",
       "noTemplateFields": "아직 템플릿 필드가 없습니다. 별칭, 소속, 첫 등장 같은 키를 추가하세요.",
-      "noRole": "아직 한 문장 역할 설명이 없습니다",
+      "noSummary": "아직 요약이 없습니다",
       "noFilteredElements": "이 필터에 해당하는 요소가 없습니다"
     },
     "actions": {
@@ -3104,7 +3104,7 @@
     "deleteConfirm": "요소 “{{name}}”을 삭제할까요?",
     "folio": "요소",
     "bodyPlaceholder": "이야기가 진행될 때 이 요소는 어떤 상태인가요?",
-    "summaryPlaceholder": "한 문장 역할 설명…",
+    "summaryPlaceholder": "한 문장 요약…",
     "sketch": "스케치",
     "sketchWithCategory": "{{category}} · 스케치",
     "portrait": {
