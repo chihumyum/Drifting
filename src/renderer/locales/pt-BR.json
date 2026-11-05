@@ -3746,5 +3746,12 @@
   },
   "startup": {
     "loading": "Iniciando o Drifting"
+  },
+  "windowCaption": {
+    "label": "Janela",
+    "close": "Fechar",
+    "minimize": "Minimizar",
+    "maximize": "Maximizar",
+    "restore": "Restaurar"
   }
 }

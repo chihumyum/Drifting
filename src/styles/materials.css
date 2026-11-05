@@ -684,6 +684,8 @@
 .brush-icon--chevron-left { -webkit-mask-image: url('../assets/design/icons/chevron-left.png'); mask-image: url('../assets/design/icons/chevron-left.png'); }
 .brush-icon--check { -webkit-mask-image: url('../assets/design/icons/check.png'); mask-image: url('../assets/design/icons/check.png'); }
 .brush-icon--minus { -webkit-mask-image: url('../assets/design/icons/minus.png'); mask-image: url('../assets/design/icons/minus.png'); }
+.brush-icon--window-max { -webkit-mask-image: url('../assets/design/icons/window-max.png'); mask-image: url('../assets/design/icons/window-max.png'); }
+.brush-icon--window-restore { -webkit-mask-image: url('../assets/design/icons/window-restore.png'); mask-image: url('../assets/design/icons/window-restore.png'); }
 .brush-icon--loader { -webkit-mask-image: url('../assets/design/icons/loader.png'); mask-image: url('../assets/design/icons/loader.png'); }
 .brush-icon--trash { -webkit-mask-image: url('../assets/design/icons/trash.png'); mask-image: url('../assets/design/icons/trash.png'); }
 .brush-icon--edit { -webkit-mask-image: url('../assets/design/icons/edit.png'); mask-image: url('../assets/design/icons/edit.png'); }

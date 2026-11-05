@@ -3731,5 +3731,12 @@
   },
   "startup": {
     "loading": "正在啟動 Drifting"
+  },
+  "windowCaption": {
+    "label": "視窗",
+    "close": "關閉",
+    "minimize": "最小化",
+    "maximize": "最大化",
+    "restore": "還原"
   }
 }

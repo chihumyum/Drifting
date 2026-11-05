@@ -43,11 +43,19 @@ Node on Windows, because Node refuses to spawn `pnpm.cmd` without a shell.
 - **Shortcuts.** `Mod` is Ctrl. Fixed hints written for the Apple keyboard go
   through `platformShortcut('⌘↩', 'Ctrl+Enter')`; configurable shortcuts go
   through `formatAccelerator`.
-- **Window.** Windows keeps its native title bar. The macOS overlay title bar,
-  traffic-light inset and immersive writing's hidden traffic lights apply to
-  macOS only. The close button still returns an open book to the shelf; on the
-  shelf it saves and quits. The native title bar follows Drifting's own light
-  or dark theme (`window_set_theme`, Windows only).
+- **Window.** Windows has no native title bar: `windows_webview.rs` turns the
+  decorations off (Tauri keeps the window resizable from its edges and keeps
+  its shadow), and `WindowsCaption` draws close, minimize and maximize as one
+  glass pill in the top-left corner, in the traffic lights' place and order.
+  The pill is the paper toolbar's tray without its fill (28px round glass
+  buttons, 16px brush icons, 4px tray padding); maximize turns into restore.
+  Headers keep `--window-header-leading-inset` (110px on Windows, 94px on
+  macOS) clear of it, it sits above dialogs, and immersive writing fades it
+  with the sidebar toggles until the pointer reaches the top edge. Close is
+  the window's own close request: an open book returns to the shelf; on the
+  shelf it saves and quits. Windows 11's snap layouts flyout on the maximize
+  button is gone with the native button; Win+Z and Win+arrow keys still snap.
+  `window_set_theme` still sets the window's theme for system surfaces.
 - **Fonts.** The interface fonts are bundled, so Chinese and Latin interface
   text matches macOS. The prose system serif falls back to the bundled Noto
   Serif SC rather than SimSun; the system sans names Microsoft YaHei. PDF export
@@ -104,7 +112,11 @@ installer runs natively. The interface is the same WebView2 (Chromium) in both.
    writes.
 8. Export EPUB, PDF and Word; open the PDF and check Chinese glyphs.
 9. Display scaling at 125% and 150%; light and dark themes; immersive writing.
-10. Press F5, Ctrl+R and Ctrl+P while writing: nothing reloads or prints.
+10. The window buttons: close, minimize, maximize/restore; drag the window by
+    the empty top row and double-click it to maximize; resize from every edge
+    and corner; Win+arrow keys and Win+Z. With a book open, close returns to
+    the shelf. In immersive writing the pill appears at the top edge.
+11. Press F5, Ctrl+R and Ctrl+P while writing: nothing reloads or prints.
     Right-click on text and on empty paper: only editing items appear.
-11. Sign in to the ChatGPT subscription; quit and reopen: still signed in.
-12. Import a HEIC photo and an AVIF image (with the Store codecs installed).
+12. Sign in to the ChatGPT subscription; quit and reopen: still signed in.
+13. Import a HEIC photo and an AVIF image (with the Store codecs installed).

@@ -132,6 +132,8 @@ export type BrushIconName =
   | 'view-grid'
   | 'view-list'
   | 'wen'
+  | 'window-max'
+  | 'window-restore'
   | 'wu'
   | 'zi'
   | 'zi-ri';

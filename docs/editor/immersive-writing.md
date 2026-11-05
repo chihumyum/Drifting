@@ -17,7 +17,7 @@ modes (句, 渐隐) were not adopted.
   Bottom Panel（时间线或情节规划）。侧栏与 Bottom Panel 用各自原有的
   `420ms` 滑动收起；浮着的控件淡出（`--motion-glass-bleed`），淡完是
   `visibility: hidden`，点不到也聚焦不到。稿纸左下角的同步云在沉浸中不呼吸，
-  只有同步出了问题时照常显示。macOS 的红绿灯从原生侧隐藏
+  只有同步出了问题时照常显示。Windows 的窗口按钮药丸随侧栏开关淡出。macOS 的红绿灯从原生侧隐藏
   （`window_set_traffic_lights_hidden`）。
 - **留着什么**。正文里的批注砂笔（稿纸批注按钮的开关；页边便笺 rail 已在
   2026-11-04 退役）和大纲 rail 按进入前的样子保留：开着就开着，关着就关着；

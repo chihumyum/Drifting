@@ -3746,5 +3746,12 @@
   },
   "startup": {
     "loading": "Iniciando Drifting"
+  },
+  "windowCaption": {
+    "label": "Ventana",
+    "close": "Cerrar",
+    "minimize": "Minimizar",
+    "maximize": "Maximizar",
+    "restore": "Restaurar"
   }
 }

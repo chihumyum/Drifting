@@ -3731,5 +3731,12 @@
   },
   "startup": {
     "loading": "Starting Drifting"
+  },
+  "windowCaption": {
+    "label": "Window",
+    "close": "Close",
+    "minimize": "Minimize",
+    "maximize": "Maximize",
+    "restore": "Restore"
   }
 }

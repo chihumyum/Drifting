@@ -3731,5 +3731,12 @@
   },
   "startup": {
     "loading": "Drifting wird gestartet"
+  },
+  "windowCaption": {
+    "label": "Fenster",
+    "close": "Schließen",
+    "minimize": "Minimieren",
+    "maximize": "Maximieren",
+    "restore": "Wiederherstellen"
   }
 }

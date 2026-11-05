@@ -3731,5 +3731,12 @@
   },
   "startup": {
     "loading": "Drifting を起動しています"
+  },
+  "windowCaption": {
+    "label": "ウインドウ",
+    "close": "閉じる",
+    "minimize": "最小化",
+    "maximize": "最大化",
+    "restore": "元のサイズに戻す"
   }
 }

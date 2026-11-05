@@ -36,7 +36,7 @@ describe('workspace window-control row', () => {
     expect(shellCss).toContain('--window-header-leading-inset: 94px;');
     // Open left sidebar: its first tab row starts after the traffic lights.
     expect(leftHeader).toContain(
-      "data-leading-inset={windowChrome && runtime.isMacDesktop ? 'true' : undefined}",
+      "data-leading-inset={windowChrome && runtime.leadingWindowControls ? 'true' : undefined}",
     );
     expect(cssBlock(desktopCss, '.workspace-panel-tab-row.workspace-panel-tab-row--window {')).toContain(
       'height: var(--window-titlebar-height);',
@@ -47,7 +47,7 @@ describe('workspace window-control row', () => {
     // The left sidebar toggle is fixed right after the traffic lights, on the
     // same row as them, whether its sidebar is open or closed.
     const toggles = source('src/renderer/components/workspaceChrome/WindowControlButtons.tsx');
-    expect(toggles).toContain("data-leading-inset={runtime.isMacDesktop ? 'true' : undefined}");
+    expect(toggles).toContain("data-leading-inset={runtime.leadingWindowControls ? 'true' : undefined}");
     expect(
       cssBlock(desktopCss, '.workspace-sidebar-toggles[data-leading-inset] .workspace-sidebar-toggle--left {'),
     ).toContain('left: var(--window-header-leading-inset);');

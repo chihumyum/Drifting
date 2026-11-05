@@ -3746,5 +3746,12 @@
   },
   "startup": {
     "loading": "Démarrage de Drifting"
+  },
+  "windowCaption": {
+    "label": "Fenêtre",
+    "close": "Fermer",
+    "minimize": "Réduire",
+    "maximize": "Agrandir",
+    "restore": "Restaurer"
   }
 }
