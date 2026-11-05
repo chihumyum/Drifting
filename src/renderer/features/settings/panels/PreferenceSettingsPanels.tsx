@@ -435,6 +435,8 @@ export function EditorPanel({ registerRef }: { registerRef: SettingsRegisterRef 
     editorTextWrap,
     setEditorTextWrap,
     resetEditorStyle,
+    autoImmersiveWriting,
+    setAutoImmersiveWriting,
     typewriterMode,
     setTypewriterMode,
     typewriterPosition,
@@ -625,6 +627,20 @@ export function EditorPanel({ registerRef }: { registerRef: SettingsRegisterRef 
 
       <div className="set-sec">
         <SettingsSectionHeader title={t('settings.editor.flow')} hint="FLOW" />
+        {/* Immersive writing is the desktop workspace's. */}
+        {desktop && (
+          <SettingsRow
+            label={t('settings.editor.auto_immersive')}
+            desc={t('settings.editor.auto_immersive_desc')}
+            control={
+              <SettingsToggle
+                on={autoImmersiveWriting}
+                onChange={setAutoImmersiveWriting}
+                aria-label={t('settings.editor.auto_immersive')}
+              />
+            }
+          />
+        )}
         <SettingsRow
           label={t('settings.editor.typewriter_mode')}
           desc={t('settings.editor.typewriter_mode_desc')}

@@ -2,7 +2,9 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { getDefaultAccelerator } from '../../store/shortcuts-store';
+import { useSettingsStore } from '../../store/settings-store';
 import { sidebarShown, useUiStore } from '../../store/ui-store';
+import { PREFERENCE_KEYS } from '../../features/preference-sync/preference-fields';
 import { designSystemDocs } from '../../components/design-system-docs.test-support';
 import { immersivePeekAt } from './useImmersiveWriting';
 
@@ -12,7 +14,7 @@ const selectors = (text: string) =>
   [...text.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{[^{}]*\}/g)].map((match) => match[1].trim());
 
 describe('immersive writing (docs/editor/immersive-writing.md)', () => {
-  afterEach(() => useUiStore.setState({ immersiveWriting: false, activeSuperView: 'none' }));
+  afterEach(() => useUiStore.setState({ immersiveWriting: false, immersiveWritingByTyping: false, activeSuperView: 'none' }));
 
   it('opens from its own incense right of the toolbar or ⌘⇧↩, and Esc leaves', () => {
     const bar = source('src/renderer/components/editor/EditorTopBar.tsx');
@@ -123,9 +125,58 @@ describe('immersive writing (docs/editor/immersive-writing.md)', () => {
     }
   });
 
+  it('begins with typing in the paper when 打字时自动沉浸 is on, and a press off the text ends only such a sitting', () => {
+    // The setting: off until the author turns it on, follows the account,
+    // and sits first in the editor's FLOW section, on the desktop only.
+    expect(useSettingsStore.getState().autoImmersiveWriting).toBe(false);
+    expect(PREFERENCE_KEYS).toContain('autoImmersiveWriting');
+    const panel = source('src/renderer/features/settings/panels/PreferenceSettingsPanels.tsx');
+    const flow = panel.slice(panel.indexOf('hint="FLOW"'), panel.indexOf("label={t('settings.editor.typewriter_mode')}"));
+    expect(flow).toMatch(/\{desktop && \(\s+<SettingsRow\s+label=\{t\('settings\.editor\.auto_immersive'\)\}/);
+    expect(flow).toContain('on={autoImmersiveWriting}');
+    for (const locale of ['zh-CN', 'zh-TW', 'en', 'ja', 'ko', 'de', 'fr', 'es', 'pt-BR']) {
+      const editor = JSON.parse(source(`src/renderer/locales/${locale}.json`)).settings.editor;
+      expect(editor.auto_immersive, locale).toBeTruthy();
+      expect(editor.auto_immersive_desc, locale).toMatch(/Esc|Échap/);
+    }
+
+    // How the sitting began is kept beside it, never persisted, and cleared with it.
+    useUiStore.getState().setImmersiveWriting(true, true);
+    expect(useUiStore.getState().immersiveWritingByTyping).toBe(true);
+    useUiStore.getState().setImmersiveWriting(false);
+    expect(useUiStore.getState().immersiveWritingByTyping).toBe(false);
+    useUiStore.getState().setImmersiveWriting(true);
+    expect(useUiStore.getState().immersiveWritingByTyping).toBe(false);
+    useUiStore.getState().setImmersiveWriting(true, true);
+    useUiStore.getState().setActiveSuperView('graph');
+    expect(useUiStore.getState().immersiveWritingByTyping).toBe(false);
+    const store = source('src/renderer/store/ui-store.ts');
+    const partialize = store.slice(store.indexOf('partialize: (state) => ({'));
+    expect(partialize.slice(0, partialize.indexOf('}),'))).not.toContain('immersiveWritingByTyping');
+
+    // Typing: text, Enter, or a composition's commit in the stage's editor;
+    // after ProseMirror's own handling, with the caret left where it is.
+    const hook = source('src/renderer/shells/desktop/useImmersiveWriting.ts');
+    expect(hook).toContain("if (!auto || immersive || !root) return undefined;");
+    for (const listen of ["addEventListener('input', onInput, true)", "addEventListener('compositionend', onCompositionEnd, true)", "addEventListener('keydown', onKeyDown, true)"]) {
+      expect(hook, listen).toContain(listen);
+    }
+    expect(hook).toContain("isStageEditorTarget(target, root.querySelector('.desktop-workspace-stage'))");
+    expect(hook).toContain('enterImmersiveWriting({ byTyping: true })');
+    const actions = source('src/renderer/components/workspaceChrome/immersive-writing.ts');
+    expect(actions).toContain('if (!byTyping) keepWriting();');
+    expect(actions).toContain('!editor.view.composing && stage.contains(dom) && dom.contains(target)');
+
+    // A press elsewhere ends only a sitting typing began, and lands as usual.
+    expect(hook).toContain('if (!immersive || !byTyping || !root) return undefined;');
+    expect(hook).toContain('leaveImmersiveWriting({ refocus: false })');
+    const press = hook.slice(hook.indexOf('const onPointerDown'), hook.indexOf("window.addEventListener('pointerdown'"));
+    expect(press).not.toContain('preventDefault');
+  });
+
   it('is written down in the editor and workspace contracts', () => {
     const doc = source('docs/editor/immersive-writing.md');
-    for (const term of ['⌘⇧↩', 'Esc', '批注', '大纲', 'CSS Custom Highlight', '打字机', '红绿灯']) {
+    for (const term of ['⌘⇧↩', 'Esc', '批注', '大纲', 'CSS Custom Highlight', '打字机', '红绿灯', '打字时自动沉浸', '点正文以外']) {
       expect(doc, term).toContain(term);
     }
     expect(designSystemDocs()).toContain('沉浸写作');

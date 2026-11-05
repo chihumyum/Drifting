@@ -296,6 +296,8 @@
       "page_width": "用紙の幅",
       "page_width_desc": "エディタの用紙幅です。本文は固定の余白を除いた幅に収まります。",
       "flow": "執筆の流れ",
+      "auto_immersive": "入力すると没入執筆",
+      "auto_immersive_desc": "本文を書き始めるとサイドバーとツールを収めます。Esc か本文の外をクリックすると戻ります。",
       "typewriter_mode": "タイプライターモード",
       "typewriter_mode_desc": "入力やカーソル移動中、現在の行を画面内の一定位置に保ちます。エディタ表示のみに適用します。",
       "typewriter_position": "入力行の位置",

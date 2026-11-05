@@ -297,6 +297,8 @@
       "page_width": "Ancho de página",
       "page_width_desc": "Ancho del papel en el editor; el texto lo ocupa respetando márgenes fijos.",
       "flow": "Flujo de escritura",
+      "auto_immersive": "Escritura inmersiva al teclear",
+      "auto_immersive_desc": "Al escribir en el texto se recogen las barras laterales y las herramientas; pulsa Esc o haz clic fuera del texto para recuperarlas.",
       "typewriter_mode": "Modo máquina de escribir",
       "typewriter_mode_desc": "Mantiene la línea activa en una posición fija al escribir o mover el cursor. Solo en el editor.",
       "typewriter_position": "Posición de la línea activa",

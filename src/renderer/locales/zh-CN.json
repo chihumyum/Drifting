@@ -295,6 +295,8 @@
       "page_width": "纸张宽度",
       "page_width_desc": "编辑器中部纸张的宽度；正文按固定边距填满纸张。",
       "flow": "书写体验",
+      "auto_immersive": "打字时自动沉浸",
+      "auto_immersive_desc": "开始写正文就收起侧栏与工具；按 Esc 或点正文以外的地方回来。",
       "typewriter_mode": "打字机模式",
       "typewriter_mode_desc": "输入或移动光标时，让当前正文行稳定停在视口中的固定位置；只影响编辑视图。",
       "typewriter_position": "输入行位置",

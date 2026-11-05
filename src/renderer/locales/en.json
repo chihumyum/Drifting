@@ -296,6 +296,8 @@
       "page_width": "Page width",
       "page_width_desc": "The paper width in the editor; prose fills it with fixed margins.",
       "flow": "Flow",
+      "auto_immersive": "Immersive writing as you type",
+      "auto_immersive_desc": "Writing in the paper tucks away the sidebars and tools; press Esc or click outside the text to bring them back.",
       "typewriter_mode": "Typewriter mode",
       "typewriter_mode_desc": "Keeps the active prose line at a stable viewport position while typing or moving the caret. Editor view only.",
       "typewriter_position": "Typing line position",

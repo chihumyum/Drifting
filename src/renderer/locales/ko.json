@@ -296,6 +296,8 @@
       "page_width": "용지 너비",
       "page_width_desc": "편집기의 용지 너비입니다. 본문은 고정 여백을 제외한 너비를 채웁니다.",
       "flow": "집필 흐름",
+      "auto_immersive": "입력하면 몰입 쓰기",
+      "auto_immersive_desc": "본문을 쓰기 시작하면 사이드바와 도구를 접습니다. Esc를 누르거나 본문 바깥을 클릭하면 돌아옵니다.",
       "typewriter_mode": "타자기 모드",
       "typewriter_mode_desc": "입력하거나 커서를 이동할 때 현재 본문 줄을 화면의 일정한 위치에 유지합니다. 편집기 화면에만 적용됩니다.",
       "typewriter_position": "입력 줄 위치",

@@ -506,7 +506,10 @@ interface UiState {
   // the Bottom Panel keep their own open state underneath and come back as
   // they were; read them through `sidebarShown`. Never persisted.
   immersiveWriting: boolean;
-  setImmersiveWriting: (on: boolean) => void;
+  // Whether typing began this sitting (打字时自动沉浸): only such a sitting
+  // ends on a press off the text. Cleared whenever immersion changes.
+  immersiveWritingByTyping: boolean;
+  setImmersiveWriting: (on: boolean, byTyping?: boolean) => void;
   // Today's words when this sitting began, once known: the corner counts
   // the sitting from it across document switches. Cleared on every change.
   immersiveWritingBaseline: number | null;
@@ -961,7 +964,9 @@ export const useUiStore = create<UiState>()(
         ),
 
       immersiveWriting: false,
-      setImmersiveWriting: (on) => set({ immersiveWriting: on, immersiveWritingBaseline: null }),
+      immersiveWritingByTyping: false,
+      setImmersiveWriting: (on, byTyping = false) =>
+        set({ immersiveWriting: on, immersiveWritingByTyping: on && byTyping, immersiveWritingBaseline: null }),
       immersiveWritingBaseline: null,
       setImmersiveWritingBaseline: (words) => set({ immersiveWritingBaseline: words }),
 
@@ -1050,6 +1055,7 @@ export const useUiStore = create<UiState>()(
             updates.lastActiveSuperView = view;
             // A whole-book view covers the paper: immersion ends with it.
             updates.immersiveWriting = false;
+            updates.immersiveWritingByTyping = false;
             updates.immersiveWritingBaseline = null;
           }
           return updates;
