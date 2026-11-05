@@ -475,7 +475,7 @@ export function AgentEditAnimator({ scrollEl, entityType, id }: AgentEditAnimato
       store.resolveBlocks(entityType, id, [c.blockId]);
       if (c.source === 'file') noteExternalRevealed(entityType, id, c);
       // The desktop keeps what the Agent wrote coloured until the author's
-      // pointer rests on it (AgentRecentChangeHighlights).
+      // pointer touches it (AgentRecentChangeHighlights).
       if (!getPlatformRuntime().isMobileShell) recordAgentRecentChange(entityType, id, c);
       if (c.reviewId) {
         const current = useAgentEditStore.getState();

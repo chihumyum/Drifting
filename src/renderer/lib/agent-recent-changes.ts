@@ -1,5 +1,6 @@
 // What the Agent just wrote into the prose, kept coloured on the desktop until
-// the author's pointer rests on it: added words green, rewritten words purple.
+// the author's pointer touches it (or it scrolls under a still pointer): added
+// words green, rewritten words purple.
 // What an edit in another editor brought in (docs/markdown-mirror.md) is blue.
 // The marks live in memory for this run of the app: they survive switching
 // tabs and show in the whole-book reader too, and a mark goes when the author

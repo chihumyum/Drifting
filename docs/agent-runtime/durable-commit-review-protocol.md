@@ -247,8 +247,12 @@ keeps its opaque paper-coloured backdrop, so while it is still taller than the
 committed paragraph it covers the next paragraph's first lines, which come back
 as it shortens and never move. When it hands over, the same words stay coloured
 in the live prose (`lib/agent-recent-changes.ts`, painted through the CSS Custom
-Highlight API by `AgentRecentChangeHighlights`) until the author's pointer rests
-on them for 200 ms; they then ease back to ink over 300 ms. The marks live in
+Highlight API by `AgentRecentChangeHighlights`) until the author's pointer
+touches them, by moving onto them or by the page scrolling them under a pointer
+held still (every frame checks the path the pointer travelled through the
+content since the last one; a leap of more than half the scroller, such as a
+search jump, counts only where it lands); they then ease back to ink over
+300 ms. The marks live in
 memory for the app's run, survive tab switches and show in the whole-book
 reader; editing the words away or a later Agent change to the block drops them.
 

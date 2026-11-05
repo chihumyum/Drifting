@@ -981,6 +981,7 @@
   },
   "chapterEditor": {
     "untitledChapter": "Unbenanntes Kapitel",
+    "untitledDrift": "Unbenannte Idee",
     "synopsisPlaceholder": "Kurzfassung…",
     "summaryPlaceholder": "Klicken, um eine Zusammenfassung hinzuzufügen…"
   },
@@ -1082,12 +1083,12 @@
     }
   },
   "kvEditor": {
-    "keyPlaceholder": "Feld · Schlüssel",
-    "valuePlaceholder": "Inhalt · Wert",
-    "templateKeyPlaceholder": "Feldname · Schlüssel (z. B. Perspektive)",
-    "templateValuePlaceholder": "Standard / Hinweis · Wert",
+    "keyPlaceholder": "Feld",
+    "valuePlaceholder": "Inhalt",
+    "templateKeyPlaceholder": "Feldname, z. B. Perspektive",
+    "templateValuePlaceholder": "Standardwert oder Hinweis",
     "empty": "Noch keine Felder",
-    "templateEmpty": "Keine Vorlagenfelder; neue Untereinträge erhalten keine automatisch gefüllten Felder",
+    "templateEmpty": "Noch keine Vorlagenfelder. Neue Einträge erhalten keine vorausgefüllten Felder",
     "addField": "Feld hinzufügen",
     "removeRow": "Zeile entfernen"
   },
@@ -1401,10 +1402,6 @@
       "session": "Sitzung",
       "toolsCount": "{{count}} Werkzeuge"
     },
-    "entity": {
-      "created": "Erstellt",
-      "edited": "Bearbeitet"
-    },
     "pending": {
       "now": "Denkt nach…",
       "withSeconds": "Denkt nach · {{seconds}}s",
@@ -1694,7 +1691,7 @@
       "clearEntityFilter": "Beziehungsfilter löschen",
       "entityFilterAll": "Beziehungen · Alle",
       "entityFilterHint": "Wähle eine Entität für verknüpfte Notizen und Materialien",
-      "todoEmptyHint": "Mit + eine Aufgabe erstellen oder aus einer Kommentarkarte übernehmen",
+      "todoEmptyHint": "Mit + eine Aufgabe erstellen oder auf einer Kommentarkarte „Zu Aufgabe“ wählen",
       "commentEmptyHint": "Mit + einen Kommentar erstellen oder im Editor Text markieren und kommentieren",
       "newMaterialButton": "Neues Material",
       "noMaterials": "Dieses Projekt hat noch keine Materialien.",
@@ -3024,7 +3021,7 @@
     "alerts": {
       "deleteFailed": "Handlungsstrang konnte nicht gelöscht werden. Bitte erneut versuchen."
     },
-    "scratchPlaceholder": "Notizen zu diesem Handlungsstrang: Gedanken, Ideen, Stilhinweise…",
+    "scratchPlaceholder": "Notizen zu diesem Handlungsstrang: Gedanken, Stilhinweise…",
     "summaryPlaceholder": "Diesen Handlungsstrang in einem Satz zusammenfassen…",
     "nodeTemplatePlaceholder": "Standardstruktur mit H1 / H2 / H3 erstellen; neue Kapitel verwenden diese Vorlage…",
     "outlineTitle": "{{name}} · GLIEDERUNG",
@@ -3051,7 +3048,7 @@
       "unwritten": "Nicht begonnen"
     },
     "empty": {
-      "noFacts": "Noch keine Felder. In der Projektvorlage definierte Felder werden beim Erstellen des Handlungsstrangs ausgefüllt.",
+      "noFacts": "Noch keine Felder. Beim Erstellen eines Handlungsstrangs füllt die Handlungsstrang-Vorlage auf der Projektstartseite sie aus.",
       "noChapterSummary": "Noch keine Zusammenfassung in einem Satz",
       "noFilteredChapters": "Keine Kapitel für diesen Filter"
     },
@@ -3067,7 +3064,7 @@
     "alerts": {
       "deleteFailed": "Kategorie konnte nicht gelöscht werden. Bitte erneut versuchen."
     },
-    "scratchPlaceholder": "Notizen zu dieser Kategorie: Gestaltungsprinzipien, Namensregeln, Regeln für KI-Vorschläge…",
+    "scratchPlaceholder": "Notizen zu dieser Kategorie: Gestaltungsprinzipien, Namensregeln…",
     "elementTemplatePlaceholder": "Standardstruktur mit H1 / H2 / H3 erstellen; neue Elemente verwenden diese Vorlage…",
     "sections": {
       "overview": "Übersicht",
@@ -3080,7 +3077,7 @@
     },
     "labels": {
       "elementCount": "Elemente",
-      "role": "Rolle"
+      "summary": "Zusammenfassung"
     },
     "meta": {
       "elements": "{{count}} Elemente",
@@ -3094,7 +3091,7 @@
     "empty": {
       "noCategories": "Noch keine Kategorien",
       "noTemplateFields": "Noch keine Vorlagenfelder. Schlüssel wie Alias, Fraktion oder erster Auftritt hinzufügen.",
-      "noRole": "Noch keine Rollenbeschreibung in einem Satz",
+      "noSummary": "Noch keine Zusammenfassung",
       "noFilteredElements": "Keine Elemente für diesen Filter"
     },
     "actions": {
@@ -3106,7 +3103,7 @@
     "deleteConfirm": "Element „{{name}}“ löschen?",
     "folio": "Element",
     "bodyPlaceholder": "Wie ist dieses Element zum Zeitpunkt der Handlung beschaffen?",
-    "summaryPlaceholder": "Rolle in einem Satz beschreiben…",
+    "summaryPlaceholder": "In einem Satz zusammenfassen…",
     "sketch": "Skizze",
     "sketchWithCategory": "{{category}} · Skizze",
     "portrait": {
@@ -3162,7 +3159,7 @@
       "patches": "Entwicklungen"
     },
     "empty": {
-      "noFacts": "Noch keine Felder. In der Kategorievorlage definierte Felder werden beim Erstellen des Elements ausgefüllt.",
+      "noFacts": "Noch keine Felder. Beim Erstellen eines Elements füllt die Feldvorlage seiner Kategorie sie aus.",
       "selectElement": "Element zum Bearbeiten auswählen",
       "noCategories": "Noch keine Kategorien"
     },

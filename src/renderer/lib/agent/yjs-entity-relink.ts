@@ -1,7 +1,13 @@
 import * as Y from 'yjs';
 
-import { detectEntityLinkSpans, type EntityLinkAutoDetectConfig, type EntityLinkSpan } from '../extensions/entity-link';
+import { detectEntityLinkSpans, type AutoDetectTarget, type EntityLinkAutoDetectConfig, type EntityLinkSpan } from '../extensions/entity-link';
 import { isEntityLinkMarkKey } from '../location-link';
+import {
+  replaceYjsProseBlocks,
+  snapshotYjsProseBlocks,
+  type YjsProseBlock,
+  type YjsProseOperation,
+} from './runtime/yjs-prose-command';
 
 // Registered names in written prose get their entity links, the way the
 // editor's auto-linker gives them while the author types (see
@@ -91,19 +97,69 @@ function linkSpan(run: readonly Piece[], span: EntityLinkSpan): void {
   }
 }
 
-/** Links the registered names in the blocks with `blockIds` of `fragment`. */
+/**
+ * Links the registered names in the blocks with `blockIds` of `fragment`
+ * (every block for `'all'`). With `onlyTargets`, names are still read against
+ * every registered name, so a longer name wins, but only those of these
+ * targets are linked.
+ */
 export function relinkYjsBlocks(
   fragment: Y.XmlFragment,
-  blockIds: readonly string[],
+  blockIds: readonly string[] | 'all',
   config: EntityLinkAutoDetectConfig,
+  onlyTargets?: readonly AutoDetectTarget[],
 ): void {
   if (!config.autoDetectEnabled || config.autoDetectTargets.size === 0) return;
-  const wanted = new Set(blockIds);
+  const wanted = blockIds === 'all' ? null : new Set(blockIds);
   for (const block of fragment.toArray()) {
-    if (!(block instanceof Y.XmlElement) || !wanted.has(String(block.getAttribute('id')))) continue;
+    if (!(block instanceof Y.XmlElement) || (wanted && !wanted.has(String(block.getAttribute('id'))))) continue;
     for (const run of nameRuns(block)) {
       const text = run.map((piece) => piece.insert).join('');
-      for (const span of detectEntityLinkSpans(text, config)) linkSpan(run, span);
+      for (const span of detectEntityLinkSpans(text, config)) {
+        if (onlyTargets && !onlyTargets.some((target) => target.kind === span.attrs.targetKind && target.id === span.attrs.targetId)) continue;
+        linkSpan(run, span);
+      }
     }
+  }
+}
+
+/** `blocks` with the registered names in their text linked, as {@link relinkYjsBlocks} links them. */
+export function linkNamesInProseBlocks(
+  blocks: readonly YjsProseBlock[],
+  config: EntityLinkAutoDetectConfig,
+): readonly YjsProseBlock[] {
+  if (blocks.length === 0 || !config.autoDetectEnabled || config.autoDetectTargets.size === 0) return blocks;
+  const doc = new Y.Doc({ gc: false });
+  try {
+    replaceYjsProseBlocks(doc, blocks);
+    relinkYjsBlocks(doc.getXmlFragment('default'), blocks.map((block) => block.id), config);
+    return snapshotYjsProseBlocks(doc);
+  } finally {
+    doc.destroy();
+  }
+}
+
+/**
+ * An Agent prose operation with the registered names linked in the blocks it
+ * writes. Linking the planned blocks, before the command is prepared, keeps
+ * the links part of the operation its deterministic Yjs update derives from.
+ */
+export function linkNamesInProseOperation(
+  operation: YjsProseOperation,
+  config: EntityLinkAutoDetectConfig,
+): YjsProseOperation {
+  switch (operation.kind) {
+    case 'insert':
+    case 'append':
+    case 'replace':
+      return { ...operation, blocks: linkNamesInProseBlocks(operation.blocks, config) };
+    case 'edit':
+      return { ...operation, block: linkNamesInProseBlocks([operation.block], config)[0]! };
+    case 'edit_many': {
+      const blocks = linkNamesInProseBlocks(operation.edits.map((edit) => edit.block), config);
+      return { ...operation, edits: operation.edits.map((edit, index) => ({ ...edit, block: blocks[index]! })) };
+    }
+    case 'remove':
+      return operation;
   }
 }

@@ -20,10 +20,11 @@ export interface ParsedDoc {
   /** Tiptap/ProseMirror JSON. Always `{ type: 'doc', content: [...] }`. */
   doc: JSONContent;
   /**
-   * Title guessed from the source file. For markdown that's usually the
-   * first H1; for txt the first non-empty line; for docx the filename
-   * without extension. The dialog displays this and lets the user edit
-   * before committing — never persisted without confirmation.
+   * Title guessed from the source file (`takeTitle` in `title.ts`): an
+   * opening level-1 heading (Markdown `# …`, Word Title / Heading 1), which
+   * then leaves `doc`; otherwise the file name without its extension or an
+   * ordering number. The dialog displays this and lets the user edit before
+   * committing — never persisted without confirmation.
    */
   guessedTitle: string;
   /** Source filename, for diagnostics + fallback title. */

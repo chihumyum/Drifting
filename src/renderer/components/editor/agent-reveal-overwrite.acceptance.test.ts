@@ -31,7 +31,13 @@ describe('Agent changes: in-place reveal and lingering colour (desktop)', () => 
     expect(painter).toContain('highlights');
     expect(painter).not.toMatch(/classList|setAttribute\(|Decoration\./);
     expect(painter).not.toMatch(/DWELL|setTimeout\(\(\) => \{\s*dismiss/);
-    expect(painter).toContain('dismissAgentRecentMark(painted.mark.id);');
+    expect(painter).toContain('for (const id of touched) dismissAgentRecentMark(id);');
+    // Words scrolling under a still pointer count too: the scroller's scroll
+    // re-checks the pointer's path through the content.
+    expect(painter).toContain("this.scrollEl.addEventListener('scroll', this.onScroll, { passive: true });");
+    expect(painter).toContain("this.scrollEl.removeEventListener('scroll', this.onScroll);");
+    expect(painter).toContain('pointerPathStart(this.trail, point,');
+    expect(painter).toContain('pathTouchesRect(from, point, rect)');
     expect(painter).toContain("attributeFilter: ['aria-hidden']");
     const mount = source('src/renderer/components/editor/AgentRecentChangeHighlights.tsx');
     expect(mount).toContain('getPlatformRuntime().isMobileShell');
@@ -71,6 +77,7 @@ describe('Agent changes: in-place reveal and lingering colour (desktop)', () => 
     const docs = designSystemDocs();
     expect(docs).toContain('揭示是原地覆盖');
     expect(docs).toContain('写完留色到指针碰到');
+    expect(docs).toContain('指针不动、滚动稿纸时，从指针底下经过的字也算碰到');
     expect(docs).toContain('RECENT_CHANGE_FADE_MS');
     expect(source('docs/agent-runtime/durable-commit-review-protocol.md')).toContain('`mode="overwrite"`');
   });

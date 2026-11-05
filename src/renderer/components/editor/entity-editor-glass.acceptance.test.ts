@@ -314,7 +314,7 @@ describe('entity editors in sand and glass', () => {
       'referencesPanel.empty.incoming', 'referencesPanel.empty.outgoing', 'referencesPanel.empty.relations',
       'patchesSection.empty', 'storylineEditor.empty.noFacts', 'storylineEditor.empty.noFilteredChapters',
       'storylineEditor.empty.noChapterSummary', 'categoryEditor.empty.noTemplateFields',
-      'categoryEditor.empty.noFilteredElements', 'categoryEditor.empty.noRole', 'elementEditor.empty.noFacts',
+      'categoryEditor.empty.noFilteredElements', 'categoryEditor.empty.noSummary', 'elementEditor.empty.noFacts',
     ];
     for (const locale of ['zh-CN', 'zh-TW', 'en', 'ja', 'ko', 'de', 'fr', 'es', 'pt-BR']) {
       const catalog = JSON.parse(source(`src/renderer/locales/${locale}.json`));
