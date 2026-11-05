@@ -2,23 +2,50 @@
 //! No CLI, shell, network, trust overrides, or credentials in generated entries.
 use super::{Client, Installation};
 use serde_json::{json, Value};
+#[cfg(unix)]
+use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt, PermissionsExt};
 use std::{
     fs::{self, OpenOptions},
     io::Write,
-    os::unix::fs::{DirBuilderExt, OpenOptionsExt, PermissionsExt},
     path::Path,
 };
 use toml_edit::{Array, DocumentMut, Item, Table};
 
 const MAX_CONFIG: u64 = 16 * 1024 * 1024;
 
+/// Unix refuses a configuration others may write. Windows keeps the user's
+/// profile folders private through their inherited ACLs.
+#[cfg(unix)]
+fn writable_by_others(meta: &fs::Metadata) -> bool {
+    meta.permissions().mode() & 0o022 != 0
+}
+#[cfg(not(unix))]
+fn writable_by_others(_meta: &fs::Metadata) -> bool {
+    false
+}
+
+fn private_directories() -> fs::DirBuilder {
+    let mut builder = fs::DirBuilder::new();
+    builder.recursive(true);
+    #[cfg(unix)]
+    builder.mode(0o700);
+    builder
+}
+
+fn new_private_file() -> OpenOptions {
+    let mut options = OpenOptions::new();
+    options.create_new(true).write(true);
+    #[cfg(unix)]
+    options.mode(0o600);
+    options
+}
+
 fn read(path: &Path) -> Result<Option<String>, String> {
     match fs::symlink_metadata(path) {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
         Err(_) => Err("Could not read the client's configuration".into()),
         Ok(meta) => {
-            if !meta.is_file() || meta.len() > MAX_CONFIG || meta.permissions().mode() & 0o022 != 0
-            {
+            if !meta.is_file() || meta.len() > MAX_CONFIG || writable_by_others(&meta) {
                 return Err(
                     "Client configuration must be a regular file writable only by its owner".into(),
                 );
@@ -220,18 +247,13 @@ fn apply(installation: &Installation, config: &Value, change: Change) -> Result<
     let parent = path
         .parent()
         .ok_or("Missing client configuration directory")?;
-    fs::DirBuilder::new()
-        .recursive(true)
-        .mode(0o700)
+    private_directories()
         .create(parent)
         .map_err(|_| "Could not create client configuration directory")?;
     let suffix = super::local::random_id()?;
     let temp = parent.join(format!(".drifting-{suffix}.tmp"));
     let result = (|| {
-        let mut file = OpenOptions::new()
-            .create_new(true)
-            .write(true)
-            .mode(0o600)
+        let mut file = new_private_file()
             .open(&temp)
             .map_err(|_| "Could not prepare client configuration")?;
         file.write_all(after.as_bytes())
@@ -246,10 +268,7 @@ fn apply(installation: &Installation, config: &Value, change: Change) -> Result<
                 "{}.drifting-backup-{suffix}",
                 path.file_name().unwrap().to_string_lossy()
             ));
-            let mut file = OpenOptions::new()
-                .create_new(true)
-                .write(true)
-                .mode(0o600)
+            let mut file = new_private_file()
                 .open(backup)
                 .map_err(|_| "Could not back up client configuration")?;
             file.write_all(before.as_bytes())
@@ -385,6 +404,7 @@ mod tests {
         let mut i = installation(Client::Antigravity);
         i.config_path = dir.path().join(".gemini/config/mcp_config.json");
         update(&i, &config(), false).unwrap();
+        #[cfg(unix)]
         assert_eq!(
             fs::metadata(&i.config_path).unwrap().permissions().mode() & 0o777,
             0o600
@@ -438,6 +458,7 @@ mod tests {
         let original = "model = 'synthetic'\n";
         fs::write(&i.config_path, original).unwrap();
         update(&i, &config(), false).unwrap();
+        #[cfg(unix)]
         assert_eq!(
             fs::metadata(&i.config_path).unwrap().permissions().mode() & 0o777,
             0o600
@@ -452,9 +473,13 @@ mod tests {
             })
             .unwrap();
         assert_eq!(fs::read_to_string(backup.path()).unwrap(), original);
-        let link = dir.path().join("link");
-        std::os::unix::fs::symlink(&i.config_path, &link).unwrap();
-        i.config_path = link;
-        assert!(update(&i, &config(), true).is_err());
+        // Creating a symlink on Windows needs developer mode or privileges.
+        #[cfg(unix)]
+        {
+            let link = dir.path().join("link");
+            std::os::unix::fs::symlink(&i.config_path, &link).unwrap();
+            i.config_path = link;
+            assert!(update(&i, &config(), true).is_err());
+        }
     }
 }

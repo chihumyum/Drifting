@@ -78,7 +78,7 @@ export function LeftSidebarHeader({ paneId, activeTab, windowChrome = false }: {
     <div
       className="workspace-local-divider workspace-panel-tab-row workspace-panel-tab-row--window"
       data-tauri-drag-region={runtime.desktopWindowControls ? 'deep' : undefined}
-      data-leading-inset={windowChrome && runtime.isMacDesktop ? 'true' : undefined}
+      data-leading-inset={windowChrome && runtime.leadingWindowControls ? 'true' : undefined}
       style={{
         display: 'flex',
         width: '100%',

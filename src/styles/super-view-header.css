@@ -100,7 +100,7 @@
   font-family: var(--font-sans);
 }
 
-.super-view-head[data-macos-window-controls] {
+.super-view-head[data-leading-window-controls] {
   /* The flat overlay starts at the viewport edge. */
   padding-left: calc(var(--window-header-leading-inset) - var(--window-surface-inline-inset));
 }

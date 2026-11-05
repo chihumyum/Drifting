@@ -43,11 +43,19 @@ Node on Windows, because Node refuses to spawn `pnpm.cmd` without a shell.
 - **Shortcuts.** `Mod` is Ctrl. Fixed hints written for the Apple keyboard go
   through `platformShortcut('⌘↩', 'Ctrl+Enter')`; configurable shortcuts go
   through `formatAccelerator`.
-- **Window.** Windows keeps its native title bar. The macOS overlay title bar,
-  traffic-light inset and immersive writing's hidden traffic lights apply to
-  macOS only. The close button still returns an open book to the shelf; on the
-  shelf it saves and quits. The native title bar follows Drifting's own light
-  or dark theme (`window_set_theme`, Windows only).
+- **Window.** Windows has no native title bar: `windows_webview.rs` turns the
+  decorations off (Tauri keeps the window resizable from its edges and keeps
+  its shadow), and `WindowsCaption` draws close, minimize and maximize as one
+  glass pill in the top-left corner, in the traffic lights' place and order.
+  The pill is the paper toolbar's tray without its fill (28px round glass
+  buttons, 16px brush icons, 4px tray padding); maximize turns into restore.
+  Headers keep `--window-header-leading-inset` (110px on Windows, 94px on
+  macOS) clear of it, it sits above dialogs, and immersive writing fades it
+  with the sidebar toggles until the pointer reaches the top edge. Close is
+  the window's own close request: an open book returns to the shelf; on the
+  shelf it saves and hides the window to the notification area. Windows 11's snap layouts flyout on the maximize
+  button is gone with the native button; Win+Z and Win+arrow keys still snap.
+  `window_set_theme` still sets the window's theme for system surfaces.
 - **Fonts.** The interface fonts are bundled, so Chinese and Latin interface
   text matches macOS. The prose system serif falls back to the bundled Noto
   Serif SC rather than SimSun; the system sans names Microsoft YaHei. PDF export
@@ -67,17 +75,37 @@ Node on Windows, because Node refuses to spawn `pnpm.cmd` without a shell.
 - **HEIC, HEIF and AVIF** decode through the Windows Imaging Component, as
   macOS uses ImageIO (`windows_image_codec.rs`). WIC needs the Store codecs:
   HEIF Image Extensions with HEVC Video Extensions for iPhone photos, AV1
-  Video Extension for AVIF. Without them the import names what to install.
+  Video Extension for AVIF. Without them the material dialog says so and
+  offers the Store page (`lib/windows-image-codecs.ts`). HEVC carries patent
+  licensing, which is why Drifting does not ship a decoder of its own.
 - **Durability.** Windows has no directory fsync. File replacement uses
   `MoveFileExW` with `MOVEFILE_WRITE_THROUGH`; the directory barrier
   (`sync_directory`) validates the directory and relies on NTFS journaling.
 - **Markdown folder.** Reserved names (`CON`, `PRN`, …) are already avoided.
   Unix permission and hard-link checks are skipped on Windows.
 
+- **Notification area.** Like the Dock on macOS, Drifting stays running when
+  its window closes on the shelf: `windows_tray.rs` puts its icon in the
+  notification area, so a background Agent and sync go on. A left click, the
+  menu's Open item or launching Drifting again brings the window back; Quit
+  saves and ends the process (as an update install does). The menu follows
+  the interface language (`tray_set_labels`). Windows 11 may first show the
+  icon in the overflow (^) area.
+
+- **External Agents.** Codex, Claude Code and Antigravity connect through the
+  same local MCP bridge as on macOS (docs/agent-runtime/local-mcp.md), over
+  `127.0.0.1` on a port chosen at each launch instead of a Unix socket; every
+  connection file follows the new port, and the token authenticates each
+  stream. The clients' files are `%USERPROFILE%\.codex\config.toml` (or
+  `CODEX_HOME`), `%USERPROFILE%\.claude.json` and
+  `%USERPROFILE%\.gemini\config\mcp_config.json`.
+- **MCP servers in Agent extensions** (stdio): an absolute command written
+  without its extension finds the `.exe`, `.cmd` or `.bat` beside it; servers
+  inherit Windows' system and profile folders (APPDATA, USERPROFILE…), open no
+  console window, and stopping one ends its whole process tree.
+
 ## Not available on Windows yet
 
-- External Agents over local MCP (Codex, Claude Code, Antigravity): the bridge
-  is a Unix socket; the settings section is hidden on Windows.
 - Authenticode-signed installers.
 
 ## Manual acceptance (Windows 11, including Arm virtual machines)
@@ -104,7 +132,15 @@ installer runs natively. The interface is the same WebView2 (Chromium) in both.
    writes.
 8. Export EPUB, PDF and Word; open the PDF and check Chinese glyphs.
 9. Display scaling at 125% and 150%; light and dark themes; immersive writing.
-10. Press F5, Ctrl+R and Ctrl+P while writing: nothing reloads or prints.
+10. The window buttons: close, minimize, maximize/restore; drag the window by
+    the empty top row and double-click it to maximize; resize from every edge
+    and corner; Win+arrow keys and Win+Z. With a book open, close returns to
+    the shelf. In immersive writing the pill appears at the top edge.
+11. Press F5, Ctrl+R and Ctrl+P while writing: nothing reloads or prints.
     Right-click on text and on empty paper: only editing items appear.
-11. Sign in to the ChatGPT subscription; quit and reopen: still signed in.
-12. Import a HEIC photo and an AVIF image (with the Store codecs installed).
+12. Sign in to the ChatGPT subscription; quit and reopen: still signed in.
+13. Import a HEIC photo and an AVIF image (with the Store codecs installed).
+14. Connect Codex or Claude Code to a book (Settings › Agent › external
+    Agents) and ask it to read a chapter; quit and reopen Drifting, ask again.
+15. Add an MCP server that starts with npx in Agent extensions; no console
+    window appears, and turning it off leaves no node process behind.

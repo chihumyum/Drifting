@@ -114,6 +114,8 @@ export interface WindowPlatformApi {
   setCloseReturnsToShelf(enabled: boolean): Promise<void>;
   /** Windows only: the native title bar follows Drifting's light or dark theme. */
   setTheme(theme: 'light' | 'dark'): Promise<void>;
+  /** Windows only: the notification-area menu in the interface language. */
+  setTrayLabels(labels: { open: string; quit: string }): Promise<void>;
   onCloseToShelf(callback: () => void): Unsubscribe;
 }
 

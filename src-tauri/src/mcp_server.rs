@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tauri::{ipc::Channel, State};
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 mod client_config;
 
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -17,7 +17,7 @@ pub enum Client {
 
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+#[cfg_attr(not(any(target_os = "macos", target_os = "windows")), allow(dead_code))]
 pub struct Installation {
     client: Client,
     config_path: std::path::PathBuf,
@@ -26,7 +26,7 @@ pub struct Installation {
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+#[cfg_attr(not(any(target_os = "macos", target_os = "windows")), allow(dead_code))]
 pub struct Grant {
     pub id: String,
     pub name: String,
@@ -41,7 +41,7 @@ pub struct Grant {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+#[cfg_attr(not(any(target_os = "macos", target_os = "windows")), allow(dead_code))]
 pub struct CreateInput {
     name: String,
     project_id: String,
@@ -51,14 +51,14 @@ pub struct CreateInput {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+#[cfg_attr(not(any(target_os = "macos", target_os = "windows")), allow(dead_code))]
 pub struct PermissionInput {
     id: String,
     access: String,
     allow_dangerous: bool,
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 mod local {
     use super::*;
     use sha2::{Digest, Sha256};
@@ -66,16 +66,32 @@ mod local {
         collections::{HashMap, HashSet},
         fs::{self, OpenOptions},
         io::{BufRead, BufReader, Read, Write},
-        os::unix::{
-            fs::{OpenOptionsExt, PermissionsExt},
-            net::{UnixListener, UnixStream},
-        },
         path::{Path, PathBuf},
         sync::{mpsc, Arc, Mutex},
         thread,
         time::Duration,
     };
     use tauri::Manager;
+
+    /// Windows clients reach the bridge over loopback TCP on a port chosen at
+    /// each launch and written into every connection file; the connection's
+    /// token authenticates each stream exactly as on the Unix socket.
+    #[cfg(windows)]
+    use std::net::{TcpListener as Listener, TcpStream as Stream};
+    #[cfg(unix)]
+    use std::os::unix::{
+        fs::{OpenOptionsExt, PermissionsExt},
+        net::{UnixListener as Listener, UnixStream as Stream},
+    };
+
+    #[cfg(unix)]
+    fn connect_endpoint(endpoint: &Path) -> std::io::Result<Stream> {
+        Stream::connect(endpoint)
+    }
+    #[cfg(windows)]
+    fn connect_endpoint(endpoint: &Path) -> std::io::Result<Stream> {
+        Stream::connect(endpoint.to_string_lossy().as_ref())
+    }
 
     const MAX_FRAME: usize = 4 * 1024 * 1024;
     const MAX_REQUEST: usize = 1024 * 1024;
@@ -97,7 +113,7 @@ mod local {
     struct Session {
         connection: String,
         cancelled: HashSet<String>,
-        writer: Option<Arc<Mutex<UnixStream>>>,
+        writer: Option<Arc<Mutex<Stream>>>,
     }
     #[derive(Default)]
     struct Inner {
@@ -109,6 +125,9 @@ mod local {
     }
     pub struct Server {
         directory: PathBuf,
+        /// Where clients connect: the Unix socket's path, or Windows'
+        /// `127.0.0.1:<port>`.
+        endpoint: PathBuf,
         inner: Mutex<Inner>,
     }
     #[derive(Default)]
@@ -140,16 +159,28 @@ mod local {
     fn matches_hash(a: &str, b: &str) -> bool {
         a.len() == b.len() && a.bytes().zip(b.bytes()).fold(0u8, |v, (a, b)| v | (a ^ b)) == 0
     }
+    /// Unix keeps the directory and its files to this OS user by mode; on
+    /// Windows they live in the user's own app data, private by inherited ACL.
+    #[cfg(unix)]
+    fn shared_with_others(meta: &fs::Metadata) -> bool {
+        meta.permissions().mode() & 0o077 != 0
+    }
+    #[cfg(not(unix))]
+    fn shared_with_others(_meta: &fs::Metadata) -> bool {
+        false
+    }
     fn private_directory(path: &Path) -> Result<(), String> {
         if !path.exists() {
-            use std::os::unix::fs::DirBuilderExt;
-            fs::DirBuilder::new()
-                .mode(0o700)
-                .create(path)
-                .map_err(|e| e.to_string())?;
+            let mut builder = fs::DirBuilder::new();
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::DirBuilderExt;
+                builder.mode(0o700);
+            }
+            builder.create(path).map_err(|e| e.to_string())?;
         }
         let meta = fs::symlink_metadata(path).map_err(|e| e.to_string())?;
-        if !meta.is_dir() || meta.permissions().mode() & 0o077 != 0 {
+        if !meta.is_dir() || meta.file_type().is_symlink() || shared_with_others(&meta) {
             return Err("MCP directory must be private to this OS user and not a symlink".into());
         }
         Ok(())
@@ -157,10 +188,7 @@ mod local {
     fn read_private(path: &Path) -> Result<Vec<u8>, String> {
         let meta = fs::symlink_metadata(path)
             .map_err(|_| "MCP connection file is missing; create a connection in Drifting")?;
-        if !meta.is_file()
-            || meta.permissions().mode() & 0o077 != 0
-            || meta.len() > MAX_FRAME as u64
-        {
+        if !meta.is_file() || shared_with_others(&meta) || meta.len() > MAX_FRAME as u64 {
             return Err("MCP connection file must be a private regular file".into());
         }
         fs::read(path).map_err(|e| e.to_string())
@@ -173,18 +201,16 @@ mod local {
         }
         let temp = path.with_extension(format!("{}.tmp", random_id()?));
         let result = (|| {
-            let mut file = OpenOptions::new()
-                .create_new(true)
-                .write(true)
-                .mode(0o600)
-                .open(&temp)
-                .map_err(|e| e.to_string())?;
+            let mut options = OpenOptions::new();
+            options.create_new(true).write(true);
+            #[cfg(unix)]
+            options.mode(0o600);
+            let mut file = options.open(&temp).map_err(|e| e.to_string())?;
             file.write_all(&serde_json::to_vec(value).map_err(|e| e.to_string())?)
                 .map_err(|e| e.to_string())?;
             file.sync_all().map_err(|e| e.to_string())?;
             fs::rename(&temp, path).map_err(|e| e.to_string())?;
-            fs::File::open(path.parent().ok_or("Missing MCP directory")?)
-                .and_then(|f| f.sync_all())
+            drifting_core::file_io::sync_directory(path.parent().ok_or("Missing MCP directory")?)
                 .map_err(|e| e.to_string())
         })();
         if result.is_err() {
@@ -207,14 +233,28 @@ mod local {
             } else {
                 Vec::new()
             };
-            let socket = directory.join("bridge.sock");
-            if socket.as_os_str().len() > 103 {
+            #[cfg(unix)]
+            let endpoint = directory.join("bridge.sock");
+            #[cfg(unix)]
+            if endpoint.as_os_str().len() > 103 {
                 return Err("MCP application data path is too long for local IPC".into());
             }
+            #[cfg(windows)]
+            let listener = Listener::bind(("127.0.0.1", 0)).map_err(|e| e.to_string())?;
+            #[cfg(windows)]
+            let endpoint = PathBuf::from(
+                listener
+                    .local_addr()
+                    .map_err(|e| e.to_string())?
+                    .to_string(),
+            );
             // A moved application data folder (development launches keep theirs
             // beside the database) leaves connection files naming the old socket
             // and clients naming the old connection file; follow the move once.
-            let mut moved = Vec::new();
+            // On Windows the port changes at every launch: the connection files
+            // follow it, and the clients keep naming the same files.
+            #[cfg_attr(windows, allow(unused_mut))]
+            let mut moved: Vec<(Grant, PathBuf)> = Vec::new();
             for grant in &grants {
                 let path = directory.join(format!("connection-{}.json", grant.id));
                 let Ok(bytes) = read_private(&path) else {
@@ -223,31 +263,38 @@ mod local {
                 let Ok(mut credential) = serde_json::from_slice::<Credential>(&bytes) else {
                     continue;
                 };
-                if credential.socket_path == socket {
+                if credential.socket_path == endpoint {
                     continue;
                 }
+                #[cfg(unix)]
                 let previous = credential
                     .socket_path
                     .with_file_name(format!("connection-{}.json", grant.id));
-                credential.socket_path = socket.clone();
+                credential.socket_path = endpoint.clone();
                 write_private(&path, &credential)?;
+                #[cfg(unix)]
                 moved.push((grant.clone(), previous));
             }
-            if let Ok(meta) = fs::symlink_metadata(&socket) {
-                use std::os::unix::fs::FileTypeExt;
-                if !meta.file_type().is_socket() {
-                    return Err("MCP socket path is occupied".into());
+            #[cfg(unix)]
+            let listener = {
+                if let Ok(meta) = fs::symlink_metadata(&endpoint) {
+                    use std::os::unix::fs::FileTypeExt;
+                    if !meta.file_type().is_socket() {
+                        return Err("MCP socket path is occupied".into());
+                    }
+                    if connect_endpoint(&endpoint).is_ok() {
+                        return Err("Another Drifting MCP bridge is running".into());
+                    }
+                    fs::remove_file(&endpoint).map_err(|e| e.to_string())?;
                 }
-                if UnixStream::connect(&socket).is_ok() {
-                    return Err("Another Drifting MCP bridge is running".into());
-                }
-                fs::remove_file(&socket).map_err(|e| e.to_string())?;
-            }
-            let listener = UnixListener::bind(&socket).map_err(|e| e.to_string())?;
-            fs::set_permissions(&socket, fs::Permissions::from_mode(0o600))
-                .map_err(|e| e.to_string())?;
+                let listener = Listener::bind(&endpoint).map_err(|e| e.to_string())?;
+                fs::set_permissions(&endpoint, fs::Permissions::from_mode(0o600))
+                    .map_err(|e| e.to_string())?;
+                listener
+            };
             let server = Arc::new(Self {
                 directory,
+                endpoint,
                 inner: Mutex::new(Inner {
                     grants,
                     ..Inner::default()
@@ -447,7 +494,7 @@ mod local {
         grants.push(grant.clone());
         let credential = Credential {
             version: 1,
-            socket_path: server.directory.join("bridge.sock"),
+            socket_path: server.endpoint.clone(),
             connection_id: grant.id.clone(),
             token,
         };
@@ -662,7 +709,7 @@ mod local {
             .map(Some)
             .map_err(|_| "Invalid MCP JSON".into())
     }
-    fn serve_connection(server: &Arc<Server>, stream: UnixStream) -> Result<(), String> {
+    fn serve_connection(server: &Arc<Server>, stream: Stream) -> Result<(), String> {
         stream
             .set_read_timeout(Some(Duration::from_secs(5)))
             .map_err(|e| e.to_string())?;
@@ -885,7 +932,7 @@ mod local {
         if credential.version != 1 {
             return Err("Unsupported MCP connection file".into());
         }
-        let mut stream = UnixStream::connect(&credential.socket_path)
+        let mut stream = connect_endpoint(&credential.socket_path)
             .map_err(|_| "Open Drifting and the authorized project, then reconnect MCP")?;
         stream
             .set_read_timeout(Some(Duration::from_secs(5)))
@@ -945,7 +992,11 @@ mod local {
     mod tests {
         use super::*;
         fn fixture() -> (tempfile::TempDir, Arc<Server>, Grant, Credential) {
+            // A Unix socket path must stay short.
+            #[cfg(unix)]
             let dir = tempfile::tempdir_in("/tmp").unwrap();
+            #[cfg(windows)]
+            let dir = tempfile::tempdir().unwrap();
             let server = Server::start(dir.path().join("mcp")).unwrap();
             let grant = Grant {
                 id: "synthetic-connection".into(),
@@ -960,14 +1011,14 @@ mod local {
             server.inner.lock().unwrap().grants.push(grant.clone());
             let credential = Credential {
                 version: 1,
-                socket_path: server.directory.join("bridge.sock"),
+                socket_path: server.endpoint.clone(),
                 connection_id: grant.id.clone(),
                 token: "synthetic-token".into(),
             };
             (dir, server, grant, credential)
         }
-        fn connect(credential: &Credential) -> BufReader<UnixStream> {
-            let stream = UnixStream::connect(&credential.socket_path).unwrap();
+        fn connect(credential: &Credential) -> BufReader<Stream> {
+            let stream = connect_endpoint(&credential.socket_path).unwrap();
             stream
                 .set_read_timeout(Some(Duration::from_secs(3)))
                 .unwrap();
@@ -975,7 +1026,7 @@ mod local {
             write_frame(reader.get_mut(), &serde_json::to_value(credential).unwrap()).unwrap();
             reader
         }
-        fn request(reader: &mut BufReader<UnixStream>, id: u32, method: &str) -> Value {
+        fn request(reader: &mut BufReader<Stream>, id: u32, method: &str) -> Value {
             write_frame(
                 reader.get_mut(),
                 &serde_json::json!({"jsonrpc":"2.0","id":id,"method":method}),
@@ -1438,6 +1489,7 @@ mod local {
             assert_eq!(server.inner.lock().unwrap().grants[0].access, "read");
         }
         #[test]
+        #[cfg(unix)]
         fn private_credentials_reject_symlinks_and_public_permissions() {
             let dir = tempfile::tempdir().unwrap();
             let path = dir.path().join("secret.json");
@@ -1465,9 +1517,9 @@ mod local {
     }
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 pub use local::McpServerState;
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
 #[derive(Default)]
 pub struct McpServerState;
 
@@ -1476,104 +1528,128 @@ pub fn run_stdio_cli() -> Option<Result<(), String>> {
     if args.get(1).map(String::as_str) != Some("--mcp") {
         return None;
     }
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
     if args.len() == 4 && args[2] == "--connection" {
         return Some(local::cli(std::path::Path::new(&args[3])));
     }
     Some(Err(
-        "Usage on macOS: Drifting --mcp --connection <connection-file>".into(),
+        "Usage: Drifting --mcp --connection <connection-file>".into()
     ))
 }
 
 #[tauri::command]
-#[cfg_attr(not(target_os = "macos"), allow(unused_variables))]
+#[cfg_attr(
+    not(any(target_os = "macos", target_os = "windows")),
+    allow(unused_variables)
+)]
 pub fn mcp_server_list(
     app: tauri::AppHandle,
     state: State<'_, McpServerState>,
 ) -> Result<Vec<Value>, String> {
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
     return local::list(&app, &state);
-    #[cfg(not(target_os = "macos"))]
-    Err("Local MCP is available on macOS".into())
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    Err("Local MCP is available on macOS and Windows".into())
 }
 #[tauri::command]
-#[cfg_attr(not(target_os = "macos"), allow(unused_variables))]
+#[cfg_attr(
+    not(any(target_os = "macos", target_os = "windows")),
+    allow(unused_variables)
+)]
 pub fn mcp_server_create(
     app: tauri::AppHandle,
     state: State<'_, McpServerState>,
     input: CreateInput,
 ) -> Result<Value, String> {
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
     return local::create(&app, &state, input);
-    #[cfg(not(target_os = "macos"))]
-    Err("Local MCP is available on macOS".into())
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    Err("Local MCP is available on macOS and Windows".into())
 }
 #[tauri::command]
-#[cfg_attr(not(target_os = "macos"), allow(unused_variables))]
+#[cfg_attr(
+    not(any(target_os = "macos", target_os = "windows")),
+    allow(unused_variables)
+)]
 pub fn mcp_server_connect(
     app: tauri::AppHandle,
     state: State<'_, McpServerState>,
     input: CreateInput,
     client: Client,
 ) -> Result<Value, String> {
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
     return local::connect(&app, &state, input, client);
-    #[cfg(not(target_os = "macos"))]
-    Err("Local MCP is available on macOS".into())
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    Err("Local MCP is available on macOS and Windows".into())
 }
 #[tauri::command]
-#[cfg_attr(not(target_os = "macos"), allow(unused_variables))]
+#[cfg_attr(
+    not(any(target_os = "macos", target_os = "windows")),
+    allow(unused_variables)
+)]
 pub fn mcp_server_revoke(
     app: tauri::AppHandle,
     state: State<'_, McpServerState>,
     id: String,
 ) -> Result<Option<String>, String> {
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
     return local::revoke(&app, &state, id);
-    #[cfg(not(target_os = "macos"))]
-    Err("Local MCP is available on macOS".into())
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    Err("Local MCP is available on macOS and Windows".into())
 }
 #[tauri::command]
-#[cfg_attr(not(target_os = "macos"), allow(unused_variables))]
+#[cfg_attr(
+    not(any(target_os = "macos", target_os = "windows")),
+    allow(unused_variables)
+)]
 pub fn mcp_server_update_permission(
     app: tauri::AppHandle,
     state: State<'_, McpServerState>,
     input: PermissionInput,
 ) -> Result<Value, String> {
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
     return local::update_permission(&app, &state, input);
-    #[cfg(not(target_os = "macos"))]
-    Err("Local MCP is available on macOS".into())
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    Err("Local MCP is available on macOS and Windows".into())
 }
 #[tauri::command]
-#[cfg_attr(not(target_os = "macos"), allow(unused_variables))]
+#[cfg_attr(
+    not(any(target_os = "macos", target_os = "windows")),
+    allow(unused_variables)
+)]
 pub fn mcp_server_attach(
     app: tauri::AppHandle,
     state: State<'_, McpServerState>,
     project_id: String,
     on_event: Channel<Value>,
 ) -> Result<String, String> {
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
     return local::attach(&app, &state, project_id, on_event);
-    #[cfg(not(target_os = "macos"))]
-    Err("Local MCP is available on macOS".into())
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    Err("Local MCP is available on macOS and Windows".into())
 }
 #[tauri::command]
-#[cfg_attr(not(target_os = "macos"), allow(unused_variables))]
+#[cfg_attr(
+    not(any(target_os = "macos", target_os = "windows")),
+    allow(unused_variables)
+)]
 pub fn mcp_server_detach(state: State<'_, McpServerState>, epoch: String) {
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
     local::detach(&state, &epoch);
 }
 #[tauri::command]
-#[cfg_attr(not(target_os = "macos"), allow(unused_variables))]
+#[cfg_attr(
+    not(any(target_os = "macos", target_os = "windows")),
+    allow(unused_variables)
+)]
 pub fn mcp_server_complete(
     state: State<'_, McpServerState>,
     epoch: String,
     request_id: String,
     response: Value,
 ) -> Result<(), String> {
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
     return local::complete(&state, &epoch, &request_id, response);
-    #[cfg(not(target_os = "macos"))]
-    Err("Local MCP is available on macOS".into())
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    Err("Local MCP is available on macOS and Windows".into())
 }

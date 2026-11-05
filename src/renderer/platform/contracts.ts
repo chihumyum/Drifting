@@ -547,6 +547,7 @@ export interface TauriCommandContract {
   window_set_traffic_lights_hidden: { args: { hidden: boolean }; result: void };
   window_set_close_returns_to_shelf: { args: { enabled: boolean }; result: void };
   window_set_theme: { args: { theme: 'light' | 'dark' }; result: void };
+  tray_set_labels: { args: { open: string; quit: string }; result: void };
   opener_open_external: { args: { url: string }; result: void };
   /** Drains only queued URLs that start with `prefix` (one consumer per kind). */
   deep_link_take_pending: { args: { prefix: string }; result: string[] };

@@ -27,6 +27,8 @@ arrow-back / arrow-forward  a 「く」 head and a shaft; forward is its mirror
 chevron-down/right/up/left  one even stroke down and up, turned four ways
 check.png                   a short press, then a long flick drying out
 minus.png                   one level stroke
+window-max.png              a box in one stroke round (a Windows window's maximize)
+window-restore.png          that box with a second one standing behind it (restore)
 loader.png                  an ensō a quarter short (spun in CSS)
 trash.png                   a waste-paper basket (字纸篓) with a cross inside
 edit.png                    a writing brush at a slant, a full head tapering to its tip
@@ -539,6 +541,19 @@ def check(rng):
 
 def minus(rng):
     a = new(); brush(a, line((18, 49), (78, 47)), G * 1.05, rng, load0=1.0, dry=0.3, taper=(0.08, 0.15)); return a
+
+def window_max(rng):
+    a = new()
+    brush(a, poly((22, 24), (74, 23), (75, 73), (21, 74), (22, 24), n=26), G * 0.9, rng,
+          load0=1.0, dry=0.2, taper=(0.03, 0.05))
+    return a
+
+def window_restore(rng):
+    a = new()
+    brush(a, poly((36, 16), (80, 15), (81, 60), n=26), G * 0.85, rng, load0=0.9, dry=0.3, taper=(0.04, 0.12))
+    brush(a, poly((16, 34), (62, 33), (63, 80), (15, 81), (16, 34), n=26), G * 0.9, rng,
+          load0=1.0, dry=0.2, taper=(0.03, 0.05))
+    return a
 
 def loader(rng):
     a = new(); brush(a, arc(48, 48, 30, 30, -90, 190, 120), G * 1.05, rng, load0=1.0, dry=0.6, taper=(0.04, 0.35)); return a
@@ -1407,7 +1422,7 @@ ICONS = {
 }
 GLYPHS = {
     "close": (close, 1002), "arrow-back": (arrow_back, 1004), "chevron-down": (chevron_down, 1010),
-    "check": (check, 1016), "minus": (minus, 1019), "loader": (loader, 1021), "trash": (trash, 1099), "edit": (edit, 1201),
+    "check": (check, 1016), "minus": (minus, 1019), "window-max": (window_max, 7101), "window-restore": (window_restore, 7103), "loader": (loader, 1021), "trash": (trash, 1099), "edit": (edit, 1201),
     "search": (search, 1032), "copy": (copy, 1033), "stop": (stop, 1036),
     "folder": (folder, 1038), "folder-open": (folder_open, 1039), "folder-plus": (folder_plus, 1040),
     "fmt-paragraph": (fmt_paragraph, 7001), "fmt-h1": (_heading(1), 7011), "fmt-h2": (_heading(2), 7012),

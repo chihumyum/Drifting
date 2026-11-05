@@ -44,6 +44,7 @@ mod system_fonts;
 mod webview_media;
 #[cfg(target_os = "windows")]
 mod windows_image_codec;
+mod windows_tray;
 mod windows_webview;
 
 use std::sync::Arc;
@@ -96,13 +97,15 @@ fn finish_shutdown(
         Some(ShutdownAction::CloseWindow) => {
             if let Some(window) = window {
                 // macOS applications conventionally remain alive after the
-                // last window closes. Hiding keeps the flushed WebView state
-                // available so a Dock reopen can restore it without creating
-                // a second renderer/database session.
-                #[cfg(target_os = "macos")]
+                // last window closes, and Windows keeps Drifting in the
+                // notification area (windows_tray). Hiding keeps the flushed
+                // WebView state available so a Dock reopen, the tray or a
+                // second launch restores it without creating a second
+                // renderer/database session; a background Agent and sync go on.
+                #[cfg(any(target_os = "macos", target_os = "windows"))]
                 let _ = window.hide();
 
-                #[cfg(not(target_os = "macos"))]
+                #[cfg(not(any(target_os = "macos", target_os = "windows")))]
                 {
                     coordinator.permit_next_close();
                     coordinator.permit_next_exit();
@@ -248,6 +251,7 @@ pub fn run() {
             commands::window_set_traffic_lights_hidden,
             commands::window_set_close_returns_to_shelf,
             commands::window_set_theme,
+            windows_tray::tray_set_labels,
             commands::opener_open_external,
             commands::deep_link_take_pending,
             commands::lifecycle_get_status,
@@ -450,6 +454,8 @@ pub fn run() {
                 windows_webview::configure(&window)?;
                 window.show()?;
             }
+            #[cfg(target_os = "windows")]
+            windows_tray::install(app.handle())?;
             #[cfg(target_os = "macos")]
             macos_quit::route_terminate_through_flush(app.handle());
             Ok(())

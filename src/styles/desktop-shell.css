@@ -254,6 +254,81 @@
   height: var(--glass-round-size);
 }
 
+/* ─── Windows window buttons ──────────────────────────────────────────
+   Windows has no native title bar here: close, minimize and maximize are one
+   glass pill in the top-left corner, where macOS keeps its traffic lights and
+   in their order (WindowsCaption). It is the paper toolbar's tray (.editor-bar:
+   round glass buttons padded evenly, the tray's resting line and its wider
+   bleed under the pointer) without the floating fill, so the sidebar shows
+   through. Centred on the titlebar row like the sidebar toggles, and above
+   dialogs as the traffic lights are. The left toggle and every header keep
+   --window-header-leading-inset clear of it. */
+html[data-native-platform='windows'] {
+  /* 8px in, the pill (three 28px buttons, 2px apart, 4px tray padding), then
+     the 6px the left toggle keeps from it. */
+  --window-header-leading-inset: 110px;
+}
+
+.windows-caption {
+  position: fixed;
+  z-index: calc(var(--z-modal) + 40);
+  top: calc((var(--window-titlebar-height) - var(--glass-round-size)) / 2 - var(--glass-tray-padding));
+  left: 8px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: var(--glass-tray-padding);
+  border-radius: calc(var(--glass-round-size) / 2 + var(--glass-tray-padding));
+  --glass-rim: 12px;
+  background: transparent;
+  color: var(--ui-text-muted, hsl(var(--ink-3)));
+  transition: opacity var(--motion-glass-bleed) ease-out;
+}
+
+.windows-caption__button {
+  display: grid;
+  place-items: center;
+  width: var(--glass-round-size);
+  height: var(--glass-round-size);
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  transition: color 0.12s ease-out;
+}
+
+.windows-caption__button > .brush-icon {
+  width: var(--glass-round-icon);
+  height: var(--glass-round-icon);
+}
+
+.windows-caption__button:hover {
+  color: hsl(var(--ink-1));
+}
+
+.windows-caption__button--close:hover {
+  --glass-cc: hsl(var(--destructive));
+  color: hsl(var(--destructive));
+}
+
+/* Immersive writing withdraws it with the sidebar toggles; the pointer at
+   the window's top edge brings it back with the dock. */
+body:has(.desktop-app-shell[data-immersive]) .windows-caption {
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity var(--motion-glass-bleed) ease-out,
+    visibility 0s linear var(--motion-glass-bleed);
+}
+
+body:has(.desktop-app-shell[data-immersive][data-immersive-peek='top']) .windows-caption {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity var(--motion-glass-bleed) ease-out;
+}
+
 .workspace-panel-tab-row.workspace-panel-tab-row--window {
   height: var(--window-titlebar-height);
   /* Half the tabs' 12px gap: the chosen tab's glass block reaches that far

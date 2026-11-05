@@ -19,6 +19,11 @@ export interface PlatformRuntimeSnapshot {
   isMobileShell: boolean;
   isExpandedTablet: boolean;
   isMacDesktop: boolean;
+  /** Windows draws its own window buttons (components/workspaceChrome/WindowsCaption). */
+  isWindowsDesktop: boolean;
+  /** The window's buttons sit in the top-left corner (macOS traffic lights, the
+   * Windows caption pill); headers there leave `--window-header-leading-inset`. */
+  leadingWindowControls: boolean;
   desktopWindowControls: boolean;
 }
 
@@ -33,6 +38,8 @@ const UNKNOWN_RUNTIME: PlatformRuntimeSnapshot = {
   isMobileShell: false,
   isExpandedTablet: false,
   isMacDesktop: false,
+  isWindowsDesktop: false,
+  leadingWindowControls: false,
   desktopWindowControls: false,
 };
 
@@ -58,6 +65,9 @@ export function hydratePlatformRuntime(): Promise<PlatformRuntimeSnapshot> {
 
   hydration = Promise.all([platform.app.getInfo(), platform.app.getCapabilities()])
     .then(([appInfo, capabilities]) => {
+      const desktopWindowControls = capabilities.target === 'desktop' && capabilities.desktopWindowControls;
+      const isMacDesktop = capabilities.target === 'desktop' && appInfo.platform === 'macos';
+      const isWindowsDesktop = desktopWindowControls && appInfo.platform === 'windows';
       const uiShell = resolveUiShellMode({
         target: capabilities.target,
         screenWidth: window.screen.width,
@@ -72,9 +82,10 @@ export function hydratePlatformRuntime(): Promise<PlatformRuntimeSnapshot> {
         isMobile: capabilities.target === 'mobile',
         isMobileShell: uiShell.shellMode === 'mobile',
         isExpandedTablet: uiShell.deviceClass === 'expanded',
-        isMacDesktop: capabilities.target === 'desktop' && appInfo.platform === 'macos',
-        desktopWindowControls:
-          capabilities.target === 'desktop' && capabilities.desktopWindowControls,
+        isMacDesktop,
+        isWindowsDesktop,
+        leadingWindowControls: isMacDesktop || isWindowsDesktop,
+        desktopWindowControls,
       });
     })
     .catch((error) => {
