@@ -1404,10 +1404,6 @@
       "session": "セッション",
       "toolsCount": "{{count}}ツール"
     },
-    "entity": {
-      "created": "作成済み",
-      "edited": "編集済み"
-    },
     "pending": {
       "now": "思考中…",
       "withSeconds": "思考中・{{seconds}}秒",

@@ -1402,10 +1402,6 @@
       "session": "本会话",
       "toolsCount": "{{count}} 次工具"
     },
-    "entity": {
-      "created": "新建",
-      "edited": "已改"
-    },
     "pending": {
       "now": "思考中…",
       "withSeconds": "思考中 · {{seconds}}s",

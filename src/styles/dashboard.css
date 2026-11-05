@@ -599,11 +599,6 @@ p.dash-ro {
   cursor: pointer;
 }
 
-.home-agent__chip-op {
-  color: hsl(var(--ink-3));
-  font-size: var(--ui-font-caption, 12px);
-}
-
 .home-agent__dismiss {
   position: absolute;
   top: 6px;

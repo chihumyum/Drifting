@@ -1404,10 +1404,6 @@
       "session": "세션",
       "toolsCount": "{{count}}개 도구"
     },
-    "entity": {
-      "created": "생성됨",
-      "edited": "수정됨"
-    },
     "pending": {
       "now": "생각 중…",
       "withSeconds": "생각 중 · {{seconds}}초",
