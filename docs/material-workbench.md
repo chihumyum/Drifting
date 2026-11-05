@@ -238,7 +238,7 @@ folder; relations to chapters and elements stay the cross-cutting link.
   selection when the row is part of one; new folders also come from the
   toolbar button. On mobile it shows one folder at a time under a
   breadcrumb. New materials go into the folder last selected.
-- **移动到文件夹…** is on tree rows, 审阅与素材 cards and the material tab
+- **移动到素材夹…** is on tree rows, 审阅与素材 cards and the material tab
   menu; the picker disables a moving folder and everything below it.
 - Deleting a folder moves its sub-folders and materials up a level
   (`usecase/useMaterialFolder.ts`), like drift groups; no material is deleted.

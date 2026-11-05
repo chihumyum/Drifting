@@ -384,7 +384,7 @@ const GENERAL_READ_TOOL_SPECS: ReadToolSpec[] = [
   {
     name: 'list_materials',
     description:
-      '列出素材库：全部素材文件夹（含空文件夹）与每个素材的 title · kind · folder · source；笔记附 chars。素材是作者的研究资料和随手记，与书的正文无关。',
+      '列出素材库：全部素材夹（含空素材夹）与每个素材的 title · kind · folder · source；笔记附 chars。素材是作者的研究资料和随手记，与书的正文无关。',
     parametersSchema: noArgs,
     aliases: ['materials', '素材库'],
     resultBudgetChars: 20_000,
@@ -1584,7 +1584,7 @@ const DOMAIN_RUNTIME_WRITE_TOOL_SPECS: InternalToolSpec[] = [
       {
         title: str('笔记标题'),
         body: optionalStr('笔记 Markdown 正文'),
-        folder: optionalStr('放入的素材文件夹路径，如 "人物/原型"；省略为根目录'),
+        folder: optionalStr('放入的素材夹路径，如 "人物/原型"；省略为根目录'),
       },
       { additionalProperties: false },
     ),
@@ -1607,12 +1607,12 @@ const DOMAIN_RUNTIME_WRITE_TOOL_SPECS: InternalToolSpec[] = [
   ),
   domainRuntimeWriteSpec(
     'update_material',
-    '整理一个素材：改标题、移到另一个素材文件夹、或改写说明（图片和 PDF 的说明就是作者对它的描述）。只修改传入的字段。',
+    '整理一个素材：改标题、移到另一个素材夹、或改写说明（图片和 PDF 的说明就是作者对它的描述）。只修改传入的字段。',
     Type.Object(
       {
         material: str('当前素材标题'),
         title: optionalStr('新标题'),
-        folder: optionalStr('目标素材文件夹路径；"" 为根目录'),
+        folder: optionalStr('目标素材夹路径；"" 为根目录'),
         description: optionalStr('新的说明文字；"" 为清空'),
       },
       { additionalProperties: false },
@@ -1621,21 +1621,21 @@ const DOMAIN_RUNTIME_WRITE_TOOL_SPECS: InternalToolSpec[] = [
   ),
   domainRuntimeWriteSpec(
     'create_material_folder',
-    '新建一个素材文件夹。',
+    '新建一个素材夹。',
     Type.Object(
-      { name: str('文件夹名称，不含 /'), parent: optionalStr('上级文件夹路径；省略为根目录') },
+      { name: str('素材夹名称，不含 /'), parent: optionalStr('上级素材夹路径；省略为根目录') },
       { additionalProperties: false },
     ),
     { effect: 'annotation', concurrency: 'exclusive_project' },
   ),
   domainRuntimeWriteSpec(
     'update_material_folder',
-    '重命名或移动一个素材文件夹；不能移进它自己的子文件夹。',
+    '重命名或移动一个素材夹；不能移进它自己的子素材夹。',
     Type.Object(
       {
-        folder: str('当前文件夹路径，如 "人物/原型"'),
+        folder: str('当前素材夹路径，如 "人物/原型"'),
         name: optionalStr('新名称'),
-        parent: optionalStr('新的上级文件夹路径；"" 为根目录'),
+        parent: optionalStr('新的上级素材夹路径；"" 为根目录'),
       },
       { additionalProperties: false },
     ),
@@ -1643,8 +1643,8 @@ const DOMAIN_RUNTIME_WRITE_TOOL_SPECS: InternalToolSpec[] = [
   ),
   domainRuntimeWriteSpec(
     'delete_material_folder',
-    '删除一个素材文件夹；其中的子文件夹和素材移到上一级，不删除任何素材。默认请求作者确认。',
-    Type.Object({ folder: str('文件夹路径') }, { additionalProperties: false }),
+    '删除一个素材夹；其中的子素材夹和素材移到上一级，不删除任何素材。默认请求作者确认。',
+    Type.Object({ folder: str('素材夹路径') }, { additionalProperties: false }),
     { risk: 'high', effect: 'annotation', concurrency: 'exclusive_project', approval: 'confirm_before', retry: 'never' },
   ),
   domainRuntimeWriteSpec(

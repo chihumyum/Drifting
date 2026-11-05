@@ -919,7 +919,7 @@ export const CommentActionTable = sqliteTable(
   ],
 );
 
-// Material folder (素材文件夹) — a user-defined nested folder for the
+// Material folder (素材夹) — a user-defined nested folder for the
 // material panel. Single-parent tree via `parent_folder_id` (NULL = root);
 // membership lives on library_item.folder_id. As with drift_group, cascades
 // are client-side (useMaterialFolder moves a deleted folder's sub-folders and

@@ -66,7 +66,7 @@ export function describeWorkspaceDomainTarget(path: string): string {
     case 'materials':
       return namedTarget('素材', stripExtension(segments[1]));
     case 'material-folders':
-      return namedTarget('素材文件夹', segments.slice(1).join('/'));
+      return namedTarget('素材夹', segments.slice(1).join('/'));
     case 'structure':
       return namedTarget('幕', segments[2]);
     case 'timeline':

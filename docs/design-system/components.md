@@ -54,7 +54,7 @@
 | 笔记浮条 | 选区浮条同款的玻璃长药丸 + 短药丸 | `NoteFloatingBar`（`.note-floating-bar--glass`） |
 | 嵌入笔记的素材 | 图片无框、悬停或选中出玻璃；PDF 是细线卡 | `MaterialEmbedView` |
 | 素材库卡片 | 素材＝砂笔 cell；TODO＝不垫底的细线卡 | `LibraryItemCard`、`TodoCard` |
-| 素材文件夹 | 侧栏 cell 的玻璃环（多选静止、拖到上面流动） | `MaterialFolderTree` |
+| 素材夹 | 侧栏 cell 的玻璃环（多选静止、拖到上面流动） | `MaterialFolderTree` |
 | 通览全书的章与幕 | 章间不画线；幕名下一笔干砂 | `AllChaptersEditorView`（`.act-break--sand`）、`all-chapters.css` |
 | 稿纸页眉 | 平面 + 故事线的砂笔短横 | `VirtualChapterRow`（`sandFolio`、`.page__folio-storyline`） |
 | Project Memory | 只读卡片 + 多行输入框 + 文字按钮 | `ProjectMemoryEditor`（`.pmem--glass`） |
@@ -423,7 +423,7 @@ Agent 工作时新出现的一步（工具调用）先由一道流动的玻璃�
 
 ## 素材库卡片
 
-「审阅与素材」全书视图里，素材按种类分组，组头是结构字的种类名（笔记、图片、PDF，和要素画布上的类目图例同一种）加等宽数量；素材卡是砂笔 cell（`LibraryItemCard`）：竖笔记号 + 名字，下面一行等宽的类型、文件夹与尺寸；不垫底，悬停时整圈流动玻璃，当前标签页打开的那张画砂笔框；缩略图不描边不垫灰，PDF 是一小页白纸；展开、在系统中打开是悬停才出现的砂笔图标按钮，没有框。TODO 卡（`TodoCard`）是不垫底的细线卡（`.glass--rest .glass--surface`）：TODO 色的等宽「TODO」、跳到原文的箭头、悬停出现的字纸篓，底部「＋ 关联」是文字按钮，完成钮沿用 Review 的 `TodoStatusToggle`。侧栏素材树里，文件夹名是结构字、素材条目是实体字（文件夹之于素材，就像类目之于要素）；文件夹行也按 cell 处理：悬停出玻璃环，⌘ 多选的行是静止的选中玻璃环，拖到文件夹上时它的环流动，拖到根上时整个列表的边流动；改名是稿纸色的玻璃输入框。文件夹选择器的行不垫底，当前文件夹是静止的选中玻璃并加粗；对话框与选择器里的输入框是共用的单行或多行输入框（`.ui-field`、`.ui-field--area`），主按钮是 `Button variant="primary"`，取消是 `variant="ghost"` 的文字按钮，错误只用危险色的字加砂笔图标。暂停中的移动端保留这些组件原来的样子。
+「审阅与素材」全书视图里，素材按种类分组，组头是结构字的种类名（笔记、图片、PDF，和要素画布上的类目图例同一种）加等宽数量；素材卡是砂笔 cell（`LibraryItemCard`）：竖笔记号 + 名字，下面一行等宽的类型、素材夹与尺寸；不垫底，悬停时整圈流动玻璃，当前标签页打开的那张画砂笔框；缩略图不描边不垫灰，PDF 是一小页白纸；展开、在系统中打开是悬停才出现的砂笔图标按钮，没有框。TODO 卡（`TodoCard`）是不垫底的细线卡（`.glass--rest .glass--surface`）：TODO 色的等宽「TODO」、跳到原文的箭头、悬停出现的字纸篓，底部「＋ 关联」是文字按钮，完成钮沿用 Review 的 `TodoStatusToggle`。侧栏素材树里，素材夹名是结构字、素材条目是实体字（素材夹之于素材，就像类目之于要素）；素材夹行也按 cell 处理：悬停出玻璃环，⌘ 多选的行是静止的选中玻璃环，拖到素材夹上时它的环流动，拖到根上时整个列表的边流动；改名是稿纸色的玻璃输入框。素材夹选择器的行不垫底，当前素材夹是静止的选中玻璃并加粗；对话框与选择器里的输入框是共用的单行或多行输入框（`.ui-field`、`.ui-field--area`），主按钮是 `Button variant="primary"`，取消是 `variant="ghost"` 的文字按钮，错误只用危险色的字加砂笔图标。暂停中的移动端保留这些组件原来的样子。
 
 ## 通览全书
 

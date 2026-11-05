@@ -1996,7 +1996,7 @@
       {
         "domain": "material_folder",
         "authoredTargets": [
-          "素材文件夹「<路径>」"
+          "素材夹「<路径>」"
         ],
         "operations": {
           "create": {

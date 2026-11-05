@@ -553,19 +553,19 @@ export const DRIFTING_DOMAIN_TOOL_SEARCH_METADATA: ToolSearchMetadataByName = {
     searchIntents: [
       'rename or file a material into a folder',
       'describe an image or pdf material',
-      '整理素材到文件夹',
+      '整理素材到素材夹或文件夹',
       '重命名素材',
       '给图片或 PDF 写说明',
     ],
   },
   create_material_folder: {
-    searchIntents: ['create a material folder', '新建素材文件夹', '给资料建分类目录'],
+    searchIntents: ['create a material folder', '新建素材夹', '新建文件夹', '给资料建分类目录'],
   },
   update_material_folder: {
-    searchIntents: ['rename or move a material folder', '重命名素材文件夹', '移动素材文件夹'],
+    searchIntents: ['rename or move a material folder', '重命名素材夹', '移动素材夹', '重命名或移动文件夹'],
   },
   delete_material_folder: {
-    searchIntents: ['remove a material folder', '删除素材文件夹', '撤掉一个资料目录'],
+    searchIntents: ['remove a material folder', '删除素材夹', '删除文件夹', '撤掉一个资料目录'],
   },
   read_book_structure: {
     searchIntents: [
