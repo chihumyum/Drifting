@@ -19,9 +19,11 @@ const { createAtomicRunner } = await import('../../../dev-cli/offline-workspace'
 const {
   BUILT_IN_SAMPLE_MAX_ATTEMPTS,
   BUILT_IN_SAMPLE_STATE_KEY,
+  BUILT_IN_SAMPLES,
   ensureBuiltInSampleProject,
   purgeUnpublishedSampleProject,
 } = await import('./built-in-sample');
+const { A_Q_CHAPTERS, A_Q_PROJECT_NAME, A_Q_ZHENGZHUAN } = await import('./a-q');
 const { resetBuiltInSampleForTests, startBuiltInSampleProject, useBuiltInSampleStore, waitForBuiltInSampleProject, withoutPendingSampleProject } =
   await import('./first-run');
 const { BOOK_CHAPTERS, BOOK_ILLUSTRATIONS, paragraphText } = await import('./book');
@@ -90,6 +92,9 @@ function memoryAssetImporter(database: DbClient, events: string[]) {
   };
 }
 
+/** Pride and Prejudice alone: most cases below check the workflow on the first sample. */
+const FIRST_SAMPLE_ONLY = BUILT_IN_SAMPLES.slice(0, 1);
+
 function dependencies(library: Library, overrides: Partial<Dependencies> = {}, assetEvents: string[] = []): Dependencies {
   return {
     database: () => library.client,
@@ -99,6 +104,7 @@ function dependencies(library: Library, overrides: Partial<Dependencies> = {}, a
     discardProject: async (projectId) => { await purgeUnpublishedSampleProject(library.client, projectId); },
     now: () => new Date().toISOString(),
     newId: uuidv7,
+    samples: FIRST_SAMPLE_ONLY,
     ...overrides,
   };
 }
@@ -113,7 +119,7 @@ function count(library: Library, sql: string, ...parameters: string[]): number {
 
 function marker(library: Library) {
   const [row] = rows<{ json: string }>(library, 'SELECT value_json AS json FROM library_state WHERE key = ?', BUILT_IN_SAMPLE_STATE_KEY);
-  return row ? JSON.parse(row.json) as { status: string; projectId: string | null; attempts: number; reason?: string } : null;
+  return row ? JSON.parse(row.json) as { status: string; projectId: string | null; projectIds?: string[]; attempts: number; reason?: string } : null;
 }
 
 /** The live prose of one document, rebuilt from its Yjs rows. */
@@ -258,7 +264,7 @@ describe('built-in sample project', () => {
     expect(marker(library)).toMatchObject({ status: 'created', projectId, attempts: 1 });
     expect(useProjectStore.getState().currentProject).toBe(storesBefore.project);
     expect(useDataStore.getState().bookNodes).toBe(storesBefore.nodes);
-    expect(useBuiltInSampleStore.getState()).toMatchObject({ pendingProjectId: null, createdProjectId: projectId });
+    expect(useBuiltInSampleStore.getState()).toMatchObject({ pendingProjectIds: [], createdProjectIds: [projectId] });
 
     await expect(ensureBuiltInSampleProject(dependencies(library))).resolves.toEqual({ kind: 'skipped', reason: 'already-created' });
     expect(count(library, 'SELECT count(*) AS n FROM project')).toBe(1);
@@ -350,7 +356,7 @@ describe('built-in sample project', () => {
       .filter((name) => name !== BOOK_ILLUSTRATIONS[2].name).map((name) => `abandon:${name}`).sort());
     expect(marker(library)).toMatchObject({ status: 'failed', attempts: 1, reason: 'disk full' });
     expect(useProjectStore.getState().currentProject).toBeNull();
-    expect(useBuiltInSampleStore.getState().pendingProjectId).toBeNull();
+    expect(useBuiltInSampleStore.getState().pendingProjectIds).toEqual([]);
 
     const retried = await ensureBuiltInSampleProject(dependencies(library));
     expect(retried.kind).toBe('created');
@@ -391,7 +397,7 @@ describe('built-in sample project', () => {
       now,
     );
     // Shelves never list the unfinished project while it is being replaced.
-    useBuiltInSampleStore.setState({ pendingProjectId: 'interrupted-sample' });
+    useBuiltInSampleStore.setState({ pendingProjectIds: ['interrupted-sample'] });
     expect(withoutPendingSampleProject([{ id: 'interrupted-sample' }, { id: 'other' }])).toEqual([{ id: 'other' }]);
 
     const outcome = await ensureBuiltInSampleProject(dependencies(library));
@@ -421,6 +427,127 @@ describe('built-in sample project', () => {
     await expect(startBuiltInSampleProject()).resolves.toBeUndefined();
     expect(startBuiltInSampleProject()).toBe(startBuiltInSampleProject());
     await expect(waitForBuiltInSampleProject()).resolves.toBeUndefined();
-    expect(useBuiltInSampleStore.getState()).toMatchObject({ phase: 'settled', pendingProjectId: null, createdProjectId: null });
+    expect(useBuiltInSampleStore.getState()).toMatchObject({ phase: 'settled', pendingProjectIds: [], createdProjectIds: [] });
   });
+
+  it('gives a new library both samples: Pride and Prejudice, then 阿Q正传 half written', async () => {
+    const library = await openLibrary();
+    const outcome = await ensureBuiltInSampleProject(dependencies(library, { samples: undefined }));
+    expect(outcome.kind).toBe('created');
+    const { projectIds } = outcome as { projectIds: string[] };
+    expect(projectIds).toHaveLength(2);
+    const [, aq] = projectIds;
+    expect(rows(library, 'SELECT id, name FROM project WHERE deleted_at IS NULL ORDER BY created_at, id')).toEqual([
+      { id: projectIds[0], name: showcase.SAMPLE_PROJECT_NAME },
+      { id: aq, name: A_Q_PROJECT_NAME },
+    ]);
+    expect(count(library, "SELECT count(*) AS n FROM book_node WHERE kind = 'chapter' AND project_id = ?", projectIds[0])).toBe(61);
+
+    // Nine chapters: six with the bundled text, three planned with only a summary.
+    const chapters = rows<{ id: string; title: string; status: string; summary: string; words: number }>(library,
+      "SELECT id, title, writing_status AS status, summary, word_count AS words FROM book_node WHERE kind = 'chapter' AND project_id = ? ORDER BY book_order", aq);
+    expect(chapters.map((chapter) => chapter.title)).toEqual(A_Q_CHAPTERS.map((chapter) => A_Q_ZHENGZHUAN.chapterTitle(chapter.number)));
+    expect(chapters.map((chapter) => chapter.title).slice(0, 2)).toEqual(['第一章 序', '第二章 优胜记略']);
+    expect(chapters.map((chapter) => chapter.summary)).toEqual(A_Q_ZHENGZHUAN.chapterPlans.map((plan) => plan.summary));
+    expect(chapters.filter((chapter) => chapter.status === 'finished').map((chapter) => chapter.title))
+      .toEqual(A_Q_ZHENGZHUAN.finishedChapters.map((number) => A_Q_ZHENGZHUAN.chapterTitle(number)));
+    for (const [index, chapter] of chapters.entries()) {
+      const live = liveProse(library, `node-content:${chapter.id}`);
+      expect(liveParagraphs(live.json), chapter.title).toEqual(A_Q_CHAPTERS[index].blocks);
+      expect(chapter.words > 0, chapter.title).toBe(index < 6);
+    }
+    expect(rows<{ name: string }>(library, 'SELECT name FROM book_act WHERE project_id = ? ORDER BY start_order', aq).map((act) => act.name))
+      .toEqual(A_Q_ZHENGZHUAN.volumes.map((volume) => volume.name));
+
+    // The workspace around it, in its own project.
+    const inProject = (table: string, where = '') => count(library, `SELECT count(*) AS n FROM ${table} WHERE project_id = ?${where}`, aq);
+    expect(inProject('element')).toBe(A_Q_ZHENGZHUAN.elements.length);
+    expect(inProject('element_category')).toBe(A_Q_ZHENGZHUAN.categories.length);
+    expect(inProject('storylines')).toBe(A_Q_ZHENGZHUAN.storylines.length);
+    expect(inProject('entity_relation')).toBe(A_Q_ZHENGZHUAN.relations.length);
+    expect(inProject('entity_relation', " AND to_kind = 'node'")).toBe(4);
+    expect(inProject('timeline_marker')).toBe(A_Q_ZHENGZHUAN.timelinePins.length);
+    expect(inProject('book_node', " AND kind = 'drift'")).toBe(A_Q_ZHENGZHUAN.ideas.length);
+    expect(inProject('comment')).toBe(A_Q_ZHENGZHUAN.comments.length);
+    expect(inProject('element_patch', ' AND source_block_id IS NOT NULL')).toBe(A_Q_ZHENGZHUAN.elementPatches.length);
+    expect(inProject('library_item', " AND kind = 'text'")).toBe(A_Q_ZHENGZHUAN.materialNotes.length);
+    expect(inProject('project_asset')).toBe(0);
+    expect(rows(library, "SELECT aliases_json AS aliases FROM element WHERE project_id = ? AND name = '赵秀才'", aq))
+      .toEqual([{ aliases: JSON.stringify([...A_Q_ZHENGZHUAN.elements.find((element) => element.key === 'zhao-xiucai')!.aliases].sort()) }]);
+
+    // Its comments and patches anchor to the live prose, and its names link.
+    const anchored = [
+      ...rows<{ nodeId: string; blockId: string; anchor: string }>(library,
+        "SELECT target_id AS nodeId, target_block_id AS blockId, anchor_json AS anchor FROM comment WHERE target_kind = 'node' AND project_id = ?", aq)
+        .map((row) => ({ ...row, text: JSON.parse(row.anchor).textAnchor as { startOffset: number; endOffset: number; text: string } })),
+      ...rows<{ nodeId: string; blockId: string; anchor: string }>(library,
+        'SELECT source_node_id AS nodeId, source_block_id AS blockId, text_anchor_json AS anchor FROM element_patch WHERE project_id = ?', aq)
+        .map((row) => ({ ...row, text: JSON.parse(row.anchor) as { startOffset: number; endOffset: number; text: string } })),
+    ];
+    expect(anchored).toHaveLength(A_Q_ZHENGZHUAN.comments.filter((comment) => comment.quotation).length + A_Q_ZHENGZHUAN.elementPatches.length);
+    for (const { nodeId, blockId, text } of anchored) {
+      const blocks = (liveProse(library, `node-content:${nodeId}`).json.content as { attrs: { id: string }; content?: { text?: string }[] }[]);
+      const block = blocks.find((candidate) => candidate.attrs.id === blockId);
+      const blockText = (block?.content ?? []).map((child) => child.text ?? '').join('');
+      expect(blockText.slice(text.startOffset, text.endOffset)).toBe(text.text);
+    }
+    const names = new Map(rows<{ id: string; name: string }>(library, 'SELECT id, name FROM element WHERE project_id = ?', aq).map((row) => [row.id, row.name]));
+    const mentions = projectInlineMentionsFromJson(liveProse(library, `node-content:${chapters[1].id}`).json);
+    expect(mentions.every((mention) => names.has(mention.toId))).toBe(true);
+    const mentioned = new Set(mentions.map((mention) => names.get(mention.toId)));
+    for (const name of ['阿Q', '未庄', '土谷祠', '精神胜利法', '赵太爷', '赛神']) expect(mentioned).toContain(name);
+
+    expect(marker(library)).toMatchObject({ status: 'created', projectId: projectIds[0], projectIds, attempts: 1 });
+    expect(useBuiltInSampleStore.getState()).toMatchObject({ pendingProjectIds: [], createdProjectIds: projectIds });
+    expect(rows(library, 'PRAGMA foreign_key_check')).toEqual([]);
+    await expect(ensureBuiltInSampleProject(dependencies(library, { samples: undefined }))).resolves.toEqual({ kind: 'skipped', reason: 'already-created' });
+  }, 300_000);
+
+  it('removes the first sample too when the second one fails, then writes both on a later launch', async () => {
+    const library = await openLibrary();
+    const assetEvents: string[] = [];
+    const runner = createAtomicRunner(library.client);
+    let first: string | null = null;
+    // Pride and Prejudice commits completely; 阿Q正传's first transaction fails.
+    const runAtomic: Dependencies['runAtomic'] = (projectId, work) => {
+      first ??= projectId;
+      if (projectId !== first) return Promise.reject(new Error('database is locked'));
+      return runner(projectId, work);
+    };
+
+    const failed = await ensureBuiltInSampleProject(dependencies(library, { runAtomic, samples: undefined }, assetEvents));
+    expect(failed.kind).toBe('failed');
+    for (const table of ['project', 'book_node', 'element', 'comment', 'yjs_updates', 'project_asset'])
+      expect(count(library, `SELECT count(*) AS n FROM ${table}`), table).toBe(0);
+    expect(assetEvents.filter((event) => event.startsWith('abandon:'))).toHaveLength(BOOK_ILLUSTRATIONS.length);
+    expect(marker(library)).toMatchObject({ status: 'failed', attempts: 1, projectIds: [first], reason: 'database is locked' });
+    expect(useBuiltInSampleStore.getState().pendingProjectIds).toEqual([]);
+
+    const retried = await ensureBuiltInSampleProject(dependencies(library, { samples: undefined }));
+    expect(retried.kind).toBe('created');
+    expect(rows<{ name: string }>(library, 'SELECT name FROM project ORDER BY created_at, id').map((row) => row.name))
+      .toEqual([showcase.SAMPLE_PROJECT_NAME, A_Q_PROJECT_NAME]);
+    expect(marker(library)).toMatchObject({ status: 'created', attempts: 2 });
+  }, 300_000);
+
+  it('removes every partial project an interrupted two-sample attempt left', async () => {
+    const library = await openLibrary();
+    await createAuthorProject(library, 'interrupted-first', showcase.SAMPLE_PROJECT_NAME);
+    await createAuthorProject(library, 'interrupted-second', A_Q_PROJECT_NAME);
+    const now = new Date().toISOString();
+    library.gateway.database.prepare('INSERT INTO library_state (key, value_json, updated_at) VALUES (?, ?, ?)').run(
+      BUILT_IN_SAMPLE_STATE_KEY,
+      JSON.stringify({
+        status: 'creating', recipe: 'pride-and-prejudice-v1+a-q-zhengzhuan-v1', projectId: 'interrupted-first',
+        projectIds: ['interrupted-first', 'interrupted-second'], attempts: 1, updatedAt: now,
+      }),
+      now,
+    );
+    const outcome = await ensureBuiltInSampleProject(dependencies(library, { samples: undefined }));
+    expect(outcome.kind).toBe('created');
+    const projects = rows<{ id: string }>(library, 'SELECT id FROM project').map((project) => project.id);
+    expect(projects).toHaveLength(2);
+    expect(projects).not.toContain('interrupted-first');
+    expect(projects).not.toContain('interrupted-second');
+  }, 300_000);
 });

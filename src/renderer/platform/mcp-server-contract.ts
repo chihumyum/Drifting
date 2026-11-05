@@ -4,18 +4,23 @@ export type McpClient = 'codex' | 'claude_code' | 'antigravity';
 export interface McpServerGrant {
   id: string;
   name: string;
-  projectId: string;
+  /** Only on a connection made for one book before connections reached
+   *  whichever book is open; it stays limited to that book until revoked. */
+  projectId?: string;
   access: 'read' | 'write';
   allowDangerous: boolean;
   installation?: { client: McpClient; configPath: string; serverName: string };
 }
 
-export type McpServerCreateInput = Omit<McpServerGrant, 'id' | 'installation'>;
+export type McpServerCreateInput = Pick<McpServerGrant, 'name' | 'access' | 'allowDangerous'>;
 export type McpServerPermissionInput = Pick<McpServerGrant, 'id' | 'access' | 'allowDangerous'>;
 
 export interface McpServerConnection {
   grant: McpServerGrant;
   config: { command: string; args: string[] };
+  /** Connecting a client retired its book connections, and one of their
+   *  entries could not be removed from the client's configuration. */
+  leftover?: true;
 }
 
 export interface McpServerRequest {

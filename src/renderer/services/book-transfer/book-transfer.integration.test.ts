@@ -14,7 +14,7 @@ import { installHeadlessRendererGlobals } from '../../../dev-cli/headless-global
 installHeadlessRendererGlobals();
 const { OfflineProductDatabase } = await import('../../../dev-cli/offline-database');
 const { createAtomicRunner } = await import('../../../dev-cli/offline-workspace');
-const { ensureBuiltInSampleProject, purgeUnpublishedSampleProject } = await import('../built-in-sample/built-in-sample');
+const { BUILT_IN_SAMPLES, ensureBuiltInSampleProject, purgeUnpublishedSampleProject } = await import('../built-in-sample/built-in-sample');
 const { resetBuiltInSampleForTests } = await import('../built-in-sample/first-run');
 const { BOOK_ILLUSTRATIONS } = await import('../built-in-sample/book');
 const { LOCAL_USER_ID } = await import('../../store/auth');
@@ -119,9 +119,10 @@ async function openLibrary(options: { renderer?: boolean } = {}) {
 
 type TestLibrary = Awaited<ReturnType<typeof openLibrary>>;
 
-/** The built-in sample, its illustrations written into the library's asset store. */
+/** The first built-in sample (Pride and Prejudice), its illustrations written into the library's asset store. */
 async function writeSample(target: TestLibrary): Promise<string> {
   const outcome = await ensureBuiltInSampleProject({
+    samples: BUILT_IN_SAMPLES.slice(0, 1),
     database: () => target.library.client,
     userId: LOCAL_USER_ID,
     runAtomic: createAtomicRunner(target.library.client),

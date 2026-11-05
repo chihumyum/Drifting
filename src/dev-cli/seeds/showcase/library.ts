@@ -13,6 +13,7 @@ import { v7 as uuidv7 } from 'uuid';
 
 import type { ProjectAssetVariant } from '../../../renderer/domain/project-asset';
 import { ProjectTable } from '../../../renderer/schema/drizzle';
+import { A_Q_PROJECT_NAME, A_Q_ZHENGZHUAN } from '../../../renderer/services/built-in-sample/a-q';
 import { BOOK_ILLUSTRATIONS } from '../../../renderer/services/built-in-sample/book';
 import { PRIDE_AND_PREJUDICE, type SampleBook } from '../../../renderer/services/built-in-sample/sample-book';
 import { SAMPLE_PROJECT_NAME } from '../../../renderer/services/built-in-sample/showcase';
@@ -43,6 +44,8 @@ export interface ShowcaseLibrary {
   main: { projectId: string; name: string; chapters: { id: string; title: string }[]; elements: number };
   projects: { projectId: string; name: string }[];
   writingDays: number;
+  /** 阿Q正传（示例）, when asked for (`withAQ`): first on the shelf, its chapters in reading order. */
+  aq?: { projectId: string; name: string; chapters: { id: string; title: string }[] };
 }
 
 const bookDirectory = new URL('../../../renderer/services/built-in-sample/pride-and-prejudice/', import.meta.url);
@@ -147,6 +150,8 @@ export async function seedShowcaseLibrary(input: {
   appLocalDataDirectory: string;
   locale: ShowcaseLocale;
   today?: Date;
+  /** Also write the built-in 阿Q正传 sample, last, so it leads the shelf (the promo recording opens it). */
+  withAQ?: boolean;
 }): Promise<ShowcaseLibrary> {
   if (existsSync(input.databasePath)) throw new Error(`Refusing to seed over ${input.databasePath}`);
   installHeadlessRendererGlobals();
@@ -203,7 +208,18 @@ export async function seedShowcaseLibrary(input: {
       .prepare("SELECT id, title FROM book_node WHERE project_id = ? AND kind = 'chapter' ORDER BY book_order")
       .all(main.projectId) as { id: string; title: string }[];
     const { elements } = sqlite.prepare('SELECT count(*) AS elements FROM element WHERE project_id = ?').get(main.projectId) as { elements: number };
-    return { locale: input.locale, main: { ...main, chapters, elements }, projects, writingDays };
+    let aq: ShowcaseLibrary['aq'];
+    if (input.withAQ) {
+      const projectId = await writeBook({
+        database, runAtomic, name: A_Q_PROJECT_NAME, book: A_Q_ZHENGZHUAN, createdAt: at(0, 30), updatedAt: at(0, 5), writingDays: [],
+      });
+      projects.push({ projectId, name: A_Q_PROJECT_NAME });
+      const aqChapters = sqlite
+        .prepare("SELECT id, title FROM book_node WHERE project_id = ? AND kind = 'chapter' ORDER BY book_order")
+        .all(projectId) as { id: string; title: string }[];
+      aq = { projectId, name: A_Q_PROJECT_NAME, chapters: aqChapters };
+    }
+    return { locale: input.locale, main: { ...main, chapters, elements }, projects, writingDays, ...(aq ? { aq } : {}) };
   } finally {
     await database.close();
   }

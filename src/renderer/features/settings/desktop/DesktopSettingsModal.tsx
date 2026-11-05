@@ -291,7 +291,13 @@ export function DesktopSettingsModal({ isOpen, onClose, initialRailId }: Desktop
         onClose={onClose}
       />
       <div className="set-body">
-        <DesktopSettingsRail items={filtered} active={active} activeSection={activeSection} onSelect={onRail} />
+        <DesktopSettingsRail
+          items={filtered}
+          active={active}
+          activeSection={activeSection}
+          searching={query.trim() !== ''}
+          onSelect={onRail}
+        />
         <main className="set-main set-main--instant-section-nav" ref={mainRef}>
           {panels ? (
             <LoadedSettingsPanels

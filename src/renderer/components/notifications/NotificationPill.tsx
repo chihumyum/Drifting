@@ -1,6 +1,6 @@
 /**
  * Notification bell: the round glass button in the account cell at the foot
- * of the left sidebar.
+ * of the left sidebar, and beside the account at the foot of the shelf's rail.
  *   - a task is running   → its source icon blinks
  *   - task just finished  → the result's ink seal for FLASH_MS, then the bell
  *   - a sync problem lasts → the danger seal, until it resolves
@@ -14,7 +14,7 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { workspaceUrlFor } from '../../features/workspace/navigation/workspace-route';
-import { useProjectNavigation } from '../../hooks/useProjectNavigation';
+import { useOptionalWorkspaceNavigator } from '../../features/workspace/navigation/WorkspaceNavigationContext';
 import { BrushIcon } from '../ui/BrushIcon';
 import { Button } from '../ui/Button';
 import { EmptyState } from '../ui/EmptyState';
@@ -279,7 +279,7 @@ export function NotificationPill({ opens = 'down', floating = false }: {
  * first, has no remove button and carries its own actions (retry, sign in,
  * open Settings) as text buttons.
  */
-function NotificationCenter({
+export function NotificationCenter({
   now,
   anchor,
   containerRef,
@@ -294,7 +294,8 @@ function NotificationCenter({
   const remove = useNotificationStore((s) => s.remove);
   const clear = useNotificationStore((s) => s.clear);
   const setCenterOpen = useNotificationStore((s) => s.setCenterOpen);
-  const { projectId, navigateToNode, navigateToHome } = useProjectNavigation();
+  // The shelf has a bell but no open book: rows there open by URL.
+  const navigator = useOptionalWorkspaceNavigator();
   const navigate = useNavigate();
   const location = useLocation();
   const run = useSyncStatusActions();
@@ -311,7 +312,7 @@ function NotificationCenter({
       return;
     }
     if (n.projectHomeId) {
-      if (n.projectHomeId === projectId) navigateToHome();
+      if (navigator && n.projectHomeId === navigator.projectId) navigator.showProjectHome();
       else navigate(`/project/${n.projectHomeId}`);
       setCenterOpen(false);
       return;
@@ -323,8 +324,8 @@ function NotificationCenter({
     if (url) {
       navigate(url);
       setCenterOpen(false);
-    } else if (n.chapterId) {
-      navigateToNode(n.chapterId);
+    } else if (n.chapterId && navigator) {
+      navigator.open({ entityType: 'node', id: n.chapterId });
       setCenterOpen(false);
     }
   };

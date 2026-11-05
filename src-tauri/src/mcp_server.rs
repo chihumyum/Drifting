@@ -30,7 +30,10 @@ pub struct Installation {
 pub struct Grant {
     pub id: String,
     pub name: String,
-    pub project_id: String,
+    /// Connections reach whichever book is open in Drifting. One made before
+    /// that, for a single book, stays limited to it until it is revoked.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project_id: Option<String>,
     pub access: String,
     pub allow_dangerous: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -44,7 +47,6 @@ pub struct Grant {
 #[cfg_attr(not(any(target_os = "macos", target_os = "windows")), allow(dead_code))]
 pub struct CreateInput {
     name: String,
-    project_id: String,
     access: String,
     allow_dangerous: bool,
 }
@@ -114,6 +116,8 @@ mod local {
         connection: String,
         cancelled: HashSet<String>,
         writer: Option<Arc<Mutex<Stream>>>,
+        /// The book this session's last request reached.
+        book: Option<String>,
     }
     #[derive(Default)]
     struct Inner {
@@ -503,17 +507,48 @@ mod local {
             Client::Antigravity => home.join(".gemini/config/mcp_config.json"),
         };
         let server = server(app, state)?;
-        let name_hash = hash(&format!(
-            "{}\0{}",
-            server.directory.display(),
-            input.project_id
-        ));
+        // One entry per client for this installation's library: stable across
+        // launches, and apart from another installation's or account's entry.
+        let name_hash = hash(&server.directory.display().to_string());
         let installation = Installation {
             client,
             config_path,
             server_name: format!("drifting_{}", &name_hash[..16]),
         };
-        create_connection(&server, input, Some(installation))
+        connect_installation(&server, input, installation)
+    }
+    /// Connects a client for every book, then retires the entries it was given
+    /// one book at a time. A retired entry left in a client configuration that
+    /// could not be rewritten is reported as `leftover`.
+    fn connect_installation(
+        server: &Arc<Server>,
+        input: CreateInput,
+        installation: Installation,
+    ) -> Result<Value, String> {
+        let mut description = create_connection(server, input, Some(installation.clone()))?;
+        let retired: Vec<String> = server
+            .inner
+            .lock()
+            .unwrap()
+            .grants
+            .iter()
+            .filter(|grant| {
+                grant.project_id.is_some()
+                    && grant.installation.as_ref().is_some_and(|book| {
+                        book.client == installation.client
+                            && book.config_path == installation.config_path
+                    })
+            })
+            .map(|grant| grant.id.clone())
+            .collect();
+        let mut leftover = false;
+        for id in retired {
+            leftover |= !matches!(revoke_connection(server, &id), Ok(None));
+        }
+        if leftover {
+            description["leftover"] = true.into();
+        }
+        Ok(description)
     }
     fn create_connection(
         server: &Arc<Server>,
@@ -522,17 +557,12 @@ mod local {
     ) -> Result<Value, String> {
         if input.name.trim().is_empty()
             || input.name.len() > 120
-            || input.project_id.is_empty()
-            || input.project_id.len() > 128
             || !["read", "write"].contains(&input.access.as_str())
             || (input.access == "read" && input.allow_dangerous)
         {
             return Err("Invalid MCP connection scope".into());
         }
         let mut inner = server.inner.lock().unwrap();
-        if inner.bridge.as_ref().map(|b| b.project.as_str()) != Some(input.project_id.as_str()) {
-            return Err("Open this project before authorizing MCP".into());
-        }
         if let Some(installation) = &installation {
             if let Some(grant) = inner
                 .grants
@@ -557,7 +587,7 @@ mod local {
         let grant = Grant {
             id: random_id()?,
             name: input.name.trim().into(),
-            project_id: input.project_id,
+            project_id: None,
             access: input.access,
             allow_dangerous: input.allow_dangerous,
             installation,
@@ -614,11 +644,6 @@ mod local {
             .position(|g| g.id == input.id)
             .ok_or("MCP connection does not exist")?;
         let mut grant = inner.grants[index].clone();
-        let bridge = inner
-            .bridge
-            .clone()
-            .filter(|b| b.project == grant.project_id)
-            .ok_or("Open this project before changing MCP permissions")?;
         if grant.access == input.access && grant.allow_dangerous == input.allow_dangerous {
             return server.describe(&grant);
         }
@@ -636,9 +661,11 @@ mod local {
             |p| p.connection == grant.id,
             "MCP permissions changed; inspect any interrupted write before retrying",
         );
-        let _ = bridge.channel.send(serde_json::json!({
-            "type":"grantChanged", "grant":description["grant"]
-        }));
+        if let Some(bridge) = inner.bridge.as_ref() {
+            let _ = bridge.channel.send(serde_json::json!({
+                "type":"grantChanged", "grant":description["grant"]
+            }));
+        }
         let writers: Vec<_> = inner
             .sessions
             .values()
@@ -707,7 +734,7 @@ mod local {
         let server = server(app, state)?;
         server.cancel_matching(
             |_| true,
-            "Drifting project changed; read again before writing",
+            "The book open in Drifting changed; read again before writing",
         );
         let epoch = random_id()?;
         server.inner.lock().unwrap().bridge = Some(Bridge {
@@ -727,7 +754,7 @@ mod local {
             drop(inner);
             server.cancel_matching(
                 |p| p.bridge.epoch == epoch,
-                "Open the authorized project in Drifting",
+                "The book was closed in Drifting; inspect any interrupted write before retrying",
             );
         }
     }
@@ -820,6 +847,7 @@ mod local {
                 connection: grant.id.clone(),
                 cancelled: HashSet::new(),
                 writer: None,
+                book: None,
             },
         );
         let mut initialized = false;
@@ -876,7 +904,7 @@ mod local {
                     Some(serde_json::json!({"jsonrpc":"2.0","id":id,"result":{
                         "protocolVersion":"2025-11-25", "capabilities":{"tools":{"listChanged":true}},
                         "serverInfo":{"name":"Drifting", "version":env!("CARGO_PKG_VERSION")},
-                        "instructions":initialize_instructions(server.directory.parent().expect("MCP directory parent"), &grant.project_id)
+                        "instructions":initialize_instructions(server.directory.parent().expect("MCP directory parent"), grant.project_id.as_deref())
                     }}))
                 } else if !initialized {
                     Some(rpc_error(&id, -32000, "Initialize first"))
@@ -950,17 +978,41 @@ mod local {
             {
                 return rpc_error(&id, -32000, "MCP request cancelled or connection closed");
             }
-            let Some(bridge) = inner
-                .bridge
-                .clone()
-                .filter(|b| b.project == grant.project_id)
-            else {
+            let Some(bridge) = inner.bridge.clone().filter(|b| {
+                grant
+                    .project_id
+                    .as_ref()
+                    .is_none_or(|project| project == &b.project)
+            }) else {
                 return rpc_error(
                     &id,
                     -32002,
-                    "Open the authorized project in Drifting before using its tools",
+                    if grant.project_id.is_some() {
+                        "Open the authorized project in Drifting before using its tools"
+                    } else {
+                        "Open a book in Drifting before using its tools"
+                    },
                 );
             };
+            // A call meant for the book this session was working in must not
+            // land in the one the author switched to: refuse it once, before
+            // anything runs, so the client looks again.
+            if request["method"] == "tools/call" {
+                if let Some(session) = inner.sessions.get_mut(session) {
+                    let switched = session
+                        .book
+                        .as_ref()
+                        .is_some_and(|book| book != &bridge.project);
+                    session.book = Some(bridge.project.clone());
+                    if switched {
+                        return rpc_error(
+                            &id,
+                            -32002,
+                            "Drifting now has another book open and nothing was done; call get_project_overview to see which, and read again before writing",
+                        );
+                    }
+                }
+            }
             if inner.pending.len() >= LIMIT {
                 return rpc_error(&id, -32000, "Too many active MCP requests");
             }
@@ -1043,34 +1095,65 @@ mod local {
         Ok(())
     }
 
-    /// What a connecting client is told. Once the author turned the Markdown
-    /// folder off, or while no location is chosen for it, the client is told
-    /// so instead of where it is.
-    fn initialize_instructions(root: &Path, project_id: &str) -> String {
-        let resolved = crate::markdown_projection::resolved_project_directory(root, project_id);
+    /// What a connecting client is told. A connection reaches whichever book
+    /// is open, so it learns the book and its folder from
+    /// get_project_overview; one limited to a single book is told where that
+    /// book's folder is. Once the author turned the Markdown folder off, or
+    /// while no location is chosen for that book, the client is told so instead.
+    fn initialize_instructions(root: &Path, project_id: Option<&str>) -> String {
+        let resolved = project_id.map(|project_id| {
+            crate::markdown_projection::resolved_project_directory(root, project_id)
+        });
+        let unset = resolved.as_ref().is_some_and(|resolved| {
+            resolved
+                .as_ref()
+                .is_err_and(|error| error == crate::markdown_projection::NO_LOCATION)
+        });
         let folder = if !crate::markdown_projection::folder_enabled(root) {
-            "The author turned this project's Markdown folder off: Drifting neither updates files on disk nor merges edits made there, so read and write through tools only.".into()
-        } else if resolved
-            .as_ref()
-            .is_err_and(|error| error == crate::markdown_projection::NO_LOCATION)
-        {
+            "The author turned the Markdown folder off: Drifting neither updates files on disk nor merges edits made there, so read and write through tools only.".into()
+        } else if unset {
             "The author has not chosen where this project's Markdown folder goes: Drifting writes no files on disk, so read and write through tools only.".into()
         } else {
-            let directory = resolved
-                .map(|path| path.display().to_string())
-                .unwrap_or_else(|_| {
-                    "an unavailable output location (check Settings → Sync & Data → Local data)"
-                        .into()
-                });
-            format!("A structured Markdown folder of this project is automatically maintained at {directory}. Start with 开始阅读.md and 正文/目录.md. Each chapter, drift, element and storyline is one file named by title; chapters are numbered in reading order and grouped by existing acts, elements use their existing categories. 注释与待办.md groups comments by target; 素材 holds the materials in their folders and 素材/附件 their local image/PDF sources. .drifting/manifest.json records full entity identities, their current readable paths, canonical sourceVersion values and file SHA-256 hashes. Filenames can change after rename or reorder: resolve identities through the manifest. The projection uses relative Markdown links to whole files, without block anchors. Physical file lines and hashes differ from read_chapter. The manifest records generation time and file SHA-256 hashes; check freshness and hashes before citing a disk snapshot. Projection refresh is asynchronous while the project is open. The folder is named after the book and renamed with it; get_project_overview reports its current directory and status, including after the book is renamed or the output location changes. Chapter and drift files are TWO-WAY: their frontmatter holds drifting-id, 写作状态 and 摘要, then the prose. While Drifting runs, an edit saved to one merges into Drifting as the author's own edit, without Agent review; never change drifting-id, and creating, deleting or renaming files is not synced. Every other file is generated and READ-ONLY: edits there are overwritten. Use authorized MCP write tools for edits that should be reviewed. The directory is local to the Mac running Drifting.")
+            let location = match resolved {
+                None => "for each book with a chosen location; get_project_overview reports the open book's directory, or that no location is chosen".into(),
+                Some(resolved) => {
+                    let directory = resolved
+                        .map(|path| path.display().to_string())
+                        .unwrap_or_else(|_| {
+                            "an unavailable output location (check Settings → Sync & Data → Local data)"
+                                .into()
+                        });
+                    format!("for this project at {directory}")
+                }
+            };
+            format!("A structured Markdown folder is automatically maintained {location}. Start with 开始阅读.md and 正文/目录.md. Each chapter, drift, element and storyline is one file named by title; chapters are numbered in reading order and grouped by existing acts, elements use their existing categories. 注释与待办.md groups comments by target; 素材 holds the materials in their folders and 素材/附件 their local image/PDF sources. .drifting/manifest.json records full entity identities, their current readable paths, canonical sourceVersion values and file SHA-256 hashes. Filenames can change after rename or reorder: resolve identities through the manifest. The projection uses relative Markdown links to whole files, without block anchors. Physical file lines and hashes differ from read_chapter. The manifest records generation time and file SHA-256 hashes; check freshness and hashes before citing a disk snapshot. Projection refresh is asynchronous while the project is open. The folder is named after the book and renamed with it; get_project_overview reports its current directory and status, including after the book is renamed or the output location changes. Chapter and drift files are TWO-WAY: their frontmatter holds drifting-id, 写作状态 and 摘要, then the prose. While Drifting runs, an edit saved to one merges into Drifting as the author's own edit, without Agent review; never change drifting-id, and creating, deleting or renaming files is not synced. Every other file is generated and READ-ONLY: edits there are overwritten. Use authorized MCP write tools for edits that should be reviewed. The directory is local to the Mac running Drifting.")
         };
-        format!("Operate only on the authorized project, which must be open in Drifting. Read targets through tools before modifying them; filesystem reads do not establish write coverage. Paginate read_chapter with cursor and version; other large results use read_tool_result. After reconnect, read again. Never automatically retry an uncertain write. Changes use the app's live Yjs and review system. Read the target through tools for current line numbers before writing or citing a passage. To cite a passage in written prose or notes, use a Markdown location link such as [label](drifting:chapters/<title>/prose.md#L12-L18) (or id-<entity ID> from the manifest); Drifting stores it as a clickable paragraph anchor. Outside Drifting, drifting://open/{project_id}/<group>/<directory>/prose.md#L12 opens a location. {folder}")
+        let (scope, book) = match project_id {
+            None => (
+                "Operate on the book open in Drifting; tools are unavailable while the author is on the shelf. The author may switch books: the first call after a switch is refused without running, so call get_project_overview to see which book is open (its name and bookId) and read again before writing.".to_string(),
+                "<bookId>".to_string(),
+            ),
+            Some(project_id) => (
+                "Operate only on the authorized project, which must be open in Drifting.".into(),
+                project_id.to_string(),
+            ),
+        };
+        format!("{scope} Read targets through tools before modifying them; filesystem reads do not establish write coverage. Paginate read_chapter with cursor and version; other large results use read_tool_result. After reconnect, read again. Never automatically retry an uncertain write. Changes use the app's live Yjs and review system. Read the target through tools for current line numbers before writing or citing a passage. To cite a passage in written prose or notes, use a Markdown location link such as [label](drifting:chapters/<title>/prose.md#L12-L18) (or id-<entity ID> from the manifest); Drifting stores it as a clickable paragraph anchor. Outside Drifting, drifting://open/{book}/<group>/<directory>/prose.md#L12 opens a location. {folder}")
     }
 
     #[cfg(test)]
     mod tests {
         use super::*;
         fn fixture() -> (tempfile::TempDir, Arc<Server>, Grant, Credential) {
+            fixture_for(None)
+        }
+        /// A connection made for one book before connections covered every book.
+        fn book_fixture() -> (tempfile::TempDir, Arc<Server>, Grant, Credential) {
+            fixture_for(Some("synthetic-project".into()))
+        }
+        fn fixture_for(
+            project_id: Option<String>,
+        ) -> (tempfile::TempDir, Arc<Server>, Grant, Credential) {
             // A Unix socket path must stay short.
             #[cfg(unix)]
             let dir = tempfile::tempdir_in("/tmp").unwrap();
@@ -1080,7 +1163,7 @@ mod local {
             let grant = Grant {
                 id: "synthetic-connection".into(),
                 name: "Synthetic agent".into(),
-                project_id: "synthetic-project".into(),
+                project_id,
                 access: "read".into(),
                 allow_dangerous: false,
                 token_hash: hash("synthetic-token"),
@@ -1116,7 +1199,6 @@ mod local {
         fn synthetic_input() -> CreateInput {
             CreateInput {
                 name: "Synthetic client".into(),
-                project_id: "synthetic-project".into(),
                 access: "read".into(),
                 allow_dangerous: false,
             }
@@ -1127,6 +1209,39 @@ mod local {
                 project: "synthetic-project".into(),
                 channel: Channel::new(|_| Ok(())),
             });
+        }
+        /// Mounts `project` and returns every event the renderer receives.
+        fn mount_recording(
+            server: &Arc<Server>,
+            epoch: &str,
+            project: &str,
+        ) -> mpsc::Receiver<Value> {
+            let (tx, rx) = mpsc::channel();
+            server.inner.lock().unwrap().bridge = Some(Bridge {
+                epoch: epoch.into(),
+                project: project.into(),
+                channel: Channel::new(move |body| {
+                    if let tauri::ipc::InvokeResponseBody::Json(body) = body {
+                        let _ = tx.send(serde_json::from_str::<Value>(&body).unwrap());
+                    }
+                    Ok(())
+                }),
+            });
+            rx
+        }
+        /// Answers the renderer request `event` carries.
+        fn answer(server: &Arc<Server>, event: &Value, id: u32) {
+            let pending = server
+                .inner
+                .lock()
+                .unwrap()
+                .pending
+                .remove(event["requestId"].as_str().unwrap())
+                .unwrap();
+            pending
+                .sender
+                .send(serde_json::json!({"jsonrpc":"2.0", "id":id, "result":{}}))
+                .unwrap();
         }
         #[test]
         fn one_click_connections_are_idempotent_scoped_and_removed_on_revoke() {
@@ -1189,11 +1304,6 @@ mod local {
                 config_path: dir.path().join("config.toml"),
                 server_name: "drifting_test".into(),
             };
-            assert!(
-                create_connection(&server, synthetic_input(), Some(installation.clone())).is_err()
-            );
-            assert!(!installation.config_path.exists());
-            mount_synthetic_project(&server);
             fs::write(&installation.config_path, "[broken").unwrap();
             assert!(
                 create_connection(&server, synthetic_input(), Some(installation.clone())).is_err()
@@ -1247,18 +1357,18 @@ mod local {
         }
         #[test]
         fn initialize_reports_persisted_custom_projection_location() {
-            let (_dir, server, grant, credential) = fixture();
+            let (_dir, server, grant, credential) = book_fixture();
+            let project_id = grant.project_id.as_deref().unwrap();
             let custom = tempfile::tempdir().unwrap();
             let root = server.directory.parent().unwrap();
             crate::markdown_projection::set_output_root(
                 root,
-                &grant.project_id,
+                project_id,
                 Some(custom.path().to_string_lossy().into_owned()),
             )
             .unwrap();
             let directory =
-                crate::markdown_projection::resolved_project_directory(root, &grant.project_id)
-                    .unwrap();
+                crate::markdown_projection::resolved_project_directory(root, project_id).unwrap();
             let mut client = connect(&credential);
             assert_eq!(
                 read_frame(&mut client, MAX_FRAME).unwrap().unwrap()["ok"],
@@ -1268,15 +1378,40 @@ mod local {
             let instructions = response["result"]["instructions"].as_str().unwrap();
             assert!(instructions.contains(directory.to_str().unwrap()));
             assert!(!instructions.contains(
-                crate::markdown_projection::project_directory(root, &grant.project_id)
+                crate::markdown_projection::project_directory(root, project_id)
                     .to_str()
                     .unwrap()
+            ));
+        }
+        #[test]
+        fn initialize_sends_a_connection_to_the_open_book_for_its_folder() {
+            let (_dir, server, _, credential) = fixture();
+            let mut client = connect(&credential);
+            assert_eq!(
+                read_frame(&mut client, MAX_FRAME).unwrap().unwrap()["ok"],
+                true
+            );
+            let response = request(&mut client, 1, "initialize");
+            let instructions = response["result"]["instructions"].as_str().unwrap();
+            assert!(instructions.contains("Operate on the book open in Drifting"));
+            assert!(instructions.contains("get_project_overview reports the open book's directory"));
+            assert!(instructions.contains("drifting://open/<bookId>/"));
+            assert!(instructions.contains("Chapter and drift files are TWO-WAY"));
+            assert!(!instructions.contains("authorized project"));
+            assert!(!instructions.contains(
+                &server
+                    .directory
+                    .parent()
+                    .unwrap()
+                    .to_string_lossy()
+                    .to_string()
             ));
         }
 
         #[test]
         fn initialize_says_when_the_markdown_folder_is_turned_off() {
-            let (_dir, server, grant, credential) = fixture();
+            let (_dir, server, grant, credential) = book_fixture();
+            let project_id = grant.project_id.as_deref().unwrap();
             let root = server.directory.parent().unwrap();
             crate::markdown_projection::set_enabled(root, false).unwrap();
             let mut client = connect(&credential);
@@ -1289,16 +1424,16 @@ mod local {
             assert!(instructions.contains("Markdown folder off"));
             assert!(!instructions.contains("TWO-WAY"));
             assert!(!instructions.contains(
-                crate::markdown_projection::project_directory(root, &grant.project_id)
+                crate::markdown_projection::project_directory(root, project_id)
                     .to_str()
                     .unwrap()
             ));
-            assert!(instructions.contains(&format!("drifting://open/{}/", grant.project_id)));
+            assert!(instructions.contains(&format!("drifting://open/{project_id}/")));
         }
 
         #[test]
         fn initialize_says_when_no_markdown_folder_location_is_chosen() {
-            let (_dir, _server, _grant, credential) = fixture();
+            let (_dir, _server, _grant, credential) = book_fixture();
             let mut client = connect(&credential);
             assert_eq!(
                 read_frame(&mut client, MAX_FRAME).unwrap().unwrap()["ok"],
@@ -1315,7 +1450,8 @@ mod local {
 
         #[test]
         fn socket_authentication_project_scope_revocation_and_duplicate_ids() {
-            let (_dir, server, grant, mut credential) = fixture();
+            let (_dir, server, grant, mut credential) = book_fixture();
+            let project_id = grant.project_id.as_deref().unwrap();
             let chosen = tempfile::tempdir().unwrap();
             let root = server.directory.parent().unwrap();
             crate::markdown_projection::set_default_root(
@@ -1324,8 +1460,7 @@ mod local {
             )
             .unwrap();
             let directory =
-                crate::markdown_projection::resolved_project_directory(root, &grant.project_id)
-                    .unwrap();
+                crate::markdown_projection::resolved_project_directory(root, project_id).unwrap();
             credential.token = "incorrect".into();
             assert_eq!(
                 read_frame(&mut connect(&credential), MAX_FRAME)
@@ -1345,7 +1480,7 @@ mod local {
             assert!(instructions.contains("Chapter and drift files are TWO-WAY"));
             assert!(instructions.contains("Every other file is generated and READ-ONLY"));
             assert!(instructions.contains("drifting:chapters/<title>/prose.md#L12-L18"));
-            assert!(instructions.contains(&format!("drifting://open/{}/", grant.project_id)));
+            assert!(instructions.contains(&format!("drifting://open/{project_id}/")));
             assert!(instructions.contains(directory.to_str().unwrap()));
             assert_eq!(
                 request(&mut client, 2, "tools/list")["error"]["code"],
@@ -1368,6 +1503,148 @@ mod local {
             );
         }
         #[test]
+        fn a_connection_reaches_the_open_book_and_refuses_the_first_call_after_a_switch() {
+            let (_dir, server, _, credential) = fixture();
+            let mut client = connect(&credential);
+            read_frame(&mut client, MAX_FRAME).unwrap();
+            request(&mut client, 1, "initialize");
+            let shelf = request(&mut client, 2, "tools/list");
+            assert_eq!(shelf["error"]["code"], -32002);
+            assert!(shelf["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("Open a book"));
+
+            let first = mount_recording(&server, "first", "first-book");
+            request_async(&mut client, 3, "tools/call");
+            let event = first.recv_timeout(Duration::from_secs(3)).unwrap();
+            answer(&server, &event, 3);
+            assert!(read_frame(&mut client, MAX_FRAME).unwrap().unwrap()["result"].is_object());
+
+            let second = mount_recording(&server, "second", "second-book");
+            let refused = request(&mut client, 4, "tools/call");
+            assert_eq!(refused["error"]["code"], -32002);
+            assert!(refused["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("another book open and nothing was done"));
+            assert!(second.try_recv().is_err());
+            // Listing tools after the switch does not count as looking again.
+            request_async(&mut client, 5, "tools/list");
+            answer(
+                &server,
+                &second.recv_timeout(Duration::from_secs(3)).unwrap(),
+                5,
+            );
+            read_frame(&mut client, MAX_FRAME).unwrap();
+            request_async(&mut client, 6, "tools/call");
+            let event = second.recv_timeout(Duration::from_secs(3)).unwrap();
+            assert_eq!(event["epoch"], "second");
+            answer(&server, &event, 6);
+            assert!(read_frame(&mut client, MAX_FRAME).unwrap().unwrap()["result"].is_object());
+        }
+        fn request_async(reader: &mut BufReader<Stream>, id: u32, method: &str) {
+            write_frame(
+                reader.get_mut(),
+                &serde_json::json!({"jsonrpc":"2.0","id":id,"method":method}),
+            )
+            .unwrap();
+        }
+        #[test]
+        fn connecting_a_client_retires_the_entries_it_was_given_one_book_at_a_time() {
+            let (dir, server, _, _) = fixture();
+            let claude = |name: &str| Installation {
+                client: Client::ClaudeCode,
+                config_path: dir.path().join("claude.json"),
+                server_name: name.into(),
+            };
+            let codex = Installation {
+                client: Client::Codex,
+                config_path: dir.path().join("config.toml"),
+                server_name: "drifting_book_codex".into(),
+            };
+            // Book connections as an earlier version made them.
+            let mut books = Vec::new();
+            for (installation, book) in [
+                (Some(claude("drifting_book_one")), "book-one"),
+                (Some(claude("drifting_book_two")), "book-two"),
+                (Some(codex.clone()), "book-one"),
+                (None, "book-one"),
+            ] {
+                let made = create_connection(&server, synthetic_input(), installation).unwrap();
+                books.push((made["grant"]["id"].as_str().unwrap().to_string(), book));
+            }
+            {
+                let mut inner = server.inner.lock().unwrap();
+                for grant in &mut inner.grants {
+                    if let Some((_, book)) = books.iter().find(|(id, _)| id == &grant.id) {
+                        grant.project_id = Some((*book).into());
+                    }
+                }
+                let grants = inner.grants.clone();
+                server.persist(&grants).unwrap();
+            }
+
+            let connected =
+                connect_installation(&server, synthetic_input(), claude("drifting_library"))
+                    .unwrap();
+            assert!(connected.get("leftover").is_none());
+            assert!(connected["grant"].get("projectId").is_none());
+            let config = fs::read_to_string(dir.path().join("claude.json")).unwrap();
+            assert!(config.contains("drifting_library"));
+            assert!(!config.contains("drifting_book_one"));
+            assert!(!config.contains("drifting_book_two"));
+            assert!(fs::read_to_string(&codex.config_path)
+                .unwrap()
+                .contains("drifting_book_codex"));
+            let remaining: Vec<String> = server
+                .inner
+                .lock()
+                .unwrap()
+                .grants
+                .iter()
+                .map(|grant| grant.id.clone())
+                .collect();
+            for (index, (id, _)) in books.iter().enumerate() {
+                // Only the two Claude Code entries go; Codex and manual stay.
+                assert_eq!(remaining.contains(id), index >= 2);
+                assert_eq!(server.config_path(id).exists(), index >= 2);
+            }
+
+            // An entry changed outside Drifting is still revoked, and reported.
+            let made = create_connection(
+                &server,
+                synthetic_input(),
+                Some(claude("drifting_book_three")),
+            )
+            .unwrap();
+            let id = made["grant"]["id"].as_str().unwrap().to_string();
+            {
+                let mut inner = server.inner.lock().unwrap();
+                let grant = inner.grants.iter_mut().find(|g| g.id == id).unwrap();
+                grant.project_id = Some("book-three".into());
+            }
+            let edited = fs::read_to_string(dir.path().join("claude.json"))
+                .unwrap()
+                .replace(
+                    &server.config_path(&id).display().to_string(),
+                    "/elsewhere/connection.json",
+                );
+            fs::write(dir.path().join("claude.json"), edited).unwrap();
+            let reconnected =
+                connect_installation(&server, synthetic_input(), claude("drifting_library"))
+                    .unwrap();
+            assert_eq!(reconnected["grant"]["id"], connected["grant"]["id"]);
+            assert_eq!(reconnected["leftover"], true);
+            assert!(server
+                .inner
+                .lock()
+                .unwrap()
+                .grants
+                .iter()
+                .all(|g| g.id != id));
+        }
+        #[test]
         #[cfg(unix)]
         fn a_library_too_deep_for_its_socket_listens_in_a_short_private_folder() {
             let dir = tempfile::tempdir_in("/tmp").unwrap();
@@ -1382,7 +1659,7 @@ mod local {
             let stale = Grant {
                 id: "synthetic-stale".into(),
                 name: "Synthetic agent".into(),
-                project_id: "synthetic-project".into(),
+                project_id: None,
                 access: "read".into(),
                 allow_dangerous: false,
                 token_hash: hash("synthetic-stale-token"),
@@ -1463,19 +1740,8 @@ mod local {
         }
         #[test]
         fn renderer_dispatch_preserves_authorized_scope_and_cancellation() {
-            let (_dir, server, grant, credential) = fixture();
-            let (tx, rx) = mpsc::channel();
-            server.inner.lock().unwrap().bridge = Some(Bridge {
-                epoch: "e".into(),
-                project: grant.project_id,
-                channel: Channel::new(move |body| {
-                    if let tauri::ipc::InvokeResponseBody::Json(body) = body {
-                        tx.send(serde_json::from_str::<Value>(&body).unwrap())
-                            .unwrap();
-                    }
-                    Ok(())
-                }),
-            });
+            let (_dir, server, _, credential) = fixture();
+            let rx = mount_recording(&server, "e", "synthetic-project");
             let mut client = connect(&credential);
             read_frame(&mut client, MAX_FRAME).unwrap();
             request(&mut client, 1, "initialize");
@@ -1487,7 +1753,7 @@ mod local {
             .unwrap();
             let event = rx.recv_timeout(Duration::from_secs(3)).unwrap();
             assert_eq!(event["grant"]["access"], "read");
-            assert_eq!(event["grant"]["projectId"], "synthetic-project");
+            assert!(event["grant"].get("projectId").is_none());
             assert!(event["grant"].get("tokenHash").is_none());
             write_frame(
                 client.get_mut(),
@@ -1511,7 +1777,7 @@ mod local {
             let (tx, rx) = mpsc::channel();
             server.inner.lock().unwrap().bridge = Some(Bridge {
                 epoch: "e".into(),
-                project: grant.project_id.clone(),
+                project: "synthetic-project".into(),
                 channel: Channel::new(move |body| {
                     if let tauri::ipc::InvokeResponseBody::Json(body) = body {
                         let _ = tx.send(serde_json::from_str::<Value>(&body).unwrap());
@@ -1611,7 +1877,7 @@ mod local {
             let (tx, rx) = mpsc::channel();
             server.inner.lock().unwrap().bridge = Some(Bridge {
                 epoch: "e".into(),
-                project: grant.project_id.clone(),
+                project: "synthetic-project".into(),
                 channel: Channel::new(move |body| {
                     if let tauri::ipc::InvokeResponseBody::Json(body) = body {
                         let _ = tx.send(serde_json::from_str::<Value>(&body).unwrap());
@@ -1659,7 +1925,7 @@ mod local {
             assert!(server.inner.lock().unwrap().pending.is_empty());
         }
         #[test]
-        fn permission_change_rejects_wrong_project_invalid_scope_and_failed_persistence() {
+        fn permission_change_rejects_invalid_scope_and_failed_persistence() {
             let (_dir, server, grant, _) = fixture();
             let change = |access: &str, dangerous| {
                 update_connection_permission(
@@ -1671,15 +1937,15 @@ mod local {
                     },
                 )
             };
-            assert!(change("write", true).is_err());
-            mount_synthetic_project(&server);
             assert!(change("read", true).is_err());
             assert!(change("full", true).is_err());
+            // No book needs to be open.
+            assert_eq!(change("write", false).unwrap()["grant"]["access"], "write");
             let registry = server.directory.join("grants.json");
             fs::remove_file(&registry).unwrap();
             fs::create_dir(&registry).unwrap();
-            assert!(change("write", true).is_err());
-            assert_eq!(server.inner.lock().unwrap().grants[0].access, "read");
+            assert!(change("read", false).is_err());
+            assert_eq!(server.inner.lock().unwrap().grants[0].access, "write");
         }
         #[test]
         #[cfg(unix)]

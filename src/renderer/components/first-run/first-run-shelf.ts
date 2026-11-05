@@ -32,9 +32,9 @@ const useFirstRunShelfStore = create<FirstRunShelfState>(() => ({ sampleLanded: 
  * for the author, and whether its card has yet to land.
  */
 export function useSampleOnShelf(projectId: string): { waiting: boolean; landing: boolean } {
-  const created = useBuiltInSampleStore((state) => state.createdProjectId);
+  const created = useBuiltInSampleStore((state) => state.createdProjectIds.includes(projectId));
   const { sampleLanded, sampleOpened } = useFirstRunShelfStore();
-  const waiting = created === projectId && !sampleOpened;
+  const waiting = created && !sampleOpened;
   return { waiting, landing: waiting && !sampleLanded };
 }
 
@@ -42,8 +42,8 @@ export function markSampleLanded(): void {
   useFirstRunShelfStore.setState({ sampleLanded: true });
 }
 
-/** A book opened from the shelf: the sample, once opened, waits no longer. */
+/** A book opened from the shelf: once a sample is opened, the samples wait no longer. */
 export function noteBookOpened(projectId: string): void {
-  if (useBuiltInSampleStore.getState().createdProjectId !== projectId) return;
+  if (!useBuiltInSampleStore.getState().createdProjectIds.includes(projectId)) return;
   useFirstRunShelfStore.setState({ sampleOpened: true });
 }

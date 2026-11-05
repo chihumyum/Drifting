@@ -1,16 +1,56 @@
 # Built-in sample project
 
 Status: **current behavior** of every build (desktop and Tauri iOS), from
-migration `0015_library_state`; recipe `pride-and-prejudice-v1`.
+migration `0015_library_state`; recipe `pride-and-prejudice-v1+a-q-zhengzhuan-v1`
+(libraries that received `pride-and-prejudice-v1` keep their one sample).
 
-A brand-new local library opens with one sample project, **Pride and Prejudice
-(Sample)**, already on the Bookshelf. No seed command is needed: a fresh
-install, a fresh `pnpm dev` / `pnpm dev:worktree` profile and a new
-`--instance` all get it on first launch. It is an ordinary project — edit it,
-rename it, move it to Recently Deleted or delete it permanently. A deleted
-sample never comes back.
+A brand-new local library opens with two sample projects already on the
+Bookshelf: **Pride and Prejudice (Sample)** and **阿Q正传（示例）**, the second
+left half written so there is something to go on writing. No seed command is
+needed: a fresh install, a fresh `pnpm dev` / `pnpm dev:worktree` profile and a
+new `--instance` all get them on first launch. Each is an ordinary project —
+edit it, rename it, move it to Recently Deleted or delete it permanently. A
+deleted sample never comes back.
 
-## Content
+## 阿Q正传
+
+Lu Xun's novella (1921–22), in nine chapters, as a book in progress: the first
+six chapters carry the text, the last three (革命, 不准革命, 大团圆) are planned
+chapters with a summary and no prose. Everything around the text was written
+for the sample in Chinese and checked against the novel.
+
+| Data | 阿Q正传（示例） |
+| --- | --- |
+| Chapters | 9 (`第一章 序` … `第九章 大团圆`): 1–6 with the 1948 text, about 13,500 characters; 7–9 planned; 1–4 marked finished |
+| Acts | 2: 上 未庄 (1–6), 下 革命 (7–9) |
+| Storylines | 4: 优胜记, 未庄的眼睛, 恋爱与生计, 革命 |
+| Element categories / elements | 3 / 29: 15 people, 7 places, 7 objects and sayings (精神胜利法, 癞疮疤, 五条件 …) |
+| Relation types / relations | 9 (本家, 冤家, 欺辱, 求爱, 雇佣, 买卖, 住在, 持有, 关键章节) / 32 |
+| Narrative timeline | 4 pins, from 有一年的春天 to 宣统三年九月十四日 |
+| Element patches | 4 (阿Q in chapters 3, 5 and 6; 小D in chapter 5) |
+| Ideas (构想) | 3 |
+| Comments / TODOs | 4 / 3; six anchored to passages, one on 假洋鬼子; one note resolved |
+| Materials | 2 notes (the novella's publication, how 未庄 addresses people); no images |
+| Plot grid | Chapter 4: 4 rows × 4 columns |
+| Project facts / memory | Author, first publication, collection, form, narration, setting, state; one Project Memory note |
+
+Names link in the chapters as for the other books, by form and without word
+boundaries: 秀才 is 赵太爷's son except where it is a rank (变秀才, 不要秀才 …),
+and 秀才娘子 and the title 阿Q正传 stay plain. 辫子 is an element no form links.
+
+### Source and rights
+
+`a-q/text.json` is built by `scripts/build-a-q-sample.py` from Wikisource's
+transcription of the 1948 Complete Works (魯迅全集, volume one), rendered in
+simplified characters by Wikisource. Only the chapter text is kept; quotation
+marks become “” and ‘’, the variant 偸 becomes 偷, and seven transcription slips
+are corrected (listed in the script). Lu Xun died in 1936; the text is in the
+public domain in China and wherever the term is the author's life plus 70 years
+or less, and, first published in 1921–22, in the United States. See
+[ASSET_PROVENANCE.md](../ASSET_PROVENANCE.md#built-in-sample-book) and the
+[file's README](../src/renderer/services/built-in-sample/a-q/README.md).
+
+## Pride and Prejudice
 
 Jane Austen's novel, taken apart as an author would set it up in Drifting. The
 text is the real book; everything around it was written for the sample in
@@ -67,7 +107,8 @@ renderer bundle.
   The reference index projects the links on the first open (about 2,900
   mentions across the 61 chapters), which feeds backlinks and the Element
   overview.
-- `showcase.ts` holds the curated workspace and `LINK_FORMS`.
+- `showcase.ts` holds the curated workspace and `LINK_FORMS`; `a-q.ts` holds
+  阿Q正传 whole (its text in `a-q/text.json`) as a `SampleBook`.
 - `write-sample.ts` writes it in a few authored transactions
   (`withAtomicSyncTransaction`, the app's own sync identity):
   1. project summary and facts, Project Memory, categories, elements (facts,
@@ -81,8 +122,9 @@ renderer bundle.
   3. chapter relations, comments and TODOs, element patches, the finished
      status and the plot grid;
   4. the material folder, notes and illustrations, and the two portraits.
-- `built-in-sample.ts` is the first-run workflow; `first-run.ts` is the small
-  startup hook and the state the Bookshelf observes.
+- `built-in-sample.ts` is the first-run workflow: it writes `BUILT_IN_SAMPLES`
+  in order, Pride and Prejudice then 阿Q正传, each into its own project;
+  `first-run.ts` is the small startup hook and the state the Bookshelf observes.
 
 Each object goes through the same repositories and journal calls as the
 author's own action or the General Agent's write tool for it (for example
@@ -99,9 +141,10 @@ bound. The imports run alongside the first transactions. No Agent runtime rows
 are written and no model is called.
 
 `write-sample.ts` takes the book as a `SampleBook` (`sample-book.ts`):
-Pride and Prejudice unless another is given. The
-[release screenshot library](release-screenshots.md) writes its other books
+Pride and Prejudice unless another is given. 阿Q正传 and the
+[release screenshot library](release-screenshots.md)'s other books are written
 with it; `createEntityLinker` links Han names without word boundaries for them.
+A planned chapter is one empty paragraph, as a new chapter opens.
 
 The development seed (`pnpm dev:seed`, `pnpm dev:seed:lite`) is separate: it
 stays the synthetic Chinese corpus in `services/sample-project/`, written
@@ -120,19 +163,25 @@ The device-local `library_state` table (never synced or journaled) holds the
 | --- | --- | --- |
 | *(none)* | Never checked | Check the library |
 | `skipped` | The library had a project (live or in the trash), a cloud account or a provider transition; or attempts ran out | Nothing |
-| `creating` | Claimed together with the empty project row; not complete | Remove the partial project, then retry |
+| `creating` | Claimed together with each project row as it is created (`projectIds` lists them); not complete | Remove the partial projects, then retry |
 | `failed` | Rolled back after an error | Retry while fewer than 3 attempts |
-| `created` | Published once (with `durationMs`) | Nothing, even after the sample is deleted |
+| `created` | Published once (with `projectIds` and `durationMs`) | Nothing, even after the samples are deleted |
 
 The first check of any existing library records `skipped`, so a library that
 was ever in use (including the author's own) is never given a sample later,
-even if all its projects are deleted. The claim re-checks that no project
-exists inside the transaction that creates the sample's project row.
+even if all its projects are deleted. A library that received Pride and
+Prejudice alone (`pride-and-prejudice-v1`) is `created` and so does not get
+阿Q正传 either. The first claim re-checks that no project exists inside the
+transaction that creates Pride and Prejudice's project row; 阿Q正传's row and
+the updated claim commit together after Pride and Prejudice is written.
 
-While the sample is being written, the Bookshelf hides its unfinished project,
-shows a placeholder card and holds **New book**. A failure in any transaction
-or import removes the partial project (rows already committed included) and
-its asset files, logs a warning and leaves the shelf as it was.
+While the samples are being written, the Bookshelf hides both unfinished
+projects, shows a placeholder card and holds **New book**. Both land or neither
+does: a failure in any transaction or import of either book removes every
+partial project (rows already committed included, Pride and Prejudice when
+阿Q正传 fails) and its asset files, logs a warning and leaves the shelf as it
+was. On the first-run shelf both cards land and wait until one of them is
+opened.
 
 ## Cost
 
@@ -172,7 +221,21 @@ so the account can hold two copies (an open question, see below).
 ```bash
 pnpm exec vitest run src/renderer/services/built-in-sample
 SAMPLE_BOOK_EPUB=<pride-and-prejudice.epub> pnpm exec vitest run src/renderer/services/built-in-sample/pride-and-prejudice.test.ts
+A_Q_WIKISOURCE_JSON=<a-q.json> pnpm exec vitest run src/renderer/services/built-in-sample/a-q.test.ts
 ```
+
+By default a new library gets both samples: 阿Q正传's nine chapters (six whose
+live prose equals the bundled text, three empty and planned, the first four
+finished), two acts, its storylines, elements, relations, pins, ideas,
+comments and patches anchored to the live prose, material notes and no assets,
+with names linked in the chapters; the marker lists both projects. If 阿Q正传
+fails after Pride and Prejudice is written, both are removed and a later launch
+writes both; an interrupted two-book attempt leaves nothing behind. 阿Q正传's
+content test checks the chapters, spot-checked paragraphs and the corrected
+readings, that every quotation anchors once in a written chapter, that names,
+relations and link forms are valid, and how 秀才 links; with
+`A_Q_WIKISOURCE_JSON` it rebuilds `text.json` from the source and compares it
+byte for byte. The other cases below run with Pride and Prejudice alone.
 
 The integration test writes into real migrated SQLite libraries: an empty
 library gets exactly one sample (61 chapters whose live Yjs prose equals the
