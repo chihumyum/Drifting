@@ -67,6 +67,15 @@ describe('central AI provider settings acceptance', () => {
     expect(readiness).not.toMatch(/byokKeychain\.get|getApiKey/);
   });
 
+  it('refreshes every model list on its own, with no manual refresh button', async () => {
+    const composer = await source('/src/renderer/features/agent/AgentComposerConfig.tsx');
+
+    expect(composer).toContain("useCodexModelCatalog(open && view === 'model')");
+    expect(composer).toContain("useByokModelLists(open && view === 'model')");
+    expect(composer).not.toContain('codexModelCatalog.refresh');
+    expect(composer).not.toContain('modelsRefresh');
+  });
+
   it('lets the Agent panel first run only add a tested key or pick a route that can run', async () => {
     const onboarding = await source('/src/renderer/features/agent/onboarding/AgentOnboarding.tsx');
     const connect = await source('/src/renderer/lib/agent/connect-agent-provider.ts');
