@@ -19,6 +19,7 @@ import TextAlign from '@tiptap/extension-text-align';
 import { marked } from 'marked';
 import type { JSONContent } from '@tiptap/core';
 import { EntityLink } from '../../lib/extensions/entity-link';
+import { takeTitle } from './title';
 import type { ParsedDoc } from './types';
 
 // Mirror the runtime editor's extension set so the parser's output is
@@ -43,35 +44,16 @@ const PARSER_EXTENSIONS = [
   EntityLink,
 ];
 
-function guessTitleFromMarkdown(raw: string, fallback: string): string {
-  // First H1, or first non-empty line, or the filename stem.
-  const h1 = raw.match(/^#\s+(.+)$/m);
-  if (h1) return h1[1].trim();
-  const firstLine = raw.split('\n').find((l) => l.trim().length > 0);
-  if (firstLine) return firstLine.replace(/^#+\s*/, '').trim().slice(0, 80);
-  return fallback;
-}
-
-function guessTitleFromText(raw: string, fallback: string): string {
-  const firstLine = raw.split(/\r?\n/).find((l) => l.trim().length > 0);
-  return firstLine ? firstLine.trim().slice(0, 80) : fallback;
-}
-
-function filenameStem(filename: string): string {
-  const dot = filename.lastIndexOf('.');
-  return (dot > 0 ? filename.slice(0, dot) : filename).trim() || filename;
-}
-
 export async function parseMarkdown(file: File): Promise<ParsedDoc> {
   const raw = await file.text();
   // `marked` is sync by default and ships its own HTML escape; we keep
   // the defaults so anything weird falls back to text rather than html
   // injection. The editor never runs html anyway — Tiptap is the gate.
   const html = marked.parse(raw, { async: false }) as string;
-  const doc = generateJSON(html, PARSER_EXTENSIONS) as JSONContent;
+  const { doc, title } = takeTitle(generateJSON(html, PARSER_EXTENSIONS) as JSONContent, file.name);
   return {
     doc,
-    guessedTitle: guessTitleFromMarkdown(raw, filenameStem(file.name)),
+    guessedTitle: title,
     filename: file.name,
     format: 'markdown',
   };
@@ -99,9 +81,10 @@ export async function parseTxt(file: File): Promise<ParsedDoc> {
           }),
         }));
 
+  const { doc, title } = takeTitle({ type: 'doc', content }, file.name);
   return {
-    doc: { type: 'doc', content },
-    guessedTitle: guessTitleFromText(raw, filenameStem(file.name)),
+    doc,
+    guessedTitle: title,
     filename: file.name,
     format: 'txt',
   };
