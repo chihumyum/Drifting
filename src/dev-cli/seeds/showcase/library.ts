@@ -138,31 +138,15 @@ async function writeBook(input: {
   return projectId;
 }
 
-/** A book an author has just started: one empty chapter and nothing else, besides what they told the Agent. */
-export function emptyBookDefinition(chapterTitle: string, memory: string | null = null): SampleBook {
-  return {
-    summary: '', facts: [], memory,
-    chapters: [{ number: 1, roman: 'I', blocks: [''] }],
-    chapterTitle: () => chapterTitle,
-    chapterPlans: [{ summary: '', storylines: [] }],
-    volumes: [], storylines: [], categories: [], elements: [], relationTypes: [], relations: [], timelinePins: [],
-    ideas: [], comments: [], elementPatches: [], finishedChapters: [], plotGrid: null, materialNotes: [],
-    illustrationFolder: null, illustrationNotes: {}, illustrations: [], linkForms: [], linkBoundaries: 'none',
-  };
-}
-
 /**
  * Seeds a new library at `databasePath` for one interface language. Refuses an
  * existing database: the screenshot run removes its own before reseeding.
- * With `openBook` the open book is a new one with a single empty chapter
- * instead (the promo recording, scripts/design-assets/promo-recording).
  */
 export async function seedShowcaseLibrary(input: {
   databasePath: string;
   appLocalDataDirectory: string;
   locale: ShowcaseLocale;
   today?: Date;
-  openBook?: { name: string; chapterTitle: string; memory?: string | null };
 }): Promise<ShowcaseLibrary> {
   if (existsSync(input.databasePath)) throw new Error(`Refusing to seed over ${input.databasePath}`);
   installHeadlessRendererGlobals();
@@ -192,14 +176,7 @@ export async function seedShowcaseLibrary(input: {
 
     // The open book is written last, so it is the most recent on the shelf.
     let main: Omit<ShowcaseLibrary['main'], 'chapters' | 'elements'>;
-    if (input.openBook) {
-      // Started just now, nothing written yet.
-      const { name, chapterTitle, memory } = input.openBook;
-      const projectId = await writeBook({
-        database, runAtomic, name, book: emptyBookDefinition(chapterTitle, memory ?? null), createdAt: at(0, 5), updatedAt: at(0, 4), writingDays: [],
-      });
-      main = { projectId, name };
-    } else if (input.locale === 'en') {
+    if (input.locale === 'en') {
       const projectId = uuidv7();
       const assets = importIllustrations(database, input.appLocalDataDirectory, projectId);
       assets.catch(() => undefined);

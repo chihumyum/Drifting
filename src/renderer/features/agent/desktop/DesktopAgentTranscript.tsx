@@ -34,6 +34,9 @@ export interface AgentTranscriptOnboarding {
 
 const noteChangeSeen = () => noteAgentOnboarding({ type: 'change-seen' });
 
+/** How long after the author's own wheel, touch or key a scroll still counts as theirs. */
+const AUTHOR_SCROLL_WINDOW_MS = 400;
+
 /** The visible transcript owns display subscriptions and scroll state. The
  * canonical run continues independently when this view is unmounted. */
 export const DesktopAgentTranscript = memo(forwardRef<AgentTranscriptHandle, { canRun?: boolean; onboarding?: AgentTranscriptOnboarding }>(function DesktopAgentTranscript({ canRun = true, onboarding }: { canRun?: boolean; onboarding?: AgentTranscriptOnboarding }, ref) {
@@ -75,10 +78,31 @@ export const DesktopAgentTranscript = memo(forwardRef<AgentTranscriptHandle, { c
   useLayoutEffect(() => {
     if (stickRef.current && logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
   }, [messages, pendingControl, controlStatus]);
+  // Only the author scrolling leaves the newest line. A scroll the layout
+  // causes — the composer shrinking back after a send, the sidebar sliding
+  // back in, a message growing as it arrives — keeps the transcript following.
+  const authorScroll = useRef({ holding: false, at: -Infinity });
+  const noteAuthorScroll = useCallback(() => { authorScroll.current.at = performance.now(); }, []);
+  const onPointerDown = useCallback(() => {
+    // Dragging the scrollbar scrolls for as long as the button is held.
+    authorScroll.current.holding = true;
+    const release = () => {
+      authorScroll.current = { holding: false, at: performance.now() };
+      window.removeEventListener('pointerup', release);
+      window.removeEventListener('pointercancel', release);
+    };
+    window.addEventListener('pointerup', release);
+    window.addEventListener('pointercancel', release);
+  }, []);
   const onScroll = useCallback(() => {
     const el = logRef.current;
     if (!el) return;
     const bottom = el.scrollHeight - el.scrollTop - el.clientHeight < STREAM_FOLLOW_BOTTOM_THRESHOLD_PX;
+    const authorScrolling = authorScroll.current.holding || performance.now() - authorScroll.current.at < AUTHOR_SCROLL_WINDOW_MS;
+    if (!bottom && stickRef.current && !authorScrolling) {
+      el.scrollTop = el.scrollHeight;
+      return;
+    }
     if (stickRef.current === bottom) return;
     stickRef.current = bottom;
     setAtBottom(bottom);
@@ -138,7 +162,8 @@ export const DesktopAgentTranscript = memo(forwardRef<AgentTranscriptHandle, { c
 
   return (<AgentGlassContext.Provider value>
       <div style={logWrap}>
-        <div ref={logRef} className="agt-log--glass" style={logStyle} onScroll={onScroll}>
+        <div ref={logRef} className="agt-log--glass" style={logStyle} onScroll={onScroll}
+          onWheel={noteAuthorScroll} onTouchMove={noteAuthorScroll} onKeyDown={noteAuthorScroll} onPointerDown={onPointerDown}>
           {messages.length === 0 ? (
             onboardingView && onboarding
               ? <AgentOnboarding view={onboardingView} onPick={onboarding.onPick} />
