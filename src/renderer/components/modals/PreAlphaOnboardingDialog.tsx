@@ -26,7 +26,9 @@ import { useSettingsStore } from '../../store/settings-store';
 import { ModalActions, ModalBody, ModalCard, ModalHeader, ModalRoot } from '../ui/Modal';
 import { alphaGuideStorageKey } from '../../lib/alpha-guide-key';
 
-const FOLDER_GUIDE_KEY = 'drifting.markdown-folder-guide.v1';
+// v2 (2026-11-06): the folder has no default location any more, so every
+// device is asked again; one already writing somewhere sees it as chosen.
+const FOLDER_GUIDE_KEY = 'drifting.markdown-folder-guide.v2';
 const log = loglevel.getLogger('FirstRun');
 
 function usePreAlphaGuide() {
@@ -68,16 +70,14 @@ function useMarkdownFolderGuide() {
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 /**
- * Where every project's Markdown folder goes. There is no default to accept:
- * the author picks a folder before going on (one already chosen on this device
- * counts). Turning the folder off is offered too, in the danger ink and behind
- * a confirmation, since external editors and Agents then lose the book.
+ * Where every project's Markdown folder goes. There is no default: the author
+ * picks a folder before going on (one already chosen on this device counts).
+ * Turning the folder off is offered too, in the danger ink and behind a
+ * confirmation, since external editors and Agents then lose the book.
  */
 function MarkdownFolderGuide({ onDone }: { onDone(): void }) {
   const { t } = useTranslation();
   const [folder, setFolder] = useState<MarkdownFolderSettings | null>(null);
-  // Picking the app's own data folder reads back as no choice; it is one all the same.
-  const [picked, setPicked] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   useEffect(() => {
@@ -101,9 +101,7 @@ function MarkdownFolderGuide({ onDone }: { onDone(): void }) {
   };
   const choose = () => run(async () => {
     const root = await platform.markdownProjection.pickOutputRoot(t('markdownFolderGuide.choose'));
-    if (root === null) return;
-    setFolder(await platform.markdownProjection.setDefaultRoot(root));
-    setPicked(true);
+    if (root !== null) setFolder(await platform.markdownProjection.setDefaultRoot(root));
   });
   const turnOff = () => run(async () => {
     const confirmed = await requestConfirmation(t('settings.sync.projection.offWarning'), {
@@ -115,7 +113,7 @@ function MarkdownFolderGuide({ onDone }: { onDone(): void }) {
     await platform.markdownProjection.setEnabled(false);
     onDone();
   });
-  const chosen = folder !== null && (picked || folder.customRoot !== null);
+  const chosen = folder !== null && folder.directory !== null;
 
   return (
     <>

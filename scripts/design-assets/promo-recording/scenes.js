@@ -64,7 +64,7 @@
       const { settings } = await stores();
       const { alphaGuideStorageKey } = await import('/src/renderer/lib/alpha-guide-key.ts');
       const { LOCAL_USER_ID } = await import('/src/renderer/store/auth.ts');
-      localStorage.setItem('drifting.markdown-folder-guide.v1', 'seen');
+      localStorage.setItem('drifting.markdown-folder-guide.v2', 'seen');
       localStorage.setItem(alphaGuideStorageKey(LOCAL_USER_ID), 'seen');
       const state = settings.getState();
       // The workspace tour's first bubble would sit over the chapter list.

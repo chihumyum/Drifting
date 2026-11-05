@@ -173,13 +173,22 @@ export function installMarkdownProjection(projectId: string): () => Promise<void
       notifyIssues([]);
       return;
     }
+    const located = info.directory;
+    if (located === null) {
+      // No location is chosen: nothing is written until the author picks one.
+      hashedOnce = false;
+      lastFailed = false;
+      publish(projectId, { ...info, state: 'unset', error: undefined, mirrorIssues: undefined, preserved: undefined });
+      notifyIssues([]);
+      return;
+    }
     publish(projectId, { ...info, state: 'pending' });
     if (yieldToComposition()) return;
     // Scans and captures take turns, so the ledger never sees them interleave.
     await mirror.exclusive(async () => {
       // Edits made in another editor merge first, so this capture includes them.
       const force = !hashedOnce;
-      await stage('mirror-scan', () => scanMirror(info.directory, force));
+      await stage('mirror-scan', () => scanMirror(located, force));
       hashedOnce = true;
       if (!active()) return;
       if (yieldToComposition()) return;
@@ -199,12 +208,12 @@ export function installMarkdownProjection(projectId: string): () => Promise<void
       if (yieldToComposition()) return;
       // The folder carries the book's name; renaming the book renames it,
       // and the ledger follows so edits there keep their merge base.
-      let directory = info.directory;
+      let directory = located;
       const title = source.books[0]?.project?.name;
       if (title !== undefined) {
         const { previousDirectory, ...named } = await stage('name-folder', () => platform.markdownProjection.nameFolder(projectId, readableFileStem(title)));
-        if (previousDirectory) await mirror.relocate(previousDirectory, named.directory);
-        directory = named.directory;
+        directory = named.directory ?? directory;
+        if (previousDirectory) await mirror.relocate(previousDirectory, directory);
         if (active()) publish(projectId, { ...named, state: 'pending' });
       }
       const authored = await stage('mirror-prepare', () => mirror.prepare(source, documents, directory));
@@ -351,8 +360,8 @@ export function setMarkdownFolderEnabled(enabled: boolean): Promise<MarkdownFold
 }
 
 /** Where projects without a location of their own are written; their old folders stay. */
-export function setMarkdownFolderDefaultRoot(customRoot: string | null): Promise<MarkdownFolderSettings> {
-  return changeMarkdownFolder(() => platform.markdownProjection.setDefaultRoot(customRoot));
+export function setMarkdownFolderDefaultRoot(location: string): Promise<MarkdownFolderSettings> {
+  return changeMarkdownFolder(() => platform.markdownProjection.setDefaultRoot(location));
 }
 
 /** Called only after the project deletion committed; prevent a late capture from republishing it. */
