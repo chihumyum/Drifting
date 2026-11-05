@@ -1351,7 +1351,10 @@ describe('workspace surface language acceptance', () => {
     );
     const css = source('src/styles/materials.css');
     expect(css).toContain('animation: brush-thinking 720ms steps(6, jump-none) infinite alternate;');
-    expect(source('scripts/design-assets/brushicons.py')).toContain('STRIPS = {"thinking": (thinking, 4102)}');
+    expect(source('scripts/design-assets/brushicons.py')).toContain('STRIPS = {"thinking": (thinking, 6101)}');
+    // The waiting line (思考中…) wears the same star, not three bouncing dots.
+    expect(block(messages, 'export function PendingRow', '\n}')).toContain('<BrushIcon name="thinking" size={12} />');
+    expect(source('src/renderer/features/agent/desktop/DesktopAgentPanel.tsx')).not.toContain('agt-pending__dot');
   });
 
   it('wears sand and glass in the desktop Agent panel', () => {
