@@ -41,6 +41,7 @@ import { materializeCanonicalNodeProse } from '../../services/node-prose-metrics
 import { computeBlockChanges, type AgentBlockChange } from './block-diff';
 import { relinkYjsBlocks } from './yjs-entity-relink';
 import { selectProseAutoDetectConfig } from '../entity-link-names';
+import type { EntityLinkAutoDetectConfig } from '../extensions/entity-link';
 import { useSettingsStore } from '../../store/settings-store';
 import type { AgentToolContext } from './tool-handlers';
 import { runDerivedTransaction } from '../../sync/journal';
@@ -81,11 +82,23 @@ export function relinkBlockMentions(frag: Y.XmlFragment, blockIds: string[], pro
   const source = parseDocId(docId);
   const sourceKind = source ? proseEntityTypeForDocKind(source.kind) : null;
   if (!source || !sourceKind) return;
-  const config = selectProseAutoDetectConfig(
+  relinkYjsBlocks(frag, blockIds, writtenProseLinkConfig(projectId, sourceKind, source.entityId));
+}
+
+/**
+ * The names written prose of `sourceId` links, as its editor would: the
+ * project's registered names minus the source itself, and none while the
+ * author has turned automatic element links off.
+ */
+export function writtenProseLinkConfig(
+  projectId: string | null,
+  sourceKind: ProseEntityType,
+  sourceId: string,
+): EntityLinkAutoDetectConfig {
+  return selectProseAutoDetectConfig(
     useDataStore.getState(), useSettingsStore.getState().autoElementLinkEnabled,
-    projectId, sourceKind, source.entityId,
+    projectId, sourceKind, sourceId,
   );
-  relinkYjsBlocks(frag, blockIds, config);
 }
 
 /**
