@@ -986,6 +986,7 @@
   },
   "chapterEditor": {
     "untitledChapter": "Capítulo sem título",
+    "untitledDrift": "Ideia sem título",
     "synopsisPlaceholder": "Sinopse…",
     "summaryPlaceholder": "Clique para adicionar um resumo…"
   },
@@ -1087,12 +1088,12 @@
     }
   },
   "kvEditor": {
-    "keyPlaceholder": "Campo · chave",
-    "valuePlaceholder": "Conteúdo · valor",
-    "templateKeyPlaceholder": "Nome do campo · chave (ex.: ponto de vista)",
-    "templateValuePlaceholder": "Padrão / dica · valor",
+    "keyPlaceholder": "Campo",
+    "valuePlaceholder": "Conteúdo",
+    "templateKeyPlaceholder": "Nome do campo, ex.: ponto de vista",
+    "templateValuePlaceholder": "Padrão ou dica",
     "empty": "Ainda não há campos",
-    "templateEmpty": "Sem campos de modelo; novos subitens não terão campos preenchidos automaticamente",
+    "templateEmpty": "Ainda não há campos de modelo. Novos itens não terão campos preenchidos",
     "addField": "Adicionar campo",
     "removeRow": "Remover linha"
   },
@@ -1696,7 +1697,7 @@
       "clearEntityFilter": "Limpar filtro de relações",
       "entityFilterAll": "Relações · Todas",
       "entityFilterHint": "Escolha uma entidade para mostrar só notas e materiais vinculados",
-      "todoEmptyHint": "Use + para criar uma tarefa ou converta um comentário do editor",
+      "todoEmptyHint": "Use + para criar uma tarefa ou escolha “Para tarefa” num cartão de comentário",
       "commentEmptyHint": "Use + para criar um comentário ou selecione um texto no editor para comentar",
       "newMaterialButton": "Novo material",
       "noMaterials": "Este projeto ainda não tem materiais.",
@@ -3033,7 +3034,7 @@
     "alerts": {
       "deleteFailed": "Não foi possível excluir a linha narrativa. Tente novamente."
     },
-    "scratchPlaceholder": "Anotações desta linha narrativa: notas rápidas, ideias, lembretes de estilo…",
+    "scratchPlaceholder": "Anotações desta linha narrativa: notas rápidas, lembretes de estilo…",
     "summaryPlaceholder": "Resumo desta linha narrativa em uma frase…",
     "nodeTemplatePlaceholder": "Crie uma estrutura padrão de capítulo com H1 / H2 / H3; novos capítulos a usarão…",
     "outlineTitle": "{{name}} · ESTRUTURA",
@@ -3060,7 +3061,7 @@
       "unwritten": "Não iniciado"
     },
     "empty": {
-      "noFacts": "Ainda não há campos. Se o modelo do projeto definir campos, eles serão preenchidos ao criar a linha narrativa.",
+      "noFacts": "Ainda não há campos. Ao criar uma linha narrativa, o Modelo de linha narrativa do início do projeto os preenche.",
       "noChapterSummary": "Ainda não há resumo em uma frase",
       "noFilteredChapters": "Nenhum capítulo para este filtro"
     },
@@ -3076,7 +3077,7 @@
     "alerts": {
       "deleteFailed": "Não foi possível excluir a categoria. Tente novamente."
     },
-    "scratchPlaceholder": "Anotações desta categoria: princípios de criação, regras de nomes, regras para candidatos de IA…",
+    "scratchPlaceholder": "Anotações desta categoria: princípios de criação, regras de nomes…",
     "elementTemplatePlaceholder": "Crie uma estrutura padrão de elemento com H1 / H2 / H3; novos elementos a usarão…",
     "sections": {
       "overview": "Visão geral",
@@ -3171,7 +3172,7 @@
       "patches": "Evoluções"
     },
     "empty": {
-      "noFacts": "Ainda não há campos. Se o modelo da categoria definir campos, eles serão preenchidos ao criar o elemento.",
+      "noFacts": "Ainda não há campos. Ao criar um elemento, o Modelo de campos da categoria os preenche.",
       "selectElement": "Selecione um elemento para editar",
       "noCategories": "Ainda não há categorias"
     },

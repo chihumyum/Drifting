@@ -981,6 +981,7 @@
   },
   "chapterEditor": {
     "untitledChapter": "无标题章节",
+    "untitledDrift": "无标题构想",
     "synopsisPlaceholder": "梗概…",
     "summaryPlaceholder": "点击添加摘要…"
   },
@@ -1082,12 +1083,12 @@
     }
   },
   "kvEditor": {
-    "keyPlaceholder": "字段 · key",
-    "valuePlaceholder": "内容 · value",
-    "templateKeyPlaceholder": "字段名 · key (e.g. 视角)",
-    "templateValuePlaceholder": "默认值 / 提示 · value",
-    "empty": "尚无 KV 字段",
-    "templateEmpty": "尚未定义任何模版字段。新建子项时不会自动填充任何 KV",
+    "keyPlaceholder": "字段",
+    "valuePlaceholder": "内容",
+    "templateKeyPlaceholder": "字段名，如 视角",
+    "templateValuePlaceholder": "默认值或提示",
+    "empty": "尚无字段",
+    "templateEmpty": "尚未定义模版字段，新建时不会自动填入字段",
     "addField": "新增字段",
     "removeRow": "移除这一行"
   },
@@ -1690,7 +1691,7 @@
       "clearEntityFilter": "清除关联过滤",
       "entityFilterAll": "关联 · 全部",
       "entityFilterHint": "选择实体后只显示关联的 TODO / 素材",
-      "todoEmptyHint": "点击 ＋ 新建 TODO，或在编辑器批注卡上 ↗ 升格为 TODO",
+      "todoEmptyHint": "点击 ＋ 新建 TODO，或在批注卡上点「转 TODO」",
       "commentEmptyHint": "点击 ＋ 新建批注，或在编辑器里选中文字留批注",
       "newMaterialButton": "新建素材",
       "noMaterials": "项目里还没有素材。",
@@ -3015,16 +3016,16 @@
     "alerts": {
       "deleteFailed": "删除故事线失败，请重试。"
     },
-    "scratchPlaceholder": "札记 · scratch——本线的速记、构想、风格备忘…",
+    "scratchPlaceholder": "本线的速记、风格备忘…",
     "summaryPlaceholder": "一句话概述本线…",
     "nodeTemplatePlaceholder": "用 H1 / H2 / H3 写一份默认的章节骨架，新建章节时自动填充…",
     "outlineTitle": "{{name}} · OUTLINE",
     "sections": {
       "overview": "概述",
       "scratchShort": "札记",
-      "scratch": "札记 · scratch",
-      "facts": "字段 · facts",
-      "nodeTemplate": "章节模版 · node template",
+      "scratch": "札记",
+      "facts": "字段",
+      "nodeTemplate": "章节模版",
       "chapters": "章节序列"
     },
     "labels": {
@@ -3042,7 +3043,7 @@
       "unwritten": "未起"
     },
     "empty": {
-      "noFacts": "尚无字段。新建故事线时若项目模版已定义，会自动填充",
+      "noFacts": "尚无字段。新建故事线时，项目主页的「故事线字段模版」会自动填入",
       "noChapterSummary": "尚未填写一句话摘要",
       "noFilteredChapters": "此筛选下暂无章节"
     },
@@ -3058,15 +3059,15 @@
     "alerts": {
       "deleteFailed": "删除类目失败，请重试。"
     },
-    "scratchPlaceholder": "札记 · scratch——本类目的设计原则、命名约定、AI 候选规则…",
+    "scratchPlaceholder": "本类目的设计原则、命名约定…",
     "elementTemplatePlaceholder": "用 H1 / H2 / H3 写一份默认的要素骨架，新建要素时自动填充…",
     "sections": {
       "overview": "概述",
       "scratchShort": "札记",
-      "scratch": "札记 · scratch",
+      "scratch": "札记",
       "elementTemplateShort": "要素模版",
-      "elementTemplate": "要素模版 · template",
-      "templateKv": "字段模版 · template kv",
+      "elementTemplate": "要素模版",
+      "templateKv": "字段模版",
       "elements": "要素清单"
     },
     "labels": {
@@ -3147,13 +3148,13 @@
     },
     "sections": {
       "overview": "概述",
-      "bio": "传 · biography",
+      "bio": "传",
       "bioTitle": "记 · 传",
-      "facts": "字段 · facts",
+      "facts": "字段",
       "patches": "补丁"
     },
     "empty": {
-      "noFacts": "尚无字段。新建要素时若类目模版已定义，会自动填充",
+      "noFacts": "尚无字段。新建要素时，所属类目的「字段模版」会自动填入",
       "selectElement": "选择一个要素进行编辑",
       "noCategories": "还没有类目"
     },

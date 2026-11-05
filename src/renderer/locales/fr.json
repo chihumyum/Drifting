@@ -986,6 +986,7 @@
   },
   "chapterEditor": {
     "untitledChapter": "Chapitre sans titre",
+    "untitledDrift": "Idée sans titre",
     "synopsisPlaceholder": "Synopsis…",
     "summaryPlaceholder": "Cliquez pour ajouter un résumé…"
   },
@@ -1087,12 +1088,12 @@
     }
   },
   "kvEditor": {
-    "keyPlaceholder": "Champ · clé",
-    "valuePlaceholder": "Contenu · valeur",
-    "templateKeyPlaceholder": "Nom du champ · clé (ex. : point de vue)",
-    "templateValuePlaceholder": "Valeur par défaut / indication",
+    "keyPlaceholder": "Champ",
+    "valuePlaceholder": "Contenu",
+    "templateKeyPlaceholder": "Nom du champ, ex. : point de vue",
+    "templateValuePlaceholder": "Valeur par défaut ou indication",
     "empty": "Aucun champ pour le moment",
-    "templateEmpty": "Aucun champ de modèle ; les nouveaux sous-éléments ne seront pas préremplis",
+    "templateEmpty": "Aucun champ de modèle pour le moment. Les nouveaux éléments ne seront pas préremplis",
     "addField": "Ajouter un champ",
     "removeRow": "Retirer la ligne"
   },
@@ -1696,7 +1697,7 @@
       "clearEntityFilter": "Effacer le filtre de relations",
       "entityFilterAll": "Relations · Toutes",
       "entityFilterHint": "Choisissez une entité pour afficher ses notes et ressources liées",
-      "todoEmptyHint": "Cliquez sur + pour créer une tâche ou convertissez un commentaire de l’éditeur",
+      "todoEmptyHint": "Cliquez sur + pour créer une tâche ou choisissez « En tâche » sur une carte de commentaire",
       "commentEmptyHint": "Cliquez sur + pour créer un commentaire ou sélectionnez du texte dans l’éditeur pour commenter",
       "newMaterialButton": "Nouvelle ressource",
       "noMaterials": "Ce projet n’a pas encore de ressources.",
@@ -3033,7 +3034,7 @@
     "alerts": {
       "deleteFailed": "Impossible de supprimer l’intrigue. Réessayez."
     },
-    "scratchPlaceholder": "Brouillon de cette intrigue : notes rapides, idées, rappels de style…",
+    "scratchPlaceholder": "Brouillon de cette intrigue : notes rapides, rappels de style…",
     "summaryPlaceholder": "Résumé de cette intrigue en une phrase…",
     "nodeTemplatePlaceholder": "Créez une structure de chapitre avec H1 / H2 / H3 ; les nouveaux chapitres l’utiliseront…",
     "outlineTitle": "{{name}} · PLAN",
@@ -3060,7 +3061,7 @@
       "unwritten": "Non commencé"
     },
     "empty": {
-      "noFacts": "Aucun champ pour le moment. Les champs définis dans le modèle du projet sont renseignés à la création de l’intrigue.",
+      "noFacts": "Aucun champ pour le moment. À la création d’une intrigue, le Modèle d’intrigue de l’accueil du projet les renseigne.",
       "noChapterSummary": "Aucun résumé en une phrase pour le moment",
       "noFilteredChapters": "Aucun chapitre pour ce filtre"
     },
@@ -3076,7 +3077,7 @@
     "alerts": {
       "deleteFailed": "Impossible de supprimer la catégorie. Réessayez."
     },
-    "scratchPlaceholder": "Brouillon de cette catégorie : principes de conception, règles de nommage, règles de propositions IA…",
+    "scratchPlaceholder": "Brouillon de cette catégorie : principes de conception, règles de nommage…",
     "elementTemplatePlaceholder": "Créez une structure d’élément avec H1 / H2 / H3 ; les nouveaux éléments l’utiliseront…",
     "sections": {
       "overview": "Vue d’ensemble",
@@ -3171,7 +3172,7 @@
       "patches": "Évolutions"
     },
     "empty": {
-      "noFacts": "Aucun champ pour le moment. Les champs définis dans le modèle de catégorie sont renseignés à la création de l’élément.",
+      "noFacts": "Aucun champ pour le moment. À la création d’un élément, le Modèle de champs de sa catégorie les renseigne.",
       "selectElement": "Sélectionnez un élément à modifier",
       "noCategories": "Aucune catégorie pour le moment"
     },
