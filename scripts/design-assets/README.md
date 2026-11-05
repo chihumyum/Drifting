@@ -37,3 +37,6 @@ preview) from the character sea and the same sand brush; see its README.
 from the same sea, sand and glass; see its README.
 `promo-video/` renders a 32-second promo video in English and Chinese from the
 same sea and the landing page's corners of the workspace; see its README.
+`promo-recording/` records the real app while a script types a story and works
+the Agent, then composes it into a video with a following camera; see its
+README.
