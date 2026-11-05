@@ -141,6 +141,8 @@ describe('desktop Tauri environment', () => {
   });
 
   it('disables updater artifacts for local and debug bundles', () => {
+    // A key in the environment is compiled in, so the App starts the updater
+    // plugin, which refuses to start without its configuration.
     expect(
       createDesktopTauriConfigOverride({
         command: 'build',
@@ -149,6 +151,7 @@ describe('desktop Tauri environment', () => {
         macosSigningIdentity: 'development-identity',
       }),
     ).toEqual({
+      plugins: { updater: { pubkey: 'release-public-key' } },
       bundle: {
         createUpdaterArtifacts: false,
         macOS: { signingIdentity: 'development-identity' },
@@ -160,13 +163,17 @@ describe('desktop Tauri environment', () => {
         environment: {},
       }),
     ).toEqual({ bundle: { createUpdaterArtifacts: false } });
-    // Windows previews: the key is compiled in, but no updates are signed.
+    // Windows previews: the key is compiled in and the updater configured, so
+    // the installed App opens and updates to a release, but no updates are signed.
     expect(
       createDesktopTauriConfigOverride({
         command: 'build',
         environment: { DRIFTING_UPDATER_PUBLIC_KEY: 'release-public-key', DRIFTING_UPDATER_ARTIFACTS: 'off' },
       }),
-    ).toEqual({ bundle: { createUpdaterArtifacts: false } });
+    ).toEqual({
+      plugins: { updater: { pubkey: 'release-public-key' } },
+      bundle: { createUpdaterArtifacts: false },
+    });
   });
 
   it('injects the protected updater public key only for configured release bundles', () => {
