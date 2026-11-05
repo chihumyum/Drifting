@@ -1,4 +1,4 @@
-// Material folder (素材文件夹) — a user-defined nested folder in the material
+// Material folder (素材夹) — a user-defined nested folder in the material
 // panel. A folder is a row with a `parentFolderId` link (null = root);
 // membership lives on library_item.folder_id. Tree derivation lives here;
 // persistence in sqlite-repo/material-folder-repo + the synced

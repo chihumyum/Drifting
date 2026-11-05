@@ -1633,7 +1633,7 @@
       "addRelation": "关联…",
       "relation": "关联",
       "openInSystem": "在系统 app 中打开",
-      "deleteMaterial": "删除材料"
+      "deleteMaterial": "删除素材"
     },
     "todo": {
       "empty": "(空 TODO)"
@@ -1672,7 +1672,7 @@
       "currentItem": "(当前条目)",
       "newTodo": "新建 TODO",
       "todoPlaceholder": "待办内容…",
-      "newMaterial": "新建材料",
+      "newMaterial": "新建素材",
       "titlePlaceholder": "标题",
       "chooseFile": "选择文件…",
       "openingPicker": "正在打开文件选择器…",
@@ -2237,11 +2237,11 @@
       "noTab": "未打开标签页",
       "dashboard": "本项目 · 概览",
       "allChapters": "全书 · 节奏统计",
-      "chapterContent": "本章 · 片段与材料",
-      "driftContent": "这条构想 · 片段与材料",
-      "storylineContent": "本故事线 · 片段与材料",
-      "elementContent": "本要素 · 片段与材料",
-      "categoryContent": "本类目 · 片段与材料",
+      "chapterContent": "本章 · 片段与素材",
+      "driftContent": "这条构想 · 片段与素材",
+      "storylineContent": "本故事线 · 片段与素材",
+      "elementContent": "本要素 · 片段与素材",
+      "categoryContent": "本类目 · 片段与素材",
       "review": "全项目 · 审阅",
       "todo": "全项目 · TODO",
       "library": "全项目 · 素材库",
@@ -3323,7 +3323,7 @@
       "deleteMaterial": "删除素材",
       "noteTaskTodosOff": "清单不再同步为 TODO",
       "noteTaskTodosOn": "清单同步为 TODO",
-      "moveMaterialToFolder": "移动到文件夹…"
+      "moveMaterialToFolder": "移动到素材夹…"
     }
   },
   "projectMemory": {
@@ -3517,19 +3517,19 @@
   },
   "materialFolders": {
     "root": "素材库",
-    "untitled": "新文件夹",
-    "tree": "素材文件夹",
-    "breadcrumb": "文件夹路径",
-    "empty": "还没有素材。可用上方的新建文件夹按钮整理素材。",
-    "deleteConfirm": "删除文件夹「{{name}}」？里面的素材和子文件夹会移到上一级，不会删除任何素材。",
+    "untitled": "新素材夹",
+    "tree": "素材夹",
+    "breadcrumb": "素材夹路径",
+    "empty": "还没有素材。可用上方的新建素材夹按钮整理素材。",
+    "deleteConfirm": "删除素材夹「{{name}}」？里面的素材和子素材夹会移到上一级，不会删除任何素材。",
     "menu": {
-      "newFolder": "新建文件夹",
-      "newSubfolder": "在其中新建文件夹",
+      "newFolder": "新建素材夹",
+      "newSubfolder": "在其中新建素材夹",
       "rename": "重命名",
-      "delete": "删除文件夹",
+      "delete": "删除素材夹",
       "open": "打开",
-      "move": "移动到文件夹…",
-      "moveSelection": "将 {{count}} 项移动到文件夹…",
+      "move": "移动到素材夹…",
+      "moveSelection": "将 {{count}} 项移动到素材夹…",
       "deleteSelection": "删除 {{count}} 项",
       "expandAll": "全部展开",
       "collapseAll": "全部收起",
@@ -3537,11 +3537,11 @@
       "collapsePreview": "收起预览"
     },
     "picker": {
-      "title": "移动到文件夹",
-      "newPlaceholder": "新文件夹名称",
+      "title": "移动到素材夹",
+      "newPlaceholder": "新素材夹名称",
       "createAndMove": "新建并移入"
     },
-    "deleteSelectionConfirm": "删除所选的 {{count}} 项？素材会被删除；删除的文件夹里的内容会移到上一级。"
+    "deleteSelectionConfirm": "删除所选的 {{count}} 项？素材会被删除；删除的素材夹里的内容会移到上一级。"
   },
   "scopeToggle": {
     "label": "当前",
@@ -3695,9 +3695,9 @@
       "revise_material_note": "修改素材笔记{{target}}",
       "replace_material_note_body": "重写素材笔记{{target}}",
       "update_material": "整理素材{{target}}",
-      "create_material_folder": "新建素材文件夹{{target}}",
-      "update_material_folder": "调整素材文件夹{{target}}",
-      "delete_material_folder": "删除素材文件夹{{target}}",
+      "create_material_folder": "新建素材夹{{target}}",
+      "update_material_folder": "调整素材夹{{target}}",
+      "delete_material_folder": "删除素材夹{{target}}",
       "read_book_structure": "查看分幕与时间线",
       "read_plot_grid": "查看情节表{{target}}",
       "view_material": "看素材画面{{target}}",

@@ -3330,7 +3330,7 @@
       "deleteMaterial": "刪除素材",
       "noteTaskTodosOff": "停止將檢查清單同步為待辦事項",
       "noteTaskTodosOn": "將檢查清單同步為待辦事項",
-      "moveMaterialToFolder": "移至資料夾…"
+      "moveMaterialToFolder": "移至素材夾…"
     }
   },
   "projectMemory": {
@@ -3524,19 +3524,19 @@
   },
   "materialFolders": {
     "root": "所有素材",
-    "untitled": "新增資料夾",
-    "tree": "素材資料夾",
-    "breadcrumb": "資料夾路徑",
-    "empty": "尚無素材。可使用上方「新增資料夾」按鈕整理素材。",
-    "deleteConfirm": "刪除資料夾「{{name}}」？其中所有項目將移至上一層，不會刪除任何素材。",
+    "untitled": "新素材夾",
+    "tree": "素材夾",
+    "breadcrumb": "素材夾路徑",
+    "empty": "尚無素材。可使用上方「新增素材夾」按鈕整理素材。",
+    "deleteConfirm": "刪除素材夾「{{name}}」？其中所有項目將移至上一層，不會刪除任何素材。",
     "menu": {
-      "newFolder": "新增資料夾",
-      "newSubfolder": "在內建立資料夾",
+      "newFolder": "新增素材夾",
+      "newSubfolder": "在內建立素材夾",
       "rename": "重新命名",
-      "delete": "刪除資料夾",
+      "delete": "刪除素材夾",
       "open": "開啟",
-      "move": "移至資料夾…",
-      "moveSelection": "將 {{count}} 個項目移至資料夾…",
+      "move": "移至素材夾…",
+      "moveSelection": "將 {{count}} 個項目移至素材夾…",
       "deleteSelection": "刪除 {{count}} 個項目",
       "expandAll": "展開其中所有項目",
       "collapseAll": "收合其中所有項目",
@@ -3544,11 +3544,11 @@
       "collapsePreview": "隱藏完整預覽"
     },
     "picker": {
-      "title": "移至資料夾",
-      "newPlaceholder": "新資料夾名稱",
+      "title": "移至素材夾",
+      "newPlaceholder": "新素材夾名稱",
       "createAndMove": "建立並移動"
     },
-    "deleteSelectionConfirm": "刪除選取的 {{count}} 個項目？素材將被刪除；被刪除資料夾中的內容會移至上一層。"
+    "deleteSelectionConfirm": "刪除選取的 {{count}} 個項目？素材將被刪除；被刪除素材夾中的內容會移至上一層。"
   },
   "scopeToggle": {
     "label": "目前",
@@ -3702,9 +3702,9 @@
       "revise_material_note": "修訂素材筆記{{target}}",
       "replace_material_note_body": "重寫素材筆記{{target}}",
       "update_material": "整理素材{{target}}",
-      "create_material_folder": "建立素材資料夾{{target}}",
-      "update_material_folder": "更新素材資料夾{{target}}",
-      "delete_material_folder": "刪除素材資料夾{{target}}",
+      "create_material_folder": "建立素材夾{{target}}",
+      "update_material_folder": "更新素材夾{{target}}",
+      "delete_material_folder": "刪除素材夾{{target}}",
       "read_book_structure": "檢視幕與時間線",
       "read_plot_grid": "檢視情節網格{{target}}",
       "view_material": "檢視素材{{target}}",

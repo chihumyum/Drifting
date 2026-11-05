@@ -108,15 +108,15 @@ function normalizeFolderPath(value: string): string {
 
 /** Folder id for an author path; null for the root ('' or '/'). */
 function resolveFolder(state: MaterialLibraryState, projectId: string, value: unknown, field: string): string | null {
-  if (typeof value !== 'string') throw new Error(`${field} 必须是文件夹路径`);
+  if (typeof value !== 'string') throw new Error(`${field} 必须是素材夹路径`);
   const path = normalizeFolderPath(value);
   if (!path) return null;
   const direct = state.folders.find((folder) => folder.id === path);
   if (direct) return direct.id;
   const matches = state.folders.filter((folder) => sameAuthoredName(materialFolderLabel(state, projectId, folder.id), path));
   if (matches.length === 1) return matches[0]!.id;
-  if (matches.length > 1) throw new Error(`素材文件夹「${path}」不唯一`);
-  throw new Error(`没有名为「${path}」的素材文件夹；用 list_materials 查看现有文件夹`);
+  if (matches.length > 1) throw new Error(`素材夹「${path}」不唯一`);
+  throw new Error(`没有名为「${path}」的素材夹；用 list_materials 查看现有素材夹`);
 }
 
 function resolveMaterial(state: MaterialLibraryState, value: unknown): MaterialLibraryEntry {
@@ -142,13 +142,13 @@ function assertSiblingNameFree(
       (folder) => folder.id !== exceptId && folder.parentFolderId === parentFolderId && sameAuthoredName(folder.name, name),
     )
   ) {
-    throw new Error(`同一位置已有名为「${name}」的文件夹`);
+    throw new Error(`同一位置已有名为「${name}」的素材夹`);
   }
 }
 
 function folderName(value: unknown): string {
   const name = requiredText(value, 'name');
-  if (name.includes('/')) throw new Error('文件夹名称不能包含 “/”');
+  if (name.includes('/')) throw new Error('素材夹名称不能包含 “/”');
   return name;
 }
 
@@ -307,14 +307,14 @@ const createMaterialFolder: WorkbenchCommand<MaterialLibraryState> = {
     return {
       arguments: { name, parentFolderId },
       path: `/material-folders/${path}`,
-      changeSummary: `新建素材文件夹「${path}」`,
+      changeSummary: `新建素材夹「${path}」`,
     };
   },
   async plan(state, args, context) {
     const name = folderName(args.name);
     const parentFolderId = (args.parentFolderId as string | null | undefined) ?? null;
     if (parentFolderId !== null && !state.folders.some((folder) => folder.id === parentFolderId)) {
-      throw new Error('上级文件夹已不存在');
+      throw new Error('上级素材夹已不存在');
     }
     assertSiblingNameFree(state, name, parentFolderId);
     const id = await deterministicAgentEntityId(context.idempotencyKey, 'material_folder');
@@ -334,10 +334,10 @@ const updateMaterialFolder: WorkbenchCommand<MaterialLibraryState> = {
     const parentFolderId =
       args.parent === undefined ? folder.parentFolderId : resolveFolder(state, projectId, args.parent, 'parent');
     if (parentFolderId !== null && isDescendantFolder(asFolders(state, projectId), parentFolderId, folderId)) {
-      throw new Error('不能把文件夹移到它自己或它的子文件夹里');
+      throw new Error('不能把素材夹移到它自己或它的子素材夹里');
     }
     if (name === folder.name && parentFolderId === folder.parentFolderId) {
-      throw new WorkbenchNoChangeError(`素材文件夹「${materialFolderLabel(state, projectId, folderId)}」`);
+      throw new WorkbenchNoChangeError(`素材夹「${materialFolderLabel(state, projectId, folderId)}」`);
     }
     assertSiblingNameFree(state, name, parentFolderId, folderId);
     const before = materialFolderLabel(state, projectId, folderId);
@@ -346,23 +346,23 @@ const updateMaterialFolder: WorkbenchCommand<MaterialLibraryState> = {
     return {
       arguments: { folderId, name, parentFolderId },
       path: `/material-folders/${after}`,
-      changeSummary: before === after ? `更新素材文件夹「${after}」` : `素材文件夹「${before}」改为「${after}」`,
+      changeSummary: before === after ? `更新素材夹「${after}」` : `素材夹「${before}」改为「${after}」`,
     };
   },
   async plan(state, args, context) {
     const folderId = requiredText(args.folderId, 'folderId');
     const folder = state.folders.find((entry) => entry.id === folderId);
-    if (!folder) throw new Error('该素材文件夹已不存在');
+    if (!folder) throw new Error('该素材夹已不存在');
     const name = folderName(args.name);
     const parentFolderId = (args.parentFolderId as string | null | undefined) ?? null;
     if (parentFolderId !== null) {
-      if (!state.folders.some((entry) => entry.id === parentFolderId)) throw new Error('目标上级文件夹已不存在');
+      if (!state.folders.some((entry) => entry.id === parentFolderId)) throw new Error('目标上级素材夹已不存在');
       if (isDescendantFolder(asFolders(state, context.projectId), parentFolderId, folderId)) {
-        throw new Error('不能把文件夹移到它自己或它的子文件夹里');
+        throw new Error('不能把素材夹移到它自己或它的子素材夹里');
       }
     }
     if (name === folder.name && parentFolderId === folder.parentFolderId) {
-      throw new WorkbenchNoChangeError(`素材文件夹「${folder.name}」`);
+      throw new WorkbenchNoChangeError(`素材夹「${folder.name}」`);
     }
     assertSiblingNameFree(state, name, parentFolderId, folderId);
     return { next: withFolder(state, { ...folder, name, parentFolderId }) };
@@ -381,13 +381,13 @@ const deleteMaterialFolder: WorkbenchCommand<MaterialLibraryState> = {
     return {
       arguments: { folderId },
       path: `/material-folders/${path}`,
-      changeSummary: `删除素材文件夹「${path}」，其中的子文件夹和素材移到${folderDisplay(materialFolderLabel(state, projectId, parent))}`,
+      changeSummary: `删除素材夹「${path}」，其中的子素材夹和素材移到${folderDisplay(materialFolderLabel(state, projectId, parent))}`,
     };
   },
   async plan(state, args, context) {
     const folderId = requiredText(args.folderId, 'folderId');
     const folder = state.folders.find((entry) => entry.id === folderId);
-    if (!folder) throw new Error('该素材文件夹已不存在');
+    if (!folder) throw new Error('该素材夹已不存在');
     const parent = folder.parentFolderId;
     return {
       next: {
@@ -439,7 +439,7 @@ const updateMaterial: WorkbenchCommand<MaterialLibraryState> = {
     if (!item) throw new Error('该素材已不存在');
     const folderId = (args.folderId as string | null | undefined) ?? null;
     if (folderId !== null && !state.folders.some((folder) => folder.id === folderId)) {
-      throw new Error('目标文件夹已不存在');
+      throw new Error('目标素材夹已不存在');
     }
     const next = {
       ...item,
@@ -481,7 +481,7 @@ const createMaterialNote: WorkbenchCommand<MaterialLibraryState> = {
     const title = requiredText(args.title, 'title');
     const folderId = (args.folderId as string | null | undefined) ?? null;
     if (folderId !== null && !state.folders.some((folder) => folder.id === folderId)) {
-      throw new Error('目标文件夹已不存在');
+      throw new Error('目标素材夹已不存在');
     }
     const id = await deterministicAgentEntityId(context.idempotencyKey, 'material_note');
     let counter = 0;

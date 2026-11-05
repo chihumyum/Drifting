@@ -543,7 +543,7 @@ export const DRIFTING_DOMAIN_CRUD_CONTRACTS: readonly DriftingDomainCrudContract
   },
   {
     domain: 'material_folder',
-    authoredTargets: ['素材文件夹「<路径>」'],
+    authoredTargets: ['素材夹「<路径>」'],
     operations: {
       create: closedWrite(['create_material_folder'], [], 'automatic'),
       read: closedRead(['list_materials']),

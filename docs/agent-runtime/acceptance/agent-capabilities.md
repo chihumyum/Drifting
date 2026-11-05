@@ -79,7 +79,7 @@ Hidden domain operations: `edit_prose_file`, `rename_node`, `set_node_summary`, 
 | `storyline_membership` | `故事线「<名称>」章节关系` | closed | closed | closed | closed | closed |
 | `agent_memory` | `项目记忆`, `项目记忆「<memoryId>」` | closed | closed | closed | closed | closed |
 | `material` | `素材「<标题>」`, `笔记「<标题>」` | closed | closed | closed | not_applicable | closed |
-| `material_folder` | `素材文件夹「<路径>」` | closed | closed | closed | closed | closed |
+| `material_folder` | `素材夹「<路径>」` | closed | closed | closed | closed | closed |
 | `act` | `幕「<名称>」` | closed | closed | closed | closed | closed |
 | `book_order` | `章节「<名称>」的阅读位置` | not_applicable | closed | closed | not_applicable | closed |
 | `timeline` | `叙事时间线位置`, `时间刻度「<名称>」` | closed | closed | closed | closed | closed |

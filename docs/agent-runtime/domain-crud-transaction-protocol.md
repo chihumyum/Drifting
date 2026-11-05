@@ -48,7 +48,7 @@ generic authored-object shape must fail.
 | Project memory       | `项目记忆「<memoryId>」`           |
 | Project facts        | `项目事实`                         |
 | Materials and notes  | `素材「<标题>」`                   |
-| Material folders     | `素材文件夹「<路径>」`             |
+| Material folders     | `素材夹「<路径>」`               |
 | Acts                 | `幕「<名称>」`                     |
 | Reading order        | `章节「<名称>」的阅读位置`         |
 | Narrative timeline   | `叙事时间线位置`、`时间刻度「<名称>」` |
