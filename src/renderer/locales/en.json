@@ -3737,6 +3737,8 @@
     "close": "Close",
     "minimize": "Minimize",
     "maximize": "Maximize",
-    "restore": "Restore"
+    "restore": "Restore",
+    "trayOpen": "Open Drifting",
+    "trayQuit": "Quit Drifting"
   }
 }

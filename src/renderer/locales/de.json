@@ -3737,6 +3737,8 @@
     "close": "Schließen",
     "minimize": "Minimieren",
     "maximize": "Maximieren",
-    "restore": "Wiederherstellen"
+    "restore": "Wiederherstellen",
+    "trayOpen": "Drifting öffnen",
+    "trayQuit": "Drifting beenden"
   }
 }

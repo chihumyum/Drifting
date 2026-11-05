@@ -3737,6 +3737,8 @@
     "close": "閉じる",
     "minimize": "最小化",
     "maximize": "最大化",
-    "restore": "元のサイズに戻す"
+    "restore": "元のサイズに戻す",
+    "trayOpen": "Drifting を開く",
+    "trayQuit": "Drifting を終了"
   }
 }

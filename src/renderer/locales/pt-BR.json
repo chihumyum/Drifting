@@ -3752,6 +3752,8 @@
     "close": "Fechar",
     "minimize": "Minimizar",
     "maximize": "Maximizar",
-    "restore": "Restaurar"
+    "restore": "Restaurar",
+    "trayOpen": "Abrir o Drifting",
+    "trayQuit": "Sair do Drifting"
   }
 }

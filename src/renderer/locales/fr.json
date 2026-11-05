@@ -3752,6 +3752,8 @@
     "close": "Fermer",
     "minimize": "Réduire",
     "maximize": "Agrandir",
-    "restore": "Restaurer"
+    "restore": "Restaurer",
+    "trayOpen": "Ouvrir Drifting",
+    "trayQuit": "Quitter Drifting"
   }
 }

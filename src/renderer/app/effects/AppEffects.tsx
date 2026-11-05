@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import loglevel from 'loglevel';
 import { applyAccentColor, initAccentColor } from '../../lib/theme';
 import { useUiStore } from '../../store/ui-store';
@@ -158,9 +159,18 @@ function EditorPreferenceEffects() {
 
 function LocaleEffects() {
   const uiLocale = useSettingsStore((state) => state.uiLocale);
+  const { t, i18n } = useTranslation();
   useEffect(() => {
     setI18nLocale(uiLocale);
   }, [uiLocale]);
+  // Windows keeps Drifting in the notification area; its menu speaks the
+  // interface language (src-tauri/src/windows_tray.rs).
+  useEffect(() => {
+    if (!getPlatformRuntime().isWindowsDesktop) return;
+    void platform.window
+      .setTrayLabels({ open: t('windowCaption.trayOpen'), quit: t('windowCaption.trayQuit') })
+      .catch((error) => log.warn('Tray labels are unavailable:', error));
+  }, [t, i18n.language]);
   return null;
 }
 

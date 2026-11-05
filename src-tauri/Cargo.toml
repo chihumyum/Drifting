@@ -67,6 +67,8 @@ security-framework = "3"
 # Imaging Component for HEIC/AVIF (windows_image_codec.rs); the same versions
 # wry already uses.
 [target.'cfg(target_os = "windows")'.dependencies]
+# Drifting stays in the notification area when its window closes (windows_tray.rs).
+tauri = { version = "2.11.5", features = ["tray-icon"] }
 webview2-com = "0.38"
 windows = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Imaging", "Win32_System_Com"] }
 

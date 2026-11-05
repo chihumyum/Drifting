@@ -3737,6 +3737,8 @@
     "close": "關閉",
     "minimize": "最小化",
     "maximize": "最大化",
-    "restore": "還原"
+    "restore": "還原",
+    "trayOpen": "開啟 Drifting",
+    "trayQuit": "結束 Drifting"
   }
 }

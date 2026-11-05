@@ -68,6 +68,19 @@ describe('Windows window buttons (docs/windows.md)', () => {
     expect(css).toContain("body:has(.desktop-app-shell[data-immersive][data-immersive-peek='top']) .windows-caption {");
   });
 
+  it('keeps Drifting in the notification area when the shelf closes on Windows', () => {
+    const lib = read('src-tauri/src/lib.rs');
+    expect(lib).toMatch(/#\[cfg\(any\(target_os = "macos", target_os = "windows"\)\)\]\s+let _ = window\.hide\(\);/u);
+    expect(lib).toMatch(/#\[cfg\(target_os = "windows"\)\]\s+windows_tray::install\(app\.handle\(\)\)\?;/u);
+    expect(lib).toContain('windows_tray::tray_set_labels,');
+    const tray = read('src-tauri/src/windows_tray.rs');
+    expect(tray).toContain('crate::request_flushed_shutdown(app, crate::state::ShutdownAction::ExitApp)');
+    expect(tray).toContain('.show_menu_on_left_click(false)');
+    expect(read('src-tauri/Cargo.toml')).toContain('tauri = { version = "2.11.5", features = ["tray-icon"] }');
+    const effects = read('src/renderer/app/effects/AppEffects.tsx');
+    expect(effects).toContain("setTrayLabels({ open: t('windowCaption.trayOpen'), quit: t('windowCaption.trayQuit') })");
+  });
+
   it('turns the native title bar off on Windows only, and mounts the pill at the app root', () => {
     expect(read('src-tauri/src/windows_webview.rs')).toContain('window.set_decorations(false)?;');
     expect(read('src-tauri/src/lib.rs')).toMatch(/#\[cfg\(target_os = "windows"\)\]\s+windows_webview::configure\(&window\)\?;/u);

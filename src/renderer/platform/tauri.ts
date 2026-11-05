@@ -515,6 +515,7 @@ export const tauriPlatform: PlatformApi = {
     setCloseReturnsToShelf: (enabled) =>
       invokeContract('window_set_close_returns_to_shelf', { enabled }),
     setTheme: (theme) => invokeContract('window_set_theme', { theme }),
+    setTrayLabels: (labels) => invokeContract('tray_set_labels', labels),
     onCloseToShelf: (callback) => listenContract('drifting:close-to-shelf', () => callback()),
   },
 

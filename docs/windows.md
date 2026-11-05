@@ -53,7 +53,7 @@ Node on Windows, because Node refuses to spawn `pnpm.cmd` without a shell.
   macOS) clear of it, it sits above dialogs, and immersive writing fades it
   with the sidebar toggles until the pointer reaches the top edge. Close is
   the window's own close request: an open book returns to the shelf; on the
-  shelf it saves and quits. Windows 11's snap layouts flyout on the maximize
+  shelf it saves and hides the window to the notification area. Windows 11's snap layouts flyout on the maximize
   button is gone with the native button; Win+Z and Win+arrow keys still snap.
   `window_set_theme` still sets the window's theme for system surfaces.
 - **Fonts.** The interface fonts are bundled, so Chinese and Latin interface
@@ -81,6 +81,14 @@ Node on Windows, because Node refuses to spawn `pnpm.cmd` without a shell.
   (`sync_directory`) validates the directory and relies on NTFS journaling.
 - **Markdown folder.** Reserved names (`CON`, `PRN`, …) are already avoided.
   Unix permission and hard-link checks are skipped on Windows.
+
+- **Notification area.** Like the Dock on macOS, Drifting stays running when
+  its window closes on the shelf: `windows_tray.rs` puts its icon in the
+  notification area, so a background Agent and sync go on. A left click, the
+  menu's Open item or launching Drifting again brings the window back; Quit
+  saves and ends the process (as an update install does). The menu follows
+  the interface language (`tray_set_labels`). Windows 11 may first show the
+  icon in the overflow (^) area.
 
 ## Not available on Windows yet
 
