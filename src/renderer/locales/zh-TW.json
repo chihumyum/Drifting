@@ -3078,7 +3078,7 @@
     },
     "labels": {
       "elementCount": "要素",
-      "role": "作用"
+      "summary": "概述"
     },
     "meta": {
       "elements": "{{count}} 個要素",
@@ -3092,7 +3092,7 @@
     "empty": {
       "noCategories": "尚無分類",
       "noTemplateFields": "尚無範本欄位。可新增別名、陣營或首次出場等鍵。",
-      "noRole": "尚無一句話作用說明",
+      "noSummary": "尚未填寫概述",
       "noFilteredElements": "沒有符合篩選條件的要素"
     },
     "actions": {
@@ -3104,7 +3104,7 @@
     "deleteConfirm": "刪除要素「{{name}}」？",
     "folio": "要素",
     "bodyPlaceholder": "故事進行時，這個要素處於什麼狀態？",
-    "summaryPlaceholder": "一句話作用說明…",
+    "summaryPlaceholder": "一句話概述…",
     "sketch": "草圖",
     "sketchWithCategory": "{{category}} · 草圖",
     "portrait": {

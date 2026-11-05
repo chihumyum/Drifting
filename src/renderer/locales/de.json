@@ -3078,7 +3078,7 @@
     },
     "labels": {
       "elementCount": "Elemente",
-      "role": "Rolle"
+      "summary": "Zusammenfassung"
     },
     "meta": {
       "elements": "{{count}} Elemente",
@@ -3092,7 +3092,7 @@
     "empty": {
       "noCategories": "Noch keine Kategorien",
       "noTemplateFields": "Noch keine Vorlagenfelder. Schlüssel wie Alias, Fraktion oder erster Auftritt hinzufügen.",
-      "noRole": "Noch keine Rollenbeschreibung in einem Satz",
+      "noSummary": "Noch keine Zusammenfassung",
       "noFilteredElements": "Keine Elemente für diesen Filter"
     },
     "actions": {
@@ -3104,7 +3104,7 @@
     "deleteConfirm": "Element „{{name}}“ löschen?",
     "folio": "Element",
     "bodyPlaceholder": "Wie ist dieses Element zum Zeitpunkt der Handlung beschaffen?",
-    "summaryPlaceholder": "Rolle in einem Satz beschreiben…",
+    "summaryPlaceholder": "In einem Satz zusammenfassen…",
     "sketch": "Skizze",
     "sketchWithCategory": "{{category}} · Skizze",
     "portrait": {
