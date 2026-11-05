@@ -41,7 +41,9 @@ From [GitHub Releases](https://github.com/chihumyum/Drifting/releases/latest):
   [Windows](docs/windows.md).
 
 The app tells you when a new version is out; you choose when to install it.
-The first launch opens a sample project you can explore or delete.
+The first launch opens two sample projects you can explore or delete: *Pride
+and Prejudice*, and Lu Xun's *The True Story of Ah Q* (in Chinese), left half
+written for you to go on.
 
 ## Writes like a Markdown editor
 
