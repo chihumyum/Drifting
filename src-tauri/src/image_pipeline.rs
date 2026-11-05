@@ -315,8 +315,27 @@ pub(crate) fn prepare(
     thumbnail_quality: u8,
 ) -> Result<PreparedImage, ImagePipelineError> {
     let (source, image) = decode_with_metadata(path, material_file_limit)?;
-    let display = variant_from_decoded(&image, display_max_long_edge, display_quality)?;
-    let thumbnail = variant_from_decoded(&image, thumbnail_max_long_edge, thumbnail_quality)?;
+    prepare_decoded(
+        source,
+        &image,
+        display_max_long_edge,
+        display_quality,
+        thumbnail_max_long_edge,
+        thumbnail_quality,
+    )
+}
+
+/// Display and thumbnail JPEGs from an image a platform codec has decoded.
+pub(crate) fn prepare_decoded(
+    source: ImageInspection,
+    image: &DynamicImage,
+    display_max_long_edge: u32,
+    display_quality: u8,
+    thumbnail_max_long_edge: u32,
+    thumbnail_quality: u8,
+) -> Result<PreparedImage, ImagePipelineError> {
+    let display = variant_from_decoded(image, display_max_long_edge, display_quality)?;
+    let thumbnail = variant_from_decoded(image, thumbnail_max_long_edge, thumbnail_quality)?;
     validate_derivative_sizes(&display, &thumbnail)?;
     Ok(PreparedImage {
         source,

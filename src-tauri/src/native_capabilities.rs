@@ -1951,7 +1951,22 @@ pub async fn material_prepare_image(
                 thumbnail_max_long_edge,
                 thumbnail_quality,
             );
-            #[cfg(not(any(target_os = "macos", target_os = "ios", target_os = "android")))]
+            #[cfg(target_os = "windows")]
+            return crate::windows_image_codec::prepare(
+                &path,
+                codec,
+                MATERIAL_FILE_LIMIT,
+                display_max_long_edge,
+                display_quality,
+                thumbnail_max_long_edge,
+                thumbnail_quality,
+            );
+            #[cfg(not(any(
+                target_os = "macos",
+                target_os = "ios",
+                target_os = "android",
+                target_os = "windows"
+            )))]
             return Err(image_pipeline::ImagePipelineError::codec_unavailable(codec));
         }
         let _ = &app;

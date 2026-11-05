@@ -42,6 +42,8 @@ mod sync_object_store;
 mod system_fonts;
 #[cfg(target_os = "macos")]
 mod webview_media;
+#[cfg(target_os = "windows")]
+mod windows_image_codec;
 mod windows_webview;
 
 use std::sync::Arc;
