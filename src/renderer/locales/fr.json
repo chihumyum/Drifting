@@ -36,7 +36,6 @@
     "contents": "Contenu",
     "actTitles": "Titres des actes",
     "chapterTitles": "Titres des chapitres",
-    "outlineHeadings": "Titres des unités narratives et des notes",
     "bookInfo": "Informations sur le livre",
     "bookTitle": "Titre",
     "author": "Auteur",
@@ -987,7 +986,7 @@
   },
   "chapterEditor": {
     "untitledChapter": "Chapitre sans titre",
-    "subtitlePlaceholder": "Un sous-titre ou une épigraphe…",
+    "synopsisPlaceholder": "Synopsis…",
     "summaryPlaceholder": "Cliquez pour ajouter un résumé…"
   },
   "chapterEnd": {
@@ -3626,9 +3625,6 @@
     },
     "hints": {
       "new": "Nouveau",
-      "scene": "Scène",
-      "beat": "Unité narrative",
-      "note": "Note",
       "search": "Tout rechercher",
       "timeline": "Chronologie",
       "driftRipens": "Lorsqu’elle est prête, transformez-la en chapitre ou en élément",

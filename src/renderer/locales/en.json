@@ -36,7 +36,6 @@
     "contents": "Contents",
     "actTitles": "Act titles",
     "chapterTitles": "Chapter titles",
-    "outlineHeadings": "Beat and note headings",
     "bookInfo": "Book details",
     "bookTitle": "Title",
     "author": "Author",
@@ -984,7 +983,7 @@
   },
   "chapterEditor": {
     "untitledChapter": "Untitled chapter",
-    "subtitlePlaceholder": "A subtitle, or an epigraph…",
+    "synopsisPlaceholder": "Synopsis…",
     "summaryPlaceholder": "Click to add a summary…"
   },
   "chapterEnd": {
@@ -3611,9 +3610,6 @@
     },
     "hints": {
       "new": "New",
-      "scene": "Scene",
-      "beat": "Beat",
-      "note": "Note",
       "search": "Search everything",
       "timeline": "Timeline",
       "driftRipens": "When it is ready, turn it into a chapter or an element",

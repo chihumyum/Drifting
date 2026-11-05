@@ -864,8 +864,8 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
               {/* 记·传 — the element's free-form biography (TipTap body). Sits
                 directly under the hero so the prose leads; structured 字段
                 follow. Its H1/H2/H3 headings nest under this anchor in the TOC. */}
-              <h2 id="el-bio" className="page__scene">
-                <span className="page__scene-title">{t('elementEditor.sections.bioTitle')}</span>
+              <h2 id="el-bio" className="page__section">
+                <span className="page__section-title">{t('elementEditor.sections.bioTitle')}</span>
               </h2>
               <div className="elem-body">
                 {ydocError ? <EditorDocumentLoadError /> : <EditorContent editor={editor} />}
@@ -873,9 +873,9 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
 
               {/* 字段 — element's own KV facts. Seeded at creation from the
                 category's elementTemplateKvJson; owned thereafter. */}
-              <h2 id="el-kv" className="page__scene">
-                <span className="page__scene-title">{t('elementEditor.sections.facts')}</span>
-                <span className="page__scene-meta">{t('elementEditor.meta.facts')}</span>
+              <h2 id="el-kv" className="page__section">
+                <span className="page__section-title">{t('elementEditor.sections.facts')}</span>
+                <span className="page__section-meta">{t('elementEditor.meta.facts')}</span>
               </h2>
               <div className="elem-body">
                 <FieldReviewStrip

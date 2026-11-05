@@ -120,7 +120,7 @@ links. The chapter directory follows reading order, with summaries and writing
 status; chapters are numbered and grouped using the existing act boundaries.
 Pre-act chapters remain unassigned, and empty acts have their own guide. Drift
 folders use existing drift groups, and element folders use existing categories.
-Scene/beat/note headings are `#`, `##` and `###`; the file name is the title.
+H1, H2 and H3 are `#`, `##` and `###`; the file name is the title.
 Comments and TODOs are collected by target in `注释与待办.md`, with links from
 related documents.
 

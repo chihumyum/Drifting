@@ -105,7 +105,7 @@ describe('semantic outline rail acceptance wiring', () => {
     const desktopShellCss = source('src/styles/desktop-shell.css');
     const semanticRailCss = commentsReviewCss.slice(
       commentsReviewCss.indexOf('Semantic TOC rail'),
-      commentsReviewCss.indexOf('Scene + Beat headers'),
+      commentsReviewCss.indexOf('Section headers — render inside'),
     );
     const editorScrollbarCss = css.slice(
       css.indexOf('.editor-scroll {'),
@@ -187,7 +187,7 @@ describe('semantic outline rail acceptance wiring', () => {
     const commentsReviewCss = source('src/styles/comments-review.css');
     const semanticRailCss = commentsReviewCss.slice(
       commentsReviewCss.indexOf('Semantic TOC rail'),
-      commentsReviewCss.indexOf('Scene + Beat headers'),
+      commentsReviewCss.indexOf('Section headers — render inside'),
     );
     const hidden = "html:not([data-shell-mode='mobile']) .editor__toc-rail[data-fit='hidden']";
 

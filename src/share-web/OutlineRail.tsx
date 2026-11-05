@@ -12,7 +12,7 @@ import { t } from './i18n';
 const subscribeEmpty = () => () => undefined;
 const emptyViewport = () => EMPTY_OUTLINE_VIEWPORT;
 
-/** The editor's tiers for headings: scene, beat, note. */
+/** The editor's tiers for H1, H2 and H3. */
 function tier(entry: FlatOutlineEntry): 'l3' | 'l4' | 'l5' {
   return entry.item.level === 1 ? 'l3' : entry.item.level === 2 ? 'l4' : 'l5';
 }

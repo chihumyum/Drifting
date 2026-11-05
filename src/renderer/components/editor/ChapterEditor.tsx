@@ -412,7 +412,7 @@ export function ChapterEditor({
                 <textarea
                   ref={summaryRef}
                   value={summaryValue}
-                  placeholder={literary ? t('chapterEditor.subtitlePlaceholder') : t('chapterEditor.summaryPlaceholder')}
+                  placeholder={literary ? t('chapterEditor.synopsisPlaceholder') : t('chapterEditor.summaryPlaceholder')}
                   onChange={(e) => setSummaryValue(e.target.value)}
                   onBlur={handleSummarySave}
                   onKeyDown={(e) => {

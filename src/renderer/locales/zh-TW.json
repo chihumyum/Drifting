@@ -36,7 +36,6 @@
     "contents": "內容",
     "actTitles": "幕標題",
     "chapterTitles": "章節標題",
-    "outlineHeadings": "節拍與筆記的標題",
     "bookInfo": "作品資料",
     "bookTitle": "標題",
     "author": "作者",
@@ -984,7 +983,7 @@
   },
   "chapterEditor": {
     "untitledChapter": "未命名章節",
-    "subtitlePlaceholder": "副標題，或一句題記…",
+    "synopsisPlaceholder": "梗概…",
     "summaryPlaceholder": "點擊新增摘要…"
   },
   "chapterEnd": {
@@ -3611,9 +3610,6 @@
     },
     "hints": {
       "new": "新增",
-      "scene": "場景",
-      "beat": "節拍",
-      "note": "筆記",
       "search": "搜尋全部內容",
       "timeline": "時間線",
       "driftRipens": "準備好後，可將構想轉為章節或要素",

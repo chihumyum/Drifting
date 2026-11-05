@@ -26,8 +26,8 @@ class Mutation {
 }
 function paint() { const pending = [...frames.values()]; frames.clear(); pending.forEach(fn => fn(0)); }
 const entries: OutlineEntry[] = [
-  { id: 'a', kind: 'heading', level: 1, text: 'Scene A' },
-  { id: 'b', kind: 'heading', level: 2, text: 'Beat B' },
+  { id: 'a', kind: 'heading', level: 1, text: 'H1 A' },
+  { id: 'b', kind: 'heading', level: 2, text: 'H2 B' },
 ];
 function fixture() {
   const root = Object.assign(new Target(), { scrollTop: 0, clientHeight: 400, scrollHeight: 1400,

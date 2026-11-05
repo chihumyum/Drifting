@@ -6,7 +6,7 @@
   "hero.values": "开源 · 本地优先",
   "write.kicker": "写",
   "write.title": "像 Markdown 编辑器一样写",
-  "write.syntax": "一张安静的稿纸，手不离键盘。输入 <code>#</code>、<code>##</code>、<code>###</code> 就开始一个场景、节拍或笔记；<code>**粗体**</code>、<code>*斜体*</code>、<code>&gt;</code> 和 <code>---</code> <span class=\"sh\">边打边成形</span>。",
+  "write.syntax": "一张安静的稿纸，手不离键盘。输入 <code>#</code>、<code>##</code>、<code>###</code> 就开始一个 H1、H2 或 H3；<code>**粗体**</code>、<code>*斜体*</code>、<code>&gt;</code> 和 <code>---</code> <span class=\"sh\">边打边成形</span>。",
   "write.files": "每个项目同时也是一个 Markdown 文件夹。在 Obsidian 或任何文本编辑器里改过的章节和构想，会合并回 Drifting。",
   "write.transfer": "单篇或整本书都可以复制、保存为 Markdown；可以导入 <code>.md</code>、<code>.txt</code>、<code>.docx</code>。",
   "story.line": "寻信",

@@ -3,7 +3,7 @@
 //! The renderer reads the book from live Yjs (see
 //! `services/export/manuscript-export.service.ts`) and sends one
 //! [`Manuscript`]: acts and chapters in book order, chapter prose already
-//! reduced to headings, paragraphs, quotes and scene breaks. This module only
+//! reduced to headings, paragraphs, quotes and separators. This module only
 //! lays that out. It never reads the database or the network; the only file it
 //! writes is the one the author picks in the save dialog.
 mod docx;
@@ -115,7 +115,8 @@ pub enum Align {
 #[derive(Clone, Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase", deny_unknown_fields)]
 pub enum Block {
-    /// Prose headings: 1 = scene, 2 = beat, 3 = note.
+    /// Prose headings H1, H2 and H3 (`level` 1–3): three levels whose
+    /// meaning is the author's, so every format sets them alike by level.
     Heading {
         level: u8,
         runs: Vec<Run>,
@@ -132,7 +133,7 @@ pub enum Block {
     Quote {
         blocks: Vec<Block>,
     },
-    /// A horizontal rule in the editor: a scene break.
+    /// A horizontal rule in the editor: a separator.
     Break,
 }
 

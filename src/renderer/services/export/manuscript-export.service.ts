@@ -91,7 +91,7 @@ export async function readManuscript(
     const json = source.live.get(docId) ?? (persisted.snapshot || persisted.updates.length
       ? await hydrateProseJson(persisted.snapshot, persisted.updates)
       : chapter.seed ?? '{}');
-    chapters.push({ ...chapter, blocks: proseToManuscriptBlocks(json, options.outlineHeadings) });
+    chapters.push({ ...chapter, blocks: proseToManuscriptBlocks(json, options.headingLevels) });
   }
   signal?.throwIfAborted();
   return {

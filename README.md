@@ -45,8 +45,8 @@ The first launch opens a sample project you can explore or delete.
 
 ## Writes like a Markdown editor
 
-- One quiet page and the keyboard. Type `#`, `##` or `###` to start a scene, a
-  beat or a note; `**bold**`, `*italic*`, `>` and `---` take shape as you type.
+- One quiet page and the keyboard. Type `#`, `##` or `###` to start an H1, H2
+  or H3; `**bold**`, `*italic*`, `>` and `---` take shape as you type.
 - Every project is also a folder of Markdown files. Edit chapters and ideas in
   Obsidian or any text editor, and the changes merge back into Drifting.
 - Copy or save any document, or the whole book, as Markdown. Import `.md`,
@@ -55,8 +55,8 @@ The first launch opens a sample project you can explore or delete.
 ## The scaffolding of a classic writing studio
 
 - Write chapter by chapter, or read and edit the whole book in one view.
-- Acts sit on the timeline; scenes, beats and notes are headings inside a
-  chapter, listed in the outline beside the text.
+- Acts sit on the timeline; inside a chapter, H1, H2 and H3 are three levels
+  you give your own meaning, listed in the outline beside the text.
 - **Ideas** hold fragments that have not found a place yet. Turn one into a
   chapter or an element when it is ready.
 - **Elements** for characters, places, objects and lore, grouped into

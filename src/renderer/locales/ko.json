@@ -36,7 +36,6 @@
     "contents": "내용",
     "actTitles": "막 제목",
     "chapterTitles": "장 제목",
-    "outlineHeadings": "비트 및 메모 제목",
     "bookInfo": "작품 정보",
     "bookTitle": "제목",
     "author": "작가",
@@ -984,7 +983,7 @@
   },
   "chapterEditor": {
     "untitledChapter": "제목 없는 장",
-    "subtitlePlaceholder": "부제 또는 제사…",
+    "synopsisPlaceholder": "줄거리…",
     "summaryPlaceholder": "클릭하여 요약 추가…"
   },
   "chapterEnd": {
@@ -3611,9 +3610,6 @@
     },
     "hints": {
       "new": "새로 만들기",
-      "scene": "장면",
-      "beat": "비트",
-      "note": "메모",
       "search": "전체 검색",
       "timeline": "타임라인",
       "driftRipens": "준비가 되면 장이나 요소로 바꾸세요",

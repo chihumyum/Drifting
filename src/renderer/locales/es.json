@@ -36,7 +36,6 @@
     "contents": "Contenido",
     "actTitles": "Títulos de actos",
     "chapterTitles": "Títulos de capítulos",
-    "outlineHeadings": "Títulos de unidades narrativas y notas",
     "bookInfo": "Datos del libro",
     "bookTitle": "Título",
     "author": "Autor",
@@ -987,7 +986,7 @@
   },
   "chapterEditor": {
     "untitledChapter": "Capítulo sin título",
-    "subtitlePlaceholder": "Un subtítulo o un epígrafe…",
+    "synopsisPlaceholder": "Sinopsis…",
     "summaryPlaceholder": "Haz clic para añadir un resumen…"
   },
   "chapterEnd": {
@@ -3626,9 +3625,6 @@
     },
     "hints": {
       "new": "Nuevo",
-      "scene": "Escena",
-      "beat": "Unidad narrativa",
-      "note": "Nota",
       "search": "Buscar en todo",
       "timeline": "Cronología",
       "driftRipens": "Cuando esté lista, conviértela en un capítulo o un elemento",
