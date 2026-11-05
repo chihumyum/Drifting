@@ -30,7 +30,9 @@ export function AgentMcpAccessSettings({ open }: { open: boolean }) {
   const [message, setMessage] = useState('');
   const [selected, setSelected] = useState<string | null>(null);
   const [manualOpen, setManualOpen] = useState(false);
-  const supported = getPlatformRuntime().isMacDesktop;
+  const runtime = getPlatformRuntime();
+  // The local bridge: a Unix socket on macOS, loopback TCP on Windows (mcp_server.rs).
+  const supported = runtime.isMacDesktop || runtime.isWindowsDesktop;
   const reload = useCallback(async () => setConnections(await platform.mcpServer.list()), []);
   useEffect(() => {
     if (!open || !supported) return;

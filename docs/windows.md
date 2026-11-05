@@ -90,10 +90,20 @@ Node on Windows, because Node refuses to spawn `pnpm.cmd` without a shell.
   the interface language (`tray_set_labels`). Windows 11 may first show the
   icon in the overflow (^) area.
 
+- **External Agents.** Codex, Claude Code and Antigravity connect through the
+  same local MCP bridge as on macOS (docs/agent-runtime/local-mcp.md), over
+  `127.0.0.1` on a port chosen at each launch instead of a Unix socket; every
+  connection file follows the new port, and the token authenticates each
+  stream. The clients' files are `%USERPROFILE%\.codex\config.toml` (or
+  `CODEX_HOME`), `%USERPROFILE%\.claude.json` and
+  `%USERPROFILE%\.gemini\config\mcp_config.json`.
+- **MCP servers in Agent extensions** (stdio): an absolute command written
+  without its extension finds the `.exe`, `.cmd` or `.bat` beside it; servers
+  inherit Windows' system and profile folders (APPDATA, USERPROFILE…), open no
+  console window, and stopping one ends its whole process tree.
+
 ## Not available on Windows yet
 
-- External Agents over local MCP (Codex, Claude Code, Antigravity): the bridge
-  is a Unix socket; the settings section is hidden on Windows.
 - Authenticode-signed installers.
 
 ## Manual acceptance (Windows 11, including Arm virtual machines)
@@ -128,3 +138,7 @@ installer runs natively. The interface is the same WebView2 (Chromium) in both.
     Right-click on text and on empty paper: only editing items appear.
 12. Sign in to the ChatGPT subscription; quit and reopen: still signed in.
 13. Import a HEIC photo and an AVIF image (with the Store codecs installed).
+14. Connect Codex or Claude Code to a book (Settings › Agent › external
+    Agents) and ask it to read a chapter; quit and reopen Drifting, ask again.
+15. Add an MCP server that starts with npx in Agent extensions; no console
+    window appears, and turning it off leaves no node process behind.
