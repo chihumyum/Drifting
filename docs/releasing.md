@@ -72,7 +72,7 @@
 4. 推送提交和 tag：`git tag v<版本号> && git push origin main v<版本号>`。
 5. 等 **Release** 工作流结束。`verify` 失败不会构建；`build` 会核对签名、Gatekeeper、
    公证 staple 和 DMG 挂载后的 App。`build-windows` 在 `windows-latest` 和
-   `windows-11-arm` 上各出一个安装包；Mac 草稿建好后，`release-windows` 把它们传进同一个
+   `windows-11-arm` 上各出一个安装包，并在构建机上静默安装、打开，20 秒后 App 仍在运行才上传；Mac 草稿建好后，`release-windows` 把它们传进同一个
    草稿，并把 `windows-x86_64`、`windows-aarch64` 写进 `latest.json`。Windows 构建失败时
    Mac 草稿照样完整，可以只重跑失败的任务，或先发只有 Mac 的版本。
 6. 在 GitHub 打开草稿 Release，下载 DMG，在一台干净的 Mac 上走一遍下面的冒烟检查。
