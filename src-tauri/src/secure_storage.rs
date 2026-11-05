@@ -12,6 +12,47 @@
 
 use tauri::AppHandle;
 
+#[cfg(any(target_os = "windows", test))]
+mod chunked;
+
+/// Windows Credential Manager through `keyring`, one credential per key; long
+/// values are split by `chunked`.
+#[cfg(target_os = "windows")]
+struct CredentialManager(String);
+
+#[cfg(target_os = "windows")]
+impl chunked::RawStore for CredentialManager {
+    fn get(&self, key: &str) -> Result<Option<String>, String> {
+        let entry = keyring::Entry::new(&self.0, key)
+            .map_err(|_| "secure storage entry could not be opened".to_string())?;
+        match entry.get_password() {
+            Ok(value) => Ok(Some(value)),
+            Err(keyring::Error::NoEntry) => Ok(None),
+            Err(_) => Err("secure storage read failed".into()),
+        }
+    }
+    fn set(&self, key: &str, value: &str) -> Result<(), String> {
+        keyring::Entry::new(&self.0, key)
+            .and_then(|entry| entry.set_password(value))
+            .map_err(|_| "secure storage write failed".to_string())
+    }
+    fn delete(&self, key: &str) -> Result<(), String> {
+        let entry = keyring::Entry::new(&self.0, key)
+            .map_err(|_| "secure storage entry could not be opened".to_string())?;
+        match entry.delete_credential() {
+            Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+            Err(_) => Err("secure storage delete failed".into()),
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn chunk_generation() -> Result<String, String> {
+    let mut bytes = [0_u8; 8];
+    getrandom::getrandom(&mut bytes).map_err(|_| "secure storage write failed".to_string())?;
+    Ok(bytes.iter().map(|byte| format!("{byte:02x}")).collect())
+}
+
 #[cfg(any(
     target_os = "macos",
     target_os = "ios",
@@ -108,7 +149,12 @@ fn get_value(app: &AppHandle, key: &str) -> Result<Option<String>, String> {
     }
 }
 
-#[cfg(any(target_os = "ios", target_os = "windows", target_os = "linux"))]
+#[cfg(target_os = "windows")]
+fn get_value(app: &AppHandle, key: &str) -> Result<Option<String>, String> {
+    chunked::read(&CredentialManager(keychain_service(app)), key)
+}
+
+#[cfg(any(target_os = "ios", target_os = "linux"))]
 fn get_value(app: &AppHandle, key: &str) -> Result<Option<String>, String> {
     let entry = keyring::Entry::new(&keychain_service(app), key)
         .map_err(|_| "secure storage entry could not be opened".to_string())?;
@@ -162,12 +208,20 @@ fn set_value(app: &AppHandle, key: &str, value: &str) -> Result<bool, String> {
     if let Some(path) = crate::local_lab_session::path(app, key)? {
         return crate::local_lab_session::write(&path, value);
     }
-    let entry = keyring::Entry::new(&keychain_service(app), key)
-        .map_err(|_| "secure storage entry could not be opened".to_string())?;
-    entry
-        .set_password(value)
-        .map_err(|_| "secure storage write failed".to_string())?;
-    Ok(true)
+    #[cfg(target_os = "windows")]
+    {
+        let store = CredentialManager(keychain_service(app));
+        chunked::write(&store, key, value, &chunk_generation()?).map(|()| true)
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let entry = keyring::Entry::new(&keychain_service(app), key)
+            .map_err(|_| "secure storage entry could not be opened".to_string())?;
+        entry
+            .set_password(value)
+            .map_err(|_| "secure storage write failed".to_string())?;
+        Ok(true)
+    }
 }
 
 #[cfg(any(
@@ -181,11 +235,18 @@ fn delete_value(app: &AppHandle, key: &str) -> Result<bool, String> {
     if let Some(path) = crate::local_lab_session::path(app, key)? {
         return crate::local_lab_session::delete(&path);
     }
-    let entry = keyring::Entry::new(&keychain_service(app), key)
-        .map_err(|_| "secure storage entry could not be opened".to_string())?;
-    match entry.delete_credential() {
-        Ok(()) | Err(keyring::Error::NoEntry) => Ok(true),
-        Err(_) => Err("secure storage delete failed".into()),
+    #[cfg(target_os = "windows")]
+    {
+        chunked::remove(&CredentialManager(keychain_service(app)), key).map(|()| true)
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let entry = keyring::Entry::new(&keychain_service(app), key)
+            .map_err(|_| "secure storage entry could not be opened".to_string())?;
+        match entry.delete_credential() {
+            Ok(()) | Err(keyring::Error::NoEntry) => Ok(true),
+            Err(_) => Err("secure storage delete failed".into()),
+        }
     }
 }
 
