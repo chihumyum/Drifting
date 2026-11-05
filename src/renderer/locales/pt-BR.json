@@ -1593,7 +1593,9 @@
       "openFile": "Não foi possível abrir o arquivo: {{error}}",
       "createFailed": "Não foi possível criar o material: {{error}}",
       "pickFailed": "Não foi possível importar o arquivo: {{error}}",
-      "fileTooLarge": "O arquivo excede o limite de {{maxSizeMiB}} MiB; o Drifting não pode copiá-lo para a biblioteca local."
+      "fileTooLarge": "O arquivo excede o limite de {{maxSizeMiB}} MiB; o Drifting não pode copiá-lo para a biblioteca local.",
+      "codecUnavailable": "Este PC não tem o codec para imagens {{format}}. Instale-o pela Microsoft Store e importe de novo.",
+      "codecStore": "Obter na Microsoft Store"
     },
     "empty": {
       "noRelated": "Nenhum material vinculado ao item atual.",

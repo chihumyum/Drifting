@@ -28,6 +28,20 @@ async function sourceSha256(sourcePath: string): Promise<string> {
 }
 
 /**
+ * The system cannot decode this HEIC, HEIF or AVIF image: on Windows the
+ * Microsoft Store codec is missing (windows_image_codec.rs).
+ */
+export class ImageCodecUnavailableError extends Error {
+  constructor(
+    readonly codec: 'heic' | 'heif' | 'avif' | null,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'ImageCodecUnavailableError';
+  }
+}
+
+/**
  * Import one picked image/PDF into Drifting-owned storage.
  *
  * The source variant written below is the authoritative local byte stream.
@@ -54,7 +68,12 @@ export async function prepareLocalProjectAsset(
         platform.material.prepareImage(input.sourcePath),
         sourceSha256(input.sourcePath),
       ]);
-      if (!prepared.ok) throw new Error(prepared.error);
+      if (!prepared.ok) {
+        if (prepared.code === 'IMAGE_CODEC_UNAVAILABLE') {
+          throw new ImageCodecUnavailableError(prepared.codec, prepared.error);
+        }
+        throw new Error(prepared.error);
+      }
       // The source path is reconstructed from persisted MIME on every later
       // read, so import and lookup must use the same resolver and fallback.
       const sourceExt = extForMime(prepared.source.mime);

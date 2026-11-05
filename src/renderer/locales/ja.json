@@ -1589,7 +1589,9 @@
       "openFile": "ファイルを開けません：{{error}}",
       "createFailed": "資料を作成できません：{{error}}",
       "pickFailed": "ファイルをインポートできません：{{error}}",
-      "fileTooLarge": "ファイルが上限の{{maxSizeMiB}} MiBを超えており、ローカル資料庫にコピーできません。"
+      "fileTooLarge": "ファイルが上限の{{maxSizeMiB}} MiBを超えており、ローカル資料庫にコピーできません。",
+      "codecUnavailable": "この PC には {{format}} 画像のコーデックがありません。Microsoft Store から入手してから、もう一度読み込んでください。",
+      "codecStore": "Microsoft Store で入手"
     },
     "empty": {
       "noRelated": "現在の項目に関連資料はありません。",

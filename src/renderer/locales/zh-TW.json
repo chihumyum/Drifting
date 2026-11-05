@@ -1589,7 +1589,9 @@
       "openFile": "無法開啟檔案：{{error}}",
       "createFailed": "無法建立素材：{{error}}",
       "pickFailed": "無法匯入檔案：{{error}}",
-      "fileTooLarge": "此檔案超過素材上限 {{maxSizeMiB}} MiB，Drifting 無法將其複製至本機素材庫。"
+      "fileTooLarge": "此檔案超過素材上限 {{maxSizeMiB}} MiB，Drifting 無法將其複製至本機素材庫。",
+      "codecUnavailable": "這台電腦缺少 {{format}} 圖片的解碼延伸模組，可從 Microsoft Store 安裝後再匯入。",
+      "codecStore": "在 Microsoft Store 取得"
     },
     "empty": {
       "noRelated": "目前項目未連結任何素材。",

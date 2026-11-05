@@ -1589,7 +1589,9 @@
       "openFile": "Could not open file: {{error}}",
       "createFailed": "Could not create material: {{error}}",
       "pickFailed": "Could not import file: {{error}}",
-      "fileTooLarge": "This file is larger than the {{maxSizeMiB}} MiB material limit, so Drifting cannot copy it into the local material library."
+      "fileTooLarge": "This file is larger than the {{maxSizeMiB}} MiB material limit, so Drifting cannot copy it into the local material library.",
+      "codecUnavailable": "This PC lacks the codec for {{format}} images. Install it from the Microsoft Store, then import again.",
+      "codecStore": "Get it in the Microsoft Store"
     },
     "empty": {
       "noRelated": "No materials are linked to the current item.",

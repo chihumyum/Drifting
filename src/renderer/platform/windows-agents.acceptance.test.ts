@@ -32,4 +32,16 @@ describe('Agents on Windows (docs/windows.md)', () => {
     expect(stdio).toMatch(/resolve_command\(\s*&input\.command,\s*&\["exe", "cmd", "bat", "com"\],?\s*\)/u);
     expect(stdio).toContain('.args(["/PID", &child.id().to_string(), "/T", "/F"])');
   });
+
+  it('sends Windows to the Microsoft Store when a HEIC or AVIF codec is missing', () => {
+    expect(read('src/renderer/services/local-project-asset.service.ts')).toContain(
+      "throw new ImageCodecUnavailableError(prepared.codec, prepared.error);",
+    );
+    const urls = read('src/renderer/lib/windows-image-codecs.ts');
+    expect(urls).toContain("heic: 'https://apps.microsoft.com/detail/9NMZLZ57R3T7'");
+    expect(urls).toContain("avif: 'https://apps.microsoft.com/detail/9MVZQVXJBQ9V'");
+    const dialog = read('src/renderer/features/library/LibraryDialogs.tsx');
+    expect(dialog).toContain('error instanceof ImageCodecUnavailableError && error.codec && getPlatformRuntime().isWindowsDesktop');
+    expect(dialog).toContain('void platform.material.openExternal(codecStoreUrl);');
+  });
 });

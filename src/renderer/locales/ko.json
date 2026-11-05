@@ -1589,7 +1589,9 @@
       "openFile": "파일을 열 수 없음: {{error}}",
       "createFailed": "자료를 만들 수 없음: {{error}}",
       "pickFailed": "파일을 가져올 수 없음: {{error}}",
-      "fileTooLarge": "파일이 자료 제한인 {{maxSizeMiB}} MiB를 초과하여 로컬 자료실에 복사할 수 없습니다."
+      "fileTooLarge": "파일이 자료 제한인 {{maxSizeMiB}} MiB를 초과하여 로컬 자료실에 복사할 수 없습니다.",
+      "codecUnavailable": "이 PC에는 {{format}} 이미지 코덱이 없습니다. Microsoft Store에서 설치한 뒤 다시 가져오세요.",
+      "codecStore": "Microsoft Store에서 받기"
     },
     "empty": {
       "noRelated": "현재 항목에 연결된 자료가 없습니다.",

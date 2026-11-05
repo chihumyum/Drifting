@@ -75,7 +75,9 @@ Node on Windows, because Node refuses to spawn `pnpm.cmd` without a shell.
 - **HEIC, HEIF and AVIF** decode through the Windows Imaging Component, as
   macOS uses ImageIO (`windows_image_codec.rs`). WIC needs the Store codecs:
   HEIF Image Extensions with HEVC Video Extensions for iPhone photos, AV1
-  Video Extension for AVIF. Without them the import names what to install.
+  Video Extension for AVIF. Without them the material dialog says so and
+  offers the Store page (`lib/windows-image-codecs.ts`). HEVC carries patent
+  licensing, which is why Drifting does not ship a decoder of its own.
 - **Durability.** Windows has no directory fsync. File replacement uses
   `MoveFileExW` with `MOVEFILE_WRITE_THROUGH`; the directory barrier
   (`sync_directory`) validates the directory and relies on NTFS journaling.
