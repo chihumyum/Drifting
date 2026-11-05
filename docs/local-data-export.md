@@ -14,9 +14,13 @@ The Tauri desktop client maintains one directory per project, under a folder
 that holds all of them. On the first desktop run the first-run card asks where
 that folder goes, after its welcome in a Hosted build (a local-only build has
 no welcome); `drifting.markdown-folder-guide.v1` marks the question answered on
-this device, and existing installations see it once too. Choosing a folder sets it for every project; not choosing keeps the
-default, `<app-local-data>/markdown-projections/`. The card also offers to turn
-the folder off, in the danger ink and only after a destructive confirmation.
+this device, and existing installations see it once too. The card offers no
+default: Choose folder is its primary action, and Continue appears only once a
+folder is chosen (one already chosen on this device counts); that folder is
+then the location for every project. The card also offers to turn the folder
+off, in the danger ink and only after a destructive confirmation. Restore
+default location in Settings still returns to
+`<app-local-data>/markdown-projections/`.
 
 **Settings → Sync & Data → Local data → Markdown folder** shows the location
 for all projects with Choose folder and Restore default location, a **Show in

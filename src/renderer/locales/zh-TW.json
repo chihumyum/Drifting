@@ -131,11 +131,9 @@
   },
   "markdownFolderGuide": {
     "title": "Markdown 資料夾要放在哪裡？",
-    "intro": "每部作品都會在此保留 Markdown 副本。可用任何編輯器修改章節與構想，變更會合併回 Drifting。",
-    "default": "預設位置",
+    "intro": "每部作品都會在你選擇的資料夾裡保留 Markdown 副本。可用任何編輯器修改章節與構想，變更會合併回 Drifting。",
     "chosen": "已選資料夾",
     "choose": "選擇資料夾…",
-    "useDefault": "使用預設位置",
     "continue": "繼續"
   },
   "settings": {
@@ -480,7 +478,7 @@
     "update": {
       "kicker": "更新",
       "title": "由你決定何時安裝新版本。",
-      "sub": "啟動後，Drifting 每天最多向 GitHub 檢查一次新版；下載與安裝都等你決定。",
+      "sub": "Drifting 開著時每 3 小時向 GitHub 檢查一次新版；安裝等你決定。",
       "current_version": "目前版本",
       "channel_desc": "Apple Silicon · macOS 13 以上",
       "unavailable": "此版本沒有更新簽署金鑰，無法檢查更新。從 GitHub 下載的發行版可使用更新功能。",
@@ -489,11 +487,9 @@
       "checking": "正在檢查…",
       "no_update": "目前已是最新版本。",
       "available_version": "Drifting {{version}} 已推出",
-      "download": "下載",
       "downloading": "正在下載並驗證簽章…",
       "downloading_progress": "正在下載並驗證… {{progress}}%",
-      "install": "安裝並重新啟動…",
-      "confirm_install": "安裝並重新啟動",
+      "install": "安裝並重新啟動",
       "install_migration_safety": "若新版需要升級本機資料，下次啟動時會先建立並驗證安全快照；遷移通過檢查後才會切換。",
       "dismiss": "稍後再說",
       "installing": "正在儲存並安裝…",
@@ -502,7 +498,7 @@
       "error": "更新已停止：{{error}}",
       "states": {
         "checking": "正在檢查…",
-        "available": "準備好下載。",
+        "available": "準備好安裝。",
         "downloading": "正在下載並驗證…",
         "installing": "正在儲存變更並安裝，完成後 Drifting 將重新啟動…",
         "ready": "已下載並驗證，準備好安裝。",

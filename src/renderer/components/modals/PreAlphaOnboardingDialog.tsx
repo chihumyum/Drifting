@@ -68,13 +68,16 @@ function useMarkdownFolderGuide() {
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 /**
- * Where every project's Markdown folder goes. Not choosing keeps the default;
- * turning the folder off is offered too, in the danger ink and behind a
- * confirmation, since external editors and Agents then lose the book.
+ * Where every project's Markdown folder goes. There is no default to accept:
+ * the author picks a folder before going on (one already chosen on this device
+ * counts). Turning the folder off is offered too, in the danger ink and behind
+ * a confirmation, since external editors and Agents then lose the book.
  */
 function MarkdownFolderGuide({ onDone }: { onDone(): void }) {
   const { t } = useTranslation();
   const [folder, setFolder] = useState<MarkdownFolderSettings | null>(null);
+  // Picking the app's own data folder reads back as no choice; it is one all the same.
+  const [picked, setPicked] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   useEffect(() => {
@@ -98,7 +101,9 @@ function MarkdownFolderGuide({ onDone }: { onDone(): void }) {
   };
   const choose = () => run(async () => {
     const root = await platform.markdownProjection.pickOutputRoot(t('markdownFolderGuide.choose'));
-    if (root !== null) setFolder(await platform.markdownProjection.setDefaultRoot(root));
+    if (root === null) return;
+    setFolder(await platform.markdownProjection.setDefaultRoot(root));
+    setPicked(true);
   });
   const turnOff = () => run(async () => {
     const confirmed = await requestConfirmation(t('settings.sync.projection.offWarning'), {
@@ -110,17 +115,16 @@ function MarkdownFolderGuide({ onDone }: { onDone(): void }) {
     await platform.markdownProjection.setEnabled(false);
     onDone();
   });
+  const chosen = folder !== null && (picked || folder.customRoot !== null);
 
   return (
     <>
       <ModalHeader title={t('markdownFolderGuide.title')} />
       <ModalBody>
         <p className="pre-alpha-guide-modal__text">{t('markdownFolderGuide.intro')}</p>
-        {folder && (
+        {chosen && (
           <div className="markdown-folder-guide__location">
-            <div className="markdown-folder-guide__label">
-              {t(folder.customRoot ? 'markdownFolderGuide.chosen' : 'markdownFolderGuide.default')}
-            </div>
+            <div className="markdown-folder-guide__label">{t('markdownFolderGuide.chosen')}</div>
             <code className="markdown-folder-guide__path">{folder.directory}</code>
           </div>
         )}
@@ -135,12 +139,19 @@ function MarkdownFolderGuide({ onDone }: { onDone(): void }) {
         >
           {t('settings.sync.projection.turnOff')}
         </Button>
-        <Button variant="default" onClick={() => void choose()} disabled={busy}>
+        <Button
+          variant={chosen ? 'default' : 'primary'}
+          onClick={() => void choose()}
+          disabled={busy}
+          autoFocus={!chosen}
+        >
           {t('markdownFolderGuide.choose')}
         </Button>
-        <Button variant="primary" onClick={onDone} disabled={busy || !folder} autoFocus>
-          {t(folder?.customRoot ? 'markdownFolderGuide.continue' : 'markdownFolderGuide.useDefault')}
-        </Button>
+        {chosen && (
+          <Button variant="primary" onClick={onDone} disabled={busy} autoFocus>
+            {t('markdownFolderGuide.continue')}
+          </Button>
+        )}
       </ModalActions>
     </>
   );
