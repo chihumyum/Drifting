@@ -94,6 +94,12 @@
 .refs-section__text-action:focus-visible {
   color: hsl(var(--ink-1));
 }
+/* A field section's 新增字段 sits at the right of its header, where the
+   meta line used to be, and keeps its own case and spacing. */
+.page__section .refs-section__text-action {
+  letter-spacing: normal;
+  text-transform: none;
+}
 
 .refs-empty {
   font-family: var(--font-sans);
@@ -1583,37 +1589,14 @@ button.patch-card__invalid {
   color: hsl(var(--accent));
   background: hsl(var(--accent) / 0.08);
 }
-.kv-editor__add {
-  align-self: flex-start;
-  margin-top: 6px;
-  border: 1px dashed hsl(var(--rule));
-  background: transparent;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: hsl(var(--ink-4));
-  padding: 6px 10px;
-  border-radius: 3px;
-  cursor: pointer;
-  transition:
-    color 0.12s,
-    border-color 0.12s,
-    background 0.12s;
-}
-.kv-editor__add:hover {
-  color: hsl(var(--accent));
-  border-color: hsl(var(--accent) / 0.4);
-  background: hsl(var(--accent) / 0.08);
-}
 .kv-editor[data-variant='template'] .kv-editor__key {
   color: hsl(var(--ink-2));
 }
 
 /* Desktop: each row is one slip of resting glass the author writes in
    (.glass--rest .glass--field) — no fill, no line between name and value;
-   while it holds the caret it is the still selected glass. × and 添加字段 are
-   text buttons. */
+   while it holds the caret it is the still selected glass. × is a text
+   button; 新增字段 lives in the section header (KvAddButton). */
 .kv-editor--glass .kv-editor__list {
   gap: 6px;
 }
@@ -1652,26 +1635,6 @@ button.patch-card__invalid {
   opacity: 1;
 }
 .kv-editor--glass .kv-editor__remove:hover {
-  color: hsl(var(--ink-1));
-  background: transparent;
-}
-.kv-editor--glass .kv-editor__add {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  height: 24px;
-  margin-top: 4px;
-  padding: 0 4px;
-  border: 0;
-  background: transparent;
-  font-family: var(--font-sans);
-  font-size: 12.5px;
-  font-weight: 500;
-  text-transform: none;
-  letter-spacing: 0;
-  color: hsl(var(--ink-3));
-}
-.kv-editor--glass .kv-editor__add:hover {
   color: hsl(var(--ink-1));
   background: transparent;
 }

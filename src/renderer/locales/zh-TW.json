@@ -1088,8 +1088,8 @@
     "valuePlaceholder": "內容 · 值",
     "templateKeyPlaceholder": "欄位名稱 · 鍵（例如：視角）",
     "templateValuePlaceholder": "預設值／提示 · 值",
-    "empty": "— 尚無欄位 —",
-    "templateEmpty": "— 尚未定義範本欄位，新子項目不會自動填入欄位 —",
+    "empty": "尚無欄位",
+    "templateEmpty": "尚未定義範本欄位，新子項目不會自動填入欄位",
     "addField": "新增欄位",
     "removeRow": "移除此列"
   },
@@ -2593,7 +2593,8 @@
     },
     "empty": {
       "incoming": "尚無內容參照此項目",
-      "outgoing": "此正文尚未參照其他實體"
+      "outgoing": "此正文尚未參照其他實體",
+      "relations": "尚無關係"
     },
     "meta": {
       "blocksSpans": "{{blocks}} 個區塊 · {{spans}} 處提及",
@@ -3043,7 +3044,6 @@
     "meta": {
       "chapters": "{{count}} 章",
       "kWords": "{{count}} 千字",
-      "facts": "此故事線的鍵值設定資料",
       "nodeTemplate": "新章節的預設骨架",
       "chaptersWords": "{{chapters}} 章 · {{words}} 千字"
     },
@@ -3087,8 +3087,7 @@
     "meta": {
       "elements": "{{count}} 個要素",
       "items": "{{count}} 個項目",
-      "elementTemplate": "新要素的預設骨架",
-      "templateKv": "新要素的預設欄位"
+      "elementTemplate": "新要素的預設骨架"
     },
     "filters": {
       "used": "已填寫",
@@ -3163,9 +3162,6 @@
       "bioTitle": "生平",
       "facts": "設定資料",
       "patches": "演化記錄"
-    },
-    "meta": {
-      "facts": "別名／分類／出生年份／首次出場…"
     },
     "empty": {
       "noFacts": "尚無欄位。若分類範本已定義欄位，會在建立要素時自動填入。",

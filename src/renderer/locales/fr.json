@@ -1091,8 +1091,8 @@
     "valuePlaceholder": "Contenu · valeur",
     "templateKeyPlaceholder": "Nom du champ · clé (ex. : point de vue)",
     "templateValuePlaceholder": "Valeur par défaut / indication",
-    "empty": "— Aucun champ pour le moment —",
-    "templateEmpty": "— Aucun champ de modèle ; les nouveaux sous-éléments ne seront pas préremplis —",
+    "empty": "Aucun champ pour le moment",
+    "templateEmpty": "Aucun champ de modèle ; les nouveaux sous-éléments ne seront pas préremplis",
     "addField": "Ajouter un champ",
     "removeRow": "Retirer la ligne"
   },
@@ -2604,7 +2604,8 @@
     },
     "empty": {
       "incoming": "Aucun contenu ne fait encore référence à cet élément",
-      "outgoing": "Ce texte ne fait pas encore référence à d’autres entités"
+      "outgoing": "Ce texte ne fait pas encore référence à d’autres entités",
+      "relations": "Aucune relation pour le moment"
     },
     "meta": {
       "blocksSpans": "{{blocks}} blocs · {{spans}} mentions",
@@ -3054,7 +3055,6 @@
     "meta": {
       "chapters": "{{count}} chapitres",
       "kWords": "{{count}} k mots",
-      "facts": "Notes clé-valeur pour cette intrigue",
       "nodeTemplate": "Structure par défaut des nouveaux chapitres",
       "chaptersWords": "{{chapters}} chapitres · {{words}} k mots"
     },
@@ -3098,8 +3098,7 @@
     "meta": {
       "elements": "{{count}} éléments",
       "items": "{{count}} éléments",
-      "elementTemplate": "Structure par défaut des nouveaux éléments",
-      "templateKv": "Champs par défaut des nouveaux éléments"
+      "elementTemplate": "Structure par défaut des nouveaux éléments"
     },
     "filters": {
       "used": "Renseignés",
@@ -3174,9 +3173,6 @@
       "bioTitle": "Biographie",
       "facts": "Faits",
       "patches": "Évolutions"
-    },
-    "meta": {
-      "facts": "alias / catégorie / année de naissance / première apparition…"
     },
     "empty": {
       "noFacts": "Aucun champ pour le moment. Les champs définis dans le modèle de catégorie sont renseignés à la création de l’élément.",

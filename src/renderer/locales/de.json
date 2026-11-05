@@ -1088,8 +1088,8 @@
     "valuePlaceholder": "Inhalt · Wert",
     "templateKeyPlaceholder": "Feldname · Schlüssel (z. B. Perspektive)",
     "templateValuePlaceholder": "Standard / Hinweis · Wert",
-    "empty": "— Noch keine Felder —",
-    "templateEmpty": "— Keine Vorlagenfelder; neue Untereinträge erhalten keine automatisch gefüllten Felder —",
+    "empty": "Noch keine Felder",
+    "templateEmpty": "Keine Vorlagenfelder; neue Untereinträge erhalten keine automatisch gefüllten Felder",
     "addField": "Feld hinzufügen",
     "removeRow": "Zeile entfernen"
   },
@@ -2593,7 +2593,8 @@
     },
     "empty": {
       "incoming": "Noch keine Inhalte verweisen darauf",
-      "outgoing": "Dieser Text verweist noch nicht auf andere Entitäten"
+      "outgoing": "Dieser Text verweist noch nicht auf andere Entitäten",
+      "relations": "Noch keine Beziehungen"
     },
     "meta": {
       "blocksSpans": "{{blocks}} Blöcke · {{spans}} Erwähnungen",
@@ -3043,7 +3044,6 @@
     "meta": {
       "chapters": "{{count}} Kapitel",
       "kWords": "{{count}} Tsd. Wörter",
-      "facts": "Schlüssel-Wert-Notizen für diesen Handlungsstrang",
       "nodeTemplate": "Standardstruktur für neue Kapitel",
       "chaptersWords": "{{chapters}} Kapitel · {{words}} Tsd. Wörter"
     },
@@ -3087,8 +3087,7 @@
     "meta": {
       "elements": "{{count}} Elemente",
       "items": "{{count}} Einträge",
-      "elementTemplate": "Standardstruktur für neue Elemente",
-      "templateKv": "Standardfelder für neue Elemente"
+      "elementTemplate": "Standardstruktur für neue Elemente"
     },
     "filters": {
       "used": "Ausgefüllt",
@@ -3163,9 +3162,6 @@
       "bioTitle": "Biografie",
       "facts": "Fakten",
       "patches": "Entwicklungen"
-    },
-    "meta": {
-      "facts": "Alias / Kategorie / Geburtsjahr / erster Auftritt…"
     },
     "empty": {
       "noFacts": "Noch keine Felder. In der Kategorievorlage definierte Felder werden beim Erstellen des Elements ausgefüllt.",
