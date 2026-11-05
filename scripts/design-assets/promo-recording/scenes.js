@@ -5,7 +5,7 @@
 // move the real pointer there; everything on camera is done with real input.
 // Rectangles are viewport CSS pixels: {x, y, width, height}.
 (() => {
-  const VERSION = 2;
+  const VERSION = 5;
   if (window.__driftingPromo && window.__driftingPromo.version === VERSION) return 'already';
   const P = { version: VERSION, jobs: {} };
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -71,6 +71,8 @@
       state.markGuideSeen('workspace-tour');
       state.setUiLocale(locale);
       state.setThemeMode(theme);
+      // Project Home's suggestion cards would offer to organize the seeded books' prose.
+      (await import('/src/renderer/store/project-checkin-store.ts')).useProjectCheckinStore.getState().setEnabled(false);
       if (provider) state.setAgentProvider(provider);
       if (model) settings.getState().setAgentModel(model);
       setTimeout(() => location.reload(), 600);
@@ -197,6 +199,47 @@
       return { x: panel.x, y: top, width: panel.width, height: bottom - top, scrollable: scroll ? scroll.scrollHeight - scroll.clientHeight : 0 };
     },
 
+    /**
+     * Where the Agent's newest exchange is, while it works: from the author's
+     * last message down, about 480 px of the panel — at the top of a new
+     * conversation, just above the composer once the conversation fills it.
+     */
+    agentLatest() {
+      const bubbles = [...document.querySelectorAll('.agt-user-bubble')].filter(visible);
+      const last = bubbles[bubbles.length - 1];
+      const composer = document.querySelector('.agt-composer');
+      if (!last || !composer) return null;
+      const scroll = scroller(last);
+      const c = composer.getBoundingClientRect();
+      const view = scroll ? scroll.getBoundingClientRect() : { top: 0 };
+      const height = 480;
+      const top = Math.max(last.getBoundingClientRect().top - 14, view.top);
+      const bottom = Math.min(top + height, c.top - 6);
+      const y = Math.max(view.top, bottom - height);
+      return { x: c.x - 12, y, width: c.width + 24, height: bottom - y };
+    },
+
+    /**
+     * The Agent's final answer to the last message (its last Markdown block),
+     * and the part of the panel the conversation scrolls in.
+     */
+    answer() {
+      const bubbles = [...document.querySelectorAll('.agt-user-bubble')].filter(visible);
+      const last = bubbles[bubbles.length - 1];
+      if (!last) return null;
+      const after = last.getBoundingClientRect().bottom - 1;
+      const answers = [...document.querySelectorAll('.agent-md')]
+        .filter((element) => visible(element) && element.getBoundingClientRect().top >= after);
+      const answer = answers[answers.length - 1];
+      if (!answer) return null;
+      const scroll = scroller(answer) || scroller(last);
+      const composer = document.querySelector('.agt-composer');
+      const view = scroll ? scroll.getBoundingClientRect()
+        : { top: 0, bottom: composer ? composer.getBoundingClientRect().top : innerHeight };
+      const rect = answer.getBoundingClientRect();
+      return { x: rect.x, y: rect.y, width: rect.width, height: rect.height, viewTop: view.top, viewBottom: view.bottom, bubbleBottom: after };
+    },
+
     /** Whether the right sidebar's tab `label` is the one showing. */
     tabActive({ label }) {
       const tab = [...document.querySelectorAll('.rightbar-tab-tray button')].find((button) => button.getAttribute('aria-label') === label);
@@ -284,6 +327,79 @@
      * development server has compiled it and optimized its dependencies
      * (a first use can reload the page) before the take starts.
      */
+    /**
+     * Off camera, an existing book's chapter is opened once and the shelf
+     * shown again: Project Home then offers it under Continue, and the
+     * workspace keeps the layout the take shows — chapters on the left, the
+     * Agent on the right, the timeline below.
+     */
+    async visit({ projectId, name, chapterId }) {
+      const { ui } = await stores();
+      const card = await waitFor(() => [...document.querySelectorAll('button.pp-hit')]
+        .find((button) => (button.getAttribute('aria-label') || '').includes(name)), 60000, `the ${name} card`);
+      card.click();
+      await waitFor(() => location.hash.includes(`/project/${projectId}`), 30000, 'the book to open');
+      await sleep(1500);
+      const state = ui.getState();
+      state.setActiveSuperView('none');
+      state.setSidebarOpen('left', true);
+      state.setSidebarOpen('right', true);
+      state.setBottomTimelineHidden(false);
+      if (ui.getState().desktopSidebarTabs.left.panes[0].tab !== 'nodes') state.toggleLeftSidebarTab('primary', 'nodes');
+      if (ui.getState().desktopSidebarTabs.right.panes[0].tab !== 'companion') state.toggleRightSidebarTab('primary', 'companion');
+      state.openEntityTab(projectId, { entityType: 'node', id: chapterId }, { preview: false, activate: true });
+      // A book opens on Project Home; the chapter's route shows its paper.
+      location.hash = `#/project/${projectId}/editor/${chapterId}`;
+      await waitFor(() => editor(), 30000, 'the chapter editor');
+      await sleep(2000);
+      // Left on Project Home, the book opens there again, Continue naming the chapter.
+      location.hash = `#/project/${projectId}`;
+      await waitFor(() => document.querySelector('button.dash-continue'), 30000, 'Project Home');
+      await sleep(1500);
+      location.hash = '#/';
+      await sleep(1500);
+      return 'visited';
+    },
+
+    /** A book's card on the shelf (the hit area that opens it). */
+    cardRect({ name }) {
+      const card = [...document.querySelectorAll('button.pp-hit')]
+        .find((button) => visible(button) && (button.getAttribute('aria-label') || '').includes(name));
+      return card ? box(card.getBoundingClientRect()) : null;
+    },
+
+    /** Project Home's Continue card, once the book has opened on it. */
+    continueCard() {
+      const card = find('button.dash-continue');
+      return card ? box(card.getBoundingClientRect()) : null;
+    },
+
+    /** The chapter's first paragraph, to put the caret in an empty chapter. */
+    firstParagraph() {
+      const root = editor();
+      const paragraph = root && root.querySelector('p');
+      return paragraph ? box(paragraph.getBoundingClientRect()) : null;
+    },
+
+    /** The material list in the right sidebar. */
+    materials() {
+      const rows = find('.material-tree__rows');
+      return rows ? box(rows.getBoundingClientRect()) : null;
+    },
+
+    /** The timeline under the page: the band of chapter clips. */
+    bottomTimeline() {
+      const clip = find('.btl-clip__content');
+      if (!clip) return null;
+      let band = clip;
+      for (let node = clip.parentElement; node && node !== document.body; node = node.parentElement) {
+        const rect = node.getBoundingClientRect();
+        if (rect.width > window.innerWidth * 0.4 && rect.height < window.innerHeight * 0.45) band = node;
+        if (rect.height >= window.innerHeight * 0.45) break;
+      }
+      return box(band.getBoundingClientRect());
+    },
+
     async warmup() {
       const { ui } = await stores();
       const show = (side, tab) => {

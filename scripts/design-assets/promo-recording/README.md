@@ -67,7 +67,15 @@ memory: 第一人称叙述者是郝哥。整理人物要素时，别名不要用
 
 - `book` and `chapter` are what the author names the new book (in the shelf's
   new-book dialog) and its first chapter (made from Project Home); the shelf
-  around it is the release screenshot shelf (`docs/release-screenshots.md`).
+  around it is the release screenshot shelf (`docs/release-screenshots.md`),
+  with the built-in 阿Q正传 sample first on it.
+- `existing: true` writes on in a book already on the shelf instead: the
+  chapter named `chapter` is opened once off camera, so on camera the book
+  opens on it from the shelf; after writing, the timeline under the page is
+  shown. `out/promo-recording/stories/aq-demo.zh-CN.md` (not in git) goes on
+  with 第七章 革命 of 阿Q正传（示例）: a question to the Agent about 宣统三年九月十四日,
+  the chapter's first paragraphs, organizing, a name's card, the element
+  overview, the material notes and the chapter-end review.
 - `organize` is what the author types to the Agent once the chapter is written.
 - `ask` (optional) is what the author asks the Agent before the paragraph marked
   `<!-- ask -->`: out of immersive writing, in the Agent's panel; the camera
@@ -141,7 +149,10 @@ alpha), `events.jsonl` (the rig's), `marks.jsonl` (the script's) and
   nothing; one outside moves the camera once, a little further than needed.
   The moves are a critically damped spring in output time (zoom in log space),
   a third of a second ahead of what happens; once zoomed in it stays on the
-  window.
+  window. While the Agent works the camera is on its newest exchange — the
+  author's last message and what comes under it, at the top of a new
+  conversation or just above the composer once it is full — not on the
+  composer; its answer is then read whole when it fits the frame.
 - The opening is drawn: a desktop of the backdrop with a Dock holding only
   Drifting's icon (`src/assets/icon.png`), the pointer coming to it, a click,
   one launch bounce, and the recorded window growing in from it before the

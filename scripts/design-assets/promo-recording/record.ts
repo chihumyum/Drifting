@@ -12,7 +12,10 @@
  * Project Home, and writes it in immersive writing — asking the Agent
  * mid-chapter to look up a reference on the web — then asks the Agent to
  * organize the chapter into elements, points at a name it linked, opens the
- * element overview and starts the chapter-end review. The Agent is the real
+ * element overview and starts the chapter-end review. A story marked
+ * `existing: true` writes on in a book already on the shelf (the 阿Q正传
+ * sample): it opens the book on the chapter, shows the timeline once written
+ * and the material notes before the review. The Agent is the real
  * model, keyed from the checkout's .env.local like every development profile.
  *
  * Writes out/promo-recording/<take>/: raw.mov (the window, Retina pixels, no
@@ -84,7 +87,8 @@ function parseArguments(args: string[]): Options {
 
 // ---------------------------------------------------------------- the library
 
-interface SeededLibrary { main: { projectId: string; name: string; chapters: { id: string; title: string }[] } }
+interface SeededBook { projectId: string; name: string; chapters: { id: string; title: string }[] }
+interface SeededLibrary { main: SeededBook; aq?: SeededBook }
 
 function resetProfile(databaseDirectory: string, appLocalDataDirectory: string) {
   if (!path.basename(appLocalDataDirectory).startsWith('cc.drifting.wt.')) {
@@ -98,7 +102,7 @@ function resetProfile(databaseDirectory: string, appLocalDataDirectory: string) 
 
 function seedLibrary(databasePath: string, appLocalDataDirectory: string): SeededLibrary {
   const result = spawnSync('pnpm', ['exec', 'tsx', '--conditions=import', 'src/dev-cli/showcase-seed-main.ts',
-    '--db', databasePath, '--app-local-data', appLocalDataDirectory, '--locale', LOCALE], {
+    '--db', databasePath, '--app-local-data', appLocalDataDirectory, '--locale', LOCALE, '--with-a-q'], {
     cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'],
     env: { ...process.env, NODE_OPTIONS: [process.env.NODE_OPTIONS, '--no-warnings'].filter(Boolean).join(' ') },
   });
@@ -155,7 +159,8 @@ async function main() {
         await scenes.run('warmupBook', { name: seeded.main.name });
         await sleep(3000);
         reloaded = await session.evaluate<string>('typeof window.__driftingPromo') !== 'object';
-      } catch {
+      } catch (error) {
+        console.warn(`[promo] warming up failed: ${error instanceof Error ? error.message : String(error)}`);
         reloaded = true;
       }
       if (!reloaded) break;
@@ -168,6 +173,13 @@ async function main() {
         if (Date.now() > deadline) throw new Error('The renderer did not come back after its reload');
         await sleep(500);
       }
+    }
+    // An existing book's chapter, visited once off camera: Project Home offers it under Continue.
+    const existingBook = story.existing ? [seeded.aq, seeded.main].find((book) => book?.name === story.book) : undefined;
+    const existingChapter = existingBook?.chapters.find((chapter) => chapter.title === story.chapter);
+    if (story.existing) {
+      if (!existingBook || !existingChapter) throw new Error(`No 《${story.book}》 ${story.chapter} on the seeded shelf`);
+      await scenes.run('visit', { projectId: existingBook.projectId, name: existingBook.name, chapterId: existingChapter.id });
     }
     shelf = await scenes.run('shelf');
     bringToFront(pid);
@@ -271,7 +283,10 @@ async function main() {
         if (Date.now() > startDeadline) throw new Error(`The Agent did not start ${what}`);
         await sleep(300);
       }
-      shot(await agentFoot(260), 2.0);
+      // Back from the prompt to the conversation, so the answer is seen as it comes in.
+      await sleep(500);
+      const latest = await scenes.run<Rect | null>('agentLatest');
+      shot(latest ?? await agentFoot(Math.min(600, shelf.viewport.height * 0.62)));
       mark('agent.start', { what });
       console.log(`[promo] the Agent is ${what}…`);
       const deadline = Date.now() + AGENT_TIMEOUT;
@@ -322,6 +337,17 @@ async function main() {
     mark('intro.open');
     await sleep(1700);
 
+    if (story.existing) {
+      // The book from the shelf: it opens where the author left it, on the chapter.
+      mark('phase', { phase: 'open-book' });
+      await sleep(400);
+      await clickOn(await until<Rect>('cardRect', `the ${story.book} card`, { name: story.book }), 'book-card');
+      const projectId = await until<string>('projectId', 'the book to open');
+      console.log(`[promo] opened 《${story.book}》 (${projectId})`);
+      await until<Rect>('firstParagraph', 'the chapter to open');
+      shot(null);
+      await sleep(3400);
+    } else {
     // A new book, named in the dialog.
     mark('phase', { phase: 'new-book' });
     // The new-book card closes the shelf, below the books: scroll down to it.
@@ -366,15 +392,23 @@ async function main() {
     await sleep(700);
     // Fold the timeline away; one chapter has none to speak of (off camera: it is closed in immersive writing anyway).
     await scenes.run('timeline', { hidden: true });
+    }
 
     mark('phase', { phase: 'write' });
+    // A question before the first line is asked before writing starts.
+    if (story.paragraphs[0]?.ask && story.ask && options.agent) await askAgent(story.ask);
+    else if (story.existing) {
+      // The caret into the empty chapter.
+      await clickOn(await until<Rect>('firstParagraph', 'the chapter text'), 'paper');
+      await sleep(500);
+    }
     // The opening line frames itself, close.
     await startWriting(false);
     await sleep(900);
     let quickOpen = false;
     for (const [index, paragraph] of story.paragraphs.entries()) {
       const last = index === story.paragraphs.length - 1;
-      if (paragraph.ask && story.ask && options.agent) {
+      if (paragraph.ask && story.ask && options.agent && index > 0) {
         if (quickOpen) { mark('quick.end'); quickOpen = false; }
         await askAgent(story.ask);
         await startWriting();
@@ -387,8 +421,9 @@ async function main() {
         continue;
       }
       if (quickOpen) { mark('quick.end'); quickOpen = false; }
-      // The opening line, close up; then the page.
-      await typeText(text, index === 0 ? 'slow' : paragraph.pace, 'prose', { typo: paragraph.typo, ...(index === 0 ? { zoom: 2.5 } : {}) });
+      // The opening line, close up (a short one slowly); then the page.
+      const opening = index === 0 && [...paragraph.text].length <= 24;
+      await typeText(text, opening ? 'slow' : paragraph.pace, 'prose', { typo: paragraph.typo, ...(index === 0 ? { zoom: opening ? 2.5 : 2.2 } : {}) });
       if (index === 0) {
         await sleep(1200);
         const caret = await scenes.run<Rect | null>('caret');
@@ -402,6 +437,18 @@ async function main() {
     await immersive(false);
     shot(null);
     await sleep(1600);
+    if (story.existing) {
+      // The book around the chapter: its chapters on their storylines, in the timeline under the page.
+      mark('phase', { phase: 'timeline' });
+      const band = await scenes.run<Rect | null>('bottomTimeline');
+      if (band) {
+        // The timeline with the end of the chapter above it, as wide as the page (no sidebar edges).
+        shot({ x: band.x + 36, y: band.y - 170, width: band.width - 72, height: band.height + 170 });
+        await sleep(5200);
+        shot(null);
+        await sleep(1200);
+      } else console.warn('[promo] no timeline under the page');
+    }
 
     async function columnMark() {
       const column = await until<{ text: Rect; paper: Rect }>('column', 'the paper');
@@ -429,26 +476,46 @@ async function main() {
       await moveTo(toWindow({ x: column.paper.x + column.paper.width - 40, y: column.paper.y + 420 }));
       await waitForAgent('looking it up');
       await sleep(600);
-      // Its answer from the top: the search, then the passage and where it is from.
-      let reply = await until<Rect & { scrollable: number }>('reply', 'the answer');
+      type Answer = Rect & { viewTop: number; viewBottom: number; bubbleBottom: number };
       const panel = await agentFoot(Math.min(560, shelf.viewport.height * 0.6));
-      await moveTo(centre({ ...panel, height: panel.height - 120 }));
-      await sleep(300);
-      const top = await scenes.run<Rect & { top: number }>('replyTop');
-      if (top && top.top < 0) {
-        await rig.send('pointer.scroll', { dy: top.top - 20, duration: 0.8 });
-        await sleep(700);
-        reply = await until<Rect & { scrollable: number }>('reply', 'the answer');
+      // The hand goes to the panel only to scroll it, and back to rest on the paper, off the answer.
+      const handOnPanel = () => moveTo(centre({ ...panel, height: panel.height - 120 }));
+      const handAtRest = () => moveTo(toWindow({ x: column.paper.x + column.paper.width - 40, y: column.paper.y + 420 }));
+      let scrolled = false;
+      let answer = await until<Answer>('answer', 'the answer');
+      // Its top in view, the way a hand would scroll the panel.
+      if (answer.y < answer.viewTop + 4 || answer.y + Math.min(answer.height, 476) > answer.viewBottom) {
+        await handOnPanel();
+        await sleep(300);
+        await rig.send('pointer.scroll', { dy: answer.y - answer.viewTop - 24, duration: 0.8 });
+        scrolled = true;
+        await sleep(800);
+        await handAtRest();
+        answer = await until<Answer>('answer', 'the answer');
       }
-      shot({ ...reply, height: Math.min(reply.height, 330) }, 2.4);
-      await sleep(5200);
-      if (reply.height > 330) {
-        await rig.send('pointer.scroll', { dy: Math.min(reply.height - 280, 420), duration: 1.6 });
+      // First what it searched, above the answer; then the answer itself, whole when it fits.
+      const stepsTop = Math.max(answer.viewTop + 4, answer.bubbleBottom + 4, answer.y - 300);
+      if (answer.y - stepsTop > 90) {
+        shot({ x: answer.x - 6, y: stepsTop, width: answer.width + 12, height: answer.y - stepsTop }, 2.2);
+        await sleep(3000);
+      }
+      const whole = answer.height <= 476;
+      shot({ x: answer.x - 6, y: answer.y - 8, width: answer.width + 12, height: Math.min(answer.height + 16, whole ? 492 : 330) },
+        whole ? undefined : 2.4);
+      await sleep(whole ? 7600 : 5200);
+      if (!whole) {
+        await handOnPanel();
+        await sleep(300);
+        await rig.send('pointer.scroll', { dy: Math.min(answer.height - 280, 420), duration: 1.6 });
+        scrolled = true;
         await sleep(3600);
       }
-      // Back to the newest line, so the panel follows the Agent again.
-      await rig.send('pointer.scroll', { dy: 4000, duration: 0.6 });
-      await sleep(400);
+      if (scrolled) {
+        // Back to the newest line, so the panel follows the Agent again.
+        await handOnPanel();
+        await rig.send('pointer.scroll', { dy: 4000, duration: 0.6 });
+        await sleep(400);
+      }
       shot(null);
       await sleep(700);
       // Back to the chapter's end.
@@ -471,7 +538,7 @@ async function main() {
       await waitForAgent('organizing');
       // What it changed, listed under its answer.
       shot(await agentFoot(330), 2.2);
-      await sleep(3000);
+      await sleep(4600);
 
       mark('phase', { phase: 'links' });
       const links = await scenes.run<{ text: string; rect: Rect }[]>('links', { names: story.links.length ? story.links : null });
@@ -485,7 +552,7 @@ async function main() {
         const card = await until<Rect>('hoverCard', 'the hover card', {}, 8000).catch(() => null);
         const both = card ? union(hovered.rect, card) : { x: hovered.rect.x - 160, y: hovered.rect.y - 40, width: 560, height: 360 };
         shot(grow(both, 30), 2.3);
-        await sleep(3400);
+        await sleep(6000);
       } else console.warn('[promo] no linked names in view to point at');
 
       mark('phase', { phase: 'elements' });
@@ -503,7 +570,7 @@ async function main() {
       // Closer on one person and the people and things around them, once the layout settles.
       const cluster = await scenes.run<Rect | null>('cluster', { name: story.links[0] ?? '', count: 4 });
       if (cluster) shot(grow(cluster, 70, 50), 2.3);
-      await sleep(4200);
+      await sleep(5400);
       shot(null);
       await sleep(900);
       await rig.send('key.press', { key: 'escape' });
@@ -518,13 +585,30 @@ async function main() {
       await clickOn(await rectOf('.workspace-panel-tab-row button', '章节'), 'chapters-tab');
       await sleep(800);
 
+      // The book's material notes, in the right sidebar.
+      mark('phase', { phase: 'materials' });
+      await rightTab('素材库', 'library-tab');
+      await sleep(1000);
+      const materials = await scenes.run<Rect | null>('materials');
+      if (materials) {
+        shot({ ...materials, y: materials.y - 50, height: Math.min(materials.height, 260) + 50 }, 2.0);
+        await sleep(3400);
+      }
+      shot(null);
+      await sleep(700);
+      // The review answers in the Agent's panel.
+      await rightTab('帮手', 'agent-tab');
+      await sleep(900);
+
       mark('phase', { phase: 'review' });
       let ornament = await rectOf('.page__ornament-trigger');
       const viewportHeight = shelf.viewport.height;
-      if (ornament.y + ornament.height > viewportHeight - 80 || ornament.y < 80) {
-        // Bring the chapter's end into view the way a hand would.
-        await moveTo(centre({ ...column.text, height: 1, y: Math.min(viewportHeight - 200, column.text.y + 300) }));
-        await rig.send('pointer.scroll', { dy: ornament.y - viewportHeight * 0.55, duration: 0.9 });
+      // The page ends where the timeline under it begins.
+      const pageBottom = (await scenes.run<Rect | null>('bottomTimeline'))?.y ?? viewportHeight;
+      if (ornament.y + ornament.height > pageBottom - 220 || ornament.y < 80) {
+        // Bring the chapter's end into view the way a hand would, its menu clear of the timeline.
+        await moveTo(centre({ ...column.text, height: 1, y: Math.min(pageBottom - 200, column.text.y + 300) }));
+        await rig.send('pointer.scroll', { dy: ornament.y - pageBottom * 0.45, duration: 0.9 });
         await sleep(700);
         ornament = await rectOf('.page__ornament-trigger');
       }

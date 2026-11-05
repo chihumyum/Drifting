@@ -27,6 +27,12 @@ export interface StoryParagraph {
 export interface Story {
   book: string;
   chapter: string;
+  /**
+   * `existing: true`: the book and chapter are on the shelf already (a sample
+   * the seed writes): the take opens the book and goes on writing the chapter
+   * from Project Home's Continue, instead of creating both.
+   */
+  existing: boolean;
   /** What the author asks the Agent for once the chapter is written. */
   organize: string;
   /** Names to point at once the Agent has made them elements; the first is hovered. */
@@ -98,6 +104,7 @@ export function parseStory(source: string): Story {
   return {
     book: required('book'),
     chapter: required('chapter'),
+    existing: meta.get('existing') === 'true',
     organize: required('organize'),
     links: (meta.get('links') ?? '').split(/[,，、]/).map((name) => name.trim()).filter(Boolean),
     memory: meta.get('memory') || null,
