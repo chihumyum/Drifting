@@ -18,8 +18,9 @@ import type {
   AgentRuntimeUsage,
 } from '../types';
 import {
+  agentProviderModelOption,
+  defaultAgentProviderModel,
   resolveAgentProviderContextProfile,
-  resolveAgentProviderReasoningProfile,
 } from '../agent-provider-contract';
 
 type FetchLike = typeof fetch;
@@ -73,7 +74,7 @@ export class AnthropicMessagesAgentDriver implements AgentModelDriver {
   constructor(options: AnthropicMessagesAgentDriverOptions) {
     if (!options.apiKey.trim()) throw new Error('Anthropic API key is empty');
     this.apiKey = options.apiKey;
-    this.defaultModel = options.defaultModel ?? 'claude-sonnet-5';
+    this.defaultModel = options.defaultModel ?? defaultAgentProviderModel('anthropic');
     this.capabilities = {
       reasoning: true,
       context: resolveAgentProviderContextProfile('anthropic', this.defaultModel),
@@ -110,21 +111,21 @@ export class AnthropicMessagesAgentDriver implements AgentModelDriver {
   ): AsyncIterable<AgentModelStreamEvent> {
     if (request.signal.aborted) throw abortError();
     const model = request.model || this.defaultModel;
+    const modelOption = agentProviderModelOption('anthropic', model);
     // Messages requires max_tokens. Use the selected model's declared maximum
     // when the caller has not requested a smaller ceiling, not a runtime default.
-    const maxOutputTokens = request.maxOutputTokens
-      ?? resolveAgentProviderContextProfile('anthropic', model).maxOutputTokens;
+    const maxOutputTokens = request.maxOutputTokens ?? modelOption.context.maxOutputTokens;
     if (maxOutputTokens === null) {
       throw new AgentModelDriverError('The selected Anthropic model has no declared output maximum.');
     }
-    const reasoningProfile = resolveAgentProviderReasoningProfile(
-      'anthropic',
-      model,
-    );
-    const configuredReasoningEnabled = request.reasoning?.enabled === true;
+    const reasoningProfile = modelOption.reasoning;
+    // The newest models reject turning thinking off and think when it is
+    // omitted, so their thinking stays on and is always replayed unchanged.
+    const requiresReasoning = !reasoningProfile.thinkingModes.includes('off');
+    const configuredReasoningEnabled = request.reasoning?.enabled === true || requiresReasoning;
     const reasoningEnabled =
       configuredReasoningEnabled &&
-      request.executionMode !== 'required_tool_non_reasoning';
+      (request.executionMode !== 'required_tool_non_reasoning' || requiresReasoning);
     if (
       reasoningEnabled &&
       !reasoningProfile.thinkingModes.includes('adaptive')
@@ -179,7 +180,7 @@ export class AnthropicMessagesAgentDriver implements AgentModelDriver {
             ? { thinking: { type: 'adaptive', display: 'summarized' } }
             : {}),
           ...(reasoningProfile.efforts.length > 0 &&
-          request.executionMode !== 'required_tool_non_reasoning'
+          (request.executionMode !== 'required_tool_non_reasoning' || requiresReasoning)
             ? { output_config: { effort } }
             : {}),
           ...(request.tools.length
@@ -192,7 +193,10 @@ export class AnthropicMessagesAgentDriver implements AgentModelDriver {
                     ? { cache_control: ANTHROPIC_EPHEMERAL_CACHE_CONTROL }
                     : {}),
                 })),
-                tool_choice: anthropicToolChoice(request.toolChoice),
+                tool_choice: anthropicToolChoice(
+                  request.toolChoice,
+                  modelOption.forcedToolChoice !== false,
+                ),
               }
             : {}),
         }),
@@ -393,8 +397,12 @@ export class AnthropicMessagesAgentDriver implements AgentModelDriver {
 
 function anthropicToolChoice(
   choice: AgentModelRequest['toolChoice'],
+  forcedAllowed: boolean,
 ): { type: 'auto' | 'any' | 'none' } | { type: 'tool'; name: string } {
   if (choice === 'none') return { type: 'none' };
+  // Models that reject `any` / `tool` with a 400 get `auto`, which still lets
+  // them call the requested tool instead of failing the whole turn.
+  if (!forcedAllowed) return { type: 'auto' };
   if (choice === 'required') return { type: 'any' };
   if (choice && typeof choice === 'object') return { type: 'tool', name: choice.force };
   return { type: 'auto' };

@@ -14,7 +14,10 @@ import { canUseByokProvider } from '../config';
 import { platform } from '../../platform';
 import { buildDirectBYOKClient } from './client/build-default-client';
 import type { LLMClient } from './client/llm-client';
-import { agentProviderOption } from '../agent/runtime/agent-provider-contract';
+import {
+  agentProviderOption,
+  resolveAgentProviderReasoningProfile,
+} from '../agent/runtime/agent-provider-contract';
 import { AIError } from './types';
 
 export interface TestProviderConnectionOptions {
@@ -70,8 +73,8 @@ export async function testByokProviderConnection(
   const response = await client.complete({
     model,
     messages: [{ role: 'user', content: 'Return exactly OK.' }],
-    maxOutputTokens: 32,
-    temperature: 0,
+    // Current Anthropic models think by default and reject sampling parameters.
+    ...(provider === 'anthropic' ? { maxOutputTokens: 1_024 } : { maxOutputTokens: 32, temperature: 0 }),
     signal,
     metadata: { feature: 'settings-provider-test' },
   });
@@ -85,15 +88,18 @@ async function testOpenAIConnection(
   signal: AbortSignal,
   request: TestProviderConnectionDependencies['requestOpenAI'],
 ): Promise<void> {
+  // Models that cannot turn reasoning off spend part of the output on it.
+  const reasoning = resolveAgentProviderReasoningProfile('openai', model);
+  const reasoningOff = reasoning.thinkingModes.includes('off');
   const response = await request(
     JSON.stringify({
       model,
       instructions: 'Return exactly OK.',
       input: 'Drifting native connectivity check.',
-      max_output_tokens: 32,
+      max_output_tokens: reasoningOff ? 32 : 1_024,
       stream: true,
       store: false,
-      ...(model.startsWith('gpt-5.6') ? { reasoning: { effort: 'none' } } : {}),
+      reasoning: { effort: reasoningOff ? 'none' : reasoning.efforts[0] ?? 'low' },
     }),
     signal,
   );

@@ -2,6 +2,10 @@ import OpenAI from 'openai';
 
 import type { LLMProvider } from './provider';
 import {
+  defaultAgentProviderModel,
+  resolveAgentProviderReasoningProfile,
+} from '../../../agent/runtime/agent-provider-contract';
+import {
   AIError,
   type AICompletionChunk,
   type AICompletionRequest,
@@ -31,7 +35,7 @@ export class OpenAIProvider implements LLMProvider {
       ...(config.baseURL ? { baseURL: config.baseURL } : {}),
       dangerouslyAllowBrowser: true,
     });
-    this.defaultModel = config.defaultModel ?? 'gpt-5.6-sol';
+    this.defaultModel = config.defaultModel ?? defaultAgentProviderModel('openai');
   }
 
   async complete(request: AICompletionRequest): Promise<AICompletionResponse> {
@@ -45,7 +49,7 @@ export class OpenAIProvider implements LLMProvider {
           tools: buildTools(request),
           tool_choice: buildToolChoice(request),
           max_completion_tokens: request.maxOutputTokens,
-          ...(model.startsWith('gpt-5.6')
+          ...(allowsReasoningOff(model)
             ? { reasoning_effort: 'none' as const }
             : {}),
           ...(typeof request.temperature === 'number'
@@ -90,7 +94,7 @@ export class OpenAIProvider implements LLMProvider {
           tools: buildTools(request),
           tool_choice: buildToolChoice(request),
           max_completion_tokens: request.maxOutputTokens,
-          ...(model.startsWith('gpt-5.6')
+          ...(allowsReasoningOff(model)
             ? { reasoning_effort: 'none' as const }
             : {}),
           stream: true,
@@ -257,4 +261,9 @@ function mapOpenAIError(error: unknown, signal?: AbortSignal): AIError {
     return new AIError('network', 'OpenAI service is temporarily unavailable.');
   }
   return new AIError('network', 'OpenAI request failed.');
+}
+
+/** Models that accept `reasoning_effort: none`; others keep the provider default. */
+function allowsReasoningOff(model: string): boolean {
+  return resolveAgentProviderReasoningProfile('openai', model).thinkingModes.includes('off');
 }

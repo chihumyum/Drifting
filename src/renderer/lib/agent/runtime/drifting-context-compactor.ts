@@ -15,6 +15,7 @@ import {
   type AgentContextSummaryCandidate,
 } from './context-planner';
 import type { AgentModelDriver } from './types';
+import { DEFAULT_AGENT_MODEL } from './agent-provider-contract';
 import {
   DRIFTING_LITERARY_EVIDENCE_KINDS,
   parseDriftingLiteraryContextSummary,
@@ -23,7 +24,7 @@ import {
   type DriftingLiteraryEvidenceCitation,
 } from './literary-context-summary';
 
-const DEFAULT_MODEL = 'deepseek-v4-flash';
+const DEFAULT_MODEL = DEFAULT_AGENT_MODEL;
 const DEFAULT_MAX_INPUT_TOKENS_PER_REQUEST = 18_000;
 // Real provider latency for an 18k-token structured summary regularly exceeds
 // eight seconds even with summary reasoning disabled. Keep this below the

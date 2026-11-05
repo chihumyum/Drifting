@@ -14,7 +14,7 @@
  *   - tool-call arguments arrive as a JSON STRING and must be parsed
  *   - abortSignal flows through SDK request options to the underlying fetch
  *
- * Thinking mode (deepseek-v4-flash / -pro default to thinking-on):
+ * Thinking mode (deepseek-flash / deepseek-v4-pro default to thinking-on):
  *   - Default on/off comes from provider config; a single request can override
  *     it via `request.thinking` (inline-ask forces reasoning on this way)
  *   - Sent as `{ thinking: { type: 'enabled' | 'disabled' }, reasoning_effort }`
@@ -39,6 +39,7 @@
  */
 import OpenAI from 'openai';
 import type { LLMProvider } from './provider';
+import { defaultAgentProviderModel } from '../../../agent/runtime/agent-provider-contract';
 import {
   AIError,
   type AICompletionChunk,
@@ -75,7 +76,7 @@ export interface DeepSeekProviderConfig {
 }
 
 const DEFAULT_BASE_URL = 'https://api.deepseek.com/v1';
-const DEFAULT_MODEL = 'deepseek-v4-flash';
+const DEFAULT_MODEL = defaultAgentProviderModel('deepseek');
 
 export class DeepSeekProvider implements LLMProvider {
   readonly id = 'deepseek';

@@ -361,6 +361,7 @@ describe('tauri native OpenAI and Keychain status transport', () => {
       }
       if (command === 'codex_oauth_cancel') return false;
       if (command === 'codex_models_list') return { models: [{ slug: 'gpt-next', displayName: 'Next' }], refreshAfterMs: 60_000 };
+      if (command === 'byok_models_list') return { models: [{ id: 'claude-next' }] };
       if (command === 'codex_oauth_logout') return true;
       throw new Error(`unexpected command: ${command}`);
     });
@@ -376,6 +377,8 @@ describe('tauri native OpenAI and Keychain status transport', () => {
     await expect(tauriPlatform.codexSubscription.cancelLogin()).resolves.toBe(false);
     await expect(tauriPlatform.codexSubscription.listModels()).resolves.toEqual({ models: [{ slug: 'gpt-next', displayName: 'Next' }], refreshAfterMs: 60_000 });
     expect(tauriMocks.invoke).toHaveBeenCalledWith('codex_models_list', undefined);
+    await expect(tauriPlatform.byokModels.list('anthropic')).resolves.toEqual({ models: [{ id: 'claude-next' }] });
+    expect(tauriMocks.invoke).toHaveBeenCalledWith('byok_models_list', { provider: 'anthropic' });
     await expect(tauriPlatform.codexSubscription.logout()).resolves.toBe(true);
     expect(tauriMocks.invoke).toHaveBeenCalledWith('codex_oauth_start', undefined);
     expect(tauriMocks.invoke).toHaveBeenCalledWith('codex_oauth_logout', undefined);

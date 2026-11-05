@@ -18,8 +18,10 @@ import {
 import { DRIFTING_AGENT_CONTEXT_PROFILE } from '../drifting-agent-product-contract';
 import {
   agentProviderOption,
+  DEFAULT_AGENT_MODEL,
   isAgentProviderId,
-  isCodexModelSelection,
+  isAgentProviderModelSelection,
+  isByokAgentProvider,
   normalizeAgentProviderModel,
   type AgentProviderId,
 } from '../agent-provider-contract';
@@ -28,6 +30,7 @@ import { OpenAIResponsesAgentDriver } from './openai-responses-driver';
 import { isTauriRuntime, platform } from '../../../../platform';
 import { canUseByokProvider } from '../../../config';
 import { codexModelCatalog } from '../../codex-model-catalog';
+import { byokModelLists } from '../../byok-model-catalog';
 
 export interface DriftingAgentModelDriverOptions {
   createClient?: () => Promise<AgentCompletionClient | LLMClient>;
@@ -77,7 +80,7 @@ export class DriftingAgentModelDriver implements AgentModelDriver {
   constructor(options: DriftingAgentModelDriverOptions = {}) {
     this.createClient = options.createClient ?? defaultCreateClient;
     this.legacyClientOverride = options.createClient !== undefined;
-    this.defaultModel = options.defaultModel ?? 'deepseek-v4-flash';
+    this.defaultModel = options.defaultModel ?? DEFAULT_AGENT_MODEL;
     this.createProviderDriver = options.createProviderDriver;
     this.featureLabel = options.featureLabel ?? 'General Agent';
     this.logTag = options.logTag ?? 'general-agent';
@@ -96,7 +99,7 @@ export class DriftingAgentModelDriver implements AgentModelDriver {
     if (
       request.model &&
       !agentProviderOption(provider).models.some((candidate) => candidate.value === request.model)
-      && !(provider === 'openai-codex' && isCodexModelSelection(request.model))
+      && !isAgentProviderModelSelection(provider, request.model)
     ) {
       throw new AgentModelDriverError(
         'The selected model does not belong to the selected Agent provider.',
@@ -152,6 +155,14 @@ export class DriftingAgentModelDriver implements AgentModelDriver {
     try {
       if (this.createProviderDriver) {
         return await this.createProviderDriver(provider, model);
+      }
+      if (
+        isByokAgentProvider(provider)
+        && !agentProviderOption(provider).models.some((candidate) => candidate.value === model)
+      ) {
+        // A saved choice from the provider's own list: read the list first so
+        // the driver gets the model's published limits, not a fallback profile.
+        await byokModelLists[provider].refresh();
       }
       if (!this.hasLegacyClientOverride() && provider === 'anthropic') {
         const apiKey = await createCredentialChain().getApiKey('anthropic');

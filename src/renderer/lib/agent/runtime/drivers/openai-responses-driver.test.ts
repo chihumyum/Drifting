@@ -826,17 +826,17 @@ describe('OpenAI Responses Agent driver', () => {
     };
     const driver = new OpenAIResponsesAgentDriver({
       provider: 'openai-codex',
-      defaultModel: 'gpt-5.6-luna',
+      defaultModel: 'gpt-6-luna',
       transport,
     });
-    expect(driver.capabilities.context.id).toBe('gpt-5.6-luna:responses-codex-v1');
+    expect(driver.capabilities.context.id).toBe('gpt-6-luna:responses-codex-v1');
 
     await expect(
       collect(
         driver,
         request({
           provider: 'openai-codex',
-          model: 'gpt-5.6-luna',
+          model: 'gpt-6-luna',
           tools: [],
           reasoning: { enabled: false },
         }),
@@ -844,7 +844,7 @@ describe('OpenAI Responses Agent driver', () => {
     ).resolves.toContainEqual({ type: 'finish', reason: 'end_turn' });
     const body = JSON.parse(transport.request.mock.calls[0]![0]) as Record<string, unknown>;
     expect(body).toMatchObject({
-      model: 'gpt-5.6-luna',
+      model: 'gpt-6-luna',
       stream: true,
       store: false,
       text: { verbosity: 'medium' },

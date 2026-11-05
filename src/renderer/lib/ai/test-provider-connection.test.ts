@@ -55,9 +55,28 @@ describe('direct BYOK provider connectivity check', () => {
         model: `${provider}-model`,
         metadata: { feature: 'settings-provider-test' },
       });
+      if (provider === 'anthropic') {
+        // Current Claude models think by default and reject sampling parameters.
+        expect(requests[0]).toMatchObject({ maxOutputTokens: 1_024 });
+        expect(requests[0]).not.toHaveProperty('temperature');
+      } else {
+        expect(requests[0]).toMatchObject({ maxOutputTokens: 32, temperature: 0 });
+      }
       expect(deps.requestOpenAI).not.toHaveBeenCalled();
     },
   );
+
+  it.each([
+    ['gpt-6-luna', { effort: 'none' }, 32],
+    ['gpt-6-astra', { effort: 'low' }, 1_024],
+  ] as const)('asks %s for the cheapest reasoning it accepts', async (model, reasoning, ceiling) => {
+    const deps = dependencies();
+    await testByokProviderConnection('openai', { model }, deps);
+    const body = JSON.parse(
+      (deps.requestOpenAI as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as string,
+    ) as Record<string, unknown>;
+    expect(body).toMatchObject({ model, reasoning, max_output_tokens: ceiling });
+  });
 
   it('uses native fixed-origin OpenAI Responses without decrypting its key in JavaScript', async () => {
     const deps = dependencies({
