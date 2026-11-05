@@ -3704,7 +3704,11 @@
       "search_prose": "원고 검색",
       "search_project": "작품 검색",
       "search_prose_query": "원고에서 “{{query}}” 검색",
-      "search_project_query": "작품에서 “{{query}}” 검색"
+      "search_project_query": "작품에서 “{{query}}” 검색",
+      "web_search": "웹 검색",
+      "web_search_query": "웹에서 “{{query}}” 검색",
+      "web_open_page": "웹 페이지 열기",
+      "web_open_page_site": "{{site}} 페이지 열기"
     },
     "permission": {
       "related": "연관됨",

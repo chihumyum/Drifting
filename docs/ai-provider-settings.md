@@ -43,6 +43,8 @@ General Agent 默认不设置单次或累计输出上限；摘要压缩也不再
 
 General Agent 当前认证 DeepSeek、Anthropic、OpenAI 三种多轮 tool protocol，另有复用 OpenAI Responses 契约的实验性 `openai-codex` 订阅路由。
 
+联网搜索没有开关：选 OpenAI（API key）或 ChatGPT 订阅时，Agent 每次带工具的请求都附带 OpenAI 托管的 `web_search`，由模型自己决定搜不搜；搜索在 OpenAI 服务器上完成，对话里显示为「搜索网页“…”」「打开网页 …」两类已完成的步骤卡。DeepSeek 与 Anthropic 暂无联网搜索。契约见 [provider-extension-protocol.md](agent-runtime/provider-extension-protocol.md)。
+
 ## 运行时边界
 
 - 「测试连接」是显式用户动作。DeepSeek、Anthropic 使用各自 direct adapter；OpenAI 使用固定 origin 的原生 Responses transport，测试时 API key 不进入 renderer JavaScript。测试模型取 General Agent 当前所选模型（同一 provider 时），否则取该 provider 模型目录的第一项。仅浏览设置页只查询 key 是否存在，不解密 key。

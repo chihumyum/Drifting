@@ -26,6 +26,18 @@ describe('author-facing Agent tool activity', () => {
     ).toBe(true);
   });
 
+  it('describes provider-hosted web searches by their query and site', () => {
+    expect(describeAgentToolActivity('web_search', { query: '水浒传 拳打镇关西' }, 'zh-CN'))
+      .toBe('搜索网页“水浒传 拳打镇关西”');
+    expect(describeAgentToolActivity('web_search', {}, 'zh-CN')).toBe('搜索网页');
+    expect(describeAgentToolActivity('web_search', { query: 'rain' }, 'en-US'))
+      .toBe('Search the web for “rain”');
+    expect(
+      describeAgentToolActivity('web_open_page', { url: 'https://www.zh.wikisource.org/wiki/x?y=1' }, 'zh-CN'),
+    ).toBe('打开网页 zh.wikisource.org');
+    expect(describeAgentToolActivity('web_open_page', { url: 'not a url' }, 'en-US')).toBe('Open a web page');
+  });
+
   it('describes explicit domain reads without storage vocabulary', () => {
     expect(describeAgentToolActivity('get_project_overview', {}, 'zh-CN')).toBe('了解作品全貌');
     expect(describeAgentToolActivity('list_inspirations', {}, 'zh-CN')).toBe('查看构想列表');

@@ -3704,7 +3704,11 @@
       "search_prose": "Search the manuscript",
       "search_project": "Search the project",
       "search_prose_query": "Search manuscript for “{{query}}”",
-      "search_project_query": "Search project for “{{query}}”"
+      "search_project_query": "Search project for “{{query}}”",
+      "web_search": "Search the web",
+      "web_search_query": "Search the web for “{{query}}”",
+      "web_open_page": "Open a web page",
+      "web_open_page_site": "Open a page on {{site}}"
     },
     "permission": {
       "related": "relates to",

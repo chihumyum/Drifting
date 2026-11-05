@@ -3704,7 +3704,11 @@
       "search_prose": "Manuskript durchsuchen",
       "search_project": "Projekt durchsuchen",
       "search_prose_query": "Im Manuskript nach „{{query}}“ suchen",
-      "search_project_query": "Im Projekt nach „{{query}}“ suchen"
+      "search_project_query": "Im Projekt nach „{{query}}“ suchen",
+      "web_search": "Im Web suchen",
+      "web_search_query": "Im Web nach „{{query}}“ suchen",
+      "web_open_page": "Webseite öffnen",
+      "web_open_page_site": "Seite auf {{site}} öffnen"
     },
     "permission": {
       "related": "steht in Beziehung zu",

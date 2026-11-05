@@ -962,6 +962,97 @@ describe('AgentRuntime', () => {
     driver.assertExhausted();
   });
 
+  it('journals provider-hosted web searches without executing or budgeting them', async () => {
+    const driver = new ScriptedFakeDriver({
+      rounds: [
+        {
+          steps: [
+            {
+              op: 'emit',
+              event: {
+                type: 'provider_tool',
+                callId: 'ws_1',
+                name: 'web_search',
+                input: { query: '水浒传 拳打镇关西' },
+                ok: true,
+              },
+            },
+            {
+              op: 'emit',
+              event: {
+                type: 'provider_tool',
+                callId: 'ws_2',
+                name: 'web_open_page',
+                input: { url: 'https://zh.wikisource.org/wiki/x' },
+                ok: false,
+              },
+            },
+            ...toolCallSteps('call-1', 'read', ['{}']),
+            { op: 'emit', event: { type: 'usage', usage: usage(10, 2) } },
+            { op: 'emit', event: { type: 'finish', reason: 'tool_use' } },
+          ],
+        },
+        {
+          steps: [
+            { op: 'emit', event: { type: 'text_delta', text: '见第三回。' } },
+            { op: 'emit', event: { type: 'usage', usage: usage(12, 3) } },
+            { op: 'emit', event: { type: 'finish', reason: 'end_turn' } },
+          ],
+        },
+      ],
+    });
+    const execute = vi.fn<AgentToolRuntime['execute']>(async () => ({ ok: true, data: {} }));
+
+    const result = await new AgentRuntime({
+      driver,
+      tools: toolRuntime([definition('read')], execute),
+    }).runTurn(input({ limits: { maxToolCalls: 1 } }));
+
+    expect(result.state.status).toBe('completed');
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(Object.keys(result.state.tools)).toEqual(['call-1']);
+    expect(result.entries.map((entry) => entry.event).filter((event) => event.type === 'provider_tool_used'))
+      .toEqual([
+        { type: 'provider_tool_used', iteration: 1, callId: 'ws_1', name: 'web_search', input: { query: '水浒传 拳打镇关西' }, ok: true },
+        { type: 'provider_tool_used', iteration: 1, callId: 'ws_2', name: 'web_open_page', input: { url: 'https://zh.wikisource.org/wiki/x' }, ok: false },
+      ]);
+    expect(replayAgentRuntimeJournal(result.entries)).toEqual(result.state);
+    // Nothing of the hosted search enters the canonical conversation.
+    expect(JSON.stringify(driver.calls[1]?.context.messages)).not.toContain('ws_1');
+
+    const transcript = result.entries.reduce<AgentChatMessage[]>(applyAgentChatJournalEntry, []);
+    expect(transcript.filter((message) => message.kind === 'tool')).toMatchObject([
+      { id: 'ws_1', name: 'web_search', input: { query: '水浒传 拳打镇关西' }, phase: 'ready', status: 'ok' },
+      { id: 'ws_2', name: 'web_open_page', status: 'error' },
+      { id: 'call-1', name: 'read', status: 'ok' },
+    ]);
+    driver.assertExhausted();
+  });
+
+  it('fails the turn when a provider reports the same hosted tool twice', async () => {
+    const search = {
+      op: 'emit',
+      event: { type: 'provider_tool', callId: 'ws_1', name: 'web_search', input: {}, ok: true },
+    } as const;
+    const driver = new ScriptedFakeDriver({
+      rounds: [
+        {
+          steps: [
+            search,
+            search,
+            { op: 'emit', event: { type: 'usage', usage: usage(1, 1) } },
+            { op: 'emit', event: { type: 'finish', reason: 'end_turn' } },
+          ],
+        },
+      ],
+    });
+
+    const result = await new AgentRuntime({ driver }).runTurn(input());
+
+    expect(result.state.status).toBe('failed');
+    expect(result.state.terminal?.message).toContain('Duplicate provider hosted tool id');
+  });
+
   it('has no aggregate iteration, tool-call, token, cost, or duration quota by default', async () => {
     const workRounds: ScriptedDriverRound[] = Array.from({ length: 34 }, (_, index) => ({
       steps: [

@@ -3704,7 +3704,11 @@
       "search_prose": "搜尋稿件",
       "search_project": "搜尋作品",
       "search_prose_query": "在稿件中搜尋「{{query}}」",
-      "search_project_query": "在作品中搜尋「{{query}}」"
+      "search_project_query": "在作品中搜尋「{{query}}」",
+      "web_search": "搜尋網頁",
+      "web_search_query": "搜尋網頁「{{query}}」",
+      "web_open_page": "開啟網頁",
+      "web_open_page_site": "開啟網頁 {{site}}"
     },
     "permission": {
       "related": "關聯至",

@@ -3719,7 +3719,11 @@
       "search_prose": "Buscar en el manuscrito",
       "search_project": "Buscar en el proyecto",
       "search_prose_query": "Buscar «{{query}}» en el manuscrito",
-      "search_project_query": "Buscar «{{query}}» en el proyecto"
+      "search_project_query": "Buscar «{{query}}» en el proyecto",
+      "web_search": "Buscar en la web",
+      "web_search_query": "Buscar «{{query}}» en la web",
+      "web_open_page": "Abrir una página web",
+      "web_open_page_site": "Abrir una página de {{site}}"
     },
     "permission": {
       "related": "se relaciona con",

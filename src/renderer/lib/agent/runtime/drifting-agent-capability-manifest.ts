@@ -149,6 +149,15 @@ export interface DriftingAgentCapabilityManifest {
       outputBudget: string;
       acceptance: string;
     };
+    hostedWebSearch: {
+      providers: readonly ['openai', 'openai-codex'];
+      tool: 'web_search-external-web-access';
+      offer: 'every-tool-bearing-request-except-required-choice';
+      execution: 'provider-server-side-inside-the-buffered-attempt';
+      journal: 'provider_tool_used-settled-transcript-card-outside-canonical-history';
+      replay: 'web_search_call-items-verbatim-in-the-active-tool-loop';
+      acceptance: 'synthetic-stream-and-replay-tests;live-api-verified;live-subscription-unverified';
+    };
     certifiedProviders: Array<{
       provider: string;
       models: Array<{
@@ -376,6 +385,15 @@ export function buildDriftingAgentCapabilityManifest(): DriftingAgentCapabilityM
         savedSelection: 'preserved-across-restart-and-discovery-failure',
         outputBudget: 'provider-controlled-no-client-cap;unknown-ceilings-null;input-reserve-is-not-output-limit',
         acceptance: 'synthetic-catalog-and-native-projection-tests;live-account-unverified',
+      },
+      hostedWebSearch: {
+        providers: ['openai', 'openai-codex'],
+        tool: 'web_search-external-web-access',
+        offer: 'every-tool-bearing-request-except-required-choice',
+        execution: 'provider-server-side-inside-the-buffered-attempt',
+        journal: 'provider_tool_used-settled-transcript-card-outside-canonical-history',
+        replay: 'web_search_call-items-verbatim-in-the-active-tool-loop',
+        acceptance: 'synthetic-stream-and-replay-tests;live-api-verified;live-subscription-unverified',
       },
       certifiedProviders: AGENT_PROVIDER_OPTIONS.map((provider) => ({
         provider: provider.value,

@@ -3704,7 +3704,11 @@
       "search_prose": "原稿を検索",
       "search_project": "作品を検索",
       "search_prose_query": "原稿で「{{query}}」を検索",
-      "search_project_query": "作品で「{{query}}」を検索"
+      "search_project_query": "作品で「{{query}}」を検索",
+      "web_search": "ウェブを検索",
+      "web_search_query": "ウェブで「{{query}}」を検索",
+      "web_open_page": "ウェブページを開く",
+      "web_open_page_site": "{{site}} のページを開く"
     },
     "permission": {
       "related": "関連する",

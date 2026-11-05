@@ -700,6 +700,7 @@ export class AgentRuntime {
         }
       | undefined;
     const seenToolCallIds = new Set<string>();
+    const seenProviderToolIds = new Set<string>();
 
     const durationMs = () => Math.max(0, this.clock.monotonicNowMs() - startedMonoMs);
     const throwIfStopped = (): void => {
@@ -2083,6 +2084,28 @@ export class AgentRuntime {
                 name: call.name,
                 arguments: argumentsValue,
                 rawArguments: call.rawArguments,
+              });
+              break;
+            }
+
+            case 'provider_tool': {
+              // Ran on the provider's side inside this response: journal it
+              // for the transcript, execute nothing, count nothing. The
+              // driver replays the provider's own items for the tool loop.
+              if (!frame.callId || !frame.name) {
+                protocol('Provider reported a hosted tool without id/name');
+              }
+              if (seenProviderToolIds.has(frame.callId)) {
+                protocol(`Duplicate provider hosted tool id "${frame.callId}"`);
+              }
+              seenProviderToolIds.add(frame.callId);
+              await emit({
+                type: 'provider_tool_used',
+                iteration,
+                callId: frame.callId,
+                name: frame.name,
+                input: { ...frame.input },
+                ok: frame.ok,
               });
               break;
             }

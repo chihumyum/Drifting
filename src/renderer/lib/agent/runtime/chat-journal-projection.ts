@@ -137,6 +137,18 @@ function fold<T>(list: T, entry: AgentRuntimeJournalEntry, ops: MessageOps<T>): 
           status: 'running',
         },
       );
+    case 'provider_tool_used':
+      // A hosted search the provider already finished: one settled card.
+      return ops.append(finalize(list, ops),
+        {
+          kind: 'tool',
+          id: ev.callId,
+          name: ev.name,
+          input: ev.input,
+          phase: 'ready',
+          status: ev.ok ? 'ok' : 'error',
+        },
+      );
     case 'tool_args_delta':
       return updateNewestTool(list, ev.callId, (tool) => ({
         ...tool,

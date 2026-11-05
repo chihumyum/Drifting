@@ -67,7 +67,165 @@ describe('OpenAI Responses Agent driver', () => {
     expect(JSON.parse(transport.request.mock.calls[0]![0]).tools).toEqual([{
       type: 'function', name: 'read_chapter', description: 'Read a chapter.',
       parameters: inputSchema, strict: false,
-    }]);
+    }, { type: 'web_search', external_web_access: true }]);
+  });
+
+  it.each([
+    { label: 'free choice', toolChoice: undefined, offered: true },
+    { label: 'auto', toolChoice: 'auto' as const, offered: true },
+    { label: 'a forced function', toolChoice: { force: 'search' }, offered: true },
+    { label: 'required', toolChoice: 'required' as const, offered: false },
+    // Listed but uncallable, so the synthesis boundary keeps the cache prefix.
+    { label: 'none', toolChoice: 'none' as const, offered: true },
+  ])('offers hosted web search with $label', async ({ toolChoice, offered }) => {
+    const transport = { request: vi.fn(async (_body: string) => new Response(sse([
+      { type: 'response.completed', response: { status: 'completed', output: [], usage: { input_tokens: 1, output_tokens: 1 } } },
+    ]))) };
+    const driver = new OpenAIResponsesAgentDriver({ provider: 'openai-codex', transport });
+    await collect(driver, request({ provider: 'openai-codex', toolChoice }));
+    const tools = JSON.parse(transport.request.mock.calls[0]![0]).tools as { type: string }[];
+    expect(tools.some((tool) => tool.type === 'web_search')).toBe(offered);
+    expect(tools.filter((tool) => tool.type === 'function')).toHaveLength(1);
+  });
+
+  it('sends no tools at all, hosted ones included, for a tool-free request', async () => {
+    const transport = { request: vi.fn(async (_body: string) => new Response(sse([
+      { type: 'response.completed', response: { status: 'completed', output: [], usage: { input_tokens: 1, output_tokens: 1 } } },
+    ]))) };
+    const driver = new OpenAIResponsesAgentDriver({ provider: 'openai', transport });
+    await collect(driver, request({ tools: [] }));
+    expect(JSON.parse(transport.request.mock.calls[0]![0])).not.toHaveProperty('tools');
+  });
+
+  it('reports each hosted search once and finishes a search-only answer as end_turn', async () => {
+    const searchItem = {
+      id: 'ws_1', type: 'web_search_call', status: 'completed',
+      action: { type: 'search', query: '水浒传 拳打镇关西', queries: ['水浒传 拳打镇关西'] },
+    };
+    const pageItem = {
+      id: 'ws_2', type: 'web_search_call', status: 'completed',
+      action: { type: 'open_page', url: 'https://zh.wikisource.org/wiki/水滸傳' },
+    };
+    const findItem = {
+      id: 'ws_3', type: 'web_search_call', status: 'failed',
+      action: { type: 'find_in_page', url: 'https://example.org/a', pattern: '鲁达' },
+    };
+    const message = {
+      id: 'msg_1', type: 'message', role: 'assistant', status: 'completed',
+      content: [{ type: 'output_text', text: '见第三回。', annotations: [] }],
+    };
+    const transport = { request: vi.fn(async (_body: string) => new Response(sse([
+      { type: 'response.output_item.added', output_index: 0, item: { id: 'ws_1', type: 'web_search_call', status: 'in_progress' } },
+      { type: 'response.web_search_call.in_progress', item_id: 'ws_1', output_index: 0 },
+      { type: 'response.web_search_call.searching', item_id: 'ws_1', output_index: 0 },
+      { type: 'response.web_search_call.completed', item_id: 'ws_1', output_index: 0 },
+      { type: 'response.output_item.done', output_index: 0, item: searchItem },
+      { type: 'response.output_item.done', output_index: 1, item: pageItem },
+      { type: 'response.output_text.delta', delta: '见第三回。' },
+      { type: 'response.output_item.done', output_index: 2, item: message },
+      {
+        type: 'response.completed',
+        // `find_in_page` arrives only on the terminal snapshot here.
+        response: { status: 'completed', output: [searchItem, pageItem, message, findItem], usage: { input_tokens: 3, output_tokens: 2 } },
+      },
+    ]))) };
+    const driver = new OpenAIResponsesAgentDriver({ provider: 'openai', transport });
+    const events = await collect(driver, request({ reasoning: { enabled: false } }));
+    expect(events.filter((event) => event.type === 'provider_tool')).toEqual([
+      { type: 'provider_tool', callId: 'ws_1', name: 'web_search', input: { query: '水浒传 拳打镇关西' }, ok: true },
+      { type: 'provider_tool', callId: 'ws_2', name: 'web_open_page', input: { url: 'https://zh.wikisource.org/wiki/水滸傳' }, ok: true },
+      { type: 'provider_tool', callId: 'ws_3', name: 'web_open_page', input: { url: 'https://example.org/a' }, ok: false },
+    ]);
+    expect(events[events.length - 1]).toEqual({ type: 'finish', reason: 'end_turn' });
+    expect(events.findIndex((event) => event.type === 'provider_tool' && event.callId === 'ws_3'))
+      .toBeLessThan(events.findIndex((event) => event.type === 'usage'));
+  });
+
+  it('rejects a stream that reports the same hosted search twice', async () => {
+    const searchItem = { id: 'ws_1', type: 'web_search_call', status: 'completed', action: { type: 'search', query: 'rain' } };
+    const transport = { request: vi.fn(async (_body: string) => new Response(sse([
+      { type: 'response.output_item.done', output_index: 0, item: searchItem },
+      { type: 'response.output_item.done', output_index: 1, item: searchItem },
+      { type: 'response.completed', response: { status: 'completed', output: [], usage: { input_tokens: 1, output_tokens: 1 } } },
+    ]))) };
+    const driver = new OpenAIResponsesAgentDriver({
+      provider: 'openai', transport,
+      providerAttemptRetry: { maxAttempts: 1, baseDelayMs: 0, maxDelayMs: 0, jitter: false },
+    });
+    await expect(collect(driver, request({ reasoning: { enabled: false } }))).rejects.toThrow('invalid Responses stream');
+  });
+
+  it('replays hosted search items with the Codex tool batch when the terminal output is empty', async () => {
+    const bodies: Record<string, unknown>[] = [];
+    const reasoningItem = { id: 'rs_1', type: 'reasoning', encrypted_content: 'encrypted', summary: [] };
+    const searchItem = {
+      id: 'ws_1', type: 'web_search_call', status: 'completed',
+      action: { type: 'search', query: 'rain', queries: ['rain'] },
+    };
+    const functionItem = {
+      id: 'fc_1', type: 'function_call', call_id: 'call-1', name: 'search',
+      arguments: '{"query":"rain"}', status: 'completed',
+    };
+    let call = 0;
+    const transport = {
+      request: vi.fn(async (body: string) => {
+        bodies.push(JSON.parse(body) as Record<string, unknown>);
+        call += 1;
+        if (call === 1) {
+          return new Response(sse([
+            { type: 'response.output_item.done', output_index: 0, item: reasoningItem },
+            { type: 'response.output_item.added', output_index: 1, item: { id: 'ws_1', type: 'web_search_call', status: 'in_progress' } },
+            { type: 'response.output_item.done', output_index: 1, item: searchItem },
+            {
+              type: 'response.output_item.added', output_index: 2,
+              item: { ...functionItem, arguments: '', status: 'in_progress' },
+            },
+            { type: 'response.function_call_arguments.delta', item_id: 'fc_1', output_index: 2, delta: '{"query":"rain"}' },
+            { type: 'response.output_item.done', output_index: 2, item: functionItem },
+            { type: 'response.completed', response: { status: 'completed', output: [], usage: { input_tokens: 4, output_tokens: 2 } } },
+          ]));
+        }
+        return new Response(sse([
+          { type: 'response.completed', response: { status: 'completed', output: [], usage: { input_tokens: 5, output_tokens: 1 } } },
+        ]));
+      }),
+    };
+    const driver = new OpenAIResponsesAgentDriver({ provider: 'openai-codex', defaultModel: 'gpt-5.6-sol', transport });
+
+    const first = await collect(driver, request({ provider: 'openai-codex' }));
+    expect(first.filter((event) => event.type === 'provider_tool')).toEqual([
+      { type: 'provider_tool', callId: 'ws_1', name: 'web_search', input: { query: 'rain' }, ok: true },
+    ]);
+    expect(first[first.length - 1]).toEqual({ type: 'finish', reason: 'tool_use' });
+
+    await collect(driver, request({
+      provider: 'openai-codex',
+      iteration: 2,
+      context: {
+        systemPrompt: 'Use only certified tools.',
+        messages: [
+          { type: 'model_message', sourceIds: ['message/user/1'], message: { role: 'user', content: 'Search rain.' } },
+          {
+            type: 'model_message', sourceIds: ['message/assistant/1/tool'],
+            message: {
+              role: 'assistant',
+              content: [{ type: 'tool_call', callId: 'call-1', name: 'search', arguments: { query: 'rain' }, rawArguments: '{"query":"rain"}' }],
+            },
+          },
+          {
+            type: 'model_message', sourceIds: ['message/tool/1'],
+            message: { role: 'tool', content: [{ callId: 'call-1', name: 'search', ok: true, content: '{"matches":[]}' }] },
+          },
+        ],
+      },
+    }));
+    expect(bodies[1]?.input).toEqual([
+      { role: 'user', content: 'Search rain.' },
+      reasoningItem,
+      searchItem,
+      functionItem,
+      { type: 'function_call_output', call_id: 'call-1', output: '{"matches":[]}' },
+    ]);
   });
 
   it.each(['openai', 'openai-codex'] as const)('omits a default output cap for %s even for long responses', async (provider) => {

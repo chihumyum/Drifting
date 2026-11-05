@@ -3697,7 +3697,11 @@
       "search_prose": "检索正文",
       "search_project": "检索项目",
       "search_prose_query": "检索正文“{{query}}”",
-      "search_project_query": "检索项目“{{query}}”"
+      "search_project_query": "检索项目“{{query}}”",
+      "web_search": "搜索网页",
+      "web_search_query": "搜索网页“{{query}}”",
+      "web_open_page": "打开网页",
+      "web_open_page_site": "打开网页 {{site}}"
     },
     "permission": {
       "related": "关联",

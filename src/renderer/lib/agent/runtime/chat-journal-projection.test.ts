@@ -54,6 +54,33 @@ describe.each([['array', foldArray], ['live transcript', foldTranscript]] as con
     expect(failed[0]).not.toHaveProperty('boundary');
   });
 
+  it('settles a provider-hosted web search as its own finished tool card', () => {
+    const messages = fold([
+      entry(1, { type: 'thinking_delta', iteration: 1, text: '查一下。', consolidated: true }),
+      entry(2, {
+        type: 'provider_tool_used', iteration: 1, callId: 'ws_1', name: 'web_search',
+        input: { query: '水浒传 拳打镇关西' }, ok: true,
+      }),
+      entry(3, {
+        type: 'provider_tool_used', iteration: 1, callId: 'ws_2', name: 'web_open_page',
+        input: { url: 'https://zh.wikisource.org/wiki/x' }, ok: false,
+      }),
+      entry(4, { type: 'text_delta', iteration: 1, text: '见第三回。' }),
+    ]);
+    expect(messages).toEqual([
+      { kind: 'thinking', text: '查一下。', streaming: false },
+      {
+        kind: 'tool', id: 'ws_1', name: 'web_search', input: { query: '水浒传 拳打镇关西' },
+        phase: 'ready', status: 'ok',
+      },
+      {
+        kind: 'tool', id: 'ws_2', name: 'web_open_page', input: { url: 'https://zh.wikisource.org/wiki/x' },
+        phase: 'ready', status: 'error',
+      },
+      { kind: 'assistant', text: '见第三回。', streaming: true },
+    ]);
+  });
+
   it('appends historical per-chunk thinking rows into one streaming message', () => {
     const messages = fold([
       entry(1, { type: 'thinking_delta', iteration: 1, text: '先想' }),
