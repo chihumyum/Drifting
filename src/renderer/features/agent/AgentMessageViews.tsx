@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type React from 'react';
-import { marked } from 'marked';
+import { renderAgentMarkdown } from './agent-markdown';
 import { useTranslation } from 'react-i18next';
 import loglevel from 'loglevel';
 import { parseLocationHref } from '../../lib/location-link';
@@ -54,13 +54,7 @@ function messageTime(iso: string | undefined): { short: string; full: string } |
 
 // ---- Markdown (escape raw HTML first, so model output can't inject tags) ----
 
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
-}
-
-function mdToHtml(text: string): string {
-  return marked.parse(escapeHtml(text), { breaks: true, gfm: true, async: false }) as string;
-}
+const mdToHtml = renderAgentMarkdown;
 
 // ---- Components ------------------------------------------------------------
 
