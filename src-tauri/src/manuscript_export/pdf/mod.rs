@@ -242,14 +242,15 @@ impl Builder<'_> {
         for block in blocks {
             match block {
                 Block::Heading { level, runs, align } => {
-                    let (size, before, after, default_align) = match level {
-                        1 => (if self.cjk { 12.0 } else { 12.5 }, 1.0, 0.5, Align::Center),
-                        2 => (11.0, 0.75, 0.25, Align::Left),
-                        _ => (self.metrics.body, 0.5, 0.25, Align::Left),
+                    // H1–H3 step down in size; alignment is the author's.
+                    let (size, before, after) = match level {
+                        1 => (if self.cjk { 12.0 } else { 12.5 }, 1.0, 0.5),
+                        2 => (11.0, 0.75, 0.25),
+                        _ => (self.metrics.body, 0.5, 0.25),
                     };
                     let mut para = self.para_from_runs(runs, size, true);
                     para.align = if *align == Align::Justify {
-                        default_align
+                        Align::Left
                     } else {
                         *align
                     };

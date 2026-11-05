@@ -39,7 +39,7 @@ interface PlotPlannerDockProps {
 /**
  * The plot planner in the Bottom Panel under the paper, which it shares with
  * the Bottom Timeline: the chapter's own little timeline, its rows as named
- * lanes and its columns as beats (PlotGrid). It fills the panel, whose height
+ * lanes and its columns along the top (PlotGrid). It fills the panel, whose height
  * and top-edge handle are the timeline's too; its header is the panel's
  * shared header row.
  */

@@ -139,7 +139,7 @@ const NodeEditorSession = memo(function NodeEditorSession({ nodeId, projectId }:
   );
   const commentToggle = useCommentMarksToggle(activeProjectId, 'node', nodeId ?? '');
   const outlineIds = outline.map((heading) => heading.id);
-  // Nest the flat H1/H2/H3 outline into the scene/beat/note tree so this
+  // Nest the flat H1/H2/H3 outline into a tree by level so this
   // single-chapter TOC reads identically to the same chapter inside 通览全书.
   const outlineTree = useMemo(() => nestHeadings(outline), [outline]);
 

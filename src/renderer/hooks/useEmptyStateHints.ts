@@ -12,11 +12,15 @@ export function useEmptyStateHints() {
   const bindings = useShortcutsStore((state) => state.bindings);
   const shortcut = (action: ShortcutActionId) => formatAccelerator(bindings[action]);
   return {
-    /** An empty chapter's paper: the Markdown that starts its outline, then the two ways around the book. */
+    /**
+     * An empty paper: the Markdown for the three heading levels, then the two
+     * ways around the book. H1–H3 are named only by level; what a level means
+     * is the author's to decide.
+     */
     paper: [
-      { label: t('guide.hints.scene'), keys: '#' },
-      { label: t('guide.hints.beat'), keys: '##' },
-      { label: t('guide.hints.note'), keys: '###' },
+      { label: 'H1', keys: '#' },
+      { label: 'H2', keys: '##' },
+      { label: 'H3', keys: '###' },
       { label: t('guide.hints.search'), keys: shortcut('globalSearch') },
       { label: t('guide.hints.timeline'), keys: shortcut('toggleBottomTimeline') },
     ] satisfies EmptyStateHint[],

@@ -91,7 +91,7 @@ describe('editor Markdown sharing acceptance', () => {
     expect((await read('seed')).markdown).toContain('STALE seed');
   });
 
-  it('preserves act/chapter/scene/beat/note hierarchy and chapters preceding the first act', async () => {
+  it('preserves act/chapter/H1/H2/H3 hierarchy and chapters preceding the first act', async () => {
     const { db, node } = await fixture();
     await node('preface', 1, 'Opening'); await node('inside', 3, 'Body');
     await db.insert(BookActTable).values({ id: 'act', projectId: PROJECT, name: 'Act One', startOrder: 2, createdAt: NOW, updatedAt: NOW });

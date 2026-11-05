@@ -9,8 +9,8 @@
    *Pride and Prejudice*, taken apart into chapters, characters, storylines and
    notes. Explore it or delete it. It is created once and does not come back.
 3. **Write.** Create a project, add a chapter or an idea, and start writing.
-   Headings inside a chapter become scenes, beats and notes in the outline;
-   acts are set on the timeline. Everything is saved on your Mac as you type.
+   `#`, `##` and `###` inside a chapter start an H1, H2 or H3, three levels
+   whose meaning is yours, listed in the outline; acts are set on the timeline. Everything is saved on your Mac as you type.
 4. **Plan.** Add elements and categories, connect them with relations, and
    arrange chapters on storylines and the timeline. Project Home shows your
    progress and lets you create anything from one place.

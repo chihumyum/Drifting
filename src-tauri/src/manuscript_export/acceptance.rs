@@ -596,15 +596,17 @@ fn epub_is_a_valid_package_with_navigation_cover_and_book_order() {
     };
     let first = chapter("“今夜无船。”");
     assert!(first.contains("——又展开——再折好……<br/>窗外"));
-    let letters = chapter("<h3 class=\"scene\">一　雨夜</h3>");
+    let letters = chapter("<h3 class=\"level-1\">一　雨夜</h3>");
     for fragment in [
+        "<h4 class=\"level-2\">信使抵达</h4>",
+        "<h5 class=\"level-3\">核对潮汐表</h5>",
         "<strong>信使</strong>",
         "<em>Drifting 2026</em>",
         "<u>下划线</u>",
         "<s>划掉</s>",
         "<a href=\"https://example.com/fog-harbor\">雾港志</a>",
         "<blockquote>",
-        "<hr class=\"scene-break\"/>",
+        "<hr class=\"separator\"/>",
     ] {
         assert!(letters.contains(fragment), "{fragment}");
     }
@@ -635,6 +637,8 @@ fn docx_maps_the_outline_to_word_heading_styles_in_book_order() {
             ("Heading1", "第一卷　潮起"),
             ("Heading2", "第一章　来信"),
             ("Heading3", "一　雨夜"),
+            ("Heading4", "信使抵达"),
+            ("Heading5", "核对潮汐表"),
             ("Heading3", "二　旧信"),
             ("Heading2", "第二章　旧港"),
             ("Heading1", "第二卷　雾散"),
@@ -685,7 +689,7 @@ fn docx_without_acts_or_titles_starts_chapters_at_heading_one() {
     assert_eq!(
         style_of(">一　雨夜<").as_deref(),
         Some("Heading2"),
-        "scenes move up a level"
+        "H1 moves up a level"
     );
     assert!(
         !document.contains(">第一章　来信<"),

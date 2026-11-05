@@ -6,9 +6,9 @@ profile used by material notes) add lists, task lists, tables and code.
 
 | Typed | Becomes | Where |
 | --- | --- | --- |
-| `# ` / `## ` / `### ` at the start of a paragraph | scene / beat / note heading | everywhere |
+| `# ` / `## ` / `### ` at the start of a paragraph | H1 / H2 / H3 | everywhere |
 | `> ` at the start of a paragraph | block quote | everywhere |
-| `---` on an empty line | scene break (horizontal rule) | everywhere |
+| `---` on an empty line | separator (horizontal rule) | everywhere |
 | `**bold**`, `__bold__` | bold | everywhere |
 | `*italic*`, `_italic_` | italic | everywhere |
 | `~~struck~~` | strikethrough | everywhere |

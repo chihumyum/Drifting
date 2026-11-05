@@ -25,9 +25,9 @@ fn native_outline_uses_unique_live_headings_utf16_ranges_and_nearest_lower_paren
     .unwrap();
     {
         let mut txn = doc.doc.transact_mut_with(REMOTE);
-        heading(&doc.root, &mut txn, Some("beat"), 2, " 先拍🙂 ");
-        heading(&doc.root, &mut txn, Some("note"), 3, "注e\u{301}");
-        heading(&doc.root, &mut txn, Some("scene"), 1, "场");
+        heading(&doc.root, &mut txn, Some("h2"), 2, " 先拍🙂 ");
+        heading(&doc.root, &mut txn, Some("h3"), 3, "注e\u{301}");
+        heading(&doc.root, &mut txn, Some("h1"), 1, "场");
         let quote = doc
             .root
             .push_back(&mut txn, XmlElementPrelim::empty("blockquote"));
@@ -59,11 +59,11 @@ fn native_outline_uses_unique_live_headings_utf16_ranges_and_nearest_lower_paren
             ))
             .collect::<Vec<_>>(),
         vec![
-            ("beat", 2, None),
-            ("note", 3, Some("beat")),
-            ("scene", 1, None),
-            ("nested", 3, Some("scene")),
-            ("next", 2, Some("scene"))
+            ("h2", 2, None),
+            ("h3", 3, Some("h2")),
+            ("h1", 1, None),
+            ("nested", 3, Some("h1")),
+            ("next", 2, Some("h1"))
         ]
     );
     assert_eq!(items[0].text, "先拍🙂");

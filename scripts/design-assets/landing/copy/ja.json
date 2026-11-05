@@ -6,7 +6,7 @@
   "hero.values": "オープンソース · ローカルファースト",
   "write.kicker": "書く",
   "write.title": "Markdown エディターの<wbr>ように<wbr>書く",
-  "write.syntax": "静かな原稿用紙とキーボード。<code>#</code>、<code>##</code>、<code>###</code> でシーン、ビート、メモを書き始めます。<code>**太字**</code>、<code>*斜体*</code>、<code>&gt;</code>、<code>---</code> は<span class=\"sh\">入力と同時に整形</span>されます。",
+  "write.syntax": "静かな原稿用紙とキーボード。<code>#</code>、<code>##</code>、<code>###</code> で H1、H2、H3 を書き始めます。<code>**太字**</code>、<code>*斜体*</code>、<code>&gt;</code>、<code>---</code> は<span class=\"sh\">入力と同時に整形</span>されます。",
   "write.files": "作品ごとに Markdown ファイルのフォルダーがあります。Obsidian や普段のテキストエディターで章やアイデアを編集すると、変更が Drifting に反映されます。",
   "write.transfer": "文書単位でも一冊まるごとでも Markdown としてコピー・保存できます。<code>.md</code>、<code>.txt</code>、<code>.docx</code> の取り込みにも対応しています。",
   "story.line": "手紙を追って",

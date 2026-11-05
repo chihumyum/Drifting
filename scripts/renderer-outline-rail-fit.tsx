@@ -13,13 +13,13 @@ import '../src/styles/desktop-shell.css';
 import '../src/styles/ui-controls.css';
 import '../src/styles/desktop-typography.css';
 
-// A synthetic chapter: four scenes, each with two beats and a note, titles long
+// A synthetic chapter: four H1s, each with two H2s and an H3, titles long
 // enough to fill the label lane.
-const headings = [1, 2, 3, 4].flatMap((scene) => [
-  { id: `scene-${scene}`, level: 1 as const, text: `Scene ${scene}: the harbour lamps go out one by one` },
-  { id: `scene-${scene}-beat-1`, level: 2 as const, text: `Beat ${scene}.1 a letter nobody signed` },
-  { id: `scene-${scene}-beat-2`, level: 2 as const, text: `Beat ${scene}.2 the second key` },
-  { id: `scene-${scene}-note`, level: 3 as const, text: `Note ${scene}: keep the tide table consistent` },
+const headings = [1, 2, 3, 4].flatMap((part) => [
+  { id: `h1-${part}`, level: 1 as const, text: `Part ${part}: the harbour lamps go out one by one` },
+  { id: `h1-${part}-h2-1`, level: 2 as const, text: `${part}.1 a letter nobody signed` },
+  { id: `h1-${part}-h2-2`, level: 2 as const, text: `${part}.2 the second key` },
+  { id: `h1-${part}-h3`, level: 3 as const, text: `${part}.3 keep the tide table consistent` },
 ]);
 const tree = nestHeadings(headings);
 const ids = headings.map(({ id }) => id);
