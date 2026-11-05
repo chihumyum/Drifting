@@ -371,9 +371,7 @@ export function PendingRow({ status }: { status: AgentControlStatus | null }) {
           : t('agentPanel.pending.now');
   return (
     <div className="agt-pending">
-      <span className="agt-pending__dot" />
-      <span className="agt-pending__dot" />
-      <span className="agt-pending__dot" />
+      <BrushIcon name="thinking" size={12} />
       <span>{label}</span>
     </div>
   );

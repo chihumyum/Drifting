@@ -88,8 +88,11 @@ hook.png                    ↳: one stroke down and round, a head at its end (a
 lift.png                    上提: one heavy stroke pulled up, a 「人」 head on it (send to the Agent)
 lift-bent.png               汇流上提: the same head, its shaft bent in from the lower left like a
                             stream running in to join the current (add to the Agent's running task)
-thinking.png                砂聚成点: six frames side by side, loose grains pressing into a
-                            dot; CSS plays them back and forth while the Agent thinks
+thinking.png                星芒: six frames side by side, a pressed dot throwing out four,
+                            six, then eight rays that swell blunt at their tips (the way a
+                            terminal spinner goes · ✢ ✳ ✶ ✻ ✽); CSS plays them back and
+                            forth while the Agent thinks. The author picked it over 梅开,
+                            涟漪 and 六出 (2026-11-06); the 砂聚成点 it replaced is in git
 
 The selection bar's text formats, drawn as letters and marks (fine grain):
 
@@ -1120,22 +1123,29 @@ def _lift_head(a, rng):
     brush(a, curve([(48, 12), (60, 24), (76, 40)], 10), H * 0.95, rng, load0=1.0, dry=0.3, taper=(0.0, 0.35))
 
 def thinking(rng):
-    """砂聚成点: loose grains drawn in from all round until they press into one
-    dot. Six frames, laid side by side and played back and forth."""
-    pr = np.random.default_rng(77)
-    n = 30
-    ang = pr.uniform(0, 2 * np.pi, n); rad = pr.uniform(18, 40, n); size = pr.uniform(2.4, 3.8, n)
+    """星芒: a pressed dot that throws out rays, four, six, eight, then the
+    eight swell blunt and heavy at their tips (· ✢ ✳ ✶ ✻ ✽). Six frames,
+    laid side by side and played back and forth."""
     frames = []
-    for f in range(6):
-        u = f / 5
+    spec = [  # rays, reach, stroke radius, turn (deg), centre dot, blunt tips
+        (0, 0, 0, 0, 9.5, False),
+        (4, 22, 5.6, 0, 7.5, False),
+        (6, 30, 5.0, 12, 6.5, False),
+        (8, 36, 4.4, 22.5, 6.0, False),
+        (8, 39, 5.8, 22.5, 6.5, True),
+        (8, 41, 6.6, 30, 7.0, True),
+    ]
+    for rays, reach, thick, turn, dot, blunt in spec:
         a = new()
-        k = 1 - u ** 1.4
-        for i in range(n):
-            r = rad[i] * k + (1 - k) * 6
-            th = ang[i] + u * 1.1
-            disc(a, 48 + r * np.cos(th), 48 + r * np.sin(th), size[i] * (1 - 0.3 * u), rng, wob=0.04)
-        if u > 0.5:
-            disc(a, 48, 48, 4 + 10 * (u - 0.5) * 2, rng)
+        for k in range(rays):
+            ang = np.deg2rad(turn - 90) + k * 2 * np.pi / rays + rng.uniform(-0.05, 0.05)
+            r1 = reach * rng.uniform(0.93, 1.04)
+            pts = [(48 + np.cos(ang) * r, 48 + np.sin(ang) * r) for r in np.linspace(3.0, r1, 24)]
+            brush(a, pts, thick, rng, load0=rng.uniform(0.9, 1.0), dry=0.3,
+                  taper=(0.02, 0.07) if blunt else (0.03, 0.5))
+            if blunt:
+                disc(a, 48 + np.cos(ang) * (r1 - 3), 48 + np.sin(ang) * (r1 - 3), thick * 1.05, rng, wob=0.12)
+        disc(a, 48, 48, dot, rng, wob=0.08)
         frames.append(a)
     return frames
 
@@ -1455,7 +1465,7 @@ OBJECTS = {
 ALTERNATES = {"folding-fan-line": (folding_fan_line, 3012), "lantern": (lantern, 3013),
               "oil-lamp": (oil_lamp, 9111), "eyes-shut": (eyes_shut, 9121)}
 # Frames drawn with one rng, each finished with fine grain, then laid side by side.
-STRIPS = {"thinking": (thinking, 4102)}
+STRIPS = {"thinking": (thinking, 6101)}
 masks = {}
 for name, (draw, seed) in ICONS.items():
     rng = np.random.default_rng(seed)

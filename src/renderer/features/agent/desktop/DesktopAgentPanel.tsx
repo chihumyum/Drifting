@@ -574,11 +574,7 @@ const panelCss = `
 .agent-caret { display: inline-block; width: 0; opacity: 0.6; animation: agentBlink 1s steps(1) infinite; }
 @keyframes agentBlink { 50% { opacity: 0; } }
 .agt-pending { display: flex; align-items: center; gap: 5px; padding: 4px 2px; font-size: var(--agent-font-secondary, 11.5px); opacity: 0.6; }
-.agt-pending__dot { width: 5px; height: 5px; border-radius: 50%; background: hsl(var(--ink-1)); animation: agtPendingPulse 1.2s ease-in-out infinite; }
-.agt-pending__dot:nth-child(2) { animation-delay: 0.15s; }
-.agt-pending__dot:nth-child(3) { animation-delay: 0.3s; }
 .agt-pending span:last-child { margin-left: 2px; }
-@keyframes agtPendingPulse { 0%, 100% { opacity: 0.25; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-2px); } }
 .agt-entity-links { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px 2px 2px; }
 .agt-entity-chip { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 8px; border: 0; border-radius: 2px; background: transparent; color: hsl(var(--ink-1)); font: inherit; font-size: var(--agent-font-secondary, 11.5px); cursor: pointer; }
 .agt-entity-chip__op { font-size: var(--agent-font-caption, 10.5px); opacity: 0.55; }
