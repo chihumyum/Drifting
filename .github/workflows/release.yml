@@ -309,5 +309,9 @@ jobs:
               --platform "$PLATFORM" --url "$BASE/$NAME" \
               --signature-file "windows-release/$NAME.sig" --version "$VERSION"
           done
-          (cd windows-release && sha256sum ./*) >> release-manifest/SHA256SUMS.txt
+          # latest.json changed above: replace its checksum, then add the installers'.
+          grep -v ' \./latest\.json$' release-manifest/SHA256SUMS.txt > release-manifest/SHA256SUMS.next
+          (cd release-manifest && sha256sum ./latest.json) >> release-manifest/SHA256SUMS.next
+          (cd windows-release && sha256sum ./*) >> release-manifest/SHA256SUMS.next
+          mv release-manifest/SHA256SUMS.next release-manifest/SHA256SUMS.txt
           gh release upload "$GITHUB_REF_NAME" windows-release/* release-manifest/latest.json release-manifest/SHA256SUMS.txt --clobber
