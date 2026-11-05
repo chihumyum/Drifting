@@ -201,7 +201,9 @@ installer runs natively. The interface is the same WebView2 (Chromium) in both.
 5. Settings › Models: save a DeepSeek key; it survives a restart (Credential
    Manager).
 6. Close a book with the title bar's close button (returns to the shelf); close
-   again on the shelf (quits). Reopen: the last edits are there.
+   again on the shelf: the window hides and Drifting stays in the notification
+   area. Click its icon to bring the window back; quit from its menu, reopen:
+   the last edits are there.
 7. Turn on the Markdown folder, open it in File Explorer, edit a chapter in
    Notepad, and come back; keep the file open in another editor while Drifting
    writes.
@@ -219,3 +221,7 @@ installer runs natively. The interface is the same WebView2 (Chromium) in both.
     Agents) and ask it to read a chapter; quit and reopen Drifting, ask again.
 15. Add an MCP server that starts with npx in Agent extensions; no console
     window appears, and turning it off leaves no node process behind.
+16. Updating: from an installed earlier version (a preview build or the
+    previous release), Settings › Updates finds the new release, downloads and
+    installs it, and Drifting reopens on the new version with books, account
+    and model keys intact.
