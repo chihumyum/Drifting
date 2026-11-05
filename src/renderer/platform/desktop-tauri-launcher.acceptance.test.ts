@@ -160,6 +160,13 @@ describe('desktop Tauri environment', () => {
         environment: {},
       }),
     ).toEqual({ bundle: { createUpdaterArtifacts: false } });
+    // Windows previews: the key is compiled in, but no updates are signed.
+    expect(
+      createDesktopTauriConfigOverride({
+        command: 'build',
+        environment: { DRIFTING_UPDATER_PUBLIC_KEY: 'release-public-key', DRIFTING_UPDATER_ARTIFACTS: 'off' },
+      }),
+    ).toEqual({ bundle: { createUpdaterArtifacts: false } });
   });
 
   it('injects the protected updater public key only for configured release bundles', () => {

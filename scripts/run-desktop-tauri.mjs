@@ -140,7 +140,9 @@ export function createDesktopTauriConfigOverride({
 
   const debug = tauriArguments.includes('--debug') || tauriArguments.includes('-d');
   const updaterPublicKey = environment.DRIFTING_UPDATER_PUBLIC_KEY?.trim();
-  if (debug || !updaterPublicKey) {
+  // Preview builds (docs/windows.md) compile the public key in, so they can
+  // update to a published release, but sign no updater artifacts of their own.
+  if (debug || !updaterPublicKey || environment.DRIFTING_UPDATER_ARTIFACTS === 'off') {
     return {
       ...override,
       bundle: {

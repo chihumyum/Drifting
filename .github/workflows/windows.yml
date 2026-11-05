@@ -65,6 +65,10 @@ jobs:
       DRIFTING_HOSTED_ORIGIN: ${{ vars.DRIFTING_HOSTED_ORIGIN }}
       VITE_TERMS_URL: https://drifting.cc/terms
       VITE_PRIVACY_URL: https://drifting.cc/privacy
+      # The public key is compiled in, so a preview install updates to the next
+      # published release that ships Windows; previews sign no updates of their own.
+      DRIFTING_UPDATER_PUBLIC_KEY: ${{ vars.DRIFTING_UPDATER_PUBLIC_KEY }}
+      DRIFTING_UPDATER_ARTIFACTS: 'off'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
