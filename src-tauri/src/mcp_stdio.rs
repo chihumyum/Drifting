@@ -65,6 +65,77 @@ mod desktop {
 
     type PendingResult = Result<String, String>;
 
+    /// The only parent variables a server inherits; everything else is what
+    /// its configuration names. Windows tools (Node's npx among them) need
+    /// the profile and program folders that Unix keeps in HOME.
+    #[cfg(windows)]
+    const INHERITED_ENV: &[&str] = &[
+        "PATH",
+        "PATHEXT",
+        "SYSTEMROOT",
+        "SYSTEMDRIVE",
+        "WINDIR",
+        "COMSPEC",
+        "TEMP",
+        "TMP",
+        "USERPROFILE",
+        "HOMEDRIVE",
+        "HOMEPATH",
+        "APPDATA",
+        "LOCALAPPDATA",
+        "PROGRAMDATA",
+        "PROGRAMFILES",
+        "PROGRAMFILES(X86)",
+        "COMMONPROGRAMFILES",
+        "NUMBER_OF_PROCESSORS",
+        "PROCESSOR_ARCHITECTURE",
+    ];
+    #[cfg(not(windows))]
+    const INHERITED_ENV: &[&str] = &["PATH", "HOME", "TMPDIR", "TEMP", "SYSTEMROOT"];
+
+    /// A server process opens no console window of its own on Windows.
+    #[cfg(windows)]
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+    /// An absolute command written without its extension (`…\nodejs\npx`)
+    /// names the program beside it with the first of these extensions, the
+    /// way Windows' own shell finds it. Rust starts a `.cmd` or `.bat` file
+    /// through cmd.exe with escaped arguments.
+    #[cfg_attr(not(windows), allow(dead_code))]
+    pub(super) fn resolve_command(command: &str, extensions: &[&str]) -> std::path::PathBuf {
+        let path = Path::new(command);
+        if path.extension().is_some() || path.is_file() {
+            return path.to_path_buf();
+        }
+        extensions
+            .iter()
+            .map(|extension| path.with_extension(extension))
+            .find(|candidate| candidate.is_file())
+            .unwrap_or_else(|| path.to_path_buf())
+    }
+
+    /// Ends a server and, on Windows, the processes it started: a `.cmd`
+    /// launcher's real server runs as its child and would outlive it.
+    fn terminate(child: &mut Child) {
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            let taskkill = std::env::var_os("SYSTEMROOT")
+                .map(|root| Path::new(&root).join("System32").join("taskkill.exe"))
+                .filter(|path| path.is_file())
+                .unwrap_or_else(|| "taskkill".into());
+            let _ = Command::new(taskkill)
+                .args(["/PID", &child.id().to_string(), "/T", "/F"])
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .creation_flags(CREATE_NO_WINDOW)
+                .status();
+        }
+        let _ = child.kill();
+        let _ = child.wait();
+    }
+
     pub struct ProcessEntry {
         pub child: Mutex<Child>,
         pub stdin: Mutex<ChildStdin>,
@@ -85,8 +156,7 @@ mod desktop {
             if let Ok(mut processes) = self.processes.lock() {
                 for (_, entry) in processes.drain() {
                     if let Ok(mut child) = entry.child.lock() {
-                        let _ = child.kill();
-                        let _ = child.wait();
+                        terminate(&mut child);
                     }
                     fail_pending(&entry, "MCP stdio host stopped");
                 }
@@ -109,6 +179,12 @@ mod desktop {
             }
         }
 
+        #[cfg(windows)]
+        let mut command = Command::new(resolve_command(
+            &input.command,
+            &["exe", "cmd", "bat", "com"],
+        ));
+        #[cfg(not(windows))]
         let mut command = Command::new(&input.command);
         command
             .args(&input.args)
@@ -116,10 +192,15 @@ mod desktop {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .env_clear();
-        for key in ["PATH", "HOME", "TMPDIR", "TEMP", "SYSTEMROOT"] {
+        for key in INHERITED_ENV {
             if let Some(value) = std::env::var_os(key) {
                 command.env(key, value);
             }
+        }
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            command.creation_flags(CREATE_NO_WINDOW);
         }
         command.envs(&input.env);
         if let Some(cwd) = &input.cwd {
@@ -280,8 +361,7 @@ mod desktop {
             .child
             .lock()
             .map_err(|_| "MCP stdio child state poisoned")?;
-        let _ = child.kill();
-        let _ = child.wait();
+        terminate(&mut child);
         Ok(true)
     }
 
@@ -560,6 +640,28 @@ mod desktop {
 
     fn invalid_value(value: &str, max: usize) -> bool {
         value.len() > max || value.contains('\0') || value.contains('\r') || value.contains('\n')
+    }
+
+    #[cfg(test)]
+    mod command_tests {
+        use super::resolve_command;
+
+        #[test]
+        fn a_command_without_its_extension_finds_the_launcher_beside_it() {
+            let directory = tempfile::tempdir().unwrap();
+            std::fs::write(directory.path().join("npx.cmd"), "@echo off").unwrap();
+            let bare = directory.path().join("npx");
+            let found = resolve_command(bare.to_str().unwrap(), &["exe", "cmd", "bat"]);
+            assert_eq!(found, directory.path().join("npx.cmd"));
+            // Written in full, or not there at all, the command stays as given.
+            let full = directory.path().join("npx.cmd");
+            assert_eq!(resolve_command(full.to_str().unwrap(), &["exe"]), full);
+            let missing = directory.path().join("node");
+            assert_eq!(
+                resolve_command(missing.to_str().unwrap(), &["exe", "cmd"]),
+                missing
+            );
+        }
     }
 
     #[cfg(all(test, unix))]
