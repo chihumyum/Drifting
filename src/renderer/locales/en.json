@@ -613,13 +613,29 @@
       "chatConfigTitle": "Chat configuration",
       "chatConfigDesc": "Choose the provider, model and reasoning effort from the configuration menu in the Agent composer in the right rail. Keys and the ChatGPT subscription are managed under Models & API.",
       "modelOptions": {
-        "deepseek-v4-flash": {
+        "deepseek-flash": {
           "label": "DeepSeek Flash · fast",
           "short": "Flash"
         },
         "deepseek-v4-pro": {
           "label": "DeepSeek Pro · steady",
           "short": "Pro"
+        },
+        "claude-sonnet-5-5": {
+          "label": "Claude Sonnet 5.5 · balanced",
+          "short": "Sonnet 5.5"
+        },
+        "claude-opus-5-5": {
+          "label": "Claude Opus 5.5 · steady",
+          "short": "Opus 5.5"
+        },
+        "claude-fable-5-1": {
+          "label": "Claude Fable 5.1 · frontier",
+          "short": "Fable 5.1"
+        },
+        "claude-haiku-5-5": {
+          "label": "Claude Haiku 5.5 · fast",
+          "short": "Haiku 5.5"
         },
         "claude-sonnet-5": {
           "label": "Claude Sonnet 5 · balanced",

@@ -915,6 +915,10 @@ export const tauriPlatform: PlatformApi = {
     logout: () => invokeContract('codex_oauth_logout', undefined),
   },
 
+  byokModels: {
+    list: (provider) => invokeContract('byok_models_list', { provider }),
+  },
+
   imageGeneration: {
     generate: generateImages,
     listInbox: async (projectId) =>

@@ -1,4 +1,5 @@
 import type { LLMProvider } from './provider';
+import { defaultAgentProviderModel } from '../../../agent/runtime/agent-provider-contract';
 import {
   AIError,
   type AICompletionRequest,
@@ -31,7 +32,7 @@ export class AnthropicProvider implements LLMProvider {
   constructor(config: AnthropicProviderConfig) {
     if (!config.apiKey.trim()) throw new AIError('auth', 'Anthropic API key is empty.');
     this.apiKey = config.apiKey;
-    this.defaultModel = config.defaultModel ?? 'claude-sonnet-5';
+    this.defaultModel = config.defaultModel ?? defaultAgentProviderModel('anthropic');
     this.endpoint = config.endpoint ?? 'https://api.anthropic.com/v1/messages';
     // Called as a method below; WebKit requires fetch to be called on the window.
     this.fetchImpl = config.fetch ?? ((input, init) => fetch(input, init));

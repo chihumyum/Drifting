@@ -135,7 +135,7 @@ describe('ChatGPT account model discovery', () => {
     expect(normalizeAgentProviderThinking('openai-codex', 'gpt-next', 'off')).toBe('adaptive');
     expect(normalizeAgentProviderEffort('openai-codex', 'gpt-next', 'max')).toBe('high');
     expect(normalizeAgentProviderEffort('openai-codex', 'gpt-next', 'ultra')).toBe('ultra');
-    expect(agentProviderOption('openai').models[0].value).toBe('gpt-5.6-sol');
+    expect(agentProviderOption('openai').models[0].value).toBe('gpt-6-astra');
   });
 
   it('deduplicates concurrent requests, caches for five minutes and supports forced refresh', async () => {
@@ -205,7 +205,7 @@ describe('ChatGPT account model discovery', () => {
     await catalog.refresh(true);
     expect(publish).toHaveBeenLastCalledWith(null);
     expect(catalog.getSnapshot()).toEqual({ state: 'error', updatedAt: null });
-    expect(agentProviderOption('openai-codex').models[0].value).toBe('gpt-5.6-sol');
+    expect(agentProviderOption('openai-codex').models[0].value).toBe('gpt-6-astra');
   });
 
   it('discards a late response after logout or account invalidation', async () => {
@@ -235,9 +235,10 @@ describe('ChatGPT account model discovery', () => {
   it('preserves a saved remote selection across restart without inventing a large context window', () => {
     expect(normalizeAgentProviderModel('openai-codex', 'gpt-next')).toBe('gpt-next');
     expect(resolveAgentProviderContextProfile('openai-codex', 'gpt-next').contextWindowTokens).toBe(32_768);
-    expect(normalizeAgentProviderModel('openai-codex', 'deepseek-v4-flash')).toBe('gpt-5.6-sol');
-    expect(normalizeAgentProviderModel('openai', 'gpt-next')).toBe('gpt-5.6-sol');
-    expect(normalizeAgentProviderModel('openai-codex', 'https://example.test/model')).toBe('gpt-5.6-sol');
+    expect(normalizeAgentProviderModel('openai-codex', 'deepseek-v4-flash')).toBe('gpt-6-astra');
+    expect(normalizeAgentProviderModel('openai-codex', 'claude-opus-5-5')).toBe('gpt-6-astra');
+    expect(normalizeAgentProviderModel('openai', 'gpt-next')).toBe('gpt-6-astra');
+    expect(normalizeAgentProviderModel('openai-codex', 'https://example.test/model')).toBe('gpt-6-astra');
   });
 
   it('selects newly discovered models in settings without silently rewriting them', async () => {

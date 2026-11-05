@@ -2338,7 +2338,7 @@
   },
   "contextEngineering": {
     "providerProfile": {
-      "id": "deepseek-v4-flash:agent-v3",
+      "id": "deepseek-flash:agent-v3",
       "contextWindowTokens": 200000,
       "maxOutputTokens": null,
       "providerOverheadTokens": 512,
@@ -2382,13 +2382,28 @@
       "outputBudget": "provider-controlled-no-client-cap;unknown-ceilings-null;input-reserve-is-not-output-limit",
       "acceptance": "synthetic-catalog-and-native-projection-tests;live-account-unverified"
     },
+    "apiKeyModelDiscovery": {
+      "providers": [
+        "deepseek",
+        "anthropic",
+        "openai"
+      ],
+      "catalog": "native-provider-model-endpoints-with-keychain-key;key-never-in-renderer",
+      "offered": "bundled-order-first-then-newest;openai-gpt5-plus-text-models-without-snapshots-or-specialist-families",
+      "refresh": "composer-menu-open-focus-online;key-change-invalidates",
+      "cache": "memory-only-five-minutes-with-stale-response-fencing",
+      "fallback": "last-successful-provider-list-then-bundled-models",
+      "savedSelection": "provider-shaped-id-preserved-across-restart-and-list-failure",
+      "unknownMetadata": "anthropic-models-api-limits-and-capabilities;otherwise-bundled-profile-or-128k-window-reasoning-on",
+      "acceptance": "synthetic-list-and-native-projection-tests;live-provider-lists-unverified"
+    },
     "certifiedProviders": [
       {
         "provider": "deepseek",
         "models": [
           {
-            "id": "deepseek-v4-flash",
-            "wireContract": "deepseek-v4-flash:agent-v3",
+            "id": "deepseek-flash",
+            "wireContract": "deepseek-flash:agent-v3",
             "thinkingModes": [
               "off",
               "adaptive"
@@ -2416,10 +2431,9 @@
         "provider": "anthropic",
         "models": [
           {
-            "id": "claude-sonnet-5",
-            "wireContract": "claude-sonnet-5:messages-v1",
+            "id": "claude-sonnet-5-5",
+            "wireContract": "claude-sonnet-5-5:messages-v1",
             "thinkingModes": [
-              "off",
               "adaptive"
             ],
             "efforts": [
@@ -2431,12 +2445,46 @@
             ]
           },
           {
-            "id": "claude-haiku-4-5-20251001",
-            "wireContract": "claude-haiku-4-5-20251001:messages-v1",
+            "id": "claude-opus-5-5",
+            "wireContract": "claude-opus-5-5:messages-v1",
             "thinkingModes": [
-              "off"
+              "adaptive"
             ],
-            "efforts": []
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          },
+          {
+            "id": "claude-fable-5-1",
+            "wireContract": "claude-fable-5-1:messages-v1",
+            "thinkingModes": [
+              "adaptive"
+            ],
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          },
+          {
+            "id": "claude-haiku-5-5",
+            "wireContract": "claude-haiku-5-5:messages-v1",
+            "thinkingModes": [
+              "adaptive"
+            ],
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
           }
         ]
       },
@@ -2444,8 +2492,36 @@
         "provider": "openai",
         "models": [
           {
-            "id": "gpt-5.6-sol",
-            "wireContract": "gpt-5.6-sol:responses-v1",
+            "id": "gpt-6-astra",
+            "wireContract": "gpt-6-astra:responses-v1",
+            "thinkingModes": [
+              "adaptive"
+            ],
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          },
+          {
+            "id": "gpt-6.1-sol",
+            "wireContract": "gpt-6.1-sol:responses-v1",
+            "thinkingModes": [
+              "adaptive"
+            ],
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          },
+          {
+            "id": "gpt-6.1-terra",
+            "wireContract": "gpt-6.1-terra:responses-v1",
             "thinkingModes": [
               "off",
               "adaptive"
@@ -2459,23 +2535,8 @@
             ]
           },
           {
-            "id": "gpt-5.6-terra",
-            "wireContract": "gpt-5.6-terra:responses-v1",
-            "thinkingModes": [
-              "off",
-              "adaptive"
-            ],
-            "efforts": [
-              "low",
-              "medium",
-              "high",
-              "xhigh",
-              "max"
-            ]
-          },
-          {
-            "id": "gpt-5.6-luna",
-            "wireContract": "gpt-5.6-luna:responses-v1",
+            "id": "gpt-6-luna",
+            "wireContract": "gpt-6-luna:responses-v1",
             "thinkingModes": [
               "off",
               "adaptive"
@@ -2494,8 +2555,36 @@
         "provider": "openai-codex",
         "models": [
           {
-            "id": "gpt-5.6-sol",
-            "wireContract": "gpt-5.6-sol:responses-codex-v1",
+            "id": "gpt-6-astra",
+            "wireContract": "gpt-6-astra:responses-codex-v1",
+            "thinkingModes": [
+              "adaptive"
+            ],
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          },
+          {
+            "id": "gpt-6.1-sol",
+            "wireContract": "gpt-6.1-sol:responses-codex-v1",
+            "thinkingModes": [
+              "adaptive"
+            ],
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          },
+          {
+            "id": "gpt-6.1-terra",
+            "wireContract": "gpt-6.1-terra:responses-codex-v1",
             "thinkingModes": [
               "off",
               "adaptive"
@@ -2509,23 +2598,8 @@
             ]
           },
           {
-            "id": "gpt-5.6-terra",
-            "wireContract": "gpt-5.6-terra:responses-codex-v1",
-            "thinkingModes": [
-              "off",
-              "adaptive"
-            ],
-            "efforts": [
-              "low",
-              "medium",
-              "high",
-              "xhigh",
-              "max"
-            ]
-          },
-          {
-            "id": "gpt-5.6-luna",
-            "wireContract": "gpt-5.6-luna:responses-codex-v1",
+            "id": "gpt-6-luna",
+            "wireContract": "gpt-6-luna:responses-codex-v1",
             "thinkingModes": [
               "off",
               "adaptive"

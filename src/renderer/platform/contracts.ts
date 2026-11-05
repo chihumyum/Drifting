@@ -457,6 +457,28 @@ export interface CodexModelCatalogResponse {
   refreshAfterMs: number;
 }
 
+/** API-key providers whose model list is read natively with the stored key. */
+export type ByokModelProvider = 'deepseek' | 'anthropic' | 'openai';
+
+/**
+ * Native projection of one provider-listed model: no key, owner or raw body.
+ * Fields the provider does not publish are null (unknown, not unsupported).
+ */
+export interface ByokListedModel {
+  id: string;
+  displayName: string | null;
+  /** Unix seconds, where the provider publishes it. */
+  created: number | null;
+  contextWindow: number | null;
+  maxOutputTokens: number | null;
+  adaptiveThinking: boolean | null;
+  efforts: string[] | null;
+}
+
+export interface ByokModelCatalogResponse {
+  models: ByokListedModel[];
+}
+
 export interface ImageCandidateTarget {
   kind: 'element';
   id: string;
@@ -789,6 +811,7 @@ export interface TauriCommandContract {
   codex_oauth_start: { args: undefined; result: CodexLoginProjection };
   codex_oauth_status: { args: undefined; result: CodexSubscriptionStatus };
   codex_models_list: { args: undefined; result: CodexModelCatalogResponse };
+  byok_models_list: { args: { provider: ByokModelProvider }; result: ByokModelCatalogResponse };
   codex_oauth_cancel: { args: undefined; result: boolean };
   codex_oauth_logout: { args: undefined; result: boolean };
   codex_images_generate: {

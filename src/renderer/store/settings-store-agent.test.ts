@@ -119,7 +119,7 @@ describe('General Agent product settings', () => {
       useSettingsStore.getState().setAgentProvider('openai');
       expect(useSettingsStore.getState()).toMatchObject({
         agentProvider: 'openai',
-        agentModel: 'gpt-5.6-sol',
+        agentModel: 'gpt-6-astra',
       });
       useSettingsStore.getState().setAgentThinking('adaptive');
       useSettingsStore.getState().setAgentEffort('low');
@@ -130,7 +130,7 @@ describe('General Agent product settings', () => {
 
       useSettingsStore.getState().setAgentProvider('deepseek');
       expect(useSettingsStore.getState()).toMatchObject({
-        agentModel: 'deepseek-v4-flash',
+        agentModel: 'deepseek-flash',
         agentThinking: 'adaptive',
         agentEffort: 'high',
       });

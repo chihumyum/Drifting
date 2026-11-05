@@ -615,13 +615,29 @@
       "chatConfigTitle": "Configuração do chat",
       "chatConfigDesc": "Escolha provedor, modelo e esforço de raciocínio no menu do campo do Agent à direita. Gerencie chaves e assinatura ChatGPT em Modelos e API.",
       "modelOptions": {
-        "deepseek-v4-flash": {
+        "deepseek-flash": {
           "label": "DeepSeek Flash · rápido",
           "short": "Flash"
         },
         "deepseek-v4-pro": {
           "label": "DeepSeek Pro · estável",
           "short": "Pro"
+        },
+        "claude-sonnet-5-5": {
+          "label": "Claude Sonnet 5.5 · equilibrado",
+          "short": "Sonnet 5.5"
+        },
+        "claude-opus-5-5": {
+          "label": "Claude Opus 5.5 · estável",
+          "short": "Opus 5.5"
+        },
+        "claude-fable-5-1": {
+          "label": "Claude Fable 5.1 · vanguarda",
+          "short": "Fable 5.1"
+        },
+        "claude-haiku-5-5": {
+          "label": "Claude Haiku 5.5 · rápido",
+          "short": "Haiku 5.5"
         },
         "claude-sonnet-5": {
           "label": "Claude Sonnet 5 · equilibrado",

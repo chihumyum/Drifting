@@ -5,6 +5,7 @@ mod app_update;
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 mod apple_image_codec;
 mod book_transfer;
+mod byok_models;
 mod codex_compat;
 mod codex_images;
 mod codex_models;
@@ -287,6 +288,7 @@ pub fn run() {
             codex_oauth::codex_oauth_start,
             codex_oauth::codex_oauth_status,
             codex_models::codex_models_list,
+            byok_models::byok_models_list,
             codex_images::codex_images_generate,
             codex_images::codex_images_cancel,
             codex_images::image_inbox_list,

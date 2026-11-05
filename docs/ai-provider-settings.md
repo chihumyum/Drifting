@@ -29,11 +29,28 @@ General Agent 默认不设置单次或累计输出上限；摘要压缩也不再
 
 明确指定的限制与已知模型规格冲突属于配置错误；压缩失败、熔断或第一次调用前无法容纳的上下文属于失败，不触发自动续接。完整合成 tool-loop 覆盖新目录模型与重启后未加载的模型，通过实际 Responses driver 验证读取工具、结果回传、每次 16,384 token 用量及自然结束；两次请求均无输出上限。更广的预算和续接审计见 [执行控制审计](agent-runtime/execution-control-audit.md)。
 
-缓存只在当前进程内保留。Rust 用凭据与账号的不可逆摘要隔离最近一次目录及 ETag；后续请求发送 `If-None-Match`，304 复用已投影的模型，不重新解析空 body。`Cache-Control: max-age` 与 `Age` 决定 renderer 的复用期限，上限五分钟；`no-cache` 每次重新验证，`no-store` 不保留原生目录或 ETag，并返回零复用期。无缓存控制时默认五分钟。同一账号更新失败保留最后一次成功目录，显示其更新时间并允许下次自动重试；首次失败使用内置列表。退出、完成新登录及凭据身份变化清空旧缓存；原生与 renderer 的 generation 都拒绝迟到的旧请求。已选择的新模型 id 在重启、目录失败或模型退役后仍保留；新目录缺少它时显示提示，发送被拒绝时显式报错，不静默换成旧模型。API Key provider 的静态认证列表不受影响。
+缓存只在当前进程内保留。Rust 用凭据与账号的不可逆摘要隔离最近一次目录及 ETag；后续请求发送 `If-None-Match`，304 复用已投影的模型，不重新解析空 body。`Cache-Control: max-age` 与 `Age` 决定 renderer 的复用期限，上限五分钟；`no-cache` 每次重新验证，`no-store` 不保留原生目录或 ETag，并返回零复用期。无缓存控制时默认五分钟。同一账号更新失败保留最后一次成功目录，显示其更新时间并允许下次自动重试；首次失败使用内置列表。退出、完成新登录及凭据身份变化清空旧缓存；原生与 renderer 的 generation 都拒绝迟到的旧请求。已选择的新模型 id 在重启、目录失败或模型退役后仍保留；新目录缺少它时显示提示，发送被拒绝时显式报错，不静默换成旧模型。API Key provider 的模型列表见下一节。
 
 同一兼容协议下的新增模型通过刷新自动出现，无需逐个发版添加名称。[OpenAI 官方目录规范](https://learn.chatgpt.com/docs/model-catalogs) 说明目录与客户端版本及账号有关，并要求版本不变时仍刷新。新协议、参数或工具能力需要更新适配器并验证后升级兼容基线；不能自动把远端最新版本写入 manifest。`pnpm openai:catalog:check` 在普通 CI 离线检查 manifest；`pnpm openai:catalog:upstream` 只读比较上游稳定版、输出 JSON 报告。`Codex compatibility review` workflow 每周一 02:23 UTC 与手动触发时执行比较、保留报告，不写源文件、不创建 PR。维护者对照 `schemaTag` 检查公开上游类型、运行下方验收及明确选择的真实模型 canary，通过后一起更新版本和 `reviewedOn`。
 
 [官方 Sign in with ChatGPT 模型说明](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference) 使用注册应用的 `api.openai.com/v1/models` 路由；本次延续仓库既有 Codex 设备码路由，没有迁移 OAuth 客户端或推理端点。目录联网对比已确认版本参数影响 6.1 模型可见性；合成验收覆盖动态新模型的 Responses tool-loop，但不表示所有列出的模型均已通过真实推理或原生 UI 验收。
+
+## API Key 模型列表
+
+2026-11-05 之前，DeepSeek、Anthropic、OpenAI 三个 API Key provider 的可选模型是 [`agent-provider-contract.ts`](../src/renderer/lib/agent/runtime/agent-provider-contract.ts) 里写死的一份清单（DeepSeek V4 Flash/Pro、Claude Sonnet 5/Haiku 4.5、GPT-5.6 Sol/Terra/Luna），不向 provider 查询；原生 OpenAI 传输还只放行这三个 GPT-5.6 id，设置迁移与 merge 会把清单外的已存选择改回第一项。provider 发新模型后菜单不会出现，必须发版改清单。
+
+现在三家都用 provider 自己的模型列表接口，以作者存的 Key 为准：
+
+- 原生命令 `byok_models_list`（[`byok_models.rs`](../src-tauri/src/byok_models.rs)）从系统安全存储读 `byok.<provider>`（Anthropic 兼读旧的 `byok.agent.anthropic`），请求固定 origin：DeepSeek `GET https://api.deepseek.com/models`、OpenAI `GET https://api.openai.com/v1/models`、Anthropic `GET https://api.anthropic.com/v1/models`（`anthropic-version: 2023-06-01`，按 `after_id` 翻页）。拒绝重定向，20 秒、4 MiB 上限。Key、`owned_by`、微调 id（含 `:`）与 provider 错误正文都不过 IPC；renderer 只收到 id、展示名、创建时间，以及 Anthropic Models API 公布的 `max_input_tokens`、`max_tokens`、adaptive thinking 与 effort 档位。没有 Key 时返回 `BYOK_MODELS_MISSING_KEY`。
+- [`byok-model-catalog.ts`](../src/renderer/lib/agent/byok-model-catalog.ts) 只在内存中缓存，五分钟内复用；打开对话框的模型菜单、菜单打开时窗口重新获得焦点按有效期刷新，恢复联网强制刷新。「模型与 API」里保存、替换或删除 Key（`byok:keys-changed`）会作废三家的列表，迟到的旧请求不能再发布。刷新失败保留上次成功的列表；从未成功、没有 Key、离线或不在原生 App 里时提供内置清单。
+- 菜单顺序：provider 列出的内置模型按内置顺序在前（第一项是切换 provider 时的默认），其余按 provider 给出的创建时间从新到旧。OpenAI 列表包含该 Key 能访问的所有模型，Agent 只提供 GPT-5 及以后的文本模型，去掉带日期的快照和 audio、realtime、transcribe、tts、image、search、embedding、chat、codex、cyber、rosalind、research 等专用或需单独审批的系列；GPT-4 系列不接受 Agent 发送的 reasoning 参数，上一代 o 系列也不再提供。
+- 模型规格：内置模型用内置的 wire profile；Anthropic 列出的模型以 Models API 公布的上下文、输出上限与思考/effort 能力为准。其余新模型（OpenAI、DeepSeek 不公布规格）按 128K 本地输入规划；Anthropic 缺输出上限时用 32K；推理保持开启、effort 只提供 low/medium/high，因为并非所有新模型都接受关闭推理。
+- 已存选择：符合该 provider id 形状（`deepseek-*`、`claude-*`、GPT-5 及以后的 `gpt-*`）的模型 id 在重启、列表未到或失败时保留，不再被改回第一项；发送时 provider 是能否使用的权威，拒绝会显式报错。路由器发现所选模型不在当前列表时，先刷新一次该 provider 的列表再建 driver。已退役的 `deepseek-v4-flash` 自动改为后继 `deepseek-flash`（DeepSeek 仍把旧 id 路由到 V4.1 Flash）。原生 OpenAI 传输对 API Key 路由与订阅路由一样只校验 id 形状。
+- 新一代模型的请求差异由 profile 决定：GPT-6 Astra、GPT-6.1 Sol 不接受 `effort: none`，Claude Opus 5.5、Sonnet 5.5、Haiku 5.5、Fable 5.1 不能关闭思考，这些模型的思考始终开启并原样回放思考块；Opus 5.5、Sonnet 5.5、Fable 5.1 对强制 `tool_choice`（`any`/`tool`）返回 400，driver 对它们和未知 Anthropic 模型改发 `auto`。「测试连接」对 Anthropic 不再发送 `temperature`、输出上限 1,024；OpenAI 对不能关推理的模型用最低档 effort、输出上限 1,024。
+
+2026-11-05 的内置清单（离线兜底）：DeepSeek `deepseek-flash`、`deepseek-v4-pro`；Anthropic `claude-sonnet-5-5`、`claude-opus-5-5`、`claude-fable-5-1`、`claude-haiku-5-5`；OpenAI 与订阅兜底 `gpt-6-astra`、`gpt-6.1-sol`、`gpt-6.1-terra`、`gpt-6-luna`。旧的 Claude Sonnet 5、Haiku 4.5 与 GPT-5.6 三档仍保留 wire profile，供已存选择与列出时使用。
+
+各 Key 的真实列表接口与菜单的原生视觉未做联网验收；离线验收用合成列表覆盖投影、过滤、排序、缓存、作废与已存选择。
 
 ## 路由归属
 
@@ -59,6 +76,9 @@ General Agent 当前认证 DeepSeek、Anthropic、OpenAI 三种多轮 tool proto
 pnpm openai:catalog:check
 pnpm exec vitest run \
   src/renderer/lib/agent/codex-model-catalog.test.ts \
+  src/renderer/lib/agent/byok-model-catalog.test.ts \
+  src/renderer/lib/agent/runtime/agent-provider-contract.test.ts \
+  src/renderer/lib/agent/runtime/drivers/anthropic-messages-driver.test.ts \
   src/renderer/lib/agent/runtime/runtime-context-planning.test.ts \
   src/renderer/lib/agent/runtime/drivers/openai-responses-driver.test.ts \
   src/renderer/lib/agent/runtime/drivers/drifting-agent-driver.test.ts \
@@ -76,6 +96,7 @@ pnpm agent:capabilities:check
 pnpm typecheck
 cargo test --manifest-path src-tauri/Cargo.toml --locked codex_
 cargo test --manifest-path src-tauri/Cargo.toml --locked openai_responses
+cargo test --manifest-path src-tauri/Cargo.toml --locked byok_models
 ```
 
-离线验收覆盖设置入口唯一性、direct route、Copilot 路由退役、退役 hosted endpoint 缺席、旧 Keychain 条目迁移，以及 provider adapter conformance。三家 provider 的真实付费 endpoint、原生设置页视觉与物理设备交互仍是手工/付费验收边界。
+离线验收覆盖设置入口唯一性、direct route、Copilot 路由退役、退役 hosted endpoint 缺席、旧 Keychain 条目迁移、API Key 模型列表的投影与缓存，以及 provider adapter conformance。三家 provider 的真实付费 endpoint、原生设置页视觉与物理设备交互仍是手工/付费验收边界。
