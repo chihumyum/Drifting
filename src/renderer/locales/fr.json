@@ -148,6 +148,8 @@
     "search_placeholder": "Rechercher dans les réglages…",
     "close": "Fermer",
     "local_user": "Utilisateur local",
+    "rail_expand": "Déplier {{label}}",
+    "rail_collapse": "Replier {{label}}",
     "groups": {
       "account": "Compte",
       "localData": "Données locales",

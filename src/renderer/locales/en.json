@@ -147,6 +147,8 @@
     "search_placeholder": "Search settings…",
     "close": "Close",
     "local_user": "Local user",
+    "rail_expand": "Expand {{label}}",
+    "rail_collapse": "Collapse {{label}}",
     "groups": {
       "account": "Account",
       "localData": "Local data",

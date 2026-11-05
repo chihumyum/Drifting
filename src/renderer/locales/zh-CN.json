@@ -146,6 +146,8 @@
     "search_placeholder": "搜索设定…",
     "close": "关闭",
     "local_user": "本地用户",
+    "rail_expand": "展开{{label}}",
+    "rail_collapse": "收起{{label}}",
     "groups": {
       "account": "我的账号",
       "localData": "本地数据",

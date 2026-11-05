@@ -148,6 +148,8 @@
     "search_placeholder": "Buscar ajustes…",
     "close": "Cerrar",
     "local_user": "Usuario local",
+    "rail_expand": "Expandir {{label}}",
+    "rail_collapse": "Contraer {{label}}",
     "groups": {
       "account": "Cuenta",
       "localData": "Datos locales",

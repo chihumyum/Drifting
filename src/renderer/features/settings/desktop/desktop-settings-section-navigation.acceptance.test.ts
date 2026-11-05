@@ -87,9 +87,6 @@ describe('desktop settings section navigation', () => {
     expect(settings).not.toContain("behavior: 'smooth'");
     expect(settings).toContain('data-settings-section');
     expect(rail).toContain('aria-controls={section.id}');
-    expect(rail).toContain('<ul className="set-rail__sections">');
-    expect(rail).not.toMatch(/<ul[^>]*\bhidden=/);
-    expect(rail).not.toContain('aria-expanded');
     expect(css).not.toContain('.set-rail__item--active::before');
     expect(css).toMatch(
       /\.set-main--instant-section-nav\s*\{[\s\S]*?scroll-behavior:\s*auto;/,
@@ -97,5 +94,60 @@ describe('desktop settings section navigation', () => {
     expect(docs).toContain(
       '桌面完整 Settings 左侧 Section 点击后直接定位到目标内容，不播放纵向滚动动画',
     );
+  });
+
+  it('lists every panel’s sections open, and folds one only from its own chevron', () => {
+    const settings = read('src/renderer/features/settings/desktop/DesktopSettingsModal.tsx');
+    const rail = read('src/renderer/features/settings/desktop/DesktopSettingsRail.tsx');
+    const css = read('src/styles/settings.css');
+    const desktop = ":where(html:not([data-shell-mode='mobile']))";
+    const rule = (selector: string) => {
+      const start = css.indexOf(`${selector} {`);
+      expect(start, selector).toBeGreaterThanOrEqual(0);
+      return css.slice(start, css.indexOf('}', start));
+    };
+
+    // Open by default; a fold is component state, gone when Settings closes.
+    expect(rail).toContain('useState<ReadonlySet<string>>(() => new Set())');
+    expect(rail).not.toMatch(/localStorage|persist/);
+    expect(settings).toContain('if (!isOpen) return null;');
+    // The chevron is its own button; the row itself still jumps to the panel.
+    expect(rail).toContain('className="set-rail__fold"');
+    expect(rail).toContain('aria-expanded={open}');
+    expect(rail).toContain('aria-controls={sectionsId}');
+    expect(rail).toContain('onClick={() => onSelect(item.id)}');
+    expect(rail).toContain('name="chevron-right"');
+    // A search lists its matches open and offers no fold.
+    expect(settings).toContain("searching={query.trim() !== ''}");
+    expect(rail).toContain('const foldable = item.sections.length > 0 && !searching;');
+    // A folded list leaves the tab order; its current section shows on the row.
+    expect(rail).toContain('inert={!open}');
+    expect(rail).toContain('const current = selected && (!activeSection || !open);');
+    expect(rule(`${desktop} .set-rail__sections-fold`)).toContain('grid-template-rows: 0fr;');
+    expect(rule(`${desktop} .set-rail__sections-fold.is-open`)).toContain('grid-template-rows: 1fr;');
+    expect(rule(`${desktop} .set-rail__fold-chevron--open`)).toContain('transform: rotate(90deg);');
+    // Pointing at the chevron rings the whole row.
+    expect(css).toContain(`${desktop} .set-rail__row:hover > .set-rail__item::before,`);
+  });
+
+  it('sets the rail’s three levels at one size, sections starting where their panel’s words do', () => {
+    const css = read('src/styles/settings.css');
+    const desktop = ":where(html:not([data-shell-mode='mobile']))";
+    const rule = (selector: string) => {
+      const start = css.indexOf(`${selector} {`);
+      expect(start, selector).toBeGreaterThanOrEqual(0);
+      return css.slice(start, css.indexOf('}', start));
+    };
+    for (const selector of ['.set-rail__group-title', '.set-rail__item', '.set-rail__section']) {
+      expect(rule(`${desktop} ${selector}`)).toContain('font-size: var(--ui-font-body, 14px);');
+    }
+    // The panel row: 8px padding, a 16px glyph and a 9px gap before its name.
+    const item = rule(`${desktop} .set-rail__item`);
+    expect(item).toContain('padding: 0 8px;');
+    expect(item).toContain('gap: 9px;');
+    expect(rule('.set-rail__glyph')).toContain('width: 16px;');
+    expect(rule(`${desktop} .set-rail__sections`)).toContain('padding: 0 0 4px 25px;');
+    expect(rule('.set-rail__section')).toContain('padding: 0 8px;');
+    expect(designSystemDocs()).toContain('二级的字从一级的字那一列开始');
   });
 });

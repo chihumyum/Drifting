@@ -147,6 +147,8 @@
     "search_placeholder": "설정 검색…",
     "close": "닫기",
     "local_user": "로컬 사용자",
+    "rail_expand": "{{label}} 펼치기",
+    "rail_collapse": "{{label}} 접기",
     "groups": {
       "account": "계정",
       "localData": "로컬 데이터",
