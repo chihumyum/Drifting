@@ -62,6 +62,8 @@ toml_edit = "0.25"
 objc2-app-kit = { version = "0.3.2", default-features = false, features = ["NSButton", "NSView", "NSWindow"] }
 objc2-web-kit = { version = "0.3.2", default-features = false, features = ["std", "objc2-app-kit", "WKPreferences", "WKWebView", "WKWebViewConfiguration"] }
 security-framework = "3"
+# The user's private cache folder for a local MCP socket whose path would not fit (mcp_server.rs).
+libc = "0.2"
 
 # WebView2 settings Tauri does not expose (windows_webview.rs) and the Windows
 # Imaging Component for HEIC/AVIF (windows_image_codec.rs); the same versions
