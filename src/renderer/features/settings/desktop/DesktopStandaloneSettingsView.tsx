@@ -11,6 +11,7 @@ type StandaloneSettingsId =
   | 'editor'
   | 'language'
   | 'models'
+  | 'mcp'
   | 'keys'
   | 'sync'
   | 'updates'
@@ -42,7 +43,10 @@ const STANDALONE_SETTINGS_GROUPS: StandaloneSettingsGroup[] = [
   },
   {
     labelKey: 'settings.groups.intelligence',
-    items: [{ id: 'models', icon: 'inkstone', labelKey: 'settings.rail.models' }],
+    items: [
+      { id: 'models', icon: 'inkstone', labelKey: 'settings.rail.models' },
+      { id: 'mcp', icon: 'shikigami', labelKey: 'settings.agent.mcpAccess.title' },
+    ],
   },
   {
     labelKey: 'settings.groups.control',
@@ -75,7 +79,10 @@ export function DesktopStandaloneSettingsView() {
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const runtime = getPlatformRuntime();
-  const groups = STANDALONE_SETTINGS_GROUPS.map(group => ({ ...group, items: withoutHostedAccountSettings(group.items, hostedAccountSettingsEnabled()) })).filter(group => group.items.length);
+  // The local MCP bridge exists on macOS and Windows desktops (mcp_server.rs).
+  const mcpSupported = runtime.isMacDesktop || runtime.isWindowsDesktop;
+  const groups = STANDALONE_SETTINGS_GROUPS.map(group => ({ ...group, items: withoutHostedAccountSettings(group.items, hostedAccountSettingsEnabled())
+    .filter(item => item.id !== 'mcp' || mcpSupported) })).filter(group => group.items.length);
   const requestedSection = searchParams.get('section');
   const active: StandaloneSettingsId = isStandaloneSettingsId(requestedSection) && (requestedSection !== 'account' || hostedAccountSettingsEnabled())
     ? requestedSection

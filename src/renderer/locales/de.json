@@ -703,7 +703,7 @@
       "mcpAccess": {
         "projectionDescription": "Externe Agents können Kapitel- und Ideendateien der Markdown-Abbildung direkt bearbeiten. Einrichtung unter Synchronisierung und Daten → Lokale Daten.",
         "title": "Zugriff externer Agents",
-        "desc": "Erlaube Codex, Claude Code oder Antigravity den Zugriff auf „{{project}}“. Jede Verbindung ist auf dieses Projekt begrenzt.",
+        "desc": "Erlaube Codex, Claude Code oder Antigravity den Zugriff auf das geöffnete Buch. Verbinde jedes Werkzeug einmal; es folgt dir, wenn du das Buch wechselst.",
         "name": "Verbindungsname",
         "permission": "Zugriffsberechtigung",
         "connectionPermission": "Zugriffsberechtigung für {{name}}",
@@ -712,7 +712,7 @@
         "write": "Änderungen erlauben",
         "full": "Änderungen und destruktive Aktionen erlauben",
         "create": "Verbindung erstellen",
-        "local": "Nur lokaler Zugriff. Drifting und Projekt geöffnet lassen. Ein Widerruf blockiert neue Anfragen sofort; bestätigte Änderungen bleiben erhalten.",
+        "local": "Nur lokaler Zugriff. Drifting geöffnet lassen; im Bücherregal ruht der Zugriff. Ein Widerruf blockiert neue Anfragen sofort; bestätigte Änderungen bleiben erhalten.",
         "config": "Verbindungskonfiguration",
         "revoke": "Widerrufen",
         "copy": "MCP-Konfiguration kopieren",
@@ -723,6 +723,7 @@
         "manual": "Andere Clients · Manuelle Einrichtung",
         "reinstall": "Neu einrichten",
         "installed": "{{client}} ist eingerichtet. Öffne den Client erneut oder starte seinen MCP-Server neu. Folge bei der ersten Nutzung seinen Werkzeugfreigaben.",
+        "installedLeftover": "{{client}} ist eingerichtet und seine früheren Verbindungen pro Buch sind widerrufen, aber ein Clienteintrag wurde geändert oder konnte nicht aktualisiert werden; entferne im Client den alten Eintrag, der mit drifting_ beginnt.",
         "revoked": "Zugriff widerrufen und automatisch installierte Clientkonfiguration entfernt.",
         "revokedWarning": "Zugriff widerrufen. Die Clientkonfiguration wurde geändert oder konnte nicht aktualisiert werden; entferne die Verbindung im Client."
       },

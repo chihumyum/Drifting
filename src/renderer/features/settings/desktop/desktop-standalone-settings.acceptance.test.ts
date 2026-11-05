@@ -44,7 +44,7 @@ describe('desktop standalone settings', () => {
     const ids = [...rail.matchAll(/\{ id: '([a-z]+)'/g)].map((match) => match[1]);
 
     expect(ids).toEqual([
-      'account', 'appearance', 'editor', 'language', 'models',
+      'account', 'appearance', 'editor', 'language', 'models', 'mcp',
       'keys', 'sync', 'updates', 'privacy', 'about',
     ]);
     expect(rail).toContain("labelKey: 'settings.groups.intelligence'");

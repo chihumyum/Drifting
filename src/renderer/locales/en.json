@@ -703,7 +703,7 @@
       "mcpAccess": {
         "projectionDescription": "External Agents can also use the Markdown projection; its chapter and idea files can be edited directly. Configure it in Sync & Data → Local data.",
         "title": "External agent access",
-        "desc": "Allow tools such as Codex, Claude Code, or Antigravity to access “{{project}}”. Each connection is limited to this project.",
+        "desc": "Allow tools such as Codex, Claude Code, or Antigravity to access the book you have open. Connect each tool once; it follows you when you switch books.",
         "name": "Connection name",
         "permission": "Access permission",
         "connectionPermission": "Access permission for {{name}}",
@@ -712,7 +712,7 @@
         "write": "Allow changes",
         "full": "Allow changes and destructive operations",
         "create": "Create connection",
-        "local": "Local access only. Keep Drifting and this project open. Revoking a connection immediately blocks new requests; committed changes remain.",
+        "local": "Local access only. Keep Drifting open; access pauses while you are on the shelf. Revoking a connection immediately blocks new requests; committed changes remain.",
         "config": "Connection configuration",
         "revoke": "Revoke",
         "copy": "Copy MCP configuration",
@@ -723,6 +723,7 @@
         "manual": "Other clients · Manual setup",
         "reinstall": "Reconfigure",
         "installed": "{{client}} is configured. Reopen the client or restart its MCP server to load the connection; follow its tool approval prompts on first use.",
+        "installedLeftover": "{{client}} is configured and its earlier per-book connections are revoked, but one of their client entries changed or could not be updated; remove the old entry starting with drifting_ in your client.",
         "revoked": "Access revoked and automatically installed client configuration removed.",
         "revokedWarning": "Access revoked. The client configuration changed or could not be updated; remove this connection in your client."
       },
