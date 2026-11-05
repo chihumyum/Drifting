@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import * as Y from 'yjs';
 
 import type { AutoDetectTarget } from '../extensions/entity-link';
-import { relinkYjsBlocks } from './yjs-entity-relink';
+import type { YjsProseBlock, YjsProseNode } from './runtime/yjs-prose-command';
+import { linkNamesInProseBlocks, linkNamesInProseOperation, relinkYjsBlocks } from './yjs-entity-relink';
 
 const annati = { entityLink: { targetKind: 'element', targetId: 'annati', targetBlockId: null } };
 const hashedAnnati = { 'entityLink--abcdefgh': annati.entityLink };
@@ -96,5 +97,68 @@ describe('relinking names in written prose', () => {
     relinkYjsBlocks(fragment, ['other'], config);
 
     expect(links(fragment)).toEqual([['安纳蒂', []]]);
+  });
+});
+
+describe('linking names in what the Agent writes', () => {
+  const block = (id: string, ...content: YjsProseNode[]): YjsProseBlock => ({ id, type: 'paragraph', content: [...content] });
+  const text = (value: string, marks?: Record<string, unknown>): YjsProseNode =>
+    ({ kind: 'text', text: value, ...(marks ? { marks: marks as never } : {}) });
+  /** A block's text runs with the targets each links to, adjacent runs alike joined. */
+  const linked = (written: YjsProseBlock) => {
+    const result: Array<[string, string[]]> = [];
+    for (const node of written.content ?? []) {
+      if (node.kind !== 'text') continue;
+      const targets = Object.values(node.marks ?? {}).flatMap((mark) => (mark as { targetId?: string }).targetId ?? []);
+      const last = result[result.length - 1];
+      if (last && JSON.stringify(last[1]) === JSON.stringify(targets)) last[0] += node.text;
+      else result.push([node.text, targets]);
+    }
+    return result;
+  };
+
+  it('links the names in new paragraphs and keeps their ids', () => {
+    const operation = linkNamesInProseOperation(
+      { kind: 'insert', afterBlockId: null, blocks: [block('a', text('安纳蒂对米契说。')), block('b', text('无名'))] },
+      config,
+    );
+
+    expect(operation.kind).toBe('insert');
+    const blocks = operation.kind === 'insert' ? operation.blocks : [];
+    expect(blocks.map((written) => written.id)).toEqual(['a', 'b']);
+    expect(linked(blocks[0]!)).toEqual([['安纳蒂', ['annati']], ['对', []], ['米契', ['mitch']], ['说。', []]]);
+    expect(linked(blocks[1]!)).toEqual([['无名', []]]);
+  });
+
+  it('links an edited paragraph and mends a name it left partly linked', () => {
+    const operation = linkNamesInProseOperation(
+      { kind: 'edit', blockId: 'a', block: block('a', text('安', annati), text('纳蒂与米契')) },
+      config,
+    );
+
+    expect(operation.kind === 'edit' && operation.blockId).toBe('a');
+    expect(operation.kind === 'edit' && linked(operation.block)).toEqual([['安纳蒂', ['annati']], ['与', []], ['米契', ['mitch']]]);
+  });
+
+  it('links each paragraph of a multi-paragraph edit in place', () => {
+    const operation = linkNamesInProseOperation(
+      { kind: 'edit_many', edits: [
+        { blockId: 'a', block: block('a', text('米契')) },
+        { blockId: 'c', block: block('c', text('没人')) },
+      ] },
+      config,
+    );
+
+    expect(operation.kind === 'edit_many' && operation.edits.map((edit) => [edit.blockId, linked(edit.block)])).toEqual([
+      ['a', [['米契', ['mitch']]]],
+      ['c', [['没人', []]]],
+    ]);
+  });
+
+  it('writes the blocks as planned while automatic element links are off', () => {
+    const blocks = [block('a', text('安纳蒂'))];
+
+    expect(linkNamesInProseBlocks(blocks, { autoDetectEnabled: false, autoDetectTargets: config.autoDetectTargets })).toBe(blocks);
+    expect(linkNamesInProseOperation({ kind: 'remove', blockIds: ['a'] }, config)).toEqual({ kind: 'remove', blockIds: ['a'] });
   });
 });

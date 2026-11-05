@@ -79,6 +79,8 @@ import {
   planWorkspaceProseFileWrite,
 } from './workspace-prose-file';
 import { loadLocationResolver } from '../location-link-catalog';
+import { writtenProseLinkConfig } from '../chapter-prose';
+import { linkNamesInProseOperation } from '../yjs-entity-relink';
 import type { LocationResolver } from '../../location-link';
 import {
   createDriftingDomainCrudWriteStrategy,
@@ -592,14 +594,19 @@ function proseWriteStrategy(
       assertProseBaseMatchesExpectation(base, proseExpectation);
       const baseBlocks = blocksFromState(base.stateUpdate);
       const beforeContentJson = contentJsonFromState(base.stateUpdate);
-      const operation = await proseOperation(
-        toolName,
-        request,
-        baseBlocks,
-        await loadLocationResolver(entity.projectId, {
-          blocks: [baseBlocks],
-          markdown: proseOperationMarkdown(request),
-        }),
+      // Registered names in what the Agent writes are linked as the editor
+      // links what the author types, so its mentions count without an edit.
+      const operation = linkNamesInProseOperation(
+        await proseOperation(
+          toolName,
+          request,
+          baseBlocks,
+          await loadLocationResolver(entity.projectId, {
+            blocks: [baseBlocks],
+            markdown: proseOperationMarkdown(request),
+          }),
+        ),
+        writtenProseLinkConfig(entity.projectId, entity.entityType, entity.id),
       );
       const command = await coordinator.prepare({
         docId,

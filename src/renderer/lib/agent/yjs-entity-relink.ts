@@ -2,6 +2,12 @@ import * as Y from 'yjs';
 
 import { detectEntityLinkSpans, type EntityLinkAutoDetectConfig, type EntityLinkSpan } from '../extensions/entity-link';
 import { isEntityLinkMarkKey } from '../location-link';
+import {
+  replaceYjsProseBlocks,
+  snapshotYjsProseBlocks,
+  type YjsProseBlock,
+  type YjsProseOperation,
+} from './runtime/yjs-prose-command';
 
 // Registered names in written prose get their entity links, the way the
 // editor's auto-linker gives them while the author types (see
@@ -105,5 +111,46 @@ export function relinkYjsBlocks(
       const text = run.map((piece) => piece.insert).join('');
       for (const span of detectEntityLinkSpans(text, config)) linkSpan(run, span);
     }
+  }
+}
+
+/** `blocks` with the registered names in their text linked, as {@link relinkYjsBlocks} links them. */
+export function linkNamesInProseBlocks(
+  blocks: readonly YjsProseBlock[],
+  config: EntityLinkAutoDetectConfig,
+): readonly YjsProseBlock[] {
+  if (blocks.length === 0 || !config.autoDetectEnabled || config.autoDetectTargets.size === 0) return blocks;
+  const doc = new Y.Doc({ gc: false });
+  try {
+    replaceYjsProseBlocks(doc, blocks);
+    relinkYjsBlocks(doc.getXmlFragment('default'), blocks.map((block) => block.id), config);
+    return snapshotYjsProseBlocks(doc);
+  } finally {
+    doc.destroy();
+  }
+}
+
+/**
+ * An Agent prose operation with the registered names linked in the blocks it
+ * writes. Linking the planned blocks, before the command is prepared, keeps
+ * the links part of the operation its deterministic Yjs update derives from.
+ */
+export function linkNamesInProseOperation(
+  operation: YjsProseOperation,
+  config: EntityLinkAutoDetectConfig,
+): YjsProseOperation {
+  switch (operation.kind) {
+    case 'insert':
+    case 'append':
+    case 'replace':
+      return { ...operation, blocks: linkNamesInProseBlocks(operation.blocks, config) };
+    case 'edit':
+      return { ...operation, block: linkNamesInProseBlocks([operation.block], config)[0]! };
+    case 'edit_many': {
+      const blocks = linkNamesInProseBlocks(operation.edits.map((edit) => edit.block), config);
+      return { ...operation, edits: operation.edits.map((edit, index) => ({ ...edit, block: blocks[index]! })) };
+    }
+    case 'remove':
+      return operation;
   }
 }
