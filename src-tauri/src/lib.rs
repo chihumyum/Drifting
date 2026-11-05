@@ -382,8 +382,7 @@ pub fn run() {
         ])
         .setup(|app| {
             #[cfg(desktop)]
-            app_update::install_plugin_if_configured(app.handle())
-                .map_err(std::io::Error::other)?;
+            app_update::install_plugin_if_configured(app.handle());
 
             let data_directories = data_paths::prepare_data_directories(app.handle())
                 .map_err(std::io::Error::other)?;

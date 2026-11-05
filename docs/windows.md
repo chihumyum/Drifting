@@ -11,8 +11,15 @@ push to `claude/windows-port` or a `windows/**` branch, and are not published.
 | --- | --- | --- |
 | `windows / rust tests` | `windows-latest` (x64) | `cargo test --lib` for the Tauri crate on Windows |
 | `windows / developer commands` | `windows-latest` (x64) | the contributor commands below: install, typecheck, lint, tests, launcher manifests, developer CLI |
-| `windows / installer (x64)` | `windows-latest` | unsigned NSIS installer, Hosted sign-in enabled |
+| `windows / installer (x64)` | `windows-latest` | unsigned NSIS installer, Hosted sign-in enabled; installed and opened on the runner |
 | `windows / installer (arm64)` | `windows-11-arm` | the same for Windows on Arm |
+
+Each installer job installs its installer silently, opens Drifting and fails
+when the App is no longer running 20 seconds later, printing what it wrote to
+standard error; an installer is uploaded only after it opened. A signed
+updater that cannot start (for example a build whose configuration lacks
+`plugins.updater`) no longer stops the App: Drifting opens and only its update
+check reports the reason.
 
 Each installer is a workflow artifact named
 `drifting-windows-<arch>-<commit>` and kept for 14 days. Windows installers can
