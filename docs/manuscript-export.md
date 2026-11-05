@@ -19,7 +19,7 @@ frames. Its sections are
 | --- | --- |
 | Format | EPUB / PDF / Word (`GlassSlider`) |
 | Scope | Whole book / Selected chapters; the chapter list (whole-row toggles grouped under their acts, select all/none) folds open under the slider |
-| Contents | Act titles (only when the book has acts), chapter titles, H1, H2, H3 (`Switch`, one per level) |
+| Contents | Act titles (only when the book has acts), chapter titles (`Switch`) |
 | Book details | Title (defaults to the project name), author, optional cover image |
 
 The author name is remembered on this device for every book; format, the
@@ -31,8 +31,8 @@ dialog stays open with **Exported** or the failure so another format can follow.
 ## What enters the manuscript
 
 Acts and chapters are structure. H1, H2 and H3 are three heading levels whose
-meaning the author decides, so the export treats them alike: all three go into
-the book unless the author switches a level off (2026-11-06).
+meaning the author decides, so the export treats them alike and always takes
+all three; there is no switch for them (2026-11-06).
 
 - **Whole book** is every chapter in book order except chapters marked
   *discarded* (折笔). In *Selected chapters* the author ticks any chapter,
@@ -42,8 +42,6 @@ the book unless the author switches a level off (2026-11-06).
   Word Heading 1, PDF part page). Acts without exported chapters drop out.
 - Chapter titles off keeps chapters as page/file boundaries and in navigation
   (EPUB nav and NCX, PDF bookmarks); the printed contents page is omitted.
-- Switching a level off leaves out only that level's heading lines; the prose
-  under them stays. Every level is on by default.
 - Never exported: drifts, elements, storylines, categories, materials,
   comments, TODOs, chapter summaries, plot grids, Agent state.
 - Inline marks kept: bold, italic, underline, strike. Hard line breaks,

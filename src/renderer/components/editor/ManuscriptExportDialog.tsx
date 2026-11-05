@@ -3,8 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { platform } from '../../platform';
 import { useSettingsStore } from '../../store/settings-store';
 import {
-  defaultManuscriptChapterIds, manuscriptFilename, MANUSCRIPT_FORMATS, MANUSCRIPT_HEADING_LEVELS,
-  type ManuscriptCover, type ManuscriptFormat, type ManuscriptHeadingLevel, type ManuscriptOutline,
+  defaultManuscriptChapterIds, manuscriptFilename, MANUSCRIPT_FORMATS,
+  type ManuscriptCover, type ManuscriptFormat, type ManuscriptOutline,
 } from '../../services/export/manuscript-export';
 import { Button } from '../ui/Button';
 import { BrushIcon } from '../ui/BrushIcon';
@@ -29,7 +29,6 @@ interface StoredPreferences {
     format?: ManuscriptFormat;
     actTitles?: boolean;
     chapterTitles?: boolean;
-    headingLevels?: number[];
     title?: string;
   }>;
 }
@@ -56,12 +55,6 @@ function savePreferences(preferences: StoredPreferences) {
 
 const FORMAT_LABELS: Record<ManuscriptFormat, string> = { epub: 'EPUB', pdf: 'PDF', docx: 'Word' };
 
-/** The stored H1–H3 choice; anything unreadable means every level. */
-function storedHeadingLevels(stored: unknown): readonly ManuscriptHeadingLevel[] {
-  if (!Array.isArray(stored)) return MANUSCRIPT_HEADING_LEVELS;
-  return MANUSCRIPT_HEADING_LEVELS.filter(level => stored.includes(level));
-}
-
 export function ManuscriptExportDialog({ target, onClose }: {
   target: ManuscriptExportTarget;
   onClose: () => void;
@@ -77,9 +70,6 @@ export function ManuscriptExportDialog({ target, onClose }: {
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set(target.chapterId ? [target.chapterId] : []));
   const [actTitles, setActTitles] = useState(projectPreferences.actTitles ?? true);
   const [chapterTitles, setChapterTitles] = useState(projectPreferences.chapterTitles ?? true);
-  const [headingLevels, setHeadingLevels] = useState(() => storedHeadingLevels(projectPreferences.headingLevels));
-  const setHeadingLevel = (level: ManuscriptHeadingLevel, on: boolean) => setHeadingLevels(levels =>
-    MANUSCRIPT_HEADING_LEVELS.filter(each => (each === level ? on : levels.includes(each))));
   const [title, setTitle] = useState(projectPreferences.title ?? '');
   const [author, setAuthor] = useState(stored.author ?? '');
   const [cover, setCover] = useState<ManuscriptCover | null>(null);
@@ -151,7 +141,7 @@ export function ManuscriptExportDialog({ target, onClose }: {
       projects: {
         ...stored.projects,
         [target.projectId]: {
-          format, actTitles, chapterTitles, headingLevels: [...headingLevels],
+          format, actTitles, chapterTitles,
           ...(title.trim() && title.trim() !== outline.projectTitle ? { title: title.trim() } : {}),
         },
       },
@@ -163,7 +153,6 @@ export function ManuscriptExportDialog({ target, onClose }: {
         chapterIds: scope === 'book' ? null : chapterIds,
         actTitles: hasActs && actTitles,
         chapterTitles,
-        headingLevels,
         title,
         author,
         cover,
@@ -283,13 +272,6 @@ export function ManuscriptExportDialog({ target, onClose }: {
                   <Switch size="sm" checked={chapterTitles} disabled={running} onCheckedChange={setChapterTitles}
                     aria-label={t('manuscriptExport.chapterTitles')} />
                 </label>
-                {MANUSCRIPT_HEADING_LEVELS.map(level => (
-                  <label key={level} className="manuscript-export__switch">
-                    <span>{`H${level}`}</span>
-                    <Switch size="sm" checked={headingLevels.includes(level)} disabled={running}
-                      onCheckedChange={on => setHeadingLevel(level, on)} aria-label={`H${level}`} />
-                  </label>
-                ))}
               </section>
 
               <section className="dialog-section">
