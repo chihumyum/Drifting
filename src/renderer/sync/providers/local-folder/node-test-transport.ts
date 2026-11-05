@@ -185,6 +185,9 @@ async function fsyncFile(filePath: string): Promise<void> {
 }
 
 async function fsyncDirectory(directoryPath: string): Promise<void> {
+  // Windows cannot fsync a directory (EPERM); NTFS journals the rename, as
+  // drifting_core::file_io::sync_directory relies on for the app.
+  if (process.platform === 'win32') return;
   const handle = await open(directoryPath, 'r');
   try {
     await handle.sync();

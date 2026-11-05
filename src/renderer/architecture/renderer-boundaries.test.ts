@@ -218,7 +218,7 @@ describe('renderer ownership boundaries', () => {
         const target = imported.replace(/\.(ts|tsx)$/, '');
         expect(target, `${path.relative(rendererRoot, file)} eagerly imports settings`).not.toBe(facade);
         if (!target.startsWith(path.join(settingsRoot, 'panels') + path.sep)) continue;
-        if (target.endsWith('/TrashSettingsPanel') || target.endsWith('/BasicPreferencePanels')) continue;
+        if (['TrashSettingsPanel', 'BasicPreferencePanels'].includes(path.basename(target))) continue;
         expect(
           file === `${facade}.ts` || file.startsWith(path.join(settingsRoot, 'panels') + path.sep),
           `${path.relative(rendererRoot, file)} bypasses the deferred settings entry`,
