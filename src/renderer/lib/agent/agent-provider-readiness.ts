@@ -47,3 +47,28 @@ export async function canAgentProviderRun(
   }
   return (await agentProviderKeySource(provider, dependencies)) !== null;
 }
+
+export type AgentProviderReadiness = Partial<Record<AgentProviderId, boolean>>;
+
+/** Every listed provider's answer at once, for the model menu. */
+export async function readAgentProviderReadiness(
+  providers: readonly AgentProviderId[],
+  dependencies: AgentProviderReadinessDependencies = DEFAULT_DEPENDENCIES,
+): Promise<AgentProviderReadiness> {
+  const answers = await Promise.all(
+    providers.map((provider) => canAgentProviderRun(provider, dependencies)),
+  );
+  return Object.fromEntries(providers.map((provider, index) => [provider, answers[index]]));
+}
+
+/**
+ * A provider's models can be chosen unless the check said it has no usable
+ * credential; one not answered yet stays choosable so a slow check never
+ * blocks a choice.
+ */
+export function isAgentProviderSelectable(
+  readiness: AgentProviderReadiness,
+  provider: AgentProviderId,
+): boolean {
+  return readiness[provider] !== false;
+}

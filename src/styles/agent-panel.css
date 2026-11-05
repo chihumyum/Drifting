@@ -299,6 +299,14 @@
   color: hsl(var(--ink-1));
   font-weight: 500;
 }
+.agt-menu__opt:disabled {
+  color: hsl(var(--ink-4));
+  cursor: default;
+  opacity: 0.55;
+}
+.agt-menu__opt:disabled:hover {
+  background: transparent;
+}
 .agt-menu__check {
   flex-shrink: 0;
 }

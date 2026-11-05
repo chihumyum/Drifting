@@ -17,6 +17,8 @@ import { agentProviderModelOption } from '../../lib/agent/runtime/agent-provider
 import { codexModelCatalog } from '../../lib/agent/codex-model-catalog';
 import { useCodexModelCatalog } from './useCodexModelCatalog';
 import { useByokModelLists } from './useByokModelLists';
+import { useAgentProviderReadiness } from './useAgentProviderReadiness';
+import { isAgentProviderSelectable } from '../../lib/agent/agent-provider-readiness';
 import { BrushIcon } from '../../components/ui/BrushIcon';
 
 /**
@@ -63,6 +65,7 @@ export function AgentComposerConfig({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const catalog = useCodexModelCatalog(open && view === 'model');
   useByokModelLists(open && view === 'model');
+  const providerReadiness = useAgentProviderReadiness(open && view === 'model');
 
   const modelOption = agentProviderModelOption(agentProvider, agentModel);
   const reasoningProfile = resolveAgentProviderReasoningProfile(agentProvider, agentModel);
@@ -215,7 +218,8 @@ export function AgentComposerConfig({
                     <button
                       type="button"
                       className={rowButtonClass}
-                      disabled={catalog.state === 'loading'}
+                      disabled={catalog.state === 'loading'
+                        || !isAgentProviderSelectable(providerReadiness, 'openai-codex')}
                       onClick={() => void codexModelCatalog.refresh(true)}
                     >
                       {t(`agentPanel.config.${catalog.state === 'loading' ? 'modelsLoading' : catalog.state === 'error' ? 'modelsRetry' : 'modelsRefresh'}`)}
@@ -237,10 +241,14 @@ export function AgentComposerConfig({
                 )}
                 {provider.models.map((m) => {
                   const current = provider.value === agentProvider && m.value === agentModel;
+                  // Without a key or sign-in the row is shown but cannot be
+                  // chosen; the current choice stays readable either way.
+                  const selectable = isAgentProviderSelectable(providerReadiness, provider.value);
                   return (
                     <button
                       type="button"
                       key={m.value}
+                      disabled={!selectable}
                       className={
                         glass
                           ? 'menu-surface__item agt-menu__item' + (current ? ' menu-surface__item--active is-current' : '')

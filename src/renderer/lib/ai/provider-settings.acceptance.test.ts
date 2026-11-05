@@ -54,6 +54,19 @@ describe('central AI provider settings acceptance', () => {
     expect(runtime).toContain('platform.codexSubscription');
   });
 
+  it('greys out models whose provider has no key or sign-in without decrypting a key', async () => {
+    const composer = await source('/src/renderer/features/agent/AgentComposerConfig.tsx');
+    const readiness = await source('/src/renderer/features/agent/useAgentProviderReadiness.ts');
+
+    expect(composer).toContain("useAgentProviderReadiness(open && view === 'model')");
+    expect(composer).toContain('isAgentProviderSelectable(providerReadiness, provider.value)');
+    expect(composer).toContain('disabled={!selectable}');
+    expect(readiness).toContain('readAgentProviderReadiness(PROVIDERS)');
+    expect(readiness).toContain("events.on('byok:keys-changed', refresh)");
+    expect(readiness).toContain("events.on('agent:auth-changed', refresh)");
+    expect(readiness).not.toMatch(/byokKeychain\.get|getApiKey/);
+  });
+
   it('lets the Agent panel first run only add a tested key or pick a route that can run', async () => {
     const onboarding = await source('/src/renderer/features/agent/onboarding/AgentOnboarding.tsx');
     const connect = await source('/src/renderer/lib/agent/connect-agent-provider.ts');
