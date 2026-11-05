@@ -112,7 +112,7 @@ pnpm dev:check
 pnpm dev
 ```
 
-[文档索引](docs/README.md) · [参与开发](CONTRIBUTING.md) · [发布流程](docs/releasing.md)
+[文档索引](docs/README.md) · [参与开发](CONTRIBUTING.zh-CN.md) · [发布流程](docs/releasing.md)
 
 ## 许可
 

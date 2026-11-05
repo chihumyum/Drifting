@@ -1,10 +1,13 @@
 # Contributing to Drifting
 
+English | [简体中文](CONTRIBUTING.zh-CN.md)
+
 Thank you for improving Drifting. Open an issue before a large architectural
 change so maintainers and contributors can agree on scope.
 
 Start with the [contributor quick start](docs/contributor-quick-start.md), including
-macOS certificate setup and the certificate-free code-checking workflow.
+macOS certificate setup and the certificate-free code-checking workflow. On
+Windows, see [Developing on Windows](docs/windows.md#developing-on-windows).
 
 ## License agreement
 

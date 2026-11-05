@@ -170,7 +170,9 @@ jobs:
           BUNDLE=src-tauri/target/aarch64-apple-darwin/release/bundle
           RELEASE_DIR="$RUNNER_TEMP/drifting-release"
           mkdir -p "$RELEASE_DIR"
-          cp "$BUNDLE"/dmg/*.dmg "$RELEASE_DIR/"
+          # The Mac installer names macOS, as the Windows installers name Windows.
+          DMG=$(find "$BUNDLE/dmg" -maxdepth 1 -name '*.dmg' -print -quit)
+          cp "$DMG" "$RELEASE_DIR/Drifting_${VERSION}_macos_arm64.dmg"
           cp "$BUNDLE"/macos/*.app.tar.gz "$BUNDLE"/macos/*.app.tar.gz.sig "$RELEASE_DIR/"
           UPDATE_NAME=$(basename "$(find "$RELEASE_DIR" -maxdepth 1 -name '*.app.tar.gz' -print -quit)")
           node scripts/create-update-manifest.mjs \

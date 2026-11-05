@@ -64,7 +64,7 @@ const template = withAssets(readFileSync(path.join(here, 'index.html'), 'utf8'))
 // (docs/releasing.md: rebuild and deploy the site after Publish).
 const RELEASE = 'https://github.com/chihumyum/Drifting/releases/latest/download/';
 const downloads = {
-  'download-mac': `${RELEASE}Drifting_${version}_aarch64.dmg`,
+  'download-mac': `${RELEASE}Drifting_${version}_macos_arm64.dmg`,
   'download-windows': `${RELEASE}Drifting_${version}_windows_x64-setup.exe`,
   'download-windows-arm': `${RELEASE}Drifting_${version}_windows_arm64-setup.exe`,
 };
