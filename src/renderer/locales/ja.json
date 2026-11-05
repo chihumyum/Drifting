@@ -983,6 +983,7 @@
   },
   "chapterEditor": {
     "untitledChapter": "無題の章",
+    "untitledDrift": "無題のアイデア",
     "synopsisPlaceholder": "あらすじ…",
     "summaryPlaceholder": "クリックして概要を追加…"
   },
@@ -1084,12 +1085,12 @@
     }
   },
   "kvEditor": {
-    "keyPlaceholder": "項目・キー",
-    "valuePlaceholder": "内容・値",
-    "templateKeyPlaceholder": "項目名・キー（例：視点）",
-    "templateValuePlaceholder": "既定値／ヒント・値",
+    "keyPlaceholder": "項目",
+    "valuePlaceholder": "内容",
+    "templateKeyPlaceholder": "項目名（例：視点）",
+    "templateValuePlaceholder": "既定値またはヒント",
     "empty": "項目はありません",
-    "templateEmpty": "テンプレート項目未設定。新しい子項目には自動追加しません",
+    "templateEmpty": "テンプレート項目はまだありません。新しく作るときに自動入力されません",
     "addField": "項目を追加",
     "removeRow": "行を削除"
   },
@@ -1692,7 +1693,7 @@
       "clearEntityFilter": "関連フィルターを解除",
       "entityFilterAll": "関係・すべて",
       "entityFilterHint": "関連するメモ・資料だけを表示するエンティティを選択",
-      "todoEmptyHint": "＋でTODOを作るか、エディタのコメントカードから追加できます",
+      "todoEmptyHint": "＋でTODOを作るか、コメントカードの「TODO に変換」を使います",
       "commentEmptyHint": "＋でコメントを作るか、エディタで文字を選んでコメントできます",
       "newMaterialButton": "新しい資料",
       "noMaterials": "この作品に資料はまだありません。",
@@ -3022,7 +3023,7 @@
     "alerts": {
       "deleteFailed": "ストーリーラインを削除できませんでした。もう一度お試しください。"
     },
-    "scratchPlaceholder": "このストーリーラインの走り書き：簡単なメモ、アイデア、文体の注意点など…",
+    "scratchPlaceholder": "このストーリーラインの走り書き：簡単なメモ、文体の注意点など…",
     "summaryPlaceholder": "このストーリーラインを一文で要約…",
     "nodeTemplatePlaceholder": "H1 / H2 / H3 で章のひな形を作成。新しい章に適用されます…",
     "outlineTitle": "{{name}} · アウトライン",
@@ -3049,7 +3050,7 @@
       "unwritten": "未着手"
     },
     "empty": {
-      "noFacts": "フィールドはまだありません。作品のテンプレートに定義がある場合、ストーリーラインの作成時に入力されます。",
+      "noFacts": "フィールドはまだありません。ストーリーラインを作成すると、作品ホームの「ストーリーラインのテンプレート」から入力されます。",
       "noChapterSummary": "一文の要約はまだありません",
       "noFilteredChapters": "条件に合う章はありません"
     },
@@ -3065,7 +3066,7 @@
     "alerts": {
       "deleteFailed": "カテゴリを削除できませんでした。もう一度お試しください。"
     },
-    "scratchPlaceholder": "このカテゴリの走り書き：設計方針、命名規則、AI 候補のルールなど…",
+    "scratchPlaceholder": "このカテゴリの走り書き：設計方針、命名規則など…",
     "elementTemplatePlaceholder": "H1 / H2 / H3 で要素のひな形を作成。新しい要素に適用されます…",
     "sections": {
       "overview": "概要",
@@ -3160,7 +3161,7 @@
       "patches": "変化記録"
     },
     "empty": {
-      "noFacts": "フィールドはまだありません。カテゴリのテンプレートに定義がある場合、要素の作成時に入力されます。",
+      "noFacts": "フィールドはまだありません。要素を作成すると、カテゴリの「フィールドのテンプレート」から入力されます。",
       "selectElement": "編集する要素を選択",
       "noCategories": "カテゴリはまだありません"
     },

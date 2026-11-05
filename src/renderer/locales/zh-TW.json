@@ -983,6 +983,7 @@
   },
   "chapterEditor": {
     "untitledChapter": "未命名章節",
+    "untitledDrift": "未命名構想",
     "synopsisPlaceholder": "梗概…",
     "summaryPlaceholder": "點擊新增摘要…"
   },
@@ -1084,12 +1085,12 @@
     }
   },
   "kvEditor": {
-    "keyPlaceholder": "欄位 · 鍵",
-    "valuePlaceholder": "內容 · 值",
-    "templateKeyPlaceholder": "欄位名稱 · 鍵（例如：視角）",
-    "templateValuePlaceholder": "預設值／提示 · 值",
+    "keyPlaceholder": "欄位",
+    "valuePlaceholder": "內容",
+    "templateKeyPlaceholder": "欄位名稱（例如：視角）",
+    "templateValuePlaceholder": "預設值或提示",
     "empty": "尚無欄位",
-    "templateEmpty": "尚未定義範本欄位，新子項目不會自動填入欄位",
+    "templateEmpty": "尚未定義範本欄位，建立時不會自動填入欄位",
     "addField": "新增欄位",
     "removeRow": "移除此列"
   },
@@ -1692,7 +1693,7 @@
       "clearEntityFilter": "清除關係篩選",
       "entityFilterAll": "關係 · 全部",
       "entityFilterHint": "選擇實體，只顯示其連結的備忘與素材",
-      "todoEmptyHint": "按 + 建立待辦，或由編輯器的批註卡片轉為待辦",
+      "todoEmptyHint": "按 + 建立待辦，或在批註卡片上點「轉為待辦」",
       "commentEmptyHint": "按 + 新增註解，或在編輯器中選取文字留下註解",
       "newMaterialButton": "新增素材",
       "noMaterials": "此作品尚無素材。",
@@ -3022,7 +3023,7 @@
     "alerts": {
       "deleteFailed": "無法刪除故事線，請再試一次。"
     },
-    "scratchPlaceholder": "此故事線的隨手筆記：簡短記錄、構想、文風提醒…",
+    "scratchPlaceholder": "此故事線的簡短記錄、文風提醒…",
     "summaryPlaceholder": "此故事線的一句話摘要…",
     "nodeTemplatePlaceholder": "以 H1／H2／H3 撰寫預設章節骨架；新章節將使用此範本…",
     "outlineTitle": "{{name}} · 大綱",
@@ -3049,7 +3050,7 @@
       "unwritten": "尚未開始"
     },
     "empty": {
-      "noFacts": "尚無欄位。若作品範本已定義欄位，會在建立故事線時自動填入。",
+      "noFacts": "尚無欄位。建立故事線時，作品首頁的「故事線範本」會自動填入。",
       "noChapterSummary": "尚無一句話摘要",
       "noFilteredChapters": "沒有符合篩選條件的章節"
     },
@@ -3065,7 +3066,7 @@
     "alerts": {
       "deleteFailed": "無法刪除分類，請再試一次。"
     },
-    "scratchPlaceholder": "此分類的隨手筆記：設計原則、命名規則、AI 候選規則…",
+    "scratchPlaceholder": "此分類的設計原則、命名規則…",
     "elementTemplatePlaceholder": "以 H1／H2／H3 撰寫預設要素骨架；新要素將使用此範本…",
     "sections": {
       "overview": "總覽",
@@ -3160,7 +3161,7 @@
       "patches": "演化記錄"
     },
     "empty": {
-      "noFacts": "尚無欄位。若分類範本已定義欄位，會在建立要素時自動填入。",
+      "noFacts": "尚無欄位。建立要素時，所屬分類的「欄位範本」會自動填入。",
       "selectElement": "選擇要編輯的要素",
       "noCategories": "尚無分類"
     },

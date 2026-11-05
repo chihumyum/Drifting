@@ -767,6 +767,7 @@ const NodeEditorSession = memo(function NodeEditorSession({ nodeId, projectId }:
                       projectId={activeProjectId}
                       content={bookContent?.contentJson ?? null}
                       title={curNode.title}
+                      untitledTitle={isDriftNode ? t('chapterEditor.untitledDrift') : undefined}
                       summary={curNode.summary || ''}
                       onContentUpdate={handleContentUpdate}
                       onTitleUpdate={handleTitleUpdate}
