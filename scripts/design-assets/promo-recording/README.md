@@ -157,8 +157,12 @@ alpha), `events.jsonl` (the rig's), `marks.jsonl` (the script's) and
   its output time from shaped noise (no recordings, no pitched tones);
   `--music <file>` mixes a track under it, faded out at the end.
 
-`--size 1440` or `2160` renders larger; at 1080 the closest shots are still
-about one recorded pixel per output pixel.
+`--size 1440` or `2160` renders larger (`promo-<size>.mp4`); 4K is what to
+upload, since a platform re-encodes whatever it gets. The recording has two
+pixels per point, so 4K's wide shots are sharper than 1080p's and its closest
+shots are scaled up a little. The intermediate is 40, 80 or 160 Mbit/s by size
+and 4K is encoded at x264's `medium` preset; still paper makes the final a few
+Mbit/s at CRF 18 without softening the text.
 
 ## Known behaviour
 

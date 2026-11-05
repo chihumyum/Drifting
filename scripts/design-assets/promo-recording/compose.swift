@@ -211,12 +211,13 @@ struct Compose {
     reader.add(output)
     guard reader.startReading() else { fail("reader did not start: \(reader.error?.localizedDescription ?? "?")") }
 
-    // The video, H.264 at a bitrate a platform will happily re-encode.
+    // The intermediate, H.264 at a bitrate high enough that x264 re-encodes
+    // text edges, not the hardware encoder's artifacts around them.
     let outURL = URL(fileURLWithPath: outPath)
     try? FileManager.default.removeItem(at: outURL)
     let writer: AVAssetWriter
     do { writer = try AVAssetWriter(outputURL: outURL, fileType: .mov) } catch { fail("writer: \(error)") }
-    let bitrate = plan.width >= 3000 ? 60_000_000 : 24_000_000
+    let bitrate = plan.width >= 3000 ? 160_000_000 : plan.width >= 2000 ? 80_000_000 : 40_000_000
     let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
       AVVideoCodecKey: AVVideoCodecType.h264, AVVideoWidthKey: plan.width, AVVideoHeightKey: plan.height,
       AVVideoCompressionPropertiesKey: [
