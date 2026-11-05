@@ -98,7 +98,7 @@ describe('a newly opened document', () => {
   });
 
   /** The extension's plugins on a view stand-in, as Tiptap mounts them; nothing in the document changes afterwards. */
-  function open(...paragraphs: JSONContent[][]) {
+  function open(paragraphs: JSONContent[][], { editable = true } = {}) {
     const extension = EntityLink.configure({
       composeInsideLink: false,
       autoDetectEnabled: true,
@@ -109,6 +109,7 @@ describe('a newly opened document', () => {
       state: EditorState.create({ doc: state(...paragraphs).doc, plugins }),
       dom: { querySelectorAll: () => [] },
       composing: false,
+      editable,
       isDestroyed: false,
       dispatch(tr: Transaction) {
         view.state = view.state.apply(tr);
@@ -118,17 +119,26 @@ describe('a newly opened document', () => {
     return view;
   }
 
-  it('mends a partly linked name once loaded, and links nothing new', () => {
+  it('links the names in prose nobody has typed into since it loaded', () => {
     vi.useFakeTimers();
-    const view = open([link('安', 'annati'), plain('纳'), link('蒂', 'annati'), plain('对米契说。')]);
+    const view = open([[link('安', 'annati'), plain('纳'), link('蒂', 'annati'), plain('对米契说。')]]);
     vi.advanceTimersByTime(500);
 
-    expect(runs(view.state)).toEqual([[['安纳蒂', ['annati']], ['对米契说。', []]]]);
+    expect(runs(view.state)).toEqual([[['安纳蒂', ['annati']], ['对', []], ['米契', ['mitch']], ['说。', []]]]);
   });
 
-  it('writes nothing to a document without partly linked names', () => {
+  it('writes nothing to a document whose names are all linked', () => {
     vi.useFakeTimers();
-    const view = open([plain('安纳蒂对'), link('米契', 'mitch'), plain('说。')]);
+    const view = open([[link('安纳蒂', 'annati'), plain('对'), link('米契', 'mitch'), plain('说。')]]);
+    const before = view.state.doc;
+    vi.advanceTimersByTime(500);
+
+    expect(view.state.doc).toBe(before);
+  });
+
+  it('writes nothing through a view that cannot be edited', () => {
+    vi.useFakeTimers();
+    const view = open([[plain('安纳蒂对米契说。')]], { editable: false });
     const before = view.state.doc;
     vi.advanceTimersByTime(500);
 

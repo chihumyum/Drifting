@@ -1248,6 +1248,42 @@ describe.sequential('Drifting Agent product composition', () => {
     harness.driver.assertExhausted();
   });
 
+  it('links registered names in the prose the Agent writes and the chapters it creates', async () => {
+    const turnId = 'turn-agent-prose-names';
+    harness = await ProductAgentHarness.create([
+      {
+        name: 'read prose before rewriting it with a registered name',
+        steps: toolCallSteps('agent-prose-names-read', 'read_chapter', { chapter: NODE_TITLE }),
+      },
+      {
+        name: 'rewrite the chapter mentioning the element',
+        steps: toolCallSteps('agent-prose-names-replace', 'replace_chapter_body', {
+          chapter: NODE_TITLE,
+          body: 'Fixture Element waited by the door.',
+        }),
+      },
+      {
+        name: 'create a chapter mentioning the element',
+        steps: toolCallSteps('agent-prose-names-create', 'create_chapter', {
+          title: 'Agent Written Chapter',
+          body: 'Nobody had typed here, yet Fixture Element arrived.',
+        }),
+      },
+      { name: 'finish', steps: finalSteps('Both chapters mention the element.') },
+    ]);
+    // The workspace the author has open is this project; its names are registered.
+    useDataStore.setState({ workspaceProjectId: PROJECT_ID });
+
+    await harness.runTurn(turnId, 'Write the element into two chapters.', 1, 'auto');
+
+    const link = `{"type":"text","text":"Fixture Element","marks":[{"type":"entityLink","attrs":{"targetBlockId":null,"targetId":"${ELEMENT_ID}","targetKind":"element"}}]}`;
+    expect((await harness.contentRepository.findByNodeId(NODE_ID))?.contentJson).toContain(link);
+    const created = (await harness.nodeRepository.findAll()).find((node) => node.title === 'Agent Written Chapter');
+    expect(created).toBeDefined();
+    expect((await harness.contentRepository.findByNodeId(created!.id))?.contentJson).toContain(link);
+    harness.driver.assertExhausted();
+  });
+
   it('commits whole-chapter prose and summary together as one authored change', async () => {
     const turnId = 'turn-workspace-prose-summary-review';
     const writeCallId = 'workspace-prose-summary-write';
