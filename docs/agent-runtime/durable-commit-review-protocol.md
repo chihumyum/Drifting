@@ -9,7 +9,8 @@ source of truth that contradicts these rules.
 Since 2026-10-17, Agent changes always commit directly. The composer has no
 review-mode setting, no editor exposes accept/reject or review-all controls,
 and large prose deletions do not escalate to post-write author review.
-Pre-execution permissions for destructive operations remain independent.
+Since 2026-11-06 destructive operations do not pause for a pre-execution
+confirmation either, and there is no setting for one.
 The tool registry and generated capability inventory classify ordinary prose,
 field and patch updates as automatic.
 

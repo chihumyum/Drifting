@@ -73,8 +73,6 @@ function readAgentRuntimeLimits(): { maxModelIterations: number | null } {
 
 const driftingProductComposition = createDriftingAgentProductComposition({
   authStatus: readLocalAgentAuthStatus,
-  allowDangerousOperations: () =>
-    useSettingsStore.getState().agentAllowDangerousOperations,
   limits: readAgentRuntimeLimits,
   ...debugRuntimeOverrides,
 });

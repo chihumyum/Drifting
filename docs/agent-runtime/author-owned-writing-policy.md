@@ -103,9 +103,9 @@ Removing content policy does not remove data integrity:
 - read-before-write revisions and CAS reject stale concurrent writes;
 - stable idempotency keys prevent duplicated effects;
 - ordinary prose edits retain inline Review/reveal and exact undo;
-- destructive structural operations request explicit permission by default;
-- the author may explicitly allow dangerous operations without disabling
-  project isolation, freshness, CAS, receipts or guarded write execution;
+- destructive structural operations run without a confirmation prompt (since
+  2026-11-06), still under project isolation, freshness, CAS, receipts and
+  guarded write execution;
 - durable receipts, runtime commit records and task state prevent false
   recovery claims.
 

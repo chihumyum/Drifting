@@ -48,12 +48,6 @@ export function AgentComposerConfig({
   const setAgentThinking = useSettingsStore((s) => s.setAgentThinking);
   const agentEffort = useSettingsStore((s) => s.agentEffort);
   const setAgentEffort = useSettingsStore((s) => s.setAgentEffort);
-  const agentAllowDangerousOperations = useSettingsStore(
-    (s) => s.agentAllowDangerousOperations,
-  );
-  const setAgentAllowDangerousOperations = useSettingsStore(
-    (s) => s.setAgentAllowDangerousOperations,
-  );
 
   const projectId = useProjectStore((s) => s.currentProject?.id ?? '');
   const memory = useAgentMemory(projectId);
@@ -174,18 +168,6 @@ export function AgentComposerConfig({
                 {effortSelect}
               </label>
             )}
-            {divider}
-            <div className={sectionClass}>{t('agentPanel.config.edits')}</div>
-            <div
-              className="agt-menu__row"
-              title={t('agentPanel.config.dangerousOperationsTitle')}
-            >
-              <span>{t('agentPanel.config.dangerousOperations')}</span>
-              <Switch
-                checked={agentAllowDangerousOperations}
-                onCheckedChange={setAgentAllowDangerousOperations}
-              />
-            </div>
             {divider}
             <div className={sectionClass}>{t('agentPanel.config.memory')}</div>
             <button

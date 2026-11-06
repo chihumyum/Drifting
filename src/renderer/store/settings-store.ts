@@ -124,7 +124,8 @@ export type AgentToolSearch = 'off' | 'auto' | 'on';
 
 /** Product default for a fresh General Agent installation. */
 export const AGENT_TOOL_SEARCH_DEFAULT: AgentToolSearch = 'auto';
-export const SETTINGS_STORAGE_VERSION = 35;
+// 36 is skipped: a reverted change used it in development builds.
+export const SETTINGS_STORAGE_VERSION = 37;
 
 /**
  * The Agent panel's first run (features/agent/onboarding): `new` until the
@@ -337,8 +338,6 @@ interface SettingsState {
    * Certification, project isolation, freshness checks, receipts and guarded
    * write execution remain mandatory when this is enabled.
    */
-  agentAllowDangerousOperations: boolean;
-  setAgentAllowDangerousOperations: (on: boolean) => void;
   /**
    * Per-turn model-iteration cap read at turn start; `null` disables the cap.
    * See AGENT_TURN_ITERATION_LIMIT_DEFAULT.
@@ -520,8 +519,6 @@ export const useSettingsStore = create<SettingsState>()(
         })),
       agentToolSearch: AGENT_TOOL_SEARCH_DEFAULT,
       setAgentToolSearch: (t) => set({ agentToolSearch: t }),
-      agentAllowDangerousOperations: false,
-      setAgentAllowDangerousOperations: (on) => set({ agentAllowDangerousOperations: on }),
       agentTurnIterationLimit: AGENT_TURN_ITERATION_LIMIT_DEFAULT,
       setAgentTurnIterationLimit: (limit) =>
         set({ agentTurnIterationLimit: normalizeAgentTurnIterationLimit(limit) }),
@@ -741,9 +738,6 @@ export const useSettingsStore = create<SettingsState>()(
             delete retired[key];
           }
         }
-        if (version < 28) {
-          next.agentAllowDangerousOperations = false;
-        }
         next.accentColor = migrateAccentColor(next.accentColor, version);
         if (version < 30) {
           // Earlier builds ran the model-iteration loop unbounded. Give every
@@ -774,6 +768,11 @@ export const useSettingsStore = create<SettingsState>()(
           else if (next.interfaceTextSize === 'standard') next.interfaceTextSize = 'small';
           else if (next.interfaceTextSize === 'large') next.interfaceTextSize = 'standard';
         }
+        if (version < 37) {
+          // The Agent no longer asks before destructive operations, so the
+          // switch that let it skip asking is gone.
+          delete (next as unknown as Record<string, unknown>).agentAllowDangerousOperations;
+        }
         return next;
       },
       // BYOK-only builds (VITE_BYOK_ONLY) disable the hosted AI tier — the server
@@ -800,8 +799,6 @@ export const useSettingsStore = create<SettingsState>()(
         delete (merged as unknown as Record<string, unknown>).agentMaxContext;
         delete (merged as unknown as Record<string, unknown>).agentEditMode;
         merged.agentToolSearch = normalizeAgentToolSearch(persistedSettings?.agentToolSearch);
-        merged.agentAllowDangerousOperations =
-          persistedSettings?.agentAllowDangerousOperations === true;
         merged.agentTurnIterationLimit = normalizeAgentTurnIterationLimit(
           merged.agentTurnIterationLimit,
         );

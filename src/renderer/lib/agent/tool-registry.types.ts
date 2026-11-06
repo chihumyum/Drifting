@@ -35,6 +35,12 @@ export type AgentToolConcurrency =
   | 'exclusive_entity'
   | 'exclusive_project';
 
+/**
+ * `confirm_before` classifies destructive writes (deletions, replacing a whole
+ * set). The product policy used to pause them for the author's confirmation;
+ * since 2026-11-06 they run like automatic writes, and the class remains in
+ * the registry and the capability inventory.
+ */
 export type AgentToolApproval =
   | 'automatic'
   | 'review_after'

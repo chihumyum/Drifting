@@ -20,12 +20,11 @@ describe('General Agent permission disclosure', () => {
     expect(panel).not.toContain('EditFilePermissionPreview');
   });
 
-  it('keeps the dangerous-operation switch explicit and off by default', () => {
+  it('offers no switch for destructive operations, which run without asking', () => {
     const panel = source('src/renderer/features/agent/AgentComposerConfig.tsx');
-    const settings = source('src/renderer/store/settings-store.ts');
+    const policy = source('src/renderer/lib/agent/runtime/drifting-permission-policy.ts');
 
-    expect(panel).toContain('agentAllowDangerousOperations');
-    expect(panel).toContain('setAgentAllowDangerousOperations');
-    expect(settings).toContain('agentAllowDangerousOperations: false');
+    expect(panel).not.toMatch(/dangerous/i);
+    expect(policy).not.toMatch(/allowDangerousOperations|decision: 'ask'/);
   });
 });

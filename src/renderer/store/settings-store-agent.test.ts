@@ -23,7 +23,6 @@ describe('General Agent product settings', () => {
   it('starts fresh installations with bounded automatic tool search', () => {
     expect(AGENT_TOOL_SEARCH_DEFAULT).toBe('auto');
     expect(useSettingsStore.getInitialState().agentToolSearch).toBe('auto');
-    expect(useSettingsStore.getInitialState().agentAllowDangerousOperations).toBe(false);
   });
 
   it.each([false, true])('retires a persisted Max preference of %s', (agentMaxContext) => {
@@ -51,10 +50,12 @@ describe('General Agent product settings', () => {
     expect(merge({ agentOnboardingStep: 'later' }, current)).toMatchObject({ agentOnboardingStep: 'new' });
   });
 
-  it('keeps dangerous operations opt-in', () => {
-    useSettingsStore.getState().setAgentAllowDangerousOperations(true);
-    expect(useSettingsStore.getState().agentAllowDangerousOperations).toBe(true);
-    useSettingsStore.getState().setAgentAllowDangerousOperations(false);
+  it.each([false, true])('retires a stored dangerous-operation switch of %s', (agentAllowDangerousOperations) => {
+    const migrate = useSettingsStore.persist.getOptions().migrate!;
+    const migrated = migrate({ agentAllowDangerousOperations, agentToolSearch: 'off' }, 36);
+    expect(migrated).not.toHaveProperty('agentAllowDangerousOperations');
+    expect(migrated).toMatchObject({ agentToolSearch: 'off' });
+    expect(useSettingsStore.getInitialState()).not.toHaveProperty('agentAllowDangerousOperations');
   });
 
   it('starts fresh installations with a bounded per-turn iteration limit', () => {

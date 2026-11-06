@@ -192,9 +192,9 @@ The transaction:
 
 Creation, replacement, clearing, and exact inverse are all the same graph
 operation. A complete membership replacement may remove existing links, so it
-uses confirm-before authorization by default. The explicit author setting for
-dangerous operations can waive that prompt without waiving freshness,
-transaction, receipt, or guarded-inverse checks. The narrower direct add-link
+is classified confirm-before (destructive); like every certified write since
+2026-11-06 it runs without a prompt, keeping its freshness, transaction,
+receipt and guarded-inverse checks. The narrower direct add-link
 and set-primary operations are non-destructive and automatic; unlink remains a
 deletion and uses the destructive policy.
 
@@ -203,13 +203,11 @@ deletion and uses the destructive policy.
 Comments and TODOs are one anchored comment domain. Each object can be
 created, read, replaced, deleted, and exactly reverted. Ordinary comment/TODO
 creation and update are automatic because they do not rewrite manuscript prose.
-Deletion is confirm-before by default and follows the explicit dangerous-operation
-override when the author enables it.
+Deletion is classified confirm-before and runs without a prompt.
 
 Relations resolve author-facing endpoint names to typed project-owned entities.
 Create and relation-kind update are non-destructive and execute automatically.
-Delete is confirm-before by default, or automatic only when the author has
-explicitly enabled dangerous operations. Endpoint ownership and target validity
+Delete is classified confirm-before and runs without a prompt. Endpoint ownership and target validity
 are still rechecked inside the mutation transaction.
 
 ## 9. Project Memory
@@ -307,20 +305,22 @@ with the note's Yjs revision as freshness (`docs/material-workbench.md`).
 | -------------------------------------------------------- | -------------- | -------------------------------------------------------------------- |
 | Prose and structured-field edits                         | automatic      | commit immediately; unread markers/reveal can be acknowledged in the sidebar |
 | Safe metadata, comment/TODO, project memory entry        | automatic      | semantic activity only                                               |
-| Delete structural resource or comment/TODO               | confirm before | chat permission request                                              |
+| Delete structural resource or comment/TODO               | confirm before | semantic activity only                                               |
 | Relation create or relation-kind update                  | automatic      | semantic activity only                                               |
-| Relation delete                                          | confirm before | chat permission request                                              |
+| Relation delete                                          | confirm before | semantic activity only                                               |
 | Add storyline membership or set primary                  | automatic      | semantic activity only                                               |
-| Remove membership or replace the complete membership set | confirm before | chat permission request                                              |
+| Remove membership or replace the complete membership set | confirm before | semantic activity only                                               |
 
-When the author enables **Allow dangerous Agent operations**, confirm-before
-deletes and destructive set replacements execute without an additional prompt.
-The setting does not disable schema validation, project isolation, freshness,
-durable receipts, or guarded inverses.
+Confirm-before is a classification of destructive writes. Until 2026-11-06 it
+paused them for a chat permission request unless the author had turned on
+**Allow dangerous Agent operations**; now they run without a prompt and that
+setting is gone. Schema validation, project isolation, freshness, durable
+receipts and guarded inverses still apply, and undo goes through entity
+snapshot history.
 
-The model cannot forge approval. Authorization binds the exact normalized
-arguments hash to a permission request. A changed target or payload requires a
-new decision.
+Prompts that remain (generating an image, an outbound extension tool) cannot be
+forged by the model: authorization binds the exact normalized arguments hash to
+a permission request, and a changed target or payload requires a new decision.
 
 ## 12. Headless acceptance matrix
 
@@ -338,8 +338,8 @@ prose-owning paths. It verifies:
 - reconciliation after a lost outer acknowledgement;
 - close/reopen persistence and baseline-journal idempotency;
 - read-before-write stale-state refusal;
-- automatic relation create/type assignment, destructive-delete confirmation and its
-  explicit author override;
+- automatic relation create/type assignment, and destructive deletes running
+  without a confirmation;
 - typecheck, targeted lint, and generated capability drift checks.
 
 Run:

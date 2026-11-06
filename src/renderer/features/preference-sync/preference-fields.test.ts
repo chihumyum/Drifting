@@ -20,7 +20,7 @@ describe('synced preference fields', () => {
   it('leaves device-bound settings out', async () => {
     const { PREFERENCE_KEYS } = await fields();
     for (const key of ['editorFontSource', 'editorSystemFontFamily', 'interfaceTextSize', 'editorTextWrap',
-      'agentProvider', 'agentModel', 'agentEffort', 'agentThinking', 'agentAllowDangerousOperations',
+      'agentProvider', 'agentModel', 'agentEffort', 'agentThinking',
       'agentOnboardingStep', 'lastAgentConvByProject', 'sendCrashLogs'])
       expect(PREFERENCE_KEYS).not.toContain(key);
   });

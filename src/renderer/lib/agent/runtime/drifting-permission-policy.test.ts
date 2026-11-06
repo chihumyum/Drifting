@@ -73,48 +73,19 @@ describe('Drifting Agent permission policy', () => {
     });
   });
 
-  it('asks before confirm-before writes and exposes only implemented once grants', async () => {
-    const policy = createDriftingAgentPermissionPolicy({
-      resolveTool: () =>
-        tool({
-          approval: 'confirm_before',
-          risk: 'critical',
-        }),
-    });
-    await expect(policy.decide(request())).resolves.toMatchObject({
-      decision: 'ask',
-      allowedScopes: ['once'],
-    });
-
-    const nonCritical = createDriftingAgentPermissionPolicy({
-      resolveTool: () =>
-        tool({
-          approval: 'confirm_before',
-          risk: 'medium',
-        }),
-    });
-    await expect(nonCritical.decide(request())).resolves.toMatchObject({
-      decision: 'ask',
-      allowedScopes: ['once'],
-    });
+  it('runs confirm-before and irreversible writes without asking', async () => {
+    for (const overrides of [
+      { approval: 'confirm_before', risk: 'critical' },
+      { approval: 'confirm_before', risk: 'medium' },
+      { approval: 'automatic', revertStrategy: 'irreversible', reversible: false },
+      { approval: 'automatic', revertStrategy: 'unavailable', reversible: false },
+    ] as const) {
+      const policy = createDriftingAgentPermissionPolicy({ resolveTool: () => tool(overrides) });
+      await expect(policy.decide(request())).resolves.toEqual({ decision: 'allow', scope: 'once' });
+    }
   });
 
-  it('asks before irreversible writes even if registry approval drifts', async () => {
-    const policy = createDriftingAgentPermissionPolicy({
-      resolveTool: () =>
-        tool({
-          approval: 'automatic',
-          revertStrategy: 'irreversible',
-          reversible: false,
-        }),
-    });
-    await expect(policy.decide(request())).resolves.toMatchObject({
-      decision: 'ask',
-      allowedScopes: ['once'],
-    });
-  });
-
-  it('allows non-destructive relation changes but guards full membership replacement', async () => {
+  it('allows relation changes and full membership replacement alike', async () => {
     const policy = createDriftingAgentPermissionPolicy();
     await expect(
       policy.decide(
@@ -153,10 +124,7 @@ describe('Drifting Agent permission policy', () => {
           },
         }),
       ),
-    ).resolves.toMatchObject({
-      decision: 'ask',
-      allowedScopes: ['once'],
-    });
+    ).resolves.toEqual({ decision: 'allow', scope: 'once' });
 
     await expect(
       policy.decide(
@@ -169,41 +137,6 @@ describe('Drifting Agent permission policy', () => {
         }),
       ),
     ).resolves.toEqual({ decision: 'allow', scope: 'once' });
-  });
-
-  it('uses the live dangerous-operation override only for confirmation gates', async () => {
-    let allowed = false;
-    const policy = createDriftingAgentPermissionPolicy({
-      allowDangerousOperations: () => allowed,
-      resolveTool: () =>
-        tool({
-          approval: 'confirm_before',
-          risk: 'critical',
-        }),
-    });
-
-    await expect(policy.decide(request())).resolves.toMatchObject({
-      decision: 'ask',
-    });
-    allowed = true;
-    await expect(policy.decide(request())).resolves.toEqual({
-      decision: 'allow',
-      scope: 'once',
-    });
-
-    const irreversible = createDriftingAgentPermissionPolicy({
-      allowDangerousOperations: () => true,
-      resolveTool: () =>
-        tool({
-          approval: 'automatic',
-          revertStrategy: 'irreversible',
-          reversible: false,
-        }),
-    });
-    await expect(irreversible.decide(request())).resolves.toEqual({
-      decision: 'allow',
-      scope: 'once',
-    });
   });
 
   it('denies unknown, uncertified, and access-mismatched tools', async () => {

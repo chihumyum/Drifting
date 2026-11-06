@@ -284,6 +284,14 @@ describe('workspace domain CRUD transactions', () => {
     const deleted = await mcpCall(session, 'delete_chapter', { chapter: 'Destructive fixture' });
     expect(deleted, JSON.stringify(deleted)).toMatchObject({ isError: false });
     expect(fixture.scalar("SELECT count(*) FROM book_node WHERE title = 'Destructive fixture' AND deleted_at IS NULL")).toBe(0);
+    // No confirmation dialog stands in the way either: nothing would answer one.
+    expect(await mcpCall(session, 'create_element_category', { name: 'Destructive category' })).toMatchObject({ isError: false });
+    expect(await mcpCall(session, 'create_element', { category: 'Destructive category', name: 'Destructive element' })).toMatchObject({ isError: false });
+    expect(fixture.scalar("SELECT count(*) FROM element WHERE name = 'Destructive element' AND deleted_at IS NULL")).toBe(1);
+    await mcpCall(session, 'read_element', { element: 'Destructive element' });
+    const element = await mcpCall(session, 'delete_element', { element: 'Destructive element' });
+    expect(element, JSON.stringify(element)).toMatchObject({ isError: false });
+    expect(fixture.scalar("SELECT count(*) FROM element WHERE name = 'Destructive element' AND deleted_at IS NULL")).toBe(0);
     await session.close();
   });
 

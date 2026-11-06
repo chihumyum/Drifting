@@ -145,8 +145,6 @@ export interface CreateDriftingAgentProductCompositionOptions {
   readResultBudgetCharsCap?: number;
   createId?: (kind: RuntimeIdKind) => string;
   authStatus?: () => Promise<GeneralAgentAuthStatus>;
-  /** Live author preference for bypassing destructive confirmation prompts. */
-  allowDangerousOperations?: () => boolean;
   /**
    * Live author preference for provider tool selection. `off` exposes every
    * installed definition; `auto`/`on` use fixed discovery/dispatch entrypoints
@@ -382,11 +380,7 @@ export function createDriftingAgentProductComposition(
       createElementImageAwarePermissionPolicy(
         createAgentWorkingMemoryAwarePermissionPolicy(
           createAgentLongTaskAwarePermissionPolicy(
-            createDriftingAgentPermissionPolicy({
-              ...(options.allowDangerousOperations
-                ? { allowDangerousOperations: options.allowDangerousOperations }
-                : {}),
-            }),
+            createDriftingAgentPermissionPolicy(),
           ),
         ),
       ),

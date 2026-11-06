@@ -182,11 +182,8 @@ export class ExternalToolSession {
     if (definition.access === 'write') {
       const argumentsHash = await hashAgentPermissionArguments(validation.value);
       const requestId = `mcp-grant:${grant.id}:${turnId}`;
-      // A connection holds the author's approval for every write, including
-      // those the in-app Agent would pause to ask about.
-      const policy = createDriftingAgentPermissionPolicy({
-        allowDangerousOperations: () => true,
-      });
+      // The same policy as the in-app Agent: every certified write proceeds.
+      const policy = createDriftingAgentPermissionPolicy();
       const decision = await policy.decide({
         requestId,
         sessionId,

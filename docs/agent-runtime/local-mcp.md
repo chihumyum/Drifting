@@ -88,9 +88,9 @@ acceptance). Schemas and validation come from the production runtime.
 `ask_user`, model planning, long-task orchestration, working memory, arbitrary
 SQL, and outbound plugin tools are not part of this external surface.
 
-A connection holds the author's approval for every write: tools the in-app
-Agent pauses to confirm (a deletion, or anything without a safe automatic
-inverse) run without asking. Certification, schema validation, read coverage
+A connection runs every certified write without a prompt, as the in-app Agent
+does since 2026-11-06: a deletion, or anything without a safe automatic
+inverse, included. Certification, schema validation, read coverage
 and freshness checks still apply, normal writes retain the configured editor
 review behavior, and all writes keep the existing receipts, inverse guards and
 sync journal.
