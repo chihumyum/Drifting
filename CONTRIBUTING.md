@@ -48,7 +48,12 @@ version to be at least the introducing version instead.
 GitHub Actions runs client checks, two Vitest shards and renderer contracts
 independently, then reports their aggregate through the stable `client`
 required-check context.
-The `native` context covers Rust formatting, compilation, and unit tests.
+The `native` context covers Rust formatting, compilation, and unit tests,
+including `pnpm core:test` for the shared database, document and prose crates;
+that lane also installs the frozen Node dependencies, because `core:test`
+first checks the prose journal fixture against its TypeScript oracle.
+Both contexts run on every push to `main`; the `main` ruleset requires them,
+with an administrator bypass.
 The Tauri client requires Rust 1.96 or newer for its read-only Yrs search
 projection; CI and release builds select 1.96.0 explicitly.
 
@@ -68,8 +73,10 @@ pnpm lint
 pnpm typecheck
 pnpm test
 pnpm agent:capabilities:check
+pnpm agent:conversation-sync:check
 cargo fmt --manifest-path src-tauri/Cargo.toml --check
 cargo test --manifest-path src-tauri/Cargo.toml
+pnpm core:test
 ```
 
 Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
