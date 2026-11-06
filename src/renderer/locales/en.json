@@ -119,7 +119,7 @@
     "title": "Welcome to Drifting Alpha",
     "intro": "Start writing without an account. Projects and prose are saved on this device first.",
     "localData": "No Drifting account is required. Projects, prose, relationships, Trash, and history are stored in the app's local data directory.",
-    "byok": "The Agent is experimental and needs your own model key or a ChatGPT subscription; requests, cost and data terms follow the provider you choose. Keys stay in the system Keychain.",
+    "byok": "The Agent needs your own model key or a ChatGPT subscription; requests, cost and data terms follow the provider you choose. Keys stay in the system Keychain.",
     "crashReports": "The app sends fault reports without manuscript text so problems can be fixed; turn this off in Settings → Privacy.",
     "settingsHint": "Continue locally to create your first project and start writing.",
     "accountAction": "Sign in / sign up and sync",
@@ -1552,7 +1552,6 @@
     "onboarding": {
       "connect": "Connect a model",
       "try": "Try",
-      "experimental": "Experimental",
       "getKey": "Get an API key",
       "history": "Version history",
       "saveFailed": "Could not save the key to the Keychain.",

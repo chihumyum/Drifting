@@ -120,7 +120,7 @@
     "title": "Bienvenido a Drifting Alpha",
     "intro": "Empieza a escribir sin una cuenta. Los proyectos y el texto se guardan primero en este dispositivo.",
     "localData": "No necesitas una cuenta de Drifting. Los proyectos, textos, relaciones, papelera e historial se guardan en el directorio local de la aplicación.",
-    "byok": "Agent es experimental y requiere tu propia clave de modelo o una suscripción a ChatGPT. Las solicitudes, costes y condiciones de datos dependen del proveedor elegido. Las claves se guardan en el llavero del sistema.",
+    "byok": "Agent requiere tu propia clave de modelo o una suscripción a ChatGPT. Las solicitudes, costes y condiciones de datos dependen del proveedor elegido. Las claves se guardan en el llavero del sistema.",
     "crashReports": "La aplicación envía informes de fallos sin texto del manuscrito para corregir problemas. Puedes desactivarlos en Ajustes → Privacidad.",
     "settingsHint": "Continúa en local para crear tu primer proyecto y empezar a escribir.",
     "accountAction": "Iniciar sesión / registrarse y sincronizar",
@@ -1556,7 +1556,6 @@
     "onboarding": {
       "connect": "Conectar un modelo",
       "try": "Probar",
-      "experimental": "Experimental",
       "getKey": "Obtener clave API",
       "history": "Historial de versiones",
       "saveFailed": "No se pudo guardar la clave en el llavero.",

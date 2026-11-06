@@ -120,7 +120,7 @@
     "title": "Bienvenue dans Drifting Alpha",
     "intro": "Écrivez sans compte. Les projets et les textes sont d’abord enregistrés sur cet appareil.",
     "localData": "Aucun compte Drifting n’est requis. Projets, textes, relations, corbeille et historique sont stockés dans le dossier local de l’application.",
-    "byok": "Agent est expérimental et nécessite votre clé de modèle ou un abonnement ChatGPT. Les requêtes, coûts et conditions de traitement des données dépendent du fournisseur choisi. Les clés restent dans le trousseau système.",
+    "byok": "Agent nécessite votre clé de modèle ou un abonnement ChatGPT. Les requêtes, coûts et conditions de traitement des données dépendent du fournisseur choisi. Les clés restent dans le trousseau système.",
     "crashReports": "L’application envoie des rapports d’erreur sans texte du manuscrit pour corriger les problèmes. Désactivez-les dans Réglages → Confidentialité.",
     "settingsHint": "Continuez en local pour créer votre premier projet et commencer à écrire.",
     "accountAction": "Se connecter / s’inscrire et synchroniser",
@@ -1556,7 +1556,6 @@
     "onboarding": {
       "connect": "Connecter un modèle",
       "try": "Essayer",
-      "experimental": "Expérimental",
       "getKey": "Obtenir une clé API",
       "history": "Historique des versions",
       "saveFailed": "Impossible d’enregistrer la clé dans le trousseau.",

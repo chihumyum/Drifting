@@ -118,7 +118,7 @@
     "title": "欢迎使用 Drifting Alpha",
     "intro": "无需账号也能开始写作。项目与正文会先保存在这台设备上。",
     "localData": "无需 Drifting 账号；项目、正文、关系、回收站与历史记录都保存在应用的本地数据目录。",
-    "byok": "Agent 是实验功能，需要你自己的模型密钥或 ChatGPT 订阅；请求、费用和数据条款由你选择的服务商决定。密钥只保存在系统钥匙串。",
+    "byok": "Agent 需要你自己的模型密钥或 ChatGPT 订阅；请求、费用和数据条款由你选择的服务商决定。密钥只保存在系统钥匙串。",
     "crashReports": "应用会自动发送不含正文的故障报告，方便排查问题；可以在 设置 → 隐私 中关闭。",
     "settingsHint": "继续本地模式即可创建第一个项目，开始写作。",
     "accountAction": "登录 / 注册并同步",
@@ -1550,7 +1550,6 @@
     "onboarding": {
       "connect": "连接模型",
       "try": "试试",
-      "experimental": "实验",
       "getKey": "获取 API Key",
       "history": "版本历史",
       "saveFailed": "无法保存到 Keychain。",

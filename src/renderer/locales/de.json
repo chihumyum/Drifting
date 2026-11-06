@@ -119,7 +119,7 @@
     "title": "Willkommen bei Drifting Alpha",
     "intro": "Schreibe ohne Konto los. Projekte und Texte werden zuerst auf diesem Gerät gespeichert.",
     "localData": "Du brauchst kein Drifting-Konto. Projekte, Texte, Beziehungen, Papierkorb und Verlauf liegen im lokalen Datenverzeichnis der App.",
-    "byok": "Agent ist experimentell und benötigt deinen eigenen Modellschlüssel oder ein ChatGPT-Abo. Anfragen, Kosten und Datenbedingungen richten sich nach dem gewählten Anbieter. Schlüssel bleiben im Systemschlüsselbund.",
+    "byok": "Agent benötigt deinen eigenen Modellschlüssel oder ein ChatGPT-Abo. Anfragen, Kosten und Datenbedingungen richten sich nach dem gewählten Anbieter. Schlüssel bleiben im Systemschlüsselbund.",
     "crashReports": "Die App sendet Fehlerberichte ohne Manuskripttext, damit Probleme behoben werden können. Abschaltbar unter Einstellungen → Datenschutz.",
     "settingsHint": "Fahre lokal fort, erstelle dein erstes Projekt und beginne zu schreiben.",
     "accountAction": "Anmelden / registrieren und synchronisieren",
@@ -1552,7 +1552,6 @@
     "onboarding": {
       "connect": "Modell verbinden",
       "try": "Ausprobieren",
-      "experimental": "Experimentell",
       "getKey": "API-Schlüssel erhalten",
       "history": "Versionsverlauf",
       "saveFailed": "Schlüssel konnte nicht im Schlüsselbund gespeichert werden.",
