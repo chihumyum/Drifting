@@ -69,4 +69,19 @@ describe('Agent first-run acceptance', () => {
     expect(agentSettings).toContain("setStep(nextAgentOnboardingStep(step, { type: 'reset' }))");
     expect(agentSettings).toContain('<ReplayOnboardingButton />');
   });
+
+  it('never calls the Agent or a way to reach a model experimental', async () => {
+    const onboarding = await source('src/renderer/features/agent/onboarding/AgentOnboarding.tsx');
+    expect(onboarding).not.toContain('onboarding.experimental');
+    const locales = ['zh-CN', 'zh-TW', 'en', 'ja', 'ko', 'es', 'de', 'fr', 'pt-BR'];
+    for (const locale of locales) {
+      const catalog = JSON.parse(await source(`src/renderer/locales/${locale}.json`));
+      const shown = JSON.stringify([
+        catalog.preAlphaGuide, catalog.agentPanel.onboarding, catalog.settings.rail,
+        catalog.settings.agent.title, catalog.settings.models,
+      ]);
+      // "Experimentar" is Portuguese for Try; only the word for experimental counts.
+      expect(shown, locale).not.toMatch(/experimental|experimentell|expérimental|実験|試験|实验|實驗|실험/i);
+    }
+  });
 });

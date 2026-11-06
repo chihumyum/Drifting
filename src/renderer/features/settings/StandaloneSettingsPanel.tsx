@@ -2,11 +2,11 @@ import { useEffect, useSyncExternalStore, type ComponentType } from 'react';
 import { useTranslation } from 'react-i18next';
 import { createDeferredModule } from '../../lib/deferred-module';
 import { AppearancePanel, LanguagePanel } from './panels/BasicPreferencePanels';
-import { SettingsPanelHeader } from './SettingsPrimitives';
+import { SettingsPanelHeader, SettingsRow, SettingsToggle } from './SettingsPrimitives';
 import { SettingsLoadStatus } from './SettingsLoadStatus';
 import { hostedAccountSettingsEnabled } from './hosted-settings-policy';
 
-type DeferredPanelId = 'account' | 'editor' | 'models' | 'mcp' | 'keys' | 'sync' | 'updates' | 'privacy' | 'about';
+type DeferredPanelId = 'account' | 'editor' | 'models' | 'proactive' | 'mcp' | 'keys' | 'sync' | 'updates' | 'privacy' | 'about';
 export type StandalonePanelId = 'appearance' | 'language' | DeferredPanelId;
 type PanelContent = ComponentType<{ id: DeferredPanelId }>;
 const REGISTER_NOOP = () => undefined;
@@ -21,6 +21,22 @@ const intelligence = createDeferredModule<PanelContent>(async () => {
   const { ModelsPanel } = await import('./panels/IntelligenceSettingsPanels');
   return function IntelligenceContent() {
     return <ModelsPanel credentialsActive registerRef={REGISTER_NOOP} />;
+  };
+});
+// One switch for every book's check-in, the same one each book's Home shows.
+const proactive = createDeferredModule<PanelContent>(async () => {
+  const { useProjectCheckinStore } = await import('../../store/project-checkin-store');
+  return function ProactiveContent() {
+    const { t } = useTranslation();
+    const enabled = useProjectCheckinStore((state) => state.enabled);
+    const setEnabled = useProjectCheckinStore((state) => state.setEnabled);
+    const label = t('projectHome.settings.proactive');
+    return (
+      <section className="set-panel" id="proactive">
+        <SettingsPanelHeader kicker="AGENT" title={label} />
+        <SettingsRow label={label} control={<SettingsToggle on={enabled} onChange={setEnabled} aria-label={label} />} />
+      </section>
+    );
   };
 });
 // External Agents connect to whichever book is open, so they are set up from
@@ -51,7 +67,7 @@ const controls = createDeferredModule<PanelContent>(async () => {
     }
   };
 });
-const panelModules = { account: controls, editor, models: intelligence, mcp: externalAgents,
+const panelModules = { account: controls, editor, models: intelligence, proactive, mcp: externalAgents,
   keys: controls, sync: controls, updates: controls, privacy: controls, about: controls };
 
 function DeferredStandalonePanel({ id }: { id: DeferredPanelId }) {

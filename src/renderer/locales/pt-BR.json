@@ -120,7 +120,7 @@
     "title": "Boas-vindas ao Drifting Alpha",
     "intro": "Comece a escrever sem uma conta. Projetos e textos são salvos primeiro neste dispositivo.",
     "localData": "Não é preciso ter conta no Drifting. Projetos, textos, relações, lixeira e histórico ficam no diretório local do aplicativo.",
-    "byok": "O Agent é experimental e exige sua própria chave de modelo ou assinatura do ChatGPT. Solicitações, custos e termos de dados seguem o provedor escolhido. As chaves ficam no chaveiro do sistema.",
+    "byok": "O Agent exige sua própria chave de modelo ou assinatura do ChatGPT. Solicitações, custos e termos de dados seguem o provedor escolhido. As chaves ficam no chaveiro do sistema.",
     "crashReports": "O aplicativo envia relatórios de falha sem o texto do manuscrito para ajudar a corrigir problemas. Desative em Configurações → Privacidade.",
     "settingsHint": "Continue localmente para criar seu primeiro projeto e começar a escrever.",
     "accountAction": "Entrar / cadastrar-se e sincronizar",
@@ -164,7 +164,7 @@
       "editor": "Editor",
       "language": "Idioma",
       "models": "Modelos e API",
-      "agent": "Agent geral · Experimental",
+      "agent": "Agent geral",
       "keys": "Teclado",
       "sync": "Sincronização e dados",
       "updates": "Atualizações",
@@ -566,7 +566,7 @@
         "deepseek": "Usado pelo Agent geral.",
         "anthropic": "Usado pelo Agent geral.",
         "openai": "Usado pelo Agent geral.",
-        "openaiCodex": "Experimental: entre pelo fluxo de dispositivo Codex da OpenAI para usar o Agent geral com sua assinatura ChatGPT e os modelos oferecidos à sua conta. Também é usado nas imagens de elementos. A OpenAI não oferece contrato para terceiros nessa via, que pode parar sem aviso; o uso conta no seu plano ChatGPT.",
+        "openaiCodex": "Entre pelo fluxo de dispositivo Codex da OpenAI para usar o Agent geral com sua assinatura ChatGPT e os modelos oferecidos à sua conta. Também é usado nas imagens de elementos. A OpenAI não oferece contrato para terceiros nessa via, que pode parar sem aviso; o uso conta no seu plano ChatGPT.",
         "dashscope": "Usado apenas para transcrição de voz (Qwen3-ASR). Crie uma chave API no console Alibaba Cloud Bailian."
       },
       "speechTitle": "Transcrição de voz",
@@ -605,7 +605,7 @@
     },
     "agent": {
       "kicker": "AGENT GERAL · EXPERIMENTAL",
-      "title": "O Agent experimental na barra direita, capaz de executar ações.",
+      "title": "O Agent na barra direita, capaz de executar ações.",
       "sub": "Usa suas chaves ou assinatura ChatGPT, enviando solicitações diretamente ao provedor escolhido. Revise cada alteração; aplicam-se os custos, privacidade, retenção, termos de treinamento e riscos de saída dele.",
       "unavailableTitle": "O ambiente do Agent geral não está instalado",
       "unavailableStatus": "Nenhum transporte ativo",
@@ -1556,7 +1556,6 @@
     "onboarding": {
       "connect": "Conectar um modelo",
       "try": "Experimentar",
-      "experimental": "Experimental",
       "getKey": "Obter chave API",
       "history": "Histórico de versões",
       "saveFailed": "Não foi possível salvar a chave no chaveiro.",

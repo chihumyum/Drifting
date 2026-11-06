@@ -118,7 +118,7 @@
     "title": "欢迎使用 Drifting Alpha",
     "intro": "无需账号也能开始写作。项目与正文会先保存在这台设备上。",
     "localData": "无需 Drifting 账号；项目、正文、关系、回收站与历史记录都保存在应用的本地数据目录。",
-    "byok": "Agent 是实验功能，需要你自己的模型密钥或 ChatGPT 订阅；请求、费用和数据条款由你选择的服务商决定。密钥只保存在系统钥匙串。",
+    "byok": "Agent 需要你自己的模型密钥或 ChatGPT 订阅；请求、费用和数据条款由你选择的服务商决定。密钥只保存在系统钥匙串。",
     "crashReports": "应用会自动发送不含正文的故障报告，方便排查问题；可以在 设置 → 隐私 中关闭。",
     "settingsHint": "继续本地模式即可创建第一个项目，开始写作。",
     "accountAction": "登录 / 注册并同步",
@@ -162,7 +162,7 @@
       "editor": "编辑器",
       "language": "语言",
       "models": "模型与 API",
-      "agent": "General Agent · Experimental",
+      "agent": "General Agent",
       "keys": "快捷键",
       "sync": "同步与数据",
       "updates": "更新",
@@ -563,7 +563,7 @@
         "deepseek": "供 General Agent 使用。",
         "anthropic": "供 General Agent 使用。",
         "openai": "供 General Agent 使用。",
-        "openaiCodex": "实验性：通过 OpenAI 的 Codex 设备登录，用你的 ChatGPT 订阅运行 General Agent，可用模型以你的账号为准；生成设定图也用它。OpenAI 没有向第三方应用开放这条路径，可能随时失效；用量计入你的 ChatGPT 套餐。",
+        "openaiCodex": "通过 OpenAI 的 Codex 设备登录，用你的 ChatGPT 订阅运行 General Agent，可用模型以你的账号为准；生成设定图也用它。OpenAI 没有向第三方应用开放这条路径，可能随时失效；用量计入你的 ChatGPT 套餐。",
         "dashscope": "仅用于语音输入转写（Qwen3-ASR）。在阿里云百炼控制台创建 API Key 后填入。"
       },
       "speechTitle": "语音转写",
@@ -602,7 +602,7 @@
     },
     "agent": {
       "kicker": "GENERAL AGENT · EXPERIMENTAL",
-      "title": "右栏那位能动手的实验性 Agent。",
+      "title": "右栏那位能动手的 Agent。",
       "sub": "用你自己的模型密钥或 ChatGPT 订阅运行，请求从本机直接发往所选服务商。请检查它的每次改动；费用、隐私、留存、训练条款与输出风险由该服务商决定。",
       "unavailableTitle": "General Agent 运行时未安装",
       "unavailableStatus": "当前 transport 不可用",
@@ -1550,7 +1550,6 @@
     "onboarding": {
       "connect": "连接模型",
       "try": "试试",
-      "experimental": "实验",
       "getKey": "获取 API Key",
       "history": "版本历史",
       "saveFailed": "无法保存到 Keychain。",

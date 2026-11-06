@@ -44,7 +44,7 @@ describe('desktop standalone settings', () => {
     const ids = [...rail.matchAll(/\{ id: '([a-z]+)'/g)].map((match) => match[1]);
 
     expect(ids).toEqual([
-      'account', 'appearance', 'editor', 'language', 'models', 'mcp',
+      'account', 'appearance', 'editor', 'language', 'models', 'proactive', 'mcp',
       'keys', 'sync', 'updates', 'privacy', 'about',
     ]);
     expect(rail).toContain("labelKey: 'settings.groups.intelligence'");
@@ -57,5 +57,24 @@ describe('desktop standalone settings', () => {
     expect(panels).toContain("case 'keys': return <KeysPanel registerRef={REGISTER_NOOP} />;");
     expect(panels).not.toContain('AgentSettingsPanel');
     expect(panels).not.toContain('TrashSettingsPanel');
+  });
+
+  it('changes the one 主动建议 switch that every book Home shows', () => {
+    const settings = read(
+      'src/renderer/features/settings/desktop/DesktopStandaloneSettingsView.tsx',
+    );
+    const panels = read('src/renderer/features/settings/StandaloneSettingsPanel.tsx');
+    const home = read('src/renderer/views/ProjectDashboard.tsx');
+
+    expect(settings).toContain(
+      "{ id: 'proactive', icon: 'tea', labelKey: 'projectHome.settings.proactive' }",
+    );
+    expect(home).toContain("t('projectHome.settings.proactive')");
+    // Loaded with the panel, so the shelf's settings entry stays small.
+    expect(panels).toContain("await import('../../store/project-checkin-store')");
+    expect(panels).not.toMatch(/^import .*project-checkin-store/m);
+    expect(panels).toContain('useProjectCheckinStore((state) => state.enabled)');
+    expect(panels).toContain('useProjectCheckinStore((state) => state.setEnabled)');
+    expect(home).toContain('useProjectCheckinStore((s) => s.enabled)');
   });
 });

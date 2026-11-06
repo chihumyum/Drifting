@@ -11,6 +11,7 @@ type StandaloneSettingsId =
   | 'editor'
   | 'language'
   | 'models'
+  | 'proactive'
   | 'mcp'
   | 'keys'
   | 'sync'
@@ -45,6 +46,7 @@ const STANDALONE_SETTINGS_GROUPS: StandaloneSettingsGroup[] = [
     labelKey: 'settings.groups.intelligence',
     items: [
       { id: 'models', icon: 'inkstone', labelKey: 'settings.rail.models' },
+      { id: 'proactive', icon: 'tea', labelKey: 'projectHome.settings.proactive' },
       { id: 'mcp', icon: 'shikigami', labelKey: 'settings.agent.mcpAccess.title' },
     ],
   },

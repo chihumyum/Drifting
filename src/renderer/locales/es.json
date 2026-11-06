@@ -120,7 +120,7 @@
     "title": "Bienvenido a Drifting Alpha",
     "intro": "Empieza a escribir sin una cuenta. Los proyectos y el texto se guardan primero en este dispositivo.",
     "localData": "No necesitas una cuenta de Drifting. Los proyectos, textos, relaciones, papelera e historial se guardan en el directorio local de la aplicación.",
-    "byok": "Agent es experimental y requiere tu propia clave de modelo o una suscripción a ChatGPT. Las solicitudes, costes y condiciones de datos dependen del proveedor elegido. Las claves se guardan en el llavero del sistema.",
+    "byok": "Agent requiere tu propia clave de modelo o una suscripción a ChatGPT. Las solicitudes, costes y condiciones de datos dependen del proveedor elegido. Las claves se guardan en el llavero del sistema.",
     "crashReports": "La aplicación envía informes de fallos sin texto del manuscrito para corregir problemas. Puedes desactivarlos en Ajustes → Privacidad.",
     "settingsHint": "Continúa en local para crear tu primer proyecto y empezar a escribir.",
     "accountAction": "Iniciar sesión / registrarse y sincronizar",
@@ -164,7 +164,7 @@
       "editor": "Editor",
       "language": "Idioma",
       "models": "Modelos y API",
-      "agent": "Agent general · Experimental",
+      "agent": "Agent general",
       "keys": "Teclado",
       "sync": "Sincronización y datos",
       "updates": "Actualizaciones",
@@ -566,7 +566,7 @@
         "deepseek": "Usado por Agent general.",
         "anthropic": "Usado por Agent general.",
         "openai": "Usado por Agent general.",
-        "openaiCodex": "Experimental: inicia sesión mediante el flujo de dispositivo Codex de OpenAI para usar Agent general con tu suscripción ChatGPT y los modelos de tu cuenta. También se usa para ilustraciones de elementos. OpenAI no ofrece un contrato para terceros en esta vía; puede dejar de funcionar sin aviso y consume tu plan ChatGPT.",
+        "openaiCodex": "Inicia sesión mediante el flujo de dispositivo Codex de OpenAI para usar Agent general con tu suscripción ChatGPT y los modelos de tu cuenta. También se usa para ilustraciones de elementos. OpenAI no ofrece un contrato para terceros en esta vía; puede dejar de funcionar sin aviso y consume tu plan ChatGPT.",
         "dashscope": "Solo para transcripción de voz (Qwen3-ASR). Crea una clave API en la consola Alibaba Cloud Bailian."
       },
       "speechTitle": "Transcripción de voz",
@@ -605,7 +605,7 @@
     },
     "agent": {
       "kicker": "AGENT GENERAL · EXPERIMENTAL",
-      "title": "El Agent experimental de la barra derecha, capaz de actuar.",
+      "title": "El Agent de la barra derecha, capaz de actuar.",
       "sub": "Usa tus claves o suscripción ChatGPT, enviando solicitudes directamente al proveedor elegido. Revisa cada cambio; se aplican sus costes, privacidad, retención, condiciones de entrenamiento y riesgos de salida.",
       "unavailableTitle": "El entorno de Agent general no está instalado",
       "unavailableStatus": "Sin transporte activo",
@@ -1556,7 +1556,6 @@
     "onboarding": {
       "connect": "Conectar un modelo",
       "try": "Probar",
-      "experimental": "Experimental",
       "getKey": "Obtener clave API",
       "history": "Historial de versiones",
       "saveFailed": "No se pudo guardar la clave en el llavero.",

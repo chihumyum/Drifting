@@ -119,7 +119,7 @@
     "title": "Willkommen bei Drifting Alpha",
     "intro": "Schreibe ohne Konto los. Projekte und Texte werden zuerst auf diesem Gerät gespeichert.",
     "localData": "Du brauchst kein Drifting-Konto. Projekte, Texte, Beziehungen, Papierkorb und Verlauf liegen im lokalen Datenverzeichnis der App.",
-    "byok": "Agent ist experimentell und benötigt deinen eigenen Modellschlüssel oder ein ChatGPT-Abo. Anfragen, Kosten und Datenbedingungen richten sich nach dem gewählten Anbieter. Schlüssel bleiben im Systemschlüsselbund.",
+    "byok": "Agent benötigt deinen eigenen Modellschlüssel oder ein ChatGPT-Abo. Anfragen, Kosten und Datenbedingungen richten sich nach dem gewählten Anbieter. Schlüssel bleiben im Systemschlüsselbund.",
     "crashReports": "Die App sendet Fehlerberichte ohne Manuskripttext, damit Probleme behoben werden können. Abschaltbar unter Einstellungen → Datenschutz.",
     "settingsHint": "Fahre lokal fort, erstelle dein erstes Projekt und beginne zu schreiben.",
     "accountAction": "Anmelden / registrieren und synchronisieren",
@@ -163,7 +163,7 @@
       "editor": "Editor",
       "language": "Sprache",
       "models": "Modelle und API",
-      "agent": "Allgemeiner Agent · Experimentell",
+      "agent": "Allgemeiner Agent",
       "keys": "Tastatur",
       "sync": "Synchronisierung und Daten",
       "updates": "Updates",
@@ -564,7 +564,7 @@
         "deepseek": "Vom allgemeinen Agent verwendet.",
         "anthropic": "Vom allgemeinen Agent verwendet.",
         "openai": "Vom allgemeinen Agent verwendet.",
-        "openaiCodex": "Experimentell: Anmeldung über OpenAIs Codex-Geräteablauf, um den allgemeinen Agent mit deinem ChatGPT-Abo und den verfügbaren Kontomodellen zu nutzen; auch für Elementbilder. OpenAI bietet für diesen Weg keinen Drittanbietervertrag. Er kann ohne Vorankündigung ausfallen; die Nutzung zählt zu deinem ChatGPT-Tarif.",
+        "openaiCodex": "Anmeldung über OpenAIs Codex-Geräteablauf, um den allgemeinen Agent mit deinem ChatGPT-Abo und den verfügbaren Kontomodellen zu nutzen; auch für Elementbilder. OpenAI bietet für diesen Weg keinen Drittanbietervertrag. Er kann ohne Vorankündigung ausfallen; die Nutzung zählt zu deinem ChatGPT-Tarif.",
         "dashscope": "Nur für Spracheingabe-Transkription (Qwen3-ASR). Erstelle einen API-Schlüssel in der Alibaba-Cloud-Bailian-Konsole."
       },
       "speechTitle": "Sprachtranskription",
@@ -603,7 +603,7 @@
     },
     "agent": {
       "kicker": "ALLGEMEINER AGENT · EXPERIMENTELL",
-      "title": "Der experimentelle Agent in der rechten Leiste, der Aktionen ausführen kann.",
+      "title": "Der Agent in der rechten Leiste, der Aktionen ausführen kann.",
       "sub": "Läuft mit deinen Modellschlüsseln oder deinem ChatGPT-Abo und sendet Anfragen direkt an den Anbieter. Prüfe jede Änderung; dessen Kosten, Datenschutz, Aufbewahrung, Trainingsbedingungen und Ausgaberisiken gelten.",
       "unavailableTitle": "Laufzeit des allgemeinen Agent nicht installiert",
       "unavailableStatus": "Kein aktiver Transport",
@@ -1552,7 +1552,6 @@
     "onboarding": {
       "connect": "Modell verbinden",
       "try": "Ausprobieren",
-      "experimental": "Experimentell",
       "getKey": "API-Schlüssel erhalten",
       "history": "Versionsverlauf",
       "saveFailed": "Schlüssel konnte nicht im Schlüsselbund gespeichert werden.",

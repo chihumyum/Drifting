@@ -119,7 +119,7 @@
     "title": "Drifting Alpha에 오신 것을 환영합니다",
     "intro": "계정 없이 집필을 시작하세요. 작품과 본문은 먼저 이 기기에 저장됩니다.",
     "localData": "Drifting 계정이 필요하지 않습니다. 작품, 본문, 관계, 휴지통, 기록은 앱의 로컬 데이터 폴더에 저장됩니다.",
-    "byok": "Agent는 실험 기능이며 본인의 모델 키 또는 ChatGPT 구독이 필요합니다. 요청, 비용, 데이터 약관은 선택한 제공업체를 따릅니다. 키는 시스템 키체인에 저장됩니다.",
+    "byok": "Agent에는 본인의 모델 키 또는 ChatGPT 구독이 필요합니다. 요청, 비용, 데이터 약관은 선택한 제공업체를 따릅니다. 키는 시스템 키체인에 저장됩니다.",
     "crashReports": "문제를 수정할 수 있도록 원고 텍스트가 없는 오류 보고서를 전송합니다. 설정 → 개인정보에서 끌 수 있습니다.",
     "settingsHint": "로컬로 계속하여 첫 작품을 만들고 집필을 시작하세요.",
     "accountAction": "로그인 / 가입 및 동기화",
@@ -163,7 +163,7 @@
       "editor": "편집기",
       "language": "언어",
       "models": "모델 및 API",
-      "agent": "범용 Agent · 실험 기능",
+      "agent": "범용 Agent",
       "keys": "키보드",
       "sync": "동기화 및 데이터",
       "updates": "업데이트",
@@ -564,7 +564,7 @@
         "deepseek": "범용 Agent에서 사용합니다.",
         "anthropic": "범용 Agent에서 사용합니다.",
         "openai": "범용 Agent에서 사용합니다.",
-        "openaiCodex": "실험 기능: OpenAI의 Codex 기기 로그인으로 본인의 ChatGPT 구독과 계정에서 제공하는 모델을 사용해 범용 Agent를 실행합니다. 요소 이미지 생성에도 사용됩니다. OpenAI는 이 경로에 대한 제3자 계약을 제공하지 않으므로 예고 없이 중단될 수 있습니다. 사용량은 ChatGPT 요금제에 반영됩니다.",
+        "openaiCodex": "OpenAI의 Codex 기기 로그인으로 본인의 ChatGPT 구독과 계정에서 제공하는 모델을 사용해 범용 Agent를 실행합니다. 요소 이미지 생성에도 사용됩니다. OpenAI는 이 경로에 대한 제3자 계약을 제공하지 않으므로 예고 없이 중단될 수 있습니다. 사용량은 ChatGPT 요금제에 반영됩니다.",
         "dashscope": "음성 입력 전사(Qwen3-ASR)에만 사용됩니다. Alibaba Cloud Bailian 콘솔에서 API 키를 만드세요."
       },
       "speechTitle": "음성 전사",
@@ -603,7 +603,7 @@
     },
     "agent": {
       "kicker": "범용 AGENT · 실험 기능",
-      "title": "오른쪽 사이드바에서 작업을 수행하는 실험적 Agent.",
+      "title": "오른쪽 사이드바에서 작업을 수행하는 Agent.",
       "sub": "본인의 모델 키 또는 ChatGPT 구독으로 실행되며 요청은 기기에서 선택한 제공업체로 직접 전송됩니다. 모든 변경을 검토하세요. 비용·개인정보·보관·학습 약관 및 출력 위험은 해당 업체를 따릅니다.",
       "unavailableTitle": "범용 Agent 런타임이 설치되지 않았습니다",
       "unavailableStatus": "활성 전송 경로 없음",
@@ -1552,7 +1552,6 @@
     "onboarding": {
       "connect": "모델 연결",
       "try": "사용해 보기",
-      "experimental": "실험 기능",
       "getKey": "API 키 받기",
       "history": "버전 기록",
       "saveFailed": "키를 키체인에 저장할 수 없습니다.",
