@@ -163,7 +163,7 @@
       "editor": "Editor",
       "language": "Language",
       "models": "Models & API",
-      "agent": "General Agent · Experimental",
+      "agent": "General Agent",
       "keys": "Keyboard",
       "sync": "Sync & Data",
       "updates": "Updates",
@@ -564,7 +564,7 @@
         "deepseek": "Used by General Agent.",
         "anthropic": "Used by General Agent.",
         "openai": "Used by General Agent.",
-        "openaiCodex": "Experimental: sign in through OpenAI's Codex device flow to run General Agent on your own ChatGPT subscription, with whichever models your account offers; element art generation uses it too. OpenAI offers no third-party contract for this path, so it may stop working without notice; usage counts against your ChatGPT plan.",
+        "openaiCodex": "Sign in through OpenAI's Codex device flow to run General Agent on your own ChatGPT subscription, with whichever models your account offers; element art generation uses it too. OpenAI offers no third-party contract for this path, so it may stop working without notice; usage counts against your ChatGPT plan.",
         "dashscope": "Used only for voice-input transcription (Qwen3-ASR). Create an API key in the Alibaba Cloud Bailian console."
       },
       "speechTitle": "Voice transcription",
@@ -603,7 +603,7 @@
     },
     "agent": {
       "kicker": "GENERAL AGENT · EXPERIMENTAL",
-      "title": "The experimental agent in the right rail that can act.",
+      "title": "The agent in the right rail that can act.",
       "sub": "Runs on your own model keys or ChatGPT subscription, with requests going straight from this device to the provider you chose. Review every change it makes; that provider's costs, privacy, retention, training terms and output risks apply.",
       "unavailableTitle": "General Agent runtime is not installed",
       "unavailableStatus": "No active transport",

@@ -162,7 +162,7 @@
       "editor": "编辑器",
       "language": "语言",
       "models": "模型与 API",
-      "agent": "General Agent · Experimental",
+      "agent": "General Agent",
       "keys": "快捷键",
       "sync": "同步与数据",
       "updates": "更新",
@@ -563,7 +563,7 @@
         "deepseek": "供 General Agent 使用。",
         "anthropic": "供 General Agent 使用。",
         "openai": "供 General Agent 使用。",
-        "openaiCodex": "实验性：通过 OpenAI 的 Codex 设备登录，用你的 ChatGPT 订阅运行 General Agent，可用模型以你的账号为准；生成设定图也用它。OpenAI 没有向第三方应用开放这条路径，可能随时失效；用量计入你的 ChatGPT 套餐。",
+        "openaiCodex": "通过 OpenAI 的 Codex 设备登录，用你的 ChatGPT 订阅运行 General Agent，可用模型以你的账号为准；生成设定图也用它。OpenAI 没有向第三方应用开放这条路径，可能随时失效；用量计入你的 ChatGPT 套餐。",
         "dashscope": "仅用于语音输入转写（Qwen3-ASR）。在阿里云百炼控制台创建 API Key 后填入。"
       },
       "speechTitle": "语音转写",
@@ -602,7 +602,7 @@
     },
     "agent": {
       "kicker": "GENERAL AGENT · EXPERIMENTAL",
-      "title": "右栏那位能动手的实验性 Agent。",
+      "title": "右栏那位能动手的 Agent。",
       "sub": "用你自己的模型密钥或 ChatGPT 订阅运行，请求从本机直接发往所选服务商。请检查它的每次改动；费用、隐私、留存、训练条款与输出风险由该服务商决定。",
       "unavailableTitle": "General Agent 运行时未安装",
       "unavailableStatus": "当前 transport 不可用",

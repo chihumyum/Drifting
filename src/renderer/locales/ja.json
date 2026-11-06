@@ -163,7 +163,7 @@
       "editor": "エディタ",
       "language": "言語",
       "models": "モデルとAPI",
-      "agent": "汎用Agent・試験提供",
+      "agent": "汎用Agent",
       "keys": "キーボード",
       "sync": "同期とデータ",
       "updates": "アップデート",
@@ -564,7 +564,7 @@
         "deepseek": "汎用Agentで使用します。",
         "anthropic": "汎用Agentで使用します。",
         "openai": "汎用Agentで使用します。",
-        "openaiCodex": "試験機能：OpenAIのCodex端末認証でログインし、ご自身のChatGPT契約と利用可能なモデルで汎用Agentを動かします。要素の設定画生成にも使います。この経路にOpenAIの第三者向け契約はなく、予告なく使えなくなる場合があります。使用量はChatGPTプランに計上されます。",
+        "openaiCodex": "OpenAIのCodex端末認証でログインし、ご自身のChatGPT契約と利用可能なモデルで汎用Agentを動かします。要素の設定画生成にも使います。この経路にOpenAIの第三者向け契約はなく、予告なく使えなくなる場合があります。使用量はChatGPTプランに計上されます。",
         "dashscope": "音声入力の文字起こし専用です（Qwen3-ASR）。Alibaba Cloud BailianのコンソールでAPIキーを作成してください。"
       },
       "speechTitle": "音声文字起こし",
@@ -603,7 +603,7 @@
     },
     "agent": {
       "kicker": "汎用AGENT・試験提供",
-      "title": "右サイドバーで操作を行う、試験提供中のAgent。",
+      "title": "右サイドバーで操作を行うAgent。",
       "sub": "ご自身のモデルキーまたはChatGPT契約で動作し、端末から提供元へ直接送信します。変更は毎回確認してください。料金、プライバシー、保存期間、学習規約、出力リスクは提供元に従います。",
       "unavailableTitle": "汎用Agentのランタイムが未導入です",
       "unavailableStatus": "有効な通信経路がありません",

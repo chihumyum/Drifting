@@ -163,7 +163,7 @@
       "editor": "編輯器",
       "language": "語言",
       "models": "模型與 API",
-      "agent": "通用 Agent · 實驗功能",
+      "agent": "通用 Agent",
       "keys": "鍵盤",
       "sync": "同步與資料",
       "updates": "更新",
@@ -564,7 +564,7 @@
         "deepseek": "供通用 Agent 使用。",
         "anthropic": "供通用 Agent 使用。",
         "openai": "供通用 Agent 使用。",
-        "openaiCodex": "實驗功能：透過 OpenAI 的 Codex 裝置登入流程，以自己的 ChatGPT 訂閱執行通用 Agent，使用帳號提供的模型；要素設定圖也會使用此連線。OpenAI 未對此途徑提供第三方服務契約，可能隨時失效，用量計入你的 ChatGPT 方案。",
+        "openaiCodex": "透過 OpenAI 的 Codex 裝置登入流程，以自己的 ChatGPT 訂閱執行通用 Agent，使用帳號提供的模型；要素設定圖也會使用此連線。OpenAI 未對此途徑提供第三方服務契約，可能隨時失效，用量計入你的 ChatGPT 方案。",
         "dashscope": "僅用於語音輸入轉錄（Qwen3-ASR）。請在阿里雲百鍊控制台建立 API 金鑰。"
       },
       "speechTitle": "語音轉錄",
@@ -603,7 +603,7 @@
     },
     "agent": {
       "kicker": "通用 AGENT · 實驗功能",
-      "title": "右側可執行操作的實驗性 Agent。",
+      "title": "右側可執行操作的 Agent。",
       "sub": "使用你自己的模型金鑰或 ChatGPT 訂閱，請求從本裝置直接送往所選服務商。請審閱每一項修改；其費用、隱私、保存期限、訓練條款及輸出風險均依服務商而定。",
       "unavailableTitle": "未安裝通用 Agent 執行環境",
       "unavailableStatus": "沒有可用的傳輸通道",
