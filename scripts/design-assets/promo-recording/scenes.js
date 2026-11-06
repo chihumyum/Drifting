@@ -102,6 +102,11 @@
      */
     async warmupBook({ name }) {
       const { ui } = await stores();
+      // A reload in the middle of a pass comes back in the book it was in.
+      if (!/^#\/?$/.test(location.hash)) {
+        location.hash = '#/';
+        await sleep(1500);
+      }
       const card = await waitFor(() => [...document.querySelectorAll('button.pp-hit')]
         .find((button) => (button.getAttribute('aria-label') || '').includes(name)), 60000, `the ${name} card`);
       card.click();
