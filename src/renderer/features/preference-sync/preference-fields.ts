@@ -57,7 +57,6 @@ export const PREFERENCE_FIELDS: readonly PreferenceField[] = [
   setting('maxLineWidth', number, (value) => settings().setMaxLineWidth(value)),
   // Writing
   setting('autoImmersiveWriting', boolean),
-  setting('typewriterMode', boolean),
   setting('typewriterPosition', number, (value) => settings().setTypewriterPosition(value)),
   setting('caretColor', exact(normalizeCaretColor)),
   setting('entityLinkColorMode', exact(normalizeEntityLinkColorMode)),

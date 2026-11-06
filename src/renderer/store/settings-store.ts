@@ -124,7 +124,7 @@ export type AgentToolSearch = 'off' | 'auto' | 'on';
 
 /** Product default for a fresh General Agent installation. */
 export const AGENT_TOOL_SEARCH_DEFAULT: AgentToolSearch = 'auto';
-export const SETTINGS_STORAGE_VERSION = 35;
+export const SETTINGS_STORAGE_VERSION = 36;
 
 /**
  * The Agent panel's first run (features/agent/onboarding): `new` until the
@@ -286,10 +286,7 @@ interface SettingsState {
   /** Typing in the paper begins immersive writing (desktop); Esc or a press off the text ends it. */
   autoImmersiveWriting: boolean;
   setAutoImmersiveWriting: (on: boolean) => void;
-  /** Keep the active prose caret line at a stable viewport position. */
-  typewriterMode: boolean;
-  setTypewriterMode: (enabled: boolean) => void;
-  /** Vertical caret target as a percentage from the top of the editor viewport. */
+  /** Immersive writing's caret line, as a percentage from the top of the editor viewport. */
   typewriterPosition: number;
   setTypewriterPosition: (percent: number) => void;
   caretColor: string;
@@ -425,8 +422,6 @@ export const useSettingsStore = create<SettingsState>()(
       resetEditorStyle: () => set({ ...EDITOR_STYLE_DEFAULTS }),
       autoImmersiveWriting: false,
       setAutoImmersiveWriting: (on) => set({ autoImmersiveWriting: on }),
-      typewriterMode: false,
-      setTypewriterMode: (enabled) => set({ typewriterMode: enabled }),
       typewriterPosition: TYPEWRITER_POSITION_DEFAULT,
       setTypewriterPosition: (percent) =>
         set({
@@ -687,7 +682,6 @@ export const useSettingsStore = create<SettingsState>()(
         if (version < 17) {
           // Typewriter scrolling is a device-local editor behavior, separate
           // from manuscript/Yjs data.
-          next.typewriterMode = false;
           next.typewriterPosition = TYPEWRITER_POSITION_DEFAULT;
         }
         if (version < 18) {
@@ -774,6 +768,11 @@ export const useSettingsStore = create<SettingsState>()(
           else if (next.interfaceTextSize === 'standard') next.interfaceTextSize = 'small';
           else if (next.interfaceTextSize === 'large') next.interfaceTextSize = 'standard';
         }
+        if (version < 36) {
+          // Typewriter scrolling is immersive writing's alone; its own switch
+          // is gone, the line position stays.
+          delete (next as unknown as Record<string, unknown>).typewriterMode;
+        }
         return next;
       },
       // BYOK-only builds (VITE_BYOK_ONLY) disable the hosted AI tier — the server
@@ -846,7 +845,6 @@ export const useSettingsStore = create<SettingsState>()(
           merged.editorFontSource = EDITOR_STYLE_DEFAULTS.editorFontSource;
         }
         merged.autoImmersiveWriting = merged.autoImmersiveWriting === true;
-        merged.typewriterMode = merged.typewriterMode === true;
         merged.typewriterPosition = clamp(
           merged.typewriterPosition,
           TYPEWRITER_POSITION_MIN,

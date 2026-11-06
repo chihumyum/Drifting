@@ -175,7 +175,8 @@ async function run() {
   // Only the guide for this synthetic, isolated local account is suppressed.
   localStorage.setItem('drifting.alpha-guide.v4:drifting-library.db', 'seen');
   if (config.typewriter) {
-    useSettingsStore.getState().setTypewriterMode(true);
+    // Typewriter scrolling runs only in immersive writing.
+    useUiStore.getState().setImmersiveWriting(true);
     useSettingsStore.getState().setTypewriterPosition(50);
   }
   if (config.outline) useSettingsStore.getState().setOutlineRailMode('visible');

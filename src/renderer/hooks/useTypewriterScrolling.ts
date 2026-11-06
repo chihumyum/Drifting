@@ -9,16 +9,16 @@ export {
   normalizeTypewriterPosition, typewriterTailSpace,
 } from '../features/editor/typewriter-scroll';
 
-/** Only primary prose surfaces opt in; embedded cards never own page scroll. */
+/**
+ * Immersive writing keeps the caret on the typing line. Only primary prose
+ * surfaces opt in; embedded cards never own page scroll.
+ */
 export function useTypewriterScrolling(
   editor: Editor | null,
   eligible: boolean,
   presentation: TypewriterPresentation,
 ): void {
-  const typewriterMode = useSettingsStore((state) => state.typewriterMode);
-  // Immersive writing keeps the caret on the typing line whatever the setting.
-  const immersive = useUiStore((state) => state.immersiveWriting);
-  const enabled = typewriterMode || immersive;
+  const enabled = useUiStore((state) => state.immersiveWriting);
   const position = useSettingsStore((state) => state.typewriterPosition);
   const controller = useMemo(() => editor && eligible && enabled
     ? new TypewriterScrollController(editor) : null, [editor, eligible, enabled]);

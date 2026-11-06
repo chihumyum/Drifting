@@ -82,7 +82,7 @@ describe('preference sync runtime', () => {
       'accentColor', 'agentEditRevealAnimation', 'agentTurnIterationLimit', 'autoElementLinkEnabled', 'autoImmersiveWriting',
       'bodyFontSize', 'caretColor', 'editorIndentStep', 'entityLinkBandStyle', 'entityLinkColorMode',
       'entityLinkHighlightMode', 'entityLinkKindColors', 'lineHeight', 'maxLineWidth', 'paragraphIndent',
-      'paragraphSpacing', 'shortcutBindings', 'themeMode', 'typewriterMode', 'typewriterPosition', 'uiLocale',
+      'paragraphSpacing', 'shortcutBindings', 'themeMode', 'typewriterPosition', 'uiLocale',
     ]);
     stop();
   });

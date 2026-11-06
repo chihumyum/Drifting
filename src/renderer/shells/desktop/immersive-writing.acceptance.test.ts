@@ -116,7 +116,11 @@ describe('immersive writing (docs/editor/immersive-writing.md)', () => {
   });
 
   it('keeps the caret on the typing line and fades every other block without touching the editor', () => {
-    expect(source('src/renderer/hooks/useTypewriterScrolling.ts')).toContain('const enabled = typewriterMode || immersive;');
+    // Typewriter scrolling is immersive writing's alone: no switch of its own.
+    expect(source('src/renderer/hooks/useTypewriterScrolling.ts'))
+      .toContain('const enabled = useUiStore((state) => state.immersiveWriting);');
+    expect(useSettingsStore.getState()).not.toHaveProperty('typewriterMode');
+    expect(PREFERENCE_KEYS).not.toContain('typewriterMode');
     expect(css()).toMatch(/::highlight\(drifting-immersive-dim\) \{\s+color: hsl\(var\(--ink-1\) \/ 0\.26\);/);
     const focus = source('src/renderer/features/immersive-writing/paragraph-focus.ts');
     expect(focus).toContain("export const IMMERSIVE_DIM_HIGHLIGHT = 'drifting-immersive-dim';");
@@ -131,13 +135,20 @@ describe('immersive writing (docs/editor/immersive-writing.md)', () => {
     expect(useSettingsStore.getState().autoImmersiveWriting).toBe(false);
     expect(PREFERENCE_KEYS).toContain('autoImmersiveWriting');
     const panel = source('src/renderer/features/settings/panels/PreferenceSettingsPanels.tsx');
-    const flow = panel.slice(panel.indexOf('hint="FLOW"'), panel.indexOf("label={t('settings.editor.typewriter_mode')}"));
-    expect(flow).toMatch(/\{desktop && \(\s+<SettingsRow\s+label=\{t\('settings\.editor\.auto_immersive'\)\}/);
+    const flow = panel.slice(panel.indexOf('hint="FLOW"'), panel.indexOf("label={t('settings.editor.caret_color')}"));
+    expect(flow).toMatch(/\{desktop && \(\s+<>\s+<SettingsRow\s+label=\{t\('settings\.editor\.auto_immersive'\)\}/);
+    // The typing line position follows it, desktop only and always adjustable.
+    expect(flow.indexOf("label={t('settings.editor.typewriter_position')}"))
+      .toBeGreaterThan(flow.indexOf("label={t('settings.editor.auto_immersive')}"));
+    expect(flow).not.toContain('typewriter_mode');
+    expect(flow).not.toContain('disabled={');
     expect(flow).toContain('on={autoImmersiveWriting}');
     for (const locale of ['zh-CN', 'zh-TW', 'en', 'ja', 'ko', 'de', 'fr', 'es', 'pt-BR']) {
       const editor = JSON.parse(source(`src/renderer/locales/${locale}.json`)).settings.editor;
       expect(editor.auto_immersive, locale).toBeTruthy();
       expect(editor.auto_immersive_desc, locale).toMatch(/Esc|Échap/);
+      expect(editor.typewriter_mode, locale).toBeUndefined();
+      expect(editor.typewriter_position_desc, locale).toMatch(/沉浸|im+ersi|inmersi|没入|몰입/i);
     }
 
     // How the sitting began is kept beside it, never persisted, and cleared with it.

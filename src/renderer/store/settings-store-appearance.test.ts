@@ -113,7 +113,7 @@ describe('desktop interface text preference', () => {
       const { store, values } = await settings({ interfaceTextSize: before, bodyFontSize: 21 }, version);
       expect(store.getState().interfaceTextSize).toBe(after);
       const persisted = JSON.parse(values.get('settings-storage')!);
-      expect(persisted.version).toBe(35);
+      expect(persisted.version).toBe((await import('./settings-store')).SETTINGS_STORAGE_VERSION);
       expect(persisted.state.interfaceTextSize).toBe(after);
       const reloaded = (await settings(persisted.state, persisted.version)).store.getState();
       expect(reloaded.interfaceTextSize).toBe(after);
