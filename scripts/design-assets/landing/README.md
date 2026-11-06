@@ -43,7 +43,7 @@ paths. English is `/`, Simplified Chinese is `/zh`, Traditional Chinese is
   own font files and prefers the matching system families for Traditional
   Chinese, Japanese and Korean glyphs. Korean breaks only between words
   (`word-break: keep-all`). Japanese running text breaks between characters
-  under strict rules; headings and the tagline break only at the phrase
+  under strict rules; headings, the lede and the tagline break only at the phrase
   boundaries their copy marks with `<wbr>` or after punctuation, in every
   browser (not `auto-phrase`, which Safari lacks). Mark new Japanese headings
   the same way. The app's character sea uses the page's language. On narrow screens the primary download links are in the
@@ -66,10 +66,14 @@ What is on the page, and why:
 
 - **The sea.** `entry.mjs` bundles the app's own `lib/char-sea`, `sand-frame`
   and `sand-cover` with esbuild. The page passes `CharSeaOptions`: it raises
-  DRIFTING instead of "Loading", at 0.4 of the window's height so the tagline
-  and buttons fit under it, with heavier characters in the word (`wordInk`) and
-  a denser sheet on narrow windows. `charSeaWordBox` places the tagline under
-  the word. The rain falls the whole way down (`rain(true)`, as on the app's
+  DRIFTING instead of "Loading", at 0.4 of the window's height so the lede,
+  the tagline and the buttons fit under it, with heavier characters in the word (`wordInk`) and
+  a denser sheet on narrow windows. `charSeaWordBox` places the hero under
+  the word: first a lede in the interface face saying what Drifting is, then
+  the tagline. Both follow the repository's GitHub description (2026-11-06):
+  "a cross-platform, AI-native novel-writing app" and the three pillars, ending
+  on writing your first bestseller; the Chinese pages say 经典写作工坊的创作框架
+  and 贯穿全书的 AI Agent. The rain falls the whole way down (`rain(true)`, as on the app's
   first-run page), changing the characters it passes. At the top the word
   stands in it; scrolling lets the word go, as a book opens. The content sheets
   lie on the sea like shelf cards, their glass drawn by the sea. The

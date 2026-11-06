@@ -468,13 +468,13 @@ a.su:hover::after { opacity: 1; }
    never splits 편집기 into 편 / 집기. */
 :root:lang(ko) body { word-break: keep-all; overflow-wrap: break-word; }
 /* Japanese has no spaces. Running text may break between any two characters,
-   as Japanese is set, but a heading or the tagline breaks only where its copy
+   as Japanese is set, but a heading, the lede or the tagline breaks only where its copy
    marks a phrase boundary with <wbr> (or after punctuation), never inside
    エディター. Not auto-phrase: Safari lacks it, and every browser should
    break where the copy says. */
 /* And no line starts with ー or a small kana, as in strict Japanese setting. */
 :root:lang(ja) body { line-break: strict; }
-:root:lang(ja) :is(h1, h2, h3, .tagline) {
+:root:lang(ja) :is(h1, h2, h3, .lede, .tagline) {
   word-break: keep-all;
   overflow-wrap: break-word;
 }

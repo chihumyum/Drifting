@@ -7,7 +7,7 @@
   "engines": {
     "node": ">=22.23.1"
   },
-  "description": "Open-source, local-first novel writing app: the ease of a Markdown editor, the scaffolding of a classic writing studio and an Agent for the whole book",
+  "description": "Cross-platform, AI-native novel-writing app: the ease of a Markdown editor, the scaffolding of a classic writing studio and an AI Agent for the whole book",
   "scripts": {
     "tauri": "tauri",
     "tauri:dev": "node scripts/run-desktop-tauri.mjs dev",

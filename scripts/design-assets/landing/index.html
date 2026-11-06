@@ -40,6 +40,16 @@
 :root:not(.still-word) .word {
   width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
 }
+/* What it is, in plain words, between the word and the tagline. */
+.lede {
+  margin: 0 0 -10px;
+  font: 500 clamp(0.95rem, 0.9rem + 0.25vw, 1.06rem)/1.5 var(--font-ui);
+  color: hsl(var(--ink-2));
+  letter-spacing: 0.01em;
+  text-wrap: balance;
+  text-shadow: 0 0 10px hsl(var(--paper-deep)), 0 0 3px hsl(var(--paper-deep));
+}
+:root[data-script="cjk"] .lede { letter-spacing: 0.06em; }
 .tagline {
   margin: 0;
   max-width: 34em;
@@ -418,6 +428,7 @@ h2 {
 <main class="layer" id="top">
   <section class="hero">
     <h1 class="word">DRIFTING</h1>
+    <p class="lede">{{copy:hero.lede}}</p>
     <p class="tagline">
       <span>{{copy:hero.tagline}}</span>
     </p>

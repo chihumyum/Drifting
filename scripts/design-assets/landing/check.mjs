@@ -118,9 +118,9 @@ try {
           // and the page's own language ticked.
           menuStyle:box.width===Math.min(240,innerWidth-32)&&getComputedStyle(menu).borderTopLeftRadius==='16px'
             &&getComputedStyle(menu.querySelector('[aria-current=page]'),'::after').webkitMaskImage.includes('check'),
-          // Where each heading and the tagline wrap: the characters on either side of every
+          // Where each heading, the lede and the tagline wrap: the characters on either side of every
           // line break, and whether a space or a <wbr> lies between them.
-          wraps:[...document.querySelectorAll('.tagline, main h2, main h3')].flatMap((element)=>{
+          wraps:[...document.querySelectorAll('.lede, .tagline, main h2, main h3')].flatMap((element)=>{
             const walker=document.createTreeWalker(element, NodeFilter.SHOW_TEXT|NodeFilter.SHOW_ELEMENT);
             const found=[]; let previous=null, top=null, gap=false;
             for (let node=walker.nextNode(); node; node=walker.nextNode()) {
