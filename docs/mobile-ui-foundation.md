@@ -105,7 +105,8 @@ away; scrolling back brings it (`useReadingAway`).
   (`desk/MobileKeyboardBar.tsx`) rides the keyboard's top edge: 「格式」
   (unfolding ¶ H1 H2 H3 引用 | B I U S above it), the selection's own actions —
   a comment and a patch, the same the desktop floats over a selection — handing
-  the passage to the Agent, and putting the keyboard away. The desktop's
+  the passage to the Agent (it goes into the Agent's box as a quote, and the
+  right desk opens on 帮手), and putting the keyboard away. The desktop's
   floating selection bar is docked while the phone shell is mounted
   (`setSelectionBarDocked`), so it never covers the system's own edit menu.
 
