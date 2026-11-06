@@ -443,9 +443,10 @@ final class Puppet {
 
   /**
    * Types `text` at about `cps` characters a second, each gap varied by
-   * `jitter`, with longer rests after punctuation as a writer pauses.
+   * `jitter`, with longer rests after punctuation as a writer pauses
+   * (`rests` scales them, for a writer typing faster).
    */
-  func type(_ text: String, cps: Double, jitter: Double, pauses: Bool) async throws {
+  func type(_ text: String, cps: Double, jitter: Double, pauses: Bool, rests: Double) async throws {
     let base = 1 / max(cps, 0.5)
     for (index, character) in text.enumerated() {
       // Every few characters, the target must still be in front: a recording
@@ -455,9 +456,9 @@ final class Puppet {
       var gap = base * (1 + (next() * 2 - 1) * jitter)
       if pauses {
         switch character {
-        case "，", "、", ",", "；", "：": gap += 0.12 + next() * 0.12
-        case "。", "！", "？", "…", ".", "!", "?": gap += 0.28 + next() * 0.25
-        case "\n": gap += 0.45 + next() * 0.3
+        case "，", "、", ",", "；", "：": gap += (0.12 + next() * 0.12) * rests
+        case "。", "！", "？", "…", ".", "!", "?": gap += (0.28 + next() * 0.25) * rests
+        case "\n": gap += (0.45 + next() * 0.3) * rests
         default: break
         }
       }
@@ -551,7 +552,7 @@ struct Rig {
             try puppet.press(key, modifiers: command["modifiers"] as? [String] ?? [])
           case "key.type":
             guard let text = command["text"] as? String else { throw RigError("key.type needs text") }
-            try await puppet.type(text, cps: number("cps") ?? 8, jitter: number("jitter") ?? 0.35, pauses: command["pauses"] as? Bool ?? true)
+            try await puppet.type(text, cps: number("cps") ?? 8, jitter: number("jitter") ?? 0.35, pauses: command["pauses"] as? Bool ?? true, rests: number("rests") ?? 1)
           case "input.keyboard":
             result["source"] = try puppet.selectKeyboardLayout()
           case "input.restore":

@@ -5,7 +5,7 @@
 //
 //   <!-- slow -->  <!-- normal -->  <!-- fast -->   its pace
 //   <!-- typo 瓜→刮 -->                             mistype the first 瓜 as 刮, then correct it
-//   <!-- quick -->                                  typed quickly; the video plays it at a steady 8 a second
+//   <!-- quick -->                                  typed at a steady quick pace, without resting at punctuation
 //   <!-- ask -->                                    before writing it, ask the Agent the front
 //                                                   matter's `ask` (a reference to look up)
 //
@@ -18,7 +18,7 @@ export interface StoryParagraph {
   text: string;
   pace: Pace;
   typo: { intended: string; typed: string } | null;
-  /** Typed quickly while recording; the video plays it back at a steady pace. */
+  /** Typed at a steady quick pace, without resting at punctuation. */
   quick: boolean;
   /** Ask the Agent the story's `ask` before this paragraph. */
   ask: boolean;

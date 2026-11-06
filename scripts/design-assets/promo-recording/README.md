@@ -14,8 +14,8 @@ works, and moves only when the next action would leave the frame.
 ```bash
 pnpm promo:record --story <story.md> --take <name>   # takes the screen for several minutes
 pnpm promo:compose --take <name>                      # out/promo-recording/<name>/promo.mp4
-pnpm promo:compose --take <name> --size 2160 --pace 1.5   # 4K, played half as fast again: promo-2160-1.5x.mp4
-pnpm promo:compose --take <name> --size 2160 --pace 1.5 --typing-pace 2 --bookends   # the 阿Q正传 demo's cut
+pnpm promo:compose --take <name> --size 2160             # 4K: promo-2160.mp4
+pnpm promo:compose --take <name> --size 2160 --bookends  # the 阿Q正传 demo's cut
 ```
 
 Without `--story` the recording types `sample-story.zh-CN.md`, a short
@@ -99,9 +99,9 @@ memory: 第一人称叙述者是郝哥。整理人物要素时，别名不要用
   (`<!-- typo 块→快 -->` types 快 where the first 块 is, pauses, deletes it and
   goes on). Without one, headings are slow, dialogue (opening with a quote mark)
   normal and narration fast. The opening line is always slow and close.
-- `<!-- quick -->` before a paragraph types it at 45 characters a second, to
-  keep a take short; the video plays it back at a steady 8 a second, so it
-  still reads as writing. Nothing is cut: every paragraph is typed on camera.
+- `<!-- quick -->` before a paragraph types it at a steady 8 characters a
+  second times the typing tempo, without resting at punctuation. Nothing is
+  cut: every paragraph is typed on camera.
 
 ## How a take is recorded
 
@@ -118,9 +118,14 @@ icon will be in the opening's Dock (below the window), the shelf's new-book
 card, the name typed into the dialog, 新建, Project Home's 新建 · 章节, the
 chapter's title, Return into the page, `⌘⇧↩` into immersive writing (its
 typewriter scrolling keeps the caret's line in the middle of the window), the
-story, `⌘⇧↩` out for the Agent. Typing is recorded at the pace the video plays
-it: about 3.4 characters a second for slow lines, 5.6 for dialogue and 8.2 for
-narration, with pauses after punctuation.
+story, `⌘⇧↩` out for the Agent. The take is acted at the pace the video plays
+it, so the app's own animations keep their speed and nothing is sped up
+afterwards but the Agent's waits: typing at about 6.8 characters a second for
+slow lines, 11.2 for dialogue and 16.4 for narration (`TYPING_CPS` times
+`--typing-tempo`, 2 by default), the rests after punctuation shortened to
+match; pauses of 0.7 seconds or more, pointer moves and scrolls 1.5 times
+quicker than the reference pace (`--tempo`), while a hand settling or the app
+catching up keeps its time.
 
 `rig.swift` (compiled into `out/promo-recording/bin/`) is one process that
 records the window with ScreenCaptureKit at its Retina pixels, without the
@@ -143,11 +148,13 @@ alpha), `events.jsonl` (the rig's), `marks.jsonl` (the script's) and
 - `plan.ts` decides, for each output frame at 60 fps, which instant of the
   recording it shows: everything at its own pace except each Agent wait,
   squeezed into about 4.5 seconds with a badge showing how much
-  (`--no-badge` drops it), and quick paragraphs, slowed to a steady 8
-  characters a second. `--pace <x>` plays all of it `x` times faster once the
-  window has opened (quick paragraphs at 8·x a second, Agent waits in 4.5/x
-  seconds); the opening, the end card and the sounds keep their own pace, and
-  the camera's moves, timed in output seconds, stay as smooth.
+  (`--no-badge` drops it). Takes recorded before the tempo existed typed
+  quick paragraphs at 45 a second (`quick.start`/`quick.end` marks), which
+  are slowed to a steady 8. `--pace <x>` plays all of it `x` times faster
+  once the window has opened (Agent waits in 4.5/x seconds); the opening, the
+  end card and the sounds keep their own pace, and the camera's moves, timed
+  in output seconds, stay as smooth. It speeds up the app's animations with
+  everything else, so a take is acted at its pace instead (`--tempo`).
 - The camera holds still. A framing is chosen when something new starts — a
   `shot` mark, the start of immersive writing (the paper's column, about 2×,
   the caret's line just under the middle), a prompt or a field being typed
@@ -174,7 +181,8 @@ alpha), `events.jsonl` (the rig's), `marks.jsonl` (the script's) and
   `--bookends --theme <the take's theme> --size 1080|2160`), with its rain and
   stones under them.
 - `--typing-pace <x>` plays typing (prose, prompts and fields) at its own
-  speed, faster than `--pace`; the 阿Q正传 demo uses `--pace 1.5 --typing-pace 2`.
+  speed, faster than `--pace`, for takes typed slower than they should play
+  (`--typing-tempo` types them at that speed instead).
 - The pointer is drawn from the rig's samples, hidden from a keystroke until
   the next move as macOS does, with a ripple at each click. A pointer resting
   where the frame's edge cuts through it fades out until it moves again, once

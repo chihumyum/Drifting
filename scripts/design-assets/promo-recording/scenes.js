@@ -388,9 +388,10 @@
 
     /** An element's row in the left sidebar's element list, by its exact name. */
     elementRow({ name }) {
-      const row = [...document.querySelectorAll('.sidebar-shell__content .sand-cell')]
+      // The name alone: an element the Agent added or changed carries an A or M beside it.
+      const label = [...document.querySelectorAll('.sidebar-shell__content .element-panel-item-label')]
         .find((element) => visible(element) && element.textContent.trim() === name);
-      return row ? box(row.getBoundingClientRect()) : null;
+      return label ? box(label.getBoundingClientRect()) : null;
     },
 
     /** A part of the open element page: `overview`, `bio`, `kv`, `relations` or `patches`. */
@@ -408,6 +409,15 @@
     tabDock() {
       const dock = find('.workspace-tab-dock');
       return dock ? box(dock.getBoundingClientRect()) : null;
+    },
+
+    /** The open documents' tabs, spread (the dock is hovered): the box around them all. */
+    tabPills() {
+      const rects = [...document.querySelectorAll('.workspace-tab-dock .app-tab')]
+        .filter(visible).map((element) => element.getBoundingClientRect());
+      if (rects.length < 2) return null;
+      const left = Math.min(...rects.map((rect) => rect.left)), top = Math.min(...rects.map((rect) => rect.top));
+      return { x: left, y: top, width: Math.max(...rects.map((rect) => rect.right)) - left, height: Math.max(...rects.map((rect) => rect.bottom)) - top };
     },
 
     tabPill({ title }) {
