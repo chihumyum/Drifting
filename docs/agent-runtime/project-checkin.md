@@ -10,9 +10,11 @@ a card runs until the author opens it.
 
 ## The 主动建议 switch
 
-One switch in Home's 设定 view, 主动建议 (`projectHome.settings.proactive`,
+One switch, 主动建议 (`projectHome.settings.proactive`,
 `useProjectCheckinStore.enabled`, default on), controls all proactive Agent
-work: the check-in and the organize card. It replaced
+work in every book: the check-in and the organize card. It shows in Home's 设定
+view and in the shelf's settings under 智能, so it can be changed with no book
+open. It replaced
 the separate 每日签到 and 自动整理 switches on 2026-11-05; author-facing text
 no longer says 签到. Code and docs keep the name check-in.
 
