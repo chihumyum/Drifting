@@ -175,9 +175,9 @@
   "devDependencies": {
     "@eslint/js": "^9.39.2",
     "@jridgewell/trace-mapping": "0.3.31",
-    "@modelcontextprotocol/sdk": "^1.31.0",
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "@sentry/vite-plugin": "^11.9.0",
-    "@tailwindcss/postcss": "^4.3.3",
+    "@tailwindcss/postcss": "^4.3.4",
     "@tailwindcss/typography": "^0.5.19",
     "@tauri-apps/cli": "2.11.4",
     "@types/chrome-remote-interface": "0.34.0",
@@ -201,7 +201,7 @@
     "tsx": "4.21.0",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.53.1",
-    "vite": "^7.3.1",
+    "vite": "^7.3.7",
     "vitest": "^4.1.11"
   },
   "dependencies": {
@@ -229,8 +229,8 @@
     "@tiptap/starter-kit": "^3.30.5",
     "@tiptap/suggestion": "^3.30.5",
     "@tiptap/y-tiptap": "^3.0.7",
-    "axios": "^1.13.2",
-    "better-auth": "^1.4.17",
+    "axios": "^1.21.0",
+    "better-auth": "^1.7.18",
     "buffer": "^6.0.3",
     "cborg": "6.1.1",
     "clsx": "^2.1.1",
