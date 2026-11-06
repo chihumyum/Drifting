@@ -137,7 +137,10 @@ fn export_lists_projects_and_every_referenced_asset_file() {
         fs::metadata(&package).unwrap().len()
     );
     let mut archive = ZipArchive::new(File::open(&package).unwrap()).unwrap();
-    let mut names: Vec<_> = archive.file_names().map(|name| name.unwrap().into_owned()).collect();
+    let mut names: Vec<_> = archive
+        .file_names()
+        .map(|name| name.unwrap().into_owned())
+        .collect();
     names.sort();
     assert_eq!(
         names,
