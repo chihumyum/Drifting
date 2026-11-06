@@ -167,7 +167,11 @@ alpha), `events.jsonl` (the rig's), `marks.jsonl` (the script's) and
   window. While the Agent works the camera is on its newest exchange — the
   author's last message and what comes under it, at the top of a new
   conversation or just above the composer once it is full — not on the
-  composer; its answer is then read whole when it fits the frame.
+  composer; its answer is then read whole when it fits the frame. A
+  close-up of the page never ends on a sliver of a sidebar: a part of the
+  page taller than its text's width allows takes the whole page column edge
+  to edge (a shot's `pad: 0`), and a closer one slides to stay inside it
+  (`within`).
 - The opening is drawn: a desktop of the backdrop with a Dock holding only
   Drifting's icon (`src/assets/icon.png`), the pointer coming to it, a click,
   one launch bounce, and the recorded window growing in from it before the

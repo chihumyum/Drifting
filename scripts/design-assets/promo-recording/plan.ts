@@ -29,6 +29,10 @@ export interface TimelineEvent {
   pace?: Pace;
   kind?: string;
   zoom?: number;
+  /** A shot's margin around its rectangle (40 points unless set). */
+  pad?: number;
+  /** A shot's frame stays inside this (the page column), where it fits. */
+  within?: Rect | null;
   rect?: Rect | null;
   focus?: Rect | null;
   column?: { text: Rect; paper: Rect } | null;
@@ -248,6 +252,15 @@ function cameraKeyframes(events: TimelineEvent[], toCanvas: (x: number, y: numbe
     else if (bottom > safeBottom) cy += bottom - safeBottom + slack(size.height);
     return { cx, cy, z };
   };
+  /** Slides a framing, without zooming, so its view stays inside `rect` where it fits. */
+  const keepWithin = (framing: Framing, rect: Rect): Framing => {
+    const [left, top] = toCanvas(rect.x, rect.y);
+    const size = view(framing);
+    let { cx, cy } = framing;
+    if (size.width <= rect.width) cx = clamp(cx, left + size.width / 2, left + rect.width - size.width / 2);
+    if (size.height <= rect.height) cy = clamp(cy, top + size.height / 2, top + rect.height - size.height / 2);
+    return { cx, cy, z: framing.z };
+  };
   const same = (a: Framing, b: Framing) => Math.abs(a.cx - b.cx) < 1 && Math.abs(a.cy - b.cy) < 1 && Math.abs(Math.log(a.z / b.z)) < 0.01;
 
   const keyframes: { t: number; framing: Framing }[] = [];
@@ -291,8 +304,9 @@ function cameraKeyframes(events: TimelineEvent[], toCanvas: (x: number, y: numbe
     switch (event.name) {
       case 'shot': {
         if (!event.rect) { hold(event.t, wide); break; }
-        const framing = fit(event.rect, 40, event.zoom ?? MAX_ZOOM);
+        let framing = fit(event.rect, event.pad ?? 40, event.zoom ?? MAX_ZOOM);
         if (event.zoom) framing.z = event.zoom;
+        if (event.within) framing = keepWithin(framing, event.within);
         hold(event.t, framing);
         break;
       }

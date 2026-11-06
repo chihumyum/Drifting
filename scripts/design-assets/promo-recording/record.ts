@@ -302,7 +302,14 @@ async function main() {
       mark('type.end', { kind });
     };
     /** What the camera should look at from now on: a window rectangle (viewport pixels), or the whole canvas. */
-    const shot = (rect: Rect | null, zoom?: number) => mark('shot', { rect: rect ? rectToWindow(rect) : null, ...(zoom ? { zoom } : {}) });
+    const shot = (rect: Rect | null, zoom?: number, pad?: number, within?: Rect) =>
+      mark('shot', { rect: rect ? rectToWindow(rect) : null, ...(zoom ? { zoom } : {}), ...(pad !== undefined ? { pad } : {}),
+        ...(within ? { within: rectToWindow(within) } : {}) });
+    /** The page column between the sidebars, top to bottom (the tab dock sits 16 points inside it). */
+    const pageColumn = async (): Promise<Rect> => {
+      const dock = await until<Rect>('tabDock', 'the tab dock');
+      return { x: dock.x - 16, y: 0, width: dock.width + 32, height: shelf.viewport.height };
+    };
     /** The bottom of the Agent's panel: its newest lines and the composer under them. */
     const agentFoot = async (height = 300): Promise<Rect> => {
       const composer = await rectOf('.agt-composer');
@@ -468,8 +475,10 @@ async function main() {
       mark('phase', { phase: 'timeline' });
       const band = await scenes.run<Rect | null>('bottomTimeline');
       if (band) {
-        // The timeline with the end of the chapter above it, as wide as the page (no sidebar edges).
-        shot({ x: band.x + 36, y: band.y - 170, width: band.width - 72, height: band.height + 170 });
+        // The timeline with the end of the chapter above it: the page column, edge to edge, down to the timeline's foot.
+        const column = await pageColumn();
+        const height = column.width * 9 / 16;
+        shot({ x: column.x, y: band.y + band.height - height, width: column.width, height }, undefined, 0);
         await hold(5200);
         shot(null);
         await hold(1200);
@@ -571,13 +580,15 @@ async function main() {
       mark('links', { links: links.map((link) => ({ text: link.text, rect: rectToWindow(link.rect) })) });
       const hovered = links.find((link) => link.text.includes(story.links[0] ?? '')) ?? links[0];
       if (hovered) {
-        shot({ x: column.text.x - 40, y: hovered.rect.y - 220, width: column.text.width + 80, height: 520 }, 1.7);
+        // The page around the name: the page column, edge to edge, no higher than the window's top.
+        const page = await pageColumn();
+        shot({ x: page.x, y: Math.max(0, hovered.rect.y - 220), width: page.width, height: page.width * 9 / 16 }, undefined, 0, page);
         await hold(1200);
         mark('target', { target: 'link', rect: rectToWindow(hovered.rect) });
         await moveTo(centre(hovered.rect));
         const card = await until<Rect>('hoverCard', 'the hover card', {}, 8000).catch(() => null);
         const both = card ? union(hovered.rect, card) : { x: hovered.rect.x - 160, y: hovered.rect.y - 40, width: 560, height: 360 };
-        shot(grow(both, 30), 2.3);
+        shot(grow(both, 30), 2.3, undefined, await pageColumn());
         await hold(6000);
       } else console.warn('[promo] no linked names in view to point at');
 
@@ -596,7 +607,17 @@ async function main() {
         // it), read, and the tabs switched between from the dock above the paper.
         mark('phase', { phase: 'element-tabs' });
         type Section = Rect & { pageTop: number; pageBottom: number };
-        const pageWidthShot = (section: Rect, height: number) => shot({ x: section.x, y: section.y - 24, width: section.width, height });
+        /** The page column between the sidebars (the tab dock sits 16 points inside it). */
+        /**
+         * A part of the page as wide as its text. One taller than a frame that
+         * wide holds (370 points with the shot's margin) takes the whole column,
+         * edge to edge, so the frame never ends on a sidebar or the outline rail.
+         */
+        const pageWidthShot = async (section: Rect, height: number) => {
+          if (height <= 370) { shot({ x: section.x, y: section.y - 24, width: section.width, height }); return; }
+          const column = await pageColumn();
+          shot({ x: column.x, y: section.y - 24, width: column.width, height: column.width * 9 / 16 }, undefined, 0);
+        };
         for (const [index, name] of story.elements.entries()) {
           const row = await until<Rect>('elementRow', `${name} in the element list`, { name });
           mark('target', { target: `element-row`, rect: rectToWindow(row) });
@@ -614,7 +635,7 @@ async function main() {
           // once the page has settled (a new tab can open at the last one's scroll, then go to the top).
           const overview = await until<Section>('elementSection', `${name}'s page`, { id: 'overview' });
           const bio = await scenes.run<Section | null>('elementSection', { id: 'bio' });
-          pageWidthShot(overview, Math.min(520, (bio ? bio.y + 150 : overview.y + overview.height) - overview.y + 24));
+          await pageWidthShot(overview, Math.min(520, (bio ? bio.y + 150 : overview.y + overview.height) - overview.y + 24));
           await hold(4200);
           if (index === 0) {
             // The first one's relations, further down the page.
@@ -628,7 +649,7 @@ async function main() {
                 await moveTo(toWindow({ x: overview.x + overview.width + 30, y: overview.y + 60 }));
               }
               const shown = await scenes.run<Section | null>('elementSection', { id: 'relations' });
-              if (shown) pageWidthShot(shown, Math.min(520, Math.min(shown.height, pageBottom) + 24));
+              if (shown) await pageWidthShot(shown, Math.min(520, Math.min(shown.height, pageBottom) + 24));
               await hold(4400);
             }
           }
@@ -638,7 +659,8 @@ async function main() {
         // under them, so the page changes while the camera stays (the pointer's
         // moves up there mark no target).
         const dock = await until<Rect>('tabDock', 'the tab dock');
-        shot({ x: dock.x, y: dock.y, width: dock.width, height: dock.width * 9 / 16 });
+        const column = await pageColumn();
+        shot({ x: column.x, y: dock.y, width: column.width, height: column.width * 9 / 16 }, undefined, 0);
         await hold(1200);
         await moveTo(centre(dock));
         await sleep(600);
