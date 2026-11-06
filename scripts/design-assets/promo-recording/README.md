@@ -121,9 +121,9 @@ chapter's title, Return into the page, `⌘⇧↩` into immersive writing (its
 typewriter scrolling keeps the caret's line in the middle of the window), the
 story, `⌘⇧↩` out for the Agent. The take is acted at the pace the video plays
 it, so the app's own animations keep their speed and nothing is sped up
-afterwards but the Agent's waits: typing at about 6.8 characters a second for
-slow lines, 11.2 for dialogue and 16.4 for narration (`TYPING_CPS` times
-`--typing-tempo`, 2 by default), the rests after punctuation shortened to
+afterwards but the Agent's waits: typing at about 13.6 characters a second
+for slow lines, 22.4 for dialogue and 32.8 for narration (`TYPING_CPS` times
+`--typing-tempo`, 4 by default), the rests after punctuation shortened to
 match; pauses of 0.7 seconds or more, pointer moves and scrolls 1.5 times
 quicker than the reference pace (`--tempo`), while a hand settling or the app
 catching up keeps its time.

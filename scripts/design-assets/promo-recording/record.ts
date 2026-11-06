@@ -4,7 +4,7 @@
  *
  *   pnpm promo:record --story <file.md> [--take <name>] [--theme light|dark]
  *                     [--provider openai] [--model gpt-5.6-sol] [--no-agent] [--keep-open]
- *                     [--tempo 1.5] [--typing-tempo 2]
+ *                     [--tempo 1.5] [--typing-tempo 4]
  *
  * Seeds the isolated `promo-recording` profile with the screenshot shelf,
  * launches its Debug build with the frontend debug bridge, and records its
@@ -46,7 +46,7 @@ const WINDOW = { width: 1600, height: 1000 };
 const LOCALE = 'zh-CN';
 /**
  * Keystrokes a second at the reference pace: a writer who knows what comes
- * next, not a stenographer. A take types `typingTempo` times faster (2 by
+ * next, not a stenographer. A take types `typingTempo` times faster (4 by
  * default), as the video plays it.
  */
 const TYPING_CPS: Record<Pace, number> = { slow: 3.4, normal: 5.6, fast: 8.2 };
@@ -68,7 +68,7 @@ function parseArguments(args: string[]): Options {
   const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\..*/, '').replace('T', '-');
   const options: Options = {
     story: path.join(here, 'sample-story.zh-CN.md'), take: stamp, theme: 'light', provider: 'openai', model: 'gpt-5.6-sol',
-    agent: true, keepOpen: false, position: null, tempo: 1.5, typingTempo: 2,
+    agent: true, keepOpen: false, position: null, tempo: 1.5, typingTempo: 4,
   };
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index];
