@@ -1,439 +1,175 @@
 # Mobile UI foundation
 
-> This document describes the current implemented mobile shell — the only
-> mobile frontend Drifting has. The staged "Mobile V2" delivery documents and
-> their dated Simulator run reports were retired after delivery completed; they
-> remain recoverable from Git history. Current behavior is documented here and
-> enforced by the acceptance tests referenced below.
+> The phone's workspace as implemented: one raised paper over a desk. It was
+> rebuilt on 2026-11-07 on the sand-and-glass design system and replaces the
+> earlier "Mobile V2" shell (unified bar, top and bottom tool workspaces,
+> paper overview, full-screen voice face), which is recoverable from Git
+> history before that date. How a finger meets the design system is in
+> [`design-system/touch.md`](design-system/touch.md).
 
-## Current verdict
+## Verdict
 
-Drifting has a distinct mobile product path. Authentication, project shelf,
-global settings, Project Home, and the paper workspace are composed by
-mobile-owned routes and shell components over the shared project runtime,
-domain model, use cases, Yjs, sync, authentication, and Agent runtime.
+Drifting has a distinct mobile product path. Phones and compact tablets get
+the mobile shell; native tablets at least 1000
+portrait CSS pixels wide reuse the desktop shell with mobile native
+capabilities (`src/renderer/platform/ui-shell-mode.ts`). The mobile shell is
+one presentation over the shared project runtime, domain model, use cases,
+Yjs, sync, authentication and Agent runtime. It wears the same design system
+as the desktop and reuses the desktop's panels, cards, editors, Project Home,
+shelf, timeline, plot planner and Super Views; what it owns is the phone's
+geometry, gestures, keyboard handling and navigation.
 
-The presentation path is selected by an immutable `shellMode` separate from the
-native platform target. Phones and compact tablets use the mobile shell; native
-tablets at least 1000 portrait CSS pixels wide reuse Desktop Shell while
-retaining mobile native capabilities, safe areas, and portrait-only policy
-(`src/renderer/lib/ui-shell-mode.ts`).
+Opening a project mounts `MobileAppShell`: `ProjectRuntimeProvider`, then
+`MobileDesk` (`src/renderer/shells/mobile/desk/MobileDesk.tsx`). Only the
+active paper mounts a full editor.
 
-One reducer (`mobile-workspace-controller.ts`) owns the workspace surface —
-`project-home`, `paper`, `overview`, or `super-view` — plus paper mode, panel,
-transient, and keyboard state. Visible Back, Escape, the Super View stack, and
-Android native Back share one typed request and unwind one owned layer at a
-time. Back resolution order is: dialog, then transient (popover/sheet), then
-search, then formatting, then edit mode, then Agent input, then the surface
-stack. Search opened from edit keeps the editor's input-method session
-(`keyboard: 'open'`) and hands focus back to the editor when Back resolves; the
-exact focus-handoff contract is recorded in
-[`qa/mobile-search-focus-regression.md`](qa/mobile-search-focus-regression.md).
-Back at the read-paper root returns to Project Home; Back at Project Home
-leaves the project for the shelf.
+This is verified in the iOS Simulator through the frontend debug bridge
+(synthetic DOM input) and by source and unit tests. It is not a claim about
+physical-device appearance or feel: native keyboard geometry (the keyboard bar
+follows `visualViewport` and the host's native keyboard geometry event), real
+multi-touch and the frame rate of moving glass remain device-acceptance items
+([`mobile-device-acceptance.md`](mobile-device-acceptance.md)).
 
-The workspace chrome is one 56px controller-owned unified bar plus top and
-bottom panels with 56px one-level vertical rails. Panels crop a 1:1 paper, and
-read-state horizontal paper swipe has explicit nested-interaction arbitration.
-The bar is keyboard-aware on both native targets, real outline and comment
-rails portal into one shared sheet, paper/Project search are read-only, All
-Chapters promotes exactly one live editor, and an empty Project can create its
-first chapter. Complete shared Planning is reachable in the vertical tool
-workspace with delayed-ownership chapter touch drag. A compact Agent
-presentation runs over the shared runtime with the same read-write tool access
-as desktop, with Working Memory, Library/TODO, and Stats given a portrait
-information architecture. The source contains an unaccepted voice surface
-(Project Home mic entry → fullscreen voice-Agent face, collapsing to a floating
-pill above every surface) and BYOK transcription wiring into the same runtime;
-the maintainer has not tested that chain and it is not a claimed mobile
-capability. See [`voice-authored-capture.md`](voice-authored-capture.md). The three Super Views (Elements, Story Graph, Library/Memo) are
-independent controller surfaces with preserved per-view state
-(`MobileSuperViewHost.tsx`). Shared Settings now exposes Hosted account sync
-and local recovery.
-Hosted mobile interaction remains an unaccepted, deferred gate. The mobile Editor Settings
-surface reuses the desktop preference authority and live `--editor-*` preview,
-but replaces the desktop rail breakout with a readable phone-width miniature:
-font, size, line height, paragraph spacing/indent, Tab indent, and the scaled
-paper-width model update immediately while range and segmented controls retain
-full-width touch targets.
-
-Manuscript and whole-book prose, entity notes and body templates, and patch
-bodies share the selected font, size, line height and paragraph spacing.
-Mobile prose uses the selected values directly, without an additional 17px
-font-size or 1.72 line-height minimum; the settings controls retain their shared
-valid ranges.
-
-This is an implemented foundation with static, build, state-machine, and dated
-Simulator evidence. It is not a claim that current interactions have passed
-complete iOS and Android physical-device acceptance.
-
-## Shell and dependency model
+## The model: one paper over a desk
 
 ```text
-AppRoutes
-├── DesktopAppShell (desktop target or expanded native tablet)
-└── MobileAppShell (phone or compact native tablet)
-    ├── Project Home (project-level surface, not a paper)
-    ├── mobile paper session and URL adapter
-    ├── single active full editor
-    ├── paper overview and reorder
-    ├── top structure workspace
-    ├── bottom tool workspace
-    └── mobile Super View navigation
-
-ProjectRuntimeProvider
-└── SQLite / Yjs / sync / Agent / repositories / use cases
+MobileDesk
+├── the desk, under the paper
+│   ├── left desk   章节 / 要素 / 构想, the shelf and search at its corners, the account cell at its foot
+│   ├── right desk  审阅 / 素材库 / 统计 / 帮手
+│   └── Bottom Panel, under the paper's foot: the Bottom Timeline or the chapter's plot planner
+├── the paper (raised; the only elevated surface)
+│   ├── the active document's editor, or Project Home
+│   ├── the paper's own toolbar in its lower-right corner (the desktop's .editor-corner)
+│   ├── the fore-edge along its right side
+│   └── the dock along its foot: ☾  open papers  +  ☽
+├── the keyboard's bar, while writing
+└── layers over everything: a Super View, global search, the project trash
 ```
 
-The shells may compose shared features and domain controllers. Shared features
-must navigate through `WorkspaceNavigator` and must not import desktop or mobile
-stores. Pointer-heavy desktop controllers remain under `shells/desktop`; mobile
-owns its gesture arbitration, paper state, sheets, safe-area layout, and
-navigation stack.
+- **Pushing the paper aside shows a desk.** A sideways pan on the paper (or a
+  moon) carries the paper with the finger; the desk on that side shows
+  beneath and the paper settles open or shut by distance or flick
+  (`useDeskPan.ts`, `settleDrawer`). A 52px sliver of paper stays on screen,
+  with its moon in it: tapping or pulling it brings the paper back. While
+  writing only a pan from the very edge moves the paper.
+- **Lifting the paper's foot shows the Bottom Panel.** A flick up the dock,
+  the timeline toggle or the plot planner button in the paper's toolbar lifts
+  the paper's bottom edge to 46% or 84% of the screen; a flick down lowers it.
+  The planner belongs to a chapter or drift in front and lies down elsewhere.
+- **Layers lie over the desk.** A Super View slides in from the right; a pan
+  from the left edge, its back button or Back takes it away.
+- **There is no page history.** Papers change through the dock; Back takes away
+  one thing at a time (below).
 
-The complete dependency rules are in
-[`renderer-ui-architecture.md`](renderer-ui-architecture.md).
+The state is one reducer (`desk/mobile-desk-controller.ts`):
+`stage` (`paper` or `home`), `drawer`, the left and right panel, `bottom`
+(pane and detent), `superView`, `sheet` (search, trash), `popover` (a tool's
+own sheet), `writing` and the keyboard bar's mode. Panels and the last Bottom
+Panel pane are remembered per book in local storage.
 
-## Current mobile product contract
+## Papers and the dock
 
-The interaction direction is browser-inspired: paper navigation should share
-the familiar intuition and fluidity of a good mobile browser. Safari is one
-source of inspiration, not the product baseline, a behavior specification, or
-a visual target. Drifting keeps that broadly understood navigation grammar
-while its top and bottom workspaces introduce Drifting-owned structure,
-editing, timeline, material, comment, and Agent capabilities.
+The paper session (`workspace/mobile-workspace-session.ts`,
+`useMobileWorkspaceSession.ts`) holds the open papers, the active one, each
+paper's scroll position and the URL. Opening a book at its root picks up the
+paper the author left; Project Home is the stage with no pill.
 
-- `/login` and `/register` render the shared `AuthFlow` as a full mobile page
-  with the same session, OTP, reset, OAuth callback, and adoption logic as the
-  desktop sign-in dialog.
-- `/` uses the mobile project shelf and global settings path without mounting a
-  project runtime merely to show settings. The shelf defaults to one immersive
-  horizontally paged project per viewport; one persistent grid Toggle opens a
-  compact all-project overview and closes it again. The overview owns search,
-  filters, edit/delete actions, and a responsive cover grid. Its view, query,
-  filter, scroll position, and focused project survive the trip into Project
-  Home, while the pager always retains the complete unfiltered project set.
-- Opening a project mounts `MobileAppShell` and the shared
-  `ProjectRuntimeProvider`; it does not enter `DesktopAppShell` or the former
-  deferred workspace page.
-- A project always opens at Project Home, a project-level surface outside the
-  paper rail (`MobileProjectHome.tsx`). The former Dashboard paper is retired;
-  the mobile session storage migrates v1 dashboard papers out of the v2 content
-  session. The paper session resumes from Home.
-- A mobile paper session owns open targets, activation, close, reorder,
-  adjacent switching, URL synchronization, and per-paper scroll restoration.
-- Only the active paper mounts a full editor. When focus moves, its current live
-  Yjs prose is frozen into a read-only static body snapshot; inactive prose
-  papers therefore retain their full body without mounting extra editor/Yjs
-  sessions. A manually arbitrated horizontal flex row exposes adjacent static
-  papers during read-state swipe, then activates exactly one neighboring paper
-  through the canonical session and URL path after settlement.
-- Mobile manuscript prose uses normal line wrapping within its symmetric page
-  gutters. It overrides desktop `text-wrap: pretty`, which can shorten every
-  CJK line on narrow WebKit pages and resemble an empty right rail. See
-  `qa/mobile-prose-wrapping-2026-09-05.md` for measured acceptance.
-- Top structure and bottom tool workspaces reuse shared feature content but use
-  mobile-owned panels, sheets, reveal state, and safe-area geometry.
-- The bottom tool workspace on phones mounts `MobileVerticalTimeline`: the
-  desktop coordinate system turned vertical, not the horizontal
-  `BottomTimeline` (which stays the desktop and large-screen surface). Book and
-  narrative views keep the desktop model and writes. `useBottomTimelineSelectors`
-  supplies `orderToPosition` / `positionToOrder`, acts derive from
-  `deriveActSegments`, markers come from `useTimelineMarkers`, spread runs
-  `spreadTimelineNodes`, chapter moves commit through `commitChapterLaneDrop`
-  and `moveChapterOnTimeline`, and the window-level pointer controller in
-  `chapter-lane-drag.ts` drives the drag with a vertical edge-autoscroll axis
-  and a lift-on-hold behavior. `bookOrder` and `narrativeOrder` remain the
-  authored continuous coordinates with entity ID as the tie-break.
-  Dots in the track gutter sit at exactly the mapped coordinate and own every
-  gesture: a tap opens the chapter menu sheet; a still hold past 180ms followed
-  by movement, or a 500ms hold, lifts the nearest dot by y within 22px and
-  drags it; pointer-up persists the finger's continuous coordinate; a long
-  press on empty track opens the create sheet; act boundary handles and marker
-  heads drag with the same rule. The entries on the right are a pure projection
-  (`vertical-timeline-projection.ts`): their level follows the free space below
-  the dot (large ≥120px with summary, medium ≥64px, small ≥36px, minimal 24px),
-  they never overlap, a crowded entry slides down and every entry keeps a
-  hairline leader back to its dot, and three or more consecutive chapters that
-  pile up collapse into one cluster entry whose tap raises the pinch scale until
-  the run spreads out. Entries accept taps only. Pinch changes the vertical
-  scale (0.5–3×, persisted separately from the desktop scale) anchored on the
-  two-finger midpoint. Storyline pills filter by dimming; unaffiliated chapters
-  ride a dashed track toggled from the ⋯ menu; narrative view keeps unplaced
-  chapters in a bottom drawer whose chips act as their own dots and drag out to
-  place. Chapter, act, marker and create menus are bottom sheets that ride the
-  tool overlay as `popover` transients so Back closes them before the tool.
-- The Plot paper tool and the desktop Plot Planner dock share one
-  `PlotGridEditor` table whose cells keep their own size; the overflowing
-  axis scrolls, and the headers scroll with the table rather than sticking,
-  so a wide row label never sits over the pan. The mobile header carries the across / down switch
-  (a transposed view, persisted per device) and the append row / column
-  buttons; the desktop dock carries the same buttons in a slim header and edits
-  inline. Cells on phones open an editing sheet above the keyboard with the
-  row × column labels, the row's column strip and four-way navigation; headers
-  open a menu sheet with rename, move, insert and delete. Moves persist as
-  explicit `row.move` / `column.move` mutations through the normalized writer.
-  Adding rows or columns therefore overflows instead of squeezing the table. "Fit" is a header
-  action, not a mode: it computes the size at which the whole table fills the
-  host and stores it. Desktop stores that size in the synced `cellW` / `cellH`
-  record (`size.set`) and also changes it by hand with the corner grip; the
-  phone keeps a device-local size per grid, fits once on first open, and
-  changes it by pinch: fingers starting side by side scale only the width,
-  fingers stacked vertically only the height, a diagonal pinch both, so the
-  aspect ratio is adjustable without a grip; the live size shows in a badge
-  while it changes. A size set by hand (grip or pinch) also fixes the cell
-  ratio, stored per grid on that device for both presentations; a later fit
-  keeps the ratio and only scales: near the balanced ratio the table scales
-  to be contained, far from it (beyond 1.5×) only the short axis fills and
-  the long axis overflows and scrolls. Without a hand-set ratio fit still
-  sizes both axes on their own. The transposed view turns the cells with the
-  table: on screen the cell width and height swap and the ratio inverts, while
-  the stored size and ratio stay in the author's frame. The row header column hugs its widest label between a
-  per-presentation minimum and maximum, and long labels wrap (three lines on
-  desktop, four on the phone) instead of truncating; the header menu button
-  floats over the label end on hover rather than reserving a gutter. Tool
-  sheets rest on top of the unified bar, except the cell editor, which owns
-  the keyboard row. While the cell sheet is open the unified bar yields
-  (`tool:plot-cell` popover), and Back closes any Plot sheet before the tool.
-- Focusing a rich-text editor opens a keyboard accessory in its compact circular
-  state. The same button expands or collapses a horizontally scrollable set of
-  paragraph, heading, quote, and inline-mark controls. Commands preserve the
-  live selection and keyboard; the unified bar follows `visualViewport` or the
-  Android native IME inset above the software keyboard and owns the accessory
-  inline. On iOS the
-  WKWebView's generic previous / next / done form-navigation assistant is
-  removed, leaving one Drifting-owned accessory above the native keyboard.
-- A partially revealed panel owns its visible hit-test region, including its
-  controls and resize handle. Panel extent follows vertical pointer distance
-  one CSS pixel per CSS pixel while dragging. The corresponding paper-deck edge
-  moves while the paper remains 100dvw by 100dvh, so the panel crops prose
-  instead of scaling it. Release closes at or below 8%, stays docked below 50%,
-  and promotes to full at or above 50%.
-- One 56px unified bar stays at the safe bottom, moves above a docked bottom
-  panel, overlays a full panel, and follows the keyboard inset. Its center paper
-  identity opens Overview; its structure/tool buttons cycle
-  `none -> docked -> full -> none` through the workspace controller.
-- A material cloud sync transfer appears in a compact, non-interactive status
-  capsule below the top safe-area chrome on every project surface. It reuses the
-  shared sanitized phase, object, and byte progress: remote discovery is
-  indeterminate until its total is known, then pull and push are determinate.
-  Empty background polls do not create the capsule, and sync status never moves
-  into or captures input from the keyboard-aware unified bar.
-- The top panel's one-level 56px rail contains Chapters, Elements, and
-  Inspiration. The general `MobileRightSidebar` contains Stats, Review,
-  Agent, and Library; comments and TODOs are filters of the one Review surface,
-  not separate tool destinations. Stats reuses the shared desktop `EntityStatsContent` for the current entity;
-  Timeline now opens above the persistent paper toolbar.
-- Project Home exposes a project-options menu beside the project title:
-  name/summary editing, device-local writing goals, project Trash, and a
-  separated destructive project-deletion action. The Settings gear still
-  opens the standalone app settings route. Deletion requires a second dialog
-  with the project name and irreversible scope, initially focuses Cancel,
-  retains errors for retry, and returns to the shelf only after the shared
-  project deletion commits. Both readable mobile paper-session formats are
-  then forgotten. See `qa/mobile-project-home-actions-2026-09-05.md`.
-- The mobile right sidebar covers the full viewport height and reaches the
-  right edge, leaving only an 8px reveal on the left. Its paper background
-  extends behind the status bar and home indicator; only the 44px tab row and
-  pane apply their respective safe-area insets. Agent subtabs use 12px text
-  with 44px touch targets. It slides down from above the top-right corner and
-  exits upward before unmounting, including controller Back dismissal; reduced
-  motion removes the travel. Simulator evidence and geometry assertions are
-  recorded in `qa/mobile-right-sidebar-2026-09-05.md`.
-- Read-paper swipe starts on the full paper only when no editor, selection,
-  composition, panel, transient, keyboard, TOC/sticky-note rail, Timeline, Plot
-  Grid, canvas, interactive target, or nested horizontal scroller owns the
-  pointer. It locks horizontally after 8px at a 1.2 axis ratio, commits one
-  adjacent paper by a 72-96px distance or 0.45px/ms velocity threshold, and
-  cancels undecided stationary holds after 180ms. Reduced motion settles
-  immediately without changing the result.
-- The 本纸 tab opens a small fixed, body-portaled popover with only the shared
-  semantic TOC and sticky-note switches.
-  Narrow screens show at most one rail at a time without reflowing prose. The
-  TOC keeps canonical jumps, active ancestry, omission reveals, and all five
-  structural levels, but uses a 34px touch pitch so density reduction happens
-  before labels overlap. Sticky notes default to one stacked deck, expand
-  vertically on demand, and retain the shared Review actions. Membership and
-  ordering are session-only per editor; Review open/close, resolve, conversion,
-  and paper switching do not remove notes. An open rail blocks paper swipe so
-  it cannot compete for touch.
-- Entity cells in the chapter, element, and drift structure overlays dispatch
-  the controller's read-only preview transient first; they do not mutate the
-  paper session. Only the Sheet's explicit action inserts or activates a paper.
-  Backdrop events are consumed and cannot click through. Newly created entities
-  may still open their editor directly.
-- Paper overview owns activation, close, close-all, grid reorder, Super View,
-  settings, shelf, and all-chapters navigation.
-- Host page zoom is disabled in the mobile WebView. Canvas-based Super Views own
-  their own pointer/pinch transforms.
+The dock (`desk/MobileDock.tsx`) is the paper's foot under the thumb: the two
+moons open the left and right desks; between them each open paper is its sand
+mark (`KindMark`) and the one in front a glass pill with its name. Sliding the
+thumb along the marks runs the selection across them and turns to the paper
+under it on release; tapping a mark turns to it; tapping the pill in front
+spreads every mark into its pill with its own close. The plus goes to Project
+Home with its create row floating.
 
-## Reused product core
+A paper turn dissolves the new page in over a still copy of the old one
+(`usePageTurn`); each paper reopens where it was scrolled
+(`usePaperScrollMemory`). Reading on down the page puts the paper's toolbar
+away; scrolling back brings it (`useReadingAway`).
 
-| Layer         | Shared contract                                                                                              |
-| ------------- | ------------------------------------------------------------------------------------------------------------ |
-| Runtime       | Project lifecycle, SQLite, Yjs, sync, Agent, auth, and repositories                                          |
-| Navigation    | `WorkspaceTarget` and `WorkspaceNavigator` ports                                                             |
-| Features      | Settings panels, Agent content, library/TODO, comments, stats, entity panels, and pure graph/timeline models |
-| UI primitives | Modal, menu, popover, buttons, tabs, icons, tokens, and semantic labels                                      |
-| Domain truth  | The same project, prose, relations, storylines, `plotGridJson`, snapshots, and sync contracts as desktop     |
+## Reading and writing
 
-Reuse does not require identical presentation. Hover, right-click, keyboard
-shortcuts, multi-column hosts, and desktop canvas controllers are not mobile UI
-contracts.
+- **The fore-edge** (`desk/MobileForeEdge.tsx`). Along the paper's right side
+  every chapter is a stretch as long as its share of the book's words, in
+  reading order; the chapter in front is inked and a grain of sand marks where
+  the page is. Running the thumb down it leafs through the book with the
+  chapter under the thumb named beside it; lifting turns to that chapter, or,
+  inside the chapter in front (or in 通览全书), scrolls to that place.
+- **A name is a door** (`desk/MobileProseNameCard.tsx`). Reading, a tap on a
+  linked name brings up that element's card with a row that opens it, without
+  placing the caret. Writing, a tap on a name places the caret.
+- **Writing** is the editor holding the caret (`desk/useMobileWriting.ts`); a
+  hardware keyboard writes with no keyboard on screen. Everything laid over the
+  paper is put away. The dock and toolbar step down and the keyboard's bar
+  (`desk/MobileKeyboardBar.tsx`) rides the keyboard's top edge: 「格式」
+  (unfolding ¶ H1 H2 H3 引用 | B I U S above it), the selection's own actions —
+  a comment and a patch, the same the desktop floats over a selection — handing
+  the passage to the Agent, and putting the keyboard away. The desktop's
+  floating selection bar is docked while the phone shell is mounted
+  (`setSelectionBarDocked`), so it never covers the system's own edit menu.
 
-## Remaining device acceptance
+## The desks
 
-1. Unified-bar ergonomics, panel handles, real-finger paper swipe, nested
-   gesture arbitration, Timeline/Plot continuous touch, and Super View canvas
-   gestures still need complete iOS and Android physical-device validation. The
-   dated 2026-08 Simulator/Emulator runs exercised these paths with explicitly
-   `synthetic-dom` input, not native touch.
-2. IME, selection/caret scrolling, `visualViewport`/Android IME inset behavior,
-   password managers, OTP autofill, deep links, and keyboard avoidance need
-   physical-device coverage. Simulator coverage exercised the stated
-   English/Chinese/Gboard and native-selection paths only. The editor
-   scroll/persistent-Back handoff that still awaits user-owned device runs is
-   recorded in
-   [`qa/mobile-v2-editor-scroll-and-persistent-back-device-handoff-2026-08-25.md`](qa/mobile-v2-editor-scroll-and-persistent-back-device-handoff-2026-08-25.md).
-3. Rotation, safe areas, system bars, background/foreground, offline recovery,
-   low-memory behavior, and representative device performance remain open.
-4. Story Graph, Agent, entity editing, account sync settings, and other dense
-   workflows require device-specific interaction checks. Simulator/Emulator
-   evidence covers visible surfaces and synthetic input, but does not close
-   live-provider, native clipboard, accessibility, or physical-touch gates.
+The left desk (`MobileLeftDesk` in `desk/MobileDeskPanels.tsx`) mounts the
+desktop's `LeftSidebarSubHeader` and `ChapterPanel` / `ElementPanel` /
+`DriftPanel`, with the paper in front as the cell selection; its tab row
+starts with the way back to the shelf (where the desktop keeps the window's
+close button) and ends with search; `WorkspaceAccountCell` stands at its foot.
+The right desk (`MobileRightSidebar`) mounts `ReviewPanel`, `LibraryPanel`,
+`MobilePaperStats` and `DesktopAgentPanel`; the Agent panel is the pane the
+desktop routes tasks into, so a Project Home card or a hand-off from Review
+(`revealDesktopAgentView`, the `agent:reveal` event) opens the right desk on
+the very conversation. Panels lie side by side on a band pushed like a block
+of ice (`PanelBand`); a swipe along a tab row changes panel.
 
-Use [`mobile-device-acceptance.md`](mobile-device-acceptance.md) for setup and
-the current checklist. Build or Simulator success must not be reported as
-mobile-ready, touch-ready, or complete native UX acceptance.
+Shared controls that ask the desktop's UI store for the Bottom Panel, a Super
+View or Project Home's arrival (the paper's toolbar, panel headers, Project
+Home's buttons, the timeline's story-graph entry) are followed through
+`components/workspaceChrome/workspace-intents.ts`, and the desk writes back
+what it shows. `settings:open` routes to `/settings`.
 
-## Machine gates
+## Holding a thing
 
-```bash
-pnpm typecheck
-pnpm lint
-pnpm test:renderer-architecture
-pnpm exec vite build
-pnpm agent:capabilities:check
-```
+A finger held still on a thing for 420ms brings up that thing's own card —
+the desktop's hover card, with the same actions — under the finger
+(`desk/mobile-touch-hold.ts`, which replays a pointer arriving inside
+`openHoverCardsNow`). Sliding onto a row and lifting presses it; the click a
+lifted finger would send is swallowed. Prose, fields and anything marked
+`data-touch-hold="off"` keep the system's long press.
 
-Focused mobile reducer, route, gesture-state, overlay, paper-session, and import
-boundary tests supplement this baseline. They prove deterministic contracts,
-not physical-device appearance or feel.
+## Back
 
-### Persistent paper toolbar and General Agent — 2026-09-05
+Escape, the visible back controls and Android's Back share one request
+(`workspace/mobile-workspace-back.ts`, `desk/useMobileDeskBack.ts`). A DOM
+dialog or popover answers Escape first; an open Super View answers through its
+own stack. Then, in order: a tool's sheet, the format pill, a sheet, a Super
+View, the keyboard, the Bottom Panel, a drawer. At the paper's root Back goes
+to Project Home, and at Project Home Android's Back leaves the book. Escape on
+a hardware keyboard stops at the paper.
 
-The paper toolbar stacks above the bottom navigation row in reading mode. When
-navigation recedes with scroll, the toolbar descends to the bottom safe area;
-scrolling back restores the stack. Both rows share the same transition timing.
-The paper scroll viewport fills the entire screen in reading mode, including
-the status-bar and home-indicator areas. Navigation and the accessory overlay
-that viewport. Visible top and bottom navigation have opaque backgrounds; each
-background moves away with its own bar when hidden, leaving no reserved band.
-Hiding navigation changes no paper height or clipping boundary.
-The initial top safe-area spacer belongs to the scrolling content, including
-whole-book rows and adjacent frozen papers. Existing document-end spacing lets
-the last prose line clear the accessory. Only an open editing/search keyboard
-reduces the paper viewport. Native geometry and hit-test evidence is recorded in
-`docs/qa/mobile-fullscreen-flow-2026-09-06.json`.
-During editing the toolbar follows native keyboard
-geometry. Fresh edit entry opens formatting directly; returning from another
-accessory preserves its saved level, including while the native keyboard reopens.
-Undo and Redo appear independently only when their respective history stack has
-an operation, in either editing accessory level. Formatting activates after a
-stationary release; horizontal panning, leaving a button, and pointer cancellation
-never apply a style. One input-preserving action boundary handles the editor,
-Search, Agent controls and the Agent's portalled configuration menu. It cancels
-the native touch-end focus default before buttons can disappear or be replaced.
-Accessory background taps also leave the active input focused.
-Plot and Timeline cover the originating prose mode without blurring its input
-or closing its keyboard. Back returns directly to that editor and its saved
-accessory level, including when a Plot field has taken focus. Keyboard visibility
-does not insert another Back step inside an accessory destination.
-Search, Plot and Timeline are toolbar destinations; the 本纸 popover only contains
-display switches. Stats lives in the right panel alongside Review, Agent and Library.
+## Standalone surfaces
 
-Agent uses the paper accessory surface with shared provider/model configuration,
-dictation and send controls. Back stays in the lower action row, below the input,
-even after selecting a conversation. One Back exits Agent and returns directly
-to the originating paper mode. An editing origin regains prose focus without
-closing the keyboard; a reading origin returns to reading and closes the tool input. Recent sessions extend directly upward
-from the accessory under one outer contour, without a gap or border between layers.
-Three recent project sessions and searchable full history appear above the input.
-First send creates the canonical conversation; selecting history creates no new row.
-A selected conversation uses a flat, borderless plane above the raised accessory;
-its header clears the status bar and switches sessions. Non-input actions such as
-Latest preserve composer focus and the keyboard. The paper Agent configuration
-menu neither autofocuses an option nor restores focus to its trigger. Startup makes the paper input
-briefly read-only instead of disabling it. Leaving this surface never aborts its running turn.
+- `/` — the desktop's shelf in one column (`MobileProjectShelfView`:
+  `PreAlphaFirstRunGate` + `ProjectPickerView`, `mobile-project-shelf.css`),
+  with the same first run and sea of characters.
+- `/login`, `/register` — `MobileAuthPage` renders the shared `AuthFlow` as a
+  page.
+- `/settings` — `MobileSettingsView` renders the shared settings panels
+  outside a project runtime; it returns to the page it came from.
 
-The local paper-to-conversation association survives reload; drafts are renderer-local
-and isolated by paper and conversation. Invalid/deleted conversation pointers reopen
-a fresh composer. Hydration and rapid switching are guarded; a late load cannot restore
-a stale draft. The right panel and shortcut use the same conversation store and runtime.
-The association is **UI state only**: shortcut sends and retries contain only the
-user's text, with no paper, selection, title, prose or added context instruction.
-Entering Agent from reading focuses the composer and summons the keyboard at
-once, the same way Search does; Back blurs it and restores reading.
+## Styles
 
-Acceptance: `mobile-paper-agent-session.test.ts`, controller transition tests and
-`docs/qa/mobile-paper-agent-2026-09-05.md`. The corrected navigation/toolbar stacking
-is recorded in `docs/qa/mobile-toolbar-stack-2026-09-06.md`.
-Input ownership and the revised Agent surface are recorded in
-`docs/qa/mobile-toolbar-input-2026-09-06.md`.
+`src/styles/mobile-foundation.css` sets the phone's type and touch scale under
+`html[data-shell-mode='mobile']` (body 16px, rows 44px, no tap highlight or
+focus ring, chrome not selectable); `mobile-desk.css` lays out the desk;
+`materials.css` gives round glass 40px with a 20px icon on the phone and
+answers glass hover only on a pointer that can hover.
 
-Accessory activation and keyboard continuity are recorded in
-`docs/qa/mobile-accessory-focus-2026-09-06.md` and its measured JSON record.
+## Legacy kept for tooling
 
-
-### Accessory navigation contract (2026-09-06 correction)
-
-The author-visible level comes before keyboard dismissal. Input focus is an
-execution detail of the active level, never an extra navigation level. Model
-menus, history selection and dialogs close their own child layer first. Outside
-those child layers, the accessory Back resolves the following table.
-
-| Destination | Presentation and function | Entered from reading | Entered from editing | One accessory Back |
-| --- | --- | --- | --- | --- |
-| Format | Horizontal prose style buttons | Absent; entering prose editing opens it | Applies styles to the live editor while preserving focus | Returns to the entry list with the editor and keyboard active |
-| Search | Search field, count, previous/next matches over live prose | Focuses Search; prose stays in reading mode | Transfers focus to Search and retains the originating editor state | Closes Search; restores reading, or the saved editor and open keyboard |
-| Agent, no session | Composer with its action row; recent sessions extend directly above it | Shows the dock with the composer focused and the keyboard open | Transfers focus to the composer without dismissing the keyboard | Exits Agent in one step; restores reading, or the saved editor and open keyboard |
-| Agent, selected session | Flat conversation plane above the same composer; header switches sessions | Restores the paper's selected session with composer focus | Opens the same conversation plane with composer focus | Same as the unselected dock; selection/draft remain associated with the paper |
-| Plot | Plot workspace above the accessory, with its own editable fields | Prose stays in reading mode; a tool field may open the keyboard | Covers the editor and retains its return state | Exits Plot directly, including when a tool field owns focus; restores the origin |
-| Timeline | Timeline workspace above the accessory | Prose stays in reading mode | Covers the editor and retains its return state | Exits Timeline directly and restores the origin |
-
-For ordinary editing entry-list navigation, the complete path is:
-`editor + entry list + keyboard → tool → Back → editor + entry list + keyboard
-→ Back → reading + entry list + no keyboard`.
-The last step is the only accessory Back that dismisses an editor-owned keyboard.
-A reading-origin tool never invents an editor state on return. Native keyboard
-hide gestures can change keyboard visibility without replacing the saved origin.
-
-While the unselected Agent dock is visible, prose remains a full-screen scroll
-owner. Its scrolling content compensates WebKit viewport panning at the top and
-the measured dock overlap at the bottom. This adds reachable scroll travel,
-not another fixed background or clipping band. A selected conversation instead
-owns its own scroll area; its underlying prose is covered by the conversation plane.
-A touch that starts on the dock itself, in either state, never pans what lies
-beneath it: the panel fences `touchmove`, letting only a scrollable part of the
-dock that still has travel in that direction scroll natively and cancelling the
-rest, so neither the prose nor WebKit's keyboard viewport moves under a finger
-on the dock.
-
-Acceptance distinguishes controller contract tests, source wiring checks and
-native end-to-end observations. A passing wiring check is not interaction proof.
-The corrected Back paths and scroll geometry are recorded in
-`docs/qa/mobile-accessory-return-2026-09-06.md` and the adjacent measured JSON.
-
-### Plot Grid and vertical Timeline — 2026-09-06
-
-Design source: `docs/design/mobile-v2/plot-timeline-proto-v3.html` and the
-v3 section of `docs/design/mobile-v2/README.md`. Acceptance:
-`shells/mobile/workspace/mobile-v2-planning.acceptance.test.ts` (wiring),
-`shells/mobile/workspace/timeline/vertical-timeline-projection.test.ts`
-(levels, leaders, clusters), `vertical-timeline-gestures.test.ts` (hit-testing,
-slots), `components/editor/plot-grid/plot-grid-layout.test.ts` (fill rules,
-transposed view), `domain/plot-grid.test.ts` and
-`usecase/plot-grid-write.integration.test.ts` (explicit moves), and
-`mobile-workspace-controller-tool-sheets.test.ts` (sheet transients). Device
-feel — long-press timing, pinch anchoring, drawer drag-out — is still to be
-recorded from a physical device.
+`workspace/MobileAgentPanel.tsx`, `MobileAgentTranscript.tsx` and their
+helpers, `mobile-workspace.css` and `standalone/MobileProjectShelfContent.tsx`
+are no longer mounted by the app. They stay because the renderer performance
+harness, transcript scripts and locale fingerprints read them; retiring them
+means updating those scripts and their evidence.

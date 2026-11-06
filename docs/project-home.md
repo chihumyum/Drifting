@@ -20,16 +20,14 @@ action derives its active ink state from the root route, so it turns active as s
 their established activation semantics; in particular, preview-tab clicks are
 not overloaded as a Home toggle.
 
-On mobile, Project Home is a controller surface separate from the paper deck.
-The shelf always opens Home. Entity URLs open or activate real papers. Visible
-and Android Back share the same order: transient/editor/panel layers, then
-paper to Home, then Home to the shelf. Overview and Super Views remember
-whether they were entered from Home or a paper. The top-right Settings action
-navigates to the standalone `/settings` route and records the canonical project
-root as its return destination; it never mounts the desktop-oriented
-`ProjectDashboard` inside mobile Home. In an empty project, the New Chapter
-action opens the Chapters structure overlay instead of sharing the Settings
-navigation path.
+On mobile, Project Home is the same `ProjectDashboard`, shown on the paper as
+the desk's `home` stage: the dock shows no pill and its plus stands selected
+(`docs/mobile-ui-foundation.md`). Opening a book picks up the paper the author
+left; the plus goes to Home with the create row floating, the account cell's
+torii with the Agent floating. Visible and Android Back share one order: the
+desk's layers, then paper to Home, then (Android) Home to the shelf. Settings
+from the account menu navigates to the standalone `/settings` route and
+returns to the page it came from.
 
 Both platforms open with a General Agent entry and the check-in cards the
 Agent prepared from recent changes (`agent-runtime/project-checkin.md`); on
@@ -37,9 +35,10 @@ desktop the Agent section also offers an organize card for what the author
 wrote since the last organize and shows the latest organize run
 (`agent-runtime/project-organize.md`). Nothing on a card runs until the author
 opens it, and the 设定 view's 主动建议 switch turns all of it off. Both
-platforms edit the project's `PROJECT_MEMORY.md` (desktop: the 设定 view; mobile:
-end of the Home flow; see `agent-runtime/domain-crud-transaction-protocol.md`
-§9). The mobile entry opens the full-screen voice Agent surface.
+platforms edit the project's `PROJECT_MEMORY.md` in the 设定 view (see
+`agent-runtime/domain-crud-transaction-protocol.md` §9). On mobile a card's
+task opens the right desk on the Agent view it was routed into
+(`revealDesktopAgentView` emits `agent:reveal`).
 
 UI-storage v4 removes legacy desktop Dashboard leaves and collapses mixed
 Dashboard splits. Mobile session v2 reads v1 once and filters
@@ -57,6 +56,6 @@ pnpm exec vitest run src/renderer/app/project-home.acceptance.test.ts \
   src/renderer/shells/desktop/project-home/project-home-create.acceptance.test.ts \
   src/renderer/shells/desktop/project-home/home-create.test.ts \
   src/renderer/store/ui-store.workspace-tabs.test.ts \
-  src/renderer/shells/mobile/workspace/mobile-workspace-controller.test.ts \
+  src/renderer/shells/mobile/desk/mobile-desk-controller.test.ts \
   src/renderer/shells/mobile/workspace/mobile-workspace-session-storage.test.ts
 ```

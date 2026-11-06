@@ -539,10 +539,14 @@ Desktop-only surfaces include `DesktopWorkspace`, `DesktopOverlayHost`, desktop
 global shortcuts, desktop settings/Agent/comment hosts, `DesktopBottomTimeline`,
 and the pointer-heavy desktop Graph and Super View controllers.
 
-Mobile-only surfaces include `MobileAppShell`, the mobile paper-session reducer
-and persistence, mobile workspace reveal/gesture state, paper overview, entity
-preview sheet, standalone mobile authentication/shelf/settings hosts, and the
-mobile navigation adapter.
+Mobile-only surfaces include `MobileAppShell` and the desk under
+`shells/mobile/desk/` (the desk reducer, paper pan, dock, fore-edge, keyboard
+bar, long-press bridge and back resolution), the mobile paper-session reducer
+and persistence, the standalone mobile authentication/shelf/settings hosts, and
+the mobile navigation adapter. The desk mounts the desktop's panels, cards,
+Project Home, timeline and Super Views and follows shared controls through
+`components/workspaceChrome/workspace-intents.ts`
+(`docs/mobile-ui-foundation.md`).
 
 Pure layout, projection, relation, editor, graph, timeline, and domain logic
 should move downward when both shells need it. Shell interaction state should

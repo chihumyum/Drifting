@@ -1,5 +1,12 @@
 # Voice-authored writing
 
+> 2026-11-07: the phone's full-screen voice face and floating voice pill were
+> retired with the rebuilt mobile shell (`mobile-ui-foundation.md`). On the
+> phone, dictation lives where it does on the desktop: the voice button in the
+> Agent composer on the right desk (`VoiceDictationButton`). The
+> recording, transcription and credential wiring below is unchanged; the
+> sections about the mobile voice surface describe removed code.
+
 Status: **Implemented in source, but not accepted or released as working behavior.**
 
 The current code and deterministic tests establish the intended wiring only.

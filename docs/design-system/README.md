@@ -2,7 +2,7 @@
 
 一张稿纸，两种材料。主工作区是一张平的桌面，上面只抬起一张稿纸；桌面上的一切要么是**玻璃**（手按的东西），要么是**砂笔**（作者留下的痕迹），其余一律是平的。
 
-这套语言在 2026-10-27 至 10-29 之间成形：先在候选画布上逐项定稿，再迁进桌面端（Tauri）。移动端暂停，尚未采用；见文末「范围」。
+这套语言在 2026-10-27 至 10-29 之间成形：先在候选画布上逐项定稿，再迁进桌面端（Tauri）；2026-11-07 手机端按它重做，手指与指针不同的地方见 [touch.md](touch.md)。
 
 ## 原则
 
@@ -25,6 +25,7 @@
 | [typography.md](typography.md) | 衬线结构、等宽索引、非衬线实体与独立正文字体 |
 | [interaction.md](interaction.md) | 悬停卡、没有右键菜单、菜单外壳、选区浮条、拖动与按压 |
 | [workspace.md](workspace.md) | 桌面工作区的布局、标签、侧栏与面板契约 |
+| [touch.md](touch.md) | 手机：从指针到手指、玻璃在手指下、尺寸与手势的主人 |
 | [acceptance.md](acceptance.md) | 守护测试、行为证据与只能目测的部分 |
 
 共享样式：`src/styles/materials.css`（材料）、`src/styles/ui-controls.css`（控件）、`src/styles/desktop-shell.css`（工作区）。材料素材在 `src/assets/design/`，生成脚本在 `scripts/design-assets/`，来源见 `ASSET_PROVENANCE.md`。
@@ -48,8 +49,8 @@
 尚未补齐的部分（按影响排序）：
 
 1. **控件层还没进其余视图。** 控件的定义都在 [components.md](components.md)；共用的 `Button` 已经跟着换了，实体编辑器、Review、新建批注、统计面板、素材、书架与登录、三个 Super View 与设置页已经换上，见 [components.md](components.md) 的对应各节（设置页另定下了数值滑块、色板、字体选择、服务商连接行、快捷键组合与配置框）。作品主页（Project Home）已与新建合成一处并按本设计系统重做（2026-10-30，见 [components.md](components.md) 的「作品主页」）。
-2. **移动端未采用。** `docs/design/mobile-v2/` 是砂笔与素玻璃之前的移动端提案，只作历史快照。
+2. **手机端的真机手感。** 手机端已按本设计系统重做（[touch.md](touch.md)、[mobile-ui-foundation.md](../mobile-ui-foundation.md)），模拟器里验过；真机上的键盘几何、多指与流动玻璃的帧率还要真机验收。`docs/design/mobile-v2/` 是砂笔与素玻璃之前的移动端提案，只作历史快照。
 
 ## 范围
 
-本目录约束桌面端（Tauri）渲染层，是 [`docs/README.md`](../README.md) 所列的规范文档之一。移动端恢复时按本设计系统重做，不沿用 `docs/design/mobile-v2/` 的令牌与字符药丸；在那之前共享组件在移动端保留各自的回退样式。渲染层的所有权规则见 [`renderer-ui-architecture.md`](../renderer-ui-architecture.md)，移动端边界见 [`mobile-ui-foundation.md`](../mobile-ui-foundation.md)。
+本目录约束桌面端与手机端（Tauri）的渲染层，是 [`docs/README.md`](../README.md) 所列的规范文档之一。手机端用同一套共享组件，不再保留各自的回退样式，也不沿用 `docs/design/mobile-v2/` 的令牌与字符药丸；手指与指针不同的地方只写在 [touch.md](touch.md)。渲染层的所有权规则见 [`renderer-ui-architecture.md`](../renderer-ui-architecture.md)，手机工作区的结构见 [`mobile-ui-foundation.md`](../mobile-ui-foundation.md)。
