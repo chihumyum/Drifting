@@ -296,8 +296,9 @@ publication and its exact-commit evidence are recorded above.
       commands as [CI](../.github/workflows/ci.yml).
 - [ ] Confirm the GitHub Actions run for the frozen SHA finishes successfully;
       do not substitute a run for an earlier commit.
-- [ ] Run `pnpm audit --prod --audit-level high` and review every open
-      Dependabot alert, including Rust lockfile alerts not covered by pnpm.
+- [ ] Run `pnpm audit --prod --audit-level high` and `pnpm security:rust`, and
+      review every open Dependabot alert, including Rust lockfile alerts that
+      the RustSec database does not list yet.
 - [ ] Run `node scripts/check-release.mjs v<version>` and confirm every
       third-party Action remains pinned to a 40-character commit SHA.
 

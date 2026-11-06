@@ -167,7 +167,7 @@ three writers together.
 | krilla 0.8 + rustybuzz + unicode-linebreak (chosen for PDF) | Correct CID font subsetting, ToUnicode, images, outlines, metadata; adds about 3.5 MB to a release binary in an isolated probe (4.1 MB vs 0.55 MB for a fontdb-only binary). `ttf-parser` 0.25 is shared with the existing `fontdb`. |
 | Typst as a library | Best typography, but a whole compiler and its font/package machinery for one feature; several times larger. |
 | WebView print-to-PDF | Free CJK layout, but three platform-specific print paths (WKWebView, WebView2, WebKitGTK), no page control, and nothing testable in `cargo test`. |
-| `docx-rs`, `epub-builder` | Unnecessary: both formats are XML in a ZIP, written directly with the locked `zip` 4.6.1 and checked by tests. |
+| `docx-rs`, `epub-builder` | Unnecessary: both formats are XML in a ZIP, written directly with the locked `zip` 9.4.1 and checked by tests. |
 
 Licenses are listed in [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md).
 

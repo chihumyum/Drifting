@@ -107,6 +107,8 @@ pnpm test
 pnpm security:dependencies
 ```
 
+`pnpm security:rust` audits the Rust lockfiles once cargo-audit is installed
+(`cargo install cargo-audit --locked`).
 `pnpm perf:renderer --ci` additionally needs installed Google Chrome/Chromium;
 set `DRIFTING_PERF_CHROME` to its executable if automatic detection fails.
 It uses a disposable headless browser profile and synthetic documents.

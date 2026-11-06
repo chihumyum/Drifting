@@ -495,7 +495,11 @@ fn stage_into(
         .collect();
     expected.insert(MANIFEST_PATH);
     expected.insert(DATABASE_PATH);
-    if archive.len() != expected.len() || archive.file_names().any(|name| !expected.contains(name))
+    // A name that does not decode is not one the manifest lists.
+    if archive.len() != expected.len()
+        || archive
+            .file_names()
+            .any(|name| name.map_or(true, |name| !expected.contains(name.as_ref())))
     {
         return Err("backup-invalid: the backup contains unexpected entries".into());
     }

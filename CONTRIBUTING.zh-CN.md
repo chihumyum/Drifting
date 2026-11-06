@@ -31,7 +31,12 @@
 这类源码字符串断言，把功能测试绑死在会变化的聚合存储版本上；应当测试迁移的行为，并要求当前版本不低于引入该功能的版本。
 
 GitHub Actions 会分别运行客户端检查、两组 Vitest 分片和渲染层契约，再通过稳定的 `client`
-必需检查汇总结果。`native` 检查覆盖 Rust 格式、编译和单元测试。Tauri 客户端的只读 Yrs
+必需检查汇总结果。`native` 检查覆盖 Rust 格式、编译和单元测试，包括共享数据库、文档和正文
+crate 的 `pnpm core:test`；`core:test` 会先用 TypeScript 参照实现核对正文日志样例，所以这一组也安装锁定的
+Node 依赖。随后它运行 `pnpm security:rust`：用 [cargo-audit](https://github.com/rustsec/rustsec)
+（`cargo install cargo-audit --locked`）对照 RustSec 漏洞库审计每个被跟踪的 `Cargo.lock`，出现任何漏洞即失败，
+和 `pnpm security:dependencies` 对 npm 高危及严重漏洞的处理一样。两组检查在每次推送 `main` 时运行；`main`
+的规则集要求它们通过，管理员可绕过。Tauri 客户端的只读 Yrs
 搜索投影需要 Rust 1.96 或更新版本；CI 和正式构建明确使用 1.96.0。
 
 运行 `pnpm perf:rust-reuse` 重新生成合成的 Rust 复用基准，运行 `pnpm perf:rust-reuse:check`
@@ -43,12 +48,15 @@ pnpm install --frozen-lockfile
 pnpm ci:contract:check
 pnpm public:check
 pnpm security:dependencies
+pnpm security:rust
 pnpm lint
 pnpm typecheck
 pnpm test
 pnpm agent:capabilities:check
+pnpm agent:conversation-sync:check
 cargo fmt --manifest-path src-tauri/Cargo.toml --check
 cargo test --manifest-path src-tauri/Cargo.toml
+pnpm core:test
 ```
 
 安全漏洞请按 [SECURITY.md](SECURITY.md) 所述私下报告。
