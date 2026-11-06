@@ -48,6 +48,7 @@ for (const command of [
   'pnpm public:check',
   'pnpm core:test',
   'pnpm security:dependencies',
+  'pnpm security:rust',
   'pnpm lint',
   'pnpm typecheck',
   'pnpm agent:capabilities:check',

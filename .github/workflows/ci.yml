@@ -156,3 +156,7 @@ jobs:
       - run: corepack prepare pnpm@10.17.1 --activate
       - run: pnpm install --frozen-lockfile
       - run: pnpm core:test
+      # The Rust lockfiles against the RustSec advisory database; pnpm audit
+      # covers the npm side in client / checks.
+      - run: cargo install cargo-audit --version 0.22.2 --locked
+      - run: pnpm security:rust

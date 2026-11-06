@@ -52,6 +52,11 @@ The `native` context covers Rust formatting, compilation, and unit tests,
 including `pnpm core:test` for the shared database, document and prose crates;
 that lane also installs the frozen Node dependencies, because `core:test`
 first checks the prose journal fixture against its TypeScript oracle.
+It then runs `pnpm security:rust`, which audits every tracked `Cargo.lock`
+against the RustSec advisory database with
+[cargo-audit](https://github.com/rustsec/rustsec) (`cargo install cargo-audit
+--locked`) and fails on any vulnerability, as `pnpm security:dependencies`
+does for high and critical npm advisories.
 Both contexts run on every push to `main`; the `main` ruleset requires them,
 with an administrator bypass.
 The Tauri client requires Rust 1.96 or newer for its read-only Yrs search
@@ -69,6 +74,7 @@ pnpm install --frozen-lockfile
 pnpm ci:contract:check
 pnpm public:check
 pnpm security:dependencies
+pnpm security:rust
 pnpm lint
 pnpm typecheck
 pnpm test
