@@ -184,13 +184,17 @@ export function MobileDesk({ projectId }: { projectId: string }) {
   // Writing: the editor holds the caret. Whatever is laid over the paper
   // takes the caret away again.
   const writing = useMobileWriting();
+  // Only the paper's own editor writes on the paper: an editor that grows
+  // inside a Super View or a desk keeps its layer where it is.
+  const editorDom = writing.editor && !writing.editor.isDestroyed ? writing.editor.view.dom : null;
+  const writingOnPaper = writing.writing && Boolean(editorDom?.closest('.m-paper__page'));
   useEffect(() => {
-    dispatch({ type: 'sync-writing', writing: writing.writing });
-  }, [writing.writing]);
+    dispatch({ type: 'sync-writing', writing: writingOnPaper });
+  }, [writingOnPaper]);
   const covered = desk.drawer !== 'none' || desk.bottom !== null || desk.superView !== null || desk.sheet !== 'none';
   useEffect(() => {
-    if (covered && writing.writing) getActiveEditor()?.commands.blur();
-  }, [covered, writing.writing]);
+    if (covered && writingOnPaper) getActiveEditor()?.commands.blur();
+  }, [covered, writingOnPaper]);
 
   // Shared controls ask for the Bottom Panel and the Super Views through the
   // desktop's UI store; the desk follows them and writes back what it shows.
@@ -220,7 +224,8 @@ export function MobileDesk({ projectId }: { projectId: string }) {
 
   useEffect(() => {
     const openSettings = (payload?: { railId?: string }) => {
-      const panel = payload?.railId ? `?panel=${encodeURIComponent(payload.railId)}` : '';
+      // The phone's settings open at a section (MobileSettingsView reads `section`).
+      const panel = payload?.railId ? `?section=${encodeURIComponent(payload.railId)}` : '';
       navigate(`/settings${panel}`, { state: { from: location.pathname } });
     };
     const openSearch = () => dispatch({ type: 'open-sheet', sheet: 'search' });
