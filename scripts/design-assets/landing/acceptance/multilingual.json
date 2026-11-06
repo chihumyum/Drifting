@@ -1,6 +1,6 @@
 {
   "status": "passed",
-  "sourceSha256": "d427d8ac0a282913815d9fabbaac69f5a05b33f8c02346e8eb24fbdac8c874a1",
+  "sourceSha256": "64fe2d3ad7a7166573af7589dd7882da354ea77ede0957809d2576bdfd320ab7",
   "layouts": [
     {
       "width": 1280,
@@ -17,7 +17,8 @@
       "markdownDemo": "passed",
       "studioDemo": "passed",
       "agentDemo": "passed",
-      "download": "passed"
+      "download": "passed",
+      "starOnDownload": "passed"
     },
     {
       "width": 1280,
@@ -35,7 +36,8 @@
       "markdownDemo": "passed",
       "studioDemo": "passed",
       "agentDemo": "passed",
-      "download": "passed"
+      "download": "passed",
+      "starOnDownload": "passed"
     },
     {
       "width": 1280,
@@ -52,7 +54,8 @@
       "markdownDemo": "passed",
       "studioDemo": "passed",
       "agentDemo": "passed",
-      "download": "passed"
+      "download": "passed",
+      "starOnDownload": "passed"
     },
     {
       "width": 1280,
@@ -69,7 +72,8 @@
       "markdownDemo": "passed",
       "studioDemo": "passed",
       "agentDemo": "passed",
-      "download": "passed"
+      "download": "passed",
+      "starOnDownload": "passed"
     },
     {
       "width": 1280,
@@ -86,7 +90,8 @@
       "markdownDemo": "passed",
       "studioDemo": "passed",
       "agentDemo": "passed",
-      "download": "passed"
+      "download": "passed",
+      "starOnDownload": "passed"
     },
     {
       "width": 1280,
@@ -103,7 +108,8 @@
       "markdownDemo": "passed",
       "studioDemo": "passed",
       "agentDemo": "passed",
-      "download": "passed"
+      "download": "passed",
+      "starOnDownload": "passed"
     },
     {
       "width": 1280,
@@ -121,7 +127,8 @@
       "markdownDemo": "passed",
       "studioDemo": "passed",
       "agentDemo": "passed",
-      "download": "passed"
+      "download": "passed",
+      "starOnDownload": "passed"
     },
     {
       "width": 1280,
@@ -138,7 +145,8 @@
       "markdownDemo": "passed",
       "studioDemo": "passed",
       "agentDemo": "passed",
-      "download": "passed"
+      "download": "passed",
+      "starOnDownload": "passed"
     },
     {
       "width": 1280,
@@ -155,7 +163,8 @@
       "markdownDemo": "passed",
       "studioDemo": "passed",
       "agentDemo": "passed",
-      "download": "passed"
+      "download": "passed",
+      "starOnDownload": "passed"
     },
     {
       "width": 390,
@@ -172,7 +181,8 @@
       "markdownDemo": "passed",
       "studioDemo": "passed",
       "agentDemo": "passed",
-      "download": "passed"
+      "download": "passed",
+      "starOnDownload": "passed"
     },
     {
       "width": 390,
@@ -190,7 +200,8 @@
       "markdownDemo": "passed",
       "studioDemo": "passed",
       "agentDemo": "passed",
-      "download": "passed"
+      "download": "passed",
+      "starOnDownload": "passed"
     },
     {
       "width": 390,
@@ -207,7 +218,8 @@
       "markdownDemo": "passed",
       "studioDemo": "passed",
       "agentDemo": "passed",
-      "download": "passed"
+      "download": "passed",
+      "starOnDownload": "passed"
     },
     {
       "width": 390,
@@ -224,7 +236,8 @@
       "markdownDemo": "passed",
       "studioDemo": "passed",
       "agentDemo": "passed",
-      "download": "passed"
+      "download": "passed",
+      "starOnDownload": "passed"
     },
     {
       "width": 390,
@@ -241,7 +254,8 @@
       "markdownDemo": "passed",
       "studioDemo": "passed",
       "agentDemo": "passed",
-      "download": "passed"
+      "download": "passed",
+      "starOnDownload": "passed"
     },
     {
       "width": 390,
@@ -258,7 +272,8 @@
       "markdownDemo": "passed",
       "studioDemo": "passed",
       "agentDemo": "passed",
-      "download": "passed"
+      "download": "passed",
+      "starOnDownload": "passed"
     },
     {
       "width": 390,
@@ -276,7 +291,8 @@
       "markdownDemo": "passed",
       "studioDemo": "passed",
       "agentDemo": "passed",
-      "download": "passed"
+      "download": "passed",
+      "starOnDownload": "passed"
     },
     {
       "width": 390,
@@ -293,7 +309,8 @@
       "markdownDemo": "passed",
       "studioDemo": "passed",
       "agentDemo": "passed",
-      "download": "passed"
+      "download": "passed",
+      "starOnDownload": "passed"
     },
     {
       "width": 390,
@@ -310,7 +327,8 @@
       "markdownDemo": "passed",
       "studioDemo": "passed",
       "agentDemo": "passed",
-      "download": "passed"
+      "download": "passed",
+      "starOnDownload": "passed"
     },
     {
       "width": 320,
@@ -327,7 +345,8 @@
       "markdownDemo": "passed",
       "studioDemo": "passed",
       "agentDemo": "passed",
-      "download": "passed"
+      "download": "passed",
+      "starOnDownload": "passed"
     },
     {
       "width": 320,
@@ -345,7 +364,8 @@
       "markdownDemo": "passed",
       "studioDemo": "passed",
       "agentDemo": "passed",
-      "download": "passed"
+      "download": "passed",
+      "starOnDownload": "passed"
     },
     {
       "width": 320,
@@ -362,7 +382,8 @@
       "markdownDemo": "passed",
       "studioDemo": "passed",
       "agentDemo": "passed",
-      "download": "passed"
+      "download": "passed",
+      "starOnDownload": "passed"
     },
     {
       "width": 320,
@@ -379,7 +400,8 @@
       "markdownDemo": "passed",
       "studioDemo": "passed",
       "agentDemo": "passed",
-      "download": "passed"
+      "download": "passed",
+      "starOnDownload": "passed"
     },
     {
       "width": 320,
@@ -396,7 +418,8 @@
       "markdownDemo": "passed",
       "studioDemo": "passed",
       "agentDemo": "passed",
-      "download": "passed"
+      "download": "passed",
+      "starOnDownload": "passed"
     },
     {
       "width": 320,
@@ -413,7 +436,8 @@
       "markdownDemo": "passed",
       "studioDemo": "passed",
       "agentDemo": "passed",
-      "download": "passed"
+      "download": "passed",
+      "starOnDownload": "passed"
     },
     {
       "width": 320,
@@ -431,7 +455,8 @@
       "markdownDemo": "passed",
       "studioDemo": "passed",
       "agentDemo": "passed",
-      "download": "passed"
+      "download": "passed",
+      "starOnDownload": "passed"
     },
     {
       "width": 320,
@@ -448,7 +473,8 @@
       "markdownDemo": "passed",
       "studioDemo": "passed",
       "agentDemo": "passed",
-      "download": "passed"
+      "download": "passed",
+      "starOnDownload": "passed"
     },
     {
       "width": 320,
@@ -465,7 +491,8 @@
       "markdownDemo": "passed",
       "studioDemo": "passed",
       "agentDemo": "passed",
-      "download": "passed"
+      "download": "passed",
+      "starOnDownload": "passed"
     }
   ],
   "automatic": [

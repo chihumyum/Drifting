@@ -4,6 +4,8 @@
   "hero.tagline": "兼具 <a class=\"su\" href=\"#markdown\" style=\"--c: var(--c-blue)\">Markdown</a> 編輯器的輕快、經典寫作工坊的<a class=\"su\" href=\"#studio\" style=\"--c: var(--c-ochre)\">創作框架</a>，以及貫穿全書的 AI <a class=\"su\" href=\"#agent\" style=\"--c: var(--c-green)\">Agent</a>，助你寫出人生第一部暢銷書。",
   "download.mac": "下載 Mac 版",
   "download.windows": "下載 Windows 版",
+  "star.button": "在 GitHub 按 Star",
+  "star.thanks": "下載已開始。喜歡的話，<a class=\"su\" href=\"https://github.com/chihumyum/Drifting\" target=\"_blank\" rel=\"noopener\" style=\"--c: var(--c-ochre)\">到 GitHub 按個 Star</a>。",
   "hero.values": "開放原始碼 · 本機優先",
   "write.kicker": "寫",
   "write.title": "像用 Markdown 編輯器一樣寫作",

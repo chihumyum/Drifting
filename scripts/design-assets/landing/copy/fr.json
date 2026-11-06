@@ -4,6 +4,8 @@
   "hero.tagline": "La liberté d’écrire en <a class=\"su\" href=\"#markdown\" style=\"--c: var(--c-blue)\">Markdown</a>, la <a class=\"su\" href=\"#studio\" style=\"--c: var(--c-ochre)\">structure</a> d’un atelier de romancier et un <a class=\"su\" href=\"#agent\" style=\"--c: var(--c-green)\">Agent</a> qui connaît le livre entier : de quoi écrire votre premier best-seller.",
   "download.mac": "Télécharger pour Mac",
   "download.windows": "Télécharger pour Windows",
+  "star.button": "Étoile sur GitHub",
+  "star.thanks": "Le téléchargement a commencé. Si Drifting vous plaît, <a class=\"su\" href=\"https://github.com/chihumyum/Drifting\" target=\"_blank\" rel=\"noopener\" style=\"--c: var(--c-ochre)\">donnez-lui une étoile sur GitHub</a>.",
   "hero.values": "Open source · Local d’abord",
   "write.kicker": "Écrire",
   "write.title": "Écrivez comme dans un éditeur Markdown",

@@ -4,6 +4,8 @@
   "hero.tagline": "With the ease of a <a class=\"su\" href=\"#markdown\" style=\"--c: var(--c-blue)\">Markdown</a> editor, the <a class=\"su\" href=\"#studio\" style=\"--c: var(--c-ochre)\">scaffolding</a> of a classic writing studio, and an AI <a class=\"su\" href=\"#agent\" style=\"--c: var(--c-green)\">Agent</a> for the whole book, it’s built to help you write your first bestseller.",
   "download.mac": "Download for Mac",
   "download.windows": "Download for Windows",
+  "star.button": "Star on GitHub",
+  "star.thanks": "Your download has started. If you like Drifting, <a class=\"su\" href=\"https://github.com/chihumyum/Drifting\" target=\"_blank\" rel=\"noopener\" style=\"--c: var(--c-ochre)\">star it on GitHub</a>.",
   "hero.values": "Open source · Local-first",
   "write.kicker": "Write",
   "write.title": "Writes like a Markdown editor",

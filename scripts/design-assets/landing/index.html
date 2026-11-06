@@ -68,6 +68,25 @@
   font-variant-numeric: tabular-nums;
   text-shadow: 0 0 8px hsl(var(--paper-deep)), 0 0 3px hsl(var(--paper-deep));
 }
+/* After a download, a line asking for a star (site.mjs askForStarOnDownload).
+   In the hero it takes the place of the line under the buttons; at the close it
+   has a line of its own, kept while hidden so nothing moves when it shows. */
+.after-dl { display: grid; justify-items: center; }
+.after-dl > * { grid-area: 1 / 1; }
+.star-note {
+  margin: 0;
+  font: 400 14px/1.6 var(--font-ui);
+  color: hsl(var(--ink-2));
+  text-shadow: 0 0 8px hsl(var(--paper-deep)), 0 0 3px hsl(var(--paper-deep));
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity var(--motion-sand-fade) ease-out, visibility 0s linear var(--motion-sand-fade);
+}
+:root.downloaded .star-note { visibility: visible; opacity: 1; transition: opacity var(--motion-sand-fade) ease-out; }
+.after-dl .meta { transition: opacity var(--motion-sand-fade) ease-out, visibility 0s linear var(--motion-sand-fade); }
+:root.downloaded .after-dl .meta { visibility: hidden; opacity: 0; transition: opacity var(--motion-sand-fade) ease-out, visibility 0s linear var(--motion-sand-fade); }
+.star-link .mk-star { width: 14px; height: 14px; }
+footer .star-link .mk-star { width: 12px; height: 12px; margin-right: 5px; vertical-align: -1px; }
 .meta span + span::before { content: '·'; margin: 0 0.6em; color: hsl(var(--ink-4)); }
 .meta > span { display: inline-block; white-space: nowrap; }
 
@@ -435,11 +454,14 @@ h2 {
     <div class="cta downloads">
       <a class="glass glass--primary pill" data-platform="mac" href="{{download-mac}}"><span>{{copy:download.mac}}</span></a>
       <a class="glass glass--rest pill" data-platform="windows" href="{{download-windows}}"><span>{{copy:download.windows}}</span></a>
-      <a class="glass glass--rest pill" href="https://github.com/chihumyum/Drifting" target="_blank" rel="noopener">GitHub</a>
+      <a class="glass glass--rest pill star-link" href="https://github.com/chihumyum/Drifting" target="_blank" rel="noopener"><i class="mk mk-star" style="--c: var(--c-ochre)" aria-hidden="true"></i><span>{{copy:star.button}}</span></a>
     </div>
-    <p class="meta">
-      <span>macOS 13+</span><span>Windows 10/11</span><span>{{copy:hero.values}}</span><span>{{version}}</span>
-    </p>
+    <div class="after-dl">
+      <p class="meta">
+        <span>macOS 13+</span><span>Windows 10/11</span><span>{{copy:hero.values}}</span><span>{{version}}</span>
+      </p>
+      <p class="star-note" role="status"><span>{{copy:star.thanks}}</span></p>
+    </div>
   </section>
 
   <!-- Write -->
@@ -786,6 +808,7 @@ h2 {
         <a class="glass glass--rest pill" data-platform="windows" href="{{download-windows}}"><span>{{copy:download.windows}}</span></a>
         <a class="glass glass--rest pill" href="{{readme}}" target="_blank" rel="noopener">{{copy:download.build}}</a>
       </div>
+      <p class="star-note" role="status"><span>{{copy:star.thanks}}</span></p>
     </div>
   </section>
 </main>
@@ -796,7 +819,7 @@ h2 {
     <a href="/privacy"><span>{{copy:footer.privacy}}</span></a>
     <a href="/terms"><span>{{copy:footer.terms}}</span></a>
     <a href="https://github.com/chihumyum/Drifting/issues" target="_blank" rel="noopener"><span>{{copy:footer.bug}}</span></a>
-    <a href="https://github.com/chihumyum/Drifting" target="_blank" rel="noopener">GitHub</a>
+    <a class="star-link" href="https://github.com/chihumyum/Drifting" target="_blank" rel="noopener"><i class="mk mk-star" style="--c: var(--c-ochre)" aria-hidden="true"></i><span>{{copy:star.button}}</span></a>
   </nav>
 {{information-note}}
   <div><span class="addr">support@drifting.cc</span> · AGPL-3.0-or-later</div>
@@ -812,6 +835,7 @@ h2 {
 
   /* ── Downloads: the visitor's own platform first (site.mjs) ── */
   S.leadWithVisitorPlatform();
+  S.askForStarOnDownload();
 
   /* ── Theme (site.mjs) ── */
   var bar = S.startBar({

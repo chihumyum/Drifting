@@ -4,6 +4,8 @@
   "hero.tagline": "<a class=\"su\" href=\"#markdown\" style=\"--c: var(--c-blue)\">Markdown</a> エディターの<wbr>軽やかさ、<wbr>小説を<wbr>書くための<wbr><a class=\"su\" href=\"#studio\" style=\"--c: var(--c-ochre)\">骨組み</a>、<wbr>そして<wbr>一冊を<wbr>見渡す AI <a class=\"su\" href=\"#agent\" style=\"--c: var(--c-green)\">Agent</a>。<wbr>はじめての<wbr>ベストセラーを<wbr>書くために。",
   "download.mac": "Mac 版をダウンロード",
   "download.windows": "Windows 版をダウンロード",
+  "star.button": "GitHub で Star",
+  "star.thanks": "ダウンロードを開始しました。気に入ったら <a class=\"su\" href=\"https://github.com/chihumyum/Drifting\" target=\"_blank\" rel=\"noopener\" style=\"--c: var(--c-ochre)\">GitHub で Star</a> をお願いします。",
   "hero.values": "オープンソース · ローカルファースト",
   "write.kicker": "書く",
   "write.title": "Markdown エディターの<wbr>ように<wbr>書く",

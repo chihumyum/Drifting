@@ -58,6 +58,17 @@ paths. English is `/`, Simplified Chinese is `/zh`, Traditional Chinese is
   (`leadWithVisitorPlatform` in `site.mjs`) the Windows button takes the
   primary glass and leads each row, and the header's Download fetches the
   Windows installer instead of opening the releases page.
+- **Stars.** The site cannot star the repository for a visitor (GitHub allows
+  that only through an OAuth grant, and the home loads nothing from other
+  hosts), so it asks at the moment of download (2026-11-06). The hero's third
+  button and the footer link read "Star on GitHub" with the sand star in
+  ochre and open the repository. Clicking an installer link (either row, or
+  the header's Download when it fetches the installer itself) gives the root
+  `.downloaded` (`askForStarOnDownload` in `site.mjs`): in the hero, the note
+  "Your download has started. If you like Drifting, star it on GitHub." fades
+  in where the line of systems and version stood, in the same grid cell, and
+  at the close it shows on a line kept for it, so nothing moves. The star
+  count is not shown.
 - `site.mjs` owns the language and theme controls and the shared sea
   behavior. The build bundles it into `/assets/landing.js` and
   `/assets/pages.js`.
