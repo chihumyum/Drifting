@@ -35,7 +35,7 @@ multi-touch and the frame rate of moving glass remain device-acceptance items
 ```text
 MobileDesk
 ├── the desk, under the paper
-│   ├── left desk   章节 / 要素 / 构想, the shelf and search at its corners, the account cell at its foot
+│   ├── left desk   章节 / 要素 / 构想, the shelf and search at its corners, the account cell and the book's trash at its foot
 │   ├── right desk  审阅 / 素材库 / 统计 / 帮手
 │   └── Bottom Panel, under the paper's foot: the Bottom Timeline or the chapter's plot planner
 ├── the paper (raised; the only elevated surface)
@@ -116,7 +116,7 @@ The left desk (`MobileLeftDesk` in `desk/MobileDeskPanels.tsx`) mounts the
 desktop's `LeftSidebarSubHeader` and `ChapterPanel` / `ElementPanel` /
 `DriftPanel`, with the paper in front as the cell selection; its tab row
 starts with the way back to the shelf (where the desktop keeps the window's
-close button) and ends with search; `WorkspaceAccountCell` stands at its foot.
+close button) and ends with search; `WorkspaceAccountCell` and the book's trash (`MobileProjectTrashView`) stand at its foot.
 The right desk (`MobileRightSidebar`) mounts `ReviewPanel`, `LibraryPanel`,
 `MobilePaperStats` and `DesktopAgentPanel`; the Agent panel is the pane the
 desktop routes tasks into, so a Project Home card or a hand-off from Review
