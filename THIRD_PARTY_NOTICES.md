@@ -81,7 +81,7 @@ Text shaping uses [rustybuzz](https://github.com/harfbuzz/rustybuzz) 0.20.1
 `unicode-properties` and `unicode-bidi-mirroring` (MIT/Apache-2.0); line breaking
 uses [unicode-linebreak](https://github.com/axelf4/unicode-linebreak) 0.1.5
 (Apache-2.0). EPUB and Word packages are written with the already locked `zip`
-4.6.1 (MIT). None of these is relicensed by Drifting.
+9.4.1 (MIT). None of these is relicensed by Drifting.
 
 Exported PDFs embed subsets of fonts installed on the author's computer. A face
 whose OS/2 `fsType` forbids embedding or subsetting is skipped; the embedded

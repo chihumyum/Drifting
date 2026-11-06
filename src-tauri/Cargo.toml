@@ -41,7 +41,7 @@ tauri-plugin-dialog = "2.7"
 tauri-plugin-fs = "2.5"
 tauri-plugin-opener = "2.5.4"
 tokio = { version = "1", features = ["fs", "io-util", "net", "sync", "time"] }
-zip = { version = "=4.6.1", default-features = false, features = ["deflate-flate2"] }
+zip = { version = "=9.4.1", default-features = false, features = ["deflate-flate2"] }
 
 [target.'cfg(any(target_os = "macos", target_os = "ios", target_os = "windows", target_os = "linux"))'.dependencies]
 keyring = { version = "3.6", features = ["apple-native", "windows-native", "linux-native-sync-persistent", "crypto-rust"] }
@@ -82,7 +82,11 @@ krilla = "0.8.2"
 rustybuzz = "0.20.1"
 unicode-linebreak = "0.1.5"
 tauri-plugin-single-instance = { version = "2.4.3", features = ["deep-link"] }
-tauri-plugin-updater = "2.10.1"
+# Without the default `zip` feature: Windows updates are signed NSIS `.exe`
+# installers (createUpdaterArtifacts = true), never v1 `.nsis.zip` bundles,
+# and no Linux build ships. The feature pinned zip 4, whose extraction has
+# open advisories.
+tauri-plugin-updater = { version = "2.10.1", default-features = false, features = ["rustls-tls"] }
 
 [dev-dependencies]
 roxmltree = "0.20"

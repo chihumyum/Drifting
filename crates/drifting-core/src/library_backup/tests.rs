@@ -137,7 +137,7 @@ fn export_lists_projects_and_every_referenced_asset_file() {
         fs::metadata(&package).unwrap().len()
     );
     let mut archive = ZipArchive::new(File::open(&package).unwrap()).unwrap();
-    let mut names: Vec<_> = archive.file_names().map(str::to_owned).collect();
+    let mut names: Vec<_> = archive.file_names().map(|name| name.unwrap().into_owned()).collect();
     names.sort();
     assert_eq!(
         names,
@@ -329,7 +329,7 @@ fn rewrite_package(
     let mut zip = ZipWriter::new(File::create(destination).unwrap());
     for index in 0..archive.len() {
         let mut entry = archive.by_index(index).unwrap();
-        let name = entry.name().to_owned();
+        let name = entry.name().unwrap().into_owned();
         let mut bytes = Vec::new();
         entry.read_to_end(&mut bytes).unwrap();
         if let Some(bytes) = edit(&name, bytes) {

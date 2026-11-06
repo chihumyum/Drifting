@@ -63,7 +63,7 @@ pub(crate) fn unzip(bytes: &[u8]) -> Vec<Entry> {
             let mut content = Vec::new();
             file.read_to_end(&mut content).unwrap();
             Entry {
-                name: file.name().to_string(),
+                name: file.name().unwrap().into_owned(),
                 bytes: content,
                 stored: file.compression() == zip::CompressionMethod::Stored,
             }
