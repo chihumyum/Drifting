@@ -107,7 +107,7 @@ export function MobileDock({
     if (!gesture || gesture.id !== event.pointerId) return;
     if (gesture.axis === 'y') {
       const dy = event.clientY - gesture.y;
-      if (dy < -LIFT_PX && !bottomOpen) onLift();
+      if (dy < -LIFT_PX) onLift();
       if (dy > LIFT_PX && bottomOpen) onLower();
     }
     if (gesture.axis === 'x' && preview !== null) {

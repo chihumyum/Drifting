@@ -1,5 +1,4 @@
 import { useCallback } from 'react';
-import { ArrowLeft } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { StandaloneSettingsPanel } from '../../../features/settings/StandaloneSettingsPanel';
@@ -8,6 +7,8 @@ import {
   withoutHostedAccountSettings,
 } from '../../../features/settings/hosted-settings-policy';
 import { useMobileAndroidBack } from '../useMobileAndroidBack';
+import { BrushIcon, type BrushIconName } from '../../../components/ui/BrushIcon';
+import { GhostIconButton } from '../../../components/ui/GhostIconButton';
 import '../../../../styles/mobile-settings.css';
 
 type MobileSettingsId =
@@ -17,13 +18,14 @@ type MobileSettingsId =
   | 'editor'
   | 'language'
   | 'models'
-  | 'keys'
   | 'sync'
   | 'privacy'
   | 'about';
 
 interface MobileSettingsItem {
   id: MobileSettingsId;
+  /** The desktop settings rail's brush icon for the same section. */
+  icon: BrushIconName | null;
   labelKey: string;
 }
 
@@ -36,36 +38,36 @@ const MOBILE_SETTINGS_GROUPS: MobileSettingsGroup[] = [
   {
     labelKey: 'settings.groups.account',
     items: [
-      { id: 'account', labelKey: 'settings.rail.account' },
-      { id: 'subscription', labelKey: 'settings.rail.subscription' },
+      { id: 'account', icon: 'name-seal', labelKey: 'settings.rail.account' },
+      { id: 'subscription', icon: 'name-seal', labelKey: 'settings.rail.subscription' },
     ],
   },
   {
     labelKey: 'settings.groups.preferences',
     items: [
-      { id: 'appearance', labelKey: 'settings.rail.appearance' },
-      { id: 'editor', labelKey: 'settings.rail.editor' },
-      { id: 'language', labelKey: 'settings.rail.language' },
+      { id: 'appearance', icon: 'taiji', labelKey: 'settings.rail.appearance' },
+      { id: 'editor', icon: 'edit', labelKey: 'settings.rail.editor' },
+      { id: 'language', icon: 'wen', labelKey: 'settings.rail.language' },
     ],
   },
   {
     labelKey: 'settings.groups.intelligence',
     items: [
-      { id: 'models', labelKey: 'settings.rail.models' },
+      { id: 'models', icon: 'inkstone', labelKey: 'settings.rail.models' },
     ],
   },
   {
     labelKey: 'settings.groups.control',
     items: [
-      { id: 'keys', labelKey: 'settings.rail.keys' },
-      { id: 'sync', labelKey: 'settings.rail.sync' },
+      // A phone has no keyboard shortcuts to bind.
+      { id: 'sync', icon: 'cloud', labelKey: 'settings.rail.sync' },
     ],
   },
   {
     labelKey: 'settings.groups.about',
     items: [
-      { id: 'privacy', labelKey: 'settings.rail.privacy' },
-      { id: 'about', labelKey: 'settings.rail.about_app' },
+      { id: 'privacy', icon: 'lock-shut', labelKey: 'settings.rail.privacy' },
+      { id: 'about', icon: null, labelKey: 'settings.rail.about_app' },
     ],
   },
 ];
@@ -112,14 +114,13 @@ export function MobileSettingsView() {
     <div className="m-settings set-overlay">
       <header className="m-settings__head set-head">
         <div className="set-head__left">
-          <button
-            type="button"
-            className="set-head__back"
+          <GhostIconButton
+            glass="round"
+            className="set-head__back glass--rest"
             onClick={handleBack}
             aria-label={t('navigation.back')}
-          >
-            <ArrowLeft size={17} aria-hidden="true" />
-          </button>
+            icon={<BrushIcon name="arrow-back" />}
+          />
           <span className="set-head__title">
             {activeItem ? t(activeItem.labelKey) : t('settings.title')}
           </span>
@@ -146,7 +147,11 @@ export function MobileSettingsView() {
                     className="set-rail__item"
                     onClick={() => setSearchParams({ section: item.id }, { state: location.state })}
                   >
+                    <span className="set-rail__icon" aria-hidden="true">
+                      {item.icon && <BrushIcon name={item.icon} />}
+                    </span>
                     <span className="set-rail__label">{t(item.labelKey)}</span>
+                    <BrushIcon name="chevron-right" size={14} className="set-rail__more" />
                   </button>
                 ))}
               </section>

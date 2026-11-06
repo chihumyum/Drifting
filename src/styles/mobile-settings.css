@@ -1,86 +1,125 @@
+@import './mobile-foundation.css';
+
+/* The phone's settings (docs/mobile-ui-foundation.md): one index of the
+ * desktop settings rail's sections, each with its brush icon and no rules
+ * between rows, then one section at a time. The panels inside are the
+ * desktop's; only their rows stack for a phone's width. */
+
 .m-settings.set-overlay {
-  box-sizing: border-box;
-  width: 100dvw;
-  height: 100dvh;
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
   min-height: 100dvh;
-  padding: var(--safe-area-top) var(--safe-area-right) var(--safe-area-bottom) var(--safe-area-left);
-  overflow: hidden;
+  padding-top: env(safe-area-inset-top, 0px);
+  background: var(--workspace-ui-bg);
   color: hsl(var(--ink-1));
-  background: hsl(var(--paper-deep));
 }
 
 .m-settings__head.set-head {
-  flex: 0 0 42px;
-  height: 42px;
-  min-height: 42px;
-  padding: 0 12px;
-  background: hsl(var(--paper-deep));
+  flex: none;
+  display: flex;
+  align-items: center;
+  min-height: 56px;
+  padding: 0 max(12px, env(safe-area-inset-right, 0px)) 0 max(12px, env(safe-area-inset-left, 0px));
+  border-bottom: 0.5px solid var(--workspace-local-border);
+  background: transparent;
 }
 
 .m-settings__head .set-head__left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   min-width: 0;
-  gap: 10px;
 }
 
 .m-settings__head .set-head__title {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 16px;
+  font-family: var(--font-structure);
+  font-size: var(--ui-font-heading);
+  font-weight: 500;
 }
 
 .m-settings__body.set-body {
+  display: block;
   flex: 1;
   min-height: 0;
-  overflow: hidden;
-}
-
-.m-settings__index.set-rail {
-  box-sizing: border-box;
-  flex: 1;
-  width: 100%;
-  max-width: none;
-  padding: 14px 0 32px;
-  overflow-x: hidden;
   overflow-y: auto;
-  border-right: 0;
-  background: hsl(var(--paper-deep));
-  box-shadow: none;
   overscroll-behavior: contain;
   touch-action: pan-y;
-  -webkit-overflow-scrolling: touch;
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 24px);
+}
+
+html[data-shell-mode='mobile'] .m-settings__index.set-rail,
+.m-settings__index.set-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  width: 100%;
+  padding: 14px max(10px, env(safe-area-inset-right, 0px)) 0 max(10px, env(safe-area-inset-left, 0px));
+  border: 0;
+  background: transparent;
 }
 
 .m-settings__index .set-rail__group {
-  width: min(100%, 680px);
-  margin: 0 auto 18px;
+  display: flex;
+  flex-direction: column;
 }
 
 .m-settings__index .set-rail__group-title {
-  padding: 0 18px 6px;
+  margin: 0 0 4px;
+  padding: 0 12px;
+  font-family: var(--font-structure);
+  font-size: var(--ui-font-caption);
+  font-weight: 500;
+  color: var(--ui-text-muted);
 }
 
 .m-settings__index .set-rail__item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   width: 100%;
-  min-height: 46px;
-  padding: 0 18px;
-  border-top: 1px solid hsl(var(--rule));
-  border-radius: 0;
+  max-width: none;
+  min-height: var(--ui-row-height, 44px);
+  padding: 0 12px;
+  border: 0;
+  border-radius: 4px;
   background: transparent;
-  color: hsl(var(--ink-2));
-}
-
-.m-settings__index .set-rail__item:last-child {
-  border-bottom: 1px solid hsl(var(--rule));
+  color: hsl(var(--ink-1));
+  font-size: var(--ui-font-body);
+  text-align: left;
 }
 
 .m-settings__index .set-rail__item:active {
-  background: hsl(var(--surface));
+  background: hsl(var(--ink-1) / 0.05);
+}
+
+.m-settings__index .set-rail__icon {
+  flex: none;
+  width: 20px;
+  display: grid;
+  place-items: center;
+  color: hsl(var(--ink-2));
+}
+
+.m-settings__index .set-rail__icon .brush-icon {
+  --brush-icon-size: 18px;
 }
 
 .m-settings__index .set-rail__label {
-  font-size: 13px;
-  font-weight: 500;
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.m-settings__index .set-rail__more {
+  color: var(--ui-text-muted);
 }
 
 .m-settings__content.set-main {

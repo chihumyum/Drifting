@@ -368,8 +368,10 @@ export function MobileDesk({ projectId }: { projectId: string }) {
             onToggleDrawer={(side) =>
               dispatch(desk.drawer === side ? { type: 'close-drawer' } : { type: 'open-drawer', side })
             }
-            onLift={() => dispatch({ type: 'open-bottom' })}
-            onLower={() => dispatch({ type: 'close-bottom' })}
+            // A flick up lifts the paper's foot to half, then to nearly the
+            // top; a flick down steps it back the same way.
+            onLift={() => dispatch(desk.bottom ? { type: 'set-bottom-detent', detent: 'full' } : { type: 'open-bottom', detent: 'half' })}
+            onLower={() => dispatch(desk.bottom?.detent === 'full' ? { type: 'set-bottom-detent', detent: 'half' } : { type: 'close-bottom' })}
           />
           {desk.drawer !== 'none' && (
             <button
