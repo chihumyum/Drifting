@@ -15,6 +15,7 @@ works, and moves only when the next action would leave the frame.
 pnpm promo:record --story <story.md> --take <name>   # takes the screen for several minutes
 pnpm promo:compose --take <name>                      # out/promo-recording/<name>/promo.mp4
 pnpm promo:compose --take <name> --size 2160 --pace 1.5   # 4K, played half as fast again: promo-2160-1.5x.mp4
+pnpm promo:compose --take <name> --size 2160 --pace 1.5 --typing-pace 2 --bookends   # the 阿Q正传 demo's cut
 ```
 
 Without `--story` the recording types `sample-story.zh-CN.md`, a short
@@ -74,8 +75,14 @@ memory: 第一人称叙述者是郝哥。整理人物要素时，别名不要用
   opens on it from the shelf; after writing, the timeline under the page is
   shown. `out/promo-recording/stories/aq-demo.zh-CN.md` (not in git) goes on
   with 第七章 革命 of 阿Q正传（示例）: a question to the Agent about 宣统三年九月十四日,
-  the chapter's first paragraphs, organizing, a name's card, the element
-  overview, the material notes and the chapter-end review.
+  the chapter's first paragraphs, organizing, a name's card, two elements'
+  pages opened as tabs and switched between, the element overview, the
+  material notes and the chapter-end review.
+- `elements` (optional) are elements opened from the element list once the
+  chapter is organized, each with a double click so it stays a tab: its
+  overview and story are read, the first one's relations too, and then the
+  dock above the paper spreads its tabs and goes back to the first element
+  and to the chapter.
 - `organize` is what the author types to the Agent once the chapter is written.
 - `ask` (optional) is what the author asks the Agent before the paragraph marked
   `<!-- ask -->`: out of immersive writing, in the Agent's panel; the camera
@@ -160,6 +167,14 @@ alpha), `events.jsonl` (the rig's), `marks.jsonl` (the script's) and
   development build's Dock name is not the product's.
 - After the last shot a closing card fades in (`--no-end-card` drops it): the
   icon, the name, the README's one-line description and the address.
+  `--bookends` instead opens on the character sea raising DRIFTING with the
+  tagline, whose burst cross-fades into the opening's desktop, and cross-fades
+  the last shot back into the sea, where DRIFTING rises over drifting.cc: the
+  promo video's opening and closing (`../promo-video`, rendered with
+  `--bookends --theme <the take's theme> --size 1080|2160`), with its rain and
+  stones under them.
+- `--typing-pace <x>` plays typing (prose, prompts and fields) at its own
+  speed, faster than `--pace`; the 阿Q正传 demo uses `--pace 1.5 --typing-pace 2`.
 - The pointer is drawn from the rig's samples, hidden from a keystroke until
   the next move as macOS does, with a ripple at each click. A pointer resting
   where the frame's edge cuts through it fades out until it moves again, once

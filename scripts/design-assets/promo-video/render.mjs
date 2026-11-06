@@ -4,6 +4,9 @@
 //   node scripts/design-assets/promo-video/render.mjs --stills 2.5,8,15   # PNGs at those seconds
 //   node scripts/design-assets/promo-video/render.mjs --sound-only        # new sound on the videos already rendered
 //   add --modelled to keep the modelled instruments when GarageBand's sound library is installed
+//   node scripts/design-assets/promo-video/render.mjs --bookends --lang zh --theme light --size 2160
+//     only the opening and the closing, each its own clip with its rain and stones
+//     (drifting-bookend-{open,close}-<lang>-<theme>[-2160].mp4), for the ends of a recorded demo
 // Builds the page (build.mjs), serves it on 127.0.0.1, and for each language
 // steps the page's clock one frame at a time and captures it at 1920×1080.
 // Writes to out/promo-video by default, for each language: the silent
@@ -34,13 +37,21 @@ const stills = option('stills', '') ? option('stills').split(',').map(Number) : 
 const soundOnly = args.includes('--sound-only');
 // --modelled keeps the modelled piano and strings even when GarageBand's sound library is installed.
 const modelled = args.includes('--modelled');
+const bookends = args.includes('--bookends');
+const theme = option('theme', 'dark') === 'light' ? 'light' : 'dark';
+const size = Number(option('size', '1080'));
+if (size !== 1080 && size !== 2160) throw new Error('render.mjs: --size is 1080 or 2160');
 const chrome = process.env.CHROME ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-// The page is laid out at 1152×648 CSS px and captured at 1920×1080.
-const VIEW = { width: 1152, height: 648, deviceScaleFactor: 1920 / 1152 };
+// The page is laid out at 1152×648 CSS px and captured at 1920×1080 (or 3840×2160).
+const VIEW = { width: 1152, height: 648, deviceScaleFactor: (size === 2160 ? 3840 : 1920) / 1152 };
 
 const pageDir = path.join(out, 'page');
-const built = spawnSync(process.execPath, [path.join(here, 'build.mjs'), pageDir], { stdio: 'inherit' });
-if (built.status !== 0) process.exit(built.status ?? 1);
+// The page is built for each language: its corners carry the landing's copy for it.
+const buildPage = (lang) => {
+  const built = spawnSync(process.execPath, [path.join(here, 'build.mjs'), pageDir, '--lang', lang], { stdio: 'inherit' });
+  if (built.status !== 0) process.exit(built.status ?? 1);
+};
+buildPage(langs[0]);
 
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.woff2': 'font/woff2' };
 const server = createServer((request, response) => {
@@ -164,6 +175,52 @@ function readmeCut(file) {
   console.log(readme);
 }
 
+function encoderFor(file) {
+  const encoder = spawn('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'image2pipe', '-framerate', String(fps), '-c:v', 'png', '-i', '-',
+    // The captures are sRGB; the frames carry BT.709 primaries and transfer (ffmpeg 9 tags only what the frames hold).
+    '-vf', 'scale=out_color_matrix=bt709:out_range=tv,format=yuv420p,setparams=color_primaries=bt709:color_trc=bt709:colorspace=bt709:range=tv',
+    '-c:v', 'libx264', '-preset', 'slow', '-crf', '16', '-profile:v', 'high', '-movflags', '+faststart', file],
+  { stdio: ['pipe', 'inherit', 'inherit'] });
+  const encoded = new Promise((resolve) => encoder.on('close', resolve));
+  return {
+    write: async (png) => { if (!encoder.stdin.write(png)) await new Promise((resolve) => encoder.stdin.once('drain', resolve)); },
+    end: async () => { encoder.stdin.end(); if ((await encoded) !== 0) throw new Error('render.mjs: ffmpeg failed'); },
+  };
+}
+
+// The opening and the closing alone, each with the rain and stones (no score)
+// under it. The sea carries over from frame to frame, so every frame from the
+// start is stepped and only the bookends' are captured.
+async function renderBookends(lang, duration) {
+  const ranges = Object.entries(await evaluate('window.__promo.bookends'));
+  const { effects } = synthesize(await evaluate('window.__promo.sounds'), duration, { instruments: null });
+  const raw = path.join(profile, `bookends-raw-${lang}.wav`);
+  writeFileSync(raw, wav(effects));
+  const sound = path.join(profile, `bookends-${lang}.wav`);
+  loudnorm(raw, sound);
+  const suffix = `${lang}-${theme}${size === 2160 ? '-2160' : ''}`;
+  const last = Math.max(...ranges.map(([, [, to]]) => Math.round(to * fps)));
+  const open = new Map();
+  for (let frame = 0; frame < last; frame += 1) {
+    await evaluate(`window.__promo.step(${frame / fps})`);
+    for (const [name, [from, to]] of ranges) {
+      if (frame < Math.round(from * fps) || frame >= Math.round(to * fps)) continue;
+      if (!open.has(name)) open.set(name, encoderFor(path.join(profile, `bookend-${name}.mp4`)));
+      await open.get(name).write(await capture());
+    }
+  }
+  for (const [name, [from, to]] of ranges) {
+    await open.get(name).end();
+    const file = path.join(out, `drifting-bookend-${name}-${suffix}.mp4`);
+    const done = spawnSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', path.join(profile, `bookend-${name}.mp4`),
+      '-ss', String(Math.round(from * fps) / fps), '-t', String((Math.round(to * fps) - Math.round(from * fps)) / fps), '-i', sound,
+      '-map', '0:v', '-map', '1:a', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-ar', String(RATE), '-movflags', '+faststart', file],
+    { stdio: 'inherit' });
+    if (done.status !== 0) throw new Error('render.mjs: muxing a bookend failed');
+    console.log(file);
+  }
+}
+
 await send('Page.enable');
 await send('Runtime.enable');
 await send('Emulation.setDeviceMetricsOverride', { ...VIEW, mobile: false });
@@ -171,12 +228,17 @@ mkdirSync(out, { recursive: true });
 
 try {
   for (const lang of langs) {
-    await send('Page.navigate', { url: `${origin}/index.html?render&lang=${lang}` });
+    if (lang !== langs[0]) buildPage(lang);
+    await send('Page.navigate', { url: `${origin}/index.html?render&lang=${lang}&theme=${theme}` });
     for (let i = 0; i < 200 && !(await evaluate('!!window.__promo')); i += 1) await new Promise((resolve) => setTimeout(resolve, 50));
     await evaluate('window.__promo.ready.then(() => true)');
     const duration = await evaluate('window.__promo.duration');
     const frames = Math.round(duration * fps);
     const started = Date.now();
+    if (bookends) {
+      await renderBookends(lang, duration);
+      continue;
+    }
     if (stills) {
       // Stills: step every frame up to each wanted second, capture only those.
       const wanted = new Set(stills.map((second) => Math.round(second * fps)));

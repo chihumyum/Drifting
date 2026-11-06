@@ -37,6 +37,8 @@ export interface Story {
   organize: string;
   /** Names to point at once the Agent has made them elements; the first is hovered. */
   links: string[];
+  /** Elements opened as tabs from the element list and read (the first down to its relations), then switched between. */
+  elements: string[];
   /** Project Memory the book starts with, as an author would have told the Agent before. */
   memory: string | null;
   /** What the author asks the Agent mid-chapter (a reference to look up on the web). */
@@ -107,6 +109,7 @@ export function parseStory(source: string): Story {
     existing: meta.get('existing') === 'true',
     organize: required('organize'),
     links: (meta.get('links') ?? '').split(/[,，、]/).map((name) => name.trim()).filter(Boolean),
+    elements: (meta.get('elements') ?? '').split(/[,，、]/).map((name) => name.trim()).filter(Boolean),
     memory: meta.get('memory') || null,
     ask: meta.get('ask') || null,
     paragraphs,

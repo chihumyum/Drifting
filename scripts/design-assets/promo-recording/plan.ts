@@ -58,6 +58,8 @@ export interface PlanOptions {
    * opening and the end card, and every sound, keep their own pace.
    */
   pace: number;
+  /** How much faster than recorded typing plays (prose, prompts and fields); `pace` unless given. */
+  typingPace?: number;
 }
 
 export interface PlanFrame {
@@ -138,12 +140,19 @@ interface Segment { from: number; to: number; speed: number; agent: boolean }
  */
 function segmentsOf(events: TimelineEvent[], options: PlanOptions): Segment[] {
   const { pace } = options;
+  const typingPace = options.typingPace ?? pace;
   const segments: Segment[] = [];
   let agent: TimelineEvent | null = null;
   let quick: TimelineEvent | null = null;
+  let typing: TimelineEvent | null = null;
   for (const event of events) {
     if (event.type !== 'mark') continue;
-    if (event.name === 'agent.start') agent = event;
+    if (event.name === 'type.start') typing = event;
+    else if (event.name === 'type.end' && typing) {
+      // Typing at its own pace; a quick paragraph's own stretch (found first, as it starts earlier) wins.
+      if (typingPace !== pace) segments.push({ from: typing.t, to: event.t, speed: typingPace, agent: false });
+      typing = null;
+    } else if (event.name === 'agent.start') agent = event;
     else if (event.name === 'agent.end' && agent) {
       const length = event.t - agent.t;
       // A whole number, as the badge shows it.
@@ -154,7 +163,7 @@ function segmentsOf(events: TimelineEvent[], options: PlanOptions): Segment[] {
     else if (event.name === 'quick.end' && quick) {
       const from = quick.t, to = event.t;
       const keys = events.filter((key) => (key.type === 'type' || key.type === 'key') && key.t >= from && key.t < to).length;
-      if (keys > 0) segments.push({ from, to, speed: clamp(QUICK_CPS * pace / (keys / (to - from)), 0.05, pace), agent: false });
+      if (keys > 0) segments.push({ from, to, speed: clamp(QUICK_CPS * typingPace / (keys / (to - from)), 0.05, typingPace), agent: false });
       quick = null;
     }
   }

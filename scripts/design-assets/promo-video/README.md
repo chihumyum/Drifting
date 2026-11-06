@@ -8,7 +8,16 @@ node scripts/design-assets/promo-video/render.mjs                    # both lang
 node scripts/design-assets/promo-video/render.mjs --lang zh --fps 30 # one language, a quicker draft
 node scripts/design-assets/promo-video/render.mjs --stills 4.4,15    # PNGs at those seconds (covers, review)
 node scripts/design-assets/promo-video/render.mjs --sound-only       # new sound on the videos already rendered
+node scripts/design-assets/promo-video/render.mjs --bookends --lang zh --theme light --size 2160
 ```
+
+`--bookends` renders only the opening (the rain, DRIFTING rising with the
+tagline, its burst) and the closing (DRIFTING again over drifting.cc and the
+facts), each as its own clip with the rain and stones under it and no score:
+`drifting-bookend-{open,close}-<lang>-<theme>[-2160].mp4`. They open and close
+a recorded demo (`../promo-recording`, `promo:compose --bookends`). `--theme
+light` draws the sea and the words in the light interface's colours, as the
+landing page's light theme does; `--size 2160` captures at 3840×2160.
 
 For each language it writes:
 
@@ -34,7 +43,8 @@ About 3 minutes a language at 60 fps; `--sound-only` takes seconds. It needs
 Metal in headless mode), Times New Roman from the system and `ffmpeg` with
 libx264.
 
-`node scripts/design-assets/promo-video/build.mjs [dir]` writes the page alone
+`node scripts/design-assets/promo-video/build.mjs [dir] [--lang en|zh]` writes the page alone
+(its corners in the landing page's copy for that language)
 (`out/promo-video/page`). Served from that directory, `index.html?lang=zh`
 plays it in a browser in real time and `&t=14` starts it at a second.
 

@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 // Build the promo video's page:
-//   node scripts/design-assets/promo-video/build.mjs [out-dir]
+//   node scripts/design-assets/promo-video/build.mjs [out-dir] [--lang en|zh]
 // Writes index.html, assets/ and fonts/ (out/promo-video/page by default).
 // The corners of the workspace and their styles are taken from the landing
-// page's own index.html, and site.css is the landing's, so the video shows
-// what drifting.cc shows. render.mjs serves the directory and captures it.
+// page's own index.html, in the landing's copy for --lang, and site.css is
+// the landing's, so the video shows what drifting.cc shows. render.mjs
+// serves the directory and captures it, building it again for each language.
 import { build } from 'esbuild';
 import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -13,7 +14,24 @@ import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '../../..');
 const landing = path.join(here, '../landing');
-const out = path.resolve(process.argv[2] ?? path.join(root, 'out/promo-video/page'));
+const args = process.argv.slice(2);
+const langAt = args.indexOf('--lang');
+const lang = langAt >= 0 && args[langAt + 1] === 'zh' ? 'zh' : 'en';
+const [outArg] = args.filter((arg, index) => !arg.startsWith('--') && !(langAt >= 0 && index === langAt + 1));
+const out = path.resolve(outArg ?? path.join(root, 'out/promo-video/page'));
+
+// The landing page's own placeholders inside the corners, filled as its build
+// fills them for the locale: the copy, the CJK script marker and short dates.
+const locale = lang === 'zh' ? 'zh-CN' : 'en';
+const strings = JSON.parse(readFileSync(path.join(landing, 'copy', `${locale}.json`), 'utf8'));
+const localize = (text) => text.replace(/\{\{(copy:[^}]+|cjk-attr|date:[^}]+)\}\}/g, (token, key) => {
+  if (key === 'cjk-attr') return lang === 'zh' ? ' data-script="cjk"' : '';
+  if (key.startsWith('date:')) {
+    const [month, day] = key.slice(5).split('-').map(Number);
+    return new Intl.DateTimeFormat(locale, { month: 'numeric', day: 'numeric', timeZone: 'UTC' }).format(Date.UTC(2026, month - 1, day));
+  }
+  return strings[key.slice(5)] ?? token;
+});
 
 rmSync(out, { recursive: true, force: true });
 mkdirSync(path.join(out, 'assets'), { recursive: true });
@@ -41,7 +59,7 @@ const withAssets = (text) => text.replace(/\{\{asset:([^}]+)\}\}/g, (_, rel) => 
 });
 
 // The landing page's <style> and each corner (`<div class="vg …" id="…">`), as written there.
-const home = readFileSync(path.join(landing, 'index.html'), 'utf8');
+const home = localize(readFileSync(path.join(landing, 'index.html'), 'utf8'));
 const landingStyle = /<style>([\s\S]*?)<\/style>/.exec(home)?.[1];
 if (!landingStyle) throw new Error('build.mjs: the landing page has no <style>');
 function corner(id) {

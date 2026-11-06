@@ -564,6 +564,68 @@ async function main() {
       const list = await scenes.run<Rect | null>('rect', { selector: '.sidebar-shell__content' });
       if (list) shot({ ...list, height: Math.min(list.height, 520) }, 1.9);
       await sleep(2200);
+
+      if (story.elements.length) {
+        // Elements as pages: each opened as its own tab (a double click keeps
+        // it), read, and the tabs switched between from the dock above the paper.
+        mark('phase', { phase: 'element-tabs' });
+        type Section = Rect & { pageTop: number; pageBottom: number };
+        const pageWidthShot = (section: Rect, height: number) => shot({ x: section.x, y: section.y - 24, width: section.width, height });
+        for (const [index, name] of story.elements.entries()) {
+          const row = await until<Rect>('elementRow', `${name} in the element list`, { name });
+          mark('target', { target: `element-row`, rect: rectToWindow(row) });
+          await moveTo(centre(row));
+          await sleep(260);
+          await rig.send('pointer.click', { count: 2 });
+          const overview = await until<Section>('elementSection', `${name}'s page`, { id: 'overview' });
+          await sleep(500);
+          // Off the page, so its card does not open over what is read.
+          await moveTo(toWindow({ x: overview.x + overview.width + 30, y: overview.y + 60 }));
+          shot(null);
+          await sleep(1300);
+          // Who they are: the name, its aliases and summary, and the story so far.
+          const bio = await scenes.run<Section | null>('elementSection', { id: 'bio' });
+          pageWidthShot(overview, Math.min(520, (bio ? bio.y + 150 : overview.y + overview.height) - overview.y + 24));
+          await sleep(4200);
+          if (index === 0) {
+            // The first one's relations, further down the page.
+            const relations = await scenes.run<Section | null>('elementSection', { id: 'relations' });
+            if (relations) {
+              const pageBottom = relations.pageBottom;
+              if (relations.y > shelf.viewport.height * 0.45) {
+                await moveTo(centre({ ...overview, y: overview.y + 120, height: 1 }));
+                await rig.send('pointer.scroll', { dy: relations.y - shelf.viewport.height * 0.22, duration: 1.0 });
+                await sleep(900);
+                await moveTo(toWindow({ x: overview.x + overview.width + 30, y: overview.y + 60 }));
+              }
+              const shown = await scenes.run<Section | null>('elementSection', { id: 'relations' });
+              if (shown) pageWidthShot(shown, Math.min(520, Math.min(shown.height, pageBottom) + 24));
+              await sleep(4400);
+            }
+          }
+        }
+        // The open documents, spread from their marks above the paper: back to the first element, then to the chapter.
+        const dock = await until<Rect>('tabDock', 'the tab dock');
+        mark('target', { target: 'tab-dock', rect: rectToWindow(dock) });
+        await moveTo(centre(dock));
+        await sleep(900);
+        const pills = await until<Rect>('rect', 'the open tabs', { selector: '.workspace-tab-dock__tabs' });
+        shot(grow(pills, 60, 30), 2.2);
+        await sleep(1600);
+        await clickOn(await until<Rect>('tabPill', `the ${story.elements[0]} tab`, { title: story.elements[0] }), 'tab');
+        await sleep(1500);
+        shot(null);
+        await sleep(1800);
+        await moveTo(centre(await until<Rect>('tabDock', 'the tab dock')));
+        await sleep(900);
+        shot(grow(await until<Rect>('rect', 'the open tabs', { selector: '.workspace-tab-dock__tabs' }), 60, 30), 2.2);
+        await sleep(1000);
+        await clickOn(await until<Rect>('tabPill', `the ${story.chapter} tab`, { title: story.chapter }), 'tab');
+        await sleep(900);
+        shot(null);
+        await sleep(1600);
+      }
+
       await clickOn(await rectOf('.workspace-super-view-entry'), 'element-overview');
       shot(null);
       await sleep(2800);

@@ -5,7 +5,7 @@
 // move the real pointer there; everything on camera is done with real input.
 // Rectangles are viewport CSS pixels: {x, y, width, height}.
 (() => {
-  const VERSION = 5;
+  const VERSION = 6;
   if (window.__driftingPromo && window.__driftingPromo.version === VERSION) return 'already';
   const P = { version: VERSION, jobs: {} };
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -379,6 +379,36 @@
       const root = editor();
       const paragraph = root && root.querySelector('p');
       return paragraph ? box(paragraph.getBoundingClientRect()) : null;
+    },
+
+    /** An element's row in the left sidebar's element list, by its exact name. */
+    elementRow({ name }) {
+      const row = [...document.querySelectorAll('.sidebar-shell__content .sand-cell')]
+        .find((element) => visible(element) && element.textContent.trim() === name);
+      return row ? box(row.getBoundingClientRect()) : null;
+    },
+
+    /** A part of the open element page: `overview`, `bio`, `kv`, `relations` or `patches`. */
+    elementSection({ id }) {
+      const page = [...document.querySelectorAll('article.page--entity')].find(visible);
+      const section = page && page.querySelector(`#el-${id}`);
+      if (!section || !visible(section)) return null;
+      const rect = section.getBoundingClientRect();
+      const pageRect = page.getBoundingClientRect();
+      // The overview and section heads are narrow; the page's column gives the frame its width.
+      return { x: pageRect.x, y: rect.y, width: pageRect.width, height: rect.height, pageTop: pageRect.y, pageBottom: pageRect.bottom };
+    },
+
+    /** The open documents' dock along the paper's top, and its pills once spread. */
+    tabDock() {
+      const dock = find('.workspace-tab-dock');
+      return dock ? box(dock.getBoundingClientRect()) : null;
+    },
+
+    tabPill({ title }) {
+      const pill = [...document.querySelectorAll('.workspace-tab-dock .app-tab')]
+        .find((element) => visible(element) && (element.textContent || '').includes(title));
+      return pill ? box(pill.getBoundingClientRect()) : null;
     },
 
     /** The material list in the right sidebar. */

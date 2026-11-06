@@ -16,8 +16,12 @@ const lang = params.get('lang') === 'zh' ? 'zh' : 'en';
 const root = document.documentElement;
 root.dataset.lang = lang;
 root.lang = lang === 'zh' ? 'zh-CN' : 'en';
-// The video is dark, as the sharing card is; the sea reads its theme from this class.
-root.classList.add('dark');
+// The video is dark, as the sharing card is; ?theme=light makes it the light
+// interface's (the bookends of a recording in the light theme). The sea reads
+// its theme from the class, the site's styles from data-theme.
+const theme = params.get('theme') === 'light' ? 'light' : 'dark';
+root.dataset.theme = theme;
+if (theme === 'dark') root.classList.add('dark');
 const $ = (selector, within = document) => within.querySelector(selector);
 const $$ = (selector, within = document) => [...within.querySelectorAll(selector)];
 
@@ -97,7 +101,7 @@ const SEA = {
   density: () => 1.75,
   wordInk: 2.2,
 };
-$('#sea').style.filter = 'brightness(1.3)';
+if (theme === 'dark') $('#sea').style.filter = 'brightness(1.3)';
 
 // ── Write: each line takes shape as it is typed, and the file beside it is saved ──
 function writeCorner(el) {
@@ -497,7 +501,10 @@ function step(t) {
 }
 
 const ready = setUp();
-window.__promo = { duration: T.end, ready, step, get sounds() { return sounds; } };
+// The opening (the rain, the name rising, its burst) and the closing (the name
+// again over where to find it), alone: the bookends of a recorded demo.
+const bookends = { open: [0, T.burst + 1.3], close: [T.tend[1] + 0.2, T.end] };
+window.__promo = { duration: T.end, bookends, ready, step, get sounds() { return sounds; } };
 
 // Opened in a browser: play in real time (from ?t= seconds, reached at 30 fps).
 if (!params.has('render')) {
