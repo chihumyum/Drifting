@@ -1757,7 +1757,7 @@ the controller recomputes that tail from the current viewport and preference.
 Preparation does not focus, select or align a hidden caret. Visible split panes
 both retain their tail and observer, independently of command ownership; only a
 focused, collapsed selection schedules alignment. A burst of editor events
-shares one pending frame. Final destruction or leaving immersive writing removes
+shares one pending frame. Final destruction or disabling typewriter mode removes
 the tail CSS as well. No document content, Yjs update or selection transaction is
 created by this display controller.
 
@@ -1775,9 +1775,7 @@ pnpm perf:renderer:native --typewriter --check
 ```
 
 `acceptance/f3-typewriter-native.json` runs the actual full desktop App and all
-F3c native scenarios with typewriter scrolling enabled (since 2026-11-06 it runs
-only in immersive writing, so `--typewriter` turns that on; the recorded
-evidence predates the change). Its additional checks pass:
+F3c native scenarios with typewriter mode enabled. Its additional checks pass:
 one display owner for 20 tabs, no typewriter work during a hidden authored Yjs
 update, unchanged hidden tail after a synthetic viewport resize and real position
 preference change, retained reading scroll on return before focus, prepared tail

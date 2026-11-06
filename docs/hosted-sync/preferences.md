@@ -11,7 +11,7 @@ contract: one bounded bag per account, merged per key by change time.
 | --- | --- |
 | Theme, accent colour, Agent edit reveal | Prose font (installed and imported fonts differ per Mac) |
 | Font size, line height, first-line indent, Tab indent, paragraph spacing, paper width | Interface text size |
-| Immersive writing as you type, its typing line position, caret colour | Line wrapping |
+| Immersive writing as you type, typewriter mode and its line position, caret colour | Line wrapping |
 | Entity Link colour source, highlight, band style and per-kind colours | Agent provider, model, reasoning (bound to this Mac's keys) |
 | Automatic element links | Destructive-operation switch, Agent first-run state, last conversation |
 | Interface language | Crash-report consent |

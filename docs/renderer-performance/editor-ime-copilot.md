@@ -65,7 +65,7 @@ not pixels. A local development trace independently captured matching expanded
 DOM/PM ranges with focus retained and no Agent-decoration/entity-link transaction.
 The trace predates that screenshot and does not establish its exact trigger.
 The prose caret is already WebView-native; typewriter compensation is inactive
-when typewriter scrolling is off (since 2026-11-06, outside immersive writing). Removing that inactive path is not a fix.
+when typewriter mode is off. Removing that inactive path is not a fix.
 
 The temporary live-selection recorder, native Selection method wrappers and
 local diagnostic logging were removed when this investigation was stopped.

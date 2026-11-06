@@ -437,6 +437,8 @@ export function EditorPanel({ registerRef }: { registerRef: SettingsRegisterRef 
     resetEditorStyle,
     autoImmersiveWriting,
     setAutoImmersiveWriting,
+    typewriterMode,
+    setTypewriterMode,
     typewriterPosition,
     setTypewriterPosition,
     caretColor,
@@ -625,37 +627,47 @@ export function EditorPanel({ registerRef }: { registerRef: SettingsRegisterRef 
 
       <div className="set-sec">
         <SettingsSectionHeader title={t('settings.editor.flow')} hint="FLOW" />
-        {/* Immersive writing, and with it typewriter scrolling, is the desktop workspace's. */}
+        {/* Immersive writing is the desktop workspace's. */}
         {desktop && (
-          <>
-            <SettingsRow
-              label={t('settings.editor.auto_immersive')}
-              desc={t('settings.editor.auto_immersive_desc')}
-              control={
-                <SettingsToggle
-                  on={autoImmersiveWriting}
-                  onChange={setAutoImmersiveWriting}
-                  aria-label={t('settings.editor.auto_immersive')}
-                />
-              }
-            />
-            <SettingsRow
-              label={t('settings.editor.typewriter_position')}
-              desc={t('settings.editor.typewriter_position_desc')}
-              control={
-                <SettingsSlider
-                  label={t('settings.editor.typewriter_position')}
-                  min={TYPEWRITER_POSITION_MIN}
-                  max={TYPEWRITER_POSITION_MAX}
-                  integer
-                  value={typewriterPosition}
-                  onChange={setTypewriterPosition}
-                  unit="%"
-                />
-              }
-            />
-          </>
+          <SettingsRow
+            label={t('settings.editor.auto_immersive')}
+            desc={t('settings.editor.auto_immersive_desc')}
+            control={
+              <SettingsToggle
+                on={autoImmersiveWriting}
+                onChange={setAutoImmersiveWriting}
+                aria-label={t('settings.editor.auto_immersive')}
+              />
+            }
+          />
         )}
+        <SettingsRow
+          label={t('settings.editor.typewriter_mode')}
+          desc={t('settings.editor.typewriter_mode_desc')}
+          control={
+            <SettingsToggle
+              on={typewriterMode}
+              onChange={setTypewriterMode}
+              aria-label={t('settings.editor.typewriter_mode')}
+            />
+          }
+        />
+        <SettingsRow
+          label={t('settings.editor.typewriter_position')}
+          desc={t('settings.editor.typewriter_position_desc')}
+          control={
+            <SettingsSlider
+              label={t('settings.editor.typewriter_position')}
+              min={TYPEWRITER_POSITION_MIN}
+              max={TYPEWRITER_POSITION_MAX}
+              integer
+              value={typewriterPosition}
+              disabled={!typewriterMode}
+              onChange={setTypewriterPosition}
+              unit="%"
+            />
+          }
+        />
         <SettingsRow
           label={t('settings.editor.caret_color')}
           desc={t('settings.editor.caret_color_desc')}
