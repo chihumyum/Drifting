@@ -173,7 +173,7 @@ function ConnectSection({ onConnected }: { onConnected: () => void }) {
       <ProviderCell
         id="openai-codex"
         name={t('settings.codexSubscription.name')}
-        source={signedIn ? codex?.account?.email ?? t('settings.codexSubscription.signedInAs') : t('agentPanel.onboarding.experimental')}
+        source={signedIn ? codex?.account?.email ?? t('settings.codexSubscription.signedInAs') : ''}
         live={signedIn}
         open={open === 'openai-codex'}
         onClick={() => choose('openai-codex', signedIn)}

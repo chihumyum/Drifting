@@ -30,7 +30,7 @@ transcript remain.
 ### Connect a model
 
 One section of sidebar cells, all expanded because the choices are fixed:
-ChatGPT subscription (marked experimental), DeepSeek, Anthropic and OpenAI.
+ChatGPT subscription, DeepSeek, Anthropic and OpenAI.
 Each cell carries the provider seal (solid when it can already run, hollow
 when not), the name and, in index type, where the credential comes from.
 
