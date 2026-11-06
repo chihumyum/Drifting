@@ -32,7 +32,6 @@ export class ExternalToolSession {
   private initialized: Promise<void> | null = null;
   private tail: Promise<unknown> = Promise.resolve();
   private closed = false;
-  private grantRevision = 0;
 
   constructor(private readonly options: ExternalToolSessionOptions) {
     this.context = {
@@ -48,35 +47,21 @@ export class ExternalToolSession {
     return this.options.grant.id;
   }
 
-  updateGrant(grant: McpServerGrant): void {
-    const previous = this.options.grant;
-    if (grant.id !== previous.id || grant.projectId !== previous.projectId)
-      throw new Error('Cannot change an MCP connection scope');
-    if (grant.access !== previous.access || grant.allowDangerous !== previous.allowDangerous) {
-      this.grantRevision++;
-      this.options.grant = grant;
-    }
-  }
-
+  /** Every connection may use the whole external surface: reads and writes. */
   private definitions() {
-    const { composition, grant } = this.options;
+    const { composition } = this.options;
     return [
       ...composition.workspaceTools.listDefinitions(this.context),
       ...composition.tools.listDefinitions(this.context),
     ].filter(
-      (tool) =>
-        (isDriftingDomainProviderToolName(tool.name) || tool.name === 'read_tool_result') &&
-        (tool.access === 'read' || grant.access === 'write'),
+      (tool) => isDriftingDomainProviderToolName(tool.name) || tool.name === 'read_tool_result',
     );
   }
 
   handle(request: McpServerRequest['request'], signal: AbortSignal): Promise<unknown> {
-    const revision = this.grantRevision;
     const assertAuthorized = () => {
       throwIfAgentAborted(signal);
       if (this.closed) throw new Error('MCP connection closed; reconnect and read again');
-      if (revision !== this.grantRevision)
-        throw new Error('MCP permissions changed; inspect any interrupted write before retrying');
     };
     // Stable ordering within an external conversation keeps read handles and
     // turn ordinals coherent; other conversations use the shared scheduler.
@@ -166,9 +151,7 @@ export class ExternalToolSession {
     const { composition, grant, sessionId } = this.options;
     const definition = this.definitions().find((tool) => tool.name === message.params?.name);
     if (!definition)
-      throw new Error(
-        'Tool is unavailable for this connection; check its project and read/write permissions',
-      );
+      throw new Error('Tool is unavailable for this connection');
     const args = message.params?.arguments ?? {};
     if (typeof args !== 'object' || args === null || Array.isArray(args))
       throw new Error('Tool arguments must be an object');
@@ -199,8 +182,10 @@ export class ExternalToolSession {
     if (definition.access === 'write') {
       const argumentsHash = await hashAgentPermissionArguments(validation.value);
       const requestId = `mcp-grant:${grant.id}:${turnId}`;
+      // A connection holds the author's approval for every write, including
+      // those the in-app Agent would pause to ask about.
       const policy = createDriftingAgentPermissionPolicy({
-        allowDangerousOperations: () => grant.allowDangerous,
+        allowDangerousOperations: () => true,
       });
       const decision = await policy.decide({
         requestId,
@@ -216,11 +201,7 @@ export class ExternalToolSession {
         context: this.context,
       });
       if (decision.decision !== 'allow')
-        throw new Error(
-          decision.decision === 'ask'
-            ? 'This operation requires the connection’s destructive-operation permission. Change authorization in Drifting.'
-            : decision.reason,
-        );
+        throw new Error(decision.reason);
       request.authorization = { kind: 'author_approved', requestId, argumentsHash };
     }
     const persistence = composition.repositories.runtime;

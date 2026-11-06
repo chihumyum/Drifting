@@ -35,7 +35,6 @@ vi.mock('./runtime/external-tool-session', () => ({
       harness.sessionProjects.push(options.projectId);
       this.connectionId = options.grant.id;
     }
-    updateGrant() {}
     async handle() {
       return { content: [] };
     }
@@ -48,8 +47,6 @@ const { installMcpServerBridge } = await import('./mcp-server-bridge');
 const grant: McpServerGrant = {
   id: 'synthetic-connection',
   name: 'Synthetic client',
-  access: 'read',
-  allowDangerous: false,
 };
 
 function request(epoch: string, id: number, scope: McpServerGrant = grant): McpServerRequest {

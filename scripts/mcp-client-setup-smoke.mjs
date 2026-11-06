@@ -59,8 +59,9 @@ if (mode === 'installed') {
   const entries = [];
   for (const grant of grants) {
     const label = grant.installation.client;
-    assert.equal(grant.access, 'read');
-    assert.equal(grant.allowDangerous, false);
+    // Connections carry no permission tier: every one may use every tool.
+    assert.equal(grant.access, undefined);
+    assert.equal(grant.allowDangerous, undefined);
     const config = readConfig(grant.installation, false);
     record(`${label}: scoped entry installed and unrelated settings preserved`);
     const client = new Client({ name: 'Synthetic one-click setup acceptance', version: '1' });
@@ -68,19 +69,14 @@ if (mode === 'installed') {
       await client.connect(
         new StdioClientTransport({ command: config.command, args: config.args, stderr: 'pipe' }),
       );
-      assert.equal((await client.listTools()).tools.length, 24);
-      record(`${label}: installed command initializes and discovers read-only tools`);
+      const names = new Set((await client.listTools()).tools.map((tool) => tool.name));
+      assert.ok(['read_chapter', 'create_chapter', 'delete_chapter'].every((name) => names.has(name)));
+      record(`${label}: installed command initializes and discovers every tool`);
       const overview = await client.callTool({ name: 'get_project_overview', arguments: {} });
       assert.ok(!overview.isError);
       const overviewText = overview.content.filter(item => item.type === 'text').map(item => item.text).join('\n');
       assert.equal(JSON.parse(overviewText).name, 'MCP 验收');
       record(`${label}: authorized synthetic project is readable`);
-      const denied = await client.callTool({
-        name: 'create_chapter',
-        arguments: { title: 'Denied synthetic chapter' },
-      });
-      assert.equal(denied.isError, true);
-      record(`${label}: write is denied by native-authorized runtime scope`);
     } finally {
       await client.close();
     }

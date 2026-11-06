@@ -66,7 +66,7 @@ function fingerprint() {
   return hash.digest('hex');
 }
 if (process.argv.includes('--record-live')) {
-  const modes = ['write', 'read', 'editor', 'reconnect', 'unmounted', 'revoked', 'active-revocation'];
+  const modes = ['write', 'editor', 'reconnect', 'unmounted', 'revoked', 'active-revocation'];
   const runs = modes.map((mode) => {
     const report = JSON.parse(readFileSync(`.local-data/mcp-acceptance/live-${mode}.json`, 'utf8'));
     assert.equal(report.status, 'passed');
@@ -101,6 +101,7 @@ if (process.argv.includes('--record-live')) {
       'src/renderer/store/agent-chat-navigation.integration.test.ts',
       'src/renderer/store/agent-chat-removal.integration.test.ts',
       'src/renderer/components/agent/AgentMcpAccessState.test.ts',
+      'src/renderer/components/agent/AgentMcpAccessSettings.render.test.ts',
       'src/renderer/lib/agent/mcp-server-bridge.test.ts',
       'src/renderer/lib/agent/prose-read-view.test.ts',
       'src/renderer/lib/agent/runtime/drifting-workspace-tool-runtime.test.ts',

@@ -34,12 +34,19 @@ pub struct Grant {
     /// that, for a single book, stays limited to it until it is revoked.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub project_id: Option<String>,
-    pub access: String,
-    pub allow_dangerous: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     installation: Option<Installation>,
     #[serde(skip_serializing_if = "String::is_empty", default)]
     token_hash: String,
+    /// Every connection may use every tool. Until 2026-11-06 a connection was
+    /// read-only, could write, or could also run destructive operations; a
+    /// registry from then still names its tier, which is read and dropped.
+    #[allow(dead_code)]
+    #[serde(default, skip_serializing, rename = "access")]
+    retired_access: Option<String>,
+    #[allow(dead_code)]
+    #[serde(default, skip_serializing, rename = "allowDangerous")]
+    retired_allow_dangerous: Option<bool>,
 }
 
 #[derive(Deserialize)]
@@ -47,17 +54,6 @@ pub struct Grant {
 #[cfg_attr(not(any(target_os = "macos", target_os = "windows")), allow(dead_code))]
 pub struct CreateInput {
     name: String,
-    access: String,
-    allow_dangerous: bool,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-#[cfg_attr(not(any(target_os = "macos", target_os = "windows")), allow(dead_code))]
-pub struct PermissionInput {
-    id: String,
-    access: String,
-    allow_dangerous: bool,
 }
 
 #[cfg(any(target_os = "macos", target_os = "windows"))]
@@ -113,9 +109,7 @@ mod local {
         sender: mpsc::Sender<Value>,
     }
     struct Session {
-        connection: String,
         cancelled: HashSet<String>,
-        writer: Option<Arc<Mutex<Stream>>>,
         /// The book this session's last request reached.
         book: Option<String>,
     }
@@ -555,12 +549,8 @@ mod local {
         input: CreateInput,
         installation: Option<Installation>,
     ) -> Result<Value, String> {
-        if input.name.trim().is_empty()
-            || input.name.len() > 120
-            || !["read", "write"].contains(&input.access.as_str())
-            || (input.access == "read" && input.allow_dangerous)
-        {
-            return Err("Invalid MCP connection scope".into());
+        if input.name.trim().is_empty() || input.name.len() > 120 {
+            return Err("Invalid MCP connection name".into());
         }
         let mut inner = server.inner.lock().unwrap();
         if let Some(installation) = &installation {
@@ -569,12 +559,6 @@ mod local {
                 .iter()
                 .find(|g| g.installation.as_ref() == Some(installation))
             {
-                if grant.access != input.access || grant.allow_dangerous != input.allow_dangerous {
-                    return Err(
-                        "Change this connection's permissions in Drifting before reconfiguring"
-                            .into(),
-                    );
-                }
                 let description = server.describe(grant)?;
                 client_config::update(installation, &description["config"], false)?;
                 return Ok(description);
@@ -588,10 +572,10 @@ mod local {
             id: random_id()?,
             name: input.name.trim().into(),
             project_id: None,
-            access: input.access,
-            allow_dangerous: input.allow_dangerous,
             installation,
             token_hash: hash(&token),
+            retired_access: None,
+            retired_allow_dangerous: None,
         };
         let mut grants = inner.grants.clone();
         grants.push(grant.clone());
@@ -619,71 +603,6 @@ mod local {
             }
         }
         inner.grants = grants;
-        Ok(description)
-    }
-    pub fn update_permission(
-        app: &tauri::AppHandle,
-        state: &McpServerState,
-        input: PermissionInput,
-    ) -> Result<Value, String> {
-        update_connection_permission(&server(app, state)?, input)
-    }
-    fn update_connection_permission(
-        server: &Arc<Server>,
-        input: PermissionInput,
-    ) -> Result<Value, String> {
-        if !["read", "write"].contains(&input.access.as_str())
-            || (input.access == "read" && input.allow_dangerous)
-        {
-            return Err("Invalid MCP connection permission".into());
-        }
-        let mut inner = server.inner.lock().unwrap();
-        let index = inner
-            .grants
-            .iter()
-            .position(|g| g.id == input.id)
-            .ok_or("MCP connection does not exist")?;
-        let mut grant = inner.grants[index].clone();
-        if grant.access == input.access && grant.allow_dangerous == input.allow_dangerous {
-            return server.describe(&grant);
-        }
-        grant.access = input.access;
-        grant.allow_dangerous = input.allow_dangerous;
-        let description = server.describe(&grant)?;
-        let mut grants = inner.grants.clone();
-        grants[index] = grant.clone();
-        server.persist(&grants)?;
-        inner.grants = grants;
-        // Serialize cancellation and the renderer grant update with dispatch so
-        // no request carrying the previous grant can arrive after this event.
-        Server::cancel_locked(
-            &mut inner,
-            |p| p.connection == grant.id,
-            "MCP permissions changed; inspect any interrupted write before retrying",
-        );
-        if let Some(bridge) = inner.bridge.as_ref() {
-            let _ = bridge.channel.send(serde_json::json!({
-                "type":"grantChanged", "grant":description["grant"]
-            }));
-        }
-        let writers: Vec<_> = inner
-            .sessions
-            .values()
-            .filter(|s| s.connection == grant.id)
-            .filter_map(|s| s.writer.clone())
-            .collect();
-        drop(inner);
-        // Slow external clients must not hold the registry lock or the UI.
-        for writer in writers {
-            thread::spawn(move || {
-                let _ = write_frame(
-                    &mut *writer.lock().unwrap(),
-                    &serde_json::json!({
-                        "jsonrpc":"2.0", "method":"notifications/tools/list_changed"
-                    }),
-                );
-            });
-        }
         Ok(description)
     }
     pub fn revoke(
@@ -844,9 +763,7 @@ mod local {
         server.inner.lock().unwrap().sessions.insert(
             session.clone(),
             Session {
-                connection: grant.id.clone(),
                 cancelled: HashSet::new(),
-                writer: None,
                 book: None,
             },
         );
@@ -902,7 +819,7 @@ mod local {
                 } else if method == "initialize" && !initialized {
                     initialized = true;
                     Some(serde_json::json!({"jsonrpc":"2.0","id":id,"result":{
-                        "protocolVersion":"2025-11-25", "capabilities":{"tools":{"listChanged":true}},
+                        "protocolVersion":"2025-11-25", "capabilities":{"tools":{}},
                         "serverInfo":{"name":"Drifting", "version":env!("CARGO_PKG_VERSION")},
                         "instructions":initialize_instructions(server.directory.parent().expect("MCP directory parent"), grant.project_id.as_deref())
                     }}))
@@ -917,13 +834,6 @@ mod local {
                 };
                 if let Some(response) = immediate {
                     write_frame(&mut *writer.lock().unwrap(), &response)?;
-                    if method == "initialize" && response.get("result").is_some() {
-                        if let Some(session) =
-                            server.inner.lock().unwrap().sessions.get_mut(&session)
-                        {
-                            session.writer = Some(writer.clone());
-                        }
-                    }
                     continue;
                 }
                 if ids.len() > 100_000 {
@@ -1164,10 +1074,10 @@ mod local {
                 id: "synthetic-connection".into(),
                 name: "Synthetic agent".into(),
                 project_id,
-                access: "read".into(),
-                allow_dangerous: false,
                 token_hash: hash("synthetic-token"),
                 installation: None,
+                retired_access: None,
+                retired_allow_dangerous: None,
             };
             server.persist(&[grant.clone()]).unwrap();
             server.inner.lock().unwrap().grants.push(grant.clone());
@@ -1199,8 +1109,6 @@ mod local {
         fn synthetic_input() -> CreateInput {
             CreateInput {
                 name: "Synthetic client".into(),
-                access: "read".into(),
-                allow_dangerous: false,
             }
         }
         fn mount_synthetic_project(server: &Arc<Server>) {
@@ -1261,33 +1169,18 @@ mod local {
                         .unwrap();
                 assert_eq!(first, second);
                 assert_eq!(server.inner.lock().unwrap().grants.len(), 2);
-                let mut changed = synthetic_input();
-                changed.access = "write".into();
-                assert!(create_connection(&server, changed, Some(installation.clone())).is_err());
                 let id = first["grant"]["id"].as_str().unwrap();
-                let original_config = fs::read(&installation.config_path).unwrap();
-                let updated = update_connection_permission(
-                    &server,
-                    PermissionInput {
-                        id: id.into(),
-                        access: "write".into(),
-                        allow_dangerous: true,
-                    },
-                )
-                .unwrap();
-                assert_eq!(updated["grant"]["id"], first["grant"]["id"]);
-                assert_eq!(updated["config"], first["config"]);
+                // Reconfiguring writes a removed entry back under the same grant.
+                fs::remove_file(&installation.config_path).unwrap();
                 assert_eq!(
-                    fs::read(&installation.config_path).unwrap(),
-                    original_config
+                    create_connection(&server, synthetic_input(), Some(installation.clone()))
+                        .unwrap(),
+                    first
                 );
-                let mut repair = synthetic_input();
-                repair.access = "write".into();
-                repair.allow_dangerous = true;
-                assert_eq!(
-                    create_connection(&server, repair, Some(installation.clone())).unwrap(),
-                    updated
-                );
+                assert!(fs::read_to_string(&installation.config_path)
+                    .unwrap()
+                    .contains("drifting_test"));
+                assert_eq!(server.inner.lock().unwrap().grants.len(), 2);
                 assert!(revoke_connection(&server, id).unwrap().is_none());
                 assert!(!server.config_path(id).exists());
                 assert!(!fs::read_to_string(&installation.config_path)
@@ -1660,10 +1553,10 @@ mod local {
                 id: "synthetic-stale".into(),
                 name: "Synthetic agent".into(),
                 project_id: None,
-                access: "read".into(),
-                allow_dangerous: false,
                 token_hash: hash("synthetic-stale-token"),
                 installation: None,
+                retired_access: None,
+                retired_allow_dangerous: None,
             };
             private_directory(&directory).unwrap();
             write_private(
@@ -1752,7 +1645,7 @@ mod local {
             )
             .unwrap();
             let event = rx.recv_timeout(Duration::from_secs(3)).unwrap();
-            assert_eq!(event["grant"]["access"], "read");
+            assert_eq!(event["grant"]["id"], "synthetic-connection");
             assert!(event["grant"].get("projectId").is_none());
             assert!(event["grant"].get("tokenHash").is_none());
             write_frame(
@@ -1772,180 +1665,60 @@ mod local {
             assert!(server.inner.lock().unwrap().pending.is_empty());
         }
         #[test]
-        fn permission_changes_notify_live_clients_and_dispatch_current_grants() {
-            let (_dir, server, grant, credential) = fixture();
-            let (tx, rx) = mpsc::channel();
-            server.inner.lock().unwrap().bridge = Some(Bridge {
-                epoch: "e".into(),
-                project: "synthetic-project".into(),
-                channel: Channel::new(move |body| {
-                    if let tauri::ipc::InvokeResponseBody::Json(body) = body {
-                        let _ = tx.send(serde_json::from_str::<Value>(&body).unwrap());
-                    }
-                    Ok(())
-                }),
-            });
-            write_private(&server.config_path(&grant.id), &credential).unwrap();
-            let original_credential = read_private(&server.config_path(&grant.id)).unwrap();
-            let mut client = connect(&credential);
-            read_frame(&mut client, MAX_FRAME).unwrap();
-            assert_eq!(
-                request(&mut client, 1, "initialize")["result"]["capabilities"]["tools"]
-                    ["listChanged"],
-                true
-            );
-            request(&mut client, 2, "ping");
-            let mut second = connect(&credential);
-            read_frame(&mut second, MAX_FRAME).unwrap();
-            request(&mut second, 1, "initialize");
-            request(&mut second, 2, "ping");
-            for (i, (access, dangerous)) in [("write", false), ("write", true), ("read", false)]
-                .into_iter()
-                .enumerate()
-            {
-                let updated = update_connection_permission(
-                    &server,
-                    PermissionInput {
-                        id: grant.id.clone(),
-                        access: access.into(),
-                        allow_dangerous: dangerous,
-                    },
-                )
-                .unwrap();
-                assert_eq!(updated["grant"]["access"], access);
-                assert!(updated["grant"].get("tokenHash").is_none());
-                let event = rx.recv_timeout(Duration::from_secs(3)).unwrap();
-                assert_eq!(event["type"], "grantChanged");
-                assert_eq!(event["grant"]["allowDangerous"], dangerous);
-                for client in [&mut client, &mut second] {
-                    assert_eq!(
-                        read_frame(client, MAX_FRAME).unwrap().unwrap(),
-                        serde_json::json!({"jsonrpc":"2.0","method":"notifications/tools/list_changed"})
-                    );
-                }
-                let id = i + 3;
-                write_frame(
-                    client.get_mut(),
-                    &serde_json::json!({"jsonrpc":"2.0", "id":id, "method":"tools/list"}),
-                )
-                .unwrap();
-                let event = rx.recv_timeout(Duration::from_secs(3)).unwrap();
-                assert_eq!(event["grant"]["access"], access);
-                assert_eq!(event["grant"]["allowDangerous"], dangerous);
-                let pending = server
-                    .inner
-                    .lock()
-                    .unwrap()
-                    .pending
-                    .remove(event["requestId"].as_str().unwrap())
-                    .unwrap();
-                pending
-                    .sender
-                    .send(serde_json::json!({"jsonrpc":"2.0", "id":id, "result":{"tools":[]}}))
-                    .unwrap();
-                assert_eq!(
-                    read_frame(&mut client, MAX_FRAME).unwrap().unwrap()["id"],
-                    id
-                );
-                let registry: Registry = serde_json::from_slice(
-                    &read_private(&server.directory.join("grants.json")).unwrap(),
-                )
-                .unwrap();
-                assert_eq!(registry.grants[0].access, access);
-                assert_eq!(registry.grants[0].allow_dangerous, dangerous);
-            }
-            assert_eq!(
-                read_private(&server.config_path(&grant.id)).unwrap(),
-                original_credential
-            );
-            // Reapplying the same scope must not cancel calls or notify again.
-            update_connection_permission(
-                &server,
-                PermissionInput {
-                    id: grant.id,
-                    access: "read".into(),
-                    allow_dangerous: false,
-                },
+        fn a_registry_naming_retired_permission_tiers_loads_and_drops_them() {
+            #[cfg(unix)]
+            let dir = tempfile::tempdir_in("/tmp").unwrap();
+            #[cfg(windows)]
+            let dir = tempfile::tempdir().unwrap();
+            let directory = dir.path().join("mcp");
+            private_directory(&directory).unwrap();
+            // A read-only connection as an earlier version stored it.
+            write_private(
+                &directory.join("grants.json"),
+                &serde_json::json!({"version":1, "grants":[{
+                    "id":"synthetic-connection", "name":"Synthetic agent",
+                    "access":"read", "allowDangerous":false,
+                    "tokenHash":hash("synthetic-token")
+                }]}),
             )
             .unwrap();
-            assert!(rx.try_recv().is_err());
-            assert!(request(&mut client, 9, "ping").get("result").is_some());
-        }
-        #[test]
-        fn permission_change_cancels_pending_requests_before_publishing_new_grant() {
-            let (_dir, server, grant, credential) = fixture();
-            let (tx, rx) = mpsc::channel();
-            server.inner.lock().unwrap().bridge = Some(Bridge {
-                epoch: "e".into(),
-                project: "synthetic-project".into(),
-                channel: Channel::new(move |body| {
-                    if let tauri::ipc::InvokeResponseBody::Json(body) = body {
-                        let _ = tx.send(serde_json::from_str::<Value>(&body).unwrap());
-                    }
-                    Ok(())
-                }),
-            });
+            let server = Server::start(directory.clone()).unwrap();
+            let rx = mount_recording(&server, "e", "synthetic-project");
+            let credential = Credential {
+                version: 1,
+                socket_path: server.endpoint.clone(),
+                connection_id: "synthetic-connection".into(),
+                token: "synthetic-token".into(),
+            };
             let mut client = connect(&credential);
             read_frame(&mut client, MAX_FRAME).unwrap();
-            request(&mut client, 1, "initialize");
+            // The tool list never changes under a live connection.
+            assert_eq!(
+                request(&mut client, 1, "initialize")["result"]["capabilities"],
+                serde_json::json!({"tools":{}})
+            );
             write_frame(
                 client.get_mut(),
-                &serde_json::json!({"jsonrpc":"2.0", "id":2, "method":"tools/call"}),
+                &serde_json::json!({"jsonrpc":"2.0","id":2,"method":"tools/list"}),
             )
             .unwrap();
-            let pending = rx.recv_timeout(Duration::from_secs(3)).unwrap();
-            update_connection_permission(
-                &server,
-                PermissionInput {
-                    id: grant.id,
-                    access: "write".into(),
-                    allow_dangerous: true,
-                },
-            )
-            .unwrap();
-            let cancel = rx.recv_timeout(Duration::from_secs(3)).unwrap();
-            assert_eq!(cancel["type"], "cancel");
-            assert_eq!(cancel["requestId"], pending["requestId"]);
+            let event = rx.recv_timeout(Duration::from_secs(3)).unwrap();
             assert_eq!(
-                rx.recv_timeout(Duration::from_secs(3)).unwrap()["type"],
-                "grantChanged"
+                event["grant"],
+                serde_json::json!({"id":"synthetic-connection","name":"Synthetic agent"})
             );
-            let messages = [
-                read_frame(&mut client, MAX_FRAME).unwrap().unwrap(),
-                read_frame(&mut client, MAX_FRAME).unwrap().unwrap(),
-            ];
-            assert!(messages.iter().any(|m| m["id"] == 2
-                && m["error"]["message"]
-                    .as_str()
-                    .unwrap()
-                    .contains("permissions changed")));
-            assert!(messages
-                .iter()
-                .any(|m| m["method"] == "notifications/tools/list_changed"));
-            assert!(server.inner.lock().unwrap().pending.is_empty());
-        }
-        #[test]
-        fn permission_change_rejects_invalid_scope_and_failed_persistence() {
-            let (_dir, server, grant, _) = fixture();
-            let change = |access: &str, dangerous| {
-                update_connection_permission(
-                    &server,
-                    PermissionInput {
-                        id: grant.id.clone(),
-                        access: access.into(),
-                        allow_dangerous: dangerous,
-                    },
-                )
-            };
-            assert!(change("read", true).is_err());
-            assert!(change("full", true).is_err());
-            // No book needs to be open.
-            assert_eq!(change("write", false).unwrap()["grant"]["access"], "write");
-            let registry = server.directory.join("grants.json");
-            fs::remove_file(&registry).unwrap();
-            fs::create_dir(&registry).unwrap();
-            assert!(change("read", false).is_err());
-            assert_eq!(server.inner.lock().unwrap().grants[0].access, "write");
+            answer(&server, &event, 2);
+            assert_eq!(
+                read_frame(&mut client, MAX_FRAME).unwrap().unwrap()["id"],
+                2
+            );
+            // The next write of the registry no longer names a tier.
+            create_connection(&server, synthetic_input(), None).unwrap();
+            let registry =
+                String::from_utf8(read_private(&directory.join("grants.json")).unwrap()).unwrap();
+            assert!(registry.contains("synthetic-connection"));
+            assert!(!registry.contains("\"access\""));
+            assert!(!registry.contains("allowDangerous"));
         }
         #[test]
         #[cfg(unix)]
@@ -2053,21 +1826,6 @@ pub fn mcp_server_revoke(
 ) -> Result<Option<String>, String> {
     #[cfg(any(target_os = "macos", target_os = "windows"))]
     return local::revoke(&app, &state, id);
-    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-    Err("Local MCP is available on macOS and Windows".into())
-}
-#[tauri::command]
-#[cfg_attr(
-    not(any(target_os = "macos", target_os = "windows")),
-    allow(unused_variables)
-)]
-pub fn mcp_server_update_permission(
-    app: tauri::AppHandle,
-    state: State<'_, McpServerState>,
-    input: PermissionInput,
-) -> Result<Value, String> {
-    #[cfg(any(target_os = "macos", target_os = "windows"))]
-    return local::update_permission(&app, &state, input);
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     Err("Local MCP is available on macOS and Windows".into())
 }

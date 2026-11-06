@@ -9,8 +9,7 @@ existing **MCP extensions** settings remain the outbound client.
 
 1. In Drifting, open Settings → General Agent → External agent access, or, on
    the shelf, Settings → External agent access. No book needs to be open.
-2. In the **Codex**, **Claude Code**, or **Antigravity** row, choose **Read only** (the default),
-   **Allow changes**, or **Allow changes and destructive operations**, then click **Connect**.
+2. In the **Codex**, **Claude Code**, or **Antigravity** row, click **Connect**.
    Drifting creates the grant and installs the client entry automatically.
 3. Reopen the client or restart its MCP server to load the entry. Follow any tool
    approval prompts in that client. No terminal command, CLI installation, pasted
@@ -38,27 +37,18 @@ of those entries was changed outside Drifting or cannot be written, access is
 still revoked and the UI asks you to remove the leftover `drifting_` entry.
 Per-book manual connections stay until revoked.
 
-Each client has one row and one permission selector. Before connecting, its
-selection applies only to that client's new grant; after connecting,
-the same row shows the saved permission and configuration/revocation actions.
-There is no global permission selector or duplicate configured-client button.
-Changing an existing connection's permission immediately persists the
-grant without replacing credentials or client configuration. Active sessions use
-the new grant, and the server advertises `tools.listChanged` and sends
-`notifications/tools/list_changed` so clients can refresh `tools/list` on the
-same connection ([MCP tools protocol](https://modelcontextprotocol.io/specification/2025-11-25/server/tools#list-changed-notification)).
-Client support determines when its model sees the refreshed tools; restart the
-client's MCP connection if it retains the old list. Installing this server update
-requires restarting Drifting and reconnecting existing MCP clients once.
-
-Permission changes cancel pending requests and invalidate queued authorization,
-including writes waiting for the shared scheduler. A write already committed is
-not undone; inspect interrupted writes before retrying. Other connections keep
-their own grants. Read handles remain in the same session; permission changes do
-not bypass read coverage, freshness checks or editor review.
+Each client has one row: **Connect** before it is connected, then
+**Reconfigure**, **Connection configuration** and **Revoke**. There is no
+permission to choose. Since 2026-11-06 every connection may use every tool the
+external surface offers, reads, writes and destructive operations alike, with
+no read-only or confirmation tier. A connection an earlier version made
+read-only or without destructive operations has the same access after updating;
+the tier still stored in its registry entry is read and dropped on the next
+write of the registry. A connection's tool list never changes while it is
+connected, so the server does not advertise `tools.listChanged`.
 
 **Reconfigure** repairs a missing entry or an app that moved without duplicating
-the grant or changing its permission. Revoking
+the grant. Revoking
 stops access first, then removes only this connection's auto-installed entry.
 If that entry was externally replaced or cannot be written, access is still
 revoked and the UI asks you to remove the leftover entry in the client.
@@ -77,15 +67,12 @@ workspace trust settings are never enabled on the user's behalf. A failed
 configuration install rolls back the new grant and its credential.
 
 For other clients or a custom Claude configuration directory, expand **Other
-clients · Manual setup**, name the connection and choose its independent
-permission there, then create it and copy its MCP
+clients · Manual setup**, name the connection, then create it and copy its MCP
 configuration. The command points to the app executable, with arguments
 `--mcp --connection <local-connection-file>`. TOML clients can use the same values
 under `[mcp_servers.drifting]`; JSON clients can use `mcpServers.drifting`.
 Credentials are never embedded in the copied or installed configuration.
-Manual connections are managed inside the same expanded section. Draft
-permissions are scoped to the client; revoking an installed client
-returns its row to the read-only default for a future connection.
+Manual connections are managed inside the same expanded section.
 
 Client format references: [official OpenAI documentation](https://learn.chatgpt.com/docs/extend/mcp?surface=cli),
 [Claude Code MCP scopes](https://code.claude.com/docs/en/mcp#mcp-installation-scopes),
@@ -95,16 +82,18 @@ client uses a different location, use manual setup in its **View raw config** ed
 One-click setup configures clients on this Mac; it does not configure cloud
 sessions or a client's separately configured remote host.
 
-Read-only connections discover 24 tools: the 23 canonical domain reads plus
-`read_tool_result`. Writable connections discover 70 tools: all 69 domain tools
-plus pagination. Schemas and validation come from the production runtime.
+Every connection discovers the whole external surface: the canonical domain
+reads and writes plus `read_tool_result` (89 tools in the 2026-11-06 source
+acceptance). Schemas and validation come from the production runtime.
 `ask_user`, model planning, long-task orchestration, working memory, arbitrary
 SQL, and outbound plugin tools are not part of this external surface.
 
-The destructive permission is a separate, explicit connection grant. Ordinary
-writable connections reject tools whose canonical permission policy requires
-pre-execution confirmation. Normal writes retain the configured editor review
-behavior. All writes keep the existing receipts, inverse guards and sync journal.
+A connection holds the author's approval for every write: tools the in-app
+Agent pauses to confirm (a deletion, or anything without a safe automatic
+inverse) run without asking. Certification, schema validation, read coverage
+and freshness checks still apply, normal writes retain the configured editor
+review behavior, and all writes keep the existing receipts, inverse guards and
+sync journal.
 Revoke a connection in the same settings section; new and queued requests stop,
 while mutations that already committed remain in the book.
 
@@ -250,19 +239,20 @@ native IPC/authentication and client-configuration tests, then generates
 [`acceptance/local-mcp.json`](acceptance/local-mcp.json). `pnpm mcp:check` verifies
 its source fingerprint. Fixtures contain synthetic text only.
 The same collector includes `AgentMcpAccessState.test.ts` for client grouping,
-saved grant preservation, per-book connections listed apart and permission mapping. These UI
-state checks do not install or alter real client configurations.
-Permission-change regressions cover live socket notifications to multiple
-sessions, fresh native grant dispatch, persistence and failed updates, read/write
-tool discovery, destructive permission changes and cancellation before a queued
-write executes. These do not establish any particular client's UI refresh behavior.
+saved grant preservation and per-book connections listed apart, and
+`AgentMcpAccessSettings.render.test.ts` for a Connect button per client with no
+permission to choose. These UI checks do not install or alter real client
+configurations.
+The 2026-11-06 removal of permission tiers is covered by a native test in which
+a registry naming a retired tier loads, dispatches its grant without one and
+drops it on the next write, and by runtime tests in which a connection discovers
+the whole surface and deletes a chapter without a confirmation.
 
 For packaged-App acceptance, create a disposable project named `MCP 验收` and
 connections through the actual settings UI, then run:
 
 ```sh
 pnpm mcp:smoke '<app executable>' '<connection file>' write
-pnpm mcp:smoke '<app executable>' '<read-only connection file>' read
 pnpm mcp:smoke '<app executable>' '<connection file>' reconnect
 ```
 
@@ -275,7 +265,7 @@ and production signing remain separate from automated source acceptance.
 
 ### Mac acceptance, 2026-10-01
 
-The packaged debug app passed 26 official-SDK checks across writing, read-only
+The packaged debug app passed 26 official-SDK checks across writing, read-only (a tier retired on 2026-11-06)
 access, live-editor operation, cold-start reconnection, project detach and
 revocation. The generated run records are in
 [`acceptance/local-mcp-mac.json`](acceptance/local-mcp-mac.json); collect them with
@@ -302,7 +292,7 @@ passed (one unrelated native test remained ignored).
 Antigravity is covered by the generated runtime/native acceptance in
 [`acceptance/local-mcp.json`](acceptance/local-mcp.json): settings-row isolation,
 stdio schema, preservation of other servers and disabled-tool controls, private
-config creation/backups, idempotent grants, permission updates and revocation.
+config creation/backups, idempotent grants and revocation.
 The historical packaged report above does not cover Antigravity; actual Antigravity
 session reload and tool use remain unverified.
 
@@ -318,8 +308,9 @@ node scripts/mcp-client-setup-smoke.mjs '<app data directory>' revoked
 ```
 
 This checks exact preservation of unrelated parsed settings, launches the
-installed commands through the official SDK, exercises scoped reads and denied
-writes, and verifies cleanup plus failed reconnection after revocation. The
+installed commands through the official SDK, checks that they discover every
+tool and read the synthetic project, and verifies cleanup plus failed
+reconnection after revocation. The
 script writes sanitized evidence to `acceptance/local-mcp-setup-mac.json`.
 It requires Python 3.11+ only on the acceptance host to parse TOML; shipped setup
 has no Python dependency. Actual client session reload and client-specific tool

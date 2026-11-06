@@ -88,8 +88,8 @@ written for you to go on.
 - After you write, Project Home offers to file what you wrote into elements,
   patches and relations; it runs only when you open that card and never edits
   prose on its own.
-- **External agents**: Codex, Claude Code and Antigravity can connect to one
-  project through MCP, read-only by default. See
+- **External agents**: Codex, Claude Code and Antigravity connect once through
+  MCP and can read and change whichever book is open. See
   [external agent setup](docs/agent-runtime/local-mcp.md).
 
 ## Your data

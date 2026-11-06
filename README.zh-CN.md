@@ -68,7 +68,7 @@ Drifting 是一个开源、本地优先的长篇小说写作软件，支持 Mac 
   可以从历史快照撤回。
 - 项目记忆保存你交代给它的偏好和规则。TODO、章末审读和主动建议卡片都可以交给后台 Agent 处理。
 - 写完之后，作品主页会提议把新写的内容整理进要素、补丁和关联，你点了这张卡才做；它不会自行改动正文。
-- **外部 Agent**：Codex、Claude Code、Antigravity 可以通过 MCP 连接到某一个项目，默认只读。
+- **外部 Agent**：Codex、Claude Code、Antigravity 通过 MCP 连接一次，就能读写你当前打开的那本书。
   见[外部 Agent 接入](docs/agent-runtime/local-mcp.md)。
 
 ## 你的数据

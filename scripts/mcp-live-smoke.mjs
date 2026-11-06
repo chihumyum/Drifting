@@ -9,9 +9,9 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 const [command, connection, mode = 'write'] = process.argv.slice(2);
 assert.ok(
   command && connection,
-  'Usage: mcp-live-smoke.mjs <app executable> <connection file> [write|read|editor|reconnect|revoked|unmounted]',
+  'Usage: mcp-live-smoke.mjs <app executable> <connection file> [write|editor|reconnect|revoked|unmounted]',
 );
-assert.ok(['write', 'read', 'editor', 'reconnect', 'revoked', 'unmounted'].includes(mode));
+assert.ok(['write', 'editor', 'reconnect', 'revoked', 'unmounted'].includes(mode));
 const checks = [];
 const clients = [];
 const record = (name) => checks.push({ name, status: 'passed' });
@@ -48,9 +48,10 @@ try {
       await assert.rejects(client.listTools(), /authorized project/i);
       record('unmounted or other project is inaccessible');
     } else {
-      const tools = (await client.listTools()).tools;
-      assert.equal(tools.length, mode === 'read' ? 24 : 70);
-      assert.ok(tools.some((tool) => tool.name === 'read_tool_result'));
+      // Every connection discovers the whole surface, destructive tools included.
+      const names = new Set((await client.listTools()).tools.map((tool) => tool.name));
+      for (const name of ['read_chapter', 'create_chapter', 'delete_chapter', 'read_tool_result'])
+        assert.ok(names.has(name), `${name} must be discovered`);
       record('canonical domain definitions and pagination discovered');
       const overview = await call(client, 'get_project_overview');
       assert.equal(
@@ -59,10 +60,7 @@ try {
         'Only the synthetic MCP acceptance project may be tested',
       );
       record('authorized synthetic project read');
-      if (mode === 'read') {
-        await call(client, 'create_chapter', { title: 'Denied synthetic chapter' }, false);
-        record('read-only grant rejects tool invocation even when called by name');
-      } else if (mode === 'editor') {
+      if (mode === 'editor') {
         const read = await call(client, 'read_chapter', { chapter: 'MCP acceptance chapter' });
         assert.match(JSON.stringify(read), /Local author note/);
         record('MCP sees the live editor author modification');

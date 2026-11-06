@@ -10,15 +10,8 @@ import {
   SettingsConfigField,
   SettingsField,
   SettingsSectionHeader,
-  SettingsSelect,
 } from '../../features/settings/SettingsPrimitives';
-import {
-  mcpAccessGrant,
-  mcpAccessPermission,
-  mcpAccessRows,
-  mcpClientNames,
-  type McpAccessPermission,
-} from './AgentMcpAccessState';
+import { mcpAccessRows, mcpClientNames } from './AgentMcpAccessState';
 
 /** `heading` is off where the settings panel around it already names it. */
 export function AgentMcpAccessSettings({ open, heading = true }: { open: boolean; heading?: boolean }) {
@@ -26,7 +19,6 @@ export function AgentMcpAccessSettings({ open, heading = true }: { open: boolean
   const projects = useProjectStore((state) => state.projects);
   const [connections, setConnections] = useState<McpServerConnection[]>([]);
   const [name, setName] = useState('');
-  const [draftPermissions, setDraftPermissions] = useState<Record<string, McpAccessPermission>>({});
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [selected, setSelected] = useState<string | null>(null);
@@ -65,18 +57,9 @@ export function AgentMcpAccessSettings({ open, heading = true }: { open: boolean
     }
   };
   const rows = mcpAccessRows(connections);
-  const draftPermission = (client: McpClient | 'manual') => draftPermissions[client] ?? 'read';
-  const setDraftPermission = (client: McpClient | 'manual', permission: McpAccessPermission) =>
-    setDraftPermissions(previous => ({ ...previous, [client]: permission }));
-  const connect = (client: McpClient, connection?: McpServerConnection) =>
+  const connect = (client: McpClient) =>
     void run(async () => {
-      const connected = await platform.mcpServer.connect(
-        {
-          name: mcpClientNames[client],
-          ...mcpAccessGrant(connection ? mcpAccessPermission(connection) : draftPermission(client)),
-        },
-        client,
-      );
+      const connected = await platform.mcpServer.connect({ name: mcpClientNames[client] }, client);
       setMessage(
         t(connected.leftover ? 'settings.agent.mcpAccess.installedLeftover' : 'settings.agent.mcpAccess.installed', {
           client: mcpClientNames[client],
@@ -98,45 +81,16 @@ export function AgentMcpAccessSettings({ open, heading = true }: { open: boolean
       null,
       2,
     );
-  // Three short grants: one choice out of three, like every other few-option setting.
-  const permissionSelect = (label: string, permission: McpAccessPermission, onChange: (value: McpAccessPermission) => void) => (
-    <SettingsSelect<McpAccessPermission>
-      few
-      ariaLabel={label}
-      disabled={busy}
-      value={permission}
-      onChange={onChange}
-      options={[
-        { value: 'read', label: t('settings.agent.mcpAccess.read') },
-        { value: 'write', label: t('settings.agent.mcpAccess.write') },
-        { value: 'full', label: t('settings.agent.mcpAccess.full') },
-      ]}
-    />
-  );
   const renderConnection = (connection: McpServerConnection) => (
     <div key={connection.grant.id} className="set-mcp-access__item">
       <div className="set-mcp-access__row">
         <span className="set-mcp-access__name">{connectionName(connection)}</span>
-        {permissionSelect(
-          t('settings.agent.mcpAccess.connectionPermission', { name: connectionName(connection) }),
-          mcpAccessPermission(connection),
-          (value) => {
-            void run(async () => {
-              const updated = await platform.mcpServer.updatePermission({
-                id: connection.grant.id,
-                ...mcpAccessGrant(value),
-              });
-              setConnections((rows) => rows.map((row) => row.grant.id === updated.grant.id ? updated : row));
-              setMessage(t('settings.agent.mcpAccess.permissionUpdated'));
-            });
-          },
-        )}
         {connection.grant.installation && (
           <SettingsButton
             variant="ghost"
             size="sm"
             disabled={busy}
-            onClick={() => connect(connection.grant.installation!.client, connection)}
+            onClick={() => connect(connection.grant.installation!.client)}
           >
             {t('settings.agent.mcpAccess.reinstall')}
           </SettingsButton>
@@ -164,7 +118,6 @@ export function AgentMcpAccessSettings({ open, heading = true }: { open: boolean
                 ),
               );
               if (selected === connection.grant.id) setSelected(null);
-              if (connection.grant.installation) setDraftPermission(connection.grant.installation.client, 'read');
             })
           }
         >
@@ -208,11 +161,6 @@ export function AgentMcpAccessSettings({ open, heading = true }: { open: boolean
         : (
           <div key={client} className="set-mcp-access__item set-mcp-access__row">
             <span className="set-mcp-access__name">{clientName}</span>
-            {permissionSelect(
-              t('settings.agent.mcpAccess.connectionPermission', { name: clientName }),
-              draftPermission(client),
-              permission => setDraftPermission(client, permission),
-            )}
             <SettingsButton
               variant="primary"
               size="sm"
@@ -248,19 +196,13 @@ export function AgentMcpAccessSettings({ open, heading = true }: { open: boolean
               value={name}
               onChange={(event) => setName(event.target.value)}
             />
-            {permissionSelect(t('settings.agent.mcpAccess.permission'), draftPermission('manual'),
-              permission => setDraftPermission('manual', permission))}
             <SettingsButton
               size="sm"
               disabled={busy || !name.trim()}
               onClick={() => void run(async () => {
-                const connection = await platform.mcpServer.create({
-                  name: name.trim(),
-                  ...mcpAccessGrant(draftPermission('manual')),
-                });
+                const connection = await platform.mcpServer.create({ name: name.trim() });
                 setSelected(connection.grant.id);
                 setName('');
-                setDraftPermission('manual', 'read');
               })}
             >
               {t('settings.agent.mcpAccess.create')}

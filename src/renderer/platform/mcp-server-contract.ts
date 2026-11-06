@@ -7,13 +7,11 @@ export interface McpServerGrant {
   /** Only on a connection made for one book before connections reached
    *  whichever book is open; it stays limited to that book until revoked. */
   projectId?: string;
-  access: 'read' | 'write';
-  allowDangerous: boolean;
   installation?: { client: McpClient; configPath: string; serverName: string };
 }
 
-export type McpServerCreateInput = Pick<McpServerGrant, 'name' | 'access' | 'allowDangerous'>;
-export type McpServerPermissionInput = Pick<McpServerGrant, 'id' | 'access' | 'allowDangerous'>;
+/** Every connection may use every tool the external surface offers. */
+export type McpServerCreateInput = Pick<McpServerGrant, 'name'>;
 
 export interface McpServerConnection {
   grant: McpServerGrant;
@@ -39,7 +37,6 @@ export interface McpServerRequest {
 
 export type McpServerEvent =
   | McpServerRequest
-  | { type: 'grantChanged'; grant: McpServerGrant }
   | { type: 'cancel'; requestId: string }
   | { type: 'closed'; sessionId: string };
 
@@ -47,7 +44,6 @@ export interface McpServerPlatformApi {
   list(): Promise<McpServerConnection[]>;
   create(input: McpServerCreateInput): Promise<McpServerConnection>;
   connect(input: McpServerCreateInput, client: McpClient): Promise<McpServerConnection>;
-  updatePermission(input: McpServerPermissionInput): Promise<McpServerConnection>;
   revoke(id: string): Promise<string | null>;
   attach(projectId: string, onEvent: (event: McpServerEvent) => void): Promise<string>;
   detach(epoch: string): Promise<void>;
