@@ -1,0 +1,659 @@
+@import './mobile-foundation.css';
+
+/* The phone's desk (docs/mobile-ui-foundation.md, docs/design-system/touch.md).
+ *
+ * One raised paper fills the screen. The desk lies under it: the left desk
+ * (the book's structure), the right desk (what goes with the page, and the
+ * Agent) and the Bottom Panel (timeline or plot planner). Pushing the paper
+ * aside shows a desk; lifting its foot shows the Bottom Panel. The paper is
+ * the only raised surface; its moving edges bleed glass as on the desktop.
+ */
+
+.m-root {
+  --m-dock-h: 48px;
+  --m-dock-gap: 6px;
+  --m-safe-top: env(safe-area-inset-top, 0px);
+  --m-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --m-foot: calc(var(--m-safe-bottom) + var(--m-dock-gap) + var(--m-dock-h));
+  --m-paper-rest: 0px;
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: var(--workspace-ui-bg);
+  color: hsl(var(--ink-1));
+}
+
+.m-root[data-drawer='left'] { --m-paper-rest: calc(100vw - var(--m-sliver)); }
+.m-root[data-drawer='right'] { --m-paper-rest: calc(var(--m-sliver) - 100vw); }
+
+/* ── The desk under the paper ─────────────────────────────────────── */
+.m-under {
+  position: absolute;
+  inset: 0;
+}
+
+.m-under__side {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: calc(100vw - var(--m-sliver));
+  visibility: hidden;
+  touch-action: pan-y;
+}
+
+.m-under__side--left { left: 0; }
+.m-under__side--right { right: 0; }
+
+.m-root[data-drawer='left'] .m-under__side--left,
+.m-root[data-panning='left'] .m-under__side--left,
+.m-root[data-drawer='right'] .m-under__side--right,
+.m-root[data-panning='right'] .m-under__side--right {
+  visibility: visible;
+}
+
+/* A desk only shows while the paper is aside; it hides again once the paper
+   has come back over it. */
+.m-root:not([data-drawer='left']):not([data-panning='left']) .m-under__side--left,
+.m-root:not([data-drawer='right']):not([data-panning='right']) .m-under__side--right {
+  transition: visibility 0s linear var(--motion-structural);
+}
+
+.m-under__bottom {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--m-bottom-h);
+  padding-bottom: var(--m-safe-bottom);
+  visibility: hidden;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: var(--workspace-ui-bg);
+}
+
+.m-root[data-bottom] .m-under__bottom { visibility: visible; }
+.m-root:not([data-bottom]) .m-under__bottom { transition: visibility 0s linear var(--motion-structural); }
+
+.m-under__bottom > *,
+.m-under__planner {
+  flex: 1;
+  min-height: 0;
+}
+
+.m-under__planner[hidden] { display: none; }
+
+/* ── The paper ────────────────────────────────────────────────────── */
+.m-paper {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: var(--m-bottom-h);
+  z-index: 2;
+  background: hsl(var(--page));
+  transform: translate3d(var(--m-paper-x, var(--m-paper-rest)), 0, 0);
+  transition:
+    transform var(--motion-structural) var(--motion-structural-ease),
+    bottom var(--motion-structural) var(--motion-structural-ease),
+    box-shadow var(--motion-structural) ease-out;
+  touch-action: pan-y;
+  will-change: transform;
+}
+
+.m-root[data-panning] .m-paper { transition: none; }
+
+.m-root:is([data-drawer='left'], [data-drawer='right'], [data-panning], [data-bottom]) .m-paper {
+  box-shadow: var(--page-elevation), 0 0 0 0.5px var(--workspace-border);
+}
+
+.m-paper__edge {
+  z-index: 4;
+}
+
+.m-paper__edge--left { left: 0; }
+.m-paper__edge--right { right: 0; }
+
+.m-paper__page {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: hsl(var(--page));
+}
+
+/* A page turn: the new page dissolves in over a still copy of the old one. */
+.m-paper__page--leaving {
+  z-index: 0;
+  pointer-events: none;
+}
+
+.m-paper__page--arriving {
+  z-index: 1;
+  animation: m-page-in var(--motion-page-blend) var(--motion-page-blend-ease) both;
+}
+
+@keyframes m-page-in {
+  from { opacity: 0; }
+}
+
+/* The sliver of paper left on screen beside an open desk takes the tap
+   that brings it back. */
+.m-paper__shield {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  border: 0;
+  background: transparent;
+  color: transparent;
+  font-size: 0;
+  touch-action: none;
+}
+
+/* Editors fill the paper and scroll inside it; their own chrome yields to
+   the phone's. */
+.m-paper__page > :is(.editor-view, .editor-root, .node-editor, .dash, div) {
+  flex: 1;
+  min-height: 0;
+}
+
+.m-paper .editor-scroll,
+.m-paper .dash {
+  padding-bottom: calc(var(--m-foot) + 88px);
+  scroll-padding-bottom: calc(var(--m-foot) + 88px);
+  overscroll-behavior-y: contain;
+}
+
+.m-paper .editor-scroll {
+  padding-top: calc(var(--m-safe-top) + 8px);
+}
+
+.m-paper .dash {
+  padding-top: calc(var(--m-safe-top) + 8px);
+}
+
+/* The paper's page fills the phone: its gutters are the paper's own. */
+.m-paper .page {
+  box-shadow: none;
+  border-radius: 0;
+  margin-inline: 0;
+  max-width: none;
+  width: auto;
+  padding-inline: 22px 28px;
+}
+
+/* ── The paper's toolbar, in its lower-right corner ───────────────── */
+.m-paper .editor-corner {
+  position: absolute;
+  right: 12px;
+  bottom: calc(var(--m-foot) + 10px);
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: opacity 0.24s ease-out, transform 0.24s ease-out;
+}
+
+.m-paper .editor-corner .editor-bar,
+.m-paper .editor-corner .workspace-timeline-toggle {
+  background: var(--glass-fill);
+  -webkit-backdrop-filter: blur(1.6px);
+  backdrop-filter: blur(1.6px);
+}
+
+.m-root[data-writing] .m-paper .editor-corner,
+.m-root[data-stage='home'] .m-paper .editor-corner {
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+}
+
+/* Outline and comment rails open over the narrow page rather than beside it. */
+.m-paper .editor__toc-rail {
+  left: 4px;
+}
+
+/* ── The dock: the paper's foot ───────────────────────────────────── */
+.m-dock {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: var(--m-dock-gap) 12px calc(var(--m-safe-bottom) + var(--m-dock-gap));
+  background: linear-gradient(to top, hsl(var(--page)) 62%, hsl(var(--page) / 0));
+  transition: transform var(--motion-structural) var(--motion-structural-ease), opacity 0.24s ease-out;
+}
+
+.m-root[data-writing] .m-dock {
+  transform: translateY(calc(100% + 8px));
+  opacity: 0;
+  pointer-events: none;
+}
+
+.m-dock__moon,
+.m-dock__new {
+  flex: none;
+}
+
+.m-dock__moon {
+  background: var(--glass-fill);
+}
+
+.m-dock__track {
+  flex: 1;
+  min-width: 0;
+  height: var(--m-dock-h);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: var(--glass-tray-padding);
+  border-radius: 999px;
+  background: var(--glass-fill);
+  touch-action: none;
+}
+
+.m-dock__row {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  border-radius: 999px;
+}
+
+.m-dock__row::-webkit-scrollbar { display: none; }
+
+.m-dock__item {
+  flex: none;
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+.m-dock__mark {
+  height: var(--glass-pill-height);
+  min-width: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: hsl(var(--ink-1));
+  transition: padding var(--motion-dock-pill) var(--motion-dock-pill-ease);
+}
+
+.m-dock__item.is-pill .m-dock__mark {
+  max-width: min(58vw, 220px);
+  padding: 0 14px 0 12px;
+}
+
+.m-dock[data-spread] .m-dock__item.is-pill .m-dock__mark {
+  max-width: 168px;
+  padding-right: 30px;
+}
+
+.m-dock__title {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-family: var(--font-ui);
+  font-size: var(--ui-font-secondary);
+  line-height: 1;
+  animation: m-dock-title-in 0.36s var(--motion-dock-pill-ease) both;
+}
+
+@keyframes m-dock-title-in {
+  from { opacity: 0; }
+}
+
+.m-dock__close {
+  position: absolute;
+  right: 4px;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: hsl(var(--ink-3));
+}
+
+/* ── The keyboard's bar ───────────────────────────────────────────── */
+.m-kbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: max(var(--m-keyboard-inset, 0px), var(--m-safe-bottom));
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 14px 10px 6px;
+  /* The same page-coloured foot as the dock, so the bar never sits on words. */
+  background: linear-gradient(to top, hsl(var(--page)) 64%, hsl(var(--page) / 0));
+  pointer-events: none;
+  animation: m-kbar-in var(--motion-structural) var(--motion-structural-ease) both;
+}
+
+@keyframes m-kbar-in {
+  from { transform: translateY(12px); opacity: 0; }
+}
+
+.m-kbar > * { pointer-events: auto; }
+
+.m-kbar__row {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.m-kbar__tray,
+.m-kbar__formats {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: var(--glass-tray-padding);
+  border-radius: 999px;
+  background: var(--glass-fill);
+  -webkit-backdrop-filter: blur(1.6px);
+  backdrop-filter: blur(1.6px);
+}
+
+.m-kbar__formats {
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+  animation: m-kbar-in 0.15s var(--motion-dock-pill-ease) both;
+}
+
+.m-kbar__formats::-webkit-scrollbar { display: none; }
+
+.m-kbar__gap {
+  flex: none;
+  width: 8px;
+}
+
+.m-kbar__icon,
+.m-kbar__done {
+  flex: none;
+  width: var(--glass-round-size);
+  height: var(--glass-round-size);
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: hsl(var(--ink-2));
+}
+
+.m-kbar__icon > .brush-icon,
+.m-kbar__done > .brush-icon {
+  --brush-icon-size: var(--glass-round-icon);
+}
+
+.m-kbar__icon[aria-pressed='true'] { color: hsl(var(--ink-1)); }
+
+.m-kbar__done { background: var(--glass-fill); }
+
+/* ── The fore-edge ────────────────────────────────────────────────── */
+.m-fore-edge {
+  position: absolute;
+  right: 0;
+  top: calc(var(--m-safe-top) + 14px);
+  bottom: calc(var(--m-foot) + 64px);
+  z-index: 5;
+  width: 24px;
+  touch-action: none;
+}
+
+.m-fore-edge__leaf {
+  position: absolute;
+  right: 6px;
+  width: 2px;
+  border-bottom: 1px solid hsl(var(--page));
+  background: hsl(var(--ink-1) / 0.1);
+  transition: width 0.24s ease-out, right 0.24s ease-out, background-color 0.24s ease-out;
+}
+
+.m-fore-edge__leaf[data-current] {
+  background: color-mix(in srgb, var(--leaf-c, hsl(var(--ink-3))) 55%, transparent);
+}
+
+.m-fore-edge[data-scrubbing] .m-fore-edge__leaf {
+  width: 4px;
+  right: 8px;
+}
+
+.m-fore-edge__leaf[data-hit] {
+  width: 8px !important;
+  right: 6px !important;
+  background: color-mix(in srgb, var(--leaf-c, hsl(var(--ink-2))) 85%, transparent);
+}
+
+.m-fore-edge__sand {
+  position: absolute;
+  right: 3px;
+  width: 8px;
+  height: 8px;
+  margin-top: -4px;
+  --sand-c: hsl(var(--ink-2));
+  transition: top 0.18s ease-out;
+}
+
+.m-fore-edge__card {
+  position: absolute;
+  right: 30px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(72vw, 300px);
+  padding: 9px 14px 9px 12px;
+  transform: translateY(-50%);
+  white-space: nowrap;
+  font-size: var(--ui-font-secondary);
+  color: hsl(var(--ink-1));
+  pointer-events: none;
+}
+
+.m-fore-edge__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+}
+
+.m-fore-edge__words {
+  font-family: var(--font-mono);
+  font-size: var(--ui-font-caption);
+  color: var(--ui-text-muted);
+}
+
+/* ── A desk: tab row, band of panels, foot ────────────────────────── */
+.m-desk {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding-top: var(--m-safe-top);
+  background: var(--workspace-ui-bg);
+}
+
+.m-desk--right { padding-bottom: var(--m-safe-bottom); }
+
+.m-desk__tabs {
+  flex: none;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border-bottom: 0.5px solid var(--workspace-local-border);
+  touch-action: pan-y;
+}
+
+.m-desk__tab-tray {
+  flex: 1;
+  min-width: 0;
+  height: 40px;
+}
+
+.m-desk__tab-tray .app-panel-tab {
+  flex: 1;
+  height: 100%;
+  font-size: var(--ui-font-body);
+}
+
+.m-desk__corner {
+  flex: none;
+}
+
+.m-desk-band {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  width: calc(var(--band-count) * 100%);
+  transform: translate3d(calc(var(--band-index) * -100% / var(--band-count)), 0, 0);
+  transition: transform var(--motion-push) var(--motion-push-ease);
+}
+
+.m-desk-band__panel {
+  width: calc(100% / var(--band-count));
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.m-desk__panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.m-desk__panel-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-bottom: 16px;
+}
+
+.m-desk__panel--companion {
+  overflow: hidden;
+}
+
+.m-desk__foot {
+  flex: none;
+  border-top: 0.5px solid var(--workspace-local-border);
+  padding-bottom: var(--m-safe-bottom);
+}
+
+.m-desk__foot .sidebar-account-cell {
+  min-height: 56px;
+  padding-inline: 12px;
+}
+
+/* Rows in a desk are a fingertip tall. */
+.m-desk .sand-cell,
+.m-desk .workspace-list-row {
+  min-height: var(--ui-row-height);
+}
+
+/* ── Layers over the whole desk ───────────────────────────────────── */
+.m-root .m-super-view-host .super-view-overlay,
+.m-root .m-super-view-host > * {
+  padding-top: var(--m-safe-top);
+  padding-bottom: var(--m-safe-bottom);
+}
+
+.m-root .m-super-view-host {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  animation: m-layer-in var(--motion-structural) var(--motion-structural-ease) both;
+}
+
+@keyframes m-layer-in {
+  from { transform: translate3d(100%, 0, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .m-paper,
+  .m-dock,
+  .m-desk-band,
+  .m-kbar,
+  .m-kbar__formats,
+  .m-root .m-super-view-host,
+  .m-paper__page--arriving,
+  .m-dock__title {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* ── Fitting the desktop's paper chrome to a phone ────────────────── */
+
+/* The page is the phone's whole width: the native scrollbar gives way to
+   the fore-edge. */
+.m-paper .editor-scroll,
+.m-paper .dash {
+  scrollbar-width: none;
+}
+
+.m-paper .editor-scroll::-webkit-scrollbar,
+.m-paper .dash::-webkit-scrollbar {
+  display: none;
+}
+
+/* The phone is already one page at a time: no immersive switch; the
+   reference links keep their place in the ⋯ menu's reach, not the corner. */
+.m-paper .editor-corner .immersive-writing-control,
+.m-paper .editor-corner .editor-bar__icon--reflink {
+  display: none;
+}
+
+/* Reading on down the page puts the toolbar away; scrolling back brings it. */
+.m-root[data-reading='away'] .m-paper .editor-corner {
+  opacity: 0;
+  transform: translateY(10px);
+  pointer-events: none;
+}
+
+/* Project Home's floating row stands over the dock, not under it. */
+.m-paper .dash-float {
+  bottom: calc(var(--m-foot) + 12px);
+  width: calc(100% - 24px);
+}
+
+/* Panel headers in a desk: their small controls get a fingertip's room. */
+.m-desk .workspace-panel-header-row {
+  min-height: 48px;
+  padding-inline: 14px 10px;
+}
+
+.m-desk .workspace-panel-header-row .ghost-icon-button:not(.glass--round) {
+  min-width: 40px;
+  min-height: 40px;
+}
+
+.m-desk .workspace-panel-header-row .ghost-icon-button .brush-icon {
+  --brush-icon-size: 18px;
+}

@@ -1537,7 +1537,8 @@
       "steer": "Orientar",
       "steerTitle": "Adiciona ou corrige instruções após a operação atual terminar",
       "answer": "Responder",
-      "send": "Enviar"
+      "send": "Enviar",
+      "touchPlaceholder": "Pergunte ao agente…"
     },
     "historySync": {
       "pending": "Esta conversa está sincronizando. Continue quando o histórico estiver pronto.",
@@ -3760,5 +3761,27 @@
     "restore": "Restaurar",
     "trayOpen": "Abrir o Drifting",
     "trayQuit": "Sair do Drifting"
+  },
+  "mobileDesk": {
+    "dock": {
+      "label": "Folhas abertas",
+      "leftDesk": "Capítulos, elementos e ideias",
+      "rightDesk": "Revisão, material, estatísticas e Agent",
+      "new": "Novo"
+    },
+    "paper": {
+      "back": "Voltar à folha"
+    },
+    "keyboard": {
+      "label": "Ferramentas de escrita",
+      "askAgent": "Pedir ao Agent",
+      "askAgentSelection": "Entregar a seleção ao Agent"
+    },
+    "desk": {
+      "shelf": "Voltar à estante"
+    },
+    "foreEdge": {
+      "label": "Corte: deslize pela borda para ir a outro capítulo"
+    }
   }
 }

@@ -1531,7 +1531,8 @@
       "steer": "补充",
       "steerTitle": "把补充或纠正加入当前任务，在当前操作结束后交给 Agent 处理",
       "answer": "回答",
-      "send": "发送"
+      "send": "发送",
+      "touchPlaceholder": "询问 Agent…"
     },
     "historySync": {
       "pending": "正在同步这段对话，完成后可继续。",
@@ -3738,5 +3739,27 @@
     "restore": "还原",
     "trayOpen": "打开 Drifting",
     "trayQuit": "退出 Drifting"
+  },
+  "mobileDesk": {
+    "dock": {
+      "label": "打开的稿纸",
+      "leftDesk": "章节、要素与构想",
+      "rightDesk": "审阅、素材库、统计与帮手",
+      "new": "新建"
+    },
+    "paper": {
+      "back": "回到稿纸"
+    },
+    "keyboard": {
+      "label": "写作工具",
+      "askAgent": "交给帮手",
+      "askAgentSelection": "把选中的文字交给帮手"
+    },
+    "desk": {
+      "shelf": "回到书架"
+    },
+    "foreEdge": {
+      "label": "书口：沿边滑动翻到别的章节"
+    }
   }
 }

@@ -1,0 +1,355 @@
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+  type CSSProperties,
+} from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import { WorkspaceNavigationProvider } from '../../../features/workspace/navigation/WorkspaceNavigationContext';
+import { workspaceTargetFromPathname } from '../../../features/workspace/navigation/workspace-route';
+import type { WorkspaceNavigator, WorkspaceTarget } from '../../../features/workspace/navigation/workspace-target';
+import { EntitySnapshotHistoryModal } from '../../../components/modals/EntitySnapshotHistoryModal';
+import { DriftBindModal } from '../../../components/modals/DriftBindModal';
+import { GlobalSearchModal } from '../../../components/search/GlobalSearchModal';
+import { setPlotPlannerSlot } from '../../../components/editor/plot-grid/plot-planner-slot';
+import { BottomTimeline } from '../../../components/BottomTimeline/BottomTimeline';
+import { TrailingEditorPaneContext } from '../../../components/editor/editor-corner';
+import {
+  markProjectHomeArrival,
+  setBottomPaneIntent,
+  setSuperViewIntent,
+  subscribeBottomPaneIntent,
+  subscribeSuperViewIntent,
+} from '../../../components/workspaceChrome/workspace-intents';
+import { setSelectionBarDocked } from '../../../features/editor/editor-selection-bar';
+import { ProjectDashboard } from '../../../views/ProjectDashboard';
+import { useNotificationFeed } from '../../../hooks/useNotificationFeed';
+import { getActiveEditor, saveActiveEditor } from '../../../lib/active-editor';
+import { events } from '../../../lib/events';
+import { useMobileWorkspaceSession } from '../workspace/useMobileWorkspaceSession';
+import { MobilePaperContent } from '../workspace/MobilePaperContent';
+import { MobileSuperViewHost } from '../workspace/MobileSuperViewHost';
+import { MobileProjectTrashView } from '../workspace/MobileProjectTrashView';
+import { mobilePaperKey } from '../workspace/mobile-workspace-session';
+import {
+  createMobileDeskState,
+  mobileDeskReducer,
+  readMobileDeskPreferences,
+  writeMobileDeskPreferences,
+  type MobileDeskState,
+} from './mobile-desk-controller';
+import { useMobileDeskBack } from './useMobileDeskBack';
+import { useMobileWriting } from './useMobileWriting';
+import { installTouchHold } from './mobile-touch-hold';
+import { MobileDock } from './MobileDock';
+import { MobileKeyboardBar } from './MobileKeyboardBar';
+import { MobileLeftDesk, MobileRightSidebar } from './MobileDeskPanels';
+import { MobileForeEdge } from './MobileForeEdge';
+import { useDeskPan, DESK_SLIVER_PX } from './useDeskPan';
+import { usePaperScrollMemory, usePageTurn, useReadingAway } from './mobile-paper-continuity';
+import '../../../../styles/mobile-desk.css';
+
+function storage(): Storage | null {
+  try {
+    return typeof localStorage === 'undefined' ? null : localStorage;
+  } catch {
+    return null;
+  }
+}
+
+/** Heights of the Bottom Panel under the lifted paper, as shares of the screen. */
+const BOTTOM_SHARE: Record<'half' | 'full', number> = { half: 0.46, full: 0.84 };
+
+/**
+ * The phone's workspace: one raised paper over a desk (docs/mobile-ui-foundation.md).
+ */
+export function MobileDesk({ projectId }: { projectId: string }) {
+  const { t } = useTranslation();
+  useNotificationFeed();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const root = `/project/${projectId}`;
+  const session = useMobileWorkspaceSession(projectId);
+  const papers = session.state;
+  const activePaper = papers.papers.find((paper) => paper.key === papers.activeKey) ?? null;
+
+  // Opening the book at its root picks up the paper the author left.
+  const [resumeTarget] = useState<WorkspaceTarget | null>(() =>
+    workspaceTargetFromPathname(projectId, location.pathname) ? null : activePaper?.target ?? null,
+  );
+  const resumingRef = useRef(Boolean(resumeTarget));
+  const [desk, dispatch] = useReducer(mobileDeskReducer, undefined, (): MobileDeskState =>
+    createMobileDeskState(
+      readMobileDeskPreferences(storage(), projectId),
+      workspaceTargetFromPathname(projectId, location.pathname) || resumeTarget ? 'paper' : 'home',
+    ),
+  );
+  useEffect(() => writeMobileDeskPreferences(storage(), projectId, desk), [desk, projectId]);
+
+  const deskRef = useRef<HTMLDivElement | null>(null);
+  const paperRef = useRef<HTMLDivElement | null>(null);
+  const pageRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!resumeTarget) return;
+    session.activate(resumeTarget);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on opening the book
+  }, []);
+
+  // The address is the paper in front; the book's root is Project Home.
+  useEffect(() => {
+    if (location.pathname === `${root}/home` || location.pathname === `${root}/new`) {
+      markProjectHomeArrival(location.pathname.endsWith('/new') ? 'new' : 'home');
+      dispatch({ type: 'show-home' });
+      navigate(root, { replace: true });
+      return;
+    }
+    const target = workspaceTargetFromPathname(projectId, location.pathname);
+    if (target) {
+      resumingRef.current = false;
+      dispatch({ type: 'show-paper' });
+      return;
+    }
+    if ((location.pathname === root || location.pathname === `${root}/`) && !resumingRef.current) {
+      dispatch({ type: 'show-home' });
+    }
+  }, [location.pathname, navigate, projectId, root]);
+
+  const showHome = useCallback(
+    (options?: { replace?: boolean; intent?: 'new' | 'home' }) => {
+      void saveActiveEditor();
+      markProjectHomeArrival(options?.intent ?? 'home');
+      dispatch({ type: 'show-home' });
+      navigate(root, { replace: options?.replace ?? false });
+    },
+    [navigate, root],
+  );
+  const leaveBook = useCallback(() => {
+    void saveActiveEditor();
+    navigate('/', { replace: true });
+  }, [navigate]);
+
+  const { navigator: sessionNavigator, open: openPaper, activate: activatePaper } = session;
+  const navigator = useMemo<WorkspaceNavigator>(
+    () => ({
+      ...sessionNavigator,
+      open: (target) => {
+        openPaper(target);
+        dispatch({ type: 'show-paper' });
+      },
+      activate: (target) => {
+        activatePaper(target);
+        dispatch({ type: 'show-paper' });
+      },
+      showProjectHome: showHome,
+    }),
+    [activatePaper, openPaper, sessionNavigator, showHome],
+  );
+
+  // Writing: the editor holds the caret. Whatever is laid over the paper
+  // takes the caret away again.
+  const writing = useMobileWriting();
+  useEffect(() => {
+    dispatch({ type: 'sync-writing', writing: writing.writing });
+  }, [writing.writing]);
+  const covered = desk.drawer !== 'none' || desk.bottom !== null || desk.superView !== null || desk.sheet !== 'none';
+  useEffect(() => {
+    if (covered && writing.writing) getActiveEditor()?.commands.blur();
+  }, [covered, writing.writing]);
+
+  // Shared controls ask for the Bottom Panel and the Super Views through the
+  // desktop's UI store; the desk follows them and writes back what it shows.
+  useEffect(() => {
+    setSelectionBarDocked(true);
+    setBottomPaneIntent(null);
+    setSuperViewIntent(null);
+    const stopBottom = subscribeBottomPaneIntent((pane) =>
+      dispatch(pane ? { type: 'open-bottom', pane } : { type: 'close-bottom' }),
+    );
+    const stopSuper = subscribeSuperViewIntent((view) =>
+      dispatch(view ? { type: 'open-super-view', view } : { type: 'close-super-view' }),
+    );
+    return () => {
+      stopBottom();
+      stopSuper();
+      setSelectionBarDocked(false);
+    };
+  }, []);
+  useEffect(() => setBottomPaneIntent(desk.bottom?.pane ?? null), [desk.bottom?.pane]);
+  useEffect(() => setSuperViewIntent(desk.superView), [desk.superView]);
+  const target = desk.stage === 'paper' ? activePaper?.target ?? null : null;
+  // The planner belongs to a chapter or drift in front; elsewhere it lies down.
+  useEffect(() => {
+    if (desk.bottom?.pane === 'planner' && target?.entityType !== 'node') dispatch({ type: 'close-bottom' });
+  }, [desk.bottom?.pane, target?.entityType]);
+
+  useEffect(() => {
+    const openSettings = (payload?: { railId?: string }) => {
+      void saveActiveEditor();
+      const panel = payload?.railId ? `?panel=${encodeURIComponent(payload.railId)}` : '';
+      navigate(`/settings${panel}`, { state: { from: location.pathname } });
+    };
+    const openSearch = () => dispatch({ type: 'open-sheet', sheet: 'search' });
+    events.on('settings:open', openSettings);
+    events.on('search:open', openSearch);
+    return () => {
+      events.off('settings:open', openSettings);
+      events.off('search:open', openSearch);
+    };
+  }, [location.pathname, navigate]);
+
+  // A held finger brings up a thing's card; :active needs a touch listener on iOS.
+  useEffect(() => {
+    const el = deskRef.current;
+    if (!el) return undefined;
+    const noop = () => {};
+    document.addEventListener('touchstart', noop, { passive: true });
+    const uninstall = installTouchHold(el);
+    return () => {
+      uninstall();
+      document.removeEventListener('touchstart', noop);
+    };
+  }, []);
+
+  useMobileDeskBack({ state: desk, dispatch, onShowHome: () => showHome({ replace: true }), onLeaveBook: leaveBook });
+
+  const pan = useDeskPan({ deskRef, paperRef, drawer: desk.drawer, writing: desk.writing, dispatch });
+  usePaperScrollMemory(pageRef, activePaper, session.rememberScroll, desk.stage === 'paper');
+  const pageKey = desk.stage === 'home' ? 'home' : activePaper?.key ?? 'empty';
+  usePageTurn(pageRef, pageKey);
+  const readingAway = useReadingAway(pageRef, pageKey);
+
+  // The Bottom Panel's height lifts the paper's foot.
+  const [viewportHeight, setViewportHeight] = useState(() => window.innerHeight);
+  useLayoutEffect(() => {
+    const sync = () => setViewportHeight(window.innerHeight);
+    window.addEventListener('resize', sync);
+    return () => window.removeEventListener('resize', sync);
+  }, []);
+  const bottomHeight = desk.bottom ? Math.round(viewportHeight * BOTTOM_SHARE[desk.bottom.detent]) : 0;
+
+  const showPaper = desk.stage === 'paper' && activePaper;
+  const deskStyle = {
+    '--m-bottom-h': `${bottomHeight}px`,
+    '--m-sliver': `${DESK_SLIVER_PX}px`,
+  } as CSSProperties;
+
+  return (
+    <WorkspaceNavigationProvider navigator={navigator}>
+      <div
+        ref={deskRef}
+        className="m-root"
+        data-debug-id="mobile-workspace"
+        data-drawer={desk.drawer}
+        data-panning={pan.panning ? pan.side : undefined}
+        data-writing={desk.writing ? 'true' : undefined}
+        data-bottom={desk.bottom ? desk.bottom.detent : undefined}
+        data-stage={desk.stage}
+        data-reading={readingAway ? 'away' : undefined}
+        data-super-view={desk.superView ?? undefined}
+        style={deskStyle}
+      >
+        <div className="m-under" aria-hidden={desk.drawer === 'none' && !pan.panning ? 'true' : undefined}>
+          <div className="m-under__side m-under__side--left" inert={desk.drawer !== 'left' || undefined} {...pan.drawerHandlers}>
+            <MobileLeftDesk
+              panel={desk.left}
+              target={target}
+              onPanelChange={(panel) => dispatch({ type: 'set-left-panel', panel })}
+              onLeaveBook={leaveBook}
+              onSearch={() => dispatch({ type: 'open-sheet', sheet: 'search' })}
+            />
+          </div>
+          <div className="m-under__side m-under__side--right" inert={desk.drawer !== 'right' || undefined} {...pan.drawerHandlers}>
+            <MobileRightSidebar
+              projectId={projectId}
+              panel={desk.right}
+              target={target}
+              onPanelChange={(panel) => dispatch({ type: 'set-right-panel', panel })}
+              onOpenWorkbench={() => dispatch({ type: 'open-super-view', view: 'memo-material' })}
+            />
+          </div>
+          <div className="m-under__bottom" data-pane={desk.bottom?.pane ?? desk.lastBottomPane} inert={!desk.bottom || undefined}>
+            {desk.bottom?.pane === 'timeline' && <BottomTimeline presentation="mobile" />}
+            <div className="m-under__planner" ref={setPlotPlannerSlot} hidden={desk.bottom?.pane !== 'planner'} />
+          </div>
+        </div>
+
+        <div ref={paperRef} className="m-paper" {...pan.paperHandlers}>
+          <span className="flow-line flow-line--v m-paper__edge m-paper__edge--left" aria-hidden="true" />
+          <span className="flow-line flow-line--v m-paper__edge m-paper__edge--right" aria-hidden="true" />
+          <div ref={pageRef} className="m-paper__page" data-debug-id="mobile-paper">
+            <TrailingEditorPaneContext.Provider value>
+              {showPaper ? (
+                <MobilePaperContent key={mobilePaperKey(activePaper.target)} target={activePaper.target} />
+              ) : (
+                <ProjectDashboard />
+              )}
+            </TrailingEditorPaneContext.Provider>
+          </div>
+          {showPaper && !desk.writing && (
+            <MobileForeEdge
+              target={target}
+              paperRef={pageRef}
+              onOpenChapter={(id) => navigator.open({ entityType: 'node', id })}
+            />
+          )}
+          <MobileDock
+            papers={papers.papers}
+            activeKey={papers.activeKey}
+            homeShown={desk.stage === 'home'}
+            drawer={desk.drawer}
+            bottomOpen={desk.bottom !== null}
+            onActivate={(paper) => navigator.activate(paper.target)}
+            onClose={(paper) => {
+              const last = papers.papers.length === 1;
+              session.close(paper.key);
+              if (last) dispatch({ type: 'show-home' });
+            }}
+            onNew={() => showHome({ intent: 'new' })}
+            onToggleDrawer={(side) =>
+              dispatch(desk.drawer === side ? { type: 'close-drawer' } : { type: 'open-drawer', side })
+            }
+            onLift={() => dispatch({ type: 'open-bottom' })}
+            onLower={() => dispatch({ type: 'close-bottom' })}
+          />
+          {desk.drawer !== 'none' && (
+            <button
+              type="button"
+              className="m-paper__shield"
+              data-debug-id="mobile-paper-shield"
+              aria-label={t('mobileDesk.paper.back')}
+              onClick={() => dispatch({ type: 'close-drawer' })}
+            />
+          )}
+        </div>
+
+        {desk.writing && writing.editor && !writing.editor.isDestroyed && (
+          <MobileKeyboardBar
+            editor={writing.editor}
+            mode={desk.keyboardBar}
+            keyboardInset={writing.keyboardInset}
+            revision={writing.revision}
+            onModeChange={(bar) => dispatch({ type: 'set-keyboard-bar', bar })}
+            onAskAgent={() => dispatch({ type: 'open-drawer', side: 'right', panel: 'companion' })}
+            onDone={() => getActiveEditor()?.commands.blur()}
+          />
+        )}
+
+        <MobileSuperViewHost
+          active={desk.superView}
+          onActiveChange={(view) => dispatch(view ? { type: 'open-super-view', view } : { type: 'close-super-view' })}
+          returnPointCaptured={desk.superView !== null}
+        />
+        <GlobalSearchModal isOpen={desk.sheet === 'search'} onClose={() => dispatch({ type: 'close-sheet' })} />
+        {desk.sheet === 'trash' && <MobileProjectTrashView onClose={() => dispatch({ type: 'close-sheet' })} />}
+        <EntitySnapshotHistoryModal />
+        <DriftBindModal />
+      </div>
+    </WorkspaceNavigationProvider>
+  );
+}

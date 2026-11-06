@@ -6,6 +6,25 @@ import { FORMATS_CLOSE_MS, SELECTION_BAR_SETTLE_MS } from '../../lib/motion';
 // can tell a bar is showing.
 const BAR_CLASS = 'editor-comment-menu';
 const activeBarSlot: { owner: EditorSelectionBar | null } = { owner: null };
+// Each editor's resolver for its selection's actions, so a docked bar can ask.
+const resolvers = new WeakMap<Editor, () => EditorSelectionBarOptions | null>();
+let docked = false;
+
+/**
+ * A touch shell shows a selection's actions on its own bar above the keyboard
+ * (docs/design-system/touch.md) rather than floating them over the text,
+ * where the system's own edit menu already stands.
+ */
+export function setSelectionBarDocked(value: boolean): void {
+  docked = value;
+  if (value) activeBarSlot.owner?.close();
+}
+
+/** The actions for `editor`'s current selection, or null when it has none. */
+export function selectionActionsFor(editor: Editor): EditorSelectionBarOptions | null {
+  if (editor.isDestroyed || editor.state.selection.empty) return null;
+  return resolvers.get(editor)?.() ?? null;
+}
 const GAP = 8;
 const MARGIN = 6;
 // Between the bar and the formats pill that unfolds beside it.
@@ -70,7 +89,9 @@ export class EditorSelectionBar {
   private pointerDown = false;
 
   /** `resolve` supplies the actions for the current selection, or null when there are none. */
-  constructor(readonly editor: Editor, private readonly resolve?: () => EditorSelectionBarOptions | null) {}
+  constructor(readonly editor: Editor, private readonly resolve?: () => EditorSelectionBarOptions | null) {
+    if (resolve) resolvers.set(editor, resolve);
+  }
 
   isEnabled(): boolean { return this.enabled && !this.disposed && !this.editor.isDestroyed && this.editor.isEditable; }
   setEnabled(enabled: boolean): void {
@@ -108,7 +129,7 @@ export class EditorSelectionBar {
   // run paused) before floating in.
   private scheduleSettle(): void {
     this.cancelSettle();
-    if (this.pointerDown || this.editor.state.selection.empty) return;
+    if (docked || this.pointerDown || this.editor.state.selection.empty) return;
     this.settleTimer = window.setTimeout(() => {
       this.settleTimer = null;
       if (this.pointerDown || this.bar || !this.isEnabled() || !this.editor.view.hasFocus()) return;
@@ -146,6 +167,7 @@ export class EditorSelectionBar {
 
   dispose(): void {
     if (this.enabled && this.resolve) this.unwatch();
+    if (this.resolve && resolvers.get(this.editor) === this.resolve) resolvers.delete(this.editor);
     this.disposed = true; this.enabled = false; this.close();
   }
 

@@ -1533,7 +1533,8 @@
       "steer": "追加指示",
       "steerTitle": "現在の操作が終わったら、実行中タスクの指示を追加・修正します",
       "answer": "回答",
-      "send": "送信"
+      "send": "送信",
+      "touchPlaceholder": "Agentに質問…"
     },
     "historySync": {
       "pending": "会話を同期中です。履歴の準備ができたら続行できます。",
@@ -3745,5 +3746,27 @@
     "restore": "元のサイズに戻す",
     "trayOpen": "Drifting を開く",
     "trayQuit": "Drifting を終了"
+  },
+  "mobileDesk": {
+    "dock": {
+      "label": "開いている原稿",
+      "leftDesk": "章・要素・構想",
+      "rightDesk": "レビュー・素材・統計・Agent",
+      "new": "新規"
+    },
+    "paper": {
+      "back": "原稿に戻る"
+    },
+    "keyboard": {
+      "label": "執筆ツール",
+      "askAgent": "Agent に頼む",
+      "askAgentSelection": "選択した文章を Agent に渡す"
+    },
+    "desk": {
+      "shelf": "本棚に戻る"
+    },
+    "foreEdge": {
+      "label": "小口：縁をなぞって別の章へ"
+    }
   }
 }

@@ -1,0 +1,75 @@
+/* The phone's type and touch scale (docs/design-system/touch.md).
+ *
+ * The desktop's interface sizes live under html[data-shell-mode='desktop']
+ * (desktop-typography.css). On the phone the same roles are set one step
+ * larger and every row is at least a fingertip tall; the prose keeps its own
+ * --editor-* axis. Imported by every mobile surface: the desk, the shelf,
+ * settings and sign-in. */
+
+html[data-shell-mode='mobile'] {
+  --ui-font-caption: 13px;
+  --ui-font-secondary: 15px;
+  --ui-font-body: 16px;
+  --ui-font-emphasis: 17px;
+  --ui-font-heading: 19px;
+  --ui-line-caption: 18px;
+  --ui-line-body: 22px;
+  --ui-control-height: 40px;
+  --ui-row-height: 44px;
+  --ui-footer-height: 30px;
+  --ui-text-muted: color-mix(in srgb, hsl(var(--ink-2)) 40%, hsl(var(--ink-3)));
+  --agent-font-body: 16px;
+  --agent-font-secondary: 14.5px;
+  --agent-font-caption: 13px;
+  --agent-font-heading: 18px;
+  --agent-line-body: 1.45;
+  --super-view-bottom-inset: 0px;
+  /* The menus and cards a finger opens: rows a fingertip tall. */
+  --menu-row-height: 44px;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+}
+
+html[data-shell-mode='mobile'] body {
+  font-size: var(--ui-font-body);
+  overscroll-behavior: none;
+}
+
+/* Chrome is pressed, not read: a held finger must not select its words or
+   raise the system's callout. Prose, fields and the Agent's words stay
+   selectable. */
+html[data-shell-mode='mobile'] :is(
+  .m-dock, .m-kbar, .m-desk__tabs, .m-desk__foot, .m-fore-edge, .hover-card-surface,
+  .panel-tab-tray, .sand-cell, .workspace-panel-header-row, .editor-corner, .glass
+) {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* A finger slid onto a row of a held card and about to lift there. */
+html[data-shell-mode='mobile'] [data-touch-armed] {
+  background: hsl(var(--ink-1) / 0.05);
+}
+
+/* The cards and menus a finger opens are as wide as a phone allows and their
+   rows a fingertip tall. */
+html[data-shell-mode='mobile'] .hover-card {
+  max-width: calc(100vw - 24px);
+}
+
+html[data-shell-mode='mobile'] .hover-card__row,
+html[data-shell-mode='mobile'] .menu-surface__item {
+  min-height: var(--menu-row-height);
+  font-size: var(--ui-font-secondary);
+}
+
+html[data-shell-mode='mobile'] .hover-card-surface {
+  font-size: var(--ui-font-secondary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-shell-mode='mobile'] * {
+    scroll-behavior: auto !important;
+  }
+}

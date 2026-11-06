@@ -50,6 +50,7 @@ import { createAgentChatViewSource } from '../../../store/agent-chat-view-source
 import { AgentChatViewContext, useAgentChatViewStore } from '../AgentChatViewContext';
 import { BrushIcon } from '../../../components/ui/BrushIcon';
 import { noteAgentOnboarding } from '../onboarding/agent-onboarding';
+import { getPlatformRuntime } from '../../../platform/runtime';
 
 export function DesktopAgentPanel({ projectId }: { projectId: string }) {
   const paneId = useSidebarPaneId();
@@ -434,7 +435,8 @@ function DesktopAgentPanelContent({ projectId }: { projectId: string }) {
                 ? t('agentPanel.composer.answerPlaceholder')
                 : running
                   ? t('agentPanel.composer.steerPlaceholder')
-                  : t('agentPanel.composer.placeholder')
+                  // A phone has no Cmd/Ctrl+Enter to mention.
+                  : t(getPlatformRuntime().isMobileShell ? 'agentPanel.composer.touchPlaceholder' : 'agentPanel.composer.placeholder')
             }
             disabled={historyUnavailable || starting || Boolean(pendingControl?.requiresContinuation)}
             rows={1}

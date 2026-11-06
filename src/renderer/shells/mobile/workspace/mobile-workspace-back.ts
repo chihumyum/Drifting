@@ -1,4 +1,4 @@
-import type { MobileBackSource } from './mobile-workspace-controller';
+import type { MobileBackSource } from '../desk/mobile-desk-controller';
 
 export const MOBILE_WORKSPACE_BACK_EVENT = 'drifting:mobile-workspace-back' as const;
 

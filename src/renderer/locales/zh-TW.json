@@ -1533,7 +1533,8 @@
       "steer": "補充指示",
       "steerTitle": "目前操作結束後，為進行中的任務補充或修正指令",
       "answer": "回答",
-      "send": "傳送"
+      "send": "傳送",
+      "touchPlaceholder": "詢問 Agent…"
     },
     "historySync": {
       "pending": "此對話正在同步，歷史記錄就緒後即可繼續。",
@@ -3745,5 +3746,27 @@
     "restore": "還原",
     "trayOpen": "開啟 Drifting",
     "trayQuit": "結束 Drifting"
+  },
+  "mobileDesk": {
+    "dock": {
+      "label": "開啟的稿紙",
+      "leftDesk": "章節、要素與構想",
+      "rightDesk": "審閱、素材庫、統計與幫手",
+      "new": "新建"
+    },
+    "paper": {
+      "back": "回到稿紙"
+    },
+    "keyboard": {
+      "label": "寫作工具",
+      "askAgent": "交給幫手",
+      "askAgentSelection": "把選取的文字交給幫手"
+    },
+    "desk": {
+      "shelf": "回到書架"
+    },
+    "foreEdge": {
+      "label": "書口：沿邊滑動翻到別的章節"
+    }
   }
 }

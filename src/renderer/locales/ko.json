@@ -1533,7 +1533,8 @@
       "steer": "추가 지시",
       "steerTitle": "현재 작업이 끝난 뒤 진행 중인 작업의 지시를 추가하거나 수정합니다",
       "answer": "답변",
-      "send": "보내기"
+      "send": "보내기",
+      "touchPlaceholder": "Agent에게 묻기…"
     },
     "historySync": {
       "pending": "대화를 동기화하고 있습니다. 기록이 준비되면 계속할 수 있습니다.",
@@ -3745,5 +3746,27 @@
     "restore": "이전 크기로 복원",
     "trayOpen": "Drifting 열기",
     "trayQuit": "Drifting 종료"
+  },
+  "mobileDesk": {
+    "dock": {
+      "label": "열린 원고",
+      "leftDesk": "장, 요소와 구상",
+      "rightDesk": "검토, 자료, 통계와 Agent",
+      "new": "새로 만들기"
+    },
+    "paper": {
+      "back": "원고로 돌아가기"
+    },
+    "keyboard": {
+      "label": "쓰기 도구",
+      "askAgent": "Agent에게 맡기기",
+      "askAgentSelection": "선택한 글을 Agent에게 넘기기"
+    },
+    "desk": {
+      "shelf": "책장으로 돌아가기"
+    },
+    "foreEdge": {
+      "label": "책배: 가장자리를 밀어 다른 장으로"
+    }
   }
 }

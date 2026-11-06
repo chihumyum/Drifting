@@ -228,6 +228,23 @@ function watchScroll() {
   window.addEventListener('scroll', () => { lastScrollAt = performance.now(); }, { capture: true, passive: true });
 }
 
+let openingNow = 0;
+
+/**
+ * Opens at once, without the hover delay or the scroll rest, every hover card
+ * that a pointer arriving inside `run` asks for. The phone has no hover: a
+ * finger held on a thing (the shell's long press, docs/design-system/touch.md)
+ * replays that arrival so the thing's own card comes up under the finger.
+ */
+export function openHoverCardsNow(run: () => void): void {
+  openingNow += 1;
+  try {
+    run();
+  } finally {
+    openingNow -= 1;
+  }
+}
+
 export function useHoverPreview<T>(delayMs = HOVER_PREVIEW_DELAY_MS) {
   const [preview, setPreview] = useState<EntityHoverPreview<T> | null>(null);
   const showTimerRef = useRef<number | null>(null);
@@ -244,6 +261,10 @@ export function useHoverPreview<T>(delayMs = HOVER_PREVIEW_DELAY_MS) {
   const onEnter = useCallback(
     (data: T, anchor: HTMLElement) => {
       clearTimers();
+      if (openingNow > 0) {
+        if (anchor.isConnected) setPreview({ data, anchor });
+        return;
+      }
       watchScroll();
       const enteredAt = performance.now();
       showTimerRef.current = window.setTimeout(() => {

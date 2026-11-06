@@ -1533,7 +1533,8 @@
       "steer": "Nachsteuern",
       "steerTitle": "Ergänzt oder korrigiert Anweisungen nach der laufenden Aktion",
       "answer": "Antworten",
-      "send": "Senden"
+      "send": "Senden",
+      "touchPlaceholder": "Den Agent fragen…"
     },
     "historySync": {
       "pending": "Dieses Gespräch wird synchronisiert. Fahre fort, sobald der Verlauf bereit ist.",
@@ -3745,5 +3746,27 @@
     "restore": "Wiederherstellen",
     "trayOpen": "Drifting öffnen",
     "trayQuit": "Drifting beenden"
+  },
+  "mobileDesk": {
+    "dock": {
+      "label": "Offene Blätter",
+      "leftDesk": "Kapitel, Elemente und Ideen",
+      "rightDesk": "Prüfen, Material, Statistik und Agent",
+      "new": "Neu"
+    },
+    "paper": {
+      "back": "Zurück zum Blatt"
+    },
+    "keyboard": {
+      "label": "Schreibwerkzeuge",
+      "askAgent": "Den Agent fragen",
+      "askAgentSelection": "Auswahl an den Agent geben"
+    },
+    "desk": {
+      "shelf": "Zurück zum Regal"
+    },
+    "foreEdge": {
+      "label": "Buchschnitt: am Rand entlang zu einem anderen Kapitel"
+    }
   }
 }

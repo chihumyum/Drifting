@@ -1533,7 +1533,8 @@
       "steer": "Steer",
       "steerTitle": "Add or correct instructions for the running task after the current operation finishes",
       "answer": "Answer",
-      "send": "Send"
+      "send": "Send",
+      "touchPlaceholder": "Ask the agent…"
     },
     "historySync": {
       "pending": "This conversation is syncing. Continue when its history is ready.",
@@ -3745,5 +3746,27 @@
     "restore": "Restore",
     "trayOpen": "Open Drifting",
     "trayQuit": "Quit Drifting"
+  },
+  "mobileDesk": {
+    "dock": {
+      "label": "Open papers",
+      "leftDesk": "Chapters, elements and ideas",
+      "rightDesk": "Review, library, stats and Agent",
+      "new": "New"
+    },
+    "paper": {
+      "back": "Back to the page"
+    },
+    "keyboard": {
+      "label": "Writing tools",
+      "askAgent": "Ask the Agent",
+      "askAgentSelection": "Give the selection to the Agent"
+    },
+    "desk": {
+      "shelf": "Back to the shelf"
+    },
+    "foreEdge": {
+      "label": "Fore-edge: slide along it to turn to another chapter"
+    }
   }
 }

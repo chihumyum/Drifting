@@ -56,6 +56,9 @@
   --glass-round-icon: 16px;
   --glass-pill-height: var(--glass-round-size);
   --glass-tray-padding: 4px;
+  /* The least a finger can hit: a control drawn smaller still answers to
+     this much round it (docs/design-system/touch.md). */
+  --touch-target: 44px;
 
   --glass-clear: #b4b6ae;
   /* Floating glass: the paper shows through, faintly enough to keep labels readable. */
@@ -84,6 +87,14 @@
   --prose-sand-layer-blend: multiply;
   --prose-sand-ul: url('../assets/design/sand/ul-cover.png');
   --prose-sand-ul-loose: url('../assets/design/sand/ul-loose-cover.png');
+}
+
+/* A finger is wider than a pointer: on the phone every round glass button
+   is 40px across with a 20px brush icon, and the pills in a row with them
+   grow with it (docs/design-system/touch.md). */
+html[data-shell-mode='mobile'] {
+  --glass-round-size: 40px;
+  --glass-round-icon: 20px;
 }
 
 /* On the dark a tinted bleed at the ring's own strength reads as mud (a
@@ -172,15 +183,21 @@
 .glass.glass--round { --glass-gx: var(--glass-dense-gx); --glass-gy: var(--glass-dense-gy); }
 
 /* Resting glass keeps only the line (no bleed, a little fainter); hovering
-   or focusing brings the bleed in over the same 0.24s as the flow starts. */
+   or focusing brings the bleed in over the same 0.24s as the flow starts.
+   Only a pointer that can hover brings it: a finger has no hover, and a
+   touch screen would otherwise keep the last tapped control "hovered"
+   (docs/design-system/touch.md). On touch, glass changes only while it is
+   held, while it moves and while it waits. */
 .glass--rest { --glass-g: 0.85; --glass-sp: 0; }
 .glass--rest::before { opacity: 1; }
-.glass--rest:hover,
 .glass--rest:focus-visible { --glass-g: 1; --glass-sp: 1; }
-.glass--rest:hover::before,
 .glass--rest:focus-visible::before { transition: opacity var(--motion-glass-bleed) ease-out, box-shadow var(--motion-glass-bleed) ease-out; }
-.glass:hover::before,
 .glass:focus-visible::before { opacity: 1; animation-play-state: running; }
+@media (hover: hover) {
+  .glass--rest:hover { --glass-g: 1; --glass-sp: 1; }
+  .glass--rest:hover::before { transition: opacity var(--motion-glass-bleed) ease-out, box-shadow var(--motion-glass-bleed) ease-out; }
+  .glass:hover::before { opacity: 1; animation-play-state: running; }
+}
 .glass[aria-pressed='true'],
 .glass[aria-expanded='true'],
 .glass.is-on { --glass-g: 1; --glass-sp: 1; }
@@ -208,10 +225,12 @@
 
 /* What is only read (a message already sent, a task list, a finished tool
    step) keeps its resting line under the pointer: it never asks to be pressed. */
-.glass--still:hover,
 .glass--still:focus-visible { --glass-g: 0.85; --glass-sp: 0; }
-.glass--still:hover::before,
 .glass--still:focus-visible::before { animation-play-state: paused; }
+@media (hover: hover) {
+  .glass--still:hover { --glass-g: 0.85; --glass-sp: 0; }
+  .glass--still:hover::before { animation-play-state: paused; }
+}
 
 /* A field the author writes in: its resting line always shows, the pointer
    brings the bleed and the drift, and while it holds the caret it is the
@@ -247,7 +266,9 @@
    it stills it; a waiting button inside a waiting card stills both. */
 .glass--waiting { --glass-g: 1; --glass-sp: 1; }
 .glass--waiting::before { opacity: 1; animation-play-state: running; }
-.glass--waiting:hover::before { animation-play-state: paused; }
+@media (hover: hover) {
+  .glass--waiting:hover::before { animation-play-state: paused; }
+}
 
 /* Waiting on the app (a dock tab whose page is still being prepared, past
    the loading delay): the selected rim, a shade deeper, drifts on its own
@@ -294,10 +315,12 @@
     glass-sweep-line var(--motion-sweep) ease-out backwards;
   animation-play-state: paused, running;
 }
-.glass-sweep.glass--rest:hover::before,
 .glass-sweep.glass--rest:focus-visible::before { animation-play-state: running, running; }
-.glass-sweep.glass--still:hover::before,
 .glass-sweep.glass--still:focus-visible::before { animation-play-state: paused, running; }
+@media (hover: hover) {
+  .glass-sweep.glass--rest:hover::before { animation-play-state: running, running; }
+  .glass-sweep.glass--still:hover::before { animation-play-state: paused, running; }
+}
 
 @keyframes glass-flow {
   from {
@@ -828,7 +851,9 @@
    animation (lib/glass-awake.ts). */
 :not([data-glass-awake]) > .cell-ring { animation-name: none; }
 
-.sand-cell:hover > .cell-ring { opacity: 1; animation-play-state: running; }
+@media (hover: hover) {
+  .sand-cell:hover > .cell-ring { opacity: 1; animation-play-state: running; }
+}
 .sand-cell.is-selected > .cell-ring { opacity: 0; }
 
 /* The frame box is the cell grown 2px each side and 1px top and bottom;
