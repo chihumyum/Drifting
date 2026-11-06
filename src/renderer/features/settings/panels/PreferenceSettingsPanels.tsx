@@ -652,6 +652,8 @@ export function EditorPanel({ registerRef }: { registerRef: SettingsRegisterRef 
             />
           }
         />
+        {/* Immersive writing keeps the caret on this line too, so on the
+            desktop the position stays adjustable with typewriter mode off. */}
         <SettingsRow
           label={t('settings.editor.typewriter_position')}
           desc={t('settings.editor.typewriter_position_desc')}
@@ -662,7 +664,7 @@ export function EditorPanel({ registerRef }: { registerRef: SettingsRegisterRef 
               max={TYPEWRITER_POSITION_MAX}
               integer
               value={typewriterPosition}
-              disabled={!typewriterMode}
+              disabled={!typewriterMode && !desktop}
               onChange={setTypewriterPosition}
               unit="%"
             />

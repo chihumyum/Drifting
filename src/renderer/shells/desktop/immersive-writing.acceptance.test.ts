@@ -117,6 +117,9 @@ describe('immersive writing (docs/editor/immersive-writing.md)', () => {
 
   it('keeps the caret on the typing line and fades every other block without touching the editor', () => {
     expect(source('src/renderer/hooks/useTypewriterScrolling.ts')).toContain('const enabled = typewriterMode || immersive;');
+    // Immersion uses the typing line position, so the desktop keeps it adjustable.
+    expect(source('src/renderer/features/settings/panels/PreferenceSettingsPanels.tsx'))
+      .toContain('disabled={!typewriterMode && !desktop}');
     expect(css()).toMatch(/::highlight\(drifting-immersive-dim\) \{\s+color: hsl\(var\(--ink-1\) \/ 0\.26\);/);
     const focus = source('src/renderer/features/immersive-writing/paragraph-focus.ts');
     expect(focus).toContain("export const IMMERSIVE_DIM_HIGHLIGHT = 'drifting-immersive-dim';");
