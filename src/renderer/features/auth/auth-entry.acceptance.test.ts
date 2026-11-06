@@ -121,12 +121,9 @@ describe('account sign-in entry', () => {
     }
     expect(keyPaths(zh.auth).sort()).toEqual(keyPaths(en.auth).sort());
     expect(keyPaths(zh.preAlphaGuide).sort()).toEqual(keyPaths(en.preAlphaGuide).sort());
-    expect(zh.preAlphaGuide.accountAction).toMatch(/登录.*注册/);
-    expect(en.preAlphaGuide.accountAction).toMatch(/Sign in.*sign up/);
     // Account-isolated libraries (docs/hosted-sync/account-libraries.md):
     // signing in opens the account's own library; local books stay local.
-    expect(zh.settings.hosted.onboarding).toMatch(/自己的书库[\s\S]*下载[\s\S]*本机已有的书留在本机/);
-    expect(en.settings.hosted.onboarding).toMatch(/own library[\s\S]*download[\s\S]*stay here/);
+    // (The retired mobile welcome dialog's own copy of this went with it.)
     expect(zh.settings.hosted.sign_in_sync_description).toMatch(/自己的书库[\s\S]*不会带进账号[\s\S]*回到本机书库/);
     expect(en.settings.hosted.sign_in_sync_description).toMatch(/own library[\s\S]*not brought into the account[\s\S]*local library/);
   });
