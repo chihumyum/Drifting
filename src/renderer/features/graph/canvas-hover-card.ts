@@ -9,7 +9,7 @@ import { useHoverPreview, type EntityHoverTarget } from '../entities/hover/entit
  */
 export function useCanvasHoverCard(blocked: boolean) {
   const hover = useHoverPreview<EntityHoverTarget>();
-  const { preview, onEnter } = hover;
+  const { preview, onEnter, dismiss } = hover;
 
   // Read through a ref so `onEnter` stays stable: memoized lane rows and
   // cards should not re-render because a popover opened.
@@ -24,17 +24,20 @@ export function useCanvasHoverCard(blocked: boolean) {
     [onEnter],
   );
 
-  // The card closes itself on Escape, but the Super View's Escape stack (on
-  // window) would then also close the layer behind it, or the whole view.
-  // Claiming the press before either listener runs keeps it to the card.
+  // Escape closes a showing card and nothing behind it. The press is claimed
+  // before any other listener runs, so the Super View's Escape stack (on
+  // window) leaves its layers and the view open; claimed, the card's own
+  // Escape handler stands aside, so this closes the card itself.
   useEffect(() => {
     if (!preview) return undefined;
     const claimEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') event.preventDefault();
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      dismiss();
     };
     window.addEventListener('keydown', claimEscape, true);
     return () => window.removeEventListener('keydown', claimEscape, true);
-  }, [preview]);
+  }, [preview, dismiss]);
 
   return { ...hover, onEnter: enter };
 }

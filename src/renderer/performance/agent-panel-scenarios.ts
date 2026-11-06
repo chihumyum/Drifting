@@ -47,6 +47,12 @@ export async function runAgentPanelScenarios() {
       children: createElement(DesktopAgentPanel, { projectId }) })) : null));
   const log = () => host.querySelector<HTMLDivElement>('[style*="overflow-y: auto"]')!;
   const bottom = () => log().scrollHeight - log().scrollTop - log().clientHeight < 2;
+  // Only the author's own wheel, touch, key or scrollbar drag leaves the newest
+  // line; a scroll with none of them is the layout's and keeps following.
+  const authorScrollTo = (top: number) => {
+    log().dispatchEvent(new WheelEvent('wheel', { bubbles: true, deltaY: -1 }));
+    log().scrollTop = top; flushSync(() => log().dispatchEvent(new Event('scroll', { bubbles: true })));
+  };
   try {
     useSettingsStore.setState({ agentAuth: 'apikey' });
     useAgentChatStore.setState({ boundProjectId: projectId, activeConvId: conversationId, prompt: 'Synthetic draft stays in the composer',
@@ -90,7 +96,7 @@ export async function runAgentPanelScenarios() {
     const drafting = { ...agentPanelRenders };
     check('composer draft updates do not render the transcript or historical messages', drafting.panel === 20 && drafting.transcript === 0 && drafting.message === 0 && composer.value === 'Synthetic changed draft 19');
     flushSync(() => useAgentChatStore.getState().setPrompt('Synthetic draft stays in the composer'));
-    log().scrollTop = 100; flushSync(() => log().dispatchEvent(new Event('scroll', { bubbles: true })));
+    authorScrollTo(100);
     const scrolled = log().scrollTop;
     const selected = stable!.querySelector('strong')!.firstChild!; const range = document.createRange(); range.setStart(selected, 0); range.setEnd(selected, 9);
     document.getSelection()!.removeAllRanges(); document.getSelection()!.addRange(range);
@@ -99,7 +105,7 @@ export async function runAgentPanelScenarios() {
     const jump = host.querySelector<HTMLButtonElement>('[title="agentPanel.jumpLatest"]')!;
     check('scrolling away exposes latest control', Boolean(jump));
     flushSync(() => jump.click()); await frame(); check('latest control reengages bottom follow', bottom());
-    log().scrollTop = 100; flushSync(() => log().dispatchEvent(new Event('scroll', { bubbles: true })));
+    authorScrollTo(100);
     flushSync(() => host.querySelector<HTMLButtonElement>('[title="agentPanel.toolbar.historyTitle"]')!.click());
     const historyDialog = document.querySelector('.agt-history-menu')!;
     check('history is an anchored portal outside the panel', Boolean(historyDialog) && !host.contains(historyDialog));

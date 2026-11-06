@@ -13,6 +13,7 @@ import { useEntityEditorSession } from '../features/editor/useEntityEditorSessio
 import { getActiveEditor } from '../lib/active-editor';
 import { editorTabSelectionKey, getEditorSelectionSnapshot, pruneEditorSelectionMemory, saveEditorSelectionSnapshot } from '../lib/editor-selection-memory';
 import { DesktopAgentTranscript } from '../features/agent/desktop/DesktopAgentTranscript';
+import { AGENT_MESSAGE_BLOCK_SIZE } from '../features/agent/useAgentMessageBlocks';
 import { WorkspaceNavigationProvider } from '../features/workspace/navigation/WorkspaceNavigationContext';
 import { AgentChatTranscript } from '../domain/agent-chat-transcript';
 import { useAgentChatStore } from '../store/agent-chat-store';
@@ -118,7 +119,10 @@ async function agentCycle(index: number) {
   const a = `conversation-${index}-a`, b = `conversation-${index}-b`;
   useAgentChatStore.setState({ boundProjectId: projectId, activeConvId: a, runs: { [a]: makeRun(a, 300), [b]: makeRun(b, 3) }, runningTurns: { [a]: 'synthetic-turn' } });
   render(<DesktopAgentTranscript key={a} />);
-  check(host.querySelectorAll('.agent-md').length === 300, 'Agent history did not fully mount');
+  // The desktop transcript opens on its two most recent message blocks; the
+  // author loads earlier ones on request.
+  const recentPage = 300 - Math.max(0, Math.ceil(300 / AGENT_MESSAGE_BLOCK_SIZE) - 2) * AGENT_MESSAGE_BLOCK_SIZE;
+  check(host.querySelectorAll('.agent-md').length === recentPage, 'Agent history did not mount its recent page');
   flushSync(() => useAgentChatStore.setState({ activeConvId: b }));
   render(<DesktopAgentTranscript key={b} />);
   check(host.querySelectorAll('.agent-md').length === 3 && !host.textContent?.includes(`Synthetic ${a}`), 'Agent conversation switch retained previous history');

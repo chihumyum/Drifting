@@ -81,9 +81,12 @@ export function createSuggestionMenu(kind: 'slash' | 'mention', label: string) {
         }
         // Keep the caret in the editor: the press never takes focus.
         button.onmousedown = (event) => event.preventDefault();
-        button.onclick = () => handlers.onPick(index);
-        button.onmouseenter = () => handlers.onPoint(index, false);
-        button.onmousemove = () => handlers.onPoint(index, true);
+        // Only a row of the latest render acts: a row replaced when the query
+        // changed would otherwise run whatever the new list holds at its index.
+        const live = () => buttons[index] === button;
+        button.onclick = () => { if (live()) handlers.onPick(index); };
+        button.onmouseenter = () => { if (live()) handlers.onPoint(index, false); };
+        button.onmousemove = () => { if (live()) handlers.onPoint(index, true); };
         buttons.push(button);
         root.appendChild(button);
       });

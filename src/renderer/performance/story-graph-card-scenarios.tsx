@@ -7,7 +7,7 @@ import { SuperViewNavigationProvider } from '../components/SuperViewNavigationCo
 import { SuperViewRelationUiProvider } from '../features/graph/SuperViewRelationUiContext';
 import { superViewModules } from '../features/graph/deferred-graph-modules';
 import { GraphCardFixture } from './graph-card-fixture';
-import { createSyntheticWorkspaceProjection } from './fixture';
+import { baselineFixtureJson, createSyntheticWorkspaceProjection } from './fixture';
 import { useDataStore } from '../store/data-store';
 import { genericAssociationRelationType } from '../domain/entity-relation-type';
 import { storyGraphCardWork } from './agent-panel-counters';
@@ -16,6 +16,9 @@ const resetWork = () => { storyGraphCardWork.lanes = 0; storyGraphCardWork.tiles
 const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 // Cancelable like a real key press, so a surface can claim it.
 const escape = () => flushSync(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })));
+// The chapter's click card: the hover card's own desk card on desktop, the
+// bordered card once expanded and on the paused mobile shell.
+const CHAPTER_CARD = '.entity-card-popover--card, .node-card';
 
 /** Full product lanes and pointer lifecycle, with synthetic workspace data.
  * Cancels drops and relation dialogs before persistence; no SQLite writes. */
@@ -44,13 +47,17 @@ export async function runStoryGraphCardScenarios() {
       const type = genericAssociationRelationType(projectId, at); fixture.entityRelationTypes = [type];
       fixture.entityRelations = [{ id: 'story-card-edge', projectId, fromKind: 'node', fromId: fixture.bookNodes[0].id,
         toKind: 'node', toId: fixture.bookNodes[1].id, relationTypeId: type.id, createdAt: at, updatedAt: at }];
-      const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(fixture)));
+      const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(baselineFixtureJson(fixture)));
       const fixtureHash = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
       const state = useDataStore.getState(); const epoch = state.requestWorkspaceProjection(projectId, 'loading');
       state.commitWorkspaceProjection(projectId, epoch, fixture); localStorage.setItem('graph-view-mode', 'narrative');
       const opened: WorkspaceTarget[] = []; let closed = 0;
       const navigator = { projectId, open: (target: WorkspaceTarget) => { opened.push(target); }, activate() {}, showProjectHome() {}, leaveDeletedTarget() {} };
-      const host = document.createElement('div'); document.body.appendChild(host); const root = createRoot(host);
+      // The view fills the window and scrolls inside itself, as in the app. A
+      // host taller than the window would let the harness document scroll,
+      // and a hover card closes when the scroller under its anchor moves.
+      const host = document.createElement('div'); host.style.cssText = 'position:fixed;inset:0';
+      document.body.appendChild(host); const root = createRoot(host);
       try {
         resetWork();
         flushSync(() => root.render(<MemoryRouter><WorkspaceNavigationProvider navigator={navigator}>
@@ -72,7 +79,7 @@ export async function runStoryGraphCardScenarios() {
         resetWork();
         for (let index = 0; index < 10; index++) {
           flushSync(() => first.click());
-          if (document.querySelector('.node-card')?.textContent?.includes('Synthetic chapter 0')) popoversOpened++;
+          if (document.querySelector(CHAPTER_CARD)?.textContent?.includes('Synthetic chapter 0')) popoversOpened++;
           escape();
         }
         const popoverWork = { ...storyGraphCardWork };
@@ -89,7 +96,7 @@ export async function runStoryGraphCardScenarios() {
             return tile.closest('[data-storyline-row]')?.getAttribute('data-storyline-row') === `card-storyline-${index % storylines}`;
           }),
           drawerReturned: drawer.getAttribute('aria-expanded') === 'false',
-          popoverCycles: popoversOpened === 10 && !document.querySelector('.node-card'),
+          popoverCycles: popoversOpened === 10 && !document.querySelector(CHAPTER_CARD),
           cancelledDragCleaned: ghostVisible && !document.querySelector('.chapter-lane-pointer-ghost') && first.style.visibility !== 'hidden',
           shiftSelectsSource: false, shiftClearsSource: false, latestPair: false, renamedCard: false,
           reassignedPrimaryLane: false, contextMenuUsesCurrentNode: false, doubleClickNavigation: false,

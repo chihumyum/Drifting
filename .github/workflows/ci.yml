@@ -18,6 +18,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
+      # The type check peaks near 2.6 GB, above the heap Node picks for itself
+      # on a small runner; the release verification sets the same limit.
+      NODE_OPTIONS: --max-old-space-size=4096
       VITE_LOCAL_ONLY_MODE: 'true'
       VITE_REQUIRE_AUTH: 'false'
       VITE_AI_TRANSPORT: direct
@@ -123,7 +126,9 @@ jobs:
 
   native:
     runs-on: macos-26
-    timeout-minutes: 30
+    # A cold build of the app plus the shared database tests (five minutes on
+    # a desktop Mac) needs the same room as the release verification.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master, toolchain input
@@ -132,10 +137,22 @@ jobs:
           components: rustfmt
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
-          workspaces: src-tauri
+          workspaces: |
+            src-tauri
+            crates/drifting-core
+            crates/drifting-document
+            crates/drifting-prose
       - run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
       - run: cargo check --manifest-path src-tauri/Cargo.toml --locked --all-targets
       - run: cargo test --manifest-path src-tauri/Cargo.toml --locked --lib
 
       - run: cargo fmt --manifest-path crates/drifting-core/Cargo.toml --check
+      # core:test first checks the prose journal fixture with a TypeScript
+      # oracle, so this lane needs Node and the frozen dependencies too.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22.23.1
+      - run: corepack enable
+      - run: corepack prepare pnpm@10.17.1 --activate
+      - run: pnpm install --frozen-lockfile
       - run: pnpm core:test

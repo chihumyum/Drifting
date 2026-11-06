@@ -7,10 +7,11 @@ import { SuperViewNavigationProvider } from '../components/SuperViewNavigationCo
 import { SuperViewRelationUiProvider } from '../features/graph/SuperViewRelationUiContext';
 import { superViewModules } from '../features/graph/deferred-graph-modules';
 import { GraphCardFixture } from './graph-card-fixture';
-import { createSyntheticWorkspaceProjection } from './fixture';
+import { baselineFixtureJson, createSyntheticWorkspaceProjection } from './fixture';
 import { useDataStore } from '../store/data-store';
 import { genericAssociationRelationType } from '../domain/entity-relation-type';
 import { superElementCardWork } from './agent-panel-counters';
+import { relateStorageKey, serializeRelateRecord } from '../features/graph/element-relate-layout';
 
 const resetWork = () => { superElementCardWork.categories = 0; superElementCardWork.elements = 0; superElementCardWork.bands = 0; };
 const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -37,11 +38,15 @@ export async function runSuperElementCardScenarios() {
       const type = genericAssociationRelationType(projectId, template.createdAt); fixture.entityRelationTypes = [type];
       fixture.entityRelations = [{ id: 'card-edge', projectId, fromKind: 'element', fromId: fixture.bookElements[0].id,
         toKind: 'element', toId: fixture.bookElements[1].id, relationTypeId: type.id, createdAt: template.createdAt, updatedAt: template.updatedAt }];
-      const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(fixture)));
+      const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(baselineFixtureJson(fixture)));
       const fixtureHash = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
       const state = useDataStore.getState(); const epoch = state.requestWorkspaceProjection(projectId, 'loading');
       state.commitWorkspaceProjection(projectId, epoch, fixture);
       const key = `super-element-view:viewport:${projectId}`; const stored = localStorage.getItem(key); localStorage.removeItem(key);
+      // These checks drive the category islands. A book opens in 关系 unless
+      // the author chose the islands for it, so choose them for this one.
+      const layoutKey = relateStorageKey(projectId); const storedLayout = localStorage.getItem(layoutKey);
+      localStorage.setItem(layoutKey, serializeRelateRecord({ mode: 'isles', positions: null, pins: new Map(), signature: null }));
       const opened: WorkspaceTarget[] = []; let closed = 0;
       const navigator = { projectId, open: (target: WorkspaceTarget) => { opened.push(target); }, activate() {}, showProjectHome() {}, leaveDeletedTarget() {} };
       const host = document.createElement('div'); document.body.appendChild(host); const root = createRoot(host);
@@ -94,14 +99,17 @@ export async function runSuperElementCardScenarios() {
         flushSync(() => useDataStore.setState({ bookElements: fixture.bookElements.map((element, index) => index === 0 ? { ...element, name: 'Synthetic renamed card' } : element) }));
         checks.renameUpdatesCard = first.textContent?.includes('Synthetic renamed card') === true;
         // A category opens as the island's card; its 在标签页中打开 leaves for the tab.
-        const category = host.querySelector<HTMLButtonElement>('button[title="Synthetic category 0"]')!;
+        const category = host.querySelector<HTMLButtonElement>('[data-se-category="card-category-0"] > .se-category__legend')!;
         flushSync(() => category.click());
         const openInTab = host.querySelector<HTMLButtonElement>('.se-island [data-se-open-tab]');
         if (openInTab) flushSync(() => openInTab.click());
         checks.categoryNavigation = opened.length === 1 && opened[0].entityType === 'category' && opened[0].id === 'card-category-0' && closed === 1;
         if (Object.values(checks).some(value => !value)) throw new Error(`Full graph card behavior failed: ${JSON.stringify(checks)}`);
         measurements.push({ elements, categories: 8, chapters: 20, fixtureHash, focusToggles: 20, wheelEvents: 100, focusMs, focusWork, wheelWork, checks });
-      } finally { flushSync(() => root.unmount()); host.remove(); if (stored === null) localStorage.removeItem(key); else localStorage.setItem(key, stored); }
+      } finally {
+        flushSync(() => root.unmount()); host.remove(); if (stored === null) localStorage.removeItem(key); else localStorage.setItem(key, stored);
+        if (storedLayout === null) localStorage.removeItem(layoutKey); else localStorage.setItem(layoutKey, storedLayout);
+      }
     }
     return { measurements, boundary: 'Full DesktopSuperElementView, production card DOM and gesture handlers; synthetic workspace/navigation. Render invocation counters, not React commit duration or native input. No persisted relation writes.' };
   } finally { useDataStore.setState(before, true); }
