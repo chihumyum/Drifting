@@ -3764,7 +3764,8 @@
       "askAgentSelection": "Give the selection to the Agent"
     },
     "desk": {
-      "shelf": "Back to the shelf"
+      "shelf": "Back to the shelf",
+      "trash": "This book's trash"
     },
     "foreEdge": {
       "label": "Fore-edge: slide along it to turn to another chapter"

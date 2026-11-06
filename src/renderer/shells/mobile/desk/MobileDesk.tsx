@@ -57,6 +57,8 @@ import { MobileProseNameCard } from './MobileProseNameCard';
 import { useDeskPan, DESK_SLIVER_PX } from './useDeskPan';
 import { capturePageTurn, usePaperScrollMemory, usePageTurn, useReadingAway } from './mobile-paper-continuity';
 import '../../../../styles/mobile-desk.css';
+// The book's trash wears the settings section's head.
+import '../../../../styles/mobile-settings.css';
 
 function storage(): Storage | null {
   try {
@@ -322,6 +324,7 @@ export function MobileDesk({ projectId }: { projectId: string }) {
               onPanelChange={(panel) => dispatch({ type: 'set-left-panel', panel })}
               onLeaveBook={leaveBook}
               onSearch={() => dispatch({ type: 'open-sheet', sheet: 'search' })}
+              onOpenTrash={() => dispatch({ type: 'open-sheet', sheet: 'trash' })}
             />
           </div>
           <div className="m-under__side m-under__side--right" inert={desk.drawer !== 'right' || undefined} {...pan.drawerHandlers}>

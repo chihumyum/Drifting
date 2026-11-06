@@ -3764,7 +3764,8 @@
       "askAgentSelection": "Auswahl an den Agent geben"
     },
     "desk": {
-      "shelf": "Zurück zum Regal"
+      "shelf": "Zurück zum Regal",
+      "trash": "Papierkorb dieses Buchs"
     },
     "foreEdge": {
       "label": "Buchschnitt: am Rand entlang zu einem anderen Kapitel"

@@ -101,12 +101,14 @@ function DeskTabs<T extends string>({ panels, current, label, onChange, leading,
  * button, and ends with search; the account cell stands at its foot as on
  * the desktop.
  */
-export function MobileLeftDesk({ panel, target, onPanelChange, onLeaveBook, onSearch }: {
+export function MobileLeftDesk({ panel, target, onPanelChange, onLeaveBook, onSearch, onOpenTrash }: {
   panel: MobileLeftPanel;
   target: WorkspaceTarget | null;
   onPanelChange: (panel: MobileLeftPanel) => void;
   onLeaveBook: () => void;
   onSearch: () => void;
+  /** The book's own trash: what was deleted from it, to restore or empty. */
+  onOpenTrash: () => void;
 }) {
   const { t } = useTranslation();
   const labels: Record<MobileLeftPanel, string> = {
@@ -163,6 +165,14 @@ export function MobileLeftDesk({ panel, target, onPanelChange, onLeaveBook, onSe
       />
       <div className="m-desk__foot">
         <WorkspaceAccountCell />
+        <GhostIconButton
+          glass="round"
+          className="m-desk__trash glass--rest"
+          data-debug-id="mobile-project-trash"
+          aria-label={t('mobileDesk.desk.trash')}
+          icon={<BrushIcon name="trash" />}
+          onClick={onOpenTrash}
+        />
       </div>
     </div>
   );

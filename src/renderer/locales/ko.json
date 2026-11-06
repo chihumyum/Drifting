@@ -3764,7 +3764,8 @@
       "askAgentSelection": "선택한 글을 Agent에게 넘기기"
     },
     "desk": {
-      "shelf": "책장으로 돌아가기"
+      "shelf": "책장으로 돌아가기",
+      "trash": "이 책의 휴지통"
     },
     "foreEdge": {
       "label": "책배: 가장자리를 밀어 다른 장으로"

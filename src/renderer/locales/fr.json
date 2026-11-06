@@ -3779,7 +3779,8 @@
       "askAgentSelection": "Confier la sélection à l'Agent"
     },
     "desk": {
-      "shelf": "Retour à l'étagère"
+      "shelf": "Retour à l'étagère",
+      "trash": "Corbeille de ce livre"
     },
     "foreEdge": {
       "label": "Tranche : glissez le long du bord vers un autre chapitre"

@@ -3779,7 +3779,8 @@
       "askAgentSelection": "Entregar a seleção ao Agent"
     },
     "desk": {
-      "shelf": "Voltar à estante"
+      "shelf": "Voltar à estante",
+      "trash": "Lixeira deste livro"
     },
     "foreEdge": {
       "label": "Corte: deslize pela borda para ir a outro capítulo"

@@ -741,3 +741,28 @@
 .m-super-view-host .super-view-head__back:focus {
   outline: none;
 }
+
+.m-desk__foot {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-right: 10px;
+}
+
+.m-desk__foot .sidebar-account-cell {
+  flex: 1;
+  min-width: 0;
+}
+
+.m-desk__trash {
+  flex: none;
+}
+
+/* The book's trash: one page-coloured sheet under the head. */
+.m-project-trash .m-settings__body {
+  background: hsl(var(--page));
+}
+
+.m-project-trash .m-settings__content.set-main {
+  background: transparent;
+}

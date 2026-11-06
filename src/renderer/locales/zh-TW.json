@@ -3764,7 +3764,8 @@
       "askAgentSelection": "把選取的文字交給幫手"
     },
     "desk": {
-      "shelf": "回到書架"
+      "shelf": "回到書架",
+      "trash": "本書回收站"
     },
     "foreEdge": {
       "label": "書口：沿邊滑動翻到別的章節"

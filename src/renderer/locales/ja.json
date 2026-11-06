@@ -3764,7 +3764,8 @@
       "askAgentSelection": "選択した文章を Agent に渡す"
     },
     "desk": {
-      "shelf": "本棚に戻る"
+      "shelf": "本棚に戻る",
+      "trash": "この本のゴミ箱"
     },
     "foreEdge": {
       "label": "小口：縁をなぞって別の章へ"
