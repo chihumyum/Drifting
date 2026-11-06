@@ -118,9 +118,9 @@ try {
           // and the page's own language ticked.
           menuStyle:box.width===Math.min(240,innerWidth-32)&&getComputedStyle(menu).borderTopLeftRadius==='16px'
             &&getComputedStyle(menu.querySelector('[aria-current=page]'),'::after').webkitMaskImage.includes('check'),
-          // Where each heading and the tagline wrap: the characters on either side of every
+          // Where each heading, the lede and the tagline wrap: the characters on either side of every
           // line break, and whether a space or a <wbr> lies between them.
-          wraps:[...document.querySelectorAll('.tagline, main h2, main h3')].flatMap((element)=>{
+          wraps:[...document.querySelectorAll('.lede, .tagline, main h2, main h3')].flatMap((element)=>{
             const walker=document.createTreeWalker(element, NodeFilter.SHOW_TEXT|NodeFilter.SHOW_ELEMENT);
             const found=[]; let previous=null, top=null, gap=false;
             for (let node=walker.nextNode(); node; node=walker.nextNode()) {
@@ -162,12 +162,32 @@ try {
       }
       await client.Input.dispatchKeyEvent({ type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
       assert(await evaluate("!document.querySelector('.language-switcher').open"));
+      // The hero's GitHub button asks for a star, and a download brings the note
+      // asking for one into the place of the line under the buttons, without
+      // moving anything (site.mjs askForStarOnDownload).
+      const star = await evaluate(`(async ()=> {
+        const hero=document.querySelector('.hero'), note=hero.querySelector('.star-note'), meta=hero.querySelector('.meta');
+        const button=hero.querySelector('.cta .star-link');
+        const before={height:hero.offsetHeight, note:getComputedStyle(note).visibility};
+        addEventListener('click', (event)=>event.preventDefault(), {once:true});
+        hero.querySelector('[data-platform=mac]').click();
+        // The line under the buttons keeps its place until its fade is over.
+        await new Promise((resolve)=>setTimeout(resolve, parseFloat(getComputedStyle(meta).transitionDuration)*1000+100));
+        const closing=document.querySelector('.closing-text .star-note');
+        return {before, height:hero.offsetHeight, note:getComputedStyle(note).visibility, meta:getComputedStyle(meta).visibility,
+          closing:getComputedStyle(closing).visibility, button:button.textContent.trim(), buttonHref:button.href,
+          mark:getComputedStyle(button.querySelector('.mk-star')).webkitMaskImage.includes('mark-star'),
+          noteHref:note.querySelector('a').href, footer:document.querySelector('footer .star-link').textContent.trim()};
+      })()`);
+      assert.deepEqual(star, { before: { height: star.height, note: 'hidden' }, height: star.height, note: 'visible', meta: 'hidden',
+        closing: 'visible', button: copy['star.button'], buttonHref: 'https://github.com/chihumyum/Drifting', mark: true,
+        noteHref: 'https://github.com/chihumyum/Drifting', footer: copy['star.button'] }, `${locale} at ${width}px: star`);
       await pointerClick('#studio-sb [data-tab="elements"]');
       await pointerClick('#studio-sb [data-k="lin"]');
       assert(await evaluate("document.querySelector('[data-p=lin]').classList.contains('on')"));
       const { example, agent, download, windowsDownload, armDownload, wraps, ...layout } = geometry;
       if (locale === 'ko' || locale === 'ja') layout.headingWraps = `${wraps.length} breaks, none inside a word`;
-      layouts.push({ width, locale, ...layout, markdownDemo: 'passed', studioDemo: 'passed', agentDemo: 'passed', download: 'passed' });
+      layouts.push({ width, locale, ...layout, markdownDemo: 'passed', studioDemo: 'passed', agentDemo: 'passed', download: 'passed', starOnDownload: 'passed' });
     }
   }
   await setViewport(390);
@@ -223,6 +243,9 @@ try {
   assert.equal(visitor.length, 2);
   for (const row of visitor) assert.deepEqual(row, { platform: 'windows', primary: true, others: 0 });
   assert.deepEqual(header, { header: INSTALLERS.windows, target: '' });
+  // That Download fetches the installer itself, so it asks for a star too.
+  assert(await evaluate(`(()=> { addEventListener('click', (event)=>event.preventDefault(), {once:true});
+    document.querySelector('.bar-dl').click(); return document.documentElement.classList.contains('downloaded'); })()`));
   // Back to the Japanese browser the storage check below expects.
   await setLanguage('ja-JP');
 

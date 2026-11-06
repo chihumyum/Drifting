@@ -1,8 +1,8 @@
 # Drifting
 
-开源、本地优先的长篇小说写作软件，支持 Mac 与 Windows。
+跨平台的 AI 原生小说写作应用。
 
-**Markdown 的轻快，传统写作软件的脚手架，再加一个照看整本书的 Agent。**
+**兼具 Markdown 编辑器的轻快、经典写作工坊的创作框架，以及贯穿全书的 AI Agent，助你写出人生第一部畅销书。**
 
 [下载 Mac 与 Windows 版](https://github.com/chihumyum/Drifting/releases/latest) ·
 [官网](https://drifting.cc/zh) · [文档](docs/README.md)

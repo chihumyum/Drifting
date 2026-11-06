@@ -117,6 +117,18 @@ export function leadWithVisitorPlatform(doc = document, nav = navigator) {
   return platform;
 }
 
+// A download is the moment to ask for a star. Once an installer link is
+// clicked (a row's Mac or Windows button, or the header's Download when it
+// fetches the installer itself rather than opening the releases page), the
+// root takes .downloaded and every .star-note on the page shows (index.html).
+export function askForStarOnDownload(doc = document) {
+  doc.addEventListener('click', (event) => {
+    const link = event.target instanceof Element ? event.target.closest('.downloads [data-platform], .bar-dl') : null;
+    if (!link || link.matches('.bar-dl[target]')) return;
+    doc.documentElement.classList.add('downloaded');
+  });
+}
+
 export function laySheets(sea) {
   const sheets = [...document.querySelectorAll('[data-sea]')];
   const hovering = new Set();

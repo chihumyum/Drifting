@@ -1,9 +1,10 @@
 # Drifting
 
-An open-source, local-first novel writing app for Mac and Windows.
+A cross-platform, AI-native novel-writing app.
 
-**The ease of a Markdown editor, the scaffolding of a classic writing studio, and
-an Agent for the whole book.**
+**With the ease of a Markdown editor, the scaffolding of a classic writing
+studio, and an AI Agent for the whole book, it's built to help you write your
+first bestseller.**
 
 [Download for Mac and Windows](https://github.com/chihumyum/Drifting/releases/latest) ·
 [Website](https://drifting.cc/) · [Documentation](docs/README.md)
