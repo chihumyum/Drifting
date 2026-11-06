@@ -207,11 +207,15 @@ export function MobileDesk({ projectId }: { projectId: string }) {
       navigate(`/settings${panel}`, { state: { from: location.pathname } });
     };
     const openSearch = () => dispatch({ type: 'open-sheet', sheet: 'search' });
+    // A Project Home card or a hand-off from Review routed a task to the Agent.
+    const revealAgent = () => dispatch({ type: 'open-drawer', side: 'right', panel: 'companion' });
     events.on('settings:open', openSettings);
     events.on('search:open', openSearch);
+    events.on('agent:reveal', revealAgent);
     return () => {
       events.off('settings:open', openSettings);
       events.off('search:open', openSearch);
+      events.off('agent:reveal', revealAgent);
     };
   }, [location.pathname, navigate]);
 

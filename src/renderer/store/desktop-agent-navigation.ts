@@ -1,3 +1,4 @@
+import { events } from '../lib/events';
 import { sidebarFitsBeside } from '../lib/layout-geometry';
 import type { RightSidebarTab, SidebarPaneId, SidebarTabs } from '../lib/sidebar-tabs';
 import { useAgentChatStore } from './agent-chat-store';
@@ -14,6 +15,7 @@ export function revealDesktopAgentView(): string {
   useAgentChatStore.getState().bindView(paneKey);
   const viewId = useAgentChatStore.getState().viewBindings[paneKey];
   useAgentChatStore.getState().focusView(viewId);
+  events.emit('agent:reveal', { viewId });
   return viewId;
 }
 
@@ -62,6 +64,7 @@ export async function showAgentTaskInRightSidebar(
   useAgentChatStore.getState().bindView(paneKey);
   const viewId = useAgentChatStore.getState().viewBindings[paneKey];
   useAgentChatStore.getState().focusView(viewId);
+  events.emit('agent:reveal', { viewId });
   await useAgentChatStore.getState().loadConversation(conversationId, viewId);
   return viewId;
 }

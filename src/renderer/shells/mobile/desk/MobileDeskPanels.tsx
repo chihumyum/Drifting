@@ -15,6 +15,8 @@ import { ReviewPanel } from '../../../components/rightBars/ReviewPanel';
 import { LibraryPanel, type FocusedEntity } from '../../../features/library/LibraryPanel';
 import { DesktopAgentPanel } from '../../../features/agent/desktop/DesktopAgentPanel';
 import { MobilePaperStats } from '../workspace/MobilePaperStats';
+import { SidebarPaneContext } from '../../../lib/sidebar-pane-context';
+import { useAgentPaneId } from '../../../components/workspaceChrome/workspace-intents';
 import {
   MOBILE_LEFT_PANELS,
   MOBILE_RIGHT_PANELS,
@@ -178,6 +180,7 @@ export function MobileRightSidebar({ projectId, panel, target, onPanelChange, on
   onOpenWorkbench: () => void;
 }) {
   const { t } = useTranslation();
+  const agentPane = useAgentPaneId();
   const focused = focusedEntity(target);
   const materialId = target?.entityType === 'library_item' ? target.id : null;
   const labels: Record<MobileRightPanel, string> = {
@@ -218,7 +221,11 @@ export function MobileRightSidebar({ projectId, panel, target, onPanelChange, on
                 {target ? <MobilePaperStats target={target} /> : null}
               </div>
             )}
-            {candidate === 'companion' && <DesktopAgentPanel projectId={projectId} />}
+            {candidate === 'companion' && (
+              <SidebarPaneContext.Provider value={agentPane}>
+                <DesktopAgentPanel projectId={projectId} />
+              </SidebarPaneContext.Provider>
+            )}
           </div>
         )}
       />

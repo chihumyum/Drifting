@@ -71,7 +71,7 @@ describe('the paper-corner sync mark (docs/hosted-sync/sync-status.md)', () => {
     const shell = source('src/renderer/shells/desktop/DesktopAppShell.tsx');
     expect(shell).toContain('useNotificationFeed({ transfers: false });');
     expect(shell).toContain('useSyncProblemNotifications();');
-    expect(source('src/renderer/shells/mobile/MobileAppShell.tsx')).toContain('useNotificationFeed();');
+    expect(source('src/renderer/shells/mobile/desk/MobileDesk.tsx')).toContain('useNotificationFeed();');
     const pill = source('src/renderer/components/notifications/NotificationPill.tsx');
     expect(pill).toContain('const syncProblem = items.some((n) => n.syncProblem);');
     expect(pill).toMatch(/if \(syncProblem\) \{\s*iconColor = 'hsl\(var\(--destructive\)\)';\s*iconEl = <BrushIcon name="status-warning"/);

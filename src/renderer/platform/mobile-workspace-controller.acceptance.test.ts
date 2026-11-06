@@ -6,44 +6,34 @@ const rendererRoot = resolve(import.meta.dirname, '..');
 const repoRoot = resolve(rendererRoot, '../..');
 const source = (path: string) => readFileSync(resolve(rendererRoot, path), 'utf8');
 
-describe('Mobile V2 workspace controller architecture', () => {
-  it('replaces shell surface booleans with one reducer-owned state', () => {
-    const shell = source('shells/mobile/MobileAppShell.tsx');
-    expect(shell).toContain('useReducer(');
-    expect(shell).toContain('mobileWorkspaceReducer');
-    expect(shell).toContain('workspaceUi.surface.kind');
-    expect(shell).not.toMatch(/useState\((?:false|null)\).*overviewOpen/);
-    expect(shell).not.toContain('setOverviewOpen');
-    expect(shell).not.toContain('setActiveSuperView');
-    expect(shell).not.toContain('setTrashOpen');
-  });
-
-  it('keeps the five frozen axes and a pure bar projection in one controller', () => {
-    const controller = source(
-      'shells/mobile/workspace/mobile-workspace-controller.ts',
-    );
-    for (const axis of ['surface:', 'paperMode:', 'overlay:', 'transient:', 'keyboard:']) {
+describe('mobile desk controller architecture', () => {
+  it('keeps the desk in one reducer-owned state', () => {
+    const desk = source('shells/mobile/desk/MobileDesk.tsx');
+    expect(desk).toContain('useReducer(mobileDeskReducer');
+    expect(desk).not.toContain('setOverviewOpen');
+    expect(desk).not.toContain('setTrashOpen');
+    const controller = source('shells/mobile/desk/mobile-desk-controller.ts');
+    for (const axis of ['stage:', 'drawer:', 'bottom:', 'superView:', 'sheet:', 'popover:', 'writing:', 'keyboardBar:']) {
       expect(controller).toContain(axis);
     }
-    expect(controller).toContain('resolveMobileWorkspaceBack');
-    expect(controller).toContain('selectMobileUnifiedBarProjection');
-    expect(controller).toContain('assertLegalMobileWorkspaceState');
+    expect(controller).toContain('export function resolveMobileDeskBack');
   });
 
   it('routes visible, Escape, Super View, and Android hardware Back through one request', () => {
-    const hook = source('shells/mobile/workspace/useMobileWorkspaceBack.ts');
+    const hook = source('shells/mobile/desk/useMobileDeskBack.ts');
     const androidBack = source('shells/mobile/useMobileAndroidBack.ts');
     const superStack = source('hooks/useSuperViewEscapeStack.ts');
     const superHeader = source('components/SuperViewHeader.tsx');
-    const overview = source('shells/mobile/MobileAppShell.tsx');
+    const host = source('shells/mobile/workspace/MobileSuperViewHost.tsx');
     expect(androidBack).toContain('androidBackRegistration = onBackButtonPress(() =>');
     expect(androidBack).toContain('const androidBackConsumers = new Set<() => void>()');
     expect(androidBack).toContain("an unregister failure must not become an unhandled rejection");
     expect(hook).toContain("useMobileAndroidBack(() => requestMobileWorkspaceBack('android-hardware'))");
-    expect(hook).toContain('resolveMobileWorkspaceBack');
+    expect(hook).toContain('resolveMobileDeskBack');
     expect(superStack).toContain('MOBILE_WORKSPACE_BACK_EVENT');
     expect(superHeader).toContain("requestMobileWorkspaceBack('visible')");
-    expect(overview).toContain("onClose={() => requestMobileWorkspaceBack('visible')}");
+    // A pan from the left edge takes a Super View back the way Back does.
+    expect(host).toContain("requestMobileWorkspaceBack('visible')");
   });
 
   it('relies on Tauri AppPlugin hardware Back while native JS is limited to IME geometry', () => {

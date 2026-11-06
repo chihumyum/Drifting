@@ -1,4 +1,5 @@
 import { useUiStore } from '../../store/ui-store';
+import type { SidebarPaneId } from '../../lib/sidebar-tabs';
 
 /**
  * What shared controls ask the workspace for, read and written outside React.
@@ -69,4 +70,13 @@ export function subscribeSuperViewIntent(listener: (view: SuperViewIntent) => vo
 /** Arriving at Project Home floats its new-entity row ('new') or its Agent ('home'). */
 export function markProjectHomeArrival(intent: 'new' | 'home'): void {
   useUiStore.getState().markProjectHomeEntry(intent);
+}
+
+/**
+ * The right-sidebar pane the desktop routes Agent tasks into. A phone shows
+ * its one Agent panel as that pane, so a task routed there is the
+ * conversation on screen.
+ */
+export function useAgentPaneId(): SidebarPaneId {
+  return useUiStore((state) => state.desktopSidebarTabs.right.focusedPane);
 }

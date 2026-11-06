@@ -31,30 +31,27 @@ describe('unified Review surface acceptance', () => {
 
   it('mounts the shared Review panel in desktop and mobile right-sidebar presentations', () => {
     const desktop = source('src/renderer/shells/desktop/DesktopRightSidebar.tsx');
-    const mobile = source('src/renderer/shells/mobile/workspace/MobileRightSidebar.tsx');
+    const mobile = source('src/renderer/shells/mobile/desk/MobileDeskPanels.tsx');
     const store = source('src/renderer/store/ui-store.ts');
 
     expect(desktop).toContain("tab === 'review'");
     // A material tab scopes Review to its region comments (docs/material-workbench.md).
     expect(desktop).toContain('<ReviewPanel focused={focusedForReview} onOpenAgentTask=');
-    expect(mobile).toContain("type ToolTab = 'stats' | 'review' | 'agent' | 'library'");
-    expect(mobile).toContain('<ReviewPanel focused={focused} onOpenAgentTask=');
-    expect(mobile).toContain('lastMobileRightSidebarTab');
+    // The phone's right desk: the same panels, Review scoped like the desktop's.
+    expect(mobile).toContain('MOBILE_RIGHT_PANELS');
+    expect(mobile).toContain("focused={materialId ? { kind: 'library_item', id: materialId } : focused}");
+    expect(mobile).toContain("onOpenAgentTask={() => onPanelChange('companion')}");
     expect(store).toContain("activeRightPanel: 'review' | 'library' | 'stats'");
     expect(store).toContain("merged.activeRightPanel as string) === 'todo'");
   });
 
-  it('opens the mobile general sidebar from the top', () => {
-    const css = source('src/styles/mobile-workspace.css');
-    const sidebar = source('src/renderer/shells/mobile/workspace/MobileRightSidebar.tsx');
-    const deck = source('src/renderer/shells/mobile/workspace/MobilePaperDeck.tsx');
-    expect(css).toContain('inset: 0 0 0 max(8px, env(safe-area-inset-left));');
-    expect(css).toContain('min-height: calc(44px + env(safe-area-inset-top));');
-    expect(deck).toMatch(/<AnimatePresence>[\s\S]*?<MobileRightSidebar[\s\S]*?<\/AnimatePresence>/u);
-    expect(sidebar).toContain("{ x: 28, y: '-100%' }");
-    expect(sidebar).toContain("y: reducedMotion ? 0 : '-100%'");
-    expect(sidebar).toContain('inert={!isPresent}');
-    expect(css).not.toContain('@keyframes m-right-sidebar-enter');
+  it('opens the right desk from under the paper', () => {
+    const css = source('src/styles/mobile-desk.css');
+    const desk = source('src/renderer/shells/mobile/desk/MobileDesk.tsx');
+    expect(css).toContain(".m-root[data-drawer='right'] { --m-paper-rest: calc(var(--m-sliver) - 100vw); }");
+    expect(css).toContain('.m-under__side--right { right: 0; }');
+    expect(desk).toContain('onToggleDrawer={(side) =>');
+    expect(desk).toContain('<MobileRightSidebar');
   });
 
   it('keeps source navigation on the card header arrow', () => {
@@ -95,7 +92,8 @@ describe('unified Review surface acceptance', () => {
     expect(panel).toContain('className="review-panel__list scroll-no-bar workspace-list"');
     expect(panel).not.toContain('<FilterChip');
     expect(panel).toContain('<GhostIconButton');
-    expect(card).toContain("glass ? ' review-card--glass glass glass--rest glass--surface' : ' workspace-list-row glass glass--surface'");
+    expect(card).toContain('review-card--glass glass glass--rest glass--surface');
+    expect(card).not.toContain("' workspace-list-row glass glass--surface'");
     // No right-click menu: the item's actions ride on its source hover card.
     expect(card).not.toContain('<ContextMenuSurface');
     expect(card).not.toContain('onContextMenu=');

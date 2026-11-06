@@ -75,6 +75,10 @@ export type AppEvents = {
   // (e.g. user menu "键盘快捷键" → opens settings scrolled to the keys
   // panel). Empty payload = open at last position.
   'settings:open': { railId?: string };
+  // Something asked to show the Agent view a task was just routed into (a
+  // Project Home card, Review's hand-off). The desktop opens its right
+  // sidebar itself; the phone's desk listens and shows its right desk.
+  'agent:reveal': { viewId: string };
   // Open the entity time-machine (snapshot history) modal for one prose
   // entity or material note. Emitted by the editor three-dot menu and the panel cell context
   // menu; consumed by the globally-mounted EntitySnapshotHistoryModal.

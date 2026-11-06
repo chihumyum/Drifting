@@ -116,7 +116,7 @@ describe('hosted settings boundary', () => {
     const shelf = read('src/renderer/shells/mobile/standalone/MobileProjectShelfContent.tsx');
     const projectPicker = read('src/renderer/views/ProjectPickerView.tsx');
     const shelfRail = read('src/renderer/views/shelf/ShelfRail.tsx');
-    const workspace = read('src/renderer/shells/mobile/workspace/MobileRightSidebar.tsx');
+    const workspace = read('src/renderer/shells/mobile/desk/MobileDeskPanels.tsx');
     expect(menu).toContain("t('userMenu.localStatus')");
     expect(menu).toContain("scope === 'shelf' && accountSettingsEnabled &&");
     // Inside a book a Hosted build not signed in offers sign-in; a local build never does.
