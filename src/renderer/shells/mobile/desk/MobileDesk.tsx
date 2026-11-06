@@ -21,6 +21,8 @@ import { BottomTimeline } from '../../../components/BottomTimeline/BottomTimelin
 import { TrailingEditorPaneContext } from '../../../components/editor/editor-corner';
 import {
   markProjectHomeArrival,
+  readBottomPaneIntent,
+  readSuperViewIntent,
   setBottomPaneIntent,
   setSuperViewIntent,
   subscribeBottomPaneIntent,
@@ -29,7 +31,7 @@ import {
 import { setSelectionBarDocked } from '../../../features/editor/editor-selection-bar';
 import { ProjectDashboard } from '../../../views/ProjectDashboard';
 import { useNotificationFeed } from '../../../hooks/useNotificationFeed';
-import { getActiveEditor, saveActiveEditor } from '../../../lib/active-editor';
+import { getActiveEditor } from '../../../lib/active-editor';
 import { events } from '../../../lib/events';
 import { useMobileWorkspaceSession } from '../workspace/useMobileWorkspaceSession';
 import { MobilePaperContent } from '../workspace/MobilePaperContent';
@@ -104,7 +106,8 @@ export function MobileDesk({ projectId }: { projectId: string }) {
   // The address is the paper in front; the book's root is Project Home.
   useEffect(() => {
     if (location.pathname === `${root}/home` || location.pathname === `${root}/new`) {
-      markProjectHomeArrival(location.pathname.endsWith('/new') ? 'new' : 'home');
+      homeIntentRef.current = location.pathname.endsWith('/new') ? 'new' : 'home';
+      setHomeArrival((n) => n + 1);
       dispatch({ type: 'show-home' });
       navigate(root, { replace: true });
       return;
@@ -120,17 +123,26 @@ export function MobileDesk({ projectId }: { projectId: string }) {
     }
   }, [location.pathname, navigate, projectId, root]);
 
+  // Project Home floats its create row after the plus and its Agent otherwise.
+  // It reads the arrival once it is on screen, so the arrival is marked after
+  // the stage has turned to it.
+  const homeIntentRef = useRef<'new' | 'home' | null>(null);
+  const [homeArrival, setHomeArrival] = useState(0);
   const showHome = useCallback(
     (options?: { replace?: boolean; intent?: 'new' | 'home' }) => {
-      void saveActiveEditor();
-      markProjectHomeArrival(options?.intent ?? 'home');
+      homeIntentRef.current = options?.intent ?? 'home';
+      setHomeArrival((n) => n + 1);
       dispatch({ type: 'show-home' });
       navigate(root, { replace: options?.replace ?? false });
     },
     [navigate, root],
   );
+  useEffect(() => {
+    if (desk.stage !== 'home' || !homeIntentRef.current) return;
+    markProjectHomeArrival(homeIntentRef.current);
+    homeIntentRef.current = null;
+  }, [desk.stage, homeArrival]);
   const leaveBook = useCallback(() => {
-    void saveActiveEditor();
     navigate('/', { replace: true });
   }, [navigate]);
 
@@ -190,7 +202,6 @@ export function MobileDesk({ projectId }: { projectId: string }) {
 
   useEffect(() => {
     const openSettings = (payload?: { railId?: string }) => {
-      void saveActiveEditor();
       const panel = payload?.railId ? `?panel=${encodeURIComponent(payload.railId)}` : '';
       navigate(`/settings${panel}`, { state: { from: location.pathname } });
     };
@@ -217,6 +228,27 @@ export function MobileDesk({ projectId }: { projectId: string }) {
   }, []);
 
   useMobileDeskBack({ state: desk, dispatch, onShowHome: () => showHome({ replace: true }), onLeaveBook: leaveBook });
+
+  // Frontend Debug (development only): the desk's state for acceptance runs.
+  useEffect(() => {
+    if (!import.meta.env.DEV || import.meta.env.VITE_DRIFTING_FRONTEND_DEBUG !== '1') return undefined;
+    let dispose: (() => void) | undefined;
+    let cancelled = false;
+    void import('../../../lib/frontend-debug/registry').then(({ registerFrontendDebugSlice }) => {
+      if (cancelled) return;
+      dispose = registerFrontendDebugSlice('mobile.workspace', () => ({
+        projectId,
+        papers: papers.papers.map((paper) => ({ key: paper.key, target: paper.target, scrollTop: paper.scrollTop })),
+        activeKey: papers.activeKey,
+        desk,
+        intents: { bottom: readBottomPaneIntent(), superView: readSuperViewIntent() },
+      }));
+    });
+    return () => {
+      cancelled = true;
+      dispose?.();
+    };
+  }, [desk, papers, projectId]);
 
   const pan = useDeskPan({ deskRef, paperRef, drawer: desk.drawer, writing: desk.writing, dispatch });
   usePaperScrollMemory(pageRef, activePaper, session.rememberScroll, desk.stage === 'paper');

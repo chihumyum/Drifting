@@ -657,3 +657,87 @@
 .m-desk .workspace-panel-header-row .ghost-icon-button .brush-icon {
   --brush-icon-size: 18px;
 }
+
+/* ── Project Home on a phone ──────────────────────────────────────── */
+.m-paper .dash__inner {
+  gap: 34px;
+  padding: 8px 20px calc(var(--m-foot) + 150px);
+}
+
+/* The title gets the whole width; the overview/settings switch sits above it. */
+.m-paper .dash-title__top {
+  flex-direction: column;
+  gap: 10px;
+}
+
+.m-paper .dash-title__views {
+  order: -1;
+  align-self: flex-end;
+}
+
+.m-paper .dash-title__name {
+  font-size: 30px;
+}
+
+/* A finger never needs the keyboard's focus ring; a hardware keyboard's
+   Tab still shows it. */
+.m-root :focus:not(:focus-visible) {
+  outline: none;
+}
+
+.m-root .dash :focus {
+  outline: none;
+}
+
+/* ── A Super View's head on a phone ───────────────────────────────── */
+.m-super-view-host .super-view-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  height: auto;
+  min-height: 0;
+  padding: 8px 12px;
+}
+
+.m-super-view-host .super-view-head__left {
+  flex: 1 1 100%;
+  gap: 10px;
+  min-width: 0;
+}
+
+.m-super-view-host .super-view-head__views {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.m-super-view-host .super-view-head__views::-webkit-scrollbar { display: none; }
+
+.m-super-view-host .super-view-head__views .glass-slider {
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+
+.m-super-view-host .super-view-head__meta { display: none; }
+
+.m-super-view-host .super-view-head__right {
+  flex: 1 1 100%;
+  justify-content: flex-start;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.m-super-view-host .super-view-head__right::-webkit-scrollbar { display: none; }
+
+/* The relation legend would cover most of a phone's canvas. */
+.m-super-view-host .super-view-legend { display: none; }
+
+.m-root .m-super-view-host {
+  transition: transform var(--motion-structural) var(--motion-structural-ease);
+}
+
+.m-super-view-host .super-view-head__back:focus {
+  outline: none;
+}
