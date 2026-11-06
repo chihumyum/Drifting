@@ -52,6 +52,7 @@ import { MobileDock } from './MobileDock';
 import { MobileKeyboardBar } from './MobileKeyboardBar';
 import { MobileLeftDesk, MobileRightSidebar } from './MobileDeskPanels';
 import { MobileForeEdge } from './MobileForeEdge';
+import { MobileProseNameCard } from './MobileProseNameCard';
 import { useDeskPan, DESK_SLIVER_PX } from './useDeskPan';
 import { usePaperScrollMemory, usePageTurn, useReadingAway } from './mobile-paper-continuity';
 import '../../../../styles/mobile-desk.css';
@@ -359,6 +360,10 @@ export function MobileDesk({ projectId }: { projectId: string }) {
             />
           )}
         </div>
+
+        {showPaper && (
+          <MobileProseNameCard paperRef={pageRef} writing={desk.writing} onOpen={(next) => navigator.open(next)} />
+        )}
 
         {desk.writing && writing.editor && !writing.editor.isDestroyed && (
           <MobileKeyboardBar

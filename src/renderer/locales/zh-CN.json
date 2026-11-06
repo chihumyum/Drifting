@@ -3748,7 +3748,8 @@
       "new": "新建"
     },
     "paper": {
-      "back": "回到稿纸"
+      "back": "回到稿纸",
+      "openName": "打开"
     },
     "keyboard": {
       "label": "写作工具",

@@ -73,3 +73,9 @@ html[data-shell-mode='mobile'] .hover-card-surface {
     scroll-behavior: auto !important;
   }
 }
+
+/* A finger's tap leaves no keyboard focus ring behind; VoiceOver draws its
+   own. Glass still answers :focus-visible from a hardware keyboard. */
+html[data-shell-mode='mobile'] :focus {
+  outline: none;
+}

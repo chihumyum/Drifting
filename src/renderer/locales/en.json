@@ -3755,7 +3755,8 @@
       "new": "New"
     },
     "paper": {
-      "back": "Back to the page"
+      "back": "Back to the page",
+      "openName": "Open"
     },
     "keyboard": {
       "label": "Writing tools",

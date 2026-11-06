@@ -3755,7 +3755,8 @@
       "new": "새로 만들기"
     },
     "paper": {
-      "back": "원고로 돌아가기"
+      "back": "원고로 돌아가기",
+      "openName": "열기"
     },
     "keyboard": {
       "label": "쓰기 도구",

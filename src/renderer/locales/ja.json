@@ -3755,7 +3755,8 @@
       "new": "新規"
     },
     "paper": {
-      "back": "原稿に戻る"
+      "back": "原稿に戻る",
+      "openName": "開く"
     },
     "keyboard": {
       "label": "執筆ツール",

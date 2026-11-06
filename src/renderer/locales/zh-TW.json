@@ -3755,7 +3755,8 @@
       "new": "新建"
     },
     "paper": {
-      "back": "回到稿紙"
+      "back": "回到稿紙",
+      "openName": "打開"
     },
     "keyboard": {
       "label": "寫作工具",

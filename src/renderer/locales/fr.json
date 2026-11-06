@@ -3770,7 +3770,8 @@
       "new": "Nouveau"
     },
     "paper": {
-      "back": "Revenir à la feuille"
+      "back": "Revenir à la feuille",
+      "openName": "Ouvrir"
     },
     "keyboard": {
       "label": "Outils d'écriture",
