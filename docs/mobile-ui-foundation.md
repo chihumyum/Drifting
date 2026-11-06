@@ -20,8 +20,8 @@ shelf, timeline, plot planner and Super Views; what it owns is the phone's
 geometry, gestures, keyboard handling and navigation.
 
 Opening a project mounts `MobileAppShell`: `ProjectRuntimeProvider`, then
-`MobileDesk` (`src/renderer/shells/mobile/desk/MobileDesk.tsx`). Only the
-active paper mounts a full editor.
+`MobileDesk` (`src/renderer/shells/mobile/desk/MobileDesk.tsx`).
+Only the active paper mounts a full editor.
 
 This is verified in the iOS Simulator through the frontend debug bridge
 (synthetic DOM input) and by source and unit tests. It is not a claim about
