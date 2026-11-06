@@ -1,7 +1,4 @@
 {
-  "preAlphaGuide": {
-    "byok": "The Agent is experimental and needs your own model key or a ChatGPT subscription; requests, cost and data terms follow the provider you choose. Keys stay in Windows Credential Manager."
-  },
   "settings": {
     "sync": {
       "projection": {

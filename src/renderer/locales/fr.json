@@ -118,13 +118,7 @@
   },
   "preAlphaGuide": {
     "title": "Bienvenue dans Drifting Alpha",
-    "intro": "Écrivez sans compte. Les projets et les textes sont d’abord enregistrés sur cet appareil.",
-    "localData": "Aucun compte Drifting n’est requis. Projets, textes, relations, corbeille et historique sont stockés dans le dossier local de l’application.",
-    "byok": "Agent nécessite votre clé de modèle ou un abonnement ChatGPT. Les requêtes, coûts et conditions de traitement des données dépendent du fournisseur choisi. Les clés restent dans le trousseau système.",
-    "crashReports": "L’application envoie des rapports d’erreur sans texte du manuscrit pour corriger les problèmes. Désactivez-les dans Réglages → Confidentialité.",
-    "settingsHint": "Continuez en local pour créer votre premier projet et commencer à écrire.",
-    "accountAction": "Se connecter / s’inscrire et synchroniser",
-    "continueLocal": "Continuer en local"
+    "crashReports": "L’application envoie des rapports d’erreur sans texte du manuscrit pour corriger les problèmes. Désactivez-les dans Réglages → Confidentialité."
   },
   "firstRun": {
     "email": "Continuer avec l’e-mail",
@@ -789,8 +783,6 @@
       },
       "manage": "Gérer le compte et la synchronisation",
       "back_to_library": "Retour à la bibliothèque locale",
-      "trust": "Hosted stocke projets et ressources originales sur le service connecté. Celui-ci peut lire leur contenu.",
-      "onboarding": "Connectez-vous ou créez un compte Drifting pour ouvrir sa bibliothèque et télécharger ses projets cloud. Les livres déjà sur l’appareil restent ici. Vous pouvez aussi écrire en local et vous connecter plus tard dans Compte.",
       "storage": "Stockage Hosted",
       "storage_description": "{{used}} utilisés sur {{quota}}. Les pièces jointes comptent ; texte et structure sans limite.",
       "quota_blocked": "Hosted est plein ; une pièce jointe n’a pas pu être envoyée, bloquant la suite de la synchronisation. Supprimez les pièces jointes ou projets inutiles pour reprendre. Le contenu local est préservé.",

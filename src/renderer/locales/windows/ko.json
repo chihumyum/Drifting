@@ -1,7 +1,4 @@
 {
-  "preAlphaGuide": {
-    "byok": "Agent는 실험 기능이며 본인의 모델 키 또는 ChatGPT 구독이 필요합니다. 요청, 비용, 데이터 약관은 선택한 제공업체를 따릅니다. 키는 Windows 자격 증명 관리자에 저장됩니다."
-  },
   "settings": {
     "sync": {
       "projection": {

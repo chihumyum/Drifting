@@ -118,13 +118,7 @@
   },
   "preAlphaGuide": {
     "title": "Boas-vindas ao Drifting Alpha",
-    "intro": "Comece a escrever sem uma conta. Projetos e textos são salvos primeiro neste dispositivo.",
-    "localData": "Não é preciso ter conta no Drifting. Projetos, textos, relações, lixeira e histórico ficam no diretório local do aplicativo.",
-    "byok": "O Agent exige sua própria chave de modelo ou assinatura do ChatGPT. Solicitações, custos e termos de dados seguem o provedor escolhido. As chaves ficam no chaveiro do sistema.",
-    "crashReports": "O aplicativo envia relatórios de falha sem o texto do manuscrito para ajudar a corrigir problemas. Desative em Configurações → Privacidade.",
-    "settingsHint": "Continue localmente para criar seu primeiro projeto e começar a escrever.",
-    "accountAction": "Entrar / cadastrar-se e sincronizar",
-    "continueLocal": "Continuar localmente"
+    "crashReports": "O aplicativo envia relatórios de falha sem o texto do manuscrito para ajudar a corrigir problemas. Desative em Configurações → Privacidade."
   },
   "firstRun": {
     "email": "Continuar com e-mail",
@@ -789,8 +783,6 @@
       },
       "manage": "Gerenciar conta e sincronização",
       "back_to_library": "Voltar à biblioteca local",
-      "trust": "Hosted armazena projetos e recursos originais no serviço conectado. Esse serviço pode ler seu conteúdo.",
-      "onboarding": "Entre ou crie uma conta Drifting para abrir a biblioteca própria dela e baixar seus projetos da nuvem. Os livros deste dispositivo permanecem aqui. Você também pode escrever localmente e entrar depois em Conta.",
       "storage": "Armazenamento Hosted",
       "storage_description": "{{used}} de {{quota}} usados. Anexos contam; texto e estrutura não têm limite.",
       "quota_blocked": "Hosted está cheio e um anexo não pôde ser enviado, impedindo a continuação da sincronização. Exclua anexos ou projetos desnecessários para retomar. O conteúdo local não é afetado.",

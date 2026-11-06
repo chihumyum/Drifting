@@ -1,7 +1,4 @@
 {
-  "preAlphaGuide": {
-    "byok": "O Agent é experimental e exige sua própria chave de modelo ou assinatura do ChatGPT. Solicitações, custos e termos de dados seguem o provedor escolhido. As chaves ficam no Gerenciador de Credenciais do Windows."
-  },
   "settings": {
     "sync": {
       "projection": {

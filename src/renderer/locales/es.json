@@ -118,13 +118,7 @@
   },
   "preAlphaGuide": {
     "title": "Bienvenido a Drifting Alpha",
-    "intro": "Empieza a escribir sin una cuenta. Los proyectos y el texto se guardan primero en este dispositivo.",
-    "localData": "No necesitas una cuenta de Drifting. Los proyectos, textos, relaciones, papelera e historial se guardan en el directorio local de la aplicación.",
-    "byok": "Agent requiere tu propia clave de modelo o una suscripción a ChatGPT. Las solicitudes, costes y condiciones de datos dependen del proveedor elegido. Las claves se guardan en el llavero del sistema.",
-    "crashReports": "La aplicación envía informes de fallos sin texto del manuscrito para corregir problemas. Puedes desactivarlos en Ajustes → Privacidad.",
-    "settingsHint": "Continúa en local para crear tu primer proyecto y empezar a escribir.",
-    "accountAction": "Iniciar sesión / registrarse y sincronizar",
-    "continueLocal": "Continuar en local"
+    "crashReports": "La aplicación envía informes de fallos sin texto del manuscrito para corregir problemas. Puedes desactivarlos en Ajustes → Privacidad."
   },
   "firstRun": {
     "email": "Continuar con correo",
@@ -789,8 +783,6 @@
       },
       "manage": "Gestionar cuenta y sincronización",
       "back_to_library": "Volver a la biblioteca local",
-      "trust": "Hosted guarda proyectos y recursos originales en el servicio conectado. Ese servicio puede leer su contenido.",
-      "onboarding": "Inicia sesión o crea una cuenta Drifting para abrir su biblioteca y descargar sus proyectos de la nube. Los libros de este dispositivo permanecen aquí. También puedes escribir en local y entrar más tarde desde Cuenta.",
       "storage": "Almacenamiento Hosted",
       "storage_description": "{{used}} de {{quota}} usados. Los adjuntos cuentan; texto y estructura no tienen límite.",
       "quota_blocked": "Hosted está lleno y no pudo subir un adjunto, por lo que el proyecto no puede seguir sincronizándose. Elimina adjuntos o proyectos que no necesites para reanudar. El contenido local no se ve afectado.",

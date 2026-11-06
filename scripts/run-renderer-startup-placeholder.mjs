@@ -17,7 +17,7 @@ const inputs = ['index.html', 'public/startup.js', 'src/renderer/main.tsx',
   'src/renderer/components/ui/LoadingStatus.tsx', 'src/styles/loading-status.css',
   'src/renderer/components/editor/EditorMainArea.tsx', 'src/renderer/components/editor/ChapterEditor.tsx',
   'src/renderer/views/NodeEditorView.tsx', 'src/renderer/views/ProjectPickerView.tsx',
-  'src/renderer/shells/mobile/standalone/MobileProjectShelfContent.tsx',
+  'src/renderer/shells/mobile/standalone/MobileProjectShelfView.tsx',
   'src/renderer/shells/desktop/views/DeferredSuperViews.tsx', 'src/renderer/app/AppRoutes.tsx',
   'src-tauri/tauri.conf.json', 'vite.renderer.config.ts', 'package.json', 'pnpm-lock.yaml',
   'scripts/run-renderer-startup-placeholder.mjs'];

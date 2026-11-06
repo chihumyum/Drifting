@@ -1,7 +1,4 @@
 {
-  "preAlphaGuide": {
-    "byok": "Agent ist experimentell und benötigt deinen eigenen Modellschlüssel oder ein ChatGPT-Abo. Anfragen, Kosten und Datenbedingungen richten sich nach dem gewählten Anbieter. Schlüssel bleiben in der Windows-Anmeldeinformationsverwaltung."
-  },
   "settings": {
     "sync": {
       "projection": {

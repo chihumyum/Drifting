@@ -1,7 +1,4 @@
 {
-  "preAlphaGuide": {
-    "byok": "Agent est expérimental et nécessite votre clé de modèle ou un abonnement ChatGPT. Les requêtes, coûts et conditions de traitement des données dépendent du fournisseur choisi. Les clés restent dans le Gestionnaire d’identification Windows."
-  },
   "settings": {
     "sync": {
       "projection": {

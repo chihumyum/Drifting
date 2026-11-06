@@ -1,7 +1,4 @@
 {
-  "preAlphaGuide": {
-    "byok": "Agent 是实验功能，需要你自己的模型密钥或 ChatGPT 订阅；请求、费用和数据条款由你选择的服务商决定。密钥只保存在 Windows 凭据管理器。"
-  },
   "settings": {
     "sync": {
       "projection": {

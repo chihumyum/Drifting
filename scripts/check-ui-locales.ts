@@ -20,7 +20,7 @@ const sources = [
   'src/renderer/features/settings/panels/BasicPreferencePanels.tsx', 'src/renderer/components/topBars/UserMenu.tsx',
   'src/renderer/store/settings-store.ts', 'src/renderer/features/preference-sync/preference-fields.ts',
   'src/renderer/shells/mobile/desk/MobileDesk.tsx',
-  'src/renderer/shells/mobile/standalone/MobileProjectShelfContent.tsx',
+  'src/renderer/shells/mobile/standalone/MobileSettingsView.tsx',
   'src/renderer/lib/char-sea/char-sea-text.ts', 'src/renderer/views/shelf/shelf-format.ts',
   'src/styles/interface-fonts.css', 'src/styles/ui-controls.css',
   ...folders.flatMap(folder => SUPPORTED_LOCALES.map(locale => `${folder}/${locale}.json`)),

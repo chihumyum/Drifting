@@ -1,7 +1,4 @@
 {
-  "preAlphaGuide": {
-    "byok": "Agent es experimental y requiere tu propia clave de modelo o una suscripción a ChatGPT. Las solicitudes, costes y condiciones de datos dependen del proveedor elegido. Las claves se guardan en el Administrador de credenciales de Windows."
-  },
   "settings": {
     "sync": {
       "projection": {

@@ -1,7 +1,4 @@
 {
-  "preAlphaGuide": {
-    "byok": "Agentは試験提供中です。ご自身のモデル用キーまたはChatGPTのサブスクリプションが必要です。リクエスト、料金、データの扱いは選択した提供元に従います。キーはWindows 資格情報マネージャーに保存されます。"
-  },
   "settings": {
     "sync": {
       "projection": {

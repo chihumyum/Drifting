@@ -174,7 +174,6 @@ answers glass hover only on a pointer that can hover.
 ## Legacy kept for tooling
 
 `workspace/MobileAgentPanel.tsx`, `MobileAgentTranscript.tsx` and their
-helpers, `mobile-workspace.css` and `standalone/MobileProjectShelfContent.tsx`
-are no longer mounted by the app. They stay because the renderer performance
-harness, transcript scripts and locale fingerprints read them; retiring them
+helpers and `mobile-workspace.css` are no longer mounted by the app. They stay because the renderer performance
+harness and the transcript scripts read them; retiring them
 means updating those scripts and their evidence.

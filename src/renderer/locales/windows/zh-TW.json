@@ -1,7 +1,4 @@
 {
-  "preAlphaGuide": {
-    "byok": "Agent 是實驗性功能，需要你自己的模型金鑰或 ChatGPT 訂閱；請求、費用和資料條款依所選服務商而定。金鑰保存在 Windows 認證管理員中。"
-  },
   "settings": {
     "sync": {
       "projection": {

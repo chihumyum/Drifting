@@ -117,13 +117,7 @@
   },
   "preAlphaGuide": {
     "title": "Welcome to Drifting Alpha",
-    "intro": "Start writing without an account. Projects and prose are saved on this device first.",
-    "localData": "No Drifting account is required. Projects, prose, relationships, Trash, and history are stored in the app's local data directory.",
-    "byok": "The Agent needs your own model key or a ChatGPT subscription; requests, cost and data terms follow the provider you choose. Keys stay in the system Keychain.",
-    "crashReports": "The app sends fault reports without manuscript text so problems can be fixed; turn this off in Settings → Privacy.",
-    "settingsHint": "Continue locally to create your first project and start writing.",
-    "accountAction": "Sign in / sign up and sync",
-    "continueLocal": "Continue locally"
+    "crashReports": "The app sends fault reports without manuscript text so problems can be fixed; turn this off in Settings → Privacy."
   },
   "firstRun": {
     "email": "Continue with email",
@@ -787,8 +781,6 @@
       },
       "manage": "Manage account and sync",
       "back_to_library": "Back to local library",
-      "trust": "Hosted sync stores projects and original assets on the connected service. That service can read their contents.",
-      "onboarding": "Sign in or create a Drifting account to open that account’s own library and download its cloud projects; books already on this device stay here. You can also start writing locally and sign in later from Account settings.",
       "storage": "Hosted storage",
       "storage_description": "{{used}} of {{quota}} used. Attachments count toward it; writing and structure are not limited.",
       "quota_blocked": "Hosted storage is full and an attachment could not be uploaded, so this project cannot sync further for now. Deleting attachments or projects you no longer need resumes it; local content is unaffected.",

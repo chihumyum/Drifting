@@ -117,13 +117,7 @@
   },
   "preAlphaGuide": {
     "title": "Willkommen bei Drifting Alpha",
-    "intro": "Schreibe ohne Konto los. Projekte und Texte werden zuerst auf diesem Gerät gespeichert.",
-    "localData": "Du brauchst kein Drifting-Konto. Projekte, Texte, Beziehungen, Papierkorb und Verlauf liegen im lokalen Datenverzeichnis der App.",
-    "byok": "Agent benötigt deinen eigenen Modellschlüssel oder ein ChatGPT-Abo. Anfragen, Kosten und Datenbedingungen richten sich nach dem gewählten Anbieter. Schlüssel bleiben im Systemschlüsselbund.",
-    "crashReports": "Die App sendet Fehlerberichte ohne Manuskripttext, damit Probleme behoben werden können. Abschaltbar unter Einstellungen → Datenschutz.",
-    "settingsHint": "Fahre lokal fort, erstelle dein erstes Projekt und beginne zu schreiben.",
-    "accountAction": "Anmelden / registrieren und synchronisieren",
-    "continueLocal": "Lokal fortfahren"
+    "crashReports": "Die App sendet Fehlerberichte ohne Manuskripttext, damit Probleme behoben werden können. Abschaltbar unter Einstellungen → Datenschutz."
   },
   "firstRun": {
     "email": "Mit E-Mail fortfahren",
@@ -787,8 +781,6 @@
       },
       "manage": "Konto und Synchronisierung verwalten",
       "back_to_library": "Zurück zur lokalen Bibliothek",
-      "trust": "Hosted speichert Projekte und Originalmedien beim verbundenen Dienst. Dieser kann ihre Inhalte lesen.",
-      "onboarding": "Melde dich an oder erstelle ein Drifting-Konto, um dessen eigene Bibliothek und Cloudprojekte zu öffnen. Vorhandene Bücher auf diesem Gerät bleiben hier. Du kannst auch lokal beginnen und dich später unter Konto anmelden.",
       "storage": "Hosted-Speicher",
       "storage_description": "{{used}} von {{quota}} belegt. Anhänge zählen; Text und Struktur sind unbegrenzt.",
       "quota_blocked": "Hosted ist voll; ein Anhang konnte nicht hochgeladen werden und das Projekt kann vorerst nicht weiter synchronisieren. Lösche unnötige Anhänge oder Projekte zur Fortsetzung. Lokale Inhalte bleiben unberührt.",

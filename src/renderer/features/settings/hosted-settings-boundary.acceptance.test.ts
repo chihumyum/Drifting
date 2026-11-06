@@ -63,7 +63,9 @@ describe('hosted settings boundary', () => {
   });
 
   it('records a local-first onboarding contract without trial or hosted-storage claims', () => {
+    // Both shells open through the same first run (the welcome card on the sea).
     const onboarding = read('src/renderer/components/modals/PreAlphaOnboardingDialog.tsx');
+    const mobileShelf = read('src/renderer/shells/mobile/standalone/MobileProjectShelfView.tsx');
     const en = JSON.parse(read('src/renderer/locales/en.json')) as {
       preAlphaGuide: Record<string, string>;
     };
@@ -73,11 +75,10 @@ describe('hosted settings boundary', () => {
     // v6 discloses content-free crash reports, which default on in Hosted builds.
     expect(read('src/renderer/lib/alpha-guide-key.ts')).toContain("ALPHA_GUIDE_VERSION = 'v6'");
     expect(onboarding).toContain('alphaGuideStorageKey(userId)');
-    expect(onboarding).toContain("{hosted && <li>{t('preAlphaGuide.crashReports')}</li>}");
-    expect(onboarding).toContain("t('preAlphaGuide.localData')");
-    expect(onboarding).toContain("{hosted && <li>{t('settings.hosted.trust')}</li>}");
-    expect(onboarding).toMatch(/\{hosted && \(\s*<Button variant="default" onClick=\{onOpenAccount\}>/);
-    expect(onboarding).toContain("if (!hosted) return;");
+    expect(onboarding).toContain("<p className=\"first-run-welcome__note\">{t('preAlphaGuide.crashReports')}</p>");
+    expect(onboarding).toContain("{t('firstRun.local')}");
+    expect(mobileShelf).toContain('<PreAlphaFirstRunGate>');
+    expect(onboarding).not.toContain('export function PreAlphaOnboardingDialog');
     expect(onboarding).not.toContain('openExternal');
     expect(onboarding).not.toContain('quick-start');
     expect(onboarding).not.toContain("t('preAlphaGuide.backup')");
@@ -86,8 +87,6 @@ describe('hosted settings boundary', () => {
     expect(onboarding).not.toContain("t('preAlphaGuide.trial')");
     expect(en.preAlphaGuide).not.toHaveProperty('trial');
     expect(zh.preAlphaGuide).not.toHaveProperty('trial');
-    expect(en.preAlphaGuide.localData).toContain('No Drifting account is required');
-    expect(zh.preAlphaGuide.localData).toContain('无需 Drifting 账号');
   });
 
   it('does not promise active cloud sync in always-visible local preferences', () => {
@@ -113,7 +112,6 @@ describe('hosted settings boundary', () => {
 
   it('removes account, plan and sign-out presentation from the local user menu', () => {
     const menu = read('src/renderer/components/topBars/UserMenu.tsx');
-    const shelf = read('src/renderer/shells/mobile/standalone/MobileProjectShelfContent.tsx');
     const projectPicker = read('src/renderer/views/ProjectPickerView.tsx');
     const shelfRail = read('src/renderer/views/shelf/ShelfRail.tsx');
     const workspace = read('src/renderer/shells/mobile/desk/MobileDeskPanels.tsx');
@@ -125,8 +123,6 @@ describe('hosted settings boundary', () => {
     expect(projectSignIn.slice(0, projectSignIn.indexOf('</MenuGroup>')))
       .toMatch(/name="gate-in"[\s\S]*t\('settings\.hosted\.sign_in_sync'\)[\s\S]*openSignIn\(\)/);
     expect(menu).toContain("'userMenu.accountMenu' : 'userMenu.localMenu'");
-    expect(shelf).toContain("'userMenu.accountMenu' : 'userMenu.localMenu'");
-    expect(shelf).toContain('accountSettingsEnabled && user?.email');
     expect(shelfRail).toContain("'userMenu.accountMenu' : 'userMenu.localMenu'");
     // The desktop shelf has no footer: the email shows only in the account menu.
     expect(projectPicker).not.toContain('pp-foot');
