@@ -601,15 +601,18 @@ async function main() {
           const row = await until<Rect>('elementRow', `${name} in the element list`, { name });
           mark('target', { target: `element-row`, rect: rectToWindow(row) });
           await moveTo(centre(row));
-          await hold(260);
+          // Quick enough that the name's card has not opened yet.
+          await sleep(120);
           await rig.send('pointer.click', { count: 2 });
-          const overview = await until<Section>('elementSection', `${name}'s page`, { id: 'overview' });
+          const opened = await until<Section>('elementSection', `${name}'s page`, { id: 'overview' });
           await hold(500);
           // Off the page, so its card does not open over what is read.
-          await moveTo(toWindow({ x: overview.x + overview.width + 30, y: overview.y + 60 }));
+          await moveTo(toWindow({ x: opened.x + opened.width + 30, y: Math.max(opened.y, 100) + 60 }));
           shot(null);
           await hold(1300);
-          // Who they are: the name, its aliases and summary, and the story so far.
+          // Who they are: the name, its aliases and summary, and the story so far, measured
+          // once the page has settled (a new tab can open at the last one's scroll, then go to the top).
+          const overview = await until<Section>('elementSection', `${name}'s page`, { id: 'overview' });
           const bio = await scenes.run<Section | null>('elementSection', { id: 'bio' });
           pageWidthShot(overview, Math.min(520, (bio ? bio.y + 150 : overview.y + overview.height) - overview.y + 24));
           await hold(4200);
@@ -630,26 +633,24 @@ async function main() {
             }
           }
         }
-        // The open documents, spread from their marks above the paper: back to the first element, then to the chapter.
+        // The open documents, spread from their marks above the paper: back to the
+        // first element, then to the chapter. One frame holds the tabs and the page
+        // under them, so the page changes while the camera stays (the pointer's
+        // moves up there mark no target).
         const dock = await until<Rect>('tabDock', 'the tab dock');
-        mark('target', { target: 'tab-dock', rect: rectToWindow(dock) });
+        shot({ x: dock.x, y: dock.y, width: dock.width, height: dock.width * 9 / 16 });
+        await hold(1200);
         await moveTo(centre(dock));
-        await hold(900);
-        const pills = await until<Rect>('tabPills', 'the open tabs');
-        shot(grow(pills, 60, 30), 2.2);
-        await hold(1600);
-        await clickOn(await until<Rect>('tabPill', `the ${story.elements[0]} tab`, { title: story.elements[0] }), 'tab');
-        await hold(1500);
+        await sleep(600);
+        await hold(1200);
+        for (const [step, title] of [story.elements[0], story.chapter].entries()) {
+          await moveTo(centre(await until<Rect>('tabPill', `the ${title} tab`, { title })));
+          await sleep(180);
+          await rig.send('pointer.click');
+          await hold(step === 0 ? 2800 : 2000);
+        }
         shot(null);
-        await hold(1800);
-        await moveTo(centre(await until<Rect>('tabDock', 'the tab dock')));
         await hold(900);
-        shot(grow(await until<Rect>('tabPills', 'the open tabs'), 60, 30), 2.2);
-        await hold(1000);
-        await clickOn(await until<Rect>('tabPill', `the ${story.chapter} tab`, { title: story.chapter }), 'tab');
-        await hold(900);
-        shot(null);
-        await hold(1600);
       }
 
       await clickOn(await rectOf('.workspace-super-view-entry'), 'element-overview');

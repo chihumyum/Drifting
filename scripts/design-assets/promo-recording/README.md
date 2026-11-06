@@ -82,7 +82,8 @@ memory: 第一人称叙述者是郝哥。整理人物要素时，别名不要用
   chapter is organized, each with a double click so it stays a tab: its
   overview and story are read, the first one's relations too, and then the
   dock above the paper spreads its tabs and goes back to the first element
-  and to the chapter.
+  and to the chapter, in one frame that holds the tabs and the page under
+  them, so only the page changes.
 - `organize` is what the author types to the Agent once the chapter is written.
 - `ask` (optional) is what the author asks the Agent before the paragraph marked
   `<!-- ask -->`: out of immersive writing, in the Agent's panel; the camera
