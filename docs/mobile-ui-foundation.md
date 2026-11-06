@@ -156,7 +156,11 @@ a hardware keyboard stops at the paper.
 - `/login`, `/register` — `MobileAuthPage` renders the shared `AuthFlow` as a
   page.
 - `/settings` — `MobileSettingsView` renders the shared settings panels
-  outside a project runtime; it returns to the page it came from.
+  outside a project runtime, one section at a time from an index with the
+  desktop rail's brush icons (no shortcut section on a phone); it returns to
+  the page it came from. The mobile Editor Settings section is the desktop's
+  panel with its live `--editor-*` preview, its rows stacked and its preview
+  scaled to the phone's width.
 
 ## Styles
 

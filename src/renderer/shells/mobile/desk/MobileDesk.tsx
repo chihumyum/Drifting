@@ -33,6 +33,7 @@ import { ProjectDashboard } from '../../../views/ProjectDashboard';
 import { useNotificationFeed } from '../../../hooks/useNotificationFeed';
 import { getActiveEditor } from '../../../lib/active-editor';
 import { events } from '../../../lib/events';
+import { useAgentChatStore } from '../../../store/agent-chat-store';
 import { useMobileWorkspaceSession } from '../workspace/useMobileWorkspaceSession';
 import { MobilePaperContent } from '../workspace/MobilePaperContent';
 import { MobileSuperViewHost } from '../workspace/MobileSuperViewHost';
@@ -400,7 +401,22 @@ export function MobileDesk({ projectId }: { projectId: string }) {
             keyboardInset={writing.keyboardInset}
             revision={writing.revision}
             onModeChange={(bar) => dispatch({ type: 'set-keyboard-bar', bar })}
-            onAskAgent={() => dispatch({ type: 'open-drawer', side: 'right', panel: 'companion' })}
+            onAskAgent={() => {
+              // A selected passage goes along as a quote in the Agent's box,
+              // where the author can see it and say what to do with it.
+              const editor = writing.editor;
+              if (editor && !editor.isDestroyed && !editor.state.selection.empty) {
+                const { from, to } = editor.state.selection;
+                const passage = editor.state.doc.textBetween(from, to, '\n').trim();
+                if (passage) {
+                  const chat = useAgentChatStore.getState();
+                  const quote = passage.split('\n').map((line) => `> ${line}`).join('\n');
+                  const current = chat.prompt.replace(/\s+$/u, '');
+                  chat.setPrompt(current ? `${current}\n\n${quote}\n\n` : `${quote}\n\n`);
+                }
+              }
+              dispatch({ type: 'open-drawer', side: 'right', panel: 'companion' });
+            }}
             onDone={() => getActiveEditor()?.commands.blur()}
           />
         )}

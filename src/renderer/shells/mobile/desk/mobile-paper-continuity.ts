@@ -120,11 +120,6 @@ export function useReadingAway(pageRef: RefObject<HTMLElement | null>, pageKey: 
   return away;
 }
 
-/** A still copy of the page waiting to be laid under the next one. */
-export interface PageTurnHolder {
-  current: HTMLElement | null;
-}
-
 /**
  * Called just before the paper in front changes (opening, turning to another
  * paper, Project Home): keeps a still copy of the page on screen for the page
