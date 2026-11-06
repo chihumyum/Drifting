@@ -19,7 +19,7 @@ const sources = [
   'src/renderer/lib/i18n.ts', 'src/renderer/lib/locale-resources.ts', 'src/share-web/i18n.ts', 'src/renderer/lib/agent/agent-tool-activity.ts',
   'src/renderer/features/settings/panels/BasicPreferencePanels.tsx', 'src/renderer/components/topBars/UserMenu.tsx',
   'src/renderer/store/settings-store.ts', 'src/renderer/features/preference-sync/preference-fields.ts',
-  'src/renderer/shells/mobile/MobileWorkspaceDeferredView.tsx',
+  'src/renderer/shells/mobile/desk/MobileDesk.tsx',
   'src/renderer/shells/mobile/standalone/MobileProjectShelfContent.tsx',
   'src/renderer/lib/char-sea/char-sea-text.ts', 'src/renderer/views/shelf/shelf-format.ts',
   'src/styles/interface-fonts.css', 'src/styles/ui-controls.css',

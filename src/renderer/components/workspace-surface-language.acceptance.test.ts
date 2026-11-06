@@ -305,7 +305,7 @@ describe('workspace surface language acceptance', () => {
       [agent, '.agt-composer__tray .agt-cfg {'],
       [agent, '.agt-round {'],
       [review, '.editor-selection-bar__format {'],
-      [source('src/styles/settings.css'), ":where(html:not([data-shell-mode='mobile'])) .set-head__back {"],
+      [source('src/styles/settings.css'), ".set-head__back {"],
       [source('src/styles/super-view-header.css'), '.super-view-head__back.glass--round {'],
       [source('src/styles/drift-panel.css'), '.drift-panel__close {'],
     ];
@@ -1138,7 +1138,7 @@ describe('workspace surface language acceptance', () => {
     expect(mobileDoc).toContain('physical-device appearance or feel');
     expect(css).toContain("html[data-platform-target='mobile'] .app-root");
     expect(css).toContain('height: 100dvh !important;');
-    expect(css).toContain("html[data-shell-mode='mobile'] .sidebar-shell");
+    expect(source('docs/design-system/touch.md')).toContain('@media (hover: hover)');
   });
 
   it('records the palette boundary and manual visual acceptance boundary', () => {
@@ -1247,9 +1247,13 @@ describe('workspace surface language acceptance', () => {
     expect(source('src/renderer/components/leftBars/AgentChangeIndicator.tsx')).toContain('<BrushIcon name="check" size={10} />');
   });
 
-  it('keeps lucide out of the desktop renderer outside the paused mobile shell', () => {
+  it('keeps lucide out of the renderer outside the legacy mobile Agent panel', () => {
+    // The phone's desk (shells/mobile/desk) wears the same sand brush; only the
+    // legacy mobile Agent views kept for the performance harness still draw lucide.
+    const legacyMobile = (file: string) => file.startsWith('shells/mobile/') &&
+      !file.startsWith('shells/mobile/desk/') && file !== 'shells/mobile/MobileAppShell.tsx';
     const files = rendererFiles()
-      .filter((file) => /\.tsx?$/.test(file) && !file.includes('.test.') && !file.startsWith('shells/mobile/'));
+      .filter((file) => /\.tsx?$/.test(file) && !file.includes('.test.') && !legacyMobile(file));
     expect(files.length).toBeGreaterThan(100);
     for (const file of files) {
       expect(source(`src/renderer/${file}`), file).not.toContain("from 'lucide-react'");
@@ -1283,7 +1287,7 @@ describe('workspace surface language acceptance', () => {
       (file) =>
         /\.tsx?$/.test(file) &&
         !file.includes('.test.') &&
-        !file.startsWith('shells/mobile/') &&
+        (!file.startsWith('shells/mobile/') || file.startsWith('shells/mobile/desk/')) &&
         !file.startsWith('performance/') &&
         (!file.startsWith('lib/') || /^lib\/(extensions|slash-menu)\//.test(file)),
     );

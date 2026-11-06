@@ -23,14 +23,14 @@ export function usePaperScrollMemory(
 ): void {
   const key = paper?.key ?? null;
   const saved = paper?.scrollTop ?? 0;
-  const savedRef = useRef(saved);
-  savedRef.current = saved;
   useEffect(() => {
     const page = pageRef.current;
     if (!active || !key || !page) return undefined;
     let scroller: HTMLElement | null = null;
     let timer = 0;
-    let restoring = savedRef.current > 0;
+    // The place to give back is the one remembered when this paper came up.
+    const target = saved;
+    let restoring = target > 0;
     const started = performance.now();
     const onScroll = () => {
       if (restoring || !scroller) return;
@@ -40,7 +40,6 @@ export function usePaperScrollMemory(
     };
     const tryRestore = () => {
       if (!restoring || !scroller) return;
-      const target = savedRef.current;
       if (scroller.scrollHeight - scroller.clientHeight >= target || performance.now() - started > RESTORE_WITHIN_MS) {
         scroller.scrollTop = target;
         restoring = false;
@@ -65,6 +64,8 @@ export function usePaperScrollMemory(
       window.clearTimeout(timer);
       scroller?.removeEventListener('scroll', onScroll);
     };
+    // Only a newly shown paper restores: `saved` follows every scroll it records.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, key, pageRef, remember]);
 }
 
@@ -119,40 +120,49 @@ export function useReadingAway(pageRef: RefObject<HTMLElement | null>, pageKey: 
   return away;
 }
 
+/** A still copy of the page waiting to be laid under the next one. */
+export interface PageTurnHolder {
+  current: HTMLElement | null;
+}
+
+/**
+ * Called just before the paper in front changes (opening, turning to another
+ * paper, Project Home): keeps a still copy of the page on screen for the page
+ * turn. The copy is plain DOM, so nothing in it can be pressed or edited.
+ */
+export function capturePageTurn(pageRef: RefObject<HTMLElement | null>, leavingRef: RefObject<HTMLElement | null>): void {
+  const page = pageRef.current;
+  if (!page || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const copy = page.cloneNode(true) as HTMLElement;
+  const live = scrollerIn(page);
+  copy.classList.add('m-paper__page--leaving');
+  copy.removeAttribute('data-debug-id');
+  copy.setAttribute('aria-hidden', 'true');
+  copy.inert = true;
+  copy.querySelectorAll('[contenteditable]').forEach((node) => node.removeAttribute('contenteditable'));
+  copy.querySelectorAll('[id]').forEach((node) => node.removeAttribute('id'));
+  copy.dataset.scrolled = String(live?.scrollTop ?? 0);
+  leavingRef.current = copy;
+  // A turn that never happens leaves nothing behind for a later one.
+  window.setTimeout(() => {
+    if (leavingRef.current === copy) leavingRef.current = null;
+  }, 1000);
+}
+
 /**
  * A page turn (docs/design-system/motion.md, 翻页): when the paper in front
  * changes, the page that was there stays, whole, under the new one while the
- * new one dissolves in over it; then it is taken away. The page left behind is
- * a still copy of what was on screen, so nothing under it can be pressed.
+ * new one dissolves in over it; then it is taken away.
  */
-export function usePageTurn(pageRef: RefObject<HTMLElement | null>, pageKey: string): void {
+export function usePageTurn(pageRef: RefObject<HTMLElement | null>, pageKey: string, leavingRef: RefObject<HTMLElement | null>): void {
   const previousKey = useRef(pageKey);
-  const lastFrame = useRef<HTMLElement | null>(null);
-
-  // Before React swaps the page, keep a still copy of what is on screen.
-  const page = pageRef.current;
-  if (page && previousKey.current !== pageKey && !lastFrame.current) {
-    const copy = page.cloneNode(true) as HTMLElement;
-    const live = scrollerIn(page);
-    const scrolled = live?.scrollTop ?? 0;
-    copy.classList.add('m-paper__page--leaving');
-    copy.removeAttribute('data-debug-id');
-    copy.setAttribute('aria-hidden', 'true');
-    copy.inert = true;
-    copy.querySelectorAll('[contenteditable]').forEach((node) => node.removeAttribute('contenteditable'));
-    copy.querySelectorAll('[id]').forEach((node) => node.removeAttribute('id'));
-    copy.dataset.scrolled = String(scrolled);
-    lastFrame.current = copy;
-  }
-
   useLayoutEffect(() => {
     if (previousKey.current === pageKey) return undefined;
     previousKey.current = pageKey;
-    const copy = lastFrame.current;
-    lastFrame.current = null;
+    const copy = leavingRef.current;
+    leavingRef.current = null;
     const live = pageRef.current;
     if (!copy || !live?.parentElement) return undefined;
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return undefined;
     live.parentElement.insertBefore(copy, live);
     const scroller = scrollerIn(copy);
     if (scroller) scroller.scrollTop = Number(copy.dataset.scrolled) || 0;
@@ -166,5 +176,5 @@ export function usePageTurn(pageRef: RefObject<HTMLElement | null>, pageKey: str
       copy.remove();
       live.classList.remove('m-paper__page--arriving');
     };
-  }, [pageKey, pageRef]);
+  }, [leavingRef, pageKey, pageRef]);
 }

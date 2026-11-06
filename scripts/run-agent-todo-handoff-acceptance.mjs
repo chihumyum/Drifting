@@ -32,7 +32,7 @@ const sourceFiles = [
   'src/renderer/components/leftBars/SortMenu.tsx',
   'src/renderer/store/ui-store.ts',
   'src/renderer/shells/desktop/DesktopRightSidebar.tsx',
-  'src/renderer/shells/mobile/workspace/MobileRightSidebar.tsx',
+  'src/renderer/shells/mobile/desk/MobileDeskPanels.tsx',
   'src/styles/comments-review.css',
   'src/renderer/locales/zh-CN.json',
   'src/renderer/locales/en.json',

@@ -54,7 +54,7 @@ import { MobileLeftDesk, MobileRightSidebar } from './MobileDeskPanels';
 import { MobileForeEdge } from './MobileForeEdge';
 import { MobileProseNameCard } from './MobileProseNameCard';
 import { useDeskPan, DESK_SLIVER_PX } from './useDeskPan';
-import { usePaperScrollMemory, usePageTurn, useReadingAway } from './mobile-paper-continuity';
+import { capturePageTurn, usePaperScrollMemory, usePageTurn, useReadingAway } from './mobile-paper-continuity';
 import '../../../../styles/mobile-desk.css';
 
 function storage(): Storage | null {
@@ -98,6 +98,25 @@ export function MobileDesk({ projectId }: { projectId: string }) {
   const paperRef = useRef<HTMLDivElement | null>(null);
   const pageRef = useRef<HTMLDivElement | null>(null);
 
+  // Project Home floats its create row after the plus and its Agent otherwise.
+  // It reads the arrival once it is on screen, so the arrival is marked after
+  // the stage has turned to it.
+  const homeIntentRef = useRef<'new' | 'home' | null>(null);
+  const [homeArrival, setHomeArrival] = useState(0);
+  // The page on screen, kept still under the next one for the page turn.
+  const leavingPageRef = useRef<HTMLElement | null>(null);
+  const activeKeyRef = useRef(papers.activeKey);
+  const stageRef = useRef(desk.stage);
+  useEffect(() => {
+    activeKeyRef.current = papers.activeKey;
+    stageRef.current = desk.stage;
+  }, [desk.stage, papers.activeKey]);
+  const turnPageTo = useCallback((target: WorkspaceTarget | 'home') => {
+    const next = target === 'home' ? 'home' : mobilePaperKey(target);
+    const current = stageRef.current === 'home' ? 'home' : activeKeyRef.current;
+    if (next !== current) capturePageTurn(pageRef, leavingPageRef);
+  }, []);
+
   useEffect(() => {
     if (!resumeTarget) return;
     session.activate(resumeTarget);
@@ -124,19 +143,15 @@ export function MobileDesk({ projectId }: { projectId: string }) {
     }
   }, [location.pathname, navigate, projectId, root]);
 
-  // Project Home floats its create row after the plus and its Agent otherwise.
-  // It reads the arrival once it is on screen, so the arrival is marked after
-  // the stage has turned to it.
-  const homeIntentRef = useRef<'new' | 'home' | null>(null);
-  const [homeArrival, setHomeArrival] = useState(0);
   const showHome = useCallback(
     (options?: { replace?: boolean; intent?: 'new' | 'home' }) => {
+      turnPageTo('home');
       homeIntentRef.current = options?.intent ?? 'home';
       setHomeArrival((n) => n + 1);
       dispatch({ type: 'show-home' });
       navigate(root, { replace: options?.replace ?? false });
     },
-    [navigate, root],
+    [navigate, root, turnPageTo],
   );
   useEffect(() => {
     if (desk.stage !== 'home' || !homeIntentRef.current) return;
@@ -152,16 +167,18 @@ export function MobileDesk({ projectId }: { projectId: string }) {
     () => ({
       ...sessionNavigator,
       open: (target) => {
+        turnPageTo(target);
         openPaper(target);
         dispatch({ type: 'show-paper' });
       },
       activate: (target) => {
+        turnPageTo(target);
         activatePaper(target);
         dispatch({ type: 'show-paper' });
       },
       showProjectHome: showHome,
     }),
-    [activatePaper, openPaper, sessionNavigator, showHome],
+    [activatePaper, openPaper, sessionNavigator, showHome, turnPageTo],
   );
 
   // Writing: the editor holds the caret. Whatever is laid over the paper
@@ -258,7 +275,7 @@ export function MobileDesk({ projectId }: { projectId: string }) {
   const pan = useDeskPan({ deskRef, paperRef, drawer: desk.drawer, writing: desk.writing, dispatch });
   usePaperScrollMemory(pageRef, activePaper, session.rememberScroll, desk.stage === 'paper');
   const pageKey = desk.stage === 'home' ? 'home' : activePaper?.key ?? 'empty';
-  usePageTurn(pageRef, pageKey);
+  usePageTurn(pageRef, pageKey, leavingPageRef);
   const readingAway = useReadingAway(pageRef, pageKey);
 
   // The Bottom Panel's height lifts the paper's foot.
