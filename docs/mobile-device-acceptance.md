@@ -51,6 +51,16 @@ pnpm mobile:ios:dev
 
 若服务未启动、只监听 loopback 或被防火墙阻断，移动命令会在开始原生构建前给出错误。
 
+### 模拟器的名字要唯一
+
+Tauri 按名字找设备，并优先选已连接的真机：模拟器名若是某台已配对 iPhone 名字的前缀（例如
+模拟器 "iPhone 17 Pro" 与真机 "iPhone 17 Pro Max"），`--device` 会落到真机上，因缺少签名而在
+archive 失败。验收用的模拟器起一个独有的名字（`xcrun simctl create "Drifting QA …" …`）。
+在部分 Xcode 版本上，CLI 即使选中模拟器也会在 BUILD SUCCEEDED 之后去 archive 而失败；这时
+DerivedData 里 `debug-iphonesimulator/Drifting.app` 已经编好，可以 `xcrun simctl install` 后
+`xcrun simctl launch`，再用同一份 renderer 环境启动 Vite 与 frontend debug 守护进程
+（2026-11-07 的记录见 [`qa/mobile-desk-2026-11-07.md`](qa/mobile-desk-2026-11-07.md)）。
+
 ## Standalone iOS device Debug install
 
 需要把包含当前 renderer 的 Debug 包安装到已配对真机、且安装后完全脱离开发服务运行时，使用：
