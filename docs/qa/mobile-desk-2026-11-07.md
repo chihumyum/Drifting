@@ -26,8 +26,8 @@ This is not physical-device acceptance.
 | Area | Checked | Result |
 | --- | --- | --- |
 | Shelf | desktop shelf in one column: title, account and bell, import / 最近删除, writing year, book cards with contour covers | pass |
-| Opening a book | picks up the paper last open (第四章) | pass |
-| Paper | folio, title, summary, prose with sand underlines on names; fore-edge with the current chapter and reading grain; paper toolbar in the lower-right without the immersive and reference buttons | pass |
+| Opening a book | picks up the paper last open (第四章), reading: coming back from the shelf the prose does not take focus | pass |
+| Paper | folio, title, summary, prose with sand underlines on names; fore-edge with the current chapter and reading grain; paper toolbar in the lower-right without the immersive and reference buttons; the prose fades out under the toolbar and dock | pass |
 | Dock | moons, current pill with mark and name, marks for other papers, plus; tapping a mark turns to it; a second paper opened from the left desk joins the dock | pass |
 | Left desk | 书架 / 章节 要素 构想 / 搜索 tab row with the glass block; panel header with whole-book entries; chapters by storyline with seals and dates; the open chapter framed in sand; elements in category sand frames; account cell at the foot | pass |
 | Right desk | 审阅 素材库 统计 帮手; the desktop Agent panel with its connect step; composer placeholder without a keyboard shortcut | pass |
@@ -35,9 +35,9 @@ This is not physical-device acceptance.
 | Tapping a name | reading, a tap on 阿Q opens the element card with 打开; the prose does not take focus | pass |
 | Writing | focusing the prose hides the dock, toolbar and fore-edge and shows the keyboard bar; with a selection the bar adds comment, patch and Agent | pass |
 | Agent hand-off | the bar's Agent button opens the right desk on 帮手 | pass |
-| Bottom Panel | the timeline toggle lifts the paper's foot onto the Bottom Timeline (书序/叙事时, acts, lanes, clips) | pass |
-| Project Home | the desktop Project Home on the paper: title, readouts, 继续写, 全书, 新建; the plus brings the create row | pass |
-| Super View | 要素全景 from the element panel's header; the head fits a phone (back, switcher, relation controls on a second row); the legend is hidden | pass |
+| Bottom Panel | the timeline toggle lifts the paper's foot onto the Bottom Timeline (书序/叙事时, acts, lanes, clips); storyline names on one line with the count under them | pass |
+| Project Home | the desktop Project Home on the paper: title, readouts, 继续写, 全书, 新建 without ⌘N; the plus floats the create row over the dock | pass |
+| Super View | 要素全景 from the element panel's header, 叙事结构图 from Project Home; the head fits a phone (back and switcher, then the view's controls on a second row), its ground reaches under the status bar; the legend is hidden; the story graph's rail is 104px so a whole chapter card shows | pass |
 | ⋯ menu | the paper toolbar's menu with share, export, storylines, writing status and delete | pass |
 | Settings | index with the desktop rail's brush icons, no shortcut section, round glass back; the editor panel | pass |
 | Dark | shelf, desks, paper, cards and menus in dark | pass |

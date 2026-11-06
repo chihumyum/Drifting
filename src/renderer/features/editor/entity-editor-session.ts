@@ -24,6 +24,9 @@ interface SessionOptions {
   selectionKey: string | null;
   autoFocus: boolean;
   isCommandActive: boolean;
+  /** False on the phone: a page comes back at its caret, but only a tap
+      starts writing (docs/mobile-ui-foundation.md). */
+  restoreFocus?: boolean;
 }
 
 export const EMPTY_EDITOR_SESSION_SNAPSHOT = { outline: [] as OutlineItem[], ready: false };
@@ -198,7 +201,8 @@ export class EntityEditorSession {
       const key = this.options.selectionKey;
       const selection = getEditorSelectionSnapshot(key);
       if (selection) {
-        this.restoreFocusPending = restoreEditorSelectionSnapshot(key, this.editor) && selection.focusOnRestore;
+        this.restoreFocusPending = restoreEditorSelectionSnapshot(key, this.editor)
+          && selection.focusOnRestore && this.options.restoreFocus !== false;
       } else if (!this.options.autoFocus) {
         this.suppressSelectionSave = true;
         moveEditorSelectionToStart(this.editor);

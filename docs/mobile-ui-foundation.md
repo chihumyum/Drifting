@@ -86,7 +86,22 @@ Home with its create row floating.
 A paper turn dissolves the new page in over a still copy of the old one
 (`usePageTurn`); each paper reopens where it was scrolled
 (`usePaperScrollMemory`). Reading on down the page puts the paper's toolbar
-away; scrolling back brings it (`useReadingAway`).
+away; scrolling back brings it (`useReadingAway`). The prose fades into the
+page under the toolbar and the dock rather than showing through their glass;
+with the toolbar away the fade drops to the dock.
+
+A paper comes back at its caret, but only a tap starts writing: the editor
+session restores the selection without restoring focus on the phone
+(`restoreFocus: false` in `useEntityEditorSession`), so opening a chapter never
+puts the desk into writing with no keyboard up. Project Home counts a section
+as in view only above the page's scroll padding, so after the plus the create
+row floats over the dock instead of hiding under it, and the phone shows no
+⌘N beside 新建.
+
+In the Bottom Timeline and the story graph the storyline rail is 104px wide on
+the phone, its name kept to two lines with the chapter count under it. A Super
+View covers the whole phone, its ground under the status bar too; its head has
+two rows: back and the view switcher, then the view's own controls.
 
 ## Reading and writing
 

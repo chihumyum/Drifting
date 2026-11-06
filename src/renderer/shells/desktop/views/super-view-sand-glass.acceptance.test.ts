@@ -77,6 +77,7 @@ const laneRow = () =>
       nodes: [node('a', 'finished'), node('b', 'draft'), node('c', 'finished')],
       chapterCount: 3,
       canvasContentWidth: 800,
+      railWidth: 158,
       tileRefs: { current: new Map() },
       linkSource: 'c',
       isNodeEdgeSelected: (id: string) => id === 'a',

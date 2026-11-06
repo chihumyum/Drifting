@@ -101,6 +101,7 @@ export function DesktopStoryGraphView({ graphUi, driftPanel, SuperViewRelationLe
   const { DriftPanel, NodeCardPopover, RelationEdgePopover, RelationArrowMarker, relationArrowMarkerId, relationEdgePath, StoryGraphDriftEdges, useCanvasHoverCard } = graphUi;
   const { t } = useTranslation();
   const mobileShell = getPlatformRuntime().isMobileShell;
+  const railWidth = mobileShell ? GRAPH_CONFIG.MOBILE_RAIL_WIDTH : GRAPH_CONFIG.RAIL_WIDTH;
   const {
     bookNodes,
     storylines,
@@ -1261,7 +1262,7 @@ export function DesktopStoryGraphView({ graphUi, driftPanel, SuperViewRelationLe
               className="actrail--sticky-top"
               acts={bookActs}
               chapters={placedNodes}
-              railWidth={GRAPH_CONFIG.RAIL_WIDTH}
+              railWidth={railWidth}
               trackWidth={canvasContentWidth}
               height={actRailHeight}
               orderToX={orderToX}
@@ -1304,7 +1305,7 @@ export function DesktopStoryGraphView({ graphUi, driftPanel, SuperViewRelationLe
             <div className="graph-axis-row" style={{ height: GRAPH_CONFIG.AXIS_HEIGHT }}>
               <div
                 className="graph-axis-rail-cell"
-                style={{ width: GRAPH_CONFIG.RAIL_WIDTH }}
+                style={{ width: railWidth }}
                 title={t('bottomTimeline.axis.title')}
               >
                 <span className="graph-rail__axis-name">{t('storyGraph.axis.time')}</span>
@@ -1413,7 +1414,7 @@ export function DesktopStoryGraphView({ graphUi, driftPanel, SuperViewRelationLe
           {isNarrative && (
             <TimelineMarkerLines preview={dragPreview} markers={markers}
               orderToPosition={orderToX} className="graph-pin-line"
-              xOffset={GRAPH_CONFIG.RAIL_WIDTH}
+              xOffset={railWidth}
               height={GRAPH_CONFIG.AXIS_HEIGHT + lanesToRender.length * GRAPH_CONFIG.TRACK_HEIGHT}
               ariaHidden />
           )}
@@ -1428,7 +1429,7 @@ export function DesktopStoryGraphView({ graphUi, driftPanel, SuperViewRelationLe
                   key={`actline-${a.id}`}
                   className="graph-pin-line"
                   style={{
-                    left: GRAPH_CONFIG.RAIL_WIDTH + orderToX(a.startOrder),
+                    left: railWidth + orderToX(a.startOrder),
                     height: actRailHeight + lanesToRender.length * GRAPH_CONFIG.TRACK_HEIGHT,
                   }}
                   aria-hidden
@@ -1441,7 +1442,7 @@ export function DesktopStoryGraphView({ graphUi, driftPanel, SuperViewRelationLe
               is-dragging z-index lifts it above the sticky act rail). */}
           {!isNarrative && (
             <TimelineActDragLine preview={dragPreview} className="graph-pin-line"
-              xOffset={GRAPH_CONFIG.RAIL_WIDTH}
+              xOffset={railWidth}
               height={actRailHeight + lanesToRender.length * GRAPH_CONFIG.TRACK_HEIGHT}
               ariaHidden />
           )}
@@ -1459,6 +1460,7 @@ export function DesktopStoryGraphView({ graphUi, driftPanel, SuperViewRelationLe
                 : lane.id === UNAFFILIATED_LANE_ID ? unaffiliatedChapters.length
                   : (sortedNodesByStoryline.get(lane.id)?.length ?? 0)}
               canvasContentWidth={canvasContentWidth}
+              railWidth={railWidth}
               tileRefs={tileRefs}
               linkSource={linkSource}
               isNodeEdgeSelected={isNodeEdgeSelected}
@@ -1486,7 +1488,7 @@ export function DesktopStoryGraphView({ graphUi, driftPanel, SuperViewRelationLe
                 (isNarrative ? GRAPH_CONFIG.AXIS_HEIGHT : actRailHeight) +
                 lanesToRender.length * GRAPH_CONFIG.TRACK_HEIGHT
               }
-              style={{ top: 0, left: GRAPH_CONFIG.RAIL_WIDTH }}
+              style={{ top: 0, left: railWidth }}
             >
               {crossLinks.map((link) => {
                 const y1 = tileTopOffset + link.fromY;

@@ -277,6 +277,14 @@ describe('session-owned selection restoration', () => {
     expect(f.transactions).toHaveLength(1); f.session.detach();
   });
 
+  it('brings a phone page back at its caret without starting to write', () => {
+    const f = restoringFixture(); f.session.setPresentationNeeded(true);
+    f.session.updateOptions({ ...f.options, isCommandActive: true, restoreFocus: false }); f.session.attach();
+    expect(f.editor.state.selection.toJSON()).toEqual({ type: 'text', anchor: 10, head: 3 });
+    expect(f.frames.size).toBe(0); f.paint(); expect(f.focus).not.toHaveBeenCalled();
+    f.session.detach();
+  });
+
   it('keeps mapped positions current for hidden authoritative changes without copying prose', () => {
     vi.useFakeTimers(); const f = restoringFixture(); f.session.attach();
     f.emitter.state = f.emitter.state.apply(f.emitter.state.tr.insertText('Synthetic ', 1));

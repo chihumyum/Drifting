@@ -20,6 +20,8 @@ export const GRAPH_CONFIG = {
   // for the future "expand this row to author relationships" affordance;
   // an empty record now means every row uses TRACK_HEIGHT.
   RAIL_WIDTH: 158,
+  // The phone's rail, as narrow as the Bottom Panel timeline's.
+  MOBILE_RAIL_WIDTH: 104,
   AXIS_HEIGHT: 32,
   FULL_BOOK_LANE_HEIGHT: 32,
   CANVAS_PADDING_X: 24,

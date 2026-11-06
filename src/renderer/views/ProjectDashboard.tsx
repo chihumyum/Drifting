@@ -37,6 +37,7 @@ import {
   type BookNode,
 } from '../domain/book-node';
 import { formatAccelerator } from '../lib/shortcuts';
+import { getPlatformRuntime } from '../platform/runtime';
 import { BrushIcon } from '../components/ui/BrushIcon';
 import { EmptyState } from '../components/ui/EmptyState';
 import { GlassSlider } from '../components/ui/GlassSlider';
@@ -49,6 +50,14 @@ type Floating = 'new' | 'agent' | null;
 
 /** Where a floating section rests above the foot of the page (dashboard.css). */
 const FLOAT_INSET = 26;
+
+/** The foot a section must clear to count as in view: the float's inset, or
+    the page's own scroll padding where a bar stands over its foot (the
+    phone's dock, mobile-desk.css). */
+function footInset(scroller: HTMLElement): number {
+  const padding = parseFloat(getComputedStyle(scroller).scrollPaddingBottom);
+  return Number.isFinite(padding) ? Math.max(FLOAT_INSET, padding) : FLOAT_INSET;
+}
 
 /**
  * Project Home on the desktop: the page the stage shows when no tab is
@@ -88,7 +97,7 @@ export const ProjectDashboard = memo(function ProjectDashboard() {
     const scroller = scrollRef.current;
     const section = kind === 'new' ? newRef.current : kind === 'agent' ? agentRef.current : null;
     if (!kind || !scroller || !section) return;
-    const limit = scroller.getBoundingClientRect().bottom - FLOAT_INSET;
+    const limit = scroller.getBoundingClientRect().bottom - footInset(scroller);
     if (section.getBoundingClientRect().bottom > limit + 0.5) return;
     const hadFocus = Boolean(floatRef.current?.contains(document.activeElement));
     floatingRef.current = null;
@@ -214,7 +223,8 @@ function CreateHead() {
     <div className="dash-sec__head">
       <h2 className="dash-sec__title">{t('projectHome.create.title')}</h2>
       <span className="dash-sec__spacer" />
-      <span className="dash-ro">{formatAccelerator(accelerator)}</span>
+      {/* A phone has no ⌘N to show. */}
+      {!getPlatformRuntime().isMobileShell && <span className="dash-ro">{formatAccelerator(accelerator)}</span>}
     </div>
   );
 }

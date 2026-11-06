@@ -209,6 +209,33 @@
   pointer-events: none;
 }
 
+/* The page's foot: the prose fades into the page under the toolbar and the
+   dock instead of showing through their glass. Reading on, the toolbar goes
+   and the fade drops to the dock; writing, the keyboard's bar has its own. */
+.m-paper__page::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0;
+  z-index: 5;
+  height: calc(var(--m-foot) + 84px);
+  background: linear-gradient(
+    to top,
+    hsl(var(--page)) calc(var(--m-foot) - 6px),
+    hsl(var(--page) / 0.9) calc(var(--m-foot) + 40px),
+    hsl(var(--page) / 0)
+  );
+  pointer-events: none;
+  transition: opacity 0.24s ease-out, transform 0.24s ease-out;
+}
+
+.m-root[data-reading='away'] .m-paper__page::after {
+  transform: translateY(56px);
+}
+
+.m-root[data-writing] .m-paper__page::after {
+  opacity: 0;
+}
+
 /* Outline and comment rails open over the narrow page rather than beside it. */
 .m-paper .editor__toc-rail {
   left: 4px;
@@ -578,8 +605,11 @@
 }
 
 /* ── Layers over the whole desk ───────────────────────────────────── */
-.m-root .m-super-view-host .super-view-overlay,
-.m-root .m-super-view-host > * {
+/* A Super View covers the whole phone, its ground under the status bar too;
+   its content keeps inside the safe area. */
+.m-root .m-super-view-host .super-view-overlay {
+  top: 0;
+  bottom: 0;
   padding-top: var(--m-safe-top);
   padding-bottom: var(--m-safe-bottom);
 }
@@ -700,17 +730,22 @@
   padding: 8px 12px;
 }
 
-.m-super-view-host .super-view-head__left {
-  flex: 1 1 100%;
-  gap: 10px;
-  min-width: 0;
+/* Two rows: back and the view switcher, then everything the view itself
+   offers (its own toggles, then the head's right side), wrapping as needed. */
+.m-super-view-host .super-view-head__left,
+.m-super-view-host .super-view-head__right {
+  display: contents;
 }
 
 .m-super-view-host .super-view-head__views {
-  flex: 1;
+  flex: 1 1 calc(100% - 48px);
   min-width: 0;
   overflow-x: auto;
   scrollbar-width: none;
+}
+
+.m-super-view-host .super-view-head__right > :first-child {
+  margin-left: auto;
 }
 
 .m-super-view-host .super-view-head__views::-webkit-scrollbar { display: none; }
@@ -722,14 +757,6 @@
 
 .m-super-view-host .super-view-head__meta { display: none; }
 
-.m-super-view-host .super-view-head__right {
-  flex: 1 1 100%;
-  justify-content: flex-start;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.m-super-view-host .super-view-head__right::-webkit-scrollbar { display: none; }
 
 /* The relation legend would cover most of a phone's canvas. */
 .m-super-view-host .super-view-legend { display: none; }
@@ -789,4 +816,92 @@
   max-width: 100%;
   --sand-stroke-h: 5px;
   --sand-c: hsl(var(--ink-3));
+}
+
+/* ── The timeline in the Bottom Panel ─────────────────────────────── */
+/* The rail is narrow on the phone: the chapter count goes under the
+   storyline's name, which keeps two lines at most. */
+.btl--mobile .btl-rail__main {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+}
+
+.btl--mobile .btl-rail__name {
+  font-size: 13px;
+}
+
+.btl.btl--mobile .btl-rail__text {
+  -webkit-line-clamp: 2;
+}
+
+.btl--mobile .btl-rail__count {
+  font-size: 10px;
+}
+
+/* The head scrolls sideways rather than squeezing its controls. */
+.btl--mobile .bottom-panel-head__start {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.btl--mobile .bottom-panel-head__start::-webkit-scrollbar,
+.btl--mobile .btl__scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.btl--mobile .btl__scroll {
+  overscroll-behavior: contain;
+}
+
+/* Fingertip room for the small controls and the drag handles. */
+.btl--mobile .btl__head-btn,
+.btl--mobile .btl__unaffiliated-toggle,
+.btl--mobile .btl__unplaced-btn {
+  min-width: 40px;
+  min-height: 40px;
+}
+
+.btl--mobile .btl-clip {
+  min-width: 44px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btl--mobile .btl-pin__label {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.btl--mobile .menu-surface__item,
+.btl--mobile + .menu-surface .menu-surface__item {
+  min-height: 44px;
+}
+
+/* ── The story graph's rail on the phone ──────────────────────────── */
+/* As narrow as the timeline's (GRAPH_CONFIG.MOBILE_RAIL_WIDTH): a name
+   keeps two lines at most, the count under it. */
+.m-super-view-host .graph-rail__cell,
+.m-super-view-host .graph-rail-cell--glass > .graph-rail__main {
+  padding-inline: 6px 4px;
+}
+
+.m-super-view-host .graph-rail__name {
+  gap: 6px;
+  font-size: 13px;
+}
+
+.m-super-view-host .graph-rail__name > span {
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.m-super-view-host .graph-rail__meta {
+  font-size: 10px;
 }

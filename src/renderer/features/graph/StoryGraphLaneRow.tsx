@@ -9,6 +9,7 @@ export interface StoryGraphLaneRowProps {
   nodes: readonly PositionedNode[];
   chapterCount: number;
   canvasContentWidth: number;
+  railWidth: number;
   tileRefs: RefObject<Map<string, HTMLDivElement>>;
   linkSource: string | null;
   isNodeEdgeSelected: (id: string) => boolean;
@@ -26,7 +27,7 @@ export interface StoryGraphLaneRowProps {
  * of glass rimmed in its storyline's colour, like the Bottom Timeline.
  */
 
-function LaneRow({ lane, nodes, chapterCount, canvasContentWidth, tileRefs, linkSource,
+function LaneRow({ lane, nodes, chapterCount, canvasContentWidth, railWidth, tileRefs, linkSource,
   isNodeEdgeSelected, onNodePointerDown, onNodeClick, onNodeDoubleClick,
   onNodePreviewEnter, onLanePreviewEnter, onPreviewLeave,
 }: StoryGraphLaneRowProps) {
@@ -56,7 +57,7 @@ function LaneRow({ lane, nodes, chapterCount, canvasContentWidth, tileRefs, link
     >
       <div
         className="graph-rail-cell graph-rail-cell--glass"
-        style={{ width: GRAPH_CONFIG.RAIL_WIDTH }}
+        style={{ width: railWidth }}
         // Synthetic lanes (本书 / 未归属) have no storyline behind them.
         onMouseEnter={lane.synthetic ? undefined : (event) => onLanePreviewEnter(event, lane.id)}
         onMouseLeave={lane.synthetic ? undefined : onPreviewLeave}

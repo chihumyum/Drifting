@@ -1,6 +1,7 @@
 import { useLayoutEffect, useMemo, useSyncExternalStore } from 'react';
 import type { Editor } from '@tiptap/core';
 import { useRegisterActiveEditor } from '../../hooks/useRegisterActiveEditor';
+import { getPlatformRuntime } from '../../platform/runtime';
 import { EMPTY_EDITOR_SESSION_SNAPSHOT, EntityEditorSession, type EditorPersistDerived, type EditorSessionSource } from './entity-editor-session';
 
 interface SessionConfig extends EditorSessionSource {
@@ -25,7 +26,8 @@ export function useEntityEditorSession(editor: Editor | null, config: SessionCon
   // Layout cleanup retires the old identity before a new owner receives its
   // callbacks. Ordinary callback refreshes do not detach listeners or timers.
   useLayoutEffect(() => {
-    session?.updateOptions({ onPersist, selectionKey, autoFocus, isCommandActive });
+    session?.updateOptions({ onPersist, selectionKey, autoFocus, isCommandActive,
+      restoreFocus: !getPlatformRuntime().isMobileShell });
   }, [session, onPersist, selectionKey, autoFocus, isCommandActive]);
   useLayoutEffect(() => { session?.setPresentationNeeded(presentationNeeded); }, [session, presentationNeeded]);
   useLayoutEffect(() => session?.attach(), [session]);
