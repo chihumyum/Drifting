@@ -10,6 +10,7 @@ import { useAgentChatStore } from '../store/agent-chat-store';
 import { createAgentChatJournalScope } from '../lib/agent/runtime/chat-journal-dedup';
 import { createInactiveAgentAutomaticContinuation } from '../lib/agent/runtime/long-task-auto-continuation';
 import type { AgentChatMessage } from '../domain/agent-conversation';
+import { AGENT_MESSAGE_BLOCK_SIZE } from '../features/agent/useAgentMessageBlocks';
 import { agentHistoryWork } from './agent-panel-counters';
 import mobileCss from '../../styles/mobile-workspace.css?inline';
 
@@ -24,7 +25,13 @@ export async function runAgentHistoryScenarios({ measure = true } = {}) {
   const measurements = [];
   try {
     for (const surface of ['desktop', 'mobile'] as const) for (const historyMessages of [300, 3_000]) {
-      let messages: AgentChatMessage[] = Array.from({ length: historyMessages }, (_, index) => index === 63
+      // The desktop transcript opens on its two most recent message blocks and
+      // mobile mounts every block. The tool step closes the first recent block,
+      // so both surfaces show it on a block boundary.
+      const recentStart = Math.max(0, Math.ceil((historyMessages + 1) / AGENT_MESSAGE_BLOCK_SIZE) - 2) * AGENT_MESSAGE_BLOCK_SIZE;
+      const toolIndex = recentStart + AGENT_MESSAGE_BLOCK_SIZE - 1;
+      const mountedRows = historyMessages - (surface === 'desktop' ? recentStart : 0);
+      let messages: AgentChatMessage[] = Array.from({ length: historyMessages }, (_, index) => index === toolIndex
         ? { kind: 'tool', id: 'synthetic-history-tool', name: 'synthetic_inspect', status: 'ok', result: 'Stable tool details.' }
         : { kind: 'assistant', text: `**History ${index}**\n\nStable synthetic paragraph.`, streaming: false });
       messages.push({ kind: 'assistant', text: 'Current tail.', streaming: true });
@@ -48,7 +55,7 @@ export async function runAgentHistoryScenarios({ measure = true } = {}) {
         updateMs.push(performance.now() - start);
       }
       const checks = [
-        { id: 'all-history-stays-mounted', passed: host.querySelectorAll('.agent-md').length === historyMessages },
+        { id: 'all-history-stays-mounted', passed: host.querySelectorAll('.agent-md').length === mountedRows },
         { id: 'historical-dom-and-selection-retained', passed: host.querySelector('.agent-md') === first && document.getSelection()?.toString() === 'History' },
         { id: 'tool-detail-dom-and-expansion-retained', passed: host.querySelector('details') === details && details.open },
         { id: 'latest-text-complete', passed: host.textContent?.includes(`Current tail. ${'word '.repeat(20).trim()}`) === true },
@@ -58,6 +65,6 @@ export async function runAgentHistoryScenarios({ measure = true } = {}) {
       measurements.push({ surface, historyMessages, fixtureHash, displayUpdates: 20, rowElements: measure ? agentHistoryWork.rowElements : null, updateMs: measure ? updateMs : null, medianMs: measure ? sorted[10] : null, p95Ms: measure ? sorted[18] : null, checks });
       document.getSelection()?.removeAllRanges(); flushSync(() => root.render(null));
     }
-    return { implementation: 'stable-message-blocks', measure, measurements, boundary: 'Actual desktop/mobile transcripts with every historical DOM row retained; synchronous full display commits. Source arrays prepared outside timing; no canonical journal ingestion, model, persistence or native input.' };
+    return { implementation: 'stable-message-blocks', measure, measurements, boundary: 'Actual desktop/mobile transcripts with every mounted historical DOM row retained (desktop opens on its two most recent message blocks, mobile on all of them); synchronous full display commits. Source arrays prepared outside timing; no canonical journal ingestion, model, persistence or native input.' };
   } finally { document.getSelection()?.removeAllRanges(); flushSync(() => root.unmount()); host.remove(); style.remove(); useAgentChatStore.setState(before, true); }
 }

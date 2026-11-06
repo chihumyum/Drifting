@@ -79,3 +79,14 @@ export function createSyntheticWorkspaceProjection(projectId: string, nodeCount 
     entityRelationTypes: [], blockSections: [], bookActs: [], driftGroups: [], materialFolders: [], timelineMarkers: [],
   };
 }
+
+/**
+ * The fixture as the F5 card baselines (2026-09-13) hashed it. Material
+ * folders came later (2026-10-27) and stay empty here, so leaving them out
+ * keeps the baselines' fixture identity; a fixture that fills them is a new one.
+ */
+export function baselineFixtureJson(projection: WorkspaceDataProjection): string {
+  const { materialFolders, ...recorded } = projection;
+  if (materialFolders.length > 0) throw new Error('Material folders are not part of the F5 baseline fixtures.');
+  return JSON.stringify(recorded);
+}

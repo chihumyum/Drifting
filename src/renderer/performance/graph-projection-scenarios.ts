@@ -54,6 +54,7 @@ export async function runGraphProjectionScenarios() {
       return {
         fromKind: 'element', toKind: isNode ? 'node' : 'element',
         id: `synthetic-edge-${index}`, refId: `synthetic-edge-${index}`,
+        fromId: input.bookElements[source].id, toId: isNode ? input.bookNodes[target].id : input.bookElements[target].id,
         x1: source % 50 * 100, y1: Math.floor(source / 50) * 60,
         x2: isNode ? target * 120 : target % 50 * 100, y2: isNode ? -60 : Math.floor(target / 50) * 60,
         relationTypeId: 'synthetic-type', directed: false, targetInsetX: isNode ? 61 : 54,

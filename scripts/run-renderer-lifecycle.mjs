@@ -31,7 +31,9 @@ try {
       if (!id.endsWith('/performance/lifecycle-harness.tsx')) return;
       const anchor = 'declare const __DRIFTING_PLOT_KEY__: (nodeId: string) => string;';
       if (!code.includes(anchor)) throw new Error('Planner key instrumentation drifted');
-      return { code: code.replace(anchor, `const __DRIFTING_PLOT_KEY__ = (nodeId: string) => (${templateKey ?? key});`), map: null };
+      // The production key also carries the planner's grid revision, which only
+      // an outside write (the Agent) bumps; the harness never writes from outside.
+      return { code: code.replace(anchor, `const __DRIFTING_PLOT_KEY__ = (nodeId: string) => { const plotGridRevision = 0; return (${templateKey ?? key}); };`), map: null };
     },
   }, react()],
     resolve: { alias: { '@': path.join(root, 'src') } },

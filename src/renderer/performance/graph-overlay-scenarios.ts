@@ -26,6 +26,8 @@ function assertions(scope: string) {
   } };
 }
 
+// The focused width is the shell's own: desktop draws thinner lines than mobile.
+const edgeWidths = () => SUPER_ELEMENT_EDGE_WIDTHS[getPlatformRuntime().isMobileShell ? 'mobile' : 'desktop'];
 async function viewportScenario() {
   const { check, checks } = assertions('viewport-overlay');
   const host = document.createElement('div'); document.body.appendChild(host);
@@ -58,7 +60,7 @@ async function viewportScenario() {
         createElement('div', { 'data-band-node': true, style: { position: 'absolute', left: -15, top: 0, width: 110, height: 56 } })),
       createElement(SuperElementViewportEdges, { edges: source, config, panRef, zoomRef, viewportRef, layerRef,
         panningRef, revision: 0, selectedEdgeId: null, focusedEdgeIds, selectEdge, resolveRelationTypeLabel,
-        widths: SUPER_ELEMENT_EDGE_WIDTHS[getPlatformRuntime().isMobileShell ? 'mobile' : 'desktop'], hitWidth: EDGE_HIT_WIDTH }));
+        widths: edgeWidths(), hitWidth: EDGE_HIT_WIDTH }));
   }
   const path = () => host.querySelector('path[stroke="transparent"]')?.getAttribute('d');
   const aligned = () => {
@@ -68,7 +70,7 @@ async function viewportScenario() {
   try {
     flushSync(() => root.render(createElement(Parent, { source: edges }))); await frames();
     check('sticky-node-matches-real-band-dom', aligned());
-    check('focused-edge-retains-width-and-tooltip', host.querySelector('path[stroke="#123456"]')?.getAttribute('stroke-width') === '2.4'
+    check('focused-edge-retains-width-and-tooltip', host.querySelector('path[stroke="#123456"]')?.getAttribute('stroke-width') === String(edgeWidths().selected)
       && host.querySelector('title')?.textContent === '人物 → 章节  ·  关系');
     cardCommits = 0; labels = 0;
     for (let index = 0; index < 100; index++) window.dispatchEvent(new Event('resize'));

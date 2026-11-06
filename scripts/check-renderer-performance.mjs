@@ -42,6 +42,8 @@ const reportPath = process.argv.find((arg) => arg.startsWith('--report='))?.slic
   ?? path.join(directory, 'baseline-editor.json');
 const report = read(reportPath);
 const deterministic = process.argv.includes('--deterministic');
+// A report of the source tree being checked, not a recorded one.
+const current = process.argv.includes('--current');
 assert.equal(report.schemaVersion, 1);
 assert.equal(report.kind, 'renderer_performance_run');
 assert.equal(report.status, 'measured');
@@ -49,7 +51,7 @@ assert.match(report.source.commit, /^[0-9a-f]{40}$/);
 assert.match(report.source.rendererFingerprint, /^[0-9a-f]{64}$/);
 assert(report.limitations.length > 0);
 assert(report.scenarios.length > 0);
-if (process.argv.includes('--current')) {
+if (current) {
   assert.equal(report.source.fingerprintVersion, rendererFingerprintVersion, 'current source fingerprint version required');
   assert.equal(report.source.commit, execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(), 'report is from another commit');
   assert.equal(report.source.rendererFingerprint, rendererSourceFingerprint(root), 'report is from another source tree');
@@ -346,13 +348,22 @@ if (report.superElementCards) {
     assert(Number.isFinite(item.focusMs) && item.focusMs >= 0);
     assert.deepEqual(item.focusWork, { categories: 0, elements: 0, bands: 0 }, 'Focus mode rerendered the stable card tree.');
     assert.deepEqual(item.wheelWork, { categories: 0, elements: 0, bands: 0 }, 'Wheel commit rerendered the stable card tree.');
+    // The desktop islands (2026-10-30) have no chapter band, so a current run
+    // has no chapter pair to check; runs recorded before them do.
+    const islands = !('chapterPairUsesLatestSource' in item.checks);
+    assert(!current || islands, 'Current Super Element cards have no chapter band to pair.');
     assert.deepEqual(item.checks, { allCardsRetained: true, focusModeReturned: true, shiftSelectsSource: true, shiftClearsSource: true,
-      elementPairUsesLatestSource: true, chapterPairUsesLatestSource: true, renameUpdatesCard: true, categoryNavigation: true });
+      elementPairUsesLatestSource: true, ...(islands ? {} : { chapterPairUsesLatestSource: true }), renameUpdatesCard: true, categoryNavigation: true });
   }
 }
 if (report.agentJournal) {
   assert.equal(report.agentJournal.cycles, 100);
-  assert.deepEqual(report.agentJournal.checks.map(check => check.id), [
+  // Throwing effects (2026-11-02) came after the recorded runs; a current run
+  // checks them.
+  const journalChecks = report.agentJournal.checks.map(check => check.id);
+  const throwingEffects = 'throwing-effects-still-finish-and-persist-terminal';
+  assert(!current || journalChecks.includes(throwingEffects), 'Current journal runs check throwing effects.');
+  assert.deepEqual(journalChecks, [
     'one-connection-and-no-late-work-after-100-disposals',
     'foreign-project-kind-and-conflicting-route-rejected',
     'registered-turn-routes-without-visible-conversation',
@@ -361,6 +372,7 @@ if (report.agentJournal) {
     'background-project-does-not-pulse-visible-activity',
     'accepted-terminal-finishes-effects-during-disposal',
     'terminal-persistence-sees-final-array',
+    'throwing-effects-still-finish-and-persist-terminal',
     'unavailable-connection-is-retryable',
     'failed-connection-callback-cannot-enter-new-generation',
     'retried-connection-receives-new-events',
@@ -368,7 +380,7 @@ if (report.agentJournal) {
     'second-subscription-failure-can-retry',
     'disposal-during-journal-connection-cleans-returned-listener',
     'disposal-during-changes-connection-cleans-both-listeners',
-  ]);
+  ].filter(id => id !== throwingEffects || journalChecks.includes(throwingEffects)));
   assert(report.agentJournal.checks.every(check => check.passed === true), 'journal owner lifecycle regressed');
 }
 if (report.agentRecovery) {
@@ -583,10 +595,20 @@ if (report.workspaceProjection) {
   assert(['copy-and-includes', 'linear-membership-sets'].includes(membership.implementation));
   assert(['replace-capture', 'share-capture-values'].includes(publication.implementation));
   const optimized = publication.implementation === 'share-capture-values';
+  // The publication fixture is the whole workspace projection, so it follows
+  // the projection's shape. Its second revision is the same synthetic data
+  // after material folders (2026-10-27) added a slice and folder and TODO
+  // fields to library items and image provenance (2026-10-27) one more field.
+  const publicationRevisions = [
+    'ba734567fa34fb5a04dfad4bd4c26c16611ae603cb82110d85a90e448b7318ee',
+    'd29402c05a3a40ca3c0b07f0c0841418552bed5042b87b351924a6d19e97120e',
+    'e8b013ee51efa2a451b80b25840153613708a27e76bc184f7211836a72b30856',
+  ];
   for (const [scenario, reference] of [[membership, baseline.membership], [publication, baseline.publication]]) {
     assert.deepEqual(scenario.profiles.map((item) => item.nodes), [100, 1_000, 5_000]);
     for (const [index, item] of scenario.profiles.entries()) {
-      assert.equal(item.fixtureHash, reference.profiles[index].fixtureHash, 'F6a1 fixture changed');
+      const revisions = [reference.profiles[index].fixtureHash, ...(scenario === publication ? [publicationRevisions[index]] : [])];
+      assert(revisions.includes(item.fixtureHash), 'F6a1 fixture changed');
       assert.equal(item.samplesMs.length, 5);
       assert(item.samplesMs.every((value) => Number.isFinite(value) && value >= 0));
       assert.equal(item.medianMs, [...item.samplesMs].sort((a, b) => a - b)[2]);
@@ -598,9 +620,11 @@ if (report.workspaceProjection) {
     if (!deterministic && membership.implementation === 'linear-membership-sets') assert(item.medianMs <= [5, 10, 30][index], 'F6a1 membership budget exceeded');
   }
   for (const [index, item] of publication.profiles.entries()) {
-    assert.equal(item.elements, item.nodes / 5); assert.equal(item.slices, 17);
+    // Every slice but the one changed comment list keeps its reference; the
+    // projection had 17 slices at the baseline and grows with the domain.
+    assert.equal(item.elements, item.nodes / 5); assert(item.slices >= 17);
     assert.equal(item.reusedNodeRecords, optimized ? item.nodes : 0);
-    assert.equal(item.stableCollections, optimized ? 16 : 0);
+    assert.equal(item.stableCollections, optimized ? item.slices - 1 : 0);
     if (!deterministic && optimized) assert(item.medianMs <= [10, 30, 50][index], 'F6a1 publication comparison budget exceeded');
   }
   assert.equal(subscriptions.consumers, 20); assert.equal(subscriptions.refreshes, 100);

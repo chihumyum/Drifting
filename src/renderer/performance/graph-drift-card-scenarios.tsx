@@ -7,7 +7,7 @@ import { SuperViewNavigationProvider } from '../components/SuperViewNavigationCo
 import { SuperViewRelationUiProvider } from '../features/graph/SuperViewRelationUiContext';
 import { superViewModules } from '../features/graph/deferred-graph-modules';
 import { GraphCardFixture } from './graph-card-fixture';
-import { createSyntheticWorkspaceProjection } from './fixture';
+import { baselineFixtureJson, createSyntheticWorkspaceProjection } from './fixture';
 import { useDataStore } from '../store/data-store';
 import { genericAssociationRelationType } from '../domain/entity-relation-type';
 import { graphDriftWork } from './agent-panel-counters';
@@ -17,6 +17,9 @@ const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 const frames = () => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
 // Cancelable like a real key press, so a surface can claim it.
 const escape = () => flushSync(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })));
+// A drift's click card: the hover card's own desk card on desktop, the
+// bordered card once expanded and on the paused mobile shell.
+const CHAPTER_CARD = '.entity-card-popover--card, .node-card';
 
 /** Full graph shells and special drift edges. Synthetic DOM gestures; current
  * Story Graph card reordering is visual only. No marker/relation writes. */
@@ -44,13 +47,17 @@ export async function runGraphDriftCardScenarios() {
           { fromKind: mainKind, fromId: mainId, toKind: 'node' as const, toId: 'synthetic-drift-1' },
           { fromKind: 'node' as const, fromId: 'synthetic-drift-2', toKind: 'node' as const, toId: 'synthetic-drift-3' },
         ].map((edge, index) => ({ ...edge, id: `drift-card-edge-${index}`, projectId, relationTypeId: type.id, createdAt: template.createdAt, updatedAt: template.updatedAt }));
-        const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(fixture)));
+        const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(baselineFixtureJson(fixture)));
         const fixtureHash = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
         const state = useDataStore.getState(); const epoch = state.requestWorkspaceProjection(projectId, 'loading');
         state.commitWorkspaceProjection(projectId, epoch, fixture); localStorage.setItem('graph-view-mode', 'narrative');
         const opened: WorkspaceTarget[] = [];
         const navigator = { projectId, open: (target: WorkspaceTarget) => { opened.push(target); }, activate() {}, showProjectHome() {}, leaveDeletedTarget() {} };
-        const host = document.createElement('div'); document.body.appendChild(host); const root = createRoot(host);
+        // The view fills the window and scrolls inside itself, as in the app. A
+        // host taller than the window would let the harness document scroll,
+        // and a hover card closes when the scroller under its anchor moves.
+        const host = document.createElement('div'); host.style.cssText = 'position:fixed;inset:0';
+        document.body.appendChild(host); const root = createRoot(host);
         try {
           flushSync(() => root.render(<MemoryRouter><WorkspaceNavigationProvider navigator={navigator}>
             <SuperViewRelationUiProvider projectId={projectId}><SuperViewNavigationProvider value={{ active: view, setActive: () => {} }}>
@@ -79,7 +86,7 @@ export async function runGraphDriftCardScenarios() {
           resetWork(); let popoversOpened = 0;
           for (let index = 0; index < 10; index++) {
             flushSync(() => first.click());
-            if (document.querySelector('.node-card')?.textContent?.includes('Synthetic drift 0')) popoversOpened++;
+            if (document.querySelector(CHAPTER_CARD)?.textContent?.includes('Synthetic drift 0')) popoversOpened++;
             escape();
           }
           const popoverWork = { ...graphDriftWork };

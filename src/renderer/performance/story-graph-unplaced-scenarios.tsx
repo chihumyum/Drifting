@@ -6,12 +6,18 @@ import { SuperViewNavigationProvider } from '../components/SuperViewNavigationCo
 import { SuperViewRelationUiProvider } from '../features/graph/SuperViewRelationUiContext';
 import { superViewModules } from '../features/graph/deferred-graph-modules';
 import { GraphCardFixture } from './graph-card-fixture';
-import { createSyntheticWorkspaceProjection } from './fixture';
+import { baselineFixtureJson, createSyntheticWorkspaceProjection } from './fixture';
 import { useDataStore } from '../store/data-store';
 import { storyGraphUnplacedWork, graphDriftWork } from './agent-panel-counters';
 
 const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 const escape = () => flushSync(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+// The chapter's click card: the hover card's own desk card on desktop, the
+// bordered card once expanded and on the paused mobile shell.
+const CHAPTER_CARD = '.entity-card-popover--card, .node-card';
+// Desktop lists the chapters as menu rows coloured like the Bottom Timeline's
+// clips; the paused mobile shell keeps the chips.
+const chipColor = (chip: HTMLElement) => chip.style.getPropertyValue('--chip-color') || chip.style.getPropertyValue('--clip-color');
 const resetWork = () => { storyGraphUnplacedWork.chips = 0; graphDriftWork.storyShell = 0; };
 const work = () => ({ shell: graphDriftWork.storyShell, chips: storyGraphUnplacedWork.chips });
 
@@ -37,7 +43,7 @@ export async function runStoryGraphUnplacedScenarios() {
       }));
       fixture.primaryStorylineByNode = Object.fromEntries(fixture.bookNodes.map((node, index) => [node.id, index % 2 ? null : 'unplaced-storyline-0']));
       fixture.storylineNodeMapping = { 'unplaced-storyline-0': fixture.bookNodes.filter((_, index) => index % 2 === 0).map(node => node.id) };
-      const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(fixture)));
+      const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(baselineFixtureJson(fixture)));
       const fixtureHash = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
       const state = useDataStore.getState(); const epoch = state.requestWorkspaceProjection(projectId, 'loading');
       state.commitWorkspaceProjection(projectId, epoch, fixture); localStorage.setItem('graph-view-mode', 'narrative');
@@ -60,7 +66,7 @@ export async function runStoryGraphUnplacedScenarios() {
           let opened = 0;
           for (let index = 0; index < 10; index++) {
             flushSync(() => tile.click());
-            if (document.querySelector('.node-card')?.textContent?.includes(`Synthetic unplaced ${chapters}`)) opened++;
+            if (document.querySelector(CHAPTER_CARD)?.textContent?.includes(`Synthetic unplaced ${chapters}`)) opened++;
             escape();
           }
           return opened;
@@ -73,7 +79,7 @@ export async function runStoryGraphUnplacedScenarios() {
           closedPopoverCycles: closedCycles === 10,
           orderedChapters: originalChips.every((chip, index) => chip.title === `Synthetic unplaced ${index}` && chip.querySelector('.graph-head__unplaced-chip-num')?.textContent === `§ ${String(index).padStart(2, '0')}`),
           bodyPortal: popover()?.parentElement === document.body && getComputedStyle(popover()!).position === 'fixed',
-          primaryAndUnassignedColors: originalChips[0].style.getPropertyValue('--chip-color') === '#112233' && originalChips[1].style.getPropertyValue('--chip-color') === 'hsl(var(--ink-4))',
+          primaryAndUnassignedColors: chipColor(originalChips[0]) === '#112233' && chipColor(originalChips[1]) === 'hsl(var(--ink-4))',
           openPopoverCycles: false, unchangedDom: false, currentTitleAndPrimary: false, currentStorylineColor: false,
           cancelledDrag: false, escapeCloses: false, emptyState: false, reopenCurrentData: false,
         };
@@ -86,9 +92,9 @@ export async function runStoryGraphUnplacedScenarios() {
           nodeStorylineMapping: { ...state.nodeStorylineMapping, [firstId]: ['unplaced-storyline-0', 'unplaced-storyline-1'] },
         })));
         checks.currentTitleAndPrimary = chips()[0] === originalChips[0] && chips()[0].title === 'Synthetic renamed unplaced'
-          && chips()[0].textContent?.includes('Synthetic renamed unplaced') === true && chips()[0].style.getPropertyValue('--chip-color') === '#445566';
+          && chips()[0].textContent?.includes('Synthetic renamed unplaced') === true && chipColor(chips()[0]) === '#445566';
         flushSync(() => useDataStore.setState(state => ({ storylines: state.storylines.map(line => line.id === 'unplaced-storyline-1' ? { ...line, color: '#778899' } : line) })));
-        checks.currentStorylineColor = chips()[0].style.getPropertyValue('--chip-color') === '#778899';
+        checks.currentStorylineColor = chipColor(chips()[0]) === '#778899';
         const originalNodes = useDataStore.getState().bookNodes;
         const chip = chips()[0]; const rect = chip.getBoundingClientRect();
         flushSync(() => chip.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, pointerId: 601, pointerType: 'mouse', clientX: rect.left + 10, clientY: rect.top + 10 })));
@@ -103,12 +109,12 @@ export async function runStoryGraphUnplacedScenarios() {
         flushSync(() => useDataStore.setState(state => ({ bookNodes: state.bookNodes.filter(node => node.id === fixture.bookNodes[chapters].id) })));
         flushSync(() => toggle.click()); await pause(20);
         checks.emptyState = chips().length === 0 && !!popover()?.querySelector('.graph-head__unplaced-empty')
-          && host.querySelector('.graph-head__unplaced-count')?.textContent === '0';
+          && toggle.querySelector('.graph-head__unplaced-count, .ui-word-toggle__count')?.textContent === '0';
         escape();
         flushSync(() => useDataStore.setState({ bookNodes: originalNodes }));
         flushSync(() => toggle.click()); await pause(20);
         checks.reopenCurrentData = chips().length === chapters && chips()[0].title === 'Synthetic renamed unplaced'
-          && chips()[0].style.getPropertyValue('--chip-color') === '#778899'; escape();
+          && chipColor(chips()[0]) === '#778899'; escape();
         if (Object.values(checks).some(value => !value)) throw new Error(`Unplaced chapter behavior failed: ${JSON.stringify(checks)}`);
         measurements.push({ chapters, fixtureHash, popoverCycles: 10, pointerMoves: 100, initialWork, closedWork, mountWork, openWork, checks });
       } finally { flushSync(() => root.unmount()); host.remove(); }
