@@ -93,9 +93,12 @@ describe('the manuscript tools in sand and glass', () => {
     expect(rule(css, ".editor-selection-bar__format[aria-pressed='true']")).toContain('color: hsl(var(--ink-1));');
     expect(rule(css, '.editor-selection-bar__formats.is-open')).toContain('visibility: visible;');
     // Small glass takes the dense patch (`glass--small`, `glass--round`); the
-    // paused phone keeps the desk surface.
+    // phone wears the same glass pill, with no desk-surface override.
     expect(css).not.toContain('.editor-selection-bar > .glass:nth-of-type');
-    expect(rule(css, "html[data-shell-mode='mobile'] .editor-selection-bar")).toContain('background: var(--menu-surface-bg);');
+    expect(css).not.toMatch(/html\[data-shell-mode='mobile'\] \.editor-selection-bar/);
+    for (const [selector, body] of rules(css, ['.editor-selection-bar'])) {
+      expect(body, selector).not.toContain('--menu-surface-bg');
+    }
   });
 
   it('presses every scroll tick as a sand seal that deepens under the pointer and fades when it goes', () => {

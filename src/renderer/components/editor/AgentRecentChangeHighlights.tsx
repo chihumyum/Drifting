@@ -2,7 +2,6 @@ import { useLayoutEffect, useMemo, useSyncExternalStore } from 'react';
 import { getAgentRecentMarks, subscribeAgentRecentMarks } from '../../lib/agent-recent-changes';
 import { AgentRecentHighlightPainter } from '../../lib/agent-recent-highlight';
 import { entityKey, type ActivityEntityType } from '../../lib/agent/tool-entity-ref';
-import { getPlatformRuntime } from '../../platform/runtime';
 import { useEditorSurfaceLifecycle } from './editor-surface-lifecycle-context';
 
 interface AgentRecentChangeHighlightsProps {
@@ -12,7 +11,7 @@ interface AgentRecentChangeHighlightsProps {
   targetId: string | null;
 }
 
-/** Keeps the words the Agent just wrote coloured on the desktop (added green,
+/** Keeps the words the Agent just wrote coloured (added green,
  * rewritten purple) until the author's pointer touches them, or they scroll
  * under a pointer held still. Painting never
  * mutates the prose DOM; hidden surfaces release their ranges. */
@@ -20,7 +19,7 @@ export function AgentRecentChangeHighlights({ scrollEl, entityType, targetId }: 
   const { isVisible, isPreparing } = useEditorSurfaceLifecycle();
   const marks = useSyncExternalStore(subscribeAgentRecentMarks, getAgentRecentMarks, getAgentRecentMarks);
   const painter = useMemo(() => {
-    if (!scrollEl || getPlatformRuntime().isMobileShell) return null;
+    if (!scrollEl) return null;
     const entity = targetId === null ? null : entityKey(entityType, targetId);
     return new AgentRecentHighlightPainter(scrollEl,
       (mark) => mark.entityType === entityType && (entity === null || mark.entity === entity));

@@ -21,11 +21,6 @@ import { formatShelfWords } from './shelf/shelf-format';
 import { useShelfWritingYear } from './shelf/useShelfWritingYear';
 import '../../styles/project-picker.css';
 import loglevel from 'loglevel';
-import { MobileProjectShelfContent } from '../shells/mobile/standalone/MobileProjectShelfContent';
-import {
-  readMobileProjectShelfSession,
-  updateMobileProjectShelfSession,
-} from '../shells/mobile/standalone/mobile-project-shelf-session';
 import { events } from '../lib/events';
 import { canUseHostedService } from '../lib/config';
 import { projectDeletionErrorKey } from '../lib/project-deletion-feedback';
@@ -61,7 +56,6 @@ const DAY_MS = 24 * 60 * 60 * 1_000;
 // The sample's landing ring: a little lighter than the press that opens a book (1.3).
 const SAMPLE_LANDING_DROP = 1.1;
 
-type Filter = 'all' | 'active' | 'paused';
 type Status = 'writing' | 'draft' | 'paused';
 
 function activateOnEnterOrSpace(event: React.KeyboardEvent<HTMLElement>, action: () => void) {
@@ -130,21 +124,16 @@ function displayMetaFor(kvJson: string): ProjectDisplayMeta {
   };
 }
 
-interface ProjectPickerViewProps {
-  presentation?: 'desktop' | 'mobile';
-}
-
-export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerViewProps) {
+export function ProjectPickerView() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
-  // The desktop shelf lies on the sea of characters: its own ground is left
-  // clear, and the slip for a new book is glass only the water shows.
-  const onSea = useCharSeaEnabled() && presentation !== 'mobile';
+  // The shelf lies on the sea of characters: its own ground is left clear,
+  // and the slip for a new book is glass only the water shows.
+  const onSea = useCharSeaEnabled();
   useCharSeaHold('surface', onSea);
   const { attach: newSlipRef } = useCharSeaShape<HTMLDivElement>({ rest: 0, radius: 2, hover: false });
   const shelfClass = onSea ? 'pp pp--sea' : 'pp';
   const user = useAuthStore((s) => s.user);
-  const account = useAuthStore((s) => s.hostedUser);
   const writingPlans = useWritingStatsStore((s) => s.plans);
   const {
     loadProjectSummaries,
@@ -158,19 +147,10 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
   } = useProject({
     userId: user?.id ?? '',
   });
-  const avatarRef = useRef<HTMLButtonElement | null>(null);
-  const [initialMobileShelfSession] = useState(readMobileProjectShelfSession);
-  const [menuOpen, setMenuOpen] = useState(false);
   const coverStyle = useCoverStyle();
 
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<Filter>(() =>
-    presentation === 'mobile' ? initialMobileShelfSession.filter : 'all',
-  );
-  const [query, setQuery] = useState(() =>
-    presentation === 'mobile' ? initialMobileShelfSession.query : '',
-  );
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<ProjectSummary | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<ProjectSummary | null>(null);
@@ -253,11 +233,6 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
     };
   }, [fetchProjects, user?.id]);
 
-  useEffect(() => {
-    if (presentation !== 'mobile') return;
-    updateMobileProjectShelfSession({ filter, query });
-  }, [filter, presentation, query]);
-
   const decorated = useMemo(
     () =>
       projects.map((p) => {
@@ -281,37 +256,14 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
     [projects, i18n.language, writingPlans],
   );
 
-  const normalizedQuery = query.trim().toLocaleLowerCase(i18n.language);
-  const filtered = decorated.filter(({ project, meta, status }) => {
-    const matchesFilter =
-      filter === 'all' ||
-      (filter === 'active' && (status === 'writing' || status === 'draft')) ||
-      (filter === 'paused' && status === 'paused');
-    const matchesQuery =
-      !normalizedQuery ||
-      [project.name, project.summary, meta.subtitle, meta.genre]
-        .filter(Boolean)
-        .some((value) => value!.toLocaleLowerCase(i18n.language).includes(normalizedQuery));
-    return matchesFilter && matchesQuery;
-  });
-
-  const counts = useMemo(
-    () => ({
-      all: decorated.length,
-      active: decorated.filter((d) => d.status === 'writing' || d.status === 'draft').length,
-      paused: decorated.filter((d) => d.status === 'paused').length,
-    }),
-    [decorated],
-  );
-
   const handleOpen = useCallback(
     (id: string) => {
       noteBookOpened(id);
       navigate(`/project/${id}`, {
-        state: presentation === 'desktop' ? { projectEntry: 'resume-last-content' } : null,
+        state: { projectEntry: 'resume-last-content' },
       });
     },
-    [navigate, presentation],
+    [navigate],
   );
 
   const handleCreate = useCallback(
@@ -413,8 +365,7 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
     [deleteProject],
   );
 
-  const userInitial = (account?.name?.trim() || account?.email?.trim() || '·')[0].toUpperCase();
-  const year = useShelfWritingYear(presentation === 'desktop' && !loading && Boolean(user?.id), projects);
+  const year = useShelfWritingYear(!loading && Boolean(user?.id), projects);
   const heatBooks = useMemo<HeatmapBook[]>(
     () => decorated.map((row) => ({
       id: row.project.id,
@@ -426,64 +377,6 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
   const libraryWords = decorated.every((row) => row.project.stats.wordsReady)
     ? decorated.reduce((sum, row) => sum + row.project.stats.words, 0)
     : null;
-
-  if (presentation === 'mobile') {
-    return (
-      <div className="pp pp--mobile">
-        <MobileProjectShelfContent
-          loading={loading}
-          rows={filtered}
-          allRows={decorated}
-          total={decorated.length}
-          counts={counts}
-          filter={filter}
-          query={query}
-          user={account}
-          userInitial={userInitial}
-          avatarRef={avatarRef}
-          menuOpen={menuOpen}
-          onMenuOpenChange={setMenuOpen}
-          onQueryChange={setQuery}
-          onFilterChange={setFilter}
-          onCreate={() => {
-            if (!preparingSample) setCreateOpen(true);
-          }}
-          onSettings={() => navigate('/settings')}
-          onOpen={(project) => handleOpen(project.id)}
-          onEdit={setEditing}
-          onDelete={openDelete}
-        />
-
-        {confirmDelete && (
-          <DeleteModal
-            project={confirmDelete}
-            error={deleteError}
-            busy={busy}
-            onConfirm={handleDelete}
-            onClose={() => (busy ? undefined : setConfirmDelete(null))}
-          />
-        )}
-        {createOpen && (
-          <ProjectFormModal
-            mode="create"
-            busy={busy}
-            onSubmit={handleCreate}
-            onClose={() => (busy ? undefined : setCreateOpen(false))}
-          />
-        )}
-        {editing && (
-          <ProjectFormModal
-            mode="edit"
-            project={editing}
-            busy={busy}
-            onSubmit={handleEdit}
-            onClose={() => (busy ? undefined : setEditing(null))}
-          />
-        )}
-
-      </div>
-    );
-  }
 
   if (loading) {
     return (
@@ -1189,182 +1082,4 @@ function ProjectFormDialog({ mode, project, busy, onSubmit, onClose }: ProjectFo
 
 function submitShortcut(): string {
   return platformShortcut('⌘↵', 'Ctrl+Enter');
-}
-
-/* ─── The paused mobile shelf's modals ─── */
-
-interface DeleteModalProps {
-  project: ProjectSummary;
-  error: string | null;
-  busy: boolean;
-  onConfirm: () => void;
-  onClose: () => void;
-}
-
-function DeleteModal({ project, error, busy, onConfirm, onClose }: DeleteModalProps) {
-  const { t, i18n } = useTranslation();
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !busy) onClose();
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [busy, onClose]);
-
-  const stats = project.stats;
-  return (
-    <div className="pp-modal-backdrop" onClick={onClose}>
-      <div
-        className="pp-modal"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-label={t('projectPicker.trash.titlePrefix')}
-      >
-        <div className="pp-modal__head">
-          <div className="pp-modal__kicker">{t('projectPicker.trash.kicker')}</div>
-          <h2 className="pp-modal__title">
-            {t('projectPicker.trash.titlePrefix')} <em>《{project.name}》</em>？
-          </h2>
-        </div>
-        <div className="pp-modal__body">
-          <p className="pp-modal__sub">
-            {t('projectPicker.trash.body', {
-              words: stats.wordsReady ? stats.words.toLocaleString(i18n.language) : t('common.counting'),
-              nodes: stats.chapters,
-              elements: stats.elements,
-            })}
-          </p>
-          <p className="pp-modal__sub">{t(canUseHostedService()
-            ? 'projectPicker.trash.remoteNote' : 'projectPicker.trash.localNote')}</p>
-          {error && <p role="alert" className="pp-modal__sub">{t(error)}</p>}
-        </div>
-        <div className="pp-modal__foot">
-          <button
-            type="button"
-            className="pp-modal__btn"
-            onClick={onClose}
-            disabled={busy}
-            autoFocus
-          >
-            {t('common.cancel')}
-          </button>
-          <button
-            type="button"
-            className="pp-modal__btn pp-modal__btn--primary"
-            onClick={onConfirm}
-            disabled={busy}
-          >
-            {busy ? t('projectPicker.trash.moving') : t('projectPicker.trash.confirm')}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-interface ProjectFormModalProps {
-  mode: 'create' | 'edit';
-  project?: ProjectSummary;
-  busy: boolean;
-  onSubmit: (form: ProjectFormState) => void;
-  onClose: () => void;
-}
-
-function ProjectFormModal({ mode, project, busy, onSubmit, onClose }: ProjectFormModalProps) {
-  const { t } = useTranslation();
-  const [form, setForm] = useState<ProjectFormState>({
-    name: project?.name ?? '',
-    summary: project?.summary ?? '',
-  });
-
-  const set =
-    <K extends keyof ProjectFormState>(key: K) =>
-    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-      setForm((prev) => ({ ...prev, [key]: e.target.value }));
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !busy) onClose();
-      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && !busy) onSubmit(form);
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [busy, form, onClose, onSubmit]);
-
-  const isEdit = mode === 'edit';
-  const submitLabel = isEdit
-    ? busy
-      ? t('common.saving')
-      : t('common.save')
-    : busy
-      ? t('common.creating')
-      : t('projectPicker.form.createSubmit');
-
-  return (
-    <div className="pp-modal-backdrop" onClick={onClose}>
-      <div
-        className="pp-modal"
-        onClick={(e) => e.stopPropagation()}
-        style={{ width: 540 }}
-        role="dialog"
-        aria-modal="true"
-        aria-label={
-          isEdit ? t('projectPicker.form.editKicker') : t('projectPicker.form.createKicker')
-        }
-      >
-        <div className="pp-modal__head">
-          <div className="pp-modal__kicker">
-            {isEdit ? t('projectPicker.form.editKicker') : t('projectPicker.form.createKicker')}
-          </div>
-          <h2 className="pp-modal__title">
-            {isEdit ? (
-              <>
-                {t('projectPicker.form.editTitle')} <em>《{project?.name}》</em>
-              </>
-            ) : (
-              <>
-                {t('projectPicker.form.createTitle')}{' '}
-                <em>{t('projectPicker.form.createTitleEm')}</em>
-              </>
-            )}
-          </h2>
-        </div>
-        <div className="pp-modal__body">
-          <div className="pp-modal__field">
-            <span className="pp-modal__field-k">{t('projectPicker.form.nameLabel')}</span>
-            <input
-              className="pp-modal__input"
-              placeholder={t('projectPicker.form.namePlaceholder')}
-              value={form.name}
-              onChange={set('name')}
-              autoFocus
-            />
-          </div>
-          <div className="pp-modal__field">
-            <span className="pp-modal__field-k">{t('projectPicker.form.summaryLabel')}</span>
-            <textarea
-              className="pp-modal__textarea"
-              placeholder={t('projectPicker.form.summaryPlaceholder')}
-              value={form.summary}
-              onChange={set('summary')}
-            />
-          </div>
-        </div>
-        <div className="pp-modal__foot">
-          <button type="button" className="pp-modal__btn" onClick={onClose} disabled={busy}>
-            {t('common.cancel')}
-          </button>
-          <button
-            type="button"
-            className="pp-modal__btn pp-modal__btn--primary"
-            onClick={() => onSubmit(form)}
-            disabled={busy}
-          >
-            {submitLabel}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
 }

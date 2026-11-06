@@ -5,7 +5,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type CSSProperties,
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDataStore } from '../../../store/data-store';
@@ -18,14 +17,12 @@ import { useSuperViewEscapeStack } from '../../../hooks/useSuperViewEscapeStack'
 import { DesktopSuperViewHeader } from '../components/DesktopSuperViewHeader';
 import { SuperViewShell } from '../../../components/SuperViewShell';
 import { FilterChip } from '../../../components/ui/FilterChip';
-import { ContextMenuSurface } from '../../../components/ui/ContextMenuSurface';
 import { AnchoredPopover } from '../../../components/ui/AnchoredPopover';
 import { Button } from '../../../components/ui/Button';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { GhostIconButton } from '../../../components/ui/GhostIconButton';
 import { KindMark } from '../../../components/ui/KindMark';
 import { kindMarkOfTarget, type KindMarkKind } from '../../../components/ui/kind-mark';
-import { LabelMono } from '../../../components/ui/LabelMono';
 import { useComment } from '../../../usecase/useComment';
 import { useLibraryItem } from '../../../usecase/useLibraryItem';
 import { useEntityRelations } from '../../../usecase/useEntityRelations';
@@ -36,7 +33,6 @@ import {
   TodoCard,
   type FocusedEntity,
 } from '../../../components/rightBars/MemoMaterialPanel';
-import { EntityRelationPicker } from '../../../components/rightBars/EntityRelationPicker';
 import { ReviewItemCard } from '../../../features/comments/ReviewItemCard';
 import {
   groupReviewItems,
@@ -76,23 +72,6 @@ const DRAWER_HEADER_HEIGHT = 28;
 const DRAWER_MIN_HEIGHT = 120;
 const DRAWER_DEFAULT_HEIGHT = 260;
 
-const TODO_RAIL_WIDTH = 280;
-
-/**
- * The desktop draws a piece with its class from super-memo-material.css; the
- * paused mobile shell keeps the inline look it had (and the class hooks its
- * own stylesheet targets), so nothing desktop reaches it.
- */
-function look(
-  mobileShell: boolean,
-  desktopClass: string,
-  legacyStyle?: CSSProperties,
-  sharedClass?: string,
-): { className?: string; style?: CSSProperties } {
-  if (mobileShell) return { className: sharedClass, style: legacyStyle };
-  return { className: sharedClass ? `${sharedClass} ${desktopClass}` : desktopClass };
-}
-
 /**
  * Global TODO & Library workbench — the project-wide counterpart to the
  * per-entity MemoMaterialPanel in the right sidebar.
@@ -112,8 +91,7 @@ function look(
  * the desk colour like the Bottom Panel (drag its top edge to resize when
  * open; the edge bleeds glass while it moves). Each rail's right edge drags
  * the rail wider the same way, and its cards flow into as many columns as
- * fit. The paused mobile shell keeps the single TODO rail. All cards reuse
- * the right-sidebar primitives so actions stay in sync.
+ * fit. All cards reuse the right-sidebar primitives so actions stay in sync.
  */
 export function DesktopSuperMemoMaterialView() {
   const { t } = useTranslation();
@@ -121,7 +99,6 @@ export function DesktopSuperMemoMaterialView() {
   const userId = useAuthStore((s) => s.user?.id) ?? '';
   const { setActive: setActiveSuperView } = useSuperViewNavigation();
   const closeView = useCallback(() => setActiveSuperView('none'), [setActiveSuperView]);
-  const mobileShell = getPlatformRuntime().isMobileShell;
 
   const comments = useDataStore((s) => s.comments);
   const libraryItems = useDataStore((s) => s.libraryItems);
@@ -376,34 +353,15 @@ export function DesktopSuperMemoMaterialView() {
         })}
         onBack={closeView}
         rightSlot={
-          mobileShell ? (
+          <label className="ui-field ui-field--sm glass glass--rest glass--field glass--small smm-search">
+            <BrushIcon name="search" size={14} />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder={t('memoMaterial.super.searchPlaceholder')}
-              style={{
-                width: 220,
-                fontFamily: 'var(--font-sans)',
-                fontSize: 12.5,
-                padding: '5px 9px',
-                border: '1px solid hsl(var(--rule))',
-                borderRadius: 3,
-                background: 'hsl(var(--paper))',
-                color: 'hsl(var(--ink-1))',
-                outline: 'none',
-              }}
+              aria-label={t('memoMaterial.super.searchPlaceholder')}
             />
-          ) : (
-            <label className="ui-field ui-field--sm glass glass--rest glass--field glass--small smm-search">
-              <BrushIcon name="search" size={14} />
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder={t('memoMaterial.super.searchPlaceholder')}
-                aria-label={t('memoMaterial.super.searchPlaceholder')}
-              />
-            </label>
-          )
+          </label>
         }
       />
 
@@ -421,18 +379,16 @@ export function DesktopSuperMemoMaterialView() {
             onCompose={() => setComposeOpen('todo')}
           />
 
-          {!mobileShell && (
-            <CommentRail
-              projectId={projectId}
-              openNotes={openNotes}
-              refsByFrom={refsByFrom}
-              relationUsecases={relationUsecases}
-              removeRelation={removeRelation}
-              width={railWidths.comment}
-              onResize={(width) => resizeRail('comment', width)}
-              onCompose={() => setComposeOpen('note')}
-            />
-          )}
+          <CommentRail
+            projectId={projectId}
+            openNotes={openNotes}
+            refsByFrom={refsByFrom}
+            relationUsecases={relationUsecases}
+            removeRelation={removeRelation}
+            width={railWidths.comment}
+            onResize={(width) => resizeRail('comment', width)}
+            onCompose={() => setComposeOpen('note')}
+          />
 
           <LibraryItemMain
             libraryItemsByKind={libraryItemsByKind}
@@ -556,32 +512,9 @@ export function DesktopSuperMemoMaterialView() {
 // ─────────────────────────────────────────────────────────────────────────────
 // LibraryItem filter primitives — KindChip + EntityFilterButton, both used in
 // the LibraryItemMain section header (previously lived in a top toolbar). The
-// paused mobile shell still separates the filter groups with a thin vertical
-// divider; the desktop separates them with space.
+// filter groups are separated by space.
 
-function ToolbarDivider() {
-  return (
-    <div
-      className="smm-todo-rail"
-      style={{
-        width: 1,
-        height: 20,
-        background: 'hsl(var(--rule))',
-        flexShrink: 0,
-      }}
-    />
-  );
-}
-
-const kickerStyle: CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 9.5,
-  textTransform: 'uppercase',
-  letterSpacing: '0.12em',
-  color: 'hsl(var(--ink-4))',
-};
-
-/** A material kind: a Chip on the desktop (FilterChip keeps the paper chip on mobile). */
+/** A material kind: a Chip. */
 function KindChip({
   active,
   count,
@@ -610,9 +543,8 @@ function KindChip({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Entity-target filter. The desktop opens a searchable menu straight from a
-// word toggle (one click to the entities); the paused mobile shell keeps the
-// popover with EntityRelationPicker constrained to a single-select.
+// Entity-target filter: a searchable menu straight from a word toggle (one
+// click to the entities).
 
 interface EntityFilterProps {
   entityFilter: FocusedEntity;
@@ -624,11 +556,7 @@ interface EntityFilterProps {
 }
 
 function EntityFilterButton(props: EntityFilterProps) {
-  return getPlatformRuntime().isMobileShell ? (
-    <LegacyEntityFilterButton entityFilter={props.entityFilter} onChange={props.onChange} />
-  ) : (
-    <EntityFilterMenu {...props} />
-  );
+  return <EntityFilterMenu {...props} />;
 }
 
 interface EntityChoice {
@@ -894,133 +822,6 @@ function EntityFilterMenu({ entityFilter, onChange, targetCounts, totalItems }: 
   );
 }
 
-function LegacyEntityFilterButton({
-  entityFilter,
-  onChange,
-}: {
-  entityFilter: FocusedEntity;
-  onChange: (next: FocusedEntity) => void;
-}) {
-  const { t } = useTranslation();
-  const [open, setOpen] = useState(false);
-  const [anchor, setAnchor] = useState({ x: 0, y: 0 });
-  const buttonRef = useRef<HTMLButtonElement | null>(null);
-  const { bookNodes, bookElements, storylines, bookElementCategories } = useDataStoreFields('bookNodes', 'bookElements', 'storylines', 'bookElementCategories');
-
-  const label = useMemo(() => {
-    if (!entityFilter.kind || !entityFilter.id) return t('memoMaterial.super.all');
-    const { kind, id } = entityFilter;
-    if (kind === 'node') {
-      const n = bookNodes.find((x) => x.id === id);
-      return n?.title || t(n && isChapter(n) ? 'topTimeline.untitled.chapter' : 'topTimeline.untitled.drift');
-    }
-    if (kind === 'element')
-      return bookElements.find((x) => x.id === id)?.name || 'Untitled Element';
-    if (kind === 'storyline')
-      return storylines.find((x) => x.id === id)?.name || 'Untitled Storyline';
-    if (kind === 'category') return bookElementCategories.find((x) => x.id === id)?.name || id;
-    return id;
-  }, [entityFilter, bookNodes, bookElements, storylines, bookElementCategories, t]);
-
-  const selected = useMemo(
-    () =>
-      new Set(
-        entityFilter.kind && entityFilter.id ? [`${entityFilter.kind}:${entityFilter.id}`] : [],
-      ),
-    [entityFilter],
-  );
-
-  return (
-    <>
-      <LabelMono tone="ink-4">{t('memoMaterial.super.relations')}</LabelMono>
-      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
-        <button
-          ref={buttonRef}
-          onClick={() => {
-            const rect = buttonRef.current?.getBoundingClientRect();
-            if (rect) setAnchor({ x: rect.left, y: rect.bottom + 6 });
-            setOpen((value) => !value);
-          }}
-          style={{
-            minHeight: 'var(--control-height-sm)',
-            maxWidth: 220,
-            padding: '3px 8px',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 5,
-            overflow: 'hidden',
-            border: `1px solid ${entityFilter.kind ? 'hsl(var(--ink-1))' : 'hsl(var(--rule))'}`,
-            borderRadius: 'var(--radius-lg)',
-            background: entityFilter.kind ? 'hsl(var(--ink-1) / 0.06)' : 'transparent',
-            color: 'hsl(var(--ink-1))',
-            cursor: 'pointer',
-            fontFamily: 'var(--font-sans)',
-            fontSize: 12,
-            whiteSpace: 'nowrap',
-          }}
-          title={
-            entityFilter.kind
-              ? t('memoMaterial.super.entityFilterActiveTitle', { label })
-              : t('memoMaterial.super.entityFilterTitle')
-          }
-        >
-          <span
-            style={{
-              maxWidth: 180,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {label}
-          </span>
-          {!entityFilter.kind && <BrushIcon name="chevron-down" size={12} />}
-        </button>
-        {entityFilter.kind && (
-          <GhostIconButton
-            size="sm"
-            icon={<BrushIcon name="close" size={13} />}
-            aria-label={t('memoMaterial.super.clearEntityFilter')}
-            title={t('memoMaterial.super.clearEntityFilter')}
-            onClick={() => {
-              onChange({ kind: null, id: null });
-              setOpen(false);
-            }}
-          />
-        )}
-      </div>
-      {open && (
-        <ContextMenuSurface
-          x={anchor.x}
-          y={anchor.y}
-          onClose={() => setOpen(false)}
-          role="dialog"
-          ariaLabel={t('memoMaterial.super.entityFilterTitle')}
-          className="menu-surface menu-surface--rich menu-surface--panel entity-filter-popover"
-          style={{
-            maxHeight: 440,
-            padding: 10,
-            overflowY: 'auto',
-          }}
-        >
-          <div style={{ ...kickerStyle, marginBottom: 6 }}>
-            {t('memoMaterial.super.entityFilterHint')}
-          </div>
-          <EntityRelationPicker
-            selected={selected}
-            selectedChipMode="toggle"
-            onAdd={(target) => {
-              onChange({ kind: target.kind, id: target.id });
-              setOpen(false);
-            }}
-            onRemove={() => onChange({ kind: null, id: null })}
-          />
-        </ContextMenuSurface>
-      )}
-    </>
-  );
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Rails — the TODO and comment columns left of the library. On the desktop
 // each is as wide as the author dragged it (RailEdge on its right line) and
@@ -1112,26 +913,6 @@ function RailEdge({
   );
 }
 
-const LEGACY_RAIL_STYLE: CSSProperties = {
-  width: TODO_RAIL_WIDTH,
-  flexShrink: 0,
-  borderRight: '1px solid hsl(var(--rule))',
-  background: 'hsl(var(--paper-deep) / 0.35)',
-  display: 'flex',
-  flexDirection: 'column',
-  minHeight: 0,
-};
-
-const LEGACY_RAIL_LIST_STYLE: CSSProperties = {
-  flex: 1,
-  minHeight: 0,
-  overflowY: 'auto',
-  padding: '6px 10px',
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 6,
-};
-
 function TodoRail({
   openTodos,
   commentUsecases,
@@ -1156,7 +937,6 @@ function TodoRail({
   onCompose: () => void;
 }) {
   const { t } = useTranslation();
-  const mobileShell = getPlatformRuntime().isMobileShell;
   const renderTodo = (todo: Comment) => {
     const relations = entityRelations
       .filter((r) => r.fromKind === 'comment' && r.fromId === todo.id)
@@ -1190,49 +970,26 @@ function TodoRail({
 
   return (
     <div
-      {...look(mobileShell, 'smm-rail', LEGACY_RAIL_STYLE, 'smm-library-main')}
-      style={mobileShell ? LEGACY_RAIL_STYLE : { flexBasis: width }}
+      className="smm-library-main smm-rail"
+      style={{ flexBasis: width }}
     >
-      {mobileShell ? (
-        <SectionHeader
-          kicker="TODO"
-          count={openTodos.length}
-          accent={openTodos.length > 0 ? 'hsl(var(--story-2))' : undefined}
-          action={
-            <button
-              onClick={onCompose}
-              style={ghostBtnStyle}
-              title={t('memoMaterial.dialog.newTodo')}
-            >
-              <BrushIcon name="plus" size={11} inline />
-            </button>
-          }
+      <div className="smm-column-head">
+        <span className="smm-index">TODO</span>
+        <span className="smm-index-count">{openTodos.length}</span>
+        <GhostIconButton
+          className="panel-header-new smm-column-head__action"
+          icon={<BrushIcon name="plus" size={13} />}
+          onClick={onCompose}
+          title={t('memoMaterial.dialog.newTodo')}
+          aria-label={t('memoMaterial.dialog.newTodo')}
         />
-      ) : (
-        <div className="smm-column-head">
-          <span className="smm-index">TODO</span>
-          <span className="smm-index-count">{openTodos.length}</span>
-          <GhostIconButton
-            className="panel-header-new smm-column-head__action"
-            icon={<BrushIcon name="plus" size={13} />}
-            onClick={onCompose}
-            title={t('memoMaterial.dialog.newTodo')}
-            aria-label={t('memoMaterial.dialog.newTodo')}
-          />
-        </div>
-      )}
-      <div {...look(mobileShell, 'smm-rail__list', LEGACY_RAIL_LIST_STYLE, 'smm-scroll')}>
+      </div>
+      <div className="smm-scroll smm-rail__list">
         {openTodos.length === 0 &&
-          (mobileShell ? (
-            <RailEmpty hint={t('memoMaterial.super.todoEmptyHint')} />
-          ) : (
-            <EmptyState density="compact" message={t('memoMaterial.super.todoEmptyHint')} />
-          ))}
+          <EmptyState density="compact" message={t('memoMaterial.super.todoEmptyHint')} />}
         {openTodos.map(renderTodo)}
       </div>
-      {!mobileShell && (
-        <RailEdge label={t('memoMaterial.super.resizeTodos')} width={width} onResize={onResize} />
-      )}
+      <RailEdge label={t('memoMaterial.super.resizeTodos')} width={width} onResize={onResize} />
     </div>
   );
 }
@@ -1369,99 +1126,8 @@ function CommentRail({
   );
 }
 
-function SectionHeader({
-  kicker,
-  count,
-  accent,
-  action,
-}: {
-  kicker: string;
-  count: number;
-  accent?: string;
-  action?: React.ReactNode;
-}) {
-  return (
-    <div
-      style={{
-        height: 30,
-        flexShrink: 0,
-        padding: '0 10px 0 12px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-        borderBottom: '1px solid hsl(var(--rule))',
-        background: 'hsl(var(--paper))',
-      }}
-    >
-      <span
-        style={{
-          ...kickerStyle,
-          color: accent ?? 'hsl(var(--ink-3))',
-        }}
-      >
-        {kicker}
-      </span>
-      <span
-        style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: 10,
-          color: 'hsl(var(--ink-4))',
-        }}
-      >
-        {count}
-      </span>
-      <div style={{ flex: 1 }} />
-      {action}
-    </div>
-  );
-}
-
-const ghostBtnStyle: CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 12,
-  padding: '2px 7px',
-  borderRadius: 3,
-  border: '1px solid hsl(var(--rule))',
-  background: 'transparent',
-  color: 'hsl(var(--ink-2))',
-  cursor: 'pointer',
-};
-
-function RailEmpty({ hint }: { hint: string }) {
-  return (
-    <div
-      style={{
-        padding: '20px 12px',
-        textAlign: 'center',
-        fontFamily: 'var(--font-sans)',
-        fontStyle: 'italic',
-        fontSize: 12,
-        color: 'hsl(var(--ink-4))',
-        lineHeight: 1.55,
-      }}
-    >
-      {hint}
-    </div>
-  );
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // LibraryItemMain — center column, grid grouped by kind.
-
-const LEGACY_MAIN_STYLE: CSSProperties = {
-  flex: 1,
-  minWidth: 0,
-  display: 'flex',
-  flexDirection: 'column',
-  minHeight: 0,
-};
-
-const LEGACY_MAIN_SCROLL_STYLE: CSSProperties = {
-  flex: 1,
-  minHeight: 0,
-  overflowY: 'auto',
-  padding: '10px 16px 18px',
-};
 
 function LibraryItemMain({
   libraryItemsByKind,
@@ -1511,7 +1177,6 @@ function LibraryItemMain({
   onCompose: () => void;
 }) {
   const { t } = useTranslation();
-  const mobileShell = getPlatformRuntime().isMobileShell;
   const kindChips = KIND_ORDER.map((k) => (
     <KindChip
       key={k}
@@ -1531,153 +1196,48 @@ function LibraryItemMain({
     />
   );
   return (
-    <div {...look(mobileShell, 'smm-main', LEGACY_MAIN_STYLE)}>
+    <div className="smm-main">
       {/* LibraryItem section header: kicker + count on the left, then KIND
           chips and entity filter (moved down from the global header), then
           the new-material action on the right. On the desktop it is exactly
           as tall as the rail's head, so both columns start on one line. */}
-      {mobileShell ? (
-        <div
-          className="smm-library-toolbar"
-          style={{
-            minHeight: 38,
-            flexShrink: 0,
-            padding: '0 14px 0 12px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            borderBottom: '1px solid hsl(var(--rule))',
-            background: 'hsl(var(--paper))',
-          }}
+      <div className="smm-library-toolbar smm-column-head">
+        <span className="smm-index">{t('memoMaterial.super.material')}</span>
+        <span className="smm-index-count">{totalVisible}</span>
+        <div className="smm-library-toolbar__kinds">{kindChips}</div>
+        {entityFilterButton}
+        <span className="smm-column-head__spacer" />
+        <span className="smm-index-count">
+          {totalVisible} / {totalLibraryItems}
+        </span>
+        <Button
+          variant="primary"
+          size="sm"
+          className="smm-library-toolbar__create"
+          onClick={onCompose}
         >
-          <LabelMono tone="ink-4">{t('memoMaterial.super.material')}</LabelMono>
-          <span
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 10,
-              color: 'hsl(var(--ink-4))',
-            }}
-          >
-            {totalVisible}
-          </span>
+          <BrushIcon name="plus" size={11} />
+          {t('memoMaterial.super.newMaterialButton')}
+        </Button>
+      </div>
 
-          <ToolbarDivider />
-
-          <LabelMono tone="ink-4">{t('memoMaterial.super.kind')}</LabelMono>
-          <div style={{ display: 'flex', gap: 4 }}>{kindChips}</div>
-
-          <ToolbarDivider />
-
-          {entityFilterButton}
-
-          <div style={{ flex: 1 }} />
-
-          <span
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 9.5,
-              color: 'hsl(var(--ink-4))',
-              letterSpacing: '0.06em',
-            }}
-          >
-            {totalVisible} / {totalLibraryItems}
-          </span>
-          <button
-            className="smm-library-toolbar__create"
-            onClick={onCompose}
-            title={t('memoMaterial.dialog.newMaterial')}
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 10,
-              padding: '3px 10px',
-              border: '1px solid hsl(var(--ink-1))',
-              borderRadius: 3,
-              background: 'hsl(var(--ink-1))',
-              color: 'hsl(var(--paper))',
-              cursor: 'pointer',
-              letterSpacing: '0.08em',
-            }}
-          >
-            <BrushIcon name="plus" size={10} inline /> {t('memoMaterial.super.newMaterialButton')}
-          </button>
-        </div>
-      ) : (
-        <div className="smm-library-toolbar smm-column-head">
-          <span className="smm-index">{t('memoMaterial.super.material')}</span>
-          <span className="smm-index-count">{totalVisible}</span>
-          <div className="smm-library-toolbar__kinds">{kindChips}</div>
-          {entityFilterButton}
-          <span className="smm-column-head__spacer" />
-          <span className="smm-index-count">
-            {totalVisible} / {totalLibraryItems}
-          </span>
-          <Button
-            variant="primary"
-            size="sm"
-            className="smm-library-toolbar__create"
-            onClick={onCompose}
-          >
-            <BrushIcon name="plus" size={11} />
-            {t('memoMaterial.super.newMaterialButton')}
-          </Button>
-        </div>
-      )}
-
-      <div {...look(mobileShell, 'smm-main__scroll', LEGACY_MAIN_SCROLL_STYLE, 'smm-scroll')}>
+      <div className="smm-scroll smm-main__scroll">
         {totalVisible === 0 &&
-          (mobileShell ? (
-            <div
-              style={{
-                padding: '60px 20px',
-                textAlign: 'center',
-                fontFamily: 'var(--font-sans)',
-                fontStyle: 'italic',
-                fontSize: 13,
-                color: 'hsl(var(--ink-3))',
-              }}
-            >
-              {totalLibraryItems === 0 ? (
-                <>
-                  <div>{t('memoMaterial.super.noMaterials')}</div>
-                  <button
-                    onClick={onCompose}
-                    style={{
-                      marginTop: 12,
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: 11,
-                      padding: '5px 14px',
-                      border: '1px solid hsl(var(--ink-1))',
-                      borderRadius: 3,
-                      background: 'hsl(var(--ink-1))',
-                      color: 'hsl(var(--paper))',
-                      cursor: 'pointer',
-                      letterSpacing: '0.08em',
-                    }}
-                  >
-                    <BrushIcon name="plus" size={10} inline /> {t('memoMaterial.super.newMaterialButton')}
-                  </button>
-                </>
-              ) : (
-                t('memoMaterial.super.noFilteredMaterials')
-              )}
-            </div>
-          ) : (
-            <EmptyState
-              mark="material"
-              message={
-                totalLibraryItems === 0
-                  ? t('memoMaterial.super.noMaterials')
-                  : t('memoMaterial.super.noFilteredMaterials')
-              }
-              action={
-                totalLibraryItems === 0 ? (
-                  <Button variant="ghost" size="sm" onClick={onCompose}>
-                    {t('memoMaterial.super.newMaterialButton')}
-                  </Button>
-                ) : undefined
-              }
-            />
-          ))}
+          <EmptyState
+            mark="material"
+            message={
+              totalLibraryItems === 0
+                ? t('memoMaterial.super.noMaterials')
+                : t('memoMaterial.super.noFilteredMaterials')
+            }
+            action={
+              totalLibraryItems === 0 ? (
+                <Button variant="ghost" size="sm" onClick={onCompose}>
+                  {t('memoMaterial.super.newMaterialButton')}
+                </Button>
+              ) : undefined
+            }
+          />}
 
         {KIND_ORDER.map((kind) => {
           const items = libraryItemsByKind.get(kind) ?? [];
@@ -1704,23 +1264,6 @@ function LibraryItemMain({
   );
 }
 
-const LEGACY_GROUP_HEAD_STYLE: CSSProperties = {
-  ...kickerStyle,
-  display: 'flex',
-  alignItems: 'center',
-  gap: 6,
-  marginBottom: 8,
-  paddingBottom: 4,
-  borderBottom: '1px dashed hsl(var(--rule))',
-};
-
-const LEGACY_GROUP_GRID_STYLE: CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-  gap: 10,
-  alignItems: 'start',
-};
-
 function KindGroup({
   kind,
   items,
@@ -1745,25 +1288,26 @@ function KindGroup({
   openLibraryItemInSystem: (m: LibraryItem) => Promise<void>;
 }) {
   const { t } = useTranslation();
-  const mobileShell = getPlatformRuntime().isMobileShell;
+  // A touch screen has no hover card: the material's ⋯ opens its actions.
+  const touchActions = getPlatformRuntime().isMobileShell;
   return (
-    <section {...look(mobileShell, 'smm-kind-group', { marginBottom: 18 })}>
-      <div {...look(mobileShell, 'smm-kind-group__head smm-index', LEGACY_GROUP_HEAD_STYLE)}>
-        <span {...look(mobileShell, 'smm-kind-group__name')}>
+    <section className="smm-kind-group">
+      <div className="smm-kind-group__head smm-index">
+        <span className="smm-kind-group__name">
           {t(`memoMaterial.kind.${kind}`, { defaultValue: kind })}
         </span>
-        <span {...look(mobileShell, 'smm-index-count', { color: 'hsl(var(--ink-4))' })}>
+        <span className="smm-index-count">
           {items.length}
         </span>
       </div>
-      <div {...look(mobileShell, 'smm-kind-group__grid', LEGACY_GROUP_GRID_STYLE)}>
+      <div className="smm-kind-group__grid">
         {items.map((mat) => (
           <LibraryItemCard
             key={mat.id}
             material={mat}
             relations={refsByFrom.get(`library_item:${mat.id}`) ?? []}
             editing={editingId === mat.id}
-            mobileActions={mobileShell}
+            mobileActions={touchActions}
             onSetEditing={(on) => setEditingId(on ? mat.id : null)}
             onOpenInSystem={() => openLibraryItemInSystem(mat)}
             onOpenInApp={() => openLibraryItemInApp(mat)}
@@ -1784,77 +1328,6 @@ function KindGroup({
 // ─────────────────────────────────────────────────────────────────────────────
 // BottomDrawer — collapsed header strip + draggable resize when expanded.
 // Body is a 2-column split: orphan libraryItems | resolved TODOs and comments.
-
-const LEGACY_DRAWER_HANDLE_STYLE: CSSProperties = {
-  height: 4,
-  marginTop: -2,
-  userSelect: 'none',
-};
-
-const LEGACY_DRAWER_BAR_STYLE: CSSProperties = {
-  all: 'unset',
-  boxSizing: 'border-box',
-  height: DRAWER_HEADER_HEIGHT - 4,
-  padding: '0 16px',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: 8,
-  cursor: 'pointer',
-  fontFamily: 'var(--font-mono)',
-  fontSize: 10,
-  letterSpacing: '0.1em',
-  textTransform: 'uppercase',
-  color: 'hsl(var(--ink-3))',
-  flexShrink: 0,
-};
-
-const LEGACY_DRAWER_COLS_STYLE: CSSProperties = {
-  flex: 1,
-  minHeight: 0,
-  display: 'grid',
-  gridTemplateColumns: '1fr 1fr',
-  gap: 1,
-  background: 'hsl(var(--rule))',
-};
-
-const LEGACY_DRAWER_COL_STYLE: CSSProperties = {
-  minWidth: 0,
-  minHeight: 0,
-  display: 'flex',
-  flexDirection: 'column',
-  background: 'hsl(var(--paper))',
-};
-
-const LEGACY_DRAWER_ORPHANS_STYLE: CSSProperties = {
-  flex: 1,
-  minHeight: 0,
-  overflowY: 'auto',
-  padding: '8px 12px 12px',
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
-  gap: 8,
-  alignContent: 'start',
-};
-
-const LEGACY_DRAWER_RESOLVED_STYLE: CSSProperties = {
-  flex: 1,
-  minHeight: 0,
-  overflowY: 'auto',
-  padding: '6px 12px 12px',
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 4,
-};
-
-const LEGACY_DRAWER_EMPTY_STYLE: CSSProperties = {
-  padding: '20px 8px',
-  fontFamily: 'var(--font-sans)',
-  fontStyle: 'italic',
-  fontSize: 12,
-  color: 'hsl(var(--ink-4))',
-  textAlign: 'center',
-};
 
 function BottomDrawer({
   expanded,
@@ -1884,7 +1357,8 @@ function BottomDrawer({
   openLibraryItemInSystem: (m: LibraryItem) => Promise<void>;
 }) {
   const { t } = useTranslation();
-  const mobileShell = getPlatformRuntime().isMobileShell;
+  // A touch screen has no hover card: the material's ⋯ opens its actions.
+  const touchActions = getPlatformRuntime().isMobileShell;
   const [height, setHeight] = useState(DRAWER_DEFAULT_HEIGHT);
   const [dragging, setDragging] = useState(false);
   const dragRef = useRef<{ startY: number; startHeight: number } | null>(null);
@@ -1892,14 +1366,14 @@ function BottomDrawer({
   const heightRef = useRef(DRAWER_DEFAULT_HEIGHT);
   const expandedRef = useRef(expanded);
 
-  // Desktop: the drawer's top edge bleeds glass while it opens or closes
-  // (a structural movement, followed frame by frame)…
+  // The drawer's top edge bleeds glass while it opens or closes (a
+  // structural movement, followed frame by frame)…
   useLayoutEffect(() => {
     if (expandedRef.current === expanded) return;
     expandedRef.current = expanded;
     const el = drawerRef.current;
-    if (el && !mobileShell) trackGlassFlow(el, () => el.getBoundingClientRect().height);
-  }, [expanded, mobileShell]);
+    if (el) trackGlassFlow(el, () => el.getBoundingClientRect().height);
+  }, [expanded]);
 
   const handleDragMove = useCallback(
     (e: PointerEvent) => {
@@ -1909,11 +1383,11 @@ function BottomDrawer({
       const next = Math.max(DRAWER_MIN_HEIGHT, state.startHeight + delta);
       // …and while its height is dragged, by the distance it moved.
       const el = drawerRef.current;
-      if (el && !mobileShell) stepGlassFlow(el, Math.abs(next - heightRef.current));
+      if (el) stepGlassFlow(el, Math.abs(next - heightRef.current));
       heightRef.current = next;
       setHeight(next);
     },
-    [mobileShell],
+    [],
   );
 
   const handleDragEnd = useCallback(() => {
@@ -1948,111 +1422,63 @@ function BottomDrawer({
   return (
     <div
       ref={drawerRef}
-      className={mobileShell ? undefined : `smm-drawer${dragging ? ' is-dragging' : ''}`}
-      style={
-        mobileShell
-          ? {
-              height: drawerHeight,
-              flexShrink: 0,
-              borderTop: '1px solid hsl(var(--rule))',
-              background: 'hsl(var(--paper-deep) / 0.5)',
-              display: 'flex',
-              flexDirection: 'column',
-              transition: dragging ? 'none' : 'height 0.18s ease',
-            }
-          : { height: drawerHeight }
-      }
+      className={`smm-drawer${dragging ? ' is-dragging' : ''}`}
+      style={{ height: drawerHeight }}
     >
-      {!mobileShell && (
-        <span className="flow-line flow-line--h smm-drawer__flow" aria-hidden="true" />
-      )}
+      <span className="flow-line flow-line--h smm-drawer__flow" aria-hidden="true" />
       <div
         onPointerDown={handleDragStart}
-        {...look(
-          mobileShell,
-          `smm-drawer__resize${expanded ? ' is-active' : ''}`,
-          { ...LEGACY_DRAWER_HANDLE_STYLE, cursor: expanded ? 'ns-resize' : 'default' },
-        )}
+        className={`smm-drawer__resize${expanded ? ' is-active' : ''}`}
         aria-hidden
       />
       <button
         type="button"
         onClick={() => onExpandedChange(!expanded)}
-        {...look(mobileShell, 'smm-drawer__bar smm-index', LEGACY_DRAWER_BAR_STYLE)}
+        className="smm-drawer__bar smm-index"
         aria-expanded={expanded}
         title={
           expanded ? t('memoMaterial.super.collapseDrawer') : t('memoMaterial.super.expandDrawer')
         }
       >
-        {mobileShell ? (
-          <>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <span>
-                {t('memoMaterial.super.orphans')}{' '}
-                <span style={{ color: 'hsl(var(--ink-4))' }}>{orphans.length}</span>
-              </span>
-              <span style={{ color: 'hsl(var(--ink-5))' }}>·</span>
-              <span>
-                {t('memoMaterial.super.resolved')}{' '}
-                <span style={{ color: 'hsl(var(--ink-4))' }}>{resolvedItems.length}</span>
-              </span>
+        <>
+          <span className="smm-drawer__summary">
+            <span>
+              {t('memoMaterial.super.orphans')}{' '}
+              <span className="smm-index-count">{orphans.length}</span>
             </span>
-            <BrushIcon
-              name="chevron-up"
-              size={12}
-              style={{
-                transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
-                transition: 'transform 0.18s ease',
-              }}
-            />
-          </>
-        ) : (
-          <>
-            <span className="smm-drawer__summary">
-              <span>
-                {t('memoMaterial.super.orphans')}{' '}
-                <span className="smm-index-count">{orphans.length}</span>
-              </span>
-              <span aria-hidden="true">·</span>
-              <span>
-                {t('memoMaterial.super.resolved')}{' '}
-                <span className="smm-index-count">{resolvedItems.length}</span>
-              </span>
+            <span aria-hidden="true">·</span>
+            <span>
+              {t('memoMaterial.super.resolved')}{' '}
+              <span className="smm-index-count">{resolvedItems.length}</span>
             </span>
-            <BrushIcon
-              name="chevron-down"
-              size={11}
-              className={`smm-drawer__chevron${expanded ? '' : ' is-collapsed'}`}
-            />
-          </>
-        )}
+          </span>
+          <BrushIcon
+            name="chevron-down"
+            size={11}
+            className={`smm-drawer__chevron${expanded ? '' : ' is-collapsed'}`}
+          />
+        </>
       </button>
 
       {expanded && (
-        <div {...look(mobileShell, 'smm-drawer__cols', LEGACY_DRAWER_COLS_STYLE)}>
+        <div className="smm-drawer__cols">
           {/* Orphan libraryItems */}
-          <div {...look(mobileShell, 'smm-drawer__col', LEGACY_DRAWER_COL_STYLE)}>
+          <div className="smm-drawer__col">
             <SubHeader kicker={t('memoMaterial.super.orphanHeader')} count={orphans.length} />
-            <div {...look(mobileShell, 'smm-drawer__orphans', LEGACY_DRAWER_ORPHANS_STYLE, 'smm-scroll')}>
+            <div className="smm-scroll smm-drawer__orphans">
               {orphans.length === 0 &&
-                (mobileShell ? (
-                  <div style={{ ...LEGACY_DRAWER_EMPTY_STYLE, gridColumn: '1 / -1' }}>
-                    {t('memoMaterial.super.noOrphans')}
-                  </div>
-                ) : (
-                  <EmptyState
-                    density="compact"
-                    className="smm-drawer__empty"
-                    message={t('memoMaterial.super.noOrphans')}
-                  />
-                ))}
+                <EmptyState
+                  density="compact"
+                  className="smm-drawer__empty"
+                  message={t('memoMaterial.super.noOrphans')}
+                />}
               {orphans.map((mat) => (
                 <LibraryItemCard
                   key={mat.id}
                   material={mat}
                   relations={[]}
                   editing={editingId === mat.id}
-                  mobileActions={mobileShell}
+                  mobileActions={touchActions}
                   onSetEditing={(on) => setEditingId(on ? mat.id : null)}
                   onOpenInSystem={() => openLibraryItemInSystem(mat)}
                   onOpenInApp={() => openLibraryItemInApp(mat)}
@@ -2069,20 +1495,14 @@ function BottomDrawer({
           </div>
 
           {/* Resolved TODOs and comments */}
-          <div {...look(mobileShell, 'smm-drawer__col', LEGACY_DRAWER_COL_STYLE)}>
+          <div className="smm-drawer__col">
             <SubHeader
               kicker={t('memoMaterial.super.resolvedHeader')}
               count={resolvedItems.length}
             />
-            <div {...look(mobileShell, 'smm-drawer__resolved', LEGACY_DRAWER_RESOLVED_STYLE, 'smm-scroll')}>
+            <div className="smm-scroll smm-drawer__resolved">
               {resolvedItems.length === 0 &&
-                (mobileShell ? (
-                  <div style={LEGACY_DRAWER_EMPTY_STYLE}>
-                    {t('memoMaterial.super.noResolved')}
-                  </div>
-                ) : (
-                  <EmptyState density="compact" message={t('memoMaterial.super.noResolved')} />
-                ))}
+                <EmptyState density="compact" message={t('memoMaterial.super.noResolved')} />}
               {resolvedItems.map((c) => (
                 <ResolvedRow
                   key={c.id}
@@ -2100,45 +1520,18 @@ function BottomDrawer({
 }
 
 function SubHeader({ kicker, count }: { kicker: string; count: number }) {
-  if (!getPlatformRuntime().isMobileShell) {
-    return (
-      <div className="smm-drawer__subhead smm-index">
-        <span>{kicker}</span>
-        <span className="smm-index-count">{count}</span>
-      </div>
-    );
-  }
   return (
-    <div
-      style={{
-        height: 26,
-        flexShrink: 0,
-        padding: '0 12px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 6,
-        borderBottom: '1px solid hsl(var(--rule))',
-        background: 'hsl(var(--paper-deep) / 0.4)',
-      }}
-    >
-      <LabelMono tone="ink-4">{kicker}</LabelMono>
-      <span
-        style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: 9.5,
-          color: 'hsl(var(--ink-4))',
-        }}
-      >
-        {count}
-      </span>
+    <div className="smm-drawer__subhead smm-index">
+      <span>{kicker}</span>
+      <span className="smm-index-count">{count}</span>
     </div>
   );
 }
 
 /**
- * A resolved TODO or comment in the archive. Desktop: the whole row faded,
- * no wash; a TODO leads with the TODO card's glass check (pressing it
- * reopens), a comment with the comment mark; 「重开」 a text button and
+ * A resolved TODO or comment in the archive: the whole row faded, no wash;
+ * a TODO leads with the TODO card's glass check (pressing it reopens), a
+ * comment with the comment mark; 「重开」 a text button and
  * delete the flat waste-basket.
  */
 function ResolvedRow({
@@ -2152,100 +1545,28 @@ function ResolvedRow({
 }) {
   const { t } = useTranslation();
   const text = extractTextFromCommentBody(item.bodyJson);
-  if (!getPlatformRuntime().isMobileShell) {
-    return (
-      <div className="smm-resolved-row">
-        {item.kind === 'todo' ? (
-          <TodoStatusToggle resolved onToggle={onReopen} />
-        ) : (
-          <span className="smm-resolved-row__mark" aria-hidden="true">
-            <BrushIcon name="comment" size={12} />
-          </span>
-        )}
-        <span className="smm-resolved-row__text" title={text}>
-          {text || t('memoMaterial.todo.empty')}
-        </span>
-        <Button variant="ghost" size="sm" onClick={onReopen} title={t('memoMaterial.archive.reopen')}>
-          {t('memoMaterial.super.reopenShort')}
-        </Button>
-        <GhostIconButton
-          size="sm"
-          icon={<BrushIcon name="trash" size={12} />}
-          onClick={onDelete}
-          title={t('common.delete')}
-          aria-label={t('common.delete')}
-        />
-      </div>
-    );
-  }
   return (
-    <div
-      style={{
-        padding: '6px 10px',
-        borderRadius: 3,
-        background: 'hsl(var(--ink-1) / 0.03)',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-        opacity: 0.78,
-      }}
-    >
-      <span
-        style={{
-          width: 10,
-          height: 10,
-          borderRadius: '50%',
-          background: 'hsl(var(--story-3))',
-          flexShrink: 0,
-        }}
-      />
-      <div
-        style={{
-          flex: 1,
-          minWidth: 0,
-          fontFamily: 'var(--font-sans)',
-          fontSize: 12.5,
-          color: 'hsl(var(--ink-2))',
-          textDecoration: 'line-through',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-        }}
-        title={text}
-      >
+    <div className="smm-resolved-row">
+      {item.kind === 'todo' ? (
+        <TodoStatusToggle resolved onToggle={onReopen} />
+      ) : (
+        <span className="smm-resolved-row__mark" aria-hidden="true">
+          <BrushIcon name="comment" size={12} />
+        </span>
+      )}
+      <span className="smm-resolved-row__text" title={text}>
         {text || t('memoMaterial.todo.empty')}
-      </div>
-      <button
-        onClick={onReopen}
-        title={t('memoMaterial.archive.reopen')}
-        style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: 9.5,
-          padding: '1px 6px',
-          border: '1px solid hsl(var(--rule))',
-          borderRadius: 2,
-          background: 'transparent',
-          color: 'hsl(var(--ink-3))',
-          cursor: 'pointer',
-        }}
-      >
+      </span>
+      <Button variant="ghost" size="sm" onClick={onReopen} title={t('memoMaterial.archive.reopen')}>
         {t('memoMaterial.super.reopenShort')}
-      </button>
-      <button
+      </Button>
+      <GhostIconButton
+        size="sm"
+        icon={<BrushIcon name="trash" size={12} />}
         onClick={onDelete}
         title={t('common.delete')}
-        style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: 11,
-          padding: '0 4px',
-          border: 'none',
-          background: 'transparent',
-          color: 'hsl(var(--ink-4))',
-          cursor: 'pointer',
-        }}
-      >
-        <BrushIcon name="close" size={10} inline />
-      </button>
+        aria-label={t('common.delete')}
+      />
     </div>
   );
 }

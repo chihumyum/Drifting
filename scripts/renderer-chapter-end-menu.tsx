@@ -81,7 +81,7 @@ export function Book() {
         {chapters.map((node, index) => <section key={node.id}>
           <VirtualChapterRow node={node} projectId="synthetic-book" index={index}
             fetchContent={fetchContent} isFocused={false} onActivate={noop} onContentUpdate={noop}
-            renderEnd={renderEnd} chapterRoman={String(index + 1)} resolveEntityLinkColor={noColor} />
+            renderEnd={renderEnd} resolveEntityLinkColor={noColor} />
         </section>)}
         <article className="page" data-testid="decorative"><ChapterEndOrnament /></article>
         <div style={{ height: '70vh' }} />

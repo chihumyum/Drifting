@@ -1,3 +1,5 @@
+/* `html[data-shell-mode]` and `:root[data-shell-mode]` match every shell: they
+   keep the weight these rules had while the mobile shell was excluded. */
 .loading-status {
   display: flex;
   flex-direction: column;
@@ -30,7 +32,7 @@
 /* Desktop: the brush loader in the secondary ink, turning evenly, shown only
    once the wait passes 240ms (a quick read never flashes it). The paused
    mobile shell keeps the ring above. */
-html:not([data-shell-mode='mobile']) .loading-status {
+html[data-shell-mode] .loading-status {
   gap: 10px;
   color: var(--ui-text-muted, hsl(var(--ink-3)));
   font-size: var(--ui-font-secondary, 13px);
@@ -38,7 +40,7 @@ html:not([data-shell-mode='mobile']) .loading-status {
   animation: loading-status-appear 0.16s ease-out var(--motion-loading-delay) both;
 }
 
-html:not([data-shell-mode='mobile']) .loading-status__spinner {
+html[data-shell-mode] .loading-status__spinner {
   display: grid;
   place-items: center;
   width: 20px;
@@ -49,7 +51,7 @@ html:not([data-shell-mode='mobile']) .loading-status__spinner {
   animation: loading-status-spin 0.9s linear infinite;
 }
 
-html:not([data-shell-mode='mobile']) .loading-status__brush {
+html[data-shell-mode] .loading-status__brush {
   display: block;
 }
 
@@ -64,5 +66,5 @@ html:not([data-shell-mode='mobile']) .loading-status__brush {
 
 @media (prefers-reduced-motion: reduce) {
   .loading-status__spinner { animation: none; }
-  html:not([data-shell-mode='mobile']) .loading-status__spinner { animation: none; }
+  html[data-shell-mode] .loading-status__spinner { animation: none; }
 }

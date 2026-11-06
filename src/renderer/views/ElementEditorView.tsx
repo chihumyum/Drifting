@@ -59,7 +59,6 @@ import {
 import { HostedQuotaExceededError } from '../sync/hosted/quota';
 import { BrushIcon } from '../components/ui/BrushIcon';
 import { KindMark } from '../components/ui/KindMark';
-import { getPlatformRuntime } from '../platform/runtime';
 
 const log = loglevel.getLogger('ElementEditorView');
 log.setLevel(loglevel.levels.ERROR);
@@ -596,8 +595,6 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
   // Element's summary buffer is local + only re-seeds on id change, so sync it
   // explicitly when a summary review resolves (accept → new, reject → old).
   const summaryReviewChange = fieldReview.summaryChange;
-  // Desktop wears sand and glass; the paused mobile shell keeps its own look.
-  const glass = !getPlatformRuntime().isMobileShell;
   const aliasInputProps = {
     type: 'text',
     value: aliasDraft,
@@ -693,18 +690,13 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
             <article className="page page--entity">
               <div className="page__folio" aria-hidden="true">
                 <span className="page__folio-line">{t('elementEditor.folio')}</span>
-                {currentCategory && (glass ? (
+                {currentCategory && (
                   <span className="page__folio-line page__folio-storyline">
                     <KindMark kind="category" color={currentCategory.color ?? undefined} />
                     {currentCategory.name}
                     {curElement.groupName ? ` - ${curElement.groupName}` : ''}
                   </span>
-                ) : (
-                  <span className="page__folio-line page__folio-line--accent">
-                    {currentCategory.name}
-                    {curElement.groupName ? ` - ${curElement.groupName}` : ''}
-                  </span>
-                ))}
+                )}
               </div>
 
               <section id="el-overview" className="elem-overview">
@@ -732,95 +724,29 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
                       placeholder={t('elementEditor.untitled')}
                     />
 
-                    {/* Aliases. Desktop: plain words set apart by a dot, the
-                      one under the pointer ringed like a sidebar cell. The
-                      paused mobile shell keeps its inline-styled chips —
-                      muted, since aliases are metadata, not titles. */}
-                    {glass ? (
-                      <div className="entity-aliases">
-                        {curElement.aliases.map((alias, idx) => (
-                          <Fragment key={`${alias}-${idx}`}>
-                            {idx > 0 && <span className="entity-alias__sep" aria-hidden="true">·</span>}
-                            <span className="entity-alias sand-cell">
-                              {alias}
-                              <button
-                                type="button"
-                                className="entity-alias__remove"
-                                onClick={() => void removeAlias(idx)}
-                                title={t('elementEditor.alias.remove')}
-                                aria-label={t('elementEditor.alias.remove')}
-                              >
-                                <BrushIcon name="close" size={9} />
-                              </button>
-                              <i className="cell-ring" aria-hidden="true" />
-                            </span>
-                          </Fragment>
-                        ))}
-                        <input {...aliasInputProps} className="entity-aliases__input" />
-                      </div>
-                    ) : (
-                    <div
-                      style={{
-                        display: 'flex',
-                        flexWrap: 'wrap',
-                        gap: 6,
-                        marginTop: 4,
-                        marginBottom: 0,
-                        alignItems: 'center',
-                      }}
-                    >
+                    {/* Aliases: plain words set apart by a dot, the one under
+                      the pointer ringed like a sidebar cell. */}
+                    <div className="entity-aliases">
                       {curElement.aliases.map((alias, idx) => (
-                        <span
-                          key={`${alias}-${idx}`}
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 4,
-                            padding: '2px 8px',
-                            borderRadius: 1,
-                            background: 'hsl(var(--surface-elev, var(--surface)))',
-                            border: '1px solid hsl(var(--rule))',
-                            fontFamily: 'var(--font-content)',
-                            fontStyle: 'normal',
-                            fontSize: 12,
-                            color: 'hsl(var(--ink-2))',
-                          }}
-                        >
-                          {alias}
-                          <button
-                            type="button"
-                            onClick={() => void removeAlias(idx)}
-                            title={t('elementEditor.alias.remove')}
-                            style={{
-                              background: 'transparent',
-                              border: 0,
-                              padding: 0,
-                              color: 'hsl(var(--ink-4))',
-                              cursor: 'pointer',
-                              fontSize: 13,
-                              lineHeight: 1,
-                            }}
-                          >
-                            <BrushIcon name="close" size={10} inline />
-                          </button>
-                        </span>
+                        <Fragment key={`${alias}-${idx}`}>
+                          {idx > 0 && <span className="entity-alias__sep" aria-hidden="true">·</span>}
+                          <span className="entity-alias sand-cell">
+                            {alias}
+                            <button
+                              type="button"
+                              className="entity-alias__remove"
+                              onClick={() => void removeAlias(idx)}
+                              title={t('elementEditor.alias.remove')}
+                              aria-label={t('elementEditor.alias.remove')}
+                            >
+                              <BrushIcon name="close" size={9} />
+                            </button>
+                            <i className="cell-ring" aria-hidden="true" />
+                          </span>
+                        </Fragment>
                       ))}
-                      <input
-                        {...aliasInputProps}
-                        style={{
-                          background: 'transparent',
-                          border: 0,
-                          outline: 0,
-                          padding: '2px 4px',
-                          fontFamily: 'var(--font-content)',
-                          fontStyle: 'normal',
-                          fontSize: 12,
-                          color: 'hsl(var(--ink-3))',
-                          minWidth: 80,
-                        }}
-                      />
+                      <input {...aliasInputProps} className="entity-aliases__input" />
                     </div>
-                    )}
 
                     {/* DEFERRED: KV facts list (alias / 类目 / 生年 / 首次出场 …)
                       Needs schema migration to add typed fields per category, plus
@@ -942,73 +868,39 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
               closeLabel={t('common.close')}
             />
             <ModalBody>
-            {glass ? (
-              <div className="entity-choice" role="listbox" aria-label={t('elementEditor.category.change')}>
-                {bookElementCategories.map((cat) => {
-                  const current = cat.id === curElement.categoryId;
-                  return (
-                    <button
-                      key={cat.id}
-                      type="button"
-                      role="option"
-                      aria-selected={current}
-                      className={`menu-surface__item entity-choice__row${current ? ' entity-choice__row--current' : ''}`}
-                      onClick={() => {
-                        void updateElement(elementId, { categoryId: cat.id });
-                        setEditingCategory(false);
-                      }}
-                    >
-                      <KindMark kind="category" color={cat.color ?? undefined} />
-                      <span>{cat.name}</span>
-                      {current && choiceTick}
-                    </button>
-                  );
-                })}
-                <button
-                  type="button"
-                  className="menu-surface__item entity-choice__row entity-choice__row--create"
-                  onClick={() => {
-                    setEditingCategory(false);
-                    setShowNewCategoryModal(true);
-                  }}
-                >
-                  <BrushIcon name="plus" size={11} />
-                  <span>{t('elementEditor.category.newOption')}</span>
-                </button>
-              </div>
-            ) : (
-            <select
-              value={curElement.categoryId ?? ''}
-              onChange={(e) => {
-                const val = e.target.value;
-                if (val === '__new__') {
+            <div className="entity-choice" role="listbox" aria-label={t('elementEditor.category.change')}>
+              {bookElementCategories.map((cat) => {
+                const current = cat.id === curElement.categoryId;
+                return (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    role="option"
+                    aria-selected={current}
+                    className={`menu-surface__item entity-choice__row${current ? ' entity-choice__row--current' : ''}`}
+                    onClick={() => {
+                      void updateElement(elementId, { categoryId: cat.id });
+                      setEditingCategory(false);
+                    }}
+                  >
+                    <KindMark kind="category" color={cat.color ?? undefined} />
+                    <span>{cat.name}</span>
+                    {current && choiceTick}
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                className="menu-surface__item entity-choice__row entity-choice__row--create"
+                onClick={() => {
                   setEditingCategory(false);
                   setShowNewCategoryModal(true);
-                  return;
-                }
-                void updateElement(elementId, { categoryId: val });
-                setEditingCategory(false);
-              }}
-              autoFocus
-              style={{
-                width: '100%',
-                fontSize: 14,
-                border: '1px solid hsl(var(--rule-strong))',
-                borderRadius: 4,
-                padding: '8px 12px',
-                outline: 'none',
-                cursor: 'pointer',
-                background: 'hsl(var(--surface))',
-              }}
-            >
-              {bookElementCategories.map((cat) => (
-                <option key={cat.id} value={cat.id}>
-                  {cat.name}
-                </option>
-              ))}
-              <option value="__new__">{t('elementEditor.category.newOption')}</option>
-            </select>
-            )}
+                }}
+              >
+                <BrushIcon name="plus" size={11} />
+                <span>{t('elementEditor.category.newOption')}</span>
+              </button>
+            </div>
             </ModalBody>
           </ModalCard>
         </ModalRoot>
@@ -1030,150 +922,54 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
               closeLabel={t('common.close')}
             />
             <ModalBody>
-            {glass ? (
-              <>
-                <label className="ui-field glass glass--rest glass--field glass--small">
-                  <input {...groupInputProps} />
-                </label>
-                <div className="entity-choice" role="listbox" aria-label={t('elementEditor.group.title', {
-                  category: currentCategory?.name ?? t('storyGraph.edge.uncategorized'),
-                })}>
-                  <button
-                    type="button"
-                    role="option"
-                    aria-selected={curElement.groupName == null}
-                    className={`menu-surface__item entity-choice__row entity-choice__row--none${curElement.groupName == null ? ' entity-choice__row--current' : ''}`}
-                    onClick={() => void applyGroup(null)}
-                  >
-                    <span>{t('elementEditor.group.noGroup')}</span>
-                    {curElement.groupName == null && choiceTick}
-                  </button>
-                  {filteredGroups.length === 0 && groupQuery === '' && (
-                    <div className="entity-choice__empty">{t('elementEditor.group.empty')}</div>
-                  )}
-                  {filteredGroups.map((name) => {
-                    const current = name === curElement.groupName;
-                    return (
-                      <button
-                        key={name}
-                        type="button"
-                        role="option"
-                        aria-selected={current}
-                        className={`menu-surface__item entity-choice__row${current ? ' entity-choice__row--current' : ''}`}
-                        onClick={() => void applyGroup(name)}
-                      >
-                        <span>{name}</span>
-                        {current && choiceTick}
-                      </button>
-                    );
-                  })}
-                  {groupQuery !== '' && !groupQueryIsExisting && (
-                    <button
-                      type="button"
-                      className="menu-surface__item entity-choice__row entity-choice__row--create"
-                      onClick={() => void applyGroup(groupQuery)}
-                    >
-                      <BrushIcon name="plus" size={11} />
-                      <span>{t('elementEditor.group.create', { name: groupQuery })}</span>
-                    </button>
-                  )}
-                </div>
-              </>
-            ) : (
             <>
-            <input
-              {...groupInputProps}
-              style={{
-                width: '100%',
-                fontSize: 14,
-                border: '1px solid hsl(var(--rule-strong))',
-                borderRadius: 4,
-                padding: '8px 12px',
-                outline: 'none',
-                marginBottom: 12,
-                background: 'hsl(var(--surface))',
-              }}
-            />
-            <div
-              style={{
-                maxHeight: 240,
-                overflowY: 'auto',
-                border: '1px solid hsl(var(--rule))',
-                borderRadius: 4,
-                background: 'hsl(var(--surface))',
-                marginBottom: 12,
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => void applyGroup(null)}
-                style={{
-                  display: 'block',
-                  width: '100%',
-                  textAlign: 'left',
-                  padding: '8px 12px',
-                  background:
-                    curElement.groupName == null ? 'hsl(var(--accent) / 0.12)' : 'transparent',
-                  border: 'none',
-                  borderBottom: '1px solid hsl(var(--rule))',
-                  cursor: 'pointer',
-                  fontSize: 13,
-                  color: 'hsl(var(--ink-3))',
-                  fontStyle: 'italic',
-                }}
-              >
-                {t('elementEditor.group.noGroup')}
-              </button>
-              {filteredGroups.length === 0 && groupQuery === '' && (
-                <div style={{ padding: '12px', fontSize: 13, color: 'hsl(var(--ink-4))' }}>
-                  {t('elementEditor.group.empty')}
-                </div>
-              )}
-              {filteredGroups.map((name) => {
-                const isCurrent = name === curElement.groupName;
-                return (
-                  <button
-                    key={name}
-                    type="button"
-                    onClick={() => void applyGroup(name)}
-                    style={{
-                      display: 'block',
-                      width: '100%',
-                      textAlign: 'left',
-                      padding: '8px 12px',
-                      background: isCurrent ? 'hsl(var(--accent) / 0.12)' : 'transparent',
-                      border: 'none',
-                      borderBottom: '1px solid hsl(var(--rule))',
-                      cursor: 'pointer',
-                      fontSize: 14,
-                    }}
-                  >
-                    {name}
-                  </button>
-                );
-              })}
-              {groupQuery !== '' && !groupQueryIsExisting && (
+              <label className="ui-field glass glass--rest glass--field glass--small">
+                <input {...groupInputProps} />
+              </label>
+              <div className="entity-choice" role="listbox" aria-label={t('elementEditor.group.title', {
+                category: currentCategory?.name ?? t('storyGraph.edge.uncategorized'),
+              })}>
                 <button
                   type="button"
-                  onClick={() => void applyGroup(groupQuery)}
-                  style={{
-                    display: 'block',
-                    width: '100%',
-                    textAlign: 'left',
-                    padding: '8px 12px',
-                    background: 'transparent',
-                    border: 'none',
-                    cursor: 'pointer',
-                    fontSize: 14,
-                    color: 'hsl(var(--accent))',
-                  }}
+                  role="option"
+                  aria-selected={curElement.groupName == null}
+                  className={`menu-surface__item entity-choice__row entity-choice__row--none${curElement.groupName == null ? ' entity-choice__row--current' : ''}`}
+                  onClick={() => void applyGroup(null)}
                 >
-                  <BrushIcon name="plus" size={11} inline /> {t('elementEditor.group.create', { name: groupQuery })}
+                  <span>{t('elementEditor.group.noGroup')}</span>
+                  {curElement.groupName == null && choiceTick}
                 </button>
-              )}
-            </div>
+                {filteredGroups.length === 0 && groupQuery === '' && (
+                  <div className="entity-choice__empty">{t('elementEditor.group.empty')}</div>
+                )}
+                {filteredGroups.map((name) => {
+                  const current = name === curElement.groupName;
+                  return (
+                    <button
+                      key={name}
+                      type="button"
+                      role="option"
+                      aria-selected={current}
+                      className={`menu-surface__item entity-choice__row${current ? ' entity-choice__row--current' : ''}`}
+                      onClick={() => void applyGroup(name)}
+                    >
+                      <span>{name}</span>
+                      {current && choiceTick}
+                    </button>
+                  );
+                })}
+                {groupQuery !== '' && !groupQueryIsExisting && (
+                  <button
+                    type="button"
+                    className="menu-surface__item entity-choice__row entity-choice__row--create"
+                    onClick={() => void applyGroup(groupQuery)}
+                  >
+                    <BrushIcon name="plus" size={11} />
+                    <span>{t('elementEditor.group.create', { name: groupQuery })}</span>
+                  </button>
+                )}
+              </div>
             </>
-            )}
             </ModalBody>
             <ModalActions>
               <Button variant="default" onClick={() => setShowGroupModal(false)}>
@@ -1196,24 +992,9 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
               closeLabel={t('common.close')}
             />
             <ModalBody>
-            {glass ? (
-              <label className="ui-field glass glass--rest glass--field glass--small">
-                <input {...newCategoryInputProps} />
-              </label>
-            ) : (
-            <input
-              {...newCategoryInputProps}
-              style={{
-                width: '100%',
-                fontSize: 14,
-                border: '1px solid hsl(var(--rule-strong))',
-                borderRadius: 4,
-                padding: '8px 12px',
-                outline: 'none',
-                background: 'hsl(var(--surface))',
-              }}
-            />
-            )}
+            <label className="ui-field glass glass--rest glass--field glass--small">
+              <input {...newCategoryInputProps} />
+            </label>
             </ModalBody>
             <ModalActions>
               <Button

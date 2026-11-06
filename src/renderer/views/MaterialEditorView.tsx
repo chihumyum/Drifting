@@ -46,7 +46,6 @@ import { openLibraryItemInSystem } from '../features/library/open-library-item';
 import { LibraryItemFullscreenPreview } from '../features/library/LibraryItemPreview';
 import { MaterialNotePage } from './MaterialNotePage';
 import { BrushIcon } from '../components/ui/BrushIcon';
-import { getPlatformRuntime } from '../platform/runtime';
 import { platformShortcut } from '../lib/shortcuts';
 
 const log = loglevel.getLogger('MaterialEditorView');
@@ -298,7 +297,6 @@ function MaterialProvenanceLine({ item }: { item: LibraryItem }) {
     return state.bookElements.find((element) => element.id === provenance.elementId)?.name ?? null;
   });
   const [open, setOpen] = useState(false);
-  const glass = !getPlatformRuntime().isMobileShell;
   if (provenance?.origin === 'generated') {
     const generation = provenance.generation;
     return (
@@ -313,11 +311,11 @@ function MaterialProvenanceLine({ item }: { item: LibraryItem }) {
             model: generation.model,
             date: new Date(generation.generatedAt).toLocaleDateString(i18n.language),
           })}
-          {glass && <BrushIcon name="chevron-right" size={9} inline />}
+          <BrushIcon name="chevron-right" size={9} inline />
         </button>
         {open && (
-          // On the desktop the prompt is a read-only card: the resting line of glass.
-          <dl className={`material-editor__generation${glass ? ' glass glass--rest glass--still' : ''}`}>
+          // The prompt is a read-only card: the resting line of glass.
+          <dl className="material-editor__generation glass glass--rest glass--still">
             <dt>{t('materialEditor.provenance.prompt')}</dt>
             <dd>{generation.subjectPrompt ?? generation.prompt}</dd>
             {generation.styleText && (
@@ -370,9 +368,8 @@ function MaterialDescription({ item, onUpdate }: { item: LibraryItem; onUpdate: 
       }}
     />
   );
-  // Desktop: a field with no line at rest; the pointer brings the glass and
-  // the caret holds it still.
-  if (getPlatformRuntime().isMobileShell) return field;
+  // A field with no line at rest; the pointer brings the glass and the caret
+  // holds it still.
   return <span className="material-editor__description-field glass glass--field">{field}</span>;
 }
 
@@ -386,7 +383,6 @@ function MaterialMediaPage({ item, projectId, userId, onUpdate }: MaterialPagePr
   // The region or comment under the pointer, lit on both sides.
   const [linkedId, setLinkedId] = useState<string | null>(null);
   const [pdfPage, setPdfPage] = useState(1);
-  const glass = !getPlatformRuntime().isMobileShell;
   const zoomPan = useZoomPanSurface(surface, true);
   const isImage = item.kind === 'image';
   const imageSource = useStoredLibraryItemVariant(item, 'display', isImage);
@@ -453,7 +449,6 @@ function MaterialMediaPage({ item, projectId, userId, onUpdate }: MaterialPagePr
       selectedId={selectedId}
       linkedId={linkedId}
       drawing={drawing}
-      sand={glass}
       onSelect={selectComment}
       onLink={setLinkedId}
       onDrawn={(rect, screen) => setPending({ rect, page: box.page, screen })}
@@ -510,70 +505,40 @@ function MaterialMediaPage({ item, projectId, userId, onUpdate }: MaterialPagePr
           {...zoomPan.pointerHandlers}
         >
           {stage}
-          {glass ? (
-            <div className="material-stage__toolbar" onPointerDown={(event) => event.stopPropagation()}>
-              <div className="editor-bar glass glass--rest" role="toolbar" aria-label={t('materialEditor.toolbar')}>
-                <button
-                  type="button"
-                  className={`editor-bar__icon glass glass--round${drawing ? ' editor-bar__icon--active' : ''}`}
-                  aria-pressed={drawing}
-                  title={drawing ? t('materialEditor.regions.stopDrawing') : t('materialEditor.regions.draw')}
-                  aria-label={drawing ? t('materialEditor.regions.stopDrawing') : t('materialEditor.regions.draw')}
-                  onClick={() => {
-                    setDrawing((value) => !value);
-                    setPending(null);
-                  }}
-                >
-                  <BrushIcon name="comment-plus" />
-                </button>
-                <button type="button" className="editor-bar__icon glass glass--round" title={t('materialEditor.zoomOut')} aria-label={t('materialEditor.zoomOut')} onClick={() => zoomPan.zoomBy(1 / 1.25)}>
-                  <BrushIcon name="minus" />
-                </button>
-                <button type="button" className="material-stage__zoom glass" title={t('materialEditor.zoomReset')} onClick={() => zoomPan.reset()}>
-                  {Math.round(zoomPan.viewport.scale * 100)}%
-                </button>
-                <button type="button" className="editor-bar__icon glass glass--round" title={t('materialEditor.zoomIn')} aria-label={t('materialEditor.zoomIn')} onClick={() => zoomPan.zoomBy(1.25)}>
-                  <BrushIcon name="plus" />
-                </button>
-                <button type="button" className="editor-bar__icon glass glass--round" title={t('memoMaterial.preview.fullscreen')} aria-label={t('memoMaterial.preview.fullscreen')} onClick={() => setLightboxOpen(true)}>
-                  <BrushIcon name="fullscreen" />
-                </button>
-              </div>
-              {drawing && <div className="material-stage__caption">{t('materialEditor.regions.drawHint')}</div>}
+          <div className="material-stage__toolbar" onPointerDown={(event) => event.stopPropagation()}>
+            <div className="editor-bar glass glass--rest" role="toolbar" aria-label={t('materialEditor.toolbar')}>
+              <button
+                type="button"
+                className={`editor-bar__icon glass glass--round${drawing ? ' editor-bar__icon--active' : ''}`}
+                aria-pressed={drawing}
+                title={drawing ? t('materialEditor.regions.stopDrawing') : t('materialEditor.regions.draw')}
+                aria-label={drawing ? t('materialEditor.regions.stopDrawing') : t('materialEditor.regions.draw')}
+                onClick={() => {
+                  setDrawing((value) => !value);
+                  setPending(null);
+                }}
+              >
+                <BrushIcon name="comment-plus" />
+              </button>
+              <button type="button" className="editor-bar__icon glass glass--round" title={t('materialEditor.zoomOut')} aria-label={t('materialEditor.zoomOut')} onClick={() => zoomPan.zoomBy(1 / 1.25)}>
+                <BrushIcon name="minus" />
+              </button>
+              <button type="button" className="material-stage__zoom glass" title={t('materialEditor.zoomReset')} onClick={() => zoomPan.reset()}>
+                {Math.round(zoomPan.viewport.scale * 100)}%
+              </button>
+              <button type="button" className="editor-bar__icon glass glass--round" title={t('materialEditor.zoomIn')} aria-label={t('materialEditor.zoomIn')} onClick={() => zoomPan.zoomBy(1.25)}>
+                <BrushIcon name="plus" />
+              </button>
+              <button type="button" className="editor-bar__icon glass glass--round" title={t('memoMaterial.preview.fullscreen')} aria-label={t('memoMaterial.preview.fullscreen')} onClick={() => setLightboxOpen(true)}>
+                <BrushIcon name="fullscreen" />
+              </button>
             </div>
-          ) : (
-          <div className="material-stage__tools" onPointerDown={(event) => event.stopPropagation()}>
-            <button
-              type="button"
-              className={drawing ? 'is-active' : undefined}
-              aria-pressed={drawing}
-              title={drawing ? t('materialEditor.regions.stopDrawing') : t('materialEditor.regions.draw')}
-              onClick={() => {
-                setDrawing((value) => !value);
-                setPending(null);
-              }}
-            >
-              <BrushIcon name="comment-plus" size={13} />
-            </button>
-            <button type="button" title={t('materialEditor.zoomOut')} onClick={() => zoomPan.zoomBy(1 / 1.25)}>
-              <BrushIcon name="minus" size={13} />
-            </button>
-            <button type="button" title={t('materialEditor.zoomReset')} onClick={() => zoomPan.reset()}>
-              {Math.round(zoomPan.viewport.scale * 100)}%
-            </button>
-            <button type="button" title={t('materialEditor.zoomIn')} onClick={() => zoomPan.zoomBy(1.25)}>
-              <BrushIcon name="plus" size={13} />
-            </button>
-            <button type="button" title={t('memoMaterial.preview.fullscreen')} onClick={() => setLightboxOpen(true)}>
-              <BrushIcon name="fullscreen" size={13} />
-            </button>
+            {drawing && <div className="material-stage__caption">{t('materialEditor.regions.drawHint')}</div>}
           </div>
-          )}
-          {drawing && !glass && <div className="material-stage__hint">{t('materialEditor.regions.drawHint')}</div>}
         </div>
         {(comments.length > 0 || drawing) && (
           <aside
-            className={`material-comments${glass ? ' material-comments--flat' : ''}`}
+            className="material-comments material-comments--flat"
             aria-label={t('materialEditor.regions.listLabel')}
           >
             {comments.length === 0 ? (
@@ -594,11 +559,7 @@ function MaterialMediaPage({ item, projectId, userId, onUpdate }: MaterialPagePr
                 >
                   <div className="material-comments__meta">
                     <span
-                      className={
-                        glass
-                          ? `material-seal${comment.kind === 'todo' ? ' material-seal--todo' : ''}${comment.status === 'resolved' ? ' material-seal--resolved' : ''}`
-                          : 'material-comments__index'
-                      }
+                      className={`material-seal${comment.kind === 'todo' ? ' material-seal--todo' : ''}${comment.status === 'resolved' ? ' material-seal--resolved' : ''}`}
                     >
                       {index + 1}
                     </span>

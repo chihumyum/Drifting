@@ -464,6 +464,7 @@ export function ChapterEditor({
       {/* Editor Content */}
       <div className={literary ? 'page__body' : undefined} style={{ padding: compact ? '16px 24px' : '0' }}>
         {ydocError ? <EditorDocumentLoadError /> : <EditorContent editor={editor} />}
+        {/* The hints name keyboard shortcuts, which a phone does not have. */}
         {literary && ready && !readOnly && !ydocError && !getPlatformRuntime().isMobileShell && (
           <ChapterEmptyHints editor={editor} />
         )}

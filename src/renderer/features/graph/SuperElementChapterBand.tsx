@@ -15,13 +15,12 @@ import { CELL_H, BAND_PILL_PX, BAND_SLOT_PX, BAND_PAD_PX, BAND_RAIL_PX } from '.
  * storyline plus a thin top axis. Drift nodes are not shown here — they
  * surface via the optional drift panel.
  *
- * Desktop (砂笔 + 素玻璃, super-element.css): a small Bottom Timeline. A
- * desk-coloured rail of BAND_RAIL_PX holds the storyline names as sand cells
- * (dash + structure type, a ring under the pointer, a click opens the
- * storyline); the lanes are page-white with a hairline of desk between them;
- * each chapter is a glass slab on the page colour with its storyline's rim,
- * flowing under the pointer and held while it is a relation's source. The
- * paused mobile shell keeps the translucent strip and tinted pills.
+ * 砂笔 + 素玻璃 (super-element.css): a small Bottom Timeline. A desk-coloured
+ * rail of BAND_RAIL_PX holds the storyline names as sand cells (dash +
+ * structure type, a ring under the pointer, a click opens the storyline); the
+ * lanes are page-white with a hairline of desk between them; each chapter is
+ * a glass slab on the page colour with its storyline's rim, flowing under the
+ * pointer and held while it is a relation's source.
  */
 export interface ChapterBandProps {
   storylines: Storyline[];
@@ -34,9 +33,7 @@ export interface ChapterBandProps {
   bandHeightCells: number;
   onNodeClick: (node: BookNode, anchor: DOMRect, opts: { shiftKey: boolean }) => void;
   linkSourceNodeId?: string | null;
-  /** Desktop sand-and-glass presentation (with the name rail); false keeps the mobile look. */
-  desktop?: boolean;
-  /** Desktop: a storyline name in the rail opens that storyline. */
+  /** A storyline name in the rail opens that storyline. */
   onStorylineClick?: (storylineId: string) => void;
 }
 
@@ -49,7 +46,6 @@ function ChapterBand({
   bandHeightCells,
   onNodeClick,
   linkSourceNodeId,
-  desktop = false,
   onStorylineClick,
 }: ChapterBandProps) {
   const { t } = useTranslation();
@@ -93,8 +89,8 @@ function ChapterBand({
     return m;
   }, [storylines, sortedPlacedNodes, nodeStorylineMapping]);
 
-  // Desktop chapters start after the name rail.
-  const railPx = desktop ? BAND_RAIL_PX : 0;
+  // Chapters start after the name rail.
+  const railPx = BAND_RAIL_PX;
 
   const transits = useMemo(() => {
     type Transit = { key: string; x1: number; y1: number; x2: number; y2: number; color: string };
@@ -144,219 +140,32 @@ function ChapterBand({
       : bandWidthCells * BAND_SLOT_PX);
   const bandPxHeight = bandHeightCells * CELL_H;
 
-  if (desktop) {
-    if (storylines.length === 0) {
-      return (
-        <div className="se-band se-band--empty" style={{ width: bandPxWidth, height: bandPxHeight }}>
-          {t('superElement.empty.noStorylines')}
-        </div>
-      );
-    }
-    return (
-      <div className="se-band" style={{ width: bandPxWidth, height: bandPxHeight }}>
-        {storylines.map((s, idx) => (
-          <div
-            key={`lane-${s.id}`}
-            className="se-band__lane"
-            style={{ top: BAND_PAD_PX + idx * CELL_H, height: CELL_H }}
-          />
-        ))}
-
-        <svg className="se-band__transits" aria-hidden="true">
-          {transits.map((transit) => (
-            <line
-              key={transit.key}
-              x1={transit.x1}
-              y1={transit.y1}
-              x2={transit.x2}
-              y2={transit.y2}
-              stroke={transit.color}
-              strokeWidth={1}
-              strokeDasharray="3 3"
-              opacity={0.55}
-            />
-          ))}
-        </svg>
-
-        {sortedPlacedNodes.map((node, idx) => {
-          const primaryId = primaryStorylineByNode[node.id] ?? null;
-          const rowIdx = rowIndexByStoryline.get(primaryId ?? '');
-          if (rowIdx === undefined) return null;
-          const sl = primaryId ? storylineById.get(primaryId) : undefined;
-          const color = sl?.color || 'hsl(var(--ink-4))';
-          const isLinkSource = linkSourceNodeId === node.id;
-          return (
-            <div
-              key={node.id}
-              data-super-card="node"
-              data-node-id={node.id}
-              title={
-                node.summary
-                  ? `${node.title || t('common.untitled')}\n\n${node.summary}`
-                  : node.title || t('common.untitled')
-              }
-              onClick={(e) => {
-                e.stopPropagation();
-                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                onNodeClick(node, rect, { shiftKey: e.shiftKey });
-              }}
-              className={`se-band__pill glass glass--rest${isLinkSource ? ' is-held' : ''}${
-                node.summary ? '' : ' is-title-only'
-              }`}
-              style={
-                {
-                  left: railPx + idx * BAND_SLOT_PX,
-                  top: BAND_PAD_PX + rowIdx * CELL_H + 3,
-                  width: BAND_PILL_PX,
-                  height: CELL_H - 6,
-                  '--glass-cc': color,
-                } as CSSProperties
-              }
-            >
-              <div className="se-band__pill-title">{node.title || t('common.untitled')}</div>
-              {node.summary && <div className="se-band__pill-summary">{node.summary}</div>}
-            </div>
-          );
-        })}
-
-        <div className="se-band__rail" style={{ width: railPx }}>
-          {storylines.map((s, idx) => {
-            const color = s.color || 'hsl(var(--ink-4))';
-            return (
-              <button
-                key={`name-${s.id}`}
-                type="button"
-                className="se-band__name sand-cell"
-                style={
-                  {
-                    top: BAND_PAD_PX + idx * CELL_H + (CELL_H - 24) / 2,
-                    maxWidth: railPx - 12,
-                    '--cell-c': color,
-                  } as CSSProperties
-                }
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onStorylineClick?.(s.id);
-                }}
-              >
-                <KindMark kind="storyline" color={color} />
-                <span className="se-band__name-text">{s.name || t('common.untitled')}</span>
-                <i className="cell-ring" aria-hidden="true" />
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    );
-  }
-
   if (storylines.length === 0) {
     return (
-      <div
-        style={{
-          width: bandPxWidth,
-          height: bandPxHeight,
-          background: 'hsl(var(--paper-deep))',
-          border: '1px dashed hsl(var(--rule))',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontFamily: 'var(--font-mono)',
-          fontSize: 10,
-          color: 'hsl(var(--ink-4))',
-          letterSpacing: '0.1em',
-          textTransform: 'uppercase',
-        }}
-      >
+      <div className="se-band se-band--empty" style={{ width: bandPxWidth, height: bandPxHeight }}>
         {t('superElement.empty.noStorylines')}
       </div>
     );
   }
-
   return (
-    <div
-      style={{
-        position: 'relative',
-        width: bandPxWidth,
-        height: bandPxHeight,
-        background: 'hsl(var(--paper-deep) / 0.65)',
-        borderTop: '1px solid hsl(var(--rule))',
-        borderBottom: '1px solid hsl(var(--rule))',
-        overflow: 'hidden',
-      }}
-    >
-      {/* Storyline lane backgrounds (thin tint behind each row). The band
-          no longer carries an axis row — the storyline labels alone suffice
-          for context, and dropping the axis tightens the iceberg's middle.
-          A small BAND_PAD_PX of empty top/bottom space keeps storyline rows
-          from touching the categories above/below the band. */}
+    <div className="se-band" style={{ width: bandPxWidth, height: bandPxHeight }}>
       {storylines.map((s, idx) => (
         <div
           key={`lane-${s.id}`}
-          style={{
-            position: 'absolute',
-            left: 0,
-            top: BAND_PAD_PX + idx * CELL_H,
-            width: bandPxWidth,
-            height: CELL_H,
-            borderTop: idx === 0 ? 'none' : '1px dotted hsl(var(--rule) / 0.4)',
-            borderBottom:
-              idx === storylines.length - 1 ? 'none' : '1px dotted hsl(var(--rule) / 0.4)',
-          }}
-        >
-          <div
-            style={{
-              position: 'absolute',
-              left: 8,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              fontFamily: 'var(--font-mono)',
-              fontSize: 9,
-              color: 'hsl(var(--ink-3))',
-              letterSpacing: '0.08em',
-              maxWidth: 110,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-              pointerEvents: 'none',
-            }}
-          >
-            <span
-              aria-hidden
-              style={{
-                width: 6,
-                height: 6,
-                borderRadius: 2,
-                background: s.color || 'hsl(var(--ink-4))',
-                flexShrink: 0,
-              }}
-            />
-            <span>{s.name || 'untitled'}</span>
-          </div>
-        </div>
+          className="se-band__lane"
+          style={{ top: BAND_PAD_PX + idx * CELL_H, height: CELL_H }}
+        />
       ))}
 
-      {/* Cross-storyline transit dashed lines. */}
-      <svg
-        style={{
-          position: 'absolute',
-          inset: 0,
-          width: '100%',
-          height: '100%',
-          pointerEvents: 'none',
-        }}
-      >
-        {transits.map((t) => (
+      <svg className="se-band__transits" aria-hidden="true">
+        {transits.map((transit) => (
           <line
-            key={t.key}
-            x1={t.x1}
-            y1={t.y1}
-            x2={t.x2}
-            y2={t.y2}
-            stroke={t.color}
+            key={transit.key}
+            x1={transit.x1}
+            y1={transit.y1}
+            x2={transit.x2}
+            y2={transit.y2}
+            stroke={transit.color}
             strokeWidth={1}
             strokeDasharray="3 3"
             opacity={0.55}
@@ -364,22 +173,12 @@ function ChapterBand({
         ))}
       </svg>
 
-      {/* Node pills. Mirror StoryGraphView's tile pattern: title on top, summary
-          as a 2-line clamp underneath when present. Hover title attribute
-          stays as a fallback so the full text is still inspectable when the
-          clamp truncates. Shift-click marks the pill as a link source for
-          cross-band relations. */}
       {sortedPlacedNodes.map((node, idx) => {
         const primaryId = primaryStorylineByNode[node.id] ?? null;
         const rowIdx = rowIndexByStoryline.get(primaryId ?? '');
         if (rowIdx === undefined) return null;
         const sl = primaryId ? storylineById.get(primaryId) : undefined;
         const color = sl?.color || 'hsl(var(--ink-4))';
-        const x = idx * BAND_SLOT_PX;
-        // Pill mirrors element cards (CELL_H - 6 tall, 3px top inset). The
-        // vertical centre still lands on row centre so edge endpoints
-        // computed in the parent (CELL_H/2 offset) line up unchanged.
-        const y = BAND_PAD_PX + rowIdx * CELL_H + 3;
         const isLinkSource = linkSourceNodeId === node.id;
         return (
           <div
@@ -396,66 +195,52 @@ function ChapterBand({
               const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
               onNodeClick(node, rect, { shiftKey: e.shiftKey });
             }}
-            style={{
-              position: 'absolute',
-              left: x,
-              top: y,
-              width: BAND_PILL_PX,
-              height: CELL_H - 6,
-              borderRadius: 3,
-              background: isLinkSource
-                ? 'hsl(var(--paper-deep))'
-                : `color-mix(in srgb, ${color} 6%, hsl(var(--paper)))`,
-              border: `1px solid ${color}`,
-              boxShadow: 'none',
-              outline: isLinkSource ? `2px dashed ${color}` : 'none',
-              outlineOffset: isLinkSource ? '1px' : 0,
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: node.summary ? 'flex-start' : 'center',
-              gap: 2,
-              padding: '4px 7px',
-              overflow: 'hidden',
-              // Inherit viewport's grab cursor — plain click is a no-op
-              // (chapters are read-only), but the user can drag from here
-              // to pan the canvas. shift-click still pairs for linking.
-              cursor: 'inherit',
-            }}
+            className={`se-band__pill glass glass--rest${isLinkSource ? ' is-held' : ''}${
+              node.summary ? '' : ' is-title-only'
+            }`}
+            style={
+              {
+                left: railPx + idx * BAND_SLOT_PX,
+                top: BAND_PAD_PX + rowIdx * CELL_H + 3,
+                width: BAND_PILL_PX,
+                height: CELL_H - 6,
+                '--glass-cc': color,
+              } as CSSProperties
+            }
           >
-            <div
-              style={{
-                fontFamily: 'var(--font-sans)',
-                fontSize: 11,
-                lineHeight: 1.15,
-                color: 'hsl(var(--ink-1))',
-                fontWeight: 500,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-                flexShrink: 0,
-              }}
-            >
-              {node.title || t('common.untitled')}
-            </div>
-            {node.summary && (
-              <div
-                style={{
-                  fontSize: 9,
-                  lineHeight: 1.25,
-                  color: 'hsl(var(--ink-4))',
-                  overflow: 'hidden',
-                  display: '-webkit-box',
-                  WebkitLineClamp: 2,
-                  WebkitBoxOrient: 'vertical',
-                  flex: 1,
-                }}
-              >
-                {node.summary}
-              </div>
-            )}
+            <div className="se-band__pill-title">{node.title || t('common.untitled')}</div>
+            {node.summary && <div className="se-band__pill-summary">{node.summary}</div>}
           </div>
         );
       })}
+
+      <div className="se-band__rail" style={{ width: railPx }}>
+        {storylines.map((s, idx) => {
+          const color = s.color || 'hsl(var(--ink-4))';
+          return (
+            <button
+              key={`name-${s.id}`}
+              type="button"
+              className="se-band__name sand-cell"
+              style={
+                {
+                  top: BAND_PAD_PX + idx * CELL_H + (CELL_H - 24) / 2,
+                  maxWidth: railPx - 12,
+                  '--cell-c': color,
+                } as CSSProperties
+              }
+              onClick={(e) => {
+                e.stopPropagation();
+                onStorylineClick?.(s.id);
+              }}
+            >
+              <KindMark kind="storyline" color={color} />
+              <span className="se-band__name-text">{s.name || t('common.untitled')}</span>
+              <i className="cell-ring" aria-hidden="true" />
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

@@ -95,7 +95,7 @@ describe('the paper comment toggle and composer (sticky-note rail retired 2026-1
     // Its swash turns as when its card is pointed at.
     expect(painter).toContain('this.activeId === comment.id || this.pointed.has(comment.id)');
     const highlights = source('src/renderer/components/editor/CommentAnchorHighlights.tsx');
-    expect(highlights).toContain('painter.update(comments, activeId, selected, pointed)');
+    expect(highlights).toContain('painter?.update(comments, activeId, selected, pointed)');
     // With the toggle off no anchor is drawn, so the prose points at nothing.
     expect(highlights).toContain('anchored.filter((comment) => comment.id === activeId || comment.id === selected?.id)');
     // The card brings its glass in and comes into view only where its list is on screen.

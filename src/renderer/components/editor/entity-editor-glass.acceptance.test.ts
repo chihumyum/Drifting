@@ -12,11 +12,6 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-const shell = vi.hoisted(() => ({ mobile: false }));
-vi.mock('../../platform/runtime', () => ({
-  getPlatformRuntime: () => ({ isMobileShell: shell.mobile }),
-}));
-
 import { KvEditor } from './KvEditor';
 
 function source(path: string): string {
@@ -40,25 +35,23 @@ const kv = JSON.stringify([
 ]);
 
 describe('entity editors in sand and glass', () => {
-  it('writes each field on desktop in a slip of resting glass and keeps mobile outlined', () => {
-    shell.mobile = false;
-    const desktop = renderToStaticMarkup(createElement(KvEditor, { valueJson: kv, onPersist: () => {} }));
-    expect(desktop).toContain('class="kv-editor kv-editor--glass"');
-    expect(desktop).toContain('class="kv-editor__row glass glass--rest glass--field"');
+  it('writes each field in a slip of resting glass on every shell', () => {
+    const editable = renderToStaticMarkup(createElement(KvEditor, { valueJson: kv, onPersist: () => {} }));
+    expect(editable).toContain('class="kv-editor kv-editor--glass"');
+    expect(editable).toContain('class="kv-editor__row glass glass--rest glass--field"');
 
     const readOnly = renderToStaticMarkup(
       createElement(KvEditor, { valueJson: kv, onPersist: () => {}, readOnly: true }),
     );
     expect(readOnly).toContain('class="kv-editor__row glass glass--rest glass--still"');
 
-    shell.mobile = true;
-    const mobile = renderToStaticMarkup(createElement(KvEditor, { valueJson: kv, onPersist: () => {} }));
-    expect(mobile).toContain('class="kv-editor"');
-    expect(mobile).not.toContain('glass');
-    shell.mobile = false;
+    // No outlined fallback is left to switch to.
+    const kvSource = source('src/renderer/components/editor/KvEditor.tsx');
+    expect(kvSource).not.toContain('isMobileShell');
+    expect(kvSource).toContain('<div className="kv-editor kv-editor--glass" data-variant={variant}>');
   });
 
-  it('gives the paused mobile shell its own look in every entity editor', () => {
+  it('wears one design-system look in every entity editor, with no shell switch', () => {
     for (const path of [
       'src/renderer/views/ElementEditorView.tsx',
       'src/renderer/views/CategoryEditorView.tsx',
@@ -70,7 +63,17 @@ describe('entity editors in sand and glass', () => {
       'src/renderer/components/editor/KvEditor.tsx',
       'src/renderer/components/editor/FieldReview.tsx',
     ]) {
-      expect(source(path), path).toContain('getPlatformRuntime().isMobileShell');
+      const view = source(path);
+      expect(view, path).not.toMatch(/const (?:glass|desktop|desktopChrome) = /);
+      expect(view, path).not.toMatch(/[!(]glass\b|\bglass (?:\?|&&)/);
+      if (path.endsWith('NodeEditorView.tsx')) {
+        // The one shell branch left is behaviour: the ⁂ action menu acts on the
+        // desktop workspace, so the mobile shell keeps the decorative mark.
+        expect(view.match(/isMobileShell/g), path).toHaveLength(1);
+        expect(view, path).toContain('{curNode && isChapter(curNode) && !getPlatformRuntime().isMobileShell ? (');
+      } else {
+        expect(view, path).not.toContain('isMobileShell');
+      }
     }
   });
 
@@ -80,9 +83,11 @@ describe('entity editors in sand and glass', () => {
       ['src/renderer/views/CategoryEditorView.tsx', 'category'],
     ] as const) {
       const view = source(path);
-      expect(view).toMatch(/\{!glass && \(\s*<div\s+className="elem-portrait/);
+      // The colour slab is gone on every shell.
+      expect(view).not.toContain('elem-portrait');
       expect(view).toContain(`<KindMark kind="${kind}" color=`);
       expect(view).toContain('className="entity-hero__mark"');
+      expect(view).toContain('<div className="col-pick col-pick--glass">');
       expect(view).toContain('<ColorPicker');
       expect(view).not.toContain('col-pick__dot');
     }
@@ -96,8 +101,12 @@ describe('entity editors in sand and glass', () => {
     for (const path of ['src/renderer/views/StorylineEditorView.tsx', 'src/renderer/views/CategoryEditorView.tsx']) {
       const view = source(path);
       expect(view).toMatch(/<GlassSlider\s+className="entity-slider"/);
-      expect(view).toContain("className={`mgr-row${glass ? ' mgr-row--glass sand-cell' : ''}`}");
-      expect(view).toContain('{glass && <i className="cell-ring" aria-hidden="true" />}');
+      expect(view).toContain('<div className="mgr-toolbar mgr-toolbar--glass">');
+      expect(view).toContain('<div className="mgr-list mgr-list--glass">');
+      expect(view).toContain('className="mgr-row mgr-row--glass sand-cell"');
+      expect(view).toMatch(/^\s*<i className="cell-ring" aria-hidden="true" \/>$/m);
+      // The chip toolbar and status bars of the old look are gone.
+      expect(view).not.toMatch(/FilterChip|mgr-toolbar__chips|mgr-row__status/);
     }
     expect(source('src/renderer/views/StorylineEditorView.tsx')).toMatch(
       /kind="chapter"\s+seed=\{n\.id\}\s+hollow=\{exactWords != null && !hasContent\}/,
@@ -109,24 +118,33 @@ describe('entity editors in sand and glass', () => {
 
   it('cards relations, opens the picker in place and keeps mention rows flat', () => {
     const panel = source('src/renderer/components/editor/ReferencesPanel.tsx');
-    expect(panel).toContain("' refs-rel-card--glass glass glass--rest glass--surface'");
-    expect(panel).toMatch(/\{!glass && \(\s*<button[\s\S]*?refs-rel-card--add/);
+    expect(panel).toContain(
+      'className={`refs-rel-card ${kindClass(rel.otherKind)} refs-rel-card--glass glass glass--rest glass--surface`}',
+    );
+    // The header's text action opens the picker; there is no trailing add card.
+    expect(panel).not.toContain('refs-rel-card--add');
+    expect(panel).toContain('<div className="refs-picker refs-picker--glass">');
     expect(panel).toContain('<label className="ui-field glass glass--rest glass--field glass--small">');
     expect(panel).toContain('<Button variant="primary" size="sm" disabled={!pendingTypeId}');
     expect(panel).toMatch(/<GlassSlider\s+className="entity-slider"/);
-    expect(panel).toContain("refs-cards${glass ? ' refs-cards--plain' : ''}");
+    expect(panel.split('<div className="refs-cards refs-cards--plain">').length - 1).toBe(2);
+    expect(panel).not.toContain('refs-card__kind-dot');
   });
 
   it('cards each patch, says invalid in ink and sweeps in the Agent’s patch', () => {
     const card = source('src/renderer/components/editor/PatchEditorCard.tsx');
-    expect(card).toContain("' patch-card--glass glass glass--rest glass--surface'");
+    expect(card).toContain('className={`patch-card patch-card--glass glass glass--rest glass--surface${');
     expect(card).toContain("' patch-card--agent-delete' : ' patch-card--agent-add'} glass-sweep");
     expect(card).toContain('<BrushIcon name="status-warning" size={11} />');
-    expect(card).toContain("glass ? ' glass glass--rest glass--still' : ''");
-    expect(card).toContain("(glass ? ' menu-surface__item' : '')");
+    expect(card).toContain('<div className="patch-card__snapshot glass glass--rest glass--still">');
+    expect(card).toContain("'patch-card__anchor-pop-item menu-surface__item' +");
+    expect(card).toContain("'patch-card__anchor-pop-item patch-card__anchor-pop-item--detach menu-surface__item' +");
+    // The old review strip and its badges are gone.
+    expect(card).not.toMatch(/patch-card__review-tag|patch-card--proposed|patch-card--removing|patch-card__invalid-badge/);
 
     const review = source('src/renderer/components/editor/FieldReview.tsx');
-    expect(review).toContain("glass && arrived ? 'glass-sweep' : ''");
+    expect(review).toContain("'field-review--glass',");
+    expect(review).toContain("arrived ? 'glass-sweep' : '',");
   });
 
   it('chooses in dialogs from menu rows and drift conversions from cards of glass', () => {
@@ -139,7 +157,7 @@ describe('entity editors in sand and glass', () => {
     expect(node).toContain('menu-surface__item entity-choice__row');
   });
 
-  it('draws the desktop rules with no wash, shadow or side bar', () => {
+  it('draws the sand-and-glass rules with no wash, shadow or side bar', () => {
     const css = source('src/styles/entity-editors.css');
     const desktop = rules(css, [
       '.refs-section__text-action',
@@ -180,7 +198,7 @@ describe('entity editors in sand and glass', () => {
     expect(css).not.toContain('.mgr-toolbar__btn');
   });
 
-  it('writes every desktop folio as the mark beside its name in ink', () => {
+  it('writes every folio as the mark beside its name in ink', () => {
     const node = source('src/renderer/views/NodeEditorView.tsx');
     expect(node).toContain("t('nodeEditor.folio.chapterNumber', { n: chapterNumber })");
     expect(node).toMatch(/page__folio-storyline">\s*<KindMark kind="storyline" color=\{storylineColor\} \/>/);
@@ -205,7 +223,7 @@ describe('entity editors in sand and glass', () => {
     const carveOut = rules(base, ['.glass--field']);
     expect(carveOut).toHaveLength(1);
     const [selector, body] = carveOut[0];
-    expect(selector).toContain("html:not([data-shell-mode='mobile'])");
+    expect(selector).toContain("html[data-shell-mode]");
     expect(selector).toContain(':is(.editor-shell, .glass--field)');
     expect(selector).toContain(':is(textarea, input:not(');
     for (const boxed of ['checkbox', 'radio', 'range']) expect(selector).toContain(`[type='${boxed}']`);
@@ -226,7 +244,7 @@ describe('entity editors in sand and glass', () => {
       expect(source(path), path).toMatch(/className="editor-shell[" ]/);
     }
 
-    // No desktop editor rule puts an accent wash or ring back under the caret.
+    // No editor rule puts an accent wash or ring back under the caret.
     const editors = source('src/styles/entity-editors.css');
     for (const [focusSelector, focusBody] of rules(editors, ['.kv-editor--glass'])) {
       if (!/:focus/.test(focusSelector)) continue;
@@ -260,7 +278,6 @@ describe('entity editors in sand and glass', () => {
   });
 
   it('says an empty section like an empty template body: the gray content serif, no dashes', () => {
-    shell.mobile = false;
     const empty = renderToStaticMarkup(createElement(KvEditor, { valueJson: '[]', onPersist: () => {}, emptyHint: 'none yet' }));
     expect(empty).toContain('class="kv-editor__empty ui-section-empty"');
     // The add button lives in the section header now, not under the rows.
@@ -286,7 +303,7 @@ describe('entity editors in sand and glass', () => {
 
     const controls = source('src/styles/ui-controls.css');
     const [note, onPaper] = rules(controls, ['.ui-section-empty']);
-    expect(note[0]).toBe("html:not([data-shell-mode='mobile']) .ui-section-empty");
+    expect(note[0]).toBe("html[data-shell-mode] .ui-section-empty");
     expect(note[1]).toContain('font-family: var(--font-content);');
     expect(note[1]).toContain('color: hsl(var(--ink-4));');
     expect(note[1]).toContain('font-style: normal;');
@@ -295,7 +312,7 @@ describe('entity editors in sand and glass', () => {
     expect(note[1]).not.toMatch(/background|border|::before|::after/);
     // On an entity's paper it is the size of the body it stands in for, like the
     // template placeholder (.ProseMirror p.is-editor-empty in index.css).
-    expect(onPaper[0]).toBe("html:not([data-shell-mode='mobile']) .page--entity .ui-section-empty:not(.refs-picker__empty)");
+    expect(onPaper[0]).toBe("html[data-shell-mode] .page--entity .ui-section-empty:not(.refs-picker__empty)");
     expect(onPaper[1]).toContain('font-size: var(--editor-font-size, 17.5px);');
     expect(onPaper[1]).toContain('line-height: var(--editor-line-height, 1.75);');
     const placeholder = rules(source('src/styles/index.css'), ['.is-editor-empty']);

@@ -14,7 +14,7 @@ import {
   SettingsToggle,
   type SettingsRegisterRef,
 } from '../SettingsPrimitives';
-import { settingsOnDesktop } from '../settings-on-desktop';
+import { getPlatformRuntime } from '../../../platform/runtime';
 import { BrushIcon, type BrushIconName } from '../../../components/ui/BrushIcon';
 
 export function AppearancePanel({ registerRef }: { registerRef: SettingsRegisterRef }) {
@@ -44,7 +44,9 @@ export function AppearancePanel({ registerRef }: { registerRef: SettingsRegister
     { value: 'dark', name: t('settings.appearance.dark'), kind: 'DARK', tp: 'tp--dark', icon: 'ink-disc' },
     { value: 'system', name: t('settings.appearance.system'), kind: 'SYSTEM', tp: 'tp--system', icon: 'taiji' },
   ];
-  const desktop = settingsOnDesktop();
+  // The interface text size feeds the desktop's typography and the guides
+  // tour the desktop workspace, so the mobile shell leaves both out.
+  const desktop = !getPlatformRuntime().isMobileShell;
 
   return (
     <section className="set-panel" ref={registerRef} id="appearance">
@@ -56,63 +58,27 @@ export function AppearancePanel({ registerRef }: { registerRef: SettingsRegister
 
       <div className="set-sec">
         <SettingsSectionHeader title={t('settings.appearance.theme')} hint="THEME" />
-        {desktop ? (
-          // The interface itself is the preview: one choice, like the account menu.
-          <SettingsRow
-            label={t('settings.appearance.theme')}
-            desc={t('settings.appearance.theme_desc')}
-            control={
-              <GlassSlider
-                value={themeMode}
-                onChange={setThemeMode}
-                ariaLabel={t('settings.appearance.theme')}
-                options={themes.map((theme) => ({
-                  value: theme.value,
-                  label: (
-                    <span className="set-choice-label">
-                      <BrushIcon name={theme.icon} size={13} />
-                      {theme.name}
-                    </span>
-                  ),
-                }))}
-              />
-            }
-          />
-        ) : (
-          <div className="set-theme-grid">
-            {themes.map((t) => (
-              <button
-                key={t.value}
-                className={
-                  'set-theme-card' + (themeMode === t.value ? ' set-theme-card--active' : '')
-                }
-                onClick={() => setThemeMode(t.value)}
-              >
-                <div className={'set-theme-card__preview ' + t.tp}>
-                  <div className="set-theme-card__preview-bar">
-                    <span className="set-theme-card__preview-light" />
-                    <span className="set-theme-card__preview-light" />
-                    <span className="set-theme-card__preview-light" />
-                  </div>
-                  <div className="set-theme-card__preview-body">
-                    <div className="set-theme-card__preview-rail" />
-                    <div className="set-theme-card__preview-lines">
-                      <div className="set-theme-card__preview-line" />
-                      <div className="set-theme-card__preview-line" />
-                      <div className="set-theme-card__preview-line" />
-                    </div>
-                    <div className="set-theme-card__preview-aux" />
-                  </div>
-                </div>
-                <div className="set-theme-card__meta">
-                  <span className="set-theme-card__name">{t.name}</span>
-                  <span className="set-theme-card__kind">{t.kind}</span>
-                </div>
-                <div className="set-theme-card__check"><BrushIcon name="check" size={10} /></div>
-              </button>
-            ))}
-          </div>
-        )}
+        // The interface itself is the preview: one choice, like the account menu.
+        <SettingsRow
+          label={t('settings.appearance.theme')}
+          desc={t('settings.appearance.theme_desc')}
+          control={
+            <GlassSlider
+              value={themeMode}
+              onChange={setThemeMode}
+              ariaLabel={t('settings.appearance.theme')}
+              options={themes.map((theme) => ({
+                value: theme.value,
+                label: (
+                  <span className="set-choice-label">
+                    <BrushIcon name={theme.icon} size={13} />
+                    {theme.name}
+                  </span>
+                ),
+              }))}
+            />
+          }
+        />
       </div>
 
       {desktop && (
@@ -205,36 +171,18 @@ export function LanguagePanel({ registerRef }: { registerRef: SettingsRegisterRe
 
       <div className="set-sec">
         <SettingsSectionHeader title={t('settings.language.ui_locale')} hint="UI LOCALE" />
-        {settingsOnDesktop() ? (
-          <SettingsRow
-            label={t('settings.language.ui_locale')}
-            desc={t('settings.language.ui_locale_desc')}
-            control={
-              <GlassSelect
-                value={normalizedUiLocale}
-                onChange={setUiLocale}
-                ariaLabel={t('settings.language.ui_locale')}
-                options={UI_LOCALE_OPTIONS.map((locale) => ({ value: locale.code, label: locale.name }))}
-              />
-            }
-          />
-        ) : (
-          <div className="set-locales">
-            {UI_LOCALE_OPTIONS.map((l) => (
-              <button
-                key={l.code}
-                className={
-                  'set-locale' + (normalizedUiLocale === l.code ? ' set-locale--active' : '')
-                }
-                onClick={() => setUiLocale(l.code)}
-              >
-                <span className="set-locale__code">{l.code}</span>
-                <span className="set-locale__name">{l.name}</span>
-                <span className="set-locale__native">{l.native}</span>
-              </button>
-            ))}
-          </div>
-        )}
+        <SettingsRow
+          label={t('settings.language.ui_locale')}
+          desc={t('settings.language.ui_locale_desc')}
+          control={
+            <GlassSelect
+              value={normalizedUiLocale}
+              onChange={setUiLocale}
+              ariaLabel={t('settings.language.ui_locale')}
+              options={UI_LOCALE_OPTIONS.map((locale) => ({ value: locale.code, label: locale.name }))}
+            />
+          }
+        />
       </div>
     </section>
   );

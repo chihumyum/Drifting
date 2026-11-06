@@ -550,7 +550,6 @@
       "writeEmail": "撰寫電子郵件",
       "submitFeedback": "提交意見回饋",
       "submitFeedbackDesc": "可包含去除敏感資訊的診斷摘要，絕不包含書稿文字。",
-      "submitFeedbackMailDesc": "開啟空白電子郵件，Drifting 不會自動附上書稿內容。",
       "feedback": "意見回饋…",
       "tagline": "獻給深夜仍清醒寫作的人。"
     },
@@ -995,7 +994,6 @@
     "firstChapter": "寫下第一章"
   },
   "virtualChapterRow": {
-    "chapter": "章節",
     "chapterNumber": "第 {{n}} 章"
   },
   "editorOutline": {
@@ -1054,17 +1052,11 @@
   },
   "trashPanel": {
     "noProject": "請先開啟作品。",
-    "title": "回收桶",
     "retention": "在本機保留，直到你刪除為止",
     "clear": "清空回收桶",
     "empty": "回收桶是空的。",
     "confirmPurge": "永久刪除「{{label}}」？此操作無法復原。",
     "confirmPurgeAll": "清空回收桶？將永久刪除全部 {{count}} 項，無法復原。",
-    "columns": {
-      "type": "類型",
-      "name": "名稱",
-      "deletedAt": "刪除時間"
-    },
     "restore": "還原",
     "purgeNow": "立即刪除",
     "restoreFailed": "還原失敗：{{error}}",
@@ -1445,7 +1437,6 @@
       "description": "所有通用 Agent 對話共用的近期重要工作脈絡。較舊內容會自動壓縮或遺忘。",
       "loading": "正在載入工作記憶…",
       "edit": "編輯",
-      "preview": "預覽",
       "clear": "清除",
       "create": "建立工作記憶",
       "editorLabel": "編輯 WORKING_MEMORY.md",
@@ -2566,7 +2557,6 @@
       "outgoing": "引用"
     },
     "actions": {
-      "add": "新增",
       "remove": "移除關係",
       "jump": "跳至此實體",
       "linkEntity": "連結實體"
@@ -2864,7 +2854,6 @@
   "superElement": {
     "title": "要素總覽",
     "meta": "{{categories}} 個類目 · {{elements}} 個要素",
-    "linkHint": "選擇第二個要素／章節 · 按 Esc 取消",
     "linkHintFrom": "從",
     "linkHintTo": "至…選擇第二個要素或章節，按 Esc 取消",
     "focusOffTitle": "關閉聚焦並顯示所有關係線",
@@ -2944,7 +2933,6 @@
     "empty": {
       "noStorylines": "尚無故事線",
       "noCategories": "尚無要素分類",
-      "categoryEmpty": "空白",
       "categoryNoElements": "尚無要素"
     }
   },
@@ -2957,7 +2945,6 @@
     "expand": "展開編輯",
     "openFullTitle": "跳至完整編輯器",
     "openInEditor": "在編輯器開啟",
-    "compactEdit": "精簡編輯",
     "collapseTitle": "收合回卡片",
     "collapse": "收合",
     "fullEditor": "完整編輯器",
@@ -3484,7 +3471,6 @@
       "drawHint": "在圖片上拖曳以標記區域",
       "compose": "區域註解",
       "placeholder": "這個部分有什麼想法？（{{shortcut}} 儲存）",
-      "asTodo": "設為待辦事項",
       "save": "儲存",
       "kindLabel": "註解類型",
       "kindNote": "註解",

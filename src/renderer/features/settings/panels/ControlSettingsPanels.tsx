@@ -30,7 +30,6 @@ import {
   SettingsToggle,
   type SettingsRegisterRef,
 } from '../SettingsPrimitives';
-import { settingsOnDesktop } from '../settings-on-desktop';
 import { hostedAccountSettingsEnabled } from '../hosted-settings-policy';
 import { LibraryBackupSettings } from './LibraryBackupSettings';
 import { MarkdownProjectionSettings } from './MarkdownProjectionSettings';
@@ -93,86 +92,40 @@ export function KeysPanel({ registerRef }: { registerRef: SettingsRegisterRef })
         </SettingsNote>
       )}
 
-      {settingsOnDesktop() ? (
-        <div className="set-keys-list">
-          <div className="set-keys-list__head">
-            {t('settings.keys.allActionsShort', { count: SHORTCUT_ACTIONS.length })}
-          </div>
-          {SHORTCUT_ACTIONS.map((action) => {
-            const label = t(`settings.keys.actions.${action.id}.label`);
-            const combo = formatAccelerator(bindings[action.id]).split('+').join(' ');
-            const isRecording = recording === action.id;
-            return (
-              <SettingsRow
-                key={action.id}
-                label={label}
-                desc={t(`settings.keys.actions.${action.id}.desc`)}
-                control={
-                  // The combination in index type; while it waits for the new
-                  // keys it is the accent glass that waits on the author.
-                  <button
-                    type="button"
-                    className={`set-key-combo glass glass--small${isRecording ? ' glass--waiting' : ''}`}
-                    aria-label={`${label}: ${isRecording ? t('settings.keys.recording') : combo}`}
-                    title={t('settings.keys.resetOneTitle')}
-                    onClick={() => {
-                      setError(null);
-                      setRecording(isRecording ? null : action.id);
-                    }}
-                    onDoubleClick={() => resetBinding(action.id)}
-                  >
-                    {isRecording ? t('settings.keys.pressNewCombo') : combo}
-                  </button>
-                }
-              />
-            );
-          })}
+      <div className="set-keys-list">
+        <div className="set-keys-list__head">
+          {t('settings.keys.allActionsShort', { count: SHORTCUT_ACTIONS.length })}
         </div>
-      ) : (
-        <div className="set-keys">
-          <div className="set-keys__group-head">
-            {t('settings.keys.allActions', { count: SHORTCUT_ACTIONS.length })}
-          </div>
-          {SHORTCUT_ACTIONS.map((action) => {
-            const accel = bindings[action.id];
-            const isRecording = recording === action.id;
-            return (
-              <div className="set-keys__row" key={action.id}>
-                <div>
-                  <div className="set-keys__label">
-                    {t(`settings.keys.actions.${action.id}.label`)}
-                  </div>
-                  <div className="set-row__desc" style={{ marginTop: 2 }}>
-                    {t(`settings.keys.actions.${action.id}.desc`)}
-                  </div>
-                </div>
-                <span className="set-keys__cat">
-                  {isRecording ? t('settings.keys.recording') : ''}
-                </span>
+        {SHORTCUT_ACTIONS.map((action) => {
+          const label = t(`settings.keys.actions.${action.id}.label`);
+          const combo = formatAccelerator(bindings[action.id]).split('+').join(' ');
+          const isRecording = recording === action.id;
+          return (
+            <SettingsRow
+              key={action.id}
+              label={label}
+              desc={t(`settings.keys.actions.${action.id}.desc`)}
+              control={
+                // The combination in index type; while it waits for the new
+                // keys it is the accent glass that waits on the author.
                 <button
-                  className="set-keys__combo"
+                  type="button"
+                  className={`set-key-combo glass glass--small${isRecording ? ' glass--waiting' : ''}`}
+                  aria-label={`${label}: ${isRecording ? t('settings.keys.recording') : combo}`}
+                  title={t('settings.keys.resetOneTitle')}
                   onClick={() => {
                     setError(null);
                     setRecording(isRecording ? null : action.id);
                   }}
                   onDoubleClick={() => resetBinding(action.id)}
-                  style={{ background: 'transparent', border: 0, padding: 0 }}
-                  title={t('settings.keys.resetOneTitle')}
                 >
-                  {(isRecording ? t('settings.keys.pressNewCombo') : formatAccelerator(accel))
-                    .split('+')
-                    .map((part, i, arr) => (
-                      <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                        <span className="kbd">{part}</span>
-                        {i < arr.length - 1 && <span className="kbd kbd--plus">+</span>}
-                      </span>
-                    ))}
+                  {isRecording ? t('settings.keys.pressNewCombo') : combo}
                 </button>
-              </div>
-            );
-          })}
-        </div>
-      )}
+              }
+            />
+          );
+        })}
+      </div>
 
       <SettingsRow
         label={t('settings.keys.resetAll')}
@@ -428,15 +381,9 @@ export function PrivacyPanel({ registerRef }: { registerRef: SettingsRegisterRef
         sub={t('settings.privacy.sub')}
       />
 
-      {settingsOnDesktop() ? (
-        <SettingsNote icon="lock-shut">
-          {t(hostedSettings ? 'settings.privacy.noteHosted' : 'settings.privacy.noteLocal')}
-        </SettingsNote>
-      ) : (
-        <div className="set-note">
-          {t(hostedSettings ? 'settings.privacy.noteHosted' : 'settings.privacy.noteLocal')}
-        </div>
-      )}
+      <SettingsNote icon="lock-shut">
+        {t(hostedSettings ? 'settings.privacy.noteHosted' : 'settings.privacy.noteLocal')}
+      </SettingsNote>
 
       {hostedSettings && (
         <div className="set-sec set-sec--after-note">
@@ -489,7 +436,6 @@ export function PrivacyPanel({ registerRef }: { registerRef: SettingsRegisterRef
 export function AboutPanel({ registerRef }: { registerRef: SettingsRegisterRef }) {
   const { t } = useTranslation();
   const appVersion = getPlatformRuntime().appInfo?.version ?? '0.1.0';
-  const desktop = settingsOnDesktop();
   const open = (url: string) => () => void platform.material.openExternal(url);
   return (
     <section className="set-panel" ref={registerRef} id="about">
@@ -499,40 +445,20 @@ export function AboutPanel({ registerRef }: { registerRef: SettingsRegisterRef }
         sub={t('settings.about.sub')}
       />
 
-      {desktop ? (
-        // The panel's header already names the app; here only one line of readouts.
-        <div className="set-about-name">
-          <div className="set-about-name__meta">
-            <span>
-              {t('settings.about.version')} <b>{appVersion}</b>
-            </span>
-            <span>
-              {t('settings.about.channel')} <b>{t('settings.about.channelPreAlpha')}</b>
-            </span>
-            <span>
-              {t('settings.about.engine')} <b>Tiptap + SQLite</b>
-            </span>
-          </div>
+      // The panel's header already names the app; here only one line of readouts.
+      <div className="set-about-name">
+        <div className="set-about-name__meta">
+          <span>
+            {t('settings.about.version')} <b>{appVersion}</b>
+          </span>
+          <span>
+            {t('settings.about.channel')} <b>{t('settings.about.channelPreAlpha')}</b>
+          </span>
+          <span>
+            {t('settings.about.engine')} <b>Tiptap + SQLite</b>
+          </span>
         </div>
-      ) : (
-        <div className="set-about">
-          <div className="set-about__glyph">D</div>
-          <div className="set-about__main">
-            <div className="set-about__name">Drifting</div>
-            <div className="set-about__meta">
-              <span>
-                {t('settings.about.version')} <b>{appVersion}</b>
-              </span>
-              <span>
-                {t('settings.about.channel')} <b>{t('settings.about.channelPreAlpha')}</b>
-              </span>
-              <span>
-                {t('settings.about.engine')} <b>Tiptap + SQLite</b>
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
+      </div>
 
       <div className="set-sec set-sec--after-about">
         <SettingsSectionHeader title={t('settings.about.credits')} hint="CREDITS" />
@@ -600,38 +526,16 @@ export function AboutPanel({ registerRef }: { registerRef: SettingsRegisterRef }
         />
         <SettingsRow
           label={t('settings.about.submitFeedback')}
-          desc={t(desktop ? 'settings.about.submitFeedbackDesc' : 'settings.about.submitFeedbackMailDesc')}
+          desc={t('settings.about.submitFeedbackDesc')}
           control={
-            desktop ? (
-              <SettingsButton onClick={() => useFeedbackDialogStore.getState().show()}>
-                {t('settings.about.feedback')}
-              </SettingsButton>
-            ) : (
-              <SettingsButton outbound onClick={open(`mailto:${APP_CONFIG.SUPPORT_EMAIL}?subject=${encodeURIComponent('Drifting feedback')}`)}>
-                {t('settings.about.feedback')}
-              </SettingsButton>
-            )
+            <SettingsButton onClick={() => useFeedbackDialogStore.getState().show()}>
+              {t('settings.about.feedback')}
+            </SettingsButton>
           }
         />
       </div>
 
-      {desktop ? (
-        <p className="set-about-tagline">{t('settings.about.tagline')}</p>
-      ) : (
-        <p
-          style={{
-            margin: '48px 0 0',
-            fontFamily: 'var(--font-sans)',
-            fontStyle: 'italic',
-            fontSize: 14,
-            color: 'hsl(var(--ink-4))',
-            textAlign: 'center',
-            lineHeight: 1.6,
-          }}
-        >
-          {t('settings.about.tagline')}
-        </p>
-      )}
+      <p className="set-about-tagline">{t('settings.about.tagline')}</p>
     </section>
   );
 }

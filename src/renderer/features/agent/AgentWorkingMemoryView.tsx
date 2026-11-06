@@ -11,7 +11,6 @@ import {
   useAgentWorkingMemory,
 } from '../../usecase/useAgentWorkingMemory';
 import { requestConfirmation } from '../../store/confirmation-store';
-import { getPlatformRuntime } from '../../platform/runtime';
 import { BrushIcon } from '../../components/ui/BrushIcon';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { renderAgentMarkdown } from './agent-markdown';
@@ -21,11 +20,11 @@ const markdownHtml = renderAgentMarkdown;
 /**
  * WORKING_MEMORY.md, shared by every General Agent conversation.
  *
- * On the desktop it reads like Project Memory: the document is one read-only
- * card (the resting glass line, still under the pointer), its size against
- * the tidy-up thresholds is a dry sand reading, its actions are text buttons
- * with brush icons, and editing writes on the composer's rounded slip with
- * one primary button. The paused mobile shell keeps its outlined fallback.
+ * It reads like Project Memory: the document is one read-only card (the
+ * resting glass line, still under the pointer), its size against the tidy-up
+ * thresholds is a dry sand reading, its actions are text buttons with brush
+ * icons, and editing writes on the composer's rounded slip with one primary
+ * button.
  */
 export function AgentWorkingMemoryView({ projectId }: { projectId: string }) {
   const { t, i18n } = useTranslation();
@@ -36,7 +35,6 @@ export function AgentWorkingMemoryView({ projectId }: { projectId: string }) {
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const glass = !getPlatformRuntime().isMobileShell;
 
   useEffect(() => {
     if (!snapshot || dirty) return;
@@ -127,153 +125,87 @@ export function AgentWorkingMemoryView({ projectId }: { projectId: string }) {
     return <div className="agt-wm__state">{t('agentPanel.workingMemory.loading')}</div>;
   }
 
-  if (glass) {
-    const editor = (
-      <textarea
-        className="agt-wm__editor"
-        value={draft}
-        spellCheck={false}
-        onChange={(event) => {
-          setDraft(event.target.value);
-          setDirty(true);
-          setMessage(null);
-        }}
-        aria-label={t('agentPanel.workingMemory.editorLabel')}
-      />
-    );
-    return (
-      <section className="agt-wm agt-wm--glass" aria-label={t('agentPanel.workingMemory.title')}>
-        <header className="agt-wm__head">
-          <strong className="agt-wm__title">{t('agentPanel.workingMemory.filename')}</strong>
-          <p className="agt-wm__desc">{t('agentPanel.workingMemory.description')}</p>
-        </header>
-
-        <div className="agt-wm__reading" title={t('agentPanel.workingMemory.budgetTitle')}>
-          <div className="sand-track">
-            <span
-              className="sand-stroke"
-              style={{ width: `${usagePercent}%`, '--sand-c': 'hsl(var(--ink-3))' } as CSSProperties}
-            />
-          </div>
-          <div className="agt-wm__meta">
-            <span>{t('agentPanel.workingMemory.tokens', { count: usage })}</span>
-            <span>{updatedText}</span>
-          </div>
-        </div>
-
-        {mode === 'edit' ? (
-          <>
-            <label className="agt-wm__slip glass glass--rest glass--field">{editor}</label>
-            <footer className="agt-wm__footer">
-              <span role="status">{message}</span>
-              <button type="button" className="agt-wm__text" onClick={cancel}>
-                {t('common.cancel')}
-              </button>
-              <button
-                type="button"
-                className="agt-btn glass glass--primary glass--small"
-                onClick={() => void save()}
-                disabled={saving || !dirty}
-              >
-                {saving ? t('common.saving') : t('common.save')}
-              </button>
-            </footer>
-          </>
-        ) : snapshot?.exists || dirty ? (
-          <>
-            <div
-              className="agt-wm__card glass glass--rest glass--still agent-md"
-              dangerouslySetInnerHTML={{ __html: preview }}
-            />
-            <footer className="agt-wm__footer">
-              <button type="button" className="agt-wm__text" onClick={() => setMode('edit')}>
-                <BrushIcon name="edit" size={13} /> {t('agentPanel.workingMemory.edit')}
-              </button>
-              <button
-                type="button"
-                className="agt-wm__text agt-wm__text--danger"
-                onClick={() => void clear()}
-                disabled={saving || !snapshot?.exists}
-              >
-                <BrushIcon name="eraser" size={13} /> {t('agentPanel.workingMemory.clear')}
-              </button>
-              <span role="status">{message}</span>
-            </footer>
-          </>
-        ) : (
-          <div className="agt-wm__empty">
-            <EmptyState icon="file-text" message={t('agentPanel.workingMemory.emptyTitle')} />
-            <p className="agt-wm__desc">{t('agentPanel.workingMemory.emptyBody')}</p>
-            <button type="button" className="agt-btn glass glass--rest glass--small" onClick={() => setMode('edit')}>
-              {t('agentPanel.workingMemory.create')}
-            </button>
-            {message && <span role="status">{message}</span>}
-          </div>
-        )}
-      </section>
-    );
-  }
-
+  const editor = (
+    <textarea
+      className="agt-wm__editor"
+      value={draft}
+      spellCheck={false}
+      onChange={(event) => {
+        setDraft(event.target.value);
+        setDirty(true);
+        setMessage(null);
+      }}
+      aria-label={t('agentPanel.workingMemory.editorLabel')}
+    />
+  );
   return (
-    <section className="agt-wm" aria-label={t('agentPanel.workingMemory.title')}>
-      <header className="agt-wm__header">
-        <div>
-          <strong>{t('agentPanel.workingMemory.filename')}</strong>
-          <p>{t('agentPanel.workingMemory.description')}</p>
-        </div>
-        <div className="agt-wm__actions">
-          <button type="button" onClick={() => setMode(mode === 'edit' ? 'preview' : 'edit')}>
-            {mode === 'edit'
-              ? t('agentPanel.workingMemory.preview')
-              : t('agentPanel.workingMemory.edit')}
-          </button>
-          <button type="button" onClick={() => void clear()} disabled={saving || !snapshot?.exists}>
-            {t('agentPanel.workingMemory.clear')}
-          </button>
-        </div>
+    <section className="agt-wm agt-wm--glass" aria-label={t('agentPanel.workingMemory.title')}>
+      <header className="agt-wm__head">
+        <strong className="agt-wm__title">{t('agentPanel.workingMemory.filename')}</strong>
+        <p className="agt-wm__desc">{t('agentPanel.workingMemory.description')}</p>
       </header>
 
-      <div className="agt-wm__meter" title={t('agentPanel.workingMemory.budgetTitle')}>
-        <span style={{ width: `${usagePercent}%` }} />
-      </div>
-      <div className="agt-wm__meta">
-        <span>{t('agentPanel.workingMemory.tokens', { count: usage })}</span>
-        <span>{updatedText}</span>
+      <div className="agt-wm__reading" title={t('agentPanel.workingMemory.budgetTitle')}>
+        <div className="sand-track">
+          <span
+            className="sand-stroke"
+            style={{ width: `${usagePercent}%`, '--sand-c': 'hsl(var(--ink-3))' } as CSSProperties}
+          />
+        </div>
+        <div className="agt-wm__meta">
+          <span>{t('agentPanel.workingMemory.tokens', { count: usage })}</span>
+          <span>{updatedText}</span>
+        </div>
       </div>
 
       {mode === 'edit' ? (
-        <textarea
-          className="agt-wm__editor"
-          value={draft}
-          spellCheck={false}
-          onChange={(event) => {
-            setDraft(event.target.value);
-            setDirty(true);
-            setMessage(null);
-          }}
-          aria-label={t('agentPanel.workingMemory.editorLabel')}
-        />
-      ) : snapshot?.exists || dirty ? (
-        <div className="agt-wm__preview agent-md" dangerouslySetInnerHTML={{ __html: preview }} />
-      ) : (
-        <div className="agt-wm__state">
-          <strong>{t('agentPanel.workingMemory.emptyTitle')}</strong>
-          <span>{t('agentPanel.workingMemory.emptyBody')}</span>
-          <button type="button" onClick={() => setMode('edit')}>
-            {t('agentPanel.workingMemory.create')}
-          </button>
-        </div>
-      )}
-
-      {(mode === 'edit' || message) && (
-        <footer className="agt-wm__footer">
-          <span role="status">{message}</span>
-          {mode === 'edit' && (
-            <button type="button" onClick={() => void save()} disabled={saving || !dirty}>
+        <>
+          <label className="agt-wm__slip glass glass--rest glass--field">{editor}</label>
+          <footer className="agt-wm__footer">
+            <span role="status">{message}</span>
+            <button type="button" className="agt-wm__text" onClick={cancel}>
+              {t('common.cancel')}
+            </button>
+            <button
+              type="button"
+              className="agt-btn glass glass--primary glass--small"
+              onClick={() => void save()}
+              disabled={saving || !dirty}
+            >
               {saving ? t('common.saving') : t('common.save')}
             </button>
-          )}
-        </footer>
+          </footer>
+        </>
+      ) : snapshot?.exists || dirty ? (
+        <>
+          <div
+            className="agt-wm__card glass glass--rest glass--still agent-md"
+            dangerouslySetInnerHTML={{ __html: preview }}
+          />
+          <footer className="agt-wm__footer">
+            <button type="button" className="agt-wm__text" onClick={() => setMode('edit')}>
+              <BrushIcon name="edit" size={13} /> {t('agentPanel.workingMemory.edit')}
+            </button>
+            <button
+              type="button"
+              className="agt-wm__text agt-wm__text--danger"
+              onClick={() => void clear()}
+              disabled={saving || !snapshot?.exists}
+            >
+              <BrushIcon name="eraser" size={13} /> {t('agentPanel.workingMemory.clear')}
+            </button>
+            <span role="status">{message}</span>
+          </footer>
+        </>
+      ) : (
+        <div className="agt-wm__empty">
+          <EmptyState icon="file-text" message={t('agentPanel.workingMemory.emptyTitle')} />
+          <p className="agt-wm__desc">{t('agentPanel.workingMemory.emptyBody')}</p>
+          <button type="button" className="agt-btn glass glass--rest glass--small" onClick={() => setMode('edit')}>
+            {t('agentPanel.workingMemory.create')}
+          </button>
+          {message && <span role="status">{message}</span>}
+        </div>
       )}
     </section>
   );

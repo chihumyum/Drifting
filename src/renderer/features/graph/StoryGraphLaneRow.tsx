@@ -19,20 +19,19 @@ export interface StoryGraphLaneRowProps {
   onNodePreviewEnter: (event: MouseEvent<HTMLDivElement>, node: PositionedNode) => void;
   onLanePreviewEnter: (event: MouseEvent<HTMLDivElement>, laneId: string) => void;
   onPreviewLeave: () => void;
-  /**
-   * Desktop: the lane names are sidebar cells and each chapter is a slab of
-   * glass rimmed in its storyline's colour, like the Bottom Timeline. The
-   * paused mobile shell keeps the tinted tiles.
-   */
-  glass?: boolean;
 }
+
+/**
+ * One storyline's lane: its name is a sidebar cell and each chapter is a slab
+ * of glass rimmed in its storyline's colour, like the Bottom Timeline.
+ */
 
 function LaneRow({ lane, nodes, chapterCount, canvasContentWidth, tileRefs, linkSource,
   isNodeEdgeSelected, onNodePointerDown, onNodeClick, onNodeDoubleClick,
-  onNodePreviewEnter, onLanePreviewEnter, onPreviewLeave, glass = false,
+  onNodePreviewEnter, onLanePreviewEnter, onPreviewLeave,
 }: StoryGraphLaneRowProps) {
   const { t } = useTranslation();
-  const railName = glass ? (
+  const railName = (
     <div className="graph-rail__main">
       <div className="graph-rail__name">
         {!lane.synthetic && <KindMark kind="storyline" color={lane.color} />}
@@ -42,16 +41,6 @@ function LaneRow({ lane, nodes, chapterCount, canvasContentWidth, tileRefs, link
         {t('storyGraph.lane.chapterCount', { count: chapterCount })}
       </div>
     </div>
-  ) : (
-    <>
-      <div className="graph-rail__name">
-        <span className="graph-rail__name-dot" style={{ background: lane.color }} />
-        <span>{lane.name}</span>
-      </div>
-      <div className="graph-rail__meta">
-        {t('storyGraph.lane.chapterCount', { count: chapterCount })}
-      </div>
-    </>
   );
   return (
     <div
@@ -66,13 +55,13 @@ function LaneRow({ lane, nodes, chapterCount, canvasContentWidth, tileRefs, link
       }
     >
       <div
-        className={`graph-rail-cell${glass ? ' graph-rail-cell--glass' : ''}`}
+        className="graph-rail-cell graph-rail-cell--glass"
         style={{ width: GRAPH_CONFIG.RAIL_WIDTH }}
         // Synthetic lanes (本书 / 未归属) have no storyline behind them.
         onMouseEnter={lane.synthetic ? undefined : (event) => onLanePreviewEnter(event, lane.id)}
         onMouseLeave={lane.synthetic ? undefined : onPreviewLeave}
       >
-        {glass && !lane.synthetic ? (
+        {!lane.synthetic ? (
           <SandCell selected={false} color={lane.color} className="graph-rail__cell">
             {railName}
           </SandCell>
@@ -101,12 +90,12 @@ function LaneRow({ lane, nodes, chapterCount, canvasContentWidth, tileRefs, link
               }}
               className={[
                 'graph-tile',
-                glass ? 'glass glass--rest' : '',
+                'glass glass--rest',
                 isDraft ? 'is-draft' : '',
                 isDiscarded ? 'is-discarded' : '',
                 isLinkSource ? 'is-link-source' : '',
                 edgeSelected ? 'is-edge-selected' : '',
-                glass && edgeSelected ? 'is-on' : '',
+                edgeSelected ? 'is-on' : '',
               ]
                 .filter(Boolean)
                 .join(' ')}
@@ -127,7 +116,7 @@ function LaneRow({ lane, nodes, chapterCount, canvasContentWidth, tileRefs, link
                   width: GRAPH_CONFIG.TILE_WIDTH_UNITS * GRAPH_CONFIG.GRID_UNIT,
                   height: GRAPH_CONFIG.TILE_HEIGHT,
                   ['--tile-color' as string]: color,
-                  ...(glass ? { ['--glass-cc' as string]: color } : null),
+                  ['--glass-cc' as string]: color,
                 } as React.CSSProperties
               }
             >

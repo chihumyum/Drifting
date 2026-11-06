@@ -8,8 +8,8 @@ import { events } from '../../lib/events';
 import { UI_LOCALE_OPTIONS } from '../../lib/i18n';
 import loglevel from 'loglevel';
 import { AnchoredPopover } from '../ui/AnchoredPopover';
-import type { AnchoredPopoverPlacement } from '../ui/anchored-popover-position';
 import { getPlatformRuntime } from '../../platform/runtime';
+import type { AnchoredPopoverPlacement } from '../ui/anchored-popover-position';
 import { hostedAccountSettingsEnabled } from '../../features/settings/hosted-settings-policy';
 import { useShareLinksDialogStore } from '../../features/share-links/share-links-dialog-store';
 import { useFeedbackDialogStore } from '../../features/feedback/feedback-dialog-store';
@@ -77,7 +77,9 @@ export function UserMenu({
   const displayName = user?.name?.trim() || user?.email?.split('@')[0] || t('common.local');
   const initial = displayName.charAt(0).toUpperCase();
   const normalizedUiLocale = uiLocale;
-  const desktop = !getPlatformRuntime().isMobileShell;
+  // A phone has no hardware keyboard to speak of: no shortcut hints and no
+  // keyboard-shortcuts row on the mobile shell.
+  const keyboard = !getPlatformRuntime().isMobileShell;
   return (
     <AnchoredPopover
       anchorRef={triggerRef}
@@ -95,7 +97,7 @@ export function UserMenu({
     >
       <div>
         <div className="user-menu__head">
-          <UserAvatar initial={initial} image={user?.image} size={desktop ? 32 : 36} fontSize={desktop ? 15 : 17} />
+          <UserAvatar initial={initial} image={user?.image} size={32} fontSize={15} />
           <div className="user-menu__identity">
             <span className="user-menu__name">{displayName}</span>
             <span className="user-menu__status">
@@ -116,43 +118,17 @@ export function UserMenu({
             }
             label={t('userMenu.theme')}
             tail={
-              desktop ? (
-                <GlassSlider
-                  className="user-menu__slider"
-                  ariaLabel={t('userMenu.theme')}
-                  value={themeMode}
-                  onChange={setThemeMode}
-                  options={[
-                    { value: 'light', label: t('userMenu.themeLightShort'), title: t('userMenu.themeLight') },
-                    { value: 'dark', label: t('userMenu.themeDarkShort'), title: t('userMenu.themeDark') },
-                    { value: 'system', label: t('userMenu.themeSystemShort'), title: t('userMenu.themeSystem') },
-                  ]}
-                />
-              ) : (
-                <div onClick={(e) => e.stopPropagation()} className="user-menu__switch">
-                  <ThemeSwitchBtn
-                    active={themeMode === 'light'}
-                    onClick={() => setThemeMode('light')}
-                    title={t('userMenu.themeLight')}
-                  >
-                    {t('userMenu.themeLightShort')}
-                  </ThemeSwitchBtn>
-                  <ThemeSwitchBtn
-                    active={themeMode === 'dark'}
-                    onClick={() => setThemeMode('dark')}
-                    title={t('userMenu.themeDark')}
-                  >
-                    {t('userMenu.themeDarkShort')}
-                  </ThemeSwitchBtn>
-                  <ThemeSwitchBtn
-                    active={themeMode === 'system'}
-                    onClick={() => setThemeMode('system')}
-                    title={t('userMenu.themeSystem')}
-                  >
-                    {t('userMenu.themeSystemShort')}
-                  </ThemeSwitchBtn>
-                </div>
-              )
+              <GlassSlider
+                className="user-menu__slider"
+                ariaLabel={t('userMenu.theme')}
+                value={themeMode}
+                onChange={setThemeMode}
+                options={[
+                  { value: 'light', label: t('userMenu.themeLightShort'), title: t('userMenu.themeLight') },
+                  { value: 'dark', label: t('userMenu.themeDarkShort'), title: t('userMenu.themeDark') },
+                  { value: 'system', label: t('userMenu.themeSystemShort'), title: t('userMenu.themeSystem') },
+                ]}
+              />
             }
           />
           <MenuItem
@@ -176,22 +152,24 @@ export function UserMenu({
                 icon={<BrushIcon name="dharma-wheel" size={16} />}
                 label={t('userMenu.settings')}
                 intent={settingsIntent}
-                meta={platformShortcut('⌘,', 'Ctrl+,')}
+                meta={keyboard ? platformShortcut('⌘,', 'Ctrl+,') : undefined}
                 onClick={() => {
                   events.emit('settings:open', {});
                   onClose();
                 }}
               />
-              <MenuItem
-                icon={<BrushIcon name="movable-type" size={16} />}
-                label={t('userMenu.keyboardShortcuts')}
-                intent={settingsIntent}
-                meta={platformShortcut('⌘K ⌘/', 'Ctrl+K Ctrl+/')}
-                onClick={() => {
-                  events.emit('settings:open', { railId: 'keys' });
-                  onClose();
-                }}
-              />
+              {keyboard && (
+                <MenuItem
+                  icon={<BrushIcon name="movable-type" size={16} />}
+                  label={t('userMenu.keyboardShortcuts')}
+                  intent={settingsIntent}
+                  meta={platformShortcut('⌘K ⌘/', 'Ctrl+K Ctrl+/')}
+                  onClick={() => {
+                    events.emit('settings:open', { railId: 'keys' });
+                    onClose();
+                  }}
+                />
+              )}
             </>
           )}
           {scope === 'shelf' && (
@@ -205,16 +183,14 @@ export function UserMenu({
               }}
             />
           )}
-          {desktop && (
-            <MenuItem
-              icon={<BrushIcon name="sticky-note" size={16} />}
-              label={t('userMenu.feedback')}
-              onClick={() => {
-                useFeedbackDialogStore.getState().show();
-                onClose();
-              }}
-            />
-          )}
+          <MenuItem
+            icon={<BrushIcon name="sticky-note" size={16} />}
+            label={t('userMenu.feedback')}
+            onClick={() => {
+              useFeedbackDialogStore.getState().show();
+              onClose();
+            }}
+          />
         </MenuGroup>
 
         {scope === 'project' && (
@@ -337,7 +313,7 @@ export function UserAvatar({
   );
 }
 
-/** Groups are parted by space on the desktop, by a rule on the mobile shelf. */
+/** Groups are parted by space. */
 function MenuGroup({ children, last }: { children: React.ReactNode; last?: boolean }) {
   return <div className={`user-menu__group${last ? ' user-menu__group--last' : ''}`}>{children}</div>;
 }
@@ -406,40 +382,5 @@ function MenuItem({ icon, label, meta, tail, onClick, intent }: MenuItemProps) {
     <div className={className} style={style}>
       {content}
     </div>
-  );
-}
-
-function ThemeSwitchBtn({
-  active,
-  onClick,
-  children,
-  title,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-  title?: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={title}
-      aria-pressed={active}
-      style={{
-        fontFamily: 'var(--font-mono)',
-        fontSize: 'var(--ui-font-caption, 10px)',
-        letterSpacing: '0.06em',
-        padding: '3px 7px',
-        borderRadius: 2,
-        color: active ? 'hsl(var(--ink-1))' : 'hsl(var(--ink-4))',
-        background: active ? 'hsl(var(--surface))' : 'transparent',
-        boxShadow: active ? '0 1px 2px hsl(var(--ink-1) / 0.06)' : 'none',
-        cursor: 'pointer',
-        border: 0,
-      }}
-    >
-      {children}
-    </button>
   );
 }

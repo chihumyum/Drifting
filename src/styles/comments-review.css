@@ -1,30 +1,7 @@
 /* Comments, review lanes, inline review cards and snapshot surfaces. */
-/* Comment anchors in the paused mobile shell — painted via the CSS Custom
-   Highlight API (see lib/comment-highlight.ts), NOT a CSS class: ProseMirror
-   strips externally-added classes from its nodes, and a highlight can wash an
-   arbitrary DOM Range (a sub-text phrase OR whole blocks). Coloured per family.
-   Unresolved notes and TODOs keep a light resting wash; Copilot proposals have
-   none. The `-active` overlay marks the hovered card's anchor and stacks on the
-   resting wash. Background only — no left bar (user preference). Only
-   `background-color`/`color`/text-decoration are honoured inside ::highlight().
-   The desktop draws the same anchors in sand (below). */
-::highlight(comment-hl-manual) {
-  background-color: hsl(var(--comment) / 0.16);
-}
-::highlight(comment-hl-todo) {
-  background-color: hsl(var(--story-4) / 0.18);
-}
-::highlight(comment-hl-manual-active) {
-  background-color: hsl(var(--comment) / 0.24);
-}
-::highlight(comment-hl-copilot-active) {
-  background-color: hsl(var(--story-2) / 0.26);
-}
-::highlight(comment-hl-todo-active) {
-  background-color: hsl(var(--story-4) / 0.32);
-}
-
-/* Desktop: comment anchors drawn in sand (lib/comment-sand.ts). Each anchor is
+/* `html[data-shell-mode]` and `:root[data-shell-mode]` match every shell: they
+   keep the weight these rules had while the mobile shell was excluded. */
+/* Comment anchors drawn in sand (lib/comment-sand.ts). Each anchor is
    the dry highlighter swash laid along every line it runs over, on a layer of
    its own after the page inside .editor__spread. The layer lies over the words
    and blends with them like pigment (--prose-sand-layer-blend: multiply in
@@ -398,8 +375,8 @@
 ::highlight(agent-recent-chg) { color: hsl(var(--agent-chg-ink)); }
 ::highlight(agent-recent-chg-1) { color: color-mix(in srgb, hsl(var(--agent-chg-ink)) 62%, hsl(var(--ink-1))); }
 ::highlight(agent-recent-chg-2) { color: color-mix(in srgb, hsl(var(--agent-chg-ink)) 28%, hsl(var(--ink-1))); }
-:root:not([data-shell-mode='mobile']) .agent-change-block,
-:root:not([data-shell-mode='mobile']) .agent-change-block--seen {
+:root[data-shell-mode] .agent-change-block,
+:root[data-shell-mode] .agent-change-block--seen {
   background-color: transparent;
 }
 
@@ -463,56 +440,6 @@
    it green/red for new/deleted so the whole "key：value" reads as one diff). */
 .field-kv-key {
   color: hsl(var(--ink-3));
-}
-/* Agent-created patch awaiting review — faint green wash + a thin keep/discard
-   bar at the top of the card. Reuses .field-review__btn for the ✓/✗. */
-.patch-card--proposed {
-  background: hsl(var(--story-3) / 0.05);
-}
-.patch-card__review {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 3px 10px 3px 12px;
-  border-bottom: 1px solid hsl(var(--story-3) / 0.16);
-}
-.patch-card__review-tag {
-  font-size: 10px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: hsl(var(--story-3));
-}
-.patch-card__review-actions {
-  display: inline-flex;
-  gap: 1px;
-  margin-left: auto;
-}
-/* Soft-deleted patch awaiting confirmation — faint red wash, body dimmed +
-   struck so it reads as "about to be removed". */
-.patch-card--removing {
-  background: hsl(var(--story-1) / 0.05);
-}
-/* Body/title diff shown in place of the editor while an UPDATE is under review. */
-.patch-card__review-diff {
-  padding: 6px 12px 2px;
-  font-size: 13px;
-  line-height: 1.6;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-.patch-card__review-diff-title {
-  font-size: 11px;
-  color: hsl(var(--ink-3));
-  margin-bottom: 2px;
-}
-.patch-card--removing .patch-card__title,
-.patch-card--removing .patch-card__body {
-  opacity: 0.5;
-  text-decoration: line-through;
-  text-decoration-color: hsl(var(--story-1) / 0.5);
-}
-.patch-card__review-tag--del {
-  color: hsl(var(--story-1));
 }
 
 /* Token diff — same red(del)/green(ins) language as the prose reveal. */
@@ -749,17 +676,6 @@ html[data-shell-mode='desktop'] .snapshot-modal__close:hover {
   .editor-selection-bar__formats,
   .editor-selection-bar__formats.is-open { transition: none; }
 }
-/* The paused mobile shell keeps the lifted desk surface it had. */
-html[data-shell-mode='mobile'] .editor-selection-bar {
-  border-radius: var(--menu-surface-radius);
-  background: var(--menu-surface-bg);
-  box-shadow: var(--menu-surface-shadow);
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
-}
-html[data-shell-mode='mobile'] .editor-selection-bar.glass::before {
-  display: none;
-}
 
 /* ============================================================
    Semantic TOC rail — manuscript structure + viewport highlighting
@@ -953,7 +869,7 @@ html[data-shell-mode='desktop'] .editor__toc-rail--edge {
    then shows nothing and takes no pointer or focus; the TOC preference stays
    on, and the labels return once the column has room again. The paused mobile
    shell keeps its in-paper overlay. */
-html:not([data-shell-mode='mobile']) .editor__toc-rail[data-fit='hidden'] .editor__toc-labels {
+html[data-shell-mode] .editor__toc-rail[data-fit='hidden'] .editor__toc-labels {
   display: none;
 }
 /* A distant omission restores nearby real TOC tags on hover/focus. This is a
@@ -1097,46 +1013,6 @@ html:not([data-shell-mode='mobile']) .editor__toc-rail[data-fit='hidden'] .edito
 .elem-overview .page__sub {
   display: block;
   margin-bottom: 0;
-}
-.elem-portrait {
-  width: 132px;
-  height: 132px;
-  background: hsl(var(--paper-deep));
-  border-radius: 3px;
-  border: 0;
-  flex-shrink: 0;
-  position: relative;
-  overflow: hidden;
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-  outline: none;
-}
-.elem-portrait::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: repeating-linear-gradient(
-    135deg,
-    transparent 0,
-    transparent 9px,
-    rgba(0, 0, 0, 0.04) 9px,
-    rgba(0, 0, 0, 0.04) 11px
-  );
-}
-.elem-portrait:focus-visible {
-  box-shadow: 0 0 0 2px hsl(var(--accent) / 0.24);
-}
-.elem-portrait__hint {
-  font-family: var(--font-mono);
-  font-size: 9px;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: hsl(var(--ink-4));
-  position: relative;
-  z-index: 1;
-  text-align: center;
-  padding: 6px;
 }
 .elem-portrait__icon {
   width: 12px;
@@ -1384,27 +1260,6 @@ html:not([data-shell-mode='mobile']) .editor__toc-rail[data-fit='hidden'] .edito
 .elem-candidates__action:disabled {
   cursor: progress;
   opacity: 0.6;
-}
-.elem-portrait--storyline {
-  background: linear-gradient(
-    135deg,
-    var(--s-color, hsl(var(--accent))) 0%,
-    color-mix(in srgb, var(--s-color, hsl(var(--accent))) 40%, hsl(var(--paper))) 60%,
-    hsl(var(--paper)) 100%
-  );
-}
-.elem-portrait--category {
-  background: linear-gradient(
-    135deg,
-    var(--c-color, hsl(var(--accent))) 0%,
-    color-mix(in srgb, var(--c-color, hsl(var(--accent))) 35%, hsl(var(--paper))) 70%,
-    hsl(var(--paper)) 100%
-  );
-}
-.elem-portrait--storyline .elem-portrait__hint,
-.elem-portrait--category .elem-portrait__hint {
-  color: hsl(var(--paper));
-  mix-blend-mode: difference;
 }
 .elem-hero__main {
   flex: 1;
@@ -1709,22 +1564,6 @@ html:not([data-shell-mode='mobile']) .editor__toc-rail[data-fit='hidden'] .edito
   background: transparent;
   color: hsl(var(--ink-3));
   cursor: pointer;
-}
-
-.todo-status-toggle__ring {
-  display: inline-grid;
-  place-items: center;
-  box-sizing: border-box;
-  width: 14px;
-  height: 14px;
-  border: 1.5px solid currentColor;
-  border-radius: 50%;
-}
-
-.todo-status-toggle[aria-pressed='true'] .todo-status-toggle__ring {
-  border-color: hsl(var(--story-3));
-  background: hsl(var(--story-3));
-  color: hsl(var(--paper));
 }
 
 .todo-status-toggle:hover:not(:disabled) {

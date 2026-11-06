@@ -75,10 +75,10 @@ export function ReviewItemCard({
   onOpenAgentTask,
 }: ReviewItemCardProps) {
   const { t } = useTranslation();
-  // The desktop card wears the resting glass line; the paused mobile shell
-  // keeps its plate (docs/design-system/components.md, Review 卡).
-  const glass = !getPlatformRuntime().isMobileShell;
-  const desktopPanel = glass;
+  // The card wears the resting glass line (docs/design-system/components.md,
+  // Review 卡). A touch screen has no hover, so the mobile shell adds an
+  // explicit ⋯ entry to the action card.
+  const touchMenu = getPlatformRuntime().isMobileShell;
   const userId = useAuthStore((state) => state.user?.id) ?? 'local';
   const commentActions = useDataStore((state) => state.commentActions);
   const taskConversationId = agentTaskConversationId(commentActions, comment.id);
@@ -93,8 +93,8 @@ export function ReviewItemCard({
   const ownedByNote = isNoteTaskTodo(comment);
   const [snapshotOpen, setSnapshotOpen] = useState(false);
   // The source card doubles as the item's action card (there is no
-  // right-click menu). Desktop Review cards use Shift+F10 / the menu key;
-  // the mobile shell keeps its explicit ⋯ entry.
+  // right-click menu). Review cards use Shift+F10 / the menu key; the
+  // mobile shell keeps its explicit ⋯ entry.
   const sourceHover = useCommentSourceHover(!editing && !snapshotOpen);
   const [cardRequested, setCardRequested] = useState(false);
   const articleRef = useRef<HTMLElement>(null);
@@ -139,10 +139,9 @@ export function ReviewItemCard({
       return;
     }
     navigator.open({ entityType: comment.targetKind, id: comment.targetId });
-    // The desktop draws the anchor again in sand rather than flashing its block.
-    const sand = !getPlatformRuntime().isMobileShell;
-    if (sand) selectCommentHighlight(comment.id);
-    if (comment.targetBlockId) scrollToBlockWhenReady(comment.targetId, comment.targetBlockId, { flash: !sand });
+    // The anchor is drawn again in sand rather than flashing its block.
+    selectCommentHighlight(comment.id);
+    if (comment.targetBlockId) scrollToBlockWhenReady(comment.targetId, comment.targetBlockId, { flash: false });
   };
 
   const handleTodoTask = async () => {
@@ -252,8 +251,8 @@ export function ReviewItemCard({
   ];
 
   // Hover-only text beside the resolve ring; clicking it hands the TODO to
-  // the Agent (or reopens that conversation). No persistent row; on the
-  // desktop it is a text button that turns the loader while the Agent works.
+  // the Agent (or reopens that conversation). No persistent row; it is a
+  // text button that turns the loader while the Agent works.
   const agentHint = isTodo && !isConverted && (!isResolved || taskChatId) ? (
     <button
       type="button"
@@ -261,7 +260,7 @@ export function ReviewItemCard({
       disabled={busy}
       onClick={() => void handleTodoTask()}
     >
-      {glass && (busy || taskRunning) && <BrushIcon name="loader" size={11} className="control-spinner" />}
+      {(busy || taskRunning) && <BrushIcon name="loader" size={11} className="control-spinner" />}
       {busy
         ? t('reviewPanel.agentTaskStarting')
         : taskChatId
@@ -289,12 +288,10 @@ export function ReviewItemCard({
     <>
       <article
         ref={articleRef}
-        className={`review-card review-card--panel review-card--${color}${
-          glass ? ' review-card--glass glass glass--rest glass--surface' : ' workspace-list-row glass glass--surface'
-        }${isResolved || isConverted ? ' review-card--resolved' : ''}${pointed ? ' review-card--pointed' : ''}`}
+        className={`review-card review-card--panel review-card--${color} review-card--glass glass glass--rest glass--surface${isResolved || isConverted ? ' review-card--resolved' : ''}${pointed ? ' review-card--pointed' : ''}`}
         data-comment-id={comment.id}
-        tabIndex={desktopPanel ? 0 : undefined}
-        aria-keyshortcuts={desktopPanel ? 'Shift+F10 ContextMenu' : undefined}
+        tabIndex={0}
+        aria-keyshortcuts="Shift+F10 ContextMenu"
         aria-describedby={sourceHover.anchor ? sourceHover.id : undefined}
         onMouseEnter={(event) => {
           setCardRequested(false);
@@ -307,7 +304,7 @@ export function ReviewItemCard({
         }}
         onPointerDownCapture={sourceHover.dismiss}
         onKeyDownCapture={(event) => {
-          if (desktopPanel && !editing && !snapshotOpen && event.target === event.currentTarget
+          if (!editing && !snapshotOpen && event.target === event.currentTarget
             && (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10'))) {
             event.preventDefault();
             event.stopPropagation();
@@ -346,7 +343,7 @@ export function ReviewItemCard({
               ? t('commentRail.status.resolved')
               : t('commentRail.status.open')}
         </span>
-        {!desktopPanel && <GhostIconButton
+        {touchMenu && <GhostIconButton
           size="sm"
           className="review-card__menu-button"
           icon={<BrushIcon name="more" size={13} />}

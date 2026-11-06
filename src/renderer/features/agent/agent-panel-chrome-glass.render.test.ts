@@ -78,13 +78,16 @@ describe('working memory in sand and glass', () => {
     expect(slip).toContain('background: hsl(var(--page));');
   });
 
-  it('leaves the paused mobile shell its outlined fallback', () => {
+  it('reads the same still card on the phone', () => {
     runtime.isMobileShell = true;
     const html = render();
-    expect(html).toContain('class="agt-wm"');
-    expect(html).toContain('agt-wm__header');
-    expect(html).not.toContain('glass');
-    expect(html).not.toContain('brush-icon');
+    expect(html).toContain('class="agt-wm agt-wm--glass"');
+    expect(html).toContain('class="agt-wm__card glass glass--rest glass--still agent-md"');
+    expect(html).toContain('brush-icon--edit');
+    expect(html).not.toContain('agt-wm__header');
+    expect(html).not.toContain('agt-wm__meter');
+    const view = source('src/renderer/features/agent/AgentWorkingMemoryView.tsx');
+    expect(view).not.toContain('isMobileShell');
   });
 });
 

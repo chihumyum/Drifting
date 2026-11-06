@@ -1,5 +1,4 @@
 import type { ButtonHTMLAttributes, CSSProperties, ReactNode } from 'react';
-import { getPlatformRuntime } from '../../platform/runtime';
 import { KindMark } from './KindMark';
 
 interface FilterChipProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -12,8 +11,7 @@ interface FilterChipProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   dimmed?: boolean;
   /**
    * `glass` is the Chip (docs/design-system/components.md): one of a group
-   * of independent toggles, drawn like the scope toggle. Desktop only; the
-   * paused mobile shell keeps the paper chip.
+   * of independent toggles, drawn like the scope toggle.
    */
   look?: 'paper' | 'glass';
   /** The relation comes from a drift: the chip leads with the drift's eddy. */
@@ -39,7 +37,7 @@ export function FilterChip({
   type = 'button',
   ...props
 }: FilterChipProps) {
-  if (look === 'glass' && !getPlatformRuntime().isMobileShell) {
+  if (look === 'glass') {
     // The glass carries no colour: the type's colour stays in its sand dash,
     // which fades while the chip is off. `dimmed` means nothing to show.
     return (

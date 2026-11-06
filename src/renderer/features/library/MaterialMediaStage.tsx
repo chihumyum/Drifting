@@ -4,7 +4,6 @@ import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist';
 import { startPdfPreviewDocument } from './pdf-preview-document';
 import type { MediaViewport } from './use-zoom-pan-surface';
 import { BrushIcon } from '../../components/ui/BrushIcon';
-import { getPlatformRuntime } from '../../platform/runtime';
 
 // Shared media surfaces for image and PDF materials: the material tab and the
 // fullscreen lightbox both render through these, so zoom/pan, PDF paging and
@@ -251,8 +250,8 @@ export function PdfMediaStage({
         </div>
       )}
 
-      {pageCount > 1 && !getPlatformRuntime().isMobileShell && (
-        // Desktop: a glass pill of two round glass buttons and the page count.
+      {pageCount > 1 && (
+        // A glass pill of two round glass buttons and the page count.
         <div
           className="material-stage__pager-bar"
           onClick={(event) => event.stopPropagation()}
@@ -283,23 +282,6 @@ export function PdfMediaStage({
               <BrushIcon name="chevron-right" />
             </button>
           </div>
-        </div>
-      )}
-      {pageCount > 1 && getPlatformRuntime().isMobileShell && (
-        <div
-          className="material-stage__pager"
-          onClick={(event) => event.stopPropagation()}
-          onPointerDown={(event) => event.stopPropagation()}
-        >
-          <button type="button" onClick={() => setPage(pageNumber - 1)} disabled={pageNumber <= 1}>
-            {t('memoMaterial.preview.previousPage')}
-          </button>
-          <span>
-            {pageNumber} / {pageCount}
-          </span>
-          <button type="button" onClick={() => setPage(pageNumber + 1)} disabled={pageNumber >= pageCount}>
-            {t('memoMaterial.preview.nextPage')}
-          </button>
         </div>
       )}
     </div>

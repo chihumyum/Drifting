@@ -31,7 +31,7 @@ const marks: RegionMark[] = [
   { id: 'c2', index: 2, region: { v: 1, x: 0.5, y: 0.5, w: 0.2, h: 0.2 }, resolved: true, todo: true },
 ];
 
-const layer = (sand: boolean) =>
+const layer = () =>
   renderToStaticMarkup(
     createElement(MaterialRegionLayer, {
       box: { width: 400, height: 300, page: null },
@@ -39,7 +39,6 @@ const layer = (sand: boolean) =>
       selectedId: 'c1',
       linkedId: 'c2',
       drawing: false,
-      sand,
       onSelect: () => undefined,
       onLink: () => undefined,
       onDrawn: () => undefined,
@@ -48,7 +47,7 @@ const layer = (sand: boolean) =>
 
 describe('materials in sand and glass on the desktop', () => {
   it('draws region comments as sand frames numbered with a sand seal', () => {
-    const desktop = layer(true);
+    const desktop = layer();
     expect(desktop).toContain('class="material-region material-region--sand material-region--selected"');
     expect(desktop).toContain(
       'class="material-region material-region--sand material-region--linked material-region--resolved material-region--todo"',
@@ -56,14 +55,12 @@ describe('materials in sand and glass on the desktop', () => {
     expect(desktop.match(/<canvas class="material-region__frame" aria-hidden="true">/g)).toHaveLength(2);
     expect(desktop).toContain('class="material-region__badge material-region__badge--seal"');
 
-    // The paused mobile shell keeps the outlined boxes.
-    const mobile = layer(false);
-    expect(mobile).not.toContain('material-region--sand');
-    expect(mobile).not.toContain('<canvas');
-
     // The frame is the selected-cell brush, drawn for the region's own size
-    // with a seed kept per comment; selecting draws it round again.
+    // with a seed kept per comment; selecting draws it round again. There is
+    // no switch back to outlined boxes: the phone draws the same sand.
     const regions = source('src/renderer/features/library/MaterialRegionLayer.tsx');
+    expect(regions).not.toContain('sand?: boolean');
+    expect(regions).toContain('<div className="material-region material-region--draft material-region--sand" style={percent(draft)} />');
     expect(regions).toContain('drawSandStroke({ width: width - SAND_FRAME_PAD * 2, height: height - SAND_FRAME_PAD * 2, dpr, seed })');
     expect(regions).toContain('const seed = seedOf(id);');
     expect(regions).toContain('selected && !wasSelected.current && !reducedMotion()');
@@ -96,17 +93,21 @@ describe('materials in sand and glass on the desktop', () => {
     expect(editor).toContain('aria-pressed={drawing}');
     expect(editor).toContain('className="material-stage__zoom glass"');
     expect(editor).toContain('<span className="material-editor__description-field glass glass--field">{field}</span>');
-    expect(editor).toContain("className={`material-comments${glass ? ' material-comments--flat' : ''}`}");
+    expect(editor).toContain('className="material-comments material-comments--flat"');
     expect(editor).toContain('material-seal');
     expect(stage).toContain('className="material-stage__pager-bar"');
     expect(stage).toContain('<BrushIcon name="chevron-left" />');
-    expect(lightbox).toContain("className={`material-lightbox${glass ? ' material-lightbox--desk' : ''}`}");
+    expect(lightbox).toContain('<div className="material-lightbox material-lightbox--desk" onClick={close}>');
     expect(lightbox).toContain('glass="round"');
+    // One stage on every platform: no paper tool strip, no unflattened list.
+    expect(editor).not.toContain('material-stage__tools');
+    expect(editor).not.toContain('isMobileShell');
+    expect(lightbox).not.toContain('isMobileShell');
 
-    const header = block(css, ":root:not([data-shell-mode='mobile']) .material-editor__header {", '}');
+    const header = block(css, ":root[data-shell-mode] .material-editor__header {", '}');
     expect(header).toContain('border-bottom: 0;');
     expect(header).toContain('background: transparent;');
-    expect(block(css, ":root:not([data-shell-mode='mobile']) .material-stage__media {", '}')).toContain(
+    expect(block(css, ":root[data-shell-mode] .material-stage__media {", '}')).toContain(
       'box-shadow: var(--page-elevation);',
     );
     expect(block(css, '.material-comments.material-comments--flat {', '}')).toContain('background: transparent;');
@@ -119,31 +120,32 @@ describe('materials in sand and glass on the desktop', () => {
     const embed = source('src/renderer/features/library/MaterialEmbedView.tsx');
     const note = source('src/renderer/views/MaterialNotePage.tsx');
 
-    const mark = block(css, ":root:not([data-shell-mode='mobile']) .note-prose mark,", '}');
+    const mark = block(css, ":root[data-shell-mode] .note-prose mark,", '}');
     expect(mark).toContain("background: url('../assets/design/sand/hl-mark.png') center / 100% 100% no-repeat;");
     expect(mark).toContain('box-decoration-break: clone;');
     expect(css).toContain("background-image: url('../assets/design/sand/hl-mark-dark.png');");
-    const readOnly = block(css, ":root:not([data-shell-mode='mobile']) .note-prose pre,", '}');
+    const readOnly = block(css, ":root[data-shell-mode] .note-prose pre,", '}');
     expect(readOnly).toContain('background: transparent;');
-    expect(block(css, ":root:not([data-shell-mode='mobile']) .note-prose pre::before,", '}')).toContain(
+    expect(block(css, ":root[data-shell-mode] .note-prose pre::before,", '}')).toContain(
       'var(--glass-texture)',
     );
-    expect(block(css, ":root:not([data-shell-mode='mobile']) .note-prose blockquote {", '}')).toContain(
+    expect(block(css, ":root[data-shell-mode] .note-prose blockquote {", '}')).toContain(
       'background: transparent;',
     );
-    const checkbox = block(css, ":root:not([data-shell-mode='mobile']) .note-prose ul[data-type='taskList'] li > label input {", '}');
+    const checkbox = block(css, ":root[data-shell-mode] .note-prose ul[data-type='taskList'] li > label input {", '}');
     expect(checkbox).toContain('appearance: none;');
     expect(checkbox).toContain("url('../assets/design/icons/task-todo.png')");
     expect(css).toContain("mask-image: url('../assets/design/icons/task-done.png');");
 
     // The checklist and table bar is the prose selection bar's glass long pill,
-    // its actions the same short pills, portaled to the body; the paused
-    // mobile shell keeps its paper bar.
+    // its actions the same short pills, portaled to the body, on every platform.
     expect(bar).toContain(
-      "className={glass ? 'note-floating-bar--glass editor-selection-bar glass glass--rest glass--surface' : 'note-floating-bar'}",
+      'className="note-floating-bar--glass editor-selection-bar glass glass--rest glass--surface"',
     );
-    expect(bar).toContain("className={glass ? 'editor-selection-bar__item glass glass--small' : undefined}");
-    expect(bar).toContain("<span className={glass ? 'editor-selection-bar__sep' : 'note-floating-bar__divider'} aria-hidden />");
+    expect(bar).toContain('className="editor-selection-bar__item glass glass--small"');
+    expect(bar).toContain('<span className="editor-selection-bar__sep" aria-hidden />');
+    expect(bar).not.toContain('isMobileShell');
+    expect(bar).not.toContain('note-floating-bar__divider');
     expect(bar).toContain('document.body,');
     expect(bar).not.toContain('menu-surface');
     expect(css).not.toContain('note-floating-bar--float');
@@ -153,9 +155,11 @@ describe('materials in sand and glass on the desktop', () => {
     expect(block(review, '.editor-selection-bar {', '}')).toContain('position: fixed;');
     expect(block(review, '.editor-selection-bar.glass.glass--surface {', '}')).toContain('--glass-gx: -168px;');
     expect(designSystemDocs()).toContain('和正文的选区浮条是同一块玻璃');
-    expect(embed).toContain("` note-embed__card--glass glass glass--rest${selected ? ' is-on' : ''}`");
+    expect(embed).toContain("className={`note-embed__card note-embed__card--glass glass glass--rest${selected ? ' is-on' : ''}`}");
     expect(embed).toContain('<KindMark kind="material" />');
-    expect(note).toContain("className={`note-embed-picker__tile${glass ? ' note-embed-picker__tile--glass glass glass--rest' : ''}`}");
+    expect(note).toContain('className="note-embed-picker__tile note-embed-picker__tile--glass glass glass--rest"');
+    expect(embed).not.toContain('isMobileShell');
+    expect(note).not.toContain('isMobileShell');
   });
 
   it('makes library materials sand cells, TODOs glass cards and folders cells', () => {
@@ -169,8 +173,12 @@ describe('materials in sand and glass on the desktop', () => {
     expect(card).toContain("'sand-cell',");
     expect(card).toContain('<KindMark kind="material" color="hsl(var(--ink-3))" />');
     expect(card).toContain('<SandFrame selected={active} />');
-    expect(card).toContain('{glass ? glassCard : legacyCard}');
-    // The mobile shell keeps its touch menu.
+    // Every platform takes the sand cell; there is no older card to fall back on.
+    expect(card).toMatch(/return \(\s*<>\s*\{glassCard\}/u);
+    expect(card).not.toContain('legacyCard');
+    expect(card).not.toContain('isMobileShell');
+    // A touch screen adds its explicit menu to the same cell.
+    expect(card).toContain('{mobileActions && (');
     expect(card).toContain('className="library-item-card__mobile-menu"');
     expect(todo).toContain('todo-card todo-card--glass glass glass--rest glass--surface');
     expect(block(css, '.todo-card__kind {', '}')).toContain('color: var(--material-todo-c);');
@@ -182,10 +190,11 @@ describe('materials in sand and glass on the desktop', () => {
     const washes = block(css, '.material-tree--desktop .material-tree__row:hover,', '}');
     expect(washes).toContain('background: transparent;');
 
-    expect(picker).toContain("glass && current ? 'is-on' : ''");
+    expect(picker).toContain("'glass',\n      current ? 'is-on' : '',");
     expect(picker).toContain('<Button type="submit" size="sm" variant="primary" disabled={!name.trim()}>');
     expect(dialogs).toContain("className={`ui-field${area ? ' ui-field--area' : ''} library-dialog__field glass glass--rest glass--field${area ? '' : ' glass--small'}`}");
-    expect(dialogs).toContain("variant={glass ? 'ghost' : 'default'}");
+    expect(dialogs).toContain('<Button size="sm" variant="ghost" onClick={onCancel} disabled={confirmBusy}>');
+    expect(dialogs).not.toContain('dialogInputStyle');
     expect(picker).toContain('<label className="ui-field glass glass--rest glass--field glass--small">');
     expect(css).not.toContain('.material-field {');
 

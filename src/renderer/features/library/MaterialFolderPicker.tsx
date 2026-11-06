@@ -7,7 +7,6 @@ import { useMaterialFolder } from '../../usecase/useMaterialFolder';
 import { ModalBody, ModalCard, ModalHeader, ModalRoot } from '../../components/ui/Modal';
 import { BrushIcon } from '../../components/ui/BrushIcon';
 import { Button } from '../../components/ui/Button';
-import { getPlatformRuntime } from '../../platform/runtime';
 
 /** Chooses a material folder (or the root) to move materials and folders into. */
 export function MaterialFolderPicker({
@@ -31,15 +30,14 @@ export function MaterialFolderPicker({
   const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const rows = flattenMaterialFolders(folders);
-  // Desktop: rows have no fill; the pointer brings glass, the current folder
-  // holds it still (and is bold). The new-folder name is a paper field.
-  const glass = !getPlatformRuntime().isMobileShell;
+  // Rows have no fill; the pointer brings glass, the current folder holds it
+  // still (and is bold). The new-folder name is a paper field.
   const rowClass = (current: boolean) =>
     [
       'material-folder-picker__row',
       current ? 'material-folder-picker__row--current' : '',
-      glass ? 'glass' : '',
-      glass && current ? 'is-on' : '',
+      'glass',
+      current ? 'is-on' : '',
     ].filter(Boolean).join(' ');
 
   const createAndPick = async () => {
@@ -58,7 +56,7 @@ export function MaterialFolderPicker({
         <ModalHeader title={t('materialFolders.picker.title')} onClose={onClose} closeLabel={t('common.close')} />
         <ModalBody>
           <div
-            className={`material-folder-picker${glass ? ' material-folder-picker--glass' : ''}`}
+            className="material-folder-picker material-folder-picker--glass"
             role="listbox"
             aria-label={t('materialFolders.picker.title')}
           >
@@ -89,45 +87,25 @@ export function MaterialFolderPicker({
               </button>
             ))}
           </div>
-          {glass ? (
-            <form
-              className="material-folder-picker__new material-folder-picker__new--glass"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void createAndPick();
-              }}
-            >
-              <label className="ui-field glass glass--rest glass--field glass--small">
-                <input
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  placeholder={t('materialFolders.picker.newPlaceholder')}
-                  aria-label={t('materialFolders.picker.newPlaceholder')}
-                />
-              </label>
-              <Button type="submit" size="sm" variant="primary" disabled={!name.trim()}>
-                {t('materialFolders.picker.createAndMove')}
-              </Button>
-            </form>
-          ) : (
-            <form
-              className="material-folder-picker__new"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void createAndPick();
-              }}
-            >
+          <form
+            className="material-folder-picker__new material-folder-picker__new--glass"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void createAndPick();
+            }}
+          >
+            <label className="ui-field glass glass--rest glass--field glass--small">
               <input
                 value={name}
                 onChange={(event) => setName(event.target.value)}
                 placeholder={t('materialFolders.picker.newPlaceholder')}
                 aria-label={t('materialFolders.picker.newPlaceholder')}
               />
-              <button type="submit" disabled={!name.trim()}>
-                {t('materialFolders.picker.createAndMove')}
-              </button>
-            </form>
-          )}
+            </label>
+            <Button type="submit" size="sm" variant="primary" disabled={!name.trim()}>
+              {t('materialFolders.picker.createAndMove')}
+            </Button>
+          </form>
           {error && <div className="material-folder-picker__error">{error}</div>}
         </ModalBody>
       </ModalCard>

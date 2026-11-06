@@ -6,7 +6,6 @@ import type { Editor } from '@tiptap/core';
 import type { Transaction } from '@tiptap/pm/state';
 
 import { useDataStore } from '../store/data-store';
-import { getPlatformRuntime } from '../platform/runtime';
 import { hasLinkedTodo, taskItemAtSelection } from './note-todo-links';
 
 /** Quiet time after typing before the bar comes back. */
@@ -109,17 +108,15 @@ export function NoteFloatingBar({
   }, [editor, head, visible, context?.inTable, context?.task, linked]);
 
   if (!visible || !context) return null;
-  // Desktop: the prose selection bar's glass long pill (EditorSelectionBar),
-  // each action one of its short pills, glass only under the pointer. The
-  // paused mobile shell keeps its paper bar.
-  const glass = !getPlatformRuntime().isMobileShell;
+  // The prose selection bar's glass long pill (EditorSelectionBar), each
+  // action one of its short pills, glass only under the pointer.
   const table = (label: string, command: (chain: ReturnType<Editor['chain']>) => ReturnType<Editor['chain']>) =>
     button(label, () => command(editor.chain().focus().setMeta('noteFloatingBar', true)).run());
   const button = (label: string, onClick: () => void, disabled = false) => (
     <button
       key={label}
       type="button"
-      className={glass ? 'editor-selection-bar__item glass glass--small' : undefined}
+      className="editor-selection-bar__item glass glass--small"
       disabled={disabled}
       onMouseDown={(event) => event.preventDefault()}
       onClick={onClick}
@@ -130,7 +127,7 @@ export function NoteFloatingBar({
   return createPortal(
     <div
       ref={barRef}
-      className={glass ? 'note-floating-bar--glass editor-selection-bar glass glass--rest glass--surface' : 'note-floating-bar'}
+      className="note-floating-bar--glass editor-selection-bar glass glass--rest glass--surface"
       role="toolbar"
       aria-label={t(context.task ? 'materialEditor.todo.toolbar' : 'materialEditor.table.toolbar')}
       style={{ visibility: 'hidden', left: 0, top: 0 }}
@@ -145,7 +142,7 @@ export function NoteFloatingBar({
           button(t('materialEditor.todo.promote'), onPromote, context.task.empty)
         ))}
       {context.task && context.inTable && (
-        <span className={glass ? 'editor-selection-bar__sep' : 'note-floating-bar__divider'} aria-hidden />
+        <span className="editor-selection-bar__sep" aria-hidden />
       )}
       {context.inTable && (
         <>

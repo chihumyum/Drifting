@@ -9,7 +9,6 @@ import {
 } from './settings-slider-value';
 import { BrushIcon } from '../../components/ui/BrushIcon';
 import { SettingsRange } from './SettingsPrimitives';
-import { settingsOnDesktop } from './settings-on-desktop';
 
 export function SettingsSlider({
   label,
@@ -100,33 +99,7 @@ export function SettingsSlider({
     </button>
   );
 
-  // Desktop: the number slider and number field of components.md.
-  if (settingsOnDesktop()) {
-    return (
-      <div className="set-slider">
-        <SettingsRange
-          value={value}
-          min={min}
-          max={max}
-          step={step}
-          disabled={disabled}
-          ariaLabel={numericLabel}
-          onChange={apply}
-        />
-        <label
-          className="ui-field ui-field--sm ui-field--mono ui-number glass glass--rest glass--field glass--small"
-        >
-          {numberInput()}
-          {unit && <span className="ui-field__meta" aria-hidden="true">{unit}</span>}
-          <span className="ui-number__steps">
-            {stepButton(1, 'ui-number__step', 9)}
-            {stepButton(-1, 'ui-number__step', 9)}
-          </span>
-        </label>
-      </div>
-    );
-  }
-
+  // The number slider and number field of components.md.
   return (
     <div className="set-slider">
       <SettingsRange
@@ -137,18 +110,17 @@ export function SettingsSlider({
         disabled={disabled}
         ariaLabel={numericLabel}
         onChange={apply}
-        style={{ width: 140 }}
       />
-      <span className="set-slider__value">
-        <span className="set-slider__number-control">
-          {numberInput('set-input set-slider__number')}
-          <span className="set-slider__steppers">
-            {stepButton(1, 'set-slider__step', 12)}
-            {stepButton(-1, 'set-slider__step', 12)}
-          </span>
+      <label
+        className="ui-field ui-field--sm ui-field--mono ui-number glass glass--rest glass--field glass--small"
+      >
+        {numberInput()}
+        {unit && <span className="ui-field__meta" aria-hidden="true">{unit}</span>}
+        <span className="ui-number__steps">
+          {stepButton(1, 'ui-number__step', 9)}
+          {stepButton(-1, 'ui-number__step', 9)}
         </span>
-        {unit && <span className="set-slider__unit" aria-hidden="true">{unit}</span>}
-      </span>
+      </label>
     </div>
   );
 }

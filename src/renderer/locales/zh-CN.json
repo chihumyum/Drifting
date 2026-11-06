@@ -549,7 +549,6 @@
       "writeEmail": "写邮件",
       "submitFeedback": "提交反馈",
       "submitFeedbackDesc": "可附上脱敏诊断摘要；不含正文。",
-      "submitFeedbackMailDesc": "打开一封空白邮件；Drifting 不会自动附带稿件上下文。",
       "feedback": "反馈…",
       "tagline": "为夜里不睡的写作人造。"
     },
@@ -993,7 +992,6 @@
     "firstChapter": "新建第一章"
   },
   "virtualChapterRow": {
-    "chapter": "章节",
     "chapterNumber": "第 {{n}} 章"
   },
   "editorOutline": {
@@ -1052,17 +1050,11 @@
   },
   "trashPanel": {
     "noProject": "请先打开一个项目。",
-    "title": "回收站",
     "retention": "保留在本机，直到你删除",
     "clear": "清空回收站",
     "empty": "回收站是空的。",
     "confirmPurge": "彻底删除「{{label}}」？此操作无法撤销，将立即永久删除。",
     "confirmPurgeAll": "清空回收站？将永久删除全部 {{count}} 项，此操作无法撤销。",
-    "columns": {
-      "type": "类型",
-      "name": "名称",
-      "deletedAt": "删除时间"
-    },
     "restore": "恢复",
     "purgeNow": "立刻删除",
     "restoreFailed": "恢复失败：{{error}}",
@@ -1443,7 +1435,6 @@
       "description": "所有 General Agent 对话共享的近期重要工作上下文。旧内容会自动收缩或遗忘。",
       "loading": "正在读取工作记忆…",
       "edit": "编辑",
-      "preview": "预览",
       "clear": "清空",
       "create": "创建工作记忆",
       "editorLabel": "编辑 WORKING_MEMORY.md",
@@ -2559,7 +2550,6 @@
       "outgoing": "引用其他"
     },
     "actions": {
-      "add": "新增",
       "remove": "移除关联",
       "jump": "跳转到该实体",
       "linkEntity": "关联实体"
@@ -2857,7 +2847,6 @@
   "superElement": {
     "title": "要素全景",
     "meta": "{{categories}} 类 · {{elements}} 要素",
-    "linkHint": "选择第二个要素 / 章节 · ESC 取消",
     "linkHintFrom": "从",
     "linkHintTo": "连到…　选第二个要素或章节，Esc 取消",
     "focusOffTitle": "关闭聚焦 — 显示全部关联线",
@@ -2937,7 +2926,6 @@
     "empty": {
       "noStorylines": "还没有故事线",
       "noCategories": "还没有要素类目",
-      "categoryEmpty": "空",
       "categoryNoElements": "还没有要素"
     }
   },
@@ -2950,7 +2938,6 @@
     "expand": "展开编辑",
     "openFullTitle": "跳转到完整编辑器",
     "openInEditor": "在编辑器中打开",
-    "compactEdit": "简化编辑",
     "collapseTitle": "折叠回卡片",
     "collapse": "折叠",
     "fullEditor": "完整编辑器",
@@ -3477,7 +3464,6 @@
       "drawHint": "在画面上拖出一个区域来批注",
       "compose": "区域批注",
       "placeholder": "写下对这一处的批注…（{{shortcut}} 保存）",
-      "asTodo": "作为待办",
       "save": "保存",
       "kindLabel": "批注类型",
       "kindNote": "批注",

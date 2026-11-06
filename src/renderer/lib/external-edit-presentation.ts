@@ -8,7 +8,6 @@
  * animated again for a while: its new words join the blue ones already shown.
  */
 import { useAgentEditStore } from '../store/agent-edit-store';
-import { getPlatformRuntime } from '../platform/runtime';
 import type { AgentBlockChange } from './agent/block-diff';
 import { entityKey, type ActivityEntityType } from './agent/tool-entity-ref';
 import { recordAgentRecentChange } from './agent-recent-changes';
@@ -72,7 +71,7 @@ export function presentExternalEdits(entityType: ActivityEntityType, id: string,
   if (plan.reveal.length > 0) useAgentEditStore.getState().recordExternal(entityType, id, plan.reveal);
   for (const change of plan.recolor) {
     noteExternalRevealed(entityType, id, change, now);
-    if (!getPlatformRuntime().isMobileShell) recordAgentRecentChange(entityType, id, change);
+    recordAgentRecentChange(entityType, id, change);
   }
 }
 

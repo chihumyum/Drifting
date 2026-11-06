@@ -6,6 +6,8 @@
    controls when present. Tauri's drag-region script automatically
    excludes interactive descendants.
    ============================================================ */
+/* `html[data-shell-mode]` and `:root[data-shell-mode]` match every shell: they
+   keep the weight these rules had while the mobile shell was excluded. */
 
 /* One viewport shell for StoryGraph, SuperElement, and SuperMemoMaterial.
    Features may attach their own class for local tokens, but fixed geometry
@@ -155,41 +157,6 @@
   width: var(--glass-round-icon);
   height: var(--glass-round-icon);
 }
-.super-view-head__switcher {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 2px;
-  border: 1px solid hsl(var(--rule));
-  border-radius: var(--radius-sm);
-  background: hsl(var(--paper) / 0.55);
-}
-
-.super-view-head__switcher-option {
-  min-height: 24px;
-  padding: 3px 8px;
-  border: 0;
-  border-radius: var(--radius-xs);
-  background: transparent;
-  color: var(--ui-text-muted, hsl(var(--ink-3)));
-  font-family: var(--font-sans);
-  font-size: var(--ui-font-secondary, 11.5px);
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.super-view-head__switcher-option:hover,
-.super-view-head__switcher-option:focus-visible {
-  background: hsl(var(--rule) / 0.55);
-  color: hsl(var(--ink-1));
-  outline: none;
-}
-
-.super-view-head__switcher-option[aria-current='page'] {
-  background: hsl(var(--paper));
-  color: hsl(var(--ink-1));
-  box-shadow: inset 0 0 0 1px hsl(var(--rule));
-}
 .super-view-head__meta {
   font-family: var(--font-mono);
   font-style: normal;
@@ -203,14 +170,14 @@
    toggles' size, its resting line only; the views are one of three on the
    glass slider; the reading is index type, not uppercase. The paused mobile
    shell keeps the segmented switcher and the filled hover above. */
-html:not([data-shell-mode='mobile']) .super-view-head__back.glass {
+html[data-shell-mode] .super-view-head__back.glass {
   width: 28px;
   height: 28px;
   color: hsl(var(--ink-2));
   transition: color 0.12s;
 }
 
-html:not([data-shell-mode='mobile']) .super-view-head__back.glass:hover {
+html[data-shell-mode] .super-view-head__back.glass:hover {
   background: transparent;
   color: hsl(var(--ink-1));
 }
@@ -220,11 +187,11 @@ html:not([data-shell-mode='mobile']) .super-view-head__back.glass:hover {
   align-items: center;
 }
 
-html:not([data-shell-mode='mobile']) .super-view-head .glass-slider {
+html[data-shell-mode] .super-view-head .glass-slider {
   height: 26px;
 }
 
-html:not([data-shell-mode='mobile']) .super-view-head .glass-slider__option {
+html[data-shell-mode] .super-view-head .glass-slider__option {
   display: inline-flex;
   align-items: center;
   padding: 0 10px;
@@ -233,7 +200,7 @@ html:not([data-shell-mode='mobile']) .super-view-head .glass-slider__option {
   text-transform: none;
 }
 
-html:not([data-shell-mode='mobile']) .super-view-head .glass-slider__option[aria-checked='true'] {
+html[data-shell-mode] .super-view-head .glass-slider__option[aria-checked='true'] {
   font-weight: 500;
 }
 
@@ -245,13 +212,13 @@ html:not([data-shell-mode='mobile']) .super-view-head .glass-slider__option[aria
    one name to the next. The switcher reaches 6px into the header's 14px on
    either side, which keeps the names where 10px options and a 12px gap put
    them. The views' own modes (书序／叙事时) stay controls in the UI face above. */
-html:not([data-shell-mode='mobile']) .super-view-head__views .glass-slider {
+html[data-shell-mode] .super-view-head__views .glass-slider {
   margin-inline: -6px;
   height: calc(var(--window-titlebar-height) - 4px);
 }
 
-html:not([data-shell-mode='mobile']) .super-view-head__views .glass-slider__option,
-html:not([data-shell-mode='mobile']) .super-view-head__views .glass-slider__option[aria-checked='true'] {
+html[data-shell-mode] .super-view-head__views .glass-slider__option,
+html[data-shell-mode] .super-view-head__views .glass-slider__option[aria-checked='true'] {
   padding-inline: 16px;
   font-family: var(--font-structure);
   font-weight: 400;
@@ -260,12 +227,12 @@ html:not([data-shell-mode='mobile']) .super-view-head__views .glass-slider__opti
 
 /* Ideographs drop onto the Latin line, as in the Panel Tabs, so a Chinese
    view name centres in the glass slab. */
-html:not([data-shell-mode='mobile']) .super-view-head__views [data-script='cjk'] {
+html[data-shell-mode] .super-view-head__views [data-script='cjk'] {
   position: relative;
   top: 0.15em;
 }
 
-html:not([data-shell-mode='mobile']) .super-view-head__meta {
+html[data-shell-mode] .super-view-head__meta {
   font-size: var(--ui-font-caption, 10px);
   letter-spacing: 0;
   text-transform: none;
@@ -397,52 +364,6 @@ html:not([data-shell-mode='mobile']) .super-view-head__meta {
   display: inline-flex;
 }
 
-.relation-kind-menu-trigger {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  height: 24px;
-  padding: 0 9px;
-  box-sizing: border-box;
-  border: 1px solid hsl(var(--rule));
-  border-radius: var(--radius-xs);
-  background: hsl(var(--surface));
-  color: var(--ui-text-muted, hsl(var(--ink-4)));
-  font-family: var(--font-ui);
-  font-size: var(--ui-font-caption, 10px);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition:
-    color 120ms,
-    background 120ms,
-    border-color 120ms;
-}
-
-.relation-kind-menu-trigger:hover,
-.relation-kind-menu-trigger.is-open {
-  border-color: hsl(var(--ink-1));
-  background: hsl(var(--ink-1));
-  color: hsl(var(--paper));
-}
-
-.relation-kind-menu-trigger__count {
-  min-width: 15px;
-  padding: 1px 4px;
-  border-radius: 1px;
-  background: hsl(var(--rule));
-  color: var(--ui-text-muted, hsl(var(--ink-3)));
-  font-size: var(--ui-font-caption, 9px);
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-}
-
-.relation-kind-menu-trigger.is-open .relation-kind-menu-trigger__count {
-  background: hsl(var(--paper) / 0.18);
-  color: hsl(var(--paper));
-}
-
 .relation-kind-menu {
   z-index: var(--z-popover);
   display: flex;
@@ -533,19 +454,6 @@ html:not([data-shell-mode='mobile']) .super-view-head__meta {
   text-align: right;
 }
 
-.relation-kind-menu__row--type .relation-kind-menu__name {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-}
-
-.relation-kind-menu__row--type .relation-kind-menu__name small {
-  color: var(--ui-text-muted, hsl(var(--ink-4)));
-  font-family: var(--font-mono);
-  font-size: var(--ui-font-caption, 8px);
-  font-weight: 400;
-}
-
 .relation-kind-menu__delete:disabled {
   cursor: not-allowed;
   opacity: 0.35;
@@ -564,8 +472,7 @@ html:not([data-shell-mode='mobile']) .super-view-head__meta {
   gap: 7px;
 }
 
-.relation-type-editor label,
-.relation-type-editor__description {
+.relation-type-editor label {
   display: flex;
   min-width: 0;
   flex-direction: column;
@@ -586,79 +493,10 @@ html:not([data-shell-mode='mobile']) .super-view-head__meta {
   font: var(--ui-font-secondary, 11px)/var(--ui-line-caption, normal) var(--font-sans);
 }
 
-.relation-type-editor__description {
-  margin-top: 7px;
-}
-
-.relation-type-editor__endpoint-row {
-  margin-top: 8px;
-  color: var(--ui-text-muted, hsl(var(--ink-4)));
-  font: var(--ui-font-secondary, 8px)/var(--ui-line-caption, normal) var(--font-mono);
-}
-
-.relation-type-editor__endpoint-row > div {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 8px;
-  margin-top: 4px;
-}
-
-.relation-type-editor__endpoint-row label {
-  display: inline-flex;
-  flex-direction: row;
-  align-items: center;
-}
-
 .relation-type-editor__error {
   margin-top: 7px;
   color: hsl(var(--danger));
   font-size: var(--ui-font-caption, 10px);
-}
-
-.relation-type-editor__actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 6px;
-  margin-top: 9px;
-}
-
-.relation-type-editor__actions button {
-  border: 1px solid hsl(var(--rule));
-  border-radius: 3px;
-  padding: 3px 8px;
-  background: hsl(var(--paper));
-  font-size: var(--ui-font-caption, 10px);
-}
-
-.relation-type-editor__actions button.is-primary {
-  color: hsl(var(--paper));
-  border-color: hsl(var(--ink-1));
-  background: hsl(var(--ink-1));
-}
-
-.relation-type-modal__heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 4px;
-}
-
-.relation-type-modal__heading .graph-newedge__label {
-  margin-bottom: 0;
-}
-
-.relation-type-modal__create {
-  border: 0;
-  padding: 2px 0;
-  background: transparent;
-  color: hsl(var(--accent));
-  cursor: pointer;
-  font: var(--ui-font-secondary, 10px)/var(--ui-line-caption, normal) var(--font-mono);
-}
-
-.relation-type-modal__create:hover {
-  color: hsl(var(--ink-1));
 }
 
 .relation-type-create-modal {
@@ -722,16 +560,6 @@ html:not([data-shell-mode='mobile']) .super-view-head__meta {
 
 .relation-kind-menu__row:hover {
   background: var(--menu-item-hover-bg);
-}
-
-.relation-kind-menu__swatch {
-  flex-shrink: 0;
-  width: 18px;
-  height: 8px;
-  padding: 0;
-  border: 0;
-  border-radius: 2px;
-  cursor: pointer;
 }
 
 .relation-kind-menu__name {
@@ -806,47 +634,6 @@ button.relation-kind-menu__name:hover {
   font-size: var(--ui-font-secondary, 12px);
   font-style: italic;
   text-align: center;
-}
-
-.relation-kind-menu__palette {
-  position: absolute;
-  top: calc(100% - 2px);
-  left: 2px;
-  z-index: 1;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 6px;
-  border: 1px solid hsl(var(--rule-strong));
-  border-radius: var(--radius-xs);
-  background: hsl(var(--paper));
-  box-shadow: 0 4px 12px hsl(var(--ink-1) / 0.18);
-}
-
-.relation-kind-menu__palette-dot {
-  width: 14px;
-  height: 14px;
-  padding: 0;
-  border: 1px solid hsl(var(--ink-1) / 0.12);
-  border-radius: 3px;
-  cursor: pointer;
-}
-
-.relation-kind-menu__palette-dot:hover {
-  transform: scale(1.1);
-}
-
-.relation-kind-menu__palette-reset {
-  padding: 0 4px;
-  border: 0;
-  background: transparent;
-  color: var(--ui-text-muted, hsl(var(--ink-3)));
-  font-size: var(--ui-font-body, 14px);
-  cursor: pointer;
-}
-
-.relation-kind-menu__palette-reset:hover {
-  color: hsl(var(--ink-1));
 }
 
 html[data-shell-mode='mobile'] .super-view-overlay {
@@ -938,8 +725,8 @@ html[data-shell-mode='mobile'] .super-view-overlay {
   padding-right: 8px;
 }
 
-html:not([data-shell-mode='mobile']) .ui-button.ui-button--glass.ui-button--ghost.relation-kind-menu__create,
-html:not([data-shell-mode='mobile']) .ui-button.ui-button--glass.ui-button--ghost.relation-kind-menu__create:hover:not(:disabled) {
+html[data-shell-mode] .ui-button.ui-button--glass.ui-button--ghost.relation-kind-menu__create,
+html[data-shell-mode] .ui-button.ui-button--glass.ui-button--ghost.relation-kind-menu__create:hover:not(:disabled) {
   color: hsl(var(--accent));
 }
 

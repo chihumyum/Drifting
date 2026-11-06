@@ -12,7 +12,6 @@ import {
 import { useZoomPanSurface } from './use-zoom-pan-surface';
 import { GhostIconButton } from '../../components/ui/GhostIconButton';
 import { BrushIcon } from '../../components/ui/BrushIcon';
-import { getPlatformRuntime } from '../../platform/runtime';
 
 /**
  * Fullscreen lightbox for an image or PDF. Materials themselves open as
@@ -76,25 +75,22 @@ export function LibraryItemFullscreenPreview({
     <MediaStageMessage message={t('memoMaterial.preview.noPdf')} />
   );
 
-  // Desktop: the desk comes up over the workspace and the media is the one
-  // lifted sheet, closed with a round glass button (or Esc, or a click).
-  const glass = !getPlatformRuntime().isMobileShell;
+  // The desk comes up over the workspace and the media is the one lifted
+  // sheet, closed with a round glass button (or Esc, or a click).
   return createPortal(
-    <div className={`material-lightbox${glass ? ' material-lightbox--desk' : ''}`} onClick={close}>
-      {glass && (
-        <GhostIconButton
-          glass="round"
-          size="lg"
-          className="material-lightbox__close"
-          icon={<BrushIcon name="close" />}
-          aria-label={t('common.close')}
-          title={t('common.close')}
-          onClick={(event) => {
-            event.stopPropagation();
-            close();
-          }}
-        />
-      )}
+    <div className="material-lightbox material-lightbox--desk" onClick={close}>
+      <GhostIconButton
+        glass="round"
+        size="lg"
+        className="material-lightbox__close"
+        icon={<BrushIcon name="close" />}
+        aria-label={t('common.close')}
+        title={t('common.close')}
+        onClick={(event) => {
+          event.stopPropagation();
+          close();
+        }}
+      />
       <div
         ref={setSurface}
         className="material-stage"

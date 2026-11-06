@@ -70,10 +70,9 @@ const node = (id: string, writingStatus: string) =>
     y: 0,
     storyline: { color: '#88a' },
   }) as unknown as PositionedNode;
-const laneRow = (glass: boolean) =>
+const laneRow = () =>
   renderToStaticMarkup(
     createElement(StoryGraphLaneRow, {
-      glass,
       lane,
       nodes: [node('a', 'finished'), node('b', 'draft'), node('c', 'finished')],
       chapterCount: 3,
@@ -91,7 +90,7 @@ const laneRow = (glass: boolean) =>
   );
 
 describe('Super View sand and glass acceptance', () => {
-  it('draws the desktop chip as clear glass with a sand dash and keeps the paper chip elsewhere', () => {
+  it('draws the glass chip as clear glass with a sand dash, on the phone too, and keeps the paper chip for old callers', () => {
     const on = chip();
     expect(on).toContain('class="ui-chip glass glass--rest glass--small"');
     expect(on).toContain('aria-pressed="true"');
@@ -102,13 +101,15 @@ describe('Super View sand and glass acceptance', () => {
     expect(chip({ dimmed: true, count: 0 })).toContain('is-empty');
     expect(chip({ count: 4 })).toContain('<span class="ui-chip__count">4</span>');
 
-    // Old callers and the paused mobile shell keep the paper chip.
+    // Old callers keep the paper chip; the phone draws the same glass chip.
     const paper = renderToStaticMarkup(createElement(FilterChip, { active: true }, '全部'));
     expect(paper).toContain('filter-chip filter-chip--pill');
     expect(paper).not.toContain('glass');
     const mobile = onMobile(() => chip({ drift: true }));
-    expect(mobile).toContain('filter-chip--drift-edge');
-    expect(mobile).not.toContain('ui-chip');
+    expect(mobile).toContain('class="ui-chip glass glass--rest glass--small"');
+    expect(mobile).toContain('kind-mark--drift');
+    expect(mobile).not.toContain('filter-chip');
+    expect(source('src/renderer/components/ui/FilterChip.tsx')).not.toContain('isMobileShell');
 
     const css = source('src/styles/ui-controls.css');
     for (const [selector, body] of rules(css, ['ui-chip', 'ui-word-toggle'])) {
@@ -123,19 +124,23 @@ describe('Super View sand and glass acceptance', () => {
     const mobile = onMobile(() =>
       renderToStaticMarkup(createElement(SuperViewHeader, { onBack: () => undefined })),
     );
-    expect(mobile).toContain('class="super-view-head__back"');
+    expect(mobile).toContain('class="super-view-head__back glass glass--rest glass--round"');
 
+    // One switch on every platform: the segmented switcher is gone.
     const switcher = source('src/renderer/shells/desktop/components/DesktopSuperViewHeader.tsx');
     expect(switcher).toContain('<GlassSlider');
-    expect(switcher).toContain('getPlatformRuntime().isMobileShell');
+    expect(switcher).not.toContain('isMobileShell');
+    expect(switcher).not.toContain('super-view-head__switcher');
     const relation = source('src/renderer/shells/desktop/components/DesktopSuperViewRelationControl.tsx');
     expect(relation).toContain('look="glass"');
-    expect(relation).toContain("'ui-word-toggle glass glass--rest glass--small'");
+    expect(relation).toContain('className="ui-word-toggle glass glass--rest glass--small"');
     expect(relation).not.toContain("'filter-chip--drift-edge'");
+    expect(relation).not.toContain('isMobileShell');
+    expect(relation).not.toContain('relation-kind-menu-trigger');
 
     const css = source('src/styles/super-view-header.css');
     expect(css).toContain(".super-view-head__hint {");
-    expect(css).toMatch(/html:not\(\[data-shell-mode='mobile'\]\) \.super-view-head__meta \{[^}]*text-transform: none;/);
+    expect(css).toMatch(/html\[data-shell-mode\] \.super-view-head__meta \{[^}]*text-transform: none;/);
   });
 
   it('slides the view switch glass across a Super View switch on the Review filter slider', async () => {
@@ -252,7 +257,7 @@ describe('Super View sand and glass acceptance', () => {
   });
 
   it('draws the story graph lanes as cells and the chapters as storyline glass', () => {
-    const desktop = laneRow(true);
+    const desktop = laneRow();
     expect(desktop).toContain('graph-rail-cell graph-rail-cell--glass');
     expect(desktop).toContain('sand-cell');
     expect(desktop).toContain('kind-mark--storyline');
@@ -261,21 +266,29 @@ describe('Super View sand and glass acceptance', () => {
     expect(desktop).toMatch(/class="graph-tile glass glass--rest is-link-source"/);
     expect(desktop).toContain('--glass-cc:#88a');
 
-    const mobile = laneRow(false);
-    expect(mobile).not.toContain('glass');
-    expect(mobile).toContain('graph-rail__name-dot');
+    // The phone draws the same lanes: no tinted tiles or name dots to fall back on.
+    const mobile = onMobile(() => laneRow());
+    expect(mobile).toBe(desktop);
+    expect(mobile).not.toContain('graph-rail__name-dot');
 
     const view = source('src/renderer/shells/desktop/views/DesktopStoryGraphView.tsx');
-    expect(view.match(/glass=\{!mobileShell\}/g)).toHaveLength(3);
+    expect(view).not.toContain('glass={!mobileShell}');
+    expect(view).toMatch(/<ActRail\s+key=\{projectId\}\s+glass\s/u);
+    expect(view).toMatch(/<TimelinePin\s[^>]*?\sglass\s/u);
     expect(view).toContain('{mobileShell && linkSource && !newEdgePair && (');
     expect(view).toContain('className="super-view-head__hint" role="status"');
     expect(view).toContain('<ModalRoot onClose={closeNewEdgeDialog}');
     expect(view).toContain('className="relation-pair"');
-    expect(view).toContain('strokeWidth={mobileShell ? (selected ? 2.4 : 1.8) : selected ? 2.2 : 1.5}');
+    // Every platform picks a new relation's type in the dialog shell.
+    expect(view).toContain('{newEdgePair && (() => {');
+    expect(view).not.toContain('graph-newedge');
+    expect(view).toContain('strokeWidth={selected ? 2.2 : 1.5}');
 
     const unplaced = source('src/renderer/features/graph/StoryGraphUnplacedChapters.tsx');
     expect(unplaced).toContain('className="menu-surface__item graph-head__unplaced-row"');
-    expect(unplaced).toContain("'ui-word-toggle glass glass--rest glass--small'");
+    expect(unplaced).toContain('className="ui-word-toggle glass glass--rest glass--small"');
+    expect(unplaced).not.toContain('graph-head__unplaced-chip-dot');
+    expect(unplaced).not.toContain('isMobileShell');
 
     const css = source('src/styles/graph-view.css');
     const desktopCss = css.slice(css.indexOf('Desktop (砂笔 + 素玻璃)'));
@@ -289,7 +302,10 @@ describe('Super View sand and glass acceptance', () => {
 
   it('turns the card popovers into the hover card\'s own card, the expanded editor a floating layer', () => {
     const shellSource = source('src/renderer/components/ui/EntityCardPopoverShell.tsx');
-    expect(shellSource).toContain("float ? 'entity-card-popover--float' : ''");
+    // The expanded editor floats on every platform: no bordered card, no dark scrim.
+    expect(shellSource).toContain("'entity-card-popover--float',");
+    expect(shellSource).toContain('<div className="entity-card-backdrop entity-card-backdrop--mist" />');
+    expect(shellSource).not.toContain('isMobileShell');
     expect(shellSource).toContain("['entity-card-popover--card', 'hover-card-surface', className]");
     // A chapter or drift card: the hover card's head, its summary on a slip, its two rows.
     const node = source('src/renderer/components/graph/NodeCardPopover.tsx');
@@ -297,11 +313,12 @@ describe('Super View sand and glass acceptance', () => {
     expect(node).toContain('<label className="hover-card__slip">{summaryField}</label>');
     expect(node).toContain("icon: { brush: 'arrow-forward' },");
     expect(node.match(/variant="primary"/g)).toHaveLength(1);
-    // The paused mobile shell's element popover keeps the field slip.
+    // The element popover writes on the field slip; neither card keeps a
+    // bordered fallback for the phone.
     const element = source('src/renderer/features/graph/ElementCardPopover.tsx');
     expect(element).toContain('className="entity-card__slip ui-field ui-field--area glass glass--rest glass--field"');
     expect(element.match(/variant="primary"/g)).toHaveLength(1);
-    for (const card of [node, element]) expect(card).toContain('getPlatformRuntime().isMobileShell');
+    for (const card of [node, element]) expect(card).not.toContain('isMobileShell');
     const css = source('src/styles/ui-controls.css');
     const float = rules(css, ['entity-card-popover--float', 'entity-card__head', 'entity-card__foot']);
     expect(float.length).toBeGreaterThan(0);
@@ -316,7 +333,7 @@ describe('Super View sand and glass acceptance', () => {
     expect(popover).toContain('<dl className="hover-card__kv">');
   });
 
-  it('draws the element overview in sand, its band kept for the paused mobile shell', () => {
+  it('draws the element overview in sand, its chapter band and touch gestures kept for the phone', () => {
     const view = source('src/renderer/shells/desktop/views/DesktopSuperElementView.tsx');
     expect(view).toContain("import '../../../../styles/super-element.css';");
     // The body arrives through a deferred entry whose CSS a production build never
@@ -350,7 +367,10 @@ describe('Super View sand and glass acceptance', () => {
     expect(view).toContain('look="glass"');
     expect(view).toContain('menu-surface menu-surface--rich menu-surface--panel entity-filter-popover');
     expect(view).toContain('<TodoStatusToggle');
-    expect(view.match(/mobileActions=\{mobileShell\}/g)).toHaveLength(2);
+    // Only behaviour asks for the touch screen: the library cards' explicit menus.
+    expect(view.match(/mobileActions=\{touchActions\}/g)).toHaveLength(2);
+    expect(view.match(/const touchActions = getPlatformRuntime\(\)\.isMobileShell;/g)).toHaveLength(2);
+    expect(view).not.toMatch(/\bmobileShell\b|LEGACY_/u);
 
     const css = source('src/styles/super-memo-material.css');
     expect(css).not.toMatch(/box-shadow|text-transform:\s*uppercase|background:\s*hsl\(var\(--ink-1\)\)|--accent/);
@@ -359,8 +379,9 @@ describe('Super View sand and glass acceptance', () => {
 
   it('shelves comments beside the TODOs and lets each rail be dragged wider into more columns', () => {
     const view = source('src/renderer/shells/desktop/views/DesktopSuperMemoMaterialView.tsx');
-    // The comment rail is desktop-only and sits between the TODOs and the library.
-    expect(view).toMatch(/<TodoRail[\s\S]*\{!mobileShell && \(\s*<CommentRail[\s\S]*<LibraryItemMain/);
+    // The comment rail sits between the TODOs and the library, on every platform.
+    expect(view).toMatch(/<TodoRail[\s\S]*<CommentRail[\s\S]*<LibraryItemMain/);
+    expect(view).not.toMatch(/!mobileShell && \(\s*<CommentRail/);
     // Review's own cards, grouped by what they are written on.
     expect(view).toContain('groupReviewItems(openNotes, groupData)');
     expect(view).toContain('<ReviewItemCard');
@@ -401,7 +422,7 @@ describe('Super View sand and glass acceptance', () => {
     expect(rule('.todo-card--glass .todo-card__header')).toContain('font: var(--ui-font-secondary, 9px)/1.2 var(--font-mono);');
     expect(rule('.todo-card--glass .todo-card__header')).not.toMatch(/uppercase|letter-spacing/);
     // ＋ 关联 is one text button on all three cards and in the right sidebar:
-    // the TODO card's own and the shared relation picker's on the desktop.
+    // the TODO card's own and the shared relation picker's, the phone's too.
     const controls = source('src/styles/ui-controls.css');
     const addButton = controls.match(/\n\.relation-add-button \{([^}]*)\}/)?.[1] ?? '';
     expect(addButton).toContain('font: var(--ui-font-caption, 11.5px) var(--font-sans);');
@@ -409,8 +430,9 @@ describe('Super View sand and glass acceptance', () => {
     expect(addButton).toContain('text-transform: none;');
     expect(source('src/renderer/features/library/TodoCard.tsx')).toContain('className="relation-add-button"');
     const picker = source('src/renderer/components/rightBars/EntityRelationPicker.tsx');
-    expect(picker).toContain("className={mobileShell ? 'entity-relation-picker__add' : 'entity-relation-picker__add relation-add-button'}");
-    expect(picker).toMatch(/style=\{mobileShell \? \{[^}]*dashed/);
+    expect(picker).toContain('className="entity-relation-picker__add relation-add-button"');
+    expect(picker).not.toContain('dashed');
+    expect(picker).not.toContain('isMobileShell');
     expect(cards).not.toContain('.todo-card__relate');
     expect(rule('.library-item-card__title')).toContain('font: 500 var(--ui-font-body, 13px)/1.35 var(--font-sans);');
     expect(rule('.library-item-card__meta')).toContain('font: var(--ui-font-secondary, 10px)/1.4 var(--font-mono);');

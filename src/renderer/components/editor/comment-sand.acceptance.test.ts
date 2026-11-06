@@ -13,12 +13,16 @@ function rule(css: string, selector: string): string {
   return css.slice(start, css.indexOf('}', start));
 }
 
-describe('sand in prose (desktop)', () => {
-  it('draws comment anchors in sand on the desktop and keeps the mobile wash', () => {
+describe('sand in prose', () => {
+  it('draws comment anchors in sand on every shell', () => {
     const mount = source('src/renderer/components/editor/CommentAnchorHighlights.tsx');
-    expect(mount).toMatch(/isMobileShell\s*\?\s*new CommentHighlightPainter\(scrollEl\)\s*:\s*new CommentSandPainter\(scrollEl\)/);
-    expect(mount).toContain('painter.update(comments, activeId, selected, pointed)');
-    expect(mount).toContain('painter.dispose()');
+    expect(mount).toContain('const painter = useMemo(() => (scrollEl ? new CommentSandPainter(scrollEl) : null), [scrollEl]);');
+    // The mobile wash painter is gone: no shell switch, no second painter.
+    expect(mount).not.toContain('isMobileShell');
+    expect(mount).not.toContain('CommentHighlightPainter');
+    expect(source('src/renderer/lib/comment-highlight.ts')).not.toContain('class CommentHighlightPainter');
+    expect(mount).toContain('painter?.update(comments, activeId, selected, pointed)');
+    expect(mount).toContain('painter?.dispose()');
     expect(mount).toContain('const presented = isVisible || isPreparing;');
   });
 
@@ -54,7 +58,7 @@ describe('sand in prose (desktop)', () => {
     expect(layer).toContain('user-select: none');
     // No stacking context, or the blend would see nothing beneath.
     expect(layer).not.toMatch(/z-index|contain:|opacity|isolation/);
-    expect(css).not.toContain(":root:not([data-shell-mode='mobile']) .editor__spread {");
+    expect(css).not.toContain(":root[data-shell-mode] .editor__spread {");
     const sand = rule(css, '.comment-sand');
     // Like pigment over the words: every word keeps its own colour.
     expect(sand).toContain('mix-blend-mode: var(--prose-sand-layer-blend)');
@@ -73,26 +77,29 @@ describe('sand in prose (desktop)', () => {
     expect(rule(css, ".comment-sand[data-state='hot'] .comment-sand__line::before")).toContain('opacity: 0');
     expect(rule(css, ".comment-sand[data-state='hot'] .comment-sand__line::after")).toContain('opacity: 1');
     expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s*\.comment-sand,\s*\.comment-sand__line::before,\s*\.comment-sand__line::after \{\s*transition: none;\s*animation: none;/);
-    // The mobile wash stays.
-    expect(css).toContain('::highlight(comment-hl-manual) {');
+    // The mobile wash is gone with its painter.
+    expect(css).not.toMatch(/::highlight\(comment-hl-/);
   });
 
   it('selects a comment from its card, its scroll tick or by writing it', () => {
     for (const path of ['src/renderer/features/comments/ReviewItemCard.tsx', 'src/renderer/features/library/TodoCard.tsx']) {
       const card = source(path);
-      expect(card, path).toMatch(/if \(sand\) selectCommentHighlight\(\w+\.id\);/);
-      expect(card, path).toContain('{ flash: !sand }');
+      expect(card, path).toMatch(/^\s*selectCommentHighlight\(\w+\.id\);$/m);
+      expect(card, path).toContain('{ flash: false }');
+      expect(card, path).not.toContain('flash: !sand');
     }
-    expect(source('src/renderer/components/editor/EditorScrollMarkers.tsx'))
-      .toContain("tick.key.startsWith('c:') && !getPlatformRuntime().isMobileShell");
-    expect(source('src/renderer/components/editor/EditorCommentComposer.tsx'))
-      .toContain('if (!getPlatformRuntime().isMobileShell) selectCommentHighlight(created.id);');
+    const markers = source('src/renderer/components/editor/EditorScrollMarkers.tsx');
+    expect(markers).toContain("if (tick.key.startsWith('c:')) selectCommentHighlight(tick.key.slice(2));");
+    expect(markers).not.toContain('isMobileShell');
+    const composer = source('src/renderer/components/editor/EditorCommentComposer.tsx');
+    expect(composer).toMatch(/^\s*selectCommentHighlight\(created\.id\);$/m);
+    expect(composer).not.toContain('isMobileShell');
     expect(source('src/renderer/lib/comment-sand.ts')).toContain('clearSelectedCommentHighlight()');
   });
 
   it('draws entity links with one dry underline in their colour', () => {
     const css = source('src/styles/index.css');
-    const link = rule(css, ":root:not([data-shell-mode='mobile']) .entity-link");
+    const link = rule(css, ":root[data-shell-mode] .entity-link");
     expect(link).toContain('var(--prose-sand-ul)');
     expect(link).toContain('box-decoration-break: clone');
     expect(link).toContain('mix-blend-mode: var(--prose-sand-blend)');
@@ -100,12 +107,12 @@ describe('sand in prose (desktop)', () => {
     expect(link).toContain('max(100%, 194px) 7px');
     // The cover turns to the page colour, so an isolated group shows nothing extra.
     expect(link).toContain('background-blend-mode: normal, var(--prose-sand-cover-blend), normal, normal');
-    expect(rule(css, ":root:not([data-shell-mode='mobile']) .entity-link:hover")).toContain('--prose-sand-a: 0.95');
-    expect(rule(css, ":root:not([data-shell-mode='mobile'])[data-entity-link-band-style='dots'] .entity-link"))
+    expect(rule(css, ":root[data-shell-mode] .entity-link:hover")).toContain('--prose-sand-a: 0.95');
+    expect(rule(css, ":root[data-shell-mode][data-entity-link-band-style='dots'] .entity-link"))
       .toContain('var(--prose-sand-ul-loose)');
-    expect(rule(css, ":root:not([data-shell-mode='mobile'])[data-entity-link-style='hover'] .entity-link"))
+    expect(rule(css, ":root[data-shell-mode][data-entity-link-style='hover'] .entity-link"))
       .toContain('--prose-sand-a: 0');
-    // The mobile band stays.
+    // The base band stays beneath the sand override.
     expect(rule(css, '.entity-link')).toContain('linear-gradient(');
   });
 

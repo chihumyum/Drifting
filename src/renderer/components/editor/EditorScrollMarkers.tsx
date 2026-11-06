@@ -7,7 +7,6 @@ import { useAgentEditStore } from '../../store/agent-edit-store';
 import { entityKey } from '../../lib/agent/tool-entity-ref';
 import { selectCommentHighlight } from '../../lib/comment-highlight';
 import { flashBlock } from '../../lib/scroll-to-block';
-import { getPlatformRuntime } from '../../platform/runtime';
 import { isProseEntityType } from '../../lib/yjs-doc-id';
 import { useEditorSurfaceLifecycle } from './editor-surface-lifecycle-context';
 import { createAgentMarkerSelector, createCommentMarkerSelector, EMPTY_SCROLL_MARKERS, scrollMarkerBlockSelector, scrollMarkerSeal, type ScrollMarkerTick } from './scroll-marker-model';
@@ -76,8 +75,8 @@ export function EditorScrollMarkers({ scrollEl, projectId, targetKind, targetId 
       .filter((element): element is HTMLElement => element !== null);
     if (!blocks.length) return;
     blocks[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
-    // On the desktop a comment's anchor is drawn again in sand instead of flashing its blocks.
-    if (tick.key.startsWith('c:') && !getPlatformRuntime().isMobileShell) selectCommentHighlight(tick.key.slice(2));
+    // A comment's anchor is drawn again in sand instead of flashing its blocks.
+    if (tick.key.startsWith('c:')) selectCommentHighlight(tick.key.slice(2));
     else blocks.forEach(flashBlock);
   };
   if (!ticks.length && !shown.leaving.length) return null;

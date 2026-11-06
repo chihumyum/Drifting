@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, type CSSProperties, type ReactNode } from 'react';
-import { getPlatformRuntime } from '../../platform/runtime';
 
 /** The system colour picker shared by preferences and entity editors. */
 export function ColorPicker({
@@ -21,7 +20,6 @@ export function ColorPicker({
   const inputRef = useRef<HTMLInputElement>(null);
   const swatchRef = useRef<HTMLSpanElement>(null);
   const hex = /^#[0-9a-f]{6}$/i.test(value) ? value.toLowerCase() : null;
-  const desktop = !getPlatformRuntime().isMobileShell;
 
   const prepareColor = useCallback(() => {
     const input = inputRef.current;
@@ -50,7 +48,6 @@ export function ColorPicker({
   const input = (
     <input
       ref={inputRef}
-      className={desktop ? undefined : 'set-color-picker__input'}
       type="color"
       defaultValue={hex ?? '#000000'}
       aria-label={ariaLabel}
@@ -62,17 +59,15 @@ export function ColorPicker({
   return (
     <span
       ref={swatchRef}
-      className={desktop ? 'set-color' : 'set-color-picker'}
+      className="set-color"
       style={{ color: value }}
     >
-      {desktop ? (
-        <label className="ui-swatch glass glass--rest glass--round">
-          {mark ?? <i className="sand sand--blob-2" style={{ '--sand-c': value } as CSSProperties} />}
-          {input}
-        </label>
-      ) : input}
+      <label className="ui-swatch glass glass--rest glass--round">
+        {mark ?? <i className="sand sand--blob-2" style={{ '--sand-c': value } as CSSProperties} />}
+        {input}
+      </label>
       {showValue && (
-        <span className={desktop ? 'ui-swatch__value' : 'set-color-picker__value'}>
+        <span className="ui-swatch__value">
           {hex?.toUpperCase() ?? ariaLabel}
         </span>
       )}

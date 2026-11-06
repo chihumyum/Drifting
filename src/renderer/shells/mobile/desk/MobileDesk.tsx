@@ -399,6 +399,7 @@ export function MobileDesk({ projectId }: { projectId: string }) {
 
         {desk.writing && writing.editor && !writing.editor.isDestroyed && (
           <MobileKeyboardBar
+            projectId={projectId}
             editor={writing.editor}
             mode={desk.keyboardBar}
             keyboardInset={writing.keyboardInset}

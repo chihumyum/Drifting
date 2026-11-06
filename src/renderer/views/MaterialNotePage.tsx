@@ -27,7 +27,6 @@ import { useStoredLibraryItemVariant } from '../features/library/library-item-me
 import { useNoteTodoLinks } from './note-todo-links';
 import { NoteFloatingBar } from './NoteFloatingBar';
 import { Button } from '../components/ui/Button';
-import { getPlatformRuntime } from '../platform/runtime';
 
 const log = loglevel.getLogger('MaterialNotePage');
 log.setLevel(loglevel.levels.ERROR);
@@ -276,15 +275,9 @@ function MaterialEmbedPicker({
         <ModalHeader title={t('materialEditor.embed.pickerTitle')} onClose={onClose} closeLabel={t('common.close')} />
         <ModalBody>
           <div className="note-embed-picker">
-            {getPlatformRuntime().isMobileShell ? (
-              <button type="button" className="note-embed-picker__import" disabled={importing} onClick={() => void importFile()}>
-                {importing ? t('materialEditor.embed.importing') : t('materialEditor.embed.importFile')}
-              </button>
-            ) : (
-              <Button size="sm" className="note-embed-picker__import-button" disabled={importing} onClick={() => void importFile()}>
-                {importing ? t('materialEditor.embed.importing') : t('materialEditor.embed.importFile')}
-              </Button>
-            )}
+            <Button size="sm" className="note-embed-picker__import-button" disabled={importing} onClick={() => void importFile()}>
+              {importing ? t('materialEditor.embed.importing') : t('materialEditor.embed.importFile')}
+            </Button>
             {error && <div className="note-embed-picker__error">{error}</div>}
             {media.length === 0 ? (
               <div className="note-embed-picker__empty">{t('materialEditor.embed.empty')}</div>
@@ -305,12 +298,11 @@ function MaterialEmbedPicker({
 function EmbedPickerTile({ item, onPick }: { item: LibraryItem; onPick: () => void }) {
   const { t } = useTranslation();
   const thumbnail = useStoredLibraryItemVariant(item, 'thumbnail');
-  // Desktop: a card with the resting line of glass, no fill.
-  const glass = !getPlatformRuntime().isMobileShell;
+  // A card with the resting line of glass, no fill.
   return (
     <button
       type="button"
-      className={`note-embed-picker__tile${glass ? ' note-embed-picker__tile--glass glass glass--rest' : ''}`}
+      className="note-embed-picker__tile note-embed-picker__tile--glass glass glass--rest"
       onClick={onPick}
     >
       {thumbnail.fileUrl ? <img src={thumbnail.fileUrl} alt="" draggable={false} /> : <span>{t(`memoMaterial.kind.${item.kind}`)}</span>}

@@ -550,7 +550,6 @@
       "writeEmail": "メールを作成",
       "submitFeedback": "フィードバックを送る",
       "submitFeedbackDesc": "機密情報を除いた診断概要を添付できます。原稿は含みません。",
-      "submitFeedbackMailDesc": "空のメールを開きます。Driftingは原稿の内容を自動添付しません。",
       "feedback": "フィードバック…",
       "tagline": "夜更けまで書き続ける人へ。"
     },
@@ -995,7 +994,6 @@
     "firstChapter": "最初の章を書く"
   },
   "virtualChapterRow": {
-    "chapter": "章",
     "chapterNumber": "第{{n}}章"
   },
   "editorOutline": {
@@ -1054,17 +1052,11 @@
   },
   "trashPanel": {
     "noProject": "先に作品を開いてください。",
-    "title": "ごみ箱",
     "retention": "削除するまでローカルに保存",
     "clear": "ごみ箱を空にする",
     "empty": "ごみ箱は空です。",
     "confirmPurge": "「{{label}}」を完全に削除しますか？取り消せません。",
     "confirmPurgeAll": "ごみ箱を空にしますか？全{{count}}件を完全に削除します。取り消せません。",
-    "columns": {
-      "type": "種類",
-      "name": "名前",
-      "deletedAt": "削除日時"
-    },
     "restore": "復元",
     "purgeNow": "今すぐ削除",
     "restoreFailed": "復元に失敗：{{error}}",
@@ -1445,7 +1437,6 @@
       "description": "汎用Agentの全チャットで共有する最近の重要な作業背景です。古い情報は自動圧縮・忘却されます。",
       "loading": "作業記憶を読み込み中…",
       "edit": "編集",
-      "preview": "プレビュー",
       "clear": "消去",
       "create": "作業記憶を作成",
       "editorLabel": "WORKING_MEMORY.mdを編集",
@@ -2566,7 +2557,6 @@
       "outgoing": "参照"
     },
     "actions": {
-      "add": "追加",
       "remove": "関係を削除",
       "jump": "このエンティティへ移動",
       "linkEntity": "エンティティをリンク"
@@ -2864,7 +2854,6 @@
   "superElement": {
     "title": "要素一覧",
     "meta": "{{categories}}カテゴリ・{{elements}}要素",
-    "linkHint": "2つ目の要素または章を選択 · Esc でキャンセル",
     "linkHintFrom": "始点",
     "linkHintTo": "終点…2つ目の要素または章を選択。Esc でキャンセル",
     "focusOffTitle": "フォーカスをオフにして、すべての関係線を表示",
@@ -2944,7 +2933,6 @@
     "empty": {
       "noStorylines": "ストーリーラインはまだありません",
       "noCategories": "要素のカテゴリはまだありません",
-      "categoryEmpty": "空",
       "categoryNoElements": "要素はまだありません"
     }
   },
@@ -2957,7 +2945,6 @@
     "expand": "編集を展開",
     "openFullTitle": "フルエディターへ移動",
     "openInEditor": "エディターで開く",
-    "compactEdit": "コンパクト編集",
     "collapseTitle": "カードに折りたたむ",
     "collapse": "折りたたむ",
     "fullEditor": "フルエディター",
@@ -3484,7 +3471,6 @@
       "drawHint": "画像上をドラッグして範囲を指定",
       "compose": "範囲のコメント",
       "placeholder": "この部分について…（{{shortcut}} で保存）",
-      "asTodo": "TODO にする",
       "save": "保存",
       "kindLabel": "コメントの種類",
       "kindNote": "コメント",

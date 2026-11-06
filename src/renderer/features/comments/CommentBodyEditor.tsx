@@ -1,7 +1,6 @@
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../../components/ui/Button';
-import { getPlatformRuntime } from '../../platform/runtime';
 
 export function CommentBodyEditor({
   text,
@@ -19,9 +18,8 @@ export function CommentBodyEditor({
   const [saving, setSaving] = useState(false);
   const [failed, setFailed] = useState(false);
   const savingRef = useRef(false);
-  // Desktop: the text sits on a page-coloured slip (the Agent composer's
-  // field glass) and save is the primary glass; mobile keeps its old save.
-  const glass = !getPlatformRuntime().isMobileShell;
+  // The text sits on a page-coloured slip (the Agent composer's field glass)
+  // and save is the primary glass.
   const field = (
     <textarea
       autoFocus
@@ -73,13 +71,13 @@ export function CommentBodyEditor({
         }
       }}
     >
-      {glass ? <div className="review-card__slip glass glass--rest glass--field">{field}</div> : field}
+      <div className="review-card__slip glass glass--rest glass--field">{field}</div>
       {failed && <div role="alert">{t('common.saveFailed')}</div>}
       <div className="review-card__editor-actions">
         <Button size="sm" variant="ghost" disabled={saving} onClick={onClose}>
           {t('common.cancel')}
         </Button>
-        <Button size="sm" variant={glass ? 'primary' : 'default'} disabled={!draft.trim() || busy || saving} onClick={() => void save()}>
+        <Button size="sm" variant="primary" disabled={!draft.trim() || busy || saving} onClick={() => void save()}>
           {t(saving ? 'common.saving' : 'common.save')}
         </Button>
       </div>

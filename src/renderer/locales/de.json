@@ -550,7 +550,6 @@
       "writeEmail": "E-Mail schreiben",
       "submitFeedback": "Feedback senden",
       "submitFeedbackDesc": "Kann eine bereinigte Diagnosezusammenfassung enthalten, niemals Manuskripttext.",
-      "submitFeedbackMailDesc": "Öffnet eine leere E-Mail. Drifting fügt keinen Manuskriptkontext automatisch hinzu.",
       "feedback": "Feedback…",
       "tagline": "Für Schreibende, die bis tief in die Nacht wach bleiben."
     },
@@ -995,7 +994,6 @@
     "firstChapter": "Das erste Kapitel schreiben"
   },
   "virtualChapterRow": {
-    "chapter": "Kapitel",
     "chapterNumber": "Kapitel {{n}}"
   },
   "editorOutline": {
@@ -1054,17 +1052,11 @@
   },
   "trashPanel": {
     "noProject": "Öffne zuerst ein Projekt.",
-    "title": "Papierkorb",
     "retention": "Bleibt lokal, bis du es löschst",
     "clear": "Papierkorb leeren",
     "empty": "Der Papierkorb ist leer.",
     "confirmPurge": "„{{label}}“ endgültig löschen? Dies kann nicht rückgängig gemacht werden.",
     "confirmPurgeAll": "Papierkorb leeren? Alle {{count}} Einträge werden endgültig gelöscht. Dies kann nicht rückgängig gemacht werden.",
-    "columns": {
-      "type": "Typ",
-      "name": "Name",
-      "deletedAt": "Gelöscht am"
-    },
     "restore": "Wiederherstellen",
     "purgeNow": "Jetzt löschen",
     "restoreFailed": "Wiederherstellung fehlgeschlagen: {{error}}",
@@ -1445,7 +1437,6 @@
       "description": "Aktueller wichtiger Arbeitskontext für alle Chats des allgemeinen Agent. Älterer Kontext wird automatisch verdichtet oder vergessen.",
       "loading": "Arbeitsgedächtnis wird geladen…",
       "edit": "Bearbeiten",
-      "preview": "Vorschau",
       "clear": "Leeren",
       "create": "Arbeitsgedächtnis erstellen",
       "editorLabel": "WORKING_MEMORY.md bearbeiten",
@@ -2566,7 +2557,6 @@
       "outgoing": "Referenzen"
     },
     "actions": {
-      "add": "Hinzufügen",
       "remove": "Beziehung entfernen",
       "jump": "Zu dieser Entität springen",
       "linkEntity": "Entität verknüpfen"
@@ -2864,7 +2854,6 @@
   "superElement": {
     "title": "Elementübersicht",
     "meta": "{{categories}} Kategorien · {{elements}} Elemente",
-    "linkHint": "Zweites Element oder Kapitel wählen · Esc bricht ab",
     "linkHintFrom": "Von",
     "linkHintTo": "zu… zweites Element oder Kapitel wählen, Esc bricht ab",
     "focusOffTitle": "Fokus ausschalten und alle Beziehungslinien anzeigen",
@@ -2944,7 +2933,6 @@
     "empty": {
       "noStorylines": "Noch keine Handlungsstränge",
       "noCategories": "Noch keine Elementkategorien",
-      "categoryEmpty": "Leer",
       "categoryNoElements": "Noch keine Elemente"
     }
   },
@@ -2957,7 +2945,6 @@
     "expand": "Bearbeitung erweitern",
     "openFullTitle": "Zum vollständigen Editor springen",
     "openInEditor": "Im Editor öffnen",
-    "compactEdit": "Kompakte Bearbeitung",
     "collapseTitle": "Zur Karte einklappen",
     "collapse": "Einklappen",
     "fullEditor": "Vollständiger Editor",
@@ -3484,7 +3471,6 @@
       "drawHint": "Über das Bild ziehen, um einen Bereich zu markieren",
       "compose": "Bereichskommentar",
       "placeholder": "Gedanken zu diesem Teil? ({{shortcut}} zum Speichern)",
-      "asTodo": "Als Aufgabe",
       "save": "Speichern",
       "kindLabel": "Kommentartyp",
       "kindNote": "Kommentar",

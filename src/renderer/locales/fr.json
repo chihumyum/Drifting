@@ -552,7 +552,6 @@
       "writeEmail": "Rédiger un e-mail",
       "submitFeedback": "Envoyer un retour",
       "submitFeedbackDesc": "Peut inclure un diagnostic expurgé, jamais le texte du manuscrit.",
-      "submitFeedbackMailDesc": "Ouvre un e-mail vide. Drifting ne joint pas automatiquement de contexte du manuscrit.",
       "feedback": "Votre avis…",
       "tagline": "Pour celles et ceux qui écrivent au cœur de la nuit."
     },
@@ -998,7 +997,6 @@
     "firstChapter": "Écrire le premier chapitre"
   },
   "virtualChapterRow": {
-    "chapter": "Chapitre",
     "chapterNumber": "Chapitre {{n}}"
   },
   "editorOutline": {
@@ -1057,17 +1055,11 @@
   },
   "trashPanel": {
     "noProject": "Ouvrez d’abord un projet.",
-    "title": "Corbeille",
     "retention": "Conservé en local jusqu’à suppression",
     "clear": "Vider la corbeille",
     "empty": "La corbeille est vide.",
     "confirmPurge": "Supprimer définitivement « {{label}} » ? Cette action est irréversible.",
     "confirmPurgeAll": "Vider la corbeille ? Les {{count}} éléments seront supprimés définitivement, sans retour possible.",
-    "columns": {
-      "type": "Type",
-      "name": "Nom",
-      "deletedAt": "Date de suppression"
-    },
     "restore": "Restaurer",
     "purgeNow": "Supprimer maintenant",
     "restoreFailed": "Échec de restauration : {{error}}",
@@ -1449,7 +1441,6 @@
       "description": "Contexte de travail récent et pertinent partagé par toutes les conversations d’Agent général. L’ancien contexte est condensé ou oublié automatiquement.",
       "loading": "Chargement de la mémoire de travail…",
       "edit": "Modifier",
-      "preview": "Aperçu",
       "clear": "Effacer",
       "create": "Créer la mémoire de travail",
       "editorLabel": "Modifier WORKING_MEMORY.md",
@@ -2577,7 +2568,6 @@
       "outgoing": "Références"
     },
     "actions": {
-      "add": "Ajouter",
       "remove": "Retirer la relation",
       "jump": "Aller à cette entité",
       "linkEntity": "Lier une entité"
@@ -2875,7 +2865,6 @@
   "superElement": {
     "title": "Vue des éléments",
     "meta": "{{categories}} catégories · {{elements}} éléments",
-    "linkHint": "Choisissez un second élément ou chapitre · Échap pour annuler",
     "linkHintFrom": "De",
     "linkHintTo": "vers… choisissez un second élément ou chapitre, Échap pour annuler",
     "focusOffTitle": "Désactiver le focus et afficher toutes les lignes de relation",
@@ -2955,7 +2944,6 @@
     "empty": {
       "noStorylines": "Aucune intrigue pour le moment",
       "noCategories": "Aucune catégorie d’éléments pour le moment",
-      "categoryEmpty": "Vide",
       "categoryNoElements": "Aucun élément pour le moment"
     }
   },
@@ -2968,7 +2956,6 @@
     "expand": "Développer l’édition",
     "openFullTitle": "Aller à l’éditeur complet",
     "openInEditor": "Ouvrir dans l’éditeur",
-    "compactEdit": "Édition compacte",
     "collapseTitle": "Réduire en fiche",
     "collapse": "Réduire",
     "fullEditor": "Éditeur complet",
@@ -3499,7 +3486,6 @@
       "drawHint": "Faites glisser sur l’image pour marquer une zone",
       "compose": "Commentaire de zone",
       "placeholder": "Qu’en pensez-vous ? ({{shortcut}} pour enregistrer)",
-      "asTodo": "En tant que tâche",
       "save": "Enregistrer",
       "kindLabel": "Type de commentaire",
       "kindNote": "Commentaire",

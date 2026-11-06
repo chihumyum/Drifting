@@ -23,12 +23,17 @@ describe('comment anchor highlight acceptance', () => {
     expect(book).toContain('ref={attachScroll}');
   });
 
-  it('paints without DOM mutation and releases hidden surfaces', () => {
-    const painter = source('src/renderer/lib/comment-highlight.ts');
+  it('paints without touching the prose and releases hidden surfaces', () => {
+    // Every shell draws anchors in sand on a layer of its own after the page
+    // (lib/comment-sand.ts); the flat ::highlight() painter is gone.
+    const painter = source('src/renderer/lib/comment-sand.ts');
     const mount = source('src/renderer/components/editor/CommentAnchorHighlights.tsx');
-    expect(painter).toContain('CSS.highlights');
-    expect(painter).not.toMatch(/classList|setAttribute|Decoration\./);
-    expect(painter).toContain('this.observer?.disconnect()');
+    expect(source('src/renderer/lib/comment-highlight.ts')).not.toContain('CSS.highlights');
+    expect(painter).not.toMatch(/classList|Decoration\./);
+    expect(painter).toContain("layer.setAttribute('aria-hidden', 'true');");
+    expect(painter).toContain('this.mutation?.disconnect();');
+    expect(painter).toContain('for (const host of this.hosts.values()) host.layer.remove();');
+    expect(mount).toContain('new CommentSandPainter(scrollEl)');
     expect(mount).toContain('const presented = isVisible || isPreparing;');
     expect(mount).not.toContain('visibleCommentIds');
   });
@@ -39,17 +44,10 @@ describe('comment anchor highlight acceptance', () => {
     expect(card).toContain('clearActiveCommentHighlight(comment.id)');
   });
 
-  it('styles resting washes and stronger hover overlays as background only', () => {
+  it('keeps no flat ::highlight() washes for comment anchors', () => {
     const css = source('src/styles/comments-review.css');
-    for (const name of ['comment-hl-manual', 'comment-hl-todo', 'comment-hl-manual-active',
-      'comment-hl-copilot-active', 'comment-hl-todo-active']) {
-      const start = css.indexOf(`::highlight(${name}) {`);
-      expect(start).toBeGreaterThanOrEqual(0);
-      const rule = css.slice(start, css.indexOf('}', start));
-      expect(rule).toContain('background-color:');
-      expect(rule).not.toMatch(/border|box-shadow/);
-    }
-    expect(css).not.toContain('::highlight(comment-hl-copilot) {');
+    expect(css).not.toMatch(/::highlight\(comment-hl-/);
+    expect(css).toContain('.comment-sand-layer');
   });
 
   it('documents the anchor contract with the paper comment toggle', () => {

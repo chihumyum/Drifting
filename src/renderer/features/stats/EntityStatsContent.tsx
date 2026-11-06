@@ -436,11 +436,7 @@ function ChapterStats({
 
 /** Manual-pick chapter statuses, in stacked-bar order (most → least done). */
 const STORYLINE_STATUS_ORDER = ['finished', 'draft'] as const;
-const STORYLINE_STATUS_OPACITY: Record<(typeof STORYLINE_STATUS_ORDER)[number], number> = {
-  finished: 1,
-  draft: 0.18,
-};
-/** Desktop sand: a finished chapter is a loaded stroke, a draft a dry one. */
+/** Sand: a finished chapter is a loaded stroke, a draft a dry one. */
 const STORYLINE_STATUS_DENSITY: Record<(typeof STORYLINE_STATUS_ORDER)[number], 'dry' | undefined> = {
   finished: undefined,
   draft: 'dry',
@@ -511,7 +507,6 @@ function StorylineStats({
                   key: s,
                   pct: (n / activeTotal) * 100,
                   color: storyline.color,
-                  opacity: STORYLINE_STATUS_OPACITY[s],
                   density: STORYLINE_STATUS_DENSITY[s],
                   title: t('rightSidebar.stats.statusCount', {
                     status: getWritingStatusLabel(s, t),

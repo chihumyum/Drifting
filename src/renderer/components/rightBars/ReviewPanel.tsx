@@ -24,7 +24,6 @@ import type { FocusedEntity } from '../../features/library/LibraryPanel';
 import { useWorkspaceNavigator } from '../../features/workspace/navigation/WorkspaceNavigationContext';
 import { KindMark } from '../ui/KindMark';
 import { kindMarkOfTarget } from '../ui/kind-mark';
-import { getPlatformRuntime } from '../../platform/runtime';
 import { useAuthStore } from '../../store/auth';
 import { useDataStore } from '../../store/data-store';
 import { type ReviewGroupMode, type ReviewScope, type ReviewSortMode } from '../../store/ui-store';
@@ -73,9 +72,7 @@ export function ReviewPanel({ focused, onOpenAgentTask, onOpenWorkbench }: Revie
   const bookElementCategories = useDataStore((state) => state.bookElementCategories);
   const libraryItems = useDataStore((state) => state.libraryItems);
   const primaryStorylineByNode = useDataStore((state) => state.primaryStorylineByNode);
-  // Desktop group marks carry their thing's colour, as in the left sidebar;
-  // the paused mobile shell keeps them in neutral ink.
-  const glass = !getPlatformRuntime().isMobileShell;
+  // Group marks carry their thing's colour, as in the left sidebar.
   const groupData = useMemo<ReviewGroupData>(
     () => ({ bookNodes, bookElements, storylines, bookElementCategories, libraryItems }),
     [bookElementCategories, bookElements, bookNodes, libraryItems, storylines],
@@ -263,7 +260,7 @@ export function ReviewPanel({ focused, onOpenAgentTask, onOpenWorkbench }: Revie
         ? <KindMark
             kind={kindMarkOfTarget(group.targetKind, named?.isDrift)}
             seed={group.targetId ?? ''}
-            color={glass && group.targetId
+            color={group.targetId
               ? reviewTargetColor(groupData, primaryStorylineByNode, group.targetKind, group.targetId)
               : 'hsl(var(--ink-3))'}
           />
@@ -272,7 +269,7 @@ export function ReviewPanel({ focused, onOpenAgentTask, onOpenWorkbench }: Revie
     const toggle = () =>
       setCollapsedGroups(collapsed ? collapsedGroups.filter((key) => key !== collapseKey) : [...collapsedGroups, collapseKey]);
     return (
-      <div key={collapseKey} className={`review-group${glass ? ' review-group--glass' : ''}`}>
+      <div key={collapseKey} className="review-group review-group--glass">
         <div className="review-group__header">
           <button
             type="button"
@@ -404,18 +401,18 @@ export function ReviewPanel({ focused, onOpenAgentTask, onOpenWorkbench }: Revie
           <EmptyState
             density="compact"
             message={t('reviewPanel.empty')}
-            hints={glass ? [emptyHints.todo] : undefined}
+            hints={[emptyHints.todo]}
           />
         )}
         {renderItems(openItems, 'open')}
         {resolvedItems.length > 0 && (
           <details
-            className={`review-panel__resolved${glass ? ' review-panel__resolved--glass' : ''}`}
+            className="review-panel__resolved review-panel__resolved--glass"
             open={resolvedExpanded}
             onToggle={(event) => setResolvedExpanded(event.currentTarget.open)}
           >
             <summary>
-              {glass && <BrushIcon name="chevron-right" size={11} className="review-panel__resolved-chevron" />}
+              <BrushIcon name="chevron-right" size={11} className="review-panel__resolved-chevron" />
               {t('reviewPanel.resolved', { count: resolvedItems.length })}
             </summary>
             <div className="review-panel__resolved-list">{renderItems(resolvedItems, 'resolved')}</div>

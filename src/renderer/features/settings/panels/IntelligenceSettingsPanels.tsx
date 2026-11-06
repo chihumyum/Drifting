@@ -18,130 +18,67 @@ import {
   SettingsSectionHeader,
   type SettingsRegisterRef,
 } from '../SettingsPrimitives';
-import { settingsOnDesktop } from '../settings-on-desktop';
 import { BrushIcon } from '../../../components/ui/BrushIcon';
 
 /**
- * One way to reach a model or a transcriber. On the desktop it is a flat row
- * (components.md, provider connection row): a seal, solid while connected and
- * hollow while not, the name, where the credential comes from in index type,
- * the description, and the actions on a line below. The paused mobile shell
- * keeps the bordered card with its brand tile and status dot.
+ * One way to reach a model or a transcriber: a flat row (components.md,
+ * provider connection row): a seal, solid while connected and hollow while
+ * not, the name, where the credential comes from in index type, the
+ * description, and the actions on a line below.
  */
 function ProviderShell({
   name,
   desc,
-  logoClass,
-  logoText,
   live,
-  chip,
   source,
-  body,
   detail,
   actions,
 }: {
   name: string;
   desc: string;
-  logoClass: string;
-  logoText: string;
   live: boolean;
-  /** Mobile: the chip after the name. */
-  chip: string;
-  /** Desktop: where the credential comes from (Keychain, .ENV (DEV), not connected). */
+  /** Where the credential comes from (Keychain, .ENV (DEV), not connected). */
   source: string;
-  /** Mobile: the credential line under the head. */
-  body?: { label: string; value: ReactNode } | null;
-  /** Desktop: a line between the description and the actions (a device code). */
+  /** A line between the description and the actions (a device code). */
   detail?: ReactNode;
   actions: ReactNode;
 }) {
-  if (settingsOnDesktop()) {
-    return (
-      <div className="set-provider-line">
-        {/* The chapter's round seal; hollow like a chapter not yet begun. */}
-        <span
-          className={`set-provider-line__seal kind-mark kind-mark--chapter${live ? '' : ' kind-mark--hollow'}`}
-          style={{ '--sand-c': 'hsl(var(--ink-2))' } as CSSProperties}
-          aria-hidden="true"
-        >
-          <i className="sand sand--blob-2" />
-        </span>
-        <span className="set-provider-line__name">{name}</span>
-        <span className="set-provider-line__source">{source}</span>
-        <div className="set-provider-line__desc">{desc}</div>
-        {detail && <div className="set-provider-line__row">{detail}</div>}
-        {actions && <div className="set-provider-line__row">{actions}</div>}
-      </div>
-    );
-  }
   return (
-    <div className={'set-provider' + (live ? ' set-provider--connected' : ' set-provider--disconnected')}>
-      <div className="set-provider__head">
-        <div className={`set-provider__logo ${logoClass}`}>{logoText}</div>
-        <div className="set-provider__main">
-          <div className="set-provider__name">
-            <b>{name}</b>
-            <em className={live ? 'is-byok' : ''}>{chip}</em>
-          </div>
-          <div className="set-provider__desc">{desc}</div>
-        </div>
-        <div className={'set-provider__status ' + (live ? 'set-provider__status--live' : 'set-provider__status--off')}>
-          <span className="set-provider__status-dot" />
-          {live ? 'CONNECTED' : 'OFFLINE'}
-        </div>
-      </div>
-      {body && (
-        <div className="set-provider__body">
-          <div className="set-provider__body-inner">
-            <span className="set-provider__k">{body.label}</span>
-            <span className="set-provider__v">{body.value}</span>
-          </div>
-        </div>
-      )}
-      <div className="set-provider__actions">{actions}</div>
+    <div className="set-provider-line">
+      {/* The chapter's round seal; hollow like a chapter not yet begun. */}
+      <span
+        className={`set-provider-line__seal kind-mark kind-mark--chapter${live ? '' : ' kind-mark--hollow'}`}
+        style={{ '--sand-c': 'hsl(var(--ink-2))' } as CSSProperties}
+        aria-hidden="true"
+      >
+        <i className="sand sand--blob-2" />
+      </span>
+      <span className="set-provider-line__name">{name}</span>
+      <span className="set-provider-line__source">{source}</span>
+      <div className="set-provider-line__desc">{desc}</div>
+      {detail && <div className="set-provider-line__row">{detail}</div>}
+      {actions && <div className="set-provider-line__row">{actions}</div>}
     </div>
   );
 }
 
 /** A connection test's answer, or a sign-in failure. */
 function ProviderResult({ tone, children }: { tone: 'ok' | 'error' | 'muted'; children: ReactNode }) {
-  if (settingsOnDesktop()) {
-    return (
-      <span className={`set-provider-result${tone === 'error' ? ' set-provider-result--error' : ''}`}>
-        {tone !== 'muted' && <BrushIcon name={tone === 'ok' ? 'check' : 'status-stopped'} size={13} />}
-        {children}
-      </span>
-    );
-  }
-  const color = tone === 'ok' ? '#2e7d52' : tone === 'error' ? '#c0392b' : 'hsl(var(--ink-4))';
   return (
-    <span className="set-mono" style={{ color }}>
-      {tone !== 'muted' && <BrushIcon name={tone === 'ok' ? 'check' : 'status-stopped'} size={11} inline />}{' '}
+    <span className={`set-provider-result${tone === 'error' ? ' set-provider-result--error' : ''}`}>
+      {tone !== 'muted' && <BrushIcon name={tone === 'ok' ? 'check' : 'status-stopped'} size={13} />}
       {children}
     </span>
   );
 }
 
-/** The mobile card's key line: the mask and where the key lives. */
-function maskedKey(source: string) {
-  return (
-    <>
-      <code>••••••••••••</code>
-      <span className="set-mono" style={{ color: 'hsl(var(--ink-4))' }}>
-        {source}
-      </span>
-    </>
-  );
-}
-
 function KeyField({ name, value, onChange }: { name: string; value: string; onChange: (next: string) => void }) {
   const { t } = useTranslation();
-  const desktop = settingsOnDesktop();
   return (
     <SettingsField
       mono
-      small={desktop}
-      style={desktop ? { width: 250 } : { minWidth: 320 }}
+      small
+      style={{ width: 250 }}
       placeholder={t('settings.byokProvider.keyPlaceholder')}
       aria-label={`${name} API Key`}
       value={value}
@@ -154,15 +91,11 @@ function KeyField({ name, value, onChange }: { name: string; value: string; onCh
 function ProviderRow({
   credentialsActive,
   provider,
-  logoClass,
-  logoText,
   name,
   desc,
 }: {
   credentialsActive: boolean;
   provider: BYOKProvider;
-  logoClass: string;
-  logoText: string;
   name: string;
   desc: string;
 }) {
@@ -177,7 +110,6 @@ function ProviderRow({
   const [loading, setLoading] = useState(true);
   const agentProvider = useSettingsStore((state) => state.agentProvider);
   const agentModel = useSettingsStore((state) => state.agentModel);
-  const desktop = settingsOnDesktop();
 
   // Settings needs existence only. On macOS this is an attribute-only native
   // query, so merely scrolling this panel into view never asks to decrypt keys.
@@ -255,27 +187,17 @@ function ProviderRow({
     <ProviderShell
       name={name}
       desc={desc}
-      logoClass={logoClass}
-      logoText={logoText}
       live={live}
-      chip={live ? t('settings.byokProvider.ownKey') : t('settings.byokProvider.notConnected')}
       source={live ? (connected ? 'Keychain' : '.ENV (DEV)') : t('settings.byokProvider.notConnected')}
-      body={
-        editing
-          ? { label: 'API Key', value: keyField }
-          : live
-            ? { label: 'API Key', value: maskedKey(connected ? '· KEYCHAIN' : '· .ENV (DEV)') }
-            : null
-      }
       actions={
         loading ? null : editing ? (
           <>
-            {desktop && keyField}
+            {keyField}
             <SettingsButton variant="primary" onClick={save}>
               {t('settings.common.save')}
             </SettingsButton>
             <SettingsButton
-              variant={desktop ? 'ghost' : 'default'}
+              variant="ghost"
               onClick={() => {
                 setDraft('');
                 setEditing(false);
@@ -291,7 +213,7 @@ function ProviderRow({
                 ? t('settings.byokProvider.testing')
                 : t('settings.common.test_connection')}
             </SettingsButton>
-            <SettingsButton variant={desktop ? 'ghost' : 'default'} size="sm" onClick={startEditing}>
+            <SettingsButton variant="ghost" size="sm" onClick={startEditing}>
               {t('settings.byokProvider.editKey')}
             </SettingsButton>
             {testState === 'ok' && <ProviderResult tone="ok">{t('settings.byokProvider.available')}</ProviderResult>}
@@ -327,7 +249,6 @@ function ChatGptSubscriptionRow({ credentialsActive }: { credentialsActive: bool
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
-  const desktop = settingsOnDesktop();
 
   useEffect(() => {
     if (!credentialsActive) return;
@@ -414,21 +335,8 @@ function ChatGptSubscriptionRow({ credentialsActive }: { credentialsActive: bool
     <ProviderShell
       name={t('settings.codexSubscription.name')}
       desc={t('settings.models.providers.openaiCodex')}
-      logoClass="set-provider__logo--openai"
-      logoText="C"
       live={signedIn}
-      chip={accountWord}
       source={signedIn && account?.plan ? `${accountWord} · ${account.plan}` : accountWord}
-      body={
-        loginActive && login
-          ? {
-              label: t('settings.codexSubscription.codeLabel'),
-              value: maskedCode(login.userCode, ` · ${codeHint}`),
-            }
-          : signedIn
-            ? { label: t('settings.codexSubscription.plan'), value: maskedCode(account?.plan ?? '—', '· KEYCHAIN') }
-            : null
-      }
       detail={
         loginActive && login ? (
           <>
@@ -445,7 +353,7 @@ function ChatGptSubscriptionRow({ credentialsActive }: { credentialsActive: bool
             <SettingsButton variant="primary" size="sm" onClick={() => codexSubscription.openVerification(login)}>
               {t('settings.codexSubscription.openVerification')}
             </SettingsButton>
-            <SettingsButton variant={desktop ? 'ghost' : 'default'} size="sm" onClick={cancel}>
+            <SettingsButton variant="ghost" size="sm" onClick={cancel}>
               {t('settings.common.cancel')}
             </SettingsButton>
           </>
@@ -475,18 +383,6 @@ function ChatGptSubscriptionRow({ credentialsActive }: { credentialsActive: bool
   );
 }
 
-/** The mobile card's code or plan line. */
-function maskedCode(code: string, note: string) {
-  return (
-    <>
-      <code>{code}</code>
-      <span className="set-mono" style={{ color: 'hsl(var(--ink-4))' }}>
-        {note}
-      </span>
-    </>
-  );
-}
-
 /**
  * Voice-transcription credential (DashScope / 阿里云百炼). Deliberately not a
  * `ProviderRow`: it is not an LLM credential and must not join the BYOK
@@ -498,7 +394,6 @@ function SpeechCredentialRow({ credentialsActive }: { credentialsActive: boolean
   const [draft, setDraft] = useState('');
   const [connected, setConnected] = useState(false);
   const [loading, setLoading] = useState(true);
-  const desktop = settingsOnDesktop();
 
   useEffect(() => {
     if (!credentialsActive) return;
@@ -549,27 +444,17 @@ function SpeechCredentialRow({ credentialsActive }: { credentialsActive: boolean
     <ProviderShell
       name="阿里云百炼"
       desc={t('settings.models.providers.dashscope')}
-      logoClass="set-provider__logo--dashscope"
-      logoText="百"
       live={connected}
-      chip={connected ? t('settings.byokProvider.ownKey') : t('settings.byokProvider.notConnected')}
       source={connected ? 'Keychain' : t('settings.byokProvider.notConnected')}
-      body={
-        editing
-          ? { label: 'API Key', value: keyField }
-          : connected
-            ? { label: 'API Key', value: maskedKey('· KEYCHAIN') }
-            : null
-      }
       actions={
         loading ? null : editing ? (
           <>
-            {desktop && keyField}
+            {keyField}
             <SettingsButton variant="primary" onClick={save}>
               {t('settings.common.save')}
             </SettingsButton>
             <SettingsButton
-              variant={desktop ? 'ghost' : 'default'}
+              variant="ghost"
               onClick={() => {
                 setDraft('');
                 setEditing(false);
@@ -580,7 +465,7 @@ function SpeechCredentialRow({ credentialsActive }: { credentialsActive: boolean
           </>
         ) : connected ? (
           <>
-            <SettingsButton variant={desktop ? 'ghost' : 'default'} size="sm" onClick={startEditing}>
+            <SettingsButton variant="ghost" size="sm" onClick={startEditing}>
               {t('settings.byokProvider.editKey')}
             </SettingsButton>
             <span style={{ flex: 1 }} />
@@ -620,24 +505,18 @@ export function ModelsPanel({
         <ProviderRow
           credentialsActive={credentialsActive}
           provider="deepseek"
-          logoClass="set-provider__logo--deepseek"
-          logoText="D"
           name="DeepSeek"
           desc={t('settings.models.providers.deepseek')}
         />
         <ProviderRow
           credentialsActive={credentialsActive}
           provider="anthropic"
-          logoClass="set-provider__logo--anthropic"
-          logoText="A"
           name="Anthropic"
           desc={t('settings.models.providers.anthropic')}
         />
         <ProviderRow
           credentialsActive={credentialsActive}
           provider="openai"
-          logoClass="set-provider__logo--openai"
-          logoText="O"
           name="OpenAI"
           desc={t('settings.models.providers.openai')}
         />

@@ -4,7 +4,6 @@ import type { SuperViewRelationCanvas } from '../../../features/graph/super-view
 import { FilterChip } from '../../../components/ui/FilterChip';
 import { HeaderChipStrip } from '../../../components/ui/HeaderChipStrip';
 import { RelationKindMenu } from '../../../components/ui/RelationKindMenu';
-import { getPlatformRuntime } from '../../../platform/runtime';
 import { useSuperViewRelationControl } from './useSuperViewRelationControl';
 
 export function DesktopSuperViewRelationControl({ canvas, lead }: {
@@ -19,9 +18,7 @@ export function DesktopSuperViewRelationControl({ canvas, lead }: {
   } = useSuperViewRelationControl(canvas);
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
-  // Desktop draws the relation types as chips and 全部 as a word toggle;
-  // the paused mobile shell keeps the paper chips and the bordered trigger.
-  const mobileShell = getPlatformRuntime().isMobileShell;
+  // The relation types are chips and 全部 is a word toggle.
 
   return (
     <>
@@ -37,7 +34,6 @@ export function DesktopSuperViewRelationControl({ canvas, lead }: {
               activeStyle="solid"
               active={active}
               markerColor={resolveRelationTypeColor(relationTypeId)}
-              dimmed={mobileShell && !active}
               drift={driftPanelOpen && model.driftDerivedRelationTypeIds.has(relationTypeId)}
               onClick={() => toggleRelationTypeId(relationTypeId)}
               title={
@@ -58,20 +54,14 @@ export function DesktopSuperViewRelationControl({ canvas, lead }: {
         <button
           ref={buttonRef}
           type="button"
-          className={
-            mobileShell
-              ? `relation-kind-menu-trigger${open ? ' is-open' : ''}`
-              : 'ui-word-toggle glass glass--rest glass--small'
-          }
+          className="ui-word-toggle glass glass--rest glass--small"
           onClick={() => setOpen((current) => !current)}
           title={t('edgeKindManager.openAllTitle')}
           aria-haspopup="menu"
           aria-expanded={open}
         >
           <span>{t('edgeKindManager.all')}</span>
-          <span className={mobileShell ? 'relation-kind-menu-trigger__count' : 'ui-word-toggle__count'}>
-            {typeCount}
-          </span>
+          <span className="ui-word-toggle__count">{typeCount}</span>
         </button>
         <RelationKindMenu
           open={open}

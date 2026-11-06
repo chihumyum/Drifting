@@ -131,7 +131,7 @@ describe('the element overview’s floating island', () => {
     const view = source('src/renderer/shells/desktop/views/DesktopSuperElementView.tsx');
     expect(view).toContain('<ElementEditorView key={islandSubject.id} elementIdOverride={islandSubject.id} />');
     expect(view).toContain('<CategoryEditorView key={islandSubject.id} categoryIdOverride={islandSubject.id} />');
-    // A category opens on the island; the paused mobile shell still leaves for its tab.
+    // A category opens on the island; the mobile shell, which has no island card, still leaves for its tab.
     expect(view).toMatch(/if \(!mobileShell\) \{\s*setIsleCategory\(\(current\) => /);
     expect(view).toMatch(/return;\s*\}\s*openEntity\(\{ entityType: 'category', id \}\);\s*close\(\);/);
     // Escape folds the sheet back into its card before the island closes.
@@ -140,8 +140,10 @@ describe('the element overview’s floating island', () => {
     // The island's editor scrolls itself instead of panning the canvas.
     expect(view).toContain("if ((e.target as Element | null)?.closest?.('[data-super-modal]')) return;");
     // 正文同段 is the first row of the legend in the content's top-right
-    // corner, above the relation types it used to share the header's 全部 menu with.
-    expect(view).toContain('relationControl={mobileShell}');
+    // corner, above the relation types it used to share the header's 全部 menu with;
+    // the header keeps no relation control on any platform.
+    expect(view).toContain('relationControl={false}');
+    expect(view).not.toContain('relationControl={mobileShell}');
     expect(view).not.toContain('relationMenuLead=');
     expect(view).toMatch(/<SuperViewRelationLegend\s+canvas="element"/);
     expect(view.match(/<SuperElementLinesRow/g)).toHaveLength(1);

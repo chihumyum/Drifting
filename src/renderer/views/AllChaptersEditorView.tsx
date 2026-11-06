@@ -768,11 +768,11 @@ export function AllChaptersEditorView() {
     },
     [updateNode],
   );
-  // The desktop wears the design system: no rule between chapters (the closing
-  // ⁂ and the space after it divide them), an act's title over one dry stroke,
-  // and glass buttons. The paused touch shell keeps its rules and Roman numerals.
-  const desktopChrome = !getPlatformRuntime().isMobileShell;
-  const canInsertChapters = desktopChrome;
+  // No rule between chapters (the closing ⁂ and the space after it divide
+  // them), an act's title over one dry stroke, and glass buttons. The ⁂ action
+  // menu (insert, status, Agent review) acts on the desktop workspace's tabs
+  // and sidebar, so the mobile shell keeps the decorative mark.
+  const canInsertChapters = !getPlatformRuntime().isMobileShell;
   const renderChapterEnd = useCallback(
     (node: BookNode) =>
       isChapter(node) ? (
@@ -882,13 +882,13 @@ export function AllChaptersEditorView() {
     return (
       <div className="editor-shell" style={{ position: 'relative' }}>
         <EditorTopBar editorType="node" />
-        <div className={`all-chap-empty${desktopChrome ? ' all-chap-empty--glass' : ''}`}>
+        <div className="all-chap-empty all-chap-empty--glass">
           <span>{t('allChapters.empty.noChapters')}</span>
           <span className="all-chap-empty__actions">
             {canInsertChapters && (
               <button
                 type="button"
-                className={`all-chap-empty__btn${desktopChrome ? ' glass glass--primary glass--small' : ''}`}
+                className="all-chap-empty__btn glass glass--primary glass--small"
                 onClick={() => void handleInsertAfter(null)}
               >
                 {t('chapterEnd.firstChapter')}
@@ -896,10 +896,10 @@ export function AllChaptersEditorView() {
             )}
             <button
               type="button"
-              className={`all-chap-empty__btn${desktopChrome ? ' glass glass--rest glass--small' : ''}`}
+              className="all-chap-empty__btn glass glass--rest glass--small"
               onClick={() => navigateToHome()}
             >
-              {desktopChrome && <BrushIcon name="torii" size={15} />}
+              <BrushIcon name="torii" size={15} />
               {t('allChapters.actions.backHome')}
             </button>
           </span>
@@ -946,24 +946,20 @@ export function AllChaptersEditorView() {
                 <div
                   key={`act-${row.act.id}`}
                   data-act-id={row.act.id}
-                  className={`act-break${desktopChrome ? ' act-break--sand' : ''}`}
+                  className="act-break act-break--sand"
                 >
                   <div className="act-break__num">
-                    {desktopChrome
-                      ? t('allChapters.actOrdinal', {
-                          n: i18n.language.startsWith('zh')
-                            ? toChineseNumeral(row.seq)
-                            : toRoman(row.seq),
-                        })
-                      : toRoman(row.seq)}
+                    {t('allChapters.actOrdinal', {
+                      n: i18n.language.startsWith('zh')
+                        ? toChineseNumeral(row.seq)
+                        : toRoman(row.seq),
+                    })}
                   </div>
                   <div className="act-break__label">{row.act.name}</div>
-                  {desktopChrome && (
-                    <i
-                      aria-hidden="true"
-                      className="sand sand--ul sand--arrive act-break__stroke"
-                    />
-                  )}
+                  <i
+                    aria-hidden="true"
+                    className="sand sand--ul sand--arrive act-break__stroke"
+                  />
                   <div className="act-break__meta">
                     {t('storylineEditor.meta.chapters', { count: row.count })}
                     <span className="d">·</span>
@@ -981,14 +977,8 @@ export function AllChaptersEditorView() {
               <section
                 key={node.id}
                 id={anchorId(node.id)}
-                style={{
-                  scrollMarginTop: 24,
-                  // On the desktop the closing ⁂ and the space after it divide chapters.
-                  borderBottom:
-                    !desktopChrome && idx < orderedNodes.length - 1
-                      ? '1px solid hsl(var(--rule))'
-                      : 'none',
-                }}
+                // The closing ⁂ and the space after it divide chapters.
+                style={{ scrollMarginTop: 24 }}
               >
                 <VirtualChapterRow
                   node={node}
@@ -1008,8 +998,6 @@ export function AllChaptersEditorView() {
                   renderEnd={canInsertChapters ? renderChapterEnd : undefined}
                   storylineColor={storyline?.color || undefined}
                   storylineName={storyline?.name || undefined}
-                  chapterRoman={toRoman(idx + 1)}
-                  sandFolio={desktopChrome}
                   resolveEntityLinkColor={resolveEntityLinkColor}
                 />
               </section>

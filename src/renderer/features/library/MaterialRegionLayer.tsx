@@ -103,7 +103,6 @@ export function MaterialRegionLayer({
   selectedId,
   linkedId = null,
   drawing,
-  sand = false,
   onSelect,
   onLink,
   onDrawn,
@@ -114,8 +113,6 @@ export function MaterialRegionLayer({
   /** The region whose comment the pointer is on. */
   linkedId?: string | null;
   drawing: boolean;
-  /** Desktop: dry sand frames and sand seals instead of outlined boxes. */
-  sand?: boolean;
   onSelect: (id: string) => void;
   /** The region under the pointer, or null when it leaves. */
   onLink?: (id: string | null) => void;
@@ -186,7 +183,7 @@ export function MaterialRegionLayer({
           type="button"
           className={[
             'material-region',
-            sand ? 'material-region--sand' : '',
+            'material-region--sand',
             mark.id === selectedId ? 'material-region--selected' : '',
             mark.id === linkedId ? 'material-region--linked' : '',
             mark.resolved ? 'material-region--resolved' : '',
@@ -201,12 +198,12 @@ export function MaterialRegionLayer({
             onSelect(mark.id);
           }}
         >
-          {sand && <RegionFrame id={mark.id} todo={mark.todo} selected={mark.id === selectedId} />}
-          <span className={`material-region__badge${sand ? ' material-region__badge--seal' : ''}`}>{mark.index}</span>
+          <RegionFrame id={mark.id} todo={mark.todo} selected={mark.id === selectedId} />
+          <span className="material-region__badge material-region__badge--seal">{mark.index}</span>
         </button>
       ))}
       {draft && (
-        <div className={`material-region material-region--draft${sand ? ' material-region--sand' : ''}`} style={percent(draft)} />
+        <div className="material-region material-region--draft material-region--sand" style={percent(draft)} />
       )}
     </div>
   );

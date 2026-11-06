@@ -12,7 +12,6 @@ import type {
 } from '../../domain/entity-relation-type';
 import type { EntityRelationLink } from '../../store/data-store';
 import { useRelationTypePresentation } from '../../hooks/useRelationTypePresentation';
-import { getPlatformRuntime } from '../../platform/runtime';
 import { AnchoredPopover } from './AnchoredPopover';
 import { Button } from './Button';
 import { FilterChip } from './FilterChip';
@@ -108,10 +107,9 @@ export function RelationTypeEditor({
         : [...STRUCTURAL_ENTITY_KINDS],
   );
   const [error, setError] = useState('');
-  // Desktop: written in place inside the menu, no box: single-line fields,
-  // direction as one of two, the allowed kinds as chips, cancel as a text
-  // button and save as the primary button.
-  const glass = !getPlatformRuntime().isMobileShell;
+  // Written in place inside the menu, no box: single-line fields, direction
+  // as one of two, the allowed kinds as chips, cancel as a text button and
+  // save as the primary button.
 
   const changeOrientation = (nextOrientation: 'directed' | 'symmetric') => {
     setOrientation(nextOrientation);
@@ -167,182 +165,88 @@ export function RelationTypeEditor({
     );
   };
 
-  if (glass) {
-    const field = (label: string, input: string, onInput: (next: string) => void, autoFocus = false) => (
-      <label className="relation-type-editor__field">
-        <span>{label}</span>
-        <span className="ui-field glass glass--rest glass--field glass--small">
-          <input value={input} onChange={(event) => onInput(event.target.value)} autoFocus={autoFocus} />
-        </span>
-      </label>
-    );
-    const kindChip = (kind: EntityRefSourceKind, on: boolean, disabled: boolean, toggle: () => void) => {
-      const mark = KIND_MARK[kind];
-      return (
-        <FilterChip
-          key={kind}
-          look="glass"
-          active={on}
-          disabled={disabled}
-          onClick={toggle}
-          mark={mark && <KindMark kind={mark} seed={kind} className="ui-chip__mark" />}
-        >
-          {t(`relationTypes.entityKinds.${kind}`)}
-        </FilterChip>
-      );
-    };
+  const field = (label: string, input: string, onInput: (next: string) => void, autoFocus = false) => (
+    <label className="relation-type-editor__field">
+      <span>{label}</span>
+      <span className="ui-field glass glass--rest glass--field glass--small">
+        <input value={input} onChange={(event) => onInput(event.target.value)} autoFocus={autoFocus} />
+      </span>
+    </label>
+  );
+  const kindChip = (kind: EntityRefSourceKind, on: boolean, disabled: boolean, toggle: () => void) => {
+    const mark = KIND_MARK[kind];
     return (
-      <div className="relation-type-editor relation-type-editor--glass">
-        <div className="relation-type-editor__grid">
-          {field(t('relationTypes.name'), name, setName, true)}
-          <div className="relation-type-editor__field">
-            <span>{t('relationTypes.direction')}</span>
-            <GlassSlider
-              ariaLabel={t('relationTypes.direction')}
-              value={orientation}
-              onChange={changeOrientation}
-              options={[
-                { value: 'directed', label: t('relationTypes.directed') },
-                { value: 'symmetric', label: t('relationTypes.symmetric') },
-              ]}
-            />
-          </div>
-          {field(
-            orientation === 'symmetric' ? t('relationTypes.endpointRole') : t('relationTypes.sourceRole'),
-            sourceRole,
-            setSourceRole,
-          )}
-          {orientation === 'directed' && field(t('relationTypes.targetRole'), targetRole, setTargetRole)}
-        </div>
-        {field(t('relationTypes.description'), description, setDescription)}
-        <div className="relation-type-editor__field">
-          <span>
-            {orientation === 'symmetric'
-              ? t('relationTypes.allowedEntities')
-              : t('relationTypes.allowedSources')}
-          </span>
-          <div className="relation-type-editor__chips">
-            {ALL_ENTITY_KINDS.map((kind) =>
-              kindChip(
-                kind,
-                sourceKinds.includes(kind),
-                orientation === 'symmetric' && !STRUCTURAL_ENTITY_KINDS.includes(kind as EntityRefTargetKind),
-                () => toggleSourceKind(kind),
-              ),
-            )}
-          </div>
-        </div>
-        {orientation === 'directed' && (
-          <div className="relation-type-editor__field">
-            <span>{t('relationTypes.allowedTargets')}</span>
-            <div className="relation-type-editor__chips">
-              {STRUCTURAL_ENTITY_KINDS.map((kind) =>
-                kindChip(kind, targetKinds.includes(kind), false, () => toggleTargetKind(kind)),
-              )}
-            </div>
-          </div>
-        )}
-        {error && <div className="relation-type-editor__error">{error}</div>}
-        <div className="relation-type-editor__buttons">
-          <Button variant="ghost" size="sm" onClick={onCancel}>
-            {t('relationTypes.cancel')}
-          </Button>
-          <Button variant="primary" size="sm" onClick={save}>
-            {t('relationTypes.save')}
-          </Button>
-        </div>
-      </div>
+      <FilterChip
+        key={kind}
+        look="glass"
+        active={on}
+        disabled={disabled}
+        onClick={toggle}
+        mark={mark && <KindMark kind={mark} seed={kind} className="ui-chip__mark" />}
+      >
+        {t(`relationTypes.entityKinds.${kind}`)}
+      </FilterChip>
     );
-  }
-
+  };
   return (
-    <div className="relation-type-editor">
+    <div className="relation-type-editor relation-type-editor--glass">
       <div className="relation-type-editor__grid">
-        <label>
-          <span>{t('relationTypes.name')}</span>
-          <input value={name} onChange={(event) => setName(event.target.value)} autoFocus />
-        </label>
-        <label>
+        {field(t('relationTypes.name'), name, setName, true)}
+        <div className="relation-type-editor__field">
           <span>{t('relationTypes.direction')}</span>
-          <select
+          <GlassSlider
+            ariaLabel={t('relationTypes.direction')}
             value={orientation}
-            onChange={(event) => changeOrientation(event.target.value as 'directed' | 'symmetric')}
-          >
-            <option value="directed">{t('relationTypes.directed')}</option>
-            <option value="symmetric">{t('relationTypes.symmetric')}</option>
-          </select>
-        </label>
-        <label>
-          <span>
-            {orientation === 'symmetric'
-              ? t('relationTypes.endpointRole')
-              : t('relationTypes.sourceRole')}
-          </span>
-          <input value={sourceRole} onChange={(event) => setSourceRole(event.target.value)} />
-        </label>
-        {orientation === 'directed' && (
-          <label>
-            <span>{t('relationTypes.targetRole')}</span>
-            <input value={targetRole} onChange={(event) => setTargetRole(event.target.value)} />
-          </label>
+            onChange={changeOrientation}
+            options={[
+              { value: 'directed', label: t('relationTypes.directed') },
+              { value: 'symmetric', label: t('relationTypes.symmetric') },
+            ]}
+          />
+        </div>
+        {field(
+          orientation === 'symmetric' ? t('relationTypes.endpointRole') : t('relationTypes.sourceRole'),
+          sourceRole,
+          setSourceRole,
         )}
+        {orientation === 'directed' && field(t('relationTypes.targetRole'), targetRole, setTargetRole)}
       </div>
-      <label className="relation-type-editor__description">
-        <span>{t('relationTypes.description')}</span>
-        <input value={description} onChange={(event) => setDescription(event.target.value)} />
-      </label>
-      <div className="relation-type-editor__endpoint-row">
+      {field(t('relationTypes.description'), description, setDescription)}
+      <div className="relation-type-editor__field">
         <span>
           {orientation === 'symmetric'
             ? t('relationTypes.allowedEntities')
             : t('relationTypes.allowedSources')}
         </span>
-        <div>
-          {ALL_ENTITY_KINDS.map((kind) => (
-            <label key={kind}>
-              <input
-                type="checkbox"
-                checked={sourceKinds.includes(kind)}
-                disabled={
-                  orientation === 'symmetric' &&
-                  !STRUCTURAL_ENTITY_KINDS.includes(kind as EntityRefTargetKind)
-                }
-                onChange={() => toggleSourceKind(kind)}
-              />
-              {t(`relationTypes.entityKinds.${kind}`)}
-            </label>
-          ))}
+        <div className="relation-type-editor__chips">
+          {ALL_ENTITY_KINDS.map((kind) =>
+            kindChip(
+              kind,
+              sourceKinds.includes(kind),
+              orientation === 'symmetric' && !STRUCTURAL_ENTITY_KINDS.includes(kind as EntityRefTargetKind),
+              () => toggleSourceKind(kind),
+            ),
+          )}
         </div>
       </div>
       {orientation === 'directed' && (
-        <div className="relation-type-editor__endpoint-row">
+        <div className="relation-type-editor__field">
           <span>{t('relationTypes.allowedTargets')}</span>
-          <div>
-            {STRUCTURAL_ENTITY_KINDS.map((kind) => (
-              <label key={kind}>
-                <input
-                  type="checkbox"
-                  checked={targetKinds.includes(kind)}
-                  onChange={() => toggleTargetKind(kind)}
-                />
-                {t(`relationTypes.entityKinds.${kind}`)}
-              </label>
-            ))}
+          <div className="relation-type-editor__chips">
+            {STRUCTURAL_ENTITY_KINDS.map((kind) =>
+              kindChip(kind, targetKinds.includes(kind), false, () => toggleTargetKind(kind)),
+            )}
           </div>
         </div>
       )}
       {error && <div className="relation-type-editor__error">{error}</div>}
-      <div className="relation-type-editor__actions">
-        <button type="button" onClick={onCancel}>
+      <div className="relation-type-editor__buttons">
+        <Button variant="ghost" size="sm" onClick={onCancel}>
           {t('relationTypes.cancel')}
-        </button>
-        <button
-          type="button"
-          className="is-primary"
-          onClick={save}
-        >
+        </Button>
+        <Button variant="primary" size="sm" onClick={save}>
           {t('relationTypes.save')}
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -381,9 +285,8 @@ export function RelationKindMenu({
   const [editingTypeId, setEditingTypeId] = useState<string | null>(null);
   const [creatingType, setCreatingType] = useState(false);
   const [otherTypesOpen, setOtherTypesOpen] = useState(false);
-  // Desktop: the filter section's chips are Chips and the management rows are
-  // menu rows; colours are sand dashes, recoloured from a row of round glass.
-  const glass = !getPlatformRuntime().isMobileShell;
+  // The filter section's chips are Chips and the management rows are menu
+  // rows; colours are sand dashes, recoloured from a row of round glass.
   const managesRelationTypes = Boolean(
     createRelationType && updateRelationType && deleteRelationType,
   );
@@ -454,169 +357,90 @@ export function RelationKindMenu({
         ? t('relationTypes.symmetricSummary', { role: presentation.sourceRole })
         : `${presentation.sourceRole} → ${presentation.targetRole}`
     }${type.locked ? ` · ${t('relationTypes.builtIn')}` : ''}`;
-    if (glass) {
-      const color = resolveRelationTypeColor(type.id);
-      return (
-        <div key={type.id} className="relation-kind-menu__type">
-          <div className="menu-surface__item relation-kind-menu__row--glass">
-            <button
-              type="button"
-              className="relation-kind-menu__dash"
-              title={t('edgeKindManager.changeColor')}
-              aria-label={t('edgeKindManager.changeColorLabel', { label: presentation.name })}
-              aria-expanded={isPickingTypeColor}
-              onClick={() => setPickingColor(isPickingTypeColor ? null : colorPickerKey)}
-            >
-              <KindMark kind="storyline" color={color} />
-            </button>
-            <button
-              type="button"
-              className="relation-kind-menu__name"
-              disabled={type.locked}
-              title={type.locked ? t('relationTypes.builtIn') : undefined}
-              onClick={() => {
-                if (!type.locked) setEditingTypeId(type.id);
-              }}
-            >
-              {presentation.name}
-              <small>{summary}</small>
-            </button>
-            <span
-              className="relation-kind-menu__count"
-              title={t('relationTypes.usageSummary', {
-                canvas: canvasUsageCount,
-                project: projectUsageCount,
-              })}
-            >
-              {canvasUsageCount}/{projectUsageCount}
-            </span>
-            <button
-              type="button"
-              className="relation-kind-menu__delete"
-              disabled={type.locked || projectUsageCount > 0}
-              title={
-                type.locked
-                  ? t('relationTypes.builtInLocked')
-                  : projectUsageCount > 0
-                    ? t('relationTypes.inUse')
-                    : t('relationTypes.delete')
-              }
-              aria-label={t('relationTypes.delete')}
-              onClick={deleteType}
-            >
-              <BrushIcon name="trash" size={13} />
-            </button>
-          </div>
-          {isPickingTypeColor && (
-            <div className="relation-kind-menu__colors" role="listbox">
-              {RELATION_TYPE_PALETTE.map((paletteColor, index) => (
-                <button
-                  key={paletteColor}
-                  type="button"
-                  role="option"
-                  className="relation-kind-menu__color glass glass--round"
-                  aria-selected={paletteColor === color}
-                  aria-pressed={paletteColor === color}
-                  aria-label={`${t('edgeKindManager.changeColor')} ${index + 1}`}
-                  style={{ '--glass-cc': paletteColor } as CSSProperties}
-                  onClick={() => {
-                    setRelationTypeColor(type.id, paletteColor);
-                    setPickingColor(null);
-                  }}
-                >
-                  <i className="sand sand--blob-2" style={{ '--sand-c': paletteColor } as CSSProperties} />
-                </button>
-              ))}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  clearRelationTypeColor(type.id);
-                  setPickingColor(null);
-                }}
-              >
-                {t('edgeKindManager.resetColor')}
-              </Button>
-            </div>
-          )}
-        </div>
-      );
-    }
+    const color = resolveRelationTypeColor(type.id);
     return (
-      <div key={type.id} className="relation-kind-menu__row relation-kind-menu__row--type">
-        <button
-          type="button"
-          className="relation-kind-menu__swatch"
-          style={{ background: resolveRelationTypeColor(type.id) }}
-          title={t('edgeKindManager.changeColor')}
-          aria-label={t('edgeKindManager.changeColorLabel', {
-            label: presentation.name,
-          })}
-          onClick={() => setPickingColor(isPickingTypeColor ? null : colorPickerKey)}
-        />
+      <div key={type.id} className="relation-kind-menu__type">
+        <div className="menu-surface__item relation-kind-menu__row--glass">
+          <button
+            type="button"
+            className="relation-kind-menu__dash"
+            title={t('edgeKindManager.changeColor')}
+            aria-label={t('edgeKindManager.changeColorLabel', { label: presentation.name })}
+            aria-expanded={isPickingTypeColor}
+            onClick={() => setPickingColor(isPickingTypeColor ? null : colorPickerKey)}
+          >
+            <KindMark kind="storyline" color={color} />
+          </button>
+          <button
+            type="button"
+            className="relation-kind-menu__name"
+            disabled={type.locked}
+            title={type.locked ? t('relationTypes.builtIn') : undefined}
+            onClick={() => {
+              if (!type.locked) setEditingTypeId(type.id);
+            }}
+          >
+            {presentation.name}
+            <small>{summary}</small>
+          </button>
+          <span
+            className="relation-kind-menu__count"
+            title={t('relationTypes.usageSummary', {
+              canvas: canvasUsageCount,
+              project: projectUsageCount,
+            })}
+          >
+            {canvasUsageCount}/{projectUsageCount}
+          </span>
+          <button
+            type="button"
+            className="relation-kind-menu__delete"
+            disabled={type.locked || projectUsageCount > 0}
+            title={
+              type.locked
+                ? t('relationTypes.builtInLocked')
+                : projectUsageCount > 0
+                  ? t('relationTypes.inUse')
+                  : t('relationTypes.delete')
+            }
+            aria-label={t('relationTypes.delete')}
+            onClick={deleteType}
+          >
+            <BrushIcon name="trash" size={13} />
+          </button>
+        </div>
         {isPickingTypeColor && (
-          <div className="relation-kind-menu__palette" role="listbox">
-            {RELATION_TYPE_PALETTE.map((paletteColor) => (
+          <div className="relation-kind-menu__colors" role="listbox">
+            {RELATION_TYPE_PALETTE.map((paletteColor, index) => (
               <button
                 key={paletteColor}
                 type="button"
-                className="relation-kind-menu__palette-dot"
-                style={{ background: paletteColor }}
+                role="option"
+                className="relation-kind-menu__color glass glass--round"
+                aria-selected={paletteColor === color}
+                aria-pressed={paletteColor === color}
+                aria-label={`${t('edgeKindManager.changeColor')} ${index + 1}`}
+                style={{ '--glass-cc': paletteColor } as CSSProperties}
                 onClick={() => {
                   setRelationTypeColor(type.id, paletteColor);
                   setPickingColor(null);
                 }}
-              />
+              >
+                <i className="sand sand--blob-2" style={{ '--sand-c': paletteColor } as CSSProperties} />
+              </button>
             ))}
-            <button
-              type="button"
-              className="relation-kind-menu__palette-reset"
-              title={t('edgeKindManager.resetColor')}
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => {
                 clearRelationTypeColor(type.id);
                 setPickingColor(null);
               }}
             >
-              <BrushIcon name="rotate" size={11} inline />
-            </button>
+              {t('edgeKindManager.resetColor')}
+            </Button>
           </div>
         )}
-        <button
-          type="button"
-          className="relation-kind-menu__name"
-          disabled={type.locked}
-          title={type.locked ? t('relationTypes.builtIn') : undefined}
-          onClick={() => {
-            if (!type.locked) setEditingTypeId(type.id);
-          }}
-        >
-          {presentation.name}
-          <small>{summary}</small>
-        </button>
-        <span
-          className="relation-kind-menu__count"
-          title={t('relationTypes.usageSummary', {
-            canvas: canvasUsageCount,
-            project: projectUsageCount,
-          })}
-        >
-          {canvasUsageCount}/{projectUsageCount}
-        </span>
-        <button
-          type="button"
-          className="relation-kind-menu__delete"
-          disabled={type.locked || projectUsageCount > 0}
-          title={
-            type.locked
-              ? t('relationTypes.builtInLocked')
-              : projectUsageCount > 0
-                ? t('relationTypes.inUse')
-                : t('relationTypes.delete')
-          }
-          onClick={deleteType}
-        >
-          <BrushIcon name="close" size={10} inline />
-        </button>
       </div>
     );
   };
@@ -629,7 +453,7 @@ export function RelationKindMenu({
       placement="bottom-end"
       role="menu"
       ariaLabel={t('edgeKindManager.title')}
-      className={`menu-surface menu-surface--rich menu-surface--settings relation-kind-menu${glass ? ' relation-kind-menu--glass' : ''}`}
+      className="menu-surface menu-surface--rich menu-surface--settings relation-kind-menu relation-kind-menu--glass"
       maxHeight={480}
       dismissOnEscape={dismissOnEscape}
     >
@@ -675,7 +499,6 @@ export function RelationKindMenu({
                   active={active}
                   markerColor={resolveRelationTypeColor(relationTypeId)}
                   count={relationTypeCounts[relationTypeId] ?? 0}
-                  dimmed={!glass && !active}
                   drift={driftDerivedRelationTypeIds.has(relationTypeId)}
                   onClick={() => onToggleRelationTypeId(relationTypeId)}
                   title={
@@ -696,20 +519,14 @@ export function RelationKindMenu({
         <section className="relation-kind-menu__section relation-kind-menu__section--manage">
           <div className="relation-kind-menu__section-title-row">
             <div className="relation-kind-menu__section-label">{t('relationTypes.title')}</div>
-            {glass ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="relation-kind-menu__create"
-                onClick={() => setCreatingType(true)}
-              >
-                <BrushIcon name="plus" size={11} inline /> {t('relationTypes.create')}
-              </Button>
-            ) : (
-              <button type="button" onClick={() => setCreatingType(true)}>
-                <BrushIcon name="plus" size={10} inline /> {t('relationTypes.create')}
-              </button>
-            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="relation-kind-menu__create"
+              onClick={() => setCreatingType(true)}
+            >
+              <BrushIcon name="plus" size={11} inline /> {t('relationTypes.create')}
+            </Button>
           </div>
           {creatingType && (
             <RelationTypeEditor
@@ -740,13 +557,13 @@ export function RelationKindMenu({
             <div className="relation-kind-menu__type-group relation-kind-menu__type-group--other">
               <button
                 type="button"
-                className={`relation-kind-menu__other-toggle${glass ? ' menu-surface__item' : ''}`}
+                className="relation-kind-menu__other-toggle menu-surface__item"
                 aria-expanded={otherTypesOpen}
                 onClick={() => setOtherTypesOpen((current) => !current)}
               >
                 <span>{t('relationTypes.otherTypes')}</span>
                 <span>{resolvedTypeGroups.otherTypes.length}</span>
-                {glass && <BrushIcon name="chevron-down" size={11} className="relation-kind-menu__chevron" />}
+                <BrushIcon name="chevron-down" size={11} className="relation-kind-menu__chevron" />
               </button>
               {otherTypesOpen && resolvedTypeGroups.otherTypes.map(renderRelationType)}
             </div>

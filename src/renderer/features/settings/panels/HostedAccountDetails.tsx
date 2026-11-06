@@ -14,7 +14,6 @@ import {
   SettingsRow,
   SettingsSectionHeader,
 } from '../SettingsPrimitives';
-import { settingsOnDesktop } from '../settings-on-desktop';
 import { HostedPasswordDialog } from './HostedPasswordDialog';
 import { HostedAvatarCropDialog } from './HostedAvatarCropDialog';
 
@@ -93,8 +92,8 @@ export function HostedAccountDetails({
             control={
               <>
                 <span className="set-account-avatar" aria-label={t('settings.hosted.avatar')}>
-                  {/* The desktop's name seal: the initial carved out of one sand seal. */}
-                  {settingsOnDesktop() && <i className="sand sand--blob-0" aria-hidden="true" />}
+                  {/* The name seal: the initial carved out of one sand seal. */}
+                  <i className="sand sand--blob-0" aria-hidden="true" />
                   <b>
                     <AccountAvatar
                       image={displayImage}

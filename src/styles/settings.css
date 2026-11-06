@@ -1,13 +1,13 @@
 /* ============================================================
    Drifting · Settings (full-screen overlay)
 
-   The rules up to the desktop section are the look the paused mobile
-   shell keeps: it renders the same panels with the older set-* controls.
-   The desktop builds its controls from the shared ones (Button, .ui-field,
-   GlassSelect, GlassSlider, GlassRange) and restyles the shared structure
-   in the section at the end (docs/design-system/workspace.md, Settings).
+   The panels build their controls from the shared ones (Button, .ui-field,
+   GlassSelect, GlassSlider, GlassRange); the section at the end restyles
+   the structure laid out first (docs/design-system/workspace.md, Settings).
    Token names are the project tokens (HSL triplets wrapped in hsl()).
    ============================================================ */
+/* `html[data-shell-mode]` and `:root[data-shell-mode]` match every shell: they
+   keep the weight these rules had while the mobile shell was excluded. */
 
 .set-overlay {
   position: fixed;
@@ -1292,35 +1292,6 @@
   color: var(--ui-text-muted, hsl(var(--ink-3)));
 }
 
-.set-color-picker {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.set-color-picker__input {
-  width: 34px;
-  height: 26px;
-  padding: 2px;
-  border: 1px solid hsl(var(--rule-strong));
-  border-radius: 3px;
-  background: hsl(var(--surface));
-  cursor: pointer;
-}
-.set-color-picker__input::-webkit-color-swatch-wrapper {
-  padding: 0;
-}
-.set-color-picker__input::-webkit-color-swatch {
-  border: 0;
-  border-radius: 2px;
-}
-.set-color-picker__value {
-  min-width: 62px;
-  font-family: var(--font-mono);
-  font-size: var(--ui-font-caption, 10.5px);
-  letter-spacing: 0.04em;
-  color: var(--ui-text-muted, hsl(var(--ink-3)));
-}
-
 .set-entity-link-style {
   display: grid;
   gap: 12px;
@@ -1575,7 +1546,7 @@ html[data-shell-mode='mobile'] .set-overlay {
 }
 
 /* ============================================================
-   Desktop: sand and plain glass
+   Sand and plain glass
    Header, rail and content are one flat plane, split only by the
    workspace's half-pixel hairlines. The rail's rows are menu rows: a ring
    of flowing glass under the pointer, the still selected ring at the
@@ -1586,56 +1557,56 @@ html[data-shell-mode='mobile'] .set-overlay {
    ============================================================ */
 /* The chrome colour over the overlay's opaque paper (it is translucent in
    the dark theme), the same on all three. */
-:where(html:not([data-shell-mode='mobile'])) .set-head,
-:where(html:not([data-shell-mode='mobile'])) .set-rail,
-:where(html:not([data-shell-mode='mobile'])) .set-main {
+.set-head,
+.set-rail,
+.set-main {
   background: var(--chrome-bg);
 }
 
-:where(html:not([data-shell-mode='mobile'])) .set-head {
+.set-head {
   gap: 10px;
   padding-right: 12px;
   border-bottom: 0.5px solid var(--workspace-local-border);
 }
-:where(html:not([data-shell-mode='mobile'])) .set-head__left {
+.set-head__left {
   gap: 10px;
 }
-:where(html:not([data-shell-mode='mobile'])) .set-head__back,
-:where(html:not([data-shell-mode='mobile'])) .set-head__back:hover {
+.set-head__back,
+.set-head__back:hover {
   background: transparent;
 }
-:where(html:not([data-shell-mode='mobile'])) .set-head__back {
+.set-head__back {
   width: var(--glass-round-size);
   height: var(--glass-round-size);
   color: hsl(var(--ink-3));
 }
-:where(html:not([data-shell-mode='mobile'])) .set-head__back > .brush-icon {
+.set-head__back > .brush-icon {
   width: var(--glass-round-icon);
   height: var(--glass-round-icon);
 }
-:where(html:not([data-shell-mode='mobile'])) .set-head__back:hover {
+.set-head__back:hover {
   color: hsl(var(--ink-1));
 }
-:where(html:not([data-shell-mode='mobile'])) .set-head__title {
+.set-head__title {
   font-size: var(--ui-font-emphasis, 15px);
   font-weight: 600;
   letter-spacing: 0;
 }
 
-:where(html:not([data-shell-mode='mobile'])) .set-rail {
+.set-rail {
   width: 216px;
   padding: 12px 0 18px;
   border-right: 0.5px solid var(--workspace-local-border);
   box-shadow: none;
 }
-:where(html:not([data-shell-mode='mobile'])) .set-rail__group {
+.set-rail__group {
   margin-bottom: 10px;
 }
 /* The rail's three levels share one size. A group (本地数据, 偏好, 智能)
    names a part of the page the way a Panel Tab names a destination: the
    serif structure face at one weight. Panels and their sections stay in the
    UI face, the sections' words starting where their panel's do. */
-:where(html:not([data-shell-mode='mobile'])) .set-rail__group-title {
+.set-rail__group-title {
   margin: 0;
   padding: 4px 8px;
   font-family: var(--font-structure);
@@ -1647,7 +1618,7 @@ html[data-shell-mode='mobile'] .set-overlay {
   letter-spacing: normal;
   text-transform: none;
 }
-:where(html:not([data-shell-mode='mobile'])) .set-rail__item {
+.set-rail__item {
   gap: 9px;
   min-height: 30px;
   padding: 0 8px;
@@ -1656,23 +1627,23 @@ html[data-shell-mode='mobile'] .set-overlay {
 }
 /* The glyph's 16px and the row's 9px gap: a section's words start under its
    panel's name, not under the glyph. */
-:where(html:not([data-shell-mode='mobile'])) .set-rail__sections {
+.set-rail__sections {
   margin: 0;
   padding: 0 0 4px 25px;
 }
-:where(html:not([data-shell-mode='mobile'])) .set-rail__section {
+.set-rail__section {
   font-size: var(--ui-font-body, 14px);
 }
 /* A panel with sections folds them away from the chevron at its row's end.
    The row is one menu row: the pointer over the chevron rings the whole row,
    and the chevron only darkens. */
-:where(html:not([data-shell-mode='mobile'])) .set-rail__row {
+.set-rail__row {
   position: relative;
 }
-:where(html:not([data-shell-mode='mobile'])) .set-rail__item--foldable {
+.set-rail__item--foldable {
   padding-right: 30px;
 }
-:where(html:not([data-shell-mode='mobile'])) .set-rail__fold {
+.set-rail__fold {
   position: absolute;
   top: 0;
   right: 2px;
@@ -1686,18 +1657,18 @@ html[data-shell-mode='mobile'] .set-overlay {
   color: var(--ui-text-muted, hsl(var(--ink-3)));
   cursor: pointer;
 }
-:where(html:not([data-shell-mode='mobile'])) .set-rail__fold:hover,
-:where(html:not([data-shell-mode='mobile'])) .set-rail__fold:focus-visible {
+.set-rail__fold:hover,
+.set-rail__fold:focus-visible {
   outline: none;
   color: hsl(var(--ink-1));
 }
-:where(html:not([data-shell-mode='mobile'])) .set-rail__fold-chevron {
+.set-rail__fold-chevron {
   transition: transform var(--motion-glass-settle) var(--motion-structural-ease);
 }
-:where(html:not([data-shell-mode='mobile'])) .set-rail__fold-chevron--open {
+.set-rail__fold-chevron--open {
   transform: rotate(90deg);
 }
-:where(html:not([data-shell-mode='mobile'])) .set-rail__sections-fold {
+.set-rail__sections-fold {
   display: grid;
   grid-template-rows: 0fr;
   opacity: 0;
@@ -1705,38 +1676,38 @@ html[data-shell-mode='mobile'] .set-overlay {
     grid-template-rows var(--motion-glass-settle) var(--motion-structural-ease),
     opacity 0.2s ease-out;
 }
-:where(html:not([data-shell-mode='mobile'])) .set-rail__sections-fold.is-open {
+.set-rail__sections-fold.is-open {
   grid-template-rows: 1fr;
   opacity: 1;
 }
-:where(html:not([data-shell-mode='mobile'])) .set-rail__sections-clip {
+.set-rail__sections-clip {
   min-height: 0;
   overflow: hidden;
 }
-:where(html:not([data-shell-mode='mobile'])) .set-rail__item:hover,
-:where(html:not([data-shell-mode='mobile'])) .set-rail__item--active {
+.set-rail__item:hover,
+.set-rail__item--active {
   background: transparent;
   box-shadow: none;
   color: hsl(var(--ink-1));
 }
 /* The current place shows in its still ring and the ink, never a heavier
    or larger word. */
-:where(html:not([data-shell-mode='mobile'])) .set-rail__item--active,
-:where(html:not([data-shell-mode='mobile'])) .set-rail__section--active {
+.set-rail__item--active,
+.set-rail__section--active {
   font-weight: 400;
 }
-:where(html:not([data-shell-mode='mobile'])) .set-rail__glyph,
-:where(html:not([data-shell-mode='mobile'])) .set-rail__item--active .set-rail__glyph {
+.set-rail__glyph,
+.set-rail__item--active .set-rail__glyph {
   color: hsl(var(--ink-3));
 }
-:where(html:not([data-shell-mode='mobile'])) .set-rail__item:focus-visible,
-:where(html:not([data-shell-mode='mobile'])) .set-rail__section:focus-visible {
+.set-rail__item:focus-visible,
+.set-rail__section:focus-visible {
   outline: none;
 }
 /* The menu row's ring: one hairline of flowing glass, all four sides cut
    from one texture; still at the current place. */
-:where(html:not([data-shell-mode='mobile'])) .set-rail__item::before,
-:where(html:not([data-shell-mode='mobile'])) .set-rail__section::before {
+.set-rail__item::before,
+.set-rail__section::before {
   --menu-line: color-mix(in srgb, var(--glass-clear), hsl(var(--ink-3)) 30%);
   content: '';
   position: absolute;
@@ -1756,38 +1727,38 @@ html[data-shell-mode='mobile'] .set-overlay {
   animation: glass-flow var(--motion-glass-drift) linear infinite paused;
   transition: opacity 0.18s ease-out;
 }
-:where(html:not([data-shell-mode='mobile'])) .set-rail__item:hover::before,
-:where(html:not([data-shell-mode='mobile'])) .set-rail__row:hover > .set-rail__item::before,
-:where(html:not([data-shell-mode='mobile'])) .set-rail__row:has(> .set-rail__fold:focus-visible) > .set-rail__item::before,
-:where(html:not([data-shell-mode='mobile'])) .set-rail__item:focus-visible::before,
-:where(html:not([data-shell-mode='mobile'])) .set-rail__section:hover::before,
-:where(html:not([data-shell-mode='mobile'])) .set-rail__section:focus-visible::before {
+.set-rail__item:hover::before,
+.set-rail__row:hover > .set-rail__item::before,
+.set-rail__row:has(> .set-rail__fold:focus-visible) > .set-rail__item::before,
+.set-rail__item:focus-visible::before,
+.set-rail__section:hover::before,
+.set-rail__section:focus-visible::before {
   opacity: 1;
   animation-play-state: running;
 }
-:where(html:not([data-shell-mode='mobile'])) .set-rail__item.is-current::before,
-:where(html:not([data-shell-mode='mobile'])) .set-rail__section.is-current::before {
+.set-rail__item.is-current::before,
+.set-rail__section.is-current::before {
   opacity: 1;
   animation-play-state: paused;
 }
-:where(html:not([data-shell-mode='mobile'])) .set-rail__item:active::before,
-:where(html:not([data-shell-mode='mobile'])) .set-rail__section:active::before {
+.set-rail__item:active::before,
+.set-rail__section:active::before {
   --menu-line: color-mix(in srgb, var(--glass-clear), hsl(var(--ink-3)) 55%);
 }
 
-:where(html:not([data-shell-mode='mobile'])) .set-panel {
+.set-panel {
   max-width: 720px;
   padding: 28px 48px 24px;
 }
-:where(html:not([data-shell-mode='mobile'])) .set-panel + .set-panel {
+.set-panel + .set-panel {
   margin-top: 0;
   padding-top: 20px;
   border-top: 0;
 }
-:where(html:not([data-shell-mode='mobile'])) .set-panel:last-child {
+.set-panel:last-child {
   padding-bottom: 80px;
 }
-:where(html:not([data-shell-mode='mobile'])) .set-panel--status {
+.set-panel--status {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -1796,7 +1767,7 @@ html[data-shell-mode='mobile'] .set-overlay {
 /* Each section's one-line heading organizes the long settings page, as the
    section titles do on Project Home: the serif structure face, like the
    About name. */
-:where(html:not([data-shell-mode='mobile'])) .set-panel__title {
+.set-panel__title {
   margin: 0;
   font-family: var(--font-structure);
   font-size: 21px;
@@ -1804,23 +1775,23 @@ html[data-shell-mode='mobile'] .set-overlay {
   line-height: 1.3;
   letter-spacing: 0.005em;
 }
-:where(html:not([data-shell-mode='mobile'])) .set-panel__sub {
+.set-panel__sub {
   margin: 5px 0 0;
   color: var(--ui-text-muted, hsl(var(--ink-3)));
   font-size: var(--ui-font-secondary, 13px);
   font-style: normal;
   line-height: 1.55;
 }
-:where(html:not([data-shell-mode='mobile'])) .set-sec {
+.set-sec {
   margin-bottom: 0;
 }
-:where(html:not([data-shell-mode='mobile'])) .set-sec__head {
+.set-sec__head {
   min-height: 24px;
   margin: 24px 0 0;
   padding: 0;
   border-bottom: 0;
 }
-:where(html:not([data-shell-mode='mobile'])) .set-sec__title {
+.set-sec__title {
   color: hsl(var(--ink-3));
   font-size: var(--ui-font-caption, 12px);
   font-weight: 500;
@@ -1834,47 +1805,47 @@ html[data-shell-mode='mobile'] .set-overlay {
   align-items: center;
   gap: 6px;
 }
-:where(html:not([data-shell-mode='mobile'])) .set-sec__actions {
+.set-sec__actions {
   margin-top: 10px;
 }
 
-:where(html:not([data-shell-mode='mobile'])) .set-row {
+.set-row {
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 10px 20px;
   padding: 9px 0;
   border-bottom: 0;
 }
-:where(html:not([data-shell-mode='mobile'])) .set-row--stack {
+.set-row--stack {
   grid-template-columns: minmax(0, 1fr);
 }
-:where(html:not([data-shell-mode='mobile'])) .set-row__label {
+.set-row__label {
   font-size: var(--ui-font-body, 14px);
   line-height: 20px;
 }
-:where(html:not([data-shell-mode='mobile'])) .set-row__desc {
+.set-row__desc {
   margin-top: 2px;
   color: var(--ui-text-muted, hsl(var(--ink-3)));
   font-size: var(--ui-font-secondary, 13px);
   line-height: 1.45;
 }
-:where(html:not([data-shell-mode='mobile'])) .set-row__desc code {
+.set-row__desc code {
   padding: 0;
   background: none;
   color: hsl(var(--ink-2));
   font-size: var(--ui-font-caption, 12px);
 }
-:where(html:not([data-shell-mode='mobile'])) .set-mono {
+.set-mono {
   color: var(--ui-text-muted, hsl(var(--ink-3)));
   font-size: var(--ui-font-caption, 12px);
   letter-spacing: 0;
 }
-:where(html:not([data-shell-mode='mobile'])) .set-italic {
+.set-italic {
   color: inherit;
   font-style: normal;
 }
 
 /* A sentence after one brush icon; failures in the danger ink. */
-:where(html:not([data-shell-mode='mobile'])) .set-note {
+.set-note {
   display: flex;
   align-items: flex-start;
   gap: 8px;
@@ -1887,15 +1858,15 @@ html[data-shell-mode='mobile'] .set-overlay {
   font-size: var(--ui-font-secondary, 13px);
   line-height: 19px;
 }
-:where(html:not([data-shell-mode='mobile'])) .set-note > .brush-icon {
+.set-note > .brush-icon {
   margin-top: 2px;
   color: hsl(var(--ink-3));
 }
-:where(html:not([data-shell-mode='mobile'])) .set-note--error,
-:where(html:not([data-shell-mode='mobile'])) .set-note--error > .brush-icon {
+.set-note--error,
+.set-note--error > .brush-icon {
   color: hsl(var(--destructive));
 }
-:where(html:not([data-shell-mode='mobile'])) .set-note b {
+.set-note b {
   color: inherit;
   font-weight: 500;
 }
@@ -1930,10 +1901,10 @@ html[data-shell-mode='mobile'] .set-overlay {
   align-items: center;
   gap: 8px;
 }
-:where(html:not([data-shell-mode='mobile'])) .set-slider {
+.set-slider {
   gap: 12px;
 }
-:where(html:not([data-shell-mode='mobile'])) .set-entity-link-colors {
+.set-entity-link-colors {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 4px 18px;
   padding: 0;
@@ -1941,10 +1912,10 @@ html[data-shell-mode='mobile'] .set-overlay {
   border-radius: 0;
   background: transparent;
 }
-:where(html:not([data-shell-mode='mobile'])) .set-entity-link-color {
+.set-entity-link-color {
   min-height: 34px;
 }
-:where(html:not([data-shell-mode='mobile'])) .set-entity-link-color__label {
+.set-entity-link-color__label {
   font-size: var(--ui-font-secondary, 13px);
 }
 
@@ -1983,54 +1954,54 @@ html[data-shell-mode='mobile'] .set-overlay {
   font-family: var(--font-mono);
   font-size: var(--ui-font-caption, 12px);
 }
-:where(html:not([data-shell-mode='mobile'])) .set-font-tools {
+.set-font-tools {
   margin-top: 6px;
   border: 0;
   border-radius: 0;
   background: transparent;
 }
-:where(html:not([data-shell-mode='mobile'])) .set-font-tool {
+.set-font-tool {
   gap: 8px 16px;
   padding: 10px 0;
 }
-:where(html:not([data-shell-mode='mobile'])) .set-font-tool + .set-font-tool {
+.set-font-tool + .set-font-tool {
   border-top: 0;
 }
-:where(html:not([data-shell-mode='mobile'])) .set-font-tool__title {
+.set-font-tool__title {
   font-size: var(--ui-font-body, 14px);
   line-height: 20px;
 }
-:where(html:not([data-shell-mode='mobile'])) .set-font-tool__desc {
+.set-font-tool__desc {
   color: var(--ui-text-muted, hsl(var(--ink-3)));
   font-size: var(--ui-font-secondary, 13px);
   line-height: 18px;
 }
-:where(html:not([data-shell-mode='mobile'])) .set-font-tool__select {
+.set-font-tool__select {
   display: inline-flex;
   width: 260px;
   min-width: 0;
 }
-:where(html:not([data-shell-mode='mobile'])) .set-font-tool__manual {
+.set-font-tool__manual {
   color: inherit;
   font-size: inherit;
 }
-:where(html:not([data-shell-mode='mobile'])) .set-font-tool__manual > .ui-button {
+.set-font-tool__manual > .ui-button {
   padding-left: 0;
 }
-:where(html:not([data-shell-mode='mobile'])) .set-font-tool__manual-actions {
+.set-font-tool__manual-actions {
   margin-top: 8px;
   gap: 8px;
 }
-:where(html:not([data-shell-mode='mobile'])) .set-font-tool__input {
+.set-font-tool__input {
   width: 300px;
   min-width: 0;
 }
-:where(html:not([data-shell-mode='mobile'])) .set-font-message {
+.set-font-message {
   margin: 4px 0 0;
 }
 
 /* The typesetting preview is the one raised thing here: a page. */
-:where(html:not([data-shell-mode='mobile'])) .set-preview {
+.set-preview {
   margin-top: 8px;
   padding: 22px 28px;
   border: 0;
@@ -2216,8 +2187,8 @@ html[data-shell-mode='mobile'] .set-overlay {
   padding: 0 6px 0 10px;
   cursor: default;
 }
-html:not([data-shell-mode='mobile']) .set-history__row.menu-surface__item::before,
-html:not([data-shell-mode='mobile']) .set-trash__row.menu-surface__item::before {
+html[data-shell-mode] .set-history__row.menu-surface__item::before,
+html[data-shell-mode] .set-trash__row.menu-surface__item::before {
   inset: 1px 0;
 }
 .set-history__title,
@@ -2453,12 +2424,12 @@ html:not([data-shell-mode='mobile']) .set-trash__row.menu-surface__item::before 
 .set-trash__actions:focus-within {
   opacity: 1;
 }
-html:not([data-shell-mode='mobile']) .set-trash__actions .ui-button.ui-button--glass.set-trash__purge:not(:disabled) {
+html[data-shell-mode] .set-trash__actions .ui-button.ui-button--glass.set-trash__purge:not(:disabled) {
   color: hsl(var(--destructive));
 }
 
 /* Account. */
-:where(html:not([data-shell-mode='mobile'])) .set-account-avatar {
+.set-account-avatar {
   position: relative;
   width: 40px;
   height: 40px;
@@ -2466,30 +2437,30 @@ html:not([data-shell-mode='mobile']) .set-trash__actions .ui-button.ui-button--g
   color: hsl(var(--page));
   font-weight: 600;
 }
-:where(html:not([data-shell-mode='mobile'])) .set-account-avatar > .sand {
+.set-account-avatar > .sand {
   --sand-c: hsl(var(--ink-2));
   position: absolute;
   inset: 0;
 }
-:where(html:not([data-shell-mode='mobile'])) .set-account-avatar > b {
+.set-account-avatar > b {
   position: relative;
   z-index: 1;
 }
-:where(html:not([data-shell-mode='mobile'])) .set-account-actions {
+.set-account-actions {
   padding: 10px 0;
 }
-:where(html:not([data-shell-mode='mobile'])) .set-account-password-fields .ui-field {
+.set-account-password-fields .ui-field {
   width: 100%;
 }
-:where(html:not([data-shell-mode='mobile'])) .set-account-message,
-:where(html:not([data-shell-mode='mobile'])) .set-account-notice {
+.set-account-message,
+.set-account-notice {
   margin: 8px 0 0;
   color: hsl(var(--ink-2));
   font-size: var(--ui-font-secondary, 13px);
   line-height: 1.5;
 }
-:where(html:not([data-shell-mode='mobile'])) .set-account-message[role='alert'],
-:where(html:not([data-shell-mode='mobile'])) .set-account-notice[role='alert'] {
+.set-account-message[role='alert'],
+.set-account-notice[role='alert'] {
   color: hsl(var(--destructive));
 }
 .set-storage {
@@ -2535,12 +2506,12 @@ html:not([data-shell-mode='mobile']) .set-trash__actions .ui-button.ui-button--g
 }
 
 @media (prefers-reduced-motion: reduce) {
-  :where(html:not([data-shell-mode='mobile'])) .set-rail__item::before,
-  :where(html:not([data-shell-mode='mobile'])) .set-rail__section::before {
+  .set-rail__item::before,
+  .set-rail__section::before {
     animation: none;
   }
-  :where(html:not([data-shell-mode='mobile'])) .set-rail__fold-chevron,
-  :where(html:not([data-shell-mode='mobile'])) .set-rail__sections-fold {
+  .set-rail__fold-chevron,
+  .set-rail__sections-fold {
     transition: none;
   }
 }

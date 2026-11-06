@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { FilterChip } from '../components/ui/FilterChip';
 import { GlassSlider } from '../components/ui/GlassSlider';
 import { ColorPicker } from '../components/ui/ColorPicker';
-import { getPlatformRuntime } from '../platform/runtime';
 import { EditorContent } from '@tiptap/react';
 import type { Editor } from '@tiptap/core';
 import { useParams } from 'react-router-dom';
@@ -263,8 +261,6 @@ export function CategoryEditorView({
   }
 
   const categoryColor = curCategory.color || 'hsl(var(--accent))';
-  // Desktop wears sand and glass; the paused mobile shell keeps its own look.
-  const glass = !getPlatformRuntime().isMobileShell;
   const elementFilters = [
     ['all', t('storylineEditor.filters.all'), cEls.length],
     ['used', t('categoryEditor.filters.used'), usedCount],
@@ -323,44 +319,28 @@ export function CategoryEditorView({
           >
             <div className="page__folio" aria-hidden="true">
               <span className="page__folio-line">{t('categoryEditor.folio')}</span>
-              {glass ? (
-                <span className="page__folio-line page__folio-storyline">
-                  <KindMark kind="category" color={categoryColor} />
-                  {curCategory.name}
-                </span>
-              ) : (
-                <span className="page__folio-line" style={{ color: categoryColor, fontWeight: 600 }}>
-                  {curCategory.name}
-                </span>
-              )}
+              <span className="page__folio-line page__folio-storyline">
+                <KindMark kind="category" color={categoryColor} />
+                {curCategory.name}
+              </span>
               <span className="page__folio-line">{t('categoryEditor.meta.elements', { count: cEls.length })}</span>
             </div>
 
             {/* 一 · 概述 */}
             <section id="cat-overview">
               <div className="elem-hero">
-                {!glass && (
-                  <div
-                    className="elem-portrait elem-portrait--category"
-                    style={{ ['--c-color' as string]: categoryColor } as React.CSSProperties}
-                  >
-                    <span className="elem-portrait__hint"><KindMark kind="element" color="currentColor" className="is-inline" />{curCategory.name}</span>
-                  </div>
-                )}
                 <div className="elem-hero__main">
-                  {glass ? (
-                    <div className="entity-hero__name-row">
-                      <KindMark kind="category" color={categoryColor} className="entity-hero__mark" />
-                      {nameField}
-                    </div>
-                  ) : nameField}
+                  <div className="entity-hero__name-row">
+                    <KindMark kind="category" color={categoryColor} className="entity-hero__mark" />
+                    {nameField}
+                  </div>
 
                   <div className="elem-hero__facts">
                     <div className="elem-hero__fact-k">{t('categoryEditor.labels.elementCount')}</div>
                     <div className="elem-hero__fact-v">{t('categoryEditor.meta.items', { count: cEls.length })}</div>
                     <div className="elem-hero__fact-k">{t('storylineEditor.labels.color')}</div>
                     <div className="elem-hero__fact-v">
-                      <div className={`col-pick${glass ? ' col-pick--glass' : ''}`}>
+                      <div className="col-pick col-pick--glass">
                         <ColorPicker
                           value={categoryColor}
                           onChange={(color) => void commitColor(color)}
@@ -434,37 +414,21 @@ export function CategoryEditorView({
                   <span className="page__section-meta">{t('categoryEditor.meta.items', { count: cEls.length })}</span>
                 </h2>
 
-                <div className={`mgr-toolbar${glass ? ' mgr-toolbar--glass' : ''}`}>
-                  {glass ? (
-                    <GlassSlider
-                      className="entity-slider"
-                      ariaLabel={t('categoryEditor.sections.elements')}
-                      value={elementFilter}
-                      onChange={setElementFilter}
-                      options={elementFilters.map(([k, label, n]) => ({
-                        value: k,
-                        label: <>{label}<span className="entity-slider__count">{n}</span></>,
-                      }))}
-                    />
-                  ) : (
-                    <div className="mgr-toolbar__chips">
-                      {elementFilters.map(([k, label, n]) => (
-                        <FilterChip
-                          key={k}
-                          shape="square"
-                          active={elementFilter === k}
-                          count={`· ${n}`}
-                          onClick={() => setElementFilter(k)}
-                        >
-                          {label}
-                        </FilterChip>
-                      ))}
-                    </div>
-                  )}
+                <div className="mgr-toolbar mgr-toolbar--glass">
+                  <GlassSlider
+                    className="entity-slider"
+                    ariaLabel={t('categoryEditor.sections.elements')}
+                    value={elementFilter}
+                    onChange={setElementFilter}
+                    options={elementFilters.map(([k, label, n]) => ({
+                      value: k,
+                      label: <>{label}<span className="entity-slider__count">{n}</span></>,
+                    }))}
+                  />
                   {/* DEFERRED: search / sort / batch / + new element */}
                 </div>
 
-                <div className={`mgr-list${glass ? ' mgr-list--glass' : ''}`}>
+                <div className="mgr-list mgr-list--glass">
                   {filteredEls.map((e) => {
                     const summary = e.summary || '';
                     const hasContent =
@@ -472,21 +436,14 @@ export function CategoryEditorView({
                     return (
                       <div
                         key={e.id}
-                        className={`mgr-row${glass ? ' mgr-row--glass sand-cell' : ''}`}
+                        className="mgr-row mgr-row--glass sand-cell"
                         style={{ '--s-color': categoryColor, '--cell-c': categoryColor } as React.CSSProperties}
                         onClick={() => navigateToElement(e.id)}
                       >
-                        {glass ? (
-                          <KindMark kind="element" hollow={!hasContent} color={categoryColor} className="mgr-row__mark" />
-                        ) : (
-                          <div className="mgr-row__status" style={{ background: categoryColor }} />
-                        )}
+                        <KindMark kind="element" hollow={!hasContent} color={categoryColor} className="mgr-row__mark" />
                         <div className="mgr-row__num">e.{e.id.slice(0, 4)}</div>
                         <div className="mgr-row__body">
                           <div className="mgr-row__title">
-                            {!glass && (
-                              <KindMark kind="element" color="var(--s-color, hsl(var(--accent)))" className="mgr-row__title-mark" />
-                            )}
                             <span>{e.name || t('common.untitled')}</span>
                           </div>
                           <div className={`mgr-row__summary${summary ? '' : ' mgr-row__summary--empty'}`}>
@@ -498,7 +455,7 @@ export function CategoryEditorView({
                           <span className="mgr-row__wc-k">{t('categoryEditor.labels.summary')}</span>
                         </div>
                         <div className="mgr-row__open" title={t('categoryEditor.actions.openElement')}><BrushIcon name="arrow-forward" size={14} /></div>
-                        {glass && <i className="cell-ring" aria-hidden="true" />}
+                        <i className="cell-ring" aria-hidden="true" />
                       </div>
                     );
                   })}

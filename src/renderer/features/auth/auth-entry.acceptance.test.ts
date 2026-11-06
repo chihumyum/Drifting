@@ -30,12 +30,15 @@ describe('account sign-in entry', () => {
     }
   });
 
-  it('asks for local or account use before the desktop shelf mounts', () => {
+  it('asks for local or account use before the shelf mounts, on the phone too', () => {
+    const app = read('src/renderer/App.tsx');
     const routes = read('src/renderer/app/AppRoutes.tsx');
+    const phoneShelf = read('src/renderer/shells/mobile/standalone/MobileProjectShelfView.tsx');
     const guide = read('src/renderer/components/modals/PreAlphaOnboardingDialog.tsx');
     const css = read('src/styles/auth.css');
 
     expect(routes).toMatch(/<PreAlphaFirstRunGate>\s*<ProjectPickerView \/>\s*<\/PreAlphaFirstRunGate>/);
+    expect(phoneShelf).toMatch(/<PreAlphaFirstRunGate>\s*<ProjectPickerView \/>\s*<\/PreAlphaFirstRunGate>/);
     // Nothing to ask: the shelf as it is; otherwise it mounts only once the card is done.
     expect(guide).toContain("if (stage === 'done' && !throughCard) return <>{children}</>;");
     expect(guide).toContain("const shelf = stage === 'leaving' || stage === 'done' ? (");
@@ -47,9 +50,10 @@ describe('account sign-in entry', () => {
     expect(guide).toContain("const google = !isAppClosedForPublic && providers.includes('google');");
     // Hosted builds still say there that crash reports are sent (docs/crash-reports.md).
     expect(guide).toContain("<p className=\"first-run-welcome__note\">{t('preAlphaGuide.crashReports')}</p>");
-    // Mobile keeps the overlay guide and its full-page authentication route.
-    expect(guide).toContain('if (!open || !getPlatformRuntime().isMobileShell) return null;');
-    expect(guide).toContain("if (!session) navigate('/login');");
+    // The phone's old overlay guide is gone: one gate asks on every platform.
+    expect(guide).not.toContain('export function PreAlphaOnboardingDialog');
+    expect(guide).not.toContain('isMobileShell');
+    expect(app).not.toContain('<PreAlphaOnboardingDialog />');
     // The desktop choice is a card in the window, not a dialog over it (char-sea.acceptance.test.ts).
     expect(css).not.toContain('first-run-gate__modal');
     expect(css).toMatch(/\.first-run-gate__pane--account \{\s*width: min\(400px, calc\(100vw - 48px\)\);/);

@@ -1,6 +1,8 @@
 /* The notification center (NotificationPill.tsx): the menu shell's rich
    panel. Rows are menu rows; unread titles are heavier; the remove button
    shows only on the row under the pointer or with the keyboard on it. */
+/* `html[data-shell-mode]` and `:root[data-shell-mode]` match every shell: they
+   keep the weight these rules had while the mobile shell was excluded. */
 .notification-pill {
   position: relative;
   display: flex;
@@ -40,7 +42,7 @@
   cursor: default;
 }
 
-html:not([data-shell-mode='mobile']) .notification-row.is-static::before {
+html[data-shell-mode] .notification-row.is-static::before {
   display: none;
 }
 

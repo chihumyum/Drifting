@@ -14,7 +14,6 @@ import { KindMark } from '../../components/ui/KindMark';
 import { SandFrame } from '../../components/ui/SandFrame';
 import { BrushIcon } from '../../components/ui/BrushIcon';
 import { GhostIconButton } from '../../components/ui/GhostIconButton';
-import { getPlatformRuntime } from '../../platform/runtime';
 import {
   libraryItemSubtitle,
   useStoredLibraryItemVariant,
@@ -181,7 +180,6 @@ export function LibraryItemCard({
   defaultExpanded?: boolean;
 }) {
   const { t } = useTranslation();
-  const [hover, setHover] = useState(false);
   const [draft, setDraft] = useState(material.title);
   const [mobileMenu, setMobileMenu] = useState<{ x: number; y: number } | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -196,7 +194,6 @@ export function LibraryItemCard({
   // hides existing relations on every card; opening via the actions still
   // works even when collapsed (lasts until the user closes the picker).
   const showPicker = pickerOpen || (showRelations && selectedSet.size > 0);
-  const accent = 'hsl(var(--story-4))';
   const kindLabel = t(`memoMaterial.kind.${material.kind}`, { defaultValue: material.kind });
   const subtitle = libraryItemSubtitle(material);
   const isTextSnippet = material.kind === 'text';
@@ -257,19 +254,13 @@ export function LibraryItemCard({
     setMobileMenu({ x: rect.right, y: rect.bottom + 4 });
   }, []);
 
-  // Desktop: a material is a sand cell (the upright slip, a ring of flowing
-  // glass under the pointer, a frame drawn round the one open in the active
-  // tab). The paused mobile shell keeps the older card below.
-  const glass = !getPlatformRuntime().isMobileShell;
+  // A material is a sand cell (the upright slip, a ring of flowing glass
+  // under the pointer, a frame drawn round the one open in the active tab).
   const rowEvents = {
     onMouseEnter: (event: React.MouseEvent<HTMLDivElement>) => {
-      setHover(true);
       if (hoverEnabled) hoverEnter(null, event.currentTarget);
     },
-    onMouseLeave: () => {
-      setHover(false);
-      hoverLeave();
-    },
+    onMouseLeave: hoverLeave,
     onPointerDownCapture: hoverDismiss,
     onDoubleClick: (event: React.MouseEvent<HTMLDivElement>) => {
       const target = event.target as HTMLElement | null;
@@ -317,7 +308,7 @@ export function LibraryItemCard({
       {...rowEvents}
     >
       <div className="library-item-card__head">
-        {!isImageExpanded && <LibraryItemThumbnail material={material} onClick={handleOpenInApp} glass />}
+        {!isImageExpanded && <LibraryItemThumbnail material={material} onClick={handleOpenInApp} />}
         <div className="library-item-card__text">
           <div className="library-item-card__title-row">
             <KindMark kind="material" color="hsl(var(--ink-3))" />
@@ -368,6 +359,16 @@ export function LibraryItemCard({
                   onClick={handleOpenInSystem}
                 />
               )}
+              {mobileActions && (
+                <GhostIconButton
+                  size="sm"
+                  className="library-item-card__mobile-menu"
+                  icon={<BrushIcon name="more" size={12} />}
+                  title={t('common.more')}
+                  aria-label={t('common.more')}
+                  onClick={openMobileActionMenu}
+                />
+              )}
             </span>
           </div>
           <div className="library-item-card__meta">
@@ -411,383 +412,9 @@ export function LibraryItemCard({
     </div>
   );
 
-  const legacyCard = (
-      <div
-        className={`workspace-list-row${active ? ' workspace-list-row--active' : ''}`}
-        aria-current={active ? 'page' : undefined}
-        onMouseEnter={(event) => {
-          setHover(true);
-          if (hoverEnabled) hoverEnter(null, event.currentTarget);
-        }}
-        onMouseLeave={() => {
-          setHover(false);
-          hoverLeave();
-        }}
-        onPointerDownCapture={hoverDismiss}
-        onDoubleClick={(event) => {
-          const target = event.target as HTMLElement | null;
-          if (!onPin || target?.closest('input, textarea, button, [contenteditable="true"]')) return;
-          onPin();
-        }}
-        style={{
-          padding: '8px 10px',
-          // The relation target picker is part of the card's authored
-          // content, not an inset scroll region. Let the card grow around it
-          // while open; the surrounding library panel remains the sole
-          // vertical scroll owner.
-          maxHeight: isTextExpanded || pickerOpen ? 'none' : 320,
-          overflow: isTextExpanded || pickerOpen ? 'visible' : 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-          // Prevents the flex-column scroll parent from shrinking each card
-          // and clipping the relation picker.
-          flexShrink: 0,
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            marginBottom: 3,
-            fontFamily: 'var(--font-mono)',
-            fontSize: 9,
-            textTransform: 'uppercase',
-            letterSpacing: '0.1em',
-            color: 'hsl(var(--ink-4))',
-            flexShrink: 0,
-            minHeight: 18,
-          }}
-        >
-          <span style={{ color: accent }}>{kindLabel}</span>
-          {folderPath && (
-            <span className="library-item-card__folder" title={folderPath}>
-              {folderPath}
-            </span>
-          )}
-          <span style={{ flex: 1 }} />
-          {canExpandImage && (
-            <button
-              onClick={() => setImageExpanded((v) => !v)}
-              title={
-                imageExpanded
-                  ? t('memoMaterial.card.collapseImage')
-                  : t('memoMaterial.card.expandImage')
-              }
-              aria-hidden={!hover}
-              tabIndex={hover ? 0 : -1}
-              style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 9.5,
-                padding: '1px 6px',
-                borderRadius: 2,
-                border: '1px solid hsl(var(--rule))',
-                background: 'hsl(var(--paper))',
-                color: 'hsl(var(--ink-2))',
-                cursor: 'pointer',
-                opacity: hover ? 1 : 0,
-                pointerEvents: hover ? 'auto' : 'none',
-                transition: 'opacity 120ms ease',
-              }}
-            >
-              {imageExpanded ? t('memoMaterial.card.collapse') : t('memoMaterial.card.expand')}
-            </button>
-          )}
-          {isTextSnippet && (
-            <button
-              onClick={() => setTextExpanded((v) => !v)}
-              title={
-                textExpanded
-                  ? t('memoMaterial.card.collapseSnippet')
-                  : t('memoMaterial.card.expandSnippet')
-              }
-              aria-hidden={!hover}
-              tabIndex={hover ? 0 : -1}
-              style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 9.5,
-                padding: '1px 6px',
-                borderRadius: 2,
-                border: '1px solid hsl(var(--rule))',
-                background: 'hsl(var(--paper))',
-                color: 'hsl(var(--ink-2))',
-                cursor: 'pointer',
-                opacity: hover ? 1 : 0,
-                pointerEvents: hover ? 'auto' : 'none',
-                transition: 'opacity 120ms ease',
-              }}
-            >
-              {textExpanded ? t('memoMaterial.card.collapse') : t('memoMaterial.card.expand')}
-            </button>
-          )}
-          {mobileActions && (
-            <button
-              type="button"
-              className="library-item-card__mobile-menu"
-              aria-label={t('common.more')}
-              title={t('common.more')}
-              onClick={openMobileActionMenu}
-            >
-              ···
-            </button>
-          )}
-          {!isTextSnippet && (
-            <button
-              onClick={handleOpenInSystem}
-              title={t('memoMaterial.menu.openInSystem')}
-              aria-hidden={!hover}
-              tabIndex={hover ? 0 : -1}
-              style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 9.5,
-                padding: '1px 6px',
-                borderRadius: 2,
-                border: '1px solid hsl(var(--rule))',
-                background: 'hsl(var(--paper))',
-                color: 'hsl(var(--ink-2))',
-                cursor: 'pointer',
-                opacity: hover ? 1 : 0,
-                pointerEvents: hover ? 'auto' : 'none',
-                transition: 'opacity 120ms ease',
-              }}
-            >
-              {t('memoMaterial.menu.openInSystem')}
-            </button>
-          )}
-        </div>
-
-        {!isImageExpanded && !isTextExpanded && (
-          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', minHeight: 0 }}>
-            <LibraryItemThumbnail material={material} onClick={handleOpenInApp} />
-            <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
-              {editing ? (
-                <input
-                  autoFocus
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                  onBlur={() => {
-                    if (draft !== material.title) onUpdate({ title: draft });
-                    onSetEditing(false);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur();
-                    if (e.key === 'Escape') {
-                      setDraft(material.title);
-                      onSetEditing(false);
-                      (e.currentTarget as HTMLInputElement).blur();
-                    }
-                  }}
-                  style={{
-                    width: '100%',
-                    fontFamily: 'var(--font-sans)',
-                    fontSize: 13.5,
-                    color: 'hsl(var(--ink-1))',
-                    lineHeight: 1.35,
-                    padding: '2px 4px',
-                    border: '1px solid hsl(var(--rule))',
-                    borderRadius: 3,
-                    background: 'hsl(var(--paper))',
-                    outline: 'none',
-                  }}
-                />
-              ) : (
-                <div
-                  className="library-item-card__editable-title"
-                  onClick={() => {
-                    setDraft(material.title);
-                    onSetEditing(true);
-                  }}
-                  title={material.title || subtitle}
-                  role="button"
-                  tabIndex={0}
-                  aria-label={`${t('common.edit')} ${material.title || subtitle || t('common.untitled')}`}
-                  onKeyDown={(event) => {
-                    if (event.key !== 'Enter' && event.key !== ' ') return;
-                    event.preventDefault();
-                    setDraft(material.title);
-                    onSetEditing(true);
-                  }}
-                  style={{
-                    fontFamily: 'var(--font-sans)',
-                    fontSize: 13.5,
-                    fontWeight: 500,
-                    color: 'hsl(var(--ink-1))',
-                    lineHeight: 1.35,
-                    cursor: 'text',
-                    minHeight: 18,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {material.title || (
-                    <span style={{ color: 'hsl(var(--ink-4))', fontStyle: 'italic' }}>
-                      {subtitle || t('common.untitled')}
-                    </span>
-                  )}
-                </div>
-              )}
-              {subtitle && !isTextSnippet && (
-                <div
-                  style={{
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: 10,
-                    color: 'hsl(var(--ink-4))',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    minWidth: 0,
-                  }}
-                >
-                  <span
-                    style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                  >
-                    {subtitle}
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {isTextExpanded && (
-          <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {editing ? (
-              <input
-                autoFocus
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                onBlur={() => {
-                  if (draft !== material.title) onUpdate({ title: draft });
-                  onSetEditing(false);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur();
-                  if (e.key === 'Escape') {
-                    setDraft(material.title);
-                    onSetEditing(false);
-                    (e.currentTarget as HTMLInputElement).blur();
-                  }
-                }}
-                style={{
-                  width: '100%',
-                  fontFamily: 'var(--font-sans)',
-                  fontSize: 13.5,
-                  color: 'hsl(var(--ink-1))',
-                  lineHeight: 1.35,
-                  padding: '2px 4px',
-                  border: '1px solid hsl(var(--rule))',
-                  borderRadius: 3,
-                  background: 'hsl(var(--paper))',
-                  outline: 'none',
-                }}
-              />
-            ) : (
-              <div
-                className="library-item-card__editable-title"
-                onClick={() => {
-                  setDraft(material.title);
-                  onSetEditing(true);
-                }}
-                title={material.title || subtitle}
-                role="button"
-                tabIndex={0}
-                aria-label={`${t('common.edit')} ${material.title || subtitle || t('common.untitled')}`}
-                onKeyDown={(event) => {
-                  if (event.key !== 'Enter' && event.key !== ' ') return;
-                  event.preventDefault();
-                  setDraft(material.title);
-                  onSetEditing(true);
-                }}
-                style={{
-                  fontFamily: 'var(--font-sans)',
-                  fontSize: 13.5,
-                  fontWeight: 500,
-                  color: 'hsl(var(--ink-1))',
-                  lineHeight: 1.35,
-                  whiteSpace: 'pre-wrap',
-                  wordBreak: 'break-word',
-                  cursor: 'text',
-                  minHeight: 18,
-                }}
-              >
-                {material.title || (
-                  <span style={{ color: 'hsl(var(--ink-4))', fontStyle: 'italic' }}>
-                    {subtitle || t('common.untitled')}
-                  </span>
-                )}
-              </div>
-            )}
-            <NoteExcerpt
-              bodyJson={material.kind === 'text' ? material.bodyJson : null}
-              emptyLabel={t('memoMaterial.card.addSnippetBody')}
-              clamp={false}
-              onOpen={handleOpenInApp}
-            />
-          </div>
-        )}
-
-        {isImageExpanded && (
-          <button
-            type="button"
-            onClick={handleOpenInApp}
-            title={t('memoMaterial.card.fullscreenImage')}
-            style={{
-              marginTop: 8,
-              padding: 0,
-              border: '1px solid hsl(var(--rule))',
-              borderRadius: 4,
-              background: 'hsl(var(--paper-deep) / 0.35)',
-              cursor: 'zoom-in',
-              overflow: 'hidden',
-              width: '100%',
-              maxHeight: 220,
-              display: 'grid',
-              placeItems: 'center',
-            }}
-          >
-            <img
-              src={imageSrc}
-              alt=""
-              style={{
-                display: 'block',
-                width: '100%',
-                height: 'auto',
-                maxHeight: 220,
-                objectFit: 'contain',
-              }}
-            />
-          </button>
-        )}
-
-        {isTextSnippet && !isTextExpanded && (
-          <div style={{ marginTop: 6 }}>
-            <NoteExcerpt
-              bodyJson={material.kind === 'text' ? material.bodyJson : null}
-              emptyLabel={t('memoMaterial.card.addSnippetBody')}
-              clamp
-              onOpen={handleOpenInApp}
-            />
-          </div>
-        )}
-
-        {showPicker && (
-          <div style={{ marginTop: 6, flexShrink: 0 }}>
-            <EntityRelationPicker
-              selected={selectedSet}
-              onAdd={onAddRelation}
-              onRemove={onRemoveRelation}
-              open={pickerOpen}
-              onOpenChange={setPickerOpen}
-            />
-          </div>
-        )}
-      </div>
-  );
-
   return (
     <>
-      {glass ? glassCard : legacyCard}
+      {glassCard}
       {hoverPreview && (
         <HoverCardShell
           anchor={hoverPreview.anchor}
@@ -817,18 +444,15 @@ export function LibraryItemCard({
 // ─────────────────────────────────────────────────────────────────────────────
 // Thumbnail — inline preview tile for image / pdf materials.
 
+/** No frame or fill; a PDF page is a small white sheet. */
 function LibraryItemThumbnail({
   material,
   onClick,
-  glass = false,
 }: {
   material: LibraryItem;
   onClick: () => void;
-  /** Desktop: no frame or fill; a PDF page is a small white sheet. */
-  glass?: boolean;
 }) {
   const { t } = useTranslation();
-  const size = 64;
   const [errorKey, setErrorKey] = useState<string | null>(null);
   const assetThumbnail = useStoredLibraryItemVariant(
     material,
@@ -838,91 +462,25 @@ function LibraryItemThumbnail({
   const currentImageKey = `${material.id}:${material.assetId ?? ''}:${assetThumbnail.fileUrl ?? ''}`;
   const errored = errorKey === currentImageKey;
   const src = !errored && material.kind !== 'text' ? assetThumbnail.fileUrl : null;
-  if (glass) {
-    if (material.kind === 'text') return null;
-    const title = src
-      ? t('memoMaterial.preview.open')
-      : material.kind === 'pdf' ? t('memoMaterial.preview.generating') : t('memoMaterial.preview.open');
-    return (
-      <button
-        type="button"
-        onClick={onClick}
-        title={title}
-        aria-label={title}
-        className={`library-item-card__thumb library-item-card__thumb--${material.kind}`}
-      >
-        {src ? (
-          <img src={src} alt="" onError={() => setErrorKey(currentImageKey)} />
-        ) : material.kind === 'pdf' ? (
-          <BrushIcon name="loader" size={13} className="control-spinner" />
-        ) : (
-          <BrushIcon name="image" size={14} />
-        )}
-      </button>
-    );
-  }
-  if (!src) {
-    if (material.kind === 'text') return null;
-    return (
-      <div
-        onClick={onClick}
-        style={{
-          width: size,
-          height: size,
-          flexShrink: 0,
-          borderRadius: 3,
-          background: 'hsl(var(--paper-deep) / 0.4)',
-          border: '1px dashed hsl(var(--rule))',
-          display: 'grid',
-          placeItems: 'center',
-          fontFamily: 'var(--font-mono)',
-          fontSize: 9.5,
-          color: 'hsl(var(--ink-4))',
-          cursor: 'pointer',
-        }}
-        title={
-          material.kind === 'pdf'
-            ? t('memoMaterial.preview.generating')
-            : t('memoMaterial.preview.open')
-        }
-      >
-        {material.kind === 'pdf' ? (
-          '...'
-        ) : (
-          t(`memoMaterial.kind.${material.kind}`, { defaultValue: material.kind })
-        )}
-      </div>
-    );
-  }
+  if (material.kind === 'text') return null;
+  const title = src
+    ? t('memoMaterial.preview.open')
+    : material.kind === 'pdf' ? t('memoMaterial.preview.generating') : t('memoMaterial.preview.open');
   return (
     <button
       type="button"
       onClick={onClick}
-      style={{
-        width: size,
-        height: size,
-        flexShrink: 0,
-        border: '1px solid hsl(var(--rule))',
-        borderRadius: 3,
-        background: 'hsl(var(--paper-deep))',
-        cursor: 'pointer',
-        padding: 0,
-        overflow: 'hidden',
-        position: 'relative',
-      }}
-      title={t('memoMaterial.preview.open')}
+      title={title}
+      aria-label={title}
+      className={`library-item-card__thumb library-item-card__thumb--${material.kind}`}
     >
-      <img
-        src={src}
-        alt=""
-        onError={() => setErrorKey(currentImageKey)}
-        style={{
-          display: 'block',
-          width: '100%',
-          height: '100%',
-          objectFit: 'cover',
-        }}
-      />
+      {src ? (
+        <img src={src} alt="" onError={() => setErrorKey(currentImageKey)} />
+      ) : material.kind === 'pdf' ? (
+        <BrushIcon name="loader" size={13} className="control-spinner" />
+      ) : (
+        <BrushIcon name="image" size={14} />
+      )}
     </button>
   );
 }

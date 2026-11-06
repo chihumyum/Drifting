@@ -18,15 +18,17 @@ describe('通览全书 in sand and glass', () => {
   const view = read('src/renderer/views/AllChaptersEditorView.tsx');
   const css = read('src/styles/all-chapters.css');
 
-  it('draws no rule between chapters on the desktop', () => {
-    expect(view).toContain('const desktopChrome = !getPlatformRuntime().isMobileShell;');
-    // Only the paused touch shell keeps the rule under each chapter.
-    expect(view).toContain('!desktopChrome && idx < orderedNodes.length - 1');
+  it('draws no rule between chapters on any shell', () => {
+    // The look no longer branches on the shell; only the ⁂ action menu does.
+    expect(view).not.toContain('desktopChrome');
+    expect(view).toContain('const canInsertChapters = !getPlatformRuntime().isMobileShell;');
+    expect(view).toContain('style={{ scrollMarginTop: 24 }}');
+    expect(view).not.toContain("'1px solid hsl(var(--rule))'");
     expect(view).toContain("import '../../styles/all-chapters.css';");
   });
 
   it('stands an act title on the desk with one dry stroke under its name', () => {
-    expect(view).toContain("className={`act-break${desktopChrome ? ' act-break--sand' : ''}`}");
+    expect(view).toContain('className="act-break act-break--sand"');
     expect(view).toContain("t('allChapters.actOrdinal'");
     expect(view).toContain('className="sand sand--ul sand--arrive act-break__stroke"');
 
@@ -40,8 +42,9 @@ describe('通览全书 in sand and glass', () => {
   });
 
   it('offers one primary and a secondary glass button when the book is empty', () => {
-    expect(view).toContain("all-chap-empty__btn${desktopChrome ? ' glass glass--primary glass--small' : ''}");
-    expect(view).toContain("all-chap-empty__btn${desktopChrome ? ' glass glass--rest glass--small' : ''}");
+    expect(view).toContain('className="all-chap-empty all-chap-empty--glass"');
+    expect(view).toContain('className="all-chap-empty__btn glass glass--primary glass--small"');
+    expect(view).toContain('className="all-chap-empty__btn glass glass--rest glass--small"');
     expect(view).toContain('<BrushIcon name="torii" size={15} />');
     // No hand-written outlined buttons in the view itself.
     expect(view).not.toContain("border: '1px solid hsl(var(--rule))'");
@@ -60,8 +63,12 @@ describe('the manuscript folio in sand', () => {
   const indexCss = read('src/styles/index.css');
 
   it('names the storyline once, by its sand dash and its name in ink', () => {
-    expect(read('src/renderer/views/AllChaptersEditorView.tsx')).toContain('sandFolio={desktopChrome}');
-    const folio = block(row, '{sandFolio ? (', ') : (');
+    // One folio on every shell: no Roman-numeral fallback left to switch to.
+    expect(read('src/renderer/views/AllChaptersEditorView.tsx')).not.toContain('sandFolio');
+    expect(row).not.toContain('sandFolio');
+    expect(row).not.toContain('chapterRoman');
+    expect(row).not.toContain('page__chapter-mark');
+    const folio = block(row, '<div className="page__folio" aria-hidden="true">', '</div>');
     expect(folio).toContain("t('virtualChapterRow.chapterNumber', { n: index + 1 })");
     expect(folio).toContain('<span className="page__folio-line page__folio-storyline">');
     expect(folio).toContain('<KindMark kind="storyline" color={storylineColor} />');

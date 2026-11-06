@@ -337,13 +337,13 @@
   position: fixed;
   left: 0;
   right: 0;
-  bottom: max(var(--m-keyboard-inset, 0px), var(--m-safe-bottom));
+  bottom: var(--m-keyboard-inset, 0px);
   z-index: 40;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 6px;
-  padding: 14px 10px 6px;
+  padding: 14px 10px max(6px, calc(var(--m-safe-bottom) - var(--m-keyboard-inset, 0px)));
   /* The same page-coloured foot as the dock, so the bar never sits on words. */
   background: linear-gradient(to top, hsl(var(--page)) 64%, hsl(var(--page) / 0));
   pointer-events: none;
@@ -765,4 +765,28 @@
 
 .m-project-trash .m-settings__content.set-main {
   background: transparent;
+}
+
+/* Today's words on the keyboard's bar, the stroke toward the daily goal under it. */
+.m-kbar__today {
+  margin-left: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 3px;
+  width: 64px;
+  padding: 0 4px;
+  font-family: var(--font-mono);
+  font-size: var(--ui-font-caption);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--ui-text-muted);
+  pointer-events: none;
+}
+
+.m-kbar__today-goal {
+  align-self: flex-start;
+  max-width: 100%;
+  --sand-stroke-h: 5px;
+  --sand-c: hsl(var(--ink-3));
 }

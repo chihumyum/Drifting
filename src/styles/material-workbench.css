@@ -2,6 +2,8 @@
    Material workbench — material tabs, media stages, note pages.
    See docs/material-workbench.md.
    ============================================================ */
+/* `html[data-shell-mode]` and `:root[data-shell-mode]` match every shell: they
+   keep the weight these rules had while the mobile shell was excluded. */
 
 .material-editor__missing {
   display: flex;
@@ -161,38 +163,6 @@
 .material-stage__message {
   font-size: 14px;
   color: hsl(var(--ink-3));
-}
-.material-stage__pager {
-  position: absolute;
-  left: 50%;
-  bottom: 14px;
-  transform: translateX(-50%);
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 5px 8px;
-  border: 1px solid hsl(var(--rule));
-  border-radius: 3px;
-  background: hsl(var(--paper) / 0.9);
-  box-shadow: 0 12px 24px -14px hsl(var(--shadow-ink) / 0.3);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: hsl(var(--ink-2));
-}
-.material-stage__pager button {
-  padding: 3px 7px;
-  border: 0;
-  border-radius: 2px;
-  background: hsl(var(--paper-deep));
-  color: hsl(var(--ink-1));
-  font: inherit;
-  cursor: pointer;
-}
-.material-stage__pager button:disabled {
-  background: transparent;
-  color: hsl(var(--ink-5));
-  cursor: default;
 }
 .material-stage__tools {
   position: absolute;
@@ -415,40 +385,11 @@
 
 /* Checklist and table actions float over the note (NoteFloatingBar); this
    paper bar is the paused mobile shell's, the desktop's is glass (below). */
-.note-floating-bar {
-  position: fixed;
-  z-index: var(--z-popover);
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  max-width: calc(100vw - 16px);
-  padding: 3px;
-  border: 1px solid hsl(var(--rule));
-  border-radius: 6px;
-  background: hsl(var(--paper));
-  box-shadow: 0 8px 22px -12px hsl(var(--shadow-ink) / 0.45);
-  animation: note-floating-bar-in 120ms ease-out;
-}
 @keyframes note-floating-bar-in {
   from {
     opacity: 0;
     transform: translateY(2px);
   }
-}
-.note-floating-bar button {
-  padding: 3px 8px;
-  white-space: nowrap;
-  border: 0;
-  border-radius: 3px;
-  background: transparent;
-  color: hsl(var(--ink-2));
-  font-family: var(--font-sans);
-  font-size: 12px;
-  cursor: pointer;
-}
-.note-floating-bar button:hover:not(:disabled) {
-  background: hsl(var(--paper-deep));
-  color: hsl(var(--ink-1));
 }
 
 /* Embedded materials in notes. */
@@ -536,16 +477,6 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-}
-.note-embed-picker__import {
-  align-self: flex-start;
-  padding: 5px 10px;
-  border: 1px solid hsl(var(--rule));
-  border-radius: 4px;
-  background: hsl(var(--paper));
-  color: hsl(var(--ink-1));
-  font-size: 12.5px;
-  cursor: pointer;
 }
 .note-embed-picker__error {
   color: hsl(var(--destructive));
@@ -840,15 +771,6 @@
   font-size: 12px;
   cursor: pointer;
 }
-.comment-composer:not(.comment-composer--float) .comment-composer__save {
-  border-color: hsl(var(--accent)) !important;
-  background: hsl(var(--accent)) !important;
-  color: hsl(var(--paper)) !important;
-}
-.comment-composer:not(.comment-composer--float) .comment-composer__save:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
 
 /* A note task item linked to a TODO: the TODO status drives its checkbox. */
 .note-prose ul[data-type='taskList'] li[data-todo-id] > div > p:first-child::after {
@@ -871,27 +793,8 @@
   color: hsl(var(--ink-3));
   white-space: nowrap;
 }
-.note-floating-bar__divider {
-  width: 1px;
-  height: 16px;
-  margin: 0 3px;
-  background: hsl(var(--rule));
-}
-.note-floating-bar button:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
 
 /* ── Material folders (panel tree, picker) ────────────────────────────── */
-
-.library-item-card__folder {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  text-transform: none;
-  letter-spacing: 0.02em;
-}
 
 .material-tree {
   display: flex;
@@ -1305,13 +1208,13 @@
 /* ── Image / PDF tab: the header is written on the desk; the image or PDF
    page is the one sheet lifted off it. ── */
 
-:root:not([data-shell-mode='mobile']) .material-editor__header {
+:root[data-shell-mode] .material-editor__header {
   padding: 20px 28px 6px;
   border-bottom: 0;
   background: transparent;
 }
 
-:root:not([data-shell-mode='mobile']) .material-editor__generation {
+:root[data-shell-mode] .material-editor__generation {
   max-width: 560px;
   border-radius: 2px;
   background: transparent;
@@ -1346,12 +1249,12 @@
   background: transparent;
 }
 
-:root:not([data-shell-mode='mobile']) .material-stage__media {
+:root[data-shell-mode] .material-stage__media {
   border-radius: 2px;
   box-shadow: var(--page-elevation);
 }
 
-:root:not([data-shell-mode='mobile']) .material-stage__media--pdf {
+:root[data-shell-mode] .material-stage__media--pdf {
   background: hsl(var(--page));
 }
 
@@ -1583,26 +1486,26 @@
 
 /* ── Note page: no second layer of colour on the sheet. ── */
 
-:root:not([data-shell-mode='mobile']) .note-prose blockquote {
+:root[data-shell-mode] .note-prose blockquote {
   padding-left: 1.4em;
   border-radius: 0;
   background: transparent;
 }
 
-:root:not([data-shell-mode='mobile']) .note-prose code {
+:root[data-shell-mode] .note-prose code {
   padding: 0 0.1em;
   background: transparent;
   color: hsl(var(--ink-2));
 }
 
-:root:not([data-shell-mode='mobile']) .note-prose pre code {
+:root[data-shell-mode] .note-prose pre code {
   padding: 0;
 }
 
 /* Callouts and code blocks are read-only cards: no fill, the resting line
    of clear glass, which stays still under the pointer. */
-:root:not([data-shell-mode='mobile']) .note-prose pre,
-:root:not([data-shell-mode='mobile']) .note-prose .note-callout {
+:root[data-shell-mode] .note-prose pre,
+:root[data-shell-mode] .note-prose .note-callout {
   position: relative;
   isolation: isolate;
   border: 0;
@@ -1610,8 +1513,8 @@
   background: transparent;
 }
 
-:root:not([data-shell-mode='mobile']) .note-prose pre::before,
-:root:not([data-shell-mode='mobile']) .note-prose .note-callout::before {
+:root[data-shell-mode] .note-prose pre::before,
+:root[data-shell-mode] .note-prose .note-callout::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -1630,8 +1533,8 @@
 /* A highlight is a dry swash of the highlighter, drawn again on every line
    it runs over (sand/hl-mark.png, tinted: a background is the only thing
    drawn once per line fragment). */
-:root:not([data-shell-mode='mobile']) .note-prose mark,
-:root:not([data-shell-mode='mobile']) .note-excerpt mark {
+:root[data-shell-mode] .note-prose mark,
+:root[data-shell-mode] .note-excerpt mark {
   padding: 0 0.14em;
   border-radius: 0;
   background: url('../assets/design/sand/hl-mark.png') center / 100% 100% no-repeat;
@@ -1639,32 +1542,32 @@
   box-decoration-break: clone;
 }
 
-:root.dark:not([data-shell-mode='mobile']) .note-prose mark,
-:root.dark:not([data-shell-mode='mobile']) .note-excerpt mark {
+:root.dark[data-shell-mode] .note-prose mark,
+:root.dark[data-shell-mode] .note-excerpt mark {
   background-image: url('../assets/design/sand/hl-mark-dark.png');
 }
 
-:root:not([data-shell-mode='mobile']) .note-prose th {
+:root[data-shell-mode] .note-prose th {
   background: transparent;
 }
 
-:root:not([data-shell-mode='mobile']) .note-prose th,
-:root:not([data-shell-mode='mobile']) .note-prose td {
+:root[data-shell-mode] .note-prose th,
+:root[data-shell-mode] .note-prose td {
   border-color: hsl(var(--ink-1) / 0.14);
 }
 
 /* Selected cells take the text selection's blue, not a state wash. */
-:root:not([data-shell-mode='mobile']) .note-prose .selectedCell {
+:root[data-shell-mode] .note-prose .selectedCell {
   background: rgba(56, 132, 255, 0.16);
 }
 
 /* A checklist box is drawn in sand like the Agent's task list: an empty
    box, a tick in the box once done. */
-:root:not([data-shell-mode='mobile']) .note-prose ul[data-type='taskList'] li > label {
+:root[data-shell-mode] .note-prose ul[data-type='taskList'] li > label {
   margin-top: 0.3em;
 }
 
-:root:not([data-shell-mode='mobile']) .note-prose ul[data-type='taskList'] li > label input {
+:root[data-shell-mode] .note-prose ul[data-type='taskList'] li > label input {
   -webkit-appearance: none;
   appearance: none;
   display: block;
@@ -1678,22 +1581,22 @@
   transition: background-color 0.12s ease-out;
 }
 
-:root:not([data-shell-mode='mobile']) .note-prose ul[data-type='taskList'] li > label input:hover {
+:root[data-shell-mode] .note-prose ul[data-type='taskList'] li > label input:hover {
   background: hsl(var(--ink-1));
 }
 
-:root:not([data-shell-mode='mobile']) .note-prose ul[data-type='taskList'] li > label input:checked {
+:root[data-shell-mode] .note-prose ul[data-type='taskList'] li > label input:checked {
   -webkit-mask-image: url('../assets/design/icons/task-done.png');
   mask-image: url('../assets/design/icons/task-done.png');
 }
 
-:root:not([data-shell-mode='mobile']) .note-prose ul[data-type='taskList'] li > label input:focus-visible {
+:root[data-shell-mode] .note-prose ul[data-type='taskList'] li > label input:focus-visible {
   outline: 1px solid hsl(var(--accent) / 0.5);
   outline-offset: 2px;
 }
 
 /* A line linked to a TODO: the word in the TODO colour, no chip. */
-:root:not([data-shell-mode='mobile']) .note-prose ul[data-type='taskList'] li[data-todo-id] > div > p:first-child::after {
+:root[data-shell-mode] .note-prose ul[data-type='taskList'] li[data-todo-id] > div > p:first-child::after {
   margin-left: 7px;
   padding: 0;
   border-radius: 0;

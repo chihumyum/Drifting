@@ -100,7 +100,7 @@ describe('the element overview’s 关系 layout', () => {
   it('opens in 关系, switches layout from the header, keeps the islands, and moves without re-rendering the canvas', () => {
     const view = source('src/renderer/shells/desktop/views/DesktopSuperElementView.tsx');
     // The layout switch sits in the header before the counts; the legend top right in the canvas.
-    expect(view).toContain('relationControl={mobileShell}');
+    expect(view).toContain('relationControl={false}');
     expect(view).toContain('metaLead={!mobileShell && <SuperElementLayoutSwitch layout={layoutMode} onLayout={chooseLayout} />}');
     expect(view.indexOf('<SuperElementLayoutSwitch')).toBeLessThan(view.indexOf('className="super-view-body"'));
     expect(source('src/renderer/components/SuperViewHeader.tsx')).toMatch(/\{navigationSlot\}\s*\{metaLead\}\s*\{meta != null/);
@@ -140,7 +140,7 @@ describe('the element overview’s 关系 layout', () => {
     expect(legend).toContain('<RelationKindMenu');
     // The story graph's relation kinds leave its header for the same legend, under its sticky rows.
     const story = source('src/renderer/shells/desktop/views/DesktopStoryGraphView.tsx');
-    expect(story).toContain('relationControl={mobileShell}');
+    expect(story).toContain('relationControl={false}');
     expect(story).toMatch(/<SuperViewRelationLegend\s+canvas="graph"\s+style=\{\{ top: \(isNarrative \? GRAPH_CONFIG\.AXIS_HEIGHT : actRailHeight\) \+ 10 \}\}/);
   });
 

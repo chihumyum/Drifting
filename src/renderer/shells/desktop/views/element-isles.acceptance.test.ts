@@ -41,7 +41,6 @@ function island(props: Record<string, unknown> = {}) {
     placement: { id: 'people', gridX: 2, gridY: -3, side: 'top' },
     onElementClick: () => undefined,
     onCategoryClick: () => undefined,
-    desktop: true,
     ...props,
   }));
 }
@@ -65,7 +64,7 @@ describe('the element overview as category islands', () => {
     expect(card('far')).toContain('is-dim');
     expect(card('crew')).toContain('is-unmentioned');
     expect(card('crew')).not.toContain('--se-weight');
-    // Without mention data (the paused mobile shell, or still loading) nothing reads as unmentioned.
+    // Without mention data (the mobile shell, or still loading) nothing reads as unmentioned.
     expect(island()).not.toContain('is-unmentioned');
   });
 
@@ -117,7 +116,7 @@ describe('the element overview as category islands', () => {
     expect(alone.actions.map((action) => action.key)).toEqual(['deleteElement']);
   });
 
-  it('keeps the band for the paused mobile shell and gives the desktop its islands', () => {
+  it('keeps the band layout for the mobile shell and gives the desktop its islands', () => {
     const view = source('src/renderer/shells/desktop/views/DesktopSuperElementView.tsx');
     expect(view).toContain('const bandReservedHeightCells = mobileShell ? bandHeightCells + BAND_OUTER_RESERVE_CELLS : 1;');
     expect(view).toContain('{mobileShell && !bandSticky && (');

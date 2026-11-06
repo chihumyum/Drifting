@@ -19,7 +19,6 @@ import {
   SettingsSectionHeader,
   type SettingsRegisterRef,
 } from '../SettingsPrimitives';
-import { settingsOnDesktop } from '../settings-on-desktop';
 import { useShareLinkStore } from '../../share-links/share-link-store';
 import { syncConnectErrorText } from '../../../sync/hosted/connect-error-text';
 import { useShareLinksDialogStore } from '../../share-links/share-links-dialog-store';
@@ -205,28 +204,10 @@ export function AccountPanel({ registerRef }: { registerRef: SettingsRegisterRef
               quota: formatStorageBytes(usage.quotaBytes),
             })}
             control={
-              settingsOnDesktop() ? (
-                // The progress hairline, and the share read beneath it.
-                <span className="set-storage">
-                  <span
-                    className="ui-progress"
-                    role="meter"
-                    aria-label={t('settings.hosted.storage')}
-                    aria-valuemin={0}
-                    aria-valuemax={usage.quotaBytes}
-                    aria-valuenow={Math.min(usage.usedBytes, usage.quotaBytes)}
-                  >
-                    <span
-                      className="ui-progress__fill"
-                      data-full={usageRatio >= 0.9 ? 'true' : undefined}
-                      style={{ width: `${Math.round(usageRatio * 100)}%` }}
-                    />
-                  </span>
-                  <span className="set-storage__share">{Math.round(usageRatio * 100)}%</span>
-                </span>
-              ) : (
+              // The progress hairline, and the share read beneath it.
+              <span className="set-storage">
                 <span
-                  className="set-meter"
+                  className="ui-progress"
                   role="meter"
                   aria-label={t('settings.hosted.storage')}
                   aria-valuemin={0}
@@ -234,12 +215,13 @@ export function AccountPanel({ registerRef }: { registerRef: SettingsRegisterRef
                   aria-valuenow={Math.min(usage.usedBytes, usage.quotaBytes)}
                 >
                   <span
-                    className="set-meter__fill"
+                    className="ui-progress__fill"
                     data-full={usageRatio >= 0.9 ? 'true' : undefined}
                     style={{ width: `${Math.round(usageRatio * 100)}%` }}
                   />
                 </span>
-              )
+                <span className="set-storage__share">{Math.round(usageRatio * 100)}%</span>
+              </span>
             }
           />
         )}

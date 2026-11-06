@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { PreAlphaOnboardingDialog } from './components/modals/PreAlphaOnboardingDialog';
 import { AuthDialogHost } from './features/auth/AuthDialog';
 import { SignOutDialogHost } from './features/auth/SignOutDialog';
 import { ShareLinksDialogHost } from './features/share-links/ShareLinksDialogHost';
@@ -36,7 +35,6 @@ function AppContents() {
       <AppEffects />
       <LocationDeepLinkEffects />
       <NativeOAuthEffects />
-      <PreAlphaOnboardingDialog />
       <AppRoutes />
       <AuthDialogHost />
       <SignOutDialogHost />

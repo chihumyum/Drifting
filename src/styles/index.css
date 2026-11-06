@@ -1,3 +1,5 @@
+/* `html[data-shell-mode]` and `:root[data-shell-mode]` match every shell: they
+   keep the weight these rules had while the mobile shell was excluded. */
 @import 'tailwindcss' source(none);
 @config "../../tailwind.config.js";
 
@@ -312,7 +314,7 @@
      descriptions) is words on the paper, and a glass field's glass is already
      its focus (the still selected glass). Boxed controls such as selects,
      checkboxes and ranges keep the ring. */
-  html:not([data-shell-mode='mobile'])
+  html[data-shell-mode]
     :is(.editor-shell, .glass--field)
     :is(textarea, input:not([type='checkbox'], [type='radio'], [type='range'], [type='color'], [type='file'])):focus-visible {
     box-shadow: none;
@@ -708,7 +710,7 @@ html[data-entity-link-style='prose'] .entity-link--deep::after {
    short link and stretched on a long one. It deepens under the pointer and
    fades in with the link; hover-only links bring it in under the pointer; the
    dotted style keeps only its grains; text-only links have none. */
-:root:not([data-shell-mode='mobile']) .entity-link {
+:root[data-shell-mode] .entity-link {
   --prose-sand-a: 0.7;
   --prose-sand-band: color-mix(in srgb, var(--entity-link-band-color)
     calc(var(--prose-sand-a) * var(--prose-sand-strength) * 100%), transparent);
@@ -730,10 +732,10 @@ html[data-entity-link-style='prose'] .entity-link--deep::after {
   transition: --prose-sand-a var(--motion-sand-shift) ease-out;
   animation: prose-sand-arrive var(--motion-sand-fade) ease-out backwards;
 }
-:root:not([data-shell-mode='mobile']) .entity-link:hover {
+:root[data-shell-mode] .entity-link:hover {
   --prose-sand-a: 0.95;
 }
-:root:not([data-shell-mode='mobile'])[data-entity-link-band-style='dots'] .entity-link {
+:root[data-shell-mode][data-entity-link-band-style='dots'] .entity-link {
   --prose-sand-a: 0.85;
   background-image:
     linear-gradient(hsl(var(--page)), hsl(var(--page))),
@@ -744,22 +746,22 @@ html[data-entity-link-style='prose'] .entity-link--deep::after {
   background-repeat: no-repeat, repeat-x, no-repeat;
   background-blend-mode: var(--prose-sand-cover-blend), normal, normal;
 }
-:root:not([data-shell-mode='mobile'])[data-entity-link-style='hover'] .entity-link {
+:root[data-shell-mode][data-entity-link-style='hover'] .entity-link {
   --prose-sand-a: 0;
 }
-:root:not([data-shell-mode='mobile'])[data-entity-link-style='hover'] .entity-link:hover {
+:root[data-shell-mode][data-entity-link-style='hover'] .entity-link:hover {
   --prose-sand-a: 0.95;
 }
-:root:not([data-shell-mode='mobile'])[data-entity-link-band-style='dots'] .entity-link:hover {
+:root[data-shell-mode][data-entity-link-band-style='dots'] .entity-link:hover {
   --prose-sand-a: 1;
 }
-:root:not([data-shell-mode='mobile'])[data-entity-link-highlight='text']:not([data-entity-link-style='prose']) .entity-link {
+:root[data-shell-mode][data-entity-link-highlight='text']:not([data-entity-link-style='prose']) .entity-link {
   padding-bottom: 0;
   background-image: none;
   mix-blend-mode: normal;
 }
 @media (prefers-reduced-motion: reduce) {
-  :root:not([data-shell-mode='mobile']) .entity-link {
+  :root[data-shell-mode] .entity-link {
     transition: none;
     animation: none;
   }
@@ -1085,15 +1087,6 @@ html[data-shell-mode='mobile'] .app-mid {
 }
 .page__folio-line.page__folio-storyline::before {
   margin-right: 3px;
-}
-
-.page__chapter-mark {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.16em;
-  color: hsl(var(--accent));
-  margin-bottom: 8px;
 }
 .page__title {
   font-family: var(--font-content);

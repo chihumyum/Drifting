@@ -10,7 +10,6 @@ import {
 import { deriveActSegments, type BookAct } from '../../domain/book-act';
 import { useDataStore } from '../../store/data-store';
 import { useWritingStatsStore } from '../../store/writing-stats-store';
-import { getPlatformRuntime } from '../../platform/runtime';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { useWorkspaceNavigator } from '../workspace/navigation/WorkspaceNavigationContext';
 import {
@@ -87,8 +86,7 @@ function ChapterRhythmChart({
   const [hovered, setHovered] = useState<number | null>(null);
   const active = hovered != null ? chapters[hovered] : null;
   const untitled = t('common.untitled');
-  // Desktop: one short dry stroke per chapter (materials.css .sand-stroke).
-  const sand = !getPlatformRuntime().isMobileShell;
+  // One short dry stroke per chapter (materials.css .sand-stroke).
 
   return (
     <>
@@ -107,28 +105,16 @@ function ChapterRhythmChart({
               // Contiguous full-width rows (no gaps) keep the whole column a
               // single easy hover/click strip; the visible bar stays thin.
               style={{
-                padding: sand ? '1.5px 0' : '1px 0',
+                padding: '1.5px 0',
                 cursor: 'pointer',
                 opacity: hovered == null ? 0.85 : isHovered ? 1 : 0.3,
                 transition: 'opacity 0.12s ease',
               }}
             >
-              {sand ? (
-                <span
-                  className="sand-stroke stats-rhythm__stroke"
-                  style={{ width: `${w}%`, '--sand-c': colorByChapter.get(n.id) || 'hsl(var(--ink-4))' } as CSSProperties}
-                />
-              ) : (
-                <div
-                  style={{
-                    width: `${w}%`,
-                    minWidth: 2,
-                    height: 3,
-                    background: colorByChapter.get(n.id) || 'hsl(var(--ink-4))',
-                    borderRadius: 1,
-                  }}
-                />
-              )}
+              <span
+                className="sand-stroke stats-rhythm__stroke"
+                style={{ width: `${w}%`, '--sand-c': colorByChapter.get(n.id) || 'hsl(var(--ink-4))' } as CSSProperties}
+              />
             </div>
           );
         })}
@@ -136,15 +122,7 @@ function ChapterRhythmChart({
       <div
         // Reserve two lines so the readout swapping in on hover doesn't shift
         // the layout.
-        className={sand ? 'stats-caption stats-rhythm__readout' : undefined}
-        style={sand ? undefined : {
-          marginTop: 8,
-          minHeight: 34,
-          fontFamily: 'var(--font-mono)',
-          fontSize: 10,
-          color: 'hsl(var(--ink-3))',
-          lineHeight: 1.7,
-        }}
+        className="stats-caption stats-rhythm__readout"
       >
         {active ? (
           <div style={{ color: 'hsl(var(--ink-1))' }}>
@@ -183,13 +161,7 @@ const STATUS_BUCKET_LABEL_KEY: Record<DerivedStatus, string> = {
   todo: 'rightSidebar.status.todo',
   discarded: 'rightSidebar.status.discarded',
 };
-const STATUS_BUCKET_OPACITY: Record<(typeof STATUS_BUCKET_ORDER)[number], number> = {
-  done: 1,
-  draft: 0.5,
-  todo: 0.18,
-};
-/** On the desktop completion is how much sand a stroke holds: done is a
- *  loaded stroke, a draft a dry one, what is still to write loose grains. */
+/** Completion is how much sand a stroke holds: done is a loaded stroke, a draft a dry one, what is still to write loose grains. */
 const STATUS_BUCKET_DENSITY: Record<(typeof STATUS_BUCKET_ORDER)[number], 'dry' | 'loose' | undefined> = {
   done: undefined,
   draft: 'dry',
@@ -364,7 +336,6 @@ export function AllChaptersStats({
                 pct: (statusCounts[s] / activeTotal) * 100,
                 color: 'hsl(var(--accent))',
                 sandColor: 'hsl(var(--ink-2))',
-                opacity: STATUS_BUCKET_OPACITY[s],
                 density: STATUS_BUCKET_DENSITY[s],
                 title: t('rightSidebar.stats.statusCount', {
                   status: t(STATUS_BUCKET_LABEL_KEY[s]),

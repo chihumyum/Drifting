@@ -7,6 +7,8 @@
  * vocabulary from settings.css (surface fills, rule borders, mono micro-labels,
  * accent for the active/on state).
  */
+/* `html[data-shell-mode]` and `:root[data-shell-mode]` match every shell: they
+   keep the weight these rules had while the mobile shell was excluded. */
 
 /* ---- unified composer box ------------------------------------------------ */
 
@@ -925,28 +927,6 @@
   padding: 12px;
 }
 
-.agt-wm__header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px;
-  background: hsl(var(--accent) / 0.07);
-}
-
-.agt-wm__header p {
-  margin: 4px 0 0;
-  font-size: var(--ui-font-secondary, 11.5px);
-  line-height: 1.5;
-  opacity: 0.68;
-}
-
-.agt-wm__actions {
-  display: flex;
-  gap: 6px;
-  flex-shrink: 0;
-}
-
 .agt-wm:not(.agt-wm--glass) button {
   border: 1px solid hsl(var(--rule));
   border-radius: 2px;
@@ -963,19 +943,6 @@
   opacity: 0.45;
 }
 
-.agt-wm__meter {
-  height: 3px;
-  overflow: hidden;
-  background: hsl(var(--ink-1) / 0.08);
-}
-
-.agt-wm__meter > span {
-  display: block;
-  height: 100%;
-  max-width: 100%;
-  background: hsl(var(--accent));
-}
-
 .agt-wm__meta {
   display: flex;
   justify-content: space-between;
@@ -984,7 +951,6 @@
   opacity: 0.58;
 }
 
-.agt-wm__preview,
 .agt-wm__editor {
   flex: 1;
   min-height: 180px;
@@ -1313,7 +1279,7 @@
   cursor: pointer;
 }
 .agt-history__load:focus-visible { outline: none; }
-html:not([data-shell-mode='mobile']) .agt-history__row:has(:focus-visible)::before {
+html[data-shell-mode] .agt-history__row:has(:focus-visible)::before {
   opacity: 1;
   animation-play-state: running;
 }

@@ -7,13 +7,16 @@ function source(path: string): string {
   return readFileSync(resolve(process.cwd(), path), 'utf8');
 }
 
-describe('Agent changes: in-place reveal and lingering colour (desktop)', () => {
-  it('plays prose reveals in place on the desktop and keeps the typewriter on mobile', () => {
+describe('Agent changes: in-place reveal and lingering colour', () => {
+  it('plays every prose reveal in place on every shell', () => {
     const animator = source('src/renderer/components/editor/AgentEditAnimator.tsx');
-    expect(animator).toMatch(/getPlatformRuntime\(\)\.isMobileShell \? 'typewriter' : 'overwrite'/);
-    expect(animator).toContain("const total = mode === 'overwrite' ? steps : delChars + insChars;");
-    expect(animator).toContain('agentRevealSteps(agentRevealPieces(segs))');
-    expect(animator).toContain('mode={mode}');
+    // No shell switch: the prose reveal is always the in-place overwrite.
+    expect(animator).not.toContain('isMobileShell');
+    expect(animator).not.toContain('getPlatformRuntime');
+    expect(animator).not.toContain("'typewriter'");
+    expect(animator).toContain('const total = useMemo(() => agentRevealSteps(agentRevealPieces(segs)), [segs]);');
+    expect(animator).toContain('mode="overwrite"');
+    expect(animator).not.toContain('mode={mode}');
     const text = source('src/renderer/components/editor/AgentRevealText.tsx');
     expect(text).toContain('agentRevealFrame(pieces, progress)');
     expect(text).toContain('`${classPrefix}__${run.mark}`');
@@ -21,9 +24,12 @@ describe('Agent changes: in-place reveal and lingering colour (desktop)', () => 
     expect(source('src/renderer/components/editor/FieldReview.tsx')).not.toContain('mode=');
   });
 
-  it('records what each revealed change wrote, on the desktop only', () => {
+  it('records what each revealed change wrote, on every shell', () => {
     const animator = source('src/renderer/components/editor/AgentEditAnimator.tsx');
-    expect(animator).toContain('if (!getPlatformRuntime().isMobileShell) recordAgentRecentChange(entityType, id, c);');
+    expect(animator).toMatch(/^\s*recordAgentRecentChange\(entityType, id, c\);$/m);
+    const external = source('src/renderer/lib/external-edit-presentation.ts');
+    expect(external).toMatch(/^\s*recordAgentRecentChange\(entityType, id, change\);$/m);
+    expect(external).not.toContain('isMobileShell');
   });
 
   it('paints the marks as a colour without touching the prose and lets one go as soon as the pointer touches it', () => {
@@ -40,7 +46,10 @@ describe('Agent changes: in-place reveal and lingering colour (desktop)', () => 
     expect(painter).toContain('pathTouchesRect(from, point, rect)');
     expect(painter).toContain("attributeFilter: ['aria-hidden']");
     const mount = source('src/renderer/components/editor/AgentRecentChangeHighlights.tsx');
-    expect(mount).toContain('getPlatformRuntime().isMobileShell');
+    // The painter is built on every shell; only a missing scroller skips it.
+    expect(mount).not.toContain('isMobileShell');
+    expect(mount).toContain('if (!scrollEl) return null;');
+    expect(mount).toContain('new AgentRecentHighlightPainter(scrollEl,');
     expect(mount).toContain('const presented = isVisible || isPreparing;');
     expect(source('src/renderer/components/editor/EditorReviewLayer.tsx')).toContain('<AgentRecentChangeHighlights');
     expect(source('src/renderer/views/AllChaptersEditorView.tsx'))
@@ -68,7 +77,7 @@ describe('Agent changes: in-place reveal and lingering colour (desktop)', () => 
     const agent = css.slice(css.indexOf('/* Desktop: what the Agent writes is coloured ink'),
       css.indexOf('Agent NON-PROSE field review'));
     expect(agent).not.toMatch(/prose-sand|mix-blend-mode|background-image/);
-    // The paused mobile shell keeps its tinted grounds; the overlay keeps its opaque backdrop.
+    // Field reveals (typewriter) keep their tinted grounds; the overlay keeps its opaque backdrop.
     expect(css).toMatch(/\.agent-reveal__ins \{[^}]*background: hsl\(var\(--story-3\) \/ 0\.18\)/);
     expect(source('src/renderer/components/editor/AgentEditAnimator.tsx')).toContain('background: agentEditOpaqueBackground(backgroundCandidates)');
   });

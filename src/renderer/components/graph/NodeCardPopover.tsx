@@ -15,7 +15,6 @@ import loglevel from 'loglevel';
 import { BrushIcon } from '../ui/BrushIcon';
 import { Button } from '../ui/Button';
 import { KindMark } from '../ui/KindMark';
-import { getPlatformRuntime } from '../../platform/runtime';
 import { HoverCardActions } from '../ui/HoverCard';
 import { EntityHoverCardHead } from '../../features/entities/hover/EntityHoverCard';
 import { buildEntityHoverCardContent } from '../../features/entities/hover/entity-hover-card-model';
@@ -33,7 +32,7 @@ interface NodeCardPopoverProps {
   anchorRect: AnchorRect;
   onClose: () => void;
   onOpenInEditor: (nodeId: string) => void;
-  /** The chapter's storyline colour for its seal (desktop). */
+  /** The chapter's storyline colour for its seal. */
   markColor?: string;
 }
 
@@ -219,12 +218,11 @@ export function NodeCardPopover({
       ? t('common.counting')
       : t('nodeCardPopover.wordSync', { count: canonicalWordCount(node) });
 
-  // Desktop: the card is the hover card's own (one rounded desk card edged in
-  // resting glass): the chapter's head, its summary written in place on a
-  // slip of paper, then 展开编辑 and 在编辑器中打开 as rows. Expanded, the
-  // text is a sheet of page colour inside the menu shell over the desk's
-  // mist. The paused mobile shell keeps the bordered card below.
-  if (!getPlatformRuntime().isMobileShell && mode === 'default') {
+  // The card is the hover card's own (one rounded desk card edged in resting
+  // glass): the chapter's head, its summary written in place on a slip of
+  // paper, then 展开编辑 and 在编辑器中打开 as rows. Expanded, the text is a
+  // sheet of page colour inside the menu shell over the desk's mist.
+  if (mode === 'default') {
     return (
       <EntityCardPopoverShell
         mode={mode}
@@ -263,125 +261,48 @@ export function NodeCardPopover({
   }
 
   // Expanded: the text is a sheet of page colour in the menu shell.
-  if (!getPlatformRuntime().isMobileShell) {
-    const mark = isDrift(node)
-      ? <KindMark kind="drift" color="hsl(var(--accent))" />
-      : <KindMark kind="chapter" seed={node.id} color={markColor} />;
-    return (
-      <EntityCardPopoverShell
-        mode={mode}
-        anchorRect={anchorRect}
-        popoverWidth={360}
-        estimatedHeight={220}
-        onClose={onClose}
-        ariaLabel={t('nodeCardPopover.aria.card')}
-        className="node-card entity-card"
-      >
-        <div className="entity-card__head">
-          {mark}
-          <span className="entity-card__num">{labelNum}</span>
-          <span className="entity-card__title" title={node.title || t('common.untitled')}>
-            {node.title || t('common.untitled')}
-          </span>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setMode('default')}
-            title={t('nodeCardPopover.collapseTitle')}
-          >
-            <BrushIcon name="arrow-in" size={11} /> {t('nodeCardPopover.collapse')}
-          </Button>
-          {closeButton}
-        </div>
-        <div className="entity-card__page">{editor}</div>
-        <div className="entity-card__foot">
-          <span className="entity-card__meta">{wordSync}</span>
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => onOpenInEditor(node.id)}
-            title={t('nodeCardPopover.openFullTitle')}
-          >
-            {t('nodeCardPopover.fullEditor')}
-            <BrushIcon name="arrow-forward" size={11} />
-          </Button>
-        </div>
-      </EntityCardPopoverShell>
-    );
-  }
-
+  const mark = isDrift(node)
+    ? <KindMark kind="drift" color="hsl(var(--accent))" />
+    : <KindMark kind="chapter" seed={node.id} color={markColor} />;
   return (
     <EntityCardPopoverShell
-        mode={mode}
-        anchorRect={anchorRect}
-        popoverWidth={360}
-        estimatedHeight={220}
-        onClose={onClose}
-        ariaLabel={t('nodeCardPopover.aria.card')}
-        className="node-card"
-      >
-        {mode === 'default' ? (
-          <>
-            <div className="node-card__head">
-              <span className="node-card__num">{labelNum}</span>
-              <span className="node-card__title" title={node.title || t('common.untitled')}>
-                {node.title || t('common.untitled')}
-              </span>
-              {closeButton}
-            </div>
-            {summaryField}
-            <div className="node-card__foot">
-              <button
-                type="button"
-                className="node-card__btn"
-                onClick={() => setMode('upgrade')}
-                title={t('nodeCardPopover.expandTitle')}
-              >
-                {t('nodeCardPopover.expand')} <BrushIcon name="arrow-out" size={10} inline />
-              </button>
-              <button
-                type="button"
-                className="node-card__btn is-primary"
-                onClick={() => onOpenInEditor(node.id)}
-                title={t('nodeCardPopover.openFullTitle')}
-              >
-                {t('nodeCardPopover.openInEditor')} <BrushIcon name="arrow-forward" size={10} inline />
-              </button>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="node-card__head">
-              <span className="node-card__num">{labelNum}</span>
-              <span className="node-card__title">{t('nodeCardPopover.compactEdit')}</span>
-              <button
-                type="button"
-                className="node-card__btn is-ghost"
-                onClick={() => setMode('default')}
-                title={t('nodeCardPopover.collapseTitle')}
-              >
-                <BrushIcon name="arrow-in" size={10} inline /> {t('nodeCardPopover.collapse')}
-              </button>
-              <button
-                type="button"
-                className="node-card__btn is-primary"
-                onClick={() => onOpenInEditor(node.id)}
-                title={t('nodeCardPopover.openFullTitle')}
-              >
-                {t('nodeCardPopover.fullEditor')} <BrushIcon name="arrow-forward" size={10} inline />
-              </button>
-              {closeButton}
-            </div>
-            <div className="node-card__editor">
-              {editor}
-            </div>
-            <div className="node-card__editor-foot">
-              <span className="node-card__meta">
-                {wordSync}
-              </span>
-            </div>
-          </>
-        )}
+      mode={mode}
+      anchorRect={anchorRect}
+      popoverWidth={360}
+      estimatedHeight={220}
+      onClose={onClose}
+      ariaLabel={t('nodeCardPopover.aria.card')}
+      className="node-card entity-card"
+    >
+      <div className="entity-card__head">
+        {mark}
+        <span className="entity-card__num">{labelNum}</span>
+        <span className="entity-card__title" title={node.title || t('common.untitled')}>
+          {node.title || t('common.untitled')}
+        </span>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setMode('default')}
+          title={t('nodeCardPopover.collapseTitle')}
+        >
+          <BrushIcon name="arrow-in" size={11} /> {t('nodeCardPopover.collapse')}
+        </Button>
+        {closeButton}
+      </div>
+      <div className="entity-card__page">{editor}</div>
+      <div className="entity-card__foot">
+        <span className="entity-card__meta">{wordSync}</span>
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={() => onOpenInEditor(node.id)}
+          title={t('nodeCardPopover.openFullTitle')}
+        >
+          {t('nodeCardPopover.fullEditor')}
+          <BrushIcon name="arrow-forward" size={11} />
+        </Button>
+      </div>
     </EntityCardPopoverShell>
   );
 }

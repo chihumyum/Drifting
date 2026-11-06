@@ -55,12 +55,15 @@ describe('Project Memory in sand and glass', () => {
     expect(html.match(/class="pmem__btn[^"]*glass/gu)).toHaveLength(1);
   });
 
-  it('leaves the paused mobile shell without glass or icons', () => {
+  it('reads the same glass card with brush icons on the phone', () => {
     runtime.isMobileShell = true;
     const html = render();
-    expect(html).toContain('class="pmem"');
-    expect(html).not.toContain('glass');
-    expect(html).not.toContain('brush-icon');
+    expect(html).toContain('class="pmem pmem--glass"');
+    expect(html).toContain('<ol class="pmem__list glass glass--rest glass--still">');
+    expect(html).toContain('class="pmem__composer glass glass--rest glass--field"');
+    expect(html).toContain('brush-icon--edit');
+    const view = readFileSync(resolve(root, 'src/renderer/features/agent/ProjectMemoryEditor.tsx'), 'utf8');
+    expect(view).not.toContain('isMobileShell');
   });
 
   it('keeps the desktop rules flat: no wash, no rules between entries, no shadow', () => {

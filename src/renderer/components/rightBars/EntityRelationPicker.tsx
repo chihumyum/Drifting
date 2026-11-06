@@ -5,7 +5,6 @@ import { isChapter } from '../../domain/book-node';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import type { StructuralEntityKind } from '../../domain/entity-kinds';
 import { BrushIcon } from '../ui/BrushIcon';
-import { getPlatformRuntime } from '../../platform/runtime';
 
 // Picker only emits structural-entity targets (memo / material can't be
 // the toKind of a relation — see domain/entity-kinds.ts). Narrowing here
@@ -55,7 +54,6 @@ export function EntityRelationPicker({
   trailingAction,
 }: Props) {
   const { t } = useTranslation();
-  const mobileShell = getPlatformRuntime().isMobileShell;
   const { bookNodes, bookElements, storylines, bookElementCategories, primaryStorylineByNode } =
     useDataStoreFields(
     'bookNodes',
@@ -236,25 +234,12 @@ export function EntityRelationPicker({
         <div style={trailingAction
           ? { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flex: '1 0 auto' }
           : { display: 'contents' }}>
-          {/* Desktop: the shared ＋ 关联 text button (ui-controls.css). The
-              paused mobile shell keeps its dashed box. */}
+          {/* The shared ＋ 关联 text button (ui-controls.css). */}
           <button
             type="button"
-            className={mobileShell ? 'entity-relation-picker__add' : 'entity-relation-picker__add relation-add-button'}
+            className="entity-relation-picker__add relation-add-button"
             aria-expanded={open}
             onClick={() => setOpen(!open)}
-            style={mobileShell ? {
-              fontFamily: 'var(--font-mono)',
-              fontSize: 'var(--ui-font-caption, 9.5px)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.08em',
-              padding: '2px 6px',
-              borderRadius: 3,
-              border: '1px dashed hsl(var(--rule-strong))',
-              background: 'transparent',
-              color: 'var(--ui-text-muted, hsl(var(--ink-3)))',
-              cursor: 'pointer',
-            } : undefined}
           >
             {open ? t('relationPicker.collapse') : <><BrushIcon name="plus" size={10} inline /> {t('relationPicker.addRelation')}</>}
           </button>

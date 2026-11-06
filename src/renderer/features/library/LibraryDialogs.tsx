@@ -32,7 +32,6 @@ export function ComposeTodoDialog({
 }) {
   const { t } = useTranslation();
   useEscapeToClose(true, onCancel);
-  const glass = !getPlatformRuntime().isMobileShell;
   const [body, setBody] = useState('');
   const [relations, setRelations] = useState<RelationTarget[]>(() =>
     focused.kind && focused.id && isStructuralEntityKind(focused.kind)
@@ -51,7 +50,7 @@ export function ComposeTodoDialog({
       }
       onCancel={onCancel}
     >
-      <GlassField glass={glass} area>
+      <GlassField area>
         <textarea
           autoFocus
           value={body}
@@ -68,7 +67,6 @@ export function ComposeTodoDialog({
               void onCreate(body, relations);
             }
           }}
-          style={glass ? undefined : dialogTextareaStyle}
         />
       </GlassField>
       <div style={{ marginTop: 10 }}>
@@ -90,20 +88,6 @@ export function ComposeTodoDialog({
   );
 }
 
-const dialogTextareaStyle: React.CSSProperties = {
-  width: '100%',
-  fontFamily: 'var(--font-sans)',
-  fontSize: 13,
-  padding: '6px 8px',
-  borderRadius: 3,
-  border: '1px solid hsl(var(--rule))',
-  background: 'hsl(var(--paper))',
-  color: 'hsl(var(--ink-1))',
-  outline: 'none',
-  resize: 'vertical',
-  boxSizing: 'border-box',
-};
-
 export function ComposeLibraryItemDialog({
   focused,
   initialKind = 'text',
@@ -117,7 +101,6 @@ export function ComposeLibraryItemDialog({
   onCreate: (input: CreateLibraryItemInput, relations: RelationTarget[]) => Promise<void>;
 }) {
   const { t } = useTranslation();
-  const glass = !getPlatformRuntime().isMobileShell;
   const [kind, setKind] = useState<LibraryItemKind>(initialKind);
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
@@ -348,47 +331,23 @@ export function ComposeLibraryItemDialog({
         />
       </div>
 
-      <GlassField glass={glass}>
+      <GlassField>
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           disabled={submitting || picking}
           placeholder={t('memoMaterial.dialog.titlePlaceholder')}
-          style={glass ? undefined : dialogInputStyle}
         />
       </GlassField>
 
       {(kind === 'image' || kind === 'pdf') && (
         <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-          {glass ? (
-            // Desktop: the secondary button (the resting line of glass).
-            <Button size="sm" onClick={() => pickFile(kind === 'image' ? 'image' : 'pdf')} disabled={submitting || picking}>
-              {picking && <BrushIcon name="loader" size={13} className="control-spinner" />}
-              {picking
-                ? t('memoMaterial.dialog.openingPicker')
-                : t('memoMaterial.dialog.chooseFile')}
-            </Button>
-          ) : (
-          <button
-            onClick={() => pickFile(kind === 'image' ? 'image' : 'pdf')}
-            disabled={submitting || picking}
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 11,
-              padding: '4px 10px',
-              border: '1px solid hsl(var(--rule))',
-              borderRadius: 3,
-              background: 'hsl(var(--paper))',
-              color: 'hsl(var(--ink-2))',
-              cursor: 'pointer',
-            }}
-          >
+          <Button size="sm" onClick={() => pickFile(kind === 'image' ? 'image' : 'pdf')} disabled={submitting || picking}>
             {picking && <BrushIcon name="loader" size={13} className="control-spinner" />}
             {picking
               ? t('memoMaterial.dialog.openingPicker')
               : t('memoMaterial.dialog.chooseFile')}
-          </button>
-          )}
+          </Button>
           {pickedSourcePath && (
             <span
               title={pickedSourcePath}
@@ -409,7 +368,7 @@ export function ComposeLibraryItemDialog({
       )}
 
       {submitting && (kind === 'image' || kind === 'pdf') && (
-        <div className={`material-import-feedback${glass ? ' material-import-feedback--quiet' : ''}`} role="status" aria-live="polite">
+        <div className="material-import-feedback material-import-feedback--quiet" role="status" aria-live="polite">
           <BrushIcon name="loader" size={13} className="control-spinner" />
           <div>
             <div className="material-import-feedback__title">
@@ -428,10 +387,10 @@ export function ComposeLibraryItemDialog({
 
       {operationError && (
         <div
-          className={`material-import-feedback material-import-feedback--error${glass ? ' material-import-feedback--quiet' : ''}`}
+          className="material-import-feedback material-import-feedback--error material-import-feedback--quiet"
           role="alert"
         >
-          {glass && <BrushIcon name="status-warning" size={13} />}
+          <BrushIcon name="status-warning" size={13} />
           {operationError}
           {codecStoreUrl && (
             <Button
@@ -447,24 +406,13 @@ export function ComposeLibraryItemDialog({
       )}
 
       {kind === 'text' && (
-        <GlassField glass={glass} area>
+        <GlassField area>
           <textarea
             value={body}
             onChange={(e) => setBody(e.target.value)}
             placeholder={t('memoMaterial.card.snippetPlaceholder')}
             rows={5}
-            style={
-              glass
-                ? { minHeight: 100, maxHeight: 240 }
-                : {
-                    ...dialogInputStyle,
-                    marginTop: 8,
-                    resize: 'vertical',
-                    minHeight: 100,
-                    maxHeight: 240,
-                    fontFamily: 'var(--font-sans)',
-                  }
-            }
+            style={{ minHeight: 100, maxHeight: 240 }}
           />
         </GlassField>
       )}
@@ -540,8 +488,7 @@ function DialogActions({
   confirmLabel?: string;
 }) {
   const { t } = useTranslation();
-  // Desktop: cancel is a text button beside the one primary glass button.
-  const glass = !getPlatformRuntime().isMobileShell;
+  // Cancel is a text button beside the one primary glass button.
   return (
     <div
       style={{
@@ -551,7 +498,7 @@ function DialogActions({
         marginTop: 12,
       }}
     >
-      <Button size="sm" variant={glass ? 'ghost' : 'default'} onClick={onCancel} disabled={confirmBusy}>
+      <Button size="sm" variant="ghost" onClick={onCancel} disabled={confirmBusy}>
         {t('common.cancel')}
       </Button>
       <Button
@@ -568,24 +515,11 @@ function DialogActions({
   );
 }
 
-/** Desktop: the shared field (components.md) — a paper slip with the resting line of glass. */
-function GlassField({ glass, area = false, children }: { glass: boolean; area?: boolean; children: React.ReactNode }) {
-  if (!glass) return <>{children}</>;
+/** The shared field (components.md) — a paper slip with the resting line of glass. */
+function GlassField({ area = false, children }: { area?: boolean; children: React.ReactNode }) {
   return (
     <label className={`ui-field${area ? ' ui-field--area' : ''} library-dialog__field glass glass--rest glass--field${area ? '' : ' glass--small'}`}>
       {children}
     </label>
   );
 }
-
-const dialogInputStyle: React.CSSProperties = {
-  width: '100%',
-  fontFamily: 'var(--font-sans)',
-  fontSize: 13.5,
-  padding: '6px 8px',
-  border: '1px solid hsl(var(--rule))',
-  borderRadius: 3,
-  background: 'hsl(var(--paper))',
-  color: 'hsl(var(--ink-1))',
-  outline: 'none',
-};

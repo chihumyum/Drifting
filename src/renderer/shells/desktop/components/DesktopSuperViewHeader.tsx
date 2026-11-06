@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next';
 import { SuperViewHeader, type SuperViewHeaderProps } from '../../../components/SuperViewHeader';
 import { GlassSlider } from '../../../components/ui/GlassSlider';
 import { useSuperViewNavigation } from '../../../hooks/useSuperViewNavigation';
-import { getPlatformRuntime } from '../../../platform/runtime';
 import { CJK_TEXT } from '../../../lib/interface-typography';
 import { DesktopSuperViewRelationControl } from './DesktopSuperViewRelationControl';
 import { SUPER_VIEW_OPTIONS, type SuperViewId } from '../super-view-options';
@@ -32,29 +31,10 @@ export function DesktopSuperViewHeader(props: Omit<SuperViewHeaderProps, 'naviga
   const intentOf = (id: SuperViewId) =>
     id === 'graph' ? graphIntent : id === 'element' ? elementIntent : memoIntent;
 
-  // Desktop switches views with the glass slider (one of three); the paused
-  // mobile shell keeps its segmented switcher. Each view draws its own header,
-  // so switching replaces this slider: the handoff key lets the next view's
-  // slider pick the glass up under the view just left and slide it over.
-  const navigation = getPlatformRuntime().isMobileShell ? (
-    <nav
-      className="super-view-head__switcher super-view-head__no-drag"
-      aria-label={t('mobileWorkspace.superView.navigation')}
-    >
-      {SUPER_VIEW_OPTIONS.map((option) => (
-        <button
-          key={option.id}
-          {...intentOf(option.id)}
-          type="button"
-          aria-current={activeSuperView === option.id ? 'page' : undefined}
-          className="super-view-head__switcher-option"
-          onClick={() => setActiveSuperView(option.id)}
-        >
-          {t(option.labelKey)}
-        </button>
-      ))}
-    </nav>
-  ) : (
+  // Views switch with the glass slider (one of three). Each view draws its own
+  // header, so switching replaces this slider: the handoff key lets the next
+  // view's slider pick the glass up under the view just left and slide it over.
+  const navigation = (
     <nav className="super-view-head__views super-view-head__no-drag" data-tauri-drag-region="false">
       <GlassSlider
         ariaLabel={t('mobileWorkspace.superView.navigation')}

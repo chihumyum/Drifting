@@ -28,7 +28,6 @@ import {
 } from './agent-edit-animation';
 import { recordAgentRecentChange } from '../../lib/agent-recent-changes';
 import { noteExternalRevealed } from '../../lib/external-edit-presentation';
-import { getPlatformRuntime } from '../../platform/runtime';
 
 /** Displays committed Agent edits until viewed or acknowledged in the sidebar.
  * This layer owns presentation only; it never accepts, rejects or changes prose. */
@@ -209,16 +208,11 @@ function readProseStyle(el: HTMLElement): CSSProperties {
 }
 
 /**
- * One block's reveal (auto mode). On the desktop each changed place plays in
- * place, one character a step (agentRevealFrame): longer old words are deleted
- * from the front until both sides are as long and then overwritten, shorter
- * ones are overwritten and the rest of the new words inserted; new words show
- * green, rewritten ones purple. The paused mobile shell keeps the typewriter:
- * the deleted characters erase one by one (on a red ground), then the inserted
- * ones type in (green ground), driven by one char counter `progress`:
- *   progress ∈ [0, delChars]            → erasing
- *   progress ∈ (delChars, delChars+ins] → typing
- * Either way it then swaps (or fades) onto the real block.
+ * One block's reveal (auto mode). Each changed place plays in place, one
+ * character a step (agentRevealFrame): longer old words are deleted from the
+ * front until both sides are as long and then overwritten, shorter ones are
+ * overwritten and the rest of the new words inserted; new words show green,
+ * rewritten ones purple. It then swaps (or fades) onto the real block.
  */
 function RevealOverlay({
   scrollEl,
@@ -249,19 +243,7 @@ function RevealOverlay({
   const revealAnimationEnabled = useSettingsStore((s) => s.agentEditRevealAnimation);
   const rect = useAnchorBox(scrollEl, host, change);
   const segs = useMemo(() => diffTokens(change.oldText, change.newText), [change.oldText, change.newText]);
-  const { delChars, insChars } = useMemo(() => {
-    let d = 0;
-    let i = 0;
-    for (const s of segs) {
-      if (s.kind === 'del') d += s.text.length;
-      else if (s.kind === 'ins') i += s.text.length;
-    }
-    return { delChars: d, insChars: i };
-  }, [segs]);
-  const [mode] = useState<'overwrite' | 'typewriter'>(() =>
-    (getPlatformRuntime().isMobileShell ? 'typewriter' : 'overwrite'));
-  const steps = useMemo(() => agentRevealSteps(agentRevealPieces(segs)), [segs]);
-  const total = mode === 'overwrite' ? steps : delChars + insChars;
+  const total = useMemo(() => agentRevealSteps(agentRevealPieces(segs)), [segs]);
   const [countAtStart] = useState(revealCount);
   const { durationMs, exitMs } = agentEditRevealTiming(total, countAtStart);
 
@@ -324,7 +306,7 @@ function RevealOverlay({
         // overlay. The EXIT crossfade is only for changed/new blocks.
         done.current();
       } else if (!crossfade) {
-        if (mode === 'overwrite' && change.source !== 'file' && total > 0) {
+        if (change.source !== 'file' && total > 0) {
           // Paint the complete final frame before fading just its ground. The
           // opaque overlay and prose mask remain in place, so the words never
           // fade or double-paint while handing back to the real paragraph.
@@ -343,7 +325,7 @@ function RevealOverlay({
       if (raf) window.cancelAnimationFrame(raf);
       if (exitTimer) window.clearTimeout(exitTimer);
     };
-  }, [total, change.op, change.source, mode, crossfade, revealAnimationEnabled, durationMs, exitMs]);
+  }, [total, change.op, change.source, crossfade, revealAnimationEnabled, durationMs, exitMs]);
 
   if (!rect || !revealAnimationEnabled) return null;
 
@@ -373,7 +355,7 @@ function RevealOverlay({
       className={`agent-reveal agent-reveal--${change.op}${change.source === 'file' ? ' agent-reveal--external' : ''}${fading ? ' agent-reveal--fade' : ''}${settling ? ' agent-reveal--settle' : ''}`}
       style={pos}
     >
-      <AgentRevealText segments={segs} progress={progress} showCaret={!fading && !settling} mode={mode} />
+      <AgentRevealText segments={segs} progress={progress} showCaret={!fading && !settling} mode="overwrite" />
     </div>
   );
 }
@@ -474,9 +456,9 @@ export function AgentEditAnimator({ scrollEl, entityType, id }: AgentEditAnimato
       const store = useAgentEditStore.getState();
       store.resolveBlocks(entityType, id, [c.blockId]);
       if (c.source === 'file') noteExternalRevealed(entityType, id, c);
-      // The desktop keeps what the Agent wrote coloured until the author's
-      // pointer touches it (AgentRecentChangeHighlights).
-      if (!getPlatformRuntime().isMobileShell) recordAgentRecentChange(entityType, id, c);
+      // What the Agent wrote stays coloured until the author's pointer
+      // touches it (AgentRecentChangeHighlights).
+      recordAgentRecentChange(entityType, id, c);
       if (c.reviewId) {
         const current = useAgentEditStore.getState();
         const key = entityKey(entityType, id);

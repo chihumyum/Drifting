@@ -42,7 +42,8 @@ describe('the bookshelf in sand and glass', () => {
     expect(block(css, '.pp {', '}')).toContain('background: var(--workspace-ui-bg);');
     // A double click on the open desk selects no words.
     expect(block(css, '.pp {', '}')).toContain('-webkit-user-select: none;');
-    const desk = css.slice(0, css.indexOf("/* ─── The paused mobile shelf's modals"));
+    const modalsAt = css.indexOf("/* ─── The paused mobile shelf's modals");
+    const desk = modalsAt < 0 ? css : css.slice(0, modalsAt);
     expect(desk).not.toContain('hsl(var(--surface))');
     expect(desk).not.toContain('background: hsl(var(--accent))');
     expect(desk).not.toMatch(/border(-left)?:\s*1px solid/);
@@ -149,7 +150,7 @@ describe('the bookshelf in sand and glass', () => {
     expect(block(css, '.pp-card {', '}')).toMatch(/background: transparent;[\s\S]*box-shadow: none;/);
   });
 
-  it('builds the desktop dialogs on the shared shell, and keeps the mobile modals', () => {
+  it('builds the shelf dialogs on the shared shell, on the phone as well', () => {
     expect(view).toContain('function TrashDialog(');
     expect(view).toContain('function RecentlyDeletedDialog(');
     expect(view).toContain('function ProjectFormDialog(');
@@ -159,10 +160,13 @@ describe('the bookshelf in sand and glass', () => {
     // A destructive confirmation opens on Cancel.
     expect(view).toContain('<Button onClick={onClose} disabled={busy} autoFocus>');
     expect(view).toContain('className="ui-field ui-field--area glass glass--rest glass--field"');
-    // The paused mobile shelf still renders its own .pp-modal markup.
-    expect(view).toContain('function DeleteModal(');
-    expect(view).toContain('function ProjectFormModal(');
-    expect(css).toContain('width: min(100%, 500px) !important');
+    // The phone opens the same dialogs: the paused mobile shelf's own
+    // .pp-modal markup and its separate shelf content are gone.
+    expect(view).not.toContain('function DeleteModal(');
+    expect(view).not.toContain('function ProjectFormModal(');
+    expect(view).not.toContain('pp-modal');
+    expect(view).not.toContain('MobileProjectShelfContent');
+    expect(view).toContain('export function ProjectPickerView() {');
   });
 });
 
@@ -171,13 +175,13 @@ describe('danger buttons', () => {
     const controls = read('src/styles/ui-controls.css');
     const danger = block(
       controls,
-      "html:not([data-shell-mode='mobile']) .ui-button.ui-button--glass.ui-button--danger,",
+      "html[data-shell-mode] .ui-button.ui-button--glass.ui-button--danger,",
       '}',
     );
     expect(danger).toContain('--glass-cc: hsl(var(--destructive));');
     expect(danger).toContain('color: hsl(var(--destructive));');
     // Disabled, every glass button falls back to a faint clear line.
-    expect(block(controls, "html:not([data-shell-mode='mobile']) .ui-button.ui-button--glass:disabled {", '}'))
+    expect(block(controls, "html[data-shell-mode] .ui-button.ui-button--glass:disabled {", '}'))
       .toContain('--glass-cc: var(--glass-clear);');
   });
 });
@@ -213,7 +217,7 @@ describe('the sign-in dialog', () => {
     expect(forgot).toBeGreaterThan(password);
   });
 
-  it('keeps the paused mobile page as it was', () => {
+  it('keeps the mobile sign-in page on its own controls', () => {
     const html = render('page');
     expect(html).toContain('class="auth-flow auth-flow--page"');
     expect(html).toContain('auth-flow__button auth-flow__button--primary auth-flow__button--block');

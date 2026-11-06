@@ -5,6 +5,7 @@ import { BrushIcon, type BrushIconName } from '../../../components/ui/BrushIcon'
 import { getBlockFormatItems, getInlineFormatItems, type BlockFormatItem } from '../../../lib/slash-menu/block-format-items';
 import { selectionActionsFor } from '../../../features/editor/editor-selection-bar';
 import type { MobileKeyboardBar as BarMode } from './mobile-desk-controller';
+import { useTodayWords } from '../../../components/workspaceChrome/useTodayWords';
 
 const FORMAT_GLYPHS: Readonly<Record<string, BrushIconName>> = {
   paragraph: 'fmt-paragraph', h1: 'fmt-h1', h2: 'fmt-h2', h3: 'fmt-h3', blockquote: 'fmt-quote',
@@ -16,6 +17,7 @@ const FORMAT_KEYS: Readonly<Record<string, string>> = {
 };
 
 interface MobileKeyboardBarProps {
+  projectId: string;
   editor: Editor;
   mode: BarMode;
   keyboardInset: number;
@@ -35,8 +37,10 @@ interface MobileKeyboardBarProps {
  * 「格式」 unfolds the formats as a second pill above it. The last button puts
  * the keyboard away.
  */
-export function MobileKeyboardBar({ editor, mode, keyboardInset, revision, onModeChange, onAskAgent, onDone }: MobileKeyboardBarProps) {
-  const { t } = useTranslation();
+export function MobileKeyboardBar({ projectId, editor, mode, keyboardInset, revision, onModeChange, onAskAgent, onDone }: MobileKeyboardBarProps) {
+  const { t, i18n } = useTranslation();
+  // Today's words beside the keyboard, a dry stroke growing toward the day's goal.
+  const { todayWords, progress } = useTodayWords(projectId);
   const blocks = useMemo(() => getBlockFormatItems().filter((item) => FORMAT_GLYPHS[item.id]), []);
   const inlines = useMemo(() => getInlineFormatItems().filter((item) => FORMAT_GLYPHS[item.id]), []);
   // `revision` makes the selection and its formats read again after every change.
@@ -122,6 +126,12 @@ export function MobileKeyboardBar({ editor, mode, keyboardInset, revision, onMod
             <BrushIcon name="shikigami" />
           </button>
         </div>
+        {todayWords != null && (
+          <span className="m-kbar__today" data-debug-id="mobile-keyboard-today">
+            <span className="m-kbar__today-figure">+{todayWords.toLocaleString(i18n.language)}</span>
+            {progress != null && <span className="sand-stroke m-kbar__today-goal" style={{ width: `${progress * 100}%` }} />}
+          </span>
+        )}
         <button
           type="button"
           className="m-kbar__done glass glass--rest glass--round"

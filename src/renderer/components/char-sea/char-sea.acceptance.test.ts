@@ -68,7 +68,9 @@ describe('the sea of characters under the desktop window', () => {
     expect(app).toContain('const [seaEnabled] = useState(charSeaEnabled);');
     expect(app).toContain('{seaEnabled && <CharSea />}');
     const hooks = read('src/renderer/components/char-sea/useCharSea.ts');
-    expect(hooks).toContain("return !getPlatformRuntime().isMobileShell && charSeaSupported();");
+    // Wherever WebGL2 is there: no shell gate keeps the sea off a phone.
+    expect(hooks).toContain('  return charSeaSupported();\n');
+    expect(hooks).not.toContain('isMobileShell');
 
     const shelf = read('src/renderer/views/ProjectPickerView.tsx');
     expect(shelf).toContain("useCharSeaHold('surface', onSea);");

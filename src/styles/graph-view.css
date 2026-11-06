@@ -4,6 +4,8 @@
    cross-storyline trails for shared-node transit. Phase 4 will
    layer relation edges (同人物 / 引用 / 时序 / 物件 / 回响) on top.
    ============================================================ */
+/* `html[data-shell-mode]` and `:root[data-shell-mode]` match every shell: they
+   keep the weight these rules had while the mobile shell was excluded. */
 
 .graph-overlay {
   /* Shared control sizing for the head-bar chips/buttons that live in the
@@ -19,36 +21,6 @@
    StoryGraphView-specific controls (view toggle, spread btn,
    filter chips, edge-mgr button, unplaced popover) that are
    injected into the header's left/right slots. */
-.graph-head__spread-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  height: var(--graph-head-control-height);
-  padding: 0 9px;
-  box-sizing: border-box;
-  border: 1px solid hsl(var(--rule));
-  border-radius: 3px;
-  background: hsl(var(--surface));
-  color: hsl(var(--ink-4));
-  font-family: var(--font-mono);
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  cursor: pointer;
-  transition:
-    background 0.12s,
-    color 0.12s,
-    border-color 0.12s;
-}
-.graph-head__spread-btn:hover:not(:disabled) {
-  background: hsl(var(--ink-1));
-  color: hsl(var(--paper));
-  border-color: hsl(var(--ink-1));
-}
-.graph-head__spread-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
 /* ---------------- Head-bar "未放置" popover (narrative mode) ----------
    Replaces the below-head drawer. Lives next to the view toggle in
    `.graph-head__left` and opens a popover anchored to its button. */
@@ -56,43 +28,12 @@
   position: relative;
   display: inline-flex;
 }
-.graph-head__unplaced-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: var(--graph-head-control-height);
-  padding: 0 10px;
-  box-sizing: border-box;
-  border: 1px solid hsl(var(--rule));
-  border-radius: 3px;
-  background: hsl(var(--surface));
-  color: hsl(var(--ink-4));
-  font-family: var(--font-mono);
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  cursor: pointer;
-  transition:
-    background 0.12s,
-    color 0.12s,
-    border-color 0.12s;
-}
-.graph-head__unplaced-btn:hover,
-.graph-head__unplaced-btn.is-open {
-  background: hsl(var(--ink-1));
-  color: hsl(var(--paper));
-  border-color: hsl(var(--ink-1));
-}
 .graph-head__unplaced-count {
   background: hsl(var(--rule));
   color: hsl(var(--ink-2));
   padding: 1px 6px;
   border-radius: 1px;
   font-size: 9px;
-}
-.graph-head__unplaced-btn.is-open .graph-head__unplaced-count {
-  background: hsl(var(--paper) / 0.18);
-  color: hsl(var(--paper));
 }
 .graph-head__unplaced-popover {
   z-index: var(--z-popover);
@@ -139,12 +80,6 @@
 .graph-head__unplaced-chip:hover {
   border-color: var(--chip-color, hsl(var(--ink-3)));
   background: color-mix(in srgb, var(--chip-color, hsl(var(--ink-3))) 6%, hsl(var(--paper)));
-}
-.graph-head__unplaced-chip-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--chip-color, hsl(var(--ink-4)));
 }
 .graph-head__unplaced-chip-num {
   font-family: var(--font-mono);
@@ -289,12 +224,6 @@
   font-style: italic;
   font-size: 14px;
   color: hsl(var(--ink-1));
-}
-.graph-rail__name-dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 2px;
-  flex-shrink: 0;
 }
 .graph-rail__meta {
   font-family: var(--font-mono);
@@ -654,18 +583,6 @@
 .graph-linkbar button:hover {
   color: hsl(var(--paper));
 }
-
-.graph-newedge-backdrop {
-  box-sizing: border-box;
-  position: fixed;
-  inset: 0;
-  background: hsl(var(--ink-1) / 0.35);
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  place-items: center;
-  padding: 16px;
-  z-index: 280;
-}
 .graph-newedge {
   box-sizing: border-box;
   background: hsl(var(--paper));
@@ -682,12 +599,6 @@
 }
 .graph-newedge.is-creating-type {
   width: min(520px, 100%);
-}
-.graph-newedge__head {
-  font-family: var(--font-sans);
-  font-size: 15px;
-  color: hsl(var(--ink-1));
-  margin-bottom: 8px;
 }
 .graph-newedge__pair {
   display: flex;
@@ -721,68 +632,6 @@
 .graph-newedge__swap {
   font-size: 15px;
 }
-.graph-newedge__label {
-  display: block;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: hsl(var(--ink-4));
-  margin-bottom: 4px;
-}
-.graph-newedge__select {
-  width: 100%;
-}
-.graph-newedge__input {
-  width: 100%;
-  height: 32px;
-  padding: 0 10px;
-  border: 1px solid hsl(var(--rule-strong));
-  border-radius: 4px;
-  background: hsl(var(--paper));
-  color: hsl(var(--ink-1));
-  font-family: var(--font-sans);
-  font-size: 13px;
-  outline: none;
-  transition: border-color 0.12s;
-}
-.graph-newedge__input:focus {
-  border-color: hsl(var(--accent));
-}
-
-.graph-newedge__actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 14px;
-}
-.graph-newedge__actions button {
-  height: 28px;
-  padding: 0 14px;
-  border: 1px solid hsl(var(--rule-strong));
-  background: hsl(var(--paper));
-  color: hsl(var(--ink-2));
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.06em;
-  transition:
-    background 0.12s,
-    color 0.12s;
-}
-.graph-newedge__actions button:hover {
-  background: hsl(var(--rule) / 0.4);
-}
-.graph-newedge__actions button.is-primary {
-  background: hsl(var(--ink-1));
-  color: hsl(var(--paper));
-  border-color: hsl(var(--ink-1));
-}
-.graph-newedge__actions button.is-primary:hover {
-  background: hsl(var(--accent));
-  border-color: hsl(var(--accent));
-}
 
 /* ---------------- Node card popover ----------------
    Anchored to a clicked tile in default state; recenters into a
@@ -800,33 +649,6 @@
 .node-card.is-upgrade {
   border-radius: 2px;
   box-shadow: 0 20px 48px -20px hsl(var(--ink-1) / 0.42);
-}
-
-.node-card__head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-  border-bottom: 1px solid hsl(var(--rule));
-  flex-shrink: 0;
-  min-height: 36px;
-}
-.node-card__num {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  color: hsl(var(--ink-3));
-  flex-shrink: 0;
-}
-.node-card__title {
-  font-size: 13.5px;
-  font-weight: 600;
-  color: hsl(var(--ink-1));
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  flex: 1;
-  min-width: 0;
 }
 .node-card__summary {
   width: 100%;
@@ -848,59 +670,6 @@
   color: hsl(var(--ink-4));
   font-style: italic;
 }
-
-.node-card__foot {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  padding: 8px 12px;
-  border-top: 1px solid hsl(var(--rule));
-  background: hsl(var(--paper-deep));
-  flex-shrink: 0;
-}
-
-.node-card__btn {
-  background: hsl(var(--paper));
-  border: 1px solid hsl(var(--rule));
-  color: hsl(var(--ink-2));
-  padding: 5px 11px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.05em;
-  transition:
-    background 0.12s,
-    color 0.12s,
-    border-color 0.12s;
-}
-.node-card__btn:hover {
-  background: hsl(var(--rule) / 0.4);
-  color: hsl(var(--ink-1));
-}
-.node-card__btn.is-primary {
-  background: hsl(var(--ink-1));
-  color: hsl(var(--paper));
-  border-color: hsl(var(--ink-1));
-}
-.node-card__btn.is-primary:hover {
-  background: hsl(var(--accent));
-  border-color: hsl(var(--accent));
-}
-.node-card__btn.is-ghost {
-  background: transparent;
-  border-color: transparent;
-}
-.node-card__btn.is-ghost:hover {
-  background: hsl(var(--rule) / 0.4);
-}
-
-.node-card__editor {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  padding: 4px 0;
-}
 .node-card__loading {
   padding: 24px;
   text-align: center;
@@ -908,18 +677,6 @@
   font-family: var(--font-mono);
   font-size: 11px;
   letter-spacing: 0.08em;
-}
-.node-card__editor-foot {
-  padding: 6px 14px;
-  border-top: 1px solid hsl(var(--rule));
-  background: hsl(var(--paper-deep));
-  flex-shrink: 0;
-}
-.node-card__meta {
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  letter-spacing: 0.06em;
-  color: hsl(var(--ink-3));
 }
 
 /* Fixed-position edges between drift cards and storyline tiles.
@@ -984,21 +741,21 @@
    the timeline's glass; their lines are half-pixel desk lines and the drop
    line while dragging is clear glass running with the distance. The paused
    mobile shell keeps the tinted tiles and dotted lanes above. */
-html:not([data-shell-mode='mobile']) .graph-overlay {
+html[data-shell-mode] .graph-overlay {
   --graph-guide-line: var(--workspace-ui-bg);
   --graph-drop-glass: color-mix(in srgb, var(--glass-clear), hsl(var(--ink-3)) 50%);
 }
 
-html:not([data-shell-mode='mobile']) .graph-head__spread {
+html[data-shell-mode] .graph-head__spread {
   gap: 5px;
 }
 
-html:not([data-shell-mode='mobile']) .graph-axis-row {
+html[data-shell-mode] .graph-axis-row {
   border-bottom: 0;
   box-shadow: inset 0 -0.5px 0 var(--graph-guide-line);
 }
 
-html:not([data-shell-mode='mobile']) .graph-axis-rail-cell {
+html[data-shell-mode] .graph-axis-rail-cell {
   border-right: 0;
   background: var(--workspace-ui-bg);
   font-size: var(--ui-font-caption, 10px);
@@ -1007,21 +764,21 @@ html:not([data-shell-mode='mobile']) .graph-axis-rail-cell {
   color: var(--ui-text-muted, hsl(var(--ink-4)));
 }
 
-html:not([data-shell-mode='mobile']) .graph-rail__axis-add:hover:not(:disabled) {
+html[data-shell-mode] .graph-rail__axis-add:hover:not(:disabled) {
   background: transparent;
 }
 
-html:not([data-shell-mode='mobile']) .graph-rail-cell,
-html:not([data-shell-mode='mobile']) .graph-track-cell {
+html[data-shell-mode] .graph-rail-cell,
+html[data-shell-mode] .graph-track-cell {
   border-right: 0;
   border-bottom: 0;
 }
 
-html:not([data-shell-mode='mobile']) .graph-lane-row + .graph-lane-row {
+html[data-shell-mode] .graph-lane-row + .graph-lane-row {
   box-shadow: inset 0 0.5px 0 var(--graph-guide-line);
 }
 
-html:not([data-shell-mode='mobile']) .graph-track-cell::before {
+html[data-shell-mode] .graph-track-cell::before {
   content: none;
 }
 
@@ -1142,7 +899,7 @@ html:not([data-shell-mode='mobile']) .graph-track-cell::before {
   animation-play-state: paused;
 }
 
-html:not([data-shell-mode='mobile']) .graph-pin__label.glass {
+html[data-shell-mode] .graph-pin__label.glass {
   padding: 2px 7px;
   border: 0;
   border-radius: 2px;
@@ -1150,7 +907,7 @@ html:not([data-shell-mode='mobile']) .graph-pin__label.glass {
   letter-spacing: 0;
 }
 
-html:not([data-shell-mode='mobile']) .graph-pin.is-editing .graph-pin__label.glass {
+html[data-shell-mode] .graph-pin.is-editing .graph-pin__label.glass {
   overflow: visible;
   background: var(--glass-fill);
   color: hsl(var(--ink-1));
@@ -1158,7 +915,7 @@ html:not([data-shell-mode='mobile']) .graph-pin.is-editing .graph-pin__label.gla
   user-select: text;
 }
 
-html:not([data-shell-mode='mobile']) .graph-pin.is-bound .graph-pin__label.glass {
+html[data-shell-mode] .graph-pin.is-bound .graph-pin__label.glass {
   font-family: var(--font-sans);
   color: hsl(var(--ink-1));
   cursor: pointer;
@@ -1174,14 +931,14 @@ html:not([data-shell-mode='mobile']) .graph-pin.is-bound .graph-pin__label.glass
   top: 1px;
 }
 
-html:not([data-shell-mode='mobile']) .graph-pin__line,
-html:not([data-shell-mode='mobile']) .graph-pin.is-bound .graph-pin__line,
-html:not([data-shell-mode='mobile']) .graph-pin-line {
+html[data-shell-mode] .graph-pin__line,
+html[data-shell-mode] .graph-pin.is-bound .graph-pin__line,
+html[data-shell-mode] .graph-pin-line {
   width: 0.5px;
   background: var(--graph-guide-line);
 }
 
-html:not([data-shell-mode='mobile']) .graph-pin-line.is-dragging {
+html[data-shell-mode] .graph-pin-line.is-dragging {
   width: 4px;
   margin-left: -2px;
   background: linear-gradient(to right, transparent, var(--graph-drop-glass), transparent);
@@ -1213,11 +970,11 @@ html:not([data-shell-mode='mobile']) .graph-pin-line.is-dragging {
   cursor: grabbing;
 }
 
-html:not([data-shell-mode='mobile']) .menu-surface__item.graph-head__unplaced-row::before {
+html[data-shell-mode] .menu-surface__item.graph-head__unplaced-row::before {
   --menu-line: color-mix(in srgb, var(--clip-color, hsl(var(--ink-3))) 50%, var(--glass-clear));
 }
 
-html:not([data-shell-mode='mobile']) .menu-surface__item.graph-head__unplaced-row:active::before {
+html[data-shell-mode] .menu-surface__item.graph-head__unplaced-row:active::before {
   --menu-line: color-mix(in srgb, var(--clip-color, hsl(var(--ink-3))) 75%, var(--glass-clear));
 }
 
@@ -1234,14 +991,14 @@ html:not([data-shell-mode='mobile']) .menu-surface__item.graph-head__unplaced-ro
 /* Drift edges: no blurred halo; the dashes stand still until the pointer is
    on the edge or on its drift card (`is-lit`), then flow at the glass's
    pace. */
-html:not([data-shell-mode='mobile']) .graph-drift-edge__halo {
+html[data-shell-mode] .graph-drift-edge__halo {
   display: none;
 }
 
-html:not([data-shell-mode='mobile']) .graph-drift-edge__line {
+html[data-shell-mode] .graph-drift-edge__line {
   animation-play-state: paused;
 }
 
-html:not([data-shell-mode='mobile']) .graph-drift-edge:is(:hover, .is-lit, .is-selected) .graph-drift-edge__line {
+html[data-shell-mode] .graph-drift-edge:is(:hover, .is-lit, .is-selected) .graph-drift-edge__line {
   animation-play-state: running;
 }

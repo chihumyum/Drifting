@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { diffTokens, type AgentBlockChange } from '../../lib/agent/block-diff';
 import { useSettingsStore } from '../../store/settings-store';
-import { getPlatformRuntime } from '../../platform/runtime';
 import { createAgentEditSeenTracker } from './agent-edit-animation';
 import { AgentRevealText } from './AgentRevealText';
 
@@ -120,7 +119,7 @@ export function FieldReview({
   const ref = useRef<HTMLDivElement>(null);
   // Once true, the diff types itself in; its onDone resolves the change.
   const [committing, setCommitting] = useState(false);
-  // On screen at last: desktop pushes one band of glass across the line.
+  // On screen at last: one band of glass is pushed across the line.
   const [arrived, setArrived] = useState(false);
   const acceptRef = useRef(onAccept);
   useEffect(() => {
@@ -190,7 +189,6 @@ export function FieldReview({
   const key = change.field?.kind === 'kv' || change.field?.kind === 'templatekv'
     ? change.field?.key
     : undefined;
-  const glass = !getPlatformRuntime().isMobileShell;
   const keyNode = key ? (
     <span
       className={`field-kv-key${change.op === 'new' ? ' field-diff__ins' : change.op === 'deleted' ? ' field-diff__del' : ''}`}
@@ -204,8 +202,8 @@ export function FieldReview({
       className={[
         'field-review',
         committing ? 'field-review--committing' : '',
-        glass ? 'field-review--glass' : '',
-        glass && arrived ? 'glass-sweep' : '',
+        'field-review--glass',
+        arrived ? 'glass-sweep' : '',
       ].filter(Boolean).join(' ')}
     >
       <span className="field-review__body">

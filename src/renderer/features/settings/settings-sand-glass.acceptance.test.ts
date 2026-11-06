@@ -79,17 +79,19 @@ describe('settings in sand and glass on the desktop', () => {
     expect(html(createElement(SettingsSectionHeader, { title: 'Theme', hint: 'THEME' }))).not.toContain('THEME');
   });
 
-  it('keeps the older set-* controls in the paused mobile shell', () => {
+  it('draws the same shared controls on the mobile shell', () => {
     runtime.isMobileShell = true;
-    expect(html(createElement(SettingsButton, { variant: 'primary' }, 'Save'))).toContain('class="set-btn set-btn--primary"');
-    expect(html(createElement(SettingsField, { mono: true }))).toContain('class="set-input set-input--mono"');
+    expect(html(createElement(SettingsButton, { variant: 'primary' }, 'Save'))).toContain('ui-button--glass');
+    expect(html(createElement(SettingsField, { mono: true }))).toContain('ui-field--mono');
     const select = html(createElement(SettingsSelect, { value: 'a', onChange: () => undefined, ariaLabel: 'Choice', few: true, options: FEW }));
-    expect(select).toContain('<select class="set-input"');
+    expect(select).toContain('class="glass-slider"');
     expect(html(createElement(SettingsColor, { value: '#a1b2c3', onChange: () => undefined, ariaLabel: 'Accent' }))).toContain(
-      'set-color-picker__input',
+      'class="ui-swatch glass glass--rest glass--round"',
     );
-    expect(html(createElement(SettingsPanelHeader, { kicker: 'KICKER', title: 'Title' }))).toContain('set-panel__kicker');
-    expect(html(createElement(SettingsSectionHeader, { title: 'Theme', hint: 'THEME' }))).toContain('THEME');
+    expect(html(createElement(SettingsPanelHeader, { kicker: 'KICKER', title: 'Title' }))).not.toContain('set-panel__kicker');
+    for (const file of ['SettingsPrimitives.tsx', 'SettingsSlider.tsx', 'SettingsLoadStatus.tsx']) {
+      expect(source(`src/renderer/features/settings/${file}`)).not.toMatch(/settingsOnDesktop|isMobileShell/);
+    }
   });
 
   it('draws the provider row, shortcuts, trash and about as their new definitions', () => {
@@ -101,7 +103,7 @@ describe('settings in sand and glass on the desktop', () => {
     expect(intelligence).toMatch(/\{connected && \(\s*<SettingsButton variant="danger" size="sm" onClick=\{disconnect\}>/);
     // Test results: a brush icon and a sentence, the danger ink when it failed.
     expect(intelligence).toContain("className={`set-provider-result${tone === 'error' ? ' set-provider-result--error' : ''}`}");
-    expect(intelligence.split('settingsOnDesktop()').length).toBeGreaterThan(2);
+    expect(intelligence).not.toContain('settingsOnDesktop');
 
     const controls = source('src/renderer/features/settings/panels/ControlSettingsPanels.tsx');
     expect(controls).toContain("className={`set-key-combo glass glass--small${isRecording ? ' glass--waiting' : ''}`}");
@@ -124,7 +126,7 @@ describe('settings in sand and glass on the desktop', () => {
 
   it('keeps the desktop section flat: no washes, gradients, dotted rules or side shadows', () => {
     const css = source('src/styles/settings.css');
-    const desktop = css.slice(css.indexOf('Desktop: sand and plain glass'));
+    const desktop = css.slice(css.indexOf('Sand and plain glass'));
     expect(desktop.length).toBeGreaterThan(1000);
     expect(desktop).not.toMatch(/linear-gradient|dotted|hsl\(var\(--ink-1\) \/ 0\.0|hsl\(var\(--accent\) \/ 0\./);
     expect(desktop).toMatch(/\.set-rail \{[\s\S]*?border-right: 0\.5px solid var\(--workspace-local-border\);[\s\S]*?box-shadow: none;/);

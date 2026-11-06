@@ -9,7 +9,6 @@ import { StoryGraphDriftEdges } from '../features/graph/StoryGraphDriftEdges';
 import { useSuperElementTransform } from '../features/graph/useSuperElementTransform';
 import type { SuperElementWorldEdge } from '../features/graph/super-element-edge-model';
 import { EDGE_HIT_WIDTH, SUPER_ELEMENT_EDGE_WIDTHS } from '../features/graph/super-element-metrics';
-import { getPlatformRuntime } from '../platform/runtime';
 import { createDomGraphFixture } from './graph-geometry-scenarios';
 import driftStyles from '../../styles/drift-panel.css?raw';
 import graphStyles from '../../styles/graph-view.css?raw';
@@ -27,7 +26,7 @@ function assertions(scope: string) {
 }
 
 // The focused width is the shell's own: desktop draws thinner lines than mobile.
-const edgeWidths = () => SUPER_ELEMENT_EDGE_WIDTHS[getPlatformRuntime().isMobileShell ? 'mobile' : 'desktop'];
+const edgeWidths = () => SUPER_ELEMENT_EDGE_WIDTHS.desktop;
 async function viewportScenario() {
   const { check, checks } = assertions('viewport-overlay');
   const host = document.createElement('div'); document.body.appendChild(host);

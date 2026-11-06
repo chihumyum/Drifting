@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { getPlatformRuntime } from '../../platform/runtime';
 import { Button } from '../../components/ui/Button';
 import { GlassSlider } from '../../components/ui/GlassSlider';
 
@@ -42,7 +41,6 @@ export function CommentComposer({
   const submit = () => {
     if (body.trim()) onSubmit(body.trim(), asTodo);
   };
-  const glass = !getPlatformRuntime().isMobileShell;
   const textarea = (
     <textarea
       autoFocus
@@ -62,45 +60,26 @@ export function CommentComposer({
       }}
     />
   );
-  if (glass) {
-    // Desktop: a floating layer with a paper field, the note/TODO choice as
-    // one of a set, cancel as a text button and save as the primary glass.
-    return createPortal(
-      <div ref={ref} className="comment-composer comment-composer--float" style={position} role="dialog" aria-label={label}>
-        <label className="ui-field ui-field--area comment-composer__field glass glass--rest glass--field">{textarea}</label>
-        <div className="comment-composer__actions">
-          <GlassSlider
-            ariaLabel={t('materialEditor.regions.kindLabel')}
-            value={asTodo ? 'todo' : 'note'}
-            onChange={(kind) => setAsTodo(kind === 'todo')}
-            options={[
-              { value: 'note', label: t('materialEditor.regions.kindNote') },
-              { value: 'todo', label: t('materialEditor.regions.kindTodo') },
-            ]}
-          />
-          <span className="comment-composer__spacer" />
-          <Button size="sm" variant="ghost" onClick={onCancel}>{t('common.cancel')}</Button>
-          <Button size="sm" variant="primary" disabled={!body.trim()} onClick={submit}>
-            {t('materialEditor.regions.save')}
-          </Button>
-        </div>
-      </div>,
-      document.body,
-    );
-  }
+  // A floating layer with a paper field, the note/TODO choice as one of a
+  // set, cancel as a text button and save as the primary glass.
   return createPortal(
-    <div ref={ref} className="comment-composer" style={position} role="dialog" aria-label={label}>
-      {textarea}
+    <div ref={ref} className="comment-composer comment-composer--float" style={position} role="dialog" aria-label={label}>
+      <label className="ui-field ui-field--area comment-composer__field glass glass--rest glass--field">{textarea}</label>
       <div className="comment-composer__actions">
-        <label>
-          <input type="checkbox" checked={asTodo} onChange={(event) => setAsTodo(event.target.checked)} />
-          {t('materialEditor.regions.asTodo')}
-        </label>
+        <GlassSlider
+          ariaLabel={t('materialEditor.regions.kindLabel')}
+          value={asTodo ? 'todo' : 'note'}
+          onChange={(kind) => setAsTodo(kind === 'todo')}
+          options={[
+            { value: 'note', label: t('materialEditor.regions.kindNote') },
+            { value: 'todo', label: t('materialEditor.regions.kindTodo') },
+          ]}
+        />
         <span className="comment-composer__spacer" />
-        <button type="button" onClick={onCancel}>{t('common.cancel')}</button>
-        <button type="button" className="comment-composer__save" disabled={!body.trim()} onClick={submit}>
+        <Button size="sm" variant="ghost" onClick={onCancel}>{t('common.cancel')}</Button>
+        <Button size="sm" variant="primary" disabled={!body.trim()} onClick={submit}>
           {t('materialEditor.regions.save')}
-        </button>
+        </Button>
       </div>
     </div>,
     document.body,

@@ -14,7 +14,6 @@ import { FIRST_RUN_LEAVE_MS, FIRST_RUN_TITLE_MS, PAGE_BLEND_MS } from '../../lib
 import { isAppClosedForPublic } from '../../utils/appAccess';
 import { useAuthStore } from '../../store/auth';
 import { requestConfirmation } from '../../store/confirmation-store';
-import { events } from '../../lib/events';
 import { platform } from '../../platform';
 import type { MarkdownFolderSettings } from '../../platform/contracts';
 import { getPlatformRuntime } from '../../platform/runtime';
@@ -23,7 +22,7 @@ import { Button } from '../ui/Button';
 import { GlassSelect } from '../ui/GlassSelect';
 import { UI_LOCALE_OPTIONS } from '../../lib/i18n';
 import { useSettingsStore } from '../../store/settings-store';
-import { ModalActions, ModalBody, ModalCard, ModalHeader, ModalRoot } from '../ui/Modal';
+import { ModalActions, ModalBody, ModalHeader } from '../ui/Modal';
 import { alphaGuideStorageKey } from '../../lib/alpha-guide-key';
 
 // v2 (2026-11-06): the folder has no default location any more, so every
@@ -152,83 +151,6 @@ function MarkdownFolderGuide({ onDone }: { onDone(): void }) {
         )}
       </ModalActions>
     </>
-  );
-}
-
-/** The guide's words and its two ways on; mobile frames them as a dialog, the desktop as a card on the window. */
-function PreAlphaGuide({
-  onOpenAccount,
-  onContinueLocal,
-}: {
-  onOpenAccount(): void;
-  onContinueLocal(): void;
-}) {
-  const { t } = useTranslation();
-  const hosted = hostedAccountSettingsEnabled();
-  const session = useAuthStore((state) => state.session);
-
-  return (
-    <>
-      <ModalHeader kicker="Public Alpha" title={t('preAlphaGuide.title')} />
-      <ModalBody>
-        <p className="pre-alpha-guide-modal__text">{t('preAlphaGuide.intro')}</p>
-        <ul className="pre-alpha-guide-modal__list">
-          <li>{t('preAlphaGuide.localData')}</li>
-          {hosted && <li>{t('settings.hosted.trust')}</li>}
-          <li>{t('preAlphaGuide.byok')}</li>
-          {hosted && <li>{t('preAlphaGuide.crashReports')}</li>}
-        </ul>
-        <p className="pre-alpha-guide-modal__text">
-          {t(hosted ? 'settings.hosted.onboarding' : 'preAlphaGuide.settingsHint')}
-        </p>
-      </ModalBody>
-      <ModalActions>
-        {hosted && (
-          <Button variant="default" onClick={onOpenAccount}>
-            {t(session ? 'settings.hosted.manage' : 'preAlphaGuide.accountAction')}
-          </Button>
-        )}
-        <Button
-          className="pre-alpha-guide-modal__continue"
-          variant="primary"
-          onClick={onContinueLocal}
-          autoFocus
-        >
-          {t('preAlphaGuide.continueLocal')}
-        </Button>
-      </ModalActions>
-    </>
-  );
-}
-
-/** Mobile keeps the guide as an overlay; desktop asks first in PreAlphaFirstRunGate. */
-export function PreAlphaOnboardingDialog() {
-  const { t } = useTranslation();
-  const navigate = useNavigate();
-  const hosted = hostedAccountSettingsEnabled();
-  const session = useAuthStore((state) => state.session);
-  const { open, dismiss } = usePreAlphaGuide();
-
-  if (!open || !getPlatformRuntime().isMobileShell) return null;
-
-  const openAccount = () => {
-    if (!hosted) return;
-    dismiss();
-    if (!session) navigate('/login');
-    else queueMicrotask(() => events.emit('settings:open', { railId: 'account' }));
-  };
-
-  return (
-    <ModalRoot
-      onClose={dismiss}
-      ariaLabel={t('preAlphaGuide.title')}
-      closeOnBackdrop={false}
-      dismissOnEscape={false}
-    >
-      <ModalCard className="pre-alpha-guide-modal" width={560}>
-        <PreAlphaGuide onOpenAccount={openAccount} onContinueLocal={dismiss} />
-      </ModalCard>
-    </ModalRoot>
   );
 }
 

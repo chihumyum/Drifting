@@ -23,7 +23,6 @@ import { GlassSlider } from '../ui/GlassSlider';
 import { KindMark } from '../ui/KindMark';
 import type { KindMarkKind } from '../ui/kind-mark';
 import { isDrift } from '../../domain/book-node';
-import { getPlatformRuntime } from '../../platform/runtime';
 
 const log = loglevel.getLogger('ReferencesPanel');
 log.setLevel(loglevel.levels.ERROR);
@@ -531,8 +530,6 @@ export function ReferencesPanel({
   }
 
   const kindClass = (kind: EntityKind) => `refs-kind-${kind}`;
-  // Desktop wears sand and glass; the paused mobile shell keeps its own look.
-  const glass = !getPlatformRuntime().isMobileShell;
   // The other entity's sand mark, in its storyline's or category's colour.
   const markOf = (kind: EntityKind, id: string): { mark: KindMarkKind; color?: string } => {
     if (kind === 'element') {
@@ -575,66 +572,38 @@ export function ReferencesPanel({
             <button
               type="button"
               onClick={() => setShowLinkPicker((v) => !v)}
-              className={glass ? 'refs-section__text-action' : 'refs-section__action'}
-              aria-expanded={glass ? showLinkPicker : undefined}
+              className="refs-section__text-action"
+              aria-expanded={showLinkPicker}
             >
               {showLinkPicker
                 ? t('common.cancel')
-                : <><BrushIcon name="plus" size={10} inline /> {glass ? t('referencesPanel.actions.linkEntity') : t('referencesPanel.actions.add')}</>}
+                : <><BrushIcon name="plus" size={10} inline /> {t('referencesPanel.actions.linkEntity')}</>}
             </button>
           </div>
 
           {showLinkPicker && (
-            <div className={`refs-picker${glass ? ' refs-picker--glass' : ''}`}>
-              {glass ? (
-                <GlassSlider
-                  className="entity-slider"
-                  ariaLabel={t('referencesPanel.sections.relations')}
-                  value={pickerFilter as (typeof pickerKinds)[number]['value']}
-                  onChange={setPickerFilter}
-                  options={pickerKinds}
-                />
-              ) : (
-                <div className="refs-picker__filters">
-                  {pickerKinds.map((f) => (
-                    <button
-                      key={f.value}
-                      type="button"
-                      onClick={() => setPickerFilter(f.value)}
-                      className={`refs-picker__filter${
-                        pickerFilter === f.value ? ' refs-picker__filter--active' : ''
-                      }`}
-                    >
-                      {f.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-              {glass ? (
-                <label className="ui-field glass glass--rest glass--field glass--small">
-                  <BrushIcon name="search" size={12} />
-                  <input
-                    type="text"
-                    autoFocus
-                    value={pickerQuery}
-                    onChange={(e) => setPickerQuery(e.target.value)}
-                    placeholder={t('referencesPanel.picker.placeholder')}
-                  />
-                </label>
-              ) : (
+            <div className="refs-picker refs-picker--glass">
+              <GlassSlider
+                className="entity-slider"
+                ariaLabel={t('referencesPanel.sections.relations')}
+                value={pickerFilter as (typeof pickerKinds)[number]['value']}
+                onChange={setPickerFilter}
+                options={pickerKinds}
+              />
+              <label className="ui-field glass glass--rest glass--field glass--small">
+                <BrushIcon name="search" size={12} />
                 <input
                   type="text"
                   autoFocus
                   value={pickerQuery}
                   onChange={(e) => setPickerQuery(e.target.value)}
                   placeholder={t('referencesPanel.picker.placeholder')}
-                  className="refs-picker__input"
                 />
-              )}
+              </label>
               {pendingCandidate && (
                 <div className="refs-picker__relation-type">
                   <div className="refs-picker__selected-target">
-                    {glass && kindMark(pendingCandidate.kind, pendingCandidate.id)}
+                    {kindMark(pendingCandidate.kind, pendingCandidate.id)}
                     {pendingCandidate.name}
                   </div>
                   <button
@@ -659,27 +628,12 @@ export function ReferencesPanel({
                     resolveOptionColor={relationTypeColor}
                     placeholder={t('relationTypes.selectConfigured')}
                     ariaLabel={t('relationTypes.ariaLabel')}
-                    className={glass ? 'refs-picker__type-field' : ''}
-                    buttonClassName={
-                      glass
-                        ? 'refs-picker__type relation-type-field__button glass glass--rest'
-                        : 'relation-type-field__button relation-type-field__button--full'
-                    }
+                    className="refs-picker__type-field"
+                    buttonClassName="refs-picker__type relation-type-field__button glass glass--rest"
                   />
-                  {glass ? (
-                    <Button variant="primary" size="sm" disabled={!pendingTypeId} onClick={() => void handleAddManual()}>
-                      {t('storyGraph.edge.create')}
-                    </Button>
-                  ) : (
-                    <button
-                      type="button"
-                      className="refs-section__action"
-                      disabled={!pendingTypeId}
-                      onClick={() => void handleAddManual()}
-                    >
-                      {t('storyGraph.edge.create')}
-                    </button>
-                  )}
+                  <Button variant="primary" size="sm" disabled={!pendingTypeId} onClick={() => void handleAddManual()}>
+                    {t('storyGraph.edge.create')}
+                  </Button>
                 </div>
               )}
               <div className="refs-picker__list">
@@ -695,25 +649,15 @@ export function ReferencesPanel({
                         setPendingTypeId(null);
                         setPendingReversed(false);
                       }}
-                      className={`refs-picker__item${glass ? ' sand-cell' : ''}`}
-                      style={glass ? ({ '--cell-c': markOf(c.kind, c.id).color } as React.CSSProperties) : undefined}
+                      className="refs-picker__item sand-cell"
+                      style={{ '--cell-c': markOf(c.kind, c.id).color } as React.CSSProperties}
                     >
-                      {glass ? (
-                        <>
-                          {kindMark(c.kind, c.id)}
-                          <span className="refs-picker__item-name">{c.name}</span>
-                          <span className="refs-picker__item-kind">{labelForKind(c.kind)}</span>
-                          <i className="cell-ring" aria-hidden="true" />
-                        </>
-                      ) : (
-                        <>
-                          <span className={`refs-picker__item-kind ${kindClass(c.kind)}`}>
-                            <span className="refs-card__kind-dot" />
-                            {labelForKind(c.kind)}
-                          </span>
-                          <span className="refs-picker__item-name">{c.name}</span>
-                        </>
-                      )}
+                      <>
+                        {kindMark(c.kind, c.id)}
+                        <span className="refs-picker__item-name">{c.name}</span>
+                        <span className="refs-picker__item-kind">{labelForKind(c.kind)}</span>
+                        <i className="cell-ring" aria-hidden="true" />
+                      </>
                     </button>
                   ))
                 )}
@@ -728,13 +672,11 @@ export function ReferencesPanel({
             {manualRelations.map((rel) => (
               <div
                 key={rel.id}
-                className={`refs-rel-card ${kindClass(rel.otherKind)}${
-                  glass ? ' refs-rel-card--glass glass glass--rest glass--surface' : ''
-                }`}
+                className={`refs-rel-card ${kindClass(rel.otherKind)} refs-rel-card--glass glass glass--rest glass--surface`}
               >
                 <div className="refs-rel-card__top">
                   <span className="refs-rel-card__kind">
-                    {glass ? kindMark(rel.otherKind, rel.otherId) : <span className="refs-card__kind-dot" />}
+                    {kindMark(rel.otherKind, rel.otherId)}
                     {labelForKind(rel.otherKind)}
                     <span className="refs-rel-card__dir">
                       <BrushIcon name={rel.direction === 'outgoing' ? 'arrow-forward' : 'arrow-back'} size={9} inline />
@@ -771,11 +713,7 @@ export function ReferencesPanel({
                     resolveOptionColor={relationTypeColor}
                     placeholder={t('relationTypes.selectConfigured')}
                     ariaLabel={t('storyGraph.edge.kindLabel')}
-                    buttonClassName={
-                      glass
-                        ? 'refs-rel-card__type relation-type-field__button'
-                        : 'refs-rel-card__tag relation-type-field__button'
-                    }
+                    buttonClassName="refs-rel-card__type relation-type-field__button"
                   />
                   {relationCanSwap(rel) && (
                     <button
@@ -790,15 +728,6 @@ export function ReferencesPanel({
                 </div>
               </div>
             ))}
-            {!glass && (
-              <button
-                type="button"
-                onClick={() => setShowLinkPicker(true)}
-                className="refs-rel-card refs-rel-card--add"
-              >
-                <BrushIcon name="plus" size={10} inline /> {t('referencesPanel.actions.linkEntity')}
-              </button>
-            )}
           </div>
         </section>
       )}
@@ -813,7 +742,7 @@ export function ReferencesPanel({
           {incomingGroups.length === 0 ? (
             <div className="refs-empty ui-section-empty">{t('referencesPanel.empty.incoming')}</div>
           ) : (
-            <div className={`refs-cards${glass ? ' refs-cards--plain' : ''}`}>
+            <div className="refs-cards refs-cards--plain">
               {incomingGroups.map((g) => (
                 <div
                   key={g.key}
@@ -822,14 +751,7 @@ export function ReferencesPanel({
                   role="button"
                   tabIndex={0}
                 >
-                  {glass ? (
-                    kindMark(g.fromKind, g.fromId, true)
-                  ) : (
-                    <span className={`refs-card__kind ${kindClass(g.fromKind)}`}>
-                      <span className="refs-card__kind-dot" />
-                      {labelForKind(g.fromKind)}
-                    </span>
-                  )}
+                  {kindMark(g.fromKind, g.fromId, true)}
                   <span className="refs-card__title">{g.fromTitle}</span>
                   <span className="refs-card__meta">
                     {t('referencesPanel.meta.blocksSpans', {
@@ -855,7 +777,7 @@ export function ReferencesPanel({
           {outgoingGroups.length === 0 ? (
             <div className="refs-empty ui-section-empty">{t('referencesPanel.empty.outgoing')}</div>
           ) : (
-            <div className={`refs-cards${glass ? ' refs-cards--plain' : ''}`}>
+            <div className="refs-cards refs-cards--plain">
               {outgoingGroups.map((g) => (
                 <div
                   key={g.key}
@@ -864,14 +786,7 @@ export function ReferencesPanel({
                   role="button"
                   tabIndex={0}
                 >
-                  {glass ? (
-                    kindMark(g.toKind, g.toId, true)
-                  ) : (
-                    <span className={`refs-card__kind ${kindClass(g.toKind)}`}>
-                      <span className="refs-card__kind-dot" />
-                      {labelForKind(g.toKind)}
-                    </span>
-                  )}
+                  {kindMark(g.toKind, g.toId, true)}
                   <span className="refs-card__title">{g.toTitle}</span>
                   <span className="refs-card__meta">
                     {t('referencesPanel.meta.spans', { count: g.spanCount })}

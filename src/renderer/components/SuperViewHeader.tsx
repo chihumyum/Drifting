@@ -54,13 +54,11 @@ export function SuperViewHeader({
         {onBack && (
           <button
             type="button"
-            // Desktop: round glass beside the window controls, the same level
-            // as the sidebar toggles. The paused mobile shell keeps its own.
-            className={
-              runtime.isMobileShell
-                ? 'super-view-head__back'
-                : 'super-view-head__back glass glass--rest glass--round'
-            }
+            // Round glass beside the window controls, the same level as the
+            // sidebar toggles.
+            className="super-view-head__back glass glass--rest glass--round"
+            // The mobile shell owns its back stack (shells/mobile), so its
+            // back goes through the shell's navigation rather than onBack.
             onClick={() => {
               if (runtime.isMobileShell) requestMobileWorkspaceBack('visible');
               else onBack();

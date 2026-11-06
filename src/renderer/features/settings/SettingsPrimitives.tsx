@@ -7,13 +7,11 @@ import {
   type Ref,
   type TextareaHTMLAttributes,
 } from 'react';
-import { settingsOnDesktop } from './settings-on-desktop';
 import { BrushIcon, type BrushIconName } from '../../components/ui/BrushIcon';
 import { Button } from '../../components/ui/Button';
 import { GlassRange } from '../../components/ui/GlassRange';
 import { GlassSelect } from '../../components/ui/GlassSelect';
 import { GlassSlider } from '../../components/ui/GlassSlider';
-import { SegmentedControl } from '../../components/ui/SegmentedControl';
 import { Switch } from '../../components/ui/Switch';
 
 export type SettingsRegisterRef = (element: HTMLElement | null) => void;
@@ -32,7 +30,7 @@ export function SettingsToggle({
   return <Switch checked={on} onCheckedChange={onChange} disabled={disabled} aria-label={ariaLabel} />;
 }
 
-/** One short choice out of a few: a GlassSlider on the desktop. */
+/** One short choice out of a few: a GlassSlider. */
 export function SettingsSegment<T extends string>({
   value,
   options,
@@ -44,14 +42,10 @@ export function SettingsSegment<T extends string>({
   onChange: (next: T) => void;
   ariaLabel?: string;
 }) {
-  if (settingsOnDesktop()) {
-    return <GlassSlider value={value} options={options} onChange={onChange} ariaLabel={ariaLabel ?? ''} />;
-  }
-  return <SegmentedControl value={value} options={options} onChange={onChange} ariaLabel={ariaLabel} />;
+  return <GlassSlider value={value} options={options} onChange={onChange} ariaLabel={ariaLabel ?? ''} />;
 }
 
-/** A number along a track: the number slider (GlassRange) on the desktop,
- * the system slider on mobile, where `style` still applies. */
+/** A number along a track: the number slider (GlassRange). */
 export function SettingsRange({
   value,
   min,
@@ -62,7 +56,6 @@ export function SettingsRange({
   disabled = false,
   wide = false,
   id,
-  style,
 }: {
   value: number;
   min: number;
@@ -75,40 +68,23 @@ export function SettingsRange({
   id?: string;
   style?: CSSProperties;
 }) {
-  if (settingsOnDesktop()) {
-    return (
-      <GlassRange
-        id={id}
-        value={value}
-        min={min}
-        max={max}
-        step={step}
-        onChange={onChange}
-        ariaLabel={ariaLabel}
-        disabled={disabled}
-        wide={wide}
-      />
-    );
-  }
   return (
-    <input
+    <GlassRange
       id={id}
-      type="range"
+      value={value}
       min={min}
       max={max}
       step={step}
-      value={value}
+      onChange={onChange}
+      ariaLabel={ariaLabel}
       disabled={disabled}
-      aria-label={ariaLabel}
-      onChange={(event) => onChange(Number(event.target.value))}
-      style={style}
+      wide={wide}
     />
   );
 }
 
-/** A dropdown choice. On the desktop four or fewer short options (`few`) are
- * a GlassSlider and longer or entity lists a GlassSelect; mobile keeps the
- * system select. */
+/** A dropdown choice. Four or fewer short options (`few`) are a GlassSlider
+ * and longer or entity lists a GlassSelect. */
 export function SettingsSelect<T extends string>({
   value,
   options,
@@ -124,47 +100,22 @@ export function SettingsSelect<T extends string>({
   ariaLabel: string;
   few?: boolean;
   disabled?: boolean;
-  /** The trigger's width on the desktop and the select's on mobile. */
+  /** The trigger's width. */
   width?: number;
 }) {
-  if (settingsOnDesktop()) {
-    if (few) {
-      const slider = <GlassSlider value={value} options={options} onChange={onChange} ariaLabel={ariaLabel} />;
-      // GlassSlider has no disabled state of its own: while busy it fades and ignores the pointer.
-      return disabled ? <span className="set-choice-disabled" aria-disabled="true">{slider}</span> : slider;
-    }
-    return (
-      <span className="set-select-slot" style={{ width } as CSSProperties}>
-        <GlassSelect value={value} options={options} onChange={onChange} ariaLabel={ariaLabel} disabled={disabled} />
-      </span>
-    );
+  if (few) {
+    const slider = <GlassSlider value={value} options={options} onChange={onChange} ariaLabel={ariaLabel} />;
+    // GlassSlider has no disabled state of its own: while busy it fades and ignores the pointer.
+    return disabled ? <span className="set-choice-disabled" aria-disabled="true">{slider}</span> : slider;
   }
   return (
-    <select
-      className="set-input"
-      style={width ? { minWidth: width } : undefined}
-      value={value}
-      disabled={disabled}
-      aria-label={ariaLabel}
-      onChange={(event) => onChange(event.target.value as T)}
-    >
-      {options.map((option) => (
-        <option key={option.value} value={option.value}>
-          {option.label}
-        </option>
-      ))}
-    </select>
+    <span className="set-select-slot" style={{ width } as CSSProperties}>
+      <GlassSelect value={value} options={options} onChange={onChange} ariaLabel={ariaLabel} disabled={disabled} />
+    </span>
   );
 }
 
-const MOBILE_BUTTON: Record<'default' | 'primary' | 'danger' | 'ghost', string> = {
-  default: 'set-btn',
-  primary: 'set-btn set-btn--primary',
-  danger: 'set-btn set-btn--danger',
-  ghost: 'set-btn set-btn--ghost',
-};
-
-/** The shared Button on the desktop. `outbound` (a page that opens outside
+/** The shared Button. `outbound` (a page that opens outside
  * Drifting) is a text button ending in the slanting arrow. */
 export function SettingsButton({
   variant = 'default',
@@ -179,18 +130,11 @@ export function SettingsButton({
   outbound?: boolean;
   ref?: Ref<HTMLButtonElement>;
 }) {
-  if (settingsOnDesktop()) {
-    return (
-      <Button variant={outbound ? 'ghost' : variant} size={size} className={className} {...props}>
-        {children}
-        {outbound && <BrushIcon name="arrow-out" size={12} />}
-      </Button>
-    );
-  }
   return (
-    <button type="button" className={`${MOBILE_BUTTON[variant]} ${className}`.trim()} {...props}>
+    <Button variant={outbound ? 'ghost' : variant} size={size} className={className} {...props}>
       {children}
-    </button>
+      {outbound && <BrushIcon name="arrow-out" size={12} />}
+    </Button>
   );
 }
 
@@ -212,49 +156,34 @@ export function SettingsField({
   meta?: ReactNode;
   ref?: Ref<HTMLInputElement>;
 }) {
-  if (settingsOnDesktop()) {
-    return (
-      <label
-        className={[
-          'ui-field glass glass--rest glass--field glass--small',
-          mono ? 'ui-field--mono' : '',
-          small ? 'ui-field--sm' : '',
-          wide ? 'set-field-wide' : '',
-          className,
-        ].filter(Boolean).join(' ')}
-        style={style}
-      >
-        <input ref={ref} {...props} />
-        {meta && <span className="ui-field__meta">{meta}</span>}
-      </label>
-    );
-  }
   return (
-    <input
-      ref={ref}
-      className={['set-input', mono ? 'set-input--mono' : '', wide ? 'set-input--wide' : '', className]
-        .filter(Boolean)
-        .join(' ')}
+    <label
+      className={[
+        'ui-field glass glass--rest glass--field glass--small',
+        mono ? 'ui-field--mono' : '',
+        small ? 'ui-field--sm' : '',
+        wide ? 'set-field-wide' : '',
+        className,
+      ].filter(Boolean).join(' ')}
       style={style}
-      {...props}
-    />
+    >
+      <input ref={ref} {...props} />
+      {meta && <span className="ui-field__meta">{meta}</span>}
+    </label>
   );
 }
 
-/** Several lines of NAME=value: the configuration field on the desktop. */
+/** Several lines of NAME=value: the configuration field. */
 export function SettingsConfigField(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  if (settingsOnDesktop()) {
-    return (
-      <label className="ui-field ui-field--mono ui-field--config glass glass--rest glass--field set-field-wide">
-        <textarea {...props} />
-      </label>
-    );
-  }
-  return <textarea className="set-input set-input--wide set-input--mono" {...props} />;
+  return (
+    <label className="ui-field ui-field--mono ui-field--config glass glass--rest glass--field set-field-wide">
+      <textarea {...props} />
+    </label>
+  );
 }
 
-/** A sentence that explains, warns or reports. On the desktop it is plain
- * text after one brush icon, in the danger ink when something failed. */
+/** A sentence that explains, warns or reports: plain text after one brush
+ * icon, in the danger ink when something failed. */
 export function SettingsNote({
   icon = 'status-warning',
   tone,
@@ -268,21 +197,10 @@ export function SettingsNote({
   className?: string;
   children: ReactNode;
 }) {
-  if (settingsOnDesktop()) {
-    return (
-      <div className={`set-note${tone === 'error' ? ' set-note--error' : ''} ${className}`.trim()} role={role}>
-        <BrushIcon name={icon} size={14} />
-        <div className="set-note__body">{children}</div>
-      </div>
-    );
-  }
   return (
-    <div
-      className={`set-note ${className}`.trim()}
-      role={role}
-      style={tone === 'error' ? { color: 'hsl(var(--accent))' } : undefined}
-    >
-      {children}
+    <div className={`set-note${tone === 'error' ? ' set-note--error' : ''} ${className}`.trim()} role={role}>
+      <BrushIcon name={icon} size={14} />
+      <div className="set-note__body">{children}</div>
     </div>
   );
 }
@@ -291,18 +209,16 @@ export function SettingsNote({
 export { ColorPicker as SettingsColor } from '../../components/ui/ColorPicker';
 
 export function SettingsPanelHeader({
-  kicker,
   title,
   sub,
 }: {
+  /** Not drawn: the rail already names the panel. */
   kicker: string;
   title: string;
   sub?: ReactNode;
 }) {
-  // The desktop drops the accent kicker: the rail already names the panel.
   return (
     <>
-      {!settingsOnDesktop() && <div className="set-panel__kicker">{kicker}</div>}
       <h1 className="set-panel__title">{title}</h1>
       {sub && <p className="set-panel__sub">{sub}</p>}
     </>
@@ -311,21 +227,18 @@ export function SettingsPanelHeader({
 
 export function SettingsSectionHeader({
   title,
-  hint,
   action,
 }: {
   title: string;
+  /** Not drawn: the English hint only repeats the title. */
   hint?: string;
   action?: ReactNode;
 }) {
   const id = useId();
-  // The desktop drops the English hint that only repeats the title.
-  const shownHint = settingsOnDesktop() ? undefined : hint;
   return (
     <div className="set-sec__head" id={id} data-settings-section={title}>
       <div className="set-sec__title">{title}</div>
       <div className="set-sec__head-right">
-        {shownHint && <div className="set-sec__hint">{shownHint}</div>}
         {action}
       </div>
     </div>

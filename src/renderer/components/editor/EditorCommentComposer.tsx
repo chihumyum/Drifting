@@ -4,7 +4,6 @@ import { createPlainCommentDoc, type CommentTargetKind } from '../../domain/comm
 import { CommentComposer } from '../../features/comments/CommentComposer';
 import type { EditorCommentRequest } from '../../hooks/useEntityEditor';
 import { selectCommentHighlight } from '../../lib/comment-highlight';
-import { getPlatformRuntime } from '../../platform/runtime';
 import { useAuthStore } from '../../store/auth';
 import { useComment } from '../../usecase/useComment';
 
@@ -46,7 +45,7 @@ export function EditorCommentComposer({
       source: 'manual',
     });
     onClose();
-    if (!getPlatformRuntime().isMobileShell) selectCommentHighlight(created.id);
+    selectCommentHighlight(created.id);
   };
 
   return (

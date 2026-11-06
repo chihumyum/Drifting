@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 
 import type { EntityRelationType } from '../../domain/entity-relation-type';
 import { useRelationTypePresentation } from '../../hooks/useRelationTypePresentation';
-import { getPlatformRuntime } from '../../platform/runtime';
 import { AnchoredPopover } from './AnchoredPopover';
 import { BrushIcon } from './BrushIcon';
 import { KindMark } from './KindMark';
@@ -37,9 +36,8 @@ export function RelationTypeField({
   const presentRelationType = useRelationTypePresentation();
   const anchorRef = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
-  // Desktop lists the types as menu rows on the menu shell (sand dash, name,
-  // summary, a tick on the chosen one); the paused mobile shell keeps its own.
-  const menu = !getPlatformRuntime().isMobileShell;
+  // The types are menu rows on the menu shell (sand dash, name, summary, a
+  // tick on the chosen one).
   const selected = useMemo(
     () => options.find((option) => option.id === value) ?? null,
     [options, value],
@@ -87,18 +85,14 @@ export function RelationTypeField({
         autoFocus={false}
         restoreFocus={false}
         maxHeight={260}
-        className={
-          menu
-            ? 'menu-surface relation-kind-suggestions relation-type-suggestions'
-            : 'relation-kind-suggestions relation-type-suggestions'
-        }
+        className="menu-surface relation-kind-suggestions relation-type-suggestions"
       >
         {options.length === 0 ? (
           <div className="relation-type-suggestions__empty">
             {t('relationTypes.emptySelector')}
           </div>
         ) : (
-          options.map((option) => menu ? (
+          options.map((option) => (
             <button
               key={option.id}
               type="button"
@@ -118,27 +112,6 @@ export function RelationTypeField({
               {value === option.id && (
                 <BrushIcon name="check" size={12} className="relation-type-suggestions__tick" />
               )}
-            </button>
-          ) : (
-            <button
-              key={option.id}
-              type="button"
-              role="option"
-              aria-selected={value === option.id}
-              className="relation-kind-suggestions__option relation-type-suggestions__option"
-              onClick={() => {
-                onChange(option.id);
-                setOpen(false);
-              }}
-            >
-              <span
-                className="relation-kind-suggestions__marker"
-                style={{ background: resolveOptionColor(option.id) }}
-              />
-              <span className="relation-type-suggestions__copy">
-                <strong>{presentRelationType(option).name}</strong>
-                <small>{typeSummary(option)}</small>
-              </span>
             </button>
           ))
         )}

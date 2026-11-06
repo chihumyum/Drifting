@@ -192,27 +192,6 @@
 .refs-rel-card__title:hover {
   color: hsl(var(--accent));
 }
-.refs-rel-card__tag {
-  align-self: flex-start;
-  max-width: 100%;
-  padding: 2px 9px;
-  border: 1px solid var(--ref-color, hsl(var(--rule-strong)));
-  border-radius: 1px;
-  background: hsl(var(--surface));
-  font-family: var(--font-sans);
-  font-size: 11px;
-  color: hsl(var(--ink-2));
-  cursor: pointer;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  transition:
-    color 0.12s,
-    border-color 0.12s;
-}
-.refs-rel-card__tag:hover {
-  color: hsl(var(--ink-1));
-}
 .refs-rel-card__tag--empty {
   border-style: dashed;
   border-color: hsl(var(--rule-strong));
@@ -229,26 +208,6 @@
   font-size: 11px;
   color: hsl(var(--ink-1));
   outline: 0;
-}
-.refs-rel-card--add {
-  flex-direction: row;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  min-height: 78px;
-  border-style: dashed;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: hsl(var(--ink-4));
-  cursor: pointer;
-}
-.refs-rel-card--add:hover {
-  border-style: solid;
-  border-color: hsl(var(--accent) / 0.5);
-  color: hsl(var(--accent));
-  background: transparent;
 }
 
 /* Desktop: a relation is a card with no fill and the resting glass line that
@@ -329,25 +288,6 @@
 .refs-card:last-child {
   border-bottom: 0;
 }
-.refs-card__kind {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  width: 60px;
-  flex-shrink: 0;
-  font-family: var(--font-mono);
-  font-size: 9px;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: hsl(var(--ink-4));
-}
-.refs-card__kind-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--ref-color, hsl(var(--ink-4)));
-  flex-shrink: 0;
-}
 .refs-card__title {
   flex: 1;
   min-width: 0;
@@ -412,55 +352,9 @@
   border: 1px solid hsl(var(--rule-strong));
   border-radius: 4px;
 }
-.refs-picker__filters {
-  display: flex;
-  gap: 4px;
-  margin-bottom: 8px;
-  flex-wrap: wrap;
-}
-.refs-picker__filter {
-  padding: 3px 9px;
-  font-family: var(--font-mono);
-  font-size: 9.5px;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: hsl(var(--ink-4));
-  border: 1px solid hsl(var(--rule-strong));
-  border-radius: 2px;
-  background: transparent;
-  cursor: pointer;
-  transition:
-    color 0.12s,
-    background 0.12s,
-    border-color 0.12s;
-}
-.refs-picker__filter:hover {
-  color: hsl(var(--ink-2));
-  border-color: hsl(var(--ink-4));
-}
 .refs-picker__filter--active {
   color: hsl(var(--ink-1));
   background: hsl(var(--page));
-  border-color: hsl(var(--ink-3));
-}
-.refs-picker__input {
-  width: 100%;
-  padding: 6px 10px;
-  font-family: var(--font-sans);
-  font-style: italic;
-  font-size: 13px;
-  color: hsl(var(--ink-1));
-  background: hsl(var(--page));
-  border: 1px solid hsl(var(--rule-strong));
-  border-radius: 3px;
-  outline: 0;
-  transition: border-color 0.12s;
-}
-.refs-picker__input::placeholder {
-  color: hsl(var(--ink-4));
-  font-style: italic;
-}
-.refs-picker__input:focus {
   border-color: hsl(var(--ink-3));
 }
 
@@ -996,26 +890,6 @@
    patch is no longer fed to consistency review. A small pill flags it; the
    title is dimmed so it reads as inactive but stays editable (the user can
    re-anchor or delete it deliberately). */
-.patch-card__invalid-badge {
-  flex-shrink: 0;
-  padding: 1px 6px;
-  border-radius: 1px;
-  background: hsl(var(--accent) / 0.12);
-  color: hsl(var(--accent));
-  font-family: var(--font-mono);
-  font-style: normal;
-  font-size: 9px;
-  letter-spacing: 0.08em;
-}
-/* Clickable variant — expands the original-text snapshot below. */
-.patch-card__invalid-badge--btn {
-  border: 0;
-  cursor: pointer;
-  transition: background-color 0.1s;
-}
-.patch-card__invalid-badge--btn:hover {
-  background: hsl(var(--accent) / 0.2);
-}
 .patch-card--invalidated .patch-card__title {
   color: hsl(var(--ink-4));
 }
@@ -1131,12 +1005,9 @@ button.patch-card__invalid {
 .page--entity .kv-editor__value,
 .page--entity .field-review__body,
 .page--entity .refs-rel-card__title,
-.page--entity .refs-rel-card__tag,
 .page--entity .refs-rel-card__tag-input,
 .page--entity .refs-card__title,
 .page--entity .patch-card__title,
-.page--entity .patch-card__review-diff,
-.page--entity .patch-card__review-diff-title,
 .page--entity .patch-card__snapshot-body,
 .page--entity .patch-card__body .ProseMirror,
 .page--entity .mgr-row__title,
@@ -1268,11 +1139,6 @@ button.patch-card__invalid {
   margin: 8px 0 4px;
   flex-wrap: wrap;
 }
-.mgr-toolbar__chips {
-  display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
-}
 .mgr-list {
   display: flex;
   flex-direction: column;
@@ -1306,31 +1172,10 @@ button.patch-card__invalid {
 .mgr-row:hover::before {
   opacity: 1;
 }
-
-.mgr-row__status {
-  margin-top: 7px;
-  width: 11px;
-  height: 11px;
-  border-radius: 50%;
-  background: var(--s-color, hsl(var(--ink-5)));
-  border: 1.5px solid hsl(var(--page));
-  box-shadow: 0 0 0 1px hsl(var(--rule-strong));
-  flex-shrink: 0;
-  cursor: pointer;
-}
-.mgr-row__status:hover {
-  transform: scale(1.15);
-}
 .mgr-row__status--draft {
   background: hsl(var(--page));
   border: 1.5px solid var(--s-color, hsl(var(--accent)));
   box-shadow: 0 0 0 1px hsl(var(--rule));
-}
-.mgr-row__status--todo {
-  background: hsl(var(--page));
-  border: 1.2px dotted var(--s-color, hsl(var(--ink-4)));
-  box-shadow: none;
-  opacity: 0.65;
 }
 
 .mgr-row__num {
@@ -1361,9 +1206,6 @@ button.patch-card__invalid {
   gap: 8px;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-.mgr-row__title-mark {
-  align-self: center;
 }
 .mgr-row__summary {
   font-family: var(--font-sans);

@@ -1,7 +1,6 @@
 import { useState, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { AgentMemory } from '../../domain/agent-memory';
-import { getPlatformRuntime } from '../../platform/runtime';
 import { requestConfirmation } from '../../store/confirmation-store';
 import { useAgentMemory } from '../../usecase/useAgentMemory';
 import { BrushIcon } from '../../components/ui/BrushIcon';
@@ -14,10 +13,9 @@ import { platformShortcut } from '../../lib/shortcuts';
  * and the Agent edit the same entries, so nothing here is approval-gated;
  * only rows left `pending` from before Project Memory need enabling.
  *
- * On the desktop the entries are one read-only card (the resting glass line,
- * still under the pointer), their actions are text buttons, and the append
- * and edit boxes are the composer's rounded slip with one primary button.
- * The paused mobile shell keeps its outlined list and buttons.
+ * The entries are one read-only card (the resting glass line, still under
+ * the pointer), their actions are text buttons, and the append and edit
+ * boxes are the composer's rounded slip with one primary button.
  */
 export function ProjectMemoryEditor({
   projectId,
@@ -32,8 +30,6 @@ export function ProjectMemoryEditor({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingBody, setEditingBody] = useState('');
   const [busy, setBusy] = useState(false);
-  const glass = !getPlatformRuntime().isMobileShell;
-  const withGlass = (base: string, classes: string) => (glass ? `${base} ${classes}` : base);
 
   const run = async (action: () => Promise<void>) => {
     setBusy(true);
@@ -78,19 +74,19 @@ export function ProjectMemoryEditor({
   };
 
   return (
-    <div className={`pmem${compact ? ' pmem--compact' : ''}${glass ? ' pmem--glass' : ''}`}>
+    <div className={`pmem pmem--glass${compact ? ' pmem--compact' : ''}`}>
       <p className="pmem__desc">{t('projectMemory.desc')}</p>
       {memory.memories.length === 0 ? (
         <div className="pmem__empty">{t('projectMemory.empty')}</div>
       ) : (
-        <ol className={withGlass('pmem__list', 'glass glass--rest glass--still')}>
+        <ol className="pmem__list glass glass--rest glass--still">
           {memory.memories.map((entry) => {
             const inactive = entry.status === 'pending';
             const editing = editingId === entry.id;
             return (
               <li key={entry.id} className={`pmem__entry${inactive ? ' pmem__entry--inactive' : ''}`}>
                 {editing ? (
-                  <div className={withGlass('pmem__edit', 'glass glass--rest glass--field')}>
+                  <div className="pmem__edit glass glass--rest glass--field">
                     <textarea
                       className="pmem__textarea"
                       value={editingBody}
@@ -108,7 +104,7 @@ export function ProjectMemoryEditor({
                       </button>
                       <button
                         type="button"
-                        className={withGlass('pmem__btn pmem__btn--primary', 'glass glass--primary glass--small')}
+                        className="pmem__btn pmem__btn--primary glass glass--primary glass--small"
                         disabled={busy || !editingBody.trim()}
                         onClick={() => void saveEdit()}
                       >
@@ -129,13 +125,13 @@ export function ProjectMemoryEditor({
                             disabled={busy}
                             onClick={() => void run(() => memory.approve(entry.id))}
                           >
-                            {glass && <BrushIcon name="check" size={13} />}
+                            <BrushIcon name="check" size={13} />
                             {t('projectMemory.enable')}
                           </button>
                         </>
                       )}
                       <button type="button" className="pmem__btn" onClick={() => startEdit(entry)}>
-                        {glass && <BrushIcon name="edit" size={13} />}
+                        <BrushIcon name="edit" size={13} />
                         {t('projectMemory.edit')}
                       </button>
                       <button
@@ -144,7 +140,7 @@ export function ProjectMemoryEditor({
                         disabled={busy}
                         onClick={() => void remove(entry.id)}
                       >
-                        {glass && <BrushIcon name="trash" size={13} />}
+                        <BrushIcon name="trash" size={13} />
                         {t('projectMemory.delete')}
                       </button>
                     </div>
@@ -155,7 +151,7 @@ export function ProjectMemoryEditor({
           })}
         </ol>
       )}
-      <div className={withGlass('pmem__composer', 'glass glass--rest glass--field')}>
+      <div className="pmem__composer glass glass--rest glass--field">
         <textarea
           className="pmem__textarea"
           value={draft}
@@ -167,7 +163,7 @@ export function ProjectMemoryEditor({
         <div className="pmem__actions">
           <button
             type="button"
-            className={withGlass('pmem__btn pmem__btn--primary', 'glass glass--primary glass--small')}
+            className="pmem__btn pmem__btn--primary glass glass--primary glass--small"
             disabled={busy || !draft.trim()}
             onClick={() => void add()}
           >

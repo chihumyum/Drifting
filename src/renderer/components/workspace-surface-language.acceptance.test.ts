@@ -21,6 +21,15 @@ function block(text: string, start: string, end: string): string {
   return text.slice(startIndex, endIndex);
 }
 
+/** The last rule that starts with `start`: a later sand-and-glass override of a base rule wins. */
+function lastBlock(text: string, start: string, end: string): string {
+  const startIndex = text.lastIndexOf(start);
+  const endIndex = text.indexOf(end, startIndex + start.length);
+  expect(startIndex, `missing source marker: ${start}`).toBeGreaterThanOrEqual(0);
+  expect(endIndex, `missing source marker: ${end}`).toBeGreaterThan(startIndex);
+  return text.slice(startIndex, endIndex);
+}
+
 describe('workspace surface language acceptance', () => {
   it('composes three full-height columns with no bar across them', () => {
     const workspace = source('src/renderer/shells/desktop/DesktopWorkspace.tsx');
@@ -238,7 +247,11 @@ describe('workspace surface language acceptance', () => {
     expect(superViewOptions).toContain("{ id: 'element', labelKey: 'superElement.title' }");
     expect(superViewOptions).toContain("{ id: 'graph', labelKey: 'storyGraph.title' }");
     expect(superViewOptions).toContain("{ id: 'memo-material', labelKey: 'memoMaterial.super.title' }");
-    expect(superHeader).toContain('className="super-view-head__switcher-option"');
+    // One switcher in every shell: the glass slider, one of three; no segmented fallback.
+    expect(superHeader).toContain('<nav className="super-view-head__views super-view-head__no-drag" data-tauri-drag-region="false">');
+    expect(superHeader).toContain('handoff="super-view-switch"');
+    expect(superHeader).not.toContain('super-view-head__switcher');
+    expect(superHeader).not.toContain('isMobileShell');
     expect(superHeader).toContain('navigationSlot={');
     const superHeaderLeft = block(
       sharedSuperHeader,
@@ -298,19 +311,21 @@ describe('workspace surface language acceptance', () => {
     // (and the material stage that reuses them), the dock's lock and plus,
     // the Agent composer's buttons, the selection bar's formats, the settings
     // and Super View backs and the idea tray's close.
-    const sized: Array<[string, string]> = [
+    // `last`: the stylesheet keeps a base rule first and the sand-and-glass
+    // rule after it, which is the one that wins.
+    const sized: Array<[string, string, 'last'?]> = [
       [controls, '\n.ghost-icon-button--glass.glass--round {'],
       [indexCss, '.editor-bar__icon {'],
       [shell, '.workspace-tab-dock__lock,\n.workspace-tab-dock .top-timeline-create-button {'],
       [agent, '.agt-composer__tray .agt-cfg {'],
       [agent, '.agt-round {'],
       [review, '.editor-selection-bar__format {'],
-      [source('src/styles/settings.css'), ".set-head__back {"],
+      [source('src/styles/settings.css'), ".set-head__back {", 'last'],
       [source('src/styles/super-view-header.css'), '.super-view-head__back.glass--round {'],
       [source('src/styles/drift-panel.css'), '.drift-panel__close {'],
     ];
-    for (const [css, selector] of sized) {
-      const rule = block(css, selector, '}');
+    for (const [css, selector, which] of sized) {
+      const rule = which === 'last' ? lastBlock(css, selector, '}') : block(css, selector, '}');
       expect(rule, selector).toContain('width: var(--glass-round-size);');
       expect(rule, selector).toContain('height: var(--glass-round-size);');
     }
@@ -1005,11 +1020,13 @@ describe('workspace surface language acceptance', () => {
     );
 
     expect(relationTypeField).toContain('<AnchoredPopover');
-    // Modal-safe suggestions; on the desktop they sit on the menu shell.
+    // Modal-safe suggestions on the menu shell in every shell, as menu rows.
     expect(relationTypeField).toContain(
-      "'menu-surface relation-kind-suggestions relation-type-suggestions'",
+      'className="menu-surface relation-kind-suggestions relation-type-suggestions"',
     );
-    expect(relationTypeField).toContain("'relation-kind-suggestions relation-type-suggestions'");
+    expect(relationTypeField).toContain('className="menu-surface__item relation-type-suggestions__option"');
+    expect(relationTypeField).not.toContain('relation-kind-suggestions__option');
+    expect(relationTypeField).not.toContain('isMobileShell');
     expect(relationTypeField).not.toContain("position: 'absolute'");
     expect(relationKindMenu).toContain('setRelationTypeColor(type.id, paletteColor)');
     expect(relationKindMenu).toContain('removeRelationTypeMeta(type.id)');
@@ -1040,8 +1057,15 @@ describe('workspace surface language acceptance', () => {
     expect(edgePopover).toContain('relation.toKind');
     expect(edgePopoverCss).toContain('z-index: 286;');
     expect(edgePopoverCss).not.toContain('border-left');
-    expect(libraryCard).toContain("maxHeight: isTextExpanded || pickerOpen ? 'none' : 320");
-    expect(libraryCard).toContain("overflow: isTextExpanded || pickerOpen ? 'visible' : 'hidden'");
+    // A material is one sand cell in every shell: the relation picker is part
+    // of the cell, which grows around it and clips nothing; the panel around
+    // it stays the one scroll owner and cannot shrink it.
+    expect(libraryCard).toContain('<div className="library-item-card__extra">\n          <EntityRelationPicker');
+    expect(libraryCard).not.toContain('legacyCard');
+    expect(libraryCard).not.toMatch(/maxHeight:|overflow: /);
+    const libraryCardCss = block(source('src/styles/material-workbench.css'), '.library-item-card {', '}');
+    expect(libraryCardCss).toContain('flex-shrink: 0;');
+    expect(libraryCardCss).not.toMatch(/overflow|max-height/);
   });
 
   it('owns one trailing relation menu across graph-style Super Views', () => {
@@ -1235,7 +1259,7 @@ describe('workspace surface language acceptance', () => {
     expect(designSystemDocs()).toContain('- **砂笔图标**（`BrushIcon`）');
 
     // The last hand-drawn SVG icons are brush icons too.
-    expect(source('src/renderer/shells/desktop/views/DesktopStoryGraphView.tsx')).toContain('<BrushIcon name="spread" size={11} />');
+    expect(source('src/renderer/shells/desktop/views/DesktopStoryGraphView.tsx')).toContain('<BrushIcon name="spread" size={13} />');
     const bottomTimeline = source('src/renderer/shells/desktop/views/DesktopBottomTimeline.tsx');
     expect(bottomTimeline).toContain('<BrushIcon name="spread" size={12} />');
     expect(bottomTimeline).toContain('<BrushIcon name="locate" size={12} />');
@@ -1274,7 +1298,7 @@ describe('workspace surface language acceptance', () => {
     // text or a one-character string; inside a sentence they are punctuation.
     const lone = /^\s*[×+→←↑↓…]\s*$|>\s*[×+→←↑↓…]\s*<|['"`][×→←↓§⌘]['"`]/u;
     const allowed: [string, RegExp][] = [
-      // Only rendered in the paused mobile shell (`mobileActions={mobileShell}`).
+      // Only rendered in the touch action menu (`mobileActions={touchActions}`).
       ['features/library/LibraryItemCard.tsx', /^\s*\w+: '[＋→↗×]',$/u],
       // Shortcut text: the plus between two keys.
       ['features/settings/panels/ControlSettingsPanels.tsx', /kbd--plus/],
@@ -1350,9 +1374,10 @@ describe('workspace surface language acceptance', () => {
     expect(block(messages, 'const toolMark: React.CSSProperties = {', '};')).toContain("alignItems: 'center',");
     expect(block(messages, '<span style={toolMark}>', '/>')).not.toContain('inline');
     expect(source('src/renderer/features/agent/desktop/DesktopAgentPanel.tsx')).toContain('<BrushIcon name="stitched" size={11} />');
-    expect(source('src/renderer/components/graph/RelationEdgePopover.tsx')).toContain(
-      "const flowIcon = orientation === 'symmetric' ? 'both-ways' : 'arrow-forward';",
-    );
+    // A relation's direction is the word on its hover card's heading, not an arrow between its ends.
+    const edgePopover = source('src/renderer/components/graph/RelationEdgePopover.tsx');
+    expect(edgePopover).toContain('index={t(`relationTypes.${orientation}`)}');
+    expect(edgePopover).not.toContain('flowIcon');
     expect(source('src/renderer/components/editor/PlotGrid.tsx')).toContain('<BrushIcon name="grip" size={12} />');
     expect(source('src/renderer/components/BottomTimeline/ActRail.tsx')).toContain(
       '<KindMark kind="drift" color="hsl(var(--accent))" />',
@@ -1397,7 +1422,10 @@ describe('workspace surface language acceptance', () => {
     // The materials: read-only stays still, a field is selected while it holds
     // the caret, the primary is the accent's glass, waiting glass runs the other
     // way, and an arriving step is swept before its line comes in.
-    expect(block(materials, '.glass--still:hover,', '.glass--field')).toContain('animation-play-state: paused;');
+    // Still under the keyboard's focus everywhere, and under a pointer that can hover.
+    const still = block(materials, '.glass--still:focus-visible {', '.glass--field');
+    expect(still).toContain('.glass--still:focus-visible::before { animation-play-state: paused; }');
+    expect(still).toMatch(/@media \(hover: hover\) \{\s*\.glass--still:hover \{ --glass-g: 0\.85; --glass-sp: 0; \}\s*\.glass--still:hover::before \{ animation-play-state: paused; \}/);
     expect(materials).toContain('.glass--field:focus-within { --glass-g: 1; --glass-sp: 1; }');
     expect(block(materials, '.glass--primary {', '}')).toContain('--glass-cc: hsl(var(--accent));');
     expect(materials).toContain('.glass--primary:disabled::before { animation: none; }');
@@ -1429,11 +1457,19 @@ describe('workspace surface language acceptance', () => {
     const primitives = source('src/renderer/features/stats/StatsPrimitives.tsx');
     const desktopReview = review.slice(review.indexOf('Desktop: sand and glass'));
 
-    // Every material change is desktop-only; the paused mobile shell keeps its look.
-    for (const file of [card, sourceCard, primitives]) expect(file).toContain('getPlatformRuntime().isMobileShell');
+    // One material in every shell: no look branches on the mobile shell. The
+    // Review card's only shell check is behaviour, the touch screen's ⋯ entry.
+    for (const file of [sourceCard, primitives]) expect(file).not.toContain('isMobileShell');
+    expect(card.match(/isMobileShell/g)).toHaveLength(1);
+    expect(card).toContain('const touchMenu = getPlatformRuntime().isMobileShell;');
+    expect(card).toContain('{touchMenu && <GhostIconButton');
 
     // A Review card lays no plate: the resting glass line, drifting under the pointer.
-    expect(card).toContain("' review-card--glass glass glass--rest glass--surface'");
+    expect(card).toContain('review-card--${color} review-card--glass glass glass--rest glass--surface${');
+    expect(card).not.toContain('workspace-list-row');
+    // Opening its anchor draws it again in sand rather than flashing its block.
+    expect(card).toContain('selectCommentHighlight(comment.id);');
+    expect(card).toContain('scrollToBlockWhenReady(comment.targetId, comment.targetBlockId, { flash: false });');
     const plate = block(desktopReview, '.review-card.review-card--glass,', '}');
     expect(plate).toContain('background: transparent;');
     expect(plate).toContain('box-shadow: none;');

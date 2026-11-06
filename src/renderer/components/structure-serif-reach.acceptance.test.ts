@@ -12,6 +12,13 @@ function block(text: string, start: string): string {
   return text.slice(startIndex, text.indexOf('}', startIndex));
 }
 
+/** The last rule for a selector: a sand-and-glass override after its base rule wins. */
+function lastBlock(text: string, start: string): string {
+  const startIndex = text.lastIndexOf(start);
+  expect(startIndex, `missing rule: ${start}`).toBeGreaterThanOrEqual(0);
+  return text.slice(startIndex, text.indexOf('}', startIndex));
+}
+
 describe('the serif structure face beyond the sidebars', () => {
   it('sets Story Graph lane names like the Bottom Timeline rail', () => {
     const rule = block(read('src/styles/graph-view.css'), '.graph-rail-cell--glass .graph-rail__name {');
@@ -43,7 +50,7 @@ describe('the serif structure face beyond the sidebars', () => {
 
   it('sets the Super View destinations at one weight, leaving the views’ own modes in the UI face', () => {
     const css = read('src/styles/super-view-header.css');
-    const desktop = "html:not([data-shell-mode='mobile'])";
+    const desktop = "html[data-shell-mode]";
     // 书序／叙事时 and the other sliders in a view's header are controls.
     expect(block(css, `${desktop} .super-view-head .glass-slider__option {`)).toContain('var(--font-sans)');
     const views = block(css, `${desktop} .super-view-head__views .glass-slider__option,`);
@@ -73,16 +80,19 @@ describe('the serif structure face beyond the sidebars', () => {
 
   it('sets each settings section heading and the rail’s group names in the structure face, not its rows', () => {
     const css = read('src/styles/settings.css');
-    const title = block(css, ":where(html:not([data-shell-mode='mobile'])) .set-panel__title {");
+    // The base rule comes first; the sand-and-glass rule after it is the one that wins.
+    const title = lastBlock(css, ".set-panel__title {");
     expect(title).toContain('font-family: var(--font-structure);');
     expect(title).toContain('font-weight: 400;');
     // 本地数据／偏好／智能 name parts of the page, as Panel Tabs name destinations.
-    const group = block(css, ":where(html:not([data-shell-mode='mobile'])) .set-rail__group-title {");
+    const group = lastBlock(css, ".set-rail__group-title {");
     expect(group).toContain('font-family: var(--font-structure);');
     expect(group).toContain('font-weight: 400;');
     expect(read('src/styles/desktop-typography.css')).not.toContain('.set-rail__group-title');
-    expect(block(css, ":where(html:not([data-shell-mode='mobile'])) .set-rail__item {")).not.toContain('--font-structure');
-    expect(block(css, ":where(html:not([data-shell-mode='mobile'])) .set-rail__section {")).not.toContain('--font-structure');
+    for (const row of [".set-rail__item {", ".set-rail__section {"]) {
+      expect(block(css, row)).not.toContain('--font-structure');
+      expect(lastBlock(css, row)).not.toContain('--font-structure');
+    }
   });
 
   it('sets material folders, not materials, in the structure face', () => {
@@ -102,7 +112,8 @@ describe('the serif structure face beyond the sidebars', () => {
 
   it('sets material kinds in the structure face in TODO & 素材库, their counts index type', () => {
     const view = read('src/renderer/shells/desktop/views/DesktopSuperMemoMaterialView.tsx');
-    expect(view).toContain("<span {...look(mobileShell, 'smm-kind-group__name')}>");
+    expect(view).toContain('<span className="smm-kind-group__name">');
+    expect(view).not.toContain('look(mobileShell');
     const css = read('src/styles/super-memo-material.css');
     expect(block(css, '.smm-kind-group__name {')).toContain('font-family: var(--font-structure);');
     expect(block(css, '.smm-kind-group__head {')).toContain('align-items: baseline;');

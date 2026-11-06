@@ -1,5 +1,7 @@
 /* Shared interactive primitives. Feature styles may position these controls,
    but geometry, states, and theme behavior stay centralized here. */
+/* `html[data-shell-mode]` and `:root[data-shell-mode]` match every shell: they
+   keep the weight these rules had while the mobile shell was excluded. */
 
 /* Sidebar chrome shares typography-aware desktop rows and retains compact
    mobile fallbacks. Feature components only own the contents: height and
@@ -520,7 +522,7 @@ html[data-shell-mode='desktop'] :is(.leftbar-tab-tray, .rightbar-tab-tray) > .ap
    its own scroll container and a pseudo-element would scroll away with the
    rows, while backgrounds stay put. The tinted texture (ringgen.py) shows only
    in the 1px transparent border; the desk colour fills the rest. */
-html:not([data-shell-mode='mobile']) .menu-surface {
+html[data-shell-mode] .menu-surface {
   border-radius: var(--menu-radius);
   background:
     linear-gradient(var(--menu-surface-bg), var(--menu-surface-bg)) padding-box,
@@ -635,7 +637,7 @@ html:not([data-shell-mode='mobile']) .menu-surface {
 /* Desktop only: mobile menus keep their own row pseudo-elements.
    The row under the pointer becomes one whole ring of flowing hairline glass,
    all four sides cut from one texture, like a sidebar cell's hover ring. */
-html:not([data-shell-mode='mobile']) .menu-surface__item::before {
+html[data-shell-mode] .menu-surface__item::before {
   --menu-line: color-mix(in srgb, var(--glass-clear), hsl(var(--ink-3)) 30%);
   content: '';
   position: absolute;
@@ -656,25 +658,25 @@ html:not([data-shell-mode='mobile']) .menu-surface__item::before {
   transition: opacity 0.18s ease-out;
 }
 
-html:not([data-shell-mode='mobile']) .menu-surface__item:hover:not(:disabled)::before,
-html:not([data-shell-mode='mobile']) .menu-surface__item:focus-visible::before {
+html[data-shell-mode] .menu-surface__item:hover:not(:disabled)::before,
+html[data-shell-mode] .menu-surface__item:focus-visible::before {
   opacity: 1;
   animation-play-state: running;
 }
 
-html:not([data-shell-mode='mobile']) .menu-surface__item:active::before {
+html[data-shell-mode] .menu-surface__item:active::before {
   --menu-line: color-mix(in srgb, var(--glass-clear), hsl(var(--ink-3)) 55%);
 }
 
 /* A menu's own rows: the ring is the row's own inset outline. */
-html:not([data-shell-mode='mobile']) :where(.menu-surface) .menu-surface__item::before {
+html[data-shell-mode] :where(.menu-surface) .menu-surface__item::before {
   inset: 0;
   border-radius: inherit;
 }
 
 /* A destructive row's ring is drawn in the danger colour. */
-html:not([data-shell-mode='mobile']) .menu-surface__item--danger::before,
-html:not([data-shell-mode='mobile']) .menu-surface__item--danger:active::before {
+html[data-shell-mode] .menu-surface__item--danger::before,
+html[data-shell-mode] .menu-surface__item--danger:active::before {
   --menu-line: var(--menu-item-danger);
 }
 
@@ -699,7 +701,7 @@ html:not([data-shell-mode='mobile']) .menu-surface__item--danger:active::before 
 /* The row the arrow keys have moved to (a search result, a select's option)
    keeps the same ring, standing still like any selected glass, in the row's
    own colour; the row under the pointer still drifts. */
-html:not([data-shell-mode='mobile']) .menu-surface__item.is-current:not(:hover)::before {
+html[data-shell-mode] .menu-surface__item.is-current:not(:hover)::before {
   opacity: 1;
   animation-play-state: paused;
 }
@@ -797,39 +799,31 @@ html:not([data-shell-mode='mobile']) .menu-surface__item.is-current:not(:hover):
   border-bottom: 0;
 }
 
-.user-menu__switch {
-  display: flex;
-  margin-left: auto;
-  padding: 1px;
-  border-radius: 3px;
-  background: hsl(var(--paper-deep));
-}
-
-html:not([data-shell-mode='mobile']) .user-menu__head {
+html[data-shell-mode] .user-menu__head {
   padding: 14px 16px 8px;
   border-bottom: 0;
 }
 
-html:not([data-shell-mode='mobile']) .user-menu__name {
+html[data-shell-mode] .user-menu__name {
   font-size: var(--ui-font-emphasis, 15px);
   font-style: normal;
   font-weight: 500;
 }
 
-html:not([data-shell-mode='mobile']) .user-menu__status {
+html[data-shell-mode] .user-menu__status {
   color: var(--ui-text-muted, hsl(var(--ink-3)));
   font-size: var(--ui-font-caption, 12px);
   letter-spacing: normal;
   text-transform: none;
 }
 
-html:not([data-shell-mode='mobile']) .user-menu__group {
+html[data-shell-mode] .user-menu__group {
   padding: 0;
   border-bottom: 0;
 }
 
 /* Like every menu, its groups are parted by a hairline. */
-html:not([data-shell-mode='mobile']) .user-menu__group + .user-menu__group::before {
+html[data-shell-mode] .user-menu__group + .user-menu__group::before {
   content: '';
   display: block;
   height: 0.5px;
@@ -837,7 +831,7 @@ html:not([data-shell-mode='mobile']) .user-menu__group + .user-menu__group::befo
   background: var(--menu-separator);
 }
 
-html:not([data-shell-mode='mobile']) .user-menu__group--last {
+html[data-shell-mode] .user-menu__group--last {
   padding-bottom: 6px;
 }
 
@@ -855,17 +849,17 @@ html:not([data-shell-mode='mobile']) .user-menu__group--last {
 /* A row's own control (the theme slider, the language select) stands within
    the row: 24px tall, reaching 2px into the row's padding, so every row of
    the menu keeps the one height of a menu row. */
-html:not([data-shell-mode='mobile']) .user-menu__item--static > :is(.glass-slider, .ui-select) {
+html[data-shell-mode] .user-menu__item--static > :is(.glass-slider, .ui-select) {
   height: calc(24px + var(--ui-text-increment, 0px));
   min-height: 0;
   margin-block: -2px;
 }
 
-html:not([data-shell-mode='mobile']) .user-menu__item--static > .ui-select {
+html[data-shell-mode] .user-menu__item--static > .ui-select {
   padding-block: 0;
 }
 
-html:not([data-shell-mode='mobile']) .user-menu__item--static::before {
+html[data-shell-mode] .user-menu__item--static::before {
   display: none;
 }
 
@@ -942,7 +936,7 @@ html:not([data-shell-mode='mobile']) .user-menu__item--static::before {
    danger's own colour, with the danger ink (hover bleeds red, press deepens);
    ghost is a text button. The paused mobile shell keeps the filled buttons
    above. */
-html:not([data-shell-mode='mobile']) .ui-button.ui-button--glass {
+html[data-shell-mode] .ui-button.ui-button--glass {
   height: var(--ui-control-height, 28px);
   min-height: var(--ui-control-height, 28px);
   padding: 0 12px;
@@ -960,37 +954,37 @@ html:not([data-shell-mode='mobile']) .ui-button.ui-button--glass {
   transition: color 0.12s ease-out;
 }
 
-html:not([data-shell-mode='mobile']) .ui-button.ui-button--glass.ui-button--sm {
+html[data-shell-mode] .ui-button.ui-button--glass.ui-button--sm {
   height: calc(var(--ui-control-height, 28px) - 4px);
   min-height: calc(var(--ui-control-height, 28px) - 4px);
   padding: 0 9px;
   font-size: var(--ui-font-caption, 12px);
 }
 
-html:not([data-shell-mode='mobile']) .ui-button.ui-button--glass:hover:not(:disabled) {
+html[data-shell-mode] .ui-button.ui-button--glass:hover:not(:disabled) {
   background: transparent;
   color: hsl(var(--ink-1));
   opacity: 1;
 }
 
-html:not([data-shell-mode='mobile']) .ui-button.ui-button--glass.ui-button--ghost {
+html[data-shell-mode] .ui-button.ui-button--glass.ui-button--ghost {
   padding-inline: 6px;
   color: var(--ui-text-muted, hsl(var(--ink-3)));
 }
 
-html:not([data-shell-mode='mobile']) .ui-button.ui-button--glass.ui-button--primary,
-html:not([data-shell-mode='mobile']) .ui-button.ui-button--glass.ui-button--primary:hover:not(:disabled) {
+html[data-shell-mode] .ui-button.ui-button--glass.ui-button--primary,
+html[data-shell-mode] .ui-button.ui-button--glass.ui-button--primary:hover:not(:disabled) {
   color: hsl(var(--accent));
 }
 
-html:not([data-shell-mode='mobile']) .ui-button.ui-button--glass.ui-button--danger,
-html:not([data-shell-mode='mobile']) .ui-button.ui-button--glass.ui-button--danger:hover:not(:disabled) {
+html[data-shell-mode] .ui-button.ui-button--glass.ui-button--danger,
+html[data-shell-mode] .ui-button.ui-button--glass.ui-button--danger:hover:not(:disabled) {
   --glass-cc: hsl(var(--destructive));
   color: hsl(var(--destructive));
 }
 
 /* Disabled: a faint line of clear glass and muted ink; nothing drifts. */
-html:not([data-shell-mode='mobile']) .ui-button.ui-button--glass:disabled {
+html[data-shell-mode] .ui-button.ui-button--glass:disabled {
   --glass-cc: var(--glass-clear);
   --glass-g: 0.6;
   --glass-sp: 0;
@@ -998,7 +992,7 @@ html:not([data-shell-mode='mobile']) .ui-button.ui-button--glass:disabled {
   cursor: default;
 }
 
-html:not([data-shell-mode='mobile']) .ui-button.ui-button--glass:disabled::before {
+html[data-shell-mode] .ui-button.ui-button--glass:disabled::before {
   animation: none;
 }
 
@@ -1111,29 +1105,6 @@ html:not([data-shell-mode='mobile']) .ui-button.ui-button--glass:disabled::befor
   box-shadow: 0 12px 26px -14px hsl(var(--shadow-ink) / 0.3);
 }
 
-.relation-kind-suggestions__option {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  min-height: 30px;
-  padding: 6px 8px;
-  border: 0;
-  border-radius: var(--radius-xs);
-  background: transparent;
-  color: hsl(var(--ink-1));
-  font-family: var(--font-sans);
-  font-size: var(--ui-font-body, 13px);
-  text-align: left;
-  cursor: pointer;
-}
-
-.relation-kind-suggestions__option:hover,
-.relation-kind-suggestions__option:focus-visible {
-  background: hsl(var(--rule) / 0.4);
-  outline: none;
-}
-
 .relation-kind-suggestions__marker {
   width: 16px;
   height: 6px;
@@ -1153,10 +1124,6 @@ html:not([data-shell-mode='mobile']) .ui-button.ui-button--glass:disabled::befor
   background: hsl(var(--paper));
   font: inherit;
   text-align: left;
-}
-
-.relation-type-field__button--full {
-  width: 100%;
 }
 
 .relation-type-field__summary,
@@ -1264,24 +1231,24 @@ html:not([data-shell-mode='mobile']) .ui-button.ui-button--glass:disabled::befor
    ink hairline and the floating shadow), over a thin mist of the desk's own
    colour rather than a dark scrim. Head, body and actions are parted by
    space, never by rules. */
-:where(html:not([data-shell-mode='mobile'])) .modal-root {
+.modal-root {
   background: color-mix(in srgb, var(--workspace-ui-bg) 58%, transparent);
 }
 
-:where(html:not([data-shell-mode='mobile'])) .modal-card {
+.modal-card {
   border: 0;
   border-radius: var(--menu-surface-radius);
   background: var(--menu-surface-bg);
   box-shadow: var(--menu-surface-shadow);
 }
 
-:where(html:not([data-shell-mode='mobile'])) .modal-header {
+.modal-header {
   gap: 12px;
   padding: 18px 16px 6px 20px;
   border-bottom: 0;
 }
 
-:where(html:not([data-shell-mode='mobile'])) .modal-header__kicker {
+.modal-header__kicker {
   margin-bottom: 2px;
   color: var(--ui-text-muted, hsl(var(--ink-4)));
   font-family: var(--font-mono);
@@ -1291,24 +1258,24 @@ html:not([data-shell-mode='mobile']) .ui-button.ui-button--glass:disabled::befor
   text-transform: none;
 }
 
-:where(html:not([data-shell-mode='mobile'])) .modal-header__title {
+.modal-header__title {
   font-size: var(--ui-font-heading, 16px);
   line-height: 22px;
 }
 
-:where(html:not([data-shell-mode='mobile'])) .modal-header__subtitle {
+.modal-header__subtitle {
   margin-top: 2px;
   font-size: var(--ui-font-secondary, 13px);
 }
 
-:where(html:not([data-shell-mode='mobile'])) .modal-body {
+.modal-body {
   padding: 8px 20px 14px;
   color: hsl(var(--ink-2));
   font-size: var(--ui-font-body, 14px);
   line-height: 1.55;
 }
 
-:where(html:not([data-shell-mode='mobile'])) .modal-actions {
+.modal-actions {
   align-items: center;
   padding: 8px 20px 18px;
   border-top: 0;
@@ -1640,10 +1607,6 @@ html[data-shell-mode='mobile'] .modal-actions > .ui-button {
   flex: 1 1 120px;
 }
 
-html[data-shell-mode='mobile'] .pre-alpha-guide-modal__continue {
-  width: 100%;
-}
-
 .patch-create-modal__overlay {
   box-sizing: border-box;
 }
@@ -1780,8 +1743,8 @@ html[data-shell-mode='mobile'] .patch-create-modal {
   overflow-y: auto;
 }
 
-:where(html:not([data-shell-mode='mobile'])) .drift-bind-modal__list,
-:where(html:not([data-shell-mode='mobile'])) .patch-create-modal__candidates {
+.drift-bind-modal__list,
+.patch-create-modal__candidates {
   margin-inline: -20px;
 }
 
@@ -1920,17 +1883,6 @@ html[data-shell-mode='mobile'] .patch-create-modal {
   white-space: nowrap;
 }
 
-.pre-alpha-guide-modal__text {
-  margin: 0;
-  line-height: 1.7;
-}
-
-.pre-alpha-guide-modal__list {
-  margin: 14px 0;
-  padding-left: 20px;
-  line-height: 1.8;
-}
-
 /* First run's Markdown folder step: where the folders go, as a path in index
    type under a muted label. Turning the folder off sits apart on the left. */
 .markdown-folder-guide__location {
@@ -2055,16 +2007,6 @@ html[data-shell-mode='mobile'] .patch-create-modal {
   color: var(--ui-text-muted, hsl(var(--ink-4)));
   font-family: var(--font-mono);
   font-size: var(--ui-font-caption, 11px);
-}
-
-/* The paused mobile shell keeps its outlined fields: no glass, a hairline. */
-html[data-shell-mode='mobile'] :is(.ui-field, .ui-select).glass::before {
-  display: none;
-}
-
-html[data-shell-mode='mobile'] :is(.ui-field, .ui-select) {
-  border: 1px solid hsl(var(--rule));
-  background: hsl(var(--paper));
 }
 
 .entity-card-backdrop {
@@ -2211,7 +2153,7 @@ html[data-shell-mode='mobile'] :is(.ui-field, .ui-select) {
 /* Desktop: one plain sentence in the secondary ink (Chinese has no true
    italic). When what is missing is a kind of thing, its hollow sand mark sits
    above the sentence; where it can be made right here, a text button follows. */
-html:not([data-shell-mode='mobile']) .empty-state {
+html[data-shell-mode] .empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -2222,7 +2164,7 @@ html:not([data-shell-mode='mobile']) .empty-state {
   line-height: var(--ui-line-body, 20px);
 }
 
-html:not([data-shell-mode='mobile']) .empty-state--compact {
+html[data-shell-mode] .empty-state--compact {
   padding-block: 22px;
 }
 
@@ -2246,7 +2188,7 @@ html:not([data-shell-mode='mobile']) .empty-state--compact {
    takes the body size; off the paper (Project Home, the sidebar, a picker
    list) the size of the place. The paused mobile shell keeps each consumer's
    own fallback. */
-html:not([data-shell-mode='mobile']) .ui-section-empty {
+html[data-shell-mode] .ui-section-empty {
   margin: 0;
   padding: 0;
   color: hsl(var(--ink-4));
@@ -2261,7 +2203,7 @@ html:not([data-shell-mode='mobile']) .ui-section-empty {
   text-wrap: pretty;
 }
 
-html:not([data-shell-mode='mobile']) .page--entity .ui-section-empty:not(.refs-picker__empty) {
+html[data-shell-mode] .page--entity .ui-section-empty:not(.refs-picker__empty) {
   font-size: var(--editor-font-size, 17.5px);
   line-height: var(--editor-line-height, 1.75);
 }
@@ -2332,7 +2274,7 @@ html:not([data-shell-mode='mobile']) .page--entity .ui-section-empty:not(.refs-p
 }
 
 /* Shared interaction-only styles. Keep these static so components do not
-   recreate <style> nodes on every mount. */
+   recreate \3c style> nodes on every mount. */
 .smm-scroll::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -2740,7 +2682,6 @@ html:not([data-shell-mode='mobile']) .page--entity .ui-section-empty:not(.refs-p
   }
 }
 
-.super-element-overlay .super-element-reset,
 .super-element-overlay .super-element-toggle {
   min-height: var(--control-height-sm);
   padding: 3px 10px;
@@ -2759,7 +2700,6 @@ html:not([data-shell-mode='mobile']) .page--entity .ui-section-empty:not(.refs-p
     border-color 120ms;
 }
 
-.super-element-overlay .super-element-reset:hover,
 .super-element-overlay .super-element-toggle:hover,
 .super-element-overlay .super-element-toggle.is-on {
   border-color: hsl(var(--ink-1));
@@ -3106,7 +3046,7 @@ svg.super-viewport-edges[data-panning='1'] {
 /* The row's ring: the menus' one hairline of flowing glass, round the row
    under the pointer; standing still round the choice in effect. A header
    that was just pressed keeps none once the pointer leaves it. */
-html:not([data-shell-mode='mobile']) :is(.hover-card__row, .hover-card__section-head)::before {
+html[data-shell-mode] :is(.hover-card__row, .hover-card__section-head)::before {
   --hover-card-line: color-mix(in srgb, var(--glass-clear), hsl(var(--ink-3)) 30%);
   content: '';
   position: absolute;
@@ -3127,18 +3067,18 @@ html:not([data-shell-mode='mobile']) :is(.hover-card__row, .hover-card__section-
   transition: opacity 0.18s ease-out;
 }
 
-html:not([data-shell-mode='mobile']) :is(.hover-card__row, .hover-card__section-head):hover:not(:disabled)::before,
-html:not([data-shell-mode='mobile']) :is(.hover-card__row, .hover-card__section-head):focus-visible::before {
+html[data-shell-mode] :is(.hover-card__row, .hover-card__section-head):hover:not(:disabled)::before,
+html[data-shell-mode] :is(.hover-card__row, .hover-card__section-head):focus-visible::before {
   opacity: 1;
   animation-play-state: running;
 }
 
-html:not([data-shell-mode='mobile']) .hover-card__row.is-active::before {
+html[data-shell-mode] .hover-card__row.is-active::before {
   opacity: 1;
   animation-play-state: paused;
 }
 
-html:not([data-shell-mode='mobile']) .hover-card__row--danger::before {
+html[data-shell-mode] .hover-card__row--danger::before {
   --hover-card-line: hsl(var(--destructive));
 }
 
@@ -3893,14 +3833,13 @@ html[data-shell-mode='mobile'] .hover-card__row {
   min-height: 92px;
 }
 
-.entity-card.node-card .node-card__editor,
 .entity-card.node-card .node-card__loading {
   padding: 0;
 }
 
 /* A glass field shows its caret as the still selected glass, so the form
    controls' accent focus ring (index.css) stays off inside it. */
-html:not([data-shell-mode='mobile']) .ui-field > :is(input, textarea):focus-visible {
+html[data-shell-mode] .ui-field > :is(input, textarea):focus-visible {
   border-color: transparent;
   box-shadow: none;
 }

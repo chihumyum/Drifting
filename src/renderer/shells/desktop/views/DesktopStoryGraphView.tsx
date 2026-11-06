@@ -45,7 +45,6 @@ import type { RelationEdgePopoverAnchor } from '../../../components/graph/Relati
 import type { GraphViewProps } from '../../../features/graph/graph-ui-components.types';
 import { DesktopSuperViewHeader } from '../components/DesktopSuperViewHeader';
 import { SuperViewShell } from '../../../components/SuperViewShell';
-import { SegmentedControl } from '../../../components/ui/SegmentedControl';
 import { GlassSlider } from '../../../components/ui/GlassSlider';
 import { Button } from '../../../components/ui/Button';
 import { KindMark } from '../../../components/ui/KindMark';
@@ -1151,62 +1150,34 @@ export function DesktopStoryGraphView({ graphUi, driftPanel, SuperViewRelationLe
       <DesktopSuperViewHeader
         meta={totalsLabel}
         onBack={close}
-        // Desktop shows its relation kinds as the legend in the content's
-        // top-right corner (SuperViewRelationLegend), not in the header.
-        relationControl={mobileShell}
+        // The relation kinds are the legend in the content's top-right
+        // corner (SuperViewRelationLegend), not in the header.
+        relationControl={false}
         leftSlot={
           <>
-            {/* Desktop: 书序／叙事时 is one of two on the glass slider and 打散
-                a text button with its sand icon; the paused mobile shell keeps
-                the segmented control and the bordered button. */}
-            {mobileShell ? (
-              <SegmentedControl
-                className="graph-head__view-toggle"
-                size="md"
-                value={viewMode}
-                onChange={setViewMode}
-                ariaLabel={t('bottomTimeline.view.toggleTitle')}
-                options={viewModeOptions}
-              />
-            ) : (
-              <GlassSlider
-                className="graph-head__view-toggle"
-                value={viewMode}
-                onChange={setViewMode}
-                ariaLabel={t('bottomTimeline.view.toggleTitle')}
-                options={viewModeOptions}
-              />
-            )}
-            {mobileShell ? (
-              <button
-                type="button"
-                className="graph-head__spread-btn"
-                disabled={placedNodes.length < 2}
-                onClick={() => {
-                  void handleSpread();
-                }}
-                title={spreadTitle}
-                aria-label={t('storyGraph.spreadAria')}
-              >
-                <BrushIcon name="spread" size={11} />
-                <span>{t('storyGraph.spread')}</span>
-              </button>
-            ) : (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="graph-head__spread"
-                disabled={placedNodes.length < 2}
-                onClick={() => {
-                  void handleSpread();
-                }}
-                title={spreadTitle}
-                aria-label={t('storyGraph.spreadAria')}
-              >
-                <BrushIcon name="spread" size={13} />
-                {t('storyGraph.spread')}
-              </Button>
-            )}
+            {/* 书序／叙事时 is one of two on the glass slider and 打散 a text
+                button with its sand icon. */}
+            <GlassSlider
+              className="graph-head__view-toggle"
+              value={viewMode}
+              onChange={setViewMode}
+              ariaLabel={t('bottomTimeline.view.toggleTitle')}
+              options={viewModeOptions}
+            />
+            <Button
+              variant="ghost"
+              size="sm"
+              className="graph-head__spread"
+              disabled={placedNodes.length < 2}
+              onClick={() => {
+                void handleSpread();
+              }}
+              title={spreadTitle}
+              aria-label={t('storyGraph.spreadAria')}
+            >
+              <BrushIcon name="spread" size={13} />
+              {t('storyGraph.spread')}
+            </Button>
 
             {/* The 「+幕」act-create action moved into the act rail's head cell
                 (mirrors the narrative TIME plus), so it's no longer in the header. */}
@@ -1225,6 +1196,8 @@ export function DesktopStoryGraphView({ graphUi, driftPanel, SuperViewRelationLe
         }
         rightSlot={
           <>
+            {/* A touch screen has no Shift + click: the mobile shell links
+                two chapters through an explicit relation mode. */}
             {mobileShell && (
               <button
                 type="button"
@@ -1240,10 +1213,11 @@ export function DesktopStoryGraphView({ graphUi, driftPanel, SuperViewRelationLe
                   : t('mobileWorkspace.superView.relationMode')}
               </button>
             )}
-            {/* Desktop: while a relation's source is picked, one unframed
-                sentence names it (its sand seal and title) where the
-                "Shift + click" hint otherwise sits; the source tile itself
-                holds the dense glass. */}
+            {/* While a relation's source is picked, one unframed sentence
+                names it (its sand seal and title) where the "Shift + click"
+                hint otherwise sits; the source tile itself holds the dense
+                glass. The mobile shell's relation mode has its own banner
+                with a cancel target (below) and no Shift + click hint. */}
             {!mobileShell && linkSource && !newEdgePair ? (
               <span className="super-view-head__hint" role="status">
                 <span>{t('storyGraph.edge.linkSourcePrefix')}</span>
@@ -1265,12 +1239,10 @@ export function DesktopStoryGraphView({ graphUi, driftPanel, SuperViewRelationLe
       <div className="super-view-body graph-body">
         {/* The legend of the lines, top right, under the sticky 幕 rail or
             time axis so it never covers an act or a time point. */}
-        {!mobileShell && (
-          <SuperViewRelationLegend
-            canvas="graph"
-            style={{ top: (isNarrative ? GRAPH_CONFIG.AXIS_HEIGHT : actRailHeight) + 10 }}
-          />
-        )}
+        <SuperViewRelationLegend
+          canvas="graph"
+          style={{ top: (isNarrative ? GRAPH_CONFIG.AXIS_HEIGHT : actRailHeight) + 10 }}
+        />
         {/* Single scroll container for the whole grid (vertical for
             many storylines, horizontal for many chapters). Rail labels
             stick to the left via `position: sticky` so they stay aligned
@@ -1285,7 +1257,7 @@ export function DesktopStoryGraphView({ graphUi, driftPanel, SuperViewRelationLe
           {actRailHeight > 0 && (
             <ActRail
               key={projectId}
-              glass={!mobileShell}
+              glass
               className="actrail--sticky-top"
               acts={bookActs}
               chapters={placedNodes}
@@ -1393,7 +1365,7 @@ export function DesktopStoryGraphView({ graphUi, driftPanel, SuperViewRelationLe
                       orderToPosition={orderToX}
                       positionToOrder={positionToOrder}
                       variant="graph"
-                      glass={!mobileShell}
+                      glass
                       pinHeight={GRAPH_CONFIG.AXIS_HEIGHT}
                       editOnMount={m.id === newlyAddedPinId}
                       onChange={(patch) => {
@@ -1481,7 +1453,6 @@ export function DesktopStoryGraphView({ graphUi, driftPanel, SuperViewRelationLe
           {lanesToRender.map((lane, rowIdx) => (
             <StoryGraphLaneRow
               key={lane.id}
-              glass={!mobileShell}
               lane={lane}
               nodes={positionedNodesByRow.get(rowIdx) ?? EMPTY_POSITIONED_NODES}
               chapterCount={lane.id === DEFAULT_LANE_ID ? placedNodes.length
@@ -1574,13 +1545,13 @@ export function DesktopStoryGraphView({ graphUi, driftPanel, SuperViewRelationLe
                           : t('relationTypes.missing')}
                       </title>
                     </path>
-                    {/* Desktop edges are flat hairlines (1.5, 2.2 selected). */}
+                    {/* Edges are flat hairlines (1.5, 2.2 selected). */}
                     <path
                       d={d}
                       stroke={color}
-                      strokeWidth={mobileShell ? (selected ? 2.4 : 1.8) : selected ? 2.2 : 1.5}
+                      strokeWidth={selected ? 2.2 : 1.5}
                       fill="none"
-                      opacity={selected ? 1 : mobileShell ? 0.85 : 0.8}
+                      opacity={selected ? 1 : 0.8}
                       markerEnd={directed ? `url(#${markerId})` : undefined}
                       style={{ pointerEvents: 'none' }}
                     />
@@ -1653,7 +1624,8 @@ export function DesktopStoryGraphView({ graphUi, driftPanel, SuperViewRelationLe
         />
       )}
 
-      {/* Status banner when a relation-source tile has been picked. */}
+      {/* The mobile relation mode's banner while a source tile is picked:
+          a touch screen has no Escape, so it carries its own cancel. */}
       {mobileShell && linkSource && !newEdgePair && (
         <div className="graph-linkbar">
           <span>{t('storyGraph.edge.linkSourcePrefix')}</span>
@@ -1666,10 +1638,10 @@ export function DesktopStoryGraphView({ graphUi, driftPanel, SuperViewRelationLe
       )}
 
       {/* New-edge dialog: chooses a compatible project relation type and lets
-          the author make directed endpoint intent explicit. Desktop uses the
-          dialog shell: the two ends as their seals and titles around a swap
-          icon, the type as a select; the paused mobile shell keeps its own. */}
-      {newEdgePair && !mobileShell && (() => {
+          the author make directed endpoint intent explicit, in the dialog
+          shell: the two ends as their seals and titles around a swap icon,
+          the type as a select. */}
+      {newEdgePair && (() => {
         const fromId = newEdgeReversed ? newEdgePair.target : newEdgePair.source;
         const toId = newEdgeReversed ? newEdgePair.source : newEdgePair.target;
         const end = (id: string) => (
@@ -1774,104 +1746,6 @@ export function DesktopStoryGraphView({ graphUi, driftPanel, SuperViewRelationLe
           </ModalRoot>
         );
       })()}
-      {newEdgePair && mobileShell && (
-        <div
-          className="graph-newedge-backdrop"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) closeNewEdgeDialog();
-          }}
-        >
-          <div className={`graph-newedge${newEdgeCreatingType ? ' is-creating-type' : ''}`}>
-            <div className="graph-newedge__head">{t('storyGraph.edge.newTitle')}</div>
-            <div className="graph-newedge__pair">
-              <span>
-                {nodeById.get(newEdgeReversed ? newEdgePair.target : newEdgePair.source)?.title ||
-                  t('common.untitled')}
-              </span>
-              <button
-                type="button"
-                className="graph-newedge__swap"
-                onClick={() => {
-                  setNewEdgeReversed((value) => !value);
-                  setNewEdgeTypeId(null);
-                  setNewEdgeCreatingType(false);
-                }}
-                title={t('relationTypes.swap')}
-              >
-                <BrushIcon name="swap" size={12} inline />
-              </button>
-              <span>
-                {nodeById.get(newEdgeReversed ? newEdgePair.source : newEdgePair.target)?.title ||
-                  t('common.untitled')}
-              </span>
-            </div>
-            <div className="relation-type-modal__heading">
-              <label className="graph-newedge__label">{t('storyGraph.edge.kindLabel')}</label>
-              <button
-                type="button"
-                className="relation-type-modal__create"
-                onClick={() => setNewEdgeCreatingType((value) => !value)}
-              >
-                {newEdgeCreatingType ? (
-                  t('relationTypes.chooseExisting')
-                ) : (
-                  <>
-                    <BrushIcon name="plus" size={10} inline /> {t('relationTypes.createInline')}
-                  </>
-                )}
-              </button>
-            </div>
-            {newEdgeCreatingType ? (
-              <RelationTypeEditor
-                key={`node:node:${newEdgeReversed ? 'reversed' : 'forward'}`}
-                initialSourceKinds={['node']}
-                initialTargetKinds={['node']}
-                onCancel={() => setNewEdgeCreatingType(false)}
-                onSave={async (definition) => {
-                  const checked = validateRelationTypeDefinitionAgainstRelation(definition, {
-                    fromKind: 'node',
-                    fromId: newEdgeReversed ? newEdgePair.target : newEdgePair.source,
-                    toKind: 'node',
-                    toId: newEdgeReversed ? newEdgePair.source : newEdgePair.target,
-                  });
-                  if (!checked.ok) throw new Error(checked.message);
-                  const created = await relationTypeUsecases.createRelationType(definition);
-                  setNewEdgeTypeId(created.id);
-                  setNewEdgeCreatingType(false);
-                }}
-              />
-            ) : (
-              <RelationTypeField
-                className="graph-newedge__select"
-                buttonClassName="graph-newedge__input relation-type-field__button"
-                autoFocus
-                value={newEdgeTypeId}
-                onChange={setNewEdgeTypeId}
-                options={newEdgeTypeOptions}
-                resolveOptionColor={resolveRelationTypeColor}
-                placeholder={t('storyGraph.edge.kindPlaceholder')}
-                ariaLabel={t('storyGraph.edge.kindLabel')}
-              />
-            )}
-            <div className="graph-newedge__actions">
-              <button onClick={closeNewEdgeDialog}>{t('common.cancel')}</button>
-              <button
-                className="is-primary"
-                disabled={!newEdgeTypeId}
-                onClick={() => {
-                  if (!newEdgeTypeId) return;
-                  const source = newEdgeReversed ? newEdgePair.target : newEdgePair.source;
-                  const target = newEdgeReversed ? newEdgePair.source : newEdgePair.target;
-                  void createEdge(source, target, newEdgeTypeId);
-                  closeNewEdgeDialog();
-                }}
-              >
-                {t('storyGraph.edge.create')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {hoverPreview && (
         <EntityHoverCard

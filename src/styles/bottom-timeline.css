@@ -4,6 +4,8 @@
    paper (shared with the plot planner), which the timeline toggle opens
    and closes; the old "collapsed strip" mode is gone.
    ============================================================ */
+/* `html[data-shell-mode]` and `:root[data-shell-mode]` match every shell: they
+   keep the weight these rules had while the mobile shell was excluded. */
 
 .btl {
   --btl-lane-bg: hsl(var(--page));
@@ -26,28 +28,6 @@
    The Bottom Panel's shared header row (`.bottom-panel-head`, desktop-shell.css)
    carries the height, padding and desk colour; the border on top and the
    resize handle are the panel's own. */
-.btl__head-btn {
-  width: 22px;
-  height: 22px;
-  display: grid;
-  place-items: center;
-  border-radius: 3px;
-  color: var(--ui-text-muted, hsl(var(--ink-3)));
-  background: transparent;
-  border: 0;
-  cursor: pointer;
-  transition:
-    background 0.12s,
-    color 0.12s;
-}
-.btl__head-btn:hover:not(:disabled) {
-  background: hsl(var(--rule));
-  color: hsl(var(--ink-1));
-}
-.btl__head-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
 
 /* View toggle (书序 ↔ 叙事时) leads the head-left cluster. On desktop it is
    a GlassSlider: the two words on the dock, one glass slab under the chosen. */
@@ -100,39 +80,6 @@
   display: inline-flex;
   flex-shrink: 0;
 }
-.btl__unplaced-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 20px;
-  padding: 0 8px;
-  border: 1px solid hsl(var(--rule));
-  background: hsl(var(--surface));
-  border-radius: 3px;
-  font-family: var(--font-mono);
-  font-size: var(--ui-font-caption, 10px);
-  letter-spacing: 0.04em;
-  color: var(--ui-text-muted, hsl(var(--ink-3)));
-  white-space: nowrap;
-  cursor: pointer;
-  transition:
-    background 0.12s,
-    color 0.12s;
-}
-.btl__unplaced-btn:hover,
-.btl__unplaced-btn.is-open {
-  background: hsl(var(--rule) / 0.4);
-  color: hsl(var(--ink-1));
-}
-.btl__unplaced-count {
-  background: hsl(var(--rule));
-  color: hsl(var(--ink-2));
-  padding: 0 5px;
-  border-radius: 1px;
-  font-size: var(--ui-font-caption, 9px);
-  min-width: 14px;
-  text-align: center;
-}
 .btl__unplaced-arrow {
   margin-left: 1px;
   color: var(--ui-text-muted, hsl(var(--ink-4)));
@@ -160,40 +107,6 @@
   flex-direction: column;
   gap: 2px;
 }
-.btl__unplaced-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
-  border-radius: 1px;
-  background: hsl(var(--paper));
-  border: 1px solid hsl(var(--rule));
-  cursor: grab;
-  user-select: none;
-  touch-action: none;
-  -webkit-user-drag: none;
-  transition:
-    border-color 0.12s,
-    background 0.12s;
-}
-.btl__unplaced-chip:focus-visible {
-  outline: 2px solid hsl(var(--accent) / 0.6);
-  outline-offset: -2px;
-}
-.btl__unplaced-chip:active {
-  cursor: grabbing;
-}
-.btl__unplaced-chip:hover {
-  border-color: var(--clip-color, hsl(var(--ink-3)));
-  background: hsl(var(--paper-deep));
-}
-.btl__unplaced-chip-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--clip-color, hsl(var(--ink-4)));
-  flex-shrink: 0;
-}
 .btl__unplaced-chip-num {
   font-family: var(--font-mono);
   font-size: var(--ui-font-caption, 9.5px);
@@ -220,10 +133,10 @@
 .btl__unplaced-row:active {
   cursor: grabbing;
 }
-html:not([data-shell-mode='mobile']) .menu-surface__item.btl__unplaced-row::before {
+html[data-shell-mode] .menu-surface__item.btl__unplaced-row::before {
   --menu-line: color-mix(in srgb, var(--clip-color, hsl(var(--ink-3))) 50%, var(--glass-clear));
 }
-html:not([data-shell-mode='mobile']) .menu-surface__item.btl__unplaced-row:active::before {
+html[data-shell-mode] .menu-surface__item.btl__unplaced-row:active::before {
   --menu-line: color-mix(in srgb, var(--clip-color, hsl(var(--ink-3))) 75%, var(--glass-clear));
 }
 
@@ -231,40 +144,6 @@ html:not([data-shell-mode='mobile']) .menu-surface__item.btl__unplaced-row:activ
    Mirrors the unplaced button styling so the two head-level toggles read as
    a matching pair. Active state uses the same darker tint as `.is-open` to
    reinforce that the lane is currently visible. */
-.btl__unaffiliated-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 20px;
-  padding: 0 8px;
-  flex-shrink: 0;
-  border: 1px solid hsl(var(--rule));
-  background: hsl(var(--surface));
-  border-radius: 3px;
-  font-family: var(--font-mono);
-  font-size: var(--ui-font-caption, 10px);
-  letter-spacing: 0.04em;
-  color: var(--ui-text-muted, hsl(var(--ink-3)));
-  white-space: nowrap;
-  cursor: pointer;
-  transition:
-    background 0.12s,
-    color 0.12s;
-}
-.btl__unaffiliated-toggle:hover,
-.btl__unaffiliated-toggle.is-active {
-  background: hsl(var(--rule) / 0.4);
-  color: hsl(var(--ink-1));
-}
-.btl__unaffiliated-toggle-count {
-  background: hsl(var(--rule));
-  color: hsl(var(--ink-2));
-  padding: 0 5px;
-  border-radius: 1px;
-  font-size: var(--ui-font-caption, 9px);
-  min-width: 14px;
-  text-align: center;
-}
 
 .btl__unplaced-chip-title {
   font-family: var(--font-sans);
@@ -367,7 +246,7 @@ html:not([data-shell-mode='mobile']) .menu-surface__item.btl__unplaced-row:activ
    brush frame then fits inside the rail's clip): the hover ring and, while
    the storyline is open, the drawn frame. Synthetic lanes keep the same
    inset without a cell. */
-.btl--desktop .btl-rail {
+.btl .btl-rail {
   padding: 3px 4px;
 }
 .btl-rail__cell {
@@ -379,7 +258,7 @@ html:not([data-shell-mode='mobile']) .menu-surface__item.btl__unplaced-row:activ
   padding: 0 6px 0 5px;
   border-radius: 2px;
 }
-.btl--desktop .btl-rail > .btl-rail__main {
+.btl .btl-rail > .btl-rail__main {
   padding: 0 6px 0 5px;
 }
 .btl-rail__count {
@@ -405,7 +284,7 @@ html:not([data-shell-mode='mobile']) .menu-surface__item.btl__unplaced-row:activ
   user-select: none;
 }
 /* Desktop shape grammar: small radii stop at 3px. */
-.btl--desktop .btl-track {
+.btl .btl-track {
   border-radius: 2px;
 }
 
@@ -458,7 +337,7 @@ html:not([data-shell-mode='mobile']) .menu-surface__item.btl__unplaced-row:activ
   color: hsl(var(--ink-1));
 }
 /* Desktop: a panel header's plain icon button; hover only darkens the ink. */
-.btl--desktop .btl-axis__rail-add:hover {
+.btl .btl-axis__rail-add:hover {
   background: transparent;
 }
 .btl-axis__rail-add:disabled {
@@ -632,17 +511,17 @@ html:not([data-shell-mode='mobile']) .menu-surface__item.btl__unplaced-row:activ
    no fill); renamed, it is the still selected glass on the floating fill. A
    pin bound to a drift leads with the drift's sand eddy (a KindMark: the
    glass rim owns ::before) and takes no accent of its own. */
-.btl--desktop .btl-pin__label.glass {
+.btl .btl-pin__label.glass {
   padding: 2px 7px;
   border: 0;
   border-radius: 2px;
   background: transparent;
 }
-.btl--desktop .btl-pin.is-editing .btl-pin__label.glass {
+.btl .btl-pin.is-editing .btl-pin__label.glass {
   background: var(--glass-fill);
   color: hsl(var(--ink-1));
 }
-.btl--desktop .btl-pin.is-bound .btl-pin__label.glass {
+.btl .btl-pin.is-bound .btl-pin__label.glass {
   color: hsl(var(--ink-1));
   cursor: pointer;
 }
@@ -658,10 +537,10 @@ html:not([data-shell-mode='mobile']) .menu-surface__item.btl__unplaced-row:activ
 /* Desktop drop line (marker or act drag), rail half and lane half alike: a
    strip of clear glass whose texture runs with the distance dragged
    (--flow, set by TimelineGuideLines / ActRail), like a moving panel edge. */
-.btl--desktop {
+.btl {
   --btl-drop-glass: color-mix(in srgb, var(--glass-clear), hsl(var(--ink-3)) 50%);
 }
-.btl--desktop .btl-pin-line.is-dragging {
+.btl .btl-pin-line.is-dragging {
   width: 4px;
   margin-left: -2px;
   background: linear-gradient(to right, transparent, var(--btl-drop-glass), transparent);
@@ -820,14 +699,14 @@ html:not([data-shell-mode='mobile']) .menu-surface__item.btl__unplaced-row:activ
   transition: box-shadow var(--motion-glass-bleed) ease-out;
 }
 
-.btl--desktop .btl-rail__name {
+.btl .btl-rail__name {
   display: flex;
   align-items: center;
   gap: 6px;
   white-space: normal;
 }
 
-.btl--desktop .btl-rail__text {
+.btl .btl-rail__text {
   min-width: 0;
   display: -webkit-box;
   -webkit-box-orient: vertical;
@@ -836,7 +715,7 @@ html:not([data-shell-mode='mobile']) .menu-surface__item.btl__unplaced-row:activ
   overflow-wrap: anywhere;
 }
 
-.btl--desktop .btl-rail__name .kind-mark {
+.btl .btl-rail__name .kind-mark {
   margin-left: -2px;
 }
 

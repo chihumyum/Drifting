@@ -550,7 +550,6 @@
       "writeEmail": "Write email",
       "submitFeedback": "Submit feedback",
       "submitFeedbackDesc": "Can include a sanitized diagnostic summary; never manuscript text.",
-      "submitFeedbackMailDesc": "Opens a blank email. Drifting does not attach manuscript context automatically.",
       "feedback": "Feedback…",
       "tagline": "Built for writers awake deep into the night."
     },
@@ -995,7 +994,6 @@
     "firstChapter": "Write the first chapter"
   },
   "virtualChapterRow": {
-    "chapter": "Chapter",
     "chapterNumber": "Chapter {{n}}"
   },
   "editorOutline": {
@@ -1054,17 +1052,11 @@
   },
   "trashPanel": {
     "noProject": "Open a project first.",
-    "title": "Trash",
     "retention": "Kept locally until you delete it",
     "clear": "Empty trash",
     "empty": "Trash is empty.",
     "confirmPurge": "Permanently delete \"{{label}}\"? This cannot be undone.",
     "confirmPurgeAll": "Empty trash? This will permanently delete all {{count}} items and cannot be undone.",
-    "columns": {
-      "type": "Type",
-      "name": "Name",
-      "deletedAt": "Deleted at"
-    },
     "restore": "Restore",
     "purgeNow": "Delete now",
     "restoreFailed": "Restore failed: {{error}}",
@@ -1445,7 +1437,6 @@
       "description": "Recent high-signal work context shared by every General Agent chat. Older context is compacted or forgotten automatically.",
       "loading": "Loading working memory…",
       "edit": "Edit",
-      "preview": "Preview",
       "clear": "Clear",
       "create": "Create working memory",
       "editorLabel": "Edit WORKING_MEMORY.md",
@@ -2566,7 +2557,6 @@
       "outgoing": "References"
     },
     "actions": {
-      "add": "Add",
       "remove": "Remove relation",
       "jump": "Jump to this entity",
       "linkEntity": "Link entity"
@@ -2864,7 +2854,6 @@
   "superElement": {
     "title": "Element overview",
     "meta": "{{categories}} categories · {{elements}} elements",
-    "linkHint": "Choose a second element / chapter · Esc cancels",
     "linkHintFrom": "From",
     "linkHintTo": "to… pick a second element or chapter, Esc cancels",
     "focusOffTitle": "Turn focus off and show all relation lines",
@@ -2944,7 +2933,6 @@
     "empty": {
       "noStorylines": "No storylines yet",
       "noCategories": "No element categories yet",
-      "categoryEmpty": "Empty",
       "categoryNoElements": "No elements yet"
     }
   },
@@ -2957,7 +2945,6 @@
     "expand": "Expand edit",
     "openFullTitle": "Jump to full editor",
     "openInEditor": "Open in editor",
-    "compactEdit": "Compact edit",
     "collapseTitle": "Collapse back to card",
     "collapse": "Collapse",
     "fullEditor": "Full editor",
@@ -3484,7 +3471,6 @@
       "drawHint": "Drag over the image to mark a region",
       "compose": "Region comment",
       "placeholder": "What about this part? ({{shortcut}} to save)",
-      "asTodo": "As a TODO",
       "save": "Save",
       "kindLabel": "Comment type",
       "kindNote": "Comment",

@@ -183,14 +183,13 @@ const NodeEditorSession = memo(function NodeEditorSession({ nodeId, projectId }:
   // category-picker modal pattern.
   const { moveDriftToGroup } = useDriftGroup({ projectId: activeProjectId });
   const [showGroupModal, setShowGroupModal] = useState(false);
-  // Depth-ordered group list for the move modal's <select> (indented by nesting
-  // level via leading spaces — <option> can't be styled).
+  // Depth-ordered group list for the move modal (rows indented by depth).
   const driftGroupOptions = useMemo(() => {
     const children = buildDriftGroupChildren(driftGroups);
-    const out: Array<{ id: string; label: string; name: string; depth: number }> = [];
+    const out: Array<{ id: string; name: string; depth: number }> = [];
     const walk = (key: string, depth: number) => {
       for (const g of children.get(key) ?? []) {
-        out.push({ id: g.id, label: `${'  '.repeat(depth)}${g.name}`, name: g.name, depth });
+        out.push({ id: g.id, name: g.name, depth });
         walk(g.id, depth + 1);
       }
     };
@@ -678,10 +677,10 @@ const NodeEditorSession = memo(function NodeEditorSession({ nodeId, projectId }:
             <div className="editor-scroll" ref={setScrollEl}>
               <div className="editor__spread">
                 <article className="page page--entity">
-                  {/* Desktop folio: 「第 N 章」, the storyline's dash beside its
-                      name in ink, the word count; a drift says its group the
-                      same way. The paused mobile shell keeps the coloured names. */}
-                  {!isDriftNode && !getPlatformRuntime().isMobileShell && (
+                  {/* The folio: 「第 N 章」, the storyline's dash beside its name
+                      in ink, the word count; a drift says its group the same
+                      way. */}
+                  {!isDriftNode && (
                     <div className="page__folio" aria-hidden="true">
                       <span className="page__folio-line">
                         {chapterNumber == null
@@ -704,48 +703,12 @@ const NodeEditorSession = memo(function NodeEditorSession({ nodeId, projectId }:
                     </div>
                   )}
 
-                  {isDriftNode && !getPlatformRuntime().isMobileShell && (
+                  {isDriftNode && (
                     <div className="page__folio" aria-hidden="true">
                       <span className="page__folio-line">{t('nodeEditor.folio.drift')}</span>
                       {driftGroupChain.length > 0 && (
                         <span className="page__folio-line page__folio-storyline">
                           <KindMark kind="drift-group" />
-                          {driftGroupChain.map((g) => g.name).join(' - ')}
-                        </span>
-                      )}
-                      <span className="page__folio-line">
-                        {canonicalWordCount(curNode) == null
-                          ? t('common.counting')
-                          : t('nodeEditor.meta.words', {
-                              count: canonicalWordCount(curNode)!.toLocaleString(i18n.language),
-                            })}
-                      </span>
-                    </div>
-                  )}
-
-                  {!isDriftNode && getPlatformRuntime().isMobileShell && (
-                    <div className="page__folio" aria-hidden="true">
-                      <span className="page__folio-line">{t('nodeEditor.folio.chapter')}</span>
-                      {mainStoryline && (
-                        <span className="page__folio-line" style={{ color: storylineColor, fontWeight: 600 }}>
-                          {mainStoryline.name}
-                        </span>
-                      )}
-                      <span className="page__folio-line">
-                        {canonicalWordCount(curNode) == null
-                          ? t('common.counting')
-                          : t('nodeEditor.meta.words', {
-                              count: canonicalWordCount(curNode)!.toLocaleString(i18n.language),
-                            })}
-                      </span>
-                    </div>
-                  )}
-
-                  {isDriftNode && getPlatformRuntime().isMobileShell && (
-                    <div className="page__folio" aria-hidden="true">
-                      <span className="page__folio-line">{t('nodeEditor.folio.drift')}</span>
-                      {driftGroupChain.length > 0 && (
-                        <span className="page__folio-line page__folio-line--accent">
                           {driftGroupChain.map((g) => g.name).join(' - ')}
                         </span>
                       )}
@@ -795,6 +758,8 @@ const NodeEditorSession = memo(function NodeEditorSession({ nodeId, projectId }:
                     </div>
                   )}
 
+                  {/* The ⁂ action menu acts on the desktop workspace's tabs and
+                      sidebar; the mobile shell keeps the decorative mark. */}
                   {curNode && isChapter(curNode) && !getPlatformRuntime().isMobileShell ? (
                     <ChapterEndActions
                       projectId={activeProjectId}
@@ -845,8 +810,8 @@ const NodeEditorSession = memo(function NodeEditorSession({ nodeId, projectId }:
         />
       )}
 
-      {showGroupModal && curNode && isDrift(curNode) && nodeId && !getPlatformRuntime().isMobileShell && (
-        // Desktop: the groups are menu rows, the current one bold with a tick.
+      {showGroupModal && curNode && isDrift(curNode) && nodeId && (
+        // The groups are menu rows, the current one bold with a tick.
         <ModalRoot onClose={() => setShowGroupModal(false)} ariaLabel={t('nodeEditor.groupMove.title')}>
           <ModalCard width={360}>
             <ModalHeader
@@ -884,71 +849,6 @@ const NodeEditorSession = memo(function NodeEditorSession({ nodeId, projectId }:
           </ModalCard>
         </ModalRoot>
       )}
-
-      {showGroupModal && curNode && isDrift(curNode) && nodeId && getPlatformRuntime().isMobileShell && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(28, 24, 19, 0.32)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxSizing: 'border-box',
-            padding: 12,
-            zIndex: 'var(--z-popover)',
-          }}
-          onClick={() => setShowGroupModal(false)}
-        >
-          <div
-            style={{
-              background: 'hsl(var(--page))',
-              border: '1px solid hsl(var(--rule-strong))',
-              borderRadius: 2,
-              boxSizing: 'border-box',
-              padding: 24,
-              width: 'min(360px, 100%)',
-              minWidth: 0,
-              maxWidth: '100%',
-              boxShadow: '0 18px 50px rgba(28, 24, 19, 0.22)',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 600 }}>
-              {t('nodeEditor.groupMove.title')}
-            </h3>
-            <select
-              value={curNode.driftGroupId ?? ''}
-              onChange={(e) => {
-                const val = e.target.value;
-                void moveDriftToGroup(nodeId, val || null);
-                setShowGroupModal(false);
-              }}
-              autoFocus
-              style={{
-                width: '100%',
-                fontSize: 14,
-                border: '1px solid hsl(var(--rule-strong))',
-                borderRadius: 4,
-                padding: '8px 12px',
-                outline: 'none',
-                cursor: 'pointer',
-                background: 'hsl(var(--surface))',
-                whiteSpace: 'pre',
-              }}
-            >
-              <option value="">{t('nodeEditor.groupMove.root')}</option>
-              {driftGroupOptions.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-      )}
     </div>
   );
 });
@@ -978,8 +878,6 @@ function ConversionPickerModal({
 }: ConversionPickerModalProps) {
   const { t } = useTranslation();
   const isChapter = target === 'chapter';
-  // Desktop wears sand and glass; the paused mobile shell keeps its own look.
-  const glass = !getPlatformRuntime().isMobileShell;
   const options = isChapter
     ? storylines.map((s) => ({ id: s.id, name: s.name, color: s.color }))
     : categories.map((c) => ({ id: c.id, name: c.name, color: c.color }));
@@ -1000,9 +898,9 @@ function ConversionPickerModal({
           description={subtitle}
         />
         <ModalBody className="conversion-picker__body">
-          {glass && options.length > 0 && (
-            // Desktop: cards of resting glass in each storyline's or category's
-            // colour; the chosen one is that colour's still selected glass.
+          {options.length > 0 && (
+            // Cards of resting glass in each storyline's or category's colour;
+            // the chosen one is that colour's still selected glass.
             <div className="entity-choice-grid" role="radiogroup" aria-label={title}>
               {options.map((opt) => (
                 <button
@@ -1033,55 +931,6 @@ function ConversionPickerModal({
               {isChapter ? t('nodeEditor.conversion.noStorylines') : t('nodeEditor.conversion.noCategories')}
             </div>
           )}
-          {!glass && options.map((opt) => {
-            const selected = pickedId === opt.id;
-            const color = opt.color || 'hsl(var(--accent))';
-            return (
-              <button
-                type="button"
-                key={opt.id}
-                onClick={() => onPick(opt.id)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                  padding: '10px 12px',
-                  borderRadius: 'var(--radius-md)',
-                  border: selected ? `1px solid ${color}` : '1px solid hsl(var(--rule))',
-                  background: selected
-                    ? `color-mix(in srgb, ${color} 8%, transparent)`
-                    : 'hsl(var(--paper))',
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  fontSize: 14,
-                  fontWeight: selected ? 600 : 500,
-                  color: 'hsl(var(--ink-1))',
-                }}
-              >
-                <span
-                  aria-hidden
-                  style={{
-                    width: 10,
-                    height: 10,
-                    borderRadius: '50%',
-                    background: color,
-                    flexShrink: 0,
-                  }}
-                />
-                <span
-                  style={{
-                    flex: 1,
-                    minWidth: 0,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {opt.name || t('common.untitled')}
-                </span>
-              </button>
-            );
-          })}
         </ModalBody>
         <ModalActions>
           <Button onClick={onCancel} disabled={busy}>

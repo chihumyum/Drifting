@@ -2,6 +2,8 @@
    shared .modal-card shell) and the mobile page (mobile-auth.css). The base
    rules below are the paused mobile page's; the desktop dialog is built from
    the shared controls and restyled under `.auth-flow--dialog` at the end. */
+/* `html[data-shell-mode]` and `:root[data-shell-mode]` match every shell: they
+   keep the weight these rules had while the mobile shell was excluded. */
 
 .auth-flow {
   display: flex;
@@ -364,7 +366,7 @@
   letter-spacing: normal;
 }
 
-html:not([data-shell-mode='mobile']) .auth-flow--dialog .auth-flow__glass-button--block.ui-button {
+html[data-shell-mode] .auth-flow--dialog .auth-flow__glass-button--block.ui-button {
   width: 100%;
   height: var(--ui-row-height, 32px);
   min-height: var(--ui-row-height, 32px);
@@ -375,14 +377,14 @@ html:not([data-shell-mode='mobile']) .auth-flow--dialog .auth-flow__glass-button
   justify-self: center;
 }
 
-html:not([data-shell-mode='mobile']) .auth-flow--dialog .auth-flow__glass-button--link.ui-button {
+html[data-shell-mode] .auth-flow--dialog .auth-flow__glass-button--link.ui-button {
   height: 16px;
   min-height: 16px;
   margin-right: -6px;
   font: 400 var(--ui-font-caption, 12px) / 16px var(--font-sans);
 }
 
-html:not([data-shell-mode='mobile']) .auth-flow--dialog .auth-flow__glass-button--foot.ui-button {
+html[data-shell-mode] .auth-flow--dialog .auth-flow__glass-button--foot.ui-button {
   color: hsl(var(--ink-1));
   font-weight: 600;
 }

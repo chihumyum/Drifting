@@ -17,7 +17,6 @@ import loglevel from 'loglevel';
 import { BrushIcon } from '../../components/ui/BrushIcon';
 import { Button } from '../../components/ui/Button';
 import { KindMark } from '../../components/ui/KindMark';
-import { getPlatformRuntime } from '../../platform/runtime';
 
 const log = loglevel.getLogger('ElementCardPopover');
 log.setLevel(loglevel.levels.WARN);
@@ -194,370 +193,125 @@ export function ElementCardPopover({
     [element.id, element.contentJson, updateElement],
   );
 
-  // Desktop: the same floating layer as the chapter card — the element's
-  // square seal in its category's colour, the name as plain words, the
-  // summary in the field's slip, no rules, one primary button. The paused
-  // mobile shell keeps the category-bordered card below.
-  if (!getPlatformRuntime().isMobileShell) {
-    const nameInput = (
-      <input
-        type="text"
-        className="entity-card__title-input"
-        value={nameDraft}
-        onChange={(e) => setNameDraft(e.target.value)}
-        onBlur={() => void commitName()}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            (e.currentTarget as HTMLInputElement).blur();
-          }
-          if (e.key === 'Escape') {
-            e.preventDefault();
-            setNameDraft(element.name);
-            (e.currentTarget as HTMLInputElement).blur();
-          }
-        }}
-        placeholder={t('common.untitled')}
-      />
-    );
-    return (
-      <EntityCardPopoverShell
-        mode={mode}
-        anchorRect={anchorRect}
-        popoverWidth={380}
-        estimatedHeight={240}
-        onClose={close}
-        ariaLabel={t('elementCardPopover.aria.card')}
-        className="element-card-popover entity-card"
-      >
-        <div className="entity-card__head">
-          <KindMark kind="element" color={accentColor} />
-          {nameInput}
-          {mode === 'upgrade' && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setMode('default')}
-              title={t('nodeCardPopover.collapseTitle')}
-            >
-              <BrushIcon name="arrow-in" size={11} /> {t('nodeCardPopover.collapse')}
-            </Button>
-          )}
-          <GhostIconButton
-            onClick={close}
-            title={t('common.close')}
-            aria-label={t('common.close')}
-            size="sm"
-            icon={<BrushIcon name="close" size={14} />}
-          />
-        </div>
-        {mode === 'default' ? (
-          <label className="entity-card__slip ui-field ui-field--area glass glass--rest glass--field">
-            <textarea
-              ref={summaryRef}
-              value={summaryDraft}
-              onChange={(e) => setSummaryDraft(e.target.value)}
-              onBlur={() => void commitSummary()}
-              onKeyDown={(e) => {
-                if (e.key === 'Escape') {
-                  e.preventDefault();
-                  setSummaryDraft(element.summary ?? '');
-                  (e.currentTarget as HTMLTextAreaElement).blur();
-                }
-              }}
-              placeholder={t('nodeCardPopover.summaryPlaceholder')}
-              rows={1}
-            />
-          </label>
-        ) : (
-          <div className="entity-card__page">
-            <textarea
-              ref={summaryRef}
-              className="entity-card__summary-line"
-              value={summaryDraft}
-              onChange={(e) => setSummaryDraft(e.target.value)}
-              onBlur={() => void commitSummary()}
-              placeholder={t('elementCardPopover.summaryShortPlaceholder')}
-              rows={1}
-            />
-            <ElementPopoverBodyEditor
-              key={element.id}
-              element={element}
-              projectId={projectId}
-              onPersist={handlePersist}
-            />
-          </div>
-        )}
-        <div className="entity-card__foot">
-          {mode === 'default' ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                void commitName();
-                void commitSummary();
-                setMode('upgrade');
-              }}
-              title={t('nodeCardPopover.expandTitle')}
-            >
-              <BrushIcon name="arrow-out" size={11} /> {t('nodeCardPopover.expand')}
-            </Button>
-          ) : (
-            <span className="entity-card__meta">{t('elementCardPopover.syncNote')}</span>
-          )}
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => onOpenInEditor(element.id)}
-            title={t('nodeCardPopover.openFullTitle')}
-          >
-            {mode === 'default' ? t('nodeCardPopover.openInEditor') : t('nodeCardPopover.fullEditor')}
-            <BrushIcon name="arrow-forward" size={11} />
-          </Button>
-        </div>
-      </EntityCardPopoverShell>
-    );
-  }
-
+  // The same floating layer as the chapter card — the element's square seal
+  // in its category's colour, the name as plain words, the summary in the
+  // field's slip, no rules, one primary button.
+  const nameInput = (
+    <input
+      type="text"
+      className="entity-card__title-input"
+      value={nameDraft}
+      onChange={(e) => setNameDraft(e.target.value)}
+      onBlur={() => void commitName()}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          (e.currentTarget as HTMLInputElement).blur();
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          setNameDraft(element.name);
+          (e.currentTarget as HTMLInputElement).blur();
+        }
+      }}
+      placeholder={t('common.untitled')}
+    />
+  );
   return (
     <EntityCardPopoverShell
-        mode={mode}
-        anchorRect={anchorRect}
-        popoverWidth={380}
-        estimatedHeight={240}
-        onClose={close}
-        ariaLabel={t('elementCardPopover.aria.card')}
-        className="element-card-popover"
-        style={{ borderColor: accentColor }}
-      >
-        {/* Head */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            padding: '8px 12px',
-            borderBottom: '1px solid hsl(var(--rule))',
-            background: 'hsl(var(--paper-deep) / 0.5)',
-            flexShrink: 0,
-          }}
-        >
-          <KindMark kind="element" color={accentColor} />
-          <input
-            type="text"
-            value={nameDraft}
-            onChange={(e) => setNameDraft(e.target.value)}
-            onBlur={() => void commitName()}
+      mode={mode}
+      anchorRect={anchorRect}
+      popoverWidth={380}
+      estimatedHeight={240}
+      onClose={close}
+      ariaLabel={t('elementCardPopover.aria.card')}
+      className="element-card-popover entity-card"
+    >
+      <div className="entity-card__head">
+        <KindMark kind="element" color={accentColor} />
+        {nameInput}
+        {mode === 'upgrade' && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setMode('default')}
+            title={t('nodeCardPopover.collapseTitle')}
+          >
+            <BrushIcon name="arrow-in" size={11} /> {t('nodeCardPopover.collapse')}
+          </Button>
+        )}
+        <GhostIconButton
+          onClick={close}
+          title={t('common.close')}
+          aria-label={t('common.close')}
+          size="sm"
+          icon={<BrushIcon name="close" size={14} />}
+        />
+      </div>
+      {mode === 'default' ? (
+        <label className="entity-card__slip ui-field ui-field--area glass glass--rest glass--field">
+          <textarea
+            ref={summaryRef}
+            value={summaryDraft}
+            onChange={(e) => setSummaryDraft(e.target.value)}
+            onBlur={() => void commitSummary()}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                (e.currentTarget as HTMLInputElement).blur();
-              }
               if (e.key === 'Escape') {
                 e.preventDefault();
-                setNameDraft(element.name);
-                (e.currentTarget as HTMLInputElement).blur();
+                setSummaryDraft(element.summary ?? '');
+                (e.currentTarget as HTMLTextAreaElement).blur();
               }
             }}
-            placeholder={t('common.untitled')}
-            style={{
-              flex: 1,
-              minWidth: 0,
-              border: 'none',
-              outline: 'none',
-              background: 'transparent',
-              fontFamily: 'var(--font-sans)',
-              fontSize: 14,
-              fontWeight: 500,
-              color: 'hsl(var(--ink-1))',
-              padding: '2px 0',
-            }}
+            placeholder={t('nodeCardPopover.summaryPlaceholder')}
+            rows={1}
           />
-          <GhostIconButton
-            onClick={close}
-            title={t('common.close')}
-            aria-label={t('common.close')}
-            size="sm"
-            icon={<BrushIcon name="close" size={14} />}
+        </label>
+      ) : (
+        <div className="entity-card__page">
+          <textarea
+            ref={summaryRef}
+            className="entity-card__summary-line"
+            value={summaryDraft}
+            onChange={(e) => setSummaryDraft(e.target.value)}
+            onBlur={() => void commitSummary()}
+            placeholder={t('elementCardPopover.summaryShortPlaceholder')}
+            rows={1}
+          />
+          <ElementPopoverBodyEditor
+            key={element.id}
+            element={element}
+            projectId={projectId}
+            onPersist={handlePersist}
           />
         </div>
-
-        {/* Body */}
+      )}
+      <div className="entity-card__foot">
         {mode === 'default' ? (
-          <>
-            <textarea
-              ref={summaryRef}
-              value={summaryDraft}
-              onChange={(e) => setSummaryDraft(e.target.value)}
-              onBlur={() => void commitSummary()}
-              onKeyDown={(e) => {
-                if (e.key === 'Escape') {
-                  e.preventDefault();
-                  setSummaryDraft(element.summary ?? '');
-                  (e.currentTarget as HTMLTextAreaElement).blur();
-                }
-              }}
-              placeholder={t('nodeCardPopover.summaryPlaceholder')}
-              rows={1}
-              style={{
-                width: '100%',
-                resize: 'none',
-                overflowY: 'auto',
-                border: 'none',
-                outline: 'none',
-                padding: 12,
-                background: 'transparent',
-                fontFamily: 'var(--font-sans)',
-                fontSize: 'calc(var(--entity-body-font-size, 16px) - 4px)',
-                lineHeight: 1.5,
-                color: 'hsl(var(--ink-1))',
-                minHeight: 120,
-                maxHeight: 'min(42vh, 320px)',
-              }}
-            />
-            <div
-              style={{
-                display: 'flex',
-                gap: 8,
-                padding: '8px 12px',
-                borderTop: '1px solid hsl(var(--rule))',
-                background: 'hsl(var(--paper-deep) / 0.4)',
-                flexShrink: 0,
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => {
-                  void commitName();
-                  void commitSummary();
-                  setMode('upgrade');
-                }}
-                title={t('nodeCardPopover.expandTitle')}
-                style={popoverBtnStyle}
-              >
-                {t('nodeCardPopover.expand')} <BrushIcon name="arrow-out" size={10} inline />
-              </button>
-              <div style={{ flex: 1 }} />
-              <button
-                type="button"
-                onClick={() => onOpenInEditor(element.id)}
-                title={t('nodeCardPopover.openFullTitle')}
-                style={{ ...popoverBtnStyle, ...popoverPrimaryBtnStyle }}
-              >
-                {t('nodeCardPopover.openInEditor')} <BrushIcon name="arrow-forward" size={10} inline />
-              </button>
-            </div>
-          </>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              void commitName();
+              void commitSummary();
+              setMode('upgrade');
+            }}
+            title={t('nodeCardPopover.expandTitle')}
+          >
+            <BrushIcon name="arrow-out" size={11} /> {t('nodeCardPopover.expand')}
+          </Button>
         ) : (
-          <>
-            <div
-              style={{
-                padding: '4px 12px 0',
-                flexShrink: 0,
-              }}
-            >
-              <textarea
-                ref={summaryRef}
-                value={summaryDraft}
-                onChange={(e) => setSummaryDraft(e.target.value)}
-                onBlur={() => void commitSummary()}
-                placeholder={t('elementCardPopover.summaryShortPlaceholder')}
-                rows={1}
-                style={{
-                  width: '100%',
-                  resize: 'none',
-                  overflowY: 'auto',
-                  border: 'none',
-                  outline: 'none',
-                  padding: '6px 0',
-                  background: 'transparent',
-                  fontFamily: 'var(--font-sans)',
-                  fontSize: 'calc(var(--entity-body-font-size, 16px) - 4px)',
-                  fontStyle: 'italic',
-                  lineHeight: 1.4,
-                  color: 'hsl(var(--ink-3))',
-                  borderBottom: '1px dashed hsl(var(--rule))',
-                  maxHeight: 140,
-                }}
-              />
-            </div>
-            <div
-              style={{
-                flex: 1,
-                minHeight: 0,
-                overflow: 'auto',
-                padding: '12px 16px',
-              }}
-            >
-              <ElementPopoverBodyEditor
-                key={element.id}
-                element={element}
-                projectId={projectId}
-                onPersist={handlePersist}
-              />
-            </div>
-            <div
-              style={{
-                display: 'flex',
-                gap: 8,
-                padding: '8px 12px',
-                borderTop: '1px solid hsl(var(--rule))',
-                background: 'hsl(var(--paper-deep) / 0.4)',
-                flexShrink: 0,
-                alignItems: 'center',
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => setMode('default')}
-                title={t('nodeCardPopover.collapseTitle')}
-                style={popoverBtnStyle}
-              >
-                <BrushIcon name="arrow-in" size={10} inline /> {t('nodeCardPopover.collapse')}
-              </button>
-              <span
-                style={{
-                  flex: 1,
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 9.5,
-                  color: 'hsl(var(--ink-4))',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.1em',
-                  textAlign: 'center',
-                }}
-              >
-                {t('elementCardPopover.syncNote')}
-              </span>
-              <button
-                type="button"
-                onClick={() => onOpenInEditor(element.id)}
-                title={t('nodeCardPopover.openFullTitle')}
-                style={{ ...popoverBtnStyle, ...popoverPrimaryBtnStyle }}
-              >
-                {t('nodeCardPopover.fullEditor')} <BrushIcon name="arrow-forward" size={10} inline />
-              </button>
-            </div>
-          </>
+          <span className="entity-card__meta">{t('elementCardPopover.syncNote')}</span>
         )}
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={() => onOpenInEditor(element.id)}
+          title={t('nodeCardPopover.openFullTitle')}
+        >
+          {mode === 'default' ? t('nodeCardPopover.openInEditor') : t('nodeCardPopover.fullEditor')}
+          <BrushIcon name="arrow-forward" size={11} />
+        </Button>
+      </div>
     </EntityCardPopoverShell>
   );
 }
-
-const popoverBtnStyle: React.CSSProperties = {
-  border: '1px solid hsl(var(--rule))',
-  background: 'hsl(var(--paper))',
-  color: 'hsl(var(--ink-2))',
-  padding: '4px 10px',
-  borderRadius: 3,
-  fontFamily: 'var(--font-mono)',
-  fontSize: 10,
-  textTransform: 'uppercase',
-  letterSpacing: '0.1em',
-  cursor: 'pointer',
-};
-
-const popoverPrimaryBtnStyle: React.CSSProperties = {
-  borderColor: 'hsl(var(--ink-2))',
-  background: 'hsl(var(--ink-1))',
-  color: 'hsl(var(--paper))',
-};

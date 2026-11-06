@@ -174,9 +174,9 @@ describe('semantic outline rail acceptance wiring', () => {
     );
     expect(scrollMarkers).toContain('onClick={() => jump(tick)}');
     expect(scrollMarkers).toContain("scrollIntoView({ behavior: 'smooth', block: 'center' })");
-    // Agent ticks flash their blocks; a comment tick draws its anchor in sand on the desktop.
+    // Agent ticks flash their blocks; a comment tick draws its anchor in sand on every shell.
     expect(scrollMarkers).toContain('blocks.forEach(flashBlock)');
-    expect(scrollMarkers).toContain('selectCommentHighlight(tick.key.slice(2))');
+    expect(scrollMarkers).toContain("if (tick.key.startsWith('c:')) selectCommentHighlight(tick.key.slice(2));");
     expect(commentsReviewCss).not.toContain('.editor__toc-overlay');
   });
 
@@ -189,7 +189,7 @@ describe('semantic outline rail acceptance wiring', () => {
       commentsReviewCss.indexOf('Semantic TOC rail'),
       commentsReviewCss.indexOf('Section headers — render inside'),
     );
-    const hidden = "html:not([data-shell-mode='mobile']) .editor__toc-rail[data-fit='hidden']";
+    const hidden = "html[data-shell-mode] .editor__toc-rail[data-fit='hidden']";
 
     // The decision is the column's measured gutter (body edge -> the paper's
     // text), re-read on the controller's resize/mutation passes, never the window.
@@ -216,7 +216,7 @@ describe('semantic outline rail acceptance wiring', () => {
       const selector = match[1].replace(/\/\*[\s\S]*?\*\//g, '').trim();
       if (selector.includes('data-fit')) {
         for (const part of selector.split(',')) {
-          expect(part.trim(), selector).toMatch(/^html:not\(\[data-shell-mode='mobile'\]\) \.editor__toc-rail\[data-fit='hidden'\]/);
+          expect(part.trim(), selector).toMatch(/^html\[data-shell-mode\] \.editor__toc-rail\[data-fit='hidden'\]/);
         }
       }
     }

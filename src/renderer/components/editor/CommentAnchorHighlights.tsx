@@ -1,7 +1,6 @@
 import { useLayoutEffect, useMemo, useSyncExternalStore } from 'react';
 import type { CommentTargetKind } from '../../domain/comment';
 import {
-  CommentHighlightPainter,
   getActiveCommentHighlight,
   getPointedCommentHighlights,
   getSelectedCommentHighlight,
@@ -10,7 +9,6 @@ import {
   subscribeSelectedCommentHighlight,
 } from '../../lib/comment-highlight';
 import { CommentSandPainter } from '../../lib/comment-sand';
-import { getPlatformRuntime } from '../../platform/runtime';
 import { useDataStore } from '../../store/data-store';
 import { useSettingsStore } from '../../store/settings-store';
 import { createCommentHighlightSelector } from './comment-highlight-model';
@@ -52,20 +50,14 @@ export function CommentAnchorHighlights({ scrollEl, projectId, targetKind, targe
       : anchored.filter((comment) => comment.id === activeId || comment.id === selected?.id),
     [activeId, anchored, marksVisible, selected],
   );
-  const painter = useMemo(() => {
-    if (!scrollEl) return null;
-    return getPlatformRuntime().isMobileShell
-      ? new CommentHighlightPainter(scrollEl)
-      : new CommentSandPainter(scrollEl);
-  }, [scrollEl]);
+  const painter = useMemo(() => (scrollEl ? new CommentSandPainter(scrollEl) : null), [scrollEl]);
   const presented = isVisible || isPreparing;
   useLayoutEffect(() => (presented ? painter?.attach() : undefined), [painter, presented]);
   useLayoutEffect(() => {
-    if (painter instanceof CommentSandPainter) painter.update(comments, activeId, selected, pointed);
-    else painter?.update(comments, activeId);
+    painter?.update(comments, activeId, selected, pointed);
   }, [painter, comments, activeId, selected, pointed]);
   useLayoutEffect(() => () => {
-    if (painter instanceof CommentSandPainter) painter.dispose();
+    painter?.dispose();
   }, [painter]);
   return null;
 }

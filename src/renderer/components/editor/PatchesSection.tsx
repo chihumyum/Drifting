@@ -11,7 +11,6 @@ import { useAgentEditStore } from '../../store/agent-edit-store';
 import { entityKey } from '../../lib/agent/tool-entity-ref';
 import { PatchEditorCard } from './PatchEditorCard';
 import { BrushIcon } from '../ui/BrushIcon';
-import { getPlatformRuntime } from '../../platform/runtime';
 
 const log = loglevel.getLogger('PatchesSection');
 log.setLevel(loglevel.levels.ERROR);
@@ -89,7 +88,7 @@ export function PatchesSection({ elementId, projectId }: PatchesSectionProps) {
         <button
           type="button"
           onClick={handleAddFloating}
-          className={getPlatformRuntime().isMobileShell ? 'refs-section__action' : 'refs-section__text-action'}
+          className="refs-section__text-action"
         >
           <BrushIcon name="plus" size={10} inline /> {t('patchesSection.add')}
         </button>

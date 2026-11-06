@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import type { KvEntry, KvList } from '../../domain/kv';
 import { parseKv, stringifyKv } from '../../domain/kv';
 import { BrushIcon } from '../ui/BrushIcon';
-import { getPlatformRuntime } from '../../platform/runtime';
 
 interface Props {
   // JSON-stringified KvList from the entity. Re-seeded into local edit state
@@ -140,12 +139,10 @@ export function KvEditor({
     (variant === 'template'
       ? t('kvEditor.templateEmpty')
       : t('kvEditor.empty'));
-  // Desktop rows are slips of resting glass; the paused mobile shell keeps
-  // its outlined inputs.
-  const glass = !getPlatformRuntime().isMobileShell;
+  // Rows are slips of resting glass.
 
   return (
-    <div className={`kv-editor${glass ? ' kv-editor--glass' : ''}`} data-variant={variant}>
+    <div className="kv-editor kv-editor--glass" data-variant={variant}>
       {rows.length === 0 && <div className="kv-editor__empty ui-section-empty">{resolvedEmptyHint}</div>}
       {rows.length > 0 && (
         <div className="kv-editor__list" role="list">
@@ -160,7 +157,6 @@ export function KvEditor({
                 keyPlaceholder={resolvedKeyPlaceholder}
                 valuePlaceholder={resolvedValuePlaceholder}
                 readOnly={readOnly}
-                glass={glass}
                 focusKey={focusIndex === idx}
                 onFocused={() => setFocusIndex(null)}
                 onKeyChange={(key) => handleChangeKey(idx, key)}
@@ -181,7 +177,6 @@ interface RowProps {
   keyPlaceholder: string;
   valuePlaceholder: string;
   readOnly: boolean;
-  glass: boolean;
   focusKey: boolean;
   onFocused: () => void;
   onKeyChange: (key: string) => void;
@@ -195,7 +190,6 @@ function KvRow({
   keyPlaceholder,
   valuePlaceholder,
   readOnly,
-  glass,
   focusKey,
   onFocused,
   onKeyChange,
@@ -210,9 +204,7 @@ function KvRow({
     keyRef.current?.focus();
     onFocused();
   }, [focusKey, onFocused]);
-  const glassClass = glass
-    ? readOnly ? ' glass glass--rest glass--still' : ' glass glass--rest glass--field'
-    : '';
+  const glassClass = readOnly ? ' glass glass--rest glass--still' : ' glass glass--rest glass--field';
   return (
     <div className={`kv-editor__row${glassClass}`} role="listitem">
       <input

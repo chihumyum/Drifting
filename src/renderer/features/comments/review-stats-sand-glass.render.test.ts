@@ -97,13 +97,14 @@ describe('Review cards in sand and glass', () => {
     expect(card).toContain('aria-keyshortcuts="Shift+F10 ContextMenu"');
   });
 
-  it('keeps the mobile card on its plate', () => {
+  it('wears the same resting glass on the phone and adds the touch ⋯ entry', () => {
     const card = onMobile(() => inShell(createElement(ReviewItemCard, { comment: todo('open'), projectId: 'p1' })));
-    expect(card).toContain('workspace-list-row glass glass--surface');
-    expect(card).not.toContain('review-card--glass');
+    expect(card).toContain('review-card--glass glass glass--rest glass--surface');
+    expect(card).not.toContain('workspace-list-row');
+    // A touch screen has no hover, so the action card gets an explicit button.
     expect(card).toContain('review-card__menu-button');
-    expect(card).not.toContain('tabindex="0"');
-    expect(card).not.toContain('aria-keyshortcuts');
+    expect(card).toContain('tabindex="0"');
+    expect(card).toContain('aria-keyshortcuts="Shift+F10 ContextMenu"');
   });
 
   it('makes done a round glass button with the brush tick inside', () => {
@@ -117,8 +118,9 @@ describe('Review cards in sand and glass', () => {
     expect(done).toContain('aria-pressed="true"');
 
     const mobile = onMobile(() => renderToStaticMarkup(createElement(TodoStatusToggle, { resolved: true, onToggle: () => {} })));
-    expect(mobile).toContain('todo-status-toggle__ring');
-    expect(mobile).not.toContain('glass');
+    expect(mobile).toContain('class="todo-status-toggle todo-status-toggle--glass glass glass--round glass--rest"');
+    expect(mobile).toContain('brush-icon--check');
+    expect(mobile).not.toContain('todo-status-toggle__ring');
   });
 
   it('edits on the composer\'s slip with a text button to cancel and the primary glass to save', () => {
@@ -128,8 +130,9 @@ describe('Review cards in sand and glass', () => {
     expect(editor).toContain('ui-button--primary ui-button--sm ui-button--glass glass glass--primary');
 
     const mobile = onMobile(() => renderToStaticMarkup(createElement(CommentBodyEditor, { text: '原文', onSave: async () => {}, onClose: () => {} })));
-    expect(mobile).toContain('ui-button--default ui-button--sm');
-    expect(mobile).not.toContain('glass');
+    expect(mobile).toContain('class="review-card__slip glass glass--rest glass--field"');
+    expect(mobile).toContain('ui-button--primary ui-button--sm ui-button--glass glass glass--primary');
+    expect(mobile).not.toContain('ui-button--default');
   });
 
   it('paints a group or source mark in its thing\'s own colour', () => {
@@ -193,16 +196,18 @@ describe('the stats panel in sand and glass', () => {
       .toContain('class="stats-snapshot glass glass--rest glass--small"');
   });
 
-  it('leaves the paused mobile shell its inline fallback', () => {
+  it('reads the same sand and cell rings on the phone', () => {
     const mobile = onMobile(() => [
       renderToStaticMarkup(createElement(ProgressBar, { pct: 40 })),
       renderToStaticMarkup(createElement(StatsLinkRow, { name: '林晚', color: '#8a6fa8', mark: 'element', onOpen: () => {} })),
-      renderToStaticMarkup(createElement(StackedBar, { segments: [{ key: 'a', pct: 100, color: '#3c6fb0', opacity: 0.5 }] })),
+      renderToStaticMarkup(createElement(StackedBar, { segments: [{ key: 'a', pct: 100, color: '#3c6fb0' }] })),
     ].join(''));
-    expect(mobile).not.toContain('sand-stroke');
-    expect(mobile).not.toContain('kind-mark');
-    expect(mobile).toContain('role="button"');
-    expect(mobile).toContain('background:hsl(var(--accent))');
-    expect(mobile).toContain('opacity:0.5');
+    expect(mobile).toContain('class="sand-track"');
+    expect(mobile).toContain('class="stats-strokes"');
+    expect(mobile).toContain('class="stats-link sand-cell"');
+    expect(mobile).toContain('kind-mark kind-mark--element');
+    // No inline fallback: no div posing as a button, no accent fill.
+    expect(mobile).not.toContain('role="button"');
+    expect(mobile).not.toContain('background:hsl(var(--accent))');
   });
 });

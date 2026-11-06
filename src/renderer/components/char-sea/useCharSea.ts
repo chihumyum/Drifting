@@ -1,16 +1,14 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { charSeaSupported } from '../../lib/char-sea/char-sea';
 import { charSeaRegistry, type CharSeaHoldKind, type CharSeaShapeOptions } from '../../lib/char-sea/char-sea-registry';
-import { getPlatformRuntime } from '../../platform/runtime';
 
 /**
- * Whether the sea of characters lies under this window: the desktop shell,
- * where WebGL2 is there. The paused mobile shell keeps its own surfaces.
- * Pages ask before dropping their own ground, rims or spinner.
+ * Whether the sea of characters lies under this window: wherever WebGL2 is
+ * there. Pages ask before dropping their own ground, rims or spinner.
  */
 export function charSeaEnabled(): boolean {
   if (typeof document === 'undefined') return false;
-  return !getPlatformRuntime().isMobileShell && charSeaSupported();
+  return charSeaSupported();
 }
 
 export function useCharSeaEnabled(): boolean {

@@ -100,9 +100,10 @@ describe('desktop settings section navigation', () => {
     const settings = read('src/renderer/features/settings/desktop/DesktopSettingsModal.tsx');
     const rail = read('src/renderer/features/settings/desktop/DesktopSettingsRail.tsx');
     const css = read('src/styles/settings.css');
-    const desktop = ":where(html:not([data-shell-mode='mobile']))";
-    const rule = (selector: string) => {
-      const start = css.indexOf(`${selector} {`);
+    // The sand-and-glass rules restyle the structure laid out first, so the
+    // last rule for a selector is the one that wins.
+    const deskRule = (selector: string) => {
+      const start = css.lastIndexOf(`\n${selector} {`);
       expect(start, selector).toBeGreaterThanOrEqual(0);
       return css.slice(start, css.indexOf('}', start));
     };
@@ -123,34 +124,40 @@ describe('desktop settings section navigation', () => {
     // A folded list leaves the tab order; its current section shows on the row.
     expect(rail).toContain('inert={!open}');
     expect(rail).toContain('const current = selected && (!activeSection || !open);');
-    expect(rule(`${desktop} .set-rail__sections-fold`)).toContain('grid-template-rows: 0fr;');
-    expect(rule(`${desktop} .set-rail__sections-fold.is-open`)).toContain('grid-template-rows: 1fr;');
-    expect(rule(`${desktop} .set-rail__fold-chevron--open`)).toContain('transform: rotate(90deg);');
+    expect(deskRule('.set-rail__sections-fold')).toContain('grid-template-rows: 0fr;');
+    expect(deskRule('.set-rail__sections-fold.is-open')).toContain('grid-template-rows: 1fr;');
+    expect(deskRule('.set-rail__fold-chevron--open')).toContain('transform: rotate(90deg);');
     // Pointing at the chevron rings the whole row.
-    expect(css).toContain(`${desktop} .set-rail__row:hover > .set-rail__item::before,`);
+    expect(css).toContain('\n.set-rail__row:hover > .set-rail__item::before,');
   });
 
   it('sets the rail’s three levels at one size, sections starting where their panel’s words do', () => {
     const css = read('src/styles/settings.css');
-    const desktop = ":where(html:not([data-shell-mode='mobile']))";
     const rule = (selector: string) => {
       const start = css.indexOf(`${selector} {`);
       expect(start, selector).toBeGreaterThanOrEqual(0);
       return css.slice(start, css.indexOf('}', start));
     };
+    // The sand-and-glass rules restyle the structure laid out first, so the
+    // last rule for a selector is the one that wins.
+    const deskRule = (selector: string) => {
+      const start = css.lastIndexOf(`\n${selector} {`);
+      expect(start, selector).toBeGreaterThanOrEqual(0);
+      return css.slice(start, css.indexOf('}', start));
+    };
     for (const selector of ['.set-rail__group-title', '.set-rail__item', '.set-rail__section']) {
-      expect(rule(`${desktop} ${selector}`)).toContain('font-size: var(--ui-font-body, 14px);');
+      expect(deskRule(selector)).toContain('font-size: var(--ui-font-body, 14px);');
     }
     // The panel row: 8px padding, a 16px glyph and a 9px gap before its name.
-    const item = rule(`${desktop} .set-rail__item`);
+    const item = deskRule('.set-rail__item');
     expect(item).toContain('padding: 0 8px;');
     expect(item).toContain('gap: 9px;');
     expect(rule('.set-rail__glyph')).toContain('width: 16px;');
-    expect(rule(`${desktop} .set-rail__sections`)).toContain('padding: 0 0 4px 25px;');
+    expect(deskRule('.set-rail__sections')).toContain('padding: 0 0 4px 25px;');
     // The current place is its ring and its ink, never a heavier word.
-    const current = rule(`${desktop} .set-rail__item--active,\n${desktop} .set-rail__section--active`);
+    const current = deskRule('.set-rail__item--active,\n.set-rail__section--active');
     expect(current).toContain('font-weight: 400;');
-    expect(css.slice(css.indexOf(`${desktop} .set-rail`))).not.toMatch(/set-rail__(?:item|section)--active[^{]*\{[^}]*font-weight: [5-9]00/);
+    expect(css.slice(css.indexOf('Sand and plain glass'))).not.toMatch(/set-rail__(?:item|section)--active[^{]*\{[^}]*font-weight: [5-9]00/);
     expect(rule('.set-rail__section')).toContain('padding: 0 8px;');
     expect(designSystemDocs()).toContain('二级的字从一级的字那一列开始');
   });

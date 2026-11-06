@@ -2,20 +2,15 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { ColorPicker } from '../ui/ColorPicker';
 import { SettingsColor } from '../../features/settings/SettingsPrimitives';
-
-const runtime = vi.hoisted(() => ({ isMobileShell: false }));
-vi.mock('../../platform/runtime', () => ({ getPlatformRuntime: () => runtime }));
 
 function source(path: string): string {
   return readFileSync(resolve(process.cwd(), path), 'utf8');
 }
 
 describe('entity editor custom colours', () => {
-  afterEach(() => { runtime.isMobileShell = false; });
-
   it('uses the accent picker for any six-digit colour, including black and white', () => {
     expect(SettingsColor).toBe(ColorPicker);
     for (const value of ['#123456', '#ABCDEF', '#000000', '#ffffff']) {
@@ -30,18 +25,20 @@ describe('entity editor custom colours', () => {
     }
   });
 
-  it('does not pass a theme token as the native hex value and keeps mobile operable', () => {
-    for (const mobile of [false, true]) {
-      runtime.isMobileShell = mobile;
-      const html = renderToStaticMarkup(createElement(ColorPicker, {
-        value: 'hsl(var(--story-1))', onChange: () => {}, ariaLabel: 'Custom color',
-      }));
-      expect(html).toContain('color:hsl(var(--story-1))');
-      expect(html).not.toContain('value="hsl(');
-      expect(html).toContain('type="color"');
-      expect(html).toContain('Custom color</span>');
-      if (mobile) expect(html).toContain('set-color-picker__input');
-    }
+  it('does not pass a theme token as the native hex value and wears one glass swatch on every shell', () => {
+    const html = renderToStaticMarkup(createElement(ColorPicker, {
+      value: 'hsl(var(--story-1))', onChange: () => {}, ariaLabel: 'Custom color',
+    }));
+    expect(html).toContain('color:hsl(var(--story-1))');
+    expect(html).not.toContain('value="hsl(');
+    expect(html).toContain('type="color"');
+    expect(html).toContain('Custom color</span>');
+    // The native input sits inside the glass swatch; the old mobile picker is gone.
+    expect(html).toMatch(/<span class="set-color"[^>]*><label class="ui-swatch glass glass--rest glass--round">/);
+    expect(html).not.toContain('set-color-picker');
+    const picker = source('src/renderer/components/ui/ColorPicker.tsx');
+    expect(picker).not.toContain('isMobileShell');
+    expect(picker).not.toContain('set-color-picker');
   });
 
   it('can show only the colour control without visible hex or a custom-colour heading', () => {

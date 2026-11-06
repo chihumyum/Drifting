@@ -552,7 +552,6 @@
       "writeEmail": "Escrever e-mail",
       "submitFeedback": "Enviar feedback",
       "submitFeedbackDesc": "Pode incluir um diagnóstico sem dados sensíveis; nunca o texto do manuscrito.",
-      "submitFeedbackMailDesc": "Abre um e-mail vazio. O Drifting não anexa conteúdo do manuscrito automaticamente.",
       "feedback": "Feedback…",
       "tagline": "Para quem escreve acordado até altas horas da noite."
     },
@@ -998,7 +997,6 @@
     "firstChapter": "Escrever o primeiro capítulo"
   },
   "virtualChapterRow": {
-    "chapter": "Capítulo",
     "chapterNumber": "Capítulo {{n}}"
   },
   "editorOutline": {
@@ -1057,17 +1055,11 @@
   },
   "trashPanel": {
     "noProject": "Abra um projeto primeiro.",
-    "title": "Lixeira",
     "retention": "Mantido localmente até você excluir",
     "clear": "Esvaziar lixeira",
     "empty": "A lixeira está vazia.",
     "confirmPurge": "Excluir “{{label}}” permanentemente? Esta ação não pode ser desfeita.",
     "confirmPurgeAll": "Esvaziar a lixeira? Todos os {{count}} itens serão excluídos permanentemente, sem possibilidade de desfazer.",
-    "columns": {
-      "type": "Tipo",
-      "name": "Nome",
-      "deletedAt": "Excluído em"
-    },
     "restore": "Restaurar",
     "purgeNow": "Excluir agora",
     "restoreFailed": "Falha na restauração: {{error}}",
@@ -1449,7 +1441,6 @@
       "description": "Contexto recente e relevante compartilhado por todos os chats do Agent geral. O contexto antigo é compactado ou esquecido automaticamente.",
       "loading": "Carregando memória de trabalho…",
       "edit": "Editar",
-      "preview": "Prévia",
       "clear": "Limpar",
       "create": "Criar memória de trabalho",
       "editorLabel": "Editar WORKING_MEMORY.md",
@@ -2577,7 +2568,6 @@
       "outgoing": "Referências"
     },
     "actions": {
-      "add": "Adicionar",
       "remove": "Remover relação",
       "jump": "Ir para esta entidade",
       "linkEntity": "Vincular entidade"
@@ -2875,7 +2865,6 @@
   "superElement": {
     "title": "Visão dos elementos",
     "meta": "{{categories}} categorias · {{elements}} elementos",
-    "linkHint": "Escolha um segundo elemento ou capítulo · Esc cancela",
     "linkHintFrom": "De",
     "linkHintTo": "para… escolha um segundo elemento ou capítulo; Esc cancela",
     "focusOffTitle": "Desativar foco e mostrar todas as linhas de relação",
@@ -2955,7 +2944,6 @@
     "empty": {
       "noStorylines": "Ainda não há linhas narrativas",
       "noCategories": "Ainda não há categorias de elementos",
-      "categoryEmpty": "Vazio",
       "categoryNoElements": "Ainda não há elementos"
     }
   },
@@ -2968,7 +2956,6 @@
     "expand": "Expandir edição",
     "openFullTitle": "Ir para o editor completo",
     "openInEditor": "Abrir no editor",
-    "compactEdit": "Edição compacta",
     "collapseTitle": "Recolher em cartão",
     "collapse": "Recolher",
     "fullEditor": "Editor completo",
@@ -3499,7 +3486,6 @@
       "drawHint": "Arraste sobre a imagem para marcar uma região",
       "compose": "Comentário de região",
       "placeholder": "O que acha desta parte? ({{shortcut}} para salvar)",
-      "asTodo": "Como tarefa",
       "save": "Salvar",
       "kindLabel": "Tipo de comentário",
       "kindNote": "Comentário",

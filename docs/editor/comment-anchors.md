@@ -71,7 +71,7 @@ even while the toggle is off. A request from another paper is not shown.
   that item's anchor, including resolved and Copilot items.
 - Highlights are display-only. They never change ProseMirror DOM, Yjs or
   exports, and painters re-resolve anchors 150ms after prose DOM mutations.
-  On the desktop each anchor is drawn in sand: a dry highlighter swash along
+  Every shell draws each anchor in sand: a dry highlighter swash along
   every line it covers, on a text-free layer after the page inside
   `.editor__spread` that blends with the words like pigment (multiply /
   screen) so they keep their colour and read as lying on it
@@ -80,11 +80,9 @@ even while the toggle is off. A request from another paper is not shown.
   prose mutations on the next animation frame, the whole-book reader measures
   only rows near the viewport, and a hidden surface stops observing while
   keeping its sand. Selecting a comment draws its swash again along the lines
-  until the author clicks or types in the prose; resolving fades it out. The
-  paused mobile shell keeps the CSS Custom Highlight API wash, absent where the
-  API is unavailable. See `docs/design-system/materials.md` ("砂笔进正文").
-- Washes are per family (note rouge, TODO ochre, Copilot blue on hover), use
-  background colour only, and add no border, left bar or layout change.
+  until the author clicks or types in the prose; resolving fades it out. See `docs/design-system/materials.md` ("砂笔进正文").
+- Strokes are per family (note rouge, TODO ochre, Copilot blue on hover) and
+  add no border, left bar or layout change.
 
 ## Checks
 

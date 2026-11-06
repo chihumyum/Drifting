@@ -94,25 +94,33 @@ const pin = (driftNodeId: string | null, glass: boolean) =>
   );
 
 describe('Bottom Timeline head, rails and the drift panel in sand and glass', () => {
-  it('turns the desktop head into a glass slider, unchanging glass toggles and plain icons', () => {
+  it('turns the timeline head into a glass slider, unchanging glass toggles and plain icons', () => {
     const timeline = source('src/renderer/shells/desktop/views/DesktopBottomTimeline.tsx');
     const css = source('src/styles/bottom-timeline.css');
 
-    // 书序 / 叙事时 is one of two on desktop; the paused mobile shell keeps its segments.
-    expect(timeline).toContain('<GlassSlider\n              className="btl__view-toggle"');
-    expect(timeline).toContain('<SegmentedControl\n              className="btl__view-toggle"');
+    // 书序 / 叙事时 is one of two in every presentation: the phone's timeline wears the same slider.
+    expect(timeline).toContain('<GlassSlider\n            className="btl__view-toggle"');
+    expect(timeline).not.toContain('SegmentedControl');
     // 未归属 and 未放置: one word that never changes, resting glass, pressed or expanded.
-    expect(timeline.match(/: 'btl__toggle glass glass--rest glass--small'/g)).toHaveLength(2);
+    expect(timeline.match(/className="btl__toggle glass glass--rest glass--small"/g)).toHaveLength(2);
+    expect(timeline).not.toMatch(/btl__(unaffiliated-toggle|unplaced-btn|unplaced-chip-dot|head-btn)\b/);
     expect(timeline).toContain('aria-pressed={unaffiliatedVisible}');
     expect(timeline).toContain("{t('bottomTimeline.synthetic.unaffiliated')}");
-    // 铺开 and 定位 are a panel header's plain icon buttons; the graph entry stays glass.
+    // 铺开 and 定位 are a panel header's plain icon buttons; the graph entry stays glass, on the phone too.
     expect(timeline).toMatch(/<GhostIconButton\s+size="sm"\s+title=\{spreadTitle\}/);
     expect(timeline).toMatch(/glass="round"\s+className="workspace-super-view-entry"/);
+    expect(timeline).not.toContain('{!isMobilePresentation && (');
     // The unplaced popover's rows are menu rows led by the chapter's seal.
-    expect(timeline).toContain("'menu-surface__item btl__unplaced-row'");
+    expect(timeline).toContain('className="menu-surface__item btl__unplaced-row"');
     expect(timeline).toContain('<KindMark kind="chapter" seed={node.id} color={sl?.color} />');
-    // Rails, pins and the storyline names follow the desktop material.
-    expect(timeline).toContain('glass={!isMobilePresentation}');
+    // Rails, pins, clips and the storyline names wear the one material in every presentation.
+    expect(timeline).not.toContain('glass={!isMobilePresentation}');
+    expect(timeline).toMatch(/<ActRail[\s\S]*?\n\s+glass\n\s+\/>/);
+    expect(timeline).toMatch(/variant="bottom"\s+glass\s+xOffset=\{railOffset\}/);
+    expect(timeline).toMatch(/'btl-clip',\s+'glass glass--rest',\s+isSelected \? 'is-selected' : '',\s+isSelected \? 'is-on' : '',/);
+    expect(timeline).toContain('<span className="glass-wave" data-wave-key={node.id} aria-hidden="true" />');
+    expect(timeline).toContain("mark={<KindMark kind=\"storyline\" color={storyline.color || 'hsl(var(--ink-4))'} />}");
+    expect(timeline).toContain('{isSynthetic ? (\n            railMain');
     expect(timeline).toMatch(/<SandCell\s+selected=\{isRouteActive\}/);
     expect(timeline).toContain("t('bottomTimeline.storyline.chapterCount'");
     expect(timeline).not.toContain("'ch' : 'chs'");
@@ -124,14 +132,15 @@ describe('Bottom Timeline head, rails and the drift panel in sand and glass', ()
     expect(toggle).toMatch(/\[aria-expanded='true'\]\s*\{\s*background: var\(--glass-fill\);/);
     expect(toggle).not.toMatch(/hsl\(var\(--(rule|surface|accent)\)/);
     expect(css).not.toContain('.btl__state-toggle');
-    expect(css).toMatch(/\.btl--desktop \.btl-track \{\s*border-radius: 2px;/);
-    expect(block(css, '.btl--desktop .btl-axis__rail-add:hover {', '}')).toContain('background: transparent;');
+    expect(css).not.toContain('.btl--desktop');
+    expect(css).toMatch(/\.btl \.btl-track \{\s*border-radius: 2px;/);
+    expect(block(css, '.btl .btl-axis__rail-add:hover {', '}')).toContain('background: transparent;');
     const rows = block(css, '.btl__unplaced-popover--rows {', '/* ---------------- Unaffiliated toggle');
     expect(rows).toContain('--menu-line: color-mix(in srgb, var(--clip-color, hsl(var(--ink-3))) 50%, var(--glass-clear));');
     expect(rows).not.toContain('background: hsl(');
   });
 
-  it('makes the desktop act rail glass and leaves the paper chips to the paused shell', () => {
+  it('makes the act rail glass and leaves the paper chips to a rail drawn without it', () => {
     const desktop = rail(true);
     expect(desktop).toContain('class="actrail actrail--glass"');
     expect(desktop).toContain('class="actrail__label is-draggable glass glass--rest glass--small"');
@@ -153,7 +162,7 @@ describe('Bottom Timeline head, rails and the drift panel in sand and glass', ()
     );
   });
 
-  it('carries the desktop time pin as the act chip and its drop line as flowing glass', () => {
+  it('carries the timeline\'s time pin as the act chip and its drop line as flowing glass', () => {
     expect(pin(null, true)).toContain('class="btl-pin__label glass glass--rest glass--small"');
     const bound = pin('drift-1', true);
     expect(bound).toContain('kind-mark kind-mark--drift');
@@ -162,13 +171,13 @@ describe('Bottom Timeline head, rails and the drift panel in sand and glass', ()
     expect(pin(null, false)).not.toContain('glass');
 
     const css = source('src/styles/bottom-timeline.css');
-    // The accent wash and the CSS eddy stay with the paper (mobile) label only.
+    // The accent wash and the CSS eddy stay with the plain (non-glass) label only.
     expect(css).toContain('.btl-pin.is-bound .btl-pin__label:not(.glass) {');
     expect(css).toContain('.btl-pin.is-bound .btl-pin__label:not(.glass)::before {');
     expect(css).toContain('.btl-pin.is-bound .btl-pin__label:not(.glass):hover {');
-    const desktopPin = block(css, '.btl--desktop .btl-pin__label.glass {', '.btl-pin__label > .kind-mark {');
-    expect(desktopPin).not.toContain('accent');
-    expect(block(css, '.btl--desktop .btl-pin-line.is-dragging {', '}')).toContain(
+    const glassPin = block(css, '.btl .btl-pin__label.glass {', '.btl-pin__label > .kind-mark {');
+    expect(glassPin).not.toContain('accent');
+    expect(block(css, '.btl .btl-pin-line.is-dragging {', '}')).toContain(
       'mask-position: -96px calc(var(--flow, 0) * 1.6px);',
     );
     expect(css).toContain('.btl .actrail:not(.actrail--glass) .actrail__divider:hover::after {');
@@ -239,7 +248,9 @@ describe('Bottom Timeline head, rails and the drift panel in sand and glass', ()
 
     // One source for a lane's chapter colour: the slab at rest and the slab in the hand.
     expect(timeline).toContain('const clipColor = laneClipColor(storylineId);');
-    expect(timeline).toContain('laneColor: fromDrawer || isMobilePresentation ? undefined : laneClipColor,');
+    // The phone's drag is weighted and tinted the same way; only a chip from the holding popover is not.
+    expect(timeline).toContain('laneColor: fromDrawer ? undefined : laneClipColor,');
+    expect(timeline).toContain('weighted: fromDrawer ? undefined : {');
     // Written on the ghost alone, once per change of lane: no render, nothing on <html>.
     expect(drag).toContain('if (lane === tintedLane) return;');
     expect(drag).toContain("ghost.style.setProperty('--glass-cc', color ?? ownColor.glass);");

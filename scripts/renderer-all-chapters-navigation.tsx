@@ -91,7 +91,7 @@ export function Pane({ name }: { name: string }) {
           </div>}
           <VirtualChapterRow node={chapter} projectId="synthetic-book" index={index}
             fetchContent={reader.fetchContent} isFocused={false} isNavigationTarget={destination === chapter.id}
-            onActivate={noop} onContentUpdate={noop} chapterRoman={String(index + 1)}
+            onActivate={noop} onContentUpdate={noop}
             resolveEntityLinkColor={noColor} />
         </section>)}
       </div>

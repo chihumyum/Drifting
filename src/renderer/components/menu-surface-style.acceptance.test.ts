@@ -92,12 +92,12 @@ describe('shared menu surface style', () => {
     expect(item).toContain('border-radius: 4px;');
     expect(item).toContain('.menu-surface__check {');
     expect(controls).toContain(
-      "html:not([data-shell-mode='mobile']) :where(.menu-surface) .menu-surface__item::before {\n  inset: 0;",
+      "html[data-shell-mode] :where(.menu-surface) .menu-surface__item::before {\n  inset: 0;",
     );
     expect(controls).toContain(
-      "html:not([data-shell-mode='mobile']) .menu-surface__item:hover:not(:disabled)::before,",
+      "html[data-shell-mode] .menu-surface__item:hover:not(:disabled)::before,",
     );
-    expect(controls).toContain("html:not([data-shell-mode='mobile']) .menu-surface__item--danger::before,");
+    expect(controls).toContain("html[data-shell-mode] .menu-surface__item--danger::before,");
     expect(controls).toContain('  --menu-line: var(--menu-item-danger);');
     expect(separator).toContain('height: 0.5px;');
     expect(separator).toContain('margin: 5px 16px;');
@@ -393,29 +393,31 @@ describe('shared menu surface style', () => {
 });
 
 describe('floating layers, dialogs and the controls inside them', () => {
-  const desktop = ":where(html:not([data-shell-mode='mobile']))";
+  // The sand-and-glass dialog rules restyle the base rules laid out before
+  // them: the last rule for a selector is the one that wins.
+  const lastRule = (text: string, selector: string) => rule(text.slice(text.lastIndexOf(`\n${selector}`) + 1), selector);
 
   it('lifts dialogs, global search, the find bar and the notification center out of the desk like a menu', () => {
     const controls = source('src/styles/ui-controls.css');
     const search = source('src/styles/search.css');
     const notifications = source('src/renderer/components/notifications/NotificationPill.tsx');
-    const card = rule(controls, `${desktop} .modal-card {`);
+    const card = lastRule(controls, '.modal-card {');
 
     expect(card).toContain('background: var(--menu-surface-bg);');
     expect(card).toContain('border-radius: var(--menu-surface-radius);');
     expect(card).toContain('box-shadow: var(--menu-surface-shadow);');
     expect(card).toContain('border: 0;');
     // A thin mist of the desk's own colour instead of a dark scrim.
-    expect(rule(controls, `${desktop} .modal-root {`)).toContain(
+    expect(lastRule(controls, '.modal-root {')).toContain(
       'color-mix(in srgb, var(--workspace-ui-bg) 58%, transparent)',
     );
     expect(rule(search, '.gsearch-overlay {')).toContain(
       'color-mix(in srgb, var(--workspace-ui-bg) 58%, transparent)',
     );
     // Head, body and actions are parted by space, never by rules.
-    expect(rule(controls, `${desktop} .modal-header {`)).toContain('border-bottom: 0;');
-    expect(rule(controls, `${desktop} .modal-actions {`)).toContain('border-top: 0;');
-    expect(rule(controls, `${desktop} .modal-header__kicker {`)).toContain('text-transform: none;');
+    expect(lastRule(controls, '.modal-header {')).toContain('border-bottom: 0;');
+    expect(lastRule(controls, '.modal-actions {')).toContain('border-top: 0;');
+    expect(lastRule(controls, '.modal-header__kicker {')).toContain('text-transform: none;');
 
     for (const selector of ['.gsearch-modal {', '.editor-find-panel {', '.find-list {']) {
       const shell = rule(search, selector);
@@ -442,7 +444,7 @@ describe('floating layers, dialogs and the controls inside them', () => {
     const search = source('src/styles/search.css');
     const current = rule(
       controls,
-      "html:not([data-shell-mode='mobile']) .menu-surface__item.is-current:not(:hover)::before {",
+      "html[data-shell-mode] .menu-surface__item.is-current:not(:hover)::before {",
     );
 
     expect(current).toContain('opacity: 1;');
@@ -467,17 +469,18 @@ describe('floating layers, dialogs and the controls inside them', () => {
     expect(menu.match(/<GlassSlider/g)).toHaveLength(1);
     expect(menu).toContain('<GlassSelect');
     expect(menu).not.toContain("borderBottom: last ? 'none'");
-    // Both shells share the language dropdown; desktop theme keeps its slider.
-    expect(menu).toContain('const desktop = !getPlatformRuntime().isMobileShell;');
-    expect(rule(controls, "html:not([data-shell-mode='mobile']) .user-menu__group {")).toContain(
+    // Both shells share the theme slider and the language dropdown; only the
+    // keyboard rows are left out on the phone.
+    expect(menu).toContain('const keyboard = !getPlatformRuntime().isMobileShell;');
+    expect(rule(controls, "html[data-shell-mode] .user-menu__group {")).toContain(
       'border-bottom: 0;',
     );
     // Like every menu, its groups are parted by a hairline; its icons are 16px.
-    const hairline = rule(controls, "html:not([data-shell-mode='mobile']) .user-menu__group + .user-menu__group::before {");
+    const hairline = rule(controls, "html[data-shell-mode] .user-menu__group + .user-menu__group::before {");
     expect(hairline).toContain('height: 0.5px;');
     expect(hairline).toContain('background: var(--menu-separator);');
     expect(menu).not.toContain('size={13}');
-    expect(rule(controls, "html:not([data-shell-mode='mobile']) .user-menu__name {")).toContain(
+    expect(rule(controls, "html[data-shell-mode] .user-menu__name {")).toContain(
       'font-style: normal;',
     );
     // The theme slider and the language select stay within a menu row's
@@ -485,7 +488,7 @@ describe('floating layers, dialogs and the controls inside them', () => {
     // of the menu is one height.
     const tail = rule(
       controls,
-      "html:not([data-shell-mode='mobile']) .user-menu__item--static > :is(.glass-slider, .ui-select) {",
+      "html[data-shell-mode] .user-menu__item--static > :is(.glass-slider, .ui-select) {",
     );
     expect(tail).toContain('height: calc(24px + var(--ui-text-increment, 0px));');
     expect(tail).toContain('min-height: 0;');
@@ -501,11 +504,11 @@ describe('floating layers, dialogs and the controls inside them', () => {
     expect(button).toContain("primary: 'glass glass--primary glass--small',");
     expect(button).toContain("danger: 'glass glass--rest glass--small',");
     expect(button).toContain("ghost: '',");
-    expect(button).toContain('!getPlatformRuntime().isMobileShell');
-    const glassButton = rule(controls, "html:not([data-shell-mode='mobile']) .ui-button.ui-button--glass {");
+    expect(button).not.toContain('isMobileShell');
+    const glassButton = rule(controls, "html[data-shell-mode] .ui-button.ui-button--glass {");
     expect(glassButton).toContain('background: transparent;');
     expect(glassButton).toContain('border: 0;');
-    const danger = rule(controls, "html:not([data-shell-mode='mobile']) .ui-button.ui-button--glass.ui-button--danger,");
+    const danger = rule(controls, "html[data-shell-mode] .ui-button.ui-button--glass.ui-button--danger,");
     expect(danger).toContain('--glass-cc: hsl(var(--destructive));');
     expect(danger).toContain('color: hsl(var(--destructive));');
     // A destructive confirmation opens on Cancel; Enter never deletes.
@@ -526,7 +529,7 @@ describe('floating layers, dialogs and the controls inside them', () => {
     expect(select).toContain('const SEARCH_THRESHOLD = 8;');
     expect(rule(controls, '.ui-toggle-row {')).toContain('--glass-cc: var(--toggle-color, var(--glass-clear));');
     expect(rule(controls, '.ui-progress__fill {')).toContain('height: 2px;');
-    expect(rule(controls, "html:not([data-shell-mode='mobile']) .empty-state {")).toContain('font-style: normal;');
+    expect(rule(controls, "html[data-shell-mode] .empty-state {")).toContain('font-style: normal;');
     expect(source('src/renderer/components/ui/EmptyState.tsx')).toContain('hollow');
     expect(source('src/renderer/components/ui/LoadingStatus.tsx')).toContain('name="loader"');
     expect(loading).toContain('animation: loading-status-appear 0.16s ease-out var(--motion-loading-delay) both;');

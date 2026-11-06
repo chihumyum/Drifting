@@ -1,7 +1,7 @@
 import { SuperElementDriftCards, type SuperElementDriftCardsProps } from '../../../features/graph/SuperElementDriftCards';
 import {
   CELL_W, CELL_H, BAND_PILL_PX, BAND_SLOT_PX, BAND_RAIL_PX,
-  GROUP_HEADER_PX, CATEGORY_INNER_PAD_Y_TOP, DESKTOP_CATEGORY_INNER_PAD_Y_TOP,
+  GROUP_HEADER_PX, DESKTOP_CATEGORY_INNER_PAD_Y_TOP,
   CATEGORY_INNER_PAD_Y_BOTTOM, CATEGORY_GAP_X,
   cardColStep, ZOOM_MIN, ZOOM_MAX, BAND_PAD_CELLS,
   BAND_PAD_PX, BAND_OUTER_PAD_PX, BAND_OUTER_RESERVE_CELLS, STICKY_PAD_CELLS_X,
@@ -439,8 +439,8 @@ export function DesktopSuperElementView({ graphUi, driftPanel, SuperViewRelation
     return m;
   }, [bookElements, bookElementCategories]);
 
-  // Desktop sets a taller name plate into the frame's top edge.
-  const categoryPadTop = mobileShell ? CATEGORY_INNER_PAD_Y_TOP : DESKTOP_CATEGORY_INNER_PAD_Y_TOP;
+  // A taller name plate is set into the frame's top edge.
+  const categoryPadTop = DESKTOP_CATEGORY_INNER_PAD_Y_TOP;
   const categoryModels = useMemo<CategoryRenderModel[]>(() => {
     const known = new Set(bookElementCategories.map((c) => c.id));
     const models: CategoryRenderModel[] = [];
@@ -483,8 +483,8 @@ export function DesktopSuperElementView({ graphUi, driftPanel, SuperViewRelation
   // The band's leftmost edge in WORLD pixels. We center the band on world
   // x=0 so the category solver's anchorX=0 corresponds to the band's visual
   // center, giving the iceberg shape the right balance point.
-  // Desktop opens the band with the storyline name rail (BAND_RAIL_PX).
-  const bandRailPx = mobileShell ? 0 : BAND_RAIL_PX;
+  // The band opens with the storyline name rail (BAND_RAIL_PX).
+  const bandRailPx = BAND_RAIL_PX;
   const bandPxWidth = bandRailPx + bandWidthCells * BAND_SLOT_PX;
   const bandWorldLeft = -bandPxWidth / 2;
   // Band's visible top in world coords — offset down by BAND_OUTER_PAD_PX
@@ -1825,7 +1825,7 @@ export function DesktopSuperElementView({ graphUi, driftPanel, SuperViewRelation
   const viewportConfig = useMemo(() => ({ bandSticky, edgesViewportOnly, bandHeightCells, bandTopWorldY,
     cellWidth: CELL_W, cellHeight: CELL_H }), [bandSticky, edgesViewportOnly, bandHeightCells, bandTopWorldY]);
   const viewportRevision = useMemo(() => ({ pan, zoom }), [pan, zoom]);
-  const edgeWidths = mobileShell ? SUPER_ELEMENT_EDGE_WIDTHS.mobile : SUPER_ELEMENT_EDGE_WIDTHS.desktop;
+  const edgeWidths = SUPER_ELEMENT_EDGE_WIDTHS.desktop;
 
   // Desktop names an entity by its sand mark + name (the link-mode hint, the
   // new-relation dialog, the relation popover): an element's square in its
@@ -2143,11 +2143,13 @@ export function DesktopSuperElementView({ graphUi, driftPanel, SuperViewRelation
           elements: bookElements.length,
         })}
         onBack={close}
-        // Desktop keeps its relation types with the lines they name: the
-        // legend in the canvas's corner (SuperElementCanvasTools).
-        relationControl={mobileShell}
+        // The relation types stay with the lines they name: the legend in
+        // the canvas's corner (SuperElementCanvasTools).
+        relationControl={false}
         rightSlot={
           <>
+            {/* A touch screen has no Shift + click: the mobile shell links
+                two things through an explicit relation mode. */}
             {mobileShell && (
               <button
                 type="button"
@@ -2163,10 +2165,10 @@ export function DesktopSuperElementView({ graphUi, driftPanel, SuperViewRelation
                   : t('mobileWorkspace.superView.relationMode')}
               </button>
             )}
-            {/* Linking hint — surfaces when a shift-click is mid-flight, so
-                users know they need to click a second target. Desktop: one
-                unframed sentence; the source is its sand mark and name. */}
-            {!mobileShell && linkSource && (
+            {/* Linking hint — surfaces when a link is mid-flight, so users
+                know they need to click a second target: one unframed
+                sentence; the source is its sand mark and name. */}
+            {linkSource && (
               <span className="super-view-head__hint" role="status">
                 <span>{t('superElement.linkHintFrom')}</span>
                 <span className="super-view-head__hint-source">
@@ -2176,24 +2178,9 @@ export function DesktopSuperElementView({ graphUi, driftPanel, SuperViewRelation
                 <span>{t('superElement.linkHintTo')}</span>
               </span>
             )}
-            {mobileShell && linkSource && (
-              <div
-                style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 9.5,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.1em',
-                  color: 'hsl(var(--ink-3))',
-                  background: 'hsl(var(--paper))',
-                  border: '1px dashed hsl(var(--ink-3))',
-                  borderRadius: 3,
-                  padding: '3px 8px',
-                }}
-              >
-                {t('superElement.linkHint')}
-              </div>
-            )}
 
+            {/* The band's 聚焦 / 粘带 belong to the mobile shell's band layout;
+                the desktop islands search and thin their prose lines. */}
             {mobileShell ? (
               <>
                 <button
@@ -2219,13 +2206,6 @@ export function DesktopSuperElementView({ graphUi, driftPanel, SuperViewRelation
                   {t('superElement.stickyToggle', {
                     state: bandSticky ? t('superElement.stateOn') : t('superElement.stateOff'),
                   })}
-                </button>
-                <button
-                  className="super-element-reset"
-                  onClick={resetView}
-                  title={t('superElement.resetTitle')}
-                >
-                  {t('superElement.reset')}
                 </button>
               </>
             ) : (
@@ -2256,12 +2236,12 @@ export function DesktopSuperElementView({ graphUi, driftPanel, SuperViewRelation
                     {t('superElement.relate.relayout')}
                   </Button>
                 )}
-                <Button variant="ghost" size="sm" onClick={resetView} title={t('superElement.resetTitle')}>
-                  <BrushIcon name="rotate" size={13} />
-                  {t('superElement.reset')}
-                </Button>
               </>
             )}
+            <Button variant="ghost" size="sm" onClick={resetView} title={t('superElement.resetTitle')}>
+              <BrushIcon name="rotate" size={13} />
+              {t('superElement.reset')}
+            </Button>
           </>
         }
       />
@@ -2328,7 +2308,6 @@ export function DesktopSuperElementView({ graphUi, driftPanel, SuperViewRelation
                 bandHeightCells={bandHeightCells}
                 onNodeClick={handleNodeClick}
                 linkSourceNodeId={linkSource?.kind === 'node' ? linkSource.id : null}
-                desktop={!mobileShell}
                 onStorylineClick={handleStorylineClick}
               />
             </div>
@@ -2366,14 +2345,13 @@ export function DesktopSuperElementView({ graphUi, driftPanel, SuperViewRelation
                 markWeights={markWeights}
                 dropTarget={dropCategoryId === model.categoryId}
                 draggingElementId={carried?.id ?? null}
-                pinnedLabel={!mobileShell && model.category?.layoutMode === 'pinned' ? t('superElement.isles.pinned') : null}
+                pinnedLabel={model.category?.layoutMode === 'pinned' ? t('superElement.isles.pinned') : null}
                 elementCardRefs={leaving ? undefined : elementCardRefs}
                 onElementClick={handleElementClick}
                 onCategoryClick={handleCategoryClick}
                 onElementPreviewEnter={handleElementPreviewEnter}
                 onCategoryPreviewEnter={handleCategoryPreviewEnter}
                 onPreviewLeave={hoverLeave}
-                desktop={!mobileShell}
               />
             );
           })}
@@ -2444,7 +2422,9 @@ export function DesktopSuperElementView({ graphUi, driftPanel, SuperViewRelation
                 // and leave altogether while only its neighbourhood is shown.
                 if (!mobileShell && isolated && isleFocus && !selected) return null;
                 const receded = !mobileShell && isleFocus !== null && !selected;
-                // Islands draw relations without arrowheads; the direction reads on the detail card.
+                // Islands draw relations without arrowheads; the direction reads on the
+                // detail card. The mobile shell's band layout has no island card, so its
+                // arrowheads carry the direction.
                 const directed = mobileShell && edge.directed;
                 const markerId = relationArrowMarkerId('super-world-arrow', edge.id);
                 const d = relationEdgePath({
@@ -2499,25 +2479,25 @@ export function DesktopSuperElementView({ graphUi, driftPanel, SuperViewRelation
         {/* The legend of the lines, top right; while the floating island is
             open it steps left of the island (its card is 248px at 16px from
             the edge, its sheet a share of the canvas at 12px). */}
-        {!mobileShell && (
-          <SuperViewRelationLegend
-            canvas="element"
-            style={{
-              right: !islandSubject
-                ? 12
-                : islandMode === 'sheet'
-                  ? `calc(${(islandWidth * 100).toFixed(2)}% + 24px)`
-                  : 276,
-            }}
-            lead={(
-              <SuperElementLinesRow
-                linesOn={linesOn}
-                linesCount={thresholdLines.length}
-                onToggleLines={() => setLinesOn((value) => !value)}
-              />
-            )}
-          />
-        )}
+        {/* The prose lines (and their row) come from the mention graph,
+            which the mobile shell does not compute. */}
+        <SuperViewRelationLegend
+          canvas="element"
+          style={{
+            right: !islandSubject
+              ? 12
+              : islandMode === 'sheet'
+                ? `calc(${(islandWidth * 100).toFixed(2)}% + 24px)`
+                : 276,
+          }}
+          lead={mobileShell ? undefined : (
+            <SuperElementLinesRow
+              linesOn={linesOn}
+              linesCount={thresholdLines.length}
+              onToggleLines={() => setLinesOn((value) => !value)}
+            />
+          )}
+        />
 
         {/* Viewport-space edge layer — rendered when EITHER 粘带 or 聚焦
             is on. Mirrors the world-space edge SVG above (path + hit-target
@@ -2565,7 +2545,6 @@ export function DesktopSuperElementView({ graphUi, driftPanel, SuperViewRelation
               bandHeightCells={bandHeightCells}
               onNodeClick={handleNodeClick}
               linkSourceNodeId={linkSource?.kind === 'node' ? linkSource.id : null}
-              desktop={!mobileShell}
               onStorylineClick={handleStorylineClick}
             />
           </div>
@@ -2655,27 +2634,9 @@ export function DesktopSuperElementView({ graphUi, driftPanel, SuperViewRelation
         )}
 
         {/* Empty-state hint when there's literally nothing to show */}
-        {categoryModels.length === 0 && !mobileShell && (
+        {categoryModels.length === 0 && (
           <div className="se-canvas-empty">
             <EmptyState mark="category" message={t('superElement.empty.noCategories')} />
-          </div>
-        )}
-        {categoryModels.length === 0 && mobileShell && (
-          <div
-            style={{
-              position: 'absolute',
-              inset: 0,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontFamily: 'var(--font-sans)',
-              fontStyle: 'italic',
-              fontSize: 14,
-              color: 'hsl(var(--ink-3))',
-              pointerEvents: 'none',
-            }}
-          >
-            {t('superElement.empty.noCategories')}
           </div>
         )}
       </div>
@@ -2709,7 +2670,6 @@ export function DesktopSuperElementView({ graphUi, driftPanel, SuperViewRelation
       {/* Pending link modal — confirms a typed, direction-aware relation for
           a shift-click pairing. */}
       {pendingLink &&
-        !mobileShell &&
         (() => {
           const from = pendingLinkReversed ? pendingLink.target : pendingLink.source;
           const to = pendingLinkReversed ? pendingLink.source : pendingLink.target;
@@ -2816,163 +2776,6 @@ export function DesktopSuperElementView({ graphUi, driftPanel, SuperViewRelation
             </ModalRoot>
           );
         })()}
-      {pendingLink &&
-        mobileShell &&
-        (() => {
-          const { source, target } = pendingLink;
-          const sourceName =
-            source.kind === 'element'
-              ? (bookElements.find((e) => e.id === source.id)?.name ?? '?')
-              : (bookNodes.find((n) => n.id === source.id)?.title ?? '?');
-          const targetName =
-            target.kind === 'element'
-              ? (bookElements.find((e) => e.id === target.id)?.name ?? '?')
-              : (bookNodes.find((n) => n.id === target.id)?.title ?? '?');
-          const kindLabel = (k: 'element' | 'node') =>
-            k === 'element' ? t('superElement.kind.element') : t('superElement.kind.chapter');
-          return (
-            <ModalRoot onClose={closePendingLink} ariaLabel={t('storyGraph.edge.newTitle')}>
-              <ModalCard
-                width={pendingLinkCreatingType ? 560 : 440}
-                className="relation-type-create-modal"
-              >
-                <ModalHeader
-                  title={t('superElement.manualRelationTitle')}
-                  onClose={closePendingLink}
-                  closeLabel={t('common.close')}
-                />
-                <div
-                  style={{
-                    padding: '14px 18px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 8,
-                    fontFamily: 'var(--font-sans)',
-                    fontSize: 13,
-                    color: 'hsl(var(--ink-1))',
-                    lineHeight: 1.5,
-                  }}
-                >
-                  <div>
-                    <span style={{ color: 'hsl(var(--ink-4))', marginRight: 6 }}>
-                      [{kindLabel(pendingLinkReversed ? target.kind : source.kind)}]
-                    </span>
-                    <strong style={{ fontWeight: 500 }}>
-                      {pendingLinkReversed ? targetName : sourceName}
-                    </strong>
-                  </div>
-                  <div
-                    style={{
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: 10,
-                      color: 'hsl(var(--ink-4))',
-                      letterSpacing: '0.1em',
-                    }}
-                  >
-                    <button
-                      type="button"
-                      className="relation-endpoint-swap"
-                      onClick={() => {
-                        setPendingLinkReversed((value) => !value);
-                        setPendingLinkTypeId(null);
-                        setPendingLinkCreatingType(false);
-                      }}
-                    >
-                      <BrushIcon name="swap" size={10} inline /> <BrushIcon name="arrow-down" size={10} inline />{' '}
-                      {t('superElement.relationVerb')}
-                    </button>
-                  </div>
-                  <div>
-                    <span style={{ color: 'hsl(var(--ink-4))', marginRight: 6 }}>
-                      [{kindLabel(pendingLinkReversed ? source.kind : target.kind)}]
-                    </span>
-                    <strong style={{ fontWeight: 500 }}>
-                      {pendingLinkReversed ? sourceName : targetName}
-                    </strong>
-                  </div>
-                </div>
-
-                {/* Kind input + suggestions. Same shape as StoryGraphView's
-                  new-edge dialog: focus shows suggestions; mousedown on a
-                  suggestion fills the input without losing focus. */}
-                <div style={{ padding: '0 18px 14px' }}>
-                  <div className="relation-type-modal__heading">
-                    <div
-                      style={{
-                        fontFamily: 'var(--font-mono)',
-                        fontSize: 9.5,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.12em',
-                        color: 'hsl(var(--ink-4))',
-                      }}
-                    >
-                      {t('storyGraph.edge.kindLabel')}
-                    </div>
-                    <button
-                      type="button"
-                      className="relation-type-modal__create"
-                      onClick={() => setPendingLinkCreatingType((value) => !value)}
-                    >
-                      {pendingLinkCreatingType ? (
-                        t('relationTypes.chooseExisting')
-                      ) : (
-                        <>
-                          <BrushIcon name="plus" size={10} inline /> {t('relationTypes.createInline')}
-                        </>
-                      )}
-                    </button>
-                  </div>
-                  {pendingLinkCreatingType ? (
-                    <RelationTypeEditor
-                      key={`${source.kind}:${target.kind}:${pendingLinkReversed ? 'reversed' : 'forward'}`}
-                      initialSourceKinds={[pendingLinkReversed ? target.kind : source.kind]}
-                      initialTargetKinds={[pendingLinkReversed ? source.kind : target.kind]}
-                      onCancel={() => setPendingLinkCreatingType(false)}
-                      onSave={async (definition) => {
-                        const checked = validateRelationTypeDefinitionAgainstRelation(definition, {
-                          fromKind: pendingLinkReversed ? target.kind : source.kind,
-                          fromId: pendingLinkReversed ? target.id : source.id,
-                          toKind: pendingLinkReversed ? source.kind : target.kind,
-                          toId: pendingLinkReversed ? source.id : target.id,
-                        });
-                        if (!checked.ok) throw new Error(checked.message);
-                        const created = await relationTypeUsecases.createRelationType(definition);
-                        setPendingLinkTypeId(created.id);
-                        setPendingLinkCreatingType(false);
-                      }}
-                    />
-                  ) : (
-                    <RelationTypeField
-                      autoFocus
-                      value={pendingLinkTypeId}
-                      onChange={setPendingLinkTypeId}
-                      options={pendingLinkTypeOptions}
-                      resolveOptionColor={resolveRelationTypeColor}
-                      placeholder={t('storyGraph.edge.kindPlaceholder')}
-                      ariaLabel={t('storyGraph.edge.kindLabel')}
-                      buttonClassName="relation-type-field__button relation-type-field__button--full"
-                    />
-                  )}
-                </div>
-                <ModalActions>
-                  <Button onClick={closePendingLink} variant="default" size="sm">
-                    {t('common.cancel')}
-                  </Button>
-                  <Button
-                    disabled={!pendingLinkTypeId}
-                    onClick={() => {
-                      void confirmPendingLink();
-                    }}
-                    variant="primary"
-                    size="sm"
-                  >
-                    {t('storyGraph.edge.create')}
-                  </Button>
-                </ModalActions>
-              </ModalCard>
-            </ModalRoot>
-          );
-        })()}
 
       {/* Drift bottom-affordance — shared DriftPanel shell. Card content executes only inside
           the mounted panel; click / shift-click / popover commands stay here. */}
@@ -3020,16 +2823,8 @@ export function DesktopSuperElementView({ graphUi, driftPanel, SuperViewRelation
             selectedEdgeRelation.toId,
           )}
           color={resolveRelationTypeColor(selectedEdgeRelation.relationTypeId)}
-          sourceMark={
-            mobileShell
-              ? undefined
-              : entityMark(selectedEdgeRelation.fromKind, selectedEdgeRelation.fromId)
-          }
-          targetMark={
-            mobileShell
-              ? undefined
-              : entityMark(selectedEdgeRelation.toKind, selectedEdgeRelation.toId)
-          }
+          sourceMark={entityMark(selectedEdgeRelation.fromKind, selectedEdgeRelation.fromId)}
+          targetMark={entityMark(selectedEdgeRelation.toKind, selectedEdgeRelation.toId)}
           onDelete={() => {
             void deleteSelectedEdge();
           }}
@@ -3049,7 +2844,7 @@ export function DesktopSuperElementView({ graphUi, driftPanel, SuperViewRelation
               node={node}
               projectId={projectId}
               userId={userId}
-              markColor={mobileShell ? undefined : storylineColorOfNode(node.id)}
+              markColor={storylineColorOfNode(node.id)}
               anchorRect={activeDriftPopover.anchor}
               onClose={() => setActiveDriftPopover(null)}
               onOpenInEditor={(id) => {

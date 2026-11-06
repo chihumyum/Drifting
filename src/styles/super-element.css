@@ -16,6 +16,8 @@
  *   focused card holds a still ring; the source of a new relation holds the
  *   pressed ring; the card whose popover is open is drawn round (SandFrame).
  */
+/* `html[data-shell-mode]` and `:root[data-shell-mode]` match every shell: they
+   keep the weight these rules had while the mobile shell was excluded. */
 
 /* ── Chapter band ─────────────────────────────────────────────────── */
 .se-band {
@@ -70,7 +72,7 @@
 
 /* A storyline's name is a sidebar cell inset in the rail: its sand dash,
    structure type, a ring of its colour under the pointer. */
-html:not([data-shell-mode='mobile']) .se-band__name.sand-cell {
+html[data-shell-mode] .se-band__name.sand-cell {
   position: absolute;
   box-sizing: border-box;
   left: 8px;

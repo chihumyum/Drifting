@@ -37,7 +37,7 @@ import {
   SettingsToggle,
   type SettingsRegisterRef,
 } from '../SettingsPrimitives';
-import { settingsOnDesktop } from '../settings-on-desktop';
+import { getPlatformRuntime } from '../../../platform/runtime';
 import { BrushIcon } from '../../../components/ui/BrushIcon';
 import { GlassSelect } from '../../../components/ui/GlassSelect';
 import { KindMark } from '../../../components/ui/KindMark';
@@ -78,7 +78,6 @@ function EditorFontControl() {
     text: string;
   } | null>(null);
   const [manualOpen, setManualOpen] = useState(false);
-  const desktop = settingsOnDesktop();
 
   useEffect(() => {
     let cancelled = false;
@@ -244,7 +243,7 @@ function EditorFontControl() {
     <>
       <SettingsField
         className="set-font-tool__input"
-        small={desktop}
+        small
         value={systemFamilyDraft}
         maxLength={128}
         placeholder={t('settings.editor.font_system_manual_placeholder')}
@@ -273,11 +272,7 @@ function EditorFontControl() {
             type="button"
             role="radio"
             aria-checked={editorFontSource === option.source}
-            className={
-              desktop
-                ? 'set-font-card glass glass--rest' + (editorFontSource === option.source ? ' is-on' : '')
-                : 'set-font-option' + (editorFontSource === option.source ? ' set-font-option--active' : '')
-            }
+            className={'set-font-card glass glass--rest' + (editorFontSource === option.source ? ' is-on' : '')}
             disabled={option.disabled || fontBusy}
             onClick={() => setEditorFontSource(option.source)}
           >
@@ -301,61 +296,33 @@ function EditorFontControl() {
             </span>
           </div>
           <div className="set-font-tool__actions">
-            {desktop ? (
-              <span className="set-font-tool__select">
-                <GlassSelect
-                  value={knownSystemFont ? editorSystemFontFamily : null}
-                  options={systemFontOptions}
-                  onChange={selectKnownSystemFont}
-                  ariaLabel={t('settings.editor.font_system_placeholder')}
-                  placeholder={
-                    loadingSystemFonts
-                      ? t('settings.editor.font_system_loading')
-                      : t('settings.editor.font_system_placeholder')
-                  }
-                  disabled={loadingSystemFonts || systemFontsUnavailable || systemFonts.length === 0}
-                />
-              </span>
-            ) : (
-              <select
-                className="set-input set-font-tool__select"
-                aria-label={t('settings.editor.font_system_placeholder')}
-                value={knownSystemFont ? editorSystemFontFamily : ''}
-                disabled={loadingSystemFonts || systemFontsUnavailable || systemFonts.length === 0}
-                onChange={(event) => selectKnownSystemFont(event.target.value)}
-              >
-                <option value="">
-                  {loadingSystemFonts
+            <span className="set-font-tool__select">
+              <GlassSelect
+                value={knownSystemFont ? editorSystemFontFamily : null}
+                options={systemFontOptions}
+                onChange={selectKnownSystemFont}
+                ariaLabel={t('settings.editor.font_system_placeholder')}
+                placeholder={
+                  loadingSystemFonts
                     ? t('settings.editor.font_system_loading')
-                    : t('settings.editor.font_system_placeholder')}
-                </option>
-                {systemFontOptions.map((font) => (
-                  <option key={font.value} value={font.value}>
-                    {font.label}
-                  </option>
-                ))}
-              </select>
-            )}
+                    : t('settings.editor.font_system_placeholder')
+                }
+                disabled={loadingSystemFonts || systemFontsUnavailable || systemFonts.length === 0}
+              />
+            </span>
           </div>
-          {desktop ? (
-            <div className="set-font-tool__manual">
-              <SettingsButton
-                variant="ghost"
-                size="sm"
-                aria-expanded={manualOpen}
-                onClick={() => setManualOpen((open) => !open)}
-              >
-                <BrushIcon name={manualOpen ? 'chevron-down' : 'chevron-right'} size={11} />
-                {t('settings.editor.font_system_manual')}
-              </SettingsButton>
-              {manualOpen && <div className="set-font-tool__manual-actions">{manualField}</div>}
-            </div>
-          ) : (
-            <details className="set-font-tool__manual">
-              <summary>{t('settings.editor.font_system_manual')}</summary>
-              <div className="set-font-tool__manual-actions">{manualField}</div>
-            </details>
-          )}
+          <div className="set-font-tool__manual">
+            <SettingsButton
+              variant="ghost"
+              size="sm"
+              aria-expanded={manualOpen}
+              onClick={() => setManualOpen((open) => !open)}
+            >
+              <BrushIcon name={manualOpen ? 'chevron-down' : 'chevron-right'} size={11} />
+              {t('settings.editor.font_system_manual')}
+            </SettingsButton>
+            {manualOpen && <div className="set-font-tool__manual-actions">{manualField}</div>}
+          </div>
         </div>
 
         <div className="set-font-tool">
@@ -395,7 +362,7 @@ function EditorFontControl() {
         </div>
       </div>
 
-      {fontMessage && desktop && (
+      {fontMessage && (
         <SettingsNote
           className="set-font-message"
           icon={fontMessage.tone === 'error' ? 'status-stopped' : 'check'}
@@ -404,14 +371,6 @@ function EditorFontControl() {
         >
           {fontMessage.text}
         </SettingsNote>
-      )}
-      {fontMessage && !desktop && (
-        <div
-          className={`set-font-message set-font-message--${fontMessage.tone}`}
-          role={fontMessage.tone === 'error' ? 'alert' : 'status'}
-        >
-          {fontMessage.text}
-        </div>
       )}
     </div>
   );
@@ -467,7 +426,8 @@ export function EditorPanel({ registerRef }: { registerRef: SettingsRegisterRef 
   // readable sample while scaling that range into a visible 78–100% miniature
   // so the paper-width control still has immediate feedback on mobile.
   const mobilePreviewWidth = 78 + ((maxLineWidth - 480) / (1280 - 480)) * 22;
-  const desktop = settingsOnDesktop();
+  // Immersive writing belongs to the desktop workspace (behaviour, not look).
+  const desktop = !getPlatformRuntime().isMobileShell;
   const previewStyle = {
     '--set-mobile-preview-width': `${mobilePreviewWidth.toFixed(2)}%`,
   } as CSSProperties;
@@ -713,10 +673,9 @@ export function EditorPanel({ registerRef }: { registerRef: SettingsRegisterRef 
               {entityLinkColorMode === 'kind' && (
                 <div className="set-entity-link-colors">
                   {ENTITY_LINK_COLOR_KINDS.map((kind) => {
-                    // A label may not hold the swatch's own label on the desktop.
-                    const Row = desktop ? 'div' : 'label';
+                    // A label may not hold the swatch's own label.
                     return (
-                      <Row key={kind} className="set-entity-link-color">
+                      <div key={kind} className="set-entity-link-color">
                         <span className="set-entity-link-color__label">
                           {entityLinkKindLabels[kind]}
                         </span>
@@ -732,7 +691,7 @@ export function EditorPanel({ registerRef }: { registerRef: SettingsRegisterRef 
                             />
                           }
                         />
-                      </Row>
+                      </div>
                     );
                   })}
                 </div>
