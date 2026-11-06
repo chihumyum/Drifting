@@ -41,9 +41,13 @@ const bookends = args.includes('--bookends');
 const theme = option('theme', 'dark') === 'light' ? 'light' : 'dark';
 const size = Number(option('size', '1080'));
 if (size !== 1080 && size !== 2160) throw new Error('render.mjs: --size is 1080 or 2160');
+// --aspect 4:3 (stills only) lays the page out 1152×864 for a 4:3 cover: 1920×1440 (or 3840×2880).
+const aspect = option('aspect', '16:9');
+if (aspect !== '16:9' && aspect !== '4:3') throw new Error('render.mjs: --aspect is 16:9 or 4:3');
+if (aspect === '4:3' && !stills) throw new Error('render.mjs: --aspect 4:3 is for --stills (a cover)');
 const chrome = process.env.CHROME ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 // The page is laid out at 1152×648 CSS px and captured at 1920×1080 (or 3840×2160).
-const VIEW = { width: 1152, height: 648, deviceScaleFactor: (size === 2160 ? 3840 : 1920) / 1152 };
+const VIEW = { width: 1152, height: aspect === '4:3' ? 864 : 648, deviceScaleFactor: (size === 2160 ? 3840 : 1920) / 1152 };
 
 const pageDir = path.join(out, 'page');
 // The page is built for each language: its corners carry the landing's copy for it.
@@ -229,7 +233,7 @@ mkdirSync(out, { recursive: true });
 try {
   for (const lang of langs) {
     if (lang !== langs[0]) buildPage(lang);
-    await send('Page.navigate', { url: `${origin}/index.html?render&lang=${lang}&theme=${theme}` });
+    await send('Page.navigate', { url: `${origin}/index.html?render&lang=${lang}&theme=${theme}&aspect=${aspect}` });
     for (let i = 0; i < 200 && !(await evaluate('!!window.__promo')); i += 1) await new Promise((resolve) => setTimeout(resolve, 50));
     await evaluate('window.__promo.ready.then(() => true)');
     const duration = await evaluate('window.__promo.duration');
@@ -246,7 +250,7 @@ try {
       for (let frame = 0; frame <= last; frame += 1) {
         await evaluate(`window.__promo.step(${frame / fps})`);
         if (!wanted.has(frame)) continue;
-        const file = path.join(out, `still-${lang}-${(frame / fps).toFixed(2)}.png`);
+        const file = path.join(out, `still-${lang}-${(frame / fps).toFixed(2)}${aspect === '4:3' ? '-4x3' : ''}.png`);
         writeFileSync(file, await capture());
         console.log(file);
       }

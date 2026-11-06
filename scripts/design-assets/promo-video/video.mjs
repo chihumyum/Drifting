@@ -22,6 +22,9 @@ root.lang = lang === 'zh' ? 'zh-CN' : 'en';
 const theme = params.get('theme') === 'light' ? 'light' : 'dark';
 root.dataset.theme = theme;
 if (theme === 'dark') root.classList.add('dark');
+// ?aspect=4:3 lays the page out 1152×864 for a 4:3 cover (a still of the opening).
+const aspect = params.get('aspect') === '4:3' ? '4:3' : '16:9';
+root.dataset.aspect = aspect;
 const $ = (selector, within = document) => within.querySelector(selector);
 const $$ = (selector, within = document) => [...within.querySelectorAll(selector)];
 
@@ -407,6 +410,40 @@ function underScene(el, [from, to], rises) {
   return scene;
 }
 
+// The 4:3 cover: the tagline one phrase a line, its widest line as wide as
+// the word above it, and the word and the tagline centred together in the
+// taller frame.
+function fitCover() {
+  const hero = $('#s-hero');
+  const tagline = $('.tagline', hero);
+  // A break after each comma that has none yet (the video's own markup is left as it is).
+  const texts = [];
+  const walker = document.createTreeWalker($(`[data-l="${lang}"]`, tagline), NodeFilter.SHOW_TEXT);
+  while (walker.nextNode()) texts.push(walker.currentNode);
+  for (const text of texts) {
+    const commas = [...text.data.matchAll(/[，,] ?/g)]
+      .filter((comma) => comma.index + comma[0].length < text.data.length || text.nextSibling?.nodeName !== 'BR');
+    for (const comma of commas.reverse()) {
+      const rest = text.splitText(comma.index + 1);
+      rest.data = rest.data.replace(/^ /, '');
+      rest.before(document.createElement('br'));
+    }
+  }
+  // As wide as its widest line, at any size.
+  tagline.style.maxWidth = 'none';
+  tagline.style.width = 'max-content';
+  const target = innerWidth * SEA.wordSpan();
+  // Twice: the lines keep their breaks, but spacing rounds.
+  for (let pass = 0; pass < 2; pass += 1) {
+    const { width } = tagline.getBoundingClientRect();
+    tagline.style.fontSize = `${(parseFloat(getComputedStyle(tagline).fontSize) * target) / width}px`;
+  }
+  const box = charSeaWordBox(innerWidth, innerHeight, SEA);
+  const word = box.bottom - box.top;
+  const under = parseFloat(getComputedStyle(hero).paddingTop) + tagline.getBoundingClientRect().height;
+  SEA.wordCentreY = (innerHeight / 2 - (word + under) / 2 + word / 2) / innerHeight;
+}
+
 const canvas = $('#sea');
 let sea = null;
 let scenes = [];
@@ -421,6 +458,7 @@ async function setUp() {
     '600 24px "Inter Tight Variable"', '400 24px "Noto Serif SC Variable"', '700 24px "Times New Roman"',
   ].map((face) => document.fonts.load(face, lang === 'zh' ? '雾林岚 Aa' : 'Aa')));
   await document.fonts.ready;
+  if (aspect === '4:3') fitCover();
   sea = createCharSea(canvas, SEA);
   if (!sea) throw new Error('promo: the sea needs WebGL2');
   sea.refreshTheme();
