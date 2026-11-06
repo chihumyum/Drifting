@@ -45,6 +45,10 @@ if (size !== 1080 && size !== 2160) throw new Error('render.mjs: --size is 1080 
 const aspect = option('aspect', '16:9');
 if (aspect !== '16:9' && aspect !== '4:3') throw new Error('render.mjs: --aspect is 16:9 or 4:3');
 if (aspect === '4:3' && !stills) throw new Error('render.mjs: --aspect 4:3 is for --stills (a cover)');
+// --tagline 1.3 (stills only) sets a 16:9 cover's tagline 1.3 times its size.
+const tagline = Number(option('tagline', '1'));
+if (!(tagline >= 1 && tagline <= 2.5)) throw new Error('render.mjs: --tagline is 1 to 2.5');
+if (tagline !== 1 && (!stills || aspect !== '16:9')) throw new Error('render.mjs: --tagline is for --stills at 16:9 (a cover)');
 const chrome = process.env.CHROME ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 // The page is laid out at 1152×648 CSS px and captured at 1920×1080 (or 3840×2160).
 const VIEW = { width: 1152, height: aspect === '4:3' ? 864 : 648, deviceScaleFactor: (size === 2160 ? 3840 : 1920) / 1152 };
@@ -233,7 +237,7 @@ mkdirSync(out, { recursive: true });
 try {
   for (const lang of langs) {
     if (lang !== langs[0]) buildPage(lang);
-    await send('Page.navigate', { url: `${origin}/index.html?render&lang=${lang}&theme=${theme}&aspect=${aspect}` });
+    await send('Page.navigate', { url: `${origin}/index.html?render&lang=${lang}&theme=${theme}&aspect=${aspect}&tagline=${tagline}` });
     for (let i = 0; i < 200 && !(await evaluate('!!window.__promo')); i += 1) await new Promise((resolve) => setTimeout(resolve, 50));
     await evaluate('window.__promo.ready.then(() => true)');
     const duration = await evaluate('window.__promo.duration');
@@ -250,7 +254,7 @@ try {
       for (let frame = 0; frame <= last; frame += 1) {
         await evaluate(`window.__promo.step(${frame / fps})`);
         if (!wanted.has(frame)) continue;
-        const file = path.join(out, `still-${lang}-${(frame / fps).toFixed(2)}${aspect === '4:3' ? '-4x3' : ''}.png`);
+        const file = path.join(out, `still-${lang}-${(frame / fps).toFixed(2)}${aspect === '4:3' ? '-4x3' : ''}${tagline !== 1 ? `-tagline${tagline}` : ''}.png`);
         writeFileSync(file, await capture());
         console.log(file);
       }

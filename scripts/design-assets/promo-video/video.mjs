@@ -25,6 +25,8 @@ if (theme === 'dark') root.classList.add('dark');
 // ?aspect=4:3 lays the page out 1152×864 for a 4:3 cover (a still of the opening).
 const aspect = params.get('aspect') === '4:3' ? '4:3' : '16:9';
 root.dataset.aspect = aspect;
+// ?tagline=1.3 sets the 16:9 cover's tagline 1.3 times its size (a still of the opening).
+const taglineScale = Number(params.get('tagline')) || 1;
 const $ = (selector, within = document) => within.querySelector(selector);
 const $$ = (selector, within = document) => [...within.querySelectorAll(selector)];
 
@@ -410,12 +412,22 @@ function underScene(el, [from, to], rises) {
   return scene;
 }
 
-// The 4:3 cover: the tagline one phrase a line, its widest line as wide as
-// the word above it, and the word and the tagline centred together in the
-// taller frame.
+// A cover's tagline, larger, and the word and the tagline centred together.
+// On a 4:3 cover the tagline is one phrase a line, its widest line as wide as
+// the word above it; on a 16:9 one it keeps its lines, `taglineScale` times
+// its size.
 function fitCover() {
   const hero = $('#s-hero');
   const tagline = $('.tagline', hero);
+  if (aspect === '4:3') fitTaglineToWord(tagline);
+  else tagline.style.fontSize = `${parseFloat(getComputedStyle(tagline).fontSize) * taglineScale}px`;
+  const box = charSeaWordBox(innerWidth, innerHeight, SEA);
+  const word = box.bottom - box.top;
+  const under = parseFloat(getComputedStyle(hero).paddingTop) + tagline.getBoundingClientRect().height;
+  SEA.wordCentreY = (innerHeight / 2 - (word + under) / 2 + word / 2) / innerHeight;
+}
+
+function fitTaglineToWord(tagline) {
   // A break after each comma that has none yet (the video's own markup is left as it is).
   const texts = [];
   const walker = document.createTreeWalker($(`[data-l="${lang}"]`, tagline), NodeFilter.SHOW_TEXT);
@@ -438,10 +450,6 @@ function fitCover() {
     const { width } = tagline.getBoundingClientRect();
     tagline.style.fontSize = `${(parseFloat(getComputedStyle(tagline).fontSize) * target) / width}px`;
   }
-  const box = charSeaWordBox(innerWidth, innerHeight, SEA);
-  const word = box.bottom - box.top;
-  const under = parseFloat(getComputedStyle(hero).paddingTop) + tagline.getBoundingClientRect().height;
-  SEA.wordCentreY = (innerHeight / 2 - (word + under) / 2 + word / 2) / innerHeight;
 }
 
 const canvas = $('#sea');
@@ -458,7 +466,7 @@ async function setUp() {
     '600 24px "Inter Tight Variable"', '400 24px "Noto Serif SC Variable"', '700 24px "Times New Roman"',
   ].map((face) => document.fonts.load(face, lang === 'zh' ? '雾林岚 Aa' : 'Aa')));
   await document.fonts.ready;
-  if (aspect === '4:3') fitCover();
+  if (aspect === '4:3' || taglineScale !== 1) fitCover();
   sea = createCharSea(canvas, SEA);
   if (!sea) throw new Error('promo: the sea needs WebGL2');
   sea.refreshTheme();

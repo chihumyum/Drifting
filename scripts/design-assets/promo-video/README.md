@@ -8,6 +8,7 @@ node scripts/design-assets/promo-video/render.mjs                    # both lang
 node scripts/design-assets/promo-video/render.mjs --lang zh --fps 30 # one language, a quicker draft
 node scripts/design-assets/promo-video/render.mjs --stills 4.4,15    # PNGs at those seconds (covers, review)
 node scripts/design-assets/promo-video/render.mjs --stills 4.4 --aspect 4:3 --lang zh  # the 4:3 cover, 1920×1440
+node scripts/design-assets/promo-video/render.mjs --stills 4.4 --tagline 1.5 --lang zh  # a 16:9 cover, its tagline larger
 node scripts/design-assets/promo-video/render.mjs --sound-only       # new sound on the videos already rendered
 node scripts/design-assets/promo-video/render.mjs --bookends --lang zh --theme light --size 2160
 ```
@@ -16,7 +17,10 @@ The cover is the opening's still at 4.4 seconds: DRIFTING over its tagline.
 `--aspect 4:3` (stills only; `still-<lang>-<second>-4x3.png`) lays the page
 out 1152×864 for a feed's 4:3 cover. There the tagline is one phrase a line (a
 break after each comma), its widest line as wide as DRIFTING, and the two are
-centred together in the frame. The 16:9 frames are the same as without it.
+centred together in the frame. `--tagline 1.5` (stills at 16:9 only;
+`still-<lang>-<second>-tagline1.5.png`) sets the tagline 1.5 times its size on
+its own two lines, the two again centred together; the author's 16:9 cover
+uses 1.5. Without these the frames are the video's, byte for byte.
 
 `--bookends` renders only the opening (the rain, DRIFTING rising with the
 tagline, its burst) and the closing (DRIFTING again over drifting.cc and the
