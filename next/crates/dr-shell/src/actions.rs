@@ -50,6 +50,9 @@ actions!(
         ToggleNotifications,
         /// Opens the feedback dialog (M39, [`crate::dialogs`]).
         SendFeedback,
+        /// Imports Markdown, text and Word files into the open book (M41,
+        /// `dr-view-transfer` takes it with `cx.on_action`).
+        ImportDocuments,
         /// Esc: closes the topmost layer (a popover, Settings, a Super View).
         Dismiss,
     ]

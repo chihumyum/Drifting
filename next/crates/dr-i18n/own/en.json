@@ -49,5 +49,13 @@
     "bookTransfer": {
       "legacy": "This book was exported by Drifting 0.1. Import it there, then hand that library over to this version."
     }
+  },
+  "importDialog": {
+    "targets": {
+      "idea": {
+        "label": "Idea",
+        "desc": "Floating idea card — independent from storylines."
+      }
+    }
   }
 }

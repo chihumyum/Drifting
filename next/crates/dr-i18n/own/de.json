@@ -49,5 +49,13 @@
     "bookTransfer": {
       "legacy": "Dieses Buch wurde mit Drifting 0.1 exportiert. Importiere es dort und übergib die Bibliothek dann an diese Version."
     }
+  },
+  "importDialog": {
+    "targets": {
+      "idea": {
+        "label": "Idee",
+        "desc": "Freie Ideenkarte, unabhängig von Handlungssträngen."
+      }
+    }
   }
 }

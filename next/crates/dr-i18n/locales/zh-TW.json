@@ -224,13 +224,41 @@
     }
   },
   "importDialog": {
+    "categoryTitle": "類目",
+    "chooseFiles": "選擇檔案",
     "chooseFolder": "選擇資料夾",
+    "clear": "清除",
+    "filesTitle": "檔案",
+    "importing": "匯入中…",
+    "start": "開始匯入（{{count}}）",
     "status": {
-      "committed": "已匯入"
+      "committed": "已匯入",
+      "error": "錯誤",
+      "parsing": "解析中",
+      "ready": "已就緒"
     },
+    "storylineTitle": "故事線",
     "summary": {
-      "done": "完成"
-    }
+      "done": "完成",
+      "failed": "失敗",
+      "ok": "已匯入"
+    },
+    "targetTitle": "目標",
+    "targets": {
+      "chapter": {
+        "desc": "主線節點，會出現在時間線並計入字數。",
+        "label": "章節"
+      },
+      "element": {
+        "desc": "人物、地點、物品等參考資料，需選擇類目。",
+        "label": "要素"
+      },
+      "idea": {
+        "desc": "獨立於故事線的浮動構想卡片。",
+        "label": "構想"
+      }
+    },
+    "title": "匯入檔案"
   },
   "kvEditor": {
     "addField": "新增欄位",

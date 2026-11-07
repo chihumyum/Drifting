@@ -229,13 +229,41 @@
     }
   },
   "importDialog": {
+    "categoryTitle": "Category",
+    "chooseFiles": "Choose files",
     "chooseFolder": "Choose folder",
+    "clear": "Clear",
+    "filesTitle": "Files",
+    "importing": "Importing…",
+    "start": "Start import ({{count}})",
     "status": {
-      "committed": "imported"
+      "committed": "imported",
+      "error": "error",
+      "parsing": "parsing",
+      "ready": "ready"
     },
+    "storylineTitle": "Storyline",
     "summary": {
-      "done": "Done"
-    }
+      "done": "Done",
+      "failed": "failed",
+      "ok": "imported"
+    },
+    "targetTitle": "Target",
+    "targets": {
+      "chapter": {
+        "desc": "Mainline node — goes on the timeline and counts toward word stats.",
+        "label": "Chapter"
+      },
+      "element": {
+        "desc": "Reference material such as characters, places, or items. Requires a category.",
+        "label": "Element"
+      },
+      "idea": {
+        "desc": "Floating idea card — independent from storylines.",
+        "label": "Idea"
+      }
+    },
+    "title": "Import files"
   },
   "kvEditor": {
     "addField": "Add field",

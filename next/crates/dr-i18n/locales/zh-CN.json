@@ -224,13 +224,41 @@
     }
   },
   "importDialog": {
+    "categoryTitle": "归属类别",
+    "chooseFiles": "选择文件",
     "chooseFolder": "选择文件夹",
+    "clear": "清空",
+    "filesTitle": "文件 · FILES",
+    "importing": "导入中…",
+    "start": "开始导入 ({{count}})",
     "status": {
-      "committed": "已导入"
+      "committed": "已导入",
+      "error": "错误",
+      "parsing": "解析中",
+      "ready": "就绪"
     },
+    "storylineTitle": "归属故事线",
     "summary": {
-      "done": "完成"
-    }
+      "done": "完成",
+      "failed": "失败",
+      "ok": "成功"
+    },
+    "targetTitle": "类型 · TARGET",
+    "targets": {
+      "chapter": {
+        "desc": "主线节点 — 进时间线、参与字数统计。",
+        "label": "章节"
+      },
+      "element": {
+        "desc": "人物 / 地点 / 物件等参考资料。需选择类别。",
+        "label": "要素"
+      },
+      "idea": {
+        "desc": "构想卡 — 不归属任何故事线，独立悬浮。",
+        "label": "构想"
+      }
+    },
+    "title": "导入文件"
   },
   "kvEditor": {
     "addField": "新增字段",

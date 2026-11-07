@@ -1876,17 +1876,22 @@ dependencies = [
 name = "dr-view-transfer"
 version = "0.0.0"
 dependencies = [
+ "anyhow",
  "chrono",
+ "color_quant",
  "dr-export",
  "dr-i18n",
  "dr-shell",
  "dr-store",
+ "dr-testkit",
  "dr-ui",
  "dr-view-shelf",
  "dr-workspace",
  "futures",
  "gpui",
+ "gpui_platform",
  "log",
+ "png 0.18.1",
  "serde_json",
  "tempfile",
 ]

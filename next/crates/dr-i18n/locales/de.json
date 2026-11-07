@@ -229,13 +229,41 @@
     }
   },
   "importDialog": {
+    "categoryTitle": "Kategorie",
+    "chooseFiles": "Dateien auswählen",
     "chooseFolder": "Ordner auswählen",
+    "clear": "Leeren",
+    "filesTitle": "Dateien",
+    "importing": "Wird importiert…",
+    "start": "Import starten ({{count}})",
     "status": {
-      "committed": "importiert"
+      "committed": "importiert",
+      "error": "Fehler",
+      "parsing": "wird eingelesen",
+      "ready": "bereit"
     },
+    "storylineTitle": "Handlungsstrang",
     "summary": {
-      "done": "Fertig"
-    }
+      "done": "Fertig",
+      "failed": "fehlgeschlagen",
+      "ok": "importiert"
+    },
+    "targetTitle": "Ziel",
+    "targets": {
+      "chapter": {
+        "desc": "Knoten des Haupttexts: erscheint in der Zeitleiste und zählt zur Wortstatistik.",
+        "label": "Kapitel"
+      },
+      "element": {
+        "desc": "Referenzmaterial wie Figuren, Orte oder Gegenstände. Kategorie erforderlich.",
+        "label": "Element"
+      },
+      "idea": {
+        "desc": "Freie Ideenkarte, unabhängig von Handlungssträngen.",
+        "label": "Idee"
+      }
+    },
+    "title": "Dateien importieren"
   },
   "kvEditor": {
     "addField": "Feld hinzufügen",

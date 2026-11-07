@@ -229,13 +229,41 @@
     }
   },
   "importDialog": {
+    "categoryTitle": "Categoria",
+    "chooseFiles": "Escolher arquivos",
     "chooseFolder": "Escolher pasta",
+    "clear": "Limpar",
+    "filesTitle": "Arquivos",
+    "importing": "Importando…",
+    "start": "Iniciar importação ({{count}})",
     "status": {
-      "committed": "importado"
+      "committed": "importado",
+      "error": "erro",
+      "parsing": "analisando",
+      "ready": "pronto"
     },
+    "storylineTitle": "Linha narrativa",
     "summary": {
-      "done": "Concluir"
-    }
+      "done": "Concluir",
+      "failed": "falha",
+      "ok": "importado"
+    },
+    "targetTitle": "Destino",
+    "targets": {
+      "chapter": {
+        "desc": "Nó do texto principal: aparece na linha do tempo e conta nas estatísticas.",
+        "label": "Capítulo"
+      },
+      "element": {
+        "desc": "Referências como personagens, lugares ou objetos. Exige categoria.",
+        "label": "Elemento"
+      },
+      "idea": {
+        "desc": "Cartão de ideia flutuante, independente das linhas narrativas.",
+        "label": "Ideia"
+      }
+    },
+    "title": "Importar arquivos"
   },
   "kvEditor": {
     "addField": "Adicionar campo",

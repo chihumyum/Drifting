@@ -1,6 +1,6 @@
 # M41 导出
 
-2026-11-08，第一个里程碑：成稿导出（EPUB / PDF / Word）和 Markdown 分享。计划见 [modules.md 的 M41](../modules.md)。排版搬自旧版 `src-tauri/src/manuscript_export/*`，放进新的服务层 crate `next/crates/dr-export/`；新写的是「Loro → 成稿」的转换和 Markdown；界面在 `next/crates/dr-view-export/`，外壳挂在页面右下角的 ⋯ 菜单。`.driftingbook` v2、整库备份、导入 docx 和 Markdown 也在 M41 的那一行里，这一轮没做，见「待协调」。
+2026-11-08，第一个里程碑：成稿导出（EPUB / PDF / Word）和 Markdown 分享。计划见 [modules.md 的 M41](../modules.md)。排版搬自旧版 `src-tauri/src/manuscript_export/*`，放进新的服务层 crate `next/crates/dr-export/`；新写的是「Loro → 成稿」的转换和 Markdown；界面在 `next/crates/dr-view-export/`，外壳挂在页面右下角的 ⋯ 菜单。第二部分（同一天）是搬运：`.driftingbook` v2、导入 Markdown / 文本 / Word、整库备份与恢复，见文末「第二部分：搬运」。
 
 ## 做了什么（大白话）
 
@@ -79,10 +79,10 @@ dialog.markdown_mut().unwrap().copy(cx) / save(cx)
 
 ## 待协调
 
-1. **F6（外壳设置）**：导出记住的选择（作者名、每本书的格式、两个开关、改过的书名）现在只在这次运行里有效。要跨重启记住，需要在设置文件里给它几把键（旧版是 `localStorage` 的 `drifting.manuscriptExport.v1`）。
+1. **F6（外壳设置）**：导出记住的选择——F6 第六轮已经存进设置文件（`export.author`、`books.<id>.export`），`prefs.rs` 的「只在这次运行里」说明等两边合到一起时改。
 2. **F6（⋯ 菜单）**：构想、要素、故事线、类目页还没有 ⋯ 菜单；有了以后在最上面加「分享」（调 `open_export(Request::Markdown(Doc("element:<id>")))` 这类，`export_items` 可以直接复用）。
 3. **编辑器字体设置（F4 / F6）**：旧版 PDF 先试作者选的编辑器字体（`preferredFont`）；新版有这个设置以后传给 `read_manuscript` 的 `preferred_font`。
-4. **M41 下一轮**：`.driftingbook` v2、整库备份、导入 docx 和 Markdown 还没做；分享链接属于在线服务，不在这里。
+4. **M41 第二部分**：已做，见下文；分享链接属于在线服务，不在这里。
 5. **dr-i18n**：`sync-locales.py` 的那处修复（见「定下的事」），请 dr-i18n 的维护者过目。
 6. **进度表**：`progress.md` 的 M41 一行等合进 main 时由监管会话写。
 
@@ -97,4 +97,120 @@ next/crates/dr-shell/src/workspace/corner.rs       ⋯ 菜单的两行、通览�
 next/crates/dr-i18n/keys.txt                       manuscriptExport.*、markdownShare.*（从旧版搬）
 next/crates/dr-i18n/script/sync-locales.py         整棵搬文案时带上没有复数形式的语言的那个键
 next/crates/dr-shell/examples/m06-m07-capture.rs   截图（加了 m41）
+next/crates/dr-export/src/book_file.rs             .driftingbook v2：写出、读入、改写 id
+next/crates/dr-export/src/import/                  导入 Markdown / 文本 / Word（解析、写进书）
+next/crates/dr-view-transfer/                      书卡导出、导入书、导入文件、备份与恢复的对话框
+next/crates/dr-view-transfer/examples/transfer-capture.rs  第二部分的截图
 ```
+
+---
+
+## 第二部分：搬运
+
+2026-11-08 下午。监管会话派的顺序：`.driftingbook` v2、导入 Markdown / 文本 / Word、整库备份与恢复的对话框。读写在 `dr-export`（`book_file.rs`、`import/`），界面在新的 `next/crates/dr-view-transfer/`（依赖 dr-shell，和 M10 的 dr-view-import 一样；不能放进 dr-view-export，dr-shell 依赖它）。导入文件的解析和写入是后台子代理在自己的 worktree 里做的，合进来以后由我接界面。
+
+### 做了什么（大白话）
+
+1. **一本书存成一个文件，再导回来（`.driftingbook` v2）。**
+   - 书架上书卡悬停时多一个「导出这本书（.driftingbook）」的箭头（旧版的位置：编辑和移进最近删除旁边），点了弹保存面板，写出 `<书名>.driftingbook`。
+   - 书架左栏的「导入书（.driftingbook）」原来只是个占位，现在弹文件面板，选了文件出一个「正在导入」的小对话框带进度条，导完对话框消失，新书出现在书架上（书架在索引写进来时会自己重读）。
+   - **导入永远是加一本新书**，不会盖掉任何书，连它自己的原书也不会：同一个文件在同一个库里导两次，就有三本并排。复本和原书不共用任何 id。
+   - 带过去的：书目文档（章节、构想、故事线、要素、类目、关系、批注、素材、情节规划、幕、时间钉、设定、项目记忆、写作日、最近删除里的东西）和这本书的每一篇正文，**连同它们的历史**；图片、PDF 的原件、显示版、缩略图。不带的：这台设备的本机状态（最近打开、布局）、历史标签、派生索引（导入后重建）。
+   - 出错时说旧版的那几种原因：不是 Drifting 的书、更新版本导出的、太大、文件坏了、没导成；导一半失败，已经写进去的全部删掉，库和导入前一样。
+   - **旧版（0.1）导出的 `.driftingbook`（v1）读不了**：里面是 0.1 的同步包和 Yjs 状态（P0-E 的结论）。会说「这本书是 Drifting 0.1 导出的。请在旧版里导入它，再把旧版资料库交接给新版。」（新写的一句，九种语言）。
+2. **把 Markdown、文本、Word 文件导进这本书**（旧版的「导入文件」对话框）。
+   - 入口：书里左下角账户菜单的「导入　MD · DOCX · TXT」（旧版账户菜单的那一行；书架上的账户菜单没有这一行）。
+   - 一次只导一种：章节（归到选的故事线，排在最后一章后面）、要素（归到选的类目）、构想。
+   - 「选择文件」或「选择文件夹」（文件夹里只取 `.md`、`.markdown`、`.txt`、`.docx`，按自然顺序：`2` 在 `10` 前面）。每个文件加进来就在后台读，读完显示「就绪」，标题（开头的一级标题，没有就用去掉序号的文件名）可以改。
+   - 「开始导入（N）」按顺序写；每个文件各算各的，要素重名的那一个报错，其余照样导进去；最后一行「完成 · 成功 N · 失败 M」。
+   - 标题、引用、分隔线、居中 / 靠右、粗体 / 斜体 / 下划线 / 删除线、网址链接、段内换行都带过来；H4–H6 变成 H3；列表、代码变成普通段落；Word 里的图片去掉并提示。
+3. **整库备份与恢复**（旧版「本地数据」里的两行，照 0.1 的文案）。
+   - 备份：保存面板（`Drifting-<日期>.drifting`），「正在备份…」，写完说「已保存「…」。共 N 个项目、M 个素材文件，大小。」，本机缺了的素材文件也说一句。库照常用，不用关。
+   - 恢复：选文件，「正在核对…」（检查每个校验和、数据库完好，旧了就在旁边升级；库照常开着），然后问旧版那一句：用哪个文件替换、备份时间、内容、有哪些书，以及「当前资料库会先自动存成恢复前副本」。「替换并恢复」交给外壳去关库、换库、重开；「取消」把核对出来的副本删掉。
+   - 0.1 的整库备份（格式 1）不能直接恢复，会说「这是 Drifting 0.1 的备份…请先在 Drifting 0.1 里恢复它，再在书架上用「导入 · Drifting 0.1」导入那个资料库。」（新写的一句）。
+   - **入口和换库还没接上**：设置里的两行按钮、动作 `BackupLibrary` / `RestoreLibrary` 在 F6 第六轮的分支上，换库要外壳关掉所有拿着库的地方再重开，方案写在共享笔记 `m41-backup-restore-plan.md`，监管会话已转给 F6。对话框现在由测试驱动（备份是真文件，核对是真核对，替换是测试给的替身）。
+
+截图在 [m41/](m41/)：`transfer-book-importing`、`transfer-book-refused`、`transfer-documents`、`transfer-backup`、`transfer-restore`，浅色深色各一套。
+
+### 文件格式（`.driftingbook` 版本 2）
+
+```text
+manifest.json                      format "drifting.book"、formatVersion 2、appVersion、exportedAtMs、title、book、
+                                   documents[{id, path, sha256, sizeBytes}]、assets[{asset, variant, mime, ext, width?, height?, path, sha256, sizeBytes}]
+docs/<n>.loro                      每篇文档的 Loro 快照（带历史），书目文档在最后
+assets/<asset>/<variant>.<ext>     资源的每个存着的版本，原样
+```
+
+- 和旧版 v1（CBOR）不同，换成 ZIP 加清单：和整库备份（`.drifting` v2）同一种做法，大文件不用整个读进内存，也能用普通工具打开看。格式名和「最大 1 GiB」照旧版。
+- 每个文件读进来都核对大小和 SHA-256；多版本（更新的格式）、旧版（CBOR 里写着 `drifting.book`）、不是书，分别报。
+
+### 定下的事
+
+- **新 id 怎么换**（这是这一部分最难的地方）：不能整篇重建（那要把每种集合、每个标记的写法都再写一遍，模式一改就漏），而是**改写每篇文档的变更**：
+  - 用 Loro 的 JSON 变更（不压缩对等方），在**类型化的结构上**改（`loro::json`），不能先转成 JSON 文本再转回来——JSON 里的二进制值会变成数字列表，可合并子容器的标记（`ensure_mergeable_map` 留下的校验和）和批注锚点都会坏。
+  - 换的 id：书本身、书目文档里每个集合的键、每篇文档的实体、每个资源。不含冒号的 id 换成新的 uuidv7；派生出来的 id（`rt-generic:<书>`、生成的 TODO `todo:…:<文档>#<段>`、位置链接）跟着里面的 uuid 走。字符串里的 uuid 按 uuid 的样子扫出来再查表，不会误伤正文——**正文插入的文字一个字都不动**。
+  - 可合并子容器的名字（`🤝:$<集合>><键>`）按段拆开、去掉转义、换、再转义回去，所以不是 uuid 的 id（比如样书里的设定）也跟得上；容器的标记按新的父容器和键**重新算校验和**。
+  - 每篇文档的「出生」变更（dr-doc 用确定的对等方写的第一笔）挪到新文档 id 的出生对等方上，这样它和这一版给新 id 写的出生变更**一模一样**，Loro 去重；写进去以后核对操作数，多一笔就当文件坏了。
+  - 变更的 id 不变，所以批注锚点、块 ID、历史都照常能用。
+- **写入顺序**：资源 → 正文 → 书目文档最后（书目文档一写进去书就出现在书架上）；失败就把写进去的文档清掉（清掉后再忘掉「已清除」的记录）、资源删掉。
+- **注册了但没写过的文档不带**（比如一个从没打开过的类目页）：新库里第一次打开时照常新建。
+- **导入文件**：解析和写入的规则见 `dr-export/src/import/` 的文档注释（子代理定的，我看过）：故事线可以不选（旧版必须选；F3 允许不选）；先用 F3 的创建命令建出来（每个文件一条可撤销的日志、命名规则照旧），再一次提交写上格式；中日韩字之间的软换行直接相连不加空格（旧版会加一个）。
+- **入口放在哪**：书架上的两个动作（`ExportBook` 新加，`ImportBook` 原有）、外壳的 `ImportDocuments`（新加）都由 `dr_view_transfer::init` 用 `cx.on_action` 接，和 M10 一样；对话框是外壳的模态对话框位置。
+- **不加说明文字**：文案都是旧版搬来的；新写的只有 0.1 文件那两句。旧版导入对话框「构想」那一项的键名是 `importDialog.targets.inspiration`，键名里的 inspiration 过不了术语门禁（构想不叫灵感），所以把它的标签和说明原样抄进新版自己的文案，键名改成 `importDialog.targets.idea`。旧版导入对话框顶上那段「支持 `.md` / `.docx` / `.txt`…」的说明、没有故事线 / 类目时的两句提示没搬（这一版允许不选）。
+
+### 外壳和其他模块里的挂接点（逐条）
+
+1. `dr-shell/src/actions.rs`：新动作 `ImportDocuments`。
+2. `dr-shell/src/account.rs`：书里的账户菜单加一行「导入　MD · DOCX · TXT」，派发它（书架上的账户菜单不加）。
+3. `dr-view-shelf/src/view.rs`：新动作 `ExportBook { book }`、书卡悬停多一个导出箭头；删掉 `ImportBook` 的占位处理（不删的话动作到不了 `dr_view_transfer`）。
+4. `app/drifting/src/main.rs`：`dr_view_transfer::init(cx)`（在 `dr_view_import::init` 后面）。
+5. 合并 F6 第六轮以后要加的两行（`dr_view_transfer::init` 里）：
+   ```rust
+   cx.on_action(|_: &dr_shell::actions::BackupLibrary, cx| dr_shell::menus::after_dispatch(cx, backup::backup));
+   cx.on_action(|_: &dr_shell::actions::RestoreLibrary, cx| { /* backup::restore(<外壳的换库>, cx) */ });
+   ```
+
+### 接口
+
+```rust
+// dr-export
+book_file::export_book(&ws, book, dest, &|Progress{done, total}| …) -> Result<BookFileSummary, BookFileError>
+book_file::import_book(&ws, path, &|Progress| …) -> Result<BookFileSummary /* 新书的 id */, BookFileError>
+book_file::book_filename(title)          // `<书名>.driftingbook`
+import::{parse_file, import_docs, files_in_folder, order_import_files, ImportTarget, ParsedDoc, …}
+
+// dr-view-transfer
+book::{export, import, export_path, import_path}
+documents::{open, show, DocumentsDialog}
+backup::{backup, backup_path, restore, restore_path, Replace}
+// Replace = Rc<dyn Fn(StagedBackup, &mut App) -> Task<Result<(), String>>>：外壳关库、Library::restore_staged、重开
+```
+
+### 测量（只作参考）
+
+release，机器负载 21–25，导出到同一个库再导回来（新 id）：
+
+| 书 | 文档 | 文件 | 导出 | 导入 |
+| --- | ---: | ---: | ---: | ---: |
+| dr-testkit 轻量种子 | 81 | 0.4 MB | 30 ms | 350 ms |
+| dr-testkit 重型种子（100 章、150 万字） | 680 | 5.7 MB | 261 ms | 4.0 s |
+
+都在后台线程，导入时对话框有进度条（每写完一篇走一格）。导入的时间主要花在把每篇文档的变更转成类型化 JSON、改写、再导入一份新文档，以及每篇写完后的压缩；重型种子 4 秒可以接受，真要快可以把改写放到多个线程（文档之间互不相干）。
+
+### 测试
+
+- `dr-export/tests/book_file.rs`：
+  - 一本有链接、锚定批注、关系、图片文件、最近删除、写作日的书导出再导进同一个库：读起来和原书一样，原书没动，两本不共用任何 id，链接、关系、批注、故事线都指向复本自己，图片文件在复本的 id 下、字节相同，字数重建；同一文件再导一次，三本并排。
+  - 导进另一个库、再导出、再导回原库，都和原书一样。
+  - dr-testkit 的 tiny 种子（每种东西都有一点）和《慢钟》导回来，dr-testkit 的摘要（按名字不按 id 读整本书）完全相同，同库和另一个库都是。
+  - 坏了的文件、不是书、0.1 的文件、更新版本的文件：各报各的原因，库里文档数和资源一个不多。
+- `dr-export/tests/import.rs` 和 `src/import/` 的单元测试（子代理写的）：三种格式的解析、标题规则、写进书里再读回来。
+- `dr-view-transfer/tests/`：书卡的导出动作经保存面板写出文件、导入时对话框出现又消失、多出一本书；不是书的文件报「这不是 Drifting 导出的书。」；备份写出真文件、恢复核对后问、确认后把核对过的副本交给替换步骤，替换失败说原因，取消什么都不交；不是备份的文件报「不是有效的 Drifting 备份」；导入文件：账户菜单的动作打开对话框，文件夹里只取能读的、自然顺序，标题可改，章节进选的故事线，重名要素单独失败。
+
+### 待协调
+
+1. **F6**：恢复要的换库函数（关库、`Library::restore_staged`、重开、重新装进 `Services` 和各模块），以及合并第六轮后在 `dr_view_transfer::init` 加两行接动作（见上面挂接点 5）。旧版文案里的「打开恢复前副本」按钮（`Library::pre_restore_backups` 有）也在设置那两行旁边，归 F6。
+2. **F2**：备份、核对、恢复的进度回调加上以后，对话框的进度条从「不确定」换成真进度。
+3. **合并**：F6 第六轮也改 `dr-shell/src/actions.rs`（加 `BackupLibrary`、`RestoreLibrary`），和这里的 `ImportDocuments` 在同一个列表里，合并时两边都留。
+4. **M01（书架）**：书卡多了导出箭头、`ImportBook` 的占位删了；导入完书架靠索引事件重读，F2 的导入不发书目事件。
+5. **导入文件的警告文案**：Word 去掉图片、文本不是 UTF-8 时的提示现在是英文（旧版也是英文），要九种语言得新写几句。

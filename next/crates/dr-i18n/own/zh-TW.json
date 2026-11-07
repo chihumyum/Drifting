@@ -44,5 +44,13 @@
     "bookTransfer": {
       "legacy": "這本書是 Drifting 0.1 匯出的。請在舊版裡匯入它，再把舊版資料庫交接給新版。"
     }
+  },
+  "importDialog": {
+    "targets": {
+      "idea": {
+        "label": "構想",
+        "desc": "獨立於故事線的浮動構想卡片。"
+      }
+    }
   }
 }

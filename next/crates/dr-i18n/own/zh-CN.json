@@ -44,5 +44,13 @@
     "bookTransfer": {
       "legacy": "这本书是 Drifting 0.1 导出的。请在旧版里导入它，再把旧版资料库交接给新版。"
     }
+  },
+  "importDialog": {
+    "targets": {
+      "idea": {
+        "label": "构想",
+        "desc": "构想卡 — 不归属任何故事线，独立悬浮。"
+      }
+    }
   }
 }

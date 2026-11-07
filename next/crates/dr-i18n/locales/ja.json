@@ -224,13 +224,41 @@
     }
   },
   "importDialog": {
+    "categoryTitle": "カテゴリ",
+    "chooseFiles": "ファイルを選択",
     "chooseFolder": "フォルダを選択",
+    "clear": "消去",
+    "filesTitle": "ファイル",
+    "importing": "インポート中…",
+    "start": "インポート開始（{{count}}）",
     "status": {
-      "committed": "インポート済み"
+      "committed": "インポート済み",
+      "error": "エラー",
+      "parsing": "解析中",
+      "ready": "準備完了"
     },
+    "storylineTitle": "ストーリーライン",
     "summary": {
-      "done": "完了"
-    }
+      "done": "完了",
+      "failed": "失敗",
+      "ok": "インポート済み"
+    },
+    "targetTitle": "対象",
+    "targets": {
+      "chapter": {
+        "desc": "本編のノードです。タイムラインに入り、文字数に計上します。",
+        "label": "章"
+      },
+      "element": {
+        "desc": "人物・場所・物などの設定資料です。カテゴリが必要です。",
+        "label": "要素"
+      },
+      "idea": {
+        "desc": "ストーリーラインから独立したアイデアカード。",
+        "label": "アイデア"
+      }
+    },
+    "title": "ファイルをインポート"
   },
   "kvEditor": {
     "addField": "項目を追加",

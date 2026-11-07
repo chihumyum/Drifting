@@ -49,5 +49,13 @@
     "bookTransfer": {
       "legacy": "Este livro foi exportado pelo Drifting 0.1. Importe-o lá e depois transfira essa biblioteca para esta versão."
     }
+  },
+  "importDialog": {
+    "targets": {
+      "idea": {
+        "label": "Ideia",
+        "desc": "Cartão de ideia flutuante, independente das linhas narrativas."
+      }
+    }
   }
 }

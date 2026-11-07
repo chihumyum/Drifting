@@ -595,3 +595,24 @@ settings.sync.backup.restoreConfirmButton
 settings.sync.backup.errors.invalid
 settings.sync.backup.errors.newer
 settings.sync.backup.errors.unknown
+
+# M41 importing documents into a book (dr-view-transfer, dr-shell's account menu)
+importDialog.title
+importDialog.targetTitle
+importDialog.storylineTitle
+importDialog.categoryTitle
+importDialog.filesTitle
+importDialog.chooseFiles
+importDialog.chooseFolder
+importDialog.clear
+importDialog.importing
+importDialog.start
+importDialog.targets.chapter.label
+importDialog.targets.chapter.desc
+importDialog.targets.element.label
+importDialog.targets.element.desc
+importDialog.status.parsing
+importDialog.status.ready
+importDialog.status.committed
+importDialog.status.error
+importDialog.summary.*

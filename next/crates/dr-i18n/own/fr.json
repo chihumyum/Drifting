@@ -49,5 +49,13 @@
     "bookTransfer": {
       "legacy": "Ce livre a été exporté par Drifting 0.1. Importez-le là, puis transférez cette bibliothèque vers cette version."
     }
+  },
+  "importDialog": {
+    "targets": {
+      "idea": {
+        "label": "Idée",
+        "desc": "Carte d’idée flottante, indépendante des intrigues."
+      }
+    }
   }
 }

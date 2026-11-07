@@ -5,6 +5,10 @@
 //!   ([`dr_view_shelf::ImportBook`]), as the 0.1 shelf; the file is
 //!   `dr_export::book_file` (format version 2).
 //!
+//! - **Importing documents** ([`documents`]): Markdown, text and Word
+//!   files into the open book as chapters, elements or ideas, from the
+//!   account menu's 「导入」 ([`dr_shell::actions::ImportDocuments`]); the
+//!   reading and writing are `dr_export::import`.
 //! - **Backup and restore** ([`backup`]): the whole library as one
 //!   `.drifting` file and back, on `dr_store::backup`; replacing the library
 //!   is the shell's ([`backup::Replace`]).
@@ -17,6 +21,7 @@
 pub mod backup;
 pub mod book;
 mod dialog;
+pub mod documents;
 
 pub use dialog::{Proceed, State, TransferDialog, WIDTH};
 
@@ -31,5 +36,8 @@ pub fn init(cx: &mut App) {
     });
     cx.on_action(|_: &dr_view_shelf::ImportBook, cx| {
         dr_shell::menus::after_dispatch(cx, book::import);
+    });
+    cx.on_action(|_: &dr_shell::actions::ImportDocuments, cx| {
+        dr_shell::menus::after_dispatch(cx, documents::open);
     });
 }

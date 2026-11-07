@@ -229,13 +229,41 @@
     }
   },
   "importDialog": {
+    "categoryTitle": "Catégorie",
+    "chooseFiles": "Choisir des fichiers",
     "chooseFolder": "Choisir un dossier",
+    "clear": "Effacer",
+    "filesTitle": "Fichiers",
+    "importing": "Importation…",
+    "start": "Démarrer l’importation ({{count}})",
     "status": {
-      "committed": "importé"
+      "committed": "importé",
+      "error": "erreur",
+      "parsing": "analyse",
+      "ready": "prêt"
     },
+    "storylineTitle": "Intrigue",
     "summary": {
-      "done": "Terminé"
-    }
+      "done": "Terminé",
+      "failed": "échec",
+      "ok": "importé"
+    },
+    "targetTitle": "Destination",
+    "targets": {
+      "chapter": {
+        "desc": "Nœud du texte principal : figure sur la chronologie et compte dans les statistiques.",
+        "label": "Chapitre"
+      },
+      "element": {
+        "desc": "Documentation sur personnages, lieux ou objets. Catégorie requise.",
+        "label": "Élément"
+      },
+      "idea": {
+        "desc": "Carte d’idée flottante, indépendante des intrigues.",
+        "label": "Idée"
+      }
+    },
+    "title": "Importer des fichiers"
   },
   "kvEditor": {
     "addField": "Ajouter un champ",
