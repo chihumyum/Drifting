@@ -20,6 +20,8 @@ krilla.workspace = true
 # The editor's line-breaking rules (UAX #14 from ICU4X with the Chinese
 # tailoring), shared with the PDF: simplifications.md row 19.
 prose-linebreak = { workspace = true, features = ["icu"] }
+# Reads Word documents for the import (M41).
+roxmltree.workspace = true
 rustybuzz.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -30,5 +32,4 @@ zip.workspace = true
 [dev-dependencies]
 dr-store.workspace = true
 dr-testkit.workspace = true
-roxmltree.workspace = true
 tempfile.workspace = true

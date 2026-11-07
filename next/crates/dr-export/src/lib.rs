@@ -18,6 +18,7 @@
 mod convert;
 mod cover;
 mod files;
+pub mod import;
 mod manuscript;
 mod markdown;
 
@@ -27,6 +28,11 @@ pub use convert::{
 };
 pub use cover::{COVER_EXTENSIONS, COVER_LONG_EDGE, COVER_SOURCE_LIMIT, cover_from_path};
 pub use files::{manuscript_filename, readable_stem, write_file};
+pub use import::{
+    IMPORT_EXTENSIONS, ImportError, ImportFormat, ImportTarget, ImportWarning, ImportedEntity,
+    ImportedItem, ParsedDoc, files_in_folder, import_docs, order_import_files, parse_bytes,
+    parse_file,
+};
 #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
 pub use manuscript::pdf_fonts;
 pub use manuscript::{
