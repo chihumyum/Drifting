@@ -1,10 +1,14 @@
-//! The tab dock on the paper's top edge (workspace.md, 「标签页在稿纸顶部」).
+//! The tab dock on the paper's top edge (workspace.md, 「标签页在稿纸顶部」),
+//! drawn by F5's `TabDock`.
 //!
 //! At rest the open documents are a row of sand marks on the window-controls
-//! line; under the hand (or locked) each mark is a glass pill with its
-//! title. A preview's title is italic and its mark hollow. A split tab is two
-//! halves joined by a short line. The lock is at the start, the `+` (the
-//! Project Home with its create row) at the end.
+//! line (a split tab's two side by side, the open one a size up); under the
+//! hand (or locked) each mark grows into a glass pill with its title, and
+//! 260 ms after the hand leaves they fall back. A preview's title is italic
+//! and its mark hollow. A split tab's pill is two halves joined by a short
+//! line. The lock is at the start, the `+` (the Project Home with its create
+//! row) at the end. The shell gives the tabs, the lock, the `+` and what a
+//! click, a drag and a drop do; the dock keeps its own hover.
 //!
 //! Pills drag: dropped on another pill a tab takes its place; dropped on the
 //! paper's left or right half it splits the page with the active one. A
@@ -12,7 +16,7 @@
 
 use dr_ui::{
     Theme,
-    components::{IconButton, Pill, PillGroup},
+    components::{DockMark, DockTab, IconButton, Pill, TabDock},
     sand::{self, Icon, KindMark},
     tokens::{Rgb, glass as g},
 };
@@ -35,17 +39,6 @@ pub struct DockDrag {
     pub from: usize,
 }
 
-fn kind_group(kind: sand::Kind) -> u8 {
-    match kind {
-        sand::Kind::Chapter(_) => 0,
-        sand::Kind::Drift { .. } => 1,
-        sand::Kind::Element | sand::Kind::Category => 2,
-        sand::Kind::Storyline => 3,
-        sand::Kind::Material => 4,
-        _ => 5,
-    }
-}
-
 fn mark(id: SharedString, (kind, color): (sand::Kind, Option<Rgb>), hollow: bool) -> KindMark {
     let mark = KindMark::new(ElementId::Name(id), kind).hollow(hollow);
     match color {
@@ -55,20 +48,49 @@ fn mark(id: SharedString, (kind, color): (sand::Kind, Option<Rgb>), hollow: bool
 }
 
 pub fn dock(ws: &mut Workspace, _: &mut Window, cx: &mut Context<Workspace>) -> AnyElement {
-    let expanded = ws.dock_hovered || ws.dock_locked || cx.has_active_drag();
     let tabs = ws.nav.tabs().to_vec();
     let active = ws.nav.active_index();
     let book = ws.book.clone();
-    let mut row = div()
-        .id("dock-row")
-        .flex()
-        .flex_row()
-        .items_center()
-        .gap(px(4.0));
-    if expanded {
-        let locked = ws.dock_locked;
-        let entity = cx.entity();
-        row = row.child(
+    let docked: Vec<DockTab> = tabs
+        .iter()
+        .map(|tab| {
+            let pill = pill(tab, ws, &book, cx);
+            match tab {
+                Tab::Leaf(_) => DockTab::new(pill),
+                Tab::Split(split) => {
+                    let marks = [PageSide::Left, PageSide::Right].map(|side| {
+                        let leaf = split.side(side);
+                        let (kind, color) = book.mark(&leaf.target);
+                        DockMark::new(kind, color).hollow(leaf.preview)
+                    });
+                    let focused = match split.focused {
+                        PageSide::Left => 0,
+                        PageSide::Right => 1,
+                    };
+                    DockTab::new(pill).marks(marks, focused)
+                }
+            }
+        })
+        .collect();
+    let locked = ws.dock_locked;
+    let lock = cx.entity();
+    let lock_label = t(
+        cx,
+        if locked {
+            keys::top_timeline::DOCK_UNLOCK
+        } else {
+            keys::top_timeline::DOCK_LOCK
+        },
+    );
+    let new_label = t(cx, keys::top_timeline::NEW_ENTITY);
+    let home = ws.nav.current().is_none();
+    let on_change = cx.entity();
+    let on_drop = cx.entity();
+    let on_each = cx.entity();
+    let tab_dock = TabDock::new("dock", docked, active)
+        .locked(locked)
+        .leading(move |_, _| {
+            let lock = lock.clone();
             IconButton::new(
                 "dock-lock",
                 if locked {
@@ -77,113 +99,64 @@ pub fn dock(ws: &mut Workspace, _: &mut Window, cx: &mut Context<Workspace>) -> 
                     Icon::LockOpen
                 },
             )
-            .label(t(
-                cx,
-                if locked {
-                    keys::top_timeline::DOCK_UNLOCK
-                } else {
-                    keys::top_timeline::DOCK_LOCK
-                },
-            ))
+            .label(lock_label.clone())
             .selected(locked)
             .on_click(move |_, _, cx| {
-                entity.update(cx, |ws, cx| {
+                lock.update(cx, |ws, cx| {
                     ws.dock_locked = !ws.dock_locked;
                     ws.changed(cx);
                 })
-            }),
-        );
-        let pills: Vec<Pill> = tabs.iter().map(|tab| pill(tab, ws, &book, cx)).collect();
-        let n = pills.len();
-        let on_change = cx.entity();
-        let on_drop = cx.entity();
-        let on_each = cx.entity();
-        let group = PillGroup::new("dock-pills", pills, active.unwrap_or(n))
-            .on_change(move |i, _, cx| {
-                on_change.update(cx, |ws, cx| {
-                    if ws.nav.activate(i) {
+            })
+            .into_any_element()
+        })
+        .trailing(move |_, _| {
+            IconButton::new("dock-new", Icon::Plus)
+                .label(new_label.clone())
+                .selected(home)
+                .on_click(|_, window, cx| window.dispatch_action(Box::new(NewEntity), cx))
+                .into_any_element()
+        })
+        .on_change(move |i, _, cx| {
+            on_change.update(cx, |ws, cx| {
+                if ws.nav.activate(i) {
+                    ws.changed(cx);
+                }
+            })
+        })
+        .draggable(
+            |i| DockDrag { from: i },
+            move |drag: &DockDrag, to, _, cx| {
+                on_drop.update(cx, |ws, cx| {
+                    if ws.nav.reorder(drag.from, to) {
                         ws.changed(cx);
                     }
                 })
-            })
-            .draggable(
-                |i| DockDrag { from: i },
-                move |drag: &DockDrag, to, _, cx| {
-                    on_drop.update(cx, |ws, cx| {
-                        if ws.nav.reorder(drag.from, to) {
+            },
+        )
+        .map_pill(move |i, pill, el| {
+            // A double click keeps a preview, a middle click closes; the
+            // close stroke shows under the hand.
+            let promote = on_each.clone();
+            let close = on_each.clone();
+            el.group(pill_group(pill))
+                .on_click(move |e, _, cx| {
+                    if e.click_count() > 1 {
+                        promote.update(cx, |ws, cx| {
+                            let target = ws.nav.tabs().get(i).map(|t| t.focused().target.clone());
+                            if let Some(target) = target {
+                                ws.promote(&target, cx);
+                            }
+                        })
+                    }
+                })
+                .on_mouse_up(MouseButton::Middle, move |_, _, cx| {
+                    close.update(cx, |ws, cx| {
+                        if ws.nav.close(i) {
                             ws.changed(cx);
                         }
                     })
-                },
-            )
-            .map_pill(move |i, pill, el| {
-                // A double click keeps a preview, a middle click closes; the
-                // close stroke shows under the hand.
-                let promote = on_each.clone();
-                let close = on_each.clone();
-                el.group(pill_group(pill))
-                    .on_click(move |e, _, cx| {
-                        if e.click_count() > 1 {
-                            promote.update(cx, |ws, cx| {
-                                let target =
-                                    ws.nav.tabs().get(i).map(|t| t.focused().target.clone());
-                                if let Some(target) = target {
-                                    ws.promote(&target, cx);
-                                }
-                            })
-                        }
-                    })
-                    .on_mouse_up(MouseButton::Middle, move |_, _, cx| {
-                        close.update(cx, |ws, cx| {
-                            if ws.nav.close(i) {
-                                ws.changed(cx);
-                            }
-                        })
-                    })
-            });
-        row = row
-            .child(
-                div()
-                    .id("dock-pills-scroll")
-                    .flex()
-                    .flex_row()
-                    .items_center()
-                    .overflow_x_scroll()
-                    .child(group),
-            )
-            .child(
-                IconButton::new("dock-new", Icon::Plus)
-                    .label(t(cx, keys::top_timeline::NEW_ENTITY))
-                    .selected(ws.nav.current().is_none())
-                    .on_click(|_, window, cx| window.dispatch_action(Box::new(NewEntity), cx)),
-            );
-    } else {
-        let mut last: Option<u8> = None;
-        for (i, tab) in tabs.iter().enumerate() {
-            let leaves: Vec<&Leaf> = tab.leaves().collect();
-            let group = kind_group(book.mark(&leaves[0].target).0);
-            let gap = match last {
-                Some(g) if g != group => 10.0,
-                Some(_) => 2.0,
-                None => 0.0,
-            };
-            last = Some(group);
-            let mut marks = div()
-                .ml(px(gap))
-                .flex()
-                .flex_row()
-                .items_center()
-                .gap(px(1.0));
-            for (j, leaf) in leaves.iter().enumerate() {
-                marks = marks.child(mark(
-                    format!("dock-dot-{i}-{j}").into(),
-                    book.mark(&leaf.target),
-                    leaf.preview,
-                ));
-            }
-            row = row.child(marks);
-        }
-    }
+                })
+        });
     let lead = if ws.left.open {
         12.0
     } else {
@@ -203,17 +176,7 @@ pub fn dock(ws: &mut Workspace, _: &mut Window, cx: &mut Context<Workspace>) -> 
         .flex()
         .justify_center()
         .items_center()
-        .child(
-            div()
-                .id("dock")
-                .min_w(px(40.0))
-                .h(px(TITLEBAR_HEIGHT))
-                .flex()
-                .items_center()
-                .justify_center()
-                .on_hover(cx.listener(|ws, hovered: &bool, _, cx| ws.hover_dock(*hovered, cx)))
-                .child(row),
-        )
+        .child(tab_dock)
         .into_any_element()
 }
 
@@ -247,9 +210,11 @@ fn pill(tab: &Tab, ws: &Workspace, book: &Book, cx: &mut Context<Workspace>) -> 
     let key: SharedString = tab.key().into();
     let focused = tab.focused().clone();
     let (kind, color) = book.mark(&focused.target);
-    let slow = tab
-        .leaves()
-        .any(|l| ws.pages.get(&l.target.key()).is_some_and(|p| p.slow()));
+    let slow = tab.leaves().any(|l| {
+        let key = l.target.key();
+        ws.pages.get(&key).is_some_and(|p| p.slow())
+            || ws.editors.get(&key).is_some_and(|p| p.slow())
+    });
     let label = super::title_of(book, &focused.target, cx);
     let group: SharedString = format!("pill-{key}").into();
     let half = |leaf: &Leaf, side: Option<PageSide>| Half {

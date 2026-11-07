@@ -329,6 +329,9 @@ pub fn apply(overrides: &Map<String, Value>, cx: &mut App) {
     let os = cx.platform_info().os;
     cx.clear_key_bindings();
     cx.bind_keys(dr_ui::input::field::bindings());
+    // The editor's own keys (moving, deleting, Enter …) in its context; its
+    // formatting keys are the registry's below as well.
+    gpui_prose::bind_keys(cx);
     let mut made = Vec::new();
     for (action, keys, context) in bindings(os, overrides) {
         let Ok(action) = cx.build_action(action, None) else {

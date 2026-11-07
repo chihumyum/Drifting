@@ -2,20 +2,23 @@
 //! through the keymap, Esc closes layers one at a time, rebinding takes
 //! effect at once, deep links open pages, the layout comes back; and over a
 //! real library (the showcase's 《慢钟》, seeded through dr-testkit): the
-//! panels list it from F3's queries, a page reads its prose, a chapter
-//! trashed through F3 closes its tab.
+//! panels list it from F3's queries, a chapter opens in its editor and what
+//! is typed there (Enter, undo, redo, switching chapters) is kept through a
+//! restart and reaches search and the word count, the whole book reads every
+//! chapter, a chapter trashed through F3 closes its tab.
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use dr_editor::ChapterEditor;
 use dr_platform::DeepLinks;
 use dr_shell::nav::{Open, Page, Target};
 use dr_shell::settings::registry;
 use dr_shell::workspace::{Item, Layer, SuperView};
 use dr_shell::{Services, Settings, SettingsFile, ShellInfo, Workspace};
-use dr_workspace::Workspace as Library;
-use gpui::{Entity, TestAppContext, VisualTestContext};
-use serde_json::Value;
+use dr_workspace::{Actor, Workspace as Library};
+use gpui::{Entity, Focusable as _, TestAppContext, VisualTestContext};
+use serde_json::{Value, json};
 
 const SCHEME: &str = "drifting-next-dev";
 
@@ -98,6 +101,111 @@ fn wait_for(
 
 fn chapter_of(ws: &Workspace, i: usize) -> Target {
     Target::Chapter(ws.book.chapters[i].id.parse().unwrap())
+}
+
+fn draw(cx: &mut VisualTestContext) {
+    cx.update(|window, cx| window.draw(cx).clear(cx));
+}
+
+/// Draws until `target`'s editor is open and has the keyboard, and once more
+/// so it is painted (an editor takes typing once it has painted focused).
+fn open_editor(
+    view: &Entity<Workspace>,
+    cx: &mut VisualTestContext,
+    target: &Target,
+) -> Entity<ChapterEditor> {
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        draw(cx);
+        cx.run_until_parked();
+        let editor = view.read_with(cx, |ws, _| ws.editor_of(target).cloned());
+        if let Some(editor) = editor {
+            draw(cx);
+            let focused = cx.update(|window, cx| {
+                let prose = editor.read(cx).editor().focus_handle(cx);
+                window.focused(cx) == Some(prose)
+            });
+            assert!(focused, "the open page's editor takes the keyboard");
+            draw(cx);
+            return editor;
+        }
+        assert!(Instant::now() < deadline, "the editor did not open");
+        std::thread::sleep(Duration::from_millis(2));
+    }
+}
+
+/// Types `text` a character at a time, the way the system's input method
+/// hands it over.
+fn type_text(cx: &mut VisualTestContext, text: &str) {
+    for c in text.chars() {
+        cx.simulate_input(&c.to_string());
+    }
+    cx.run_until_parked();
+}
+
+fn out(lib: &Library, name: &str, input: Value) -> Value {
+    lib.call(&Actor::User, name, input)
+        .unwrap_or_else(|e| panic!("{name}: {e}"))["output"]
+        .clone()
+}
+
+/// A document's paragraphs as F3 reads them (what search, export and the
+/// Agent see).
+fn stored(lib: &Library, doc: &str) -> Vec<String> {
+    out(lib, "prose.read", json!({"doc": doc}))["paragraphs"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|p| p["text"].as_str().unwrap().to_owned())
+        .collect()
+}
+
+/// [`counted`] once a new library's first indexing in the background has
+/// settled (the same two answers 300 ms apart).
+fn settled(lib: &Library, book: &str, query: &str) -> (u64, usize) {
+    let deadline = Instant::now() + Duration::from_secs(20);
+    let mut last = counted(lib, book, query);
+    loop {
+        std::thread::sleep(Duration::from_millis(300));
+        let now = counted(lib, book, query);
+        if (now == last && now.0 > 0) || Instant::now() > deadline {
+            return now;
+        }
+        last = now;
+    }
+}
+
+/// The book's word count and the search hits for `query`, once F2 has
+/// indexed the open documents (it catches up in the background; the quit
+/// hook makes it now).
+fn counted(lib: &Library, book: &str, query: &str) -> (u64, usize) {
+    lib.before_quit();
+    let words = out(lib, "book.get", json!({"book": book}))["words"]
+        .as_u64()
+        .unwrap();
+    let hits = out(lib, "book.search", json!({"book": book, "query": query}));
+    let hits = hits
+        .as_array()
+        .or_else(|| hits["hits"].as_array())
+        .map_or(0, Vec::len);
+    (words, hits)
+}
+
+/// Presses `strokes` until `done` holds, at most `times` times.
+fn press_until(
+    cx: &mut VisualTestContext,
+    strokes: &str,
+    times: usize,
+    mut done: impl FnMut() -> bool,
+) -> bool {
+    for _ in 0..times {
+        if done() {
+            return true;
+        }
+        keys(cx, strokes);
+        cx.run_until_parked();
+    }
+    done()
 }
 
 /// The tests write the primary modifier as `cmd-`; elsewhere it is Ctrl.
@@ -263,13 +371,16 @@ fn a_deep_link_opens_its_page_on_the_main_thread(cx: &mut TestAppContext) {
         view.read_with(cx, |ws, _| ws.nav.page()),
         Page::Target(third.clone())
     );
-    // The page scrolled to the lines once it was read.
-    wait_for(&view, cx, |ws| {
-        ws.pages.get(&third.key()).is_some_and(|p| p.ready)
-    });
-    cx.update(|window, cx| window.draw(cx).clear(cx));
+    // The editor put the caret on the lines once it was open.
+    let editor = open_editor(&view, cx, &third);
     let lines = view.update(cx, |ws, _| ws.nav.take_reveal(&third));
-    assert_eq!(lines, None, "taken by the page");
+    assert_eq!(lines, None, "taken by the editor");
+    let caret_line = editor.read_with(cx, |e, cx| {
+        let prose = e.editor().read(cx);
+        let doc = &prose.book().chapters[0].doc;
+        doc.line_of(prose.selection().head)
+    });
+    assert_eq!(caret_line, 2, "L5 is the third paragraph");
     // A document-form link by name, from text (F3's catalog).
     let href = format!(
         "drifting:chapters/{}/prose.md",
@@ -372,26 +483,27 @@ fn the_panels_list_the_book_from_f3(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
-fn a_page_reads_its_prose_and_headings_from_f3(cx: &mut TestAppContext) {
+fn pages_open_in_their_editors_and_the_book_reads_every_chapter(cx: &mut TestAppContext) {
     let (_dir, lib) = slow_clock();
     let (view, cx) = setup_with(cx, SettingsFile::in_memory(), None, Some(lib));
     wait_for(&view, cx, |ws| !ws.book.is_empty());
-    let first = view.read_with(cx, |ws, _| chapter_of(ws, 0));
+    let (first, title) = view.read_with(cx, |ws, _| {
+        (chapter_of(ws, 0), ws.book.chapters[0].title.clone())
+    });
     view.update(cx, |ws, cx| ws.open(first.clone(), Open::KEEP, cx));
-    cx.update(|window, cx| window.draw(cx).clear(cx));
-    wait_for(&view, cx, |ws| {
-        ws.pages.get(&first.key()).is_some_and(|p| p.ready)
+    let editor = open_editor(&view, cx, &first);
+    editor.read_with(cx, |e, cx| {
+        let text = e.plain_text(cx);
+        assert!(text.starts_with("推开怀山钟表铺的门时"), "{text}");
+        let prose = e.editor().read(cx);
+        assert_eq!(
+            prose.book().chapters[0].title.as_ref(),
+            title,
+            "the title row"
+        );
+        assert_eq!(e.book_id(), view.read(cx).book_id);
     });
-    view.read_with(cx, |ws, _| {
-        let items = &ws.pages[&first.key()].items;
-        assert_eq!(items[0], Item::Head);
-        let Item::Para(p) = &items[1] else {
-            panic!("{:?}", items[1])
-        };
-        assert!(p.text.starts_with("推开怀山钟表铺的门时"), "{}", p.text);
-        assert_eq!(p.heading, 0);
-    });
-    // A material note with Markdown headings reads them as H2.
+    // A material note with Markdown headings has them as H2.
     let note = view.read_with(cx, |ws, _| {
         let m = ws
             .book
@@ -402,17 +514,16 @@ fn a_page_reads_its_prose_and_headings_from_f3(cx: &mut TestAppContext) {
         Target::Material(m.id.parse().unwrap())
     });
     view.update(cx, |ws, cx| ws.open(note.clone(), Open::KEEP, cx));
-    cx.update(|window, cx| window.draw(cx).clear(cx));
-    wait_for(&view, cx, |ws| {
-        ws.pages.get(&note.key()).is_some_and(|p| p.ready)
-    });
-    let headings: Vec<u8> = view.read_with(cx, |ws, _| {
-        ws.pages[&note.key()]
-            .items
+    let editor = open_editor(&view, cx, &note);
+    let headings: Vec<u8> = editor.read_with(cx, |e, cx| {
+        let doc = &e.editor().read(cx).book().chapters[0].doc;
+        doc.lines()[..doc.visible_lines()]
             .iter()
-            .filter_map(|i| match i {
-                Item::Para(p) if p.heading > 0 => Some(p.heading),
-                _ => None,
+            .filter_map(|l| match l.kind {
+                gpui_prose::text::BlockKind::Body => None,
+                gpui_prose::text::BlockKind::H1 => Some(1),
+                gpui_prose::text::BlockKind::H2 => Some(2),
+                gpui_prose::text::BlockKind::H3 => Some(3),
             })
             .collect()
     });
@@ -432,6 +543,144 @@ fn a_page_reads_its_prose_and_headings_from_f3(cx: &mut TestAppContext) {
     });
     assert_eq!(sections, 24);
     cx.update(|window, cx| window.draw(cx).clear(cx));
+}
+
+/// The acceptance of F6's third milestone: a chapter written in the app is
+/// kept. Typing, Enter, ⌘Z and ⌘⇧Z go through the keymap (the edit menu's
+/// bindings, handed to the editor), switching chapters keeps the first
+/// one's editor, search and the word count follow, and after quitting and
+/// opening the library again the chapter comes back with its text.
+#[gpui::test]
+fn a_chapter_written_in_the_app_is_kept(cx: &mut TestAppContext, cx2: &mut TestAppContext) {
+    let (lib_dir, lib) = slow_clock();
+    let settings_dir = tempfile::tempdir().unwrap();
+    let (view, vcx) = setup_with(
+        cx,
+        SettingsFile::open(settings_dir.path()),
+        None,
+        Some(lib.clone()),
+    );
+    wait_for(&view, vcx, |ws| !ws.book.is_empty());
+    let (book, first, second) = view.read_with(vcx, |ws, _| {
+        (ws.book_id.clone(), chapter_of(ws, 0), chapter_of(ws, 1))
+    });
+    let Target::Chapter(id) = &first else {
+        unreachable!()
+    };
+    let doc = format!("node:{id}");
+    let original = stored(&lib, &doc);
+    let (words_before, hits_before) = settled(&lib, &book, "钟停了");
+    assert_eq!(hits_before, 0);
+
+    view.update(vcx, |ws, cx| ws.open(first.clone(), Open::KEEP, cx));
+    let editor = open_editor(&view, vcx, &first);
+    type_text(vcx, "钟停了。");
+    keys(vcx, "enter");
+    type_text(vcx, "夜里");
+    let written = stored(&lib, &doc);
+    assert_eq!(written[0], "钟停了。");
+    assert_eq!(written[1], format!("夜里{}", original[0]));
+    assert_eq!(written.len(), original.len() + 1);
+    assert_eq!(
+        editor.read_with(vcx, |e, cx| e.plain_text(cx)),
+        format!(
+            "{}
+",
+            written.join(
+                "
+"
+            )
+        )
+    );
+
+    // ⌘Z takes it all back, ⌘⇧Z brings it again.
+    let undone = press_until(vcx, "cmd-z", 12, || stored(&lib, &doc) == original);
+    assert!(
+        undone,
+        "undo reached the original: {:?}",
+        stored(&lib, &doc)
+    );
+    let redone = press_until(vcx, "cmd-shift-z", 12, || stored(&lib, &doc) == written);
+    assert!(redone, "redo reached the typing: {:?}", stored(&lib, &doc));
+
+    // Another chapter, then back (⌘[): the first one's editor was kept.
+    view.update(vcx, |ws, cx| ws.open(second.clone(), Open::KEEP, cx));
+    open_editor(&view, vcx, &second);
+    keys(vcx, "cmd-[");
+    let back = open_editor(&view, vcx, &first);
+    assert_eq!(back, editor, "the tab kept its editor");
+    assert!(
+        back.read_with(vcx, |e, cx| e.plain_text(cx))
+            .starts_with("钟停了。\n夜里推开")
+    );
+
+    // Search and the word count follow (dr-text counts each Chinese
+    // character as a word; 。 is not one).
+    let (words_after, hits_after) = counted(&lib, &book, "钟停了");
+    assert_eq!(words_after, words_before + 5);
+    assert_eq!(hits_after, 1);
+
+    // Quit (the hooks hand the library over and store the layout), let go
+    // of the window and the library, and open it again in a new app.
+    vcx.update(|_, cx| dr_shell::quit::request(cx));
+    vcx.run_until_parked();
+    let weak_ws = view.downgrade();
+    let weak_editor = editor.downgrade();
+    let weak_prose = editor.read_with(vcx, |e, _| e.editor().downgrade());
+    vcx.update(|window, _| window.remove_window());
+    cx.update(|cx| cx.remove_global::<Services>());
+    drop((view, editor, back));
+    for _ in 0..3 {
+        cx.update(|_| {});
+        cx.run_until_parked();
+    }
+    assert!(weak_ws.upgrade().is_none(), "the workspace is released");
+    assert!(
+        weak_editor.upgrade().is_none(),
+        "the chapter's editor is released"
+    );
+    assert!(
+        weak_prose.upgrade().is_none(),
+        "its prose editor is released"
+    );
+    lib.close();
+    drop(lib);
+    let root = lib_dir.path().join("library");
+    let deadline = Instant::now() + Duration::from_secs(5);
+    let lib = loop {
+        match Library::open_dir(&root, VERSION) {
+            Ok(lib) => break lib,
+            Err(error) => {
+                assert!(
+                    Instant::now() < deadline,
+                    "the library stayed open: {error}"
+                );
+                cx.run_until_parked();
+                std::thread::sleep(Duration::from_millis(10));
+            }
+        }
+    };
+    assert_eq!(stored(&lib, &doc), written);
+    let (view, vcx) = setup_with(
+        cx2,
+        SettingsFile::open(settings_dir.path()),
+        None,
+        Some(lib.clone()),
+    );
+    wait_for(&view, vcx, |ws| !ws.book.is_empty());
+    assert_eq!(
+        view.read_with(vcx, |ws, _| ws.nav.page()),
+        Page::Target(first.clone()),
+        "the layout came back"
+    );
+    let reopened = open_editor(&view, vcx, &first);
+    assert!(
+        reopened
+            .read_with(vcx, |e, cx| e.plain_text(cx))
+            .starts_with("钟停了。\n夜里推开")
+    );
+    let (words, hits) = counted(&lib, &book, "钟停了");
+    assert_eq!((words, hits), (words_after, 1));
 }
 
 #[gpui::test]
@@ -474,10 +723,7 @@ fn quitting_hands_the_library_over(cx: &mut TestAppContext) {
     wait_for(&view, cx, |ws| !ws.book.is_empty());
     let first = view.read_with(cx, |ws, _| chapter_of(ws, 0));
     view.update(cx, |ws, cx| ws.open(first.clone(), Open::KEEP, cx));
-    cx.update(|window, cx| window.draw(cx).clear(cx));
-    wait_for(&view, cx, |ws| {
-        ws.pages.get(&first.key()).is_some_and(|p| p.ready)
-    });
+    open_editor(&view, cx, &first);
     // `Workspace::before_quit` runs from the quit flow; the library stays
     // usable after it.
     cx.update(|_, cx| dr_shell::quit::request(cx));

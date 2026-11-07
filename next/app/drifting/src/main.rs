@@ -7,6 +7,7 @@
 //! See docs/rust-rewrite/foundations/f6-shell.md.
 
 mod about;
+mod check;
 mod identity;
 mod probe;
 
@@ -183,6 +184,7 @@ fn main() {
         }
         open_workspace(cx);
         cx.activate(true);
+        check::start(cx);
     });
 }
 

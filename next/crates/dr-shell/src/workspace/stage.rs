@@ -2,12 +2,12 @@
 //! the dock over its top edge, and the window-drag strip under the dock.
 //!
 //! The page is the one raised surface (surfaces.md). Changing pages
-//! dissolves in place (`PageTurn`, 180 ms). Until the editor (dr-editor)
-//! takes the page over, it shows the document's prose from F3 read-only,
-//! set with the editor settings (font size, line height, paragraph spacing
-//! and indent, page width): body text in the prose face, H1/H2/H3 at the
-//! 0.1 client's 28/22/18 px for its 17 px text, scaled with the font size.
-//! Only the rows on screen are laid out (GPUI's `list`).
+//! dissolves in place (`PageTurn`, 180 ms). A prose document's page is its
+//! editor (`dr-editor`, see [`super::editors`]). The whole book is still
+//! read-only, set with the editor settings (font size, line height,
+//! paragraph spacing and indent, page width): body text in the prose face,
+//! H1/H2/H3 at the 0.1 client's 28/22/18 px for its 17 px text, scaled with
+//! the font size. Only the rows on screen are laid out (GPUI's `list`).
 
 use dr_i18n::keys;
 use dr_ui::{
@@ -34,7 +34,7 @@ use crate::nav::{Tab, Target};
 use crate::settings::registry as r;
 use crate::strings::t;
 
-/// How the editor settings set the read-only page.
+/// How the editor settings set the whole book's read-only page.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct EditorLook {
     pub font_size: f32,
@@ -300,6 +300,15 @@ fn document(
     cx: &mut App,
 ) -> AnyElement {
     let w = ws.read(cx);
+    if *target != Target::Book {
+        let Some(editor) = w.editor_of(target).cloned() else {
+            return div().into_any_element();
+        };
+        let id = ElementId::Name(format!("editor-{}", target.key()).into());
+        return super::editors::forward_edit_actions(div().id(id).size_full())
+            .child(editor)
+            .into_any_element();
+    }
     let Some(slot) = w.pages.get(&target.key()) else {
         return div().into_any_element();
     };
