@@ -26,6 +26,7 @@ import {
   reportIntegrityEvent,
   reportNativeCrashes,
   reportDiagnosticLog,
+  reportError,
   resetCrashReporterForTests,
   startNewLaunchForTests,
   takeCrashFollowUp,
@@ -145,6 +146,32 @@ it('keeps unsent reports for the next launch and drops rejected ones', async () 
   expect(sentBodies()[0]).toMatchObject({
     kind: 'integrity', fingerprint: 'integrity:local-flush-failed', context: { reason: 'shutdown' },
   });
+});
+
+it('names what an aggregated or wrapped failure was made of', async () => {
+  const tokenStore = new AggregateError(
+    ['secure storage write failed'],
+    '1 session-token persistence step(s) failed',
+  );
+  reportIntegrityEvent(
+    'local-flush-failed',
+    new AggregateError([tokenStore], '1 local persistence step(s) failed: session-token'),
+    { reason: 'sync-cycle' },
+  );
+  reportError('renderer-error', Object.assign(new Error('Snapshot capture failed'), {
+    cause: new TypeError('他推开门的时候，雨已经停了，街上只剩下潮湿的灯光'),
+  }));
+  reportIntegrityEvent('synthetic-many', new AggregateError(
+    [1, 2, 3, 4].map((step) => new Error(`step ${step}`)),
+    '4 synthetic steps failed',
+  ));
+  await flushCrashReports();
+
+  expect(sentBodies().map((body) => body.message)).toEqual([
+    '1 local persistence step(s) failed: session-token [AggregateError: 1 session-token persistence step(s) failed [secure storage write failed]]',
+    'Snapshot capture failed [TypeError: [text]]',
+    '4 synthetic steps failed [Error: step 1 | Error: step 2 | Error: step 3 | +1 more]',
+  ]);
 });
 
 it('sends nothing when the author turned reports off or there is no Hosted service', async () => {

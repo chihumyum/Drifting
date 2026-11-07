@@ -34,27 +34,33 @@ async function performLocalFlush(): Promise<void> {
   // asset imports may begin before their authored SQLite transaction, while
   // deletes may start file cleanup after it. Drain both sides before the DB
   // checkpoint so the lifecycle barrier covers every local durability lane.
-  const steps: Array<() => Promise<unknown>> = [
-    () => saveActiveEditor(),
-    () => flushAllOpenYjsDocuments(),
-    () => flushSnapshotHistoryPersistence(),
-    () => flushPendingAssetPersistence(),
-    () => flushPendingAtomicSyncTransactions(),
-    () => flushPendingAssetPersistence(),
-    () => checkpointDatabase(),
-    () => flushMarkdownProjections(),
-    () => flushSessionTokenStorage(),
+  // The names reach crash reports, so a failure says which lane it came from.
+  const steps: Array<readonly [string, () => Promise<unknown>]> = [
+    ['active-editor', () => saveActiveEditor()],
+    ['yjs-documents', () => flushAllOpenYjsDocuments()],
+    ['snapshot-history', () => flushSnapshotHistoryPersistence()],
+    ['assets', () => flushPendingAssetPersistence()],
+    ['entity-transactions', () => flushPendingAtomicSyncTransactions()],
+    ['assets-after-transactions', () => flushPendingAssetPersistence()],
+    ['database-checkpoint', () => checkpointDatabase()],
+    ['markdown-projections', () => flushMarkdownProjections()],
+    ['session-token', () => flushSessionTokenStorage()],
   ];
   const failures: unknown[] = [];
-  for (const step of steps) {
+  const failedSteps: string[] = [];
+  for (const [name, step] of steps) {
     try {
       await step();
     } catch (error) {
       failures.push(error);
+      failedSteps.push(name);
     }
   }
   if (failures.length > 0) {
-    throw new AggregateError(failures, `${failures.length} local persistence step(s) failed`);
+    throw new AggregateError(
+      failures,
+      `${failures.length} local persistence step(s) failed: ${failedSteps.join(', ')}`,
+    );
   }
 }
 

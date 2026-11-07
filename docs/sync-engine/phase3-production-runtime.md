@@ -67,17 +67,28 @@ foreground pull rather than push or background realtime. Network I/O never runs
 inside an authored SQLite transaction and provider failure never blocks local
 editing.
 
+Each cycle, and each checkpoint capture, first drains the local durability
+barrier (`flushLocalApplicationPersistence`). A local write that failed
+elsewhere, such as an entity transaction, an asset file or the session token in
+secure storage, surfaces there once. The runtime wraps that failure as
+`SyncLocalFlushError` (`LOCAL_FLUSH_FAILED`, retryable), so the coordinator
+retries the cycle with backoff and it is reported as `local-flush-failed` with
+`reason: sync-cycle` rather than as `sync-blocked`. Only non-retryable stops
+other than sign-out, cancellation and project deletion are `sync-blocked:<code>`.
+
 ## Machine acceptance
 
 ```bash
 pnpm exec vitest run \
   src/renderer/sync/production-runtime.test.ts \
+  src/renderer/sync/production-runtime-failures.test.ts \
   src/renderer/sync/product-runtime-control.test.ts \
   src/renderer/sync/app-authority-repository.integration.test.ts \
   src/renderer/sync/checkpoint/provider-publisher.integration.test.ts
 pnpm exec eslint \
   src/renderer/sync/production-runtime.ts \
   src/renderer/sync/production-runtime.test.ts \
+  src/renderer/sync/production-runtime-failures.test.ts \
   src/renderer/sync/product-runtime-control.ts \
   src/renderer/sync/product-runtime-control.test.ts \
   src/renderer/sync/app-authority-repository.ts \

@@ -44,10 +44,40 @@ const log = loglevel.getLogger('SyncEngineProductionRuntime');
 log.setLevel(import.meta.env.DEV ? loglevel.levels.TRACE : loglevel.levels.WARN);
 
 
+/**
+ * A cycle drains every local write before it seals change-sets, so a write
+ * that failed elsewhere (an entity transaction, an asset file, the session
+ * token) surfaces here once. That is not a sync stop: the next attempt no
+ * longer sees it, so the cycle is retried with backoff.
+ */
+export class SyncLocalFlushError extends Error {
+  readonly code = 'LOCAL_FLUSH_FAILED';
+  readonly retryable = true;
+  readonly cause: unknown;
+
+  constructor(cause: unknown) {
+    super('Local writes were not durable before the sync cycle');
+    this.name = 'SyncLocalFlushError';
+    this.cause = cause;
+  }
+}
+
+export async function flushLocalDurabilityForSync(): Promise<void> {
+  try {
+    await flushLocalApplicationPersistence();
+  } catch (error) {
+    throw new SyncLocalFlushError(error);
+  }
+}
+
 // A cycle that cannot be retried stops this project's sync until something
 // changes. Session and deletion outcomes are expected; the rest is reported.
 const EXPECTED_SYNC_STOPS = new Set(['needs-reauth', 'permission-denied', 'ABORTED', 'GENERATION_DELETED']);
-function reportBlockedSync(error: unknown) {
+export function reportSyncCycleFailure(error: unknown) {
+  if (error instanceof SyncLocalFlushError) {
+    reportIntegrityEvent('local-flush-failed', error.cause, { reason: 'sync-cycle' });
+    return;
+  }
   const failure = error as { code?: unknown; retryable?: unknown } | null;
   if (!failure || failure.retryable === true) return;
   const code = typeof failure.code === 'string' ? failure.code : 'unknown';
@@ -131,7 +161,7 @@ const defaultDependencies: ProductionSyncRuntimeDependencies = {
       onCycleError(syncGenerationId, error) {
         reportDiagnosticLog('sync-cycle-failed');
         log.warn(`SyncEngine cycle failed for ${syncGenerationId}; local journal remains durable`, error);
-        reportBlockedSync(error);
+        reportSyncCycleFailure(error);
       },
     }),
   createCheckpoint({ database, binding, provider }) {
@@ -161,7 +191,7 @@ const defaultDependencies: ProductionSyncRuntimeDependencies = {
             objectCodec,
             blobPort: nativeSyncAssetBlobPort,
             assetCapturePort: nativeSnapshotAssetCapturePort,
-            flushLocalDurability: flushLocalApplicationPersistence,
+            flushLocalDurability: flushLocalDurabilityForSync,
           });
           const prunesHistory = typeof provider.pruneObjects === 'function';
           return createProviderCheckpointHook({
@@ -198,7 +228,7 @@ const defaultDependencies: ProductionSyncRuntimeDependencies = {
       blobPort: nativeSyncAssetBlobPort,
       writerIdentity,
       domainKernel: productionSyncDomainMaterializationKernel,
-      flushLocalDurability: flushLocalApplicationPersistence,
+      flushLocalDurability: flushLocalDurabilityForSync,
       truncateJournal: SYNC_JOURNAL_TRUNCATION_ENABLED,
       async onRemoteProjectDeleted({ projectId, receipt }) {
         const { cleanupDeletedProject } = await import('../services/project-deletion-cleanup');

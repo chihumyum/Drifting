@@ -20,7 +20,7 @@ side (storage, operator email, retention) is specified in the Hosted service's
 | `renderer-error`, `unhandled-rejection` | uncaught errors and rejections (`installCrashReporting` in `main.tsx`) | error |
 | `render-failure` | the root error boundary replaced the UI (`App.tsx`) | fatal |
 | `native-panic` | a Rust panic recorded by `src-tauri/src/crash_reports.rs`, sent on the next launch | fatal |
-| `integrity` | `database-open-failed:<code>` (recovery screen), `yjs-load-failed`, `local-flush-failed` (quit or update install), `sync-blocked:<code>` (a non-retryable sync stop other than sign-out, cancellation or project deletion) | fatal for the database, otherwise error |
+| `integrity` | `database-open-failed:<code>` (recovery screen), `yjs-load-failed`, `local-flush-failed` (quit, update install, or `reason: sync-cycle` when a sync cycle's durability barrier meets a failed local write; that cycle is retried), `sync-blocked:<code>` (a non-retryable sync stop other than sign-out, cancellation or project deletion) | fatal for the database, otherwise error |
 
 Nothing is sent when the build has no Hosted service (public local-only source
 builds), in development builds (unless `VITE_DRIFTING_CRASH_REPORTS_IN_DEV=1`
@@ -38,6 +38,13 @@ stack frames only, app version, platform, a random diagnostics-only installation
 ID, the time, and a few context values (for example the flush reason or the
 Yjs document family, never an identifier or text). A signed-in Hosted session
 adds the account so the maintainer can follow up.
+
+An `AggregateError` or an error with a `cause` lists what it was made of after
+its own message, one bracket per level: up to three inner errors per level and
+three levels deep, each as `Name: message` (or the bare string a native command
+rejected with), sanitized like the message. The local durability barrier names
+the steps that failed in its message, for example
+`1 local persistence step(s) failed: session-token [AggregateError: … [secure storage write failed]]`.
 
 `crash-sanitize.ts` truncates messages to 300 characters, replaces runs of 12 or
 more CJK characters, quoted spans over 40 characters and runs of 13 or more
