@@ -21,6 +21,10 @@ members = [
     "crates/dr-testkit",
     "crates/dr-text",
     "crates/dr-ui",
+    "crates/dr-view-home",
+    "crates/dr-view-search",
+    "crates/dr-view-shelf",
+    "crates/dr-view-stats",
     "crates/dr-workspace",
     "crates/gpui-ime",
     "crates/gpui-prose",
@@ -140,6 +144,10 @@ tiny-skia = "0.11.4"
 libc = "0.2.191"
 raw-window-handle = "0.6.2"
 
+# F4c (gpui-prose tests): AccessKit's reading of an accessibility tree, the
+# same version GPUI's macOS and Windows adapters already build.
+accesskit_consumer = "0.38"
+
 # F7 dr-platform: logs, crash reports, keychain, deep links and single
 # instance, the updater. docs/rust-rewrite/foundations/f7-platform.md.
 dr-platform = { path = "crates/dr-platform" }
@@ -175,6 +183,7 @@ windows = { version = "0.62", features = [
     "Win32_System_IO",
     "Win32_System_Pipes",
     "Win32_System_RemoteDesktop",
+    "Win32_System_SystemInformation",
     "Win32_System_Threading",
     "Win32_UI_Input_Ime",
     "Win32_UI_Input_KeyboardAndMouse",
@@ -193,10 +202,20 @@ unicode-segmentation = "1.13"
 dr-i18n = { path = "crates/dr-i18n" }
 dr-shell = { path = "crates/dr-shell" }
 dr-ui = { path = "crates/dr-ui" }
+# M06 and M07: the search panel and the Stats tab with the writing-day
+# recorder (interface crates over F3).
+dr-view-search = { path = "crates/dr-view-search" }
+dr-view-stats = { path = "crates/dr-view-stats" }
 futures = "0.3"
 icu_plurals = { version = "2.4", default-features = false, features = ["compiled_data"] }
 icu_locale_core = { version = "2.4", default-features = false }
 sys-locale = "0.3"
+# Stage 2 views: the bookshelf (M01) and Project Home (M02), docs/rust-rewrite/
+# modules/m01-shelf.md and m02-home.md. chrono gives the local calendar day
+# (the writing day) and is the version the lockfile already carries.
+dr-view-home = { path = "crates/dr-view-home" }
+dr-view-shelf = { path = "crates/dr-view-shelf" }
+chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
 # dr-shell's capture example writes its screenshots as 256-colour PNGs
 # (the versions GPUI's image stack already builds).
 color_quant = "1.1"

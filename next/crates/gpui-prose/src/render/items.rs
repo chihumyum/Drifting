@@ -9,6 +9,7 @@ use super::{
     element::ParagraphElement,
     frame::CompSpan,
     runs::{line_runs, splice_composition},
+    state::{Live, ParaDeco},
 };
 use crate::{ProseEditor, layout::Affinity, layout::Item};
 
@@ -25,9 +26,12 @@ impl ProseEditor {
     pub(crate) fn render_item(
         &mut self,
         ix: usize,
-        _window: &mut Window,
-        _cx: &mut Context<Self>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
     ) -> AnyElement {
+        if !self.paint.pending.is_empty() {
+            self.flush_decoration_events(cx);
+        }
         match self.book.item(ix) {
             Item::Title(chapter) => {
                 let title = self.book.chapters[chapter].title.clone();
@@ -50,7 +54,13 @@ impl ProseEditor {
                     )
                     .into_any_element()
             }
-            Item::Line(chapter, line) => self.paragraph(ix, chapter, line).into_any_element(),
+            Item::Line(chapter, line) => {
+                let element = self.paragraph(ix, chapter, line, cx);
+                if std::mem::take(&mut self.paint.animating) {
+                    window.request_animation_frame();
+                }
+                element.into_any_element()
+            }
         }
     }
 
@@ -112,12 +122,82 @@ impl ProseEditor {
         }
     }
 
+    /// The decorations on one paragraph this frame, in display bytes.
+    fn paragraph_decorations(
+        &mut self,
+        chapter: usize,
+        line_ix: usize,
+        comp: Option<CompSpan>,
+        font_size: f32,
+        now: std::time::Instant,
+    ) -> Vec<ParaDeco> {
+        let Some(layer) = self.paint.layer_ref(chapter) else {
+            return Vec::new();
+        };
+        let doc = &self.book.chapters[chapter].doc;
+        let line_start = doc.line_start(line_ix);
+        let line = doc.line(line_ix);
+        let line_end = line_start + line.chars;
+        let wrap = f32::from(self.estimate_width.unwrap_or(self.style.max_width));
+        let chars_per_row = wrap / font_size.max(1.);
+        let lives: Vec<&Live> = layer.overlapping(line_start, line_end).collect();
+        if lives.is_empty() {
+            return Vec::new();
+        }
+        // Every start and end on this paragraph, turned into bytes in one
+        // walk along its text (a paragraph can be thousands of characters).
+        let mut offsets: Vec<usize> = lives
+            .iter()
+            .flat_map(|l| {
+                let r = &l.deco.range;
+                [
+                    r.start.max(line_start) - line_start,
+                    r.end.min(line_end).max(line_start) - line_start,
+                ]
+            })
+            .collect();
+        offsets.sort_unstable();
+        offsets.dedup();
+        let bytes = bytes_of_chars(&line.text, &offsets);
+        // Committed text → display text (a composition shows inside it):
+        // a range starting at the composition leaves it outside.
+        let byte_of = |chars: usize, is_start: bool| {
+            let byte = match offsets.binary_search(&chars) {
+                Ok(ix) => bytes[ix],
+                Err(_) => line.byte_of_char(chars),
+            };
+            match comp {
+                Some(c) if byte > c.at || (is_start && byte == c.at) => {
+                    if byte < c.at + c.replaced {
+                        c.at + c.len
+                    } else {
+                        byte - c.replaced + c.len
+                    }
+                }
+                _ => byte,
+            }
+        };
+        let mut animating = false;
+        let decos = lives
+            .into_iter()
+            .filter_map(|live| {
+                let part = live.para(line_start, line_end, chars_per_row, byte_of, line_ix, now);
+                animating |= live.moving(now) || part.as_ref().is_some_and(|p| p.drawn.is_some());
+                part
+            })
+            .collect();
+        self.paint.animating |= animating;
+        decos
+    }
+
     pub(crate) fn paragraph(
         &mut self,
         item_ix: usize,
         chapter: usize,
         line_ix: usize,
+        cx: &mut Context<Self>,
     ) -> ParagraphElement {
+        let now = cx.background_executor().now();
         let display = self.display(chapter, line_ix);
         let doc = &mut self.book.chapters[chapter].doc;
         let line_start = doc.line_start(line_ix);
@@ -145,6 +225,23 @@ impl ProseEditor {
             None
         };
 
+        // Immersive writing: the caret's paragraph keeps its ink.
+        let alpha = if self.paint.focus.on.target() > 0. || self.paint.focus.moving(now) {
+            let caret = match &self.composition {
+                Some(comp) => (comp.chapter, comp.at),
+                None => (sel.chapter, sel.head),
+            };
+            let caret_line = self.book.chapters[caret.0].doc.line_of(caret.1);
+            self.paint.track_focus((caret.0, caret_line), now);
+            self.paint.animating |= self.paint.focus.moving(now);
+            self.paint.focus.alpha((chapter, line_ix), now)
+        } else {
+            1.
+        };
+        let decos =
+            self.paragraph_decorations(chapter, line_ix, display.comp, metrics.font_size, now);
+        let block = self.block_look(chapter, line_ix);
+
         let show_cursor =
             display.cursor.is_some() && (self.selection.is_empty() || display.comp.is_some());
         ParagraphElement {
@@ -169,6 +266,43 @@ impl ProseEditor {
             text_color: self.style.text,
             frame: self.frame.clone(),
             heights: self.heights.clone(),
+            block,
+            block_style: self.paint.block_style.clone(),
+            body_size: self.style.body_size,
+            decos,
+            alpha,
+            editor: cx.weak_entity(),
+            shared: self.paint.shared.clone(),
+            settle_on_click: self.paint.any_unsettled_drawn(),
         }
+    }
+}
+
+/// The byte offsets of sorted character offsets in `text`, in one walk.
+fn bytes_of_chars(text: &str, sorted: &[usize]) -> Vec<usize> {
+    let mut out = Vec::with_capacity(sorted.len());
+    let mut wanted = sorted.iter().peekable();
+    for (chars, (byte, _)) in text.char_indices().enumerate() {
+        while wanted.next_if(|w| **w == chars).is_some() {
+            out.push(byte);
+        }
+        if wanted.peek().is_none() {
+            return out;
+        }
+    }
+    out.resize(sorted.len(), text.len());
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn character_offsets_become_bytes_in_one_walk() {
+        let text = "甲a乙b丙";
+        assert_eq!(
+            super::bytes_of_chars(text, &[0, 1, 2, 5, 9]),
+            [0, 3, 4, 11, 11]
+        );
+        assert_eq!(super::bytes_of_chars(text, &[]), Vec::<usize>::new());
     }
 }

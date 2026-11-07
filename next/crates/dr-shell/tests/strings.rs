@@ -1,7 +1,7 @@
-//! Every string dr-i18n copies for the shell is used by it, so orphans do not
-//! pile up again (the 0.1 client had about 220; simplifications.md, section
-//! 3). A key that does not exist already fails to compile; this checks the
-//! other direction.
+//! Every string dr-i18n copies for the shell (and the dr-view-* crates it
+//! hosts) is used by them, so orphans do not pile up again (the 0.1 client
+//! had about 220; simplifications.md, section 3). A key that does not exist
+//! already fails to compile; this checks the other direction.
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -60,10 +60,20 @@ fn rust_name(part: &str, upper: bool) -> String {
 #[test]
 fn every_copied_key_is_used() {
     let mut source = String::new();
-    sources(
-        &Path::new(env!("CARGO_MANIFEST_DIR")).join("src"),
-        &mut source,
-    );
+    let here = Path::new(env!("CARGO_MANIFEST_DIR"));
+    sources(&here.join("src"), &mut source);
+    // The views the shell hosts (dr-view-*: the bookshelf, Project Home, …)
+    // take their strings from the same list.
+    for entry in std::fs::read_dir(here.parent().unwrap()).unwrap() {
+        let path = entry.unwrap().path();
+        let view = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .is_some_and(|n| n.starts_with("dr-view-"));
+        if view && path.join("src").is_dir() {
+            sources(&path.join("src"), &mut source);
+        }
+    }
     let aliases = aliases(&source);
     let names = dr_i18n::Key::all()
         .map(|k| k.name())
@@ -74,7 +84,11 @@ fn every_copied_key_is_used() {
         let leaf = rust_name(parts[parts.len() - 1], true);
         let parent = rust_name(parts[parts.len() - 2], false);
         let direct = format!("{parent}::{leaf}");
+        // A module named after a Rust keyword gets a trailing `_`
+        // (`project_home::continue_`).
+        let escaped = format!("{parent}_::{leaf}");
         let used = source.contains(&direct)
+            || source.contains(&escaped)
             || aliases.iter().any(|(alias, module)| {
                 *module == parent && source.contains(&format!("{alias}::{leaf}"))
             });

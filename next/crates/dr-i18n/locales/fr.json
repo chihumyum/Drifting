@@ -1,17 +1,90 @@
 {
+  "allChapters": {
+    "actOrdinal": "Acte {{n}}"
+  },
   "bottomStatusBar": {
     "elements": "Éléments",
     "storyGraph": "Graphe du récit",
     "todoLibrary": "Tâches et documentation"
   },
   "common": {
+    "cancel": "Annuler",
     "close": "Fermer",
-    "local": "Local"
+    "counting": "Comptage…",
+    "creating": "Création…",
+    "edit": "Modifier",
+    "local": "Local",
+    "save": "Enregistrer",
+    "saveFailed": "Impossible d’enregistrer les modifications. Réessayez.",
+    "saving": "Enregistrement…",
+    "untitled": "Sans titre"
+  },
+  "dashboard": {
+    "actions": {
+      "allChapters": "Tous les chapitres",
+      "elementOverview": "Vue des éléments",
+      "storyGraph": "Graphe du récit"
+    },
+    "hero": {
+      "projectName": "Nom du projet"
+    },
+    "plan": {
+      "wordsPerDay": "mots / jour"
+    },
+    "profilePlaceholder": "Rédigez la prémisse, la thèse ou le synopsis",
+    "sections": {
+      "projectProfile": "Présentation du projet",
+      "writingPlan": "Plan d’écriture"
+    },
+    "today": {
+      "goal": "Objectif",
+      "streak": "Série",
+      "week": "Cette semaine"
+    },
+    "wordCount": "{{count}} mots"
+  },
+  "editorOutline": {
+    "aria": "Plan",
+    "hiddenItems": "{{count}} éléments éloignés ; survolez pour afficher"
+  },
+  "editorTopBar": {
+    "actions": {
+      "more": "Autres actions"
+    },
+    "menu": {
+      "deleteNode": "Supprimer le nœud"
+    },
+    "outlineRailMode": {
+      "hidden": "Masquer la table des matières",
+      "visible": "Afficher la table des matières"
+    },
+    "status": {
+      "discarded": "Écarté",
+      "draft": "Brouillon",
+      "finished": "Terminé"
+    },
+    "statusSection": {
+      "chapter": "État d’écriture"
+    }
   },
   "feedback": {
     "crash": {
       "title": "Drifting a rencontré un problème la dernière fois"
     }
+  },
+  "globalSearch": {
+    "closeTitle": "Fermer (Échap)",
+    "field": {
+      "body": "Corps du texte",
+      "name": "Nom",
+      "title": "Titre"
+    },
+    "noResults": "Aucune correspondance",
+    "stats": "{{groups}} éléments · {{occurrences}} correspondances"
+  },
+  "immersiveWriting": {
+    "enter": "Écriture immersive",
+    "leave": "Quitter l’écriture immersive"
   },
   "leftSidebar": {
     "empty": {
@@ -38,7 +111,9 @@
     },
     "uncategorized": "Sans catégorie",
     "viewMode": {
-      "chapterSummary": "{{storylines}} intrigues · {{chapters}} chapitres"
+      "chapterSummary": "{{storylines}} intrigues · {{chapters}} chapitres",
+      "globalTitle": "Vue du livre · grouper par intrigue",
+      "storylineTitle": "Par intrigue · revenir à la vue du livre"
     }
   },
   "navigation": {
@@ -78,7 +153,117 @@
     "title": "Notifications"
   },
   "projectHome": {
-    "kicker": "Accueil du projet"
+    "book": {
+      "noStorylines": "Pas encore d’intrigues.",
+      "storylineCount": "{{done}} / {{total}} chapitres",
+      "title": "Le livre"
+    },
+    "continue": {
+      "empty": "Pas encore de chapitres.",
+      "title": "Continuer"
+    },
+    "create": {
+      "kinds": {
+        "category": "Catégorie",
+        "chapter": "Chapitre",
+        "drift": "Idée",
+        "element": "Élément",
+        "material": "Ressource",
+        "storyline": "Intrigue"
+      }
+    },
+    "kicker": "Accueil du projet",
+    "readout": "{{chapters}} chapitres · {{storylines}} intrigues · {{elements}} éléments",
+    "settings": {
+      "dailyGoal": "Objectif quotidien",
+      "projectTarget": "Objectif du livre"
+    },
+    "since": "Accueil du projet · depuis le {{date}}",
+    "today": "Aujourd’hui {{today}} / {{goal}} · {{streak}} jours consécutifs",
+    "todayNoGoal": "Aujourd’hui {{today}} · {{streak}} jours consécutifs",
+    "views": {
+      "overview": "Vue d’ensemble",
+      "settings": "Réglages"
+    },
+    "words": "{{words}} mots",
+    "wordsOfTarget": "{{words}} / {{target}} mots"
+  },
+  "projectPicker": {
+    "desk": {
+      "chaptersUnit_many": "chapitres",
+      "chaptersUnit_one": "chapitre",
+      "chaptersUnit_other": "chapitres",
+      "elementsUnit_many": "éléments",
+      "elementsUnit_one": "élément",
+      "elementsUnit_other": "éléments",
+      "form": {
+        "createTitle": "Nouveau livre",
+        "editTitle": "Modifier « {{name}} »",
+        "nameLabel": "Titre",
+        "summaryLabel": "Résumé"
+      },
+      "goal": "{{pct}} % · objectif {{target}} mots",
+      "moveToTrash": "Déplacer dans les suppressions récentes",
+      "newCard": "Nouveau livre",
+      "newCardSub": "Commencez par une page blanche",
+      "open": "Ouvrir « {{name}} »",
+      "progress": "Progression",
+      "storylinesUnit_many": "intrigues",
+      "storylinesUnit_one": "intrigue",
+      "storylinesUnit_other": "intrigues",
+      "trashEntry": "Suppressions récentes",
+      "trashList": {
+        "empty": "Aucun livre récemment supprimé.",
+        "title": "Suppressions récentes"
+      },
+      "trashTitle": "Déplacer « {{name}} » dans les suppressions récentes ?",
+      "untitled": "Sans titre",
+      "wordsUnit": "mots"
+    },
+    "form": {
+      "createSubmit": "Créer",
+      "namePlaceholder": "p. ex. La Lumière du cap Nord",
+      "summaryPlaceholder": "Décrivez le livre en une ou deux phrases."
+    },
+    "header": {
+      "titleEm": "Bibliothèque"
+    },
+    "heat": {
+      "daysUnit": "jours",
+      "today": "Aujourd’hui"
+    },
+    "rail": {
+      "books_many": "{{count}} livres",
+      "books_one": "{{count}} livre",
+      "books_other": "{{count}} livres",
+      "import": "Importer un livre",
+      "library_many": "{{count}} livres · {{words}} mots",
+      "library_one": "{{count}} livre · {{words}} mots",
+      "library_other": "{{count}} livres · {{words}} mots"
+    },
+    "status": {
+      "draft": "Brouillon",
+      "paused": "En pause",
+      "writing": "En écriture"
+    },
+    "trash": {
+      "body": "Ce livre ({{words}} mots · {{nodes}} chapitres · {{elements}} éléments) quitte la bibliothèque. Restaurable 30 jours depuis les suppressions récentes, puis supprimé définitivement.",
+      "confirm": "Déplacer dans les suppressions récentes",
+      "failed": "Impossible de déplacer le projet. Réessayez.",
+      "localNote": "Le contenu et la copie Markdown restent jusqu’à la suppression définitive.",
+      "moving": "Déplacement…",
+      "restore": "Restaurer",
+      "restoreFailed": "Impossible de restaurer le projet. Réessayez.",
+      "restoring": "Restauration…"
+    }
+  },
+  "referencesPanel": {
+    "kind": {
+      "patch": "Évolution"
+    }
+  },
+  "relationTypes": {
+    "description": "Description"
   },
   "rightSidebar": {
     "kickers": {
@@ -94,6 +279,18 @@
         "none": "Projet · statistiques détaillées",
         "storyline": "Cette intrigue · statistiques détaillées"
       }
+    },
+    "stats": {
+      "averagePerChapter": "Moyenne par chapitre",
+      "bookPosition": "Position dans le livre",
+      "chapterCount": "Chapitres",
+      "chapterOrdinal": "Chapitre {{count}}",
+      "chaptersValue": "{{count}} chapitres",
+      "recent": "Récent",
+      "wordsPerChapterValue": "{{words}} mots / chapitre",
+      "wordsValue": "{{count}} mots",
+      "writingProgress": "Progression d’écriture",
+      "writtenTarget": "Écrit / objectif"
     },
     "tabs": {
       "companion": "Agent",
@@ -242,10 +439,34 @@
       "storyline": "Intrigue sans titre"
     }
   },
+  "userMenu": {
+    "import": "Importer",
+    "importBook": "Importer un livre (.driftingbook)",
+    "language": "Langue",
+    "localMenu": "Menu de la bibliothèque locale",
+    "localStatus": "LOCAL · SUR CET APPAREIL",
+    "settings": "Réglages",
+    "theme": "Thème",
+    "themeDark": "Sombre",
+    "themeDarkShort": "Sombre",
+    "themeLight": "Clair",
+    "themeLightShort": "Clair",
+    "themeSystem": "Suivre le système",
+    "themeSystemShort": "Système"
+  },
   "windowCaption": {
     "close": "Fermer",
     "maximize": "Agrandir",
     "minimize": "Réduire",
     "restore": "Restaurer"
+  },
+  "workspaceWordTally": {
+    "book": "Livre",
+    "chapter": "Chapitre",
+    "counting": "comptage",
+    "drift": "Idée",
+    "selection": "Sélection",
+    "storyline": "Intrigue",
+    "today": "Aujourd’hui"
   }
 }

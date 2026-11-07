@@ -20,7 +20,7 @@ use dr_workspace::{
     commands::{
         BookIn, ListIn,
         book::{BookGet, BookList, ListBooksIn},
-        chapter::ChapterList,
+        chapter::{ActList, ChapterList},
         element::{CategoryList, ElementList, ElementListIn},
         idea::{IdeaGroupList, IdeaList, IdeaListIn},
         material::{FolderList, MaterialList, MaterialListIn},
@@ -28,7 +28,8 @@ use dr_workspace::{
         storyline::StorylineList,
     },
     dto::{
-        CategoryInfo, ChapterInfo, ElementInfo, GroupInfo, IdeaInfo, MaterialInfo, StorylineInfo,
+        ActInfo, CategoryInfo, ChapterInfo, ElementInfo, GroupInfo, IdeaInfo, MaterialInfo,
+        StorylineInfo,
     },
 };
 
@@ -52,6 +53,8 @@ pub struct Book {
     pub storylines: Vec<StorylineInfo>,
     /// Reading order.
     pub chapters: Vec<ChapterInfo>,
+    /// Reading order, each with its chapters.
+    pub acts: Vec<ActInfo>,
     pub categories: Vec<CategoryInfo>,
     pub elements: Vec<ElementInfo>,
     /// Parents before children.
@@ -127,6 +130,7 @@ impl Book {
                     },
                 )?
                 .output,
+            acts: lib.run::<ActList>(me, book_in())?.output,
             folders: lib.run::<FolderList>(me, book_in())?.output,
             materials: lib
                 .run::<MaterialList>(
@@ -396,6 +400,19 @@ impl PageText {
 }
 
 /// The shell's target for F3's.
+/// The shell's target as F3 names it (for the view modules).
+pub fn nav_target(t: &Target) -> NavTarget {
+    match t {
+        Target::Book => NavTarget::Book,
+        Target::Chapter(id) => NavTarget::Chapter(id.clone()),
+        Target::Idea(id) => NavTarget::Idea(id.clone()),
+        Target::Storyline(id) => NavTarget::Storyline(id.clone()),
+        Target::Element(id) => NavTarget::Element(id.clone()),
+        Target::Category(id) => NavTarget::Category(id.clone()),
+        Target::Material(id) => NavTarget::Material(id.clone()),
+    }
+}
+
 pub fn target(t: NavTarget) -> Target {
     match t {
         NavTarget::Book => Target::Book,

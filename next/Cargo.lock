@@ -1529,15 +1529,19 @@ version = "0.0.0"
 dependencies = [
  "anyhow",
  "color_quant",
+ "dr-editor",
  "dr-i18n",
  "dr-model",
  "dr-platform",
  "dr-store",
  "dr-testkit",
  "dr-ui",
+ "dr-view-search",
+ "dr-view-stats",
  "dr-workspace",
  "futures",
  "gpui",
+ "gpui-prose",
  "gpui_platform",
  "log",
  "objc2 0.6.5",
@@ -1616,9 +1620,84 @@ dependencies = [
 ]
 
 [[package]]
+name = "dr-view-home"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "color_quant",
+ "dr-doc",
+ "dr-i18n",
+ "dr-model",
+ "dr-shell",
+ "dr-store",
+ "dr-testkit",
+ "dr-ui",
+ "dr-view-shelf",
+ "dr-workspace",
+ "futures",
+ "gpui",
+ "gpui_platform",
+ "log",
+ "png 0.18.1",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
+name = "dr-view-search"
+version = "0.0.0"
+dependencies = [
+ "dr-i18n",
+ "dr-ui",
+ "dr-workspace",
+ "gpui",
+ "log",
+]
+
+[[package]]
+name = "dr-view-shelf"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "dr-i18n",
+ "dr-shell",
+ "dr-store",
+ "dr-testkit",
+ "dr-ui",
+ "dr-workspace",
+ "futures",
+ "gpui",
+ "log",
+ "tempfile",
+]
+
+[[package]]
+name = "dr-view-stats"
+version = "0.0.0"
+dependencies = [
+ "dr-doc",
+ "dr-i18n",
+ "dr-model",
+ "dr-store",
+ "dr-text",
+ "dr-ui",
+ "dr-workspace",
+ "futures",
+ "gpui",
+ "libc",
+ "log",
+ "serde_json",
+ "tempfile",
+ "windows 0.62.2",
+]
+
+[[package]]
 name = "dr-workspace"
 version = "0.0.0"
 dependencies = [
+ "base64 0.22.1",
  "dr-doc",
  "dr-index",
  "dr-model",
@@ -1644,10 +1723,13 @@ dependencies = [
  "dr-platform",
  "dr-shell",
  "dr-ui",
+ "dr-view-home",
+ "dr-view-shelf",
  "dr-workspace",
  "gpui",
  "gpui_platform",
  "log",
+ "serde_json",
 ]
 
 [[package]]
@@ -2452,6 +2534,7 @@ version = "0.1.0"
 name = "gpui-prose"
 version = "0.1.0"
 dependencies = [
+ "accesskit_consumer",
  "gpui",
  "gpui-ime",
  "gpui_platform",
@@ -2464,6 +2547,7 @@ dependencies = [
  "raw-window-handle",
  "rusqlite",
  "sum_tree",
+ "windows 0.62.2",
 ]
 
 [[package]]

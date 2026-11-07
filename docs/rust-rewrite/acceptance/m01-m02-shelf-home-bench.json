@@ -1,0 +1,63 @@
+{
+  "schema": "dr-testkit/evidence/1",
+  "name": "shelf-home-bench",
+  "milestone": "m01-m02",
+  "generatedBy": "cargo run --release -p dr-view-home --features capture --example shelf-home-capture -- --bench ../docs/rust-rewrite/acceptance",
+  "inputs": {
+    "crates/dr-shell/src/pages.rs": "b4aa60a622dea43e0eaf1c818da4f690d41fa32a3e8236953bcfedc766937e9d",
+    "crates/dr-testkit/fixtures/shelf.json": "d2677541b73be253a34454cfd1add8f9635445305728d58a615dc206fcf87ef2",
+    "crates/dr-testkit/src/samples.rs": "d92b073fab71aafed3cf29f0a115def579ab2dd40e3da476356955f9017e874d",
+    "crates/dr-testkit/src/seed": "a01def93a860c30e8b9ab3d7371b1766a53a14bf5c3e885821324d5c222caa6f",
+    "crates/dr-view-home": "143a55b7ed985869d236a60b4847b925be4c556fce47bb6841023951132df068",
+    "crates/dr-view-shelf": "5b78e2e67489878ce3d2e9f69613d762cef3e78e6cec27b7277a3e6ca8933100",
+    "crates/dr-workspace": "a027003030fe2c9fdfe6d410c975a80fd44a0d1e05c2408c33f3a5c635a638d8"
+  },
+  "corpus": {
+    "sample": "showcase",
+    "seed": "heavy"
+  },
+  "machine": {
+    "cpu": "Apple M3 Pro",
+    "cores": 12,
+    "memoryBytes": 38654705664,
+    "os": "macos",
+    "osVersion": "27.0.1",
+    "arch": "aarch64",
+    "loadAverage1m": 16.64,
+    "profile": "release"
+  },
+  "results": {
+    "note": "Headless (GPUI test platform, Metal into a texture), 1280x800 at 2x, the showcase library (8 books) plus the heavy seed's book, read through F3. shelf_first: making the window until its first frame and until the cards drew (the shelf read off the main thread). open_book: from a card's click until the book's lists and Project Home's numbers arrived and a frame drew; the shelf has read every book's lists by then (as in the app), so 'first' means the first time the book's lists, chapter documents' numbers and Project Home are read for it, not a cold F3. Frames are the CPU time of window.draw. One-minute load average when it started: 17.4.",
+    "shelf_first": {
+      "first_frame_ms": 48.53,
+      "cards_ms": 118.08,
+      "shelf_cards_ms": 61.28
+    },
+    "books_on_shelf": 9,
+    "shelf_redraw_ms": {
+      "n": 60,
+      "median": 3.31,
+      "max": 10.93
+    },
+    "open_book_first_ms": {
+      "慢钟": 38.12,
+      "阿Q正传（示例）": 34.54,
+      "heavy": 29.12
+    },
+    "open_book_again_ms": {
+      "n": 10,
+      "median": 4.52,
+      "max": 4.86
+    },
+    "back_to_shelf_ms": {
+      "n": 5,
+      "median": 10.44,
+      "max": 11.42
+    },
+    "home_redraw_ms": {
+      "n": 60,
+      "median": 0.58,
+      "max": 1.52
+    }
+  }
+}

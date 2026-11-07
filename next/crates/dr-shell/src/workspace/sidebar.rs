@@ -8,10 +8,15 @@
 //! - A half's minimum width is its tab row's; two halves fit when the
 //!   sidebar is twice that plus the hairline between them.
 //! - The left panels and the material library list the book from F3's
-//!   queries (chapters by storyline, elements by category, ideas by group,
-//!   materials by folder); their modules (M-chapters, M-elements, …) add
-//!   hover cards, sorting and editing. Review, stats and the Agent are empty
-//!   until theirs arrive.
+//!   queries (chapters by storyline or the whole book, elements by category,
+//!   ideas by group, materials by folder); their modules (M-chapters,
+//!   M-elements, …) add hover cards, sorting and editing. Stats is M07's
+//!   (`dr-view-stats`); review and the Agent are empty until theirs arrive.
+//! - The chapter panel (M04): its summary line switches between the
+//!   storylines and the whole book in reading order, where each act starts
+//!   with its heading (第N幕 · name). A chapter cell can be picked up and
+//!   dropped on another chapter: it moves to that place in reading order
+//!   (F3's `chapter.move`), into that act if the place is in another.
 
 use std::time::SystemTime;
 
@@ -30,7 +35,7 @@ use dr_ui::{
     tokens::{Rgb, glass as g, menu as m, motion, radius},
     transitions::Push,
 };
-use dr_workspace::dto::GroupInfo;
+use dr_workspace::dto::{ActInfo, GroupInfo};
 use gpui::{
     AnyElement, App, AppContext as _, Context, DragMoveEvent, ElementId, InteractiveElement,
     IntoElement, ParentElement, Render, SharedString, StatefulInteractiveElement, Styled, TextRun,
@@ -46,6 +51,7 @@ use crate::nav::{Open, Target};
 use crate::notifications::{self, Notifications};
 use crate::panes::{PaneId, Panes};
 use crate::strings::{t, tf};
+use dr_ui::components::{DraggedPill, Pill};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -575,11 +581,40 @@ fn left_header(
             };
             let selected = ws.nav.is_selected(&Target::Book);
             let entity = cx.entity();
+            let summary = if book.storylines.is_empty() {
+                meta(text, &theme).into_any_element()
+            } else {
+                // The summary switches the panel between the storylines and
+                // the whole book (the 0.1 client's view-mode text).
+                let by_book = ws.chapters_by_book;
+                let toggle = cx.entity();
+                let ink = theme.palette.ink(1).solid();
+                meta(text, &theme)
+                    .id(SharedString::from(format!("chapter-view-{slug}")))
+                    .cursor_pointer()
+                    .hover(move |st| st.text_color(ink))
+                    .role(gpui::Role::Button)
+                    .aria_label(t(
+                        cx,
+                        if by_book {
+                            keys::left_sidebar::view_mode::GLOBAL_TITLE
+                        } else {
+                            keys::left_sidebar::view_mode::STORYLINE_TITLE
+                        },
+                    ))
+                    .on_click(move |_, _, cx| {
+                        toggle.update(cx, |ws, cx| {
+                            ws.chapters_by_book = !ws.chapters_by_book;
+                            ws.changed(cx);
+                        })
+                    })
+                    .into_any_element()
+            };
             div()
                 .size_full()
                 .flex()
                 .items_center()
-                .child(meta(text, &theme))
+                .child(summary)
                 .child(
                     IconButton::new(SharedString::from(format!("book-{slug}")), Icon::OpenBook)
                         .label(t(cx, keys::top_timeline::singletons::ALL_CHAPTERS))
@@ -728,7 +763,8 @@ fn rows_view(
     let current = ws.nav.current().cloned();
     let entity = cx.entity();
     let list_id = id.clone();
-    uniform_list(ElementId::Name(id), rows.len(), move |range, _, cx| {
+    uniform_list(ElementId::Name(id), rows.len(), move |range, window, cx| {
+        let wash = Theme::of(window, cx).palette.accent.alpha(0.08);
         range
             .map(|i| {
                 let row = match &rows[i] {
@@ -745,6 +781,7 @@ fn rows_view(
                         *structure,
                         current.as_ref() == Some(target),
                         &entity,
+                        wash,
                         cx,
                     ),
                     Row::Heading {
@@ -771,8 +808,15 @@ fn rows_view(
     .into_any_element()
 }
 
+/// A chapter cell in the hand: the chapter's id.
+#[derive(Clone, Debug)]
+pub struct ChapterDrag {
+    pub id: String,
+}
+
 /// A cell that opens `target` (components.md, 「Cell」): a click shows it
-/// as a preview, a double click keeps it.
+/// as a preview, a double click keeps it. A chapter's can be picked up and
+/// dropped on another chapter's to move it there in reading order.
 #[allow(clippy::too_many_arguments)]
 fn cell(
     id: SharedString,
@@ -782,11 +826,18 @@ fn cell(
     structure: bool,
     selected: bool,
     ws: &gpui::Entity<Workspace>,
+    wash: gpui::Hsla,
     cx: &App,
 ) -> AnyElement {
     let (mark, color) = book.mark(&target);
     let label = super::title_of(book, &target, cx);
     let entity = ws.clone();
+    let chapter = match &target {
+        Target::Chapter(c) => Some(c.to_string()),
+        _ => None,
+    };
+    let ghost = label.clone();
+    let drag_id = SharedString::from(format!("{id}-drag"));
     let cell = SandCell::new(ElementId::Name(id), label)
         .mark(mark)
         .color_opt(color)
@@ -801,7 +852,26 @@ fn cell(
             let target = target.clone();
             entity.update(cx, |ws, cx| ws.open(target, how, cx));
         });
-    indented(depth, cell.into_any_element())
+    let el = indented(depth, cell.into_any_element());
+    let Some(chapter) = chapter else {
+        return el;
+    };
+    let drop_on = ws.clone();
+    let onto = chapter.clone();
+    div()
+        .id(ElementId::Name(drag_id))
+        .rounded(px(radius::SM))
+        .on_drag(ChapterDrag { id: chapter }, move |_, _, window, cx| {
+            let pill = Pill::new(ghost.clone()).mark(mark, color);
+            let at = window.mouse_position();
+            cx.new(|_| DraggedPill::new(pill, at))
+        })
+        .drag_over::<ChapterDrag>(move |st, _, _, _| st.bg(wash))
+        .on_drop(move |drag: &ChapterDrag, _, cx| {
+            drop_on.update(cx, |ws, cx| ws.move_chapter(&drag.id, &onto, cx))
+        })
+        .child(el)
+        .into_any_element()
 }
 
 fn heading(
@@ -874,17 +944,34 @@ fn heading_row(
 }
 
 /// The rows of a left panel.
-fn left_rows(tab: LeftTab, book: &Book, theme: &Theme, cx: &App) -> Vec<Row> {
+fn left_rows(tab: LeftTab, book: &Book, by_book: bool, theme: &Theme, cx: &App) -> Vec<Row> {
     let mut rows = Vec::new();
     let chapter = |id: &str| id.parse().ok().map(Target::Chapter);
     match tab {
         LeftTab::Chapters => {
-            if book.storylines.is_empty() {
-                rows.extend(
-                    book.chapters
-                        .iter()
-                        .filter_map(|c| open_row(chapter(&c.id), "all", 0, false)),
-                );
+            if book.storylines.is_empty() || by_book {
+                // The whole book in reading order; each act starts with its
+                // heading and holds its chapters.
+                let starts: std::collections::HashMap<&str, (usize, &ActInfo)> = book
+                    .acts
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(n, a)| a.chapters.first().map(|c| (c.as_str(), (n, a))))
+                    .collect();
+                let mut depth = 0;
+                for c in &book.chapters {
+                    if let Some((n, act)) = starts.get(c.id.as_str()) {
+                        rows.push(heading_row(
+                            format!("act-{}", act.id),
+                            act_label(*n + 1, &act.name, cx),
+                            None,
+                            act.color.as_deref().and_then(crate::book::color_of),
+                            0,
+                        ));
+                        depth = 1;
+                    }
+                    rows.extend(open_row(chapter(&c.id), "book", depth, false));
+                }
             } else {
                 // By storyline, as the 0.1 client's storyline view: a chapter
                 // shows under each storyline it is on.
@@ -992,6 +1079,16 @@ fn left_rows(tab: LeftTab, book: &Book, theme: &Theme, cx: &App) -> Vec<Row> {
     rows
 }
 
+/// 第N幕 and the act's name, if it has one.
+fn act_label(n: usize, name: &str, cx: &App) -> SharedString {
+    let ordinal = tf(cx, keys::all_chapters::ACT_ORDINAL, &[("n", &n)]);
+    if name.trim().is_empty() {
+        ordinal
+    } else {
+        format!("{ordinal} · {}", name.trim()).into()
+    }
+}
+
 fn left_body(
     tab: LeftTab,
     ws: &Workspace,
@@ -1016,7 +1113,7 @@ fn left_body(
     if let Some(key) = empty_key {
         return empty(key, cx);
     }
-    let rows = left_rows(tab, &book, &theme, cx);
+    let rows = left_rows(tab, &book, ws.chapters_by_book, &theme, cx);
     rows_view(
         format!("left-{}-{}", pane_slug(pane), tab.slug()).into(),
         rows,
@@ -1074,7 +1171,20 @@ fn right_body(
                 cx,
             )
         }
-        // Their modules fill these: review (M18/M19), stats (M07), the Agent (M27).
+        // M07: word counts and writing days.
+        RightTab::Stats => {
+            let strings = crate::Strings::get(cx);
+            let (locale, platform) = (strings.locale(), strings.platform());
+            dr_view_stats::panel(
+                &format!("stats-{}", pane_slug(pane)),
+                &ws.book_id,
+                ws.nav.current().map(crate::book::nav_target),
+                locale,
+                platform,
+                cx,
+            )
+        }
+        // Their modules fill these: review (M18/M19), the Agent (M27).
         _ => div().size_full().into_any_element(),
     }
 }

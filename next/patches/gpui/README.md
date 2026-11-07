@@ -8,6 +8,8 @@
 | --- | --- | --- |
 | `0001-macos-stop-idle-display-link.patch` | macOS 实现 `PlatformWindow::frame_waker`；连续 6 拍没画也没需求就停掉显示链接，唤醒时再启动 | 本机量过，准备挂上 |
 | `0002-experiment-present-now-direct.patch` | 实验：`displayLayer:` 直接画，不开 CA 事务、不重启显示链接；只在 `GPUI_PRESENT_NOW_DIRECT=1` 时生效 | 只用于测量，不挂 |
+| `0003-a11y-draw-views-uncached.patch` | G7：读屏软件连着时，缓存视图一律不走缓存（GPUI 只在预绘制时建读屏节点，缓存回放的视图会从读屏树里掉出去）；独立于 0001、0002 | 只存文件；`gpui-prose` 自己先绕开了（见 f4c-input.md） |
+| `0004-macos-a11y-subclass-first-responder.patch` | G8：AccessKit 的 macOS 适配器子类化 GPUI 自己的视图（第一响应者），而不是窗口的内容视图；否则系统问「焦点在哪个元素」时答的是窗口 | 只存文件，没在 fork 上构建验证（证据见 f4c-input.md 的探针） |
 
 在 Zed 的 `v1.27.0` 检出上应用：
 

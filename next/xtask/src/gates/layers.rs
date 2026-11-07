@@ -60,6 +60,9 @@ pub const LAYERS: &[(&str, Layer)] = &[
     ("dr-shell", Layer::Interface),
     // F8: the debug bridge's server, linked into development builds only.
     ("dr-debug-bridge", Layer::Interface),
+    // Feature views (`dr-view-*` are interface crates by name too).
+    ("dr-view-search", Layer::Interface),
+    ("dr-view-stats", Layer::Interface),
     ("drifting", Layer::App),
     ("dr-testkit", Layer::Tools),
     ("dr-cli", Layer::Tools),

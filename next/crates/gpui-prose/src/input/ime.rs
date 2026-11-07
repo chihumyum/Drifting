@@ -407,6 +407,9 @@ impl EntityInputHandler for ProseEditor {
             "replace_and_mark_text_in_range({range16:?}, {new_text:?}, {new_selected_range16:?})"
         ));
         if self.composition.is_none() {
+            // Losing focus from here on must also clear the system's marked
+            // text (input/system_ime.rs).
+            self.ensure_system_ime(window);
             let mut base = match range16 {
                 Some(range16) => self.virtual_range_to_doc(range16),
                 None => self.selection.range(),

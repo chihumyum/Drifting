@@ -204,6 +204,8 @@ struct State {
     undo: Vec<Invocation>,
     undo_declared: bool,
     irreversible: bool,
+    /// Not an entry of the journal (see [`Cx::follows_prose`]).
+    unjournaled: bool,
     summary: Option<String>,
     leases: Vec<Lease>,
     leased: BTreeSet<BookId>,
@@ -223,6 +225,8 @@ pub struct Cx<'a> {
 pub(crate) struct Finished {
     pub effects: Vec<Effect>,
     pub undo: Option<Vec<Invocation>>,
+    /// Record a journal row (unless nothing changed).
+    pub journaled: bool,
     pub book: Option<BookId>,
     pub leases: Vec<Lease>,
 }
@@ -260,6 +264,7 @@ impl<'a> Cx<'a> {
         Finished {
             effects: st.effects,
             undo,
+            journaled: !st.unjournaled,
             book: st.book_hint,
             leases: st.leases,
         }
@@ -347,6 +352,12 @@ impl<'a> Cx<'a> {
 
     /// Step 2, raw: run `f` on the holder's document itself (history
     /// restores use Loro's `revert_to`).
+    ///
+    /// The author's commands commit with [`holder::COMMAND_ORIGIN`], not
+    /// `user`: an editor open on this document undoes only its own steps
+    /// (`ProseSession`), and a command is undone through the journal. An
+    /// Agent's, the mirror's or a sync's origin is left out of the editor's
+    /// undo already.
     pub(crate) fn write_prose_raw<R, F>(&self, slot: &ProseSlot, f: F) -> Result<R>
     where
         F: FnOnce(&loro::LoroDoc) -> Result<R> + Send + 'static,
@@ -354,7 +365,11 @@ impl<'a> Cx<'a> {
     {
         self.check_phase(Phase::Prose)?;
         let agent = self.actor.agent_write(&self.summary());
-        holder::write(&slot.handle, self.actor.store_origin(), agent, f)
+        let commit = match self.actor {
+            Actor::User => holder::Commit::AsCommand,
+            _ => holder::Commit::Holder,
+        };
+        holder::write_with(&slot.handle, self.actor.store_origin(), agent, commit, f)
     }
 
     /// Step 3: the book document, one commit. Returns `f`'s value and the
@@ -428,5 +443,15 @@ impl<'a> Cx<'a> {
     /// (history can still restore it).
     pub(crate) fn irreversible(&self) {
         self.st.borrow_mut().irreversible = true;
+    }
+
+    /// Declare that this command follows what happened in prose and is not
+    /// a step of the author's own: no journal row, so the object-level Undo
+    /// neither stops at it nor loses its redo to it. An editor's undo
+    /// bringing back a comment's anchor, and the TODOs projected from
+    /// markers, are such: the editor's own undo takes the prose back and
+    /// they follow again. The outcome still says how to undo it.
+    pub(crate) fn follows_prose(&self) {
+        self.st.borrow_mut().unjournaled = true;
     }
 }

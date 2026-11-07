@@ -72,6 +72,14 @@ pub(crate) fn word_start_before(doc: &mut ProseDoc, offset: usize) -> usize {
     }
 }
 
+/// Where a paragraph move goes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ParagraphMove {
+    Start,
+    End,
+    Next,
+}
+
 impl ProseEditor {
     pub(crate) fn move_horizontal(&mut self, forward: bool, extend: bool, cx: &mut Context<Self>) {
         let mut sel = self.selection;
@@ -237,6 +245,49 @@ impl ProseEditor {
         self.set_selection(sel, cx);
     }
 
+    /// Paragraph moves: `Start` to the start of the caret's paragraph (or
+    /// the previous one's, if already there: ⌥↑, Ctrl+↑); `End` to its end
+    /// (or the next one's: ⌥↓); `Next` to the start of the next paragraph
+    /// (Ctrl+↓ on Windows).
+    pub(crate) fn move_by_paragraph(
+        &mut self,
+        to: ParagraphMove,
+        extend: bool,
+        cx: &mut Context<Self>,
+    ) {
+        let mut sel = self.selection;
+        let doc = &mut self.book.chapters[sel.chapter].doc;
+        let from = if extend || sel.is_empty() {
+            sel.head
+        } else if to == ParagraphMove::Start {
+            sel.range().start
+        } else {
+            sel.range().end
+        };
+        let (line, inner) = doc.locate(from);
+        let last = doc.visible_lines().saturating_sub(1);
+        sel.head = match to {
+            ParagraphMove::Start if inner == 0 && line > 0 => doc.line_start(line - 1),
+            ParagraphMove::Start => doc.line_start(line),
+            ParagraphMove::End => {
+                let end = doc.line_start(line) + doc.line(line).chars;
+                if from == end && line < last {
+                    doc.line_start(line + 1) + doc.line(line + 1).chars
+                } else {
+                    end
+                }
+            }
+            ParagraphMove::Next if line < last => doc.line_start(line + 1),
+            ParagraphMove::Next => doc.line_start(line) + doc.line(line).chars,
+        };
+        if !extend {
+            sel.anchor = sel.head;
+        }
+        sel.affinity = Affinity::Downstream;
+        sel.goal_x = None;
+        self.set_selection(sel, cx);
+    }
+
     fn move_to_chapter_edge(&mut self, end: bool, extend: bool, cx: &mut Context<Self>) {
         let mut sel = self.selection;
         let doc = &mut self.book.chapters[sel.chapter].doc;
@@ -394,6 +445,54 @@ impl ProseEditor {
         cx: &mut Context<Self>,
     ) {
         self.move_to_chapter_edge(true, true, cx);
+    }
+    pub(crate) fn on_move_to_paragraph_start(
+        &mut self,
+        _: &MoveToParagraphStart,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.move_by_paragraph(ParagraphMove::Start, false, cx);
+    }
+    pub(crate) fn on_move_to_paragraph_end(
+        &mut self,
+        _: &MoveToParagraphEnd,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.move_by_paragraph(ParagraphMove::End, false, cx);
+    }
+    pub(crate) fn on_move_to_next_paragraph(
+        &mut self,
+        _: &MoveToNextParagraph,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.move_by_paragraph(ParagraphMove::Next, false, cx);
+    }
+    pub(crate) fn on_select_to_paragraph_start(
+        &mut self,
+        _: &SelectToParagraphStart,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.move_by_paragraph(ParagraphMove::Start, true, cx);
+    }
+    pub(crate) fn on_select_to_paragraph_end(
+        &mut self,
+        _: &SelectToParagraphEnd,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.move_by_paragraph(ParagraphMove::End, true, cx);
+    }
+    pub(crate) fn on_select_to_next_paragraph(
+        &mut self,
+        _: &SelectToNextParagraph,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.move_by_paragraph(ParagraphMove::Next, true, cx);
     }
     pub(crate) fn on_select_all(&mut self, _: &SelectAll, _: &mut Window, cx: &mut Context<Self>) {
         let chapter = self.selection.chapter;

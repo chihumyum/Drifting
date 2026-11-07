@@ -1,14 +1,37 @@
 # F3：dr-workspace（命令、查询、事件、撤销）
 
-2026-11-07，两个里程碑。计划见 [foundation.md 的 F3](../foundation.md#f3-dr-workspace)，代码在 `next/crates/dr-workspace/`。它建在 F1（[f1-model-doc.md](f1-model-doc.md)）、F2（[f2-store.md](f2-store.md)）和 dr-index（[dr-text-index.md](dr-text-index.md)）之上，不依赖 GPUI。
+2026-11-07 两个里程碑，2026-11-08 第三轮（给编辑器的三样）。计划见 [foundation.md 的 F3](../foundation.md#f3-dr-workspace)，代码在 `next/crates/dr-workspace/`。它建在 F1（[f1-model-doc.md](f1-model-doc.md)）、F2（[f2-store.md](f2-store.md)）和 dr-index（[dr-text-index.md](dr-text-index.md)）之上，不依赖 GPUI。
 
 ## 做了什么（大白话）
+
+### 第三轮：给编辑器（F4 的 dr-editor）的三样
+
+F4 做好了 `dr-editor`（编辑器经工作区的编辑会话改正文、落盘），提了三样要 F3 补的（f4-editor.md「待协调」第 11 条）。都做了：
+
+1. **`comment.reanchor`：把撤销带回来的批注锚点写回书目。** 作者删掉一段带批注的文字、再在编辑器里撤销，字回来了，但用的是新的操作，书目里存的锚点已经缩成一个点。编辑器的撤销项里带着原来的锚点，经 `ChapterEditorEvent::AnchorsChanged` 交出来，宿主调这条命令写回去。字节和 dr-doc 的编码一模一样（两个 Loro 光标），JSON 里每半用 base64；`null` 表示去掉锚点（批注留在原来的段落或对象上）。写之前会检查：解得开、两个光标都在正文里、指的是这台设备见过的字（别的书、别的设备的光标会被拒）。这是作者的改动，跟着书目同步到别的设备（有测试）。
+   - **它不进对象级撤销的日志**（F4 的建议是进日志，这里没照做，理由如下）。它是编辑器撤销的附带结果：如果进了日志，作者在编辑器外面按撤销，第一下撤的是一个看不见的锚点；更糟的是，日志里任何一条新记录都会清空重做栈，作者在编辑器里撤销一下，工作区那边的「重做」就没了。所以这条命令（和下面的 `todo.project`）只写书目、不记日志；结果里照样给出反操作，编辑器重做时再交一次锚点就行。
+   - 另加了一条查询 **`comment.anchors { book, target }`**：一个对象正文上所有批注存的锚点（同样是 base64）。编辑器可以改用它，不用再到持有者线程上直接读书目文档（F4 提的可选项）。没有把锚点塞进 `comment.list`：那是帮手也读的清单，一串 base64 对它没用。
+2. **`todo.project`：把正文里打的 TODO 标记投成待办。** 编辑器找到段首的 `TODO` / `待办` 标记，变了就把整份清单交过来：`{ doc, markers: [{ block, task }], editing }`。规则照旧版 `useTodoAutoParse`：
+   - 新标记 → 建一条待办，id 是 `CommentId::for_projection(Marker, 文档, 块)`，所以两台设备投同一个标记得到的是同一个实体；正文是标记后面的任务，空的用旧版的「（此处待办）」；作者是本人、来源 manual。
+   - 作者还在这一段里打字（`editing`）→ 先不建，等作者离开这一段；这一段已有的待办照留。
+   - 标记的文字改了 → 不动待办（作者可能在侧栏里改过它）。
+   - 标记没了、或者整段删了 → 删掉**未解决的**待办；已解决的冻结，标记没了也留着，标记再出现也不再建。
+   - 清单里有、正文里已经没有的段（清单过时了）→ 不建。
+   - **一处旧版没有、新版必须补的：别的设备先收到书目、后收到正文。** 同步时书目文档和正文文档是分开到的。A 设备上作者把一段改成 TODO 并投出了待办；B 设备先收到了书目（有这条待办）、正文还是旧的（没有这个标记），B 的编辑器一核对就会把它当成「标记没了」删掉。所以投出待办时把当时正文的版本（每台设备各写到了第几个操作）记在待办的 metadata 里；B 只有在自己的正文也包含这个版本以后才删，之前只把它列进结果的 `waiting`。有测试。
+   - **两台设备同时投同一个标记**：实体只有一个，但待办的正文是一段可合并的文字，两边各插了一遍，合起来变成「补一场雨补一场雨」。投出时把种子文字也记进 metadata，同步导入书目以后，正文恰好是种子重复几遍的，就改回种子（来源 `repair`；两台设备算出来的删除相同，两边的修复合得上，有测试）。根本的修法在 F1，见「待协调」F1-1。
+   - 它也不进日志（理由同上）：待办跟着正文走，作者撤销编辑器里的那一行字，下一次投影就把待办删了。
+3. **作者的命令不再进编辑器的撤销栈。** 编辑器的撤销管理器撤所有来源是 `user` 的提交；作者从命令面板、或者帮手代作者执行，改了正开着的这一章，那次提交以前也是 `user`，编辑器按自己的步数撤销时可能撤到它。现在作者的命令改正文时，提交的 Loro 来源是 **`user:command`**（`dr_workspace::COMMAND_ORIGIN`），会话的撤销管理器额外排除这个前缀：编辑器的撤销只撤编辑器自己的那几步，命令由日志撤（对象级撤销），两边谁先撤都不碰对方。存进 SQLite 的那一行照旧记作 `user`，历史、署名、Agent 撤销都不受影响。编辑器那边按来源 `== "user"` 数自己的撤销项，`user:command` 不算，不用改。有测试，而且确认过拿掉这个改动测试会失败。
+   - 做法上有一处要 F2 知道：dr-store 的规矩是「写入任务只改、由持有者提交」，而持有者提交时用的来源只能是它那几种。所以作者命令的写入任务在最后**自己提交一次**（来源 `user:command`），持有者随后的提交是空的，这批操作照常作为一行、以 `user` 存下、落盘以后才发事件；和解析锚点时中途隐式提交是同一种情形，F2 的代码本来就接受。长久的做法见「待协调」F2-3。
+
+命令和查询从 82 条变成 85 条（多了 `comment.reanchor`、`todo.project` 两条命令和 `comment.anchors` 一条查询），能力清单的快照已更新。属性测试加了一种随机操作（对某章随机几段投 TODO），两设备测试从一章共有的章节开始，并检查投出的待办 id 和正文；3000 例单设备、两设备都过。
+
+**这一轮没重测性能。** 跑完测试时机器的一分钟负载在 400 以上（别的会话在编译），量出来的数不可信。写入路径上的变化只有一处：作者命令改正文时多一次空提交（持有者那一下什么也没提交）。`f3-m2-workspace-bench.json` 因此显示为过期，等机器空闲时跑 `cargo run --release -p dr-testkit --bin bench -- workspace --milestone f3-m3`，顺便把 F2 第四轮以后的搜索数字记下来。
 
 ### 第二个里程碑
 
 1. **拆掉了「镜像」，每篇打开的文档在内存里只剩一份。** 第一个里程碑时，F1 的类型化读写只能用在它自己那份 Loro 文档上，所以每篇打开的文档要多存一份副本，每次提交还要多导出、导入一次。F1 现在能把读写套在 F2 持有者手里的那份文档上了：命令直接在持有者的写入任务里用 dr-doc 写，读也直接读那一份。同时打开 100 章时，每章占的内存从 0.47 MiB 降到 0.30 MiB，少了三分之一；作者打一个字从 0.094 ms 降到 0.078 ms。「副本落后了、读之前先对齐」这类情况也不会再有。
 2. **撤销记录存进了 `library.sqlite`，重启以后照样能撤销、重做。** 用的是 F2 建好的 `ws_journal` 表。每个人（作者、每个 Agent 会话）保留最近 1000 条。
-3. **搜索改由 F2 先按书序排好再截断**，工作区不再自己多取一万条再排。现在结果总是准的。但 F2 的这个函数在大书上慢了十倍左右（见「关键数字」），修法已经写进待协调 F2-1，F2 改完以后工作区这边不用动。
+3. **搜索改由 F2 先按书序排好再截断**，工作区不再自己多取一万条再排。现在结果总是准的。当时 F2 的这个函数在大书上慢了十倍左右（见「关键数字」）；F2 第四轮已经改了（它量的工作区搜索：一个字 495 → 0.50 ms，三个字 265 → 5.8 ms），工作区这边没动。
 4. **给外壳（F6）做了三样东西：**
    - **目录** `BookCatalog`：按组加名字、或者按 id 找对象，标签上显示的名字也从这里取。F6 的 `Catalog` trait 套上它只要三行，替身书就能删了。
    - **删除事件** `WsEvent::Removed`：不管是作者、Agent 还是另一台设备，把东西放进废纸篓或者彻底删掉，总线上都会发一条，外壳据此关掉对应的标签。
@@ -154,12 +177,12 @@ quit::before_quit(cx, move |_| {
 | 分类 | `category.list` | `category.create`、`category.update`、`category.trash`、`category.restore`、`category.purge` |
 | 关系 | `relation.list`、`relation_type.list` | `relation.create`（对称类型按规范顺序存，已有就返回已有的）、`relation.delete`、`relation_type.create`、`relation_type.update`、`relation_type.delete`（连同用它的关系） |
 | 构想 | `idea.list`、`idea_group.list` | `idea.create`、`idea.update`、`idea.trash`、`idea.restore`、`idea.purge`、`idea_group.create`、`idea_group.update`、`idea_group.delete` |
-| 批注与待办 | `comment.list`（目标不在的标「未定位」） | `comment.create`（挂在对象、段落、一段文字上，或浮动）、`comment.update`（正文、解决或重开、优先级、种类、关联的 Agent 对话）、`comment.delete` |
+| 批注与待办 | `comment.list`（目标不在的标「未定位」）、`comment.anchors`（一个对象正文上的锚点，给编辑器） | `comment.create`（挂在对象、段落、一段文字上，或浮动）、`comment.update`（正文、解决或重开、优先级、种类、关联的 Agent 对话）、`comment.reanchor`（编辑器撤销带回的锚点）、`comment.delete`、`todo.project`（正文里的 TODO 标记投成待办） |
 | 素材 | `material.list`、`material_folder.list` | `material.create`（文本笔记、图片、PDF）、`material.update`、`material.move`、`material.delete`、`material_folder.create`、`material_folder.update`、`material_folder.delete`、`asset.put`（资源元数据，写一次） |
 | 正文 | `prose.read`（段落：块 ID、H1/H2/H3 级别、文字、版本） | `prose.replace`（一段里唯一出现的原文 → 新文字）、`prose.restore`（退回某个版本） |
 | 历史 | `history.agent_changes` | `history.restore_entities`、`history.undo_agent` |
 
-除了 `book.create` 是 `library`，其余写命令都是 `book`；查询都是 `shared`。
+一共 85 条：65 条命令，20 条查询。除了 `book.create` 是 `library`，其余写命令都是 `book`；查询都是 `shared`。`comment.reanchor` 和 `todo.project` 跟着正文走，不进对象级撤销的日志（见第三轮第 1 条）。
 
 
 ## 写入顺序与补偿
@@ -202,8 +225,8 @@ quit::before_quit(cx, move |_| {
 
 | 层 | 做法 | 测试 |
 | --- | --- | --- |
-| 编辑器内 | `ProseSession`：dr-doc 的 `ProseUndo` 挂在持有者那份文档上（合并间隔 0，只撤 `user`），每一步是持有者的一个写入任务。Agent 和同步的改动是别的来源的提交，管理器把它们当成远端改动折进去，从不撤它们 | `the_editor_layer_undoes_only_the_authors_typing` |
-| 对象级 | 每条命令声明自己的反操作（新建 → 进废纸篓；改 → 改回旧值；移动 → 移回原坐标或原位置键；进废纸篓 ↔ 恢复；彻底删除 → `history.restore_entities` 从删除前的版本恢复）。日志在 `library.sqlite`，各人一个栈，新命令清空重做栈，重启后还在 | `undo_and_redo_walk_the_journal`、`a_new_command_clears_redo_and_actors_have_their_own_stacks`、`the_journal_survives_a_restart`、`an_actor_keeps_its_newest_rows`、`restore_entities_is_its_own_inverse` 和各命令的测试 |
+| 编辑器内 | `ProseSession`：dr-doc 的 `ProseUndo` 挂在持有者那份文档上（合并间隔 0，只撤 `user`），每一步是持有者的一个写入任务。Agent 和同步的改动是别的来源的提交，管理器把它们当成远端改动折进去，从不撤它们；作者的命令提交时来源是 `user:command`，会话的管理器也排除它，由日志撤 | `the_editor_layer_undoes_only_the_authors_typing`、`the_editors_undo_leaves_the_authors_commands_to_the_journal` |
+| 对象级 | 每条命令声明自己的反操作（新建 → 进废纸篓；改 → 改回旧值；移动 → 移回原坐标或原位置键；进废纸篓 ↔ 恢复；彻底删除 → `history.restore_entities` 从删除前的版本恢复）。日志在 `library.sqlite`，各人一个栈，新命令清空重做栈，重启后还在。跟着正文走的两条（`comment.reanchor`、`todo.project`）不记日志 | `undo_and_redo_walk_the_journal`、`a_new_command_clears_redo_and_actors_have_their_own_stacks`、`the_journal_survives_a_restart`、`an_actor_keeps_its_newest_rows`、`restore_entities_is_its_own_inverse` 和各命令的测试 |
 | Agent 改动 | `history.undo_agent`：从 F2 的结算记录找到这个会话（或这一轮）每次写入的前后版本。书目文档逐字段比较「Agent 动手前、Agent 写完后、现在」，现在还等于 Agent 写的才恢复。正文的每段写入首尾相接、之后也没人再写过，才整篇退回；「比较版本」和「退回」在同一个写入任务里做 | `undo_agent_restores_fields_nobody_changed_since`、`undo_agent_brings_back_what_it_deleted_for_good`、`undo_agent_leaves_prose_someone_else_edited` |
 
 Agent 撤销的细节：
@@ -272,14 +295,15 @@ DR_FOOTPRINT_DIR=<同一个> cargo test --release -p dr-workspace --test footpri
 
 | 测试 | 内容 | 结果 |
 | --- | --- | --- |
-| `tests/commands.rs`（23 项） | 每条命令和查询至少调一次，包括报错的情形；`null` 清空字段、撤销把空字段变回空；搜索按书序、废纸篓里的不占名额；有一项检查登记表里的每条都在这个文件里被调用过 | 全过 |
+| `tests/commands.rs`（23 项） | 每条命令和查询至少调一次，包括报错的情形；`null` 清空字段、撤销把空字段变回空；搜索按书序、废纸篓里的不占名额；有一项检查登记表里的每条都在这个文件或 `editor.rs` 里被调用过 | 全过 |
+| `tests/editor.rs`（7 项） | 给编辑器的：撤销以后写回锚点、去掉锚点、同一个锚点不写、反操作放回原来的、不进日志；坏字节、浮动批注、别的设备的光标被拒；锚点同步到另一台设备。TODO 标记按旧版规则建、留、删，正在打字的段先不建，已解决的冻结，过时的清单不建，书和素材的正文被拒；投影不进日志、不吃掉重做；两台设备投出同一个待办（正文不重复）；先收到书目、后收到正文的设备先留着待办 | 全过 |
 | `tests/registry.rs`（4 项） | 能力清单的两份快照（先排好键再比）；每条说明是一句话；读的都是 `shared`，写的都不是；输入都是带字段名的对象；清单里不出现 H1–H3 的禁用叫法、退役产品的名字和构想的旧叫法 | 全过 |
 | `tests/events.rs`（4 项） | 书目事件点名实体；正文事件只点名被改的那一段；Agent 写入带结算事件；缓存跟着事件走 | 全过 |
 | `tests/shell.rs`（4 项） | 目录按名字、按 id 找，组和组分开，重名（两台设备合并出来的）都返回，废纸篓里的找不到，改名立刻生效；进废纸篓、彻底删除、Agent 删除、删素材、删整本书都发 `Removed`，恢复不发；另一台设备同步过来的删除也发，没读过的被删节点两种都报；`before_quit` 补齐索引、关掉没人占着的文档，之后还能照常用 | 全过 |
 | `tests/write_order.rs`（6 项） | 上面「写入顺序与补偿」表里的四种失败，加上重开后正文还在、不冲刷也全落盘 | 全过 |
-| `tests/undo.rs`（9 项） | 三层撤销；日志重启后还在；每人只留最近的记录 | 全过 |
-| `tests/invariants.rs` 单设备属性测试（另有两条从失败例子固定下来的回归测试） | 每例最多 35 步随机命令（36 种，包括撤销、重做、Agent 改名和撤销、故障注入、从磁盘重开），每一步后检查：章节和构想标题、故事线名、分类名、要素名和别名都不重复；每个实体的正文文档都在；显示的关系两端都活着；批注目标要么显示、要么标「未定位」；章节都有书序；构想分组不超过两层；重开前后读出来一样 | 3000 例全过（release） |
-| `tests/invariants.rs` 两设备属性测试 | 同一本书的两份副本各自跑随机命令，再互相交换全部文档；两边读出来逐项相同；合并后可能出现的重名由读取标出，只有一个保留名字 | 3000 例全过 |
+| `tests/undo.rs`（10 项） | 三层撤销；作者的命令不进编辑器的撤销栈（两种先后顺序）；日志重启后还在；每人只留最近的记录 | 全过 |
+| `tests/invariants.rs` 单设备属性测试（另有两条从失败例子固定下来的回归测试） | 每例最多 35 步随机命令（37 种，包括撤销、重做、Agent 改名和撤销、TODO 标记投影、故障注入、从磁盘重开），每一步后检查：章节和构想标题、故事线名、分类名、要素名和别名都不重复；每个实体的正文文档都在；显示的关系两端都活着；批注目标要么显示、要么标「未定位」；章节都有书序；构想分组不超过两层；投出的待办 id 由文档和块算出、正文就是种子一遍；重开前后读出来一样 | 3000 例全过（release） |
+| `tests/invariants.rs` 两设备属性测试 | 同一本书（带一章共有的章节）的两份副本各自跑随机命令，再互相交换全部文档；两边读出来逐项相同；合并后可能出现的重名由读取标出，只有一个保留名字；两边对同一段投出的待办合并后正文不重复（拿掉导入后的修复，这条会失败，确认过） | 3000 例全过 |
 | `concurrent_creates_of_one_name_are_flagged_not_lost` | 两台设备同时建同名要素、同名章节：都保留，要素标出冲突，章节标题允许重复，下一次改名加后缀 | 过 |
 | `tests/footprint.rs`（2 项，默认忽略） | 上面那组内存和单次提交的测量 | 手动跑 |
 | 各模块单测（5 项） | 来源字符串一致、名字后缀、位置键、版本编码、事件里的段落换算 | 全过 |
@@ -364,15 +388,27 @@ F8 的 `bench workspace`，heavy 种子（100 章，正文共约 360 万字，30
 | 2.3 | 搜索用 F2 的按书序搜索，去掉多取再截断 | 完成；F2 那边慢，见 F2-1 |
 | 2.4 | 给 F6：`Catalog` 用的目录、删除事件、退出钩子 | 完成；`dr-shell` 里的三行接法见上 |
 | 2.5 | 测量改用 F8 的 `bench` 套件 | 完成 |
+| 3.1 | `comment.reanchor`：编辑器撤销带回的锚点写回书目（base64，作者的改动，同步出去）；加 `comment.anchors` 查询 | 完成；不进日志，理由见第三轮第 1 条 |
+| 3.2 | `todo.project`：按旧版 `useTodoAutoParse` 的规则建、留、删，id 用 `CommentId::for_projection`，两台设备是同一个实体 | 完成；另补了「先收到书目」的等待和「两边同时投」的正文修复 |
+| 3.3 | 作者命令改正开着的正文时不进编辑器的撤销栈 | 完成（`user:command`）；长久做法见 F2-3、F1-2 |
 
 ## 待协调
 
 按负责的 crate 分。第一个里程碑提的 F1-1 到 F1-6、F2-1 到 F2-5 都由对方做了，这个里程碑也都用上了，下面只列新的。
 
+### F1（dr-model、dr-doc），第三轮提的
+
+1. **投出的待办，正文应该写成一份确定的改动**（像文档的创世那样）。`BookTxn::projected_todo` 给了确定的 id，但正文是可合并的文字，两台设备同时投同一个标记，合起来正文读两遍。工作区现在在导入书目以后把「恰好是种子重复几遍」的正文改回种子（`repair_projections`，种子记在 metadata 里），两边种子不一样（比如两边的任务文字刚好不同）就修不了。建议 dr-doc 用固定的对等方 ID 写种子（同样的标记、同样的操作），或者把种子放进修复计划。
+2. **`UNDO_EXCLUDED_ORIGIN_PREFIXES` 可以加上 `user:command`**，这样任何 `ProseUndo` 都自动排除作者的命令，工作区就不用在会话上另外加前缀（现在用的是 `ProseUndo::hooks()`）。不急。
+
 ### F2（dr-store）
 
-1. **按书序搜索慢**（最要紧）：`search_in_order` 的耗时是「命中条数 × 书序长度」（数字见「关键数字」）。建议在 Rust 里排序：先只选所有命中的 `(id, doc_id, ord)`，用一张 `HashMap<doc_id, 名次>` 排好、截出前 `limit` 条，再按 id 取这些行的文字和片段。这样整体接近普通搜索的耗时。另外，SQL 文本会随书序长度变，`prepare_cached` 的缓存会被不断换掉。
-2. **关库和后台索引重建**：打开库时起的重建线程会对已经打开的文档调 `reindex_doc`，临时拿一个 `DocHandle`。`try_close` 在停掉后台工作之前就先数打开的文档，所以碰巧会被拒。工作区现在靠重试绕过去（`Workspace::shutdown`）。建议 `try_close` 先停后台重建、等它退出，再数文档；或者重建线程不去拿已经打开的文档的句柄，交给持有者自己的空闲维护。
+第二个里程碑提的 1、2 两条，F2 第四轮都做了（main 07964df6）：按书序搜索在 Rust 里排序截断，后台重建不再拿已打开文档的句柄。工作区关库时的重试留着，只当保险。原文留在下面备查。
+
+1. ~~**按书序搜索慢**~~（已做）：`search_in_order` 的耗时是「命中条数 × 书序长度」（数字见「关键数字」）。建议在 Rust 里排序：先只选所有命中的 `(id, doc_id, ord)`，用一张 `HashMap<doc_id, 名次>` 排好、截出前 `limit` 条，再按 id 取这些行的文字和片段。这样整体接近普通搜索的耗时。另外，SQL 文本会随书序长度变，`prepare_cached` 的缓存会被不断换掉。
+2. ~~**关库和后台索引重建**~~（已做）：打开库时起的重建线程会对已经打开的文档调 `reindex_doc`，临时拿一个 `DocHandle`。`try_close` 在停掉后台工作之前就先数打开的文档，所以碰巧会被拒。工作区现在靠重试绕过去（`Workspace::shutdown`）。建议 `try_close` 先停后台重建、等它退出，再数文档；或者重建线程不去拿已经打开的文档的句柄，交给持有者自己的空闲维护。
+
+3. **作者命令的提交来源**（第三轮提的）：工作区现在让作者命令的写入任务自己提交一次（Loro 来源 `user:command`），持有者随后的提交是空的、存下的行记作 `user`。这违反了「写入任务只改、不提交」的字面规矩，但和中途隐式提交是同一种情形，现有代码处理得对。长久的做法是 dr-store 的 `Origin` 加一个「作者的命令」（存成 `user`、提交用 `user:command`），或者 `write` 接受一个提交来源；做了以后工作区去掉自己提交的那一步就行。
 
 ### F6（dr-shell）
 
@@ -382,6 +418,11 @@ F8 的 `bench workspace`，heavy 种子（100 章，正文共约 360 万字，30
 
 ### F4（编辑器）
 
+- **第三轮的三样怎么接：**
+  - `AnchorsChanged` 的每一项调 `comment.reanchor { book, id, anchor }`。`anchor` 用 `dr_workspace::dto::AnchorBytes::from(&encoded)`（dr-doc 的 `EncodedAnchor`）。同一个锚点再写一次什么也不做，可以放心多发。它不进日志，编辑器重做时如果锚点又变了，再发一次。
+  - 加载锚点可以改用 `comment.anchors { book, target }`（走缓存），不用在持有者线程上直接读书目文档。
+  - `TodoMarkers` 变了就调 `todo.project { doc, markers, editing }`。`editing` 填光标所在段的块 ID，失焦时不填（旧版「离开该段 / 失焦」才算写完）。清单要给全，不能只给变了的：没在清单里的未解决待办会被删掉。结果里的 `waiting` 只是告知，不用处理。
+  - 作者命令的来源是 `dr_workspace::COMMAND_ORIGIN`（`user:command`）。`SessionSource` 按 `== "user"` 数撤销项，所以不用改；如果以后按前缀判断「是不是作者」，要把它排除掉。
 - 先用 `ProseSession`（`edit` / `undo` / `redo` / `reader`）。撤销管理器挂在持有者那份文档上，Agent 的写入不会进作者的撤销栈（有测试）。
 - `reader()` 和持有者共享同一份文档。读当前状态随便读；但**解析锚点**（`ProseView::resolve`，它要查历史，会在中途隐式提交）只能放在持有者线程上做（`DocHandle::read`），否则会把别人正在进行的写入拆成两次提交。
 - 写入请走工作区（会话或命令），不要直接用 dr-store 的持有者写。
@@ -403,7 +444,8 @@ F8 的 `bench workspace`，heavy 种子（100 章，正文共约 360 万字，30
 
 ### M36（同步）
 
-- 远端更新一律走 `Workspace::import_remote`：它走 F2 的 `import`（自动记下服务器已有的版本），然后跑 dr-doc 的修复（重复的块 ID、语义重复的关系、缺书序的章节）。直接调持有者的 `import` 会跳过修复。
+- 远端更新一律走 `Workspace::import_remote`：它走 F2 的 `import`（自动记下服务器已有的版本），然后跑 dr-doc 的修复（重复的块 ID、语义重复的关系、缺书序的章节），书目还会修两边同时投出的待办正文。直接调持有者的 `import` 会跳过修复。
+- 书目和正文分开到达是正常的：`todo.project` 已经按「正文还没到」等着，不会误删待办。
 
 ## 没做的，和下一个里程碑建议
 
@@ -412,10 +454,11 @@ F8 的 `bench workspace`，heavy 种子（100 章，正文共约 360 万字，30
   2. 正文的修订 CAS（带版本的写入），以及作者也改过同一篇正文时按段撤销 Agent 的改动（现在只报冲突，请作者从历史恢复）；
   3. 清理没人认领的正文文档（彻底删除后留下的，和中途失败留下的）；
   4. 第一个里程碑里自己写的「是否活着」判断、按目标找批注、Agent 撤销时从副本读裸值，还没换成 F1 第三轮给的 `entity_exists` / `relations_of` / `EntitySnapshot::field`。
+  5. TODO 标记只在编辑器打开那篇正文时才投（和旧版一样）：Agent 用命令写进去的标记、同步来的标记，要等作者打开那一章。识别标记的规则现在只在 `dr-editor` 里；要在后台投，得把规则挪到下层一处（比如 dr-text），再由工作区在正文变化时自己找。素材笔记的任务行（`NoteTask`）还没做。
 - **建议的下一个里程碑**：
   1. 补齐上面第 1 条的命令（F8 的种子对拍等着时间钉和写作日）；加后台清理（第 3 条）；
   2. 换上 F1 的按键读取和快照按字段读取（第 4 条），重测「改了以后列关系」「冷读批注」；
-  3. F2 改完按书序搜索后重测搜索；
+  3. 机器空闲时跑 `bench workspace --milestone f3-m3`（这一轮没量，见第三轮；F2 第四轮以后的搜索也一起记下）；
   4. 帮外壳接上真书（F6 下一步的第 1 条），用 F8 的调试桥跑一遍「打开书 → 删章 → 标签关掉」。
 
 ## 代码位置
@@ -425,17 +468,17 @@ next/crates/dr-workspace/src/
   lib.rs           入口和总说明
   registry.rs      登记表、能力清单、Op trait
   cx.rs            命令上下文：写入顺序、租约、影响清单、反操作、故障注入
-  holder.rs        在 F2 持有者的写入任务里写（提交选项）、共用的锁
+  holder.rs        在 F2 持有者的写入任务里写（提交选项、作者命令的 user:command）、共用的锁
   workspace.rs     打开的书和正文、run / call、撤销重做、import_remote、事件分发、删除事件、退出
   nav.rs           给外壳的目录（LinkGroup、NavTarget、BookCatalog）
   events.rs        事件类型和换算
   cache.rs         按书的查询缓存
   journal.rs       撤销日志（ws_journal）
-  editor.rs        ProseSession（编辑器层撤销）
+  editor.rs        ProseSession（编辑器层撤销；作者命令的 user:command 不进它的栈）
   actor.rs dto.rs naming.rs error.rs
-  commands/        book chapter storyline element relation idea comment material prose history
+  commands/        book chapter storyline element relation idea comment（含锚点和 TODO 投影）material prose history
 next/crates/dr-workspace/tests/
-  commands.rs registry.rs events.rs shell.rs write_order.rs undo.rs invariants.rs footprint.rs
+  commands.rs registry.rs events.rs shell.rs editor.rs write_order.rs undo.rs invariants.rs footprint.rs
   snapshots/       能力清单快照（registry__capabilities.snap、registry__capability_schemas.snap）
 docs/rust-rewrite/acceptance/f3-m2-workspace-bench.json
 ```

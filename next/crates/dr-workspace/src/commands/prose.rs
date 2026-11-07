@@ -190,63 +190,180 @@ pub struct SearchIn {
     pub limit: Option<usize>,
 }
 
-#[derive(Clone, Debug, Serialize, JsonSchema)]
+#[derive(Clone, Debug, PartialEq, Serialize, JsonSchema)]
 pub struct SearchHitInfo {
+    /// The owner's prose document.
     pub doc: String,
-    /// What owns the document: `node`, `element`, `storyline`, `category`,
-    /// `material`.
+    /// What owns the text: `chapter`, `idea`, `element`, `storyline`,
+    /// `category`, `material`.
     pub kind: String,
     pub owner: String,
     /// The owner's title or name.
     pub title: String,
+    /// Where the match is: `body` (the prose), `title`, `summary`,
+    /// `description` (a material's) or `patch` (one of an element's
+    /// patches, its title or its text).
+    pub field: String,
     pub block_id: Option<String>,
-    pub paragraph: u32,
+    /// The paragraph of the prose (0-based); body hits only.
+    pub paragraph: Option<u32>,
+    /// Character offset of the match in its paragraph or field.
     pub offset: usize,
+    /// The match with a little context, on one line.
     pub snippet: String,
+    /// Where the match starts in `snippet` and how long it is, in
+    /// characters.
+    pub snippet_match: usize,
+    pub match_len: usize,
+}
+
+/// Characters of context on each side of a match (dr-store's snippets).
+const SNIPPET_CONTEXT: usize = 24;
+
+/// Case-insensitive (simple case folding) character offset of `needle`,
+/// dr-store's rule for prose hits.
+fn find_folded(hay: &[char], needle: &[char]) -> Option<usize> {
+    if needle.is_empty() || needle.len() > hay.len() {
+        return None;
+    }
+    let fold = |c: char| c.to_lowercase().next().unwrap_or(c);
+    (0..=hay.len() - needle.len()).find(|&i| {
+        hay[i..i + needle.len()]
+            .iter()
+            .zip(needle)
+            .all(|(a, b)| fold(*a) == fold(*b))
+    })
+}
+
+/// Line and paragraph breaks read as spaces in a snippet.
+fn one_line(s: impl Iterator<Item = char>) -> String {
+    s.map(|c| {
+        if matches!(c, '\n' | '\r' | '\u{2028}' | '\u{2029}') {
+            ' '
+        } else {
+            c
+        }
+    })
+    .collect()
+}
+
+/// The first match of `needle` in a short text of the book document:
+/// (offset, snippet, where the match starts in the snippet).
+fn text_hit(text: &str, needle: &[char]) -> Option<(usize, String, usize)> {
+    let chars: Vec<char> = text.chars().collect();
+    let at = find_folded(&chars, needle)?;
+    let start = at.saturating_sub(SNIPPET_CONTEXT);
+    let end = (at + needle.len() + SNIPPET_CONTEXT).min(chars.len());
+    Some((at, one_line(chars[start..end].iter().copied()), at - start))
+}
+
+/// One owner of searchable text, in book order: its prose document, and the
+/// short texts the book document keeps for it.
+struct Owner {
+    doc: String,
+    kind: &'static str,
+    title: String,
+    /// `summary` or `description`, when it has one.
+    about: Option<(&'static str, String)>,
+    /// An element's patches: title and text.
+    patches: Vec<String>,
 }
 
 op! {
     Search = "book.search", Read, Shared,
-    "Search a book's prose (chapters in reading order first, then ideas, elements, storylines, categories, materials). One- and two-character queries work.",
+    "Search a book: titles, summaries, prose, material descriptions and element patches (chapters in reading order first, then ideas, elements, storylines, categories, materials). One- and two-character queries work.",
     fn(cx, input: SearchIn) -> Vec<SearchHitInfo> {
         let slot = cx.book(&input.book)?;
         let limit = input.limit.unwrap_or(50);
-        // Every live owner's document in book order, with its kind and
-        // title; dr-store sorts by this order before it cuts at `limit`.
-        let mut owners: Vec<(String, &'static str, String)> = Vec::new();
+        let needle: Vec<char> = input.query.trim().chars().collect();
+        if needle.is_empty() || limit == 0 {
+            return Ok(Vec::new());
+        }
+        // Every live owner in book order; dr-store sorts the prose hits by
+        // this order before it cuts at `limit`.
+        let mut owners: Vec<Owner> = Vec::new();
+        let node = |n: &dr_model::book::Node, kind| Owner {
+            doc: format!("node:{}", n.id), kind, title: n.title.clone(),
+            about: Some(("summary", n.summary.clone())), patches: Vec::new(),
+        };
         for c in chapters(&slot) {
-            owners.push((format!("node:{}", c.id), "node", c.title));
+            owners.push(node(&c, "chapter"));
         }
         let mut ideas: Vec<_> = nodes(&slot).values().filter(|n| n.is_drift() && !n.is_trashed()).cloned().collect();
         ideas.sort_by(|a, b| a.title.cmp(&b.title).then(a.id.cmp(&b.id)));
-        for n in ideas {
-            owners.push((format!("node:{}", n.id), "node", n.title));
+        for n in &ideas {
+            owners.push(node(n, "idea"));
         }
+        let all_patches = patches(&slot);
         for e in elements(&slot).iter().filter(|e| e.deleted_at.is_none()) {
-            owners.push((format!("element:{}", e.id), "element", e.name.clone()));
+            let mut mine: Vec<&dr_model::book::Patch> = all_patches.iter().filter(|p| p.element == e.id).collect();
+            mine.sort_by(|a, b| dr_model::pos::cmp_pos((a.pos.as_ref(), &a.id), (b.pos.as_ref(), &b.id)));
+            owners.push(Owner {
+                doc: format!("element:{}", e.id), kind: "element", title: e.name.clone(),
+                about: Some(("summary", e.summary.clone())),
+                patches: mine.iter().map(|p| match &p.title {
+                    Some(t) if !t.trim().is_empty() => format!("{t}\n{}", p.body),
+                    _ => p.body.clone(),
+                }).collect(),
+            });
         }
         for s in storylines(&slot).iter().filter(|s| s.deleted_at.is_none()) {
-            owners.push((format!("storyline:{}", s.id), "storyline", s.name.clone()));
+            owners.push(Owner {
+                doc: format!("storyline:{}", s.id), kind: "storyline", title: s.name.clone(),
+                about: Some(("summary", s.summary.clone())), patches: Vec::new(),
+            });
         }
         for c in categories(&slot).iter().filter(|c| c.deleted_at.is_none()) {
-            owners.push((format!("category:{}", c.id), "category", c.name.clone()));
+            owners.push(Owner {
+                doc: format!("category:{}", c.id), kind: "category", title: c.name.clone(),
+                about: None, patches: Vec::new(),
+            });
         }
         for m in materials(&slot).iter() {
-            owners.push((format!("material:{}", m.id), "material", m.title.clone()));
+            owners.push(Owner {
+                doc: format!("material:{}", m.id), kind: "material", title: m.title.clone(),
+                about: Some(("description", m.description.clone())), patches: Vec::new(),
+            });
         }
-        let order: Vec<&str> = owners.iter().map(|(d, ..)| d.as_str()).collect();
-        let hits = cx.workspace().library().search_in_order(Some(&input.book), &input.query, limit, &order)?;
-        let by_doc: std::collections::HashMap<&str, (&'static str, &str)> =
-            owners.iter().map(|(d, k, t)| (d.as_str(), (*k, t.as_str()))).collect();
-        // Documents not in the order (trashed owners, orphans) come last
-        // from dr-store; they are left out.
-        Ok(hits.into_iter().filter_map(|h| {
-            let (kind, title) = *by_doc.get(h.doc_id.as_str())?;
-            let owner = h.doc_id.split_once(':').map(|(_, id)| id.to_string()).unwrap_or_default();
-            Some(SearchHitInfo {
-                kind: kind.to_string(), owner, title: title.to_string(), block_id: h.block_id,
-                paragraph: h.ord, offset: h.match_offset, snippet: h.snippet, doc: h.doc_id,
-            })
-        }).collect())
+        let order: Vec<&str> = owners.iter().map(|o| o.doc.as_str()).collect();
+        let prose = cx.workspace().library().search_in_order(Some(&input.book), &input.query, limit, &order)?;
+        // Prose hits by document, in paragraph order. Documents not in the
+        // order (trashed owners, orphans) come last from dr-store; they are
+        // left out.
+        let mut by_doc: std::collections::HashMap<String, Vec<dr_store::index::SearchHit>> = Default::default();
+        for h in prose {
+            by_doc.entry(h.doc_id.clone()).or_default().push(h);
+        }
+        let mut out = Vec::new();
+        for o in &owners {
+            if out.len() >= limit {
+                break;
+            }
+            let owner = o.doc.split_once(':').map(|(_, id)| id.to_string()).unwrap_or_default();
+            let short = |field: &str, text: &str| text_hit(text, &needle).map(|(offset, snippet, at)| SearchHitInfo {
+                doc: o.doc.clone(), kind: o.kind.to_string(), owner: owner.clone(), title: o.title.clone(),
+                field: field.to_string(), block_id: None, paragraph: None, offset, snippet,
+                snippet_match: at, match_len: needle.len(),
+            });
+            out.extend(short("title", &o.title));
+            if let Some((field, text)) = &o.about {
+                out.extend(short(field, text));
+            }
+            for h in by_doc.remove(&o.doc).unwrap_or_default() {
+                let snippet: Vec<char> = h.snippet.chars().collect();
+                let at = find_folded(&snippet, &needle).unwrap_or(0);
+                out.push(SearchHitInfo {
+                    doc: o.doc.clone(), kind: o.kind.to_string(), owner: owner.clone(), title: o.title.clone(),
+                    field: "body".to_string(), block_id: h.block_id, paragraph: Some(h.ord),
+                    offset: h.match_offset, snippet: one_line(snippet.into_iter()), snippet_match: at,
+                    match_len: needle.len(),
+                });
+            }
+            for p in &o.patches {
+                out.extend(short("patch", p));
+            }
+        }
+        out.truncate(limit);
+        Ok(out)
     }
 }
