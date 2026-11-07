@@ -12,6 +12,33 @@
     "storyGraph": "物語グラフ",
     "todoLibrary": "TODOと資料庫"
   },
+  "categoryEditor": {
+    "actions": {
+      "openElement": "要素を開く"
+    },
+    "empty": {
+      "noFilteredElements": "条件に合う要素はありません",
+      "noSummary": "要約はまだありません"
+    },
+    "filters": {
+      "unused": "空",
+      "used": "記入済み"
+    },
+    "folio": "カテゴリ",
+    "labels": {
+      "elementCount": "要素",
+      "summary": "要約"
+    },
+    "meta": {
+      "elements": "{{count}}要素",
+      "items": "{{count}}項目"
+    },
+    "sections": {
+      "elements": "要素一覧",
+      "scratch": "走り書き"
+    },
+    "untitled": "無題のカテゴリ"
+  },
   "chapterEditor": {
     "synopsisPlaceholder": "あらすじ…",
     "untitledChapter": "無題の章"
@@ -97,6 +124,27 @@
     "statusSection": {
       "chapter": "執筆状態"
     }
+  },
+  "elementEditor": {
+    "alerts": {
+      "aliasConflict": "別名を追加できません。「{{name}}」は要素「{{conflicting}}」で使用されています。",
+      "renameConflict": "名前を変更できません。「{{name}}」は要素「{{conflicting}}」の名前または別名として使用されています。"
+    },
+    "alias": {
+      "add": "別名",
+      "addFirst": "別名を追加",
+      "remove": "別名を削除"
+    },
+    "empty": {
+      "noFacts": "フィールドはまだありません。要素を作成すると、カテゴリの「フィールドのテンプレート」から入力されます。"
+    },
+    "folio": "要素",
+    "sections": {
+      "bioTitle": "略歴",
+      "facts": "設定情報"
+    },
+    "summaryPlaceholder": "一文で要約…",
+    "untitled": "無題の要素"
   },
   "feedback": {
     "attachDiagnostics": "機密情報を除去した診断情報を添付",
@@ -184,6 +232,12 @@
       "done": "完了"
     }
   },
+  "kvEditor": {
+    "addField": "項目を追加",
+    "keyPlaceholder": "項目",
+    "removeRow": "行を削除",
+    "valuePlaceholder": "内容"
+  },
   "leftSidebar": {
     "actions": {
       "sort": "並べ替え"
@@ -234,6 +288,11 @@
       "chapterSummary": "{{storylines}}ストーリーライン・{{chapters}}章",
       "globalTitle": "全編一覧・ストーリーライン別にする",
       "storylineTitle": "ストーリーライン別・全編一覧に切り替え"
+    }
+  },
+  "mobileWorkspace": {
+    "projectActions": {
+      "deleteFailed": "作品を削除できませんでした。もう一度お試しください。"
     }
   },
   "navigation": {
@@ -320,6 +379,9 @@
     "bookTransfer": {
       "importFailedTitle": "インポートできませんでした"
     },
+    "delete": {
+      "deleting": "削除中…"
+    },
     "desk": {
       "chaptersUnit_one": "章",
       "chaptersUnit_other": "章",
@@ -342,7 +404,9 @@
       "storylinesUnit_other": "ストーリーライン",
       "trashEntry": "最近削除した項目",
       "trashList": {
+        "confirmTitle": "「{{name}}」を完全に削除しますか？",
         "empty": "最近削除した作品はありません。",
+        "subLocal": "作品は30日間保管し、その後完全削除します。",
         "title": "最近削除した項目"
       },
       "trashTitle": "「{{name}}」を最近削除した項目へ移しますか？",
@@ -377,9 +441,14 @@
     "trash": {
       "body": "作品（{{words}}文字・{{nodes}}章・{{elements}}要素）を本棚から移動します。「最近削除した項目」から30日以内に復元でき、その後は完全削除します。",
       "confirm": "最近削除した項目へ移動",
+      "deleteNow": "今すぐ削除",
+      "expiresIn_one": "{{count}}日後に完全削除",
+      "expiresIn_other": "{{count}}日後に完全削除",
+      "expiresSoon": "完全削除待ち",
       "failed": "作品を移動できません。再試行してください。",
       "localNote": "完全削除まで内容と読めるMarkdownコピーを保ちます。",
       "moving": "移動中…",
+      "permanentBody": "30日を待たず今すぐ完全削除します。取り消せません。",
       "restore": "復元",
       "restoreFailed": "作品を復元できません。再試行してください。",
       "restoring": "復元中…"
@@ -643,6 +712,14 @@
     "restoreSuccess": "選択した版に復元しました。直前の状態は新しいスナップショットとして保存済みです。",
     "restoring": "復元中…",
     "title": "履歴スナップショット・30日間"
+  },
+  "storylineEditor": {
+    "filters": {
+      "all": "すべて"
+    },
+    "labels": {
+      "color": "色"
+    }
   },
   "topTimeline": {
     "closeTab": "タブを閉じる",

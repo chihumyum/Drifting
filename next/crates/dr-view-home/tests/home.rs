@@ -2,20 +2,22 @@
 //! showcase's 《慢钟》 and one of its shelf books, read through F3): the
 //! numbers are F3's and the derived index's, today's words and the streak
 //! come from the writing days, the name is changed in place, the word
-//! targets from 设定, and a prose change moves a chapter to the top of
-//! 继续写.
+//! targets from 设定, a prose change moves a chapter to the top of 继续写,
+//! and the pages the window opens are recorded and lead 继续写.
 
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use chrono::NaiveDate;
+use dr_shell::nav::{Open, Target};
 use dr_shell::{Services, SettingsFile, ShellInfo, Workspace};
-use dr_view_home::{Home, HomeView};
+use dr_view_home::{Home, HomeView, continue_page, opened_more};
 use dr_workspace::{
     Actor, Workspace as Library,
     commands::{
-        BookIn,
+        BookIn, ListIn,
         book::BookGet,
+        chapter::ChapterList,
         prose::{ProseRead, ProseReadIn, ProseReplace, ProseReplaceIn},
     },
 };
@@ -119,12 +121,21 @@ fn home_reads_the_books_numbers(cx: &mut TestAppContext) {
     // library builds it in the background; Home reads again as each
     // chapter's index lands.
     lib.library().rebuild_stale_indexes().unwrap();
-    let docs: Vec<String> = book
-        .chapters
+    let words = || -> u64 {
+        lib.run::<ChapterList>(
+            &Actor::User,
+            ListIn {
+                book: id.clone(),
+                trashed: false,
+            },
+        )
+        .unwrap()
+        .output
         .iter()
-        .map(|c| format!("node:{}", c.id))
-        .collect();
-    let expected = dr_view_shelf::data::words_of(&lib, &docs);
+        .map(|c| c.words)
+        .sum()
+    };
+    let expected = words();
     assert!(expected > 0);
     wait_for(cx, |cx| {
         home.read_with(cx, |h, _| {
@@ -147,6 +158,47 @@ fn home_reads_the_books_numbers(cx: &mut TestAppContext) {
     assert_eq!(recent.len(), book.chapters.len());
     let newest = stats.chapter_edited.values().max().copied();
     assert_eq!(stats.chapter_edited.get(&recent[0].id).copied(), newest);
+    // Nothing opened on this device yet: 继续写 is the chapter changed
+    // last, with nothing under it.
+    assert!(stats.opened.is_empty());
+    assert_eq!(
+        continue_page(&book, Some(&stats)),
+        recent[0].id.parse().ok().map(Target::Chapter)
+    );
+    assert!(opened_more(&book, Some(&stats), None).is_empty());
+}
+
+#[gpui::test]
+fn the_pages_opened_lead_continue(cx: &mut TestAppContext) {
+    let (_dir, library, _) = library();
+    let (view, cx) = setup(cx, library, t0_day());
+    let home = home_ready(&view, cx);
+    let book = view.read_with(cx, |ws, _| ws.book.clone());
+    let chapter = |i: usize| Target::Chapter(book.chapters[i].id.parse().unwrap());
+    let element = Target::Element(book.elements[0].id.parse().unwrap());
+    // The window opens a chapter, an element, then another chapter.
+    for target in [chapter(2), element.clone(), chapter(0)] {
+        view.update(cx, |ws, cx| ws.open(target, Open::KEEP, cx));
+        cx.run_until_parked();
+    }
+    // Back on Home: the chapter opened last leads, the others follow,
+    // newest first.
+    view.update(cx, |ws, cx| {
+        ws.nav.go_home();
+        cx.notify();
+    });
+    wait_for(cx, |cx| {
+        home.read_with(cx, |h, _| {
+            h.stats.as_ref().is_some_and(|s| s.opened.len() == 3)
+        })
+    });
+    let stats = home.read_with(cx, |h, _| h.stats.clone().unwrap());
+    assert_eq!(continue_page(&book, Some(&stats)), Some(chapter(0)));
+    let more: Vec<Target> = opened_more(&book, Some(&stats), Some(&chapter(0)))
+        .into_iter()
+        .map(|(t, _)| t)
+        .collect();
+    assert_eq!(more, vec![element, chapter(2)]);
 }
 
 #[gpui::test]
@@ -180,8 +232,9 @@ fn a_prose_change_moves_its_chapter_to_continue(cx: &mut TestAppContext) {
         .expect("a chapter with prose");
     let doc = format!("node:{}", last.id);
     let find: String = first.text.chars().take(4).collect();
-    // Edits land in a later millisecond than the seeding.
-    std::thread::sleep(Duration::from_millis(5));
+    // `chapter.list` dates changes to the second: the edit lands in a
+    // later one than the seeding.
+    std::thread::sleep(Duration::from_millis(1100));
     lib.run::<ProseReplace>(
         &Actor::User,
         ProseReplaceIn {
@@ -206,25 +259,56 @@ fn the_name_changes_in_place(cx: &mut TestAppContext) {
     let (_dir, library, _) = library();
     let (view, cx) = setup(cx, library, t0_day());
     let home = home_ready(&view, cx);
+    // The name is a frameless field on the page all along.
+    let field = home.read_with(cx, |h, _| h.title_field());
+    wait_for(cx, |cx| field.read_with(cx, |f, _| f.text()) == "慢钟");
+    let renaming =
+        |cx: &mut VisualTestContext| cx.update(|window, cx| home.read(cx).renaming(window, cx));
+    assert!(!renaming(cx));
+    // Enter saves and leaves the field.
     cx.update(|window, cx| home.update(cx, |h, cx| h.start_rename(window, cx)));
-    let field = home.read_with(cx, |h, _| h.renaming.clone()).unwrap();
-    assert_eq!(field.read_with(cx, |f, _| f.text()), "慢钟");
+    assert!(renaming(cx));
     cx.update(|_, cx| field.update(cx, |f, cx| f.set_text("慢钟·二稿", cx)));
     cx.simulate_keystrokes("enter");
     wait_for(cx, |cx| {
         view.read_with(cx, |ws, _| ws.book.name == "慢钟·二稿")
     });
-    assert!(home.read_with(cx, |h, _| h.renaming.is_none()));
-    // Esc leaves the name as it was.
+    assert!(!renaming(cx));
+    // Esc puts the name back.
     cx.update(|window, cx| home.update(cx, |h, cx| h.start_rename(window, cx)));
-    let field = home.read_with(cx, |h, _| h.renaming.clone()).unwrap();
     cx.update(|_, cx| field.update(cx, |f, cx| f.set_text("别的名字", cx)));
     cx.simulate_keystrokes("escape");
     cx.run_until_parked();
-    assert!(home.read_with(cx, |h, _| h.renaming.is_none()));
+    assert!(!renaming(cx));
+    assert_eq!(field.read_with(cx, |f, _| f.text()), "慢钟·二稿");
     assert_eq!(
         view.read_with(cx, |ws, _| ws.book.name.clone()),
         "慢钟·二稿"
+    );
+    // Leaving the field saves too (the 0.1 title saves on blur).
+    // Focus listeners run when a drawn frame sees the focus change.
+    let frame = |cx: &mut VisualTestContext| {
+        cx.update(|window, cx| window.draw(cx).clear(cx));
+        cx.run_until_parked();
+    };
+    cx.update(|window, _| window.activate_window());
+    cx.update(|window, cx| home.update(cx, |h, cx| h.start_rename(window, cx)));
+    frame(cx);
+    cx.update(|_, cx| field.update(cx, |f, cx| f.set_text("慢钟·三稿", cx)));
+    cx.update(|window, cx| view.read(cx).focus_handle().clone().focus(window, cx));
+    frame(cx);
+    wait_for(cx, |cx| {
+        view.read_with(cx, |ws, _| ws.book.name == "慢钟·三稿")
+    });
+    // An empty name keeps the old one.
+    cx.update(|window, cx| home.update(cx, |h, cx| h.start_rename(window, cx)));
+    cx.update(|_, cx| field.update(cx, |f, cx| f.set_text("  ", cx)));
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    assert_eq!(field.read_with(cx, |f, _| f.text()), "慢钟·三稿");
+    assert_eq!(
+        view.read_with(cx, |ws, _| ws.book.name.clone()),
+        "慢钟·三稿"
     );
 }
 

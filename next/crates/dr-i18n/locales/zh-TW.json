@@ -12,6 +12,33 @@
     "storyGraph": "故事圖譜",
     "todoLibrary": "審閱與素材"
   },
+  "categoryEditor": {
+    "actions": {
+      "openElement": "開啟要素"
+    },
+    "empty": {
+      "noFilteredElements": "沒有符合篩選條件的要素",
+      "noSummary": "尚未填寫概述"
+    },
+    "filters": {
+      "unused": "空白",
+      "used": "已填寫"
+    },
+    "folio": "類目",
+    "labels": {
+      "elementCount": "要素",
+      "summary": "概述"
+    },
+    "meta": {
+      "elements": "{{count}} 個要素",
+      "items": "{{count}} 個項目"
+    },
+    "sections": {
+      "elements": "要素清單",
+      "scratch": "隨筆"
+    },
+    "untitled": "未命名類目"
+  },
   "chapterEditor": {
     "synopsisPlaceholder": "梗概…",
     "untitledChapter": "未命名章節"
@@ -97,6 +124,27 @@
     "statusSection": {
       "chapter": "寫作狀態"
     }
+  },
+  "elementEditor": {
+    "alerts": {
+      "aliasConflict": "無法新增別名：「{{name}}」已被要素「{{conflicting}}」使用。",
+      "renameConflict": "無法重新命名：「{{name}}」已被要素「{{conflicting}}」用作名稱或別名。"
+    },
+    "alias": {
+      "add": "別名",
+      "addFirst": "新增別名",
+      "remove": "移除別名"
+    },
+    "empty": {
+      "noFacts": "尚無欄位。建立要素時，所屬分類的「欄位範本」會自動填入。"
+    },
+    "folio": "要素",
+    "sections": {
+      "bioTitle": "生平",
+      "facts": "設定資料"
+    },
+    "summaryPlaceholder": "一句話概述…",
+    "untitled": "未命名要素"
   },
   "feedback": {
     "attachDiagnostics": "附上已去識別的診斷資料",
@@ -184,6 +232,12 @@
       "done": "完成"
     }
   },
+  "kvEditor": {
+    "addField": "新增欄位",
+    "keyPlaceholder": "欄位",
+    "removeRow": "移除此列",
+    "valuePlaceholder": "內容"
+  },
   "leftSidebar": {
     "actions": {
       "sort": "排序"
@@ -234,6 +288,11 @@
       "chapterSummary": "{{storylines}} 條故事線 · {{chapters}} 章",
       "globalTitle": "全書總覽 · 依故事線分組",
       "storylineTitle": "依故事線分組 · 切換回全書總覽"
+    }
+  },
+  "mobileWorkspace": {
+    "projectActions": {
+      "deleteFailed": "無法刪除作品，請再試一次。"
     }
   },
   "navigation": {
@@ -320,6 +379,9 @@
     "bookTransfer": {
       "importFailedTitle": "無法匯入"
     },
+    "delete": {
+      "deleting": "正在刪除…"
+    },
     "desk": {
       "chaptersUnit_one": "章",
       "chaptersUnit_other": "章",
@@ -342,7 +404,9 @@
       "storylinesUnit_other": "條故事線",
       "trashEntry": "最近刪除",
       "trashList": {
+        "confirmTitle": "永久刪除「{{name}}」？",
         "empty": "沒有最近刪除的作品。",
+        "subLocal": "作品在此保留 30 天，之後永久刪除。",
         "title": "最近刪除"
       },
       "trashTitle": "將「{{name}}」移至最近刪除？",
@@ -377,9 +441,14 @@
     "trash": {
       "body": "此作品（{{words}} 字 · {{nodes}} 章 · {{elements}} 個要素）將離開書架。30 天內可從「最近刪除」還原，之後會永久刪除。",
       "confirm": "移至最近刪除",
+      "deleteNow": "立即刪除",
+      "expiresIn_one": "{{count}} 天後永久刪除",
+      "expiresIn_other": "{{count}} 天後永久刪除",
+      "expiresSoon": "等待永久刪除",
       "failed": "無法移動作品，請重試。",
       "localNote": "永久刪除前，內容與可讀 Markdown 副本都會保留。",
       "moving": "正在移動…",
+      "permanentBody": "立即永久刪除，不再等 30 天。此操作無法復原。",
       "restore": "還原",
       "restoreFailed": "無法還原作品，請重試。",
       "restoring": "正在還原…"
@@ -643,6 +712,14 @@
     "restoreSuccess": "已還原至選取版本，先前狀態已先存為新快照。",
     "restoring": "正在還原…",
     "title": "歷史快照 · 30 天"
+  },
+  "storylineEditor": {
+    "filters": {
+      "all": "全部"
+    },
+    "labels": {
+      "color": "顏色"
+    }
   },
   "topTimeline": {
     "closeTab": "關閉分頁",

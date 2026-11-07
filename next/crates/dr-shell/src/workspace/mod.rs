@@ -297,7 +297,8 @@ pub struct Workspace {
     /// The bookshelf covers the window (at launch, after ⇧⌘W or the red
     /// light) until a book opens.
     pub shelf_open: bool,
-    /// Project Home (M02), when one is registered ([`pages::set_home`]).
+    /// Project Home (M02), when one is registered ([`pages::set_home`]):
+    /// made with the workspace, kept while the window lives.
     pub home: Option<AnyView>,
     /// A left press on a drag region that has not moved yet (macOS).
     drag_armed: bool,
@@ -394,6 +395,7 @@ impl Workspace {
         };
         ws.restore_layout(cx);
         ws.listen_to_library(cx);
+        ws.home = pages::make_home(cx.weak_entity(), window, cx);
         if shelf_first {
             ws.show_shelf(window, cx);
         } else {

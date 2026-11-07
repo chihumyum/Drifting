@@ -11,9 +11,12 @@
 //! Modal flows that belong to no page (the 0.1 library import, M10) are
 //! dialogs: [`crate::dialogs::show`].
 //!
-//! And the chapter page's chrome (M03, `dr-view-page`, [`set_page_chrome`]):
-//! the head and end dr-editor draws around each page's text. The shell
-//! hands it to every editor it opens.
+//! And what a page draws around its text ([`add_page_chrome`]): the
+//! chapter page's head and end (M03, `dr-view-page`), the element and
+//! category pages' fields (M11, `dr-view-elements`). The shell asks the
+//! makers for each editor it opens (one document or the whole book); a
+//! maker answers for the pages it knows and `None` for the rest, and the
+//! first answer wins.
 
 use std::rc::Rc;
 
@@ -22,6 +25,7 @@ use dr_editor::{BookEditor, ChapterEditor};
 use gpui::{AnyView, App, Bounds, Entity, Global, Pixels, WeakEntity, Window};
 
 use crate::Workspace;
+use crate::nav::Target;
 
 /// The bookshelf a window shows: its view, and the cell its notification
 /// bell records its bounds in (the notification center opens from there).
@@ -33,7 +37,8 @@ pub struct ShelfPage {
 
 type MakeShelf = Rc<dyn Fn(WeakEntity<Workspace>, &mut Window, &mut App) -> ShelfPage>;
 type MakeHome = Rc<dyn Fn(WeakEntity<Workspace>, &mut Window, &mut App) -> AnyView>;
-type MakeChrome = Rc<dyn Fn(PageHost, &mut Window, &mut App) -> Rc<dyn PageChrome>>;
+type MakeChrome =
+    Rc<dyn Fn(&Target, PageHost, &mut Window, &mut App) -> Option<Rc<dyn PageChrome>>>;
 
 /// The editor a page's chrome sits in.
 #[derive(Clone)]
@@ -58,7 +63,7 @@ pub struct PageHost {
 struct Pages {
     shelf: Option<MakeShelf>,
     home: Option<MakeHome>,
-    chrome: Option<MakeChrome>,
+    chrome: Vec<MakeChrome>,
 }
 
 impl Global for Pages {}
@@ -72,9 +77,8 @@ pub fn set_shelf(
     cx.default_global::<Pages>().shelf = Some(Rc::new(make));
 }
 
-/// Registers Project Home. Each workspace window makes one the first time
-/// its paper shows Home, and keeps it while the window lives (it follows
-/// the book the window shows).
+/// Registers Project Home. Each workspace window makes one with itself and
+/// keeps it while the window lives (it follows the book the window shows).
 pub fn set_home(
     cx: &mut App,
     make: impl Fn(WeakEntity<Workspace>, &mut Window, &mut App) -> AnyView + 'static,
@@ -82,22 +86,27 @@ pub fn set_home(
     cx.default_global::<Pages>().home = Some(Rc::new(make));
 }
 
-/// Registers the chapter page's chrome. Every editor the shell opens (one
-/// document or the whole book) gets one made for it, right after it opens.
-pub fn set_page_chrome(
+/// Registers what a page draws around its text: asked once for each page
+/// editor the workspace opens (its target and a [`PageHost`]), it gives
+/// that page's [`PageChrome`] or `None`.
+pub fn add_page_chrome(
     cx: &mut App,
-    make: impl Fn(PageHost, &mut Window, &mut App) -> Rc<dyn PageChrome> + 'static,
+    make: impl Fn(&Target, PageHost, &mut Window, &mut App) -> Option<Rc<dyn PageChrome>> + 'static,
 ) {
-    cx.default_global::<Pages>().chrome = Some(Rc::new(make));
+    cx.default_global::<Pages>().chrome.push(Rc::new(make));
 }
 
-pub(crate) fn make_chrome(
+/// The chrome registered for `target`'s page, if any.
+pub(crate) fn chrome_for(
+    target: &Target,
     host: PageHost,
     window: &mut Window,
     cx: &mut App,
 ) -> Option<Rc<dyn PageChrome>> {
-    let make = cx.try_global::<Pages>()?.chrome.clone()?;
-    Some(make(host, window, cx))
+    let makers = cx.try_global::<Pages>()?.chrome.clone();
+    makers
+        .iter()
+        .find_map(|make| make(target, host.clone(), window, cx))
 }
 
 pub(crate) fn has_shelf(cx: &App) -> bool {
@@ -113,18 +122,13 @@ pub(crate) fn make_shelf(
     Some(make(ws, window, cx))
 }
 
-/// The window's Project Home, made on first use; `None` when none is
-/// registered.
-pub(crate) fn home_of(
-    ws: &Entity<Workspace>,
+/// A window's Project Home, made with the workspace (before it first
+/// renders); `None` when none is registered.
+pub(crate) fn make_home(
+    ws: WeakEntity<Workspace>,
     window: &mut Window,
     cx: &mut App,
 ) -> Option<AnyView> {
-    if let Some(view) = ws.read(cx).home.clone() {
-        return Some(view);
-    }
     let make = cx.try_global::<Pages>()?.home.clone()?;
-    let view = make(ws.downgrade(), window, cx);
-    ws.update(cx, |ws, _| ws.home = Some(view.clone()));
-    Some(view)
+    Some(make(ws, window, cx))
 }

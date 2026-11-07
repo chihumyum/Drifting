@@ -12,6 +12,33 @@
     "storyGraph": "故事图谱",
     "todoLibrary": "审阅与素材"
   },
+  "categoryEditor": {
+    "actions": {
+      "openElement": "打开要素"
+    },
+    "empty": {
+      "noFilteredElements": "此筛选下暂无要素",
+      "noSummary": "尚未填写概述"
+    },
+    "filters": {
+      "unused": "未填写",
+      "used": "已填写"
+    },
+    "folio": "类目",
+    "labels": {
+      "elementCount": "要素数",
+      "summary": "概述"
+    },
+    "meta": {
+      "elements": "{{count}} 要素",
+      "items": "{{count}} 个"
+    },
+    "sections": {
+      "elements": "要素清单",
+      "scratch": "札记"
+    },
+    "untitled": "未命名类目"
+  },
   "chapterEditor": {
     "synopsisPlaceholder": "梗概…",
     "untitledChapter": "无标题章节"
@@ -97,6 +124,27 @@
     "statusSection": {
       "chapter": "写作状态"
     }
+  },
+  "elementEditor": {
+    "alerts": {
+      "aliasConflict": "无法添加别名：“{{name}}” 已被要素「{{conflicting}}」使用。",
+      "renameConflict": "无法重命名：“{{name}}” 已被要素「{{conflicting}}」使用（名字或别名冲突）。"
+    },
+    "alias": {
+      "add": "别名",
+      "addFirst": "添加别名",
+      "remove": "移除别名"
+    },
+    "empty": {
+      "noFacts": "尚无字段。新建要素时，所属类目的「字段模版」会自动填入"
+    },
+    "folio": "要素",
+    "sections": {
+      "bioTitle": "记 · 传",
+      "facts": "字段"
+    },
+    "summaryPlaceholder": "一句话概述…",
+    "untitled": "未命名要素"
   },
   "feedback": {
     "attachDiagnostics": "附上脱敏诊断摘要",
@@ -184,6 +232,12 @@
       "done": "完成"
     }
   },
+  "kvEditor": {
+    "addField": "新增字段",
+    "keyPlaceholder": "字段",
+    "removeRow": "移除这一行",
+    "valuePlaceholder": "内容"
+  },
   "leftSidebar": {
     "actions": {
       "sort": "排序"
@@ -234,6 +288,11 @@
       "chapterSummary": "{{storylines}} 条故事线 · {{chapters}} 章",
       "globalTitle": "全书总览 · 点此按 storyline 分组",
       "storylineTitle": "按 storyline 分组 · 点此切回全书总览"
+    }
+  },
+  "mobileWorkspace": {
+    "projectActions": {
+      "deleteFailed": "删除未完成，请重试。"
     }
   },
   "navigation": {
@@ -320,6 +379,9 @@
     "bookTransfer": {
       "importFailedTitle": "无法导入"
     },
+    "delete": {
+      "deleting": "删除中…"
+    },
     "desk": {
       "chaptersUnit": "章",
       "elementsUnit": "个要素",
@@ -339,7 +401,9 @@
       "storylinesUnit": "条故事线",
       "trashEntry": "最近删除",
       "trashList": {
+        "confirmTitle": "永久删除《{{name}}》？",
         "empty": "最近没有删除的作品。",
+        "subLocal": "作品在这里保留 30 天，到期后自动永久删除。",
         "title": "最近删除"
       },
       "trashTitle": "把《{{name}}》移到最近删除？",
@@ -372,9 +436,14 @@
     "trash": {
       "body": "这本书（{{words}} 字 · {{nodes}} 章 · {{elements}} 个要素）会从书架移走。30 天内可以在「最近删除」里恢复，之后永久删除。",
       "confirm": "移到最近删除",
+      "deleteNow": "立即删除",
+      "expiresIn_one": "{{count}} 天后永久删除",
+      "expiresIn_other": "{{count}} 天后永久删除",
+      "expiresSoon": "即将永久删除",
       "failed": "移动未完成，请重试。",
       "localNote": "内容和可读 Markdown 副本都保留到永久删除时。",
       "moving": "正在移动…",
+      "permanentBody": "立即永久删除，不再等 30 天。此操作无法撤销。",
       "restore": "恢复",
       "restoreFailed": "恢复未完成，请重试。",
       "restoring": "正在恢复…"
@@ -638,6 +707,14 @@
     "restoreSuccess": "已恢复到所选版本。恢复前的状态已自动存为新快照。",
     "restoring": "恢复中…",
     "title": "历史快照 · 30 天"
+  },
+  "storylineEditor": {
+    "filters": {
+      "all": "全部"
+    },
+    "labels": {
+      "color": "色标"
+    }
   },
   "topTimeline": {
     "closeTab": "关闭标签页",

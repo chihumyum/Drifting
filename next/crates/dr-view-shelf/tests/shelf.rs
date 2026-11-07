@@ -2,14 +2,19 @@
 //! dr-testkit's sample books, 《慢钟》 and 《阿Q正传》, read through F3): the
 //! window opens on it and lists the books with F3's numbers; a card opens
 //! its book and ⇧⌘W comes back; a new book is created and opened; a book is
-//! renamed, moved to Recently Deleted and restored; a double click on the
-//! empty desk starts a new book; Esc closes a dialog.
+//! renamed, moved to Recently Deleted and restored; Recently Deleted counts
+//! the days left and deletes a book for good; the books due go two minutes
+//! after the shelf shows; a double click on the empty desk starts a new
+//! book; Esc closes a dialog.
 
 use std::time::{Duration, Instant};
 
 use dr_shell::{Services, SettingsFile, ShellInfo, Workspace};
-use dr_view_shelf::{Shelf, ShelfDialog};
-use dr_workspace::Workspace as Library;
+use dr_view_shelf::{PURGE_EXPIRED_AFTER, Shelf, ShelfDialog};
+use dr_workspace::{
+    Actor, Workspace as Library,
+    commands::{BookIn, ListIn, book::BookTrash, chapter::ChapterList},
+};
 use gpui::{
     Entity, Modifiers, MouseButton, MouseDownEvent, MouseUpEvent, TestAppContext,
     VisualTestContext, point, px,
@@ -105,19 +110,20 @@ fn the_window_opens_on_the_shelf_with_every_book(cx: &mut TestAppContext) {
     // A freshly seeded library builds its derived indexes in the background;
     // the shelf reads again as each one lands (dr-store's `index` changes).
     lib.library().rebuild_stale_indexes().unwrap();
+    // The live chapters' words in the derived index, as F3 lists them.
     let expected = |book: &str| -> u64 {
-        let chapters = lib
-            .run::<dr_workspace::commands::chapter::ChapterList>(
-                &dr_workspace::Actor::User,
-                dr_workspace::commands::ListIn {
-                    book: book.to_owned(),
-                    trashed: false,
-                },
-            )
-            .unwrap()
-            .output;
-        let docs: Vec<String> = chapters.iter().map(|c| format!("node:{}", c.id)).collect();
-        dr_view_shelf::data::words_of(&lib, &docs)
+        lib.run::<ChapterList>(
+            &Actor::User,
+            ListIn {
+                book: book.to_owned(),
+                trashed: false,
+            },
+        )
+        .unwrap()
+        .output
+        .iter()
+        .map(|c| c.words)
+        .sum()
     };
     shelf_until(&shelf, cx, |d| {
         d.books.len() == 2 && d.books.iter().all(|b| b.words == expected(&b.id))
@@ -131,9 +137,9 @@ fn the_window_opens_on_the_shelf_with_every_book(cx: &mut TestAppContext) {
     for book in &data.books {
         // The counts are F3's, the words the chapters' in the derived index.
         let chapters = lib
-            .run::<dr_workspace::commands::chapter::ChapterList>(
-                &dr_workspace::Actor::User,
-                dr_workspace::commands::ListIn {
+            .run::<ChapterList>(
+                &Actor::User,
+                ListIn {
                     book: book.id.clone(),
                     trashed: false,
                 },
@@ -279,6 +285,10 @@ fn a_book_is_renamed_trashed_and_restored(cx: &mut TestAppContext) {
     cx.update(|window, cx| shelf.update(cx, |s, cx| s.confirm_trash(window, cx)));
     shelf_until(&shelf, cx, |d| d.books.len() == 1 && d.trashed.len() == 1);
     assert_eq!(shelf.read_with(cx, |s, _| s.dialog()), None);
+    // Thirty days to go, as F3 counts them.
+    let gone = shelf.read_with(cx, |s, _| s.data.as_ref().unwrap().trashed[0].clone());
+    assert_eq!(gone.id, book.id);
+    assert_eq!(gone.days_left, Some(30));
 
     // Recently Deleted lists it; restoring brings it back.
     cx.update(|window, cx| shelf.update(cx, |s, cx| s.open_deleted(window, cx)));
@@ -288,6 +298,88 @@ fn a_book_is_renamed_trashed_and_restored(cx: &mut TestAppContext) {
     );
     cx.update(|window, cx| shelf.update(cx, |s, cx| s.restore(&book.id, window, cx)));
     shelf_until(&shelf, cx, |d| d.books.len() == 2 && d.trashed.is_empty());
+}
+
+#[gpui::test]
+fn recently_deleted_deletes_a_book_for_good(cx: &mut TestAppContext) {
+    let (_dir, library) = library();
+    let lib = library.clone();
+    let (view, cx) = setup(cx, library);
+    let shelf = shelf_of(&view, cx);
+    shelf_until(&shelf, cx, |d| d.books.len() == 2);
+    let id = shelf.read_with(cx, |s, _| s.data.as_ref().unwrap().books[0].id.clone());
+    // Trashed elsewhere (the Agent, another window): the shelf follows.
+    lib.run::<BookTrash>(&Actor::User, BookIn { book: id.clone() })
+        .unwrap();
+    shelf_until(&shelf, cx, |d| d.trashed.len() == 1);
+    let gone = shelf.read_with(cx, |s, _| s.data.as_ref().unwrap().trashed[0].clone());
+    cx.update(|window, cx| shelf.update(cx, |s, cx| s.open_deleted(window, cx)));
+    // 「立即删除」 asks first; Esc steps back to the list, not out of it.
+    cx.update(|window, cx| shelf.update(cx, |s, cx| s.ask_purge(gone.clone(), window, cx)));
+    assert_eq!(
+        shelf.read_with(cx, |s, _| s.dialog()),
+        Some(ShelfDialog::Purge(id.clone()))
+    );
+    cx.simulate_keystrokes("escape");
+    assert_eq!(
+        shelf.read_with(cx, |s, _| s.dialog()),
+        Some(ShelfDialog::RecentlyDeleted)
+    );
+    // Confirmed: it is gone for good, and the list shows again.
+    cx.update(|window, cx| shelf.update(cx, |s, cx| s.ask_purge(gone.clone(), window, cx)));
+    cx.update(|window, cx| shelf.update(cx, |s, cx| s.confirm_purge(window, cx)));
+    shelf_until(&shelf, cx, |d| d.books.len() == 1 && d.trashed.is_empty());
+    assert_eq!(
+        shelf.read_with(cx, |s, _| s.dialog()),
+        Some(ShelfDialog::RecentlyDeleted)
+    );
+    let left = lib
+        .run::<dr_workspace::commands::book::BookShelf>(
+            &Actor::User,
+            dr_workspace::commands::book::ListBooksIn { trashed: true },
+        )
+        .unwrap()
+        .output;
+    assert!(left.iter().all(|b| b.info.id != id));
+    // Esc on the list closes it.
+    cx.simulate_keystrokes("escape");
+    assert_eq!(shelf.read_with(cx, |s, _| s.dialog()), None);
+}
+
+#[gpui::test]
+fn the_books_due_go_two_minutes_after_the_shelf_shows(cx: &mut TestAppContext) {
+    let (_dir, library) = library();
+    let (view, cx) = setup(cx, library);
+    let shelf = shelf_of(&view, cx);
+    shelf_until(&shelf, cx, |d| d.books.len() == 2);
+    let runs = |cx: &mut VisualTestContext| shelf.read_with(cx, |s, _| s.expired_runs);
+    cx.executor()
+        .advance_clock(PURGE_EXPIRED_AFTER - Duration::from_secs(1));
+    cx.run_until_parked();
+    assert_eq!(runs(cx), 0);
+    cx.executor().advance_clock(Duration::from_secs(2));
+    wait_for(cx, |cx| runs(cx) == 1);
+    // In a book, the bookshelf does not count.
+    let book = shelf.read_with(cx, |s, _| s.data.as_ref().unwrap().books[0].id.clone());
+    cx.update(|window, cx| shelf.update(cx, |s, cx| s.open(&book, window, cx)));
+    wait_for(cx, |cx| view.read_with(cx, |ws, _| ws.book.id == book));
+    cx.executor().advance_clock(PURGE_EXPIRED_AFTER * 2);
+    cx.run_until_parked();
+    assert_eq!(runs(cx), 1);
+    // Back on the shelf for less than two minutes: nothing; it counts
+    // afresh each time it comes up.
+    cx.update(|window, cx| view.update(cx, |ws, cx| ws.show_shelf(window, cx)));
+    cx.run_until_parked();
+    cx.executor().advance_clock(Duration::from_secs(60));
+    cx.update(|window, cx| shelf.update(cx, |s, cx| s.open(&book, window, cx)));
+    cx.run_until_parked();
+    cx.update(|window, cx| view.update(cx, |ws, cx| ws.show_shelf(window, cx)));
+    cx.run_until_parked();
+    cx.executor().advance_clock(Duration::from_secs(90));
+    cx.run_until_parked();
+    assert_eq!(runs(cx), 1);
+    cx.executor().advance_clock(Duration::from_secs(31));
+    wait_for(cx, |cx| runs(cx) == 2);
 }
 
 #[gpui::test]

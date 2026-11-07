@@ -31,6 +31,7 @@ pub mod head;
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use dr_editor::page::{PageChrome, PageInfo, PageKind};
+use dr_shell::nav::Target;
 use dr_shell::pages::{PageEditorRef, PageHost};
 use dr_ui::tokens::page as tk;
 use gpui::{
@@ -41,10 +42,14 @@ use gpui::{
 pub use end::{EndAction, PageEnd};
 pub use head::PageHead;
 
-/// Registers the chrome with the shell: every editor it opens gets one.
+/// Registers the chrome with the shell: every chapter, idea and whole-book
+/// editor it opens gets one.
 pub fn init(cx: &mut App) {
-    dr_shell::pages::set_page_chrome(cx, |host, _, _| {
-        Rc::new(Chrome::new(host)) as Rc<dyn PageChrome>
+    dr_shell::pages::add_page_chrome(cx, |target, host, _, _| match target {
+        Target::Chapter(_) | Target::Idea(_) | Target::Book => {
+            Some(Rc::new(Chrome::new(host)) as Rc<dyn PageChrome>)
+        }
+        _ => None,
     });
 }
 

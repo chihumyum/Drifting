@@ -12,6 +12,33 @@
     "storyGraph": "Geschichtsgraph",
     "todoLibrary": "Aufgaben und Materialsammlung"
   },
+  "categoryEditor": {
+    "actions": {
+      "openElement": "Element öffnen"
+    },
+    "empty": {
+      "noFilteredElements": "Keine Elemente für diesen Filter",
+      "noSummary": "Noch keine Zusammenfassung"
+    },
+    "filters": {
+      "unused": "Leer",
+      "used": "Ausgefüllt"
+    },
+    "folio": "Kategorie",
+    "labels": {
+      "elementCount": "Elemente",
+      "summary": "Zusammenfassung"
+    },
+    "meta": {
+      "elements": "{{count}} Elemente",
+      "items": "{{count}} Einträge"
+    },
+    "sections": {
+      "elements": "Elementliste",
+      "scratch": "Notizen"
+    },
+    "untitled": "Unbenannte Kategorie"
+  },
   "chapterEditor": {
     "synopsisPlaceholder": "Kurzfassung…",
     "untitledChapter": "Unbenanntes Kapitel"
@@ -97,6 +124,27 @@
     "statusSection": {
       "chapter": "Schreibstatus"
     }
+  },
+  "elementEditor": {
+    "alerts": {
+      "aliasConflict": "Alias kann nicht hinzugefügt werden: „{{name}}“ wird bereits vom Element „{{conflicting}}“ verwendet.",
+      "renameConflict": "Umbenennen nicht möglich: „{{name}}“ wird bereits vom Element „{{conflicting}}“ als Name oder Alias verwendet."
+    },
+    "alias": {
+      "add": "Alias",
+      "addFirst": "Alias hinzufügen",
+      "remove": "Alias entfernen"
+    },
+    "empty": {
+      "noFacts": "Noch keine Felder. Beim Erstellen eines Elements füllt die Feldvorlage seiner Kategorie sie aus."
+    },
+    "folio": "Element",
+    "sections": {
+      "bioTitle": "Biografie",
+      "facts": "Fakten"
+    },
+    "summaryPlaceholder": "In einem Satz zusammenfassen…",
+    "untitled": "Unbenanntes Element"
   },
   "feedback": {
     "attachDiagnostics": "Bereinigte Diagnosedaten anhängen",
@@ -189,6 +237,12 @@
       "done": "Fertig"
     }
   },
+  "kvEditor": {
+    "addField": "Feld hinzufügen",
+    "keyPlaceholder": "Feld",
+    "removeRow": "Zeile entfernen",
+    "valuePlaceholder": "Inhalt"
+  },
   "leftSidebar": {
     "actions": {
       "sort": "Sortieren"
@@ -239,6 +293,11 @@
       "chapterSummary": "{{storylines}} Handlungsstränge · {{chapters}} Kapitel",
       "globalTitle": "Buchübersicht · nach Handlungsstrang gruppieren",
       "storylineTitle": "Nach Handlungsstrang · zur Buchübersicht wechseln"
+    }
+  },
+  "mobileWorkspace": {
+    "projectActions": {
+      "deleteFailed": "Projekt konnte nicht gelöscht werden. Bitte erneut versuchen."
     }
   },
   "navigation": {
@@ -325,6 +384,9 @@
     "bookTransfer": {
       "importFailedTitle": "Import nicht möglich"
     },
+    "delete": {
+      "deleting": "Wird gelöscht…"
+    },
     "desk": {
       "chaptersUnit_one": "Kapitel",
       "chaptersUnit_other": "Kapitel",
@@ -347,7 +409,9 @@
       "storylinesUnit_other": "Handlungsstränge",
       "trashEntry": "Kürzlich gelöscht",
       "trashList": {
+        "confirmTitle": "„{{name}}“ endgültig löschen?",
         "empty": "Keine kürzlich gelöschten Bücher.",
+        "subLocal": "Bücher bleiben hier 30 Tage und werden danach endgültig gelöscht.",
         "title": "Kürzlich gelöscht"
       },
       "trashTitle": "„{{name}}“ nach kürzlich Gelöscht verschieben?",
@@ -382,9 +446,14 @@
     "trash": {
       "body": "Dieses Buch ({{words}} Wörter · {{nodes}} Kapitel · {{elements}} Elemente) verlässt das Regal. Es kann 30 Tage lang unter kürzlich Gelöscht wiederhergestellt werden; danach wird es endgültig gelöscht.",
       "confirm": "Zu kürzlich Gelöscht verschieben",
+      "deleteNow": "Jetzt löschen",
+      "expiresIn_one": "Endgültige Löschung in {{count}} Tag",
+      "expiresIn_other": "Endgültige Löschung in {{count}} Tagen",
+      "expiresSoon": "Endgültige Löschung ausstehend",
       "failed": "Projekt konnte nicht verschoben werden. Bitte erneut versuchen.",
       "localNote": "Inhalt und lesbare Markdown-Kopie bleiben bis zur endgültigen Löschung erhalten.",
       "moving": "Wird verschoben…",
+      "permanentBody": "Jetzt statt nach 30 Tagen endgültig löschen. Nicht rückgängig zu machen.",
       "restore": "Wiederherstellen",
       "restoreFailed": "Projekt konnte nicht wiederhergestellt werden. Bitte erneut versuchen.",
       "restoring": "Wird wiederhergestellt…"
@@ -648,6 +717,14 @@
     "restoreSuccess": "Ausgewählte Version wiederhergestellt. Der vorherige Zustand wurde zuerst als neuer Schnappschuss gespeichert.",
     "restoring": "Wird wiederhergestellt…",
     "title": "Verlaufsschnappschüsse · 30 Tage"
+  },
+  "storylineEditor": {
+    "filters": {
+      "all": "Alle"
+    },
+    "labels": {
+      "color": "Farbe"
+    }
   },
   "topTimeline": {
     "closeTab": "Tab schließen",

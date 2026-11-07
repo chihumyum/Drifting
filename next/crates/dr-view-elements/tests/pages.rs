@@ -1,0 +1,410 @@
+//! The element and category pages on GPUI's test platform, over a real
+//! library (dr-testkit's 《慢钟》, read and written through F3): opening an
+//! element's page puts its head and fields around the text; the name, the
+//! aliases, the summary and the fields save as in the 0.1 client, and a name
+//! or alias another element holds raises the 0.1 alert; a category's page
+//! renames it and lists its elements with the filter.
+
+use std::time::{Duration, Instant};
+
+use dr_shell::nav::{Open, Target};
+use dr_shell::{Services, SettingsFile, ShellInfo, Workspace};
+use dr_view_elements::{CategoryEnd, CategoryHead, ElementHead, Fields, Filter};
+use dr_workspace::{
+    Actor, Workspace as Library,
+    commands::{
+        ListIn,
+        element::{CategoryList, ElementList, ElementListIn},
+    },
+    dto::{CategoryInfo, ElementInfo},
+};
+use gpui::{Entity, Focusable as _, TestAppContext, VisualTestContext};
+
+const VERSION: &str = "0.2.0-dev";
+
+fn info() -> ShellInfo {
+    ShellInfo {
+        app_name: "Drifting Next",
+        bundle_id: "cc.drifting.next.dev",
+        version: VERSION,
+        url_scheme: "drifting-next-dev",
+        forced_appearance: None,
+    }
+}
+
+/// A library holding 《慢钟》, and its book's id.
+fn library() -> (tempfile::TempDir, Library, String) {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("library");
+    let lib = dr_store::Library::open(&root, dr_workspace::library_options(VERSION)).unwrap();
+    let book = dr_testkit::samples::slow_clock().unwrap();
+    dr_testkit::seed::write_book(&lib, &book).unwrap();
+    lib.close().unwrap();
+    let id = book.book.book_id().to_string();
+    (dir, Library::open_dir(&root, VERSION).unwrap(), id)
+}
+
+fn setup(cx: &mut TestAppContext, library: Library) -> (Entity<Workspace>, &mut VisualTestContext) {
+    cx.executor().allow_parking();
+    cx.update(|cx| {
+        dr_shell::init(
+            info(),
+            Services {
+                library: Some(library),
+                ..Services::default()
+            },
+            SettingsFile::in_memory(),
+            cx,
+        );
+        dr_view_elements::init(cx);
+    });
+    let (view, cx) = cx.add_window_view(Workspace::new);
+    cx.update(|window, _| window.activate_window());
+    cx.run_until_parked();
+    (view, cx)
+}
+
+/// One drawn frame (focus listeners run when a frame sees the change).
+fn frame(cx: &mut VisualTestContext) {
+    cx.update(|window, cx| window.draw(cx).clear(cx));
+    cx.run_until_parked();
+}
+
+fn wait_for(cx: &mut VisualTestContext, done: impl Fn(&mut VisualTestContext) -> bool) {
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        frame(cx);
+        if done(cx) {
+            return;
+        }
+        assert!(Instant::now() < deadline, "timed out");
+        std::thread::sleep(Duration::from_millis(2));
+    }
+}
+
+fn elements(lib: &Library, book: &str) -> Vec<ElementInfo> {
+    lib.run::<ElementList>(
+        &Actor::User,
+        ElementListIn {
+            book: book.to_owned(),
+            ..ElementListIn::default()
+        },
+    )
+    .unwrap()
+    .output
+}
+
+fn element(lib: &Library, book: &str, name: &str) -> ElementInfo {
+    elements(lib, book)
+        .into_iter()
+        .find(|e| e.name == name)
+        .unwrap_or_else(|| panic!("{name} in the book"))
+}
+
+fn categories(lib: &Library, book: &str) -> Vec<CategoryInfo> {
+    lib.run::<CategoryList>(
+        &Actor::User,
+        ListIn {
+            book: book.to_owned(),
+            trashed: false,
+        },
+    )
+    .unwrap()
+    .output
+}
+
+/// Opens element `id`'s page and waits for its head and fields.
+fn open_element(
+    view: &Entity<Workspace>,
+    id: &str,
+    cx: &mut VisualTestContext,
+) -> (Entity<ElementHead>, Entity<Fields>) {
+    wait_for(cx, |cx| view.read_with(cx, |ws, _| !ws.book.is_empty()));
+    let target = Target::Element(id.parse().unwrap());
+    view.update(cx, |ws, cx| ws.open(target, Open::KEEP, cx));
+    wait_for(cx, |cx| {
+        cx.update(|_, cx| dr_view_elements::element_page(id, cx).is_some())
+    });
+    cx.update(|_, cx| dr_view_elements::element_page(id, cx).unwrap())
+}
+
+fn open_category(
+    view: &Entity<Workspace>,
+    id: &str,
+    cx: &mut VisualTestContext,
+) -> (Entity<CategoryHead>, Entity<CategoryEnd>) {
+    wait_for(cx, |cx| view.read_with(cx, |ws, _| !ws.book.is_empty()));
+    let target = Target::Category(id.parse().unwrap());
+    view.update(cx, |ws, cx| ws.open(target, Open::KEEP, cx));
+    wait_for(cx, |cx| {
+        cx.update(|_, cx| dr_view_elements::category_page(id, cx).is_some())
+    });
+    cx.update(|_, cx| dr_view_elements::category_page(id, cx).unwrap())
+}
+
+/// Puts the caret in `focus`, types `text` into it with `set`, then moves
+/// the caret to the workspace: the field reports leaving.
+fn type_and_leave(
+    view: &Entity<Workspace>,
+    focus: impl Fn(&mut gpui::Window, &mut gpui::App),
+    set: impl Fn(&mut gpui::App),
+    cx: &mut VisualTestContext,
+) {
+    cx.update(|window, cx| focus(window, cx));
+    frame(cx);
+    cx.update(|_, cx| set(cx));
+    cx.update(|window, cx| view.read(cx).focus_handle().clone().focus(window, cx));
+    frame(cx);
+}
+
+#[gpui::test]
+fn an_element_page_shows_its_head_and_fields(cx: &mut TestAppContext) {
+    let (_dir, library, book) = library();
+    let lib = library.clone();
+    let (view, cx) = setup(cx, library);
+    let zhiwei = element(&lib, &book, "沈知微");
+    let (head, fields) = open_element(&view, &zhiwei.id, cx);
+    // The fields show what is stored, once the book's snapshot is there.
+    wait_for(cx, |cx| {
+        let (name, _, summary) = head.read_with(cx, |h, _| h.fields());
+        name.read_with(cx, |f, _| f.text()) == "沈知微"
+            && summary.read_with(cx, |f, _| f.text()) == zhiwei.summary
+    });
+    wait_for(cx, |cx| fields.read_with(cx, |f, _| f.rows().len()) == 3);
+    let rows = fields.read_with(cx, |f, _| f.rows());
+    let shown: Vec<(String, String)> = rows
+        .iter()
+        .map(|(_, k, v)| {
+            (
+                k.read_with(cx, |f, _| f.text()),
+                v.read_with(cx, |f, _| f.text()),
+            )
+        })
+        .collect();
+    let stored: Vec<(String, String)> = zhiwei
+        .fields
+        .iter()
+        .map(|f| (f.key.clone(), f.value.clone()))
+        .collect();
+    assert_eq!(shown, stored);
+    // The page opened in an editor with the module's chrome around it.
+    let target = Target::Element(zhiwei.id.parse().unwrap());
+    assert!(view.read_with(cx, |ws, _| ws.editor_of(&target).is_some()));
+}
+
+#[gpui::test]
+fn the_name_saves_on_leaving_and_a_taken_one_is_refused(cx: &mut TestAppContext) {
+    let (_dir, library, book) = library();
+    let lib = library.clone();
+    let (view, cx) = setup(cx, library);
+    let zhiwei = element(&lib, &book, "沈知微");
+    let (head, _) = open_element(&view, &zhiwei.id, cx);
+    let (name, _, _) = head.read_with(cx, |h, _| h.fields());
+    wait_for(cx, |cx| name.read_with(cx, |f, _| f.text()) == "沈知微");
+    // A new name saves when the caret leaves.
+    type_and_leave(
+        &view,
+        |window, cx| name.focus_handle(cx).focus(window, cx),
+        |cx| name.update(cx, |f, cx| f.set_text("沈知微（修复师）", cx)),
+        cx,
+    );
+    let id = zhiwei.id.clone();
+    wait_for(cx, |_| {
+        elements(&lib, &book)
+            .iter()
+            .any(|e| e.id == id && e.name == "沈知微（修复师）")
+    });
+    // Another element's name: the 0.1 alert, and the stored name back.
+    type_and_leave(
+        &view,
+        |window, cx| name.focus_handle(cx).focus(window, cx),
+        |cx| name.update(cx, |f, cx| f.set_text("陆远舟", cx)),
+        cx,
+    );
+    wait_for(cx, |cx| head.read_with(cx, |h, _| h.alert.is_some()));
+    let alert = head.read_with(cx, |h, _| h.alert.clone().unwrap());
+    assert!(alert.contains("陆远舟"), "{alert}");
+    assert_eq!(name.read_with(cx, |f, _| f.text()), "沈知微（修复师）");
+    assert!(
+        elements(&lib, &book)
+            .iter()
+            .any(|e| e.id == zhiwei.id && e.name == "沈知微（修复师）")
+    );
+    // Esc puts the stored name back.
+    cx.update(|window, cx| name.focus_handle(cx).focus(window, cx));
+    frame(cx);
+    cx.update(|_, cx| name.update(cx, |f, cx| f.set_text("别的", cx)));
+    cx.simulate_keystrokes("escape");
+    frame(cx);
+    assert_eq!(name.read_with(cx, |f, _| f.text()), "沈知微（修复师）");
+}
+
+#[gpui::test]
+fn aliases_add_and_go(cx: &mut TestAppContext) {
+    let (_dir, library, book) = library();
+    let lib = library.clone();
+    let (view, cx) = setup(cx, library);
+    let zhiwei = element(&lib, &book, "沈知微");
+    let (head, _) = open_element(&view, &zhiwei.id, cx);
+    wait_for(cx, |cx| {
+        head.read_with(cx, |h, _| h.fields().0.clone())
+            .read_with(cx, |f, _| f.text())
+            == "沈知微"
+    });
+    let alias = head.read_with(cx, |h, _| h.fields().1);
+    // Enter adds what is typed.
+    cx.update(|window, cx| alias.focus_handle(cx).focus(window, cx));
+    frame(cx);
+    cx.update(|_, cx| alias.update(cx, |f, cx| f.set_text("小微", cx)));
+    cx.simulate_keystrokes("enter");
+    let id = zhiwei.id.clone();
+    wait_for(cx, |_| {
+        element(&lib, &book, "沈知微")
+            .aliases
+            .contains(&"小微".to_owned())
+    });
+    // One another element has: the alert, nothing added.
+    let alias = head.read_with(cx, |h, _| h.fields().1);
+    cx.update(|window, cx| alias.focus_handle(cx).focus(window, cx));
+    frame(cx);
+    cx.update(|_, cx| alias.update(cx, |f, cx| f.set_text("远舟", cx)));
+    cx.simulate_keystrokes("enter");
+    wait_for(cx, |cx| head.read_with(cx, |h, _| h.alert.is_some()));
+    assert!(
+        !element(&lib, &book, "沈知微")
+            .aliases
+            .contains(&"远舟".to_owned())
+    );
+    // The × takes one off.
+    head.update(cx, |h, cx| h.remove_alias("知微".to_owned(), cx));
+    wait_for(cx, |_| {
+        !elements(&lib, &book)
+            .iter()
+            .any(|e| e.id == id && e.aliases.contains(&"知微".to_owned()))
+    });
+}
+
+#[gpui::test]
+fn the_summary_saves_on_leaving(cx: &mut TestAppContext) {
+    let (_dir, library, book) = library();
+    let lib = library.clone();
+    let (view, cx) = setup(cx, library);
+    let zhiwei = element(&lib, &book, "沈知微");
+    let (head, _) = open_element(&view, &zhiwei.id, cx);
+    let (_, _, summary) = head.read_with(cx, |h, _| h.fields());
+    wait_for(cx, |cx| {
+        summary.read_with(cx, |f, _| f.text()) == zhiwei.summary
+    });
+    type_and_leave(
+        &view,
+        |window, cx| summary.focus_handle(cx).focus(window, cx),
+        |cx| summary.update(cx, |f, cx| f.set_text("回到青梅镇的修复师。\n话少。", cx)),
+        cx,
+    );
+    wait_for(cx, |_| {
+        element(&lib, &book, "沈知微").summary == "回到青梅镇的修复师。\n话少。"
+    });
+}
+
+#[gpui::test]
+fn fields_are_added_changed_and_removed(cx: &mut TestAppContext) {
+    let (_dir, library, book) = library();
+    let lib = library.clone();
+    let (view, cx) = setup(cx, library);
+    let zhiwei = element(&lib, &book, "沈知微");
+    let (_, fields) = open_element(&view, &zhiwei.id, cx);
+    wait_for(cx, |cx| fields.read_with(cx, |f, _| f.rows().len()) == 3);
+    // 「新增字段」: a blank row, the caret in its key.
+    cx.update(|window, cx| fields.update(cx, |f, cx| f.add_row(window, cx)));
+    frame(cx);
+    let (_, key, value) = fields.read_with(cx, |f, _| f.rows().pop().unwrap());
+    assert!(cx.update(|window, cx| key.focus_handle(cx).is_focused(window)));
+    cx.update(|_, cx| {
+        key.update(cx, |f, cx| f.set_text("籍贯", cx));
+        value.update(cx, |f, cx| f.set_text("青梅镇", cx));
+    });
+    cx.update(|window, cx| view.read(cx).focus_handle().clone().focus(window, cx));
+    frame(cx);
+    wait_for(cx, |_| {
+        element(&lib, &book, "沈知微")
+            .fields
+            .iter()
+            .any(|f| f.key == "籍贯" && f.value == "青梅镇")
+    });
+    // The new row takes the stored field's id; nothing is doubled.
+    wait_for(cx, |cx| {
+        fields.read_with(cx, |f, _| f.rows().iter().all(|(id, _, _)| id.is_some()))
+    });
+    assert_eq!(element(&lib, &book, "沈知微").fields.len(), 4);
+    assert_eq!(fields.read_with(cx, |f, _| f.rows().len()), 4);
+    // A changed value saves on leaving.
+    let (_, _, first_value) = fields.read_with(cx, |f, _| f.rows()[0].clone());
+    type_and_leave(
+        &view,
+        |window, cx| first_value.focus_handle(cx).focus(window, cx),
+        |cx| first_value.update(cx, |f, cx| f.set_text("33", cx)),
+        cx,
+    );
+    wait_for(cx, |_| {
+        element(&lib, &book, "沈知微")
+            .fields
+            .iter()
+            .any(|f| f.key == "年龄" && f.value == "33")
+    });
+    // The × removes one; a row emptied and left goes too.
+    fields.update(cx, |f, cx| f.remove(3, cx));
+    wait_for(cx, |_| element(&lib, &book, "沈知微").fields.len() == 3);
+    let (_, key, value) = fields.read_with(cx, |f, _| f.rows()[2].clone());
+    cx.update(|window, cx| key.focus_handle(cx).focus(window, cx));
+    frame(cx);
+    cx.update(|_, cx| {
+        key.update(cx, |f, cx| f.set_text("", cx));
+        value.update(cx, |f, cx| f.set_text("", cx));
+    });
+    cx.update(|window, cx| view.read(cx).focus_handle().clone().focus(window, cx));
+    frame(cx);
+    wait_for(cx, |_| element(&lib, &book, "沈知微").fields.len() == 2);
+    assert_eq!(fields.read_with(cx, |f, _| f.rows().len()), 2);
+}
+
+#[gpui::test]
+fn a_category_page_renames_and_lists_its_elements(cx: &mut TestAppContext) {
+    let (_dir, library, book) = library();
+    let lib = library.clone();
+    let (view, cx) = setup(cx, library);
+    let people = categories(&lib, &book)
+        .into_iter()
+        .find(|c| c.name == "人物")
+        .unwrap();
+    let (head, end) = open_category(&view, &people.id, cx);
+    let name = head.read_with(cx, |h, _| h.name_field());
+    wait_for(cx, |cx| name.read_with(cx, |f, _| f.text()) == "人物");
+    // The list is the category's elements; 「已填写」 has a summary or text.
+    wait_for(cx, |cx| end.read_with(cx, |e, _| e.words_read()));
+    let listed = end.read_with(cx, |e, _| e.elements());
+    assert_eq!(listed.len(), people.elements as usize);
+    let in_people: Vec<ElementInfo> = elements(&lib, &book)
+        .into_iter()
+        .filter(|e| e.category.as_deref() == Some(people.id.as_str()))
+        .collect();
+    assert_eq!(listed.len(), in_people.len());
+    assert!(
+        listed.iter().all(|(_, used)| *used),
+        "every sample person is filled in"
+    );
+    end.update(cx, |e, cx| e.set_filter(Filter::Unused, cx));
+    assert_eq!(end.read_with(cx, |e, _| e.filter), Filter::Unused);
+    // Renamed on leaving.
+    type_and_leave(
+        &view,
+        |window, cx| name.focus_handle(cx).focus(window, cx),
+        |cx| name.update(cx, |f, cx| f.set_text("人物表", cx)),
+        cx,
+    );
+    let id = people.id.clone();
+    wait_for(cx, |_| {
+        categories(&lib, &book)
+            .iter()
+            .any(|c| c.id == id && c.name == "人物表")
+    });
+}

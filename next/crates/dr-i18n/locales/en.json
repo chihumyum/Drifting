@@ -12,6 +12,33 @@
     "storyGraph": "Story graph",
     "todoLibrary": "TODO & Library"
   },
+  "categoryEditor": {
+    "actions": {
+      "openElement": "Open element"
+    },
+    "empty": {
+      "noFilteredElements": "No elements for this filter",
+      "noSummary": "No summary yet"
+    },
+    "filters": {
+      "unused": "Empty",
+      "used": "Filled"
+    },
+    "folio": "Category",
+    "labels": {
+      "elementCount": "Elements",
+      "summary": "Summary"
+    },
+    "meta": {
+      "elements": "{{count}} elements",
+      "items": "{{count}} items"
+    },
+    "sections": {
+      "elements": "Element list",
+      "scratch": "Scratch"
+    },
+    "untitled": "Untitled category"
+  },
   "chapterEditor": {
     "synopsisPlaceholder": "Synopsis…",
     "untitledChapter": "Untitled chapter"
@@ -97,6 +124,27 @@
     "statusSection": {
       "chapter": "Writing status"
     }
+  },
+  "elementEditor": {
+    "alerts": {
+      "aliasConflict": "Cannot add alias: \"{{name}}\" is already used by element \"{{conflicting}}\".",
+      "renameConflict": "Cannot rename: \"{{name}}\" is already used by element \"{{conflicting}}\" as a name or alias."
+    },
+    "alias": {
+      "add": "Alias",
+      "addFirst": "Add alias",
+      "remove": "Remove alias"
+    },
+    "empty": {
+      "noFacts": "No fields yet. When an element is created, its category's Field template fills them in."
+    },
+    "folio": "Element",
+    "sections": {
+      "bioTitle": "Biography",
+      "facts": "Facts"
+    },
+    "summaryPlaceholder": "One-sentence summary…",
+    "untitled": "Untitled Element"
   },
   "feedback": {
     "attachDiagnostics": "Attach sanitized diagnostics",
@@ -189,6 +237,12 @@
       "done": "Done"
     }
   },
+  "kvEditor": {
+    "addField": "Add field",
+    "keyPlaceholder": "Field",
+    "removeRow": "Remove row",
+    "valuePlaceholder": "Content"
+  },
   "leftSidebar": {
     "actions": {
       "sort": "Sort"
@@ -239,6 +293,11 @@
       "chapterSummary": "{{storylines}} storylines · {{chapters}} chapters",
       "globalTitle": "Book overview · group by storyline",
       "storylineTitle": "Grouped by storyline · switch back to book overview"
+    }
+  },
+  "mobileWorkspace": {
+    "projectActions": {
+      "deleteFailed": "The project could not be deleted. Please try again."
     }
   },
   "navigation": {
@@ -325,6 +384,9 @@
     "bookTransfer": {
       "importFailedTitle": "Could not import"
     },
+    "delete": {
+      "deleting": "Deleting…"
+    },
     "desk": {
       "chaptersUnit_one": "chapter",
       "chaptersUnit_other": "chapters",
@@ -347,7 +409,9 @@
       "storylinesUnit_other": "storylines",
       "trashEntry": "Recently Deleted",
       "trashList": {
+        "confirmTitle": "Permanently delete “{{name}}”?",
         "empty": "No recently deleted books.",
+        "subLocal": "Books stay here for 30 days and are then permanently deleted.",
         "title": "Recently Deleted"
       },
       "trashTitle": "Move “{{name}}” to Recently Deleted?",
@@ -382,9 +446,14 @@
     "trash": {
       "body": "This book ({{words}} words · {{nodes}} chapters · {{elements}} elements) leaves the shelf. You can restore it from Recently Deleted for 30 days; after that it is permanently deleted.",
       "confirm": "Move to Recently Deleted",
+      "deleteNow": "Delete now",
+      "expiresIn_one": "Permanently deleted in {{count}} day",
+      "expiresIn_other": "Permanently deleted in {{count}} days",
+      "expiresSoon": "Permanent deletion pending",
       "failed": "The project could not be moved. Please try again.",
       "localNote": "The content and the readable Markdown copy are kept until the permanent deletion.",
       "moving": "Moving…",
+      "permanentBody": "Delete it permanently now instead of after 30 days. This cannot be undone.",
       "restore": "Restore",
       "restoreFailed": "The project could not be restored. Please try again.",
       "restoring": "Restoring…"
@@ -648,6 +717,14 @@
     "restoreSuccess": "Restored to the selected version. The previous state was saved as a new snapshot first.",
     "restoring": "Restoring…",
     "title": "History snapshots · 30 days"
+  },
+  "storylineEditor": {
+    "filters": {
+      "all": "All"
+    },
+    "labels": {
+      "color": "Color"
+    }
   },
   "topTimeline": {
     "closeTab": "Close tab",

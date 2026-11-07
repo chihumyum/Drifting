@@ -12,6 +12,33 @@
     "storyGraph": "Mapa de la historia",
     "todoLibrary": "Tareas y documentación"
   },
+  "categoryEditor": {
+    "actions": {
+      "openElement": "Abrir elemento"
+    },
+    "empty": {
+      "noFilteredElements": "No hay elementos para este filtro",
+      "noSummary": "Aún no hay resumen"
+    },
+    "filters": {
+      "unused": "Vacío",
+      "used": "Completos"
+    },
+    "folio": "Categoría",
+    "labels": {
+      "elementCount": "Elementos",
+      "summary": "Resumen"
+    },
+    "meta": {
+      "elements": "{{count}} elementos",
+      "items": "{{count}} elementos"
+    },
+    "sections": {
+      "elements": "Lista de elementos",
+      "scratch": "Apuntes"
+    },
+    "untitled": "Categoría sin título"
+  },
   "chapterEditor": {
     "synopsisPlaceholder": "Sinopsis…",
     "untitledChapter": "Capítulo sin título"
@@ -97,6 +124,27 @@
     "statusSection": {
       "chapter": "Estado de escritura"
     }
+  },
+  "elementEditor": {
+    "alerts": {
+      "aliasConflict": "No se puede añadir el alias: «{{name}}» ya lo usa el elemento «{{conflicting}}».",
+      "renameConflict": "No se puede renombrar: «{{name}}» ya se usa como nombre o alias del elemento «{{conflicting}}»."
+    },
+    "alias": {
+      "add": "Alias",
+      "addFirst": "Añadir alias",
+      "remove": "Quitar alias"
+    },
+    "empty": {
+      "noFacts": "Aún no hay campos. Al crear un elemento, la Plantilla de campos de su categoría los rellena."
+    },
+    "folio": "Elemento",
+    "sections": {
+      "bioTitle": "Biografía",
+      "facts": "Datos"
+    },
+    "summaryPlaceholder": "Resumen en una frase…",
+    "untitled": "Elemento sin título"
   },
   "feedback": {
     "attachDiagnostics": "Adjuntar diagnósticos sin datos sensibles",
@@ -189,6 +237,12 @@
       "done": "Listo"
     }
   },
+  "kvEditor": {
+    "addField": "Añadir campo",
+    "keyPlaceholder": "Campo",
+    "removeRow": "Quitar fila",
+    "valuePlaceholder": "Contenido"
+  },
   "leftSidebar": {
     "actions": {
       "sort": "Ordenar"
@@ -239,6 +293,11 @@
       "chapterSummary": "{{storylines}} tramas · {{chapters}} capítulos",
       "globalTitle": "Vista del libro · agrupar por trama",
       "storylineTitle": "Agrupado por trama · volver a vista del libro"
+    }
+  },
+  "mobileWorkspace": {
+    "projectActions": {
+      "deleteFailed": "No se pudo eliminar el proyecto. Inténtalo de nuevo."
     }
   },
   "navigation": {
@@ -326,6 +385,9 @@
     "bookTransfer": {
       "importFailedTitle": "No se pudo importar"
     },
+    "delete": {
+      "deleting": "Eliminando…"
+    },
     "desk": {
       "chaptersUnit_many": "capítulos",
       "chaptersUnit_one": "capítulo",
@@ -351,7 +413,9 @@
       "storylinesUnit_other": "tramas",
       "trashEntry": "Eliminados recientemente",
       "trashList": {
+        "confirmTitle": "¿Eliminar «{{name}}» definitivamente?",
         "empty": "No hay libros eliminados recientemente.",
+        "subLocal": "Los libros se conservan aquí 30 días y después se eliminan definitivamente.",
         "title": "Eliminados recientemente"
       },
       "trashTitle": "¿Mover «{{name}}» a eliminados recientemente?",
@@ -388,9 +452,15 @@
     "trash": {
       "body": "Este libro ({{words}} palabras · {{nodes}} capítulos · {{elements}} elementos) saldrá de la estantería. Puedes restaurarlo durante 30 días desde eliminados recientemente; después se borrará definitivamente.",
       "confirm": "Mover a eliminados recientemente",
+      "deleteNow": "Eliminar ahora",
+      "expiresIn_many": "Borrado definitivo en {{count}} días",
+      "expiresIn_one": "Borrado definitivo en {{count}} día",
+      "expiresIn_other": "Borrado definitivo en {{count}} días",
+      "expiresSoon": "Borrado definitivo pendiente",
       "failed": "No se pudo mover el proyecto. Reintenta.",
       "localNote": "El contenido y la copia Markdown se conservan hasta el borrado definitivo.",
       "moving": "Moviendo…",
+      "permanentBody": "Elimínalo definitivamente ahora, sin esperar 30 días. No se puede deshacer.",
       "restore": "Restaurar",
       "restoreFailed": "No se pudo restaurar el proyecto. Reintenta.",
       "restoring": "Restaurando…"
@@ -654,6 +724,14 @@
     "restoreSuccess": "Se restauró la versión elegida. El estado anterior se guardó primero como una nueva captura.",
     "restoring": "Restaurando…",
     "title": "Capturas del historial · 30 días"
+  },
+  "storylineEditor": {
+    "filters": {
+      "all": "Todo"
+    },
+    "labels": {
+      "color": "Color"
+    }
   },
   "topTimeline": {
     "closeTab": "Cerrar pestaña",

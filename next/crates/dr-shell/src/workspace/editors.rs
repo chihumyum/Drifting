@@ -435,7 +435,8 @@ impl Workspace {
             }
         };
         drop(sessions);
-        // M03's chrome (`dr-view-page`), when the app registered one.
+        // What the modules draw around the page's text (M03's chapter
+        // page, M11's element and category pages), when one is registered.
         let host = crate::pages::PageHost {
             workspace: cx.entity().downgrade(),
             library: lib_for_chrome,
@@ -445,7 +446,9 @@ impl Workspace {
                 PageView::Book(e) => crate::pages::PageEditorRef::Book(e.downgrade()),
             },
         };
-        if let Some(chrome) = crate::pages::make_chrome(host, window, cx) {
+        let chrome = Target::from_key(key)
+            .and_then(|target| crate::pages::chrome_for(&target, host, window, cx));
+        if let Some(chrome) = chrome {
             match &view {
                 PageView::Doc(e) => e.update(cx, |e, cx| e.set_chrome(Some(chrome), cx)),
                 PageView::Book(e) => e.update(cx, |e, cx| e.set_chrome(Some(chrome), cx)),
