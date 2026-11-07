@@ -4,6 +4,7 @@
 //! prose-spike [--builtin] [--on-top]          the full synthetic book (100 chapters, 1.5M chars)
 //! prose-spike chapter [--builtin] [--on-top]  one 20k-char chapter
 //!                             PROSE_SPIKE_IME_LOG=1 prints every input-method call
+//!                             PROSE_SPIKE_PRESENT_NOW=1 draws right after each edit
 //! prose-spike window [--quick] [--out FILE]   frame-level measurements in a window
 //! prose-spike headless [--out FILE]           write path and cold opens, no window
 //! prose-spike check FILE...                   evidence matches sources and corpus
@@ -27,7 +28,12 @@ impl log::Log for StderrLog {
     }
     fn log(&self, record: &log::Record) {
         if self.enabled(record.metadata()) {
-            eprintln!("[{}] {}: {}", record.level(), record.target(), record.args());
+            eprintln!(
+                "[{}] {}: {}",
+                record.level(),
+                record.target(),
+                record.args()
+            );
         }
     }
     fn flush(&self) {}
@@ -35,8 +41,8 @@ impl log::Log for StderrLog {
 
 fn main() {
     let _ = log::set_logger(&StderrLog).map(|()| log::set_max_level(log::LevelFilter::Warn));
-    if std::env::var_os("PROSE_SPIKE_TICK_ONLY").is_some() {
-        platform::IMMEDIATE.store(false, std::sync::atomic::Ordering::Relaxed);
+    if std::env::var_os("PROSE_SPIKE_PRESENT_NOW").is_some() {
+        platform::IMMEDIATE.store(true, std::sync::atomic::Ordering::Relaxed);
     }
     let args: Vec<String> = std::env::args().skip(1).collect();
     let flag = |name: &str| args.iter().any(|a| a == name);
@@ -57,11 +63,11 @@ fn main() {
         }
         Some("input-source") => {
             // Print the current input source, or select an enabled one by id.
-            if let Some(id) = args.get(1) {
-                if !platform::input_source::select(id) {
-                    eprintln!("no enabled input source {id}");
-                    std::process::exit(1);
-                }
+            if let Some(id) = args.get(1)
+                && !platform::input_source::select(id)
+            {
+                eprintln!("no enabled input source {id}");
+                std::process::exit(1);
             }
             println!("{}", platform::input_source::current());
         }

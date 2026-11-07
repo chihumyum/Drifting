@@ -26,7 +26,12 @@ impl J {
     }
 
     pub fn samples(values: &[f64]) -> J {
-        J::Arr(values.iter().map(|v| J::Num((v * 100.0).round() / 100.0)).collect())
+        J::Arr(
+            values
+                .iter()
+                .map(|v| J::Num((v * 100.0).round() / 100.0))
+                .collect(),
+        )
     }
 
     pub fn to_pretty(&self) -> String {
@@ -52,7 +57,9 @@ impl J {
             }
             J::Str(s) => write_str(out, s),
             J::Arr(items) => {
-                let flat = items.iter().all(|item| matches!(item, J::Num(_) | J::Int(_) | J::Bool(_)));
+                let flat = items
+                    .iter()
+                    .all(|item| matches!(item, J::Num(_) | J::Int(_) | J::Bool(_)));
                 if flat {
                     out.push('[');
                     for (ix, item) in items.iter().enumerate() {
@@ -196,7 +203,14 @@ mod tests {
 
     #[test]
     fn json_shape() {
-        let j = J::obj(vec![("a", J::Int(1)), ("b", J::samples(&[1.234, 2.0])), ("c", J::str("x\"y"))]);
-        assert_eq!(j.to_pretty(), "{\n  \"a\": 1,\n  \"b\": [1.23, 2],\n  \"c\": \"x\\\"y\"\n}\n");
+        let j = J::obj(vec![
+            ("a", J::Int(1)),
+            ("b", J::samples(&[1.234, 2.0])),
+            ("c", J::str("x\"y")),
+        ]);
+        assert_eq!(
+            j.to_pretty(),
+            "{\n  \"a\": 1,\n  \"b\": [1.23, 2],\n  \"c\": \"x\\\"y\"\n}\n"
+        );
     }
 }

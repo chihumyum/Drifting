@@ -25,13 +25,16 @@ fn editor<'a>(
     chapters: &[&[(BlockKind, &str)]],
 ) -> (Entity<ProseEditor>, &'a mut VisualTestContext) {
     let book = book(chapters);
-    let (editor, cx) = cx.add_window_view(|window, cx| ProseEditor::new(book, ProseStyle::default(), window, cx));
+    let (editor, cx) =
+        cx.add_window_view(|window, cx| ProseEditor::new(book, ProseStyle::default(), window, cx));
     cx.run_until_parked();
     (editor, cx)
 }
 
 fn loro_text(editor: &Entity<ProseEditor>, cx: &mut VisualTestContext, chapter: usize) -> String {
-    editor.update(cx, |editor, _| editor.book().chapters[chapter].doc.text().to_string())
+    editor.update(cx, |editor, _| {
+        editor.book().chapters[chapter].doc.text().to_string()
+    })
 }
 
 fn mark(editor: &Entity<ProseEditor>, cx: &mut VisualTestContext, text: &str) {
@@ -42,7 +45,9 @@ fn mark(editor: &Entity<ProseEditor>, cx: &mut VisualTestContext, text: &str) {
 }
 
 fn commit(editor: &Entity<ProseEditor>, cx: &mut VisualTestContext, text: &str) {
-    editor.update_in(cx, |editor, window, cx| editor.replace_text_in_range(None, text, window, cx));
+    editor.update_in(cx, |editor, window, cx| {
+        editor.replace_text_in_range(None, text, window, cx)
+    });
 }
 
 fn undo(editor: &Entity<ProseEditor>, cx: &mut VisualTestContext) {
@@ -55,7 +60,11 @@ fn marked_text_stays_out_of_loro_until_confirmed(cx: &mut TestAppContext) {
     editor.update_in(cx, |editor, window, cx| editor.select(0, 2..2, window, cx));
     for step in ["n", "ni", "ni h", "ni hao"] {
         mark(&editor, cx, step);
-        assert_eq!(loro_text(&editor, cx, 0), "正文第一段\n", "marked text leaked into Loro");
+        assert_eq!(
+            loro_text(&editor, cx, 0),
+            "正文第一段\n",
+            "marked text leaked into Loro"
+        );
     }
     editor.update_in(cx, |editor, window, cx| {
         assert_eq!(editor.marked_text_range(window, cx), Some(2..8));
@@ -128,14 +137,18 @@ fn losing_focus_drops_the_composition(cx: &mut TestAppContext) {
     // Focus events are dispatched when the window draws.
     cx.update(|window, _| window.refresh());
     cx.run_until_parked();
-    editor.update_in(cx, |editor, window, _| assert!(editor.focus.is_focused(window)));
+    editor.update_in(cx, |editor, window, _| {
+        assert!(editor.focus.is_focused(window))
+    });
     mark(&editor, cx, "ni");
     cx.update(|window, cx| {
         window.focus(&elsewhere, cx);
         window.refresh();
     });
     cx.run_until_parked();
-    editor.update(cx, |editor, _| assert!(editor.composition().is_none(), "marked text left behind"));
+    editor.update(cx, |editor, _| {
+        assert!(editor.composition().is_none(), "marked text left behind")
+    });
     assert_eq!(loro_text(&editor, cx, 0), "正文\n");
 }
 
@@ -146,7 +159,9 @@ fn undo_is_ignored_while_composing(cx: &mut TestAppContext) {
     mark(&editor, cx, "er");
     undo(&editor, cx);
     assert_eq!(loro_text(&editor, cx, 0), "一\n");
-    editor.update(cx, |editor, _| assert_eq!(editor.composition().unwrap().text, "er"));
+    editor.update(cx, |editor, _| {
+        assert_eq!(editor.composition().unwrap().text, "er")
+    });
     commit(&editor, cx, "二");
     assert_eq!(loro_text(&editor, cx, 0), "一二\n");
 }
@@ -158,8 +173,12 @@ fn foreign_writes_move_the_composition_anchor(cx: &mut TestAppContext) {
     let (editor, cx) = editor(cx, &[&[(BlockKind::Body, "甲乙丙丁")]]);
     editor.update_in(cx, |editor, window, cx| editor.select(0, 3..3, window, cx));
     mark(&editor, cx, "wu");
-    editor.update(cx, |editor, cx| editor.agent_write(0, 0..0, "【补】", "s1", cx));
-    editor.update(cx, |editor, _| assert_eq!(editor.composition().unwrap().at, 6));
+    editor.update(cx, |editor, cx| {
+        editor.agent_write(0, 0..0, "【补】", "s1", cx)
+    });
+    editor.update(cx, |editor, _| {
+        assert_eq!(editor.composition().unwrap().at, 6)
+    });
     commit(&editor, cx, "戊");
     assert_eq!(loro_text(&editor, cx, 0), "【补】甲乙丙戊丁\n");
     // The author's undo removes the author's word and keeps the Agent's.
@@ -200,7 +219,10 @@ fn enter_and_backspace_split_and_join_paragraphs(cx: &mut TestAppContext) {
 
 #[gpui::test]
 fn undo_walks_back_across_chapters(cx: &mut TestAppContext) {
-    let (editor, cx) = editor(cx, &[&[(BlockKind::Body, "一")], &[(BlockKind::Body, "二")]]);
+    let (editor, cx) = editor(
+        cx,
+        &[&[(BlockKind::Body, "一")], &[(BlockKind::Body, "二")]],
+    );
     editor.update_in(cx, |editor, window, cx| editor.select(0, 1..1, window, cx));
     commit(&editor, cx, "甲");
     editor.update_in(cx, |editor, window, cx| editor.select(1, 1..1, window, cx));
@@ -223,7 +245,12 @@ fn utf16_positions_with_astral_characters(cx: &mut TestAppContext) {
         assert_eq!(selected.range, 3..3);
         assert_eq!(editor.text_length_utf16(window, cx), Some(7));
         let mut actual = None;
-        assert_eq!(editor.text_for_range(1..5, &mut actual, window, cx).as_deref(), Some("😀b\n"));
+        assert_eq!(
+            editor
+                .text_for_range(1..5, &mut actual, window, cx)
+                .as_deref(),
+            Some("😀b\n")
+        );
     });
     mark(&editor, cx, "x");
     editor.update_in(cx, |editor, window, cx| {
@@ -239,9 +266,14 @@ fn remote_import_moves_the_selection(cx: &mut TestAppContext) {
     let update = editor.update(cx, |editor, _| {
         let doc = editor.book().chapters[0].doc.loro();
         let remote = loro::LoroDoc::new();
-        remote.import(&doc.export(loro::ExportMode::Snapshot).unwrap()).unwrap();
+        remote
+            .import(&doc.export(loro::ExportMode::Snapshot).unwrap())
+            .unwrap();
         let from = remote.oplog_vv();
-        remote.get_text(crate::doc::TEXT_KEY).insert(0, "远端").unwrap();
+        remote
+            .get_text(crate::doc::TEXT_KEY)
+            .insert(0, "远端")
+            .unwrap();
         remote.commit();
         remote.export(loro::ExportMode::updates(&from)).unwrap()
     });

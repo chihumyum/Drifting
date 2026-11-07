@@ -96,7 +96,11 @@ impl HeightIndex {
     }
 
     /// Replaces `range` with new estimated items.
-    pub fn splice(&mut self, range: std::ops::Range<usize>, heights: impl IntoIterator<Item = f32>) {
+    pub fn splice(
+        &mut self,
+        range: std::ops::Range<usize>,
+        heights: impl IntoIterator<Item = f32>,
+    ) {
         let end = range.end.min(self.entries.len());
         let start = range.start.min(end);
         self.entries.splice(

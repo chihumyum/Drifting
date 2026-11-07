@@ -137,7 +137,9 @@ fn editor_do<R>(
 }
 
 fn today() -> String {
-    let days = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs() / 86_400) as i64;
+    let days = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs() / 86_400) as i64;
     // Civil-from-days (Howard Hinnant).
     let z = days + 719_468;
     let era = z.div_euclid(146_097);
@@ -164,7 +166,14 @@ fn machine_json() -> J {
 
 fn build_json() -> J {
     J::obj(vec![
-        ("profile", J::str(if cfg!(debug_assertions) { "debug" } else { "release" })),
+        (
+            "profile",
+            J::str(if cfg!(debug_assertions) {
+                "debug"
+            } else {
+                "release"
+            }),
+        ),
         ("gpui", J::str("zed v1.27.0 (git tag), runtime_shaders")),
         ("loro", J::str("=1.17.1")),
     ])
@@ -193,7 +202,12 @@ pub fn run_window(out: Option<String>, quick: bool) {
     gpui_platform::application().run(move |cx: &mut App| {
         let book = Corpus::book();
         let chapter = Corpus::chapter();
-        let titles: Vec<SharedString> = book.titles.iter().cloned().map(SharedString::from).collect();
+        let titles: Vec<SharedString> = book
+            .titles
+            .iter()
+            .cloned()
+            .map(SharedString::from)
+            .collect();
         let (window, display) = shell::open_window(cx, titles, true, true, true);
         let out = out.clone();
         cx.spawn(async move |cx| {
@@ -227,7 +241,7 @@ async fn open_and_probe(
             let book = corpus.open();
             let opened = Instant::now();
             let editor = root.open(book, window, cx);
-            let signal = editor.update(cx, |editor, cx| arm(editor, cx));
+            let signal = editor.update(cx, arm);
             let focus = gpui::Focusable::focus_handle(editor.read(cx), cx);
             window.focus(&focus, cx);
             (opened, signal)
@@ -244,7 +258,12 @@ async fn open_and_probe(
     )
 }
 
-async fn idle_cpu(window: &WindowHandle<Root>, seconds: u64, focused: bool, cx: &mut AsyncApp) -> f64 {
+async fn idle_cpu(
+    window: &WindowHandle<Root>,
+    seconds: u64,
+    focused: bool,
+    cx: &mut AsyncApp,
+) -> f64 {
     let _ = editor_do(window, cx, |editor, window, cx| {
         if focused {
             let focus = gpui::Focusable::focus_handle(editor, cx);
@@ -285,7 +304,9 @@ fn scroll_tick(
         let mut state = run.borrow_mut();
         state.ticks.push(Instant::now());
         if let Some((Some(start), painted)) = state.painted.take() {
-            state.work.push(ms(painted.saturating_duration_since(start)));
+            state
+                .work
+                .push(ms(painted.saturating_duration_since(start)));
         }
     }
     let at_end = editor.update(cx, |editor, cx| {
@@ -304,7 +325,9 @@ fn scroll_tick(
         done.set(());
         return;
     }
-    window.on_next_frame(move |window, cx| scroll_tick(window, cx, editor, frame_start, step, viewport, run, done));
+    window.on_next_frame(move |window, cx| {
+        scroll_tick(window, cx, editor, frame_start, step, viewport, run, done)
+    });
 }
 
 #[derive(Default)]
@@ -316,11 +339,17 @@ struct Typed {
 
 /// Types `keys` characters at 8 per second (every 90th is Enter).
 async fn type_keys(window: &WindowHandle<Root>, keys: usize, cx: &mut AsyncApp) -> Typed {
-    let pool: Vec<char> = "春风又绿江南岸明月何时照我还人间四月芳菲尽山寺桃花始盛开".chars().collect();
+    let pool: Vec<char> = "春风又绿江南岸明月何时照我还人间四月芳菲尽山寺桃花始盛开"
+        .chars()
+        .collect();
     let mut typed = Typed::default();
     let t0 = Instant::now();
     for i in 0..keys {
-        let slot = t0 + Duration::from_millis(125 * i as u64);
+        // 8 keys a second, each shifted by a different fraction of a 120 Hz
+        // frame: 125 ms is exactly 15 frames, so without the shift every key
+        // would land at the same point of the refresh cycle.
+        let phase = Duration::from_micros(((i * 37) % 64) as u64 * 8_333 / 64);
+        let slot = t0 + Duration::from_millis(125 * i as u64) + phase;
         let now = Instant::now();
         if slot > now {
             sleep(cx, slot - now).await;
@@ -397,7 +426,9 @@ async fn window_scenarios(
     }
 
     // Scroll the whole book from top to bottom, half a viewport per frame.
-    let _ = editor_do(&window, cx, |editor, window, cx| editor.jump_to_chapter(0, window, cx));
+    let _ = editor_do(&window, cx, |editor, window, cx| {
+        editor.jump_to_chapter(0, window, cx)
+    });
     sleep(cx, Duration::from_millis(600)).await;
     let memory_before_scroll = platform::phys_footprint();
     let viewport = editor_do(&window, cx, |editor, _, _| {
@@ -427,17 +458,18 @@ async fn window_scenarios(
     let scroll_cpu = (platform::cpu_time() - cpu0).as_secs_f64() / scroll_seconds * 100.0;
     sleep(cx, Duration::from_millis(500)).await;
     let memory_after_scroll = platform::phys_footprint();
-    let (estimate_error, measured_items, total_items, total_height) = editor_do(&window, cx, |editor, _, _| {
-        let heights = editor.heights();
-        let mut heights = heights.borrow_mut();
-        (
-            heights.mean_error().unwrap_or(f64::NAN),
-            heights.measured_count(),
-            heights.len(),
-            heights.total(),
-        )
-    })
-    .unwrap_or((f64::NAN, 0, 0, 0.0));
+    let (estimate_error, measured_items, total_items, total_height) =
+        editor_do(&window, cx, |editor, _, _| {
+            let heights = editor.heights();
+            let mut heights = heights.borrow_mut();
+            (
+                heights.mean_error().unwrap_or(f64::NAN),
+                heights.measured_count(),
+                heights.len(),
+                heights.total(),
+            )
+        })
+        .unwrap_or((f64::NAN, 0, 0, 0.0));
     let refresh = display.map_or(60.0, |d| if d.2 > 0.0 { d.2 } else { 60.0 });
     let frame_period = 1000.0 / refresh;
     let dropped = interval.iter().filter(|&&i| i > frame_period * 1.5).count();
@@ -467,10 +499,10 @@ async fn window_scenarios(
         offset
     });
     sleep(cx, Duration::from_millis(500)).await;
-    // Comparison: the same typing while GPUI draws only on display-link ticks.
-    platform::IMMEDIATE.store(false, std::sync::atomic::Ordering::Relaxed);
-    let tick_only = type_keys(&window, typing_keys / 3, cx).await;
+    // Comparison: the same typing with the present-now hook on.
     platform::IMMEDIATE.store(true, std::sync::atomic::Ordering::Relaxed);
+    let present_now = type_keys(&window, typing_keys / 3, cx).await;
+    platform::IMMEDIATE.store(false, std::sync::atomic::Ordering::Relaxed);
     sleep(cx, Duration::from_millis(500)).await;
     let typing_t0 = Instant::now();
     let typing_cpu0 = platform::cpu_time();
@@ -486,7 +518,9 @@ async fn window_scenarios(
     let words = if quick { 6 } else { 40 };
     for w in 0..words {
         let steps = ["n", "ni", "ni h", "ni ha", "ni hao"];
-        let loro_before = editor_do(&window, cx, |editor, _, _| editor.book().chapters[0].doc.text().len_unicode());
+        let loro_before = editor_do(&window, cx, |editor, _, _| {
+            editor.book().chapters[0].doc.text().len_unicode()
+        });
         for step in steps {
             let t0 = Instant::now();
             let probe = editor_do(&window, cx, |editor, window, cx| {
@@ -496,10 +530,13 @@ async fn window_scenarios(
                 // What the input method asks next: where to put the candidates.
                 let tb = Instant::now();
                 let marked = editor.marked_text_range(window, cx);
-                let rect = marked.and_then(|r| editor.bounds_for_range(r, gpui::Bounds::default(), window, cx));
+                let rect = marked
+                    .and_then(|r| editor.bounds_for_range(r, gpui::Bounds::default(), window, cx));
                 (signal, ms(tb.elapsed()), rect.is_some())
             });
-            let Some((signal, bounds_ms, has_rect)) = probe else { break };
+            let Some((signal, bounds_ms, has_rect)) = probe else {
+                break;
+            };
             if has_rect {
                 marked_bounds.push(bounds_ms);
             }
@@ -508,12 +545,22 @@ async fn window_scenarios(
             }
             sleep(cx, Duration::from_millis(40)).await;
         }
-        let loro_during = editor_do(&window, cx, |editor, _, _| editor.book().chapters[0].doc.text().len_unicode());
-        let _ = editor_do(&window, cx, |editor, window, cx| {
-            editor.replace_text_in_range(None, if w % 2 == 0 { "你好" } else { "世界" }, window, cx);
+        let loro_during = editor_do(&window, cx, |editor, _, _| {
+            editor.book().chapters[0].doc.text().len_unicode()
         });
-        let loro_after = editor_do(&window, cx, |editor, _, _| editor.book().chapters[0].doc.text().len_unicode());
-        if loro_before != loro_during || loro_after.zip(loro_before).map(|(a, b)| a - b) != Some(2) {
+        let _ = editor_do(&window, cx, |editor, window, cx| {
+            editor.replace_text_in_range(
+                None,
+                if w % 2 == 0 { "你好" } else { "世界" },
+                window,
+                cx,
+            );
+        });
+        let loro_after = editor_do(&window, cx, |editor, _, _| {
+            editor.book().chapters[0].doc.text().len_unicode()
+        });
+        if loro_before != loro_during || loro_after.zip(loro_before).map(|(a, b)| a - b) != Some(2)
+        {
             commits_written_once = false;
         }
         sleep(cx, Duration::from_millis(120)).await;
@@ -540,7 +587,10 @@ async fn window_scenarios(
         ("machine", machine_json()),
         (
             "display",
-            J::obj(vec![("builtin", J::Bool(display_builtin)), ("refresh_hz", J::Num(display_hz))]),
+            J::obj(vec![
+                ("builtin", J::Bool(display_builtin)),
+                ("refresh_hz", J::Num(display_hz)),
+            ]),
         ),
         ("build", build_json()),
         (
@@ -559,9 +609,20 @@ async fn window_scenarios(
         (
             "open_chapter",
             J::obj(vec![
-                ("method", J::str("Click-equivalent: import the chapter's Loro snapshot, build the editor, until the frame with the first screen of text is presented. Five cold opens.")),
-                ("import_and_build_ms", J::samples(&chapter_opens.iter().map(|o| o.0).collect::<Vec<_>>())),
-                ("first_paint_ms", J::samples(&chapter_opens.iter().map(|o| o.1).collect::<Vec<_>>())),
+                (
+                    "method",
+                    J::str(
+                        "Click-equivalent: import the chapter's Loro snapshot, build the editor, until the frame with the first screen of text is presented. Five cold opens.",
+                    ),
+                ),
+                (
+                    "import_and_build_ms",
+                    J::samples(&chapter_opens.iter().map(|o| o.0).collect::<Vec<_>>()),
+                ),
+                (
+                    "first_paint_ms",
+                    J::samples(&chapter_opens.iter().map(|o| o.1).collect::<Vec<_>>()),
+                ),
                 ("presented_ms", J::samples(&chapter_present)),
                 ("median_ms", J::ms(open_chapter_median)),
                 ("budget_ms", J::Num(80.0)),
@@ -571,7 +632,12 @@ async fn window_scenarios(
         (
             "open_book",
             J::obj(vec![
-                ("method", J::str("Import 100 chapter snapshots (1.5M chars), build the book view, until the first screen is presented. Three cold opens; heights of off-screen paragraphs are estimated afterwards on a background thread.")),
+                (
+                    "method",
+                    J::str(
+                        "Import 100 chapter snapshots (1.5M chars), build the book view, until the first screen is presented. Three cold opens; heights of off-screen paragraphs are estimated afterwards on a background thread.",
+                    ),
+                ),
                 ("import_and_build_ms", J::samples(&book_import)),
                 ("presented_ms", J::samples(&book_present)),
                 ("median_ms", J::ms(open_book_median)),
@@ -582,17 +648,28 @@ async fn window_scenarios(
         (
             "keystroke_to_present",
             J::obj(vec![
-                ("method", J::str("In-process: the same EntityInputHandler::replace_text_in_range call macOS insertText makes, at 8 chars/s, in the middle of a paragraph of the 20k-char chapter (every 90th key is Enter), with the present-now hook on (the edit asks AppKit to redraw immediately through setNeedsDisplay/displayLayer). Measured to the display-link tick after the frame that painted the change. Excludes AppKit event dispatch before insertText.")),
+                (
+                    "method",
+                    J::str(
+                        "In-process: the same EntityInputHandler::replace_text_in_range call macOS insertText makes, at 8 chars/s with the key times spread evenly over a 120 Hz frame, in the middle of a paragraph of the 20k-char chapter (every 90th key is Enter), stock GPUI timing: the edit marks the window dirty and GPUI draws on the next display-link tick. Measured to the display-link tick after the frame that painted the change. Excludes AppKit event dispatch before insertText.",
+                    ),
+                ),
                 ("handler_ms", report::summary(&key_call)),
                 ("painted_ms", report::summary(&key_paint)),
                 ("presented", report::summary(&key_present)),
                 ("presented_samples_ms", J::samples(&key_present)),
                 (
-                    "tick_only_comparison",
+                    "present_now_comparison",
                     J::obj(vec![
-                        ("method", J::str("Same typing with the present-now hook off: GPUI draws on the next display-link tick and the frame shows one tick later (stock GPUI v1.27 behaviour).")),
-                        ("painted_ms", report::summary(&tick_only.paint)),
-                        ("presented", report::summary(&tick_only.present)),
+                        (
+                            "method",
+                            J::str(
+                                "Same typing with the present-now hook on: each edit sends setNeedsDisplay to GPUI's view, so Core Animation calls displayLayer and GPUI draws before the next display-link tick. GPUI stops and restarts the display link around that draw, so 'presented' (the next tick) is only an upper bound on this path.",
+                            ),
+                        ),
+                        ("painted_ms", report::summary(&present_now.paint)),
+                        ("presented", report::summary(&present_now.present)),
+                        ("presented_samples_ms", J::samples(&present_now.present)),
                     ]),
                 ),
                 ("budget_p95_ms", J::Num(16.0)),
@@ -602,7 +679,12 @@ async fn window_scenarios(
         (
             "typing_cpu",
             J::obj(vec![
-                ("method", J::str("Whole-process CPU time (getrusage user+sys) over the typing run, as percent of one core.")),
+                (
+                    "method",
+                    J::str(
+                        "Whole-process CPU time (getrusage user+sys) over the typing run, as percent of one core.",
+                    ),
+                ),
                 ("seconds", J::Num((typing_seconds * 10.0).round() / 10.0)),
                 ("keys", J::Int(typing_keys as i64)),
                 ("percent", J::Num((typing_cpu * 100.0).round() / 100.0)),
@@ -613,11 +695,22 @@ async fn window_scenarios(
         (
             "idle_cpu",
             J::obj(vec![
-                ("method", J::str("Editor focused, cursor blinking (530 ms), nothing else happening; whole-process CPU time over the window, as percent of one core.")),
+                (
+                    "method",
+                    J::str(
+                        "Editor focused, cursor blinking (530 ms), nothing else happening; whole-process CPU time over the window, as percent of one core.",
+                    ),
+                ),
                 ("seconds", J::Int(idle_seconds as i64)),
                 ("book_percent", J::Num((idle_book * 100.0).round() / 100.0)),
-                ("book_unfocused_no_blink_percent", J::Num((idle_book_unfocused * 100.0).round() / 100.0)),
-                ("chapter_percent", J::Num((idle_chapter * 100.0).round() / 100.0)),
+                (
+                    "book_unfocused_no_blink_percent",
+                    J::Num((idle_book_unfocused * 100.0).round() / 100.0),
+                ),
+                (
+                    "chapter_percent",
+                    J::Num((idle_chapter * 100.0).round() / 100.0),
+                ),
                 ("budget_percent", J::Num(1.0)),
                 ("pass", J::Bool(idle_book <= 1.0 && idle_chapter <= 1.0)),
             ]),
@@ -625,7 +718,12 @@ async fn window_scenarios(
         (
             "scroll_full_book",
             J::obj(vec![
-                ("method", J::str("From the top of chapter 1 to the end of chapter 100, one step of half a viewport per frame, each step issued as soon as the previous frame was presented. work = render start to end of the editor's paint; interval = between consecutive presented ticks.")),
+                (
+                    "method",
+                    J::str(
+                        "From the top of chapter 1 to the end of chapter 100, one step of half a viewport per frame, each step issued as soon as the previous frame was presented. work = render start to end of the editor's paint; interval = between consecutive presented ticks.",
+                    ),
+                ),
                 ("frames", J::Int(work.len() as i64)),
                 ("px_per_frame", J::Num(step)),
                 ("seconds", J::Num((scroll_seconds * 10.0).round() / 10.0)),
@@ -635,15 +733,25 @@ async fn window_scenarios(
                 ("cpu_percent", J::Num((scroll_cpu * 10.0).round() / 10.0)),
                 ("work_samples_ms", J::samples(&work)),
                 ("budget_p95_ms", J::Num(16.7)),
-                ("pass", J::Bool(work_p95 <= 16.7 && interval_p95 <= 16.7 + 1.0)),
+                (
+                    "pass",
+                    J::Bool(work_p95 <= 16.7 && interval_p95 <= 16.7 + 1.0),
+                ),
             ]),
         ),
         (
             "jump",
             J::obj(vec![
-                ("method", J::str("Table-of-contents click equivalent (scroll to the chapter's first item, cursor to its start) until presented; ten jumps, four of them to the last chapter."))
-                ,
-                ("targets", J::Arr(targets.iter().map(|t| J::Int(*t as i64)).collect())),
+                (
+                    "method",
+                    J::str(
+                        "Table-of-contents click equivalent (scroll to the chapter's first item, cursor to its start) until presented; ten jumps, four of them to the last chapter.",
+                    ),
+                ),
+                (
+                    "targets",
+                    J::Arr(targets.iter().map(|t| J::Int(*t as i64)).collect()),
+                ),
                 ("all_ms", J::samples(&jumps)),
                 ("to_last_ms", J::samples(&jumps_to_last)),
                 ("to_last_max_ms", J::ms(jump_last_max)),
@@ -654,15 +762,20 @@ async fn window_scenarios(
         (
             "memory",
             J::obj(vec![
-                ("method", J::str("phys_footprint of the whole process (proc_pid_rusage), MB."))
-                ,
+                (
+                    "method",
+                    J::str("phys_footprint of the whole process (proc_pid_rusage), MB."),
+                ),
                 ("window_open_mb", mb(memory_start)),
                 ("book_open_mb", mb(memory_book_open)),
                 ("before_scroll_mb", mb(memory_before_scroll)),
                 ("after_scroll_mb", mb(memory_after_scroll)),
                 ("end_mb", mb(memory_end)),
                 ("budget_mb", J::Num(800.0)),
-                ("pass", J::Bool((memory_after_scroll as f64) / ((1 << 20) as f64) <= 800.0)),
+                (
+                    "pass",
+                    J::Bool((memory_after_scroll as f64) / ((1 << 20) as f64) <= 800.0),
+                ),
             ]),
         ),
         (
@@ -671,14 +784,21 @@ async fn window_scenarios(
                 ("items", J::Int(total_items as i64)),
                 ("measured_after_scroll", J::Int(measured_items as i64)),
                 ("total_px", J::Num(total_height.round())),
-                ("estimate_mean_abs_error", J::Num((estimate_error * 1000.0).round() / 1000.0)),
+                (
+                    "estimate_mean_abs_error",
+                    J::Num((estimate_error * 1000.0).round() / 1000.0),
+                ),
             ]),
         ),
         (
             "composition",
             J::obj(vec![
-                ("method", J::str("In-process pinyin: five setMarkedText-equivalent updates per word, then insertText. Measures each update to presented, the bounds_for_range (candidate window) query, and that Loro's text length is unchanged while marked and grows by exactly the word on commit."))
-                ,
+                (
+                    "method",
+                    J::str(
+                        "In-process pinyin: five setMarkedText-equivalent updates per word, then insertText. Measures each update to presented, the bounds_for_range (candidate window) query, and that Loro's text length is unchanged while marked and grows by exactly the word on commit.",
+                    ),
+                ),
                 ("words", J::Int(words as i64)),
                 ("update_to_presented", report::summary(&marked_present)),
                 ("bounds_query", report::summary(&marked_bounds)),
@@ -687,7 +807,10 @@ async fn window_scenarios(
                 ("pass", J::Bool(marked_p95 <= 16.0 && commits_written_once)),
             ]),
         ),
-        ("typing_start_offset", J::Int(start_offset.unwrap_or(0) as i64)),
+        (
+            "typing_start_offset",
+            J::Int(start_offset.unwrap_or(0) as i64),
+        ),
     ])
 }
 
@@ -700,7 +823,11 @@ pub fn run_headless(out: Option<String>) {
     // Cold opens without a window: import each snapshot, build the mirror.
     let memory0 = platform::phys_footprint();
     let t0 = Instant::now();
-    let docs: Vec<ProseDoc> = book.snapshots.iter().map(|b| ProseDoc::from_snapshot(b).unwrap()).collect();
+    let docs: Vec<ProseDoc> = book
+        .snapshots
+        .iter()
+        .map(|b| ProseDoc::from_snapshot(b).unwrap())
+        .collect();
     let import_ms = ms(t0.elapsed());
     let memory1 = platform::phys_footprint();
     let snapshot_bytes: usize = book.snapshots.iter().map(Vec::len).sum();
@@ -751,7 +878,9 @@ pub fn run_headless(out: Option<String>) {
     )
     .unwrap();
     let mut insert = db
-        .prepare("INSERT INTO loro_update(doc_id, seq, bytes, origin, ts) VALUES (1, ?1, ?2, ?3, ?4)")
+        .prepare(
+            "INSERT INTO loro_update(doc_id, seq, bytes, origin, ts) VALUES (1, ?1, ?2, ?3, ?4)",
+        )
         .unwrap();
     let mid = doc.len_chars() / 2;
     let pool: Vec<char> = "春风又绿江南岸明月何时照我还".chars().collect();
@@ -806,8 +935,12 @@ pub fn run_headless(out: Option<String>) {
         (
             "write_per_keystroke",
             J::obj(vec![
-                ("method", J::str("2000 single-character inserts in the middle of the 20k-char chapter. loro = LoroText::insert + commit (the text event is folded into the paragraph mirror); sqlite = INSERT of the commit's encoded update (subscribe_local_update) into a WAL database with synchronous=NORMAL on the local SSD."))
-                ,
+                (
+                    "method",
+                    J::str(
+                        "2000 single-character inserts in the middle of the 20k-char chapter. loro = LoroText::insert + commit (the text event is folded into the paragraph mirror); sqlite = INSERT of the commit's encoded update (subscribe_local_update) into a WAL database with synchronous=NORMAL on the local SSD.",
+                    ),
+                ),
                 ("loro", report::summary(&loro_ms)),
                 ("sqlite", report::summary(&sqlite_ms)),
                 ("total", report::summary(&total_ms)),
@@ -819,17 +952,34 @@ pub fn run_headless(out: Option<String>) {
         (
             "cold_open",
             J::obj(vec![
-                ("method", J::str("No window. Import Loro snapshots and build the paragraph mirror (LoroDoc::from_snapshot + to_delta)."))
-                ,
+                (
+                    "method",
+                    J::str(
+                        "No window. Import Loro snapshots and build the paragraph mirror (LoroDoc::from_snapshot + to_delta).",
+                    ),
+                ),
                 ("book_chapters", J::Int(book.snapshots.len() as i64)),
                 ("book_paragraphs", J::Int(paragraphs as i64)),
                 ("book_list_items", J::Int(items as i64)),
-                ("book_snapshot_mb", J::Num((snapshot_bytes as f64 / (1 << 20) as f64 * 100.0).round() / 100.0)),
+                (
+                    "book_snapshot_mb",
+                    J::Num((snapshot_bytes as f64 / (1 << 20) as f64 * 100.0).round() / 100.0),
+                ),
                 ("book_import_ms", J::ms(import_ms)),
-                ("book_import_memory_mb", J::Num(((memory1.saturating_sub(memory0)) as f64 / (1 << 20) as f64 * 10.0).round() / 10.0)),
+                (
+                    "book_import_memory_mb",
+                    J::Num(
+                        ((memory1.saturating_sub(memory0)) as f64 / (1 << 20) as f64 * 10.0)
+                            .round()
+                            / 10.0,
+                    ),
+                ),
                 ("chapter_import_ms", J::ms(chapter_import_ms)),
                 ("book_height_estimate_ms", J::ms(estimate_ms)),
-                ("book_estimated_height_px", J::Num(f64::from(estimate_sum).round())),
+                (
+                    "book_estimated_height_px",
+                    J::Num(f64::from(estimate_sum).round()),
+                ),
             ]),
         ),
     ]);
@@ -846,8 +996,17 @@ pub fn run_headless(out: Option<String>) {
 /// corpus. Exit code 1 on mismatch.
 pub fn check(paths: &[String]) -> bool {
     let source = report::source_fingerprint();
-    let chapter = synth::fingerprint(&[synth::chapter(shell::CHAPTER_SEED, 0, shell::CHAPTER_CHARS, true)]);
-    let book = synth::fingerprint(&synth::book(shell::BOOK_SEED, shell::BOOK_CHAPTERS, shell::BOOK_CHARS));
+    let chapter = synth::fingerprint(&[synth::chapter(
+        shell::CHAPTER_SEED,
+        0,
+        shell::CHAPTER_CHARS,
+        true,
+    )]);
+    let book = synth::fingerprint(&synth::book(
+        shell::BOOK_SEED,
+        shell::BOOK_CHAPTERS,
+        shell::BOOK_CHARS,
+    ));
     let mut ok = true;
     for path in paths {
         let Ok(text) = std::fs::read_to_string(path) else {
@@ -855,7 +1014,11 @@ pub fn check(paths: &[String]) -> bool {
             ok = false;
             continue;
         };
-        for (what, value) in [("source_fingerprint", &source), ("fingerprint", &chapter), ("fingerprint", &book)] {
+        for (what, value) in [
+            ("source_fingerprint", &source),
+            ("fingerprint", &chapter),
+            ("fingerprint", &book),
+        ] {
             let needle = format!("\"{what}\": \"{value}\"");
             if !text.contains(&needle) {
                 eprintln!("{path}: {what} {value} not found (stale evidence: rerun the bench)");

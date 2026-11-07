@@ -25,8 +25,8 @@ use std::{
 
 use gpui::SharedString;
 use loro::{
-    ContainerTrait, ExpandType, LoroDoc, LoroResult, LoroText, LoroValue, StyleConfig, StyleConfigMap,
-    Subscription, TextDelta, UndoManager, event::Diff,
+    ContainerTrait, ExpandType, LoroDoc, LoroResult, LoroText, LoroValue, StyleConfig,
+    StyleConfigMap, Subscription, TextDelta, UndoManager, event::Diff,
 };
 
 /// Root key of the body text in every body document.
@@ -37,8 +37,10 @@ pub const HEADING_KEY: &str = "heading";
 pub const ORIGIN_USER: &str = "user";
 /// Prefix of Agent write origins (`agent:<session>`). Undo skips these.
 pub const ORIGIN_AGENT_PREFIX: &str = "agent:";
-/// Undo merge interval. Loro's Rust default is 0 (never merge).
-pub const UNDO_MERGE_INTERVAL_MS: i64 = 500;
+/// Edits within this long of the first edit of an undo step undo together.
+/// Loro's own merge interval stays 0 (loro-schema v0: merging inside Loro hits
+/// #1228/#1245); [`ProseDoc`] groups Loro's single-commit steps itself.
+pub const UNDO_MERGE_INTERVAL_MS: u64 = 500;
 
 /// The kind of a paragraph. H1/H2/H3 are three heading levels whose meaning the
 /// author decides; the editor treats them alike apart from their size.
@@ -118,7 +120,9 @@ impl Line {
 
     /// Scalar offset of the given byte offset inside this line.
     pub fn char_of_byte(&self, byte_offset: usize) -> usize {
-        self.text[..byte_offset.min(self.text.len())].chars().count()
+        self.text[..byte_offset.min(self.text.len())]
+            .chars()
+            .count()
     }
 }
 
@@ -187,6 +191,10 @@ pub struct ProseDoc {
     /// Changes applied since the last [`ProseDoc::take_changes`].
     changes: Vec<ChangeSet>,
     force_new_step: bool,
+    /// Author steps: how many Loro undo items each holds, and when it began.
+    undo_steps: Vec<(usize, std::time::Instant)>,
+    /// Undone author steps, by item count, newest last.
+    redo_steps: Vec<usize>,
 }
 
 impl ProseDoc {
@@ -206,7 +214,9 @@ impl ProseDoc {
     }
 
     /// Builds a body text from plain paragraphs in one commit (a seed, not undoable).
-    pub fn from_paragraphs<'a>(paragraphs: impl IntoIterator<Item = (BlockKind, &'a str)>) -> ProseDoc {
+    pub fn from_paragraphs<'a>(
+        paragraphs: impl IntoIterator<Item = (BlockKind, &'a str)>,
+    ) -> ProseDoc {
         let doc = LoroDoc::new();
         configure(&doc);
         let text = doc.get_text(TEXT_KEY);
@@ -228,7 +238,8 @@ impl ProseDoc {
         }
         text.insert(0, &body).expect("insert the seed text");
         for (at, level) in marks {
-            text.mark(at..at + 1, HEADING_KEY, level).expect("mark a seed heading");
+            text.mark(at..at + 1, HEADING_KEY, level)
+                .expect("mark a seed heading");
         }
         doc.set_next_commit_origin("seed");
         doc.commit();
@@ -259,10 +270,10 @@ impl ProseDoc {
             }),
         );
         let mut undo = UndoManager::new(&doc);
-        undo.set_merge_interval(UNDO_MERGE_INTERVAL_MS);
+        undo.set_merge_interval(0);
         undo.add_exclude_origin_prefix(ORIGIN_AGENT_PREFIX);
         undo.add_exclude_origin_prefix("seed");
-        undo.set_max_undo_steps(500);
+        undo.set_max_undo_steps(100_000);
         let lines = lines_from_delta(&text.to_delta(), 0);
         ProseDoc {
             doc,
@@ -277,6 +288,8 @@ impl ProseDoc {
             rev: 0,
             changes: Vec::new(),
             force_new_step: false,
+            undo_steps: Vec::new(),
+            redo_steps: Vec::new(),
         }
     }
 
@@ -448,22 +461,26 @@ impl ProseDoc {
         Ok(())
     }
 
-    /// Splits the paragraph at `offset` (Enter). A heading split in the middle
-    /// stays a heading on both sides. Enter at the end of a paragraph inserts
-    /// the new newline after the existing one, so the paragraph keeps its
-    /// newline (and with it its kind and, later, its block ID) and the new
-    /// empty paragraph is body (the rule in P0-C's v0 key draft).
+    /// Splits the paragraph at `offset` (Enter). The new newline always goes
+    /// in at the cursor (loro-schema v0: inserting it after the old newline
+    /// let an undo remove the document's last newline). In the middle of a
+    /// heading both halves stay headings; at the end of a heading the new
+    /// empty paragraph below is body; at the start, the empty paragraph above
+    /// is body and the heading stays as it is.
     pub fn split(&mut self, offset: usize, origin: &str) -> LoroResult<()> {
         let (ix, inner) = self.locate(offset);
-        let kind = self.lines[ix].kind;
+        let line = &self.lines[ix];
+        let (kind, at_start, at_end) = (line.kind, inner == 0, inner == line.chars);
         let terminated = ix + 1 < self.lines.len();
-        if inner == self.lines[ix].chars && terminated {
-            self.text.insert(offset + 1, "\n")?;
-        } else {
-            self.text.insert(offset, "\n")?;
-            if let Some(level) = kind.level() {
-                // The new newline ends the first half.
-                self.text.mark(offset..offset + 1, HEADING_KEY, level)?;
+        self.text.insert(offset, "\n")?;
+        if let Some(level) = kind.level()
+            && !at_start
+        {
+            // The new newline now ends the text before the cursor.
+            self.text.mark(offset..offset + 1, HEADING_KEY, level)?;
+            if at_end && terminated {
+                // The old newline ends the new empty paragraph: body.
+                self.text.unmark(offset + 1..offset + 2, HEADING_KEY)?;
             }
         }
         self.commit(origin);
@@ -505,39 +522,50 @@ impl ProseDoc {
     }
 
     /// Makes the next commit start a new undo step even inside the merge
-    /// interval (Enter, an IME commit, a paste). Loro measures the interval
-    /// from the first edit of a step and `record_new_checkpoint` does not
-    /// split, so the next commit runs with a zero interval instead.
+    /// interval (Enter, an IME commit, a paste).
     pub fn checkpoint(&mut self) {
         self.force_new_step = true;
     }
 
     pub fn can_undo(&self) -> bool {
-        self.undo.can_undo()
+        !self.undo_steps.is_empty()
     }
 
     pub fn can_redo(&self) -> bool {
-        self.undo.can_redo()
+        !self.redo_steps.is_empty()
     }
 
+    /// Author steps that can be undone.
     pub fn undo_count(&self) -> usize {
-        self.undo.undo_count()
+        self.undo_steps.len()
     }
 
-    /// Undoes the author's last step. Returns whether anything changed and
-    /// where the cursor should go, if the step moved text.
+    /// Undoes the author's last step (every Loro item in it). Returns whether
+    /// anything changed and where the cursor should go, if the step moved text.
     pub fn undo(&mut self) -> Option<Option<usize>> {
+        let (items, _) = self.undo_steps.pop()?;
         let before = self.changes.len();
-        let changed = self.undo.undo().ok()?;
+        let mut changed = false;
+        for _ in 0..items {
+            changed |= self.undo.undo().unwrap_or(false);
+        }
         self.drain();
+        self.redo_steps.push(items);
         changed.then(|| self.cursor_after(before))
     }
 
     /// Redoes the last undone step; see [`ProseDoc::undo`].
     pub fn redo(&mut self) -> Option<Option<usize>> {
+        let items = self.redo_steps.pop()?;
         let before = self.changes.len();
-        let changed = self.undo.redo().ok()?;
+        let mut changed = false;
+        for _ in 0..items {
+            changed |= self.undo.redo().unwrap_or(false);
+        }
         self.drain();
+        // A redone step never merges with later typing.
+        let long_ago = std::time::Instant::now() - std::time::Duration::from_secs(3600);
+        self.undo_steps.push((items, long_ago));
         changed.then(|| self.cursor_after(before))
     }
 
@@ -553,13 +581,22 @@ impl ProseDoc {
     /// resulting event into the mirror.
     pub fn commit(&mut self, origin: &str) {
         let split = std::mem::take(&mut self.force_new_step);
-        if split {
-            self.undo.set_merge_interval(0);
-        }
+        let before = self.undo.undo_count();
         self.doc.set_next_commit_origin(origin);
         self.doc.commit();
-        if split {
-            self.undo.set_merge_interval(UNDO_MERGE_INTERVAL_MS);
+        let pushed = self.undo.undo_count().saturating_sub(before);
+        if pushed > 0 {
+            // Loro pushed this commit as its own item (merge interval 0);
+            // fold it into the current author step while that step is young.
+            let now = std::time::Instant::now();
+            let window = std::time::Duration::from_millis(UNDO_MERGE_INTERVAL_MS);
+            match self.undo_steps.last_mut() {
+                Some((items, started)) if !split && now.duration_since(*started) < window => {
+                    *items += pushed;
+                }
+                _ => self.undo_steps.push((pushed, now)),
+            }
+            self.redo_steps.clear();
         }
         self.drain();
     }
@@ -635,7 +672,7 @@ fn lines_from_delta(delta: &[TextDelta], rev: u64) -> Vec<Line> {
         };
         let kind = attributes
             .as_ref()
-            .and_then(|attributes| BlockKind::from_attributes(attributes))
+            .and_then(BlockKind::from_attributes)
             .unwrap_or_default();
         let mut parts = insert.split('\n');
         if let Some(first) = parts.next() {
@@ -658,9 +695,7 @@ fn apply_delta(lines: &mut Vec<Line>, delta: &[TextDelta], rev: u64, set: &mut C
     for item in delta {
         match item {
             TextDelta::Retain { retain, attributes } => {
-                let kind = attributes
-                    .as_ref()
-                    .and_then(|attributes| BlockKind::from_attributes(attributes));
+                let kind = attributes.as_ref().and_then(BlockKind::from_attributes);
                 let mut remaining = *retain;
                 while remaining > 0 {
                     let left_in_line = lines[ix].chars - inner;
@@ -691,7 +726,7 @@ fn apply_delta(lines: &mut Vec<Line>, delta: &[TextDelta], rev: u64, set: &mut C
             TextDelta::Insert { insert, attributes } => {
                 let kind = attributes
                     .as_ref()
-                    .and_then(|attributes| BlockKind::from_attributes(attributes))
+                    .and_then(BlockKind::from_attributes)
                     .unwrap_or_default();
                 let inserted = insert.chars().count();
                 set.ops.push(TextOp {
@@ -720,7 +755,11 @@ fn apply_delta(lines: &mut Vec<Line>, delta: &[TextDelta], rev: u64, set: &mut C
                     for part in &parts[1..last] {
                         new_lines.push(Line::new(part, kind, rev));
                     }
-                    new_lines.push(Line::new(&format!("{}{right}", parts[last]), tail_kind, rev));
+                    new_lines.push(Line::new(
+                        &format!("{}{right}", parts[last]),
+                        tail_kind,
+                        rev,
+                    ));
                     let added = new_lines.len();
                     lines.splice(ix..ix + 1, new_lines);
                     set.splices.push(LineSplice {
@@ -807,7 +846,8 @@ mod tests {
 
     #[test]
     fn split_and_join_keep_kinds_like_an_editor() {
-        let mut doc = ProseDoc::from_paragraphs([(BlockKind::H2, "标题文字"), (BlockKind::Body, "正文")]);
+        let mut doc =
+            ProseDoc::from_paragraphs([(BlockKind::H2, "标题文字"), (BlockKind::Body, "正文")]);
         // Enter at the end of a heading starts a body paragraph.
         doc.split(4, ORIGIN_USER).unwrap();
         assert_eq!(doc.line(0).kind, BlockKind::H2);
@@ -836,7 +876,8 @@ mod tests {
 
     #[test]
     fn utf16_round_trip() {
-        let mut doc = ProseDoc::from_paragraphs([(BlockKind::Body, "a😀中"), (BlockKind::Body, "文")]);
+        let mut doc =
+            ProseDoc::from_paragraphs([(BlockKind::Body, "a😀中"), (BlockKind::Body, "文")]);
         // "a😀中\n文\n": scalars a=0 😀=1 中=2 \n=3 文=4; utf16 a=0 😀=1..3 中=3 \n=4 文=5
         assert_eq!(doc.offset_to_utf16(2), 3);
         assert_eq!(doc.offset_to_utf16(4), 5);
@@ -854,7 +895,8 @@ mod tests {
         doc.replace(0..0, "作者写的", ORIGIN_USER).unwrap();
         doc.checkpoint();
         let end = doc.line(0).chars;
-        doc.replace(end..end, "【Agent 补的】", "agent:session-1").unwrap();
+        doc.replace(end..end, "【Agent 补的】", "agent:session-1")
+            .unwrap();
         assert_eq!(doc.line(0).text.as_ref(), "作者写的【Agent 补的】");
         assert_eq!(doc.undo_count(), 1);
         doc.undo().expect("one author step to undo");
@@ -884,6 +926,21 @@ mod tests {
         assert_mirror(&doc);
     }
 
+    /// Enter goes in at the cursor, so undoing it can never remove the
+    /// document's last newline (loro-schema v0).
+    #[test]
+    fn undo_of_enter_keeps_the_final_newline() {
+        let mut doc = ProseDoc::from_paragraphs([(BlockKind::H1, "标题")]);
+        doc.split(2, ORIGIN_USER).unwrap();
+        assert_eq!(doc.text().to_string(), "标题\n\n");
+        assert_eq!(doc.line(0).kind, BlockKind::H1);
+        assert_eq!(doc.line(1).kind, BlockKind::Body);
+        doc.undo().expect("undo the Enter");
+        assert_eq!(doc.text().to_string(), "标题\n");
+        assert_eq!(doc.line(0).kind, BlockKind::H1);
+        assert_mirror(&doc);
+    }
+
     /// Small deterministic generator (xorshift64*), so the test needs no crates.
     struct Rng(u64);
     impl Rng {
@@ -902,12 +959,26 @@ mod tests {
     /// always equal a fresh read of the Loro text.
     #[test]
     fn mirror_follows_random_edits_undo_and_imports() {
-        const SNIPPETS: &[&str] = &["字", "两个", "\n", "a\nb", "😀", "，", "\n\n", "长一点的一句话"];
+        const SNIPPETS: &[&str] = &[
+            "字",
+            "两个",
+            "\n",
+            "a\nb",
+            "😀",
+            "，",
+            "\n\n",
+            "长一点的一句话",
+        ];
         for seed in 1..=24u64 {
             let mut rng = Rng(seed.wrapping_mul(0x9e37_79b9_7f4a_7c15) | 1);
-            let mut doc = ProseDoc::from_paragraphs([(BlockKind::H1, "开头"), (BlockKind::Body, "正文第一段")]);
+            let mut doc = ProseDoc::from_paragraphs([
+                (BlockKind::H1, "开头"),
+                (BlockKind::Body, "正文第一段"),
+            ]);
             let remote = LoroDoc::new();
-            remote.import(&doc.loro().export(loro::ExportMode::Snapshot).unwrap()).unwrap();
+            remote
+                .import(&doc.loro().export(loro::ExportMode::Snapshot).unwrap())
+                .unwrap();
             configure(&remote);
             for _ in 0..120 {
                 let len = doc.len_chars();
@@ -924,7 +995,8 @@ mod tests {
                     }
                     4 => {
                         let ix = rng.below(doc.lines().len());
-                        let kind = [BlockKind::Body, BlockKind::H1, BlockKind::H2, BlockKind::H3][rng.below(4)];
+                        let kind = [BlockKind::Body, BlockKind::H1, BlockKind::H2, BlockKind::H3]
+                            [rng.below(4)];
                         doc.set_kind(ix, kind, ORIGIN_USER).unwrap();
                     }
                     5 => {
@@ -957,7 +1029,10 @@ mod tests {
                     }
                 }
                 assert_mirror(&doc);
-                assert_eq!(doc.lines().len(), doc.text().to_string().matches('\n').count() + 1);
+                assert_eq!(
+                    doc.lines().len(),
+                    doc.text().to_string().matches('\n').count() + 1
+                );
             }
         }
     }

@@ -1,16 +1,12 @@
 //! The probe window: a chapter list on the left, the editor on the right and a
 //! status line that shows what Loro holds (to see that marked text is not in it).
 
-use std::{
-    cell::Cell,
-    rc::Rc,
-    time::Instant,
-};
+use std::{cell::Cell, rc::Rc, time::Instant};
 
 use gpui::{
-    App, AppContext, Bounds, Focusable, Context, DisplayId, Entity, FontWeight, KeyBinding, MouseButton,
-    Render, SharedString, Window, WindowBounds, WindowHandle, WindowOptions, actions, div,
-    prelude::*, px, size, uniform_list,
+    App, AppContext, Bounds, Context, DisplayId, Entity, Focusable, FontWeight, KeyBinding,
+    MouseButton, Render, SharedString, Window, WindowBounds, WindowHandle, WindowOptions, actions,
+    div, prelude::*, px, size, uniform_list,
 };
 use loro::ExportMode;
 use prose_spike::{
@@ -54,8 +50,12 @@ impl Corpus {
         let snapshots = chapters
             .iter()
             .map(|chapter| {
-                let doc = ProseDoc::from_paragraphs(chapter.paragraphs.iter().map(|(k, p)| (*k, p.as_str())));
-                doc.loro().export(ExportMode::Snapshot).expect("export a snapshot")
+                let doc = ProseDoc::from_paragraphs(
+                    chapter.paragraphs.iter().map(|(k, p)| (*k, p.as_str())),
+                );
+                doc.loro()
+                    .export(ExportMode::Snapshot)
+                    .expect("export a snapshot")
             })
             .collect();
         Corpus {
@@ -99,7 +99,12 @@ impl Root {
         }
     }
 
-    pub fn open(&mut self, book: Book, window: &mut Window, cx: &mut Context<Self>) -> Entity<ProseEditor> {
+    pub fn open(
+        &mut self,
+        book: Book,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Entity<ProseEditor> {
         let editor = cx.new(|cx| {
             let mut editor = ProseEditor::new(book, ProseStyle::default(), window, cx);
             editor.set_platform_hooks(Rc::new(platform::MacHooks));
@@ -127,7 +132,11 @@ impl Root {
             "{} · 光标 {}{} · 选区 {} 字 · Loro 正文 {} 个字符 · 本帧画了 {} 段{}",
             chapter.title,
             sel.head,
-            if sel.is_empty() { "" } else { "（有选区）" },
+            if sel.is_empty() {
+                ""
+            } else {
+                "（有选区）"
+            },
             sel.range().len(),
             loro_len,
             editor.painted_lines(),
@@ -161,7 +170,9 @@ impl Render for Root {
                                         .py(px(5.))
                                         .text_size(px(13.))
                                         .text_color(gpui::hsla(0., 0., 0.25, 1.))
-                                        .hover(|style| style.bg(gpui::hsla(40. / 360., 0.2, 0.9, 1.)))
+                                        .hover(|style| {
+                                            style.bg(gpui::hsla(40. / 360., 0.2, 0.9, 1.))
+                                        })
                                         .child(this.titles[ix].clone())
                                         .on_mouse_down(
                                             MouseButton::Left,
@@ -193,10 +204,11 @@ impl Render for Root {
                     .flex_row()
                     .children(sidebar)
                     .child(
-                        div()
-                            .flex_1()
-                            .h_full()
-                            .children(self.editor.as_ref().map(|editor| ProseEditor::element(editor, cx))),
+                        div().flex_1().h_full().children(
+                            self.editor
+                                .as_ref()
+                                .map(|editor| ProseEditor::element(editor, cx)),
+                        ),
                     ),
             )
             .child(
@@ -252,7 +264,11 @@ pub fn open_window(
             WindowOptions {
                 window_bounds: Some(WindowBounds::Windowed(bounds)),
                 display_id,
-                kind: if on_top { gpui::WindowKind::PopUp } else { gpui::WindowKind::Normal },
+                kind: if on_top {
+                    gpui::WindowKind::PopUp
+                } else {
+                    gpui::WindowKind::Normal
+                },
                 // GPUI caps frames of a window that is not the key window at
                 // 30 fps, but only frames that carry next-frame callbacks — the
                 // very hook the measurements use. The author types in the key
@@ -275,8 +291,17 @@ pub fn open_window(
 /// Interactive mode: open the corpus and type.
 pub fn run(book_mode: bool, builtin: bool, on_top: bool) {
     gpui_platform::application().run(move |cx: &mut App| {
-        let corpus = if book_mode { Corpus::book() } else { Corpus::chapter() };
-        let titles: Vec<SharedString> = corpus.titles.iter().cloned().map(SharedString::from).collect();
+        let corpus = if book_mode {
+            Corpus::book()
+        } else {
+            Corpus::chapter()
+        };
+        let titles: Vec<SharedString> = corpus
+            .titles
+            .iter()
+            .cloned()
+            .map(SharedString::from)
+            .collect();
         let (window, _) = open_window(cx, titles, book_mode, builtin, on_top);
         window
             .update(cx, |root, window, cx| {

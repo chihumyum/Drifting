@@ -42,11 +42,25 @@ fn sysctl_string(name: &str) -> String {
     let mut len = 0usize;
     // SAFETY: two-step sysctl read into a buffer of the reported size.
     unsafe {
-        if libc::sysctlbyname(name.as_ptr(), std::ptr::null_mut(), &mut len, std::ptr::null_mut(), 0) != 0 {
+        if libc::sysctlbyname(
+            name.as_ptr(),
+            std::ptr::null_mut(),
+            &mut len,
+            std::ptr::null_mut(),
+            0,
+        ) != 0
+        {
             return String::new();
         }
         let mut buf = vec![0u8; len];
-        if libc::sysctlbyname(name.as_ptr(), buf.as_mut_ptr().cast(), &mut len, std::ptr::null_mut(), 0) != 0 {
+        if libc::sysctlbyname(
+            name.as_ptr(),
+            buf.as_mut_ptr().cast(),
+            &mut len,
+            std::ptr::null_mut(),
+            0,
+        ) != 0
+        {
             return String::new();
         }
         String::from_utf8_lossy(&buf[..len.saturating_sub(1)]).into_owned()
@@ -59,7 +73,13 @@ fn sysctl_u64(name: &str) -> u64 {
     let mut len = std::mem::size_of::<u64>();
     // SAFETY: reads a 64-bit integer sysctl.
     unsafe {
-        libc::sysctlbyname(name.as_ptr(), (&mut value as *mut u64).cast(), &mut len, std::ptr::null_mut(), 0);
+        libc::sysctlbyname(
+            name.as_ptr(),
+            (&mut value as *mut u64).cast(),
+            &mut len,
+            std::ptr::null_mut(),
+            0,
+        );
     }
     value
 }
@@ -120,9 +140,10 @@ pub fn display_facts(_display_id: u64) -> (bool, f64) {
     (false, 0.0)
 }
 
-/// Draw right after an edit instead of on the next display-link tick. On by
-/// default; `PROSE_SPIKE_TICK_ONLY=1` or the bench's comparison run turns it off.
-pub static IMMEDIATE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+/// Draw right after an edit instead of on the next display-link tick. Off by
+/// default (stock GPUI timing); `PROSE_SPIKE_PRESENT_NOW=1` or the bench's
+/// comparison run turns it on.
+pub static IMMEDIATE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// The editor's platform hooks on macOS.
 pub struct MacHooks;
@@ -150,7 +171,6 @@ impl prose_spike::editor::PlatformHooks for MacHooks {
         }
     }
 
-
     fn discard_marked_text(&self) {
         #[cfg(target_os = "macos")]
         // SAFETY: class method lookup and a message to the current input
@@ -158,7 +178,8 @@ impl prose_spike::editor::PlatformHooks for MacHooks {
         // `invalidateCharacterCoordinates` call does.
         unsafe {
             use objc2::{class, msg_send, runtime::AnyObject};
-            let context: *mut AnyObject = msg_send![class!(NSTextInputContext), currentInputContext];
+            let context: *mut AnyObject =
+                msg_send![class!(NSTextInputContext), currentInputContext];
             if !context.is_null() {
                 let _: () = msg_send![context, discardMarkedText];
             }
@@ -219,7 +240,9 @@ pub mod input_source {
             if !ok {
                 return String::new();
             }
-            std::ffi::CStr::from_ptr(buf.as_ptr()).to_string_lossy().into_owned()
+            std::ffi::CStr::from_ptr(buf.as_ptr())
+                .to_string_lossy()
+                .into_owned()
         }
     }
 

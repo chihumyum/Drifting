@@ -138,9 +138,17 @@ impl ProseLayout {
     }
 
     /// Position of `byte` relative to the text origin (top of its row).
-    pub fn point_for_byte(&self, byte: usize, affinity: Affinity, line_height: Pixels) -> Point<Pixels> {
+    pub fn point_for_byte(
+        &self,
+        byte: usize,
+        affinity: Affinity,
+        line_height: Pixels,
+    ) -> Point<Pixels> {
         let row = self.row_of(byte, affinity);
-        point(self.line.x_for_index(byte) - self.row_x[row], line_height * row as f32)
+        point(
+            self.line.x_for_index(byte) - self.row_x[row],
+            line_height * row as f32,
+        )
     }
 
     /// The byte in `row` closest to `x`, and its affinity.
@@ -170,7 +178,12 @@ impl ProseLayout {
 
     /// Selection rectangles relative to the text origin. `past_end` extends the
     /// last row a little to show that the newline is selected too.
-    pub fn selection_rects(&self, range: Range<usize>, past_end: bool, line_height: Pixels) -> Vec<Bounds<Pixels>> {
+    pub fn selection_rects(
+        &self,
+        range: Range<usize>,
+        past_end: bool,
+        line_height: Pixels,
+    ) -> Vec<Bounds<Pixels>> {
         let mut rects = Vec::new();
         for (ix, row) in self.rows.iter().enumerate() {
             let last = ix + 1 == self.rows.len();
@@ -318,8 +331,16 @@ pub fn column(available: Pixels, max_width: Pixels, gutter: Pixels) -> (Pixels, 
 }
 
 /// Shapes and breaks a paragraph (GPUI caches the shaping across frames).
-pub fn shape(text: &str, font_size: Pixels, runs: &[TextRun], wrap_width: Pixels, window: &mut Window) -> ProseLayout {
-    let line = window.text_system().layout_line(text, font_size, runs, None);
+pub fn shape(
+    text: &str,
+    font_size: Pixels,
+    runs: &[TextRun],
+    wrap_width: Pixels,
+    window: &mut Window,
+) -> ProseLayout {
+    let line = window
+        .text_system()
+        .layout_line(text, font_size, runs, None);
     ProseLayout::new(line, text, wrap_width)
 }
 
@@ -406,7 +427,9 @@ impl Element for ParagraphElement {
                 let (wrap_width, left) = column(width, max_width, gutter);
                 let layout = shape(&text, font_size, &runs, wrap_width, window);
                 let height = pad_top + line_height * layout.row_count() as f32 + pad_bottom;
-                heights.borrow_mut().set_measured(item_ix, f32::from(height));
+                heights
+                    .borrow_mut()
+                    .set_measured(item_ix, f32::from(height));
                 *shared.borrow_mut() = Some(Shaped {
                     layout: Rc::new(layout),
                     left,
@@ -432,7 +455,9 @@ impl Element for ParagraphElement {
         };
         let origin = bounds.origin + point(shaped.left, self.pad_top);
         let cursor = self.cursor.map(|(byte, affinity)| {
-            let at = shaped.layout.point_for_byte(byte, affinity, self.line_height);
+            let at = shaped
+                .layout
+                .point_for_byte(byte, affinity, self.line_height);
             Bounds::new(origin + at, size(px(2.), self.line_height))
         });
         if self.autoscroll
@@ -464,7 +489,10 @@ impl Element for ParagraphElement {
         };
         let origin = bounds.origin + point(shaped.left, self.pad_top);
         if let Some((range, past_end)) = self.selection.clone() {
-            for rect in shaped.layout.selection_rects(range, past_end, self.line_height) {
+            for rect in shaped
+                .layout
+                .selection_rects(range, past_end, self.line_height)
+            {
                 window.paint_quad(fill(
                     Bounds::new(origin + rect.origin, rect.size),
                     self.selection_color,
@@ -478,10 +506,12 @@ impl Element for ParagraphElement {
             colors.push((at, run.color));
         }
         let underline = self.comp.and_then(|comp| {
-            let style = self.runs.iter().find_map(|run| run.underline.clone())?;
+            let style = self.runs.iter().find_map(|run| run.underline)?;
             Some((comp.at..comp.at + comp.len, style))
         });
-        shaped.layout.paint(origin, self.line_height, &colors, underline, window);
+        shaped
+            .layout
+            .paint(origin, self.line_height, &colors, underline, window);
         if let Some(cursor) = prepaint.cursor {
             self.cursor_out.set(Some(cursor));
         }

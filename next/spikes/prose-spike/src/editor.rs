@@ -14,19 +14,17 @@ use std::{
 };
 
 use gpui::{
-    App, Bounds, ClipboardItem, ContentMask, Entity, StyleRefinement, fill, Context, CursorStyle, ElementInputHandler, EntityInputHandler,
-    FocusHandle, Focusable, FontWeight, Hsla, KeyBinding, ListAlignment, ListOffset, ListState,
-    MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, Pixels, Point, Render,
-    SharedString, Subscription, Task, TextRun, UTF16Selection, UnderlineStyle, Window,
-    actions, canvas, div, font, hsla, list, prelude::*, px, size,
+    App, Bounds, ClipboardItem, ContentMask, Context, CursorStyle, ElementInputHandler, Entity,
+    EntityInputHandler, FocusHandle, Focusable, FontWeight, Hsla, KeyBinding, ListAlignment,
+    ListOffset, ListState, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, Pixels,
+    Point, Render, SharedString, StyleRefinement, Subscription, Task, TextRun, UTF16Selection,
+    UnderlineStyle, Window, actions, canvas, div, fill, font, hsla, list, prelude::*, px, size,
 };
 
 use crate::{
     book::{Book, Item},
     doc::{BlockKind, ORIGIN_USER, ProseDoc},
-    element::{
-        Affinity, CompSpan, FrameCache, ParagraphElement, ProseLayout, column, shape,
-    },
+    element::{Affinity, CompSpan, FrameCache, ParagraphElement, ProseLayout, column, shape},
     heights::{BlockMetrics, HeightIndex, estimate_height},
 };
 
@@ -348,7 +346,13 @@ impl ProseEditor {
 
     fn log_ime(&self, call: std::fmt::Arguments) {
         if self.ime_log {
-            eprintln!("[ime] {call} | comp={:?} sel={:?}", self.composition.as_ref().map(|c| (&c.text, c.at, c.replaced)), self.selection.range());
+            eprintln!(
+                "[ime] {call} | comp={:?} sel={:?}",
+                self.composition
+                    .as_ref()
+                    .map(|c| (&c.text, c.at, c.replaced)),
+                self.selection.range()
+            );
         }
     }
 
@@ -397,7 +401,13 @@ impl ProseEditor {
     // ----- scripted input (benchmarks, tests) --------------------------------
 
     /// Sets the selection in `chapter` (scalar offsets) and reveals it.
-    pub fn select(&mut self, chapter: usize, range: Range<usize>, _window: &mut Window, cx: &mut Context<Self>) {
+    pub fn select(
+        &mut self,
+        chapter: usize,
+        range: Range<usize>,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.cancel_composition();
         let mut sel = Selection::caret(chapter, range.start);
         sel.head = range.end;
@@ -459,7 +469,12 @@ impl ProseEditor {
 
     // ----- frame -------------------------------------------------------------
 
-    fn render_item(&mut self, ix: usize, _window: &mut Window, _cx: &mut Context<Self>) -> gpui::AnyElement {
+    fn render_item(
+        &mut self,
+        ix: usize,
+        _window: &mut Window,
+        _cx: &mut Context<Self>,
+    ) -> gpui::AnyElement {
         match self.book.item(ix) {
             Item::Title(chapter) => {
                 let title = self.book.chapters[chapter].title.clone();
@@ -515,7 +530,10 @@ impl ProseEditor {
                 let base = self.style.run(line.kind, 0);
                 let mut runs = Vec::with_capacity(3);
                 if at > 0 {
-                    runs.push(TextRun { len: at, ..base.clone() });
+                    runs.push(TextRun {
+                        len: at,
+                        ..base.clone()
+                    });
                 }
                 if span.len > 0 {
                     runs.push(TextRun {
@@ -541,7 +559,7 @@ impl ProseEditor {
                 let cursor = (sel.chapter == chapter
                     && self.composition.is_none()
                     && (line_start..=line_end).contains(&sel.head))
-                    .then(|| (line.byte_of_char(sel.head - line_start), sel.affinity));
+                .then(|| (line.byte_of_char(sel.head - line_start), sel.affinity));
                 (line.text.clone(), runs, None, cursor)
             }
         };
@@ -599,7 +617,10 @@ impl ProseEditor {
             let origin = self
                 .frame
                 .borrow()
-                .get(comp.chapter, self.book.chapters[comp.chapter].doc.line_of(comp.at))
+                .get(
+                    comp.chapter,
+                    self.book.chapters[comp.chapter].doc.line_of(comp.at),
+                )
                 .map(|painted| painted.origin);
             if origin != self.last_comp_origin {
                 self.last_comp_origin = origin;
@@ -622,12 +643,15 @@ impl ProseEditor {
         let generation = self.estimate_generation;
         let mut items = Vec::with_capacity(self.book.item_count());
         for (ix, chapter) in self.book.chapters.iter().enumerate() {
-            items.push((None, BlockMetrics {
-                font_size: 30.,
-                line_height: 0.,
-                pad_top: if ix == 0 { 56. } else { 96. },
-                pad_bottom: 28. + 42.,
-            }));
+            items.push((
+                None,
+                BlockMetrics {
+                    font_size: 30.,
+                    line_height: 0.,
+                    pad_top: if ix == 0 { 56. } else { 96. },
+                    pad_bottom: 28. + 42.,
+                },
+            ));
             for line in &chapter.doc.lines()[..chapter.doc.visible_lines()] {
                 items.push((Some(line.text.clone()), self.style.metrics(line.kind)));
             }
@@ -704,7 +728,9 @@ impl ProseEditor {
                     let estimates: Vec<f32> = (start..start + splice.new)
                         .map(|line| self.estimate_line(chapter, line))
                         .collect();
-                    self.heights.borrow_mut().splice(item..item + old, estimates);
+                    self.heights
+                        .borrow_mut()
+                        .splice(item..item + old, estimates);
                 }
                 self.book.listed[chapter] = listed - old + splice.new;
             }
@@ -716,13 +742,18 @@ impl ProseEditor {
             let base = self.book.line_item(chapter, 0);
             if listed > visible {
                 self.list.splice(base + visible..base + listed, 0);
-                self.heights.borrow_mut().splice(base + visible..base + listed, []);
+                self.heights
+                    .borrow_mut()
+                    .splice(base + visible..base + listed, []);
             } else {
-                self.list.splice(base + listed..base + listed, visible - listed);
+                self.list
+                    .splice(base + listed..base + listed, visible - listed);
                 let estimates: Vec<f32> = (listed..visible)
                     .map(|line| self.estimate_line(chapter, line))
                     .collect();
-                self.heights.borrow_mut().splice(base + listed..base + listed, estimates);
+                self.heights
+                    .borrow_mut()
+                    .splice(base + listed..base + listed, estimates);
             }
             self.book.listed[chapter] = visible;
         }
@@ -782,7 +813,9 @@ impl ProseEditor {
         cx: &mut Context<Self>,
     ) {
         let origin = format!("{}{session}", crate::doc::ORIGIN_AGENT_PREFIX);
-        let _ = self.book.chapters[chapter].doc.replace(range, text, &origin);
+        let _ = self.book.chapters[chapter]
+            .doc
+            .replace(range, text, &origin);
         self.sync_chapter(chapter);
         cx.notify();
     }
@@ -799,7 +832,8 @@ impl ProseEditor {
         let sel = self.selection;
         let line = doc_line_of(&mut self.book.chapters[sel.chapter].doc, sel.head);
         if self.frame.borrow().get(sel.chapter, line).is_none() {
-            self.list.scroll_to_reveal_item(self.book.line_item(sel.chapter, line));
+            self.list
+                .scroll_to_reveal_item(self.book.line_item(sel.chapter, line));
         }
     }
 
@@ -820,7 +854,11 @@ impl ProseEditor {
         div()
             .size_full()
             .relative()
-            .child(editor.clone().cached(StyleRefinement::default().size_full()))
+            .child(
+                editor
+                    .clone()
+                    .cached(StyleRefinement::default().size_full()),
+            )
             .child(layer)
     }
 
@@ -923,7 +961,13 @@ impl ProseEditor {
         self.set_selection(sel, cx);
     }
 
-    fn move_vertical(&mut self, down: bool, extend: bool, window: &mut Window, cx: &mut Context<Self>) {
+    fn move_vertical(
+        &mut self,
+        down: bool,
+        extend: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let mut sel = self.selection;
         let chapter = sel.chapter;
         let (line_ix, inner) = self.book.chapters[chapter].doc.locate(sel.head);
@@ -931,7 +975,10 @@ impl ProseEditor {
             return;
         };
         let rows = layout.row_count();
-        let byte = self.book.chapters[chapter].doc.line(line_ix).byte_of_char(inner);
+        let byte = self.book.chapters[chapter]
+            .doc
+            .line(line_ix)
+            .byte_of_char(inner);
         let here = layout.point_for_byte(byte, sel.affinity, line_height);
         let goal_x = sel.goal_x.unwrap_or(here.x);
         let row = layout.row_of(byte, sel.affinity);
@@ -953,7 +1000,10 @@ impl ProseEditor {
             } else if line_ix > 0 {
                 Some((chapter, line_ix - 1))
             } else if chapter > 0 && !extend {
-                Some((chapter - 1, self.book.chapters[chapter - 1].doc.visible_lines() - 1))
+                Some((
+                    chapter - 1,
+                    self.book.chapters[chapter - 1].doc.visible_lines() - 1,
+                ))
             } else {
                 None
             };
@@ -992,7 +1042,13 @@ impl ProseEditor {
         self.set_selection(sel, cx);
     }
 
-    fn move_to_row_edge(&mut self, end: bool, extend: bool, window: &mut Window, cx: &mut Context<Self>) {
+    fn move_to_row_edge(
+        &mut self,
+        end: bool,
+        extend: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let mut sel = self.selection;
         let (line_ix, inner) = self.book.chapters[sel.chapter].doc.locate(sel.head);
         let Some((layout, _)) = self.line_layout(sel.chapter, line_ix, window) else {
@@ -1008,7 +1064,11 @@ impl ProseEditor {
         if !extend {
             sel.anchor = sel.head;
         }
-        sel.affinity = if end { Affinity::Upstream } else { Affinity::Downstream };
+        sel.affinity = if end {
+            Affinity::Upstream
+        } else {
+            Affinity::Downstream
+        };
         sel.goal_x = None;
         self.set_selection(sel, cx);
     }
@@ -1047,23 +1107,48 @@ impl ProseEditor {
     fn select_down(&mut self, _: &SelectDown, window: &mut Window, cx: &mut Context<Self>) {
         self.move_vertical(true, true, window, cx);
     }
-    fn move_to_line_start(&mut self, _: &MoveToLineStart, window: &mut Window, cx: &mut Context<Self>) {
+    fn move_to_line_start(
+        &mut self,
+        _: &MoveToLineStart,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.move_to_row_edge(false, false, window, cx);
     }
     fn move_to_line_end(&mut self, _: &MoveToLineEnd, window: &mut Window, cx: &mut Context<Self>) {
         self.move_to_row_edge(true, false, window, cx);
     }
-    fn select_to_line_start(&mut self, _: &SelectToLineStart, window: &mut Window, cx: &mut Context<Self>) {
+    fn select_to_line_start(
+        &mut self,
+        _: &SelectToLineStart,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.move_to_row_edge(false, true, window, cx);
     }
-    fn select_to_line_end(&mut self, _: &SelectToLineEnd, window: &mut Window, cx: &mut Context<Self>) {
+    fn select_to_line_end(
+        &mut self,
+        _: &SelectToLineEnd,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.move_to_row_edge(true, true, window, cx);
     }
-    fn move_to_chapter_start(&mut self, _: &MoveToChapterStart, _: &mut Window, cx: &mut Context<Self>) {
+    fn move_to_chapter_start(
+        &mut self,
+        _: &MoveToChapterStart,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let sel = Selection::caret(self.selection.chapter, 0);
         self.set_selection(sel, cx);
     }
-    fn move_to_chapter_end(&mut self, _: &MoveToChapterEnd, _: &mut Window, cx: &mut Context<Self>) {
+    fn move_to_chapter_end(
+        &mut self,
+        _: &MoveToChapterEnd,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let chapter = self.selection.chapter;
         let end = self.book.chapters[chapter].doc.max_cursor();
         self.set_selection(Selection::caret(chapter, end), cx);
@@ -1339,7 +1424,7 @@ impl ProseEditor {
         }
     }
 
-    fn to_virtual16(&mut self, offset: usize) -> usize {
+    fn doc_to_virtual16(&mut self, offset: usize) -> usize {
         let marked = self.marked16();
         let chapter = self.input_chapter();
         let at = self.composition.as_ref().map(|comp| comp.at);
@@ -1352,7 +1437,7 @@ impl ProseEditor {
         }
     }
 
-    fn from_virtual16(&mut self, v: usize) -> VirtualPos {
+    fn virtual16_to_doc(&mut self, v: usize) -> VirtualPos {
         let chapter = self.input_chapter();
         match self.marked16() {
             None => VirtualPos::Doc(self.book.chapters[chapter].doc.offset_from_utf16(v)),
@@ -1384,18 +1469,24 @@ impl ProseEditor {
             .composition
             .as_ref()
             .map_or(0, |comp| comp.at + comp.replaced);
-        let start = match self.from_virtual16(range.start) {
+        let start = match self.virtual16_to_doc(range.start) {
             VirtualPos::Doc(offset) => offset,
             VirtualPos::Marked(_) => at,
         };
-        let end = match self.from_virtual16(range.end) {
+        let end = match self.virtual16_to_doc(range.end) {
             VirtualPos::Doc(offset) => offset,
             VirtualPos::Marked(_) => end_of_marked,
         };
         start.min(end)..start.max(end)
     }
 
-    fn commit_text(&mut self, range: Range<usize>, text: &str, window: &mut Window, cx: &mut Context<Self>) {
+    fn commit_text(
+        &mut self,
+        range: Range<usize>,
+        text: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.cancel_composition();
         self.edit(window, cx, |doc, sel| {
             let max = doc.len_chars();
@@ -1409,7 +1500,7 @@ impl ProseEditor {
     /// The line and display byte of a virtual UTF-16 position.
     fn display_position(&mut self, v: usize) -> (usize, usize) {
         let chapter = self.input_chapter();
-        let pos = self.from_virtual16(v);
+        let pos = self.virtual16_to_doc(v);
         let comp = self.composition.clone();
         let doc = &mut self.book.chapters[chapter].doc;
         match (pos, comp) {
@@ -1423,9 +1514,11 @@ impl ProseEditor {
                 let mut byte = doc.line(line).byte_of_char(inner);
                 if let Some(comp) = comp {
                     let (comp_line, comp_inner) = doc.locate(comp.at);
-                    if comp_line == line && inner >= comp_inner + comp.replaced && offset > comp.at {
-                        let replaced_bytes = doc.line(line).byte_of_char(comp_inner + comp.replaced)
-                            - doc.line(line).byte_of_char(comp_inner);
+                    if comp_line == line && inner >= comp_inner + comp.replaced && offset > comp.at
+                    {
+                        let replaced_bytes =
+                            doc.line(line).byte_of_char(comp_inner + comp.replaced)
+                                - doc.line(line).byte_of_char(comp_inner);
                         byte = byte - replaced_bytes + comp.text.len();
                     }
                 }
@@ -1553,7 +1646,11 @@ impl EntityInputHandler for ProseEditor {
         })
     }
 
-    fn marked_text_range(&self, _window: &mut Window, _cx: &mut Context<Self>) -> Option<Range<usize>> {
+    fn marked_text_range(
+        &self,
+        _window: &mut Window,
+        _cx: &mut Context<Self>,
+    ) -> Option<Range<usize>> {
         let comp = self.composition.as_ref()?;
         // `&self` here: compute the anchor's UTF-16 offset by scanning.
         let doc = &self.book.chapters[comp.chapter].doc;
@@ -1561,7 +1658,12 @@ impl EntityInputHandler for ProseEditor {
         let mut remaining = comp.at;
         for line in doc.lines() {
             if remaining <= line.chars {
-                at16 += line.text.chars().take(remaining).map(char::len_utf16).sum::<usize>();
+                at16 += line
+                    .text
+                    .chars()
+                    .take(remaining)
+                    .map(char::len_utf16)
+                    .sum::<usize>();
                 break;
             }
             at16 += line.utf16 + 1;
@@ -1667,7 +1769,9 @@ impl EntityInputHandler for ProseEditor {
         } else if let Some(comp) = self.composition.as_mut() {
             comp.text = new_text.to_owned();
             comp.selected = match new_selected_range16 {
-                Some(range) => utf16_to_byte(new_text, range.start)..utf16_to_byte(new_text, range.end),
+                Some(range) => {
+                    utf16_to_byte(new_text, range.start)..utf16_to_byte(new_text, range.end)
+                }
                 None => new_text.len()..new_text.len(),
             };
         }
@@ -1707,14 +1811,23 @@ impl EntityInputHandler for ProseEditor {
         _cx: &mut Context<Self>,
     ) -> Option<usize> {
         let (chapter, offset) = self.hit_test(point)?;
-        (chapter == self.input_chapter()).then(|| self.to_virtual16(offset))
+        (chapter == self.input_chapter()).then(|| self.doc_to_virtual16(offset))
     }
 
-    fn text_length_utf16(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> Option<usize> {
+    fn text_length_utf16(
+        &mut self,
+        _window: &mut Window,
+        _cx: &mut Context<Self>,
+    ) -> Option<usize> {
         Some(self.virtual_len16())
     }
 
-    fn set_selected_text_range(&mut self, range16: Range<usize>, _window: &mut Window, cx: &mut Context<Self>) {
+    fn set_selected_text_range(
+        &mut self,
+        range16: Range<usize>,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if self.composition.is_some() {
             return;
         }
@@ -1728,7 +1841,11 @@ impl EntityInputHandler for ProseEditor {
 }
 
 impl ProseEditor {
-    fn bounds_for_range_inner(&mut self, range16: Range<usize>, window: &mut Window) -> Option<Bounds<Pixels>> {
+    fn bounds_for_range_inner(
+        &mut self,
+        range16: Range<usize>,
+        window: &mut Window,
+    ) -> Option<Bounds<Pixels>> {
         let chapter = self.input_chapter();
         let (line_ix, byte) = self.display_position(range16.start);
         let (end_line, end_byte) = self.display_position(range16.end);
@@ -1740,7 +1857,13 @@ impl ProseEditor {
         let layout = if element.text == painted.text {
             painted.layout.clone()
         } else {
-            Rc::new(shape(&element.text, element.font_size, &element.runs, painted.layout.wrap_width, window))
+            Rc::new(shape(
+                &element.text,
+                element.font_size,
+                &element.runs,
+                painted.layout.wrap_width,
+                window,
+            ))
         };
         let start = layout.point_for_byte(byte, Affinity::Downstream, painted.line_height);
         let end_x = if end_line == line_ix {
@@ -1754,7 +1877,6 @@ impl ProseEditor {
             size((end_x - start.x).max(px(1.)), painted.line_height),
         ))
     }
-
 }
 
 /// The caret, drawn over the editor. It owns the blink timer and notifies only
@@ -1900,7 +2022,11 @@ impl Render for ProseEditor {
                     |_, _, _| {},
                     move |bounds, _, window, cx| {
                         let focus = entity.read(cx).focus.clone();
-                        window.handle_input(&focus, ElementInputHandler::new(bounds, entity.clone()), cx);
+                        window.handle_input(
+                            &focus,
+                            ElementInputHandler::new(bounds, entity.clone()),
+                            cx,
+                        );
                         entity.update(cx, |this, cx| this.after_paint(bounds, window, cx));
                     },
                 )
