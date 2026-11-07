@@ -227,7 +227,9 @@ impl RenderOnce for Button {
             );
             content(el, window)
         };
-        el.when(interactive, |el| el.cursor_pointer())
+        el.role(gpui::Role::Button)
+            .aria_label(self.label.clone())
+            .when(interactive, |el| el.cursor_pointer())
             .when_some(self.on_click.filter(|_| interactive), |el, f| {
                 el.on_click(move |e, w, cx| f(e, w, cx))
             })
@@ -255,6 +257,7 @@ pub struct IconButton {
     selected: bool,
     disabled: bool,
     tone: Tone,
+    label: Option<SharedString>,
     on_click: Option<OnClick>,
 }
 
@@ -267,8 +270,17 @@ impl IconButton {
             selected: false,
             disabled: false,
             tone: Tone::Clear,
+            label: None,
             on_click: None,
         }
+    }
+
+    /// What the button does, in words, for screen readers (it is a button
+    /// named `label` in the accessibility tree). Never drawn: a round
+    /// button shows only its icon.
+    pub fn label(mut self, label: impl Into<SharedString>) -> Self {
+        self.label = Some(label.into());
+        self
     }
 
     pub fn seat(mut self, seat: Seat) -> Self {
@@ -343,6 +355,9 @@ impl RenderOnce for IconButton {
             .rounded_full()
             .when(self.seat == Seat::Floating, |el| el.bg(p.page.solid()))
             .child(sand::icon(self.icon, g::ROUND_ICON, ink))
+            .when_some(self.label, |el, label| {
+                el.role(gpui::Role::Button).aria_label(label)
+            })
             .when(interactive, |el| el.cursor_pointer())
             .when_some(self.on_click.filter(|_| interactive), |el, f| {
                 el.on_click(move |e, w, cx| f(e, w, cx))
@@ -355,6 +370,7 @@ pub struct PanelIconButton {
     id: ElementId,
     icon: Icon,
     accent: bool,
+    label: Option<SharedString>,
     on_click: Option<OnClick>,
 }
 
@@ -364,8 +380,15 @@ impl PanelIconButton {
             id: id.into(),
             icon,
             accent: false,
+            label: None,
             on_click: None,
         }
+    }
+
+    /// What the button does, for screen readers; never drawn.
+    pub fn label(mut self, label: impl Into<SharedString>) -> Self {
+        self.label = Some(label.into());
+        self
     }
 
     /// A panel header's “new” keeps the accent's ink.
@@ -409,6 +432,9 @@ impl RenderOnce for PanelIconButton {
                     )
                     .child(PanelGlyph { icon }),
             )
+            .when_some(self.label, |el, label| {
+                el.role(gpui::Role::Button).aria_label(label)
+            })
             .when_some(self.on_click, |el, f| {
                 el.on_click(move |e, w, cx| f(e, w, cx))
             })

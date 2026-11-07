@@ -64,6 +64,9 @@ pub struct TypeScale {
     pub menu_line: f32,
     /// A dialog's title (heading role).
     pub dialog_title: f32,
+    /// The sidebars' Panel Tab names (the `label` style, workspace.md):
+    /// 11.5 / 13 / 15px at the small, standard and large sizes.
+    pub label: f32,
 }
 
 impl TypeScale {
@@ -85,6 +88,7 @@ impl TypeScale {
             menu_text: 14.0 + k,
             menu_line: 20.0 + k,
             dialog_title: 16.0 + k,
+            label: if k == 0.0 { 11.5 } else { 11.0 + k },
         }
     }
 }

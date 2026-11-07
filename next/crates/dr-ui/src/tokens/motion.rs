@@ -218,6 +218,9 @@ pub mod dwell {
     pub const OPTIONS_CLOSE: Duration = ms(160);
     /// A notification pill stays this long before it fades.
     pub const TOAST: Duration = ms(4000);
+    /// How long the tab dock stays open after the pointer leaves it before
+    /// its pills fold back into marks (`DOCK_COLLAPSE_DELAY_MS`).
+    pub const DOCK_COLLAPSE: Duration = ms(260);
 }
 
 #[cfg(test)]
