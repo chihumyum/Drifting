@@ -16,6 +16,7 @@
 | 深链接与单实例 | 链接统一进一个队列，各取各的前缀；Windows 第二次启动把链接转给已开的那个再退出；开发版用 `drifting-next-dev:`，不抢正式版的链接 | F6 接上「来了链接就把窗口叫到前面」 |
 | 打包 | macOS 出 `.app`、`.dmg`、更新包 `.app.tar.gz`；Windows 有 NSIS 安装器，安装位置、卸载项、注册表和旧版 Tauri 安装器一样，CI 里装一遍、升级一遍、卸一遍 | 签名、公证、预编译着色器（发版前） |
 | 自动更新 | 读清单、比版本、下载、用现有公钥的格式验签、macOS 原地换包、Windows 交给安装器；本地用自造的密钥对和本地文件从头到尾走通了 | F6/M42 的界面和定时检查；旧版最后一版改一行更新地址 |
+| 外部 Agent 的命令行 | 新程序认旧版写进 Codex、Claude Code 配置里的 `drifting --mcp --connection <文件>`，在入口最先分流，不开窗口、不拿单实例锁 | M32 实现桥接（发 GPUI 版的前提） |
 | 发布流水线 | 草稿 `next/script/release-next.draft.yml`，不会被触发 | 交接时补全 |
 
 **最要紧的三个发现**：
@@ -29,6 +30,8 @@
 `dr-platform` 不依赖 GPUI。`app/drifting/src/main.rs` 按这个顺序接上：
 
 ```rust
+let args: Vec<String> = std::env::args().skip(1).collect();
+if let cli::Launch::Mcp(connection) = cli::parse(&args) { … return }   // 外部 Agent，最先分流
 probe::start();
 let platform = dr_platform::Identity::current();          // 现在永远是开发身份
 let dirs = dr_platform::AppDirs::for_identity(platform).ok();
@@ -45,10 +48,11 @@ cx.set_global(Platform { deep_links, crash_reports });     // 给 F6
 
 | 模块 | 给谁用 | 主要接口 |
 | --- | --- | --- |
+| `cli` | app、M32 | `cli::parse(args) -> Launch::{App, Mcp(Result<PathBuf, _>)}`；`MCP_USAGE`、`MCP_ERROR_PREFIX`（旧版的报错写法） |
 | `identity` | 全部 | `Identity { channel, bundle_id, product_name, executable, url_scheme, keychain_service, publisher }`；`DEVELOPMENT`、`RELEASE`、`Identity::current()` |
 | `paths` | F2、F6 | `AppDirs { data, logs, crashes }`；`AppDirs::for_identity`、`AppDirs::under(root)`（测试和隔离运行） |
 | `logging` | app | `LogConfig::for_build`、`logging::init`、`logging::installed()` |
-| `crash` | app、F6、F2 | `crash::init(CrashConfig) -> CrashReporting`；`.status()`、`.set_consent(bool)`、`.take_follow_up() -> Option<CrashFollowUp>`、`.report_integrity(code)` |
+| `crash` | app、F6、F2 | `crash::init(CrashConfig) -> CrashReporting`；`.status()`、`.set_consent(bool)`、`.take_follow_up() -> Option<CrashFollowUp>`、`.report_integrity(code)`、`.flush(timeout)` |
 | `sanitize` | 任何要上报文字的地方 | `sanitize::message`、`sanitize::redact_home` |
 | `secrets` | M35 账号、M37 帮手、扩展 | `SecretStore::for_identity(id)`；`.get/.contains/.set/.delete`；`SecretStore::in_memory()` 给别的 crate 测试；`secrets::keys::*` 旧版的键名 |
 | `deep_link` | F6、M35、跳转链接 | `DeepLinks::new(scheme)`；`.push_all/.push_args`、`.drain_matching("auth/")`、`.set_waker(f)` |
@@ -141,6 +145,8 @@ cx.set_global(Platform { deep_links, crash_reports });     // 给 F6
 - 读的时候跳过需要授权的条目、不弹框，和旧版一样。苹果说这一条只对「数据保护钥匙串」有效，登录钥匙串里访问列表不含本程序的条目仍会弹框；正式版保持同一个 bundle id 和同一个 Developer ID 团队，访问列表认的就是这两样，所以交接后不会弹。
 - 键名照旧版（`secrets::keys`）：Hosted 会话 `drifting.hosted.v1.<API 源的 sha256>`；API Key `byok.<厂商>`（含语音用的 `byok.dashscope`），旧的帮手 Anthropic 键 `byok.agent.anthropic`；ChatGPT 订阅 `oauth.openai-codex`；扩展密钥 `drifting.mcp.…`；`sync.` 和 `oauth.` 开头的只给原生代码。
 - 为什么不用 GPUI 的接口：见开头「最要紧的三个发现」1。
+- 实现：macOS 直接调 Security 框架的 `SecItem*`（用 GPUI 已经在用的 `objc2-security`，不多一个 crate，读的写法和旧版用 `security-framework` 的那段一样），Windows 直接调 `CredReadW` / `CredWriteW`（GPUI 已在用的 `windows` 0.62），按 keyring 3.6 的格式读写；keyring 本身只作为测试依赖，扮演旧版。
+- 没搬的：`NATIVE_ONLY_SECRET_PREFIXES`（`sync.`、`oauth.` 不让渲染层读）和 `local_lab_session`（调试用的本地假钥匙串）都只是挡 WebView 的，新版没有渲染层，不需要。
 
 ### 测试
 
@@ -162,9 +168,44 @@ cx.set_global(Platform { deep_links, crash_reports });     // 给 F6
 - **开发版的协议是 `drifting-next-dev:`**，正式版是 `drifting:`。开发版的包在本机打开后，Launch Services 只会把 `drifting-next-dev:` 交给它，作者装着的正式版照常收 `drifting:`。
 - 链接全进 `DeepLinks` 队列：只收本协议的、8 KiB 以内、不含控制字符的；最多排 64 条；消费者按前缀取，`auth/` 给登录、`open/` 给跳转，和旧版的 `DeepLinkQueue` 一样。链接里可能有一次性登录码，所以日志只记条数。
 - 命名管道：只收本机连接，用默认安全描述（只有本用户、管理员和 SYSTEM 能写），创建时带 `FILE_FLAG_FIRST_PIPE_INSTANCE`，别的进程抢不了名字；消息是不超过 64 KiB 的 JSON。后来的进程先调 `AllowSetForegroundWindow`，让先开的那个能把窗口提到前面。
-- **不带窗口的启动不能经过这里**：外部 Agent 用 `drifting --mcp --connection <文件>` 调这个可执行文件（[simplifications.md](../simplifications.md) 第 15 条）。旧版在 `main` 的第一行就分流；新版也要在崩溃上报、日志和单实例之前分流，否则 Windows 上它会被当成第二次启动、把参数转给窗口然后退出。
+- **不带窗口的启动不经过这里**：外部 Agent 用 `drifting --mcp --connection <文件>` 调这个可执行文件（[simplifications.md](../simplifications.md) 第 15 条，见下一节）。它在 `main` 的第一行就分流，不起崩溃上报的旁路进程、不拿单实例锁、不开窗口；否则 Windows 上它会被当成第二次启动，把参数转给窗口然后退出。
 - 思路照 Zed 的 `windows_only_instance.rs`，那个文件是 GPL，只看了思路，代码是自己写的。
 - Windows 部分本机只能 `cargo check --target x86_64-pc-windows-msvc --no-default-features`（带网络特性时 ring 的 C 代码在 Mac 上交叉编不了），clippy 也过了；真跑要等 CI 或作者的虚拟机。
+
+## 外部 Agent 的命令行（MCP）
+
+旧版把这条命令写进了作者 Codex、Claude Code 的配置（`src-tauri/src/mcp_server.rs` 的 `describe`，第 418 行起；搬家时用 `client_config::relocate` 改写，第 379 行起）：
+
+```text
+<可执行文件的绝对路径> --mcp --connection <应用数据目录>/mcp/connection-<id>.json
+```
+
+- 可执行文件路径交接后不变：macOS `…/Drifting.app/Contents/MacOS/drifting`，Windows `<安装目录>\drifting.exe`（正式版身份和安装器保证）。
+- 参数规则照旧版 `run_stdio_cli`：第一个参数是 `--mcp` 才算；恰好是 `--mcp --connection <文件>` 时进桥接，其他写法报 `Usage: Drifting --mcp --connection <connection-file>`；所有错误都写成 `Drifting MCP: <原因>` 打到 stderr、以 1 退出。`dr_platform::cli` 实现了这套解析（有测试），`app/drifting` 的 `main` 在第一行分流，桥接本身 `run_mcp_bridge` 现在只返回「这个版本还没有 MCP 桥接」，由 M32 实现：读连接文件（`version: 1`）、连运行中的 Drifting、转发帧，和旧版 `local::cli` 一致。
+- 本机冒烟：开发构建 `drifting --mcp --connection <不存在的文件>` 和 `drifting --mcp` 都立刻在 stderr 报错、以 1 退出，没开窗口、没留进程。
+- 连接文件放在应用数据目录的 `mcp/` 下，正式版身份和旧版共用这个目录，M32 照旧版格式读即可；桥接要连的是一个开着的 Drifting，所以 Windows 上关窗后程序是否还在（见「Windows 托盘」）直接影响外部 Agent。
+- Windows 正式包如果用 GUI 子系统（不弹控制台），被 Agent 以管道启动时标准输入输出照样能用，旧版就是这样；F6 加 `windows_subsystem` 时保持这一点。
+
+## 退出时能做多少
+
+- GPUI 在 macOS 只接了 `applicationWillTerminate`，`on_app_quit` 的回调总共只等 200 ms（`gpui/src/app.rs` 的 `SHUTDOWN_TIMEOUT`），而且 `app.run` 在 macOS 上不返回，`main` 里的变量不会被析构。退出时不能指望做重活。
+- 对 F7 的影响：
+  - **日志**：同步写，没有要冲的缓冲。
+  - **崩溃上报**：panic 记录本来就落盘、下次启动再发，不受影响；运行中排队的事件（完整性事件、启动时补发的 panic）要在 F6 的退出回调里调 `CrashReporting::flush(Duration::from_millis(100))`，冲不完就丢，不重试。
+  - **更新**：下载、验签、换包都在作者点「安装并重启」之后、发起退出之前做完；重开用的等待进程（等本进程退出后 `open -n <包>`，照旧版 `macos_relaunch.rs`）也在退出前起好。Windows 先 `InstallerLaunch::spawn` 再退出，安装器自己等旧进程退干净。
+  - **单实例**：互斥量和管道由系统在进程结束时回收。
+- 旧版退出前的刷新屏障（保存正文、交接、同步）要等几秒（原生总时限 5 s），新版的对应步骤（F2、F3）不能放进 `on_app_quit`，要由 F6 在发起退出之前自己跑完，再调 `cx.quit()`。这一条写进「待协调」。
+
+## Windows 托盘
+
+旧版 `windows_tray.rs`：在 Windows 上关掉书架窗口只是藏起来，程序留在通知区，后台的帮手和同步接着跑；点图标或再启动一次就回来，菜单里「退出」才真正结束（和 macOS 关窗后留在 Dock 一样）。GPUI 的 Windows 后端没有托盘。
+
+**建议：做，用 `tray-icon` crate（0.26，MIT/Apache-2.0，Tauri 底下用的就是它），归 F6，在阶段 2 写作闭环里补上。**
+
+- 理由：外部 Agent 的 MCP 桥接、后台帮手和同步都要一个开着的程序。不做托盘，Windows 上关掉窗口就等于退出，外部 Agent 连不上，作者会以为 MCP 坏了；和 macOS 的行为也不一致。
+- 做法：在主线程（GPUI 跑 Win32 消息循环的那个线程）建托盘图标，它靠同一个消息循环收消息；菜单点击从 `tray-icon` 的事件通道读，用一个 GPUI 前台任务转进应用。菜单两项「打开 Drifting」「退出 Drifting」，文案跟界面语言。
+- 和 F7 的接口：第二次启动转来的参数（`single_instance`）要能把藏起来的窗口叫回来，这和托盘的「打开」走同一个动作。
+- 在托盘做好之前，保持 P0-A 的行为：Windows 上关掉最后一个窗口就退出。
 
 ## 打包
 
@@ -248,6 +289,7 @@ CI（`next.yml` 的 Windows 任务，`script/check-windows-installer.ps1`）：�
 | `drifting:` 协议 | 网页登录回调、跳转链接 |
 | minisign 公钥和私钥 | 旧更新器只认这把钥匙签的包 |
 | 钥匙串服务名 `Drifting` 和键名 | 新版直接读旧条目，不用搬 |
+| 外部 Agent 的命令 `drifting --mcp --connection <文件>` | 已经写在作者的 Codex、Claude Code 配置里；可执行文件路径和参数都不能变，M32 实现桥接（见「外部 Agent 的命令行」） |
 
 ### 两份清单
 
@@ -268,6 +310,7 @@ CI（`next.yml` 的 Windows 任务，`script/check-windows-installer.ps1`）：�
    - macOS：把 GPUI 的 `.app.tar.gz` 解开换进 `Drifting.app` → `open -n` 打开 GPUI 版；
    - Windows：用 `/P /R /UPDATE /ARGS` 跑 GPUI 的安装器 → 装进同一个目录 → 启动 GPUI 版。
 5. **GPUI 版第一次启动**：发现旧库和交接清单，M10 导入（P0-E），钥匙串直接读。
+6. **外部 Agent**：配置里的命令原样指向新的可执行文件，新程序认 `--mcp --connection`；连接文件的格式和位置照旧（M32）。M32 没做完以前不能发 GPUI 版，否则交接后外部 Agent 会断。
 
 **跳过了旧版最后一版的人**（手动下了 0.2.0 的 DMG 或安装包）：导入时按 P0-E 默认拦住、给「仍然导入」。这时旧程序已经被换掉了，提示里的「用旧版最后一版打开一次」要给出旧版最后一版的下载链接（M10，见「待协调」）。
 
@@ -300,11 +343,12 @@ CI（`next.yml` 的 Windows 任务，`script/check-windows-installer.ps1`）：�
    - Windows 上调 GPUI 的 `set_app_identity(bundle id, 名字)`，让通知和任务栏归到同一个应用；新装的开始菜单快捷方式没带 AppUserModelID（NSIS 不带插件做不到），更新时保留旧快捷方式所以不受影响。
 3. **F2**：正式版和旧版共用数据文件夹 `~/Library/Application Support/cc.drifting.client`（Windows `%LOCALAPPDATA%\cc.drifting.client`），新库放进自己的子文件夹，旧文件一个都不写。`crashes/` 已被 F7 占用。完整性事件用 `report_integrity`。
 4. **工作区（监管会话定）**：`runtime_shaders` 现在写在 `[workspace.dependencies]` 的 `gpui_platform` 上，所有成员都开着。正式包要关掉它，得改成各可执行文件自己的默认特性（发布时 `--no-default-features`）。动的是共用的 GPUI 依赖行，我没改。
-5. **M32 / M42**：`--mcp --connection <文件>` 在 `main` 最前面分流（见「深链接与单实例」），交接以后外部 Agent 才连得上新程序。
-6. **F8**：启动器给每个 worktree 设 `DRIFTING_PROFILE`。
-7. **M10**：没交接的库被拦下时，提示里给旧版最后一版的下载链接（旧程序已经被替换了）。
-8. **正式版身份怎么切换**：建议交接时给 `dr-platform` 加一个 `release-identity` 特性，只有发布工作流开它，`Identity::current()` 据此返回 `RELEASE`；`bundle-mac` 和 `bundle-windows.ps1` 加对应开关。现在照 `AGENTS.md` 不做。
-9. **`next/README.md`**：改了「开发开关」表的 `DRIFTING_LOG` 一行，加了 `DRIFTING_LOG_FILE`、`DRIFTING_PROFILE`、`DRIFTING_CRASH_REPORTS_IN_DEV`、两个开发更新变量，和打包一节的 `--dmg`、`--archive`、Windows 脚本，以及目录表。
+5. **M32**：入口的分支已留好（`dr_platform::cli` + `main` 的 `run_mcp_bridge`），M32 实现桥接；它是发第一个 GPUI 版的前提。
+6. **F6 的退出流程**：GPUI 的退出回调只有 200 ms，保存、交接、同步要在调 `cx.quit()` 之前跑完；退出回调里只调 `CrashReporting::flush(100 ms)`。Windows 托盘建议用 `tray-icon`（见「Windows 托盘」）。
+7. **F8**：启动器给每个 worktree 设 `DRIFTING_PROFILE`。
+8. **M10**：没交接的库被拦下时，提示里给旧版最后一版的下载链接（旧程序已经被替换了）。
+9. **正式版身份怎么切换**：建议交接时给 `dr-platform` 加一个 `release-identity` 特性，只有发布工作流开它，`Identity::current()` 据此返回 `RELEASE`；`bundle-mac` 和 `bundle-windows.ps1` 加对应开关。现在照 `AGENTS.md` 不做。
+10. **`next/README.md`**：改了「开发开关」表的 `DRIFTING_LOG` 一行，加了 `DRIFTING_LOG_FILE`、`DRIFTING_PROFILE`、`DRIFTING_CRASH_REPORTS_IN_DEV`、两个开发更新变量，和打包一节的 `--dmg`、`--archive`、Windows 脚本，以及目录表。
 
 ## 数字
 
@@ -320,7 +364,7 @@ M3 Pro，release 构建，机器负载 15–18（其他会话在编译）。
 
 - 可执行文件多出的约 6 MB 是 Sentry（含 minidump 写入）、reqwest + tokio、rustls + ring 和平台验证器。
 - 不带 DSN 时，启动时 F7 只读几个环境变量、建几个路径、装一个 panic hook，量不出差别；首帧时间和 P0-A 在高负载下的分布一致。带 DSN 时多起一个旁路进程，要在空闲机器上另测。
-- 测试：`dr-platform` 64 个单元测试 + 1 个示例测试，另有 3 个默认忽略的真钥匙串测试（本机跑过）；`drifting` 13 个。
+- 测试：`dr-platform` 67 个单元测试 + 1 个示例测试，另有 3 个默认忽略的真钥匙串测试（本机跑过）；`drifting` 13 个。
 
 ## 下一个里程碑建议
 

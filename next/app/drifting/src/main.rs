@@ -12,6 +12,7 @@ mod menus;
 mod probe;
 mod titlebar;
 
+use std::path::Path;
 use std::sync::Arc;
 
 use dr_platform::DeepLinks;
@@ -32,6 +33,21 @@ pub struct Platform {
 impl Global for Platform {}
 
 fn main() {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    // External Agents run this executable as `drifting --mcp --connection
+    // <file>` (the 0.1 contract in their configs). Route it before anything
+    // else: no crash reporter, no single-instance lock, no window.
+    if let dr_platform::cli::Launch::Mcp(connection) = dr_platform::cli::parse(&args) {
+        if let Err(error) = connection
+            .map_err(str::to_owned)
+            .and_then(|file| run_mcp_bridge(&file))
+        {
+            eprintln!("{}{error}", dr_platform::cli::MCP_ERROR_PREFIX);
+            std::process::exit(1);
+        }
+        return;
+    }
+
     probe::start();
     let platform = dr_platform::Identity::current();
     let dirs = dr_platform::AppDirs::for_identity(platform).ok();
@@ -52,7 +68,6 @@ fn main() {
 
     // Windows: a second launch hands its arguments (a `drifting:` link) to the
     // running copy and exits. macOS: Launch Services does this itself.
-    let args: Vec<String> = std::env::args().skip(1).collect();
     let Some(instance) = dr_platform::single_instance::acquire(platform, &args).primary() else {
         return;
     };
@@ -104,6 +119,12 @@ fn main() {
         open_main_window(cx);
         cx.activate(true);
     });
+}
+
+/// The stdio bridge to a running Drifting, M32's (the 0.1 version is
+/// `local::cli` in `src-tauri/src/mcp_server.rs`).
+fn run_mcp_bridge(_connection: &Path) -> Result<(), String> {
+    Err("this build has no MCP bridge yet".into())
 }
 
 fn open_main_window(cx: &mut App) {

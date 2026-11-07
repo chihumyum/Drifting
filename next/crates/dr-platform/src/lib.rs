@@ -9,12 +9,15 @@
 //!
 //! Start-up order in `main`:
 //!
+//! 0. [`cli::parse`]: an `--mcp --connection <file>` launch (external Agents)
+//!    leaves here, before any of the rest;
 //! 1. [`crash::init`]: first, because in the crash-reporter process it never
 //!    returns;
 //! 2. [`logging::init`];
 //! 3. [`single_instance::acquire`]: exit when another copy took the arguments;
 //! 4. [`DeepLinks`]: queue the launch arguments, then GPUI's `on_open_urls`.
 
+pub mod cli;
 pub mod crash;
 pub mod deep_link;
 pub mod identity;

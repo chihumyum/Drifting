@@ -518,6 +518,17 @@ impl CrashReporting {
         }
     }
 
+    /// Sends what is queued, waiting at most `timeout`. GPUI gives quit
+    /// handlers 200 ms in all (`SHUTDOWN_TIMEOUT`) and `app.run` never returns
+    /// on macOS, so the client is not dropped at exit; call this from the quit
+    /// handler with a budget well under that. Panic records do not depend on
+    /// it: they wait on disk for the next launch.
+    pub fn flush(&self, timeout: std::time::Duration) -> bool {
+        sentry::Hub::current()
+            .client()
+            .is_none_or(|client| client.flush(Some(timeout)))
+    }
+
     /// Logs whether reports are on, without the DSN.
     pub fn log_status(&self) {
         match self.status {
