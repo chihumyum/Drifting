@@ -43,6 +43,23 @@ pub enum Target {
 }
 
 impl Target {
+    /// The target a [`Target::key`] names.
+    pub fn from_key(key: &str) -> Option<Target> {
+        if key == "book" {
+            return Some(Target::Book);
+        }
+        let (kind, id) = key.split_once(':')?;
+        Some(match kind {
+            "chapter" => Target::Chapter(id.parse().ok()?),
+            "idea" => Target::Idea(id.parse().ok()?),
+            "storyline" => Target::Storyline(id.parse().ok()?),
+            "element" => Target::Element(id.parse().ok()?),
+            "category" => Target::Category(id.parse().ok()?),
+            "material" => Target::Material(id.parse().ok()?),
+            _ => return None,
+        })
+    }
+
     /// A stable key, unique among a book's targets.
     pub fn key(&self) -> String {
         match self {
@@ -144,6 +161,15 @@ impl Tab {
             Tab::Leaf(leaf) => leaf,
             Tab::Split(split) => split.side(split.focused),
         }
+    }
+
+    /// Its one leaf, or a split's two (left first).
+    pub fn leaves(&self) -> impl Iterator<Item = &Leaf> {
+        let (a, b) = match self {
+            Tab::Leaf(leaf) => (leaf, None),
+            Tab::Split(split) => (&split.left, Some(&split.right)),
+        };
+        std::iter::once(a).chain(b)
     }
 
     pub fn contains(&self, target: &Target) -> bool {

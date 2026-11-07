@@ -19,7 +19,11 @@
       "noDrifts": "尚無構想。",
       "noElements": "尚無要素。"
     },
+    "groups": {
+      "unaffiliated": "無歸屬"
+    },
     "meta": {
+      "chapters": "{{count}} 章",
       "drifts": "{{count}} 個構想",
       "elements": "{{categories}} 個類目 · {{elements}} 個要素"
     },
@@ -32,6 +36,7 @@
       "close": "關閉左側欄",
       "open": "開啟左側欄"
     },
+    "uncategorized": "未分類",
     "viewMode": {
       "chapterSummary": "{{storylines}} 條故事線 · {{chapters}} 章"
     }
@@ -220,6 +225,10 @@
     "split": "恢復雙欄"
   },
   "topTimeline": {
+    "closeTab": "關閉分頁",
+    "dockLock": "保持展開",
+    "dockUnlock": "收回為圓點",
+    "newEntity": "建立實體",
     "singletons": {
       "allChapters": "全書"
     },

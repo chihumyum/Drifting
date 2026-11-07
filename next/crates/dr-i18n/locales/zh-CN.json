@@ -19,7 +19,11 @@
       "noDrifts": "还没有构想。",
       "noElements": "还没有要素。"
     },
+    "groups": {
+      "unaffiliated": "未归属"
+    },
     "meta": {
+      "chapters": "{{count}} 章",
       "drifts": "{{count}} 条构想",
       "elements": "{{categories}} 类 · {{elements}} 要素"
     },
@@ -32,6 +36,7 @@
       "close": "收起左侧栏",
       "open": "展开左侧栏"
     },
+    "uncategorized": "未分类",
     "viewMode": {
       "chapterSummary": "{{storylines}} 条故事线 · {{chapters}} 章"
     }
@@ -220,6 +225,10 @@
     "split": "恢复双栏"
   },
   "topTimeline": {
+    "closeTab": "关闭标签页",
+    "dockLock": "保持展开",
+    "dockUnlock": "收回小点",
+    "newEntity": "新建实体",
     "singletons": {
       "allChapters": "通览全书"
     },

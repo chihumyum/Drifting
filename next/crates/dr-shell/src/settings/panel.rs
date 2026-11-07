@@ -16,7 +16,8 @@ use dr_i18n::{Key, keys, normalize};
 use dr_ui::{
     Theme,
     components::{
-        Button, Choice, IconButton, PanelIconButton, Segmented, Select, Switch, menu::section_label,
+        Button, Choice, NumberField, PanelIconButton, Range, Segmented, Select, Switch,
+        menu::section_label,
     },
     fonts::Role,
     glass::{self, Ground, Kind as GlassKind, Mode, Spec, Tone},
@@ -251,15 +252,15 @@ impl Render for SettingsPanel {
         }
         let entity = cx.entity();
         let close = div()
-            .id("settings-close-slot")
-            .aria_label(t(cx, keys::common::CLOSE))
             .absolute()
             .top(px((TITLEBAR_HEIGHT - 28.0) / 2.0))
             .right(px(8.0))
             .child(
-                PanelIconButton::new("settings-close", Icon::Close).on_click(move |_, _, cx| {
-                    entity.update(cx, |_, cx| cx.emit(PanelEvent::Close))
-                }),
+                PanelIconButton::new("settings-close", Icon::Close)
+                    .label(t(cx, keys::common::CLOSE))
+                    .on_click(move |_, _, cx| {
+                        entity.update(cx, |_, cx| cx.emit(PanelEvent::Close))
+                    }),
             );
         glass::surface(
             Ground::flat(p.desk),
@@ -594,11 +595,22 @@ fn set(key: &'static str, value: Value, cx: &mut App) {
     }
 }
 
+/// The decimals a number shows for its grain: 0.02 and 0.05 two, 1 and 10
+/// none.
+pub fn decimals(step: f64) -> u32 {
+    let mut d = 0;
+    let mut x = step.abs();
+    while d < 4 && (x - x.round()).abs() > 1e-9 {
+        x *= 10.0;
+        d += 1;
+    }
+    d
+}
+
 /// The control a setting's kind calls for.
-fn control(def: &'static SettingDef, window: &mut Window, cx: &mut App) -> AnyElement {
+fn control(def: &'static SettingDef, _: &mut Window, cx: &mut App) -> AnyElement {
     let file = Settings::read(cx);
     let key = def.key;
-    let theme = Theme::of(window, cx);
     match def.kind {
         Kind::Switch => Switch::new(key, file.bool(key))
             .on_change(move |on, _, cx| set(key, Value::Bool(on), cx))
@@ -642,46 +654,31 @@ fn control(def: &'static SettingDef, window: &mut Window, cx: &mut App) -> AnyEl
             step,
             unit,
         } => {
+            // The slider and the number beside it: one value, one callback
+            // (the 0.1 client's GlassRange with its field).
             let value = file.number(key);
-            let text = if step >= 1.0 {
-                format!("{value:.0}")
-            } else {
-                let s = format!("{value:.2}");
-                s.trim_end_matches('0').trim_end_matches('.').to_owned()
-            };
-            let p = theme.palette;
-            let s = theme.scale;
+            let label = t(cx, def.label);
+            let pick = move |v: f64, _: &mut Window, cx: &mut App| set(key, Value::from(v), cx);
+            let mut field =
+                NumberField::new(SharedString::from(format!("{key}-field")), value, min, max)
+                    .decimals(decimals(step))
+                    .label(label.clone())
+                    .on_change(pick);
+            if !unit.is_empty() {
+                field = field.unit(unit);
+            }
             div()
                 .flex()
                 .flex_row()
                 .items_center()
-                .gap(px(4.0))
+                .gap(px(12.0))
                 .child(
-                    IconButton::new(SharedString::from(format!("{key}-less")), Icon::Minus)
-                        .disabled(value <= min)
-                        .on_click(move |_, _, cx| {
-                            let next = ((value - step) / step).round() * step;
-                            set(key, Value::from(next.max(min)), cx)
-                        }),
+                    Range::new(SharedString::from(format!("{key}-range")), value, min, max)
+                        .step(step)
+                        .label(label)
+                        .on_change(pick),
                 )
-                .child(
-                    div()
-                        .min_w(px(64.0))
-                        .flex()
-                        .justify_center()
-                        .font_role(Role::Index)
-                        .type_px(s.secondary, s.line_body)
-                        .text_color(p.ink(1).solid())
-                        .child(format!("{text} {unit}").trim().to_owned()),
-                )
-                .child(
-                    IconButton::new(SharedString::from(format!("{key}-more")), Icon::Plus)
-                        .disabled(value >= max)
-                        .on_click(move |_, _, cx| {
-                            let next = ((value + step) / step).round() * step;
-                            set(key, Value::from(next.min(max)), cx)
-                        }),
-                )
+                .child(field)
                 .into_any_element()
         }
     }

@@ -2,12 +2,12 @@
 //! the dock over its top edge, and the window-drag strip under the dock.
 //!
 //! The page is the one raised surface (surfaces.md). Changing pages
-//! dissolves in place (`PageTurn`, 180 ms). Until the editor (F4e) arrives,
-//! a chapter shows the stand-in book's made-up passage read-only, set with
-//! the editor settings (font size, line height, paragraph spacing and
-//! indent, page width), so those settings already show their effect.
-
-use std::rc::Rc;
+//! dissolves in place (`PageTurn`, 180 ms). Until the editor (dr-editor)
+//! takes the page over, it shows the document's prose from F3 read-only,
+//! set with the editor settings (font size, line height, paragraph spacing
+//! and indent, page width): body text in the prose face, H1/H2/H3 at the
+//! 0.1 client's 28/22/18 px for its 17 px text, scaled with the font size.
+//! Only the rows on screen are laid out (GPUI's `list`).
 
 use dr_i18n::keys;
 use dr_ui::{
@@ -20,18 +20,18 @@ use dr_ui::{
     transitions::PageTurn,
 };
 use gpui::{
-    AnyElement, App, BoxShadow, Context, ElementId, InteractiveElement, IntoElement, MouseButton,
-    ParentElement, SharedString, StatefulInteractiveElement, Styled, Window, div, point,
+    AnyElement, App, BoxShadow, Context, ElementId, Entity, InteractiveElement, IntoElement,
+    MouseButton, ParentElement, SharedString, Styled, Window, div, list, point,
     prelude::FluentBuilder as _, px, relative,
 };
 
 use super::chrome::{self, TITLEBAR_HEIGHT};
-use super::dock::{self, DockDrag};
-use super::{PageSide, Workspace};
+use super::dock::DockDrag;
+use super::{Item, PageSide, Workspace, dock};
 use crate::Settings;
+use crate::book::Paragraph;
 use crate::nav::{Tab, Target};
 use crate::settings::registry as r;
-use crate::stand_in::StandIn;
 use crate::strings::t;
 
 /// How the editor settings set the read-only page.
@@ -44,7 +44,19 @@ pub struct EditorLook {
     pub indent: usize,
 }
 
+/// The 0.1 client's H1, H2 and H3 (`.page__body .ProseMirror h1…h3`: 28,
+/// 22 and 18 px) over its 17 px body text.
+pub const HEADING_SCALE: [f32; 3] = [28.0 / 17.0, 22.0 / 17.0, 18.0 / 17.0];
+
 impl EditorLook {
+    /// The size of a paragraph's text: the font size, or a heading's.
+    pub fn size_of(&self, heading: u8) -> f32 {
+        match heading {
+            1..=3 => (self.font_size * HEADING_SCALE[heading as usize - 1]).round(),
+            _ => self.font_size,
+        }
+    }
+
     pub fn read(cx: &App) -> EditorLook {
         let file = Settings::read(cx);
         EditorLook {
@@ -69,25 +81,8 @@ fn page_key(target: Option<&Target>) -> SharedString {
     }
 }
 
-fn target_for_key(book: &StandIn, key: &str) -> Option<Target> {
-    if key == "book" {
-        return Some(Target::Book);
-    }
-    let (kind, id) = key.split_once(':')?;
-    let target = match kind {
-        "chapter" => Target::Chapter(id.parse().ok()?),
-        "idea" => Target::Idea(id.parse().ok()?),
-        "storyline" => Target::Storyline(id.parse().ok()?),
-        "element" => Target::Element(id.parse().ok()?),
-        "category" => Target::Category(id.parse().ok()?),
-        "material" => Target::Material(id.parse().ok()?),
-        _ => return None,
-    };
-    book.exists(&target).then_some(target)
-}
-
 pub fn mid(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>) -> AnyElement {
-    let book = ws.book.clone();
+    let entity = cx.entity();
     let look = EditorLook::read(cx);
     let active = ws.nav.active_index();
     let pages: AnyElement = match ws.nav.active_tab().cloned() {
@@ -97,7 +92,7 @@ pub fn mid(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>)
             let side = |which: PageSide, cx: &mut Context<Workspace>| {
                 let leaf = split.side(which).clone();
                 let focused = split.focused == which;
-                let entity = cx.entity();
+                let focus = cx.entity();
                 div()
                     .id(match which {
                         PageSide::Left => "split-left",
@@ -109,7 +104,7 @@ pub fn mid(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>)
                     .min_w_0()
                     .on_mouse_down(MouseButton::Left, move |_, _, cx| {
                         if !focused {
-                            entity.update(cx, |ws, cx| {
+                            focus.update(cx, |ws, cx| {
                                 ws.nav.focus_side(index, which);
                                 ws.changed(cx);
                             });
@@ -121,7 +116,7 @@ pub fn mid(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>)
                             PageSide::Right => "page-right",
                         },
                         Some(&leaf.target),
-                        &book,
+                        &entity,
                         look,
                     ))
             };
@@ -144,7 +139,7 @@ pub fn mid(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>)
         }
         tab => {
             let target = tab.map(|t| t.focused().target.clone());
-            page_turn("page-main", target.as_ref(), &book, look).into_any_element()
+            page_turn("page-main", target.as_ref(), &entity, look).into_any_element()
         }
     };
     let strip = chrome::drag_region(
@@ -203,19 +198,19 @@ fn drop_zones(window: &mut Window, cx: &mut Context<Workspace>) -> impl IntoElem
 fn page_turn(
     id: &'static str,
     target: Option<&Target>,
-    book: &Rc<StandIn>,
+    ws: &Entity<Workspace>,
     look: EditorLook,
 ) -> PageTurn {
-    let book = book.clone();
+    let ws = ws.clone();
     PageTurn::new(id, page_key(target), move |key, window, cx| {
-        let target = target_for_key(&book, key);
-        paper(&book, target.as_ref(), look, window, cx)
+        let target = Target::from_key(key);
+        paper(&ws, target.as_ref(), look, window, cx)
     })
 }
 
 /// One page: the raised paper on the desk, its content scrolling inside.
 fn paper(
-    book: &StandIn,
+    ws: &Entity<Workspace>,
     target: Option<&Target>,
     look: EditorLook,
     window: &mut Window,
@@ -242,8 +237,8 @@ fn paper(
     ];
     let key = page_key(target);
     let content = match target {
-        None => home(book, window, cx),
-        Some(target) => document(book, target, look, window, cx),
+        None => home(ws, window, cx),
+        Some(target) => document(ws, target, look, window, cx),
     };
     let sheet = div()
         .id(ElementId::Name(format!("paper-{key}").into()))
@@ -253,7 +248,6 @@ fn paper(
         .bg(p.page.solid())
         .rounded(px(surface::PAGE_RADIUS))
         .shadow(shadow)
-        .overflow_y_scroll()
         .child(content);
     div()
         .size_full()
@@ -264,10 +258,11 @@ fn paper(
         .into_any_element()
 }
 
-fn home(book: &StandIn, window: &mut Window, cx: &mut App) -> AnyElement {
+fn home(ws: &Entity<Workspace>, window: &mut Window, cx: &mut App) -> AnyElement {
     let theme = Theme::of(window, cx);
     let p = theme.palette;
     let s = theme.scale;
+    let name = ws.read(cx).book.name.clone();
     div()
         .pt(px(120.0))
         .px(px(64.0))
@@ -286,85 +281,101 @@ fn home(book: &StandIn, window: &mut Window, cx: &mut App) -> AnyElement {
                 .font_role(Role::Structure)
                 .type_px(s.heading + 16.0, s.heading + 26.0)
                 .text_color(p.ink(1).solid())
-                .child(book.title),
+                .child(name),
         )
         .into_any_element()
 }
 
+/// The page's side margins and the room above the title and below the last
+/// paragraph.
+const PAGE_PAD_X: f32 = 64.0;
+const PAGE_PAD_TOP: f32 = 96.0;
+const PAGE_PAD_BOTTOM: f32 = 160.0;
+
 fn document(
-    book: &StandIn,
+    ws: &Entity<Workspace>,
     target: &Target,
     look: EditorLook,
     window: &mut Window,
     cx: &mut App,
 ) -> AnyElement {
+    let w = ws.read(cx);
+    let Some(slot) = w.pages.get(&target.key()) else {
+        return div().into_any_element();
+    };
+    let items = slot.items.clone();
+    let state = slot.list.clone();
+    let book = w.book.clone();
     let theme = Theme::of(window, cx);
-    let p = theme.palette;
-    let s = theme.scale;
-    let (kind, color) = dock::mark_of(book, target, &theme);
-    let title = super::title_of(book, target, cx);
-    let mark = KindMark::new(
-        ElementId::Name(format!("page-mark-{}", target.key()).into()),
-        kind,
-    );
-    let mark = match color {
-        Some(c) => mark.color(c),
-        None => mark,
-    };
-    let heading = |text: SharedString| {
-        div()
-            .font_role(Role::Structure)
-            .type_px(s.heading + 10.0, s.heading + 20.0)
-            .text_color(p.ink(1).solid())
-            .child(text)
-    };
-    let prose = |text: &'static str| {
-        let indent = "\u{3000}".repeat(look.indent);
-        div()
-            .font_family(Role::Prose.family())
-            .font_weight(weight::REGULAR)
-            .text_size(px(look.font_size))
-            .line_height(px(look.font_size * look.line_height))
-            .mb(px(look.font_size * look.paragraph_spacing))
-            .text_color(p.ink(1).solid())
-            .child(format!("{indent}{text}"))
-    };
-    let mut col = div()
-        .pt(px(96.0))
-        .pb(px(160.0))
-        .px(px(64.0))
-        .flex()
-        .flex_col();
-    col = col.child(
-        div()
-            .mb(px(28.0))
-            .flex()
-            .flex_row()
-            .items_center()
-            .gap(px(10.0))
-            .child(mark)
-            .child(heading(title)),
-    );
-    match target {
-        Target::Chapter(id) => {
-            let i = book.chapter_index(id).unwrap_or(0);
-            col = col.children(book.paragraphs(i).map(prose));
-        }
-        Target::Book => {
-            for (i, chapter) in book.chapters.iter().enumerate() {
-                col = col.child(
-                    div()
-                        .mt(px(if i == 0 { 0.0 } else { 36.0 }))
-                        .mb(px(16.0))
-                        .font_role(Role::Structure)
-                        .type_px(s.heading + 4.0, s.heading + 12.0)
-                        .text_color(p.ink(1).solid())
-                        .child(chapter.title),
-                );
-                col = col.children(book.paragraphs(i).take(2).map(prose));
+    let (kind, color) = book.mark(target);
+    let title = super::title_of(&book, target, cx);
+    let key = target.key();
+    let last = items.len().saturating_sub(1);
+    list(state, move |ix, window, cx| {
+        let theme = Theme::of(window, cx);
+        let p = theme.palette;
+        let s = theme.scale;
+        let row = match &items[ix] {
+            Item::Head => {
+                let mark = KindMark::new(ElementId::Name(format!("page-mark-{key}").into()), kind);
+                let mark = match color {
+                    Some(c) => mark.color(c),
+                    None => mark,
+                };
+                div()
+                    .pt(px(PAGE_PAD_TOP))
+                    .pb(px(28.0))
+                    .flex()
+                    .flex_row()
+                    .items_center()
+                    .gap(px(10.0))
+                    .child(mark)
+                    .child(
+                        div()
+                            .font_role(Role::Structure)
+                            .type_px(s.heading + 10.0, s.heading + 20.0)
+                            .text_color(p.ink(1).solid())
+                            .child(title.clone()),
+                    )
             }
-        }
-        _ => {}
-    }
-    col.into_any_element()
+            Item::Section(name) => div()
+                .pt(px(if ix <= 1 { 0.0 } else { 36.0 }))
+                .pb(px(16.0))
+                .font_role(Role::Structure)
+                .type_px(s.heading + 4.0, s.heading + 12.0)
+                .text_color(p.ink(1).solid())
+                .child(name.clone()),
+            Item::Para(para) => paragraph(para, look, p.ink(1).solid()),
+        };
+        div()
+            .px(px(PAGE_PAD_X))
+            .when(ix == last, |el| el.pb(px(PAGE_PAD_BOTTOM)))
+            .child(row)
+            .into_any_element()
+    })
+    .size_full()
+    .text_color(theme.palette.ink(1).solid())
+    .into_any_element()
+}
+
+/// A paragraph as the editor sets it: the prose face, the font size or a
+/// heading's, the line height as a multiple, the paragraph spacing after
+/// it and the indent on body text only (`:is(p, h1, h2, h3)` margin,
+/// `p { text-indent }`).
+fn paragraph(para: &Paragraph, look: EditorLook, ink: gpui::Hsla) -> gpui::Div {
+    let size = look.size_of(para.heading);
+    let heading = para.heading > 0;
+    let indent = if heading {
+        String::new()
+    } else {
+        "\u{3000}".repeat(look.indent)
+    };
+    div()
+        .font_family(Role::Prose.family())
+        .font_weight(weight::REGULAR)
+        .text_size(px(size))
+        .line_height(px(size * look.line_height))
+        .pb(px(look.font_size * look.paragraph_spacing))
+        .text_color(ink)
+        .child(format!("{indent}{}", para.text))
 }

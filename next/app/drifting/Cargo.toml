@@ -11,6 +11,7 @@ anyhow.workspace = true
 dr-platform.workspace = true
 dr-shell.workspace = true
 dr-ui.workspace = true
+dr-workspace.workspace = true
 gpui.workspace = true
 gpui_platform.workspace = true
 log.workspace = true
