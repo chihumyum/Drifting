@@ -1,0 +1,6 @@
+prose-metrics
+Copyright 2026 chihumyum
+
+Drifting's word-count rule, ported from @drifting/prose-metrics. Licensed under
+the Apache License, Version 2.0 (LICENSE). The rest of the Drifting repository
+is AGPL-3.0-or-later; this crate does not depend on it.

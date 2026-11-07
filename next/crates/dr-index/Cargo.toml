@@ -1,0 +1,26 @@
+[package]
+name = "dr-index"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Drifting's derived indexes: dr-store's Deriver, built on dr-doc's prose and dr-text (paragraphs, outline, references, word counts), updated from Loro diffs"
+
+[dependencies]
+dr-doc.workspace = true
+dr-model.workspace = true
+dr-store.workspace = true
+dr-text.workspace = true
+log.workspace = true
+loro.workspace = true
+# The measurement evidence's source fingerprint (`evidence`).
+sha2.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+tempfile.workspace = true
+# The end-to-end check imports a synthetic 0.1 library (M10's own builder).
+dr-import-v1.workspace = true
+rusqlite.workspace = true
+serde_json.workspace = true
