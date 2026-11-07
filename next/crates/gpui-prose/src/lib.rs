@@ -42,7 +42,7 @@ pub mod style;
 pub mod text;
 
 pub use editor::{EditorEvent, ProseEditor};
-pub use extension::ProseExtension;
+pub use extension::{InputRule, ProseExtension, Typed};
 pub use input::{Composition, Selection, bind_keys};
 pub use layout::{Book, Chapter};
 pub use platform::PlatformHooks;

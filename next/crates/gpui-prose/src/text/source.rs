@@ -140,6 +140,26 @@ pub trait ProseSource: Send {
     /// Where an anchor points now.
     fn resolve(&self, anchor: &Anchor) -> Option<Resolved>;
 
+    /// Every paragraph, and no pending event: what [`ProseSource::read_all`]
+    /// returns, with the events up to that state dropped, as one step. The
+    /// editor builds its mirror from it when opening and after
+    /// [`ProseSource::needs_resync`]. A source whose document other threads
+    /// also write (an Agent's or a sync's commit on a storage thread) must
+    /// read and drop atomically, or a commit landing between the two would
+    /// be applied twice; a single-threaded source keeps the default.
+    fn resync(&mut self) -> Vec<SourceParagraph> {
+        self.take_events();
+        self.read_all()
+    }
+
+    /// Whether a read since the last [`ProseSource::take_events`] may have
+    /// seen changes whose events the editor has not taken yet (another
+    /// thread committed in between). The editor then rebuilds its mirror
+    /// from [`ProseSource::resync`]. Single-threaded sources never need it.
+    fn needs_resync(&mut self) -> bool {
+        false
+    }
+
     /// Imports remote updates and repairs block ids. Sources whose updates
     /// arrive another way (Drifting's sync) keep the default.
     fn import(&mut self, _bytes: &[u8]) -> Result<(), String> {

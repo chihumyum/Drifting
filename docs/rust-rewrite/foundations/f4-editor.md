@@ -1,6 +1,53 @@
 # F4 编辑引擎：gpui-prose
 
-2026-11-07 起。代码在 `next/crates/gpui-prose`，加两个小 crate `next/crates/gpui-ime`（组字规则，只用标准库）和 `next/crates/prose-linebreak`（中文断行，只依赖 `icu_segmenter`），三个都是 `MIT OR Apache-2.0`。`gpui-prose` 依赖 `gpui`（和它自带的 `sum_tree`）、`loro`、这两个小 crate，默认特性 `icu` 另加 ICU4X 分词，不依赖任何 `dr-*`；Drifting 自己的扩展 F4e 以后在 `dr-editor`。计划见 [foundation.md 的 F4 一节](../foundation.md#f4-编辑引擎gpui-prose-与-dr-editor)，正文格式见 [loro-schema.md](../loro-schema.md)，起点是 [P0-B 探针](../spikes/p0-b-editor.md)。
+2026-11-07 起。代码在 `next/crates/gpui-prose`（Drifting 自己的那一层在 `next/crates/dr-editor`，AGPL，见「第三轮」），加两个小 crate `next/crates/gpui-ime`（组字规则，只用标准库）和 `next/crates/prose-linebreak`（中文断行，只依赖 `icu_segmenter`），三个都是 `MIT OR Apache-2.0`。`gpui-prose` 依赖 `gpui`（和它自带的 `sum_tree`）、`loro`、这两个小 crate，默认特性 `icu` 另加 ICU4X 分词，不依赖任何 `dr-*`。计划见 [foundation.md 的 F4 一节](../foundation.md#f4-编辑引擎gpui-prose-与-dr-editor)，正文格式见 [loro-schema.md](../loro-schema.md)，起点是 [P0-B 探针](../spikes/p0-b-editor.md)。
+
+## 第三轮（F4e：dr-editor）
+
+### 一句话
+
+Drifting 的正文能在新版里编辑并落盘了：新的 AGPL crate `next/crates/dr-editor` 把 `gpui-prose` 接到 F3 的工作区上，作者打的每个字都是 `dr-doc` 的一次事务、经 F3 的编辑会话写进 F2 的持有者、提交前先落盘，搜索、字数、派生索引跟着变；Agent 的命令改了打开的这一章，编辑器当成「别人的改动」看到，作者的撤销不碰它。真正的 `dr-doc` 文本源过了 `gpui-prose` 的整套一致性检查，在 16 组 × 120 步随机编辑下和 `LoroSource` 逐字一样；两张样式表逐键一致。第一批扩展做了人物链接的样子、Markdown 输入规则（含中文字后紧跟 `**`）、TODO 标记识别；`cargo run -p dr-editor --example edit` 在 showcase 种子上开一章编辑，`-- --check` 不开窗口做一遍「编辑 → 关库 → 重开 → 核对」。
+
+### 大白话
+
+- **写入走工作区。** 编辑器的文本源 `SessionSource` 套在 F3 的 `ProseSession` 上：每次编辑在持有者的写入任务里开 `dr-doc` 的事务（回车挪块 ID、粘贴给新 ID、标记不落在换行上，都是 `dr-doc` 那一份规则），来源 `user`，一次提交，落盘以后才发事件，所以工作区的缓存、搜索索引、字数都看得见。撤销、重做是会话的 `ProseUndo`（合并间隔 0，只撤 `user`）。编辑器自己把一阵连打合成一步，这一点不变。
+- **读和锚点在持有者线程上。** 读全文、读一段、建锚点、解析锚点，都用 F2 的 `DocHandle::read` 放到持有者线程上、在两次写入之间做，所以永远看不到半个提交；解析锚点可能隐式提交，也只能放在那里（F3 的规矩）。正文按原样读（`to_delta`），用 `gpui-prose` 的读法，规则就是 schema 的规则。
+- **别人的改动。** 文本源订阅正文：作者的、Agent 命令的、同步导入的、修复的提交，都进同一个队列，插入的字带着标记，所以打字从不回读一段。Agent 改动打开的这一章时，工作区的 `Prose` 事件在持有者线程上到达，视图把它挪到主线程，编辑器把队列折进镜像。
+- **一个并发的坑，补上了。** 别的线程也在写这篇文档，编辑器「先取事件、再读一段」之间如果插进一次提交，那次提交会被算两遍。`gpui-prose` 的 trait 加了两个有默认值的方法：`resync`（读全文并丢掉到此为止的事件，一步完成）和 `needs_resync`。`SessionSource` 在持有者线程上数「推进了几个事件、编辑器取走了几个」，读的时候发现多了就标记，编辑器随即整篇对一遍，只把不同的段落换掉（选区在别处的不动）。`LoroSource` 是单线程的，用默认实现。有测试。
+- **对拍抓到 `LoroSource` 三处和 `dr-doc` 不一样，都照 `dr-doc` 改了。** 随机编辑加到 16 组 × 120 步以后，和真正的 `dr-doc` 比出三处：① 把段落属性设成它本来的值（比如已经是引文的段再设引文），`LoroSource` 照样写一次，作者的撤销栈多了一步「什么也不变」的撤销；现在值没变就不写。② 清掉行内标记时 `dr-doc` 连换行一起清，`LoroSource` 跳过换行；现在一样了。③ 在斜体字后面粘贴两段，新换行从 Loro 的延续规则里沾上了斜体，第二段开头的字跟着变斜体；`dr-doc` 写换行时会把行内标记拿掉（标记不落在换行上），现在 `LoroSource` 也拿掉了，粘贴和逐字打出来的结果一样。`gpui-prose` 里照 `dr-doc` 写的测试用文本源也同步改了这三处。
+- **样式表只由 `dr-doc` 配。** `dr-editor` 不调 `gpui_prose::schema::configure`。`gpui-prose` 把样式表导出成常量 `STYLE_TABLE` 和默认规则 `DEFAULT_EXPAND`（`configure` 现在也设默认规则，和 `dr-doc` 一样：以后新增的标记默认不延续）；`dr-editor` 的测试拿 `dr-doc` 的 `STYLE_TABLE` 对 `gpui_prose::schema::style_config()` 逐键比，再用 `dr-doc` 的 `style_table_mismatches` 比一遍。
+- **人物链接的样子。** `entity:<id>` 标记的字用链接色加细下划线；目标已经删掉或进了废纸篓，就变成灰字、只留下划线。目标在不在，查 F3 的目录（`BookCatalog`，和位置链接同一套），按目标缓存，书一变就清掉。还没链上的名字（`dr-text` 匹配器找到的）要画成建议，等 F4d 的画层接口（见待协调）。
+- **Markdown 输入规则。** 照旧版：`**粗**`、`__粗__`、`*斜*`、`_斜_`、`~~删~~` 在打出收尾记号时变成标记、记号消失，接着打的字不带这个标记；被标的字不能以空格开头或结尾。中文没有空格，所以 `他把**吸铁石**拍在桌上` 也认；单个 `*`、`_` 和 `__` 前面仍要是空格或非单词字符，`snake_case`、`a*b*c` 不会误伤。段首的 `# `、`## `、`### ` 变 H1/H2/H3，`> ` 变引文。机制在 `gpui-prose`（扩展的新钩子 `input_rule`，规则的结果作为单独的一步撤销，⌘Z 能把原样的 Markdown 找回来），规则在 `dr-editor/src/rules.rs`，是纯函数。
+- **TODO 标记。** 照旧版的规则：段首（可有空白）是 `TODO`（不分大小写）或 `待办`，后面至少一个空格、`:` 或 `：`，其余是任务。编辑器每次改动后重新找一遍，变了就发 `ChapterEditorEvent::TodoMarkers`（带段落的块 ID）。把它们投成待办要 F3 的命令（见待协调）。
+- **给 F6 的接入点。** `ChapterEditor` 是一个 GPUI 视图：`ChapterEditor::open(ws, book, "node:<id>", settings, window, cx)`，放进稿纸区就是它本身；`switch_to(doc)` 换一章（或构想、要素的正文）；`set_settings(EditorSettings::from_values(|k| Some(Settings::read(cx).get(k))), cx)` 读编辑器设置（`dr-editor` 不依赖 `dr-shell`，键名和外壳注册表的一样）；`set_base_style` 换主题颜色。事件：`Edited`、`TodoMarkers`、`AnchorsChanged`。
+- **例子。** `cargo run -p dr-editor --example edit`：库放在开发版数据目录里单独的 `dr-editor-example` 文件夹（不碰程序的 `library`），第一次运行写入 showcase 种子；窗口底下一行显示书的字数和 `--search` 的命中数，每秒从工作区读一次，F2 在文档空闲后补索引，所以打完字一两秒就变。关掉再开，字还在。`-- --check` 不开窗口：在第一章末尾打「编辑器检查」，关库、重开，核对正文、搜索、字数，再删掉、核对删掉也落盘了。本机跑过：正文落盘、搜索命中 1、字数 71000 → 71005（每个汉字一个字）、删掉后复原。
+- **基准。** 新的 `cargo run --release -p dr-editor --example editor-bench` 在 F8 的种子（Lite：20 章、16.5 万字）上量 Drifting 真正的写入路径，写成 F8 格式的证据 [f4-m3-editor-bench.json](../acceptance/f4-m3-editor-bench.json)（`cargo xtask check` 认得，算新鲜）。窗口和上屏那一套（`prose-bench`）这一轮没搬，理由见「下一轮怎么拆」。
+
+**测量（写入路径，[f4-m3-editor-bench.json](../acceptance/f4-m3-editor-bench.json)）。** F8 的 Lite 种子（20 章、165316 字，最长一章 22005 字），release 构建，测量时一分钟负载 10.64（别的会话在编译，仅供参考；F8 的格式记下了负载）。p50 / p95：
+
+| 项 | 预算 | 数字 | 说明 |
+| --- | --- | ---: | --- |
+| 打一个字（经会话写入、落盘、事件回到镜像） | 中位数 ≤ 2 ms | 0.40 / 7.12 ms | 第二轮 `LoroSource` + 单独 SQLite 的同一项中位数 0.026 ms；多出来的是持有者线程的往返和 `dr-store` 的落盘，仍远在预算内 |
+| 撤销一步 | — | 5.61 / 13.32 ms | 一步一项，每项是持有者的一个写入任务 |
+| 打开一章（持有者从 SQLite 冷开） | ≤ 80 ms | 2.49 / 5.45 ms | |
+| 再开同一章（持有者已开） | — | 0.33 / 0.91 ms | |
+| 全书 20 章逐章打开 | ≤ 200 ms | 24.4 ms | 一个线程依次开；窗口里会并行 |
+| Agent 的命令（`prose.replace`） | — | 1.55 / 3.01 ms | 命令本身，含落盘 |
+| 编辑器把它折进镜像 | — | 0.015 / 0.028 ms | 事件里带着标记，不回读 |
+
+**旧证据。** 这一轮改了 `gpui-prose` 的源码（输入规则钩子、`set_style`、`resync`、上面三处），第二轮的 `f4-*.json`（无窗口、窗口、上屏、空闲、里程碑清单）的源码指纹因此对不上，`prose-bench check` 会报过期；`cargo xtask check` 把它们算作「旧格式，由自己的程序检查」，不算失败。它们和基准搬家、空闲重测一起重跑（见「下一轮怎么拆」），这一轮没有在高负载下再跑一遍。
+
+### 第三轮：要求和完成情况
+
+| # | 要求 | 状态 | 证据 |
+| --- | --- | --- | --- |
+| 1 | 用 `dr-doc` 的 `ProseTxn` / `ProseUndo` 实现 `ProseSource`：写入在持有者的写闭包里，读走 `DocView`，锚点的 `get_cursor_pos` 在读闭包里；样式表只由 `dr-doc` 配，逐键对拍；打开分工照待协调 5 | 完成（读和锚点用 `DocHandle::read`，即持有者线程上的读闭包，比 `DocView::with_doc` 更严，见「大白话」） | `dr-editor/src/source.rs`、`convert.rs`；`tests/source.rs`：`the_session_source_passes_the_conformance_suite`、`the_session_source_behaves_like_the_built_in_one`、`the_style_tables_agree_key_by_key`、`a_commit_between_events_and_a_read_resyncs_the_mirror` |
+| 2 | 经过 F3：编辑器作为工作区的参与者打开正文；Agent 写入走命令层，编辑器只当「别人的改动」看到；撤销带回的锚点经 `AnchorsChanged` 写回书目 | 前两件完成；锚点读出来了、撤销后的新锚点作为事件交出，**写回书目缺 F3 的命令**（待协调 F3-1） | `tests/source.rs`：`an_agents_command_reaches_the_editor_as_someone_elses_change`；`tests/editor.rs`：`typing_persists_through_the_workspace`、`an_agents_command_shows_up_in_the_open_editor` |
+| 3 | 人物链接的显示（`style_run`，名字来自 F3 目录 / `dr-text` 匹配器）、Markdown 输入规则（含中文字后的 `**`）、TODO 标记识别 | 完成；未链接名字的「建议」显示等 F4d 画层 | `links.rs`、`rules.rs`（4 个测试）、`todo.rs`（3 个测试）；`tests/editor.rs`：`markdown_after_a_chinese_character_becomes_bold`、`headings_from_markdown`、`chapters_switch_and_todo_markers_are_found`；`gpui-prose` 的 `input_rules_apply_as_their_own_step` |
+| 4 | `cargo run -p dr-editor --example edit`：showcase 建库（开发 profile 目录），开一章编辑，关掉重开内容还在，搜索和字数跟着变 | 完成 | `examples/edit.rs`；`-- --check` 的输出见上 |
+| 5 | 给 F6 留接入点：视图怎么放进稿纸区、怎么切换章节、设置从 `Settings::read(cx)` 读 | 完成 | `view.rs`（`ChapterEditor`）、`settings.rs`；`tests/editor.rs`：`settings_change_the_editor_style`、`chapters_switch_and_todo_markers_are_found` |
+| 6 | 基准搬进 `dr-editor`（或单独的基准 crate），语料换成 `dr_testkit::seed` | 写入路径的基准做了（新、F8 格式）；窗口和上屏那一套下一轮和空闲重测一起搬 | `examples/editor-bench.rs`、[f4-m3-editor-bench.json](../acceptance/f4-m3-editor-bench.json) |
+| — | 新 crate 进 members、登记进 `xtask` 的层（界面层）、`cargo xtask check` | `dr-editor` 早已在 `LAYERS` 里登记为界面层；`cargo xtask check` 全过 | — |
 
 ## 第二轮（F4a）
 
@@ -120,7 +167,7 @@
 | 方法 | 做什么 |
 | --- | --- |
 | `read_all()`、`read(range)` | 读段落：文字、`\n` 上的段落属性、行内标记的分段（按读取规则：段落属性只认 `\n`，标记不认 `\n`）。`read` 的范围从段首开始、到某个 `\n` 之后或全文末尾结束 |
-| `take_events()` | 取走自上次以来的改动：本机编辑、撤销重做、导入。每个事件是 retain / insert / delete 的序列，坐标是改之前的（Quill 式，和 `dr-doc` 的 `ProseEvent` 一样）。插入可以带「这段新字的标记」，带了编辑器就不回读这一段（自带实现带；`dr-doc` 自 F1 第四轮起也带，见待协调 2） |
+| `take_events()` | 取走自上次以来的改动：本机编辑、撤销重做、导入。每个事件是 retain / insert / delete 的序列，坐标是改之前的（Quill 式，和 `dr-doc` 的 `ProseEvent` 一样）。插入可以带「这段新字的标记」，带了编辑器就不回读这一段（自带实现带，`dr-doc` 现在不带） |
 | `edit(Edit, origin) -> EditResult` | 一次编辑一次提交。`Edit` 有六种：`Replace`（换成一段字，里面的 `\n` 都按回车处理，可以给新字加减标记）、`Delete`、`Split`（回车）、`SetBlockAttr`、`Mark`、`Unmark`。规则全在实现里。`EditResult` 给回新字的范围、光标位置、删掉的几段（改之前的坐标）和这次提交往作者撤销栈里压了几项 |
 | `undo_item()`、`redo_item()` | 撤销 / 重做 Loro 撤销栈里的一项。编辑器按阵把几项合成作者的一步，一次撤销调几次 |
 | `anchor(range)`、`resolve(&Anchor)` | 建锚点、解析锚点 |
@@ -246,6 +293,28 @@
 | `ProseStyle`、`EditorOptions { present_now, cursor_blink, ime_log }` | 样式与选项 | 可能变（F5 的令牌接进来后换成从令牌来） |
 | `after_next_paint`、`painted_lines` | 给基准用 | 可能变 |
 
+### 第三轮给 `gpui-prose` 加的
+
+- `ProseSource::resync` / `needs_resync`（有默认值）：别的线程也写文档的文本源用它们保证「读」和「事件」对得上。
+- `text::{read_paragraphs, change_of}`：给套在别人持有的 `LoroDoc` 上的文本源用的读法和事件换算（`dr-editor` 用）。
+- `ProseExtension::input_rule(&Typed) -> Option<InputRule>`：输入规则的钩子；`InputRule::Mark { open, inner, close, key, value }` / `InputRule::Block { prefix, key, value }`，作为单独一步撤销应用。
+- `ProseEditor::set_style`（换字号、行距、纸宽、颜色，全部重排）、`CursorLayer::set_color`。
+- `schema::STYLE_TABLE`、`schema::DEFAULT_EXPAND`；`schema::configure` 现在也设默认规则。
+
+### Drifting 的编辑器（`dr-editor`，F4e，AGPL）
+
+| 项 | 说明 |
+| --- | --- |
+| `SessionSource::open(&ws, doc_id)` | `gpui-prose` 的文本源：写入、撤销经 F3 的 `ProseSession`，读、锚点在 F2 持有者线程上；`with_foreign_writes()` 只给测试 |
+| `ChapterEditor::open(ws, book, doc_id, settings, window, cx)` | 稿纸上的编辑器视图；`switch_to(doc_id)`、`set_settings`、`set_base_style`、`editor()`（里面的 `ProseEditor`）、`todo_markers()`、`plain_text()` |
+| `ChapterEditorEvent` | `Edited`、`TodoMarkers(Vec<TodoMarker>)`、`AnchorsChanged(Vec<(批注 id, EncodedAnchor)>)` |
+| `EditorSettings::from_values(get)` / `.style(&base)` | 外壳设置（键名同 `dr-shell` 的注册表）到 `ProseStyle` |
+| `DriftingExtension::new(targets)` | 人物链接的样子（`LinkTargets`，`BookCatalog` 实现了它）加 Markdown 输入规则；`invalidate()` 在书变了时清缓存 |
+| `rules::markdown_rule(&Typed)` | Markdown 输入规则（纯函数） |
+| `todo::parse(text)` / `todo::markers(paragraphs)` | TODO 标记 |
+| `anchors::{comment_anchors, encode, decode}` | 读一篇正文上的批注锚点；`gpui-prose` 与书目文档之间的锚点编码 |
+| `convert::{apply, OwnedEdit, entity_link, entity_value}` | `gpui-prose` 的编辑（原始键值）到 `dr-doc` 类型化事务 |
+
 ### 格式（`gpui_prose::schema`）
 
 `BODY`、`block::*`（`ALL`、`INHERITED_ON_SPLIT`、`INHERITED_AT_END`）、`inline::*`（`entity_key`、`entity_target`）、`style_config()`、`configure()`。和 loro-schema v0 一致，改动跟着 schema 升版本。
@@ -338,30 +407,37 @@ GPUI 的 fork 由 F4 负责（D1：需要挂补丁时再开 fork）。现在工�
 
 1. **按键上屏的预算（监管会话已定）。** 拆成两条，`benchmarks.md` 已改：「按键到交出画面」照旧 16 / 8.3 ms，发布档靠 G1；「按键到真正显示」只记录。G1 正式挂上要开可推送的 GPUI fork，发布档前由作者定；这之前补丁只存成文件，`present_now` 关。两轮的上屏都是在高负载下量的（第二轮的证据标了仅供参考），G1、G2 好不好、「按键到真正显示」的最终数字，由作者或监管会话找机器空闲时照「测量 / 重测上屏」重测。
    - **TextEdit 参照还没量，要作者点头一件事。** 量法：`prose-bench` 加一个子命令，打开 TextEdit 的一个空文档、把它的窗口放到最前，往它的进程发按键（`CGEventPostToPid`）并在每次按键前打 `os_signpost`，在 Instruments 下录约 30 秒；TextEdit 不用 Metal，没有我们用的那张「显示」表，所以用 Core Animation 的提交（`Commit` 信号）加 WindowServer 的帧交换（`displayed-surfaces-interval`）来对，并用同样的方法再量一次 `gpui-prose`，两边口径一致。要点头的是：这半分钟 TextEdit 会挡在作者的窗口前面，而且往别的程序发按键多半要给终端开「辅助功能」权限。这两件都超出了这一轮的约定（不接管屏幕、不改系统设置），所以没做。
-2. **文本源 trait（F1 的约定，这一轮做完）。** 定稿的样子见「文本源」一节，和上一轮草案的差别：读是 `read_all` / `read(range)` 返回段落（不把 `LoroText` 交出去，因为 `dr-doc` 不暴露它）；撤销是 `undo_item` / `redo_item` 一次一项，按阵分组留在编辑器；`EditResult` 带 `undo_items`，让编辑器知道这次提交压了几项。剩下给 F4e 和 F1 的：
-   - **`dr-editor` 的实现（F4e）**：用 `dr-doc` 的 `ProseTxn` 和 `ProseUndo` 实现 `ProseSource`，写入都放进 `dr-store` 文档持有者的写闭包，读走 `DocView`，锚点的 `get_cursor_pos` 放进读闭包；开 `gpui-prose` 的 `conformance` 特性，测试里跑 `conformance::run_all`，再和 `LoroSource` 跑 `conformance::same_behaviour`。`gpui-prose` 里的 `text/drdoc_style.rs` 是照这个形状写的样板。
-   - **给 F1 的小建议**：`dr-doc` 的 `ProseEvent` 里插入不带标记（`TextChange::Insert { text }`），编辑器只好每打一个字就回读这一段。如果 `TextChange::Insert` 加一个可选的 `marks`（Loro 的事件本来就有），`dr-editor` 就能把它传给 `SourceChange::Insert.marks`，打字不必回读。不急，回读一段约几微秒。**F1 第四轮已做**（2026-11-07）：`TextChange::Insert { text, marks: InlineMarks }`，总是有（Loro 每次插入都给），和 `ProseView` 读出来的一样；`dr-editor` 用和 `read` 同一个函数换成 `Marks` 后传 `Some`。见 [f1-model-doc.md 待协调 3](f1-model-doc.md#待协调)。
+2. **文本源 trait（F1 的约定，第二轮定稿，第三轮由 `dr-editor` 实现）。** 定稿的样子见「文本源」一节。第三轮加了两个有默认值的方法 `resync` / `needs_resync`（别的线程也写这篇文档时不重复算提交，见第三轮「大白话」）。`dr-editor` 的 `SessionSource` 过了一致性检查。剩下：
+   - **给 F1 的小建议**：`dr-doc` 的 `ProseEvent` 里插入不带标记（`TextChange::Insert { text }`）。`dr-editor` 现在直接订阅正文的 Loro 事件拿到标记；如果 `TextChange::Insert` 加一个可选的 `marks`，就可以改用 `dr-doc` 的事件。不急。
    - **每次按键的查询**照约定用 F4a 自己的索引，不调 `ProseView::paragraph_at` / `paragraph_by_id`。
-3. **样式表只能有一份（给 F1）。** Loro 不把样式表存进文档，同一个文档配两次时后配的覆盖先配的。Drifting 里文档由 `dr-doc` 配（`dr-editor` 不要再调 `gpui_prose::schema::configure`）；`gpui_prose::schema::style_config()` 和 loro-schema 一致，留给 `LoroSource` 和对拍用。建议 `dr-editor` 的测试逐键比较两张表，以后谁改表，两边一起改、升 schema 版本。
+3. **样式表只能有一份（给 F1，第三轮做完）。** Drifting 里文档由 `dr-doc` 配，`dr-editor` 不调 `gpui_prose::schema::configure`；`dr-editor` 的 `the_style_tables_agree_key_by_key` 逐键比较两张表（含默认规则）。以后谁改表，两边一起改、升 schema 版本，这条测试会提醒。
 4. **锚点的编码和语义（给 F1）。** `gpui_prose::Anchor` 存两个 `Cursor::encode()`：`start` 是第一个被锚字符上的 `Side::Left`，`end` 是最后一个被锚字符上的 `Side::Right`，和 loro-schema v0「锚点」一节、P0-C 的 `anchor.rs` 一样。`dr-doc` 读写书目文档里的 `anchor` 字段时用同样的编码，`dr-editor` 在两边之间原样搬字节。撤销带回的锚点通过 `EditorEvent::AnchorsChanged` 交给宿主写回书目文档（这是本机作者的操作，要同步出去，和「替换光标只存本机缓存」不同）。
 5. **打开文档的分工（给 F1/F2，第二轮后）。** `gpui-prose` 不再打开 Drifting 的文档：创世、对等方 ID、时间戳、样式表、块 ID 修复都是 `dr-doc` / `dr-store` 的事，`dr-editor` 把已经打开的文档包成文本源交给编辑器（`ProseDoc::open`）。自带的 `LoroSource` 只给独立使用者和测试，它自己配样式表、修块 ID（来源 `repair`）。`ProseDoc` 和文本源都是 `Send`，可以在后台线程打开。
 6. **组字逻辑合到一处（给 F5）。** 规则已经在 `next/crates/gpui-ime`（只用标准库，MIT OR Apache-2.0）：`LineComposer` 是从 `dr-ui` 的 `Composer` 搬过来的，接口照旧（`replace`、`replace_and_mark`、`unmark`、`discard`、UTF-16 换算、编辑键），差别有三处：失焦（`blur`）改成丢弃，这是作者定的规则，测试 `blur_discards_the_composition`；字素边界由调用方传入（实现 `gpui_ime::Boundaries`，`dr-ui` 用 `unicode-segmentation` 包一层就行）；类型名叫 `LineComposer`。F5 下一个里程碑把 `dr-ui/src/input/compose.rs` 换成 `gpui_ime::LineComposer`，失焦时同时调系统的 `discardMarkedText`。编辑器用的是同一个 crate 里的 `Overlay`。
-7. **Agent 写入的入口（给 F3）。** 现在是 `ProseEditor::agent_write`（来源 `agent:<会话>/<轮>`，不进作者撤销）。F3 的命令总线定下来以后，Agent 写入应该走命令层写 `ProseDoc`，编辑器只通过 `import_remote` 一类的「别人的改动」路径看到它。
+7. **Agent 写入的入口（第三轮做完）。** Drifting 里 Agent 只经 F3 的命令写；`SessionSource` 拒绝作者以外的来源（`ProseEditor::agent_write` 留给单独使用 `gpui-prose` 的人），Agent 的提交作为事件到达编辑器（测试 `an_agents_command_shows_up_in_the_open_editor`）。`SessionSource::with_foreign_writes` 只给测试和替身工具用。
 8. **派生数据不从编辑器推回去（监管会话定的）。** 旧版的大纲、字数、引用是编辑器组件每 400 ms 防抖推回去的（`entity-editor-session.ts`）。新版 `gpui-prose` 只改 Loro 文档，没有任何「把内容推回去」的回调；派生数据由 `dr-store` 按 Loro 的变化自己算。编辑器的事件（`EditorEvent`）都不带正文：`Edited` 只给界面用（比如工具栏状态），`AnchorsChanged` 是撤销改了锚点本身（锚点存在正文之外，见第 4 条）。
 9. **断行规则共用（给以后建 `dr-text` 和改 PDF 导出的会话）。** 已经是独立的 crate `next/crates/prose-linebreak`（只依赖 `icu_segmenter`）。PDF 导出改用它时，行末用 `Overflow::Squeeze`，行内用 `punctuation_squeeze`。
 10. **快捷键（给 F6）。** 键位现在由 `bind_keys` 绑在 `ProseEditor` 上下文里；F6 的快捷键注册表接管时，动作名（`prose_editor::ToggleBold` 等）保持不变。
+11. **F3（dr-workspace），第三轮提出的：**
+    1. **锚点写回书目缺一条命令**（最要紧）。撤销带回的批注锚点由 `ChapterEditorEvent::AnchorsChanged` 交出（`(批注 id, EncodedAnchor)`，`dr-doc` 的编码），但没有命令能把它写进书目文档：`comment.update` 不改锚点。建议加 `comment.reanchor { book, id, anchor: { start, end } }`（字节用 base64 或数字数组），作者的操作、进日志、可撤销。另外 `comment.list` 只给 `anchored: bool`，`dr-editor` 现在在持有者线程上直接读书目文档拿锚点（`anchors::comment_anchors`，只读）；如果 F3 愿意，可以在 `CommentInfo` 里带上编码后的锚点，编辑器就改走查询。
+    2. **TODO 标记投成待办**：编辑器找到标记（`TodoMarker`：段落、块 ID、任务）并在变化时发事件；投成待办（`CommentId::for_projection(Marker, doc, block)`，标记消失时处理旧的）需要一条命令，比如 `todo.project { doc, markers: [{block, task}] }`，按旧版 `useTodoAutoParse` 的规则建、改、留（离开该段才算写完由界面决定）。
+    3. **作者身份的命令和编辑器共用一个撤销栈。** 会话的 `ProseUndo` 撤所有 `user` 来源的提交；如果作者从别处（命令面板、帮手代作者执行）用 `Actor::User` 的命令改了正开着的这篇正文，那次提交也进了这个栈，编辑器按自己的步数撤销时可能撤到它。建议：改正开着的正文的作者命令换一个不进编辑器撤销的来源（比如 `user:command`，它们有对象级撤销），或者经会话写。
+12. **F4b（排版）**：`EditorSettings` 已经读进段首缩进（0/1/2 字）和打字机模式，`gpui-prose` 还不会排段首缩进、没有打字机滚动；做了以后在 `EditorSettings::style` 里接上。
+13. **F4d（渲染）**：两样显示要画层接口（不改正文、只画）：`dr-text` 匹配器找到但还没链上的名字（建议链接），和 TODO 标记的样子。`style_run` 只能改已经带标记的字。
+14. **F6（外壳）接编辑器**：`workspace/stage.rs` 的只读页换成 `ChapterEditor`（`PageSlot` 换成 `ChapterEditor::open` / `switch_to`）；设置变了调 `set_settings(EditorSettings::from_values(|k| Some(Settings::read(cx).get(k))), cx)`，主题变了调 `set_base_style`；`take_reveal` 的行号交给 `editor().update(.., select)`；订阅 `ChapterEditorEvent`（`AnchorsChanged` 等 F3-1，`TodoMarkers` 等 F3-2）；编辑菜单的 `edit::{Undo, Redo, …}` 转给编辑器。`dr-editor` 不依赖 `dr-shell`。
 
 ## 下一轮怎么拆
 
-文本源 trait 已经落地，四条子线和 F4e 可以分给并行会话了：各改各的目录，共用文件 `editor.rs` 每路只加字段和动作注册各一行。
+`dr-editor` 接上以后，五条线可以并行：各改各的目录，共用文件 `gpui-prose/src/editor.rs` 每路只加字段和动作注册各一行。
 
 | 子线 | 目录 | 下一轮的活 |
 | --- | --- | --- |
-| F4a 文本存储与索引 | `src/text/` | 复制粘贴的内部富文本格式（带标记和段落属性）与 Markdown；段落属性改动的快路径（设标题不必回读整段）；`segment` 按段缓存；配合 F4e 让 `dr-editor` 的文本源过一致性检查 |
-| F4b 排版与虚拟化 | `src/layout/`、`prose-linebreak` | 两端对齐；行内标点挤压接进编辑器（命中测试和光标一起改）；行内不同字号；打字机滚动；跨章选区要的几何；拖选到窗口外时的自动滚动节奏 |
-| F4c 输入 | `src/input/`、`gpui-ime` | Windows：IMM32 丢弃组字（台账 G4）、Windows 键位；跨章选区；查找替换的选区模型；双击后拖动按词扩展、三击后按段扩展；读屏（AccessKit，GPUI v1.27 已带） |
-| F4d 渲染 | `src/render/` | 画层接口：字下面、字上面各一层，给批注砂笔、查找高亮、Agent 改动显现用；块样式（引用、缩进、对齐、分隔线）；沉浸写作的段落淡出；滚动条标记；中文斜体（台账 G5） |
-| F4e Drifting 扩展 | 新建 `crates/dr-editor`（AGPL） | 先做 `dr-doc` 上的 `ProseSource` 并跑一致性检查（待协调 2）；然后人物链接的 @ 选择、自动链接、断链修复、样式（经 `style_run`）；斜杠菜单；Markdown 输入规则（含中文字后紧跟 `**`）；TODO 标记；章末 ⁂；选中文字时的横向浮条；Agent 改动显现；接 `dr-doc` 的锚点读写（待协调 4） |
+| F4a 文本存储与索引 | `src/text/` | 复制粘贴的内部富文本格式（带标记和段落属性）与 Markdown 粘贴规则（`dr-editor` 的规则搬一份成粘贴版）；段落属性改动的快路径；`segment` 按段缓存 |
+| F4b 排版与虚拟化 | `src/layout/`、`prose-linebreak` | 段首缩进和打字机滚动（设置已读进来，待协调 12）；两端对齐；行内标点挤压接进编辑器；跨章选区要的几何 |
+| F4c 输入 | `src/input/`、`gpui-ime` | Windows：IMM32 丢弃组字（台账 G4）、Windows 键位；查找替换的选区模型；三击按段扩展；读屏（AccessKit） |
+| F4d 渲染 | `src/render/` | 画层接口（待协调 13）：建议链接、TODO 标记、批注砂笔、查找高亮、Agent 改动显现；块样式（引用、缩进、对齐、分隔线） |
+| F4e Drifting 扩展 | `crates/dr-editor` | 人物链接的 @ 选择和自动链接（`dr-text` 匹配器，经会话写）、断链修复；斜杠菜单；章末 ⁂；选区浮条；Agent 改动显现；接上 F3 的 `comment.reanchor` 和 TODO 投影（待协调 11） |
+| 基准 | `prose-bench` → `dr-editor` | 把 `gpui-prose/examples/prose-bench`（窗口、上屏、空闲）搬进 `dr-editor`、语料换成 `dr_testkit::seed`、证据改成 F8 格式，**和空闲重测一起做**：上屏的最终数字本来就要等机器空闲重测，现在搬了也要再跑一遍；`gpui-prose` 留一个不依赖 `dr-*` 的小例子 |
 
 GPUI 补丁 G1 什么时候正式挂上，由作者在发布档前定（需要一个可推送的 fork 仓库）。挂上以后 `EditorOptions` 不用改。
 

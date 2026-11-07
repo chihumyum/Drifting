@@ -9,7 +9,7 @@ use crate::{layout::BlockMetrics, text::BlockKind};
 /// Visual style of the prose. Defaults follow the current Drifting editor:
 /// 17.5 px body at 1.75 line height, paragraph spacing 1.1 em, H1/H2/H3 at
 /// 28/22/18 px weight 500.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ProseStyle {
     pub font_family: SharedString,
     pub body_size: Pixels,

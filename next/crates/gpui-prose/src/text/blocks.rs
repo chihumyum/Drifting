@@ -203,6 +203,24 @@ pub(crate) fn fresh_block_id(text: &LoroText, pos: usize) -> String {
 /// mark. Readers ignore paragraph keys on other characters; writers state every
 /// attribute of a new `\n` explicitly so it never inherits a stray one.
 pub(crate) fn set_newline_attrs(text: &LoroText, nl: usize, want: &BlockAttrs) {
+    // No inline mark on a newline (one inserted inside a bold or italic run
+    // gets it from Loro's expand rule, and the text typed after it would
+    // continue it): the same rule as `dr-doc`'s writer.
+    if let Ok(delta) = text.slice_delta(nl, nl + 1, PosType::Unicode) {
+        for item in delta {
+            if let TextDelta::Insert {
+                attributes: Some(attributes),
+                ..
+            } = item
+            {
+                for (key, value) in attributes.iter() {
+                    if !block::is_block_key(key) && !value.is_null() {
+                        let _ = text.unmark(nl..nl + 1, key);
+                    }
+                }
+            }
+        }
+    }
     let have = newline_attrs(text, nl);
     for key in block::ALL {
         match (want.get(key), have.get(key)) {
@@ -219,7 +237,15 @@ pub(crate) fn set_newline_attrs(text: &LoroText, nl: usize, want: &BlockAttrs) {
 }
 
 /// Sets (or clears) one paragraph attribute of the `\n` at `nl`.
+/// Sets (or clears) one attribute of the newline at `nl`. Writes nothing when
+/// it already has that value, so an unchanged attribute never becomes an
+/// undo step that does nothing (dr-doc behaves the same).
 pub(crate) fn set_block_attr(text: &LoroText, nl: usize, key: &str, value: Option<LoroValue>) {
+    let current = newline_attrs(text, nl).get(key).cloned();
+    let value = value.filter(|v| !v.is_null());
+    if current == value {
+        return;
+    }
     let _ = match value {
         Some(value) => text.mark(nl..nl + 1, key, value),
         None => text.unmark(nl..nl + 1, key),
