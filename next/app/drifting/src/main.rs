@@ -191,6 +191,9 @@ fn main() {
         );
         // M10: the bookshelf's 「导入 · Drifting 0.1」.
         dr_view_import::init(cx);
+        // M41: .driftingbook from the bookshelf, importing documents, backup
+        // and restore.
+        dr_view_transfer::init(cx);
         // F8's debug bridge, in `--features debug-bridge` builds only.
         #[cfg(feature = "debug-bridge")]
         dr_debug_bridge::start(cx);

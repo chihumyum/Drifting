@@ -31,11 +31,23 @@
   "settings": {
     "editor": {
       "justify": "Blocksatz"
+    },
+    "sync": {
+      "backup": {
+        "errors": {
+          "legacy": "Das ist eine Sicherung aus Drifting 0.1, die diese Version nicht direkt wiederherstellen kann. Stelle sie in Drifting 0.1 wieder her und importiere die Bibliothek dann im Bücherregal mit „Importieren · Drifting 0.1“."
+        }
+      }
     }
   },
   "findPanel": {
     "replacePlaceholder": "Ersetzen durch…",
     "replace": "Ersetzen",
     "replaceAll": "Alle ersetzen"
+  },
+  "projectPicker": {
+    "bookTransfer": {
+      "legacy": "Dieses Buch wurde mit Drifting 0.1 exportiert. Importiere es dort und übergib die Bibliothek dann an diese Version."
+    }
   }
 }

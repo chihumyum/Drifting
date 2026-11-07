@@ -33,6 +33,7 @@ members = [
     "crates/dr-view-search",
     "crates/dr-view-shelf",
     "crates/dr-view-stats",
+    "crates/dr-view-transfer",
     "crates/dr-workspace",
     "crates/gpui-ime",
     "crates/gpui-prose",
@@ -65,6 +66,8 @@ gpui_platform = { git = "https://github.com/zed-industries/zed", tag = "v1.27.0"
 
 # Loro is pinned exactly; its Rust API still has breaking changes.
 loro = "=1.17.1"
+# Pinned with loro: `.driftingbook` recomputes mergeable-child markers.
+loro-common = "=1.17.0"
 
 anyhow = "1"
 # gpui-prose (F4) and its two small crates, all MIT OR Apache-2.0.
@@ -219,6 +222,8 @@ dr-view-search = { path = "crates/dr-view-search" }
 dr-view-stats = { path = "crates/dr-view-stats" }
 # M41: the manuscript export and Markdown share dialogs (over dr-export).
 dr-view-export = { path = "crates/dr-view-export" }
+# M41: .driftingbook, importing documents, backup and restore (over the shell).
+dr-view-transfer = { path = "crates/dr-view-transfer" }
 # M39: the feedback dialog and the crash follow-up.
 dr-view-feedback = { path = "crates/dr-view-feedback" }
 futures = "0.3"

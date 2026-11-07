@@ -573,3 +573,25 @@ categoryEditor.empty.noFilteredElements
 categoryEditor.actions.openElement
 storylineEditor.labels.color
 storylineEditor.filters.all
+
+# M41 moving books: .driftingbook from the bookshelf (dr-view-transfer)
+projectPicker.desk.exportBook
+projectPicker.desk.importing
+projectPicker.bookTransfer.*
+
+# M41 whole-library backup and restore (dr-view-transfer)
+settings.sync.backup.exportTitle
+settings.sync.backup.exporting
+settings.sync.backup.exported
+settings.sync.backup.summary
+settings.sync.backup.missingAssets
+settings.sync.backup.noProjects
+settings.sync.backup.restoreTitle
+settings.sync.backup.restoreButton
+settings.sync.backup.inspecting
+settings.sync.backup.restoring
+settings.sync.backup.restoreConfirm
+settings.sync.backup.restoreConfirmButton
+settings.sync.backup.errors.invalid
+settings.sync.backup.errors.newer
+settings.sync.backup.errors.unknown

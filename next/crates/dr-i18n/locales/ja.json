@@ -434,7 +434,15 @@
   },
   "projectPicker": {
     "bookTransfer": {
-      "importFailedTitle": "インポートできませんでした"
+      "exportFailed": "作品をエクスポートできません。再試行してください。",
+      "exportFailedTitle": "エクスポートできませんでした",
+      "importFailed": "作品をインポートできません。再試行してください。",
+      "importFailedTitle": "インポートできませんでした",
+      "invalid": "ファイルが破損しており、インポートできません。",
+      "legacy": "この本は Drifting 0.1 で書き出されました。旧版で読み込んでから、そのライブラリを新しいバージョンに引き継いでください。",
+      "newer": "新しいDriftingから出力された作品です。先に更新してください。",
+      "notABook": "Driftingから出力した作品ではありません。",
+      "tooLarge": "作品が大きすぎてインポートできません。"
     },
     "delete": {
       "deleting": "削除中…"
@@ -444,6 +452,7 @@
       "chaptersUnit_other": "章",
       "elementsUnit_one": "要素",
       "elementsUnit_other": "要素",
+      "exportBook": "この作品を出力（.driftingbook）",
       "form": {
         "createTitle": "新しい一冊",
         "editTitle": "「{{name}}」を編集",
@@ -818,6 +827,26 @@
     },
     "search_placeholder": "設定を検索…",
     "sync": {
+      "backup": {
+        "errors": {
+          "invalid": "有効なDriftingバックアップではないか、破損しています。現在のライブラリは変更されていません。",
+          "legacy": "これは Drifting 0.1 のバックアップで、このバージョンでは直接復元できません。Drifting 0.1 で復元してから、本棚の「読み込む · Drifting 0.1」でそのライブラリを読み込んでください。",
+          "newer": "新しいバージョンのDriftingで作成されたバックアップです。アプリを更新してから復元してください。",
+          "unknown": "操作を完了できませんでした。現在のライブラリは変更されていません：{{detail}}"
+        },
+        "exportTitle": "ライブラリのバックアップ",
+        "exported": "「{{file}}」を保存しました。",
+        "exporting": "バックアップ中…",
+        "inspecting": "検証中…",
+        "missingAssets": "この端末にない素材{{count}}件はバックアップされませんでした。",
+        "noProjects": "（作品なし）",
+        "restoreButton": "バックアップを選択…",
+        "restoreConfirm": "「{{file}}」で現在のライブラリを置き換えます。\n\n作成日時：{{date}}\n内容：{{summary}}\n作品：{{projects}}\n\n現在のライブラリは復元前コピーとして保存します。「復元前のコピーを開く」から確認できます。完了後、Driftingを再読み込みします。",
+        "restoreConfirmButton": "置き換えて復元",
+        "restoreTitle": "バックアップから復元",
+        "restoring": "復元中…",
+        "summary": "{{projects}}作品、素材{{assets}}ファイル、{{size}}。"
+      },
       "local_data": "ローカルデータ",
       "local_sub": "Driftingのアカウントやクラウドは使いません。いつでも読めるコピーを出力できます。",
       "local_title": "作品はこの端末に。"

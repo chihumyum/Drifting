@@ -1453,6 +1453,8 @@ dependencies = [
  "fontdb",
  "image",
  "krilla",
+ "loro",
+ "loro-common",
  "prose-linebreak",
  "roxmltree 0.20.0",
  "rustybuzz",
@@ -1871,6 +1873,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "dr-view-transfer"
+version = "0.0.0"
+dependencies = [
+ "chrono",
+ "dr-export",
+ "dr-i18n",
+ "dr-shell",
+ "dr-store",
+ "dr-ui",
+ "dr-view-shelf",
+ "dr-workspace",
+ "futures",
+ "gpui",
+ "log",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "dr-workspace"
 version = "0.0.0"
 dependencies = [
@@ -1908,6 +1929,7 @@ dependencies = [
  "dr-view-import",
  "dr-view-page",
  "dr-view-shelf",
+ "dr-view-transfer",
  "dr-workspace",
  "gpui",
  "gpui_platform",

@@ -1,0 +1,35 @@
+//! dr-view-transfer: moving books in and out (module M41's second part).
+//!
+//! - **`.driftingbook`** ([`book`]): the bookshelf card's export icon
+//!   ([`dr_view_shelf::ExportBook`]) and 「导入书（.driftingbook）」
+//!   ([`dr_view_shelf::ImportBook`]), as the 0.1 shelf; the file is
+//!   `dr_export::book_file` (format version 2).
+//!
+//! - **Backup and restore** ([`backup`]): the whole library as one
+//!   `.drifting` file and back, on `dr_store::backup`; replacing the library
+//!   is the shell's ([`backup::Replace`]).
+//!
+//! [`init`] takes the actions with `cx.on_action` (the app calls it once,
+//! after `dr_shell::init` and `dr_view_shelf::init`); the dialogs are the
+//! shell's modal dialog. docs/rust-rewrite/modules/m41-export.md has the
+//! rules and the decisions.
+
+pub mod backup;
+pub mod book;
+mod dialog;
+
+pub use dialog::{Proceed, State, TransferDialog, WIDTH};
+
+use gpui::App;
+
+/// Takes the bookshelf's export and import actions.
+pub fn init(cx: &mut App) {
+    cx.on_action(|a: &dr_view_shelf::ExportBook, cx| {
+        let book = a.book.clone();
+        // GPUI has the window checked out while it dispatches.
+        dr_shell::menus::after_dispatch(cx, move |cx| book::export(book, cx));
+    });
+    cx.on_action(|_: &dr_view_shelf::ImportBook, cx| {
+        dr_shell::menus::after_dispatch(cx, book::import);
+    });
+}

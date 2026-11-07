@@ -11,12 +11,16 @@ description = "Export (M41): the finished manuscript as EPUB, Word or PDF, Markd
 base64.workspace = true
 dr-doc.workspace = true
 dr-model.workspace = true
+# `.driftingbook`: documents and asset files are read and written below F3.
+dr-store.workspace = true
 dr-workspace.workspace = true
 fontdb.workspace = true
 # The cover picker reads what the 0.1 picker offered: PNG, JPEG, GIF, WebP,
 # BMP and TIFF (GPUI's image stack already builds their decoders).
 image = { workspace = true, features = ["bmp", "gif", "jpeg", "tiff", "webp"] }
 krilla.workspace = true
+loro.workspace = true
+loro-common.workspace = true
 # The editor's line-breaking rules (UAX #14 from ICU4X with the Chinese
 # tailoring), shared with the PDF: simplifications.md row 19.
 prose-linebreak = { workspace = true, features = ["icu"] }
@@ -28,7 +32,6 @@ thiserror.workspace = true
 zip.workspace = true
 
 [dev-dependencies]
-dr-store.workspace = true
 dr-testkit.workspace = true
 roxmltree.workspace = true
 tempfile.workspace = true

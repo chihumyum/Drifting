@@ -31,11 +31,23 @@
   "settings": {
     "editor": {
       "justify": "Justificar"
+    },
+    "sync": {
+      "backup": {
+        "errors": {
+          "legacy": "Este é um backup do Drifting 0.1, que esta versão não consegue restaurar diretamente. Restaure-o no Drifting 0.1 e depois importe essa biblioteca com “Importar · Drifting 0.1” na estante."
+        }
+      }
     }
   },
   "findPanel": {
     "replacePlaceholder": "Substituir por…",
     "replace": "Substituir",
     "replaceAll": "Substituir tudo"
+  },
+  "projectPicker": {
+    "bookTransfer": {
+      "legacy": "Este livro foi exportado pelo Drifting 0.1. Importe-o lá e depois transfira essa biblioteca para esta versão."
+    }
   }
 }

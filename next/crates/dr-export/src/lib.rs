@@ -15,6 +15,7 @@
 //! F3 (`dr-workspace`), rendering a long book into PDF takes seconds. The
 //! save and open panels belong to the interface (GPUI's prompts).
 
+pub mod book_file;
 mod convert;
 mod cover;
 mod files;

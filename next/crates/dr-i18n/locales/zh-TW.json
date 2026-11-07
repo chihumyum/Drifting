@@ -434,7 +434,15 @@
   },
   "projectPicker": {
     "bookTransfer": {
-      "importFailedTitle": "無法匯入"
+      "exportFailed": "無法匯出作品，請重試。",
+      "exportFailedTitle": "無法匯出",
+      "importFailed": "無法匯入作品，請重試。",
+      "importFailedTitle": "無法匯入",
+      "invalid": "此檔案已損壞，無法匯入。",
+      "legacy": "這本書是 Drifting 0.1 匯出的。請在舊版裡匯入它，再把舊版資料庫交接給新版。",
+      "newer": "此作品由較新的 Drifting 匯出，請先更新。",
+      "notABook": "這不是從 Drifting 匯出的作品。",
+      "tooLarge": "作品過大，無法匯入。"
     },
     "delete": {
       "deleting": "正在刪除…"
@@ -444,6 +452,7 @@
       "chaptersUnit_other": "章",
       "elementsUnit_one": "個要素",
       "elementsUnit_other": "個要素",
+      "exportBook": "匯出此作品（.driftingbook）",
       "form": {
         "createTitle": "新作品",
         "editTitle": "編輯「{{name}}」",
@@ -818,6 +827,26 @@
     },
     "search_placeholder": "搜尋設定…",
     "sync": {
+      "backup": {
+        "errors": {
+          "invalid": "此檔案不是有效的 Drifting 備份，或已損壞。目前資料庫未變更。",
+          "legacy": "這是 Drifting 0.1 的備份，這一版不能直接還原。請先在 Drifting 0.1 裡還原它，再在書架上用「匯入 · Drifting 0.1」匯入那個資料庫。",
+          "newer": "此備份由較新的 Drifting 版本建立，請先更新應用程式再還原。",
+          "unknown": "操作未完成，目前資料庫未變更：{{detail}}"
+        },
+        "exportTitle": "資料庫備份",
+        "exported": "已儲存「{{file}}」。",
+        "exporting": "正在備份…",
+        "inspecting": "正在驗證…",
+        "missingAssets": "此裝置上缺少 {{count}} 個素材，未納入備份。",
+        "noProjects": "（沒有作品）",
+        "restoreButton": "選擇備份…",
+        "restoreConfirm": "以「{{file}}」取代目前資料庫。\n\n建立時間：{{date}}\n內容：{{summary}}\n作品：{{projects}}\n\n會先保留目前資料庫的還原前副本，可由「開啟還原前副本」查看。還原完成後 Drifting 會重新載入。",
+        "restoreConfirmButton": "取代並還原",
+        "restoreTitle": "從備份還原",
+        "restoring": "正在還原…",
+        "summary": "{{projects}} 部作品、{{assets}} 個素材檔案，共 {{size}}。"
+      },
       "local_data": "本機資料",
       "local_sub": "不使用 Drifting 帳號或託管雲端，隨時可匯出可讀副本。",
       "local_title": "作品留在這部裝置上。"

@@ -31,11 +31,23 @@
   "settings": {
     "editor": {
       "justify": "Justify"
+    },
+    "sync": {
+      "backup": {
+        "errors": {
+          "legacy": "This is a Drifting 0.1 backup, which this version cannot restore directly. Restore it in Drifting 0.1, then import that library with “Import · Drifting 0.1” on the bookshelf."
+        }
+      }
     }
   },
   "findPanel": {
     "replacePlaceholder": "Replace with…",
     "replace": "Replace",
     "replaceAll": "Replace all"
+  },
+  "projectPicker": {
+    "bookTransfer": {
+      "legacy": "This book was exported by Drifting 0.1. Import it there, then hand that library over to this version."
+    }
   }
 }
