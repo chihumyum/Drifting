@@ -301,6 +301,14 @@ Drifting 的正文能在新版里编辑并落盘了：新的 AGPL crate `next/cr
 - `ProseEditor::set_style`（换字号、行距、纸宽、颜色，全部重排）、`CursorLayer::set_color`。
 - `schema::STYLE_TABLE`、`schema::DEFAULT_EXPAND`；`schema::configure` 现在也设默认规则。
 
+### M05（通览全书）给 `gpui-prose` 加的
+
+只动排版层和 `editor.rs` 里新加的两个方法，详见 [m05-book.md](../modules/m05-book.md#对-gpui-prose-的改动)：
+
+- `Book::set_acts` / `act_opening` / `acts`：幕从第几章开始、叫什么，渲染层据此画幕的扉页（F4d）。
+- `BookPos`、`BookRange`、`Book::split_range`、`Book::text_in`：全书里的位置和范围，给以后的跨章选区（F4b）。
+- `ProseEditor::undo_in(chapter)` / `redo_in(chapter)`：只撤、只重做某一章，全书模式里 ⌘Z 撤光标所在的章。
+
 ### Drifting 的编辑器（`dr-editor`，F4e，AGPL）
 
 | 项 | 说明 |
@@ -314,6 +322,7 @@ Drifting 的正文能在新版里编辑并落盘了：新的 AGPL crate `next/cr
 | `todo::parse(text)` / `todo::markers(paragraphs)` | TODO 标记 |
 | `anchors::{comment_anchors, encode, decode}` | 读一篇正文上的批注锚点；`gpui-prose` 与书目文档之间的锚点编码 |
 | `convert::{apply, OwnedEdit, entity_link, entity_value}` | `gpui-prose` 的编辑（原始键值）到 `dr-doc` 类型化事务 |
+| `BookEditor::open(ws, book, settings, window, cx)` | 全书视图（M05）：每章一个会话、一个滚动区；`jump_to`、`reveal_line`、`reading_position` / `restore`、按章撤销。见 [m05-book.md](../modules/m05-book.md#给-f6-的用法) |
 
 ### 格式（`gpui_prose::schema`）
 
@@ -447,6 +456,6 @@ GPUI 补丁 G1 什么时候正式挂上，由作者在发布档前定（需要�
 
 - 中文斜体画成正体（见 G5）。
 - 复制粘贴只有纯文本；粘贴的多段一律按回车规则拆开（第一段并进光标所在段）。
-- 选区不能跨章。
+- 选区不能跨章（接口 `BookRange` 已经留好，见 [m05-book.md](../modules/m05-book.md)）。
 - 列表还没有样子；引用、缩进、对齐、分隔线由 F4d 画出（居中、右对齐的多行段落，输入法候选窗和上下移动还按第一行的偏移算，等 F4b 加每行偏移）。
 - 真输入法的手测清单沿用 [P0-B](../spikes/p0-b-editor.md#待作者手测)，命令换成 `cargo run --release -p gpui-prose --example prose-bench -- chapter`（`PROSE_BENCH_IME_LOG=1` 打印输入法调用）。

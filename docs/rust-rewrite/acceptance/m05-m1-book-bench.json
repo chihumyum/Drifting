@@ -1,0 +1,228 @@
+{
+  "schema": "dr-testkit/evidence/1",
+  "name": "book-bench",
+  "milestone": "m05-m1",
+  "generatedBy": "cargo run --release -p dr-editor --example book-bench -- --write",
+  "inputs": {
+    "crates/dr-doc": "129aae42498f0b725ffdb4d7e2390a367544d991adf78d0e0475b623d4ebc8c0",
+    "crates/dr-editor": "95b14b3e4b31febf3846824a991b00ba780ab6d1c4947e0f0ba91099c7be7a7b",
+    "crates/dr-store": "3cdc85b5041c5f461c4ce528b0a752098d9eb15e6752b5b0c560a6a591cbbd1a",
+    "crates/dr-testkit/src/seed": "a01def93a860c30e8b9ab3d7371b1766a53a14bf5c3e885821324d5c222caa6f",
+    "crates/dr-workspace": "a027003030fe2c9fdfe6d410c975a80fd44a0d1e05c2408c33f3a5c635a638d8",
+    "crates/gpui-prose": "cf8746d1bb8230a31d13c2c0e492b92029885886e7badedafc742afe906dc9f7"
+  },
+  "corpus": {
+    "preset": "heavy",
+    "seed": "0x5eed0f08",
+    "books": 1,
+    "documents": 680,
+    "bodies": {
+      "categories": {
+        "count": 16,
+        "totalWords": 16000,
+        "minWords": 100,
+        "maxWords": 3000,
+        "medianWords": 754.0,
+        "p95Words": 3000,
+        "corpusSha256": "04be70fa2c12f8128c4c364de96cab86ab7fae7a76d4a92ba55c76c55f54ecd1"
+      },
+      "chapters": {
+        "count": 100,
+        "totalWords": 1500000,
+        "minWords": 2000,
+        "maxWords": 20000,
+        "medianWords": 19349.0,
+        "p95Words": 20000,
+        "corpusSha256": "53eb8978aa88ddb699615f24c6913dd94d51b40dc9041ca0a2e38e597510e650"
+      },
+      "comments": {
+        "count": 80,
+        "totalWords": 40000,
+        "minWords": 50,
+        "maxWords": 3000,
+        "medianWords": 319.0,
+        "p95Words": 1422,
+        "corpusSha256": "ed8dd3c4d2dabca544ace1dd5fc40d0dd337efc9a391fddf724b314dfb296b07"
+      },
+      "elements": {
+        "count": 300,
+        "totalWords": 500000,
+        "minWords": 100,
+        "maxWords": 10000,
+        "medianWords": 964.5,
+        "p95Words": 5361,
+        "corpusSha256": "f7956e2be36735784960cc3faeb06e3953a68db0a9659fce21d5015598abdfd2"
+      },
+      "ideas": {
+        "count": 200,
+        "totalWords": 1000000,
+        "minWords": 1000,
+        "maxWords": 50000,
+        "medianWords": 2741.0,
+        "p95Words": 14310,
+        "corpusSha256": "e03f04c45b51b154a4a0d39b745557cf53dff7123555c46da18510c4caa5b899"
+      },
+      "materialNotes": {
+        "count": 60,
+        "totalWords": 500000,
+        "minWords": 500,
+        "maxWords": 10000,
+        "medianWords": 10000.0,
+        "p95Words": 10000,
+        "corpusSha256": "a1a32bee9253602029f2463b1d83e5af34b99b922d3856585491e20c06f6bab6"
+      },
+      "storylines": {
+        "count": 3,
+        "totalWords": 60000,
+        "minWords": 5000,
+        "maxWords": 30000,
+        "medianWords": 25000.0,
+        "p95Words": 30000,
+        "corpusSha256": "770ad525e35a0456ca1adb646f24af5d65f312c73347dfdf921aafc290bedbb9"
+      },
+      "todos": {
+        "count": 120,
+        "totalWords": 30000,
+        "minWords": 50,
+        "maxWords": 1500,
+        "medianWords": 159.0,
+        "p95Words": 688,
+        "corpusSha256": "94a1743caa8a1822e6d8814974ca9fc7612214c75877c9e9c93fb9f11ec5a54e"
+      }
+    },
+    "chapters": 100,
+    "elements": 300,
+    "relations": 400,
+    "acts": 4,
+    "writingDays": 273,
+    "entityLinks": 28468,
+    "headings": [
+      624,
+      1186,
+      776
+    ],
+    "tasks": 180,
+    "corpusFingerprint": "5b319924c784252a98d35588c557a642ff4fb6b347f3a3603a9f1696a54bfb48"
+  },
+  "machine": {
+    "cpu": "Apple M3 Pro",
+    "cores": 12,
+    "memoryBytes": 38654705664,
+    "os": "macos",
+    "osVersion": "27.0.1",
+    "arch": "aarch64",
+    "loadAverage1m": 19.13,
+    "profile": "release"
+  },
+  "results": {
+    "chapters": 100,
+    "book_chars": 1649538,
+    "window_px": [
+      900.0,
+      800.0
+    ],
+    "load_average_1m": {
+      "start": 18.66,
+      "end": 19.13
+    },
+    "conditions": {
+      "busy_above_load_1m": 2.0,
+      "reference_only": true
+    },
+    "open_book": {
+      "to_first_frame_ms": [
+        132.358,
+        27.798,
+        30.716
+      ],
+      "cold_ms": 132.358,
+      "sessions_and_documents_ms": [
+        128.516,
+        24.038,
+        24.793
+      ],
+      "first_frame_ms": [
+        0.344,
+        0.327,
+        0.359
+      ],
+      "max_ms": 132.358,
+      "budget_ms": 200.0
+    },
+    "jump": {
+      "first_frame_ms": [
+        8.231,
+        2.262,
+        8.016,
+        2.127,
+        6.243,
+        7.333,
+        1.005
+      ],
+      "settled_ms": [
+        9.019,
+        3.182,
+        9.007,
+        2.896,
+        7.022,
+        7.692,
+        1.351
+      ],
+      "to_last_max_ms": 8.231,
+      "landed_in_the_chapter": true,
+      "budget_ms": 150.0
+    },
+    "scroll_full_book": {
+      "frames": 3337,
+      "reached_end": true,
+      "ended_in_last_chapter": true,
+      "seconds": 8.133,
+      "viewport_px": 800.0,
+      "step_px": 400.0,
+      "frame": {
+        "n": 3337,
+        "p50": 1.799,
+        "p95": 6.136,
+        "max": 31.198,
+        "mean": 2.433
+      },
+      "frame_cpu": {
+        "n": 3337,
+        "p50": 1.45,
+        "p95": 3.055,
+        "max": 4.139,
+        "mean": 1.758
+      },
+      "frames_over_16_7_ms": 2,
+      "slowest": [
+        {
+          "ms": 31.198,
+          "cpu_ms": 3.616,
+          "frame": 59,
+          "chapter": 1
+        },
+        {
+          "ms": 21.71,
+          "cpu_ms": 2.123,
+          "frame": 1727,
+          "chapter": 48
+        }
+      ],
+      "pending_tasks_between_frames": {
+        "n": 3338,
+        "p50": 0.002,
+        "p95": 0.003,
+        "max": 0.03,
+        "mean": 0.002
+      },
+      "budget_p95_ms": 16.7
+    },
+    "memory_mb": {
+      "start": 141.7,
+      "book_open": 174.9,
+      "before_scroll": 175.9,
+      "after_scroll": 187.7,
+      "budget_after_scroll": 800.0
+    }
+  }
+}
