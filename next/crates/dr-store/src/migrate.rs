@@ -265,6 +265,10 @@ pub const MIGRATIONS: &[Migration] = &[
         name: "0005_purged_doc",
         sql: include_str!("../migrations/0005_purged_doc.sql"),
     },
+    Migration {
+        name: "0006_reference_by_book",
+        sql: include_str!("../migrations/0006_reference_by_book.sql"),
+    },
 ];
 
 // Which migrations are published (and so frozen) is tracked in one place:

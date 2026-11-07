@@ -36,9 +36,10 @@
 | — | M10 要的接口：`label_at`、`Device::adopt`、导入回执表（`0001`）、`repair` 来源 | 完成 | `tests/labels.rs`（3 项）、`identity.rs` 单测、`tests/migrate.rs`、`tests/sync.rs`、`tests/records.rs` |
 | — | 第三轮（监管会话）：按段写派生索引、类型化读取、本机表 `ws_journal`（`0003`）、书序搜索、关库被拒时交还、大纲规则、只读打开、换用 dr-testkit | 完成 | `tests/index.rs`、`tests/holder.rs`、`tests/records.rs`、`tests/crash.rs`；见「第三轮」 |
 | — | 第四轮（性能）：按书序搜索、带空隙的段序键、引用只写变了的、关库不被后台重建挡住、派生单独的空闲等待 | 完成 | `tests/index.rs`、`tests/records.rs`；证据 `f2-m4-*-bench.json`；见「第四轮」 |
-| — | 第五轮：作者命令的来源 `user:command`、本机小状态表（`0004`）、彻底删除的记录（`0005`）、整库备份与恢复 | 完成 | `tests/holder.rs`、`tests/local.rs`（4 项）、`tests/backup.rs`（6 项）、`backup.rs` 的单测；见「第五轮」 |
+| — | 第五轮：作者命令的来源 `user:command`、本机小状态表（`0004`）、彻底删除的记录（`0005`）、整库备份与恢复 | 完成 | `tests/holder.rs`、`tests/local.rs`（4 项）、`tests/backup.rs`、`backup.rs` 的单测；见「第五轮」 |
+| — | 第六轮：审 M10 的认领身份（库里加记机器）、后台补建索引给打字让路、`reference` 按书的索引（`0006`）、备份的进度和取消 | 完成 | `tests/device.rs`、`tests/rebuild.rs`（3 项，另有 1 项手动测量）、`tests/index.rs`、`tests/backup.rs`（共 8 项）；见「第六轮」 |
 
-合计 134 项测试（macOS：33 项单测、101 项集成测试），另有 1 项手动测量默认不跑。按平台条件算，Windows 上是 127 项：少了只在 Unix/macOS 上有意义的 8 项（符号链接、目录同步、`IOPlatformUUID`、子进程拿着锁文件），多 1 项写穿改名；没在 Windows 上跑过。
+合计 143 项测试（macOS：34 项单测、109 项集成测试），另有 2 项手动测量默认不跑。按平台条件算，Windows 上是 136 项：少了只在 Unix/macOS 上有意义的 8 项（符号链接、目录同步、`IOPlatformUUID`、子进程拿着锁文件），多 1 项写穿改名；没在 Windows 上跑过。
 
 ## 接口概览
 
@@ -48,6 +49,8 @@ let device = Device::open(app_local_dir)?;          // 读写 sync-installation-
 device.machine_changed();                           // 身份来自别的机器：已换成新的安装 id
 Device::adopt(app_local_dir, &old_installation_id)?; // 导入时：目录里还没有身份，就采用 0.1 那份
 device.writing_device_key();                        // 写作日的设备键，与 0.1 算法一致
+device.machine();                                   // 这台机器的指纹摘要（没有指纹的平台是 None）
+lib.adopt_installation_id(&old_id)?;                // M10：开着的库所在的设备认领 0.1 的安装 id
 
 // 打开库（一个文件夹；同一时刻只能被一个进程、一个 Library 打开）
 let mut options = LibraryOptions::new(env!("CARGO_PKG_VERSION"));
@@ -55,6 +58,7 @@ options.device = Some(device);
 options.configure_doc = Some(Arc::new(dr_doc::schema::configure)); // F1 接入点：样式表
 options.deriver = Some(Arc::new(my_deriver));      // F1/F3 接入点：派生索引
 options.derive_idle = Duration::from_millis(150);   // 空闲多久就派生（默认值）；压缩看 options.compaction.idle
+options.background_quiet = Duration::from_millis(500); // 后台补建索引：别人停手这么久才写（默认值）
 let lib = Library::open(root, options)?;           // 新建 / 迁移 / 自动换代
 let ro = Library::open_read_only(root, options)?;  // 只读：不迁移、不拿锁、不拍快照（dr-cli inspect）
 lib.open_report(); lib.epoch_change();              // 迁了几条、快照在哪；换代了吗、为什么
@@ -107,7 +111,7 @@ lib.assets_pending_upload()?; lib.mark_asset_uploaded(asset_id, variant)?;
 lib.patch_index(&DocPatch { doc_id, book_id, seq, frontiers, patch: &DerivedPatch::between(&old, &new) })?;
 lib.search(Some(book), "安娜", 50)?;                // 3 字以上 FTS5 trigram，1–2 字 LIKE
 lib.search_in_order(Some(book), "安娜", 50, &doc_ids_in_book_order)?; // 先按书序排，再截 limit
-lib.outline(doc_id)?; lib.block_lengths(doc_id)?; lib.references_to(target)?;
+lib.outline(doc_id)?; lib.block_lengths(doc_id)?; lib.references_to(target)?; lib.references_in_book(book)?;
 lib.doc_stats(doc_id)?; lib.book_stats(book)?; lib.stale_index_docs()?; lib.rebuild_stale_indexes()?;
 
 // 资源文件
@@ -131,6 +135,8 @@ let staged = backup::stage(root, &package, app_version)?;        // 解开、逐
 staged.summary();                                                // 几本书、多少文档、哪个版本做的
 let (lib, outcome) = Library::restore_staged(root, &staged, options)?; // 库必须关着；先存恢复前备份
 Library::pre_restore_backups(root)?;                             // 恢复前备份，新的在前（撤销恢复就拿它再恢复一次）
+// 带进度的版本：export_backup_with / backup::stage_with / Library::restore_staged_with，
+// 多一个 &mut |p: &backup::Progress| -> bool 参数（Step、done、total 字节；返回 false 取消）
 // 错误：StoreError::Backup { code: backup::INVALID | LEGACY | NEWER, detail }
 lib.local_transaction(|tx| { /* 本模块自己的本机表 */ Ok(()) })?; // 例如导入回执；之后 notify_local
 lib.local_read(|conn| ...)?;
@@ -167,7 +173,14 @@ match lib.try_close() { Err(CloseRefused { error, library }) => /* 还有文档�
   - 安装 id 对不上（身份文件被删后重建，或上一步在两次写入之间崩溃）：只重新绑定，不再换。
   - 绑定文件损坏：报错，不猜、不动任何文件。
 - **为什么不写进身份文件本身**：0.1 读 `sync-installation-v2.json` 用的是 `deny_unknown_fields`，多一个字段它就会当成损坏、停用同步。所以摘要放在同一目录的另一个文件里，效果相同，0.1 照常能读。
-- **采用旧身份**（`Device::adopt`）：导入 0.1 库时，新设备目录里还没有身份文件，就把 0.1 那份安装 id 原样写进来（0.1 的格式、只给本人读写、和首次创建一样用硬链接发布，绝不覆盖已有的），写作日里还是同一台设备。下一次 `Device::open` 把它绑到这台机器。局限：如果旧数据本身是从别的机器拷来的，采用时分辨不出来（0.1 没有机器绑定）。
+- **采用旧身份**（`Device::adopt`）：导入 0.1 库时，新设备目录里还没有身份文件，就把 0.1 那份安装 id 原样写进来（0.1 的格式、只给本人读写、和首次创建一样用硬链接发布，绝不覆盖已有的），写作日里还是同一台设备。下一次 `Device::open` 把它绑到这台机器。
+- **认领旧身份**（`Library::adopt_installation_id`，M10 第四个里程碑加的，第六轮审过）：App 开着库时设备已经有身份了，导入时把它换成 0.1 那份（`Device::take_over`）：
+  - 只在身份文件还是这台设备读到的那份时才换，别的进程中途改过就报错、不写；
+  - `Device` 的克隆共用这个身份，库手里那份马上读到新的，写作日立刻记在 0.1 的设备键下；
+  - 库里同时记下新身份，下次打开不会误判成「换了设备」；
+  - 机器绑定下次 `Device::open` 时自动补上。
+- **库里也记机器**（第六轮）：0.1 的身份文件可能是从另一台电脑拷来的（导入了旧电脑的数据文件夹），认领以后两台电脑可能共用一个安装 id。这时库从一台拷到另一台，安装 id 对得上、另一台也没有这个库的水位，以前就认不出来、不换代，而这正是换代要防的情况。所以 `library_meta` 再记一份打开它的机器指纹摘要（`machine`，和设备目录里的同一个摘要，不存原值）：两边都知道机器、而且不同，也算 `OtherDevice`。只多认出情况，不会少认：同一台机器上不同的设备目录照旧靠安装 id 分开；没有指纹的平台跳过这一项；旧库第一次打开时只是补记，不换代。
+- **认领的代价**：这台设备以前打开过的**别的**库，下次打开时看到「另一个安装」会换代一次。换代总是安全的，只是每篇文档多一个对等方；现在一台设备只有一个库，没有影响。要避免就得在设备目录里记下「这台设备用过的旧 id」，不值得。
 - **对等方 ID 不从安装身份派生**：对等方仍是每库、每（设备，文档）随机一个，存在 `loro_peer`；搬库靠下面的自动换代兜住。
 - **自动换代**：`library_meta` 记着上次打开它的安装 id 和一个全库的写入计数 `write_seq`（每追加一行加一，和那一行在同一个事务里）。打开时：
   - 安装 id 和本机不同：库是从别的设备拷来的，换代（`EpochChange::OtherDevice`）；
@@ -195,16 +208,17 @@ match lib.try_close() { Err(CloseRefused { error, library }) => /* 还有文档�
 - **下次打开先结清回执**（照旧版）：读不出的回执 → 停（`recovery-receipt-invalid`），不猜；快照哈希或大小对不上 → 停（`safety-snapshot-invalid`）；没到「替换中」、或影子还在 → 替换没发生，删影子和回执、照常打开（有待跑的迁移就重试）；「替换中」且影子已不在 → 替换已发生，库必须完整、迁移条数等于回执的目标，否则停（`activated-database-invalid`），不在半成品上继续迁移。停下时界面用 `Library::recovery_receipts` 读回执，`restore_from_receipt` 校验哈希后恢复。
 - **「原库不变」的确切含义**：原库正常关闭过（WAL 为空）时逐字节不变，测试按这个校验；上次是崩溃退出时，升级前的 checkpoint 会把 WAL 写回主文件，内容不变、字节会变。
 - **换版本也拍快照**：没有待跑的迁移、但打开它的应用版本变了，也先拍一张。
-- **已合进 `main` 的迁移**：基线随 `main` 的 `e0a9e964` 合入，从此不再改；之后的表一律追加。现在有六条：
+- **已合进 `main` 的迁移**：基线随 `main` 的 `e0a9e964` 合入，从此不再改；之后的表一律追加。现在有七条：
   - `0000_baseline`；
   - `0001_import_receipts`：导入回执表（见「本机表」）；
   - `0002_history_label_keep`：历史标签加 `keep` 列，`1` 表示不参与修剪；
   - `0003_ws_journal`：F3 的本机日志表（见「本机表」）；
   - `0004_local_state`：本机小状态表；同时把 F3 暂借在 `library_meta` 里的 `ws.recent` 原样搬过去（模块 `ws`、键 `recent`）；
-  - `0005_purged_doc`：彻底删除的记录（见「彻底删除」）。
+  - `0005_purged_doc`：彻底删除的记录（见「彻底删除」）；
+  - `0006_reference_by_book`：`reference` 按书的索引（见「派生索引」）。
 
   测试 `a_baseline_library_gets_the_later_published_migrations` 用只有基线的旧库走一遍真实的升级：先拍安全快照，再在影子库上迁后面几条，正文和已有标签都在。
-- **哈希还没人钉**：`PINNED` 里六条现在都是 `None`（F8 的约定：第一个 0.2 版本发布时才填），门禁只提示「not published yet」。以前 dr-store 自己有一个 `PUBLISHED` 测试钉着前三条，第三轮删了，免得两份名单。监管会话定了：等第一个 0.2 版本真正发布时再钉，在那之前保持「未冻结」。
+- **哈希还没人钉**：`PINNED` 里七条现在都是 `None`（F8 的约定：第一个 0.2 版本发布时才填），门禁只提示「not published yet」。以前 dr-store 自己有一个 `PUBLISHED` 测试钉着前三条，第三轮删了，免得两份名单。监管会话定了：等第一个 0.2 版本真正发布时再钉，在那之前保持「未冻结」。
 
 ### 表
 
@@ -223,7 +237,7 @@ DDL 以 `migrations/0000_baseline.sql` 为准：所有表 `STRICT`，时间一�
 | `agent_settlement` | Agent 结算：会话、轮次、调用、文档、`seq`、前后 frontiers、摘要。没有审阅状态 |
 | `index_state` | 每篇派生数据对应的 `indexed_seq` 和 frontiers，以及字数、字符数、段数 |
 | `block_index` + `block_fts` | 每段一行（搜索、大纲、段落长度），FTS5 由 dr-store 在同一事务里维护 |
-| `reference` | 引用：`link` / `mention` / `embed` |
+| `reference` | 引用：`link` / `mention` / `embed`；按目标、按来源文档、按书（`0006`）各一个索引 |
 | `asset` | 资源文件，每个版本一行，带 `uploaded_ms` |
 | `import_run`、`import_book`、`import_doc`、`import_anchor`、`import_original` | 导入回执（`0001`，M10 写） |
 | `ws_journal` | F3 的本机日志（`0003`，F3 写） |
@@ -290,6 +304,12 @@ DDL 以 `migrations/0000_baseline.sql` 为准：所有表 `STRICT`，时间一�
 - **`held`**：`DeriveInput.held` 为真，是持有者自己的那篇文档，值得把结果缓存起来接下一次的差异；为假，是后台重建从 SQLite 另载的副本，只读一次，派生器不该把它放进缓存。
 - 持有者每次追加后标记「索引落后」，空闲时调用派生器，把结果和 `indexed_seq` 在同一个事务里写进去；同一篇文档的索引永远不会倒退（`seq` 不比已存的大就不写）。
 - 打开库时（有派生器就默认开），后台线程把 `loro_head.seq > index_state.indexed_seq` 的文档全部重建。已经打开的文档它跳过，不拿句柄：持有者打开时就知道索引落后，空闲时自己补。这是 P0-E 发现的「缓存落后正文」的根治办法。
+- **后台补建给打字让路**（第六轮）：派生在锁外做，写一篇的索引要拿写锁、一个事务；作者的每次按键提交也要这把锁，以前就排在重建的事务后面。现在：
+  - 除了后台重建，谁拿写锁都算「前台」：从开始等锁到放开，都记着；
+  - 后台重建每写一篇之前，先等前台已经停手 `background_quiet`（默认 500 ms）、而且没人在等锁。派生完要写时如果又有人写了，这一篇放回去，等下一个空闲再来；拿到锁以后发现有人排队，也先放开；
+  - 所以作者一直在写时，重建一篇也不写；停手半秒才接着写，作者再开口时最多等它正在写的那一篇；
+  - 重建线程等空闲时、两篇之间都不握着库（只拿弱引用）：关库时立刻停；不调 `close` 直接丢掉最后一个句柄，库也马上放开，不会被等空闲的线程拖着（dr-cli 就是这样先丢掉再离线写的）。
+  - 主动调用的 `rebuild_stale_indexes()`（M10 导入后、基准）不受影响，照旧直接写。
 - **派生有自己的空闲等待**：`LibraryOptions::derive_idle`（默认 150 ms）。最后一件事过去 150 ms 就派生，压缩照旧等 `compaction.idle`（750 ms）。哪件做过（或失败了），都要再等满一段才重试，不会空转。
 - 搜索：3 个字以上走 FTS5 trigram（整句当一个短语），1–2 个字退回 `LIKE`；都不分大小写，给出命中位置和上下文。`search` 按文档 id 再按段序排。`search_in_order(书, 查询, limit, 文档顺序)` 先按传进来的文档顺序排（不在名单里的排在后面，按 id），再截 `limit`，所以截出来的就是书里最前面的那些命中；顺序由 F3 从书目文档取。
 - **按书序搜索**，SQL 文本都是固定的（`prepare_cached` 能一直用），耗时不再随书序长度变：
@@ -367,7 +387,11 @@ assets/<书>/<资源>/<版本>.<扩展名>     原样存（图片本来就压缩
   - `backup-legacy`：0.1 做的备份（格式 1），里面是 0.1 的数据库，要走导入（M10）；
   - `backup-newer`：更新的版本做的（格式更新，或者数据库迁移比本版本多），先升级应用。
 - 以前就有的 `Library::restore_backup(库, SQLite 文件)` 留着，给恢复回执用（只有数据库、没有资源）。
-
+- **进度和取消**（第六轮，给备份与恢复对话框）：三个操作各有带回调的版本，回调拿到 `Progress { step, done, total }`。每一步开始、每过 1 MiB、做完各报一次；拍快照、校验升级、替换这几步数不出字节，`total` 是 0。
+  - 导出：`Snapshot` → `Pack`（数据库副本加资源文件的字节）；
+  - 核对：`Extract`（解包核对的字节）→ `Verify`；
+  - 恢复：`SaveCurrent`（存恢复前备份）→ `CopyAssets` → `Replace`。
+  - 回调返回 `false` 就取消，报 `backup-cancelled`：导出取消后目标处什么都没有（临时文件也删了）；核对取消后暂存区清空；恢复在 `Replace` 之前都能取消，库原样不动（已经添进来的资源文件留着，资源本来就只添不删），暂存的备份还能再恢复。到了 `Replace` 就不再理会取消，一定做完。
 ### 资源文件
 
 以 `src-tauri/src/native_capabilities.rs` 为准：
@@ -563,6 +587,42 @@ M3 Pro（12 核，36 GB），release，Loro 1.17.1，2026-11-07，跑时 1 分�
 
 （M3 Pro，2026-11-08，跑时一分钟负载约 60，绝对值偏大。）每篇约 2.4 µs，100 章的 `chapter.list` 约 0.25 ms，20 本书、每本 100 章的书架约 5 ms，而且都不在界面线程上。等真实书架上 `book.shelf` 超过 10 ms 左右再做：加一个 `Library::book_doc_summaries(书)`，一条查询给出每篇的字数和最近存盘时间。`head()` 还会解出版本向量和 frontiers，`chapter.list` 只要时间；到时一起换掉，每篇的开销还能再少一半。
 
+## 第六轮（监管会话，2026-11-08）
+
+| 要求 | 处理 |
+| --- | --- |
+| 1. 审 M10 加的 `Library::adopt_installation_id`（M10「待协调」16） | 接口本身没问题。找到一处漏洞并修了：两台电脑认领同一个 0.1 身份后，库在它们之间拷来拷去不会换代。现在库里也记机器，见「库的文件夹与本机身份」。「别的库下次换代一次」是安全的，写明不改 |
+| 2. 补建索引别卡打字（F4「待协调」6、F4d 的笔记） | 后台重建等前台停手才写，见「派生索引」 |
+| 3. `reference` 按书的索引 | `0006_reference_by_book`：`(book_id, source_doc)`，rowid 排在索引末尾，所以 `ORDER BY source_doc, id` 不用另外排序 |
+| 4. 备份的进度回调 | `export_backup_with`、`backup::stage_with`、`Library::restore_staged_with`，带取消，见「整库备份与恢复」 |
+
+测试：
+- `a_library_copied_between_machines_sharing_a_0_1_identity_gets_a_new_epoch`（`tests/device.rs`）：两台电脑认领同一个 0.1 身份，库从一台拷到另一台：换代、对等方换了，再开不再换。拿掉机器比对就失败。
+- `the_rebuild_waits_while_the_author_types_and_catches_up_after`（`tests/rebuild.rs`，用真的派生器和 tiny 种子）：作者连写 3 秒，过期的文档一篇都没被重建；停手以后全部补完。让后台重建不等空闲，这项就失败。`closing_does_not_wait_for_a_quiet_moment`：等空闲的时间设成 10 分钟，关库照样立刻返回。`a_dropped_library_is_released_while_the_rebuild_waits`：同样设成 10 分钟，不调 `close` 直接丢掉库，马上就能再打开；让重建线程一直握着库，这项就失败（第一版就是这样，dr-cli 的测试先发现的）。
+- `a_books_references_are_read_through_its_own_index`（`tests/index.rs`）：按书查引用的查询计划只走 `reference_by_book`，没有排序。
+- `backups_report_their_progress_step_by_step`、`a_cancelled_backup_leaves_nothing_behind`（`tests/backup.rs`）：三个操作的步骤顺序，每步的字节只增不减、最后等于总数，3 MiB 的资源打包时报多次；三种取消各自什么都不留，恢复取消后库不变、再恢复照样成，`Replace` 时要求取消也会做完。
+
+**打字被卡的测量**（`tests/rebuild.rs` 里默认不跑的 `measure_typing_while_stale_indexes_are_rebuilt`）：heavy 种子写进库、不建索引（680 篇全过期），用真的派生器打开，马上在一章里打字（每 10 ms 写一个字，400 次），量每次写入等多久。release，M3 Pro，2026-11-08，负载 20–37，只作参考。
+
+| 情形 | 写入 p50 / p95 / p99 / 最慢（ms） |
+| --- | ---: |
+| 改前，后台重建 | 0.38 / 48 / 104 / 185–267 |
+| 改前，不重建 | 0.34 / 0.52 / 4.0 / 5–25 |
+| 改后，连续打字，后台重建 | 0.20–0.30 / 0.33–0.65 / 0.46–1.5 / 2.9–12 |
+| 改后，连续打字，不重建 | 0.20–0.23 / 0.29–0.45 / 0.40–0.69 / 2.4–5.1 |
+| 改后，打 30 个字停 0.7 秒，后台重建 | 0.20–0.27 / 0.44–1.3 / 3.1–5.7 / 17–25 |
+| 改后，打 30 个字停 0.7 秒，不重建 | 0.21–0.37 / 0.34–6.2 / 1.6–9.7 / 4.6–14 |
+
+（改后各跑了两轮，每轮每种情形两次，表里是范围。）
+
+- 改前重建的每个写事务中位数 0.7 ms，但 p95 17 ms、最长 167 ms（负载约 30），而且连很小的要素文档也有 64 ms 的，说明长的是提交时顺带的事（WAL 检查点、FTS 合并），不全是文档本身。
+- 改后连续打字时重建一篇都不写，和不重建一样；停手后 2–4 秒补完 680 篇。
+- 一阵一阵打时，停顿里重建照常写，再开口的第一个键最多等它正在写的那一篇：每阵第一个键最慢 9–20 ms，全程最慢 17–25 ms；同样节奏不重建时最慢 5–14 ms。负载这么高，这一点差别在噪声边上，就没再往下压。要再压，可以把检查点挪到写锁外面做。
+
+**按书查引用的测量**（同样只作参考）：
+- heavy 种子只有一本书，2.8 万行引用全属于它，有没有这个索引都是 15–40 ms，时间花在把 2.8 万行取出来。M20 量到整本书的 `mention.list` 687 ms，大头不在这条 SQL，在命令拿到行以后的处理（分组、逐个查对象还在不在）。
+- 两本书的库（heavy 加一本 lite）查 lite 那本 1 899 行：有索引 1.0 ms，没有 11 ms。
+
 ## 待协调
 
 0. **给 M10**：`label_at` / `label_many` 可以替换 `run::write_labels` 的直写 SQL（行为相同：书目文档的版本取当前 head；另外多了保留参数和修剪）；`Device::adopt(dir, &id)` 替换 `adopt_identity`；导入回执的五张表在库里了（`0001`），用 `lib.local_transaction` 写，表名和列与 `receipt.rs` 相同。存档和本机表这一轮仍留在 `receipt.sqlite`（`ATTACH` 不能在事务里做，到它们的模块接手时再搬）。
@@ -600,6 +660,10 @@ M3 Pro（12 核，36 GB），release，Loro 1.17.1，2026-11-07，跑时 1 分�
 21. **给 M07（dr-view-stats）**：`recorder::writes_here` 只认 `User | Agent(_) | Mirror`。F3 换成 `Origin::Command` 以后，作者的命令（比如恢复历史快照）就不算「这台设备写的」了；要和现在一样，把 `Command` 加进去，或者用 `is_author()`。
 22. **给 F1**：`user:command` 现在是 dr-store 的 `COMMAND_ORIGIN`。dr-model 不依赖 dr-store，`UNDO_EXCLUDED_ORIGIN_PREFIXES` 要加它就写同一个字符串（F3 待协调 F1-2）。
 23. **给 M41**：整库备份的格式现在由 F2 定（`backup.rs`，格式 2）。M41 做「导出与搬运」时直接调，不要另写一份。
+24. **给 F4、F4d**（第六轮）：后台补建索引不再挡打字。编辑器的基准可以不用先等索引建完；要量「重建期间打字」，用 `background_quiet` 调等待时间。
+25. **给 dr-text**（第六轮）：备份与恢复对话框用 `export_backup_with` / `backup::stage_with` / `Library::restore_staged_with`。进度条按 `done / total`，`total` 是 0 的那几步显示不确定进度。「取消」按钮让回调返回 `false`。错误码多了 `backup-cancelled`，可以不提示。
+26. **给 F3、M20**（第六轮）：`references_in_book` 现在走索引。heavy 种子上整本书的 `mention.list` 慢不在这条查询（dr-store 这一段 15–40 ms），在命令自己的处理。
+27. **给 M10**（第六轮）：`adopt_installation_id` 审过，接口和用法都不用改；dr-store 另在库里记了机器，堵上两台电脑共用一个 0.1 身份时认不出拷库的漏洞。M10「待协调」16 可以划掉。
 
 ## 没做的、下一步建议
 
