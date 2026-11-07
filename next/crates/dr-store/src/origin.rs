@@ -6,6 +6,11 @@ use std::fmt;
 /// `UndoManager` excludes it (`add_exclude_origin_prefix`).
 pub const AGENT_PREFIX: &str = "agent:";
 
+/// The origin of the author's *commands* ([`Origin::Command`]). An editor's
+/// undo manager excludes it (`add_exclude_origin_prefix`), so the editor's
+/// Undo only takes back the editor's own typing.
+pub const COMMAND_ORIGIN: &str = "user:command";
+
 /// The source of one commit. The origin is local-only (Loro does not persist
 /// it); it is stored in `loro_update.origin`. An Agent commit also carries
 /// the same string as its commit message, which Loro persists and syncs.
@@ -13,6 +18,13 @@ pub const AGENT_PREFIX: &str = "agent:";
 pub enum Origin {
     /// The author, through the editor or any other view.
     User,
+    /// The author through a command rather than an editor: the command
+    /// palette, an Agent acting for the author, an object-level undo
+    /// (dr-workspace). It is the author's write in every respect (history,
+    /// attribution, labels: no commit message, like [`Self::User`]); only the
+    /// origin differs, so an editor's undo leaves it to the command journal
+    /// and listeners can tell it from typing.
+    Command,
     /// An Agent: `<session>` or `<session>/<turn>`.
     Agent(String),
     /// The Markdown folder mirror.
@@ -39,6 +51,7 @@ impl Origin {
     pub fn parse(s: &str) -> Option<Self> {
         Some(match s {
             "user" => Self::User,
+            COMMAND_ORIGIN => Self::Command,
             "mirror" => Self::Mirror,
             "sync" => Self::Sync,
             "import" => Self::Import,
@@ -57,6 +70,12 @@ impl Origin {
         matches!(self, Self::Agent(_))
     }
 
+    /// The author's own write: typing ([`Self::User`]) or a command
+    /// ([`Self::Command`]).
+    pub fn is_author(&self) -> bool {
+        matches!(self, Self::User | Self::Command)
+    }
+
     /// The commit message Loro stores with this origin's changes, so the
     /// origin survives compaction, snapshots and sync: Agent, Markdown
     /// mirror, import and stray outside writes are named; the author's own
@@ -67,7 +86,7 @@ impl Origin {
             Self::Agent(_) | Self::Mirror | Self::Import | Self::Repair | Self::Outside => {
                 Some(self.to_string())
             }
-            Self::User | Self::Sync | Self::Genesis => None,
+            Self::User | Self::Command | Self::Sync | Self::Genesis => None,
         }
     }
 }
@@ -76,6 +95,7 @@ impl fmt::Display for Origin {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::User => f.write_str("user"),
+            Self::Command => f.write_str(COMMAND_ORIGIN),
             Self::Agent(s) => write!(f, "{AGENT_PREFIX}{s}"),
             Self::Mirror => f.write_str("mirror"),
             Self::Sync => f.write_str("sync"),
@@ -115,6 +135,7 @@ mod tests {
     fn origins_round_trip() {
         for o in [
             Origin::User,
+            Origin::Command,
             Origin::agent("s1", 3),
             Origin::Agent("s2".into()),
             Origin::Mirror,
@@ -130,6 +151,10 @@ mod tests {
         assert_eq!(Origin::parse("agent:"), None);
         assert_eq!(Origin::parse("nobody"), None);
         assert_eq!(Origin::User.commit_message(), None);
+        assert_eq!(Origin::Command.commit_message(), None);
+        assert_eq!(Origin::Command.to_string(), "user:command");
+        assert!(Origin::Command.is_author() && Origin::User.is_author());
+        assert!(!Origin::agent("s", 1).is_author() && !Origin::Mirror.is_author());
         assert_eq!(Origin::Sync.commit_message(), None);
         assert_eq!(Origin::Mirror.commit_message().as_deref(), Some("mirror"));
         assert_eq!(Origin::Import.commit_message().as_deref(), Some("import"));

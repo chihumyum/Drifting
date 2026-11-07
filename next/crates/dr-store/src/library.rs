@@ -388,7 +388,7 @@ pub struct Library {
 /// immediate reopen failed 438 times in 1000 while four threads started
 /// processes: `a_closed_library_reopens_at_once_while_processes_start`).
 /// Unlocking releases the lock for every copy at once.
-struct LibraryLock(File);
+pub(crate) struct LibraryLock(File);
 
 impl Drop for LibraryLock {
     fn drop(&mut self) {
@@ -398,7 +398,7 @@ impl Drop for LibraryLock {
     }
 }
 
-fn take_lock(paths: &LibraryPaths) -> Result<LibraryLock> {
+pub(crate) fn take_lock(paths: &LibraryPaths) -> Result<LibraryLock> {
     fs::create_dir_all(&paths.root)?;
     let file = OpenOptions::new()
         .create(true)
@@ -493,7 +493,7 @@ impl Library {
         self.inner.read_only
     }
 
-    fn open_locked(
+    pub(crate) fn open_locked(
         paths: LibraryPaths,
         options: LibraryOptions,
         migrations: &[Migration],
@@ -726,12 +726,25 @@ impl Library {
 
     /// Record a document (idempotent). Opening with
     /// [`OpenDoc::CreateIfMissing`] does this itself.
+    /// Refused with [`StoreError::Purged`] when the document, or its book,
+    /// was purged on this device ([`crate::purge`]).
     pub fn register(&self, doc_id: &str, kind: &str, book_id: Option<&str>) -> Result<()> {
         validate_doc_id(doc_id)?;
-        self.inner.writer().execute(
-            "INSERT OR IGNORE INTO loro_doc (doc_id, kind, book_id, created_ms) VALUES (?1, ?2, ?3, ?4)",
-            params![doc_id, kind, book_id, now_ms()],
+        let conn = self.inner.writer();
+        let tx = conn.unchecked_transaction()?;
+        let stored: bool = tx.query_row(
+            "SELECT EXISTS (SELECT 1 FROM loro_doc WHERE doc_id = ?1)",
+            [doc_id],
+            |r| r.get(0),
         )?;
+        if !stored {
+            crate::purge::check_creatable(&tx, doc_id, book_id)?;
+            tx.execute(
+                "INSERT INTO loro_doc (doc_id, kind, book_id, created_ms) VALUES (?1, ?2, ?3, ?4)",
+                params![doc_id, kind, book_id, now_ms()],
+            )?;
+        }
+        tx.commit()?;
         Ok(())
     }
 
@@ -899,6 +912,7 @@ impl Library {
                 let bytes = doc.export(ExportMode::all_updates())?;
                 let conn = self.inner.writer();
                 let tx = conn.unchecked_transaction()?;
+                crate::purge::check_creatable(&tx, doc_id, book_id)?;
                 tx.execute(
                     "INSERT OR IGNORE INTO loro_doc (doc_id, kind, book_id, created_ms) VALUES (?1, ?2, ?3, ?4)",
                     params![doc_id, kind, book_id, now_ms()],
@@ -1581,16 +1595,26 @@ impl Library {
 
     /// Delete a document and everything stored for it (updates, snapshot,
     /// head, peer, sync state, history labels, derived rows) in one
-    /// transaction. Agent settlements stay: they are the durable record of
-    /// what an Agent did. Refused while the document is open.
+    /// transaction, and record it as purged so sync cannot bring it back
+    /// ([`crate::purge`]); purging a book's last document also drops the
+    /// book's device-local state. Agent settlements stay: they are the
+    /// durable record of what an Agent did. Refused while the document is
+    /// open; a document that is not stored is left alone.
     pub fn purge_doc(&self, doc_id: &str) -> Result<()> {
-        {
+        let changes = {
             let docs = self.inner.docs.lock().unwrap_or_else(|e| e.into_inner());
             if docs.contains_key(doc_id) {
                 return Err(StoreError::AlreadyOpen(doc_id.into()));
             }
             let conn = self.inner.writer();
             let tx = conn.unchecked_transaction()?;
+            let info: Option<(String, Option<String>)> = tx
+                .query_row(
+                    "SELECT kind, book_id FROM loro_doc WHERE doc_id = ?1",
+                    [doc_id],
+                    |r| Ok((r.get(0)?, r.get(1)?)),
+                )
+                .optional()?;
             for table in [
                 "loro_update",
                 "loro_snapshot",
@@ -1603,9 +1627,17 @@ impl Library {
                 tx.execute(&format!("DELETE FROM {table} WHERE doc_id = ?1"), [doc_id])?;
             }
             crate::index::delete_index(&tx, doc_id)?;
+            let changes = match &info {
+                Some((kind, book)) => crate::purge::record(&tx, doc_id, kind, book.as_deref())?,
+                None => Vec::new(),
+            };
             tx.commit()?;
-        }
+            changes
+        };
         self.notify_local(LocalChange::new("doc", doc_id, LocalChangeKind::Delete));
+        for change in changes {
+            self.notify_local(change);
+        }
         Ok(())
     }
 

@@ -598,3 +598,88 @@ fn a_write_starts_on_a_settled_document_and_typed_readers_borrow_it() {
         .with_doc(|doc| doc.get_text(synthetic::BODY).len_unicode());
     assert_eq!(len, "乙x甲\n".chars().count());
 }
+
+/// The author's commands (dr-workspace's `user:command`) are the author's
+/// writes in every respect but the origin: the holder commits them with
+/// `user:command` (so an editor's undo manager can leave them out), stores
+/// and announces them as `Origin::Command`, writes no commit message (the
+/// author's attribution) and labels them like typing.
+#[test]
+fn the_authors_commands_keep_their_own_origin_from_commit_to_event() {
+    let dir = tempfile::tempdir().unwrap();
+    let lib = open(dir.path());
+    let h = create(&lib, "node:a");
+    let loro_origins: Arc<Mutex<Vec<String>>> = Arc::default();
+    {
+        let seen = loro_origins.clone();
+        h.read(move |doc| {
+            doc.subscribe_root(Arc::new(move |e| {
+                seen.lock().unwrap().push(e.origin.to_string());
+            }))
+            .detach();
+        })
+        .unwrap();
+    }
+    let events: Arc<Mutex<Vec<Origin>>> = Arc::default();
+    let _sub = {
+        let events = events.clone();
+        h.subscribe(move |e| events.lock().unwrap().push(e.origin.clone()))
+    };
+    insert(&h, Origin::User, 0, "甲");
+    insert(&h, Origin::Command, 0, "乙");
+    // A job that commits part-way (as resolving an anchor does) takes the
+    // options it set, as for any other origin.
+    h.write(Origin::Command, |doc| {
+        doc.set_next_commit_options(CommitOptions::new().origin(dr_store::COMMAND_ORIGIN));
+        doc.get_text(synthetic::BODY).insert(0, "丙").unwrap();
+        doc.commit();
+        doc.get_text(synthetic::BODY).insert(0, "丁").unwrap();
+    })
+    .unwrap();
+    assert_eq!(
+        *events.lock().unwrap(),
+        [Origin::User, Origin::Command, Origin::Command]
+    );
+    assert_eq!(
+        *loro_origins.lock().unwrap(),
+        ["user", "user:command", "user:command", "user:command"]
+    );
+    let stored: Vec<(String, Option<Origin>)> = lib
+        .updates_since("node:a", 1)
+        .unwrap()
+        .into_iter()
+        .map(|r| (r.origin.clone(), Origin::parse(&r.origin)))
+        .collect();
+    assert_eq!(
+        stored,
+        [
+            ("user".to_string(), Some(Origin::User)),
+            ("user:command".to_string(), Some(Origin::Command)),
+            ("user:command".to_string(), Some(Origin::Command)),
+        ],
+        "one row per job, the part-way commit included"
+    );
+    h.close();
+    let doc = lib.load_copy("node:a").unwrap();
+    let messages: Vec<Option<String>> = doc
+        .export_json_updates(&Default::default(), &doc.oplog_vv())
+        .unwrap()
+        .changes
+        .into_iter()
+        .filter(|c| c.id.peer != (1 << 63) | 0x5EED)
+        .map(|c| c.msg.as_deref().map(str::to_string))
+        .collect();
+    assert!(!messages.is_empty());
+    assert!(messages.iter().all(Option::is_none), "{messages:?}");
+    // A session of commands alone still earns the closing label.
+    let h = lib.open_doc("node:a", OpenDoc::Existing).unwrap();
+    insert(&h, Origin::Command, 0, "戊");
+    h.close();
+    let names: Vec<String> = lib
+        .history("node:a")
+        .unwrap()
+        .into_iter()
+        .map(|l| l.label)
+        .collect();
+    assert_eq!(names.first().map(String::as_str), Some(labels::CLOSE));
+}
