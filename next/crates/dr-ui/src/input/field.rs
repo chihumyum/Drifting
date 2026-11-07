@@ -5,9 +5,12 @@
 //! the words and a count in index type at the end.
 //!
 //! Input goes through GPUI's `EntityInputHandler`; the rules for
-//! composition live in [`super::compose`]. The owner hears
-//! [`FieldEvent::Changed`] only for committed text, never mid-composition,
-//! and Enter while composing belongs to the input method.
+//! composition are `gpui-ime`'s [`LineComposer`], shared with the editor.
+//! The owner hears [`FieldEvent::Changed`] only for committed text, never
+//! mid-composition, and Enter while composing belongs to the input method.
+//! Losing focus (or the window) mid-composition clears the marked text and
+//! asks the system input method to discard it ([`super::ime`]); input-method
+//! text that arrives after the field let go of the keyboard is ignored.
 //!
 //! The text element follows the structure of GPUI's `examples/input.rs`
 //! (Apache-2.0).
@@ -32,7 +35,9 @@ use crate::{
     tokens::radius,
 };
 
-use super::compose::{Change, Composer};
+use gpui_ime::{Change, LineComposer};
+
+use super::ime::{self, Graphemes};
 
 actions!(
     dr_text_field,
@@ -93,7 +98,7 @@ pub enum FieldEvent {
 
 pub struct TextField {
     focus: FocusHandle,
-    composer: Composer,
+    composer: LineComposer,
     placeholder: SharedString,
     icon: Option<Icon>,
     meta: Option<SharedString>,
@@ -132,18 +137,17 @@ impl TextField {
         .detach();
         cx.on_blur(&focus, window, |this, window, cx| this.blurred(window, cx))
             .detach();
-        // Switching to another app is losing focus too: nothing half-composed
-        // may stay behind.
+        // Switching to another app or window is losing focus too: nothing
+        // half-composed may stay behind.
         cx.observe_window_activation(window, |this, window, cx| {
-            if !window.is_window_active() && this.composer.is_composing() {
-                let change = this.composer.blur();
-                this.report(change, window, cx);
+            if !window.is_window_active() {
+                this.drop_composition(window, cx);
             }
         })
         .detach();
         TextField {
             focus,
-            composer: Composer::default(),
+            composer: LineComposer::default(),
             placeholder: SharedString::default(),
             icon: None,
             meta: None,
@@ -226,8 +230,8 @@ impl TextField {
         cx.notify();
     }
 
-    /// The composer, for tests and for the editor's shared rules.
-    pub fn composer(&self) -> &Composer {
+    /// The composer, for tests.
+    pub fn composer(&self) -> &LineComposer {
         &self.composer
     }
 
@@ -246,15 +250,33 @@ impl TextField {
         cx.notify();
     }
 
-    fn blurred(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    /// The shared blur rule: clear the marked text here and in the system
+    /// input method.
+    fn drop_composition(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if !self.composer.is_composing() {
+            return;
+        }
         let change = self.composer.blur();
+        ime::discard_marked_text(window, cx);
+        self.report(change, window, cx);
+    }
+
+    fn blurred(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.drop_composition(window, cx);
         self.blink = None;
         self.selecting = false;
         if let Some(g) = &self.glass {
             g.update(cx, |s, _| s.set_selected(false));
         }
-        self.report(change, window, cx);
+        cx.notify();
         cx.emit(FieldEvent::Blurred);
+    }
+
+    /// Whether text from the input method is for this field: it holds the
+    /// keyboard and takes input. (Until the next frame the window still
+    /// routes the input method to a field that just lost focus.)
+    fn takes_input(&self, window: &Window) -> bool {
+        !self.disabled && self.focus.is_focused(window)
     }
 
     fn start_blink(&mut self, cx: &mut Context<Self>) {
@@ -276,32 +298,32 @@ impl TextField {
     }
 
     fn backspace(&mut self, _: &Backspace, window: &mut Window, cx: &mut Context<Self>) {
-        let change = self.composer.backspace();
+        let change = self.composer.backspace(&Graphemes);
         self.report(change, window, cx);
     }
 
     fn delete(&mut self, _: &Delete, window: &mut Window, cx: &mut Context<Self>) {
-        let change = self.composer.delete();
+        let change = self.composer.delete(&Graphemes);
         self.report(change, window, cx);
     }
 
     fn left(&mut self, _: &Left, window: &mut Window, cx: &mut Context<Self>) {
-        self.composer.left();
+        self.composer.left(&Graphemes);
         self.moved(window, cx);
     }
 
     fn right(&mut self, _: &Right, window: &mut Window, cx: &mut Context<Self>) {
-        self.composer.right();
+        self.composer.right(&Graphemes);
         self.moved(window, cx);
     }
 
     fn select_left(&mut self, _: &SelectLeft, window: &mut Window, cx: &mut Context<Self>) {
-        self.composer.select_left();
+        self.composer.select_left(&Graphemes);
         self.moved(window, cx);
     }
 
     fn select_right(&mut self, _: &SelectRight, window: &mut Window, cx: &mut Context<Self>) {
-        self.composer.select_right();
+        self.composer.select_right(&Graphemes);
         self.moved(window, cx);
     }
 
@@ -437,6 +459,9 @@ impl EntityInputHandler for TextField {
     }
 
     fn unmark_text(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if !self.takes_input(window) {
+            return;
+        }
         let change = self.composer.unmark();
         self.report(change, window, cx);
     }
@@ -448,7 +473,7 @@ impl EntityInputHandler for TextField {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.disabled {
+        if !self.takes_input(window) {
             return;
         }
         let text = text.replace(['\r', '\n'], " ");
@@ -464,7 +489,7 @@ impl EntityInputHandler for TextField {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.disabled {
+        if !self.takes_input(window) {
             return;
         }
         let change = self.composer.replace_and_mark(range16, text, selected16);

@@ -93,6 +93,10 @@ pub struct Gallery {
     pub panel_open: bool,
     /// The wave's pills in their dragged order (chapter numbers).
     pub wave_order: Vec<usize>,
+    /// The tab dock's tabs in their dragged order, the open one and the lock.
+    pub dock_order: Vec<usize>,
+    pub dock_active: usize,
+    pub dock_locked: bool,
     /// Font size, line height, paragraph spacing, paper width.
     pub numbers: [f64; 4],
     pub thinking: bool,
@@ -140,6 +144,9 @@ impl Gallery {
             panel: 0,
             panel_open: true,
             wave_order: (0..6).collect(),
+            dock_order: (0..5).collect(),
+            dock_active: 0,
+            dock_locked: false,
             numbers: [17.0, 1.5, 1.0, 720.0],
             thinking: true,
             hold_open: false,
