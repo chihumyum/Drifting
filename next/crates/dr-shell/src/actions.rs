@@ -53,6 +53,12 @@ actions!(
         /// Imports Markdown, text and Word files into the open book (M41,
         /// `dr-view-transfer` takes it with `cx.on_action`).
         ImportDocuments,
+        /// Settings → 本地数据 「导出备份…」: the whole library as a `.drifting`
+        /// file (M41, `dr-view-transfer` takes it).
+        BackupLibrary,
+        /// Settings → 本地数据 「选择备份…」: replaces the library with a
+        /// backup (M41, `dr-view-transfer` takes it).
+        RestoreLibrary,
         /// Esc: closes the topmost layer (a popover, Settings, a Super View).
         Dismiss,
     ]

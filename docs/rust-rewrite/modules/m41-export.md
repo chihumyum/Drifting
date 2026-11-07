@@ -128,7 +128,8 @@ next/crates/dr-view-transfer/examples/transfer-capture.rs  第二部分的截图
    - 备份：保存面板（`Drifting-<日期>.drifting`），「正在备份…」，写完说「已保存「…」。共 N 个项目、M 个素材文件，大小。」，本机缺了的素材文件也说一句。库照常用，不用关。
    - 恢复：选文件，「正在核对…」（检查每个校验和、数据库完好，旧了就在旁边升级；库照常开着），然后问旧版那一句：用哪个文件替换、备份时间、内容、有哪些书，以及「当前资料库会先自动存成恢复前副本」。「替换并恢复」交给外壳去关库、换库、重开；「取消」把核对出来的副本删掉。
    - 0.1 的整库备份（格式 1）不能直接恢复，会说「这是 Drifting 0.1 的备份…请先在 Drifting 0.1 里恢复它，再在书架上用「导入 · Drifting 0.1」导入那个资料库。」（新写的一句）。
-   - **入口和换库还没接上**：设置里的两行按钮、动作 `BackupLibrary` / `RestoreLibrary` 在 F6 第六轮的分支上，换库要外壳关掉所有拿着库的地方再重开，方案写在共享笔记 `m41-backup-restore-plan.md`，监管会话已转给 F6。对话框现在由测试驱动（备份是真文件，核对是真核对，替换是测试给的替身）。
+   - **入口**：设置「本地数据」的两行按钮派发 `dr_shell::actions::{BackupLibrary, RestoreLibrary}`（监管会话和 F6 定的名字；这条分支上先加了这两个动作，F6 第六轮的分支也加了同名的，合并时留一份），`dr_view_transfer::init` 接住。
+   - **换库还没接上**：要外壳关掉所有拿着库的地方再重开，F6 已在它第六轮的分支上做了（`dr_shell::library::replace`）。两边合进 main 后，应用用 `dr_view_transfer::backup::set_replace(cx, …)` 登记一下就通了；没登记时恢复照样核对、照样问，确认后说「操作没有完成，当前资料库没有改动」，库不动。
 
 截图在 [m41/](m41/)：`transfer-book-importing`、`transfer-book-refused`、`transfer-documents`、`transfer-backup`、`transfer-restore`，浅色深色各一套。
 
@@ -156,18 +157,30 @@ assets/<asset>/<variant>.<ext>     资源的每个存着的版本，原样
 - **注册了但没写过的文档不带**（比如一个从没打开过的类目页）：新库里第一次打开时照常新建。
 - **导入文件**：解析和写入的规则见 `dr-export/src/import/` 的文档注释（子代理定的，我看过）：故事线可以不选（旧版必须选；F3 允许不选）；先用 F3 的创建命令建出来（每个文件一条可撤销的日志、命名规则照旧），再一次提交写上格式；中日韩字之间的软换行直接相连不加空格（旧版会加一个）。
 - **入口放在哪**：书架上的两个动作（`ExportBook` 新加，`ImportBook` 原有）、外壳的 `ImportDocuments`（新加）都由 `dr_view_transfer::init` 用 `cx.on_action` 接，和 M10 一样；对话框是外壳的模态对话框位置。
-- **不加说明文字**：文案都是旧版搬来的；新写的只有 0.1 文件那两句。旧版导入对话框「构想」那一项的键名是 `importDialog.targets.inspiration`，键名里的 inspiration 过不了术语门禁（构想不叫灵感），所以把它的标签和说明原样抄进新版自己的文案，键名改成 `importDialog.targets.idea`。旧版导入对话框顶上那段「支持 `.md` / `.docx` / `.txt`…」的说明、没有故事线 / 类目时的两句提示没搬（这一版允许不选）。
+- **不加说明文字**：文案都是旧版搬来的；新写的只有 0.1 文件那两句。旧版导入对话框「构想」那一项的键名是 `importDialog.targets.inspiration`，键名里的 inspiration 过不了术语门禁（构想只叫构想），所以把它的标签和说明原样抄进新版自己的文案，键名改成 `importDialog.targets.idea`。旧版导入对话框顶上那段「支持 `.md` / `.docx` / `.txt`…」的说明、没有故事线 / 类目时的两句提示没搬（这一版允许不选）。
 
 ### 外壳和其他模块里的挂接点（逐条）
 
-1. `dr-shell/src/actions.rs`：新动作 `ImportDocuments`。
+1. `dr-shell/src/actions.rs`：新动作 `ImportDocuments`、`BackupLibrary`、`RestoreLibrary`（后两个和 F6 第六轮同名，合并时留一份）。
 2. `dr-shell/src/account.rs`：书里的账户菜单加一行「导入　MD · DOCX · TXT」，派发它（书架上的账户菜单不加）。
 3. `dr-view-shelf/src/view.rs`：新动作 `ExportBook { book }`、书卡悬停多一个导出箭头；删掉 `ImportBook` 的占位处理（不删的话动作到不了 `dr_view_transfer`）。
 4. `app/drifting/src/main.rs`：`dr_view_transfer::init(cx)`（在 `dr_view_import::init` 后面）。
-5. 合并 F6 第六轮以后要加的两行（`dr_view_transfer::init` 里）：
+5. F6 第六轮补充（d23af6d3）的换库是 `dr_shell::library::replace(cx, job, done)`。两边合进 main 后，`app/drifting/src/main.rs` 在 `dr_view_transfer::init` 后面登记（对话框换库时只留着根目录和版本，不持有库）：
    ```rust
-   cx.on_action(|_: &dr_shell::actions::BackupLibrary, cx| dr_shell::menus::after_dispatch(cx, backup::backup));
-   cx.on_action(|_: &dr_shell::actions::RestoreLibrary, cx| { /* backup::restore(<外壳的换库>, cx) */ });
+   dr_view_transfer::backup::set_replace(cx, Rc::new(|staged, cx| {
+       let (tx, rx) = futures::channel::oneshot::channel();
+       dr_shell::library::replace(
+           cx,
+           move |root, options| {
+               dr_store::Library::restore_staged(root, &staged, options)
+                   .map(|(lib, _)| lib)
+                   .map_err(|e| e.to_string())
+           },
+           move |result, _| drop(tx.send(result)),
+       );
+       cx.background_executor()
+           .spawn(async move { rx.await.unwrap_or_else(|_| Err("cancelled".into())) })
+   }));
    ```
 
 ### 接口
@@ -182,7 +195,7 @@ import::{parse_file, import_docs, files_in_folder, order_import_files, ImportTar
 // dr-view-transfer
 book::{export, import, export_path, import_path}
 documents::{open, show, DocumentsDialog}
-backup::{backup, backup_path, restore, restore_path, Replace}
+backup::{backup, backup_path, restore, restore_path, Replace, set_replace, replacer}
 // Replace = Rc<dyn Fn(StagedBackup, &mut App) -> Task<Result<(), String>>>：外壳关库、Library::restore_staged、重开
 ```
 
@@ -205,12 +218,12 @@ release，机器负载 21–25，导出到同一个库再导回来（新 id）�
   - dr-testkit 的 tiny 种子（每种东西都有一点）和《慢钟》导回来，dr-testkit 的摘要（按名字不按 id 读整本书）完全相同，同库和另一个库都是。
   - 坏了的文件、不是书、0.1 的文件、更新版本的文件：各报各的原因，库里文档数和资源一个不多。
 - `dr-export/tests/import.rs` 和 `src/import/` 的单元测试（子代理写的）：三种格式的解析、标题规则、写进书里再读回来。
-- `dr-view-transfer/tests/`：书卡的导出动作经保存面板写出文件、导入时对话框出现又消失、多出一本书；不是书的文件报「这不是 Drifting 导出的书。」；备份写出真文件、恢复核对后问、确认后把核对过的副本交给替换步骤，替换失败说原因，取消什么都不交；不是备份的文件报「不是有效的 Drifting 备份」；导入文件：账户菜单的动作打开对话框，文件夹里只取能读的、自然顺序，标题可改，章节进选的故事线，重名要素单独失败。
+- `dr-view-transfer/tests/`：书卡的导出动作经保存面板写出文件、导入时对话框出现又消失、多出一本书；不是书的文件报「这不是 Drifting 导出的书。」；备份写出真文件、恢复核对后问、确认后把核对过的副本交给替换步骤，替换失败说原因，取消什么都不交；不是备份的文件报「不是有效的 Drifting 备份」；设置的两个动作经保存面板、文件面板走到底（没登记换库时确认后说没能替换，登记了就把副本交给它）；导入文件：账户菜单的动作打开对话框，文件夹里只取能读的、自然顺序，标题可改，章节进选的故事线，重名要素单独失败。
 
 ### 待协调
 
-1. **F6**：恢复要的换库函数（关库、`Library::restore_staged`、重开、重新装进 `Services` 和各模块），以及合并第六轮后在 `dr_view_transfer::init` 加两行接动作（见上面挂接点 5）。旧版文案里的「打开恢复前副本」按钮（`Library::pre_restore_backups` 有）也在设置那两行旁边，归 F6。
+1. **整合**：F6 的换库函数 `dr_shell::library::replace` 在它第六轮的分支上，合进 main 后在应用里用 `set_replace` 登记（见上面挂接点 5，监管会话整合时对一遍）。旧版文案里的「打开恢复前副本」按钮（`Library::pre_restore_backups` 有）也在设置那两行旁边，归 F6。
 2. **F2**：备份、核对、恢复的进度回调加上以后，对话框的进度条从「不确定」换成真进度。
-3. **合并**：F6 第六轮也改 `dr-shell/src/actions.rs`（加 `BackupLibrary`、`RestoreLibrary`），和这里的 `ImportDocuments` 在同一个列表里，合并时两边都留。
+3. **合并**：F6 第六轮也在 `dr-shell/src/actions.rs` 加了 `BackupLibrary`、`RestoreLibrary`，这条分支也加了（同名、同一个列表），合并时留一份，`ImportDocuments` 留着。
 4. **M01（书架）**：书卡多了导出箭头、`ImportBook` 的占位删了；导入完书架靠索引事件重读，F2 的导入不发书目事件。
 5. **导入文件的警告文案**：Word 去掉图片、文本不是 UTF-8 时的提示现在是英文（旧版也是英文），要九种语言得新写几句。

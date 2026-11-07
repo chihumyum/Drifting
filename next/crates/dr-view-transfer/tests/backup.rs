@@ -186,3 +186,70 @@ fn a_file_that_is_not_a_backup_is_refused(cx: &mut TestAppContext) {
     );
     assert!(seen.borrow().is_empty());
 }
+
+fn transfer_dialog(
+    view: &Entity<Workspace>,
+    cx: &mut VisualTestContext,
+) -> Option<Entity<TransferDialog>> {
+    cx.read(|cx| {
+        view.read(cx)
+            .dialog
+            .clone()
+            .and_then(|d| d.downcast::<TransferDialog>().ok())
+    })
+}
+
+/// Settings' two rows dispatch the actions: 「导出备份…」 goes through the
+/// save panel, 「选择备份…」 through the file panel to the registered replace
+/// step (and without one, says it could not replace the library).
+#[gpui::test]
+fn the_settings_actions_back_up_and_restore(cx: &mut TestAppContext) {
+    let (dir, lib) = library();
+    let (view, cx) = setup(cx, lib);
+    let file = dir.path().join("Drifting-backup.drifting");
+    cx.update(|window, cx| window.dispatch_action(Box::new(dr_shell::actions::BackupLibrary), cx));
+    cx.run_until_parked();
+    assert!(cx.did_prompt_for_new_path());
+    cx.simulate_new_path_selection({
+        let file = file.clone();
+        move |_| Some(file)
+    });
+    wait(cx, |cx| {
+        transfer_dialog(&view, cx).is_some_and(|d| matches!(state(&d, cx), State::Done { .. }))
+    });
+    assert!(file.exists());
+    let d = transfer_dialog(&view, cx).unwrap();
+    cx.cx.update(|cx| d.update(cx, |d, cx| d.close(cx)));
+    cx.run_until_parked();
+
+    // No replace step registered yet: checked, asked, then it says so.
+    let restore = |cx: &mut VisualTestContext| {
+        cx.update(|window, cx| {
+            window.dispatch_action(Box::new(dr_shell::actions::RestoreLibrary), cx)
+        });
+        cx.run_until_parked();
+        assert!(cx.did_prompt_for_paths());
+        cx.simulate_path_prompt_response({
+            let file = file.clone();
+            move |_| Some(vec![file])
+        });
+        wait(cx, |cx| {
+            transfer_dialog(&view, cx)
+                .is_some_and(|d| matches!(state(&d, cx), State::Confirm { .. }))
+        });
+        let d = transfer_dialog(&view, cx).unwrap();
+        cx.cx.update(|cx| d.update(cx, |d, cx| d.confirm(cx)));
+        d
+    };
+    let d = restore(cx);
+    wait(cx, |cx| matches!(state(&d, cx), State::Failed { .. }));
+    cx.cx.update(|cx| d.update(cx, |d, cx| d.close(cx)));
+    cx.run_until_parked();
+
+    // With the shell's step registered, the checked copy goes to it.
+    let (replace, seen) = recording(Ok(()));
+    cx.cx.update(|cx| backup::set_replace(cx, replace));
+    restore(cx);
+    wait(cx, |cx| !shown(&view, cx));
+    assert_eq!(*seen.borrow(), vec![1]);
+}

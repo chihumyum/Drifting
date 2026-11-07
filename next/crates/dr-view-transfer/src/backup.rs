@@ -36,6 +36,31 @@ use keys::settings::sync::backup as k;
 /// dialog shows 「正在恢复…」 until the task ends; `Err` is said in it.
 pub type Replace = Rc<dyn Fn(StagedBackup, &mut App) -> Task<Result<(), String>>>;
 
+struct Replacer(Replace);
+
+impl gpui::Global for Replacer {}
+
+/// Registers what replaces the library ([`Replace`]): the shell's swap
+/// (close everything that holds the library, `Library::restore_staged`,
+/// open the restored one), wired by the app once the shell has it.
+pub fn set_replace(cx: &mut App, replace: Replace) {
+    cx.set_global(Replacer(replace));
+}
+
+/// The registered [`Replace`]; without one a restore checks and asks, then
+/// says it could not replace the library (nothing changes).
+pub fn replacer(cx: &App) -> Replace {
+    cx.try_global::<Replacer>()
+        .map(|r| r.0.clone())
+        .unwrap_or_else(|| {
+            Rc::new(|_, cx| {
+                cx.background_executor().spawn(async {
+                    Err("this build cannot replace the open library yet".to_owned())
+                })
+            })
+        })
+}
+
 /// `1.5 MB`, as 0.1 wrote sizes in these sentences.
 pub fn size(bytes: u64) -> String {
     let b = bytes as f64;
