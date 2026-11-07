@@ -11,10 +11,13 @@
 //! - [`ChapterEditor`]: the editor view the shell puts on the paper, with
 //!   chapter switching, settings ([`EditorSettings`]) and the anchors an undo
 //!   brings back written to the book.
+//! - [`BookEditor`]: the whole book in one scroll (M05), every chapter
+//!   editable with its own session and undo.
 //!
 //! Docs: `docs/rust-rewrite/foundations/f4-editor.md` (F4e).
 
 pub mod anchors;
+pub mod book;
 pub mod convert;
 pub mod links;
 pub mod rules;
@@ -23,6 +26,7 @@ pub mod source;
 pub mod todo;
 pub mod view;
 
+pub use book::{BookEditor, BookEditorEvent, ReadingPosition};
 pub use links::{DriftingExtension, LinkTargets};
 pub use settings::EditorSettings;
 pub use source::SessionSource;
