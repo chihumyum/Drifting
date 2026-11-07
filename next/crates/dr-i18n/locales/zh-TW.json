@@ -280,8 +280,6 @@
       "deleted": "已刪除",
       "floating": "未附加"
     },
-    "jumpToText": "跳至連結文字",
-    "newComment": "新增註解",
     "resolved": "已解決（{{count}}）",
     "scopes": {
       "current": "目前"

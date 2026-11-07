@@ -280,8 +280,6 @@
       "deleted": "Deleted",
       "floating": "Not attached"
     },
-    "jumpToText": "Jump to linked text",
-    "newComment": "New comment",
     "resolved": "Resolved ({{count}})",
     "scopes": {
       "current": "Current"

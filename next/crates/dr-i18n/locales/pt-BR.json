@@ -286,8 +286,6 @@
       "deleted": "Excluídos",
       "floating": "Não vinculados"
     },
-    "jumpToText": "Ir para o texto vinculado",
-    "newComment": "Novo comentário",
     "resolved": "Resolvidos ({{count}})",
     "scopes": {
       "current": "Atual"

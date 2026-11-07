@@ -280,8 +280,6 @@
       "deleted": "삭제됨",
       "floating": "연결되지 않음"
     },
-    "jumpToText": "연결된 텍스트로 이동",
-    "newComment": "새 댓글",
     "resolved": "해결됨({{count}}개)",
     "scopes": {
       "current": "현재"

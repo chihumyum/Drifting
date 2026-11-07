@@ -307,11 +307,9 @@ reviewPanel.filters.todo
 reviewPanel.scopes.current
 reviewPanel.empty
 reviewPanel.resolved
-reviewPanel.jumpToText
 reviewPanel.groups.floating
 reviewPanel.groups.deleted
 reviewPanel.commentPlaceholder
-reviewPanel.newComment
 commentRail.actions.resolve
 commentRail.actions.reopen
 commentRail.card.emptyComment

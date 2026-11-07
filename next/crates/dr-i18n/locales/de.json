@@ -280,8 +280,6 @@
       "deleted": "Gelöscht",
       "floating": "Nicht angehängt"
     },
-    "jumpToText": "Zum verknüpften Text springen",
-    "newComment": "Neuer Kommentar",
     "resolved": "Erledigt ({{count}})",
     "scopes": {
       "current": "Aktuell"

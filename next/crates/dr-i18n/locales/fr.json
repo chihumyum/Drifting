@@ -286,8 +286,6 @@
       "deleted": "Supprimés",
       "floating": "Non rattachés"
     },
-    "jumpToText": "Aller au texte lié",
-    "newComment": "Nouveau commentaire",
     "resolved": "Résolus ({{count}})",
     "scopes": {
       "current": "Actuel"
