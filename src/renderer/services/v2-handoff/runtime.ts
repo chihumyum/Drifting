@@ -10,6 +10,7 @@ import { getLiveYDoc } from '../../lib/yjs-doc-registry';
 import { useDataStore } from '../../store/data-store';
 import { useProjectStore } from '../../store/project-store';
 import { materializeCanonicalNodeProse } from '../node-prose-metrics.service';
+import { captureV2HandoffBooks } from './books';
 import { runV2Handoff, type V2HandoffDependencies, type V2HandoffOptions, type V2HandoffResult } from './handoff';
 import { registerV2HandoffFlush } from './lifecycle';
 import { captureV2HandoffSettings } from './settings';
@@ -35,6 +36,7 @@ export function defaultV2HandoffDependencies(): V2HandoffDependencies {
       }
     },
     captureSettings: () => captureV2HandoffSettings(),
+    captureBooks: (projectIds) => captureV2HandoffBooks(projectIds),
     async refreshNode(projectId, nodeId) {
       await materializeCanonicalNodeProse(projectId, nodeId, undefined, {
         touchNodeUpdatedAt: false,

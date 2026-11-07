@@ -3,7 +3,8 @@
 // its own is whether a body's contentJson cache shows the current Yjs state.
 // This pass makes every cache equal to its Yjs rendering and records, in
 // library_state, the revision and SHA-256 at which it did, plus the
-// author's preferences that only exist in WebView storage.
+// author's preferences that only exist in WebView storage: raw, and read
+// per book for this library's books.
 //
 // The stamp is a claim the importer re-checks (same revision, same hash), so
 // an entry that went stale can only make the importer ask, never import a
@@ -23,6 +24,7 @@ import {
   EntitySnapshotHistoryTable,
   LibraryItemTable,
   NodeContentTable,
+  ProjectTable,
   StorylineTable,
   YjsDocumentRevisionTable,
   yjsSnapshots,
@@ -35,6 +37,9 @@ import {
   type PersistedYjsDocument,
 } from '../../sqlite-repo/yjs-repo';
 import { runDerivedTransaction } from '../../sync/journal';
+import { normalizeV2HandoffBooks, type V2HandoffBook } from './books';
+
+export type { V2HandoffBook } from './books';
 
 export const V2_HANDOFF_STATE_KEY = 'v2-handoff';
 export const V2_HANDOFF_FORMAT_VERSION = 1;
@@ -60,6 +65,12 @@ export interface V2HandoffState {
   updatedAt: string;
   documents: Record<string, V2HandoffDocument>;
   settings: V2HandoffSettings | null;
+  /**
+   * Per-book preferences read from WebView storage, by project id, for the
+   * books in this library. Absent in stamps written before it existed; a book
+   * with nothing to say is left out.
+   */
+  books?: Record<string, V2HandoffBook>;
 }
 
 export interface V2HandoffResult {
@@ -88,6 +99,8 @@ export interface V2HandoffDependencies {
   clock(): number;
   appVersion(): Promise<string | null>;
   captureSettings(): Record<string, string> | null;
+  /** The `books` section for these projects, or null when storage is unavailable. */
+  captureBooks(projectIds: readonly string[]): Record<string, V2HandoffBook> | null;
   /** A chapter or idea cache travels with its outline, word count and basis. */
   refreshNode(projectId: string, nodeId: string): Promise<void>;
   /** Mirror a refreshed element, storyline, category or note cache into the open workspace. */
@@ -128,7 +141,14 @@ function readState(value: unknown): V2HandoffState {
       documents[docId] = { revision: entry.revision, sha256: entry.sha256 };
     }
   }
-  return { ...emptyState(), ...raw, documents, settings: raw.settings ?? null };
+  const { books, ...rest } = raw;
+  return {
+    ...emptyState(),
+    ...rest,
+    documents,
+    settings: raw.settings ?? null,
+    ...(books && typeof books === 'object' ? { books: normalizeV2HandoffBooks(books, Object.keys(books)) } : {}),
+  };
 }
 
 export async function readV2HandoffState(database: DbExecutor): Promise<V2HandoffState | null> {
@@ -364,12 +384,17 @@ export async function runV2Handoff(
   result.previewsFilled = await fillHistoryPreviews();
   const now = dependencies.now();
   const captured = dependencies.captureSettings();
+  // WebView storage is app-wide; only this library's books go in its stamp.
+  const projectIds = (await database.select({ id: ProjectTable.id }).from(ProjectTable)).map((row) => row.id);
+  const books = dependencies.captureBooks(projectIds)
+    ?? (previous.books ? normalizeV2HandoffBooks(previous.books, projectIds) : undefined);
   const state: V2HandoffState = {
     version: V2_HANDOFF_FORMAT_VERSION,
     appVersion: await dependencies.appVersion(),
     updatedAt: now,
     documents,
     settings: captured ? { capturedAt: now, entries: captured } : previous.settings,
+    ...(books ? { books } : {}),
   };
   await runDerivedTransaction('library.v2-handoff-stamp', (tx) =>
     createLibraryStateRepository(tx).write(V2_HANDOFF_STATE_KEY, state, now));

@@ -1,0 +1,498 @@
+//! The whole import on a synthetic 0.1 library (`common`), into a real
+//! dr-store library, read back through dr-doc.
+
+mod common;
+
+use common::*;
+use dr_doc::Anchor;
+use dr_doc::book::{BookDoc, BookView};
+use dr_doc::peer::{import_peer, random_device_peer};
+use dr_doc::prose::{EmbedView, ProseDoc};
+use dr_import_v1::gate::{Accept, Reason};
+use dr_import_v1::legacy::Freshness;
+use dr_import_v1::receipt::{self, Receipt};
+use dr_import_v1::run::{self, Options, Outcome};
+use dr_model::id::*;
+use dr_model::kind::*;
+use dr_model::{DocId, Timestamp};
+use dr_store::{Library, LibraryOptions};
+
+struct New {
+    _dir: tempfile::TempDir,
+    root: std::path::PathBuf,
+    device: std::path::PathBuf,
+}
+
+fn new_library() -> New {
+    let dir = tempfile::tempdir().unwrap();
+    New {
+        root: dir.path().join("library"),
+        device: dir.path().join("device"),
+        _dir: dir,
+    }
+}
+
+fn options(old: &Old, new: &New, accept: Accept) -> Options {
+    let mut o = Options::new("0.2.0-test");
+    o.accept = accept;
+    o.old_root = Some(old.root.clone());
+    o.device_dir = Some(new.device.clone());
+    o.verify_history = true;
+    o
+}
+
+fn imported(outcome: Outcome) -> Box<Receipt> {
+    match outcome {
+        Outcome::Imported(r) => r,
+        Outcome::Blocked(g) => panic!("blocked: {:?}", g.reasons),
+    }
+}
+
+fn snapshot(lib: &Library, id: &str) -> Vec<u8> {
+    lib.load_copy(id)
+        .unwrap()
+        .export(loro::ExportMode::Snapshot)
+        .unwrap()
+}
+
+fn book_doc(lib: &Library) -> BookDoc {
+    let book = BookId::parse(BOOK).unwrap();
+    BookDoc::load(
+        book,
+        random_device_peer(),
+        &[snapshot(lib, &format!("book:{BOOK}"))],
+    )
+    .unwrap()
+}
+
+fn prose_doc(lib: &Library, id: &str) -> ProseDoc {
+    ProseDoc::load(
+        DocId::parse(id).unwrap(),
+        random_device_peer(),
+        &[snapshot(lib, id)],
+    )
+    .unwrap()
+}
+
+fn text_at(doc: &ProseDoc, anchor: &dr_model::book::EncodedAnchor) -> String {
+    let a = Anchor::decode(anchor).unwrap();
+    let r = doc.view().resolve(&a).unwrap();
+    doc.view().text_in(r.range).unwrap()
+}
+
+fn sha_of(path: &std::path::Path) -> String {
+    sha256_bytes(&std::fs::read(path).unwrap())
+}
+
+#[test]
+fn a_handed_off_library_imports_completely() {
+    let old = build(true);
+    let before = sha_of(&old.db);
+    let new = new_library();
+    let (outcome, _) =
+        run::import(&old.db, &new.root, &options(&old, &new, Accept::NOTHING)).unwrap();
+    let r = imported(outcome);
+    assert_eq!(sha_of(&old.db), before, "the 0.1 library is never written");
+    assert!(r.gate.clear());
+    assert_eq!(r.books.len(), 1);
+    assert_eq!(r.books[0].status, "imported");
+    assert_eq!(
+        r.docs.len(),
+        6,
+        "chapter, idea, storyline, element, category, note"
+    );
+    for d in &r.docs {
+        assert!(d.stored_exactly, "{} stored exactly", d.doc_id);
+        assert!(d.round_trips, "{} round-trips", d.doc_id);
+        assert!(d.freshness.proven_fresh(), "{} {:?}", d.doc_id, d.freshness);
+    }
+    let chapter_rec = r
+        .docs
+        .iter()
+        .find(|d| d.doc_id == format!("node:{CHAPTER}"))
+        .unwrap();
+    assert_eq!(chapter_rec.freshness, Freshness::Handoff);
+    assert_eq!(chapter_rec.history_versions, 2);
+    assert!(r.anchors.iter().all(|a| a.cursor), "{:?}", r.anchors);
+    assert_eq!(
+        r.anchors.len(),
+        3,
+        "the v4 comment, the block comment, the patch"
+    );
+    assert!(r.installation_id_adopted);
+    assert_eq!(r.books[0].assets_copied, 1);
+
+    let lib = Library::open(&new.root, LibraryOptions::new("0.2.0-test")).unwrap();
+    let book = book_doc(&lib);
+    let v: BookView<'_> = book.view();
+
+    // The book, its targets from the handoff, its facts in projection order.
+    let meta = v.meta();
+    assert_eq!(meta.name, "阿Q正传");
+    assert_eq!(meta.word_target(), Some(80000));
+    assert_eq!(meta.daily_word_target(), None, "0 turns it off");
+    let facts: Vec<String> = v.facts().into_iter().map(|f| f.key).collect();
+    assert_eq!(facts, ["类型", "视角"]);
+    assert_eq!(meta.storyline_template.len(), 1);
+
+    // Chapters, ideas, groups, storylines.
+    let chapter = v.node(&NodeId::parse(CHAPTER).unwrap()).unwrap();
+    assert_eq!(chapter.book_order, Some(5.0));
+    assert_eq!(chapter.created_at, Some(Timestamp(1_790_841_600)));
+    let s = StorylineId::parse(STORYLINE).unwrap();
+    assert!(chapter.storylines.contains(&s));
+    assert_eq!(chapter.effective_primary_storyline(), Some(&s));
+    let idea = v.node(&NodeId::parse(IDEA).unwrap()).unwrap();
+    assert_eq!(idea.kind, NodeKind::Drift);
+    assert_eq!(idea.group.as_ref().map(|g| g.as_str()), Some(SUBGROUP));
+    assert_eq!((idea.x, idea.y), (120.5, -40.0));
+    let groups = v.drift_groups();
+    let sub = groups.iter().find(|g| g.id.as_str() == SUBGROUP).unwrap();
+    assert_eq!(sub.parent.as_ref().map(|p| p.as_str()), Some(GROUP));
+    assert_eq!(
+        groups
+            .iter()
+            .find(|g| g.id.as_str() == GROUP)
+            .unwrap()
+            .color
+            .as_deref(),
+        Some("#aa0000")
+    );
+    let storylines = v.storylines();
+    assert_eq!(storylines.len(), 1);
+    assert_eq!(storylines[0].facts[0].key, "起点");
+    assert!(storylines[0].pos.is_some());
+
+    // Elements: aliases, facts, the relation-graph pin from the handoff.
+    let el = v.element(&ElementId::parse(ELEMENT).unwrap()).unwrap();
+    assert!(el.aliases.contains("阿贵") && el.aliases.contains("阿桂"));
+    let fields: Vec<&str> = el.facts.iter().map(|f| f.key.as_str()).collect();
+    assert_eq!(fields, ["住处", "职业"]);
+    assert_eq!(el.relate_pin, Some((12.5, -40.0)));
+    assert_eq!(el.category.as_ref().map(|c| c.as_str()), Some(CATEGORY));
+    assert_eq!(v.categories()[0].template_fields[0].key, "年龄");
+
+    // Relation types and relations.
+    let rt = v
+        .relation_type(&RelationTypeId::parse(REL_TYPE).unwrap())
+        .unwrap();
+    assert_eq!(rt.color.as_deref(), Some("#aa5500"));
+    assert_eq!(rt.orientation, RelationOrientation::Symmetric);
+    assert_eq!(rt.source_kinds, [EntityKind::Element]);
+    let generic = v
+        .relation_type(&dr_doc::book::generic_relation_type_id(
+            &BookId::parse(BOOK).unwrap(),
+        ))
+        .unwrap();
+    assert!(generic.locked, "the built-in type is the genesis one");
+    let rels = v.relations_raw();
+    let rel1 = rels.iter().find(|x| x.id.as_str() == "rel-1").unwrap();
+    assert_eq!(rel1.from.id, ELEMENT, "symmetric ends in canonical order");
+    let note_doc = DocId::Material(MaterialId::parse(NOTE).unwrap());
+    let note_todo = CommentId::for_projection(
+        &ProjectionKind::NoteTask,
+        &note_doc,
+        &BlockId::parse("tp1").unwrap(),
+    );
+    let rel2 = rels.iter().find(|x| x.id.as_str() == "rel-2").unwrap();
+    assert_eq!(rel2.from.kind, EntityKind::Comment);
+    assert_eq!(
+        rel2.from.id,
+        note_todo.as_str(),
+        "relations follow the TODO's new id"
+    );
+
+    // Comments: retired values normalised, quote and snapshots, anchors.
+    let chapter_doc = prose_doc(&lib, &format!("node:{CHAPTER}"));
+    let c = v.comment(&CommentId::parse(COMMENT).unwrap()).unwrap();
+    assert_eq!(c.author_kind, CommentAuthorKind::Ai);
+    assert_eq!(c.status, CommentStatus::Resolved);
+    assert_eq!(c.source, CommentSource::Api);
+    assert_eq!(c.quote.as_deref(), Some("阿Q做正传"));
+    assert_eq!(c.snapshots.len(), 1);
+    assert_eq!(c.body, "这句好");
+    assert_eq!(
+        text_at(&chapter_doc, c.anchor.as_ref().unwrap()),
+        "阿Q做正传"
+    );
+    let bc = v
+        .comment(&CommentId::parse(BLOCK_COMMENT).unwrap())
+        .unwrap();
+    assert_eq!(
+        bc.target_block.as_ref().map(|b| b.as_str()),
+        Some("q1"),
+        "a container id is remapped"
+    );
+    assert_eq!(
+        text_at(&chapter_doc, bc.anchor.as_ref().unwrap()),
+        "引文第一段\n引文第二段"
+    );
+    assert_eq!(bc.priority, Some(CommentPriority::High));
+    let t = v.comment(&note_todo).unwrap();
+    assert_eq!(t.projection.as_ref().map(|p| p.block.as_str()), Some("tp1"));
+    assert_eq!(t.target_block.as_ref().map(|b| b.as_str()), Some("tp1"));
+    assert!(
+        v.comment(&CommentId::parse(NOTE_TODO).unwrap()).is_none(),
+        "the old id is gone"
+    );
+    let marker = CommentId::for_projection(
+        &ProjectionKind::Marker,
+        &DocId::Node(NodeId::parse(CHAPTER).unwrap()),
+        &BlockId::parse("p2").unwrap(),
+    );
+    let m = v.comment(&marker).unwrap();
+    assert_eq!(m.agent_conversation.as_deref(), Some("conv-1"));
+    assert!(m.is_done());
+    let region = v.comment(&CommentId::parse("region-1").unwrap()).unwrap();
+    assert_eq!(region.region.map(|r| r.w), Some(0.3));
+
+    // The patch, its anchor in the chapter.
+    let patch = v
+        .patches()
+        .into_iter()
+        .find(|p| p.id.as_str() == PATCH)
+        .unwrap();
+    assert_eq!(patch.source_block.as_ref().map(|b| b.as_str()), Some("q2"));
+    assert_eq!(patch.body, "见《新青年》");
+    assert_eq!(
+        text_at(&chapter_doc, patch.anchor.as_ref().unwrap()),
+        "引文"
+    );
+
+    // Materials, folders, the asset, its bytes.
+    let mats = v.materials();
+    let note = mats.iter().find(|m| m.id.as_str() == NOTE).unwrap();
+    assert_eq!(note.folder.as_ref().map(|f| f.as_str()), Some(FOLDER));
+    assert!(note.task_todos);
+    let image = mats.iter().find(|m| m.id.as_str() == IMAGE).unwrap();
+    assert_eq!(image.description, "未庄的土谷祠");
+    assert!(
+        mats.iter().position(|m| m.id.as_str() == IMAGE)
+            < mats.iter().position(|m| m.id.as_str() == NOTE),
+        "order_key 0 before 1"
+    );
+    assert_eq!(v.assets()[0].sha256, sha256_bytes(IMAGE_BYTES));
+    let stored = lib
+        .asset(ASSET, dr_store::asset::Variant::Source)
+        .unwrap()
+        .unwrap();
+    assert_eq!(std::fs::read(&stored.path).unwrap(), IMAGE_BYTES);
+
+    // Memory, writing days, time pins, acts, plot grid.
+    assert_eq!(
+        v.memory()[0].target_block.as_ref().map(|b| b.as_str()),
+        Some("q1")
+    );
+    let wd = v.writing_days();
+    assert_eq!((wd[0].device.as_str(), wd[0].words), (DEVICE_KEY, 1234));
+    assert_eq!(
+        v.time_pins()[0].drift.as_ref().map(|d| d.as_str()),
+        Some(IDEA)
+    );
+    assert_eq!(v.acts()[0].start_order, Some(0.0));
+    let grid = v.plot_grid(&NodeId::parse(CHAPTER).unwrap()).unwrap();
+    let rows: Vec<&str> = grid.rows.iter().map(|r| r.id.as_str()).collect();
+    assert_eq!(rows, ["r1", "r2"]);
+    assert_eq!(
+        grid.rows[0].pos.as_ref().map(|p| p.as_str()),
+        Some("a0"),
+        "position keys kept"
+    );
+    assert_eq!(grid.cells.len(), 1);
+
+    // Prose: block ids, links, the note's linked task and material embed.
+    let paras: Vec<_> = chapter_doc.view().paragraphs().collect();
+    let ids: Vec<&str> = paras
+        .iter()
+        .filter_map(|p| p.id.as_ref().map(|b| b.as_str()))
+        .collect();
+    assert_eq!(ids, ["h1", "p1", "q1", "q2", "p2"]);
+    assert!(paras[2].attrs.quote);
+    assert_eq!(chapter_doc.view().entity_links()[0].1.target, ELEMENT);
+    let note_prose = prose_doc(&lib, &format!("material:{NOTE}"));
+    let np: Vec<_> = note_prose.view().paragraphs().collect();
+    assert_eq!(np[0].attrs.todo.as_ref(), Some(&note_todo));
+    assert!(np[1].attrs.checked);
+    let embed = np[2].embed().cloned().unwrap();
+    assert!(
+        matches!(note_prose.view().embed(&embed), Some(EmbedView::Material { material: Some(m), .. }) if m.as_str() == IMAGE)
+    );
+
+    // History: two replayed points with their 0.1 times, plus the import.
+    let chapter_id = format!("node:{CHAPTER}");
+    let labels = lib.history(&chapter_id).unwrap();
+    let periodic: Vec<_> = labels.iter().filter(|l| l.label == "periodic").collect();
+    assert_eq!(periodic.len(), 2);
+    assert!(labels.iter().any(|l| l.label == "import"));
+    let oldest = periodic.iter().min_by_key(|l| l.ts).unwrap();
+    assert_eq!(oldest.ts, dr_import_v1::time::parse_iso_ms(T0).unwrap());
+    assert!(
+        oldest.book_frontiers.is_some(),
+        "labels carry the book's version"
+    );
+    let back = lib.load_copy_at(&chapter_id, &oldest.frontiers).unwrap();
+    assert_eq!(
+        back.get_text("body").to_string(),
+        "第一章\n我要给阿Q做正传。\n"
+    );
+
+    // Every change is the import peer's (or the genesis').
+    let doc = lib.load_copy(&chapter_id).unwrap();
+    let peers: std::collections::BTreeSet<u64> = dr_store::history::changes_since(&doc, 0)
+        .into_iter()
+        .map(|c| c.peer)
+        .collect();
+    assert!(peers.contains(&import_peer(&chapter_id)));
+    assert!(
+        peers
+            .iter()
+            .all(|p| *p == import_peer(&chapter_id) || !dr_doc::peer::is_device_peer(*p))
+    );
+    lib.close().unwrap();
+
+    // The receipt, the archive, the local state and the summary.
+    let dir = receipt::directory(&new.root);
+    let conn = rusqlite::Connection::open(dir.join(receipt::DATABASE)).unwrap();
+    let n = |sql: &str| -> i64 { conn.query_row(sql, [], |r| r.get(0)).unwrap() };
+    assert_eq!(n("SELECT count(*) FROM import_doc"), 6);
+    assert_eq!(n("SELECT count(*) FROM archive_agent_conversation"), 1);
+    assert_eq!(
+        n("SELECT count(*) FROM local_setting WHERE key = 'settings-storage'"),
+        1
+    );
+    assert_eq!(
+        n("SELECT count(*) FROM local_library_state WHERE key = 'v2-handoff'"),
+        1
+    );
+    let summary = std::fs::read_to_string(dir.join(receipt::SUMMARY)).unwrap();
+    assert!(summary.contains("阿Q正传") && summary.contains("一字不差"));
+    assert!(!dir.join("staging").exists(), "the staging copy is removed");
+    let identity = std::fs::read_to_string(new.device.join("sync-installation-v2.json")).unwrap();
+    assert!(
+        identity.contains(&"ab".repeat(32)),
+        "writing days continue under the 0.1 device"
+    );
+}
+
+#[test]
+fn without_handoff_the_gate_stops_until_the_author_accepts() {
+    let old = build(false);
+    let new = new_library();
+    let (outcome, _) =
+        run::import(&old.db, &new.root, &options(&old, &new, Accept::NOTHING)).unwrap();
+    let Outcome::Blocked(gate) = outcome else {
+        panic!("not stopped")
+    };
+    assert_eq!(gate.reasons, vec![Reason::NoHandoff, Reason::Unproven]);
+    let titles: Vec<_> = gate
+        .doubtful
+        .iter()
+        .filter_map(|d| d.title.clone())
+        .collect();
+    assert_eq!(titles.len(), 2);
+    assert!(titles.contains(&"阿Q".to_string()) && titles.contains(&"主线".to_string()));
+    assert!(!new.root.join("library.sqlite").exists(), "nothing written");
+    assert_eq!(gate.release_url, dr_import_v1::gate::LAST_RELEASE_URL);
+
+    let (outcome, _) = run::import(
+        &old.db,
+        &new.root,
+        &options(
+            &old,
+            &new,
+            Accept {
+                unproven_bodies: true,
+                sync_blockers: false,
+            },
+        ),
+    )
+    .unwrap();
+    let r = imported(outcome);
+    let unproven: Vec<_> = r
+        .docs
+        .iter()
+        .filter(|d| d.freshness == Freshness::Unproven)
+        .collect();
+    assert_eq!(unproven.len(), 2);
+    let chapter = r
+        .docs
+        .iter()
+        .find(|d| d.doc_id == format!("node:{CHAPTER}"))
+        .unwrap();
+    assert_eq!(chapter.freshness, Freshness::NodeBasisCurrent);
+    let summary =
+        std::fs::read_to_string(receipt::directory(&new.root).join(receipt::SUMMARY)).unwrap();
+    assert!(summary.contains("无法证明是最新"));
+}
+
+#[test]
+fn a_book_is_imported_once() {
+    let old = build(true);
+    let new = new_library();
+    imported(
+        run::import(&old.db, &new.root, &options(&old, &new, Accept::NOTHING))
+            .unwrap()
+            .0,
+    );
+    let again = imported(
+        run::import(&old.db, &new.root, &options(&old, &new, Accept::NOTHING))
+            .unwrap()
+            .0,
+    );
+    assert_eq!(again.books[0].status, "already-imported");
+    assert!(again.docs.is_empty());
+}
+
+#[test]
+fn the_same_library_imports_to_the_same_bytes() {
+    let old = build(true);
+    let (a, b) = (new_library(), new_library());
+    for n in [&a, &b] {
+        imported(
+            run::import(&old.db, &n.root, &options(&old, n, Accept::NOTHING))
+                .unwrap()
+                .0,
+        );
+    }
+    let rows = |n: &New| -> Vec<(String, Vec<u8>)> {
+        let conn = rusqlite::Connection::open(dr_store::LibraryPaths::new(&n.root).db).unwrap();
+        let mut stmt = conn
+            .prepare(
+                "SELECT doc_id, bytes FROM loro_update WHERE origin = 'import' ORDER BY doc_id",
+            )
+            .unwrap();
+        stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+            .unwrap()
+            .collect::<rusqlite::Result<_>>()
+            .unwrap()
+    };
+    let (ra, rb) = (rows(&a), rows(&b));
+    assert_eq!(ra.len(), 7);
+    assert_eq!(
+        ra, rb,
+        "two devices importing the same library write identical changes"
+    );
+}
+
+#[test]
+fn an_older_library_is_brought_up_on_its_copy() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = dir.path().join("drifting-library.db");
+    {
+        let conn = rusqlite::Connection::open(&db).unwrap();
+        dr_import_v1::schema::create_at(&conn, 12).unwrap();
+        conn.execute(
+            "INSERT INTO project (id, name, summary, kv_json, storyline_template_kv_json, user_id, created_at, updated_at) VALUES (?1, '旧书', '', '[]', '[]', 'local', ?2, ?2)",
+            rusqlite::params![BOOK, T0],
+        )
+        .unwrap();
+    }
+    let before = sha_of(&db);
+    let new = new_library();
+    let mut o = Options::new("0.2.0-test");
+    o.device_dir = Some(new.device.clone());
+    let r = imported(run::import(&db, &new.root, &o).unwrap().0);
+    assert_eq!(r.schema_level_before, 12);
+    assert_eq!(r.books[0].status, "imported");
+    assert_eq!(sha_of(&db), before);
+}
