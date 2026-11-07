@@ -98,6 +98,10 @@ pub struct Replaced {
     /// Character offset of the replacement in the document.
     pub at: usize,
     pub block_id: Option<String>,
+    /// Entity links written on names inside the new text (automatic links
+    /// for an Agent's, the mirror's or an import's text, when the author has
+    /// them on).
+    pub linked: usize,
 }
 
 op! {
@@ -113,12 +117,16 @@ op! {
                 return Err(WsError::invalid("find and replace stay inside one paragraph"));
             }
         }
-        if let Some(info) = cx.workspace().library().doc_info(&input.doc)?
-            && let Some(b) = info.book_id { cx.book(&b)?; }
+        let book = match cx.workspace().library().doc_info(&input.doc)? {
+            Some(dr_store::DocInfo { book_id: Some(b), .. }) => Some(cx.book(&b)?),
+            _ => None,
+        };
+        let names = book.filter(|_| cx.workspace().auto_links() && crate::autolink::links_for(cx.actor()))
+            .map(|b| crate::autolink::matcher(&b.reader.view(), &doc));
         let slot = cx.prose(&doc)?;
         cx.summarize(format!("{} → {}", input.find, input.replace));
         let (find, replace, block) = (input.find.clone(), input.replace.clone(), input.block_id.clone());
-        let (at, bid) = cx.write_prose(&slot, move |txn| {
+        let (at, bid, linked) = cx.write_prose(&slot, move |txn| {
             // Validate on the state the edit applies to, before writing.
             let view = txn.view();
             let mut hits = Vec::new();
@@ -137,7 +145,13 @@ op! {
             let len = find.chars().count();
             txn.delete(at..at + len)?;
             txn.insert_text(at, &replace)?;
-            Ok((at, bid))
+            // Links on names inside the new text, in this commit: the
+            // inverse deletes the text and its links with it.
+            let linked = match &names {
+                Some(n) => crate::autolink::link_written(txn, n, at..at + replace.chars().count())?,
+                None => 0,
+            };
+            Ok((at, bid, linked))
         })?;
         cx.effect(EffectAction::Updated, "prose", input.doc.as_str(), None);
         if input.replace.is_empty() {
@@ -148,7 +162,7 @@ op! {
                 block_id: bid.as_ref().map(|b| b.to_string()),
             }));
         }
-        Ok(Replaced { at, block_id: bid.map(|b| b.to_string()) })
+        Ok(Replaced { at, block_id: bid.map(|b| b.to_string()), linked })
     }
 }
 

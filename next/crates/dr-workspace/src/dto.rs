@@ -168,6 +168,8 @@ pub struct StorylineInfo {
     pub trashed: bool,
     /// Live chapters on this storyline.
     pub chapters: u32,
+    /// Its fields (key/value), in order.
+    pub fields: Vec<FieldInfo>,
 }
 
 #[derive(Clone, Debug, Serialize, JsonSchema)]

@@ -289,7 +289,7 @@ impl JsonSchema for AnchorOrNull {
 /// The anchor `bytes` decoded, refused unless both cursors point into the
 /// prose body of `doc` (a character this device has seen, or an empty
 /// body).
-fn anchor_in(cx: &Cx<'_>, doc: &DocId, bytes: &AnchorBytes) -> Result<Anchor> {
+pub(crate) fn anchor_in(cx: &Cx<'_>, doc: &DocId, bytes: &AnchorBytes) -> Result<Anchor> {
     let bad = || WsError::invalid("the anchor is not two cursors of dr-doc's encoding");
     let a = Anchor::decode(&bytes.bytes().ok_or_else(bad)?).ok_or_else(bad)?;
     let body = loro::ContainerID::new_root(dr_doc::schema::prose::BODY, loro::ContainerType::Text);

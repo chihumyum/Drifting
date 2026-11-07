@@ -1204,12 +1204,15 @@ fn unknown_commands_and_bad_input() {
 fn every_registered_entry_is_exercised_here() {
     // Keep this list in step with the registry: a new command needs a test
     // (here, in editor.rs for what the editor calls, in shelf.rs for the
-    // shelf, recent pages and time pins, in points.rs for snapshot history).
+    // shelf, recent pages and time pins, in points.rs for snapshot history,
+    // in workshop.rs for plot grids, patches and templates).
     let srcs = [
         include_str!("commands.rs"),
         include_str!("editor.rs"),
         include_str!("shelf.rs"),
         include_str!("points.rs"),
+        include_str!("autolink.rs"),
+        include_str!("workshop.rs"),
     ];
     let missing: Vec<&str> = registry()
         .iter()
