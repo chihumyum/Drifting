@@ -7,6 +7,15 @@
     "storyGraph": "Story graph",
     "todoLibrary": "TODO & Library"
   },
+  "commentRail": {
+    "actions": {
+      "reopen": "Reopen",
+      "resolve": "Resolve"
+    },
+    "card": {
+      "emptyComment": "Empty comment"
+    }
+  },
   "common": {
     "cancel": "Cancel",
     "close": "Close",
@@ -265,6 +274,25 @@
   },
   "relationTypes": {
     "description": "Description"
+  },
+  "reviewPanel": {
+    "commentPlaceholder": "Write a comment…",
+    "empty": "No review items in this scope.",
+    "filters": {
+      "all": "Both",
+      "comment": "Comments",
+      "todo": "TODOs"
+    },
+    "groups": {
+      "deleted": "Deleted",
+      "floating": "Not attached"
+    },
+    "jumpToText": "Jump to linked text",
+    "newComment": "New comment",
+    "resolved": "Resolved ({{count}})",
+    "scopes": {
+      "current": "Current"
+    }
   },
   "rightSidebar": {
     "kickers": {

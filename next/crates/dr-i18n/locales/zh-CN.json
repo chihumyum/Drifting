@@ -7,6 +7,15 @@
     "storyGraph": "故事图谱",
     "todoLibrary": "审阅与素材"
   },
+  "commentRail": {
+    "actions": {
+      "reopen": "未解决",
+      "resolve": "解决"
+    },
+    "card": {
+      "emptyComment": "空批注"
+    }
+  },
   "common": {
     "cancel": "取消",
     "close": "关闭",
@@ -260,6 +269,25 @@
   },
   "relationTypes": {
     "description": "说明"
+  },
+  "reviewPanel": {
+    "commentPlaceholder": "写批注…",
+    "empty": "此范围内没有审阅项目。",
+    "filters": {
+      "all": "全部",
+      "comment": "批注",
+      "todo": "TODO"
+    },
+    "groups": {
+      "deleted": "已删除",
+      "floating": "未挂载"
+    },
+    "jumpToText": "跳转到关联文字",
+    "newComment": "新建批注",
+    "resolved": "已解决（{{count}}）",
+    "scopes": {
+      "current": "当前"
+    }
   },
   "rightSidebar": {
     "kickers": {

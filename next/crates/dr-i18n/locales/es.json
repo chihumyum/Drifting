@@ -7,6 +7,15 @@
     "storyGraph": "Mapa de la historia",
     "todoLibrary": "Tareas y documentación"
   },
+  "commentRail": {
+    "actions": {
+      "reopen": "Reabrir",
+      "resolve": "Resolver"
+    },
+    "card": {
+      "emptyComment": "Comentario vacío"
+    }
+  },
   "common": {
     "cancel": "Cancelar",
     "close": "Cerrar",
@@ -271,6 +280,25 @@
   },
   "relationTypes": {
     "description": "Descripción"
+  },
+  "reviewPanel": {
+    "commentPlaceholder": "Escribe un comentario…",
+    "empty": "No hay elementos de revisión en este ámbito.",
+    "filters": {
+      "all": "Ambos",
+      "comment": "Comentarios",
+      "todo": "Tareas"
+    },
+    "groups": {
+      "deleted": "Eliminados",
+      "floating": "Sin adjuntar"
+    },
+    "jumpToText": "Ir al texto vinculado",
+    "newComment": "Nuevo comentario",
+    "resolved": "Resueltos ({{count}})",
+    "scopes": {
+      "current": "Actual"
+    }
   },
   "rightSidebar": {
     "kickers": {

@@ -32,7 +32,8 @@ use std::collections::{HashMap, HashSet};
 use std::time::Instant;
 
 pub use dr_editor::{
-    BookEditor, BookEditorEvent, ChapterEditor, ChapterEditorEvent, EditorSettings, ReadingPosition,
+    BookEditor, BookEditorEvent, ChapterEditor, ChapterEditorEvent, EditorSettings,
+    ReadingPosition, decor::DecorLooks,
 };
 use dr_text::TextMetrics;
 use dr_ui::{Theme, fonts::Role, tokens::motion};
@@ -251,6 +252,12 @@ pub fn block_style(theme: &Theme) -> BlockStyle {
     }
 }
 
+/// How comments, Agent changes, links and find hits look on the prose in
+/// this theme (dr-editor's paint layers).
+pub fn decor_looks(theme: &Theme, base: &ProseStyle) -> DecorLooks {
+    DecorLooks::new(theme.palette, base.link, theme.reduce_motion)
+}
+
 impl Workspace {
     /// Starts opening `target`'s editor (its documents' sessions first, off
     /// the main thread).
@@ -350,8 +357,10 @@ impl Workspace {
                         }
                     }
                 });
+                let looks = decor_looks(&Theme::of(window, cx), &base);
                 editor.update(cx, |e, cx| {
                     e.set_base_style(base, cx);
+                    e.set_decor_looks(looks, cx);
                     set_title(e, title, cx);
                 });
                 let events = cx.subscribe(&editor, |ws, editor, event: &ChapterEditorEvent, cx| {
@@ -425,14 +434,14 @@ impl Workspace {
                     self.report_words(&key, Some(&doc), cx);
                 }
             }
+            // The editor projects its TODO markers (`todo.project`) and
+            // stores re-anchored comments (`comment.reanchor`) itself
+            // (dr-editor's decor module).
             ChapterEditorEvent::TodoMarkers(markers) => {
-                // TODO(F3 `todo.project`): project the markers into TODOs.
                 log::debug!("{doc}: {} TODO markers", markers.len());
             }
             ChapterEditorEvent::AnchorsChanged(changes) => {
-                // TODO(F3 `comment.reanchor`): store the anchors an undo
-                // brought back in the book document.
-                log::debug!("{doc}: {} comment anchors to store", changes.len());
+                log::debug!("{doc}: {} anchors re-stored", changes.len());
             }
         }
     }
@@ -754,6 +763,12 @@ impl Workspace {
                     p.set_reduce_motion(theme.reduce_motion, cx);
                 }
             });
+            if let PageView::Doc(e) = &view
+                && (base_changed || reduce_changed)
+            {
+                let looks = decor_looks(&theme, &base);
+                e.update(cx, |e, cx| e.set_decor_looks(looks, cx));
+            }
         }
     }
 }

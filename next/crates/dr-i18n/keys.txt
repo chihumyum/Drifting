@@ -347,3 +347,19 @@ settings.editor.preview_h1
 settings.editor.preview_p1
 settings.editor.preview_p2
 settings.keys.allActionsShort
+
+# The Review panel and the comment composer (M18)
+reviewPanel.filters.all
+reviewPanel.filters.comment
+reviewPanel.filters.todo
+reviewPanel.scopes.current
+reviewPanel.empty
+reviewPanel.resolved
+reviewPanel.jumpToText
+reviewPanel.groups.floating
+reviewPanel.groups.deleted
+reviewPanel.commentPlaceholder
+reviewPanel.newComment
+commentRail.actions.resolve
+commentRail.actions.reopen
+commentRail.card.emptyComment

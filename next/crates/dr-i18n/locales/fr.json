@@ -7,6 +7,15 @@
     "storyGraph": "Graphe du récit",
     "todoLibrary": "Tâches et documentation"
   },
+  "commentRail": {
+    "actions": {
+      "reopen": "Rouvrir",
+      "resolve": "Résoudre"
+    },
+    "card": {
+      "emptyComment": "Commentaire vide"
+    }
+  },
   "common": {
     "cancel": "Annuler",
     "close": "Fermer",
@@ -271,6 +280,25 @@
   },
   "relationTypes": {
     "description": "Description"
+  },
+  "reviewPanel": {
+    "commentPlaceholder": "Rédiger un commentaire…",
+    "empty": "Aucun élément à réviser dans cette portée.",
+    "filters": {
+      "all": "Les deux",
+      "comment": "Commentaires",
+      "todo": "Tâches"
+    },
+    "groups": {
+      "deleted": "Supprimés",
+      "floating": "Non rattachés"
+    },
+    "jumpToText": "Aller au texte lié",
+    "newComment": "Nouveau commentaire",
+    "resolved": "Résolus ({{count}})",
+    "scopes": {
+      "current": "Actuel"
+    }
   },
   "rightSidebar": {
     "kickers": {

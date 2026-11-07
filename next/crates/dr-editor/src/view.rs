@@ -88,6 +88,8 @@ pub struct ChapterEditor {
     /// The pickers, automatic links and the selection bar.
     assist: Entity<crate::assist::Assist>,
     _assist_events: Subscription,
+    /// The paint layers: comments, Agent changes, links (crate::decor).
+    pub(crate) decor: crate::decor::Decor,
     _editor_events: Subscription,
     _ws_events: dr_workspace::events::Subscription,
 }
@@ -139,6 +141,8 @@ impl ChapterEditor {
         let ws_events = Self::watch(&ws, doc_id, window, cx);
         let (assist, assist_events) =
             Self::make_assist(&ws, book, &editor, doc_id, &settings, window, cx);
+        let decor =
+            crate::decor::Decor::new(&ws, book, doc_id, &editor, extension.clone(), window, cx);
         let mut this = ChapterEditor {
             ws,
             book: book.to_owned(),
@@ -152,6 +156,7 @@ impl ChapterEditor {
             pages: Default::default(),
             assist,
             _assist_events: assist_events,
+            decor,
             _editor_events: editor_events,
             _ws_events: ws_events,
         };
@@ -381,6 +386,8 @@ impl ChapterEditor {
         let (editor, docs) = (self.editor.clone(), vec![self.doc_id.clone()]);
         self.assist
             .update(cx, |a, cx| a.attach(editor, docs, window, cx));
+        self.decor
+            .rebind(&self.ws, &self.book, doc_id, &self.editor, window, cx);
         self.todos = self.find_todos(cx);
         cx.emit(ChapterEditorEvent::TodoMarkers(self.todos.clone()));
         cx.notify();

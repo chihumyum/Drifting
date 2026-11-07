@@ -22,6 +22,7 @@ pub mod anchors;
 pub mod assist;
 pub mod book;
 pub mod convert;
+pub mod decor;
 pub mod entity_links;
 pub mod links;
 pub mod page;

@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
-description = "Drifting's editor (F4e): gpui-prose on dr-doc through the workspace, entity links, Markdown input rules, TODO markers"
+description = "Drifting's editor (F4e): gpui-prose on dr-doc through the workspace, entity links, Markdown input rules, TODO markers, and its paint layers (comments, Agent changes, find, links)"
 
 [dependencies]
 dr-doc.workspace = true

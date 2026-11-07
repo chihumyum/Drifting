@@ -200,6 +200,8 @@ pub struct PaintState {
     pub(crate) animating: bool,
     /// A drawn decoration waits to be settled.
     waiting_drawn: bool,
+    /// How find hits look (F4c's matches; the current one takes `hot`).
+    pub(crate) find_look: Option<super::decor::Wash>,
 }
 
 impl Default for PaintState {
@@ -220,6 +222,7 @@ impl Default for PaintState {
             ticks: Default::default(),
             animating: false,
             waiting_drawn: false,
+            find_look: None,
         }
     }
 }
@@ -646,6 +649,15 @@ impl ProseEditor {
     /// How many decoration parts the last frame painted.
     pub fn painted_decorations(&self) -> usize {
         self.frame.borrow().decorations.len()
+    }
+
+    /// Draws F4c's find matches ([`ProseEditor::find_matches`]) with `look`:
+    /// `strength.rest` for every match, `strength.hot` for the current one
+    /// (the selection). Read every frame, so typing a query or stepping
+    /// needs nothing more from the host. `None` draws no matches.
+    pub fn set_find_look(&mut self, look: Option<super::decor::Wash>, cx: &mut Context<Self>) {
+        self.paint.find_look = look;
+        cx.notify();
     }
 
     /// The look of quotes, indents and rules.

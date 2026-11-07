@@ -18,6 +18,7 @@ mod dock;
 pub mod editors;
 pub mod find;
 pub mod outline;
+mod review;
 mod sidebar;
 mod stage;
 mod super_view;
@@ -268,6 +269,8 @@ pub struct Workspace {
     pub settings: Option<Entity<SettingsPanel>>,
     /// M06's search panel, while open.
     pub search: Option<Entity<dr_view_search::SearchPanel>>,
+    /// M18: the comment composer beside the selection (`review.rs`).
+    pub composer: Option<review::Composer>,
     pub notifications_open: bool,
     /// The account menu over the left sidebar's account cell is open.
     pub account_open: bool,
@@ -355,6 +358,7 @@ impl Workspace {
             super_view: None,
             settings: None,
             search: None,
+            composer: None,
             notifications_open: false,
             account_open: false,
             shelf: None,
@@ -1061,6 +1065,7 @@ impl Workspace {
             }),
         )
         .on_action(cx.listener(|ws, _: &FindInEditor, window, cx| ws.open_find(window, cx)))
+        .on_action(cx.listener(Self::on_new_comment))
         .on_action(cx.listener(|ws, _: &GlobalSearch, window, cx| ws.toggle_search(window, cx)))
         .on_action(cx.listener(|ws, _: &CloseProject, window, cx| {
             ws.show_shelf(window, cx);
@@ -1118,6 +1123,7 @@ impl Render for Workspace {
             })
             .when_some(self.settings.clone(), |el, panel| el.child(panel))
             .when_some(self.search.clone(), |el, panel| el.child(panel))
+            .children(self.composer_overlay())
             .child(chrome::windows_caption(window, cx))
             .when(self.notifications_open, |el| {
                 el.child(sidebar::notification_center(self, window, cx))

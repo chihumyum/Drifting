@@ -7,6 +7,15 @@
     "storyGraph": "故事圖譜",
     "todoLibrary": "審閱與素材"
   },
+  "commentRail": {
+    "actions": {
+      "reopen": "重新開啟",
+      "resolve": "標為已解決"
+    },
+    "card": {
+      "emptyComment": "空白註解"
+    }
+  },
   "common": {
     "cancel": "取消",
     "close": "關閉",
@@ -265,6 +274,25 @@
   },
   "relationTypes": {
     "description": "說明"
+  },
+  "reviewPanel": {
+    "commentPlaceholder": "撰寫註解…",
+    "empty": "此範圍內沒有審閱項目。",
+    "filters": {
+      "all": "兩者皆用",
+      "comment": "註解",
+      "todo": "待辦事項"
+    },
+    "groups": {
+      "deleted": "已刪除",
+      "floating": "未附加"
+    },
+    "jumpToText": "跳至連結文字",
+    "newComment": "新增註解",
+    "resolved": "已解決（{{count}}）",
+    "scopes": {
+      "current": "目前"
+    }
   },
   "rightSidebar": {
     "kickers": {
