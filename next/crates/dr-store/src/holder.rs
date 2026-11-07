@@ -631,6 +631,9 @@ struct Holder {
     next_seq: i64,
     /// The latest history label: (time, encoded frontiers, label).
     latest_label: Option<(i64, Vec<u8>, String)>,
+    /// This opening committed something that earns history labels (not
+    /// only genesis, import, repair or outside writes): closing labels it.
+    labelled_writes: bool,
     import_since_idle: bool,
     /// Operations whose append failed. They are retried on their own, with
     /// their label, before anything else runs, so a row never mixes origins.
@@ -715,6 +718,7 @@ pub(crate) fn spawn(
         last_vv: doc.oplog_vv(),
         next_seq: stats.last_seq + 1,
         latest_label,
+        labelled_writes: false,
         import_since_idle: false,
         unpersisted: None,
         kind,
@@ -1109,6 +1113,7 @@ impl Holder {
         self.next_seq += 1;
         self.last_vv = vv;
         self.latest_label = latest;
+        self.labelled_writes |= history::records_periodic(origin);
         self.counters.commits.fetch_add(1, Ordering::Relaxed);
         self.counters
             .pending_updates
@@ -1200,11 +1205,13 @@ impl Holder {
     fn label_now(&mut self, label: &str) -> Result<bool> {
         self.settle()?;
         let frontiers = self.doc.oplog_frontiers().encode();
-        if self
-            .latest_label
-            .as_ref()
-            .is_some_and(|(_, f, _)| *f == frontiers)
-        {
+        // Never the same version twice in a row: neither after this
+        // holder's own label nor after one written beside it
+        // (`Library::label_at` while the document is open).
+        let same = |l: &Option<(i64, Vec<u8>, String)>| {
+            l.as_ref().is_some_and(|(_, f, _)| *f == frontiers)
+        };
+        if same(&self.latest_label) || same(&history::latest(&self.lib.reader(), &self.doc_id)?) {
             return Ok(false);
         }
         let now = now_ms();
@@ -1234,7 +1241,7 @@ impl Holder {
             );
             return;
         }
-        if self.counters.commits.load(Ordering::Relaxed) > 0
+        if self.labelled_writes
             && let Err(e) = self.label_now(labels::CLOSE)
         {
             log::warn!("{}: close label failed: {e}", self.doc_id);

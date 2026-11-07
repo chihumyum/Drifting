@@ -6,7 +6,9 @@
 //! Loro versions instead of stored copies:
 //!
 //! - `periodic`: at most one per document per 15 minutes, after a commit;
-//! - `close` and `restore` skip the interval;
+//! - `close` and `restore` skip the interval; `close` only when that opening
+//!   committed something that earns labels (not only genesis, the import,
+//!   repairs or outside writes: [`records_periodic`]);
 //! - `agent:<session>/<turn>` marks the version just before an Agent turn's
 //!   first write (once per turn, whatever else is on that version), so the
 //!   whole turn can be undone;
