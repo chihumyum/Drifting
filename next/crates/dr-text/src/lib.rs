@@ -4,6 +4,8 @@
 //!   and the Agent;
 //! - [`metrics`]: words and characters, by the Apache-2.0 rule of the
 //!   `prose-metrics` crate (re-exported as [`count_words`]);
+//! - [`live`]: live counts of the document an editor has open, paragraph
+//!   by paragraph, without waiting for the index (M07);
 //! - [`outline`]: the H1/H2/H3 paragraphs of a document, with block ids;
 //! - [`autolink`]: where the names and aliases of a book's elements (and
 //!   its chapter and idea titles) occur in text, for automatic entity links.
@@ -12,11 +14,13 @@
 //! strings; nothing here writes a document.
 
 pub mod autolink;
+pub mod live;
 pub mod metrics;
 pub mod outline;
 pub mod plain;
 
 pub use autolink::{LinkMatch, LinkMatcher, LinkName, LinkTarget, SuggestedLink};
+pub use live::{LiveCount, paragraph_metrics, with_live};
 pub use metrics::{TextMetrics, text_metrics};
 pub use outline::{OutlineItem, outline};
 pub use plain::{block_text, paragraph_text, plain_text, table_text};

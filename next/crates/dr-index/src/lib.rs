@@ -9,17 +9,18 @@
 //! dr-text's rule. dr-store writes them with `index_state.indexed_seq` in one
 //! transaction.
 //!
-//! - [`TextDeriver`] keeps what it derived per open document and, given the
-//!   Loro diffs since its last run, re-reads only the paragraphs they touch
-//!   ([`incremental`]). Without diffs, or when the diffs do not line up, it
-//!   reads the whole document.
+//! - [`TextDeriver`] reads the holder's own document in place and keeps what
+//!   it derived per open document. Given the Loro diffs since its last run,
+//!   it re-reads only the paragraphs they touch and hands dr-store a
+//!   paragraph patch ([`dr_store::index::DerivedUpdate::Patch`]) with just
+//!   the rows that changed. Without diffs, or when they do not line up, it
+//!   reads the whole document and replaces everything.
 //! - [`attach`] registers it (and dr-doc's style configuration) on a
 //!   library's options.
 
-#[doc(hidden)]
-pub mod evidence;
-pub mod incremental;
+mod incremental;
 mod paragraphs;
+mod patch;
 mod source;
 
 use std::collections::HashMap;
@@ -32,26 +33,33 @@ use dr_store::LibraryOptions;
 use dr_store::index::{DeriveInput, Derived, DerivedUpdate, Deriver};
 use loro::VersionVector;
 
-pub use paragraphs::{Block, derive_blocks, derived_from};
+pub use incremental::{Fallback, MAX_DELTA_ITEMS, MIN_READ_LIMIT, read_limit};
 pub use source::prose_reader;
+
+use paragraphs::{derive_blocks, derived_with, kept_ids};
+use patch::State;
 
 /// Everything derived from `view`, read from scratch.
 pub fn derive_view(view: &ProseView<'_>) -> Derived {
-    derived_from(&derive_blocks(view))
+    paragraphs::derived_from(&derive_blocks(view))
 }
 
 /// How a [`TextDeriver`] has worked so far.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct DeriverStats {
-    /// Whole documents read (no diffs, nothing cached, or a fallback).
+    /// Whole documents read (no diffs, nothing cached, a rebuild copy, or a
+    /// fallback); each one replaced everything stored.
     pub full: u64,
-    /// Derivations from diffs that re-read only the touched paragraphs.
+    /// Derivations from diffs that re-read only the touched paragraphs; each
+    /// one sent a paragraph patch.
     pub incremental: u64,
     /// Of `full`: diffs were given and something was cached, but they could
     /// not be used (too many, or they did not add up to the document).
     pub fallbacks: u64,
     /// Paragraphs re-read by incremental derivations.
     pub paragraphs_read: u64,
+    /// Rows the patches replaced or added (their splices' new rows).
+    pub rows_patched: u64,
     /// Documents that could not be read as prose (logged; nothing derived).
     pub unreadable: u64,
 }
@@ -59,13 +67,13 @@ pub struct DeriverStats {
 struct Entry {
     used: u64,
     vv: VersionVector,
-    blocks: Vec<Block>,
+    state: State,
 }
 
-/// What was derived last, per (document, Loro peer). The peer tells the
-/// document holder's own document (it carries the device peer) from the
-/// copies a background rebuild loads (a random peer), so diffs are only
-/// ever applied to what was derived from the same document.
+/// What was derived last from a holder's document, per (document, Loro
+/// peer). Only holders' documents are cached (`DeriveInput::held`); the peer
+/// keeps two libraries that share one deriver (and the same document ids,
+/// as tests do) apart.
 struct Cache {
     capacity: usize,
     clock: u64,
@@ -103,12 +111,14 @@ pub struct TextDeriver {
     incremental: AtomicU64,
     fallbacks: AtomicU64,
     paragraphs_read: AtomicU64,
+    rows_patched: AtomicU64,
     unreadable: AtomicU64,
 }
 
-/// Documents whose derivation is kept for the next diffs. An entry is a copy
-/// of the document's plain text (about 60 KB for a 20 000-character
-/// chapter), so this bounds the memory at a few MB.
+/// Documents whose derivation is kept for the next diffs. An entry holds a
+/// copy of the document's plain text (about 60 KB for a 20 000-character
+/// chapter), so this bounds the memory at a few MB. A document that drops
+/// out is read whole on its next derivation.
 pub const DEFAULT_CACHED_DOCS: usize = 32;
 
 impl Default for TextDeriver {
@@ -133,6 +143,7 @@ impl TextDeriver {
             incremental: AtomicU64::new(0),
             fallbacks: AtomicU64::new(0),
             paragraphs_read: AtomicU64::new(0),
+            rows_patched: AtomicU64::new(0),
             unreadable: AtomicU64::new(0),
         }
     }
@@ -143,6 +154,7 @@ impl TextDeriver {
             incremental: self.incremental.load(Ordering::Relaxed),
             fallbacks: self.fallbacks.load(Ordering::Relaxed),
             paragraphs_read: self.paragraphs_read.load(Ordering::Relaxed),
+            rows_patched: self.rows_patched.load(Ordering::Relaxed),
             unreadable: self.unreadable.load(Ordering::Relaxed),
         }
     }
@@ -151,8 +163,9 @@ impl TextDeriver {
         self.cache.lock().unwrap_or_else(|e| e.into_inner())
     }
 
-    /// Derive one prose document, from the diffs when they can be used.
-    fn derive_prose(&self, doc_id: &DocId, input: &DeriveInput<'_>) -> Option<Derived> {
+    /// Derive one prose document: a patch from the diffs when they can be
+    /// used, everything otherwise.
+    fn derive_prose(&self, doc_id: &DocId, input: &DeriveInput<'_>) -> Option<DerivedUpdate> {
         let reader = match prose_reader(doc_id, input.doc) {
             Ok(r) => r,
             Err(e) => {
@@ -165,41 +178,59 @@ impl TextDeriver {
             }
         };
         let view = reader.view();
+        if !input.held {
+            // A copy for a rebuild: read once, never diffed.
+            self.full.fetch_add(1, Ordering::Relaxed);
+            return Some(DerivedUpdate::Full(derive_view(&view)));
+        }
         let key = (input.doc_id.to_string(), input.doc.peer_id());
         let vv = input.doc.oplog_vv();
         let cached = self.cache().take(&key);
-        let blocks = match (input.changes, cached) {
+        let patched = match (input.changes, cached) {
             (Some(changes), Some(entry)) if vv.includes_vv(&entry.vv) => {
-                match incremental::update(&view, &entry.blocks, changes) {
-                    Ok(update) => {
-                        self.incremental.fetch_add(1, Ordering::Relaxed);
-                        self.paragraphs_read
-                            .fetch_add(update.read as u64, Ordering::Relaxed);
-                        update.blocks
-                    }
+                let next = incremental::update(&view, &entry.state.blocks, changes)
+                    .map_err(|why| why.to_string())
+                    .and_then(|u| {
+                        let read = u.read;
+                        patch::next(entry.state, u)
+                            .map(|n| (n, read))
+                            .ok_or_else(|| "the update does not fit".to_string())
+                    });
+                match next {
+                    Ok(((state, patch), read)) => Some((state, patch, read)),
                     Err(why) => {
                         log::debug!("{}: reading the whole document ({why})", input.doc_id);
                         self.fallbacks.fetch_add(1, Ordering::Relaxed);
-                        self.full.fetch_add(1, Ordering::Relaxed);
-                        derive_blocks(&view)
+                        None
                     }
                 }
             }
-            _ => {
+            _ => None,
+        };
+        let (state, update) = match patched {
+            Some((state, patch, read)) => {
+                self.incremental.fetch_add(1, Ordering::Relaxed);
+                self.paragraphs_read
+                    .fetch_add(read as u64, Ordering::Relaxed);
+                let rows: usize = patch.splices.iter().map(|s| s.blocks.len()).sum();
+                self.rows_patched.fetch_add(rows as u64, Ordering::Relaxed);
+                (state, DerivedUpdate::Patch(patch))
+            }
+            None => {
                 self.full.fetch_add(1, Ordering::Relaxed);
-                derive_blocks(&view)
+                let blocks = derive_blocks(&view);
+                let kept = kept_ids(blocks.iter().map(|b| b.stored_id.as_ref()));
+                let derived = derived_with(&blocks, &kept);
+                let state = State {
+                    blocks,
+                    kept,
+                    references: derived.references.clone(),
+                };
+                (state, DerivedUpdate::Full(derived))
             }
         };
-        let derived = derived_from(&blocks);
-        self.cache().put(
-            key,
-            Entry {
-                used: 0,
-                vv,
-                blocks,
-            },
-        );
-        Some(derived)
+        self.cache().put(key, Entry { used: 0, vv, state });
+        Some(update)
     }
 }
 
@@ -214,7 +245,7 @@ impl Deriver for TextDeriver {
             // so it does not count as stale on every open.
             return Some(DerivedUpdate::Full(Derived::default()));
         }
-        self.derive_prose(&doc_id, input).map(DerivedUpdate::Full)
+        self.derive_prose(&doc_id, input)
     }
 }
 
