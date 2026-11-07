@@ -161,6 +161,13 @@
       "storylineTitle": "Nach Handlungsstrang · zur Buchübersicht wechseln"
     }
   },
+  "memoMaterial": {
+    "kind": {
+      "image": "Bild",
+      "pdf": "PDF",
+      "text": "Notiz"
+    }
+  },
   "navigation": {
     "back": "Zurück"
   },
@@ -302,8 +309,20 @@
     }
   },
   "referencesPanel": {
+    "empty": {
+      "incoming": "Noch keine Inhalte verweisen darauf",
+      "outgoing": "Dieser Text verweist noch nicht auf andere Entitäten"
+    },
     "kind": {
       "patch": "Entwicklung"
+    },
+    "meta": {
+      "blocksSpans": "{{blocks}} Blöcke · {{spans}} Erwähnungen",
+      "spans": "{{count}} Erwähnungen"
+    },
+    "sections": {
+      "incoming": "Rückverweise",
+      "outgoing": "Referenzen"
     }
   },
   "relationTypes": {
@@ -342,17 +361,82 @@
       }
     },
     "stats": {
+      "actMeta": "{{chapters}} Kapitel · {{wordsK}}k · {{pct}}%",
+      "actRhythm": "Aktrhythmus",
+      "allElementsAppeared": "Alle Elemente sind bereits im Text aufgetreten.",
+      "appeared": "Aufgetreten",
+      "averageAppearance": "Durchschnittliche Auftritte",
       "averagePerChapter": "Durchschnitt pro Kapitel",
+      "avgChaptersPerElement": "{{count}} Kapitel / Element",
       "bookPosition": "Position im Buch",
+      "category": "Kategorie",
+      "categoryCoordinates": "Kategoriekoordinaten",
+      "categoryNoElements": "Diese Kategorie hat noch keine Elemente.",
+      "chapter": "Kapitel",
+      "chapterCoordinates": "Kapitelkoordinaten",
       "chapterCount": "Kapitel",
+      "chapterLengthRhythm": "Rhythmus der Kapitellängen",
       "chapterOrdinal": "Kapitel {{count}}",
       "chaptersValue": "{{count}} Kapitel",
+      "completion": "Fertigstellung",
+      "dialogueRatio": "Dialoganteil",
+      "dimensions": "Abmessungen",
+      "discardedParen": " (verworfen {{count}})",
+      "driftCoordinates": "Ideenkoordinaten",
+      "driftFreeFragment": "Idee · frei schwebend",
+      "elementCoordinates": "Elementkoordinaten",
+      "elementCount": "Elementanzahl",
+      "elementsValue": "{{count}} Elemente",
+      "embeddedMaterials": "Eingebettete Materialien",
+      "fileSize": "Größe",
+      "fileType": "Typ",
+      "floatingStoryline": "Schwebend / ohne Zuordnung",
+      "health": "Zustand",
+      "lastModified": "Zuletzt geändert",
+      "longestWithWords": "Längstes · {{title}} ({{words}} Wörter)",
+      "materialCoordinates": "Material",
+      "materialFile": "Datei",
+      "materialRelations": "Verknüpft mit",
+      "moreLowAppearanceElements": "{{count}} weitere Elemente mit selteneren Auftritten",
+      "moreUnappearedElements": "{{count}} weitere ohne Auftritt",
+      "name": "Name",
+      "noActiveProgress": "Alle Kapitel sind verworfen oder haben noch keinen Fortschritt.",
+      "noChapters": "Noch keine Kapitel. Schreibe das erste, um hier das Buchtempo zu sehen.",
+      "noMentionedElements": "Im Text wurden noch keine Elemente mit @ erwähnt.",
+      "noteShape": "Notiz",
+      "noteTasks": "Aufgaben",
+      "noteTasksValue": "{{done}} / {{total}} erledigt",
+      "noteWords": "Länge",
+      "openComments": "Offene Kommentare und Aufgaben",
+      "paragraphSentence": "Absätze / Sätze",
+      "paragraphSentenceValue": "{{paragraphs}} Absätze · {{sentences}} Sätze",
       "recent": "Zuletzt",
+      "shortestWithWords": "Kürzestes · {{title}} ({{words}} Wörter)",
       "snapshotButton": "Verlaufsschnappschüsse…",
+      "statusCount": "{{status}} {{count}} Kapitel",
+      "storyline": "Handlungsstrang",
+      "storylineCoordinates": "Handlungsstrang-Koordinaten",
+      "storylineCoreElements": "Kernelemente dieses Handlungsstrangs",
+      "storylineDistribution": "Verteilung der Handlungsstränge",
+      "storylineNoChapters": "Dieser Handlungsstrang hat noch keine Kapitel.",
+      "storylineNoMentionedElements": "In den Kapiteln dieses Handlungsstrangs wurden noch keine Elemente mit @ erwähnt.",
+      "thisChapterElements": "Elemente in diesem Kapitel",
+      "thisFragmentElements": "Elemente in dieser Idee",
+      "titleWithWords": "{{title}} ({{words}} Wörter)",
+      "type": "Typ",
+      "unappearedElements": "Noch nicht aufgetretene Elemente",
+      "updated": "Aktualisiert",
+      "wordRhythm": "Wörter · Rhythmus",
       "wordsPerChapterValue": "{{words}} Wörter / Kapitel",
       "wordsValue": "{{count}} Wörter",
       "writingProgress": "Schreibfortschritt",
       "writtenTarget": "Geschrieben / Ziel"
+    },
+    "status": {
+      "discarded": "Verworfen",
+      "done": "Fertig",
+      "draft": "Entwurf",
+      "todo": "Zu schreiben"
     },
     "tabs": {
       "companion": "Agent",

@@ -34,6 +34,7 @@ pub mod element;
 pub mod history;
 pub mod idea;
 pub mod material;
+pub mod mention;
 pub mod points;
 pub mod prose;
 pub mod recent;
@@ -81,6 +82,7 @@ pub(crate) fn register(r: &mut Registry) {
     points::register(r);
     recent::register(r);
     stats::register(r);
+    mention::register(r);
     time_pin::register(r);
 }
 

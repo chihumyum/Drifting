@@ -161,6 +161,13 @@
       "storylineTitle": "依故事線分組 · 切換回全書總覽"
     }
   },
+  "memoMaterial": {
+    "kind": {
+      "image": "圖片",
+      "pdf": "PDF",
+      "text": "筆記"
+    }
+  },
   "navigation": {
     "back": "返回"
   },
@@ -302,8 +309,20 @@
     }
   },
   "referencesPanel": {
+    "empty": {
+      "incoming": "尚無內容參照此項目",
+      "outgoing": "此正文尚未參照其他實體"
+    },
     "kind": {
       "patch": "演化記錄"
+    },
+    "meta": {
+      "blocksSpans": "{{blocks}} 個區塊 · {{spans}} 處提及",
+      "spans": "{{count}} 處提及"
+    },
+    "sections": {
+      "incoming": "反向連結",
+      "outgoing": "引用"
     }
   },
   "relationTypes": {
@@ -342,17 +361,82 @@
       }
     },
     "stats": {
+      "actMeta": "{{chapters}} 章 · {{wordsK}}k 字 · {{pct}}%",
+      "actRhythm": "幕節奏",
+      "allElementsAppeared": "所有要素都已在正文中登場。",
+      "appeared": "已登場",
+      "averageAppearance": "平均出現次數",
       "averagePerChapter": "平均每章",
+      "avgChaptersPerElement": "每個要素 {{count}} 章",
       "bookPosition": "全書位置",
+      "category": "類目",
+      "categoryCoordinates": "類目座標",
+      "categoryNoElements": "此類目尚無要素。",
+      "chapter": "章節",
+      "chapterCoordinates": "章節座標",
       "chapterCount": "章節",
+      "chapterLengthRhythm": "章節篇幅節奏",
       "chapterOrdinal": "第 {{count}} 章",
       "chaptersValue": "{{count}} 章",
+      "completion": "完成度",
+      "dialogueRatio": "對話比例",
+      "dimensions": "尺寸",
+      "discardedParen": "（已棄用 {{count}}）",
+      "driftCoordinates": "構想座標",
+      "driftFreeFragment": "構想 · 自由漂浮",
+      "elementCoordinates": "要素座標",
+      "elementCount": "要素數量",
+      "elementsValue": "{{count}} 個要素",
+      "embeddedMaterials": "嵌入素材",
+      "fileSize": "大小",
+      "fileType": "類型",
+      "floatingStoryline": "漂浮／無歸屬",
+      "health": "健康狀態",
+      "lastModified": "最後修改",
+      "longestWithWords": "最長 · {{title}}（{{words}} 字）",
+      "materialCoordinates": "素材",
+      "materialFile": "檔案",
+      "materialRelations": "連結至",
+      "moreLowAppearanceElements": "另有 {{count}} 個較少出現的要素",
+      "moreUnappearedElements": "另有 {{count}} 個尚未登場",
+      "name": "名稱",
+      "noActiveProgress": "所有章節都已棄用，或尚無進度。",
+      "noChapters": "書中尚無章節，開始第一章後，這裡會顯示全書節奏。",
+      "noMentionedElements": "正文尚未透過 @ 提及任何要素。",
+      "noteShape": "筆記",
+      "noteTasks": "待辦事項",
+      "noteTasksValue": "已完成 {{done}}／{{total}}",
+      "noteWords": "篇幅",
+      "openComments": "未解決批註與待辦",
+      "paragraphSentence": "段落／句子",
+      "paragraphSentenceValue": "{{paragraphs}} 段 · {{sentences}} 句",
       "recent": "近期",
+      "shortestWithWords": "最短 · {{title}}（{{words}} 字）",
       "snapshotButton": "歷史快照…",
+      "statusCount": "{{status}} {{count}} 章",
+      "storyline": "故事線",
+      "storylineCoordinates": "故事線座標",
+      "storylineCoreElements": "此故事線的核心要素",
+      "storylineDistribution": "故事線分布",
+      "storylineNoChapters": "此故事線尚無章節。",
+      "storylineNoMentionedElements": "此故事線的章節尚未透過 @ 提及任何要素。",
+      "thisChapterElements": "此章中的要素",
+      "thisFragmentElements": "此構想中的要素",
+      "titleWithWords": "{{title}}（{{words}} 字）",
+      "type": "類型",
+      "unappearedElements": "尚未登場的要素",
+      "updated": "已更新",
+      "wordRhythm": "字數 · 節奏",
       "wordsPerChapterValue": "每章 {{words}} 字",
       "wordsValue": "{{count}} 字",
       "writingProgress": "寫作進度",
       "writtenTarget": "已寫／目標"
+    },
+    "status": {
+      "discarded": "已棄用",
+      "done": "完成",
+      "draft": "草稿",
+      "todo": "待寫"
     },
     "tabs": {
       "companion": "幫手",

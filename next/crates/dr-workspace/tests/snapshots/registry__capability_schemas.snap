@@ -258,6 +258,74 @@ expression: json
     "summary": "Rename an act, recolour it, move its boundary or bind an idea to it."
   },
   {
+    "access": "read",
+    "concurrency": "shared",
+    "input": {
+      "description": "One entity of a book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "EntityIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "asset.get",
+    "output": {
+      "description": "An asset's recorded metadata.",
+      "properties": {
+        "height": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "description": "`image` or `pdf`.",
+          "type": "string"
+        },
+        "mime": {
+          "type": "string"
+        },
+        "size": {
+          "description": "Bytes.",
+          "format": "int64",
+          "type": "integer"
+        },
+        "width": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "mime",
+        "size",
+        "width",
+        "height"
+      ],
+      "title": "AssetInfo",
+      "type": "object"
+    },
+    "summary": "Read an asset's recorded metadata: kind, media type, size and pixel dimensions (the Stats tab's file readings)."
+  },
+  {
     "access": "write",
     "concurrency": "book",
     "input": {
@@ -5590,6 +5658,134 @@ expression: json
     "access": "read",
     "concurrency": "shared",
     "input": {
+      "$defs": {
+        "Target": {
+          "description": "A reference to an entity (relation end, comment or memory target).",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "description": "`node`, `element`, `patch`, `category`, `storyline`, `comment`,\n`material`.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "type": "object"
+        }
+      },
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "from": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Target"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Only what this entity's prose mentions (a chapter or idea is\n`node`)."
+        },
+        "to": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Target"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Only what mentions this entity."
+        },
+        "to_kind": {
+          "description": "Only targets of this kind (`element`, `node`, `material`, …).",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "book"
+      ],
+      "title": "MentionListIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "mention.list",
+    "output": {
+      "$defs": {
+        "MentionInfo": {
+          "properties": {
+            "blocks": {
+              "description": "Paragraphs that carry it.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "count": {
+              "description": "Separate spans (an embed is one).",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "from": {
+              "$ref": "#/$defs/Target",
+              "description": "The entity whose prose mentions."
+            },
+            "kind": {
+              "description": "`link` (an entity link in the text) or `embed` (an embedded\nmaterial).",
+              "type": "string"
+            },
+            "to": {
+              "$ref": "#/$defs/Target"
+            }
+          },
+          "required": [
+            "from",
+            "to",
+            "kind",
+            "blocks",
+            "count"
+          ],
+          "type": "object"
+        },
+        "Target": {
+          "description": "A reference to an entity (relation end, comment or memory target).",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "description": "`node`, `element`, `patch`, `category`, `storyline`, `comment`,\n`material`.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "type": "object"
+        }
+      },
+      "items": {
+        "$ref": "#/$defs/MentionInfo"
+      },
+      "title": "Array_of_MentionInfo",
+      "type": "array"
+    },
+    "summary": "List what prose mentions: entity links and embedded materials, from one entity's prose, to one entity, or in the whole book (live ends only, with paragraph and span counts)."
+  },
+  {
+    "access": "read",
+    "concurrency": "shared",
+    "input": {
       "properties": {
         "doc": {
           "description": "The prose document: `node:<id>`, `element:<id>`, `storyline:<id>`,\n`category:<id>` or `material:<id>`.",
@@ -5776,6 +5972,75 @@ expression: json
       "type": "object"
     },
     "summary": "Restore a prose document to an earlier version, as a new change (history stays)."
+  },
+  {
+    "access": "read",
+    "concurrency": "shared",
+    "input": {
+      "properties": {
+        "doc": {
+          "description": "`node:<id>`, `material:<id>`, …",
+          "type": "string"
+        }
+      },
+      "required": [
+        "doc"
+      ],
+      "title": "ProseShapeIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "prose.shape",
+    "output": {
+      "properties": {
+        "dialogue": {
+          "description": "The share of characters inside quotation marks, 0–1.",
+          "format": "float",
+          "type": "number"
+        },
+        "done": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "embeds": {
+          "description": "The materials it embeds, in order (repeats kept).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "paragraphs": {
+          "description": "Paragraphs that are not blank.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "sentences": {
+          "description": "Sentences (a paragraph with words is at least one).",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "tasks": {
+          "description": "Checklist items (a note's tasks) and how many are checked.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "paragraphs",
+        "sentences",
+        "dialogue",
+        "tasks",
+        "done",
+        "embeds"
+      ],
+      "title": "ProseShapeOut",
+      "type": "object"
+    },
+    "summary": "Shape of a prose document: paragraphs, sentences, the share of dialogue, its checklist and the materials it embeds."
   },
   {
     "access": "read",

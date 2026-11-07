@@ -619,6 +619,13 @@ impl Readout {
         self.track = false;
         self
     }
+
+    /// The stroke's height (7 by default; the chapter-length rhythm's
+    /// strokes are 4).
+    pub fn height(mut self, height: f32) -> Self {
+        self.height = height.max(1.0);
+        self
+    }
 }
 
 pub struct ReadoutState {

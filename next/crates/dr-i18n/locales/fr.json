@@ -161,6 +161,13 @@
       "storylineTitle": "Par intrigue · revenir à la vue du livre"
     }
   },
+  "memoMaterial": {
+    "kind": {
+      "image": "Image",
+      "pdf": "PDF",
+      "text": "Note"
+    }
+  },
   "navigation": {
     "back": "Retour"
   },
@@ -308,8 +315,20 @@
     }
   },
   "referencesPanel": {
+    "empty": {
+      "incoming": "Aucun contenu ne fait encore référence à cet élément",
+      "outgoing": "Ce texte ne fait pas encore référence à d’autres entités"
+    },
     "kind": {
       "patch": "Évolution"
+    },
+    "meta": {
+      "blocksSpans": "{{blocks}} blocs · {{spans}} mentions",
+      "spans": "{{count}} mentions"
+    },
+    "sections": {
+      "incoming": "Liens entrants",
+      "outgoing": "Références"
     }
   },
   "relationTypes": {
@@ -348,17 +367,82 @@
       }
     },
     "stats": {
+      "actMeta": "{{chapters}} chapitres · {{wordsK}}k · {{pct}} %",
+      "actRhythm": "Rythme des actes",
+      "allElementsAppeared": "Tous les éléments sont apparus dans le texte.",
+      "appeared": "Apparus",
+      "averageAppearance": "Moyenne d’apparitions",
       "averagePerChapter": "Moyenne par chapitre",
+      "avgChaptersPerElement": "{{count}} chapitres / élément",
       "bookPosition": "Position dans le livre",
+      "category": "Catégorie",
+      "categoryCoordinates": "Coordonnées de la catégorie",
+      "categoryNoElements": "Cette catégorie n’a pas encore d’éléments.",
+      "chapter": "Chapitre",
+      "chapterCoordinates": "Coordonnées du chapitre",
       "chapterCount": "Chapitres",
+      "chapterLengthRhythm": "Rythme de longueur des chapitres",
       "chapterOrdinal": "Chapitre {{count}}",
       "chaptersValue": "{{count}} chapitres",
+      "completion": "Achèvement",
+      "dialogueRatio": "Part de dialogue",
+      "dimensions": "Dimensions",
+      "discardedParen": " (écartés {{count}})",
+      "driftCoordinates": "Coordonnées de l’idée",
+      "driftFreeFragment": "Idée · flottante",
+      "elementCoordinates": "Coordonnées de l’élément",
+      "elementCount": "Nombre d’éléments",
+      "elementsValue": "{{count}} éléments",
+      "embeddedMaterials": "Ressources intégrées",
+      "fileSize": "Taille",
+      "fileType": "Type",
+      "floatingStoryline": "Flottant / sans appartenance",
+      "health": "État",
+      "lastModified": "Dernière modification",
+      "longestWithWords": "Le plus long · {{title}} ({{words}} mots)",
+      "materialCoordinates": "Ressource",
+      "materialFile": "Fichier",
+      "materialRelations": "Lié à",
+      "moreLowAppearanceElements": "{{count}} autres éléments moins présents",
+      "moreUnappearedElements": "{{count}} autres non apparus",
+      "name": "Nom",
+      "noActiveProgress": "Tous les chapitres sont écartés ou sans progression.",
+      "noChapters": "Aucun chapitre. Commencez le premier pour afficher le rythme du livre.",
+      "noMentionedElements": "Aucun élément mentionné par @ dans le texte.",
+      "noteShape": "Note",
+      "noteTasks": "Tâches",
+      "noteTasksValue": "{{done}} / {{total}} terminées",
+      "noteWords": "Longueur",
+      "openComments": "Commentaires et tâches ouverts",
+      "paragraphSentence": "Paragraphes / phrases",
+      "paragraphSentenceValue": "{{paragraphs}} paragraphes · {{sentences}} phrases",
       "recent": "Récent",
+      "shortestWithWords": "Le plus court · {{title}} ({{words}} mots)",
       "snapshotButton": "Instantanés historiques…",
+      "statusCount": "{{status}} {{count}} chapitres",
+      "storyline": "Intrigue",
+      "storylineCoordinates": "Coordonnées de l’intrigue",
+      "storylineCoreElements": "Éléments centraux de cette intrigue",
+      "storylineDistribution": "Répartition des intrigues",
+      "storylineNoChapters": "Cette intrigue n’a pas encore de chapitres.",
+      "storylineNoMentionedElements": "Aucun élément mentionné par @ dans les chapitres de cette intrigue.",
+      "thisChapterElements": "Éléments de ce chapitre",
+      "thisFragmentElements": "Éléments de cette idée",
+      "titleWithWords": "{{title}} ({{words}} mots)",
+      "type": "Type",
+      "unappearedElements": "Éléments non apparus",
+      "updated": "Mis à jour",
+      "wordRhythm": "Mots · rythme",
       "wordsPerChapterValue": "{{words}} mots / chapitre",
       "wordsValue": "{{count}} mots",
       "writingProgress": "Progression d’écriture",
       "writtenTarget": "Écrit / objectif"
+    },
+    "status": {
+      "discarded": "Écarté",
+      "done": "Terminé",
+      "draft": "Brouillon",
+      "todo": "À écrire"
     },
     "tabs": {
       "companion": "Agent",

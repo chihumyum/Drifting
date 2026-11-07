@@ -53,7 +53,7 @@ tempfile.workspace = true
 name = "shell-capture"
 required-features = ["capture"]
 
-# M06 and M07's screenshots (docs/rust-rewrite/modules/m06, m07).
+# M06, M07 and M20's screenshots (docs/rust-rewrite/modules/m06, m07, m20).
 [[example]]
 name = "m06-m07-capture"
 required-features = ["capture"]

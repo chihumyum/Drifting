@@ -1139,6 +1139,11 @@ impl Library {
         self.references_where("source_doc = ?1", doc_id)
     }
 
+    /// References made by every document of a book.
+    pub fn references_in_book(&self, book_id: &str) -> Result<Vec<Reference>> {
+        self.references_where("book_id = ?1", book_id)
+    }
+
     pub fn doc_stats(&self, doc_id: &str) -> Result<Option<DocStats>> {
         let conn = self.reader();
         let row = conn

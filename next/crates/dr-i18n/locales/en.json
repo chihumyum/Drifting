@@ -161,6 +161,13 @@
       "storylineTitle": "Grouped by storyline · switch back to book overview"
     }
   },
+  "memoMaterial": {
+    "kind": {
+      "image": "Image",
+      "pdf": "PDF",
+      "text": "Note"
+    }
+  },
   "navigation": {
     "back": "Back"
   },
@@ -302,8 +309,20 @@
     }
   },
   "referencesPanel": {
+    "empty": {
+      "incoming": "No content references this yet",
+      "outgoing": "This prose does not reference other entities yet"
+    },
     "kind": {
       "patch": "Patch"
+    },
+    "meta": {
+      "blocksSpans": "{{blocks}} blocks · {{spans}} mentions",
+      "spans": "{{count}} mentions"
+    },
+    "sections": {
+      "incoming": "Backlinks",
+      "outgoing": "References"
     }
   },
   "relationTypes": {
@@ -342,17 +361,82 @@
       }
     },
     "stats": {
+      "actMeta": "{{chapters}} chapters · {{wordsK}}k · {{pct}}%",
+      "actRhythm": "Act rhythm",
+      "allElementsAppeared": "All elements have appeared in prose.",
+      "appeared": "Appeared",
+      "averageAppearance": "Average appearance",
       "averagePerChapter": "Average per chapter",
+      "avgChaptersPerElement": "{{count}} chapters / element",
       "bookPosition": "Book position",
+      "category": "Category",
+      "categoryCoordinates": "Category coordinates",
+      "categoryNoElements": "No elements in this category yet.",
+      "chapter": "Chapter",
+      "chapterCoordinates": "Chapter coordinates",
       "chapterCount": "Chapters",
+      "chapterLengthRhythm": "Chapter length rhythm",
       "chapterOrdinal": "Chapter {{count}}",
       "chaptersValue": "{{count}} chapters",
+      "completion": "Completion",
+      "dialogueRatio": "Dialogue ratio",
+      "dimensions": "Dimensions",
+      "discardedParen": " (discarded {{count}})",
+      "driftCoordinates": "Idea coordinates",
+      "driftFreeFragment": "Idea · free-floating",
+      "elementCoordinates": "Element coordinates",
+      "elementCount": "Element count",
+      "elementsValue": "{{count}} elements",
+      "embeddedMaterials": "Embedded materials",
+      "fileSize": "Size",
+      "fileType": "Type",
+      "floatingStoryline": "Floating / unaffiliated",
+      "health": "Health",
+      "lastModified": "Last modified",
+      "longestWithWords": "Longest · {{title}} ({{words}} words)",
+      "materialCoordinates": "Material",
+      "materialFile": "File",
+      "materialRelations": "Linked to",
+      "moreLowAppearanceElements": "{{count}} more elements with fewer appearances",
+      "moreUnappearedElements": "{{count}} more unappeared",
+      "name": "Name",
+      "noActiveProgress": "All chapters are discarded or have no progress yet.",
+      "noChapters": "No chapters in the book yet. Start the first chapter and book pacing will appear here.",
+      "noMentionedElements": "No elements are @ mentioned in the prose yet.",
+      "noteShape": "Note",
+      "noteTasks": "To-dos",
+      "noteTasksValue": "{{done}} / {{total}} done",
+      "noteWords": "Length",
+      "openComments": "Open comments & TODOs",
+      "paragraphSentence": "Paragraphs / sentences",
+      "paragraphSentenceValue": "{{paragraphs}} paragraphs · {{sentences}} sentences",
       "recent": "Recent",
+      "shortestWithWords": "Shortest · {{title}} ({{words}} words)",
       "snapshotButton": "History snapshots…",
+      "statusCount": "{{status}} {{count}} chapters",
+      "storyline": "Storyline",
+      "storylineCoordinates": "Storyline coordinates",
+      "storylineCoreElements": "Core elements in this storyline",
+      "storylineDistribution": "Storyline distribution",
+      "storylineNoChapters": "This storyline has no chapters yet.",
+      "storylineNoMentionedElements": "No elements are @ mentioned in this storyline's chapters yet.",
+      "thisChapterElements": "Elements in this chapter",
+      "thisFragmentElements": "Elements in this idea",
+      "titleWithWords": "{{title}} ({{words}} words)",
+      "type": "Type",
+      "unappearedElements": "Unappeared elements",
+      "updated": "Updated",
+      "wordRhythm": "Words · rhythm",
       "wordsPerChapterValue": "{{words}} words / chapter",
       "wordsValue": "{{count}} words",
       "writingProgress": "Writing progress",
       "writtenTarget": "Written / target"
+    },
+    "status": {
+      "discarded": "Discarded",
+      "done": "Done",
+      "draft": "Draft",
+      "todo": "To write"
     },
     "tabs": {
       "companion": "Agent",
