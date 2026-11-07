@@ -16,6 +16,10 @@
     "actions": {
       "openElement": "要素を開く"
     },
+    "alerts": {
+      "deleteFailed": "カテゴリを削除できませんでした。もう一度お試しください。"
+    },
+    "deleteConfirm": "カテゴリ「{{name}}」を削除しますか？\n\nこのカテゴリの要素は「未分類」に移されます。",
     "empty": {
       "noFilteredElements": "条件に合う要素はありません",
       "noSummary": "要約はまだありません"
@@ -65,6 +69,7 @@
   "common": {
     "cancel": "キャンセル",
     "close": "閉じる",
+    "confirm": "確認",
     "counting": "集計中…",
     "creating": "作成中…",
     "delete": "削除",
@@ -75,6 +80,7 @@
     "saveFailed": "変更を保存できませんでした。再試行してください。",
     "saving": "保存中…",
     "untitled": "無題",
+    "words": "文字",
     "wordsCount": "{{count}}文字"
   },
   "dashboard": {
@@ -110,7 +116,12 @@
       "more": "その他の操作"
     },
     "menu": {
-      "deleteNode": "ノードを削除"
+      "changeCategory": "カテゴリを変更",
+      "changeGroup": "グループを変更",
+      "deleteCategory": "カテゴリを削除",
+      "deleteElement": "要素を削除",
+      "deleteNode": "ノードを削除",
+      "deleteStoryline": "ストーリーラインを削除"
     },
     "outlineRailMode": {
       "hidden": "目次を非表示",
@@ -125,9 +136,23 @@
       "chapter": "執筆状態"
     }
   },
+  "elementCategoryCreateMenu": {
+    "back": "作成メニューへ戻る",
+    "createGroup": "最初の要素を作成して開く",
+    "duplicateGroup": "同名のグループがすでにあります。",
+    "groupNameLabel": "グループ名",
+    "groupNamePlaceholder": "グループ名を入力",
+    "groupTitle": "新しいグループ",
+    "newElement": "新しい要素",
+    "newGroup": "新しいグループ…",
+    "openCreateMenu": "このカテゴリに追加",
+    "title": "「{{name}}」に追加"
+  },
   "elementEditor": {
     "alerts": {
       "aliasConflict": "別名を追加できません。「{{name}}」は要素「{{conflicting}}」で使用されています。",
+      "deleteFailed": "要素を削除できませんでした。もう一度お試しください。",
+      "groupUpdateFailed": "グループを更新できませんでした。もう一度お試しください。",
       "renameConflict": "名前を変更できません。「{{name}}」は要素「{{conflicting}}」の名前または別名として使用されています。"
     },
     "alias": {
@@ -135,10 +160,21 @@
       "addFirst": "別名を追加",
       "remove": "別名を削除"
     },
+    "category": {
+      "newOption": "新しいカテゴリ…"
+    },
+    "deleteConfirm": "要素「{{name}}」を削除しますか？",
     "empty": {
       "noFacts": "フィールドはまだありません。要素を作成すると、カテゴリの「フィールドのテンプレート」から入力されます。"
     },
     "folio": "要素",
+    "group": {
+      "create": "グループ「{{name}}」を作成",
+      "empty": "このカテゴリにはグループがまだありません。",
+      "noGroup": "（グループなし）",
+      "placeholder": "グループを検索または作成…（空欄＝グループなし）",
+      "title": "グループ · {{category}}"
+    },
     "sections": {
       "bioTitle": "略歴",
       "facts": "設定情報"
@@ -241,6 +277,7 @@
   "leftSidebar": {
     "actions": {
       "collapseAll": "すべて展開・折りたたみ",
+      "newCategory": "新しいカテゴリ",
       "sort": "並べ替え"
     },
     "empty": {
@@ -249,6 +286,8 @@
       "noElements": "要素はまだありません。"
     },
     "groups": {
+      "addElementToGroup": "このグループに要素を追加",
+      "renameElementGroupTitle": "ダブルクリックでグループ名を変更",
       "unaffiliated": "所属なし"
     },
     "meta": {
@@ -259,6 +298,7 @@
     "sort": {
       "alphabet": "文字順",
       "bookOrder": "読む順番",
+      "categoryElements": "カテゴリ内の要素を並べ替え",
       "cellMetaGroup": "セルの右端",
       "chapters": "章を並べ替え",
       "createdAt": "作成日時",
@@ -266,6 +306,7 @@
       "duplicatesGroup": "複数ストーリーラインの章",
       "duplicatesPrimary": "主ストーリーラインにのみ表示",
       "narrativeOrder": "物語の順番",
+      "outerCategoriesGroup": "外側のカテゴリ",
       "outerStorylinesGroup": "外側のストーリーライン",
       "showBoth": "文字数と日付を表示",
       "showDate": "日付を表示",
@@ -287,6 +328,8 @@
     "uncategorized": "未分類",
     "viewMode": {
       "chapterSummary": "{{storylines}}ストーリーライン・{{chapters}}章",
+      "elementCompactTitle": "簡易索引・名前一覧に切り替え",
+      "elementListTitle": "名前一覧・簡易索引に切り替え",
       "globalTitle": "全編一覧・ストーリーライン別にする",
       "storylineTitle": "ストーリーライン別・全編一覧に切り替え"
     }
@@ -859,17 +902,45 @@
     "restoring": "復元中…",
     "title": "履歴スナップショット・30日間"
   },
+  "storyGraph": {
+    "edge": {
+      "create": "作成"
+    }
+  },
   "storylineEditor": {
-    "filters": {
-      "all": "すべて"
+    "actions": {
+      "openChapter": "章を開く"
     },
+    "alerts": {
+      "deleteFailed": "ストーリーラインを削除できませんでした。もう一度お試しください。"
+    },
+    "deleteConfirm": "ストーリーライン「{{name}}」を削除しますか？",
+    "empty": {
+      "noChapterSummary": "一文の要約はまだありません",
+      "noFacts": "フィールドはまだありません。ストーリーラインを作成すると、作品ホームの「ストーリーラインのテンプレート」から入力されます。",
+      "noFilteredChapters": "条件に合う章はありません"
+    },
+    "filters": {
+      "all": "すべて",
+      "unwritten": "未着手",
+      "written": "執筆済み"
+    },
+    "folio": "ストーリーライン",
     "labels": {
       "color": "色"
     },
     "meta": {
       "chapters": "{{count}}章",
+      "chaptersWords": "{{chapters}}章 · {{words}}千語",
       "kWords": "{{count}}千語"
-    }
+    },
+    "sections": {
+      "chapters": "章の順序",
+      "facts": "設定情報",
+      "scratch": "走り書き"
+    },
+    "summaryPlaceholder": "このストーリーラインを一文で要約…",
+    "untitled": "無題のストーリーライン"
   },
   "topTimeline": {
     "closeTab": "タブを閉じる",

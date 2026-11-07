@@ -27,10 +27,7 @@ use dr_ui::{
 use dr_view_shelf::format::{self, compact, grouped};
 use dr_workspace::{
     Actor, Workspace as Library, WsEvent,
-    commands::{
-        book::{BookUpdate, BookUpdateIn},
-        recent::{RecentTouch, RecentTouchIn},
-    },
+    commands::book::{BookUpdate, BookUpdateIn},
     dto::ChapterInfo,
 };
 use gpui::{
@@ -86,12 +83,9 @@ pub struct Home {
     /// 本书简介 in 设定, and the stored summary it was last given.
     summary: Option<Entity<TextArea>>,
     shown_summary: String,
-    /// The page last recorded as opened (`recent.touch`), with its book.
-    touched: Option<(String, Target)>,
     _title: Subscription,
     _summary: Option<Subscription>,
     _events: Option<dr_workspace::Subscription>,
-    _ws: Option<Subscription>,
 }
 
 impl Home {
@@ -129,69 +123,12 @@ impl Home {
             shown_name: String::new(),
             summary: None,
             shown_summary: String::new(),
-            touched: None,
             _title: sub,
             _summary: None,
             _events: None,
-            _ws: None,
         };
         home.listen(cx);
-        // The workspace is still being made: follow it once it is there.
-        cx.spawn(async move |this, cx| this.update(cx, |home, cx| home.follow(cx)).ok())
-            .detach();
         home
-    }
-
-    /// Records the page the window shows as opened (`recent.touch`, this
-    /// device only), each time it becomes another: 继续写 starts from
-    /// what was opened last. F3 leaves the recording to the window (the
-    /// 0.1 client's `touchEntity`); see m02-home.md.
-    fn follow(&mut self, cx: &mut Context<Self>) {
-        let Some(ws) = self.ws.upgrade() else {
-            return;
-        };
-        self._ws = Some(cx.observe(&ws, |home, ws, cx| home.record_opened(&ws, cx)));
-        self.record_opened(&ws, cx);
-    }
-
-    fn record_opened(&mut self, ws: &Entity<Workspace>, cx: &mut Context<Self>) {
-        let ws = ws.read(cx);
-        if ws.shelf_open || ws.book_id.is_empty() {
-            return;
-        }
-        let Some(target) = ws.nav.current().cloned() else {
-            return;
-        };
-        let page = match &target {
-            Target::Chapter(id) | Target::Idea(id) => ("node", id.to_string()),
-            Target::Element(id) => ("element", id.to_string()),
-            Target::Storyline(id) => ("storyline", id.to_string()),
-            Target::Category(id) => ("category", id.to_string()),
-            Target::Material(id) => ("material", id.to_string()),
-            Target::Book => return,
-        };
-        let now = (ws.book_id.clone(), target);
-        if self.touched.as_ref() == Some(&now) {
-            return;
-        }
-        self.touched = Some(now.clone());
-        let Some(lib) = self.lib.clone() else {
-            return;
-        };
-        let input = RecentTouchIn {
-            book: now.0,
-            target: dr_workspace::dto::Target {
-                kind: page.0.to_owned(),
-                id: page.1,
-            },
-        };
-        cx.background_executor()
-            .spawn(async move {
-                if let Err(error) = lib.run::<RecentTouch>(&Actor::User, input) {
-                    log::debug!("the page opened was not recorded: {error}");
-                }
-            })
-            .detach();
     }
 
     /// F3's bus: a prose change in the book shown means a new last edit; a

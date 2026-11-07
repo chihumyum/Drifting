@@ -53,11 +53,22 @@ struct Row {
     _subs: [Subscription; 2],
 }
 
-/// The element's fields.
+/// Whose fields: an element's or a storyline's (the same `KvEditor` in the
+/// 0.1 client).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Owner {
+    Element(String),
+    Storyline(String),
+}
+
+/// An element's or a storyline's fields.
 pub struct Fields {
     ws: WeakEntity<Workspace>,
     lib: Option<Library>,
-    pub id: String,
+    pub owner: Owner,
+    /// Space under the section (it ends the page); off when more sections
+    /// follow it.
+    last: bool,
     book: Rc<Book>,
     rows: Vec<Row>,
     /// Makes each new row's element ids unique.
@@ -66,14 +77,20 @@ pub struct Fields {
 }
 
 impl Fields {
-    pub fn new(id: String, ws: WeakEntity<Workspace>, cx: &mut Context<Self>) -> Fields {
+    pub fn new(
+        owner: Owner,
+        last: bool,
+        ws: WeakEntity<Workspace>,
+        cx: &mut Context<Self>,
+    ) -> Fields {
         let lib = cx.try_global::<Services>().and_then(|s| s.library.clone());
         cx.spawn(async move |this, cx| this.update(cx, |f, cx| f.follow(cx)).ok())
             .detach();
         Fields {
             ws,
             lib,
-            id,
+            owner,
+            last,
             book: Rc::default(),
             rows: Vec::new(),
             made: 0,
@@ -105,9 +122,11 @@ impl Fields {
     }
 
     fn stored(&self) -> Vec<FieldInfo> {
-        data::element(&self.book, &self.id)
-            .map(|e| e.fields.clone())
-            .unwrap_or_default()
+        match &self.owner {
+            Owner::Element(id) => data::element(&self.book, id).map(|e| e.fields.clone()),
+            Owner::Storyline(id) => data::storyline(&self.book, id).map(|l| l.fields.clone()),
+        }
+        .unwrap_or_default()
     }
 
     fn row_focused(row: &Row, window: &Window, cx: &gpui::App) -> bool {
@@ -246,13 +265,26 @@ impl Fields {
         let Some(lib) = self.lib.clone() else {
             return;
         };
-        let mut edit = data::element_edit(&self.book.id, &self.id);
-        edit.put_fields = put;
-        edit.remove_fields = remove;
+        let book = self.book.id.clone();
+        let owner = self.owner.clone();
         cx.background_executor()
             .spawn(async move {
-                if let Err(error) = data::update_element(&lib, edit) {
-                    log::warn!("the element's fields could not be saved: {error}");
+                let written = match owner {
+                    Owner::Element(id) => {
+                        let mut edit = data::element_edit(&book, &id);
+                        edit.put_fields = put;
+                        edit.remove_fields = remove;
+                        data::update_element(&lib, edit)
+                    }
+                    Owner::Storyline(id) => {
+                        let mut edit = data::storyline_edit(&book, &id);
+                        edit.put_fields = put;
+                        edit.remove_fields = remove;
+                        data::update_storyline(&lib, edit)
+                    }
+                };
+                if let Err(error) = written {
+                    log::warn!("the fields could not be saved: {error}");
                 }
             })
             .detach();
@@ -328,7 +360,13 @@ impl Render for Fields {
             )
         };
         let head = page::section(
-            t(cx, keys::element_editor::sections::FACTS),
+            t(
+                cx,
+                match self.owner {
+                    Owner::Element(_) => keys::element_editor::sections::FACTS,
+                    Owner::Storyline(_) => keys::storyline_editor::sections::FACTS,
+                },
+            ),
             Some(add),
             false,
             window,
@@ -338,7 +376,13 @@ impl Render for Fields {
         let mut list = div().flex().flex_col().gap(px(6.0));
         if self.rows.is_empty() {
             list = list.child(page::empty_line(
-                t(cx, keys::element_editor::empty::NO_FACTS),
+                t(
+                    cx,
+                    match self.owner {
+                        Owner::Element(_) => keys::element_editor::empty::NO_FACTS,
+                        Owner::Storyline(_) => keys::storyline_editor::empty::NO_FACTS,
+                    },
+                ),
                 look,
                 window,
                 cx,
@@ -413,6 +457,7 @@ impl Render for Fields {
                 .child(x),
             );
         }
-        page::column(look, div().flex().flex_col().child(head).child(list)).pb(px(80.0))
+        page::column(look, div().flex().flex_col().child(head).child(list))
+            .when(self.last, |el| el.pb(px(80.0)))
     }
 }

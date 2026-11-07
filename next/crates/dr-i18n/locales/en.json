@@ -16,6 +16,10 @@
     "actions": {
       "openElement": "Open element"
     },
+    "alerts": {
+      "deleteFailed": "Failed to delete category. Please try again."
+    },
+    "deleteConfirm": "Delete category \"{{name}}\"?\n\nElements in this category will move to \"Uncategorized\".",
     "empty": {
       "noFilteredElements": "No elements for this filter",
       "noSummary": "No summary yet"
@@ -65,6 +69,7 @@
   "common": {
     "cancel": "Cancel",
     "close": "Close",
+    "confirm": "Confirm",
     "counting": "Counting…",
     "creating": "Creating…",
     "delete": "Delete",
@@ -75,6 +80,7 @@
     "saveFailed": "Your changes could not be saved. Please try again.",
     "saving": "Saving…",
     "untitled": "Untitled",
+    "words": "words",
     "wordsCount": "{{count}} words"
   },
   "dashboard": {
@@ -110,7 +116,12 @@
       "more": "More actions"
     },
     "menu": {
-      "deleteNode": "Delete node"
+      "changeCategory": "Change category",
+      "changeGroup": "Change group",
+      "deleteCategory": "Delete category",
+      "deleteElement": "Delete element",
+      "deleteNode": "Delete node",
+      "deleteStoryline": "Delete storyline"
     },
     "outlineRailMode": {
       "hidden": "Hide TOC",
@@ -125,9 +136,23 @@
       "chapter": "Writing status"
     }
   },
+  "elementCategoryCreateMenu": {
+    "back": "Back to create menu",
+    "createGroup": "Create and open first element",
+    "duplicateGroup": "A group with this name already exists.",
+    "groupNameLabel": "Group name",
+    "groupNamePlaceholder": "Enter a group name",
+    "groupTitle": "New group",
+    "newElement": "New element",
+    "newGroup": "New group…",
+    "openCreateMenu": "Add to this category",
+    "title": "Add to \"{{name}}\""
+  },
   "elementEditor": {
     "alerts": {
       "aliasConflict": "Cannot add alias: \"{{name}}\" is already used by element \"{{conflicting}}\".",
+      "deleteFailed": "Failed to delete element. Please try again.",
+      "groupUpdateFailed": "Failed to update group. Please try again.",
       "renameConflict": "Cannot rename: \"{{name}}\" is already used by element \"{{conflicting}}\" as a name or alias."
     },
     "alias": {
@@ -135,10 +160,21 @@
       "addFirst": "Add alias",
       "remove": "Remove alias"
     },
+    "category": {
+      "newOption": "New category…"
+    },
+    "deleteConfirm": "Delete element \"{{name}}\"?",
     "empty": {
       "noFacts": "No fields yet. When an element is created, its category's Field template fills them in."
     },
     "folio": "Element",
+    "group": {
+      "create": "Create group \"{{name}}\"",
+      "empty": "This category has no groups yet.",
+      "noGroup": "(No group)",
+      "placeholder": "Search or create a group… (blank = no group)",
+      "title": "Group · {{category}}"
+    },
     "sections": {
       "bioTitle": "Biography",
       "facts": "Facts"
@@ -246,6 +282,7 @@
   "leftSidebar": {
     "actions": {
       "collapseAll": "Expand or collapse all",
+      "newCategory": "New category",
       "sort": "Sort"
     },
     "empty": {
@@ -254,6 +291,8 @@
       "noElements": "No elements yet."
     },
     "groups": {
+      "addElementToGroup": "New element in this group",
+      "renameElementGroupTitle": "Double-click to rename group",
       "unaffiliated": "Unaffiliated"
     },
     "meta": {
@@ -264,6 +303,7 @@
     "sort": {
       "alphabet": "Alphabetical",
       "bookOrder": "Reading order",
+      "categoryElements": "Sort elements within categories",
       "cellMetaGroup": "Cell right edge",
       "chapters": "Sort chapters",
       "createdAt": "Created time",
@@ -271,6 +311,7 @@
       "duplicatesGroup": "Multi-storyline chapters",
       "duplicatesPrimary": "Show only in primary storyline",
       "narrativeOrder": "Narrative order",
+      "outerCategoriesGroup": "Outer categories",
       "outerStorylinesGroup": "Outer storylines",
       "showBoth": "Show word count and date",
       "showDate": "Show date",
@@ -292,6 +333,8 @@
     "uncategorized": "Uncategorized",
     "viewMode": {
       "chapterSummary": "{{storylines}} storylines · {{chapters}} chapters",
+      "elementCompactTitle": "Compact index · switch to name list",
+      "elementListTitle": "Name list · switch to compact index",
       "globalTitle": "Book overview · group by storyline",
       "storylineTitle": "Grouped by storyline · switch back to book overview"
     }
@@ -864,17 +907,45 @@
     "restoring": "Restoring…",
     "title": "History snapshots · 30 days"
   },
+  "storyGraph": {
+    "edge": {
+      "create": "Create"
+    }
+  },
   "storylineEditor": {
-    "filters": {
-      "all": "All"
+    "actions": {
+      "openChapter": "Open chapter"
     },
+    "alerts": {
+      "deleteFailed": "Failed to delete storyline. Please try again."
+    },
+    "deleteConfirm": "Delete storyline \"{{name}}\"?",
+    "empty": {
+      "noChapterSummary": "No one-sentence summary yet",
+      "noFacts": "No fields yet. When a storyline is created, the Storyline template on project home fills them in.",
+      "noFilteredChapters": "No chapters for this filter"
+    },
+    "filters": {
+      "all": "All",
+      "unwritten": "Not started",
+      "written": "Written"
+    },
+    "folio": "Storyline",
     "labels": {
       "color": "Color"
     },
     "meta": {
       "chapters": "{{count}} chapters",
+      "chaptersWords": "{{chapters}} chapters · {{words}}k words",
       "kWords": "{{count}}k words"
-    }
+    },
+    "sections": {
+      "chapters": "Chapter sequence",
+      "facts": "Facts",
+      "scratch": "Scratch"
+    },
+    "summaryPlaceholder": "One-sentence summary for this storyline…",
+    "untitled": "Untitled storyline"
   },
   "topTimeline": {
     "closeTab": "Close tab",

@@ -16,6 +16,10 @@
     "actions": {
       "openElement": "Element öffnen"
     },
+    "alerts": {
+      "deleteFailed": "Kategorie konnte nicht gelöscht werden. Bitte erneut versuchen."
+    },
+    "deleteConfirm": "Kategorie „{{name}}“ löschen?\n\nDie Elemente dieser Kategorie werden nach „Nicht kategorisiert“ verschoben.",
     "empty": {
       "noFilteredElements": "Keine Elemente für diesen Filter",
       "noSummary": "Noch keine Zusammenfassung"
@@ -65,6 +69,7 @@
   "common": {
     "cancel": "Abbrechen",
     "close": "Schließen",
+    "confirm": "Bestätigen",
     "counting": "Wird gezählt…",
     "creating": "Wird erstellt…",
     "delete": "Löschen",
@@ -75,6 +80,7 @@
     "saveFailed": "Änderungen konnten nicht gespeichert werden. Bitte erneut versuchen.",
     "saving": "Wird gespeichert…",
     "untitled": "Unbenannt",
+    "words": "Wörter",
     "wordsCount": "{{count}} Wörter"
   },
   "dashboard": {
@@ -110,7 +116,12 @@
       "more": "Weitere Aktionen"
     },
     "menu": {
-      "deleteNode": "Knoten löschen"
+      "changeCategory": "Kategorie ändern",
+      "changeGroup": "Gruppe ändern",
+      "deleteCategory": "Kategorie löschen",
+      "deleteElement": "Element löschen",
+      "deleteNode": "Knoten löschen",
+      "deleteStoryline": "Handlungsstrang löschen"
     },
     "outlineRailMode": {
       "hidden": "Inhaltsverzeichnis ausblenden",
@@ -125,9 +136,23 @@
       "chapter": "Schreibstatus"
     }
   },
+  "elementCategoryCreateMenu": {
+    "back": "Zurück zum Erstellungsmenü",
+    "createGroup": "Erstes Element erstellen und öffnen",
+    "duplicateGroup": "Eine Gruppe mit diesem Namen existiert bereits.",
+    "groupNameLabel": "Gruppenname",
+    "groupNamePlaceholder": "Gruppennamen eingeben",
+    "groupTitle": "Neue Gruppe",
+    "newElement": "Neues Element",
+    "newGroup": "Neue Gruppe…",
+    "openCreateMenu": "Dieser Kategorie hinzufügen",
+    "title": "Zu „{{name}}“ hinzufügen"
+  },
   "elementEditor": {
     "alerts": {
       "aliasConflict": "Alias kann nicht hinzugefügt werden: „{{name}}“ wird bereits vom Element „{{conflicting}}“ verwendet.",
+      "deleteFailed": "Element konnte nicht gelöscht werden. Bitte erneut versuchen.",
+      "groupUpdateFailed": "Gruppe konnte nicht aktualisiert werden. Bitte erneut versuchen.",
       "renameConflict": "Umbenennen nicht möglich: „{{name}}“ wird bereits vom Element „{{conflicting}}“ als Name oder Alias verwendet."
     },
     "alias": {
@@ -135,10 +160,21 @@
       "addFirst": "Alias hinzufügen",
       "remove": "Alias entfernen"
     },
+    "category": {
+      "newOption": "Neue Kategorie…"
+    },
+    "deleteConfirm": "Element „{{name}}“ löschen?",
     "empty": {
       "noFacts": "Noch keine Felder. Beim Erstellen eines Elements füllt die Feldvorlage seiner Kategorie sie aus."
     },
     "folio": "Element",
+    "group": {
+      "create": "Gruppe „{{name}}“ erstellen",
+      "empty": "Diese Kategorie hat noch keine Gruppen.",
+      "noGroup": "(Keine Gruppe)",
+      "placeholder": "Gruppe suchen oder erstellen… (leer = keine Gruppe)",
+      "title": "Gruppe · {{category}}"
+    },
     "sections": {
       "bioTitle": "Biografie",
       "facts": "Fakten"
@@ -246,6 +282,7 @@
   "leftSidebar": {
     "actions": {
       "collapseAll": "Alle auf- oder einklappen",
+      "newCategory": "Neue Kategorie",
       "sort": "Sortieren"
     },
     "empty": {
@@ -254,6 +291,8 @@
       "noElements": "Noch keine Elemente."
     },
     "groups": {
+      "addElementToGroup": "Neues Element in dieser Gruppe",
+      "renameElementGroupTitle": "Doppelklicken, um die Gruppe umzubenennen",
       "unaffiliated": "Ohne Zuordnung"
     },
     "meta": {
@@ -264,6 +303,7 @@
     "sort": {
       "alphabet": "Alphabetisch",
       "bookOrder": "Lesereihenfolge",
+      "categoryElements": "Elemente innerhalb der Kategorien sortieren",
       "cellMetaGroup": "Rechter Zellenrand",
       "chapters": "Kapitel sortieren",
       "createdAt": "Erstellungszeit",
@@ -271,6 +311,7 @@
       "duplicatesGroup": "Kapitel mit mehreren Handlungssträngen",
       "duplicatesPrimary": "Nur im Haupthandlungsstrang anzeigen",
       "narrativeOrder": "Erzählreihenfolge",
+      "outerCategoriesGroup": "Äußere Kategorien",
       "outerStorylinesGroup": "Äußere Handlungsstränge",
       "showBoth": "Wortzahl und Datum anzeigen",
       "showDate": "Datum anzeigen",
@@ -292,6 +333,8 @@
     "uncategorized": "Ohne Kategorie",
     "viewMode": {
       "chapterSummary": "{{storylines}} Handlungsstränge · {{chapters}} Kapitel",
+      "elementCompactTitle": "Kompakter Index · zur Namensliste wechseln",
+      "elementListTitle": "Namensliste · zum kompakten Index wechseln",
       "globalTitle": "Buchübersicht · nach Handlungsstrang gruppieren",
       "storylineTitle": "Nach Handlungsstrang · zur Buchübersicht wechseln"
     }
@@ -864,17 +907,45 @@
     "restoring": "Wird wiederhergestellt…",
     "title": "Verlaufsschnappschüsse · 30 Tage"
   },
+  "storyGraph": {
+    "edge": {
+      "create": "Erstellen"
+    }
+  },
   "storylineEditor": {
-    "filters": {
-      "all": "Alle"
+    "actions": {
+      "openChapter": "Kapitel öffnen"
     },
+    "alerts": {
+      "deleteFailed": "Handlungsstrang konnte nicht gelöscht werden. Bitte erneut versuchen."
+    },
+    "deleteConfirm": "Handlungsstrang „{{name}}“ löschen?",
+    "empty": {
+      "noChapterSummary": "Noch keine Zusammenfassung in einem Satz",
+      "noFacts": "Noch keine Felder. Beim Erstellen eines Handlungsstrangs füllt die Handlungsstrang-Vorlage auf der Projektstartseite sie aus.",
+      "noFilteredChapters": "Keine Kapitel für diesen Filter"
+    },
+    "filters": {
+      "all": "Alle",
+      "unwritten": "Nicht begonnen",
+      "written": "Geschrieben"
+    },
+    "folio": "Handlungsstrang",
     "labels": {
       "color": "Farbe"
     },
     "meta": {
       "chapters": "{{count}} Kapitel",
+      "chaptersWords": "{{chapters}} Kapitel · {{words}} Tsd. Wörter",
       "kWords": "{{count}} Tsd. Wörter"
-    }
+    },
+    "sections": {
+      "chapters": "Kapitelreihenfolge",
+      "facts": "Fakten",
+      "scratch": "Notizen"
+    },
+    "summaryPlaceholder": "Diesen Handlungsstrang in einem Satz zusammenfassen…",
+    "untitled": "Unbenannter Handlungsstrang"
   },
   "topTimeline": {
     "closeTab": "Tab schließen",

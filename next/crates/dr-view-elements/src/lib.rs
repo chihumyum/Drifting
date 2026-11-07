@@ -10,6 +10,11 @@
 //! - **Category**: above the text the folio (类目 · name · how many
 //!   elements), the name beside the big folded-corner mark, the count and
 //!   the colour, the head of 「札记」; under it 「要素清单」.
+//! - **Storyline** (M13): above the text the folio, the name beside the big
+//!   dash, the summary, the colour, the head of 「札记」; under it 「字段」
+//!   and 「章节序列」 ([`storyline`]).
+//! - The ⋯ menu's rows for these pages ([`menu`]) and their dialogs
+//!   ([`dialogs`]), and the left sidebar's elements panel ([`panel`]).
 //!
 //! What it shows comes from the shell's book snapshot; what it changes goes
 //! through F3 (`element.update`, `category.update`). Relations, patches,
@@ -21,9 +26,13 @@
 
 pub mod category;
 pub mod data;
+pub mod dialogs;
 pub mod element;
 pub mod fields;
+pub mod menu;
 mod page;
+pub mod panel;
+pub mod storyline;
 
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -68,6 +77,13 @@ impl PageChrome for Chrome {
 struct Views {
     elements: HashMap<String, (WeakEntity<ElementHead>, WeakEntity<Fields>)>,
     categories: HashMap<String, (WeakEntity<CategoryHead>, WeakEntity<CategoryEnd>)>,
+    storylines: HashMap<
+        String,
+        (
+            WeakEntity<storyline::StorylineHead>,
+            WeakEntity<storyline::StorylineEnd>,
+        ),
+    >,
 }
 
 impl Global for Views {}
@@ -84,8 +100,44 @@ pub fn category_page(id: &str, cx: &App) -> Option<(Entity<CategoryHead>, Entity
     Some((head.upgrade()?, end.upgrade()?))
 }
 
-/// Registers the element and category pages' chrome with the shell.
+/// Now, ms since the epoch.
+pub(crate) fn now_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0)
+}
+
+/// The elements panel for one sidebar pane of the window of `ws`: its list
+/// and its head row (the shell hosts both once it has a place for them).
+pub fn make_panel(
+    ws: gpui::WeakEntity<dr_shell::Workspace>,
+    cx: &mut App,
+) -> (Entity<panel::ElementPanel>, Entity<panel::PanelHead>) {
+    let list = cx.new(|cx| panel::ElementPanel::new(ws.clone(), cx));
+    let head = {
+        let list = list.clone();
+        cx.new(|cx| panel::PanelHead::new(list, ws, cx))
+    };
+    (list, head)
+}
+
+/// The head and end of storyline `id`'s page, while it is open.
+pub fn storyline_page(
+    id: &str,
+    cx: &App,
+) -> Option<(
+    Entity<storyline::StorylineHead>,
+    Entity<storyline::StorylineEnd>,
+)> {
+    let (head, end) = cx.try_global::<Views>()?.storylines.get(id)?;
+    Some((head.upgrade()?, end.upgrade()?))
+}
+
+/// Registers the element and category pages' chrome with the shell, and
+/// makes their dialogs.
 pub fn init(cx: &mut App) {
+    dialogs::init(cx);
     dr_shell::pages::add_page_chrome(cx, |target, host, window, cx| {
         let ws = host.workspace;
         let chrome = match target {
@@ -95,7 +147,8 @@ pub fn init(cx: &mut App) {
                     let (id, ws) = (id.clone(), ws.clone());
                     cx.new(|cx| ElementHead::new(id, ws, window, cx))
                 };
-                let end = cx.new(|cx| Fields::new(id.clone(), ws, cx));
+                let end =
+                    cx.new(|cx| Fields::new(fields::Owner::Element(id.clone()), true, ws, cx));
                 cx.default_global::<Views>()
                     .elements
                     .insert(id, (head.downgrade(), end.downgrade()));
@@ -113,6 +166,22 @@ pub fn init(cx: &mut App) {
                 let end = cx.new(|cx| CategoryEnd::new(id.clone(), ws, cx));
                 cx.default_global::<Views>()
                     .categories
+                    .insert(id, (head.downgrade(), end.downgrade()));
+                Chrome {
+                    head: head.into(),
+                    end: end.into(),
+                }
+            }
+            // M13: the storyline page.
+            Target::Storyline(id) => {
+                let id = id.to_string();
+                let head = {
+                    let (id, ws) = (id.clone(), ws.clone());
+                    cx.new(|cx| storyline::StorylineHead::new(id, ws, window, cx))
+                };
+                let end = cx.new(|cx| storyline::StorylineEnd::new(id.clone(), ws, cx));
+                cx.default_global::<Views>()
+                    .storylines
                     .insert(id, (head.downgrade(), end.downgrade()));
                 Chrome {
                     head: head.into(),

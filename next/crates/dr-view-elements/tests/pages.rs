@@ -9,6 +9,7 @@ use std::time::{Duration, Instant};
 
 use dr_shell::nav::{Open, Target};
 use dr_shell::{Services, SettingsFile, ShellInfo, Workspace};
+use dr_view_elements::dialogs::{AskFor, Asking};
 use dr_view_elements::{CategoryEnd, CategoryHead, ElementHead, Fields, Filter};
 use dr_workspace::{
     Actor, Workspace as Library,
@@ -142,6 +143,39 @@ fn open_category(
     cx.update(|_, cx| dr_view_elements::category_page(id, cx).unwrap())
 }
 
+/// What the element dialog asks now.
+fn asking(cx: &mut VisualTestContext) -> Option<Asking> {
+    cx.update(|_, cx| {
+        dr_view_elements::dialogs::dialogs(cx)
+            .unwrap()
+            .read(cx)
+            .asking()
+    })
+}
+
+/// Waits for the 0.1 alert; its message.
+fn wait_alert(cx: &mut VisualTestContext) -> String {
+    wait_for(cx, |cx| matches!(asking(cx), Some(Asking::Alert(_))));
+    match asking(cx) {
+        Some(Asking::Alert(m)) => m,
+        _ => unreachable!(),
+    }
+}
+
+/// Esc closes the element dialog.
+fn close_dialog(cx: &mut VisualTestContext) {
+    cx.simulate_keystrokes("escape");
+    frame(cx);
+    assert_eq!(asking(cx), None);
+}
+
+/// Opens an element dialog as the page's ⋯ menu does.
+fn ask(view: &Entity<Workspace>, ask: AskFor, cx: &mut VisualTestContext) {
+    let ws = view.downgrade();
+    cx.update(|window, cx| dr_view_elements::dialogs::open(ask, ws, window, cx));
+    frame(cx);
+}
+
 /// Puts the caret in `focus`, types `text` into it with `set`, then moves
 /// the caret to the workspace: the field reports leaving.
 fn type_and_leave(
@@ -221,9 +255,9 @@ fn the_name_saves_on_leaving_and_a_taken_one_is_refused(cx: &mut TestAppContext)
         |cx| name.update(cx, |f, cx| f.set_text("陆远舟", cx)),
         cx,
     );
-    wait_for(cx, |cx| head.read_with(cx, |h, _| h.alert.is_some()));
-    let alert = head.read_with(cx, |h, _| h.alert.clone().unwrap());
+    let alert = wait_alert(cx);
     assert!(alert.contains("陆远舟"), "{alert}");
+    close_dialog(cx);
     assert_eq!(name.read_with(cx, |f, _| f.text()), "沈知微（修复师）");
     assert!(
         elements(&lib, &book)
@@ -269,14 +303,16 @@ fn aliases_add_and_go(cx: &mut TestAppContext) {
     frame(cx);
     cx.update(|_, cx| alias.update(cx, |f, cx| f.set_text("远舟", cx)));
     cx.simulate_keystrokes("enter");
-    wait_for(cx, |cx| head.read_with(cx, |h, _| h.alert.is_some()));
+    let alert = wait_alert(cx);
+    assert!(alert.contains("远舟"), "{alert}");
+    close_dialog(cx);
     assert!(
         !element(&lib, &book, "沈知微")
             .aliases
             .contains(&"远舟".to_owned())
     );
     // The × takes one off.
-    head.update(cx, |h, cx| h.remove_alias("知微".to_owned(), cx));
+    cx.update(|window, cx| head.update(cx, |h, cx| h.remove_alias("知微".to_owned(), window, cx)));
     wait_for(cx, |_| {
         !elements(&lib, &book)
             .iter()
@@ -407,4 +443,116 @@ fn a_category_page_renames_and_lists_its_elements(cx: &mut TestAppContext) {
             .iter()
             .any(|c| c.id == id && c.name == "人物表")
     });
+}
+
+#[gpui::test]
+fn the_menu_moves_an_element_to_another_category_or_a_new_one(cx: &mut TestAppContext) {
+    let (_dir, library, book) = library();
+    let lib = library.clone();
+    let (view, cx) = setup(cx, library);
+    let zhiwei = element(&lib, &book, "沈知微");
+    open_element(&view, &zhiwei.id, cx);
+    // The ⋯ menu's rows: two plain ones, then the danger one.
+    let target = Target::Element(zhiwei.id.parse().unwrap());
+    let rows = cx.update(|_, cx| dr_view_elements::menu::rows(&target, cx));
+    assert_eq!(rows.len(), 3);
+    assert!(rows[2].danger && !rows[0].danger && !rows[1].danger);
+    // 更改类目: a click on 地点 moves it there.
+    let ws = view.downgrade();
+    let run = rows[0].run.clone();
+    cx.update(|window, cx| run(ws.clone(), window, cx));
+    frame(cx);
+    assert_eq!(asking(cx), Some(Asking::ChangeCategory(zhiwei.id.clone())));
+    let places = categories(&lib, &book)
+        .into_iter()
+        .find(|c| c.name == "地点")
+        .unwrap();
+    let dialogs = cx.update(|_, cx| dr_view_elements::dialogs::dialogs(cx).unwrap());
+    let id = places.id.clone();
+    cx.update(|window, cx| dialogs.update(cx, |d, cx| d.set_category(Some(id), window, cx)));
+    wait_for(cx, |cx| asking(cx).is_none());
+    assert_eq!(
+        element(&lib, &book, "沈知微").category.as_deref(),
+        Some(places.id.as_str())
+    );
+    // 新建类目…: a name, Enter; the element goes into the new category.
+    ask(&view, AskFor::ChangeCategory(zhiwei.id.clone()), cx);
+    cx.update(|window, cx| dialogs.update(cx, |d, cx| d.ask_new_category(window, cx)));
+    frame(cx);
+    assert_eq!(asking(cx), Some(Asking::NewCategory(zhiwei.id.clone())));
+    let field = cx.update(|_, cx| dialogs.read(cx).field().unwrap());
+    cx.update(|_, cx| field.update(cx, |f, cx| f.set_text("故人", cx)));
+    cx.simulate_keystrokes("enter");
+    wait_for(cx, |cx| asking(cx).is_none());
+    let made = categories(&lib, &book)
+        .into_iter()
+        .find(|c| c.name == "故人")
+        .unwrap();
+    assert_eq!(
+        element(&lib, &book, "沈知微").category.as_deref(),
+        Some(made.id.as_str())
+    );
+}
+
+#[gpui::test]
+fn the_group_dialog_names_a_group_or_none(cx: &mut TestAppContext) {
+    let (_dir, library, book) = library();
+    let lib = library.clone();
+    let (view, cx) = setup(cx, library);
+    let zhiwei = element(&lib, &book, "沈知微");
+    open_element(&view, &zhiwei.id, cx);
+    ask(&view, AskFor::ChangeGroup(zhiwei.id.clone()), cx);
+    assert_eq!(asking(cx), Some(Asking::ChangeGroup(zhiwei.id.clone())));
+    let dialogs = cx.update(|_, cx| dr_view_elements::dialogs::dialogs(cx).unwrap());
+    let field = cx.update(|_, cx| dialogs.read(cx).field().unwrap());
+    // The caret is in the field; Enter saves what is typed.
+    assert!(cx.update(|window, cx| field.focus_handle(cx).is_focused(window)));
+    cx.update(|_, cx| field.update(cx, |f, cx| f.set_text("沈家", cx)));
+    cx.simulate_keystrokes("enter");
+    wait_for(cx, |_| {
+        element(&lib, &book, "沈知微").group_name.as_deref() == Some("沈家")
+    });
+    wait_for(cx, |cx| asking(cx).is_none());
+    // Enter on an empty field: no group.
+    ask(&view, AskFor::ChangeGroup(zhiwei.id.clone()), cx);
+    cx.simulate_keystrokes("enter");
+    wait_for(cx, |_| element(&lib, &book, "沈知微").group_name.is_none());
+    wait_for(cx, |cx| asking(cx).is_none());
+    // Esc closes it without a change.
+    ask(&view, AskFor::ChangeGroup(zhiwei.id.clone()), cx);
+    close_dialog(cx);
+}
+
+#[gpui::test]
+fn deleting_asks_then_trashes_and_closes_the_page(cx: &mut TestAppContext) {
+    let (_dir, library, book) = library();
+    let lib = library.clone();
+    let (view, cx) = setup(cx, library);
+    let zhiwei = element(&lib, &book, "沈知微");
+    open_element(&view, &zhiwei.id, cx);
+    let target = Target::Element(zhiwei.id.parse().unwrap());
+    assert!(view.read_with(cx, |ws, _| ws.nav.is_selected(&target)));
+    // Esc keeps it.
+    ask(&view, AskFor::DeleteElement(zhiwei.id.clone()), cx);
+    close_dialog(cx);
+    assert!(elements(&lib, &book).iter().any(|e| e.id == zhiwei.id));
+    ask(&view, AskFor::DeleteElement(zhiwei.id.clone()), cx);
+    let dialogs = cx.update(|_, cx| dr_view_elements::dialogs::dialogs(cx).unwrap());
+    cx.update(|window, cx| dialogs.update(cx, |d, cx| d.confirm_delete(window, cx)));
+    wait_for(cx, |cx| asking(cx).is_none());
+    assert!(!elements(&lib, &book).iter().any(|e| e.id == zhiwei.id));
+    // The shell closes the trashed element's tab.
+    wait_for(cx, |cx| {
+        view.read_with(cx, |ws, _| !ws.nav.is_selected(&target))
+    });
+    // A category: its elements become uncategorized.
+    let people = categories(&lib, &book)
+        .into_iter()
+        .find(|c| c.name == "人物")
+        .unwrap();
+    ask(&view, AskFor::DeleteCategory(people.id.clone()), cx);
+    cx.update(|window, cx| dialogs.update(cx, |d, cx| d.confirm_delete(window, cx)));
+    wait_for(cx, |cx| asking(cx).is_none());
+    assert!(!categories(&lib, &book).iter().any(|c| c.id == people.id));
+    assert!(element(&lib, &book, "沈怀山").category.is_none());
 }

@@ -24,10 +24,7 @@ use dr_shell::strings::tf;
 use dr_shell::{Services, Workspace, t};
 use dr_ui::{
     Theme,
-    components::{
-        Button, Dialog,
-        cell::{RING_RIM, ring_tone},
-    },
+    components::cell::{RING_RIM, ring_tone},
     fonts::{Role, weight},
     glass::{self, Kind as GlassKind, Mode, Spec},
     input::{
@@ -65,8 +62,6 @@ pub struct ElementHead {
     shown_summary: Option<String>,
     /// The alias input's placeholder is 「添加别名」 while there are none.
     alias_first: bool,
-    /// An alert (a refused name or alias), until it is closed.
-    pub alert: Option<SharedString>,
     _subs: Vec<Subscription>,
 }
 
@@ -100,7 +95,6 @@ impl ElementHead {
             shown_name: None,
             shown_summary: None,
             alias_first: true,
-            alert: None,
             _subs: Vec::new(),
         };
         head.subscribe(window, cx);
@@ -140,7 +134,7 @@ impl ElementHead {
             }
             FieldEvent::Blurred => {
                 let text = field.read(cx).text();
-                head.save_name(text, cx);
+                head.save_name(text, window, cx);
             }
             FieldEvent::Changed(_) => {}
         });
@@ -156,7 +150,7 @@ impl ElementHead {
                 }
                 FieldEvent::Blurred => {
                     let text = field.read(cx).text();
-                    head.save_summary(text, cx);
+                    head.save_summary(text, window, cx);
                 }
                 FieldEvent::Changed(_) => {}
             },
@@ -169,13 +163,13 @@ impl ElementHead {
             FieldEvent::Submitted(text) => {
                 let text = text.clone();
                 field.update(cx, |f, cx| f.set_text("", cx));
-                head.add_alias(text, cx);
+                head.add_alias(text, window, cx);
             }
             FieldEvent::Blurred => {
                 let text = field.read(cx).text();
                 if !text.trim().is_empty() {
                     field.update(cx, |f, cx| f.set_text("", cx));
-                    head.add_alias(text, cx);
+                    head.add_alias(text, window, cx);
                 }
             }
             FieldEvent::Cancelled => {
@@ -230,26 +224,26 @@ impl ElementHead {
         (self.name.clone(), self.alias.clone(), self.summary.clone())
     }
 
-    fn save_name(&mut self, text: String, cx: &mut Context<Self>) {
+    fn save_name(&mut self, text: String, window: &mut Window, cx: &mut Context<Self>) {
         let name = text.trim().to_owned();
         if name.is_empty() || name == self.stored_name() {
             return;
         }
         let mut edit = data::element_edit(&self.book_id(), &self.id);
         edit.name = Some(name.clone());
-        self.write(edit, Refused::Name(name), cx);
+        self.write(edit, Refused::Name(name), window, cx);
     }
 
-    fn save_summary(&mut self, text: String, cx: &mut Context<Self>) {
+    fn save_summary(&mut self, text: String, window: &mut Window, cx: &mut Context<Self>) {
         if text == self.stored_summary() {
             return;
         }
         let mut edit = data::element_edit(&self.book_id(), &self.id);
         edit.summary = Some(text);
-        self.write(edit, Refused::Other, cx);
+        self.write(edit, Refused::Other, window, cx);
     }
 
-    fn add_alias(&mut self, text: String, cx: &mut Context<Self>) {
+    fn add_alias(&mut self, text: String, window: &mut Window, cx: &mut Context<Self>) {
         let alias = text.trim().to_owned();
         if alias.is_empty() {
             return;
@@ -265,54 +259,59 @@ impl ElementHead {
         }
         let mut edit = data::element_edit(&self.book_id(), &self.id);
         edit.add_aliases = vec![alias.clone()];
-        self.write(edit, Refused::Alias(alias), cx);
+        self.write(edit, Refused::Alias(alias), window, cx);
     }
 
     /// Takes an alias off the element (the × on it).
-    pub fn remove_alias(&mut self, alias: String, cx: &mut Context<Self>) {
+    pub fn remove_alias(&mut self, alias: String, window: &mut Window, cx: &mut Context<Self>) {
         let mut edit = data::element_edit(&self.book_id(), &self.id);
         edit.remove_aliases = vec![alias];
-        self.write(edit, Refused::Other, cx);
+        self.write(edit, Refused::Other, window, cx);
     }
 
     /// Writes `edit` off the main thread; a name or alias another element
-    /// holds raises the 0.1 alert, and a refused name shows the stored one
-    /// again.
-    fn write(&mut self, edit: ElementUpdateIn, refused: Refused, cx: &mut Context<Self>) {
+    /// holds raises the 0.1 alert (the shell's dialog, [`crate::dialogs`]),
+    /// and a refused name shows the stored one again.
+    fn write(
+        &mut self,
+        edit: ElementUpdateIn,
+        refused: Refused,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let Some(lib) = self.lib.clone() else {
             return;
         };
-        cx.spawn(async move |this, cx| {
+        cx.spawn_in(window, async move |this, cx| {
             let result = cx
                 .background_executor()
                 .spawn(async move { data::update_element(&lib, edit) })
                 .await;
-            this.update(cx, |head, cx| match result {
+            this.update_in(cx, |head, window, cx| match result {
                 Ok(()) => {}
                 Err(WsError::NameTaken { id, .. }) => {
                     let conflicting = data::element(&head.book, &id)
                         .map(|e| e.name.clone())
                         .unwrap_or(id);
-                    match refused {
+                    let message = match refused {
                         Refused::Name(name) => {
-                            head.alert = Some(tf(
+                            let stored = head.stored_name();
+                            head.name.update(cx, |f, cx| f.set_text(stored, cx));
+                            tf(
                                 cx,
                                 keys::element_editor::alerts::RENAME_CONFLICT,
                                 &[("name", &name), ("conflicting", &conflicting)],
-                            ));
-                            let stored = head.stored_name();
-                            head.name.update(cx, |f, cx| f.set_text(stored, cx));
+                            )
                         }
-                        Refused::Alias(alias) => {
-                            head.alert = Some(tf(
-                                cx,
-                                keys::element_editor::alerts::ALIAS_CONFLICT,
-                                &[("name", &alias), ("conflicting", &conflicting)],
-                            ));
-                        }
-                        Refused::Other => {}
-                    }
-                    cx.notify();
+                        Refused::Alias(alias) => tf(
+                            cx,
+                            keys::element_editor::alerts::ALIAS_CONFLICT,
+                            &[("name", &alias), ("conflicting", &conflicting)],
+                        ),
+                        Refused::Other => return,
+                    };
+                    let ws = head.ws.clone();
+                    crate::dialogs::open(crate::dialogs::AskFor::Alert(message), ws, window, cx);
                 }
                 Err(error) => log::warn!("the element could not be saved: {error}"),
             })
@@ -456,34 +455,7 @@ impl Render for ElementHead {
                 window,
                 cx,
             ));
-        let alert = self.alert.clone().map(|message| {
-            let close = entity.clone();
-            let dismiss = entity.clone();
-            // The 0.1 client's `alert()`: the app's name over the message.
-            Dialog::new("element-alert", "Drifting")
-                .width(420.0)
-                .body(div().child(message))
-                .action(
-                    Button::new("element-alert-close", t(cx, keys::common::CLOSE)).on_click(
-                        move |_, _, cx| {
-                            close.update(cx, |head, cx| {
-                                head.alert = None;
-                                cx.notify();
-                            })
-                        },
-                    ),
-                )
-                .on_close(move |_, cx| {
-                    dismiss.update(cx, |head, cx| {
-                        head.alert = None;
-                        cx.notify();
-                    })
-                })
-        });
-        page::column(look, content)
-            .pt(px(56.0))
-            .children(alert)
-            .into_any_element()
+        page::column(look, content).pt(px(56.0)).into_any_element()
     }
 }
 
@@ -500,9 +472,9 @@ fn alias_chip(
     let remove = {
         let entity = entity.clone();
         let alias = alias.to_owned();
-        move |_: &gpui::ClickEvent, _: &mut Window, cx: &mut App| {
+        move |_: &gpui::ClickEvent, window: &mut Window, cx: &mut App| {
             let alias = alias.clone();
-            entity.update(cx, |head, cx| head.remove_alias(alias, cx));
+            entity.update(cx, |head, cx| head.remove_alias(alias, window, cx));
         }
     };
     let label = t(cx, keys::element_editor::alias::REMOVE);

@@ -16,6 +16,10 @@
     "actions": {
       "openElement": "Abrir elemento"
     },
+    "alerts": {
+      "deleteFailed": "No se pudo eliminar la categoría. Inténtalo de nuevo."
+    },
+    "deleteConfirm": "¿Eliminar la categoría «{{name}}»?\n\nSus elementos se moverán a «Sin categoría».",
     "empty": {
       "noFilteredElements": "No hay elementos para este filtro",
       "noSummary": "Aún no hay resumen"
@@ -65,6 +69,7 @@
   "common": {
     "cancel": "Cancelar",
     "close": "Cerrar",
+    "confirm": "Confirmar",
     "counting": "Contando…",
     "creating": "Creando…",
     "delete": "Eliminar",
@@ -75,6 +80,7 @@
     "saveFailed": "No se pudieron guardar los cambios. Reintenta.",
     "saving": "Guardando…",
     "untitled": "Sin título",
+    "words": "palabras",
     "wordsCount": "{{count}} palabras"
   },
   "dashboard": {
@@ -110,7 +116,12 @@
       "more": "Más acciones"
     },
     "menu": {
-      "deleteNode": "Eliminar nodo"
+      "changeCategory": "Cambiar categoría",
+      "changeGroup": "Cambiar grupo",
+      "deleteCategory": "Eliminar categoría",
+      "deleteElement": "Eliminar elemento",
+      "deleteNode": "Eliminar nodo",
+      "deleteStoryline": "Eliminar trama"
     },
     "outlineRailMode": {
       "hidden": "Ocultar índice",
@@ -125,9 +136,23 @@
       "chapter": "Estado de escritura"
     }
   },
+  "elementCategoryCreateMenu": {
+    "back": "Volver al menú de creación",
+    "createGroup": "Crear y abrir el primer elemento",
+    "duplicateGroup": "Ya existe un grupo con este nombre.",
+    "groupNameLabel": "Nombre del grupo",
+    "groupNamePlaceholder": "Introduce un nombre de grupo",
+    "groupTitle": "Nuevo grupo",
+    "newElement": "Nuevo elemento",
+    "newGroup": "Nuevo grupo…",
+    "openCreateMenu": "Añadir a esta categoría",
+    "title": "Añadir a «{{name}}»"
+  },
   "elementEditor": {
     "alerts": {
       "aliasConflict": "No se puede añadir el alias: «{{name}}» ya lo usa el elemento «{{conflicting}}».",
+      "deleteFailed": "No se pudo eliminar el elemento. Inténtalo de nuevo.",
+      "groupUpdateFailed": "No se pudo actualizar el grupo. Inténtalo de nuevo.",
       "renameConflict": "No se puede renombrar: «{{name}}» ya se usa como nombre o alias del elemento «{{conflicting}}»."
     },
     "alias": {
@@ -135,10 +160,21 @@
       "addFirst": "Añadir alias",
       "remove": "Quitar alias"
     },
+    "category": {
+      "newOption": "Nueva categoría…"
+    },
+    "deleteConfirm": "¿Eliminar el elemento «{{name}}»?",
     "empty": {
       "noFacts": "Aún no hay campos. Al crear un elemento, la Plantilla de campos de su categoría los rellena."
     },
     "folio": "Elemento",
+    "group": {
+      "create": "Crear grupo «{{name}}»",
+      "empty": "Esta categoría aún no tiene grupos.",
+      "noGroup": "(Sin grupo)",
+      "placeholder": "Busca o crea un grupo… (vacío = sin grupo)",
+      "title": "Grupo · {{category}}"
+    },
     "sections": {
       "bioTitle": "Biografía",
       "facts": "Datos"
@@ -246,6 +282,7 @@
   "leftSidebar": {
     "actions": {
       "collapseAll": "Expandir o contraer todo",
+      "newCategory": "Nueva categoría",
       "sort": "Ordenar"
     },
     "empty": {
@@ -254,6 +291,8 @@
       "noElements": "Aún no hay elementos."
     },
     "groups": {
+      "addElementToGroup": "Nuevo elemento en este grupo",
+      "renameElementGroupTitle": "Doble clic para renombrar el grupo",
       "unaffiliated": "Sin vincular"
     },
     "meta": {
@@ -264,6 +303,7 @@
     "sort": {
       "alphabet": "Alfabético",
       "bookOrder": "Orden de lectura",
+      "categoryElements": "Ordenar elementos por categoría",
       "cellMetaGroup": "Borde derecho de celda",
       "chapters": "Ordenar capítulos",
       "createdAt": "Fecha de creación",
@@ -271,6 +311,7 @@
       "duplicatesGroup": "Capítulos con varias tramas",
       "duplicatesPrimary": "Mostrar solo en la trama principal",
       "narrativeOrder": "Orden narrativo",
+      "outerCategoriesGroup": "Categorías externas",
       "outerStorylinesGroup": "Tramas externas",
       "showBoth": "Mostrar palabras y fecha",
       "showDate": "Mostrar fecha",
@@ -292,6 +333,8 @@
     "uncategorized": "Sin categoría",
     "viewMode": {
       "chapterSummary": "{{storylines}} tramas · {{chapters}} capítulos",
+      "elementCompactTitle": "Índice compacto · cambiar a lista de nombres",
+      "elementListTitle": "Lista de nombres · cambiar a índice compacto",
       "globalTitle": "Vista del libro · agrupar por trama",
       "storylineTitle": "Agrupado por trama · volver a vista del libro"
     }
@@ -871,17 +914,45 @@
     "restoring": "Restaurando…",
     "title": "Capturas del historial · 30 días"
   },
+  "storyGraph": {
+    "edge": {
+      "create": "Crear"
+    }
+  },
   "storylineEditor": {
-    "filters": {
-      "all": "Todo"
+    "actions": {
+      "openChapter": "Abrir capítulo"
     },
+    "alerts": {
+      "deleteFailed": "No se pudo eliminar la trama. Inténtalo de nuevo."
+    },
+    "deleteConfirm": "¿Eliminar la trama «{{name}}»?",
+    "empty": {
+      "noChapterSummary": "Aún no hay resumen en una frase",
+      "noFacts": "Aún no hay campos. Al crear una trama, la Plantilla de trama del inicio del proyecto los rellena.",
+      "noFilteredChapters": "No hay capítulos para este filtro"
+    },
+    "filters": {
+      "all": "Todo",
+      "unwritten": "Sin empezar",
+      "written": "Escritos"
+    },
+    "folio": "Trama",
     "labels": {
       "color": "Color"
     },
     "meta": {
       "chapters": "{{count}} capítulos",
+      "chaptersWords": "{{chapters}} capítulos · {{words}} mil palabras",
       "kWords": "{{count}} mil palabras"
-    }
+    },
+    "sections": {
+      "chapters": "Secuencia de capítulos",
+      "facts": "Datos",
+      "scratch": "Apuntes"
+    },
+    "summaryPlaceholder": "Resumen de esta trama en una frase…",
+    "untitled": "Trama sin título"
   },
   "topTimeline": {
     "closeTab": "Cerrar pestaña",

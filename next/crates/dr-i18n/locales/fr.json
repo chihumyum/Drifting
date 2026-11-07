@@ -16,6 +16,10 @@
     "actions": {
       "openElement": "Ouvrir l’élément"
     },
+    "alerts": {
+      "deleteFailed": "Impossible de supprimer la catégorie. Réessayez."
+    },
+    "deleteConfirm": "Supprimer la catégorie « {{name}} » ?\n\nSes éléments seront déplacés vers « Sans catégorie ».",
     "empty": {
       "noFilteredElements": "Aucun élément pour ce filtre",
       "noSummary": "Aucun résumé pour le moment"
@@ -65,6 +69,7 @@
   "common": {
     "cancel": "Annuler",
     "close": "Fermer",
+    "confirm": "Confirmer",
     "counting": "Comptage…",
     "creating": "Création…",
     "delete": "Supprimer",
@@ -75,6 +80,7 @@
     "saveFailed": "Impossible d’enregistrer les modifications. Réessayez.",
     "saving": "Enregistrement…",
     "untitled": "Sans titre",
+    "words": "mots",
     "wordsCount": "{{count}} mots"
   },
   "dashboard": {
@@ -110,7 +116,12 @@
       "more": "Autres actions"
     },
     "menu": {
-      "deleteNode": "Supprimer le nœud"
+      "changeCategory": "Changer de catégorie",
+      "changeGroup": "Changer de groupe",
+      "deleteCategory": "Supprimer la catégorie",
+      "deleteElement": "Supprimer l’élément",
+      "deleteNode": "Supprimer le nœud",
+      "deleteStoryline": "Supprimer l’intrigue"
     },
     "outlineRailMode": {
       "hidden": "Masquer la table des matières",
@@ -125,9 +136,23 @@
       "chapter": "État d’écriture"
     }
   },
+  "elementCategoryCreateMenu": {
+    "back": "Retour au menu de création",
+    "createGroup": "Créer et ouvrir le premier élément",
+    "duplicateGroup": "Un groupe de ce nom existe déjà.",
+    "groupNameLabel": "Nom du groupe",
+    "groupNamePlaceholder": "Saisissez un nom de groupe",
+    "groupTitle": "Nouveau groupe",
+    "newElement": "Nouvel élément",
+    "newGroup": "Nouveau groupe…",
+    "openCreateMenu": "Ajouter à cette catégorie",
+    "title": "Ajouter à « {{name}} »"
+  },
   "elementEditor": {
     "alerts": {
       "aliasConflict": "Impossible d’ajouter l’alias : « {{name}} » est déjà utilisé par l’élément « {{conflicting}} ».",
+      "deleteFailed": "Impossible de supprimer l’élément. Réessayez.",
+      "groupUpdateFailed": "Impossible de mettre à jour le groupe. Réessayez.",
       "renameConflict": "Impossible de renommer : « {{name}} » est déjà utilisé comme nom ou alias de l’élément « {{conflicting}} »."
     },
     "alias": {
@@ -135,10 +160,21 @@
       "addFirst": "Ajouter un alias",
       "remove": "Retirer l’alias"
     },
+    "category": {
+      "newOption": "Nouvelle catégorie…"
+    },
+    "deleteConfirm": "Supprimer l’élément « {{name}} » ?",
     "empty": {
       "noFacts": "Aucun champ pour le moment. À la création d’un élément, le Modèle de champs de sa catégorie les renseigne."
     },
     "folio": "Élément",
+    "group": {
+      "create": "Créer le groupe « {{name}} »",
+      "empty": "Cette catégorie n’a pas encore de groupes.",
+      "noGroup": "(Aucun groupe)",
+      "placeholder": "Rechercher ou créer un groupe… (vide = aucun groupe)",
+      "title": "Groupe · {{category}}"
+    },
     "sections": {
       "bioTitle": "Biographie",
       "facts": "Faits"
@@ -246,6 +282,7 @@
   "leftSidebar": {
     "actions": {
       "collapseAll": "Tout développer ou réduire",
+      "newCategory": "Nouvelle catégorie",
       "sort": "Trier"
     },
     "empty": {
@@ -254,6 +291,8 @@
       "noElements": "Pas encore d’éléments."
     },
     "groups": {
+      "addElementToGroup": "Nouvel élément dans ce groupe",
+      "renameElementGroupTitle": "Double-cliquez pour renommer le groupe",
       "unaffiliated": "Sans appartenance"
     },
     "meta": {
@@ -264,6 +303,7 @@
     "sort": {
       "alphabet": "Alphabétique",
       "bookOrder": "Ordre de lecture",
+      "categoryElements": "Trier les éléments dans les catégories",
       "cellMetaGroup": "Bord droit de cellule",
       "chapters": "Trier les chapitres",
       "createdAt": "Date de création",
@@ -271,6 +311,7 @@
       "duplicatesGroup": "Chapitres à plusieurs intrigues",
       "duplicatesPrimary": "Afficher seulement dans l’intrigue principale",
       "narrativeOrder": "Ordre narratif",
+      "outerCategoriesGroup": "Catégories extérieures",
       "outerStorylinesGroup": "Intrigues extérieures",
       "showBoth": "Afficher les mots et la date",
       "showDate": "Afficher la date",
@@ -292,6 +333,8 @@
     "uncategorized": "Sans catégorie",
     "viewMode": {
       "chapterSummary": "{{storylines}} intrigues · {{chapters}} chapitres",
+      "elementCompactTitle": "Index compact · passer à la liste de noms",
+      "elementListTitle": "Liste de noms · passer à l’index compact",
       "globalTitle": "Vue du livre · grouper par intrigue",
       "storylineTitle": "Par intrigue · revenir à la vue du livre"
     }
@@ -871,17 +914,45 @@
     "restoring": "Restauration…",
     "title": "Instantanés historiques · 30 jours"
   },
+  "storyGraph": {
+    "edge": {
+      "create": "Créer"
+    }
+  },
   "storylineEditor": {
-    "filters": {
-      "all": "Tout"
+    "actions": {
+      "openChapter": "Ouvrir le chapitre"
     },
+    "alerts": {
+      "deleteFailed": "Impossible de supprimer l’intrigue. Réessayez."
+    },
+    "deleteConfirm": "Supprimer l’intrigue « {{name}} » ?",
+    "empty": {
+      "noChapterSummary": "Aucun résumé en une phrase pour le moment",
+      "noFacts": "Aucun champ pour le moment. À la création d’une intrigue, le Modèle d’intrigue de l’accueil du projet les renseigne.",
+      "noFilteredChapters": "Aucun chapitre pour ce filtre"
+    },
+    "filters": {
+      "all": "Tout",
+      "unwritten": "Non commencé",
+      "written": "Rédigés"
+    },
+    "folio": "Intrigue",
     "labels": {
       "color": "Couleur"
     },
     "meta": {
       "chapters": "{{count}} chapitres",
+      "chaptersWords": "{{chapters}} chapitres · {{words}} k mots",
       "kWords": "{{count}} k mots"
-    }
+    },
+    "sections": {
+      "chapters": "Séquence des chapitres",
+      "facts": "Faits",
+      "scratch": "Brouillon"
+    },
+    "summaryPlaceholder": "Résumé de cette intrigue en une phrase…",
+    "untitled": "Intrigue sans titre"
   },
   "topTimeline": {
     "closeTab": "Fermer l’onglet",

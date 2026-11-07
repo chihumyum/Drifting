@@ -10,8 +10,8 @@
 //! - **继续写**: the chapter or idea opened last on this device (else the
 //!   chapter changed last), with its storyline, when, its words and two
 //!   lines of its summary; under it up to three more pages opened recently
-//!   (chapters, ideas, elements). Project Home records what the window
-//!   opens (`recent.touch`). The whole book is a text button in the head.
+//!   (chapters, ideas, elements); the shell records what the window opens
+//!   (`recent.touch`). The whole book is a text button in the head.
 //! - **全书**: one row per storyline (its chapters done of all, a dry stroke
 //!   in its colour, its words), then the categories.
 //! - **设定** (the other view): the word targets and the summary (a framed

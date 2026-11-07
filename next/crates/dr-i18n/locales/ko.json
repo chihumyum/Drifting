@@ -16,6 +16,10 @@
     "actions": {
       "openElement": "요소 열기"
     },
+    "alerts": {
+      "deleteFailed": "분류를 삭제하지 못했습니다. 다시 시도해 주세요."
+    },
+    "deleteConfirm": "분류 “{{name}}”을(를) 삭제할까요?\n\n이 분류의 요소는 “미분류”로 이동합니다.",
     "empty": {
       "noFilteredElements": "이 필터에 해당하는 요소가 없습니다",
       "noSummary": "아직 요약이 없습니다"
@@ -65,6 +69,7 @@
   "common": {
     "cancel": "취소",
     "close": "닫기",
+    "confirm": "확인",
     "counting": "계산 중…",
     "creating": "만드는 중…",
     "delete": "삭제",
@@ -75,6 +80,7 @@
     "saveFailed": "변경을 저장할 수 없습니다. 다시 시도해 주세요.",
     "saving": "저장 중…",
     "untitled": "제목 없음",
+    "words": "자",
     "wordsCount": "{{count}}자"
   },
   "dashboard": {
@@ -110,7 +116,12 @@
       "more": "추가 작업"
     },
     "menu": {
-      "deleteNode": "노드 삭제"
+      "changeCategory": "분류 변경",
+      "changeGroup": "그룹 변경",
+      "deleteCategory": "분류 삭제",
+      "deleteElement": "요소 삭제",
+      "deleteNode": "노드 삭제",
+      "deleteStoryline": "스토리라인 삭제"
     },
     "outlineRailMode": {
       "hidden": "목차 숨기기",
@@ -125,9 +136,23 @@
       "chapter": "집필 상태"
     }
   },
+  "elementCategoryCreateMenu": {
+    "back": "생성 메뉴로 돌아가기",
+    "createGroup": "첫 요소 만들고 열기",
+    "duplicateGroup": "같은 이름의 그룹이 이미 있습니다.",
+    "groupNameLabel": "그룹 이름",
+    "groupNamePlaceholder": "그룹 이름 입력",
+    "groupTitle": "새 그룹",
+    "newElement": "새 요소",
+    "newGroup": "새 그룹…",
+    "openCreateMenu": "이 분류에 추가",
+    "title": "“{{name}}”에 추가"
+  },
   "elementEditor": {
     "alerts": {
       "aliasConflict": "별칭을 추가할 수 없습니다. “{{name}}”은(는) 요소 “{{conflicting}}”에서 이미 사용 중입니다.",
+      "deleteFailed": "요소를 삭제하지 못했습니다. 다시 시도해 주세요.",
+      "groupUpdateFailed": "그룹을 업데이트하지 못했습니다. 다시 시도해 주세요.",
       "renameConflict": "이름을 변경할 수 없습니다. “{{name}}”은(는) 요소 “{{conflicting}}”의 이름이나 별칭으로 이미 사용 중입니다."
     },
     "alias": {
@@ -135,10 +160,21 @@
       "addFirst": "별칭 추가",
       "remove": "별칭 제거"
     },
+    "category": {
+      "newOption": "새 분류…"
+    },
+    "deleteConfirm": "요소 “{{name}}”을 삭제할까요?",
     "empty": {
       "noFacts": "아직 필드가 없습니다. 요소를 만들면 분류의 '필드 템플릿'으로 채워집니다."
     },
     "folio": "요소",
+    "group": {
+      "create": "그룹 “{{name}}” 만들기",
+      "empty": "이 분류에는 아직 그룹이 없습니다.",
+      "noGroup": "(그룹 없음)",
+      "placeholder": "그룹 검색 또는 만들기… (비워 두면 그룹 없음)",
+      "title": "그룹 · {{category}}"
+    },
     "sections": {
       "bioTitle": "생애",
       "facts": "설정 정보"
@@ -241,6 +277,7 @@
   "leftSidebar": {
     "actions": {
       "collapseAll": "모두 펼치기 또는 접기",
+      "newCategory": "새 분류",
       "sort": "정렬"
     },
     "empty": {
@@ -249,6 +286,8 @@
       "noElements": "아직 요소가 없습니다."
     },
     "groups": {
+      "addElementToGroup": "이 그룹에 새 요소",
+      "renameElementGroupTitle": "두 번 클릭하여 그룹 이름 바꾸기",
       "unaffiliated": "소속 없음"
     },
     "meta": {
@@ -259,6 +298,7 @@
     "sort": {
       "alphabet": "가나다순",
       "bookOrder": "읽기 순서",
+      "categoryElements": "분류 내 요소 정렬",
       "cellMetaGroup": "셀 오른쪽",
       "chapters": "장 정렬",
       "createdAt": "생성일",
@@ -266,6 +306,7 @@
       "duplicatesGroup": "여러 스토리라인의 장",
       "duplicatesPrimary": "주요 스토리라인에만 표시",
       "narrativeOrder": "서사 순서",
+      "outerCategoriesGroup": "바깥 분류",
       "outerStorylinesGroup": "바깥 스토리라인",
       "showBoth": "글자 수와 날짜 표시",
       "showDate": "날짜 표시",
@@ -287,6 +328,8 @@
     "uncategorized": "미분류",
     "viewMode": {
       "chapterSummary": "스토리라인 {{storylines}}개 · {{chapters}}장",
+      "elementCompactTitle": "간결한 색인 · 이름 목록으로 전환",
+      "elementListTitle": "이름 목록 · 간결한 색인으로 전환",
       "globalTitle": "작품 전체 보기 · 스토리라인별 그룹화",
       "storylineTitle": "스토리라인별 그룹 · 작품 전체 보기로 전환"
     }
@@ -859,17 +902,45 @@
     "restoring": "복원 중…",
     "title": "기록 스냅샷 · 30일"
   },
+  "storyGraph": {
+    "edge": {
+      "create": "만들기"
+    }
+  },
   "storylineEditor": {
-    "filters": {
-      "all": "전체"
+    "actions": {
+      "openChapter": "장 열기"
     },
+    "alerts": {
+      "deleteFailed": "스토리라인을 삭제하지 못했습니다. 다시 시도해 주세요."
+    },
+    "deleteConfirm": "스토리라인 “{{name}}”을 삭제할까요?",
+    "empty": {
+      "noChapterSummary": "아직 한 문장 요약이 없습니다",
+      "noFacts": "아직 필드가 없습니다. 스토리라인을 만들면 작품 홈의 '스토리라인 템플릿'으로 채워집니다.",
+      "noFilteredChapters": "이 필터에 해당하는 장이 없습니다"
+    },
+    "filters": {
+      "all": "전체",
+      "unwritten": "시작 전",
+      "written": "작성됨"
+    },
+    "folio": "스토리라인",
     "labels": {
       "color": "색상"
     },
     "meta": {
       "chapters": "{{count}}개 장",
+      "chaptersWords": "{{chapters}}장 · {{words}}천 단어",
       "kWords": "{{count}}천 단어"
-    }
+    },
+    "sections": {
+      "chapters": "장 순서",
+      "facts": "설정 정보",
+      "scratch": "임시 메모"
+    },
+    "summaryPlaceholder": "이 스토리라인의 한 문장 요약…",
+    "untitled": "이름 없는 스토리라인"
   },
   "topTimeline": {
     "closeTab": "탭 닫기",

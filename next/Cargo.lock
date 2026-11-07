@@ -1664,6 +1664,7 @@ name = "dr-view-elements"
 version = "0.0.0"
 dependencies = [
  "anyhow",
+ "chrono",
  "color_quant",
  "dr-editor",
  "dr-i18n",
@@ -1671,9 +1672,12 @@ dependencies = [
  "dr-store",
  "dr-testkit",
  "dr-ui",
+ "dr-view-shelf",
  "dr-workspace",
  "gpui",
  "gpui_platform",
+ "icu_collator",
+ "icu_locale_core",
  "log",
  "png 0.18.1",
  "tempfile",
