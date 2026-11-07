@@ -314,8 +314,48 @@ export function reportCrash(input: CrashReportInput): void {
   void flushCrashReports();
 }
 
+const MAX_CAUSES = 3;
+const MAX_CAUSE_DEPTH = 3;
+
+function innerErrors(error: Error): readonly unknown[] {
+  if (error instanceof AggregateError) return error.errors;
+  const { cause } = error as { cause?: unknown };
+  return cause === undefined ? [] : [cause];
+}
+
+function causeSummary(error: unknown, depth: number): string {
+  if (error instanceof Error) {
+    const own = sanitizeReportText(`${error.name}: ${error.message}`, 120);
+    const inner = depth < MAX_CAUSE_DEPTH ? causesOf(error, depth + 1) : '';
+    return inner ? `${own} ${inner}` : own;
+  }
+  // Native commands reject with a bare string.
+  if (typeof error === 'string') return sanitizeReportText(error, 120);
+  const message = (error as { message?: unknown } | null)?.message;
+  return typeof message === 'string' ? sanitizeReportText(message, 120) : typeof error;
+}
+
+/**
+ * What an aggregated or wrapped failure was made of, one bracket per level:
+ * without it a report only says that something inside failed.
+ */
+function causesOf(error: Error, depth: number): string {
+  const inner = innerErrors(error);
+  if (inner.length === 0) return '';
+  const shown = inner.slice(0, MAX_CAUSES).map((item) => causeSummary(item, depth));
+  if (inner.length > MAX_CAUSES) shown.push(`+${inner.length - MAX_CAUSES} more`);
+  return `[${shown.join(' | ')}]`;
+}
+
 function describe(error: unknown): { name: string; message: string; stack?: string } {
-  if (error instanceof Error) return { name: error.name, message: error.message, stack: error.stack };
+  if (error instanceof Error) {
+    const causes = causesOf(error, 1);
+    return {
+      name: error.name,
+      message: causes ? `${error.message} ${causes}` : error.message,
+      stack: error.stack,
+    };
+  }
   return { name: typeof error, message: typeof error === 'string' ? error : 'Non-error value thrown' };
 }
 

@@ -20,11 +20,11 @@
       "PRIVACY.md": "sha256:3ff732c9a5299f9030fd25864f30188e1cad1705f61af53880bd3cfa6d1f58d5",
       "docs/acceptance/sentry-cloud.json": "sha256:06f5ed0d0186a8c69850583ac2ddc2f46b1638d3abd144e7ce07cee8306502c3",
       "docs/acceptance/sentry-packaged.json": "sha256:b53fe1a1bd6697290542a1b532fb522fea1c36e06cb92a3701e27251f0546f77",
-      "docs/crash-reports.md": "sha256:4767edce971512e86b046606d75cf05030b02a18dd8d6c45192507103509f527",
+      "docs/crash-reports.md": "sha256:b3ae47f9d20ba3c19a483d747fbe3dcbedc1f4ea16903e2d604aa70f7a898679",
       "docs/sentry-observability.md": "sha256:dd9590ffeba6e597bc67e28d49ce3ffc5688be66fef9bcb543703022e7897963",
       "docs/worktree-development.md": "sha256:2724296cef86904e49537a67ac8efe3d12250a25d48836894d1f8ff91e557752",
-      "package.json": "sha256:7809138c95689986abf045e0369793509a43bfb90145a77730953a5c591ac728",
-      "pnpm-lock.yaml": "sha256:65ab3f8d4e7eaa538566acfea27294904a718b5de77bbb51907f017c7a1739dd",
+      "package.json": "sha256:11b1ecf5200d17031ae1cb1fee162e0d8437745dd07d4269d9dbbb76cbd5e650",
+      "pnpm-lock.yaml": "sha256:c332c645523276d2359048b524d8925258c5a92adf7f9054ceca5782858ddc3b",
       "pnpm-workspace.yaml": "sha256:25c6867abe08ae8573ca4dc2e9bf19da3f6163952c868148808d8355b536599e",
       "scripts/check-frontend-debug-release.mjs": "sha256:4b23b372810e017c7131739dd2437e2742d537e22c3ebb7dff0d613d9df50fcf",
       "scripts/generate-sentry-observability.ts": "sha256:fb0005e37f79624446d03c41c77e8e9191d4f58fa6ebebadecced9ef0ec81914",
@@ -39,13 +39,13 @@
       "scripts/sentry-packaged-acceptance.ts": "sha256:710b59ceb7c86d6814ad718152f9c2c5f042cdf9d5a072fbcb9e31f1cd1ee722",
       "scripts/verify-sentry-cloud.mjs": "sha256:8a74bf919a4a6cc99a8317bdc8d303ab6b377697c009257d9f1fea7161e73367",
       "scripts/verify-sentry-packaged.mjs": "sha256:b583b3d71d0b9c1d93073caa1921bf5795de6e72f76b29077ca829ddf7fb963c",
-      "src/renderer/locales/en.json": "sha256:206d9572a068b412f5e3cf50cc954857111053b85d34ad13cc1cd79a472ddc69",
-      "src/renderer/locales/zh-CN.json": "sha256:7c6109f52f258ec5c459f62eb1ffff44b4f0922d4e94f8c31e0817d7a1e70a3e",
+      "src/renderer/locales/en.json": "sha256:0e4d3820ece58b77a570d4718a17102addbd658b5441063d24ff686dd7fdb20f",
+      "src/renderer/locales/zh-CN.json": "sha256:2f964941fa662ec8ad57a6c54be82a4ff19900a459985d37530536f146fd9062",
       "src/renderer/platform/desktop-tauri-launcher.acceptance.test.ts": "sha256:36ecd46d7e7d453ab0b4815f81a6c32cbd8e3449bacd4d4acda9df60b58bc7c6",
       "src/renderer/platform/sentry-environment.acceptance.test.ts": "sha256:6455ae63404c4981649d2378bda5cdbfb2c9dcea25d29c9c8a225d7599ec2353",
       "src/renderer/platform/worktree-dev-launcher.acceptance.test.ts": "sha256:6399941c1e0db3691c847d325e4c823b4f2cd5ab1afbb181cbbc0b5885454ce3",
-      "src/renderer/services/diagnostics/crash-reporter.test.ts": "sha256:ce28d10a158243a99a162f304d80213764d92c701351ffa55b36087091cf1aa2",
-      "src/renderer/services/diagnostics/crash-reporter.ts": "sha256:11ae54a63d8c304b817511df8eadb6cfed3f0d9efc7d32a693fe201e8092f505",
+      "src/renderer/services/diagnostics/crash-reporter.test.ts": "sha256:b85307299aad16fb746a13a5bfa4ce31d9a0155fe41798730833c006dd0e2b9b",
+      "src/renderer/services/diagnostics/crash-reporter.ts": "sha256:6a6c92b7cba350c9a9ce6b9be4630188692fba36eea30e3d9db28884a7a0e9d4",
       "src/renderer/services/diagnostics/crash-sanitize.test.ts": "sha256:90341c3c212a627371ddb95344c9634d01c8ef267e5524af1110f478491f9789",
       "src/renderer/services/diagnostics/crash-sanitize.ts": "sha256:e2cc6d6c0ed369a0ada8c979420ce9a7f76f381c1f9ab83b9f95595f5105d704",
       "src/renderer/services/diagnostics/sentry-policy.test.ts": "sha256:7535e7fd7b34909e5c6d9ca0c3b1cd86f70be433daef6f925f9cee666d616c2e",
@@ -54,7 +54,7 @@
       "src/renderer/services/diagnostics/sentry-reporter.ts": "sha256:772ad6d19fade1352eec03d5e9fc6615609bac1bbe220e53897da98cfe13535e",
       "src/renderer/services/update/update-service.test.ts": "sha256:2998d11ba2813e618301bc102d11b3522d7ab5ae7118d94953344877889d584e",
       "src/renderer/services/update/update-service.ts": "sha256:4425c4533f0305c163bfa942ac21044dd3afaf5e770c57c5651e3d34beb087db",
-      "src/renderer/sync/production-runtime.ts": "sha256:20e0a27fc945166179c7b4cad50a4c10eeaf6bde3903a8042507de267ee6f812",
+      "src/renderer/sync/production-runtime.ts": "sha256:584fb7c69a264ea69f81076c8219675cc5fdc0f5d17f54233a17abbf651f2b07",
       "src/renderer/vite-env.d.ts": "sha256:45c50b731418801e17d7db2c29ceaaec6c74d66d53216b705ac85cb38b0631ea",
       "vite.renderer.config.ts": "sha256:5ea85df6f0cc54f7ad3d14cb71d8967f6dc8c2ce8e99efd9441dcdb08bce2408"
     }
@@ -62,7 +62,7 @@
   "automated": {
     "status": "passed",
     "command": "pnpm exec vitest run src/renderer/services/diagnostics src/renderer/services/update/update-service.test.ts src/renderer/platform/sentry-environment.acceptance.test.ts src/renderer/platform/desktop-tauri-launcher.acceptance.test.ts src/renderer/platform/worktree-dev-launcher.acceptance.test.ts",
-    "passed": 103,
+    "passed": 104,
     "failed": 0,
     "skipped": 0,
     "cases": [
@@ -368,6 +368,10 @@
       },
       {
         "name": "names the crash a follow-up explains",
+        "status": "passed"
+      },
+      {
+        "name": "names what an aggregated or wrapped failure was made of",
         "status": "passed"
       },
       {

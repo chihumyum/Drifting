@@ -99,7 +99,7 @@ describe('application persistence lifecycle', () => {
     uninstallSyncEngineHook = installSyncEngineLifecycleHook(mocks.syncEngineCycle);
 
     await expect(flushApplicationPersistenceForLifecycle('suspended')).rejects.toThrow(
-      '1 local persistence step(s) failed',
+      '1 local persistence step(s) failed: active-editor',
     );
 
     expect(mocks.order).toEqual([
