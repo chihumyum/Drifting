@@ -3,6 +3,7 @@
 use crate::repo::Repo;
 
 mod audit;
+pub mod debug_bridge;
 mod evidence;
 mod large_files;
 mod layers;
@@ -78,6 +79,11 @@ pub fn all() -> Vec<Gate> {
             name: "layers",
             about: "dependencies point from the interface to application services to data",
             run: layers::run,
+        },
+        Gate {
+            name: "debug-bridge",
+            about: "the debug bridge is opt-in: no default feature or release script turns it on",
+            run: debug_bridge::run,
         },
         Gate {
             name: "evidence",

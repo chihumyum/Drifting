@@ -187,6 +187,9 @@ fn main() {
         );
         // M10: the bookshelf's 「导入 · Drifting 0.1」.
         dr_view_import::init(cx);
+        // F8's debug bridge, in `--features debug-bridge` builds only.
+        #[cfg(feature = "debug-bridge")]
+        dr_debug_bridge::start(cx);
         probe::shell_ready();
         cx.on_action(about::open);
         if !cfg!(target_os = "macos") {

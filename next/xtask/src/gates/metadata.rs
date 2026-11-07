@@ -16,6 +16,19 @@ pub struct Package {
     pub member: bool,
     /// The member's directory relative to `next/` (`crates/dr-store`).
     pub dir: Option<String>,
+    /// Its `[features]` table.
+    pub features: BTreeMap<String, Vec<String>>,
+    /// Its manifest's dependencies, as declared (not resolved).
+    pub dependencies: Vec<Declared>,
+}
+
+/// A dependency as a manifest declares it.
+#[derive(Clone, Debug)]
+pub struct Declared {
+    pub name: String,
+    /// `None` (normal), `Some("dev")` or `Some("build")`.
+    pub kind: Option<String>,
+    pub optional: bool,
 }
 
 /// A dependency edge and the kinds it is used as.
@@ -74,6 +87,29 @@ impl Metadata {
                     .trim_end_matches("/Cargo.toml")
                     .to_string()
             });
+            let strings = |v: &Value| -> Vec<String> {
+                v.as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|x| x.as_str().map(str::to_string))
+                    .collect()
+            };
+            let features = p["features"]
+                .as_object()
+                .into_iter()
+                .flatten()
+                .map(|(k, v)| (k.clone(), strings(v)))
+                .collect();
+            let dependencies = p["dependencies"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .map(|d| Declared {
+                    name: d["name"].as_str().unwrap_or_default().to_string(),
+                    kind: d["kind"].as_str().map(str::to_string),
+                    optional: d["optional"].as_bool().unwrap_or(false),
+                })
+                .collect();
             m.packages.insert(
                 id.clone(),
                 Package {
@@ -83,6 +119,8 @@ impl Metadata {
                     license: p["license"].as_str().map(str::to_string),
                     member,
                     dir,
+                    features,
+                    dependencies,
                 },
             );
         }
