@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+# Times the bundled app from `open` to its first frame.
+#
+#   script/measure-startup-mac [--runs N] [path/to/Drifting Next.app]
+#
+# Build the bundle first (script/bundle-mac). Each run opens a fresh instance
+# with the development probe on, waits for its first frame, and lets it quit
+# by itself (DRIFTING_DEV_EXIT_AFTER_FIRST_FRAME). Prints one JSON object:
+#
+#   open_to_first_frame_ms   `open` called -> first frame drawn (wall clock)
+#   main_to_platform_ms      the app's main() -> GPUI's platform created
+#   main_to_app_ready_ms     the app's main() -> AppKit finished launching
+#   main_to_window_ms        the app's main() -> main window created
+#   main_to_first_frame_ms   the app's main() -> first frame drawn
+#
+# "first" is the first run, "median"/"min"/"max" cover every run. Close any
+# running Drifting Next first; the window flashes up once per run.
+set -euo pipefail
+
+runs=5
+app="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/target/bundle/Drifting Next.app"
+while (($#)); do
+  case "$1" in
+    --runs)
+      runs=$2
+      shift
+      ;;
+    -h | --help)
+      sed -n '2,14p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+      exit 0
+      ;;
+    *) app=$1 ;;
+  esac
+  shift
+done
+
+die() {
+  echo "measure-startup-mac: $*" >&2
+  exit 1
+}
+[[ -d $app ]] || die "no bundle at $app (run script/bundle-mac)"
+executable="$app/Contents/MacOS/drifting"
+if pgrep -f "$executable" >/dev/null; then
+  die "Drifting Next is already running; quit it first"
+fi
+
+now_ms() { perl -MTime::HiRes=time -e 'printf "%.0f\n", time() * 1000'; }
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+
+open_ms=()
+platform_ms=()
+ready_ms=()
+window_ms=()
+main_ms=()
+for ((run = 1; run <= runs; run++)); do
+  probe="$work/probe-$run.jsonl"
+  started=$(now_ms)
+  open -n \
+    --env "DRIFTING_DEV_PROBE=$probe" \
+    --env "DRIFTING_DEV_EXIT_AFTER_FIRST_FRAME=1" \
+    "$app"
+  line=""
+  for _ in $(seq 1 200); do
+    line=$(grep '"event":"first_frame"' "$probe" 2>/dev/null || true)
+    [[ -n $line ]] && break
+    sleep 0.1
+  done
+  [[ -n $line ]] || die "run $run: no first frame within 20 s"
+  drawn=$(sed -n 's/.*"unix_ms":\([0-9]*\).*/\1/p' <<<"$line")
+  since_main=$(sed -n 's/.*"since_main_ms":\([0-9.]*\).*/\1/p' <<<"$line")
+  opened=$(grep '"event":"window_opened"' "$probe" | sed -n 's/.*"since_main_ms":\([0-9.]*\).*/\1/p')
+  ready=$(grep '"event":"app_ready"' "$probe" | sed -n 's/.*"since_main_ms":\([0-9.]*\).*/\1/p')
+  platform=$(grep '"event":"platform_created"' "$probe" | sed -n 's/.*"since_main_ms":\([0-9.]*\).*/\1/p')
+  open_ms+=("$((drawn - started))")
+  platform_ms+=("$platform")
+  ready_ms+=("$ready")
+  window_ms+=("$opened")
+  main_ms+=("$since_main")
+  # Wait for this instance to quit before starting the next one.
+  for _ in $(seq 1 100); do
+    pgrep -f "$executable" >/dev/null || break
+    sleep 0.1
+  done
+  pgrep -f "$executable" >/dev/null && die "run $run: the app did not quit after its first frame"
+done
+
+stats() {
+  printf '%s\n' "$@" | awk '
+    { v[NR] = $1 }
+    END {
+      n = asort_numeric(v)
+      median = (n % 2) ? v[(n + 1) / 2] : (v[n / 2] + v[n / 2 + 1]) / 2
+      printf "{\"median\":%.1f,\"min\":%.1f,\"max\":%.1f}", median, v[1], v[n]
+    }
+    function asort_numeric(a,    i, j, t, n) {
+      n = 0; for (i in a) n++
+      for (i = 2; i <= n; i++) { t = a[i]; for (j = i - 1; j >= 1 && a[j] > t; j--) a[j + 1] = a[j]; a[j + 1] = t }
+      return n
+    }'
+}
+
+load=$(sysctl -n vm.loadavg | awk '{print $2}')
+printf '{"runs":%d,"load_average_1m":%s,' "$runs" "$load"
+printf '"first":{"open_to_first_frame_ms":%s,"main_to_platform_ms":%s,"main_to_app_ready_ms":%s,"main_to_window_ms":%s,"main_to_first_frame_ms":%s},' \
+  "${open_ms[0]}" "${platform_ms[0]}" "${ready_ms[0]}" "${window_ms[0]}" "${main_ms[0]}"
+printf '"open_to_first_frame_ms":%s,"main_to_platform_ms":%s,"main_to_app_ready_ms":%s,"main_to_window_ms":%s,"main_to_first_frame_ms":%s}\n' \
+  "$(stats "${open_ms[@]}")" "$(stats "${platform_ms[@]}")" "$(stats "${ready_ms[@]}")" "$(stats "${window_ms[@]}")" "$(stats "${main_ms[@]}")"
