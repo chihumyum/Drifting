@@ -1,6 +1,6 @@
-# F8 dr-testkit、dr-cli 与新工作区门禁
+# F8 dr-testkit、dr-cli、调试桥与新工作区门禁
 
-2026-11-07，第一、二个里程碑。计划见 [foundation.md 的 F8](../foundation.md#f8-dr-cli-与-dr-testkit)，要简化的东西见 [simplifications.md](../simplifications.md) 第二、五、六节。
+2026-11-07 至 11-08，第一到第三个里程碑。计划见 [foundation.md 的 F8](../foundation.md#f8-dr-cli-与-dr-testkit)，要简化的东西见 [simplifications.md](../simplifications.md) 第二、五、六节。
 
 ## 一句话
 
@@ -10,6 +10,7 @@
 - **证据只有一种做法**：契约类当场断言，测量类在里程碑提交。
 - **崩溃试验台和基准各一套**。
 - **新工作区的规矩一条命令查完**：`cargo xtask check`，CI 每次都跑。
+- **真实窗口也能照脚本操作**：开发版带上调试桥，Agent 会话或者 `dr-cli scenario` 就能打开书、开章、打字、截图（正式包里没有它）。
 
 ## 进度
 
@@ -21,10 +22,12 @@
 | 测量证据和过期检查 | `src/evidence.rs`、`cargo xtask evidence --check` | 1 | 做完；旧证据待各自迁移 |
 | 崩溃试验台 | `src/crash.rs`，F2 示范在 `tests/crash_store.rs` | 1 | 做完 |
 | 基准约定和 `bench` 程序 | `src/bench.rs`、`src/bin/bench.rs` | 1、2 | 两个套件：dr-store、dr-workspace（收编 F3 的测量） |
-| 门禁 | `next/xtask/` | 1 | 9 道，接进了 `next.yml` |
-| 开发实例隔离 | `cargo xtask dev` | 1 | 做完 |
-| 开发命令行 | `next/crates/dr-cli/` | 1、2 | 接上 F3 的注册表：`describe`、`call`、脚本化 `scenario`、`inspect` |
-| 调试桥 | — | 3 | 设计见下文，等 F6 外壳合进来再做 |
+| 门禁 | `next/xtask/` | 1、3 | 10 道（第三个里程碑加了「调试桥不进正式包」）和 `check-binary`，接进了 `next.yml` |
+| 开发实例隔离 | `cargo xtask dev` | 1、3 | 做完；`--debug-bridge` 带上调试桥 |
+| 开发命令行 | `next/crates/dr-cli/` | 1、2、3 | 接上 F3 的注册表：`describe`、`call`、脚本化 `scenario`、`inspect`；`app` 子命令，场景能启动和驱动应用 |
+| 调试桥 | `next/crates/dr-debug-bridge/`、`dr-debug-protocol/` | 3 | 做完：打开书和页、打字、按键、动作、F3 命令、读外壳状态和页面文字、等待、截图。按名字找元素和组字没做 |
+| 阶段 2「写作闭环」验收场景 | `next/crates/dr-cli/scenarios/writing-loop.json` | 3 | 在真实窗口上跑通；在编辑器里打字的 9 步等 F6 |
+| 收编编辑器的基准语料 | — | 4 | 等 F4 把基准搬进 `dr-editor` |
 
 ## 种子
 
@@ -257,6 +260,7 @@ cargo xtask check --skip audit         # 离线时跳过漏洞审计（它要联
 | migrations | `crates/*/migrations/` 下的每个迁移都登记在 `xtask/src/gates/migrations.rs`；已发布的钉住 SHA-256，改了、删了、没登记、编号不连续都算失败。`0000_baseline.sql` 还没发布，登记为「未冻结」，检查时打印它现在的哈希 | 10 |
 | licenses | 用 `cargo metadata` 查：工作区默认 AGPL-3.0-or-later；`gpui-prose` 是 MIT OR Apache-2.0，它的任何依赖（包括 dev-dependencies）都不能是 `dr-*`；第三方 crate 的许可证表达式必须能用白名单满足（813 个全过） | 3 |
 | layers | 依赖方向：界面 → 应用服务 → 数据，平台和工具在旁边。数据、应用服务、平台和工具都不能编进 GPUI，直接间接都不行；产品 crate 不依赖工具和探针（dev-dependencies 用测试工具可以）；每个成员都要在 `layers.rs` 里归了类 | 4 |
+| debug-bridge | 调试桥只能主动打开：没有哪个成员非可选地依赖 `dr-debug-bridge`（dev-dependencies 可以），没有哪个成员的 `default` 特性顺着特性表展开后会打开它，`next/script/` 下的打包脚本和发布流程草稿里不出现 `debug-bridge`。另有 `cargo xtask check-binary <文件>…` 查打好的可执行文件，见「调试桥」 | 9 |
 | evidence | 见上面「证据」 | 第五节 |
 | audit | 对 `next/Cargo.lock` 跑 `cargo audit`：有漏洞就失败；「不再维护」「不健全」只列出来，现在有 12 条：4 个来自 Loro（`im`、`sized-chunks`、`bitmaps`、`atomic-polyfill`，其中 `im` 和 `sized-chunks` 标了「不健全」），其余来自 GPUI。取不到漏洞数据库也算失败 | 5 |
 
@@ -288,7 +292,6 @@ cargo xtask check --skip audit         # 离线时跳过漏洞审计（它要联
 | --- | --- | --- |
 | 2 | 必需的公开文件 | 已经由 `check-public-boundaries.mjs` 查，现在 `next.yml` 也跑它 |
 | 8 | 九种语言的文案键齐全、插值占位一致 | `dr-i18n` 的编译期检查 |
-| 9 | 调试桥不进正式包 | F8 的下一个里程碑，和调试桥一起做 |
 | 11 | GPUI fork 的来源校验 | F4，挂 fork 的时候 |
 | 12 | Codex 兼容检查，每周一次 | M28 |
 | 13 | 发布前检查 | M42 |
@@ -306,14 +309,16 @@ cargo xtask check --skip audit         # 离线时跳过漏洞审计（它要联
 ```bash
 cargo xtask dev                       # 这个 worktree 自己的 profile
 cargo xtask dev --instance two        # 同一个 checkout 再开一个：<worktree>-two
-cargo xtask dev --print-config        # 打印 profile、文件夹、钥匙串服务，不启动
+cargo xtask dev --debug-bridge        # 带上调试桥（cargo run -p drifting --features debug-bridge）
+cargo xtask dev --print-config        # 打印 profile、文件夹、钥匙串服务、调试桥的连接文件，不启动
 cargo xtask dev --release -- --mcp …  # 参数原样交给程序
 ```
 
 - **主 checkout**：不设 profile，就是作者日常用的开发版；加 `--instance` 才隔离。
 - **profile 名**：只用小写字母、数字和连字符，最长 32 个字符，这是 F7 的规则。名字太长就截断，再加 6 位哈希，两个长名字不会撞成同一个。
 - **和 dr-platform 对齐**：文件夹的算法和 dr-platform 的 `AppDirs` 一致，测试里拿两者对照。
-- **端口**：旧版每个实例还分端口；新版的调试桥还没做，以后它的 socket 也按 profile 分开。
+- **端口**：旧版每个实例还分端口；新版的调试桥按 profile 分开（连接文件在 profile 的数据文件夹里，socket 名带实例名的哈希）。
+- **规则只有一份**：profile 怎么从 worktree 名算出来，写在 `dr_debug_protocol::place`，xtask 和 `cargo drifting app` 共用。
 
 ## 开发命令行：`dr-cli`
 
@@ -324,6 +329,8 @@ cargo drifting workspace describe [--json]
 cargo drifting workspace call <命令> --library <目录> [--input JSON] [--yes]
 cargo drifting workspace scenario <场景.json | seed:预设 | seed-commands:预设> --library <目录> [--yes]
 cargo drifting workspace inspect --library <目录> [--doc <文档 ID>] [--json]
+cargo drifting workspace scenario <场景.json> --app <可执行文件> [--profile P] [--out 目录] [--keep] [--yes]
+cargo drifting app <动作> …                     # 正在跑的开发版，经调试桥（见「调试桥」）
 ```
 
 - **`describe`**：列出注册表里的全部命令和查询；`--json` 输出 `registry().manifest()`，带每一项的输入、输出 Schema。
@@ -338,6 +345,7 @@ cargo drifting workspace inspect --library <目录> [--doc <文档 ID>] [--json]
   - `{ "undo": true }`、`{ "redo": true }` 撤销、重做这个身份的上一步；
   - 任何一步失败或者期望不符，就停在那一步并报出步号；
   - 全是查询的场景在副本上跑，不用 `--yes`；
+  - 第三个里程碑起，场景还能驱动应用：`seed`、`launch`、`app` 这几种步骤，见「阶段 2 验收：写作闭环」；
   - 格式和例子写在 `crates/dr-cli/src/scenario.rs` 的开头。
 
 - **离线改库的规则**，照旧版：
@@ -355,53 +363,117 @@ cargo drifting workspace inspect --library <目录> [--doc <文档 ID>] [--json]
 - **内置场景**：`seed:<预设>` 直写种子，`seed-commands:<预设>` 走命令写种子。
 - **打开库时的版本号**：用和应用一样的版本号（`0.2.0-dev`）打开库，免得命令行打开一次，库就多一份安全快照。
 
-## 调试桥（设计，等 F6）
+## 调试桥
 
-调试桥让 Agent 会话驱动**真实的窗口**做验收，代替旧版的 frontend debug bridge。它要用 F6 外壳的动作（action）、键位和标签，所以等 F6 合进来再做。这一轮只定设计。
+### 是什么
 
-### 用起来是什么样
+调试桥是开发版里的一个本机接口。Agent 会话或者脚本连上去，就能像人一样操作**真实的窗口**：打开书、换到某一章、在输入框里打字、按快捷键、触发界面动作，再把稿纸上的文字、外壳的状态和截图拿回来。它代替旧版的 frontend debug bridge。
+
+正式包里没有它：它是应用的一个默认关着的 cargo 特性，只有 `cargo xtask dev --debug-bridge` 打开；门禁和 CI 各查一道。
+
+### 用起来
 
 ```bash
-cargo xtask dev --debug-bridge                           # 开发版带上调试桥启动
-cargo drifting app info                                  # 连上正在跑的那个实例
-cargo drifting app call chapter.create --input '{…}'     # 和 workspace call 一样，但发给正在跑的应用
-cargo drifting app dispatch workspace::NewChapter        # 触发一个界面动作
-cargo drifting app type "第一章"                          # 打字（走 GPUI 的输入路径）
-cargo drifting app wait --until 'idle'                   # 等界面安静下来
-cargo drifting workspace scenario ui-acceptance.json …   # 场景里可以混用 call 和 app 步骤
+cd next
+cargo xtask dev --debug-bridge                 # 这个 worktree 的开发版，带调试桥（前台运行）
+cargo drifting app info                        # 版本、profile、窗口（在不在前台、有没有被遮住）
+cargo drifting app open 第二章 面馆             # 按章名、页面键（chapter:<id>、book）或位置链接打开
+cargo drifting app wait --text 周阿婆           # 等书目和屏幕上的页读好，还可以等某段文字出现
+cargo drifting app text                        # 稿纸上这一页的段落
+cargo drifting app type 灯塔亮了。              # 走 GPUI 的输入路径打字；没有输入框拿着焦点就报 no_input
+cargo drifting app key secondary-z             # 按键（secondary 在 macOS 上是 ⌘，别处是 Ctrl）
+cargo drifting app dispatch workspace::ToggleLeftSidebar
+cargo drifting app call chapter.list --input '{"book": "…"}'   # 在应用打开的库上调 F3 的命令，来源 user
+cargo drifting app screenshot shot.png         # 应用自己画出的窗口截图
+cargo drifting app quit
 ```
 
-### 怎么做
+`app` 连哪一个开发版：`--profile` 优先，其次环境变量 `DRIFTING_PROFILE`，再其次当前 checkout 的 profile（和 `cargo xtask dev` 同一条规则，`--instance` 也一样）。
 
-- **传输**：本机 socket，一行一个 JSON。
-  - macOS 用 Unix domain socket。路径不能超过 104 字节（MCP 的 socket 在 0.1 里栽过这个坑），放在 `$TMPDIR/drifting-<profile 的哈希>.sock`，同一目录下一个 `.json` 连接文件写明路径；
-  - Windows 用命名管道 `\\.\pipe\cc.drifting.next.dev.<profile>.debug`。
-  - 按 `DRIFTING_PROFILE` 分开，和 `cargo xtask dev` 的隔离一致；`--print-config` 打印它的位置。
-- **协议**：请求 `{"id": 1, "method": "…", "params": {…}}`，回答 `{"id": 1, "result": …}` 或 `{"id": 1, "error": {"code": "…", "message": "…"}}`；订阅之后，服务端推 `{"event": …}`。
-- **认证**：应用启动时生成一个随机令牌，写进连接文件（权限 0600）；客户端第一条消息带上它，不对的直接断开。照 0.1 的 MCP 连接文件做法。
-- **第一版的方法**：
+### 方法
 
-  | 方法 | 做什么 |
-  | --- | --- |
-  | `app.info` | 版本、profile、窗口列表，每个窗口是否被遮住、是否在前台 |
-  | `window.focus` | 把窗口带到前台 |
-  | `command.call` | `Workspace::call`，来源 `user`，和 `workspace call` 同一套输入输出 |
-  | `action.dispatch` | 按名字触发一个 GPUI action，等于按了它的快捷键 |
-  | `input.type`、`input.key`、`input.ime` | 打字、按键、组字（`setMarkedText` 加 `insertText` 那一路，验输入法相关的时序） |
-  | `ui.query` | 按调试名找界面元素，返回位置、是否可见、文字 |
-  | `ui.click` | 点一个元素（按位置发鼠标事件） |
-  | `ui.wait` | 等一个条件：元素出现、某个事件到达、连续若干帧没有重绘 |
-  | `state.get` | 只读的界面状态：当前标签、选区、焦点在哪 |
+一行一个 JSON：请求 `{"id", "method", "params"}`，回答 `{"id", "result"}` 或 `{"id", "error": {"code", "message"}}`。`cargo drifting app raw <方法> --params '{…}'` 能调任何一个，`methods` 列出全部。
 
-  截图不放进调试桥：`app.info` 给出系统的窗口编号，需要截图时在外面用系统工具截。
-- **调试名**：dr-ui 的组件和 F6 的外壳给可交互的元素起稳定的调试名，只在带调试桥的构建里存在。
-- **放在哪**：服务端在一个界面层的 crate 里，加 cargo 特性 `debug-bridge`，默认关，只有 `cargo xtask dev --debug-bridge` 打开；请求在主线程上执行。客户端在 `dr-cli` 里（`cargo drifting app …`），只是一个 socket 客户端，不依赖 GPUI。
-- **不进正式包**（第六节第 9 条）：做调试桥的同时加一道门禁：
-  - 发布构建的命令不带 `debug-bridge` 特性；
-  - 正式包的可执行文件里找不到调试桥的标记字符串。
-- **旧版踩过的坑**：
-  - 窗口被遮住时不重绘：GPUI 不画完全被遮住的窗口，`ui.wait` 不能只靠「画了一帧」来判断，`app.info` 要报告窗口被遮住；
-  - 没有焦点时不触发失焦：做「组字中失焦」这类验收之前，先 `window.focus`。
+| 方法 | 做什么 |
+| --- | --- |
+| `app.info` | 版本、profile、进程号、有没有库、能不能截图；每个窗口在不在前台、是否可见（被完全遮住的窗口不画帧）、位置大小、缩放 |
+| `app.quit` | 先回答，再走外壳的退出流程（和 ⌘Q 一样：退出钩子、存布局、存设置） |
+| `window.focus` / `window.close` / `window.open` | 把窗口带到前台；关掉工作区窗口（macOS 上应用不退出）；再打开 |
+| `command.call` | `{name, input, actor?}`：在窗口打开的那个库上调 F3 的命令或查询，默认来源 `user`，也可以 `agent:<会话>/<轮>`；回答 F3 的结果（输出、影响、撤销方式、日志行），错误码沿用 F3 的 |
+| `action.list` / `action.dispatch` | 列出所有动作名；按名字触发一个动作，和按它的快捷键一样（发给有焦点的元素） |
+| `input.type` | 逐字打字，走 GPUI 的输入路径到有焦点的输入框；换行是回车；没人接就报 `no_input` |
+| `input.key` | 按键，空格隔开可以连按：`secondary-z`、`enter escape` |
+| `input.click` | 在窗口坐标（逻辑像素）上点一下，可以连点 |
+| `nav.open` | `{target}`（页面键）、`{chapter}`（章名或 id）或 `{link}`（位置链接）：开成留下的标签（`preview: true` 是预览） |
+| `state.get` | 外壳的状态：书、当前页、标签、侧栏、浮层、焦点、窗口是否可见、读过的页 |
+| `page.text` | 一页的段落（默认稿纸上那一页）：标题级别和文字 |
+| `ui.wait` | 等到书目到了、当前标签里的页都读好了；还可以要求页上出现某段文字、`state.get` 的某些字段等于某些值；超时报 `timeout` 并说明还在等什么 |
+| `ui.screenshot` | 窗口的 PNG（base64），默认先等 500 ms 让动画走完 |
+
+### 怎么做的
+
+- **两个 crate**：
+  - `dr-debug-protocol`（平台层，不依赖 GPUI）：线上格式、连接文件在哪、令牌握手、阻塞的客户端、不带 GPUI 的监听线程，以及 profile 的规则。`dr-cli` 和 xtask 用它；
+  - `dr-debug-bridge`（界面层）：把请求交到 GPUI 的主线程，实现上面的方法。读外壳只走 dr-shell 的公开接口。
+- **挂接点只有一处**：`app/drifting/src/main.rs` 在 `dr_shell::init` 之后加了 `#[cfg(feature = "debug-bridge")] dr_debug_bridge::start(cx);`，dr-shell 一行没改（F6 正在改它）。读的是 F6 接口表里给调试桥列的那些：`Workspace` 的 `nav`、`pages`、`book`、侧栏，`open`、`open_link`、`top_layer`；退出时用 `quit::before_quit` 删掉连接文件。
+- **传输**：
+  - macOS 用 Unix socket，放在 `$TMPDIR/drifting-<实例名的哈希>.sock`（不超过 104 字节），权限 0600；
+  - Windows 用本机回环 TCP，端口由系统分配。设计里写的是命名管道，改成回环 TCP 是因为标准库就够，令牌照样挡住别的程序。Windows 那一份由 CI 的 Windows 那一条编译，还没在 Windows 上跑过；
+  - 连接文件 `debug-bridge.json`（0600）放在开发版的**数据文件夹**里，写明地址、进程号和令牌。客户端按 profile 就能找到它，不受 `TMPDIR` 影响；应用退出时删掉。
+- **每个请求一个主线程任务**：一个长的 `ui.wait` 不挡别的请求。打字、按键、点击走 `Window::dispatch_keystroke` 和 `dispatch_event`，而且是在任何实体的更新之外调用的，所以外壳自己的动作处理器、输入框的输入处理器，收到的和真实按键一样。测试里就看得出来：设置的搜索框里有字时，第一次 Esc 先清空，第二次才关掉设置，和外壳的规则一致。
+- **截图在应用里画**：GPUI 的 `Window::render_to_image` 把最后一帧画进一张纹理，不用屏幕录制权限，窗口被挡着也能拍。这个调用在 GPUI 的 test-support 后面，所以 `dr-debug-bridge/screenshot` 特性只在带调试桥的构建里打开。截图前默认等 500 ms（dr-ui 最长的结构动画是 420 ms）：第一次在真窗口上拍的时候，拍到了翻页叠化到一半、两章的字叠在一起。
+- **被遮住的窗口**：GPUI 在 macOS 上，窗口完全被遮住时会停掉显示链接、不再画帧；而外壳是在渲染时才开始读一页的正文，于是这一页会一直停在「读取中」。`ui.wait` 和截图发现窗口不可见时，自己调一次 `Window::draw`（只画、不上屏）把这一步推过去，再把窗口标脏，等它露出来时正常重画。
+- **没做的两样**：
+  - **按名字找元素**（设计里的 `ui.query`、`ui.click`）：GPUI 的 `debug_selector` 只在 test-support 下记录元素位置，读位置的接口又只在测试上下文里有。要做，得 dr-ui 和外壳给元素起名字，再由 GPUI 补丁或外壳自己记录位置。第一版先用 `input.click` 按坐标点，配合截图找位置；
+  - **组字**（`input.ime`）：真实窗口的输入处理器握在平台窗口手里，GPUI 只对测试窗口开放 `replace_and_mark_text_in_range`，要 gpui-ime 给调试构建开一个口子。
+
+  两样都写进了「待协调」。
+
+### 不进正式包
+
+- **门禁 `debug-bridge`**（`cargo xtask check` 的第 10 道），见上面的门禁表。
+- **`cargo xtask check-binary <文件>…`**：可执行文件里出现协议名 `drifting-debug-bridge/1` 就失败。协议名在握手里用到，所以带调试桥的构建里一定有它。本地验过：普通构建通过，`--features debug-bridge` 的构建被拦下。
+- **CI**：macOS 那一条打包以后，对包里的 `drifting` 跑 `check-binary`；再 `cargo check -p drifting --features debug-bridge`，保证带调试桥的开发版能编。
+
+## 阶段 2 验收：写作闭环
+
+场景文件是 `next/crates/dr-cli/scenarios/writing-loop.json`，用 `dr-cli scenario` 加调试桥在真实窗口上跑：
+
+```bash
+cd next
+cargo build -p drifting --features debug-bridge
+cargo drifting workspace scenario crates/dr-cli/scenarios/writing-loop.json --app target/debug/drifting
+```
+
+- **用自己的 profile**：不给 `--profile` 时，场景新建一个 `accept-<哈希>` profile，在它的空库里写入 showcase 种子并补齐索引，跑完删掉这个 profile 的数据和日志文件夹（`--keep` 留着）。作者的库、各 worktree 的开发库都碰不到。给了 `--profile` 就用那个 profile 的库，要加 `--yes`。
+- **新的步骤**：
+  - `seed`：往空库里写一个预设，写完补齐索引（不然启动前读到的字数和搜索不全）；
+  - `launch`：启动应用，带上 `DRIFTING_BOOK` 和指定的环境变量，等到调试桥应答为止。应用的输出写进输出目录的 `app-<n>.log`；
+  - `app`：调一个调试桥方法；
+  - `png`：把截图存进输出目录（默认 `target/acceptance/<场景名>/`）。
+- **其他变化**：
+  - 应用开着的时候，`call` 走调试桥的 `command.call`（库的锁在应用手里）；应用关着时直接开库；
+  - `expect` 支持 `{"$sum": […]}` 求和，`contains` 检查子串；
+  - 引用可以按字段挑数组元素：`${books.[name=慢钟].id}`；
+  - `pending` 跳过一步并写明原因，结尾报出跳过了几步；
+  - `note` 写这一步是干什么的。
+- **流程**：
+  1. 写入 showcase 种子，启动，等《慢钟》读好，截主页；
+  2. 按章名打开第一章，核对稿纸上的文字和 F3 读出的一致，截图；
+  3. 在编辑器里打一句、回车、⌘Z：**待 F6**；
+  4. 以作者身份经 F3 在第二章开头加一句（窗口外的写入，像帮手那样）；
+  5. 换到第二章，等那句话出现在稿纸上，核对两个标签，截图；
+  6. 退出，确认连接文件已删；
+  7. 重新启动，布局恢复：两个标签都在，停在第二章，那句话还在；
+  8. 回到第一章，核对它没被动过；
+  9. 全书字数正好多了 8 个字；搜索那句话，命中第二章；
+  10. 截图，退出。
+- **结果**：2026-11-08 在这台 Mac 上，40 步里 31 步通过，9 步标着「待 F6」；临时 profile 跑完删干净了。截图 4 张，都在动画走完以后拍。
+- **F6 接好编辑器以后**：
+  - 去掉 9 个 `pending`；
+  - 打字那一步要求打开的一章由编辑器拿到焦点，否则 `input.type` 报 `no_input`；
+  - 撤销那一步期望段落数回到原样、打的字还在。要是编辑器把打字和回车并成一步撤销，改这一步的期望；
+  - `page.text` 现在读的是外壳的只读行（每次改动后从 F3 重读），编辑器接上以后应改成读编辑器，见「待协调」。
 
 ## 待协调
 
@@ -420,10 +492,23 @@ cargo drifting workspace scenario ui-acceptance.json …   # 场景里可以混�
 - ~~**契约类证据改成断言**~~：已做（F1 第三轮）。四份 JSON 删了，改成测试里断言；模糊测试的两个崩溃输入成了回归测试。
 - ~~**测量换进基准**~~：已做（F1 第三轮）。`bench` 里加了 `doc` 套件（`src/bench/doc.rs`），`tests/measure.rs` 和 `f1-measure.json` 删了，里程碑测量是 `f1-m3-doc-bench.json`。
 
-### gpui-prose 与编辑器（F4）
+### dr-shell 与应用入口（F6）
+
+- **调试桥挂在哪**：只在 `app/drifting/src/main.rs` 加了一行（`dr_shell::init` 之后，`#[cfg(feature = "debug-bridge")]`），`app/drifting/Cargo.toml` 加了 `debug-bridge` 特性。dr-shell 没改。
+- **调试桥读外壳用到的接口**：`Workspace` 的 `nav`、`pages`（`PageSlot` 的 `items`、`ready`、`loading`）、`book`、`book_id`、`library`、`left`、`right`、`super_view`、`dock_locked`，以及 `open`、`open_link`、`top_layer`、`focus_handle`；`title_of`、`Item`、`Layer`、`Target::{key, from_key}`、`Open`、`Page`；`quit::before_quit`、`quit::request`、`open_workspace`、`Services`、`ShellInfo`。改这些时请顺手改 `crates/dr-debug-bridge/src/methods.rs`（它在全工作区构建里，编不过 CI 会报）。
+- **编辑器接进稿纸以后，调试桥需要两样**：
+  1. 打开一章时，编辑器拿到焦点（或者给 `Workspace` 一个把焦点交给当前页编辑器的方法），`input.type` 才有地方去；
+  2. 一个读当前页编辑器的入口，比如 `Workspace::page_editor(&Target) -> Option<Entity<ChapterEditor>>`。`page.text` 改成读编辑器的文字，`state.get` 加上选区。
+
+  有了这两样，去掉 `writing-loop.json` 里的 9 个 `pending`，写作闭环就完整了。
+- **调试名**：要按名字找元素、点元素，dr-ui 的组件和外壳要给可交互的元素起稳定的名字；GPUI 现在只在测试上下文里读得到元素位置，需要一个小补丁或者外壳自己记录。
+
+### gpui-prose、gpui-ime 与编辑器（F4、F5）
 
 - **基准换地方**：`prose-bench` 的语料（xorshift 那一套）要换成 `dr_testkit::seed`。但 gpui-prose 不能依赖 `dr-*`，所以基准程序要搬到 AGPL 的 `dr-editor`（或者一个单独的基准 crate）里。
 - **重测**：搬过去以后，按新格式重测 `f4-*.json`。语料指纹会变一次。
+- **收编编辑器的基准语料**（监管会话这一轮的第 3 条）：F4 把基准搬进 `dr-editor` 交回以后，F8 把它收成 `bench` 的一个套件（`editor`），语料用统一种子，再按新格式重测。等 F4。
+- **组字**：调试桥要模拟输入法（`setMarkedText` 再 `insertText` 那一路），需要 gpui-ime 在调试构建里开一个入口。真实窗口的输入处理器握在 GPUI 的平台窗口手里，外面拿不到。
 
 ### dr-workspace（F3）
 
@@ -443,25 +528,29 @@ cargo drifting workspace scenario ui-acceptance.json …   # 场景里可以混�
 
 ### dr-platform（F7）
 
-- **路径函数**：可以给 `AppDirs` 加一个按指定 profile 算路径的函数。这样 `cargo xtask dev --print-config` 就不用自己按同样的算法算一遍（现在靠测试保证两边一致）。
+- **路径函数**：可以给 `AppDirs` 加一个按指定 profile 算路径的函数。现在 xtask 和 `cargo drifting app` 都用 `dr_debug_protocol::place` 按同样的算法算一遍，靠测试保证和 `AppDirs` 一致。
+- **发布流程**：`script/release-next.draft.yml` 正式启用时，在打包之后加 `cargo xtask check-binary <可执行文件>`，Windows 安装包里那一份也要查。门禁已经保证这些脚本里不出现 `debug-bridge`。
+- **Windows**：调试桥在 Windows 上走本机回环 TCP，由 CI 编译，还没在 Windows 上跑过。
 
 ### 监管会话
 
 - `progress.md` 里 F8 那一行；
-- `AGENTS.md` 的「New workspace」检查清单已经加上 `cargo xtask check`；
+- `AGENTS.md` 的「New workspace」检查清单已经加上 `cargo xtask check`；第三个里程碑在同一节加了调试桥的用法；
 - 各探针的旧证据和探针本身删掉的时候，把 `retired.rs` 里 `spikes/import-v1` 那一条例外一起删掉。
 
 ## 下一个里程碑建议
 
-1. **调试桥**：F6 合进来以后照上面的设计做，同时加「调试桥不进正式包」的门禁。
-2. **补齐种子**：
+1. **写作闭环跑全**：F6 把编辑器接进稿纸、给出上面那两样以后，去掉 9 个 `pending`，`page.text` 改读编辑器；再试着把这个场景放进 CI 的 macOS 那一条（runner 有图形会话）。
+2. **按名字找元素**：和 F5、F6 商量调试名，做 `ui.query`、按名字点；和 F4、F5 商量组字的入口。
+3. **编辑器基准**：F4 交回以后，收成 `bench` 的 `editor` 套件。
+4. **补齐种子**：
    - 素材图片和 PDF（合成的小文件，或者从样书插图生成）；
    - 帮手对话：heavy 的 24 段、1800 轮；
    - 样书和 showcase 也走一遍命令，对拍；
    - F3 补上时间钉和写作日的命令以后，对拍把它们也比上。
-3. **迁移旧证据**：F1、F2、F4、M10、dr-index 的旧证据和基准迁进 `bench` 和新证据格式，迁完以后把「旧格式」改成失败。
-4. **`inspect` 换只读打开**：F2 的只读打开合进来以后，`inspect` 和查询不再先复制库。
-5. **旧库测试库**：冻结旧库测试库（阶段 7 第 1 条），钉住 SHA-256。
+5. **迁移旧证据**：F1、F2、F4、M10、dr-index 的旧证据和基准迁进 `bench` 和新证据格式，迁完以后把「旧格式」改成失败。
+6. **`inspect` 换只读打开**：F2 的只读打开合进来以后，`inspect` 和查询不再先复制库。
+7. **旧库测试库**：冻结旧库测试库（阶段 7 第 1 条），钉住 SHA-256。
 
 ## 代码位置
 
@@ -479,9 +568,13 @@ next/crates/dr-testkit/
   fixtures/               样书 JSON 和来源说明
   tests/                  种子、两种写法对拍、样书、崩溃（F2 示范）、基准
 next/xtask/
-  src/main.rs             cargo xtask check | evidence --check | dev
-  src/gates/              9 道门禁
-  src/dev.rs              开发实例隔离
-next/crates/dr-cli/       开发命令行：describe、call、scenario（src/scenario.rs）、inspect
+  src/main.rs             cargo xtask check | evidence --check | check-binary | dev
+  src/gates/              10 道门禁（调试桥那道在 debug_bridge.rs）
+  src/dev.rs              开发实例隔离、--debug-bridge
+next/crates/dr-cli/       开发命令行：describe、call、scenario（src/scenario.rs、src/live.rs）、inspect、app（src/app.rs）
+  scenarios/              验收场景：writing-loop.json（阶段 2 写作闭环）
+next/crates/dr-debug-protocol/   调试桥的线上格式、连接文件、客户端、监听线程、profile 规则（不依赖 GPUI）
+next/crates/dr-debug-bridge/     调试桥的方法，跑在 GPUI 主线程上；tests/bridge.rs 在测试平台和真 socket 上验
+next/app/drifting/        debug-bridge 特性和唯一的挂接点（src/main.rs）
 next/.cargo/config.toml   cargo xtask、cargo drifting 两个别名
 ```

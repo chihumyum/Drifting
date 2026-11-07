@@ -5,15 +5,18 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
-description = "Drifting's development command line (`cargo drifting workspace describe | call | inspect | scenario`), with the offline-write safety rules"
+description = "Drifting's development command line (`cargo drifting workspace describe | call | inspect | scenario`, `cargo drifting app …`), with the offline-write safety rules"
 
 [[bin]]
 name = "dr-cli"
 path = "src/main.rs"
 
 [dependencies]
+base64.workspace = true
+dr-debug-protocol.workspace = true
 dr-doc.workspace = true
 dr-model.workspace = true
+dr-platform.workspace = true
 dr-store.workspace = true
 dr-testkit.workspace = true
 dr-workspace.workspace = true

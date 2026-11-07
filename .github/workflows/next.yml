@@ -111,6 +111,13 @@ jobs:
       # and the updater archive a release ships (F7).
       - if: ${{ !cancelled() && matrix.platform == 'macos' }}
         run: script/bundle-mac --debug --dmg --archive
+      # F8's debug bridge never ships (simplifications.md §6 rule 9): the
+      # bundle's executable must not carry it; the development build that
+      # does must still compile.
+      - if: ${{ !cancelled() && matrix.platform == 'macos' }}
+        run: cargo xtask check-binary "target/bundle/Drifting Next.app/Contents/MacOS/drifting"
+      - if: ${{ !cancelled() && matrix.platform == 'macos' }}
+        run: cargo check --locked -p drifting --features debug-bridge
       # The release side of updates with a throwaway key (never the release
       # key): sign the archive as `tauri signer` does and verify it; then mount
       # the disk image and find the app and the /Applications link in it.

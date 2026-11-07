@@ -171,6 +171,9 @@ fn main() {
                 .filter(|b| !b.trim().is_empty()),
         };
         dr_shell::init(info, services, settings, cx);
+        // F8's debug bridge, in `--features debug-bridge` builds only.
+        #[cfg(feature = "debug-bridge")]
+        dr_debug_bridge::start(cx);
         probe::shell_ready();
         cx.on_action(about::open);
         if !cfg!(target_os = "macos") {

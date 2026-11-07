@@ -1356,13 +1356,47 @@ dependencies = [
 name = "dr-cli"
 version = "0.0.0"
 dependencies = [
+ "base64 0.22.1",
+ "dr-debug-protocol",
  "dr-doc",
  "dr-model",
+ "dr-platform",
  "dr-store",
  "dr-testkit",
  "dr-workspace",
  "loro",
  "rusqlite",
+ "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
+name = "dr-debug-bridge"
+version = "0.0.0"
+dependencies = [
+ "base64 0.22.1",
+ "dr-debug-protocol",
+ "dr-platform",
+ "dr-shell",
+ "dr-store",
+ "dr-testkit",
+ "dr-workspace",
+ "futures",
+ "gpui",
+ "gpui_platform",
+ "log",
+ "png 0.18.1",
+ "serde_json",
+ "tempfile",
+ "uuid",
+]
+
+[[package]]
+name = "dr-debug-protocol"
+version = "0.0.0"
+dependencies = [
+ "dirs",
  "serde",
  "serde_json",
  "tempfile",
@@ -1606,6 +1640,7 @@ name = "drifting"
 version = "0.2.0-dev"
 dependencies = [
  "anyhow",
+ "dr-debug-bridge",
  "dr-platform",
  "dr-shell",
  "dr-ui",
@@ -8473,6 +8508,7 @@ name = "xtask"
 version = "0.0.0"
 dependencies = [
  "dirs",
+ "dr-debug-protocol",
  "dr-platform",
  "dr-testkit",
  "regex",

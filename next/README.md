@@ -124,6 +124,21 @@ cargo drifting workspace inspect --library <目录>  # 只读查看一个库
 - **隔离**：在 linked worktree 里，每个 checkout 的开发版有自己的数据、日志、钥匙串服务和单实例锁。
 - **离线改库**：要应用关着、先备份、加 `--yes`。查询和只读的场景在库的副本上跑，不用 `--yes`。
 
+## 调试桥：照脚本操作真实窗口
+
+开发版带上调试桥以后，Agent 会话或脚本能打开书和章、打字、按键、触发动作、调 F3 的命令，读回稿纸上的文字、外壳的状态和截图。正式包里没有它（`cargo xtask check` 的 `debug-bridge` 门禁、`cargo xtask check-binary`）。
+
+```bash
+cargo xtask dev --debug-bridge                    # 这个 worktree 的开发版，带调试桥
+cargo drifting app state                          # 连上正在跑的那个（按 profile 找）
+cargo drifting app open 第一章                     # 还有 type、key、dispatch、call、text、wait、screenshot、quit
+cargo build -p drifting --features debug-bridge
+cargo drifting workspace scenario crates/dr-cli/scenarios/writing-loop.json --app target/debug/drifting
+                                                  # 阶段 2 写作闭环，在一个临时 profile 里跑完再删掉
+```
+
+方法表、场景的写法、被遮住的窗口和截图的细节见 [f8-testkit.md](../docs/rust-rewrite/foundations/f8-testkit.md)「调试桥」。
+
 ## 工作区约定
 
 - **成员**：`Cargo.toml` 的 `members` 一行一个、按字母排，几路分支同时加 crate 也不冲突。
@@ -152,7 +167,9 @@ next/
   rust-toolchain.toml   工具链
   .cargo/config.toml    别名：cargo xtask、cargo drifting
   app/drifting/         可执行程序：窗口、标题栏、菜单、外观、开发探针
-  crates/dr-cli/        F8：开发命令行（cargo drifting workspace …）
+  crates/dr-cli/        F8：开发命令行（cargo drifting workspace …、cargo drifting app …）和验收场景
+  crates/dr-debug-bridge/, crates/dr-debug-protocol/
+                        F8：调试桥（只在 --features debug-bridge 的开发版里）和它的协议、客户端
   crates/dr-platform/   F7：身份与目录、日志、崩溃上报、钥匙串、深链接与单实例、自动更新
   crates/dr-testkit/    F8：种子、样书、测量证据、崩溃试验台、基准
   xtask/                F8：门禁（cargo xtask check）和开发启动器（cargo xtask dev）

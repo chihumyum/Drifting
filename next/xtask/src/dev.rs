@@ -7,11 +7,17 @@
 //! worktrees never share a library or a lock. `--instance <name>` adds a
 //! suffix for parallel runs in one checkout. In the main checkout there is
 //! no profile unless `--instance` is given: that is the author's daily
-//! development build.
+//! development build. `--debug-bridge` builds the app with F8's debug
+//! bridge (`cargo drifting app …` drives it).
+//!
+//! The profile rules live in `dr_debug_protocol::place`, which dr-cli uses
+//! to find the same build.
 
 use std::path::Path;
 use std::process::Command;
 
+use dr_debug_protocol::Paths;
+pub use dr_debug_protocol::place::{profile, worktree_name};
 use serde_json::json;
 
 /// dr-platform's development identity (`identity::DEVELOPMENT`), checked
@@ -19,13 +25,13 @@ use serde_json::json;
 pub const DEV_BUNDLE_ID: &str = "cc.drifting.next.dev";
 pub const DEV_KEYCHAIN_SERVICE: &str = "Drifting.cc.drifting.next.dev";
 pub const PROFILE_ENV: &str = "DRIFTING_PROFILE";
-const MAX_PROFILE: usize = 32;
 
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct Options {
     pub instance: Option<String>,
     pub print_config: bool,
     pub release: bool,
+    pub debug_bridge: bool,
     pub app_args: Vec<String>,
 }
 
@@ -48,6 +54,7 @@ pub fn parse(args: &[String]) -> Result<Options, String> {
             }
             "--print-config" => o.print_config = true,
             "--release" => o.release = true,
+            "--debug-bridge" => o.debug_bridge = true,
             "--" => {
                 o.app_args = it.cloned().collect();
                 break;
@@ -56,81 +63,6 @@ pub fn parse(args: &[String]) -> Result<Options, String> {
         }
     }
     Ok(o)
-}
-
-/// `a-z`, `0-9`, `-`; at most 32 characters (dr-platform ignores anything
-/// else). A long name keeps its start and gets a short hash, so two long
-/// worktree names never collapse into one profile.
-pub fn sanitize(name: &str) -> String {
-    let mut s = String::new();
-    for c in name.chars().flat_map(char::to_lowercase) {
-        if c.is_ascii_lowercase() || c.is_ascii_digit() {
-            s.push(c);
-        } else if !s.ends_with('-') {
-            s.push('-');
-        }
-    }
-    let s = s.trim_matches('-').to_string();
-    let s = if s.is_empty() {
-        "worktree".to_string()
-    } else {
-        s
-    };
-    if s.len() <= MAX_PROFILE {
-        return s;
-    }
-    let hash = format!(
-        "{:06x}",
-        dr_testkit::digest::fnv1a64(name.as_bytes()) & 0xFF_FFFF
-    );
-    let keep = MAX_PROFILE - hash.len() - 1;
-    format!("{}-{hash}", s[..keep].trim_end_matches('-'))
-}
-
-/// The profile for a checkout: its worktree name (linked worktrees), plus
-/// the instance.
-pub fn profile(worktree: Option<&str>, instance: Option<&str>) -> Option<String> {
-    match (worktree, instance) {
-        (None, None) => None,
-        (None, Some(i)) => Some(sanitize(i)),
-        (Some(w), None) => Some(sanitize(w)),
-        (Some(w), Some(i)) => {
-            let suffix = format!("-{}", sanitize(i));
-            let base = sanitize(w);
-            let room = MAX_PROFILE.saturating_sub(suffix.len());
-            Some(format!(
-                "{}{suffix}",
-                base[..base.len().min(room)].trim_end_matches('-')
-            ))
-        }
-    }
-}
-
-fn git(root: &Path, args: &[&str]) -> Option<String> {
-    let out = Command::new("git")
-        .current_dir(root)
-        .args(args)
-        .output()
-        .ok()?;
-    out.status
-        .success()
-        .then(|| String::from_utf8_lossy(&out.stdout).trim().to_string())
-}
-
-/// The linked worktree's name, or `None` in the main checkout.
-pub fn worktree_name(root: &Path) -> Option<String> {
-    let dir = git(root, &["rev-parse", "--absolute-git-dir"])?;
-    let common = git(
-        root,
-        &["rev-parse", "--path-format=absolute", "--git-common-dir"],
-    )?;
-    if Path::new(&dir) == Path::new(&common) {
-        return None;
-    }
-    let top = git(root, &["rev-parse", "--show-toplevel"])?;
-    Path::new(&top)
-        .file_name()
-        .map(|n| n.to_string_lossy().into_owned())
 }
 
 /// The folders dr-platform gives `instance` (`paths::AppDirs`).
@@ -157,6 +89,11 @@ pub fn config(root: &Path, o: &Options) -> serde_json::Value {
         None => DEV_KEYCHAIN_SERVICE.to_string(),
     };
     let (data, logs) = folders(&instance);
+    let bridge = Paths::for_instance(&instance).ok();
+    let mut command = vec!["cargo", "run", "-p", "drifting"];
+    if o.debug_bridge {
+        command.extend(["--features", "debug-bridge"]);
+    }
     json!({
         "worktree": worktree,
         "profile": profile,
@@ -165,7 +102,12 @@ pub fn config(root: &Path, o: &Options) -> serde_json::Value {
         "logDir": logs,
         "keychainService": keychain,
         "env": { PROFILE_ENV: profile },
-        "command": ["cargo", "run", "-p", "drifting"],
+        "command": command,
+        "debugBridge": bridge.map(|p| json!({
+            "enabled": o.debug_bridge,
+            "connectionFile": p.connection.to_string_lossy(),
+            "socket": p.socket.to_string_lossy(),
+        })),
     })
 }
 
@@ -185,6 +127,9 @@ pub fn run(root: &Path, next: &Path, args: &[String]) -> Result<i32, String> {
     if o.release {
         cmd.arg("--release");
     }
+    if o.debug_bridge {
+        cmd.args(["--features", "debug-bridge"]);
+    }
     if !o.app_args.is_empty() {
         cmd.arg("--").args(&o.app_args);
     }
@@ -202,6 +147,7 @@ pub fn run(root: &Path, next: &Path, args: &[String]) -> Result<i32, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use dr_debug_protocol::place::sanitize;
 
     #[test]
     fn profiles_fit_what_dr_platform_accepts() {
@@ -246,8 +192,9 @@ mod tests {
     #[test]
     fn options() {
         let a = |s: &[&str]| s.iter().map(|x| x.to_string()).collect::<Vec<_>>();
-        let o = parse(&a(&["--instance", "two", "--", "--mcp"])).unwrap();
+        let o = parse(&a(&["--instance", "two", "--debug-bridge", "--", "--mcp"])).unwrap();
         assert_eq!(o.instance.as_deref(), Some("two"));
+        assert!(o.debug_bridge);
         assert_eq!(o.app_args, vec!["--mcp"]);
         assert!(parse(&a(&["--instance", "Bad Name"])).is_err());
         assert!(parse(&a(&["--what"])).is_err());
