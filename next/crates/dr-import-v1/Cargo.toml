@@ -9,6 +9,8 @@ description = "Drifting 0.2: import a 0.1.x library (SQLite + contentJson caches
 
 [dependencies]
 dr-doc.workspace = true
+# Search, outlines and word counts built right after the import.
+dr-index.workspace = true
 dr-model.workspace = true
 dr-store.workspace = true
 log.workspace = true
@@ -24,6 +26,8 @@ thiserror.workspace = true
 libc.workspace = true
 
 [dev-dependencies]
+# Measured evidence in the one format (`examples/m10-measure.rs`).
+dr-testkit.workspace = true
 tempfile.workspace = true
 
 [build-dependencies]

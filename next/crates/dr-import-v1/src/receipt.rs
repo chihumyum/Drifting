@@ -1,17 +1,21 @@
-//! The import's own records, beside the new library:
+//! The import's own records:
 //!
 //! ```text
-//! <library>/import-v1/receipt.sqlite   what was imported, normalised, doubted;
-//!                                      the read-only Agent archive; device-local
-//!                                      0.1 state (settings, MCP servers, working
-//!                                      memory, Markdown folder ledger, flags)
-//! <library>/import-v1/summary.md       the same, for the author
+//! <library>/library.sqlite             the receipt: import_run, import_book,
+//!                                      import_doc, import_anchor, import_original
+//!                                      (dr-store migration 0001, written through
+//!                                      Library::local_transaction)
+//! <library>/import-v1/receipt.sqlite   the read-only Agent archive and the
+//!                                      device-local 0.1 state (settings, MCP
+//!                                      servers, working memory, Markdown folder
+//!                                      ledger, flags), until their modules take
+//!                                      them over (F6, M30, M31, M32, M40)
+//! <library>/import-v1/summary.md       the receipt, for the author
 //! ```
 //!
-//! dr-store's baseline has no tables for these yet, and other foundations'
-//! migrations are not this crate's to add (`m10-import.md` 待协调): the
-//! receipt keeps them in its own SQLite file until their modules (F6, M30,
-//! M31, M32, M40) take them over. Everything here is device-local.
+//! The archive stays a file of its own because it is copied from the
+//! staging database with `ATTACH`, which SQLite does not allow inside the
+//! library's transactions. Everything here is device-local.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -103,6 +107,10 @@ pub struct BookRecord {
     pub notes: Notes,
     pub bodies: usize,
     pub history_points: usize,
+    /// History rows whose metadata (title, summary, …) was replayed into
+    /// the book document, and of those, how many hold at their point.
+    pub history_meta_replayed: usize,
+    pub history_meta_checked: usize,
     pub assets_copied: usize,
     pub assets_missing: usize,
     pub assets_mismatched: usize,
@@ -132,60 +140,13 @@ pub struct Receipt {
     pub archived_rows: BTreeMap<String, i64>,
     pub local_rows: BTreeMap<String, i64>,
     pub installation_id_adopted: bool,
+    /// `kept` (the default) or `thinned`: whether the history points brought
+    /// from 0.1 are exempt from the 30-day retention.
+    pub history_retention: &'static str,
 }
 
-const SCHEMA: &str = "
-CREATE TABLE IF NOT EXISTS import_run (
-    id INTEGER PRIMARY KEY,
-    importer TEXT NOT NULL,
-    started_ms INTEGER NOT NULL,
-    finished_ms INTEGER NOT NULL,
-    source_sha256 TEXT NOT NULL,
-    source_bytes INTEGER NOT NULL,
-    schema_level_before INTEGER NOT NULL,
-    gate_json TEXT NOT NULL,
-    accepted_json TEXT NOT NULL,
-    summary_json TEXT NOT NULL
-) STRICT;
-CREATE TABLE IF NOT EXISTS import_book (
-    run_id INTEGER NOT NULL,
-    book_id TEXT NOT NULL,
-    name TEXT NOT NULL,
-    status TEXT NOT NULL,
-    record_json TEXT NOT NULL,
-    PRIMARY KEY (run_id, book_id)
-) STRICT;
-CREATE TABLE IF NOT EXISTS import_doc (
-    run_id INTEGER NOT NULL,
-    doc_id TEXT NOT NULL,
-    old_doc_id TEXT NOT NULL,
-    book_id TEXT NOT NULL,
-    freshness TEXT NOT NULL,
-    revision INTEGER,
-    cache_sha256 TEXT,
-    history_versions INTEGER NOT NULL,
-    stored_exactly INTEGER NOT NULL,
-    round_trips INTEGER NOT NULL,
-    record_json TEXT NOT NULL,
-    PRIMARY KEY (run_id, doc_id)
-) STRICT;
-CREATE TABLE IF NOT EXISTS import_anchor (
-    run_id INTEGER NOT NULL,
-    entity TEXT NOT NULL,
-    id TEXT NOT NULL,
-    doc_id TEXT NOT NULL,
-    resolution TEXT NOT NULL,
-    cursor INTEGER NOT NULL,
-    PRIMARY KEY (run_id, entity, id)
-) STRICT;
-CREATE TABLE IF NOT EXISTS import_original (
-    run_id INTEGER NOT NULL,
-    collection TEXT NOT NULL,
-    id TEXT NOT NULL,
-    field TEXT NOT NULL,
-    json TEXT NOT NULL,
-    PRIMARY KEY (run_id, collection, id, field)
-) STRICT;
+/// The archive's own table (the other archive tables are copies).
+const ARCHIVE_SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS local_setting (
     key TEXT PRIMARY KEY NOT NULL,
     value TEXT NOT NULL
@@ -199,51 +160,98 @@ fn kebab<T: Serialize>(v: &T) -> String {
         .unwrap_or_default()
 }
 
-/// Write the receipt, the archive and the local state. `staged` is the
-/// staging copy the archive tables are copied from.
-pub fn write(
-    root: &Path,
-    staged: &Path,
-    receipt: &Receipt,
-    settings: &BTreeMap<String, String>,
-) -> Result<PathBuf> {
-    let dir = directory(root);
-    std::fs::create_dir_all(&dir)?;
-    let path = dir.join(DATABASE);
-    let conn = Connection::open(&path)?;
-    conn.execute_batch(SCHEMA)?;
-    conn.execute("ATTACH DATABASE ?1 AS old", [staged.to_string_lossy()])?;
-    let tx = conn.unchecked_transaction()?;
+fn json<T: Serialize>(v: &T) -> rusqlite::Result<String> {
+    serde_json::to_string(v).map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))
+}
+
+/// What the receipt knows when an import starts.
+pub struct RunStart<'a> {
+    pub started_ms: i64,
+    pub source_sha256: &'a str,
+    pub source_bytes: u64,
+    pub schema_level_before: usize,
+    pub gate: &'a Gate,
+    pub accepted: crate::gate::Accept,
+}
+
+/// Open this import's run in the library's receipt tables (dr-store `0001`),
+/// before anything is written: a book whose row still says `importing`
+/// later was interrupted on this device. Returns the run's id.
+pub fn begin_run(tx: &rusqlite::Transaction<'_>, start: &RunStart<'_>) -> rusqlite::Result<i64> {
     tx.execute(
-        "INSERT INTO import_run (importer, started_ms, finished_ms, source_sha256, source_bytes, schema_level_before, gate_json, accepted_json, summary_json) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        "INSERT INTO import_run (importer, started_ms, finished_ms, source_sha256, source_bytes, schema_level_before, gate_json, accepted_json, summary_json) VALUES (?1, ?2, ?2, ?3, ?4, ?5, ?6, ?7, '{}')",
         params![
-            receipt.importer,
-            receipt.started_ms,
+            crate::run::IMPORTER,
+            start.started_ms,
+            start.source_sha256,
+            start.source_bytes as i64,
+            start.schema_level_before as i64,
+            json(start.gate)?,
+            json(&start.accepted)?,
+        ],
+    )?;
+    Ok(tx.last_insert_rowid())
+}
+
+/// Mark `book` as being imported by run `run` (before its first document
+/// is stored).
+pub fn begin_book(
+    tx: &rusqlite::Transaction<'_>,
+    run: i64,
+    book: &str,
+    name: &str,
+) -> rusqlite::Result<()> {
+    tx.execute(
+        "INSERT OR REPLACE INTO import_book VALUES (?1, ?2, ?3, 'importing', '{}')",
+        params![run, book, name],
+    )?;
+    Ok(())
+}
+
+/// What earlier imports on this device did with `book`: (finished it,
+/// started it and were interrupted).
+pub fn book_state(conn: &Connection, book: &str) -> rusqlite::Result<(bool, bool)> {
+    conn.query_row(
+        "SELECT coalesce(max(status = 'imported'), 0), coalesce(max(status = 'importing'), 0) FROM import_book WHERE book_id = ?1",
+        [book],
+        |r| Ok((r.get::<_, bool>(0)?, r.get::<_, bool>(1)?)),
+    )
+}
+
+/// Finish run `run` in the library's receipt tables (dr-store `0001`), in
+/// the transaction `tx` (from `Library::local_transaction`). (A JSON error
+/// surfaces as a SQLite conversion error, so the transaction's error type
+/// stays dr-store's.)
+pub fn write_records(
+    tx: &rusqlite::Transaction<'_>,
+    run: i64,
+    receipt: &Receipt,
+) -> rusqlite::Result<()> {
+    tx.execute(
+        "UPDATE import_run SET finished_ms = ?2, summary_json = ?3 WHERE id = ?1",
+        params![
+            run,
             receipt.finished_ms,
-            receipt.source_sha256,
-            receipt.source_bytes as i64,
-            receipt.schema_level_before as i64,
-            serde_json::to_string(&receipt.gate)?,
-            serde_json::to_string(&receipt.accepted)?,
-            serde_json::to_string(&serde_json::json!({
+            json(&serde_json::json!({
                 "orphanYjsDocs": receipt.orphan_yjs_docs,
                 "archivedRows": receipt.archived_rows,
                 "localRows": receipt.local_rows,
                 "installationIdAdopted": receipt.installation_id_adopted,
+                "historyRetention": receipt.history_retention,
             }))?,
         ],
     )?;
-    let run = tx.last_insert_rowid();
-    for b in &receipt.books {
-        tx.execute(
-            "INSERT INTO import_book VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![run, b.book_id, b.name, b.status, serde_json::to_string(b)?],
-        )?;
-    }
-    for d in &receipt.docs {
-        tx.execute(
+    {
+        let mut book =
+            tx.prepare("INSERT OR REPLACE INTO import_book VALUES (?1, ?2, ?3, ?4, ?5)")?;
+        for b in &receipt.books {
+            book.execute(params![run, b.book_id, b.name, b.status, json(b)?])?;
+        }
+        let mut doc = tx.prepare(
             "INSERT INTO import_doc VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
-            params![
+        )?;
+        for d in &receipt.docs {
+            doc.execute(params![
                 run,
                 d.doc_id,
                 d.old_doc_id,
@@ -254,30 +262,47 @@ pub fn write(
                 d.history_versions as i64,
                 d.stored_exactly,
                 d.round_trips,
-                serde_json::to_string(d)?
-            ],
-        )?;
-    }
-    for a in &receipt.anchors {
-        tx.execute(
-            "INSERT OR REPLACE INTO import_anchor VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![
+                json(d)?
+            ])?;
+        }
+        let mut anchor =
+            tx.prepare("INSERT OR REPLACE INTO import_anchor VALUES (?1, ?2, ?3, ?4, ?5, ?6)")?;
+        for a in &receipt.anchors {
+            anchor.execute(params![
                 run,
                 a.entity,
                 a.id,
                 a.doc_id,
                 kebab(&a.resolution),
                 a.cursor
-            ],
-        )?;
+            ])?;
+        }
+        let mut original =
+            tx.prepare("INSERT OR REPLACE INTO import_original VALUES (?1, ?2, ?3, ?4, ?5)")?;
+        for (c, id, f, json) in &receipt.originals {
+            original.execute(params![run, c, id, f, json])?;
+        }
     }
-    for (c, id, f, json) in &receipt.originals {
-        tx.execute(
-            "INSERT OR REPLACE INTO import_original VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![run, c, id, f, json],
-        )?;
-    }
-    // The Agent archive and the local state: the 0.1 rows as they are.
+    Ok(())
+}
+
+/// Copy the read-only Agent archive and the device-local 0.1 state from the
+/// staging copy `staged` into `<library>/import-v1/receipt.sqlite`, and
+/// write the author's summary beside it.
+pub fn write_archive(
+    root: &Path,
+    staged: &Path,
+    receipt: &Receipt,
+    settings: &BTreeMap<String, String>,
+) -> Result<PathBuf> {
+    let dir = directory(root);
+    std::fs::create_dir_all(&dir)?;
+    let path = dir.join(DATABASE);
+    let conn = Connection::open(&path)?;
+    conn.execute_batch(ARCHIVE_SCHEMA)?;
+    conn.execute("ATTACH DATABASE ?1 AS old", [staged.to_string_lossy()])?;
+    let tx = conn.unchecked_transaction()?;
+    // The 0.1 rows as they are.
     for (prefix, tables) in [("archive_", AGENT_ARCHIVE), ("local_", LOCAL)] {
         for t in tables {
             tx.execute_batch(&format!(
@@ -409,6 +434,9 @@ pub fn summary_zh(r: &Receipt) -> String {
             b.history_points,
             b.assets_copied
         ));
+        if b.history_meta_replayed > 0 {
+            s.push_str("旧版快照历史里当时的标题、梗概等也一起搬了过来：从历史点恢复一个对象时，这些也会恢复。\n\n");
+        }
         if b.assets_missing + b.assets_mismatched > 0 {
             s.push_str(&format!(
                 "有 {} 个资源文件找不到、{} 个和记录的哈希对不上，没有导入。\n\n",
