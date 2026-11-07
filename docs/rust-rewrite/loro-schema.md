@@ -1,6 +1,6 @@
-# Loro 文档结构 v2
+# Loro 文档结构 v2.1
 
-2026-11-07 由 P0-C 探针定下 v0，同日 F1 实现时改成 v1，再按监管会话的数据层审查改成 v2（改了什么、为什么见「版本」一节的「v0 → v1」「v1 → v2」）。以后任何改动都要升版本号，并在这里写明从哪一版改成哪一版、旧文档怎么读。
+2026-11-07 由 P0-C 探针定下 v0，同日 F1 实现时改成 v1，再按监管会话的数据层审查改成 v2；2026-11-08 F1 第五轮加了几样向后兼容的东西（正文模板文档、种子变更、待办的任务文字），记成 v2.1（改了什么、为什么见「版本」一节）。以后任何改动都要升版本号，并在这里写明从哪一版改成哪一版、旧文档怎么读。
 
 - 正式实现：`next/crates/dr-doc/`（类型化的书目文档和正文文档）和 `next/crates/dr-model/`（领域类型、不变量清单），说明见 [foundations/f1-model-doc.md](foundations/f1-model-doc.md)。
 - 探针的实现和测试：`next/spikes/loro-model/`（包名 `loro-model-spike`），只读保留。
@@ -23,13 +23,15 @@
 | 故事线说明 | `storyline:<故事线 id>` | 每条故事线 1 |
 | 分类说明 | `category:<分类 id>` | 每个分类 1 |
 | 素材笔记 | `material:<素材 id>` | 每篇文本素材 1 |
+| 正文模板（v2.1） | `template:category:<分类 id>`（要素模板）、`template:storyline:<故事线 id>`（章节模板） | 每个分类、每条故事线最多 1 |
 
 - 实体 id 沿用旧数据的 uuidv7。旧库导入后 id 不变。
-- 正文文档有两种编辑配置：`material:` 用「笔记」配置，其余用「正文」配置（和旧版 `editor-schema-profile.ts` 一样，配置跟着文档走，不跟着视图走）。
+- 正文文档有两种编辑配置：`material:` 用「笔记」配置，其余用「正文」配置（和旧版 `editor-schema-profile.ts` 一样，配置跟着文档走，不跟着视图走）。模板用「正文」配置，和用它新建的章节、要素一样。
+- **正文模板**是一篇普通的正文文档，结构、创世、写入规则和别的正文完全一样，只是 id 由主人算出（`TemplateOwner::doc_id`）：两台设备同时开始写同一个分类的模板，写的是同一篇，会合并。它不是书的正文：不进搜索、不计字数、不导出（`DocKind::is_book_text`）。新建要素、新建章节时把它整篇抄进新正文（`ProseTxn::insert_copy`：段落属性、行内标记、人物链接、表格、素材嵌入都抄，块 ID 和嵌入 id 换新的）。分类、故事线彻底删除以后，它的模板文档就没有主人了（`BookView::owns_prose` 按主人认），和别的没主人的正文一样清掉。
 
 ### 版本号
 
-- 每个文档的 `meta` 映射里有 `v`，现在是 `2`（见「版本」）。
+- 每个文档的 `meta` 映射里有 `v`，现在是 `2`（见「版本」）。v2.1 只加了向后兼容的东西，`meta.v` 和创世都不变。
 - 下文的样式表（每个标记键的 `ExpandType`）也是结构的一部分，规则见下面「样式表」一节。
 
 ### 样式表：只有一个来源
@@ -65,12 +67,37 @@
 - 创世对等方只写创世变更，别的什么都不写。
 - 创世内容将来要改，就升创世版本号。版本号参与算对等方 ID，所以新旧两版的创世变更 ID 不同，最坏只是多一个空段落，不会出现「同一个 ID、两份不同内容」。
 
+### 种子变更（v2.1）
+
+有些写入在每台设备上写出来都一样，而且常常是两台设备还没同步就各写了一遍：从正文 TODO 标记投出的待办、新情节规划表的三行三列。当成普通的本机改动写，合并会出三种错：
+
+- 一段文字两边各插一遍，读出来两遍（「补一场雨补一场雨」）；
+- 两边各给新行新列起一个随机 id，合起来六行六列；
+- 映射的键按 Lamport 时间「后写的赢」，一台写得多的设备晚一点写的默认值，可能盖掉另一台设备上作者的改动（已解决的待办又打开了）。
+
+**做法**：和创世一样，在一份空文档里写好、再导入（`dr_doc::book::seed`）：
+
+- 写入者是「种子对等方」，ID 由（文档 id，种子的键）算出（FNV-1a 64 位，最高位和最低位都是 1，和创世对等方、设备对等方都不重叠；`peer::seed_peer`）；时间戳 0，没有提交信息；
+- 同一个种子在两台设备上写出来逐字节相同，Loro 只留一份；
+- 它前面没有任何历史，所以它的操作带着最小的 Lamport 时间：同一个键上任何一次真正的改动，不管在哪台设备、在它之前还是之后，都赢过它；
+- 同一件事的两个不同种子（两台设备读到的任务文字不一样）是两个并发的最底层改动，Loro 在所有设备上挑同一个；会变的部分只是一个值，不会叠成两份。
+
+**规则**：种子的键要写出它写的全部内容（一个键永远只对应一份内容，否则就是「同一个操作 ID、两份不同内容」）；要改种子写什么，就换键（升键里的版本后缀）。导入会先把这次写入前面做的改动提交掉（Loro 的导入屏障），所以写之前要先设好提交选项（`set_next_commit_options`），或者先写种子再写别的。
+
+现在有两种：
+
+| 种子 | 键 | 写什么 |
+| --- | --- | --- |
+| 投出的待办（`BookTxn::project_todo`） | `todo-v1`、待办 id、文档、块、任务文字 | `kind = todo`、目标、`target_block`、`projection` / `projection_block`、`status = open`、`projection_text` |
+| 新情节规划表（`BookTxn::create_plot_grid`） | `plot-grid-v1`、章节 id、行列数 | 表本身，三行三列的 `pos`（id 见 `PlotRowId::default_for` / `PlotColId::default_for`：`<章节 id>:r1`…、`<章节 id>:c1`…）；不写标签、不写尺寸（没写就读成空标签、默认 184 × 96） |
+
 ### 对等方 ID
 
 - 每个（设备，文档）一个对等方 ID，随机生成，存在本机 SQLite 的 `loro_peer` 表，以后每次打开这个文档都用它。
 - 前提是一个库只被一个进程打开（应用独占数据库）。
 - 库有一个「换代号」（`library_meta.epoch`）。**从备份恢复、复制库、把库搬到另一台机器时，必须先换代**：换代以后每个文档在下次本机写入前都会拿到新的对等方 ID。原因是：如果副本沿用旧 ID，副本会在别处已经用过的操作 ID 下写出不同的内容，Loro 合并时会把它当成已有的变更跳过，两边从此悄悄不一致，而且查不出来。
 - 每次本机提交，先追加进 SQLite，再发事件、再上传。这样进程崩溃时丢掉的只是从未离开本机的操作，重启后复用它们的计数器是安全的。
+- 种子变更用确定的「种子对等方」，见上一节。
 - **导入旧库用确定性的对等方**：每个文档的导入对等方由文档 id 算出（`seed::import_peer`），时间戳也是确定的。同一个旧库在两台设备上各导入一次，写出的变更字节相同，合并后不会出现两份正文。（探针已测：两次独立生成的种子逐字节相同，合并后内容不变。）
 
 ### 实体映射和删除
@@ -82,7 +109,7 @@
 ### 时间戳、来源和提交信息
 
 - 每次载入后调用 `set_record_timestamp(true)`，提交时间按秒记。快照历史（`history_label`）靠它。
-- 提交来源（origin）只在本机生效，不进 Loro 历史：本机备注在 SQLite `loro_update.origin`，取值 `user`、`agent:<会话>/<轮>`、`mirror`、`sync`、`import`、`genesis`、`repair`（`dr-doc` 自己写的确定性修复，比如导入后修重复的块 ID；v1 新增）。压缩会删这些行，所以它不是来源的正式记录。编辑器的撤销管理器排除 `user` 以外的全部来源。
+- 提交来源（origin）只在本机生效，不进 Loro 历史：本机备注在 SQLite `loro_update.origin`，取值 `user`、`user:command`（作者的命令：命令面板、帮手代作者执行、对象级撤销；F2 的 `Origin::Command`）、`agent:<会话>/<轮>`、`mirror`、`sync`、`import`、`genesis`、`repair`（`dr-doc` 自己写的确定性修复，比如导入后修重复的块 ID；v1 新增）。压缩会删这些行，所以它不是来源的正式记录。编辑器的撤销管理器排除 `user` 以外的全部来源，`user:command` 也排除（`UNDO_EXCLUDED_ORIGIN_PREFIXES`，v2.1）：作者的命令由工作区的日志撤。种子变更是导入进来的，没有本机来源。
 - **Agent、Markdown 文件夹、导入的提交带提交信息** `agent:<会话>/<轮>`、`mirror`、`import`（F2 由文档持有者自动写上）；作者自己的提交不带。提交信息会存进 Loro 历史，并随快照和同步走（探针已测快照往返后仍在）。「谁改了什么」一律从 Loro 变更自带的对等方、时间和提交信息读。
 
 ## 正文文档
@@ -179,15 +206,15 @@ H1、H2、H3 三级同等对待，只叫 H1/H2/H3。
 | `meta` | 映射 | `v`、`book`、`name`、`summary`、`deleted_at`、`created_at`；`storyline_template`（键值列表）；`word_target`（全书字数目标）、`daily_word_target`（每日目标），没设过就用默认 120000 / 1500，0 表示关掉（v2；今天写了多少只从 `writing_days` 算，不另存） | `project`；目标在旧版只在本机 localStorage `writing-stats-storage` |
 | `nodes` | 映射 | `kind`（`chapter` / `drift`）、`title`、`summary`、`book_order`、`narrative_order`、`status`、`group`、`x`、`y`、`storylines`（集合）、`primary_storyline`、`deleted_at`、`created_at`。**没有 `updated_at`**（v2 删掉：旧版每次正文投影都刷新它，照搬会让每阵打字都同步一次书目文档；「最近编辑」从本机索引取） | `book_node`、`node_storyline_link` |
 | `acts` | 映射 | `name`、`color`、`start_order`（可为空）、`drift` | `book_act` |
-| `storylines` | 映射 | `name`、`color`、`summary`、`pos`、`facts`（键值列表）、`chapter_template`、`deleted_at` | `storylines` |
-| `categories` | 映射 | `name`、`color`、`layout`、`grid_x`、`grid_y`、`element_template`、`template_fields`（键值列表）、`deleted_at` | `element_category` |
+| `storylines` | 映射 | `name`、`color`、`summary`、`pos`、`facts`（键值列表）、`chapter_template`（旧版编辑器的 JSON，原样保留、只读；v2.1 起章节模板在 `template:storyline:<id>` 文档里）、`deleted_at` | `storylines` |
+| `categories` | 映射 | `name`、`color`、`layout`、`grid_x`、`grid_y`、`element_template`（旧版 JSON，只读；v2.1 起要素模板在 `template:category:<id>` 文档里）、`template_fields`（键值列表）、`deleted_at` | `element_category` |
 | `elements` | 映射 | `name`、`summary`、`category`、`aliases`（集合）、`facts`（键值列表）、`group_name`、`portrait`、`pin_x` / `pin_y`（关系图里作者拖动固定的位置，v2）、`deleted_at`、`created_at` | `element`；固定位置在旧版只在本机 `super-element-view:relate:<书>` |
 | `patches` | 映射 | `element`、`source_node`、`source_block`、`source_text`、`anchor`、`invalidated_at`、`title`、`body`（LoroText）、`pos` | `element_patch` |
 | `relation_types` | 映射 | `name`、`normalized_name`、`description`、`orientation`、`system_key`、`locked`、`source_role`、`target_role`、`source_kinds`、`target_kinds`、`color`（关系线的颜色，v2） | `entity_relation_type*`；颜色在旧版只在本机 `drifting:edge-kind-meta:<书>` |
 | `relations` | 映射 | `from_kind`、`from`、`to_kind`、`to`、`type`、`created_at` | `entity_relation` |
 | `time_pins` | 映射 | `narrative_order`、`label`、`drift` | `timeline_marker` |
-| `plot_grids` | 映射（键是章节 id） | `cell_w`、`cell_h`；`rows`、`cols`（id → `{pos, label}`，`pos` 是分数索引字符串）；`cells`（`"<行>/<列>"` → 文字） | `plot_grid_*` |
-| `comments` | 映射 | `kind`（`note` / `todo`）、`target_kind`、`target`、`target_block`（v1）、`anchor`、`quote`（选中的原文）、`snapshots`（选区跨过的每段当时的全文：`[{block?, text}]`）、`region`（图片或 PDF 页上的矩形 `{page?, x, y, w, h}`，0–1）、`author_kind`（`user` / `ai` / `external`）、`author`、`author_name`、`body`（LoroText）、`status`（`open` / `resolved`）、`priority`、`source`（`manual` / `api`）、`metadata`、`agent_conversation`（从这条待办开的 Agent 对话）、`projection`（`marker` / `note_task`）和 `projection_block`（从正文生成的待办：哪种、哪一块）、`resolved_at`、`created_at`、`updated_at` | `comment`（`anchor_json` 里的 `selectedText`、`blockSnapshots`、`region`）、`comment_action` 里的 `start_agent_task` |
+| `plot_grids` | 映射（键是章节 id） | `cell_w`、`cell_h`；`rows`、`cols`（id → `{pos, label}`，`pos` 是分数索引字符串；新表的三行三列 id 确定、由种子变更写，见「种子变更」）；`cells`（`"<行>/<列>"` → 文字） | `plot_grid_*` |
+| `comments` | 映射 | `kind`（`note` / `todo`）、`target_kind`、`target`、`target_block`（v1）、`anchor`、`quote`（选中的原文）、`snapshots`（选区跨过的每段当时的全文：`[{block?, text}]`）、`region`（图片或 PDF 页上的矩形 `{page?, x, y, w, h}`，0–1）、`author_kind`（`user` / `ai` / `external`）、`author`、`author_name`、`body`（LoroText）、`status`（`open` / `resolved`）、`priority`、`source`（`manual` / `api`）、`metadata`、`agent_conversation`（从这条待办开的 Agent 对话）、`projection`（`marker` / `note_task`）和 `projection_block`（从正文生成的待办：哪种、哪一块）、`projection_text`（投出时标记后面的任务文字；作者没改过正文时它就是正文，v2.1）、`resolved_at`、`created_at`、`updated_at` | `comment`（`anchor_json` 里的 `selectedText`、`blockSnapshots`、`region`）、`comment_action` 里的 `start_agent_task` |
 | `materials` | 映射 | `title`、`kind`（`image` / `pdf` / `text`）、`asset`、`folder`、`pos`、`task_todos`、`provenance`、`description`（LoroText，素材是讲什么的：Agent 写、搜索读，v2）。`preview_image` 删了（URL 素材退役后一直为空） | `library_item`（描述是 `notes_json`） |
 | `assets` | 映射 | `kind`、`mime`、`size`、`sha256`、`width`、`height` | `project_asset`（字节在 SQLite / 文件里） |
 | `drift_groups` | LoroTree | 节点 meta：`id`、`name`、`color` | `drift_group` |
@@ -234,6 +261,8 @@ id 是 `system:generic-association:<书 id>`，和旧版 `genericAssociationRela
 ### 从正文生成的待办
 
 正文里的 `TODO:` 标记和素材笔记的任务行会生成待办。它们的 id 由（种类、文档 id、块 ID）算出：`todo:<marker|note_task>:<文档 id>#<块 ID>`（`CommentId::for_projection`）。两台设备各自生成也是同一个实体，不需要去重。「来自哪种、哪一块」是正式字段 `projection` / `projection_block`，不再塞在 `metadata` 里。
+
+v2.1 起，设备自己投出的待办写成种子变更（`BookTxn::project_todo`）：种类、目标、块、`status = open` 和任务文字 `projection_text`。**正文（`body`）不写**，没有 `body` 时读出来的正文就是 `projection_text`；作者改了正文才有 `body`（清空也算改过，读出来是空的）。这样两台设备投同一个标记只有一份正文，一边已解决、另一边晚到的投影也不会把它重新打开。标记删掉、待办删掉以后又打回来，再投时按普通写入写回，旧的正文、优先级、对话一并清掉。导入旧库（M10）照旧用 `projected_todo` 加普通写入，它自己的对等方本来就是确定的。
 
 ### 实体种类的取值
 
@@ -309,17 +338,31 @@ sync_doc (doc_id, remote_vv, updated_ms)                   -- 服务器已有到
 
 ## 撤销（给编辑器的约束）
 
+- 撤销管理器排除 `user` 以外的全部来源，包括作者的命令 `user:command`（v2.1），由 `ProseUndo` 自己配好。
+
 - `UndoManager` 的合并间隔设为 **0**，不用 `group_start` / `group_end`。「一次撤销撤掉一阵连打」由编辑器自己做：用 `set_on_push` 给每个撤销项记时间，按一次撤销就连续弹出同一阵的几项。这样能避开 Loro #1228 和 #1245。
 - Loro #1229 绕不开：作者设了某个键（标题级别、链接）之后，另一台设备或 Agent 又改了同一个键，作者再撤销，会把对方的值也抹掉。只影响格式，不丢字。等上游修。
 - 详细的复现见结论文档。
 
 ## 版本
 
-- 现在是 v2：`meta.v = 2`，创世版本 2，样式表如上；另外给未配置的标记键设了默认 `ExpandType::None`（新版本加的标记键在旧版本里本机插入时不扩展）。
+- 现在是 v2.1（`meta.v` 仍是 2）：创世版本 2，样式表如上；另外给未配置的标记键设了默认 `ExpandType::None`（新版本加的标记键在旧版本里本机插入时不扩展）。
 - 改动分两类：
   - **向后兼容**（新增根容器、新增实体字段、新增标记键且旧版忽略它也不会写坏）：升小版本，在这里记一行；读取端遇到不认识的字段原样保留。
   - **不兼容**（改键名、改值的含义、改 `ExpandType`、改创世内容、改块 ID 规则）：升 `meta.v`，写清楚迁移办法。改 `ExpandType` 尤其要小心：规则在打标记时就写进了标记，改表只影响以后打的标记，书里已有的标记照旧，新旧两种规则会长期并存。
 - Loro 自己的数据格式从 1.0 起不再有破坏性改动；新版 Loro 建的新类型容器，旧版会读成 `LoroUnknown`。
+
+### v2 → v2.1（2026-11-08，F1 第五轮）
+
+都是向后兼容的新增，`meta.v` 和创世不变：
+
+1. **正文模板文档** `template:category:<id>` / `template:storyline:<id>`（新文档种类，结构和别的正文一样，见「两类文档和它们的 id」）。F3 的模板命令要用：作者能编辑、两台设备能合并。旧字段 `element_template` / `chapter_template` 原样保留、只读。
+2. **种子变更**（新规则，见「种子变更」）：投出的待办、新情节规划表的三行三列。
+3. **`comments.projection_text`**：投出时的任务文字；没有 `body` 时正文读它。
+4. **情节规划默认行列的 id 确定**：`<章节 id>:r1`–`r3`、`<章节 id>:c1`–`c3`。
+5. **撤销排除 `user:command`**（来源本身是 F2 第五轮加的）。
+
+**旧文档怎么读**：v2 的文档不用改。v2 时投出的待办带着 `body`，照旧读 `body`；用随机 id 建的情节规划表照旧。**旧版本读新文档**：v2 的读取端看不懂 `projection_text`，种子投出、没改过的待办读成空正文；不认识 `template:` 的文档 id。这只发生在新旧开发版本混用时（还没有公开数据），不做兼容。
 
 ### v0 → v1（2026-11-07，F1）
 

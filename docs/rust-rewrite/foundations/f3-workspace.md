@@ -519,9 +519,9 @@ F8 的 `bench workspace`，heavy 种子（100 章，正文共约 360 万字，30
 
 ### F1（dr-model、dr-doc），第三轮、第五轮提的
 
-1. **投出的待办，正文应该写成一份确定的改动**（像文档的创世那样）。`BookTxn::projected_todo` 给了确定的 id，但正文是可合并的文字，两台设备同时投同一个标记，合起来正文读两遍。工作区现在在导入书目以后把「恰好是种子重复几遍」的正文改回种子（`repair_projections`，种子记在 metadata 里），两边种子不一样（比如两边的任务文字刚好不同）就修不了。建议 dr-doc 用固定的对等方 ID 写种子（同样的标记、同样的操作），或者把种子放进修复计划。
-2. **`UNDO_EXCLUDED_ORIGIN_PREFIXES` 可以加上 `user:command`**，这样任何 `ProseUndo` 都自动排除作者的命令，工作区就不用在会话上另外加前缀（现在用的是 `ProseUndo::hooks()`）。不急。
-3. **正文模板**（第五轮）：分类的要素模板（`element_template`）和故事线的章节模板（`chapter_template`）还是旧版编辑器的 JSON 字符串。要让作者编辑、两台设备能合并，需要 F1 待协调 6 说的新正文文档（`template:<id>`）。定了以后 F3 加编辑它们的命令，并在新建要素、新建章节（按主故事线）时把模板写进新正文。
+1. **投出的待办，正文应该写成一份确定的改动**（像文档的创世那样）。`BookTxn::projected_todo` 给了确定的 id，但正文是可合并的文字，两台设备同时投同一个标记，合起来正文读两遍。工作区现在在导入书目以后把「恰好是种子重复几遍」的正文改回种子（`repair_projections`，种子记在 metadata 里），两边种子不一样（比如两边的任务文字刚好不同）就修不了。建议 dr-doc 用固定的对等方 ID 写种子（同样的标记、同样的操作），或者把种子放进修复计划。 **F1 第五轮已做**（2026-11-08）：`BookTxn::project_todo(种类, 文档, 块, 任务文字)` 把投出的内容写成种子变更，任务文字是一个值 `projection_text`，正文没人改过就读它；两边文字不一样也只留一个，晚到的投影也不会重新打开已解决的。换法（见 [f1-model-doc.md 的待协调](f1-model-doc.md#待协调) 第 2 条）。
+2. **`UNDO_EXCLUDED_ORIGIN_PREFIXES` 可以加上 `user:command`**，这样任何 `ProseUndo` 都自动排除作者的命令，工作区就不用在会话上另外加前缀（现在用的是 `ProseUndo::hooks()`）。不急。 **F1 第五轮已做**：任何 `ProseUndo` 都自动排除 `user:command`。
+3. **正文模板**（第五轮）：分类的要素模板（`element_template`）和故事线的章节模板（`chapter_template`）还是旧版编辑器的 JSON 字符串。要让作者编辑、两台设备能合并，需要 F1 待协调 6 说的新正文文档（`template:<id>`）。定了以后 F3 加编辑它们的命令，并在新建要素、新建章节（按主故事线）时把模板写进新正文。 **F1 第五轮已做**：文档种类 `template:category:<id>` / `template:storyline:<id>`（`TemplateOwner::doc_id`），套用用 `ProseTxn::insert_copy`；用法（见 [f1-model-doc.md 的待协调](f1-model-doc.md#待协调) 第 2 条）。
 
 ### F2（dr-store）
 
@@ -586,7 +586,7 @@ F8 的 `bench workspace`，heavy 种子（100 章，正文共约 360 万字，30
 ### M11（要素页、补丁）/ M13（故事线页）/ M15（情节规划）
 
 - M15：打开没有表的章节或构想时显示 `plot_grid.get` 给的空 3 × 3；作者第一次动手（打字、加行、改大小）之前先调 `plot_grid.create` 拿到 id。粘贴一块（带制表符、换行的文字）在旧版会把表撑大：界面先 `line_add` 补够行列，再逐格 `plot_grid.cell`。格子宽高比是本机偏好，不进书目。
-- 两台设备同时第一次建同一张表，会合并出六行六列（行列 id 各自新建）。旧版也是这样（表的 id 确定、行列 id 随机）；要避免得让默认的三行三列用确定的 id，属于 F1 的事，先记着。
+- 两台设备同时第一次建同一张表，会合并出六行六列（行列 id 各自新建）。旧版也是这样（表的 id 确定、行列 id 随机）；要避免得让默认的三行三列用确定的 id，属于 F1 的事，先记着。 **F1 第五轮已做**：`BookTxn::create_plot_grid` 用确定的 id（`PlotRowId::default_for` / `PlotColId::default_for`）写成种子变更，两台设备同时建还是三行三列（见 [f1-model-doc.md 的待协调](f1-model-doc.md#待协调) 第 2 条）。
 - M11：补丁区「+ 新建」调 `patch.create`（浮动，可空）；从选区建时带上 `source`、`source_block`、`source_text` 和 `anchor`（编辑器的锚点字节）。旧版界面的补丁正文是富文本（带人物链接），新版书目文档里只有纯文字（F1 待协调 4）。
 - M13：故事线页的字段用 `storyline.list` 的 `fields` 和 `storyline.update` 的 `put_fields` / `remove_fields`；主页上的「故事线字段模板」用 `storyline_template.*`。
 

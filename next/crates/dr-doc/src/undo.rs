@@ -4,8 +4,9 @@
 //!   trigger then. The editor groups a burst of typing itself (record a time
 //!   per item with `set_on_push`, pop several items per Undo).
 //! - Every origin but `user` is excluded, so Undo never removes an Agent's,
-//!   a sync's or a repair's change; those are folded into the stacks like
-//!   remote changes.
+//!   a sync's or a repair's change, nor the author's commands
+//!   (`user:command`, undone by the workspace's journal); those are folded
+//!   into the stacks like remote changes.
 //! - Undo and redo are local writes. They go through [`ProseUndo::undo`] /
 //!   [`ProseUndo::redo`] with the document's writer, so the step comes back as
 //!   a [`Committed`] for storage like any other edit.

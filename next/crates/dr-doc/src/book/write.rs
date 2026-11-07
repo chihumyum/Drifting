@@ -336,7 +336,7 @@ setters!(TimePinWriter {
 });
 
 pub struct PlotGridWriter {
-    map: LoroMap,
+    pub(super) map: LoroMap,
 }
 setters!(PlotGridWriter {
     cell_w: f64 => "cell_w",
@@ -383,7 +383,7 @@ impl PlotGridWriter {
 }
 
 pub struct CommentWriter {
-    map: LoroMap,
+    pub(super) map: LoroMap,
 }
 setters!(CommentWriter {
     kind: &CommentKind => "kind",
@@ -614,7 +614,7 @@ impl<'a> BookTxn<'a> {
         self.view
     }
 
-    fn entity(&self, root: &str, id: &str) -> Result<LoroMap> {
+    pub(super) fn entity(&self, root: &str, id: &str) -> Result<LoroMap> {
         Ok(self.view.doc.get_map(root).ensure_mergeable_map(id)?)
     }
 
@@ -705,12 +705,16 @@ impl<'a> BookTxn<'a> {
         })
     }
 
-    /// The TODO generated from prose: a `TODO:` marker in a chapter
-    /// (`ProjectionKind::Marker`) or a material-note task line
-    /// (`ProjectionKind::NoteTask`) in block `block` of `doc`. Its id is
-    /// [`CommentId::for_projection`], so two devices projecting the same
-    /// marker write the same entity. Sets kind, target, block and projection;
-    /// the caller sets the body.
+    /// The TODO generated from prose, written as ordinary changes: a `TODO:`
+    /// marker in a chapter (`ProjectionKind::Marker`) or a material-note
+    /// task line (`ProjectionKind::NoteTask`) in block `block` of `doc`. Its
+    /// id is [`CommentId::for_projection`]. Sets kind, target, block and
+    /// projection; the caller sets the body.
+    ///
+    /// For importing an old library, whose writes are deterministic on their
+    /// own (the import peer). A device projecting a marker it found uses
+    /// [`Self::project_todo`], which merges with the same projection made on
+    /// another device.
     pub fn projected_todo(
         &mut self,
         kind: &ProjectionKind,
@@ -718,16 +722,9 @@ impl<'a> BookTxn<'a> {
         block: &BlockId,
     ) -> Result<(CommentId, CommentWriter)> {
         let id = CommentId::for_projection(kind, doc, block);
-        let target_kind = match doc {
-            dr_model::DocId::Material(_) => EntityKind::Material,
-            dr_model::DocId::Element(_) => EntityKind::Element,
-            dr_model::DocId::Storyline(_) => EntityKind::Storyline,
-            dr_model::DocId::Category(_) => EntityKind::Category,
-            _ => EntityKind::Node,
-        };
         let w = self.comment(&id)?;
         w.kind(&CommentKind::Todo)?
-            .target(Some(&EntityRef::new(target_kind, doc.entity_id())))?
+            .target(Some(&super::seed::projection_target(doc)))?
             .target_block(Some(block))?;
         set(&w.map, "projection", kind)?;
         set(&w.map, "projection_block", block)?;

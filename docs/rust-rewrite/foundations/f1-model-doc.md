@@ -1,6 +1,6 @@
 # F1：dr-model 与 dr-doc
 
-2026-11-07，四轮：第一轮把结构做成库（结构改成 v1）；第二轮按监管会话的两份审查补数据、改顺序（结构改成 v2）；第三轮按 F3、dr-text、F8 的反馈，让视图和事务能套在存储持有的文档上，读取按对象变便宜，证据换成新做法；第四轮按 F4 的建议让插入事件带上新字的标记，并对照 F4 的待协调核对了样式表、锚点和打开文档的分工（结构没变，还是 v2）。计划见 [foundation.md 的 F1](../foundation.md#f1-dr-model-与-dr-doc)，文档结构见 [loro-schema.md](../loro-schema.md)，代码在 `next/crates/dr-model/` 和 `next/crates/dr-doc/`。
+2026-11-07 至 11-08，五轮：第一轮把结构做成库（结构改成 v1）；第二轮按监管会话的两份审查补数据、改顺序（结构改成 v2）；第三轮按 F3、dr-text、F8 的反馈，让视图和事务能套在存储持有的文档上，读取按对象变便宜，证据换成新做法；第四轮按 F4 的建议让插入事件带上新字的标记，并对照 F4 的待协调核对了样式表、锚点和打开文档的分工；第五轮按 F3 的待协调做了作者命令不进编辑器撤销、待办和情节规划表的确定写法（「种子变更」）、正文模板文档，并评估了 Agent 改动「看过」怎么跨设备（结构记成 v2.1，向后兼容）。计划见 [foundation.md 的 F1](../foundation.md#f1-dr-model-与-dr-doc)，文档结构见 [loro-schema.md](../loro-schema.md)，代码在 `next/crates/dr-model/` 和 `next/crates/dr-doc/`。
 
 ## 做了什么（大白话）
 
@@ -40,6 +40,15 @@
      - **打开文档的分工**：配样式表、创世、对等方、块 ID 修复都在 `dr-doc` / `dr-store` / F3 这边（F3 已经拆了镜像，在持有者的写入里用 `BorrowedProse` 修块 ID），`dr-editor` 拿到的是已经打开好的文档。
      - 顺手发现 `gpui-prose` 自己的 `Anchor::resolve` 没有「锚点是不是指向这篇正文」的检查，坏字节会让 Loro panic（`dr-doc` 第一轮的模糊测试找到过同一个问题）。Drifting 里锚点经 `dr-doc` 解析，碰不到；记给 F4。
 
+8. **第五轮：两台设备各写一遍也不出错；正文模板有了自己的文档。**
+   - **作者的命令不进编辑器的撤销**：作者从命令面板、或者帮手代作者改了正开着的这一章，那次改动的来源是 `user:command`。现在任何一个撤销管理器都自动排除它（以前 F3 要在会话上另外加），编辑器的撤销只撤作者自己打的字，命令由工作区的日志撤。
+   - **「种子变更」：两台设备没同步就各写了一遍的默认内容，合起来只有一份，也盖不掉作者的改动。** 打个比方：两个人各自往同一本账上抄同一张「出厂设置」，只要抄的是同一张，账上就只记一次；而且这张出厂设置永远垫在最底下，谁后来真改过哪一格，都以改过的为准。做法是像创世那样，在一份空文档里用一个由内容算出来的固定写入者写好，再导入（详见 loro-schema.md「种子变更」）。用在两处：
+     - **从正文 TODO 标记投出的待办**：以前两台设备都投了同一个标记，待办只有一条，但正文读出来是两遍（「补一场雨补一场雨」），F3 只能事后修，两边读到的文字不一样时还修不了；而且一台设备晚到的投影会把另一台上已经解决的待办重新打开。现在 `project_todo` 把任务文字写成一个值（`projection_text`），正文没人改过就读它：两边一样只有一份，不一样也只留一个、不会叠；已解决的永远是已解决。
+     - **新情节规划表的三行三列**：以前每台设备给新行新列起随机 id，两台同时第一次建同一张表就合出六行六列（旧版也这样）。现在 id 是确定的（`<章节 id>:r1`–`r3`、`:c1`–`c3`），由 `create_plot_grid` 写成种子：合起来还是三行三列，作者挪过、改过名的行不会被另一台晚到的默认值挪回去。
+   - **正文模板**：新的文档种类 `template:category:<分类>`（要素模板）和 `template:storyline:<故事线>`（章节模板），就是普通的正文文档，id 由主人算出，所以两台设备开始写的是同一篇、会合并。新建要素或章节时用 `insert_copy` 把模板整篇抄进去：标题级别、加粗、人物链接、表格都在，块 ID 换新的。模板不算书的正文（不进搜索、不计字数、不导出）。
+   - **Agent 改动「看过」跨设备**：只评估、没做，结论见「待协调」第 8 条：记号不用同步，每台设备从同步来的历史里自己算出同样的记号；只同步「看过」这一个集合，放在每本书一篇单独的小文档里。
+   - **怎么知道它对**：新的三设备属性测试随机投待办（同一个标记、不同的任务文字）、改正文、解决、删掉再投、建同一张表、改行名、挪行、加行、让某台设备先写一大堆别的（把它的时钟拨快），任意顺序同步，最后查：各设备读到的一样；没人改过的待办正文正好是投过的某一个任务文字；有人解决过、没人删过的待办一定是已解决；表一定是三行三列加上新加的行；挪过的行一定在真正挪到的位置上。3000 例全过（数字见「测试与证据」）。把种子换回普通写入，这个测试和四个单元测试当场失败（试过）。
+
 **要作者定的事：没有。** 都是技术取舍，下面写了理由。
 
 ## 为什么这样做
@@ -54,7 +63,7 @@
 ## 影响
 
 - **F2（存储）**：存字节、管对等方和换代；载入一律交给 `ProseDoc::load` / `BookDoc::load`，打开后跑一次 `repair()` 并把结果存下来。见「待协调」第 1 条。
-- **F3（命令总线）**：在 `BookTxn` / `ProseTxn` 之上组命令；创建时必填什么、名字是否重复、跨文档先写哪个，都在命令层，清单里标了「命令层」的 35 条是 F3 的活。
+- **F3（命令总线）**：在 `BookTxn` / `ProseTxn` 之上组命令；创建时必填什么、名字是否重复、跨文档先写哪个，都在命令层，清单里标了「命令层」的 35 条是 F3 的活。第五轮起：投待办换成 `project_todo`、建情节规划表换成 `create_plot_grid`、模板命令用 `template:` 文档和 `insert_copy`，见「待协调」第 2 条。
 - **F4（编辑器）**：`dr-editor` 经 F3 的 `ProseSession` 读写和撤销（底下是 `ProseReader`、`ProseTxn`、`ProseUndo`），订阅 `ProseEvent`；插入事件带标记，打字不用回读。见「待协调」第 3 条。
 - **M10（旧库导入）**：用确定性的导入对等方（`peer::import_peer`）和 `edit_at` 的固定时间戳；旧块 ID 用 `ProseTxn::set_block_id` 原样写入；`library_item` 写成 `material`；内置关系类型的 id 和旧版一样，不用改写。
 
@@ -66,14 +75,14 @@
 
 | 模块 | 内容 | 状态 |
 | --- | --- | --- |
-| `id` | `BookId`、`NodeId`、`ElementId`……共 23 种 id（非空、无控制字符的字符串，新建是 uuidv7，比较按 UTF-8 字节）；`DocId`（`book:` / `node:` / `element:` / `storyline:` / `category:` / `material:`，字符串形式就是存储的键）；`DocKind`、`ProseProfile`；`CommentId::for_projection`（生成的待办的确定 id）、`DeviceKey::from_installation_id`（写作日设备键，和旧版同一个摘要） | 稳定 |
+| `id` | `BookId`、`NodeId`、`ElementId`……共 23 种 id（非空、无控制字符的字符串，新建是 uuidv7，比较按 UTF-8 字节）；`DocId`（`book:` / `node:` / `element:` / `storyline:` / `category:` / `material:`，第五轮加 `template:category:<id>` / `template:storyline:<id>`；字符串形式就是存储的键）；`DocKind`（第五轮加 `Template` 和 `is_book_text()`：模板和书目文档不是书的正文）、`ProseProfile`；`TemplateId` / `TemplateOwner`（`for_category`、`for_storyline`、`owner()`、`doc_id()`）；`CommentId::for_projection`（生成的待办的确定 id）、`PlotRowId::default_for` / `PlotColId::default_for`（新表三行三列的确定 id）、`DeviceKey::from_installation_id`（写作日设备键，和旧版同一个摘要） | 稳定 |
 | `kind` | 书目里所有字符串枚举，全部「开放」：不认识的值读成 `Other` 原样保留 | 稳定 |
 | `pos` | 分数索引位置键 `PosKey`：`first`、`between`、`after`，`key_between` / `keys_between`，`cmp_pos`；照搬 Rocicorp `fractional-indexing` 4.0.0，测试里的期望值是用那个库本身算出来的 | 稳定 |
 | `legacy` | 退役取值到 v2 的映射（导入用）：`copilot` → `api` / `ai`、`converted` → `resolved`、`library_item` → `material`、批注动作只留 `start_agent_task` | 稳定 |
-| `book` | 每类实体一个记录：`BookMeta`、`Node`、`Act`、`Storyline`、`Category`、`Element`、`Patch`、`RelationType`、`Relation`、`TimePin`、`PlotGrid`、`Comment`、`Material`、`Asset`、`DriftGroup`、`MaterialFolder`、`Memory`、`WritingDay`、`KvEntry`；`EntityRef`、`EncodedAnchor`、`BlockSnapshot`、`MaterialRegion`、`TodoProjection`；`canonical_symmetric`、`normalize_relation_type_name`、`element_name_key`；`BookMeta::word_target` / `daily_word_target`（默认 120000 / 1500，0 是关掉） | 字段稳定；记录里会加便利方法 |
+| `book` | 每类实体一个记录：`BookMeta`、`Node`、`Act`、`Storyline`、`Category`、`Element`、`Patch`、`RelationType`、`Relation`、`TimePin`、`PlotGrid`、`Comment`、`Material`、`Asset`、`DriftGroup`、`MaterialFolder`、`Memory`、`WritingDay`、`KvEntry`；`EntityRef`、`EncodedAnchor`、`BlockSnapshot`、`MaterialRegion`、`TodoProjection`；`canonical_symmetric`、`normalize_relation_type_name`、`element_name_key`；`BookMeta::word_target` / `daily_word_target`（默认 120000 / 1500，0 是关掉）；`PLOT_DEFAULT_CELL`（184 × 96）、`PLOT_DEFAULT_LINES`（3） | 字段稳定；记录里会加便利方法 |
 | `prose` | `BlockAttrs`（H1/H2/H3、引用、缩进 0–8、对齐、分隔线，笔记的列表 / 任务 / 代码块 / 提示框）、`InlineMarks`、`InlineStyle`、`EntityLink`、`Heading` | 稳定 |
 | `order` | `cmp_order`（坐标、缺的排最后、平局按 id）、`chapter_order_after`（照搬旧版插章规则）、`act_segments` / `act_index_for_order`（幕按分界）、`needs_spread`、`CHAPTER_ORDER_STRIDE` | 稳定 |
-| `origin` | `Origin`：`user` / `agent:<会话>/<轮>` / `mirror` / `sync` / `import` / `genesis` / `repair`；`commit_message()`：Agent、Markdown 文件夹、导入的提交带提交信息，作者自己的不带；`UNDO_EXCLUDED_ORIGIN_PREFIXES` | 稳定 |
+| `origin` | `Origin`：`user` / `agent:<会话>/<轮>` / `mirror` / `sync` / `import` / `genesis` / `repair`；`commit_message()`：Agent、Markdown 文件夹、导入的提交带提交信息，作者自己的不带；`UNDO_EXCLUDED_ORIGIN_PREFIXES`（第五轮加了 `user:command`）；`COMMAND_ORIGIN = "user:command"`（和 `dr_store::COMMAND_ORIGIN` 同一个字符串；不是 `Origin`，模型层的命令就是作者的写入） | 稳定 |
 | `time` | `Timestamp`（秒）、`Day`（`YYYY-MM-DD`，校验闰年） | 稳定 |
 | `check` | 命令层用的判断：`non_empty_name`、`relation_type_definition`、`relation_ends`、`comment_target`、`patch_source`、`material_payload`、`asset_shape`、`plot_cell_size`；违反时返回不变量 id | 可能变（F3 会加） |
 | `invariant` | 不变量清单 `INVARIANTS`（78 条）、`NOT_CARRIED`（16 条）、界面和 Agent 的分叉 `DIVERGENCES`（9 条，已由 F3 统一，各带测试名）、还没有测试的 `NOT_YET_TESTED`（3 条，写明原因）；全部由测试当场断言，不再生成 JSON | 随 F3 增补 |
@@ -101,7 +110,7 @@ genesis(&doc_id) -> Vec<u8>         确定性创世字节
 | --- | --- | --- |
 | `ProseView` | `len` / `len_utf8` / `len_utf16`、`pos(unit, value) -> TextPos`、`text_in(range)`、`paragraphs()`（逐段懒读，已按「重复 id 只认第一个」处理）、`paragraph_at(pos)`、`paragraph_by_id(&BlockId)`、`blocks()`（只要换行位置和块 ID）、`newlines()`、`entity_links()`、`embed_refs()` / `embed(id)` / `orphan_embeds()`、`anchor(range)`、`resolve(&Anchor)`；第三轮新增 `paragraph_in(位置, 段数)`（不看前文，块 ID 按存的原样） | 稳定 |
 | `Paragraph` | `id`（读者用的）、`stored_id`、`range`、`newline`、`attrs: BlockAttrs`、`runs: Vec<Run { text, marks }>`、`embed()` | 稳定 |
-| `ProseTxn` | `insert_text`、`insert_paragraphs`（粘贴，每段新块 ID）、`split`（回车）、`delete`（含并段规则）、`set_block_attrs`、`set_heading`、`set_style` / `clear_style`、`link_entity` / `unlink_entity`、`insert_embed` / `table`、`drop_orphan_embeds`、`repair_block_ids`、`set_block_id`（只给导入） | 稳定；F4 会要更多编辑原语 |
+| `ProseTxn` | `insert_text`、`insert_paragraphs`（粘贴，每段新块 ID）、`split`（回车）、`delete`（含并段规则）、`set_block_attrs`、`set_heading`、`set_style` / `clear_style`、`link_entity` / `unlink_entity`、`insert_embed` / `table`、`drop_orphan_embeds`、`repair_block_ids`、`set_block_id`（只给导入）；第五轮新增 `insert_copy(段首位置, &另一篇的视图)`（把模板整篇抄进来：段落属性、行内标记、人物链接、表格的结构和格子文字、素材嵌入；块 ID 和嵌入 id 换新的；落在空段上时最后一段顶替它，所以套进新文档正好是模板本身；本文档配置不允许的属性和标记报错） | 稳定；F4 会要更多编辑原语 |
 | `ProseEvent` | `trigger`（本机 / 导入 / 检出）、`origin`、`body: Vec<TextChange>`（按字符的 retain / insert / delete）、`splices()`（改后的坐标）、`restyled()`、`embeds_changed`、`meta_changed`；第四轮起 `TextChange::Insert { text, marks: InlineMarks }`：新字插入后的行内标记，和 `ProseView` 读出来的一样（`\n` 的段落属性不在里面） | 可能变（F4 用起来再调） |
 | `ProseUndo` | `undo(&mut doc)` / `redo(&mut doc)` 返回 `Committed`；借来的文档上用 `ProseUndo::on(&loro_doc)` + `undo_step()` / `redo_step()`（只执行，落盘归持有者）；`hooks()` 拿到 Loro 的 `UndoManager` 挂 `set_on_push` / `set_on_pop` | 可能变 |
 | `BorrowedProse` | 套在持有者的 `LoroDoc` 上：`new`（核对 `meta.doc`、要有创世）、`view`、`txn`、`undo_manager`；什么都不提交 | 稳定 |
@@ -122,9 +131,9 @@ BorrowedBook::new(&loro_doc, &book_id)       借来的书目文档：.view() / .
 
 | 类型 | 主要方法 | 状态 |
 | --- | --- | --- |
-| `BookView`（读，已容错） | `meta`、`node` / `nodes` / `chapters`（书序）/ `drifts` / `timeline`（叙事序）、`acts`、`time_pins`、`storylines`、`categories`、`element` / `elements`、`patches` / `patches_of`、`relation_type(s)`、`relations`（能显示的）/ `relations_raw`（存的全部）、`entity_exists`、`plot_grid`、`comment` / `comments`（目标不在时标 `target_missing`）、`materials`、`assets`、`drift_groups`、`material_folders`（父在前）、`facts`、`memory`、`writing_days` / `words_on`、`owns_prose(&DocId)`、`repair_plan`；v2 新增 `element_name_conflicts`（合并后重名的要素和保留名字的那个）、`todo_done`（任务行显示的待办状态）、`entity_snapshot`（某对象存着的全部字段，用在历史副本上）；第三轮新增 `relations_of(端点)`、`needs_repair()`，`entity_exists` / `comment` / `comments` / `relations` 改成按键查是否还在 | 稳定；增量索引以后再说 |
+| `BookView`（读，已容错） | `meta`、`node` / `nodes` / `chapters`（书序）/ `drifts` / `timeline`（叙事序）、`acts`、`time_pins`、`storylines`、`categories`、`element` / `elements`、`patches` / `patches_of`、`relation_type(s)`、`relations`（能显示的）/ `relations_raw`（存的全部）、`entity_exists`、`plot_grid`、`comment` / `comments`（目标不在时标 `target_missing`）、`materials`、`assets`、`drift_groups`、`material_folders`（父在前）、`facts`、`memory`、`writing_days` / `words_on`、`owns_prose(&DocId)`（第五轮起也认模板的主人）、`repair_plan`；v2 新增 `element_name_conflicts`（合并后重名的要素和保留名字的那个）、`todo_done`（任务行显示的待办状态）、`entity_snapshot`（某对象存着的全部字段，用在历史副本上）；第三轮新增 `relations_of(端点)`、`needs_repair()`，`entity_exists` / `comment` / `comments` / `relations` 改成按键查是否还在 | 稳定；增量索引以后再说 |
 | `EntitySnapshot` | `field(键)`、`keys()`、`diff(&另一份)`（按键列出 `(键, 之前, 之后)`）；`restore_fields` 用它写回 | 稳定 |
-| `BookTxn`（写） | 每类一个写入器，逐字段设值、`None` 即删除：`meta()`、`node(id)`、`act`、`storyline`、`category`、`element`、`patch`、`relation_type`（内置的拒绝）、`relation`、`time_pin`、`plot_grid(chapter)`、`comment`、`material`、`memory`；`put_asset`（写一次）、`put_fact` / `remove_fact`、`writing_day`、`drift_groups()` / `material_folders()`（树：建、改名、改色、移动）、`delete_drift_group` / `delete_material_folder`（子级和成员上移）、`purge(collection, id)`、`apply_repair(&plan)`；v2 新增 `projected_todo(kind, doc, block)`（生成待办，id 确定）、`restore_fields(collection, id, &snapshot, metadata_fields(collection))`（按对象恢复历史），以及各写入器的新字段：`pos`、`color`、`word_target`、`relate_pin`、`quote`、`snapshots`、`region`、`agent_conversation`、`description` | 稳定；F3 会提出缺的 |
+| `BookTxn`（写） | 每类一个写入器，逐字段设值、`None` 即删除：`meta()`、`node(id)`、`act`、`storyline`、`category`、`element`、`patch`、`relation_type`（内置的拒绝）、`relation`、`time_pin`、`plot_grid(chapter)`、`comment`、`material`、`memory`；`put_asset`（写一次）、`put_fact` / `remove_fact`、`writing_day`、`drift_groups()` / `material_folders()`（树：建、改名、改色、移动）、`delete_drift_group` / `delete_material_folder`（子级和成员上移）、`purge(collection, id)`、`apply_repair(&plan)`；v2 新增 `projected_todo(kind, doc, block)`（生成待办，id 确定）、`restore_fields(collection, id, &snapshot, metadata_fields(collection))`（按对象恢复历史）；第五轮新增 `project_todo(kind, doc, block, 任务文字)`（设备投待办，种子变更；`projected_todo` 留给导入）、`create_plot_grid(chapter)`（新表，种子变更），以及各写入器的新字段：`pos`、`color`、`word_target`、`relate_pin`、`quote`、`snapshots`、`region`、`agent_conversation`、`description` | 稳定；F3 会提出缺的 |
 | `Collection` | 19 个根容器 | 稳定 |
 | `RepairPlan` | 语义重复的关系、缺书序的章节（补成什么）、带书序的构想、在分组里的章节 | 随修复项增补 |
 
@@ -137,7 +146,7 @@ BorrowedBook::new(&loro_doc, &book_id)       借来的书目文档：.view() / .
 | `AnchorCache` | 替换锚点存本机、不回写书目文档；`resolve(key, &stored, &view)` 先用缓存；`export` / `import` 给存储做本机持久化 | 可能变 |
 | `TextPos` / `Unit` / `PosError` | 三种单位一起带；`TextPos::in_str`（段内，线性）、`ProseView::pos`（全文，经 Loro 索引）；字符中间、越界都报错 | 稳定 |
 | `Committed` / `Imported` | 交给存储的一次提交；导入结果（有没有在等依赖、导入后修了什么） | 稳定 |
-| `peer` | `genesis_peer`、`import_peer`、`is_device_peer`、`random_device_peer`（测试用；正式的由 F2 分配） | 稳定 |
+| `peer` | `genesis_peer`、`seed_peer`（第五轮，种子变更的写入者）、`import_peer`、`is_device_peer`、`random_device_peer`（测试用；正式的由 F2 分配） | 稳定 |
 | `schema` | 容器名、标记键、`SCHEMA_VERSION = 2`、`GENESIS_VERSION = 2`；样式表的唯一来源 `STYLE_TABLE` + `DEFAULT_EXPAND`，`style_config()`、`configure(doc)`，以及给别处对拍用的 `style_table_mismatches(表, 默认值)`、第四轮新增的 `style_config_mismatches(&配置表)`（直接比 `gpui_prose::schema::style_config()` 那样的 Loro 配置表） | 稳定（就是 loro-schema.md） |
 | `loro_types` | 重新导出 `VersionVector`、`Frontiers`、`Subscription`、`Cursor`、`UndoManager`，下游用同一个钉住的 Loro | 稳定 |
 
@@ -182,16 +191,17 @@ BorrowedBook::new(&loro_doc, &book_id)       借来的书目文档：.view() / .
 
 ```bash
 cargo test -p dr-model -p dr-doc
-DR_PROP_CASES=3000 cargo test --release -p dr-doc --test prose_convergence --test book_convergence --test prose_events -- --nocapture
+DR_PROP_CASES=3000 cargo test --release -p dr-doc --test prose_convergence --test book_convergence --test prose_events --test book_seeds -- --nocapture
 cargo run --release -p dr-testkit --bin bench -- doc
 ```
 
 | 测试 | 内容 | 结果 |
 | --- | --- | --- |
-| 单元测试 | dr-model 34 个；dr-doc 79 个（正文 37、书目 33、样式表与位置换算、对等方等 9）。P0-C 的正文用例全部搬过来，换成类型化接口 | 全过 |
+| 单元测试 | dr-model 34 个；dr-doc 86 个（正文 39、书目 38、样式表与位置换算、对等方等 9）。P0-C 的正文用例全部搬过来，换成类型化接口 | 全过 |
 | 正文三设备属性测试 `three_peers_converge` | 三台设备随机打字、回车、跨段删、设标题、加人物链接、加锚点、撤销、Agent 写入，任意顺序同步；查收敛、以换行结尾、块 ID 唯一且一致、锚点各处一致；最后断言这一轮真的修过重复块 ID、锚过字也收起过 | 3000 例全过；导入后自动修复 1622 次，没有一例需要额外修复轮；2708 个锚点，793 个收成点 |
-| 书目三设备属性测试 `three_peers_read_the_same_book` | 随机建章、建构想、建要素、进出废纸篓、彻底删、建关系（含没按规范顺序存的对称关系）、加减故事线、移动和删除分组、后台修复，任意顺序同步；查各设备读出来一样、读出来的东西守住全部读取规则 | 第一次跑 3000 例时在第 708 例失败：两台设备各建了同一个分组 id，树里有两个同 id 的节点，挂在其中一个下面的子分组读漏了（见下「发现并修好的」）。修好后 3000 例全过：1725 例同步后需要修复，都是一轮修好。第三轮加查：便宜的 `needs_repair` 和完整的修复计划结论一致；按端点读的关系和全书关系里挑出来的一致 |
+| 书目三设备属性测试 `three_peers_read_the_same_book` | 随机建章、建构想、建要素、进出废纸篓、彻底删、建关系（含没按规范顺序存的对称关系）、加减故事线、移动和删除分组、后台修复，任意顺序同步；查各设备读出来一样、读出来的东西守住全部读取规则 | 第一次跑 3000 例时在第 708 例失败：两台设备各建了同一个分组 id，树里有两个同 id 的节点，挂在其中一个下面的子分组读漏了（见下「发现并修好的」）。修好后 3000 例全过：1725 例同步后需要修复，都是一轮修好（第五轮重跑：1842 例，仍都是一轮）。第三轮加查：便宜的 `needs_repair` 和完整的修复计划结论一致；按端点读的关系和全书关系里挑出来的一致 |
 | 正文事件属性测试 `insert_events_carry_the_marks_reads_see`（第四轮） | 三台设备随机打字（含加粗、链接、人物链接的边界）、回车、删、加减加粗 / 斜体 / 删除线 / 链接、加人物链接、设标题、撤销、重做，任意顺序同步；每一步都只用事件重建正文和每个字的标记，和重新读出来的逐字比：字一样；插入事件说的标记就是读出来的标记；标记变了的字一定落在 `restyled` 的范围里 | 3000 例全过（release 约 2 秒）：比了 939642 个字，本机带标记的插入 2405 次，导入来的插入 16548 次。把事件里的标记换成空的、或把 `restyled` 弄反，测试都会失败（试过） |
+| 种子变更属性测试 `seeds_merge_into_one_and_never_beat_a_real_edit`（第五轮） | 三台设备随机投待办（同一个标记、不同的任务文字）、改正文、解决、删掉再投、建同一张情节规划表、改行名、挪行、加行、先写一大堆别的把时钟拨快，任意顺序同步；查各设备读到的一样，没人改过的待办正文正好是投过的某一个任务文字，有人解决过、没人删过的一定是已解决，表是三行三列加新加的行，挪过的行在真正挪到的位置上 | 3000 例全过（release 约 45 秒）：查了 6280 条待办、其中 1914 条「解决过」，4947 张表、2918 次「挪过的行」。把种子换回普通写入，测试当场失败（试过：挪过的行被晚到的默认值挪回去） |
 | 其他属性测试 | 没人删的锚点永远锚着原文；块 ID 修复是状态的函数（两台设备修出来一样）；位置换算三种单位处处一致、字符中间一律报错 | 全过 |
 | 模糊测试（`next/crates/dr-doc/fuzz/`，不进 CI） | `load_bytes`：任意字节当存储的数据载入、导入、读、写；`bad_structure`：用 Loro 原始接口写出结构坏掉的文档（没有末尾换行、段落标记打在字上、字段类型不对、树节点重复同一个 id、两个写入者），再经 `dr-doc` 读写 | 找到两个崩溃（批量导入申请 29 GB 内存、坏锚点让 Loro panic），都已修；修后两个目标各跑 150 秒无崩溃。两个崩溃输入（124 和 546 字节，模糊测试生成的）放在 `tests/fuzz-regressions/`，`tests/fuzz_regressions.rs` 用和模糊目标同一段代码回放 |
 | 测量 | `dr-testkit` 基准的 `doc` 套件，统一种子：快跑（tiny）进 CI 只查形状，全跑（heavy）在作者机器上 | 见下 |
@@ -240,6 +250,7 @@ cargo run --release -p dr-testkit --bin bench -- doc
 | 6 | M10 / F4 反馈：导入和 Markdown 文件夹的提交也带提交信息；样式表的唯一来源和对拍接口 | 完成 |
 | 7 | 第三轮（F3 / dr-text / F8 反馈）：借来的文档上读写和撤销、`from_loro`、`paragraph_in`、按对象的便宜读取、`needs_repair`、快照按字段读和比较、分叉标已统一、证据换新做法 | 完成 |
 | 8 | 第四轮（F4 反馈）：插入事件带标记；对照 F4 待协调 3、4、5 核对样式表、锚点、打开文档的分工，补 `style_config_mismatches` 和锚点编码测试 | 完成 |
+| 9 | 第五轮（F3 待协调 F1-1 到 F1-3、M15 的六行六列、F4d 的「看过」）：撤销排除 `user:command`；种子变更（投待办、新情节规划表）；正文模板文档和 `insert_copy`；「看过」跨设备的评估；结构记成 v2.1 | 完成 |
 
 ## 待协调
 
@@ -253,6 +264,9 @@ cargo run --release -p dr-testkit --bin bench -- doc
    - 历史点（`history_label`）要同时记正文文档和书目文档的 frontiers，按对象恢复才拿得到当时的元数据。
    - 写作日的设备键用 `DeviceKey::from_installation_id(安装身份)`，安装身份文件归 F2。
    - 本机布局（视图模式、视口、滚动位置、手调比例、栏宽，见 loro-schema.md「不进书目文档的」）按书 id 存在本机文件里，格式由 F2 / F6 定。
+   - **第五轮：写入任务开始前先设好提交选项。** 建议持有者在 `job.run` 之前调一次 `doc.set_next_commit_options(这次的来源和提交信息)`（`dr-doc` 自己的 `edit` 就是这么做的），提交时照旧 `commit_with`。原因：Loro 的导入和解析已删文字上的锚点都会在中途隐式提交一次，种子变更就是在写入中途导入的；不先设好，中途提交的那一部分没有来源，Agent 写入的那一部分还会丢掉提交信息。现在 F3 只能把种子放在写入的最前面来躲开。
+   - **`user:command`**：`dr_model::origin::COMMAND_ORIGIN` 和 `dr_store::COMMAND_ORIGIN` 是同一个字符串，F2 的来源测试里加一行 `assert_eq!` 对上。
+   - **模板文档**（`template:` 开头）存法和别的正文一样，不用改表。它不是书的正文（`DocKind::is_book_text()` 为假）：派生索引（dr-index 的 `TextDeriver`）应当像书目文档那样记成「已索引、空的」，不进搜索、不计字数。
 2. **F3（dr-workspace）**
    - **可以拆镜像了**：在持有者的写入闭包里用 `BorrowedBook::new(doc, &book)` / `BorrowedProse::new(doc, &doc_id)` 开视图和事务，撤销用 `ProseUndo::on(doc)` + `undo_step`；读取用 `BookReader::from_loro` / `ProseReader::from_loro` 共享持有者的文档。两条规矩：写之前先 `set_next_commit_options`（带来源和提交信息），因为解析已删文字上的锚点会在中途隐式提交一次；文档要先过 `dr_doc::schema::configure`、带着创世。
    - 清单里标「命令层」的 37 条是命令层的事，`dr_model::check` 有一部分现成的判断。
@@ -263,6 +277,12 @@ cargo run --release -p dr-testkit --bin bench -- doc
    - 删分组、删素材夹用 `delete_drift_group` / `delete_material_folder`，它们先把子级和成员挪上去；直接删树节点会连子树一起删。
    - `BookDoc::repair()` 现在先问 `needs_repair()`；没东西要修时两者都约 2 ms（各整块读一遍节点表和关系表），比原来约 5 ms 少了一半多，但不是零。重复关系、缺书序这类问题只会在合并远端或导入后出现，建议只在打开书时跑一次、之后只在导入远端更新后跑。
    - 书目读取每次都从 Loro 取整个根映射的值。100 章、300 要素、400 关系时，列章节、列关系各要几毫秒（见上表）。如果 F3 的查询频繁，在它那一层按事件做增量缓存，不要每次都全读。
+   - **第五轮（F3 待协调 F1-1 到 F1-3、M15 的六行六列）**：
+     - **作者命令的撤销**（F1-2）：`UNDO_EXCLUDED_ORIGIN_PREFIXES` 加了 `user:command`，所以 `ProseUndo` 自己就排除作者的命令。`editor.rs` 里另外加的那个前缀可以删（留着也没坏处）。测试 `the_editors_undo_leaves_the_authors_commands_out`。
+     - **投待办**（F1-1）：`todo.project` 里把 `projected_todo` 加 `.body(..).status(Open)` 换成 `project_todo(&ProjectionKind::Marker, &doc, &block, &任务文字)`，返回的写入器上只设作者、来源、元数据、时间，**不要再写正文和状态**（写了就又成了普通写入，并发时又会叠两遍、又会重新打开）。换了以后 `repair_projections`、`doubled_seed` 和 metadata 里的种子可以删；换之前用 `projected_todo` 写的待办带着 `body`，照旧读。同一次写入里先投待办、再删别的（见 F2 那条：持有者先设好提交选项以后就不用管顺序）。待办已经在时 `project_todo` 什么都不写。
+     - **情节规划表**（M15 的六行六列）：`plot_grid.create` 换成 `txn.create_plot_grid(&node)?`，不用再写尺寸（没写就读成 184 × 96，和 `DEFAULT_CELL` 一样）。表还没建时 `plot_grid.get` 可以直接给出 `PlotRowId::default_for(&node, 1..=3)` / `PlotColId::default_for` 这几个 id，界面第一次动手前就能用。作者后加的行列照旧用随机 id。
+     - **正文模板**（F1-3）：模板文档是 `TemplateOwner::Category(分类).doc_id()` / `TemplateOwner::Storyline(故事线).doc_id()`，建的时候和别的正文一样写 `dr_doc::prose::genesis(&doc_id)`，编辑走 `ProseSession`。「这个分类有没有模板」就看这篇存不存在、正文是不是只剩一个空段。新建要素、章节时，在新正文的第一次写入里调 `BorrowedProse::new(doc, &新id)?.txn().insert_copy(0, &模板视图)`；模板视图在模板自己的持有者线程上取一份副本（比如对它 `fork()` 再 `ProseReader::from_loro`），免得模板正好在被编辑时抄到一半。分类、故事线彻底删除时把它的模板文档一起删（`owns_prose` 已经认它的主人）。
+     - **我改了 dr-workspace 的两行**（单独一个提交）：`DocId` / `DocKind` 多了 `Template`，`commands/comment.rs` 的 `owner_of` 和 `commands/mention.rs` 的 `owner` 是穷举匹配，不补就编译不过。两处都归到「没有主人实体」那一支（模板里的 TODO 不投成待办、不排除自链）。F3 看一眼，不对就改。
 3. **F4（编辑器）**：按 F4 文档「待协调」逐条对过（2026-11-07）。
    - **插入带标记**（F4 待协调 2 的小建议，已做）：`TextChange::Insert { text, marks }`。`dr-editor` 把 `marks` 用和 `read` 同一个函数换成 `gpui_prose::Marks`，传进 `SourceChange::Insert.marks`（总是 `Some`）。`marks` 只对新字里的非换行字成立，这和编辑器只在「一段之内插字」时用它正好对上。`gpui-prose` 的 `text/drdoc_style.rs` 样板里还写着「dr-doc 不带标记」，F4 改样板时顺手改掉。
    - **事件从哪来**：`ProseSession::reader().subscribe(...)`（F3）。回调在持有者线程上、提交的那一刻同步执行，先进队列，回到界面线程再折进镜像（`drdoc_style.rs` 就是这么做的）。它表示「文档变了」，不表示「已经存好」。
@@ -274,12 +294,21 @@ cargo run --release -p dr-testkit --bin bench -- doc
    - **每次按键的查询**照旧用 F4a 自己的段落索引，不调 `ProseView::paragraph_at` / `paragraph_by_id`（前者 2 万字章约 0.12 ms，后者全文扫描）。
 4. **批注、补丁的正文和素材描述**在书目文档里是 `LoroText`，现在只给了纯文本写入（按最小差异更新，并发会合并）。审阅模块（M-审阅）如果要在批注里用富文本，要么在 `dr-doc` 加一套书目文档内的富文本接口，要么以后把批注正文挪成独立的正文文档。等该模块开工时定。
 5. **M10（旧库导入）**：退役取值用 `dr_model::legacy` 规整；旧 `anchor_json` 拆成 `anchor`（光标对）、`quote`（`selectedText` / `textAnchor.text`）、`snapshots`（`blockSnapshots`，没有时用 v2 的 `blockText`）、`region`；`comment_action` 里 `start_agent_task` 的 `conversationId` 写进 `agent_conversation`；元数据里 `kind = todo-autoparse` / `note-task` 的待办，改用 `CommentId::for_projection` 的 id 和 `projection` 字段；旧的 `position_key` 原样写进 `pos`；本机 localStorage 里的颜色、目标、固定位置在交接时一起导出。
-6. **`chapter_template` / `element_template`** 暂时原样存旧版的 JSON 字符串。做模板的模块如果想让模板可编辑、可合并，需要一种新的正文文档（比如 `template:<id>`），那是一次结构改动。
+6. **正文模板（第五轮已做）**：新的文档种类 `template:category:<id>` / `template:storyline:<id>`，用法见上面 F3 那条。旧字段 `chapter_template` / `element_template` 原样保留、只读。**M10** 导入旧库时把旧 JSON 用和章节正文同一个转换器写进模板文档（导入对等方，两台设备导入同一个旧库写出的一样），旧字段不用动。**dr-index、统计（M20）、导出（M41）、Markdown 文件夹（M40）** 遇到 `template:` 文档一律跳过（`DocKind::is_book_text()`）。
 7. **Loro 的两个问题要不要报上游**：`import_batch` 不查校验和、解码器信任字节里的长度（修复很小：批量导入也传 `check_checksum = true`）；按不存在的容器取文本会 panic（有 `try_get_text`，但 `get_cursor_pos` 之类的路径不该让坏光标走到那里）。报不报、谁报，由监管会话定；我没有对外发任何东西。
+8. **Agent 改动「看过」跨设备（F4d；第五轮只评估，没做）**
+   - **现状**：账本 `agent-marks.json` 在本机；记号来自 dr-store 的结算记录，而结算记录只在 Agent 跑的那台设备上、不同步。所以换台设备不只是「看过」跟不过去，连「哪些字是 Agent 写的」也没有：B 收到 A 上 Agent 写的字，根本不上色。
+   - **结论：分两半。**
+     1. **记号不同步，每台设备自己算。** Agent 的提交本来就带提交信息 `agent:<会话>/<轮>`（Markdown 文件夹是 `mirror`），存在 Loro 历史里、随同步走。任何设备都能从历史里找出这些变更，对「这次变更之前 → 之后」做和现在一样的 diff，得到同样的几处新字；每处的 id 由（文档、这次变更的 ID、第几处）算出，处处一样。只算最近 30 天（按变更自带的时间，所有设备一致）的变更，更早的一律当看过：新设备第一次打开时不会把历史上的 Agent 改动全染色，「看过」的集合也有了上限。
+     2. **只同步「看过」：每本书一篇单独的小文档 `seen:<书 id>`**，里面一个映射：记号 id → 看过的时间（秒）。碰到一处写一个键，两台设备碰了同一处合起来还是一个键。
+   - **为什么不放书目文档**：一条约 60 字节，作者一天碰掉几十处，一年就是 1 MB 上下的历史，而书目文档每次打开书都要整篇载入、历史永不裁剪。单独一篇只在编辑器上色时才读；以后大了可以换一篇新的（窗口外的记号本来就算看过，丢掉旧的不影响）。也不做成正文里的行内标记：那会让「看没看过」进正文的撤销、导出、Markdown 文件夹和复制粘贴。
+   - **要动的**：F1 加一个文档种类和读写接口（加、查），结构升小版本，和模板一样要在 dr-workspace 的两处穷举匹配里补一行；F4d 的账本改成从历史算记号（新到的变更按对等方和计数遍历，读提交信息），本机只留「算到哪了」；结算记录不变（Agent 撤销还用它）。本机 `agent-marks.json` 迁移：窗口内、本机单子上已经没有的记号写成看过。
+   - **代价**：每次同步来新的 Agent 变更，后台对它做一次 diff，和账本现在对结算记录做的一样。
+   - 要做的话，由监管会话排进某一轮。
 
 ## 没做完的，和下一个里程碑建议
 
-- **没做**：批注 / 补丁正文的富文本接口（见待协调 4）；书目读取的缓存和增量索引（见待协调 2）；模糊测试只跑了几分钟。
+- **没做**：批注 / 补丁正文的富文本接口（见待协调 4）；书目读取的缓存和增量索引（见待协调 2）；模糊测试只跑了几分钟；「看过」跨设备只评估（见待协调 8）；`insert_copy` 不抄表格格子里的行内标记（`EmbedView` 只给纯文字）。
 - **探针**：`next/spikes/loro-model/` 原样保留没动。种子已经由 F8 搬进 `dr-testkit`，基准也改用 `dr-doc`；探针删不删由监管会话定。
 - **建议的下一个里程碑**：
   1. `dr-editor` 开工后，按它真正用到的补接口（比如段落属性改动在事件里直接带上新属性，设标题就不用回读整段，这要 F4a 的快路径一起做）；
@@ -294,9 +323,9 @@ next/crates/dr-model/src/
 next/crates/dr-doc/src/
   schema.rs peer.rs pos.rs core.rs anchor.rs undo.rs error.rs
   prose/  mod.rs view.rs txn.rs attrs.rs embed.rs event.rs tests.rs
-  book/   mod.rs read.rs write.rs fields.rs tests.rs
+  book/   mod.rs read.rs write.rs seed.rs fields.rs tests.rs
 next/crates/dr-doc/tests/
-  prose_convergence.rs book_convergence.rs prose_events.rs positions.rs invariant_tests_exist.rs
+  prose_convergence.rs book_convergence.rs prose_events.rs book_seeds.rs positions.rs invariant_tests_exist.rs
   fuzz_regressions.rs fuzz-regressions/ fuzz_seeds.rs
 next/crates/dr-doc/fuzz/   load_bytes、bad_structure（独立工作区，不进 CI）
 next/crates/dr-testkit/src/bench/doc.rs   基准的 doc 套件

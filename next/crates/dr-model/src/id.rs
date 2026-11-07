@@ -211,6 +211,15 @@ id_type!(
     EmbedId
 );
 id_type!(
+    /// The owner of a body template (`template:` document): `category:<id>`
+    /// for a category's element template, `storyline:<id>` for a
+    /// storyline's chapter template. One template per owner, so the id is
+    /// derived from it ([`TemplateId::for_category`],
+    /// [`TemplateId::for_storyline`]) and two devices creating the same
+    /// template write one document.
+    TemplateId
+);
+id_type!(
     /// A paragraph's identity: `"<counter>@<peer>"` for paragraphs written by
     /// the new version (the op id of the paragraph's own newline), the old
     /// uuid for imported ones, with a `/<n>` suffix after a repair.
@@ -246,6 +255,78 @@ impl CommentId {
     }
 }
 
+/// The id of default line `n` (1, 2, 3) of a plot grid: `<chapter>:r<n>` for
+/// a row, `<chapter>:c<n>` for a column. Every device that creates the grid
+/// writes these same lines (`dr_doc`'s `BookTxn::create_plot_grid`), so two
+/// devices creating it before they sync get one 3 × 3 grid, not 6 × 6. A
+/// `/` in the chapter id (never in a uuid) is written `%2F`; an id that would
+/// be too long uses a hash of the chapter id instead.
+fn default_plot_line(chapter: &NodeId, axis: char, n: usize) -> String {
+    let s = format!("{}:{axis}{n}", chapter.as_str().replace('/', "%2F"));
+    if s.len() <= MAX_ID_LEN {
+        return s;
+    }
+    use sha2::{Digest, Sha256};
+    let hash = Sha256::digest(chapter.as_str().as_bytes());
+    let hex: String = hash[..16].iter().map(|b| format!("{b:02x}")).collect();
+    format!("{hex}:{axis}{n}")
+}
+
+impl PlotRowId {
+    /// Default row `n` (1-based) of `chapter`'s plot grid.
+    pub fn default_for(chapter: &NodeId, n: usize) -> Self {
+        Self::parse(&default_plot_line(chapter, 'r', n)).expect("valid id")
+    }
+}
+
+impl PlotColId {
+    /// Default column `n` (1-based) of `chapter`'s plot grid.
+    pub fn default_for(chapter: &NodeId, n: usize) -> Self {
+        Self::parse(&default_plot_line(chapter, 'c', n)).expect("valid id")
+    }
+}
+
+/// What a body template belongs to.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum TemplateOwner {
+    /// The template new elements of this category start from (the old
+    /// `element_category.element_template`).
+    Category(CategoryId),
+    /// The template new chapters of this storyline start from (the old
+    /// `storylines.chapter_template`).
+    Storyline(StorylineId),
+}
+
+impl TemplateId {
+    pub fn for_category(id: &CategoryId) -> Self {
+        Self::parse(&format!("category:{id}")).expect("valid id")
+    }
+
+    pub fn for_storyline(id: &StorylineId) -> Self {
+        Self::parse(&format!("storyline:{id}")).expect("valid id")
+    }
+
+    /// Whose template this is; `None` for an id this version does not know.
+    pub fn owner(&self) -> Option<TemplateOwner> {
+        let (kind, id) = self.as_str().split_once(':')?;
+        match kind {
+            "category" => CategoryId::parse(id).ok().map(TemplateOwner::Category),
+            "storyline" => StorylineId::parse(id).ok().map(TemplateOwner::Storyline),
+            _ => None,
+        }
+    }
+}
+
+impl TemplateOwner {
+    /// The template document's id.
+    pub fn doc_id(&self) -> DocId {
+        DocId::Template(match self {
+            TemplateOwner::Category(c) => TemplateId::for_category(c),
+            TemplateOwner::Storyline(s) => TemplateId::for_storyline(s),
+        })
+    }
+}
+
 impl DeviceKey {
     /// The key a device signs its writing days with, exactly as the old
     /// client (`services/writing-days/device-key.ts`): `device-` and the
@@ -271,16 +352,19 @@ pub enum DocKind {
     Storyline,
     Category,
     Material,
+    /// A body template (`template:category:<id>` / `template:storyline:<id>`).
+    Template,
 }
 
 impl DocKind {
-    pub const ALL: [DocKind; 6] = [
+    pub const ALL: [DocKind; 7] = [
         DocKind::Book,
         DocKind::Node,
         DocKind::Element,
         DocKind::Storyline,
         DocKind::Category,
         DocKind::Material,
+        DocKind::Template,
     ];
 
     /// The prefix of the document id (`book`, `node`, …).
@@ -292,13 +376,22 @@ impl DocKind {
             DocKind::Storyline => "storyline",
             DocKind::Category => "category",
             DocKind::Material => "material",
+            DocKind::Template => "template",
         }
+    }
+
+    /// Whether the document's text is part of the book: searched, counted,
+    /// exported, mirrored. The book document has no text, and a template is
+    /// not the book's text: it is copied into new chapters and elements.
+    pub fn is_book_text(self) -> bool {
+        !matches!(self, DocKind::Book | DocKind::Template)
     }
 
     /// The editing profile of a prose document of this kind; `None` for the
     /// book document. Material notes use the note profile, everything else
     /// the prose profile (as the old `editor-schema-profile.ts`: the profile
-    /// follows the document, not the view).
+    /// follows the document, not the view); templates the prose profile of
+    /// the chapters and elements made from them.
     pub fn profile(self) -> Option<ProseProfile> {
         match self {
             DocKind::Book => None,
@@ -321,8 +414,9 @@ pub enum ProseProfile {
 
 /// The id of a Loro document: `book:<id>` for the book (catalog) document,
 /// `node:<id>` / `element:<id>` / `storyline:<id>` / `category:<id>` /
-/// `material:<id>` for prose documents. The string form is what storage keys
-/// documents by.
+/// `material:<id>` for prose documents, `template:category:<id>` /
+/// `template:storyline:<id>` for body templates. The string form is what
+/// storage keys documents by.
 #[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
 pub enum DocId {
@@ -332,6 +426,7 @@ pub enum DocId {
     Storyline(StorylineId),
     Category(CategoryId),
     Material(MaterialId),
+    Template(TemplateId),
 }
 
 /// Why a string is not a document id.
@@ -363,6 +458,7 @@ impl DocId {
             DocId::Storyline(_) => DocKind::Storyline,
             DocId::Category(_) => DocKind::Category,
             DocId::Material(_) => DocKind::Material,
+            DocId::Template(_) => DocKind::Template,
         }
     }
 
@@ -375,6 +471,7 @@ impl DocId {
             DocId::Storyline(id) => id.as_str(),
             DocId::Category(id) => id.as_str(),
             DocId::Material(id) => id.as_str(),
+            DocId::Template(id) => id.as_str(),
         }
     }
 
@@ -396,6 +493,13 @@ impl DocId {
             "storyline" => DocId::Storyline(StorylineId::parse(id).map_err(e)?),
             "category" => DocId::Category(CategoryId::parse(id).map_err(e)?),
             "material" => DocId::Material(MaterialId::parse(id).map_err(e)?),
+            "template" => {
+                let t = TemplateId::parse(id).map_err(e)?;
+                if t.owner().is_none() {
+                    return Err(DocIdError::UnknownPrefix(s.to_string()));
+                }
+                DocId::Template(t)
+            }
             other => return Err(DocIdError::UnknownPrefix(other.to_string())),
         })
     }
@@ -463,6 +567,11 @@ impl From<MaterialId> for DocId {
         DocId::Material(id)
     }
 }
+impl From<TemplateId> for DocId {
+    fn from(id: TemplateId) -> Self {
+        DocId::Template(id)
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -512,6 +621,8 @@ mod tests {
             "category:c1",
             "material:m1",
             "node:0199-x:y",
+            "template:category:c1",
+            "template:storyline:s1",
         ] {
             let id = DocId::parse(s).unwrap();
             assert_eq!(id.to_string(), s);
@@ -532,6 +643,33 @@ mod tests {
             Some(ProseProfile::Prose)
         );
         assert_eq!(DocId::parse("book:m").unwrap().profile(), None);
+        // Templates: one per category or storyline, derived from it.
+        let c = CategoryId::parse("c1").unwrap();
+        let t = TemplateOwner::Category(c.clone()).doc_id();
+        assert_eq!(t.to_string(), "template:category:c1");
+        assert_eq!(t, DocId::parse("template:category:c1").unwrap());
+        assert_eq!(t.profile(), Some(ProseProfile::Prose));
+        let DocId::Template(tid) = &t else {
+            unreachable!()
+        };
+        assert_eq!(tid.owner(), Some(TemplateOwner::Category(c)));
+        let s = StorylineId::parse("s1").unwrap();
+        assert_eq!(
+            TemplateId::for_storyline(&s).owner(),
+            Some(TemplateOwner::Storyline(s))
+        );
+        assert!(matches!(
+            DocId::parse("template:node:n1"),
+            Err(DocIdError::UnknownPrefix(_))
+        ));
+        assert!(DocId::parse("template:").is_err());
+        assert!(!t.kind().is_book_text() && !DocKind::Book.is_book_text());
+        assert!(
+            DocKind::ALL
+                .iter()
+                .filter(|k| !matches!(k, DocKind::Book | DocKind::Template))
+                .all(|k| k.is_book_text())
+        );
     }
 
     #[test]
@@ -541,6 +679,14 @@ mod tests {
         let k = crate::kind::ProjectionKind::Marker;
         let id = CommentId::for_projection(&k, &doc, &b);
         assert_eq!(id.as_str(), "todo:marker:node:n1#3@7");
+        let n = NodeId::parse("n1").unwrap();
+        assert_eq!(PlotRowId::default_for(&n, 2).as_str(), "n1:r2");
+        assert_eq!(PlotColId::default_for(&n, 3).as_str(), "n1:c3");
+        let odd = NodeId::parse("a/b").unwrap();
+        assert_eq!(PlotRowId::default_for(&odd, 1).as_str(), "a%2Fb:r1");
+        let long = NodeId::parse(&"x".repeat(MAX_ID_LEN)).unwrap();
+        let r = PlotRowId::default_for(&long, 1);
+        assert!(r.as_str().len() < 64 && r.as_str().ends_with(":r1"), "{r}");
         assert_eq!(id, CommentId::for_projection(&k, &doc, &b));
         // Matches the old client's digest (computed with its device-key.ts
         // formula for installation id "test-installation").
