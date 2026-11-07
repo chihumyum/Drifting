@@ -309,3 +309,102 @@ mod properties {
         }
     }
 }
+
+#[test]
+fn live_counts_follow_the_editor_paragraph_by_paragraph() {
+    let d = prose(|t| {
+        t.insert_paragraphs(0, "安娜走了\nHello world\n")?;
+        let at = t.view().paragraph_start(t.view().len() - 1);
+        let w = t.insert_embed(at, &EmbedId::parse("t1").unwrap(), &EmbedKind::Table)?;
+        w.add_col("c0", &PosKey::first())?;
+        w.add_row("r0", &PosKey::first())?;
+        w.set_cell("r0", "c0", "格子里")
+    });
+    let mut live = LiveCount::from_view(&d.view());
+    // As the index counts it: the table by its cells.
+    let mut want = TextMetrics::default();
+    for p in d.view().paragraphs() {
+        want += text_metrics(&block_text(&d.view(), &p));
+    }
+    assert_eq!(live.total(), want);
+    assert_eq!(live.total().words, 4 + 2 + 3);
+
+    // The editor's lines: typing in the first, Enter in the second.
+    let mut lines = vec![
+        "安娜走了。".to_string(),
+        "Hello".to_string(),
+        " world".to_string(),
+        "\u{FFFC}".to_string(),
+    ];
+    live.splice(0, 1, 1);
+    live.splice(1, 1, 2);
+    assert!(!live.is_current());
+    // The table's line is not asked for: its count did not change.
+    let mut asked = Vec::new();
+    live.recount(|i| {
+        asked.push(i);
+        lines[i].clone()
+    });
+    assert_eq!(asked, vec![0, 1, 2]);
+    assert_eq!(live.total().words, 4 + 2 + 3);
+    assert_eq!(live.total().chars, 5 + 5 + 6 + 3);
+    // Deleting a paragraph needs no recount.
+    lines.remove(2);
+    live.splice(2, 1, 0);
+    assert!(live.is_current());
+    assert_eq!(live.total().words, 4 + 1 + 3);
+    // A placeholder in a line is no character (paragraph_text drops it).
+    assert_eq!(paragraph_metrics("ab\u{FFFC}cd").chars, 4);
+    assert_eq!(paragraph_metrics("ab\u{FFFC}cd").words, 1);
+
+    // The book from the index, with the open chapter's live count.
+    let book = TextMetrics {
+        words: 1000,
+        chars: 2000,
+    };
+    let indexed = TextMetrics {
+        words: 9,
+        chars: 22,
+    };
+    assert_eq!(
+        with_live(book, indexed, live.total()),
+        TextMetrics {
+            words: 1000 - 9 + 8,
+            chars: 2000 - 22 + live.total().chars
+        }
+    );
+}
+
+mod live_splices {
+    use proptest::prelude::*;
+
+    use crate::{LiveCount, TextMetrics, paragraph_metrics};
+
+    const POOL: &[&str] = &["安娜", "Hello", " ", "，", "a b c", "\u{FFFC}", ""];
+
+    proptest! {
+        /// Any splices, then a recount from the lines: the same total as
+        /// counting the lines afresh.
+        #[test]
+        fn splices_and_a_recount_give_a_fresh_count(
+            start in proptest::collection::vec(0..POOL.len(), 0..20),
+            edits in proptest::collection::vec((0usize..30, 0usize..4, proptest::collection::vec(0..POOL.len(), 0..4)), 1..10),
+        ) {
+            let mut lines: Vec<String> = start.iter().map(|i| POOL[*i].to_string()).collect();
+            let mut live = LiveCount::new(&lines);
+            for (at, removed, inserted) in &edits {
+                let at = (*at).min(lines.len());
+                let end = (at + removed).min(lines.len());
+                lines.splice(at..end, inserted.iter().map(|i| POOL[*i].to_string()));
+                live.splice(at, *removed, inserted.len());
+            }
+            live.recount(|i| lines[i].clone());
+            let mut want = TextMetrics::default();
+            for l in &lines {
+                want += paragraph_metrics(l);
+            }
+            prop_assert_eq!(live.total(), want);
+            prop_assert_eq!(live.len(), lines.len());
+        }
+    }
+}

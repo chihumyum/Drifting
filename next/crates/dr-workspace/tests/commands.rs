@@ -1002,7 +1002,7 @@ fn search_orders_by_book_order() {
     assert_eq!(owners.len(), 3);
     assert_eq!(
         (owners[0].clone(), owners[1].clone()),
-        (c1, c2),
+        (c1.clone(), c2.clone()),
         "chapters in reading order first"
     );
     assert_eq!(hits[2]["kind"], "element");
@@ -1011,6 +1011,13 @@ fn search_orders_by_book_order() {
         json!({"book": b, "query": "安娜在第", "limit": 1}),
     );
     assert_eq!(one.as_array().unwrap().len(), 1);
+    // A trashed chapter neither shows nor takes a place before the cut.
+    e.call("chapter.trash", json!({"book": b, "id": c1}));
+    let after = e.out(
+        "book.search",
+        json!({"book": b, "query": "安娜", "limit": 1}),
+    );
+    assert_eq!(field(&after, "owner"), [c2]);
 }
 
 #[test]

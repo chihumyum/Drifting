@@ -87,14 +87,6 @@ impl Actor {
     }
 }
 
-/// dr-store has no `repair` origin (dr-doc's deterministic repairs, origin
-/// `repair` in `loro-schema.md`). Until it does (f3-workspace.md "待协调"),
-/// repair commits are stored as `genesis`: the other origin whose content
-/// every device computes alike.
-pub(crate) fn repair_store_origin() -> dr_store::Origin {
-    dr_store::Origin::Genesis
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -119,6 +119,15 @@ mod headless {
             }))
         }
 
+        /// A move with the left button held (a drag).
+        pub fn drag_to(&mut self, at: Point<Pixels>) -> Result<()> {
+            self.send(PlatformInput::MouseMove(MouseMoveEvent {
+                position: at,
+                pressed_button: Some(MouseButton::Left),
+                modifiers: Modifiers::default(),
+            }))
+        }
+
         pub fn press(&mut self, at: Point<Pixels>) -> Result<()> {
             self.send(PlatformInput::MouseDown(MouseDownEvent {
                 button: MouseButton::Left,
@@ -161,6 +170,10 @@ mod headless {
         }
     }
 
+    /// The controls page's font size knob (its value 17 of 12–28), found by
+    /// the page's layout.
+    const FONT_SIZE_KNOB: Point<Pixels> = point(px(800.0), px(318.0));
+
     fn settle(h: &mut Headless) -> Result<()> {
         // Fonts, SVG tiles and hover cards' first layout take a few frames.
         for _ in 0..4 {
@@ -184,6 +197,13 @@ mod headless {
                     g.dialog_open = false;
                     cx.notify();
                 });
+                // On the controls page the pointer rests on the font size's
+                // knob, so its halo shows; elsewhere it is out of the way.
+                h.move_to(if page == Page::Controls {
+                    FONT_SIZE_KNOB
+                } else {
+                    point(px(WINDOW_W - 4.0), px(WINDOW_H - 4.0))
+                })?;
                 // A still moment: the clock stops so drifts and spinners hold.
                 let t0 = Instant::now();
                 anim::freeze(Some(t0));
@@ -228,6 +248,26 @@ mod headless {
             anim::freeze(Some(t0 + Duration::from_millis(140)));
             settle(&mut h)?;
             h.save(&dir, &format!("motion-midway-{}.png", appearance.slug()))?;
+            // A pill in the hand: the third chapter picked up and carried
+            // down and right; 150ms later its copy is still catching up.
+            let t2 = t0 + Duration::from_secs(2);
+            anim::freeze(Some(t2));
+            settle(&mut h)?;
+            let pick = point(px(255.0), px(crate::TOP_BAR + 46.0));
+            h.press(pick)?;
+            h.draw()?;
+            for k in 1..=6 {
+                let f = k as f32 / 6.0;
+                h.drag_to(point(pick.x + px(190.0 * f), pick.y + px(64.0 * f)))?;
+                h.draw()?;
+            }
+            for step in 1..=3 {
+                anim::freeze(Some(t2 + Duration::from_millis(50 * step)));
+                h.draw()?;
+            }
+            h.save(&dir, &format!("motion-drag-{}.png", appearance.slug()))?;
+            h.release(point(pick.x + px(190.0), pick.y + px(64.0)))?;
+            h.draw()?;
             h.set(|g, cx| {
                 g.page = Page::Sand;
                 g.cell = 0;

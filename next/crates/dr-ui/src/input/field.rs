@@ -99,6 +99,8 @@ pub struct TextField {
     meta: Option<SharedString>,
     disabled: bool,
     small: bool,
+    mono: bool,
+    trailing: Option<crate::components::Build>,
     last_layout: Option<ShapedLine>,
     last_bounds: Option<Bounds<Pixels>>,
     scroll_x: f32,
@@ -147,6 +149,8 @@ impl TextField {
             meta: None,
             disabled: false,
             small: false,
+            mono: false,
+            trailing: None,
             last_layout: None,
             last_bounds: None,
             scroll_x: 0.0,
@@ -172,6 +176,23 @@ impl TextField {
     pub fn small(mut self) -> Self {
         self.small = true;
         self
+    }
+
+    /// Read one character at a time (keys, paths, numbers): the index face.
+    pub fn mono(mut self) -> Self {
+        self.mono = true;
+        self
+    }
+
+    /// Small controls at the field's end, after its meta (a number field's
+    /// two steps); built on every render.
+    pub fn set_trailing(
+        &mut self,
+        trailing: Option<crate::components::Build>,
+        cx: &mut Context<Self>,
+    ) {
+        self.trailing = trailing;
+        cx.notify();
     }
 
     pub fn with_text(mut self, text: impl Into<String>) -> Self {
@@ -553,14 +574,20 @@ impl Render for TextField {
             .on_mouse_move(cx.listener(Self::on_mouse_move))
             .h(px(height))
             .w_full()
-            .px(px(10.0))
+            .map(|el| {
+                // A number field: 8px before the digits, 4px after its steps.
+                if self.trailing.is_some() {
+                    el.pl(px(8.0)).pr(px(4.0)).gap(px(4.0))
+                } else {
+                    el.px(px(10.0)).gap(px(8.0))
+                }
+            })
             .flex()
             .flex_row()
             .items_center()
-            .gap(px(8.0))
             .rounded(px(radius::SM))
             .bg(p.page.solid())
-            .font_role(Role::Ui)
+            .font_role(if self.mono { Role::Index } else { Role::Ui })
             .type_px(s.body, s.line_body)
             .text_color(if self.disabled { p.ink(4) } else { p.ink(1) }.solid())
             .when_some(self.icon, |el, icon| {
@@ -586,6 +613,9 @@ impl Render for TextField {
                         .text_color(p.ink(3).solid())
                         .child(meta),
                 )
+            })
+            .when_some(self.trailing.clone(), |el, build| {
+                el.child(build(window, cx))
             })
     }
 }

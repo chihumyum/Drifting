@@ -308,3 +308,61 @@ fn the_editor_layer_undoes_only_the_authors_typing() {
         "作者起首。"
     );
 }
+
+#[test]
+fn the_journal_survives_a_restart() {
+    let mut e = env();
+    let b = e.book();
+    let c = e.out("chapter.create", json!({"book": b, "title": "A"}))["id"].clone();
+    e.call("chapter.update", json!({"book": b, "id": c, "title": "B"}));
+    e.reopen();
+    // The rows are in library.sqlite: the same stacks after reopening.
+    let rows = e.ws().journal(Some("user"), 10).unwrap();
+    assert_eq!(
+        rows.iter().map(|r| r.command.as_str()).collect::<Vec<_>>(),
+        ["chapter.update", "chapter.create", "book.create"]
+    );
+    e.ws().undo(&Actor::User).unwrap().unwrap();
+    assert_eq!(titles(&e, &b)[0], "A");
+    e.reopen();
+    e.ws().redo(&Actor::User).unwrap().unwrap();
+    assert_eq!(titles(&e, &b)[0], "B");
+    let states: Vec<String> = e
+        .ws()
+        .journal(Some("user"), 10)
+        .unwrap()
+        .into_iter()
+        .map(|r| r.state)
+        .collect();
+    assert_eq!(states, ["live", "live", "live"]);
+}
+
+#[test]
+fn an_actor_keeps_its_newest_rows() {
+    let e = env();
+    let b = e.book();
+    let c = e.out("chapter.create", json!({"book": b, "title": "T"}))["id"].clone();
+    let keep = dr_workspace::journal::KEEP as usize;
+    for i in 0..keep + 70 {
+        e.call(
+            "chapter.update",
+            json!({"book": b, "id": c, "summary": format!("s{i}")}),
+        );
+    }
+    let rows = e.ws().journal(Some("user"), 2 * keep).unwrap();
+    assert!(
+        (keep..=keep + 64).contains(&rows.len()),
+        "{} rows kept (limit {keep})",
+        rows.len()
+    );
+    assert_eq!(rows[0].command, "chapter.update");
+    // Other actors are not touched.
+    let agent = Actor::agent("s", 1, "c");
+    call(
+        e.ws(),
+        &agent,
+        "chapter.update",
+        json!({"book": b, "id": c, "title": "U"}),
+    );
+    assert_eq!(e.ws().journal(Some("agent:s"), 10).unwrap().len(), 1);
+}

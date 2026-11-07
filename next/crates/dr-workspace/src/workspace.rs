@@ -5,24 +5,26 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::sync::{Arc, Mutex, Weak};
 
-use dr_doc::book::{BookDoc, BookReader};
-use dr_doc::prose::{ProseDoc, ProseReader};
+use dr_doc::book::{BookReader, BorrowedBook, Collection};
+use dr_doc::prose::{BorrowedProse, ProseReader};
 use dr_model::DocId;
 use dr_model::id::BookId;
-use dr_store::{Library, LibraryOptions, LibrarySubscription, OpenDoc, StoreError, StoreEvent};
-use loro::ExportMode;
+use dr_store::{
+    DocHandle, Library, LibraryOptions, LibrarySubscription, OpenDoc, StoreError, StoreEvent,
+};
 use serde_json::Value;
 
-use crate::actor::{Actor, repair_store_origin};
-use crate::bridge::{Mirror, lock};
+use crate::actor::Actor;
 use crate::cache::BookCache;
 use crate::cx::{Cx, Faults, Gate, Invocation, Outcome};
 use crate::error::{Result, WsError};
 use crate::events::{
-    self, BookChanged, Bus, ProseChanged, Subscription, WsEvent, book_changes, prose_ranges,
-    touched_blocks,
+    self, BookChanged, Bus, EntityChange, ProseChanged, Removed, RemovedEntity, Subscription,
+    WsEvent, book_changes, prose_ranges, touched_blocks,
 };
+use crate::holder::{self, lock};
 use crate::journal::{Journal, JournalEntry};
+use crate::nav::NavTarget;
 use crate::registry::{Access, Op, Spec, registry};
 
 /// Options of a workspace.
@@ -45,27 +47,60 @@ impl Default for WorkspaceOptions {
 }
 
 /// `LibraryOptions` with the workspace's hooks: dr-doc's style configuration
-/// on every Loro document and the prose deriver for the derived index.
+/// on every Loro document and dr-index's deriver for the derived index
+/// (paragraphs, outline, references and dr-text's word counts, from Loro
+/// diffs).
 pub fn library_options(app_version: &str) -> LibraryOptions {
     let mut o = LibraryOptions::new(app_version);
-    o.configure_doc = Some(Arc::new(dr_doc::schema::configure));
-    o.deriver = Some(Arc::new(crate::deriver::ProseDeriver));
+    dr_index::attach(&mut o);
     o
 }
 
-/// An open book: its document (holder + mirror), reader and caches.
+/// An open book: its holder, a reader sharing the holder's document, and
+/// the query caches.
 pub(crate) struct BookSlot {
     pub book: BookId,
-    pub mirror: Mirror<BookDoc>,
+    pub handle: DocHandle,
     pub reader: BookReader,
     pub cache: BookCache,
 }
 
-/// An open prose document.
+/// An open prose document: its holder and a reader sharing its document.
 pub(crate) struct ProseSlot {
+    pub doc: DocId,
     pub book: Option<BookId>,
-    pub mirror: Mirror<ProseDoc>,
+    pub handle: DocHandle,
     pub reader: ProseReader,
+}
+
+/// dr-doc's deterministic background repair of a book document, as one
+/// write with origin `repair` when there is anything to repair (cheap to
+/// ask: dr-doc's `needs_repair`). Run when a book opens and after remote
+/// updates arrive.
+pub(crate) fn repair_book(slot: &BookSlot) -> Result<()> {
+    if !slot.reader.view().needs_repair() {
+        return Ok(());
+    }
+    let book = slot.book.clone();
+    holder::write(&slot.handle, dr_store::Origin::Repair, None, move |doc| {
+        let b = BorrowedBook::new(doc, &book)?;
+        let plan = b.view().repair_plan();
+        if !plan.is_empty() {
+            b.txn().apply_repair(&plan)?;
+        }
+        Ok(())
+    })
+}
+
+/// dr-doc's block-id repair of a prose document (duplicate ids a merge can
+/// make), as one write with origin `repair`; nothing is stored when there is
+/// nothing to repair.
+pub(crate) fn repair_prose(slot: &ProseSlot) -> Result<()> {
+    let doc_id = slot.doc.clone();
+    holder::write(&slot.handle, dr_store::Origin::Repair, None, move |doc| {
+        BorrowedProse::new(doc, &doc_id)?.txn().repair_block_ids()?;
+        Ok(())
+    })
 }
 
 #[derive(Default)]
@@ -131,23 +166,70 @@ impl Workspace {
     /// Close every open document and wait for their holders (the library
     /// stays open; close it with `Library::close`).
     pub fn close(&self) {
+        self.close_slots();
+        lock(&self.inner.subscription).take();
+    }
+
+    /// Close the open documents nobody else holds; (closed, still in use).
+    fn close_slots(&self) -> (usize, usize) {
         let books: Vec<Arc<BookSlot>> = lock(&self.inner.books).drain().map(|(_, s)| s).collect();
         let prose: Vec<Arc<ProseSlot>> = lock(&self.inner.prose)
             .map
             .drain()
             .map(|(_, (_, s))| s)
             .collect();
-        for s in books {
-            if let Ok(s) = Arc::try_unwrap(s) {
-                s.mirror.handle.close();
+        let (mut closed, mut kept) = (0, 0);
+        let handles = books
+            .into_iter()
+            .map(|s| Arc::try_unwrap(s).map(|s| s.handle).map_err(drop))
+            .chain(
+                prose
+                    .into_iter()
+                    .map(|s| Arc::try_unwrap(s).map(|s| s.handle).map_err(drop)),
+            );
+        for h in handles {
+            match h {
+                Ok(h) => {
+                    h.close();
+                    closed += 1;
+                }
+                Err(_) => kept += 1,
             }
         }
-        for s in prose {
-            if let Ok(s) = Arc::try_unwrap(s) {
-                s.mirror.handle.close();
+        (closed, kept)
+    }
+
+    /// Before the app quits (the shell registers it with its
+    /// `quit::before_quit`). Nothing is lost without it — every command
+    /// returned once durable — but it brings the derived index of each open
+    /// document up to date and lets each holder finish its queue, write its
+    /// closing history label and compact, so the next start has nothing to
+    /// rebuild. A document still in use (an editing session) is indexed but
+    /// stays open. The workspace stays usable: a later command opens what it
+    /// needs again.
+    pub fn before_quit(&self) -> QuitReport {
+        let started = std::time::Instant::now();
+        let mut report = QuitReport::default();
+        let handles: Vec<DocHandle> = {
+            let books = lock(&self.inner.books);
+            let prose = lock(&self.inner.prose);
+            books
+                .values()
+                .map(|s| s.handle.clone())
+                .chain(prose.map.values().map(|(_, s)| s.handle.clone()))
+                .collect()
+        };
+        for h in &handles {
+            if let Err(e) = h.reindex_now() {
+                log::warn!("{}: indexing before quit failed: {e}", h.doc_id());
             }
         }
-        lock(&self.inner.subscription).take();
+        drop(handles);
+        let (closed, kept) = self.close_slots();
+        report.closed = closed;
+        report.in_use = kept;
+        report.ms = started.elapsed().as_secs_f64() * 1e3;
+        report
     }
 
     /// Close every document, then the library itself (this must be the last
@@ -174,10 +256,23 @@ impl Workspace {
                 }
             }
         };
-        let lib = inner.lib.clone();
+        let mut lib = inner.lib.clone();
         drop(inner);
-        lib.close()?;
-        Ok(())
+        // dr-store's background index rebuild (started when the library
+        // opened) briefly holds a handle on a document it finds open; a close
+        // that lands then is refused with the library handed back. Try again
+        // for up to a second.
+        for _ in 0..200 {
+            match lib.try_close() {
+                Ok(()) => return Ok(()),
+                Err(refused) if matches!(refused.error, StoreError::DocumentsOpen(_)) => {
+                    lib = refused.library;
+                    std::thread::sleep(std::time::Duration::from_millis(5));
+                }
+                Err(refused) => return Err(refused.error.into()),
+            }
+        }
+        Ok(lib.close()?)
     }
 
     /// Run a command or query by type.
@@ -317,9 +412,10 @@ impl Workspace {
         events::subscribe(&self.inner.bus, Arc::new(f))
     }
 
-    /// Import remote updates of `doc_id` (sync), through the document's
-    /// mirror, so the workspace stays the only writer. Creates the document
-    /// (from its genesis) when it is new here.
+    /// Import remote updates of `doc_id` (sync) through its holder, then run
+    /// dr-doc's repair for what a merge can produce (duplicate block ids,
+    /// semantic duplicate relations, chapters without a book order). Creates
+    /// the document (from its genesis) when it is new here.
     pub fn import_remote(
         &self,
         doc_id: &str,
@@ -331,22 +427,20 @@ impl Workspace {
         if let Some((kind, book)) = kind_book {
             self.inner.lib.register(doc_id, kind, Some(book))?;
         }
-        // dr-store's own import path (it records what the server has for a
-        // sync import); the mirror then levels on the holder thread.
+        // dr-store's own import path: it records what the server has for a
+        // sync import, persists, and announces the change (the caches follow
+        // the event like any other).
         let origin = actor.store_origin();
         match &doc {
             DocId::Book(book) => {
                 let slot = self.book_slot_or_create(book)?;
-                slot.mirror.handle.import(bytes, origin)?;
-                slot.mirror.mark_stale();
-                slot.mirror.refresh()?;
-                slot.cache.clear();
+                slot.handle.import(bytes, origin)?;
+                repair_book(&slot)?;
             }
             _ => {
                 let slot = self.prose_slot(&doc)?;
-                slot.mirror.handle.import(bytes, origin)?;
-                slot.mirror.mark_stale();
-                slot.mirror.refresh()?;
+                slot.handle.import(bytes, origin)?;
+                repair_prose(&slot)?;
             }
         }
         Ok(())
@@ -371,10 +465,6 @@ impl Workspace {
 
     fn book_slot_with(&self, book: &BookId, create: bool) -> Result<Arc<BookSlot>> {
         if let Some(s) = lock(&self.inner.books).get(book).cloned() {
-            if s.mirror.is_stale() {
-                s.mirror.refresh()?;
-                s.cache.clear();
-            }
             return Ok(s);
         }
         let doc_id = DocId::Book(book.clone()).to_string();
@@ -401,28 +491,21 @@ impl Workspace {
                     e => e.into(),
                 })?
         };
-        let peer = lib.peer_for(&doc_id)?;
-        let snap = handle.read(|d| d.export(ExportMode::Snapshot))??;
-        let doc = BookDoc::load(book.clone(), peer, &[snap])?;
-        let reader = doc.reader();
+        let reader = handle
+            .doc()
+            .with_doc(|d| BookReader::from_loro(book.clone(), d))?;
         let slot = Arc::new(BookSlot {
             book: book.clone(),
-            mirror: Mirror::new(handle, doc),
+            handle,
             reader,
             cache: BookCache::default(),
         });
         // dr-doc's deterministic background repair, once per open.
-        slot.mirror.write(repair_store_origin(), None, |d, _| {
-            d.repair()?;
-            Ok(())
-        })?;
+        repair_book(&slot)?;
         let slot = lock(&self.inner.books)
             .entry(book.clone())
             .or_insert(slot)
             .clone();
-        if slot.mirror.frontiers() != slot.mirror.handle.doc().oplog_frontiers() {
-            slot.mirror.mark_stale();
-        }
         Ok(slot)
     }
 
@@ -433,10 +516,7 @@ impl Workspace {
             let tick = p.tick;
             if let Some((t, s)) = p.map.get_mut(doc) {
                 *t = tick;
-                let s = s.clone();
-                drop(p);
-                s.mirror.refresh()?;
-                return Ok(s);
+                return Ok(s.clone());
             }
         }
         if doc.is_book() {
@@ -461,28 +541,24 @@ impl Workspace {
                 genesis: &genesis,
             },
         )?;
-        let peer = lib.peer_for(&id)?;
-        let snap = handle.read(|d| d.export(ExportMode::Snapshot))??;
-        let pd = ProseDoc::load(doc.clone(), peer, &[snap])?;
-        let reader = pd.reader();
+        let reader = handle
+            .doc()
+            .with_doc(|d| ProseReader::from_loro(doc.clone(), d))?;
         let slot = Arc::new(ProseSlot {
+            doc: doc.clone(),
             book: info.book_id.as_deref().and_then(|b| BookId::parse(b).ok()),
-            mirror: Mirror::new(handle, pd),
+            handle,
             reader,
         });
         // dr-doc asks for one block-id repair after opening.
-        slot.mirror.write(repair_store_origin(), None, |d, _| {
-            d.repair()?;
-            Ok(())
-        })?;
+        repair_prose(&slot)?;
         let mut p = lock(&self.inner.prose);
         p.tick += 1;
         let tick = p.tick;
         let slot = p.map.entry(doc.clone()).or_insert((tick, slot)).1.clone();
         // Close the least recently used, but never one still in use (a
-        // `ProseSession` holds its slot): a second slot on the same holder
-        // would be safe but would not see the first one's writes until its
-        // own next write.
+        // `ProseSession` holds its slot and its undo manager lives on the
+        // holder's document).
         while p.map.len() > self.inner.options.max_open_prose.max(1) {
             let Some(oldest) = p
                 .map
@@ -506,6 +582,115 @@ impl Workspace {
     }
 }
 
+/// What [`Workspace::before_quit`] did.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct QuitReport {
+    /// Documents closed (their holders finished, labelled and compacted).
+    pub closed: usize,
+    /// Documents left open because something still holds them.
+    pub in_use: usize,
+    pub ms: f64,
+}
+
+/// Collections whose entities a tab can show, and how a removal names them.
+fn removable(c: Collection) -> bool {
+    matches!(
+        c,
+        Collection::Nodes
+            | Collection::Storylines
+            | Collection::Elements
+            | Collection::Categories
+            | Collection::Materials
+            | Collection::Meta
+    )
+}
+
+/// Which of `changes` trashed or purged something a tab can show. Reads the
+/// holder's document as it is right after the change (this runs on the
+/// holder thread, in its event callback): only the entities whose trash
+/// mark changed or that changed whole, one map lookup each.
+fn removed_by(slot: &BookSlot, changes: &[EntityChange]) -> Vec<RemovedEntity> {
+    let mut out = Vec::new();
+    let doc = slot.handle.doc();
+    let trashed = |m: &loro::LoroMap| {
+        matches!(
+            m.get("deleted_at"),
+            Some(loro::ValueOrContainer::Value(v)) if !v.is_null()
+        )
+    };
+    for ch in changes.iter().filter(|c| removable(c.collection)) {
+        let marks = ch
+            .fields
+            .as_ref()
+            .is_none_or(|f| f.iter().any(|f| f == "deleted_at"));
+        if !marks {
+            continue;
+        }
+        if ch.collection == Collection::Meta {
+            if trashed(&doc.get_map(Collection::Meta.root())) {
+                out.push(RemovedEntity {
+                    target: NavTarget::Book,
+                    purged: false,
+                });
+            }
+            continue;
+        }
+        let Some(id) = &ch.id else { continue };
+        let state = match doc.get_map(ch.collection.root()).get(id) {
+            Some(loro::ValueOrContainer::Container(loro::Container::Map(m))) => {
+                if trashed(&m) {
+                    Some(false)
+                } else {
+                    None
+                }
+            }
+            Some(_) => None,
+            None => Some(true),
+        };
+        let Some(purged) = state else { continue };
+        let targets: Vec<NavTarget> = match ch.collection {
+            Collection::Nodes => {
+                let Ok(nid) = dr_model::id::NodeId::parse(id) else {
+                    continue;
+                };
+                let node = if purged {
+                    slot.cache.known_node(&nid)
+                } else {
+                    slot.reader.view().node(&nid)
+                };
+                match node {
+                    Some(n) if n.is_drift() => vec![NavTarget::Idea(nid)],
+                    Some(_) => vec![NavTarget::Chapter(nid)],
+                    None => vec![NavTarget::Chapter(nid.clone()), NavTarget::Idea(nid)],
+                }
+            }
+            Collection::Storylines => match id.parse() {
+                Ok(x) => vec![NavTarget::Storyline(x)],
+                Err(_) => continue,
+            },
+            Collection::Elements => match id.parse() {
+                Ok(x) => vec![NavTarget::Element(x)],
+                Err(_) => continue,
+            },
+            Collection::Categories => match id.parse() {
+                Ok(x) => vec![NavTarget::Category(x)],
+                Err(_) => continue,
+            },
+            Collection::Materials => match id.parse() {
+                Ok(x) => vec![NavTarget::Material(x)],
+                Err(_) => continue,
+            },
+            _ => continue,
+        };
+        out.extend(
+            targets
+                .into_iter()
+                .map(|target| RemovedEntity { target, purged }),
+        );
+    }
+    out
+}
+
 impl Inner {
     fn on_store_event(&self, e: &StoreEvent) {
         match e {
@@ -516,8 +701,13 @@ impl Inner {
                 match &doc {
                     DocId::Book(book) => {
                         let changes = book_changes(&ev.changes);
-                        if let Some(slot) = lock(&self.books).get(book).cloned() {
-                            slot.mirror.check_event(&ev.frontiers);
+                        let slot = lock(&self.books).get(book).cloned();
+                        // Before the caches forget what a purged node was.
+                        let removed = slot
+                            .as_ref()
+                            .map(|s| removed_by(s, &changes))
+                            .unwrap_or_default();
+                        if let Some(slot) = &slot {
                             slot.cache.invalidate(&changes);
                         }
                         events::publish(
@@ -529,14 +719,26 @@ impl Inner {
                                 changes,
                             }),
                         );
+                        if !removed.is_empty() {
+                            events::publish(
+                                &self.bus,
+                                &WsEvent::Removed(Removed {
+                                    book: book.clone(),
+                                    seq: ev.seq,
+                                    origin: ev.origin.clone(),
+                                    entities: removed,
+                                }),
+                            );
+                        }
                     }
                     _ => {
                         let (ranges, embeds) = prose_ranges(&ev.changes);
                         let slot = lock(&self.prose).map.get(&doc).map(|(_, s)| s.clone());
                         let (book, blocks) = match slot {
                             Some(s) => {
-                                s.mirror.check_event(&ev.frontiers);
-                                let blocks = if s.mirror.is_stale() || ranges.is_empty() {
+                                // On the holder thread, right after the
+                                // commit: the reader shows exactly it.
+                                let blocks = if ranges.is_empty() {
                                     Vec::new()
                                 } else {
                                     touched_blocks(&s.reader.view().blocks(), &ranges)

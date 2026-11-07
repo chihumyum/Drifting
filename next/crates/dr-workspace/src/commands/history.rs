@@ -672,18 +672,27 @@ op! {
                 Err(e) => return Err(e),
             };
             let contiguous = spans.windows(2).all(|w| w[0].after == w[1].before);
-            let current = slot.mirror.frontiers();
-            if !contiguous || current != spans.last().expect("non-empty").after {
+            let target = spans[0].before.clone();
+            let last = spans.last().expect("non-empty").after.clone();
+            // Compare and revert in one job: the author's editor writes to
+            // this document without the book's lease.
+            let pre = if contiguous {
+                cx.write_prose_raw(&slot, move |doc| {
+                    let pre = doc.oplog_frontiers();
+                    if pre != last {
+                        return Ok(None);
+                    }
+                    doc.revert_to(&target)?;
+                    Ok(Some(pre))
+                })?
+            } else {
+                None
+            };
+            let Some(pre) = pre else {
                 out.conflicts.push(Conflict { what: doc_id.clone(), field: None,
                     reason: "written by someone else since; restore it from history".into() });
                 continue;
-            }
-            let target = spans[0].before.clone();
-            let pre = cx.write_prose_raw(&slot, move |m, raw| {
-                let pre = m.frontiers();
-                raw.revert_to(&target)?;
-                Ok(pre)
-            })?;
+            };
             undo.push(Invocation::new("prose.restore", super::prose::ProseRestoreIn {
                 doc: doc_id.clone(), at: frontiers_hex(&pre),
             }));
@@ -739,8 +748,9 @@ op! {
                 }
             }
             copy.checkout_to_latest();
-            let now_deep = deep_entities(&slot.mirror.handle.doc().get_deep_value());
-            let now_meta = map_get(&slot.mirror.handle.doc().get_deep_value(), Collection::Meta.root());
+            let now_value = slot.handle.doc().get_deep_value();
+            let now_deep = deep_entities(&now_value);
+            let now_meta = map_get(&now_value, Collection::Meta.root());
             // Which version each restored field comes from (a span's before).
             let mut readers: HashMap<usize, BookReader> = HashMap::new();
             let mut reader_at = |i: usize| -> Result<BookReader> {

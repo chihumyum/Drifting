@@ -23,8 +23,8 @@ use std::collections::BTreeSet;
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread::ThreadId;
 
-use dr_doc::book::BookTxn;
-use dr_doc::prose::{ProseTxn, ProseView};
+use dr_doc::book::{BookTxn, BorrowedBook};
+use dr_doc::prose::{BorrowedProse, ProseTxn, ProseView};
 use dr_model::DocId;
 use dr_model::id::BookId;
 use loro::Frontiers;
@@ -33,8 +33,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::actor::Actor;
-use crate::bridge::lock;
 use crate::error::{Result, WsError};
+use crate::holder::{self, lock};
 use crate::registry::{Access, Concurrency, Spec};
 use crate::workspace::{BookSlot, ProseSlot, Workspace};
 
@@ -330,32 +330,31 @@ impl<'a> Cx<'a> {
         Ok(())
     }
 
-    /// Step 2: one commit on prose document `doc`.
+    /// Step 2: one commit on prose document `doc`, a dr-doc transaction on
+    /// the holder's document.
     pub(crate) fn write_prose<R, F>(&self, slot: &ProseSlot, f: F) -> Result<R>
     where
         F: FnOnce(&mut ProseTxn<'_>) -> Result<R> + Send + 'static,
         R: Send + 'static,
     {
-        self.check_phase(Phase::Prose)?;
-        let origin = self.actor.model_origin();
-        let agent = self.actor.agent_write(&self.summary());
-        slot.mirror
-            .write(self.actor.store_origin(), agent, move |d, _| {
-                let (r, _) = d.edit(origin, |txn| Ok(f(txn)));
-                r?
-            })
+        let doc_id = slot.doc.clone();
+        self.write_prose_raw(slot, move |doc| {
+            let b = BorrowedProse::new(doc, &doc_id)?;
+            let mut txn = b.txn();
+            f(&mut txn)
+        })
     }
 
-    /// Step 2, raw: run `f` on prose document `doc`'s mirror and the
-    /// holder's own document (history restores use Loro's `revert_to`).
+    /// Step 2, raw: run `f` on the holder's document itself (history
+    /// restores use Loro's `revert_to`).
     pub(crate) fn write_prose_raw<R, F>(&self, slot: &ProseSlot, f: F) -> Result<R>
     where
-        F: FnOnce(&mut dr_doc::prose::ProseDoc, &loro::LoroDoc) -> Result<R> + Send + 'static,
+        F: FnOnce(&loro::LoroDoc) -> Result<R> + Send + 'static,
         R: Send + 'static,
     {
         self.check_phase(Phase::Prose)?;
         let agent = self.actor.agent_write(&self.summary());
-        slot.mirror.write(self.actor.store_origin(), agent, f)
+        holder::write(&slot.handle, self.actor.store_origin(), agent, f)
     }
 
     /// Step 3: the book document, one commit. Returns `f`'s value and the
@@ -375,14 +374,15 @@ impl<'a> Cx<'a> {
             )));
         }
         self.faults().check("after_prose")?;
-        let origin = self.actor.model_origin();
         let agent = self.actor.agent_write(&self.summary());
-        slot.mirror
-            .write(self.actor.store_origin(), agent, move |d, _| {
-                let before = d.frontiers();
-                let (r, _) = d.edit(origin, |txn| Ok(f(txn)));
-                Ok((r??, before))
-            })
+        let book = slot.book.clone();
+        holder::write(&slot.handle, self.actor.store_origin(), agent, move |doc| {
+            // The holder has settled the document: this is the stored head.
+            let before = doc.oplog_frontiers();
+            let b = BorrowedBook::new(doc, &book)?;
+            let mut txn = b.txn();
+            Ok((f(&mut txn)?, before))
+        })
     }
 
     /// The open prose document `doc` (created from its genesis if only

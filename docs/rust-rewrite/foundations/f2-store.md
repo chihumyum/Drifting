@@ -22,7 +22,7 @@
 | --- | --- | --- | --- |
 | 1 | 数据库基线与迁移：基线、安全快照、影子库、恢复回执、失败原库不变 | 完成 | `tests/migrate.rs`（16 项，含每个阶段注入失败、模拟崩溃、回执的各种状态） |
 | 2 | 表：Loro 相关表、历史标签、结算、同步状态、派生索引、资源 | 完成 | `migrations/0000_baseline.sql`；`tests/index.rs`（12 项，另有 1 项手动测量） |
-| 3 | 文档持有者：专用线程、来源标记、先落盘再发事件、作者与 Agent 不同提交 | 完成 | `tests/holder.rs`（19 项）、`tests/records.rs`（11 项） |
+| 3 | 文档持有者：专用线程、来源标记、先落盘再发事件、作者与 Agent 不同提交 | 完成 | `tests/holder.rs`（19 项）、`tests/records.rs`（12 项） |
 | 4 | 压缩与历史：后台压缩、同事务删除、不做浅快照、另载副本回看 | 完成 | `tests/holder.rs`、`tests/records.rs` |
 | 5 | 崩溃安全：编辑中被杀、迁移各阶段被杀 | 完成 | `tests/crash.rs`（迁移六个阶段各杀一次，用 dr-testkit 的试验台）；编辑中被杀归 dr-testkit 的 `tests/crash_store.rs` |
 | 6 | 资源文件：三种版本、导入标记协议、垃圾回收、落盘删除、图片管线接口 | 完成（管线只有接口） | `tests/asset.rs` 和 `asset.rs` 里的单测 |
@@ -30,10 +30,10 @@
 | — | 本机身份与自动换代、同步状态、派生器、事件总线（监管会话追加） | 完成 | `tests/device.rs`（5 项）、`tests/sync.rs`（3 项）、`tests/records.rs` |
 | — | 机器指纹：换了机器就当新设备（监管会话批准待协调第 8 条） | 完成 | `machine.rs`、`identity.rs` 的单测（7 项）、`tests/device.rs` |
 | — | `file_io.rs`、`archive.rs` 原样搬入并补单测 | 完成 | `tests/file_io.rs`（8 项，Windows 另有 1 项在 CI 跑） |
-| — | M10 要的接口：`label_at`、`Device::adopt`、导入回执表（`0001`）、`repair` 来源 | 完成 | `tests/labels.rs`（2 项）、`identity.rs` 单测、`tests/migrate.rs`、`tests/sync.rs`、`tests/records.rs` |
+| — | M10 要的接口：`label_at`、`Device::adopt`、导入回执表（`0001`）、`repair` 来源 | 完成 | `tests/labels.rs`（3 项）、`identity.rs` 单测、`tests/migrate.rs`、`tests/sync.rs`、`tests/records.rs` |
 | — | 第三轮（监管会话）：按段写派生索引、类型化读取、本机表 `ws_journal`（`0003`）、书序搜索、关库被拒时交还、大纲规则、只读打开、换用 dr-testkit | 完成 | `tests/index.rs`、`tests/holder.rs`、`tests/records.rs`、`tests/crash.rs`；见「第三轮」 |
 
-合计 112 项测试（macOS：32 项单测、80 项集成测试），另有 1 项手动测量默认不跑。按平台条件算，Windows 上是 106 项：少了只在 Unix/macOS 上有意义的 7 项（符号链接、目录同步、`IOPlatformUUID`），多 1 项写穿改名；这一轮没在 Windows 上跑过。
+合计 114 项测试（macOS：32 项单测、82 项集成测试），另有 1 项手动测量默认不跑。按平台条件算，Windows 上是 107 项：少了只在 Unix/macOS 上有意义的 8 项（符号链接、目录同步、`IOPlatformUUID`、子进程拿着锁文件），多 1 项写穿改名；没在 Windows 上跑过。
 
 ## 接口概览
 
@@ -132,6 +132,7 @@ match lib.try_close() { Err(CloseRefused { error, library }) => /* 还有文档�
 ```
 
 - **独占**：loro-schema 的对等方规则以「一个库只被一个进程打开」为前提。所以打开时对 `library.lock` 加排他锁：另一个进程、或同一进程里第二个 `Library` 都打不开。进程被杀时系统自动放锁。
+- **关库时明确放锁**：Unix 上这把锁是 `flock`，属于「打开的文件」而不是进程。别的线程正在启动子进程时，子进程在换成自己的程序之前手里有一份所有文件描述符的副本；只关掉我们自己那份，锁要等子进程那份也关了才放。所以关库时先显式解锁，所有副本一起失效（见下文「M10 报的两处」）。
 - **两条连接**：一条写（所有持有者共用，Rust 互斥锁排队），一条只读（`query_only`）。WAL 下读不挡写。
 - **本机身份**：`identity.rs` 原样搬了 0.1 的 `installation_identity.rs`：随机 32 字节、先写临时文件再硬链接发布、损坏时报错且不改动文件、只给本人读写。写作日的设备键沿用 0.1 渲染层的算法（`device-key.ts`：`SHA-256("drifting.writing-day.v1\n" + 安装 id)` 的前 12 字节），同一台设备导入后在写作日里还是同一台。
 - **机器指纹**（`machine.rs`）：macOS 读硬件 UUID（`gethostuuid`，和 `ioreg` 里的 `IOPlatformUUID` 是同一个值，测试逐字比对过），Windows 读 `HKLM\SOFTWARE\Microsoft\Cryptography\MachineGuid`（`RegGetValueW`，强制 64 位视图）。只存 `SHA-256("drifting.machine.v1\n" + 大写的机器 id)`，不存原值。其他平台没有指纹，也就不做这项检查。
@@ -177,7 +178,7 @@ match lib.try_close() { Err(CloseRefused { error, library }) => /* 还有文档�
   - `0003_ws_journal`：F3 的本机日志表（见「本机表」）。
 
   测试 `a_baseline_library_gets_the_later_published_migrations` 用只有基线的旧库走一遍真实的升级：先拍安全快照，再在影子库上迁后面几条，正文和已有标签都在。
-- **哈希还没人钉**：`PINNED` 里四条现在都是 `None`（F8 的约定：第一个 0.2 版本发布时才填），门禁只提示「not published yet」。以前 dr-store 自己有一个 `PUBLISHED` 测试钉着前三条，这一轮删了，免得两份名单。见「待协调」。
+- **哈希还没人钉**：`PINNED` 里四条现在都是 `None`（F8 的约定：第一个 0.2 版本发布时才填），门禁只提示「not published yet」。以前 dr-store 自己有一个 `PUBLISHED` 测试钉着前三条，第三轮删了，免得两份名单。监管会话定了：等第一个 0.2 版本真正发布时再钉，在那之前保持「未冻结」。
 
 ### 表
 
@@ -234,8 +235,9 @@ DDL 以 `migrations/0000_baseline.sql` 为准：所有表 `STRICT`，时间一�
 照旧版快照历史的规则：
 
 - `periodic`：提交之后，距上一个标签满 15 分钟才打；`close`、`restore` 不受间隔限制；
+- `close` 只在这次打开有过「值得打点」的提交时才打，口径和 `periodic` 一样：只有创世、导入、修复、外部改动的话不打；
 - `agent:<会话>/<轮>`：每轮 Agent 的第一次写入之前打一个，整轮可以一起撤；
-- 同一个版本不连着打两个；一小时内全留，一天内每小时留一个，再往前每天一个，30 天以前的删掉；
+- 同一个版本不连着打两个，不管上一个是持有者自己打的，还是文档开着时别人用 `label_at` 打的；一小时内全留，一天内每小时留一个，再往前每天一个，30 天以前的删掉；
 - 每个标签同时记下当时书目文档（`book:<书 id>`）最新落盘的 frontiers，按实体恢复时两边一起用（F1 给按实体恢复的接口）。
 - **指定版本、指定时间的历史点**（`label_at`、`label_many`，导入重放 0.1 的快照历史用）：书目文档的版本取当前落盘的那个。参数 `LabelRetention` 默认 `Thinned`：照常修剪，所以早于 30 天的点写进去马上就会被删；`Kept` 写 `keep = 1`，永不修剪。M10 要不要保留导入的旧历史点，由它选。
 - 文档打开着时也可以 `label_at`；持有者记着的「上一个标签」只认它自己打的，影响的只是下一个周期标签什么时候到期。
@@ -399,6 +401,17 @@ M3 Pro（12 核，36 GB），release，Loro 1.17.1，2026-11-07，跑时 1 分�
 | 7. 只读打开 | `Library::open_read_only`；见「只读打开与关库」 |
 | 8. 换用 dr-testkit | 测试改用 dr-testkit 的随机流和语料；迁移被杀改写在 `crash::Harness` 上（`for_test` 就是 `with_args` 加上测试名）；删了 `f2-bench`、`f2-crash` 和两份 `f2-*.json`。`synthetic.rs`、`evidence.rs` 只留下 dr-index 的基准例子还在用的几个函数，见「待协调」 |
 
+## M10 报的两处（2026-11-07）
+
+| M10 的报告（`m10-import.md`「待协调」1、12） | 原因 | 处理 |
+| --- | --- | --- |
+| 导入的每篇正文多一个 `close` 历史点，和 `import` 点同一个版本，书目文档版本是空的 | 持有者关闭时只要这次打开有过提交就打 `close`，导入的那次 `import` 提交也算 | `close` 改成只在有「值得打点」的提交（口径同 `records_periodic`）时才打；另外打任何标签前都和表里最新的标签比一下版本，相同就不打，`label_at` 打的也算 |
+| 并行测试里关库后马上再开，大约三次里有一次报「已在别的进程或句柄里打开」 | Unix 上库锁是 `flock`，属于打开的文件。别的测试线程同时在启动子进程（M10 每次导入跑一次 `lsof`），子进程换成自己的程序之前握着锁文件描述符的副本，只关我们那份，锁要等它那份也关了才放 | 关库时显式解锁（`LibraryLock` 的 `Drop`），所有副本一起失效 |
+
+测试：
+- `closing_labels_only_openings_that_wrote_something_worth_a_label`（`tests/labels.rs`）按 M10 的顺序走一遍：创世 → `import` → 修复 → 关 → `label_at`。之后验证三件事：只开不写不打点；作者写了就打 `close`；文档开着时别人在当前版本打过点，就不再重复。两项改动分别撤掉时，这项测试分别失败。
+- `a_closed_library_reopens_at_once_while_processes_start`（`tests/records.rs`，只在 Unix 上跑）：四个线程不停启动子进程，同时开关库 1000 次。不显式解锁时 438 次被拒，改后 0 次，约 2 秒。
+
 ## 待协调
 
 0. **给 M10**：`label_at` / `label_many` 可以替换 `run::write_labels` 的直写 SQL（行为相同：书目文档的版本取当前 head；另外多了保留参数和修剪）；`Device::adopt(dir, &id)` 替换 `adopt_identity`；导入回执的五张表在库里了（`0001`），用 `lib.local_transaction` 写，表名和列与 `receipt.rs` 相同。存档和本机表这一轮仍留在 `receipt.sqlite`（`ATTACH` 不能在事务里做，到它们的模块接手时再搬）。
@@ -413,11 +426,12 @@ M3 Pro（12 核，36 GB），release，Loro 1.17.1，2026-11-07，跑时 1 分�
 9. **Windows**：代码有 Windows 分支（写穿改名、墓碑删除、可写句柄 fsync、`MachineGuid`）。本机 `cargo check --target x86_64-pc-windows-msvc` 过不了：Loro 依赖的 `stacker` 和打包的 SQLite 要用 `windows.h` 编 C 代码，这台 Mac 上没有 Windows SDK。只依赖标准库的 `machine.rs`（库和测试）和 `file_io.rs` 用 `rustc --edition 2024 --crate-type lib --target x86_64-pc-windows-msvc --emit=metadata -D warnings` 单独做了类型检查，通过；`asset.rs` 的 Windows 删除分支依赖 crate 内部，只能靠 CI 的 Windows 那一条验证（它是从 0.1 在 Windows 上编过的代码逐行搬来的）。
 10. **给 dr-index**：
     - 派生器可以改发 `DerivedUpdate::Patch`：留着上一次的 `Derived`，用 `DerivedPatch::between(&旧, &新)` 就行；收到 `held == false` 的输入别进缓存。
-    - 它的 `examples/dr-index-bench.rs` 还在用 `dr_store::synthetic`（`Rng`、`chapter`、`han`、`keystroke`）和 `dr_store::evidence`（`machine`、`summarize`）。dr-store 只为它留着这几个，例子换到 dr-testkit 以后就把这两个模块删掉。
+    - 它的 `examples/dr-index-bench.rs` 还在用 `dr_store::synthetic`（`Rng`、`chapter`、`han`、`keystroke`）和 `dr_store::evidence`（`machine`、`summarize`）。dr-store 只为它留着这几个；监管会话已把例子换进 dr-testkit 的事交给 dr-text 会话，换完就把这两个模块删掉。
     - 这一轮给 `DeriveInput` 加了 `held`，`dr-index/tests/common/mod.rs` 里的构造因此编不过，我在那里补了一行 `held: true,`。这是 F2 的文件范围以外唯一改动的一处。
 11. **大纲的 `paragraphs_after`**（dr-text 的规则：数到下一个进大纲的标题为止的段落，正文段和嵌入算，分隔线不算）没在 `Library::outline` 里做：`block_index` 只记标题级别，分不出分隔线和嵌入，现在算只能算错。要做就给 `block_index` 加一列段落种类（新迁移），由派生器填；在那之前要这个数，用 `dr_text::outline` 过一遍持有者的文档。
-12. **迁移的哈希**：`0000`–`0002` 已合进 `main`（M10 在用），`0003` 随这一轮合入；但 xtask 的 `PINNED` 按 F8 的约定要到第一个 0.2 版本才填，现在没有任何东西拦着有人改它们。要不要现在就把哈希填上，请监管会话定。
+12. ~~迁移的哈希要不要现在就钉~~：监管会话定了，等第一个 0.2 版本真正发布时再钉（发布才算「已发布」），在那之前保持「未冻结」。
 13. **F8 的证据与文档**：`f8-m1-store-bench.json` 因为 dr-store 改了被报「过期」，下一个里程碑重测。`f8-testkit.md`「待协调 → dr-store」里的「换用统一的种子和试验台」和「只读打开」这一轮都做了，`dr-cli inspect` 可以改用 `Library::open_read_only`，不用先复制；那份文档归 F8，我没改。
+14. **给 M10**：`run::reopen` 和测试里打开库的重试（最多 2 秒）可以删了；测试里对 `close` 历史点的豁免也可以去掉。
 
 ## 没做的、下一步建议
 

@@ -9,8 +9,10 @@ description = "Drifting 0.2 test kit (F8): the one deterministic seed, sample bo
 
 [dependencies]
 dr-doc.workspace = true
+dr-index.workspace = true
 dr-model.workspace = true
 dr-store.workspace = true
+dr-text.workspace = true
 dr-workspace.workspace = true
 loro.workspace = true
 serde.workspace = true

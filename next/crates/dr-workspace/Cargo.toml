@@ -9,6 +9,7 @@ description = "Drifting's commands and queries: one registry for the interface, 
 
 [dependencies]
 dr-doc.workspace = true
+dr-index.workspace = true
 dr-model.workspace = true
 dr-store.workspace = true
 log.workspace = true

@@ -314,7 +314,8 @@ pub(crate) struct Inner {
     pub session: String,
     /// Opened by [`Library::open_read_only`]: no lock, no writes.
     pub read_only: bool,
-    _lock: Option<File>,
+    /// Last, so the connections are closed before the lock goes.
+    _lock: Option<LibraryLock>,
 }
 
 impl Inner {
@@ -372,7 +373,26 @@ pub struct Library {
     pub(crate) inner: Arc<Inner>,
 }
 
-fn take_lock(paths: &LibraryPaths) -> Result<File> {
+/// The exclusive lock on `library.lock`, released explicitly when dropped.
+///
+/// On Unix the lock is `flock`, which belongs to the open file rather than to
+/// the process: a child process that another thread is starting at that
+/// moment holds a copy of every descriptor until it starts its program, and
+/// closing ours alone would leave the library locked until then (an
+/// immediate reopen failed 438 times in 1000 while four threads started
+/// processes: `a_closed_library_reopens_at_once_while_processes_start`).
+/// Unlocking releases the lock for every copy at once.
+struct LibraryLock(File);
+
+impl Drop for LibraryLock {
+    fn drop(&mut self) {
+        if let Err(e) = self.0.unlock() {
+            log::warn!("releasing the library lock failed: {e}");
+        }
+    }
+}
+
+fn take_lock(paths: &LibraryPaths) -> Result<LibraryLock> {
     fs::create_dir_all(&paths.root)?;
     let file = OpenOptions::new()
         .create(true)
@@ -380,7 +400,7 @@ fn take_lock(paths: &LibraryPaths) -> Result<File> {
         .write(true)
         .open(&paths.lock)?;
     match file.try_lock() {
-        Ok(()) => Ok(file),
+        Ok(()) => Ok(LibraryLock(file)),
         Err(fs::TryLockError::WouldBlock) => Err(StoreError::invalid(
             "library",
             "already open in another process or handle",
@@ -471,7 +491,7 @@ impl Library {
         paths: LibraryPaths,
         options: LibraryOptions,
         migrations: &[Migration],
-        lock: File,
+        lock: LibraryLock,
     ) -> Result<Self> {
         let (writer, report) = migrate::open_database(
             &paths.db,
