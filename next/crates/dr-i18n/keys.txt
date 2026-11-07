@@ -151,3 +151,14 @@ windowCaption.restore
 settings.rail.updates
 settings.update.current_version
 settings.update.channel_desc
+
+# The paper's corner (M03): the ⋯ menu, a chapter's writing status, the
+# trash, immersive writing
+editorTopBar.actions.more
+editorTopBar.statusSection.chapter
+editorTopBar.status.draft
+editorTopBar.status.finished
+editorTopBar.status.discarded
+editorTopBar.menu.deleteNode
+immersiveWriting.enter
+immersiveWriting.leave

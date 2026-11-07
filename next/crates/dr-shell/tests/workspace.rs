@@ -683,6 +683,61 @@ fn a_chapter_written_in_the_app_is_kept(cx: &mut TestAppContext, cx2: &mut TestA
     assert_eq!((words, hits), (words_after, 1));
 }
 
+/// M03: the paper's corner sets a chapter's writing status through F3
+/// (what its ⋯ menu's rows run), puts it in the trash, and the incense
+/// stick's shortcut hides everything but the paper until Esc.
+#[gpui::test]
+fn the_corner_sets_the_status_and_immersive_writing_keeps_only_the_paper(cx: &mut TestAppContext) {
+    let (_dir, lib) = slow_clock();
+    let (view, cx) = setup_with(cx, SettingsFile::in_memory(), None, Some(lib));
+    wait_for(&view, cx, |ws| !ws.book.is_empty());
+    let (book, first, second) = view.read_with(cx, |ws, _| {
+        (ws.book_id.clone(), chapter_of(ws, 0), chapter_of(ws, 1))
+    });
+    let (Target::Chapter(id), Target::Chapter(second_id)) = (&first, &second) else {
+        unreachable!()
+    };
+    view.update(cx, |ws, cx| {
+        ws.open(second.clone(), Open::KEEP, cx);
+        ws.open(first.clone(), Open::KEEP, cx);
+    });
+    open_editor(&view, cx, &first);
+    let was = view.read_with(cx, |ws, _| ws.book.chapters[0].status.clone());
+    let want = if was == "discarded" {
+        "draft"
+    } else {
+        "discarded"
+    };
+    view.update(cx, |ws, cx| {
+        ws.run_command(
+            "chapter.update",
+            json!({"book": book, "id": id.to_string(), "status": want}),
+            cx,
+        )
+    });
+    wait_for(&view, cx, |ws| ws.book.chapters[0].status == want);
+    // 删除节点: into the trash, and F3's event closes its tab.
+    view.update(cx, |ws, cx| {
+        ws.run_command(
+            "chapter.trash",
+            json!({"book": book, "id": second_id.to_string()}),
+            cx,
+        )
+    });
+    wait_for(&view, cx, |ws| !ws.nav.is_open(&second));
+
+    // ⌘⇧↩: only the paper; Esc: everything back.
+    keys(cx, "cmd-shift-enter");
+    assert!(view.read_with(cx, |ws, _| ws.immersive));
+    draw(cx);
+    keys(cx, "escape");
+    assert!(!view.read_with(cx, |ws, _| ws.immersive));
+    keys(cx, "cmd-shift-enter");
+    keys(cx, "cmd-shift-enter");
+    assert!(!view.read_with(cx, |ws, _| ws.immersive));
+    draw(cx);
+}
+
 #[gpui::test]
 fn a_chapter_trashed_through_f3_closes_its_tab(cx: &mut TestAppContext) {
     use dr_workspace::commands::{EntityIn, chapter::ChapterTrash};

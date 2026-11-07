@@ -14,6 +14,7 @@
 //! close their tabs.
 
 mod chrome;
+pub mod corner;
 mod dock;
 pub mod editors;
 mod sidebar;
@@ -196,6 +197,9 @@ pub struct BookLayout {
     pub right: SideLayout<RightTab>,
     #[serde(default)]
     pub dock_locked: bool,
+    /// The outline rail in the page's left margin is hidden.
+    #[serde(default)]
+    pub outline_hidden: bool,
 }
 
 /// What the Escape key closes, topmost first.
@@ -300,6 +304,12 @@ pub struct Workspace {
     pub left: Sidebar<LeftTab>,
     pub right: Sidebar<RightTab>,
     pub dock_locked: bool,
+    /// The outline rail is hidden (the corner's outline button).
+    pub outline_hidden: bool,
+    /// Immersive writing: only the paper (the incense stick, ⌘⇧↩).
+    pub immersive: bool,
+    /// The page whose corner's ⋯ menu is open (its target key).
+    pub corner_menu: Option<String>,
     pub super_view: Option<SuperView>,
     pub settings: Option<Entity<SettingsPanel>>,
     pub notifications_open: bool,
@@ -359,6 +369,9 @@ impl Workspace {
             left: Sidebar::new(None, LeftTab::Chapters, |_| true),
             right: Sidebar::new(None, RightTab::Review, |_| true),
             dock_locked: false,
+            outline_hidden: false,
+            immersive: false,
+            corner_menu: None,
             super_view: None,
             settings: None,
             notifications_open: false,
@@ -390,19 +403,21 @@ impl Workspace {
         let saved: Option<BookLayout> = Settings::read(cx)
             .layout(&self.book_id)
             .and_then(|v| serde_json::from_value(v.clone()).ok());
-        let (nav, left, right, dock_locked) = match saved {
+        let (nav, left, right, dock_locked, outline_hidden) = match saved {
             Some(l) => (
                 Navigator::restored(l.nav, |_| true),
                 Some(l.left),
                 Some(l.right),
                 l.dock_locked,
+                l.outline_hidden,
             ),
-            None => (Navigator::default(), None, None, false),
+            None => (Navigator::default(), None, None, false, false),
         };
         self.nav = nav;
         self.left = Sidebar::new(left, LeftTab::Chapters, |_| true);
         self.right = Sidebar::new(right, RightTab::Review, |_| true);
         self.dock_locked = dock_locked;
+        self.outline_hidden = outline_hidden;
         self.pages.clear();
         self.editors.clear();
         self.focused_doc = None;
@@ -756,6 +771,7 @@ impl Workspace {
             left: self.left.saved(),
             right: self.right.saved(),
             dock_locked: self.dock_locked,
+            outline_hidden: self.outline_hidden,
         }
     }
 
@@ -828,8 +844,13 @@ impl Workspace {
         }
     }
 
-    /// Esc: closes the topmost layer. Returns whether one was open.
+    /// Esc: closes the topmost layer, else leaves immersive writing.
+    /// Returns whether there was something to close.
     pub fn dismiss(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
+        if self.top_layer().is_none() && self.immersive {
+            self.set_immersive(false, cx);
+            return true;
+        }
         match self.top_layer() {
             Some(Layer::Notifications) => self.notifications_open = false,
             Some(Layer::Settings) => {
@@ -861,6 +882,17 @@ impl Workspace {
             self.settings = Some(panel);
         }
         cx.notify();
+    }
+
+    /// Immersive writing: the sidebars, the dock, the toggles and the
+    /// corner go; only the paper stays (M26 adds fading the paragraphs
+    /// around the caret and starting it by typing). Esc, ⌘⇧↩ or the incense
+    /// stick in the corner bring them back.
+    pub fn set_immersive(&mut self, on: bool, cx: &mut Context<Self>) {
+        if self.immersive != on {
+            self.immersive = on;
+            cx.notify();
+        }
     }
 
     pub fn toggle_super_view(&mut self, view: SuperView, cx: &mut Context<Self>) {
@@ -964,9 +996,11 @@ impl Workspace {
         // immersive mode, search, the bookshelf). The shortcut is bound
         // already so the keymap and Settings → Keys are complete.
         .on_action(|_: &ToggleBottomTimeline, _, _| log::debug!("the timeline is not built yet"))
-        .on_action(|_: &ToggleImmersiveWriting, _, _| {
-            log::debug!("immersive writing is not built yet")
-        })
+        .on_action(
+            cx.listener(|ws, _: &ToggleImmersiveWriting, _, cx| {
+                ws.set_immersive(!ws.immersive, cx)
+            }),
+        )
         .on_action(|_: &FindInEditor, _, _| log::debug!("find is not built yet"))
         .on_action(|_: &GlobalSearch, _, _| log::debug!("search is not built yet"))
         .on_action(|_: &CloseProject, _, _| log::debug!("the bookshelf is not built yet"))
@@ -989,16 +1023,17 @@ impl Render for Workspace {
         self.ensure_pages(window, cx);
         self.fit_pages(EditorLook::read(cx));
 
-        let left = sidebar::left(self, window, cx);
-        let right = sidebar::right(self, window, cx);
+        let immersive = self.immersive;
+        let left = (!immersive).then(|| sidebar::left(self, window, cx));
+        let right = (!immersive).then(|| sidebar::right(self, window, cx));
         let mid = stage::mid(self, window, cx);
         let row = div()
             .size_full()
             .flex()
             .flex_row()
-            .child(left)
+            .children(left)
             .child(mid)
-            .child(right);
+            .children(right);
 
         let root = div()
             .id("workspace")
@@ -1010,7 +1045,9 @@ impl Render for Workspace {
             .text_color(p.ink(1).solid())
             .on_drag_move::<sidebar::ResizeDrag>(cx.listener(sidebar::on_resize))
             .child(row)
-            .child(chrome::sidebar_toggles(self, window, cx))
+            .when(!immersive, |el| {
+                el.child(chrome::sidebar_toggles(self, window, cx))
+            })
             .when_some(self.super_view, |el, view| {
                 el.child(super_view::stage(view, window, cx))
             })

@@ -8,10 +8,30 @@
     "close": "閉じる",
     "local": "ローカル"
   },
+  "editorTopBar": {
+    "actions": {
+      "more": "その他の操作"
+    },
+    "menu": {
+      "deleteNode": "ノードを削除"
+    },
+    "status": {
+      "discarded": "不採用",
+      "draft": "下書き",
+      "finished": "完成"
+    },
+    "statusSection": {
+      "chapter": "執筆状態"
+    }
+  },
   "feedback": {
     "crash": {
       "title": "前回の使用時に Drifting で問題が発生しました"
     }
+  },
+  "immersiveWriting": {
+    "enter": "没入執筆",
+    "leave": "没入執筆を終了"
   },
   "leftSidebar": {
     "empty": {

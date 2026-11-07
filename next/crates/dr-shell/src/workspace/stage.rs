@@ -27,7 +27,7 @@ use gpui::{
 
 use super::chrome::{self, TITLEBAR_HEIGHT};
 use super::dock::DockDrag;
-use super::{Item, PageSide, Workspace, dock};
+use super::{Item, PageSide, Workspace, corner, dock};
 use crate::Settings;
 use crate::book::Paragraph;
 use crate::nav::{Tab, Target};
@@ -110,6 +110,7 @@ pub fn mid(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>)
                             });
                         }
                     })
+                    .relative()
                     .child(page_turn(
                         match which {
                             PageSide::Left => "page-left",
@@ -120,8 +121,24 @@ pub fn mid(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>)
                         look,
                     ))
             };
-            let left = side(PageSide::Left, cx);
-            let right = side(PageSide::Right, cx);
+            let left_target = split.side(PageSide::Left).target.clone();
+            let right_target = split.side(PageSide::Right).target.clone();
+            let left = side(PageSide::Left, cx).child(corner::corner(
+                ws,
+                &entity,
+                Some(&left_target),
+                false,
+                window,
+                cx,
+            ));
+            let right = side(PageSide::Right, cx).child(corner::corner(
+                ws,
+                &entity,
+                Some(&right_target),
+                true,
+                window,
+                cx,
+            ));
             let theme = Theme::of(window, cx);
             div()
                 .size_full()
@@ -139,9 +156,22 @@ pub fn mid(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>)
         }
         tab => {
             let target = tab.map(|t| t.focused().target.clone());
-            page_turn("page-main", target.as_ref(), &entity, look).into_any_element()
+            div()
+                .relative()
+                .size_full()
+                .child(page_turn("page-main", target.as_ref(), &entity, look))
+                .child(corner::corner(
+                    ws,
+                    &entity,
+                    target.as_ref(),
+                    true,
+                    window,
+                    cx,
+                ))
+                .into_any_element()
         }
     };
+    let immersive = ws.immersive;
     let strip = chrome::drag_region(
         div()
             .id("drag-strip")
@@ -152,7 +182,8 @@ pub fn mid(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>)
             .h(px(TITLEBAR_HEIGHT)),
         cx,
     );
-    let dock = dock::dock(ws, window, cx);
+    let dock = (!immersive).then(|| dock::dock(ws, window, cx));
+    let leave = immersive.then(|| corner::leave_immersive(cx));
     let dragging = cx.has_active_drag();
     div()
         .relative()
@@ -161,7 +192,8 @@ pub fn mid(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>)
         .h_full()
         .child(pages)
         .child(strip)
-        .child(dock)
+        .children(dock)
+        .children(leave)
         .when(dragging && ws.nav.active_index().is_some(), |el| {
             el.child(drop_zones(window, cx))
         })

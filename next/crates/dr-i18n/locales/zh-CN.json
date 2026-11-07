@@ -8,10 +8,30 @@
     "close": "关闭",
     "local": "本地"
   },
+  "editorTopBar": {
+    "actions": {
+      "more": "更多操作"
+    },
+    "menu": {
+      "deleteNode": "删除节点"
+    },
+    "status": {
+      "discarded": "已弃用",
+      "draft": "草稿",
+      "finished": "已完成"
+    },
+    "statusSection": {
+      "chapter": "写作状态"
+    }
+  },
   "feedback": {
     "crash": {
       "title": "上次出了故障"
     }
+  },
+  "immersiveWriting": {
+    "enter": "沉浸写作",
+    "leave": "退出沉浸写作"
   },
   "leftSidebar": {
     "empty": {

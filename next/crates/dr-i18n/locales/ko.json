@@ -8,10 +8,30 @@
     "close": "닫기",
     "local": "로컬"
   },
+  "editorTopBar": {
+    "actions": {
+      "more": "추가 작업"
+    },
+    "menu": {
+      "deleteNode": "노드 삭제"
+    },
+    "status": {
+      "discarded": "폐기됨",
+      "draft": "초안",
+      "finished": "완료"
+    },
+    "statusSection": {
+      "chapter": "집필 상태"
+    }
+  },
   "feedback": {
     "crash": {
       "title": "지난번 Drifting 실행 중 문제가 발생했습니다"
     }
+  },
+  "immersiveWriting": {
+    "enter": "몰입 쓰기",
+    "leave": "몰입 쓰기 종료"
   },
   "leftSidebar": {
     "empty": {

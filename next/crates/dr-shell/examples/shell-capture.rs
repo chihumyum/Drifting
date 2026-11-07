@@ -304,6 +304,8 @@ fn reset(ws: &mut Workspace, window: &mut gpui::Window, cx: &mut Context<Workspa
     ws.super_view = None;
     ws.settings = None;
     ws.notifications_open = false;
+    ws.immersive = false;
+    ws.corner_menu = None;
     ws.dock_locked = false;
     ws.left.panes = dr_shell::panes::Panes::single(LeftTab::Chapters);
     ws.right.panes = dr_shell::panes::Panes::single(RightTab::Review);
@@ -367,6 +369,22 @@ fn capture(dir: PathBuf) -> Result<()> {
         });
         still(&mut h)?;
         h.save(&dir, &format!("headings-{a}.png"))?;
+
+        // The paper's corner: a chapter's ⋯ menu, its writing status ticked.
+        h.set(|ws, window, cx| {
+            everyday(ws, window, cx);
+            ws.corner_menu = Some(chapter(ws, 1).key());
+        });
+        still(&mut h)?;
+        h.save(&dir, &format!("corner-menu-{a}.png"))?;
+
+        // Immersive writing: only the paper.
+        h.set(|ws, window, cx| {
+            everyday(ws, window, cx);
+            ws.set_immersive(true, cx);
+        });
+        still(&mut h)?;
+        h.save(&dir, &format!("immersive-{a}.png"))?;
 
         h.set(|ws, window, cx| {
             everyday(ws, window, cx);

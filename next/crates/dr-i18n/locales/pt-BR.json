@@ -8,10 +8,30 @@
     "close": "Fechar",
     "local": "Local"
   },
+  "editorTopBar": {
+    "actions": {
+      "more": "Mais ações"
+    },
+    "menu": {
+      "deleteNode": "Excluir nó"
+    },
+    "status": {
+      "discarded": "Descartado",
+      "draft": "Rascunho",
+      "finished": "Concluído"
+    },
+    "statusSection": {
+      "chapter": "Estado da escrita"
+    }
+  },
   "feedback": {
     "crash": {
       "title": "O Drifting teve um problema na última vez"
     }
+  },
+  "immersiveWriting": {
+    "enter": "Escrita imersiva",
+    "leave": "Sair da escrita imersiva"
   },
   "leftSidebar": {
     "empty": {

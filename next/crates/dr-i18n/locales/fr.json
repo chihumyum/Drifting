@@ -8,10 +8,30 @@
     "close": "Fermer",
     "local": "Local"
   },
+  "editorTopBar": {
+    "actions": {
+      "more": "Autres actions"
+    },
+    "menu": {
+      "deleteNode": "Supprimer le nœud"
+    },
+    "status": {
+      "discarded": "Écarté",
+      "draft": "Brouillon",
+      "finished": "Terminé"
+    },
+    "statusSection": {
+      "chapter": "État d’écriture"
+    }
+  },
   "feedback": {
     "crash": {
       "title": "Drifting a rencontré un problème la dernière fois"
     }
+  },
+  "immersiveWriting": {
+    "enter": "Écriture immersive",
+    "leave": "Quitter l’écriture immersive"
   },
   "leftSidebar": {
     "empty": {

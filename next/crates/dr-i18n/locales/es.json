@@ -8,10 +8,30 @@
     "close": "Cerrar",
     "local": "Local"
   },
+  "editorTopBar": {
+    "actions": {
+      "more": "Más acciones"
+    },
+    "menu": {
+      "deleteNode": "Eliminar nodo"
+    },
+    "status": {
+      "discarded": "Descartado",
+      "draft": "Borrador",
+      "finished": "Terminado"
+    },
+    "statusSection": {
+      "chapter": "Estado de escritura"
+    }
+  },
   "feedback": {
     "crash": {
       "title": "Drifting tuvo un problema la última vez"
     }
+  },
+  "immersiveWriting": {
+    "enter": "Escritura inmersiva",
+    "leave": "Salir de la escritura inmersiva"
   },
   "leftSidebar": {
     "empty": {

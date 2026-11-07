@@ -8,10 +8,30 @@
     "close": "Close",
     "local": "Local"
   },
+  "editorTopBar": {
+    "actions": {
+      "more": "More actions"
+    },
+    "menu": {
+      "deleteNode": "Delete node"
+    },
+    "status": {
+      "discarded": "Discarded",
+      "draft": "Draft",
+      "finished": "Finished"
+    },
+    "statusSection": {
+      "chapter": "Writing status"
+    }
+  },
   "feedback": {
     "crash": {
       "title": "Drifting ran into a problem last time"
     }
+  },
+  "immersiveWriting": {
+    "enter": "Immersive writing",
+    "leave": "Leave immersive writing"
   },
   "leftSidebar": {
     "empty": {
