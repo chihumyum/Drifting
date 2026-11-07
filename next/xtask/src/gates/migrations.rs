@@ -14,6 +14,14 @@ const DIRS: &[&str] = &["next/crates/dr-store/migrations"];
 const PINNED: &[(&str, Option<&str>)] = &[
     // F2's baseline; frozen when the first 0.2 build ships.
     ("next/crates/dr-store/migrations/0000_baseline.sql", None),
+    (
+        "next/crates/dr-store/migrations/0001_import_receipts.sql",
+        None,
+    ),
+    (
+        "next/crates/dr-store/migrations/0002_history_label_keep.sql",
+        None,
+    ),
 ];
 
 fn sha256(bytes: &[u8]) -> String {

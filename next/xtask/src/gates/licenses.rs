@@ -14,7 +14,10 @@ use crate::repo::Repo;
 pub const WORKSPACE_LICENSE: &str = "AGPL-3.0-or-later";
 
 /// Members under a permissive licence, and that licence.
-pub const PERMISSIVE: &[(&str, &str)] = &[("gpui-prose", "MIT OR Apache-2.0")];
+pub const PERMISSIVE: &[(&str, &str)] = &[
+    ("gpui-prose", "MIT OR Apache-2.0"),
+    ("prose-metrics", "Apache-2.0"),
+];
 
 /// Licences a dependency may be used under: permissive ones and the weak
 /// copyleft MPL-2.0, all compatible with distributing the client under the

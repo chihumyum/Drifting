@@ -12,8 +12,26 @@ fn capability_table() {
 
 #[test]
 fn capability_schemas() {
-    let json = serde_json::to_string_pretty(&registry().manifest()).unwrap();
+    let value = serde_json::to_value(registry().manifest()).unwrap();
+    let json = serde_json::to_string_pretty(&sorted(value)).unwrap();
     insta::assert_snapshot!("capability_schemas", json);
+}
+
+/// Object keys in sorted order. Whether `serde_json` keeps insertion order
+/// depends on which other workspace members enable its `preserve_order`
+/// feature, so the snapshot sorts keys itself and reads the same under
+/// `cargo test -p dr-workspace` and `cargo test --workspace`.
+fn sorted(value: serde_json::Value) -> serde_json::Value {
+    use serde_json::Value;
+    match value {
+        Value::Object(map) => {
+            let mut entries: Vec<(String, Value)> = map.into_iter().collect();
+            entries.sort_by(|a, b| a.0.cmp(&b.0));
+            Value::Object(entries.into_iter().map(|(k, v)| (k, sorted(v))).collect())
+        }
+        Value::Array(items) => Value::Array(items.into_iter().map(sorted).collect()),
+        other => other,
+    }
 }
 
 #[test]

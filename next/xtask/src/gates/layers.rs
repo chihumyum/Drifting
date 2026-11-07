@@ -38,6 +38,8 @@ pub const LAYERS: &[(&str, Layer)] = &[
     ("dr-doc", Layer::Data),
     ("dr-store", Layer::Data),
     ("dr-text", Layer::Data),
+    ("dr-index", Layer::Data),
+    ("prose-metrics", Layer::Data),
     ("dr-platform", Layer::Platform),
     ("dr-i18n", Layer::Platform),
     ("dr-workspace", Layer::Services),

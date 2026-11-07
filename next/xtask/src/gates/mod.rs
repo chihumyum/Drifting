@@ -95,6 +95,9 @@ pub fn all() -> Vec<Gate> {
 /// Whether `path` (from the repository root) is a test, a fixture or a
 /// benchmark rather than product code: text gates on copy skip these.
 pub fn is_test_path(path: &str) -> bool {
+    let file = path.rsplit('/').next().unwrap_or(path);
     path.split('/')
         .any(|seg| seg == "tests" || seg == "fixtures" || seg == "benches" || seg == "fuzz")
+        // A benchmark kept as an example (`examples/*bench*.rs`) is a benchmark.
+        || (path.split('/').any(|seg| seg == "examples") && file.contains("bench"))
 }
