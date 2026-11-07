@@ -269,6 +269,30 @@ impl<'a> ProseView<'a> {
         Ok(p)
     }
 
+    /// Up to `n` paragraphs starting with the one that contains `pos`, read
+    /// without looking at anything before it (cheap anywhere in the body).
+    /// `id` is the stored block id: the "a later duplicate has none" rule
+    /// needs every paragraph before, so it is not applied here (duplicates
+    /// only exist between an import and its repair, which the holder runs
+    /// right away).
+    pub fn paragraph_in(&self, pos: usize, n: usize) -> Vec<Paragraph> {
+        let len = self.len();
+        let mut out = Vec::with_capacity(n);
+        if len == 0 || n == 0 {
+            return out;
+        }
+        let mut start = self.paragraph_start(pos.min(len - 1));
+        while out.len() < n && start < len {
+            let nl = self.next_newline(start);
+            out.push(self.read_paragraph(start, nl));
+            match nl {
+                Some(nl) => start = nl + 1,
+                None => break,
+            }
+        }
+        out
+    }
+
     /// The paragraph whose (effective) id is `id`. A scan: an editor keeps
     /// its own index.
     pub fn paragraph_by_id(&self, id: &BlockId) -> Option<Paragraph> {

@@ -62,6 +62,15 @@ pub(crate) fn check_peer(peer: PeerId) -> Result<()> {
     }
 }
 
+/// A borrowed document must already carry its genesis, and be the document
+/// it is said to be.
+pub(crate) fn check_borrowed(doc: &LoroDoc, id: &DocId, key: &str) -> Result<()> {
+    if doc.get_map(schema::prose::META).get(key).is_none() {
+        return Err(DocError::NotInitialized(id.clone()));
+    }
+    check_meta(doc, id, key)
+}
+
 fn check_meta(doc: &LoroDoc, id: &DocId, key: &str) -> Result<()> {
     let want = match key {
         schema::meta::BOOK => id.entity_id().to_string(),

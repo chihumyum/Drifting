@@ -1178,3 +1178,155 @@ fn restoring_an_entity_writes_its_old_fields_back() {
     });
     assert!(matches!(r, Err(DocError::Locked(_))));
 }
+
+#[test]
+fn book_transactions_on_a_borrowed_document() {
+    let raw = loro::LoroDoc::new();
+    crate::schema::configure(&raw);
+    raw.import(&genesis(&bid())).unwrap();
+    raw.set_peer_id(7).unwrap();
+    let reader = BookReader::from_loro(bid(), &raw).unwrap();
+    {
+        let b = BorrowedBook::new(&raw, &bid()).unwrap();
+        let mut t = b.txn();
+        chapter(&mut t, "c1", Some(5.0)).unwrap();
+        element(&mut t, "e1").unwrap();
+    }
+    raw.commit_with(loro::CommitOptions::new().origin("user"));
+    assert_eq!(
+        reader.view().chapters().len(),
+        1,
+        "the reader shares the holder's document"
+    );
+    assert!(
+        reader
+            .view()
+            .element(&ElementId::parse("e1").unwrap())
+            .is_some()
+    );
+    assert!(matches!(
+        BorrowedBook::new(&raw, &BookId::parse("b2").unwrap()),
+        Err(DocError::WrongDocument { .. })
+    ));
+    assert!(matches!(
+        BorrowedBook::new(&loro::LoroDoc::new(), &bid()),
+        Err(DocError::NotInitialized(_))
+    ));
+}
+
+#[test]
+fn per_object_reads_match_the_whole_book_reads() {
+    let mut a = book(1);
+    let rt = RelationTypeId::parse("rt").unwrap();
+    user(&mut a, |t| {
+        t.relation_type(&rt)?
+            .name("对手")?
+            .orientation(&RelationOrientation::Directed)?
+            .source_kinds(&[EntityKind::Element])?
+            .target_kinds(&[EntityKind::Element])?;
+        for e in ["e1", "e2", "e3"] {
+            element(t, e)?;
+        }
+        t.relation(&RelationId::parse("r1").unwrap())?
+            .ends(&el("e1"), &el("e2"))?
+            .relation_type(&rt)?;
+        t.relation(&RelationId::parse("r2").unwrap())?
+            .ends(&el("e3"), &el("e1"))?
+            .relation_type(&rt)?;
+        t.relation(&RelationId::parse("r3").unwrap())?
+            .ends(&el("e2"), &el("e3"))?
+            .relation_type(&rt)?;
+        t.patch(&PatchId::parse("p1").unwrap())?
+            .element(&ElementId::parse("e1").unwrap())?;
+        t.comment(&CommentId::parse("c1").unwrap())?
+            .target(Some(&el("e2")))?;
+        Ok(())
+    });
+    let v = a.view();
+    let of = |id: &str| {
+        v.relations_of(&el(id))
+            .into_iter()
+            .map(|r| r.id.to_string())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(of("e1"), vec!["r1", "r2"]);
+    assert_eq!(of("e3"), vec!["r2", "r3"]);
+    let all: Vec<String> = v
+        .relations()
+        .into_iter()
+        .map(|r| r.id.to_string())
+        .collect();
+    assert_eq!(all, vec!["r1", "r2", "r3"]);
+    assert!(v.entity_exists(&EntityRef::new(EntityKind::Patch, "p1")));
+    assert!(v.entity_exists(&EntityRef::new(EntityKind::Comment, "c1")));
+    assert!(!v.entity_exists(&EntityRef::new(EntityKind::Node, "nope")));
+    assert!(!v.entity_exists(&EntityRef::new(EntityKind::parse("future"), "e1")));
+    user(&mut a, |t| {
+        t.element(&ElementId::parse("e2").unwrap())?
+            .deleted_at(Some(Timestamp(1)))
+            .map(|_| ())
+    });
+    let v = a.view();
+    assert!(!v.entity_exists(&el("e2")));
+    assert_eq!(of_ids(v.relations_of(&el("e1"))), vec!["r2"]);
+    assert!(
+        v.comment(&CommentId::parse("c1").unwrap())
+            .unwrap()
+            .target_missing
+    );
+    user(&mut a, |t| t.purge(Collection::Elements, "e1"));
+    assert!(
+        !a.view()
+            .entity_exists(&EntityRef::new(EntityKind::Patch, "p1")),
+        "a patch needs its element"
+    );
+}
+
+fn of_ids(v: Vec<dr_model::book::Relation>) -> Vec<String> {
+    v.into_iter().map(|r| r.id.to_string()).collect()
+}
+
+#[test]
+fn snapshots_expose_fields_and_their_differences() {
+    let mut a = book(1);
+    let e = ElementId::parse("e1").unwrap();
+    user(&mut a, |t| {
+        t.element(&e)?.name("旧")?.summary("同").map(|_| ())
+    });
+    let before = a
+        .view()
+        .entity_snapshot(Collection::Elements, "e1")
+        .unwrap();
+    user(&mut a, |t| {
+        t.element(&e)?
+            .name("新")?
+            .add_alias("甲")?
+            .group_name(None)
+            .map(|_| ())
+    });
+    let after = a
+        .view()
+        .entity_snapshot(Collection::Elements, "e1")
+        .unwrap();
+    assert_eq!(before.field("name"), Some(&loro::LoroValue::from("旧")));
+    let d = before.diff(&after);
+    let keys: Vec<&str> = d.iter().map(|(k, _, _)| k.as_str()).collect();
+    assert_eq!(keys, vec!["aliases", "name"]);
+    assert_eq!(d[1].1, Some(loro::LoroValue::from("旧")));
+    assert_eq!(d[1].2, Some(loro::LoroValue::from("新")));
+    assert!(d[0].1.is_none());
+    assert!(before.diff(&before).is_empty());
+}
+
+#[test]
+fn needs_repair_agrees_with_the_plan() {
+    let mut a = book(1);
+    assert!(!a.view().needs_repair());
+    user(&mut a, |t| chapter(t, "c1", None));
+    assert!(a.view().needs_repair());
+    let (plan, c) = a.repair().unwrap();
+    assert!(!plan.is_empty() && c.is_some());
+    assert!(!a.view().needs_repair());
+    let (plan, c) = a.repair().unwrap();
+    assert!(plan.is_empty() && c.is_none(), "nothing to do: no commit");
+}

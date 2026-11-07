@@ -293,8 +293,8 @@ cargo drifting workspace scenario <名字> --library <目录> [--yes]
 
 ### dr-model / dr-doc（F1）
 
-- **契约类证据改成断言**：`f1-invariants`、`f1-book-convergence`、`f1-prose-convergence`、`f1-fuzz` 是契约类，改成测试里断言，删掉 JSON。
-- **测量换进基准**：`tests/measure.rs` 和 `f1-measure.json` 改成 `bench` 里的一个 `doc` 套件。
+- ~~**契约类证据改成断言**~~：已做（F1 第三轮）。四份 JSON 删了，改成测试里断言；模糊测试的两个崩溃输入成了回归测试。
+- ~~**测量换进基准**~~：已做（F1 第三轮）。`bench` 里加了 `doc` 套件（`src/bench/doc.rs`），`tests/measure.rs` 和 `f1-measure.json` 删了，里程碑测量是 `f1-m3-doc-bench.json`。
 
 ### gpui-prose 与编辑器（F4）
 

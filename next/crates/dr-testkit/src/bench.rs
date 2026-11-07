@@ -154,8 +154,10 @@ pub struct Suite {
 
 /// Every suite. A module's benchmark joins by adding one here.
 pub fn suites() -> Vec<Suite> {
-    vec![store::suite()]
+    vec![doc::suite(), store::suite()]
 }
+
+pub mod doc;
 
 /// Inputs every suite's fingerprint includes: this convention and the seed.
 pub const COMMON_INPUTS: &[&str] = &[

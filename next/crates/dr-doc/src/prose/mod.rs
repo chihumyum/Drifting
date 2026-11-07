@@ -14,7 +14,7 @@ pub mod view;
 use dr_model::{DocId, Origin, ProseProfile};
 use loro::{CommitOptions, ExportMode, Frontiers, LoroDoc, LoroMap, LoroText, VersionVector};
 
-use crate::core::{Committed, Core, Imported, configured};
+use crate::core::{Committed, Core, Imported, check_borrowed, configured};
 use crate::error::{DocError, Result};
 use crate::peer::{PeerId, genesis_peer};
 use crate::schema::{self, GENESIS_VERSION, SCHEMA_VERSION};
@@ -217,6 +217,62 @@ impl ProseDoc {
     }
 }
 
+/// A prose document someone else holds — dr-store's document holder owns the
+/// `LoroDoc` and commits; this gives the typed views and transactions on it.
+///
+/// - **Nothing here commits.** Writes from [`Self::txn`] go into the
+///   document's pending transaction; the holder commits them (one commit, one
+///   origin) and persists the update.
+/// - Before running a write, the holder should set the commit's options
+///   (`LoroDoc::set_next_commit_options` with origin and message): resolving
+///   an anchor on deleted text commits implicitly behind a barrier, and that
+///   implicit commit takes the options set then.
+/// - The document must be configured with [`crate::schema::configure`] (the
+///   one style table) and carry its genesis ([`genesis`]).
+pub struct BorrowedProse<'a> {
+    doc: &'a LoroDoc,
+    text: LoroText,
+    embeds: LoroMap,
+    profile: ProseProfile,
+}
+
+impl<'a> BorrowedProse<'a> {
+    /// Wrap `doc`, checking it is `doc_id`'s prose document and initialised.
+    pub fn new(doc: &'a LoroDoc, doc_id: &DocId) -> Result<Self> {
+        let profile = doc_id.profile().ok_or(DocError::WrongDocument {
+            expected: doc_id.clone(),
+            found: "a book document id".into(),
+        })?;
+        check_borrowed(doc, doc_id, schema::meta::DOC)?;
+        Ok(Self {
+            text: doc.get_text(schema::prose::BODY),
+            embeds: doc.get_map(schema::prose::EMBEDS),
+            doc,
+            profile,
+        })
+    }
+
+    pub fn view(&self) -> ProseView<'_> {
+        ProseView {
+            doc: self.doc,
+            text: &self.text,
+            embeds: &self.embeds,
+            profile: self.profile,
+        }
+    }
+
+    /// A write on the borrowed document; the holder commits it.
+    pub fn txn(&self) -> ProseTxn<'_> {
+        ProseTxn { view: self.view() }
+    }
+
+    /// The author's undo stack for this document; see
+    /// [`crate::undo::ProseUndo::undo_step`].
+    pub fn undo_manager(&self) -> crate::undo::ProseUndo {
+        crate::undo::ProseUndo::new(self.doc)
+    }
+}
+
 /// A read-only handle on a prose document: `Clone`, `Send`, `Sync`. Reads see
 /// the writer's latest applied state, which during an open transaction may
 /// include half of it; read in an event callback (or on the writer's thread)
@@ -237,6 +293,20 @@ impl ProseReader {
 
     pub fn subscribe(&self, f: impl Fn(&ProseEvent) + Send + Sync + 'static) -> loro::Subscription {
         event::subscribe(&self.inner.core.doc, f)
+    }
+
+    /// A reader on a document someone else holds (a dr-store holder's hot
+    /// document): shares it, copies and writes nothing. Checks that `doc` is
+    /// `doc_id`'s prose document and initialised.
+    pub fn from_loro(doc_id: DocId, doc: &LoroDoc) -> Result<ProseReader> {
+        check_borrowed(doc, &doc_id, schema::meta::DOC)?;
+        let core = Core {
+            doc: doc.clone(),
+            id: doc_id,
+        };
+        Ok(ProseReader {
+            inner: Inner::new(core)?.into(),
+        })
     }
 
     /// A private, detached copy of the document at `frontiers`, loaded from

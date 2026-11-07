@@ -28,6 +28,14 @@ pub struct ProseUndo {
 }
 
 impl ProseUndo {
+    /// The undo manager for a document someone else holds (see
+    /// `prose::BorrowedProse`). Use [`Self::undo_step`] / [`Self::redo_step`]
+    /// inside the holder's write: they apply the step and leave persisting to
+    /// the holder.
+    pub fn on(doc: &LoroDoc) -> Self {
+        Self::new(doc)
+    }
+
     pub(crate) fn new(doc: &LoroDoc) -> Self {
         let mut um = UndoManager::new(doc);
         um.set_merge_interval(0);
@@ -58,6 +66,20 @@ impl ProseUndo {
     pub fn redo(&mut self, doc: &mut ProseDoc) -> Result<Option<Committed>> {
         let um = &mut self.um;
         doc.core().capture_local(&Origin::User, || Ok(um.redo()?))
+    }
+
+    /// Undo one item on the document this manager watches, without
+    /// capturing the update: for a holder's write job. Loro commits any
+    /// pending ops first, then commits the step itself; the holder exports
+    /// and persists both as the author's (`user`). Returns whether there was
+    /// anything to undo.
+    pub fn undo_step(&mut self) -> Result<bool> {
+        Ok(self.um.undo()?)
+    }
+
+    /// Redo one item; see [`Self::undo_step`].
+    pub fn redo_step(&mut self) -> Result<bool> {
+        Ok(self.um.redo()?)
     }
 
     /// The Loro manager, for the editor's own hooks (`set_on_push` /

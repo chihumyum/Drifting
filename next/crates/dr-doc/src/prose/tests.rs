@@ -938,3 +938,133 @@ fn import_and_mirror_commits_carry_their_origin_as_message() {
     r.unwrap();
     assert!(c.is_some());
 }
+
+/// A holder's document: a plain `LoroDoc`, configured, with the genesis.
+fn holder_doc(id: &str, peer: u64) -> loro::LoroDoc {
+    let d = loro::LoroDoc::new();
+    crate::schema::configure(&d);
+    d.import(&genesis(&node(id))).unwrap();
+    d.set_peer_id(peer).unwrap();
+    d
+}
+
+#[test]
+fn transactions_on_a_borrowed_document_leave_the_commit_to_the_holder() {
+    let raw = holder_doc("bor", 7);
+    let id = node("bor");
+    // The holder sets its commit options first (an implicit commit behind a
+    // barrier then carries them too), runs the edit, commits.
+    let opts = || {
+        loro::CommitOptions::new()
+            .origin("agent:s/1")
+            .commit_msg("agent:s/1")
+    };
+    raw.set_next_commit_options(opts());
+    {
+        let b = BorrowedProse::new(&raw, &id).unwrap();
+        let mut t = b.txn();
+        t.insert_text(0, "第一段").unwrap();
+        let c = t.split(3).unwrap();
+        t.insert_text(c, "第二段").unwrap();
+        t.set_heading(0, Some(Heading::H1)).unwrap();
+    }
+    raw.commit_with(opts());
+    let msg_at = |pos: usize| {
+        let id = raw
+            .get_text("body")
+            .get_cursor(pos, loro::cursor::Side::Middle)
+            .unwrap()
+            .id
+            .unwrap();
+        raw.get_change(id)
+            .and_then(|m| m.message.as_ref().map(|s| s.to_string()))
+    };
+    for pos in [0, 3, 4, 6] {
+        assert_eq!(
+            msg_at(pos).as_deref(),
+            Some("agent:s/1"),
+            "char {pos} is in the holder's commit"
+        );
+    }
+    let b = BorrowedProse::new(&raw, &id).unwrap();
+    let ps: Vec<_> = b.view().paragraphs().collect();
+    assert_eq!(
+        ps.iter().map(|p| p.text()).collect::<Vec<_>>(),
+        vec!["第一段", "第二段"]
+    );
+    assert_eq!(ps[0].attrs.heading, Some(Heading::H1));
+    assert!(ps.iter().all(|p| p.id.is_some()));
+    // The same edits through a ProseDoc give the same document shape.
+    let q = ProseDoc::load(
+        id.clone(),
+        8,
+        &[raw.export(loro::ExportMode::Snapshot).unwrap()],
+    )
+    .unwrap();
+    assert_eq!(q.view().plain_text(), b.view().plain_text());
+    // Wrong or uninitialised documents are refused.
+    assert!(matches!(
+        BorrowedProse::new(&raw, &node("other")),
+        Err(DocError::WrongDocument { .. })
+    ));
+    let empty = loro::LoroDoc::new();
+    assert!(matches!(
+        BorrowedProse::new(&empty, &id),
+        Err(DocError::NotInitialized(_))
+    ));
+    assert!(BorrowedProse::new(&raw, &DocId::parse("book:b").unwrap()).is_err());
+}
+
+#[test]
+fn borrowed_undo_steps_and_shared_readers() {
+    let raw = holder_doc("bu", 7);
+    let id = node("bu");
+    let reader = ProseReader::from_loro(id.clone(), &raw).unwrap();
+    let b = BorrowedProse::new(&raw, &id).unwrap();
+    let mut um = b.undo_manager();
+    b.txn().insert_text(0, "作者").unwrap();
+    raw.commit_with(loro::CommitOptions::new().origin("user"));
+    raw.set_next_commit_options(
+        loro::CommitOptions::new()
+            .origin("agent:s/1")
+            .commit_msg("agent:s/1"),
+    );
+    b.txn().insert_text(0, "【A】").unwrap();
+    raw.commit_with(
+        loro::CommitOptions::new()
+            .origin("agent:s/1")
+            .commit_msg("agent:s/1"),
+    );
+    // The reader shares the holder's document: it sees both writes.
+    assert_eq!(reader.view().plain_text(), "【A】作者\n");
+    assert!(um.undo_step().unwrap());
+    assert_eq!(
+        reader.view().plain_text(),
+        "【A】\n",
+        "only the author's typing is undone"
+    );
+    assert!(um.redo_step().unwrap());
+    assert_eq!(reader.view().plain_text(), "【A】作者\n");
+    assert!(ProseReader::from_loro(node("x"), &raw).is_err());
+}
+
+#[test]
+fn reading_paragraphs_from_the_middle_needs_nothing_before() {
+    let mut p = doc("pin", 7);
+    user(&mut p, |t| {
+        t.insert_paragraphs(0, "一\n二二\n三三三\n四").map(|_| ())
+    });
+    let v = p.view();
+    let all: Vec<_> = v.paragraphs().collect();
+    let mid = v.paragraph_in(all[1].range.start + 1, 2);
+    assert_eq!(
+        mid.iter().map(|x| x.text()).collect::<Vec<_>>(),
+        vec!["二二", "三三三"]
+    );
+    assert_eq!(mid[0].id, all[1].id);
+    assert_eq!(mid[1].range, all[2].range);
+    // Past the end it stops; at the last paragraph it returns just that one.
+    assert_eq!(v.paragraph_in(all[3].range.start, 5).len(), 1);
+    assert!(v.paragraph_in(0, 0).is_empty());
+    assert_eq!(v.paragraph_in(v.len() + 10, 1)[0].text(), "四");
+}
