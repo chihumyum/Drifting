@@ -72,6 +72,13 @@
       "title": "Drifting a rencontré un problème la dernière fois"
     }
   },
+  "findPanel": {
+    "bookPlaceholder": "Rechercher dans tout le livre…",
+    "closeTitle": "Fermer (Échap)",
+    "currentPlaceholder": "Rechercher dans l’éditeur actif…",
+    "nextTitle": "Suivant (Entrée)",
+    "previousTitle": "Précédent (Maj+Entrée)"
+  },
   "globalSearch": {
     "closeTitle": "Fermer (Échap)",
     "field": {
@@ -304,6 +311,31 @@
     }
   },
   "settings": {
+    "about": {
+      "channel": "Canal",
+      "channelPreAlpha": "Alpha",
+      "contact": "Contact",
+      "credits": "Crédits et licences",
+      "emailTeam": "Écrire à l’équipe",
+      "engine": "Moteur",
+      "knownIssues": "Problèmes connus",
+      "knownIssuesDesc": "Limites connues de la version Alpha actuelle",
+      "license": "Licence du client",
+      "licenseDesc": "GNU AGPL v3 ou ultérieure",
+      "openSource": "Dépendances libres",
+      "sourceCode": "Code source",
+      "sourceCodeDesc": "Code correspondant à ce client AGPL",
+      "sub": "L’expérience d’écriture ultime",
+      "support": "Assistance Alpha",
+      "supportDesc": "Dépannage et instructions de signalement sécurisé",
+      "tagline": "Pour celles et ceux qui écrivent au cœur de la nuit.",
+      "title": "Drifting",
+      "version": "Version",
+      "viewLicense": "Voir la licence",
+      "viewList": "Voir la liste",
+      "viewSource": "Voir le code source",
+      "writeEmail": "Rédiger un e-mail"
+    },
     "appearance": {
       "dark": "Sombre",
       "interface_text_large": "Grand",
@@ -317,6 +349,9 @@
       "system": "Suivre le système",
       "theme": "Thème",
       "theme_desc": "Clair, sombre ou selon le système."
+    },
+    "common": {
+      "open_in_browser": "Ouvrir dans le navigateur"
     },
     "editor": {
       "auto_immersive": "Écriture immersive dès la saisie",
@@ -334,11 +369,17 @@
       "page_width_desc": "Largeur du papier dans l’éditeur ; le texte la remplit avec des marges fixes.",
       "paragraph_spacing": "Espacement des paragraphes",
       "paragraph_spacing_desc": "Espacement commun aux paragraphes et à tous les niveaux de titres, relatif à la taille du texte ; uniquement dans l’éditeur.",
+      "preview": "Aperçu",
+      "preview_h1": "Titre 1",
+      "preview_p1": "Le silence s’étendait entre eux comme la marée sur la pierre. Enfin elle parla, d’une voix que le vent emportait presque et qu’il entendait à peine.",
+      "preview_p2": "« Tu reviendras ? » Il ne répondit pas aussitôt. Il regarda le soleil sombrer dans la mer, puis hocha la tête longtemps après, sans savoir lui-même s’il s’agissait d’une promesse ou de pitié.",
+      "reset_style": "Rétablir le style recommandé",
       "typesetting": "Composition",
       "typewriter_mode": "Mode machine à écrire",
       "typewriter_mode_desc": "Maintient la ligne active à une position stable lors de la saisie ou du déplacement du curseur. Uniquement dans l’éditeur."
     },
     "groups": {
+      "about": "À propos",
       "control": "Gestion",
       "preferences": "Préférences"
     },
@@ -389,6 +430,7 @@
           "label": "Écriture immersive"
         }
       },
+      "allActionsShort": "Toutes les actions · {{count}}",
       "conflict": "{{accelerator}} est déjà utilisé pour « {{action}} »",
       "pressNewCombo": "Appuyez sur une nouvelle combinaison…",
       "recording": "Capture",
@@ -400,23 +442,32 @@
       "ui_locale_desc": "Langue des menus, boutons et messages. Vos écrits ne sont pas modifiés."
     },
     "privacy": {
+      "copyDiagnostics": "Copier le résumé",
       "crashLogs": "Envoyer automatiquement les diagnostics d’erreur",
       "crashLogsDesc": "Envoie au responsable des emplacements d’erreur expurgés, la version et la plateforme pour diagnostiquer les pannes. Aucun texte de manuscrit. Désactivable à tout moment.",
-      "dataUsage": "Utilisation des données"
+      "dataUsage": "Utilisation des données",
+      "diagnostics": "Résumé de diagnostic expurgé",
+      "diagnosticsCopied": "Résumé de diagnostic expurgé copié.",
+      "diagnosticsCopyFailed": "Impossible d’écrire dans le presse-papiers. L’autorisation est peut-être indisponible.",
+      "diagnosticsDesc": "Copie la version, plateforme, disponibilité des fonctions, compteurs et catégories d’erreur de synchronisation, et état des mises à jour. Sans manuscrit, identifiants secrets, identifiant de projet ni chemin absolu. Jamais téléversé automatiquement.",
+      "noteLocal": "Cette version ne contacte jamais un serveur Drifting ; vos écrits restent sur l’appareil. L’IA et la transcription vont directement au fournisseur choisi, selon ses conditions de données et d’entraînement. Les extensions MCP distantes ajoutées utilisent aussi le réseau."
     },
     "rail": {
+      "about_app": "À propos de Drifting",
       "appearance": "Apparence",
       "editor": "Éditeur",
       "keys": "Clavier",
-      "language": "Langue",
-      "privacy": "Confidentialité",
-      "updates": "Mises à jour"
+      "language": "Langue"
     },
     "search_placeholder": "Rechercher dans les réglages…",
+    "sync": {
+      "local_data": "Données locales",
+      "local_sub": "Sans compte Drifting ni cloud hébergé. Exportez une copie lisible quand vous voulez.",
+      "local_title": "Votre travail reste sur cet appareil."
+    },
     "title": "Réglages",
     "update": {
-      "channel_desc": "Apple Silicon · macOS 13 ou ultérieur",
-      "current_version": "Version actuelle"
+      "channel_desc": "Apple Silicon · macOS 13 ou ultérieur"
     }
   },
   "sidebarLayout": {

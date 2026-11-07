@@ -1502,6 +1502,7 @@ dependencies = [
  "dr-platform",
  "dr-store",
  "dr-testkit",
+ "dr-text",
  "dr-ui",
  "dr-view-search",
  "dr-view-stats",

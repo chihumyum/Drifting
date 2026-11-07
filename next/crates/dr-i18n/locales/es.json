@@ -72,6 +72,13 @@
       "title": "Drifting tuvo un problema la última vez"
     }
   },
+  "findPanel": {
+    "bookPlaceholder": "Buscar en todo el libro…",
+    "closeTitle": "Cerrar (Esc)",
+    "currentPlaceholder": "Buscar en el editor actual…",
+    "nextTitle": "Siguiente (Enter)",
+    "previousTitle": "Anterior (Shift+Enter)"
+  },
   "globalSearch": {
     "closeTitle": "Cerrar (Esc)",
     "field": {
@@ -304,6 +311,31 @@
     }
   },
   "settings": {
+    "about": {
+      "channel": "Canal",
+      "channelPreAlpha": "Alpha",
+      "contact": "Contacto",
+      "credits": "Créditos y licencias",
+      "emailTeam": "Enviar correo al equipo",
+      "engine": "Motor",
+      "knownIssues": "Problemas conocidos",
+      "knownIssuesDesc": "Limitaciones conocidas de la versión Alpha actual",
+      "license": "Licencia del cliente",
+      "licenseDesc": "GNU AGPL v3 o posterior",
+      "openSource": "Dependencias de código abierto",
+      "sourceCode": "Código fuente",
+      "sourceCodeDesc": "Código correspondiente a este cliente AGPL",
+      "sub": "La mejor experiencia de escritura",
+      "support": "Soporte de Alpha",
+      "supportDesc": "Instrucciones para resolver problemas e informar con seguridad",
+      "tagline": "Para quienes escriben hasta bien entrada la noche.",
+      "title": "Drifting",
+      "version": "Versión",
+      "viewLicense": "Ver licencia",
+      "viewList": "Ver lista",
+      "viewSource": "Ver código fuente",
+      "writeEmail": "Escribir correo"
+    },
     "appearance": {
       "dark": "Oscuro",
       "interface_text_large": "Grande",
@@ -317,6 +349,9 @@
       "system": "Seguir el sistema",
       "theme": "Tema",
       "theme_desc": "Claro, oscuro o según el sistema."
+    },
+    "common": {
+      "open_in_browser": "Abrir en el navegador"
     },
     "editor": {
       "auto_immersive": "Escritura inmersiva al teclear",
@@ -334,11 +369,17 @@
       "page_width_desc": "Ancho del papel en el editor; el texto lo ocupa respetando márgenes fijos.",
       "paragraph_spacing": "Espaciado entre párrafos",
       "paragraph_spacing_desc": "Espaciado común a párrafos y títulos de todos los niveles, relativo al tamaño del texto. Solo en el editor.",
+      "preview": "Vista previa",
+      "preview_h1": "Título 1",
+      "preview_p1": "El silencio se extendió entre ellos como la marea sobre la piedra. Al fin ella habló; su voz, casi arrebatada por el viento, llegó hasta donde él apenas podía oírla.",
+      "preview_p2": "«¿Volverás?» Él no respondió enseguida. Miró al sol hundirse en el mar y, mucho después, asintió, sin saber si era una promesa o compasión.",
+      "reset_style": "Restaurar estilo recomendado",
       "typesetting": "Composición tipográfica",
       "typewriter_mode": "Modo máquina de escribir",
       "typewriter_mode_desc": "Mantiene la línea activa en una posición fija al escribir o mover el cursor. Solo en el editor."
     },
     "groups": {
+      "about": "Acerca de",
       "control": "Control",
       "preferences": "Preferencias"
     },
@@ -389,6 +430,7 @@
           "label": "Escritura inmersiva"
         }
       },
+      "allActionsShort": "Todas las acciones · {{count}}",
       "conflict": "{{accelerator}} ya se usa para «{{action}}»",
       "pressNewCombo": "Pulsa una nueva combinación…",
       "recording": "Capturando",
@@ -400,23 +442,32 @@
       "ui_locale_desc": "Idioma de menús, botones y mensajes. Tu texto no se modifica."
     },
     "privacy": {
+      "copyDiagnostics": "Copiar resumen",
       "crashLogs": "Enviar diagnóstico de fallos automáticamente",
       "crashLogsDesc": "Envía al responsable ubicaciones de errores sin datos sensibles, versión y plataforma para diagnosticar fallos. No incluye texto del manuscrito y puedes desactivarlo cuando quieras.",
-      "dataUsage": "Uso de datos"
+      "dataUsage": "Uso de datos",
+      "diagnostics": "Resumen de diagnóstico sin datos sensibles",
+      "diagnosticsCopied": "Resumen de diagnóstico sin datos sensibles copiado.",
+      "diagnosticsCopyFailed": "No se pudo escribir en el portapapeles. Puede faltar el permiso de acceso.",
+      "diagnosticsDesc": "Copia versión, plataforma, disponibilidad de funciones, recuentos y tipos de error de sincronización y estado de actualización. No incluye manuscrito, credenciales, identificadores de proyecto ni rutas absolutas, y nunca se sube automáticamente.",
+      "noteLocal": "Esta compilación nunca contacta con servidores de Drifting; tu obra queda en este dispositivo. La IA y la transcripción van directamente al proveedor elegido, bajo sus condiciones de datos y entrenamiento. Las extensiones MCP remotas añadidas también usan la red."
     },
     "rail": {
+      "about_app": "Acerca de Drifting",
       "appearance": "Apariencia",
       "editor": "Editor",
       "keys": "Teclado",
-      "language": "Idioma",
-      "privacy": "Privacidad",
-      "updates": "Actualizaciones"
+      "language": "Idioma"
     },
     "search_placeholder": "Buscar ajustes…",
+    "sync": {
+      "local_data": "Datos locales",
+      "local_sub": "No se usa ninguna cuenta Drifting ni nube alojada. Exporta una copia legible cuando quieras.",
+      "local_title": "Tu obra se queda en este dispositivo."
+    },
     "title": "Ajustes",
     "update": {
-      "channel_desc": "Apple Silicon · macOS 13 o posterior",
-      "current_version": "Versión actual"
+      "channel_desc": "Apple Silicon · macOS 13 o posterior"
     }
   },
   "sidebarLayout": {

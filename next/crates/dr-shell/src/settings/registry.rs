@@ -25,15 +25,18 @@ pub enum Scope {
     Book,
 }
 
-/// The settings panel's sections, in rail order.
+/// The settings panel's sections, in rail order (M08's first batch).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Section {
     Appearance,
     Editor,
     Language,
     Keys,
-    Privacy,
-    Updates,
+    /// 本地数据: what stays on this machine and what leaves it (the 0.1
+    /// client's local-data page, with its privacy rows).
+    LocalData,
+    /// 关于 Drifting: version, credits and licences, contact.
+    About,
 }
 
 impl Section {
@@ -42,8 +45,8 @@ impl Section {
         Section::Editor,
         Section::Language,
         Section::Keys,
-        Section::Privacy,
-        Section::Updates,
+        Section::LocalData,
+        Section::About,
     ];
 
     pub fn label(self) -> Key {
@@ -52,8 +55,8 @@ impl Section {
             Section::Editor => keys::settings::rail::EDITOR,
             Section::Language => keys::settings::rail::LANGUAGE,
             Section::Keys => keys::settings::rail::KEYS,
-            Section::Privacy => keys::settings::rail::PRIVACY,
-            Section::Updates => keys::settings::rail::UPDATES,
+            Section::LocalData => keys::settings::sync::LOCAL_DATA,
+            Section::About => keys::settings::rail::ABOUT_APP,
         }
     }
 
@@ -63,7 +66,8 @@ impl Section {
             Section::Appearance | Section::Editor | Section::Language | Section::Keys => {
                 keys::settings::groups::PREFERENCES
             }
-            Section::Privacy | Section::Updates => keys::settings::groups::CONTROL,
+            Section::LocalData => keys::settings::groups::CONTROL,
+            Section::About => keys::settings::groups::ABOUT,
         }
     }
 
@@ -73,10 +77,130 @@ impl Section {
             Section::Editor => "editor",
             Section::Language => "language",
             Section::Keys => "keys",
-            Section::Privacy => "privacy",
-            Section::Updates => "updates",
+            Section::LocalData => "local-data",
+            Section::About => "about",
         }
     }
+}
+
+/// What a row that is not a stored setting does.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RowAction {
+    /// Opens a page in the browser (the button's words).
+    Open { url: &'static str, button: Key },
+    /// Copies the de-identified diagnostics summary.
+    CopyDiagnostics,
+    /// Shows the version, channel, engine and platform.
+    Version,
+}
+
+/// A row of the panel that is not a stored setting: a link, an action, a
+/// read-only value. Searched like the settings (label and description).
+#[derive(Clone, Copy, Debug)]
+pub struct InfoRow {
+    pub id: &'static str,
+    pub section: Section,
+    /// The heading it sits under.
+    pub group: Option<Key>,
+    pub label: Key,
+    pub description: Option<Key>,
+    pub action: RowAction,
+}
+
+/// The 0.1 client's links (ControlSettingsPanels.tsx, lib/config.ts).
+pub const REPO_URL: &str = "https://github.com/chihumyum/Drifting";
+pub const SUPPORT_URL: &str = "https://drifting.cc/support";
+pub const SUPPORT_EMAIL: &str = "support@drifting.cc";
+
+/// Every [`InfoRow`], in panel order.
+pub static INFO_ROWS: &[InfoRow] = &[
+    InfoRow {
+        id: "local.diagnostics",
+        section: Section::LocalData,
+        group: Some(keys::settings::privacy::DATA_USAGE),
+        label: keys::settings::privacy::DIAGNOSTICS,
+        description: Some(keys::settings::privacy::DIAGNOSTICS_DESC),
+        action: RowAction::CopyDiagnostics,
+    },
+    InfoRow {
+        id: "about.version",
+        section: Section::About,
+        group: None,
+        label: keys::settings::about::VERSION,
+        description: None,
+        action: RowAction::Version,
+    },
+    InfoRow {
+        id: "about.open_source",
+        section: Section::About,
+        group: Some(keys::settings::about::CREDITS),
+        label: keys::settings::about::OPEN_SOURCE,
+        description: None,
+        action: RowAction::Open {
+            url: "https://github.com/chihumyum/Drifting/blob/main/THIRD_PARTY_NOTICES.md",
+            button: keys::settings::about::VIEW_LIST,
+        },
+    },
+    InfoRow {
+        id: "about.source_code",
+        section: Section::About,
+        group: Some(keys::settings::about::CREDITS),
+        label: keys::settings::about::SOURCE_CODE,
+        description: Some(keys::settings::about::SOURCE_CODE_DESC),
+        action: RowAction::Open {
+            url: REPO_URL,
+            button: keys::settings::about::VIEW_SOURCE,
+        },
+    },
+    InfoRow {
+        id: "about.license",
+        section: Section::About,
+        group: Some(keys::settings::about::CREDITS),
+        label: keys::settings::about::LICENSE,
+        description: Some(keys::settings::about::LICENSE_DESC),
+        action: RowAction::Open {
+            url: "https://github.com/chihumyum/Drifting/blob/main/LICENSE",
+            button: keys::settings::about::VIEW_LICENSE,
+        },
+    },
+    InfoRow {
+        id: "about.known_issues",
+        section: Section::About,
+        group: Some(keys::settings::about::CREDITS),
+        label: keys::settings::about::KNOWN_ISSUES,
+        description: Some(keys::settings::about::KNOWN_ISSUES_DESC),
+        action: RowAction::Open {
+            url: "https://github.com/chihumyum/Drifting/blob/main/KNOWN_ISSUES.md",
+            button: keys::settings::common::OPEN_IN_BROWSER,
+        },
+    },
+    InfoRow {
+        id: "about.support",
+        section: Section::About,
+        group: Some(keys::settings::about::CONTACT),
+        label: keys::settings::about::SUPPORT,
+        description: Some(keys::settings::about::SUPPORT_DESC),
+        action: RowAction::Open {
+            url: SUPPORT_URL,
+            button: keys::settings::common::OPEN_IN_BROWSER,
+        },
+    },
+    InfoRow {
+        id: "about.email",
+        section: Section::About,
+        group: Some(keys::settings::about::CONTACT),
+        label: keys::settings::about::EMAIL_TEAM,
+        description: None,
+        action: RowAction::Open {
+            url: "mailto:support@drifting.cc",
+            button: keys::settings::about::WRITE_EMAIL,
+        },
+    },
+];
+
+/// The info rows of `section`, in panel order.
+pub fn info_in(section: Section) -> impl Iterator<Item = &'static InfoRow> {
+    INFO_ROWS.iter().filter(move |r| r.section == section)
 }
 
 /// One option of a choice.
@@ -364,7 +488,7 @@ pub static REGISTRY: &[SettingDef] = &[
         // The 0.1 client: on, and said so on first launch.
         default: Initial::Bool(true),
         scope: Scope::Device,
-        section: Section::Privacy,
+        section: Section::LocalData,
         group: Some(keys::settings::privacy::DATA_USAGE),
         label: keys::settings::privacy::CRASH_LOGS,
         description: Some(keys::settings::privacy::CRASH_LOGS_DESC),
@@ -392,8 +516,14 @@ mod tests {
                 "{} twice",
                 def.key
             );
+            // A stored key keeps its name when its row moves: the crash
+            // reports switch was 隐私's before 本地数据 took it in.
+            let prefix = match def.section {
+                Section::LocalData => "privacy",
+                other => other.slug(),
+            };
             assert!(
-                def.key.starts_with(def.section.slug()),
+                def.key.starts_with(prefix),
                 "{} is under its section",
                 def.key
             );

@@ -8,9 +8,16 @@
 //!
 //! Search matches section names, group headings, each setting's name,
 //! description, options and extra search terms in the interface language,
-//! ignoring case and runs of white space. Settings → Keys lists the
-//! shortcut registry; a shortcut is rebound by clicking it and pressing the
-//! new keys (Esc cancels).
+//! ignoring case and runs of white space; the rows that are not stored
+//! settings (links, the diagnostics summary, the version) by their names
+//! and descriptions. Nothing matching shows nothing (as in the 0.1 client).
+//!
+//! M08's first batch: 外观, 编辑器 (with a preview set in the editor's
+//! settings and 还原推荐样式), 语言, 快捷键 (the shortcut registry; a
+//! shortcut is rebound by clicking it and pressing the new keys, Esc
+//! cancels), 本地数据 (this build keeps everything on this machine; the
+//! crash-report switch and a de-identified diagnostics summary to copy) and
+//! 关于 Drifting (version, credits and licences, contact).
 
 use dr_i18n::{Key, keys, normalize};
 use dr_ui::{
@@ -35,7 +42,7 @@ use gpui::{
 use serde_json::Value;
 
 use super::Settings;
-use super::registry::{self, Kind, Section, SettingDef};
+use super::registry::{self, InfoRow, Kind, RowAction, Section, SettingDef};
 use crate::keymap::{self, Shortcut};
 use crate::strings::{t, tf};
 use crate::workspace::{LEADING_INSET, TITLEBAR_HEIGHT};
@@ -55,6 +62,8 @@ pub struct SettingsPanel {
     interceptor: Option<Subscription>,
     /// A refused rebinding: the shortcut and why.
     conflict: Option<(&'static str, SharedString)>,
+    /// The diagnostics summary was copied (or could not be).
+    copied: Option<bool>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -88,9 +97,13 @@ pub fn search(query: &str, strings: &dr_i18n::I18n) -> Vec<(Section, Option<Vec<
                         .map(|s| s.id),
                 );
             }
-            if section == Section::Updates && hit(keys::settings::update::CURRENT_VERSION) {
-                return Some((section, None));
-            }
+            found.extend(
+                registry::info_in(section)
+                    .filter(|r| {
+                        hit(r.label) || r.description.is_some_and(hit) || r.group.is_some_and(hit)
+                    })
+                    .map(|r| r.id),
+            );
             (!found.is_empty()).then_some((section, Some(found)))
         })
         .collect()
@@ -149,6 +162,7 @@ impl SettingsPanel {
             recording: None,
             interceptor: None,
             conflict: None,
+            copied: None,
             _subscriptions: vec![subscription, settings, strings],
         }
     }
@@ -391,6 +405,17 @@ impl SettingsPanel {
                 .text_color(p.ink(1).solid())
                 .child(t(cx, section.label())),
         );
+        if section == Section::Editor && editor_changed(cx) {
+            title = title.child(
+                Button::new(
+                    "editor-reset-style",
+                    t(cx, keys::settings::editor::RESET_STYLE),
+                )
+                .text()
+                .small()
+                .on_click(|_, _, cx| reset_editor_style(cx)),
+            );
+        }
         if section == Section::Keys && !Settings::read(cx).key_bindings().is_empty() {
             title = title.child(
                 Button::new("keys-reset-all", t(cx, keys::settings::keys::RESET_ALL))
@@ -407,27 +432,43 @@ impl SettingsPanel {
         let wanted = |key: &str| only.is_none_or(|keys| keys.contains(&key));
         match section {
             Section::Keys => {
+                let count = keymap::listed_shortcuts().count();
+                col = col.child(sub_heading(
+                    tf(
+                        cx,
+                        keys::settings::keys::ALL_ACTIONS_SHORT,
+                        &[("count", &count)],
+                    ),
+                    &theme,
+                ));
                 for shortcut in keymap::listed_shortcuts().filter(|s| wanted(s.id)) {
                     col = col.child(self.shortcut_row(shortcut, window, cx));
                 }
             }
-            Section::Updates => {
-                let version = cx.try_global::<ShellInfo>().map_or("", |i| i.version);
-                let channel = t(cx, keys::settings::update::CHANNEL_DESC);
-                col = col.child(row(
-                    "update-version",
-                    t(cx, keys::settings::update::CURRENT_VERSION),
-                    None,
-                    div()
-                        .font_role(Role::Index)
-                        .type_px(s.caption, s.line_caption)
-                        .text_color(p.ink(2).solid())
-                        .child(format!("{version} · {channel}"))
-                        .into_any_element(),
-                    &theme,
-                ));
+            Section::About => {
+                if only.is_none() {
+                    col = col.child(about_header(&theme, cx));
+                }
+                col = self.info_rows(col, section, &wanted, window, cx);
+                if only.is_none() {
+                    col = col.child(
+                        div()
+                            .pt(px(28.0))
+                            .font_role(Role::Structure)
+                            .type_px(s.secondary, s.line_body)
+                            .italic()
+                            .text_color(p.muted().solid())
+                            .child(t(cx, keys::settings::about::TAGLINE)),
+                    );
+                }
             }
             _ => {
+                if section == Section::Editor && only.is_none() {
+                    col = col.child(editor_preview(&theme, cx));
+                }
+                if section == Section::LocalData && only.is_none() {
+                    col = col.child(local_intro(&theme, cx));
+                }
                 let mut heading: Option<Key> = None;
                 for def in registry::in_section(section).filter(|d| wanted(d.key)) {
                     if let Some(group) = def.group
@@ -453,9 +494,102 @@ impl SettingsPanel {
                         &theme,
                     ));
                 }
+                col = self.info_rows(col, section, &wanted, window, cx);
+                if section == Section::LocalData && only.is_none() {
+                    col = col.child(
+                        div()
+                            .pt(px(16.0))
+                            .font_role(Role::Ui)
+                            .type_px(s.caption, s.line_caption)
+                            .text_color(p.muted().solid())
+                            .child(t(cx, keys::settings::privacy::NOTE_LOCAL)),
+                    );
+                }
             }
         }
         col.into_any_element()
+    }
+
+    /// The rows of `section` that are not stored settings, under their
+    /// headings.
+    fn info_rows(
+        &mut self,
+        mut col: gpui::Stateful<gpui::Div>,
+        section: Section,
+        wanted: &dyn Fn(&str) -> bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> gpui::Stateful<gpui::Div> {
+        let theme = Theme::of(window, cx);
+        let mut heading: Option<Key> = None;
+        for info in registry::info_in(section).filter(|r| wanted(r.id)) {
+            if info.group.is_some() && info.group != heading {
+                heading = info.group;
+                if let Some(group) = info.group {
+                    col = col.child(sub_heading(t(cx, group), &theme));
+                }
+            }
+            let control = self.info_control(info, window, cx);
+            let description = match (info.action, self.copied) {
+                (RowAction::CopyDiagnostics, Some(true)) => {
+                    Some(t(cx, keys::settings::privacy::DIAGNOSTICS_COPIED))
+                }
+                (RowAction::CopyDiagnostics, Some(false)) => {
+                    Some(t(cx, keys::settings::privacy::DIAGNOSTICS_COPY_FAILED))
+                }
+                _ => info.description.map(|d| t(cx, d)),
+            };
+            col = col.child(row(
+                info.id,
+                t(cx, info.label),
+                description,
+                control,
+                &theme,
+            ));
+        }
+        col
+    }
+
+    fn info_control(
+        &mut self,
+        info: &'static InfoRow,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let theme = Theme::of(window, cx);
+        let (p, s) = (theme.palette, theme.scale);
+        match info.action {
+            RowAction::Open { url, button } => Button::new(
+                ElementId::Name(format!("open-{}", info.id).into()),
+                t(cx, button),
+            )
+            .small()
+            .on_click(move |_, _, cx| cx.open_url(url))
+            .into_any_element(),
+            RowAction::CopyDiagnostics => {
+                let panel = cx.entity();
+                Button::new(
+                    "copy-diagnostics",
+                    t(cx, keys::settings::privacy::COPY_DIAGNOSTICS),
+                )
+                .small()
+                .on_click(move |_, _, cx| {
+                    let summary = diagnostics_summary(cx);
+                    cx.write_to_clipboard(gpui::ClipboardItem::new_string(summary));
+                    panel.update(cx, |p, cx| {
+                        p.copied = Some(true);
+                        cx.notify();
+                    });
+                })
+                .into_any_element()
+            }
+            RowAction::Version => div()
+                .font_role(Role::Index)
+                .type_px(s.caption, s.line_caption)
+                .text_color(p.ink(2).solid())
+                .child(version_line(cx))
+                .into_any_element(),
+        }
     }
 
     fn shortcut_row(
@@ -540,6 +674,170 @@ impl SettingsPanel {
         }
         el.into_any_element()
     }
+}
+
+fn sub_heading(text: SharedString, theme: &Theme) -> gpui::Div {
+    div()
+        .pt(px(16.0))
+        .pb(px(4.0))
+        .font_role(Role::Ui)
+        .type_px(theme.scale.caption, theme.scale.line_caption)
+        .text_color(theme.palette.muted().solid())
+        .child(text)
+}
+
+/// 版本 0.2.0-dev · 通道 Alpha · 引擎 GPUI + Loro + SQLite · the platform.
+pub fn version_line(cx: &App) -> String {
+    let version = cx.try_global::<ShellInfo>().map_or("", |i| i.version);
+    format!(
+        "{version} · {} {} · {} GPUI + Loro + SQLite · {}",
+        t(cx, keys::settings::about::CHANNEL),
+        t(cx, keys::settings::about::CHANNEL_PRE_ALPHA),
+        t(cx, keys::settings::about::ENGINE),
+        t(cx, keys::settings::update::CHANNEL_DESC),
+    )
+}
+
+/// The de-identified diagnostics summary (the 0.1 client's 脱敏诊断摘要):
+/// version, platform, interface language, whether a library is open and how
+/// many books it lists, the crash-report choice. No prose, no ids, no paths.
+pub fn diagnostics_summary(cx: &App) -> String {
+    let info = cx.try_global::<ShellInfo>();
+    let books = cx
+        .try_global::<crate::Services>()
+        .and_then(|s| s.library.as_ref())
+        .and_then(|lib| lib.library().docs(None, Some("book")).ok())
+        .map(|docs| docs.len());
+    let file = Settings::read(cx);
+    [
+        format!("Drifting {}", info.map_or("?", |i| i.version)),
+        format!("{} {}", std::env::consts::OS, std::env::consts::ARCH),
+        format!("locale {}", Settings::locale(cx).code()),
+        match books {
+            Some(n) => format!("library open, {n} books"),
+            None => "no library".to_owned(),
+        },
+        format!(
+            "crash reports {}",
+            if file.bool(registry::CRASH_REPORTS) {
+                "on"
+            } else {
+                "off"
+            }
+        ),
+    ]
+    .join("\n")
+}
+
+/// Whether any editor setting differs from its default.
+fn editor_changed(cx: &App) -> bool {
+    let file = Settings::read(cx);
+    registry::in_section(Section::Editor).any(|d| file.is_changed(d, None))
+}
+
+/// 还原推荐样式: every editor setting back to its default.
+pub fn reset_editor_style(cx: &mut App) {
+    Settings::update(cx, |file| {
+        for def in registry::in_section(Section::Editor) {
+            file.reset(def.key, None);
+        }
+    });
+}
+
+/// The editor section's preview: a heading and two paragraphs (the 0.1
+/// client's sample) set in the editor's settings.
+fn editor_preview(theme: &Theme, cx: &App) -> AnyElement {
+    let p = theme.palette;
+    let look = crate::workspace::EditorLook::read(cx);
+    let body = |text: SharedString| {
+        div()
+            .font_role(Role::Prose)
+            .text_size(px(look.font_size))
+            .line_height(px(look.font_size * look.line_height))
+            .pb(px(look.font_size * look.paragraph_spacing))
+            .text_color(p.ink(1).solid())
+            .child(format!("{}{text}", "\u{3000}".repeat(look.indent)))
+    };
+    let h1 = look.size_of(1);
+    div()
+        .mt(px(4.0))
+        .mb(px(8.0))
+        .p(px(24.0))
+        .max_w(px(look.page_width.min(720.0)))
+        .rounded(px(radius::SHEET))
+        .bg(p.page.solid())
+        .border_1()
+        .border_color(p.subtle_hairline())
+        .child(
+            div()
+                .pb(px(8.0))
+                .font_role(Role::Ui)
+                .type_px(theme.scale.caption, theme.scale.line_caption)
+                .text_color(p.muted().solid())
+                .child(t(cx, keys::settings::editor::PREVIEW)),
+        )
+        .child(
+            div()
+                .font_role(Role::Prose)
+                .text_size(px(h1))
+                .line_height(px(h1 * 1.4))
+                .pb(px(look.font_size * look.paragraph_spacing))
+                .text_color(p.ink(1).solid())
+                .child(t(cx, keys::settings::editor::PREVIEW_H1)),
+        )
+        .child(body(t(cx, keys::settings::editor::PREVIEW_P1)))
+        .child(body(t(cx, keys::settings::editor::PREVIEW_P2)))
+        .into_any_element()
+}
+
+/// 本地数据's opening: this build keeps everything on this machine.
+fn local_intro(theme: &Theme, cx: &App) -> AnyElement {
+    let (p, s) = (theme.palette, theme.scale);
+    div()
+        .pb(px(8.0))
+        .flex()
+        .flex_col()
+        .gap(px(4.0))
+        .child(
+            div()
+                .font_role(Role::Structure)
+                .type_px(s.body + 2.0, s.line_body + 2.0)
+                .text_color(p.ink(1).solid())
+                .child(t(cx, keys::settings::sync::LOCAL_TITLE)),
+        )
+        .child(
+            div()
+                .font_role(Role::Ui)
+                .type_px(s.secondary, s.line_body)
+                .text_color(p.ink(2).solid())
+                .child(t(cx, keys::settings::sync::LOCAL_SUB)),
+        )
+        .into_any_element()
+}
+
+/// 关于's opening: the name and the line under it.
+fn about_header(theme: &Theme, cx: &App) -> AnyElement {
+    let (p, s) = (theme.palette, theme.scale);
+    div()
+        .pb(px(8.0))
+        .flex()
+        .flex_col()
+        .gap(px(2.0))
+        .child(
+            div()
+                .font_role(Role::Structure)
+                .type_px(s.heading + 16.0, s.heading + 26.0)
+                .text_color(p.ink(1).solid())
+                .child(t(cx, keys::settings::about::TITLE)),
+        )
+        .child(
+            div()
+                .font_role(Role::Ui)
+                .type_px(s.secondary, s.line_body)
+                .text_color(p.muted().solid())
+                .child(t(cx, keys::settings::about::SUB)),
+        )
+        .into_any_element()
 }
 
 fn row(
@@ -681,5 +979,52 @@ fn control(def: &'static SettingDef, _: &mut Window, cx: &mut App) -> AnyElement
                 .child(field)
                 .into_any_element()
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use dr_i18n::{I18n, Locale, Platform};
+
+    fn zh() -> I18n {
+        I18n::new(Locale::ZhCn, Platform::Mac)
+    }
+
+    #[test]
+    fn search_finds_the_rows_that_are_not_settings() {
+        let s = zh();
+        // Nothing typed: every section, whole.
+        let all = search("", &s);
+        assert_eq!(all.len(), Section::ALL.len());
+        assert!(all.iter().all(|(_, only)| only.is_none()));
+        // A link of 关于 by its name.
+        assert_eq!(
+            search("许可证", &s),
+            vec![(Section::About, Some(vec!["about.license"]))]
+        );
+        // 本地数据: the crash-report switch and the diagnostics summary.
+        assert_eq!(
+            search("诊断", &s),
+            vec![(
+                Section::LocalData,
+                Some(vec![registry::CRASH_REPORTS, "local.diagnostics"])
+            )]
+        );
+        // A section by its own name: all of it.
+        assert_eq!(search("关于", &s), vec![(Section::About, None)]);
+        // Nothing matching shows nothing.
+        assert!(search("zzzz", &s).is_empty());
+    }
+
+    #[test]
+    fn every_info_row_has_its_words_and_sits_in_a_section() {
+        let s = zh();
+        for row in registry::INFO_ROWS {
+            assert!(!s.t(row.label).is_empty(), "{}", row.id);
+            assert!(Section::ALL.contains(&row.section));
+        }
+        let ids: std::collections::HashSet<_> = registry::INFO_ROWS.iter().map(|r| r.id).collect();
+        assert_eq!(ids.len(), registry::INFO_ROWS.len(), "ids are unique");
     }
 }

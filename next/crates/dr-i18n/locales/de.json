@@ -72,6 +72,13 @@
       "title": "Bei Drifting ist beim letzten Mal ein Problem aufgetreten"
     }
   },
+  "findPanel": {
+    "bookPlaceholder": "Im ganzen Buch suchen…",
+    "closeTitle": "Schließen (Esc)",
+    "currentPlaceholder": "Im aktuellen Editor suchen…",
+    "nextTitle": "Nächstes (Enter)",
+    "previousTitle": "Vorheriges (Umschalt+Enter)"
+  },
   "globalSearch": {
     "closeTitle": "Schließen (Esc)",
     "field": {
@@ -298,6 +305,31 @@
     }
   },
   "settings": {
+    "about": {
+      "channel": "Kanal",
+      "channelPreAlpha": "Alpha",
+      "contact": "Kontakt",
+      "credits": "Danksagungen und Lizenzen",
+      "emailTeam": "Dem Team schreiben",
+      "engine": "Engine",
+      "knownIssues": "Bekannte Probleme",
+      "knownIssuesDesc": "Bekannte Einschränkungen der aktuellen Alpha",
+      "license": "Client-Lizenz",
+      "licenseDesc": "GNU AGPL v3 oder neuer",
+      "openSource": "Open-Source-Abhängigkeiten",
+      "sourceCode": "Quellcode",
+      "sourceCodeDesc": "Zugehöriger Quellcode dieses AGPL-Clients",
+      "sub": "Das ultimative Schreiberlebnis",
+      "support": "Alpha-Support",
+      "supportDesc": "Fehlerbehebung und sichere Meldung von Problemen",
+      "tagline": "Für Schreibende, die bis tief in die Nacht wach bleiben.",
+      "title": "Drifting",
+      "version": "Version",
+      "viewLicense": "Lizenz ansehen",
+      "viewList": "Liste ansehen",
+      "viewSource": "Quellcode ansehen",
+      "writeEmail": "E-Mail schreiben"
+    },
     "appearance": {
       "dark": "Dunkel",
       "interface_text_large": "Größer",
@@ -311,6 +343,9 @@
       "system": "Systemeinstellung",
       "theme": "Design",
       "theme_desc": "Hell, dunkel oder dem System folgen."
+    },
+    "common": {
+      "open_in_browser": "Im Browser öffnen"
     },
     "editor": {
       "auto_immersive": "Immersives Schreiben beim Tippen",
@@ -328,11 +363,17 @@
       "page_width_desc": "Papierbreite im Editor; der Text füllt sie mit festen Rändern aus.",
       "paragraph_spacing": "Absatzabstand",
       "paragraph_spacing_desc": "Gemeinsamer Abstand für Absätze und alle Überschriftenebenen, bezogen auf die Textschriftgröße; nur im Editor.",
+      "preview": "Vorschau",
+      "preview_h1": "Überschrift 1",
+      "preview_p1": "Schweigen breitete sich zwischen ihnen aus wie Flutwasser über Stein. Endlich sprach sie. Ihre Stimme, fast vom Wind davongetragen, erreichte ihn kaum noch.",
+      "preview_p2": "„Kommst du zurück?“ Er antwortete nicht sofort. Er sah der Sonne zu, wie sie im Meer versank, und nickte erst nach langer Zeit. Selbst er wusste nicht, ob es ein Versprechen war oder Mitleid.",
+      "reset_style": "Empfohlenen Stil wiederherstellen",
       "typesetting": "Satz",
       "typewriter_mode": "Schreibmaschinenmodus",
       "typewriter_mode_desc": "Hält die aktuelle Textzeile beim Tippen oder Bewegen des Cursors an einer festen Bildschirmposition. Nur im Editor."
     },
     "groups": {
+      "about": "Info",
       "control": "Verwaltung",
       "preferences": "Voreinstellungen"
     },
@@ -383,6 +424,7 @@
           "label": "Immersives Schreiben"
         }
       },
+      "allActionsShort": "Alle Aktionen · {{count}}",
       "conflict": "{{accelerator}} wird bereits für „{{action}}“ verwendet",
       "pressNewCombo": "Neue Tastenkombination drücken…",
       "recording": "Aufzeichnung",
@@ -394,23 +436,32 @@
       "ui_locale_desc": "Sprache für Menüs, Schaltflächen und Meldungen. Deine Texte bleiben unverändert."
     },
     "privacy": {
+      "copyDiagnostics": "Zusammenfassung kopieren",
       "crashLogs": "Fehlerdiagnosen automatisch senden",
       "crashLogsDesc": "Sendet bereinigte Fehlerstellen, Version und Plattform zur Diagnose an den Betreuer. Kein Manuskripttext. Jederzeit abschaltbar.",
-      "dataUsage": "Datennutzung"
+      "dataUsage": "Datennutzung",
+      "diagnostics": "Bereinigte Diagnosezusammenfassung",
+      "diagnosticsCopied": "Bereinigte Diagnosezusammenfassung kopiert.",
+      "diagnosticsCopyFailed": "Die Zwischenablage konnte nicht beschrieben werden. Möglicherweise fehlt die Berechtigung.",
+      "diagnosticsDesc": "Kopiert Version, Plattform, Funktionsverfügbarkeit, Synchronisierungszahlen und Fehlerkategorien sowie Updatestatus. Ohne Manuskript, Zugangsdaten, Projektkennungen oder absolute Pfade; wird nie automatisch hochgeladen.",
+      "noteLocal": "Dieser Build kontaktiert keinen Drifting-Server; dein Werk bleibt auf dem Gerät. KI- und Transkriptionsanfragen gehen direkt an den gewählten Anbieter unter dessen Daten- und Trainingsbedingungen. Entfernte MCP-Erweiterungen nutzen ebenfalls das Netzwerk."
     },
     "rail": {
+      "about_app": "Über Drifting",
       "appearance": "Darstellung",
       "editor": "Editor",
       "keys": "Tastatur",
-      "language": "Sprache",
-      "privacy": "Datenschutz",
-      "updates": "Updates"
+      "language": "Sprache"
     },
     "search_placeholder": "Einstellungen durchsuchen…",
+    "sync": {
+      "local_data": "Lokale Daten",
+      "local_sub": "Ohne Drifting-Konto oder gehostete Cloud. Exportiere jederzeit eine lesbare Kopie.",
+      "local_title": "Dein Werk bleibt auf diesem Gerät."
+    },
     "title": "Einstellungen",
     "update": {
-      "channel_desc": "Apple Silicon · macOS 13 oder neuer",
-      "current_version": "Aktuelle Version"
+      "channel_desc": "Apple Silicon · macOS 13 oder neuer"
     }
   },
   "sidebarLayout": {

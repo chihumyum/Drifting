@@ -72,6 +72,13 @@
       "title": "지난번 Drifting 실행 중 문제가 발생했습니다"
     }
   },
+  "findPanel": {
+    "bookPlaceholder": "작품 전체에서 찾기…",
+    "closeTitle": "닫기(Esc)",
+    "currentPlaceholder": "현재 편집기에서 찾기…",
+    "nextTitle": "다음(Enter)",
+    "previousTitle": "이전(Shift+Enter)"
+  },
   "globalSearch": {
     "closeTitle": "닫기(Esc)",
     "field": {
@@ -298,6 +305,31 @@
     }
   },
   "settings": {
+    "about": {
+      "channel": "배포 채널",
+      "channelPreAlpha": "Alpha",
+      "contact": "연락처",
+      "credits": "크레딧 및 라이선스",
+      "emailTeam": "팀에 이메일 보내기",
+      "engine": "엔진",
+      "knownIssues": "알려진 문제",
+      "knownIssuesDesc": "현재 Alpha 버전의 알려진 제한",
+      "license": "클라이언트 라이선스",
+      "licenseDesc": "GNU AGPL v3 이상",
+      "openSource": "오픈 소스 의존성",
+      "sourceCode": "소스 코드",
+      "sourceCodeDesc": "이 AGPL 클라이언트에 대응하는 소스 코드",
+      "sub": "최상의 집필 경험",
+      "support": "Alpha 지원",
+      "supportDesc": "문제 해결 및 안전한 보고 안내",
+      "tagline": "깊은 밤에도 깨어 쓰는 사람들을 위해.",
+      "title": "Drifting",
+      "version": "버전",
+      "viewLicense": "라이선스 보기",
+      "viewList": "목록 보기",
+      "viewSource": "소스 보기",
+      "writeEmail": "이메일 작성"
+    },
     "appearance": {
       "dark": "어둡게",
       "interface_text_large": "크게",
@@ -311,6 +343,9 @@
       "system": "시스템 설정 따르기",
       "theme": "테마",
       "theme_desc": "밝게, 어둡게 또는 시스템 설정을 따릅니다."
+    },
+    "common": {
+      "open_in_browser": "브라우저에서 열기"
     },
     "editor": {
       "auto_immersive": "입력하면 몰입 쓰기",
@@ -328,11 +363,17 @@
       "page_width_desc": "편집기의 용지 너비입니다. 본문은 고정 여백을 제외한 너비를 채웁니다.",
       "paragraph_spacing": "문단 간격",
       "paragraph_spacing_desc": "본문 문단과 모든 제목 단계의 공통 간격입니다. 본문 글자 크기를 기준으로 하며 편집기 화면에만 적용됩니다.",
+      "preview": "미리보기",
+      "preview_h1": "제목 1",
+      "preview_p1": "침묵이 돌 위로 밀려드는 바닷물처럼 두 사람 사이에 번졌다. 마침내 그녀가 입을 열었다. 바람에 날아갈 듯한 목소리가 그가 겨우 들을 수 있는 곳에 내려앉았다.",
+      "preview_p2": "“돌아올 거야?” 그는 바로 대답하지 않았다. 바다로 지는 해를 바라보다가 한참 뒤에 고개를 끄덕였다. 그것이 약속인지 연민인지 그조차 알 수 없었다.",
+      "reset_style": "권장 스타일 복원",
       "typesetting": "조판",
       "typewriter_mode": "타자기 모드",
       "typewriter_mode_desc": "입력하거나 커서를 이동할 때 현재 본문 줄을 화면의 일정한 위치에 유지합니다. 편집기 화면에만 적용됩니다."
     },
     "groups": {
+      "about": "정보",
       "control": "관리",
       "preferences": "환경설정"
     },
@@ -383,6 +424,7 @@
           "label": "몰입 쓰기"
         }
       },
+      "allActionsShort": "모든 작업 · {{count}}",
       "conflict": "{{accelerator}}은(는) “{{action}}”에서 사용 중입니다",
       "pressNewCombo": "새 키 조합을 누르세요…",
       "recording": "기록 중",
@@ -394,23 +436,32 @@
       "ui_locale_desc": "메뉴, 버튼, 메시지의 언어입니다. 집필 내용에는 영향을 주지 않습니다."
     },
     "privacy": {
+      "copyDiagnostics": "요약 복사",
       "crashLogs": "오류 진단 자동 전송",
       "crashLogsDesc": "민감 정보를 제거한 오류 위치·버전·플랫폼 정보를 유지관리자에게 보내 문제를 진단합니다. 원고 텍스트는 포함되지 않으며 언제든 끌 수 있습니다.",
-      "dataUsage": "데이터 사용"
+      "dataUsage": "데이터 사용",
+      "diagnostics": "민감 정보를 제거한 진단 요약",
+      "diagnosticsCopied": "민감 정보를 제거한 진단 요약을 복사했습니다.",
+      "diagnosticsCopyFailed": "클립보드에 쓸 수 없습니다. 클립보드 권한이 없을 수 있습니다.",
+      "diagnosticsDesc": "버전·플랫폼·기능 가용성·동기화 수와 오류 유형·업데이트 상태를 복사합니다. 원고·인증 정보·작품 식별자·절대 경로는 포함되지 않으며 자동 업로드하지 않습니다.",
+      "noteLocal": "이 빌드는 Drifting 서버에 접속하지 않으며 작품은 이 기기에 남습니다. AI와 음성 전사 요청은 기기에서 선택한 제공업체로 직접 전송되고 해당 업체의 데이터·학습 약관이 적용됩니다. 추가한 원격 MCP 확장 기능도 네트워크를 사용합니다."
     },
     "rail": {
+      "about_app": "Drifting 정보",
       "appearance": "모양",
       "editor": "편집기",
       "keys": "키보드",
-      "language": "언어",
-      "privacy": "개인정보",
-      "updates": "업데이트"
+      "language": "언어"
     },
     "search_placeholder": "설정 검색…",
+    "sync": {
+      "local_data": "로컬 데이터",
+      "local_sub": "Drifting 계정이나 호스팅 클라우드를 사용하지 않습니다. 언제든 읽을 수 있는 사본을 내보낼 수 있습니다.",
+      "local_title": "작품은 이 기기에 보관됩니다."
+    },
     "title": "설정",
     "update": {
-      "channel_desc": "Apple Silicon · macOS 13 이상",
-      "current_version": "현재 버전"
+      "channel_desc": "Apple Silicon · macOS 13 이상"
     }
   },
   "sidebarLayout": {

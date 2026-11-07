@@ -335,7 +335,9 @@ pub fn apply(overrides: &Map<String, Value>, cx: &mut App) {
     cx.bind_keys(dr_ui::input::field::bindings());
     // The editor's own keys (moving, deleting, Enter …) in its context; its
     // formatting keys are the registry's below as well.
-    gpui_prose::bind_keys(cx);
+    cx.bind_keys(gpui_prose::input::actions::key_bindings(
+        gpui_prose::input::actions::KeyScheme::native(),
+    ));
     // The modules' own keys.
     let extra: Vec<Rc<dyn Fn() -> Vec<KeyBinding>>> = cx
         .try_global::<ModuleKeys>()

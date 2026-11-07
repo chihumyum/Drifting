@@ -8,15 +8,15 @@
 //!
 //! The book comes from F3 (`dr-workspace`): the lists as one [`Book`]
 //! snapshot, read off the main thread and read again when F3's bus reports
-//! a change. Each open tab whose page is a prose document is edited in its
-//! own `dr-editor` view ([`editors`]); the whole book is still a read-only
-//! [`PageSlot`]. Things that go to the trash or are deleted, by anyone,
-//! close their tabs.
+//! a change. Each open tab's page is an editor ([`editors`]): one prose
+//! document's, or the whole book's (M05). Things that go to the trash or are
+//! deleted, by anyone, close their tabs.
 
 mod chrome;
 pub mod corner;
 mod dock;
 pub mod editors;
+pub mod find;
 pub mod outline;
 mod sidebar;
 mod stage;
@@ -36,9 +36,9 @@ use dr_ui::{
 };
 use gpui::{
     AnyView, App, AppContext as _, Bounds, Context, Entity, FocusHandle, Focusable,
-    InteractiveElement, IntoElement, ListAlignment, ListState, ParentElement, Render, Size, Styled,
-    Subscription, Task, TitlebarOptions, Window, WindowBounds, WindowOptions, div,
-    prelude::FluentBuilder as _, px, size,
+    InteractiveElement, IntoElement, ParentElement, Render, Size, Styled, Subscription, Task,
+    TitlebarOptions, Window, WindowBounds, WindowOptions, div, prelude::FluentBuilder as _, px,
+    size,
 };
 use serde::{Deserialize, Serialize};
 
@@ -48,7 +48,7 @@ use crate::actions::{
     ToggleBottomTimeline, ToggleElementOverview, ToggleImmersiveWriting, ToggleLeftSidebar,
     ToggleNotifications, ToggleReviewMaterials, ToggleRightSidebar, ToggleStoryGraph,
 };
-use crate::book::{self, Book, PageText, Paragraph};
+use crate::book::{self, Book};
 use crate::nav::{self, Navigator, Open, Target, location};
 use crate::notifications::{self, Notifications};
 use crate::pages::{self, ShelfPage};
@@ -206,6 +206,9 @@ pub struct BookLayout {
     /// acts) instead of by storyline.
     #[serde(default)]
     pub chapters_by_book: bool,
+    /// Where the whole book's page was being read (M05).
+    #[serde(default)]
+    pub book_position: Option<editors::SavedPosition>,
 }
 
 /// What the Escape key closes, topmost first.
@@ -215,72 +218,6 @@ pub enum Layer {
     Settings,
     SuperView,
 }
-
-/// One row of a page's list: the page's own heading (its mark and title),
-/// a chapter's title on the whole book's page, or a paragraph.
-#[derive(Clone, Debug, PartialEq)]
-pub enum Item {
-    Head,
-    Section(String),
-    Para(Paragraph),
-}
-
-/// The whole book's prose, read-only, and the list that shows it (only the
-/// rows on screen are laid out).
-pub struct PageSlot {
-    pub items: Rc<Vec<Item>>,
-    pub list: ListState,
-    /// Read at least once.
-    pub ready: bool,
-    /// Being read; since when.
-    pub loading: Option<Instant>,
-    /// The editor settings the rows were measured with.
-    look: Option<EditorLook>,
-    _task: Option<Task<()>>,
-    _timer: Option<Task<()>>,
-}
-
-impl PageSlot {
-    fn new() -> PageSlot {
-        PageSlot {
-            items: Rc::new(vec![Item::Head]),
-            list: ListState::new(1, ListAlignment::Top, px(PAGE_OVERDRAW)),
-            ready: false,
-            loading: None,
-            look: None,
-            _task: None,
-            _timer: None,
-        }
-    }
-
-    fn set(&mut self, text: PageText) {
-        let mut items = vec![Item::Head];
-        for (title, paragraphs) in text.sections {
-            if let Some(title) = title {
-                items.push(Item::Section(title));
-            }
-            items.extend(paragraphs.into_iter().map(Item::Para));
-        }
-        let old = self.items.len();
-        if self.ready {
-            // Read again after a change: the rows keep their place.
-            self.list.splice(0..old, items.len());
-        } else {
-            self.list.reset(items.len());
-        }
-        self.items = Rc::new(items);
-        self.ready = true;
-    }
-
-    /// The page is taking long to read: its pill drifts (`Pill::loading`).
-    pub fn slow(&self) -> bool {
-        self.loading
-            .is_some_and(|since| since.elapsed() >= motion::dwell::LOADING_DELAY)
-    }
-}
-
-/// How far beyond the paper's edges a page lays out rows.
-const PAGE_OVERDRAW: f32 = 800.0;
 
 pub struct Workspace {
     focus: FocusHandle,
@@ -293,18 +230,27 @@ pub struct Workspace {
     book_task: Option<Task<()>>,
     /// The book changed while it was being read: read it again after.
     book_stale: bool,
-    /// The whole book's read-only page, while a tab shows it.
-    pub pages: HashMap<String, PageSlot>,
     /// Every open tab's editor (by target key), once its page was shown.
     pub editors: HashMap<String, PageEditor>,
     /// What new editors are opened with; kept in step by
     /// [`Workspace::style_editors`].
     editor_settings: dr_editor::EditorSettings,
     editor_base: gpui_prose::ProseStyle,
-    /// The document whose editor was last given the keyboard.
-    focused_doc: Option<String>,
+    /// The prose editor last given the keyboard, and its handle.
+    focused_editor: Option<gpui::EntityId>,
+    gave_focus: Option<FocusHandle>,
     /// The pages on screen, and until when they are turning.
     shown_pages: Vec<String>,
+    /// Reduced motion as the open editors have it.
+    editor_reduce: bool,
+    /// The prose editor whose other paragraphs fade (immersive writing).
+    dimmed: Option<gpui::EntityId>,
+    /// Documents whose live word count M07 has from an editor.
+    live_docs: HashSet<String>,
+    /// The whole book's reading position (kept with the layout).
+    book_position: Option<editors::SavedPosition>,
+    /// The find bar over the focused page, while open.
+    pub find: Option<Entity<find::FindBar>>,
     turning_until: Option<Instant>,
     pub nav: Navigator,
     pub left: Sidebar<LeftTab>,
@@ -323,6 +269,8 @@ pub struct Workspace {
     /// M06's search panel, while open.
     pub search: Option<Entity<dr_view_search::SearchPanel>>,
     pub notifications_open: bool,
+    /// The account menu over the left sidebar's account cell is open.
+    pub account_open: bool,
     /// The bookshelf (M01), when one is registered ([`pages::set_shelf`]):
     /// made the first time it shows, kept while the window lives.
     pub shelf: Option<ShelfPage>,
@@ -369,6 +317,10 @@ impl Workspace {
                 ws.style_editors(window, cx);
                 cx.notify()
             }),
+            cx.observe_global_in::<dr_ui::theme::ThemeSettings>(window, |ws, window, cx| {
+                ws.style_editors(window, cx);
+                cx.notify()
+            }),
             cx.observe_global::<Notifications>(|_, cx| cx.notify()),
         ];
         let editor_settings = editors::editor_settings(cx);
@@ -380,12 +332,17 @@ impl Workspace {
             book: Rc::new(Book::default()),
             book_task: None,
             book_stale: false,
-            pages: HashMap::new(),
             editors: HashMap::new(),
             editor_settings,
             editor_base,
-            focused_doc: None,
+            focused_editor: None,
+            gave_focus: None,
             shown_pages: Vec::new(),
+            editor_reduce: Theme::of(window, cx).reduce_motion,
+            dimmed: None,
+            live_docs: HashSet::new(),
+            book_position: None,
+            find: None,
             turning_until: None,
             nav: Navigator::default(),
             left: Sidebar::new(None, LeftTab::Chapters, |_| true),
@@ -399,6 +356,7 @@ impl Workspace {
             settings: None,
             search: None,
             notifications_open: false,
+            account_open: false,
             shelf: None,
             shelf_open: false,
             home: None,
@@ -435,7 +393,7 @@ impl Workspace {
         let saved: Option<BookLayout> = Settings::read(cx)
             .layout(&self.book_id)
             .and_then(|v| serde_json::from_value(v.clone()).ok());
-        let (nav, left, right, dock_locked, outline_hidden, by_book) = match saved {
+        let (nav, left, right, dock_locked, outline_hidden, by_book, position) = match saved {
             Some(l) => (
                 Navigator::restored(l.nav, |_| true),
                 Some(l.left),
@@ -443,8 +401,9 @@ impl Workspace {
                 l.dock_locked,
                 l.outline_hidden,
                 l.chapters_by_book,
+                l.book_position,
             ),
-            None => (Navigator::default(), None, None, false, false, false),
+            None => (Navigator::default(), None, None, false, false, false, None),
         };
         self.nav = nav;
         self.left = Sidebar::new(left, LeftTab::Chapters, |_| true);
@@ -452,9 +411,9 @@ impl Workspace {
         self.dock_locked = dock_locked;
         self.outline_hidden = outline_hidden;
         self.chapters_by_book = by_book;
-        self.pages.clear();
+        self.book_position = position;
         self.editors.clear();
-        self.focused_doc = None;
+        self.focused_editor = None;
     }
 
     // The book, from F3.
@@ -511,16 +470,11 @@ impl Workspace {
                     .collect();
                 for target in &gone {
                     self.nav.forget(target);
-                    self.pages.remove(&target.key());
                     self.editors.remove(&target.key());
                 }
                 let id = book.id.clone();
-                let chapters_changed = self.book.chapter_titles() != book.chapter_titles();
                 self.book = Rc::new(book);
                 self.retitle_editors(cx);
-                if chapters_changed && self.pages.contains_key(&Target::Book.key()) {
-                    self.load_page(Target::Book, cx);
-                }
                 Settings::update(cx, |file| file.set_last_book(&id));
                 if !gone.is_empty() {
                     self.changed(cx);
@@ -577,15 +531,11 @@ impl Workspace {
     pub fn on_library_events(&mut self, events: Vec<WsEvent>, cx: &mut Context<Self>) {
         let mut reload_book = false;
         let mut gone = Vec::new();
-        let mut book_prose = false;
         for event in events {
             match event {
                 WsEvent::Book(b) if b.book.as_str() == self.book_id => reload_book = true,
                 WsEvent::Removed(r) if r.book.as_str() == self.book_id => {
                     gone.extend(r.entities.into_iter().map(|e| book::target(e.target)));
-                }
-                WsEvent::Prose(p) => {
-                    book_prose |= p.book.as_ref().is_some_and(|b| b.as_str() == self.book_id);
                 }
                 _ => {}
             }
@@ -593,16 +543,11 @@ impl Workspace {
         if !gone.is_empty() {
             for target in &gone {
                 self.nav.forget(target);
-                self.pages.remove(&target.key());
                 self.editors.remove(&target.key());
             }
             self.changed(cx);
         }
-        // The editors fold their own document's changes in; only the whole
-        // book's read-only page is read again.
-        if book_prose && self.pages.contains_key(&Target::Book.key()) {
-            self.load_page(Target::Book, cx);
-        }
+        // The editors fold their documents' changes in themselves.
         if reload_book {
             self.load_book(None, cx);
         }
@@ -610,10 +555,9 @@ impl Workspace {
 
     // Pages.
 
-    /// Opens the editors and reads the whole book's page on screen, and
-    /// lets go of those whose tabs closed.
+    /// Opens the editors of the pages on screen and lets go of those whose
+    /// tabs closed.
     fn ensure_pages(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        // Pages and editors of closed tabs go.
         let open: HashSet<String> = self
             .nav
             .tabs()
@@ -621,8 +565,11 @@ impl Workspace {
             .flat_map(|t| t.leaves())
             .map(|l| l.target.key())
             .collect();
-        self.pages.retain(|key, _| open.contains(key));
+        if !open.contains(&Target::Book.key()) {
+            self.keep_reading_position(cx);
+        }
         self.editors.retain(|key, _| open.contains(key));
+        self.release_words(cx);
         if self.book.is_empty() {
             return;
         }
@@ -630,83 +577,7 @@ impl Workspace {
             Some(tab) => tab.leaves().map(|l| l.target.clone()).collect(),
             None => Vec::new(),
         };
-        if shown.contains(&Target::Book) {
-            let target = Target::Book;
-            if !self.pages.contains_key(&target.key()) {
-                self.load_page(target.clone(), cx);
-            }
-            // A location link's lines: the page scrolls there once.
-            if let Some(slot) = self.pages.get(&target.key())
-                && slot.ready
-                && let Some(lines) = self.nav.take_reveal(&target)
-            {
-                let block = location::line_to_block(lines.start) as usize;
-                slot.list
-                    .scroll_to_reveal_item((block + 1).min(slot.items.len() - 1));
-            }
-        }
         self.ensure_editors(&shown, window, cx);
-    }
-
-    /// Reads a page's prose off the main thread.
-    fn load_page(&mut self, target: Target, cx: &mut Context<Self>) {
-        let Some(lib) = self.library.clone() else {
-            return;
-        };
-        let key = target.key();
-        let chapters = match target {
-            Target::Book => self.book.chapter_titles(),
-            _ => Vec::new(),
-        };
-        let slot = self.pages.entry(key.clone()).or_insert_with(PageSlot::new);
-        slot.loading = Some(Instant::now());
-        let read_key = key.clone();
-        slot._task = Some(cx.spawn(async move |this, cx| {
-            let text = cx
-                .background_executor()
-                .spawn(async move { PageText::load(&lib, &target, &chapters) })
-                .await;
-            this.update(cx, |ws, cx| ws.page_loaded(&read_key, text, cx))
-                .ok();
-        }));
-        // Past the loading delay, the pill shows it.
-        slot._timer = Some(cx.spawn(async move |this, cx| {
-            cx.background_executor()
-                .timer(motion::dwell::LOADING_DELAY)
-                .await;
-            this.update(cx, |_, cx| cx.notify()).ok();
-        }));
-    }
-
-    fn page_loaded(
-        &mut self,
-        key: &str,
-        text: dr_workspace::Result<PageText>,
-        cx: &mut Context<Self>,
-    ) {
-        let Some(slot) = self.pages.get_mut(key) else {
-            return;
-        };
-        slot.loading = None;
-        slot._timer = None;
-        match text {
-            Ok(text) => slot.set(text),
-            Err(error) => log::warn!("{key}: the page could not be read: {error}"),
-        }
-        slot._task = None;
-        cx.notify();
-    }
-
-    /// Rows measured with other editor settings are measured again.
-    fn fit_pages(&mut self, look: EditorLook) {
-        for slot in self.pages.values_mut() {
-            if slot.look != Some(look) {
-                if slot.look.is_some() {
-                    slot.list.remeasure();
-                }
-                slot.look = Some(look);
-            }
-        }
     }
 
     /// Deep links (`<scheme>://open/<book>/chapters/…#L3`): F7's queue
@@ -754,7 +625,7 @@ impl Workspace {
 
     /// Opens a location link (either form). Returns whether it named
     /// something in this book.
-    pub fn open_link(&mut self, href: &str, _: &mut Window, cx: &mut Context<Self>) -> bool {
+    pub fn open_link(&mut self, href: &str, window: &mut Window, cx: &mut Context<Self>) -> bool {
         let scheme = cx
             .try_global::<ShellInfo>()
             .map_or("drifting", |i| i.url_scheme);
@@ -773,6 +644,11 @@ impl Workspace {
         match location::resolve(&link, &catalog) {
             Ok((target, lines)) => {
                 self.super_view = None;
+                // Reading the whole book: the link's chapter is shown there.
+                if self.reveal_in_book(&target, lines, window, cx) {
+                    cx.notify();
+                    return true;
+                }
                 self.nav.open_at(target, lines);
                 self.changed(cx);
                 true
@@ -782,6 +658,33 @@ impl Workspace {
                 false
             }
         }
+    }
+
+    /// When the whole book is the page in front and `target` is one of its
+    /// chapters, shows it there (its line, or its title) instead of opening
+    /// its own tab. Returns whether it did.
+    fn reveal_in_book(
+        &mut self,
+        target: &Target,
+        lines: Option<nav::Lines>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        let reading_book = self
+            .nav
+            .active_tab()
+            .is_some_and(|t| t.focused().target == Target::Book);
+        let (true, Target::Chapter(id)) = (reading_book, target) else {
+            return false;
+        };
+        let Some(book) = self.book_editor().cloned() else {
+            return false;
+        };
+        let doc = format!("node:{id}");
+        book.update(cx, |b, cx| match lines {
+            Some(lines) => b.reveal_line(&doc, lines.start as usize, window, cx),
+            None => b.jump_to(&doc, window, cx),
+        })
     }
 
     pub fn focus_handle(&self) -> &FocusHandle {
@@ -862,11 +765,16 @@ impl Workspace {
             dock_locked: self.dock_locked,
             outline_hidden: self.outline_hidden,
             chapters_by_book: self.chapters_by_book,
+            book_position: self.book_position.clone(),
         }
     }
 
     /// Writes the layout into the settings file now, if it changed.
     pub fn store_layout(&mut self, cx: &mut Context<Self>) {
+        // The whole book's reading position moves without a layout change.
+        if self.keep_reading_position(cx) {
+            self.layout_dirty = true;
+        }
         if !self.layout_dirty {
             return;
         }
@@ -1152,7 +1060,7 @@ impl Workspace {
                 ws.set_immersive(!ws.immersive, cx)
             }),
         )
-        .on_action(|_: &FindInEditor, _, _| log::debug!("find is not built yet"))
+        .on_action(cx.listener(|ws, _: &FindInEditor, window, cx| ws.open_find(window, cx)))
         .on_action(cx.listener(|ws, _: &GlobalSearch, window, cx| ws.toggle_search(window, cx)))
         .on_action(cx.listener(|ws, _: &CloseProject, window, cx| {
             ws.show_shelf(window, cx);
@@ -1179,7 +1087,6 @@ impl Render for Workspace {
         let window_w = f32::from(viewport.width);
         self.fit_sidebars(window_w, window, cx);
         self.ensure_pages(window, cx);
-        self.fit_pages(EditorLook::read(cx));
 
         let immersive = self.immersive;
         let left = (!immersive).then(|| sidebar::left(self, window, cx));
@@ -1214,6 +1121,9 @@ impl Render for Workspace {
             .child(chrome::windows_caption(window, cx))
             .when(self.notifications_open, |el| {
                 el.child(sidebar::notification_center(self, window, cx))
+            })
+            .when(self.account_open && !self.immersive, |el| {
+                el.child(sidebar::account_menu(self, window, cx))
             });
         let root = self.on_actions(root, cx);
         glass::surface(Ground::flat(p.desk), root).into_any_element()

@@ -141,12 +141,9 @@ impl Headless {
                 .active_tab()
                 .map(|t| {
                     t.leaves().all(|l| {
-                        let key = l.target.key();
-                        ws.pages.get(&key).is_some_and(|p| p.ready)
-                            || ws
-                                .editors
-                                .get(&key)
-                                .is_some_and(|p| p.editor.is_some() || p.failed)
+                        ws.editors
+                            .get(&l.target.key())
+                            .is_some_and(|p| p.view.is_some() || p.failed)
                     })
                 })
                 .unwrap_or(true)
@@ -306,6 +303,8 @@ fn reset(ws: &mut Workspace, window: &mut gpui::Window, cx: &mut Context<Workspa
     ws.notifications_open = false;
     ws.immersive = false;
     ws.corner_menu = None;
+    ws.account_open = false;
+    ws.find = None;
     ws.chapters_by_book = false;
     ws.outline_hidden = false;
     ws.dock_locked = false;
@@ -396,6 +395,51 @@ fn capture(dir: PathBuf) -> Result<()> {
         });
         still(&mut h)?;
         h.save(&dir, &format!("outline-{a}.png"))?;
+
+        // The find bar over the first chapter: 「钟」, the first match
+        // selected.
+        h.set(|ws, window, cx| {
+            everyday(ws, window, cx);
+        });
+        still(&mut h)?;
+        h.set(|ws, window, cx| {
+            ws.open_find(window, cx);
+            if let Some(bar) = ws.find.clone() {
+                bar.update(cx, |b, cx| b.set_query("钟", window, cx));
+            }
+        });
+        still(&mut h)?;
+        h.save(&dir, &format!("find-{a}.png"))?;
+
+        // The whole book in one editor (M05), its acts and chapters in the
+        // outline rail.
+        h.set(|ws, window, cx| {
+            reset(ws, window, cx);
+            ws.open(Target::Book, Open::KEEP, cx);
+        });
+        still(&mut h)?;
+        h.save(&dir, &format!("whole-book-{a}.png"))?;
+
+        // The left sidebar's account menu (the bookshelf's, shared).
+        h.set(|ws, window, cx| {
+            everyday(ws, window, cx);
+            ws.account_open = true;
+        });
+        still(&mut h)?;
+        h.save(&dir, &format!("account-menu-{a}.png"))?;
+
+        // Settings: 本地数据 and 关于 Drifting (M08).
+        for (query, name) in [("本地数据", "settings-local"), ("关于", "settings-about")] {
+            h.set(move |ws, window, cx| {
+                everyday(ws, window, cx);
+                ws.open_settings(window, cx);
+                if let Some(panel) = ws.settings.clone() {
+                    panel.update(cx, |p, cx| p.set_query(query, cx));
+                }
+            });
+            still(&mut h)?;
+            h.save(&dir, &format!("{name}-{a}.png"))?;
+        }
 
         // Immersive writing: only the paper.
         h.set(|ws, window, cx| {
@@ -549,20 +593,27 @@ fn bench(dir: PathBuf) -> Result<()> {
         summary(&typed)
     ));
 
-    // The whole book on one page: 24 chapters, only the rows on screen laid
-    // out.
+    // The whole book in one editor (M05): 24 chapters opened together,
+    // only the rows on screen laid out.
     h.set(|ws, _, cx| ws.open(Target::Book, Open::KEEP, cx));
     let read = Instant::now();
     h.pages_ready()?;
     let book_page_ms = read.elapsed().as_secs_f32() * 1000.0;
     std::thread::sleep(Duration::from_millis(300));
     h.settle()?;
-    let rows = h.read(|ws| ws.pages.get("book").map_or(0, |p| p.items.len()));
+    let rows = {
+        let view = h.view.clone();
+        h.cx.update(|cx| {
+            view.read(cx)
+                .book_editor()
+                .map_or(0, |b| b.read(cx).chapter_docs().count())
+        })
+    };
     let book_redraw = (0..60)
         .map(|_| h.draw().map(|d| d.0))
         .collect::<Result<Vec<_>>>()?;
     out.push(format!(
-        r#""whole_book_page": {{"rows": {rows}, "read_ms": {book_page_ms:.2}, "full_redraw_ms": {}}}"#,
+        r#""whole_book_page": {{"chapters": {rows}, "open_ms": {book_page_ms:.2}, "full_redraw_ms": {}}}"#,
         summary(&book_redraw)
     ));
     h.set(|ws, _, cx| {

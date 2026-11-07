@@ -23,6 +23,7 @@
 //! });
 //! ```
 
+pub mod account;
 pub mod actions;
 pub mod appearance;
 pub mod book;
@@ -111,6 +112,10 @@ pub fn init(info: ShellInfo, services: Services, file: SettingsFile, cx: &mut Ap
     quit::install(cx);
     notifications::install(cx);
     workspace::init(cx);
+    // M06's search panel: ↑↓ through the hits.
+    keymap::add_bindings(cx, dr_view_search::key_bindings);
+    // The find bar: ⇧Enter, ⌘G / ⇧⌘G.
+    keymap::add_bindings(cx, workspace::find::key_bindings);
     keymap::apply(&Settings::read(cx).key_bindings(), cx);
 }
 
