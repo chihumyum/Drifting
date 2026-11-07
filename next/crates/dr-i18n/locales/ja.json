@@ -41,7 +41,8 @@
   },
   "chapterEditor": {
     "synopsisPlaceholder": "あらすじ…",
-    "untitledChapter": "無題の章"
+    "untitledChapter": "無題の章",
+    "untitledDrift": "無題のアイデア"
   },
   "chapterEnd": {
     "defaultTitle": "新しい章",
@@ -358,7 +359,8 @@
   "nodeEditor": {
     "folio": {
       "chapter": "章",
-      "chapterNumber": "第{{n}}章"
+      "chapterNumber": "第{{n}}章",
+      "drift": "アイデア"
     },
     "meta": {
       "words": "{{count}}文字"
@@ -853,6 +855,10 @@
     },
     "labels": {
       "color": "色"
+    },
+    "meta": {
+      "chapters": "{{count}}章",
+      "kWords": "{{count}}千語"
     }
   },
   "topTimeline": {

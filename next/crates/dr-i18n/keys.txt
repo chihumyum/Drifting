@@ -529,8 +529,10 @@ leftSidebar.sort.showNone
 # The chapter page's head and end (M03, dr-view-page)
 nodeEditor.folio.chapter
 nodeEditor.folio.chapterNumber
+nodeEditor.folio.drift
 nodeEditor.meta.words
 chapterEditor.untitledChapter
+chapterEditor.untitledDrift
 chapterEditor.synopsisPlaceholder
 chapterEnd.trigger
 chapterEnd.triggerFinished
@@ -540,6 +542,8 @@ chapterEnd.markDraft
 chapterEnd.defaultTitle
 guide.hints.search
 guide.hints.timeline
+storylineEditor.meta.chapters
+storylineEditor.meta.kWords
 
 
 # M11 elements and categories (dr-view-elements)

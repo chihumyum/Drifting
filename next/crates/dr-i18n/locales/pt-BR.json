@@ -41,7 +41,8 @@
   },
   "chapterEditor": {
     "synopsisPlaceholder": "Sinopse…",
-    "untitledChapter": "Capítulo sem título"
+    "untitledChapter": "Capítulo sem título",
+    "untitledDrift": "Ideia sem título"
   },
   "chapterEnd": {
     "defaultTitle": "Novo capítulo",
@@ -363,7 +364,8 @@
   "nodeEditor": {
     "folio": {
       "chapter": "Capítulo",
-      "chapterNumber": "Capítulo {{n}}"
+      "chapterNumber": "Capítulo {{n}}",
+      "drift": "Ideia"
     },
     "meta": {
       "words": "{{count}} palavras"
@@ -865,6 +867,10 @@
     },
     "labels": {
       "color": "Cor"
+    },
+    "meta": {
+      "chapters": "{{count}} capítulos",
+      "kWords": "{{count}} mil palavras"
     }
   },
   "topTimeline": {

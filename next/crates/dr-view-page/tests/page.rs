@@ -2,7 +2,8 @@
 //! editor on a real workspace: the title hands the caret to the text and is
 //! stored when left, Esc and an empty title put the stored one back, the
 //! synopsis is stored when left, ⁂ finishes the chapter and makes the next,
-//! whose title then takes the caret, selected.
+//! whose title then takes the caret, selected; an idea's page stores its
+//! title and synopsis the same way.
 
 use std::time::{Duration, Instant};
 
@@ -252,4 +253,46 @@ fn the_end_finishes_the_chapter_and_makes_the_next(cx: &mut TestAppContext) {
     assert!(cx2.update(|window, cx| title.focus_handle(cx).is_focused(window)));
     let (selection, len) = title.read_with(&cx2, |f, _| (f.composer().selection(), f.text().len()));
     assert_eq!(selection, 0..len);
+}
+
+#[gpui::test]
+fn an_idea_page_stores_its_title_and_synopsis(cx: &mut TestAppContext) {
+    let e = env();
+    let id = out(
+        &e.ws,
+        "idea.create",
+        json!({"book": e.book, "title": "灯塔", "text": "雾里有人敲钟。"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let doc = format!("node:{id}");
+    let (_, mut cx) = open(cx, &e, &doc);
+    let (head, end) = cx
+        .update(|_, cx| page_views(&doc, cx))
+        .expect("an idea has a head");
+    let (title, synopsis) = head.read_with(&cx, |h, _| (h.title().clone(), h.synopsis().clone()));
+    assert_eq!(title.read_with(&cx, |f, _| f.text()), "灯塔");
+    type_into(&title, "雾中灯塔", &mut cx);
+    type_into(&synopsis, "守灯人的最后一夜。", &mut cx);
+    cx.update(|window, cx| window.blur(cx));
+    let idea = |e: &Env| {
+        out(&e.ws, "idea.list", json!({"book": e.book}))
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|i| i["id"].as_str() == Some(id.as_str()))
+            .cloned()
+            .unwrap()
+    };
+    wait_for(&mut cx, |_| {
+        let i = idea(&e);
+        i["title"] == "雾中灯塔" && i["summary"] == "守灯人的最后一夜。"
+    });
+    let i = idea(&e);
+    assert_eq!(i["title"], "雾中灯塔");
+    assert_eq!(i["summary"], "守灯人的最后一夜。");
+    // ⁂ on an idea has no actions.
+    cx.update(|window, cx| end.update(cx, |end, cx| end.open_actions(window, cx)));
+    assert!(!end.read_with(&cx, |end, _| end.is_open()));
 }

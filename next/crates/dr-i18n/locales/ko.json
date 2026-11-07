@@ -41,7 +41,8 @@
   },
   "chapterEditor": {
     "synopsisPlaceholder": "줄거리…",
-    "untitledChapter": "제목 없는 장"
+    "untitledChapter": "제목 없는 장",
+    "untitledDrift": "제목 없는 아이디어"
   },
   "chapterEnd": {
     "defaultTitle": "새 장",
@@ -358,7 +359,8 @@
   "nodeEditor": {
     "folio": {
       "chapter": "장",
-      "chapterNumber": "제{{n}}장"
+      "chapterNumber": "제{{n}}장",
+      "drift": "아이디어"
     },
     "meta": {
       "words": "{{count}}자"
@@ -853,6 +855,10 @@
     },
     "labels": {
       "color": "색상"
+    },
+    "meta": {
+      "chapters": "{{count}}개 장",
+      "kWords": "{{count}}천 단어"
     }
   },
   "topTimeline": {

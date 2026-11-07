@@ -41,7 +41,8 @@
   },
   "chapterEditor": {
     "synopsisPlaceholder": "梗概…",
-    "untitledChapter": "未命名章節"
+    "untitledChapter": "未命名章節",
+    "untitledDrift": "未命名構想"
   },
   "chapterEnd": {
     "defaultTitle": "新章節",
@@ -358,7 +359,8 @@
   "nodeEditor": {
     "folio": {
       "chapter": "章節",
-      "chapterNumber": "第 {{n}} 章"
+      "chapterNumber": "第 {{n}} 章",
+      "drift": "構想"
     },
     "meta": {
       "words": "{{count}} 字"
@@ -853,6 +855,10 @@
     },
     "labels": {
       "color": "顏色"
+    },
+    "meta": {
+      "chapters": "{{count}} 章",
+      "kWords": "{{count}} 千字"
     }
   },
   "topTimeline": {
