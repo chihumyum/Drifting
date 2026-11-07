@@ -6,7 +6,8 @@
 //! update row (`loro_update.origin`), and the editor's undo manager uses it to
 //! leave everything but the author's own typing out of Undo. An Agent commit
 //! additionally carries its origin as the commit *message*, which Loro does
-//! store and replicate, so Agent changes stay recognisable in history.
+//! store and replicate, so Agent changes stay recognisable in history; so do
+//! Markdown-folder and import commits.
 
 use std::fmt;
 
@@ -95,10 +96,15 @@ impl Origin {
         })
     }
 
-    /// The commit message Loro stores with the change: the origin for Agent
-    /// writes, nothing otherwise.
+    /// The commit message Loro stores with the change, so "who changed
+    /// what" can be read from the history itself (it survives compaction and
+    /// travels with sync): the origin for Agent, Markdown-folder and import
+    /// writes (`agent:<session>/<turn>`, `mirror`, `import`). The author's own
+    /// commits carry none; neither do sync (those are other devices' commits,
+    /// with their own messages), repair and genesis.
     pub fn commit_message(&self) -> Option<String> {
-        matches!(self, Origin::Agent { .. }).then(|| self.as_string())
+        matches!(self, Origin::Agent { .. } | Origin::Import | Origin::Mirror)
+            .then(|| self.as_string())
     }
 
     pub fn is_agent(&self) -> bool {
@@ -181,6 +187,11 @@ mod tests {
             Some("agent:s/1")
         );
         assert_eq!(Origin::User.commit_message(), None);
+        assert_eq!(Origin::Import.commit_message().as_deref(), Some("import"));
+        assert_eq!(Origin::Mirror.commit_message().as_deref(), Some("mirror"));
+        for o in [Origin::Sync, Origin::Repair, Origin::Genesis] {
+            assert_eq!(o.commit_message(), None, "{o}");
+        }
     }
 
     #[test]

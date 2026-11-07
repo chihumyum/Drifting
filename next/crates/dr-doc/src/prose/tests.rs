@@ -893,3 +893,48 @@ fn a_task_line_linked_to_a_todo_has_no_state_of_its_own() {
     user(&mut note, |t| t.set_block_attrs(0, &plain));
     assert!(note.view().paragraphs().next().unwrap().attrs.checked);
 }
+
+#[test]
+fn import_and_mirror_commits_carry_their_origin_as_message() {
+    // "Who changed what" is read from the history itself, so imports and the
+    // Markdown folder are recognisable like the Agent; the author's own
+    // commits carry no message.
+    let mut p = doc("msg", 7);
+    let mut msgs = Vec::new();
+    for origin in [
+        Origin::User,
+        Origin::Import,
+        Origin::Mirror,
+        Origin::agent("s", 2),
+    ] {
+        let (r, c) = p.edit(origin, |t| t.insert_text(0, "字"));
+        r.unwrap();
+        assert!(c.is_some());
+        let id = p
+            .view()
+            .cursor(0, loro::cursor::Side::Middle)
+            .unwrap()
+            .id
+            .unwrap();
+        msgs.push(
+            p.core()
+                .doc
+                .get_change(id)
+                .and_then(|m| m.message.as_ref().map(|s| s.to_string())),
+        );
+    }
+    assert_eq!(
+        msgs,
+        vec![
+            None,
+            Some("import".to_string()),
+            Some("mirror".to_string()),
+            Some("agent:s/2".to_string())
+        ]
+    );
+    // The book document goes through the same commit path.
+    let mut b = crate::book::BookDoc::create(dr_model::id::BookId::parse("b").unwrap(), 7).unwrap();
+    let (r, c) = b.edit(Origin::Import, |t| t.meta().name("书").map(|_| ()));
+    r.unwrap();
+    assert!(c.is_some());
+}

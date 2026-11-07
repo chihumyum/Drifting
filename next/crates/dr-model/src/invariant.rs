@@ -181,12 +181,13 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "AGENT-MESSAGE",
-        "Agent 的改动在历史里认得出来",
+        "Agent、Markdown 文件夹、导入的改动在历史里认得出来",
         [Structure],
-        "Agent 提交带提交信息 agent:<会话>/<轮>，随快照和同步走",
+        "这三种提交带提交信息 agent:<会话>/<轮>、mirror、import（Origin::commit_message），存进 Loro 历史、随快照和同步走、压缩删不掉；作者自己的提交不带",
         [],
         [
             "agent_commits_carry_a_durable_message",
+            "import_and_mirror_commits_carry_their_origin_as_message",
             "origins_round_trip"
         ]
     ),
@@ -924,6 +925,18 @@ pub const INVARIANTS: &[Invariant] = &[
         "历史点同时记正文和书目文档的 frontiers（F2/F3）；恢复时在 BookReader::load_at 载入的副本上取 entity_snapshot，用 BookTxn::restore_fields 作为新提交写回 metadata_fields 列的字段；不整篇 revert 书目文档",
         ["src/renderer/services/snapshot-restore.service.ts:212-280 (restoreMetadata)"],
         ["restoring_an_entity_writes_its_old_fields_back"]
+    ),
+    inv!(
+        "STYLE-TABLE-ONE-SOURCE",
+        "所有配置 Drifting 文档的地方用同一张样式表（每个标记键的扩展规则）",
+        [Structure, Command],
+        "唯一来源是 dr_doc::schema::STYLE_TABLE 加 DEFAULT_EXPAND，dr_doc::schema::configure 照它配置；Loro 在打标记时把规则写进标记本身、之后各设备都照它走，所以一张错表写出来的是错数据。别处（gpui-prose）要么调 configure，要么用一模一样的表，dr-editor 用 style_table_mismatches 对拍",
+        [],
+        [
+            "the_style_table_covers_every_mark_key_once",
+            "mismatches_name_every_difference",
+            "a_mark_made_under_another_table_keeps_its_rule"
+        ]
     ),
     inv!(
         "CROSS-DOC-ORDER",

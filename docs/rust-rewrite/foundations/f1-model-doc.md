@@ -55,10 +55,10 @@
 | `book` | 每类实体一个记录：`BookMeta`、`Node`、`Act`、`Storyline`、`Category`、`Element`、`Patch`、`RelationType`、`Relation`、`TimePin`、`PlotGrid`、`Comment`、`Material`、`Asset`、`DriftGroup`、`MaterialFolder`、`Memory`、`WritingDay`、`KvEntry`；`EntityRef`、`EncodedAnchor`、`BlockSnapshot`、`MaterialRegion`、`TodoProjection`；`canonical_symmetric`、`normalize_relation_type_name`、`element_name_key`；`BookMeta::word_target` / `daily_word_target`（默认 120000 / 1500，0 是关掉） | 字段稳定；记录里会加便利方法 |
 | `prose` | `BlockAttrs`（H1/H2/H3、引用、缩进 0–8、对齐、分隔线，笔记的列表 / 任务 / 代码块 / 提示框）、`InlineMarks`、`InlineStyle`、`EntityLink`、`Heading` | 稳定 |
 | `order` | `cmp_order`（坐标、缺的排最后、平局按 id）、`chapter_order_after`（照搬旧版插章规则）、`act_segments` / `act_index_for_order`（幕按分界）、`needs_spread`、`CHAPTER_ORDER_STRIDE` | 稳定 |
-| `origin` | `Origin`：`user` / `agent:<会话>/<轮>` / `mirror` / `sync` / `import` / `genesis` / `repair`；`UNDO_EXCLUDED_ORIGIN_PREFIXES` | 稳定 |
+| `origin` | `Origin`：`user` / `agent:<会话>/<轮>` / `mirror` / `sync` / `import` / `genesis` / `repair`；`commit_message()`：Agent、Markdown 文件夹、导入的提交带提交信息，作者自己的不带；`UNDO_EXCLUDED_ORIGIN_PREFIXES` | 稳定 |
 | `time` | `Timestamp`（秒）、`Day`（`YYYY-MM-DD`，校验闰年） | 稳定 |
 | `check` | 命令层用的判断：`non_empty_name`、`relation_type_definition`、`relation_ends`、`comment_target`、`patch_source`、`material_payload`、`asset_shape`、`plot_cell_size`；违反时返回不变量 id | 可能变（F3 会加） |
-| `invariant` | 不变量清单 `INVARIANTS`（77 条）、`NOT_CARRIED`（16 条）、界面和 Agent 的分叉 `DIVERGENCES`（9 条，待 F3 统一），生成 [acceptance/f1-invariants.json](../acceptance/f1-invariants.json) | 随 F3 增补 |
+| `invariant` | 不变量清单 `INVARIANTS`（78 条）、`NOT_CARRIED`（16 条）、界面和 Agent 的分叉 `DIVERGENCES`（9 条，待 F3 统一），生成 [acceptance/f1-invariants.json](../acceptance/f1-invariants.json) | 随 F3 增补 |
 
 ### dr-doc：正文文档
 
@@ -114,7 +114,7 @@ generic_relation_type_id(&book) = "system:generic-association:<书 id>"
 | `TextPos` / `Unit` / `PosError` | 三种单位一起带；`TextPos::in_str`（段内，线性）、`ProseView::pos`（全文，经 Loro 索引）；字符中间、越界都报错 | 稳定 |
 | `Committed` / `Imported` | 交给存储的一次提交；导入结果（有没有在等依赖、导入后修了什么） | 稳定 |
 | `peer` | `genesis_peer`、`import_peer`、`is_device_peer`、`random_device_peer`（测试用；正式的由 F2 分配） | 稳定 |
-| `schema` | 容器名、标记键、样式表、`SCHEMA_VERSION = 2`、`GENESIS_VERSION = 2`、`configure` | 稳定（就是 loro-schema.md） |
+| `schema` | 容器名、标记键、`SCHEMA_VERSION = 2`、`GENESIS_VERSION = 2`；样式表的唯一来源 `STYLE_TABLE` + `DEFAULT_EXPAND`，`style_config()`、`configure(doc)`，以及给别处对拍用的 `style_table_mismatches(表, 默认值)` | 稳定（就是 loro-schema.md） |
 | `loro_types` | 重新导出 `VersionVector`、`Frontiers`、`Subscription`、`Cursor`、`UndoManager`，下游用同一个钉住的 Loro | 稳定 |
 
 ## 不变量清单（摘要）
@@ -123,12 +123,12 @@ generic_relation_type_id(&book) = "system:generic-association:<书 id>"
 
 | 靠什么成立 | 条数 | 例子 |
 | --- | ---: | --- |
-| 命令层预防 | 37 | 关系不能连自己、名字不能空、要素名不重复、关系类型的定义合法、跨文档先写正文、按对象恢复历史 |
+| 命令层预防 | 38 | 关系不能连自己、名字不能空、要素名不重复、关系类型的定义合法、跨文档先写正文、按对象恢复历史 |
 | 读取时容忍 | 52 | 关系一端不在就不显示、分组不在的构想放根目录、主故事线不在成员里就当没有、批注目标不在标「未定位」、合并后重名的要素标出来 |
 | 后台修复 | 7 | 语义重复的关系删到只剩 id 最小的、缺书序的章节补上、重复的块 ID 改掉、没人指向的嵌入条目清掉 |
-| 结构保证 | 31 | 树不会成环（Loro 保证）、内置关系类型只有一个（创世保证）、写作日的设备和日期就是键、正文永远以换行结尾、列表顺序用位置键、生成的待办 id 确定 |
+| 结构保证 | 32 | 树不会成环（Loro 保证）、内置关系类型只有一个（创世保证）、写作日的设备和日期就是键、正文永远以换行结尾、列表顺序用位置键、生成的待办 id 确定 |
 
-一条可以同时靠几种办法，所以条数加起来大于 77。和旧版比，**故意改了的**：
+一条可以同时靠几种办法，所以条数加起来大于 78。和旧版比，**故意改了的**：
 
 - 旧版「不认识的种类和字段一律拒绝」改成「原样保留」：合并没法拒绝远端的改动，而且这样新旧版本能共存。
 - 旧版删章节、要素时把它们的关系永久删掉；新版只是不显示，恢复后关系回来。
@@ -164,7 +164,7 @@ cargo test --release -p dr-doc --test measure -- --ignored --nocapture
 
 | 测试 | 内容 | 结果 |
 | --- | --- | --- |
-| 单元测试 | dr-model 33 个；dr-doc 65 个（正文 31、书目 29、位置换算与对等方等 5）。P0-C 的正文用例全部搬过来，换成类型化接口 | 全过 |
+| 单元测试 | dr-model 33 个；dr-doc 69 个（正文 32、书目 29、样式表与位置换算、对等方等 8）。P0-C 的正文用例全部搬过来，换成类型化接口 | 全过 |
 | 正文三设备属性测试 `three_peers_converge` | 三台设备随机打字、回车、跨段删、设标题、加人物链接、加锚点、撤销、Agent 写入，任意顺序同步；查收敛、以换行结尾、块 ID 唯一且一致、锚点各处一致 | 3000 例全过；导入后自动修复 1622 次，没有一例需要额外修复轮；2708 个锚点，793 个收成点。见 [f1-prose-convergence.json](../acceptance/f1-prose-convergence.json) |
 | 书目三设备属性测试 `three_peers_read_the_same_book` | 随机建章、建构想、建要素、进出废纸篓、彻底删、建关系（含没按规范顺序存的对称关系）、加减故事线、移动和删除分组、后台修复，任意顺序同步；查各设备读出来一样、读出来的东西守住全部读取规则 | 第一次跑 3000 例时在第 708 例失败：两台设备各建了同一个分组 id，树里有两个同 id 的节点，挂在其中一个下面的子分组读漏了（见下「发现并修好的」）。修好后 3000 例全过：1725 例同步后需要修复，都是一轮修好。见 [f1-book-convergence.json](../acceptance/f1-book-convergence.json) |
 | 其他属性测试 | 没人删的锚点永远锚着原文；块 ID 修复是状态的函数（两台设备修出来一样）；位置换算三种单位处处一致、字符中间一律报错 | 全过 |
@@ -206,6 +206,7 @@ M3 Pro，release，Loro 1.17.1，合成数据（[f1-measure.json](../acceptance/
 | 3 | 给 F3 / F4 的接口，写入不暴露裸 `LoroDoc`，读取不拷贝整章 | 完成，上面已列；标了「可能变」的等下游用起来再定 |
 | 4 | 属性测试（含 3000 例三设备）、模糊测试 | 完成 |
 | 5 | 第二轮（监管会话审查）：v2 补字段、列表改位置键、待办单一真相、按对象恢复、名字唯一的读取容忍、分叉清单、视图数据归属 | 完成 |
+| 6 | M10 / F4 反馈：导入和 Markdown 文件夹的提交也带提交信息；样式表的唯一来源和对拍接口 | 完成 |
 
 ## 待协调
 
@@ -231,6 +232,7 @@ M3 Pro，release，Loro 1.17.1，合成数据（[f1-measure.json](../acceptance/
    - 计划里 `gpui-prose` 只依赖 gpui 和 loro、不依赖任何 `dr-*`，但正文的写入规则（回车挪块 ID、新换行写全属性、行内标记不打在换行上）都在 `dr-doc` 里。建议：`gpui-prose` 定义一个「文本源」trait（读段落、订阅改动、提交编辑），由 `dr-editor` 用 `dr-doc` 实现。不要让 `gpui-prose` 直接往 `LoroText` 里写，否则这些规则会绕过去。
    - 撤销走 `ProseUndo::undo(&mut doc)`，它返回要存的提交；按阵合并用 `hooks()` 挂 `set_on_push`。
    - `ProseEvent` 的位置是改之前的字符坐标（Quill 式）；`splices()` 给的是改之后的坐标。
+   - 样式表只用 `dr-doc` 那一份（`dr_doc::schema::STYLE_TABLE` + `DEFAULT_EXPAND`）。Loro 在打标记时把规则写进标记本身，`gpui-prose` 用了不一样的表，打出来的标记就带着错规则进书、同步到每台设备。最好直接调 `dr_doc::schema::configure`；不能依赖 `dr-doc` 的话就照抄这张表，`dr-editor` 写一个对拍测试调 `style_table_mismatches`。
    - `ProseView::paragraph_at` 要读前面各段的块 ID（2 万字章约 0.13 ms），`paragraph_by_id` 是全文扫描。光标所在段、按块 ID 定位这类每次按键都要的查询，用 F4a 自己的段落索引（由事件增量维护），不要每次调它们。
 4. **批注、补丁的正文和素材描述**在书目文档里是 `LoroText`，现在只给了纯文本写入（按最小差异更新，并发会合并）。审阅模块（M-审阅）如果要在批注里用富文本，要么在 `dr-doc` 加一套书目文档内的富文本接口，要么以后把批注正文挪成独立的正文文档。等该模块开工时定。
 5. **M10（旧库导入）**：退役取值用 `dr_model::legacy` 规整；旧 `anchor_json` 拆成 `anchor`（光标对）、`quote`（`selectedText` / `textAnchor.text`）、`snapshots`（`blockSnapshots`，没有时用 v2 的 `blockText`）、`region`；`comment_action` 里 `start_agent_task` 的 `conversationId` 写进 `agent_conversation`；元数据里 `kind = todo-autoparse` / `note-task` 的待办，改用 `CommentId::for_projection` 的 id 和 `projection` 字段；旧的 `position_key` 原样写进 `pos`；本机 localStorage 里的颜色、目标、固定位置在交接时一起导出。

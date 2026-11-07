@@ -125,47 +125,107 @@ pub mod inline {
     }
 }
 
-/// The text style configuration: one `ExpandType` per mark key. Part of the
-/// schema: two devices configured differently would extend marks differently
-/// on local inserts.
+/// The text style table of the schema: every configured mark key and how
+/// it expands on local inserts. **The one source of truth.**
+///
+/// Loro does not store the table in the document; every `LoroDoc` is
+/// configured at run time, and `LoroDoc::config_text_style` *replaces* the
+/// whole table (the default, set by `config_default_text_style`, is kept
+/// separately), so whatever configures a document last wins. And it matters
+/// beyond that device: when a mark is made, Loro copies the key's rule from
+/// the table into the mark itself, and every device afterwards follows the
+/// mark's own rule (tested in `a_mark_made_under_another_table_keeps_its_rule`).
+/// A wrong table therefore writes wrong marks into the book for good. Anything
+/// that configures a document holding Drifting text must use exactly this
+/// table and [`DEFAULT_EXPAND`], or better call [`configure`]. `dr-editor` compares `gpui-prose`'s table
+/// against this one key by key ([`style_table_mismatches`]); `dr-doc` does
+/// not depend on `gpui-prose`.
+///
+/// `entity` is a prefix: Loro gives `entity:<id>` the `entity` entry.
+pub const STYLE_TABLE: &[(&str, ExpandType)] = &[
+    // Paragraph attributes, on the newline only.
+    (block::ID, ExpandType::None),
+    (block::HEADING, ExpandType::None),
+    (block::QUOTE, ExpandType::None),
+    (block::INDENT, ExpandType::None),
+    (block::ALIGN, ExpandType::None),
+    (block::RULE, ExpandType::None),
+    (block::LIST, ExpandType::None),
+    (block::LIST_LEVEL, ExpandType::None),
+    (block::CHECKED, ExpandType::None),
+    (block::TODO, ExpandType::None),
+    (block::CODE_BLOCK, ExpandType::None),
+    (block::CALLOUT, ExpandType::None),
+    // Inline marks: typing right after bold text continues it…
+    (inline::BOLD, ExpandType::After),
+    (inline::ITALIC, ExpandType::After),
+    (inline::UNDERLINE, ExpandType::After),
+    (inline::STRIKE, ExpandType::After),
+    // …but not a link, highlight, code, entity link or embed.
+    (inline::LINK, ExpandType::None),
+    (inline::HIGHLIGHT, ExpandType::None),
+    (inline::CODE, ExpandType::None),
+    (inline::ENTITY, ExpandType::None),
+    (inline::EMBED, ExpandType::None),
+];
+
+/// How keys not in [`STYLE_TABLE`] expand (a mark a newer version added):
+/// not at all.
+pub const DEFAULT_EXPAND: ExpandType = ExpandType::None;
+
+/// [`STYLE_TABLE`] as Loro's configuration map (without the default, which
+/// Loro sets separately: [`configure`] does both).
 pub fn style_config() -> StyleConfigMap {
     let mut map = StyleConfigMap::new();
-    let none = StyleConfig {
-        expand: ExpandType::None,
-    };
-    let after = StyleConfig {
-        expand: ExpandType::After,
-    };
-    for key in block::ALL {
-        map.insert((*key).into(), none);
-    }
-    for key in [
-        inline::BOLD,
-        inline::ITALIC,
-        inline::UNDERLINE,
-        inline::STRIKE,
-    ] {
-        map.insert(key.into(), after);
-    }
-    for key in [
-        inline::LINK,
-        inline::HIGHLIGHT,
-        inline::CODE,
-        inline::ENTITY,
-        inline::EMBED,
-    ] {
-        map.insert(key.into(), none);
+    for (key, expand) in STYLE_TABLE {
+        map.insert((*key).into(), StyleConfig { expand: *expand });
     }
     map
 }
 
-/// Configure a document: text styles and per-commit timestamps (seconds).
+/// Where `other` (another crate's table and default) differs from the
+/// schema's: one line per missing, extra or different key, and the default.
+/// Empty when they are identical. For parity tests (`dr-editor` against
+/// `gpui-prose`).
+pub fn style_table_mismatches(
+    other: &[(&str, ExpandType)],
+    other_default: Option<ExpandType>,
+) -> Vec<String> {
+    let mut out = Vec::new();
+    for (key, want) in STYLE_TABLE {
+        match other
+            .iter()
+            .filter(|(k, _)| k == key)
+            .map(|(_, e)| *e)
+            .collect::<Vec<_>>()[..]
+        {
+            [] => out.push(format!("{key}: missing (schema: {want:?})")),
+            [got] if got == *want => {}
+            [got] => out.push(format!("{key}: {got:?} (schema: {want:?})")),
+            _ => out.push(format!("{key}: listed more than once")),
+        }
+    }
+    for (key, got) in other {
+        if !STYLE_TABLE.iter().any(|(k, _)| k == key) {
+            out.push(format!("{key}: {got:?}, not in the schema"));
+        }
+    }
+    if other_default != Some(DEFAULT_EXPAND) {
+        out.push(format!(
+            "default: {other_default:?} (schema: {DEFAULT_EXPAND:?})"
+        ));
+    }
+    out
+}
+
+/// Configure a document: the style table, its default and per-commit
+/// timestamps (seconds). Call before importing or editing; nothing should
+/// configure text styles after it.
 pub fn configure(doc: &LoroDoc) {
     doc.config_text_style(style_config());
-    // Keys a newer version adds and this one does not configure behave like
-    // `None` (no expansion) on local inserts rather than Loro's default.
+    // The default is separate from the table.
     doc.config_default_text_style(Some(StyleConfig {
-        expand: ExpandType::None,
+        expand: DEFAULT_EXPAND,
     }));
     doc.set_record_timestamp(true);
 }
@@ -173,6 +233,98 @@ pub fn configure(doc: &LoroDoc) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_style_table_covers_every_mark_key_once() {
+        let keys: Vec<&str> = STYLE_TABLE.iter().map(|(k, _)| *k).collect();
+        let mut sorted = keys.clone();
+        sorted.sort();
+        sorted.dedup();
+        assert_eq!(sorted.len(), keys.len(), "no key twice");
+        for k in block::ALL {
+            assert!(keys.contains(k), "{k}");
+        }
+        for k in [
+            inline::BOLD,
+            inline::ITALIC,
+            inline::UNDERLINE,
+            inline::STRIKE,
+            inline::LINK,
+            inline::HIGHLIGHT,
+            inline::CODE,
+            inline::ENTITY,
+            inline::EMBED,
+        ] {
+            assert!(keys.contains(&k), "{k}");
+        }
+        let map = style_config();
+        for (k, e) in STYLE_TABLE {
+            assert_eq!(map.get(&(*k).into()).map(|c| c.expand), Some(*e));
+        }
+    }
+
+    #[test]
+    fn mismatches_name_every_difference() {
+        assert!(style_table_mismatches(STYLE_TABLE, Some(DEFAULT_EXPAND)).is_empty());
+        let mut other: Vec<(&str, ExpandType)> = STYLE_TABLE.to_vec();
+        other.retain(|(k, _)| *k != inline::LINK);
+        other
+            .iter_mut()
+            .find(|(k, _)| *k == inline::BOLD)
+            .unwrap()
+            .1 = ExpandType::None;
+        other.push(("comment", ExpandType::Both));
+        let m = style_table_mismatches(&other, None);
+        assert_eq!(m.len(), 4, "{m:?}");
+        assert!(m.iter().any(|l| l.starts_with("link: missing")));
+        assert!(m.iter().any(|l| l.starts_with("bold: None")));
+        assert!(m.iter().any(|l| l.starts_with("comment:")));
+        assert!(m.iter().any(|l| l.starts_with("default:")));
+    }
+
+    #[test]
+    fn a_mark_made_under_another_table_keeps_its_rule() {
+        // Why the table must have one source. Device A marks bold under some
+        // table; device B types right after the bold. Whether B's text is
+        // bold depends only on A's table at the moment A marked: the rule
+        // travels inside the mark.
+        use loro::{ExportMode, LoroDoc};
+        let runs_after_b_types = |a_uses_schema: bool, b_uses_schema: bool| {
+            let a = LoroDoc::new();
+            configure(&a);
+            a.set_peer_id(1).unwrap();
+            if !a_uses_schema {
+                a.config_text_style(StyleConfigMap::new());
+            }
+            let ta = a.get_text("body");
+            ta.insert(0, "ab").unwrap();
+            ta.mark(0..2, inline::BOLD, true).unwrap();
+            a.commit();
+            let b = LoroDoc::new();
+            configure(&b);
+            if !b_uses_schema {
+                b.config_text_style(StyleConfigMap::new());
+            }
+            b.set_peer_id(2).unwrap();
+            b.import(&a.export(ExportMode::all_updates()).unwrap())
+                .unwrap();
+            let tb = b.get_text("body");
+            tb.insert(2, "c").unwrap();
+            tb.to_delta().len()
+        };
+        assert_eq!(runs_after_b_types(true, true), 1, "bold continues (After)");
+        assert_eq!(
+            runs_after_b_types(true, false),
+            1,
+            "B's own table does not matter"
+        );
+        assert_eq!(
+            runs_after_b_types(false, true),
+            2,
+            "A's wrong table broke it for B too"
+        );
+        assert_eq!(runs_after_b_types(false, false), 2);
+    }
 
     #[test]
     fn entity_keys() {
