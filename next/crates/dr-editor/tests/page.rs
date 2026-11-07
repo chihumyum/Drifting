@@ -263,6 +263,11 @@ fn every_chapter_of_the_book_has_its_page(cx: &mut TestAppContext) {
     let e = env();
     let one = chapter(&e, "一", "雨夜。");
     let two = chapter(&e, "二", "钟停了。");
+    out(
+        &e.ws,
+        "act.create",
+        json!({"book": e.book, "name": "第二幕", "start_chapter": two.trim_start_matches("node:")}),
+    );
     let (ws, book) = (e.ws.clone(), e.book.clone());
     cx.executor().allow_parking();
     let (view, cx) = cx.add_window_view(move |window, cx| {
@@ -276,6 +281,13 @@ fn every_chapter_of_the_book_has_its_page(cx: &mut TestAppContext) {
     draw(cx);
     draw(cx);
     let numbers: Vec<Option<u32>> = recorder.heads.borrow().iter().map(|p| p.number).collect();
+    assert_eq!(
+        view.read_with(cx, |v, _| v.page_info(&two))
+            .unwrap()
+            .act_opening
+            .as_deref(),
+        Some("第二幕")
+    );
     assert!(
         numbers.contains(&Some(1)) && numbers.contains(&Some(2)),
         "{numbers:?}"

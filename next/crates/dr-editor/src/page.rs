@@ -72,6 +72,9 @@ pub struct PageInfo {
     pub words: u64,
     /// The text is one empty paragraph (the empty-chapter hint shows).
     pub empty: bool,
+    /// In the whole-book view, the act this chapter opens: the host draws
+    /// the act's title page above the chapter's head.
+    pub act_opening: Option<String>,
 }
 
 impl PageInfo {
@@ -86,6 +89,7 @@ impl PageInfo {
             storyline: None,
             words: 0,
             empty: false,
+            act_opening: None,
         }
     }
 
@@ -210,8 +214,10 @@ impl Pages {
     ) {
         let mut infos = read(ws, book, docs);
         let e = editor.read(cx);
-        for (info, chapter) in infos.iter_mut().zip(&e.book().chapters) {
+        let book = e.book();
+        for (ix, (info, chapter)) in infos.iter_mut().zip(&book.chapters).enumerate() {
             (info.words, info.empty) = counts(&chapter.doc);
+            info.act_opening = book.act_opening(ix).map(|a| a.to_string());
         }
         let changed: Vec<usize> = {
             let old = self.infos.borrow();
