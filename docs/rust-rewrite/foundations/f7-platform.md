@@ -17,6 +17,8 @@
 | 打包 | macOS 出 `.app`、`.dmg`、更新包 `.app.tar.gz`；Windows 有 NSIS 安装器，安装位置、卸载项、注册表和旧版 Tauri 安装器一样，CI 里装一遍、升级一遍、卸一遍 | 签名、公证、预编译着色器（发版前） |
 | 自动更新 | 读清单、比版本、下载、用现有公钥的格式验签、macOS 原地换包、Windows 交给安装器；本地用自造的密钥对和本地文件从头到尾走通了 | F6/M42 的界面和定时检查；旧版最后一版改一行更新地址 |
 | 外部 Agent 的命令行 | 新程序认旧版写进 Codex、Claude Code 配置里的 `drifting --mcp --connection <文件>`，在入口最先分流，不开窗口、不拿单实例锁 | M32 实现桥接（发 GPUI 版的前提） |
+| 设备身份（第二轮） | 应用打开库时带上这台设备的身份（和旧版同一个身份文件，换了机器算新设备），写作日真正存下来；开发 profile 各有一份 | — |
+| 反馈与崩溃跟进（第二轮，M39） | 反馈对话框，可附脱敏诊断摘要，走旧版的接口；崩溃后通知中心里点「上次出了故障」问一句；没有服务时交给邮件程序。脱敏规则补全成旧版的整套 | 账户菜单和「关于」的入口、多行输入框、登录会话（见 [m39-feedback.md](../modules/m39-feedback.md) 待协调） |
 | 发布流水线 | 草稿 `next/script/release-next.draft.yml`，不会被触发 | 交接时补全 |
 
 **最要紧的三个发现**：
@@ -39,11 +41,13 @@ let crash_reports = dr_platform::crash::init(CrashConfig::for_build(platform, di
                                                            // 必须第一个：在崩溃上报子进程里它不返回
 dr_platform::logging::init(&LogConfig::for_build(dirs.as_ref().map(|d| d.logs.as_path())));
 let Some(instance) = dr_platform::single_instance::acquire(platform, &args).primary() else { return };
+let library = library::open(&dirs.data, version);          // 另一个线程：带设备身份打开库（app/drifting/src/library.rs）
 let deep_links = DeepLinks::new(platform.url_scheme);
 deep_links.push_args(&args);                               // Windows：链接是命令行参数
 instance.listen(move |args| deep_links.push_args(args));   // Windows：后来的进程转过来的
 app.on_open_urls(move |urls| deep_links.push_all(urls));   // macOS
-cx.set_global(Platform { deep_links, crash_reports });     // 给 F6
+dr_shell::init(info, Services { deep_links, crash_reports, library, .. }, settings, cx); // 给 F6
+dr_view_feedback::init(Service::for_build(platform, Some(&dirs.data), version), cx);     // M39
 ```
 
 | 模块 | 给谁用 | 主要接口 |
@@ -53,7 +57,9 @@ cx.set_global(Platform { deep_links, crash_reports });     // 给 F6
 | `paths` | F2、F6 | `AppDirs { data, logs, crashes }`；`AppDirs::for_identity`、`AppDirs::under(root)`（测试和隔离运行） |
 | `logging` | app | `LogConfig::for_build`、`logging::init`、`logging::installed()` |
 | `crash` | app、F6、F2 | `crash::init(CrashConfig) -> CrashReporting`；`.status()`、`.set_consent(bool)`、`.take_follow_up() -> Option<CrashFollowUp>`、`.report_integrity(code)`、`.flush(timeout)` |
-| `sanitize` | 任何要上报文字的地方 | `sanitize::message`、`sanitize::redact_home` |
+| `sanitize` | 任何要上报文字的地方 | `sanitize::message`、`report_text(text, max)`、`report_token`、`error_code`、`redact_home`（规则逐条照旧版 `crash-sanitize.ts`） |
+| `diagnostics` | M39、设置 → 隐私 | `diagnostics::summary(&SummaryInput) -> String`（`drifting.sanitized-diagnostics` 第 2 版）；`installation_id(data)`；`iso_time` |
+| `feedback` | M39 | `problems`、`payload`、`Delivery::for_build`、`send`、`email_url`；`fake_service::FakeService`（`test-support` 特性，测试用的本机假服务） |
 | `secrets` | M35 账号、M37 帮手、扩展 | `SecretStore::for_identity(id)`；`.get/.contains/.set/.delete`；`SecretStore::in_memory()` 给别的 crate 测试；`secrets::keys::*` 旧版的键名 |
 | `deep_link` | F6、M35、跳转链接 | `DeepLinks::new(scheme)`；`.push_all/.push_args`、`.drain_matching("auth/")`、`.set_waker(f)` |
 | `single_instance` | app | `acquire(identity, args) -> Instance::{Primary, Forwarded, ForwardFailed}`；`Primary::listen(f)` |
@@ -113,11 +119,11 @@ cx.set_global(Platform { deep_links, crash_reports });     // 给 F6
 
 ### 发出去的是什么
 
-`before_send` 把每个事件重新过一遍：消息和异常文字过 `sanitize`（截到 300 字；连续 12 个以上的中日韩字、40 字以上的引号段、13 个以上连续单词换成 `[text]`；家目录换成 `~`，规则照旧版 `crash-sanitize.ts`）；调用栈和镜像路径里的家目录换成 `~`；去掉主机名、用户、请求、`extra`、模块列表和面包屑；不开会话、性能追踪和日志。
+`before_send` 把每个事件重新过一遍：消息和异常文字过 `sanitize`（规则逐条照旧版 `crash-sanitize.ts`：令牌、密钥、JWT、`password=` 这类值、邮箱、网址参数先抹掉；家目录换成 `~`；连续 12 个以上的中日韩字、40 字以上的引号段、13 个以上连续单词换成 `[text]`；截到 300 字。第二轮补上了前面几条，见 [m39-feedback.md](../modules/m39-feedback.md)）；调用栈和镜像路径里的家目录换成 `~`；去掉主机名、用户、请求、`extra`、模块列表和面包屑；不开会话、性能追踪和日志。
 
 ### 崩溃后的跟进（给 F6）
 
-每送出一个崩溃，`crashes/followups/` 里留一条 `{ id, kind: panic|native, occurred_at, app_version }`，`id` 同时是 Sentry 事件上的 `drifting.crash_id` 标签。F6 在启动稳定后调一次 `take_follow_up()`：拿到最新的一条，其余的丢掉，所以每次崩溃最多问一次，和旧版一致。之后的通知、反馈对话框、把 `id` 带进反馈，都在 F6/M39。原生崩溃的「已送出」是乐观的：旁路进程开始上传时就记下了。
+每送出一个崩溃，`crashes/followups/` 里留一条 `{ id, kind: panic|native, occurred_at, app_version }`，`id` 同时是 Sentry 事件上的 `drifting.crash_id` 标签。F6 在启动稳定后调一次 `take_follow_up()`：拿到最新的一条，其余的丢掉，所以每次崩溃最多问一次，和旧版一致。通知是 F6 的 `check_crash_follow_up`；点通知打开反馈对话框、把 `id` 带进反馈是 M39（第二轮做了，见 [m39-feedback.md](../modules/m39-feedback.md)）。原生崩溃的「已送出」是乐观的：旁路进程开始上传时就记下了。
 
 ### 符号文件（设计，未配密钥）
 
@@ -337,7 +343,7 @@ CI（`next.yml` 的 Windows 任务，`script/check-windows-installer.ps1`）：�
 
 1. **计划改动（监管会话定）**：`foundation.md` 和 `research.md` 写的「凭据用 GPUI 自带的接口」改成「沿用旧版格式，自己读写系统钥匙串」，理由见开头。`main` 上监管会话已经同样定了（[simplifications.md](../simplifications.md) 第 14 条，写的是「沿用 keyring」）；合并时我把 `foundation.md` F7 一节的那一句改成了实际做法：直接调系统接口按 keyring 的格式读写，keyring 只在测试里扮演旧版。
 2. **F6**：
-   - 崩溃上报的同意开关（默认开）和首次说明，`set_consent`，`take_follow_up` 接通知中心和反馈；
+   - 崩溃上报的同意开关（默认开）和首次说明，`set_consent`（`take_follow_up` 已接通知中心，反馈对话框第二轮做了）；
    - `DeepLinks::set_waker` 接到主线程：来了链接就把主窗口叫到前面、按前缀分发；
    - 更新界面（M42）：定时检查、下载进度、装完的重开（macOS `open -n`，Windows 先 `spawn` 安装器再退出），以及 macOS 目录不可写时怎么办（旧版弹 AppleScript 要密码，我们要不要跟）；
    - Windows 上调 GPUI 的 `set_app_identity(bundle id, 名字)`，让通知和任务栏归到同一个应用；新装的开始菜单快捷方式没带 AppUserModelID（NSIS 不带插件做不到），更新时保留旧快捷方式所以不受影响。
@@ -365,6 +371,13 @@ M3 Pro，release 构建，机器负载 15–18（其他会话在编译）。
 - 可执行文件多出的约 6 MB 是 Sentry（含 minidump 写入）、reqwest + tokio、rustls + ring 和平台验证器。
 - 不带 DSN 时，启动时 F7 只读几个环境变量、建几个路径、装一个 panic hook，量不出差别；首帧时间和 P0-A 在高负载下的分布一致。带 DSN 时多起一个旁路进程，要在空闲机器上另测。
 - 测试：`dr-platform` 67 个单元测试 + 1 个示例测试，另有 3 个默认忽略的真钥匙串测试（本机跑过）；`drifting` 13 个。
+
+## 第二轮：设备身份、反馈与崩溃跟进
+
+2026-11-08，监管会话交的两件事，详细都在 [m39-feedback.md](../modules/m39-feedback.md)：
+
+- **设备身份**：`app/drifting/src/library.rs` 打开库时把 `dr_store::Device::open(<应用本机数据目录>)` 放进 `LibraryOptions::device`。身份文件和 `library/` 同级、不在库里面；开发构建的数据目录本来就不是正式版的，`DRIFTING_PROFILE` 再把每个 worktree 分开。身份文件坏了库照样打开，只是写作日不存。三个单测证明打开后 `writing_device()` 有值，真机用临时 profile 跑过一次。
+- **M39 客户端**：`dr-platform` 加了 `diagnostics`、`feedback`，`sanitize` 补全成旧版整套；对话框是新 crate `dr-view-feedback`；外壳只加挂接点（`dialogs.rs`、`SendFeedback`、工作区的 `dialog` 栏位、通知行可点），逐条列在 m39-feedback.md。测试只对本机 `127.0.0.1` 上的假服务发。
 
 ## 下一个里程碑建议
 

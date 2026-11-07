@@ -77,9 +77,27 @@
     }
   },
   "feedback": {
+    "attachDiagnostics": "Attach sanitized diagnostics",
+    "cancel": "Cancel",
+    "close": "Close",
+    "contact": "Reply-to email",
+    "contactPlaceholder": "Optional",
     "crash": {
+      "emailSubject": "Drifting crash follow-up",
+      "ignore": "Ignore",
+      "placeholder": "What were you doing?",
       "title": "Drifting ran into a problem last time"
-    }
+    },
+    "emailSubject": "Drifting feedback",
+    "failed": "Couldn’t send",
+    "hidePreview": "Hide",
+    "placeholder": "A problem or an idea",
+    "preview": "Preview",
+    "send": "Send",
+    "sendByEmail": "Send by email",
+    "sending": "Sending…",
+    "sent": "Sent",
+    "title": "Send feedback"
   },
   "findPanel": {
     "bookPlaceholder": "Find in whole book…",

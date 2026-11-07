@@ -77,9 +77,27 @@
     }
   },
   "feedback": {
+    "attachDiagnostics": "機密情報を除去した診断情報を添付",
+    "cancel": "キャンセル",
+    "close": "閉じる",
+    "contact": "返信先メールアドレス",
+    "contactPlaceholder": "任意",
     "crash": {
+      "emailSubject": "Drifting のクラッシュについて",
+      "ignore": "無視",
+      "placeholder": "そのとき何をしていましたか？",
       "title": "前回の使用時に Drifting で問題が発生しました"
-    }
+    },
+    "emailSubject": "Drifting へのフィードバック",
+    "failed": "送信できませんでした",
+    "hidePreview": "非表示",
+    "placeholder": "問題やアイデア",
+    "preview": "プレビュー",
+    "send": "送信",
+    "sendByEmail": "メールで送信",
+    "sending": "送信中…",
+    "sent": "送信済み",
+    "title": "フィードバックを送る"
   },
   "findPanel": {
     "bookPlaceholder": "全編を検索…",

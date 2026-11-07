@@ -65,7 +65,9 @@ notifications.markdownFolder.source
 notifications.appUpdate.source
 notifications.crashFollowUp.source
 notifications.markdownFolder.preserved
-feedback.crash.title
+
+# Feedback and the crash follow-up (M39, dr-view-feedback)
+feedback.*
 
 # Settings
 settings.title

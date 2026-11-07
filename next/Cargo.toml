@@ -19,6 +19,7 @@ members = [
     "crates/dr-testkit",
     "crates/dr-text",
     "crates/dr-ui",
+    "crates/dr-view-feedback",
     "crates/dr-view-home",
     "crates/dr-view-review",
     "crates/dr-view-search",
@@ -202,6 +203,8 @@ dr-ui = { path = "crates/dr-ui" }
 dr-view-review = { path = "crates/dr-view-review" }
 dr-view-search = { path = "crates/dr-view-search" }
 dr-view-stats = { path = "crates/dr-view-stats" }
+# M39: the feedback dialog and the crash follow-up.
+dr-view-feedback = { path = "crates/dr-view-feedback" }
 futures = "0.3"
 icu_plurals = { version = "2.4", default-features = false, features = ["compiled_data"] }
 icu_locale_core = { version = "2.4", default-features = false }

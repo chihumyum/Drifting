@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
-description = "Drifting's platform services: logs, crash reports, keychain, deep links and single instance, updates"
+description = "Drifting's platform services: logs, crash reports, keychain, deep links and single instance, updates, feedback"
 
 [features]
 default = ["network"]
@@ -13,14 +13,19 @@ default = ["network"]
 # builds, which lets `cargo check --target x86_64-pc-windows-msvc` run on a Mac
 # without a Windows C toolchain for the TLS stack.
 network = ["dep:reqwest", "dep:rustls", "sentry/reqwest", "sentry/rustls-no-provider"]
+# `feedback::fake_service`, a stand-in for the Hosted service on 127.0.0.1
+# for other crates' tests.
+test-support = []
 
 [dependencies]
 anyhow.workspace = true
 base64.workspace = true
+chrono.workspace = true
 dirs.workspace = true
 flate2.workspace = true
 log.workspace = true
 minisign-verify.workspace = true
+regex.workspace = true
 reqwest = { workspace = true, optional = true }
 rustls = { workspace = true, optional = true }
 semver.workspace = true
