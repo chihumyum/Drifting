@@ -1556,6 +1556,7 @@ name = "dr-workspace"
 version = "0.0.0"
 dependencies = [
  "dr-doc",
+ "dr-index",
  "dr-model",
  "dr-store",
  "insta",

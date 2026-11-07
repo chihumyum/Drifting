@@ -218,7 +218,7 @@ pub(crate) fn is_live(slot: &BookSlot, r: &EntityRef) -> bool {
             } else {
                 "materials"
             };
-            slot.mirror.handle.doc().get_map(root).get(&r.id).is_some()
+            slot.handle.doc().get_map(root).get(&r.id).is_some()
         }
         EntityKind::Other(_) => false,
     }
@@ -228,27 +228,22 @@ pub(crate) fn is_live(slot: &BookSlot, r: &EntityRef) -> bool {
 /// read tolerance needed: only the target fields).
 pub(crate) fn comments_on(slot: &BookSlot, target: &EntityRef) -> Vec<dr_model::id::CommentId> {
     let mut out = Vec::new();
-    slot.mirror
-        .handle
-        .doc()
-        .get_map("comments")
-        .for_each(|id, v| {
-            if let loro::ValueOrContainer::Container(loro::Container::Map(m)) = v {
-                let field = |k: &str| match m.get(k) {
-                    Some(loro::ValueOrContainer::Value(loro::LoroValue::String(s))) => {
-                        Some(s.to_string())
-                    }
-                    _ => None,
-                };
-                if field("target").as_deref() == Some(target.id.as_str())
-                    && field("target_kind").map(|k| EntityKind::parse(&k))
-                        == Some(target.kind.clone())
-                    && let Ok(cid) = dr_model::id::CommentId::parse(id)
-                {
-                    out.push(cid);
+    slot.handle.doc().get_map("comments").for_each(|id, v| {
+        if let loro::ValueOrContainer::Container(loro::Container::Map(m)) = v {
+            let field = |k: &str| match m.get(k) {
+                Some(loro::ValueOrContainer::Value(loro::LoroValue::String(s))) => {
+                    Some(s.to_string())
                 }
+                _ => None,
+            };
+            if field("target").as_deref() == Some(target.id.as_str())
+                && field("target_kind").map(|k| EntityKind::parse(&k)) == Some(target.kind.clone())
+                && let Ok(cid) = dr_model::id::CommentId::parse(id)
+            {
+                out.push(cid);
             }
-        });
+        }
+    });
     out.sort();
     out
 }

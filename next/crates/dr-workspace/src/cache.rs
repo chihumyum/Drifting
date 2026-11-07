@@ -24,8 +24,8 @@ use dr_doc::book::{BookView, Collection};
 use dr_model::book::Node;
 use dr_model::id::NodeId;
 
-use crate::bridge::lock;
 use crate::events::EntityChange;
+use crate::holder::lock;
 
 /// What is cached.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -176,22 +176,6 @@ impl BookCache {
         }
     }
 
-    /// Drop everything (a stale mirror was levelled).
-    pub(crate) fn clear(&self) {
-        let mut s = lock(&self.state);
-        s.generation += 1;
-        let g = s.generation;
-        let keys: Vec<Key> = s.entries.keys().copied().collect();
-        for k in keys {
-            s.stamps.insert(k, g);
-        }
-        s.entries.clear();
-        s.nodes = None;
-        s.nodes_dirty.clear();
-        s.nodes_full = false;
-        s.nodes_stamp = g;
-    }
-
     /// The cached value of `key`, or `fill` it from `view`.
     pub(crate) fn get<T: Send + Sync + 'static>(
         &self,
@@ -221,6 +205,15 @@ impl BookCache {
     }
 
     /// Every node (trashed included), by id, patched entity by entity.
+    /// A node as last read, without reading (it may be stale; for what
+    /// does not change, like its kind, once it is gone from the book).
+    pub(crate) fn known_node(&self, id: &NodeId) -> Option<Node> {
+        lock(&self.state)
+            .nodes
+            .as_ref()
+            .and_then(|(_, m)| m.get(id).cloned())
+    }
+
     pub(crate) fn nodes(&self, view: &BookView<'_>) -> Arc<BTreeMap<NodeId, Node>> {
         let (started, base, dirty, full) = {
             let mut s = lock(&self.state);

@@ -77,7 +77,7 @@ op! {
                 });
             }
         }
-        Ok(ProseText { paragraphs, total, version: frontiers_hex(&slot.mirror.frontiers()) })
+        Ok(ProseText { paragraphs, total, version: frontiers_hex(&slot.handle.doc().oplog_frontiers()) })
     }
 }
 
@@ -168,9 +168,9 @@ op! {
         if let Some(info) = cx.workspace().library().doc_info(&input.doc)?
             && let Some(b) = info.book_id { cx.book(&b)?; }
         let slot = cx.prose(&doc)?;
-        let pre = cx.write_prose_raw(&slot, move |m, raw| {
-            let pre = m.frontiers();
-            raw.revert_to(&at)?;
+        let pre = cx.write_prose_raw(&slot, move |doc| {
+            let pre = doc.oplog_frontiers();
+            doc.revert_to(&at)?;
             Ok(pre)
         })?;
         cx.effect(EffectAction::Restored, "prose", input.doc.as_str(), None);
@@ -205,51 +205,48 @@ pub struct SearchHitInfo {
     pub snippet: String,
 }
 
-/// (group, position in group, paragraph): book order of a search hit.
-type Rank = ((u8, usize), u32);
-
-/// Hits fetched from the index before ordering by book order (dr-store
-/// orders by document id; f3-workspace.md "待协调" F2-3).
-const SEARCH_FETCH: usize = 10_000;
-
 op! {
     Search = "book.search", Read, Shared,
     "Search a book's prose (chapters in reading order first, then ideas, elements, storylines, categories, materials). One- and two-character queries work.",
     fn(cx, input: SearchIn) -> Vec<SearchHitInfo> {
         let slot = cx.book(&input.book)?;
         let limit = input.limit.unwrap_or(50);
-        let hits = cx.workspace().library().search(Some(&input.book), &input.query, SEARCH_FETCH.max(limit))?;
-        // Rank: (group, position in group). Owners not live are left out.
-        let mut rank: std::collections::HashMap<String, ((u8, usize), String, String)> = Default::default();
-        for (i, c) in chapters(&slot).iter().enumerate() {
-            rank.insert(format!("node:{}", c.id), ((0, i), "node".into(), c.title.clone()));
+        // Every live owner's document in book order, with its kind and
+        // title; dr-store sorts by this order before it cuts at `limit`.
+        let mut owners: Vec<(String, &'static str, String)> = Vec::new();
+        for c in chapters(&slot) {
+            owners.push((format!("node:{}", c.id), "node", c.title));
         }
         let mut ideas: Vec<_> = nodes(&slot).values().filter(|n| n.is_drift() && !n.is_trashed()).cloned().collect();
         ideas.sort_by(|a, b| a.title.cmp(&b.title).then(a.id.cmp(&b.id)));
-        for (i, n) in ideas.iter().enumerate() {
-            rank.insert(format!("node:{}", n.id), ((1, i), "node".into(), n.title.clone()));
+        for n in ideas {
+            owners.push((format!("node:{}", n.id), "node", n.title));
         }
-        for (i, e) in elements(&slot).iter().filter(|e| e.deleted_at.is_none()).enumerate() {
-            rank.insert(format!("element:{}", e.id), ((2, i), "element".into(), e.name.clone()));
+        for e in elements(&slot).iter().filter(|e| e.deleted_at.is_none()) {
+            owners.push((format!("element:{}", e.id), "element", e.name.clone()));
         }
-        for (i, s) in storylines(&slot).iter().filter(|s| s.deleted_at.is_none()).enumerate() {
-            rank.insert(format!("storyline:{}", s.id), ((3, i), "storyline".into(), s.name.clone()));
+        for s in storylines(&slot).iter().filter(|s| s.deleted_at.is_none()) {
+            owners.push((format!("storyline:{}", s.id), "storyline", s.name.clone()));
         }
-        for (i, c) in categories(&slot).iter().filter(|c| c.deleted_at.is_none()).enumerate() {
-            rank.insert(format!("category:{}", c.id), ((4, i), "category".into(), c.name.clone()));
+        for c in categories(&slot).iter().filter(|c| c.deleted_at.is_none()) {
+            owners.push((format!("category:{}", c.id), "category", c.name.clone()));
         }
-        for (i, m) in materials(&slot).iter().enumerate() {
-            rank.insert(format!("material:{}", m.id), ((5, i), "material".into(), m.title.clone()));
+        for m in materials(&slot).iter() {
+            owners.push((format!("material:{}", m.id), "material", m.title.clone()));
         }
-        let mut out: Vec<(Rank, SearchHitInfo)> = hits.into_iter().filter_map(|h| {
-            let (r, kind, title) = rank.get(&h.doc_id)?.clone();
+        let order: Vec<&str> = owners.iter().map(|(d, ..)| d.as_str()).collect();
+        let hits = cx.workspace().library().search_in_order(Some(&input.book), &input.query, limit, &order)?;
+        let by_doc: std::collections::HashMap<&str, (&'static str, &str)> =
+            owners.iter().map(|(d, k, t)| (d.as_str(), (*k, t.as_str()))).collect();
+        // Documents not in the order (trashed owners, orphans) come last
+        // from dr-store; they are left out.
+        Ok(hits.into_iter().filter_map(|h| {
+            let (kind, title) = *by_doc.get(h.doc_id.as_str())?;
             let owner = h.doc_id.split_once(':').map(|(_, id)| id.to_string()).unwrap_or_default();
-            Some(((r, h.ord), SearchHitInfo {
-                doc: h.doc_id, kind, owner, title, block_id: h.block_id, paragraph: h.ord,
-                offset: h.match_offset, snippet: h.snippet,
-            }))
-        }).collect();
-        out.sort_by_key(|a| a.0);
-        Ok(out.into_iter().take(limit).map(|(_, h)| h).collect())
+            Some(SearchHitInfo {
+                kind: kind.to_string(), owner, title: title.to_string(), block_id: h.block_id,
+                paragraph: h.ord, offset: h.match_offset, snippet: h.snippet, doc: h.doc_id,
+            })
+        }).collect())
     }
 }

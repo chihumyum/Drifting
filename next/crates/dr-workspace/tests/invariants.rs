@@ -713,3 +713,14 @@ fn concurrent_creates_of_one_name_are_flagged_not_lost() {
     assert_eq!(r["output"]["name"], "Same 2");
     let _ = Arc::new(());
 }
+
+/// Found by the 3000-case run: closing right after a command could meet
+/// dr-store's background index rebuild holding a document for a moment,
+/// and the close was refused (`DocumentsOpen`). Shutdown now retries.
+#[test]
+fn regression_shutdown_during_the_index_rebuild() {
+    use Op::*;
+    for _ in 0..20 {
+        play(&[MoveGroup(137, None), Undo]);
+    }
+}
