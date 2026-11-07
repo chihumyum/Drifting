@@ -1360,8 +1360,10 @@ dependencies = [
  "dr-model",
  "dr-store",
  "dr-testkit",
+ "dr-workspace",
  "loro",
  "rusqlite",
+ "serde",
  "serde_json",
  "tempfile",
 ]
@@ -1483,6 +1485,7 @@ dependencies = [
  "dr-doc",
  "dr-model",
  "dr-store",
+ "dr-workspace",
  "loro",
  "serde",
  "serde_json",

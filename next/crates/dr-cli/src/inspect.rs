@@ -19,26 +19,21 @@ fn err(e: impl std::fmt::Display) -> String {
 
 /// A summary of the library, or one document's value with `doc`.
 pub fn inspect(library: &Path, doc: Option<&str>) -> Result<Value, String> {
-    if !offline::db_path(library).exists() {
-        return Err(format!(
-            "{} is not a library (no library.sqlite)",
-            library.display()
-        ));
-    }
-    let tmp = tempfile::tempdir().map_err(err)?;
-    offline::copy_db(library, &offline::db_path(tmp.path()))?;
-    let lib = dr_store::Library::open(tmp.path(), dr_testkit::seed::library_options(APP_VERSION))
-        .map_err(err)?;
-    let out = match doc {
-        Some(id) => {
-            let d = lib.load_copy(id).map_err(err)?;
-            let value: Value = serde_json::from_str(&d.get_deep_value().to_json()).map_err(err)?;
-            json!({ "doc": id, "value": value })
-        }
-        None => summary(&lib)?,
-    };
-    lib.close().map_err(err)?;
-    Ok(out)
+    offline::on_copy(library, |copy| {
+        let lib = dr_store::Library::open(copy, dr_workspace::library_options(APP_VERSION))
+            .map_err(err)?;
+        let out = match doc {
+            Some(id) => {
+                let d = lib.load_copy(id).map_err(err)?;
+                let value: Value =
+                    serde_json::from_str(&d.get_deep_value().to_json()).map_err(err)?;
+                json!({ "doc": id, "value": value })
+            }
+            None => summary(&lib)?,
+        };
+        lib.close().map_err(err)?;
+        Ok(out)
+    })
 }
 
 fn summary(lib: &dr_store::Library) -> Result<Value, String> {

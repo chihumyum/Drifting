@@ -16,6 +16,9 @@
 //!   [`crate::samples`].
 
 mod build;
+mod commands;
+mod digest;
+mod plan;
 mod preset;
 mod shape;
 
@@ -24,6 +27,8 @@ use dr_doc::loro_types::VersionVector;
 use dr_model::DocId;
 
 pub use build::{SeededBook, T0};
+pub use commands::CommandBook;
+pub use digest::digest;
 pub use preset::{Budget, Preset, Spec, allocate};
 pub use shape::{GroupShape, Shape};
 
@@ -43,7 +48,11 @@ pub struct Seeded {
 /// and uses it for the shelf's synthetic text.
 pub fn generate(preset: Preset, seed: u64) -> Result<Seeded> {
     let books = match preset.spec() {
-        Some(spec) => vec![build::synthetic(&spec, preset.name(), seed)?],
+        Some(spec) => vec![build::write_direct(&plan::synthetic(
+            &spec,
+            preset.name(),
+            seed,
+        ))?],
         None => crate::samples::showcase(seed)?,
     };
     Ok(Seeded {
@@ -51,6 +60,27 @@ pub fn generate(preset: Preset, seed: u64) -> Result<Seeded> {
         seed,
         books,
     })
+}
+
+/// Build a synthetic preset through F3's commands into `ws` (as `actor`,
+/// normally `Actor::Import`) instead of writing documents directly: slower,
+/// but every rule the command layer checks checks the seed. The result has
+/// the same [`digest`] as [`generate`] followed by [`Seeded::write_to`].
+/// The showcase and the sample books are written directly only.
+pub fn generate_via_commands(
+    preset: Preset,
+    seed: u64,
+    ws: &dr_workspace::Workspace,
+    actor: &dr_workspace::Actor,
+) -> std::result::Result<Vec<CommandBook>, String> {
+    let spec = preset
+        .spec()
+        .ok_or("the showcase is written directly only (seed::generate)")?;
+    Ok(vec![commands::write(
+        ws,
+        actor,
+        &plan::synthetic(&spec, preset.name(), seed),
+    )?])
 }
 
 impl Seeded {

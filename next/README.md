@@ -114,12 +114,15 @@ CI 是 [`.github/workflows/next.yml`](../.github/workflows/next.yml)：
 ```bash
 cargo xtask dev                                   # 按 worktree 设 DRIFTING_PROFILE 再启动
 cargo xtask dev --instance two --print-config     # 同一 checkout 的第二个实例；只打印配置
+cargo drifting workspace describe                  # F3 的命令和查询（--json 带 Schema）
+cargo drifting workspace call chapter.list --library <目录> --input '{"book": "…"}'
+cargo drifting workspace scenario 验收.json --library <目录> --yes   # 脚本化的一串调用
+cargo drifting workspace scenario seed:lite --library <目录> --yes   # 写种子（seed-commands: 走命令）
 cargo drifting workspace inspect --library <目录>  # 只读查看一个库
-cargo drifting workspace scenario seed:lite --library <目录> --yes
 ```
 
 - **隔离**：在 linked worktree 里，每个 checkout 的开发版有自己的数据、日志、钥匙串服务和单实例锁。
-- **离线改库**：要应用关着、先备份、加 `--yes`。
+- **离线改库**：要应用关着、先备份、加 `--yes`。查询和只读的场景在库的副本上跑，不用 `--yes`。
 
 ## 工作区约定
 
