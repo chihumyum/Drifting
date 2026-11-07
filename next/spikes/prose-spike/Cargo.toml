@@ -1,0 +1,42 @@
+# Spike P0-B: a Chinese long-form rich-text editor on GPUI + Loro.
+# Conclusion: docs/rust-rewrite/spikes/p0-b-editor.md
+#
+# The library is the editor core and depends on `gpui` and `loro` only; it is
+# the starting point of the planned `gpui-prose` crate. Everything else
+# (window, synthetic corpus, measurements) lives in the `prose-spike` binary
+# behind the `shell` feature, so `cargo check -p prose-spike --lib
+# --no-default-features` proves the core's dependency boundary.
+[package]
+name = "prose-spike"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "prose-spike"
+path = "src/bin/prose-spike/main.rs"
+required-features = ["shell"]
+
+[features]
+default = ["shell"]
+shell = ["dep:gpui_platform", "dep:libc", "dep:log", "dep:objc2", "dep:raw-window-handle", "dep:rusqlite"]
+
+[dependencies]
+gpui.workspace = true
+loro.workspace = true
+
+# Without `font-kit`, gpui_macos renders no text at all (it logs a warning).
+gpui_platform = { workspace = true, optional = true, features = ["font-kit"] }
+libc = { workspace = true, optional = true }
+log = { workspace = true, optional = true }
+objc2 = { workspace = true, optional = true }
+raw-window-handle = { workspace = true, optional = true }
+rusqlite = { workspace = true, optional = true }
+
+[dev-dependencies]
+gpui = { workspace = true, features = ["test-support"] }

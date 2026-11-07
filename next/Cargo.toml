@@ -8,6 +8,7 @@ members = [
     "app/drifting",
     "spikes/import-v1",
     "spikes/loro-model",
+    "spikes/prose-spike",
     "spikes/visual",
 ]
 
@@ -54,6 +55,10 @@ base64 = "0.22.1"
 image = { version = "0.25.10", default-features = false, features = ["png"] }
 smallvec = "1.16"
 tiny-skia = "0.11.4"
+
+# Spike P0-B shell (process metrics, AppKit event posting).
+libc = "0.2.191"
+raw-window-handle = "0.6.2"
 
 # Zed patches these crates.io crates in its own workspace; a git dependency
 # does not inherit [patch], so GPUI's consumers repeat the ones it needs.

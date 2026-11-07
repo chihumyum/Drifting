@@ -4310,6 +4310,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "prose-spike"
+version = "0.0.0"
+dependencies = [
+ "gpui",
+ "gpui_platform",
+ "libc",
+ "log",
+ "loro",
+ "objc2 0.6.5",
+ "raw-window-handle",
+ "rusqlite",
+]
+
+[[package]]
 name = "psm"
 version = "0.1.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
