@@ -4,6 +4,7 @@
 pub mod color;
 pub mod metrics;
 pub mod motion;
+pub mod page;
 
 pub use color::{Palette, Rgb, Story};
 pub use metrics::{TextSize, TypeScale, glass, menu, radius, space, surface};

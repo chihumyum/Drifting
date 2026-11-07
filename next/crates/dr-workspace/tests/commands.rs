@@ -780,6 +780,15 @@ fn materials_folders_and_assets() {
     let sha = "a".repeat(64);
     e.call("asset.put", json!({"book": b, "id": "asset-1", "kind": "image", "mime": "image/png", "size": 10, "sha256": sha, "width": 2, "height": 2}));
     assert!(matches!(e.try_call("asset.put", json!({"book": b, "id": "asset-1", "kind": "image", "mime": "image/png", "size": 11, "sha256": sha, "width": 2, "height": 2})), Err(WsError::Locked(_))));
+    let got = e.out("asset.get", json!({"book": b, "id": "asset-1"}));
+    assert_eq!(
+        got,
+        json!({"id": "asset-1", "kind": "image", "mime": "image/png", "size": 10, "width": 2, "height": 2})
+    );
+    assert!(matches!(
+        e.try_call("asset.get", json!({"book": b, "id": "asset-2"})),
+        Err(WsError::NotFound { .. })
+    ));
     let img = e.out(
         "material.create",
         json!({"book": b, "kind": "image", "title": "pic", "asset": "asset-1", "place": "first"}),
@@ -1204,12 +1213,15 @@ fn unknown_commands_and_bad_input() {
 fn every_registered_entry_is_exercised_here() {
     // Keep this list in step with the registry: a new command needs a test
     // (here, in editor.rs for what the editor calls, in shelf.rs for the
-    // shelf, recent pages and time pins, in points.rs for snapshot history).
+    // shelf, recent pages and time pins, in points.rs for snapshot history,
+    // in workshop.rs for plot grids, patches and templates).
     let srcs = [
         include_str!("commands.rs"),
         include_str!("editor.rs"),
         include_str!("shelf.rs"),
         include_str!("points.rs"),
+        include_str!("autolink.rs"),
+        include_str!("workshop.rs"),
     ];
     let missing: Vec<&str> = registry()
         .iter()
@@ -1290,4 +1302,121 @@ fn null_clears_a_field_and_undo_brings_back_an_empty_one() {
         (got["group"].clone(), got["narrative_order"].clone()),
         (g, Value::Null)
     );
+}
+
+/// Links `ranges` (start, end) of `doc`'s text to element `target`.
+fn link_text(e: &Env, doc: &str, target: &str, ranges: &[(usize, usize)]) {
+    let session = e.ws().prose_session(doc).unwrap();
+    let link = dr_model::prose::EntityLink {
+        target: target.to_owned(),
+        kind: dr_model::kind::EntityKind::Element,
+        block: None,
+        end_block: None,
+    };
+    let ranges = ranges.to_vec();
+    session
+        .edit(move |t| {
+            for (start, end) in ranges {
+                t.link_entity(start..end, &link)?;
+            }
+            Ok(())
+        })
+        .unwrap();
+}
+
+#[test]
+fn mentions_go_out_and_come_in() {
+    let e = env();
+    let b = e.book();
+    let anna = element(&e, &b, "安娜");
+    let ben = element(&e, &b, "本");
+    let one = e.out(
+        "chapter.create",
+        json!({"book": b, "title": "One", "text": "安娜说：「走吧。」\n安娜和本。"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let two = e.out(
+        "chapter.create",
+        json!({"book": b, "title": "Two", "text": "本走了。"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    link_text(&e, &format!("node:{one}"), &anna, &[(0, 2), (10, 12)]);
+    link_text(&e, &format!("node:{one}"), &ben, &[(13, 14)]);
+    link_text(&e, &format!("node:{two}"), &ben, &[(0, 1)]);
+    for d in e.ws().library().docs(Some(&b), None).unwrap() {
+        e.ws().library().reindex_doc(&d.doc_id).unwrap();
+    }
+    let node = |id: &str| json!({"kind": "node", "id": id});
+    let el = |id: &str| json!({"kind": "element", "id": id});
+    // Out: what chapter one mentions, the most mentioned first.
+    let out = e.out("mention.list", json!({"book": b, "from": node(&one)}));
+    let rows: Vec<(Value, Value, Value)> = out
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| (r["to"].clone(), r["blocks"].clone(), r["count"].clone()))
+        .collect();
+    assert_eq!(
+        rows,
+        [
+            (el(&anna), json!(2), json!(2)),
+            (el(&ben), json!(1), json!(1))
+        ]
+    );
+    assert_eq!(out[0]["kind"], "link");
+    // In: what mentions 本.
+    let into = e.out("mention.list", json!({"book": b, "to": el(&ben)}));
+    let mut from: Vec<Value> = field(&into, "from");
+    from.sort_by_key(|v| v["id"].as_str().unwrap().to_owned());
+    let mut want = vec![node(&one), node(&two)];
+    want.sort_by_key(|v| v["id"].as_str().unwrap().to_owned());
+    assert_eq!(from, want);
+    // The whole book's mentions of elements.
+    let all = e.out("mention.list", json!({"book": b, "to_kind": "element"}));
+    assert_eq!(all.as_array().unwrap().len(), 3);
+    assert!(
+        e.out("mention.list", json!({"book": b, "to_kind": "material"}))
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+    // Only live ends: a chapter in the trash mentions nothing.
+    e.call("chapter.trash", json!({"book": b, "id": two}));
+    let into = e.out("mention.list", json!({"book": b, "to": el(&ben)}));
+    assert_eq!(field(&into, "from"), [node(&one)]);
+    e.call("element.trash", json!({"book": b, "id": ben}));
+    let out = e.out("mention.list", json!({"book": b, "from": node(&one)}));
+    assert_eq!(field(&out, "to"), [el(&anna)]);
+}
+
+#[test]
+fn prose_has_a_shape() {
+    let e = env();
+    let b = e.book();
+    let one = e.out(
+        "chapter.create",
+        json!({"book": b, "title": "One", "text": "安娜说：「走吧。」\n\n安娜和本。"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let got = e.out("prose.shape", json!({"doc": format!("node:{one}")}));
+    assert_eq!(got["paragraphs"], 2, "a blank paragraph is not one");
+    assert_eq!(got["sentences"], 2);
+    // 「走吧。」: three of the fourteen characters.
+    let dialogue = got["dialogue"].as_f64().unwrap();
+    assert!((dialogue - 3.0 / 14.0).abs() < 1e-6, "{dialogue}");
+    assert_eq!(
+        (got["tasks"].clone(), got["done"].clone()),
+        (json!(0), json!(0))
+    );
+    assert_eq!(got["embeds"], json!([]));
+    match e.try_call("prose.shape", json!({"doc": format!("book:{b}")})) {
+        Err(WsError::Invalid(_)) => {}
+        other => panic!("{other:?}"),
+    }
 }

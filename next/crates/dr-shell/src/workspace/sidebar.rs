@@ -43,6 +43,7 @@ use gpui::{
 };
 use serde::{Deserialize, Serialize};
 
+use super::chapter_sort::{self, BookSort, CellMeta, ChapterSort, OuterSort};
 use super::chrome::{self, LEADING_INSET, TITLEBAR_HEIGHT, TOGGLE_GAP, TRAILING_INSET};
 use super::{SuperView, Workspace};
 use crate::actions::{ShowProjectHome, ToggleNotifications};
@@ -611,11 +612,55 @@ fn left_header(
                     })
                     .into_any_element()
             };
+            // The sort menu (the 0.1 client's `SortMenu`), under its button.
+            let by_book = book.storylines.is_empty() || ws.chapters_by_book;
+            let sort_open = ws.chapter_sort_open.as_deref() == Some(slug);
+            let sort_bounds = overlay::use_bounds(
+                ElementId::Name(format!("chapter-sort-bounds-{slug}").into()),
+                window,
+                cx,
+            );
+            let sort_menu = match (sort_open, *sort_bounds.read(cx)) {
+                (true, Some(bounds)) => Some(super::chapter_sort::menu(
+                    &cx.entity(),
+                    ws.chapter_sort,
+                    by_book,
+                    bounds,
+                    &theme,
+                    cx,
+                )),
+                _ => None,
+            };
+            let sorter = cx.entity();
+            let pane_key = slug.to_owned();
             div()
                 .size_full()
                 .flex()
                 .items_center()
                 .child(summary)
+                .child(
+                    div().relative().child(overlay::probe(sort_bounds)).child(
+                        IconButton::new(
+                            SharedString::from(format!("chapter-sort-{slug}")),
+                            Icon::Sort,
+                        )
+                        .label(t(cx, keys::left_sidebar::actions::SORT))
+                        .selected(sort_open)
+                        .on_click(move |_, _, cx| {
+                            let pane = pane_key.clone();
+                            sorter.update(cx, |ws, cx| {
+                                ws.chapter_sort_open =
+                                    if ws.chapter_sort_open.as_deref() == Some(pane.as_str()) {
+                                        None
+                                    } else {
+                                        Some(pane)
+                                    };
+                                cx.notify();
+                            })
+                        }),
+                    ),
+                )
+                .children(sort_menu)
                 .child(
                     IconButton::new(SharedString::from(format!("book-{slug}")), Icon::OpenBook)
                         .label(t(cx, keys::top_timeline::singletons::ALL_CHAPTERS))
@@ -738,6 +783,8 @@ enum Row {
         group: SharedString,
         depth: usize,
         structure: bool,
+        /// A chapter's readout on the right (its date, its word count).
+        meta: Option<SharedString>,
     },
     /// A group's heading that opens nothing (未归属, 未分类, an idea group,
     /// a material folder).
@@ -765,7 +812,8 @@ fn rows_view(
     let entity = cx.entity();
     let list_id = id.clone();
     uniform_list(ElementId::Name(id), rows.len(), move |range, window, cx| {
-        let wash = Theme::of(window, cx).palette.accent.alpha(0.08);
+        let theme = Theme::of(window, cx);
+        let wash = theme.palette.accent.alpha(0.08);
         range
             .map(|i| {
                 let row = match &rows[i] {
@@ -774,15 +822,18 @@ fn rows_view(
                         group,
                         depth,
                         structure,
+                        meta,
                     } => cell(
                         format!("{list_id}-{group}-{}", target.key()).into(),
                         &book,
                         target.clone(),
                         *depth,
                         *structure,
+                        meta.clone(),
                         current.as_ref() == Some(target),
                         &entity,
                         wash,
+                        &theme,
                         cx,
                     ),
                     Row::Heading {
@@ -825,9 +876,11 @@ fn cell(
     target: Target,
     depth: usize,
     structure: bool,
+    meta: Option<SharedString>,
     selected: bool,
     ws: &gpui::Entity<Workspace>,
     wash: gpui::Hsla,
+    theme: &Theme,
     cx: &App,
 ) -> AnyElement {
     let (mark, color) = book.mark(&target);
@@ -839,11 +892,20 @@ fn cell(
     };
     let ghost = label.clone();
     let drag_id = SharedString::from(format!("{id}-drag"));
+    let readout = meta.map(|text| {
+        div()
+            .flex_none()
+            .font_role(Role::Index)
+            .type_px(theme.scale.caption, theme.scale.line_caption)
+            .text_color(theme.palette.muted().solid())
+            .child(text)
+    });
     let cell = SandCell::new(ElementId::Name(id), label)
         .mark(mark)
         .color_opt(color)
         .selected(selected)
         .font(if structure { Role::Structure } else { Role::Ui })
+        .children(readout)
         .on_click(move |e, _, cx| {
             let how = if e.click_count() > 1 {
                 Open::KEEP
@@ -925,8 +987,32 @@ fn open_row(target: Option<Target>, group: &str, depth: usize, structure: bool) 
         group: SharedString::from(group.to_owned()),
         depth,
         structure,
+        meta: None,
     })
 }
+
+/// A chapter's row, with its readout when the panel shows one.
+fn chapter_row(
+    chapter: &dr_workspace::dto::ChapterInfo,
+    group: &str,
+    depth: usize,
+    meta: Option<CellMeta>,
+) -> Option<Row> {
+    let mut row = open_row(
+        chapter.id.parse().ok().map(Target::Chapter),
+        group,
+        depth,
+        false,
+    )?;
+    if let (Row::Cell { meta: slot, .. }, Some(meta)) = (&mut row, meta) {
+        *slot = chapter_sort::readout(chapter, meta).map(SharedString::from);
+    }
+    Some(row)
+}
+
+/// Below this width a chapter cell shows only its name (the 0.1 client's
+/// `META_HIDE_WIDTH`).
+const META_HIDE_WIDTH: f32 = 200.0;
 
 fn heading_row(
     key: impl Into<SharedString>,
@@ -945,12 +1031,29 @@ fn heading_row(
 }
 
 /// The rows of a left panel.
-fn left_rows(tab: LeftTab, book: &Book, by_book: bool, theme: &Theme, cx: &App) -> Vec<Row> {
+fn left_rows(
+    tab: LeftTab,
+    book: &Book,
+    by_book: bool,
+    sort: ChapterSort,
+    show_meta: bool,
+    theme: &Theme,
+    cx: &App,
+) -> Vec<Row> {
     let mut rows = Vec::new();
-    let chapter = |id: &str| id.parse().ok().map(Target::Chapter);
+    let meta = show_meta.then_some(sort.meta);
     match tab {
         LeftTab::Chapters => {
             if book.storylines.is_empty() || by_book {
+                if sort.book != BookSort::BookOrder {
+                    // Another order has no acts to group by.
+                    rows.extend(
+                        chapter_sort::sort_book(&book.chapters, sort.book)
+                            .into_iter()
+                            .filter_map(|c| chapter_row(c, "book", 0, meta)),
+                    );
+                    return rows;
+                }
                 // The whole book in reading order; each act starts with its
                 // heading and holds its chapters.
                 let starts: std::collections::HashMap<&str, (usize, &ActInfo)> = book
@@ -971,21 +1074,36 @@ fn left_rows(tab: LeftTab, book: &Book, by_book: bool, theme: &Theme, cx: &App) 
                         ));
                         depth = 1;
                     }
-                    rows.extend(open_row(chapter(&c.id), "book", depth, false));
+                    rows.extend(chapter_row(c, "book", depth, meta));
                 }
             } else {
                 // By storyline, as the 0.1 client's storyline view: a chapter
-                // shows under each storyline it is on.
-                for sl in &book.storylines {
+                // shows under each storyline it is on (or only its primary
+                // one).
+                let mut storylines: Vec<(usize, &dr_workspace::dto::StorylineInfo)> =
+                    book.storylines.iter().enumerate().collect();
+                if sort.outer == OuterSort::Alphabet {
+                    storylines.sort_by(|(i, a), (j, b)| {
+                        a.name
+                            .to_lowercase()
+                            .cmp(&b.name.to_lowercase())
+                            .then(i.cmp(j))
+                    });
+                }
+                for (_, sl) in storylines {
                     rows.extend(open_row(
                         sl.id.parse().ok().map(Target::Storyline),
                         "sl",
                         0,
                         true,
                     ));
+                    let on = book.chapters_of(&sl.id).filter(|c| {
+                        !sort.primary_only || c.primary_storyline.as_deref() == Some(&sl.id)
+                    });
                     rows.extend(
-                        book.chapters_of(&sl.id)
-                            .filter_map(|c| open_row(chapter(&c.id), &sl.id, 1, false)),
+                        chapter_sort::sort_inner(on, sort.inner)
+                            .into_iter()
+                            .filter_map(|c| chapter_row(c, &sl.id, 1, meta)),
                     );
                 }
                 let loose: Vec<_> = book.unaffiliated().collect();
@@ -998,9 +1116,9 @@ fn left_rows(tab: LeftTab, book: &Book, by_book: bool, theme: &Theme, cx: &App) 
                         0,
                     ));
                     rows.extend(
-                        loose
+                        chapter_sort::sort_inner(loose.into_iter(), sort.inner)
                             .into_iter()
-                            .filter_map(|c| open_row(chapter(&c.id), "loose", 1, false)),
+                            .filter_map(|c| chapter_row(c, "loose", 1, meta)),
                     );
                 }
             }
@@ -1114,7 +1232,16 @@ fn left_body(
     if let Some(key) = empty_key {
         return empty(key, cx);
     }
-    let rows = left_rows(tab, &book, ws.chapters_by_book, &theme, cx);
+    let show_meta = ws.left.width >= META_HIDE_WIDTH;
+    let rows = left_rows(
+        tab,
+        &book,
+        ws.chapters_by_book,
+        ws.chapter_sort,
+        show_meta,
+        &theme,
+        cx,
+    );
     rows_view(
         format!("left-{}-{}", pane_slug(pane), tab.slug()).into(),
         rows,
@@ -1172,16 +1299,41 @@ fn right_body(
                 cx,
             )
         }
-        // M07: word counts and writing days.
+        // M07: word counts and writing days; M20: the page's own readings.
+        // A row opens its page (a chapter of the whole book is shown there);
+        // 「历史快照…」 opens M09's history.
         RightTab::Stats => {
             let strings = crate::Strings::get(cx);
             let (locale, platform) = (strings.locale(), strings.platform());
+            let shell = cx.weak_entity();
+            let book = ws.book.clone();
+            let hooks = dr_view_stats::Hooks {
+                act: std::rc::Rc::new(move |action, window, cx| {
+                    shell
+                        .update(cx, |ws, cx| match action {
+                            dr_view_stats::StatsAction::Open { target, link } => {
+                                let shown = link.is_some_and(|l| ws.open_link(&l, window, cx));
+                                if !shown {
+                                    ws.super_view = None;
+                                    ws.open(crate::book::target(target), Open::KEEP, cx);
+                                }
+                                cx.notify();
+                            }
+                            dr_view_stats::StatsAction::History { doc, name } => {
+                                ws.open_history(doc, &name, window, cx)
+                            }
+                        })
+                        .ok();
+                }),
+                marks: std::rc::Rc::new(move |t| book.mark(&crate::book::target(t.clone()))),
+            };
             dr_view_stats::panel(
                 &format!("stats-{}", pane_slug(pane)),
                 &ws.book_id,
                 ws.nav.current().map(crate::book::nav_target),
                 locale,
                 platform,
+                Some(hooks),
                 cx,
             )
         }

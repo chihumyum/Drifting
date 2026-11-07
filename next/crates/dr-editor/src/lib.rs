@@ -32,7 +32,7 @@ pub mod source;
 pub mod todo;
 pub mod view;
 
-pub use book::{BookEditor, BookEditorEvent, ReadingPosition};
+pub use book::{BookEditor, BookEditorEvent, PreparedBook, ReadingPosition};
 pub use links::{DriftingExtension, LinkTargets};
 pub use page::{PageChrome, PageInfo, PageKind};
 pub use settings::EditorSettings;

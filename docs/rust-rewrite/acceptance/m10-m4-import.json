@@ -1,15 +1,15 @@
 {
   "schema": "dr-testkit/evidence/1",
   "name": "import",
-  "milestone": "m10-m2",
-  "generatedBy": "cargo run --release -p dr-import-v1 --example m10-measure -- <fixtures> --milestone m10-m2 --write",
+  "milestone": "m10-m4",
+  "generatedBy": "cargo run --release -p dr-import-v1 --example m10-measure -- <fixtures> --milestone m10-m4 --write",
   "inputs": {
-    "crates/dr-doc": "cfe066a930ba59d46c6b66d08250d80c4041fd69d43fd15a6bc8fba9639a724d",
-    "crates/dr-import-v1": "19d16f6fc30c090b4b0d704cd71f0c713b9452629954d1e4a6958b338fd193e5",
-    "crates/dr-index": "ff72031d9fa0b3f521bf56cc5e13cbfb9219d351770e4691812598a0f46246f9",
-    "crates/dr-model": "2b73aec5734a4bbab173dc4f75937183f871370a462c2fe81b373dea1103db5b",
-    "crates/dr-store": "78298245c71d70701946b6f327cb9a7a14f260464561536c2e863b10ec6127ec",
-    "crates/dr-text": "b235c04be32769501bf2cf0e31847ad6b4dfddc9caf3927b89ceaf9b93bc51bc",
+    "crates/dr-doc": "129aae42498f0b725ffdb4d7e2390a367544d991adf78d0e0475b623d4ebc8c0",
+    "crates/dr-import-v1": "4e93d1631ce7ee942955c5482ea59cad3bcfcbd7a333eb8e26131dc55db3664f",
+    "crates/dr-index": "b04a4c1f33f3d6392f932c108bd9ab7405ff24b4f04464146733bf0b1a2620b9",
+    "crates/dr-model": "75d8f2b20f6ce232f040ce08338e8d86b66176c3279d3b332d887ea18d461c45",
+    "crates/dr-store": "7e728a2d39eef722d9ab4cde13f90c45aea2848026ef512e80e8440f74fdb3be",
+    "crates/dr-text": "8dd59cc68791a9fcc7849becdb1e961cbfee1006d880425c9eb23c1773df03ca",
     "crates/prose-metrics": "b09cc348b72c602ca3613800279113096ab969e794c6b72f6e38ff6f9db354ec"
   },
   "corpus": {
@@ -52,7 +52,7 @@
     "arch": "aarch64",
     "cores": 12,
     "cpu": "Apple M3 Pro",
-    "loadAverage1m": 8.64,
+    "loadAverage1m": 7.04,
     "memoryBytes": 38654705664,
     "os": "macos",
     "osVersion": "27.0.1",
@@ -97,10 +97,10 @@
           },
           "orphanYjsDocs": 0,
           "outcome": "imported",
-          "peakRssBytes": 43466752,
+          "peakRssBytes": 40730624,
           "progress": {
             "events": 332,
-            "maxGapMs": 311.1,
+            "maxGapMs": 247.1,
             "overallMonotonic": true,
             "steps": [
               "Copying",
@@ -122,16 +122,16 @@
           "sourceSha256": "6f000d59b102f2459aa3c886e1125297e470a5d30ea0cf7bca9a43c804c3df90",
           "storedExactly": 156,
           "timing": {
-            "assetsMs": 173.80075,
-            "bookMs": 10.963167,
-            "indexMs": 174.411084,
+            "assetsMs": 177.723667,
+            "bookMs": 9.007458,
+            "indexMs": 174.5,
             "indexedDocs": 158,
-            "labelsMs": 1.880125,
-            "proseMs": 178.64404799999983,
-            "receiptMs": 18.696209,
-            "stageMs": 388.814958,
-            "storeMs": 193.16480199999998,
-            "totalMs": 1195.856416
+            "labelsMs": 1.883249,
+            "proseMs": 156.46767100000005,
+            "receiptMs": 6.9145840000000005,
+            "stageMs": 306.390208,
+            "storeMs": 159.13775500000003,
+            "totalMs": 1060.249209
           }
         },
         "index": {
@@ -155,7 +155,7 @@
           "wordsDiffer": []
         },
         "name": "sample",
-        "newLibraryBytes": 6946816,
+        "newLibraryBytes": 6971392,
         "stoppedByGate": null,
         "truth": {
           "bodiesWithYjs": 152,
@@ -215,10 +215,10 @@
           },
           "orphanYjsDocs": 0,
           "outcome": "imported",
-          "peakRssBytes": 43089920,
+          "peakRssBytes": 41254912,
           "progress": {
             "events": 338,
-            "maxGapMs": 295.0,
+            "maxGapMs": 218.0,
             "overallMonotonic": true,
             "steps": [
               "Copying",
@@ -240,16 +240,16 @@
           "sourceSha256": "b6f5939f7a0d23d15744e34df049dc1b841e00de7eab610b624caba3f9cf7859",
           "storedExactly": 156,
           "timing": {
-            "assetsMs": 176.198459,
-            "bookMs": 10.745123999999999,
-            "indexMs": 179.856875,
+            "assetsMs": 169.902793,
+            "bookMs": 8.697124999999998,
+            "indexMs": 173.803708,
             "indexedDocs": 158,
-            "labelsMs": 2.5317939999999997,
-            "proseMs": 185.1197560000001,
-            "receiptMs": 16.956042,
-            "stageMs": 356.94095799999997,
-            "storeMs": 187.59870799999985,
-            "totalMs": 1167.1886670000001
+            "labelsMs": 2.1372909999999994,
+            "proseMs": 157.83912599999994,
+            "receiptMs": 7.141625,
+            "stageMs": 271.62433400000003,
+            "storeMs": 162.526841,
+            "totalMs": 1020.236041
           }
         },
         "index": {
@@ -273,7 +273,7 @@
           "wordsDiffer": []
         },
         "name": "sample-stale",
-        "newLibraryBytes": 6938624,
+        "newLibraryBytes": 6963200,
         "stoppedByGate": [
           "no-handoff",
           "unproven",
@@ -331,10 +331,10 @@
           },
           "orphanYjsDocs": 0,
           "outcome": "imported",
-          "peakRssBytes": 44711936,
+          "peakRssBytes": 41992192,
           "progress": {
             "events": 338,
-            "maxGapMs": 283.8,
+            "maxGapMs": 254.7,
             "overallMonotonic": true,
             "steps": [
               "Copying",
@@ -356,16 +356,16 @@
           "sourceSha256": "a471ad4ee003e3d0e1a7f01765e9daec1bf01a554e7cd2a7a0a540408a88f651",
           "storedExactly": 156,
           "timing": {
-            "assetsMs": 171.45925,
-            "bookMs": 10.584708000000001,
-            "indexMs": 159.804542,
+            "assetsMs": 171.100458,
+            "bookMs": 8.989709000000003,
+            "indexMs": 171.625125,
             "indexedDocs": 158,
-            "labelsMs": 2.4665019999999998,
-            "proseMs": 168.54808599999993,
-            "receiptMs": 17.112,
-            "stageMs": 348.482167,
-            "storeMs": 169.5756709999999,
-            "totalMs": 1102.3331249999999
+            "labelsMs": 2.1428339999999997,
+            "proseMs": 158.13086900000008,
+            "receiptMs": 7.337250000000001,
+            "stageMs": 323.04754099999997,
+            "storeMs": 160.54099799999995,
+            "totalMs": 1072.506875
           }
         },
         "index": {
@@ -389,7 +389,7 @@
           "wordsDiffer": []
         },
         "name": "sample-handoff",
-        "newLibraryBytes": 6946816,
+        "newLibraryBytes": 6963200,
         "stoppedByGate": null,
         "truth": {
           "bodiesWithYjs": 153,
@@ -440,10 +440,10 @@
           "notes": {},
           "orphanYjsDocs": 0,
           "outcome": "imported",
-          "peakRssBytes": 34766848,
+          "peakRssBytes": 32178176,
           "progress": {
             "events": 178,
-            "maxGapMs": 288.7,
+            "maxGapMs": 241.0,
             "overallMonotonic": true,
             "steps": [
               "Copying",
@@ -463,16 +463,16 @@
           "sourceSha256": "f31d5274265d9aad5f7c40aa4effdc668b818e39dcee3bbab3383c7655b77d68",
           "storedExactly": 80,
           "timing": {
-            "assetsMs": 146.897167,
-            "bookMs": 5.680040999999999,
-            "indexMs": 64.99258400000001,
+            "assetsMs": 149.846083,
+            "bookMs": 4.201418,
+            "indexMs": 69.802042,
             "indexedDocs": 81,
-            "labelsMs": 0.9847079999999999,
-            "proseMs": 77.07179599999999,
-            "receiptMs": 21.676583,
-            "stageMs": 367.300834,
-            "storeMs": 87.87120599999997,
-            "totalMs": 807.5845
+            "labelsMs": 0.9480419999999999,
+            "proseMs": 65.25616400000001,
+            "receiptMs": 10.632792,
+            "stageMs": 309.798625,
+            "storeMs": 73.072579,
+            "totalMs": 725.481208
           }
         },
         "index": {
@@ -496,7 +496,7 @@
           "wordsDiffer": []
         },
         "name": "lite",
-        "newLibraryBytes": 4128768,
+        "newLibraryBytes": 4210688,
         "stoppedByGate": null,
         "truth": {
           "bodiesWithYjs": 68,
@@ -547,10 +547,10 @@
           "notes": {},
           "orphanYjsDocs": 0,
           "outcome": "imported",
-          "peakRssBytes": 141377536,
+          "peakRssBytes": 138854400,
           "progress": {
             "events": 1463,
-            "maxGapMs": 279.3,
+            "maxGapMs": 219.4,
             "overallMonotonic": true,
             "steps": [
               "Copying",
@@ -570,16 +570,16 @@
           "sourceSha256": "e9e0af0f483411741a295a0f26943c21f4334c0d8865189b2954ed2c9f5231c3",
           "storedExactly": 679,
           "timing": {
-            "assetsMs": 866.991042,
-            "bookMs": 56.362291000000006,
-            "indexMs": 931.984625,
+            "assetsMs": 854.0314169999999,
+            "bookMs": 39.486833000000004,
+            "indexMs": 874.272875,
             "indexedDocs": 680,
-            "labelsMs": 8.413458,
-            "proseMs": 1078.829115,
-            "receiptMs": 173.51825000000002,
-            "stageMs": 1104.819125,
-            "storeMs": 1269.5543060000007,
-            "totalMs": 5639.609125
+            "labelsMs": 7.435084,
+            "proseMs": 970.8964910000008,
+            "receiptMs": 136.307958,
+            "stageMs": 990.517916,
+            "storeMs": 1072.6253649999994,
+            "totalMs": 5096.630708000001
           }
         },
         "index": {
@@ -603,7 +603,7 @@
           "wordsDiffer": []
         },
         "name": "stress",
-        "newLibraryBytes": 51867648,
+        "newLibraryBytes": 52039680,
         "stoppedByGate": null,
         "truth": {
           "bodiesWithYjs": 619,

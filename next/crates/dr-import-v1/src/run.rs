@@ -18,7 +18,8 @@
 
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU8, AtomicUsize, Ordering};
 use std::time::Instant;
 
 use dr_doc::Anchor;
@@ -80,6 +81,42 @@ pub struct Options {
     /// may import months after the last 0.1 edit, and thinning would drop
     /// them the moment they arrive.
     pub history_retention: LabelRetention,
+    /// Stops the import ([`Cancel`]); clone it before starting and keep it.
+    pub cancel: Cancel,
+}
+
+/// Stops an import that is running (`m10-import.md` 「取消」). Clones share
+/// the request.
+#[derive(Clone, Debug, Default)]
+pub struct Cancel(Arc<AtomicU8>);
+
+impl Cancel {
+    const AFTER_BOOK: u8 = 1;
+    const NOW: u8 = 2;
+
+    /// Stop once the book being written is finished, so no book is left
+    /// half-written: the books not started yet are left out ("cancelled" in
+    /// the receipt) and the import finishes as usual (receipt, indexes).
+    /// Before anything is written (copying, checking), nothing is.
+    pub fn after_book(&self) {
+        self.0.fetch_max(Self::AFTER_BOOK, Ordering::SeqCst);
+    }
+
+    /// Stop at the next body, step or asset (the app quitting): the book
+    /// being written stays half-written, marked as still importing, and the
+    /// next import of the same library carries it on. No indexes are built.
+    pub fn now(&self) {
+        self.0.fetch_max(Self::NOW, Ordering::SeqCst);
+    }
+
+    /// Whether a stop was asked for.
+    pub fn requested(&self) -> bool {
+        self.0.load(Ordering::SeqCst) >= Self::AFTER_BOOK
+    }
+
+    fn now_requested(&self) -> bool {
+        self.0.load(Ordering::SeqCst) >= Self::NOW
+    }
 }
 
 impl Options {
@@ -93,6 +130,7 @@ impl Options {
             verify_history: false,
             index: true,
             history_retention: LabelRetention::Kept,
+            cancel: Cancel::default(),
         }
     }
 }
@@ -102,6 +140,10 @@ impl Options {
 pub enum Outcome {
     /// The gate stopped it; nothing was written to the new library.
     Blocked(Gate),
+    /// Stopped ([`Cancel`]) before anything was written.
+    Cancelled,
+    /// Written, all of it or (stopped with [`Cancel`]) the books it got to:
+    /// `Receipt::cancelled` says which.
     Imported(Box<Receipt>),
 }
 
@@ -204,6 +246,21 @@ fn adopt_identity(old_root: Option<&Path>, device_dir: &Path) -> bool {
         Ok(adopted) => adopted,
         Err(e) => {
             log::warn!("not adopting the 0.1 installation identity: {e}");
+            false
+        }
+    }
+}
+
+/// The device of an open library takes over the 0.1 installation id (it
+/// has one already: the app made it, or found the 0.1 file).
+fn take_over_identity(old_root: Option<&Path>, lib: &Library) -> bool {
+    let Some(id) = old_root.and_then(locate::installation_id) else {
+        return false;
+    };
+    match lib.adopt_installation_id(&id) {
+        Ok(adopted) => adopted,
+        Err(e) => {
+            log::warn!("not taking over the 0.1 installation identity: {e}");
             false
         }
     }
@@ -314,12 +371,12 @@ pub fn import_with(
     let mut timing = Timing::default();
     let analysed = match stage_and_gate(source, target, options, &mut reporter, &mut timing)? {
         Gated::Clear(a) => a,
-        Gated::Blocked(gate) => {
+        stopped => {
             if !options.keep_staging {
                 // A library folder this import made, and nothing else.
                 let _ = std::fs::remove_dir(target);
             }
-            return Ok((Outcome::Blocked(gate), timing));
+            return Ok((stopped.outcome(), timing));
         }
     };
     let adopted = match &options.device_dir {
@@ -338,7 +395,7 @@ pub fn import_with(
     let written = write_library(&lib, analysed, options, adopted, &mut reporter, &mut timing)?;
     lib.close()?;
     let receipt = finish(target, written, options, &mut timing)?;
-    if options.index {
+    if options.index && !options.cancel.now_requested() {
         let t9 = Instant::now();
         let mut o = library_options()?;
         dr_index::attach(&mut o);
@@ -358,8 +415,10 @@ pub fn import_with(
 /// archive and the staging copy go beside it as usual. Indexes are built
 /// right away when `lib` has a deriver (the app's does: dr-index through
 /// F3); without one dr-store builds them the next time the library opens
-/// with a deriver. `options.device_dir` is only used to adopt the 0.1
-/// installation identity; the library keeps the device it was opened with.
+/// with a deriver. Once the gate lets it through, the device `lib` was
+/// opened with takes over the 0.1 library's installation id
+/// (`Library::adopt_installation_id`), so this device's writing days continue
+/// under the 0.1 device key; `options.device_dir` is not used.
 pub fn import_into_library(
     source: &Path,
     lib: &Library,
@@ -372,15 +431,12 @@ pub fn import_into_library(
     let root = lib.paths().root.clone();
     let analysed = match stage_and_gate(source, &root, options, &mut reporter, &mut timing)? {
         Gated::Clear(a) => a,
-        Gated::Blocked(gate) => return Ok((Outcome::Blocked(gate), timing)),
+        stopped => return Ok((stopped.outcome(), timing)),
     };
-    let adopted = match &options.device_dir {
-        Some(dir) => adopt_identity(options.old_root.as_deref(), dir),
-        None => false,
-    };
+    let adopted = take_over_identity(options.old_root.as_deref(), lib);
     let written = write_library(lib, analysed, options, adopted, &mut reporter, &mut timing)?;
     let receipt = finish(&root, written, options, &mut timing)?;
-    if options.index && lib.options().deriver.is_some() {
+    if options.index && lib.options().deriver.is_some() && !options.cancel.now_requested() {
         let t9 = Instant::now();
         timing.indexed_docs = build_indexes(lib, &mut reporter)?;
         timing.index_ms = ms(t9);
@@ -403,6 +459,16 @@ struct Analysed {
 enum Gated {
     Clear(Box<Analysed>),
     Blocked(Gate),
+    Cancelled,
+}
+
+impl Gated {
+    fn outcome(self) -> Outcome {
+        match self {
+            Gated::Blocked(gate) => Outcome::Blocked(gate),
+            Gated::Cancelled | Gated::Clear(_) => Outcome::Cancelled,
+        }
+    }
 }
 
 /// Steps 1 and 2: stage a copy beside the library at `root` and decide the
@@ -420,14 +486,19 @@ fn stage_and_gate(
     let staging_dir = receipt::directory(root).join("staging");
     let (staged, legacy, owners, gate) = analyse_reporting(source, &staging_dir, reporter)?;
     timing.stage_ms = ms(started);
-    if !gate.allows(options.accept) {
+    let cancelled = options.cancel.requested();
+    if cancelled || !gate.allows(options.accept) {
         drop(legacy);
         if !options.keep_staging {
             let _ = std::fs::remove_dir_all(&staging_dir);
             let _ = std::fs::remove_dir(receipt::directory(root));
         }
         reporter.done();
-        return Ok(Gated::Blocked(gate));
+        return Ok(if cancelled {
+            Gated::Cancelled
+        } else {
+            Gated::Blocked(gate)
+        });
     }
     Ok(Gated::Clear(Box::new(Analysed {
         started_ms,
@@ -506,6 +577,12 @@ fn write_library(
             trashed: project.deleted_at.is_some(),
             ..BookRecord::default()
         };
+        if options.cancel.requested() {
+            rec.status = "cancelled".into();
+            books.push(rec);
+            reporter.book_done(book_units);
+            continue;
+        }
         let Ok(book_id) = BookId::parse(&project.id) else {
             rec.status = "invalid-book-id".into();
             books.push(rec);
@@ -542,6 +619,18 @@ fn write_library(
         })?;
         let rows = legacy.book(&project.id)?;
         let mut notes = Notes::default();
+        // Stopped now (the app quitting): this book stays "importing", and
+        // the next import carries it on.
+        macro_rules! stop_in_book {
+            () => {{
+                notes.add("stopped-before-finishing");
+                rec.notes = notes;
+                rec.status = "importing".into();
+                books.push(rec);
+                reporter.book_done(book_units);
+                continue;
+            }};
+        }
         if resuming {
             notes.add("resumed-after-interruption");
         }
@@ -651,7 +740,12 @@ fn write_library(
         let mut points: Vec<Point> = Vec::new();
         let mut import_points: Vec<(String, Frontiers)> = Vec::new();
         let n_bodies = bodies.len() as u64;
+        let mut stopped = false;
         for (body_no, b) in bodies.iter().enumerate() {
+            if options.cancel.now_requested() {
+                stopped = true;
+                break;
+            }
             let t0 = Instant::now();
             let ctx = Context {
                 profile: b.profile,
@@ -859,6 +953,9 @@ fn write_library(
             reporter.book_step(Step::Bodies, here, done, n_bodies, done);
         }
         rec.bodies = bodies.len();
+        if stopped || options.cancel.now_requested() {
+            stop_in_book!();
+        }
 
         // The book document, with the snapshot history's metadata replayed:
         // stored after each history row, so every point is labelled while
@@ -1021,16 +1118,22 @@ fn write_library(
 
         // Asset bytes.
         let t7 = Instant::now();
-        copy_assets(
+        let copied_all = copy_assets(
             lib,
             options.old_root.as_deref(),
             &project.id,
             &rows.assets,
             &mut rec,
             &mut notes,
-            &mut |done, total| reporter.book_step(Step::Assets, here, done, total, n_bodies + done),
+            &mut |done, total| {
+                reporter.book_step(Step::Assets, here, done, total, n_bodies + done);
+                !options.cancel.now_requested()
+            },
         )?;
         timing.assets_ms += ms(t7);
+        if !copied_all {
+            stop_in_book!();
+        }
 
         rec.rows = [
             ("book_node", rows.nodes.len()),
@@ -1092,6 +1195,7 @@ fn write_library(
             LabelRetention::Kept => "kept",
             LabelRetention::Thinned => "thinned",
         },
+        cancelled: options.cancel.requested(),
     };
     lib.local_transaction(|tx| Ok(receipt::write_records(tx, run_id, &receipt)?))?;
     let settings = stamp.map(|s| s.settings).unwrap_or_default();
@@ -1220,18 +1324,21 @@ fn copy_assets(
     assets: &[crate::legacy::AssetRow],
     rec: &mut BookRecord,
     notes: &mut Notes,
-    progress: &mut dyn FnMut(u64, u64),
-) -> Result<()> {
+    // Reports `(done, total)` before each file; `false`: stop now.
+    progress: &mut dyn FnMut(u64, u64) -> bool,
+) -> Result<bool> {
     use sha2::{Digest, Sha256};
     let Some(root) = old_root else {
         if !assets.is_empty() {
             notes.add("asset-bytes-not-copied");
         }
-        return Ok(());
+        return Ok(true);
     };
     let total = assets.len() as u64;
     for (n, a) in assets.iter().enumerate() {
-        progress(n as u64, total);
+        if !progress(n as u64, total) {
+            return Ok(false);
+        }
         let dir = root
             .join("assets")
             .join(dr_store::asset::sanitized_segment(book)?)
@@ -1286,5 +1393,5 @@ fn copy_assets(
     if total > 0 {
         progress(total, total);
     }
-    Ok(())
+    Ok(true)
 }

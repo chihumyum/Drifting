@@ -1,4 +1,9 @@
 {
+  "agentPanel": {
+    "pending": {
+      "cancelling": "Arrêt en cours…"
+    }
+  },
   "allChapters": {
     "actOrdinal": "Acte {{n}}"
   },
@@ -7,10 +12,51 @@
     "storyGraph": "Graphe du récit",
     "todoLibrary": "Tâches et documentation"
   },
+  "categoryEditor": {
+    "actions": {
+      "openElement": "Ouvrir l’élément"
+    },
+    "empty": {
+      "noFilteredElements": "Aucun élément pour ce filtre",
+      "noSummary": "Aucun résumé pour le moment"
+    },
+    "filters": {
+      "unused": "Vide",
+      "used": "Renseignés"
+    },
+    "folio": "Catégorie",
+    "labels": {
+      "elementCount": "Éléments",
+      "summary": "Résumé"
+    },
+    "meta": {
+      "elements": "{{count}} éléments",
+      "items": "{{count}} éléments"
+    },
+    "sections": {
+      "elements": "Liste des éléments",
+      "scratch": "Brouillon"
+    },
+    "untitled": "Catégorie sans titre"
+  },
+  "chapterEditor": {
+    "synopsisPlaceholder": "Synopsis…",
+    "untitledChapter": "Chapitre sans titre"
+  },
+  "chapterEnd": {
+    "defaultTitle": "Nouveau chapitre",
+    "insertAfter": "Nouveau chapitre après",
+    "markDraft": "Repasser en brouillon",
+    "markFinished": "Marquer comme terminé",
+    "trigger": "Actions de fin de chapitre",
+    "triggerFinished": "Actions de fin de chapitre (terminé)"
+  },
   "commentRail": {
     "actions": {
       "reopen": "Rouvrir",
-      "resolve": "Résoudre"
+      "resolve": "Résoudre",
+      "toNote": "En commentaire",
+      "toTodo": "En tâche"
     },
     "card": {
       "emptyComment": "Commentaire vide"
@@ -21,6 +67,7 @@
     "close": "Fermer",
     "counting": "Comptage…",
     "creating": "Création…",
+    "delete": "Supprimer",
     "edit": "Modifier",
     "local": "Local",
     "processing": "Traitement…",
@@ -78,6 +125,27 @@
       "chapter": "État d’écriture"
     }
   },
+  "elementEditor": {
+    "alerts": {
+      "aliasConflict": "Impossible d’ajouter l’alias : « {{name}} » est déjà utilisé par l’élément « {{conflicting}} ».",
+      "renameConflict": "Impossible de renommer : « {{name}} » est déjà utilisé comme nom ou alias de l’élément « {{conflicting}} »."
+    },
+    "alias": {
+      "add": "Alias",
+      "addFirst": "Ajouter un alias",
+      "remove": "Retirer l’alias"
+    },
+    "empty": {
+      "noFacts": "Aucun champ pour le moment. À la création d’un élément, le Modèle de champs de sa catégorie les renseigne."
+    },
+    "folio": "Élément",
+    "sections": {
+      "bioTitle": "Biographie",
+      "facts": "Faits"
+    },
+    "summaryPlaceholder": "Résumé en une phrase…",
+    "untitled": "Élément sans titre"
+  },
   "feedback": {
     "attachDiagnostics": "Joindre les diagnostics expurgés",
     "cancel": "Annuler",
@@ -106,7 +174,10 @@
     "closeTitle": "Fermer (Échap)",
     "currentPlaceholder": "Rechercher dans l’éditeur actif…",
     "nextTitle": "Suivant (Entrée)",
-    "previousTitle": "Précédent (Maj+Entrée)"
+    "previousTitle": "Précédent (Maj+Entrée)",
+    "replace": "Remplacer",
+    "replaceAll": "Tout remplacer",
+    "replacePlaceholder": "Remplacer par…"
   },
   "globalSearch": {
     "closeTitle": "Fermer (Échap)",
@@ -118,9 +189,44 @@
     "noResults": "Aucune correspondance",
     "stats": "{{groups}} éléments · {{occurrences}} correspondances"
   },
+  "guide": {
+    "hints": {
+      "search": "Tout rechercher",
+      "timeline": "Chronologie"
+    }
+  },
   "immersiveWriting": {
     "enter": "Écriture immersive",
     "leave": "Quitter l’écriture immersive"
+  },
+  "import": {
+    "v1": {
+      "action": {
+        "download_last_release": "Télécharger la dernière version 0.1",
+        "import_anyway": "Importer quand même"
+      },
+      "blocked": {
+        "changed_after_handoff_one": "{{count}} texte a changé après la vérification du passage",
+        "changed_after_handoff_other": "{{count}} textes ont changé après la vérification du passage",
+        "get_last_release": "Téléchargez la dernière version 0.1, ouvrez cette bibliothèque une fois, quittez, puis importez de nouveau",
+        "no_handoff": "Cette bibliothèque n’a pas encore été ouverte dans la dernière version 0.1",
+        "stale_one": "{{count}} chapitre est plus ancien que ce que vous avez écrit",
+        "stale_other": "{{count}} chapitres sont plus anciens que ce que vous avez écrit",
+        "sync": "La synchronisation a des conflits non résolus",
+        "title": "Il manque peut-être à certains textes leurs dernières secondes de frappe",
+        "unproven_one": "{{count}} texte n’est peut-être pas le plus récent ; il figure ci-dessous",
+        "unproven_other": "{{count}} textes ne sont peut-être pas les plus récents ; ils figurent ci-dessous"
+      },
+      "summary": {
+        "account_libraries_left_one": "{{count}} bibliothèque de compte du dossier attend les comptes",
+        "account_libraries_left_other": "{{count}} bibliothèques de compte du dossier attendent les comptes",
+        "already_imported": "Déjà importé sur cet appareil ; ignoré",
+        "already_in_library": "Déjà dans la bibliothèque ; laissé tel quel",
+        "carries_on": "Pas terminé ; importer de nouveau cette bibliothèque reprend la suite",
+        "from_caches_one": "{{count}} texte vient de son cache ; ses dernières secondes manquent peut-être",
+        "from_caches_other": "{{count}} textes viennent de leur cache ; leurs dernières secondes manquent peut-être"
+      }
+    }
   },
   "importDialog": {
     "chooseFolder": "Choisir un dossier",
@@ -131,7 +237,16 @@
       "done": "Terminé"
     }
   },
+  "kvEditor": {
+    "addField": "Ajouter un champ",
+    "keyPlaceholder": "Champ",
+    "removeRow": "Retirer la ligne",
+    "valuePlaceholder": "Contenu"
+  },
   "leftSidebar": {
+    "actions": {
+      "sort": "Trier"
+    },
     "empty": {
       "noChapters": "Pas encore de chapitres.",
       "noDrifts": "Pas encore d’idées.",
@@ -144,6 +259,25 @@
       "chapters": "{{count}} chapitres",
       "drifts": "{{count}} idées",
       "elements": "{{categories}} catégories · {{elements}} éléments"
+    },
+    "sort": {
+      "alphabet": "Alphabétique",
+      "bookOrder": "Ordre de lecture",
+      "cellMetaGroup": "Bord droit de cellule",
+      "chapters": "Trier les chapitres",
+      "createdAt": "Date de création",
+      "duplicatesAll": "Afficher dans chaque groupe lié",
+      "duplicatesGroup": "Chapitres à plusieurs intrigues",
+      "duplicatesPrimary": "Afficher seulement dans l’intrigue principale",
+      "narrativeOrder": "Ordre narratif",
+      "outerStorylinesGroup": "Intrigues extérieures",
+      "showBoth": "Afficher les mots et la date",
+      "showDate": "Afficher la date",
+      "showNone": "Ne rien afficher",
+      "showWordCount": "Afficher le nombre de mots",
+      "storylineChapters": "Trier les chapitres dans les intrigues",
+      "storylineOrder": "Ordre des intrigues",
+      "updatedAt": "Date de modification"
     },
     "tabs": {
       "chapters": "Chapitres",
@@ -161,8 +295,79 @@
       "storylineTitle": "Par intrigue · revenir à la vue du livre"
     }
   },
+  "manuscriptExport": {
+    "actTitles": "Titres des actes",
+    "author": "Auteur",
+    "bookInfo": "Informations sur le livre",
+    "bookTitle": "Titre",
+    "changeCover": "Modifier",
+    "chapterCount_one": "{{count}} chapitre",
+    "chapterCount_other": "{{count}} chapitres",
+    "chapterTitles": "Titres des chapitres",
+    "chooseCover": "Choisir une image",
+    "contents": "Contenu",
+    "cover": "Couverture",
+    "coverFailed": "Impossible de lire cette image.",
+    "export": "Exporter en {{format}}",
+    "exporting": "Exportation…",
+    "failed": "L’exportation n’a pas abouti. Réessayez.",
+    "format": "Format",
+    "loadFailed": "Impossible de lire les chapitres. Réessayez.",
+    "loading": "Lecture des chapitres…",
+    "menu": "Exporter le manuscrit",
+    "removeCover": "Retirer",
+    "retry": "Réessayer",
+    "saved": "Exporté",
+    "scope": "Portée",
+    "selectAll": "Tout sélectionner",
+    "selectNone": "Tout désélectionner",
+    "selectedChapters": "Chapitres sélectionnés",
+    "title": "Exporter le manuscrit",
+    "untitledAct": "Acte sans titre",
+    "untitledChapter": "Chapitre sans titre",
+    "wholeBook": "Livre entier"
+  },
+  "markdownShare": {
+    "characters": "{{count}} caractères",
+    "copied": "Markdown intégral copié",
+    "copy": "Tout copier",
+    "currentBody": "Le texte intégral de ce document",
+    "failed": "L’action n’a pas abouti. Réessayez ou sélectionnez et copiez le texte.",
+    "loadFailed": "Impossible de lire le document complet. Réessayez.",
+    "loading": "Préparation du Markdown complet…",
+    "menu": "Partager",
+    "proseOnly": "Comprend les titres, le texte et les résumés des chapitres. Les commentaires et notes de préparation restent privés.",
+    "readOnly": "Lecture seule",
+    "retry": "Réessayer",
+    "save": "Enregistrer en .md",
+    "saved": "Markdown enregistré",
+    "saving": "Enregistrement…",
+    "title": "Partager le Markdown",
+    "wholeBook": "Tous les chapitres dans l’ordre de lecture"
+  },
+  "memoMaterial": {
+    "kind": {
+      "image": "Image",
+      "pdf": "PDF",
+      "text": "Note"
+    }
+  },
+  "mobileWorkspace": {
+    "projectActions": {
+      "deleteFailed": "Impossible de supprimer le projet. Réessayez."
+    }
+  },
   "navigation": {
     "back": "Retour"
+  },
+  "nodeEditor": {
+    "folio": {
+      "chapter": "Chapitre",
+      "chapterNumber": "Chapitre {{n}}"
+    },
+    "meta": {
+      "words": "{{count}} mots"
+    }
   },
   "notifications": {
     "appUpdate": {
@@ -237,6 +442,9 @@
     "bookTransfer": {
       "importFailedTitle": "Importation impossible"
     },
+    "delete": {
+      "deleting": "Suppression…"
+    },
     "desk": {
       "chaptersUnit_many": "chapitres",
       "chaptersUnit_one": "chapitre",
@@ -262,7 +470,9 @@
       "storylinesUnit_other": "intrigues",
       "trashEntry": "Suppressions récentes",
       "trashList": {
+        "confirmTitle": "Supprimer définitivement « {{name}} » ?",
         "empty": "Aucun livre récemment supprimé.",
+        "subLocal": "Les livres restent ici 30 jours, puis sont supprimés définitivement.",
         "title": "Suppressions récentes"
       },
       "trashTitle": "Déplacer « {{name}} » dans les suppressions récentes ?",
@@ -299,17 +509,35 @@
     "trash": {
       "body": "Ce livre ({{words}} mots · {{nodes}} chapitres · {{elements}} éléments) quitte la bibliothèque. Restaurable 30 jours depuis les suppressions récentes, puis supprimé définitivement.",
       "confirm": "Déplacer dans les suppressions récentes",
+      "deleteNow": "Supprimer maintenant",
+      "expiresIn_many": "Suppression définitive dans {{count}} jours",
+      "expiresIn_one": "Suppression définitive dans {{count}} jour",
+      "expiresIn_other": "Suppression définitive dans {{count}} jours",
+      "expiresSoon": "Suppression définitive en attente",
       "failed": "Impossible de déplacer le projet. Réessayez.",
       "localNote": "Le contenu et la copie Markdown restent jusqu’à la suppression définitive.",
       "moving": "Déplacement…",
+      "permanentBody": "Supprime définitivement maintenant, sans attendre 30 jours. Irréversible.",
       "restore": "Restaurer",
       "restoreFailed": "Impossible de restaurer le projet. Réessayez.",
       "restoring": "Restauration…"
     }
   },
   "referencesPanel": {
+    "empty": {
+      "incoming": "Aucun contenu ne fait encore référence à cet élément",
+      "outgoing": "Ce texte ne fait pas encore référence à d’autres entités"
+    },
     "kind": {
       "patch": "Évolution"
+    },
+    "meta": {
+      "blocksSpans": "{{blocks}} blocs · {{spans}} mentions",
+      "spans": "{{count}} mentions"
+    },
+    "sections": {
+      "incoming": "Liens entrants",
+      "outgoing": "Références"
     }
   },
   "relationTypes": {
@@ -330,7 +558,9 @@
     "resolved": "Résolus ({{count}})",
     "scopes": {
       "current": "Actuel"
-    }
+    },
+    "sourceFloating": "Au niveau du projet · aucune entité liée",
+    "sourceTextUnavailable": "Aucun extrait enregistré"
   },
   "rightSidebar": {
     "kickers": {
@@ -348,17 +578,82 @@
       }
     },
     "stats": {
+      "actMeta": "{{chapters}} chapitres · {{wordsK}}k · {{pct}} %",
+      "actRhythm": "Rythme des actes",
+      "allElementsAppeared": "Tous les éléments sont apparus dans le texte.",
+      "appeared": "Apparus",
+      "averageAppearance": "Moyenne d’apparitions",
       "averagePerChapter": "Moyenne par chapitre",
+      "avgChaptersPerElement": "{{count}} chapitres / élément",
       "bookPosition": "Position dans le livre",
+      "category": "Catégorie",
+      "categoryCoordinates": "Coordonnées de la catégorie",
+      "categoryNoElements": "Cette catégorie n’a pas encore d’éléments.",
+      "chapter": "Chapitre",
+      "chapterCoordinates": "Coordonnées du chapitre",
       "chapterCount": "Chapitres",
+      "chapterLengthRhythm": "Rythme de longueur des chapitres",
       "chapterOrdinal": "Chapitre {{count}}",
       "chaptersValue": "{{count}} chapitres",
+      "completion": "Achèvement",
+      "dialogueRatio": "Part de dialogue",
+      "dimensions": "Dimensions",
+      "discardedParen": " (écartés {{count}})",
+      "driftCoordinates": "Coordonnées de l’idée",
+      "driftFreeFragment": "Idée · flottante",
+      "elementCoordinates": "Coordonnées de l’élément",
+      "elementCount": "Nombre d’éléments",
+      "elementsValue": "{{count}} éléments",
+      "embeddedMaterials": "Ressources intégrées",
+      "fileSize": "Taille",
+      "fileType": "Type",
+      "floatingStoryline": "Flottant / sans appartenance",
+      "health": "État",
+      "lastModified": "Dernière modification",
+      "longestWithWords": "Le plus long · {{title}} ({{words}} mots)",
+      "materialCoordinates": "Ressource",
+      "materialFile": "Fichier",
+      "materialRelations": "Lié à",
+      "moreLowAppearanceElements": "{{count}} autres éléments moins présents",
+      "moreUnappearedElements": "{{count}} autres non apparus",
+      "name": "Nom",
+      "noActiveProgress": "Tous les chapitres sont écartés ou sans progression.",
+      "noChapters": "Aucun chapitre. Commencez le premier pour afficher le rythme du livre.",
+      "noMentionedElements": "Aucun élément mentionné par @ dans le texte.",
+      "noteShape": "Note",
+      "noteTasks": "Tâches",
+      "noteTasksValue": "{{done}} / {{total}} terminées",
+      "noteWords": "Longueur",
+      "openComments": "Commentaires et tâches ouverts",
+      "paragraphSentence": "Paragraphes / phrases",
+      "paragraphSentenceValue": "{{paragraphs}} paragraphes · {{sentences}} phrases",
       "recent": "Récent",
+      "shortestWithWords": "Le plus court · {{title}} ({{words}} mots)",
       "snapshotButton": "Instantanés historiques…",
+      "statusCount": "{{status}} {{count}} chapitres",
+      "storyline": "Intrigue",
+      "storylineCoordinates": "Coordonnées de l’intrigue",
+      "storylineCoreElements": "Éléments centraux de cette intrigue",
+      "storylineDistribution": "Répartition des intrigues",
+      "storylineNoChapters": "Cette intrigue n’a pas encore de chapitres.",
+      "storylineNoMentionedElements": "Aucun élément mentionné par @ dans les chapitres de cette intrigue.",
+      "thisChapterElements": "Éléments de ce chapitre",
+      "thisFragmentElements": "Éléments de cette idée",
+      "titleWithWords": "{{title}} ({{words}} mots)",
+      "type": "Type",
+      "unappearedElements": "Éléments non apparus",
+      "updated": "Mis à jour",
+      "wordRhythm": "Mots · rythme",
       "wordsPerChapterValue": "{{words}} mots / chapitre",
       "wordsValue": "{{count}} mots",
       "writingProgress": "Progression d’écriture",
       "writtenTarget": "Écrit / objectif"
+    },
+    "status": {
+      "discarded": "Écarté",
+      "done": "Terminé",
+      "draft": "Brouillon",
+      "todo": "À écrire"
     },
     "tabs": {
       "companion": "Agent",
@@ -379,6 +674,7 @@
       "credits": "Crédits et licences",
       "emailTeam": "Écrire à l’équipe",
       "engine": "Moteur",
+      "feedback": "Votre avis…",
       "knownIssues": "Problèmes connus",
       "knownIssuesDesc": "Limites connues de la version Alpha actuelle",
       "license": "Licence du client",
@@ -387,6 +683,8 @@
       "sourceCode": "Code source",
       "sourceCodeDesc": "Code correspondant à ce client AGPL",
       "sub": "L’expérience d’écriture ultime",
+      "submitFeedback": "Envoyer un retour",
+      "submitFeedbackDesc": "Peut inclure un diagnostic expurgé, jamais le texte du manuscrit.",
       "support": "Assistance Alpha",
       "supportDesc": "Dépannage et instructions de signalement sécurisé",
       "tagline": "Pour celles et ceux qui écrivent au cœur de la nuit.",
@@ -415,6 +713,8 @@
       "open_in_browser": "Ouvrir dans le navigateur"
     },
     "editor": {
+      "auto_element_link": "Liens automatiques vers les éléments",
+      "auto_element_link_desc": "Reconnaît les noms d’éléments existants lors de la saisie et crée un lien vers leur page.",
       "auto_immersive": "Écriture immersive dès la saisie",
       "auto_immersive_desc": "Dès que vous écrivez dans le texte, les barres latérales et les outils se retirent ; Échap ou un clic hors du texte les fait revenir.",
       "flow": "Rythme d’écriture",
@@ -425,6 +725,7 @@
       "indent_none": "Aucun",
       "indent_one": "1 caractère",
       "indent_two": "2 caractères",
+      "justify": "Justifier",
       "line_height": "Hauteur de ligne",
       "page_width": "Largeur de page",
       "page_width_desc": "Largeur du papier dans l’éditeur ; le texte la remplit avec des marges fixes.",
@@ -437,12 +738,19 @@
       "reset_style": "Rétablir le style recommandé",
       "typesetting": "Composition",
       "typewriter_mode": "Mode machine à écrire",
-      "typewriter_mode_desc": "Maintient la ligne active à une position stable lors de la saisie ou du déplacement du curseur. Uniquement dans l’éditeur."
+      "typewriter_mode_desc": "Maintient la ligne active à une position stable lors de la saisie ou du déplacement du curseur. Uniquement dans l’éditeur.",
+      "typewriter_position": "Position de la ligne de saisie",
+      "typewriter_position_desc": "Pourcentage depuis le haut : 25% en haut, 50% au centre, 75% en bas."
     },
     "groups": {
       "about": "À propos",
       "control": "Gestion",
       "preferences": "Préférences"
+    },
+    "hosted": {
+      "connect_errors": {
+        "cancelled": "Annulé."
+      }
     },
     "keys": {
       "actions": {
@@ -551,6 +859,14 @@
     "restoring": "Restauration…",
     "title": "Instantanés historiques · 30 jours"
   },
+  "storylineEditor": {
+    "filters": {
+      "all": "Tout"
+    },
+    "labels": {
+      "color": "Couleur"
+    }
+  },
   "topTimeline": {
     "closeTab": "Fermer l’onglet",
     "dockLock": "Garder ouvert",
@@ -569,6 +885,7 @@
     }
   },
   "userMenu": {
+    "feedback": "Envoyer un retour",
     "import": "Importer",
     "importBook": "Importer un livre (.driftingbook)",
     "language": "Langue",

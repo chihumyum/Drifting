@@ -12,6 +12,7 @@
 //! document's, or the whole book's (M05). Things that go to the trash or are
 //! deleted, by anyone, close their tabs.
 
+pub mod chapter_sort;
 mod chrome;
 pub mod corner;
 mod dock;
@@ -45,9 +46,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::actions::{
     CloseActiveTab, CloseProject, Dismiss, FindInEditor, GlobalSearch, GoBack, GoForward,
-    NewEntity, NextTab, OpenSettings, PreviousTab, SendFeedback, ShowProjectHome, ShowWholeBook,
-    ToggleBottomTimeline, ToggleElementOverview, ToggleImmersiveWriting, ToggleLeftSidebar,
-    ToggleNotifications, ToggleReviewMaterials, ToggleRightSidebar, ToggleStoryGraph,
+    NewEntity, NextTab, OpenSettings, PreviousTab, ReplaceInEditor, SendFeedback, ShowProjectHome,
+    ShowWholeBook, ToggleBottomTimeline, ToggleElementOverview, ToggleImmersiveWriting,
+    ToggleLeftSidebar, ToggleNotifications, ToggleReviewMaterials, ToggleRightSidebar,
+    ToggleStoryGraph,
 };
 use crate::book::{self, Book};
 use crate::dialogs::{self, FollowUpNotice};
@@ -208,6 +210,9 @@ pub struct BookLayout {
     /// acts) instead of by storyline.
     #[serde(default)]
     pub chapters_by_book: bool,
+    /// How the chapter panel sorts, and what its cells show on the right.
+    #[serde(default)]
+    pub chapter_sort: chapter_sort::ChapterSort,
     /// Where the whole book's page was being read (M05).
     #[serde(default)]
     pub book_position: Option<editors::SavedPosition>,
@@ -217,6 +222,8 @@ pub struct BookLayout {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Layer {
     Notifications,
+    /// M06's search panel.
+    Search,
     Settings,
     SuperView,
 }
@@ -238,6 +245,8 @@ pub struct Workspace {
     /// [`Workspace::style_editors`].
     editor_settings: dr_editor::EditorSettings,
     editor_base: gpui_prose::ProseStyle,
+    /// The page last recorded with F3's `recent.touch`.
+    touched: Option<String>,
     /// The prose editor last given the keyboard, and its handle.
     focused_editor: Option<gpui::EntityId>,
     gave_focus: Option<FocusHandle>,
@@ -264,6 +273,9 @@ pub struct Workspace {
     pub immersive: bool,
     /// The chapter panel's view: the whole book, not by storyline.
     pub chapters_by_book: bool,
+    pub chapter_sort: chapter_sort::ChapterSort,
+    /// The chapter panel whose sort menu is open (its pane's slug).
+    pub chapter_sort_open: Option<String>,
     /// The page whose corner's ⋯ menu is open (its target key).
     pub corner_menu: Option<String>,
     pub super_view: Option<SuperView>,
@@ -285,7 +297,8 @@ pub struct Workspace {
     /// The bookshelf covers the window (at launch, after ⇧⌘W or the red
     /// light) until a book opens.
     pub shelf_open: bool,
-    /// Project Home (M02), when one is registered ([`pages::set_home`]).
+    /// Project Home (M02), when one is registered ([`pages::set_home`]):
+    /// made with the workspace, kept while the window lives.
     pub home: Option<AnyView>,
     /// A left press on a drag region that has not moved yet (macOS).
     drag_armed: bool,
@@ -343,6 +356,7 @@ impl Workspace {
             editors: HashMap::new(),
             editor_settings,
             editor_base,
+            touched: None,
             focused_editor: None,
             gave_focus: None,
             shown_pages: Vec::new(),
@@ -359,6 +373,8 @@ impl Workspace {
             outline_hidden: false,
             immersive: false,
             chapters_by_book: false,
+            chapter_sort: Default::default(),
+            chapter_sort_open: None,
             corner_menu: None,
             super_view: None,
             settings: None,
@@ -379,6 +395,7 @@ impl Workspace {
         };
         ws.restore_layout(cx);
         ws.listen_to_library(cx);
+        ws.home = pages::make_home(cx.weak_entity(), window, cx);
         if shelf_first {
             ws.show_shelf(window, cx);
         } else {
@@ -404,7 +421,7 @@ impl Workspace {
         let saved: Option<BookLayout> = Settings::read(cx)
             .layout(&self.book_id)
             .and_then(|v| serde_json::from_value(v.clone()).ok());
-        let (nav, left, right, dock_locked, outline_hidden, by_book, position) = match saved {
+        let (nav, left, right, dock_locked, outline_hidden, by_book, sort, position) = match saved {
             Some(l) => (
                 Navigator::restored(l.nav, |_| true),
                 Some(l.left),
@@ -412,9 +429,19 @@ impl Workspace {
                 l.dock_locked,
                 l.outline_hidden,
                 l.chapters_by_book,
+                l.chapter_sort,
                 l.book_position,
             ),
-            None => (Navigator::default(), None, None, false, false, false, None),
+            None => (
+                Navigator::default(),
+                None,
+                None,
+                false,
+                false,
+                false,
+                Default::default(),
+                None,
+            ),
         };
         self.nav = nav;
         self.left = Sidebar::new(left, LeftTab::Chapters, |_| true);
@@ -422,9 +449,12 @@ impl Workspace {
         self.dock_locked = dock_locked;
         self.outline_hidden = outline_hidden;
         self.chapters_by_book = by_book;
+        self.chapter_sort = sort;
+        self.chapter_sort_open = None;
         self.book_position = position;
         self.editors.clear();
         self.focused_editor = None;
+        self.touched = None;
     }
 
     // The book, from F3.
@@ -584,6 +614,7 @@ impl Workspace {
         if self.book.is_empty() {
             return;
         }
+        self.touch_front(cx);
         let shown: Vec<Target> = match self.nav.active_tab() {
             Some(tab) => tab.leaves().map(|l| l.target.clone()).collect(),
             None => Vec::new(),
@@ -631,6 +662,28 @@ impl Workspace {
         };
         for link in links.drain_matching("open/") {
             self.open_link(&link, window, cx);
+        }
+    }
+
+    /// The page in front changed: F3's recent pages remember it (Project
+    /// Home's 「继续写」 reads them). The whole book is not a page of its own
+    /// there.
+    fn touch_front(&mut self, cx: &mut Context<Self>) {
+        let front = self.nav.active_tab().map(|t| t.focused().target.clone());
+        let key = front.as_ref().map(Target::key);
+        if key == self.touched {
+            return;
+        }
+        self.touched = key;
+        let Some(doc) = front.as_ref().and_then(book::doc_of) else {
+            return;
+        };
+        if let Some((kind, id)) = doc.split_once(':') {
+            let input = serde_json::json!({
+                "book": self.book_id,
+                "target": { "kind": kind, "id": id },
+            });
+            self.run_command("recent.touch", input, cx);
         }
     }
 
@@ -776,6 +829,7 @@ impl Workspace {
             dock_locked: self.dock_locked,
             outline_hidden: self.outline_hidden,
             chapters_by_book: self.chapters_by_book,
+            chapter_sort: self.chapter_sort,
             book_position: self.book_position.clone(),
         }
     }
@@ -861,10 +915,13 @@ impl Workspace {
     /// Settings, a Super View or a dialog covers the workspace: nothing
     /// under it answers the keyboard (the 0.1 client made it `inert`).
     pub fn covered(&self) -> bool {
-        self.settings.is_some()
-            || self.super_view.is_some()
-            || self.shelf_open
-            || self.dialog.is_some()
+        self.settings.is_some() || self.super_view.is_some() || self.shelf_open || self.modal()
+    }
+
+    /// A modal dialog is open (another crate's, or M09's snapshot history):
+    /// the workspace answers none of its own shortcuts until it closes.
+    pub fn modal(&self) -> bool {
+        self.dialog.is_some() || self.history.is_some()
     }
 
     /// The feedback dialog ([`dialogs::set_feedback`]), as a crash
@@ -893,6 +950,8 @@ impl Workspace {
     pub fn top_layer(&self) -> Option<Layer> {
         if self.notifications_open {
             Some(Layer::Notifications)
+        } else if self.search.is_some() {
+            Some(Layer::Search)
         } else if self.settings.is_some() {
             Some(Layer::Settings)
         } else if self.super_view.is_some() {
@@ -911,6 +970,10 @@ impl Workspace {
         }
         match self.top_layer() {
             Some(Layer::Notifications) => self.notifications_open = false,
+            Some(Layer::Search) => {
+                self.search = None;
+                self.refocus(window, cx);
+            }
             Some(Layer::Settings) => {
                 self.settings = None;
                 self.refocus(window, cx);
@@ -926,6 +989,9 @@ impl Workspace {
     }
 
     pub fn open_settings(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.modal() {
+            return;
+        }
         self.notifications_open = false;
         if self.settings.is_none() {
             let panel = cx.new(|cx| SettingsPanel::new(window, cx));
@@ -1005,6 +1071,11 @@ impl Workspace {
         el: gpui::Stateful<gpui::Div>,
         cx: &mut Context<Self>,
     ) -> gpui::Stateful<gpui::Div> {
+        // A modal dialog is open: none of the workspace's own shortcuts
+        // until it closes (Esc and its buttons are the dialog's).
+        if self.modal() {
+            return el;
+        }
         el.on_action(
             cx.listener(|ws, _: &ToggleLeftSidebar, window, cx| ws.toggle_left(window, cx)),
         )
@@ -1100,6 +1171,7 @@ impl Workspace {
             }),
         )
         .on_action(cx.listener(|ws, _: &FindInEditor, window, cx| ws.open_find(window, cx)))
+        .on_action(cx.listener(|ws, _: &ReplaceInEditor, window, cx| ws.open_replace(window, cx)))
         .on_action(cx.listener(Self::on_new_comment))
         .on_action(cx.listener(|ws, _: &GlobalSearch, window, cx| ws.toggle_search(window, cx)))
         .on_action(cx.listener(|ws, _: &CloseProject, window, cx| {
@@ -1167,8 +1239,7 @@ impl Render for Workspace {
             })
             .when(self.account_open && !self.immersive, |el| {
                 el.child(sidebar::account_menu(self, window, cx))
-            })
-            .children(crate::pages::layers(cx));
+            });
         let root = self.on_actions(root, cx);
         glass::surface(Ground::flat(p.desk), root).into_any_element()
     }
@@ -1213,8 +1284,7 @@ impl Workspace {
             .child(chrome::windows_caption(window, cx))
             .when(self.notifications_open, |el| {
                 el.child(sidebar::notification_center(self, window, cx))
-            })
-            .children(crate::pages::layers(cx));
+            });
         let root = self.on_actions(root, cx);
         glass::surface(Ground::flat(p.desk), root).into_any_element()
     }

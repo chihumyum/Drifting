@@ -199,6 +199,18 @@ pub static REGISTRY: &[Shortcut] = &[
         Only::All,
     ),
     fixed(
+        "workspace::ReplaceInEditor",
+        &["cmd-alt-f"],
+        Some(WORKSPACE),
+        Only::Mac,
+    ),
+    fixed(
+        "workspace::ReplaceInEditor",
+        &["ctrl-h"],
+        Some(WORKSPACE),
+        Only::NotMac,
+    ),
+    fixed(
         "workspace::Dismiss",
         &["escape"],
         Some(WORKSPACE),

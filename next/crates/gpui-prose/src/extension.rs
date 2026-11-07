@@ -64,4 +64,11 @@ pub trait ProseExtension: 'static {
     fn input_rule(&self, _typed: &Typed<'_>) -> Option<InputRule> {
         None
     }
+
+    /// Whether the TODO a task item is linked to (`todo` on its paragraph)
+    /// is done; the item shows that instead of a `checked` of its own.
+    /// `None`: not known (drawn as not done).
+    fn task_done(&self, _todo: &str) -> Option<bool> {
+        None
+    }
 }

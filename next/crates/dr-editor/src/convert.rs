@@ -10,8 +10,8 @@ use std::ops::Range;
 
 use dr_doc::prose::{ProseTxn, StyleKey};
 use dr_doc::schema::{block, inline};
-use dr_model::id::BlockId;
-use dr_model::kind::EntityKind;
+use dr_model::id::{BlockId, CommentId};
+use dr_model::kind::{EntityKind, ListKind};
 use dr_model::prose::{Align, EntityLink, Heading, InlineStyle, MAX_INDENT};
 use gpui_prose::text::{Edit, EditResult, source::MarkOverride};
 use loro::LoroValue;
@@ -313,6 +313,18 @@ fn set_block_attr(
                 .and_then(as_str)
                 .map(Align::from_stored)
                 .unwrap_or_default();
+        }
+        // Lists (material notes; dr-doc drops them elsewhere): the kind,
+        // the level, a task's tick and the TODO it is linked to.
+        block::LIST => attrs.list = value.and_then(as_str).map(ListKind::parse),
+        block::LIST_LEVEL => {
+            attrs.list_level = value.and_then(as_i64).unwrap_or(0).clamp(0, 8) as u32;
+        }
+        block::CHECKED => attrs.checked = on,
+        block::TODO => {
+            attrs.todo = value
+                .and_then(as_str)
+                .and_then(|s| CommentId::parse(s).ok());
         }
         _ => {
             log::warn!("dr-editor: the paragraph attribute {key:?} is not editable here");

@@ -503,7 +503,7 @@ cargo drifting workspace scenario crates/dr-cli/scenarios/writing-loop.json --ap
 
 ### gpui-prose、gpui-ime 与编辑器（F4、F5）
 
-- **基准换地方**：`prose-bench` 的语料（xorshift 那一套）要换成 `dr_testkit::seed`。但 gpui-prose 不能依赖 `dr-*`，所以基准程序要搬到 AGPL 的 `dr-editor`（或者一个单独的基准 crate）里。
+- **基准换地方**（已做完，F4e）：`prose-bench` 搬进了 `dr-editor/examples/prose-bench/`，语料换成 `dr_testkit::seed` 的重型种子，证据写成 F8 格式。命令是 `cargo run --release -p dr-editor --example prose-bench -- <子命令> --write`；`gpui-prose` 只留不依赖 `dr-*` 的 `examples/editor.rs`。
 - **重测**：搬过去以后，按新格式重测 `f4-*.json`。语料指纹会变一次。
 - **收编编辑器的基准语料**（监管会话这一轮的第 3 条）：F4 把基准搬进 `dr-editor` 交回以后，F8 把它收成 `bench` 的一个套件（`editor`），语料用统一种子，再按新格式重测。等 F4。
 - **组字**：调试桥要模拟输入法（`setMarkedText` 再 `insertText` 那一路），需要 gpui-ime 在调试构建里开一个入口。真实窗口的输入处理器握在 GPUI 的平台窗口手里，外面拿不到。

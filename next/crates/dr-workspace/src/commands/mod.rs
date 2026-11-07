@@ -34,12 +34,16 @@ pub mod element;
 pub mod history;
 pub mod idea;
 pub mod material;
+pub mod mention;
+pub mod patch;
+pub mod plot_grid;
 pub mod points;
 pub mod prose;
 pub mod recent;
 pub mod relation;
 pub mod stats;
 pub mod storyline;
+pub mod template;
 pub mod time_pin;
 
 /// Define an [`crate::Op`].
@@ -79,9 +83,13 @@ pub(crate) fn register(r: &mut Registry) {
     prose::register(r);
     history::register(r);
     points::register(r);
+    patch::register(r);
+    plot_grid::register(r);
     recent::register(r);
     stats::register(r);
+    mention::register(r);
     time_pin::register(r);
+    template::register(r);
 }
 
 // ---- shared inputs and outputs ------------------------------------------
@@ -221,35 +229,11 @@ cached!(patches, Patches, Vec<Patch>, patches);
 cached!(relations_raw, RelationsRaw, Vec<Relation>, relations_raw);
 
 /// Whether `r` names a live entity (not in the trash; a patch of an
-/// existing element). Comments and materials have no trash: they are live
-/// while stored, which is one map lookup on the holder's document, so this
-/// never has to read every comment.
+/// existing element; a comment or material while stored): F1's key lookup
+/// (`BookView::entity_exists`) on the holder's document, never a read of a
+/// whole collection.
 pub(crate) fn is_live(slot: &BookSlot, r: &EntityRef) -> bool {
-    match r.kind {
-        EntityKind::Node => NodeId::parse(&r.id)
-            .ok()
-            .and_then(|id| nodes(slot).get(&id).map(|n| !n.is_trashed()))
-            .unwrap_or(false),
-        EntityKind::Element => elements(slot)
-            .iter()
-            .any(|e| e.id.as_str() == r.id && e.deleted_at.is_none()),
-        EntityKind::Category => categories(slot)
-            .iter()
-            .any(|c| c.id.as_str() == r.id && c.deleted_at.is_none()),
-        EntityKind::Storyline => storylines(slot)
-            .iter()
-            .any(|l| l.id.as_str() == r.id && l.deleted_at.is_none()),
-        EntityKind::Patch => patches(slot).iter().any(|p| p.id.as_str() == r.id),
-        EntityKind::Comment | EntityKind::Material => {
-            let root = if r.kind == EntityKind::Comment {
-                "comments"
-            } else {
-                "materials"
-            };
-            slot.handle.doc().get_map(root).get(&r.id).is_some()
-        }
-        EntityKind::Other(_) => false,
-    }
+    slot.reader.view().entity_exists(r)
 }
 
 /// Comments whose stored target is `target`, read from the raw entries (no

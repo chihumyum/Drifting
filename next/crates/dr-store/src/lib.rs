@@ -41,6 +41,7 @@
 
 pub mod archive;
 pub mod asset;
+pub mod backup;
 pub mod digest;
 pub mod error;
 pub mod events;
@@ -50,9 +51,11 @@ mod holder;
 pub mod identity;
 pub mod index;
 mod library;
+pub mod local_state;
 pub mod machine;
 pub mod migrate;
 mod origin;
+pub mod purge;
 
 pub use error::{MigrationFailure, Result, StoreError};
 pub use events::{LibrarySubscription, LocalChange, LocalChangeKind, StoreEvent};
@@ -67,7 +70,7 @@ pub use library::{
     UploadBatch,
 };
 pub use migrate::{Durability, MIGRATIONS, Migration, MigrationStage, OpenReport};
-pub use origin::{AGENT_PREFIX, Origin};
+pub use origin::{AGENT_PREFIX, COMMAND_ORIGIN, Origin};
 
 /// Unix time in milliseconds.
 pub fn now_ms() -> i64 {

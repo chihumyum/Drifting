@@ -761,3 +761,95 @@ fn find_matches_are_drawn_with_the_current_one_stronger(cx: &mut TestAppContext)
     draw(cx);
     assert!(painted(&editor, cx, "find", "0").is_none());
 }
+
+// ----- lists ---------------------------------------------------------------------------
+
+/// A host that knows one TODO is done.
+struct Todos;
+
+impl crate::ProseExtension for Todos {
+    fn task_done(&self, todo: &str) -> Option<bool> {
+        (todo == "t-done").then_some(true)
+    }
+}
+
+fn list_editor(cx: &mut TestAppContext) -> (Entity<ProseEditor>, &mut VisualTestContext) {
+    let mut doc = ProseDoc::from_paragraphs([
+        (BlockKind::Body, "正文"),
+        (BlockKind::Body, "一"),
+        (BlockKind::Body, "二"),
+        (BlockKind::Body, "二下面的一条"),
+        (BlockKind::Body, "三"),
+        (BlockKind::Body, "隔开"),
+        (BlockKind::Body, "又从一数"),
+        (BlockKind::Body, "买灯芯"),
+        (BlockKind::Body, "问钟楼的年代"),
+    ]);
+    let set = |doc: &mut ProseDoc, line: usize, key: &str, value: LoroValue| {
+        doc.set_block_attr(line, key, Some(value), crate::text::ORIGIN_USER)
+    };
+    for line in [1, 2, 4, 6] {
+        set(&mut doc, line, block::LIST, "ordered".into());
+    }
+    set(&mut doc, 3, block::LIST, "bullet".into());
+    set(&mut doc, 3, block::LIST_LEVEL, 1i64.into());
+    set(&mut doc, 7, block::LIST, "task".into());
+    set(&mut doc, 7, block::CHECKED, true.into());
+    set(&mut doc, 8, block::LIST, "task".into());
+    set(&mut doc, 8, block::TODO, "t-done".into());
+    doc.drain();
+    let book = Book::new(vec![Chapter {
+        title: "第一章".into(),
+        doc,
+    }]);
+    let (editor, cx) = cx.add_window_view(|window, cx| {
+        let mut e = ProseEditor::new(book, ProseStyle::default(), window, cx);
+        e.set_extension(Rc::new(Todos));
+        e
+    });
+    cx.simulate_resize(size(px(900.), px(700.)));
+    draw(cx);
+    (editor, cx)
+}
+
+#[gpui::test]
+fn list_items_are_numbered_set_in_and_tasks_tick(cx: &mut TestAppContext) {
+    use super::blocks::ListMark;
+    let (editor, cx) = list_editor(cx);
+    let mark = |editor: &Entity<ProseEditor>, cx: &mut VisualTestContext, line: usize| {
+        editor.update(cx, |e, _| e.block_look(0, line).list.map(|l| l.mark))
+    };
+    // Counted along the items of their level; a deeper item does not break
+    // the count, a plain paragraph does.
+    assert_eq!(mark(&editor, cx, 1), Some(ListMark::Ordered(1)));
+    assert_eq!(mark(&editor, cx, 2), Some(ListMark::Ordered(2)));
+    assert_eq!(mark(&editor, cx, 3), Some(ListMark::Bullet));
+    assert_eq!(mark(&editor, cx, 4), Some(ListMark::Ordered(3)));
+    assert_eq!(mark(&editor, cx, 6), Some(ListMark::Ordered(1)));
+    // A task's own `checked`, and a linked TODO's state from the host.
+    assert_eq!(mark(&editor, cx, 7), Some(ListMark::Task { done: true }));
+    assert_eq!(mark(&editor, cx, 8), Some(ListMark::Task { done: true }));
+    // The text moves right by a level, the nested item by two.
+    let body = f32::from(ProseStyle::default().body_size);
+    let plain = origins(&editor, cx, 0)[0];
+    let item = origins(&editor, cx, 1)[0];
+    let nested = origins(&editor, cx, 3)[0];
+    assert!((f32::from(item.x - plain.x) - body * 1.5).abs() < 0.5);
+    assert!((f32::from(nested.x - plain.x) - body * 3.).abs() < 0.5);
+    // A click on the task's box asks the host to tick it; the caret stays.
+    let seen = events(&editor, cx);
+    let caret = editor.update(cx, |e, _| e.selection().head);
+    let task = origins(&editor, cx, 7)[0];
+    let lh = f32::from(ProseStyle::default().body_size) * 0.9;
+    cx.simulate_click(task + point(px(-body * 0.9), px(lh)), Modifiers::default());
+    draw(cx);
+    assert!(
+        seen.borrow().contains(&DecorationEvent::TaskClicked {
+            chapter: 0,
+            line: 7
+        }),
+        "{:?}",
+        seen.borrow()
+    );
+    assert_eq!(editor.update(cx, |e, _| e.selection().head), caret);
+}

@@ -17,6 +17,8 @@ anyhow = { workspace = true, optional = true }
 color_quant = { workspace = true, optional = true }
 dr-i18n.workspace = true
 dr-import-v1.workspace = true
+# Where the 0.1 client keeps its libraries (the release identity's data folder).
+dr-platform.workspace = true
 dr-shell.workspace = true
 dr-ui.workspace = true
 dr-view-shelf.workspace = true

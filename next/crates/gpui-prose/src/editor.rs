@@ -220,8 +220,9 @@ impl ProseEditor {
         let chapter = chapter.min(self.book.chapters.len() - 1);
         self.cancel_composition();
         self.set_selection(Selection::caret(chapter, 0), cx);
-        self.list
-            .scroll_to_reveal_item(self.book.line_item(chapter, 0));
+        // The same reveal as typing's: a paragraph far off is put at the
+        // top (the list cannot reveal what it never measured).
+        self.reveal_cursor();
         window.focus(&self.focus, cx);
         self.reset_blink(cx);
         cx.notify();

@@ -1,4 +1,9 @@
 {
+  "agentPanel": {
+    "pending": {
+      "cancelling": "停止中…"
+    }
+  },
   "allChapters": {
     "actOrdinal": "第{{n}}幕"
   },
@@ -7,10 +12,51 @@
     "storyGraph": "物語グラフ",
     "todoLibrary": "TODOと資料庫"
   },
+  "categoryEditor": {
+    "actions": {
+      "openElement": "要素を開く"
+    },
+    "empty": {
+      "noFilteredElements": "条件に合う要素はありません",
+      "noSummary": "要約はまだありません"
+    },
+    "filters": {
+      "unused": "空",
+      "used": "記入済み"
+    },
+    "folio": "カテゴリ",
+    "labels": {
+      "elementCount": "要素",
+      "summary": "要約"
+    },
+    "meta": {
+      "elements": "{{count}}要素",
+      "items": "{{count}}項目"
+    },
+    "sections": {
+      "elements": "要素一覧",
+      "scratch": "走り書き"
+    },
+    "untitled": "無題のカテゴリ"
+  },
+  "chapterEditor": {
+    "synopsisPlaceholder": "あらすじ…",
+    "untitledChapter": "無題の章"
+  },
+  "chapterEnd": {
+    "defaultTitle": "新しい章",
+    "insertAfter": "後に章を追加",
+    "markDraft": "下書きに戻す",
+    "markFinished": "完成にする",
+    "trigger": "章末の操作",
+    "triggerFinished": "章末の操作（完成）"
+  },
   "commentRail": {
     "actions": {
       "reopen": "開き直す",
-      "resolve": "解決済みにする"
+      "resolve": "解決済みにする",
+      "toNote": "コメントに変換",
+      "toTodo": "TODO に変換"
     },
     "card": {
       "emptyComment": "空のコメント"
@@ -21,6 +67,7 @@
     "close": "閉じる",
     "counting": "集計中…",
     "creating": "作成中…",
+    "delete": "削除",
     "edit": "編集",
     "local": "ローカル",
     "processing": "処理中…",
@@ -78,6 +125,27 @@
       "chapter": "執筆状態"
     }
   },
+  "elementEditor": {
+    "alerts": {
+      "aliasConflict": "別名を追加できません。「{{name}}」は要素「{{conflicting}}」で使用されています。",
+      "renameConflict": "名前を変更できません。「{{name}}」は要素「{{conflicting}}」の名前または別名として使用されています。"
+    },
+    "alias": {
+      "add": "別名",
+      "addFirst": "別名を追加",
+      "remove": "別名を削除"
+    },
+    "empty": {
+      "noFacts": "フィールドはまだありません。要素を作成すると、カテゴリの「フィールドのテンプレート」から入力されます。"
+    },
+    "folio": "要素",
+    "sections": {
+      "bioTitle": "略歴",
+      "facts": "設定情報"
+    },
+    "summaryPlaceholder": "一文で要約…",
+    "untitled": "無題の要素"
+  },
   "feedback": {
     "attachDiagnostics": "機密情報を除去した診断情報を添付",
     "cancel": "キャンセル",
@@ -106,7 +174,10 @@
     "closeTitle": "閉じる（Esc）",
     "currentPlaceholder": "現在のエディタ内を検索…",
     "nextTitle": "次へ（Enter）",
-    "previousTitle": "前へ（Shift+Enter）"
+    "previousTitle": "前へ（Shift+Enter）",
+    "replace": "置換",
+    "replaceAll": "すべて置換",
+    "replacePlaceholder": "置換後の文字…"
   },
   "globalSearch": {
     "closeTitle": "閉じる（Esc）",
@@ -118,9 +189,39 @@
     "noResults": "一致する項目がありません",
     "stats": "{{groups}}項目 · {{occurrences}}件一致"
   },
+  "guide": {
+    "hints": {
+      "search": "すべてを検索",
+      "timeline": "タイムライン"
+    }
+  },
   "immersiveWriting": {
     "enter": "没入執筆",
     "leave": "没入執筆を終了"
+  },
+  "import": {
+    "v1": {
+      "action": {
+        "download_last_release": "旧版の最終リリースをダウンロード",
+        "import_anyway": "それでもインポート"
+      },
+      "blocked": {
+        "changed_after_handoff": "引き継ぎの確認後に変わった本文が {{count}} 件あります",
+        "get_last_release": "旧版の最終リリースをダウンロードし、このライブラリを一度開いて終了してから、もう一度インポートしてください",
+        "no_handoff": "このライブラリは旧版の最終リリースでまだ開かれていません",
+        "stale": "書いた内容より古い章が {{count}} 章あります",
+        "sync": "同期に未解決の競合があります",
+        "title": "一部の本文で、最後の数秒の入力が抜けているかもしれません",
+        "unproven": "最新か確認できない本文が {{count}} 件あります（下に一覧）"
+      },
+      "summary": {
+        "account_libraries_left": "フォルダー内のアカウントライブラリ {{count}} 件は、アカウント機能ができるまでインポートしません",
+        "already_imported": "このデバイスで以前インポート済みのため、スキップしました",
+        "already_in_library": "すでにライブラリにあるため、そのままにしました",
+        "carries_on": "途中で止まりました。このライブラリをもう一度インポートすると続きから取り込みます",
+        "from_caches": "{{count}} 件の本文をキャッシュからインポートしました。最後の数秒が抜けているかもしれません"
+      }
+    }
   },
   "importDialog": {
     "chooseFolder": "フォルダを選択",
@@ -131,7 +232,16 @@
       "done": "完了"
     }
   },
+  "kvEditor": {
+    "addField": "項目を追加",
+    "keyPlaceholder": "項目",
+    "removeRow": "行を削除",
+    "valuePlaceholder": "内容"
+  },
   "leftSidebar": {
+    "actions": {
+      "sort": "並べ替え"
+    },
     "empty": {
       "noChapters": "章はまだありません。",
       "noDrifts": "アイデアはまだありません。",
@@ -144,6 +254,25 @@
       "chapters": "{{count}}章",
       "drifts": "{{count}}件のアイデア",
       "elements": "{{categories}}カテゴリ・{{elements}}要素"
+    },
+    "sort": {
+      "alphabet": "文字順",
+      "bookOrder": "読む順番",
+      "cellMetaGroup": "セルの右端",
+      "chapters": "章を並べ替え",
+      "createdAt": "作成日時",
+      "duplicatesAll": "関連する全グループに表示",
+      "duplicatesGroup": "複数ストーリーラインの章",
+      "duplicatesPrimary": "主ストーリーラインにのみ表示",
+      "narrativeOrder": "物語の順番",
+      "outerStorylinesGroup": "外側のストーリーライン",
+      "showBoth": "文字数と日付を表示",
+      "showDate": "日付を表示",
+      "showNone": "どちらも隠す",
+      "showWordCount": "文字数を表示",
+      "storylineChapters": "ストーリーライン内の章を並べ替え",
+      "storylineOrder": "ストーリーライン順",
+      "updatedAt": "更新日時"
     },
     "tabs": {
       "chapters": "章",
@@ -161,8 +290,79 @@
       "storylineTitle": "ストーリーライン別・全編一覧に切り替え"
     }
   },
+  "manuscriptExport": {
+    "actTitles": "幕のタイトル",
+    "author": "著者",
+    "bookInfo": "作品情報",
+    "bookTitle": "タイトル",
+    "changeCover": "変更",
+    "chapterCount_one": "{{count}}章",
+    "chapterCount_other": "{{count}}章",
+    "chapterTitles": "章のタイトル",
+    "chooseCover": "画像を選択",
+    "contents": "内容",
+    "cover": "表紙",
+    "coverFailed": "この画像を読み込めませんでした。",
+    "export": "{{format}}でエクスポート",
+    "exporting": "エクスポート中…",
+    "failed": "エクスポートを完了できませんでした。再試行してください。",
+    "format": "形式",
+    "loadFailed": "章を読み込めませんでした。再試行してください。",
+    "loading": "章を読み込み中…",
+    "menu": "原稿をエクスポート",
+    "removeCover": "削除",
+    "retry": "再試行",
+    "saved": "エクスポートしました",
+    "scope": "対象範囲",
+    "selectAll": "すべて選択",
+    "selectNone": "選択をすべて解除",
+    "selectedChapters": "選択した章",
+    "title": "原稿をエクスポート",
+    "untitledAct": "無題の幕",
+    "untitledChapter": "無題の章",
+    "wholeBook": "全編"
+  },
+  "markdownShare": {
+    "characters": "{{count}}文字",
+    "copied": "Markdownの全文をコピーしました",
+    "copy": "すべてコピー",
+    "currentBody": "この文書の全文",
+    "failed": "操作を完了できませんでした。再試行するか、テキストを選択してコピーしてください。",
+    "loadFailed": "全文を読み込めませんでした。再試行してください。",
+    "loading": "Markdownの全文を準備中…",
+    "menu": "共有",
+    "proseOnly": "見出し、本文、章のあらすじを含みます。コメントと構成メモは公開されません。",
+    "readOnly": "読み取り専用",
+    "retry": "再試行",
+    "save": ".mdで保存",
+    "saved": "Markdownを保存しました",
+    "saving": "保存中…",
+    "title": "Markdownを共有",
+    "wholeBook": "すべての章を原稿順に"
+  },
+  "memoMaterial": {
+    "kind": {
+      "image": "画像",
+      "pdf": "PDF",
+      "text": "メモ"
+    }
+  },
+  "mobileWorkspace": {
+    "projectActions": {
+      "deleteFailed": "作品を削除できませんでした。もう一度お試しください。"
+    }
+  },
   "navigation": {
     "back": "戻る"
+  },
+  "nodeEditor": {
+    "folio": {
+      "chapter": "章",
+      "chapterNumber": "第{{n}}章"
+    },
+    "meta": {
+      "words": "{{count}}文字"
+    }
   },
   "notifications": {
     "appUpdate": {
@@ -236,6 +436,9 @@
     "bookTransfer": {
       "importFailedTitle": "インポートできませんでした"
     },
+    "delete": {
+      "deleting": "削除中…"
+    },
     "desk": {
       "chaptersUnit_one": "章",
       "chaptersUnit_other": "章",
@@ -258,7 +461,9 @@
       "storylinesUnit_other": "ストーリーライン",
       "trashEntry": "最近削除した項目",
       "trashList": {
+        "confirmTitle": "「{{name}}」を完全に削除しますか？",
         "empty": "最近削除した作品はありません。",
+        "subLocal": "作品は30日間保管し、その後完全削除します。",
         "title": "最近削除した項目"
       },
       "trashTitle": "「{{name}}」を最近削除した項目へ移しますか？",
@@ -293,17 +498,34 @@
     "trash": {
       "body": "作品（{{words}}文字・{{nodes}}章・{{elements}}要素）を本棚から移動します。「最近削除した項目」から30日以内に復元でき、その後は完全削除します。",
       "confirm": "最近削除した項目へ移動",
+      "deleteNow": "今すぐ削除",
+      "expiresIn_one": "{{count}}日後に完全削除",
+      "expiresIn_other": "{{count}}日後に完全削除",
+      "expiresSoon": "完全削除待ち",
       "failed": "作品を移動できません。再試行してください。",
       "localNote": "完全削除まで内容と読めるMarkdownコピーを保ちます。",
       "moving": "移動中…",
+      "permanentBody": "30日を待たず今すぐ完全削除します。取り消せません。",
       "restore": "復元",
       "restoreFailed": "作品を復元できません。再試行してください。",
       "restoring": "復元中…"
     }
   },
   "referencesPanel": {
+    "empty": {
+      "incoming": "この項目を参照する内容はまだありません",
+      "outgoing": "この本文には他のエンティティへの参照がまだありません"
+    },
     "kind": {
       "patch": "変化記録"
+    },
+    "meta": {
+      "blocksSpans": "{{blocks}}ブロック · {{spans}}件の言及",
+      "spans": "{{count}}件の言及"
+    },
+    "sections": {
+      "incoming": "バックリンク",
+      "outgoing": "参照"
     }
   },
   "relationTypes": {
@@ -324,7 +546,9 @@
     "resolved": "解決済み（{{count}}件）",
     "scopes": {
       "current": "現在"
-    }
+    },
+    "sourceFloating": "作品全体 · エンティティへのリンクなし",
+    "sourceTextUnavailable": "保存された抜粋はありません"
   },
   "rightSidebar": {
     "kickers": {
@@ -342,17 +566,82 @@
       }
     },
     "stats": {
+      "actMeta": "{{chapters}}章・{{wordsK}}k文字・{{pct}}%",
+      "actRhythm": "幕ごとのリズム",
+      "allElementsAppeared": "全要素が本文に登場しています。",
+      "appeared": "登場済み",
+      "averageAppearance": "平均登場数",
       "averagePerChapter": "1章の平均",
+      "avgChaptersPerElement": "{{count}}章／要素",
       "bookPosition": "本の中の位置",
+      "category": "カテゴリ",
+      "categoryCoordinates": "カテゴリの位置",
+      "categoryNoElements": "このカテゴリに要素はまだありません。",
+      "chapter": "章",
+      "chapterCoordinates": "章の位置",
       "chapterCount": "章",
+      "chapterLengthRhythm": "章の長さのリズム",
       "chapterOrdinal": "第{{count}}章",
       "chaptersValue": "{{count}}章",
+      "completion": "完成度",
+      "dialogueRatio": "会話の割合",
+      "dimensions": "寸法",
+      "discardedParen": "（不採用{{count}}）",
+      "driftCoordinates": "アイデアの位置",
+      "driftFreeFragment": "アイデア・自由配置",
+      "elementCoordinates": "要素の位置",
+      "elementCount": "要素数",
+      "elementsValue": "{{count}}要素",
+      "embeddedMaterials": "埋め込み資料",
+      "fileSize": "サイズ",
+      "fileType": "種類",
+      "floatingStoryline": "自由配置／所属なし",
+      "health": "健全性",
+      "lastModified": "最終更新",
+      "longestWithWords": "最長・{{title}}（{{words}}文字）",
+      "materialCoordinates": "資料",
+      "materialFile": "ファイル",
+      "materialRelations": "関連先",
+      "moreLowAppearanceElements": "登場の少ない要素がほかに{{count}}件",
+      "moreUnappearedElements": "ほかに未登場{{count}}件",
+      "name": "名前",
+      "noActiveProgress": "全章が不採用か、まだ進捗がありません。",
+      "noChapters": "章はまだありません。最初の章を書くと全編のペースを表示します。",
+      "noMentionedElements": "本文に@で言及した要素はありません。",
+      "noteShape": "メモ",
+      "noteTasks": "TODO",
+      "noteTasksValue": "{{done}} / {{total}}完了",
+      "noteWords": "長さ",
+      "openComments": "未解決コメントとTODO",
+      "paragraphSentence": "段落／文",
+      "paragraphSentenceValue": "{{paragraphs}}段落・{{sentences}}文",
       "recent": "最近",
+      "shortestWithWords": "最短・{{title}}（{{words}}文字）",
       "snapshotButton": "履歴スナップショット…",
+      "statusCount": "{{status}} {{count}}章",
+      "storyline": "ストーリーライン",
+      "storylineCoordinates": "ストーリーラインの位置",
+      "storylineCoreElements": "このストーリーラインの主要要素",
+      "storylineDistribution": "ストーリーラインの分布",
+      "storylineNoChapters": "このストーリーラインに章はまだありません。",
+      "storylineNoMentionedElements": "このストーリーラインの章に@で言及した要素はありません。",
+      "thisChapterElements": "この章の要素",
+      "thisFragmentElements": "このアイデアの要素",
+      "titleWithWords": "{{title}}（{{words}}文字）",
+      "type": "種類",
+      "unappearedElements": "未登場の要素",
+      "updated": "更新済み",
+      "wordRhythm": "文字数・リズム",
       "wordsPerChapterValue": "{{words}}文字／章",
       "wordsValue": "{{count}}文字",
       "writingProgress": "執筆の進捗",
       "writtenTarget": "執筆済み／目標"
+    },
+    "status": {
+      "discarded": "不採用",
+      "done": "完了",
+      "draft": "下書き",
+      "todo": "執筆予定"
     },
     "tabs": {
       "companion": "Agent",
@@ -373,6 +662,7 @@
       "credits": "謝辞とライセンス",
       "emailTeam": "チームにメールする",
       "engine": "エンジン",
+      "feedback": "フィードバック…",
       "knownIssues": "既知の問題",
       "knownIssuesDesc": "現在のAlpha版の既知の制限",
       "license": "クライアントのライセンス",
@@ -381,6 +671,8 @@
       "sourceCode": "ソースコード",
       "sourceCodeDesc": "このAGPLクライアントに対応するソースコード",
       "sub": "最高の執筆体験を",
+      "submitFeedback": "フィードバックを送る",
+      "submitFeedbackDesc": "機密情報を除いた診断概要を添付できます。原稿は含みません。",
       "support": "Alphaサポート",
       "supportDesc": "問題の解決方法と安全な報告手順",
       "tagline": "夜更けまで書き続ける人へ。",
@@ -409,6 +701,8 @@
       "open_in_browser": "ブラウザで開く"
     },
     "editor": {
+      "auto_element_link": "要素を自動リンク",
+      "auto_element_link_desc": "入力中に既存の要素名を認識し、そのページにリンクします。",
       "auto_immersive": "入力すると没入執筆",
       "auto_immersive_desc": "本文を書き始めるとサイドバーとツールを収めます。Esc か本文の外をクリックすると戻ります。",
       "flow": "執筆の流れ",
@@ -419,6 +713,7 @@
       "indent_none": "なし",
       "indent_one": "1文字",
       "indent_two": "2文字",
+      "justify": "両端揃え",
       "line_height": "行の高さ",
       "page_width": "用紙の幅",
       "page_width_desc": "エディタの用紙幅です。本文は固定の余白を除いた幅に収まります。",
@@ -431,12 +726,19 @@
       "reset_style": "推奨スタイルに戻す",
       "typesetting": "組版",
       "typewriter_mode": "タイプライターモード",
-      "typewriter_mode_desc": "入力やカーソル移動中、現在の行を画面内の一定位置に保ちます。エディタ表示のみに適用します。"
+      "typewriter_mode_desc": "入力やカーソル移動中、現在の行を画面内の一定位置に保ちます。エディタ表示のみに適用します。",
+      "typewriter_position": "入力行の位置",
+      "typewriter_position_desc": "エディタ上端からの割合：25%は上、50%は中央、75%は下。"
     },
     "groups": {
       "about": "このアプリについて",
       "control": "管理",
       "preferences": "環境設定"
+    },
+    "hosted": {
+      "connect_errors": {
+        "cancelled": "取り消しました。"
+      }
     },
     "keys": {
       "actions": {
@@ -545,6 +847,14 @@
     "restoring": "復元中…",
     "title": "履歴スナップショット・30日間"
   },
+  "storylineEditor": {
+    "filters": {
+      "all": "すべて"
+    },
+    "labels": {
+      "color": "色"
+    }
+  },
   "topTimeline": {
     "closeTab": "タブを閉じる",
     "dockLock": "開いたままにする",
@@ -563,6 +873,7 @@
     }
   },
   "userMenu": {
+    "feedback": "フィードバックを送る",
     "import": "インポート",
     "importBook": "作品をインポート（.driftingbook）",
     "language": "言語",

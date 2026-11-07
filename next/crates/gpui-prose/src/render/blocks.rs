@@ -11,6 +11,15 @@
 //!   of the editor settings).
 //! - **Alignment**: each visual row is centred or set right in the column.
 //! - **Rule**: an empty paragraph shown as a short centred hairline.
+//! - **Lists** (notes; `list`, `list_level`, `checked`, `todo`): one item a
+//!   paragraph, set in by `(level + 1) × list_step` with its mark in the
+//!   space left of the text, on the first row: a dot (level 0), a ring
+//!   (level 1), a small square (level 2, then round again); a number for an
+//!   ordered item, counted along the adjacent items of its level (deeper
+//!   items do not break the count); a box for a task, ticked when done,
+//!   its text then fainter and struck through. A task linked to a TODO
+//!   shows the TODO's state (the host's [`crate::ProseExtension::task_done`]),
+//!   never a `checked` of its own.
 
 use gpui::{Hsla, Pixels, hsla, px};
 use loro::LoroValue;
@@ -34,6 +43,17 @@ pub struct BlockStyle {
     pub rule: Hsla,
     /// The rule's share of the column (0–1).
     pub rule_width: f32,
+    /// One list level, in ems of the body size.
+    pub list_step: f32,
+    /// The list marks' colour; `None`: the text colour.
+    pub list_ink: Option<Hsla>,
+    /// A task box's edge, and its fill when done (the tick is the paper's
+    /// colour, `task_tick`).
+    pub task_box: Hsla,
+    pub task_done: Hsla,
+    pub task_tick: Hsla,
+    /// A done task's text colour; `None`: unchanged.
+    pub task_done_ink: Option<Hsla>,
 }
 
 impl Default for BlockStyle {
@@ -45,6 +65,12 @@ impl Default for BlockStyle {
             quote_ink: Some(hsla(0., 0., 0.3, 1.)),
             rule: hsla(0., 0., 0.45, 0.55),
             rule_width: 0.3,
+            list_step: 1.5,
+            list_ink: None,
+            task_box: hsla(0., 0., 0.45, 0.7),
+            task_done: hsla(0.58, 0.6, 0.45, 1.),
+            task_tick: hsla(0., 0., 1., 1.),
+            task_done_ink: Some(hsla(0., 0., 0.55, 1.)),
         }
     }
 }
@@ -58,6 +84,25 @@ pub enum Align {
     Right,
 }
 
+/// A list item's mark.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ListMark {
+    Bullet,
+    /// Its number in the list.
+    Ordered(u32),
+    Task {
+        done: bool,
+    },
+}
+
+/// A paragraph that is a list item.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ListItem {
+    pub mark: ListMark,
+    /// Nesting level, 0–8.
+    pub level: u8,
+}
+
 /// What a paragraph's attributes do to its layout and paint.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct BlockLook {
@@ -69,7 +114,10 @@ pub struct BlockLook {
     pub quote_below: bool,
     pub align: Align,
     pub rule: bool,
-    /// Left inset of the text inside the column (indent plus quote inset).
+    /// A list item, with its mark.
+    pub list: Option<ListItem>,
+    /// Left inset of the text inside the column (indent, quote inset and
+    /// list levels).
     pub inset: Pixels,
 }
 
@@ -87,9 +135,13 @@ impl BlockLook {
             _ => Align::Left,
         };
         let rule = truthy(attrs.get(block::RULE));
+        let list = list_item(attrs);
         let mut inset = body_size * (f32::from(indent) * style.indent_step);
         if quote {
             inset += body_size * style.quote_inset;
+        }
+        if let Some(item) = list {
+            inset += body_size * (style.list_step * f32::from(item.level + 1));
         }
         BlockLook {
             indent,
@@ -98,6 +150,7 @@ impl BlockLook {
             quote_below: false,
             align,
             rule,
+            list,
             inset,
         }
     }
@@ -116,6 +169,36 @@ impl BlockLook {
             Align::Center => (room / 2.).round(),
             Align::Right => room,
         }
+    }
+}
+
+/// The list item `attrs` make, if any (`ordered` numbered 1 until the
+/// editor counts it; a task's `checked` until a linked TODO says otherwise).
+pub(crate) fn list_item(attrs: &BlockAttrs) -> Option<ListItem> {
+    let Some(LoroValue::String(kind)) = attrs.get(block::LIST) else {
+        return None;
+    };
+    let mark = match kind.as_str() {
+        "bullet" => ListMark::Bullet,
+        "ordered" => ListMark::Ordered(1),
+        "task" => ListMark::Task {
+            done: truthy(attrs.get(block::CHECKED)),
+        },
+        _ => return None,
+    };
+    let level = match attrs.get(block::LIST_LEVEL) {
+        Some(LoroValue::I64(level)) => (*level).clamp(0, 8) as u8,
+        Some(LoroValue::Double(level)) => level.clamp(0., 8.) as u8,
+        _ => 0,
+    };
+    Some(ListItem { mark, level })
+}
+
+/// The TODO a task item is linked to.
+pub(crate) fn linked_todo(attrs: &BlockAttrs) -> Option<&str> {
+    match attrs.get(block::TODO) {
+        Some(LoroValue::String(id)) if !id.is_empty() => Some(id.as_str()),
+        _ => None,
     }
 }
 
@@ -165,6 +248,34 @@ mod tests {
         assert_eq!(deep.indent, 8);
         let rule = BlockLook::of(&attrs(&[(block::RULE, true.into())]), &style, body);
         assert!(rule.rule);
+    }
+
+    #[test]
+    fn list_items_are_set_in_by_level() {
+        let style = BlockStyle::default();
+        let body = px(16.);
+        let bullet = BlockLook::of(&attrs(&[(block::LIST, "bullet".into())]), &style, body);
+        assert_eq!(
+            bullet.list,
+            Some(ListItem {
+                mark: ListMark::Bullet,
+                level: 0
+            })
+        );
+        assert_eq!(bullet.inset, px(16. * 1.5));
+        let nested = BlockLook::of(
+            &attrs(&[
+                (block::LIST, "task".into()),
+                (block::LIST_LEVEL, 2i64.into()),
+                (block::CHECKED, true.into()),
+            ]),
+            &style,
+            body,
+        );
+        assert_eq!(nested.list.unwrap().mark, ListMark::Task { done: true });
+        assert_eq!(nested.inset, px(16. * 4.5));
+        let odd = BlockLook::of(&attrs(&[(block::LIST, "zigzag".into())]), &style, body);
+        assert_eq!(odd.list, None);
     }
 
     #[test]

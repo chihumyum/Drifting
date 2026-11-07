@@ -1,0 +1,41 @@
+{
+  "import": {
+    "v1": {
+      "blocked": {
+        "title": "Puede que a algunos textos les falten los últimos segundos de escritura",
+        "no_handoff": "Esta biblioteca aún no se ha abierto en la última versión 0.1",
+        "unproven_one": "No se puede confirmar que {{count}} texto sea el más reciente; aparece abajo",
+        "unproven_other": "No se puede confirmar que {{count}} textos sean los más recientes; aparecen abajo",
+        "stale_one": "{{count}} capítulo es más antiguo que lo que usted escribió",
+        "stale_other": "{{count}} capítulos son más antiguos que lo que usted escribió",
+        "changed_after_handoff_one": "{{count}} texto cambió después de la comprobación del traspaso",
+        "changed_after_handoff_other": "{{count}} textos cambiaron después de la comprobación del traspaso",
+        "sync": "La sincronización tiene conflictos sin resolver",
+        "get_last_release": "Descargue la última versión 0.1, abra esta biblioteca una vez, ciérrela y vuelva a importar"
+      },
+      "action": {
+        "download_last_release": "Descargar la última versión 0.1",
+        "import_anyway": "Importar de todos modos"
+      },
+      "summary": {
+        "already_imported": "Ya se importó en este dispositivo; se omitió",
+        "already_in_library": "Ya está en la biblioteca; se dejó como está",
+        "from_caches_one": "{{count}} texto vino de su caché y puede que le falten los últimos segundos",
+        "from_caches_other": "{{count}} textos vinieron de su caché y puede que les falten los últimos segundos",
+        "account_libraries_left_one": "{{count}} biblioteca de cuenta de la carpeta espera a que haya cuentas",
+        "account_libraries_left_other": "{{count}} bibliotecas de cuenta de la carpeta esperan a que haya cuentas",
+        "carries_on": "Sin terminar; al importar de nuevo esta biblioteca se continúa"
+      }
+    }
+  },
+  "settings": {
+    "editor": {
+      "justify": "Justificar"
+    }
+  },
+  "findPanel": {
+    "replacePlaceholder": "Reemplazar con…",
+    "replace": "Reemplazar",
+    "replaceAll": "Reemplazar todo"
+  }
+}

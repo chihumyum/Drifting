@@ -483,6 +483,7 @@ async fn open_book(p: &Value, cx: &mut AsyncApp) -> Out {
 fn layer_name(l: Layer) -> &'static str {
     match l {
         Layer::Notifications => "notifications",
+        Layer::Search => "search",
         Layer::Settings => "settings",
         Layer::SuperView => "super-view",
     }

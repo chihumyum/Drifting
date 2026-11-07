@@ -65,6 +65,10 @@ impl Corpus {
             let lib = dr_store::Library::open(dir.path(), library_options(VERSION))
                 .expect("open the library");
             seeded.write_to(&lib).expect("write the seed");
+            // Search and derived indexes built now: in a library that has been
+            // open a while they are, and a rebuild in the background holds
+            // SQLite's write lock in front of the keystrokes being measured.
+            lib.rebuild_stale_indexes().expect("build the indexes");
             lib.close().expect("close the library");
         }
         // The generator's copy of the book is not part of what is measured.

@@ -258,6 +258,74 @@ expression: json
     "summary": "Rename an act, recolour it, move its boundary or bind an idea to it."
   },
   {
+    "access": "read",
+    "concurrency": "shared",
+    "input": {
+      "description": "One entity of a book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "EntityIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "asset.get",
+    "output": {
+      "description": "An asset's recorded metadata.",
+      "properties": {
+        "height": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "description": "`image` or `pdf`.",
+          "type": "string"
+        },
+        "mime": {
+          "type": "string"
+        },
+        "size": {
+          "description": "Bytes.",
+          "format": "int64",
+          "type": "integer"
+        },
+        "width": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "mime",
+        "size",
+        "width",
+        "height"
+      ],
+      "title": "AssetInfo",
+      "type": "object"
+    },
+    "summary": "Read an asset's recorded metadata: kind, media type, size and pixel dimensions (the Stats tab's file readings)."
+  },
+  {
     "access": "write",
     "concurrency": "book",
     "input": {
@@ -1621,6 +1689,224 @@ expression: json
     "summary": "Rename a category (a taken name gets a suffix), recolour it or change its layout."
   },
   {
+    "access": "read",
+    "concurrency": "shared",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "category": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "category"
+      ],
+      "title": "CategoryIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "category_template.list",
+    "output": {
+      "$defs": {
+        "FieldInfo": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "key": {
+              "type": "string"
+            },
+            "pos": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "key",
+            "value",
+            "pos"
+          ],
+          "type": "object"
+        }
+      },
+      "items": {
+        "$ref": "#/$defs/FieldInfo"
+      },
+      "title": "Array_of_FieldInfo",
+      "type": "array"
+    },
+    "summary": "List the fields every new element of a category starts with, in order."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "Place": {
+          "description": "Where to put something in an ordered list.",
+          "oneOf": [
+            {
+              "const": "first",
+              "description": "At the start.",
+              "type": "string"
+            },
+            {
+              "const": "last",
+              "description": "At the end.",
+              "type": "string"
+            },
+            {
+              "additionalProperties": false,
+              "description": "Right after the item with this id.",
+              "properties": {
+                "after": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "after"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "description": "Right before the item with this id.",
+              "properties": {
+                "before": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "before"
+              ],
+              "type": "object"
+            }
+          ]
+        }
+      },
+      "description": "A field to add or change in a template.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "category": {
+          "description": "The category, for a category's template.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "description": "The field to change; omitted, or an id not in the template: a new\nfield (with that id).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "key": {
+          "default": "",
+          "type": "string"
+        },
+        "place": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Place"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Where it goes (a new field goes last by default)."
+        },
+        "pos": {
+          "description": "An exact position key (undo uses it); wins over `place`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "value": {
+          "default": "",
+          "description": "A default or a hint, copied into new storylines or elements.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "book"
+      ],
+      "title": "TemplateFieldIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "category_template.put",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Add a field to a category's template or change one (key, value, position). Existing elements keep their fields."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "description": "One field of a template.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "category": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "TemplateFieldRef",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "category_template.remove",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Remove a field from a category's template. Existing elements keep theirs."
+  },
+  {
     "access": "write",
     "concurrency": "book",
     "input": {
@@ -2849,7 +3135,7 @@ expression: json
       "title": "Named",
       "type": "object"
     },
-    "summary": "Create an element. A name or alias another element already has is refused (automatic links find people by name); the error names that element."
+    "summary": "Create an element (it starts with its category's template fields). A name or alias another element already has is refused (automatic links find people by name); the error names that element."
   },
   {
     "access": "read",
@@ -5590,6 +5876,1208 @@ expression: json
     "access": "read",
     "concurrency": "shared",
     "input": {
+      "$defs": {
+        "Target": {
+          "description": "A reference to an entity (relation end, comment or memory target).",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "description": "`node`, `element`, `patch`, `category`, `storyline`, `comment`,\n`material`.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "type": "object"
+        }
+      },
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "from": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Target"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Only what this entity's prose mentions (a chapter or idea is\n`node`)."
+        },
+        "to": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Target"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Only what mentions this entity."
+        },
+        "to_kind": {
+          "description": "Only targets of this kind (`element`, `node`, `material`, …).",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "book"
+      ],
+      "title": "MentionListIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "mention.list",
+    "output": {
+      "$defs": {
+        "MentionInfo": {
+          "properties": {
+            "blocks": {
+              "description": "Paragraphs that carry it.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "count": {
+              "description": "Separate spans (an embed is one).",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "from": {
+              "$ref": "#/$defs/Target",
+              "description": "The entity whose prose mentions."
+            },
+            "kind": {
+              "description": "`link` (an entity link in the text) or `embed` (an embedded\nmaterial).",
+              "type": "string"
+            },
+            "to": {
+              "$ref": "#/$defs/Target"
+            }
+          },
+          "required": [
+            "from",
+            "to",
+            "kind",
+            "blocks",
+            "count"
+          ],
+          "type": "object"
+        },
+        "Target": {
+          "description": "A reference to an entity (relation end, comment or memory target).",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "description": "`node`, `element`, `patch`, `category`, `storyline`, `comment`,\n`material`.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "type": "object"
+        }
+      },
+      "items": {
+        "$ref": "#/$defs/MentionInfo"
+      },
+      "title": "Array_of_MentionInfo",
+      "type": "array"
+    },
+    "summary": "List what prose mentions: entity links and embedded materials, from one entity's prose, to one entity, or in the whole book (live ends only, with paragraph and span counts)."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "node": {
+          "description": "The chapter or idea whose prose changed.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "node"
+      ],
+      "title": "CheckSourcesIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "patch.check_sources",
+    "output": {
+      "properties": {
+        "invalidated": {
+          "description": "Patches whose passage went missing now.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "restored": {
+          "description": "Patches whose passage is back.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "invalidated",
+        "restored"
+      ],
+      "title": "SourcesChecked",
+      "type": "object"
+    },
+    "summary": "After a chapter's or idea's prose changed: mark the patches taken from it whose passage no longer occurs as invalidated, and unmark those whose passage is back. Follows the prose; not an author's step."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "AnchorBytes": {
+          "description": "A comment's anchor as stored: the two Loro cursors dr-doc writes\n(`Cursor::encode()`, the start on the first anchored character, the end\non the last), each in base64 (standard alphabet, padded). The editor\nmoves these bytes between the book and the prose document unchanged.",
+          "properties": {
+            "end": {
+              "type": "string"
+            },
+            "start": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "start",
+            "end"
+          ],
+          "type": "object"
+        },
+        "Place": {
+          "description": "Where to put something in an ordered list.",
+          "oneOf": [
+            {
+              "const": "first",
+              "description": "At the start.",
+              "type": "string"
+            },
+            {
+              "const": "last",
+              "description": "At the end.",
+              "type": "string"
+            },
+            {
+              "additionalProperties": false,
+              "description": "Right after the item with this id.",
+              "properties": {
+                "after": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "after"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "description": "Right before the item with this id.",
+              "properties": {
+                "before": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "before"
+              ],
+              "type": "object"
+            }
+          ]
+        }
+      },
+      "properties": {
+        "anchor": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AnchorBytes"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "An anchor on the passage in `source`'s prose (dr-doc's two cursors,\nbase64, as `comment.reanchor` takes them)."
+        },
+        "body": {
+          "default": "",
+          "type": "string"
+        },
+        "book": {
+          "type": "string"
+        },
+        "element": {
+          "type": "string"
+        },
+        "id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "place": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Place"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Where it goes among the element's patches (last by default)."
+        },
+        "pos": {
+          "description": "An exact position key and id (undo uses them).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source": {
+          "description": "The chapter or idea the passage comes from.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source_block": {
+          "description": "Its paragraph (needs `source`).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source_text": {
+          "description": "The passage as it reads now.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "book",
+        "element"
+      ],
+      "title": "PatchCreateIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "patch.create",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Add a patch to an element: a title (optional) and a body, floating or taken from a passage of a chapter or idea."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "description": "One entity of a book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "EntityIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "patch.delete",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Delete a patch at once (never refused): relations to it go and comments on it float, in the same commit; undo brings it all back."
+  },
+  {
+    "access": "read",
+    "concurrency": "shared",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "element": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "element"
+      ],
+      "title": "PatchListIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "patch.list",
+    "output": {
+      "$defs": {
+        "PatchInfo": {
+          "properties": {
+            "anchored": {
+              "description": "Whether it carries an anchor on the passage.",
+              "type": "boolean"
+            },
+            "body": {
+              "type": "string"
+            },
+            "element": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "invalidated_at": {
+              "description": "Since when the passage no longer occurs in its source (Unix seconds).",
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "pos": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "source": {
+              "description": "The chapter or idea the patch was taken from, while it exists.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "source_block": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "source_text": {
+              "description": "The passage as it read when the patch was taken.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "title": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "element",
+            "title",
+            "body",
+            "source",
+            "source_block",
+            "source_text",
+            "anchored",
+            "invalidated_at",
+            "pos"
+          ],
+          "type": "object"
+        }
+      },
+      "items": {
+        "$ref": "#/$defs/PatchInfo"
+      },
+      "title": "Array_of_PatchInfo",
+      "type": "array"
+    },
+    "summary": "List an element's patches: by their source chapter's reading order, then their own order; floating ones last. Invalidated ones are listed too."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "Place": {
+          "description": "Where to put something in an ordered list.",
+          "oneOf": [
+            {
+              "const": "first",
+              "description": "At the start.",
+              "type": "string"
+            },
+            {
+              "const": "last",
+              "description": "At the end.",
+              "type": "string"
+            },
+            {
+              "additionalProperties": false,
+              "description": "Right after the item with this id.",
+              "properties": {
+                "after": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "after"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "description": "Right before the item with this id.",
+              "properties": {
+                "before": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "before"
+              ],
+              "type": "object"
+            }
+          ]
+        }
+      },
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "place": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Place"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "pos": {
+          "description": "An exact position key (undo uses it); wins over `place`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "PatchMoveIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "patch.move",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Move a patch among its element's patches (within the same source chapter the order is the patches' own)."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "body": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "source": {
+          "description": "改章节归属: another chapter, or `null` for none. The paragraph is\ncleared; the passage and its anchor stay.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source_block": {
+          "description": "The paragraph to put back (undo uses it, with `source`).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "title": {
+          "description": "A new title; `null` or empty clears it.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "PatchUpdateIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "patch.update",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Change a patch's title or body, or the chapter it belongs to (none detaches it)."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "column": {
+          "type": "string"
+        },
+        "node": {
+          "type": "string"
+        },
+        "row": {
+          "type": "string"
+        },
+        "text": {
+          "description": "The cell's text as typed (newlines allowed); empty clears it.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "node",
+        "row",
+        "column",
+        "text"
+      ],
+      "title": "CellIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "plot_grid.cell",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Write one cell of a plot grid (empty text clears it)."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "node": {
+          "description": "The chapter or idea.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "node"
+      ],
+      "title": "GridIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "plot_grid.clear",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "清空: clear every label and every cell of a plot grid; its rows, columns and size stay."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "node": {
+          "description": "The chapter or idea.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "node"
+      ],
+      "title": "GridIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "plot_grid.create",
+    "output": {
+      "$defs": {
+        "CellInfo": {
+          "properties": {
+            "column": {
+              "type": "string"
+            },
+            "row": {
+              "type": "string"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "row",
+            "column",
+            "text"
+          ],
+          "type": "object"
+        },
+        "LineInfo": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            },
+            "pos": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "label",
+            "pos"
+          ],
+          "type": "object"
+        }
+      },
+      "properties": {
+        "cell_h": {
+          "format": "double",
+          "type": "number"
+        },
+        "cell_w": {
+          "format": "double",
+          "type": "number"
+        },
+        "cells": {
+          "description": "Non-empty cells only.",
+          "items": {
+            "$ref": "#/$defs/CellInfo"
+          },
+          "type": "array"
+        },
+        "columns": {
+          "items": {
+            "$ref": "#/$defs/LineInfo"
+          },
+          "type": "array"
+        },
+        "exists": {
+          "description": "Whether the grid is stored; when not, the rest is the empty 3 × 3\ngrid to show (no ids yet: `plot_grid.create` stores it).",
+          "type": "boolean"
+        },
+        "node": {
+          "type": "string"
+        },
+        "rows": {
+          "items": {
+            "$ref": "#/$defs/LineInfo"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "node",
+        "exists",
+        "cell_w",
+        "cell_h",
+        "rows",
+        "columns",
+        "cells"
+      ],
+      "title": "PlotGridInfo",
+      "type": "object"
+    },
+    "summary": "Store a chapter's or idea's plot grid, three rows by three columns with empty labels, before its first edit; an existing grid is returned as it is."
+  },
+  {
+    "access": "read",
+    "concurrency": "shared",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "node": {
+          "description": "The chapter or idea.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "node"
+      ],
+      "title": "GridIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "plot_grid.get",
+    "output": {
+      "$defs": {
+        "CellInfo": {
+          "properties": {
+            "column": {
+              "type": "string"
+            },
+            "row": {
+              "type": "string"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "row",
+            "column",
+            "text"
+          ],
+          "type": "object"
+        },
+        "LineInfo": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            },
+            "pos": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "label",
+            "pos"
+          ],
+          "type": "object"
+        }
+      },
+      "properties": {
+        "cell_h": {
+          "format": "double",
+          "type": "number"
+        },
+        "cell_w": {
+          "format": "double",
+          "type": "number"
+        },
+        "cells": {
+          "description": "Non-empty cells only.",
+          "items": {
+            "$ref": "#/$defs/CellInfo"
+          },
+          "type": "array"
+        },
+        "columns": {
+          "items": {
+            "$ref": "#/$defs/LineInfo"
+          },
+          "type": "array"
+        },
+        "exists": {
+          "description": "Whether the grid is stored; when not, the rest is the empty 3 × 3\ngrid to show (no ids yet: `plot_grid.create` stores it).",
+          "type": "boolean"
+        },
+        "node": {
+          "type": "string"
+        },
+        "rows": {
+          "items": {
+            "$ref": "#/$defs/LineInfo"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "node",
+        "exists",
+        "cell_w",
+        "cell_h",
+        "rows",
+        "columns",
+        "cells"
+      ],
+      "title": "PlotGridInfo",
+      "type": "object"
+    },
+    "summary": "Read a chapter's or idea's plot grid: rows, columns and the cells' text (an empty 3 × 3 grid when none is stored yet)."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "Axis": {
+          "description": "Rows or columns.",
+          "enum": [
+            "row",
+            "column"
+          ],
+          "type": "string"
+        }
+      },
+      "properties": {
+        "after": {
+          "description": "Right after this row or column; omitted: first.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "axis": {
+          "$ref": "#/$defs/Axis"
+        },
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "description": "An exact id and position key (undo uses them; `pos` wins over\n`after`).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "label": {
+          "default": "",
+          "type": "string"
+        },
+        "node": {
+          "type": "string"
+        },
+        "pos": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "book",
+        "node",
+        "axis"
+      ],
+      "title": "LineAddIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "plot_grid.line_add",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Insert a row or column into a plot grid, first or right after another, with a label (empty shows the placeholder)."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "Axis": {
+          "description": "Rows or columns.",
+          "enum": [
+            "row",
+            "column"
+          ],
+          "type": "string"
+        }
+      },
+      "properties": {
+        "axis": {
+          "$ref": "#/$defs/Axis"
+        },
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "node": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "node",
+        "axis",
+        "id"
+      ],
+      "title": "LineIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "plot_grid.line_remove",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Remove a plot grid's row or column with its cells (the last row or column cannot go)."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "Axis": {
+          "description": "Rows or columns.",
+          "enum": [
+            "row",
+            "column"
+          ],
+          "type": "string"
+        }
+      },
+      "properties": {
+        "after": {
+          "description": "Move it: right after this row or column, or first (`null`).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "axis": {
+          "$ref": "#/$defs/Axis"
+        },
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "description": "A new label (any text; empty shows the placeholder).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "node": {
+          "type": "string"
+        },
+        "pos": {
+          "description": "An exact position key (undo uses it); wins over `after`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "book",
+        "node",
+        "axis",
+        "id"
+      ],
+      "title": "LineUpdateIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "plot_grid.line_update",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Rename or move a plot grid's row or column (first, or right after another)."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "cell_h": {
+          "format": "double",
+          "type": "number"
+        },
+        "cell_w": {
+          "format": "double",
+          "type": "number"
+        },
+        "node": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "node",
+        "cell_w",
+        "cell_h"
+      ],
+      "title": "GridSizeIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "plot_grid.size",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Set the size of a plot grid's cells (120–440 wide, 56–380 high)."
+  },
+  {
+    "access": "read",
+    "concurrency": "shared",
+    "input": {
       "properties": {
         "doc": {
           "description": "The prose document: `node:<id>`, `element:<id>`, `storyline:<id>`,\n`category:<id>` or `material:<id>`.",
@@ -5729,11 +7217,18 @@ expression: json
             "string",
             "null"
           ]
+        },
+        "linked": {
+          "description": "Entity links written on names inside the new text (automatic links\nfor an Agent's, the mirror's or an import's text, when the author has\nthem on).",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
         }
       },
       "required": [
         "at",
-        "block_id"
+        "block_id",
+        "linked"
       ],
       "title": "Replaced",
       "type": "object"
@@ -5776,6 +7271,75 @@ expression: json
       "type": "object"
     },
     "summary": "Restore a prose document to an earlier version, as a new change (history stays)."
+  },
+  {
+    "access": "read",
+    "concurrency": "shared",
+    "input": {
+      "properties": {
+        "doc": {
+          "description": "`node:<id>`, `material:<id>`, …",
+          "type": "string"
+        }
+      },
+      "required": [
+        "doc"
+      ],
+      "title": "ProseShapeIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "prose.shape",
+    "output": {
+      "properties": {
+        "dialogue": {
+          "description": "The share of characters inside quotation marks, 0–1.",
+          "format": "float",
+          "type": "number"
+        },
+        "done": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "embeds": {
+          "description": "The materials it embeds, in order (repeats kept).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "paragraphs": {
+          "description": "Paragraphs that are not blank.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "sentences": {
+          "description": "Sentences (a paragraph with words is at least one).",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "tasks": {
+          "description": "Checklist items (a note's tasks) and how many are checked.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "paragraphs",
+        "sentences",
+        "dialogue",
+        "tasks",
+        "done",
+        "embeds"
+      ],
+      "title": "ProseShapeOut",
+      "type": "object"
+    },
+    "summary": "Shape of a prose document: paragraphs, sentences, the share of dialogue, its checklist and the materials it embeds."
   },
   {
     "access": "read",
@@ -6516,7 +8080,7 @@ expression: json
       "title": "Named",
       "type": "object"
     },
-    "summary": "Create a storyline (a taken name gets a numbered suffix; the final name is returned)."
+    "summary": "Create a storyline (a taken name gets a numbered suffix; the final name is returned). It starts with the book's storyline template fields."
   },
   {
     "access": "read",
@@ -6543,6 +8107,32 @@ expression: json
     "name": "storyline.list",
     "output": {
       "$defs": {
+        "FieldInfo": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "key": {
+              "type": "string"
+            },
+            "pos": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "key",
+            "value",
+            "pos"
+          ],
+          "type": "object"
+        },
         "StorylineInfo": {
           "properties": {
             "chapters": {
@@ -6553,6 +8143,13 @@ expression: json
             },
             "color": {
               "type": "string"
+            },
+            "fields": {
+              "description": "Its fields (key/value), in order.",
+              "items": {
+                "$ref": "#/$defs/FieldInfo"
+              },
+              "type": "array"
             },
             "id": {
               "type": "string"
@@ -6580,7 +8177,8 @@ expression: json
             "summary",
             "pos",
             "trashed",
-            "chapters"
+            "chapters",
+            "fields"
           ],
           "type": "object"
         }
@@ -6812,6 +8410,88 @@ expression: json
     "access": "write",
     "concurrency": "book",
     "input": {
+      "$defs": {
+        "FieldIn": {
+          "description": "A field of an element's key/value list to add or change.",
+          "properties": {
+            "id": {
+              "description": "Omitted: a new field.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "key": {
+              "type": "string"
+            },
+            "place": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Place"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "pos": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "key",
+            "value"
+          ],
+          "type": "object"
+        },
+        "Place": {
+          "description": "Where to put something in an ordered list.",
+          "oneOf": [
+            {
+              "const": "first",
+              "description": "At the start.",
+              "type": "string"
+            },
+            {
+              "const": "last",
+              "description": "At the end.",
+              "type": "string"
+            },
+            {
+              "additionalProperties": false,
+              "description": "Right after the item with this id.",
+              "properties": {
+                "after": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "after"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "description": "Right before the item with this id.",
+              "properties": {
+                "before": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "before"
+              ],
+              "type": "object"
+            }
+          ]
+        }
+      },
       "properties": {
         "book": {
           "type": "string"
@@ -6830,6 +8510,18 @@ expression: json
             "string",
             "null"
           ]
+        },
+        "put_fields": {
+          "items": {
+            "$ref": "#/$defs/FieldIn"
+          },
+          "type": "array"
+        },
+        "remove_fields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
         },
         "summary": {
           "type": [
@@ -6864,7 +8556,222 @@ expression: json
       "title": "Named",
       "type": "object"
     },
-    "summary": "Rename a storyline (a taken name gets a suffix), recolour it or change its summary."
+    "summary": "Rename a storyline (a taken name gets a suffix), recolour it, change its summary or its fields."
+  },
+  {
+    "access": "read",
+    "concurrency": "shared",
+    "input": {
+      "description": "A book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book"
+      ],
+      "title": "BookIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "storyline_template.list",
+    "output": {
+      "$defs": {
+        "FieldInfo": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "key": {
+              "type": "string"
+            },
+            "pos": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "key",
+            "value",
+            "pos"
+          ],
+          "type": "object"
+        }
+      },
+      "items": {
+        "$ref": "#/$defs/FieldInfo"
+      },
+      "title": "Array_of_FieldInfo",
+      "type": "array"
+    },
+    "summary": "List the fields every new storyline starts with, in order."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "Place": {
+          "description": "Where to put something in an ordered list.",
+          "oneOf": [
+            {
+              "const": "first",
+              "description": "At the start.",
+              "type": "string"
+            },
+            {
+              "const": "last",
+              "description": "At the end.",
+              "type": "string"
+            },
+            {
+              "additionalProperties": false,
+              "description": "Right after the item with this id.",
+              "properties": {
+                "after": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "after"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "description": "Right before the item with this id.",
+              "properties": {
+                "before": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "before"
+              ],
+              "type": "object"
+            }
+          ]
+        }
+      },
+      "description": "A field to add or change in a template.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "category": {
+          "description": "The category, for a category's template.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "description": "The field to change; omitted, or an id not in the template: a new\nfield (with that id).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "key": {
+          "default": "",
+          "type": "string"
+        },
+        "place": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Place"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Where it goes (a new field goes last by default)."
+        },
+        "pos": {
+          "description": "An exact position key (undo uses it); wins over `place`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "value": {
+          "default": "",
+          "description": "A default or a hint, copied into new storylines or elements.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "book"
+      ],
+      "title": "TemplateFieldIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "storyline_template.put",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Add a field to the storyline template or change one (key, value, position). Existing storylines keep their fields."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "description": "One field of a template.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "category": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "TemplateFieldRef",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "storyline_template.remove",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Remove a field from the storyline template. Existing storylines keep theirs."
   },
   {
     "access": "write",

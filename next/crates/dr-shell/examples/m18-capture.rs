@@ -2,7 +2,8 @@
 //! offscreen like `m06-m07-capture` (GPUI's headless platform, real text
 //! and Metal, nothing on screen). The book is 《慢钟》 from dr-testkit (its
 //! comments and TODOs are synthetic); before the pictures an Agent rewrites
-//! a word and adds a few in chapter 1, so its inks show.
+//! a word and adds a few in chapter 1, so its inks show, and a synthetic
+//! text material gets a list of each kind.
 //!
 //! ```text
 //! cargo run -p dr-shell --features capture --example m18-capture -- <docs/rust-rewrite/modules>
@@ -134,6 +135,22 @@ impl Headless {
     }
 
     /// Lets every read finish and every animation land.
+    /// The pointer moves to `(x, y)` (logical pixels) and rests there.
+    fn pointer(&mut self, x: f32, y: f32) {
+        self.cx
+            .update_window(self.window, |_, window, cx| {
+                window.dispatch_event(
+                    gpui::PlatformInput::MouseMove(gpui::MouseMoveEvent {
+                        position: gpui::point(px(x), px(y)),
+                        pressed_button: None,
+                        modifiers: gpui::Modifiers::default(),
+                    }),
+                    cx,
+                );
+            })
+            .ok();
+    }
+
     fn still(&mut self) -> Result<()> {
         for _ in 0..40 {
             // Transitions run on the executor's clock.
@@ -309,6 +326,9 @@ fn run(out: PathBuf) -> Result<()> {
     let chars =
         h.cx.update(|cx| editor.read(cx).plain_text(cx).chars().count());
 
+    // A synthetic text material for the lists, and a TODO one item links to.
+    let (note, todo_id) = list_note(&lib, &mut h)?;
+    let mut listed = false;
     for appearance in [Appearance::Light, Appearance::Dark] {
         let a = appearance.slug();
         h.cx.update(|cx| theme::force_appearance(Some(appearance), cx));
@@ -381,6 +401,52 @@ fn run(out: PathBuf) -> Result<()> {
             ws.composer = None;
             cx.notify();
         });
+        h.still()?;
+
+        // The pointer rests on the first Review card: its source card.
+        h.pointer(1100.0, 200.0);
+        h.still()?;
+        h.save(&dir, &format!("source-{a}.png"))?;
+        h.pointer(640.0, 790.0);
+        h.still()?;
+
+        // The whole book (M05) with the same layers, at chapter 1's comment.
+        h.set(|ws, _, cx| ws.open(Target::Book, Open::KEEP, cx));
+        h.wait(|ws, _| ws.book_editor().is_some())?;
+        h.still()?;
+        let find = comment_id.clone();
+        h.set(move |ws, window, cx| {
+            let Some(book) = ws.book_editor().cloned() else {
+                return;
+            };
+            let prose = book.read(cx).editor().clone();
+            let at = prose
+                .read(cx)
+                .decoration_range(0, "comments", &find)
+                .map(|r| r.start.saturating_sub(40));
+            if let Some(at) = at {
+                prose.update(cx, |p, cx| p.select(0, at..at, window, cx));
+            }
+        });
+        h.still()?;
+        h.save(&dir, &format!("book-{a}.png"))?;
+
+        // A material note with a list of each kind.
+        h.set(|ws, _, cx| ws.open(note.clone(), Open::KEEP, cx));
+        let target = note.clone();
+        h.wait(move |ws, _| ws.editor_of(&target).is_some())?;
+        if !listed {
+            let editor =
+                h.cx.update(|cx| h.view.read(cx).editor_of(&note).cloned())
+                    .expect("the note's editor");
+            let todo = todo_id.clone();
+            h.set(move |_, window, cx| make_lists(&editor, &todo, window, cx));
+            listed = true;
+        }
+        h.still()?;
+        h.save(&dir, &format!("list-{a}.png"))?;
+        h.set(|ws, _, cx| ws.open(first.clone(), Open::KEEP, cx));
+        h.still()?;
     }
     println!(
         "chapter 1 ({chars} chars): opened to first decorated frame {first_paint_ms:.1} ms (comments placed); \
@@ -390,6 +456,69 @@ fn run(out: PathBuf) -> Result<()> {
         load_average()
     );
     Ok(())
+}
+
+/// Makes a text material whose paragraphs become lists (the note profile
+/// is the only one with lists), and a resolved TODO for a task to link to.
+fn list_note(lib: &dr_workspace::Workspace, h: &mut Headless) -> Result<(Target, String)> {
+    let book = h.cx.update(|cx| h.view.read(cx).book_id.clone());
+    let text = "修表要准备的\n镊子\n起子\n放大镜\n一字\n十字\n先后\n拆后盖\n上油\n今天\n买灯芯\n问钟楼的年代\n把十七张单子抄一遍";
+    let made = lib.call(
+        &dr_workspace::Actor::User,
+        "material.create",
+        json!({"book": book, "kind": "text", "title": "修表清单", "text": text}),
+    )?;
+    let id = made["output"]["id"].as_str().unwrap_or_default().to_owned();
+    let todo = lib.call(
+        &dr_workspace::Actor::User,
+        "comment.create",
+        json!({"book": book, "kind": "todo", "body": "问钟楼的年代"}),
+    )?;
+    let todo = todo["output"]["id"].as_str().unwrap_or_default().to_owned();
+    lib.call(
+        &dr_workspace::Actor::User,
+        "comment.update",
+        json!({"book": book, "id": todo, "status": "resolved"}),
+    )?;
+    Ok((Target::Material(id.parse()?), todo))
+}
+
+/// Bullets (two levels), an ordered list, and tasks (one ticked, one linked
+/// to a done TODO, one open).
+fn make_lists(
+    editor: &Entity<dr_editor::ChapterEditor>,
+    todo: &str,
+    window: &mut gpui::Window,
+    cx: &mut gpui::App,
+) {
+    use gpui_prose::schema::block;
+    let prose = editor.read(cx).editor().clone();
+    let todo = todo.to_owned();
+    prose.update(cx, |p, cx| {
+        p.edit_chapter(0, gpui_prose::HostStep::Own, window, cx, move |d| {
+            let mut set = |line: usize, key: &str, value: gpui::SharedString| {
+                d.set_block_attr(line, key, Some(value.as_ref().into()), "user");
+            };
+            for line in [1, 2, 3] {
+                set(line, block::LIST, "bullet".into());
+            }
+            for line in [4, 5] {
+                set(line, block::LIST, "bullet".into());
+            }
+            for line in [7, 8] {
+                set(line, block::LIST, "ordered".into());
+            }
+            for line in [10, 11, 12] {
+                set(line, block::LIST, "task".into());
+            }
+            set(11, block::TODO, todo.clone().into());
+            for line in [4, 5] {
+                d.set_block_attr(line, block::LIST_LEVEL, Some(1i64.into()), "user");
+            }
+            d.set_block_attr(10, block::CHECKED, Some(true.into()), "user");
+            None
+        });
+    });
 }
 
 fn any_view(cx: &gpui::App) -> Option<Entity<dr_view_review::ReviewView>> {

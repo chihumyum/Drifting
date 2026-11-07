@@ -168,6 +168,30 @@ fn open_all(ws: &Workspace, listed: &[Listed]) -> Result<Vec<ProseDoc>, WsError>
         .collect()
 }
 
+/// What opening a book needs from the workspace, read off the main thread
+/// ([`BookEditor::prepare`], the slow half: every chapter's session and
+/// document, loaded from SQLite when cold; the acts; the comment anchors).
+/// `Send`: prepare it on a background thread, then install it on the main
+/// thread with [`BookEditor::with_prepared`], which cannot fail.
+pub struct PreparedBook {
+    book: String,
+    listed: Vec<Listed>,
+    acts: Acts,
+    docs: Vec<ProseDoc>,
+}
+
+impl PreparedBook {
+    /// The book's id.
+    pub fn book(&self) -> &str {
+        &self.book
+    }
+
+    /// The chapters' prose documents, in reading order.
+    pub fn chapter_docs(&self) -> impl Iterator<Item = &str> {
+        self.listed.iter().map(|c| c.doc.as_str())
+    }
+}
+
 /// A whole book, being read and edited.
 pub struct BookEditor {
     ws: Workspace,
@@ -184,6 +208,8 @@ pub struct BookEditor {
     /// The pickers, automatic links and the selection bar.
     assist: Entity<crate::assist::Assist>,
     _assist_events: Subscription,
+    /// The paint layers of every chapter (crate::decor).
+    pub(crate) decor: crate::decor::Decor,
     _editor_events: Subscription,
     _ws_events: dr_workspace::Subscription,
 }
@@ -192,7 +218,8 @@ impl EventEmitter<BookEditorEvent> for BookEditor {}
 impl EventEmitter<crate::view::CommentRequested> for BookEditor {}
 
 impl BookEditor {
-    /// Opens every chapter of `book` for the author.
+    /// Opens every chapter of `book` for the author: [`BookEditor::prepare`]
+    /// and [`BookEditor::with_prepared`] in one go, on the calling thread.
     pub fn open(
         ws: Workspace,
         book: &str,
@@ -200,20 +227,58 @@ impl BookEditor {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Result<BookEditor, WsError> {
+        let prepared = Self::prepare(&ws, book)?;
+        Ok(Self::with_prepared(ws, prepared, settings, window, cx))
+    }
+
+    /// The slow half of opening `book`, for any thread: the chapters and
+    /// acts, every chapter's session and document (on all cores), the
+    /// comment anchors. Fails when the book or a chapter cannot be read.
+    pub fn prepare(ws: &Workspace, book: &str) -> Result<PreparedBook, WsError> {
+        let (listed, acts) = list(ws, book)?;
+        let mut docs = open_all(ws, &listed)?;
+        match anchors::book_comment_anchors(ws, book) {
+            Ok(mut by_doc) => {
+                for (doc, chapter) in docs.iter_mut().zip(&listed) {
+                    for (id, anchor) in by_doc.remove(&chapter.doc).unwrap_or_default() {
+                        doc.set_anchor(id, anchor);
+                    }
+                }
+            }
+            Err(e) => log::warn!("dr-editor: comment anchors of {book}: {e}"),
+        }
+        Ok(PreparedBook {
+            book: book.to_owned(),
+            listed,
+            acts,
+            docs,
+        })
+    }
+
+    /// The fast half, on the main thread: the editor on a prepared book.
+    /// Cannot fail, so it fits in `cx.new`.
+    pub fn with_prepared(
+        ws: Workspace,
+        prepared: PreparedBook,
+        settings: EditorSettings,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> BookEditor {
+        let book = prepared.book.clone();
+        let book = book.as_str();
         let base_style = ProseStyle::default();
         let targets = ws
             .catalog(book)
             .ok()
             .map(|c| Box::new(Catalog(c)) as Box<dyn LinkTargets>);
         let extension = Rc::new(DriftingExtension::new(targets));
-        let (chapters, editor, events) = Self::build(
-            &ws,
-            book,
+        let (chapters, editor, events) = Self::install(
+            prepared,
             &settings.style(&base_style),
             &extension,
             window,
             cx,
-        )?;
+        );
         let ws_events = Self::watch(&ws, window, cx);
         let index = chapters
             .iter()
@@ -244,6 +309,15 @@ impl BookEditor {
                 });
             },
         );
+        let decor = crate::decor::Decor::for_book(
+            &ws,
+            book,
+            chapters.iter().map(|c| c.doc.clone()).collect(),
+            &editor,
+            extension.clone(),
+            window,
+            cx,
+        );
         let mut this = BookEditor {
             ws,
             book: book.to_owned(),
@@ -257,6 +331,7 @@ impl BookEditor {
             pages: Default::default(),
             assist,
             _assist_events: assist_events,
+            decor,
             _editor_events: events,
             _ws_events: ws_events,
         };
@@ -264,7 +339,7 @@ impl BookEditor {
             .map(|c| (c, this.find_todos(c, cx)))
             .filter(|(_, t)| !t.is_empty())
             .collect();
-        Ok(this)
+        this
     }
 
     #[allow(clippy::type_complexity)]
@@ -276,18 +351,21 @@ impl BookEditor {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Result<(Vec<Listed>, Entity<ProseEditor>, Subscription), WsError> {
-        let (listed, acts) = list(ws, book)?;
-        let mut docs = open_all(ws, &listed)?;
-        match anchors::book_comment_anchors(ws, book) {
-            Ok(mut by_doc) => {
-                for (doc, chapter) in docs.iter_mut().zip(&listed) {
-                    for (id, anchor) in by_doc.remove(&chapter.doc).unwrap_or_default() {
-                        doc.set_anchor(id, anchor);
-                    }
-                }
-            }
-            Err(e) => log::warn!("dr-editor: comment anchors of {book}: {e}"),
-        }
+        let prepared = Self::prepare(ws, book)?;
+        Ok(Self::install(prepared, style, extension, window, cx))
+    }
+
+    #[allow(clippy::type_complexity)]
+    fn install(
+        prepared: PreparedBook,
+        style: &ProseStyle,
+        extension: &Rc<DriftingExtension>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> (Vec<Listed>, Entity<ProseEditor>, Subscription) {
+        let PreparedBook {
+            listed, acts, docs, ..
+        } = prepared;
         let mut book = Book::new(
             docs.into_iter()
                 .zip(&listed)
@@ -311,7 +389,7 @@ impl BookEditor {
         let events = cx.subscribe(&editor, |this, _, event: &EditorEvent, cx| {
             this.on_editor(event, cx)
         });
-        Ok((listed, editor, events))
+        (listed, editor, events)
     }
 
     /// The workspace's events, moved to the main thread.
@@ -433,6 +511,9 @@ impl BookEditor {
         );
         self.assist
             .update(cx, |a, cx| a.attach(editor, docs, window, cx));
+        let docs = self.chapters.iter().map(|c| c.doc.clone()).collect();
+        self.decor
+            .rebind_book(&self.ws, &self.book, docs, &self.editor, window, cx);
         if let Some(at) = at {
             self.restore(&at, cx);
         }

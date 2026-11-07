@@ -37,11 +37,52 @@ use dr_workspace::Workspace;
 use gpui_prose::text::{Line, ProseDoc};
 use loro::LoroValue;
 
+/// Which group of the @ picker a name is in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum NameGroup {
+    /// Element names and aliases (要素).
+    Element,
+    /// Chapter titles (章节).
+    Chapter,
+    /// Idea titles (构想).
+    Idea,
+    Other,
+}
+
+impl NameGroup {
+    /// The group's heading in the picker.
+    pub fn label(self) -> &'static str {
+        match self {
+            NameGroup::Element => "要素",
+            NameGroup::Chapter => "章节",
+            NameGroup::Idea => "构想",
+            NameGroup::Other => "其他",
+        }
+    }
+}
+
+/// Compares names as Chinese readers sort them: by pinyin (ICU's zh
+/// collation), Latin letters alongside.
+pub fn compare_names(a: &str, b: &str) -> std::cmp::Ordering {
+    use std::sync::OnceLock;
+    static COLLATOR: OnceLock<Option<icu_collator::CollatorBorrowed<'static>>> = OnceLock::new();
+    let collator = COLLATOR.get_or_init(|| {
+        let zh = icu_locale_core::locale!("zh");
+        icu_collator::Collator::try_new((&zh).into(), Default::default()).ok()
+    });
+    match collator {
+        Some(c) => c.compare(a, b).then_with(|| a.cmp(b)),
+        None => a.cmp(b),
+    }
+}
+
 /// Every name a link can point at, compiled.
 pub struct NameIndex {
     matcher: LinkMatcher<LinkTarget>,
     /// The names of each target id.
     names: HashMap<String, HashSet<String>>,
+    /// The group of each target id that is not an element.
+    groups: HashMap<String, NameGroup>,
 }
 
 impl NameIndex {
@@ -56,6 +97,26 @@ impl NameIndex {
         NameIndex {
             matcher: LinkMatcher::new(names),
             names: by_target,
+            groups: HashMap::new(),
+        }
+    }
+
+    /// Says which targets are chapters and which are ideas (both are nodes
+    /// to the matcher).
+    pub fn with_groups(mut self, groups: HashMap<String, NameGroup>) -> NameIndex {
+        self.groups = groups;
+        self
+    }
+
+    /// The picker's group of `target`.
+    pub fn group(&self, target: &LinkTarget) -> NameGroup {
+        match target.kind {
+            EntityKind::Element => NameGroup::Element,
+            _ => self
+                .groups
+                .get(&target.id)
+                .copied()
+                .unwrap_or(NameGroup::Other),
         }
     }
 
@@ -72,15 +133,23 @@ impl NameIndex {
             .iter()
             .map(|d| d.split_once(':').map_or(*d, |(_, id)| id).to_owned())
             .collect();
-        let names = handle
+        let (names, groups) = handle
             .read(move |d| {
                 let reader = BookReader::from_loro(book_id, d)?;
+                let view = reader.view();
                 let excluded: Vec<&str> = exclude.iter().map(String::as_str).collect();
-                Ok::<_, dr_doc::DocError>(book_link_names(&reader.view(), &excluded))
+                let mut groups = HashMap::new();
+                for n in view.chapters() {
+                    groups.insert(n.id.to_string(), NameGroup::Chapter);
+                }
+                for n in view.drifts() {
+                    groups.insert(n.id.to_string(), NameGroup::Idea);
+                }
+                Ok::<_, dr_doc::DocError>((book_link_names(&view, &excluded), groups))
             })
             .map_err(|e| e.to_string())?
             .map_err(|e| e.to_string())?;
-        Ok(NameIndex::new(names))
+        Ok(NameIndex::new(names).with_groups(groups))
     }
 
     pub fn is_empty(&self) -> bool {
@@ -94,23 +163,20 @@ impl NameIndex {
             .is_some_and(|names| names.contains(text.trim()))
     }
 
-    /// Names that contain `query` (case-insensitive), elements first, then by
-    /// name in code-point order (the 0.1 client used the locale's collation):
-    /// the @ picker's rows. Each row is `(name, target)`; an alias is a
+    /// Names that contain `query` (case-insensitive), grouped (elements,
+    /// then chapters, then ideas) and sorted by pinyin within a group: the
+    /// @ picker's rows. Each row is `(name, target, group)`; an alias is a
     /// row of its own.
-    pub fn search(&self, query: &str, limit: usize) -> Vec<(String, LinkTarget)> {
+    pub fn search(&self, query: &str, limit: usize) -> Vec<(String, LinkTarget, NameGroup)> {
         let q = query.to_lowercase();
-        let mut rows: Vec<(String, LinkTarget)> = self
+        let mut rows: Vec<(String, LinkTarget, NameGroup)> = self
             .matcher
             .names()
             .iter()
             .filter(|n| n.name.to_lowercase().contains(&q))
-            .map(|n| (n.name.clone(), n.target.clone()))
+            .map(|n| (n.name.clone(), n.target.clone(), self.group(&n.target)))
             .collect();
-        rows.sort_by(|a, b| {
-            let element = |t: &LinkTarget| t.kind != EntityKind::Element;
-            (element(&a.1), &a.0).cmp(&(element(&b.1), &b.0))
-        });
+        rows.sort_by(|a, b| a.2.cmp(&b.2).then_with(|| compare_names(&a.0, &b.0)));
         rows.truncate(limit);
         rows
     }
@@ -354,8 +420,8 @@ mod tests {
     fn the_picker_searches_names_and_aliases() {
         let ix = index();
         let rows: Vec<String> = ix.search("约", 30).into_iter().map(|r| r.0).collect();
-        // Code-point order (the 0.1 client sorted with the locale's collation).
-        assert_eq!(rows, ["约格", "老约"]);
+        // Pinyin order: lǎo before yuē.
+        assert_eq!(rows, ["老约", "约格"]);
         let rows: Vec<String> = ix.search("", 30).into_iter().map(|r| r.0).collect();
         assert_eq!(
             rows.last().map(String::as_str),
@@ -363,5 +429,42 @@ mod tests {
             "elements first"
         );
         assert!(ix.has_element_named("约格") && !ix.has_element_named("约"));
+    }
+
+    #[test]
+    fn the_picker_groups_elements_chapters_and_ideas() {
+        let node =
+            |name: &str, id: &str| LinkName::new(name, LinkTarget::new(EntityKind::Node, id));
+        let el =
+            |name: &str, id: &str| LinkName::new(name, LinkTarget::new(EntityKind::Element, id));
+        let ix = NameIndex::new(vec![
+            node("潮水", "i1"),
+            node("码头", "c1"),
+            el("周阿婆", "e1"),
+            node("灯塔", "c2"),
+            el("安娜", "e2"),
+        ])
+        .with_groups(HashMap::from([
+            ("c1".to_owned(), NameGroup::Chapter),
+            ("c2".to_owned(), NameGroup::Chapter),
+            ("i1".to_owned(), NameGroup::Idea),
+        ]));
+        let rows: Vec<(String, NameGroup)> = ix
+            .search("", 30)
+            .into_iter()
+            .map(|(n, _, g)| (n, g))
+            .collect();
+        // Elements, chapters, ideas; pinyin within each (ān before zhōu,
+        // dēng before mǎ).
+        assert_eq!(
+            rows,
+            [
+                ("安娜".to_owned(), NameGroup::Element),
+                ("周阿婆".to_owned(), NameGroup::Element),
+                ("灯塔".to_owned(), NameGroup::Chapter),
+                ("码头".to_owned(), NameGroup::Chapter),
+                ("潮水".to_owned(), NameGroup::Idea),
+            ]
+        );
     }
 }

@@ -1,0 +1,41 @@
+{
+  "import": {
+    "v1": {
+      "blocked": {
+        "title": "Alguns textos podem estar sem os últimos segundos de digitação",
+        "no_handoff": "Esta biblioteca ainda não foi aberta na última versão 0.1",
+        "unproven_one": "Não dá para confirmar que {{count}} texto é o mais recente; ele está abaixo",
+        "unproven_other": "Não dá para confirmar que {{count}} textos são os mais recentes; eles estão abaixo",
+        "stale_one": "{{count}} capítulo está mais antigo do que o que você escreveu",
+        "stale_other": "{{count}} capítulos estão mais antigos do que o que você escreveu",
+        "changed_after_handoff_one": "{{count}} texto mudou depois da verificação da passagem",
+        "changed_after_handoff_other": "{{count}} textos mudaram depois da verificação da passagem",
+        "sync": "A sincronização tem conflitos não resolvidos",
+        "get_last_release": "Baixe a última versão 0.1, abra esta biblioteca uma vez, feche e importe de novo"
+      },
+      "action": {
+        "download_last_release": "Baixar a última versão 0.1",
+        "import_anyway": "Importar mesmo assim"
+      },
+      "summary": {
+        "already_imported": "Já importado neste dispositivo; ignorado",
+        "already_in_library": "Já está na biblioteca; mantido como está",
+        "from_caches_one": "{{count}} texto veio do cache e pode estar sem os últimos segundos",
+        "from_caches_other": "{{count}} textos vieram do cache e podem estar sem os últimos segundos",
+        "account_libraries_left_one": "{{count}} biblioteca de conta na pasta espera pelas contas",
+        "account_libraries_left_other": "{{count}} bibliotecas de conta na pasta esperam pelas contas",
+        "carries_on": "Não terminou; importar esta biblioteca de novo continua de onde parou"
+      }
+    }
+  },
+  "settings": {
+    "editor": {
+      "justify": "Justificar"
+    }
+  },
+  "findPanel": {
+    "replacePlaceholder": "Substituir por…",
+    "replace": "Substituir",
+    "replaceAll": "Substituir tudo"
+  }
+}

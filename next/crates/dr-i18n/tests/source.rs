@@ -1,5 +1,7 @@
 //! The copies in `locales/` still match the 0.1 client's locales they were
 //! taken from (until stage 7 deletes those and the copies become the source).
+//! The new client's own strings (`own/`) are merged in by the same script
+//! and are not the 0.1 client's, so they are left out here.
 
 use std::path::PathBuf;
 
@@ -45,9 +47,17 @@ fn the_copies_match_the_0_1_locales() {
             };
             let copy = read(&crate_dir.join("locales"));
             let original = read(&source);
+            let own = if folder.is_empty() {
+                read(&crate_dir.join("own"))
+            } else {
+                Value::Null
+            };
             let mut entries = Vec::new();
             walk(&copy, String::new(), &mut entries);
             for (path, text) in entries {
+                if lookup(&own, &path).is_some() {
+                    continue;
+                }
                 let found = lookup(&original, &path).and_then(Value::as_str);
                 assert_eq!(
                     found,

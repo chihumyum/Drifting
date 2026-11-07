@@ -12,6 +12,13 @@ writes the matching subset of `src/renderer/locales/<lang>.json` to
 A key with plural forms (`key_one`, `key_other`, ...) is listed without the
 suffix; every form present is copied.
 
+The new client's own strings (sentences the 0.1 client never had) are
+written by hand in `crates/dr-i18n/own/<lang>.json`, same shape as the 0.1
+files, every key in all nine languages (plural forms where the language has
+them). They are merged into `locales/` as they are: no keys.txt entry
+needed. A key that is also in the 0.1 en.json is refused (the 0.1 string is
+the source while it exists).
+
 The 0.1 locales stay the source until stage 7 (docs/rust-rewrite/
 simplifications.md, section 7): when the old client is deleted, the copies
 here become the source and this script goes.
@@ -23,6 +30,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 CRATE = HERE.parent
+OWN = CRATE / "own"
 REPO = CRATE.parent.parent.parent
 SOURCE = REPO / "src" / "renderer" / "locales"
 LOCALES = ["zh-CN", "zh-TW", "en", "ja", "ko", "es", "de", "fr", "pt-BR"]
@@ -58,6 +66,13 @@ def select(flat, manifest, reference):
             for key in reference:
                 if key.startswith(prefix) and key in flat:
                     chosen[key] = flat[key]
+                # A language without plurals keeps the plain key where
+                # English has `_one`/`_other` (it is that language's
+                # `_other`, as i18next reads it).
+                for suffix in PLURAL_SUFFIXES:
+                    stem = key[: -len(suffix)]
+                    if key.startswith(prefix) and key.endswith(suffix) and stem in flat:
+                        chosen[stem] = flat[stem]
             continue
         hit = False
         if entry in flat:
@@ -87,6 +102,30 @@ def render(flat):
     return json.dumps(unflatten(dict(sorted(flat.items()))), ensure_ascii=False, indent=2) + "\n"
 
 
+def base(key):
+    for suffix in PLURAL_SUFFIXES:
+        if key.endswith(suffix):
+            return key[: -len(suffix)]
+    return key
+
+
+def read_own(en_source):
+    """The new client's own strings per language; checked for gaps and clashes."""
+    own = {}
+    for locale in LOCALES:
+        path = OWN / f"{locale}.json"
+        own[locale] = flatten(json.loads(path.read_text(encoding="utf-8"))) if path.exists() else {}
+    keys = {base(k) for flat in own.values() for k in flat}
+    for key in sorted(keys):
+        clash = [k for k in en_source if base(k) == key]
+        if clash:
+            raise SystemExit(f"own/: {key} is also a 0.1 string ({clash[0]}); use the 0.1 one")
+        for locale in LOCALES:
+            if not any(base(k) == key for k in own[locale]):
+                raise SystemExit(f"own/{locale}.json: {key} is missing")
+    return own
+
+
 def main():
     check = "--check" in sys.argv[1:]
     if not SOURCE.is_dir():
@@ -95,12 +134,16 @@ def main():
     manifest = read_manifest()
     en = flatten(json.loads((SOURCE / "en.json").read_text(encoding="utf-8")))
     select(en, manifest, en)  # reports unknown keys
+    own = read_own(en)
     stale = []
     for locale in LOCALES:
         for folder, out_dir in [(SOURCE, CRATE / "locales"), (SOURCE / "windows", CRATE / "locales" / "windows")]:
             source = folder / f"{locale}.json"
             flat = flatten(json.loads(source.read_text(encoding="utf-8"))) if source.exists() else {}
-            text = render(select(flat, manifest, en))
+            chosen = select(flat, manifest, en)
+            if folder == SOURCE:
+                chosen.update(own[locale])
+            text = render(chosen)
             target = out_dir / f"{locale}.json"
             if check:
                 if not target.exists() or target.read_text(encoding="utf-8") != text:
@@ -111,7 +154,8 @@ def main():
     if stale:
         raise SystemExit("sync-locales: stale copies, rerun the script: " + ", ".join(stale))
     if not check:
-        print(f"sync-locales: {len(manifest)} manifest entries, {len(LOCALES)} languages")
+        own_keys = len({base(k) for k in own["en"]})
+        print(f"sync-locales: {len(manifest)} manifest entries, {own_keys} own, {len(LOCALES)} languages")
 
 
 if __name__ == "__main__":

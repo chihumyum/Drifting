@@ -39,6 +39,10 @@ pub enum StoreError {
     /// Nothing is stored for this document.
     #[error("document {0} is not stored")]
     NotFound(String),
+    /// The document, or the book it would belong to, was purged on this
+    /// device; it is not created again ([`crate::purge`]).
+    #[error("document {0} was purged on this device")]
+    Purged(String),
     /// The document holder thread is gone (closed, or it panicked).
     #[error("document {0} is closed")]
     Closed(String),
@@ -53,6 +57,11 @@ pub enum StoreError {
     Invalid { what: &'static str, value: String },
     #[error("asset: {0}")]
     Asset(String),
+    /// A library backup that cannot be restored: `code` is one of
+    /// [`crate::backup::INVALID`], [`crate::backup::LEGACY`] or
+    /// [`crate::backup::NEWER`]. Nothing was changed.
+    #[error("{code}: {detail}")]
+    Backup { code: &'static str, detail: String },
     /// A previous migration attempt left a receipt that cannot be settled
     /// safely (unreadable, its snapshot changed, or the replaced library is
     /// incomplete). Opening stops; the app offers to restore the snapshot.

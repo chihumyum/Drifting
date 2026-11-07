@@ -1,13 +1,17 @@
 //! M18 in the workspace: opening the tab a Review card points at, and the
 //! comment composer beside the selected text (dr-view-review).
 
+use dr_editor::CommentRequested;
 use dr_view_review::{CommentComposer, ComposerEvent, NewComment};
+use dr_workspace::dto::Target as CommentTarget;
 use gpui::{
-    AnyElement, Context, Entity, Focusable, IntoElement, ParentElement, Subscription, Window,
-    anchored, deferred, px,
+    AnyElement, AppContext as _, Bounds, Context, Entity, EntityInputHandler as _, Focusable,
+    IntoElement, ParentElement, Subscription, Window, anchored, deferred, point, px,
 };
+use gpui_prose::ProseEditor;
 
 use super::Workspace;
+use super::editors::PageView;
 use crate::nav::{Open, Target};
 
 /// The composer shown, and its subscription.
@@ -15,6 +19,13 @@ pub struct Composer {
     view: Entity<CommentComposer>,
     at: gpui::Point<gpui::Pixels>,
     _done: Subscription,
+}
+
+impl Composer {
+    /// M18's composer card.
+    pub fn view(&self) -> &Entity<CommentComposer> {
+        &self.view
+    }
 }
 
 impl Workspace {
@@ -33,36 +44,116 @@ impl Workspace {
     }
 
     /// ⌘⌥M: the composer comes up beside the selection of the editor that
-    /// has focus.
+    /// has focus (one chapter's or the whole book's).
     pub(super) fn on_new_comment(
         &mut self,
         _: &NewComment,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        let focused = self
+            .editors
+            .values()
+            .filter_map(|p| p.view.clone())
+            .find(|v| {
+                v.prose(cx)
+                    .read(cx)
+                    .focus_handle(cx)
+                    .contains_focused(window, cx)
+            });
+        if let Some(view) = focused {
+            self.open_composer(&view, window, cx);
+        }
+    }
+
+    fn open_composer(&mut self, view: &PageView, window: &mut Window, cx: &mut Context<Self>) {
         let Some(lib) = self.library.clone() else {
             return;
         };
-        let editor = self
-            .editors
-            .values()
-            // The whole book's editor takes no comments yet (one chapter's
-            // editor does).
-            .filter_map(|p| match &p.view {
-                Some(super::editors::PageView::Doc(e)) => Some(e.clone()),
-                _ => None,
-            })
-            .find(|e| {
-                let prose = e.read(cx).editor().clone();
-                prose.read(cx).focus_handle(cx).contains_focused(window, cx)
-            });
-        let Some(editor) = editor else {
+        let prose = view.prose(cx);
+        // The document the selection is in.
+        let doc = match view {
+            PageView::Doc(e) => Some(e.read(cx).doc_id().to_owned()),
+            PageView::Book(b) => b.read(cx).current_doc(cx).map(str::to_owned),
+        };
+        let Some(doc) = doc else {
             return;
         };
         let locale = crate::Strings::get(cx).locale();
-        let Some(view) = CommentComposer::for_selection(&editor, lib, locale, window, cx) else {
+        let book = self.book_id.clone();
+        let Some(composer) =
+            CommentComposer::for_prose(&prose, lib, &book, &doc, locale, window, cx)
+        else {
             return;
         };
+        self.show_composer(composer, prose, window, cx);
+    }
+
+    /// The selection bar's 添加批注 (F4's `CommentRequested`): the composer on
+    /// that range of `req.doc`, under its last row. `chapter` is the
+    /// document's chapter in `prose` (0 on one document's page).
+    pub(super) fn on_comment_requested(
+        &mut self,
+        req: &CommentRequested,
+        prose: Entity<ProseEditor>,
+        chapter: usize,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(lib) = self.library.clone() else {
+            return;
+        };
+        let Some((kind, id)) = req.doc.split_once(':') else {
+            return;
+        };
+        let target = CommentTarget {
+            kind: kind.to_owned(),
+            id: id.to_owned(),
+        };
+        let (start16, end16) = {
+            let p = prose.read(cx);
+            let Some(c) = p.book().chapters.get(chapter) else {
+                return;
+            };
+            (
+                c.doc.offset_to_utf16(req.range.start),
+                c.doc.offset_to_utf16(req.range.end),
+            )
+        };
+        // Under the range's last row, lined up with where it starts (as the
+        // ⌘⌥M composer).
+        let (first, last) = prose.update(cx, |e, cx| {
+            (
+                e.bounds_for_range(start16..start16 + 1, Bounds::default(), window, cx),
+                e.bounds_for_range(
+                    end16.saturating_sub(1)..end16,
+                    Bounds::default(),
+                    window,
+                    cx,
+                ),
+            )
+        });
+        let at = match (first, last) {
+            (Some(f), Some(l)) => point(f.left().min(l.left()), l.bottom() + px(8.0)),
+            (_, Some(l)) => point(l.left(), l.bottom() + px(8.0)),
+            _ => window.mouse_position(),
+        };
+        let locale = crate::Strings::get(cx).locale();
+        let book = self.book_id.clone();
+        let range = (req.range.start, req.range.end);
+        let view =
+            cx.new(|cx| CommentComposer::new(lib, book, target, range, at, locale, window, cx));
+        self.show_composer(view, prose, window, cx);
+    }
+
+    /// Shows `view` beside the selection; done, the page gets the keyboard.
+    fn show_composer(
+        &mut self,
+        view: Entity<CommentComposer>,
+        prose: Entity<ProseEditor>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let done = cx.subscribe_in(
             &view,
             window,
@@ -70,7 +161,6 @@ impl Workspace {
                 if *e == ComposerEvent::Done {
                     ws.composer = None;
                     // Back to writing.
-                    let prose = editor.read(cx).editor().clone();
                     let focus = prose.read(cx).focus_handle(cx);
                     window.focus(&focus, cx);
                     cx.notify();

@@ -3,7 +3,6 @@
 //! had about 220; simplifications.md, section 3). A key that does not exist
 //! already fails to compile; this checks the other direction.
 
-use std::collections::HashMap;
 use std::path::Path;
 
 fn sources(dir: &Path, out: &mut String) {
@@ -17,9 +16,10 @@ fn sources(dir: &Path, out: &mut String) {
     }
 }
 
-/// `use keys::a::b as x;` → x stands for the module `b`.
-fn aliases(source: &str) -> HashMap<String, String> {
-    let mut map = HashMap::new();
+/// `use keys::a::b as x;` → x stands for the module `b`. Every one is
+/// kept: two files may use the same alias for different modules.
+fn aliases(source: &str) -> Vec<(String, String)> {
+    let mut map = Vec::new();
     for line in source.lines() {
         let line = line.trim();
         let Some(rest) = line
@@ -30,7 +30,7 @@ fn aliases(source: &str) -> HashMap<String, String> {
         };
         if let Some((path, alias)) = rest.trim_end_matches(';').split_once(" as ") {
             let module = path.rsplit("::").next().unwrap_or(path);
-            map.insert(alias.trim().to_owned(), module.to_owned());
+            map.push((alias.trim().to_owned(), module.to_owned()));
         }
     }
     map

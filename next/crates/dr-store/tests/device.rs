@@ -163,3 +163,39 @@ fn moving_the_app_data_and_the_library_to_another_machine_is_noticed() {
     let lib = open_as("MACHINE-B");
     assert_eq!(lib.epoch_change(), None, "settled on the new machine");
 }
+
+/// M10: the device takes over the 0.1 installation id of the library it
+/// imports. Its writing-day key is the 0.1 one at once (the library's own
+/// options read it), and the library, reopened, sees the same device: no
+/// new epoch.
+#[test]
+fn a_taken_over_0_1_identity_is_the_same_device_on_the_next_open() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (root, dev) = (tmp.path().join("lib"), tmp.path().join("device"));
+    let lib = open_on(&root, &dev);
+    edit(&lib, "x");
+    let epoch = lib.epoch();
+    let old = format!("install-{}", "1a".repeat(32));
+    assert!(lib.adopt_installation_id(&old).unwrap());
+    let device = lib.options().device.clone().unwrap();
+    assert_eq!(
+        device.writing_device_key(),
+        dr_store::identity::writing_device_key(&old)
+    );
+    assert!(!lib.adopt_installation_id(&old).unwrap(), "already");
+    lib.close().unwrap();
+
+    let lib = open_on(&root, &dev);
+    assert_eq!(lib.epoch_change(), None);
+    assert_eq!(lib.epoch(), epoch);
+    assert_eq!(
+        lib.options().device.as_ref().unwrap().installation_id(),
+        old
+    );
+    lib.close().unwrap();
+
+    // Without a device there is nothing to take over.
+    let lib = Library::open(&root, options()).unwrap();
+    assert!(!lib.adopt_installation_id(&old).unwrap());
+    lib.close().unwrap();
+}

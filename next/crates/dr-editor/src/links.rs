@@ -61,6 +61,9 @@ pub struct DriftingExtension {
     /// The paint layers draw the links' dry underline (crate::decor), so
     /// the run gets none of its own.
     dry_underline: std::cell::Cell<bool>,
+    /// Whether each TODO of the book is done, for task items linked to one
+    /// (the paint layers keep it, crate::decor).
+    todos: RefCell<std::collections::HashMap<String, bool>>,
 }
 
 impl DriftingExtension {
@@ -71,6 +74,7 @@ impl DriftingExtension {
             alive: RefCell::default(),
             markdown: true,
             dry_underline: std::cell::Cell::new(false),
+            todos: RefCell::default(),
         }
     }
 
@@ -88,6 +92,14 @@ impl DriftingExtension {
     /// Whether the paint layers draw the links' underline.
     pub fn set_dry_underline(&self, on: bool) {
         self.dry_underline.set(on);
+    }
+
+    /// The book's TODOs and whether each is done; whether anything changed.
+    pub fn set_todos(&self, todos: std::collections::HashMap<String, bool>) -> bool {
+        let mut held = self.todos.borrow_mut();
+        let changed = *held != todos;
+        *held = todos;
+        changed
     }
 
     /// Whether a link's target still exists (cached until [`Self::invalidate`]).
@@ -130,6 +142,10 @@ impl ProseExtension for DriftingExtension {
         if linked.is_some() && self.dry_underline.get() {
             run.underline = None;
         }
+    }
+
+    fn task_done(&self, todo: &str) -> Option<bool> {
+        self.todos.borrow().get(todo).copied()
     }
 
     fn input_rule(&self, typed: &Typed<'_>) -> Option<InputRule> {

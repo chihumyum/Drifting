@@ -1,24 +1,17 @@
 //! What the bookshelf shows, read through F3 (`dr-workspace`) off the main
-//! thread: every book with its counts, words, word target and last edit,
-//! and the books in Recently Deleted.
+//! thread in one query (`book.shelf`): every book with its counts, words,
+//! word target and last change, and the books in Recently Deleted with the
+//! days they have left.
 //!
-//! - Counts come from F3's queries (`book.get`, `storyline.list`,
-//!   `chapter.list`, `fact.list`).
-//! - Words are the live chapters' words in the derived index (dr-store's
-//!   `index_state`, kept by dr-index), as the 0.1 shelf counted them: only
-//!   chapters, not ideas, elements or notes.
-//! - The last edit is the newest stored change of any of the book's
-//!   documents (dr-store's `loro_head`); the book document holds no
-//!   `updated_at` (simplifications.md, 第一节第 13 条).
+//! - Words are the live chapters' words in the derived index, as the 0.1
+//!   shelf counted them: only chapters, not ideas, elements or notes.
+//! - The last change is the newest stored change of any of the book's
+//!   documents; the book document holds no `updated_at`
+//!   (simplifications.md, 第一节第 13 条).
 
 use dr_workspace::{
     Actor, Workspace as Library, WsError,
-    commands::{
-        BookIn, ListIn,
-        book::{BookGet, BookList, FactList, ListBooksIn},
-        chapter::ChapterList,
-        storyline::StorylineList,
-    },
+    commands::book::{BookShelf, ListBooksIn},
 };
 
 /// One book on the shelf.
@@ -45,13 +38,16 @@ pub struct ShelfBook {
 pub struct TrashedBook {
     pub id: String,
     pub name: String,
+    /// Whole days until it goes for good, rounded up; 0: due now.
+    pub days_left: Option<i64>,
 }
 
 /// The whole shelf.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct ShelfData {
-    /// Most recently edited first.
+    /// Most recently changed first.
     pub books: Vec<ShelfBook>,
+    /// Most recently deleted first.
     pub trashed: Vec<TrashedBook>,
 }
 
@@ -64,103 +60,36 @@ impl ShelfData {
     /// Reads the shelf. Call it off the main thread: the first read of a
     /// book opens its document.
     pub fn load(lib: &Library) -> Result<ShelfData, WsError> {
-        let me = &Actor::User;
         let mut data = ShelfData::default();
-        for info in lib
-            .run::<BookList>(me, ListBooksIn { trashed: true })?
+        // F3 sorts: live books by their last change, then the trashed ones,
+        // most recently deleted first.
+        for book in lib
+            .run::<BookShelf>(&Actor::User, ListBooksIn { trashed: true })?
             .output
         {
-            if info.trashed {
+            if book.info.trashed {
                 data.trashed.push(TrashedBook {
-                    id: info.id,
-                    name: info.name,
+                    id: book.info.id,
+                    name: book.info.name,
+                    days_left: book.days_left,
                 });
                 continue;
             }
-            match read_book(lib, &info.id) {
-                Ok(book) => data.books.push(book),
-                // One unreadable book leaves the rest of the shelf.
-                Err(error) => log::warn!("book {} not on the shelf: {error}", info.id),
-            }
+            data.books.push(ShelfBook {
+                id: book.info.id,
+                name: book.info.name,
+                summary: book.info.summary,
+                subtitle: book.subtitle,
+                chapters: book.chapters,
+                storylines: book.storylines,
+                elements: book.elements,
+                words: book.words,
+                word_target: book.info.word_target,
+                edited_ms: book.updated_at.map(|s| s * 1000),
+            });
         }
-        data.books.sort_by(|a, b| {
-            b.edited_ms
-                .cmp(&a.edited_ms)
-                .then_with(|| a.name.cmp(&b.name))
-                .then_with(|| a.id.cmp(&b.id))
-        });
-        data.trashed.sort_by(|a, b| a.name.cmp(&b.name));
         Ok(data)
     }
-}
-
-fn read_book(lib: &Library, id: &str) -> Result<ShelfBook, WsError> {
-    let me = &Actor::User;
-    let list = || ListIn {
-        book: id.to_owned(),
-        trashed: false,
-    };
-    let detail = lib
-        .run::<BookGet>(
-            me,
-            BookIn {
-                book: id.to_owned(),
-            },
-        )?
-        .output;
-    let chapters = lib.run::<ChapterList>(me, list())?.output;
-    let storylines = lib.run::<StorylineList>(me, list())?.output;
-    let facts = lib
-        .run::<FactList>(
-            me,
-            BookIn {
-                book: id.to_owned(),
-            },
-        )?
-        .output;
-    let chapter_docs: Vec<String> = chapters.iter().map(|c| format!("node:{}", c.id)).collect();
-    Ok(ShelfBook {
-        id: id.to_owned(),
-        name: detail.info.name,
-        summary: detail.info.summary,
-        subtitle: facts
-            .iter()
-            .find(|f| f.key.trim() == "副标题")
-            .map(|f| f.value.trim().to_owned())
-            .filter(|v| !v.is_empty()),
-        chapters: detail.chapters,
-        storylines: storylines.len() as u32,
-        elements: detail.elements,
-        words: words_of(lib, &chapter_docs),
-        word_target: detail.info.word_target,
-        edited_ms: edited_ms(lib, id),
-    })
-}
-
-/// The words of `docs` in the derived index (a document not indexed yet
-/// counts 0 until dr-index reaches it).
-pub fn words_of(lib: &Library, docs: &[String]) -> u64 {
-    let store = lib.library();
-    docs.iter()
-        .filter_map(|d| store.doc_stats(d).ok().flatten())
-        .map(|s| s.words)
-        .sum()
-}
-
-/// When `doc` last changed (its newest stored update), ms since the epoch.
-pub fn doc_edited_ms(lib: &Library, doc: &str) -> Option<i64> {
-    lib.library().head(doc).ok().flatten().map(|h| h.ts)
-}
-
-/// When any of `book`'s documents last changed, ms since the epoch.
-pub fn edited_ms(lib: &Library, book: &str) -> Option<i64> {
-    let store = lib.library();
-    let mut docs: Vec<String> = store
-        .docs(Some(book), None)
-        .map(|d| d.into_iter().map(|d| d.doc_id).collect())
-        .unwrap_or_default();
-    docs.push(format!("book:{book}"));
-    docs.iter().filter_map(|d| doc_edited_ms(lib, d)).max()
 }
 
 /// How a book is doing by its last edit (the 0.1 shelf's `statusFor`):

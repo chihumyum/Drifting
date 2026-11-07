@@ -1,4 +1,9 @@
 {
+  "agentPanel": {
+    "pending": {
+      "cancelling": "正在停止…"
+    }
+  },
   "allChapters": {
     "actOrdinal": "第{{n}}幕"
   },
@@ -7,10 +12,51 @@
     "storyGraph": "故事图谱",
     "todoLibrary": "审阅与素材"
   },
+  "categoryEditor": {
+    "actions": {
+      "openElement": "打开要素"
+    },
+    "empty": {
+      "noFilteredElements": "此筛选下暂无要素",
+      "noSummary": "尚未填写概述"
+    },
+    "filters": {
+      "unused": "未填写",
+      "used": "已填写"
+    },
+    "folio": "类目",
+    "labels": {
+      "elementCount": "要素数",
+      "summary": "概述"
+    },
+    "meta": {
+      "elements": "{{count}} 要素",
+      "items": "{{count}} 个"
+    },
+    "sections": {
+      "elements": "要素清单",
+      "scratch": "札记"
+    },
+    "untitled": "未命名类目"
+  },
+  "chapterEditor": {
+    "synopsisPlaceholder": "梗概…",
+    "untitledChapter": "无标题章节"
+  },
+  "chapterEnd": {
+    "defaultTitle": "新章节",
+    "insertAfter": "新建下一章",
+    "markDraft": "改回草稿",
+    "markFinished": "标为完成",
+    "trigger": "章末操作",
+    "triggerFinished": "章末操作（已完成）"
+  },
   "commentRail": {
     "actions": {
       "reopen": "未解决",
-      "resolve": "解决"
+      "resolve": "解决",
+      "toNote": "转批注",
+      "toTodo": "转 TODO"
     },
     "card": {
       "emptyComment": "空批注"
@@ -21,6 +67,7 @@
     "close": "关闭",
     "counting": "统计中…",
     "creating": "创建中…",
+    "delete": "删除",
     "edit": "编辑",
     "local": "本地",
     "processing": "处理中…",
@@ -78,6 +125,27 @@
       "chapter": "写作状态"
     }
   },
+  "elementEditor": {
+    "alerts": {
+      "aliasConflict": "无法添加别名：“{{name}}” 已被要素「{{conflicting}}」使用。",
+      "renameConflict": "无法重命名：“{{name}}” 已被要素「{{conflicting}}」使用（名字或别名冲突）。"
+    },
+    "alias": {
+      "add": "别名",
+      "addFirst": "添加别名",
+      "remove": "移除别名"
+    },
+    "empty": {
+      "noFacts": "尚无字段。新建要素时，所属类目的「字段模版」会自动填入"
+    },
+    "folio": "要素",
+    "sections": {
+      "bioTitle": "记 · 传",
+      "facts": "字段"
+    },
+    "summaryPlaceholder": "一句话概述…",
+    "untitled": "未命名要素"
+  },
   "feedback": {
     "attachDiagnostics": "附上脱敏诊断摘要",
     "cancel": "取消",
@@ -106,7 +174,10 @@
     "closeTitle": "关闭 (Esc)",
     "currentPlaceholder": "在当前编辑器中查找…",
     "nextTitle": "下一个 (Enter)",
-    "previousTitle": "上一个 (Shift+Enter)"
+    "previousTitle": "上一个 (Shift+Enter)",
+    "replace": "替换",
+    "replaceAll": "全部替换",
+    "replacePlaceholder": "替换为…"
   },
   "globalSearch": {
     "closeTitle": "关闭 (Esc)",
@@ -118,9 +189,39 @@
     "noResults": "没有找到匹配项",
     "stats": "{{groups}} 个 · {{occurrences}} 处"
   },
+  "guide": {
+    "hints": {
+      "search": "全局搜索",
+      "timeline": "时间线"
+    }
+  },
   "immersiveWriting": {
     "enter": "沉浸写作",
     "leave": "退出沉浸写作"
+  },
+  "import": {
+    "v1": {
+      "action": {
+        "download_last_release": "下载旧版最后一版",
+        "import_anyway": "仍然导入"
+      },
+      "blocked": {
+        "changed_after_handoff": "有 {{count}} 篇在交接核对后又改过",
+        "get_last_release": "下载旧版的最后一版，打开这个资料库一次再退出，然后重新导入",
+        "no_handoff": "这个资料库还没在旧版的最后一版里打开过",
+        "stale": "有 {{count}} 章比你写到的旧",
+        "sync": "同步还有没解决的冲突",
+        "title": "有几篇正文可能少了最后几秒打的字",
+        "unproven": "有 {{count}} 篇正文无法确认是最新的，列在下面"
+      },
+      "summary": {
+        "account_libraries_left": "文件夹里还有 {{count}} 个账号资料库没导入，等账号功能做好",
+        "already_imported": "这台设备以前导入过，这次没再导入",
+        "already_in_library": "新资料库里已经有这本书，没有动",
+        "carries_on": "没导完，再导一次这个库会接着导完",
+        "from_caches": "有 {{count}} 篇照缓存导入，可能少了最后几秒的字"
+      }
+    }
   },
   "importDialog": {
     "chooseFolder": "选择文件夹",
@@ -131,7 +232,16 @@
       "done": "完成"
     }
   },
+  "kvEditor": {
+    "addField": "新增字段",
+    "keyPlaceholder": "字段",
+    "removeRow": "移除这一行",
+    "valuePlaceholder": "内容"
+  },
   "leftSidebar": {
+    "actions": {
+      "sort": "排序"
+    },
     "empty": {
       "noChapters": "还没有章节。",
       "noDrifts": "还没有构想。",
@@ -144,6 +254,25 @@
       "chapters": "{{count}} 章",
       "drifts": "{{count}} 条构想",
       "elements": "{{categories}} 类 · {{elements}} 要素"
+    },
+    "sort": {
+      "alphabet": "按字母顺序",
+      "bookOrder": "按阅读顺序",
+      "cellMetaGroup": "单元格右侧",
+      "chapters": "排序章节",
+      "createdAt": "按创建时间",
+      "duplicatesAll": "在每个所属分组显示",
+      "duplicatesGroup": "多线章节",
+      "duplicatesPrimary": "仅在主线分组显示",
+      "narrativeOrder": "按叙事顺序",
+      "outerStorylinesGroup": "外层故事线",
+      "showBoth": "显示字数和日期",
+      "showDate": "显示日期",
+      "showNone": "都不显示",
+      "showWordCount": "显示字数",
+      "storylineChapters": "排序故事线内章节",
+      "storylineOrder": "按故事线顺序",
+      "updatedAt": "按更新时间"
     },
     "tabs": {
       "chapters": "章节",
@@ -161,8 +290,78 @@
       "storylineTitle": "按 storyline 分组 · 点此切回全书总览"
     }
   },
+  "manuscriptExport": {
+    "actTitles": "卷标题",
+    "author": "作者",
+    "bookInfo": "书籍信息",
+    "bookTitle": "书名",
+    "changeCover": "更换",
+    "chapterCount": "{{count}} 章",
+    "chapterTitles": "章节标题",
+    "chooseCover": "选择图片",
+    "contents": "内容",
+    "cover": "封面",
+    "coverFailed": "未能读取这张图片。",
+    "export": "导出 {{format}}",
+    "exporting": "正在导出…",
+    "failed": "导出未完成，请重试。",
+    "format": "格式",
+    "loadFailed": "未能读取章节，请重试。",
+    "loading": "正在读取章节…",
+    "menu": "导出成稿",
+    "removeCover": "移除",
+    "retry": "重试",
+    "saved": "已导出",
+    "scope": "范围",
+    "selectAll": "全选",
+    "selectNone": "全不选",
+    "selectedChapters": "选中章节",
+    "title": "导出成稿",
+    "untitledAct": "未命名卷",
+    "untitledChapter": "无标题章节",
+    "wholeBook": "全书"
+  },
+  "markdownShare": {
+    "characters": "{{count}} 字符",
+    "copied": "已复制全部 Markdown",
+    "copy": "复制全部",
+    "currentBody": "分享当前文档的完整正文",
+    "failed": "操作未完成，请重试，或选中文字后复制。",
+    "loadFailed": "未能完整读取正文，请重试。",
+    "loading": "正在准备完整 Markdown…",
+    "menu": "分享",
+    "proseOnly": "包含标题、正文及章节概要，不包含批注和剧情规划。",
+    "readOnly": "只读",
+    "retry": "重试",
+    "save": "保存 .md",
+    "saved": "已保存 Markdown",
+    "saving": "正在保存…",
+    "title": "分享 Markdown",
+    "wholeBook": "按书稿顺序分享全部章节"
+  },
+  "memoMaterial": {
+    "kind": {
+      "image": "图片",
+      "pdf": "PDF",
+      "text": "笔记"
+    }
+  },
+  "mobileWorkspace": {
+    "projectActions": {
+      "deleteFailed": "删除未完成，请重试。"
+    }
+  },
   "navigation": {
     "back": "返回"
+  },
+  "nodeEditor": {
+    "folio": {
+      "chapter": "章节",
+      "chapterNumber": "第 {{n}} 章"
+    },
+    "meta": {
+      "words": "{{count}} 字"
+    }
   },
   "notifications": {
     "appUpdate": {
@@ -236,6 +435,9 @@
     "bookTransfer": {
       "importFailedTitle": "无法导入"
     },
+    "delete": {
+      "deleting": "删除中…"
+    },
     "desk": {
       "chaptersUnit": "章",
       "elementsUnit": "个要素",
@@ -255,7 +457,9 @@
       "storylinesUnit": "条故事线",
       "trashEntry": "最近删除",
       "trashList": {
+        "confirmTitle": "永久删除《{{name}}》？",
         "empty": "最近没有删除的作品。",
+        "subLocal": "作品在这里保留 30 天，到期后自动永久删除。",
         "title": "最近删除"
       },
       "trashTitle": "把《{{name}}》移到最近删除？",
@@ -288,17 +492,34 @@
     "trash": {
       "body": "这本书（{{words}} 字 · {{nodes}} 章 · {{elements}} 个要素）会从书架移走。30 天内可以在「最近删除」里恢复，之后永久删除。",
       "confirm": "移到最近删除",
+      "deleteNow": "立即删除",
+      "expiresIn_one": "{{count}} 天后永久删除",
+      "expiresIn_other": "{{count}} 天后永久删除",
+      "expiresSoon": "即将永久删除",
       "failed": "移动未完成，请重试。",
       "localNote": "内容和可读 Markdown 副本都保留到永久删除时。",
       "moving": "正在移动…",
+      "permanentBody": "立即永久删除，不再等 30 天。此操作无法撤销。",
       "restore": "恢复",
       "restoreFailed": "恢复未完成，请重试。",
       "restoring": "正在恢复…"
     }
   },
   "referencesPanel": {
+    "empty": {
+      "incoming": "尚未被任何内容引用",
+      "outgoing": "正文中尚未引用其他实体"
+    },
     "kind": {
       "patch": "补丁"
+    },
+    "meta": {
+      "blocksSpans": "{{blocks}} 处 · {{spans}} 次",
+      "spans": "{{count}} 次"
+    },
+    "sections": {
+      "incoming": "被引用",
+      "outgoing": "引用其他"
     }
   },
   "relationTypes": {
@@ -319,7 +540,9 @@
     "resolved": "已解决（{{count}}）",
     "scopes": {
       "current": "当前"
-    }
+    },
+    "sourceFloating": "项目级 · 未关联对象",
+    "sourceTextUnavailable": "没有保存原文摘录"
   },
   "rightSidebar": {
     "kickers": {
@@ -337,17 +560,82 @@
       }
     },
     "stats": {
+      "actMeta": "{{chapters}}章 · {{wordsK}}k · {{pct}}%",
+      "actRhythm": "分幕节奏",
+      "allElementsAppeared": "所有要素都已在正文出场。",
+      "appeared": "已出场",
+      "averageAppearance": "平均出场",
       "averagePerChapter": "平均每章",
+      "avgChaptersPerElement": "{{count}} 章 / 要素",
       "bookPosition": "全书位置",
+      "category": "类目",
+      "categoryCoordinates": "类目坐标",
+      "categoryNoElements": "类目下还没有要素。",
+      "chapter": "章节",
+      "chapterCoordinates": "章节坐标",
       "chapterCount": "章节数",
+      "chapterLengthRhythm": "章节长度节奏",
       "chapterOrdinal": "第 {{count}} 章",
       "chaptersValue": "{{count}} 章",
+      "completion": "完成度",
+      "dialogueRatio": "对白比",
+      "dimensions": "尺寸",
+      "discardedParen": "（弃用 {{count}}）",
+      "driftCoordinates": "构想坐标",
+      "driftFreeFragment": "构想 · 自由片段",
+      "elementCoordinates": "要素坐标",
+      "elementCount": "要素数",
+      "elementsValue": "{{count}} 个要素",
+      "embeddedMaterials": "嵌入的素材",
+      "fileSize": "大小",
+      "fileType": "格式",
+      "floatingStoryline": "漂浮 / 未归线",
+      "health": "健康度",
+      "lastModified": "最近修改",
+      "longestWithWords": "最长 · {{title}}（{{words}}字）",
+      "materialCoordinates": "素材坐标",
+      "materialFile": "文件",
+      "materialRelations": "关联",
+      "moreLowAppearanceElements": "还有 {{count}} 个要素出场较少",
+      "moreUnappearedElements": "还有 {{count}} 个未出场",
+      "name": "名称",
+      "noActiveProgress": "章节都已弃用或暂无进度。",
+      "noChapters": "全书还没有章节。开始写第一章后，这里会显示全书节奏。",
+      "noMentionedElements": "正文尚未 @ 提及任何要素。",
+      "noteShape": "笔记概况",
+      "noteTasks": "待办",
+      "noteTasksValue": "{{done}} / {{total}} 已完成",
+      "noteWords": "字数",
+      "openComments": "未解决的批注与 TODO",
+      "paragraphSentence": "段落 / 句",
+      "paragraphSentenceValue": "{{paragraphs}} 段 · {{sentences}} 句",
       "recent": "最近",
+      "shortestWithWords": "最短 · {{title}}（{{words}}字）",
       "snapshotButton": "历史快照…",
+      "statusCount": "{{status}} {{count}} 章",
+      "storyline": "故事线",
+      "storylineCoordinates": "故事线坐标",
+      "storylineCoreElements": "本线核心要素",
+      "storylineDistribution": "故事线分布",
+      "storylineNoChapters": "这条线还没有章节。",
+      "storylineNoMentionedElements": "本线章节正文尚未 @ 提及任何要素。",
+      "thisChapterElements": "本章要素",
+      "thisFragmentElements": "本篇要素",
+      "titleWithWords": "{{title}}（{{words}}字）",
+      "type": "类型",
+      "unappearedElements": "未出场要素",
+      "updated": "更新",
+      "wordRhythm": "字数 · 节奏",
       "wordsPerChapterValue": "{{words}} 字 / 章",
       "wordsValue": "{{count}} 字",
       "writingProgress": "写作进度",
       "writtenTarget": "已写 / 目标"
+    },
+    "status": {
+      "discarded": "弃用",
+      "done": "已完成",
+      "draft": "草稿",
+      "todo": "待写"
     },
     "tabs": {
       "companion": "帮手",
@@ -368,6 +656,7 @@
       "credits": "致谢与许可",
       "emailTeam": "写信给团队",
       "engine": "引擎",
+      "feedback": "反馈…",
       "knownIssues": "已知问题",
       "knownIssuesDesc": "当前 Alpha 的已知限制",
       "license": "客户端许可证",
@@ -376,6 +665,8 @@
       "sourceCode": "源代码",
       "sourceCodeDesc": "这个 AGPL 客户端的对应源代码",
       "sub": "终极写作体验",
+      "submitFeedback": "提交反馈",
+      "submitFeedbackDesc": "可附上脱敏诊断摘要；不含正文。",
       "support": "Alpha 支持",
       "supportDesc": "故障排查与安全反馈说明",
       "tagline": "为夜里不睡的写作人造。",
@@ -404,6 +695,8 @@
       "open_in_browser": "在浏览器打开"
     },
     "editor": {
+      "auto_element_link": "自动要素链接",
+      "auto_element_link_desc": "输入时自动识别已存在的要素名称（如人物、地点），并链接到对应页面。",
       "auto_immersive": "打字时自动沉浸",
       "auto_immersive_desc": "开始写正文就收起侧栏与工具；按 Esc 或点正文以外的地方回来。",
       "flow": "书写体验",
@@ -414,6 +707,7 @@
       "indent_none": "无",
       "indent_one": "一字符",
       "indent_two": "两字符",
+      "justify": "两端对齐",
       "line_height": "行距",
       "page_width": "纸张宽度",
       "page_width_desc": "编辑器中部纸张的宽度；正文按固定边距填满纸张。",
@@ -426,12 +720,19 @@
       "reset_style": "还原推荐样式",
       "typesetting": "排版",
       "typewriter_mode": "打字机模式",
-      "typewriter_mode_desc": "输入或移动光标时，让当前正文行稳定停在视口中的固定位置；只影响编辑视图。"
+      "typewriter_mode_desc": "输入或移动光标时，让当前正文行稳定停在视口中的固定位置；只影响编辑视图。",
+      "typewriter_position": "输入行位置",
+      "typewriter_position_desc": "距编辑器顶部的比例：25% 靠上，50% 居中，75% 靠下。"
     },
     "groups": {
       "about": "关于",
       "control": "控制",
       "preferences": "偏好"
+    },
+    "hosted": {
+      "connect_errors": {
+        "cancelled": "已取消。"
+      }
     },
     "keys": {
       "actions": {
@@ -540,6 +841,14 @@
     "restoring": "恢复中…",
     "title": "历史快照 · 30 天"
   },
+  "storylineEditor": {
+    "filters": {
+      "all": "全部"
+    },
+    "labels": {
+      "color": "色标"
+    }
+  },
   "topTimeline": {
     "closeTab": "关闭标签页",
     "dockLock": "保持展开",
@@ -558,6 +867,7 @@
     }
   },
   "userMenu": {
+    "feedback": "提交反馈",
     "import": "导入",
     "importBook": "导入书（.driftingbook）",
     "language": "语言",

@@ -92,6 +92,8 @@ pub enum RowAction {
     CopyDiagnostics,
     /// Shows the version, channel, engine and platform.
     Version,
+    /// Opens the feedback dialog (F7's, [`crate::actions::SendFeedback`]).
+    Feedback,
 }
 
 /// A row of the panel that is not a stored setting: a link, an action, a
@@ -184,6 +186,14 @@ pub static INFO_ROWS: &[InfoRow] = &[
             url: SUPPORT_URL,
             button: keys::settings::common::OPEN_IN_BROWSER,
         },
+    },
+    InfoRow {
+        id: "about.feedback",
+        section: Section::About,
+        group: Some(keys::settings::about::CONTACT),
+        label: keys::settings::about::SUBMIT_FEEDBACK,
+        description: Some(keys::settings::about::SUBMIT_FEEDBACK_DESC),
+        action: RowAction::Feedback,
     },
     InfoRow {
         id: "about.email",
@@ -294,6 +304,9 @@ pub const PAGE_WIDTH: &str = "editor.page_width";
 pub const PARAGRAPH_INDENT: &str = "editor.paragraph_indent";
 pub const AUTO_IMMERSIVE: &str = "editor.auto_immersive";
 pub const TYPEWRITER: &str = "editor.typewriter_mode";
+pub const TYPEWRITER_POSITION: &str = "editor.typewriter_position";
+pub const JUSTIFY: &str = "editor.justify";
+pub const AUTO_ENTITY_LINKS: &str = "editor.auto_entity_links";
 pub const CRASH_REPORTS: &str = "privacy.crash_reports";
 
 const THEMES: &[Opt] = &[
@@ -461,6 +474,17 @@ pub static REGISTRY: &[SettingDef] = &[
         search: &["indent", "首行缩进"],
     },
     SettingDef {
+        key: JUSTIFY,
+        kind: Kind::Switch,
+        default: Initial::Bool(false),
+        scope: Scope::Account,
+        section: Section::Editor,
+        group: Some(keys::settings::editor::TYPESETTING),
+        label: keys::settings::editor::JUSTIFY,
+        description: None,
+        search: &["justify", "align", "对齐"],
+    },
+    SettingDef {
         key: AUTO_IMMERSIVE,
         kind: Kind::Switch,
         default: Initial::Bool(false),
@@ -481,6 +505,33 @@ pub static REGISTRY: &[SettingDef] = &[
         label: keys::settings::editor::TYPEWRITER_MODE,
         description: Some(keys::settings::editor::TYPEWRITER_MODE_DESC),
         search: &["typewriter", "scroll"],
+    },
+    SettingDef {
+        key: TYPEWRITER_POSITION,
+        kind: Kind::Number {
+            min: 25.0,
+            max: 75.0,
+            step: 1.0,
+            unit: "%",
+        },
+        default: Initial::Num(50.0),
+        scope: Scope::Account,
+        section: Section::Editor,
+        group: Some(keys::settings::editor::FLOW),
+        label: keys::settings::editor::TYPEWRITER_POSITION,
+        description: Some(keys::settings::editor::TYPEWRITER_POSITION_DESC),
+        search: &["typewriter", "caret line"],
+    },
+    SettingDef {
+        key: AUTO_ENTITY_LINKS,
+        kind: Kind::Switch,
+        default: Initial::Bool(true),
+        scope: Scope::Account,
+        section: Section::Editor,
+        group: Some(keys::settings::editor::FLOW),
+        label: keys::settings::editor::AUTO_ELEMENT_LINK,
+        description: Some(keys::settings::editor::AUTO_ELEMENT_LINK_DESC),
+        search: &["link", "entity", "element", "链接"],
     },
     SettingDef {
         key: CRASH_REPORTS,

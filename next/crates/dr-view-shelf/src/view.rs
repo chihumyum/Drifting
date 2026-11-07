@@ -1,7 +1,7 @@
 //! The bookshelf view: the rail, the books, the dialogs.
 
 use std::rc::Rc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use dr_i18n::keys;
 use dr_shell::actions::{Dismiss, ToggleNotifications};
@@ -15,7 +15,10 @@ use dr_ui::{
     },
     fonts::Role,
     glass::{self, Ground, Kind as GlassKind, Mode, Spec, Tone},
-    input::field::{FieldEvent, TextField},
+    input::{
+        area::TextArea,
+        field::{FieldEvent, TextField},
+    },
     sand::{Icon, Readout},
     style::DrStyled,
     tokens::radius,
@@ -23,8 +26,11 @@ use dr_ui::{
 use dr_workspace::{
     Actor, Workspace as Library, WsEvent,
     commands::{
-        BookIn,
-        book::{BookCreate, BookCreateIn, BookRestore, BookTrash, BookUpdate, BookUpdateIn},
+        BookIn, NoInput,
+        book::{
+            BookCreate, BookCreateIn, BookPurge, BookPurgeExpired, BookRestore, BookTrash,
+            BookUpdate, BookUpdateIn,
+        },
     },
 };
 use gpui::{
@@ -34,7 +40,7 @@ use gpui::{
     prelude::FluentBuilder as _, px,
 };
 
-use crate::data::{ShelfBook, ShelfData, Status, progress};
+use crate::data::{ShelfBook, ShelfData, Status, TrashedBook, progress};
 use crate::format::{self, compact, grouped};
 
 actions!(
@@ -61,6 +67,11 @@ const ONE_COLUMN_BELOW: f32 = 1080.0;
 /// A card's least height (`.pp-card` with its cover is 250px; without the
 /// cover, which is M25, the body sets it).
 const CARD_MIN_H: f32 = 196.0;
+/// How long the bookshelf shows before the books whose 30 days in Recently
+/// Deleted are over go for good (the 0.1 shelf's
+/// `EXPIRED_TRASH_PURGE_DELAY_MS`: a restore made on another device can
+/// arrive first).
+pub const PURGE_EXPIRED_AFTER: Duration = Duration::from_secs(2 * 60);
 
 /// Which dialog is open, for tests and the debug bridge.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -69,6 +80,8 @@ pub enum ShelfDialog {
     Edit(String),
     Trash(String),
     RecentlyDeleted,
+    /// Deleting a book in Recently Deleted for good, now.
+    Purge(String),
 }
 
 enum DialogState {
@@ -76,12 +89,16 @@ enum DialogState {
         /// `None`: a new book.
         editing: Option<ShelfBook>,
         name: Entity<TextField>,
-        summary: Entity<TextField>,
+        summary: Entity<TextArea>,
     },
     Trash {
         book: ShelfBook,
     },
     Deleted,
+    /// The confirmation over Recently Deleted.
+    Purge {
+        book: TrashedBook,
+    },
 }
 
 pub struct Shelf {
@@ -106,8 +123,15 @@ pub struct Shelf {
     made: Instant,
     /// When the cards were first drawn, ms after the shelf was made.
     pub cards_ms: Option<f64>,
+    /// Counts [`PURGE_EXPIRED_AFTER`] while the bookshelf shows.
+    purge_timer: Option<Task<()>>,
+    /// The bookshelf showed when the workspace last changed.
+    was_shown: bool,
+    /// How many times the expired books were purged (for tests).
+    pub expired_runs: usize,
     _events: Option<dr_workspace::Subscription>,
     _fields: Vec<Subscription>,
+    _ws: Option<Subscription>,
 }
 
 impl Shelf {
@@ -128,12 +152,71 @@ impl Shelf {
             account: cx.new(|_| None),
             made: Instant::now(),
             cards_ms: None,
+            purge_timer: None,
+            was_shown: false,
+            expired_runs: 0,
             _events: None,
             _fields: Vec::new(),
+            _ws: None,
         };
         shelf.listen(cx);
         shelf.reload(cx);
+        // The workspace is still being made: follow it once it is there.
+        cx.spawn(async move |this, cx| this.update(cx, |shelf, cx| shelf.follow(cx)).ok())
+            .detach();
         shelf
+    }
+
+    /// Each time the bookshelf comes up, the books due in Recently Deleted
+    /// go [`PURGE_EXPIRED_AFTER`] later, if it still shows (the 0.1 shelf
+    /// ran it that long after it mounted).
+    fn follow(&mut self, cx: &mut Context<Self>) {
+        let Some(ws) = self.ws.upgrade() else {
+            return;
+        };
+        self._ws = Some(cx.observe(&ws, |shelf, ws, cx| {
+            let shown = ws.read(cx).shelf_open;
+            if shown != shelf.was_shown {
+                shelf.shown_changed(shown, cx);
+            }
+        }));
+        let shown = ws.read(cx).shelf_open;
+        self.shown_changed(shown, cx);
+    }
+
+    fn shown_changed(&mut self, shown: bool, cx: &mut Context<Self>) {
+        self.was_shown = shown;
+        if !shown {
+            self.purge_timer = None;
+            return;
+        }
+        let Some(lib) = self.lib.clone() else {
+            return;
+        };
+        self.purge_timer = Some(cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(PURGE_EXPIRED_AFTER).await;
+            let out = cx
+                .background_executor()
+                .spawn(async move { lib.run::<BookPurgeExpired>(&Actor::User, NoInput {}) })
+                .await;
+            this.update(cx, |shelf, cx| {
+                shelf.expired_runs += 1;
+                match out {
+                    Ok(out) => {
+                        let out = out.output;
+                        if !out.waiting.is_empty() {
+                            log::debug!("books due but in use: {:?}", out.waiting);
+                        }
+                        if !out.purged.is_empty() {
+                            shelf.stale = true;
+                            cx.notify();
+                        }
+                    }
+                    Err(error) => log::warn!("expired books were not purged: {error}"),
+                }
+            })
+            .ok();
+        }));
     }
 
     /// The bell's bounds cell, for the shell's notification center.
@@ -149,11 +232,12 @@ impl Shelf {
             } => ShelfDialog::Edit(b.id.clone()),
             DialogState::Trash { book } => ShelfDialog::Trash(book.id.clone()),
             DialogState::Deleted => ShelfDialog::RecentlyDeleted,
+            DialogState::Purge { book } => ShelfDialog::Purge(book.id.clone()),
         })
     }
 
     /// The dialog's name and summary fields, for tests.
-    pub fn form_fields(&self) -> Option<(Entity<TextField>, Entity<TextField>)> {
+    pub fn form_fields(&self) -> Option<(Entity<TextField>, Entity<TextArea>)> {
         match self.dialog.as_ref()? {
             DialogState::Form { name, summary, .. } => Some((name.clone(), summary.clone())),
             _ => None,
@@ -281,24 +365,23 @@ impl Shelf {
                 .with_text(name_text)
         });
         let summary = cx.new(|cx| {
-            TextField::new("shelf-form-summary", window, cx)
+            TextArea::new("shelf-form-summary", window, cx)
                 .placeholder(summary_hint)
                 .with_text(summary_text)
         });
-        let on_field = |shelf: &mut Shelf,
-                        _: &Entity<TextField>,
-                        e: &FieldEvent,
-                        window: &mut Window,
-                        cx: &mut Context<Shelf>| match e {
-            // Enter in either field creates or saves (⌘↵ in the 0.1
-            // client; see m01-shelf.md).
-            FieldEvent::Submitted(_) => shelf.submit_form(window, cx),
-            FieldEvent::Cancelled => shelf.close_dialog(window, cx),
-            _ => {}
-        };
+        // ⌘↵ creates or saves (the summary's own ⌘↵ does it too, and Enter
+        // in the name); Esc in a field closes the dialog.
         self._fields = vec![
-            cx.subscribe_in(&name, window, on_field),
-            cx.subscribe_in(&summary, window, on_field),
+            cx.subscribe_in(&name, window, |shelf, _, e, window, cx| match e {
+                FieldEvent::Submitted(_) => shelf.submit_form(window, cx),
+                FieldEvent::Cancelled => shelf.close_dialog(window, cx),
+                _ => {}
+            }),
+            cx.subscribe_in(&summary, window, |shelf, _, e, window, cx| match e {
+                FieldEvent::Submitted(_) => shelf.submit_form(window, cx),
+                FieldEvent::Cancelled => shelf.close_dialog(window, cx),
+                _ => {}
+            }),
         ];
         name.focus_handle(cx).focus(window, cx);
         self.dialog = Some(DialogState::Form {
@@ -326,6 +409,69 @@ impl Shelf {
         self.menu_open = false;
         self.focus.focus(window, cx);
         cx.notify();
+    }
+
+    /// Asks before deleting a book in Recently Deleted for good.
+    pub fn ask_purge(&mut self, book: TrashedBook, window: &mut Window, cx: &mut Context<Self>) {
+        self.dialog = Some(DialogState::Purge { book });
+        self.error = None;
+        self.focus.focus(window, cx);
+        cx.notify();
+    }
+
+    /// Esc and the mist step back from the confirmation to Recently
+    /// Deleted before they close it (the 0.1 shelf).
+    fn step_back(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.busy {
+            return;
+        }
+        if matches!(self.dialog, Some(DialogState::Purge { .. })) {
+            self.dialog = Some(DialogState::Deleted);
+            self.error = None;
+            cx.notify();
+        } else {
+            self.close_dialog(window, cx);
+        }
+    }
+
+    /// Deletes the book of the open confirmation for good (`book.purge`),
+    /// then shows Recently Deleted again.
+    pub fn confirm_purge(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(DialogState::Purge { book }) = &self.dialog else {
+            return;
+        };
+        let Some(lib) = self.lib.clone() else {
+            return;
+        };
+        if self.busy {
+            return;
+        }
+        let id = book.id.clone();
+        self.busy = true;
+        self.error = None;
+        cx.notify();
+        cx.spawn_in(window, async move |this, cx| {
+            let result = cx
+                .background_executor()
+                .spawn(async move { lib.run::<BookPurge>(&Actor::User, BookIn { book: id }) })
+                .await;
+            this.update(cx, |shelf, cx| {
+                shelf.busy = false;
+                match result {
+                    Ok(_) => {
+                        shelf.stale = true;
+                        shelf.dialog = Some(DialogState::Deleted);
+                    }
+                    Err(error) => {
+                        log::warn!("the book could not be deleted: {error}");
+                        shelf.error = Some(keys::mobile_workspace::project_actions::DELETE_FAILED);
+                    }
+                }
+                cx.notify();
+            })
+            .ok();
+        })
+        .detach();
     }
 
     pub fn close_dialog(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -535,7 +681,7 @@ impl Render for Shelf {
                     shelf.menu_open = false;
                     cx.notify();
                 } else if shelf.dialog.is_some() {
-                    shelf.close_dialog(window, cx);
+                    shelf.step_back(window, cx);
                 } else {
                     cx.propagate();
                 }
@@ -1035,6 +1181,7 @@ fn card(book: ShelfBook, now: i64, window: &mut Window, cx: &mut Context<Shelf>)
                 Icon::Trash,
             )
             .label(t(cx, keys::project_picker::desk::MOVE_TO_TRASH))
+            .danger()
             .on_click(trash),
         );
     let head = div()
@@ -1241,7 +1388,7 @@ fn dialog(shelf: &mut Shelf, window: &mut Window, cx: &mut Context<Shelf>) -> An
                 ))
                 .body(section(
                     t(cx, keys::project_picker::desk::form::SUMMARY_LABEL),
-                    summary.clone().into_any_element(),
+                    crate::frame::area("shelf-form-summary-frame", summary, 3.0, window, cx),
                 ))
                 .when_some(error, |d, e| d.status(e))
                 .action(
@@ -1328,22 +1475,46 @@ fn dialog(shelf: &mut Shelf, window: &mut Window, cx: &mut Context<Shelf>) -> An
             }
             for book in trashed {
                 let restore = entity.clone();
+                let purge = entity.clone();
                 let id = book.id.clone();
+                // The 0.1 shelf: days left rounded up, 「即将永久删除」 at 0.
+                let expiry = match book.days_left {
+                    Some(days) if days > 0 => tp(
+                        cx,
+                        keys::project_picker::trash::EXPIRES_IN,
+                        days as u64,
+                        &[],
+                    ),
+                    _ => t(cx, keys::project_picker::trash::EXPIRES_SOON),
+                };
                 list = list.child(
                     div()
                         .min_h(px(s.row_height))
                         .px(px(10.0))
+                        .py(px(6.0))
                         .flex()
                         .flex_row()
                         .items_center()
-                        .gap(px(10.0))
+                        .gap(px(8.0))
                         .child(
                             div()
                                 .flex_1()
                                 .min_w_0()
-                                .truncate()
-                                .text_color(p.ink(1).solid())
-                                .child(book.name.clone()),
+                                .flex()
+                                .flex_col()
+                                .child(
+                                    div()
+                                        .truncate()
+                                        .text_color(p.ink(1).solid())
+                                        .child(book.name.clone()),
+                                )
+                                .child(
+                                    div()
+                                        .font_role(Role::Index)
+                                        .type_px(s.caption, s.line_caption)
+                                        .text_color(p.ink(3).solid())
+                                        .child(expiry),
+                                ),
                         )
                         .child(
                             Button::new(
@@ -1359,13 +1530,30 @@ fn dialog(shelf: &mut Shelf, window: &mut Window, cx: &mut Context<Shelf>) -> An
                             .on_click(move |_, window, cx| {
                                 restore.update(cx, |shelf, cx| shelf.restore(&id, window, cx))
                             }),
+                        )
+                        .child(
+                            Button::new(
+                                ElementId::Name(format!("shelf-purge-{}", book.id).into()),
+                                t(cx, keys::project_picker::trash::DELETE_NOW),
+                            )
+                            .small()
+                            .danger()
+                            .disabled(busy)
+                            .on_click(move |_, window, cx| {
+                                let book = book.clone();
+                                purge.update(cx, |shelf, cx| shelf.ask_purge(book, window, cx))
+                            }),
                         ),
                 );
             }
+            let lead = div()
+                .text_color(p.muted().solid())
+                .child(t(cx, keys::project_picker::desk::trash_list::SUB_LOCAL));
             Dialog::new(
                 "shelf-deleted",
                 t(cx, keys::project_picker::desk::trash_list::TITLE),
             )
+            .body(lead)
             .body(list)
             .when_some(error, |d, e| d.status(e))
             .action(
@@ -1374,6 +1562,51 @@ fn dialog(shelf: &mut Shelf, window: &mut Window, cx: &mut Context<Shelf>) -> An
                     .on_click(cancel),
             )
             .on_close(close)
+            .into_any_element()
+        }
+        DialogState::Purge { book } => {
+            let confirm = entity.clone();
+            let back = entity.clone();
+            let step_back = move |window: &mut Window, cx: &mut App| {
+                back.update(cx, |shelf, cx| shelf.step_back(window, cx))
+            };
+            let cancel = {
+                let step_back = step_back.clone();
+                move |_: &ClickEvent, window: &mut Window, cx: &mut App| step_back(window, cx)
+            };
+            Dialog::new(
+                "shelf-purge",
+                tf(
+                    cx,
+                    keys::project_picker::desk::trash_list::CONFIRM_TITLE,
+                    &[("name", &book.name)],
+                ),
+            )
+            .body(div().child(t(cx, keys::project_picker::trash::PERMANENT_BODY)))
+            .when_some(error, |d, e| d.status(e))
+            .action(
+                Button::new("shelf-purge-cancel", t(cx, keys::common::CANCEL))
+                    .disabled(busy)
+                    .on_click(cancel),
+            )
+            .action(
+                Button::new(
+                    "shelf-purge-confirm",
+                    if busy {
+                        t(cx, keys::project_picker::delete::DELETING)
+                    } else {
+                        t(cx, keys::common::DELETE)
+                    },
+                )
+                .danger()
+                .icon(Icon::Trash)
+                .busy(busy)
+                .disabled(busy)
+                .on_click(move |_, window, cx| {
+                    confirm.update(cx, |shelf, cx| shelf.confirm_purge(window, cx))
+                }),
+            )
+            .on_close(step_back)
             .into_any_element()
         }
     }

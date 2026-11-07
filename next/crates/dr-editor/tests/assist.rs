@@ -192,6 +192,30 @@ fn only_what_the_author_typed_in_is_linked(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn pasted_names_link_themselves(cx: &mut TestAppContext) {
+    let e = env();
+    let ye = element(&e, "叶青知", &[]);
+    let yue = element(&e, "约格", &[]);
+    let doc = chapter(&e, "一", "开头。");
+    let mut o = open(cx, &e, &doc);
+    o.caret(3);
+    o.editor.update_in(o.cx, |e, window, cx| {
+        e.paste_text("叶青知来了。\n中间一段。\n约格也来了。", window, cx)
+    });
+    draw(o.cx);
+    o.wait_links();
+    assert_eq!(o.text(), "开头。叶青知来了。\n中间一段。\n约格也来了。\n");
+    assert!(o.linked(3, &ye), "the first pasted paragraph");
+    let third = o
+        .editor
+        .update(o.cx, |e, _| e.book().chapters[0].doc.line_start(2));
+    assert!(o.linked(third, &yue), "the last one");
+    // One undo takes back the paste and its links.
+    o.action(Undo);
+    assert_eq!(o.text(), "开头。\n");
+}
+
+#[gpui::test]
 fn a_broken_name_loses_its_link(cx: &mut TestAppContext) {
     let e = env();
     let yue = element(&e, "约格", &["老约"]);
@@ -227,10 +251,11 @@ fn the_at_picker_inserts_a_link(cx: &mut TestAppContext) {
             MenuRow::Block(_) => String::new(),
         })
         .collect();
-    assert_eq!(names, ["约格", "老约", "+约"]);
+    // Pinyin order (lǎo before yuē), then 创建要素.
+    assert_eq!(names, ["老约", "约格", "+约"]);
     // Enter chooses the current row.
     o.action(Newline);
-    assert_eq!(o.text(), "见约格 \n");
+    assert_eq!(o.text(), "见老约 \n");
     assert!(o.linked(1, &yue) && o.linked(2, &yue) && !o.linked(3, &yue));
     assert!(o.menu().is_none());
     // One undo brings the typed query back.

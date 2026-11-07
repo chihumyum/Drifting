@@ -1,0 +1,37 @@
+[package]
+name = "dr-view-elements"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Drifting's element and category pages (M11): name, aliases, category, summary and fields above an element's text; a category's name, colour and elements"
+
+[features]
+# Offscreen screenshots of the element and category pages
+# (`examples/elements-capture.rs`), through GPUI's headless test platform.
+capture = ["dep:gpui_platform", "gpui_platform/test-support", "dep:color_quant", "dep:png"]
+
+[dependencies]
+color_quant = { workspace = true, optional = true }
+dr-editor.workspace = true
+dr-i18n.workspace = true
+dr-shell.workspace = true
+dr-ui.workspace = true
+dr-workspace.workspace = true
+gpui.workspace = true
+gpui_platform = { workspace = true, optional = true }
+log.workspace = true
+png = { workspace = true, optional = true }
+
+[dev-dependencies]
+anyhow.workspace = true
+dr-store.workspace = true
+dr-testkit.workspace = true
+gpui = { workspace = true, features = ["test-support"] }
+gpui_platform.workspace = true
+tempfile.workspace = true
+
+[[example]]
+name = "elements-capture"
+required-features = ["capture"]

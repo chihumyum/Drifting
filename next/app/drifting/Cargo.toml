@@ -22,9 +22,11 @@ dr-shell.workspace = true
 # F2's device identity for the library (writing days, epochs).
 dr-store.workspace = true
 dr-ui.workspace = true
+dr-view-elements.workspace = true
 dr-view-feedback.workspace = true
 dr-view-home.workspace = true
 dr-view-import.workspace = true
+dr-view-page.workspace = true
 dr-view-shelf.workspace = true
 dr-workspace.workspace = true
 gpui.workspace = true

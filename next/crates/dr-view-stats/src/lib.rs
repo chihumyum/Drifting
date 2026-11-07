@@ -17,26 +17,59 @@
 //! has the rules and the decisions.
 
 pub mod clock;
+pub mod detail;
 pub mod live;
 pub mod model;
 mod panel;
 pub mod recorder;
+mod sections;
 
 use std::collections::HashMap;
+use std::rc::Rc;
 use std::time::Duration;
 
 use dr_i18n::{Locale, Platform};
 use dr_model::Day;
+use dr_ui::sand;
+use dr_ui::tokens::Rgb;
 use dr_workspace::commands::BookIn;
 use dr_workspace::commands::stats::{self as ops};
 use dr_workspace::{Actor, NavTarget, Subscription, Workspace, WsEvent};
-use gpui::{AnyElement, App, AppContext as _, Entity, Global, IntoElement, SharedString};
+use gpui::{AnyElement, App, AppContext as _, Entity, Global, IntoElement, SharedString, Window};
 
 pub use dr_text::TextMetrics;
 pub use live::LiveWords;
 pub use model::{Live, Reading, Scope};
 pub use panel::StatsView;
 pub use recorder::Recorder;
+
+/// What a row of the Stats tab asks the shell for.
+#[derive(Clone, Debug, PartialEq)]
+pub enum StatsAction {
+    /// Open a page. `link`, a location link, goes first: a chapter of the
+    /// whole book while the whole book is in front is shown there (the
+    /// shell's `open_link`).
+    Open {
+        target: NavTarget,
+        link: Option<String>,
+    },
+    /// The snapshot history of a prose document (M09's dialog), for the
+    /// page called `name`.
+    History { doc: String, name: String },
+}
+
+/// Does what a row asks ([`StatsAction`]).
+pub type Act = Rc<dyn Fn(StatsAction, &mut Window, &mut App)>;
+/// A page's kind mark and colour.
+pub type Marks = Rc<dyn Fn(&NavTarget) -> (sand::Kind, Option<Rgb>)>;
+
+/// What the tab's rows do, and the mark and colour of a page (the shell
+/// knows both): given with [`panel`].
+#[derive(Clone)]
+pub struct Hooks {
+    pub act: Act,
+    pub marks: Marks,
+}
 
 struct Hub {
     lib: Option<Workspace>,
@@ -165,6 +198,7 @@ pub fn panel(
     target: Option<NavTarget>,
     locale: Locale,
     platform: Platform,
+    hooks: Option<Hooks>,
     cx: &mut App,
 ) -> AnyElement {
     let id = SharedString::from(id.to_owned());
@@ -202,7 +236,7 @@ pub fn panel(
         }
     };
     view.update(cx, |v, cx| {
-        v.show(book, target, locale, platform, cx);
+        v.show(book, target, locale, platform, hooks, cx);
         v.set_mine(recorder_today, cx);
     });
     view.into_any_element()

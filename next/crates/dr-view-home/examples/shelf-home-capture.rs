@@ -18,6 +18,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use anyhow::{Context as _, Result, bail};
+use dr_shell::nav::{Open, Target};
 use dr_shell::{Services, SettingsFile, ShellInfo, Workspace};
 use dr_ui::{Appearance, theme};
 use dr_view_home::{Home, HomeView};
@@ -370,6 +371,23 @@ fn capture(dir: PathBuf) -> Result<()> {
                 h.on_shelf(|s, window, cx| s.open_deleted(window, cx));
                 h.settle()?;
                 h.save(&m01, &format!("shelf-deleted-{suffix}.png"))?;
+                // 「立即删除」 asks first.
+                let gone = {
+                    let shelf = h.shelf();
+                    h.cx.update(|cx| {
+                        shelf
+                            .read(cx)
+                            .data
+                            .as_ref()
+                            .and_then(|d| d.trashed.first().cloned())
+                    })
+                };
+                if let Some(gone) = gone {
+                    h.on_shelf(move |s, window, cx| s.ask_purge(gone, window, cx));
+                    h.settle()?;
+                    h.save(&m01, &format!("shelf-purge-{suffix}.png"))?;
+                    h.on_shelf(|s, window, cx| s.close_dialog(window, cx));
+                }
                 let id = id.clone();
                 h.on_shelf(move |s, window, cx| s.restore(&id, window, cx));
                 h.wait(|h| {
@@ -395,8 +413,46 @@ fn capture(dir: PathBuf) -> Result<()> {
         h.save(&m01, &format!("shelf-menu-{suffix}.png"))?;
         h.on_shelf(|s, window, cx| s.toggle_menu(window, cx));
 
-        // Project Home of 《慢钟》.
+        // Project Home of 《慢钟》, after opening two chapters and an element
+        // (继续写 leads with the chapter opened last).
         h.open_book(&slow_clock)?;
+        let pages: Vec<Target> = h.read(|ws, _| {
+            let b = &ws.book;
+            [
+                b.chapters
+                    .get(5)
+                    .and_then(|c| c.id.parse().ok().map(Target::Chapter)),
+                b.elements
+                    .first()
+                    .and_then(|e| e.id.parse().ok().map(Target::Element)),
+                b.chapters
+                    .get(2)
+                    .and_then(|c| c.id.parse().ok().map(Target::Chapter)),
+            ]
+            .into_iter()
+            .flatten()
+            .collect()
+        });
+        let opened = pages.len();
+        for page in pages {
+            h.set(move |ws, _, cx| ws.open(page, Open::KEEP, cx));
+            h.settle()?;
+        }
+        h.set(|ws, _, cx| {
+            ws.nav.go_home();
+            cx.notify();
+        });
+        h.wait(|h| {
+            let Some(home) = h.home() else {
+                return false;
+            };
+            h.cx.update(|cx| {
+                home.read(cx)
+                    .stats
+                    .as_ref()
+                    .is_some_and(|s| s.opened.len() >= opened)
+            })
+        })?;
         h.on_home(|home, window, cx| home.set_view(HomeView::Overview, window, cx));
         h.settle()?;
         h.save(&m02, &format!("home-{suffix}.png"))?;

@@ -70,7 +70,7 @@ impl Variant {
         }
     }
 
-    fn parse(s: &str) -> Option<Self> {
+    pub(crate) fn parse(s: &str) -> Option<Self> {
         Some(match s {
             "source" => Self::Source,
             "display" => Self::Display,
@@ -207,7 +207,12 @@ pub fn variant_path(
         )))
 }
 
-fn reject_symlinks(root: &Path, book: &str, asset: &str, file: Option<&Path>) -> io::Result<()> {
+pub(crate) fn reject_symlinks(
+    root: &Path,
+    book: &str,
+    asset: &str,
+    file: Option<&Path>,
+) -> io::Result<()> {
     for candidate in [
         root.to_path_buf(),
         root.join(book),

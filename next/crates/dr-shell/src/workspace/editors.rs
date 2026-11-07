@@ -152,6 +152,14 @@ impl PageEditor {
     }
 }
 
+/// What the background half of opening hands the main thread.
+enum Prepared {
+    /// One document's editing session.
+    Doc(dr_editor::SessionSource),
+    /// Every chapter's session, held while the whole book's editor opens.
+    Book(Vec<ProseSession>),
+}
+
 /// One document's word count, per paragraph; only the paragraphs whose text
 /// changed are counted again.
 #[derive(Default)]
@@ -282,14 +290,22 @@ impl Workspace {
         };
         let key = target.key();
         let prepared = key.clone();
+        let one = doc.is_some();
         let prepare = cx.spawn_in(window, async move |this, cx| {
             let started = Instant::now();
             let sessions = cx
                 .background_executor()
                 .spawn(async move {
-                    docs.iter()
-                        .map(|d| lib.prose_session(d))
-                        .collect::<dr_workspace::Result<Vec<ProseSession>>>()
+                    if one {
+                        // One document: its editor's own session, for
+                        // `ChapterEditor::with_session`.
+                        dr_editor::SessionSource::open(&lib, &docs[0]).map(Prepared::Doc)
+                    } else {
+                        docs.iter()
+                            .map(|d| lib.prose_session(d))
+                            .collect::<dr_workspace::Result<Vec<ProseSession>>>()
+                            .map(Prepared::Book)
+                    }
                 })
                 .await;
             let ms = started.elapsed().as_secs_f64() * 1e3;
@@ -312,7 +328,7 @@ impl Workspace {
     fn editor_prepared(
         &mut self,
         key: &str,
-        sessions: dr_workspace::Result<Vec<ProseSession>>,
+        sessions: dr_workspace::Result<Prepared>,
         ms: f64,
         window: &mut Window,
         cx: &mut Context<Self>,
@@ -320,6 +336,7 @@ impl Workspace {
         let Some(lib) = self.library.clone() else {
             return;
         };
+        let lib_for_chrome = lib.clone();
         let book = self.book_id.clone();
         let settings = self.editor_settings.clone();
         let base = self.editor_base.clone();
@@ -342,20 +359,20 @@ impl Workspace {
             }
         };
         let opened = Instant::now();
-        // `ChapterEditor::open` and `BookEditor::open` return a `Result` but
-        // have to run inside `cx.new`. The sessions opened above hold the
-        // documents open, so the editors find them there; short of the
-        // holder threads or the library being gone they cannot fail (see
-        // f6-shell.md, 待协调 F4).
-        let view = match page.doc.clone() {
-            Some(doc) => {
+        // One document's editor is built on the session opened above
+        // (`with_session` cannot fail). `BookEditor::open` still returns a
+        // `Result` inside `cx.new`; the sessions opened above hold every
+        // chapter open, so short of the holder threads or the library being
+        // gone it cannot fail (see f6-shell.md, 待协调 F4).
+        let (doc, sessions) = match (page.doc.clone(), sessions) {
+            (Some(doc), Prepared::Doc(source)) => (Some((doc, source)), Vec::new()),
+            (_, Prepared::Book(sessions)) => (None, sessions),
+            (None, Prepared::Doc(_)) => return,
+        };
+        let view = match doc {
+            Some((doc, source)) => {
                 let editor = cx.new(|cx| {
-                    match ChapterEditor::open(lib, &book, &doc, settings, window, cx) {
-                        Ok(editor) => editor,
-                        Err(error) => {
-                            panic!("{doc}: the open document could not be edited: {error}")
-                        }
-                    }
+                    ChapterEditor::with_session(lib, &book, &doc, source, settings, window, cx)
                 });
                 let looks = decor_looks(&Theme::of(window, cx), &base);
                 editor.update(cx, |e, cx| {
@@ -367,6 +384,15 @@ impl Workspace {
                     ws.on_editor_event(&editor, event, cx)
                 });
                 page._events.push(events);
+                let comments = cx.subscribe_in(
+                    &editor,
+                    window,
+                    |ws, editor, req: &dr_editor::CommentRequested, window, cx| {
+                        let prose = editor.read(cx).editor().clone();
+                        ws.on_comment_requested(req, prose, 0, window, cx)
+                    },
+                );
+                page._events.push(comments);
                 PageView::Doc(editor)
             }
             None => {
@@ -379,8 +405,10 @@ impl Workspace {
                             }
                         },
                     );
+                let looks = decor_looks(&Theme::of(window, cx), &base);
                 editor.update(cx, |e, cx| {
                     e.set_base_style(base, cx);
+                    e.set_decor_looks(looks, cx);
                     if let Some(at) = &position {
                         e.restore(&at.into(), cx);
                     }
@@ -389,10 +417,43 @@ impl Workspace {
                     ws.on_book_event(event, cx)
                 });
                 page._events.push(events);
+                let comments = cx.subscribe_in(
+                    &editor,
+                    window,
+                    |ws, editor, req: &dr_editor::CommentRequested, window, cx| {
+                        let (prose, chapter) = {
+                            let b = editor.read(cx);
+                            (b.editor().clone(), b.chapter_of(&req.doc))
+                        };
+                        if let Some(chapter) = chapter {
+                            ws.on_comment_requested(req, prose, chapter, window, cx)
+                        }
+                    },
+                );
+                page._events.push(comments);
                 PageView::Book(editor)
             }
         };
         drop(sessions);
+        // What the modules draw around the page's text (M03's chapter
+        // page, M11's element and category pages), when one is registered.
+        let host = crate::pages::PageHost {
+            workspace: cx.entity().downgrade(),
+            library: lib_for_chrome,
+            book: book.clone(),
+            editor: match &view {
+                PageView::Doc(e) => crate::pages::PageEditorRef::Doc(e.downgrade()),
+                PageView::Book(e) => crate::pages::PageEditorRef::Book(e.downgrade()),
+            },
+        };
+        let chrome = Target::from_key(key)
+            .and_then(|target| crate::pages::chrome_for(&target, host, window, cx));
+        if let Some(chrome) = chrome {
+            match &view {
+                PageView::Doc(e) => e.update(cx, |e, cx| e.set_chrome(Some(chrome), cx)),
+                PageView::Book(e) => e.update(cx, |e, cx| e.set_chrome(Some(chrome), cx)),
+            }
+        }
         let prose = view.prose(cx);
         let selection = cx.subscribe(&prose, |_, prose, event: &EditorEvent, cx| {
             if matches!(event, EditorEvent::SelectionChanged) {
@@ -723,7 +784,7 @@ impl Workspace {
     }
 
     /// The keyboard back to the page (closing Settings or a Super View).
-    pub(super) fn refocus(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn refocus(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.focused_editor = None;
         self.focus.focus(window, cx);
         cx.notify();
@@ -763,11 +824,12 @@ impl Workspace {
                     p.set_reduce_motion(theme.reduce_motion, cx);
                 }
             });
-            if let PageView::Doc(e) = &view
-                && (base_changed || reduce_changed)
-            {
+            if base_changed || reduce_changed {
                 let looks = decor_looks(&theme, &base);
-                e.update(cx, |e, cx| e.set_decor_looks(looks, cx));
+                match &view {
+                    PageView::Doc(e) => e.update(cx, |e, cx| e.set_decor_looks(looks, cx)),
+                    PageView::Book(e) => e.update(cx, |e, cx| e.set_decor_looks(looks, cx)),
+                }
             }
         }
     }

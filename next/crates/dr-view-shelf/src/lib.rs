@@ -9,9 +9,14 @@
 //! move to Recently Deleted) show under the pointer. There is no context
 //! menu.
 //!
-//! The data comes from F3 (`dr-workspace`): [`data`] reads it off the main
-//! thread, again whenever F3 reports a change. Covers, the heat map, the
-//! 30-day strip and the sea of characters under the desk are M24 and M25.
+//! Recently Deleted lists each book with the days it has left, to restore
+//! or delete for good; two minutes after the bookshelf comes up, the books
+//! whose 30 days are over go (as in the 0.1 client).
+//!
+//! The data comes from F3 (`dr-workspace`, one `book.shelf` read): [`data`]
+//! reads it off the main thread, again whenever F3 reports a change.
+//! Covers, the heat map, the 30-day strip and the sea of characters under
+//! the desk are M24 and M25.
 //!
 //! The app registers the bookshelf with [`init`]; the shell
 //! (`dr_shell::pages`) shows it.
@@ -20,9 +25,12 @@
 
 pub mod data;
 pub mod format;
+pub mod frame;
 mod view;
 
-pub use view::{ImportBook, ImportLegacyLibrary, Shelf, ShelfDialog, SubmitDialog};
+pub use view::{
+    ImportBook, ImportLegacyLibrary, PURGE_EXPIRED_AFTER, Shelf, ShelfDialog, SubmitDialog,
+};
 
 use gpui::{App, AppContext as _, KeyBinding};
 

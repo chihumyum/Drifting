@@ -115,6 +115,14 @@ impl DecorLooks {
                 quote_wash: Some(palette.desk.alpha(if palette.dark { 0.7 } else { 0.5 })),
                 quote_ink: Some(palette.ink(2).solid()),
                 rule: palette.rule_strong.solid(),
+                // Lists (notes): marks in the second ink, a task's box in
+                // the rule colour, done in the accent with a paper tick,
+                // its text in the muted ink.
+                list_ink: Some(palette.ink(2).solid()),
+                task_box: palette.rule_strong.solid(),
+                task_done: palette.accent.solid(),
+                task_tick: palette.page.solid(),
+                task_done_ink: Some(palette.muted().solid()),
                 ..BlockStyle::default()
             },
             reduce_motion,

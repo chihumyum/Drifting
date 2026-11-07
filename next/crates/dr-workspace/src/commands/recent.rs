@@ -13,14 +13,12 @@
 //!   newest `node`, else the chapter changed last).
 //! - Purging a book drops its entries.
 //!
-//! Stored as one JSON value under the key `ws.recent` of dr-store's
-//! `library_meta` table, written through `Library::local_write` (a minimal
-//! stand-in until dr-store has a table for small local state: f3-workspace.md
-//! 「待协调」).
+//! Stored as one JSON value under `ws` / `recent` in dr-store's small
+//! device-local table (`local_state`, migration 0004, which moved the value
+//! over from `library_meta`), written through `Library::local_write`.
 
 use dr_model::id::BookId;
 use dr_store::{LocalChange, LocalChangeKind};
-use rusqlite::OptionalExtension;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -35,7 +33,9 @@ pub(crate) fn register(r: &mut Registry) {
 /// Entries kept per book (the 0.1 default).
 pub const RECENT_KEEP: usize = 10;
 
-const KEY: &str = "ws.recent";
+/// Where the list lives in dr-store's `local_state`.
+const SCOPE: &str = "ws";
+const KEY: &str = "recent";
 
 /// One page opened.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -47,15 +47,7 @@ pub struct RecentEntry {
 }
 
 fn read_all(lib: &dr_store::Library) -> Result<Vec<RecentEntry>> {
-    let raw: Option<String> = lib.local_read(|conn| {
-        Ok(conn
-            .query_row(
-                "SELECT value FROM library_meta WHERE key = ?1",
-                [KEY],
-                |r| r.get(0),
-            )
-            .optional()?)
-    })?;
+    let raw = lib.local_get(SCOPE, KEY)?;
     // A value this build cannot read starts the list afresh.
     Ok(raw
         .and_then(|r| serde_json::from_str(&r).ok())
@@ -69,24 +61,14 @@ fn update(
     f: impl FnOnce(&mut Vec<RecentEntry>),
 ) -> Result<()> {
     Ok(lib.local_write(|tx| {
-        let raw: Option<String> = tx
-            .query_row(
-                "SELECT value FROM library_meta WHERE key = ?1",
-                [KEY],
-                |r| r.get(0),
-            )
-            .optional()?;
+        let raw = tx.get_state(SCOPE, KEY)?;
         let mut all: Vec<RecentEntry> = raw
             .and_then(|r| serde_json::from_str(&r).ok())
             .unwrap_or_default();
         f(&mut all);
         // Plain strings and numbers: serialising cannot fail.
         let json = serde_json::to_string(&all).unwrap_or_else(|_| "[]".to_string());
-        tx.execute(
-            "INSERT INTO library_meta (key, value) VALUES (?1, ?2)
-             ON CONFLICT (key) DO UPDATE SET value = excluded.value",
-            rusqlite::params![KEY, json],
-        )?;
+        tx.set_state(SCOPE, KEY, &json, None)?;
         tx.changed(LocalChange::new("recent", book, LocalChangeKind::Update));
         Ok(())
     })?)
