@@ -4,7 +4,7 @@
 use std::time::Duration;
 
 use dr_editor::assist::{BlockChoice, MenuKind, MenuRow};
-use dr_editor::{ChapterEditor, ChapterEditorEvent, EditorSettings};
+use dr_editor::{ChapterEditor, CommentRequested, EditorSettings};
 use dr_store::Library;
 use dr_workspace::{Actor, Workspace, WorkspaceOptions, library_options};
 use gpui::{Entity, EntityInputHandler, Focusable, TestAppContext, VisualTestContext, px, size};
@@ -384,10 +384,8 @@ fn the_selection_bar_shows_once_the_selection_settles(cx: &mut TestAppContext) {
     {
         let heard = heard.clone();
         o.cx.update(|_, cx| {
-            cx.subscribe(&o.view, move |_, event: &ChapterEditorEvent, _| {
-                if let ChapterEditorEvent::CommentRequested { range, text } = event {
-                    *heard.borrow_mut() = Some((range.clone(), text.clone()));
-                }
+            cx.subscribe(&o.view, move |_, event: &CommentRequested, _| {
+                *heard.borrow_mut() = Some((event.range.clone(), event.text.clone()));
             })
             .detach();
         });

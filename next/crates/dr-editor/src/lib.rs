@@ -37,4 +37,4 @@ pub use page::{PageChrome, PageInfo, PageKind};
 pub use settings::EditorSettings;
 pub use source::SessionSource;
 pub use todo::TodoMarker;
-pub use view::{ChapterEditor, ChapterEditorEvent};
+pub use view::{ChapterEditor, ChapterEditorEvent, CommentRequested};

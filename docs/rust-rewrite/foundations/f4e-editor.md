@@ -93,7 +93,7 @@
 | `ChapterEditor::focus_body(window, cx)` / `BookEditor::focus_body(doc, …)` | 标题框的回车、末尾的 ↓ |
 | `ChapterEditor::with_session(ws, book, doc, SessionSource, settings, window, cx)` | 不会失败的构造 |
 | `ProseEditor::element_at_opacity(&editor, opacity, cx)` | 叠化里用，代替每帧通知 |
-| `ChapterEditorEvent::CommentRequested { range, text }` / `BookEditorEvent::CommentRequested { doc, range, text }` | 浮条的「添加批注」 |
+| `CommentRequested { doc, range, text }`（两个视图都发；单独的事件类型，已有的 `ChapterEditorEvent` 匹配不受影响） | 浮条的「添加批注」 |
 | `EditorSettings::auto_entity_links`（键 `editor.auto_entity_links`） | 自动链接开关 |
 | `assist()` | 选择器、浮条的状态（测试和外壳自己的检查用）；`assist::{trigger, BlockChoice, MenuRow, LINK_DELAY, BAR_DELAY}` |
 

@@ -51,9 +51,17 @@ pub enum ChapterEditorEvent {
     /// An undo re-anchored these comments: `(comment id, new anchor)`, to be
     /// stored in the book document.
     AnchorsChanged(Vec<(String, EncodedAnchor)>),
-    /// The selection bar's 添加批注 on `range` (characters) of the text,
-    /// which reads `text`: the host opens its comment composer there.
-    CommentRequested { range: Range<usize>, text: String },
+}
+
+/// The selection bar's 添加批注: the host opens its comment composer on
+/// `range` (characters) of document `doc`, which reads `text`. Its own event
+/// type (both views emit it), so hosts matching every
+/// [`ChapterEditorEvent`] are not broken by it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CommentRequested {
+    pub doc: String,
+    pub range: Range<usize>,
+    pub text: String,
 }
 
 struct Catalog(BookCatalog);
@@ -85,6 +93,7 @@ pub struct ChapterEditor {
 }
 
 impl EventEmitter<ChapterEditorEvent> for ChapterEditor {}
+impl EventEmitter<CommentRequested> for ChapterEditor {}
 
 impl ChapterEditor {
     /// Opens prose document `doc_id` of `book` for the author.
@@ -179,7 +188,8 @@ impl ChapterEditor {
                 let text = this.editor.read(cx).book().chapters[0]
                     .doc
                     .slice(range.clone());
-                cx.emit(ChapterEditorEvent::CommentRequested {
+                cx.emit(CommentRequested {
+                    doc: this.doc_id.clone(),
                     range: range.clone(),
                     text,
                 });

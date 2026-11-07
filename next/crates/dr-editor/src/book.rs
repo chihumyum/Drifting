@@ -59,13 +59,6 @@ pub enum BookEditorEvent {
     },
     /// The book's chapters changed and the view was rebuilt.
     Reloaded,
-    /// The selection bar's 添加批注 on `range` (characters) of chapter
-    /// `doc`, which reads `text`.
-    CommentRequested {
-        doc: String,
-        range: std::ops::Range<usize>,
-        text: String,
-    },
 }
 
 /// Where the reader is: the paragraph at the top of the view. Survives
@@ -196,6 +189,7 @@ pub struct BookEditor {
 }
 
 impl EventEmitter<BookEditorEvent> for BookEditor {}
+impl EventEmitter<crate::view::CommentRequested> for BookEditor {}
 
 impl BookEditor {
     /// Opens every chapter of `book` for the author.
@@ -243,7 +237,7 @@ impl BookEditor {
                 let text = this.editor.read(cx).book().chapters[*chapter]
                     .doc
                     .slice(range.clone());
-                cx.emit(BookEditorEvent::CommentRequested {
+                cx.emit(crate::view::CommentRequested {
                     doc,
                     range: range.clone(),
                     text,
