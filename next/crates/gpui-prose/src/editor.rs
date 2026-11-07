@@ -316,6 +316,11 @@ impl ProseEditor {
         self.selection
     }
 
+    /// Whether a mouse drag is still choosing the selection.
+    pub fn is_selecting(&self) -> bool {
+        self.selecting
+    }
+
     pub fn composition(&self) -> Option<&Composition> {
         self.composition.as_ref()
     }

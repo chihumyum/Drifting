@@ -59,6 +59,13 @@ pub enum BookEditorEvent {
     },
     /// The book's chapters changed and the view was rebuilt.
     Reloaded,
+    /// The selection bar's 添加批注 on `range` (characters) of chapter
+    /// `doc`, which reads `text`.
+    CommentRequested {
+        doc: String,
+        range: std::ops::Range<usize>,
+        text: String,
+    },
 }
 
 /// Where the reader is: the paragraph at the top of the view. Survives
@@ -181,6 +188,9 @@ pub struct BookEditor {
     todos: HashMap<usize, Vec<TodoMarker>>,
     /// Each chapter page's facts and the host's chrome (M03).
     pages: crate::page::Pages,
+    /// The pickers, automatic links and the selection bar.
+    assist: Entity<crate::assist::Assist>,
+    _assist_events: Subscription,
     _editor_events: Subscription,
     _ws_events: dr_workspace::Subscription,
 }
@@ -216,6 +226,30 @@ impl BookEditor {
             .enumerate()
             .map(|(i, c)| (c.doc.clone(), i))
             .collect();
+        let docs: Vec<String> = chapters.iter().map(|c| c.doc.clone()).collect();
+        let assist = cx.new(|cx| {
+            let mut a =
+                crate::assist::Assist::new(ws.clone(), book, editor.clone(), docs, window, cx);
+            a.set_auto_links(settings.auto_entity_links);
+            a
+        });
+        let assist_events = cx.subscribe(
+            &assist,
+            |this: &mut BookEditor, _, event: &crate::assist::AssistEvent, cx| {
+                let crate::assist::AssistEvent::Comment { chapter, range } = event;
+                let Some(doc) = this.chapters.get(*chapter).map(|c| c.doc.clone()) else {
+                    return;
+                };
+                let text = this.editor.read(cx).book().chapters[*chapter]
+                    .doc
+                    .slice(range.clone());
+                cx.emit(BookEditorEvent::CommentRequested {
+                    doc,
+                    range: range.clone(),
+                    text,
+                });
+            },
+        );
         let mut this = BookEditor {
             ws,
             book: book.to_owned(),
@@ -227,6 +261,8 @@ impl BookEditor {
             editor,
             todos: HashMap::new(),
             pages: Default::default(),
+            assist,
+            _assist_events: assist_events,
             _editor_events: events,
             _ws_events: ws_events,
         };
@@ -338,6 +374,7 @@ impl BookEditor {
         }
         if notices.contains(&Notice::Book) {
             self.extension.invalidate();
+            self.assist.update(cx, |a, _| a.invalidate_names());
             self.follow_book(window, cx);
             if self.pages.has_chrome() {
                 self.refresh_pages(cx);
@@ -396,6 +433,12 @@ impl BookEditor {
             self.pages.attach(&self.editor, cx);
             self.refresh_pages(cx);
         }
+        let (editor, docs) = (
+            self.editor.clone(),
+            self.chapters.iter().map(|c| c.doc.clone()).collect(),
+        );
+        self.assist
+            .update(cx, |a, cx| a.attach(editor, docs, window, cx));
         if let Some(at) = at {
             self.restore(&at, cx);
         }
@@ -652,7 +695,14 @@ impl BookEditor {
         self.settings = settings;
         let style = self.settings.style(&self.base_style);
         self.editor.update(cx, |e, cx| e.set_style(style, cx));
+        let auto = self.settings.auto_entity_links;
+        self.assist.update(cx, |a, _| a.set_auto_links(auto));
         cx.notify();
+    }
+
+    /// The pickers, automatic links and the selection bar.
+    pub fn assist(&self) -> &Entity<crate::assist::Assist> {
+        &self.assist
     }
 
     pub fn set_base_style(&mut self, style: ProseStyle, cx: &mut Context<Self>) {
@@ -711,6 +761,9 @@ impl Render for BookEditor {
                 this.redo(window, cx);
                 cx.stop_propagation();
             }))
-            .child(ProseEditor::element(&self.editor, cx))
+            .child(crate::assist::wrap(
+                &self.assist,
+                ProseEditor::element(&self.editor, cx),
+            ))
     }
 }

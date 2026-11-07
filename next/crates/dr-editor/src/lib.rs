@@ -19,8 +19,10 @@
 //! Docs: `docs/rust-rewrite/foundations/f4-editor.md` (F4e).
 
 pub mod anchors;
+pub mod assist;
 pub mod book;
 pub mod convert;
+pub mod entity_links;
 pub mod links;
 pub mod page;
 pub mod rules;

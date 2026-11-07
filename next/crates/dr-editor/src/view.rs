@@ -22,6 +22,7 @@
 //!   reports the new anchors ([`ChapterEditorEvent::AnchorsChanged`]) for the
 //!   book document (the command that stores them is F3's; see f4-editor.md).
 
+use std::ops::Range;
 use std::rc::Rc;
 
 use dr_model::book::EncodedAnchor;
@@ -50,6 +51,9 @@ pub enum ChapterEditorEvent {
     /// An undo re-anchored these comments: `(comment id, new anchor)`, to be
     /// stored in the book document.
     AnchorsChanged(Vec<(String, EncodedAnchor)>),
+    /// The selection bar's 添加批注 on `range` (characters) of the text,
+    /// which reads `text`: the host opens its comment composer there.
+    CommentRequested { range: Range<usize>, text: String },
 }
 
 struct Catalog(BookCatalog);
@@ -73,6 +77,9 @@ pub struct ChapterEditor {
     todos: Vec<TodoMarker>,
     /// The page around the text: its facts and the host's chrome (M03).
     pages: crate::page::Pages,
+    /// The pickers, automatic links and the selection bar.
+    assist: Entity<crate::assist::Assist>,
+    _assist_events: Subscription,
     _editor_events: Subscription,
     _ws_events: dr_workspace::events::Subscription,
 }
@@ -121,6 +128,8 @@ impl ChapterEditor {
             cx,
         );
         let ws_events = Self::watch(&ws, doc_id, window, cx);
+        let (assist, assist_events) =
+            Self::make_assist(&ws, book, &editor, doc_id, &settings, window, cx);
         let mut this = ChapterEditor {
             ws,
             book: book.to_owned(),
@@ -132,11 +141,51 @@ impl ChapterEditor {
             editor,
             todos: Vec::new(),
             pages: Default::default(),
+            assist,
+            _assist_events: assist_events,
             _editor_events: editor_events,
             _ws_events: ws_events,
         };
         this.todos = this.find_todos(cx);
         this
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn make_assist(
+        ws: &Workspace,
+        book: &str,
+        editor: &Entity<ProseEditor>,
+        doc_id: &str,
+        settings: &EditorSettings,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> (Entity<crate::assist::Assist>, Subscription) {
+        let assist = cx.new(|cx| {
+            let mut a = crate::assist::Assist::new(
+                ws.clone(),
+                book,
+                editor.clone(),
+                vec![doc_id.to_owned()],
+                window,
+                cx,
+            );
+            a.set_auto_links(settings.auto_entity_links);
+            a
+        });
+        let events = cx.subscribe(
+            &assist,
+            |this, _, event: &crate::assist::AssistEvent, cx| {
+                let crate::assist::AssistEvent::Comment { range, .. } = event;
+                let text = this.editor.read(cx).book().chapters[0]
+                    .doc
+                    .slice(range.clone());
+                cx.emit(ChapterEditorEvent::CommentRequested {
+                    range: range.clone(),
+                    text,
+                });
+            },
+        );
+        (assist, events)
     }
 
     fn extension(ws: &Workspace, book: &str) -> DriftingExtension {
@@ -240,6 +289,7 @@ impl ChapterEditor {
     fn on_workspace(&mut self, notices: &[Notice], cx: &mut Context<Self>) {
         if notices.contains(&Notice::Book) {
             self.extension.invalidate();
+            self.assist.update(cx, |a, _| a.invalidate_names());
             if self.pages.has_chrome() {
                 self.refresh_page(cx);
             }
@@ -318,6 +368,9 @@ impl ChapterEditor {
             self.pages.attach(&self.editor, cx);
             self.refresh_page(cx);
         }
+        let (editor, docs) = (self.editor.clone(), vec![self.doc_id.clone()]);
+        self.assist
+            .update(cx, |a, cx| a.attach(editor, docs, window, cx));
         self.todos = self.find_todos(cx);
         cx.emit(ChapterEditorEvent::TodoMarkers(self.todos.clone()));
         cx.notify();
@@ -332,6 +385,8 @@ impl ChapterEditor {
         self.settings = settings;
         let style = self.settings.style(&self.base_style);
         self.editor.update(cx, |e, cx| e.set_style(style, cx));
+        let auto = self.settings.auto_entity_links;
+        self.assist.update(cx, |a, _| a.set_auto_links(auto));
         cx.notify();
     }
 
@@ -397,6 +452,12 @@ impl ChapterEditor {
         );
     }
 
+    /// The pickers, automatic links and the selection bar (for tests and
+    /// the shell's own checks).
+    pub fn assist(&self) -> &Entity<crate::assist::Assist> {
+        &self.assist
+    }
+
     /// The caret at the start of the text, the editor focused (the title
     /// field's Enter, or ↓ at its end).
     pub fn focus_body(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -413,6 +474,6 @@ enum Notice {
 
 impl Render for ChapterEditor {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        ProseEditor::element(&self.editor, cx)
+        crate::assist::wrap(&self.assist, ProseEditor::element(&self.editor, cx))
     }
 }
