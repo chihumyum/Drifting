@@ -7,6 +7,18 @@
     "storyGraph": "Grafo da história",
     "todoLibrary": "Tarefas e biblioteca de materiais"
   },
+  "chapterEditor": {
+    "synopsisPlaceholder": "Sinopse…",
+    "untitledChapter": "Capítulo sem título"
+  },
+  "chapterEnd": {
+    "defaultTitle": "Novo capítulo",
+    "insertAfter": "Novo capítulo depois",
+    "markDraft": "Voltar a rascunho",
+    "markFinished": "Marcar como concluído",
+    "trigger": "Ações no fim do capítulo",
+    "triggerFinished": "Ações no fim do capítulo (concluído)"
+  },
   "commentRail": {
     "actions": {
       "reopen": "Reabrir",
@@ -118,6 +130,12 @@
     "noResults": "Nenhuma ocorrência encontrada",
     "stats": "{{groups}} itens · {{occurrences}} ocorrências"
   },
+  "guide": {
+    "hints": {
+      "search": "Buscar em tudo",
+      "timeline": "Linha do tempo"
+    }
+  },
   "immersiveWriting": {
     "enter": "Escrita imersiva",
     "leave": "Sair da escrita imersiva"
@@ -163,6 +181,15 @@
   },
   "navigation": {
     "back": "Voltar"
+  },
+  "nodeEditor": {
+    "folio": {
+      "chapter": "Capítulo",
+      "chapterNumber": "Capítulo {{n}}"
+    },
+    "meta": {
+      "words": "{{count}} palavras"
+    }
   },
   "notifications": {
     "appUpdate": {

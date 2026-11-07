@@ -25,6 +25,7 @@ members = [
     "crates/dr-view-history",
     "crates/dr-view-home",
     "crates/dr-view-import",
+    "crates/dr-view-page",
     "crates/dr-view-review",
     "crates/dr-view-search",
     "crates/dr-view-shelf",
@@ -227,6 +228,8 @@ dr-view-shelf = { path = "crates/dr-view-shelf" }
 # M10's interface: the 0.1 library import over the bookshelf
 # (docs/rust-rewrite/modules/m10-import.md).
 dr-view-import = { path = "crates/dr-view-import" }
+# M03: the chapter page's head and end around the editor (dr-editor's PageChrome).
+dr-view-page = { path = "crates/dr-view-page" }
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
 # dr-shell's capture example writes its screenshots as 256-colour PNGs
 # (the versions GPUI's image stack already builds).

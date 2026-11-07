@@ -320,6 +320,7 @@ impl Workspace {
         let Some(lib) = self.library.clone() else {
             return;
         };
+        let lib_for_chrome = lib.clone();
         let book = self.book_id.clone();
         let settings = self.editor_settings.clone();
         let base = self.editor_base.clone();
@@ -393,6 +394,22 @@ impl Workspace {
             }
         };
         drop(sessions);
+        // M03's chrome (`dr-view-page`), when the app registered one.
+        let host = crate::pages::PageHost {
+            workspace: cx.entity().downgrade(),
+            library: lib_for_chrome,
+            book: book.clone(),
+            editor: match &view {
+                PageView::Doc(e) => crate::pages::PageEditorRef::Doc(e.downgrade()),
+                PageView::Book(e) => crate::pages::PageEditorRef::Book(e.downgrade()),
+            },
+        };
+        if let Some(chrome) = crate::pages::make_chrome(host, window, cx) {
+            match &view {
+                PageView::Doc(e) => e.update(cx, |e, cx| e.set_chrome(Some(chrome), cx)),
+                PageView::Book(e) => e.update(cx, |e, cx| e.set_chrome(Some(chrome), cx)),
+            }
+        }
         let prose = view.prose(cx);
         let selection = cx.subscribe(&prose, |_, prose, event: &EditorEvent, cx| {
             if matches!(event, EditorEvent::SelectionChanged) {

@@ -175,6 +175,8 @@ fn main() {
         // paper under no tab.
         dr_view_shelf::init(cx);
         dr_view_home::init(cx);
+        // M03: the chapter page's head and end around every editor.
+        dr_view_page::init(cx);
         // M39: the feedback dialog (`SendFeedback`, a crash follow-up in the
         // notification center), by mail unless built with the Hosted service.
         dr_view_feedback::init(
