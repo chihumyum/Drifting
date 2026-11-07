@@ -5,16 +5,17 @@ use std::path::PathBuf;
 
 pub const USAGE: &str = "usage: cargo drifting workspace <subcommand>
 
-  describe [--json]                         the command registry (F3)
+  describe [--json]                         the command registry (--json: with schemas)
   call <command> --library DIR [--input JSON] [--yes]
-                                            run one command offline (F3)
-  inspect --library DIR [--doc ID] [--json] read a library without changing it
-  scenario <name> --library DIR [--yes]     run a scripted scenario offline
-                                            (built in: seed:tiny, seed:lite,
-                                            seed:heavy, seed:showcase)
+                                            run one command or query, as the author
+  scenario <file.json | seed:P | seed-commands:P> --library DIR [--yes]
+                                            run a scripted sequence of calls, or write a
+                                            seed (P: tiny, lite, heavy, showcase)
+  inspect --library DIR [--doc ID] [--json] what a library holds
 
-Writing commands (call, scenario) need the app closed, back the library up
-first and only run with --yes; without it they print what they would do.";
+Queries and read-only scenarios run on a copy of the library. Writing
+commands need the app closed, back the library up first and only run with
+--yes; without it they print what they would do.";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Command {

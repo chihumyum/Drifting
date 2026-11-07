@@ -1,6 +1,6 @@
-# F8 dr-testkit 与新工作区门禁：第一个里程碑
+# F8 dr-testkit、dr-cli 与新工作区门禁
 
-2026-11-07。计划见 [foundation.md 的 F8](../foundation.md#f8-dr-cli-与-dr-testkit)，要简化的东西见 [simplifications.md](../simplifications.md) 第二、五、六节。
+2026-11-07，第一、二个里程碑。计划见 [foundation.md 的 F8](../foundation.md#f8-dr-cli-与-dr-testkit)，要简化的东西见 [simplifications.md](../simplifications.md) 第二、五、六节。
 
 ## 一句话
 
@@ -11,18 +11,20 @@
 - **崩溃试验台和基准各一套**。
 - **新工作区的规矩一条命令查完**：`cargo xtask check`，CI 每次都跑。
 
-## 这一轮做了什么
+## 进度
 
-| 部分 | 在哪 | 状态 |
-| --- | --- | --- |
-| 统一种子：tiny / lite / heavy / showcase | `next/crates/dr-testkit/src/seed/` | 做完，指纹钉在测试里 |
-| 样书：《傲慢与偏见》《阿Q正传》，以及 showcase 的《慢钟》和书架 | `src/samples.rs`、`fixtures/` | 做完，只有文字，插图没拷 |
-| 测量证据和过期检查 | `src/evidence.rs`、`cargo xtask evidence --check` | 做完；旧证据 21 份待各自迁移 |
-| 崩溃试验台 | `src/crash.rs`，F2 示范在 `tests/crash_store.rs` | 做完 |
-| 基准约定和 `bench` 程序 | `src/bench.rs`、`src/bin/bench.rs` | 做完，迁了 dr-store 一个示范 |
-| 门禁 | `next/xtask/` | 9 道，接进了 `next.yml` |
-| 开发实例隔离 | `cargo xtask dev` | 做完 |
-| 开发命令行骨架 | `next/crates/dr-cli/` | 参数、离线改库规则、`inspect` 做完；`describe` / `call` 等 F3 |
+| 部分 | 在哪 | 里程碑 | 状态 |
+| --- | --- | --- | --- |
+| 统一种子：tiny / lite / heavy / showcase | `next/crates/dr-testkit/src/seed/` | 1 | 做完，指纹钉在测试里 |
+| 种子也能通过 F3 的命令写入，和直写对拍一致 | `seed/commands.rs`、`seed/digest.rs` | 2 | 做完 |
+| 样书：《傲慢与偏见》《阿Q正传》，以及 showcase 的《慢钟》和书架 | `src/samples.rs`、`fixtures/` | 1 | 做完，只有文字，插图没拷 |
+| 测量证据和过期检查 | `src/evidence.rs`、`cargo xtask evidence --check` | 1 | 做完；旧证据待各自迁移 |
+| 崩溃试验台 | `src/crash.rs`，F2 示范在 `tests/crash_store.rs` | 1 | 做完 |
+| 基准约定和 `bench` 程序 | `src/bench.rs`、`src/bin/bench.rs` | 1、2 | 两个套件：dr-store、dr-workspace（收编 F3 的测量） |
+| 门禁 | `next/xtask/` | 1 | 9 道，接进了 `next.yml` |
+| 开发实例隔离 | `cargo xtask dev` | 1 | 做完 |
+| 开发命令行 | `next/crates/dr-cli/` | 1、2 | 接上 F3 的注册表：`describe`、`call`、脚本化 `scenario`、`inspect` |
+| 调试桥 | — | 3 | 设计见下文，等 F6 外壳合进来再做 |
 
 ## 种子
 
@@ -41,6 +43,29 @@ println!("{}", seeded.shape().to_json());                         // 规模和�
 ```bash
 cargo drifting workspace scenario seed:lite --library <目录> --yes
 ```
+
+### 两种写法
+
+同一本书可以用两种方式写进库，结果要一致：
+
+| 写法 | 怎么写 | 用在哪 |
+| --- | --- | --- |
+| 直写 | `seed::generate` 加 `write_to`：用 dr-doc 直接写文档，ID、对等方、时间戳都是确定的 | 快，逐字节可复现；基准和大多数测试用它 |
+| 走命令 | `seed::generate_via_commands`：每一样东西都调 F3 的命令（`Workspace::call`，和界面、帮手、MCP、命令行同一条路），段落格式（标题、任务项、引文、人物链接）走工作区的编辑会话 | 命令层的规则（名字唯一、目标存在、关系类型允许的两端）也检查种子；慢一些 |
+
+- **共同的计划**：两种写法都读同一份「计划」（`seed/plan.rs`）。计划把书里有什么一次定下来：名字、长度、正文、谁链接谁、批注在哪。所有随机选择都在计划里做完，所以两条路写的是同一本书。
+- **对拍**：`seed::digest` 把库里的一本书读回成一种和写法无关的形式，两条路的结果比这个。tiny 和 lite 都对拍一致（`tests/seed_commands.rs`）。
+  - 实体按名字认，不按 ID；
+  - 顺序只比先后，不比数值；
+  - 正文比到每一段的标题级别、列表、勾选、引文、粗斜体和人物链接（按目标的名字）。
+- **不比的东西**：
+  - ID、时间戳和对等方：命令自己生成；
+  - 章节书序的具体数值：命令自己排位置，比的是阅读顺序；
+  - 分类的布局；
+  - 写作日和时间钉：F3 还没有写这两样的命令，所以走命令的种子里没有它们，见「待协调」。
+- **只能直写的**：showcase 和两本样书暂时只有直写。
+
+命令行里两种都能用：`scenario seed:<预设>` 是直写，`scenario seed-commands:<预设>` 走命令。
 
 ### 预设
 
@@ -167,7 +192,7 @@ cargo run -p dr-testkit --bin bench -- --list
   - 读出全部文字；
   - 开 100 个持有者，再关掉。
 
-`f8-m1-store-bench.json` 的结果（M3 Pro；测的时候机器上别的会话在编译，一分钟负载 14.6，所以长尾偏高）：
+`f8-m1-store-bench.json` 是第一个里程碑测的；之后 dr-store 加了两个迁移、种子也重构成了「计划加写法」，`evidence --check` 现在报它「过期」，到下一次测 dr-store 时再重测。当时的结果（M3 Pro；测的时候机器上别的会话在编译，一分钟负载 14.6，所以长尾偏高）：
 
 | 项 | p50 | p95 | 预算 |
 | --- | ---: | ---: | ---: |
@@ -176,6 +201,42 @@ cargo run -p dr-testkit --bin bench -- --list
 | 冷读全书 100 章（150 万字） | 15.9 ms | 34.2 ms | 发布档 300 ms |
 | 读出全书文字 | 32.5 ms | 63.1 ms | — |
 | 开 100 个持有者 | 28.3 ms | 109.9 ms | — |
+
+### 收编 F3 的测量：dr-workspace
+
+F3 的 `tests/measure.rs`（`f3-workspace-measure.json`）改成了 `bench` 的 `workspace` 套件，放在 dr-testkit 里，F3 的代码一行没动：
+
+- **数据**：heavy 种子，**走命令写入**。它正好就是 F3 原来测的规模（100 章、300 要素、200 构想、400 关系、约 200 条批注），区别是正文从每章 2 千字变成了 2 千到 2 万字；
+- **测什么**：
+  - 写入种子本身；
+  - 重开以后第一次查列表；
+  - 反复查（按名字调，和直接调类型）；
+  - 改一处后马上查；
+  - 一个个命令；
+  - 搜索；
+  - 撤销帮手的一整轮写入。
+
+```bash
+cargo run --release -p dr-testkit --bin bench -- workspace --milestone f8-m2
+```
+
+`f8-m2-workspace-bench.json` 的结果（M3 Pro，一分钟负载 16.9，和 F3 测的时候差不多）：
+
+| 项 | p50 | p95 | F3 原来（轻量数据） |
+| --- | ---: | ---: | ---: |
+| 走命令写完整个 heavy 种子（1623 个命令、679 次编辑会话） | 6.3 s | — | — |
+| 重开后第一次列章节 | 24.5 ms | — | 11.4 ms |
+| 列章节（按名字 / 按类型） | 0.29 / 0.035 ms | 0.65 / 0.11 ms | 0.18 / 0.013 ms |
+| 列要素、列关系 | 0.71、0.77 ms | 1.35、1.38 ms | 0.49、0.51 ms |
+| 新建章节（空的 / 带 2 千字） | 2.4 / 4.8 ms | 5.7 / 11.9 ms | 1.0 / 2.7 ms |
+| 改章名、批注、撤销 | 0.35、0.38、1.08 ms | 1.25、1.11、3.54 ms | 0.15、0.13、0.79 ms |
+| 改一处关系后马上列关系 | 15.3 ms | 27.6 ms | 5.1 ms |
+| **搜索（三个字 / 一个字）** | **47.4 / 33.0 ms** | 58.9 / 36.9 ms | 0.42 / 4.1 ms |
+| 撤销帮手的一轮（10 处改动） | 112 ms | — | 74 ms |
+
+- **搜索变慢了一百倍左右**：heavy 种子的正文约 360 万字，是 F3 测试数据（约 20 万字）的十几倍，搜索的耗时涨得比正文量快。这是统一种子第一次在全书规模上测命令层就测出来的，交给 F3 和 dr-index 看，见「待协调」。
+- **其余慢两三倍**：一是书目文档大了，二是测量时机器负载高（其他会话在编译）。要比较，先在同样的负载下重测。
+- **F3 原来的测量文件**：`f3-workspace-measure.json` 和 `tests/measure.rs` 可以由 F3 删掉。
 
 ## 门禁：`cargo xtask check`
 
@@ -207,6 +268,8 @@ cargo xtask check --skip audit         # 离线时跳过漏洞审计（它要联
 - **被 `.gitignore` 忽略的文件不查。** 它们本来就提交不进来，这和旧版的公开边界检查一致。未跟踪、没被忽略的文件要查。
 - **gpui-prose 的 dev-dependencies 也不许用 `dr-*`。** 示例和测试会链接进被依赖的代码；一个准备单独开源的宽松许可证 crate，在仓库外也必须能编译和测试。所以 F4 的基准程序以后要搬到一个 AGPL 的 crate 里（见「待协调」）。
 - **应用服务也不许编进 GPUI。** 命令行、MCP 和测试都要在没有窗口的情况下调同一套命令，F3 的 `dr-workspace` 现在也确实不依赖 GPUI。
+- **基准放在 examples 里的也算基准**：`examples/` 下文件名或子目录名带 `bench` 的文件，用词门禁不当成界面文案。dr-index 的基准读旧种子 JSON 的旧键名，监管会话合并时加了这一条；第二个里程碑补上了子目录的情况（`examples/prose-bench/synth.rs`）和测试。
+- **不为「单包能过、全工作区挂」加门禁。** 合并时 dr-workspace 的能力清单快照在 `cargo test --workspace` 下挂过：别的 crate 打开了 `serde_json` 的 `preserve_order`，键的顺序变了。这类问题的根是 cargo 在一次构建里把各包的特性合并，单独查哪个包都看不出来；CI 本来就是全工作区跑测试，已经能抓到。规矩是：**快照里的 JSON 先排好键再比**，比较两个 JSON 值用 `==`（它不看键的顺序），不要比序列化出来的字符串。
 - **门禁自己的源码** 要写出它在找的东西，所以这些模式都是拼出来的（和旧版守护测试一样），免得被别的扫描器当成真货。
 
 ### CI
@@ -254,14 +317,28 @@ cargo xtask dev --release -- --mcp …  # 参数原样交给程序
 
 ## 开发命令行：`dr-cli`
 
-`cargo drifting …` 是 `cargo run -p dr-cli --` 的别名。
+`cargo drifting …` 是 `cargo run -p dr-cli --` 的别名。第二个里程碑接上了 F3 的命令注册表：
 
 ```bash
 cargo drifting workspace describe [--json]
 cargo drifting workspace call <命令> --library <目录> [--input JSON] [--yes]
+cargo drifting workspace scenario <场景.json | seed:预设 | seed-commands:预设> --library <目录> [--yes]
 cargo drifting workspace inspect --library <目录> [--doc <文档 ID>] [--json]
-cargo drifting workspace scenario <名字> --library <目录> [--yes]
 ```
+
+- **`describe`**：列出注册表里的全部命令和查询；`--json` 输出 `registry().manifest()`，带每一项的输入、输出 Schema。
+- **`call`**：以作者的身份（来源 `user`）调一个命令或查询，输出它的结果（输出、影响、撤销方式、日志行）。
+  - 查询在库的一致副本上跑，不用 `--yes`，应用开着也行；
+  - 命令照下面的离线改库规则在库本身上跑；
+  - 出错时带上注册表的错误码（`not_found`、`name_taken`、`invariant:<ID>` 等）。
+- **`scenario`**：按顺序跑一个 JSON 文件里的调用，给验收用。
+  - 每一步可以 `save` 输出，后面的输入里用 `${名字.字段}` 引用（整个字符串只是一个引用时，换成原值，可以是任何 JSON 类型）；
+  - `expect` 用 JSON 指针检查输出，`expect_error` 要求这一步按指定的错误码失败；
+  - `actor` 可以是 `user`（默认）、`import` 或 `agent:<会话>/<轮>`；
+  - `{ "undo": true }`、`{ "redo": true }` 撤销、重做这个身份的上一步；
+  - 任何一步失败或者期望不符，就停在那一步并报出步号；
+  - 全是查询的场景在副本上跑，不用 `--yes`；
+  - 格式和例子写在 `crates/dr-cli/src/scenario.rs` 的开头。
 
 - **离线改库的规则**，照旧版：
   1. **应用必须关着**：库的锁（`library.lock`）被别的进程占着，就拒绝；
@@ -275,9 +352,56 @@ cargo drifting workspace scenario <名字> --library <目录> [--yes]
   - `--doc` 打印一个文档的完整内容。
 
   dr-store 现在没有只读打开，所以用副本代替，见「待协调」。
-- **`scenario`**：现在内置 `seed:tiny`、`seed:lite`、`seed:heavy`、`seed:showcase`，把统一种子写进库。
-- **`describe` 和 `call`**：等 F3 的命令注册表合进来。现在它们照样检查参数和规则，然后说明「要等 F3」，以退出码 2 结束，什么都不改。
+- **内置场景**：`seed:<预设>` 直写种子，`seed-commands:<预设>` 走命令写种子。
 - **打开库时的版本号**：用和应用一样的版本号（`0.2.0-dev`）打开库，免得命令行打开一次，库就多一份安全快照。
+
+## 调试桥（设计，等 F6）
+
+调试桥让 Agent 会话驱动**真实的窗口**做验收，代替旧版的 frontend debug bridge。它要用 F6 外壳的动作（action）、键位和标签，所以等 F6 合进来再做。这一轮只定设计。
+
+### 用起来是什么样
+
+```bash
+cargo xtask dev --debug-bridge                           # 开发版带上调试桥启动
+cargo drifting app info                                  # 连上正在跑的那个实例
+cargo drifting app call chapter.create --input '{…}'     # 和 workspace call 一样，但发给正在跑的应用
+cargo drifting app dispatch workspace::NewChapter        # 触发一个界面动作
+cargo drifting app type "第一章"                          # 打字（走 GPUI 的输入路径）
+cargo drifting app wait --until 'idle'                   # 等界面安静下来
+cargo drifting workspace scenario ui-acceptance.json …   # 场景里可以混用 call 和 app 步骤
+```
+
+### 怎么做
+
+- **传输**：本机 socket，一行一个 JSON。
+  - macOS 用 Unix domain socket。路径不能超过 104 字节（MCP 的 socket 在 0.1 里栽过这个坑），放在 `$TMPDIR/drifting-<profile 的哈希>.sock`，同一目录下一个 `.json` 连接文件写明路径；
+  - Windows 用命名管道 `\\.\pipe\cc.drifting.next.dev.<profile>.debug`。
+  - 按 `DRIFTING_PROFILE` 分开，和 `cargo xtask dev` 的隔离一致；`--print-config` 打印它的位置。
+- **协议**：请求 `{"id": 1, "method": "…", "params": {…}}`，回答 `{"id": 1, "result": …}` 或 `{"id": 1, "error": {"code": "…", "message": "…"}}`；订阅之后，服务端推 `{"event": …}`。
+- **认证**：应用启动时生成一个随机令牌，写进连接文件（权限 0600）；客户端第一条消息带上它，不对的直接断开。照 0.1 的 MCP 连接文件做法。
+- **第一版的方法**：
+
+  | 方法 | 做什么 |
+  | --- | --- |
+  | `app.info` | 版本、profile、窗口列表，每个窗口是否被遮住、是否在前台 |
+  | `window.focus` | 把窗口带到前台 |
+  | `command.call` | `Workspace::call`，来源 `user`，和 `workspace call` 同一套输入输出 |
+  | `action.dispatch` | 按名字触发一个 GPUI action，等于按了它的快捷键 |
+  | `input.type`、`input.key`、`input.ime` | 打字、按键、组字（`setMarkedText` 加 `insertText` 那一路，验输入法相关的时序） |
+  | `ui.query` | 按调试名找界面元素，返回位置、是否可见、文字 |
+  | `ui.click` | 点一个元素（按位置发鼠标事件） |
+  | `ui.wait` | 等一个条件：元素出现、某个事件到达、连续若干帧没有重绘 |
+  | `state.get` | 只读的界面状态：当前标签、选区、焦点在哪 |
+
+  截图不放进调试桥：`app.info` 给出系统的窗口编号，需要截图时在外面用系统工具截。
+- **调试名**：dr-ui 的组件和 F6 的外壳给可交互的元素起稳定的调试名，只在带调试桥的构建里存在。
+- **放在哪**：服务端在一个界面层的 crate 里，加 cargo 特性 `debug-bridge`，默认关，只有 `cargo xtask dev --debug-bridge` 打开；请求在主线程上执行。客户端在 `dr-cli` 里（`cargo drifting app …`），只是一个 socket 客户端，不依赖 GPUI。
+- **不进正式包**（第六节第 9 条）：做调试桥的同时加一道门禁：
+  - 发布构建的命令不带 `debug-bridge` 特性；
+  - 正式包的可执行文件里找不到调试桥的标记字符串。
+- **旧版踩过的坑**：
+  - 窗口被遮住时不重绘：GPUI 不画完全被遮住的窗口，`ui.wait` 不能只靠「画了一帧」来判断，`app.info` 要报告窗口被遮住；
+  - 没有焦点时不触发失焦：做「组字中失焦」这类验收之前，先 `window.focus`。
 
 ## 待协调
 
@@ -303,10 +427,14 @@ cargo drifting workspace scenario <名字> --library <目录> [--yes]
 
 ### dr-workspace（F3）
 
-- **已有的接入**：`dr-workspace` 已经归在「应用服务」，它的 insta 快照就是契约类证据的做法，不用改。
-- **测量换进基准**：`f3-workspace-measure.json` 改成 `bench` 的一个套件。
-- **接命令行**：合进来以后，`dr-cli` 的 `describe` 和 `call` 直接接注册表，`scenario` 加脚本化的调用序列。
-- **种子走命令**：种子以后可以改成通过命令写入，这样命令层的不变量也会检查种子数据。
+- **搜索在全书规模上慢**：heavy 种子上 `book.search` 每次 33–47 ms，F3 原来在 20 万字的数据上量的是 0.4–4 ms。请和 dr-index 一起看（`f8-m2-workspace-bench.json`）。
+- **缺两个命令**：时间钉（`time_pin.*`）和写作日。没有它们，走命令写的种子里就没有这两样，对拍只好不比。
+- **删掉旧测量**：`tests/measure.rs` 和 `f3-workspace-measure.json` 已经由 `bench` 的 `workspace` 套件接替，可以删掉（`measure_evidence_has_its_shape` 一起删）。
+- **快照**：能力清单的快照先排好键再比（合并时已经这样改了），以后新的快照照这个做。
+
+### dr-index / dr-text
+
+- **基准**：`examples/` 里的基准（读旧种子 JSON 的那个）改成 `bench` 的一个套件，用统一种子；改完以后门禁里「examples 下带 bench 的算基准」这条可以去掉。
 
 ### dr-import-v1（M10）
 
@@ -325,13 +453,14 @@ cargo drifting workspace scenario <名字> --library <目录> [--yes]
 
 ## 下一个里程碑建议
 
-1. **接 F3**：`dr-cli describe | call | scenario` 接上命令注册表，命令清单做成快照测试。
-2. **调试桥**：一个本机 socket，走 JSON，按 profile 分开；同时加「调试桥不进正式包」的检查（第六节第 9 条）。
-3. **补齐种子**：
+1. **调试桥**：F6 合进来以后照上面的设计做，同时加「调试桥不进正式包」的门禁。
+2. **补齐种子**：
    - 素材图片和 PDF（合成的小文件，或者从样书插图生成）；
    - 帮手对话：heavy 的 24 段、1800 轮；
-   - 种子改成通过命令写入。
-4. **迁移旧证据**：F1、F2、F4、M10 的旧证据和基准迁进 `bench` 和新证据格式，迁完以后把「旧格式」改成失败。
+   - 样书和 showcase 也走一遍命令，对拍；
+   - F3 补上时间钉和写作日的命令以后，对拍把它们也比上。
+3. **迁移旧证据**：F1、F2、F4、M10、dr-index 的旧证据和基准迁进 `bench` 和新证据格式，迁完以后把「旧格式」改成失败。
+4. **`inspect` 换只读打开**：F2 的只读打开合进来以后，`inspect` 和查询不再先复制库。
 5. **旧库测试库**：冻结旧库测试库（阶段 7 第 1 条），钉住 SHA-256。
 
 ## 代码位置
@@ -341,18 +470,18 @@ next/crates/dr-testkit/
   src/rng.rs              唯一的随机数（SplitMix64）
   src/text.rs             合成语料、字数口径
   src/digest.rs           唯一的指纹函数
-  src/seed/               预设、长度分配、书的构建、形状、写进库
+  src/seed/               预设、长度分配、计划、直写、走命令写、对拍用的 digest、形状、写进库
   src/samples.rs          样书和 showcase
   src/evidence.rs         测量证据、过期检查
   src/crash.rs            崩溃试验台
-  src/bench.rs            基准约定和 store 套件
+  src/bench.rs            基准约定，store 和 workspace 两个套件
   src/bin/bench.rs        bench 程序
   fixtures/               样书 JSON 和来源说明
-  tests/                  种子、样书、崩溃（F2 示范）、基准
+  tests/                  种子、两种写法对拍、样书、崩溃（F2 示范）、基准
 next/xtask/
   src/main.rs             cargo xtask check | evidence --check | dev
   src/gates/              9 道门禁
   src/dev.rs              开发实例隔离
-next/crates/dr-cli/       开发命令行骨架
+next/crates/dr-cli/       开发命令行：describe、call、scenario（src/scenario.rs）、inspect
 next/.cargo/config.toml   cargo xtask、cargo drifting 两个别名
 ```

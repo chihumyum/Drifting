@@ -95,12 +95,14 @@ pub enum Guarded {
     },
 }
 
-/// Run `write` on the library under the three rules.
+/// Run `write` on the library directory under the three rules. `write`
+/// opens what it needs (a library, a workspace) and closes it before it
+/// returns.
 pub fn guarded_write(
     library: &Path,
     yes: bool,
     action: &str,
-    write: impl FnOnce(&dr_store::Library) -> Result<String, String>,
+    write: impl FnOnce(&Path) -> Result<String, String>,
 ) -> Result<Guarded, String> {
     ensure_closed(library)?;
     if !yes {
@@ -118,9 +120,23 @@ pub fn guarded_write(
         )));
     }
     let backup = backup(library)?;
-    let lib = dr_store::Library::open(library, dr_testkit::seed::library_options(APP_VERSION))
-        .map_err(|e| e.to_string())?;
-    let report = write(&lib)?;
-    lib.close().map_err(|e| e.to_string())?;
+    let report = write(library)?;
     Ok(Guarded::Done { backup, report })
+}
+
+/// Run `read` on a consistent copy of the library, so the library itself is
+/// never opened for writing (the app may have it open).
+pub fn on_copy<T>(
+    library: &Path,
+    read: impl FnOnce(&Path) -> Result<T, String>,
+) -> Result<T, String> {
+    if !db_path(library).exists() {
+        return Err(format!(
+            "{} is not a library (no library.sqlite)",
+            library.display()
+        ));
+    }
+    let tmp = tempfile::tempdir().map_err(|e| e.to_string())?;
+    copy_db(library, &db_path(tmp.path()))?;
+    read(tmp.path())
 }
