@@ -1587,6 +1587,7 @@ dependencies = [
 name = "dr-workspace"
 version = "0.0.0"
 dependencies = [
+ "base64 0.22.1",
  "dr-doc",
  "dr-index",
  "dr-model",

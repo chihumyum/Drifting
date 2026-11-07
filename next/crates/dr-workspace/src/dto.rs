@@ -328,6 +328,50 @@ impl From<&Comment> for CommentInfo {
     }
 }
 
+/// A comment's anchor as stored: the two Loro cursors dr-doc writes
+/// (`Cursor::encode()`, the start on the first anchored character, the end
+/// on the last), each in base64 (standard alphabet, padded). The editor
+/// moves these bytes between the book and the prose document unchanged.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct AnchorBytes {
+    pub start: String,
+    pub end: String,
+}
+
+impl From<&EncodedAnchor> for AnchorBytes {
+    fn from(a: &EncodedAnchor) -> Self {
+        use base64::Engine as _;
+        let b64 = base64::engine::general_purpose::STANDARD;
+        AnchorBytes {
+            start: b64.encode(&a.start),
+            end: b64.encode(&a.end),
+        }
+    }
+}
+
+impl AnchorBytes {
+    /// The bytes; `None` when either half is not base64.
+    pub fn bytes(&self) -> Option<EncodedAnchor> {
+        use base64::Engine as _;
+        let b64 = base64::engine::general_purpose::STANDARD;
+        Some(EncodedAnchor {
+            start: b64.decode(&self.start).ok()?,
+            end: b64.decode(&self.end).ok()?,
+        })
+    }
+}
+
+/// One anchored comment, for an editor laying anchors out.
+#[derive(Clone, Debug, PartialEq, Serialize, JsonSchema)]
+pub struct CommentAnchor {
+    pub id: String,
+    /// `note` or `todo`.
+    pub kind: String,
+    /// `open` or `resolved`.
+    pub status: String,
+    pub anchor: AnchorBytes,
+}
+
 #[derive(Clone, Debug, Serialize, JsonSchema)]
 pub struct MaterialInfo {
     pub id: String,

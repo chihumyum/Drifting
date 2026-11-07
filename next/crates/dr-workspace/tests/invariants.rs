@@ -54,6 +54,9 @@ enum Op {
     Comment(u8),
     ResolveComment(u8),
     Replace(u8),
+    /// `todo.project` on a live chapter, the bits of the second byte choosing
+    /// which paragraphs carry a marker.
+    Project(u8, u8),
     Undo,
     Redo,
     AgentRename(u8, u8),
@@ -95,6 +98,7 @@ fn op() -> impl Strategy<Value = Op> {
         1 => i().prop_map(Op::Comment),
         1 => i().prop_map(Op::ResolveComment),
         1 => i().prop_map(Op::Replace),
+        2 => (i(), i()).prop_map(|(a, m)| Op::Project(a, m)),
         2 => Just(Op::Undo),
         1 => Just(Op::Redo),
         1 => (i(), i()).prop_map(|(a, b)| Op::AgentRename(a, b)),
@@ -336,6 +340,23 @@ fn run(ws: &Workspace, faults: &Faults, book: &str, op: &Op, agent_turn: &mut u3
             ),
             None => Ok(()),
         },
+        Op::Project(i, mask) => match pick(&live_chapters(), *i) {
+            Some(id) => {
+                let doc = format!("node:{id}");
+                let paras = list(ws, "prose.read", json!({"doc": doc}))["paragraphs"].clone();
+                let markers: Vec<Value> = paras
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .enumerate()
+                    .filter(|(k, _)| (mask >> (k % 8)) & 1 == 1)
+                    .filter_map(|(_, p)| p["block_id"].as_str())
+                    .map(|blk| json!({"block": blk, "task": marker_task(blk)}))
+                    .collect();
+                c("todo.project", json!({"doc": doc, "markers": markers}))
+            }
+            None => Ok(()),
+        },
         Op::Undo => ws.undo(&u).map(|_| ()),
         Op::Redo => ws.redo(&u).map(|_| ()),
         Op::AgentRename(i, n) => match pick(&live_chapters(), *i) {
@@ -380,7 +401,37 @@ fn run(ws: &Workspace, faults: &Faults, book: &str, op: &Op, agent_turn: &mut u3
 }
 
 /// The invariants commands keep on one device.
+/// The task text the property tests type after a marker in block `blk`: a
+/// function of the block, so two devices project the same seed.
+fn marker_task(blk: &str) -> String {
+    format!("t-{}", blk.chars().take(6).collect::<String>())
+}
+
+/// PROJECTED-TODO-ID: a TODO projected from a marker has the id its
+/// document and block give, and its body is the task it was seeded with,
+/// once (two devices that projected it before syncing do not double it).
+fn check_projections(ws: &Workspace, b: &str) {
+    use dr_model::DocId;
+    use dr_model::id::{BlockId, CommentId};
+    use dr_model::kind::ProjectionKind;
+    let todos = list(ws, "comment.list", json!({"book": b, "kind": "todo"}));
+    for t in todos.as_array().unwrap() {
+        if t["projection"] != "marker" || t["target"].is_null() {
+            continue;
+        }
+        let blk = t["target_block"]
+            .as_str()
+            .expect("a projected TODO names its block");
+        let doc = DocId::parse(&format!("node:{}", t["target"]["id"].as_str().unwrap())).unwrap();
+        let want =
+            CommentId::for_projection(&ProjectionKind::Marker, &doc, &BlockId::parse(blk).unwrap());
+        assert_eq!(t["id"], want.as_str(), "projected TODO id");
+        assert_eq!(t["body"], marker_task(blk).as_str(), "projected TODO body");
+    }
+}
+
 fn check_single(ws: &Workspace, b: &str) {
+    check_projections(ws, b);
     let key = |s: &str| s.trim().to_lowercase();
     let unique = |what: &str, names: Vec<String>| {
         let mut seen = HashSet::new();
@@ -462,6 +513,7 @@ fn check_single(ws: &Workspace, b: &str) {
 
 /// What holds after any merge too: reads are tolerant.
 fn check_tolerant(ws: &Workspace, b: &str) {
+    check_projections(ws, b);
     let lib = ws.library();
     let live: HashSet<String> = ids(&list(ws, "chapter.list", json!({"book": b})))
         .into_iter()
@@ -546,6 +598,12 @@ proptest! {
         let a = env();
         let z = env();
         let book = a.book();
+        // One chapter both devices start from, so both can edit and
+        // project the same paragraphs.
+        a.call(
+            "chapter.create",
+            json!({"book": book, "title": "共有", "text": "一段。\n安娜在这里。\n第三段。"}),
+        );
         sync(a.ws(), z.ws());
         let (mut ta, mut tz) = (0, 0);
         for op in a_ops.iter().filter(|o| !matches!(o, Op::Reopen | Op::Fault(_))) {

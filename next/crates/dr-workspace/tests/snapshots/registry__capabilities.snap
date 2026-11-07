@@ -27,9 +27,11 @@ chapter.purge                command  book     Delete a chapter for good: its re
 chapter.restore              command  book     Bring a chapter back from the trash (its relations and comments come back with it).
 chapter.trash                command  book     Move a chapter to the trash. Never refused: its relations are hidden and comments on it shown as unlocated until it is restored; the result lists them.
 chapter.update               command  book     Change a chapter's title, summary, status, narrative position or storylines.
+comment.anchors              query    shared   The stored anchors of the comments on one entity's prose, for an editor laying them out (comments without an anchor are not listed).
 comment.create               command  book     Add a comment or TODO, on an entity, a paragraph, a passage of its prose, or floating.
 comment.delete               command  book     Delete a comment or TODO (its relations go with it).
 comment.list                 query    shared   List comments and TODOs (a target in the trash or gone shows as unlocated).
+comment.reanchor             command  book     Put a comment's anchor back where the editor's undo brought its text back (the author's change, synced; it follows the editor's undo, so it is not an entry of the object-level undo).
 comment.update               command  book     Change a comment or TODO: its text, status (resolve / reopen), priority, kind or linked Agent conversation.
 element.create               command  book     Create an element. A name or alias another element already has is refused (automatic links find people by name); the error names that element.
 element.list                 query    shared   List elements (with a mark on names a merge left duplicated).
@@ -84,3 +86,4 @@ storyline.purge              command  book     Delete a storyline for good: chap
 storyline.restore            command  book     Bring a storyline back from the trash, with its chapters' membership.
 storyline.trash              command  book     Move a storyline to the trash. Never refused: chapters keep their membership, hidden until it is restored.
 storyline.update             command  book     Rename a storyline (a taken name gets a suffix), recolour it or change its summary.
+todo.project                 command  book     Keep the TODOs typed as markers in one prose document (a paragraph starting with TODO or 待办) in step with it: a new marker gets a TODO, an open TODO whose marker is gone is deleted, resolved ones stay; the same marker makes the same TODO on every device.

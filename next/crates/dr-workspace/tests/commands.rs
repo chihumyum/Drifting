@@ -1035,13 +1035,14 @@ fn unknown_commands_and_bad_input() {
 
 #[test]
 fn every_registered_entry_is_exercised_here() {
-    // Keep this list in step with the registry: a new command needs a test.
-    let src = include_str!("commands.rs");
+    // Keep this list in step with the registry: a new command needs a test
+    // (here, or in editor.rs for what the editor calls).
+    let srcs = [include_str!("commands.rs"), include_str!("editor.rs")];
     let missing: Vec<&str> = registry()
         .iter()
         .map(|s| s.name)
         .filter(|n| {
-            !src.contains(&format!("\"{n}\""))
+            !srcs.iter().any(|src| src.contains(&format!("\"{n}\"")))
                 && ![
                     "history.restore_entities",
                     "history.undo_agent",
