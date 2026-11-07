@@ -130,6 +130,7 @@ pub fn mid(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>)
             let right_target = split.side(PageSide::Right).target.clone();
             let left_rail = outline::rail(
                 ws,
+                &entity,
                 Some(&left_target),
                 column_w * ratio,
                 column_h,
@@ -138,6 +139,7 @@ pub fn mid(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>)
             );
             let right_rail = outline::rail(
                 ws,
+                &entity,
                 Some(&right_target),
                 column_w * (1.0 - ratio),
                 column_h,
@@ -181,7 +183,7 @@ pub fn mid(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>)
         }
         tab => {
             let target = tab.map(|t| t.focused().target.clone());
-            let rail = outline::rail(ws, target.as_ref(), column_w, column_h, window, cx);
+            let rail = outline::rail(ws, &entity, target.as_ref(), column_w, column_h, window, cx);
             div()
                 .relative()
                 .size_full()

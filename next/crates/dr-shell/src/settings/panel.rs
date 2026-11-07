@@ -449,7 +449,7 @@ impl SettingsPanel {
                 if only.is_none() {
                     col = col.child(about_header(&theme, cx));
                 }
-                col = self.info_rows(col, section, &wanted, window, cx);
+                col = self.info_rows(col, section, &|_| true, &mut None, &wanted, window, cx);
                 if only.is_none() {
                     col = col.child(
                         div()
@@ -469,7 +469,18 @@ impl SettingsPanel {
                 if section == Section::LocalData && only.is_none() {
                     col = col.child(local_intro(&theme, cx));
                 }
+                // Rows under no heading open the section (本地数据's backup
+                // and restore).
                 let mut heading: Option<Key> = None;
+                col = self.info_rows(
+                    col,
+                    section,
+                    &|r| r.group.is_none(),
+                    &mut heading,
+                    &wanted,
+                    window,
+                    cx,
+                );
                 for def in registry::in_section(section).filter(|d| wanted(d.key)) {
                     if let Some(group) = def.group
                         && def.group != heading
@@ -494,7 +505,16 @@ impl SettingsPanel {
                         &theme,
                     ));
                 }
-                col = self.info_rows(col, section, &wanted, window, cx);
+                // Under the settings' last heading when they share it (数据使用).
+                col = self.info_rows(
+                    col,
+                    section,
+                    &|r| r.group.is_some(),
+                    &mut heading,
+                    &wanted,
+                    window,
+                    cx,
+                );
                 if section == Section::LocalData && only.is_none() {
                     col = col.child(
                         div()
@@ -510,21 +530,23 @@ impl SettingsPanel {
         col.into_any_element()
     }
 
-    /// The rows of `section` that are not stored settings, under their
-    /// headings.
+    /// The rows of `section` that are not stored settings (those `pick`
+    /// takes), under their headings.
+    #[allow(clippy::too_many_arguments)]
     fn info_rows(
         &mut self,
         mut col: gpui::Stateful<gpui::Div>,
         section: Section,
+        pick: &dyn Fn(&InfoRow) -> bool,
+        heading: &mut Option<Key>,
         wanted: &dyn Fn(&str) -> bool,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> gpui::Stateful<gpui::Div> {
         let theme = Theme::of(window, cx);
-        let mut heading: Option<Key> = None;
-        for info in registry::info_in(section).filter(|r| wanted(r.id)) {
-            if info.group.is_some() && info.group != heading {
-                heading = info.group;
+        for info in registry::info_in(section).filter(|r| pick(r) && wanted(r.id)) {
+            if info.group.is_some() && info.group != *heading {
+                *heading = info.group;
                 if let Some(group) = info.group {
                     col = col.child(sub_heading(t(cx, group), &theme));
                 }
@@ -591,6 +613,27 @@ impl SettingsPanel {
                         // Settings closes; the dialog comes up over the page.
                         panel.update(cx, |_, cx| cx.emit(PanelEvent::Close));
                         window.dispatch_action(Box::new(crate::actions::SendFeedback), cx);
+                    })
+                    .into_any_element()
+            }
+            RowAction::Backup | RowAction::Restore => {
+                let (id, label) = if info.action == RowAction::Backup {
+                    ("open-backup", keys::settings::sync::backup::EXPORT_BUTTON)
+                } else {
+                    ("open-restore", keys::settings::sync::backup::RESTORE_BUTTON)
+                };
+                let panel = cx.entity();
+                let backup = info.action == RowAction::Backup;
+                Button::new(id, t(cx, label))
+                    .small()
+                    .on_click(move |_, window, cx| {
+                        // Settings closes; the dialog comes up over the page.
+                        panel.update(cx, |_, cx| cx.emit(PanelEvent::Close));
+                        if backup {
+                            window.dispatch_action(Box::new(crate::actions::BackupLibrary), cx);
+                        } else {
+                            window.dispatch_action(Box::new(crate::actions::RestoreLibrary), cx);
+                        }
                     })
                     .into_any_element()
             }

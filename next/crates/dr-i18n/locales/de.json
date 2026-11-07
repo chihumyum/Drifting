@@ -222,7 +222,7 @@
         "account_libraries_left_other": "{{count}} Kontobibliotheken im Ordner warten auf Konten",
         "already_imported": "Auf diesem Gerät schon importiert; übersprungen",
         "already_in_library": "Schon in der Bibliothek; unverändert gelassen",
-        "carries_on": "Nicht fertig; ein erneuter Import dieser Bibliothek macht weiter",
+        "carries_on": "Nicht fertig; importiere diese Bibliothek noch einmal, um weiterzumachen",
         "from_caches_one": "{{count}} Text kam aus dem Cache; die letzten Sekunden fehlen vielleicht",
         "from_caches_other": "{{count}} Texte kamen aus dem Cache; die letzten Sekunden fehlen vielleicht"
       }
@@ -245,6 +245,7 @@
   },
   "leftSidebar": {
     "actions": {
+      "collapseAll": "Alle auf- oder einklappen",
       "sort": "Sortieren"
     },
     "empty": {
@@ -361,6 +362,9 @@
     "back": "Zurück"
   },
   "nodeEditor": {
+    "empty": {
+      "noStoryline": "Kein Handlungsstrang"
+    },
     "folio": {
       "chapter": "Kapitel",
       "chapterNumber": "Kapitel {{n}}"
@@ -823,6 +827,14 @@
     },
     "search_placeholder": "Einstellungen durchsuchen…",
     "sync": {
+      "backup": {
+        "exportButton": "Sicherung exportieren…",
+        "exportDesc": "Packt die Datenbanken aller Projekte samt Originalbildern und PDFs in eine .drifting-Datei. Zur Wiederherstellung oder zum Umzug auf einen anderen Computer.",
+        "exportTitle": "Bibliothek sichern",
+        "restoreButton": "Sicherung auswählen…",
+        "restoreDesc": "Ersetzt die aktuelle Bibliothek durch eine .drifting-Sicherung. Zuvor wird eine Kopie der aktuellen Bibliothek gespeichert.",
+        "restoreTitle": "Aus Sicherung wiederherstellen"
+      },
       "local_data": "Lokale Daten",
       "local_sub": "Ohne Drifting-Konto oder gehostete Cloud. Exportiere jederzeit eine lesbare Kopie.",
       "local_title": "Dein Werk bleibt auf diesem Gerät."
@@ -858,6 +870,10 @@
     },
     "labels": {
       "color": "Farbe"
+    },
+    "meta": {
+      "chapters": "{{count}} Kapitel",
+      "kWords": "{{count}} Tsd. Wörter"
     }
   },
   "topTimeline": {

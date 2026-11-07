@@ -218,7 +218,7 @@
         "account_libraries_left": "資料夾裡還有 {{count}} 個帳號資料庫沒匯入，等帳號功能做好",
         "already_imported": "這台裝置以前匯入過，這次沒再匯入",
         "already_in_library": "新資料庫裡已經有這本書，沒有動",
-        "carries_on": "沒匯入完，再匯入一次這個資料庫會接著匯入完",
+        "carries_on": "沒匯入完，再匯入一次這個資料庫會接著匯入",
         "from_caches": "有 {{count}} 篇照快取匯入，可能少了最後幾秒的字"
       }
     }
@@ -240,6 +240,7 @@
   },
   "leftSidebar": {
     "actions": {
+      "collapseAll": "全部展開或收合",
       "sort": "排序"
     },
     "empty": {
@@ -356,6 +357,9 @@
     "back": "返回"
   },
   "nodeEditor": {
+    "empty": {
+      "noStoryline": "無故事線"
+    },
     "folio": {
       "chapter": "章節",
       "chapterNumber": "第 {{n}} 章"
@@ -818,6 +822,14 @@
     },
     "search_placeholder": "搜尋設定…",
     "sync": {
+      "backup": {
+        "exportButton": "匯出備份…",
+        "exportDesc": "將所有作品的資料庫及原始圖片、PDF 檔案封裝為一個 .drifting 檔，用於還原或搬到另一部電腦。",
+        "exportTitle": "資料庫備份",
+        "restoreButton": "選擇備份…",
+        "restoreDesc": "用 .drifting 備份取代目前資料庫。還原前會先儲存目前資料庫的副本。",
+        "restoreTitle": "從備份還原"
+      },
       "local_data": "本機資料",
       "local_sub": "不使用 Drifting 帳號或託管雲端，隨時可匯出可讀副本。",
       "local_title": "作品留在這部裝置上。"
@@ -853,6 +865,10 @@
     },
     "labels": {
       "color": "顏色"
+    },
+    "meta": {
+      "chapters": "{{count}} 章",
+      "kWords": "{{count}} 千字"
     }
   },
   "topTimeline": {

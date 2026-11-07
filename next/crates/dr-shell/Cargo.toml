@@ -20,6 +20,8 @@ dr-editor.workspace = true
 dr-i18n.workspace = true
 dr-model.workspace = true
 dr-platform.workspace = true
+# The library's root and options when the shell swaps it (`library.rs`).
+dr-store.workspace = true
 dr-text.workspace = true
 dr-ui.workspace = true
 # M06 search, M07 stats, M09 history and M41 export, each hooked in at one
@@ -46,7 +48,6 @@ objc2-app-kit.workspace = true
 
 [dev-dependencies]
 # A seeded library for the tests and the captures (the showcase's 《慢钟》).
-dr-store.workspace = true
 dr-testkit.workspace = true
 gpui = { workspace = true, features = ["test-support"] }
 gpui_platform.workspace = true

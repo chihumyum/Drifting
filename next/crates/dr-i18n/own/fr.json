@@ -24,7 +24,7 @@
         "from_caches_other": "{{count}} textes viennent de leur cache ; leurs dernières secondes manquent peut-être",
         "account_libraries_left_one": "{{count}} bibliothèque de compte du dossier attend les comptes",
         "account_libraries_left_other": "{{count}} bibliothèques de compte du dossier attendent les comptes",
-        "carries_on": "Pas terminé ; importer de nouveau cette bibliothèque reprend la suite"
+        "carries_on": "Pas terminé ; importez de nouveau cette bibliothèque pour reprendre"
       }
     }
   },

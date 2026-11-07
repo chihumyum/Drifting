@@ -29,7 +29,9 @@ pub mod actions;
 pub mod appearance;
 pub mod book;
 pub mod dialogs;
+mod export_memory;
 pub mod keymap;
+pub mod library;
 pub mod menus;
 pub mod nav;
 pub mod notifications;
@@ -123,6 +125,7 @@ pub fn init(info: ShellInfo, services: Services, file: SettingsFile, cx: &mut Ap
     // The find bar: ⇧Enter, ⌘G / ⇧⌘G.
     keymap::add_bindings(cx, workspace::find::key_bindings);
     keymap::apply(&Settings::read(cx).key_bindings(), cx);
+    export_memory::init(cx);
 }
 
 /// Opens the workspace window, or brings the open one forward.

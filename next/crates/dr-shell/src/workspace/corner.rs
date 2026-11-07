@@ -5,12 +5,19 @@
 //!
 //! - **Outline** (`toc-raked`): shows or hides the outline rail in the
 //!   page's left margin (M04). Kept in the book's local layout.
-//! - **⋯** (`more`): the page's menu. Every prose page's has 历史快照…
-//!   (M09's snapshot history of its document, [`Workspace::open_history`]);
-//!   a chapter's also its writing status (草稿 / 已完成 / 已弃用, the current
-//!   one ticked) and 删除节点, which puts it in the trash (its tab closes
-//!   through F3's event, as for anyone's deletion). The other kinds' own
-//!   rows come with their modules.
+//! - **⋯** (`more`): the page's menu, top to bottom:
+//!   - 分享 (M41's Markdown share) on chapter, idea, element, storyline and
+//!     category pages, and on a chapter 导出成稿 too;
+//!   - a chapter's writing status (草稿 / 已完成 / 已弃用, the current one
+//!     ticked);
+//!   - the rows modules add for the page ([`crate::pages::add_page_menu`]:
+//!     an element's 更改类目 …);
+//!   - 历史快照… on every prose page (M09, [`Workspace::open_history`]);
+//!   - last, what deletes: a chapter's 删除节点 (into the trash; its tab
+//!     closes through F3's event, as for anyone's deletion) and the
+//!     modules' dangerous rows.
+//!
+//!   The whole book's ⋯ has its share and export.
 //! - **一炷香** (`incense`): [`ToggleImmersiveWriting`]. In a split only the
 //!   right page has it, as in the 0.1 client.
 //!
@@ -33,7 +40,6 @@ use gpui::{
     AnyElement, App, AppContext as _, Context, Entity, InteractiveElement, IntoElement,
     ParentElement, Styled, Window, div, px,
 };
-use serde_json::json;
 
 use super::Workspace;
 use crate::actions::ToggleImmersiveWriting;
@@ -50,18 +56,6 @@ pub const STATUSES: [(&str, Icon); 3] = [
     ("discarded", Icon::BrushBroken),
 ];
 
-fn status_label(cx: &App, status: &str) -> gpui::SharedString {
-    use keys::editor_top_bar::status;
-    t(
-        cx,
-        match status {
-            "finished" => status::FINISHED,
-            "discarded" => status::DISCARDED,
-            _ => status::DRAFT,
-        },
-    )
-}
-
 /// The corner of the page showing `target`; `trailing`: the right page of a
 /// split, or the only one.
 pub fn corner(
@@ -77,15 +71,6 @@ pub fn corner(
     if w.immersive {
         return div().into_any_element();
     }
-    let chapter = match target {
-        Some(Target::Chapter(id)) => w
-            .book
-            .chapters
-            .iter()
-            .find(|c| c.id == id.as_str())
-            .cloned(),
-        _ => None,
-    };
     let key = target.map_or_else(|| "home".to_owned(), Target::key);
     let menu_open = w.corner_menu.as_deref() == Some(key.as_str());
     let more_bounds = overlay::use_bounds(
@@ -122,15 +107,10 @@ pub fn corner(
             .into_any_element(),
         );
     }
-    // Every prose page has a ⋯ menu (its snapshot history at least).
-    let doc_page = target.and_then(crate::book::doc_of).map(|doc| {
-        let name = target
-            .map(|t| super::title_of(&w.book, t, cx))
-            .unwrap_or_default();
-        (doc, name.to_string())
-    });
-    // The whole book's ⋯ holds its share and export (M41).
-    if doc_page.is_some() || target == Some(&Target::Book) {
+    // Every prose page has a ⋯ menu (its snapshot history at least); the
+    // whole book's holds its share and export (M41).
+    let doc_page = target.and_then(crate::book::doc_of).is_some();
+    if doc_page || target == Some(&Target::Book) {
         let opener = ws.clone();
         let page = key.clone();
         tools.push(
@@ -193,11 +173,17 @@ pub fn corner(
         .on_click(|_, window, cx| window.dispatch_action(Box::new(ToggleImmersiveWriting), cx))
     });
 
-    let menu = match (&doc_page, menu_open, *more_bounds.read(cx)) {
-        (Some(page), true, Some(bounds)) => {
-            Some(more_menu(ws, page, chapter.as_ref(), bounds, &theme, cx))
+    let menu = match (doc_page, target, menu_open, *more_bounds.read(cx)) {
+        (true, Some(target), true, Some(bounds)) => {
+            let host = crate::pages::PageMenuHost {
+                workspace: ws.downgrade(),
+                library: w.library.clone(),
+                book_id: w.book_id.clone(),
+                book: w.book.clone(),
+            };
+            Some(more_menu(ws, target, &host, bounds, &theme, cx))
         }
-        (None, true, Some(bounds)) if target == Some(&Target::Book) => {
+        (false, _, true, Some(bounds)) if target == Some(&Target::Book) => {
             Some(book_menu(ws, bounds, cx))
         }
         _ => None,
@@ -248,28 +234,38 @@ pub fn leave_immersive(cx: &mut App) -> AnyElement {
         .into_any_element()
 }
 
+/// 分享: the page (or the whole book) as Markdown (M41).
+fn share_item(
+    ws: &Entity<Workspace>,
+    target: dr_view_export::MarkdownTarget,
+    cx: &mut App,
+) -> MenuItem {
+    let ws = ws.clone();
+    MenuItem::new(
+        "corner-share",
+        Icon::Share,
+        t(cx, keys::markdown_share::MENU),
+    )
+    .on_click(move |_, window, cx| {
+        let target = target.clone();
+        ws.update(cx, |ws, cx| {
+            ws.corner_menu = None;
+            ws.open_export(dr_view_export::Request::Markdown(target), window, cx);
+        });
+    })
+}
+
 /// M41's two rows at the top of a ⋯ menu (the 0.1 order): share the page
 /// (or the whole book) as Markdown, export the manuscript.
 fn export_items(menu: Menu, ws: &Entity<Workspace>, chapter: Option<&str>, cx: &mut App) -> Menu {
-    let share = {
-        let ws = ws.clone();
-        let target = match chapter {
+    let share = share_item(
+        ws,
+        match chapter {
             Some(id) => dr_view_export::MarkdownTarget::Doc(format!("node:{id}")),
             None => dr_view_export::MarkdownTarget::Book,
-        };
-        MenuItem::new(
-            "corner-share",
-            Icon::Share,
-            t(cx, keys::markdown_share::MENU),
-        )
-        .on_click(move |_, window, cx| {
-            let target = target.clone();
-            ws.update(cx, |ws, cx| {
-                ws.corner_menu = None;
-                ws.open_export(dr_view_export::Request::Markdown(target), window, cx);
-            });
-        })
-    };
+        },
+        cx,
+    );
     let export = {
         let ws = ws.clone();
         let chapter = chapter.map(str::to_owned);
@@ -316,81 +312,51 @@ fn book_menu(
     .into_any_element()
 }
 
-/// A page's ⋯ menu: a chapter's share and export and its writing status,
-/// then (every page) its snapshot history, then a chapter's 删除节点.
+/// A row of the page's actions in the ⋯ menu: the menu closes, then the
+/// row runs.
+fn menu_item(ws: &Entity<Workspace>, item: crate::pages::PageMenuItem) -> MenuItem {
+    let ws = ws.clone();
+    let run = item.run.clone();
+    let row = MenuItem::new(
+        gpui::ElementId::Name(item.id.clone()),
+        item.icon,
+        item.label,
+    )
+    .checked(item.checked)
+    .on_click(move |_, window, cx| {
+        ws.update(cx, |ws, cx| {
+            ws.corner_menu = None;
+            cx.notify();
+        });
+        run(window, cx);
+    });
+    if item.danger { row.danger() } else { row }
+}
+
+/// A page's ⋯ menu: [`super::page_actions::page_actions`], sections parted
+/// by hairlines.
 fn more_menu(
     ws: &Entity<Workspace>,
-    (doc, name): &(String, String),
-    chapter: Option<&dr_workspace::dto::ChapterInfo>,
+    target: &Target,
+    host: &crate::pages::PageMenuHost,
     bounds: gpui::Bounds<gpui::Pixels>,
     theme: &Theme,
     cx: &mut App,
 ) -> AnyElement {
     let mut menu = Menu::new("corner-more-menu");
-    if let Some(chapter) = chapter {
-        menu = export_items(menu, ws, Some(&chapter.id), cx)
-            .separator(theme)
-            .section(t(cx, keys::editor_top_bar::status_section::CHAPTER), theme);
-        for (status, icon) in STATUSES {
-            let ws = ws.clone();
-            let id = chapter.id.clone();
-            menu = menu.item(
-                MenuItem::new(
-                    gpui::ElementId::Name(format!("status-{status}").into()),
-                    icon,
-                    status_label(cx, status),
-                )
-                .checked(chapter.status == status)
-                .on_click(move |_, _, cx| {
-                    ws.update(cx, |ws, cx| {
-                        ws.corner_menu = None;
-                        ws.run_command(
-                            "chapter.update",
-                            json!({"book": ws.book_id, "id": id, "status": status}),
-                            cx,
-                        )
-                    });
-                }),
-            );
+    for (i, section) in super::page_actions::page_actions(ws, host, target, cx)
+        .into_iter()
+        .enumerate()
+    {
+        if i > 0 {
+            menu = menu.separator(theme);
         }
-    }
-    let trash = chapter.map(|chapter| {
-        let ws = ws.clone();
-        let id = chapter.id.clone();
-        MenuItem::new(
-            "chapter-trash",
-            Icon::Trash,
-            t(cx, keys::editor_top_bar::menu::DELETE_NODE),
-        )
-        .danger()
-        .on_click(move |_, _, cx| {
-            ws.update(cx, |ws, cx| {
-                ws.corner_menu = None;
-                ws.run_command("chapter.trash", json!({"book": ws.book_id, "id": id}), cx)
-            });
-        })
-    });
-    let history = {
-        let ws = ws.clone();
-        let (doc, name) = (doc.clone(), name.clone());
-        MenuItem::new(
-            "page-history",
-            Icon::Rotate,
-            t(cx, keys::right_sidebar::stats::SNAPSHOT_BUTTON),
-        )
-        .on_click(move |_, window, cx| {
-            ws.update(cx, |ws, cx| {
-                ws.corner_menu = None;
-                ws.open_history(doc.clone(), &name, window, cx);
-            });
-        })
-    };
-    if chapter.is_some() {
-        menu = menu.separator(theme);
-    }
-    menu = menu.item(history);
-    if let Some(trash) = trash {
-        menu = menu.separator(theme).item(trash);
+        if let Some(title) = section.title {
+            menu = menu.section(title, theme);
+        }
+        for item in section.items {
+            menu = menu.item(menu_item(ws, item));
+        }
     }
     let dismiss = ws.clone();
     overlay::float(

@@ -189,6 +189,10 @@ impl Tab {
 pub struct Open {
     pub preview: bool,
     pub activate: bool,
+    /// The page's title takes the caret, not its text (a chapter just made
+    /// with ⁂ 新建下一章: its head focuses the title once drawn, so the
+    /// shell does not hand the editor the keyboard).
+    pub title: bool,
 }
 
 impl Open {
@@ -196,12 +200,22 @@ impl Open {
     pub const PREVIEW: Open = Open {
         preview: true,
         activate: true,
+        title: false,
     };
     /// A double click, a new entity, a link: kept.
     pub const KEEP: Open = Open {
         preview: false,
         activate: true,
+        title: false,
     };
+
+    /// The same, the page's title taking the caret.
+    pub const fn at_title(self) -> Open {
+        Open {
+            title: true,
+            ..self
+        }
+    }
 }
 
 /// A place in the history: the home page, or a target.

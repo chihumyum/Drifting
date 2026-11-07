@@ -15,6 +15,10 @@
 //!   80 px below the top of the view) and its parents are drawn in the
 //!   deepest ink, bold; those whose sections are on screen in the next
 //!   ink; the rest by level: H1 9.5 px, H2 9 px, H3 8 px in the index face.
+//! - Under the pointer a 「…」 lists what it folds (the ten nearest the
+//!   window, as in the 0.1 client), each in its tier's size; a click there
+//!   jumps too. The list stays while the pointer moves from the 「…」 onto
+//!   it and goes 140 ms after the pointer leaves both.
 //! - A click puts that heading at the top of the view, the caret at its
 //!   start; an act or a chapter goes to the chapter's title
 //!   (`BookEditor::jump_to`). The outline button in the paper's corner shows or hides it; it
@@ -26,16 +30,22 @@
 
 use std::rc::Rc;
 
+use std::time::Duration;
+
 use dr_i18n::keys;
 use dr_ui::{
     Theme,
+    components::{
+        Menu,
+        overlay::{self, Layer, Place},
+    },
     fonts::{Role, weight},
     sand::{self, Icon},
     style::DrStyled,
 };
 use gpui::{
-    AnyElement, App, InteractiveElement, IntoElement, ListOffset, ParentElement,
-    StatefulInteractiveElement, Styled, Window, div, prelude::FluentBuilder as _, px,
+    AnyElement, App, Entity, InteractiveElement, IntoElement, ListOffset, ParentElement,
+    StatefulInteractiveElement, Styled, Window, div, point, prelude::FluentBuilder as _, px,
 };
 use gpui_prose::text::BlockKind;
 
@@ -53,6 +63,12 @@ const RAIL_WIDTH: f32 = 190.0;
 const LABEL_LEFT: f32 = 12.0;
 /// Narrower than this, the margin has no room for the rail.
 pub const MIN_GUTTER: f32 = 196.0;
+/// A 「…」 lists at most this many of what it folds (the nearest).
+const REVEAL_LIMIT: usize = 10;
+/// One row of that list, for placing it round the 「…」.
+const REVEAL_ROW: f32 = 22.0;
+/// How long the list stays after the pointer leaves it and its 「…」.
+const REVEAL_CLOSE: Duration = Duration::from_millis(140);
 /// The reading line, below the top of the view, and its allowance.
 const READING_LINE: f64 = 80.0;
 const READING_SLACK: f64 = 24.0;
@@ -96,6 +112,68 @@ pub enum Slot {
 pub struct Placed {
     pub slot: Slot,
     pub y: f32,
+}
+
+/// The 「…」 whose list is open: its page (target key) and side.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Reveal {
+    pub page: String,
+    pub before: bool,
+}
+
+/// What a 「…」 lists: the entries it folds nearest the window, in order
+/// (the last ten before it, the first ten after it).
+pub fn revealed(n: usize, count: usize, before: bool) -> std::ops::Range<usize> {
+    if before {
+        count.saturating_sub(REVEAL_LIMIT)..count.min(n)
+    } else {
+        let start = n.saturating_sub(count);
+        start..(start + REVEAL_LIMIT).min(n)
+    }
+}
+
+impl Workspace {
+    /// The pointer came onto a 「…」 or its list.
+    fn reveal_outline(&mut self, reveal: Reveal, cx: &mut gpui::Context<Self>) {
+        self.outline_reveal_close = None;
+        if self.outline_reveal.as_ref() != Some(&reveal) {
+            self.outline_reveal = Some(reveal);
+            cx.notify();
+        }
+    }
+
+    /// The pointer left a 「…」 or its list: it closes unless the pointer
+    /// comes back within [`REVEAL_CLOSE`].
+    fn conceal_outline(&mut self, cx: &mut gpui::Context<Self>) {
+        let task = cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(REVEAL_CLOSE).await;
+            this.update(cx, |ws, cx| {
+                ws.outline_reveal = None;
+                ws.outline_reveal_close = None;
+                cx.notify();
+            })
+            .ok();
+        });
+        self.outline_reveal_close = Some(task);
+    }
+}
+
+/// Opens or closes a 「…」's list as the pointer comes and goes.
+fn hover_reveal(
+    ws: &Entity<Workspace>,
+    reveal: Reveal,
+) -> impl Fn(&bool, &mut Window, &mut App) + use<> {
+    let ws = ws.clone();
+    move |hovered, _, cx| {
+        let reveal = reveal.clone();
+        ws.update(cx, |ws, cx| {
+            if *hovered {
+                ws.reveal_outline(reveal, cx)
+            } else {
+                ws.conceal_outline(cx)
+            }
+        })
+    }
 }
 
 /// An entry's parent: the nearest earlier entry of a higher level.
@@ -297,6 +375,7 @@ pub fn read(view: &PageView, cx: &App) -> (Vec<Entry>, f64, f64, f64) {
 /// and `column_h` tall, if it is shown and has room.
 pub fn rail(
     w: &Workspace,
+    ws: &Entity<Workspace>,
     target: Option<&Target>,
     column_w: f32,
     column_h: f32,
@@ -346,6 +425,13 @@ pub fn rail(
     }
     let placed = plan(&entries, total, height, current);
     let entries = Rc::new(entries);
+    let page = target.key();
+    let open = w
+        .outline_reveal
+        .as_ref()
+        .filter(|r| r.page == page)
+        .map(|r| r.before);
+    let mut reveal_list: Option<AnyElement> = None;
     let labels = placed.into_iter().map(|Placed { slot, y }| {
         let label_top = px(y - PITCH / 2.0);
         match slot {
@@ -391,26 +477,62 @@ pub fn rail(
                     .on_click(move |_, window, cx| jump_to(&jump, chapter, line, window, cx))
                     .into_any_element()
             }
-            Slot::More { count, before } => div()
-                .id(gpui::ElementId::Name(
-                    format!("outline-more-{}-{before}", target.key()).into(),
-                ))
-                .absolute()
-                .left(px(LABEL_LEFT))
-                .top(label_top)
-                .h(px(PITCH))
-                .flex()
-                .items_center()
-                .role(gpui::Role::Note)
-                .aria_label(tf(
+            Slot::More { count, before } => {
+                let bounds = overlay::use_bounds(
+                    gpui::ElementId::Name(format!("outline-more-at-{page}-{before}").into()),
+                    window,
                     cx,
-                    keys::editor_outline::HIDDEN_ITEMS,
-                    &[("count", &count)],
-                ))
-                .child(sand::icon(Icon::More, 12.0, p.ink(4).solid()))
-                .into_any_element(),
+                );
+                let reveal = Reveal {
+                    page: page.clone(),
+                    before,
+                };
+                if open == Some(before)
+                    && let Some(at) = *bounds.read(cx)
+                {
+                    let range = revealed(entries.len(), count, before);
+                    reveal_list = Some(reveal_menu(
+                        ws,
+                        &editor,
+                        &entries,
+                        range,
+                        reveal.clone(),
+                        at,
+                        &theme,
+                    ));
+                }
+                div()
+                    .id(gpui::ElementId::Name(
+                        format!("outline-more-{page}-{before}").into(),
+                    ))
+                    .absolute()
+                    .left(px(LABEL_LEFT))
+                    .top(label_top)
+                    .h(px(PITCH))
+                    .flex()
+                    .items_center()
+                    .role(gpui::Role::Note)
+                    .aria_label(tf(
+                        cx,
+                        keys::editor_outline::HIDDEN_ITEMS,
+                        &[("count", &count)],
+                    ))
+                    .on_hover(hover_reveal(ws, reveal))
+                    .child(overlay::probe(bounds))
+                    .child(sand::icon(
+                        Icon::More,
+                        12.0,
+                        if open == Some(before) {
+                            p.ink(2).solid()
+                        } else {
+                            p.ink(4).solid()
+                        },
+                    ))
+                    .into_any_element()
+            }
         }
     });
+    let labels: Vec<AnyElement> = labels.collect();
     Some(
         div()
             .id(gpui::ElementId::Name(
@@ -424,8 +546,82 @@ pub fn rail(
             .role(gpui::Role::Navigation)
             .aria_label(crate::t(cx, keys::editor_outline::ARIA))
             .children(labels)
+            .children(reveal_list)
             .into_any_element(),
     )
+}
+
+/// The list a 「…」 opens: the folded entries in `range`, each in its
+/// tier's face (the 0.1 client's `editor__toc-reveal-item--l1…l5`),
+/// centred on the 「…」.
+#[allow(clippy::too_many_arguments)]
+fn reveal_menu(
+    ws: &Entity<Workspace>,
+    editor: &PageView,
+    entries: &Rc<Vec<Entry>>,
+    range: std::ops::Range<usize>,
+    reveal: Reveal,
+    at: gpui::Bounds<gpui::Pixels>,
+    theme: &Theme,
+) -> AnyElement {
+    let p = theme.palette;
+    let rows = range.len() as f32;
+    let top = f32::from(at.center().y) - rows * REVEAL_ROW / 2.0;
+    let mut menu = Menu::new(gpui::ElementId::Name(
+        format!("outline-reveal-{}-{}", reveal.page, reveal.before).into(),
+    ));
+    for i in range {
+        let e = &entries[i];
+        let (size, ink, role, bold) = match e.level {
+            1 => (11.0, 2, Role::Structure, true),
+            2 => (10.5, 2, Role::Ui, true),
+            3 => (10.5, 3, Role::Ui, false),
+            4 => (9.5, 3, Role::Ui, false),
+            _ => (9.0, 3, Role::Index, false),
+        };
+        let (jump, ws) = (editor.clone(), ws.clone());
+        let (chapter, line) = (e.chapter, e.line);
+        let hover = p.ink(1).solid();
+        menu = menu.child(
+            div()
+                .id(gpui::ElementId::Name(
+                    format!("outline-reveal-{}-{i}", reveal.page).into(),
+                ))
+                .mx(px(dr_ui::tokens::menu::ROW_INSET))
+                .px(px(10.0))
+                .py(px(4.0))
+                .overflow_hidden()
+                .whitespace_nowrap()
+                .text_ellipsis()
+                .cursor_pointer()
+                .font_role(role)
+                .text_size(px(size))
+                .when(bold, |el| el.weight(weight::SEMIBOLD))
+                .text_color(p.ink(ink).solid())
+                .hover(move |st| st.text_color(hover))
+                .role(gpui::Role::Link)
+                .child(e.text.clone())
+                .on_click(move |_, window, cx| {
+                    ws.update(cx, |ws, cx| {
+                        ws.outline_reveal = None;
+                        ws.outline_reveal_close = None;
+                        cx.notify();
+                    });
+                    jump_to(&jump, chapter, line, window, cx)
+                }),
+        );
+    }
+    overlay::float(
+        Place::Point(point(at.left(), px(top.max(8.0)))),
+        Layer::Popover,
+        div()
+            .id(gpui::ElementId::Name(
+                format!("outline-reveal-hover-{}-{}", reveal.page, reveal.before).into(),
+            ))
+            .on_hover(hover_reveal(ws, reveal))
+            .child(menu),
+    )
+    .into_any_element()
 }
 
 /// The heading at paragraph `line` of `chapter` to the top of the view,
@@ -545,5 +741,14 @@ mod tests {
         assert_eq!(active(&entries, 200.0), Some(1));
         assert_eq!(active(&entries, 796.0), Some(2));
         assert_eq!(parent_of(&entries, 2), Some(0));
+    }
+
+    #[test]
+    fn a_fold_lists_the_ten_nearest_the_window() {
+        // 30 entries, 25 folded before the window, 3 after it.
+        assert_eq!(revealed(30, 25, true), 15..25);
+        assert_eq!(revealed(30, 3, false), 27..30);
+        assert_eq!(revealed(30, 4, true), 0..4);
+        assert_eq!(revealed(30, 12, false), 18..28);
     }
 }

@@ -94,6 +94,10 @@ pub enum RowAction {
     Version,
     /// Opens the feedback dialog (F7's, [`crate::actions::SendFeedback`]).
     Feedback,
+    /// Backs the library up ([`crate::actions::BackupLibrary`]).
+    Backup,
+    /// Restores the library from a backup ([`crate::actions::RestoreLibrary`]).
+    Restore,
 }
 
 /// A row of the panel that is not a stored setting: a link, an action, a
@@ -116,6 +120,23 @@ pub const SUPPORT_EMAIL: &str = "support@drifting.cc";
 
 /// Every [`InfoRow`], in panel order.
 pub static INFO_ROWS: &[InfoRow] = &[
+    // At the top of 本地数据, as in the 0.1 client (LibraryBackupSettings).
+    InfoRow {
+        id: "local.backup",
+        section: Section::LocalData,
+        group: None,
+        label: keys::settings::sync::backup::EXPORT_TITLE,
+        description: Some(keys::settings::sync::backup::EXPORT_DESC),
+        action: RowAction::Backup,
+    },
+    InfoRow {
+        id: "local.restore",
+        section: Section::LocalData,
+        group: None,
+        label: keys::settings::sync::backup::RESTORE_TITLE,
+        description: Some(keys::settings::sync::backup::RESTORE_DESC),
+        action: RowAction::Restore,
+    },
     InfoRow {
         id: "local.diagnostics",
         section: Section::LocalData,
@@ -603,5 +624,21 @@ mod tests {
             Some(Value::from("zh-TW"))
         );
         assert!(locale.validate(&Value::from("ru")).is_none());
+    }
+
+    #[test]
+    fn backup_and_restore_open_the_local_data_section() {
+        let rows: Vec<&str> = info_in(Section::LocalData).map(|r| r.id).collect();
+        assert_eq!(&rows[..2], ["local.backup", "local.restore"]);
+        for row in info_in(Section::LocalData).take(2) {
+            assert!(row.group.is_none(), "{}: under no heading", row.id);
+        }
+        assert_eq!(
+            INFO_ROWS
+                .iter()
+                .filter(|r| matches!(r.action, RowAction::Backup | RowAction::Restore))
+                .count(),
+            2
+        );
     }
 }
