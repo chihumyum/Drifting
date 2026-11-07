@@ -102,6 +102,8 @@ published 1921–22) in `src/renderer/services/built-in-sample/a-q/text.json`.
   comments, ideas, patches, the plot grid and material notes) was written for
   Drifting and is AGPL-3.0-or-later like the rest of the client.
 
+The Rust rewrite's test kit keeps text-only copies of both samples and of the screenshot library's books in `next/crates/dr-testkit/fixtures/`, under the same terms as above (`fixtures/README.md` lists them).
+
 ## README screenshots
 
 `docs/screenshots/` (`shelf.webp`, `workspace.webp`, `elements.webp`) are

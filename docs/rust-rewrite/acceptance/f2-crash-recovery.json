@@ -7,7 +7,7 @@
     "arch": "aarch64",
     "cores": 12,
     "cpu": "Apple M3 Pro",
-    "loadAverage1m": 10.07,
+    "loadAverage1m": 7.36,
     "memoryBytes": 38654705664,
     "os": "macos",
     "osVersion": "27.0.1"
@@ -15,12 +15,11 @@
   "method": "kill the writer at random moments (SIGKILL / TerminateProcess); reopen; compare with a deterministic replay of edits 0..=k; kill migrations paused at each stage",
   "probe": "F2 dr-store crash recovery",
   "results": {
-    "editsAtEnd": 4626,
+    "editsAtEnd": 4651,
     "kills": 60,
     "killsByPhase": {
-      "between edits": 23,
-      "during compaction": 36,
-      "right after compaction": 1
+      "between edits": 25,
+      "during compaction": 35
     },
     "lostDurableEdits": 0,
     "migrationKills": {
@@ -87,21 +86,21 @@
     },
     "mismatches": 0,
     "recoverOpenAndLoadMs": {
-      "max": 22.868,
-      "mean": 10.628,
+      "max": 17.081,
+      "mean": 10.462,
       "n": 60,
-      "p50": 11.94,
-      "p95": 16.557
+      "p50": 11.513,
+      "p95": 16.692
     },
-    "recoveredOneEditBeyondLastReport": 0,
+    "recoveredOneEditBeyondLastReport": 1,
     "verifyByReplayMs": {
-      "max": 18.713,
-      "mean": 7.035,
+      "max": 12.862,
+      "mean": 6.683,
       "n": 60,
-      "p50": 7.475,
-      "p95": 12.58
+      "p50": 7.043,
+      "p95": 11.964
     }
   },
   "schemaVersion": 1,
-  "sourceFingerprint": "ac8c8fa6fe0920a6097d1705728111e6615a285c464a81992088d484f69bf31f"
+  "sourceFingerprint": "61d7df581ccdeb4942d7313d63c85ee9f5f0990937e2729cfad69373f0309251"
 }

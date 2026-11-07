@@ -1,17 +1,30 @@
 name: next
 
 # The Rust + GPUI rewrite workspace (next/, docs/rust-rewrite). It has its own
-# toolchain (next/rust-toolchain.toml) and lockfile, and runs only when next/
-# or this workflow changes; ci.yml keeps covering the 0.1 client.
+# toolchain (next/rust-toolchain.toml) and lockfile, and runs only when what it
+# checks changes: next/, the plan and its evidence (the gates scan them), the
+# 0.1 client's resources next/ still builds from (until stage 7 moves them),
+# the public-boundary script and this workflow. ci.yml keeps covering the 0.1
+# client.
 on:
   push:
     branches: [main]
     paths:
       - 'next/**'
+      - 'docs/rust-rewrite/**'
+      - 'src/assets/design/**'
+      - 'src/assets/icon.*'
+      - 'src/renderer/locales/**'
+      - 'scripts/check-public-boundaries.mjs'
       - '.github/workflows/next.yml'
   pull_request:
     paths:
       - 'next/**'
+      - 'docs/rust-rewrite/**'
+      - 'src/assets/design/**'
+      - 'src/assets/icon.*'
+      - 'src/renderer/locales/**'
+      - 'scripts/check-public-boundaries.mjs'
       - '.github/workflows/next.yml'
 
 permissions:
@@ -75,6 +88,24 @@ jobs:
         run: cargo test --workspace --locked
       - if: ${{ !cancelled() }}
         run: cargo build --workspace --locked
+      # The gates (simplifications.md §6): privacy, large files, retired
+      # products, terms, published migrations, licences, dependency
+      # direction, measured evidence and cargo audit. They read the
+      # workspace's metadata and text, the same on both platforms.
+      # rust-cache keeps ~/.cargo/bin, so the install is a no-op on a hit.
+      - if: ${{ !cancelled() && matrix.platform == 'macos' }}
+        run: cargo install cargo-audit --version 0.22.2 --locked
+      - if: ${{ !cancelled() && matrix.platform == 'macos' }}
+        run: cargo xtask check
+      # The repository-wide public boundary (credentials, private paths,
+      # required public files) also covers next/.
+      - if: ${{ !cancelled() && matrix.platform == 'macos' }}
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22.23.1
+      - if: ${{ !cancelled() && matrix.platform == 'macos' }}
+        working-directory: ${{ github.workspace }}
+        run: node scripts/check-public-boundaries.mjs
       # The unsigned development bundle: Info.plist, icons and the ad-hoc
       # seal (codesign --verify) without opening a window; then the disk image
       # and the updater archive a release ships (F7).

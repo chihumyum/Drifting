@@ -6,17 +6,24 @@ resolver = "3"
 # One member per line, kept sorted, so parallel branches merge cleanly.
 members = [
     "app/drifting",
+    "crates/dr-cli",
     "crates/dr-doc",
     "crates/dr-import-v1",
+    "crates/dr-index",
     "crates/dr-model",
     "crates/dr-platform",
     "crates/dr-store",
+    "crates/dr-testkit",
+    "crates/dr-text",
     "crates/dr-ui",
+    "crates/dr-workspace",
     "crates/gpui-prose",
+    "crates/prose-metrics",
     "spikes/import-v1",
     "spikes/loro-model",
     "spikes/prose-spike",
     "spikes/visual",
+    "xtask",
 ]
 
 [workspace.package]
@@ -51,6 +58,30 @@ dr-doc = { path = "crates/dr-doc" }
 dr-model = { path = "crates/dr-model" }
 # F2 storage, for the 0.1 library import (M10, dr-import-v1).
 dr-store = { path = "crates/dr-store" }
+
+# F2 storage and F3 commands (docs/rust-rewrite/foundations/f3-workspace.md).
+dr-workspace = { path = "crates/dr-workspace" }
+# F3: JSON Schemas of every command and query input and output (the
+# capability list), reviewed as insta snapshots.
+schemars = "1.2"
+insta = { version = "1.49", default-features = false }
+
+# Text tools (plain text, outline, auto-link matcher) and the word-count rule
+# (Apache-2.0, no dr-* dependency). docs/rust-rewrite/foundations/dr-text-index.md
+dr-text = { path = "crates/dr-text" }
+# The derived-index implementation (dr-store's Deriver), and M10 for its
+# end-to-end check.
+dr-import-v1 = { path = "crates/dr-import-v1" }
+dr-index = { path = "crates/dr-index" }
+prose-metrics = { path = "crates/prose-metrics" }
+# dr-text: entity auto-link names, leftmost-longest (the version the lockfile
+# already carries).
+aho-corasick = "1.1"
+
+# F8 test kit: the seed, sample books, evidence, crash harness, benchmarks.
+dr-testkit = { path = "crates/dr-testkit" }
+# xtask's text gates (the version GPUI's dependencies already lock).
+regex = "1.13"
 # uuidv7 for new domain ids (the old data uses uuidv7 too); v4 for F7's
 # installation and crash ids. The version the lockfile already carries for GPUI.
 uuid = { version = "1.29", default-features = false, features = ["std", "v4", "v7"] }

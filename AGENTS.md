@@ -36,9 +36,10 @@ Guidance for coding agents working in this standalone Drifting client repository
   Tauri still uses `drifting-core`, `drifting-document` and `drifting-prose`;
   Apple platform adapters and Tauri iOS are not the removed front-end. See
   `docs/hosted-sync/README.md`.
-- `packages/prose-metrics` is independently licensed under Apache-2.0 and
-  `next/crates/gpui-prose` under MIT OR Apache-2.0. The remaining
-  project-owned client source is AGPL-3.0-or-later.
+- `packages/prose-metrics` and its Rust port `next/crates/prose-metrics` are
+  independently licensed under Apache-2.0 and `next/crates/gpui-prose` under
+  MIT OR Apache-2.0. The remaining project-owned client source is
+  AGPL-3.0-or-later.
 - Keep service integration behind versioned network contracts. Do not import or
   mirror private service source.
 
@@ -61,13 +62,31 @@ Guidance for coding agents working in this standalone Drifting client repository
 - Zed's `editor`, `text`, `rope`, `ui` and `theme` crates are GPL-3.0; do not
   copy from them. `gpui`, its platform crates and `sum_tree` are Apache-2.0.
 - Checks, run in `next/` (CI: `.github/workflows/next.yml`, macOS and Windows,
-  only when `next/` changes):
+  when `next/`, `docs/rust-rewrite/` or the old resources `next/` still uses
+  change):
 
   ```bash
   cargo fmt --all --check
   cargo clippy --workspace --all-targets --locked -- -D warnings
   cargo test --workspace --locked
+  cargo xtask check
   ```
+
+  `cargo xtask check` runs the new workspace's gates: privacy and
+  credentials, large files, retired products, terms (H1/H2/H3 are never
+  scenes or beats), pinned migrations, licences, dependency direction,
+  measured evidence and `cargo audit` (`--skip audit` offline). See
+  `docs/rust-rewrite/foundations/f8-testkit.md`.
+- Test data in `next/` comes from `dr_testkit::seed` (presets tiny / lite /
+  heavy / showcase) and `dr_testkit::samples`; do not write another corpus.
+  Contract evidence is asserted in tests, never committed as JSON; measured
+  evidence is committed only at a milestone
+  (`cargo run --release -p dr-testkit --bin bench -- <suite> --milestone <m>`).
+- Run a `next/` development build with `cargo xtask dev`: in a linked worktree
+  it sets `DRIFTING_PROFILE` to the worktree's name, so parallel builds never
+  share a library or a lock (`--instance <name>` for a second one,
+  `--print-config` to inspect). Offline library changes go through
+  `cargo drifting workspace …`: the app closed, a backup first, `--yes`.
 
 ## Public Alpha compatibility policy
 

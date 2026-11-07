@@ -1,0 +1,198 @@
+{
+  "chapter": {
+    "chars": 20000,
+    "copyAndFullDeriveMs": {
+      "max": 3.863,
+      "mean": 2.568,
+      "n": 30,
+      "p50": 2.507,
+      "p95": 3.251
+    },
+    "copyForDrDocMs": {
+      "max": 1.215,
+      "mean": 0.52,
+      "n": 30,
+      "p50": 0.45,
+      "p95": 0.941
+    },
+    "fullDeriveWarmMs": {
+      "max": 1.005,
+      "mean": 0.485,
+      "n": 30,
+      "p50": 0.431,
+      "p95": 0.992
+    },
+    "holderDerivations": {
+      "fallbacks": 0,
+      "full": 1,
+      "incremental": 300
+    },
+    "holderReindexAfterKeystrokeMs": {
+      "max": 27.35,
+      "mean": 17.213,
+      "n": 300,
+      "p50": 17.125,
+      "p95": 21.275
+    },
+    "incrementalAfterKeystrokeWarmMs": {
+      "max": 0.695,
+      "mean": 0.159,
+      "n": 500,
+      "p50": 0.154,
+      "p95": 0.28
+    },
+    "incrementalParagraphsReadPerKeystroke": 1.0,
+    "links": 100,
+    "paragraphs": 111,
+    "simulatedPatchWriteMs": {
+      "max": 3.471,
+      "mean": 0.177,
+      "n": 200,
+      "p50": 0.123,
+      "p95": 0.25
+    },
+    "words": 21011,
+    "writeRowsMs": {
+      "max": 17.926,
+      "mean": 13.405,
+      "n": 50,
+      "p50": 13.338,
+      "p95": 17.108
+    }
+  },
+  "heavySynthetic": {
+    "bookStats": {
+      "chars": 1500000,
+      "docs": 100,
+      "paragraphs": 8387,
+      "words": 1500000
+    },
+    "buildLibraryMs": 2003.0,
+    "chapters": 100,
+    "chars": 1500000,
+    "derivations": {
+      "full": 100,
+      "incremental": 0
+    },
+    "deriveOneChapterFromSqliteMs": {
+      "max": 3.222,
+      "mean": 2.13,
+      "n": 100,
+      "p50": 2.671,
+      "p95": 3.154
+    },
+    "openMs": 0.952833,
+    "rebuildAllMs": 1072.102459,
+    "rebuilt": 100,
+    "staleDocs": 100,
+    "wordsCountedDirectly": 1500000
+  },
+  "keystrokeWriteMs": {
+    "withDeriver": {
+      "max": 1.29,
+      "mean": 0.046,
+      "n": 2000,
+      "p50": 0.037,
+      "p95": 0.061
+    },
+    "withoutDeriver": {
+      "max": 5.449,
+      "mean": 0.051,
+      "n": 2000,
+      "p50": 0.037,
+      "p95": 0.073
+    }
+  },
+  "loro": "1.17.1",
+  "m10Library": {
+    "byKind": [
+      {
+        "docs": 1,
+        "kind": "book",
+        "seedWords0_1": null,
+        "words": 0
+      },
+      {
+        "docs": 16,
+        "kind": "categories",
+        "seedWords0_1": 16000,
+        "words": 16000
+      },
+      {
+        "docs": 100,
+        "kind": "chapters",
+        "seedWords0_1": 1500000,
+        "words": 1500000
+      },
+      {
+        "docs": 300,
+        "kind": "elements",
+        "seedWords0_1": 500000,
+        "words": 500000
+      },
+      {
+        "docs": 200,
+        "kind": "ideas",
+        "seedWords0_1": 1000000,
+        "words": 1000000
+      },
+      {
+        "docs": 60,
+        "kind": "materialNotes",
+        "seedWords0_1": 500000,
+        "words": 500000
+      },
+      {
+        "docs": 3,
+        "kind": "storylines",
+        "seedWords0_1": 60000,
+        "words": 60000
+      }
+    ],
+    "derivations": {
+      "full": 679,
+      "incremental": 0,
+      "unreadable": 0
+    },
+    "docs": 680,
+    "openMs": 65.1505,
+    "preset": "stress",
+    "rebuildAllMs": 1521.069375,
+    "rebuilt": 680,
+    "search": [
+      {
+        "hits": 50,
+        "ms": 0.077291,
+        "query": "达"
+      },
+      {
+        "hits": 50,
+        "ms": 0.335083,
+        "query": "达北"
+      },
+      {
+        "hits": 50,
+        "ms": 2.4918750000000003,
+        "query": "达北岬"
+      },
+      {
+        "hits": 50,
+        "ms": 3.187541,
+        "query": "达北岬灯塔时，先"
+      }
+    ]
+  },
+  "machine": {
+    "arch": "aarch64",
+    "cores": 12,
+    "cpu": "Apple M3 Pro",
+    "loadAverage1m": 6.8,
+    "memoryBytes": 38654705664,
+    "os": "macos",
+    "osVersion": "27.0.1"
+  },
+  "milestone": "dr-text-index-m1",
+  "program": "cargo run --release -p dr-index --example dr-index-bench",
+  "sourceFingerprint": "1603696d0478239c47aa220be30166add7fed074793baf3cc413c5f3ac6f2caa",
+  "totalSeconds": 12.0
+}

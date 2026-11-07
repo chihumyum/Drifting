@@ -240,17 +240,37 @@ impl Migration {
 }
 
 /// This build's migrations, in order.
-pub const MIGRATIONS: &[Migration] = &[Migration {
-    name: "0000_baseline",
-    sql: include_str!("../migrations/0000_baseline.sql"),
-}];
+pub const MIGRATIONS: &[Migration] = &[
+    Migration {
+        name: "0000_baseline",
+        sql: include_str!("../migrations/0000_baseline.sql"),
+    },
+    Migration {
+        name: "0001_import_receipts",
+        sql: include_str!("../migrations/0001_import_receipts.sql"),
+    },
+    Migration {
+        name: "0002_history_label_keep",
+        sql: include_str!("../migrations/0002_history_label_keep.sql"),
+    },
+];
 
 /// SHA-256 of every published migration. A published migration must never
 /// change; `published_migrations_are_unchanged` compares the two lists.
-pub const PUBLISHED: &[(&str, &str)] = &[(
-    "0000_baseline",
-    "95ca0b5d31142594fe265e04bcbc88bc732c88d3422f2991cf206b41544fb617",
-)];
+pub const PUBLISHED: &[(&str, &str)] = &[
+    (
+        "0000_baseline",
+        "95ca0b5d31142594fe265e04bcbc88bc732c88d3422f2991cf206b41544fb617",
+    ),
+    (
+        "0001_import_receipts",
+        "5f47250f78fc16536c786818278469cd8819ff005fc875ddce8ba0303c64ff40",
+    ),
+    (
+        "0002_history_label_keep",
+        "71420b3d1d81597a934279906cd355a37e837621aacc82d683b733453a66bd09",
+    ),
+];
 
 const RECORD_TABLE: &str = "schema_migration";
 const SAFETY_SNAPSHOTS_PER_VERSION: usize = 3;

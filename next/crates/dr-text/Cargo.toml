@@ -1,0 +1,17 @@
+[package]
+name = "dr-text"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Drifting's text tools: plain text, outline, word counts and the entity auto-link matcher over dr-doc's prose"
+
+[dependencies]
+aho-corasick.workspace = true
+dr-doc.workspace = true
+dr-model.workspace = true
+prose-metrics.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true

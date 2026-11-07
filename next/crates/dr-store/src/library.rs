@@ -858,6 +858,30 @@ impl Library {
         self.raise_watermark()
     }
 
+    /// Run `f` in one write transaction on the library database, for the
+    /// local-only tables other modules own (the import receipt, and later
+    /// the Agent archive, MCP servers, working memory, the Markdown ledger,
+    /// local settings: see f2-store.md). Commits when `f` returns `Ok`.
+    /// Never touch Loro, history or derived tables this way; announce what
+    /// changed with [`Self::notify_local`].
+    pub fn local_transaction<R>(
+        &self,
+        f: impl FnOnce(&rusqlite::Transaction<'_>) -> Result<R>,
+    ) -> Result<R> {
+        let mut conn = self.inner.writer();
+        let tx = conn.transaction()?;
+        let r = f(&tx)?;
+        tx.commit()?;
+        Ok(r)
+    }
+
+    /// Run `f` on the read-only connection (a consistent read of the local
+    /// tables).
+    pub fn local_read<R>(&self, f: impl FnOnce(&Connection) -> Result<R>) -> Result<R> {
+        let conn = self.inner.reader();
+        f(&conn)
+    }
+
     /// Documents with a live holder in this process.
     pub fn open_doc_count(&self) -> usize {
         self.inner
