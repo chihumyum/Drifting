@@ -265,6 +265,25 @@ referencesPanel.empty.incoming
 referencesPanel.empty.outgoing
 memoMaterial.kind.*
 
+# M41 export: the manuscript dialog and Markdown sharing (dr-view-export)
+manuscriptExport.*
+markdownShare.title
+markdownShare.menu
+markdownShare.wholeBook
+markdownShare.currentBody
+markdownShare.readOnly
+markdownShare.proseOnly
+markdownShare.characters
+markdownShare.loading
+markdownShare.loadFailed
+markdownShare.retry
+markdownShare.copy
+markdownShare.save
+markdownShare.saving
+markdownShare.copied
+markdownShare.saved
+markdownShare.failed
+
 # M06 search (dr-view-search)
 globalSearch.stats
 globalSearch.noResults

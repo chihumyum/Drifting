@@ -58,6 +58,13 @@ def select(flat, manifest, reference):
             for key in reference:
                 if key.startswith(prefix) and key in flat:
                     chosen[key] = flat[key]
+                # A language without plurals keeps the plain key where
+                # English has `_one`/`_other` (it is that language's
+                # `_other`, as i18next reads it).
+                for suffix in PLURAL_SUFFIXES:
+                    stem = key[: -len(suffix)]
+                    if key.startswith(prefix) and key.endswith(suffix) and stem in flat:
+                        chosen[stem] = flat[stem]
             continue
         hit = False
         if entry in flat:

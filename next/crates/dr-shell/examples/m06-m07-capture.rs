@@ -1,5 +1,5 @@
-//! Screenshots of M06 (search), M07 (the Stats tab) and M20 (the Stats
-//! tab's readings of each kind of page) in the shell, drawn offscreen like
+//! Screenshots of M06 (search), M07 (the Stats tab), M20 (the Stats tab's
+//! readings of each kind of page) and M41 (the export dialogs) in the shell, drawn offscreen like
 //! `shell-capture` (GPUI's headless platform, real text and Metal, nothing
 //! on screen). The book is 《慢钟》 from dr-testkit with a week of synthetic
 //! writing days.
@@ -8,9 +8,10 @@
 //! cargo run -p dr-shell --features capture --example m06-m07-capture -- <docs/rust-rewrite/modules>
 //! ```
 //!
-//! Writes `m06/*.png`, `m07/*.png` and `m20/*.png` (the right sidebar of a
-//! tall window, so the whole tab shows) under the folder given, as
-//! 256-colour PNGs. A second argument `m20` takes only those.
+//! Writes `m06/*.png`, `m07/*.png`, `m20/*.png` (the right sidebar of a
+//! tall window, so the whole tab shows) and `m41/*.png` under the folder
+//! given, as 256-colour PNGs. A second argument `m20` or `m41` takes only
+//! those.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -382,6 +383,89 @@ fn run_m20(out: PathBuf) -> Result<()> {
     Ok(())
 }
 
+/// M41: the manuscript export (the whole book, then chosen chapters) and
+/// the Markdown share, over the workspace.
+fn run_m41(out: PathBuf) -> Result<()> {
+    let m41 = out.join("m41");
+    std::fs::create_dir_all(&m41)?;
+    let mut h = Headless::sized(H)?;
+    for appearance in [Appearance::Light, Appearance::Dark] {
+        let a = appearance.slug();
+        h.cx.update(|cx| theme::force_appearance(Some(appearance), cx));
+        h.set(|ws, window, cx| {
+            layout(ws, RightTab::Stats, window, cx);
+            let c = chapter(ws, 3);
+            ws.open(c, Open::KEEP, cx);
+            ws.open_export(
+                dr_view_export::Request::Manuscript { chapter: None },
+                window,
+                cx,
+            );
+        });
+        let loaded = |ws: &Workspace, cx: &gpui::App| {
+            ws.dialog
+                .clone()
+                .and_then(|d| d.downcast::<dr_view_export::ExportDialog>().ok())
+                .is_some_and(|d| {
+                    let d = d.read(cx);
+                    d.manuscript().is_some_and(|m| m.outline.is_some())
+                        || d.markdown().is_some_and(|m| m.doc.is_some())
+                })
+        };
+        h.wait(loaded)?;
+        h.still()?;
+        h.save(&m41, &format!("export-{a}.png"))?;
+        if appearance == Appearance::Light {
+            // Chosen chapters, as Word.
+            h.set(|ws, _, cx| {
+                if let Some(d) = ws
+                    .dialog
+                    .clone()
+                    .and_then(|d| d.downcast::<dr_view_export::ExportDialog>().ok())
+                {
+                    d.update(cx, |d, cx| {
+                        if let Some(m) = d.manuscript_mut() {
+                            m.whole_book = false;
+                            m.format = dr_view_export::Format::Docx;
+                            m.select_all(false);
+                            let ids: Vec<String> = m
+                                .outline
+                                .as_ref()
+                                .map(|o| o.chapters.iter().take(5).map(|c| c.id.clone()).collect())
+                                .unwrap_or_default();
+                            for id in ids {
+                                m.toggle(&id);
+                            }
+                        }
+                        cx.notify();
+                    });
+                }
+            });
+            h.still()?;
+            h.save(&m41, &format!("export-chapters-{a}.png"))?;
+        }
+        h.set(|ws, window, cx| {
+            ws.dialog = None;
+            let id = ws.book.chapters[2].id.clone();
+            ws.open_export(
+                dr_view_export::Request::Markdown(dr_view_export::MarkdownTarget::Doc(format!(
+                    "node:{id}"
+                ))),
+                window,
+                cx,
+            );
+        });
+        h.wait(loaded)?;
+        h.still()?;
+        h.save(&m41, &format!("share-{a}.png"))?;
+        h.set(|ws, _, cx| {
+            ws.dialog = None;
+            cx.notify();
+        });
+    }
+    Ok(())
+}
+
 fn main() -> Result<()> {
     let out = std::env::args()
         .nth(1)
@@ -392,7 +476,10 @@ fn main() -> Result<()> {
         run(out.clone())?;
     }
     if only.as_deref().is_none_or(|o| o == "m20") {
-        run_m20(out)?;
+        run_m20(out.clone())?;
+    }
+    if only.as_deref().is_none_or(|o| o == "m41") {
+        run_m41(out)?;
     }
     Ok(())
 }

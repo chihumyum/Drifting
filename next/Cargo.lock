@@ -1568,6 +1568,7 @@ dependencies = [
  "dr-testkit",
  "dr-text",
  "dr-ui",
+ "dr-view-export",
  "dr-view-history",
  "dr-view-review",
  "dr-view-search",
@@ -1652,6 +1653,22 @@ dependencies = [
  "smallvec",
  "unicode-segmentation",
  "windows 0.62.2",
+]
+
+[[package]]
+name = "dr-view-export"
+version = "0.0.0"
+dependencies = [
+ "base64 0.22.1",
+ "dr-export",
+ "dr-i18n",
+ "dr-store",
+ "dr-ui",
+ "dr-workspace",
+ "gpui",
+ "log",
+ "serde_json",
+ "tempfile",
 ]
 
 [[package]]

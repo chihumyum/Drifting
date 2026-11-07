@@ -122,7 +122,8 @@ pub fn corner(
             .into_any_element(),
         );
     }
-    if chapter.is_some() {
+    // The whole book's ⋯ holds its share and export (M41).
+    if chapter.is_some() || target == Some(&Target::Book) {
         let opener = ws.clone();
         let page = key.clone();
         tools.push(
@@ -187,6 +188,9 @@ pub fn corner(
 
     let menu = match (&chapter, menu_open, *more_bounds.read(cx)) {
         (Some(chapter), true, Some(bounds)) => Some(more_menu(ws, chapter, bounds, &theme, cx)),
+        (None, true, Some(bounds)) if target == Some(&Target::Book) => {
+            Some(book_menu(ws, bounds, cx))
+        }
         _ => None,
     };
 
@@ -235,7 +239,76 @@ pub fn leave_immersive(cx: &mut App) -> AnyElement {
         .into_any_element()
 }
 
-/// A chapter's ⋯ menu: its writing status, then into the trash.
+/// M41's two rows at the top of a ⋯ menu (the 0.1 order): share the page
+/// (or the whole book) as Markdown, export the manuscript.
+fn export_items(menu: Menu, ws: &Entity<Workspace>, chapter: Option<&str>, cx: &mut App) -> Menu {
+    let share = {
+        let ws = ws.clone();
+        let target = match chapter {
+            Some(id) => dr_view_export::MarkdownTarget::Doc(format!("node:{id}")),
+            None => dr_view_export::MarkdownTarget::Book,
+        };
+        MenuItem::new(
+            "corner-share",
+            Icon::Share,
+            t(cx, keys::markdown_share::MENU),
+        )
+        .on_click(move |_, window, cx| {
+            let target = target.clone();
+            ws.update(cx, |ws, cx| {
+                ws.corner_menu = None;
+                ws.open_export(dr_view_export::Request::Markdown(target), window, cx);
+            });
+        })
+    };
+    let export = {
+        let ws = ws.clone();
+        let chapter = chapter.map(str::to_owned);
+        MenuItem::new(
+            "corner-export",
+            Icon::CaseRise,
+            t(cx, keys::manuscript_export::MENU),
+        )
+        .on_click(move |_, window, cx| {
+            let chapter = chapter.clone();
+            ws.update(cx, |ws, cx| {
+                ws.corner_menu = None;
+                ws.open_export(dr_view_export::Request::Manuscript { chapter }, window, cx);
+            });
+        })
+    };
+    menu.item(share).item(export)
+}
+
+/// The whole book's ⋯ menu: share it, export it.
+fn book_menu(
+    ws: &Entity<Workspace>,
+    bounds: gpui::Bounds<gpui::Pixels>,
+    cx: &mut App,
+) -> AnyElement {
+    let menu = export_items(Menu::new("corner-book-menu"), ws, None, cx);
+    let dismiss = ws.clone();
+    overlay::float(
+        Place::Rect {
+            rect: bounds,
+            align: Align::End,
+            gap: 6.0,
+        },
+        Layer::Popover,
+        div()
+            .on_mouse_down_out(move |_, _, cx| {
+                dismiss.update(cx, |ws, cx| {
+                    ws.corner_menu = None;
+                    cx.notify();
+                })
+            })
+            .child(menu),
+    )
+    .into_any_element()
+}
+
+/// A chapter's ⋯ menu: share and export, its writing status, its history,
+/// then into the trash.
 fn more_menu(
     ws: &Entity<Workspace>,
     chapter: &dr_workspace::dto::ChapterInfo,
@@ -243,7 +316,8 @@ fn more_menu(
     theme: &Theme,
     cx: &mut App,
 ) -> AnyElement {
-    let mut menu = Menu::new("corner-more-menu")
+    let mut menu = export_items(Menu::new("corner-more-menu"), ws, Some(&chapter.id), cx)
+        .separator(theme)
         .section(t(cx, keys::editor_top_bar::status_section::CHAPTER), theme);
     for (status, icon) in STATUSES {
         let ws = ws.clone();
@@ -327,6 +401,32 @@ fn more_menu(
 }
 
 impl Workspace {
+    /// M41: the manuscript export or the Markdown share, over the workspace
+    /// in the slot other crates' dialogs use, until it closes.
+    pub fn open_export(
+        &mut self,
+        request: dr_view_export::Request,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let strings = crate::Strings::get(cx);
+        let (locale, platform) = (strings.locale(), strings.platform());
+        let (lib, book) = (self.library.clone(), self.book_id.clone());
+        let dialog = cx.new(|cx| {
+            dr_view_export::ExportDialog::new(lib, book, request, locale, platform, window, cx)
+        });
+        cx.subscribe_in(&dialog, window, |ws, _, event, window, cx| {
+            if *event == dr_view_export::ExportEvent::Close {
+                ws.dialog = None;
+                ws.refocus(window, cx);
+                cx.notify();
+            }
+        })
+        .detach();
+        self.dialog = Some(dialog.into());
+        cx.notify();
+    }
+
     /// M09: the snapshot history of prose document `doc` (its page is called
     /// `name`), over the workspace until it closes.
     pub fn open_history(
