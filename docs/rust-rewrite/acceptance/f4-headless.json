@@ -1,0 +1,89 @@
+{
+  "schema": "drifting.p0-b.headless/1",
+  "generated_at": "2026-11-07",
+  "source_fingerprint": "172d279e51afa196",
+  "machine": {
+    "cpu": "Apple M3 Pro",
+    "model": "Mac15,7",
+    "cores": 12,
+    "memory_gb": 36,
+    "os": "macOS 27.0.1"
+  },
+  "build": {
+    "profile": "release",
+    "gpui": "zed v1.27.0 (git tag), runtime_shaders",
+    "loro": "=1.17.1"
+  },
+  "corpus": {
+    "chapter": {
+      "seed": "0x5eed0b01",
+      "chapters": 1,
+      "chars": 20023,
+      "fingerprint": "964a8f71d58ceb72"
+    },
+    "book": {
+      "seed": "0x5eed0b02",
+      "chapters": 100,
+      "chars": 1502265,
+      "fingerprint": "cd4ddcc9a603b967"
+    }
+  },
+  "write_per_keystroke": {
+    "method": "2000 single-character inserts in the middle of the 20k-char chapter. loro = LoroText::insert + commit (the text event is folded into the paragraph mirror); sqlite = INSERT of the commit's encoded update (subscribe_local_update) into a WAL database with synchronous=NORMAL on the local SSD.",
+    "loro": {
+      "count": 2000,
+      "mean_ms": 0.013,
+      "p50_ms": 0.012,
+      "p95_ms": 0.017,
+      "p99_ms": 0.021,
+      "max_ms": 0.144
+    },
+    "sqlite": {
+      "count": 2000,
+      "mean_ms": 0.016,
+      "p50_ms": 0.012,
+      "p95_ms": 0.021,
+      "p99_ms": 0.036,
+      "max_ms": 1.256
+    },
+    "total": {
+      "count": 2000,
+      "mean_ms": 0.029,
+      "p50_ms": 0.025,
+      "p95_ms": 0.035,
+      "p99_ms": 0.056,
+      "max_ms": 1.272
+    },
+    "update_bytes_p50": 92,
+    "budget_median_ms": 2,
+    "pass": true
+  },
+  "marked_chapter": {
+    "method": "The 20k-char chapter plus 500 entity links (entity:<id>, 300 targets) and 200 bold runs of 2–4 characters. open = ProseDoc::from_snapshot (import, mirror with marks, block-id check), five runs; keystroke = 1000 inserts inside an entity link (each typed character joins the link: ExpandType None, inside the span).",
+    "spans": 757,
+    "open_ms": [3.74, 3.6, 3.71, 3.58, 3.78],
+    "open_median_ms": 3.708,
+    "keystroke_loro": {
+      "count": 1000,
+      "mean_ms": 0.006,
+      "p50_ms": 0.005,
+      "p95_ms": 0.007,
+      "p99_ms": 0.01,
+      "max_ms": 0.41
+    },
+    "typed_text_stays_in_the_link": true
+  },
+  "cold_open": {
+    "method": "No window. Import Loro snapshots and build the paragraph mirror (ProseDoc::from_snapshot: import, to_delta, paragraphs with attributes and marks, block-id check). book_import_ms on one thread, as P0-B measured it; book_import_parallel_ms on all cores (median of three), which is how the editor opens the book. Every paragraph now carries a block id (loro-schema v0), which doubles Loro's first to_delta.",
+    "book_chapters": 100,
+    "book_paragraphs": 10069,
+    "book_list_items": 10169,
+    "book_snapshot_mb": 8.32,
+    "book_import_ms": 74.256,
+    "book_import_parallel_ms": 14.73,
+    "book_import_memory_mb": 53.3,
+    "chapter_import_ms": 0.886,
+    "book_height_estimate_ms": 2.574,
+    "book_estimated_height_px": 1567703
+  }
+}

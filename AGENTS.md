@@ -36,8 +36,9 @@ Guidance for coding agents working in this standalone Drifting client repository
   Tauri still uses `drifting-core`, `drifting-document` and `drifting-prose`;
   Apple platform adapters and Tauri iOS are not the removed front-end. See
   `docs/hosted-sync/README.md`.
-- `packages/prose-metrics` is independently licensed under Apache-2.0. The
-  remaining project-owned client source is AGPL-3.0-or-later.
+- `packages/prose-metrics` is independently licensed under Apache-2.0 and
+  `next/crates/gpui-prose` under MIT OR Apache-2.0. The remaining
+  project-owned client source is AGPL-3.0-or-later.
 - Keep service integration behind versioned network contracts. Do not import or
   mirror private service source.
 

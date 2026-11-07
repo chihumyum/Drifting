@@ -139,3 +139,32 @@ cargo run --release -p prose-spike -- check ../docs/rust-rewrite/acceptance/p0-b
 - **写入**：无窗口；每次按键 = `LoroText::insert` 加 `commit`（事件同步折进段落镜像），再把 `subscribe_local_update` 给出的更新 `INSERT` 进 WAL 模式、`synchronous=NORMAL` 的 SQLite。
 - **`check`**：核对证据里的源码指纹（探针源码编进程序算出的 FNV-1a）和两份语料指纹，和当前代码一致才通过。
 
+### 编辑器档的测法（F4，gpui-prose）
+
+2026-11-07 起，编辑器档用 `gpui-prose` 的基准程序（`next/crates/gpui-prose/examples/prose-bench`），语料、种子、步骤和 P0-B 相同，可以直接和 P0-B 的证据对比：
+
+```bash
+cd next
+cargo run --release -p gpui-prose --example prose-bench -- headless --out ../docs/rust-rewrite/acceptance/f4-headless.json
+cargo run --release -p gpui-prose --example prose-bench -- window --out ../docs/rust-rewrite/acceptance/f4-window.json
+cargo run --release -p gpui-prose --example prose-bench -- present --out ../docs/rust-rewrite/acceptance/f4-present.json
+cargo run --release -p gpui-prose --example prose-bench -- idle --out ../docs/rust-rewrite/acceptance/f4-idle-stock.json
+cargo run --release -p gpui-prose --example prose-bench -- check ../docs/rust-rewrite/acceptance/f4-*.json
+```
+
+和 P0-B 不同的地方：
+
+- **语料带块 ID。** 每段的换行符上都有 `bid`（loro-schema v0），快照大约大 4%，Loro 第一次读出全文（`to_delta`）的工作量约翻一倍。
+- **打开全书用所有核。** `ProseDoc` 可以跨线程，基准程序像宿主那样把 100 章分到各个核上导入，再交给编辑器。`headless` 另外照 P0-B 的办法单线程量一次（`book_import_ms`），两项都记。
+- **带标记的单章。** `headless` 加了一项：2 万字的章节再加 500 处人物链接（`entity:<id>`）和 200 段加粗，量打开时间和「在人物链接中间打字」的写入。
+- **真正上屏（`present`）。** 程序内的「上屏」只量到 GPUI 交出画面（CAMetalLayer present）之后的下一个刷新节拍，不含 WindowServer 合成和面板刷新。`present` 在 Instruments 下量到画面真正显示：
+  - `xcrun xctrace record --template "Metal System Trace" --instrument os_signpost --launch -- prose-bench trace-typing …`，系统自带，不装别的软件；
+  - 被测进程打开单章、关掉光标闪烁（这样画面只因按键而变），每秒 8 字、按键时刻错开在一个 120 Hz 周期里，每次按键前打一个 `os_signpost` 事件（`cc.drifting.prose-bench` / `PointsOfInterest` / `key`）；
+  - 导出三张表：`os-signpost`（按键时刻）、`ca-client-present-request`（本进程交出画面的时刻）、`metal-object-dependency-chain-display`（这一帧开始显示的时刻；和 Core Animation 的 `DrawableLifetime` 结束时刻一致，比这一帧的 presented 回调早约 0.3 ms）；
+  - 每次按键取它之后第一次交出画面、再取那之后第一次开始显示，得到「按键 → 交出」「按键 → 显示」「交出 → 显示」三个数；
+  - GPUI 原节奏和「改完立刻画」各录一次，结果写进同一个证据文件。
+- **空闲 CPU 单独量（`idle`）。** 单章打开、窗口可见：聚焦且光标闪烁、聚焦且光标不闪、不聚焦三种，各 30 s。用来对比 GPUI 补丁前后；环境变量 `PROSE_BENCH_GPUI` 给证据里的 `gpui_build` 标名字。
+- **负载。** 窗口、`present`、`idle` 的证据里记下测量前的一分钟负载（`load_average_1m_*`）。这台机器上常有别的会话在编译，负载高时帧间隔、上屏的长尾和单线程的数字都会变差，比较时先看负载。
+- **GPUI 补丁的对比。** 临时把工作区指向本机 fork（做法见 [f4-editor.md 的「GPUI 补丁台账」](foundations/f4-editor.md#gpui-补丁台账)），设 `PROSE_BENCH_GPUI` 给构建标名字，跑 `idle` 和 `present` 写成 `f4-idle-patched.json`、`f4-present-patched.json`；量完把工作区改回 Zed 官方标签。
+- `milestone` 生成里程碑清单（要求、证明它的测试、测量它的证据），并检查清单里的测试都在源码里。
+- `check` 校验源码指纹（`gpui-prose` 全部源码加基准程序）和语料指纹（用了全书的证据才查全书指纹）。
