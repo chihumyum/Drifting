@@ -33,9 +33,10 @@
 - **正文**：每个文档一个 `XmlFragment('default')`，存的是 Yjs v1 更新，位置按 UTF-16 计。
   - 文档 id 有五种前缀：`node-content:`、`element:`、`storyline:`、`category:`、`library-item:`。
   - 节点和标记的完整清单见 `src/renderer/lib/editor-schema-profile.ts`。
-  - 人物链接的标记键是 `entityLink--<6 字节哈希>`。导入时直接读属性值，不要重新算哈希：Rust 和 TS 两边算哈希时用的属性个数不一致。
+  - 人物链接在 Yjs 里的标记键是 `entityLink--<6 字节哈希>`；缓存 `content_json` 里是普通的 `entityLink` 加属性。导入读缓存，不碰哈希。
 - **锚点**：`comment.anchor_json` 有 v1–v4 四版，`element_patch.text_anchor_json` 也是这个形状。它们都是「块 ID + 偏移量」，不是 Yjs 的相对位置。
-- **快照历史**：`entity_snapshot_history.state_blob` 存的是完整的 Yjs 状态，也要转换。
+- **快照历史**：`entity_snapshot_history` 每行除了 `state_blob`（完整的 Yjs 状态），还有捕获时渲染好的 `content_json`，导入用它回放，不读 Yjs。
+- **规格草稿**：逐表映射、缓存新鲜度的判断、交接设计见 [P0-E 结论](spikes/p0-e-import.md)。
 - **其他格式**：
   - `.driftingbook`：CBOR，`drifting.book` v1；
   - 整库备份 `.drifting`：ZIP，里面是 SQLite 加资源文件；
