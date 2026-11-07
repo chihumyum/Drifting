@@ -127,17 +127,21 @@ impl LegacyImport {
         });
         self.task = Some(cx.spawn_in(window, async move |this, cx| {
             let answer = paths.await;
-            this.update_in(cx, |import, window, cx| match answer {
-                Ok(Ok(Some(paths))) if !paths.is_empty() => {
-                    let folder = paths.into_iter().next().expect("one path");
-                    import.start(folder, window, cx);
-                }
-                Ok(Err(error)) => import.fail(None, error.to_string(), window, cx),
-                // Cancelled.
-                _ => {
-                    import.state = State::Idle;
-                    cx.notify();
-                }
+            // In the window it was started in: the dialog is not drawn while
+            // the folder panel is up, so the entity has no window of its own.
+            cx.update(|window, cx| {
+                this.update(cx, |import, cx| match answer {
+                    Ok(Ok(Some(paths))) if !paths.is_empty() => {
+                        let folder = paths.into_iter().next().expect("one path");
+                        import.start(folder, window, cx);
+                    }
+                    Ok(Err(error)) => import.fail(None, error.to_string(), window, cx),
+                    // Cancelled.
+                    _ => {
+                        import.state = State::Idle;
+                        cx.notify();
+                    }
+                })
             })
             .ok();
         }));
@@ -286,15 +290,17 @@ impl LegacyImport {
                 }
             }
             // The thread ended without a word (it panicked).
-            this.update_in(cx, |import, window, cx| {
-                if matches!(import.state, State::Running(_)) {
-                    import.fail(
-                        Some(folder.clone()),
-                        "the import stopped unexpectedly".into(),
-                        window,
-                        cx,
-                    );
-                }
+            cx.update(|window, cx| {
+                this.update(cx, |import, cx| {
+                    if matches!(import.state, State::Running(_)) {
+                        import.fail(
+                            Some(folder.clone()),
+                            "the import stopped unexpectedly".into(),
+                            window,
+                            cx,
+                        );
+                    }
+                })
             })
             .ok();
         }));

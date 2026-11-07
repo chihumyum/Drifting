@@ -395,7 +395,7 @@ Agent 的结算记录、读取回执、检查点、事件流、长任务状态�
 
 ### 改到的别处
 
-- `dr-shell`：不用改（F6 第五轮起导入走外壳的 `dialogs::show` / `hide`；原来的 `pages::add_layer` 和两处 `render` 里的那一行已删）。
+- `dr-shell`：不用改（F6 第五轮起导入走外壳的 `dialogs::show` / `hide`；原来的 `pages::add_layer` 和两处 `render` 里的那一行已删）。选文件夹时对话框不画，所以 `flow.rs` 里选完文件夹、线程意外结束这两处回调用开始时的窗口（`AsyncWindowContext::update`），不用 `update_in`（它要实体上次画在哪个窗口）。
 - `dr-view-shelf`：删掉书架根上接 `ImportLegacyLibrary` 的那行调试日志。它不放行，动作到不了 `cx.on_action`。
 - `app/drifting`：`main.rs` 一行 `dr_view_import::init(cx)`，`Cargo.toml` 一行依赖。
 
