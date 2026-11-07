@@ -266,6 +266,33 @@ fn lines_and_reading_positions(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn a_book_prepared_off_the_main_thread_installs_without_failing(cx: &mut TestAppContext) {
+    fn send<T: Send>(_: &T) {}
+    let e = env();
+    let one = chapter(&e, "一", "雨夜。");
+    let two = chapter(&e, "二", "钟停了。");
+    // The slow half on another thread, as the shell does.
+    let (ws, book) = (e.ws.clone(), e.book.clone());
+    let prepared = std::thread::spawn(move || BookEditor::prepare(&ws, &book).unwrap())
+        .join()
+        .unwrap();
+    send(&prepared);
+    assert_eq!(
+        prepared.chapter_docs().collect::<Vec<_>>(),
+        [one.as_str(), two.as_str()]
+    );
+    let ws = e.ws.clone();
+    cx.executor().allow_parking();
+    let (view, cx) = cx.add_window_view(move |window, cx| {
+        BookEditor::with_prepared(ws, prepared, EditorSettings::default(), window, cx)
+    });
+    cx.run_until_parked();
+    assert_eq!(text_of(&view, cx, &two), "钟停了。\n");
+    // A book that cannot be read fails in the slow half, not in `cx.new`.
+    assert!(BookEditor::prepare(&e.ws, "no-such-book").is_err());
+}
+
+#[gpui::test]
 fn the_view_follows_the_books_chapters(cx: &mut TestAppContext) {
     let e = env();
     let one = chapter(&e, "一", "雨夜。");

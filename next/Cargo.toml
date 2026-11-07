@@ -218,6 +218,9 @@ dr-view-feedback = { path = "crates/dr-view-feedback" }
 futures = "0.3"
 icu_plurals = { version = "2.4", default-features = false, features = ["compiled_data"] }
 icu_locale_core = { version = "2.4", default-features = false }
+# F4e: the @ picker sorts names the way Chinese readers expect (pinyin, the
+# zh collation), same 2.4 line as the other icu_* crates.
+icu_collator = { version = "2.4", default-features = false, features = ["compiled_data"] }
 sys-locale = "0.3"
 # Stage 2 views: the bookshelf (M01) and Project Home (M02), docs/rust-rewrite/
 # modules/m01-shelf.md and m02-home.md. chrono gives the local calendar day
