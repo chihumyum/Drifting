@@ -3,6 +3,11 @@
 //! An editor edits one prose document as the author and undoes only the
 //! author's own typing (dr-doc's `ProseUndo`: merge interval 0, every origin
 //! but `user` excluded; the editor groups bursts with the manager's hooks).
+//! The author's commands on the same document (the command palette, the
+//! Agent panel acting for the author, an object-level undo) commit with
+//! [`crate::COMMAND_ORIGIN`], which the session's manager also leaves out:
+//! they are undone through the journal ([`crate::Workspace::undo`]), and the
+//! editor folds them in like anyone else's change.
 //! Every edit, undo and redo is a write job on the document's holder, like a
 //! command's, so it is one commit, persisted before its event, and the
 //! workspace's events and caches see it. The undo manager watches the
@@ -37,7 +42,15 @@ impl Workspace {
         let d = DocId::parse(doc).map_err(|e| WsError::invalid(e.to_string()))?;
         let slot = self.prose_slot(&d)?;
         // Made on the holder thread: the manager subscribes to the document.
-        let undo = slot.handle.read(ProseUndo::on)?;
+        // Besides every origin but `user` (dr-doc's rule), it leaves out the
+        // author's commands: the editor's Undo takes back the editor's own
+        // steps, never a command run from elsewhere on this document.
+        let undo = slot.handle.read(|doc| {
+            let mut undo = ProseUndo::on(doc);
+            undo.hooks()
+                .add_exclude_origin_prefix(holder::COMMAND_ORIGIN);
+            undo
+        })?;
         Ok(ProseSession {
             slot,
             undo: Arc::new(Mutex::new(undo)),

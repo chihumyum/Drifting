@@ -92,6 +92,32 @@ pub(crate) fn repair_book(slot: &BookSlot) -> Result<()> {
     })
 }
 
+/// A TODO two devices projected from the same marker before they synced
+/// reads its seed twice (see `doubled_seed`): put each such body back to its
+/// seed, as one write with origin `repair` (both devices make the same
+/// deletion, so their repairs merge). After remote book updates arrive.
+pub(crate) fn repair_projections(slot: &BookSlot) -> Result<()> {
+    let fixes: Vec<(dr_model::id::CommentId, String)> = slot
+        .reader
+        .view()
+        .comments()
+        .iter()
+        .filter_map(|c| Some((c.id.clone(), crate::commands::comment::doubled_seed(c)?)))
+        .collect();
+    if fixes.is_empty() {
+        return Ok(());
+    }
+    let book = slot.book.clone();
+    holder::write(&slot.handle, dr_store::Origin::Repair, None, move |doc| {
+        let b = BorrowedBook::new(doc, &book)?;
+        let mut txn = b.txn();
+        for (id, seed) in &fixes {
+            txn.comment(id)?.body(seed)?;
+        }
+        Ok(())
+    })
+}
+
 /// dr-doc's block-id repair of a prose document (duplicate ids a merge can
 /// make), as one write with origin `repair`; nothing is stored when there is
 /// nothing to repair.
@@ -161,6 +187,17 @@ impl Workspace {
 
     pub fn library(&self) -> &Library {
         &self.inner.lib
+    }
+
+    /// This device's writing-day key (`writing_day.record`), when the
+    /// library was opened with F2's `Device` (`LibraryOptions::device`).
+    pub fn writing_device(&self) -> Option<String> {
+        self.inner
+            .lib
+            .options()
+            .device
+            .as_ref()
+            .map(|d| d.writing_device_key())
     }
 
     /// Close every open document and wait for their holders (the library
@@ -315,7 +352,7 @@ impl Workspace {
         let output = out?;
         let mut row = None;
         let mut undo = done.undo;
-        if journal && spec.access == Access::Write && !done.effects.is_empty() {
+        if journal && done.journaled && spec.access == Access::Write && !done.effects.is_empty() {
             // Step 4 of the write order: the local journal row, one SQLite
             // transaction. The document writes are durable already; if this
             // fails the command still succeeded, only without an undo entry.
@@ -436,6 +473,7 @@ impl Workspace {
                 let slot = self.book_slot_or_create(book)?;
                 slot.handle.import(bytes, origin)?;
                 repair_book(&slot)?;
+                repair_projections(&slot)?;
             }
             _ => {
                 let slot = self.prose_slot(&doc)?;

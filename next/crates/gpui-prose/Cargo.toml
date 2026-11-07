@@ -4,9 +4,11 @@
 # Licensed MIT OR Apache-2.0, unlike the rest of the repository (AGPL): it
 # depends on `gpui` (and GPUI's `sum_tree`), `loro` and its own two small
 # crates `gpui-ime` and `prose-linebreak` (plus ICU4X segmentation behind the
-# default `icu` feature), never on a `dr-*` crate. `cargo check -p gpui-prose
-# --no-default-features` proves the boundary. The examples (a demo window and
-# the benchmark harness) may use more, as dev-dependencies.
+# default `icu` feature, and the crates GPUI's platforms already build for
+# telling the system input method to drop marked text), never on a `dr-*`
+# crate. `cargo check -p gpui-prose --no-default-features` proves the
+# boundary. The examples (a demo window, the benchmark harness and the
+# screen-reader probe) may use more, as dev-dependencies.
 [package]
 name = "gpui-prose"
 version = "0.1.0"
@@ -33,12 +35,25 @@ gpui-ime.workspace = true
 icu_segmenter = { workspace = true, optional = true }
 loro.workspace = true
 prose-linebreak.workspace = true
+# The window's native handle, for the system input method (input/system_ime.rs).
+raw-window-handle.workspace = true
 sum_tree.workspace = true
 
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2.workspace = true
+
+# IMM32, to cancel a composition (G4); GPUI's Windows backend builds the same
+# crate.
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { workspace = true, features = ["Win32_Globalization", "Win32_UI_Input_Ime"] }
+
 [dev-dependencies]
+# AccessKit's own reading of a tree, to check the text screen readers get.
+accesskit_consumer.workspace = true
 gpui = { workspace = true, features = ["test-support"] }
 # Without `font-kit`, gpui_macos renders no text at all (it logs a warning).
-gpui_platform.workspace = true
+# `test-support` gives prose-bench its headless renderer (`decor`, `capture`).
+gpui_platform = { workspace = true, features = ["test-support"] }
 log.workspace = true
 
 [target.'cfg(target_os = "macos")'.dev-dependencies]

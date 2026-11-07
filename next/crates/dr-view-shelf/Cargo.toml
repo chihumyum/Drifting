@@ -1,0 +1,25 @@
+[package]
+name = "dr-view-shelf"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Drifting's bookshelf (M01): the books in the library, new, rename, trash and Recently Deleted"
+
+[dependencies]
+anyhow.workspace = true
+chrono.workspace = true
+dr-i18n.workspace = true
+dr-shell.workspace = true
+dr-ui.workspace = true
+dr-workspace.workspace = true
+futures.workspace = true
+gpui.workspace = true
+log.workspace = true
+
+[dev-dependencies]
+dr-store.workspace = true
+dr-testkit.workspace = true
+gpui = { workspace = true, features = ["test-support"] }
+tempfile.workspace = true

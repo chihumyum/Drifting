@@ -9,6 +9,8 @@
 //! prose-bench headless [--out FILE]           write path and cold opens, no window
 //! prose-bench present [--keys N] [--out FILE] on-glass latency under Instruments (xctrace)
 //! prose-bench idle [--seconds N] [--out FILE] idle CPU only (for GPUI patch comparisons)
+//! prose-bench decor [--out FILE]              frames with and without a few hundred decorations (headless)
+//! prose-bench capture DIR [--textures DIR]    screenshots of the paint layers and block styles (headless)
 //! prose-bench milestone [--round N] [--out FILE]  milestone manifest: requirements, tests, evidence
 //! prose-bench check FILE...                   evidence matches sources and corpus
 //! ```
@@ -17,6 +19,8 @@
 
 #[cfg(target_os = "macos")]
 mod bench;
+#[cfg(target_os = "macos")]
+mod decor;
 #[cfg(target_os = "macos")]
 mod platform;
 #[cfg(target_os = "macos")]
@@ -67,6 +71,11 @@ fn main() {
     match args.first().map(String::as_str) {
         Some("window") => bench::run_window(value("--out"), flag("--quick")),
         Some("headless") => bench::run_headless(value("--out")),
+        Some("decor") => decor::run_decor(value("--out")),
+        Some("capture") => decor::run_capture(
+            args.get(1).cloned().unwrap_or_else(|| "f4d-capture".into()),
+            value("--textures"),
+        ),
         Some("idle") => bench::run_idle(
             value("--out"),
             value("--seconds")

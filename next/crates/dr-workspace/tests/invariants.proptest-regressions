@@ -10,3 +10,4 @@ cc 8b7f8b3eb168812721cb48f69e8761b22aa7ac811a8d3cfd541f5832cbcb03f1 # shrinks to
 cc 1ae0b2c8922aaa60a71e648fb7c66d1fbc88961c3cf393389ad09af1d195a87e # shrinks to ops = [Chapter(8), AgentRename(0, 2), ChapterText(64), UndoAgent]
 cc ca80841bbdd599008e7a184359c792c955b2e2b81b5f58f8fa830889dc1c6b21 # shrinks to ops = [Chapter(236), Chapter(0), PurgeChapter(8), AgentRename(0, 52), Undo]
 cc 91cbefe1eff34edd8a826cae59adf52c5325c42486e59b0c9f74d71870374f24 # shrinks to ops = [DeleteGroup(231), Element(251, false), SetCategory(176, 74), Relate(52, 90), TrashChapter(191), Relate(2, 187), Group(172, None), ChapterText(49), Idea(158), Element(97, true), MoveGroup(118, None), RenameElement(202, 13), AliasElement(200, 250), RestoreChapter(193), PurgeStoryline(73), PurgeCategory(71), MoveIdea(92, 67), Reopen]
+cc 554619aa768fa867a6fe3a6d1a6587b812e82b2abf4485ce4c72970713755ab4 # shrinks to a_ops = [Project(0, 1)], b_ops = [Project(0, 5)]

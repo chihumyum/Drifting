@@ -1,17 +1,90 @@
 {
+  "allChapters": {
+    "actOrdinal": "第{{n}}幕"
+  },
   "bottomStatusBar": {
     "elements": "要素",
     "storyGraph": "物語グラフ",
     "todoLibrary": "TODOと資料庫"
   },
   "common": {
+    "cancel": "キャンセル",
     "close": "閉じる",
-    "local": "ローカル"
+    "counting": "集計中…",
+    "creating": "作成中…",
+    "edit": "編集",
+    "local": "ローカル",
+    "save": "保存",
+    "saveFailed": "変更を保存できませんでした。再試行してください。",
+    "saving": "保存中…",
+    "untitled": "無題"
+  },
+  "dashboard": {
+    "actions": {
+      "allChapters": "すべての章",
+      "elementOverview": "要素一覧",
+      "storyGraph": "物語グラフ"
+    },
+    "hero": {
+      "projectName": "作品名"
+    },
+    "plan": {
+      "wordsPerDay": "文字／日"
+    },
+    "profilePlaceholder": "作品の前提、テーマ、あらすじを書く",
+    "sections": {
+      "projectProfile": "作品紹介",
+      "writingPlan": "執筆計画"
+    },
+    "today": {
+      "goal": "目標",
+      "streak": "連続執筆",
+      "week": "今週"
+    },
+    "wordCount": "{{count}}文字"
+  },
+  "editorOutline": {
+    "aria": "アウトライン",
+    "hiddenItems": "離れた項目{{count}}件・ホバーで表示"
+  },
+  "editorTopBar": {
+    "actions": {
+      "more": "その他の操作"
+    },
+    "menu": {
+      "deleteNode": "ノードを削除"
+    },
+    "outlineRailMode": {
+      "hidden": "目次を非表示",
+      "visible": "目次を表示"
+    },
+    "status": {
+      "discarded": "不採用",
+      "draft": "下書き",
+      "finished": "完成"
+    },
+    "statusSection": {
+      "chapter": "執筆状態"
+    }
   },
   "feedback": {
     "crash": {
       "title": "前回の使用時に Drifting で問題が発生しました"
     }
+  },
+  "globalSearch": {
+    "closeTitle": "閉じる（Esc）",
+    "field": {
+      "body": "本文",
+      "name": "名前",
+      "title": "タイトル"
+    },
+    "noResults": "一致する項目がありません",
+    "stats": "{{groups}}項目 · {{occurrences}}件一致"
+  },
+  "immersiveWriting": {
+    "enter": "没入執筆",
+    "leave": "没入執筆を終了"
   },
   "leftSidebar": {
     "empty": {
@@ -38,7 +111,9 @@
     },
     "uncategorized": "未分類",
     "viewMode": {
-      "chapterSummary": "{{storylines}}ストーリーライン・{{chapters}}章"
+      "chapterSummary": "{{storylines}}ストーリーライン・{{chapters}}章",
+      "globalTitle": "全編一覧・ストーリーライン別にする",
+      "storylineTitle": "ストーリーライン別・全編一覧に切り替え"
     }
   },
   "navigation": {
@@ -77,7 +152,112 @@
     "title": "通知"
   },
   "projectHome": {
-    "kicker": "作品ホーム"
+    "book": {
+      "noStorylines": "ストーリーラインはまだありません。",
+      "storylineCount": "{{done}} / {{total}}章",
+      "title": "本書"
+    },
+    "continue": {
+      "empty": "章はまだありません。",
+      "title": "続ける"
+    },
+    "create": {
+      "kinds": {
+        "category": "カテゴリ",
+        "chapter": "章",
+        "drift": "アイデア",
+        "element": "要素",
+        "material": "資料",
+        "storyline": "ストーリーライン"
+      }
+    },
+    "kicker": "作品ホーム",
+    "readout": "{{chapters}}章 · {{storylines}}本のストーリーライン · {{elements}}件の要素",
+    "settings": {
+      "dailyGoal": "1日の目標",
+      "projectTarget": "本全体の目標"
+    },
+    "since": "作品ホーム · {{date}}から",
+    "today": "今日 {{today}} / {{goal}} · {{streak}}日連続",
+    "todayNoGoal": "今日 {{today}} · {{streak}}日連続",
+    "views": {
+      "overview": "概要",
+      "settings": "設定"
+    },
+    "words": "{{words}}語",
+    "wordsOfTarget": "{{words}} / {{target}}語"
+  },
+  "projectPicker": {
+    "desk": {
+      "chaptersUnit_one": "章",
+      "chaptersUnit_other": "章",
+      "elementsUnit_one": "要素",
+      "elementsUnit_other": "要素",
+      "form": {
+        "createTitle": "新しい一冊",
+        "editTitle": "「{{name}}」を編集",
+        "nameLabel": "タイトル",
+        "summaryLabel": "要約"
+      },
+      "goal": "{{pct}}%・目標{{target}}文字",
+      "moveToTrash": "最近削除した項目へ移動",
+      "newCard": "新しい一冊",
+      "newCardSub": "白紙から始める",
+      "open": "「{{name}}」を開く",
+      "progress": "進捗",
+      "storylinesUnit_one": "ストーリーライン",
+      "storylinesUnit_other": "ストーリーライン",
+      "trashEntry": "最近削除した項目",
+      "trashList": {
+        "empty": "最近削除した作品はありません。",
+        "title": "最近削除した項目"
+      },
+      "trashTitle": "「{{name}}」を最近削除した項目へ移しますか？",
+      "untitled": "無題",
+      "wordsUnit": "文字"
+    },
+    "form": {
+      "createSubmit": "作成",
+      "namePlaceholder": "例：北の岬の灯",
+      "summaryPlaceholder": "作品を1〜2文で紹介してください。"
+    },
+    "header": {
+      "titleEm": "本棚"
+    },
+    "heat": {
+      "daysUnit": "日",
+      "today": "今日"
+    },
+    "rail": {
+      "books_one": "{{count}}冊",
+      "books_other": "{{count}}冊",
+      "import": "本を読み込む",
+      "library_one": "{{count}}冊 · {{words}}語",
+      "library_other": "{{count}}冊 · {{words}}語"
+    },
+    "status": {
+      "draft": "下書き",
+      "paused": "一時停止",
+      "writing": "執筆中"
+    },
+    "trash": {
+      "body": "作品（{{words}}文字・{{nodes}}章・{{elements}}要素）を本棚から移動します。「最近削除した項目」から30日以内に復元でき、その後は完全削除します。",
+      "confirm": "最近削除した項目へ移動",
+      "failed": "作品を移動できません。再試行してください。",
+      "localNote": "完全削除まで内容と読めるMarkdownコピーを保ちます。",
+      "moving": "移動中…",
+      "restore": "復元",
+      "restoreFailed": "作品を復元できません。再試行してください。",
+      "restoring": "復元中…"
+    }
+  },
+  "referencesPanel": {
+    "kind": {
+      "patch": "変化記録"
+    }
+  },
+  "relationTypes": {
+    "description": "説明"
   },
   "rightSidebar": {
     "kickers": {
@@ -93,6 +273,18 @@
         "none": "作品・詳細統計",
         "storyline": "このストーリーライン・詳細統計"
       }
+    },
+    "stats": {
+      "averagePerChapter": "1章の平均",
+      "bookPosition": "本の中の位置",
+      "chapterCount": "章",
+      "chapterOrdinal": "第{{count}}章",
+      "chaptersValue": "{{count}}章",
+      "recent": "最近",
+      "wordsPerChapterValue": "{{words}}文字／章",
+      "wordsValue": "{{count}}文字",
+      "writingProgress": "執筆の進捗",
+      "writtenTarget": "執筆済み／目標"
     },
     "tabs": {
       "companion": "Agent",
@@ -241,10 +433,34 @@
       "storyline": "無題のストーリーライン"
     }
   },
+  "userMenu": {
+    "import": "インポート",
+    "importBook": "作品をインポート（.driftingbook）",
+    "language": "言語",
+    "localMenu": "ローカルライブラリのメニュー",
+    "localStatus": "ローカル・この端末に保存",
+    "settings": "設定",
+    "theme": "テーマ",
+    "themeDark": "ダーク",
+    "themeDarkShort": "ダーク",
+    "themeLight": "ライト",
+    "themeLightShort": "ライト",
+    "themeSystem": "システムに合わせる",
+    "themeSystemShort": "システム"
+  },
   "windowCaption": {
     "close": "閉じる",
     "maximize": "最大化",
     "minimize": "最小化",
     "restore": "元のサイズに戻す"
+  },
+  "workspaceWordTally": {
+    "book": "全編",
+    "chapter": "章",
+    "counting": "集計中",
+    "drift": "アイデア",
+    "selection": "選択範囲",
+    "storyline": "ストーリーライン",
+    "today": "今日"
   }
 }

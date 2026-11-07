@@ -2,12 +2,12 @@
 //! the dock over its top edge, and the window-drag strip under the dock.
 //!
 //! The page is the one raised surface (surfaces.md). Changing pages
-//! dissolves in place (`PageTurn`, 180 ms). Until the editor (dr-editor)
-//! takes the page over, it shows the document's prose from F3 read-only,
-//! set with the editor settings (font size, line height, paragraph spacing
-//! and indent, page width): body text in the prose face, H1/H2/H3 at the
-//! 0.1 client's 28/22/18 px for its 17 px text, scaled with the font size.
-//! Only the rows on screen are laid out (GPUI's `list`).
+//! dissolves in place (`PageTurn`, 180 ms). A prose document's page is its
+//! editor (`dr-editor`, see [`super::editors`]). The whole book is still
+//! read-only, set with the editor settings (font size, line height,
+//! paragraph spacing and indent, page width): body text in the prose face,
+//! H1/H2/H3 at the 0.1 client's 28/22/18 px for its 17 px text, scaled with
+//! the font size. Only the rows on screen are laid out (GPUI's `list`).
 
 use dr_i18n::keys;
 use dr_ui::{
@@ -27,14 +27,14 @@ use gpui::{
 
 use super::chrome::{self, TITLEBAR_HEIGHT};
 use super::dock::DockDrag;
-use super::{Item, PageSide, Workspace, dock};
+use super::{Item, PageSide, Workspace, corner, dock, outline};
 use crate::Settings;
 use crate::book::Paragraph;
 use crate::nav::{Tab, Target};
 use crate::settings::registry as r;
 use crate::strings::t;
 
-/// How the editor settings set the read-only page.
+/// How the editor settings set the whole book's read-only page.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct EditorLook {
     pub font_size: f32,
@@ -84,6 +84,16 @@ fn page_key(target: Option<&Target>) -> SharedString {
 pub fn mid(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>) -> AnyElement {
     let entity = cx.entity();
     let look = EditorLook::read(cx);
+    // The middle column's size, for the outline rail's margin.
+    let viewport = window.viewport_size();
+    let beside = |width: f32, shown: f32| (width * shown).round();
+    let column_w = f32::from(viewport.width)
+        - if ws.immersive {
+            0.0
+        } else {
+            beside(ws.left.width, ws.left.shown()) + beside(ws.right.width, ws.right.shown())
+        };
+    let column_h = f32::from(viewport.height);
     let active = ws.nav.active_index();
     let pages: AnyElement = match ws.nav.active_tab().cloned() {
         Some(Tab::Split(split)) => {
@@ -110,6 +120,7 @@ pub fn mid(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>)
                             });
                         }
                     })
+                    .relative()
                     .child(page_turn(
                         match which {
                             PageSide::Left => "page-left",
@@ -120,8 +131,44 @@ pub fn mid(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>)
                         look,
                     ))
             };
-            let left = side(PageSide::Left, cx);
-            let right = side(PageSide::Right, cx);
+            let left_target = split.side(PageSide::Left).target.clone();
+            let right_target = split.side(PageSide::Right).target.clone();
+            let left_rail = outline::rail(
+                ws,
+                Some(&left_target),
+                column_w * ratio,
+                column_h,
+                window,
+                cx,
+            );
+            let right_rail = outline::rail(
+                ws,
+                Some(&right_target),
+                column_w * (1.0 - ratio),
+                column_h,
+                window,
+                cx,
+            );
+            let left = side(PageSide::Left, cx)
+                .children(left_rail)
+                .child(corner::corner(
+                    ws,
+                    &entity,
+                    Some(&left_target),
+                    false,
+                    window,
+                    cx,
+                ));
+            let right = side(PageSide::Right, cx)
+                .children(right_rail)
+                .child(corner::corner(
+                    ws,
+                    &entity,
+                    Some(&right_target),
+                    true,
+                    window,
+                    cx,
+                ));
             let theme = Theme::of(window, cx);
             div()
                 .size_full()
@@ -139,9 +186,24 @@ pub fn mid(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>)
         }
         tab => {
             let target = tab.map(|t| t.focused().target.clone());
-            page_turn("page-main", target.as_ref(), &entity, look).into_any_element()
+            let rail = outline::rail(ws, target.as_ref(), column_w, column_h, window, cx);
+            div()
+                .relative()
+                .size_full()
+                .child(page_turn("page-main", target.as_ref(), &entity, look))
+                .children(rail)
+                .child(corner::corner(
+                    ws,
+                    &entity,
+                    target.as_ref(),
+                    true,
+                    window,
+                    cx,
+                ))
+                .into_any_element()
         }
     };
+    let immersive = ws.immersive;
     let strip = chrome::drag_region(
         div()
             .id("drag-strip")
@@ -152,7 +214,8 @@ pub fn mid(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>)
             .h(px(TITLEBAR_HEIGHT)),
         cx,
     );
-    let dock = dock::dock(ws, window, cx);
+    let dock = (!immersive).then(|| dock::dock(ws, window, cx));
+    let leave = immersive.then(|| corner::leave_immersive(cx));
     let dragging = cx.has_active_drag();
     div()
         .relative()
@@ -161,7 +224,8 @@ pub fn mid(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>)
         .h_full()
         .child(pages)
         .child(strip)
-        .child(dock)
+        .children(dock)
+        .children(leave)
         .when(dragging && ws.nav.active_index().is_some(), |el| {
             el.child(drop_zones(window, cx))
         })
@@ -259,6 +323,10 @@ fn paper(
 }
 
 fn home(ws: &Entity<Workspace>, window: &mut Window, cx: &mut App) -> AnyElement {
+    // Project Home (M02, dr-view-home) when the app registered it.
+    if let Some(view) = crate::pages::home_of(ws, window, cx) {
+        return view.into_any_element();
+    }
     let theme = Theme::of(window, cx);
     let p = theme.palette;
     let s = theme.scale;
@@ -300,6 +368,15 @@ fn document(
     cx: &mut App,
 ) -> AnyElement {
     let w = ws.read(cx);
+    if *target != Target::Book {
+        let Some(editor) = w.editor_of(target).cloned() else {
+            return div().into_any_element();
+        };
+        let id = ElementId::Name(format!("editor-{}", target.key()).into());
+        return super::editors::forward_edit_actions(div().id(id).size_full())
+            .child(editor)
+            .into_any_element();
+    }
     let Some(slot) = w.pages.get(&target.key()) else {
         return div().into_any_element();
     };

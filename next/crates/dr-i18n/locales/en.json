@@ -1,17 +1,90 @@
 {
+  "allChapters": {
+    "actOrdinal": "Act {{n}}"
+  },
   "bottomStatusBar": {
     "elements": "Elements",
     "storyGraph": "Story graph",
     "todoLibrary": "TODO & Library"
   },
   "common": {
+    "cancel": "Cancel",
     "close": "Close",
-    "local": "Local"
+    "counting": "Counting…",
+    "creating": "Creating…",
+    "edit": "Edit",
+    "local": "Local",
+    "save": "Save",
+    "saveFailed": "Your changes could not be saved. Please try again.",
+    "saving": "Saving…",
+    "untitled": "Untitled"
+  },
+  "dashboard": {
+    "actions": {
+      "allChapters": "All chapters",
+      "elementOverview": "Element overview",
+      "storyGraph": "Story graph"
+    },
+    "hero": {
+      "projectName": "Project name"
+    },
+    "plan": {
+      "wordsPerDay": "words / day"
+    },
+    "profilePlaceholder": "Write the project premise, thesis, or synopsis",
+    "sections": {
+      "projectProfile": "Project profile",
+      "writingPlan": "Writing plan"
+    },
+    "today": {
+      "goal": "Goal",
+      "streak": "Streak",
+      "week": "This week"
+    },
+    "wordCount": "{{count}} words"
+  },
+  "editorOutline": {
+    "aria": "Outline",
+    "hiddenItems": "{{count}} distant outline items; hover to reveal"
+  },
+  "editorTopBar": {
+    "actions": {
+      "more": "More actions"
+    },
+    "menu": {
+      "deleteNode": "Delete node"
+    },
+    "outlineRailMode": {
+      "hidden": "Hide TOC",
+      "visible": "Show TOC"
+    },
+    "status": {
+      "discarded": "Discarded",
+      "draft": "Draft",
+      "finished": "Finished"
+    },
+    "statusSection": {
+      "chapter": "Writing status"
+    }
   },
   "feedback": {
     "crash": {
       "title": "Drifting ran into a problem last time"
     }
+  },
+  "globalSearch": {
+    "closeTitle": "Close (Esc)",
+    "field": {
+      "body": "Body",
+      "name": "Name",
+      "title": "Title"
+    },
+    "noResults": "No matches found",
+    "stats": "{{groups}} items · {{occurrences}} matches"
+  },
+  "immersiveWriting": {
+    "enter": "Immersive writing",
+    "leave": "Leave immersive writing"
   },
   "leftSidebar": {
     "empty": {
@@ -38,7 +111,9 @@
     },
     "uncategorized": "Uncategorized",
     "viewMode": {
-      "chapterSummary": "{{storylines}} storylines · {{chapters}} chapters"
+      "chapterSummary": "{{storylines}} storylines · {{chapters}} chapters",
+      "globalTitle": "Book overview · group by storyline",
+      "storylineTitle": "Grouped by storyline · switch back to book overview"
     }
   },
   "navigation": {
@@ -77,7 +152,112 @@
     "title": "Notifications"
   },
   "projectHome": {
-    "kicker": "Project Home"
+    "book": {
+      "noStorylines": "No storylines yet.",
+      "storylineCount": "{{done}} / {{total}} chapters",
+      "title": "The book"
+    },
+    "continue": {
+      "empty": "No chapters yet.",
+      "title": "Continue"
+    },
+    "create": {
+      "kinds": {
+        "category": "Category",
+        "chapter": "Chapter",
+        "drift": "Idea",
+        "element": "Element",
+        "material": "Material",
+        "storyline": "Storyline"
+      }
+    },
+    "kicker": "Project Home",
+    "readout": "{{chapters}} chapters · {{storylines}} storylines · {{elements}} elements",
+    "settings": {
+      "dailyGoal": "Daily goal",
+      "projectTarget": "Book target"
+    },
+    "since": "Project Home · since {{date}}",
+    "today": "Today {{today}} / {{goal}} · {{streak}}-day streak",
+    "todayNoGoal": "Today {{today}} · {{streak}}-day streak",
+    "views": {
+      "overview": "Overview",
+      "settings": "Settings"
+    },
+    "words": "{{words}} words",
+    "wordsOfTarget": "{{words}} / {{target}} words"
+  },
+  "projectPicker": {
+    "desk": {
+      "chaptersUnit_one": "chapter",
+      "chaptersUnit_other": "chapters",
+      "elementsUnit_one": "element",
+      "elementsUnit_other": "elements",
+      "form": {
+        "createTitle": "New book",
+        "editTitle": "Edit “{{name}}”",
+        "nameLabel": "Title",
+        "summaryLabel": "Summary"
+      },
+      "goal": "{{pct}}% · goal {{target}} words",
+      "moveToTrash": "Move to Recently Deleted",
+      "newCard": "New book",
+      "newCardSub": "Start from a blank page",
+      "open": "Open “{{name}}”",
+      "progress": "Progress",
+      "storylinesUnit_one": "storyline",
+      "storylinesUnit_other": "storylines",
+      "trashEntry": "Recently Deleted",
+      "trashList": {
+        "empty": "No recently deleted books.",
+        "title": "Recently Deleted"
+      },
+      "trashTitle": "Move “{{name}}” to Recently Deleted?",
+      "untitled": "Untitled",
+      "wordsUnit": "words"
+    },
+    "form": {
+      "createSubmit": "Create",
+      "namePlaceholder": "e.g. The North Cape Light",
+      "summaryPlaceholder": "Describe the book in one or two sentences."
+    },
+    "header": {
+      "titleEm": "Bookshelf"
+    },
+    "heat": {
+      "daysUnit": "days",
+      "today": "Today"
+    },
+    "rail": {
+      "books_one": "{{count}} book",
+      "books_other": "{{count}} books",
+      "import": "Import book",
+      "library_one": "{{count}} book · {{words}} words",
+      "library_other": "{{count}} books · {{words}} words"
+    },
+    "status": {
+      "draft": "Draft",
+      "paused": "Paused",
+      "writing": "Writing"
+    },
+    "trash": {
+      "body": "This book ({{words}} words · {{nodes}} chapters · {{elements}} elements) leaves the shelf. You can restore it from Recently Deleted for 30 days; after that it is permanently deleted.",
+      "confirm": "Move to Recently Deleted",
+      "failed": "The project could not be moved. Please try again.",
+      "localNote": "The content and the readable Markdown copy are kept until the permanent deletion.",
+      "moving": "Moving…",
+      "restore": "Restore",
+      "restoreFailed": "The project could not be restored. Please try again.",
+      "restoring": "Restoring…"
+    }
+  },
+  "referencesPanel": {
+    "kind": {
+      "patch": "Patch"
+    }
+  },
+  "relationTypes": {
+    "description": "Description"
   },
   "rightSidebar": {
     "kickers": {
@@ -93,6 +273,18 @@
         "none": "Project · detailed stats",
         "storyline": "This storyline · detailed stats"
       }
+    },
+    "stats": {
+      "averagePerChapter": "Average per chapter",
+      "bookPosition": "Book position",
+      "chapterCount": "Chapters",
+      "chapterOrdinal": "Chapter {{count}}",
+      "chaptersValue": "{{count}} chapters",
+      "recent": "Recent",
+      "wordsPerChapterValue": "{{words}} words / chapter",
+      "wordsValue": "{{count}} words",
+      "writingProgress": "Writing progress",
+      "writtenTarget": "Written / target"
     },
     "tabs": {
       "companion": "Agent",
@@ -241,10 +433,34 @@
       "storyline": "Untitled storyline"
     }
   },
+  "userMenu": {
+    "import": "Import",
+    "importBook": "Import book (.driftingbook)",
+    "language": "Language",
+    "localMenu": "Local library menu",
+    "localStatus": "LOCAL · ON DEVICE",
+    "settings": "Settings",
+    "theme": "Theme",
+    "themeDark": "Dark",
+    "themeDarkShort": "Dark",
+    "themeLight": "Light",
+    "themeLightShort": "Light",
+    "themeSystem": "Follow system",
+    "themeSystemShort": "System"
+  },
   "windowCaption": {
     "close": "Close",
     "maximize": "Maximize",
     "minimize": "Minimize",
     "restore": "Restore"
+  },
+  "workspaceWordTally": {
+    "book": "Book",
+    "chapter": "Chapter",
+    "counting": "counting",
+    "drift": "Idea",
+    "selection": "Selected",
+    "storyline": "Storyline",
+    "today": "Today"
   }
 }

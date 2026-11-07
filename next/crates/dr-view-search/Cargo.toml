@@ -1,0 +1,15 @@
+[package]
+name = "dr-view-search"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Search the whole book (M06): the search panel over F3's book.search, results grouped by what they are in, jumps through location links"
+
+[dependencies]
+dr-i18n.workspace = true
+dr-ui.workspace = true
+dr-workspace.workspace = true
+gpui.workspace = true
+log.workspace = true

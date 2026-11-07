@@ -7,6 +7,7 @@
 //! See docs/rust-rewrite/foundations/f6-shell.md.
 
 mod about;
+mod check;
 mod identity;
 mod probe;
 
@@ -22,7 +23,7 @@ use gpui_platform::application;
 /// appearance without touching the system setting or the stored theme.
 pub const APPEARANCE_ENV: &str = "DRIFTING_APPEARANCE";
 /// The development switch: `DRIFTING_BOOK=<id or name>` opens that book
-/// instead of the one opened last (until the bookshelf exists).
+/// straight away instead of the bookshelf.
 pub const BOOK_ENV: &str = "DRIFTING_BOOK";
 /// The library's folder inside the app's data folder (F2's `library.sqlite`,
 /// `assets/`, …). The data folder itself is the 0.1 client's for the release
@@ -171,6 +172,10 @@ fn main() {
                 .filter(|b| !b.trim().is_empty()),
         };
         dr_shell::init(info, services, settings, cx);
+        // Stage 2 pages: the bookshelf opens first, Project Home is the
+        // paper under no tab.
+        dr_view_shelf::init(cx);
+        dr_view_home::init(cx);
         probe::shell_ready();
         cx.on_action(about::open);
         if !cfg!(target_os = "macos") {
@@ -183,6 +188,7 @@ fn main() {
         }
         open_workspace(cx);
         cx.activate(true);
+        check::start(cx);
     });
 }
 

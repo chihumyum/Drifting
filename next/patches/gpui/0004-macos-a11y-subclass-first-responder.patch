@@ -1,0 +1,49 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Drifting <noreply@drifting.invalid>
+Date: Sun, 8 Nov 2026 01:40:00 +0800
+Subject: [PATCH] gpui_macos: let AccessKit subclass the first-responder view
+
+---
+ crates/gpui_macos/src/window.rs | 18 +++++++++++-------
+ 1 file changed, 11 insertions(+), 7 deletions(-)
+
+diff --git a/crates/gpui_macos/src/window.rs b/crates/gpui_macos/src/window.rs
+index 01807c7..9b7416a 100644
+--- a/crates/gpui_macos/src/window.rs
++++ b/crates/gpui_macos/src/window.rs
+@@ -1350,11 +1350,10 @@ impl MacWindow {
+ impl Drop for MacWindow {
+     fn drop(&mut self) {
+         let mut this = self.0.lock();
+-        // `accesskit_macos::SubclassingAdapter::for_window` strong-retains the
+-        // window's content view, and that content view keeps the `GPUIView` it
+-        // hosts alive. Together with the `Arc<Mutex<MacWindowState>>` parked in
+-        // both views' `windowState` ivar, that forms
+-        // `MacWindowState -> adapter -> content view -> GPUIView -> MacWindowState`,
++        // `accesskit_macos::SubclassingAdapter` strong-retains the `GPUIView`
++        // it subclasses. Together with the `Arc<Mutex<MacWindowState>>` parked
++        // in the view's `windowState` ivar, that forms
++        // `MacWindowState -> adapter -> GPUIView -> MacWindowState`,
+         // a cycle the delegate/`frame_source` teardown below cannot break. Drop
+         // the adapter here so the native view, its `CAMetalLayer` and the
+         // renderer's command queue are actually released with the window.
+@@ -2341,9 +2340,14 @@ impl PlatformWindow for MacWindow {
+         };
+         let action_handler = A11yActionHandler(callbacks.action);
+ 
++        // Subclass GPUI's own view, not the window's content view: the view is
++        // the first responder, and AppKit answers "which element has focus"
++        // (what VoiceOver asks first) from the first responder. With the
++        // content view subclassed, the focused element resolves to the window
++        // even while a text field in the tree has focus.
+         let adapter = unsafe {
+-            accesskit_macos::SubclassingAdapter::for_window(
+-                lock.native_window as *mut c_void,
++            accesskit_macos::SubclassingAdapter::new(
++                lock.native_view.as_ptr() as *mut c_void,
+                 activation_handler,
+                 action_handler,
+             )
+-- 
+2.54.0 (Apple Git-157)
+
