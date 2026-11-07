@@ -12,6 +12,8 @@ use crate::{layout::BlockMetrics, text::BlockKind};
 #[derive(Clone, Debug, PartialEq)]
 pub struct ProseStyle {
     pub font_family: SharedString,
+    /// The face of code blocks (material notes).
+    pub mono_family: SharedString,
     pub body_size: Pixels,
     pub body_line_height: f32,
     pub heading_sizes: [Pixels; 3],
@@ -48,6 +50,7 @@ impl Default for ProseStyle {
     fn default() -> Self {
         ProseStyle {
             font_family: "PingFang SC".into(),
+            mono_family: "Menlo".into(),
             body_size: px(17.5),
             body_line_height: 1.75,
             heading_sizes: [px(28.), px(22.), px(18.)],

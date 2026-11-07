@@ -15,7 +15,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use gpui::{App, Context, EventEmitter, Hsla, Pixels, Point, SharedString, Task, px};
+use gpui::{App, Context, EventEmitter, Hsla, Pixels, Point, SharedString, Task};
 
 use super::{
     blocks::{BlockLook, BlockStyle, ListItem, ListMark, linked_todo, list_item},
@@ -664,6 +664,8 @@ impl ProseEditor {
     pub fn set_block_style(&mut self, style: BlockStyle, cx: &mut Context<Self>) {
         if style != self.paint.block_style {
             self.paint.block_style = style;
+            // Insets, gaps and pads are layout: estimate again too.
+            self.estimate_width = None;
             self.list.remeasure();
             cx.notify();
         }
@@ -728,15 +730,9 @@ impl ProseEditor {
                 ListMark::Bullet => {}
             }
         }
-        if look.quote {
-            let quote_at = |ix: usize| {
-                doc.lines()
-                    .get(ix)
-                    .is_some_and(|l| BlockLook::of(&l.block, &self.paint.block_style, px(1.)).quote)
-            };
-            look.quote_above = line > 0 && quote_at(line - 1);
-            look.quote_below = line + 1 < doc.visible_lines() && quote_at(line + 1);
-        }
+        let above = (line > 0).then(|| &doc.line(line - 1).block);
+        let below = (line + 1 < doc.visible_lines()).then(|| &doc.line(line + 1).block);
+        look.join(&doc.line(line).block, above, below);
         look
     }
 

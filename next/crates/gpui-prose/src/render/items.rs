@@ -11,7 +11,7 @@ use super::{
     decor::{DecorationKey, Touch},
     element::ParagraphElement,
     frame::CompSpan,
-    runs::{line_runs, splice_composition},
+    runs::splice_composition,
     state::{Live, ParaDeco, ParaKind},
 };
 use crate::{ProseEditor, layout::Affinity, layout::Item};
@@ -84,18 +84,11 @@ impl ProseEditor {
 
     /// The text, runs, composition and caret of one paragraph as shown now.
     pub(crate) fn display(&mut self, chapter: usize, line_ix: usize) -> Display {
-        let extension = self.extension.clone();
         let doc = &mut self.book.chapters[chapter].doc;
         let line_start = doc.line_start(line_ix);
         let line = doc.line(line_ix).clone();
         let line_end = line_start + line.chars;
-        let runs = line_runs(
-            line.text.len(),
-            &line.spans,
-            line.kind,
-            &self.style,
-            extension.as_deref(),
-        );
+        let runs = self.paragraph_runs(&line, &self.block_look(chapter, line_ix));
         let comp = self
             .composition
             .as_ref()
@@ -272,8 +265,9 @@ impl ProseEditor {
         let doc = &mut self.book.chapters[chapter].doc;
         let line_start = doc.line_start(line_ix);
         let line = doc.line(line_ix).clone();
-        let metrics = self.style.metrics(line.kind);
         let line_end = line_start + line.chars;
+        let set = self.para_set(chapter, line_ix);
+        let metrics = set.metrics;
 
         let sel = self.selection;
         let selection = if sel.chapter == chapter && !sel.is_empty() && self.composition.is_none() {
@@ -310,8 +304,7 @@ impl ProseEditor {
         };
         let decos =
             self.paragraph_decorations(chapter, line_ix, display.comp, metrics.font_size, now);
-        let block = self.block_look(chapter, line_ix);
-        let (setting, _) = self.row_setting(chapter, line_ix);
+        let (block, setting) = (set.look, set.setting);
         let last = item_ix + 1 == self.book.item_count();
 
         let show_cursor =

@@ -239,8 +239,7 @@ impl ProseEditor {
         let layout = if display.text == painted.text {
             painted.layout.clone()
         } else {
-            let kind = self.book.chapters[chapter].doc.line(line_ix).kind;
-            let font_size = self.style.font_size(kind);
+            let font_size = px(self.para_metrics(chapter, line_ix).font_size);
             std::rc::Rc::new(shape_set(
                 &display.text,
                 font_size,

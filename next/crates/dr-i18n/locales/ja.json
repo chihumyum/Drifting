@@ -60,6 +60,9 @@
     },
     "card": {
       "emptyComment": "空のコメント"
+    },
+    "snapshot": {
+      "changed": "削除／変更済み"
     }
   },
   "common": {

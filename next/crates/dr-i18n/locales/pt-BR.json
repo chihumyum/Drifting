@@ -60,6 +60,9 @@
     },
     "card": {
       "emptyComment": "Comentário vazio"
+    },
+    "snapshot": {
+      "changed": "Excluído/alterado"
     }
   },
   "common": {

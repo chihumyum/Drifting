@@ -60,6 +60,9 @@
     },
     "card": {
       "emptyComment": "빈 댓글"
+    },
+    "snapshot": {
+      "changed": "삭제됨/변경됨"
     }
   },
   "common": {

@@ -5,9 +5,11 @@
 use gpui::{Hsla, StrikethroughStyle, TextRun, UnderlineStyle, px};
 
 use crate::{
+    ProseEditor,
     extension::ProseExtension,
+    render::blocks::BlockLook,
     style::ProseStyle,
-    text::{BlockKind, Marks, Span},
+    text::{BlockKind, Line, Marks, Span},
 };
 
 /// What an extension may change about a run of marked text.
@@ -92,6 +94,31 @@ pub fn line_runs(
         runs.push(plain.run(kind, len - at, style));
     }
     runs
+}
+
+impl ProseEditor {
+    /// A paragraph's text runs: its marks, and a code line's monospace
+    /// face (bold and italic kept).
+    pub(crate) fn paragraph_runs(&self, line: &Line, look: &BlockLook) -> Vec<TextRun> {
+        let kind = if look.code {
+            BlockKind::Body
+        } else {
+            line.kind
+        };
+        let mut runs = line_runs(
+            line.text.len(),
+            &line.spans,
+            kind,
+            &self.style,
+            self.extension.as_deref(),
+        );
+        if look.code {
+            for run in &mut runs {
+                run.font.family = self.style.mono_family.clone();
+            }
+        }
+        runs
+    }
 }
 
 /// Splices marked (composition) text into runs: `replaced` bytes at `at`

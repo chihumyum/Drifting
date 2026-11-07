@@ -60,6 +60,9 @@
     },
     "card": {
       "emptyComment": "空白註解"
+    },
+    "snapshot": {
+      "changed": "已刪除／變更"
     }
   },
   "common": {

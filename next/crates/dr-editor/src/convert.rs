@@ -326,6 +326,10 @@ fn set_block_attr(
                 .and_then(as_str)
                 .and_then(|s| CommentId::parse(s).ok());
         }
+        // Code blocks (their language, maybe empty) and callouts (their
+        // kind), also notes only.
+        block::CODE_BLOCK => attrs.code_block = value.and_then(as_str).map(str::to_owned),
+        block::CALLOUT => attrs.callout = value.and_then(as_str).map(str::to_owned),
         _ => {
             log::warn!("dr-editor: the paragraph attribute {key:?} is not editable here");
             return Ok(());

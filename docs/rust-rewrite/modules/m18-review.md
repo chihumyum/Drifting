@@ -1,6 +1,6 @@
 # M18 审阅：批注与 TODO
 
-2026-11-08，第一个里程碑；同一天第二个里程碑（来源悬停卡、多行输入、全书视图里写批注，见[下面](#第二个里程碑)）。计划见 [modules.md 的 M18](../modules.md)。审阅标签和批注撰写框在新 crate `next/crates/dr-view-review/`；正文上的那一半（批注砂笔、TODO 关键字、滚动条刻度、`TODO:` 投成 TODO、撤销后重新锚定）在 `dr-editor` 的 `decor` 模块，写在 [f4d-render.md 的第二轮](../foundations/f4d-render.md#第二轮接进-drifting)。两边通过 `dr_editor::decor::ReviewFocus` 说话。外壳里挂了七处，逐条列在下面。
+2026-11-08，第一个里程碑；同一天第二个里程碑（来源悬停卡、多行输入、全书视图里写批注，见[下面](#第二个里程碑)）和第三个里程碑（来源卡挪到卡旁边、加「原文」，见[下面](#第三个里程碑)）。计划见 [modules.md 的 M18](../modules.md)。审阅标签和批注撰写框在新 crate `next/crates/dr-view-review/`；正文上的那一半（批注砂笔、TODO 关键字、滚动条刻度、`TODO:` 投成 TODO、撤销后重新锚定）在 `dr-editor` 的 `decor` 模块，写在 [f4d-render.md 的第二轮](../foundations/f4d-render.md#第二轮接进-drifting)。两边通过 `dr_editor::decor::ReviewFocus` 说话。外壳里挂了七处，逐条列在下面。
 
 ## 做了什么（大白话）
 
@@ -34,26 +34,28 @@
 
 ## 截图
 
-`cargo run -p dr-shell --features capture --example m18-capture -- ../docs/rust-rewrite/modules`（在 `next/` 下；字体目录用 `DRIFTING_FONTS_DIR` 指过去）。离屏画整个外壳，书是 dr-testkit 的样例《慢钟》，打开第一章后让一个 Agent 用 `prose.replace` 改两处字。2 倍像素 2560 × 1600，压成 256 色，每张约 0.4 MB。
+`cargo run -p dr-shell --features capture --example m18-capture -- ../docs/rust-rewrite/modules`（在 `next/` 下；字体目录用 `DRIFTING_FONTS_DIR` 指过去）。离屏画整个外壳，书是 dr-testkit 的样例《慢钟》，打开第一章后让一个 Agent 用 `prose.replace` 改两处字。2 倍像素 2560 × 1600，压成 256 色，每张约 0.2–0.44 MB。
 
 | 画面 | 浅色 | 深色 |
 | --- | --- | --- |
 | 审阅标签（全部、全项目）；正文里「她数了一遍，十七张。」是一条 TODO 的砂笔，第二段「，一下一下地」是 Agent 刚加的绿字，人物名是干笔下划线，「钟楼底下」是 Agent 改写的紫字 | [review-light](m18/review-light.png) | [review-dark](m18/review-dark.png) |
 | 只看 TODO | [review-todo-light](m18/review-todo-light.png) | [review-todo-dark](m18/review-todo-dark.png) |
 | 选中「没人来取的表」按 ⌘⌥M，撰写框在选区下面（多行的纸片） | [composer-light](m18/composer-light.png) | [composer-dark](m18/composer-dark.png) |
-| 指针停在第一张卡上：来源悬停卡（挂在要素「顾振国」上，没锚原文），下面是编辑、解决、转批注、删除 | [source-light](m18/source-light.png) | [source-dark](m18/source-dark.png) |
+| 指针停在第二张卡（第十一章的一条批注）上：来源悬停卡贴在卡的左边（右边没地方）、顶边对齐，标题是第十一章，下面一张纸条是原文，再下面是编辑、解决、转 TODO、删除 | [source-light](m18/source-light.png) | [source-dark](m18/source-dark.png) |
 | 通览全书：第一章的批注砂笔、Agent 的绿字和紫字、右边的刻度 | [book-light](m18/book-light.png) | [book-dark](m18/book-dark.png) |
-| 素材笔记里的列表（F4d 第三轮）：圆点、第二级空心圈、序号、三种任务 | [list-light](m18/list-light.png) | [list-dark](m18/list-dark.png) |
+| 素材笔记里的列表（F4d 第三轮）：圆点、第二级空心圈、序号、三种任务；第四轮起项与项挨紧（0.15 个字），下面一个代码块、一个提示框 | [list-light](m18/list-light.png) | [list-dark](m18/list-dark.png) |
 
 ## 数字
 
-截图程序顺手量的（debug 构建，离屏，**只作参考**）。第一章 1039 字，第一个里程碑（负载 5.6）和第二个里程碑（负载 20）：
+截图程序顺手量的（debug 构建，离屏，**只作参考**）。第一章 1039 字，第一个里程碑（负载 5.6）、第二个里程碑（负载 20）和第三个里程碑（负载 35–53，别的会话在编译）：
 
 | 项 | 数 |
 | --- | ---: |
-| 打开到第一帧画上批注（锚点在持有者线程上解析） | 64.9 ms / 116.6 ms |
-| Agent 写入到正文变色（结算记录 → 两版比对 → 光标 → 交装饰） | 13.8 ms / 20.3 ms |
-| 换一次主题后交齐链接、建议、TODO 关键字、批注 | 2.54 ms / 4.86 ms |
+| 打开到第一帧画上批注（锚点在持有者线程上解析） | 64.9 ms / 116.6 ms / 329.7 ms |
+| Agent 写入到正文变色（结算记录 → 两版比对 → 光标 → 交装饰） | 13.8 ms / 20.3 ms / 84.1 ms |
+| 换一次主题后交齐链接、建议、TODO 关键字、批注 | 2.54 ms / 4.86 ms / 8.57 ms |
+
+第三个里程碑的数随负载涨了三四倍；这一轮在这几条路径上只多了排版时每段算一次 `para_set`，等空闲重测。
 
 本轮更早几次在负载 27–50 下量到 128–382 ms、34–66 ms、3–20 ms，没有留。
 
@@ -65,7 +67,9 @@
   - `the_arrow_opens_the_chapter_and_chooses_the_comment`：箭头交给外壳的是 `chapter:<id>`，`ReviewFocus` 记下跳到这条；
   - `the_composer_writes_a_comment_on_the_selection`：没选中不出撰写框；选中两字存成 TODO，锚在这两个字上，写下即选中；
   - `the_shortcut_is_a_keystroke_gpui_takes`：快捷键字符串 GPUI 认得（写错了会在启动时崩）；
-  - `the_source_card_says_where_and_its_rows_act`：来源卡说出挂在哪一章、锚着的原文；没挂的说「项目级 · 未关联对象」；转 TODO、删除写进库。
+  - `the_source_card_says_where_and_its_rows_act`：来源卡说出挂在哪一章、锚着的原文；没挂的说「项目级 · 未关联对象」；卡打开时读到原文快照、没改动；转 TODO、删除写进库。
+- `dr-editor/tests/decor.rs` 的 `a_comments_original_passage_says_when_the_prose_changed`：原文是写批注时选中的字；别处改字不算改动，Agent 改了这几个字就算；没挂东西的批注没有原文。
+- `dr-ui` 的 `overlay::tests::beside_goes_right_or_flips_left_top_aligned`：旁边的摆法右边放得下就放右边，放不下且左边更宽就翻到左边，顶边对齐，靠下时往上挪进窗口。
 - `dr-shell/tests/workspace.rs` 的 `a_comment_is_written_in_the_whole_book`：全书视图里选中第三章开头两个字，⌘⌥M、写字、⌘↵，批注落在第三章那两个字上，全书视图画出它。
 - `dr-view-review/src/model.rs`：筛选、范围、分组的顺序。
 - 正文一侧的测试见 [f4d-render.md 第二轮](../foundations/f4d-render.md#第二轮接进-drifting)。
@@ -75,7 +79,8 @@
 1. ~~浮条上的「添加批注」~~：第二个里程碑接上了（`CommentRequested` → `on_comment_requested`）。撰写框拿走焦点，浮条随之收起。
 2. **M23（审阅与素材 ⌘⌥5）：** 列表、分组、卡片在 `dr_view_review::{model, panel}` 里，M23 的两列可以复用 `model::arrange` 和卡片。
 3. ~~F5：多行输入框~~：第二个里程碑换上了 F5 的 `TextArea`。
-4. **还没做的（下一个里程碑）：** 来源卡上旧版还有「原文」（批注写下时的段落快照，`CommentSnapshotModal`）和「交给帮手」（TODO 交给 Agent）；改优先级；来源悬停卡现在浮在卡下面（dr-ui 悬停卡的统一位置），旧版在卡旁边。
+4. **还没做的：** 「交给帮手」（TODO 交给 Agent）等帮手搬过来再做；改优先级。~~原文~~、~~卡旁边~~ 第三个里程碑做了。
+5. **原文的「已删除/改动」只比对选中的字。** 只存了段落快照、没存选中文字的批注（块级的 TODO）不比对，只显示快照；要比对得按块 ID 找回现在那几段（dr-doc 的段落视图能做，等需要时加）。
 
 ## 第二个里程碑
 
@@ -84,6 +89,14 @@
 - **来源悬停卡。** 指针在一张审阅卡上停 220 ms，卡下浮出 dr-ui 的悬停卡（`HoverCard` + `CardBody`）：标题是它挂在的那一章、构想、要素（带那样东西自己的砂笔记号，章节按 id 取六枚印之一，和外壳一样），没挂的写「项目级 · 未关联对象」；锚了原文的下面一段是原文（没存下原文就说「没有保存原文摘录」）；卡底三组：编辑；解决或重新打开、转 TODO 或转批注；删除（危险色，F3 记了撤销）。正在原地编辑的那张卡不出悬停卡。
 - **多行输入。** 在原地编辑和撰写框都换成 F5 的 `TextArea`，放在一张稿纸色、细线框的小纸片上；回车换行、⌘↵ 存、Esc 放弃。
 - **全书视图里也能写批注。** ⌘⌥M 和浮条的「添加批注」在通览全书里都打开撰写框；批注写在选区所在那一章上（`CommentComposer::for_prose`，任何一个编辑器都行）。全书视图里也画批注、Agent 墨色和刻度（F4d 第三轮）。
+
+## 第三个里程碑
+
+2026-11-08（F4d 第四轮的一部分）。
+
+- **来源卡贴在审阅卡旁边。** 和旧版一样（`right-start`）：顶边和卡对齐，放在卡右边；右边放不下、左边更宽就放左边。审阅在右栏，所以通常在卡的左边，盖住的是正文而不是审阅列表。dr-ui 的悬停卡加了 `HoverCard::beside()`，摆法 `Place::Beside` 归 dr-ui 统一的摆放规则（同样留 8 px 窗边、靠下时往上挪）。
+- **原文。** 标题下面一张稿纸色的小纸条（旧版的 `.hover-card__quote`），正文字体、淡一档的墨：写批注时选中的那几个字；没存选中文字的，是批注当时跨过的那几段的快照（段与段空一行）。卡打开时才去后台读一次（书目文档里的批注、目标文档里锚点现在的字），读到的东西缓存 2 秒，卡再打开时过期就重读。现在锚着的字和当时不一样了（或者整段删了），纸条下面用索引字体写一行旧版的「已删除/改动」。
+- 「交给帮手」等帮手搬过来再做。
 
 ## 代码位置
 

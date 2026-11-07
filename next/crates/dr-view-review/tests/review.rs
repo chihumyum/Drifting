@@ -290,6 +290,13 @@ fn the_source_card_says_where_and_its_rows_act(cx: &mut TestAppContext) {
         .unwrap();
     assert_eq!(place.as_ref(), "项目级 · 未关联对象");
     assert_eq!(quote, None);
+    // Its card reads the passage it was written on (原文) when it opens.
+    view.update(cx, |v, cx| v.want_original(&note, cx));
+    assert!(wait_for(cx, |cx| view
+        .read_with(cx, |v, _| v.original_of(&note).is_some())));
+    let original = view.read_with(cx, |v, _| v.original_of(&note).cloned().unwrap());
+    assert_eq!(original.text, "雨夜");
+    assert_eq!(original.changed, Some(false));
     // 转 TODO, then 删除.
     view.update(cx, |v, cx| v.set_kind(&note, "todo", cx));
     assert!(wait_for(cx, |_| listed(&e)
