@@ -47,6 +47,7 @@ use super::chrome::{self, LEADING_INSET, TITLEBAR_HEIGHT, TOGGLE_GAP, TRAILING_I
 use super::{SuperView, Workspace};
 use crate::actions::{ShowProjectHome, ToggleNotifications};
 use crate::book::Book;
+use crate::dialogs::FollowUpNotice;
 use crate::nav::{Open, Target};
 use crate::notifications::{self, Notifications};
 use crate::panes::{PaneId, Panes};
@@ -1281,6 +1282,13 @@ pub fn notification_center(
     }
     for notice in items {
         let id = notice.id;
+        // A crash follow-up opens the feedback dialog about that crash (M39).
+        let follow_up = notice.crash_id.clone().map(|crash_id| FollowUpNotice {
+            notice: id,
+            crash_id,
+            at: notice.at,
+        });
+        let open_follow_up = entity.clone();
         list = list.child(
             div()
                 .px(px(m::HOVER_CARD_PAD))
@@ -1290,10 +1298,19 @@ pub fn notification_center(
                 .gap(px(8.0))
                 .child(
                     div()
+                        .id(SharedString::from(format!("notice-text-{id}")))
                         .flex_1()
                         .min_w_0()
                         .flex()
                         .flex_col()
+                        .when_some(follow_up, |el, follow_up| {
+                            el.cursor_pointer().on_click(move |_, window, cx| {
+                                let follow_up = follow_up.clone();
+                                open_follow_up.update(cx, |ws, cx| {
+                                    ws.open_feedback(Some(follow_up), window, cx)
+                                })
+                            })
+                        })
                         .child(
                             div()
                                 .flex()

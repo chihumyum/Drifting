@@ -68,9 +68,27 @@
     }
   },
   "feedback": {
+    "attachDiagnostics": "附上已去識別的診斷資料",
+    "cancel": "取消",
+    "close": "關閉",
+    "contact": "回覆用電子郵件",
+    "contactPlaceholder": "選填",
     "crash": {
+      "emailSubject": "Drifting 當機後續回報",
+      "ignore": "忽略",
+      "placeholder": "當時正在進行什麼操作？",
       "title": "Drifting 上次執行時發生問題"
-    }
+    },
+    "emailSubject": "Drifting 意見回饋",
+    "failed": "無法傳送",
+    "hidePreview": "隱藏",
+    "placeholder": "問題或想法",
+    "preview": "預覽",
+    "send": "傳送",
+    "sendByEmail": "以電子郵件傳送",
+    "sending": "正在傳送…",
+    "sent": "已傳送",
+    "title": "傳送意見回饋"
   },
   "globalSearch": {
     "closeTitle": "關閉（Esc）",

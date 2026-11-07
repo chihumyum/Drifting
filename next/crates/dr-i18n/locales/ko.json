@@ -68,9 +68,27 @@
     }
   },
   "feedback": {
+    "attachDiagnostics": "민감 정보를 제거한 진단 정보 첨부",
+    "cancel": "취소",
+    "close": "닫기",
+    "contact": "답장받을 이메일",
+    "contactPlaceholder": "선택 사항",
     "crash": {
+      "emailSubject": "Drifting 충돌 후속 보고",
+      "ignore": "무시",
+      "placeholder": "당시 어떤 작업을 하고 있었나요?",
       "title": "지난번 Drifting 실행 중 문제가 발생했습니다"
-    }
+    },
+    "emailSubject": "Drifting 피드백",
+    "failed": "전송하지 못함",
+    "hidePreview": "숨기기",
+    "placeholder": "문제 또는 아이디어",
+    "preview": "미리보기",
+    "send": "보내기",
+    "sendByEmail": "이메일로 보내기",
+    "sending": "전송 중…",
+    "sent": "전송됨",
+    "title": "피드백 보내기"
   },
   "globalSearch": {
     "closeTitle": "닫기(Esc)",

@@ -25,7 +25,8 @@ cargo run -p drifting
 | `DRIFTING_LOG=<级别或目标>` | 日志级别，`tracing` 的写法（`debug`、`warn,dr_platform=trace`）。开发时打到 stderr，默认 `warn`；装好的版本写进日志文件（位置见 [F7](../docs/rust-rewrite/foundations/f7-platform.md#日志)），设了它也同时打到 stderr。GPUI 自己的报错（字体、着色器、窗口）只走日志 |
 | `DRIFTING_LOG_FILE=1` | 开发时也写日志文件 |
 | `DRIFTING_PROFILE=<名字>` | 开发版的数据、日志文件夹、钥匙串服务和单实例锁都加上这个名字，几个 worktree 的开发版互不干扰 |
-| `DRIFTING_CRASH_REPORTS_IN_DEV=1` | 开发构建也发崩溃报告（还要构建时带 DSN，平时没有） |
+| `DRIFTING_CRASH_REPORTS_IN_DEV=1` | 开发构建也发崩溃报告（还要构建时带 DSN，平时没有）；反馈也改走服务而不是邮件（还要有服务地址） |
+| `DRIFTING_DEV_API_BASE_URL` | 开发构建的反馈发到这个服务，只认 `https://` 或本机 `http://127.0.0.1:<端口>`，用于对着本机服务验收；见 [m39-feedback.md](../docs/rust-rewrite/modules/m39-feedback.md) |
 | `DRIFTING_DEV_UPDATE_MANIFEST`、`DRIFTING_DEV_UPDATER_PUBLIC_KEY` | 开发构建从本地清单更新，只用于自测；见 F7 文档 |
 | `DRIFTING_APPEARANCE=light\|dark` | 强制浅色或深色，不动系统设置。macOS 上设的是本应用自己的外观，和系统切换走同一条路 |
 | `DRIFTING_DEV_PROBE=<文件>` | 把启动各阶段的时间和外观变化按 JSON 行追加到文件；`-` 表示写到 stderr |
@@ -153,7 +154,7 @@ next/
   .cargo/config.toml    别名：cargo xtask、cargo drifting
   app/drifting/         可执行程序：窗口、标题栏、菜单、外观、开发探针
   crates/dr-cli/        F8：开发命令行（cargo drifting workspace …）
-  crates/dr-platform/   F7：身份与目录、日志、崩溃上报、钥匙串、深链接与单实例、自动更新
+  crates/dr-platform/   F7：身份与目录、日志、崩溃上报、钥匙串、深链接与单实例、自动更新、反馈与诊断摘要
   crates/dr-testkit/    F8：种子、样书、测量证据、崩溃试验台、基准
   xtask/                F8：门禁（cargo xtask check）和开发启动器（cargo xtask dev）
   script/bundle-mac     打 .app，可选 .dmg 和更新包

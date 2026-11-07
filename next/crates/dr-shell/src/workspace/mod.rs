@@ -44,11 +44,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::actions::{
     CloseActiveTab, CloseProject, Dismiss, FindInEditor, GlobalSearch, GoBack, GoForward,
-    NewEntity, NextTab, OpenSettings, PreviousTab, ShowProjectHome, ShowWholeBook,
+    NewEntity, NextTab, OpenSettings, PreviousTab, SendFeedback, ShowProjectHome, ShowWholeBook,
     ToggleBottomTimeline, ToggleElementOverview, ToggleImmersiveWriting, ToggleLeftSidebar,
     ToggleNotifications, ToggleReviewMaterials, ToggleRightSidebar, ToggleStoryGraph,
 };
 use crate::book::{self, Book, PageText, Paragraph};
+use crate::dialogs::{self, FollowUpNotice};
 use crate::nav::{self, Navigator, Open, Target, location};
 use crate::notifications::{self, Notifications};
 use crate::pages::{self, ShelfPage};
@@ -323,6 +324,8 @@ pub struct Workspace {
     /// M06's search panel, while open.
     pub search: Option<Entity<dr_view_search::SearchPanel>>,
     pub notifications_open: bool,
+    /// A dialog another crate draws ([`dialogs`]: feedback, M39), while open.
+    pub dialog: Option<AnyView>,
     /// The bookshelf (M01), when one is registered ([`pages::set_shelf`]):
     /// made the first time it shows, kept while the window lives.
     pub shelf: Option<ShelfPage>,
@@ -399,6 +402,7 @@ impl Workspace {
             settings: None,
             search: None,
             notifications_open: false,
+            dialog: None,
             shelf: None,
             shelf_open: false,
             home: None,
@@ -939,10 +943,35 @@ impl Workspace {
 
     // Layers.
 
-    /// Settings or a Super View covers the workspace: nothing under it
-    /// answers the keyboard (the 0.1 client made it `inert`).
+    /// Settings, a Super View or a dialog covers the workspace: nothing
+    /// under it answers the keyboard (the 0.1 client made it `inert`).
     pub fn covered(&self) -> bool {
-        self.settings.is_some() || self.super_view.is_some() || self.shelf_open
+        self.settings.is_some()
+            || self.super_view.is_some()
+            || self.shelf_open
+            || self.dialog.is_some()
+    }
+
+    /// The feedback dialog ([`dialogs::set_feedback`]), as a crash
+    /// follow-up when `follow_up` names one. Without a registered dialog
+    /// nothing opens.
+    pub fn open_feedback(
+        &mut self,
+        follow_up: Option<FollowUpNotice>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.notifications_open = false;
+        let ws = cx.entity().downgrade();
+        let close: dialogs::Close = std::rc::Rc::new(move |window, cx| {
+            ws.update(cx, |ws, cx| {
+                ws.dialog = None;
+                ws.refocus(window, cx);
+            })
+            .ok();
+        });
+        self.dialog = dialogs::make_feedback(follow_up, close, window, cx);
+        cx.notify();
     }
 
     /// The topmost open layer.
@@ -1138,6 +1167,9 @@ impl Workspace {
             }
             cx.notify();
         }))
+        .on_action(
+            cx.listener(|ws, _: &SendFeedback, window, cx| ws.open_feedback(None, window, cx)),
+        )
         .on_action(cx.listener(|ws, _: &Dismiss, window, cx| {
             if !ws.dismiss(window, cx) {
                 cx.propagate();
@@ -1211,6 +1243,7 @@ impl Render for Workspace {
             })
             .when_some(self.settings.clone(), |el, panel| el.child(panel))
             .when_some(self.search.clone(), |el, panel| el.child(panel))
+            .when_some(self.dialog.clone(), |el, dialog| el.child(dialog))
             .child(chrome::windows_caption(window, cx))
             .when(self.notifications_open, |el| {
                 el.child(sidebar::notification_center(self, window, cx))
@@ -1255,6 +1288,7 @@ impl Workspace {
             .child(shelf.view)
             .child(strip)
             .when_some(self.settings.clone(), |el, panel| el.child(panel))
+            .when_some(self.dialog.clone(), |el, dialog| el.child(dialog))
             .child(chrome::windows_caption(window, cx))
             .when(self.notifications_open, |el| {
                 el.child(sidebar::notification_center(self, window, cx))

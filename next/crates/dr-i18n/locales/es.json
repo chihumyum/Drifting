@@ -68,9 +68,27 @@
     }
   },
   "feedback": {
+    "attachDiagnostics": "Adjuntar diagnósticos sin datos sensibles",
+    "cancel": "Cancelar",
+    "close": "Cerrar",
+    "contact": "Correo para responder",
+    "contactPlaceholder": "Opcional",
     "crash": {
+      "emailSubject": "Seguimiento de un fallo de Drifting",
+      "ignore": "Ignorar",
+      "placeholder": "¿Qué estabas haciendo?",
       "title": "Drifting tuvo un problema la última vez"
-    }
+    },
+    "emailSubject": "Comentarios sobre Drifting",
+    "failed": "No se pudo enviar",
+    "hidePreview": "Ocultar",
+    "placeholder": "Un problema o una idea",
+    "preview": "Vista previa",
+    "send": "Enviar",
+    "sendByEmail": "Enviar por correo",
+    "sending": "Enviando…",
+    "sent": "Enviado",
+    "title": "Enviar comentarios"
   },
   "globalSearch": {
     "closeTitle": "Cerrar (Esc)",

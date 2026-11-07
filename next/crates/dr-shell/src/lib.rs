@@ -9,6 +9,7 @@
 //! - one shortcut registry over GPUI actions and the keymap ([`keymap`]);
 //! - one declarative settings registry and its file ([`settings`]);
 //! - the notification center ([`notifications`]);
+//! - dialogs other crates draw, such as feedback ([`dialogs`]);
 //! - the quit flow ([`quit`]): saving and handing over happen before
 //!   `cx.quit()`, the quit callback only flushes crash reports.
 //!
@@ -26,6 +27,7 @@
 pub mod actions;
 pub mod appearance;
 pub mod book;
+pub mod dialogs;
 pub mod keymap;
 pub mod menus;
 pub mod nav;

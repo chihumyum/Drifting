@@ -68,9 +68,27 @@
     }
   },
   "feedback": {
+    "attachDiagnostics": "附上脱敏诊断摘要",
+    "cancel": "取消",
+    "close": "关闭",
+    "contact": "联系邮箱",
+    "contactPlaceholder": "选填",
     "crash": {
+      "emailSubject": "Drifting 故障补充",
+      "ignore": "忽略",
+      "placeholder": "当时在做什么",
       "title": "上次出了故障"
-    }
+    },
+    "emailSubject": "Drifting 反馈",
+    "failed": "没能发出",
+    "hidePreview": "收起",
+    "placeholder": "问题或建议",
+    "preview": "预览",
+    "send": "发送",
+    "sendByEmail": "用邮件发送",
+    "sending": "发送中…",
+    "sent": "已发送",
+    "title": "提交反馈"
   },
   "globalSearch": {
     "closeTitle": "关闭 (Esc)",

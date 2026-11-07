@@ -1463,6 +1463,7 @@ version = "0.2.0-dev"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
+ "chrono",
  "dirs",
  "flate2",
  "keyring",
@@ -1471,6 +1472,7 @@ dependencies = [
  "minisign-verify",
  "objc2-core-foundation",
  "objc2-security",
+ "regex",
  "reqwest",
  "rustls",
  "semver",
@@ -1586,6 +1588,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "dr-view-feedback"
+version = "0.0.0"
+dependencies = [
+ "chrono",
+ "dr-i18n",
+ "dr-platform",
+ "dr-shell",
+ "dr-ui",
+ "gpui",
+ "gpui_platform",
+ "log",
+ "serde_json",
+]
+
+[[package]]
 name = "dr-view-home"
 version = "0.0.0"
 dependencies = [
@@ -1687,7 +1704,9 @@ dependencies = [
  "anyhow",
  "dr-platform",
  "dr-shell",
+ "dr-store",
  "dr-ui",
+ "dr-view-feedback",
  "dr-view-home",
  "dr-view-shelf",
  "dr-workspace",
@@ -1695,6 +1714,7 @@ dependencies = [
  "gpui_platform",
  "log",
  "serde_json",
+ "tempfile",
 ]
 
 [[package]]
