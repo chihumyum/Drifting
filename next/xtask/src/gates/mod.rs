@@ -122,7 +122,7 @@ mod tests {
             "next/crates/a/tests/x.rs",
             "next/crates/a/fixtures/b.json",
             "next/crates/a/examples/index-bench.rs",
-            "next/crates/gpui-prose/examples/prose-bench/synth.rs",
+            "next/crates/dr-editor/examples/prose-bench/corpus.rs",
             "next/crates/dr-doc/fuzz/fuzz_targets/a.rs",
         ] {
             assert!(is_test_path(p), "{p}");

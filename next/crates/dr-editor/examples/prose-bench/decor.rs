@@ -1,7 +1,7 @@
 //! The paint layers (F4d): `decor` measures frames with and without a few
-//! hundred decorations on the 20k-char chapter; `capture` writes
-//! screenshots of synthetic prose with every decoration, block style and
-//! immersive writing's focus.
+//! hundred decorations on the longest chapter of the heavy seed; `capture`
+//! writes screenshots of synthetic prose with every decoration, block style
+//! and immersive writing's focus.
 //!
 //! Both run GPUI headless (its test platform, the real macOS text system and
 //! the Metal renderer drawing into a texture): no window opens, nothing
@@ -11,7 +11,10 @@
 //! Frame time is the CPU time of one whole frame (render, layout, paint) of
 //! the editor, as the window benchmark's "work per frame". The plain and the
 //! decorated chapter are measured in alternation, so a busy machine slows
-//! both alike.
+//! both alike. The chapter is open through its workspace session
+//! (`dr_editor::SessionSource`), so the typing passes write to storage; the
+//! screenshots' synthetic pages use gpui-prose's standalone `LoroSource`
+//! (`ProseDoc::from_paragraphs`), since they are not the seed's.
 
 use std::{
     path::{Path, PathBuf},
@@ -20,6 +23,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use dr_testkit::rng::Rng;
 use gpui::{
     AnyWindowHandle, AppContext as _, Context, Entity, EntityInputHandler, HeadlessAppContext,
     Hsla, IntoElement, ParentElement, Render, SharedString, Styled, Window, div, hsla, px, size,
@@ -32,14 +36,15 @@ use gpui_prose::{
     },
     schema::block,
 };
+use serde_json::json;
 
 use crate::{
-    bench::{build_json, corpus_json, machine_json, today},
-    platform,
-    report::{self, J},
-    shell::{CHAPTER_SEED, Corpus},
-    synth::Rng,
+    corpus::Corpus,
+    report::{self, summary},
 };
+
+/// Seeds the decorations' placement and the synthetic textures.
+const DECOR_SEED: u64 = 0x5eed_dec0;
 
 const WIDTH: f32 = 1100.;
 const HEIGHT: f32 = 820.;
@@ -73,6 +78,8 @@ impl Headless {
             Arc::new(()),
             gpui_platform::current_headless_renderer,
         );
+        // The workspace's holders run on their own threads.
+        cx.allow_parking();
         let background = style.background;
         let options = EditorOptions {
             cursor_blink: None,
@@ -160,7 +167,7 @@ pub struct Textures {
 fn grains(seed: u64, w: f32, h: f32, half: f32, count: usize, keep: usize) -> String {
     let mut rng = Rng::new(seed);
     let mut out = String::new();
-    let mut unit = || (rng.below(10_000) as f32) / 10_000.;
+    let mut unit = || rng.unit() as f32;
     for i in 0..count {
         let x = unit() * w;
         let along = x / w;
@@ -185,9 +192,9 @@ fn seal(seed: u64) -> String {
     let mut rng = Rng::new(seed);
     let mut out = String::new();
     for _ in 0..260 {
-        let a = rng.below(6283) as f32 / 1000.;
-        let d = (rng.below(1000) as f32 / 1000.).sqrt() * 38.;
-        let r = 1.2 + rng.below(100) as f32 / 40.;
+        let a = rng.unit() as f32 * std::f32::consts::TAU;
+        let d = (rng.unit() as f32).sqrt() * 38.;
+        let r = 1.2 + rng.unit() as f32 * 2.5;
         out.push_str(&format!(
             r#"<circle cx="{:.1}" cy="{:.1}" r="{r:.2}" fill="white"/>"#,
             48. + a.cos() * d,
@@ -204,19 +211,19 @@ impl Textures {
                 "bench/hl",
                 720.,
                 64.,
-                grains(1, 720., 64., 22., 5200, 5200),
+                grains(DECOR_SEED + 1, 720., 64., 22., 5200, 5200),
             )),
             swash_hot: Rc::new(SandTexture::from_svg(
                 "bench/hl-hot",
                 720.,
                 64.,
-                grains(1, 720., 64., 22., 5200, 3400),
+                grains(DECOR_SEED + 1, 720., 64., 22., 5200, 3400),
             )),
             underline: Rc::new(SandTexture::from_svg(
                 "bench/ul",
                 720.,
                 26.,
-                grains(2, 720., 26., 5., 2600, 2600),
+                grains(DECOR_SEED + 2, 720., 26., 5., 2600, 2600),
             )),
             seals: (0..6)
                 .map(|i| {
@@ -224,7 +231,7 @@ impl Textures {
                         format!("bench/blob-{i}"),
                         96.,
                         96.,
-                        seal(10 + i),
+                        seal(DECOR_SEED + 10 + i),
                     ))
                 })
                 .collect(),
@@ -382,11 +389,11 @@ const AGENT: usize = 60;
 
 fn decorate(h: &mut Headless, t: &Textures, inks: &Inks) -> f64 {
     let len = h.editor(|e, _, _| e.book().chapters[0].doc.len_chars());
-    let mut rng = Rng::new(CHAPTER_SEED ^ 0xdec0);
+    let mut rng = Rng::new(DECOR_SEED);
     let mut spans = |n: usize, lo: usize, hi: usize| -> Vec<std::ops::Range<usize>> {
         (0..n)
             .map(|_| {
-                let start = rng.below(len - hi - 1);
+                let start = rng.below((len - hi - 1) as u64) as usize;
                 start..start + rng.range(lo, hi)
             })
             .collect()
@@ -485,12 +492,13 @@ fn typing_pass(h: &mut Headless, count: usize, keys: &mut Vec<f64>) {
     h.draw();
 }
 
-pub fn run_decor(out: Option<String>) {
-    let load_start = platform::load_average();
-    let corpus = Corpus::chapter();
+pub fn run_decor(write: bool) {
+    let corpus = Corpus::heavy();
+    let load_start = report::load();
     let textures = Textures::synthetic();
     let inks = Inks::light();
-    let mut h = Headless::new(corpus.open(), ProseStyle::default());
+    let mut h = Headless::new(corpus.chapter(), ProseStyle::default());
+    let chars_before = h.editor(|e, _, _| e.book().chapters[0].doc.len_chars());
     let (mut scroll_plain, mut scroll_decor) = (Vec::new(), Vec::new());
     let (mut type_plain, mut type_decor) = (Vec::new(), Vec::new());
     let mut set_ms = Vec::new();
@@ -506,64 +514,53 @@ pub fn run_decor(out: Option<String>) {
         }
         typing_pass(&mut h, 120, &mut type_decor);
     }
-    let load_end = platform::load_average();
-    let ratio = |a: &[f64], b: &[f64]| report::percentile(b, 95.0) / report::percentile(a, 95.0);
-    let (corpus_key, corpus_value) = corpus_json("chapter", CHAPTER_SEED, &corpus);
-    let report = J::obj(vec![
-        ("schema", J::str("drifting.f4d.decor/1")),
-        ("generated_at", J::str(today())),
-        ("source_fingerprint", J::str(report::source_fingerprint())),
-        ("conditions", report::conditions(&[load_start, load_end])),
-        ("machine", machine_json()),
-        ("build", build_json()),
-        ("corpus", J::obj(vec![(corpus_key, corpus_value)])),
-        (
-            "method",
-            J::str(format!(
-                "Headless GPUI (test platform, macOS text system, Metal into a texture), {WIDTH}x{HEIGHT} window, the 20k-char chapter. Frame = CPU time of one whole editor frame (render, layout, paint). Decorated = {COMMENTS} comment swashes (sand, hot texture, ticks), {LINKS} sand underlines, {SUGGESTIONS} dotted suggestions, {FINDS} find hits, {AGENT} Agent inks (ticks), all settled. Scroll: top to bottom, 48 px a frame. Typing: 120 characters one by one mid-chapter, edit + frame each. Plain and decorated alternate, 3 rounds each."
-            )),
+    let chars_after = h.editor(|e, _, _| e.book().chapters[0].doc.len_chars());
+    drop(h);
+    let load_end = report::load();
+    let p95 = |samples: &[f64]| dr_testkit::evidence::Summary::of(samples).p95;
+    let ratio = |a: &[f64], b: &[f64]| (p95(b) / p95(a) * 100.).round() / 100.;
+    let count = COMMENTS + LINKS + SUGGESTIONS + FINDS + AGENT;
+    let results = json!({
+        "method": format!(
+            "Headless GPUI (test platform, macOS text system, Metal into a texture), {WIDTH}x{HEIGHT} window, the longest chapter of the heavy seed open through its workspace session (dr_editor::SessionSource). Frame = CPU time of one whole editor frame (render, layout, paint). Decorated = {COMMENTS} comment swashes (sand, hot texture, ticks), {LINKS} sand underlines, {SUGGESTIONS} dotted suggestions, {FINDS} find hits, {AGENT} Agent inks (ticks), all settled. Scroll: top to bottom, 48 px a frame. Typing: 120 characters one by one mid-chapter, edit (a transaction through the session) + frame each, then taken back out. Plain and decorated alternate, 3 rounds each."
         ),
-        (
-            "decorations",
-            J::obj(vec![
-                (
-                    "count",
-                    J::Int((COMMENTS + LINKS + SUGGESTIONS + FINDS + AGENT) as i64),
-                ),
-                ("painted_in_one_view", J::Int(painted as i64)),
-                ("set_all_groups", report::summary(&set_ms)),
-            ]),
-        ),
-        (
-            "scroll_frame",
-            J::obj(vec![
-                ("plain", report::summary(&scroll_plain)),
-                ("decorated", report::summary(&scroll_decor)),
-                (
-                    "p95_ratio",
-                    J::Num((ratio(&scroll_plain, &scroll_decor) * 100.).round() / 100.),
-                ),
-                ("budget_p95_ms", J::Num(16.7)),
-            ]),
-        ),
-        (
-            "keystroke_frame",
-            J::obj(vec![
-                ("plain", report::summary(&type_plain)),
-                ("decorated", report::summary(&type_decor)),
-                (
-                    "p95_ratio",
-                    J::Num((ratio(&type_plain, &type_decor) * 100.).round() / 100.),
-                ),
-                ("budget_p95_ms", J::Num(16.)),
-            ]),
-        ),
-    ]);
-    let text = report.to_pretty();
-    match out {
-        Some(path) => std::fs::write(&path, text).expect("write the evidence file"),
-        None => print!("{text}"),
-    }
+        "chapter_chars": chars_before,
+        "decorations": {
+            "count": count,
+            "painted_in_one_view": painted,
+            "set_all_groups": summary(&set_ms),
+        },
+        "scroll_frame": {
+            "plain": summary(&scroll_plain),
+            "decorated": summary(&scroll_decor),
+            "p95_ratio": ratio(&scroll_plain, &scroll_decor),
+            "budget_p95_ms": 16.7,
+        },
+        "keystroke_frame": {
+            "plain": summary(&type_plain),
+            "decorated": summary(&type_decor),
+            "p95_ratio": ratio(&type_plain, &type_decor),
+            "budget_p95_ms": 16.0,
+        },
+    });
+    report::finish(
+        "decor",
+        write,
+        &corpus.shape,
+        results,
+        (load_start, load_end),
+        &[
+            ("decorations are painted in the first view", painted > 0),
+            (
+                "every scroll pass reached the end",
+                !scroll_plain.is_empty() && !scroll_decor.is_empty(),
+            ),
+            (
+                "the typing passes left the chapter as long as before",
+                chars_after == chars_before,
+            ),
+        ],
+    );
 }
 
 // ----- screenshots -----------------------------------------------------------------
@@ -779,13 +776,15 @@ pub fn run_capture(dir: String, textures: Option<String>) {
         h.settle(Duration::from_secs(1));
         h.save(&dir, &format!("immersive-{slug}.png"));
     }
-    // The scrollbar ticks of the decorated 20k-char chapter.
-    let corpus = Corpus::chapter();
-    let mut h = Headless::new(corpus.open(), ProseStyle::default());
+    // The scrollbar ticks of the decorated longest chapter of the heavy seed.
+    let corpus = Corpus::heavy();
+    let mut h = Headless::new(corpus.chapter(), ProseStyle::default());
     decorate(&mut h, &t, &Inks::light());
     h.editor(|e, _, cx| {
         e.scroll_by_estimate(9000., cx);
     });
     h.settle(Duration::from_millis(100));
     h.save(&dir, "dense-light.png");
+    // The editor's sessions go before the workspace closes.
+    drop(h);
 }

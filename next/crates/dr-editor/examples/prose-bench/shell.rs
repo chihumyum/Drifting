@@ -1,5 +1,6 @@
 //! The probe window: a chapter list on the left, the editor on the right and a
-//! status line that shows what Loro holds (to see that marked text is not in it).
+//! status line that shows what storage holds (to see that marked text is not
+//! in it).
 
 use std::{cell::Cell, rc::Rc, time::Instant};
 
@@ -8,133 +9,14 @@ use gpui::{
     MouseButton, Render, SharedString, Window, WindowBounds, WindowHandle, WindowOptions, actions,
     div, prelude::*, px, size, uniform_list,
 };
-use gpui_prose::{Book, Chapter, EditorOptions, ProseDoc, ProseEditor, ProseStyle};
-use loro::ExportMode;
+use gpui_prose::{Book, EditorOptions, ProseEditor, ProseStyle};
 
-use crate::{platform, synth};
+use crate::{
+    corpus::{self, Corpus},
+    platform,
+};
 
 actions!(prose_bench, [Quit]);
-
-/// Fixed corpus seeds, recorded in the evidence.
-pub const CHAPTER_SEED: u64 = 0x5eed_0b01;
-pub const BOOK_SEED: u64 = 0x5eed_0b02;
-pub const BOOK_CHAPTERS: usize = 100;
-pub const BOOK_CHARS: usize = 1_500_000;
-pub const CHAPTER_CHARS: usize = 20_000;
-
-/// Loro snapshots of a synthetic corpus, as storage would hold them.
-pub struct Corpus {
-    pub titles: Vec<String>,
-    pub snapshots: Vec<Vec<u8>>,
-    pub chars: usize,
-    pub fingerprint: String,
-}
-
-impl Corpus {
-    pub fn chapter() -> Corpus {
-        Corpus::from_synth(vec![synth::chapter(CHAPTER_SEED, 0, CHAPTER_CHARS, true)])
-    }
-
-    pub fn book() -> Corpus {
-        Corpus::from_synth(synth::book(BOOK_SEED, BOOK_CHAPTERS, BOOK_CHARS))
-    }
-
-    /// The chapter with 500 entity links and 200 bold runs.
-    pub fn marked_chapter() -> Corpus {
-        let synth = synth::chapter(CHAPTER_SEED, 0, CHAPTER_CHARS, true);
-        let plan = synth::mark_plan(&synth, CHAPTER_SEED ^ 0x11, 500, 200);
-        let mut corpus = Corpus::from_synth(vec![synth]);
-        let doc = ProseDoc::from_snapshot(&corpus.snapshots[0]).expect("import a snapshot");
-        let text = doc.loro_source().unwrap().text();
-        for (start, len, key) in &plan {
-            let value: loro::LoroValue = if key.starts_with("entity:") {
-                loro::LoroValue::Map(
-                    vec![("kind".to_string(), loro::LoroValue::from("element"))].into(),
-                )
-            } else {
-                true.into()
-            };
-            text.mark(*start..*start + *len, key, value)
-                .expect("mark a seed span");
-        }
-        doc.loro_source()
-            .unwrap()
-            .loro()
-            .set_next_commit_origin("seed");
-        doc.loro_source().unwrap().loro().commit();
-        corpus.snapshots[0] = doc
-            .loro_source()
-            .unwrap()
-            .loro()
-            .export(ExportMode::Snapshot)
-            .expect("export a snapshot");
-        corpus
-    }
-
-    fn from_synth(chapters: Vec<synth::SynthChapter>) -> Corpus {
-        let fingerprint = synth::fingerprint(&chapters);
-        let chars = chapters.iter().map(synth::SynthChapter::chars).sum();
-        let titles = chapters.iter().map(|c| c.title.clone()).collect();
-        let snapshots = chapters
-            .iter()
-            .map(|chapter| {
-                let doc = ProseDoc::from_paragraphs(
-                    chapter.paragraphs.iter().map(|(k, p)| (*k, p.as_str())),
-                );
-                doc.loro_source()
-                    .unwrap()
-                    .loro()
-                    .export(ExportMode::Snapshot)
-                    .expect("export a snapshot")
-            })
-            .collect();
-        Corpus {
-            titles,
-            snapshots,
-            chars,
-            fingerprint,
-        }
-    }
-
-    /// Opens every chapter from its snapshot, as a cold open from storage
-    /// would: on all cores (documents are `Send`; a host loads them where it
-    /// likes and hands them to the editor).
-    pub fn open(&self) -> Book {
-        let chapters = open_docs(&self.snapshots)
-            .into_iter()
-            .zip(&self.titles)
-            .map(|(doc, title)| Chapter {
-                title: SharedString::from(title.clone()),
-                doc,
-            })
-            .collect();
-        Book::new(chapters)
-    }
-}
-
-/// Imports snapshots into documents on all cores, in order.
-pub fn open_docs(snapshots: &[Vec<u8>]) -> Vec<ProseDoc> {
-    let threads = std::thread::available_parallelism()
-        .map_or(4, |n| n.get())
-        .clamp(1, snapshots.len().max(1));
-    let chunk = snapshots.len().div_ceil(threads).max(1);
-    std::thread::scope(|scope| {
-        let handles: Vec<_> = snapshots
-            .chunks(chunk)
-            .map(|part| {
-                scope.spawn(move || {
-                    part.iter()
-                        .map(|bytes| ProseDoc::from_snapshot(bytes).expect("import a snapshot"))
-                        .collect::<Vec<_>>()
-                })
-            })
-            .collect();
-        handles
-            .into_iter()
-            .flat_map(|handle| handle.join().expect("an import thread"))
-            .collect()
-    })
-}
 
 pub struct Root {
     pub editor: Option<Entity<ProseEditor>>,
@@ -142,6 +24,12 @@ pub struct Root {
     /// When the current frame's render began (for frame work time).
     pub frame_start: Rc<Cell<Option<Instant>>>,
     pub sidebar: bool,
+    /// Show what storage holds in the status line: a read on each document
+    /// holder's thread every frame, so only the interactive window does
+    /// (the measuring windows show the editor's own count).
+    pub stored_len: bool,
+    /// The library the documents are open on, kept as long as the window.
+    pub corpus: Option<Rc<Corpus>>,
 }
 
 impl Root {
@@ -151,6 +39,8 @@ impl Root {
             titles,
             frame_start: Rc::default(),
             sidebar,
+            stored_len: false,
+            corpus: None,
         }
     }
 
@@ -187,13 +77,20 @@ impl Root {
         let editor = editor.read(cx);
         let sel = editor.selection();
         let chapter = &editor.book().chapters[sel.chapter];
-        let loro_len = chapter.doc.loro_source().unwrap().text().len_unicode();
+        let held = if self.stored_len {
+            corpus::stored_len(&chapter.doc).map_or_else(
+                || "存储未读到".to_owned(),
+                |len| format!("存储里正文 {len} 个字符"),
+            )
+        } else {
+            format!("编辑器里正文 {} 个字符", chapter.doc.len_chars())
+        };
         let comp = editor
             .composition()
-            .map(|c| format!(" · 组字中「{}」（未写入 Loro）", c.text))
+            .map(|c| format!(" · 组字中「{}」（未写入存储）", c.text))
             .unwrap_or_default();
         format!(
-            "{} · 光标 {}{} · 选区 {} 字 · Loro 正文 {} 个字符 · 本帧画了 {} 段{}",
+            "{} · 光标 {}{} · 选区 {} 字 · {} · 本帧画了 {} 段{}",
             chapter.title,
             sel.head,
             if sel.is_empty() {
@@ -202,7 +99,7 @@ impl Root {
                 "（有选区）"
             },
             sel.range().len(),
-            loro_len,
+            held,
             editor.painted_lines(),
             comp
         )
@@ -352,24 +249,27 @@ pub fn open_window(
     (window, display)
 }
 
-/// Interactive mode: open the corpus and type.
+/// Interactive mode: open the corpus and type. The library is the heavy
+/// seed's, in a temporary directory: what is typed is not kept.
 pub fn run(book_mode: bool, builtin: bool, on_top: bool) {
+    let corpus = Rc::new(Corpus::heavy());
     gpui_platform::application().run(move |cx: &mut App| {
-        let corpus = if book_mode {
-            Corpus::book()
+        let titles = if book_mode {
+            corpus.titles()
         } else {
-            Corpus::chapter()
+            vec![corpus.chapter_title()]
         };
-        let titles: Vec<SharedString> = corpus
-            .titles
-            .iter()
-            .cloned()
-            .map(SharedString::from)
-            .collect();
         let (window, _) = open_window(cx, titles, book_mode, builtin, on_top);
         window
             .update(cx, |root, window, cx| {
-                let editor = root.open(corpus.open(), window, cx);
+                let book = if book_mode {
+                    corpus.book()
+                } else {
+                    corpus.chapter()
+                };
+                root.stored_len = true;
+                root.corpus = Some(corpus.clone());
+                let editor = root.open(book, window, cx);
                 let focus = editor.read(cx).focus_handle(cx);
                 window.focus(&focus, cx);
             })

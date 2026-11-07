@@ -1,0 +1,190 @@
+{
+  "schema": "dr-testkit/evidence/1",
+  "name": "prose-bench-headless",
+  "milestone": "f4e-m2",
+  "generatedBy": "cargo run --release -p dr-editor --example prose-bench -- headless --write",
+  "inputs": {
+    "crates/dr-doc": "129aae42498f0b725ffdb4d7e2390a367544d991adf78d0e0475b623d4ebc8c0",
+    "crates/dr-editor": "a40be3da9c30cd98ece18beaeffaeaf410fb6c5a81512f4ce85ac2fbf68cba82",
+    "crates/dr-store": "3cdc85b5041c5f461c4ce528b0a752098d9eb15e6752b5b0c560a6a591cbbd1a",
+    "crates/dr-testkit/src/seed": "a01def93a860c30e8b9ab3d7371b1766a53a14bf5c3e885821324d5c222caa6f",
+    "crates/dr-workspace": "6273286edaafb0d4202b39ae259943e0302d652c2ed5f3d14ef731fcd5102143",
+    "crates/gpui-prose": "e1aed90c9a1533d9ae93ba29888068a9033035cf4a9a190ebc10c42f4997c4f6"
+  },
+  "corpus": {
+    "preset": "heavy",
+    "seed": "0x5eed0f08",
+    "books": 1,
+    "documents": 680,
+    "bodies": {
+      "categories": {
+        "count": 16,
+        "totalWords": 16000,
+        "minWords": 100,
+        "maxWords": 3000,
+        "medianWords": 754.0,
+        "p95Words": 3000,
+        "corpusSha256": "04be70fa2c12f8128c4c364de96cab86ab7fae7a76d4a92ba55c76c55f54ecd1"
+      },
+      "chapters": {
+        "count": 100,
+        "totalWords": 1500000,
+        "minWords": 2000,
+        "maxWords": 20000,
+        "medianWords": 19349.0,
+        "p95Words": 20000,
+        "corpusSha256": "53eb8978aa88ddb699615f24c6913dd94d51b40dc9041ca0a2e38e597510e650"
+      },
+      "comments": {
+        "count": 80,
+        "totalWords": 40000,
+        "minWords": 50,
+        "maxWords": 3000,
+        "medianWords": 319.0,
+        "p95Words": 1422,
+        "corpusSha256": "ed8dd3c4d2dabca544ace1dd5fc40d0dd337efc9a391fddf724b314dfb296b07"
+      },
+      "elements": {
+        "count": 300,
+        "totalWords": 500000,
+        "minWords": 100,
+        "maxWords": 10000,
+        "medianWords": 964.5,
+        "p95Words": 5361,
+        "corpusSha256": "f7956e2be36735784960cc3faeb06e3953a68db0a9659fce21d5015598abdfd2"
+      },
+      "ideas": {
+        "count": 200,
+        "totalWords": 1000000,
+        "minWords": 1000,
+        "maxWords": 50000,
+        "medianWords": 2741.0,
+        "p95Words": 14310,
+        "corpusSha256": "e03f04c45b51b154a4a0d39b745557cf53dff7123555c46da18510c4caa5b899"
+      },
+      "materialNotes": {
+        "count": 60,
+        "totalWords": 500000,
+        "minWords": 500,
+        "maxWords": 10000,
+        "medianWords": 10000.0,
+        "p95Words": 10000,
+        "corpusSha256": "a1a32bee9253602029f2463b1d83e5af34b99b922d3856585491e20c06f6bab6"
+      },
+      "storylines": {
+        "count": 3,
+        "totalWords": 60000,
+        "minWords": 5000,
+        "maxWords": 30000,
+        "medianWords": 25000.0,
+        "p95Words": 30000,
+        "corpusSha256": "770ad525e35a0456ca1adb646f24af5d65f312c73347dfdf921aafc290bedbb9"
+      },
+      "todos": {
+        "count": 120,
+        "totalWords": 30000,
+        "minWords": 50,
+        "maxWords": 1500,
+        "medianWords": 159.0,
+        "p95Words": 688,
+        "corpusSha256": "94a1743caa8a1822e6d8814974ca9fc7612214c75877c9e9c93fb9f11ec5a54e"
+      }
+    },
+    "chapters": 100,
+    "elements": 300,
+    "relations": 400,
+    "acts": 4,
+    "writingDays": 273,
+    "entityLinks": 28468,
+    "headings": [
+      624,
+      1186,
+      776
+    ],
+    "tasks": 180,
+    "corpusFingerprint": "5b319924c784252a98d35588c557a642ff4fb6b347f3a3603a9f1696a54bfb48"
+  },
+  "machine": {
+    "cpu": "Apple M3 Pro",
+    "cores": 12,
+    "memoryBytes": 38654705664,
+    "os": "macos",
+    "osVersion": "27.0.1",
+    "arch": "aarch64",
+    "loadAverage1m": 4.68,
+    "profile": "release"
+  },
+  "results": {
+    "chapters": 100,
+    "book_chars": 1649538,
+    "chapter_chars": 22031,
+    "open_book": {
+      "method": "No window. Every chapter's workspace session and editor document (dr_editor::SessionSource → gpui_prose::ProseDoc: read the body on the holder thread, build the paragraph mirror). parallel_ms: on all cores, as BookEditor opens a book; the first round loads the holders from SQLite (cold, but for the longest chapter's), the next three find them open (warm). sequential_warm_ms: one thread, warm.",
+      "parallel_ms": [
+        52.76,
+        14.51,
+        14.83,
+        14.22
+      ],
+      "cold_ms": 52.762,
+      "sequential_warm_ms": 47.335,
+      "memory_mb": 32.7,
+      "paragraphs": 9473,
+      "list_items": 9573,
+      "height_estimate_ms": 2.713,
+      "estimated_height_px": 1653886.0,
+      "budget_ms": 200.0
+    },
+    "open_chapter": {
+      "method": "The longest chapter's session and document: once cold (its holder loads from SQLite), then five times warm.",
+      "cold_ms": 3.632,
+      "warm_ms": [
+        0.43,
+        0.46,
+        0.46,
+        0.48,
+        0.45
+      ],
+      "spans": 222,
+      "entity_link_spans": 222
+    },
+    "keystroke_in_entity_link": {
+      "method": "1000 single-character inserts inside one of the seed's entity links in the longest chapter, through the session; each typed character joins the link (ExpandType None, inside the span).",
+      "keystroke": {
+        "n": 1000,
+        "p50": 0.317,
+        "p95": 4.522,
+        "max": 322.441,
+        "mean": 1.363
+      },
+      "typed_text_stays_in_the_link": true
+    },
+    "write_per_keystroke": {
+      "method": "2000 single-character inserts in the middle of a body paragraph of the longest chapter. session = ProseDoc::replace on dr_editor::SessionSource: a dr-doc transaction in the document holder's write job, appended to SQLite before it returns, its event folded into the paragraph mirror (Drifting's path). in_memory_loro = the same inserts on gpui-prose's standalone LoroSource holding the chapter's paragraphs (no holder thread, no storage), for comparison.",
+      "session": {
+        "n": 2000,
+        "p50": 0.301,
+        "p95": 0.337,
+        "max": 1.789,
+        "mean": 0.31
+      },
+      "in_memory_loro": {
+        "n": 2000,
+        "p50": 0.01,
+        "p95": 0.015,
+        "max": 0.031,
+        "mean": 0.01
+      },
+      "mirror_matches_storage": true,
+      "budget_median_ms": 2.0
+    },
+    "load_average_1m": {
+      "start": 4.91,
+      "end": 4.68
+    },
+    "conditions": {
+      "busy_above_load_1m": 2.0,
+      "reference_only": true
+    }
+  }
+}
