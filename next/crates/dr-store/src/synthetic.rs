@@ -148,3 +148,39 @@ pub fn keystroke(doc: &LoroDoc, rng: &mut Rng, cursor: usize) -> usize {
         at + s.chars().count()
     }
 }
+
+/// A deriver for tests and benchmarks: one block per line of `body`, no
+/// block ids, every character a word. Counts its calls and how many of them
+/// were given diffs.
+#[derive(Default)]
+pub struct LinesDeriver {
+    pub calls: std::sync::atomic::AtomicUsize,
+    pub with_changes: std::sync::atomic::AtomicUsize,
+}
+
+impl crate::index::Deriver for LinesDeriver {
+    fn derive(&self, input: &crate::index::DeriveInput<'_>) -> Option<crate::index::DerivedUpdate> {
+        use std::sync::atomic::Ordering;
+        self.calls.fetch_add(1, Ordering::Relaxed);
+        if input.changes.is_some() {
+            self.with_changes.fetch_add(1, Ordering::Relaxed);
+        }
+        let text = input.doc.get_text(BODY).to_string();
+        let blocks: Vec<crate::index::BlockRow> = text
+            .split_terminator('\n')
+            .map(|line| crate::index::BlockRow {
+                block_id: None,
+                heading: 0,
+                chars: line.chars().count() as u32,
+                text: line.to_string(),
+            })
+            .collect();
+        let chars = blocks.iter().map(|b| b.chars as u64).sum();
+        Some(crate::index::DerivedUpdate::Full(crate::index::Derived {
+            words: chars,
+            chars,
+            blocks,
+            references: Vec::new(),
+        }))
+    }
+}

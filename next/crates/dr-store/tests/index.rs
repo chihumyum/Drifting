@@ -5,7 +5,7 @@ mod common;
 
 use common::*;
 use dr_store::Library;
-use dr_store::index::{BlockRow, DocIndex, RefKind, RefRow};
+use dr_store::index::{BlockRow, Derived, DocIndex, RefKind, RefRow};
 use loro::Frontiers;
 
 fn block(id: &str, heading: u8, text: &str) -> BlockRow {
@@ -27,19 +27,27 @@ fn link(block: &str, target: &str) -> RefRow {
     }
 }
 
+static SEQ: std::sync::atomic::AtomicI64 = std::sync::atomic::AtomicI64::new(1);
+
 fn index(lib: &Library, doc: &str, book: &str, blocks: &[BlockRow], refs: &[RefRow]) {
     lib.register(doc, "node", Some(book)).unwrap();
     let chars: u64 = blocks.iter().map(|b| b.chars as u64).sum();
-    lib.index_doc(&DocIndex {
-        doc_id: doc,
-        book_id: Some(book),
-        frontiers: &Frontiers::default(),
+    let derived = Derived {
         words: chars,
         chars,
-        blocks,
-        references: refs,
-    })
-    .unwrap();
+        blocks: blocks.to_vec(),
+        references: refs.to_vec(),
+    };
+    assert!(
+        lib.index_doc(&DocIndex {
+            doc_id: doc,
+            book_id: Some(book),
+            seq: SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
+            frontiers: &Frontiers::default(),
+            derived: &derived,
+        })
+        .unwrap()
+    );
 }
 
 fn seeded(lib: &Library) {
@@ -211,4 +219,41 @@ fn search_stays_fast_enough_on_a_large_book() {
     assert!(three.len() <= 100);
     // 400 000 characters: generous so debug CI builds pass.
     assert!(t.elapsed().as_secs_f64() < 2.0, "{:?}", t.elapsed());
+}
+
+#[test]
+fn an_index_never_moves_backwards_and_no_triggers_exist() {
+    let dir = tempfile::tempdir().unwrap();
+    let lib = open(dir.path());
+    lib.register("node:x", "node", None).unwrap();
+    let write = |seq: i64, text: &str| {
+        lib.index_doc(&DocIndex {
+            doc_id: "node:x",
+            book_id: None,
+            seq,
+            frontiers: &Frontiers::default(),
+            derived: &Derived {
+                words: 1,
+                chars: 1,
+                blocks: vec![block("b", 0, text)],
+                references: vec![],
+            },
+        })
+        .unwrap()
+    };
+    assert!(write(5, "新的版本"));
+    assert!(!write(4, "旧的版本"), "an older derivation is ignored");
+    assert!(!write(5, "同一版本"));
+    assert_eq!(hits(&lib, None, "新的版"), [("node:x".into(), 0)]);
+    assert_eq!(hits(&lib, None, "旧的版"), []);
+    assert_eq!(lib.doc_stats("node:x").unwrap().unwrap().indexed_seq, 5);
+    let conn = rusqlite::Connection::open(dir.path().join("library.sqlite")).unwrap();
+    let triggers: i64 = conn
+        .query_row(
+            "SELECT count(*) FROM sqlite_schema WHERE type = 'trigger'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(triggers, 0, "no SQL triggers on Loro or derived tables");
 }

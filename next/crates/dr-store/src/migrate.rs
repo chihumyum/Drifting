@@ -19,6 +19,14 @@
 //!
 //! A crash at any point leaves either the old library (plus a stale shadow,
 //! removed on the next open) or the fully migrated one.
+//!
+//! A **recovery receipt** (`safety-snapshots/recovery/<id>.json`, as in 0.1)
+//! follows each attempt: which snapshot it took (with its SHA-256 and size),
+//! which shadow, how far it got and why it failed. The next open reconciles
+//! it before touching anything: a receipt that cannot be read, or whose
+//! snapshot no longer matches, stops the open instead of guessing; one left
+//! after the replacement only clears once the replaced library validates.
+//! Restoring from a receipt checks the snapshot's hash first.
 
 use std::fmt;
 use std::fs;
@@ -28,12 +36,195 @@ use std::time::Duration;
 
 use rusqlite::{Connection, OpenFlags, OptionalExtension, params};
 
+use crate::digest::{file_sha256, sha256_hex};
 use crate::error::{MigrationFailure, Result, StoreError};
 use crate::file_io::{
-    durable_replace_file, is_temporary_sibling_of, sha256_hex, sync_directory, sync_file,
-    temporary_sibling,
+    atomic_write, durable_replace_file, sync_directory, sync_file, temporary_sibling,
 };
 use crate::now_ms;
+
+/// Whether `candidate` is a temporary sibling of a file named `name`
+/// (`file_io::temporary_sibling`: `.<name>.<unique>.part`).
+pub(crate) fn is_temporary_sibling_of(candidate: &str, name: &str) -> bool {
+    candidate
+        .strip_prefix('.')
+        .and_then(|rest| rest.strip_prefix(name))
+        .and_then(|rest| rest.strip_prefix('.'))
+        .is_some_and(|rest| rest.ends_with(".part"))
+}
+
+pub const RECEIPT_VERSION: u8 = 1;
+
+/// How far a migration attempt got.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ReceiptState {
+    SnapshotCreated,
+    ShadowCreated,
+    Replacing,
+}
+
+/// The record of one migration attempt, kept until it is reconciled.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RecoveryReceipt {
+    pub version: u8,
+    pub recovery_id: String,
+    pub database_name: String,
+    /// The app version that last opened the library, if recorded.
+    pub from_version: Option<String>,
+    pub to_version: String,
+    pub from_migrations: usize,
+    pub to_migrations: usize,
+    /// The safety snapshot, relative to the safety-snapshot directory.
+    pub snapshot_file: String,
+    pub snapshot_sha256: String,
+    pub snapshot_size: u64,
+    pub created_ms: i64,
+    pub state: ReceiptState,
+    pub shadow_file: Option<String>,
+    pub failed_stage: Option<String>,
+    pub detail: Option<String>,
+}
+
+fn recovery_dir(snapshots_dir: &Path) -> PathBuf {
+    snapshots_dir.join("recovery")
+}
+
+fn valid_recovery_id(id: &str) -> bool {
+    id.len() == 64 && id.bytes().all(|b| b.is_ascii_hexdigit())
+}
+
+/// Write (or replace) a receipt. Test hook as well as internal.
+#[doc(hidden)]
+pub fn write_receipt(snapshots_dir: &Path, receipt: &RecoveryReceipt) -> Result<()> {
+    if !valid_recovery_id(&receipt.recovery_id) {
+        return Err(StoreError::invalid(
+            "recovery id",
+            receipt.recovery_id.clone(),
+        ));
+    }
+    let bytes = serde_json::to_vec_pretty(receipt)
+        .map_err(|e| StoreError::invalid("recovery receipt", e.to_string()))?;
+    atomic_write(
+        &recovery_dir(snapshots_dir).join(format!("{}.json", receipt.recovery_id)),
+        &bytes,
+    )?;
+    Ok(())
+}
+
+fn remove_receipt(snapshots_dir: &Path, recovery_id: &str) {
+    if valid_recovery_id(recovery_id) {
+        let _ = fs::remove_file(recovery_dir(snapshots_dir).join(format!("{recovery_id}.json")));
+    }
+}
+
+/// Every recovery receipt in a library's safety-snapshot directory, oldest
+/// first. A receipt that cannot be read is an error naming it.
+pub fn recovery_receipts(snapshots_dir: &Path) -> Result<Vec<RecoveryReceipt>> {
+    let dir = recovery_dir(snapshots_dir);
+    let entries = match fs::read_dir(&dir) {
+        Ok(entries) => entries,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(e) => return Err(e.into()),
+    };
+    let mut receipts = Vec::new();
+    for entry in entries {
+        let path = entry?.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("json") {
+            continue;
+        }
+        let id = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or_default()
+            .to_string();
+        let receipt = fs::read(&path)
+            .ok()
+            .and_then(|b| serde_json::from_slice::<RecoveryReceipt>(&b).ok())
+            .filter(|r| r.version == RECEIPT_VERSION && r.recovery_id == id)
+            .ok_or_else(|| StoreError::Recovery {
+                recovery_id: id.clone(),
+                code: "recovery-receipt-invalid",
+            })?;
+        receipts.push(receipt);
+    }
+    receipts.sort_by_key(|r| r.created_ms);
+    Ok(receipts)
+}
+
+/// The receipt's snapshot, after checking its hash and size.
+pub fn verified_snapshot(snapshots_dir: &Path, receipt: &RecoveryReceipt) -> Result<PathBuf> {
+    let relative = Path::new(&receipt.snapshot_file);
+    let ok_path = relative.components().count() == 2
+        && relative
+            .components()
+            .all(|c| matches!(c, std::path::Component::Normal(_)));
+    let bad = || StoreError::Recovery {
+        recovery_id: receipt.recovery_id.clone(),
+        code: "safety-snapshot-invalid",
+    };
+    if !ok_path {
+        return Err(bad());
+    }
+    let path = snapshots_dir.join(relative);
+    let (hash, size) = file_sha256(&path).map_err(|_| bad())?;
+    if hash != receipt.snapshot_sha256 || size != receipt.snapshot_size {
+        return Err(bad());
+    }
+    Ok(path)
+}
+
+/// Settle receipts a previous attempt left for `db_path`, before anything
+/// else touches the library.
+fn reconcile(db_path: &Path, snapshots_dir: &Path) -> Result<()> {
+    let name = db_path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or_default();
+    for receipt in recovery_receipts(snapshots_dir)? {
+        if receipt.database_name != name {
+            continue;
+        }
+        verified_snapshot(snapshots_dir, &receipt)?;
+        let shadow = receipt
+            .shadow_file
+            .as_deref()
+            .map(|f| db_path.with_file_name(f));
+        let shadow_left = shadow.as_ref().is_some_and(|p| p.exists());
+        if receipt.state != ReceiptState::Replacing || shadow_left {
+            // The replacement never happened: the library is the old one.
+            if let Some(p) = shadow {
+                let _ = fs::remove_file(p);
+            }
+            remove_receipt(snapshots_dir, &receipt.recovery_id);
+            continue;
+        }
+        // The shadow took the library's place: it must be complete.
+        let valid = Connection::open_with_flags(db_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
+            .ok()
+            .and_then(|conn| {
+                let integrity: String = conn
+                    .query_row("PRAGMA integrity_check", [], |r| r.get(0))
+                    .ok()?;
+                let count: i64 = conn
+                    .query_row(&format!("SELECT count(*) FROM {RECORD_TABLE}"), [], |r| {
+                        r.get(0)
+                    })
+                    .ok()?;
+                Some(integrity == "ok" && count as usize == receipt.to_migrations)
+            })
+            .unwrap_or(false);
+        if !valid {
+            return Err(StoreError::Recovery {
+                recovery_id: receipt.recovery_id,
+                code: "activated-database-invalid",
+            });
+        }
+        remove_receipt(snapshots_dir, &receipt.recovery_id);
+    }
+    Ok(())
+}
 
 /// One schema migration: `name` is `NNNN_<what>`, where `NNNN` is its index.
 #[derive(Clone, Copy, Debug)]
@@ -58,7 +249,7 @@ pub const MIGRATIONS: &[Migration] = &[Migration {
 /// change; `published_migrations_are_unchanged` compares the two lists.
 pub const PUBLISHED: &[(&str, &str)] = &[(
     "0000_baseline",
-    "b7eb1a95897575e56ae9249023d69f4c152bf3d2c936fc2031ca6c3be8ae9307",
+    "95ca0b5d31142594fe265e04bcbc88bc732c88d3422f2991cf206b41544fb617",
 )];
 
 const RECORD_TABLE: &str = "schema_migration";
@@ -502,16 +693,25 @@ pub(crate) fn remove_sidecars(db_path: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-/// Migrate a copy of `snapshot` and durably put it in `db_path`'s place.
-/// The library connection must be closed.
+/// Migrate a copy of `snapshot` and durably put it in `db_path`'s place,
+/// keeping `receipt` up to date. The library connection must be closed.
 fn migrate_shadow(
     db_path: &Path,
     snapshot: &Path,
     migrations: &[Migration],
     injected: Option<MigrationFault>,
+    snapshots_dir: &Path,
+    receipt: &mut RecoveryReceipt,
 ) -> Result<usize, Stop> {
     let shadow =
         temporary_sibling(db_path).map_err(|e| Stop::Fail(MigrationStage::Copy, e.to_string()))?;
+    receipt.state = ReceiptState::ShadowCreated;
+    receipt.shadow_file = shadow
+        .file_name()
+        .and_then(|n| n.to_str())
+        .map(str::to_string);
+    write_receipt(snapshots_dir, receipt)
+        .map_err(|e| Stop::Fail(MigrationStage::Copy, e.to_string()))?;
     let outcome = (|| {
         let copy = |e: std::io::Error| Stop::Fail(MigrationStage::Copy, e.to_string());
         fault(injected, MigrationStage::Copy)?;
@@ -536,6 +736,9 @@ fn migrate_shadow(
         sync_file(&shadow).map_err(|e| Stop::Fail(MigrationStage::Validate, e.to_string()))?;
 
         let replace = |e: std::io::Error| Stop::Fail(MigrationStage::Replace, e.to_string());
+        receipt.state = ReceiptState::Replacing;
+        write_receipt(snapshots_dir, receipt)
+            .map_err(|e| Stop::Fail(MigrationStage::Replace, e.to_string()))?;
         fault(injected, MigrationStage::Replace)?;
         remove_sidecars(db_path).map_err(replace)?;
         durable_replace_file(&shadow, db_path).map_err(replace)?;
@@ -545,6 +748,65 @@ fn migrate_shadow(
         let _ = fs::remove_file(&shadow);
     }
     outcome
+}
+
+/// Whether the library file at `db_path` already has every migration.
+fn replaced(db_path: &Path, migrations: &[Migration]) -> bool {
+    Connection::open_with_flags(db_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
+        .ok()
+        .and_then(|c| applied_count(&c, migrations).ok())
+        == Some(migrations.len())
+}
+
+fn new_receipt(
+    db_path: &Path,
+    snapshots_dir: &Path,
+    snapshot: &Path,
+    from_version: Option<String>,
+    to_version: &str,
+    from: usize,
+    to: usize,
+) -> Result<RecoveryReceipt> {
+    let (snapshot_sha256, snapshot_size) = file_sha256(snapshot)?;
+    let database_name = db_path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or_default()
+        .to_string();
+    let snapshot_file = snapshot
+        .strip_prefix(snapshots_dir)
+        .ok()
+        .and_then(|p| p.to_str())
+        .map(|p| p.replace('\\', "/"))
+        .ok_or_else(|| {
+            StoreError::invalid("safety snapshot path", snapshot.display().to_string())
+        })?;
+    let created_ms = now_ms();
+    let recovery_id = sha256_hex(
+        format!(
+            "{database_name}:{created_ms}:{}:{}:{snapshot_sha256}",
+            std::process::id(),
+            crate::random_u64()
+        )
+        .as_bytes(),
+    );
+    Ok(RecoveryReceipt {
+        version: RECEIPT_VERSION,
+        recovery_id,
+        database_name,
+        from_version,
+        to_version: to_version.to_string(),
+        from_migrations: from,
+        to_migrations: to,
+        snapshot_file,
+        snapshot_sha256,
+        snapshot_size,
+        created_ms,
+        state: ReceiptState::SnapshotCreated,
+        shadow_file: None,
+        failed_stage: None,
+        detail: None,
+    })
 }
 
 /// Open (creating if needed) and migrate the library database at `db_path`,
@@ -570,6 +832,7 @@ pub(crate) fn open_database(
             "refusing to open a database through a symbolic link",
         ));
     }
+    reconcile(db_path, snapshots_dir)?;
     remove_stale_shadows(db_path)?;
 
     let mut conn = open_connection(db_path, durability)?;
@@ -602,33 +865,71 @@ pub(crate) fn open_database(
                 stage,
                 detail,
                 safety_snapshot: PathBuf::new(),
+                recovery_id: None,
                 from: applied,
                 to: migrations.len(),
             }
             .into());
         }
         checkpoint_truncate(&conn)?;
+        let snapshot_failure = |e: StoreError| MigrationFailure {
+            stage: MigrationStage::Snapshot,
+            detail: e.to_string(),
+            safety_snapshot: PathBuf::new(),
+            recovery_id: None,
+            from: applied,
+            to: migrations.len(),
+        };
         let snapshot =
-            safety_snapshot(&conn, snapshots_dir, app_version).map_err(|e| MigrationFailure {
-                stage: MigrationStage::Snapshot,
-                detail: e.to_string(),
-                safety_snapshot: PathBuf::new(),
-                from: applied,
-                to: migrations.len(),
-            })?;
+            safety_snapshot(&conn, snapshots_dir, app_version).map_err(snapshot_failure)?;
+        let mut receipt = new_receipt(
+            db_path,
+            snapshots_dir,
+            &snapshot,
+            opened_by.clone(),
+            app_version,
+            applied,
+            migrations.len(),
+        )
+        .map_err(snapshot_failure)?;
+        write_receipt(snapshots_dir, &receipt).map_err(snapshot_failure)?;
         drop(conn);
+        let recovery_id = receipt.recovery_id.clone();
         let failure = |stage: MigrationStage, detail: String| MigrationFailure {
             stage,
             detail,
             safety_snapshot: snapshot.clone(),
+            recovery_id: Some(recovery_id.clone()),
             from: applied,
             to: migrations.len(),
         };
-        report.migrations_applied = migrate_shadow(db_path, &snapshot, migrations, injected)
-            .map_err(|stop| {
-                let (stage, detail) = stop.stage_detail();
-                failure(stage, detail)
-            })?;
+        let migrated = migrate_shadow(
+            db_path,
+            &snapshot,
+            migrations,
+            injected,
+            snapshots_dir,
+            &mut receipt,
+        );
+        report.migrations_applied = match migrated {
+            Ok(n) => n,
+            Err(Stop::Crash(stage, detail)) => return Err(failure(stage, detail).into()),
+            Err(Stop::Fail(MigrationStage::Replace, detail)) if replaced(db_path, migrations) => {
+                // The rename happened and only a later barrier failed: the
+                // library is the migrated one; carry on and validate it.
+                log::warn!("library replaced, but: {detail}");
+                migrations.len() - applied
+            }
+            Err(Stop::Fail(stage, detail)) => {
+                // Cleaned up: nothing is left to replace, whatever the stage.
+                receipt.state = ReceiptState::ShadowCreated;
+                receipt.shadow_file = None;
+                receipt.failed_stage = Some(stage.to_string());
+                receipt.detail = Some(detail.clone());
+                let _ = write_receipt(snapshots_dir, &receipt);
+                return Err(failure(stage, detail).into());
+            }
+        };
         if let Err(stop) = fault(injected, MigrationStage::Reopen) {
             let (stage, detail) = stop.stage_detail();
             return Err(failure(stage, detail).into());
@@ -636,6 +937,7 @@ pub(crate) fn open_database(
         conn = open_connection(db_path, durability)
             .and_then(|c| validate(&c, migrations).map(|()| c))
             .map_err(|e| failure(MigrationStage::Reopen, e.to_string()))?;
+        remove_receipt(snapshots_dir, &receipt.recovery_id);
         report.safety_snapshot = Some(snapshot);
     } else if opened_by.as_deref() != Some(app_version) {
         checkpoint_truncate(&conn)?;

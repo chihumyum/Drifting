@@ -1,16 +1,27 @@
 //! Derived indexes: paragraphs (search, outline, lengths), references and
 //! counts. Everything here is computed from Loro documents and can be
-//! rebuilt; this module only stores and queries. Deciding what changed and
-//! keeping the rows up to date incrementally is dr-workspace's job (F3).
+//! rebuilt.
+//!
+//! Who computes them: dr-store itself, from Loro changes, not the editor.
+//! A [`Deriver`] (implemented with dr-doc's knowledge of paragraphs, block
+//! ids and entity links, and dr-text's counting) is registered in
+//! [`crate::LibraryOptions::deriver`]. Each document holder hands it the Loro
+//! diffs that accumulated since the last derivation when it is idle, and
+//! stores the result. The rows and the seq they reflect (`index_state`) are
+//! written in one transaction, and a write never moves a document's index
+//! backwards. When a library opens, every document whose head is beyond its
+//! `indexed_seq` is rebuilt (P0-E found 0.1's caches falling behind the text;
+//! this is the cure).
 //!
 //! Search uses FTS5 with the trigram tokenizer, which needs at least three
 //! characters per query. Chinese searches are often one or two characters
 //! (人名、地名), so shorter queries fall back to `LIKE` over the same rows.
 
-use loro::Frontiers;
-use rusqlite::{OptionalExtension, params};
+use loro::{Frontiers, LoroDoc};
+use rusqlite::{Connection, OptionalExtension, params};
 
 use crate::error::{Result, StoreError};
+use crate::holder::ContainerChange;
 use crate::{Library, now_ms};
 
 /// One paragraph of a document, in order.
@@ -65,23 +76,61 @@ pub struct RefRow {
 }
 
 /// Everything derived from one document at one version.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Derived {
+    /// Counted by dr-text's rules (Chinese characters plus other words).
+    pub words: u64,
+    pub chars: u64,
+    pub blocks: Vec<BlockRow>,
+    pub references: Vec<RefRow>,
+}
+
+/// What a [`Deriver`] produced.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum DerivedUpdate {
+    /// Replace everything derived from the document. (A later version adds
+    /// paragraph-level patches; the input already carries the diffs.)
+    Full(Derived),
+}
+
+/// What a deriver is given: the document on its holder thread (or a copy
+/// loaded from SQLite), and the Loro diffs since the last derivation, or
+/// `None` when it must start from scratch.
+pub struct DeriveInput<'a> {
+    pub doc_id: &'a str,
+    pub kind: &'a str,
+    pub book_id: Option<&'a str>,
+    pub doc: &'a LoroDoc,
+    pub changes: Option<&'a [ContainerChange]>,
+}
+
+/// Computes a document's derived rows. Implemented outside dr-store (it needs
+/// dr-doc's structure and dr-text's counting); `None` means "nothing derived
+/// for this kind of document".
+pub trait Deriver: Send + Sync {
+    fn derive(&self, input: &DeriveInput<'_>) -> Option<DerivedUpdate>;
+}
+
+/// Everything derived from one document at one version, for
+/// [`crate::Library::index_doc`].
 #[derive(Clone, Debug)]
 pub struct DocIndex<'a> {
     pub doc_id: &'a str,
     pub book_id: Option<&'a str>,
+    /// The document's stored seq the rows reflect: a write with a lower
+    /// seq than the one already stored is ignored.
+    pub seq: i64,
     /// The version the rows were computed from.
     pub frontiers: &'a Frontiers,
-    /// Counted by dr-text's rules (Chinese characters plus other words).
-    pub words: u64,
-    pub chars: u64,
-    pub blocks: &'a [BlockRow],
-    pub references: &'a [RefRow],
+    pub derived: &'a Derived,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DocStats {
     pub doc_id: String,
     pub book_id: Option<String>,
+    pub indexed_seq: i64,
     pub frontiers: Frontiers,
     pub words: u64,
     pub chars: u64,
@@ -183,79 +232,144 @@ fn hit(
     }
 }
 
-impl Library {
-    /// Replace everything derived from one document, in one transaction.
-    pub fn index_doc(&self, index: &DocIndex<'_>) -> Result<()> {
-        let conn = self.writer();
-        let tx = conn.unchecked_transaction()?;
-        tx.execute("DELETE FROM block_index WHERE doc_id = ?1", [index.doc_id])?;
-        tx.execute(
-            "DELETE FROM reference WHERE source_doc = ?1",
-            [index.doc_id],
+/// Delete a document's paragraph rows and their FTS entries (the FTS table
+/// is maintained by hand: no triggers).
+fn delete_blocks(tx: &Connection, doc_id: &str) -> Result<()> {
+    let old: Vec<(i64, String)> = tx
+        .prepare_cached("SELECT id, text FROM block_index WHERE doc_id = ?1")?
+        .query_map([doc_id], |r| Ok((r.get(0)?, r.get(1)?)))?
+        .collect::<rusqlite::Result<_>>()?;
+    let mut fts = tx.prepare_cached(
+        "INSERT INTO block_fts (block_fts, rowid, text) VALUES ('delete', ?1, ?2)",
+    )?;
+    for (id, text) in &old {
+        fts.execute(params![id, text])?;
+    }
+    tx.execute("DELETE FROM block_index WHERE doc_id = ?1", [doc_id])?;
+    Ok(())
+}
+
+/// Write a document's derived rows and `index_state` in one transaction.
+/// Returns false (and writes nothing) when the stored index is already at
+/// `seq` or later, or the document is not registered.
+pub(crate) fn write_index(conn: &Connection, index: &DocIndex<'_>) -> Result<bool> {
+    let tx = conn.unchecked_transaction()?;
+    let registered: bool = tx
+        .prepare_cached("SELECT EXISTS(SELECT 1 FROM loro_doc WHERE doc_id = ?1)")?
+        .query_row([index.doc_id], |r| r.get(0))?;
+    if !registered {
+        // Purged meanwhile (a background rebuild racing a purge).
+        return Ok(false);
+    }
+    let stored: Option<i64> = tx
+        .prepare_cached("SELECT indexed_seq FROM index_state WHERE doc_id = ?1")?
+        .query_row([index.doc_id], |r| r.get(0))
+        .optional()?;
+    if stored.is_some_and(|s| s >= index.seq) {
+        return Ok(false);
+    }
+    delete_blocks(&tx, index.doc_id)?;
+    tx.execute(
+        "DELETE FROM reference WHERE source_doc = ?1",
+        [index.doc_id],
+    )?;
+    {
+        let mut insert = tx.prepare_cached(
+            "INSERT INTO block_index (doc_id, book_id, ord, block_id, heading, chars, text)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
         )?;
-        {
-            let mut insert = tx.prepare_cached(
-                "INSERT INTO block_index (doc_id, book_id, ord, block_id, heading, chars, text)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            )?;
-            for (ord, b) in index.blocks.iter().enumerate() {
-                if b.heading > 3 {
-                    return Err(StoreError::invalid("heading", b.heading.to_string()));
-                }
-                insert.execute(params![
-                    index.doc_id,
-                    index.book_id,
-                    ord as i64,
-                    b.block_id,
-                    b.heading,
-                    b.chars,
-                    b.text
-                ])?;
+        let mut fts = tx.prepare_cached("INSERT INTO block_fts (rowid, text) VALUES (?1, ?2)")?;
+        for (ord, b) in index.derived.blocks.iter().enumerate() {
+            if b.heading > 3 {
+                return Err(StoreError::invalid("heading", b.heading.to_string()));
             }
-            let mut insert = tx.prepare_cached(
-                "INSERT INTO reference (source_doc, source_block, book_id, target_kind, target_id, kind, count)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            )?;
-            for r in index.references {
-                insert.execute(params![
-                    index.doc_id,
-                    r.source_block,
-                    index.book_id,
-                    r.target_kind,
-                    r.target_id,
-                    r.kind.as_str(),
-                    r.count.max(1)
-                ])?;
-            }
-        }
-        tx.execute(
-            "INSERT INTO doc_stats (doc_id, book_id, frontiers, words, chars, paragraphs, updated_ms)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
-             ON CONFLICT (doc_id) DO UPDATE SET book_id = excluded.book_id,
-               frontiers = excluded.frontiers, words = excluded.words, chars = excluded.chars,
-               paragraphs = excluded.paragraphs, updated_ms = excluded.updated_ms",
-            params![
+            insert.execute(params![
                 index.doc_id,
                 index.book_id,
-                index.frontiers.encode(),
-                index.words as i64,
-                index.chars as i64,
-                index.blocks.len() as i64,
-                now_ms()
-            ],
+                ord as i64,
+                b.block_id,
+                b.heading,
+                b.chars,
+                b.text
+            ])?;
+            fts.execute(params![tx.last_insert_rowid(), b.text])?;
+        }
+        let mut insert = tx.prepare_cached(
+            "INSERT INTO reference (source_doc, source_block, book_id, target_kind, target_id, kind, count)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
         )?;
-        tx.commit()?;
-        Ok(())
+        for r in &index.derived.references {
+            insert.execute(params![
+                index.doc_id,
+                r.source_block,
+                index.book_id,
+                r.target_kind,
+                r.target_id,
+                r.kind.as_str(),
+                r.count.max(1)
+            ])?;
+        }
+    }
+    tx.execute(
+        "INSERT INTO index_state (doc_id, book_id, indexed_seq, frontiers, words, chars, paragraphs, updated_ms)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+         ON CONFLICT (doc_id) DO UPDATE SET book_id = excluded.book_id,
+           indexed_seq = excluded.indexed_seq, frontiers = excluded.frontiers,
+           words = excluded.words, chars = excluded.chars,
+           paragraphs = excluded.paragraphs, updated_ms = excluded.updated_ms",
+        params![
+            index.doc_id,
+            index.book_id,
+            index.seq,
+            index.frontiers.encode(),
+            index.derived.words as i64,
+            index.derived.chars as i64,
+            index.derived.blocks.len() as i64,
+            now_ms()
+        ],
+    )?;
+    tx.commit()?;
+    Ok(true)
+}
+
+/// Remove everything derived from a document, inside the caller's
+/// transaction.
+pub(crate) fn delete_index(tx: &Connection, doc_id: &str) -> Result<()> {
+    delete_blocks(tx, doc_id)?;
+    tx.execute("DELETE FROM reference WHERE source_doc = ?1", [doc_id])?;
+    tx.execute("DELETE FROM index_state WHERE doc_id = ?1", [doc_id])?;
+    Ok(())
+}
+
+impl Library {
+    /// Replace everything derived from one document, in one transaction,
+    /// unless the stored index already reflects `seq` or later (returns
+    /// false then). Normally the holders do this through the deriver.
+    pub fn index_doc(&self, index: &DocIndex<'_>) -> Result<bool> {
+        let written = write_index(&self.writer(), index)?;
+        if written {
+            self.notify_local(crate::LocalChange::new(
+                "index",
+                index.doc_id,
+                crate::LocalChangeKind::Update,
+            ));
+        }
+        Ok(written)
     }
 
     /// Remove everything derived from a document.
     pub fn remove_doc_index(&self, doc_id: &str) -> Result<()> {
-        let conn = self.writer();
-        let tx = conn.unchecked_transaction()?;
-        tx.execute("DELETE FROM block_index WHERE doc_id = ?1", [doc_id])?;
-        tx.execute("DELETE FROM reference WHERE source_doc = ?1", [doc_id])?;
-        tx.execute("DELETE FROM doc_stats WHERE doc_id = ?1", [doc_id])?;
-        tx.commit()?;
+        {
+            let conn = self.writer();
+            let tx = conn.unchecked_transaction()?;
+            delete_index(&tx, doc_id)?;
+            tx.commit()?;
+        }
+        self.notify_local(crate::LocalChange::new(
+            "index",
+            doc_id,
+            crate::LocalChangeKind::Delete,
+        ));
         Ok(())
     }
 
@@ -373,26 +487,28 @@ impl Library {
         let conn = self.reader();
         let row = conn
             .prepare_cached(
-                "SELECT doc_id, book_id, frontiers, words, chars, paragraphs, updated_ms
-                 FROM doc_stats WHERE doc_id = ?1",
+                "SELECT doc_id, book_id, indexed_seq, frontiers, words, chars, paragraphs, updated_ms
+                 FROM index_state WHERE doc_id = ?1",
             )?
             .query_row([doc_id], |r| {
                 Ok((
                     r.get::<_, String>(0)?,
                     r.get::<_, Option<String>>(1)?,
-                    r.get::<_, Vec<u8>>(2)?,
-                    r.get::<_, i64>(3)?,
+                    r.get::<_, i64>(2)?,
+                    r.get::<_, Vec<u8>>(3)?,
                     r.get::<_, i64>(4)?,
                     r.get::<_, i64>(5)?,
                     r.get::<_, i64>(6)?,
+                    r.get::<_, i64>(7)?,
                 ))
             })
             .optional()?;
         row.map(
-            |(doc_id, book_id, f, words, chars, paragraphs, updated_ms)| {
+            |(doc_id, book_id, indexed_seq, f, words, chars, paragraphs, updated_ms)| {
                 Ok(DocStats {
                     doc_id,
                     book_id,
+                    indexed_seq,
                     frontiers: Frontiers::decode(&f)?,
                     words: words as u64,
                     chars: chars as u64,
@@ -404,12 +520,26 @@ impl Library {
         .transpose()
     }
 
+    /// Documents whose stored head is beyond their index (or that have no
+    /// index yet), by id.
+    pub fn stale_index_docs(&self) -> Result<Vec<String>> {
+        let conn = self.reader();
+        let rows = conn
+            .prepare_cached(
+                "SELECT h.doc_id FROM loro_head h LEFT JOIN index_state i ON i.doc_id = h.doc_id
+                 WHERE i.indexed_seq IS NULL OR h.seq > i.indexed_seq ORDER BY h.doc_id",
+            )?
+            .query_map([], |r| r.get(0))?
+            .collect::<rusqlite::Result<Vec<String>>>()?;
+        Ok(rows)
+    }
+
     /// Totals over the indexed documents of a book.
     pub fn book_stats(&self, book_id: &str) -> Result<BookStats> {
         let conn = self.reader();
         let (docs, words, chars, paragraphs): (i64, i64, i64, i64) = conn.query_row(
             "SELECT count(*), coalesce(sum(words), 0), coalesce(sum(chars), 0), coalesce(sum(paragraphs), 0)
-             FROM doc_stats WHERE book_id = ?1",
+             FROM index_state WHERE book_id = ?1",
             [book_id],
             |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
         )?;

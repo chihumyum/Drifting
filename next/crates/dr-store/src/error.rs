@@ -53,6 +53,16 @@ pub enum StoreError {
     Invalid { what: &'static str, value: String },
     #[error("asset: {0}")]
     Asset(String),
+    /// A previous migration attempt left a receipt that cannot be settled
+    /// safely (unreadable, its snapshot changed, or the replaced library is
+    /// incomplete). Opening stops; the app offers to restore the snapshot.
+    #[error("library recovery {recovery_id} needs attention: {code}")]
+    Recovery {
+        recovery_id: String,
+        code: &'static str,
+    },
+    #[error("installation identity: {0}")]
+    Identity(String),
 }
 
 impl StoreError {
@@ -74,6 +84,8 @@ pub struct MigrationFailure {
     /// The `VACUUM INTO` copy of the database taken before the attempt
     /// (empty when the attempt failed before writing it).
     pub safety_snapshot: PathBuf,
+    /// The recovery receipt of the attempt, if one was written.
+    pub recovery_id: Option<String>,
     /// Migrations applied in the source database.
     pub from: usize,
     /// Migrations this build wanted to reach.

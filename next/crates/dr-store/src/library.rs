@@ -1,19 +1,28 @@
 //! The library: database connections, the single-owner lock, the epoch and
-//! per-document peer ids, loading and copying documents, and the registry of
-//! open document holders.
+//! per-document peer ids (rotated automatically when the library has moved
+//! or an older copy was put back), loading and copying documents, the
+//! registry of open document holders, the event bus, sync state, activity
+//! and Agent settlements.
 
 use std::collections::HashMap;
 use std::fs::{self, File, OpenOptions};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, Weak};
 use std::time::Duration;
 
-use loro::{ExportMode, Frontiers, LoroDoc};
+use loro::{ExportMode, Frontiers, LoroDoc, VersionVector};
 use rusqlite::{Connection, OptionalExtension, params};
 
 use crate::error::{Result, StoreError};
+use crate::events::{
+    self, LibrarySubscription, LocalChange, LocalChangeKind, SharedBus, StoreEvent,
+};
 use crate::file_io::{durable_replace_file, sync_file, temporary_sibling};
+use crate::history::{self, ChangeSummary};
 use crate::holder::{self, Closing, DocHandle, Shared};
+use crate::identity::Device;
+use crate::index::{DeriveInput, DerivedUpdate, Deriver, DocIndex};
 use crate::migrate::{self, Durability, MIGRATIONS, Migration, MigrationFault, OpenReport};
 use crate::origin::Origin;
 use crate::{now_ms, random_peer_id, random_u64};
@@ -58,6 +67,16 @@ pub struct LibraryOptions {
     /// document) before anything is imported: dr-doc's style configuration
     /// (loro-schema.md). The store itself turns on timestamps.
     pub configure_doc: Option<ConfigureDoc>,
+    /// This device (identity and library watermarks, outside the library).
+    /// With it the library notices when it was moved to another device or
+    /// replaced by an older copy, and starts a new epoch. Tests may omit it.
+    pub device: Option<Device>,
+    /// Computes derived indexes from Loro changes (dr-doc + dr-text).
+    pub deriver: Option<Arc<dyn Deriver>>,
+    /// Rebuild, in the background, the derived index of every document whose
+    /// head is beyond its `indexed_seq` when the library opens (needs a
+    /// deriver).
+    pub rebuild_indexes_on_open: bool,
     /// Test hook: fail or pause a migration at a stage.
     #[doc(hidden)]
     pub migration_fault: Option<MigrationFault>,
@@ -77,6 +96,9 @@ impl LibraryOptions {
             durability: Durability::Normal,
             compaction: CompactionPolicy::default(),
             configure_doc: None,
+            device: None,
+            deriver: None,
+            rebuild_indexes_on_open: true,
             migration_fault: None,
             compaction_pause: None,
             append_faults: None,
@@ -91,6 +113,8 @@ impl std::fmt::Debug for LibraryOptions {
             .field("durability", &self.durability)
             .field("compaction", &self.compaction)
             .field("configure_doc", &self.configure_doc.is_some())
+            .field("device", &self.device)
+            .field("deriver", &self.deriver.is_some())
             .finish_non_exhaustive()
     }
 }
@@ -163,6 +187,56 @@ pub struct StoredUpdate {
     pub bytes: Vec<u8>,
 }
 
+/// The latest stored state of a document.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DocHead {
+    pub seq: i64,
+    pub vv: VersionVector,
+    pub frontiers: Frontiers,
+    pub ts: i64,
+}
+
+/// What a document's upload carries: the updates after what the sync
+/// service has, and the version they bring it to.
+#[derive(Clone, Debug)]
+pub struct UploadBatch {
+    pub doc_id: String,
+    pub bytes: Vec<u8>,
+    pub vv: VersionVector,
+}
+
+/// Recent changes to one document, read from its Loro changes.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DocActivity {
+    pub doc_id: String,
+    pub changes: Vec<ChangeSummary>,
+}
+
+/// One Agent write's settlement record.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Settlement {
+    pub id: i64,
+    pub session: String,
+    pub turn: String,
+    pub call: String,
+    pub doc_id: String,
+    pub seq: i64,
+    pub before: Frontiers,
+    pub after: Frontiers,
+    pub summary: String,
+    pub ts: i64,
+}
+
+/// Why an epoch was started at open.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EpochChange {
+    /// Another device opened the library last (copied or moved).
+    OtherDevice,
+    /// The library is behind what this device has seen of it (an older copy
+    /// was put back).
+    OlderCopy,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CompactStats {
     pub upto_seq: i64,
@@ -184,8 +258,14 @@ pub(crate) struct Inner {
     epoch: Mutex<String>,
     pub docs: Mutex<HashMap<String, Slot>>,
     pub docs_changed: Condvar,
-    /// Holder threads whose last handle is gone.
+    /// Holder threads whose last handle is gone (and the background index
+    /// rebuild), joined by `Library::close`.
     pub closing: Closing,
+    pub bus: SharedBus,
+    pub library_id: String,
+    pub epoch_change: Option<EpochChange>,
+    /// Asks background work (index rebuilds) to stop.
+    pub stopping: AtomicBool,
     /// Identifies this process's asset imports for garbage collection.
     pub session: String,
     _lock: File,
@@ -211,6 +291,10 @@ impl Inner {
 
     pub fn epoch(&self) -> String {
         self.epoch.lock().unwrap_or_else(|e| e.into_inner()).clone()
+    }
+
+    pub fn publish(&self, event: &StoreEvent) {
+        events::publish(&self.bus, event);
     }
 
     /// The doc slot was released by its holder thread.
@@ -308,7 +392,7 @@ impl Library {
                 |r| r.get(0),
             )
             .optional()?;
-        let epoch = match epoch {
+        let mut epoch = match epoch {
             Some(e) => e,
             None => {
                 let e = format!("{:016x}", random_u64());
@@ -319,9 +403,27 @@ impl Library {
                 e
             }
         };
+        writer.execute(
+            "INSERT OR IGNORE INTO library_meta (key, value) VALUES ('library_id', ?1)",
+            [format!("{:016x}{:016x}", random_u64(), random_u64())],
+        )?;
+        writer.execute(
+            "INSERT OR IGNORE INTO library_meta (key, value) VALUES ('write_seq', '0')",
+            [],
+        )?;
+        let library_id = meta(&writer, "library_id")?.unwrap_or_default();
+        let epoch_change = match &options.device {
+            Some(device) => check_device(&writer, device, &library_id)?,
+            None => None,
+        };
+        if epoch_change.is_some() {
+            epoch = format!("{:016x}", random_u64());
+            set_meta(&writer, "epoch", &epoch)?;
+            log::warn!("library {library_id}: new epoch ({epoch_change:?})");
+        }
         let reader = migrate::open_connection(&paths.db, options.durability)?;
         reader.pragma_update(None, "query_only", true)?;
-        Ok(Self {
+        let library = Self {
             inner: Arc::new(Inner {
                 paths,
                 options,
@@ -332,10 +434,19 @@ impl Library {
                 docs: Mutex::new(HashMap::new()),
                 docs_changed: Condvar::new(),
                 closing: Closing::default(),
+                bus: SharedBus::default(),
+                library_id,
+                epoch_change,
+                stopping: AtomicBool::new(false),
                 session: format!("{:016x}", random_u64()),
                 _lock: lock,
             }),
-        })
+        };
+        if library.inner.options.deriver.is_some() && library.inner.options.rebuild_indexes_on_open
+        {
+            library.spawn_index_rebuild();
+        }
+        Ok(library)
     }
 
     /// Replace the library in `root` with `backup` (a safety snapshot or
@@ -397,6 +508,39 @@ impl Library {
         }
         result?;
         Self::open_locked(paths, options, MIGRATIONS, lock)
+    }
+
+    /// The recovery receipts of failed or interrupted migrations in `root`,
+    /// readable without opening the library (for the recovery screen).
+    pub fn recovery_receipts(root: impl Into<PathBuf>) -> Result<Vec<migrate::RecoveryReceipt>> {
+        migrate::recovery_receipts(&LibraryPaths::new(root).safety_snapshots)
+    }
+
+    /// Restore the safety snapshot a receipt names, after checking its hash
+    /// and size, then open it (with a new epoch). The receipt is removed.
+    pub fn restore_from_receipt(
+        root: impl Into<PathBuf>,
+        recovery_id: &str,
+        options: LibraryOptions,
+    ) -> Result<Self> {
+        let paths = LibraryPaths::new(root);
+        let receipt = migrate::recovery_receipts(&paths.safety_snapshots)?
+            .into_iter()
+            .find(|r| r.recovery_id == recovery_id)
+            .ok_or_else(|| StoreError::NotFound(format!("recovery receipt {recovery_id}")))?;
+        let snapshot = migrate::verified_snapshot(&paths.safety_snapshots, &receipt)?;
+        // Keep the snapshot out of the way of the receipt cleanup on open.
+        let staged = temporary_sibling(&snapshot)?;
+        fs::copy(&snapshot, &staged)?;
+        let _ = fs::remove_file(
+            paths
+                .safety_snapshots
+                .join("recovery")
+                .join(format!("{recovery_id}.json")),
+        );
+        let library = Self::restore_backup(paths.root.clone(), &staged, options);
+        let _ = fs::remove_file(&staged);
+        library
     }
 
     pub fn paths(&self) -> &LibraryPaths {
@@ -623,9 +767,15 @@ impl Library {
                     "INSERT OR IGNORE INTO loro_doc (doc_id, kind, book_id, created_ms) VALUES (?1, ?2, ?3, ?4)",
                     params![doc_id, kind, book_id, now_ms()],
                 )?;
-                tx.execute(
-                    "INSERT INTO loro_update (doc_id, seq, bytes, origin, ts) VALUES (?1, 1, ?2, ?3, ?4)",
-                    params![doc_id, bytes, Origin::Genesis.to_string(), now_ms()],
+                record_append(
+                    &tx,
+                    doc_id,
+                    1,
+                    &bytes,
+                    &Origin::Genesis,
+                    now_ms(),
+                    &doc.oplog_vv(),
+                    &doc.oplog_frontiers(),
                 )?;
                 tx.commit()?;
                 LoadStats {
@@ -676,6 +826,8 @@ impl Library {
                     .unwrap_or_else(|e| e.into_inner());
             }
         }
+        // Stop background work (index rebuilds) and wait for it.
+        self.inner.stopping.store(true, Ordering::Relaxed);
         let threads =
             std::mem::take(&mut *self.inner.closing.lock().unwrap_or_else(|e| e.into_inner()));
         for thread in threads {
@@ -689,7 +841,7 @@ impl Library {
                 "other clones of this library are still alive",
             ));
         }
-        Ok(())
+        self.raise_watermark()
     }
 
     /// Make everything committed so far survive a power failure. With
@@ -699,9 +851,11 @@ impl Library {
     /// replica already has, and this device would reuse their ids.
     pub fn sync_to_disk(&self) -> Result<()> {
         // A checkpoint syncs the WAL before it copies anything back.
-        let conn = self.inner.writer();
-        conn.query_row("PRAGMA wal_checkpoint(PASSIVE)", [], |_| Ok(()))?;
-        Ok(())
+        self.inner
+            .writer()
+            .query_row("PRAGMA wal_checkpoint(PASSIVE)", [], |_| Ok(()))?;
+        // What leaves the device now must never be reused by an older copy.
+        self.raise_watermark()
     }
 
     /// Documents with a live holder in this process.
@@ -862,4 +1016,455 @@ pub(crate) fn store_snapshot(
         snapshot_bytes: parts.bytes.len(),
         deleted_updates: deleted,
     })
+}
+
+pub(crate) fn meta(conn: &Connection, key: &str) -> Result<Option<String>> {
+    Ok(conn
+        .prepare_cached("SELECT value FROM library_meta WHERE key = ?1")?
+        .query_row([key], |r| r.get(0))
+        .optional()?)
+}
+
+pub(crate) fn set_meta(conn: &Connection, key: &str, value: &str) -> Result<()> {
+    conn.prepare_cached(
+        "INSERT INTO library_meta (key, value) VALUES (?1, ?2)
+         ON CONFLICT (key) DO UPDATE SET value = excluded.value",
+    )?
+    .execute(params![key, value])?;
+    Ok(())
+}
+
+/// Compare the library with this device: another installation opened it
+/// last (it was copied or moved), or it is behind this device's watermark
+/// for it (an older copy was put back). Either way a new epoch is due.
+/// Records this installation and lifts `write_seq` to the watermark, so the
+/// same copy does not rotate again on every open.
+fn check_device(
+    conn: &Connection,
+    device: &Device,
+    library_id: &str,
+) -> Result<Option<EpochChange>> {
+    let recorded = meta(conn, "installation_id")?;
+    let write_seq: i64 = meta(conn, "write_seq")?
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(0);
+    let watermark = device.watermark(library_id)?;
+    let change = match (&recorded, watermark) {
+        (Some(id), _) if id != device.installation_id() => Some(EpochChange::OtherDevice),
+        (_, Some(mark)) if write_seq < mark => Some(EpochChange::OlderCopy),
+        _ => None,
+    };
+    if recorded.as_deref() != Some(device.installation_id()) {
+        set_meta(conn, "installation_id", device.installation_id())?;
+    }
+    if let Some(mark) = watermark
+        && write_seq < mark
+    {
+        set_meta(conn, "write_seq", &mark.to_string())?;
+    }
+    Ok(change)
+}
+
+/// Append one update row, inside the caller's transaction, with the
+/// document's new head and the library's write counter.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn record_append(
+    tx: &Connection,
+    doc_id: &str,
+    seq: i64,
+    bytes: &[u8],
+    origin: &Origin,
+    ts: i64,
+    vv: &VersionVector,
+    frontiers: &Frontiers,
+) -> Result<()> {
+    tx.prepare_cached(
+        "INSERT INTO loro_update (doc_id, seq, bytes, origin, ts) VALUES (?1, ?2, ?3, ?4, ?5)",
+    )?
+    .execute(params![doc_id, seq, bytes, origin.to_string(), ts])?;
+    tx.prepare_cached(
+        "INSERT INTO loro_head (doc_id, seq, vv, frontiers, ts) VALUES (?1, ?2, ?3, ?4, ?5)
+         ON CONFLICT (doc_id) DO UPDATE SET seq = excluded.seq, vv = excluded.vv,
+           frontiers = excluded.frontiers, ts = excluded.ts",
+    )?
+    .execute(params![doc_id, seq, vv.encode(), frontiers.encode(), ts])?;
+    tx.prepare_cached(
+        "UPDATE library_meta SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT) WHERE key = 'write_seq'",
+    )?
+    .execute([])?;
+    Ok(())
+}
+
+/// Merge `vv` into what the sync service is known to have of a document,
+/// inside the caller's transaction.
+pub(crate) fn merge_remote_vv(tx: &Connection, doc_id: &str, vv: &VersionVector) -> Result<()> {
+    let stored: Option<Vec<u8>> = tx
+        .prepare_cached("SELECT remote_vv FROM sync_doc WHERE doc_id = ?1")?
+        .query_row([doc_id], |r| r.get(0))
+        .optional()?;
+    let mut merged = match stored {
+        Some(bytes) => VersionVector::decode(&bytes)?,
+        None => VersionVector::default(),
+    };
+    merged.merge(vv);
+    tx.prepare_cached(
+        "INSERT INTO sync_doc (doc_id, remote_vv, updated_ms) VALUES (?1, ?2, ?3)
+         ON CONFLICT (doc_id) DO UPDATE SET remote_vv = excluded.remote_vv, updated_ms = excluded.updated_ms",
+    )?
+    .execute(params![doc_id, merged.encode(), now_ms()])?;
+    Ok(())
+}
+
+impl Library {
+    /// Why this open started a new epoch, if it did.
+    pub fn epoch_change(&self) -> Option<EpochChange> {
+        self.inner.epoch_change
+    }
+
+    /// The library's stable id (copies share it).
+    pub fn library_id(&self) -> &str {
+        &self.inner.library_id
+    }
+
+    /// Updates appended to this library so far (all documents).
+    pub fn write_seq(&self) -> Result<i64> {
+        Ok(meta(&self.inner.reader(), "write_seq")?
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(0))
+    }
+
+    /// Listen to every persisted document change and every local-only table
+    /// change of this library.
+    pub fn subscribe(
+        &self,
+        f: impl Fn(&StoreEvent) + Send + Sync + 'static,
+    ) -> LibrarySubscription {
+        events::subscribe(&self.inner.bus, Arc::new(f))
+    }
+
+    /// Announce a committed change to a local-only table (dr-workspace's
+    /// tables use this to reach the same bus as Loro events).
+    pub fn notify_local(&self, change: LocalChange) {
+        self.inner.publish(&StoreEvent::Local(change));
+    }
+
+    pub(crate) fn open_handle(&self, doc_id: &str) -> Option<DocHandle> {
+        let docs = self.inner.docs.lock().unwrap_or_else(|e| e.into_inner());
+        match docs.get(doc_id) {
+            Some(Slot::Open(weak)) => weak.upgrade().map(DocHandle::from_shared),
+            _ => None,
+        }
+    }
+
+    /// Raise this device's watermark for the library to its current write
+    /// count (when a device is configured).
+    fn raise_watermark(&self) -> Result<()> {
+        if let Some(device) = &self.inner.options.device {
+            device.raise_watermark(&self.inner.library_id, self.write_seq()?)?;
+        }
+        Ok(())
+    }
+
+    /// The latest stored state of a document.
+    pub fn head(&self, doc_id: &str) -> Result<Option<DocHead>> {
+        let row: Option<(i64, Vec<u8>, Vec<u8>, i64)> = self
+            .inner
+            .reader()
+            .prepare_cached("SELECT seq, vv, frontiers, ts FROM loro_head WHERE doc_id = ?1")?
+            .query_row([doc_id], |r| {
+                Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?))
+            })
+            .optional()?;
+        row.map(|(seq, vv, f, ts)| {
+            Ok(DocHead {
+                seq,
+                vv: VersionVector::decode(&vv)?,
+                frontiers: Frontiers::decode(&f)?,
+                ts,
+            })
+        })
+        .transpose()
+    }
+
+    /// What the sync service is known to have of a document.
+    pub fn remote_vv(&self, doc_id: &str) -> Result<VersionVector> {
+        let stored: Option<Vec<u8>> = self
+            .inner
+            .reader()
+            .prepare_cached("SELECT remote_vv FROM sync_doc WHERE doc_id = ?1")?
+            .query_row([doc_id], |r| r.get(0))
+            .optional()?;
+        Ok(match stored {
+            Some(bytes) => VersionVector::decode(&bytes)?,
+            None => VersionVector::default(),
+        })
+    }
+
+    /// Record that the sync service now has a document up to `vv` (merged
+    /// with what it had).
+    pub fn mark_uploaded(&self, doc_id: &str, vv: &VersionVector) -> Result<()> {
+        {
+            let conn = self.inner.writer();
+            let tx = conn.unchecked_transaction()?;
+            merge_remote_vv(&tx, doc_id, vv)?;
+            tx.commit()?;
+        }
+        self.notify_local(LocalChange::new(
+            "sync_doc",
+            doc_id,
+            LocalChangeKind::Update,
+        ));
+        Ok(())
+    }
+
+    /// Documents with changes that exist only on this device: their stored
+    /// version is not covered by what the sync service has.
+    pub fn docs_with_local_changes(&self) -> Result<Vec<String>> {
+        let rows: Vec<(String, Vec<u8>, Option<Vec<u8>>)> = self
+            .inner
+            .reader()
+            .prepare_cached(
+                "SELECT h.doc_id, h.vv, s.remote_vv FROM loro_head h
+                 LEFT JOIN sync_doc s ON s.doc_id = h.doc_id ORDER BY h.doc_id",
+            )?
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?
+            .collect::<rusqlite::Result<_>>()?;
+        let mut out = Vec::new();
+        for (doc_id, vv, remote) in rows {
+            let vv = VersionVector::decode(&vv)?;
+            let remote = match remote {
+                Some(b) => VersionVector::decode(&b)?,
+                None => VersionVector::default(),
+            };
+            if vv
+                .iter()
+                .any(|(peer, end)| remote.get(peer).copied().unwrap_or(0) < *end)
+            {
+                out.push(doc_id);
+            }
+        }
+        Ok(out)
+    }
+
+    /// The updates the sync service does not have yet, exported from the
+    /// document (not from rows: compaction may have folded them into the
+    /// snapshot). Makes everything durable on disk first, and raises the
+    /// device watermark, because these bytes are about to leave the device.
+    /// `None` when there is nothing to upload.
+    pub fn export_for_upload(&self, doc_id: &str) -> Result<Option<UploadBatch>> {
+        self.sync_to_disk()?;
+        let remote = self.remote_vv(doc_id)?;
+        let export = move |doc: &LoroDoc| -> Result<Option<(Vec<u8>, VersionVector)>> {
+            let vv = doc.oplog_vv();
+            if vv
+                .iter()
+                .all(|(peer, end)| remote.get(peer).copied().unwrap_or(0) >= *end)
+            {
+                return Ok(None);
+            }
+            Ok(Some((doc.export(ExportMode::updates(&remote))?, vv)))
+        };
+        let exported = match self.open_handle(doc_id) {
+            Some(h) => h.read(export)??,
+            None => export(&self.load_copy(doc_id)?)?,
+        };
+        Ok(exported.map(|(bytes, vv)| UploadBatch {
+            doc_id: doc_id.into(),
+            bytes,
+            vv,
+        }))
+    }
+
+    /// Documents with a stored change at or after `since_ms`, newest first.
+    pub fn docs_changed_since(&self, since_ms: i64) -> Result<Vec<String>> {
+        Ok(self
+            .inner
+            .reader()
+            .prepare_cached("SELECT doc_id FROM loro_head WHERE ts >= ?1 ORDER BY ts DESC, doc_id")?
+            .query_map([since_ms], |r| r.get(0))?
+            .collect::<rusqlite::Result<Vec<String>>>()?)
+    }
+
+    /// Who changed which documents since `since_ms`: each changed document's
+    /// Loro changes from then on (peer, time, commit message). For the
+    /// Project Home check-in. Reads the documents' own history, so it covers
+    /// compacted updates and remote changes alike.
+    pub fn activity_since(&self, since_ms: i64) -> Result<Vec<DocActivity>> {
+        let since_s = since_ms.div_euclid(1000);
+        let mut out = Vec::new();
+        for doc_id in self.docs_changed_since(since_ms)? {
+            let changes = match self.open_handle(&doc_id) {
+                Some(h) => h.read(move |doc| history::changes_since(doc, since_s))?,
+                None => history::changes_since(&self.load_copy(&doc_id)?, since_s),
+            };
+            if !changes.is_empty() {
+                out.push(DocActivity { doc_id, changes });
+            }
+        }
+        Ok(out)
+    }
+
+    /// Agent settlement records, oldest first, optionally of one session or
+    /// one document.
+    pub fn settlements(
+        &self,
+        session: Option<&str>,
+        doc_id: Option<&str>,
+    ) -> Result<Vec<Settlement>> {
+        type Row = (
+            i64,
+            String,
+            String,
+            String,
+            String,
+            i64,
+            Vec<u8>,
+            Vec<u8>,
+            String,
+            i64,
+        );
+        let rows: Vec<Row> = self
+            .inner
+            .reader()
+            .prepare_cached(
+                "SELECT id, session, turn, call, doc_id, seq, before_frontiers, after_frontiers, summary, ts
+                 FROM agent_settlement WHERE (?1 IS NULL OR session = ?1) AND (?2 IS NULL OR doc_id = ?2)
+                 ORDER BY id",
+            )?
+            .query_map(params![session, doc_id], |r| {
+                Ok((
+                    r.get(0)?,
+                    r.get(1)?,
+                    r.get(2)?,
+                    r.get(3)?,
+                    r.get(4)?,
+                    r.get(5)?,
+                    r.get(6)?,
+                    r.get(7)?,
+                    r.get(8)?,
+                    r.get(9)?,
+                ))
+            })?
+            .collect::<rusqlite::Result<_>>()?;
+        rows.into_iter()
+            .map(
+                |(id, session, turn, call, doc_id, seq, before, after, summary, ts)| {
+                    Ok(Settlement {
+                        id,
+                        session,
+                        turn,
+                        call,
+                        doc_id,
+                        seq,
+                        before: Frontiers::decode(&before)?,
+                        after: Frontiers::decode(&after)?,
+                        summary,
+                        ts,
+                    })
+                },
+            )
+            .collect()
+    }
+
+    /// Delete a document and everything stored for it (updates, snapshot,
+    /// head, peer, sync state, history labels, derived rows) in one
+    /// transaction. Agent settlements stay: they are the durable record of
+    /// what an Agent did. Refused while the document is open.
+    pub fn purge_doc(&self, doc_id: &str) -> Result<()> {
+        {
+            let docs = self.inner.docs.lock().unwrap_or_else(|e| e.into_inner());
+            if docs.contains_key(doc_id) {
+                return Err(StoreError::AlreadyOpen(doc_id.into()));
+            }
+            let conn = self.inner.writer();
+            let tx = conn.unchecked_transaction()?;
+            for table in [
+                "loro_update",
+                "loro_snapshot",
+                "loro_head",
+                "loro_peer",
+                "sync_doc",
+                "history_label",
+                "loro_doc",
+            ] {
+                tx.execute(&format!("DELETE FROM {table} WHERE doc_id = ?1"), [doc_id])?;
+            }
+            crate::index::delete_index(&tx, doc_id)?;
+            tx.commit()?;
+        }
+        self.notify_local(LocalChange::new("doc", doc_id, LocalChangeKind::Delete));
+        Ok(())
+    }
+
+    /// Derive and store the index of a document that is not open, from a
+    /// copy loaded from SQLite. Returns false when nothing was written (no
+    /// deriver, nothing derived for this kind, or the index is current).
+    pub fn reindex_doc(&self, doc_id: &str) -> Result<bool> {
+        let Some(deriver) = self.inner.options.deriver.clone() else {
+            return Ok(false);
+        };
+        if let Some(h) = self.open_handle(doc_id) {
+            return h.reindex_now();
+        }
+        let Some(info) = self.doc_info(doc_id)? else {
+            return Err(StoreError::NotFound(doc_id.into()));
+        };
+        let doc = self.inner.new_doc();
+        let Some(stats) = load_into(&self.inner.reader(), doc_id, &doc)? else {
+            return Ok(false);
+        };
+        let input = DeriveInput {
+            doc_id,
+            kind: &info.kind,
+            book_id: info.book_id.as_deref(),
+            doc: &doc,
+            changes: None,
+        };
+        let Some(DerivedUpdate::Full(derived)) = deriver.derive(&input) else {
+            return Ok(false);
+        };
+        let frontiers = doc.oplog_frontiers();
+        self.index_doc(&DocIndex {
+            doc_id,
+            book_id: info.book_id.as_deref(),
+            seq: stats.last_seq,
+            frontiers: &frontiers,
+            derived: &derived,
+        })
+    }
+
+    /// Rebuild every stale index now (see [`Self::stale_index_docs`]).
+    /// Returns how many were written.
+    pub fn rebuild_stale_indexes(&self) -> Result<usize> {
+        let mut n = 0;
+        for doc_id in self.stale_index_docs()? {
+            if self.inner.stopping.load(Ordering::Relaxed) {
+                break;
+            }
+            if self.reindex_doc(&doc_id)? {
+                n += 1;
+            }
+        }
+        Ok(n)
+    }
+
+    fn spawn_index_rebuild(&self) {
+        let lib = self.clone();
+        let spawned = std::thread::Builder::new()
+            .name("dr-store:index-rebuild".into())
+            .spawn(move || {
+                if let Err(e) = lib.rebuild_stale_indexes() {
+                    log::warn!("rebuilding stale indexes failed: {e}");
+                }
+            });
+        match spawned {
+            Ok(thread) => self
+                .inner
+                .closing
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .push(thread),
+            Err(e) => log::warn!("could not start the index rebuild: {e}"),
+        }
+    }
 }

@@ -283,3 +283,129 @@ fn restoring_a_backup_starts_a_new_epoch() {
     assert!(!restored.contains("后来写的"), "the backup's state");
     assert!(restored.contains("春风十里"));
 }
+
+fn receipts(dir: &Path) -> Vec<dr_store::migrate::RecoveryReceipt> {
+    Library::recovery_receipts(dir).unwrap()
+}
+
+/// Leave a receipt behind as a crash at the copy stage would.
+fn crashed_attempt(dir: &Path) -> dr_store::migrate::RecoveryReceipt {
+    let mut o = options();
+    o.migration_fault = Some(MigrationFault {
+        stage: MigrationStage::Copy,
+        mode: FaultMode::Crash,
+    });
+    assert!(Library::open_with_migrations(dir, o, &later()).is_err());
+    let mut r = receipts(dir);
+    assert_eq!(r.len(), 1);
+    r.remove(0)
+}
+
+#[test]
+fn a_failed_migration_keeps_its_receipt_until_the_next_open() {
+    let dir = tempfile::tempdir().unwrap();
+    seeded(dir.path());
+    let Err(StoreError::Migration(f)) =
+        Library::open_with_migrations(dir.path(), options(), &broken())
+    else {
+        panic!("must fail");
+    };
+    let r = receipts(dir.path());
+    assert_eq!(r.len(), 1);
+    assert_eq!(Some(&r[0].recovery_id), f.recovery_id.as_ref());
+    assert_eq!(r[0].failed_stage.as_deref(), Some("migrate"));
+    assert_eq!((r[0].from_migrations, r[0].to_migrations), (1, 2));
+    assert_eq!(r[0].shadow_file, None, "the shadow was cleaned up");
+    let snapshot =
+        dr_store::migrate::verified_snapshot(&dir.path().join("safety-snapshots"), &r[0]).unwrap();
+    assert_eq!(snapshot, f.safety_snapshot);
+    // The next open settles the receipt (and, here, works with the old list).
+    open(dir.path());
+    assert!(receipts(dir.path()).is_empty());
+}
+
+#[test]
+fn a_malformed_receipt_stops_the_open_instead_of_guessing() {
+    let dir = tempfile::tempdir().unwrap();
+    seeded(dir.path());
+    let before = sha256_file(&dir.path().join("library.sqlite"));
+    let recovery = dir.path().join("safety-snapshots/recovery");
+    std::fs::create_dir_all(&recovery).unwrap();
+    let id = "0123456789abcdef".repeat(4);
+    std::fs::write(recovery.join(format!("{id}.json")), b"{not-json").unwrap();
+    match Library::open(dir.path(), options()) {
+        Err(StoreError::Recovery { recovery_id, code }) => {
+            assert_eq!(
+                (recovery_id.as_str(), code),
+                (id.as_str(), "recovery-receipt-invalid")
+            );
+        }
+        other => panic!("expected a recovery stop, got {:?}", other.err()),
+    }
+    assert_eq!(sha256_file(&dir.path().join("library.sqlite")), before);
+}
+
+#[test]
+fn a_changed_safety_snapshot_stops_the_open() {
+    let dir = tempfile::tempdir().unwrap();
+    seeded(dir.path());
+    let r = crashed_attempt(dir.path());
+    let snapshot = dir.path().join("safety-snapshots").join(&r.snapshot_file);
+    std::fs::write(&snapshot, b"tampered").unwrap();
+    assert!(matches!(
+        Library::open(dir.path(), options()),
+        Err(StoreError::Recovery {
+            code: "safety-snapshot-invalid",
+            ..
+        })
+    ));
+}
+
+#[test]
+fn an_incomplete_replacement_stops_the_open_and_migrates_nothing() {
+    let dir = tempfile::tempdir().unwrap();
+    let content = seeded(dir.path());
+    let mut r = crashed_attempt(dir.path());
+    // Pretend the crash happened after the rename: the receipt says
+    // "replacing", the shadow is gone, but the library is the old one.
+    r.state = dr_store::migrate::ReceiptState::Replacing;
+    r.shadow_file = Some(".library.sqlite.gone.part".into());
+    dr_store::migrate::write_receipt(&dir.path().join("safety-snapshots"), &r).unwrap();
+    assert!(matches!(
+        Library::open_with_migrations(dir.path(), options(), &later()),
+        Err(StoreError::Recovery {
+            code: "activated-database-invalid",
+            ..
+        })
+    ));
+    let conn = rusqlite::Connection::open(dir.path().join("library.sqlite")).unwrap();
+    let applied: i64 = conn
+        .query_row("SELECT count(*) FROM schema_migration", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(
+        applied, 1,
+        "nothing migrated while the receipt is unsettled"
+    );
+    drop(conn);
+    // The way out: restore the receipt's snapshot.
+    let lib = Library::restore_from_receipt(dir.path(), &r.recovery_id, options()).unwrap();
+    assert_eq!(text(&lib.load_copy("node:a").unwrap()), content);
+    assert!(receipts(dir.path()).is_empty());
+}
+
+#[test]
+fn a_completed_replacement_clears_its_receipt_after_validating() {
+    let dir = tempfile::tempdir().unwrap();
+    seeded(dir.path());
+    let mut o = options();
+    o.migration_fault = Some(MigrationFault {
+        stage: MigrationStage::Reopen,
+        mode: FaultMode::Crash,
+    });
+    assert!(Library::open_with_migrations(dir.path(), o, &later()).is_err());
+    let r = receipts(dir.path());
+    assert_eq!(r[0].state, dr_store::migrate::ReceiptState::Replacing);
+    let lib = Library::open_with_migrations(dir.path(), options(), &later()).unwrap();
+    assert_eq!(lib.open_report().migrations_applied, 0);
+    assert!(receipts(dir.path()).is_empty());
+}

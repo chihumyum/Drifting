@@ -69,5 +69,5 @@ pub fn insert(h: &DocHandle, origin: Origin, at: usize, s: &str) {
 }
 
 pub fn sha256_file(path: &Path) -> String {
-    dr_store::file_io::file_sha256(path).unwrap().0
+    dr_store::digest::file_sha256(path).unwrap().0
 }

@@ -47,9 +47,16 @@ rusqlite = { version = "0.41", features = ["bundled"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sha2 = "0.10"
-# dr-store: typed errors and temporary directories in tests.
+# dr-store: typed errors, temporary directories in tests, OS randomness for
+# peer and installation ids, and text ZIPs (zip pinned exactly as in the 0.1
+# client, which audited this version).
+getrandom = "0.4"
 tempfile = "3.27"
 thiserror = "2.0"
+zip = { version = "=9.4.1", default-features = false, features = ["deflate-flate2"] }
+# zip's deflate-flate2 needs a flate2 backend; the 0.1 client ends up on the
+# pure-Rust one (miniz_oxide), so dr-store selects it explicitly.
+flate2 = { version = "1.1", default-features = false, features = ["rust_backend"] }
 
 # Spike P0-D (visual): bitmaps for covers, heat maps and baked glass, and
 # the PNG masks of the existing sand and glass assets. `image` must stay on

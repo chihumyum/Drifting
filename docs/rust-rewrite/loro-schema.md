@@ -64,8 +64,8 @@
 ### 时间戳、来源和提交信息
 
 - 每次载入后调用 `set_record_timestamp(true)`，提交时间按秒记。快照历史（`history_label`）靠它。
-- 提交来源（origin）只在本机生效，不进 Loro 历史：来源记在 SQLite `loro_update.origin`，取值 `user`、`agent:<会话>/<轮>`、`mirror`、`sync`、`import`、`genesis`。
-- **Agent 的提交带提交信息** `agent:<会话>/<轮>`。提交信息会存进 Loro 历史，并随快照和同步走（探针已测快照往返后仍在），用来在历史里认出 Agent 的改动。
+- 提交来源（origin）只在本机生效，不进 Loro 历史：本机备注在 SQLite `loro_update.origin`，取值 `user`、`agent:<会话>/<轮>`、`mirror`、`sync`、`import`、`genesis`。压缩会删这些行，所以它不是来源的正式记录。
+- **Agent、Markdown 文件夹、导入的提交带提交信息** `agent:<会话>/<轮>`、`mirror`、`import`（F2 由文档持有者自动写上）；作者自己的提交不带。提交信息会存进 Loro 历史，并随快照和同步走（探针已测快照往返后仍在）。「谁改了什么」一律从 Loro 变更自带的对等方、时间和提交信息读。
 
 ## 正文文档
 
@@ -240,22 +240,25 @@ id 是 `rt-generic:<书 id>`，在创世变更里建：`name`、`orientation = s
 
 ## SQLite 存储（F2 的 Loro 部分）
 
-DDL 以 `next/crates/dr-store/migrations/0000_baseline.sql` 为准（F2 实现，说明见 [foundations/f2-store.md](foundations/f2-store.md)）。Loro 相关的五张表：
+DDL 以 `next/crates/dr-store/migrations/0000_baseline.sql` 为准（F2 实现，说明见 [foundations/f2-store.md](foundations/f2-store.md)）。和 Loro 直接相关的表：
 
 ```sql
-library_meta (key, value)                                  -- 含 epoch、app_version、created_ms
-loro_doc (doc_id, kind, book_id, created_ms)               -- book_id：所属的书，F2 新增
+library_meta (key, value)                                  -- library_id、epoch、installation_id、write_seq、app_version、created_ms
+loro_doc (doc_id, kind, book_id, created_ms)               -- book_id：所属的书
 loro_update (doc_id, seq, bytes, origin, ts)               -- PRIMARY KEY (doc_id, seq)
 loro_snapshot (doc_id, upto_seq, vv, frontiers, bytes, ts)
+loro_head (doc_id, seq, vv, frontiers, ts)                 -- 每篇最新落盘的状态，和每次追加同一个事务
 loro_peer (doc_id, peer_id, epoch)
+sync_doc (doc_id, remote_vv, updated_ms)                   -- 服务器已有到哪
 ```
 
-- 时间一律 Unix 毫秒；表都是 `STRICT`，引用 `loro_doc` 的表 `ON DELETE CASCADE`。
-- WAL 模式，`synchronous=NORMAL`（进程崩溃不丢已提交的事务；断电可能丢最后几次）。
-- **写**：每次本机提交，导出自上次追加以来的更新，作为一行追加进 `loro_update`，一次提交一个事务、一行一个来源；导入的远端更新也作为一行追加，`origin = sync`。新文档的第一次追加包含创世变更（`origin = genesis`）。
-- **压缩**：在**同一个事务**里写新快照（`upto_seq` = 当时最大的 `seq`）并删除 `seq <= upto_seq` 的更新。崩溃时要么是旧快照加全部更新，要么是新快照加更新的更新。
-- **载入**：先配置样式和时间戳，再导入快照加 `seq > upto_seq` 的更新（一次 `import_batch`，重叠的部分 Loro 会去重），最后设本机对等方。
-- 不做浅快照裁剪（理由见 F2）。
+- 时间一律 Unix 毫秒；表都是 `STRICT`；没有触发器、没有级联。
+- WAL 模式，`synchronous=NORMAL`（进程崩溃不丢已提交的事务；断电可能丢最后几次，所以任何东西离开本机前先 `sync_to_disk`）。
+- **写**：每次本机提交，导出自上次追加以来的更新，作为一行追加进 `loro_update`，同一个事务更新 `loro_head` 和 `library_meta.write_seq`；一次提交一个事务、一行一个来源。导入的远端更新也作为一行追加，`origin = sync`，并把数据包包含的版本并进 `sync_doc.remote_vv`。新文档的第一次追加包含创世变更（`origin = genesis`）。
+- **压缩**：在**同一个事务**里写新快照（`upto_seq` = 当时最大的 `seq`）并删除 `seq <= upto_seq` 的更新。崩溃时要么是旧快照加全部更新，要么是新快照加更新的更新。上传从文档导出 `remote_vv` 之后的改动，和压缩无关。
+- **载入**：先配置样式和时间戳，再在一个读事务里取快照加 `seq > upto_seq` 的更新，一次 `import_batch`（重叠的部分 Loro 会去重），最后设本机对等方。
+- **换代**：库被拷到别的设备（`installation_id` 不同）、或被旧副本盖回（`write_seq` 低于设备在库外记的水位）时，打开时自动换代。
+- 不做浅快照裁剪（理由见 F2）。来源、活动、历史标签、Agent 结算都依赖完整历史。
 
 ## Agent 写入
 

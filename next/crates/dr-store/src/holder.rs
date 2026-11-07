@@ -14,7 +14,15 @@
 //!    [`DocEvent`]. A crash can lose only operations nobody was told about.
 //!
 //! When idle with enough updates pending, the holder writes a snapshot and
-//! deletes the updates it covers in one transaction.
+//! deletes the updates it covers in one transaction; when idle after changes
+//! and a deriver is configured, it brings the document's derived index up to
+//! date from the Loro diffs it collected.
+//!
+//! Every append is a single SQLite transaction holding the update row, the
+//! document's new head and the library's write counter, plus whatever must
+//! not be separated from it: due history labels, an Agent write's settlement
+//! record, and for a sync import what the server is now known to have. So
+//! nothing ever needs flushing at exit (GPUI gives quit handlers 200 ms).
 
 use std::panic::AssertUnwindSafe;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
@@ -28,13 +36,49 @@ use loro::{
     ImportStatus, Index, IntoContainerId, LoroCounter, LoroDoc, LoroList, LoroMap, LoroMovableList,
     LoroText, LoroTree, LoroValue, PeerID, Subscription, VersionVector,
 };
-use rusqlite::params;
+use rusqlite::{OptionalExtension, params};
 
 use crate::error::{Result, StoreError};
+use crate::events::{LocalChange, LocalChangeKind, StoreEvent};
 use crate::history::{self, labels};
-use crate::library::{CompactStats, Inner, LoadStats, export_snapshot, store_snapshot};
+use crate::index::{DeriveInput, DerivedUpdate, DocIndex, write_index};
+use crate::library::{
+    CompactStats, Inner, LoadStats, export_snapshot, merge_remote_vv, record_append, store_snapshot,
+};
 use crate::now_ms;
 use crate::origin::Origin;
+
+/// An Agent write and what its settlement record says about it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AgentWrite {
+    pub session: String,
+    pub turn: String,
+    /// The tool call that made the write.
+    pub call: String,
+    /// What the write did, for the author.
+    pub summary: String,
+}
+
+impl AgentWrite {
+    pub fn origin(&self) -> Origin {
+        Origin::agent(&self.session, &self.turn)
+    }
+}
+
+/// What goes into an append's transaction besides the update.
+#[derive(Clone, Debug, Default)]
+struct Extras {
+    /// A history label on the version before this write.
+    pre_label: Option<(Vec<u8>, String)>,
+    /// An Agent write's settlement, with the version before it.
+    settlement: Option<(AgentWrite, Vec<u8>)>,
+    /// For a sync import: what the server is now known to have.
+    remote: Option<VersionVector>,
+}
+
+/// Loro diffs collected since the last derivation is capped; past it the
+/// deriver starts from scratch.
+const MAX_PENDING_CHANGES: usize = 20_000;
 
 /// One container's change in an event, owned.
 #[derive(Clone, Debug)]
@@ -117,9 +161,9 @@ type EventBuffer = Arc<Mutex<Vec<(EventTriggerKind, Vec<ContainerChange>)>>>;
 /// to join.
 pub(crate) type Closing = Arc<Mutex<Vec<JoinHandle<()>>>>;
 
-/// Operations whose append failed: their origin and the history label that
-/// was to be written with them.
-type Unpersisted = (Origin, Option<(Vec<u8>, String)>);
+/// Operations whose append failed: their origin and what was to be written
+/// with them.
+type Unpersisted = (Origin, Extras);
 
 #[derive(Default)]
 struct Listeners {
@@ -182,8 +226,10 @@ where
 enum Msg {
     Write {
         origin: Origin,
+        agent: Option<AgentWrite>,
         job: Box<dyn WriteJob>,
     },
+    Reindex(Sender<Result<bool>>),
     Import {
         origin: Origin,
         bytes: Vec<u8>,
@@ -379,9 +425,52 @@ impl DocHandle {
         F: FnOnce(&LoroDoc) -> R + Send + 'static,
         R: Send + 'static,
     {
+        self.submit_inner(origin, None, f)
+    }
+
+    /// Queue an Agent write: origin and commit message
+    /// `agent:<session>/<turn>`, and a settlement record written in the same
+    /// transaction as the update.
+    pub fn submit_agent<R, F>(&self, agent: AgentWrite, f: F) -> Result<PendingWrite<R>>
+    where
+        F: FnOnce(&LoroDoc) -> R + Send + 'static,
+        R: Send + 'static,
+    {
+        self.submit_inner(agent.origin(), Some(agent), f)
+    }
+
+    /// [`Self::submit_agent`] and wait.
+    pub fn write_agent<R, F>(&self, agent: AgentWrite, f: F) -> Result<(R, Committed)>
+    where
+        F: FnOnce(&LoroDoc) -> R + Send + 'static,
+        R: Send + 'static,
+    {
+        self.submit_agent(agent, f)?.wait()
+    }
+
+    /// Bring the derived index up to date now (needs a deriver). Returns
+    /// whether rows were written.
+    pub fn reindex_now(&self) -> Result<bool> {
+        let (done, rx) = mpsc::channel();
+        self.send(Msg::Reindex(done))?;
+        rx.recv()
+            .unwrap_or_else(|_| Err(StoreError::Closed(self.shared.doc_id.to_string())))
+    }
+
+    fn submit_inner<R, F>(
+        &self,
+        origin: Origin,
+        agent: Option<AgentWrite>,
+        f: F,
+    ) -> Result<PendingWrite<R>>
+    where
+        F: FnOnce(&LoroDoc) -> R + Send + 'static,
+        R: Send + 'static,
+    {
         let (done, rx) = mpsc::channel();
         self.send(Msg::Write {
             origin,
+            agent,
             job: Box::new(Job {
                 f: Some(f),
                 out: None,
@@ -529,6 +618,14 @@ struct Holder {
     /// Operations whose append failed. They are retried on their own, with
     /// their label, before anything else runs, so a row never mixes origins.
     unpersisted: Option<Unpersisted>,
+    kind: String,
+    book_id: Option<String>,
+    /// The book document whose version history labels record.
+    book_doc: Option<String>,
+    /// The derived index is behind the document.
+    index_dirty: bool,
+    /// Loro diffs since the last derivation; `None` means start from scratch.
+    changes_since_index: Option<Vec<ContainerChange>>,
     buffer: EventBuffer,
     _loro_subscription: Subscription,
     listeners: Arc<Mutex<Listeners>>,
@@ -543,6 +640,25 @@ pub(crate) fn spawn(
 ) -> Result<DocHandle> {
     let doc_id: Arc<str> = Arc::from(doc_id);
     let latest_label = history::latest(&lib.reader(), &doc_id)?;
+    let (kind, book_id): (String, Option<String>) = lib
+        .reader()
+        .query_row(
+            "SELECT kind, book_id FROM loro_doc WHERE doc_id = ?1",
+            [&*doc_id],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .optional()?
+        .unwrap_or_else(|| (String::new(), None));
+    let indexed_seq: Option<i64> = lib
+        .reader()
+        .query_row(
+            "SELECT indexed_seq FROM index_state WHERE doc_id = ?1",
+            [&*doc_id],
+            |r| r.get(0),
+        )
+        .optional()?;
+    let index_dirty = indexed_seq.is_none_or(|s| s < stats.last_seq);
+    let book_doc = book_id.as_ref().map(|b| format!("book:{b}"));
     let (pending_updates, pending_bytes): (i64, i64) = lib.reader().query_row(
         "SELECT count(*), coalesce(sum(length(bytes)), 0) FROM loro_update WHERE doc_id = ?1",
         [&*doc_id],
@@ -584,6 +700,11 @@ pub(crate) fn spawn(
         latest_label,
         import_since_idle: false,
         unpersisted: None,
+        kind,
+        book_id,
+        book_doc,
+        index_dirty,
+        changes_since_index: None,
         buffer,
         _loro_subscription: loro_subscription,
         listeners: listeners.clone(),
@@ -637,9 +758,16 @@ impl Holder {
                 }
             };
             match msg {
-                Msg::Write { origin, mut job } => {
-                    let result = self.write(&origin, &mut *job);
+                Msg::Write {
+                    origin,
+                    agent,
+                    mut job,
+                } => {
+                    let result = self.write(&origin, agent, &mut *job);
                     job.finish(result);
+                }
+                Msg::Reindex(done) => {
+                    let _ = done.send(self.reindex());
                 }
                 Msg::Import {
                     origin,
@@ -681,7 +809,9 @@ impl Holder {
     }
 
     fn maintenance_due(&self) -> bool {
-        self.compaction_due() || self.import_since_idle
+        self.compaction_due()
+            || self.import_since_idle
+            || (self.index_dirty && self.lib.options.deriver.is_some())
     }
 
     fn idle_maintenance(&mut self) {
@@ -690,11 +820,62 @@ impl Holder {
         {
             log::warn!("compacting {} failed: {e}", self.doc_id);
         }
+        if self.index_dirty
+            && self.lib.options.deriver.is_some()
+            && let Err(e) = self.reindex()
+        {
+            log::warn!("deriving the index of {} failed: {e}", self.doc_id);
+            // Try again from scratch next time rather than spinning.
+            self.index_dirty = false;
+            self.changes_since_index = None;
+        }
         if self.import_since_idle {
             // Imports expand history into memory (P0-C); give back what Loro can.
             self.doc.free_history_cache();
             self.import_since_idle = false;
         }
+    }
+
+    /// Run the deriver on the collected diffs and store the result with the
+    /// seq it reflects. Returns whether rows were written.
+    fn reindex(&mut self) -> Result<bool> {
+        self.settle()?;
+        let Some(deriver) = self.lib.options.deriver.clone() else {
+            return Ok(false);
+        };
+        let changes = self.changes_since_index.take();
+        let input = DeriveInput {
+            doc_id: &self.doc_id,
+            kind: &self.kind,
+            book_id: self.book_id.as_deref(),
+            doc: &self.doc,
+            changes: changes.as_deref(),
+        };
+        let derived = deriver.derive(&input);
+        self.index_dirty = false;
+        self.changes_since_index = Some(Vec::new());
+        let Some(DerivedUpdate::Full(derived)) = derived else {
+            return Ok(false);
+        };
+        let frontiers = self.doc.oplog_frontiers();
+        let written = write_index(
+            &self.lib.writer(),
+            &DocIndex {
+                doc_id: &self.doc_id,
+                book_id: self.book_id.as_deref(),
+                seq: self.next_seq - 1,
+                frontiers: &frontiers,
+                derived: &derived,
+            },
+        )?;
+        if written {
+            self.lib.publish(&StoreEvent::Local(LocalChange::new(
+                "index",
+                &*self.doc_id,
+                LocalChangeKind::Update,
+            )));
+        }
+        Ok(written)
     }
 
     /// Before anything else: store what an earlier failed append left, then
@@ -716,22 +897,31 @@ impl Holder {
             self.doc_id,
             self.doc.get_pending_txn_len()
         );
-        self.doc
-            .commit_with(CommitOptions::new().origin(&Origin::Outside.to_string()));
+        self.doc.commit_with(
+            CommitOptions::new()
+                .origin(&Origin::Outside.to_string())
+                .commit_msg(&Origin::Outside.to_string()),
+        );
         self.counters.outside.fetch_add(1, Ordering::Relaxed);
-        self.persist(&Origin::Outside, None).map(|_| ())
+        self.persist(&Origin::Outside, Extras::default())
+            .map(|_| ())
     }
 
     /// Append operations whose earlier append failed, under their own origin
     /// and with the label that was due with them.
     fn retry_unpersisted(&mut self) -> Result<()> {
-        if let Some((origin, label)) = self.unpersisted.clone() {
-            self.persist(&origin, label)?;
+        if let Some((origin, extras)) = self.unpersisted.clone() {
+            self.persist(&origin, extras)?;
         }
         Ok(())
     }
 
-    fn write(&mut self, origin: &Origin, job: &mut dyn WriteJob) -> Result<Committed> {
+    fn write(
+        &mut self,
+        origin: &Origin,
+        agent: Option<AgentWrite>,
+        job: &mut dyn WriteJob,
+    ) -> Result<Committed> {
         // Refuse new edits while earlier ones cannot be stored.
         self.settle()?;
         let before = self.doc.oplog_frontiers();
@@ -742,10 +932,15 @@ impl Holder {
         }
         self.doc.commit_with(options);
         // The version just before an Agent write, so it can be undone.
-        let pre_label = origin
-            .is_agent()
-            .then(|| (before.encode(), origin.to_string()));
-        let committed = self.persist(origin, pre_label)?;
+        let before = before.encode();
+        let extras = Extras {
+            pre_label: origin
+                .is_agent()
+                .then(|| (before.clone(), origin.to_string())),
+            settlement: agent.map(|a| (a, before)),
+            remote: None,
+        };
+        let committed = self.persist(origin, extras)?;
         if !ok {
             log::error!("{}: a {origin} write panicked", self.doc_id);
         }
@@ -756,7 +951,25 @@ impl Holder {
         self.settle()?;
         let status = self.doc.import_with(bytes, &origin.to_string())?;
         self.import_since_idle = true;
-        let committed = self.persist(origin, None)?;
+        // Everything in a blob from the server is on the server, including
+        // operations this device already had (a shared genesis, say).
+        let remote = (*origin == Origin::Sync).then(|| {
+            let mut vv = LoroDoc::decode_import_blob_meta(bytes, false)
+                .map(|m| m.partial_end_vv)
+                .unwrap_or_default();
+            for (peer, (_, end)) in status.success.iter() {
+                let known = vv.get(peer).copied().unwrap_or(0);
+                vv.insert(*peer, known.max(*end));
+            }
+            vv
+        });
+        let committed = self.persist(
+            origin,
+            Extras {
+                remote,
+                ..Extras::default()
+            },
+        )?;
         Ok(Imported { status, committed })
     }
 
@@ -764,29 +977,21 @@ impl Holder {
     /// labels due, in the same transaction), then deliver the buffered
     /// events. On failure nothing advances: the operations stay in memory and
     /// go out with the next append, and their events wait for it.
-    fn persist(
-        &mut self,
-        origin: &Origin,
-        pre_label: Option<(Vec<u8>, String)>,
-    ) -> Result<Committed> {
-        let result = self.append(origin, pre_label.clone());
+    fn persist(&mut self, origin: &Origin, extras: Extras) -> Result<Committed> {
+        let result = self.append(origin, extras.clone());
         match &result {
             Ok(_) => self.unpersisted = None,
             Err(e) => {
                 log::error!("{}: appending a {origin} update failed: {e}", self.doc_id);
                 if self.unpersisted.is_none() {
-                    self.unpersisted = Some((origin.clone(), pre_label));
+                    self.unpersisted = Some((origin.clone(), extras));
                 }
             }
         }
         result
     }
 
-    fn append(
-        &mut self,
-        origin: &Origin,
-        pre_label: Option<(Vec<u8>, String)>,
-    ) -> Result<Committed> {
+    fn append(&mut self, origin: &Origin, extras: Extras) -> Result<Committed> {
         let vv = self.doc.oplog_vv();
         let frontiers = self.doc.oplog_frontiers();
         if vv == self.last_vv {
@@ -800,10 +1005,11 @@ impl Holder {
         let now = now_ms();
         let seq = self.next_seq;
         let after = frontiers.encode();
+        let settled = extras.settlement.is_some();
         let mut labels_to_write: Vec<(Vec<u8>, String)> = Vec::new();
         let mut latest = self.latest_label.clone();
         // One label per Agent turn: the version before its first write.
-        if let Some((f, label)) = pre_label
+        if let Some((f, label)) = extras.pre_label
             && latest.as_ref().is_none_or(|(_, _, l)| *l != label)
         {
             latest = Some((now, f.clone(), label.clone()));
@@ -814,7 +1020,7 @@ impl Holder {
             && latest.as_ref().is_none_or(|(_, lf, _)| *lf != after)
         {
             latest = Some((now, after.clone(), labels::PERIODIC.to_string()));
-            labels_to_write.push((after, labels::PERIODIC.to_string()));
+            labels_to_write.push((after.clone(), labels::PERIODIC.to_string()));
         }
         if let Some(faults) = &self.lib.options.append_faults
             && faults
@@ -828,12 +1034,30 @@ impl Holder {
         {
             let conn = self.lib.writer();
             let tx = conn.unchecked_transaction()?;
-            tx.prepare_cached(
-                "INSERT INTO loro_update (doc_id, seq, bytes, origin, ts) VALUES (?1, ?2, ?3, ?4, ?5)",
-            )?
-            .execute(params![&*self.doc_id, seq, bytes, origin.to_string(), now])?;
+            record_append(&tx, &self.doc_id, seq, &bytes, origin, now, &vv, &frontiers)?;
             for (f, label) in &labels_to_write {
-                history::insert(&tx, &self.doc_id, f, label, now)?;
+                history::insert(&tx, &self.doc_id, self.book_doc.as_deref(), f, label, now)?;
+            }
+            if let Some((agent, before)) = &extras.settlement {
+                tx.prepare_cached(
+                    "INSERT INTO agent_settlement
+                       (session, turn, call, doc_id, seq, before_frontiers, after_frontiers, summary, ts)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                )?
+                .execute(params![
+                    agent.session,
+                    agent.turn,
+                    agent.call,
+                    &*self.doc_id,
+                    seq,
+                    before,
+                    after,
+                    agent.summary,
+                    now
+                ])?;
+            }
+            if let Some(remote) = &extras.remote {
+                merge_remote_vv(&tx, &self.doc_id, remote)?;
             }
             if !labels_to_write.is_empty() {
                 history::thin(&tx, &self.doc_id, now)?;
@@ -850,7 +1074,15 @@ impl Holder {
         self.counters
             .pending_bytes
             .fetch_add(bytes.len(), Ordering::Relaxed);
+        self.index_dirty = true;
         self.deliver(seq, origin, &frontiers);
+        if settled {
+            self.lib.publish(&StoreEvent::Local(LocalChange::new(
+                "agent_settlement",
+                &*self.doc_id,
+                LocalChangeKind::Insert,
+            )));
+        }
         Ok(Committed {
             seq: Some(seq),
             bytes: bytes.len(),
@@ -858,7 +1090,7 @@ impl Holder {
         })
     }
 
-    fn deliver(&self, seq: i64, origin: &Origin, frontiers: &Frontiers) {
+    fn deliver(&mut self, seq: i64, origin: &Origin, frontiers: &Frontiers) {
         let buffered = std::mem::take(&mut *self.buffer.lock().unwrap_or_else(|e| e.into_inner()));
         if buffered.is_empty() {
             return;
@@ -867,14 +1099,14 @@ impl Holder {
             .last()
             .map(|(t, _)| *t)
             .unwrap_or(EventTriggerKind::Local);
-        let event = DocEvent {
+        let event = Arc::new(DocEvent {
             doc_id: self.doc_id.clone(),
             seq,
             origin: origin.clone(),
             triggered_by,
             frontiers: frontiers.clone(),
             changes: buffered.into_iter().flat_map(|(_, c)| c).collect(),
-        };
+        });
         let listeners: Vec<Listener> = self
             .listeners
             .lock()
@@ -888,6 +1120,18 @@ impl Holder {
                 log::error!("{}: an event listener panicked", self.doc_id);
             }
         }
+        // The deriver gets the diffs since its last run (or starts over once
+        // too many piled up).
+        if self.lib.options.deriver.is_some()
+            && let Some(pending) = &mut self.changes_since_index
+        {
+            if pending.len() + event.changes.len() > MAX_PENDING_CHANGES {
+                self.changes_since_index = None;
+            } else {
+                pending.extend(event.changes.iter().cloned());
+            }
+        }
+        self.lib.publish(&StoreEvent::Doc(event));
     }
 
     fn compact(&mut self) -> Result<Option<CompactStats>> {
@@ -925,7 +1169,14 @@ impl Holder {
         {
             let conn = self.lib.writer();
             let tx = conn.unchecked_transaction()?;
-            history::insert(&tx, &self.doc_id, &frontiers, label, now)?;
+            history::insert(
+                &tx,
+                &self.doc_id,
+                self.book_doc.as_deref(),
+                &frontiers,
+                label,
+                now,
+            )?;
             history::thin(&tx, &self.doc_id, now)?;
             tx.commit()?;
         }

@@ -53,10 +53,15 @@ impl Origin {
         matches!(self, Self::Agent(_))
     }
 
-    /// The commit message Loro stores with this origin's changes: Agent
-    /// commits are recognisable in history after sync and snapshots.
+    /// The commit message Loro stores with this origin's changes, so the
+    /// origin survives compaction, snapshots and sync: Agent, Markdown
+    /// mirror, import and stray outside writes are named; the author's own
+    /// commits (and remote ones, which carry their own) are not.
     pub fn commit_message(&self) -> Option<String> {
-        self.is_agent().then(|| self.to_string())
+        match self {
+            Self::Agent(_) | Self::Mirror | Self::Import | Self::Outside => Some(self.to_string()),
+            Self::User | Self::Sync | Self::Genesis => None,
+        }
     }
 }
 
@@ -96,6 +101,9 @@ mod tests {
         assert_eq!(Origin::parse("agent:"), None);
         assert_eq!(Origin::parse("nobody"), None);
         assert_eq!(Origin::User.commit_message(), None);
+        assert_eq!(Origin::Sync.commit_message(), None);
+        assert_eq!(Origin::Mirror.commit_message().as_deref(), Some("mirror"));
+        assert_eq!(Origin::Import.commit_message().as_deref(), Some("import"));
         assert_eq!(
             Origin::agent("s", 1).commit_message().as_deref(),
             Some("agent:s/1")

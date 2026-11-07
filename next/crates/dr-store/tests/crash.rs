@@ -22,6 +22,7 @@ fn killed_writers_and_migrations_recover() {
     assert_eq!(stages.len(), 6);
     for (stage, s) in stages {
         assert_eq!(s["textIntact"], true, "{stage}");
+        assert_eq!(s["receiptsAfterNextOpens"], 0, "{stage}");
         let replaced = stage == "reopen";
         assert_eq!(s["libraryBytesUnchanged"], !replaced, "{stage}");
     }

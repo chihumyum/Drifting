@@ -12,7 +12,8 @@
 //!   while paused at that stage. Before the replacement the library must be
 //!   byte-for-byte unchanged and open in the old build; after it, the new
 //!   build must open it without migrating again. Either way the next new
-//!   build ends up migrated with the text intact.
+//!   build ends up migrated with the text intact, and the attempt's recovery
+//!   receipt is settled.
 //!
 //! ```text
 //! cargo run --release -p dr-store --bin f2-crash -- run [--kills 60] [--migration-kills] [--out FILE]
@@ -269,7 +270,7 @@ fn migration_kills(dir: &Path) -> Fallible<serde_json::Value> {
         let root = dir.join(format!("migrate-{stage}"));
         let text = seed_library(&root)?;
         let db = root.join("library.sqlite");
-        let before = dr_store::file_io::file_sha256(&db)?.0;
+        let before = dr_store::digest::file_sha256(&db)?.0;
         let root_s = root.to_str().ok_or("path")?.to_string();
         let (mut child, lines, reader) = spawn(&["migrate", &root_s, stage.as_str()])?;
         let marker = format!("MIGRATION_STAGE:{stage}");
@@ -277,8 +278,9 @@ fn migration_kills(dir: &Path) -> Fallible<serde_json::Value> {
         child.kill()?;
         child.wait()?;
         reader.join().map_err(|_| "reader")?;
-        let unchanged = dr_store::file_io::file_sha256(&db)?.0 == before;
+        let unchanged = dr_store::digest::file_sha256(&db)?.0 == before;
         let shadow_left = shadows(&root)?;
+        let receipts_left = Library::recovery_receipts(&root)?.len();
         // An old build opens it again when the replacement had not happened.
         let old_build = Library::open(&root, options()).map(|lib| {
             let ok = lib
@@ -291,12 +293,14 @@ fn migration_kills(dir: &Path) -> Fallible<serde_json::Value> {
         let migrated_now = new_build.open_report().migrations_applied;
         let intact = content_json(&new_build.load_copy(DOC)?) == text;
         drop(new_build);
+        let receipts_after = Library::recovery_receipts(&root)?.len();
         let replaced = stage == MigrationStage::Reopen;
-        let ok = if replaced {
-            !unchanged && old_build.is_err() && migrated_now == 0 && intact
-        } else {
-            unchanged && matches!(old_build, Ok((true, true))) && migrated_now == 1 && intact
-        };
+        let ok = receipts_after == 0
+            && if replaced {
+                !unchanged && old_build.is_err() && migrated_now == 0 && intact
+            } else {
+                unchanged && matches!(old_build, Ok((true, true))) && migrated_now == 1 && intact
+            };
         eprintln!(
             "migration killed at {stage:9}: unchanged={unchanged} shadow_left={shadow_left} migrated_on_retry={migrated_now} intact={intact}"
         );
@@ -312,6 +316,8 @@ fn migration_kills(dir: &Path) -> Fallible<serde_json::Value> {
                 "staleShadowRemovedOnOpen": old_build.as_ref().map(|(_, s)| *s).unwrap_or(true),
                 "migrationsAppliedByNextOpen": migrated_now,
                 "textIntact": intact,
+                "receiptsLeftByKill": receipts_left,
+                "receiptsAfterNextOpens": receipts_after,
             }),
         );
     }

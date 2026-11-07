@@ -79,7 +79,10 @@ fn import_variants_remove_and_collect() {
         !assets.join("book-1/asset-2").exists(),
         "a failed import leaves nothing"
     );
-    assert!(lib.import_asset(&source("../x", "a", &file, 1024)).is_err());
+    // Ids are sanitized the 0.1 way, so they always stay inside the store.
+    let escaped = lib.import_asset(&source("../x", "a", &file, 1024)).unwrap();
+    assert_eq!(escaped.path, assets.join("_.._x/a/source.png"));
+    lib.remove_asset("a").unwrap();
     let mut bad_ext = source("book-1", "asset-3", &file, 1024);
     bad_ext.ext = "p/g";
     assert!(lib.import_asset(&bad_ext).is_err());
@@ -116,19 +119,88 @@ fn import_variants_remove_and_collect() {
         "asset-1"
     );
 
-    // An import another (dead) process left behind, and a directory whose
-    // rows were deleted, are collected; this process's pending import stays.
+    // An import another (dead) process left behind is collected; a
+    // directory without a marker is never collected (0.1 semantics).
     fs::create_dir_all(assets.join("book-1/orphan")).unwrap();
-    fs::write(assets.join("book-1/orphan/.importing"), b"another-session").unwrap();
+    fs::write(
+        assets.join("book-1/orphan/.drifting-import-v1"),
+        b"another-session",
+    )
+    .unwrap();
     fs::write(assets.join("book-1/orphan/source.pdf"), b"x").unwrap();
-    fs::create_dir_all(assets.join("book-1/deleted")).unwrap();
-    fs::write(assets.join("book-1/deleted/source.png"), b"x").unwrap();
+    fs::create_dir_all(assets.join("book-1/unmarked")).unwrap();
+    fs::write(assets.join("book-1/unmarked/source.png"), b"x").unwrap();
     let g = lib.collect_asset_garbage().unwrap();
-    assert_eq!((g.removed, g.cleared_markers), (2, 0));
+    assert_eq!((g.removed_orphans, g.cleared_committed_markers), (1, 0));
+    assert!(!assets.join("book-1/orphan").exists());
+    assert!(assets.join("book-1/unmarked/source.png").exists());
     assert!(assets.join("book-1/asset-1/source.png").exists());
+
+    // Upload state.
+    assert_eq!(lib.assets_pending_upload().unwrap().len(), 3);
+    assert!(lib.mark_asset_uploaded("asset-1", Variant::Source).unwrap());
+    assert_eq!(lib.assets_pending_upload().unwrap().len(), 2);
+    assert!(
+        lib.asset("asset-1", Variant::Source)
+            .unwrap()
+            .unwrap()
+            .uploaded_ms
+            .is_some()
+    );
 
     assert!(lib.remove_asset("asset-1").unwrap());
     assert!(!assets.join("book-1/asset-1").exists());
     assert!(lib.asset("asset-1", Variant::Source).unwrap().is_none());
     assert!(!lib.remove_asset("asset-1").unwrap());
+}
+
+#[test]
+fn imports_follow_the_marker_protocol() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("scan.pdf");
+    fs::write(&file, b"%PDF synthetic").unwrap();
+    let lib = open(&dir.path().join("lib"));
+    let assets = lib.paths().assets.clone();
+
+    // Begin: directory and marker exist, no row yet.
+    let mut import = lib.begin_asset_import("book/1", "asset 1").unwrap();
+    let asset_dir = import.dir().to_path_buf();
+    assert_eq!(asset_dir, assets.join("book_1/asset_1"), "0.1 sanitizing");
+    assert!(asset_dir.join(".drifting-import-v1").exists());
+    import
+        .copy_variant(Variant::Source, &file, "application/pdf", "pdf", None, 1024)
+        .unwrap();
+    import
+        .write_variant(
+            Variant::Thumbnail,
+            &VariantBytes {
+                bytes: vec![1, 2, 3],
+                mime: "image/jpeg".into(),
+                ext: "jpg".into(),
+                width: 2,
+                height: 2,
+            },
+        )
+        .unwrap();
+    // This process's import in flight survives garbage collection.
+    lib.collect_asset_garbage().unwrap();
+    assert!(asset_dir.join("source.pdf").exists());
+    assert!(lib.asset("asset 1", Variant::Source).unwrap().is_none());
+    let records = import.commit().unwrap();
+    assert_eq!(records.len(), 2);
+    assert!(
+        !asset_dir.join(".drifting-import-v1").exists(),
+        "marker cleared after the rows"
+    );
+    assert_eq!(lib.assets_of_book("book/1").unwrap().len(), 2);
+
+    // An abandoned import leaves nothing.
+    let pending = lib.begin_asset_import("book/1", "asset-2").unwrap();
+    let pending_dir = pending.dir().to_path_buf();
+    pending.abandon().unwrap();
+    assert!(!pending_dir.exists());
+
+    // An import without a source cannot commit.
+    let pending = lib.begin_asset_import("book/1", "asset-3").unwrap();
+    assert!(pending.commit().is_err());
 }
