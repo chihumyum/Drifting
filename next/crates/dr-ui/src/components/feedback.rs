@@ -104,7 +104,12 @@ impl RenderOnce for EmptyState {
             .when_some(self.icon, |el, icon| {
                 el.child(sand::icon(icon, 24.0, p.ink(4).solid()))
             })
-            .child(div().text_center().child(self.sentence))
+            .child(
+                div()
+                    .w_full()
+                    .text_center()
+                    .child(crate::text::wrapped(self.sentence)),
+            )
             .children(self.action)
             .when(!self.hints.is_empty(), |el| {
                 el.child(div().pt(px(6.0)).flex().flex_col().gap(px(4.0)).children(

@@ -12,6 +12,18 @@
     "storyGraph": "이야기 그래프",
     "todoLibrary": "할 일 및 자료실"
   },
+  "chapterEditor": {
+    "synopsisPlaceholder": "줄거리…",
+    "untitledChapter": "제목 없는 장"
+  },
+  "chapterEnd": {
+    "defaultTitle": "새 장",
+    "insertAfter": "뒤에 새 장 추가",
+    "markDraft": "초안으로 되돌리기",
+    "markFinished": "완료로 표시",
+    "trigger": "장 끝 작업",
+    "triggerFinished": "장 끝 작업(완료)"
+  },
   "commentRail": {
     "actions": {
       "reopen": "다시 열기",
@@ -129,6 +141,12 @@
     "noResults": "일치하는 항목 없음",
     "stats": "항목 {{groups}}개 · 일치 {{occurrences}}개"
   },
+  "guide": {
+    "hints": {
+      "search": "전체 검색",
+      "timeline": "타임라인"
+    }
+  },
   "immersiveWriting": {
     "enter": "몰입 쓰기",
     "leave": "몰입 쓰기 종료"
@@ -220,6 +238,15 @@
   },
   "navigation": {
     "back": "뒤로"
+  },
+  "nodeEditor": {
+    "folio": {
+      "chapter": "장",
+      "chapterNumber": "제{{n}}장"
+    },
+    "meta": {
+      "words": "{{count}}자"
+    }
   },
   "notifications": {
     "appUpdate": {

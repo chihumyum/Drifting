@@ -12,6 +12,18 @@
     "storyGraph": "物語グラフ",
     "todoLibrary": "TODOと資料庫"
   },
+  "chapterEditor": {
+    "synopsisPlaceholder": "あらすじ…",
+    "untitledChapter": "無題の章"
+  },
+  "chapterEnd": {
+    "defaultTitle": "新しい章",
+    "insertAfter": "後に章を追加",
+    "markDraft": "下書きに戻す",
+    "markFinished": "完成にする",
+    "trigger": "章末の操作",
+    "triggerFinished": "章末の操作（完成）"
+  },
   "commentRail": {
     "actions": {
       "reopen": "開き直す",
@@ -129,6 +141,12 @@
     "noResults": "一致する項目がありません",
     "stats": "{{groups}}項目 · {{occurrences}}件一致"
   },
+  "guide": {
+    "hints": {
+      "search": "すべてを検索",
+      "timeline": "タイムライン"
+    }
+  },
   "immersiveWriting": {
     "enter": "没入執筆",
     "leave": "没入執筆を終了"
@@ -220,6 +238,15 @@
   },
   "navigation": {
     "back": "戻る"
+  },
+  "nodeEditor": {
+    "folio": {
+      "chapter": "章",
+      "chapterNumber": "第{{n}}章"
+    },
+    "meta": {
+      "words": "{{count}}文字"
+    }
   },
   "notifications": {
     "appUpdate": {

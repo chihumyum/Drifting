@@ -8,7 +8,7 @@ pub mod area;
 pub mod field;
 pub mod ime;
 
-pub use area::TextArea;
+pub use area::{AreaEvent, TextArea};
 pub use field::{FieldEvent, TextField};
 pub use gpui_ime::{Change, LineComposer};
 pub use ime::{Graphemes, set_discard_marked_text};

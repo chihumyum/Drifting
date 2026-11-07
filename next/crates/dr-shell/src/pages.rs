@@ -10,9 +10,15 @@
 //!
 //! Modal flows that belong to no page (the 0.1 library import, M10) are
 //! dialogs: [`crate::dialogs::show`].
+//!
+//! And the chapter page's chrome (M03, `dr-view-page`, [`set_page_chrome`]):
+//! the head and end dr-editor draws around each page's text. The shell
+//! hands it to every editor it opens.
 
 use std::rc::Rc;
 
+use dr_editor::page::PageChrome;
+use dr_editor::{BookEditor, ChapterEditor};
 use gpui::{AnyView, App, Bounds, Entity, Global, Pixels, WeakEntity, Window};
 
 use crate::Workspace;
@@ -27,11 +33,32 @@ pub struct ShelfPage {
 
 type MakeShelf = Rc<dyn Fn(WeakEntity<Workspace>, &mut Window, &mut App) -> ShelfPage>;
 type MakeHome = Rc<dyn Fn(WeakEntity<Workspace>, &mut Window, &mut App) -> AnyView>;
+type MakeChrome = Rc<dyn Fn(PageHost, &mut Window, &mut App) -> Rc<dyn PageChrome>>;
+
+/// The editor a page's chrome sits in.
+#[derive(Clone)]
+pub enum PageEditorRef {
+    Doc(WeakEntity<ChapterEditor>),
+    Book(WeakEntity<BookEditor>),
+}
+
+/// What a page's chrome is given when the shell opens an editor: the
+/// library and the book (dr-editor's `page::*` actions), the editor (to
+/// hand the caret to the text) and the window's workspace (to open the
+/// chapter ⁂ makes).
+#[derive(Clone)]
+pub struct PageHost {
+    pub workspace: WeakEntity<Workspace>,
+    pub library: dr_workspace::Workspace,
+    pub book: String,
+    pub editor: PageEditorRef,
+}
 
 #[derive(Clone, Default)]
 struct Pages {
     shelf: Option<MakeShelf>,
     home: Option<MakeHome>,
+    chrome: Option<MakeChrome>,
 }
 
 impl Global for Pages {}
@@ -53,6 +80,24 @@ pub fn set_home(
     make: impl Fn(WeakEntity<Workspace>, &mut Window, &mut App) -> AnyView + 'static,
 ) {
     cx.default_global::<Pages>().home = Some(Rc::new(make));
+}
+
+/// Registers the chapter page's chrome. Every editor the shell opens (one
+/// document or the whole book) gets one made for it, right after it opens.
+pub fn set_page_chrome(
+    cx: &mut App,
+    make: impl Fn(PageHost, &mut Window, &mut App) -> Rc<dyn PageChrome> + 'static,
+) {
+    cx.default_global::<Pages>().chrome = Some(Rc::new(make));
+}
+
+pub(crate) fn make_chrome(
+    host: PageHost,
+    window: &mut Window,
+    cx: &mut App,
+) -> Option<Rc<dyn PageChrome>> {
+    let make = cx.try_global::<Pages>()?.chrome.clone()?;
+    Some(make(host, window, cx))
 }
 
 pub(crate) fn has_shelf(cx: &App) -> bool {

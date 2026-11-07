@@ -12,6 +12,18 @@
     "storyGraph": "Story graph",
     "todoLibrary": "TODO & Library"
   },
+  "chapterEditor": {
+    "synopsisPlaceholder": "Synopsis…",
+    "untitledChapter": "Untitled chapter"
+  },
+  "chapterEnd": {
+    "defaultTitle": "New chapter",
+    "insertAfter": "New chapter after",
+    "markDraft": "Back to draft",
+    "markFinished": "Mark finished",
+    "trigger": "Chapter end actions",
+    "triggerFinished": "Chapter end actions (finished)"
+  },
   "commentRail": {
     "actions": {
       "reopen": "Reopen",
@@ -129,6 +141,12 @@
     "noResults": "No matches found",
     "stats": "{{groups}} items · {{occurrences}} matches"
   },
+  "guide": {
+    "hints": {
+      "search": "Search everything",
+      "timeline": "Timeline"
+    }
+  },
   "immersiveWriting": {
     "enter": "Immersive writing",
     "leave": "Leave immersive writing"
@@ -225,6 +243,15 @@
   },
   "navigation": {
     "back": "Back"
+  },
+  "nodeEditor": {
+    "folio": {
+      "chapter": "Chapter",
+      "chapterNumber": "Chapter {{n}}"
+    },
+    "meta": {
+      "words": "{{count}} words"
+    }
   },
   "notifications": {
     "appUpdate": {

@@ -427,3 +427,19 @@ leftSidebar.sort.showDate
 leftSidebar.sort.showWordCount
 leftSidebar.sort.showBoth
 leftSidebar.sort.showNone
+
+
+# The chapter page's head and end (M03, dr-view-page)
+nodeEditor.folio.chapter
+nodeEditor.folio.chapterNumber
+nodeEditor.meta.words
+chapterEditor.untitledChapter
+chapterEditor.synopsisPlaceholder
+chapterEnd.trigger
+chapterEnd.triggerFinished
+chapterEnd.insertAfter
+chapterEnd.markFinished
+chapterEnd.markDraft
+chapterEnd.defaultTitle
+guide.hints.search
+guide.hints.timeline

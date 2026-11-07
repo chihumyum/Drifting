@@ -28,6 +28,7 @@ pub mod glass;
 pub mod input;
 pub mod sand;
 pub mod style;
+pub mod text;
 pub mod theme;
 pub mod tokens;
 pub mod transitions;

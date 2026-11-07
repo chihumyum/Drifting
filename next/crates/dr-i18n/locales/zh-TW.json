@@ -12,6 +12,18 @@
     "storyGraph": "故事圖譜",
     "todoLibrary": "審閱與素材"
   },
+  "chapterEditor": {
+    "synopsisPlaceholder": "梗概…",
+    "untitledChapter": "未命名章節"
+  },
+  "chapterEnd": {
+    "defaultTitle": "新章節",
+    "insertAfter": "在後面新增章節",
+    "markDraft": "改回草稿",
+    "markFinished": "標為完成",
+    "trigger": "章末操作",
+    "triggerFinished": "章末操作（已完成）"
+  },
   "commentRail": {
     "actions": {
       "reopen": "重新開啟",
@@ -129,6 +141,12 @@
     "noResults": "找不到符合項目",
     "stats": "{{groups}} 個項目 · {{occurrences}} 處符合"
   },
+  "guide": {
+    "hints": {
+      "search": "搜尋全部內容",
+      "timeline": "時間線"
+    }
+  },
   "immersiveWriting": {
     "enter": "沉浸寫作",
     "leave": "退出沉浸寫作"
@@ -220,6 +238,15 @@
   },
   "navigation": {
     "back": "返回"
+  },
+  "nodeEditor": {
+    "folio": {
+      "chapter": "章節",
+      "chapterNumber": "第 {{n}} 章"
+    },
+    "meta": {
+      "words": "{{count}} 字"
+    }
   },
   "notifications": {
     "appUpdate": {

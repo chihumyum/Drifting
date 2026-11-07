@@ -12,6 +12,18 @@
     "storyGraph": "Geschichtsgraph",
     "todoLibrary": "Aufgaben und Materialsammlung"
   },
+  "chapterEditor": {
+    "synopsisPlaceholder": "Kurzfassung…",
+    "untitledChapter": "Unbenanntes Kapitel"
+  },
+  "chapterEnd": {
+    "defaultTitle": "Neues Kapitel",
+    "insertAfter": "Neues Kapitel danach",
+    "markDraft": "Zurück zum Entwurf",
+    "markFinished": "Als fertig markieren",
+    "trigger": "Aktionen am Kapitelende",
+    "triggerFinished": "Aktionen am Kapitelende (fertig)"
+  },
   "commentRail": {
     "actions": {
       "reopen": "Erneut öffnen",
@@ -129,6 +141,12 @@
     "noResults": "Keine Treffer",
     "stats": "{{groups}} Einträge · {{occurrences}} Treffer"
   },
+  "guide": {
+    "hints": {
+      "search": "Alles durchsuchen",
+      "timeline": "Zeitleiste"
+    }
+  },
   "immersiveWriting": {
     "enter": "Immersives Schreiben",
     "leave": "Immersives Schreiben beenden"
@@ -225,6 +243,15 @@
   },
   "navigation": {
     "back": "Zurück"
+  },
+  "nodeEditor": {
+    "folio": {
+      "chapter": "Kapitel",
+      "chapterNumber": "Kapitel {{n}}"
+    },
+    "meta": {
+      "words": "{{count}} Wörter"
+    }
   },
   "notifications": {
     "appUpdate": {

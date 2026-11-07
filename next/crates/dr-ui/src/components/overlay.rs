@@ -273,6 +273,7 @@ pub struct Dialog {
     status: Option<AnyElement>,
     width: f32,
     on_close: Option<super::Handler>,
+    on_mist: Option<super::Handler>,
 }
 
 impl Dialog {
@@ -287,6 +288,7 @@ impl Dialog {
             status: None,
             width: 420.0,
             on_close: None,
+            on_mist: None,
         }
     }
 
@@ -323,8 +325,19 @@ impl Dialog {
         self
     }
 
+    /// The ✕ in the corner, which shows only with this. A click on the
+    /// mist around the card does the same unless [`Dialog::on_mist`] says
+    /// otherwise.
     pub fn on_close(mut self, f: impl Fn(&mut Window, &mut App) + 'static) -> Self {
         self.on_close = Some(Rc::new(f));
+        self
+    }
+
+    /// A click on the mist around the card, apart from the ✕ (a dialog
+    /// holding half-written words closes there only when nothing would be
+    /// lost: 0.1's `closeOnBackdrop`). `|_, _| {}` keeps the mist inert.
+    pub fn on_mist(mut self, f: impl Fn(&mut Window, &mut App) + 'static) -> Self {
+        self.on_mist = Some(Rc::new(f));
         self
     }
 }
@@ -336,6 +349,7 @@ impl RenderOnce for Dialog {
         let s = theme.scale;
         let viewport = window.viewport_size();
         let close = self.on_close.clone();
+        let mist = self.on_mist.clone().or_else(|| close.clone());
         let card = div()
             .id(self.id.clone())
             .w(px(self.width))
@@ -385,7 +399,7 @@ impl RenderOnce for Dialog {
                                         .font_role(Role::Ui)
                                         .type_px(s.secondary, s.line_body)
                                         .text_color(p.muted().solid())
-                                        .child(t),
+                                        .child(crate::text::wrapped(t)),
                                 )
                             }),
                     )
@@ -436,7 +450,7 @@ impl RenderOnce for Dialog {
                     .flex()
                     .items_center()
                     .justify_center()
-                    .when_some(close, |el, f| {
+                    .when_some(mist, |el, f| {
                         el.on_mouse_down(gpui::MouseButton::Left, move |_, w, cx| f(w, cx))
                     })
                     .child(card),

@@ -512,7 +512,13 @@ impl RenderOnce for CardBody {
                 )
             })
             .when_some(self.summary, |el, t| {
-                el.child(div().px(px(pad)).pt(px(6.0)).pb(px(4.0)).child(t))
+                el.child(
+                    div()
+                        .px(px(pad))
+                        .pt(px(6.0))
+                        .pb(px(4.0))
+                        .child(crate::text::wrapped(t)),
+                )
             });
         for rows in self.sections {
             body = body
