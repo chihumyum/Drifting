@@ -290,6 +290,62 @@
       "storylineTitle": "按 storyline 分组 · 点此切回全书总览"
     }
   },
+  "manuscriptExport": {
+    "actTitles": "卷标题",
+    "author": "作者",
+    "bookInfo": "书籍信息",
+    "bookTitle": "书名",
+    "changeCover": "更换",
+    "chapterCount": "{{count}} 章",
+    "chapterTitles": "章节标题",
+    "chooseCover": "选择图片",
+    "contents": "内容",
+    "cover": "封面",
+    "coverFailed": "未能读取这张图片。",
+    "export": "导出 {{format}}",
+    "exporting": "正在导出…",
+    "failed": "导出未完成，请重试。",
+    "format": "格式",
+    "loadFailed": "未能读取章节，请重试。",
+    "loading": "正在读取章节…",
+    "menu": "导出成稿",
+    "removeCover": "移除",
+    "retry": "重试",
+    "saved": "已导出",
+    "scope": "范围",
+    "selectAll": "全选",
+    "selectNone": "全不选",
+    "selectedChapters": "选中章节",
+    "title": "导出成稿",
+    "untitledAct": "未命名卷",
+    "untitledChapter": "无标题章节",
+    "wholeBook": "全书"
+  },
+  "markdownShare": {
+    "characters": "{{count}} 字符",
+    "copied": "已复制全部 Markdown",
+    "copy": "复制全部",
+    "currentBody": "分享当前文档的完整正文",
+    "failed": "操作未完成，请重试，或选中文字后复制。",
+    "loadFailed": "未能完整读取正文，请重试。",
+    "loading": "正在准备完整 Markdown…",
+    "menu": "分享",
+    "proseOnly": "包含标题、正文及章节概要，不包含批注和剧情规划。",
+    "readOnly": "只读",
+    "retry": "重试",
+    "save": "保存 .md",
+    "saved": "已保存 Markdown",
+    "saving": "正在保存…",
+    "title": "分享 Markdown",
+    "wholeBook": "按书稿顺序分享全部章节"
+  },
+  "memoMaterial": {
+    "kind": {
+      "image": "图片",
+      "pdf": "PDF",
+      "text": "笔记"
+    }
+  },
   "mobileWorkspace": {
     "projectActions": {
       "deleteFailed": "删除未完成，请重试。"
@@ -450,8 +506,20 @@
     }
   },
   "referencesPanel": {
+    "empty": {
+      "incoming": "尚未被任何内容引用",
+      "outgoing": "正文中尚未引用其他实体"
+    },
     "kind": {
       "patch": "补丁"
+    },
+    "meta": {
+      "blocksSpans": "{{blocks}} 处 · {{spans}} 次",
+      "spans": "{{count}} 次"
+    },
+    "sections": {
+      "incoming": "被引用",
+      "outgoing": "引用其他"
     }
   },
   "relationTypes": {
@@ -492,17 +560,82 @@
       }
     },
     "stats": {
+      "actMeta": "{{chapters}}章 · {{wordsK}}k · {{pct}}%",
+      "actRhythm": "分幕节奏",
+      "allElementsAppeared": "所有要素都已在正文出场。",
+      "appeared": "已出场",
+      "averageAppearance": "平均出场",
       "averagePerChapter": "平均每章",
+      "avgChaptersPerElement": "{{count}} 章 / 要素",
       "bookPosition": "全书位置",
+      "category": "类目",
+      "categoryCoordinates": "类目坐标",
+      "categoryNoElements": "类目下还没有要素。",
+      "chapter": "章节",
+      "chapterCoordinates": "章节坐标",
       "chapterCount": "章节数",
+      "chapterLengthRhythm": "章节长度节奏",
       "chapterOrdinal": "第 {{count}} 章",
       "chaptersValue": "{{count}} 章",
+      "completion": "完成度",
+      "dialogueRatio": "对白比",
+      "dimensions": "尺寸",
+      "discardedParen": "（弃用 {{count}}）",
+      "driftCoordinates": "构想坐标",
+      "driftFreeFragment": "构想 · 自由片段",
+      "elementCoordinates": "要素坐标",
+      "elementCount": "要素数",
+      "elementsValue": "{{count}} 个要素",
+      "embeddedMaterials": "嵌入的素材",
+      "fileSize": "大小",
+      "fileType": "格式",
+      "floatingStoryline": "漂浮 / 未归线",
+      "health": "健康度",
+      "lastModified": "最近修改",
+      "longestWithWords": "最长 · {{title}}（{{words}}字）",
+      "materialCoordinates": "素材坐标",
+      "materialFile": "文件",
+      "materialRelations": "关联",
+      "moreLowAppearanceElements": "还有 {{count}} 个要素出场较少",
+      "moreUnappearedElements": "还有 {{count}} 个未出场",
+      "name": "名称",
+      "noActiveProgress": "章节都已弃用或暂无进度。",
+      "noChapters": "全书还没有章节。开始写第一章后，这里会显示全书节奏。",
+      "noMentionedElements": "正文尚未 @ 提及任何要素。",
+      "noteShape": "笔记概况",
+      "noteTasks": "待办",
+      "noteTasksValue": "{{done}} / {{total}} 已完成",
+      "noteWords": "字数",
+      "openComments": "未解决的批注与 TODO",
+      "paragraphSentence": "段落 / 句",
+      "paragraphSentenceValue": "{{paragraphs}} 段 · {{sentences}} 句",
       "recent": "最近",
+      "shortestWithWords": "最短 · {{title}}（{{words}}字）",
       "snapshotButton": "历史快照…",
+      "statusCount": "{{status}} {{count}} 章",
+      "storyline": "故事线",
+      "storylineCoordinates": "故事线坐标",
+      "storylineCoreElements": "本线核心要素",
+      "storylineDistribution": "故事线分布",
+      "storylineNoChapters": "这条线还没有章节。",
+      "storylineNoMentionedElements": "本线章节正文尚未 @ 提及任何要素。",
+      "thisChapterElements": "本章要素",
+      "thisFragmentElements": "本篇要素",
+      "titleWithWords": "{{title}}（{{words}}字）",
+      "type": "类型",
+      "unappearedElements": "未出场要素",
+      "updated": "更新",
+      "wordRhythm": "字数 · 节奏",
       "wordsPerChapterValue": "{{words}} 字 / 章",
       "wordsValue": "{{count}} 字",
       "writingProgress": "写作进度",
       "writtenTarget": "已写 / 目标"
+    },
+    "status": {
+      "discarded": "弃用",
+      "done": "已完成",
+      "draft": "草稿",
+      "todo": "待写"
     },
     "tabs": {
       "companion": "帮手",

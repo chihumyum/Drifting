@@ -1,22 +1,32 @@
 //! The Stats tab (components.md 「统计面板」): flat type, sand readouts.
 //!
-//! Three groups, told apart by space alone:
+//! Groups told apart by space alone, top to bottom:
 //!
 //! 1. the most specific count (the selection, the chapter or idea, the
 //!    storyline, the book), the book's when that was not it, and today's
-//!    words with a stroke toward the daily goal;
-//! 2. writing progress: the book against its target, chapters, the average;
-//! 3. recent days: this week, the streak, the last seven days.
+//!    words with a stroke toward the daily goal (M07);
+//! 2. the page's own readings (M20, [`crate::sections`]): a chapter's or
+//!    idea's coordinates, rhythm and elements; a storyline's coordinates
+//!    and core elements; an element's mentions in and out; a category's
+//!    health; a material's shape;
+//! 3. writing progress: the book against its target, chapters, the average
+//!    (a storyline's: its chapters by status first);
+//! 4. the whole book's acts, completion and chapter lengths (M20, when the
+//!    page is the whole book);
+//! 5. recent days: this week, the streak, the last seven days (M07);
+//! 6. 「历史快照…」, the page's snapshot history (M09's dialog).
 //!
 //! Counts come from the derived index (`book.word_counts`), the editor's own
 //! counts swapped in ([`crate::LiveWords`]); writing days from the book
-//! (`book.writing_days`) with this device's part from the recorder. Both are
-//! read off the main thread and again after the index or the book moves.
+//! (`book.writing_days`) with this device's part from the recorder; the
+//! page's readings from [`crate::detail`]. All are read off the main thread
+//! and again after the index or the book moves.
 
+use std::rc::Rc;
 use std::time::Duration;
 
 use dr_i18n::{I18n, Key, Locale, Platform, keys};
-use dr_ui::{Theme, fonts::Role, sand::Readout, style::DrStyled};
+use dr_ui::Theme;
 use dr_workspace::commands::BookIn;
 use dr_workspace::commands::stats::{self as ops, WordCountsOut, WritingDaysOut};
 use dr_workspace::{Actor, NavTarget, Workspace};
@@ -25,8 +35,13 @@ use gpui::{
     StatefulInteractiveElement, Styled, Task, Window, div, px,
 };
 
+use crate::Hooks;
+use crate::detail::{self, Loaded};
 use crate::live::LiveWords;
 use crate::model::{self, Scope};
+use crate::sections::Ui;
+
+use keys::right_sidebar::stats;
 
 /// How long after a change the counts are read again (a burst of index
 /// writes reads once).
@@ -39,21 +54,27 @@ pub struct StatsView {
     id: SharedString,
     lib: Option<Workspace>,
     pub(crate) book: String,
-    target: Option<NavTarget>,
+    pub(crate) target: Option<NavTarget>,
     pub(crate) counts: Option<WordCountsOut>,
     days: Option<WritingDaysOut>,
+    /// The page's readings, by the key of the page they are of.
+    pub(crate) detail: Option<(String, Loaded)>,
+    pub(crate) hooks: Option<Hooks>,
+    /// The chapter under the pointer in the chapter-length rhythm.
+    pub(crate) hover: Option<usize>,
     /// This device's words today, from the recorder.
     mine: Option<i64>,
     device: Option<String>,
-    i18n: Option<I18n>,
+    i18n: Option<Rc<I18n>>,
     load: Option<Task<()>>,
     again: bool,
     timer: Option<Task<()>>,
 }
 
-type Loaded = (
+type Read = (
     dr_workspace::Result<WordCountsOut>,
     dr_workspace::Result<WritingDaysOut>,
+    Option<(String, dr_workspace::Result<Option<Loaded>>)>,
 );
 
 impl StatsView {
@@ -66,6 +87,9 @@ impl StatsView {
             target: None,
             counts: None,
             days: None,
+            detail: None,
+            hooks: None,
+            hover: None,
             mine: None,
             device,
             i18n: None,
@@ -75,13 +99,15 @@ impl StatsView {
         }
     }
 
-    /// What the tab shows now: the book, the page, the language.
+    /// What the tab shows now: the book, the page, the language, and what
+    /// its rows do.
     pub fn show(
         &mut self,
         book: &str,
         target: Option<NavTarget>,
         locale: Locale,
         platform: Platform,
+        hooks: Option<Hooks>,
         cx: &mut Context<Self>,
     ) {
         if self
@@ -89,14 +115,23 @@ impl StatsView {
             .as_ref()
             .is_none_or(|i| i.locale() != locale || i.platform() != platform)
         {
-            self.i18n = Some(I18n::new(locale, platform));
+            self.i18n = Some(Rc::new(I18n::new(locale, platform)));
         }
+        if hooks.is_some() {
+            self.hooks = hooks;
+        }
+        let moved = self.target.as_ref().map(NavTarget::key) != target.as_ref().map(NavTarget::key);
         self.target = target;
         if self.book != book {
             self.book = book.to_owned();
             self.counts = None;
             self.days = None;
+            self.detail = None;
             self.mine = None;
+            self.hover = None;
+            self.reload(cx);
+        } else if moved {
+            self.hover = None;
             self.reload(cx);
         }
     }
@@ -144,11 +179,27 @@ impl StatsView {
         self.days.as_ref().map(|d| model::today_words(d, self.mine))
     }
 
+    /// The page's readings, once read (`None` before, or for another page).
+    pub fn detail(&self) -> Option<&Loaded> {
+        let (key, loaded) = self.detail.as_ref()?;
+        (self.target.as_ref().map(NavTarget::key).as_deref() == Some(key.as_str()))
+            .then_some(loaded)
+    }
+
+    /// What the tab's rows do (the shell's [`Hooks`]), once shown.
+    pub fn hooks(&self) -> Option<&Hooks> {
+        self.hooks.as_ref()
+    }
+
     /// Whether a document belongs to the counts shown.
     pub(crate) fn shows_doc(&self, doc: &str) -> bool {
         self.counts
             .as_ref()
             .is_some_and(|c| c.chapters.iter().chain(&c.ideas).any(|d| d.doc == doc))
+            || self
+                .detail()
+                .and_then(|d| d.doc.as_deref())
+                .is_some_and(|d| d == doc)
     }
 
     fn reload(&mut self, cx: &mut Context<Self>) {
@@ -164,9 +215,10 @@ impl StatsView {
         }
         let book = self.book.clone();
         let device = self.device.clone();
+        let target = self.target.clone();
         self.load = Some(cx.spawn(async move |this, cx| {
             let read_book = book.clone();
-            let loaded: Loaded = cx
+            let read: Read = cx
                 .background_executor()
                 .spawn(async move {
                     let counts = lib
@@ -181,21 +233,22 @@ impl StatsView {
                         .run::<ops::WritingDays>(
                             &Actor::User,
                             ops::WritingDaysIn {
-                                book: read_book,
+                                book: read_book.clone(),
                                 today: crate::clock::today().to_string(),
                                 days: Some(RECENT_DAYS),
                                 device,
                             },
                         )
                         .map(|o| o.output);
-                    (counts, days)
+                    let detail = target.map(|t| (t.key(), detail::load(&lib, &read_book, &t)));
+                    (counts, days, detail)
                 })
                 .await;
-            this.update(cx, |v, cx| v.loaded(&book, loaded, cx)).ok();
+            this.update(cx, |v, cx| v.loaded(&book, read, cx)).ok();
         }));
     }
 
-    fn loaded(&mut self, book: &str, (counts, days): Loaded, cx: &mut Context<Self>) {
+    fn loaded(&mut self, book: &str, (counts, days, detail): Read, cx: &mut Context<Self>) {
         self.load = None;
         if book == self.book {
             match counts {
@@ -205,6 +258,11 @@ impl StatsView {
             match days {
                 Ok(d) => self.days = Some(d),
                 Err(error) => log::warn!("writing days of {book}: {error}"),
+            }
+            match detail {
+                Some((key, Ok(Some(d)))) => self.detail = Some((key, d)),
+                Some((_, Ok(None))) | None => self.detail = None,
+                Some((key, Err(error))) => log::warn!("stats of {key}: {error}"),
             }
             cx.notify();
         }
@@ -233,113 +291,65 @@ impl Render for StatsView {
         let s = theme.scale;
         let i18n = self
             .i18n
-            .get_or_insert_with(|| I18n::new(Locale::default(), Platform::current()));
-        let locale = i18n.locale();
-        let n = |v: i64| model::grouped(v, locale);
+            .get_or_insert_with(|| Rc::new(I18n::new(Locale::default(), Platform::current())))
+            .clone();
+        let ui = Ui {
+            theme,
+            i18n: &i18n,
+            id: self.id.clone(),
+        };
+        let n = |v: i64| ui.n(v);
         let words = |v: Option<u64>| -> SharedString {
             match v {
-                Some(v) => i18n
-                    .fmt(
-                        keys::right_sidebar::stats::WORDS_VALUE,
-                        &[("count", &n(v as i64))],
-                    )
-                    .into(),
-                None => i18n.t(keys::workspace_word_tally::COUNTING).into(),
+                Some(v) => ui.words(v),
+                None => ui.t(keys::workspace_word_tally::COUNTING),
             }
         };
-        let live = LiveWords::read(cx);
+        let live = LiveWords::read(cx).clone();
         let counts = self.counts.as_ref();
-        let reading = model::reading(self.target.as_ref(), counts, live);
-        let book_words = counts.and_then(|c| model::book_words(c, live));
-        let id = |name: &str| ElementId::Name(format!("{}-{name}", self.id).into());
-
-        let key_text = |text: SharedString| {
-            div()
-                .flex_none()
-                .font_role(Role::Index)
-                .type_px(s.caption, s.line_caption)
-                .text_color(p.muted().solid())
-                .child(text)
-        };
-        let value_text = |text: SharedString| {
-            div()
-                .min_w_0()
-                .font_role(Role::Ui)
-                .type_px(s.secondary, s.line_body)
-                .text_color(p.ink(1).solid())
-                .child(text)
-        };
-        let row = |key: SharedString, value: SharedString| {
-            div()
-                .flex()
-                .flex_row()
-                .items_baseline()
-                .justify_between()
-                .gap(px(12.0))
-                .child(key_text(key))
-                .child(value_text(value))
-        };
-        let section = |title: Option<SharedString>| {
-            let mut el = div().flex().flex_col().gap(px(6.0));
-            if let Some(title) = title {
-                el = el.child(
-                    div()
-                        .font_role(Role::Structure)
-                        .type_px(s.secondary, s.line_body)
-                        .text_color(p.ink(2).solid())
-                        .pb(px(2.0))
-                        .child(title),
-                );
-            }
-            el
-        };
+        let reading = model::reading(self.target.as_ref(), counts, &live);
+        let book_words = counts.and_then(|c| model::book_words(c, &live));
 
         // 1. The reading.
-        let mut first = section(None).child(
+        let mut first = ui.section(None).child(
             div()
                 .flex()
                 .flex_col()
-                .child(key_text(i18n.t(scope_label(reading.scope)).into()))
+                .child(ui.small(ui.t(scope_label(reading.scope))))
                 .child(
                     div()
-                        .font_role(Role::Ui)
+                        .font_role(dr_ui::fonts::Role::Ui)
                         .type_px(s.heading, s.heading * 1.3)
                         .text_color(p.ink(1).solid())
                         .child(words(reading.words)),
                 ),
         );
         if reading.scope != Scope::Book {
-            first = first.child(row(
-                i18n.t(keys::workspace_word_tally::BOOK).into(),
-                words(book_words),
-            ));
+            first = first.child(ui.row(ui.t(keys::workspace_word_tally::BOOK), words(book_words)));
         }
         if let Some(days) = &self.days {
             let today = model::today_words(days, self.mine);
-            let today_text: SharedString = i18n
-                .fmt(
-                    keys::right_sidebar::stats::WORDS_VALUE,
-                    &[("count", &format!("+{}", n(today)))],
-                )
-                .into();
-            first = first.child(row(
-                i18n.t(keys::workspace_word_tally::TODAY).into(),
-                today_text,
+            first = first.child(ui.row(
+                ui.t(keys::workspace_word_tally::TODAY),
+                ui.fmt(stats::WORDS_VALUE, &[("count", &format!("+{}", n(today)))]),
             ));
             if let Some(f) = model::progress(today.max(0) as u64, days.daily_word_target) {
-                first = first
-                    .child(Readout::new(id("today"), f).color(p.ink(2)))
-                    .child(row(
-                        i18n.t(keys::dashboard::today::GOAL).into(),
-                        n(days.daily_word_target.unwrap_or(0)).into(),
-                    ));
+                first = first.child(ui.stroke("today", f, None)).child(ui.row(
+                    ui.t(keys::dashboard::today::GOAL),
+                    n(days.daily_word_target.unwrap_or(0)),
+                ));
             }
         }
 
-        // 2. Writing progress.
-        let mut second = section(Some(
-            i18n.t(keys::right_sidebar::stats::WRITING_PROGRESS).into(),
-        ));
+        // 2 and 4: the page's own readings.
+        let sections = self.detail_sections(&ui, &live, window, cx);
+        let counts = self.counts.as_ref();
+
+        // 3. Writing progress.
+        let mut second = ui.section(Some(ui.t(stats::WRITING_PROGRESS)));
+        if let Some(progress) = sections.progress {
+            second = second.child(progress);
+        }
         if let Some(c) = counts {
             let (chapters, total) = match &self.target {
                 Some(NavTarget::Storyline(sl)) => c
@@ -349,81 +359,59 @@ impl Render for StatsView {
                     .map(|x| {
                         (
                             x.chapters as u64,
-                            model::storyline_words(c, sl.as_str(), live),
+                            model::storyline_words(c, sl.as_str(), &live),
                         )
                     })
                     .unwrap_or((0, Some(0))),
                 _ => (c.chapters.len() as u64, book_words),
             };
-            if let Some(NavTarget::Chapter(ch)) = &self.target
-                && let Some(i) = c.chapters.iter().position(|x| x.id == ch.as_str())
-            {
-                second = second.child(row(
-                    i18n.t(keys::right_sidebar::stats::BOOK_POSITION).into(),
-                    i18n.fmt(
-                        keys::right_sidebar::stats::CHAPTER_ORDINAL,
-                        &[("count", &(i + 1))],
-                    )
-                    .into(),
-                ));
-            }
-            if let Some(target) = c.word_target.filter(|t| *t > 0) {
+            // The book's target (a storyline shows its own chapters only).
+            let storyline = matches!(self.target, Some(NavTarget::Storyline(_)));
+            if let Some(target) = c.word_target.filter(|t| *t > 0 && !storyline) {
                 let written = book_words.unwrap_or(0);
                 second = second
-                    .child(row(
-                        i18n.t(keys::right_sidebar::stats::WRITTEN_TARGET).into(),
-                        format!("{} / {}", n(written as i64), n(target)).into(),
+                    .child(ui.row(
+                        ui.t(stats::WRITTEN_TARGET),
+                        format!("{} / {}", n(written as i64), n(target)),
                     ))
-                    .child(
-                        Readout::new(
-                            id("book"),
-                            model::progress(written, Some(target)).unwrap_or(0.0),
-                        )
-                        .color(p.ink(2)),
-                    );
+                    .child(ui.stroke(
+                        "book",
+                        model::progress(written, Some(target)).unwrap_or(0.0),
+                        None,
+                    ));
             }
-            second = second.child(row(
-                i18n.t(keys::right_sidebar::stats::CHAPTER_COUNT).into(),
-                i18n.fmt(
-                    keys::right_sidebar::stats::CHAPTERS_VALUE,
-                    &[("count", &n(chapters as i64))],
-                )
-                .into(),
+            second = second.child(ui.row(
+                ui.t(stats::CHAPTER_COUNT),
+                ui.fmt(stats::CHAPTERS_VALUE, &[("count", &n(chapters as i64))]),
             ));
             if chapters > 0
                 && let Some(total) = total
             {
-                second = second.child(row(
-                    i18n.t(keys::right_sidebar::stats::AVERAGE_PER_CHAPTER)
-                        .into(),
-                    i18n.fmt(
-                        keys::right_sidebar::stats::WORDS_PER_CHAPTER_VALUE,
+                second = second.child(ui.row(
+                    ui.t(stats::AVERAGE_PER_CHAPTER),
+                    ui.fmt(
+                        stats::WORDS_PER_CHAPTER_VALUE,
                         &[("words", &n((total / chapters) as i64))],
-                    )
-                    .into(),
+                    ),
                 ));
             }
         }
 
-        // 3. Recent days.
-        let mut third = section(Some(i18n.t(keys::right_sidebar::stats::RECENT).into()));
+        // 5. Recent days.
+        let mut third = ui.section(Some(ui.t(stats::RECENT)));
         if let Some(days) = &self.days {
             let today = model::today_words(days, self.mine);
             let week = days.week - days.today + today;
             // Today's words may not be stored yet.
             let streak = if today > 0 { days.streak_before + 1 } else { 0 };
             third = third
-                .child(row(
-                    i18n.t(keys::dashboard::today::WEEK).into(),
-                    i18n.fmt(
-                        keys::right_sidebar::stats::WORDS_VALUE,
-                        &[("count", &n(week))],
-                    )
-                    .into(),
+                .child(ui.row(
+                    ui.t(keys::dashboard::today::WEEK),
+                    ui.fmt(stats::WORDS_VALUE, &[("count", &n(week))]),
                 ))
-                .child(row(
-                    i18n.t(keys::dashboard::today::STREAK).into(),
-                    format!("{streak} {}", i18n.t(keys::project_picker::heat::DAYS_UNIT)).into(),
+                .child(ui.row(
+                    ui.t(keys::dashboard::today::STREAK),
+                    format!("{streak} {}", i18n.t(keys::project_picker::heat::DAYS_UNIT)),
                 ));
             let last = days.days.len().saturating_sub(1);
             let list: Vec<(String, i64)> = days
@@ -452,33 +440,26 @@ impl Render for StatsView {
                         .flex_row()
                         .items_center()
                         .gap(px(10.0))
-                        .child(key_text(label.into()).w(px(44.0)))
+                        .child(ui.small(label).flex_none().w(px(44.0)))
+                        .child(div().flex_1().min_w_0().child(ui.stroke(
+                            &format!("day-{day}"),
+                            *w as f32 / most as f32,
+                            None,
+                        )))
                         .child(
-                            div().flex_1().min_w_0().child(
-                                Readout::new(id(&format!("day-{day}")), *w as f32 / most as f32)
-                                    .color(p.ink(2)),
-                            ),
-                        )
-                        .child(
-                            div()
+                            ui.small(n(*w))
                                 .flex_none()
                                 .w(px(56.0))
                                 .flex()
                                 .justify_end()
-                                .font_role(Role::Index)
-                                .type_px(s.caption, s.line_caption)
-                                .text_color(if *w > 0 {
-                                    p.ink(2).solid()
-                                } else {
-                                    p.muted().solid()
-                                })
-                                .child(n(*w)),
+                                .text_color(if *w > 0 { p.ink(2) } else { p.muted() }.solid()),
                         ),
                 );
             }
             third = third.child(strip);
         }
 
+        use dr_ui::style::DrStyled as _;
         div()
             .id(ElementId::Name(self.id.clone()))
             .size_full()
@@ -490,7 +471,10 @@ impl Render for StatsView {
             .flex_col()
             .gap(px(22.0))
             .child(first)
+            .children(sections.after_reading)
             .child(second)
+            .children(sections.after_progress)
             .child(third)
+            .children(sections.history.map(|h| div().flex().child(h)))
     }
 }

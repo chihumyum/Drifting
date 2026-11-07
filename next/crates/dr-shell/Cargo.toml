@@ -22,7 +22,9 @@ dr-model.workspace = true
 dr-platform.workspace = true
 dr-text.workspace = true
 dr-ui.workspace = true
-# M06 search, M07 stats and M09 history, each hooked in at one place.
+# M06 search, M07 stats, M09 history and M41 export, each hooked in at one
+# place.
+dr-view-export.workspace = true
 dr-view-history.workspace = true
 dr-view-search.workspace = true
 dr-view-review.workspace = true
@@ -54,7 +56,7 @@ tempfile.workspace = true
 name = "shell-capture"
 required-features = ["capture"]
 
-# M06 and M07's screenshots (docs/rust-rewrite/modules/m06, m07).
+# M06, M07 and M20's screenshots (docs/rust-rewrite/modules/m06, m07, m20).
 [[example]]
 name = "m06-m07-capture"
 required-features = ["capture"]

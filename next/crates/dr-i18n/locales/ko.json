@@ -290,6 +290,63 @@
       "storylineTitle": "스토리라인별 그룹 · 작품 전체 보기로 전환"
     }
   },
+  "manuscriptExport": {
+    "actTitles": "막 제목",
+    "author": "작가",
+    "bookInfo": "작품 정보",
+    "bookTitle": "제목",
+    "changeCover": "변경",
+    "chapterCount_one": "{{count}}개 장",
+    "chapterCount_other": "{{count}}개 장",
+    "chapterTitles": "장 제목",
+    "chooseCover": "이미지 선택",
+    "contents": "내용",
+    "cover": "표지",
+    "coverFailed": "이 이미지를 읽을 수 없습니다.",
+    "export": "{{format}}로 내보내기",
+    "exporting": "내보내는 중…",
+    "failed": "내보내기를 완료하지 못했습니다. 다시 시도해 주세요.",
+    "format": "형식",
+    "loadFailed": "장을 읽을 수 없습니다. 다시 시도해 주세요.",
+    "loading": "장 읽는 중…",
+    "menu": "원고 내보내기",
+    "removeCover": "제거",
+    "retry": "다시 시도",
+    "saved": "내보냈습니다",
+    "scope": "범위",
+    "selectAll": "모두 선택",
+    "selectNone": "모두 선택 해제",
+    "selectedChapters": "선택한 장",
+    "title": "원고 내보내기",
+    "untitledAct": "제목 없는 막",
+    "untitledChapter": "제목 없는 장",
+    "wholeBook": "작품 전체"
+  },
+  "markdownShare": {
+    "characters": "{{count}}자",
+    "copied": "전체 Markdown을 복사했습니다",
+    "copy": "모두 복사",
+    "currentBody": "이 문서의 전체 본문",
+    "failed": "작업을 완료하지 못했습니다. 다시 시도하거나 텍스트를 선택해 복사해 주세요.",
+    "loadFailed": "문서 전체를 읽을 수 없습니다. 다시 시도해 주세요.",
+    "loading": "전체 Markdown 준비 중…",
+    "menu": "공유",
+    "proseOnly": "제목, 본문, 장 요약이 포함됩니다. 댓글과 구성 메모는 공개되지 않습니다.",
+    "readOnly": "읽기 전용",
+    "retry": "다시 시도",
+    "save": ".md로 저장",
+    "saved": "Markdown을 저장했습니다",
+    "saving": "저장 중…",
+    "title": "Markdown 공유",
+    "wholeBook": "원고 순서대로 모든 장"
+  },
+  "memoMaterial": {
+    "kind": {
+      "image": "이미지",
+      "pdf": "PDF",
+      "text": "메모"
+    }
+  },
   "mobileWorkspace": {
     "projectActions": {
       "deleteFailed": "작품을 삭제하지 못했습니다. 다시 시도해 주세요."
@@ -455,8 +512,20 @@
     }
   },
   "referencesPanel": {
+    "empty": {
+      "incoming": "아직 이 항목을 참조하는 내용이 없습니다",
+      "outgoing": "이 본문은 아직 다른 엔터티를 참조하지 않습니다"
+    },
     "kind": {
       "patch": "변화 기록"
+    },
+    "meta": {
+      "blocksSpans": "블록 {{blocks}}개 · 언급 {{spans}}개",
+      "spans": "언급 {{count}}개"
+    },
+    "sections": {
+      "incoming": "백링크",
+      "outgoing": "참조"
     }
   },
   "relationTypes": {
@@ -497,17 +566,82 @@
       }
     },
     "stats": {
+      "actMeta": "{{chapters}}장 · {{wordsK}}k자 · {{pct}}%",
+      "actRhythm": "막별 리듬",
+      "allElementsAppeared": "모든 요소가 본문에 등장했습니다.",
+      "appeared": "등장함",
+      "averageAppearance": "평균 등장 횟수",
       "averagePerChapter": "장별 평균",
+      "avgChaptersPerElement": "{{count}}장 / 요소",
       "bookPosition": "작품 내 위치",
+      "category": "분류",
+      "categoryCoordinates": "분류 좌표",
+      "categoryNoElements": "이 분류에는 아직 요소가 없습니다.",
+      "chapter": "장",
+      "chapterCoordinates": "장 좌표",
       "chapterCount": "장",
+      "chapterLengthRhythm": "장 길이 리듬",
       "chapterOrdinal": "제{{count}}장",
       "chaptersValue": "{{count}}개 장",
+      "completion": "완성도",
+      "dialogueRatio": "대화 비율",
+      "dimensions": "규격",
+      "discardedParen": " (폐기 {{count}})",
+      "driftCoordinates": "아이디어 좌표",
+      "driftFreeFragment": "아이디어 · 자유 배치",
+      "elementCoordinates": "요소 좌표",
+      "elementCount": "요소 수",
+      "elementsValue": "요소 {{count}}개",
+      "embeddedMaterials": "삽입된 자료",
+      "fileSize": "크기",
+      "fileType": "유형",
+      "floatingStoryline": "자유 배치 / 소속 없음",
+      "health": "건강 상태",
+      "lastModified": "마지막 수정",
+      "longestWithWords": "가장 긴 장 · {{title}}({{words}}자)",
+      "materialCoordinates": "자료",
+      "materialFile": "파일",
+      "materialRelations": "연결 대상",
+      "moreLowAppearanceElements": "등장 횟수가 적은 요소 {{count}}개 더 있음",
+      "moreUnappearedElements": "미등장 {{count}}개 더 있음",
+      "name": "이름",
+      "noActiveProgress": "모든 장이 폐기되었거나 아직 진행 상황이 없습니다.",
+      "noChapters": "아직 장이 없습니다. 첫 장을 시작하면 작품의 리듬이 여기에 표시됩니다.",
+      "noMentionedElements": "본문에 @로 언급한 요소가 없습니다.",
+      "noteShape": "메모",
+      "noteTasks": "할 일",
+      "noteTasksValue": "{{done}} / {{total}} 완료",
+      "noteWords": "길이",
+      "openComments": "미해결 댓글 및 할 일",
+      "paragraphSentence": "문단 / 문장",
+      "paragraphSentenceValue": "{{paragraphs}}문단 · {{sentences}}문장",
       "recent": "최근",
+      "shortestWithWords": "가장 짧은 장 · {{title}}({{words}}자)",
       "snapshotButton": "기록 스냅샷…",
+      "statusCount": "{{status}} {{count}}장",
+      "storyline": "스토리라인",
+      "storylineCoordinates": "스토리라인 좌표",
+      "storylineCoreElements": "이 스토리라인의 핵심 요소",
+      "storylineDistribution": "스토리라인 분포",
+      "storylineNoChapters": "이 스토리라인에는 아직 장이 없습니다.",
+      "storylineNoMentionedElements": "이 스토리라인의 장에 @로 언급한 요소가 없습니다.",
+      "thisChapterElements": "이 장의 요소",
+      "thisFragmentElements": "이 아이디어의 요소",
+      "titleWithWords": "{{title}}({{words}}자)",
+      "type": "유형",
+      "unappearedElements": "미등장 요소",
+      "updated": "업데이트됨",
+      "wordRhythm": "글자 수 · 리듬",
       "wordsPerChapterValue": "{{words}}자 / 장",
       "wordsValue": "{{count}}자",
       "writingProgress": "집필 진행률",
       "writtenTarget": "작성 / 목표"
+    },
+    "status": {
+      "discarded": "폐기됨",
+      "done": "완료",
+      "draft": "초안",
+      "todo": "작성 예정"
     },
     "tabs": {
       "companion": "Agent",

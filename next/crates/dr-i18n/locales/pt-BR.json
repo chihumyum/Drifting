@@ -295,6 +295,63 @@
       "storylineTitle": "Por linha narrativa · voltar à visão do livro"
     }
   },
+  "manuscriptExport": {
+    "actTitles": "Títulos dos atos",
+    "author": "Autor",
+    "bookInfo": "Informações do livro",
+    "bookTitle": "Título",
+    "changeCover": "Alterar",
+    "chapterCount_one": "{{count}} capítulo",
+    "chapterCount_other": "{{count}} capítulos",
+    "chapterTitles": "Títulos dos capítulos",
+    "chooseCover": "Escolher imagem",
+    "contents": "Conteúdo",
+    "cover": "Capa",
+    "coverFailed": "Não foi possível ler esta imagem.",
+    "export": "Exportar {{format}}",
+    "exporting": "Exportando…",
+    "failed": "A exportação não foi concluída. Tente novamente.",
+    "format": "Formato",
+    "loadFailed": "Não foi possível ler os capítulos. Tente novamente.",
+    "loading": "Lendo capítulos…",
+    "menu": "Exportar manuscrito",
+    "removeCover": "Remover",
+    "retry": "Tentar novamente",
+    "saved": "Exportado",
+    "scope": "Escopo",
+    "selectAll": "Selecionar tudo",
+    "selectNone": "Desmarcar tudo",
+    "selectedChapters": "Capítulos selecionados",
+    "title": "Exportar manuscrito",
+    "untitledAct": "Ato sem título",
+    "untitledChapter": "Capítulo sem título",
+    "wholeBook": "Livro inteiro"
+  },
+  "markdownShare": {
+    "characters": "{{count}} caracteres",
+    "copied": "Todo o Markdown foi copiado",
+    "copy": "Copiar tudo",
+    "currentBody": "O texto completo deste documento",
+    "failed": "Não foi possível concluir a ação. Tente novamente ou selecione e copie o texto.",
+    "loadFailed": "Não foi possível ler o documento completo. Tente novamente.",
+    "loading": "Preparando o Markdown completo…",
+    "menu": "Compartilhar",
+    "proseOnly": "Inclui títulos, texto e resumos dos capítulos. Comentários e notas de planejamento permanecem privados.",
+    "readOnly": "Somente leitura",
+    "retry": "Tentar novamente",
+    "save": "Salvar .md",
+    "saved": "Markdown salvo",
+    "saving": "Salvando…",
+    "title": "Compartilhar Markdown",
+    "wholeBook": "Todos os capítulos na ordem de leitura"
+  },
+  "memoMaterial": {
+    "kind": {
+      "image": "Imagem",
+      "pdf": "PDF",
+      "text": "Nota"
+    }
+  },
   "mobileWorkspace": {
     "projectActions": {
       "deleteFailed": "Não foi possível excluir o projeto. Tente novamente."
@@ -467,8 +524,20 @@
     }
   },
   "referencesPanel": {
+    "empty": {
+      "incoming": "Nenhum conteúdo faz referência a este item ainda",
+      "outgoing": "Este texto ainda não faz referência a outras entidades"
+    },
     "kind": {
       "patch": "Evolução"
+    },
+    "meta": {
+      "blocksSpans": "{{blocks}} blocos · {{spans}} menções",
+      "spans": "{{count}} menções"
+    },
+    "sections": {
+      "incoming": "Links de entrada",
+      "outgoing": "Referências"
     }
   },
   "relationTypes": {
@@ -509,17 +578,82 @@
       }
     },
     "stats": {
+      "actMeta": "{{chapters}} capítulos · {{wordsK}}k · {{pct}}%",
+      "actRhythm": "Ritmo dos atos",
+      "allElementsAppeared": "Todos os elementos já apareceram no texto.",
+      "appeared": "Com aparições",
+      "averageAppearance": "Média de aparições",
       "averagePerChapter": "Média por capítulo",
+      "avgChaptersPerElement": "{{count}} capítulos / elemento",
       "bookPosition": "Posição no livro",
+      "category": "Categoria",
+      "categoryCoordinates": "Coordenadas da categoria",
+      "categoryNoElements": "Esta categoria ainda não tem elementos.",
+      "chapter": "Capítulo",
+      "chapterCoordinates": "Coordenadas do capítulo",
       "chapterCount": "Capítulos",
+      "chapterLengthRhythm": "Ritmo da extensão dos capítulos",
       "chapterOrdinal": "Capítulo {{count}}",
       "chaptersValue": "{{count}} capítulos",
+      "completion": "Conclusão",
+      "dialogueRatio": "Proporção de diálogo",
+      "dimensions": "Dimensões",
+      "discardedParen": " (descartados {{count}})",
+      "driftCoordinates": "Coordenadas da ideia",
+      "driftFreeFragment": "Ideia · flutuante",
+      "elementCoordinates": "Coordenadas do elemento",
+      "elementCount": "Número de elementos",
+      "elementsValue": "{{count}} elementos",
+      "embeddedMaterials": "Materiais incorporados",
+      "fileSize": "Tamanho",
+      "fileType": "Tipo",
+      "floatingStoryline": "Flutuante / sem vínculo",
+      "health": "Estado",
+      "lastModified": "Última modificação",
+      "longestWithWords": "Mais longo · {{title}} ({{words}} palavras)",
+      "materialCoordinates": "Material",
+      "materialFile": "Arquivo",
+      "materialRelations": "Vinculado a",
+      "moreLowAppearanceElements": "Mais {{count}} elementos com menos aparições",
+      "moreUnappearedElements": "Mais {{count}} sem aparições",
+      "name": "Nome",
+      "noActiveProgress": "Todos os capítulos estão descartados ou sem progresso.",
+      "noChapters": "Ainda não há capítulos. Comece o primeiro para ver aqui o ritmo do livro.",
+      "noMentionedElements": "Ainda não há elementos mencionados com @ no texto.",
+      "noteShape": "Nota",
+      "noteTasks": "Tarefas",
+      "noteTasksValue": "{{done}} / {{total}} concluídas",
+      "noteWords": "Extensão",
+      "openComments": "Comentários e tarefas pendentes",
+      "paragraphSentence": "Parágrafos / frases",
+      "paragraphSentenceValue": "{{paragraphs}} parágrafos · {{sentences}} frases",
       "recent": "Recente",
+      "shortestWithWords": "Mais curto · {{title}} ({{words}} palavras)",
       "snapshotButton": "Snapshots do histórico…",
+      "statusCount": "{{status}} {{count}} capítulos",
+      "storyline": "Linha narrativa",
+      "storylineCoordinates": "Coordenadas da linha narrativa",
+      "storylineCoreElements": "Elementos centrais desta linha narrativa",
+      "storylineDistribution": "Distribuição das linhas narrativas",
+      "storylineNoChapters": "Esta linha narrativa ainda não tem capítulos.",
+      "storylineNoMentionedElements": "Nenhum elemento mencionado com @ nos capítulos desta linha narrativa.",
+      "thisChapterElements": "Elementos deste capítulo",
+      "thisFragmentElements": "Elementos desta ideia",
+      "titleWithWords": "{{title}} ({{words}} palavras)",
+      "type": "Tipo",
+      "unappearedElements": "Elementos sem aparições",
+      "updated": "Atualizado",
+      "wordRhythm": "Palavras · ritmo",
       "wordsPerChapterValue": "{{words}} palavras / capítulo",
       "wordsValue": "{{count}} palavras",
       "writingProgress": "Progresso da escrita",
       "writtenTarget": "Escrito / meta"
+    },
+    "status": {
+      "discarded": "Descartado",
+      "done": "Concluir",
+      "draft": "Rascunho",
+      "todo": "A escrever"
     },
     "tabs": {
       "companion": "Agent",

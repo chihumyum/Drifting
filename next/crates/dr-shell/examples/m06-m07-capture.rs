@@ -1,14 +1,17 @@
-//! Screenshots of M06 (search) and M07 (the Stats tab) in the shell, drawn
-//! offscreen like `shell-capture` (GPUI's headless platform, real text and
-//! Metal, nothing on screen). The book is 《慢钟》 from dr-testkit with a
-//! week of synthetic writing days.
+//! Screenshots of M06 (search), M07 (the Stats tab), M20 (the Stats tab's
+//! readings of each kind of page) and M41 (the export dialogs) in the shell, drawn offscreen like
+//! `shell-capture` (GPUI's headless platform, real text and Metal, nothing
+//! on screen). The book is 《慢钟》 from dr-testkit with a week of synthetic
+//! writing days.
 //!
 //! ```text
 //! cargo run -p dr-shell --features capture --example m06-m07-capture -- <docs/rust-rewrite/modules>
 //! ```
 //!
-//! Writes `m06/*.png` and `m07/*.png` under the folder given, as 256-colour
-//! PNGs.
+//! Writes `m06/*.png`, `m07/*.png`, `m20/*.png` (the right sidebar of a
+//! tall window, so the whole tab shows) and `m41/*.png` under the folder
+//! given, as 256-colour PNGs. A second argument `m20` or `m41` takes only
+//! those.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -24,6 +27,10 @@ use serde_json::json;
 
 const W: f32 = 1280.0;
 const H: f32 = 800.0;
+/// M20's window: tall enough for the whole Stats tab.
+const TALL: f32 = 1340.0;
+/// The right sidebar's width in the pictures.
+const RIGHT: f32 = 320.0;
 const VERSION: &str = "0.2.0-dev";
 /// A synthetic device, for the writing days of the pictures.
 const DEVICE: &str = "device-0123456789abcdef01234567";
@@ -75,6 +82,10 @@ fn slow_clock() -> Result<(tempfile::TempDir, dr_workspace::Workspace)> {
 
 impl Headless {
     fn new() -> Result<Headless> {
+        Self::sized(H)
+    }
+
+    fn sized(height: f32) -> Result<Headless> {
         let text_system = gpui_platform::current_platform(true).text_system();
         let mut cx = HeadlessAppContext::with_platform(
             text_system,
@@ -106,7 +117,7 @@ impl Headless {
             dr_shell::init(info, services, file, cx);
             Ok(())
         })?;
-        let window = cx.open_window(size(px(W), px(H)), |window, cx| {
+        let window = cx.open_window(size(px(W), px(height)), |window, cx| {
             cx.new(|cx| Workspace::new(window, cx))
         })?;
         let view = window.entity(&cx)?;
@@ -177,9 +188,22 @@ impl Headless {
     }
 
     fn save(&mut self, dir: &Path, name: &str) -> Result<()> {
+        self.save_from(dir, name, 0.0)
+    }
+
+    /// The window from `left` (points) to its right edge.
+    fn save_from(&mut self, dir: &Path, name: &str, left: f32) -> Result<()> {
         let image = self.cx.capture_screenshot(self.window)?;
-        let (w, h) = image.dimensions();
-        let rgba = image.into_raw();
+        let (full_w, h) = image.dimensions();
+        let x = ((left * full_w as f32 / W) as u32).min(full_w);
+        let w = full_w - x;
+        let raw = image.into_raw();
+        // Each row from column `x` on.
+        let rgba: Vec<u8> = raw
+            .chunks_exact(full_w as usize * 4)
+            .flat_map(|row| &row[x as usize * 4..])
+            .copied()
+            .collect();
         let quant = color_quant::NeuQuant::new(10, 256, &rgba);
         let indices: Vec<u8> = rgba
             .as_chunks::<4>()
@@ -301,10 +325,161 @@ fn run(out: PathBuf) -> Result<()> {
     Ok(())
 }
 
+/// M20: the Stats tab of each kind of page, the right sidebar only.
+fn run_m20(out: PathBuf) -> Result<()> {
+    let m20 = out.join("m20");
+    std::fs::create_dir_all(&m20)?;
+    let mut h = Headless::sized(TALL)?;
+    type Pick = fn(&Workspace) -> Option<Target>;
+    let pages: [(&str, Pick); 6] = [
+        ("chapter", |ws| Some(chapter(ws, 3))),
+        ("storyline", |ws| {
+            Some(Target::Storyline(
+                ws.book.storylines.first()?.id.parse().ok()?,
+            ))
+        }),
+        ("element", |ws| {
+            Some(Target::Element(ws.book.elements.first()?.id.parse().ok()?))
+        }),
+        ("category", |ws| {
+            Some(Target::Category(
+                ws.book.categories.first()?.id.parse().ok()?,
+            ))
+        }),
+        ("material", |ws| {
+            let m = ws.book.materials.iter().find(|m| m.kind == "text")?;
+            Some(Target::Material(m.id.parse().ok()?))
+        }),
+        ("book", |_| Some(Target::Book)),
+    ];
+    for appearance in [Appearance::Light, Appearance::Dark] {
+        let a = appearance.slug();
+        h.cx.update(|cx| theme::force_appearance(Some(appearance), cx));
+        for (name, pick) in pages {
+            if appearance == Appearance::Dark && !matches!(name, "chapter" | "book") {
+                continue;
+            }
+            let mut found = true;
+            h.set(|ws, window, cx| {
+                layout(ws, RightTab::Stats, window, cx);
+                ws.right.width = RIGHT;
+                match pick(ws) {
+                    Some(t) => ws.open(t, Open::KEEP, cx),
+                    None => found = false,
+                }
+            });
+            if !found {
+                println!("no {name} in the sample");
+                continue;
+            }
+            h.wait(|_, cx| {
+                dr_view_stats::view("stats-primary", cx)
+                    .is_some_and(|v| v.read(cx).detail().is_some())
+            })?;
+            h.still()?;
+            h.save_from(&m20, &format!("{name}-{a}.png"), W - RIGHT)?;
+        }
+    }
+    Ok(())
+}
+
+/// M41: the manuscript export (the whole book, then chosen chapters) and
+/// the Markdown share, over the workspace.
+fn run_m41(out: PathBuf) -> Result<()> {
+    let m41 = out.join("m41");
+    std::fs::create_dir_all(&m41)?;
+    let mut h = Headless::sized(H)?;
+    for appearance in [Appearance::Light, Appearance::Dark] {
+        let a = appearance.slug();
+        h.cx.update(|cx| theme::force_appearance(Some(appearance), cx));
+        h.set(|ws, window, cx| {
+            layout(ws, RightTab::Stats, window, cx);
+            let c = chapter(ws, 3);
+            ws.open(c, Open::KEEP, cx);
+            ws.open_export(
+                dr_view_export::Request::Manuscript { chapter: None },
+                window,
+                cx,
+            );
+        });
+        let loaded = |ws: &Workspace, cx: &gpui::App| {
+            ws.dialog
+                .clone()
+                .and_then(|d| d.downcast::<dr_view_export::ExportDialog>().ok())
+                .is_some_and(|d| {
+                    let d = d.read(cx);
+                    d.manuscript().is_some_and(|m| m.outline.is_some())
+                        || d.markdown().is_some_and(|m| m.doc.is_some())
+                })
+        };
+        h.wait(loaded)?;
+        h.still()?;
+        h.save(&m41, &format!("export-{a}.png"))?;
+        if appearance == Appearance::Light {
+            // Chosen chapters, as Word.
+            h.set(|ws, _, cx| {
+                if let Some(d) = ws
+                    .dialog
+                    .clone()
+                    .and_then(|d| d.downcast::<dr_view_export::ExportDialog>().ok())
+                {
+                    d.update(cx, |d, cx| {
+                        if let Some(m) = d.manuscript_mut() {
+                            m.whole_book = false;
+                            m.format = dr_view_export::Format::Docx;
+                            m.select_all(false);
+                            let ids: Vec<String> = m
+                                .outline
+                                .as_ref()
+                                .map(|o| o.chapters.iter().take(5).map(|c| c.id.clone()).collect())
+                                .unwrap_or_default();
+                            for id in ids {
+                                m.toggle(&id);
+                            }
+                        }
+                        cx.notify();
+                    });
+                }
+            });
+            h.still()?;
+            h.save(&m41, &format!("export-chapters-{a}.png"))?;
+        }
+        h.set(|ws, window, cx| {
+            ws.dialog = None;
+            let id = ws.book.chapters[2].id.clone();
+            ws.open_export(
+                dr_view_export::Request::Markdown(dr_view_export::MarkdownTarget::Doc(format!(
+                    "node:{id}"
+                ))),
+                window,
+                cx,
+            );
+        });
+        h.wait(loaded)?;
+        h.still()?;
+        h.save(&m41, &format!("share-{a}.png"))?;
+        h.set(|ws, _, cx| {
+            ws.dialog = None;
+            cx.notify();
+        });
+    }
+    Ok(())
+}
+
 fn main() -> Result<()> {
     let out = std::env::args()
         .nth(1)
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("../docs/rust-rewrite/modules"));
-    run(out)
+    let only = std::env::args().nth(2);
+    if only.is_none() {
+        run(out.clone())?;
+    }
+    if only.as_deref().is_none_or(|o| o == "m20") {
+        run_m20(out.clone())?;
+    }
+    if only.as_deref().is_none_or(|o| o == "m41") {
+        run_m41(out)?;
+    }
+    Ok(())
 }

@@ -1,7 +1,8 @@
 //! M06 and M07 in the shell over a real library (《慢钟》): ⌘⇧F, typing,
 //! the arrows and Enter jump to a paragraph through a location link; Esc
 //! closes the panel; the Stats tab follows the page shown and the editor's
-//! live counts.
+//! live counts, reads the page's own readings (M20) and its rows open their
+//! pages and the snapshot history.
 
 use std::time::{Duration, Instant};
 
@@ -10,7 +11,8 @@ use dr_shell::panes::PaneId;
 use dr_shell::workspace::RightTab;
 use dr_shell::{Services, SettingsFile, ShellInfo, Workspace};
 use dr_view_search::Line;
-use dr_view_stats::{LiveWords, Scope};
+use dr_view_stats::detail::Detail;
+use dr_view_stats::{LiveWords, Scope, StatsAction};
 use dr_workspace::Workspace as Library;
 use gpui::{Entity, TestAppContext, VisualTestContext};
 
@@ -191,6 +193,62 @@ fn the_stats_tab_follows_the_page_and_the_editor(cx: &mut TestAppContext) {
         LiveWords::set_selection(None, cx);
         LiveWords::clear_doc(&doc, cx);
     });
+    // M20: the chapter's own readings, and its rows open what they name.
+    wait_for(&view, cx, |_, cx| {
+        dr_view_stats::view("stats-primary", cx).is_some_and(|v| v.read(cx).detail().is_some())
+    });
+    let (name, detail, hooks) = cx.update(|_, cx| {
+        let v = s.read(cx);
+        let d = v.detail().unwrap();
+        (
+            d.name.clone(),
+            d.detail.clone(),
+            v.hooks().cloned().expect("the shell's hooks"),
+        )
+    });
+    let Detail::Page(page) = detail else {
+        panic!("{detail:?}")
+    };
+    assert!(page.shape.paragraphs > 0 && page.shape.sentences >= page.shape.paragraphs);
+    assert_eq!(page.number, Some(3));
+    // The sample links its people in the prose and files chapters under
+    // storylines: the row opens the storyline, or the first element.
+    let row = page
+        .storyline
+        .clone()
+        .map(|s| s.0)
+        .or_else(|| page.elements.first().map(|r| r.target.clone()))
+        .expect("a storyline or an element of the third chapter");
+    cx.update(|window, cx| {
+        (hooks.act)(
+            StatsAction::Open {
+                target: row.clone(),
+                link: None,
+            },
+            window,
+            cx,
+        )
+    });
+    let opened = view.read_with(cx, |ws, _| ws.nav.current().map(dr_shell::book::nav_target));
+    assert_eq!(opened, Some(row));
+    cx.update(|window, cx| {
+        (hooks.act)(
+            StatsAction::History {
+                doc: doc.clone(),
+                name,
+            },
+            window,
+            cx,
+        )
+    });
+    assert!(
+        view.read_with(cx, |ws, _| ws.history.is_some()),
+        "M09's history opened"
+    );
+    view.update(cx, |ws, cx| {
+        ws.history = None;
+        cx.notify();
+    });
     // The whole book's page reads the book.
     view.update(cx, |ws, cx| ws.open(Target::Book, Open::KEEP, cx));
     wait_for(&view, cx, |_, cx| {
@@ -198,4 +256,22 @@ fn the_stats_tab_follows_the_page_and_the_editor(cx: &mut TestAppContext) {
             .is_some_and(|v| v.read(cx).reading(cx).scope == Scope::Book)
     });
     assert_eq!(cx.update(|_, cx| s.read(cx).reading(cx)).words, book);
+    wait_for(&view, cx, |_, cx| {
+        dr_view_stats::view("stats-primary", cx).is_some_and(|v| {
+            matches!(
+                v.read(cx).detail().map(|d| &d.detail),
+                Some(Detail::Book(_))
+            )
+        })
+    });
+    let Some(Detail::Book(whole)) =
+        cx.update(|_, cx| s.read(cx).detail().map(|d| d.detail.clone()))
+    else {
+        unreachable!()
+    };
+    assert!(!whole.chapters.is_empty());
+    assert_eq!(
+        whole.statuses.active() + whole.statuses.discarded,
+        whole.chapters.len() as u32
+    );
 }

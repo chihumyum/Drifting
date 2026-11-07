@@ -1299,16 +1299,41 @@ fn right_body(
                 cx,
             )
         }
-        // M07: word counts and writing days.
+        // M07: word counts and writing days; M20: the page's own readings.
+        // A row opens its page (a chapter of the whole book is shown there);
+        // 「历史快照…」 opens M09's history.
         RightTab::Stats => {
             let strings = crate::Strings::get(cx);
             let (locale, platform) = (strings.locale(), strings.platform());
+            let shell = cx.weak_entity();
+            let book = ws.book.clone();
+            let hooks = dr_view_stats::Hooks {
+                act: std::rc::Rc::new(move |action, window, cx| {
+                    shell
+                        .update(cx, |ws, cx| match action {
+                            dr_view_stats::StatsAction::Open { target, link } => {
+                                let shown = link.is_some_and(|l| ws.open_link(&l, window, cx));
+                                if !shown {
+                                    ws.super_view = None;
+                                    ws.open(crate::book::target(target), Open::KEEP, cx);
+                                }
+                                cx.notify();
+                            }
+                            dr_view_stats::StatsAction::History { doc, name } => {
+                                ws.open_history(doc, &name, window, cx)
+                            }
+                        })
+                        .ok();
+                }),
+                marks: std::rc::Rc::new(move |t| book.mark(&crate::book::target(t.clone()))),
+            };
             dr_view_stats::panel(
                 &format!("stats-{}", pane_slug(pane)),
                 &ws.book_id,
                 ws.nav.current().map(crate::book::nav_target),
                 locale,
                 platform,
+                Some(hooks),
                 cx,
             )
         }

@@ -6,6 +6,7 @@ act.create                   command  book     Create an act starting at a chapt
 act.delete                   command  book     Delete an act boundary (its chapters join the act before).
 act.list                     query    shared   List acts in reading order, each with its chapters.
 act.update                   command  book     Rename an act, recolour it, move its boundary or bind an idea to it.
+asset.get                    query    shared   Read an asset's recorded metadata: kind, media type, size and pixel dimensions (the Stats tab's file readings).
 asset.put                    command  book     Record an imported asset's metadata in the book (written once; the bytes are in storage).
 book.create                  command  library  Create a book (its book document from the shared genesis) and return its id.
 book.get                     query    shared   Read a book's name, summary, word targets and counts.
@@ -80,6 +81,7 @@ memory.list                  query    shared   List the book's Project Memory en
 memory.remove                command  book     Remove a Project Memory entry (kept as removed; restorable).
 memory.restore               command  book     Bring back a removed Project Memory entry.
 memory.update                command  book     Change a Project Memory entry's text, kind or status.
+mention.list                 query    shared   List what prose mentions: entity links and embedded materials, from one entity's prose, to one entity, or in the whole book (live ends only, with paragraph and span counts).
 patch.check_sources          command  book     After a chapter's or idea's prose changed: mark the patches taken from it whose passage no longer occurs as invalidated, and unmark those whose passage is back. Follows the prose; not an author's step.
 patch.create                 command  book     Add a patch to an element: a title (optional) and a body, floating or taken from a passage of a chapter or idea.
 patch.delete                 command  book     Delete a patch at once (never refused): relations to it go and comments on it float, in the same commit; undo brings it all back.
@@ -97,6 +99,7 @@ plot_grid.size               command  book     Set the size of a plot grid's cel
 prose.read                   query    shared   Read paragraphs of a prose document (text, block id, heading level).
 prose.replace                command  book     Replace one exact passage of prose with new text (it must occur exactly once, in one paragraph).
 prose.restore                command  book     Restore a prose document to an earlier version, as a new change (history stays).
+prose.shape                  query    shared   Shape of a prose document: paragraphs, sentences, the share of dialogue, its checklist and the materials it embeds.
 recent.list                  query    shared   List the pages of a book the author opened recently on this device, newest first (what is in the trash or gone is left out).
 recent.touch                 command  book     Record that the author opened a page of a book (this device only; Project Home's 「继续写」 reads it). Not undoable.
 relation.create              command  book     Relate two entities (a symmetric type stores its ends in canonical order; an existing identical relation is returned instead).

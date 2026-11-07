@@ -11,6 +11,7 @@ members = [
     "crates/dr-debug-protocol",
     "crates/dr-doc",
     "crates/dr-editor",
+    "crates/dr-export",
     "crates/dr-i18n",
     "crates/dr-import-v1",
     "crates/dr-index",
@@ -22,6 +23,7 @@ members = [
     "crates/dr-text",
     "crates/dr-ui",
     "crates/dr-view-elements",
+    "crates/dr-view-export",
     "crates/dr-view-feedback",
     "crates/dr-view-history",
     "crates/dr-view-home",
@@ -215,6 +217,8 @@ dr-view-review = { path = "crates/dr-view-review" }
 dr-view-history = { path = "crates/dr-view-history" }
 dr-view-search = { path = "crates/dr-view-search" }
 dr-view-stats = { path = "crates/dr-view-stats" }
+# M41: the manuscript export and Markdown share dialogs (over dr-export).
+dr-view-export = { path = "crates/dr-view-export" }
 # M39: the feedback dialog and the crash follow-up.
 dr-view-feedback = { path = "crates/dr-view-feedback" }
 futures = "0.3"
@@ -237,6 +241,16 @@ dr-view-import = { path = "crates/dr-view-import" }
 # M03: the chapter page's head and end around the editor (dr-editor's PageChrome).
 dr-view-page = { path = "crates/dr-view-page" }
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
+# M41: manuscript export (EPUB, Word, PDF), Markdown share and covers, the
+# 0.1 client's writers ported as they were (docs/rust-rewrite/
+# simplifications.md). The PDF writer, its shaping and the system font
+# database are the versions the 0.1 client audited; roxmltree reads the
+# EPUB and Word files back in the format checks.
+dr-export = { path = "crates/dr-export" }
+fontdb = "0.23"
+krilla = "0.8.2"
+roxmltree = "0.20"
+rustybuzz = "0.20.1"
 # dr-shell's capture example writes its screenshots as 256-colour PNGs
 # (the versions GPUI's image stack already builds).
 color_quant = "1.1"

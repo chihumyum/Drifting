@@ -34,6 +34,7 @@ pub mod element;
 pub mod history;
 pub mod idea;
 pub mod material;
+pub mod mention;
 pub mod patch;
 pub mod plot_grid;
 pub mod points;
@@ -86,6 +87,7 @@ pub(crate) fn register(r: &mut Registry) {
     plot_grid::register(r);
     recent::register(r);
     stats::register(r);
+    mention::register(r);
     time_pin::register(r);
     template::register(r);
 }

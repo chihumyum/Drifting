@@ -25,7 +25,8 @@ pub(crate) fn register(r: &mut Registry) {
         .add::<FolderCreate>()
         .add::<FolderUpdate>()
         .add::<FolderDelete>()
-        .add::<AssetPut>();
+        .add::<AssetPut>()
+        .add::<AssetGet>();
 }
 
 fn find(slot: &BookSlot, id: &str) -> Result<dr_model::book::Material> {
@@ -395,5 +396,32 @@ op! {
         cx.effect(EffectAction::Created, "asset", &input.id, None);
         cx.irreversible();
         Ok(Done { id: input.id })
+    }
+}
+
+/// An asset's recorded metadata.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, JsonSchema)]
+pub struct AssetInfo {
+    pub id: String,
+    /// `image` or `pdf`.
+    pub kind: String,
+    pub mime: String,
+    /// Bytes.
+    pub size: i64,
+    pub width: Option<i64>,
+    pub height: Option<i64>,
+}
+
+op! {
+    AssetGet = "asset.get", Read, Shared,
+    "Read an asset's recorded metadata: kind, media type, size and pixel dimensions (the Stats tab's file readings).",
+    fn(cx, input: EntityIn) -> AssetInfo {
+        let slot = cx.book(&input.book)?;
+        let a = assets(&slot).iter().find(|a| a.id.as_str() == input.id).cloned()
+            .ok_or_else(|| WsError::not_found("asset", input.id.clone()))?;
+        Ok(AssetInfo {
+            id: a.id.to_string(), kind: a.kind.as_str().to_owned(), mime: a.mime,
+            size: a.size, width: a.width, height: a.height,
+        })
     }
 }
