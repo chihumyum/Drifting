@@ -14,10 +14,12 @@
     "creating": "Creating…",
     "edit": "Edit",
     "local": "Local",
+    "processing": "Processing…",
     "save": "Save",
     "saveFailed": "Your changes could not be saved. Please try again.",
     "saving": "Saving…",
-    "untitled": "Untitled"
+    "untitled": "Untitled",
+    "wordsCount": "{{count}} words"
   },
   "dashboard": {
     "actions": {
@@ -85,6 +87,15 @@
   "immersiveWriting": {
     "enter": "Immersive writing",
     "leave": "Leave immersive writing"
+  },
+  "importDialog": {
+    "chooseFolder": "Choose folder",
+    "status": {
+      "committed": "imported"
+    },
+    "summary": {
+      "done": "Done"
+    }
   },
   "leftSidebar": {
     "empty": {
@@ -188,6 +199,9 @@
     "wordsOfTarget": "{{words}} / {{target}} words"
   },
   "projectPicker": {
+    "bookTransfer": {
+      "importFailedTitle": "Could not import"
+    },
     "desk": {
       "chaptersUnit_one": "chapter",
       "chaptersUnit_other": "chapters",
@@ -200,6 +214,7 @@
         "summaryLabel": "Summary"
       },
       "goal": "{{pct}}% · goal {{target}} words",
+      "importing": "Importing",
       "moveToTrash": "Move to Recently Deleted",
       "newCard": "New book",
       "newCardSub": "Start from a blank page",
@@ -228,6 +243,7 @@
       "daysUnit": "days",
       "today": "Today"
     },
+    "projectCount": "{{filtered}} / {{total}} books",
     "rail": {
       "books_one": "{{count}} book",
       "books_other": "{{count}} books",

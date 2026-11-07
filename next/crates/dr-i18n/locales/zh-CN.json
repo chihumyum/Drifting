@@ -14,10 +14,12 @@
     "creating": "创建中…",
     "edit": "编辑",
     "local": "本地",
+    "processing": "处理中…",
     "save": "保存",
     "saveFailed": "保存未完成，请重试。",
     "saving": "保存中…",
-    "untitled": "未命名"
+    "untitled": "未命名",
+    "wordsCount": "{{count}} 字"
   },
   "dashboard": {
     "actions": {
@@ -85,6 +87,15 @@
   "immersiveWriting": {
     "enter": "沉浸写作",
     "leave": "退出沉浸写作"
+  },
+  "importDialog": {
+    "chooseFolder": "选择文件夹",
+    "status": {
+      "committed": "已导入"
+    },
+    "summary": {
+      "done": "完成"
+    }
   },
   "leftSidebar": {
     "empty": {
@@ -188,6 +199,9 @@
     "wordsOfTarget": "{{words}} / {{target}} 字"
   },
   "projectPicker": {
+    "bookTransfer": {
+      "importFailedTitle": "无法导入"
+    },
     "desk": {
       "chaptersUnit": "章",
       "elementsUnit": "个要素",
@@ -198,6 +212,7 @@
         "summaryLabel": "梗概"
       },
       "goal": "{{pct}}% · 目标 {{target}} 字",
+      "importing": "正在导入",
       "moveToTrash": "移到最近删除",
       "newCard": "新建一本",
       "newCardSub": "从一张白纸开始",
@@ -225,6 +240,7 @@
       "daysUnit": "天",
       "today": "今天"
     },
+    "projectCount": "{{filtered}} / {{total}} 本",
     "rail": {
       "books": "{{count}} 本",
       "import": "导入书",

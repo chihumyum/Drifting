@@ -12,6 +12,7 @@ dr-platform.workspace = true
 dr-shell.workspace = true
 dr-ui.workspace = true
 dr-view-home.workspace = true
+dr-view-import.workspace = true
 dr-view-shelf.workspace = true
 dr-workspace.workspace = true
 gpui.workspace = true

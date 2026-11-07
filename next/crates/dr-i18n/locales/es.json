@@ -14,10 +14,12 @@
     "creating": "Creando…",
     "edit": "Editar",
     "local": "Local",
+    "processing": "Procesando…",
     "save": "Guardar",
     "saveFailed": "No se pudieron guardar los cambios. Reintenta.",
     "saving": "Guardando…",
-    "untitled": "Sin título"
+    "untitled": "Sin título",
+    "wordsCount": "{{count}} palabras"
   },
   "dashboard": {
     "actions": {
@@ -85,6 +87,15 @@
   "immersiveWriting": {
     "enter": "Escritura inmersiva",
     "leave": "Salir de la escritura inmersiva"
+  },
+  "importDialog": {
+    "chooseFolder": "Elegir carpeta",
+    "status": {
+      "committed": "importado"
+    },
+    "summary": {
+      "done": "Listo"
+    }
   },
   "leftSidebar": {
     "empty": {
@@ -189,6 +200,9 @@
     "wordsOfTarget": "{{words}} / {{target}} palabras"
   },
   "projectPicker": {
+    "bookTransfer": {
+      "importFailedTitle": "No se pudo importar"
+    },
     "desk": {
       "chaptersUnit_many": "capítulos",
       "chaptersUnit_one": "capítulo",
@@ -203,6 +217,7 @@
         "summaryLabel": "Resumen"
       },
       "goal": "{{pct}}% · meta {{target}} palabras",
+      "importing": "Importando",
       "moveToTrash": "Mover a eliminados recientemente",
       "newCard": "Nuevo libro",
       "newCardSub": "Empieza con una página en blanco",
@@ -232,6 +247,7 @@
       "daysUnit": "días",
       "today": "Hoy"
     },
+    "projectCount": "{{filtered}} / {{total}} libros",
     "rail": {
       "books_many": "{{count}} libros",
       "books_one": "{{count}} libro",

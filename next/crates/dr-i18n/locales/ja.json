@@ -14,10 +14,12 @@
     "creating": "作成中…",
     "edit": "編集",
     "local": "ローカル",
+    "processing": "処理中…",
     "save": "保存",
     "saveFailed": "変更を保存できませんでした。再試行してください。",
     "saving": "保存中…",
-    "untitled": "無題"
+    "untitled": "無題",
+    "wordsCount": "{{count}}文字"
   },
   "dashboard": {
     "actions": {
@@ -85,6 +87,15 @@
   "immersiveWriting": {
     "enter": "没入執筆",
     "leave": "没入執筆を終了"
+  },
+  "importDialog": {
+    "chooseFolder": "フォルダを選択",
+    "status": {
+      "committed": "インポート済み"
+    },
+    "summary": {
+      "done": "完了"
+    }
   },
   "leftSidebar": {
     "empty": {
@@ -188,6 +199,9 @@
     "wordsOfTarget": "{{words}} / {{target}}語"
   },
   "projectPicker": {
+    "bookTransfer": {
+      "importFailedTitle": "インポートできませんでした"
+    },
     "desk": {
       "chaptersUnit_one": "章",
       "chaptersUnit_other": "章",
@@ -200,6 +214,7 @@
         "summaryLabel": "要約"
       },
       "goal": "{{pct}}%・目標{{target}}文字",
+      "importing": "インポート中",
       "moveToTrash": "最近削除した項目へ移動",
       "newCard": "新しい一冊",
       "newCardSub": "白紙から始める",
@@ -228,6 +243,7 @@
       "daysUnit": "日",
       "today": "今日"
     },
+    "projectCount": "{{filtered}} / {{total}}作品",
     "rail": {
       "books_one": "{{count}}冊",
       "books_other": "{{count}}冊",

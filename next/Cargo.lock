@@ -1611,6 +1611,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "dr-view-import"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "color_quant",
+ "dr-i18n",
+ "dr-import-v1",
+ "dr-shell",
+ "dr-store",
+ "dr-ui",
+ "dr-view-shelf",
+ "dr-workspace",
+ "futures",
+ "gpui",
+ "gpui_platform",
+ "log",
+ "png 0.18.1",
+ "rusqlite",
+ "serde_json",
+ "sha2",
+ "tempfile",
+]
+
+[[package]]
 name = "dr-view-search"
 version = "0.0.0"
 dependencies = [
@@ -1689,6 +1713,7 @@ dependencies = [
  "dr-shell",
  "dr-ui",
  "dr-view-home",
+ "dr-view-import",
  "dr-view-shelf",
  "dr-workspace",
  "gpui",

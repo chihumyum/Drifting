@@ -478,6 +478,12 @@ fn without_handoff_the_gate_stops_until_the_author_accepts() {
         .collect();
     assert_eq!(titles.len(), 2);
     assert!(titles.contains(&"阿Q".to_string()) && titles.contains(&"主线".to_string()));
+    // The dialog groups them by book and tells chapters from ideas.
+    assert!(
+        gate.doubtful
+            .iter()
+            .all(|d| d.book_name.as_deref() == Some("阿Q正传") && !d.drift)
+    );
     assert!(!new.root.join("library.sqlite").exists(), "nothing written");
     assert_eq!(gate.release_url, dr_import_v1::gate::LAST_RELEASE_URL);
 
@@ -846,4 +852,55 @@ fn a_book_already_in_the_library_without_a_receipt_is_left_alone() {
     );
     assert_eq!(again.books[0].status, "already-in-library");
     assert!(again.docs.is_empty());
+}
+
+/// The app's path: the import writes into the library the app has open (with
+/// dr-index's deriver, as F3 opens it), which stays open; the indexes are
+/// built on it; the gate stops it with nothing left behind.
+#[test]
+fn an_open_library_takes_the_import_and_stays_open() {
+    let new = new_library();
+    let mut o = LibraryOptions::new("0.2.0-test");
+    dr_index::attach(&mut o);
+    o.rebuild_indexes_on_open = false;
+    let lib = Library::open(&new.root, o).unwrap();
+
+    let stale = build(false);
+    let mut opts = options(&stale, &new, Accept::NOTHING);
+    opts.device_dir = None;
+    let (outcome, _) = run::import_into_library(&stale.db, &lib, &opts, &mut |_| {}).unwrap();
+    assert!(matches!(outcome, Outcome::Blocked(_)));
+    assert!(lib.docs(None, None).unwrap().is_empty(), "nothing written");
+    assert!(
+        !receipt::directory(&new.root).exists(),
+        "no staging or receipt folder left behind"
+    );
+
+    let old = build(true);
+    let mut opts = options(&old, &new, Accept::NOTHING);
+    opts.device_dir = None;
+    let mut steps = Vec::new();
+    let (outcome, timing) = run::import_into_library(&old.db, &lib, &opts, &mut |p| {
+        if steps.last() != Some(&p.step) {
+            steps.push(p.step);
+        }
+    })
+    .unwrap();
+    let receipt = imported(outcome);
+    assert_eq!(receipt.books[0].status, "imported");
+    assert!(steps.contains(&Step::Indexing) && steps.last() == Some(&Step::Done));
+    assert!(timing.indexed_docs > 0);
+    // Still open, and every index is current.
+    assert!(lib.stale_index_docs().unwrap().is_empty());
+    assert!(lib.book_stats(BOOK).unwrap().words > 0);
+    assert!(
+        receipt::directory(&new.root)
+            .join("receipt.sqlite")
+            .is_file()
+    );
+    assert!(!receipt::directory(&new.root).join("staging").exists());
+    // A second import of the same library leaves the book alone.
+    let (outcome, _) = run::import_into_library(&old.db, &lib, &opts, &mut |_| {}).unwrap();
+    assert_eq!(imported(outcome).books[0].status, "already-imported");
+    lib.close().unwrap();
 }

@@ -1214,7 +1214,8 @@ impl Render for Workspace {
             .child(chrome::windows_caption(window, cx))
             .when(self.notifications_open, |el| {
                 el.child(sidebar::notification_center(self, window, cx))
-            });
+            })
+            .children(crate::pages::layers(cx));
         let root = self.on_actions(root, cx);
         glass::surface(Ground::flat(p.desk), root).into_any_element()
     }
@@ -1258,7 +1259,8 @@ impl Workspace {
             .child(chrome::windows_caption(window, cx))
             .when(self.notifications_open, |el| {
                 el.child(sidebar::notification_center(self, window, cx))
-            });
+            })
+            .children(crate::pages::layers(cx));
         let root = self.on_actions(root, cx);
         glass::surface(Ground::flat(p.desk), root).into_any_element()
     }

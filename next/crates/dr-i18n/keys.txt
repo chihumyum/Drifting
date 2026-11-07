@@ -299,3 +299,13 @@ dashboard.sections.writingPlan
 dashboard.sections.projectProfile
 dashboard.profilePlaceholder
 dashboard.plan.wordsPerDay
+
+# M10 the 0.1 library import (dr-view-import)
+common.processing
+common.wordsCount
+projectPicker.projectCount
+projectPicker.desk.importing
+projectPicker.bookTransfer.importFailedTitle
+importDialog.chooseFolder
+importDialog.status.committed
+importDialog.summary.done

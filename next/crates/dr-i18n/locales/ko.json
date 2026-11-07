@@ -14,10 +14,12 @@
     "creating": "만드는 중…",
     "edit": "편집",
     "local": "로컬",
+    "processing": "처리 중…",
     "save": "저장",
     "saveFailed": "변경을 저장할 수 없습니다. 다시 시도해 주세요.",
     "saving": "저장 중…",
-    "untitled": "제목 없음"
+    "untitled": "제목 없음",
+    "wordsCount": "{{count}}자"
   },
   "dashboard": {
     "actions": {
@@ -85,6 +87,15 @@
   "immersiveWriting": {
     "enter": "몰입 쓰기",
     "leave": "몰입 쓰기 종료"
+  },
+  "importDialog": {
+    "chooseFolder": "폴더 선택",
+    "status": {
+      "committed": "가져옴"
+    },
+    "summary": {
+      "done": "완료"
+    }
   },
   "leftSidebar": {
     "empty": {
@@ -188,6 +199,9 @@
     "wordsOfTarget": "{{words}} / {{target}}단어"
   },
   "projectPicker": {
+    "bookTransfer": {
+      "importFailedTitle": "가져올 수 없음"
+    },
     "desk": {
       "chaptersUnit_one": "장",
       "chaptersUnit_other": "장",
@@ -200,6 +214,7 @@
         "summaryLabel": "요약"
       },
       "goal": "{{pct}}% · 목표 {{target}}자",
+      "importing": "가져오는 중",
       "moveToTrash": "최근 삭제 항목으로 이동",
       "newCard": "새 책",
       "newCardSub": "빈 페이지에서 시작",
@@ -228,6 +243,7 @@
       "daysUnit": "일",
       "today": "오늘"
     },
+    "projectCount": "{{filtered}} / {{total}}개 작품",
     "rail": {
       "books_one": "{{count}}권",
       "books_other": "{{count}}권",
