@@ -11,6 +11,7 @@ members = [
     "crates/dr-model",
     "crates/dr-platform",
     "crates/dr-store",
+    "crates/gpui-prose",
     "spikes/import-v1",
     "spikes/loro-model",
     "spikes/prose-spike",
@@ -38,6 +39,9 @@ gpui_platform = { git = "https://github.com/zed-industries/zed", tag = "v1.27.0"
 loro = "=1.17.1"
 
 anyhow = "1"
+# gpui-prose (F4): word and grapheme-cluster boundaries, Chinese words from the
+# dictionary. Same 2.4 line as the icu_* crates GPUI already pulls in; no LSTM.
+icu_segmenter = { version = "2.4", default-features = false, features = ["compiled_data"] }
 log = "0.4"
 
 # F1 data crates. Workspace members are listed here so dependants write

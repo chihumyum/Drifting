@@ -1,0 +1,7 @@
+gpui-prose
+Copyright 2026 chihumyum
+
+A long-form rich-text editor for GPUI, with its text stored in Loro. Licensed
+under either of the Apache License, Version 2.0 (LICENSE-APACHE) or the MIT
+license (LICENSE-MIT), at your option. The rest of the Drifting repository is
+AGPL-3.0-or-later; this crate does not depend on it.
