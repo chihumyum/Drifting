@@ -1570,12 +1570,16 @@ dependencies = [
  "anyhow",
  "base64 0.22.1",
  "gpui",
+ "gpui-ime",
  "gpui_platform",
  "image",
  "log",
  "memmap2",
+ "objc2 0.6.5",
+ "raw-window-handle",
  "smallvec",
  "unicode-segmentation",
+ "windows 0.62.2",
 ]
 
 [[package]]

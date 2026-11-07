@@ -15,9 +15,13 @@
 //!   travels from the old pill to the new one as one band of water, a
 //!   little longer for each pill it crosses, wider and fainter mid-way with
 //!   softer edges; the new pill keeps its resting line until the band lands,
-//!   then its own bleed comes in as the band fades.
+//!   then its own bleed comes in as the band fades. Picked up, a pill's
+//!   still copy follows the hand on the weighted spring while the others make
+//!   way on the same spring; taken a row's height away its slot closes; on
+//!   the drop every pill springs from where it was shown into its new place
+//!   (workspace.md, 「拖拽排序有重量」; the geometry is [`super::reorder`]).
 
-use std::{rc::Rc, time::Instant};
+use std::{collections::HashMap, rc::Rc, time::Instant};
 
 use gpui::{
     AnyElement, App, AppContext as _, Bounds, Div, ElementId, Entity, InteractiveElement,
@@ -25,6 +29,7 @@ use gpui::{
     StatefulInteractiveElement, Styled, Window, canvas, div, prelude::FluentBuilder as _, px,
 };
 
+use super::reorder::{self, Slide, Slot};
 use crate::{
     anim,
     fonts::Role,
@@ -53,6 +58,33 @@ pub struct ChoiceState {
     /// Who the selected pill is: a pill that only moved (a drag reordered
     /// the row) sends no wave.
     selected_key: Option<ElementId>,
+    /// Who each pill is, in order.
+    keys: Vec<ElementId>,
+    /// Each pill's words at their own width (a dock pill grows to it).
+    natural: Vec<Option<f32>>,
+    /// The pill in the hand, while it is.
+    drag: Option<Session>,
+    /// Pills making way or landing, by who they are.
+    slides: HashMap<ElementId, Slide>,
+}
+
+/// A pill picked up from the row.
+struct Session {
+    from: usize,
+    /// Where it would land now.
+    to: usize,
+    /// Where on the pill the hand took it.
+    grab: (f32, f32),
+    /// The pointer and the row (x, y, width, height), last seen.
+    pointer: (f32, f32),
+    row: (f32, f32, f32, f32),
+    /// The slots as they were when it was picked up, from the row's start.
+    slots: Vec<Slot>,
+    keys: Vec<ElementId>,
+    /// The row's top, in the window.
+    top: f32,
+    inside: bool,
+    ghost: Entity<DraggedPill>,
 }
 
 impl ChoiceState {
@@ -66,6 +98,113 @@ impl ChoiceState {
             flow_base: 0.0,
             glide: None,
             selected_key: None,
+            keys: Vec::new(),
+            natural: vec![None; n],
+            drag: None,
+            slides: HashMap::new(),
+        }
+    }
+
+    /// Where a pill is shown now, relative to where it is laid out.
+    fn offset(&self, key: &ElementId, now: Instant) -> (f32, f32) {
+        self.slides.get(key).map_or((0.0, 0.0), |s| s.value(now))
+    }
+
+    fn slide_to(&mut self, key: &ElementId, to: (f32, f32), now: Instant) {
+        self.slides
+            .entry(key.clone())
+            .or_insert_with(|| Slide::still((0.0, 0.0), now))
+            .retarget(to, now);
+    }
+
+    /// The hand took pill `from` at `grab` inside it.
+    fn pick_up(
+        &mut self,
+        from: usize,
+        grab: (f32, f32),
+        pointer: (f32, f32),
+        ghost: Entity<DraggedPill>,
+        now: Instant,
+    ) {
+        let laid: Vec<Option<(f32, f32, f32)>> = (0..self.rects.len())
+            .map(|i| {
+                let b = self.rects[i]?;
+                let (dx, dy) = self.keys.get(i).map_or((0.0, 0.0), |k| self.offset(k, now));
+                Some((
+                    f32::from(b.origin.x) - dx,
+                    f32::from(b.origin.y) - dy,
+                    f32::from(b.size.width),
+                ))
+            })
+            .collect();
+        let Some(Some((x0, y0, _))) = laid.first().copied() else {
+            return;
+        };
+        let n = laid.len();
+        let mut slots = Vec::with_capacity(n);
+        for i in 0..n {
+            let (x, _, w) = laid[i].unwrap_or((x0, y0, 0.0));
+            let next = laid.get(i + 1).copied().flatten().map(|l| l.0);
+            let width = next.map_or(w + PILL_GAP, |nx| nx - x);
+            slots.push((x - x0, width));
+        }
+        let width: f32 = slots.iter().map(|s| s.1).sum();
+        self.drag = Some(Session {
+            from,
+            to: from,
+            grab,
+            pointer,
+            row: (x0, y0, width - PILL_GAP, g::PILL_HEIGHT),
+            slots,
+            keys: self.keys.clone(),
+            top: y0,
+            inside: true,
+            ghost,
+        });
+    }
+
+    /// The hand moved over the window, with the row at `row`.
+    fn drag_to(&mut self, pointer: (f32, f32), row: (f32, f32, f32, f32), now: Instant) {
+        let Some(d) = self.drag.as_mut() else {
+            return;
+        };
+        d.pointer = pointer;
+        d.row = row;
+        d.inside = reorder::is_inside(row, pointer);
+        // Over the row the others open a slot where the pill would land; far
+        // from it the pill's own slot closes; in between nothing moves.
+        let offsets = if d.inside {
+            let p = reorder::project(&d.slots, d.from, pointer.0 - row.0 - d.grab.0);
+            d.to = p.to;
+            Some(p.offsets)
+        } else {
+            d.to = d.from;
+            reorder::is_far(row, pointer).then(|| reorder::closed(&d.slots, d.from))
+        };
+        if let Some(offsets) = offsets {
+            let keys = d.keys.clone();
+            for (i, key) in keys.iter().enumerate() {
+                self.slide_to(key, (offsets[i], 0.0), now);
+            }
+        }
+    }
+
+    /// The drag ended (dropped on the row, or anywhere else): every pill
+    /// springs from where it was shown into its place with `from` at `to`,
+    /// the picked-up one from where its copy in the hand had got to.
+    fn land(&mut self, d: Session, to: usize, cx: &App, now: Instant) {
+        let starts = reorder::starts_after(&d.slots, d.from, to);
+        let lag = d.ghost.read(cx).lag;
+        for (i, key) in d.keys.iter().enumerate() {
+            let from = if i == d.from {
+                let x = d.pointer.0 - d.grab.0 + lag.x;
+                let y = d.pointer.1 - d.grab.1 + lag.y;
+                (x - (d.row.0 + starts[i]), y - d.top)
+            } else {
+                let shown = d.slots[i].0 + self.offset(key, now).0;
+                (shown - starts[i], 0.0)
+            };
+            self.slides.insert(key.clone(), Slide::home_from(from, now));
         }
     }
 
@@ -458,14 +597,34 @@ impl Pill {
 /// does not set (a double click, a middle click, a drop target).
 type EachPill = Rc<dyn Fn(usize, &Pill, Stateful<Div>) -> Stateful<Div>>;
 
+/// The space between two pills.
+pub const PILL_GAP: f32 = 4.0;
+
+/// Told when a pill is picked up (`true`) and when it is let go.
+type OnLift = Rc<dyn Fn(bool, &mut Window, &mut App)>;
+
+/// What `draggable` adds, for one payload type: each pill can be picked up,
+/// and the row follows the hand and takes the drop.
+#[derive(Clone)]
+struct Drag {
+    #[allow(clippy::type_complexity)]
+    pill: Rc<
+        dyn Fn(usize, &Pill, Entity<ChoiceState>, Option<OnLift>, Stateful<Div>) -> Stateful<Div>,
+    >,
+    #[allow(clippy::type_complexity)]
+    row: Rc<dyn Fn(Entity<ChoiceState>, Option<OnLift>, Stateful<Div>) -> Stateful<Div>>,
+}
+
 #[derive(IntoElement)]
 pub struct PillGroup {
     id: ElementId,
     pills: Vec<Pill>,
     selected: usize,
     on_change: Option<OnSelect>,
-    drag: Option<EachPill>,
+    drag: Option<Drag>,
     map_pill: Option<EachPill>,
+    grown_since: Option<Instant>,
+    on_lift: Option<OnLift>,
 }
 
 impl PillGroup {
@@ -477,6 +636,8 @@ impl PillGroup {
             on_change: None,
             drag: None,
             map_pill: None,
+            grown_since: None,
+            on_lift: None,
         }
     }
 
@@ -490,24 +651,91 @@ impl PillGroup {
     /// drag value: anything else that takes `on_drop::<T>`, such as the
     /// paper's halves, can take it too), shown as a still copy of the pill
     /// that follows the pointer on the weighted spring ([`DraggedPill`]).
-    /// Dropped on a pill of this group, `on_drop(payload, i)` gets that
-    /// pill's index.
+    /// Over the row the other pills make way where it would land; dropped
+    /// there, `on_drop(payload, to)` gets the index it lands at (never its
+    /// own). Dropped anywhere else it springs home and the owner hears
+    /// nothing from the group.
     pub fn draggable<T: 'static>(
         mut self,
         payload: impl Fn(usize) -> T + 'static,
         on_drop: impl Fn(&T, usize, &mut Window, &mut App) + 'static,
     ) -> Self {
         let on_drop = Rc::new(on_drop);
-        self.drag = Some(Rc::new(move |i, pill: &Pill, el: Stateful<Div>| {
-            let lifted = pill.clone();
-            let on_drop = on_drop.clone();
-            el.on_drag(payload(i), move |_, _, window, cx| {
-                let pill = lifted.clone();
-                let at = window.mouse_position();
-                cx.new(|_| DraggedPill::new(pill, at))
-            })
-            .on_drop(move |value: &T, window, cx| on_drop(value, i, window, cx))
-        }));
+        let pill = Rc::new(
+            move |i,
+                  pill: &Pill,
+                  state: Entity<ChoiceState>,
+                  on_lift: Option<OnLift>,
+                  el: Stateful<Div>| {
+                let lifted = pill.clone();
+                el.on_drag(payload(i), move |_, grab, window, cx| {
+                    let at = window.mouse_position();
+                    let pointer = (f32::from(at.x), f32::from(at.y));
+                    let ghost = cx.new(|_| DraggedPill::new(lifted.clone(), at));
+                    let held = ghost.clone();
+                    state.update(cx, |s, _| {
+                        let grab = (f32::from(grab.x), f32::from(grab.y));
+                        s.pick_up(i, grab, pointer, held, anim::now());
+                    });
+                    if let Some(f) = &on_lift {
+                        f(true, window, cx);
+                    }
+                    ghost
+                })
+            },
+        );
+        let row = Rc::new(
+            move |state: Entity<ChoiceState>, on_lift: Option<OnLift>, el: Stateful<Div>| {
+                let moving = state.clone();
+                let on_drop = on_drop.clone();
+                el.on_drag_move::<T>(move |e, _, cx| {
+                    let b = e.bounds;
+                    let row = (
+                        f32::from(b.origin.x),
+                        f32::from(b.origin.y),
+                        f32::from(b.size.width),
+                        f32::from(b.size.height),
+                    );
+                    let at = (f32::from(e.event.position.x), f32::from(e.event.position.y));
+                    moving.update(cx, |s, _| s.drag_to(at, row, anim::now()));
+                })
+                .on_drop(move |value: &T, window, cx| {
+                    let moved = state.update(cx, |s, cx| {
+                        let d = s.drag.take()?;
+                        let (from, to) = (d.from, if d.inside { d.to } else { d.from });
+                        s.land(d, to, cx, anim::now());
+                        Some((from, to))
+                    });
+                    if moved.is_some()
+                        && let Some(f) = &on_lift
+                    {
+                        f(false, window, cx);
+                    }
+                    if let Some((from, to)) = moved
+                        && from != to
+                    {
+                        on_drop(value, to, window, cx);
+                    }
+                })
+            },
+        );
+        self.drag = Some(Drag { pill, row });
+        self
+    }
+
+    /// The row has just appeared out of a row of marks (the tab dock
+    /// opening): each pill grows from a mark's width to its own on the dock
+    /// pill's curve, its words come in last and the mark it grew from
+    /// spreads away under the glass.
+    pub fn grown_since(mut self, since: Option<Instant>) -> Self {
+        self.grown_since = since;
+        self
+    }
+
+    /// Told `true` when a pill is picked up and `false` when it is let go
+    /// (dropped anywhere): a dock stays open while its pill is in the hand.
+    pub fn on_lift(mut self, f: impl Fn(bool, &mut Window, &mut App) + 'static) -> Self {
+        self.on_lift = Some(Rc::new(f));
         self
     }
 
@@ -667,25 +895,53 @@ impl RenderOnce for PillGroup {
         let selected = self.selected;
         let state = use_choice(&self.id, selected, n, window, cx);
         let reduce = theme.reduce_motion;
-        let key = self.pills.get(selected).map(|p| p.id_in(&self.id));
-        state.update(cx, |st, _| {
+        let keys: Vec<ElementId> = self.pills.iter().map(|p| p.id_in(&self.id)).collect();
+        let key = keys.get(selected).cloned();
+        let now = anim::now();
+        let dragging = cx.has_active_drag();
+        let (offsets, lifted, moving, natural, let_go) = state.update(cx, |st, cx| {
             st.rects.resize(n, None);
+            st.natural.resize(n, None);
             if st.selected != selected {
                 if key.is_some() && st.selected_key == key {
                     // The same pill, moved: the selection goes with it.
                     st.from = None;
                     st.start = None;
                 } else {
-                    let at = anim::now();
                     st.from = if reduce { None } else { st.rect(st.selected) };
                     st.crossed = (st.selected as i64 - selected as i64).unsigned_abs() as u32;
-                    st.start = (!reduce).then_some(at);
+                    st.start = (!reduce).then_some(now);
                 }
                 st.selected = selected;
             }
             st.selected_key = key;
+            st.keys = keys.clone();
+            // Let go anywhere but on the row: everything springs home.
+            let let_go = !dragging && st.drag.is_some();
+            if let_go && let Some(d) = st.drag.take() {
+                let from = d.from;
+                st.land(d, from, cx, now);
+            }
+            if reduce {
+                st.slides.clear();
+            }
+            st.slides
+                .retain(|_, sl| !(sl.settled(now) && sl.target() == (0.0, 0.0)));
+            let offsets: Vec<(f32, f32)> = keys.iter().map(|k| st.offset(k, now)).collect();
+            let lifted = st.drag.as_ref().and_then(|d| d.keys.get(d.from).cloned());
+            let moving = st.slides.values().any(|sl| !sl.settled(now));
+            (offsets, lifted, moving, st.natural.clone(), let_go)
         });
-        let now = anim::now();
+        if let_go && let Some(f) = &self.on_lift {
+            f(false, window, cx);
+        }
+        anim::keep_going(moving, window);
+        let grow = self
+            .grown_since
+            .filter(|_| !reduce)
+            .map(|since| now.saturating_duration_since(since))
+            .filter(|e| reorder::growing(*e));
+        anim::keep_going(grow.is_some(), window);
         let travelling = band_at(state.read(cx), now).is_some_and(|(_, _, t)| t);
         let mut row = div()
             .id(self.id.clone())
@@ -693,13 +949,16 @@ impl RenderOnce for PillGroup {
             .flex()
             .flex_row()
             .flex_none()
-            .gap(px(4.0))
+            .gap(px(PILL_GAP))
             .items_center();
+        if let Some(drag) = &self.drag {
+            row = (drag.row)(state.clone(), self.on_lift.clone(), row);
+        }
         for (i, pill) in self.pills.into_iter().enumerate() {
             let on = i == selected;
             // While the wave travels the new pill keeps its resting line.
             let lit = on && !travelling;
-            let pid = pill.id_in(&self.id);
+            let pid = keys[i].clone();
             let spec =
                 Spec::new(pill.tone, g::PILL_HEIGHT / 2.0).origin(glass::SAMPLE_ORIGINS[i % 4]);
             let band_state = state.clone();
@@ -750,6 +1009,48 @@ impl RenderOnce for PillGroup {
                 Some(build) => build(window, cx),
                 None => pill.face(&pid).into_any_element(),
             };
+            // Growing: the words at their own width, measured, fading in
+            // behind the glass as it widens; the mark it grew from spreading
+            // away where the pill's own mark leads.
+            let (face, width, spread) = match grow {
+                Some(elapsed) => {
+                    let measured = state.clone();
+                    let words = div()
+                        .flex_none()
+                        .relative()
+                        .opacity(reorder::content_opacity(elapsed))
+                        .child(face)
+                        .child(
+                            canvas(
+                                move |b, _, cx| {
+                                    measured.update(cx, |st, _| {
+                                        if let Some(slot) = st.natural.get_mut(i) {
+                                            *slot = Some(f32::from(b.size.width));
+                                        }
+                                    })
+                                },
+                                |_, _, _, _| {},
+                            )
+                            .absolute()
+                            .top_0()
+                            .left_0()
+                            .size_full(),
+                        );
+                    let own = natural[i].map_or(reorder::MARK_WIDTH, |w| w + 2.0 * PILL_PAD);
+                    let sp = reorder::spread(elapsed);
+                    let spread = pill
+                        .mark
+                        .filter(|_| sp < 1.0)
+                        .map(|(kind, color)| spreading_mark(kind, color, sp, p));
+                    (
+                        words.into_any_element(),
+                        Some(reorder::grown_width(own, elapsed)),
+                        spread,
+                    )
+                }
+                None => (face, None, None),
+            };
+            let (dx, dy) = offsets[i];
             let el = glass::glass_box(
                 pid.clone(),
                 Kind::Rest,
@@ -762,8 +1063,9 @@ impl RenderOnce for PillGroup {
                 window,
                 cx,
             )
+            .relative()
             .h(px(g::PILL_HEIGHT))
-            .px(px(10.0))
+            .px(px(PILL_PAD))
             .flex()
             .flex_row()
             .items_center()
@@ -772,15 +1074,20 @@ impl RenderOnce for PillGroup {
             .type_px(s.secondary, s.line_body)
             .text_color(ink.solid())
             .cursor_pointer()
+            .when_some(width, |el, w| el.flex_none().w(px(w)).overflow_hidden())
+            .when(dx != 0.0 || dy != 0.0, |el| el.left(px(dx)).top(px(dy)))
+            // Its copy is in the hand; its slot stays.
+            .when(lifted.as_ref() == Some(&pid), |el| el.opacity(0.0))
             .child(measure(state.clone(), i))
             .child(band)
+            .children(spread)
             .child(face)
             .role(gpui::Role::Tab)
             .aria_label(pill.label.clone())
             .aria_selected(on)
             .when_some(f, |el, f| el.on_click(move |_, w, cx| f(i, w, cx)));
             let el = match &self.drag {
-                Some(drag) => drag(i, &pill, el),
+                Some(drag) => (drag.pill)(i, &pill, state.clone(), self.on_lift.clone(), el),
                 None => el,
             };
             let el = match &self.map_pill {
@@ -791,6 +1098,44 @@ impl RenderOnce for PillGroup {
         }
         row
     }
+}
+
+/// A pill's padding either side of its words.
+const PILL_PAD: f32 = 10.0;
+
+/// The mark a dock pill grew from, `t` of the way to gone: wider and taller
+/// and fainter where the pill's own mark leads its words.
+fn spreading_mark(
+    kind: sand::Kind,
+    color: Option<Rgb>,
+    t: f32,
+    palette: &'static crate::tokens::Palette,
+) -> impl IntoElement {
+    let (sx, sy) = reorder::SPREAD_SCALE;
+    let look = sand::MarkLook {
+        kind,
+        color,
+        hollow: false,
+        level: 1.0 - t,
+        stretch: (1.0 + (sx - 1.0) * t, 1.0 + (sy - 1.0) * t),
+    };
+    div()
+        .absolute()
+        .top_0()
+        .bottom_0()
+        .left(px(PILL_PAD))
+        .w(px(sand::MARK_SLOT))
+        .flex()
+        .items_center()
+        .child(
+            canvas(
+                |_, _, _| (),
+                move |bounds, _, window, cx| {
+                    sand::paint_kind_mark(bounds, 1.0, look, palette, window, cx)
+                },
+            )
+            .size(px(sand::MARK_SLOT)),
+        )
 }
 
 #[cfg(test)]
