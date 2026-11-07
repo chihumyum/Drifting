@@ -1,0 +1,37 @@
+[package]
+name = "dr-debug-bridge"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "F8's debug bridge: a development build's local socket through which an Agent session or a script drives the real window (never in a release build)"
+
+[features]
+# Screenshots of the real window from inside the app: GPUI draws its last
+# frame into a texture, so a covered window works and no screen-recording
+# permission is needed. That call is behind GPUI's test support, so this is
+# off unless the app's `debug-bridge` feature turns it on.
+screenshot = ["gpui/test-support", "dep:gpui_platform", "gpui_platform/test-support", "dep:png"]
+
+[dependencies]
+base64.workspace = true
+dr-debug-protocol.workspace = true
+dr-platform.workspace = true
+dr-shell.workspace = true
+dr-workspace.workspace = true
+futures.workspace = true
+gpui.workspace = true
+# Only for `screenshot`: the platform crates draw the frame into a texture
+# with test support; the app brings its own platform either way.
+gpui_platform = { workspace = true, optional = true }
+log.workspace = true
+png = { workspace = true, optional = true }
+serde_json.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+dr-store.workspace = true
+dr-testkit.workspace = true
+gpui = { workspace = true, features = ["test-support"] }
+tempfile.workspace = true

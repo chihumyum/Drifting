@@ -10,8 +10,11 @@ asset.put                    command  book     Record an imported asset's metada
 book.create                  command  library  Create a book (its book document from the shared genesis) and return its id.
 book.get                     query    shared   Read a book's name, summary, word targets and counts.
 book.list                    query    shared   List the library's books (trashed ones when asked).
+book.purge                   command  library  Delete a book in Recently Deleted for good, now: its documents, history and assets on this device. Refused for a book not in the trash or still open in an editor. Cannot be undone.
+book.purge_expired           command  library  Delete for good every book whose 30 days in Recently Deleted are over (the shelf runs it a while after it opens, so a restore made on another device can arrive first). Cannot be undone.
 book.restore                 command  book     Bring a book back from the trash.
 book.search                  query    shared   Search a book: titles, summaries, prose, material descriptions and element patches (chapters in reading order first, then ideas, elements, storylines, categories, materials). One- and two-character queries work.
+book.shelf                   query    shared   Everything the bookshelf shows, in one read: every book with its counts, chapter words, creation, last change, and (in Recently Deleted) when it goes for good. Live books first, most recently changed first; then the trashed ones, most recently deleted first.
 book.trash                   command  book     Move a book to the trash (restorable; storage deletes it for good later).
 book.update                  command  book     Change a book's name, summary or word targets.
 book.word_counts             query    shared   Word counts of a book from the derived index: each chapter, idea and storyline, the book (its chapters), and the word targets.
@@ -23,7 +26,7 @@ category.restore             command  book     Bring a category back from the tr
 category.trash               command  book     Move a category to the trash. Never refused: its elements read as uncategorized until it is restored.
 category.update              command  book     Rename a category (a taken name gets a suffix), recolour it or change its layout.
 chapter.create               command  book     Create a chapter (a taken title gets a numbered suffix; the final title is returned).
-chapter.list                 query    shared   List chapters in reading order, with their act and storylines (trashed ones after, when asked).
+chapter.list                 query    shared   List chapters in reading order, with their act, storylines, words, creation and last change (trashed ones after, when asked).
 chapter.move                 command  book     Move a chapter in reading order (it lands before the next chapter or act boundary).
 chapter.purge                command  book     Delete a chapter for good: its relations go and comments on it become floating, in one commit. Undo restores it from history.
 chapter.restore              command  book     Bring a chapter back from the trash (its relations and comments come back with it).
@@ -45,7 +48,10 @@ fact.list                    query    shared   List the book's project facts (�
 fact.put                     command  book     Add a project fact or change one (key, value, position).
 fact.remove                  command  book     Remove a project fact.
 history.agent_changes        query    shared   List what an Agent session (or one turn) wrote: one entry per settled write, oldest first.
+history.points               query    shared   List a prose document's history points (kept 30 days, at most one every 15 minutes of writing), newest first, with the words at each.
+history.preview              query    shared   Read a prose document as it was at a history point: its paragraphs (with H1/H2/H3 levels) and its owner's title and summary then.
 history.restore_entities     command  book     Make named entities of a book equal to an earlier version (one commit; the rest of the book is untouched). The undo of every purge.
+history.restore_point        command  book     Restore a prose document to a history point, per entity: the prose goes back (a new change; history stays) and its owner's title, summary and other metadata fields go back to that time; the rest of the book is untouched.
 history.undo_agent           command  book     Undo what an Agent session (or one turn) wrote: book fields nobody changed since go back, entities it created go to the trash, entities it deleted come back, and prose untouched since is reverted; the rest is reported as conflicts.
 idea.create                  command  book     Create an idea (构想); a taken title gets a numbered suffix and the final title is returned.
 idea.list                    query    shared   List ideas (构想), optionally of one group.
@@ -74,6 +80,8 @@ memory.update                command  book     Change a Project Memory entry's t
 prose.read                   query    shared   Read paragraphs of a prose document (text, block id, heading level).
 prose.replace                command  book     Replace one exact passage of prose with new text (it must occur exactly once, in one paragraph).
 prose.restore                command  book     Restore a prose document to an earlier version, as a new change (history stays).
+recent.list                  query    shared   List the pages of a book the author opened recently on this device, newest first (what is in the trash or gone is left out).
+recent.touch                 command  book     Record that the author opened a page of a book (this device only; Project Home's 「继续写」 reads it). Not undoable.
 relation.create              command  book     Relate two entities (a symmetric type stores its ends in canonical order; an existing identical relation is returned instead).
 relation.delete              command  book     Delete a relation.
 relation.list                query    shared   List the relations to show (both ends live, one per semantic edge).
@@ -88,5 +96,9 @@ storyline.purge              command  book     Delete a storyline for good: chap
 storyline.restore            command  book     Bring a storyline back from the trash, with its chapters' membership.
 storyline.trash              command  book     Move a storyline to the trash. Never refused: chapters keep their membership, hidden until it is restored.
 storyline.update             command  book     Rename a storyline (a taken name gets a suffix), recolour it or change its summary.
+time_pin.create              command  book     Put a time pin on the narrative axis, with a label or bound to an idea.
+time_pin.delete              command  book     Delete a time pin.
+time_pin.list                query    shared   List the book's time pins along the narrative axis, with the ideas bound to them.
+time_pin.update              command  book     Move a time pin, change its label, or bind it to an idea or unbind it.
 todo.project                 command  book     Keep the TODOs typed as markers in one prose document (a paragraph starting with TODO or 待办) in step with it: a new marker gets a TODO, an open TODO whose marker is gone is deleted, resolved ones stay; the same marker makes the same TODO on every device.
 writing_day.record           command  book     Set this device's words for one day of a book (the writing-day recorder; not undoable).

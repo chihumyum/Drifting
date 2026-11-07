@@ -285,17 +285,42 @@ impl ProseDoc {
     /// Applies one edit through the source, records anchors whose edges it
     /// deletes for the undo item, and folds the result into the mirror.
     fn apply(&mut self, edit: Edit<'_>, origin: &str) -> EditResult {
-        let may_delete = match &edit {
+        self.apply_all(std::slice::from_ref(&edit), origin)
+    }
+
+    /// Applies `edits` as one commit (one Loro undo item) through the
+    /// source: see [`ProseSource::edit_batch`]. Give non-overlapping ranges
+    /// last first, so the anchors whose edges they delete come back on undo
+    /// (their positions are recorded against the text before the batch).
+    pub fn edit_batch(&mut self, edits: &[Edit<'_>], origin: &str) -> EditResult {
+        if edits.is_empty() {
+            return EditResult::default();
+        }
+        self.apply_all(edits, origin)
+    }
+
+    fn apply_all(&mut self, edits: &[Edit<'_>], origin: &str) -> EditResult {
+        let may_delete = edits.iter().any(|edit| match edit {
             Edit::Replace { range, .. } | Edit::Delete { range } => !range.is_empty(),
             _ => false,
-        };
+        });
         let anchors_before = if may_delete && !self.anchors.is_empty() {
             self.anchors.resolve_all(self.source.as_ref())
         } else {
             Vec::new()
         };
-        let result = self.source.edit(edit, origin);
-        for &(pos, len) in &result.deleted {
+        let result = match edits {
+            [edit] => self.source.edit(edit.clone(), origin),
+            _ => self.source.edit_batch(edits, origin),
+        };
+        // Undo puts deleted text back in document order, and the undo record
+        // matches its deletions to those inserts in order: a batch given last
+        // first deleted in descending order, so record it ascending.
+        let mut deleted = result.deleted.clone();
+        if edits.len() > 1 {
+            deleted.sort_by_key(|&(pos, _)| pos);
+        }
+        for (pos, len) in deleted {
             let restores = anchor_restores(&anchors_before, pos..pos + len);
             self.undo
                 .pending
@@ -431,6 +456,14 @@ impl ProseDoc {
     /// interval (Enter, an IME commit, a paste, moving the caret).
     pub fn checkpoint(&mut self) {
         self.undo.force_new_step = true;
+    }
+
+    /// Makes the next commit part of the last undo step, however long ago
+    /// it was (a host's edit derived from the typing, such as automatic
+    /// links, which one undo takes back with it). Without a last step it
+    /// starts one.
+    pub fn join_last_step(&mut self) {
+        self.undo.join_last_step = true;
     }
 
     pub fn can_undo(&self) -> bool {

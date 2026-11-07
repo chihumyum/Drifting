@@ -141,18 +141,26 @@ cargo run --release -p prose-spike -- check ../docs/rust-rewrite/acceptance/p0-b
 - **写入**：无窗口；每次按键 = `LoroText::insert` 加 `commit`（事件同步折进段落镜像），再把 `subscribe_local_update` 给出的更新 `INSERT` 进 WAL 模式、`synchronous=NORMAL` 的 SQLite。
 - **`check`**：核对证据里的源码指纹（探针源码编进程序算出的 FNV-1a）和两份语料指纹，和当前代码一致才通过。
 
-### 编辑器档的测法（F4，gpui-prose）
+### 编辑器档的测法（F4，dr-editor 的 prose-bench）
 
-2026-11-07 起，编辑器档用 `gpui-prose` 的基准程序（`next/crates/gpui-prose/examples/prose-bench`），语料、种子、步骤和 P0-B 相同，可以直接和 P0-B 的证据对比：
+2026-11-07 起，编辑器档用基准程序 `prose-bench`。2026-11-08（F4e 第二批）起它在 `next/crates/dr-editor/examples/prose-bench`：
+
+- **语料**：换成 F8 的重型种子（`dr_testkit::seed`）。全书是种子的 100 章，单章是其中最长的一章。
+- **怎么打开**：经 Drifting 真正的路径（工作区会话 `SessionSource`）打开。
+- **证据**：写成 F8 格式（`f4e-m2-prose-bench-<子命令>.json`），由 `cargo xtask check` 核对新鲜度。
+- **旧证据**：`f4-*.json` 保留作历史，由 P0-B 那一套语料量出。
 
 ```bash
 cd next
-cargo run --release -p gpui-prose --example prose-bench -- headless --out ../docs/rust-rewrite/acceptance/f4-headless.json
-cargo run --release -p gpui-prose --example prose-bench -- window --out ../docs/rust-rewrite/acceptance/f4-window.json
-cargo run --release -p gpui-prose --example prose-bench -- present --out ../docs/rust-rewrite/acceptance/f4-present.json
-cargo run --release -p gpui-prose --example prose-bench -- idle --out ../docs/rust-rewrite/acceptance/f4-idle-stock.json
-cargo run --release -p gpui-prose --example prose-bench -- check ../docs/rust-rewrite/acceptance/f4-*.json
+cargo run --release -p dr-editor --example prose-bench -- headless --write   # 无窗口
+cargo run --release -p dr-editor --example prose-bench -- decor --write      # 无窗口
+cargo run --release -p dr-editor --example prose-bench -- window --write     # 开窗口，占屏
+cargo run --release -p dr-editor --example prose-bench -- present --write    # Instruments，占屏
+cargo run --release -p dr-editor --example prose-bench -- idle --write       # 开窗口，占屏
+cargo xtask check
 ```
+
+每个子命令都有总超时（`--timeout` 秒）；负载超过 2 时，程序自己把证据标成仅供参考。下面「和 P0-B 不同的地方」说的是 2026-11-07 那一版，仍适用于旧证据。
 
 和 P0-B 不同的地方：
 

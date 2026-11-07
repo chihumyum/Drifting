@@ -6,12 +6,25 @@ rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
 
+[features]
+# F8's debug bridge (`cargo xtask dev --debug-bridge`): a local socket that
+# lets an Agent session or a script drive this window, with in-app
+# screenshots. Development builds only; `cargo xtask check` (gate
+# `debug-bridge`) keeps it out of the default features and the release
+# scripts, `cargo xtask check-binary` out of a built binary.
+debug-bridge = ["dep:dr-debug-bridge", "dr-debug-bridge/screenshot"]
+
 [dependencies]
 anyhow.workspace = true
+dr-debug-bridge = { workspace = true, optional = true }
 dr-platform.workspace = true
 dr-shell.workspace = true
+# F2's device identity for the library (writing days, epochs).
+dr-store.workspace = true
 dr-ui.workspace = true
+dr-view-feedback.workspace = true
 dr-view-home.workspace = true
+dr-view-import.workspace = true
 dr-view-shelf.workspace = true
 dr-workspace.workspace = true
 gpui.workspace = true
@@ -19,3 +32,6 @@ gpui_platform.workspace = true
 log.workspace = true
 # DRIFTING_CHECK (development builds): F3's queries the self-check reads.
 serde_json.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

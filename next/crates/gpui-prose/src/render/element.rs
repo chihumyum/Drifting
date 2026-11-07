@@ -19,7 +19,7 @@ use gpui::{
 };
 
 use super::{
-    blocks::{Align, BlockLook, BlockStyle},
+    blocks::{BlockLook, BlockStyle},
     decor::{Brush, DecorationKey, Touch},
     frame::{CompSpan, FrameCache, PaintedDecoration, PaintedLine},
     paint::{TextPaint, paint_text},
@@ -28,7 +28,10 @@ use super::{
 };
 use crate::{
     ProseEditor,
-    layout::{Affinity, HeightIndex, ProseLayout, column, shape},
+    layout::{
+        Affinity, HeightIndex, ProseLayout, RowSetting, column, shape_set, typewriter_bounds,
+        typewriter_tail,
+    },
 };
 
 pub struct ParagraphElement {
@@ -68,13 +71,21 @@ pub struct ParagraphElement {
     pub(crate) shared: Rc<RefCell<Shared>>,
     /// A drawn decoration waits for the author's next click in the prose.
     pub(crate) settle_on_click: bool,
+    /// How the rows are set: first-line indent, alignment, justification,
+    /// squeezing (F4b; the column width comes from layout).
+    pub(crate) setting: RowSetting,
+    /// Typewriter scrolling's line (a fraction of the view), if on.
+    pub(crate) typewriter: Option<f32>,
+    /// The book's last paragraph (room after it for typewriter scrolling).
+    pub(crate) last: bool,
 }
 
 struct Shaped {
     layout: Rc<ProseLayout>,
     /// The text's left edge inside the item (column, indent, quote inset).
     left: Pixels,
-    /// How far each row moves right (alignment); empty for left-aligned.
+    /// How far each row moves right on top of the layout's own placement;
+    /// empty (alignment is the layout's now, F4b).
     shifts: Vec<Pixels>,
 }
 
@@ -92,41 +103,10 @@ impl IntoElement for ParagraphElement {
     }
 }
 
-/// Where each glyph starts, by byte, for a whole paragraph: GPUI's
-/// `x_for_index` walks from the paragraph's start every time, and a long
-/// paragraph with many decorations would walk it hundreds of times a frame.
-struct GlyphXs {
-    xs: Vec<(usize, Pixels)>,
-    width: Pixels,
-}
-
-impl GlyphXs {
-    fn new(layout: &ProseLayout) -> GlyphXs {
-        let line = &layout.line;
-        let mut xs: Vec<(usize, Pixels)> = line
-            .runs
-            .iter()
-            .flat_map(|run| run.glyphs.iter().map(|g| (g.index, g.position.x)))
-            .collect();
-        xs.sort_by_key(|(index, _)| *index);
-        GlyphXs {
-            xs,
-            width: line.width,
-        }
-    }
-
-    /// The x of `byte` (as `LineLayout::x_for_index`).
-    fn at(&self, byte: usize) -> Pixels {
-        let ix = self.xs.partition_point(|(index, _)| *index < byte);
-        self.xs.get(ix).map_or(self.width, |(_, x)| *x)
-    }
-}
-
 /// The extent of `bytes` in each of `rows` it touches, relative to the text
-/// origin (shifts applied): (row, x0, x1).
+/// origin (the layout's placement and any shifts applied): (row, x0, x1).
 fn row_spans<'a>(
     layout: &'a ProseLayout,
-    xs: &'a GlyphXs,
     shifts: &'a [Pixels],
     rows: Range<usize>,
     bytes: Range<usize>,
@@ -141,8 +121,12 @@ fn row_spans<'a>(
             let span = &layout.rows[row];
             let (start, end) = (bytes.start.max(span.start), bytes.end.min(span.end));
             (start < end).then(|| {
-                let left = layout.row_x(row) - shifts.get(row).copied().unwrap_or_default();
-                (row, xs.at(start) - left, xs.at(end) - left)
+                let shift = shifts.get(row).copied().unwrap_or_default();
+                (
+                    row,
+                    layout.x_at(row, start) + shift,
+                    layout.x_at(row, end) + shift,
+                )
             })
         })
 }
@@ -201,10 +185,17 @@ impl Element for ParagraphElement {
         style.size.width = relative(1.).into();
         let (text, runs) = (self.text.clone(), self.runs.clone());
         let (font_size, line_height) = (self.font_size, self.line_height);
-        let (pad_top, pad_bottom) = (self.pad_top, self.pad_bottom);
+        let tail = match self.typewriter {
+            // Room after the last paragraph so typewriter scrolling can bring
+            // its last row up to the line.
+            Some(position) if self.last => typewriter_tail(window.viewport_size().height, position),
+            _ => px(0.),
+        };
+        let (pad_top, pad_bottom) = (self.pad_top, self.pad_bottom + tail);
         let (max_width, gutter) = (self.max_width, self.gutter);
         let (item_ix, heights) = (self.item_ix, self.heights.clone());
         let block = self.block;
+        let setting = self.setting;
         let layout_id = window.request_measured_layout(style, {
             let shared = shared.clone();
             move |known: Size<Option<Pixels>>, available: Size<AvailableSpace>, window, _cx| {
@@ -214,22 +205,10 @@ impl Element for ParagraphElement {
                 });
                 let (column_width, left) = column(width, max_width, gutter);
                 let wrap_width = (column_width - block.inset).max(px(40.));
-                let layout = shape(&text, font_size, &runs, wrap_width, window);
-                let shifts = if block.align == Align::Left {
-                    Vec::new()
-                } else {
-                    layout
-                        .rows
-                        .iter()
-                        .enumerate()
-                        .map(|(row, bytes)| {
-                            let width = layout
-                                .x_range(row, bytes.clone())
-                                .map_or(px(0.), |(x0, x1)| x1 - x0);
-                            block.row_shift(width, wrap_width)
-                        })
-                        .collect()
-                };
+                // Alignment, indent, squeezing and justification are the
+                // layout's, so every position it answers is placed.
+                let layout = shape_set(&text, font_size, &runs, wrap_width, setting, window);
+                let shifts = Vec::new();
                 let height = pad_top + line_height * layout.row_count() as f32 + pad_bottom;
                 heights
                     .borrow_mut()
@@ -273,13 +252,37 @@ impl Element for ParagraphElement {
         if self.autoscroll
             && let Some(cursor) = cursor
         {
-            // Keep a row of context above and below the cursor.
-            let margin = self.line_height;
-            window.request_autoscroll(Bounds::from_corners(
-                point(cursor.left(), cursor.top() - margin),
-                point(cursor.right(), cursor.bottom() + margin),
-            ));
+            match self.typewriter {
+                // Typewriter scrolling: the caret's row to the line.
+                Some(position) => {
+                    let view = window.content_mask().bounds;
+                    if let Some(wanted) = typewriter_bounds(cursor, view, position) {
+                        window.request_autoscroll(wanted);
+                    }
+                }
+                // Keep a row of context above and below the cursor.
+                None => {
+                    let margin = self.line_height;
+                    window.request_autoscroll(Bounds::from_corners(
+                        point(cursor.left(), cursor.top() - margin),
+                        point(cursor.right(), cursor.bottom() + margin),
+                    ));
+                }
+            }
         }
+        // How the paragraph broke into rows this frame, for the screen
+        // reader's runs (built after the editor's children prepaint).
+        self.frame.borrow_mut().prepainted.push(PaintedLine {
+            chapter: self.chapter,
+            line: self.line,
+            rev: self.rev,
+            text: self.text.clone(),
+            bounds,
+            origin,
+            layout: shaped.layout.clone(),
+            line_height: self.line_height,
+            comp: self.comp,
+        });
         ParagraphPrepaint { cursor }
     }
 
@@ -337,14 +340,6 @@ impl Element for ParagraphElement {
             let hi = ((mask.bottom() - origin.y) / lh).ceil() + 1.;
             (lo.max(0.) as usize)..(hi.max(0.) as usize).min(rows)
         };
-        let xs = if self.decos.is_empty() {
-            GlyphXs {
-                xs: Vec::new(),
-                width: px(0.),
-            }
-        } else {
-            GlyphXs::new(lay)
-        };
 
         window.paint_layer(layer_bounds, |window| {
             self.paint_quote_wash(bounds, shaped.left, origin, rows, window);
@@ -354,7 +349,7 @@ impl Element for ParagraphElement {
                     _ => px(0.),
                 };
                 let boxes: Vec<Bounds<Pixels>> =
-                    row_spans(lay, &xs, shifts, rows_in_view.clone(), deco.bytes.clone())
+                    row_spans(lay, shifts, rows_in_view.clone(), deco.bytes.clone())
                         .map(|(row, x0, x1)| text_box(row, x0, x1, reach))
                         .collect();
                 if deco.touch != Touch::None {
@@ -470,7 +465,7 @@ impl Element for ParagraphElement {
                         continue;
                     };
                     let boxes: Vec<Bounds<Pixels>> =
-                        row_spans(lay, &xs, shifts, rows_in_view.clone(), deco.bytes.clone())
+                        row_spans(lay, shifts, rows_in_view.clone(), deco.bytes.clone())
                             .map(|(row, x0, x1)| {
                                 let mid = lh * row as f32 + baseline + *drop;
                                 Bounds::from_corners(

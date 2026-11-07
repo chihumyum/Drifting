@@ -21,7 +21,7 @@ use dr_ui::{
     components::Segmented,
     fonts::Role,
     glass::{self, Ground},
-    input::TextField,
+    input::{TextArea, TextField},
     sand::Icon,
     style::DrStyled,
     theme,
@@ -31,19 +31,23 @@ pub const WINDOW_W: f32 = 1280.0;
 pub const WINDOW_H: f32 = 800.0;
 pub const TOP_BAR: f32 = 44.0;
 
+const INTRO: &str = "灯塔守了三十年，最后一个守塔人在退潮的夜里收到一封没有署名的信。\n林岚从北岸来，想弄清信是谁写的，又为什么只写了灯转到第九圈的时刻。";
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Page {
     Tokens,
     Controls,
+    Inputs,
     Floating,
     Sand,
     Motion,
 }
 
 impl Page {
-    pub const ALL: [Page; 5] = [
+    pub const ALL: [Page; 6] = [
         Page::Tokens,
         Page::Controls,
+        Page::Inputs,
         Page::Floating,
         Page::Sand,
         Page::Motion,
@@ -53,6 +57,7 @@ impl Page {
         match self {
             Page::Tokens => "令牌",
             Page::Controls => "控件",
+            Page::Inputs => "输入",
             Page::Floating => "浮层",
             Page::Sand => "砂笔",
             Page::Motion => "过渡",
@@ -63,6 +68,7 @@ impl Page {
         match self {
             Page::Tokens => "tokens",
             Page::Controls => "controls",
+            Page::Inputs => "inputs",
             Page::Floating => "floating",
             Page::Sand => "sand",
             Page::Motion => "motion",
@@ -82,6 +88,12 @@ pub struct Gallery {
     pub title: Entity<TextField>,
     pub search: Entity<TextField>,
     pub locked: Entity<TextField>,
+    /// The inputs page: a book title edited where it stands, the book's
+    /// introduction, a chapter title that wraps and its synopsis.
+    pub book_title: Entity<TextField>,
+    pub intro: Entity<TextArea>,
+    pub chapter_title: Entity<TextArea>,
+    pub synopsis: Entity<TextArea>,
     pub menu_open: bool,
     pub dialog_open: bool,
     pub notice: bool,
@@ -123,6 +135,23 @@ impl Gallery {
             f.set_disabled(true, cx);
             f
         });
+        let book_title = cx.new(|cx| {
+            TextField::new("book-title", window, cx)
+                .bare()
+                .with_text("雾港纪事")
+        });
+        let intro = cx.new(|cx| {
+            TextArea::new("book-intro", window, cx)
+                .placeholder("一两句话说明这本书是什么。")
+                .with_text(INTRO)
+        });
+        let chapter_title = cx.new(|cx| {
+            TextArea::new("chapter-title", window, cx)
+                .submit_on_enter()
+                .placeholder("无标题章节")
+                .with_text("第三章　灯塔在退潮的夜里第二次亮起")
+        });
+        let synopsis = cx.new(|cx| TextArea::new("synopsis", window, cx).placeholder("梗概…"));
         Gallery {
             page: Page::Controls,
             appearance: Appearance::Light,
@@ -135,6 +164,10 @@ impl Gallery {
             title,
             search,
             locked,
+            book_title,
+            intro,
+            chapter_title,
+            synopsis,
             menu_open: false,
             dialog_open: false,
             notice: true,
@@ -207,6 +240,7 @@ impl Render for Gallery {
         let page = match self.page {
             Page::Tokens => pages::tokens(self, window, cx).into_any_element(),
             Page::Controls => pages::controls(self, window, cx).into_any_element(),
+            Page::Inputs => pages::inputs(self, window, cx).into_any_element(),
             Page::Floating => pages::floating(self, window, cx).into_any_element(),
             Page::Sand => pages::sand(self, window, cx).into_any_element(),
             Page::Motion => pages::motion(self, window, cx).into_any_element(),

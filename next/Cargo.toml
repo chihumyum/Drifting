@@ -7,6 +7,8 @@ resolver = "3"
 members = [
     "app/drifting",
     "crates/dr-cli",
+    "crates/dr-debug-bridge",
+    "crates/dr-debug-protocol",
     "crates/dr-doc",
     "crates/dr-editor",
     "crates/dr-i18n",
@@ -19,7 +21,11 @@ members = [
     "crates/dr-testkit",
     "crates/dr-text",
     "crates/dr-ui",
+    "crates/dr-view-feedback",
+    "crates/dr-view-history",
     "crates/dr-view-home",
+    "crates/dr-view-import",
+    "crates/dr-view-review",
     "crates/dr-view-search",
     "crates/dr-view-shelf",
     "crates/dr-view-stats",
@@ -30,6 +36,7 @@ members = [
     "crates/prose-metrics",
     "spikes/import-v1",
     "spikes/loro-model",
+    "spikes/loro-undo-quadratic",
     "spikes/prose-spike",
     "spikes/visual",
     "xtask",
@@ -97,6 +104,10 @@ aho-corasick = "1.1"
 
 # F8 test kit: the seed, sample books, evidence, crash harness, benchmarks.
 dr-testkit = { path = "crates/dr-testkit" }
+# F8 debug bridge: the server (development builds with the app's
+# `debug-bridge` feature only) and its protocol and client (no GPUI).
+dr-debug-bridge = { path = "crates/dr-debug-bridge" }
+dr-debug-protocol = { path = "crates/dr-debug-protocol" }
 # xtask's text gates (the version GPUI's dependencies already lock).
 regex = "1.13"
 # uuidv7 for new domain ids (the old data uses uuidv7 too); v4 for F7's
@@ -198,8 +209,12 @@ dr-shell = { path = "crates/dr-shell" }
 dr-ui = { path = "crates/dr-ui" }
 # M06 and M07: the search panel and the Stats tab with the writing-day
 # recorder (interface crates over F3).
+dr-view-review = { path = "crates/dr-view-review" }
+dr-view-history = { path = "crates/dr-view-history" }
 dr-view-search = { path = "crates/dr-view-search" }
 dr-view-stats = { path = "crates/dr-view-stats" }
+# M39: the feedback dialog and the crash follow-up.
+dr-view-feedback = { path = "crates/dr-view-feedback" }
 futures = "0.3"
 icu_plurals = { version = "2.4", default-features = false, features = ["compiled_data"] }
 icu_locale_core = { version = "2.4", default-features = false }
@@ -209,6 +224,9 @@ sys-locale = "0.3"
 # (the writing day) and is the version the lockfile already carries.
 dr-view-home = { path = "crates/dr-view-home" }
 dr-view-shelf = { path = "crates/dr-view-shelf" }
+# M10's interface: the 0.1 library import over the bookshelf
+# (docs/rust-rewrite/modules/m10-import.md).
+dr-view-import = { path = "crates/dr-view-import" }
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
 # dr-shell's capture example writes its screenshots as 256-colour PNGs
 # (the versions GPUI's image stack already builds).

@@ -64,9 +64,13 @@ fn run(cmd: Command) -> String {
 
 fn seed(dir: &Path, yes: bool) -> String {
     run(Command::Scenario {
-        library: dir.to_path_buf(),
+        library: Some(dir.to_path_buf()),
         name: "seed:tiny".into(),
         yes,
+        app: None,
+        profile: None,
+        out: None,
+        keep: false,
     })
 }
 
@@ -115,9 +119,13 @@ fn writes_need_yes_a_closed_app_and_leave_a_backup() {
     let open =
         dr_store::Library::open(&lib, dr_workspace::library_options(offline::APP_VERSION)).unwrap();
     let e = execute(Command::Scenario {
-        library: lib.clone(),
+        library: Some(lib.clone()),
         name: "seed:tiny".into(),
         yes: true,
+        app: None,
+        profile: None,
+        out: None,
+        keep: false,
     })
     .unwrap_err();
     assert!(e.contains("quit it first"), "{e}");
@@ -221,15 +229,23 @@ fn scenarios_run_steps_with_references_and_expectations() {
     .unwrap();
     let name = file.to_string_lossy().to_string();
     let dry = run(Command::Scenario {
-        library: lib.clone(),
+        library: Some(lib.clone()),
         name: name.clone(),
         yes: false,
+        app: None,
+        profile: None,
+        out: None,
+        keep: false,
     });
     assert!(dry.contains("run the 8 steps"), "{dry}");
     let out = run(Command::Scenario {
-        library: lib.clone(),
+        library: Some(lib.clone()),
         name: name.clone(),
         yes: true,
+        app: None,
+        profile: None,
+        out: None,
+        keep: false,
     });
     assert!(out.contains("failed as expected (name_taken)"), "{out}");
     // A failed expectation stops the run with the step.
@@ -239,9 +255,13 @@ fn scenarios_run_steps_with_references_and_expectations() {
     )
     .unwrap();
     let e = execute(Command::Scenario {
-        library: lib.clone(),
+        library: Some(lib.clone()),
         name,
         yes: false,
+        app: None,
+        profile: None,
+        out: None,
+        keep: false,
     })
     .unwrap_err();
     assert!(e.contains("step 0 (book.list): expected /0/name"), "{e}");
@@ -252,9 +272,13 @@ fn the_seed_can_be_written_through_the_commands() {
     let tmp = tempfile::tempdir().unwrap();
     let lib = tmp.path().join("library");
     let out = run(Command::Scenario {
-        library: lib.clone(),
+        library: Some(lib.clone()),
         name: "seed-commands:tiny".into(),
         yes: true,
+        app: None,
+        profile: None,
+        out: None,
+        keep: false,
     });
     assert!(out.contains("commands"), "{out}");
     let v: serde_json::Value = serde_json::from_str(&run(Command::Inspect {
@@ -270,4 +294,92 @@ fn the_seed_can_be_written_through_the_commands() {
 fn the_command_line_opens_libraries_as_the_app() {
     let manifest = include_str!("../../../app/drifting/Cargo.toml");
     assert!(manifest.contains(&format!("version = \"{}\"", offline::APP_VERSION)));
+}
+
+#[test]
+fn app_calls_parse_and_need_a_running_build() {
+    let c = parse(&a(&["app", "open", "第一章", "--profile", "p9"])).unwrap();
+    let Command::App(call) = c else {
+        panic!("{c:?}")
+    };
+    assert_eq!(
+        (call.verb.as_str(), call.args.as_slice()),
+        ("open", &["第一章".to_string()][..])
+    );
+    assert_eq!(call.profile.as_deref(), Some("p9"));
+    assert!(parse(&a(&["app"])).is_err());
+    // No build runs under this profile: the error says how to start one.
+    let e = execute(Command::App(dr_cli::app::AppCall {
+        profile: Some("dr-cli-test-nothing-here".into()),
+        ..call
+    }))
+    .unwrap_err();
+    assert!(e.contains("not_running"), "{e}");
+}
+
+/// The acceptance scenarios that ship with dr-cli parse, and the writing
+/// loop drives the app, typing included.
+#[test]
+fn the_shipped_scenarios_parse() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("scenarios");
+    let mut n = 0;
+    for e in std::fs::read_dir(&dir).unwrap() {
+        let path = e.unwrap().path();
+        let s = dr_cli::scenario::parse(&std::fs::read_to_string(&path).unwrap())
+            .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+        assert!(!s.about.is_empty(), "{}", path.display());
+        n += 1;
+    }
+    assert!(n >= 1);
+    let loop_ =
+        dr_cli::scenario::parse(&std::fs::read_to_string(dir.join("writing-loop.json")).unwrap())
+            .unwrap();
+    assert!(dr_cli::scenario::is_live(&loop_));
+    assert!(loop_.steps.iter().all(|s| s.pending.is_none()));
+    assert!(
+        loop_
+            .steps
+            .iter()
+            .any(|s| s.app.as_deref() == Some("input.type"))
+    );
+    assert!(loop_.steps.iter().filter(|s| s.launch.is_some()).count() == 2);
+}
+
+#[test]
+fn a_scenario_that_drives_the_app_keeps_to_its_own_profile() {
+    let (_dir, lib) = seeded();
+    let file = _dir.path().join("live.json");
+    std::fs::write(
+        &file,
+        r#"{"about": "x", "steps": [{"seed": "tiny"}, {"app": "state.get"}]}"#,
+    )
+    .unwrap();
+    let live = |library: Option<PathBuf>, profile: Option<&str>, yes: bool| {
+        execute(Command::Scenario {
+            library,
+            name: file.to_string_lossy().into_owned(),
+            yes,
+            app: None,
+            profile: profile.map(str::to_string),
+            out: None,
+            keep: false,
+        })
+    };
+    // Never on a library given by path.
+    assert!(
+        live(Some(lib.clone()), None, true)
+            .unwrap_err()
+            .contains("--library")
+    );
+    // An existing profile's library only with --yes; without, nothing runs.
+    let (code, out) = live(None, Some("dr-cli-test-nothing-here"), false).unwrap();
+    assert_eq!(code, 0);
+    assert!(out.contains("--yes"), "{out}");
+    // Offline, an app step says what it needs.
+    let s = dr_cli::scenario::parse(r#"{"steps": [{"call": "book.list"}, {"app": "state.get"}]}"#)
+        .unwrap();
+    let ws = dr_workspace::Workspace::open_dir(&lib, dr_cli::offline::APP_VERSION).unwrap();
+    let e = dr_cli::scenario::run(&ws, &s).unwrap_err();
+    ws.shutdown().unwrap();
+    assert!(e.contains("needs_app"), "{e}");
 }

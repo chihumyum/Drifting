@@ -88,6 +88,12 @@ Guidance for coding agents working in this standalone Drifting client repository
   share a library or a lock (`--instance <name>` for a second one,
   `--print-config` to inspect). Offline library changes go through
   `cargo drifting workspace …`: the app closed, a backup first, `--yes`.
+- Desktop acceptance of `next/` drives the real window through F8's debug
+  bridge: `cargo xtask dev --debug-bridge`, then `cargo drifting app …`
+  (open, type, key, text, state, screenshot), or a scenario with
+  `--app target/debug/drifting`, which runs under a throwaway profile. The
+  bridge is a development-only feature: never turn it on by default or in a
+  release script (`cargo xtask check`, `cargo xtask check-binary`).
 
 ## Public Alpha compatibility policy
 

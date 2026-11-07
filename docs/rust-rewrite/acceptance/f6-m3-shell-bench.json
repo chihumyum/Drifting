@@ -4,13 +4,13 @@
   "milestone": "f6-m3",
   "generatedBy": "cargo run --release -p dr-shell --features capture --example shell-capture -- --bench ../docs/rust-rewrite/acceptance",
   "inputs": {
-    "crates/dr-editor": "3e19884dfe07c366a38a35fc40c6bc079be5aecd9f560859f8f8043db2b1884c",
-    "crates/dr-shell": "fc1638ca73597f083b6da297e8cd2c50635c5882b74ca838ae0a701f008c1b70",
+    "crates/dr-editor": "95b14b3e4b31febf3846824a991b00ba780ab6d1c4947e0f0ba91099c7be7a7b",
+    "crates/dr-shell": "ac5eea6fb947c6720bff5fa6339051b848f4841ad49b68d514563eeff9115b99",
     "crates/dr-testkit/fixtures/slow-clock.json": "3fa3ff0ac28ea90269e9734689c1d51446ea58b15d7f3e0bc8da301b9d66d9d8",
     "crates/dr-testkit/src/samples.rs": "d92b073fab71aafed3cf29f0a115def579ab2dd40e3da476356955f9017e874d",
     "crates/dr-ui": "176fa019295dc71f89ea81c5e094ce116c60e7c24b91ab88910f5145485ef3fe",
-    "crates/dr-workspace": "a027003030fe2c9fdfe6d410c975a80fd44a0d1e05c2408c33f3a5c635a638d8",
-    "crates/gpui-prose": "59eb96ff55bc568fc1e1cc8f8752094f81bc1c61621dacbfd7f463dbdae041bd"
+    "crates/dr-workspace": "6273286edaafb0d4202b39ae259943e0302d652c2ed5f3d14ef731fcd5102143",
+    "crates/gpui-prose": "c17d148071d2c2e85929a2c38991d8f922619681093868ea55b3f3c98d296048"
   },
   "corpus": {
     "sample": "slow-clock"
@@ -22,90 +22,90 @@
     "os": "macos",
     "osVersion": "27.0.1",
     "arch": "aarch64",
-    "loadAverage1m": 24.72,
+    "loadAverage1m": 19.2,
     "profile": "release"
   },
   "results": {
     "note": "CPU time of window.draw (layout + paint) per frame, 1280x800 at 2x, headless Metal, 《慢钟》 read through F3",
     "start": {
-      "init_and_open_ms": 52.68,
-      "first_frame_ms": 0.08,
-      "book_lists_ms": 56.06
+      "init_and_open_ms": 57.62,
+      "first_frame_ms": 0.09,
+      "book_lists_ms": 62.14
     },
     "everyday_at_rest": {
       "frame_requests": 0,
       "full_redraw_ms": {
         "n": 60,
-        "p50": 0.857,
-        "p95": 1.064,
-        "max": 1.158
+        "p50": 0.917,
+        "p95": 2.84,
+        "max": 2.903
       },
-      "first_page_open_ms": 39.25
+      "first_page_open_ms": 45.51
     },
     "typing": {
       "input_ms": {
         "n": 80,
-        "p50": 0.213,
-        "p95": 0.31,
-        "max": 8.829
+        "p50": 0.293,
+        "p95": 1.952,
+        "max": 4.156
       },
       "frame_ms": {
         "n": 80,
-        "p50": 0.895,
-        "p95": 1.076,
-        "max": 1.192
+        "p50": 1.324,
+        "p95": 4.56,
+        "max": 19.555
       }
     },
     "whole_book_page": {
-      "rows": 127,
-      "read_ms": 10.39,
+      "chapters": 24,
+      "open_ms": 24.31,
       "full_redraw_ms": {
         "n": 60,
-        "p50": 0.82,
-        "p95": 1.068,
-        "max": 1.323
+        "p50": 1.617,
+        "p95": 2.874,
+        "max": 3.823
       }
     },
     "tab_switch": {
       "frame_ms": {
         "n": 150,
-        "p50": 2.44,
-        "p95": 4.453,
-        "max": 5.561
+        "p50": 2.346,
+        "p95": 5.51,
+        "max": 6.65
       },
       "frame_requests_after": 0
     },
     "sidebar_slide": {
       "frame_ms": {
         "n": 150,
-        "p50": 1.98,
-        "p95": 4.226,
-        "max": 5.219
+        "p50": 1.617,
+        "p95": 3.243,
+        "max": 5.295
       },
       "frame_requests_after": 0
     },
     "panel_push": {
       "frame_ms": {
         "n": 168,
-        "p50": 0.753,
-        "p95": 1.864,
-        "max": 2.473
+        "p50": 0.998,
+        "p95": 1.993,
+        "max": 3.353
       }
     },
     "super_view_open": {
       "frame_ms": {
         "n": 30,
-        "p50": 1.038,
-        "p95": 1.958,
-        "max": 3.128
+        "p50": 0.912,
+        "p95": 1.372,
+        "max": 1.434
       }
     },
     "settings_open": {
       "frame_ms": {
         "n": 30,
-        "p50": 2.222,
-        "p95": 5.728,
-        "max": 8.969
+        "p50": 3.003,
+        "p95": 3.88,
+        "max": 4.353
       }
     }
   }

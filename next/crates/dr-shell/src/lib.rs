@@ -9,6 +9,7 @@
 //! - one shortcut registry over GPUI actions and the keymap ([`keymap`]);
 //! - one declarative settings registry and its file ([`settings`]);
 //! - the notification center ([`notifications`]);
+//! - dialogs other crates draw, such as feedback ([`dialogs`]);
 //! - the quit flow ([`quit`]): saving and handing over happen before
 //!   `cx.quit()`, the quit callback only flushes crash reports.
 //!
@@ -23,9 +24,11 @@
 //! });
 //! ```
 
+pub mod account;
 pub mod actions;
 pub mod appearance;
 pub mod book;
+pub mod dialogs;
 pub mod keymap;
 pub mod menus;
 pub mod nav;
@@ -100,9 +103,13 @@ pub fn init(info: ShellInfo, services: Services, file: SettingsFile, cx: &mut Ap
     // M07: the writing-day recorder and the Stats tab over the library,
     // stored before quitting.
     dr_view_stats::init(services.library.clone(), cx);
+    // M18: the Review tab and the comment composer's shortcut.
+    dr_view_review::init(services.library.clone(), cx);
+    keymap::add_bindings(cx, dr_view_review::bindings);
     quit::before_quit(cx, |cx| {
         dr_view_stats::flush(cx);
         dr_view_stats::release(cx);
+        dr_view_review::release(cx);
     });
     cx.set_global(info);
     cx.set_global(services);
@@ -111,6 +118,10 @@ pub fn init(info: ShellInfo, services: Services, file: SettingsFile, cx: &mut Ap
     quit::install(cx);
     notifications::install(cx);
     workspace::init(cx);
+    // M06's search panel: ↑↓ through the hits.
+    keymap::add_bindings(cx, dr_view_search::key_bindings);
+    // The find bar: ⇧Enter, ⌘G / ⇧⌘G.
+    keymap::add_bindings(cx, workspace::find::key_bindings);
     keymap::apply(&Settings::read(cx).key_bindings(), cx);
 }
 

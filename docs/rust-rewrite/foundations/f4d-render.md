@@ -1,6 +1,6 @@
 # F4d 渲染：画层、块样式、沉浸淡出、滚动条刻度
 
-2026-11-08。F4 编辑引擎的渲染子线，代码在 `next/crates/gpui-prose/src/render/`（MIT OR Apache-2.0，只依赖 gpui 和 loro，不碰任何 `dr-*`）。总的架构、文本源和别的子线见 [f4-editor.md](f4-editor.md)；计划见 [foundation.md 的 F4 一节](../foundation.md#f4-编辑引擎gpui-prose-与-dr-editor)。
+2026-11-08。F4 编辑引擎的渲染子线，代码在 `next/crates/gpui-prose/src/render/`（MIT OR Apache-2.0，只依赖 gpui 和 loro，不碰任何 `dr-*`）。第二轮（同一天）把画层接进了 Drifting，代码在 `next/crates/dr-editor/src/decor/`，见文末[「第二轮：接进 Drifting」](#第二轮接进-drifting)；审阅面板是 [M18](../modules/m18-review.md)。总的架构、文本源和别的子线见 [f4-editor.md](f4-editor.md)；计划见 [foundation.md 的 F4 一节](../foundation.md#f4-编辑引擎gpui-prose-与-dr-editor)。
 
 ## 一句话
 
@@ -28,6 +28,7 @@
 | --- | --- |
 | `ProseEditor::set_decorations(chapter, group, Vec<Decoration>, cx)` | 换掉这一章这一组；按 id 对新旧，见「大白话」 |
 | `ProseEditor::clear_decorations(cx)` | 一下全清，不淡出（换了一本书） |
+| `ProseEditor::set_find_look(Option<Wash>, cx)` | 查找命中的画法（第二轮加）：编辑器自己读 F4c 的 `find_matches` / `find_current` 画，当前项用 `Strength` 的加深那一档；`None` 不画 |
 | `ProseEditor::decoration_range(chapter, group, id)` | 它现在在哪（编辑以后挪过的范围） |
 | `ProseEditor::painted_decoration(chapter, group, id) -> Option<PaintedDecoration>` | 上一帧画在哪：它盖住的字逐行的窗口坐标、浓度、画到哪儿了；给悬停卡定位，也给测试 |
 | `Decoration::new(id, range, look).touch(…).emphasis(…).tick(…)` | 一处装饰：范围是整章的字符偏移，和选区一样 |
@@ -68,10 +69,10 @@
 | --- | --- | --- | --- | --- |
 | 批注锚点 | `comments` | `Wash::sand(hl, hl-hot, 批注色, 0.27 / 0.61)` | `Touch::POINT` | `Span`，批注色 |
 | TODO 锚点 | `comments` | `Wash::sand(hl, hl-hot, TODO 黄, 0.29 / 0.66)` | `Touch::POINT` | `Span`，TODO 色 |
-| TODO 关键字（段首的 `TODO：`） | `todo` | `Ink(TODO 色)` | — | — |
+| TODO 关键字（段首的 `TODO：`） | `todo-marks` | `Ink(TODO 色)` | — | — |
 | 跳到原文、点刻度、刚写下 | 同上 | `Emphasis::Drawn(新的 n)` | — | — |
 | 指着 Review 卡 | 同上 | `Emphasis::Hot` | — | — |
-| 查找命中 / 当前项 | `find` | `Wash::flat(强调色, 0.16 / 0.34)`，当前项 `Hot` | — | 可选 |
+| 查找命中 / 当前项 | 不是组：`set_find_look` | `Wash::flat(强调色, 0.16 / 0.34)`，当前项用加深那一档 | — | — |
 | 人物链接 | `links` | `Underline::sand(ul, 实体色, 0.7 / 0.95)` | `Touch::HOVER` | — |
 | 建议链接（`dr-text` 匹配器找到、还没链上） | `suggestions` | `Underline::dotted(实体色, 淡)` | 可选 | — |
 | Agent 新增 / 改写 / 外部改动 | `agent` | `Ink(绿 / 紫 / 蓝)` | `Touch::Fade` | `Lane(0 / 1 / 1)` |
@@ -152,15 +153,9 @@
 
 1. **F4b（排版）：每行偏移。** 对齐现在靠「对齐的多行段落每行记一条记录」让点击对上；输入法候选窗（`input/ime.rs` 的 `bounds_for_range`）和上下移动（`input/movement.rs` 的 `goal_x`）读的是段落第一条记录或不带偏移的排版，所以居中、右对齐的多行段落里候选窗会偏、上下移动的列会错开。建议 F4b 给 `ProseLayout` 加 `set_row_offsets(&[Pixels])`（从 `row_x` 里减掉），渲染层在排版后调它，`point_for_byte`、`byte_in_row`、`x_range`、`selection_rects` 就都带上偏移；那时渲染层改回每段一条记录、去掉自己的 `shifts`，F4c 不用改。
 2. **F4b：高度估算和 `line_layout` 不知道块样式。** `editor.rs` 的 `estimate_line` / `estimate_all` 按整版心宽估高，`line_layout`（没画过的段落现排）也按整版心宽换行；缩进、引文的段落其实更窄。估算只影响滚动条的准度，`line_layout` 影响上下移动进入屏幕外的缩进段落时落在哪个字。建议这两处减去 `ProseEditor::block_look(chapter, line).inset`。
-3. **F4e（dr-editor）接画层：**
-   - 贴图：`SandTexture::from_png("dr-ui/sand/hl", SandMask::Hl.png())` 等，一次建好、`Rc` 共享；颜色按 dr-ui 的砂笔颜色规则（浅色预乘稿纸、深色提亮再乘 0.72）。
-   - 批注、TODO：在持有者线程上把锚点解析成范围（`anchors::comment_anchors` 已有），按上面的表交 `comments` 组；批注变了、或者自己按节奏重解析后重交。
-   - 人物链接：现在 `style_run` 给链接字加了 GPUI 的细下划线；换成 `Underline::sand(ul, …)` 装饰时把 `style_run` 里的下划线去掉，免得画两道。建议链接用 `dr-text` 的匹配器找出没链上的名字，交 `suggestions` 组（这是待协调 13 要的「建议」显示）。
-   - TODO 标记：`todo::markers` 找到的段，关键字交 `Ink(TODO 色)`，任务那段在投成待办以后作为批注锚点画。
-   - Agent 改动：命令写入后按改动交 `agent` 组；`Touched` 时把它记成看过（跨重启保留），之后不再交。
-   - 事件：`Pointed` → 点亮审阅卡；`Settled` → 清掉「选中的批注」；`TickClicked` → 选中这条批注（交 `Drawn(n+1)`）。
+3. **F4e（dr-editor）接画层：** 第二轮做完了，见[下面](#第二轮接进-drifting)。
 4. **F5（dr-ui）：动效时长有两份。** `gpui-prose` 不能依赖 dr-ui，`render::motion` 抄了 dr-ui `tokens::motion::sand` 的几个时长（0.3 / 0.24 / 0.38 + 0.12 s）和沉浸的 0.24 s。建议 `dr-editor` 加一条测试逐个对这两份，改一边会被提醒。
-5. **F6（外壳）：** 沉浸写作时只对获得焦点的那个编辑器调 `set_paragraph_focus(true)`；`ThemeSettings::reduce_motion` 变了调 `set_reduce_motion`；主题变了连同 `set_block_style` 一起换颜色。
+5. **F6（外壳）：** 沉浸写作时只对获得焦点的那个编辑器调 `set_paragraph_focus(true)`（还没接）。主题变了换颜色、块样式已经接上（第二轮的 `set_decor_looks`）；只改「减少动效」还传不到编辑器，见第二轮待协调 2。
 6. **给监管会话（合并）：** `gpui-prose/src/editor.rs` 只加了四行：`paint` 字段、初始值 `paint: Default::default()`、`sync_chapter` 循环里的 `self.paint.follow(chapter, set, self.own_edit, cx);`、`render` 里列表之后的 `.child(self.scroll_ticks(cx))`。`ParagraphElement` 加了几个 crate 内字段（外面没人构造它）。`gpui-prose` 的开发依赖 `gpui_platform` 打开了 `test-support`（基准程序要它的离屏渲染器），基准程序的源码指纹清单（`report.rs`）加了新文件。
 7. **空闲重测**：「测量」里的数字是负载 4.9 下量的，等一分钟负载降到 2 以下，在 `next/` 下重跑一次、把表换掉：
 
@@ -169,3 +164,56 @@
    ```
 
 8. **`f4-editor.md` 里过时的两句（给监管会话，合并时改）：**「已知限制」里「块样式里只有 H1/H2/H3 有样子」；待协调 13（F4d 的画层接口）现在有了，指到本文。本子线只建了本文，没有改 `f4-editor.md`。
+
+## 第二轮：接进 Drifting
+
+2026-11-08，第二轮。画层现在画的是 Drifting 真的东西：批注和 TODO 的砂笔、Agent 改动的墨色、人物链接的干笔下划线、建议链接、TODO 关键字、查找命中、滚动条刻度。代码在 `next/crates/dr-editor/src/decor/`（`mod.rs` 交装饰和发命令，`looks.rs` 颜色和贴图，`ledger.rs` Agent 改动的账本，`focus.rs` 和审阅面板共用的高亮状态）；`gpui-prose` 只多了查找那一层。审阅面板见 [M18](../modules/m18-review.md)。
+
+### 大白话
+
+- **每个章节编辑器自己管自己的装饰。** `ChapterEditor` 打开或换篇时带一个 `Decor`，它自己读批注、算链接、跟 Agent 的写入、发 F3 命令；外壳只给颜色（`set_decor_looks(DecorLooks)`，主题变了再给一次）。颜色按 dr-ui 的调色板和砂笔规则：浅色把颜色乘进稿纸色（`Palette::sand_on`），深色提亮、浓度再乘 0.72；Agent 的绿、紫、蓝是旧版 `comments-review.css` 的那三个色。贴图是 dr-ui 的 `hl`、`hl-hot`、`ul`、`blob-0..5`，一个线程建一次、所有编辑器共用。
+
+| 组 | 画什么 | 从哪来 | 什么时候重交 |
+| --- | --- | --- | --- |
+| `comments` | 每条没解决的批注、TODO 的干笔砂（`Touch::POINT`，刻度横跨整条） | F3 的 `comment.anchors`，在文档的持有者线程上把锚点解析成范围 | 书里的批注变了；指着卡、跳到原文、换颜色时用编辑器手上挪过的范围再交一次 |
+| `agent` | Agent 新加的字绿、改写的字紫、别的编辑器（Markdown 文件夹）写的字蓝；指针碰到就淡回墨色 | `ledger::AgentMarks`（下面） | 账本变了 |
+| `links` | 人物链接的干笔下划线（链到已删除的东西是灰的），`style_run` 不再画 GPUI 的细下划线 | 正文上的实体标记 | 停手 150 ms 后；书的实体变了 |
+| `suggestions` | 还没链上的名字，一串砂粒 | `dr_text::autolink::book_link_names` + `LinkMatcher`（不含这篇自己的实体，已经链上的不算） | 同上 |
+| `todo-marks` | 段首 `TODO`、`待办` 关键字换成 TODO 色 | `todo::markers` | 同上 |
+| 查找 | F4c 的命中平涂强调色，当前项更深 | `gpui-prose` 自己读 `find_matches` / `find_current`（`set_find_look(Some(Wash))`），每打一个字不用宿主重交 | — |
+
+- **解析和编辑器对得上。** 锚点在持有者线程上解析，Agent 的写入可能正好落在中间：解析看到的是写入后的文档，编辑器还没折进那次写入（或者反过来）。现在持有者线程上数着这篇文档推了多少次改动（`source::EventCount`），解析时一起记下，回到主线程和编辑器已经折进的次数（`SessionSource::taken`）比：对不上就 20 ms 后重新解析，最多 8 次。
+- **再交一次用编辑器手上的范围。** 批注交给编辑器以后，打字、撤销、Agent 的写入都由编辑器挪；以后再交（指着卡、跳到原文、换颜色）先从编辑器读回现在的范围（`decoration_range`），编辑器已经丢掉的（字被删光）就不再交。第一版这里用的是载入时的范围：截图里 Agent 在前面加了 9 个字，一指卡片，砂笔就退回 9 个字之前。
+- **Agent 改动的账本。** Agent 每次写正文，dr-store 都留一条结算记录，带写之前、写之后两个版本。账本（每个库一个）拿到新记录，在持有者线程上比较两个版本（Loro 的 diff，去掉前后相同的字），每一段新字记成一处：只是加进来的算「新加」，替换了别的字的算「改写」，只有空白的不记。每处是两个 Loro 光标，所以之后怎么编辑都跟着字走，重启也找得回来，章节开着没开着都一样。别的编辑器写的字（M40 Markdown 文件夹的来源 `mirror`）从工作区的正文事件里来，记成「外部」。
+- **「看过」存在哪：库目录里的 `agent-marks.json`，只在这台设备上。** 格式 `{"v":1,"last_settlement":…,"docs":{"<文档>":[{"id","kind","start","end"}]}}`（光标是 base64）。指针碰到一处，它就从文件里删掉，所以「看过」就是「不在单子上了」；字被编辑掉的、被更新的 Agent 改动盖住的旧记号也一起删。还记着最后取过的结算记录，重启不重复、不漏。一个库第一次见到时从最新那条记录往后算，以前的 Agent 改动不上色。选这个办法是因为最小：不改 Loro 结构、不加迁移、不进同步；看没看过本来就是这台设备上的事。
+- **不按 origin 前缀认作者。** 墨色只来自结算记录，只有 Agent 的写入才留结算记录，所以作者的命令（`user:command`）、作者自己打字都不会上色；蓝色只认 `mirror` 这一个来源。
+- **F3 第三轮的两条命令由编辑器自己发**（以前外壳只打日志）：
+  - `AnchorsChanged`（撤销把字带回来、旧光标找不到它们了）→ 每条 `comment.reanchor`，同一个锚点重复发没关系；
+  - TODO 标记变了、光标从一个标记段移到别的段、编辑器失去焦点 → `todo.project`，每次给全清单；`editing` 只在编辑器有焦点时填光标所在段（正在打的那条先不投），失焦时不填。
+- **审阅面板和正文的高亮**走 `focus::ReviewFocus`（全局）：`point_cards`（指着哪些卡 → 砂笔 `Hot`）、`point_prose`（指针停在哪些砂笔上 → 卡亮）、`jump`（跳到哪条 → 编辑器把光标放到它开头、交 `Drawn(n)`）、`settle`（编辑器发 `Settled` 后清掉）。点刻度也是 `jump`。
+
+### 共用文件里改的地方（只加字段和挂钩）
+
+| 文件 | 改了什么 |
+| --- | --- |
+| `dr-editor/src/view.rs` | `ChapterEditor` 加字段 `decor`；`open` 里 `Decor::new(…)`；`switch_to` 里 `self.decor.rebind(…)` |
+| `dr-editor/src/links.rs` | `dry_underline` 开关（`set_dry_underline`）：开着时 `style_run` 不画链接的细下划线；`alive(kind, id)` 给装饰判断链接的目标还在不在 |
+| `dr-editor/src/source.rs` | `EventCount`、`SessionSource::event_count()`、`taken()`（crate 内） |
+| `dr-editor/src/lib.rs`、`Cargo.toml` | `pub mod decor;`；依赖 `dr-ui`（颜色和贴图） |
+| `gpui-prose/src/render/{state,items}.rs` | 查找层：`set_find_look`，画的时候读 F4c 的命中 |
+
+### 测试
+
+- `dr-editor/tests/decor.rs`（GPUI `TestAppContext`、真库，8 项）：批注画在锚点上、新写的出现、解决的消失、前面打字跟着挪；打开时 Agent 正好在写，批注仍落在原来的字上；Agent 写入以后指着卡、跳到原文再交，砂笔留在挪过的位置（这一项去掉修复会失败）；跳到原文画出来并把光标放过去；Agent 改动上色、写进 `agent-marks.json`、碰掉以后文件里也没了；链接、建议、TODO 关键字的范围；TODO 标记在光标离开、失焦时投成 TODO（失焦时 `editing` 为空）；撤销带回的字重新锚定并存进书目文档。
+- `dr-editor/src/decor/ledger.rs`：两版比对分出新加和改写；账本文件写了再读一样。
+- `gpui-prose/src/render/tests.rs`：`find_matches_are_drawn_with_the_current_one_stronger`。
+
+### 待协调（第二轮）
+
+1. **F6（外壳）：⌘F 查找条还没有**（外壳的 `FindInEditor` 只打日志）。高亮已经接好：谁调了编辑器的 `set_find`，命中和当前项就画出来。
+2. **F6：只改「减少动效」传不到编辑器。** `style_editors` 只在基础样式变了时重给 `DecorLooks`；减少动效不在基础样式里。外壳比较时把 `theme.reduce_motion` 也算上就行。沉浸写作的 `set_paragraph_focus` 也还没接（上面待协调 5）。
+3. **M40（Markdown 文件夹）：** 蓝色的外部改动按 `mirror` 来源的正文事件记，`next/` 里还没有镜像，没在真的流程里跑过。
+4. **TODO 只在标记变了、光标离开、失焦时投。** 别的设备同步来的 `TODO:` 段，要等这一章在本机打开并动过才投；要不要打开时就投一次，看 M18 下一个里程碑。
+5. **Agent 改动的「看过」不跨设备。** 一台设备上碰掉了，另一台还是彩色的；要同步就得进书目文档，那是一次 Loro 结构的改动（F1）。
+6. **M05（全书视图）：画层还只接在单章编辑器上。** `Decor` 按「一个编辑器一篇文档、第 0 章」写的；`BookEditor` 一个编辑器里有全书各章，要每章一个（`set_decorations` 本来就按章分）：读批注、账本、链接按每章的 `doc` 各做一份，交装饰时带上章号；`BookEditorEvent` 的 `AnchorsChanged`、`TodoMarkers` 已经带着章的 `doc`，可以直接用 `Decor` 里发 `comment.reanchor`、`todo.project` 的那两段。M05 要的「幕的扉页」也是 F4d 的活，这一轮没做。
+

@@ -130,6 +130,32 @@ fn counted(lib: &dr_workspace::Workspace, book: &str) -> Check<(u64, usize)> {
 
 /// The book is read; its id and first two chapters.
 async fn book(cx: &mut AsyncApp) -> Check<(String, Target, Target)> {
+    // Without DRIFTING_BOOK the window opens on the bookshelf: open the
+    // book opened last, else the library's first.
+    until(cx, "the window", 30, |cx| {
+        let handle = workspace(cx)?;
+        let shelf = handle.read_with(cx, |ws, _| ws.shelf_open).ok()?;
+        if shelf {
+            let lib = library(cx)?;
+            let last = dr_shell::Settings::read(cx).last_book().map(str::to_owned);
+            let ids: Vec<String> = lib
+                .library()
+                .docs(None, Some("book"))
+                .ok()?
+                .into_iter()
+                .filter_map(|d| d.doc_id.strip_prefix("book:").map(str::to_owned))
+                .collect();
+            let id = last
+                .filter(|l| ids.contains(l))
+                .or_else(|| ids.first().cloned())?;
+            eprintln!("check: on the bookshelf; opening a book");
+            handle
+                .update(cx, |ws, window, cx| ws.open_book(&id, window, cx))
+                .ok()?;
+        }
+        Some(())
+    })
+    .await?;
     until(cx, "the book", 30, |cx| {
         read_ws(cx, |ws, _| {
             (ws.book.chapters.len() >= 2).then(|| {

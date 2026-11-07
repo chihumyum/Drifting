@@ -36,6 +36,26 @@ use crate::model::{self, Field, Group, Jump, Line, Owner};
 /// The panel's key context.
 pub const KEY_CONTEXT: &str = "DrSearch";
 
+gpui::actions!(
+    search,
+    [
+        /// The hit above the selected one.
+        SelectPrevious,
+        /// The hit below the selected one.
+        SelectNext,
+    ]
+);
+
+/// The panel's keys: ↑ and ↓ move through the hits while its field has the
+/// keyboard. The shell binds them (`keymap::add_bindings`).
+pub fn key_bindings() -> Vec<gpui::KeyBinding> {
+    let c = Some(KEY_CONTEXT);
+    vec![
+        gpui::KeyBinding::new("up", SelectPrevious, c),
+        gpui::KeyBinding::new("down", SelectNext, c),
+    ]
+}
+
 /// The most hits one search reads (the count reads `N+` past it).
 pub const LIMIT: usize = 500;
 /// How long typing pauses before a search runs.
@@ -494,22 +514,10 @@ impl Render for SearchPanel {
             .bg(p.desk.solid())
             .shadow(float_shadow(p))
             .child(slab_edge(p, radius::SHEET))
-            // The arrows move through the hits while the field has focus.
-            // Read as keys, not bound in the keymap: the shell rebuilds the
-            // keymap from its own registry whenever a shortcut changes.
-            .on_key_down(cx.listener(|panel, e: &gpui::KeyDownEvent, _, cx| {
-                let m = &e.keystroke.modifiers;
-                if m.platform || m.control || m.alt || m.shift {
-                    return;
-                }
-                let by = match e.keystroke.key.as_str() {
-                    "up" => -1,
-                    "down" => 1,
-                    _ => return,
-                };
-                panel.step(by, cx);
-                cx.stop_propagation();
-            }))
+            // The arrows move through the hits while the field has focus
+            // ([`key_bindings`]; the shell keeps them in its keymap).
+            .on_action(cx.listener(|panel, _: &SelectPrevious, _, cx| panel.step(-1, cx)))
+            .on_action(cx.listener(|panel, _: &SelectNext, _, cx| panel.step(1, cx)))
             .on_mouse_down_out(move |_, _, cx| {
                 close.update(cx, |_, cx| cx.emit(SearchEvent::Close))
             })

@@ -62,6 +62,19 @@ impl Shared {
     }
 }
 
+/// The count of a document's events the holder has pushed. Read inside a
+/// holder job, it says which state of the document that job saw; compare
+/// it with [`SessionSource::taken`] to know whether the editor shows the
+/// same state (positions found off the main thread are only right then).
+#[derive(Clone)]
+pub(crate) struct EventCount(Arc<Shared>);
+
+impl EventCount {
+    pub(crate) fn now(&self) -> u64 {
+        self.0.queue().pushed
+    }
+}
+
 /// gpui-prose's text source on one of the workspace's prose documents.
 pub struct SessionSource {
     doc_id: String,
@@ -146,6 +159,16 @@ impl SessionSource {
 
     pub fn doc_id(&self) -> &str {
         &self.doc_id
+    }
+
+    /// The holder's count of this document's events (see [`EventCount`]).
+    pub(crate) fn event_count(&self) -> EventCount {
+        EventCount(self.shared.clone())
+    }
+
+    /// Events the editor has taken, and so folded into what it shows.
+    pub(crate) fn taken(&self) -> u64 {
+        self.taken
     }
 
     pub fn session(&self) -> &ProseSession {
@@ -284,6 +307,37 @@ impl ProseSource for SessionSource {
             }
             Err(e) => {
                 log::error!("dr-editor: edit of {} failed: {e}", self.doc_id);
+                EditResult::default()
+            }
+        }
+    }
+
+    fn edit_batch(&mut self, edits: &[Edit<'_>], origin: &str) -> EditResult {
+        if origin != ORIGIN_USER {
+            // Tests and stand-ins only (see `edit`): one at a time.
+            let mut merged = EditResult::default();
+            for edit in edits {
+                merged.merge(self.edit(edit.clone(), origin));
+            }
+            return merged;
+        }
+        let edits: Vec<OwnedEdit> = edits.iter().cloned().map(OwnedEdit::from).collect();
+        let before = self.shared.queue().pushed_user;
+        // One `dr-doc` transaction, one commit, one item on the undo stack.
+        let written = self.session.edit(move |txn| {
+            let mut merged = EditResult::default();
+            for edit in edits {
+                merged.merge(convert::apply(txn, edit)?);
+            }
+            Ok(merged)
+        });
+        match written {
+            Ok(mut result) => {
+                result.undo_items = (self.shared.queue().pushed_user - before) as usize;
+                result
+            }
+            Err(e) => {
+                log::error!("dr-editor: batch edit of {} failed: {e}", self.doc_id);
                 EditResult::default()
             }
         }

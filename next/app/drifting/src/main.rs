@@ -2,13 +2,15 @@
 //!
 //! The entry point wires F7's platform services (the MCP bridge first, then
 //! crash reports, logs, the single running copy, deep links), F3's
-//! workspace over the library, dr-ui's assets and fonts, and hands the
-//! window to the shell (F6, `dr-shell`).
+//! workspace over the library with this device's identity (`library`),
+//! dr-ui's assets and fonts, and hands the window to the shell (F6,
+//! `dr-shell`) with the views it hosts (bookshelf, Project Home, feedback).
 //! See docs/rust-rewrite/foundations/f6-shell.md.
 
 mod about;
 mod check;
 mod identity;
+mod library;
 mod probe;
 
 use std::path::Path;
@@ -25,10 +27,6 @@ pub const APPEARANCE_ENV: &str = "DRIFTING_APPEARANCE";
 /// The development switch: `DRIFTING_BOOK=<id or name>` opens that book
 /// straight away instead of the bookshelf.
 pub const BOOK_ENV: &str = "DRIFTING_BOOK";
-/// The library's folder inside the app's data folder (F2's `library.sqlite`,
-/// `assets/`, …). The data folder itself is the 0.1 client's for the release
-/// identity, so the new library keeps to a folder of its own.
-pub const LIBRARY_DIR: &str = "library";
 
 fn forced_appearance() -> Option<dr_ui::Appearance> {
     match std::env::var(APPEARANCE_ENV).ok().as_deref().map(str::trim) {
@@ -86,16 +84,17 @@ fn main() {
     let Some(instance) = dr_platform::single_instance::acquire(platform, &args).primary() else {
         return;
     };
-    // The library opens on its own thread while AppKit launches; the shell
+    // The library opens on its own thread while AppKit launches, with this
+    // device's identity from the data folder (`library::open`); the shell
     // takes it once the app is ready. Without one the window still opens,
     // with no book.
     let library = dirs.as_ref().map(|dirs| {
-        let root = dirs.data.join(LIBRARY_DIR);
+        let data = dirs.data.clone();
         std::thread::Builder::new()
             .name("library-open".into())
             .spawn(move || {
                 let started = std::time::Instant::now();
-                let opened = dr_workspace::Workspace::open_dir(&root, env!("CARGO_PKG_VERSION"));
+                let opened = library::open(&data, env!("CARGO_PKG_VERSION"));
                 (opened, started.elapsed())
             })
     });
@@ -176,6 +175,21 @@ fn main() {
         // paper under no tab.
         dr_view_shelf::init(cx);
         dr_view_home::init(cx);
+        // M39: the feedback dialog (`SendFeedback`, a crash follow-up in the
+        // notification center), by mail unless built with the Hosted service.
+        dr_view_feedback::init(
+            dr_view_feedback::Service::for_build(
+                platform,
+                dirs.as_ref().map(|dirs| dirs.data.as_path()),
+                env!("CARGO_PKG_VERSION"),
+            ),
+            cx,
+        );
+        // M10: the bookshelf's 「导入 · Drifting 0.1」.
+        dr_view_import::init(cx);
+        // F8's debug bridge, in `--features debug-bridge` builds only.
+        #[cfg(feature = "debug-bridge")]
+        dr_debug_bridge::start(cx);
         probe::shell_ready();
         cx.on_action(about::open);
         if !cfg!(target_os = "macos") {

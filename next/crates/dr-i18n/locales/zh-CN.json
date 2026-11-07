@@ -7,6 +7,15 @@
     "storyGraph": "故事图谱",
     "todoLibrary": "审阅与素材"
   },
+  "commentRail": {
+    "actions": {
+      "reopen": "未解决",
+      "resolve": "解决"
+    },
+    "card": {
+      "emptyComment": "空批注"
+    }
+  },
   "common": {
     "cancel": "取消",
     "close": "关闭",
@@ -14,10 +23,12 @@
     "creating": "创建中…",
     "edit": "编辑",
     "local": "本地",
+    "processing": "处理中…",
     "save": "保存",
     "saveFailed": "保存未完成，请重试。",
     "saving": "保存中…",
-    "untitled": "未命名"
+    "untitled": "未命名",
+    "wordsCount": "{{count}} 字"
   },
   "dashboard": {
     "actions": {
@@ -68,9 +79,34 @@
     }
   },
   "feedback": {
+    "attachDiagnostics": "附上脱敏诊断摘要",
+    "cancel": "取消",
+    "close": "关闭",
+    "contact": "联系邮箱",
+    "contactPlaceholder": "选填",
     "crash": {
+      "emailSubject": "Drifting 故障补充",
+      "ignore": "忽略",
+      "placeholder": "当时在做什么",
       "title": "上次出了故障"
-    }
+    },
+    "emailSubject": "Drifting 反馈",
+    "failed": "没能发出",
+    "hidePreview": "收起",
+    "placeholder": "问题或建议",
+    "preview": "预览",
+    "send": "发送",
+    "sendByEmail": "用邮件发送",
+    "sending": "发送中…",
+    "sent": "已发送",
+    "title": "提交反馈"
+  },
+  "findPanel": {
+    "bookPlaceholder": "在全书中查找…",
+    "closeTitle": "关闭 (Esc)",
+    "currentPlaceholder": "在当前编辑器中查找…",
+    "nextTitle": "下一个 (Enter)",
+    "previousTitle": "上一个 (Shift+Enter)"
   },
   "globalSearch": {
     "closeTitle": "关闭 (Esc)",
@@ -85,6 +121,15 @@
   "immersiveWriting": {
     "enter": "沉浸写作",
     "leave": "退出沉浸写作"
+  },
+  "importDialog": {
+    "chooseFolder": "选择文件夹",
+    "status": {
+      "committed": "已导入"
+    },
+    "summary": {
+      "done": "完成"
+    }
   },
   "leftSidebar": {
     "empty": {
@@ -188,6 +233,9 @@
     "wordsOfTarget": "{{words}} / {{target}} 字"
   },
   "projectPicker": {
+    "bookTransfer": {
+      "importFailedTitle": "无法导入"
+    },
     "desk": {
       "chaptersUnit": "章",
       "elementsUnit": "个要素",
@@ -198,6 +246,7 @@
         "summaryLabel": "梗概"
       },
       "goal": "{{pct}}% · 目标 {{target}} 字",
+      "importing": "正在导入",
       "moveToTrash": "移到最近删除",
       "newCard": "新建一本",
       "newCardSub": "从一张白纸开始",
@@ -225,6 +274,7 @@
       "daysUnit": "天",
       "today": "今天"
     },
+    "projectCount": "{{filtered}} / {{total}} 本",
     "rail": {
       "books": "{{count}} 本",
       "import": "导入书",
@@ -254,6 +304,23 @@
   "relationTypes": {
     "description": "说明"
   },
+  "reviewPanel": {
+    "commentPlaceholder": "写批注…",
+    "empty": "此范围内没有审阅项目。",
+    "filters": {
+      "all": "全部",
+      "comment": "批注",
+      "todo": "TODO"
+    },
+    "groups": {
+      "deleted": "已删除",
+      "floating": "未挂载"
+    },
+    "resolved": "已解决（{{count}}）",
+    "scopes": {
+      "current": "当前"
+    }
+  },
   "rightSidebar": {
     "kickers": {
       "library": "全项目 · 素材库",
@@ -276,6 +343,7 @@
       "chapterOrdinal": "第 {{count}} 章",
       "chaptersValue": "{{count}} 章",
       "recent": "最近",
+      "snapshotButton": "历史快照…",
       "wordsPerChapterValue": "{{words}} 字 / 章",
       "wordsValue": "{{count}} 字",
       "writingProgress": "写作进度",
@@ -293,6 +361,31 @@
     }
   },
   "settings": {
+    "about": {
+      "channel": "通道",
+      "channelPreAlpha": "Alpha",
+      "contact": "联系",
+      "credits": "致谢与许可",
+      "emailTeam": "写信给团队",
+      "engine": "引擎",
+      "knownIssues": "已知问题",
+      "knownIssuesDesc": "当前 Alpha 的已知限制",
+      "license": "客户端许可证",
+      "licenseDesc": "GNU AGPL v3 或更高版本",
+      "openSource": "开源依赖",
+      "sourceCode": "源代码",
+      "sourceCodeDesc": "这个 AGPL 客户端的对应源代码",
+      "sub": "终极写作体验",
+      "support": "Alpha 支持",
+      "supportDesc": "故障排查与安全反馈说明",
+      "tagline": "为夜里不睡的写作人造。",
+      "title": "Drifting",
+      "version": "版本",
+      "viewLicense": "查看许可证",
+      "viewList": "查看清单",
+      "viewSource": "查看源码",
+      "writeEmail": "写邮件"
+    },
     "appearance": {
       "dark": "深色",
       "interface_text_large": "较大",
@@ -306,6 +399,9 @@
       "system": "跟随系统",
       "theme": "主题",
       "theme_desc": "浅色、深色，或跟随系统。"
+    },
+    "common": {
+      "open_in_browser": "在浏览器打开"
     },
     "editor": {
       "auto_immersive": "打字时自动沉浸",
@@ -323,11 +419,17 @@
       "page_width_desc": "编辑器中部纸张的宽度；正文按固定边距填满纸张。",
       "paragraph_spacing": "段间距",
       "paragraph_spacing_desc": "正文与各级标题共用的段间距，按正文字号计算；仅编辑视图。",
+      "preview": "预览",
+      "preview_h1": "一级标题",
+      "preview_p1": "沉默在两人之间蔓延，像潮水漫过礁石。她终于开口，声音轻得几乎被海风吹散，落在他听不真切的地方。海面上最后一缕光正缓缓收拢，把两人的影子拉得很长。",
+      "preview_p2": "“你还会回来吗？”他没有立刻回答，只是望着那轮渐渐沉入海平线的夕阳，许久才轻轻点头。可那点头里有太多迟疑，连他自己也分不清是承诺，还是不忍。",
+      "reset_style": "还原推荐样式",
       "typesetting": "排版",
       "typewriter_mode": "打字机模式",
       "typewriter_mode_desc": "输入或移动光标时，让当前正文行稳定停在视口中的固定位置；只影响编辑视图。"
     },
     "groups": {
+      "about": "关于",
       "control": "控制",
       "preferences": "偏好"
     },
@@ -378,6 +480,7 @@
           "label": "沉浸写作"
         }
       },
+      "allActionsShort": "所有动作 · {{count}}",
       "conflict": "{{accelerator}} 已被「{{action}}」占用",
       "pressNewCombo": "按下新组合键…",
       "recording": "录制中",
@@ -389,27 +492,53 @@
       "ui_locale_desc": "菜单、按钮与提示文字的语言，不影响你写的内容。"
     },
     "privacy": {
+      "copyDiagnostics": "复制摘要",
       "crashLogs": "自动发送故障诊断",
       "crashLogsDesc": "发送脱敏的错误位置、版本和系统信息，帮助维护者排查故障；不包含正文。可随时关闭。",
-      "dataUsage": "数据使用"
+      "dataUsage": "数据使用",
+      "diagnostics": "脱敏诊断摘要",
+      "diagnosticsCopied": "已复制脱敏诊断摘要。",
+      "diagnosticsCopyFailed": "无法写入剪贴板，可能没有剪贴板权限。",
+      "diagnosticsDesc": "复制版本、平台、功能可用性、同步计数/错误类别与更新状态；不含稿件、凭据、项目标识或绝对路径，也不会自动上传。",
+      "noteLocal": "这个构建不连接 Drifting 服务端，作品只保存在这台设备上。AI 与语音转写请求从本机直接发往你选择的服务商，适用该服务商的数据与训练条款；你添加的远程 MCP 扩展也会访问网络。"
     },
     "rail": {
+      "about_app": "关于 Drifting",
       "appearance": "外观",
       "editor": "编辑器",
       "keys": "快捷键",
-      "language": "语言",
-      "privacy": "隐私",
-      "updates": "更新"
+      "language": "语言"
     },
     "search_placeholder": "搜索设定…",
+    "sync": {
+      "local_data": "本地数据",
+      "local_sub": "无需 Drifting 账号，也不连接托管云服务；你可以随时导出一份可阅读的副本。",
+      "local_title": "作品只保存在这台设备上。"
+    },
     "title": "设定",
     "update": {
-      "channel_desc": "Apple Silicon · macOS 13+",
-      "current_version": "当前版本"
+      "channel_desc": "Apple Silicon · macOS 13+"
     }
   },
   "sidebarLayout": {
     "split": "恢复双栏"
+  },
+  "snapshotHistory": {
+    "confirmRestore": "确认覆盖当前版本",
+    "empty": "暂无快照。编辑正文后系统会按约 15 分钟一次的节奏自动留存。",
+    "kind": {
+      "category": "类目",
+      "element": "要素",
+      "library_item": "笔记",
+      "node": "章节",
+      "storyline": "故事线"
+    },
+    "loading": "读取中…",
+    "restore": "恢复…",
+    "restoreFailed": "恢复失败：{{error}}",
+    "restoreSuccess": "已恢复到所选版本。恢复前的状态已自动存为新快照。",
+    "restoring": "恢复中…",
+    "title": "历史快照 · 30 天"
   },
   "topTimeline": {
     "closeTab": "关闭标签页",

@@ -7,8 +7,10 @@
 # default `icu` feature, and the crates GPUI's platforms already build for
 # telling the system input method to drop marked text), never on a `dr-*`
 # crate. `cargo check -p gpui-prose --no-default-features` proves the
-# boundary. The examples (a demo window, the benchmark harness and the
-# screen-reader probe) may use more, as dev-dependencies.
+# boundary. The examples (a demo window and the screen-reader probe) may use
+# more, as dev-dependencies; the benchmarks, which run the editor on
+# Drifting's storage, are dr-editor's (`prose-bench`, `editor-bench`,
+# `book-bench`).
 [package]
 name = "gpui-prose"
 version = "0.1.0"
@@ -51,23 +53,10 @@ windows = { workspace = true, features = ["Win32_Globalization", "Win32_UI_Input
 # AccessKit's own reading of a tree, to check the text screen readers get.
 accesskit_consumer.workspace = true
 gpui = { workspace = true, features = ["test-support"] }
-# Without `font-kit`, gpui_macos renders no text at all (it logs a warning).
-# `test-support` gives prose-bench its headless renderer (`decor`, `capture`).
-gpui_platform = { workspace = true, features = ["test-support"] }
-log.workspace = true
-
-[target.'cfg(target_os = "macos")'.dev-dependencies]
-libc.workspace = true
-objc2.workspace = true
-raw-window-handle.workspace = true
-rusqlite.workspace = true
+# The examples' windows. Without `font-kit` (on in the workspace's entry),
+# gpui_macos renders no text at all (it logs a warning).
+gpui_platform.workspace = true
 
 [[example]]
 name = "editor"
 path = "examples/editor.rs"
-
-[[example]]
-name = "prose-bench"
-path = "examples/prose-bench/main.rs"
-# Its unit tests (statistics, the xctrace table reader) run with `cargo test`.
-test = true

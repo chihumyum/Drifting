@@ -7,6 +7,15 @@
     "storyGraph": "物語グラフ",
     "todoLibrary": "TODOと資料庫"
   },
+  "commentRail": {
+    "actions": {
+      "reopen": "開き直す",
+      "resolve": "解決済みにする"
+    },
+    "card": {
+      "emptyComment": "空のコメント"
+    }
+  },
   "common": {
     "cancel": "キャンセル",
     "close": "閉じる",
@@ -14,10 +23,12 @@
     "creating": "作成中…",
     "edit": "編集",
     "local": "ローカル",
+    "processing": "処理中…",
     "save": "保存",
     "saveFailed": "変更を保存できませんでした。再試行してください。",
     "saving": "保存中…",
-    "untitled": "無題"
+    "untitled": "無題",
+    "wordsCount": "{{count}}文字"
   },
   "dashboard": {
     "actions": {
@@ -68,9 +79,34 @@
     }
   },
   "feedback": {
+    "attachDiagnostics": "機密情報を除去した診断情報を添付",
+    "cancel": "キャンセル",
+    "close": "閉じる",
+    "contact": "返信先メールアドレス",
+    "contactPlaceholder": "任意",
     "crash": {
+      "emailSubject": "Drifting のクラッシュについて",
+      "ignore": "無視",
+      "placeholder": "そのとき何をしていましたか？",
       "title": "前回の使用時に Drifting で問題が発生しました"
-    }
+    },
+    "emailSubject": "Drifting へのフィードバック",
+    "failed": "送信できませんでした",
+    "hidePreview": "非表示",
+    "placeholder": "問題やアイデア",
+    "preview": "プレビュー",
+    "send": "送信",
+    "sendByEmail": "メールで送信",
+    "sending": "送信中…",
+    "sent": "送信済み",
+    "title": "フィードバックを送る"
+  },
+  "findPanel": {
+    "bookPlaceholder": "全編を検索…",
+    "closeTitle": "閉じる（Esc）",
+    "currentPlaceholder": "現在のエディタ内を検索…",
+    "nextTitle": "次へ（Enter）",
+    "previousTitle": "前へ（Shift+Enter）"
   },
   "globalSearch": {
     "closeTitle": "閉じる（Esc）",
@@ -85,6 +121,15 @@
   "immersiveWriting": {
     "enter": "没入執筆",
     "leave": "没入執筆を終了"
+  },
+  "importDialog": {
+    "chooseFolder": "フォルダを選択",
+    "status": {
+      "committed": "インポート済み"
+    },
+    "summary": {
+      "done": "完了"
+    }
   },
   "leftSidebar": {
     "empty": {
@@ -188,6 +233,9 @@
     "wordsOfTarget": "{{words}} / {{target}}語"
   },
   "projectPicker": {
+    "bookTransfer": {
+      "importFailedTitle": "インポートできませんでした"
+    },
     "desk": {
       "chaptersUnit_one": "章",
       "chaptersUnit_other": "章",
@@ -200,6 +248,7 @@
         "summaryLabel": "要約"
       },
       "goal": "{{pct}}%・目標{{target}}文字",
+      "importing": "インポート中",
       "moveToTrash": "最近削除した項目へ移動",
       "newCard": "新しい一冊",
       "newCardSub": "白紙から始める",
@@ -228,6 +277,7 @@
       "daysUnit": "日",
       "today": "今日"
     },
+    "projectCount": "{{filtered}} / {{total}}作品",
     "rail": {
       "books_one": "{{count}}冊",
       "books_other": "{{count}}冊",
@@ -259,6 +309,23 @@
   "relationTypes": {
     "description": "説明"
   },
+  "reviewPanel": {
+    "commentPlaceholder": "コメントを入力…",
+    "empty": "この範囲にレビュー項目はありません。",
+    "filters": {
+      "all": "両方",
+      "comment": "コメント",
+      "todo": "TODO"
+    },
+    "groups": {
+      "deleted": "削除済み",
+      "floating": "未添付"
+    },
+    "resolved": "解決済み（{{count}}件）",
+    "scopes": {
+      "current": "現在"
+    }
+  },
   "rightSidebar": {
     "kickers": {
       "library": "作品・資料庫",
@@ -281,6 +348,7 @@
       "chapterOrdinal": "第{{count}}章",
       "chaptersValue": "{{count}}章",
       "recent": "最近",
+      "snapshotButton": "履歴スナップショット…",
       "wordsPerChapterValue": "{{words}}文字／章",
       "wordsValue": "{{count}}文字",
       "writingProgress": "執筆の進捗",
@@ -298,6 +366,31 @@
     }
   },
   "settings": {
+    "about": {
+      "channel": "リリースチャンネル",
+      "channelPreAlpha": "Alpha",
+      "contact": "連絡先",
+      "credits": "謝辞とライセンス",
+      "emailTeam": "チームにメールする",
+      "engine": "エンジン",
+      "knownIssues": "既知の問題",
+      "knownIssuesDesc": "現在のAlpha版の既知の制限",
+      "license": "クライアントのライセンス",
+      "licenseDesc": "GNU AGPL v3以降",
+      "openSource": "オープンソースの依存ライブラリ",
+      "sourceCode": "ソースコード",
+      "sourceCodeDesc": "このAGPLクライアントに対応するソースコード",
+      "sub": "最高の執筆体験を",
+      "support": "Alphaサポート",
+      "supportDesc": "問題の解決方法と安全な報告手順",
+      "tagline": "夜更けまで書き続ける人へ。",
+      "title": "Drifting",
+      "version": "バージョン",
+      "viewLicense": "ライセンスを見る",
+      "viewList": "一覧を見る",
+      "viewSource": "ソースを見る",
+      "writeEmail": "メールを作成"
+    },
     "appearance": {
       "dark": "ダーク",
       "interface_text_large": "大きめ",
@@ -311,6 +404,9 @@
       "system": "システムに合わせる",
       "theme": "テーマ",
       "theme_desc": "ライト、ダーク、またはシステムに合わせる。"
+    },
+    "common": {
+      "open_in_browser": "ブラウザで開く"
     },
     "editor": {
       "auto_immersive": "入力すると没入執筆",
@@ -328,11 +424,17 @@
       "page_width_desc": "エディタの用紙幅です。本文は固定の余白を除いた幅に収まります。",
       "paragraph_spacing": "段落の間隔",
       "paragraph_spacing_desc": "本文段落と各レベルの見出しに共通の間隔です。本文の文字サイズを基準とし、エディタ表示だけに適用します。",
+      "preview": "プレビュー",
+      "preview_h1": "見出し1",
+      "preview_p1": "沈黙が、石を覆う潮のように二人の間に広がった。やがて彼女が口を開いた。風にさらわれそうな声は、彼がかろうじて聞き取れるところに落ちた。",
+      "preview_p2": "「戻ってくる？」彼はすぐには答えなかった。海に沈む夕日を見つめ、長い間を置いてうなずいた。それが約束なのか、憐れみなのか、自分にもわからなかった。",
+      "reset_style": "推奨スタイルに戻す",
       "typesetting": "組版",
       "typewriter_mode": "タイプライターモード",
       "typewriter_mode_desc": "入力やカーソル移動中、現在の行を画面内の一定位置に保ちます。エディタ表示のみに適用します。"
     },
     "groups": {
+      "about": "このアプリについて",
       "control": "管理",
       "preferences": "環境設定"
     },
@@ -383,6 +485,7 @@
           "label": "没入執筆"
         }
       },
+      "allActionsShort": "全操作・{{count}}",
       "conflict": "{{accelerator}}は「{{action}}」で使用中です",
       "pressNewCombo": "新しい組み合わせを押す…",
       "recording": "記録中",
@@ -394,27 +497,53 @@
       "ui_locale_desc": "メニュー、ボタン、メッセージの言語です。執筆内容には影響しません。"
     },
     "privacy": {
+      "copyDiagnostics": "概要をコピー",
       "crashLogs": "障害の診断情報を自動送信",
       "crashLogsDesc": "機密情報を除いたエラー箇所、バージョン、環境を開発者へ送信し、障害の調査に役立てます。原稿は含みません。いつでも無効にできます。",
-      "dataUsage": "データの利用"
+      "dataUsage": "データの利用",
+      "diagnostics": "機密情報を除いた診断概要",
+      "diagnosticsCopied": "機密情報を除いた診断概要をコピーしました。",
+      "diagnosticsCopyFailed": "クリップボードへ書き込めません。アクセス権限がない可能性があります。",
+      "diagnosticsDesc": "バージョン、環境、機能の利用可否、同期件数・エラー種別、更新状態をコピーします。原稿、認証情報、作品ID、絶対パスは含まず、自動送信もしません。",
+      "noteLocal": "このビルドはDriftingのサーバーへ接続せず、作品は端末に残ります。AI・音声文字起こしは端末から選択した提供元へ直接送られ、その提供元のデータ・学習規約が適用されます。追加したリモートMCP拡張もネットワークを使います。"
     },
     "rail": {
+      "about_app": "Driftingについて",
       "appearance": "外観",
       "editor": "エディタ",
       "keys": "キーボード",
-      "language": "言語",
-      "privacy": "プライバシー",
-      "updates": "アップデート"
+      "language": "言語"
     },
     "search_placeholder": "設定を検索…",
+    "sync": {
+      "local_data": "ローカルデータ",
+      "local_sub": "Driftingのアカウントやクラウドは使いません。いつでも読めるコピーを出力できます。",
+      "local_title": "作品はこの端末に。"
+    },
     "title": "設定",
     "update": {
-      "channel_desc": "Apple Silicon・macOS 13以降",
-      "current_version": "現在のバージョン"
+      "channel_desc": "Apple Silicon・macOS 13以降"
     }
   },
   "sidebarLayout": {
     "split": "2列表示に戻す"
+  },
+  "snapshotHistory": {
+    "confirmRestore": "現在の版の上書きを確認",
+    "empty": "スナップショットはまだありません。本文の編集後、約15分ごとに自動保存します。",
+    "kind": {
+      "category": "カテゴリ",
+      "element": "要素",
+      "library_item": "メモ",
+      "node": "章",
+      "storyline": "ストーリーライン"
+    },
+    "loading": "読み込み中…",
+    "restore": "復元…",
+    "restoreFailed": "復元に失敗：{{error}}",
+    "restoreSuccess": "選択した版に復元しました。直前の状態は新しいスナップショットとして保存済みです。",
+    "restoring": "復元中…",
+    "title": "履歴スナップショット・30日間"
   },
   "topTimeline": {
     "closeTab": "タブを閉じる",

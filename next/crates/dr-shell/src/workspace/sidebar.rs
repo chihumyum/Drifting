@@ -47,6 +47,7 @@ use super::chrome::{self, LEADING_INSET, TITLEBAR_HEIGHT, TOGGLE_GAP, TRAILING_I
 use super::{SuperView, Workspace};
 use crate::actions::{ShowProjectHome, ToggleNotifications};
 use crate::book::Book;
+use crate::dialogs::FollowUpNotice;
 use crate::nav::{Open, Target};
 use crate::notifications::{self, Notifications};
 use crate::panes::{PaneId, Panes};
@@ -1184,7 +1185,27 @@ fn right_body(
                 cx,
             )
         }
-        // Their modules fill these: review (M18/M19), the Agent (M27).
+        // M18: comments and TODOs.
+        RightTab::Review => {
+            let strings = crate::Strings::get(cx);
+            let (locale, platform) = (strings.locale(), strings.platform());
+            let shell = cx.weak_entity();
+            let open: dr_view_review::Opener = std::rc::Rc::new(move |key, window, cx| {
+                shell
+                    .update(cx, |ws, cx| ws.open_review_target(key, window, cx))
+                    .ok();
+            });
+            dr_view_review::panel(
+                &format!("review-{}", pane_slug(pane)),
+                &ws.book_id,
+                ws.nav.current().map(crate::book::nav_target),
+                locale,
+                platform,
+                open,
+                cx,
+            )
+        }
+        // Its module fills this: the Agent (M27).
         _ => div().size_full().into_any_element(),
     }
 }
@@ -1204,8 +1225,11 @@ fn account_cell(
     let theme = Theme::of(window, cx);
     let p = theme.palette;
     let bell = overlay::use_bounds("bell-bounds", window, cx);
+    let account = overlay::use_bounds("account-bounds", window, cx);
     let home = ws.nav.current().is_none() && ws.super_view.is_none();
     let open = ws.notifications_open;
+    let menu_open = ws.account_open;
+    let toggle = cx.entity();
     div()
         .flex_none()
         .h(px(theme.scale.row_height + 14.0))
@@ -1217,14 +1241,47 @@ fn account_cell(
         .items_center()
         .gap(px(4.0))
         .child(
-            div()
-                .flex_1()
-                .min_w_0()
-                .overflow_hidden()
-                .font_role(Role::Ui)
-                .type_px(theme.scale.secondary, theme.scale.line_body)
-                .text_color(p.ink(2).solid())
-                .child(t(cx, keys::common::LOCAL)),
+            // The account (local only): its menu opens upward, the same
+            // one the bookshelf's account cell opens.
+            glass::glass_box(
+                "account",
+                glass::Kind::Hidden,
+                glass::Mode::default(),
+                menu_open,
+                glass::Spec::new(glass::Tone::Clear, 12.0),
+                window,
+                cx,
+            )
+            .flex_1()
+            .min_w_0()
+            .px(px(6.0))
+            .py(px(4.0))
+            .flex()
+            .flex_row()
+            .items_center()
+            .gap(px(8.0))
+            .cursor_pointer()
+            .role(gpui::Role::Button)
+            .aria_label(t(cx, keys::user_menu::LOCAL_MENU))
+            .on_click(move |_, _, cx| {
+                toggle.update(cx, |ws, cx| {
+                    ws.account_open = !ws.account_open;
+                    ws.notifications_open = false;
+                    cx.notify();
+                })
+            })
+            .child(overlay::probe(account))
+            .child(crate::account::avatar(20.0, window, cx))
+            .child(
+                div()
+                    .min_w_0()
+                    .overflow_hidden()
+                    .font_role(Role::Ui)
+                    .type_px(theme.scale.secondary, theme.scale.line_body)
+                    .text_color(p.ink(2).solid())
+                    .truncate()
+                    .child(t(cx, keys::common::LOCAL)),
+            ),
         )
         .child(
             IconButton::new("home", Icon::Torii)
@@ -1243,6 +1300,23 @@ fn account_cell(
             ),
         )
         .into_any_element()
+}
+
+/// The account menu over the left sidebar's account cell.
+pub fn account_menu(
+    _ws: &mut Workspace,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) -> AnyElement {
+    let anchor = *overlay::use_bounds("account-bounds", window, cx).read(cx);
+    let entity = cx.entity();
+    let close: crate::account::Close = std::rc::Rc::new(move |_, cx| {
+        entity.update(cx, |ws, cx| {
+            ws.account_open = false;
+            cx.notify();
+        })
+    });
+    crate::account::menu("workspace-account", anchor, close, window, cx)
 }
 
 /// The notification center: from the bell, upwards when there is no room
@@ -1281,6 +1355,13 @@ pub fn notification_center(
     }
     for notice in items {
         let id = notice.id;
+        // A crash follow-up opens the feedback dialog about that crash (M39).
+        let follow_up = notice.crash_id.clone().map(|crash_id| FollowUpNotice {
+            notice: id,
+            crash_id,
+            at: notice.at,
+        });
+        let open_follow_up = entity.clone();
         list = list.child(
             div()
                 .px(px(m::HOVER_CARD_PAD))
@@ -1290,10 +1371,19 @@ pub fn notification_center(
                 .gap(px(8.0))
                 .child(
                     div()
+                        .id(SharedString::from(format!("notice-text-{id}")))
                         .flex_1()
                         .min_w_0()
                         .flex()
                         .flex_col()
+                        .when_some(follow_up, |el, follow_up| {
+                            el.cursor_pointer().on_click(move |_, window, cx| {
+                                let follow_up = follow_up.clone();
+                                open_follow_up.update(cx, |ws, cx| {
+                                    ws.open_feedback(Some(follow_up), window, cx)
+                                })
+                            })
+                        })
                         .child(
                             div()
                                 .flex()

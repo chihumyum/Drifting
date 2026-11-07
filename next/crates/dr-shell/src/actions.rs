@@ -46,6 +46,8 @@ actions!(
         GlobalSearch,
         /// Opens or closes the notification center.
         ToggleNotifications,
+        /// Opens the feedback dialog (M39, [`crate::dialogs`]).
+        SendFeedback,
         /// Esc: closes the topmost layer (a popover, Settings, a Super View).
         Dismiss,
     ]

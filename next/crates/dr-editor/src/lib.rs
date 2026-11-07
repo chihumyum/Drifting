@@ -13,13 +13,19 @@
 //!   brings back written to the book.
 //! - [`BookEditor`]: the whole book in one scroll (M05), every chapter
 //!   editable with its own session and undo.
+//! - [`page`]: the chapter page around the text (M03): the facts and the
+//!   places for the host's folio line, title, synopsis, ⁂ and empty hint.
 //!
 //! Docs: `docs/rust-rewrite/foundations/f4-editor.md` (F4e).
 
 pub mod anchors;
+pub mod assist;
 pub mod book;
 pub mod convert;
+pub mod decor;
+pub mod entity_links;
 pub mod links;
+pub mod page;
 pub mod rules;
 pub mod settings;
 pub mod source;
@@ -28,7 +34,8 @@ pub mod view;
 
 pub use book::{BookEditor, BookEditorEvent, ReadingPosition};
 pub use links::{DriftingExtension, LinkTargets};
+pub use page::{PageChrome, PageInfo, PageKind};
 pub use settings::EditorSettings;
 pub use source::SessionSource;
 pub use todo::TodoMarker;
-pub use view::{ChapterEditor, ChapterEditorEvent};
+pub use view::{ChapterEditor, ChapterEditorEvent, CommentRequested};

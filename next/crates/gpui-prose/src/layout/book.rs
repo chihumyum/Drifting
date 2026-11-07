@@ -2,7 +2,8 @@
 //!
 //! Each chapter is its own Loro document (one body text per document). The
 //! scroll is a flat list of items: for every chapter a title item, then one
-//! item per visible paragraph.
+//! item per visible paragraph, then (when the host has chapter slots, see
+//! [`crate::slots`]) an end item.
 
 use std::ops::Range;
 
@@ -18,8 +19,12 @@ pub struct Chapter {
 /// What a list item shows.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Item {
+    /// The chapter's title row, or the host's head for it.
     Title(usize),
     Line(usize, usize),
+    /// After the chapter's last paragraph: the host's end for it (only with
+    /// chapter slots).
+    End(usize),
 }
 
 pub struct Book {
@@ -31,6 +36,8 @@ pub struct Book {
     /// The chapters that open an act, with the act's name (the whole-book
     /// view's title pages; drawn by the render layer).
     acts: Vec<(usize, SharedString)>,
+    /// Whether each chapter has an end item ([`Item::End`]).
+    ends: bool,
 }
 
 /// A position in the book: a chapter and a scalar offset in its text.
@@ -83,6 +90,7 @@ impl Book {
             starts: Vec::new(),
             listed,
             acts: Vec::new(),
+            ends: false,
         };
         book.recompute_starts();
         book
@@ -93,7 +101,7 @@ impl Book {
         let mut at = 0;
         for listed in &self.listed {
             self.starts.push(at);
-            at += 1 + listed;
+            at += 1 + listed + usize::from(self.ends);
         }
         self.starts.push(at);
     }
@@ -118,9 +126,29 @@ impl Book {
         let offset = ix - self.starts[chapter];
         if offset == 0 {
             Item::Title(chapter)
+        } else if self.ends && offset == 1 + self.listed[chapter] {
+            Item::End(chapter)
         } else {
             Item::Line(chapter, offset - 1)
         }
+    }
+
+    /// The end item of `chapter`, if chapters have ends.
+    pub fn end_item(&self, chapter: usize) -> Option<usize> {
+        self.ends
+            .then(|| self.starts[chapter] + 1 + self.listed[chapter])
+    }
+
+    /// Whether each chapter has an end item.
+    pub fn has_ends(&self) -> bool {
+        self.ends
+    }
+
+    /// Gives every chapter an end item, or takes them away (the editor does
+    /// this when the host sets chapter slots).
+    pub(crate) fn set_ends(&mut self, ends: bool) {
+        self.ends = ends;
+        self.recompute_starts();
     }
 
     pub fn len_chars(&mut self) -> usize {
@@ -225,6 +253,40 @@ mod tests {
         assert_eq!(within.chapter(), Some(1));
         assert_eq!(b.split_range(within), vec![(1, 0..1)]);
         assert_eq!(r.chapter(), None);
+    }
+
+    #[test]
+    fn end_items_follow_each_chapter() {
+        let mut b = Book::new(vec![
+            Chapter {
+                title: "一".into(),
+                doc: ProseDoc::from_paragraphs([(BlockKind::Body, "甲"), (BlockKind::Body, "乙")]),
+            },
+            Chapter {
+                title: "二".into(),
+                doc: ProseDoc::from_paragraphs([(BlockKind::Body, "丙")]),
+            },
+        ]);
+        assert_eq!(b.item_count(), 5);
+        assert_eq!(b.end_item(0), None);
+        b.set_ends(true);
+        let items: Vec<Item> = (0..b.item_count()).map(|ix| b.item(ix)).collect();
+        assert_eq!(
+            items,
+            [
+                Item::Title(0),
+                Item::Line(0, 0),
+                Item::Line(0, 1),
+                Item::End(0),
+                Item::Title(1),
+                Item::Line(1, 0),
+                Item::End(1),
+            ]
+        );
+        assert_eq!((b.end_item(0), b.end_item(1)), (Some(3), Some(6)));
+        assert_eq!((b.chapter_item(1), b.line_item(1, 0)), (4, 5));
+        b.set_ends(false);
+        assert_eq!(b.item_count(), 5);
     }
 
     #[test]

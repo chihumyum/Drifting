@@ -22,12 +22,21 @@ pub mod data;
 pub mod format;
 mod view;
 
-pub use view::{ImportBook, ImportLegacyLibrary, Shelf, ShelfDialog};
+pub use view::{ImportBook, ImportLegacyLibrary, Shelf, ShelfDialog, SubmitDialog};
 
-use gpui::{App, AppContext as _};
+use gpui::{App, AppContext as _, KeyBinding};
 
-/// Registers the bookshelf as the shell's start page.
+/// Registers the bookshelf as the shell's start page, and its key: ⌘↵
+/// (Ctrl+↵) in a dialog creates or saves, kept by the shell's keymap.
 pub fn init(cx: &mut App) {
+    dr_shell::keymap::add_bindings(cx, || {
+        let keys = if cfg!(target_os = "macos") {
+            "cmd-enter"
+        } else {
+            "ctrl-enter"
+        };
+        vec![KeyBinding::new(keys, SubmitDialog, Some("Shelf"))]
+    });
     dr_shell::pages::set_shelf(cx, |ws, window, cx| {
         let shelf = cx.new(|cx| Shelf::new(ws, window, cx));
         let bell = shelf.read(cx).bell();

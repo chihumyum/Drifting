@@ -38,14 +38,16 @@ pub mod layout;
 pub mod platform;
 pub mod render;
 pub mod schema;
+pub mod slots;
 pub mod style;
 pub mod text;
 
-pub use editor::{EditorEvent, ProseEditor};
+pub use editor::{EditorEvent, HostStep, ProseEditor};
 pub use extension::{InputRule, ProseExtension, Typed};
 pub use input::{Composition, Selection, bind_keys};
 pub use layout::{Book, Chapter};
 pub use platform::PlatformHooks;
+pub use slots::ChapterSlots;
 pub use style::{EditorOptions, ProseStyle};
 pub use text::{
     Anchor, AnchorChange, BlockKind, Edit, EditResult, Line, LoroSource, Marks, ProseDoc,

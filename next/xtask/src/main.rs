@@ -3,7 +3,8 @@
 //! ```text
 //! cargo xtask check [--only a,b] [--skip a,b] [--list]   every gate (CI runs all)
 //! cargo xtask evidence --check                            the evidence gate alone
-//! cargo xtask dev [--instance N] [--print-config] [--release] [-- app args]
+//! cargo xtask check-binary <file>…                        no debug bridge built in
+//! cargo xtask dev [--instance N] [--debug-bridge] [--print-config] [--release] [-- app args]
 //! ```
 //!
 //! See `docs/rust-rewrite/foundations/f8-testkit.md`.
@@ -16,7 +17,8 @@ use std::process::ExitCode;
 
 const USAGE: &str = "usage: cargo xtask check [--only a,b] [--skip a,b] [--list]
        cargo xtask evidence --check
-       cargo xtask dev [--instance NAME] [--print-config] [--release] [-- app args]";
+       cargo xtask check-binary <file>…
+       cargo xtask dev [--instance NAME] [--debug-bridge] [--print-config] [--release] [-- app args]";
 
 fn list_arg(args: &[String], name: &str) -> Vec<String> {
     args.iter()
@@ -86,6 +88,28 @@ fn main() -> ExitCode {
         Some("check") => check(&args[1..]),
         Some("evidence") if args.get(1).map(String::as_str) == Some("--check") => {
             check(&["--only".into(), "evidence".into()])
+        }
+        Some("check-binary") if args.len() > 1 => {
+            match gates::debug_bridge::check_binaries(&args[1..]) {
+                Ok(f) if f.is_empty() => {
+                    println!(
+                        "ok   {} file(s) without the debug bridge ({})",
+                        args.len() - 1,
+                        dr_debug_protocol::PROTOCOL
+                    );
+                    ExitCode::SUCCESS
+                }
+                Ok(f) => {
+                    for line in f {
+                        println!("FAIL {line}");
+                    }
+                    ExitCode::FAILURE
+                }
+                Err(e) => {
+                    eprintln!("{e}");
+                    ExitCode::FAILURE
+                }
+            }
         }
         Some("dev") => {
             let repo = repo::Repo::locate();

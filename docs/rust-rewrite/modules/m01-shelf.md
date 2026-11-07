@@ -91,7 +91,7 @@ cargo run --release -p dr-view-home --features capture --example shelf-home-capt
 
 - **「导入」放在左栏，不在头像菜单里。** 交给我的说明写的是头像菜单，但旧版 2026-11-03 起已经把导入和最近删除从菜单挪到了左栏（components.md「书架」：「导入与最近删除不再在菜单里」），照旧版放左栏。
 - **「导入旧库」没有现成的文案。** 旧版没有这个功能，九种语言里也没有这句话。这里用旧版已有的「导入」（`userMenu.import`）加等宽的行尾「Drifting 0.1」（产品名和版本号不翻译）。M10 要是想要一句专门的话，得先有新版自己的文案来源（见「待协调」）。
-- **两个导入只放了入口。** 点它们派发 `dr_view_shelf::ImportBook` / `ImportLegacyLibrary` 两个动作，书架自己只记一行调试日志；M41、M10 用 `cx.on_action` 接走。
+- **两个导入只放了入口。** 点它们派发 `dr_view_shelf::ImportBook` / `ImportLegacyLibrary` 两个动作，M41、M10 用 `cx.on_action` 接走。`ImportLegacyLibrary` 已由 M10 接走（`dr-view-import`，2026-11-08），书架上接它的那行调试日志删了（那行不放行，动作到不了 `cx.on_action`）；`ImportBook` 还是只记一行调试日志，M41 接的时候也要把它删掉。
 - **回车提交，不是 ⌘↵。** 外壳的快捷键注册表每次重绑都先清空整张键位表（`keymap::apply`），模块自己加的键位会被清掉，所以对话框里没有 ⌘↵，改成在书名或梗概框里按回车提交，旧版操作区左边那个 `⌘↵` 也就不写了。
 - **相对时间用通知中心的写法**（刚刚、3 分钟前、2 小时前、5 天前），旧版书架用的是 `Intl.RelativeTimeFormat`，会写「3 个月前」。
 - **字纸篓图标悬停不变红。** dr-ui 的平面图标按钮还没有危险色的悬停。
@@ -157,7 +157,7 @@ M3 Pro，release，离屏（GPUI 的测试平台，真的 macOS 排字和 Metal 
    - `dr-shell/tests/strings.rs` 的孤儿检查现在也扫 `crates/dr-view-*/src`，并认关键字模块名后面的 `_`。
    - 账户菜单现在只在书架上有；工作区左栏底部的账号格子也该打开同一个菜单，可以把 `account_menu` 挪进外壳共用。
    - 新版自己的文案（旧版没有的话，比如「导入旧库」）还没有来源：`sync-locales.py` 只从旧版拷。
-4. **M10**：入口是 `ImportLegacyLibrary` 动作，见上。
+4. **M10**：入口是 `ImportLegacyLibrary` 动作，见上；2026-11-08 已接上（[m10-import.md](m10-import.md)「导入界面」）。
 5. **应用**：`app/drifting/src/main.rs` 在 `dr_shell::init` 之后加了 `dr_view_shelf::init`、`dr_view_home::init` 两行，`DRIFTING_BOOK` 的说明改成「直接打开那本书、不经书架」。
 
 ## 下一步

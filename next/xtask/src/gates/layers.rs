@@ -44,6 +44,8 @@ pub const LAYERS: &[(&str, Layer)] = &[
     ("prose-linebreak", Layer::Data),
     ("dr-platform", Layer::Platform),
     ("dr-i18n", Layer::Platform),
+    // F8: the debug bridge's protocol and client, no GPUI (dr-cli, xtask).
+    ("dr-debug-protocol", Layer::Platform),
     ("dr-workspace", Layer::Services),
     ("dr-agent", Layer::Services),
     ("dr-mcp", Layer::Services),
@@ -56,7 +58,10 @@ pub const LAYERS: &[(&str, Layer)] = &[
     ("dr-editor", Layer::Interface),
     ("dr-ui", Layer::Interface),
     ("dr-shell", Layer::Interface),
+    // F8: the debug bridge's server, linked into development builds only.
+    ("dr-debug-bridge", Layer::Interface),
     // Feature views (`dr-view-*` are interface crates by name too).
+    ("dr-view-review", Layer::Interface),
     ("dr-view-search", Layer::Interface),
     ("dr-view-stats", Layer::Interface),
     ("drifting", Layer::App),

@@ -3,6 +3,7 @@
 use crate::repo::Repo;
 
 mod audit;
+pub mod debug_bridge;
 mod evidence;
 mod large_files;
 mod layers;
@@ -80,6 +81,11 @@ pub fn all() -> Vec<Gate> {
             run: layers::run,
         },
         Gate {
+            name: "debug-bridge",
+            about: "the debug bridge is opt-in: no default feature or release script turns it on",
+            run: debug_bridge::run,
+        },
+        Gate {
             name: "evidence",
             about: "measured evidence is well-formed (stale is reported, not failed)",
             run: evidence::run,
@@ -116,7 +122,7 @@ mod tests {
             "next/crates/a/tests/x.rs",
             "next/crates/a/fixtures/b.json",
             "next/crates/a/examples/index-bench.rs",
-            "next/crates/gpui-prose/examples/prose-bench/synth.rs",
+            "next/crates/dr-editor/examples/prose-bench/corpus.rs",
             "next/crates/dr-doc/fuzz/fuzz_targets/a.rs",
         ] {
             assert!(is_test_path(p), "{p}");

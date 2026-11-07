@@ -1,5 +1,7 @@
-//! Scripted scenarios: a JSON file of command calls, run in order against
-//! one workspace, for acceptance runs an Agent session (or CI) can repeat.
+//! Scripted scenarios: a JSON file of steps, run in order, for acceptance
+//! runs an Agent session (or CI) can repeat. A scenario either works on a
+//! library offline (command calls only), or drives a development build of
+//! the app through its debug bridge ([`crate::live`]).
 //!
 //! ```json
 //! {
@@ -19,14 +21,25 @@
 //! }
 //! ```
 //!
+//! - A step is one of: `call` (an F3 command or query), `undo` / `redo` (the
+//!   actor's last step; offline only), `app` (a debug-bridge method with
+//!   `params`), `seed` (write a seed preset into the scenario's empty
+//!   library), `launch` (start the app: `{"book": id, "env": {…}}`).
 //! - `save` keeps a step's output under a name; `${name.key.key}` in any
-//!   string of a later input is replaced by that part of it (a string that
-//!   is only the reference becomes the value itself, of any JSON type).
+//!   string of a later step's input, params, launch or expectations is
+//!   replaced by that part of it (a string that is only the reference
+//!   becomes the value itself, of any JSON type). `[key=value]` picks the
+//!   first array element whose `key` is `value`: `${books.[name=慢钟].id}`.
 //! - `expect` maps JSON pointers into the output to the values they must
-//!   have; `expect_error` names the error code the call must fail with.
-//! - `actor` is `user` (default), `import` or `agent:<session>/<turn>`.
-//! - `{ "undo": true }` undoes the actor's last step, `{ "redo": true }`
-//!   redoes it.
+//!   have (`{"$sum": [a, b]}` adds numbers); `contains` maps pointers to
+//!   text the string there must contain; `expect_error` names the error code
+//!   the step must fail with.
+//! - `actor` is `user` (default), `import` (offline only) or
+//!   `agent:<session>/<turn>`.
+//! - `pending` skips a step and says why (work another module has not
+//!   landed yet); the run reports how many were skipped.
+//! - `png` on an `app` step that answers a screenshot writes it to that
+//!   file in the output folder. `note` says what a step is for.
 
 use std::collections::BTreeMap;
 
@@ -52,7 +65,15 @@ pub struct Step {
     #[serde(default)]
     pub redo: bool,
     #[serde(default)]
+    pub app: Option<String>,
+    #[serde(default)]
+    pub seed: Option<String>,
+    #[serde(default)]
+    pub launch: Option<Value>,
+    #[serde(default)]
     pub input: Value,
+    #[serde(default)]
+    pub params: Value,
     #[serde(default)]
     pub actor: Option<String>,
     #[serde(default)]
@@ -60,21 +81,148 @@ pub struct Step {
     #[serde(default)]
     pub expect: BTreeMap<String, Value>,
     #[serde(default)]
+    pub contains: BTreeMap<String, String>,
+    #[serde(default)]
     pub expect_error: Option<String>,
+    #[serde(default)]
+    pub pending: Option<String>,
+    #[serde(default)]
+    pub png: Option<String>,
+    /// What the step is for; not read.
+    #[serde(default)]
+    pub note: Option<String>,
+}
+
+impl Step {
+    fn label(&self) -> String {
+        if let Some(c) = &self.call {
+            c.clone()
+        } else if self.undo {
+            "undo".into()
+        } else if self.redo {
+            "redo".into()
+        } else if let Some(m) = &self.app {
+            format!("app {m}")
+        } else if let Some(p) = &self.seed {
+            format!("seed {p}")
+        } else {
+            "launch".into()
+        }
+    }
+
+    /// Drives the app (or writes a seed into the scenario's own library).
+    fn is_live(&self) -> bool {
+        self.app.is_some() || self.launch.is_some() || self.seed.is_some()
+    }
+}
+
+/// What a step failed with.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct StepError {
+    pub code: String,
+    pub message: String,
+}
+
+impl StepError {
+    pub fn new(code: impl Into<String>, message: impl Into<String>) -> Self {
+        Self {
+            code: code.into(),
+            message: message.into(),
+        }
+    }
+}
+
+impl std::fmt::Display for StepError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}: {}", self.code, self.message)
+    }
+}
+
+/// Where a scenario's steps go.
+pub trait Backend {
+    /// An F3 command or query; answers its output.
+    fn call(&mut self, actor: Option<&str>, name: &str, input: Value) -> Result<Value, StepError>;
+    fn undo(&mut self, actor: Option<&str>, redo: bool) -> Result<Value, StepError>;
+    fn app(&mut self, method: &str, params: Value) -> Result<Value, StepError>;
+    fn seed(&mut self, preset: &str) -> Result<Value, StepError>;
+    fn launch(&mut self, params: Value) -> Result<Value, StepError>;
+    /// Writes a screenshot; answers where.
+    fn save_png(&mut self, name: &str, png_base64: &str) -> Result<String, StepError>;
+}
+
+fn needs_app() -> StepError {
+    StepError::new(
+        "needs_app",
+        "this step drives the app: run the scenario with --app <drifting built with --features debug-bridge>",
+    )
+}
+
+/// A workspace over a library, offline.
+pub struct Offline<'a>(pub &'a Workspace);
+
+impl Backend for Offline<'_> {
+    fn call(&mut self, actor: Option<&str>, name: &str, input: Value) -> Result<Value, StepError> {
+        let actor = self::actor(actor).map_err(|e| StepError::new("bad_request", e))?;
+        self.0
+            .call(&actor, name, input)
+            .map(|o| o["output"].clone())
+            .map_err(|e| StepError::new(e.code(), e.to_string()))
+    }
+
+    fn undo(&mut self, actor: Option<&str>, redo: bool) -> Result<Value, StepError> {
+        let actor = self::actor(actor).map_err(|e| StepError::new("bad_request", e))?;
+        let r = if redo {
+            self.0.redo(&actor)
+        } else {
+            self.0.undo(&actor)
+        };
+        r.map(|o| json!(o.map(|x| x.output)))
+            .map_err(|e| StepError::new(e.code(), e.to_string()))
+    }
+
+    fn app(&mut self, _: &str, _: Value) -> Result<Value, StepError> {
+        Err(needs_app())
+    }
+
+    fn seed(&mut self, _: &str) -> Result<Value, StepError> {
+        Err(needs_app())
+    }
+
+    fn launch(&mut self, _: Value) -> Result<Value, StepError> {
+        Err(needs_app())
+    }
+
+    fn save_png(&mut self, _: &str, _: &str) -> Result<String, StepError> {
+        Err(needs_app())
+    }
 }
 
 pub fn parse(text: &str) -> Result<Scenario, String> {
     let s: Scenario = serde_json::from_str(text).map_err(|e| format!("scenario: {e}"))?;
     for (i, step) in s.steps.iter().enumerate() {
-        let kinds =
-            usize::from(step.call.is_some()) + usize::from(step.undo) + usize::from(step.redo);
+        let kinds = usize::from(step.call.is_some())
+            + usize::from(step.undo)
+            + usize::from(step.redo)
+            + usize::from(step.app.is_some())
+            + usize::from(step.seed.is_some())
+            + usize::from(step.launch.is_some());
         if kinds != 1 {
-            return Err(format!("step {i}: give exactly one of call, undo, redo"));
+            return Err(format!(
+                "step {i}: give exactly one of call, undo, redo, app, seed, launch"
+            ));
         }
         if let Some(c) = &step.call
             && registry().get(c).is_none()
         {
             return Err(format!("step {i}: unknown command {c}"));
+        }
+        if let Some(p) = &step.seed
+            && dr_testkit::seed::Preset::parse(p).is_none()
+        {
+            return Err(format!("step {i}: unknown seed {p}"));
+        }
+        if step.png.is_some() && step.app.is_none() {
+            return Err(format!("step {i}: png goes with an app step"));
         }
     }
     Ok(s)
@@ -89,6 +237,12 @@ pub fn is_read_only(s: &Scenario) -> bool {
             .and_then(|c| registry().get(c))
             .is_some_and(|spec| spec.is_query())
     })
+}
+
+/// Whether the scenario drives the app (or seeds its own library): it runs
+/// on a development profile of its own ([`crate::live`]).
+pub fn is_live(s: &Scenario) -> bool {
+    s.steps.iter().any(Step::is_live)
 }
 
 pub fn actor(s: Option<&str>) -> Result<Actor, String> {
@@ -112,9 +266,17 @@ fn lookup<'a>(saved: &'a BTreeMap<String, Value>, path: &str) -> Option<&'a Valu
     let mut parts = path.split('.');
     let mut v = saved.get(parts.next()?)?;
     for p in parts {
-        v = match v {
-            Value::Array(a) => a.get(p.parse::<usize>().ok()?)?,
-            _ => v.get(p)?,
+        v = if let Some(filter) = p.strip_prefix('[').and_then(|f| f.strip_suffix(']')) {
+            let (key, want) = filter.split_once('=')?;
+            v.as_array()?.iter().find(|x| match &x[key] {
+                Value::String(s) => s == want,
+                other => serde_json::from_str::<Value>(want).is_ok_and(|w| &w == other),
+            })?
+        } else {
+            match v {
+                Value::Array(a) => a.get(p.parse::<usize>().ok()?)?,
+                _ => v.get(p)?,
+            }
         };
     }
     Some(v)
@@ -162,30 +324,90 @@ pub fn substitute(v: &Value, saved: &BTreeMap<String, Value>) -> Result<Value, S
     })
 }
 
+/// `{"$sum": [a, b, …]}` is the sum of its numbers; anything else is itself.
+fn evaluate(v: Value) -> Result<Value, String> {
+    if let Some(terms) = v
+        .as_object()
+        .filter(|m| m.len() == 1)
+        .and_then(|m| m.get("$sum"))
+    {
+        let mut total = 0i64;
+        for t in terms.as_array().ok_or("$sum takes an array")? {
+            total += t
+                .as_i64()
+                .ok_or_else(|| format!("$sum: {t} is not a whole number"))?;
+        }
+        return Ok(json!(total));
+    }
+    Ok(v)
+}
+
+fn check(
+    i: usize,
+    label: &str,
+    out: &Value,
+    step: &Step,
+    saved: &BTreeMap<String, Value>,
+) -> Result<(), String> {
+    for (pointer, want) in &step.expect {
+        let want = substitute(want, saved)
+            .and_then(evaluate)
+            .map_err(|e| format!("step {i} ({label}): {e}"))?;
+        let got = out.pointer(pointer).cloned().unwrap_or(Value::Null);
+        if got != want {
+            return Err(format!(
+                "step {i} ({label}): expected {pointer} = {want}, got {got}"
+            ));
+        }
+    }
+    for (pointer, part) in &step.contains {
+        let part = match substitute(&json!(part), saved)
+            .map_err(|e| format!("step {i} ({label}): {e}"))?
+        {
+            Value::String(s) => s,
+            other => other.to_string(),
+        };
+        let got = out
+            .pointer(pointer)
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        if !got.contains(&part) {
+            let shown: String = got.chars().take(120).collect();
+            return Err(format!(
+                "step {i} ({label}): expected {pointer} to contain {part:?}, it reads {shown:?}"
+            ));
+        }
+    }
+    Ok(())
+}
+
 /// Run every step; stop at the first that fails or whose expectation does
-/// not hold. Returns one line per step and what was saved.
-pub fn run(ws: &Workspace, s: &Scenario) -> Result<Value, String> {
+/// not hold. Returns one line per step, what was saved and how many steps
+/// were pending.
+pub fn run_on(backend: &mut dyn Backend, s: &Scenario) -> Result<Value, String> {
     let mut saved: BTreeMap<String, Value> = BTreeMap::new();
     let mut lines = Vec::new();
+    let mut pending = 0usize;
     for (i, step) in s.steps.iter().enumerate() {
-        let actor = actor(step.actor.as_deref()).map_err(|e| format!("step {i}: {e}"))?;
-        let (label, result) = if let Some(c) = &step.call {
-            let input = substitute(&step.input, &saved).map_err(|e| format!("step {i}: {e}"))?;
-            let input = if input.is_null() { json!({}) } else { input };
-            (
-                c.clone(),
-                ws.call(&actor, c, input).map(|o| o["output"].clone()),
-            )
-        } else if step.undo {
-            (
-                "undo".into(),
-                ws.undo(&actor).map(|o| json!(o.map(|x| x.output))),
-            )
+        let label = step.label();
+        if let Some(why) = &step.pending {
+            lines.push(format!("{i:3} {label}: pending ({why})"));
+            pending += 1;
+            continue;
+        }
+        let fill = |v: &Value| substitute(v, &saved).map_err(|e| format!("step {i}: {e}"));
+        let object = |v: Value| if v.is_null() { json!({}) } else { v };
+        let actor = step.actor.as_deref();
+        let result = if let Some(c) = &step.call {
+            backend.call(actor, c, object(fill(&step.input)?))
+        } else if step.undo || step.redo {
+            backend.undo(actor, step.redo)
+        } else if let Some(m) = &step.app {
+            backend.app(m, object(fill(&step.params)?))
+        } else if let Some(p) = &step.seed {
+            backend.seed(p)
         } else {
-            (
-                "redo".into(),
-                ws.redo(&actor).map(|o| json!(o.map(|x| x.output))),
-            )
+            backend.launch(object(fill(step.launch.as_ref().unwrap_or(&Value::Null))?))
         };
         match (result, &step.expect_error) {
             (Ok(_), Some(code)) => {
@@ -193,28 +415,30 @@ pub fn run(ws: &Workspace, s: &Scenario) -> Result<Value, String> {
                     "step {i} ({label}): expected error {code}, it succeeded"
                 ));
             }
-            (Err(e), Some(code)) if e.code() == *code => {
+            (Err(e), Some(code)) if e.code == *code => {
                 lines.push(format!("{i:3} {label}: failed as expected ({code})"));
             }
-            (Err(e), _) => {
-                return Err(format!("step {i} ({label}): {}: {e}", e.code()));
-            }
-            (Ok(out), None) => {
-                for (pointer, want) in &step.expect {
-                    let got = out.pointer(pointer).cloned().unwrap_or(Value::Null);
-                    if &got != want {
-                        return Err(format!(
-                            "step {i} ({label}): expected {pointer} = {want}, got {got}"
-                        ));
-                    }
+            (Err(e), _) => return Err(format!("step {i} ({label}): {e}")),
+            (Ok(mut out), None) => {
+                if let Some(name) = &step.png {
+                    let b64 = out["png"]
+                        .as_str()
+                        .ok_or_else(|| format!("step {i} ({label}): no screenshot in the answer"))?
+                        .to_owned();
+                    let at = backend
+                        .save_png(name, &b64)
+                        .map_err(|e| format!("step {i} ({label}): {e}"))?;
+                    out["png"] = json!(at);
                 }
+                check(i, &label, &out, step, &saved)?;
+                let checked = !step.expect.is_empty() || !step.contains.is_empty();
                 lines.push(format!(
-                    "{i:3} {label}: ok{}",
-                    if step.expect.is_empty() {
-                        ""
-                    } else {
-                        ", as expected"
-                    }
+                    "{i:3} {label}: ok{}{}",
+                    if checked { ", as expected" } else { "" },
+                    step.png
+                        .as_ref()
+                        .map(|_| format!(" → {}", out["png"].as_str().unwrap_or_default()))
+                        .unwrap_or_default()
                 ));
                 if let Some(name) = &step.save {
                     saved.insert(name.clone(), out);
@@ -222,7 +446,12 @@ pub fn run(ws: &Workspace, s: &Scenario) -> Result<Value, String> {
             }
         }
     }
-    Ok(json!({ "about": s.about, "steps": lines, "saved": saved }))
+    Ok(json!({ "about": s.about, "steps": lines, "saved": saved, "pending": pending }))
+}
+
+/// Run an offline scenario on `ws`.
+pub fn run(ws: &Workspace, s: &Scenario) -> Result<Value, String> {
+    run_on(&mut Offline(ws), s)
 }
 
 #[cfg(test)]
@@ -231,28 +460,48 @@ mod tests {
 
     #[test]
     fn references_are_replaced() {
-        let saved: BTreeMap<String, Value> = [(
-            "b".to_string(),
-            json!({ "id": "x1", "n": 3, "list": [{"id": "y"}] }),
-        )]
+        let saved: BTreeMap<String, Value> = [
+            (
+                "b".to_string(),
+                json!({ "id": "x1", "n": 3, "list": [{"id": "y"}] }),
+            ),
+            (
+                "books".to_string(),
+                json!([{ "name": "甲", "id": "a" }, { "name": "慢钟", "id": "m" }]),
+            ),
+        ]
         .into();
         let v = json!({ "book": "${b.id}", "n": "${b.n}", "t": "in ${b.id} / ${b.list.0.id}" });
         assert_eq!(
             substitute(&v, &saved).unwrap(),
             json!({ "book": "x1", "n": 3, "t": "in x1 / y" })
         );
+        assert_eq!(
+            substitute(&json!("${books.[name=慢钟].id}"), &saved).unwrap(),
+            json!("m")
+        );
+        assert!(substitute(&json!("${books.[name=无].id}"), &saved).is_err());
         assert!(substitute(&json!("${c.id}"), &saved).is_err());
+        assert_eq!(
+            evaluate(substitute(&json!({"$sum": ["${b.n}", 4]}), &saved).unwrap()).unwrap(),
+            json!(7)
+        );
     }
 
     #[test]
     fn steps_are_checked_before_running() {
         assert!(parse(r#"{"steps": [{"call": "no.such"}]}"#).is_err());
         assert!(parse(r#"{"steps": [{"call": "book.list", "undo": true}]}"#).is_err());
+        assert!(parse(r#"{"steps": [{"seed": "huge"}]}"#).is_err());
+        assert!(parse(r#"{"steps": [{"call": "book.list", "png": "a.png"}]}"#).is_err());
         let s = parse(r#"{"steps": [{"call": "book.list"}, {"call": "chapter.list", "input": {"book": "b"}}]}"#)
             .unwrap();
-        assert!(is_read_only(&s));
+        assert!(is_read_only(&s) && !is_live(&s));
         let s = parse(r#"{"steps": [{"call": "book.create", "input": {"name": "x"}}]}"#).unwrap();
         assert!(!is_read_only(&s));
+        let s = parse(r#"{"steps": [{"seed": "tiny"}, {"app": "state.get", "pending": "F6"}]}"#)
+            .unwrap();
+        assert!(is_live(&s) && !is_read_only(&s));
         assert!(matches!(
             actor(Some("agent:s1/2")).unwrap(),
             Actor::Agent { turn: 2, .. }

@@ -7,6 +7,15 @@
     "storyGraph": "Grafo da história",
     "todoLibrary": "Tarefas e biblioteca de materiais"
   },
+  "commentRail": {
+    "actions": {
+      "reopen": "Reabrir",
+      "resolve": "Resolver"
+    },
+    "card": {
+      "emptyComment": "Comentário vazio"
+    }
+  },
   "common": {
     "cancel": "Cancelar",
     "close": "Fechar",
@@ -14,10 +23,12 @@
     "creating": "Criando…",
     "edit": "Editar",
     "local": "Local",
+    "processing": "Processando…",
     "save": "Salvar",
     "saveFailed": "Não foi possível salvar as alterações. Tente novamente.",
     "saving": "Salvando…",
-    "untitled": "Sem título"
+    "untitled": "Sem título",
+    "wordsCount": "{{count}} palavras"
   },
   "dashboard": {
     "actions": {
@@ -68,9 +79,34 @@
     }
   },
   "feedback": {
+    "attachDiagnostics": "Anexar diagnósticos sem dados sensíveis",
+    "cancel": "Cancelar",
+    "close": "Fechar",
+    "contact": "E-mail para resposta",
+    "contactPlaceholder": "Opcional",
     "crash": {
+      "emailSubject": "Acompanhamento de falha do Drifting",
+      "ignore": "Ignorar",
+      "placeholder": "O que você estava fazendo?",
       "title": "O Drifting teve um problema na última vez"
-    }
+    },
+    "emailSubject": "Feedback do Drifting",
+    "failed": "Não foi possível enviar",
+    "hidePreview": "Ocultar",
+    "placeholder": "Um problema ou uma ideia",
+    "preview": "Prévia",
+    "send": "Enviar",
+    "sendByEmail": "Enviar por e-mail",
+    "sending": "Enviando…",
+    "sent": "Enviado",
+    "title": "Enviar feedback"
+  },
+  "findPanel": {
+    "bookPlaceholder": "Buscar no livro inteiro…",
+    "closeTitle": "Fechar (Esc)",
+    "currentPlaceholder": "Buscar no editor atual…",
+    "nextTitle": "Próximo (Enter)",
+    "previousTitle": "Anterior (Shift+Enter)"
   },
   "globalSearch": {
     "closeTitle": "Fechar (Esc)",
@@ -85,6 +121,15 @@
   "immersiveWriting": {
     "enter": "Escrita imersiva",
     "leave": "Sair da escrita imersiva"
+  },
+  "importDialog": {
+    "chooseFolder": "Escolher pasta",
+    "status": {
+      "committed": "importado"
+    },
+    "summary": {
+      "done": "Concluir"
+    }
   },
   "leftSidebar": {
     "empty": {
@@ -189,6 +234,9 @@
     "wordsOfTarget": "{{words}} / {{target}} palavras"
   },
   "projectPicker": {
+    "bookTransfer": {
+      "importFailedTitle": "Não foi possível importar"
+    },
     "desk": {
       "chaptersUnit_many": "capítulos",
       "chaptersUnit_one": "capítulo",
@@ -203,6 +251,7 @@
         "summaryLabel": "Resumo"
       },
       "goal": "{{pct}}% · meta {{target}} palavras",
+      "importing": "Importando",
       "moveToTrash": "Mover para excluídos recentemente",
       "newCard": "Novo livro",
       "newCardSub": "Comece com uma página em branco",
@@ -232,6 +281,7 @@
       "daysUnit": "dias",
       "today": "Hoje"
     },
+    "projectCount": "{{filtered}} / {{total}} livros",
     "rail": {
       "books_many": "{{count}} livros",
       "books_one": "{{count}} livro",
@@ -265,6 +315,23 @@
   "relationTypes": {
     "description": "Descrição"
   },
+  "reviewPanel": {
+    "commentPlaceholder": "Escreva um comentário…",
+    "empty": "Não há itens de revisão neste escopo.",
+    "filters": {
+      "all": "Ambos",
+      "comment": "Comentários",
+      "todo": "Tarefas"
+    },
+    "groups": {
+      "deleted": "Excluídos",
+      "floating": "Não vinculados"
+    },
+    "resolved": "Resolvidos ({{count}})",
+    "scopes": {
+      "current": "Atual"
+    }
+  },
   "rightSidebar": {
     "kickers": {
       "library": "Projeto · Biblioteca",
@@ -287,6 +354,7 @@
       "chapterOrdinal": "Capítulo {{count}}",
       "chaptersValue": "{{count}} capítulos",
       "recent": "Recente",
+      "snapshotButton": "Snapshots do histórico…",
       "wordsPerChapterValue": "{{words}} palavras / capítulo",
       "wordsValue": "{{count}} palavras",
       "writingProgress": "Progresso da escrita",
@@ -304,6 +372,31 @@
     }
   },
   "settings": {
+    "about": {
+      "channel": "Canal",
+      "channelPreAlpha": "Alpha",
+      "contact": "Contato",
+      "credits": "Créditos e licenças",
+      "emailTeam": "Enviar e-mail à equipe",
+      "engine": "Motor",
+      "knownIssues": "Problemas conhecidos",
+      "knownIssuesDesc": "Limitações conhecidas da versão Alpha atual",
+      "license": "Licença do cliente",
+      "licenseDesc": "GNU AGPL v3 ou posterior",
+      "openSource": "Dependências de código aberto",
+      "sourceCode": "Código-fonte",
+      "sourceCodeDesc": "Código correspondente a este cliente AGPL",
+      "sub": "A experiência definitiva de escrita",
+      "support": "Suporte Alpha",
+      "supportDesc": "Instruções de solução de problemas e relato seguro",
+      "tagline": "Para quem escreve acordado até altas horas da noite.",
+      "title": "Drifting",
+      "version": "Versão",
+      "viewLicense": "Ver licença",
+      "viewList": "Ver lista",
+      "viewSource": "Ver código-fonte",
+      "writeEmail": "Escrever e-mail"
+    },
     "appearance": {
       "dark": "Escuro",
       "interface_text_large": "Maior",
@@ -317,6 +410,9 @@
       "system": "Seguir o sistema",
       "theme": "Tema",
       "theme_desc": "Claro, escuro ou conforme o sistema."
+    },
+    "common": {
+      "open_in_browser": "Abrir no navegador"
     },
     "editor": {
       "auto_immersive": "Escrita imersiva ao digitar",
@@ -334,11 +430,17 @@
       "page_width_desc": "Largura do papel no editor; o texto preenche a área com margens fixas.",
       "paragraph_spacing": "Espaçamento entre parágrafos",
       "paragraph_spacing_desc": "Espaçamento comum a parágrafos e títulos de todos os níveis, relativo ao tamanho do texto; somente no editor.",
+      "preview": "Prévia",
+      "preview_h1": "Título 1",
+      "preview_p1": "O silêncio se espalhou entre eles como a maré sobre a pedra. Por fim ela falou, a voz quase levada pelo vento, chegando a um ponto em que ele mal conseguia ouvi-la.",
+      "preview_p2": "“Você vai voltar?” Ele não respondeu de imediato. Observou o sol afundar no mar e só depois de muito tempo assentiu, sem saber se aquilo era promessa ou compaixão.",
+      "reset_style": "Restaurar estilo recomendado",
       "typesetting": "Diagramação",
       "typewriter_mode": "Modo máquina de escrever",
       "typewriter_mode_desc": "Mantém a linha ativa numa posição fixa ao digitar ou mover o cursor. Somente no editor."
     },
     "groups": {
+      "about": "Sobre",
       "control": "Controle",
       "preferences": "Preferências"
     },
@@ -389,6 +491,7 @@
           "label": "Escrita imersiva"
         }
       },
+      "allActionsShort": "Todas as ações · {{count}}",
       "conflict": "{{accelerator}} já é usado por “{{action}}”",
       "pressNewCombo": "Pressione uma nova combinação…",
       "recording": "Capturando",
@@ -400,27 +503,53 @@
       "ui_locale_desc": "Idioma dos menus, botões e mensagens. Seu texto não é alterado."
     },
     "privacy": {
+      "copyDiagnostics": "Copiar resumo",
       "crashLogs": "Enviar diagnósticos de falha automaticamente",
       "crashLogsDesc": "Envia ao mantenedor locais de erros sem dados sensíveis, versão e plataforma para diagnosticar falhas. Não inclui texto do manuscrito e pode ser desativado a qualquer momento.",
-      "dataUsage": "Uso de dados"
+      "dataUsage": "Uso de dados",
+      "diagnostics": "Resumo de diagnóstico sem dados sensíveis",
+      "diagnosticsCopied": "Resumo de diagnóstico sem dados sensíveis copiado.",
+      "diagnosticsCopyFailed": "Não foi possível escrever na área de transferência. A permissão pode estar indisponível.",
+      "diagnosticsDesc": "Copia versão, plataforma, disponibilidade de funções, contagens e categorias de erros de sincronização e status de atualização. Sem manuscrito, credenciais, identificadores de projeto ou caminhos absolutos; nunca é enviado automaticamente.",
+      "noteLocal": "Esta compilação nunca contata um servidor Drifting; seu trabalho fica neste dispositivo. IA e transcrição vão diretamente ao provedor escolhido, sob os termos de dados e treinamento dele. Extensões MCP remotas adicionadas também usam a rede."
     },
     "rail": {
+      "about_app": "Sobre o Drifting",
       "appearance": "Aparência",
       "editor": "Editor",
       "keys": "Teclado",
-      "language": "Idioma",
-      "privacy": "Privacidade",
-      "updates": "Atualizações"
+      "language": "Idioma"
     },
     "search_placeholder": "Buscar configurações…",
+    "sync": {
+      "local_data": "Dados locais",
+      "local_sub": "Sem conta Drifting ou nuvem hospedada. Exporte uma cópia legível quando quiser.",
+      "local_title": "Seu trabalho fica neste dispositivo."
+    },
     "title": "Configurações",
     "update": {
-      "channel_desc": "Apple Silicon · macOS 13 ou posterior",
-      "current_version": "Versão atual"
+      "channel_desc": "Apple Silicon · macOS 13 ou posterior"
     }
   },
   "sidebarLayout": {
     "split": "Restaurar duas colunas"
+  },
+  "snapshotHistory": {
+    "confirmRestore": "Confirmar substituição da versão atual",
+    "empty": "Ainda não há snapshots. Após editar o texto, um é salvo automaticamente a cada 15 minutos aproximadamente.",
+    "kind": {
+      "category": "Categoria",
+      "element": "Elemento",
+      "library_item": "Nota",
+      "node": "Capítulo",
+      "storyline": "Linha narrativa"
+    },
+    "loading": "Carregando…",
+    "restore": "Restaurar…",
+    "restoreFailed": "Falha na restauração: {{error}}",
+    "restoreSuccess": "Versão selecionada restaurada. O estado anterior foi salvo primeiro como um novo snapshot.",
+    "restoring": "Restaurando…",
+    "title": "Snapshots do histórico · 30 dias"
   },
   "topTimeline": {
     "closeTab": "Fechar aba",

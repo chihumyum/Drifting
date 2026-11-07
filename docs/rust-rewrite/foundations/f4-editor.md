@@ -2,6 +2,10 @@
 
 2026-11-07 起。代码在 `next/crates/gpui-prose`（Drifting 自己的那一层在 `next/crates/dr-editor`，AGPL，见「第三轮」），加两个小 crate `next/crates/gpui-ime`（组字规则，只用标准库）和 `next/crates/prose-linebreak`（中文断行，只依赖 `icu_segmenter`），三个都是 `MIT OR Apache-2.0`。`gpui-prose` 依赖 `gpui`（和它自带的 `sum_tree`）、`loro`、这两个小 crate，默认特性 `icu` 另加 ICU4X 分词，不依赖任何 `dr-*`。计划见 [foundation.md 的 F4 一节](../foundation.md#f4-编辑引擎gpui-prose-与-dr-editor)，正文格式见 [loro-schema.md](../loro-schema.md)，起点是 [P0-B 探针](../spikes/p0-b-editor.md)。
 
+## 第四轮（F4e 第二批：交互）
+
+章首、章末给宿主留的位置和页的数据（M03），@ 选择器、斜杠菜单、自动人物链接和断链修复、选区浮条，以及 F6 提的三件，记在 [f4e-editor.md](f4e-editor.md)。
+
 ## 第三轮（F4e：dr-editor）
 
 ### 一句话
@@ -373,27 +377,29 @@ Drifting 的正文能在新版里编辑并落盘了：新的 AGPL crate `next/cr
 
 这一轮的上屏和空闲 CPU 都是在别的会话编译、测试时量的，证据里自动标了「高负载、仅供参考」（`conditions.reference_only: true`）。上屏的最终数字由作者或监管会话找机器空闲的时候重测，步骤：
 
-1. 关掉别的编译、测试和 `pnpm dev`，等一分钟负载降到 2 以下（`sysctl -n vm.loadavg` 的第一个数）。`prose-bench` 在每次测量前后各取一次负载，最高值不低于 2 就把证据标成仅供参考；`prose-bench check` 会把这样的文件列出来，但不算失败。
+1. 关掉别的编译、测试和 `pnpm dev`，等一分钟负载降到 2 以下（`sysctl -n vm.loadavg` 的第一个数）。`prose-bench` 在每次测量前后各取一次负载，高于 2 就把证据标成仅供参考（`conditions.reference_only`）。
 2. 窗口要在内建屏上、不被挡住；测量时别动键盘鼠标（每次约一分钟，窗口会弹到最前面）。
 3. 在 `next/` 下，Zed 官方 GPUI：
 
    ```bash
-   cargo build --release -p gpui-prose --example prose-bench
-   ./target/release/examples/prose-bench present --out ../docs/rust-rewrite/acceptance/f4-present.json
-   ./target/release/examples/prose-bench idle --out ../docs/rust-rewrite/acceptance/f4-idle-stock.json
-   ./target/release/examples/prose-bench window --out ../docs/rust-rewrite/acceptance/f4-window.json
+   cargo build --release -p dr-editor --example prose-bench
+   ./target/release/examples/prose-bench present --write
+   ./target/release/examples/prose-bench idle --write
+   ./target/release/examples/prose-bench window --write
    ```
+
+   （2026-11-08 起程序在 `dr-editor`，语料是 F8 的重型种子，证据写成 F8 格式的 `f4e-m2-prose-bench-<子命令>.json`；旧的 `f4-*.json` 留作历史。）
 
 4. 打了 G1：照下面「本机 fork 怎么用」临时把 `[patch]` 指到 fork（fork 打上 `next/patches/gpui/0001-*.patch`；量 G2 再打 `0002-*.patch`），重新构建，设 `PROSE_BENCH_GPUI` 写明用的补丁，然后：
 
    ```bash
-   ./target/release/examples/prose-bench idle --out ../docs/rust-rewrite/acceptance/f4-idle-patched.json
-   ./target/release/examples/prose-bench present --out ../docs/rust-rewrite/acceptance/f4-present-patched.json
-   GPUI_PRESENT_NOW_DIRECT=1 ./target/release/examples/prose-bench present --out ../docs/rust-rewrite/acceptance/f4-present-direct.json
+   PROSE_BENCH_GPUI=g1 ./target/release/examples/prose-bench idle --write      # f4e-m2-prose-bench-idle-g1.json
+   PROSE_BENCH_GPUI=g1 ./target/release/examples/prose-bench present --write   # f4e-m2-prose-bench-present-g1.json
+   PROSE_BENCH_GPUI=g1-g2 GPUI_PRESENT_NOW_DIRECT=1 ./target/release/examples/prose-bench present --write
    ```
 
    量完删掉 `[patch]` 一节、还原 `Cargo.lock`，确认 `grep gpui-fork Cargo.toml Cargo.lock` 没有输出。
-5. `./target/release/examples/prose-bench check ../docs/rust-rewrite/acceptance/f4-*.json`，再把本节的表换成新数字。
+5. `cargo xtask check`（证据新鲜），再把本节的表换成新数字。
 
 `present` 每个配置录一次约 30 秒的 Instruments。`xctrace` 偶尔会卡住，这一轮遇到两种：目标进程卡在启动阶段（半小时），以及 `xctrace` 还没启动目标就停住（18 分钟）。每次录制限时 180 秒、超时自动重录（最多三次），管得住前一种；后一种限时不起作用，要手动结束那个 `xctrace record` 进程，`prose-bench` 会接着重录。手动结束后紧接着的那次录制可能一个按键都对不上（这一轮遇到过），证据里 `matched` 是 0 就重跑那一项。
 
@@ -411,6 +417,7 @@ GPUI 的 fork 由 F4 负责（D1：需要挂补丁时再开 fork）。现在工�
 | G6 | 中文断行 | 不需要 | — | — | 上游 #64624（ICU UAX #14）不在 v1.27.0；即使升级，编辑器自己断行仍更合适（悬挂、以后两端对齐） | 已在上游 |
 | G7 | 缓存视图里的正文从读屏树里掉出去 | 补丁文件已写，未挂 | 别处一重画（比如光标闪烁），缓存视图的元素不再交读屏树 | 待估 | `gpui-prose` 已绕开：读屏连着时正文不走缓存（`input::a11y::editor_view`）。`dr-ui` 别的缓存视图也会碰到。见 [f4c-input.md](f4c-input.md) | 报不报上游等作者在时定 |
 | G8 | 系统问焦点元素时答成窗口 | 补丁文件已写，未在 fork 上构建验证 | 读屏的焦点元素应是正文 | 待估 | 绕不开，必须改 GPUI。补丁按探针诊断写成。见 [f4c-input.md](f4c-input.md) | 报不报上游等作者在时定 |
+| G9 | 视图缓存也看不透明度 | 未做，不急（F4e 第二批） | `gpui/src/view.rs` 的 `ViewElementCacheKey` 加上画的时候的元素不透明度，不一样就不复用 | 约 5 行 | 缓存视图重放上一帧时连当时的不透明度一起，放在叠化里的编辑器会停在头几帧的淡色。`gpui-prose` 已绕开：`ProseEditor::element_at_opacity` 由宿主传不透明度，变了就重画。见 [f4e-editor.md](f4e-editor.md) | 中：Zed 自己的淡入淡出也会碰到 |
 
 **本机 fork 怎么用**（只在测量时临时用，不提交）：fork 是 Zed `v1.27.0`（`c84af5b`）的本地克隆，放在家目录下单独的文件夹，没有远端。临时在 `next/Cargo.toml` 末尾加一节 `[patch."https://github.com/zed-industries/zed"]`，把锁文件里来自 Zed 仓库的 20 个 crate（`gpui`、`gpui_macos`、`gpui_platform`、`collections`、`sum_tree`、`scheduler` 等，见 `Cargo.lock` 里 `source = "git+https://github.com/zed-industries/zed?tag=v1.27.0"` 的那些）都指到 fork 的路径；只换 `gpui_macos` 一个不行，它的依赖会变成第二份 `gpui`。量完删掉这一节、还原 `Cargo.lock`。以后正式挂补丁时，把 fork 推到 GitHub 上一个仓库，`[patch]` 改成指向那个仓库的固定提交（D1）。
 
@@ -448,7 +455,7 @@ GPUI 的 fork 由 F4 负责（D1：需要挂补丁时再开 fork）。现在工�
 | F4c 输入 | `src/input/`、`gpui-ime` | Windows：IMM32 丢弃组字（台账 G4）、Windows 键位；查找替换的选区模型；三击按段扩展；读屏（AccessKit） |
 | F4d 渲染 | `src/render/` | 画层接口（待协调 13）：建议链接、TODO 标记、批注砂笔、查找高亮、Agent 改动显现；块样式（引用、缩进、对齐、分隔线） |
 | F4e Drifting 扩展 | `crates/dr-editor` | 人物链接的 @ 选择和自动链接（`dr-text` 匹配器，经会话写）、断链修复；斜杠菜单；章末 ⁂；选区浮条；Agent 改动显现；接上 F3 的 `comment.reanchor` 和 TODO 投影（待协调 11） |
-| 基准 | `prose-bench` → `dr-editor` | 把 `gpui-prose/examples/prose-bench`（窗口、上屏、空闲）搬进 `dr-editor`、语料换成 `dr_testkit::seed`、证据改成 F8 格式，**和空闲重测一起做**：上屏的最终数字本来就要等机器空闲重测，现在搬了也要再跑一遍；`gpui-prose` 留一个不依赖 `dr-*` 的小例子 |
+| 基准 | `dr-editor/examples/prose-bench` | 已搬（F4e 第二批，见 [f4e-editor.md](f4e-editor.md#测量)）；剩下空闲重测：`window`、`present`、`idle` 在新语料上还没跑过 |
 
 GPUI 补丁 G1 什么时候正式挂上，由作者在发布档前定（需要一个可推送的 fork 仓库）。挂上以后 `EditorOptions` 不用改。
 
@@ -458,4 +465,4 @@ GPUI 补丁 G1 什么时候正式挂上，由作者在发布档前定（需要�
 - 复制粘贴只有纯文本；粘贴的多段一律按回车规则拆开（第一段并进光标所在段）。
 - 选区不能跨章（接口 `BookRange` 已经留好，见 [m05-book.md](../modules/m05-book.md)）。
 - 列表还没有样子；引用、缩进、对齐、分隔线由 F4d 画出（居中、右对齐的多行段落，输入法候选窗和上下移动还按第一行的偏移算，等 F4b 加每行偏移）。
-- 真输入法的手测清单沿用 [P0-B](../spikes/p0-b-editor.md#待作者手测)，命令换成 `cargo run --release -p gpui-prose --example prose-bench -- chapter`（`PROSE_BENCH_IME_LOG=1` 打印输入法调用）。
+- 真输入法的手测清单沿用 [P0-B](../spikes/p0-b-editor.md#待作者手测)，命令换成 `cargo run --release -p dr-editor --example prose-bench -- chapter`（`PROSE_BENCH_IME_LOG=1` 打印输入法调用）。

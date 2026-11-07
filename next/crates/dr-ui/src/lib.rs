@@ -47,6 +47,6 @@ pub fn init(cx: &mut App) -> Result<(), fonts::FontsMissing> {
     if cx.try_global::<ThemeSettings>().is_none() {
         cx.set_global(ThemeSettings::default());
     }
-    cx.bind_keys(input::field::bindings());
+    cx.bind_keys(input::bindings());
     Ok(())
 }

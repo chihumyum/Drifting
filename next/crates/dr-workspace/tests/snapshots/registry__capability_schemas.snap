@@ -521,6 +521,88 @@ expression: json
   },
   {
     "access": "write",
+    "concurrency": "library",
+    "input": {
+      "description": "A book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book"
+      ],
+      "title": "BookIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "book.purge",
+    "output": {
+      "properties": {
+        "assets": {
+          "description": "Asset files deleted.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "docs": {
+          "description": "Stored documents deleted (the book's and its prose).",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "docs",
+        "assets"
+      ],
+      "title": "BookPurged",
+      "type": "object"
+    },
+    "summary": "Delete a book in Recently Deleted for good, now: its documents, history and assets on this device. Refused for a book not in the trash or still open in an editor. Cannot be undone."
+  },
+  {
+    "access": "write",
+    "concurrency": "library",
+    "input": {
+      "description": "No input.",
+      "title": "NoInput",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "book.purge_expired",
+    "output": {
+      "properties": {
+        "purged": {
+          "description": "The books deleted for good.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "waiting": {
+          "description": "Books that were due but are in use; the next run tries again.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "purged",
+        "waiting"
+      ],
+      "title": "ExpiredPurged",
+      "type": "object"
+    },
+    "summary": "Delete for good every book whose 30 days in Recently Deleted are over (the shelf runs it a while after it opens, so a restore made on another device can arrive first). Cannot be undone."
+  },
+  {
+    "access": "write",
     "concurrency": "book",
     "input": {
       "description": "A book.",
@@ -665,6 +747,152 @@ expression: json
       "type": "array"
     },
     "summary": "Search a book: titles, summaries, prose, material descriptions and element patches (chapters in reading order first, then ideas, elements, storylines, categories, materials). One- and two-character queries work."
+  },
+  {
+    "access": "read",
+    "concurrency": "shared",
+    "input": {
+      "properties": {
+        "trashed": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "title": "ListBooksIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "book.shelf",
+    "output": {
+      "$defs": {
+        "ShelfBook": {
+          "description": "One book as the bookshelf shows it.",
+          "properties": {
+            "chapters": {
+              "description": "Live chapters, storylines and elements.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "created_at": {
+              "description": "When the book was created (Unix seconds).",
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "daily_word_target": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "days_left": {
+              "description": "… and the whole days left until then, rounded up (0: due now).",
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "deleted_at": {
+              "description": "In Recently Deleted since (Unix seconds).",
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "elements": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "id": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "purge_at": {
+              "description": "In Recently Deleted: when it goes for good (Unix seconds) …",
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "storylines": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "subtitle": {
+              "description": "The 「副标题」 project fact, trimmed, when it has a value.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "summary": {
+              "type": "string"
+            },
+            "trashed": {
+              "type": "boolean"
+            },
+            "updated_at": {
+              "description": "The newest stored change of any of its documents (Unix seconds).",
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "word_target": {
+              "description": "The book's word target (`None`: turned off).",
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "words": {
+              "description": "Words in the live chapters only (not ideas, elements or notes), as\nthe derived index counts them.",
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "summary",
+            "trashed",
+            "word_target",
+            "daily_word_target",
+            "subtitle",
+            "chapters",
+            "storylines",
+            "elements",
+            "words",
+            "created_at",
+            "updated_at",
+            "deleted_at",
+            "purge_at",
+            "days_left"
+          ],
+          "type": "object"
+        }
+      },
+      "items": {
+        "$ref": "#/$defs/ShelfBook"
+      },
+      "title": "Array_of_ShelfBook",
+      "type": "array"
+    },
+    "summary": "Everything the bookshelf shows, in one read: every book with its counts, chapter words, creation, last change, and (in Recently Deleted) when it goes for good. Live books first, most recently changed first; then the trashed ones, most recently deleted first."
   },
   {
     "access": "write",
@@ -1566,6 +1794,14 @@ expression: json
                 "null"
               ]
             },
+            "created_at": {
+              "description": "When the chapter was created (Unix seconds).",
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
             "id": {
               "type": "string"
             },
@@ -1609,6 +1845,20 @@ expression: json
             },
             "trashed": {
               "type": "boolean"
+            },
+            "updated_at": {
+              "description": "When the chapter last changed (Unix seconds): its prose's newest\nstored change, or its creation if later. The book document keeps no\n`updated_at` (simplifications.md 第一节第 13 条), so a new title,\nsummary or status alone does not move it.",
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "words": {
+              "description": "Words in the chapter's prose, as the derived index counts them (0\nuntil dr-index has reached it).",
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
             }
           },
           "required": [
@@ -1622,7 +1872,10 @@ expression: json
             "act",
             "storylines",
             "primary_storyline",
-            "trashed"
+            "trashed",
+            "words",
+            "created_at",
+            "updated_at"
           ],
           "type": "object"
         }
@@ -1633,7 +1886,7 @@ expression: json
       "title": "Array_of_ChapterInfo",
       "type": "array"
     },
-    "summary": "List chapters in reading order, with their act and storylines (trashed ones after, when asked)."
+    "summary": "List chapters in reading order, with their act, storylines, words, creation and last change (trashed ones after, when asked)."
   },
   {
     "access": "write",
@@ -3334,6 +3587,255 @@ expression: json
     "summary": "List what an Agent session (or one turn) wrote: one entry per settled write, oldest first."
   },
   {
+    "access": "read",
+    "concurrency": "shared",
+    "input": {
+      "description": "A prose document.",
+      "properties": {
+        "doc": {
+          "description": "`node:<id>`, `element:<id>`, `storyline:<id>`, `category:<id>` or\n`material:<id>`.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "doc"
+      ],
+      "title": "DocIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "history.points",
+    "output": {
+      "$defs": {
+        "HistoryPoint": {
+          "description": "One history point of a prose document.",
+          "properties": {
+            "excerpt": {
+              "description": "The prose's first characters then, whitespace collapsed (at most\n[`EXCERPT_CHARS`]), as the 0.1 history list showed them.",
+              "type": "string"
+            },
+            "id": {
+              "description": "Pass it to `history.preview` and `history.restore_point`.",
+              "format": "int64",
+              "type": "integer"
+            },
+            "kept": {
+              "description": "Exempt from thinning and the 30 days.",
+              "type": "boolean"
+            },
+            "kind": {
+              "description": "Why it was taken: `auto` (every 15 minutes of writing), `close`\n(the document closed), `restore` (just before a restore), `agent`\n(before an Agent turn wrote), `import` (from the 0.1 library), or\n`other`.",
+              "type": "string"
+            },
+            "label": {
+              "description": "The label as stored (`periodic`, `agent:<session>/<turn>`, …).",
+              "type": "string"
+            },
+            "title": {
+              "description": "The owner's title (or name) then, when known.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "ts": {
+              "description": "When (ms since the epoch).",
+              "format": "int64",
+              "type": "integer"
+            },
+            "words": {
+              "description": "Words in the prose then.",
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "id",
+            "ts",
+            "kind",
+            "label",
+            "words",
+            "title",
+            "excerpt",
+            "kept"
+          ],
+          "type": "object"
+        }
+      },
+      "properties": {
+        "doc": {
+          "type": "string"
+        },
+        "points": {
+          "description": "Newest first.",
+          "items": {
+            "$ref": "#/$defs/HistoryPoint"
+          },
+          "type": "array"
+        },
+        "words": {
+          "description": "Words in the prose now.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "doc",
+        "words",
+        "points"
+      ],
+      "title": "HistoryPointsOut",
+      "type": "object"
+    },
+    "summary": "List a prose document's history points (kept 30 days, at most one every 15 minutes of writing), newest first, with the words at each."
+  },
+  {
+    "access": "read",
+    "concurrency": "shared",
+    "input": {
+      "properties": {
+        "doc": {
+          "type": "string"
+        },
+        "point": {
+          "description": "A point's id from `history.points`.",
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "doc",
+        "point"
+      ],
+      "title": "PointIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "history.preview",
+    "output": {
+      "$defs": {
+        "HistoryPoint": {
+          "description": "One history point of a prose document.",
+          "properties": {
+            "excerpt": {
+              "description": "The prose's first characters then, whitespace collapsed (at most\n[`EXCERPT_CHARS`]), as the 0.1 history list showed them.",
+              "type": "string"
+            },
+            "id": {
+              "description": "Pass it to `history.preview` and `history.restore_point`.",
+              "format": "int64",
+              "type": "integer"
+            },
+            "kept": {
+              "description": "Exempt from thinning and the 30 days.",
+              "type": "boolean"
+            },
+            "kind": {
+              "description": "Why it was taken: `auto` (every 15 minutes of writing), `close`\n(the document closed), `restore` (just before a restore), `agent`\n(before an Agent turn wrote), `import` (from the 0.1 library), or\n`other`.",
+              "type": "string"
+            },
+            "label": {
+              "description": "The label as stored (`periodic`, `agent:<session>/<turn>`, …).",
+              "type": "string"
+            },
+            "title": {
+              "description": "The owner's title (or name) then, when known.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "ts": {
+              "description": "When (ms since the epoch).",
+              "format": "int64",
+              "type": "integer"
+            },
+            "words": {
+              "description": "Words in the prose then.",
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "id",
+            "ts",
+            "kind",
+            "label",
+            "words",
+            "title",
+            "excerpt",
+            "kept"
+          ],
+          "type": "object"
+        },
+        "PreviewParagraph": {
+          "description": "One paragraph of a preview.",
+          "properties": {
+            "heading": {
+              "description": "1, 2 or 3 for H1/H2/H3; `None` for body text.",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "heading",
+            "text"
+          ],
+          "type": "object"
+        }
+      },
+      "properties": {
+        "paragraphs": {
+          "items": {
+            "$ref": "#/$defs/PreviewParagraph"
+          },
+          "type": "array"
+        },
+        "point": {
+          "$ref": "#/$defs/HistoryPoint"
+        },
+        "same_as_now": {
+          "description": "Whether the prose then is the prose now (restoring changes no text).",
+          "type": "boolean"
+        },
+        "summary": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "title": {
+          "description": "The owner's title (or name) then; `None` when it is not known (no\nbook version with the point, or the owner did not exist yet).",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "point",
+        "title",
+        "summary",
+        "paragraphs",
+        "same_as_now"
+      ],
+      "title": "HistoryPreviewOut",
+      "type": "object"
+    },
+    "summary": "Read a prose document as it was at a history point: its paragraphs (with H1/H2/H3 levels) and its owner's title and summary then."
+  },
+  {
     "access": "write",
     "concurrency": "book",
     "input": {
@@ -3414,6 +3916,80 @@ expression: json
       "type": "object"
     },
     "summary": "Make named entities of a book equal to an earlier version (one commit; the rest of the book is untouched). The undo of every purge."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "at": {
+          "description": "Or an exact prose version (hex Loro frontiers; the undo uses it).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "book_at": {
+          "description": "With `at`: the book document's version to take the owner's fields\nfrom (hex); omitted: the fields stay.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "doc": {
+          "type": "string"
+        },
+        "point": {
+          "description": "A point's id from `history.points`.",
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "doc"
+      ],
+      "title": "RestorePointIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "history.restore_point",
+    "output": {
+      "properties": {
+        "doc": {
+          "type": "string"
+        },
+        "fields": {
+          "description": "The owner's fields written back (empty when they already matched or\nthe point has no book version).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "prose": {
+          "description": "Whether the prose changed (it was not already the point's).",
+          "type": "boolean"
+        },
+        "skipped": {
+          "description": "Fields left as they are: an element's `name` and `aliases` when\nanother element has taken one of them since.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "doc",
+        "prose",
+        "fields",
+        "skipped"
+      ],
+      "title": "PointRestored",
+      "type": "object"
+    },
+    "summary": "Restore a prose document to a history point, per entity: the prose goes back (a new change; history stays) and its owner's title, summary and other metadata fields go back to that time; the rest of the book is untouched."
   },
   {
     "access": "write",
@@ -5202,6 +5778,137 @@ expression: json
     "summary": "Restore a prose document to an earlier version, as a new change (history stays)."
   },
   {
+    "access": "read",
+    "concurrency": "shared",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "limit": {
+          "description": "At most this many (default and most: 10).",
+          "format": "uint",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "book"
+      ],
+      "title": "RecentListIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "recent.list",
+    "output": {
+      "$defs": {
+        "RecentEntry": {
+          "description": "One page opened.",
+          "properties": {
+            "book": {
+              "type": "string"
+            },
+            "target": {
+              "$ref": "#/$defs/Target"
+            },
+            "used_ms": {
+              "description": "When (ms since the epoch).",
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "book",
+            "target",
+            "used_ms"
+          ],
+          "type": "object"
+        },
+        "Target": {
+          "description": "A reference to an entity (relation end, comment or memory target).",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "description": "`node`, `element`, `patch`, `category`, `storyline`, `comment`,\n`material`.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "type": "object"
+        }
+      },
+      "items": {
+        "$ref": "#/$defs/RecentEntry"
+      },
+      "title": "Array_of_RecentEntry",
+      "type": "array"
+    },
+    "summary": "List the pages of a book the author opened recently on this device, newest first (what is in the trash or gone is left out)."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "Target": {
+          "description": "A reference to an entity (relation end, comment or memory target).",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "description": "`node`, `element`, `patch`, `category`, `storyline`, `comment`,\n`material`.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "type": "object"
+        }
+      },
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "target": {
+          "$ref": "#/$defs/Target"
+        }
+      },
+      "required": [
+        "book",
+        "target"
+      ],
+      "title": "RecentTouchIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "recent.touch",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Record that the author opened a page of a book (this device only; Project Home's 「继续写」 reads it). Not undoable."
+  },
+  {
     "access": "write",
     "concurrency": "book",
     "input": {
@@ -6158,6 +6865,223 @@ expression: json
       "type": "object"
     },
     "summary": "Rename a storyline (a taken name gets a suffix), recolour it or change its summary."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "description": "An exact id (undo uses it).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "idea": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "label": {
+          "default": "",
+          "description": "Trimmed; may be empty only with `idea`.",
+          "type": "string"
+        },
+        "narrative_order": {
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "book",
+        "narrative_order"
+      ],
+      "title": "TimePinCreateIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "time_pin.create",
+    "output": {
+      "description": "The entity a command created or renamed, with its final name.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "Named",
+      "type": "object"
+    },
+    "summary": "Put a time pin on the narrative axis, with a label or bound to an idea."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "description": "One entity of a book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "EntityIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "time_pin.delete",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Delete a time pin."
+  },
+  {
+    "access": "read",
+    "concurrency": "shared",
+    "input": {
+      "description": "A book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book"
+      ],
+      "title": "BookIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "time_pin.list",
+    "output": {
+      "$defs": {
+        "TimePinInfo": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "idea": {
+              "description": "The idea it is bound to, when that idea is live.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "idea_title": {
+              "description": "That idea's title.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "label": {
+              "type": "string"
+            },
+            "narrative_order": {
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "required": [
+            "id",
+            "narrative_order",
+            "label",
+            "idea",
+            "idea_title"
+          ],
+          "type": "object"
+        }
+      },
+      "items": {
+        "$ref": "#/$defs/TimePinInfo"
+      },
+      "title": "Array_of_TimePinInfo",
+      "type": "array"
+    },
+    "summary": "List the book's time pins along the narrative axis, with the ideas bound to them."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "idea": {
+          "description": "An idea to bind; `null` unbinds.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "label": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "narrative_order": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "TimePinUpdateIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "time_pin.update",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Move a time pin, change its label, or bind it to an idea or unbind it."
   },
   {
     "access": "write",

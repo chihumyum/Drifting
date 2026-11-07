@@ -1,6 +1,6 @@
 # M10 旧库导入
 
-2026-11-07，第一、第二个里程碑。计划见 [modules.md 的 M10](../modules.md#阶段-2写作闭环)，依据是 [P0-E 的结论和规格草稿](../spikes/p0-e-import.md)。代码在 `next/crates/dr-import-v1/`（不依赖 GPUI，不依赖 yrs / Yjs），旧版这一侧只改了交接（`src/renderer/services/v2-handoff/`，[docs/v2-handoff.md](../../v2-handoff.md)）。测量证据在 [acceptance/m10-m2-import.json](../acceptance/m10-m2-import.json)（F8 的新格式）。
+2026-11-07，第一、第二个里程碑；2026-11-08，第三个里程碑（导入界面）。计划见 [modules.md 的 M10](../modules.md#阶段-2写作闭环)，依据是 [P0-E 的结论和规格草稿](../spikes/p0-e-import.md)。导入本身在 `next/crates/dr-import-v1/`（不依赖 GPUI，不依赖 yrs / Yjs），界面在 `next/crates/dr-view-import/`；旧版这一侧只改了交接（`src/renderer/services/v2-handoff/`，[docs/v2-handoff.md](../../v2-handoff.md)）。测量证据在 [acceptance/m10-m2-import.json](../acceptance/m10-m2-import.json)（F8 的新格式），截图在 [m10/](m10/)。
 
 ## 做了什么（大白话）
 
@@ -29,6 +29,18 @@
    - 每类正文抽一段文字去搜，都能搜到。
 6. **导到一半被打断，再导一次会接着导完。** 书目文档现在分段存，所以「这本书导过没有」改看新库里的回执：开始写一本书前先记一行「正在导」。接着导时不会多打历史点、不会重复复制资源文件。新库里已经有、但这台设备没有回执的书（比如从别的设备同步来的），不动它。
 7. **证据换成 F8 的新格式。** 测量放在 `examples/m10-measure.rs`。契约类的检查（判为最新的和真值一致、存得一致、往返一致、锚点全是光标、历史点都在而且保留、元数据在各自的历史点上成立、索引不落后、字数一致、搜得到）都在测量程序里当场断言，有一条不成立就不写证据。证据文件里只留测量值。
+
+### 第三个里程碑：导入界面
+
+界面在新 crate `next/crates/dr-view-import/`；应用在 `dr_view_home::init` 后面一行调 `dr_view_import::init`。细节见下文「导入界面」。
+
+1. **从书架进。** 书架左栏的「导入 · Drifting 0.1」弹出系统的选文件夹面板。选旧版的应用数据目录、某个库的根目录或它的 `databases` 文件夹都行，导入器自己认出是哪个库。
+2. **导入写进 App 已经打开的那个库。** 新入口 `run::import_into_library`：和以前是同一条路，只是用 App 手里的库、导完不关；搜索、大纲、字数用 App 自己的派生器当场建好。导入在自己的线程上跑，界面不卡。
+3. **闸门对话框。** 没交接、又有证明不了是最新的正文时，导入前就停下，什么都不写。对话框按书列出这几篇（类别和标题），给一个去下载旧版最后一版的按钮。点「取消」什么都不发生；点「仍然导入」才照缓存导入。
+4. **进度。** 正在导第几本书（「2 / 5 本」）、书名、一条进度条和百分比。导入时对话框关不掉（取消还没做）。
+5. **结果摘要。** 导入了几本、一共多少字（和书架上的数一样），每本书的状态和字数；照缓存导入了几篇、文件夹里还有几个账号库没导，也写出来。
+6. **书架自己刷新。** 导入往库里写时 F3 照常发事件，书架照常重读；摘要出来时，新书已经在书架上。
+7. **原库照旧只读。** 测试里核对过：导入前后旧库文件的哈希和修改时间都没变。
 
 **要作者定的事：没有。** 技术取舍都写在下面，要别的会话配合的列在「待协调」。
 
@@ -79,9 +91,13 @@
 
 ## 流程（定稿）
 
-`run::import(旧库文件, 新库文件夹, Options)`；要进度时用 `run::import_with(…, &mut |p| …)`（见下文「进度」）。F6 以后在它前面加界面：
+`run::import(旧库文件, 新库文件夹, Options)`；要进度时用 `run::import_with(…, &mut |p| …)`（见下文「进度」）；App 里用 `run::import_into_library(旧库文件, &已打开的库, Options, 回调)`，同一条路，写进 App 开着的库、导完不关（见下文「导入界面」）：
 
-1. **找库**（`locate`）：照旧版 `library_registry.rs` 和 `data_paths.rs` 的规则。旧版应用数据目录（正式版身份的 `AppDirs::data`，F7）里的 `libraries.json` 列出各个库：`legacy` 就是这个目录本身，其他的在 `libraries/<id>/`；每个库的数据库是 `databases/drifting-library.db`，资源、安装身份、Markdown 文件夹状态在库根下。没有登记表就只有 `legacy`；登记表坏了直接拒绝，不重置（和旧版一样）。本机库（`local`）和各账号库（`account-<哈希>`）都能列出来，各导进各自的新库（按账号分库是 M35 / M36 的事）。
+1. **找库**（`locate`）：照旧版 `library_registry.rs` 和 `data_paths.rs` 的规则。旧版应用数据目录（正式版身份的 `AppDirs::data`，F7）里的 `libraries.json` 列出各个库：`legacy` 就是这个目录本身，其他的在 `libraries/<id>/`；每个库的数据库是 `databases/drifting-library.db`，资源、安装身份、Markdown 文件夹状态在库根下。没有登记表就只有 `legacy`；登记表坏了直接拒绝，不重置（和旧版一样）。本机库（`local`）和各账号库（`account-<哈希>`）都能列出来，各导进各自的新库（按账号分库是 M35 / M36 的事）。作者在界面上选的文件夹由 `locate::resolve` 认：
+   - 旧版的应用数据目录（有登记表、`libraries/` 或 `databases/drifting-library.db`）：取其中的本机库（没认领过的或认领为本机的 `legacy`，或 `local`；两个都在时取当前打开的那个）。账号库这一轮不导，记进摘要；只有账号库时拒绝。
+   - 一个库的根目录（里面有 `databases/drifting-library.db`），比如 `libraries/<id>`。
+   - 那个库的 `databases` 文件夹：库根是它的上一级。
+   - 别的文件夹：报「不是 0.1 的库」。
 2. **暂存副本**（`staging`）：确认旧版没开着这个库 → 逐字节复制数据库和 `-wal`（边复制边算 SHA-256，作为「旧库指纹」）→ 复制前后文件大小和修改时间都没变才算数 → 打开副本让 SQLite 回放 WAL、`quick_check`、合成单个文件 → 迁移级别不是最新就在副本上补齐（`schema`，见下）。副本放在 `<新库>/import-v1/staging/`，导入成功后删掉。
 3. **闸门**（`gate`）：给每篇正文判新鲜度，统计同步的未决冲突、缺口、隔离对象；有问题就停（见下文），什么都不写。
 4. **逐本书写入**：
@@ -325,6 +341,64 @@ Agent 的结算记录、读取回执、检查点、事件流、长任务状态�
 - 只写这个库 `project` 表里的书（WebView 存储是全应用共用的，账号库也共用）；读不到存储时沿用上一次的。
 - 还在 `version: 1` 里，是加出来的一节；没有这一节的旧清单，导入器从原始设置里读颜色和固定位置（`handoff::books_from_settings`）。
 
+## 导入界面（`dr-view-import`）
+
+### 怎么走
+
+| 时候 | 作者看到的 | 能做的 |
+| --- | --- | --- |
+| 点书架左栏「导入 · Drifting 0.1」 | 系统的选文件夹面板，按钮是「选择文件夹」 | 选一个文件夹；取消就什么都不发生 |
+| 拷贝、检查、写书、建索引 | 对话框「导入」：眉题「Drifting 0.1」、副标题是选的文件夹名；一行写正在导的书名和「第几 / 共几本」（不在某本书里时写「处理中…」），一条进度条，底下「正在导入」和百分比 | 等。关不掉，Esc 也不关（取消还没做） |
+| 闸门拦下 | 同一个对话框：拦下的原因、按书分组的几篇（类别 + 标题，太多时可以滚动）、怎么办、去下载旧版最后一版的按钮 | 「取消」（或 Esc、点外面）：什么都没写；「仍然导入」：照缓存再导一次 |
+| 导完 | 「N 本 · 多少字」，每本书一行：书名、字数、状态；照缓存导入的篇数和没导的账号库（有才写） | 「完成」、Esc 或点外面关掉 |
+| 出错 | 「无法导入」，正文是导入器给的原因 | 「关闭」 |
+
+- **只走一次。** 对话框开着时再点入口什么都不做；一次只能有一个导入。
+- **对话框浮在整个窗口上**（dr-ui 的 `Dialog`，书架上的对话框也是它）。它是外壳的一层（`dr_shell::pages::add_layer`，这一轮加的），书架和书里都画；没有导入时什么都不画。打开时拿走焦点，关掉时还给原来的地方。
+- **在哪个库里导**：App 开着的那个（F3 的 `Services.library`）。导入在名为 `legacy-import` 的线程上跑；进度一批一批送到界面，界面只留最新的一个、每批重画一次。导入线程意外结束（崩溃）时，显示出错对话框，原因写 `the import stopped unexpectedly`。
+- **字数**：摘要里的字数在导入线程上用书架自己的读法（`ShelfData::load`）读，所以和书架上的数一样。
+- **原库只读、不动**：界面不碰旧库，导入照旧在新库旁边的副本上读。
+- **安装身份**：App 现在打开库时还没有 F2 的 `Device`，所以界面不传 `device_dir`，也就不认领旧版的安装身份（见「待协调」）。
+
+### 文案
+
+旧版九种语言里现成的，照搬（`dr-i18n/keys.txt` 加了 8 个键）：
+
+| 用在哪 | 键 | 中文 |
+| --- | --- | --- |
+| 对话框标题 | `userMenu.import` | 导入 |
+| 眉题 | 不翻译（和书架入口一样） | Drifting 0.1 |
+| 选文件夹面板的按钮 | `importDialog.chooseFolder` | 选择文件夹 |
+| 进度：第几本 | `projectPicker.projectCount` | {{filtered}} / {{total}} 本 |
+| 进度：不在某本书里时 | `common.processing` | 处理中… |
+| 进度的状态 | `projectPicker.desk.importing` | 正在导入 |
+| 被拦正文的类别 | `projectHome.create.kinds.*` | 章节 / 构想 / 要素 / 故事线 / 类目 / 素材 |
+| 没有标题、书名时 | `common.untitled` | 未命名 |
+| 按钮 | `common.cancel`、`common.close`、`importDialog.summary.done` | 取消、关闭、完成 |
+| 摘要的总数 | `projectPicker.rail.library` | {{count}} 本 · {{words}}字 |
+| 每本书的字数、状态 | `common.wordsCount`、`importDialog.status.committed` | {{count}} 字、已导入 |
+| 出错的标题 | `projectPicker.bookTransfer.importFailedTitle` | 无法导入 |
+
+旧版没有的句子**没有编**：界面上直接显示它的键（等宽小字、次要墨色），一看就知道是待定的文案。键和该说什么列在「待协调」第 13 条。唯一的例外是作者定闸门时亲口定的按钮名「仍然导入」（D5），简体中文显示这四个字，其他语言仍显示键。出错时的正文是导入器自己的错误信息（英文，和旧版「无法导入文件：{{error}}」一样直接给原因）。
+
+### 截图
+
+`cargo run -p dr-view-import --features capture --example import-capture -- --fixtures <P0-E 测试库目录> --capture ../docs/rust-rewrite/modules`：GPUI 离屏画（真的 macOS 排字和 Metal），1280×800，新库是临时的空库，旧库是 P0-E 的合成测试库（`sample`、`sample-stale`，见下文「测试数据」），按旧版的目录结构摆在临时文件夹里。进度一张停在一次真实导入记下的某个回报上（导入太快，抓不到半路）。
+
+| | 浅色 | 深色 |
+| --- | --- | --- |
+| 闸门（「用旧」样书：7 篇，两本书） | [import-gate-light](m10/import-gate-light.png) | [import-gate-dark](m10/import-gate-dark.png) |
+| 进度 | [import-progress-light](m10/import-progress-light.png) | [import-progress-dark](m10/import-progress-dark.png) |
+| 仍然导入后的摘要 | [import-done-light](m10/import-done-light.png) | [import-done-dark](m10/import-done-dark.png) |
+| 导完的书架 | [import-shelf-light](m10/import-shelf-light.png) | [import-shelf-dark](m10/import-shelf-dark.png) |
+| 选了没有旧库的文件夹 | [import-failed-light](m10/import-failed-light.png) | [import-failed-dark](m10/import-failed-dark.png) |
+
+### 改到的别处
+
+- `dr-shell`：`pages::add_layer`（新）和工作区两处 `render` 末尾各一行 `.children(pages::layers(cx))`。
+- `dr-view-shelf`：删掉书架根上接 `ImportLegacyLibrary` 的那行调试日志。它不放行，动作到不了 `cx.on_action`。
+- `app/drifting`：`main.rs` 一行 `dr_view_import::init(cx)`，`Cargo.toml` 一行依赖。
+
 ## 测试数据（可重复的生成步骤）
 
 全是合成数据，生成在会话的临时目录，不进仓库；**不读也不拷作者的真实库**。阶段 7 冻结测试库时，照下面再跑一遍，把五份库作为发布附件、在测试里钉住 SHA-256。
@@ -351,15 +425,16 @@ cargo run --release -p dr-import-v1 --example m10-measure -- <dir> --milestone m
 在 `next/` 下：
 
 ```bash
-cargo test -p dr-import-v1 --locked
-cargo clippy -p dr-import-v1 --all-targets --locked -- -D warnings
+cargo test -p dr-import-v1 -p dr-view-import --locked
+cargo clippy -p dr-import-v1 -p dr-view-import --all-targets --locked -- -D warnings
 cargo xtask check
 ```
 
 | 测试 | 内容 |
 | --- | --- |
-| 单元测试（40） | 迁移的前缀规则和补齐、登记表规则、暂存副本不动原库、时间解析、交接清单（含旧格式退回原始设置）、闸门、编辑器 JSON 的解析和映射、写入后读回和多版本检出、往返、锚点（UTF-16、硬换行、容器块、找回和退回）、键值顺序、树的孤儿和环、100 张表和已发布迁移建出的表完全一致；进度只增不减、到 100 %；快照元数据的读法、事实的 ID 在几行之间不变 |
-| `tests/import.rs`（11） | 用已发布迁移和纯 SQL 建一个合成 0.1 库（不需要 Node、不需要 Yjs），整本导入真实的 dr-store 再用 dr-doc 读回：每个集合的字段、锚点解析出的原文、待办换 id 和关系跟着换、历史点的时间和检出、各历史点上书目文档里的标题 / 梗概 / 别名 / 分组 / 事实、资源文件字节、安装身份、库里的回执和旁边的存档；没交接时闸门拦住、勾了才导；同一本书不导第二次；两次导入写出的字节完全一样；旧迁移级别的库在副本上补齐、原库不变；进度的步骤和计数；导入后的索引（字数、大纲、搜索）；回放历史后书目文档和不带历史导入的一样；历史点照常修剪的选项；中途打断后接着导（不多打历史点、资源文件不重复）；库里已有、本机没有回执的书不动 |
+| 单元测试（41） | 迁移的前缀规则和补齐、登记表规则、作者选的文件夹认成哪个库（数据目录、库根、`databases` 文件夹、只有账号库时拒绝）、暂存副本不动原库、时间解析、交接清单（含旧格式退回原始设置）、闸门、编辑器 JSON 的解析和映射、写入后读回和多版本检出、往返、锚点（UTF-16、硬换行、容器块、找回和退回）、键值顺序、树的孤儿和环、100 张表和已发布迁移建出的表完全一致；进度只增不减、到 100 %；快照元数据的读法、事实的 ID 在几行之间不变 |
+| `tests/import.rs`（12） | 用已发布迁移和纯 SQL 建一个合成 0.1 库（不需要 Node、不需要 Yjs），整本导入真实的 dr-store 再用 dr-doc 读回：每个集合的字段、锚点解析出的原文、待办换 id 和关系跟着换、历史点的时间和检出、各历史点上书目文档里的标题 / 梗概 / 别名 / 分组 / 事实、资源文件字节、安装身份、库里的回执和旁边的存档；没交接时闸门拦住、勾了才导；同一本书不导第二次；两次导入写出的字节完全一样；旧迁移级别的库在副本上补齐、原库不变；进度的步骤和计数；导入后的索引（字数、大纲、搜索）；回放历史后书目文档和不带历史导入的一样；历史点照常修剪的选项；中途打断后接着导（不多打历史点、资源文件不重复）；库里已有、本机没有回执的书不动；导入写进一个开着的库（带 dr-index 的派生器，和 App 一样）：被闸门拦下时什么都不留，导完库还开着、索引都是新的、再导一次不动那本书；闸门列出的每篇带书名、分得清章节和构想 |
+| `dr-view-import`：单元测试（1）和 `tests/import.rs`（3） | 占位文案的键都在 `import.v1.` 下、不重复，只有「仍然导入」在简体中文里有字。GPUI 测试平台上，外壳 + 书架 + 真的库（F3 经 dr-store 和 dr-index），旧库是上面那个合成库：书架入口派发动作 → 弹出只能选一个文件夹的面板 → 导入 → 摘要里的书和字数和书架上一致、索引不落后、旧库文件的哈希和修改时间不变 → Esc 关掉 → 同一个库再导，书标「这台设备导过」；没交接时闸门拦下、库里什么都没写、旁边也没留文件夹，列出的两篇都带书名 → Esc 取消，库还是空的 → 再导、「仍然导入」→ 摘要写「2 篇照缓存导入」、书上了书架；选了没有旧库的文件夹报错，Esc 关掉；选文件夹时取消，什么都不打开 |
 | `dr-index/tests/m10.rs` | 关掉导入时建索引（`index = false`），打开库时由 dr-store 补建；这个测试原来就在，只加了这一行 |
 
 证据按 [F8 的做法](../foundations/f8-testkit.md#证据)：
@@ -367,6 +442,7 @@ cargo xtask check
 - **契约类不提交 JSON。** 合成库上的在上面的测试里断言；五份测试库上的在 `m10-measure` 里当场断言，一条不成立就不写证据。
 - **测量类**：`m10-m2-import.json`，格式 `dr-testkit/evidence/1`。输入是 `dr-import-v1`、`dr-index`、`dr-text`、`prose-metrics`、`dr-doc`、`dr-model`、`dr-store` 七个 crate 目录；其中任何一个变了，`cargo xtask evidence --check` 只报「过期」。测试库本身由旧客户端的种子和 `m10-fixtures.test.ts` 生成，不在 `next/` 里，所以不作输入，记在 `corpus` 里：生成器、生成时间、每份库的 SHA-256 和大小。
 - 旧格式的 `m10-import.json`（第一个里程碑）和检查它的 `tests/evidence.rs` 删掉了。
+- 第三个里程碑改了 `dr-import-v1`：拆出 `import_into_library`、闸门多填书名和「是不是构想」、加了 `locate::resolve`。导入本身没改，所以 `m10-m2-import.json` 现在显示「过期」，但里面的数仍然有效。这一轮机器负载在 50–90 之间，量出来的时间没有参考价值，所以没重测；等机器空闲时重跑 `m10-measure`。
 
 旧客户端：`./node_modules/.bin/vitest run src/renderer/services/v2-handoff src/renderer/lib/persistence-lifecycle.test.ts`、`pnpm typecheck`。
 
@@ -389,6 +465,15 @@ cargo xtask check
 | 3 | 快照历史的元数据按时间回放进书目文档；导入的历史点默认不修剪 | 完成 |
 | 4 | 导入后由 dr-index 建索引，确认搜索、大纲、字数；量总耗时 | 完成 |
 | 5 | 证据换 F8 的新格式，契约类改成断言 | 完成 |
+
+| # | 里程碑 3 的内容 | 状态 |
+| --- | --- | --- |
+| 1 | 书架入口接走 `ImportLegacyLibrary`，系统面板选旧库文件夹，认出是哪个库 | 完成；面板不能先定位到旧版数据目录（待协调 15） |
+| 2 | 闸门对话框：按书列出无法证明的正文，「取消」什么都不写，「仍然导入」照缓存导入 | 完成；说明句是占位（待协调 13） |
+| 3 | 导入进度 | 完成；取消没做 |
+| 4 | 结果摘要；原库只读、不动 | 完成 |
+| 5 | 导完书架刷新，新书出现在书架上 | 完成（经 F3 的事件） |
+| 6 | 截图（浅色、深色）、GPUI 测试 | 完成 |
 
 ## 待协调
 
@@ -421,28 +506,55 @@ cargo xtask check
 7. **M24：删掉的内置样书不能回来。** 旧版的样书标记在 `receipt.sqlite` 的 `local_library_state` 里，M24 做首次体验时要读它。
 8. **M36：一个账号只能由一台设备导入。** 导入对等方是确定的：同一个旧库在两台设备各导一次，字节相同、合并后不重复（测试证明）。但如果两台设备上的旧库内容不同（第一台导入之后，第二台又在旧版里写过），两边会在**同一批操作 ID 下写出不同的内容**。Loro 合并时把后来的当作已有、悄悄跳过，两边从此不一致。所以 P0-E 的规则在 M36 里是必须的，不是可选的：第一台导入并把回执随 v2 上传；之后的设备只拉 v2，自己多出来的改动逐篇提示作者，作为普通编辑合进去。同一台设备上，M10 已经拒绝把同一本书导第二次。
 9. **M09：恢复时的重名。** 导入的历史版本里，要素的名字或别名可能和现在别的要素重名。M09 的按对象恢复要照 0.1 的做法：重名时保留现在的名字和别名，只恢复别的字段。
-10. **F6：界面。**
-    - 入口、进度条、闸门对话框都等 F6；
-    - `run::analyse` 只看闸门、不写任何东西；`run::import_with` 返回 `Outcome::Blocked(Gate)` 或回执，并报告进度；
-    - 旧版应用数据目录用 F7 的 `AppDirs::for_identity(Identity::RELEASE).data`，交给 `locate::discover`。
+10. **F6：界面。** 第三个里程碑做了，见「导入界面」。界面这边还要别的会话配合的，是下面第 13–17 条。
 11. **F8：`f8-testkit.md` 的「待协调 → dr-import-v1」**：「证据换新格式」这一轮做完了，那一条可以删。
 12. **F2：`Library::close` 返回以后，锁偶尔还占着一会儿。** 本 crate 的测试并行跑的时候，导入关好库、测试马上再打开，大约三次里有一次报「已在别的进程或句柄里打开」；单独跑从不出现。导入自己在建索引前也要关库再开，所以 `run::reopen` 遇到这个错会重试，最多 2 秒；测试里的打开也一样。还没查到根因：`close` 检查过没有别的克隆，锁文件随 `Inner` 一起放掉，按理不该晚。可能和并行测试里同时在跑的子进程有关（每次导入要跑一次 `lsof`）。请 F2 看一下，修好后两处重试都可以删。
+
+13. **F6：新版自己的文案。** 旧版没有、界面上暂时显示键名的 13 句（`dr-view-import/src/copy.rs`；前 9 个键在 `dr-import-v1` 的 `gate::messages`）。该说的意思：
+
+    | 键 | 意思 | 参数 |
+    | --- | --- | --- |
+    | `import.v1.blocked.title` | 有几篇正文可能少了最后几秒打的字 | |
+    | `import.v1.blocked.no_handoff` | 这个库没有用旧版最后一版打开过 | |
+    | `import.v1.blocked.unproven` | 有几篇无法证明是最新，列在下面 | 篇数 |
+    | `import.v1.blocked.stale` | 有几章确定比作者写的旧 | 章数 |
+    | `import.v1.blocked.changed_after_handoff` | 有几篇在交接核对后又被改过 | 篇数 |
+    | `import.v1.blocked.sync` | 同步还有没解决的冲突 | |
+    | `import.v1.blocked.get_last_release` | 怎么办：下载旧版最后一版，打开一次这个库再退出，然后重新导入 | |
+    | `import.v1.action.download_last_release` | 按钮：去下载旧版最后一版 | |
+    | `import.v1.action.import_anyway` | 按钮：仍然导入（简体中文已用作者定的「仍然导入」） | |
+    | `import.v1.summary.already_imported` | 状态：这台设备以前导过，没有再导 | |
+    | `import.v1.summary.already_in_library` | 状态：新库里已经有这本书（从别的设备同步来的，或在新版里建的），没有动 | |
+    | `import.v1.summary.from_caches` | 有几篇照缓存导入，可能少了最后几秒的字 | 篇数 |
+    | `import.v1.summary.account_libraries_left` | 文件夹里还有几个账号库没导，等账号功能（M35） | 个数 |
+
+    新版的文案来源定下来以后（`sync-locales.py` 现在只从旧版拷），把这 13 句加进去、九种语言齐全，`copy.rs` 的占位就可以删了。
+14. **F6：请审外壳里加的一层。** `dr_shell::pages::add_layer` 是新加的，工作区的两个 `render` 末尾各加了一行。另外两点请 F6 定：
+    - 导入对话框开着时，工作区自己的快捷键还在（比如 ⌘N 新建一本书）。要不要像设置、Super View 那样算进 `covered()`？
+    - 书架左栏入口派发动作后，`cx.on_action` 要等这次派发结束才能碰窗口，所以 dr-view-import 用 `menus::after_dispatch` 再找工作区窗口（`workspace::with_workspace`，找的是第一个工作区窗口）。将来有多个窗口时，应该改成派发动作的那个窗口。
+15. **F7：选文件夹面板不能先定位到旧版的数据目录。** GPUI 的 `PathPromptOptions` 没有起始目录这一项，而旧版的数据目录藏在 `~/Library/Application Support/` 里，作者得自己找（⇧⌘G）。两种做法，请 F7 挑一种：
+    - 给 GPUI 打补丁，`prompt_for_paths` 加起始目录；
+    - App 先用 `locate::discover(AppDirs::for_identity(Identity::RELEASE).data)` 看本机有没有旧库，有的话入口直接用它，没有再弹面板。
+16. **F2 / F7：App 打开库时还没有 `Device`。** 所以界面不传 `device_dir`，导入也就不认领旧版的安装身份，写作日接不上旧版的设备键。App 用 `Device` 打开库的时候要注意：`Device::adopt` 不替换已有的身份，所以认领要排在第一次生成身份之前。最好是 F7 第一次启动时，先看旧版数据目录里有没有 `sync-installation-v2.json`。
+17. **F3：导入时退出 App。** 导入线程拿着工作区的一份克隆，这时退出，`Workspace::shutdown` 会报「还有别的克隆」，库不会正常关上。数据不会坏：下次再导会接着导完（见「流程」）。做取消的时候一起处理：退出前先停下导入。
 
 ## 没做的，和下一个里程碑建议
 
 - **没做**：
-  - 按计划不在这一轮的：导入界面（F6）、同步（M36）、Markdown 文件夹（M40）。
-  - 取消：导入到一半停下（或者崩溃），新库里会留下半本书。下次再导会接着导完（见「流程」），但现在没有主动停下的办法。
+  - 按计划不在这一轮的：同步（M36）、Markdown 文件夹（M40）、`.driftingbook`（M41，书架上的「导入书」）。
+  - 取消：导入到一半停下（或者崩溃），新库里会留下半本书。下次再导会接着导完（见「流程」），但现在没有主动停下的办法；界面上导入时对话框也关不掉。
+  - 界面没有在真程序的窗口里点过（屏幕被别的会话占着、机器负载很高），只在 GPUI 测试平台和离屏截图里走过；真机系统面板的样子没截。
   - 整库备份 `.drifting`（ZIP：SQLite 加资源文件，读的部分来自 `library_backup.rs`）。
   - 旧的 `.driftingbook` v1：只有 Yjs 状态，新版读不了，要先导入旧版再交接。
   - 资源文件的 `display` / `thumbnail` 没搬。
   - Windows 上「旧版是否开着」的判断（独占打开）只在 CI 能验。
 - **下一个里程碑建议**：
-  1. 取消：只在书与书之间、以及一本书开始写之前停，已写完的书留下，回执记「已取消」；配合 F6 的进度条一起做；
+  1. 取消：只在书与书之间、以及一本书开始写之前停，已写完的书留下，回执记「已取消」；进度对话框加「取消」按钮，退出 App 前先停下导入（待协调 17）；
   2. 按账号库逐个导入的流程（和 M35 一起）：`locate::discover` 列出的每个库导进各自的新库，进度按库再分一层；
   3. 导入 `.drifting` 整库备份（解压到暂存目录后走同一条路）；
   4. F2 不再给导入的文档打 `close` 历史点之后，测试里去掉对它的豁免（待协调 1）；
-  5. 阶段 7：用最后一个 0.1 标签重新生成五份测试库，作为 release 附件，测试里钉住 SHA-256，`m10-measure` 改读附件。
+  5. 新版文案来源有了以后，换掉 13 句占位（待协调 13）；入口能直接找到本机的旧库时，不用作者在面板里翻隐藏目录（待协调 15）；
+  6. 阶段 7：用最后一个 0.1 标签重新生成五份测试库，作为 release 附件，测试里钉住 SHA-256，`m10-measure` 改读附件。
 
 ## 代码位置
 
@@ -451,7 +563,7 @@ cargo xtask check
 | 文件 | 内容 |
 | --- | --- |
 | `build.rs`、`src/schema.rs` | 嵌入并钉住 19 个已发布迁移；Drizzle 前缀规则；在副本上补齐 |
-| `src/locate.rs` | 旧版登记表的规则：本机库、账号库、数据库和安装身份的位置 |
+| `src/locate.rs` | 旧版登记表的规则：本机库、账号库、数据库和安装身份的位置；作者选的文件夹认成哪个库（`resolve`） |
 | `src/staging.rs` | 暂存副本：是否被占用、逐字节复制、前后比对、回放 WAL、检查、补齐 |
 | `src/legacy.rs` | 读副本：书和各表的行、正文缓存和新鲜度、快照历史、同步阻断项 |
 | `src/handoff.rs` | 交接清单：每篇的版本和哈希、原始设置、按书数据（含旧格式的退回） |
@@ -459,7 +571,7 @@ cargo xtask check
 | `src/prose/` | `pm.rs` 解析（P0-E）、`plan.rs` 映射到 v2 段落、`write.rs` 写入、`read.rs` 读回、`export.rs` 导回旧 JSON |
 | `src/anchors.rs` | `anchor_json` v1–v4、区域、UTF-16 偏移、按旧版规则找回 |
 | `src/book.rs` | 结构化表 → 书目文档 |
-| `src/run.rs` | 整个流程、写进 dr-store、资源文件、历史点、建索引 |
+| `src/run.rs` | 整个流程（`import_with` 写进新库文件夹，`import_into_library` 写进开着的库）、写进 dr-store、资源文件、历史点、建索引 |
 | `src/progress.rs` | 进度：步骤、计数、整体估计 |
 | `src/meta.rs` | 快照历史的元数据：读法、对象的当前字段、回放、核对 |
 | `src/receipt.rs` | 库里的回执表、旁边的帮手对话存档和本机状态、给作者的摘要 |
@@ -468,6 +580,17 @@ cargo xtask check
 | `src/bin/m10-import.rs` | 开发工具：`discover`、`analyse`、`import`（`--progress` 打出进度）、`check`、`mapping-md` |
 | `examples/m10-measure.rs` | 测量：五份测试库，断言契约，写测量证据 |
 | `tests/` | 合成 0.1 库的整本导入 |
+
+`next/crates/dr-view-import/`（界面）：
+
+| 文件 | 内容 |
+| --- | --- |
+| `src/lib.rs` | `init`：接走书架的 `ImportLegacyLibrary`，把对话框加成外壳的一层 |
+| `src/flow.rs` | 状态（选文件夹、导入中、被拦、导完、出错）、导入线程、摘要 |
+| `src/view.rs` | 四种对话框 |
+| `src/copy.rs` | 旧版没有的句子：占位键和作者定过的「仍然导入」 |
+| `tests/import.rs` | GPUI 测试平台上的整条路（用 dr-import-v1 的合成旧库） |
+| `examples/import-capture.rs` | 截图（`--features capture`） |
 
 ## 附：100 张旧表的去向
 

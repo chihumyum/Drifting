@@ -57,6 +57,11 @@ enum Op {
     /// `todo.project` on a live chapter, the bits of the second byte choosing
     /// which paragraphs carry a marker.
     Project(u8, u8),
+    /// A history point at a live chapter's current version (storage takes
+    /// its own every 15 minutes; a test cannot wait that long).
+    Point(u8),
+    /// `history.restore_point` on a live chapter, to its n-th point.
+    RestorePoint(u8, u8),
     Undo,
     Redo,
     AgentRename(u8, u8),
@@ -99,6 +104,8 @@ fn op() -> impl Strategy<Value = Op> {
         1 => i().prop_map(Op::ResolveComment),
         1 => i().prop_map(Op::Replace),
         2 => (i(), i()).prop_map(|(a, m)| Op::Project(a, m)),
+        1 => i().prop_map(Op::Point),
+        1 => (i(), i()).prop_map(|(a, n)| Op::RestorePoint(a, n)),
         2 => Just(Op::Undo),
         1 => Just(Op::Redo),
         1 => (i(), i()).prop_map(|(a, b)| Op::AgentRename(a, b)),
@@ -116,8 +123,19 @@ fn name(i: u8) -> &'static str {
     NAMES[i as usize % NAMES.len()]
 }
 
+/// A list query's output, without what each device derives on its own
+/// (`chapter.list`'s words come from the derived index, which catches up
+/// in the background; its `updated_at` is when this device stored the
+/// newest change).
 fn list(ws: &Workspace, cmd: &str, input: Value) -> Value {
-    call(ws, &Actor::User, cmd, input)["output"].clone()
+    let mut out = call(ws, &Actor::User, cmd, input)["output"].clone();
+    if let Some(rows) = out.as_array_mut() {
+        for row in rows.iter_mut().filter_map(Value::as_object_mut) {
+            row.remove("words");
+            row.remove("updated_at");
+        }
+    }
+    out
 }
 
 /// Run one op; command errors the rules allow are fine, anything else fails.
@@ -354,6 +372,47 @@ fn run(ws: &Workspace, faults: &Faults, book: &str, op: &Op, agent_turn: &mut u3
                     .map(|blk| json!({"block": blk, "task": marker_task(blk)}))
                     .collect();
                 c("todo.project", json!({"doc": doc, "markers": markers}))
+            }
+            None => Ok(()),
+        },
+        Op::Point(i) => {
+            if let Some(id) = pick(&live_chapters(), *i) {
+                let doc = format!("node:{id}");
+                let lib = ws.library();
+                if let Some(head) = lib.head(&doc).unwrap() {
+                    let ts = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap()
+                        .as_millis() as i64;
+                    lib.label_at(
+                        &doc,
+                        &head.frontiers,
+                        "periodic",
+                        ts,
+                        dr_store::history::LabelRetention::Thinned,
+                    )
+                    .unwrap();
+                }
+            }
+            Ok(())
+        }
+        Op::RestorePoint(i, n) => match pick(&live_chapters(), *i) {
+            Some(id) => {
+                let doc = format!("node:{id}");
+                let points = list(ws, "history.points", json!({"doc": doc}))["points"].clone();
+                let ids: Vec<String> = points
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|p| p["id"].to_string())
+                    .collect();
+                match pick(&ids, *n) {
+                    Some(p) => c(
+                        "history.restore_point",
+                        json!({"doc": doc, "point": p.parse::<i64>().unwrap()}),
+                    ),
+                    None => Ok(()),
+                }
             }
             None => Ok(()),
         },

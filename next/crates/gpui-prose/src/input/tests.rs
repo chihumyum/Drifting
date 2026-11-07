@@ -1043,21 +1043,33 @@ mod a11y {
 
     /// The editor's accessibility subtree as a whole tree, as GPUI would send
     /// it (a window root with the field as its only child), and the run
-    /// targets by node id.
-    fn ak_tree(
+    /// targets by node id. `rows`: paragraphs laid out in the last frame are
+    /// cut by screen rows, as in the app.
+    fn ak_tree_with(
         editor: &Entity<ProseEditor>,
         cx: &mut VisualTestContext,
+        rows: bool,
     ) -> (Tree, std::collections::HashMap<NodeId, RunTarget>) {
-        let text = editor.update(cx, |editor, _| editor.a11y_text());
+        let (text, frame) =
+            editor.update(cx, |editor, _| (editor.a11y_text(), editor.frame.clone()));
         let keys = std::cell::RefCell::new(Vec::new());
-        let (runs, selection) = text.assemble(|key| {
-            let mut keys = keys.borrow_mut();
-            if let Some(ix) = keys.iter().position(|k| k == key) {
-                return NodeId(10 + ix as u64);
-            }
-            keys.push(key.clone());
-            NodeId(10 + keys.len() as u64 - 1)
-        });
+        let (runs, selection) = text.assemble(
+            |key| {
+                let mut keys = keys.borrow_mut();
+                if let Some(ix) = keys.iter().position(|k| k == key) {
+                    return NodeId(10 + ix as u64);
+                }
+                keys.push(key.clone());
+                NodeId(10 + keys.len() as u64 - 1)
+            },
+            |para| {
+                if rows {
+                    crate::input::a11y::rows_of(&frame, para, 1.)
+                } else {
+                    None
+                }
+            },
+        );
         let mut root = Node::new(Role::Window);
         root.set_children(vec![NodeId(1)]);
         let mut field = Node::new(Role::MultilineTextInput);
@@ -1075,6 +1087,13 @@ mod a11y {
             focus: NodeId(1),
         };
         (Tree::new(update, true), targets)
+    }
+
+    fn ak_tree(
+        editor: &Entity<ProseEditor>,
+        cx: &mut VisualTestContext,
+    ) -> (Tree, std::collections::HashMap<NodeId, RunTarget>) {
+        ak_tree_with(editor, cx, false)
     }
 
     fn selection16(tree: &Tree) -> std::ops::Range<usize> {
@@ -1202,6 +1221,73 @@ mod a11y {
         };
         editor.update(cx, |editor, cx| editor.a11y_select(&caret, &targets, cx));
         assert_eq!(sel_range(&editor, cx), (0, 9..9));
+    }
+
+    #[gpui::test]
+    fn painted_paragraphs_are_read_row_by_row(cx: &mut TestAppContext) {
+        let long: String = "他把吸铁石拍在桌上，说这东西能把河里的铁钉都吸上来。".repeat(4);
+        let (editor, cx) = editor(
+            cx,
+            &[&[(BlockKind::Body, long.as_str()), (BlockKind::Body, "短段")]],
+        );
+        cx.update(|window, _| window.refresh());
+        cx.run_until_parked();
+        let row_texts: Vec<String> = editor.update(cx, |e, _| {
+            let frame = e.frame.borrow();
+            let painted = frame.prepainted.iter().find(|p| p.line == 0).unwrap();
+            painted
+                .layout
+                .rows
+                .iter()
+                .map(|r| long[r.clone()].to_string())
+                .collect()
+        });
+        assert!(
+            row_texts.len() >= 2,
+            "a long paragraph wraps: {row_texts:?}"
+        );
+        let select = |editor: &Entity<ProseEditor>, cx: &mut VisualTestContext, at: usize| {
+            editor.update_in(cx, |e, window, cx| e.select(0, at..at, window, cx));
+            cx.run_until_parked();
+        };
+        // The caret on the second row.
+        let second = row_texts[0].chars().count() + 1;
+        select(&editor, cx, second);
+        let (tree, _) = ak_tree_with(&editor, cx, true);
+        let state = tree.state();
+        let field = state.focus().unwrap();
+        assert_eq!(field.document_range().text(), format!("{long}\n短段"));
+        // Each screen row is a line; the paragraph's last row ends with its
+        // line break.
+        for (ix, row) in row_texts.iter().enumerate() {
+            let expected = if ix + 1 == row_texts.len() {
+                format!("{row}\n")
+            } else {
+                row.clone()
+            };
+            assert_eq!(field.line_range_from_index(ix).unwrap().text(), expected);
+        }
+        assert_eq!(
+            field.text_selection_focus().unwrap().to_line_index(),
+            1,
+            "the caret is on the second line"
+        );
+        // Rows carry bounds and every character's position, left to right.
+        let first = field.children().next().unwrap();
+        let positions = first.data().character_positions().unwrap().to_vec();
+        let widths = first.data().character_widths().unwrap().to_vec();
+        assert_eq!(positions.len(), first.data().character_lengths().len());
+        assert!(positions.windows(2).all(|w| w[0] < w[1]), "{positions:?}");
+        assert!(widths.iter().all(|w| *w > 0.));
+        assert!(first.data().bounds().is_some());
+        // So the caret's character has a frame on screen (a magnifier, the
+        // VoiceOver cursor).
+        let caret = field.text_selection().unwrap();
+        let mut one = caret;
+        one.set_end(caret.start().forward_to_character_end());
+        let boxes = one.bounding_boxes();
+        assert_eq!(boxes.len(), 1, "{boxes:?}");
+        assert!(boxes[0].x1 > boxes[0].x0 && boxes[0].y1 > boxes[0].y0);
     }
 
     #[gpui::test]
@@ -1349,8 +1435,8 @@ fn replace_all_costs(cx: &mut TestAppContext) {
             replacing / runs as f64,
             undoing / runs as f64
         );
-        // Where the undo goes: the source's Loro undo alone, item by item,
-        // without folding anything into the mirror.
+        // For comparison: the same replacements as n separate commits (as
+        // before batches), undone item by item in the source alone.
         let mut doc = ProseDoc::from_paragraphs(paragraphs.iter().copied());
         let starts: Vec<usize> = (0..n).map(|i| doc.line_start(i) + 3).collect();
         doc.checkpoint();
@@ -1362,7 +1448,7 @@ fn replace_all_costs(cx: &mut TestAppContext) {
             doc.source_mut().undo_item();
         }
         println!(
-            "  the text source's {n} Loro undo items alone: {:.1} ms",
+            "  as {n} separate commits, the source's undo alone: {:.1} ms",
             t.elapsed().as_secs_f64() * 1e3
         );
     }

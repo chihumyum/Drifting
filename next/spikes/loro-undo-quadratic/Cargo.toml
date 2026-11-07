@@ -1,0 +1,11 @@
+[package]
+name = "loro-undo-quadratic-spike"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "F4a: does undoing N consecutive one-edit commits cost O(N^2) in Loro's UndoManager?"
+
+[dependencies]
+loro.workspace = true

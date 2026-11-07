@@ -59,7 +59,7 @@ fn taken_names(slot: &BookSlot, except: Option<&ElementId>) -> Vec<(String, Elem
 }
 
 /// Refuse a name or alias another live element has (`ELEMENT-NAME-UNIQUE`).
-fn check_names<'a>(
+pub(crate) fn check_names<'a>(
     slot: &BookSlot,
     except: Option<&ElementId>,
     names: impl IntoIterator<Item = &'a str>,

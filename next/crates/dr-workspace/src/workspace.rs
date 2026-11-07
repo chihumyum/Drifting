@@ -486,6 +486,79 @@ impl Workspace {
 
     // ---- slots ------------------------------------------------------------
 
+    /// Close every open document of `book` and delete everything stored for
+    /// it on this device: its documents (updates, snapshots, history,
+    /// derived rows), its assets and its journal rows (they can no longer be
+    /// undone). Returns (documents, assets) deleted. Refused while one of
+    /// its documents is in use (an editor holds it). The caller holds the
+    /// book's lease.
+    pub(crate) fn purge_book(&self, book: &BookId) -> Result<(usize, usize)> {
+        let book_doc = DocId::Book(book.clone()).to_string();
+        let mut slots: Vec<Arc<ProseSlot>> = Vec::new();
+        {
+            let mut p = lock(&self.inner.prose);
+            let ids: Vec<DocId> = p
+                .map
+                .iter()
+                .filter(|(_, (_, s))| s.book.as_ref() == Some(book))
+                .map(|(d, _)| d.clone())
+                .collect();
+            for d in ids {
+                if let Some((_, s)) = p.map.remove(&d) {
+                    slots.push(s);
+                }
+            }
+        }
+        let book_slot = lock(&self.inner.books).remove(book);
+        // Readers finishing a query may hold a slot for a moment.
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+        let mut handles = Vec::new();
+        for s in slots {
+            handles.push(unwrap_slot(s, deadline, |s| s.handle)?);
+        }
+        if let Some(s) = book_slot {
+            handles.push(unwrap_slot(s, deadline, |s| s.handle)?);
+        }
+        for h in handles {
+            h.close();
+        }
+        let lib = &self.inner.lib;
+        let mut docs: Vec<String> = lib
+            .docs(Some(book.as_str()), None)?
+            .into_iter()
+            .map(|d| d.doc_id)
+            .filter(|d| *d != book_doc)
+            .collect();
+        // The book's own document last: until it goes, the book is still in
+        // Recently Deleted and a second purge finishes the job.
+        docs.push(book_doc);
+        let mut purged = 0;
+        for d in &docs {
+            match lib.purge_doc(d) {
+                Ok(()) => purged += 1,
+                Err(StoreError::NotFound(_)) => {}
+                Err(StoreError::AlreadyOpen(_)) => {
+                    return Err(WsError::Conflict(format!("{d} is in use; close it first")));
+                }
+                Err(e) => return Err(e.into()),
+            }
+        }
+        let mut assets: Vec<String> = lib
+            .assets_of_book(book.as_str())?
+            .into_iter()
+            .map(|a| a.asset_id)
+            .collect();
+        assets.sort();
+        assets.dedup();
+        for a in &assets {
+            lib.remove_asset(a)?;
+        }
+        self.inner.journal.forget_book(book.as_str())?;
+        crate::commands::recent::forget_book(lib, book.as_str())?;
+        lock(&self.inner.gates).remove(book);
+        Ok((purged, assets.len()))
+    }
+
     pub(crate) fn book_gate(&self, book: &BookId) -> Arc<Gate> {
         lock(&self.inner.gates)
             .entry(book.clone())
@@ -809,6 +882,29 @@ impl Inner {
                 }
             }
             StoreEvent::Local(c) => events::publish(&self.bus, &WsEvent::Local(c.clone())),
+        }
+    }
+}
+
+/// The slot's own value once nobody else holds it (waiting until
+/// `deadline`); a conflict when someone still does.
+fn unwrap_slot<S, T>(
+    mut slot: Arc<S>,
+    deadline: std::time::Instant,
+    take: impl FnOnce(S) -> T,
+) -> Result<T> {
+    loop {
+        match Arc::try_unwrap(slot) {
+            Ok(s) => return Ok(take(s)),
+            Err(s) if std::time::Instant::now() < deadline => {
+                slot = s;
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+            Err(_) => {
+                return Err(WsError::Conflict(
+                    "the book is open in an editor; close it first".into(),
+                ));
+            }
         }
     }
 }

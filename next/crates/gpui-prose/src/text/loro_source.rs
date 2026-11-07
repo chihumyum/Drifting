@@ -172,6 +172,69 @@ impl LoroSource {
         self.undo.undo_count().saturating_sub(before)
     }
 
+    /// Applies one edit without committing (an edit or a batch commits).
+    fn apply(&mut self, edit: Edit<'_>) -> EditResult {
+        let mut result = EditResult::default();
+        match edit {
+            Edit::Replace {
+                range,
+                text,
+                overrides,
+            } => {
+                let deleted = blocks::delete(&self.text, range);
+                if !deleted.is_empty() {
+                    result.deleted.push((deleted.start, deleted.len()));
+                }
+                let at = deleted.start;
+                let end = blocks::insert(&self.text, at, text);
+                for (key, value) in overrides {
+                    match value {
+                        Some(value) => marks::mark_inline(&self.text, at..end, key, value.clone()),
+                        None => marks::unmark_inline(&self.text, at..end, key),
+                    }
+                }
+                result.inserted = at..end;
+                result.caret = end;
+            }
+            Edit::Delete { range } => {
+                let deleted = blocks::delete(&self.text, range);
+                if !deleted.is_empty() {
+                    result.deleted.push((deleted.start, deleted.len()));
+                }
+                result.inserted = deleted.start..deleted.start;
+                result.caret = deleted.start;
+            }
+            Edit::Split { at } => {
+                let caret = blocks::split(&self.text, at);
+                result.inserted = at..caret;
+                result.caret = caret;
+            }
+            Edit::SetBlockAttr {
+                newline,
+                key,
+                value,
+            } => {
+                if key != block::ID && block::is_block_key(key) {
+                    blocks::set_block_attr(&self.text, newline, key, value);
+                }
+                result.caret = newline;
+            }
+            Edit::Mark { range, key, value } => {
+                if !block::is_block_key(key) {
+                    marks::mark_inline(&self.text, range.clone(), key, value);
+                }
+                result.caret = range.end;
+            }
+            Edit::Unmark { range, key } => {
+                if !block::is_block_key(key) {
+                    marks::unmark_inline(&self.text, range.clone(), key);
+                }
+                result.caret = range.end;
+            }
+        }
+        result
+    }
+
     /// Fixes missing and duplicate block ids (deterministically, as its own
     /// `repair` commit). Returns how many paragraphs it changed.
     pub fn repair_block_ids(&mut self) -> usize {
@@ -286,66 +349,18 @@ impl ProseSource for LoroSource {
     }
 
     fn edit(&mut self, edit: Edit<'_>, origin: &str) -> EditResult {
-        let mut result = EditResult::default();
-        match edit {
-            Edit::Replace {
-                range,
-                text,
-                overrides,
-            } => {
-                let deleted = blocks::delete(&self.text, range);
-                if !deleted.is_empty() {
-                    result.deleted.push((deleted.start, deleted.len()));
-                }
-                let at = deleted.start;
-                let end = blocks::insert(&self.text, at, text);
-                for (key, value) in overrides {
-                    match value {
-                        Some(value) => marks::mark_inline(&self.text, at..end, key, value.clone()),
-                        None => marks::unmark_inline(&self.text, at..end, key),
-                    }
-                }
-                result.inserted = at..end;
-                result.caret = end;
-            }
-            Edit::Delete { range } => {
-                let deleted = blocks::delete(&self.text, range);
-                if !deleted.is_empty() {
-                    result.deleted.push((deleted.start, deleted.len()));
-                }
-                result.inserted = deleted.start..deleted.start;
-                result.caret = deleted.start;
-            }
-            Edit::Split { at } => {
-                let caret = blocks::split(&self.text, at);
-                result.inserted = at..caret;
-                result.caret = caret;
-            }
-            Edit::SetBlockAttr {
-                newline,
-                key,
-                value,
-            } => {
-                if key != block::ID && block::is_block_key(key) {
-                    blocks::set_block_attr(&self.text, newline, key, value);
-                }
-                result.caret = newline;
-            }
-            Edit::Mark { range, key, value } => {
-                if !block::is_block_key(key) {
-                    marks::mark_inline(&self.text, range.clone(), key, value);
-                }
-                result.caret = range.end;
-            }
-            Edit::Unmark { range, key } => {
-                if !block::is_block_key(key) {
-                    marks::unmark_inline(&self.text, range.clone(), key);
-                }
-                result.caret = range.end;
-            }
-        }
+        let mut result = self.apply(edit);
         result.undo_items = self.commit(origin);
         result
+    }
+
+    fn edit_batch(&mut self, edits: &[Edit<'_>], origin: &str) -> EditResult {
+        let mut merged = EditResult::default();
+        for edit in edits {
+            merged.merge(self.apply(edit.clone()));
+        }
+        merged.undo_items = self.commit(origin);
+        merged
     }
 
     fn undo_item(&mut self) -> bool {

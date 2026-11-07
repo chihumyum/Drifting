@@ -1,0 +1,24 @@
+[package]
+name = "dr-view-feedback"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Feedback and the crash follow-up (M39): the feedback dialog over dr-platform's feedback contract, opened from the notification center and the SendFeedback action"
+
+[dependencies]
+chrono.workspace = true
+dr-i18n.workspace = true
+dr-platform.workspace = true
+dr-shell.workspace = true
+dr-ui.workspace = true
+gpui.workspace = true
+log.workspace = true
+
+[dev-dependencies]
+# A stand-in for the Hosted service on 127.0.0.1; nothing reaches a real one.
+dr-platform = { workspace = true, features = ["test-support"] }
+gpui = { workspace = true, features = ["test-support"] }
+gpui_platform.workspace = true
+serde_json.workspace = true

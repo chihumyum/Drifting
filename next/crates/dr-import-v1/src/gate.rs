@@ -52,6 +52,11 @@ pub struct BodyRef {
     /// What the author would recognise (chapter title, element name, …),
     /// filled in by the caller.
     pub title: Option<String>,
+    /// The book's name, filled in by the caller.
+    pub book_name: Option<String>,
+    /// A node body that is an idea (构想), not a chapter; filled in by the
+    /// caller.
+    pub drift: bool,
 }
 
 /// Why the gate stops.
@@ -140,6 +145,8 @@ impl Gate {
                     doc: o.old_doc_id(),
                     freshness: o.freshness,
                     title: None,
+                    book_name: None,
+                    drift: false,
                 });
             }
         }
