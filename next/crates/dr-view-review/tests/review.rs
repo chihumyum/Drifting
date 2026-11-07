@@ -273,3 +273,29 @@ fn the_shortcut_is_a_keystroke_gpui_takes(cx: &mut TestAppContext) {
     // `KeyBinding::new` panics on a keystroke it cannot read.
     cx.update(|cx| cx.bind_keys(dr_view_review::bindings()));
 }
+
+#[gpui::test]
+fn the_source_card_says_where_and_its_rows_act(cx: &mut TestAppContext) {
+    let e = env();
+    let one = chapter(&e, "一", "雨夜，钟楼停了。");
+    let note = comment(&e, Some(&one), "note", "这里");
+    let floating = comment(&e, None, "todo", "浮动待办");
+    let (view, _, cx) = open_tab(cx, &e, None);
+    assert!(wait_for(cx, |cx| ids(&view, cx).concat().len() == 2));
+    let (place, quote) = view.read_with(cx, |v, _| v.source_summary(&note)).unwrap();
+    assert_eq!(place.as_ref(), "一");
+    assert_eq!(quote.as_deref(), Some("雨夜"));
+    let (place, quote) = view
+        .read_with(cx, |v, _| v.source_summary(&floating))
+        .unwrap();
+    assert_eq!(place.as_ref(), "项目级 · 未关联对象");
+    assert_eq!(quote, None);
+    // 转 TODO, then 删除.
+    view.update(cx, |v, cx| v.set_kind(&note, "todo", cx));
+    assert!(wait_for(cx, |_| listed(&e)
+        .iter()
+        .any(|c| c["id"] == note.as_str() && c["kind"] == "todo")));
+    view.update(cx, |v, cx| v.delete(&floating, cx));
+    assert!(wait_for(cx, |_| listed(&e).len() == 1));
+    redraw(cx);
+}

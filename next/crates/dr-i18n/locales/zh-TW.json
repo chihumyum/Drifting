@@ -10,7 +10,9 @@
   "commentRail": {
     "actions": {
       "reopen": "重新開啟",
-      "resolve": "標為已解決"
+      "resolve": "標為已解決",
+      "toNote": "轉為註解",
+      "toTodo": "轉為待辦"
     },
     "card": {
       "emptyComment": "空白註解"
@@ -21,6 +23,7 @@
     "close": "關閉",
     "counting": "計算中…",
     "creating": "正在建立…",
+    "delete": "刪除",
     "edit": "編輯",
     "local": "本機",
     "processing": "正在處理…",
@@ -324,7 +327,9 @@
     "resolved": "已解決（{{count}}）",
     "scopes": {
       "current": "目前"
-    }
+    },
+    "sourceFloating": "作品層級 · 未連結實體",
+    "sourceTextUnavailable": "沒有儲存的摘錄"
   },
   "rightSidebar": {
     "kickers": {

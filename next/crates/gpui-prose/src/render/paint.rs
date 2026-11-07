@@ -55,8 +55,6 @@ pub struct TextPaint<'a> {
     pub runs: &'a [TextRun],
     /// The colour of bytes no run covers.
     pub fallback: Hsla,
-    /// How far each row moves right (alignment); empty for none.
-    pub shifts: &'a [Pixels],
     /// Byte ranges in another ink, and how much of it (0–1) they take.
     pub inks: &'a [(Range<usize>, Hsla, f32)],
     /// The plain text colour and what to paint it as (a quote's ink).
@@ -70,15 +68,10 @@ impl<'a> TextPaint<'a> {
         TextPaint {
             runs,
             fallback,
-            shifts: &[],
             inks: &[],
             plain: None,
             alpha: 1.,
         }
-    }
-
-    pub(crate) fn shift(&self, row: usize) -> Pixels {
-        self.shifts.get(row).copied().unwrap_or_default()
     }
 
     fn ink(&self, byte: usize, color: Hsla) -> Hsla {
@@ -143,7 +136,7 @@ pub fn paint_text(
     for (range, color) in &deco.backgrounds {
         for row in 0..rows.len() {
             if let (true, Some((x0, x1))) = (visible(row), layout.x_range(row, range.clone())) {
-                let top = origin + point(x0 + paint.shift(row), line_height * row as f32);
+                let top = origin + point(x0, line_height * row as f32);
                 window.paint_quad(fill(
                     gpui::Bounds::from_corners(top, top + point(x1 - x0, line_height)),
                     *color,
@@ -169,7 +162,7 @@ pub fn paint_text(
             let color = paint.ink(glyph.index, color);
             let at = origin
                 + point(
-                    layout.glyph_x(row, glyph.index, glyph.position.x) + paint.shift(row),
+                    layout.glyph_x(row, glyph.index, glyph.position.x),
                     line_height * row as f32 + baseline,
                 );
             let _ = if glyph.is_emoji {
@@ -188,7 +181,7 @@ pub fn paint_text(
         for row in 0..rows.len() {
             if let (true, Some((x0, x1))) = (visible(row), layout.x_range(row, range.clone())) {
                 let y = line_height * row as f32 + baseline + line.descent * 0.5;
-                window.paint_underline(origin + point(x0 + paint.shift(row), y), x1 - x0, &style);
+                window.paint_underline(origin + point(x0, y), x1 - x0, &style);
             }
         }
     }
@@ -200,11 +193,7 @@ pub fn paint_text(
         for row in 0..rows.len() {
             if let (true, Some((x0, x1))) = (visible(row), layout.x_range(row, range.clone())) {
                 let y = line_height * row as f32 + baseline - line.ascent * 0.32;
-                window.paint_strikethrough(
-                    origin + point(x0 + paint.shift(row), y),
-                    x1 - x0,
-                    &style,
-                );
+                window.paint_strikethrough(origin + point(x0, y), x1 - x0, &style);
             }
         }
     }
@@ -213,7 +202,7 @@ pub fn paint_text(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gpui::{hsla, px};
+    use gpui::hsla;
 
     #[test]
     fn inks_quote_colour_and_fading_combine() {
@@ -222,11 +211,9 @@ mod tests {
         let green = hsla(0.4, 0.4, 0.34, 1.);
         let link = hsla(0.6, 0.7, 0.42, 1.);
         let inks = [(3..6, green, 1.)];
-        let shifts = [px(0.), px(12.)];
         let paint = TextPaint {
             runs: &[],
             fallback: text,
-            shifts: &shifts,
             inks: &inks,
             plain: Some((text, quote)),
             alpha: 0.5,
@@ -238,7 +225,5 @@ mod tests {
         let inked = paint.ink(4, text);
         assert!((inked.h - green.h).abs() < 0.01, "{inked:?}");
         assert!((inked.a - 0.5).abs() < 1e-6);
-        assert_eq!(paint.shift(1), px(12.));
-        assert_eq!(paint.shift(5), px(0.));
     }
 }

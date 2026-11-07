@@ -367,6 +367,14 @@ impl Workspace {
                     ws.on_editor_event(&editor, event, cx)
                 });
                 page._events.push(events);
+                // M18: the selection bar's 添加批注 opens the composer.
+                page._events.push(cx.subscribe_in(
+                    &editor,
+                    window,
+                    |ws, editor, _: &dr_editor::CommentRequested, window, cx| {
+                        ws.on_comment_requested(&PageView::Doc(editor.clone()), window, cx)
+                    },
+                ));
                 PageView::Doc(editor)
             }
             None => {
@@ -379,8 +387,10 @@ impl Workspace {
                             }
                         },
                     );
+                let looks = decor_looks(&Theme::of(window, cx), &base);
                 editor.update(cx, |e, cx| {
                     e.set_base_style(base, cx);
+                    e.set_decor_looks(looks, cx);
                     if let Some(at) = &position {
                         e.restore(&at.into(), cx);
                     }
@@ -389,6 +399,13 @@ impl Workspace {
                     ws.on_book_event(event, cx)
                 });
                 page._events.push(events);
+                page._events.push(cx.subscribe_in(
+                    &editor,
+                    window,
+                    |ws, editor, _: &dr_editor::CommentRequested, window, cx| {
+                        ws.on_comment_requested(&PageView::Book(editor.clone()), window, cx)
+                    },
+                ));
                 PageView::Book(editor)
             }
         };
@@ -763,11 +780,12 @@ impl Workspace {
                     p.set_reduce_motion(theme.reduce_motion, cx);
                 }
             });
-            if let PageView::Doc(e) = &view
-                && (base_changed || reduce_changed)
-            {
+            if base_changed || reduce_changed {
                 let looks = decor_looks(&theme, &base);
-                e.update(cx, |e, cx| e.set_decor_looks(looks, cx));
+                match &view {
+                    PageView::Doc(e) => e.update(cx, |e, cx| e.set_decor_looks(looks, cx)),
+                    PageView::Book(e) => e.update(cx, |e, cx| e.set_decor_looks(looks, cx)),
+                }
             }
         }
     }

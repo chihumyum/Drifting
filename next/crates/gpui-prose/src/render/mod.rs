@@ -27,7 +27,7 @@ pub mod ticks;
 #[cfg(test)]
 mod tests;
 
-pub use blocks::{Align, BlockLook, BlockStyle};
+pub use blocks::{Align, BlockLook, BlockStyle, ListItem, ListMark};
 pub use cursor::CursorLayer;
 pub use decor::{
     Brush, Decoration, DecorationEvent, DecorationKey, Emphasis, Look, Strength, Tick, TickLane,

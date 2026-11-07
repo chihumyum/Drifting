@@ -18,7 +18,7 @@ use std::{
 use gpui::{App, Context, EventEmitter, Hsla, Pixels, Point, SharedString, Task, px};
 
 use super::{
-    blocks::{BlockLook, BlockStyle},
+    blocks::{BlockLook, BlockStyle, ListItem, ListMark, linked_todo, list_item},
     decor::{Brush, Decoration, DecorationEvent, DecorationKey, Emphasis, Look, Strength, Touch},
     motion::{self, Level},
     sand::{self, SandTexture},
@@ -713,6 +713,21 @@ impl ProseEditor {
             &self.paint.block_style,
             self.style.body_size,
         );
+        if let Some(item) = look.list.as_mut() {
+            match &mut item.mark {
+                ListMark::Ordered(n) => *n = self.list_number(chapter, line, item.level),
+                ListMark::Task { done } => {
+                    if let Some(todo) = linked_todo(&doc.line(line).block) {
+                        *done = self
+                            .extension
+                            .as_ref()
+                            .and_then(|x| x.task_done(todo))
+                            .unwrap_or(false);
+                    }
+                }
+                ListMark::Bullet => {}
+            }
+        }
         if look.quote {
             let quote_at = |ix: usize| {
                 doc.lines()
@@ -723,6 +738,35 @@ impl ProseEditor {
             look.quote_below = line + 1 < doc.visible_lines() && quote_at(line + 1);
         }
         look
+    }
+
+    /// An ordered item's number: one more than the ordered items of its
+    /// level right above it (deeper items between them do not break the
+    /// count; anything else does).
+    fn list_number(&self, chapter: usize, line: usize, level: u8) -> u32 {
+        let doc = &self.book.chapters[chapter].doc;
+        let mut n = 1;
+        let mut ix = line;
+        while ix > 0 && n < 100_000 {
+            ix -= 1;
+            match list_item(&doc.line(ix).block) {
+                Some(item) if item.level > level => {}
+                Some(ListItem {
+                    mark: ListMark::Ordered(_),
+                    level: l,
+                }) if l == level => n += 1,
+                _ => break,
+            }
+        }
+        n
+    }
+
+    /// The author clicked a task item's box.
+    pub(crate) fn task_clicked(&mut self, chapter: usize, line: usize, cx: &mut Context<Self>) {
+        self.paint
+            .pending
+            .push(DecorationEvent::TaskClicked { chapter, line });
+        self.flush_decoration_events(cx);
     }
 
     /// Sends the events the paint layers queued.

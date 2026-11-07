@@ -184,6 +184,8 @@ pub struct BookEditor {
     /// The pickers, automatic links and the selection bar.
     assist: Entity<crate::assist::Assist>,
     _assist_events: Subscription,
+    /// The paint layers of every chapter (crate::decor).
+    pub(crate) decor: crate::decor::Decor,
     _editor_events: Subscription,
     _ws_events: dr_workspace::Subscription,
 }
@@ -244,6 +246,15 @@ impl BookEditor {
                 });
             },
         );
+        let decor = crate::decor::Decor::for_book(
+            &ws,
+            book,
+            chapters.iter().map(|c| c.doc.clone()).collect(),
+            &editor,
+            extension.clone(),
+            window,
+            cx,
+        );
         let mut this = BookEditor {
             ws,
             book: book.to_owned(),
@@ -257,6 +268,7 @@ impl BookEditor {
             pages: Default::default(),
             assist,
             _assist_events: assist_events,
+            decor,
             _editor_events: events,
             _ws_events: ws_events,
         };
@@ -433,6 +445,9 @@ impl BookEditor {
         );
         self.assist
             .update(cx, |a, cx| a.attach(editor, docs, window, cx));
+        let docs = self.chapters.iter().map(|c| c.doc.clone()).collect();
+        self.decor
+            .rebind_book(&self.ws, &self.book, docs, &self.editor, window, cx);
         if let Some(at) = at {
             self.restore(&at, cx);
         }

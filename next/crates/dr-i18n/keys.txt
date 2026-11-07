@@ -386,3 +386,8 @@ projectPicker.bookTransfer.importFailedTitle
 importDialog.chooseFolder
 importDialog.status.committed
 importDialog.summary.done
+common.delete
+commentRail.actions.toNote
+commentRail.actions.toTodo
+reviewPanel.sourceFloating
+reviewPanel.sourceTextUnavailable

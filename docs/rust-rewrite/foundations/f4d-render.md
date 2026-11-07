@@ -1,6 +1,6 @@
 # F4d 渲染：画层、块样式、沉浸淡出、滚动条刻度
 
-2026-11-08。F4 编辑引擎的渲染子线，代码在 `next/crates/gpui-prose/src/render/`（MIT OR Apache-2.0，只依赖 gpui 和 loro，不碰任何 `dr-*`）。第二轮（同一天）把画层接进了 Drifting，代码在 `next/crates/dr-editor/src/decor/`，见文末[「第二轮：接进 Drifting」](#第二轮接进-drifting)；审阅面板是 [M18](../modules/m18-review.md)。总的架构、文本源和别的子线见 [f4-editor.md](f4-editor.md)；计划见 [foundation.md 的 F4 一节](../foundation.md#f4-编辑引擎gpui-prose-与-dr-editor)。
+2026-11-08。F4 编辑引擎的渲染子线，代码在 `next/crates/gpui-prose/src/render/`（MIT OR Apache-2.0，只依赖 gpui 和 loro，不碰任何 `dr-*`）。第二轮（同一天）把画层接进了 Drifting，代码在 `next/crates/dr-editor/src/decor/`，见文末[「第二轮：接进 Drifting」](#第二轮接进-drifting)；第三轮接进全书视图、给列表画了样子，见[「第三轮」](#第三轮全书视图列表来源悬停卡)；审阅面板是 [M18](../modules/m18-review.md)。总的架构、文本源和别的子线见 [f4-editor.md](f4-editor.md)；计划见 [foundation.md 的 F4 一节](../foundation.md#f4-编辑引擎gpui-prose-与-dr-editor)。
 
 ## 一句话
 
@@ -102,7 +102,7 @@
 
 ## 截图
 
-`cargo run --release -p gpui-prose --example prose-bench -- capture <目录> [--textures <目录>]` 离屏画（GPUI 的测试平台、macOS 的字体系统、Metal 画进纹理），不开窗口、不需要录屏权限。正文是合成的；贴图默认是程序里现画的合成砂粒，`--textures` 指向一个放着 `hl.png`、`hl-hot.png`、`ul.png`、`blob-0..5.png` 的目录就用那里的（截图用的是 dr-ui 自己的砂笔贴图，代码不依赖 dr-ui）。压成 256 色（`crates/dr-ui/script/shrink-pngs.py`）。
+`cargo run --release -p dr-editor --example prose-bench -- capture <目录> [--textures <目录>]`（在 `next/` 下；基准程序已由 F4e 搬进 `dr-editor`）离屏画（GPUI 的测试平台、macOS 的字体系统、Metal 画进纹理），不开窗口、不需要录屏权限。正文是合成的；贴图默认是程序里现画的合成砂粒，`--textures` 指向一个放着 `hl.png`、`hl-hot.png`、`ul.png`、`blob-0..5.png` 的目录就用那里的（截图用的是 dr-ui 自己的砂笔贴图，代码不依赖 dr-ui）。压成 256 色（`crates/dr-ui/script/shrink-pngs.py`）。
 
 都是 2 倍像素（2200 × 1640），压缩后共 1.1 MB，最大一张 419 KB。截图时时钟停住，过渡停在说明里写的那一刻。
 
@@ -119,7 +119,7 @@
 
 ## 测量
 
-`cargo run --release -p gpui-prose --example prose-bench -- decor --out ../docs/rust-rewrite/acceptance/f4-decor.json`，证据在 [f4-decor.json](../acceptance/f4-decor.json)（`prose-bench check` 认得它的源码和语料指纹）。
+下面这张表是第一轮在旧的合成语料上量的，证据 [f4-decor.json](../acceptance/f4-decor.json) 现在算旧格式。基准搬进 `dr-editor` 以后，命令是 `cargo run --release -p dr-editor --example prose-bench -- decor --write`，语料换成 F8 的重型种子（最长的一章），证据写成 F8 格式 [f4e-m2-prose-bench-decor.json](../acceptance/f4e-m2-prose-bench-decor.json)，由 `cargo xtask check` 核对；那一份的数字和第三轮的分析见文末[「第三轮」](#第三轮全书视图列表来源悬停卡)。
 
 量法：离屏的 GPUI 窗口 1100 × 820，F4 基准一直用的 2 万字合成章节（含一段 5000 字的长段落）。「一帧」是编辑器重新渲染、排版、绘制一整帧的 CPU 时间（和窗口基准的「每帧工作」同一个意思，不含 GPU）。带装饰的那一份有 1000 处：400 处批注砂笔（带指着时的贴图和刻度）、300 处干笔下划线、120 处建议点线、120 处查找命中、60 处 Agent 墨字（带刻度），都已静止。滚动是从头到尾每帧 48 px；打字是在章中间一个字一个字打 120 个，每键算「改 + 一帧」。不带和带装饰交替各跑三轮，所以机器忙的时候两边一样受影响。
 
@@ -160,7 +160,7 @@
 7. **空闲重测**：「测量」里的数字是负载 4.9 下量的，等一分钟负载降到 2 以下，在 `next/` 下重跑一次、把表换掉：
 
    ```bash
-   cargo run --release -p gpui-prose --example prose-bench -- decor --out ../docs/rust-rewrite/acceptance/f4-decor.json
+   cargo run --release -p dr-editor --example prose-bench -- decor --write
    ```
 
 8. **`f4-editor.md` 里过时的两句（给监管会话，合并时改）：**「已知限制」里「块样式里只有 H1/H2/H3 有样子」；待协调 13（F4d 的画层接口）现在有了，指到本文。本子线只建了本文，没有改 `f4-editor.md`。
@@ -210,10 +210,71 @@
 
 ### 待协调（第二轮）
 
-1. **F6（外壳）：⌘F 查找条还没有**（外壳的 `FindInEditor` 只打日志）。高亮已经接好：谁调了编辑器的 `set_find`，命中和当前项就画出来。
-2. **F6：只改「减少动效」传不到编辑器。** `style_editors` 只在基础样式变了时重给 `DecorLooks`；减少动效不在基础样式里。外壳比较时把 `theme.reduce_motion` 也算上就行。沉浸写作的 `set_paragraph_focus` 也还没接（上面待协调 5）。
+1. ~~F6：⌘F 查找条~~：F6 已做；第三轮在外壳的查找测试里确认了高亮画得出来（当前项 0.34、其余 0.16）。
+2. ~~F6：只改「减少动效」传不到编辑器~~：监管会话合并时已改（减少动效变了也重给 `DecorLooks`）。沉浸写作的 `set_paragraph_focus` 还没接（上面待协调 5）。
 3. **M40（Markdown 文件夹）：** 蓝色的外部改动按 `mirror` 来源的正文事件记，`next/` 里还没有镜像，没在真的流程里跑过。
 4. **TODO 只在标记变了、光标离开、失焦时投。** 别的设备同步来的 `TODO:` 段，要等这一章在本机打开并动过才投；要不要打开时就投一次，看 M18 下一个里程碑。
 5. **Agent 改动的「看过」不跨设备。** 一台设备上碰掉了，另一台还是彩色的；要同步就得进书目文档，那是一次 Loro 结构的改动（F1）。
-6. **M05（全书视图）：画层还只接在单章编辑器上。** `Decor` 按「一个编辑器一篇文档、第 0 章」写的；`BookEditor` 一个编辑器里有全书各章，要每章一个（`set_decorations` 本来就按章分）：读批注、账本、链接按每章的 `doc` 各做一份，交装饰时带上章号；`BookEditorEvent` 的 `AnchorsChanged`、`TodoMarkers` 已经带着章的 `doc`，可以直接用 `Decor` 里发 `comment.reanchor`、`todo.project` 的那两段。M05 要的「幕的扉页」也是 F4d 的活，这一轮没做。
+6. ~~M05（全书视图）：画层还只接在单章编辑器上~~：第三轮做完，见下。M05 要的「幕的扉页」还没做（F4e 建议由 F6 在章首挂接点里画，见 f4e-editor.md 待协调 1）。
+
+## 第三轮：全书视图、列表、来源悬停卡
+
+2026-11-08，第三轮。监管会话这一轮的六件事：全书视图接画层、有装饰时打字变慢、删掉空着的 `shifts`、列表的样子、M18 的下一个里程碑（见 [m18-review.md](../modules/m18-review.md)）、文档里的旧基准命令。
+
+### 大白话
+
+- **全书视图也画。** `Decor` 改成两层：编辑器手里一个小把手（`Decor`，只管把宿主自己的 TODO 标记事件转过去），真正干活的是一个独立的实体 `Layers`，里面每章一份（`Part`：这一章的文档、批注、有没有交过 Agent 墨色、链接要不要重找）。单章编辑器就是一章，`BookEditor` 是全书每章一份。批注、Agent 墨色、刻度、链接、建议、TODO 关键字、TODO 投影、撤销后重新锚定都按章走；点刻度或审阅卡跳到的批注在哪一章，光标就落到哪一章。
+- **一次读全书的批注。** 原来每篇文档单独调一次 `comment.anchors`；现在直接在持有者线程上读一遍书目文档，拿到所有没解决的批注（带种类）和每条 TODO 的完成状态，再只对有批注的章各解析一次锚点。版本核对（第二轮）照旧按章做。
+- **全书的链接一片一片找。** 一章的链接、建议在主线程上找（要看编辑器手上的字）；全书 165 万字一次找完会卡一帧，所以从光标所在的章开始、每片约 6 万字，片与片之间让出一帧。打字只把那一章标成要重找。
+- **外壳给全书视图也交颜色**（`BookEditor::set_decor_looks`，打开时、主题或减少动效变了时）。
+- **有装饰时打字一帧变慢不是画层每次按键都重算。** 把一次按键拆开量（负载 9–17，只作参考）：画层在「改」里只挪 1000 处装饰的范围，0.012–0.02 → 0.027–0.035 ms；画一帧 0.18 → 0.26–0.29 ms（p50）。p95 的三四倍落在「经会话写入、事件回来」那一步，那段代码不碰画层；一帧不画也照样有尾巴；4800 键的几次对照里带装饰的 p95 是 1.3–4.0 ms、不带的是 2.1–4.3 ms，谁高谁低每次都变。`sample` 看到量的时候库打开时的过期索引重建线程（`index-rebuild`）还在跑、和写入抢锁，等它建完（约 2 秒）再量，不带装饰的 p95 降到约 2.1 ms。给基准的建议（等索引重建完再量、把写入和画分开报、多打几键）写在共享笔记 `f4d-typing-with-decorations.md`，基准归 F4e。
+- **`shifts` 删了。** 对齐、缩进现在由排版自己放（F4b），段落元素里那个总是空的「每行右移」连同按行拆的点击记录一起去掉，一段一条记录。
+- **列表有样子了**（列表只在素材笔记里有，dr-doc 在章节里会丢掉这些属性）：
+  - 每级往里收 1.5 个字，记号在第一行左边：第 0 级实心圆点，第 1 级空心圈，第 2 级小方块，再往下循环；
+  - 有序列表画「1.」「2.」，序号沿着同一级相邻的项往上数，中间夹着更深的项不断号，别的段落一隔就从 1 重新数；
+  - 任务是一个小方框，勾上了是强调色底、稿纸色的勾，字变淡、划一道线；
+  - 链了 TODO 的任务项不看自己的 `checked`，看那条 TODO 完成了没有（`ProseExtension::task_done`；dr-editor 的 `DriftingExtension` 由画层喂进全书 TODO 的状态）；
+  - 点方框：编辑器发 `DecorationEvent::TaskClicked`，光标不动；dr-editor 接到以后，链了 TODO 的就 `comment.update` 完成或重开那条 TODO，没链的就翻转 `checked`（自己一步撤销）；
+  - 颜色来自 dr-ui：记号用第二档墨，方框用分隔线色，勾上用强调色，勾上后的字用淡墨；
+  - 列表的输入（回车续项、空项回车退出、Tab 改层级、`- ` `1. ` `[ ] ` 快捷写法）归 F4c，分工写在共享笔记 `f4d-lists-for-f4c.md`。
+
+### 接口变化
+
+| 项 | 说明 |
+| --- | --- |
+| `gpui_prose::render::{ListItem, ListMark}`、`BlockLook::list` | 列表项和它的记号（`Bullet`、`Ordered(n)`、`Task { done }`）、层级 |
+| `BlockStyle::{list_step, list_ink, task_box, task_done, task_tick, task_done_ink}` | 列表的步长和颜色 |
+| `ProseExtension::task_done(todo) -> Option<bool>` | 链了 TODO 的任务项显示什么 |
+| `DecorationEvent::TaskClicked { chapter, line }` | 点了任务框 |
+| `render::paint::TextPaint`：去掉 `shifts` | 对齐归排版 |
+| `dr_editor::decor::Layers`、`ChapterEditor::decor_layers()`、`BookEditor::{set_decor_looks, decor_layers}` | 画层实体 |
+| `DriftingExtension::set_todos` | 全书 TODO 的完成状态 |
+
+### 共用文件里改的地方
+
+| 文件 | 改了什么 |
+| --- | --- |
+| `dr-editor/src/book.rs` | `BookEditor` 加字段 `decor`；`open` 里 `Decor::for_book(…)`；`reload` 里 `rebind_book(…)` |
+| `dr-editor/src/convert.rs` | `set_block_attr` 认 `list`、`list_level`、`checked`、`todo`（原来只认引用、分隔线、缩进、对齐、标题） |
+| `dr-editor/src/links.rs` | `DriftingExtension` 加 TODO 状态表和 `task_done` |
+| `gpui-prose/src/extension.rs` | `task_done`（有默认实现） |
+| `dr-shell/src/workspace/editors.rs` | 全书视图打开时、主题或减少动效变了时交 `DecorLooks`；两种视图都订阅 `CommentRequested` |
+| `dr-shell/src/workspace/review.rs` | 撰写框在两种视图里都能开（`⌘⌥M` 和浮条） |
+
+### 测试
+
+- `dr-editor/tests/decor.rs` 新加两项，共 10 项：`the_whole_book_draws_every_chapters_layers`（全书三章各自的批注、第三章的 Agent 墨色、新写的批注出现在第一章、跳到 TODO 光标落到第三章、第二章打 `TODO ` 投到第二章）；`task_items_tick_their_box_or_their_todo`（素材笔记里：链了 TODO 的任务项跟着 TODO 的状态，点没链的框打上勾，点链了的框重开那条 TODO）。原来的 8 项在改成按章的 `Layers` 以后照样过。
+- `gpui-prose`：`list_items_are_numbered_set_in_and_tasks_tick`（序号、深的项不断号、段落一隔重新数、两种任务状态、缩进的距离、点方框发事件且光标不动）、`blocks::tests::list_items_are_set_in_by_level`。去掉 `shifts` 以后 `gpui-prose` 全部测试照样过。
+- `dr-shell/tests/workspace.rs`：查找栏那一项加了高亮的断言；新加 `a_comment_is_written_in_the_whole_book`（全书视图里选中第三章开头两个字，⌘⌥M，写字，⌘↵，批注落在第三章那两个字上，全书视图画出它）。
+
+### 截图
+
+在 [m18/](../modules/m18/)，由 `m18-capture` 画：`book-*.png` 是全书视图里的批注砂笔、Agent 墨色和刻度，`list-*.png` 是素材笔记里的三种列表（第二级是空心圈，任务里一项自己勾上、一项跟着已完成的 TODO、一项没勾）。
+
+### 待协调（第三轮）
+
+1. **F4c：列表的输入**，见上和共享笔记。代码块、提示框（也只在笔记里）还没有样子。
+2. **列表项之间的间距**用的是段落间距，比旧版的列表松（旧版项与项之间 0.15 个字）；要收紧得让排版的高度估算也知道块样式（第一轮待协调 2）。
+3. **F4e：基准**：`prose-bench decor` 的打字一项建议等索引重建完再量、把写入和画分开报（共享笔记）。`gpui-prose` 渲染层的源码这一轮改了，`f4e-m2-prose-bench-decor.json` 的指纹会算过期，到下一个里程碑重测。
+4. **幕的扉页**（M05）还没画。
 

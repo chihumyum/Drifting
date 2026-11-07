@@ -10,7 +10,9 @@
   "commentRail": {
     "actions": {
       "reopen": "다시 열기",
-      "resolve": "해결 처리"
+      "resolve": "해결 처리",
+      "toNote": "댓글로 전환",
+      "toTodo": "할 일로 전환"
     },
     "card": {
       "emptyComment": "빈 댓글"
@@ -21,6 +23,7 @@
     "close": "닫기",
     "counting": "계산 중…",
     "creating": "만드는 중…",
+    "delete": "삭제",
     "edit": "편집",
     "local": "로컬",
     "processing": "처리 중…",
@@ -324,7 +327,9 @@
     "resolved": "해결됨({{count}}개)",
     "scopes": {
       "current": "현재"
-    }
+    },
+    "sourceFloating": "작품 수준 · 연결된 엔터티 없음",
+    "sourceTextUnavailable": "저장된 발췌 없음"
   },
   "rightSidebar": {
     "kickers": {
