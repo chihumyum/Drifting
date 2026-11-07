@@ -6,6 +6,7 @@ resolver = "3"
 # One member per line, kept sorted, so parallel branches merge cleanly.
 members = [
     "app/drifting",
+    "crates/dr-ui",
     "spikes/import-v1",
     "spikes/loro-model",
     "spikes/visual",
@@ -55,6 +56,11 @@ image = { version = "0.25.10", default-features = false, features = ["png"] }
 smallvec = "1.16"
 tiny-skia = "0.11.4"
 
+# F5 (dr-ui): grapheme boundaries for the single-line input's caret moves,
+# and the fonts mapped into memory (the version GPUI already builds).
+memmap2 = "0.9"
+unicode-segmentation = "1.13"
+
 # Zed patches these crates.io crates in its own workspace; a git dependency
 # does not inherit [patch], so GPUI's consumers repeat the ones it needs.
 [patch.crates-io]
@@ -71,4 +77,9 @@ opt-level = 2
 # Spike P0-D draws glass, the sea and covers on the CPU; unoptimized, a dev
 # build would show costs ten times their real size.
 [profile.dev.package.visual-spike]
+opt-level = 2
+
+# dr-ui rasterises sand frames and builds glass on the CPU; keep its
+# timings honest in the gallery.
+[profile.dev.package.dr-ui]
 opt-level = 2
