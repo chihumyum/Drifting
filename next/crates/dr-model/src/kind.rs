@@ -218,29 +218,40 @@ open_enum!(
 );
 
 open_enum!(
+    /// The retired `converted` (a Copilot suggestion that was accepted) is
+    /// not a v2 value; importing turns it into `resolved` (see
+    /// [`crate::legacy`]).
     CommentStatus {
         Open = "open",
         Resolved = "resolved",
-        Converted = "converted",
     }
 );
 
 open_enum!(
-    /// Who wrote a comment. `copilot` stays readable for comments the retired
-    /// Copilot wrote.
+    /// Who wrote a comment. The retired Copilot's comments import as `ai`.
     CommentAuthorKind {
         User = "user",
         Ai = "ai",
-        Copilot = "copilot",
         External = "external",
     }
 );
 
 open_enum!(
+    /// How a comment was made: by hand, or through the Agent / MCP. The
+    /// retired `copilot` imports as `api`.
     CommentSource {
         Manual = "manual",
-        Copilot = "copilot",
         Api = "api",
+    }
+);
+
+open_enum!(
+    /// What generated a TODO from prose.
+    ProjectionKind {
+        /// A typed `TODO:` marker in a chapter (the old `todo-autoparse`).
+        Marker = "marker",
+        /// A task line in a material note (the old `note-task`).
+        NoteTask = "note_task",
     }
 );
 

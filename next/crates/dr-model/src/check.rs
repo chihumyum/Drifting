@@ -222,6 +222,7 @@ mod tests {
             locked: false,
             source_role: "甲".into(),
             target_role: "乙".into(),
+            color: None,
             source_kinds: src.to_vec(),
             target_kinds: dst.to_vec(),
         }

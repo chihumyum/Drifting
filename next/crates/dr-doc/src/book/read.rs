@@ -10,11 +10,58 @@ use dr_model::book::*;
 use dr_model::id::*;
 use dr_model::kind::*;
 use dr_model::order::{CHAPTER_ORDER_STRIDE, cmp_order, sort_acts};
+use dr_model::pos::cmp_pos;
 use dr_model::{DocId, Timestamp};
 use loro::{LoroDoc, LoroTree, LoroValue, TreeID, TreeParentId};
 
 use super::fields::{F, kv_entries};
 use crate::schema::book;
+
+/// An entity's stored fields at some version, for restoring them
+/// (`BookTxn::restore_fields`). Read from a detached copy at a history point.
+#[derive(Clone, Debug)]
+pub struct EntitySnapshot {
+    value: LoroValue,
+    texts: HashSet<String>,
+}
+
+impl EntitySnapshot {
+    pub(crate) fn value(&self, key: &str) -> Option<&LoroValue> {
+        F(&self.value).get(key)
+    }
+
+    pub(crate) fn is_text(&self, key: &str) -> bool {
+        self.texts.contains(key)
+    }
+
+    /// The stored keys.
+    pub fn keys(&self) -> Vec<String> {
+        match &self.value {
+            LoroValue::Map(m) => {
+                let mut v: Vec<String> = m.keys().cloned().collect();
+                v.sort();
+                v
+            }
+            _ => Vec::new(),
+        }
+    }
+}
+
+/// The fields a history restore writes back per collection, as the old
+/// `restoreMetadata` (node: title, summary, status; element: name, aliases,
+/// summary, group, fields; storyline: name, summary, fields; category: name,
+/// template fields). The body itself is restored on its prose document.
+pub fn metadata_fields(collection: super::Collection) -> &'static [&'static str] {
+    use super::Collection::*;
+    match collection {
+        Nodes => &["title", "summary", "status"],
+        Elements => &["name", "aliases", "summary", "group_name", "facts"],
+        Storylines => &["name", "summary", "facts"],
+        Categories => &["name", "template_fields"],
+        Materials => &["title", "description"],
+        _ => &[],
+    }
+}
 
 /// What reading a node needs from the rest of the book.
 struct NodeCtx {
@@ -168,6 +215,8 @@ impl<'a> BookView<'a> {
             deleted_at: f.ts("deleted_at"),
             created_at: f.ts("created_at"),
             storyline_template: f.kv("storyline_template"),
+            word_target_set: f.i64("word_target"),
+            daily_word_target_set: f.i64("daily_word_target"),
         }
     }
 
@@ -195,7 +244,6 @@ impl<'a> BookView<'a> {
             primary_storyline: f.id("primary_storyline"),
             deleted_at: f.ts("deleted_at"),
             created_at: f.ts("created_at"),
-            updated_at: f.ts("updated_at"),
         };
         n.book_order = n.effective_book_order();
         n.status = n.effective_status();
@@ -338,7 +386,7 @@ impl<'a> BookView<'a> {
 
     // ---- storylines, categories, elements, patches ------------------
 
-    /// Storylines (trashed included) by order, ties by id.
+    /// Storylines (trashed included) by position, ties by id.
     pub fn storylines(&self) -> Vec<Storyline> {
         let mut v: Vec<Storyline> = entities(self.doc, book::STORYLINES)
             .iter()
@@ -349,14 +397,14 @@ impl<'a> BookView<'a> {
                     name: f.string("name"),
                     color: f.string("color"),
                     summary: f.string("summary"),
-                    order: f.f64("order").unwrap_or(f64::INFINITY),
+                    pos: f.pos("pos"),
                     facts: f.kv("facts"),
                     chapter_template: f.opt_string("chapter_template"),
                     deleted_at: f.ts("deleted_at"),
                 })
             })
             .collect();
-        v.sort_by(|a, b| a.order.total_cmp(&b.order).then_with(|| a.id.cmp(&b.id)));
+        v.sort_by(|a, b| cmp_pos((a.pos.as_ref(), &a.id), (b.pos.as_ref(), &b.id)));
         v
     }
 
@@ -417,8 +465,13 @@ impl<'a> BookView<'a> {
             portrait: f
                 .id::<AssetId>("portrait")
                 .filter(|a| assets.get(a.as_str()) == Some(&AssetKind::Image)),
+            relate_pin: match (f.f64("pin_x"), f.f64("pin_y")) {
+                (Some(x), Some(y)) => Some((x, y)),
+                _ => None,
+            },
             deleted_at: f.ts("deleted_at"),
             created_at: f.ts("created_at"),
+            name_conflict: None,
         })
     }
 
@@ -430,28 +483,52 @@ impl<'a> BookView<'a> {
     }
 
     pub fn element(&self, id: &ElementId) -> Option<Element> {
-        let v = entity(self.doc, book::ELEMENTS, id.as_str())?;
-        self.read_element(
-            id.as_str(),
-            &v,
-            &self.live_ids(book::CATEGORIES),
-            &self.asset_kinds(),
-        )
+        self.elements().into_iter().find(|e| &e.id == id)
     }
 
     /// Elements (trashed included) by id. A category that is gone or in the
     /// trash reads as none (the old client detached elements on category
     /// trash); a portrait that is not an image asset reads as none.
+    ///
+    /// Names and aliases are unique among live elements (trimmed,
+    /// lowercased). When a merge breaks that, the element created first
+    /// (ties by id) keeps the name and every later one gets `name_conflict`.
     pub fn elements(&self) -> Vec<Element> {
         let cats = self.live_ids(book::CATEGORIES);
         let assets = self.asset_kinds();
-        entities(self.doc, book::ELEMENTS)
+        let mut v: Vec<Element> = entities(self.doc, book::ELEMENTS)
             .iter()
             .filter_map(|(id, v)| self.read_element(id, v, &cats, &assets))
-            .collect()
+            .collect();
+        let mut order: Vec<usize> = (0..v.len())
+            .filter(|&i| v[i].deleted_at.is_none())
+            .collect();
+        let key = |e: &Element| (e.created_at.map(|t| t.0).unwrap_or(i64::MAX), e.id.clone());
+        order.sort_by_key(|&i| key(&v[i]));
+        let mut owner: HashMap<String, ElementId> = HashMap::new();
+        for i in order {
+            let names: Vec<String> = std::iter::once(v[i].name.as_str())
+                .chain(v[i].aliases.iter().map(String::as_str))
+                .map(element_name_key)
+                .filter(|k| !k.is_empty())
+                .collect();
+            let id = v[i].id.clone();
+            match names
+                .iter()
+                .find_map(|k| owner.get(k).filter(|o| **o != id).cloned())
+            {
+                Some(winner) => v[i].name_conflict = Some(winner),
+                None => {
+                    for k in names {
+                        owner.entry(k).or_insert_with(|| id.clone());
+                    }
+                }
+            }
+        }
+        v
     }
 
-    /// Patches of elements that exist, by element then order then id. A
+    /// Patches of elements that exist, by element then position then id. A
     /// source chapter that is gone reads as none, and so does its block.
     pub fn patches(&self) -> Vec<Patch> {
         let elements: HashSet<String> = entities(self.doc, book::ELEMENTS)
@@ -483,15 +560,14 @@ impl<'a> BookView<'a> {
                     invalidated_at: f.ts("invalidated_at"),
                     title: f.opt_string("title"),
                     body: f.string("body"),
-                    order: f.f64("order").unwrap_or(0.0),
+                    pos: f.pos("pos"),
                 })
             })
             .collect();
         v.sort_by(|a, b| {
             a.element
                 .cmp(&b.element)
-                .then(a.order.total_cmp(&b.order))
-                .then_with(|| a.id.cmp(&b.id))
+                .then_with(|| cmp_pos((a.pos.as_ref(), &a.id), (b.pos.as_ref(), &b.id)))
         });
         v
     }
@@ -522,6 +598,7 @@ impl<'a> BookView<'a> {
             locked: f.bool("locked").unwrap_or(false),
             source_role: f.string("source_role"),
             target_role: f.string("target_role"),
+            color: f.opt_string("color"),
             source_kinds: f.kinds("source_kinds"),
             target_kinds: f.kinds("target_kinds"),
         })
@@ -661,12 +738,12 @@ impl<'a> BookView<'a> {
                     let e = F(e);
                     Some(PlotLine {
                         id: I::try_from(id.as_str()).ok()?,
-                        pos: e.string("pos"),
+                        pos: e.pos("pos"),
                         label: e.string("label"),
                     })
                 })
                 .collect();
-            v.sort_by(|a, b| a.pos.cmp(&b.pos).then_with(|| a.id.cmp(&b.id)));
+            v.sort_by(|a, b| cmp_pos((a.pos.as_ref(), &a.id), (b.pos.as_ref(), &b.id)));
             v
         }
         let rows: Vec<PlotLine<PlotRowId>> = lines(f, "rows");
@@ -723,6 +800,9 @@ impl<'a> BookView<'a> {
             target_missing,
             target_block: f.id("target_block"),
             anchor: f.anchor("anchor"),
+            quote: f.opt_string("quote"),
+            snapshots: f.snapshots("snapshots"),
+            region: f.region("region"),
             author_kind: f.kind("author_kind").unwrap_or(CommentAuthorKind::User),
             author: f.opt_string("author"),
             author_name: f.opt_string("author_name"),
@@ -731,6 +811,14 @@ impl<'a> BookView<'a> {
             priority: f.kind("priority"),
             source: f.kind("source").unwrap_or(CommentSource::Manual),
             metadata: f.opt_string("metadata"),
+            agent_conversation: f.opt_string("agent_conversation"),
+            projection: match (
+                f.kind::<ProjectionKind>("projection"),
+                f.id::<BlockId>("projection_block"),
+            ) {
+                (Some(kind), Some(block)) => Some(TodoProjection { kind, block }),
+                _ => None,
+            },
             resolved_at: f.ts("resolved_at"),
             created_at: f.ts("created_at"),
             updated_at: f.ts("updated_at"),
@@ -754,7 +842,7 @@ impl<'a> BookView<'a> {
 
     // ---- materials, assets, trees ---------------------------------------
 
-    /// Materials by order, ties by id. A folder that is gone reads as the
+    /// Materials by position, ties by id. A folder that is gone reads as the
     /// root; an image/PDF whose asset is missing or of another kind reads
     /// without one (shown as missing).
     pub fn materials(&self) -> Vec<Material> {
@@ -784,14 +872,14 @@ impl<'a> BookView<'a> {
                     folder: f
                         .id::<MaterialFolderId>("folder")
                         .filter(|d| folders.contains(d.as_str())),
-                    order: f.f64("order").unwrap_or(0.0),
+                    pos: f.pos("pos"),
                     task_todos: f.bool("task_todos").unwrap_or(true),
                     provenance: f.opt_string("provenance"),
-                    preview_image: f.opt_string("preview_image"),
+                    description: f.string("description"),
                 })
             })
             .collect();
-        v.sort_by(|a, b| a.order.total_cmp(&b.order).then_with(|| a.id.cmp(&b.id)));
+        v.sort_by(|a, b| cmp_pos((a.pos.as_ref(), &a.id), (b.pos.as_ref(), &b.id)));
         v
     }
 
@@ -988,6 +1076,50 @@ impl<'a> BookView<'a> {
                 .push((id, max_order + CHAPTER_ORDER_STRIDE * (i as f64 + 1.0)));
         }
         plan
+    }
+
+    /// An entity's stored fields as they are in this view, for
+    /// `BookTxn::restore_fields`. Use it on `BookReader::load_at(…)`: the
+    /// value of one entity at a history point.
+    pub fn entity_snapshot(
+        &self,
+        collection: super::Collection,
+        id: &str,
+    ) -> Option<EntitySnapshot> {
+        let loro::ValueOrContainer::Container(loro::Container::Map(m)) =
+            self.doc.get_map(collection.root()).get(id)?
+        else {
+            return None;
+        };
+        let mut texts = HashSet::new();
+        m.for_each(|k, v| {
+            if matches!(
+                v,
+                loro::ValueOrContainer::Container(loro::Container::Text(_))
+            ) {
+                texts.insert(k.to_string());
+            }
+        });
+        Some(EntitySnapshot {
+            value: m.get_deep_value(),
+            texts,
+        })
+    }
+
+    /// Whether the TODO `id` is done. A task line linked to a TODO shows
+    /// this instead of a state of its own; `None` when the TODO is not (yet)
+    /// here, e.g. still arriving from another device.
+    pub fn todo_done(&self, id: &CommentId) -> Option<bool> {
+        self.comment(id).map(|c| c.is_done())
+    }
+
+    /// Elements whose name or an alias collides with an earlier element:
+    /// `(element, the element that keeps the name)`.
+    pub fn element_name_conflicts(&self) -> Vec<(ElementId, ElementId)> {
+        self.elements()
+            .into_iter()
+            .filter_map(|e| e.name_conflict.clone().map(|w| (e.id, w)))
+            .collect()
     }
 
     /// When the book was moved to the trash.

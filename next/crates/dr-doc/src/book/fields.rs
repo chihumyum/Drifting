@@ -2,9 +2,10 @@
 
 use std::collections::BTreeSet;
 
-use dr_model::book::{EncodedAnchor, EntityRef, KvEntry, sort_kv};
+use dr_model::book::{BlockSnapshot, EncodedAnchor, EntityRef, KvEntry, MaterialRegion, sort_kv};
 use dr_model::id::*;
 use dr_model::kind::*;
+use dr_model::pos::PosKey;
 use dr_model::{Day, Timestamp};
 use loro::{LoroMap, LoroValue};
 
@@ -56,6 +57,11 @@ impl<T: IntoField> IntoField for Option<T> {
         self.and_then(IntoField::into_field)
     }
 }
+impl IntoField for &PosKey {
+    fn into_field(self) -> Option<LoroValue> {
+        Some(self.as_str().into())
+    }
+}
 impl IntoField for &[EntityKind] {
     fn into_field(self) -> Option<LoroValue> {
         Some(LoroValue::List(
@@ -78,6 +84,7 @@ macro_rules! str_like {
 }
 
 str_like!(
+    ProjectionKind,
     BookId,
     NodeId,
     ActId,
@@ -221,6 +228,39 @@ impl<'a> F<'a> {
         }
     }
 
+    /// A position key; a missing or malformed one reads as none (sorts last).
+    pub(crate) fn pos(&self, key: &str) -> Option<PosKey> {
+        self.str(key).and_then(|s| PosKey::parse(s).ok())
+    }
+
+    /// `[{block, text}]` snapshots; malformed entries are skipped.
+    pub(crate) fn snapshots(&self, key: &str) -> Vec<BlockSnapshot> {
+        match self.get(key) {
+            Some(LoroValue::List(l)) => l
+                .iter()
+                .filter_map(|e| {
+                    let e = F(e);
+                    Some(BlockSnapshot {
+                        block: e.id("block"),
+                        text: e.str("text")?.to_string(),
+                    })
+                })
+                .collect(),
+            _ => Vec::new(),
+        }
+    }
+
+    /// A material region; out-of-box or malformed reads as none.
+    pub(crate) fn region(&self, key: &str) -> Option<MaterialRegion> {
+        let r = self.sub(key)?;
+        let page = match r.i64("page") {
+            Some(p) if p >= 1 && p <= u32::MAX as i64 => Some(p as u32),
+            Some(_) => return None,
+            None => None,
+        };
+        MaterialRegion::new(page, r.f64("x")?, r.f64("y")?, r.f64("w")?, r.f64("h")?)
+    }
+
     pub(crate) fn kinds(&self, key: &str) -> Vec<EntityKind> {
         match self.get(key) {
             Some(LoroValue::List(l)) => l
@@ -272,7 +312,7 @@ pub(crate) fn kv_entries(v: &LoroValue) -> Vec<KvEntry> {
                 id: KvEntryId::parse(id).ok()?,
                 key,
                 value,
-                order: f.f64("order").unwrap_or(f64::INFINITY),
+                pos: f.pos("pos"),
             })
         })
         .collect();

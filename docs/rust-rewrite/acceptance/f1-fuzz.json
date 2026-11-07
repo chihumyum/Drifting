@@ -103,6 +103,28 @@
       "peakRssMb": 424,
       "exitCode": 0,
       "error": null
+    },
+    {
+      "target": "load_bytes",
+      "when": "schema v2",
+      "runs": 43075,
+      "seconds": 151,
+      "coverage": 18107,
+      "maxInputBytes": 628,
+      "peakRssMb": 329,
+      "exitCode": 0,
+      "error": null
+    },
+    {
+      "target": "bad_structure",
+      "when": "schema v2, with the v2 field names, full-length inputs",
+      "runs": 14533,
+      "seconds": 151,
+      "coverage": 35679,
+      "maxInputBytes": 4096,
+      "peakRssMb": 538,
+      "exitCode": 0,
+      "error": null
     }
   ],
   "findings": [

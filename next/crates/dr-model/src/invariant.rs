@@ -16,7 +16,9 @@
 //!   impossible (Loro's tree has no cycles; a field list has its own slot).
 //!
 //! [`INVARIANTS`] is the checklist; [`NOT_CARRIED`] lists old rules the new
-//! version does not need, with the reason. `docs/rust-rewrite/acceptance/
+//! version does not need, with the reason; [`DIVERGENCES`] lists operations
+//! the old interface and the old Agent tools did differently, each with the
+//! single meaning proposed for the new command (待 F3 统一). `docs/rust-rewrite/acceptance/
 //! f1-invariants.json` is generated from both (see the crate's tests) and
 //! `dr-doc`'s tests check that every test named here exists.
 
@@ -52,6 +54,23 @@ pub struct Invariant {
     pub tests: &'static [&'static str],
 }
 
+/// Where the old interface and the old Agent tools did the same operation
+/// differently. The new version runs both through one command (F3); each
+/// entry proposes that command's meaning. Status: 待 F3 统一.
+#[derive(Clone, Debug, Serialize)]
+pub struct Divergence {
+    pub id: &'static str,
+    /// The operation, in plain Chinese.
+    pub topic: &'static str,
+    /// What the old interface did.
+    pub ui: &'static str,
+    /// What the old Agent tools did.
+    pub agent: &'static str,
+    pub legacy: &'static [&'static str],
+    /// The proposed single meaning for interface and Agent alike.
+    pub proposal: &'static str,
+}
+
 /// An old rule the new version does not carry over.
 #[derive(Clone, Debug, Serialize)]
 pub struct NotCarried {
@@ -73,10 +92,14 @@ pub const LEGACY_LEGEND: &[(&str, &str)] = &[
     ("M09", "drizzle/0009_material_provenance.sql"),
     ("M11", "drizzle/0011_retire_url_materials.sql"),
     ("M12", "drizzle/0012_material_folders.sql"),
-    ("M14", "drizzle/0014_retire_google_drive_sync.sql"),
+    ("M14", "drizzle/0014（退役旧云盘同步服务商的迁移）"),
     ("M16", "drizzle/0016_writing_day.sql"),
     ("M17", "drizzle/0017_retire_goal_route_and_sdk_session.sql"),
     ("ERT", "src/renderer/domain/entity-relation-type.ts"),
+    (
+        "drifting-structural-write-strategy.ts",
+        "src/renderer/lib/agent/runtime/drifting-structural-write-strategy.ts",
+    ),
 ];
 
 /// What the audit of the old client found (2026-11-07).
@@ -309,7 +332,7 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "ORDER-TIES",
-        "顺序是带间隙的实数坐标，坐标相同按 id；新章插在前一章之后、下一章和下一个幕分界之前",
+        "书序、叙事序、幕分界、时间钉是带间隙的实数坐标，坐标相同按 id；新章插在前一章之后、下一章和下一个幕分界之前",
         [Structure, Read],
         "dr_model::order：cmp_order、chapter_order_after、act_segments；精度用尽时由打散命令（F3）重排",
         [
@@ -384,11 +407,24 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "ELEMENT-NAME-UNIQUE",
-        "要素名和别名在书里不重复（不分大小写）；章节标题、故事线名重名时自动加后缀",
+        "一本书里活着的要素，名字和别名互不重复（去首尾空白、不分大小写）；这是自动链接认人物的前提",
         [Command, Read],
-        "旧版也只在客户端做，同步照收重复；新版同样只在命令层，合并后重复就都显示",
+        "命令层拒绝明确给出的重名（check 用 element_name_key 比较）；合并后出现重名，读取时按创建时间、再按 id，第一个保留名字，后面的标 name_conflict 由界面标出（BookView::element_name_conflicts）",
         [
-            "src/renderer/domain/book-element.ts:96-119",
+            "src/renderer/domain/book-element.ts:96-119 (findElementNameConflict)",
+            "src/renderer/usecase/useBookElement.ts:141-157"
+        ],
+        [
+            "element_names_stay_unique_on_read_after_a_merge",
+            "regions_and_name_keys"
+        ]
+    ),
+    inv!(
+        "TITLE-SUFFIX",
+        "章节标题、构想标题、故事线名、分类名重名时自动加后缀「 2」「 3」",
+        [Command],
+        "F3 的新建和改名命令负责，界面和 Agent 走同一条（见 DIV-DUP-TITLE、DIV-DUP-CATEGORY）；合并后重名就都显示",
+        [
             "src/renderer/domain/book-node.ts:182-199",
             "src/renderer/domain/storyline.ts:30-47"
         ],
@@ -695,7 +731,7 @@ pub const INVARIANTS: &[Invariant] = &[
     // ---- key/value lists, plot grids, writing days ---------------------------
     inv!(
         "KV-LIST",
-        "字段列表各有归属（项目设定、故事线模板、故事线字段、分类模板字段、要素字段），按 order 排、平局按 id；键和值都空的条目不要",
+        "字段列表各有归属（项目设定、故事线模板、故事线字段、分类模板字段、要素字段），按位置键排、平局按 id；键和值都空的条目不要",
         [Structure, Read],
         "每种列表是自己实体上的一个 mergeable 映射，条目 id 为键；读取时跳过全空条目",
         [
@@ -833,6 +869,63 @@ pub const INVARIANTS: &[Invariant] = &[
         ["materials_folders_and_assets"]
     ),
     inv!(
+        "ORDER-POS",
+        "纯列表（故事线、补丁、素材、键值列表、情节规划的行列、表格的行列）的顺序是分数索引位置键，不是数字；平局按 id",
+        [Structure, Read],
+        "dr_model::pos（照搬 Rocicorp fractional-indexing 4.0.0，旧键逐字节保留）；挪一项只改这一项的键，两台设备各自重排再合并也不会互相打乱；构想分组、素材夹的兄弟顺序由 LoroTree 自己的分数索引管；读取时缺键或坏键排到最后",
+        [
+            "src/renderer/sync/journal/order-authority.ts:1-80",
+            "K:135-143",
+            "K:607-617"
+        ],
+        [
+            "matches_the_js_library",
+            "many_keys_are_ordered_and_between",
+            "concurrent_reordering_keeps_both_intents"
+        ]
+    ),
+    inv!(
+        "TODO-SINGLE-TRUTH",
+        "待办只有一份真相：链了待办的任务行没有自己的勾选状态，显示待办的状态",
+        [Structure, Read],
+        "BlockAttrs 里 todo 有值时 checked 不写、读时忽略；界面读 BookView::todo_done",
+        ["src/renderer/views/note-todo-links.ts:25-60"],
+        [
+            "a_task_line_linked_to_a_todo_has_no_state_of_its_own",
+            "projected_todos_are_one_entity_on_every_device"
+        ]
+    ),
+    inv!(
+        "PROJECTED-TODO-ID",
+        "从正文生成的待办（TODO: 标记、素材笔记的任务行）在每台设备上是同一个实体",
+        [Structure],
+        "id 由（种类、文档 id、块 ID）算出：CommentId::for_projection；来源种类和块是正式字段 projection / projection_block；两台设备各自生成也只有一个，不需要去重",
+        [
+            "src/renderer/hooks/useTodoAutoParse.ts:37-216",
+            "src/renderer/domain/comment.ts:393-418"
+        ],
+        [
+            "projected_todos_are_one_entity_on_every_device",
+            "derived_ids"
+        ]
+    ),
+    inv!(
+        "NO-HOT-FIELDS",
+        "书目文档里不放随打字高频变化的字段",
+        [Structure],
+        "节点没有 updated_at（旧版每次正文投影都刷新它）；「最近编辑」从本机索引（F2）取；写作日每设备每天一个键",
+        ["K:924-938", "K:1536-1581"],
+        ["writing_days_sum_over_devices"]
+    ),
+    inv!(
+        "ENTITY-RESTORE",
+        "从快照历史恢复一个对象时，连同它当时的标题、梗概、字段等元数据一起恢复，书里别的东西不动",
+        [Command],
+        "历史点同时记正文和书目文档的 frontiers（F2/F3）；恢复时在 BookReader::load_at 载入的副本上取 entity_snapshot，用 BookTxn::restore_fields 作为新提交写回 metadata_fields 列的字段；不整篇 revert 书目文档",
+        ["src/renderer/services/snapshot-restore.service.ts:212-280 (restoreMetadata)"],
+        ["restoring_an_entity_writes_its_old_fields_back"]
+    ),
+    inv!(
         "CROSS-DOC-ORDER",
         "一个命令同时写正文文档和书目文档时，先写正文、再写书目",
         [Command],
@@ -840,6 +933,114 @@ pub const INVARIANTS: &[Invariant] = &[
         [],
         []
     ),
+];
+
+pub const DIVERGENCES: &[Divergence] = &[
+    Divergence {
+        id: "DIV-TRASH-RELATIONS",
+        topic: "删掉（进废纸篓）章节、构想、要素、分类、故事线时，它的关系怎么办",
+        ui: "照删，并把它的关系永久删掉；恢复时关系不回来",
+        agent: "还有关系就拒绝删除，要先删关系",
+        legacy: &[
+            "src/renderer/usecase/useBookNode.ts:596-660",
+            "src/renderer/usecase/entity-relation-cleanup.ts:37-66",
+            "src/renderer/usecase/useBookElement.ts:487-501",
+            "src/renderer/usecase/useElementCategory.ts:309-318",
+            "src/renderer/usecase/useStoryline.ts:559-569",
+            "drifting-structural-write-strategy.ts:1406-1432",
+        ],
+        proposal: "同一条「进废纸篓」命令，界面和 Agent 都直接执行，不拒绝；关系不动，端点在废纸篓时读取隐藏（REL-ENDS-EXIST），恢复后回来；「彻底删除」在同一条命令里删掉这些关系。命令结果写明受影响的关系条数：界面在提示里说，Agent 在回复里报给作者",
+    },
+    Divergence {
+        id: "DIV-TRASH-COMMENTS",
+        topic: "删掉一个对象时，挂在它上面的批注和待办怎么办",
+        ui: "照删，批注留着",
+        agent: "还有批注或待办指向它就拒绝删除",
+        legacy: &[
+            "src/renderer/usecase/useBookNode.ts:596-660",
+            "drifting-structural-write-strategy.ts:1434-1457",
+        ],
+        proposal: "都直接执行；批注保留目标，目标在废纸篓时显示为「未定位」（CMT-TARGET），恢复后回到原处；彻底删除时批注不删，变成浮动批注（清掉目标、留下正文和原文快照）",
+    },
+    Divergence {
+        id: "DIV-DRIFT-BINDINGS",
+        topic: "删掉构想时，绑定它的幕和时间钉怎么办",
+        ui: "先解绑：时间钉保留构想的标题作标签，幕清掉绑定",
+        agent: "不解绑（软删除后绑定还指着它）",
+        legacy: &[
+            "src/renderer/usecase/useBookNode.ts:613-626",
+            "src/renderer/domain/timeline-marker.ts:9-19",
+        ],
+        proposal: "进废纸篓不解绑，读取时绑定的构想不在或在废纸篓就当没绑定（ACT-PIN-DRIFT），恢复后绑定回来；彻底删除时，同一条命令把构想标题写进时间钉的标签，再清掉幕和时间钉的绑定",
+    },
+    Divergence {
+        id: "DIV-CATEGORY-ELEMENTS",
+        topic: "删掉还有要素的分类",
+        ui: "照删，把要素摘出来（分类置空）",
+        agent: "分类里还有要素就拒绝",
+        legacy: &[
+            "src/renderer/usecase/useElementCategory.ts:275-318",
+            "drifting-structural-write-strategy.ts:1459-1490",
+        ],
+        proposal: "都直接执行；要素的分类字段不动，分类在废纸篓时读取显示为未分类（ELEMENT-CATEGORY），恢复后回来；彻底删除分类时同一条命令清掉这些要素的分类",
+    },
+    Divergence {
+        id: "DIV-STORYLINE-MEMBERSHIP",
+        topic: "删掉故事线（或在故事线里的章节）时的成员关系",
+        ui: "故事线进废纸篓时删掉全部成员关系",
+        agent: "章节或故事线还有成员关系就拒绝",
+        legacy: &[
+            "src/renderer/usecase/useStoryline.ts:559-569",
+            "drifting-structural-write-strategy.ts:1492-1515",
+        ],
+        proposal: "都直接执行；成员关系保留，读取时废纸篓里的故事线不列出，恢复后回来；彻底删除故事线时同一条命令删掉各章里它的成员键（读取本来就会滤掉，删掉只是清理）",
+    },
+    Divergence {
+        id: "DIV-RELTYPE-DELETE",
+        topic: "删掉还在用的关系类型",
+        ui: "删类型时连带删掉用它的全部关系",
+        agent: "还有关系用它就拒绝",
+        legacy: &[
+            "src/renderer/usecase/useEntityRelationTypes.ts:118-133",
+            "drifting-structural-write-strategy.ts:1399-1405",
+        ],
+        proposal: "同一条命令在一次提交里删掉类型和用它的关系；界面先显示条数请作者确认，Agent 直接执行并在结果里列出（Agent 写入直接生效，作者靠快照历史撤销）。内置类型照旧不能删",
+    },
+    Divergence {
+        id: "DIV-DUP-TITLE",
+        topic: "新建或改名时章节、构想标题或故事线名已经有了",
+        ui: "自动加后缀「 2」「 3」",
+        agent: "报错 already exists",
+        legacy: &[
+            "src/renderer/domain/book-node.ts:182-199",
+            "src/renderer/domain/storyline.ts:30-47",
+            "drifting-structural-write-strategy.ts:345",
+            "drifting-structural-write-strategy.ts:444",
+        ],
+        proposal: "同一条命令都自动加后缀，并在结果里返回最终的名字（Agent 看得到改成了什么，可以再改）",
+    },
+    Divergence {
+        id: "DIV-DUP-CATEGORY",
+        topic: "新建或改名时分类名已经有了",
+        ui: "不查重（空名改成 untitled）",
+        agent: "报错 already exists",
+        legacy: &[
+            "src/renderer/sqlite-repo/element-category-repo.ts:27-33",
+            "drifting-structural-write-strategy.ts:475",
+        ],
+        proposal: "和章节标题一样：自动加后缀并返回最终名字；空名统一用界面语言的默认名",
+    },
+    Divergence {
+        id: "DIV-DUP-ELEMENT",
+        topic: "新建或改名时要素名、别名已经有了",
+        ui: "明确给的名字重名就报错；只有占位名「新要素」自动编号",
+        agent: "报错 already exists",
+        legacy: &[
+            "src/renderer/domain/book-element.ts:96-133",
+            "drifting-structural-write-strategy.ts:404-405",
+        ],
+        proposal: "两边本来一致，保持：明确的名字重名就拒绝（自动链接靠名字认人物，ELEMENT-NAME-UNIQUE），返回占用这个名字的要素；只有命令层的「新建空要素」给占位名自动编号",
+    },
 ];
 
 pub const NOT_CARRIED: &[NotCarried] = &[
@@ -880,7 +1081,7 @@ pub const NOT_CARRIED: &[NotCarried] = &[
     },
     NotCarried {
         legacy: "M11:27, M11:34, M14:152 等 6 个触发器",
-        rule: "已退役功能的守卫（URL 素材、Google Drive）",
+        rule: "已退役功能的守卫（URL 素材、退役的云盘同步服务商）",
         why: "新类型里没有这些取值；旧的 url 读成 Other（MAT-KIND）",
     },
     NotCarried {
@@ -905,8 +1106,18 @@ pub const NOT_CARRIED: &[NotCarried] = &[
     },
     NotCarried {
         legacy: "K:295-305, M00:655 (comment_action)",
-        rule: "批注动作：采纳 / 拒绝 Copilot 建议、开 Agent 任务",
-        why: "Copilot 已退役；「开 Agent 任务」的对话链接属于本机帮手数据。v1 不进书目文档，见 f1-model-doc.md 待协调",
+        rule: "批注动作表：采纳 / 拒绝 Copilot 建议、开 Agent 任务",
+        why: "Copilot 已退役，采纳 / 拒绝的记录导入时丢弃；唯一在用的「开 Agent 任务」改成待办上的 agent_conversation 字段（v2），不再单列一张表",
+    },
+    NotCarried {
+        legacy: "src/renderer/domain/comment.ts:10-14",
+        rule: "退役的取值：批注来源 copilot、作者种类 copilot、状态 converted",
+        why: "v2 不收这些取值，导入时规整：copilot 来源 → api、copilot 作者 → ai、converted → resolved（dr_model::legacy）",
+    },
+    NotCarried {
+        legacy: "library_item.preview_image_url, M11",
+        rule: "素材的预览图网址",
+        why: "URL 素材在迁移 0011 退役后这一列一直是 NULL，v2 删掉",
     },
     NotCarried {
         legacy: "block_section, inline_mention（domain-manifest.ts:494-497, 565-568）",
@@ -940,9 +1151,12 @@ mod tests {
             "legacyCounts": LEGACY_COUNTS.iter().map(|(k, v)| (k.to_string(), serde_json::Value::from(*v))).collect::<serde_json::Map<_, _>>(),
             "invariantCount": INVARIANTS.len(),
             "notCarriedCount": NOT_CARRIED.len(),
+            "divergenceCount": DIVERGENCES.len(),
+            "divergenceStatus": "待 F3 统一：界面和 Agent 走同一条命令，提议见每条的 proposal",
             "byMechanism": by,
             "invariants": INVARIANTS,
             "notCarried": NOT_CARRIED,
+            "divergences": DIVERGENCES,
         })
     }
 
@@ -983,6 +1197,17 @@ mod tests {
             "PLOT-GRID",
         ] {
             assert!(ids.contains(id), "{id}");
+        }
+    }
+
+    #[test]
+    fn every_divergence_proposes_one_meaning() {
+        let mut ids = HashSet::new();
+        for d in DIVERGENCES {
+            assert!(ids.insert(d.id), "duplicate {}", d.id);
+            assert!(d.id.starts_with("DIV-"));
+            assert!(!d.ui.is_empty() && !d.agent.is_empty() && !d.proposal.is_empty());
+            assert!(!d.legacy.is_empty(), "{} cites no source", d.id);
         }
     }
 

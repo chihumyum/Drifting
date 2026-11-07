@@ -233,6 +233,34 @@ id_type!(
     reserved = ['|']
 );
 
+impl CommentId {
+    /// The id of a TODO generated from prose: a function of what generated
+    /// it, the document and the block, so two devices projecting the same
+    /// marker create the same entity and nothing needs deduplicating.
+    pub fn for_projection(
+        kind: &crate::kind::ProjectionKind,
+        doc: &DocId,
+        block: &BlockId,
+    ) -> Self {
+        Self::parse(&format!("todo:{}:{doc}#{block}", kind.as_str())).expect("valid id")
+    }
+}
+
+impl DeviceKey {
+    /// The key a device signs its writing days with, exactly as the old
+    /// client (`services/writing-days/device-key.ts`): `device-` and the
+    /// first 12 bytes, in hex, of SHA-256 over
+    /// `"drifting.writing-day.v1\n" + installation id`. The synced rows name
+    /// the device without carrying its identity. Storage (F2) owns the
+    /// installation identity file.
+    pub fn from_installation_id(installation_id: &str) -> Self {
+        use sha2::{Digest, Sha256};
+        let hash = Sha256::digest(format!("drifting.writing-day.v1\n{installation_id}").as_bytes());
+        let hex: String = hash[..12].iter().map(|b| format!("{b:02x}")).collect();
+        Self::parse(&format!("device-{hex}")).expect("valid id")
+    }
+}
+
 /// Which kind of Loro document a [`DocId`] names.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -504,6 +532,22 @@ mod tests {
             Some(ProseProfile::Prose)
         );
         assert_eq!(DocId::parse("book:m").unwrap().profile(), None);
+    }
+
+    #[test]
+    fn derived_ids() {
+        let doc = DocId::parse("node:n1").unwrap();
+        let b = BlockId::parse("3@7").unwrap();
+        let k = crate::kind::ProjectionKind::Marker;
+        let id = CommentId::for_projection(&k, &doc, &b);
+        assert_eq!(id.as_str(), "todo:marker:node:n1#3@7");
+        assert_eq!(id, CommentId::for_projection(&k, &doc, &b));
+        // Matches the old client's digest (computed with its device-key.ts
+        // formula for installation id "test-installation").
+        assert_eq!(
+            DeviceKey::from_installation_id("test-installation").as_str(),
+            "device-a07079fbdbda43404d66e3c6"
+        );
     }
 
     #[test]

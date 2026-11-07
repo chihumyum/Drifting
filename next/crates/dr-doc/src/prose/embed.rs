@@ -4,6 +4,7 @@
 use std::collections::BTreeMap;
 
 use dr_model::id::{EmbedId, MaterialId};
+use dr_model::pos::{PosKey, cmp_pos};
 use loro::{LoroMap, LoroText, LoroValue, ValueOrContainer};
 
 use crate::error::Result;
@@ -21,7 +22,8 @@ pub enum EmbedKind {
 #[derive(Clone, Debug, PartialEq)]
 pub struct TableLine {
     pub id: String,
-    pub order: f64,
+    /// Position key; a missing one sorts last.
+    pub pos: Option<PosKey>,
 }
 
 /// An embed as read.
@@ -29,7 +31,7 @@ pub struct TableLine {
 pub enum EmbedView {
     Table {
         id: EmbedId,
-        /// Sorted by order, ties by id.
+        /// Sorted by position, ties by id.
         cols: Vec<TableLine>,
         rows: Vec<TableLine>,
         /// `(row, col) → cell text`; cells whose row or column is gone are
@@ -58,29 +60,23 @@ fn str_of(m: &LoroMap, key: &str) -> Option<String> {
     }
 }
 
-fn f64_of(m: &LoroMap, key: &str) -> Option<f64> {
-    match m.get(key)? {
-        ValueOrContainer::Value(LoroValue::Double(d)) => Some(d),
-        ValueOrContainer::Value(LoroValue::I64(i)) => Some(i as f64),
-        _ => None,
-    }
-}
-
 fn lines(m: Option<LoroMap>) -> Vec<TableLine> {
     let mut out = Vec::new();
     if let Some(m) = m {
         m.for_each(|k, v| {
-            let order = match &v {
-                ValueOrContainer::Container(loro::Container::Map(e)) => f64_of(e, "order"),
+            let pos = match &v {
+                ValueOrContainer::Container(loro::Container::Map(e)) => {
+                    str_of(e, "pos").and_then(|s| PosKey::parse(&s).ok())
+                }
                 _ => None,
             };
             out.push(TableLine {
                 id: k.to_string(),
-                order: order.unwrap_or(f64::INFINITY),
+                pos,
             });
         });
     }
-    out.sort_by(|a, b| a.order.total_cmp(&b.order).then_with(|| a.id.cmp(&b.id)));
+    out.sort_by(|a, b| cmp_pos((a.pos.as_ref(), &a.id), (b.pos.as_ref(), &b.id)));
     out
 }
 
@@ -144,21 +140,23 @@ pub struct TableWriter {
 }
 
 impl TableWriter {
-    fn line(&self, which: &str, id: &str, order: f64) -> Result<LoroMap> {
+    fn line(&self, which: &str, id: &str, pos: &PosKey) -> Result<LoroMap> {
         let m = self
             .entry
             .ensure_mergeable_map(which)?
             .ensure_mergeable_map(id)?;
-        m.insert("order", order)?;
+        m.insert("pos", pos.as_str())?;
         Ok(m)
     }
 
-    pub fn add_col(&self, id: &str, order: f64) -> Result<()> {
-        self.line("cols", id, order).map(|_| ())
+    /// Add (or move) a column at position `pos`.
+    pub fn add_col(&self, id: &str, pos: &PosKey) -> Result<()> {
+        self.line("cols", id, pos).map(|_| ())
     }
 
-    pub fn add_row(&self, id: &str, order: f64) -> Result<()> {
-        self.line("rows", id, order).map(|_| ())
+    /// Add (or move) a row at position `pos`.
+    pub fn add_row(&self, id: &str, pos: &PosKey) -> Result<()> {
+        self.line("rows", id, pos).map(|_| ())
     }
 
     pub fn remove_row(&self, id: &str) -> Result<()> {

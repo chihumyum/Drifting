@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex};
 
 use dr_model::id::{BlockId, CommentId, EmbedId, MaterialId};
 use dr_model::kind::{EntityKind, ListKind};
+use dr_model::pos::PosKey;
 use dr_model::prose::{BlockAttrs, EntityLink, Heading, InlineStyle};
 use dr_model::{DocId, Origin};
 
@@ -512,7 +513,6 @@ fn inline_styles_skip_newlines_and_respect_the_profile() {
     assert_eq!(note.profile(), ProseProfile::Note);
     let task = BlockAttrs {
         list: Some(ListKind::Task),
-        checked: true,
         todo: Some(CommentId::parse("todo-1").unwrap()),
         ..BlockAttrs::default()
     };
@@ -560,8 +560,8 @@ fn embeds_are_placeholders_with_side_entries() {
         let c = t.split(2)?;
         t.insert_text(c, "后文")?;
         let w = t.insert_embed(c, &tbl, &EmbedKind::Table)?;
-        w.add_col("c0", 0.0)?;
-        w.add_row("r0", 0.0)?;
+        w.add_col("c0", &PosKey::first())?;
+        w.add_row("r0", &PosKey::first())?;
         w.set_cell("r0", "c0", "格子")
     });
     assert_eq!(texts(&p), vec!["前文", "\u{FFFC}", "后文"]);
@@ -572,13 +572,13 @@ fn embeds_are_placeholders_with_side_entries() {
     sync(&p, &mut q);
     user(&mut q, |t| {
         let w = t.table(&tbl)?;
-        w.add_row("r1", 1.0)?;
+        w.add_row("r1", &PosKey::first().after())?;
         t.table(&tbl)?.cell("r1", "c0")?.insert(0, "乙")?;
         Ok(())
     });
     user(&mut p, |t| {
         let w = t.table(&tbl)?;
-        w.add_row("r1", 1.0)?;
+        w.add_row("r1", &PosKey::first().after())?;
         w.cell("r1", "c0")?.insert(0, "甲")?;
         Ok(())
     });
@@ -861,4 +861,35 @@ fn anchors_into_another_container_read_as_unlocated() {
     user(&mut q, |t| t.insert_text(0, "别处的字"));
     let a = q.view().anchor(0..2).unwrap();
     let _ = p.view().resolve(&a);
+}
+
+#[test]
+fn a_task_line_linked_to_a_todo_has_no_state_of_its_own() {
+    let mut note = ProseDoc::create(DocId::parse("material:tasks").unwrap(), 7).unwrap();
+    let linked = BlockAttrs {
+        list: Some(ListKind::Task),
+        checked: true,
+        todo: Some(CommentId::parse("todo-1").unwrap()),
+        ..BlockAttrs::default()
+    };
+    user(&mut note, |t| {
+        t.insert_text(0, "买书")?;
+        t.set_block_attrs(0, &linked)
+    });
+    let para = note.view().paragraphs().next().unwrap();
+    assert!(!para.attrs.checked, "the TODO is the only truth");
+    assert_eq!(para.attrs.todo, linked.todo);
+    let raw = note.view().raw_attrs_at(para.newline);
+    assert!(
+        !raw.contains_key(crate::schema::block::CHECKED),
+        "not even stored"
+    );
+    // An unlinked task line keeps its own tick.
+    let plain = BlockAttrs {
+        list: Some(ListKind::Task),
+        checked: true,
+        ..BlockAttrs::default()
+    };
+    user(&mut note, |t| t.set_block_attrs(0, &plain));
+    assert!(note.view().paragraphs().next().unwrap().attrs.checked);
 }

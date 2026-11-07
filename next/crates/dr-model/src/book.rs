@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::id::*;
 use crate::kind::*;
+use crate::pos::{PosKey, cmp_pos};
 use crate::time::{Day, Timestamp};
 
 /// A reference to any entity: a relation end, a comment or memory target.
@@ -42,19 +43,25 @@ pub struct EncodedAnchor {
 
 /// One entry of a key/value list (element fields, storyline fields, category
 /// template fields, project facts, the storyline template). Lists are sorted
-/// by `order`, ties by entry id.
+/// by position key, ties by entry id; an entry without a usable key sorts
+/// last.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct KvEntry {
     pub id: KvEntryId,
     pub key: String,
     pub value: String,
-    pub order: f64,
+    pub pos: Option<PosKey>,
 }
 
 /// Sort a key/value list the way every reader shows it.
 pub fn sort_kv(entries: &mut [KvEntry]) {
-    entries.sort_by(|a, b| a.order.total_cmp(&b.order).then_with(|| a.id.cmp(&b.id)));
+    entries.sort_by(|a, b| cmp_pos((a.pos.as_ref(), &a.id), (b.pos.as_ref(), &b.id)));
 }
+
+/// Default book word target (the old `DEFAULT_PROJECT_TARGET`).
+pub const DEFAULT_WORD_TARGET: i64 = 120_000;
+/// Default daily word goal (the old `DEFAULT_DAILY_GOAL`).
+pub const DEFAULT_DAILY_WORD_TARGET: i64 = 1_500;
 
 /// The book itself (`meta` in the book document; the old `project`).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -69,6 +76,34 @@ pub struct BookMeta {
     pub created_at: Option<Timestamp>,
     /// Fields every new storyline starts with.
     pub storyline_template: Vec<KvEntry>,
+    /// The book's word target as stored (`None`: never set). 0 turns the
+    /// book progress bar off. Use [`BookMeta::word_target`].
+    pub word_target_set: Option<i64>,
+    /// Words per day the author commits to, as stored. 0 turns it off.
+    pub daily_word_target_set: Option<i64>,
+}
+
+impl BookMeta {
+    /// The book's word target, the default when never set; `None` when the
+    /// author turned it off (0).
+    pub fn word_target(&self) -> Option<i64> {
+        match self.word_target_set.unwrap_or(DEFAULT_WORD_TARGET) {
+            0 => None,
+            n => Some(n.max(0)),
+        }
+    }
+
+    /// The daily word goal, the default when never set; `None` when off.
+    /// Today's words come from the writing days, never from a stored total.
+    pub fn daily_word_target(&self) -> Option<i64> {
+        match self
+            .daily_word_target_set
+            .unwrap_or(DEFAULT_DAILY_WORD_TARGET)
+        {
+            0 => None,
+            n => Some(n.max(0)),
+        }
+    }
 }
 
 /// A chapter or an idea (the old `book_node` plus `node_storyline_link`).
@@ -94,7 +129,9 @@ pub struct Node {
     pub primary_storyline: Option<StorylineId>,
     pub deleted_at: Option<Timestamp>,
     pub created_at: Option<Timestamp>,
-    pub updated_at: Option<Timestamp>,
+    // No `updated_at`: it changes with every burst of typing and would make
+    // each one a synced book write (the old client refreshed it on every
+    // prose projection). "Last edited" comes from the local index (F2).
 }
 
 impl Node {
@@ -157,7 +194,7 @@ pub struct Storyline {
     pub name: String,
     pub color: String,
     pub summary: String,
-    pub order: f64,
+    pub pos: Option<PosKey>,
     pub facts: Vec<KvEntry>,
     /// The content template new chapters of this storyline start with, as the
     /// old JSON (see `f1-model-doc.md` "待协调").
@@ -193,8 +230,21 @@ pub struct Element {
     pub facts: Vec<KvEntry>,
     pub group_name: Option<String>,
     pub portrait: Option<AssetId>,
+    /// Where the author pinned the element in the relation graph (要素全景的
+    /// 关系布局), if they did. Layout the simulation computes is not stored.
+    pub relate_pin: Option<(f64, f64)>,
     pub deleted_at: Option<Timestamp>,
     pub created_at: Option<Timestamp>,
+    /// Set by readers when this element's name or an alias collides with an
+    /// earlier element (by creation time, then id): the element that keeps
+    /// the name. Commands prevent this; a merge can still produce it.
+    pub name_conflict: Option<ElementId>,
+}
+
+/// The key element names and aliases are compared by: trimmed, lowercased
+/// (the old `findElementNameConflict`). Empty names never conflict.
+pub fn element_name_key(name: &str) -> String {
+    name.trim().to_lowercase()
 }
 
 /// An element patch: a chapter passage attached to an element.
@@ -212,7 +262,7 @@ pub struct Patch {
     pub title: Option<String>,
     /// Plain text of the patch body (a rich text in the book document).
     pub body: String,
-    pub order: f64,
+    pub pos: Option<PosKey>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -227,6 +277,9 @@ pub struct RelationType {
     pub locked: bool,
     pub source_role: String,
     pub target_role: String,
+    /// Display colour of the relation's edges (the old client kept it only on
+    /// the device, `drifting:edge-kind-meta`).
+    pub color: Option<String>,
     /// Entity kinds allowed at each end; empty means any allowed kind.
     pub source_kinds: Vec<EntityKind>,
     pub target_kinds: Vec<EntityKind>,
@@ -271,9 +324,9 @@ pub struct TimePin {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PlotLine<Id> {
     pub id: Id,
-    /// Fractional-index string (the old `position_key`); sorted bytewise,
-    /// ties by id.
-    pub pos: String,
+    /// Fractional-index key (the old `position_key`); sorted bytewise, ties
+    /// by id, a missing one last.
+    pub pos: Option<PosKey>,
     pub label: String,
 }
 
@@ -310,6 +363,13 @@ pub struct Comment {
     pub target_block: Option<BlockId>,
     /// The anchored text, in the target's prose document.
     pub anchor: Option<EncodedAnchor>,
+    /// The exact text that was selected, as it was then ("查看原文", and
+    /// "原文已改" by comparing with the anchored text now).
+    pub quote: Option<String>,
+    /// Every block the selection spanned, as it was then.
+    pub snapshots: Vec<BlockSnapshot>,
+    /// A region on an image or a PDF page (comments on materials).
+    pub region: Option<MaterialRegion>,
     pub author_kind: CommentAuthorKind,
     pub author: Option<String>,
     pub author_name: Option<String>,
@@ -320,6 +380,13 @@ pub struct Comment {
     pub source: CommentSource,
     /// Opaque JSON, as the old `metadata_json`.
     pub metadata: Option<String>,
+    /// The Agent conversation started from this TODO (the old
+    /// `start_agent_task` comment action).
+    pub agent_conversation: Option<String>,
+    /// Set when the TODO is generated from prose (a `TODO:` marker or a
+    /// material-note task line): which kind and which block. Its id is then
+    /// [`CommentId::for_projection`].
+    pub projection: Option<TodoProjection>,
     pub resolved_at: Option<Timestamp>,
     pub created_at: Option<Timestamp>,
     pub updated_at: Option<Timestamp>,
@@ -329,6 +396,56 @@ impl Comment {
     pub fn is_todo(&self) -> bool {
         self.kind == CommentKind::Todo
     }
+
+    /// A TODO is done when resolved. Task lines linked to a TODO render this,
+    /// never a checkbox state of their own.
+    pub fn is_done(&self) -> bool {
+        self.status == CommentStatus::Resolved
+    }
+}
+
+/// One block's text when a comment was made.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BlockSnapshot {
+    pub block: Option<BlockId>,
+    pub text: String,
+}
+
+/// A rectangle on an image, or on one page of a PDF, as fractions (0–1) of
+/// the media box, so it survives display size and zoom (the old
+/// `MaterialRegion`, v1).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct MaterialRegion {
+    /// 1-based PDF page; `None` for images.
+    pub page: Option<u32>,
+    pub x: f64,
+    pub y: f64,
+    pub w: f64,
+    pub h: f64,
+}
+
+impl MaterialRegion {
+    /// `None` unless the rectangle lies inside the box (the old
+    /// `parseMaterialRegion`: each value 0–1, x + w and y + h at most 1,
+    /// page ≥ 1).
+    pub fn new(page: Option<u32>, x: f64, y: f64, w: f64, h: f64) -> Option<Self> {
+        let unit = |v: f64| v.is_finite() && (0.0..=1.0).contains(&v);
+        if !(unit(x) && unit(y) && unit(w) && unit(h)) || x + w > 1.000001 || y + h > 1.000001 {
+            return None;
+        }
+        if page == Some(0) {
+            return None;
+        }
+        Some(Self { page, x, y, w, h })
+    }
+}
+
+/// Where a generated TODO came from.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TodoProjection {
+    pub kind: ProjectionKind,
+    /// The block of the marker or the task line.
+    pub block: BlockId,
 }
 
 /// A material (素材; the old `library_item`).
@@ -341,12 +458,14 @@ pub struct Material {
     pub asset: Option<AssetId>,
     /// Readers treat a folder that no longer exists as the root.
     pub folder: Option<MaterialFolderId>,
-    pub order: f64,
+    pub pos: Option<PosKey>,
     /// A text material's checklist items project into TODOs.
     pub task_todos: bool,
     /// Opaque JSON, as the old `provenance_json`.
     pub provenance: Option<String>,
-    pub preview_image: Option<String>,
+    /// What the material is about, as plain text (the old `notes_json`).
+    /// The Agent writes it; search reads it.
+    pub description: String,
 }
 
 /// An asset's metadata. The bytes are in SQLite / files, addressed by sha256;
@@ -443,7 +562,6 @@ mod tests {
             primary_storyline: Some(StorylineId::parse("s").unwrap()),
             deleted_at: None,
             created_at: None,
-            updated_at: None,
         }
     }
 
@@ -494,6 +612,39 @@ mod tests {
         assert_eq!(WritingDay::parse_key(&k), Some((d, day)));
         assert_eq!(WritingDay::parse_key("x"), None);
         assert_eq!(WritingDay::parse_key("a|2026-13-01"), None);
+    }
+
+    #[test]
+    fn word_targets_default_and_turn_off() {
+        let mut m = BookMeta {
+            id: BookId::parse("b").unwrap(),
+            schema_version: 2,
+            name: String::new(),
+            summary: String::new(),
+            deleted_at: None,
+            created_at: None,
+            storyline_template: Vec::new(),
+            word_target_set: None,
+            daily_word_target_set: None,
+        };
+        assert_eq!(m.word_target(), Some(DEFAULT_WORD_TARGET));
+        assert_eq!(m.daily_word_target(), Some(DEFAULT_DAILY_WORD_TARGET));
+        m.word_target_set = Some(0);
+        m.daily_word_target_set = Some(800);
+        assert_eq!(m.word_target(), None);
+        assert_eq!(m.daily_word_target(), Some(800));
+    }
+
+    #[test]
+    fn regions_and_name_keys() {
+        // The old parseMaterialRegion's accepted and rejected cases.
+        assert!(MaterialRegion::new(None, 0.1, 0.2, 0.3, 0.4).is_some());
+        assert!(MaterialRegion::new(Some(3), 0.0, 0.0, 1.0, 1.0).is_some());
+        assert!(MaterialRegion::new(None, 0.8, 0.0, 0.5, 0.1).is_none());
+        assert!(MaterialRegion::new(None, -0.1, 0.0, 0.1, 0.1).is_none());
+        assert!(MaterialRegion::new(Some(0), 0.0, 0.0, 0.1, 0.1).is_none());
+        assert_eq!(element_name_key("  Anna "), "anna");
+        assert_eq!(element_name_key("安娜"), "安娜");
     }
 
     #[test]

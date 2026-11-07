@@ -90,7 +90,9 @@ pub struct BlockAttrs {
     pub list: Option<ListKind>,
     /// Nesting level of a list item, 0-based.
     pub list_level: u32,
-    /// Whether a task item is done.
+    /// Whether an unlinked task item is ticked. A task item linked to a TODO
+    /// (`todo`) has no state of its own: it shows the TODO's status, so the
+    /// TODO is the only truth. Readers and writers ignore `checked` then.
     pub checked: bool,
     /// The TODO a task item is linked to.
     pub todo: Option<CommentId>,

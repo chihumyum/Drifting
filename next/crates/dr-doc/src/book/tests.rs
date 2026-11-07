@@ -6,6 +6,7 @@ use std::sync::{Arc, Mutex};
 use dr_model::book::{Asset, EntityRef, KvEntry, canonical_symmetric};
 use dr_model::id::*;
 use dr_model::kind::*;
+use dr_model::pos::PosKey;
 use dr_model::{Day, DocId, Origin, Timestamp};
 
 use super::*;
@@ -560,12 +561,12 @@ fn materials_folders_and_assets() {
             .kind(&MaterialKind::Image)?
             .asset(Some(&img))?
             .folder(Some(&MaterialFolderId::parse("f2").unwrap()))?
-            .order(2.0)?;
+            .pos(&PosKey::parse("a2").unwrap())?;
         t.material(&m2)?
             .title("PDF")?
             .kind(&MaterialKind::Pdf)?
             .asset(Some(&img))?
-            .order(1.0)?;
+            .pos(&PosKey::parse("a1").unwrap())?;
         Ok(())
     });
     let ms = a.view().materials();
@@ -607,17 +608,17 @@ fn materials_folders_and_assets() {
 fn key_value_lists_merge_by_entry_and_skip_empties() {
     let mut a = book(1);
     let mut b = book(2);
-    let e = |id: &str, k: &str, v: &str, o: f64| KvEntry {
+    let e = |id: &str, k: &str, v: &str, p: &str| KvEntry {
         id: KvEntryId::parse(id).unwrap(),
         key: k.into(),
         value: v.into(),
-        order: o,
+        pos: Some(PosKey::parse(p).unwrap()),
     };
     // Both devices import the same entry: one entry.
-    user(&mut a, |t| t.put_fact(&e("f1", "视角", "第一人称", 1.0)));
-    user(&mut b, |t| t.put_fact(&e("f1", "视角", "第一人称", 1.0)));
-    user(&mut b, |t| t.put_fact(&e("f0", "文风", "冷", 0.5)));
-    user(&mut a, |t| t.put_fact(&e("f-empty", "", "", 0.0)));
+    user(&mut a, |t| t.put_fact(&e("f1", "视角", "第一人称", "a1")));
+    user(&mut b, |t| t.put_fact(&e("f1", "视角", "第一人称", "a1")));
+    user(&mut b, |t| t.put_fact(&e("f0", "文风", "冷", "a0V")));
+    user(&mut a, |t| t.put_fact(&e("f-empty", "", "", "a0")));
     sync_both(&mut a, &mut b);
     let facts = a.view().facts();
     let keys: Vec<&str> = facts.iter().map(|f| f.key.as_str()).collect();
@@ -626,7 +627,7 @@ fn key_value_lists_merge_by_entry_and_skip_empties() {
     user(&mut a, |t| {
         t.storyline(&s)?
             .name("主线")?
-            .put_fact(&e("k1", "主题", "合成", 0.0))?;
+            .put_fact(&e("k1", "主题", "合成", "a0"))?;
         Ok(())
     });
     assert_eq!(a.view().storylines()[0].facts.len(), 1);
@@ -846,4 +847,334 @@ fn a_group_created_on_two_devices_keeps_every_child() {
         (groups[0].id.as_str(), groups[0].parent.as_ref()),
         ("g0", None)
     );
+}
+
+#[test]
+fn colours_targets_and_pins_live_in_the_book() {
+    let mut a = book(1);
+    let rt = RelationTypeId::parse("rt-friend").unwrap();
+    let e = ElementId::parse("e1").unwrap();
+    user(&mut a, |t| {
+        t.relation_type(&rt)?.name("朋友")?.color(Some("#c0392b"))?;
+        t.meta()
+            .word_target(Some(200_000))?
+            .daily_word_target(Some(0))?;
+        t.element(&e)?.name("安")?.relate_pin(Some((12.5, -3.0)))?;
+        Ok(())
+    });
+    let mut b = book(2);
+    sync(&a, &mut b);
+    assert_eq!(
+        b.view().relation_type(&rt).unwrap().color.as_deref(),
+        Some("#c0392b")
+    );
+    let m = b.view().meta();
+    assert_eq!(m.word_target(), Some(200_000));
+    assert_eq!(m.daily_word_target(), None, "0 turns the daily goal off");
+    assert_eq!(b.view().element(&e).unwrap().relate_pin, Some((12.5, -3.0)));
+    user(&mut b, |t| t.element(&e)?.relate_pin(None).map(|_| ()));
+    assert_eq!(b.view().element(&e).unwrap().relate_pin, None);
+    assert_eq!(
+        BookView::meta(&book(3).view()).word_target(),
+        Some(dr_model::book::DEFAULT_WORD_TARGET)
+    );
+}
+
+#[test]
+fn element_names_stay_unique_on_read_after_a_merge() {
+    // Two devices create an element with the same name (and an alias that
+    // collides). The one created first keeps the name; the other is flagged.
+    let mut a = book(1);
+    let mut b = book(2);
+    user(&mut a, |t| {
+        t.element(&ElementId::parse("e-late").unwrap())?
+            .name("安娜")?
+            .created_at(Some(Timestamp(200)))?;
+        t.element(&ElementId::parse("e-alias").unwrap())?
+            .name("Karenina")?
+            .add_alias("Anna")?
+            .created_at(Some(Timestamp(300)))?;
+        Ok(())
+    });
+    user(&mut b, |t| {
+        t.element(&ElementId::parse("e-early").unwrap())?
+            .name(" 安娜 ")?
+            .add_alias("anna")?
+            .created_at(Some(Timestamp(100)))?;
+        Ok(())
+    });
+    sync_both(&mut a, &mut b);
+    let early = ElementId::parse("e-early").unwrap();
+    let conflicts = a.view().element_name_conflicts();
+    assert_eq!(
+        conflicts,
+        vec![
+            (ElementId::parse("e-alias").unwrap(), early.clone()),
+            (ElementId::parse("e-late").unwrap(), early.clone()),
+        ]
+    );
+    assert_eq!(a.view().element(&early).unwrap().name_conflict, None);
+    assert_eq!(conflicts, b.view().element_name_conflicts());
+    // Trashing the winner hands its names to the others: nothing collides now.
+    user(&mut a, |t| {
+        t.element(&early)?
+            .deleted_at(Some(Timestamp(1)))
+            .map(|_| ())
+    });
+    assert!(a.view().element_name_conflicts().is_empty());
+}
+
+#[test]
+fn projected_todos_are_one_entity_on_every_device() {
+    let doc = DocId::Node(n("c1"));
+    let block = BlockId::parse("4@9").unwrap();
+    let mut a = book(1);
+    let mut b = book(2);
+    for d in [&mut a, &mut b] {
+        user(d, |t| {
+            chapter(t, "c1", Some(5.0))?;
+            let (_, w) = t.projected_todo(&ProjectionKind::Marker, &doc, &block)?;
+            w.body("查一下年代")?;
+            Ok(())
+        });
+    }
+    sync_both(&mut a, &mut b);
+    let todos: Vec<_> = a
+        .view()
+        .comments()
+        .into_iter()
+        .filter(|c| c.is_todo())
+        .collect();
+    assert_eq!(todos.len(), 1, "both devices projected the same entity");
+    let t0 = &todos[0];
+    assert_eq!(t0.id.as_str(), "todo:marker:node:c1#4@9");
+    assert_eq!(t0.target_block.as_ref(), Some(&block));
+    let p = t0.projection.as_ref().unwrap();
+    assert_eq!((&p.kind, &p.block), (&ProjectionKind::Marker, &block));
+    assert_eq!(a.view().todo_done(&t0.id), Some(false));
+    user(&mut b, |t| {
+        t.comment(&t0.id)?
+            .status(&CommentStatus::Resolved)
+            .map(|_| ())
+    });
+    sync(&b, &mut a);
+    assert_eq!(a.view().todo_done(&t0.id), Some(true));
+    assert_eq!(a.view().todo_done(&CommentId::parse("nope").unwrap()), None);
+}
+
+#[test]
+fn comments_keep_what_the_text_was_and_material_regions() {
+    let mut a = book(1);
+    let c = CommentId::parse("c1").unwrap();
+    let r = CommentId::parse("c2").unwrap();
+    user(&mut a, |t| {
+        t.comment(&c)?
+            .quote(Some("被选中的字"))?
+            .snapshots(&[
+                dr_model::book::BlockSnapshot {
+                    block: Some(BlockId::parse("1@1").unwrap()),
+                    text: "第一段全文".into(),
+                },
+                dr_model::book::BlockSnapshot {
+                    block: None,
+                    text: "第二段".into(),
+                },
+            ])?
+            .agent_conversation(Some("conv-7"))?;
+        t.comment(&r)?
+            .target(Some(&EntityRef::new(EntityKind::Material, "m1")))?
+            .region(Some(
+                &dr_model::book::MaterialRegion::new(Some(2), 0.1, 0.2, 0.3, 0.4).unwrap(),
+            ))?;
+        Ok(())
+    });
+    let got = a.view().comment(&c).unwrap();
+    assert_eq!(got.quote.as_deref(), Some("被选中的字"));
+    assert_eq!(got.snapshots.len(), 2);
+    assert_eq!(got.snapshots[1].block, None);
+    assert_eq!(got.agent_conversation.as_deref(), Some("conv-7"));
+    let reg = a.view().comment(&r).unwrap().region.unwrap();
+    assert_eq!((reg.page, reg.w), (Some(2), 0.3));
+    // A region outside the box (written by something else) reads as none.
+    a.edit(Origin::User, |t| {
+        let m = t.view.doc.get_map("comments").ensure_mergeable_map("c2")?;
+        let bad: Vec<(String, loro::LoroValue)> = vec![
+            ("x".into(), 0.9.into()),
+            ("y".into(), 0.0.into()),
+            ("w".into(), 0.5.into()),
+            ("h".into(), 0.1.into()),
+        ];
+        m.insert("region", loro::LoroValue::Map(bad.into()))?;
+        Ok(())
+    })
+    .0
+    .unwrap();
+    assert_eq!(a.view().comment(&r).unwrap().region, None);
+}
+
+#[test]
+fn materials_carry_a_description() {
+    let mut a = book(1);
+    let m = MaterialId::parse("m1").unwrap();
+    user(&mut a, |t| {
+        t.material(&m)?
+            .kind(&MaterialKind::Text)?
+            .description("清末上海的报刊目录")?;
+        Ok(())
+    });
+    let mut b = book(2);
+    sync(&a, &mut b);
+    user(&mut a, |t| {
+        t.material(&m)?
+            .description("清末上海的报刊目录（补）")
+            .map(|_| ())
+    });
+    user(&mut b, |t| {
+        t.material(&m)?
+            .description("晚清上海的报刊目录")
+            .map(|_| ())
+    });
+    sync_both(&mut a, &mut b);
+    let d = a.view().materials()[0].description.clone();
+    assert_eq!(d, b.view().materials()[0].description);
+    assert!(d.contains("上海的报刊目录"), "{d}");
+}
+
+#[test]
+fn concurrent_reordering_keeps_both_intents() {
+    // Numbers renumbered on two devices would interleave; position keys only
+    // move the item that moved.
+    let s = |i: &str| StorylineId::parse(i).unwrap();
+    let mut a = book(1);
+    user(&mut a, |t| {
+        for (id, k) in [("s1", "a0"), ("s2", "a1"), ("s3", "a2")] {
+            t.storyline(&s(id))?
+                .name(id)?
+                .pos(&PosKey::parse(k).unwrap())?;
+        }
+        Ok(())
+    });
+    let mut b = book(2);
+    sync(&a, &mut b);
+    // A moves s3 to the front; B moves s1 to the end.
+    let front = PosKey::between(None, Some(&PosKey::parse("a0").unwrap())).unwrap();
+    user(&mut a, |t| t.storyline(&s("s3"))?.pos(&front).map(|_| ()));
+    let end = PosKey::parse("a2").unwrap().after();
+    user(&mut b, |t| t.storyline(&s("s1"))?.pos(&end).map(|_| ()));
+    sync_both(&mut a, &mut b);
+    let order = |d: &BookDoc| {
+        d.view()
+            .storylines()
+            .into_iter()
+            .map(|x| x.id.to_string())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(order(&a), vec!["s3", "s2", "s1"]);
+    assert_eq!(order(&a), order(&b));
+    // Two devices inserting into the same gap get the same key: id breaks the tie.
+    let gap = PosKey::between(Some(&front), Some(&PosKey::parse("a1").unwrap())).unwrap();
+    user(&mut a, |t| {
+        t.storyline(&s("x-a"))?.name("x")?.pos(&gap).map(|_| ())
+    });
+    user(&mut b, |t| {
+        t.storyline(&s("x-b"))?.name("x")?.pos(&gap).map(|_| ())
+    });
+    sync_both(&mut a, &mut b);
+    assert_eq!(order(&a), vec!["s3", "x-a", "x-b", "s2", "s1"]);
+}
+
+#[test]
+fn restoring_an_entity_writes_its_old_fields_back() {
+    let mut a = book(1);
+    let e = ElementId::parse("e1").unwrap();
+    let kv = |id: &str, k: &str| KvEntry {
+        id: KvEntryId::parse(id).unwrap(),
+        key: k.into(),
+        value: "v".into(),
+        pos: Some(PosKey::first()),
+    };
+    user(&mut a, |t| {
+        chapter(t, "c1", Some(5.0))?;
+        t.node(&n("c1"))?
+            .summary("旧梗概")?
+            .status(&NodeStatus::Draft)?;
+        t.element(&e)?
+            .name("旧名")?
+            .add_alias("甲")?
+            .put_fact(&kv("f1", "身高"))?;
+        Ok(())
+    });
+    let history = a.frontiers();
+    user(&mut a, |t| {
+        t.node(&n("c1"))?
+            .title("新标题")?
+            .summary("新梗概")?
+            .status(&NodeStatus::Finished)?;
+        t.element(&e)?
+            .name("新名")?
+            .remove_alias("甲")?
+            .add_alias("乙")?
+            .put_fact(&kv("f2", "年龄"))?;
+        t.element(&ElementId::parse("e2").unwrap())?
+            .name("别的要素")?;
+        Ok(())
+    });
+    let old = BookReader::load_at(bid(), &[a.export_snapshot().unwrap()], &history).unwrap();
+    let node_then = old.view().entity_snapshot(Collection::Nodes, "c1").unwrap();
+    let el_then = old
+        .view()
+        .entity_snapshot(Collection::Elements, "e1")
+        .unwrap();
+    assert!(node_then.keys().contains(&"summary".to_string()));
+    let (r, c) = a.edit(Origin::User, |t| {
+        t.restore_fields(
+            Collection::Nodes,
+            "c1",
+            &node_then,
+            metadata_fields(Collection::Nodes),
+        )?;
+        t.restore_fields(
+            Collection::Elements,
+            "e1",
+            &el_then,
+            metadata_fields(Collection::Elements),
+        )
+    });
+    r.unwrap();
+    assert!(c.is_some(), "a restore is an ordinary new commit");
+    let node = a.view().node(&n("c1")).unwrap();
+    assert_eq!(
+        (node.title.as_str(), node.summary.as_str()),
+        ("c1", "旧梗概")
+    );
+    assert_eq!(node.status, NodeStatus::Draft);
+    let el = a.view().element(&e).unwrap();
+    assert_eq!(el.name, "旧名");
+    assert_eq!(
+        el.aliases.iter().cloned().collect::<Vec<_>>(),
+        vec!["甲".to_string()]
+    );
+    assert_eq!(
+        el.facts.iter().map(|f| f.key.as_str()).collect::<Vec<_>>(),
+        vec!["身高"]
+    );
+    // The rest of the book is not reverted.
+    assert!(a.view().element(&ElementId::parse("e2").unwrap()).is_some());
+    // The built-in type cannot be restored over.
+    let rt_snap = old
+        .view()
+        .entity_snapshot(
+            Collection::RelationTypes,
+            generic_relation_type_id(&bid()).as_str(),
+        )
+        .unwrap();
+    let (r, _) = a.edit(Origin::User, |t| {
+        t.restore_fields(
+            Collection::RelationTypes,
+            generic_relation_type_id(&bid()).as_str(),
+            &rt_snap,
+            &["name"],
+        )
+    });
+    assert!(matches!(r, Err(DocError::Locked(_))));
 }

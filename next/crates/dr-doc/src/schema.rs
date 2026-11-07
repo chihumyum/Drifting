@@ -8,12 +8,13 @@
 
 use loro::{ExpandType, LoroDoc, StyleConfig, StyleConfigMap};
 
-/// `meta.v` of every document this version creates. v1 (2026-11-07) fixed
-/// the built-in relation type of v0; see `loro-schema.md` "版本".
-pub const SCHEMA_VERSION: i64 = 1;
+/// `meta.v` of every document this version creates. v1 fixed the built-in
+/// relation type of v0; v2 moved plain lists to position keys and reshaped
+/// comments and materials. See `loro-schema.md` "版本".
+pub const SCHEMA_VERSION: i64 = 2;
 
 /// Version of the genesis content; part of the genesis peer's hash.
-pub const GENESIS_VERSION: u32 = 1;
+pub const GENESIS_VERSION: u32 = 2;
 
 /// Keys every document's `meta` map has.
 pub mod meta {

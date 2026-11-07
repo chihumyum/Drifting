@@ -66,11 +66,13 @@ pub(crate) fn decode_block(a: &RawAttrs, profile: ProseProfile) -> (Option<Block
     if let Some(v) = a.get(block::LIST_LEVEL).and_then(as_i64) {
         b.list_level = v.clamp(0, u32::MAX as i64) as u32;
     }
-    b.checked = a.get(block::CHECKED).is_some_and(truthy);
     b.todo = a
         .get(block::TODO)
         .and_then(as_str)
         .and_then(|s| CommentId::parse(s).ok());
+    // A task line linked to a TODO has no state of its own: the TODO is the
+    // only truth (render `BookView::todo_done`).
+    b.checked = b.todo.is_none() && a.get(block::CHECKED).is_some_and(truthy);
     b.code_block = a
         .get(block::CODE_BLOCK)
         .and_then(as_str)
@@ -104,7 +106,7 @@ pub(crate) fn encode_block(
             block::LIST_LEVEL,
             (b.list_level > 0).then(|| LoroValue::I64(b.list_level as i64)),
         ),
-        (block::CHECKED, flag(b.checked)),
+        (block::CHECKED, flag(b.checked && b.todo.is_none())),
         (
             block::TODO,
             b.todo.as_ref().map(|t| LoroValue::from(t.as_str())),

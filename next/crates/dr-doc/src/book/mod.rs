@@ -25,7 +25,7 @@ use crate::peer::{PeerId, genesis_peer};
 use crate::prose::Trigger;
 use crate::schema::{self, GENESIS_VERSION, SCHEMA_VERSION, book};
 
-pub use read::{BookView, RepairPlan};
+pub use read::{BookView, EntitySnapshot, RepairPlan, metadata_fields};
 pub use write::BookTxn;
 
 /// Id of the built-in relation type every book has, exactly as the old client

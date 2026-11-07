@@ -60,6 +60,7 @@ const STRS: &[&str] = &[
     "", "chapter", "drift", "element", "node", "material", "library_item", "n0", "n1", "e0",
     "e1", "g0", "g1", "rt", "symmetric", "directed", "todo", "0@1", "a|2026-11-07",
     "mac|2026-02-30", "r0/c0", "\n", "\u{FFFC}", "😀", "x/y", "comment", "2", "image", "pdf",
+    "a0", "a00", "Zz", "marker", "note_task", "resolved", "converted", "copilot",
 ];
 const KEYS: &[&str] = &[
     "kind", "title", "book_order", "narrative_order", "status", "group", "storylines",
@@ -68,7 +69,9 @@ const KEYS: &[&str] = &[
     "end", "target_kind", "target", "asset", "folder", "order", "facts", "key", "value", "cells",
     "rows", "cols", "pos", "cell_w", "id", "bid", "heading", "indent", "align", "list", "embed",
     "entity:e0", "entity:", "bold", "link", "code", "highlight", "todo", "checked", "v", "doc",
-    "book",
+    "book", "pos", "region", "snapshots", "quote", "projection", "projection_block", "pin_x",
+    "pin_y", "word_target", "daily_word_target", "description", "color", "x", "y", "w", "h",
+    "page", "block", "text", "agent_conversation",
 ];
 const ROOTS: &[&str] = &[
     "meta", "nodes", "acts", "storylines", "categories", "elements", "patches", "relation_types",

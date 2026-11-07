@@ -10,9 +10,12 @@
 //! needs the rest of the book (does the element exist? is the name unique?)
 //! is the command layer's job, per the invariant checklist.
 
-use dr_model::book::{Asset, EntityRef, KvEntry, normalize_relation_type_name};
+use dr_model::book::{
+    Asset, BlockSnapshot, EntityRef, KvEntry, MaterialRegion, normalize_relation_type_name,
+};
 use dr_model::id::*;
 use dr_model::kind::*;
+use dr_model::pos::PosKey;
 use dr_model::{Day, Timestamp};
 use loro::{LoroMap, LoroTree, LoroValue, TreeParentId};
 
@@ -47,7 +50,7 @@ fn put_kv(map: &LoroMap, list: &str, e: &KvEntry) -> Result<()> {
     let m = entries.ensure_mergeable_map(e.id.as_str())?;
     m.insert("key", e.key.as_str())?;
     m.insert("value", e.value.as_str())?;
-    set(&m, "order", e.order)?;
+    set(&m, "pos", e.pos.as_ref())?;
     Ok(())
 }
 
@@ -108,6 +111,10 @@ setters!(MetaWriter {
     summary: &str => "summary",
     deleted_at: Option<Timestamp> => "deleted_at",
     created_at: Option<Timestamp> => "created_at",
+    /// The book's word target; 0 turns it off, `None` returns to the default.
+    word_target: Option<i64> => "word_target",
+    /// Words per day; 0 turns it off, `None` returns to the default.
+    daily_word_target: Option<i64> => "daily_word_target",
 });
 impl MetaWriter {
     pub fn put_storyline_template_field(&self, e: &KvEntry) -> Result<&Self> {
@@ -140,7 +147,6 @@ setters!(NodeWriter {
     primary_storyline: Option<&StorylineId> => "primary_storyline",
     deleted_at: Option<Timestamp> => "deleted_at",
     created_at: Option<Timestamp> => "created_at",
-    updated_at: Option<Timestamp> => "updated_at",
 });
 impl NodeWriter {
     pub fn add_storyline(&self, s: &StorylineId) -> Result<&Self> {
@@ -171,7 +177,7 @@ setters!(StorylineWriter {
     name: &str => "name",
     color: &str => "color",
     summary: &str => "summary",
-    order: f64 => "order",
+    pos: &PosKey => "pos",
     chapter_template: Option<&str> => "chapter_template",
     deleted_at: Option<Timestamp> => "deleted_at",
 });
@@ -222,6 +228,12 @@ setters!(ElementWriter {
     created_at: Option<Timestamp> => "created_at",
 });
 impl ElementWriter {
+    /// Pin the element in the relation graph at `(x, y)`, or unpin (`None`).
+    pub fn relate_pin(&self, pin: Option<(f64, f64)>) -> Result<&Self> {
+        set(&self.map, "pin_x", pin.map(|p| p.0))?;
+        set(&self.map, "pin_y", pin.map(|p| p.1))?;
+        Ok(self)
+    }
     /// Aliases are trimmed; an empty alias is ignored.
     pub fn add_alias(&self, alias: &str) -> Result<&Self> {
         let a = alias.trim();
@@ -256,7 +268,7 @@ setters!(PatchWriter {
     source_text: Option<&str> => "source_text",
     invalidated_at: Option<Timestamp> => "invalidated_at",
     title: Option<&str> => "title",
-    order: f64 => "order",
+    pos: &PosKey => "pos",
 });
 impl PatchWriter {
     pub fn anchor(&self, a: Option<&Anchor>) -> Result<&Self> {
@@ -280,6 +292,8 @@ setters!(RelationTypeWriter {
     target_role: &str => "target_role",
     source_kinds: &[EntityKind] => "source_kinds",
     target_kinds: &[EntityKind] => "target_kinds",
+    /// Edge colour; `None` returns to the default.
+    color: Option<&str> => "color",
 });
 impl RelationTypeWriter {
     /// Sets the name and its normalized form together.
@@ -380,11 +394,50 @@ setters!(CommentWriter {
     priority: Option<&CommentPriority> => "priority",
     source: &CommentSource => "source",
     metadata: Option<&str> => "metadata",
+    /// The selected text, as it was.
+    quote: Option<&str> => "quote",
+    /// The Agent conversation started from this TODO.
+    agent_conversation: Option<&str> => "agent_conversation",
     resolved_at: Option<Timestamp> => "resolved_at",
     created_at: Option<Timestamp> => "created_at",
     updated_at: Option<Timestamp> => "updated_at",
 });
 impl CommentWriter {
+    /// The blocks the selection spanned, as they were. Written once, when the
+    /// comment is made.
+    pub fn snapshots(&self, snaps: &[BlockSnapshot]) -> Result<&Self> {
+        let list: Vec<LoroValue> = snaps
+            .iter()
+            .map(|s| {
+                let mut m: Vec<(String, LoroValue)> = vec![("text".into(), s.text.as_str().into())];
+                if let Some(b) = &s.block {
+                    m.push(("block".into(), b.as_str().into()));
+                }
+                LoroValue::Map(m.into())
+            })
+            .collect();
+        self.map.insert("snapshots", LoroValue::List(list.into()))?;
+        Ok(self)
+    }
+    /// A region on an image or a PDF page (`None` removes it).
+    pub fn region(&self, r: Option<&MaterialRegion>) -> Result<&Self> {
+        match r {
+            Some(r) => {
+                let mut m: Vec<(String, LoroValue)> = vec![
+                    ("x".into(), r.x.into()),
+                    ("y".into(), r.y.into()),
+                    ("w".into(), r.w.into()),
+                    ("h".into(), r.h.into()),
+                ];
+                if let Some(p) = r.page {
+                    m.push(("page".into(), (p as i64).into()));
+                }
+                self.map.insert("region", LoroValue::Map(m.into()))?;
+            }
+            None => set(&self.map, "region", None::<&str>)?,
+        }
+        Ok(self)
+    }
     /// Target kind and id together (`None`: a floating comment).
     pub fn target(&self, t: Option<&EntityRef>) -> Result<&Self> {
         set_ref(&self.map, "target_kind", "target", t)?;
@@ -410,11 +463,18 @@ setters!(MaterialWriter {
     kind: &MaterialKind => "kind",
     asset: Option<&AssetId> => "asset",
     folder: Option<&MaterialFolderId> => "folder",
-    order: f64 => "order",
+    pos: &PosKey => "pos",
     task_todos: bool => "task_todos",
     provenance: Option<&str> => "provenance",
-    preview_image: Option<&str> => "preview_image",
 });
+impl MaterialWriter {
+    /// What the material is about (plain text; a minimal diff, so concurrent
+    /// edits merge).
+    pub fn description(&self, s: &str) -> Result<&Self> {
+        set_text(&self.map, "description", s)?;
+        Ok(self)
+    }
+}
 
 pub struct MemoryWriter {
     map: LoroMap,
@@ -641,6 +701,89 @@ impl<'a> BookTxn<'a> {
         })
     }
 
+    /// The TODO generated from prose: a `TODO:` marker in a chapter
+    /// (`ProjectionKind::Marker`) or a material-note task line
+    /// (`ProjectionKind::NoteTask`) in block `block` of `doc`. Its id is
+    /// [`CommentId::for_projection`], so two devices projecting the same
+    /// marker write the same entity. Sets kind, target, block and projection;
+    /// the caller sets the body.
+    pub fn projected_todo(
+        &mut self,
+        kind: &ProjectionKind,
+        doc: &dr_model::DocId,
+        block: &BlockId,
+    ) -> Result<(CommentId, CommentWriter)> {
+        let id = CommentId::for_projection(kind, doc, block);
+        let target_kind = match doc {
+            dr_model::DocId::Material(_) => EntityKind::Material,
+            dr_model::DocId::Element(_) => EntityKind::Element,
+            dr_model::DocId::Storyline(_) => EntityKind::Storyline,
+            dr_model::DocId::Category(_) => EntityKind::Category,
+            _ => EntityKind::Node,
+        };
+        let w = self.comment(&id)?;
+        w.kind(&CommentKind::Todo)?
+            .target(Some(&EntityRef::new(target_kind, doc.entity_id())))?
+            .target_block(Some(block))?;
+        set(&w.map, "projection", kind)?;
+        set(&w.map, "projection_block", block)?;
+        Ok((id, w))
+    }
+
+    /// Write back fields of an entity as they were in `old` (read from a
+    /// detached copy at a history point, `BookReader::load_at`), as new
+    /// changes: the per-entity metadata restore (old
+    /// `snapshot-restore.service.ts` `restoreMetadata`). Only `keys` are
+    /// touched; sets and key/value lists are made equal to the old ones; a
+    /// key missing in `old` is removed. The rest of the book is not reverted.
+    pub fn restore_fields(
+        &mut self,
+        collection: Collection,
+        id: &str,
+        old: &super::read::EntitySnapshot,
+        keys: &[&str],
+    ) -> Result<()> {
+        if collection.is_tree() || collection == Collection::Meta {
+            return Err(DocError::NotInProfile("restore of a tree or meta"));
+        }
+        if collection == Collection::RelationTypes {
+            self.refuse_locked(&RelationTypeId::parse(id).map_err(|_| DocError::Missing {
+                collection: book::RELATION_TYPES,
+                id: id.to_string(),
+            })?)?;
+        }
+        let map = self.entity(collection.root(), id)?;
+        for key in keys {
+            match old.value(key) {
+                None => set(&map, key, None::<&str>)?,
+                Some(LoroValue::Map(want)) => {
+                    // A set or a key/value list: make the members equal.
+                    let sub = map.ensure_mergeable_map(key)?;
+                    let have: Vec<String> = sub.keys().map(|k| k.to_string()).collect();
+                    for k in have {
+                        if !want.contains_key(&k) {
+                            sub.delete(&k)?;
+                        }
+                    }
+                    for (k, v) in want.iter() {
+                        match v {
+                            LoroValue::Map(entry) => {
+                                let e = sub.ensure_mergeable_map(k)?;
+                                for (ek, ev) in entry.iter() {
+                                    e.insert(ek, ev.clone())?;
+                                }
+                            }
+                            v => sub.insert(k, v.clone())?,
+                        }
+                    }
+                }
+                Some(LoroValue::String(s)) if old.is_text(key) => set_text(&map, key, s)?,
+                Some(v) => map.insert(key, v.clone())?,
+            }
+        }
+        Ok(())
+    }
+
     pub fn material(&mut self, id: &MaterialId) -> Result<MaterialWriter> {
         Ok(MaterialWriter {
             map: self.entity(book::MATERIALS, id.as_str())?,
@@ -681,7 +824,7 @@ impl<'a> BookTxn<'a> {
             .ensure_mergeable_map(e.id.as_str())?;
         m.insert("key", e.key.as_str())?;
         m.insert("value", e.value.as_str())?;
-        set(&m, "order", e.order)
+        set(&m, "pos", e.pos.as_ref())
     }
 
     pub fn remove_fact(&mut self, id: &KvEntryId) -> Result<()> {
