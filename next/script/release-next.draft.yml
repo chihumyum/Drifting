@@ -1,0 +1,183 @@
+# DRAFT — the GPUI client's release workflow. Not wired to anything: it lives
+# outside .github/workflows, so GitHub never runs it, and release.yml keeps
+# releasing the 0.1 Tauri client. It is the plan for F7's hand-over milestone
+# (docs/rust-rewrite/foundations/f7-platform.md, "发布流水线"); every step marked
+# TODO needs work or a decision before it moves to .github/workflows.
+#
+# Inputs it expects, all already configured for release.yml except the two
+# marked new:
+#   vars.DRIFTING_UPDATER_PUBLIC_KEY        the same minisign public key
+#   secrets.TAURI_SIGNING_PRIVATE_KEY(+_PASSWORD)  the same minisign secret key
+#   secrets.APPLE_CERTIFICATE(+_PASSWORD), KEYCHAIN_PASSWORD   Developer ID
+#   secrets.APPLE_API_ISSUER / APPLE_API_KEY / APPLE_API_PRIVATE_KEY  notarytool
+#   vars.DRIFTING_SENTRY_DSN                (new) the client project's public DSN
+#   secrets.SENTRY_AUTH_TOKEN, vars.SENTRY_ORG, vars.SENTRY_PROJECT
+#                                           (new) debug-file upload only
+name: release-next (draft)
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: v0.2.x tag to build
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: macos-26
+    defaults:
+      run:
+        working-directory: next
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master, toolchain input
+        with:
+          toolchain: 1.98.1
+          components: rustfmt, clippy
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run: cargo test --workspace --locked
+      # TODO: a `release:check` for next/: the tag equals app/drifting's version,
+      # docs/releases/<version>.md exists, the identity is RELEASE (hand-over
+      # flips `Identity::current`), and every action is pinned to a SHA.
+
+  build-macos:
+    needs: verify
+    runs-on: macos-26
+    environment: release
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: next
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+      DRIFTING_UPDATER_PUBLIC_KEY: ${{ vars.DRIFTING_UPDATER_PUBLIC_KEY }}
+      DRIFTING_SENTRY_DSN: ${{ vars.DRIFTING_SENTRY_DSN }}
+      MACOSX_DEPLOYMENT_TARGET: '13.0'
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master, toolchain input
+        with:
+          toolchain: 1.98.1
+          targets: aarch64-apple-darwin
+      # TODO: precompiled Metal shaders. The workspace turns on GPUI's
+      # `runtime_shaders` for every build; a release must build without it,
+      # which needs the Metal Toolchain (`xcodebuild -downloadComponent
+      # MetalToolchain` on the runner) and moving the feature to an app-level
+      # default the release build switches off.
+      - run: xcodebuild -downloadComponent MetalToolchain
+      # Same certificate import and notarization key as release.yml.
+      - name: Import Developer ID Application certificate
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          echo "TODO: copy release.yml's import step"
+      # TODO: `bundle-mac --release-identity`: "Drifting.app",
+      # cc.drifting.client, the `drifting` scheme. Until the hand-over the
+      # script builds the development identity only.
+      - run: script/bundle-mac --dmg --archive
+      - name: Sign with the hardened runtime, notarize and staple
+        run: |
+          echo "TODO: codesign --options runtime --timestamp --entitlements <file> -s \"$APPLE_SIGNING_IDENTITY\" the app;"
+          echo "      xcrun notarytool submit --wait; xcrun stapler staple; then rebuild the .dmg and .app.tar.gz from the stapled app;"
+          echo "      sign, notarize and staple the .dmg as release.yml does."
+      - name: Sign the update archive with the minisign key
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          archive=$(find target/bundle -maxdepth 1 -name '*.app.tar.gz' -print -quit)
+          cargo run --locked -q -p dr-platform --example update-tool -- sign "$archive"
+          cargo run --locked -q -p dr-platform --example update-tool -- verify "$archive" "$DRIFTING_UPDATER_PUBLIC_KEY"
+      - name: Upload debug symbols to Sentry
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+        run: |
+          # The release profile needs `debug = "line-tables-only"` (or full)
+          # and `split-debuginfo = "packed"` so a .dSYM exists; the shipped
+          # executable is stripped afterwards. TODO: set both in next/Cargo.toml.
+          dsymutil target/release/drifting -o "$RUNNER_TEMP/drifting.dSYM"
+          echo "TODO: sentry-cli debug-files upload --include-sources \"$RUNNER_TEMP/drifting.dSYM\""
+      - name: Write update.json
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"$/\1/p' app/drifting/Cargo.toml | head -n 1)
+          archive=$(find target/bundle -maxdepth 1 -name '*.app.tar.gz' -print -quit)
+          name="Drifting_${version}_aarch64.app.tar.gz"
+          cp "$archive" "target/bundle/$name"
+          cp "$archive.sig" "target/bundle/$name.sig"
+          cargo run --locked -q -p dr-platform --example update-tool -- manifest \
+            --version "$version" --platform darwin-aarch64 \
+            --url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${{ inputs.tag }}/$name" \
+            --signature-file "target/bundle/$name.sig" \
+            --notes-file "../docs/releases/${version}.md" \
+            --output target/bundle/update.json
+      - name: Carry the frozen latest.json forward
+        # Every 0.1 client before the last one polls releases/latest/download/
+        # latest.json. Once the last Tauri release is out, that file always
+        # offers it, so no library skips the hand-over; a new GPUI release
+        # becomes "latest", so it must carry the same file again.
+        run: |
+          echo "TODO: gh release download <last Tauri tag> -p latest.json -D target/bundle"
+      - name: Create the draft release
+        run: |
+          echo "TODO: gh release create ${{ inputs.tag }} --draft with the .dmg, .app.tar.gz(.sig), update.json, latest.json, SHA256SUMS.txt"
+
+  build-windows:
+    needs: verify
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-latest
+            target: x86_64-pc-windows-msvc
+            platform: windows-x86_64
+          - runner: windows-11-arm
+            target: aarch64-pc-windows-msvc
+            platform: windows-aarch64
+    runs-on: ${{ matrix.runner }}
+    environment: release
+    defaults:
+      run:
+        working-directory: next
+    env:
+      DRIFTING_UPDATER_PUBLIC_KEY: ${{ vars.DRIFTING_UPDATER_PUBLIC_KEY }}
+      DRIFTING_SENTRY_DSN: ${{ vars.DRIFTING_SENTRY_DSN }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master, toolchain input
+        with:
+          toolchain: 1.98.1
+          targets: ${{ matrix.target }}
+      - shell: pwsh
+        run: |
+          # TODO: the release identity (/DPRODUCT_NAME=Drifting /DBUNDLE_ID=cc.drifting.client
+          # /DURL_SCHEME=drifting) once bundle-windows.ps1 takes it at the hand-over.
+          script/bundle-windows.ps1 -Target ${{ matrix.target }}
+      # Unsigned during the alpha (D10); Authenticode goes here when decided.
+      - name: Sign the installer with the minisign key
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          installer=$(find target/bundle -maxdepth 1 -name '*-setup.exe' -print -quit)
+          cargo run --locked -q -p dr-platform --example update-tool -- sign "$installer"
+      - name: Upload PDBs to Sentry
+        shell: bash
+        run: |
+          echo "TODO: sentry-cli debug-files upload target/${{ matrix.target }}/release/drifting.pdb"
+      - name: Install and launch on the runner
+        shell: pwsh
+        run: |
+          echo "TODO: as release.yml's build-windows, install silently, start it, still running after 20 s"
+      # TODO: merge into update.json with `update-tool manifest --merge` and
+      # upload to the draft, as release.yml's release-windows job does.

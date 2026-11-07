@@ -53,6 +53,9 @@ Guidance for coding agents working in this standalone Drifting client repository
   in `[workspace.dependencies]`, pinned at least to a minor version. One
   workspace member per line, sorted. Keep `[patch.crates-io]` in step with the
   Zed tag. See `next/README.md`.
+- The Agent runtime in `next/` has one in-process driver only. The
+  `local`/`sidecar`/`remote` seam rule under "Data and editing invariants"
+  applies to the 0.1 client alone (author decision, 2026-11-07).
 - Development builds carry the bundle id `cc.drifting.next.dev`. Do not give a
   `next/` build the release client's identity before F7's hand-over.
 - Zed's `editor`, `text`, `rope`, `ui` and `theme` crates are GPL-3.0; do not

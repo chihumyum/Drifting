@@ -1,32 +1,40 @@
 #!/usr/bin/env bash
-# Builds "Drifting Next.app", an unsigned macOS bundle for local testing.
+# Builds "Drifting Next.app", an unsigned macOS bundle for local testing,
+# and optionally the two files a release ships for it.
 #
-#   script/bundle-mac [--debug] [--open] [--output <dir>]
+#   script/bundle-mac [--debug] [--open] [--dmg] [--archive] [--output <dir>]
 #
 #   --debug    bundle the dev profile instead of release
 #   --open     open the bundle when it is built
-#   --output   where the .app goes (default: next/target/bundle)
+#   --dmg      also make <name>_<version>_macos_<arch>.dmg (first installs)
+#   --archive  also make <name>_<version>_<arch>.app.tar.gz (the updater's
+#              artifact; sign it with `cargo run -p dr-platform --example
+#              update-tool -- sign`)
+#   --output   where the files go (default: next/target/bundle)
 #
 # It carries the development identity below, never the release client's, so
 # it runs beside an installed Drifting without sharing its Launch Services
-# entry, keychain items, updater or data. Adopting the release identity,
-# Developer ID signing, notarization and the DMG are F7's job.
+# entry, `drifting:` links, keychain items, updater or data. The release
+# identity, Developer ID signing and notarization belong to the hand-over
+# (docs/rust-rewrite/foundations/f7-platform.md); this script does none of it.
 #
 # "Unsigned" means no Developer ID: the bundle is sealed with an ad-hoc
 # signature, which Apple silicon needs before a modified executable may run.
 # A copy downloaded from elsewhere is quarantined and Gatekeeper refuses it;
 # a bundle built on this Mac opens with a double click.
 #
-# TODO(F7): precompile the Metal shaders for release bundles. The workspace
-# builds GPUI with `runtime_shaders`, which compiles them at every launch,
-# because Xcode no longer ships the Metal Toolchain by default
-# (`xcodebuild -downloadComponent MetalToolchain`; ask the author before
-# installing it). A release bundle should drop that feature.
+# Before a public release: precompile the Metal shaders. The workspace builds
+# GPUI with `runtime_shaders`, which compiles them at every window's first
+# frame, because Xcode no longer ships the Metal Toolchain by default
+# (`xcodebuild -downloadComponent MetalToolchain`; the author installs it).
+# A release bundle drops that feature; see the F7 doc's release checklist.
 set -euo pipefail
 
 APP_NAME="Drifting Next"
 BUNDLE_ID="cc.drifting.next.dev"
 EXECUTABLE="drifting"
+# Never `drifting`: that scheme belongs to the installed release client.
+URL_SCHEME="drifting-next-dev"
 MINIMUM_SYSTEM_VERSION="13.0"
 
 die() {
@@ -39,18 +47,22 @@ repo_dir=$(cd "$next_dir/.." && pwd)
 
 profile=release
 open_after=0
+make_dmg=0
+make_archive=0
 output="$next_dir/target/bundle"
 while (($#)); do
   case "$1" in
     --debug) profile=debug ;;
     --open) open_after=1 ;;
+    --dmg) make_dmg=1 ;;
+    --archive) make_archive=1 ;;
     --output)
       [[ $# -ge 2 ]] || die "--output needs a directory"
       output=$2
       shift
       ;;
     -h | --help)
-      sed -n '2,10p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+      sed -n '2,13p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
       exit 0
       ;;
     *) die "unknown option $1 (see --help)" ;;
@@ -73,7 +85,10 @@ build_number=$(git -C "$repo_dir" rev-list --count HEAD 2>/dev/null || echo 1)
 cargo_args=(build --locked -p drifting)
 [[ $profile == release ]] && cargo_args+=(--release)
 echo "bundle-mac: cargo ${cargo_args[*]}"
-(cd "$next_dir" && DRIFTING_BUILD_COMMIT=$commit cargo "${cargo_args[@]}")
+# The executable's minimum macOS matches LSMinimumSystemVersion (Rust's
+# default would be 11.0).
+(cd "$next_dir" && DRIFTING_BUILD_COMMIT=$commit MACOSX_DEPLOYMENT_TARGET=$MINIMUM_SYSTEM_VERSION \
+  cargo "${cargo_args[@]}")
 binary="$next_dir/target/$profile/$EXECUTABLE"
 [[ -x $binary ]] || die "cargo did not produce $binary"
 
@@ -124,6 +139,13 @@ cat >"$contents/Info.plist" <<PLIST
   <key>CFBundleName</key><string>$APP_NAME</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>$short_version</string>
+  <key>CFBundleURLTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleURLName</key><string>$BUNDLE_ID $URL_SCHEME</string>
+      <key>CFBundleURLSchemes</key><array><string>$URL_SCHEME</string></array>
+    </dict>
+  </array>
   <key>CFBundleVersion</key><string>$build_number</string>
   <key>DriftingBuildCommit</key><string>$commit</string>
   <key>LSApplicationCategoryType</key><string>public.app-category.productivity</string>
@@ -144,6 +166,36 @@ binary_kb=$(du -sk "$contents/MacOS/$EXECUTABLE" | cut -f 1)
 echo "bundle-mac: $app"
 echo "bundle-mac: $APP_NAME $version ($commit), $BUNDLE_ID, $profile"
 echo "bundle-mac: bundle ${size_kb} KiB, executable ${binary_kb} KiB"
+
+# The disk image follows the released files' naming (`macos_arm64`); the
+# update archive uses the updater's target name (`aarch64`).
+arch=$(uname -m)
+[[ $arch == arm64 ]] && arch_name=aarch64 || arch_name=$arch
+
+if ((make_archive)); then
+  # The updater's artifact: one top-level .app folder, no AppleDouble or
+  # extended attributes (Tauri's updater and ours both drop the folder name
+  # and unpack its contents over the installed bundle).
+  archive="$output/${APP_NAME// /_}_${version}_${arch_name}.app.tar.gz"
+  rm -f "$archive"
+  COPYFILE_DISABLE=1 tar --no-mac-metadata --no-xattrs --no-acls \
+    -C "$output" -czf "$archive" "$APP_NAME.app"
+  echo "bundle-mac: updater archive $archive ($(du -k "$archive" | cut -f 1) KiB)"
+fi
+
+if ((make_dmg)); then
+  # A plain, unsigned disk image: the app and a link to /Applications.
+  dmg="$output/${APP_NAME// /_}_${version}_macos_${arch}.dmg"
+  staging=$(mktemp -d)
+  trap 'rm -rf "${icon_build:-}" "$staging"' EXIT
+  ditto "$app" "$staging/$APP_NAME.app"
+  ln -s /Applications "$staging/Applications"
+  rm -f "$dmg"
+  hdiutil create -quiet -volname "$APP_NAME" -srcfolder "$staging" \
+    -fs HFS+ -format UDZO -imagekey zlib-level=9 -ov "$dmg"
+  hdiutil verify -quiet "$dmg"
+  echo "bundle-mac: disk image $dmg ($(du -k "$dmg" | cut -f 1) KiB)"
+fi
 
 if ((open_after)); then
   open "$app"

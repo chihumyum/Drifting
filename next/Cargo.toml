@@ -6,6 +6,10 @@ resolver = "3"
 # One member per line, kept sorted, so parallel branches merge cleanly.
 members = [
     "app/drifting",
+    "crates/dr-doc",
+    "crates/dr-model",
+    "crates/dr-platform",
+    "crates/dr-store",
     "crates/gpui-prose",
     "spikes/import-v1",
     "spikes/loro-model",
@@ -39,6 +43,14 @@ anyhow = "1"
 icu_segmenter = { version = "2.4", default-features = false, features = ["compiled_data"] }
 log = "0.4"
 
+# F1 data crates. Workspace members are listed here so dependants write
+# `dr-model.workspace = true`.
+dr-doc = { path = "crates/dr-doc" }
+dr-model = { path = "crates/dr-model" }
+# uuidv7 for new domain ids (the old data uses uuidv7 too); v4 for F7's
+# installation and crash ids. The version the lockfile already carries for GPUI.
+uuid = { version = "1.29", default-features = false, features = ["std", "v4", "v7"] }
+
 # AppKit calls GPUI does not wrap, such as the app's own appearance. The same
 # versions GPUI's macOS backend already builds, so they add nothing new.
 objc2 = "0.6"
@@ -51,6 +63,16 @@ rusqlite = { version = "0.41", features = ["bundled"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sha2 = "0.10"
+# dr-store: typed errors, temporary directories in tests, OS randomness for
+# peer and installation ids, and text ZIPs (zip pinned exactly as in the 0.1
+# client, which audited this version).
+getrandom = "0.4"
+tempfile = "3.27"
+thiserror = "2.0"
+zip = { version = "=9.4.1", default-features = false, features = ["deflate-flate2"] }
+# zip's deflate-flate2 needs a flate2 backend; the 0.1 client ends up on the
+# pure-Rust one (miniz_oxide), so dr-store selects it explicitly.
+flate2 = { version = "1.1", default-features = false, features = ["rust_backend"] }
 
 # Spike P0-D (visual): bitmaps for covers, heat maps and baked glass, and
 # the PNG masks of the existing sand and glass assets. `image` must stay on
@@ -63,6 +85,45 @@ tiny-skia = "0.11.4"
 # Spike P0-B shell (process metrics, AppKit event posting).
 libc = "0.2.191"
 raw-window-handle = "0.6.2"
+
+# F7 dr-platform: logs, crash reports, keychain, deep links and single
+# instance, the updater. docs/rust-rewrite/foundations/f7-platform.md.
+dr-platform = { path = "crates/dr-platform" }
+dirs = "6.0"
+# Development only: proves the legacy Tauri layout (keyring 3.6, as the 0.1
+# client) reads back, and signs updater test artifacts with a throwaway key.
+keyring = { version = "3.6", default-features = false, features = ["apple-native", "windows-native"] }
+minisign = "0.10"
+minisign-verify = "0.3"
+objc2-core-foundation = { version = "0.3", default-features = false, features = ["std", "CFBase", "CFData", "CFDictionary", "CFNumber", "CFString"] }
+objc2-security = { version = "0.3", default-features = false, features = ["std", "SecBase", "SecItem"] }
+# reqwest 0.13 is the HTTP client Sentry's transport already brings; the
+# updater uses the same blocking client. TLS is rustls with ring, as the 0.1
+# client (it builds on the Windows ARM runner; aws-lc is not proven there).
+reqwest = { version = "0.13", default-features = false, features = ["blocking", "rustls-no-provider"] }
+rustls = { version = "0.23", default-features = false, features = ["logging", "ring", "std", "tls12"] }
+semver = "1.0"
+# Without `reqwest` and `rustls-no-provider` (dr-platform's `network` feature
+# adds them) a client builds but sends nothing.
+sentry = { version = "0.49", default-features = false, features = ["backtrace", "contexts", "debug-images", "minidump"] }
+tar = "0.4"
+tracing = "0.1"
+tracing-appender = "0.2"
+tracing-log = "0.2"
+tracing-subscriber = { version = "0.3", default-features = false, features = ["ansi", "fmt", "registry", "std"] }
+# The version GPUI's Windows backend builds; the features add Win32 modules,
+# not crates.
+windows = { version = "0.62", features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_Security_Credentials",
+    "Win32_Storage_FileSystem",
+    "Win32_System_IO",
+    "Win32_System_Pipes",
+    "Win32_System_RemoteDesktop",
+    "Win32_System_Threading",
+    "Win32_UI_WindowsAndMessaging",
+] }
 
 # Zed patches these crates.io crates in its own workspace; a git dependency
 # does not inherit [patch], so GPUI's consumers repeat the ones it needs.

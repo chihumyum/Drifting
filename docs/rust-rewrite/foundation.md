@@ -118,6 +118,8 @@
 
 **大小**：L。适合亲手写。
 
+第一轮已实现（2026-11-07）：接口、不变量清单、测试结果和待协调的事见 [foundations/f1-model-doc.md](foundations/f1-model-doc.md)；文档结构实现时改成了 [loro-schema.md](loro-schema.md) v1。
+
 #### dr-model
 
 - 领域类型和 ID。沿用旧数据的 uuidv7。
@@ -126,7 +128,7 @@
   - 读取时容错，比如关系指向的要素已删除，就不显示；
   - 后台修复。
 
-结构以 [loro-schema.md](loro-schema.md) v0 为准（P0-C 定下），下面是摘要。
+结构以 [loro-schema.md](loro-schema.md) 为准（P0-C 定下 v0，F1 实现时改成 v1），下面是摘要。
 
 #### dr-doc 的书目文档（每本书一个）
 
@@ -174,6 +176,8 @@
 
 **大小**：L
 
+实现、接口和里程碑状态见 [foundations/f2-store.md](foundations/f2-store.md)。
+
 #### 数据库基线与迁移
 
 新版有自己的 SQLite 基线：`next/crates/dr-store/migrations/0000_*.sql`。迁移沿用现有的做法，复用 `crates/drifting-core/src/database.rs` 的这部分：
@@ -209,7 +213,8 @@
 
 #### 可以复用的
 
-- `crates/drifting-core`：`asset_store.rs`、`library_backup.rs`（`VACUUM INTO` 加资源文件）、`file_io.rs`、`archive.rs`；
+- `crates/drifting-core`：`database.rs` 的影子库迁移、恢复回执和安全快照那一段，`library_backup.rs`（`VACUUM INTO` 加资源文件）、`file_io.rs`、`archive.rs`；
+- 资源存储以 `src-tauri/src/native_capabilities.rs` 那一份为准（三种版本、导入标记、Windows 落盘删除），不是 `drifting-core/asset_store.rs`；
 - `src-tauri`：`image_pipeline.rs` 和各平台的图片解码器，`library_registry.rs`（本机库和每账号一库的规则）。
 
 ### F3 dr-workspace
@@ -248,8 +253,8 @@
 
 #### 可以参考的
 
-- `crates/drifting-core/src/workspace/*`：约 1 万行领域增删改查的规则。
-- 旧 TS 的用例层：`src/renderer/usecase`，约 8.8k 行。
+- 旧 TS 的用例层 `src/renderer/usecase`（约 8.8k 行）、同步内核 `src/renderer/sync/reducer/production-domain-kernel.ts` 和 `sync/journal/domain-mutation.ts`、帮手写策略 `src/renderer/lib/agent/runtime/drifting-*-write-strategy.ts`。界面和帮手对同一操作的语义已经分叉，统一以界面为准，见 [simplifications.md](simplifications.md)。
+- `crates/drifting-core/src/workspace/*` **不当参考**：它是已退役 Apple 前端的后端，Tauri 从没调用，也落后于素材夹和写作日。
 
 ### F4 编辑引擎（gpui-prose 与 dr-editor）
 
@@ -382,9 +387,11 @@
 
 **大小**：M–L
 
+做法、接口和交接设计见 [foundations/f7-platform.md](foundations/f7-platform.md)。
+
 #### 钥匙串
 
-- 用 GPUI 自带的凭据接口。
+- **不用 GPUI 自带的凭据接口**：它在 macOS 存 internet password、在 Windows 给条目名加 `zed:url=` 前缀且超过 2560 字节直接报错，读不到旧版条目，也存不下 OAuth 令牌。沿用旧版的存法和 `secure_storage/chunked.rs` 的分片格式，键名不变（见 [simplifications.md](simplifications.md) 第 14 条）。F7 直接调系统接口、按 keyring 3.6 的格式读写，keyring 只在测试里扮演旧版，见 [f7-platform.md](foundations/f7-platform.md#钥匙串)。
 - Windows 上单条凭据最多 2560 字节，大令牌要拆开存。
 - 要能读到旧版用 keyring 写的条目，保证升级后不丢登录和 API Key。
 
@@ -423,10 +430,17 @@
 
 - 把种子生成器移到 Rust，确定性生成。现在它们在 TS 里：`src/renderer/services/sample-project`、`src/dev-cli/seeds`。
 - 要移的有：内置样书，以及合成的轻量种子和重型种子。
+- 只留一个生成器 `dr-testkit::seed`，预设 tiny / lite / heavy / showcase 加两本样书；探针里的两套（`loro-model` 的 seed、`prose-spike` 的 synth）并进来，随机数和语料指纹只用一种。
+
+#### 隔离与崩溃
+
+- 按 worktree / profile 隔离开发实例：数据库、应用身份、端口、单实例锁各自分开（旧版是 `scripts/run-worktree-dev.mjs`）。
+- 一个崩溃试验台：随机时刻 SIGKILL、重开、和确定性重放比对（P0-C 的做法），代替旧版的 6 套。
+- 证据统一走 `dr-testkit::evidence` 和 `cargo xtask evidence --check`，做法见 [simplifications.md 第五节](simplifications.md#五更轻的验收证据新工作区适用)。
 
 #### 命令行
 
-- 子命令：`drifting workspace call | describe | inspect | scenario`，直接调用 F3 的命令注册表。
+- 子命令：`drifting workspace call | describe | inspect | scenario`，直接调用 F3 的命令注册表。旧版的 `db:inspect` 和无界面的帮手调试也并进这一个命令行。
 - 离线改库的安全规则照旧：应用必须关着；先备份；加 `--yes` 才执行。
 
 #### 界面自动化

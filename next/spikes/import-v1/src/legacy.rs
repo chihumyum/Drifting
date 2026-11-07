@@ -12,9 +12,25 @@ use serde_json::Value;
 /// Migrations a library must have to be read by this mapping (0000–0018).
 pub const SUPPORTED_MIGRATIONS: usize = 19;
 
-/// Key the last 0.1.x release would write into `library_state` (see the spike
-/// conclusion): `{ "documents": { "<docId>": <yjs revision> }, … }`.
+/// Key the 0.1.x handoff writes into `library_state` (docs/v2-handoff.md):
+/// `{ "version": 1, "documents": { "<docId>": { "revision", "sha256" } }, "settings", … }`.
 pub const HANDOFF_KEY: &str = "v2-handoff";
+
+/// One stamped document: the Yjs revision its cache was verified at, and the
+/// SHA-256 (lower-case hex) of that cache's UTF-8 bytes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HandoffEntry {
+    pub revision: i64,
+    pub sha256: String,
+}
+
+pub fn sha256_hex(text: &str) -> String {
+    use sha2::{Digest, Sha256};
+    Sha256::digest(text.as_bytes())
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
+}
 
 pub struct Library {
     pub conn: Connection,
@@ -69,7 +85,7 @@ impl Library {
         Ok(rows.collect::<Result<_, _>>()?)
     }
 
-    pub fn handoff(&self) -> Result<Option<HashMap<String, i64>>> {
+    pub fn handoff(&self) -> Result<Option<HashMap<String, HandoffEntry>>> {
         let value: Option<String> = self
             .conn
             .query_row(
@@ -80,6 +96,9 @@ impl Library {
             .optional()?;
         let Some(value) = value else { return Ok(None) };
         let parsed: Value = serde_json::from_str(&value)?;
+        if parsed.get("version").and_then(Value::as_i64) != Some(1) {
+            return Ok(None);
+        }
         let documents = parsed
             .get("documents")
             .and_then(Value::as_object)
@@ -88,7 +107,11 @@ impl Library {
         Ok(Some(
             documents
                 .into_iter()
-                .filter_map(|(k, v)| v.as_i64().map(|r| (k, r)))
+                .filter_map(|(k, v)| {
+                    let revision = v.get("revision")?.as_i64()?;
+                    let sha256 = v.get("sha256")?.as_str()?.to_string();
+                    Some((k, HandoffEntry { revision, sha256 }))
+                })
                 .collect(),
         ))
     }
@@ -165,8 +188,11 @@ pub enum Freshness {
     /// Chapter or idea whose word-count basis was derived at the current revision,
     /// in the same transaction as the cache.
     NodeBasisCurrent,
-    /// The last 0.1.x release refreshed the cache at this revision.
+    /// The 0.1.x handoff verified the cache at the current revision, and the
+    /// cache still has the hash it stamped.
     Handoff,
+    /// The handoff stamped this revision, but the cache's hash no longer matches.
+    HandoffMismatch,
     /// Proven stale: the chapter's basis revision is behind its Yjs revision.
     NodeBasisBehind,
     /// Changed after creation and nothing records which revision the cache shows.
@@ -252,14 +278,23 @@ pub fn prose_owners(library: &Library) -> Result<(Vec<ProseOwner>, OrphanDocs)> 
             let update_count = updates.get(&doc_id).copied().unwrap_or(0);
             let snapshot = snapshots.contains(&doc_id);
             let revision = revisions.get(&doc_id).copied();
-            let freshness = if update_count == 0 && !snapshot {
-                Freshness::SeedOnly
-            } else if handoff
+            let stamped = handoff
                 .as_ref()
                 .and_then(|h| h.get(&doc_id))
-                .is_some_and(|r| Some(*r) == revision)
-            {
-                Freshness::Handoff
+                .filter(|entry| Some(entry.revision) == revision);
+            let freshness = if update_count == 0 && !snapshot {
+                Freshness::SeedOnly
+            } else if let Some(entry) = stamped {
+                // The handoff verified this very revision. A different hash means the
+                // cache changed afterwards without a Yjs change: trust nothing weaker.
+                if cached
+                    .as_deref()
+                    .is_some_and(|c| sha256_hex(c) == entry.sha256)
+                {
+                    Freshness::Handoff
+                } else {
+                    Freshness::HandoffMismatch
+                }
             } else if kind == ProseKind::NodeContent
                 && basis_kind.as_deref() == Some("yjs")
                 && basis_revision.is_some()
@@ -509,4 +544,19 @@ pub fn read_truth(path: &Path) -> Result<BTreeMap<String, Value>> {
         out.insert(id, value.get("prose").cloned().unwrap_or(Value::Null));
     }
     Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::sha256_hex;
+
+    #[test]
+    fn handoff_hash_is_lower_case_hex_of_utf8() {
+        assert_eq!(
+            sha256_hex("abc"),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
+        // Same bytes the renderer hashes with TextEncoder.
+        assert_eq!(sha256_hex("阿Q").len(), 64);
+    }
 }
