@@ -399,7 +399,6 @@ impl PageText {
     }
 }
 
-/// The shell's target for F3's.
 /// The shell's target as F3 names it (for the view modules).
 pub fn nav_target(t: &Target) -> NavTarget {
     match t {
@@ -413,6 +412,7 @@ pub fn nav_target(t: &Target) -> NavTarget {
     }
 }
 
+/// F3's target as the shell names it.
 pub fn target(t: NavTarget) -> Target {
     match t {
         NavTarget::Book => Target::Book,

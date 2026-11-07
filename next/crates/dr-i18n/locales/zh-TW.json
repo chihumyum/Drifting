@@ -72,6 +72,13 @@
       "title": "Drifting 上次執行時發生問題"
     }
   },
+  "findPanel": {
+    "bookPlaceholder": "搜尋全書…",
+    "closeTitle": "關閉（Esc）",
+    "currentPlaceholder": "在目前編輯器中尋找…",
+    "nextTitle": "下一個（Enter）",
+    "previousTitle": "上一個（Shift+Enter）"
+  },
   "globalSearch": {
     "closeTitle": "關閉（Esc）",
     "field": {

@@ -1,35 +1,50 @@
-//! The editors on the paper (`dr-editor`, F4e).
+//! The editors on the paper (`dr-editor`, F4e and M05).
 //!
 //! Every open tab whose page is a prose document (a chapter, an idea, an
 //! element, a storyline, a category, a material) gets its own
-//! [`ChapterEditor`] the first time its page is shown, and keeps it while the
-//! tab stays open: switching back finds the caret, the scroll and the undo
-//! steps where they were, and the page turn (180 ms) can draw the old page
-//! and the new one at once. The whole book stays the read-only page of F6's
-//! second milestone.
+//! [`ChapterEditor`] the first time its page is shown; the whole book's tab
+//! gets a [`BookEditor`] (every chapter in one scroll, each edited in its
+//! own document). A tab keeps its editor while it stays open: switching back
+//! finds the caret, the scroll and the undo steps where they were, and the
+//! page turn (180 ms) can draw the old page and the new one at once.
 //!
 //! Opening runs in two halves. On a background thread F3 opens the
-//! document's editing session (reading it from SQLite when it is not open
-//! yet, the slow part); back on the main thread the editor view is built on
-//! the document that is now open, which takes well under a millisecond.
-//! Typing goes through the session: every keystroke is persisted, indexed for
-//! search and word counts and announced on F3's bus like a command's write.
+//! documents' editing sessions (reading them from SQLite when they are not
+//! open yet, the slow part); back on the main thread the editor view is
+//! built on the documents that are now open. Typing goes through the
+//! sessions: every keystroke is persisted, indexed for search and word
+//! counts and announced on F3's bus like a command's write.
 //!
-//! Settings and the theme reach every open editor when they change
-//! ([`Workspace::style_editors`]); the edit menu's commands (`edit::Undo`,
-//! `edit::Copy` …), which a binding without a context would otherwise take
-//! from the editor, are handed on to it ([`forward_edit_actions`]).
+//! What the shell keeps in step for every open editor:
+//! - settings and the theme ([`Workspace::style_editors`]): sizes, colours,
+//!   the block style (quotes, rules) and reduced motion;
+//! - the keyboard: the focused page's editor has it unless something over
+//!   the workspace or in a sidebar does; immersive writing fades every
+//!   paragraph but the caret's in that editor only;
+//! - M07's live word counts: the open documents' counts and the
+//!   selection's, reported to `LiveWords` as the author types;
+//! - the whole book's reading position, stored with the book's layout;
+//! - the edit menu's commands (`edit::Undo`, `edit::Copy` …), which a
+//!   binding without a context would otherwise take from the editor
+//!   ([`forward_edit_actions`]).
 
+use std::collections::{HashMap, HashSet};
 use std::time::Instant;
 
-pub use dr_editor::{ChapterEditor, ChapterEditorEvent, EditorSettings};
+pub use dr_editor::{
+    BookEditor, BookEditorEvent, ChapterEditor, ChapterEditorEvent, EditorSettings, ReadingPosition,
+};
+use dr_text::TextMetrics;
 use dr_ui::{Theme, fonts::Role, tokens::motion};
+use dr_view_stats::LiveWords;
 use dr_workspace::ProseSession;
 use gpui::{
-    App, AppContext as _, Context, Entity, Focusable as _, InteractiveElement as _, Subscription,
-    Task, Window, px,
+    AnyView, App, AppContext as _, Context, Entity, Focusable as _, InteractiveElement as _,
+    SharedString, Subscription, Task, Window, px,
 };
-use gpui_prose::ProseStyle;
+use gpui_prose::render::BlockStyle;
+use gpui_prose::{EditorEvent, ProseEditor, ProseStyle};
+use serde::{Deserialize, Serialize};
 
 use super::Workspace;
 use crate::Settings;
@@ -42,26 +57,156 @@ pub const PAGE_GUTTER: f32 = 64.0;
 /// The 0.1 client's page title (`.page__title`: 42 px).
 pub const TITLE_SIZE: f32 = 42.0;
 
+/// A page's editor: one prose document, or the whole book.
+#[derive(Clone)]
+pub enum PageView {
+    Doc(Entity<ChapterEditor>),
+    Book(Entity<BookEditor>),
+}
+
+impl PageView {
+    /// The gpui-prose editor inside.
+    pub fn prose(&self, cx: &App) -> Entity<ProseEditor> {
+        match self {
+            PageView::Doc(e) => e.read(cx).editor().clone(),
+            PageView::Book(e) => e.read(cx).editor().clone(),
+        }
+    }
+
+    pub fn view(&self) -> AnyView {
+        match self {
+            PageView::Doc(e) => e.clone().into(),
+            PageView::Book(e) => e.clone().into(),
+        }
+    }
+
+    fn restyle(&self, base: Option<&ProseStyle>, settings: Option<&EditorSettings>, cx: &mut App) {
+        match self {
+            PageView::Doc(e) => e.update(cx, |e, cx| {
+                if let Some(base) = base {
+                    e.set_base_style(base.clone(), cx);
+                }
+                if let Some(settings) = settings {
+                    e.set_settings(settings.clone(), cx);
+                }
+            }),
+            PageView::Book(e) => e.update(cx, |e, cx| {
+                if let Some(base) = base {
+                    e.set_base_style(base.clone(), cx);
+                }
+                if let Some(settings) = settings {
+                    e.set_settings(settings.clone(), cx);
+                }
+            }),
+        }
+    }
+}
+
 /// One tab's editor.
 pub struct PageEditor {
-    /// The prose document (`node:<id>`, `element:<id>` …).
-    pub doc: String,
-    /// `None` while the document is being opened, or when it could not be.
-    pub editor: Option<Entity<ChapterEditor>>,
+    /// The prose document (`node:<id>`, `element:<id>` …); `None` for the
+    /// whole book.
+    pub doc: Option<String>,
+    /// `None` while the documents are being opened, or when they could not
+    /// be.
+    pub view: Option<PageView>,
     /// Being opened; since when.
     pub loading: Option<Instant>,
     /// It could not be opened (logged). Tried again when the tab reopens.
     pub failed: bool,
+    /// Live word counts, per document the editor holds.
+    tallies: HashMap<String, Tally>,
     _prepare: Option<Task<()>>,
     _timer: Option<Task<()>>,
-    _events: Option<Subscription>,
+    _events: Vec<Subscription>,
 }
 
 impl PageEditor {
+    fn opening(doc: Option<String>, prepare: Task<()>, timer: Task<()>) -> PageEditor {
+        PageEditor {
+            doc,
+            view: None,
+            loading: Some(Instant::now()),
+            failed: false,
+            tallies: HashMap::new(),
+            _prepare: Some(prepare),
+            _timer: Some(timer),
+            _events: Vec::new(),
+        }
+    }
+
     /// The page is taking long to open: its pill drifts (`Pill::loading`).
     pub fn slow(&self) -> bool {
         self.loading
             .is_some_and(|since| since.elapsed() >= motion::dwell::LOADING_DELAY)
+    }
+
+    /// The documents this editor holds.
+    fn docs(&self, cx: &App) -> Vec<String> {
+        match &self.view {
+            Some(PageView::Doc(e)) => vec![e.read(cx).doc_id().to_owned()],
+            Some(PageView::Book(b)) => b.read(cx).chapter_docs().map(str::to_owned).collect(),
+            None => Vec::new(),
+        }
+    }
+}
+
+/// One document's word count, per paragraph; only the paragraphs whose text
+/// changed are counted again.
+#[derive(Default)]
+struct Tally {
+    lines: Vec<(SharedString, TextMetrics)>,
+}
+
+impl Tally {
+    fn update(&mut self, doc: &gpui_prose::ProseDoc) -> TextMetrics {
+        let lines = &doc.lines()[..doc.visible_lines()];
+        let mut total = TextMetrics::default();
+        let mut next = Vec::with_capacity(lines.len());
+        for (i, line) in lines.iter().enumerate() {
+            let metrics = match self.lines.get(i) {
+                Some((text, m)) if *text == line.text => *m,
+                _ => dr_text::paragraph_metrics(line.text.trim_end_matches('\n')),
+            };
+            total += metrics;
+            next.push((line.text.clone(), metrics));
+        }
+        self.lines = next;
+        total
+    }
+}
+
+/// The whole book's reading position as the layout stores it.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct SavedPosition {
+    pub doc: String,
+    #[serde(default)]
+    pub block: Option<String>,
+    #[serde(default)]
+    pub paragraph: usize,
+    #[serde(default)]
+    pub offset: f32,
+}
+
+impl From<ReadingPosition> for SavedPosition {
+    fn from(p: ReadingPosition) -> SavedPosition {
+        SavedPosition {
+            doc: p.doc,
+            block: p.block,
+            paragraph: p.paragraph,
+            offset: p.offset,
+        }
+    }
+}
+
+impl From<&SavedPosition> for ReadingPosition {
+    fn from(p: &SavedPosition) -> ReadingPosition {
+        ReadingPosition {
+            doc: p.doc.clone(),
+            block: p.block.clone(),
+            paragraph: p.paragraph,
+            offset: p.offset,
+        }
     }
 }
 
@@ -95,8 +240,19 @@ pub fn base_style(theme: &Theme) -> ProseStyle {
     }
 }
 
+/// Quotes, indents and rules in the theme's inks.
+pub fn block_style(theme: &Theme) -> BlockStyle {
+    let p = theme.palette;
+    BlockStyle {
+        quote_wash: Some(p.ink(1).alpha(if p.dark { 0.06 } else { 0.04 })),
+        quote_ink: Some(p.ink(2).solid()),
+        rule: p.rule_strong.solid(),
+        ..BlockStyle::default()
+    }
+}
+
 impl Workspace {
-    /// Starts opening `target`'s editor (its document's session first, off
+    /// Starts opening `target`'s editor (its documents' sessions first, off
     /// the main thread).
     pub(super) fn prepare_editor(
         &mut self,
@@ -107,21 +263,31 @@ impl Workspace {
         let Some(lib) = self.library.clone() else {
             return;
         };
-        let Some(doc) = book::doc_of(target) else {
-            return;
+        let doc = book::doc_of(target);
+        let docs: Vec<String> = match &doc {
+            Some(doc) => vec![doc.clone()],
+            None => self
+                .book
+                .chapters
+                .iter()
+                .map(|c| format!("node:{}", c.id))
+                .collect(),
         };
         let key = target.key();
-        let read = doc.clone();
         let prepared = key.clone();
         let prepare = cx.spawn_in(window, async move |this, cx| {
             let started = Instant::now();
-            let session = cx
+            let sessions = cx
                 .background_executor()
-                .spawn(async move { lib.prose_session(&read) })
+                .spawn(async move {
+                    docs.iter()
+                        .map(|d| lib.prose_session(d))
+                        .collect::<dr_workspace::Result<Vec<ProseSession>>>()
+                })
                 .await;
             let ms = started.elapsed().as_secs_f64() * 1e3;
             this.update_in(cx, |ws, window, cx| {
-                ws.editor_prepared(&prepared, session, ms, window, cx)
+                ws.editor_prepared(&prepared, sessions, ms, window, cx)
             })
             .ok();
         });
@@ -132,24 +298,14 @@ impl Workspace {
                 .await;
             this.update(cx, |_, cx| cx.notify()).ok();
         });
-        self.editors.insert(
-            key,
-            PageEditor {
-                doc,
-                editor: None,
-                loading: Some(Instant::now()),
-                failed: false,
-                _prepare: Some(prepare),
-                _timer: Some(timer),
-                _events: None,
-            },
-        );
+        self.editors
+            .insert(key, PageEditor::opening(doc, prepare, timer));
     }
 
     fn editor_prepared(
         &mut self,
         key: &str,
-        session: dr_workspace::Result<ProseSession>,
+        sessions: dr_workspace::Result<Vec<ProseSession>>,
         ms: f64,
         window: &mut Window,
         cx: &mut Context<Self>,
@@ -161,6 +317,7 @@ impl Workspace {
         let settings = self.editor_settings.clone();
         let base = self.editor_base.clone();
         let title = self.page_title(key, cx);
+        let position = self.book_position.clone();
         // The tab may have closed meanwhile.
         let Some(page) = self.editors.get_mut(key) else {
             return;
@@ -168,42 +325,85 @@ impl Workspace {
         page.loading = None;
         page._timer = None;
         page._prepare = None;
-        let session = match session {
-            Ok(session) => session,
+        let sessions = match sessions {
+            Ok(sessions) => sessions,
             Err(error) => {
-                log::warn!("{}: the editor could not open it: {error}", page.doc);
+                log::warn!("{key}: the editor could not open it: {error}");
                 page.failed = true;
                 cx.notify();
                 return;
             }
         };
-        let doc = page.doc.clone();
         let opened = Instant::now();
-        // `ChapterEditor::open` returns a `Result` but has to run inside
-        // `cx.new`. The session opened above holds the document open, so the
-        // editor finds it there; short of the holder thread or the library
-        // being gone it cannot fail (see f6-shell.md, 待协调 F4).
-        let editor =
-            cx.new(
-                |cx| match ChapterEditor::open(lib, &book, &doc, settings, window, cx) {
-                    Ok(editor) => editor,
-                    Err(error) => panic!("{doc}: the open document could not be edited: {error}"),
-                },
-            );
-        drop(session);
-        editor.update(cx, |e, cx| {
-            e.set_base_style(base, cx);
-            set_title(e, title, cx);
+        // `ChapterEditor::open` and `BookEditor::open` return a `Result` but
+        // have to run inside `cx.new`. The sessions opened above hold the
+        // documents open, so the editors find them there; short of the
+        // holder threads or the library being gone they cannot fail (see
+        // f6-shell.md, 待协调 F4).
+        let view = match page.doc.clone() {
+            Some(doc) => {
+                let editor = cx.new(|cx| {
+                    match ChapterEditor::open(lib, &book, &doc, settings, window, cx) {
+                        Ok(editor) => editor,
+                        Err(error) => {
+                            panic!("{doc}: the open document could not be edited: {error}")
+                        }
+                    }
+                });
+                editor.update(cx, |e, cx| {
+                    e.set_base_style(base, cx);
+                    set_title(e, title, cx);
+                });
+                let events = cx.subscribe(&editor, |ws, editor, event: &ChapterEditorEvent, cx| {
+                    ws.on_editor_event(&editor, event, cx)
+                });
+                page._events.push(events);
+                PageView::Doc(editor)
+            }
+            None => {
+                let editor =
+                    cx.new(
+                        |cx| match BookEditor::open(lib, &book, settings, window, cx) {
+                            Ok(editor) => editor,
+                            Err(error) => {
+                                panic!("{book}: the open book could not be edited: {error}")
+                            }
+                        },
+                    );
+                editor.update(cx, |e, cx| {
+                    e.set_base_style(base, cx);
+                    if let Some(at) = &position {
+                        e.restore(&at.into(), cx);
+                    }
+                });
+                let events = cx.subscribe(&editor, |ws, _, event: &BookEditorEvent, cx| {
+                    ws.on_book_event(event, cx)
+                });
+                page._events.push(events);
+                PageView::Book(editor)
+            }
+        };
+        drop(sessions);
+        let prose = view.prose(cx);
+        let selection = cx.subscribe(&prose, |_, prose, event: &EditorEvent, cx| {
+            if matches!(event, EditorEvent::SelectionChanged) {
+                report_selection(&prose, cx);
+            }
         });
+        page._events.push(selection);
+        page.view = Some(view);
         log::debug!(
-            "{doc}: session in {ms:.1} ms, editor in {:.2} ms",
+            "{key}: sessions in {ms:.1} ms, editor in {:.2} ms",
             opened.elapsed().as_secs_f64() * 1e3
         );
-        let events = cx.subscribe(&editor, |ws, editor, event: &ChapterEditorEvent, cx| {
-            ws.on_editor_event(&editor, event, cx)
+        // Settings and the paint layers the theme sets.
+        let theme = Theme::of(window, cx);
+        let (blocks, reduce) = (block_style(&theme), theme.reduce_motion);
+        prose.update(cx, |p, cx| {
+            p.set_block_style(blocks, cx);
+            p.set_reduce_motion(reduce, cx);
         });
-        page.editor = Some(editor);
-        page._events = Some(events);
+        self.report_words(key, None, cx);
         cx.notify();
     }
 
@@ -213,25 +413,102 @@ impl Workspace {
         event: &ChapterEditorEvent,
         cx: &mut Context<Self>,
     ) {
+        let doc = editor.read(cx).doc_id().to_owned();
         match event {
-            ChapterEditorEvent::Edited => {}
+            ChapterEditorEvent::Edited => {
+                let key = self
+                    .editors
+                    .iter()
+                    .find(|(_, p)| p.doc.as_deref() == Some(doc.as_str()))
+                    .map(|(k, _)| k.clone());
+                if let Some(key) = key {
+                    self.report_words(&key, Some(&doc), cx);
+                }
+            }
             ChapterEditorEvent::TodoMarkers(markers) => {
                 // TODO(F3 `todo.project`): project the markers into TODOs.
-                log::debug!(
-                    "{}: {} TODO markers",
-                    editor.read(cx).doc_id(),
-                    markers.len()
-                );
+                log::debug!("{doc}: {} TODO markers", markers.len());
             }
             ChapterEditorEvent::AnchorsChanged(changes) => {
                 // TODO(F3 `comment.reanchor`): store the anchors an undo
                 // brought back in the book document.
-                log::debug!(
-                    "{}: {} comment anchors to store",
-                    editor.read(cx).doc_id(),
-                    changes.len()
-                );
+                log::debug!("{doc}: {} comment anchors to store", changes.len());
             }
+        }
+    }
+
+    fn on_book_event(&mut self, event: &BookEditorEvent, cx: &mut Context<Self>) {
+        let key = Target::Book.key();
+        match event {
+            BookEditorEvent::Edited { doc } => self.report_words(&key, Some(doc), cx),
+            BookEditorEvent::Reloaded => {
+                if let Some(page) = self.editors.get_mut(&key) {
+                    page.tallies.clear();
+                }
+                self.report_words(&key, None, cx);
+            }
+            BookEditorEvent::TodoMarkers { doc, markers } => {
+                // TODO(F3 `todo.project`).
+                log::debug!("{doc}: {} TODO markers", markers.len());
+            }
+            BookEditorEvent::AnchorsChanged { doc, changes } => {
+                // TODO(F3 `comment.reanchor`).
+                log::debug!("{doc}: {} comment anchors to store", changes.len());
+            }
+        }
+    }
+
+    /// Tells M07 the live word count of `doc` (or of every document the
+    /// editor at `key` holds), counting only the paragraphs that changed.
+    fn report_words(&mut self, key: &str, doc: Option<&str>, cx: &mut Context<Self>) {
+        let Some(page) = self.editors.get_mut(key) else {
+            return;
+        };
+        let Some(view) = page.view.clone() else {
+            return;
+        };
+        let prose = view.prose(cx);
+        let docs: Vec<String> = match doc {
+            Some(d) => vec![d.to_owned()],
+            None => page.docs(cx),
+        };
+        let mut counts = Vec::new();
+        for d in docs {
+            let chapter = match &view {
+                PageView::Doc(_) => Some(0),
+                PageView::Book(b) => b.read(cx).chapter_of(&d),
+            };
+            let Some(chapter) = chapter else {
+                continue;
+            };
+            let tally = page.tallies.entry(d.clone()).or_default();
+            let total = {
+                let p = prose.read(cx);
+                match p.book().chapters.get(chapter) {
+                    Some(c) => tally.update(&c.doc),
+                    None => continue,
+                }
+            };
+            counts.push((d, total));
+        }
+        for (d, total) in counts {
+            self.live_docs.insert(d.clone());
+            LiveWords::set_doc(d, total, cx);
+        }
+    }
+
+    /// Documents no open editor holds any more count from the index again.
+    pub(super) fn release_words(&mut self, cx: &mut Context<Self>) {
+        let held: HashSet<String> = self.editors.values().flat_map(|p| p.docs(cx)).collect();
+        let gone: Vec<String> = self
+            .live_docs
+            .iter()
+            .filter(|d| !held.contains(*d))
+            .cloned()
+            .collect();
+        for d in gone {
+            self.live_docs.remove(&d);
+            LiveWords::clear_doc(&d, cx);
         }
     }
 
@@ -248,7 +525,10 @@ impl Workspace {
         let pages: Vec<(String, Entity<ChapterEditor>)> = self
             .editors
             .iter()
-            .filter_map(|(key, p)| p.editor.clone().map(|e| (key.clone(), e)))
+            .filter_map(|(key, p)| match &p.view {
+                Some(PageView::Doc(e)) => Some((key.clone(), e.clone())),
+                _ => None,
+            })
             .collect();
         for (key, editor) in pages {
             let title = self.page_title(&key, cx);
@@ -256,11 +536,25 @@ impl Workspace {
         }
     }
 
-    /// The editor of `target`'s page, once it is open.
+    /// The editor of `target`'s page, once it is open (one document).
     pub fn editor_of(&self, target: &Target) -> Option<&Entity<ChapterEditor>> {
-        self.editors
-            .get(&target.key())
-            .and_then(|page| page.editor.as_ref())
+        match self.editors.get(&target.key())?.view.as_ref()? {
+            PageView::Doc(e) => Some(e),
+            PageView::Book(_) => None,
+        }
+    }
+
+    /// The whole book's editor, once its tab has shown it.
+    pub fn book_editor(&self) -> Option<&Entity<BookEditor>> {
+        match self.editors.get(&Target::Book.key())?.view.as_ref()? {
+            PageView::Book(e) => Some(e),
+            PageView::Doc(_) => None,
+        }
+    }
+
+    /// The editor of `target`'s page, whichever kind.
+    pub fn page_view(&self, target: &Target) -> Option<&PageView> {
+        self.editors.get(&target.key())?.view.as_ref()
     }
 
     /// The editors of the pages on screen: opened when first shown, a
@@ -273,9 +567,6 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         for target in shown {
-            if book::doc_of(target).is_none() {
-                continue;
-            }
             if !self.editors.contains_key(&target.key()) {
                 self.prepare_editor(target, window, cx);
                 continue;
@@ -296,7 +587,9 @@ impl Workspace {
                 });
             }
         }
+        self.keep_find_on_page(window, cx);
         self.focus_page(window, cx);
+        self.dim_for_immersive(cx);
         self.repaint_turning(shown, cx);
     }
 
@@ -309,14 +602,14 @@ impl Workspace {
         if keys != self.shown_pages {
             self.shown_pages = keys;
             self.turning_until = Some(dr_ui::anim::now() + motion::PAGE_BLEND.duration);
+            self.keep_reading_position(cx);
         }
         let Some(until) = self.turning_until else {
             return;
         };
         for target in shown {
-            if let Some(editor) = self.editor_of(target) {
-                let prose = editor.read(cx).editor().clone();
-                prose.update(cx, |_, cx| cx.notify());
+            if let Some(view) = self.page_view(target) {
+                view.prose(cx).update(cx, |_, cx| cx.notify());
             }
         }
         if dr_ui::anim::now() > until {
@@ -324,75 +617,158 @@ impl Workspace {
         }
     }
 
-    /// Gives the focused page's editor the keyboard when the page changes,
-    /// unless something over the workspace or in a sidebar has it.
+    /// The whole book's reading position, for the layout. Returns whether
+    /// it moved since it was last kept.
+    pub(super) fn keep_reading_position(&mut self, cx: &App) -> bool {
+        let Some(book) = self.book_editor() else {
+            return false;
+        };
+        let Some(at) = book.read(cx).reading_position(cx).map(SavedPosition::from) else {
+            return false;
+        };
+        if self.book_position.as_ref() == Some(&at) {
+            return false;
+        }
+        self.book_position = Some(at);
+        true
+    }
+
+    /// The prose editors of every open page.
+    fn all_prose(&self, cx: &App) -> Vec<Entity<ProseEditor>> {
+        self.editors
+            .values()
+            .filter_map(|p| p.view.as_ref())
+            .map(|v| v.prose(cx))
+            .collect()
+    }
+
+    /// The focused page's prose editor, if it is open.
+    fn focused_prose(&self, cx: &App) -> Option<Entity<ProseEditor>> {
+        let target = self.nav.active_tab()?.focused().target.clone();
+        Some(self.page_view(&target)?.prose(cx))
+    }
+
+    /// Gives the focused page's editor the keyboard when the page (or its
+    /// editor) changes, unless something over the workspace or in a sidebar
+    /// has it.
     fn focus_page(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let in_editor = window.focused(cx).is_some_and(|handle| {
-            self.editors
-                .values()
-                .filter_map(|p| p.editor.as_ref())
-                .any(|e| e.read(cx).editor().focus_handle(cx) == handle)
+        let focused = window.focused(cx);
+        let in_editor = focused.as_ref().is_some_and(|handle| {
+            self.all_prose(cx)
+                .iter()
+                .any(|p| p.focus_handle(cx) == *handle)
         });
-        if self.covered() {
-            // Nothing under Settings or a Super View takes typing.
-            if in_editor {
+        if self.covered() || self.search.is_some() || self.find.is_some() {
+            // Nothing under Settings, a Super View or a search takes typing.
+            if in_editor && self.find.is_none() && self.search.is_none() {
                 self.focus.focus(window, cx);
             }
-            self.focused_doc = None;
+            if self.covered() {
+                self.focused_editor = None;
+            }
             return;
         }
-        let focused = self
-            .nav
-            .active_tab()
-            .map(|tab| tab.focused().target.clone());
-        let editor = focused.as_ref().and_then(|t| self.editor_of(t)).cloned();
-        let want = editor.as_ref().map(|e| e.read(cx).doc_id().to_owned());
-        if want == self.focused_doc {
+        let editor = self.focused_prose(cx);
+        let want = editor.as_ref().map(|e| e.entity_id());
+        if want == self.focused_editor {
             return;
         }
-        let free = in_editor || window.focused(cx).is_none_or(|handle| handle == self.focus);
+        // Ours to move: an editor, the workspace or nothing has it, or the
+        // editor we gave it to last (whose tab may have closed).
+        let free = in_editor
+            || focused.as_ref().is_none_or(|handle| {
+                *handle == self.focus || self.gave_focus.as_ref() == Some(handle)
+            });
         if !free {
             return;
         }
-        self.focused_doc = want;
+        self.focused_editor = want;
         match editor {
             Some(editor) => {
-                let handle = editor.read(cx).editor().focus_handle(cx);
+                let handle = editor.focus_handle(cx);
                 window.focus(&handle, cx);
+                self.gave_focus = Some(handle);
             }
             None => self.focus.focus(window, cx),
         }
     }
 
+    /// Immersive writing fades every paragraph but the caret's, in the
+    /// focused page's editor only.
+    fn dim_for_immersive(&mut self, cx: &mut Context<Self>) {
+        let want = if self.immersive {
+            self.focused_prose(cx).map(|p| p.entity_id())
+        } else {
+            None
+        };
+        if want == self.dimmed {
+            return;
+        }
+        self.dimmed = want;
+        for prose in self.all_prose(cx) {
+            let on = Some(prose.entity_id()) == want;
+            if prose.read(cx).paragraph_focus() != on {
+                prose.update(cx, |p, cx| p.set_paragraph_focus(on, cx));
+            }
+        }
+    }
+
     /// The keyboard back to the page (closing Settings or a Super View).
     pub(super) fn refocus(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.focused_doc = None;
+        self.focused_editor = None;
         self.focus.focus(window, cx);
         cx.notify();
     }
 
     /// New settings or a new theme: every open editor is restyled.
     pub(super) fn style_editors(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let theme = Theme::of(window, cx);
         let settings = editor_settings(cx);
-        let base = base_style(&Theme::of(window, cx));
+        let base = base_style(&theme);
         let settings_changed = settings != self.editor_settings;
         let base_changed = base != self.editor_base;
-        if !settings_changed && !base_changed {
+        let reduce_changed = theme.reduce_motion != self.editor_reduce;
+        if !settings_changed && !base_changed && !reduce_changed {
             return;
         }
         self.editor_settings = settings.clone();
         self.editor_base = base.clone();
-        for editor in self.editors.values().filter_map(|p| p.editor.clone()) {
-            editor.update(cx, |e, cx| {
+        self.editor_reduce = theme.reduce_motion;
+        let blocks = block_style(&theme);
+        let views: Vec<PageView> = self
+            .editors
+            .values()
+            .filter_map(|p| p.view.clone())
+            .collect();
+        for view in views {
+            view.restyle(
+                base_changed.then_some(&base),
+                settings_changed.then_some(&settings),
+                cx,
+            );
+            view.prose(cx).update(cx, |p, cx| {
                 if base_changed {
-                    e.set_base_style(base.clone(), cx);
+                    p.set_block_style(blocks.clone(), cx);
                 }
-                if settings_changed {
-                    e.set_settings(settings.clone(), cx);
+                if reduce_changed {
+                    p.set_reduce_motion(theme.reduce_motion, cx);
                 }
             });
         }
     }
+}
+
+/// M07's selection reading: the words in the selection, or none.
+fn report_selection(prose: &Entity<ProseEditor>, cx: &mut App) {
+    let words = {
+        let p = prose.read(cx);
+        let sel = p.selection();
+        (!sel.is_empty()).then(|| {
+            let text = p.book().chapters[sel.chapter].doc.slice(sel.range());
+            dr_text::count_words(&text)
+        })
+    };
+    LiveWords::set_selection(words, cx);
 }
 
 /// Shows `title` in the editor's title row over the prose (it scrolls with
@@ -415,7 +791,9 @@ fn set_title(
 
 /// Hands the edit menu's commands to the editor inside `el`. They are bound
 /// without a context (the menu shows their keys), which outranks the
-/// editor's own `ProseEditor` bindings in GPUI, so they arrive here.
+/// editor's own `ProseEditor` bindings in GPUI, so they arrive here. In the
+/// whole book, undo and redo reach `BookEditor`, which undoes in the
+/// chapter the caret is in.
 pub fn forward_edit_actions(el: gpui::Stateful<gpui::Div>) -> gpui::Stateful<gpui::Div> {
     use gpui_prose::input::actions as prose;
     fn hand_on(action: impl gpui::Action) -> impl Fn(&mut Window, &mut App) {

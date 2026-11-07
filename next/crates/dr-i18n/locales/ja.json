@@ -72,6 +72,13 @@
       "title": "前回の使用時に Drifting で問題が発生しました"
     }
   },
+  "findPanel": {
+    "bookPlaceholder": "全編を検索…",
+    "closeTitle": "閉じる（Esc）",
+    "currentPlaceholder": "現在のエディタ内を検索…",
+    "nextTitle": "次へ（Enter）",
+    "previousTitle": "前へ（Shift+Enter）"
+  },
   "globalSearch": {
     "closeTitle": "閉じる（Esc）",
     "field": {

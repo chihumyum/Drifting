@@ -141,12 +141,9 @@ impl Headless {
                 .active_tab()
                 .map(|t| {
                     t.leaves().all(|l| {
-                        let key = l.target.key();
-                        ws.pages.get(&key).is_some_and(|p| p.ready)
-                            || ws
-                                .editors
-                                .get(&key)
-                                .is_some_and(|p| p.editor.is_some() || p.failed)
+                        ws.editors
+                            .get(&l.target.key())
+                            .is_some_and(|p| p.view.is_some() || p.failed)
                     })
                 })
                 .unwrap_or(true)
@@ -549,20 +546,27 @@ fn bench(dir: PathBuf) -> Result<()> {
         summary(&typed)
     ));
 
-    // The whole book on one page: 24 chapters, only the rows on screen laid
-    // out.
+    // The whole book in one editor (M05): 24 chapters opened together,
+    // only the rows on screen laid out.
     h.set(|ws, _, cx| ws.open(Target::Book, Open::KEEP, cx));
     let read = Instant::now();
     h.pages_ready()?;
     let book_page_ms = read.elapsed().as_secs_f32() * 1000.0;
     std::thread::sleep(Duration::from_millis(300));
     h.settle()?;
-    let rows = h.read(|ws| ws.pages.get("book").map_or(0, |p| p.items.len()));
+    let rows = {
+        let view = h.view.clone();
+        h.cx.update(|cx| {
+            view.read(cx)
+                .book_editor()
+                .map_or(0, |b| b.read(cx).chapter_docs().count())
+        })
+    };
     let book_redraw = (0..60)
         .map(|_| h.draw().map(|d| d.0))
         .collect::<Result<Vec<_>>>()?;
     out.push(format!(
-        r#""whole_book_page": {{"rows": {rows}, "read_ms": {book_page_ms:.2}, "full_redraw_ms": {}}}"#,
+        r#""whole_book_page": {{"chapters": {rows}, "open_ms": {book_page_ms:.2}, "full_redraw_ms": {}}}"#,
         summary(&book_redraw)
     ));
     h.set(|ws, _, cx| {

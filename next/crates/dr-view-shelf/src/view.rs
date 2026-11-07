@@ -3,23 +3,22 @@
 use std::rc::Rc;
 use std::time::Instant;
 
-use dr_i18n::{Locale, keys};
-use dr_shell::actions::{Dismiss, OpenSettings, ToggleNotifications};
-use dr_shell::settings::registry;
+use dr_i18n::keys;
+use dr_shell::actions::{Dismiss, ToggleNotifications};
 use dr_shell::strings::{tf, tp};
 use dr_shell::{Services, Settings, Workspace, t};
 use dr_ui::{
     Theme,
     components::{
-        Button, Choice, Dialog, IconButton, Menu, MenuWidth, PanelIconButton, Segmented, Select,
-        overlay::{self, Align, Layer, Place},
+        Button, Dialog, IconButton, PanelIconButton,
+        overlay::{self},
     },
-    fonts::{Role, weight},
+    fonts::Role,
     glass::{self, Ground, Kind as GlassKind, Mode, Spec, Tone},
     input::field::{FieldEvent, TextField},
     sand::{Icon, Readout},
     style::DrStyled,
-    tokens::{Story, menu as m, radius},
+    tokens::radius,
 };
 use dr_workspace::{
     Actor, Workspace as Library, WsEvent,
@@ -32,7 +31,7 @@ use gpui::{
     AnyElement, App, AppContext as _, Bounds, ClickEvent, Context, ElementId, Entity, FocusHandle,
     Focusable, InteractiveElement, IntoElement, ParentElement, Pixels, Render, SharedString,
     StatefulInteractiveElement, Styled, Subscription, Task, WeakEntity, Window, actions, div,
-    linear_color_stop, linear_gradient, prelude::FluentBuilder as _, px,
+    prelude::FluentBuilder as _, px,
 };
 
 use crate::data::{ShelfBook, ShelfData, Status, progress};
@@ -47,6 +46,9 @@ actions!(
         /// Imports a Drifting 0.1 library (M10 handles it; the bookshelf
         /// only has the entry).
         ImportLegacyLibrary,
+        /// Creates or saves the book in the open form (⌘↵ / Ctrl+↵, as in
+        /// the 0.1 client; Enter in a field does it too).
+        SubmitDialog,
     ]
 );
 
@@ -525,6 +527,9 @@ impl Render for Shelf {
             .flex_row()
             .bg(p.desk.solid())
             .text_color(p.ink(1).solid())
+            .on_action(
+                cx.listener(|shelf, _: &SubmitDialog, window, cx| shelf.submit_form(window, cx)),
+            )
             .on_action(cx.listener(|shelf, _: &Dismiss, window, cx| {
                 if shelf.menu_open {
                     shelf.menu_open = false;
@@ -719,31 +724,9 @@ fn rail_foot(shelf: &mut Shelf, window: &mut Window, cx: &mut Context<Shelf>) ->
     let p = theme.palette;
     let s = theme.scale;
     let name = t(cx, keys::common::LOCAL);
-    let initial: String = name
-        .chars()
-        .next()
-        .map(|c| c.to_uppercase().collect())
-        .unwrap_or_default();
     let open = shelf.menu_open;
     let entity = cx.entity();
-    let avatar = div()
-        .flex_none()
-        .size(px(24.0))
-        .rounded_full()
-        .bg(linear_gradient(
-            135.0,
-            linear_color_stop(p.story(Story::S1).solid(), 0.0),
-            linear_color_stop(p.story(Story::S5).solid(), 1.0),
-        ))
-        .flex()
-        .items_center()
-        .justify_center()
-        .font_role(Role::Ui)
-        .type_px(12.0, 12.0)
-        .weight(weight::MEDIUM)
-        .italic()
-        .text_color(p.paper.solid())
-        .child(initial);
+    let avatar = dr_shell::account::avatar(24.0, window, cx);
     let account = glass::glass_box(
         "shelf-account",
         GlassKind::Hidden,
@@ -804,188 +787,18 @@ fn rail_foot(shelf: &mut Shelf, window: &mut Window, cx: &mut Context<Shelf>) ->
         .into_any_element()
 }
 
-/// The account menu, upward from the account cell: who, then the theme,
-/// the language and Settings.
+/// The account menu, upward from the account cell: the shell's shared one
+/// (`dr_shell::account`).
 fn account_menu(shelf: &mut Shelf, window: &mut Window, cx: &mut Context<Shelf>) -> AnyElement {
-    let theme = Theme::of(window, cx);
-    let p = theme.palette;
-    let s = theme.scale;
-    let file = Settings::read(cx);
-    let modes = ["light", "dark", "system"];
-    let mode = file.str(registry::THEME).unwrap_or_else(|| "system".into());
-    let mode_index = modes.iter().position(|m| *m == mode).unwrap_or(2);
-    let theme_icon = match mode_index {
-        0 => Icon::Enso,
-        1 => Icon::InkDisc,
-        _ => Icon::Taiji,
-    };
-    let locale = Settings::locale(cx);
-    let locale_index = Locale::ALL.iter().position(|l| *l == locale).unwrap_or(0);
     let entity = cx.entity();
-    let row = |icon: Icon, label: SharedString, tail: Option<AnyElement>| {
-        div()
-            .mx(px(m::ROW_INSET))
-            .px(px(m::ROW_PAD_X))
-            .min_h(px(s.menu_row))
-            .flex()
-            .flex_row()
-            .items_center()
-            .gap(px(m::ICON_GAP))
-            .font_role(Role::Ui)
-            .type_px(s.menu_text, s.menu_line)
-            .text_color(p.ink(1).solid())
-            .child(dr_ui::sand::icon(icon, m::ICON, p.ink(2).solid()))
-            .child(div().flex_1().child(label))
-            .children(tail)
-    };
-    let initial: String = t(cx, keys::common::LOCAL)
-        .chars()
-        .next()
-        .map(|c| c.to_uppercase().collect())
-        .unwrap_or_default();
-    let header = div()
-        .px(px(m::HOVER_CARD_PAD))
-        .pt(px(10.0))
-        .pb(px(8.0))
-        .flex()
-        .flex_row()
-        .items_center()
-        .gap(px(10.0))
-        .child(
-            div()
-                .flex_none()
-                .size(px(32.0))
-                .rounded_full()
-                .bg(linear_gradient(
-                    135.0,
-                    linear_color_stop(p.story(Story::S1).solid(), 0.0),
-                    linear_color_stop(p.story(Story::S5).solid(), 1.0),
-                ))
-                .flex()
-                .items_center()
-                .justify_center()
-                .font_role(Role::Ui)
-                .type_px(15.0, 15.0)
-                .weight(weight::MEDIUM)
-                .italic()
-                .text_color(p.paper.solid())
-                .child(initial),
-        )
-        .child(
-            div()
-                .flex()
-                .flex_col()
-                .child(
-                    div()
-                        .font_role(Role::Ui)
-                        .type_px(s.body, s.line_body)
-                        .text_color(p.ink(1).solid())
-                        .child(t(cx, keys::common::LOCAL)),
-                )
-                .child(
-                    div()
-                        .font_role(Role::Index)
-                        .type_px(s.caption, s.line_caption)
-                        .text_color(p.muted().solid())
-                        .child(t(cx, keys::user_menu::LOCAL_STATUS)),
-                ),
-        );
-    let themes = Segmented::new(
-        "shelf-menu-theme",
-        [
-            t(cx, keys::user_menu::THEME_LIGHT_SHORT),
-            t(cx, keys::user_menu::THEME_DARK_SHORT),
-            t(cx, keys::user_menu::THEME_SYSTEM_SHORT),
-        ],
-        mode_index,
-    )
-    .on_change(move |i, _, cx| {
-        let value = modes[i.min(2)];
-        Settings::update(cx, |f| f.set(registry::THEME, value.into(), None).ok());
-    });
-    let languages = Select::new(
-        "shelf-menu-language",
-        Locale::ALL
-            .iter()
-            .map(|l| Choice::new(Icon::Wen, l.native_name()))
-            .collect(),
-        locale_index,
-    )
-    .on_change(|i, _, cx| {
-        let code = Locale::ALL[i.min(Locale::ALL.len() - 1)].code();
-        Settings::update(cx, |f| f.set(registry::UI_LOCALE, code.into(), None).ok());
-    });
-    let settings_entity = entity.clone();
-    let settings = glass::glass_box(
-        "shelf-menu-settings",
-        GlassKind::Hidden,
-        Mode::default(),
-        false,
-        Spec::new(Tone::Clear, radius::MENU_ROW),
-        window,
-        cx,
-    )
-    .cursor_pointer()
-    .on_click(move |_, window, cx| {
-        settings_entity.update(cx, |shelf, cx| {
+    let close: dr_shell::account::Close = std::rc::Rc::new(move |_, cx| {
+        entity.update(cx, |shelf, cx| {
             shelf.menu_open = false;
             cx.notify();
-        });
-        window.dispatch_action(Box::new(OpenSettings), cx);
-    })
-    .child(row(
-        Icon::DharmaWheel,
-        t(cx, keys::user_menu::SETTINGS),
-        None,
-    ));
-    let menu = Menu::new("shelf-account-menu")
-        .width(MenuWidth::Wide)
-        .child(header)
-        .child(row(
-            theme_icon,
-            t(cx, keys::user_menu::THEME),
-            Some(themes.into_any_element()),
-        ))
-        .child(row(
-            Icon::Wen,
-            t(cx, keys::user_menu::LANGUAGE),
-            Some(
-                div()
-                    .w(px(150.0))
-                    .flex_none()
-                    .child(languages)
-                    .into_any_element(),
-            ),
-        ))
-        .child(settings);
-    let place = match *shelf.account.read(cx) {
-        Some(rect) => Place::Rect {
-            rect,
-            align: Align::Start,
-            gap: m::HOVER_CARD_GAP,
-        },
-        None => Place::Center,
-    };
-    let account = shelf.account.clone();
-    overlay::float(
-        place,
-        Layer::Popover,
-        div()
-            .id("shelf-account-menu-float")
-            .occlude()
-            .on_mouse_down_out(move |e, _, cx| {
-                // The account cell toggles it itself.
-                if account.read(cx).is_some_and(|b| b.contains(&e.position)) {
-                    return;
-                }
-                entity.update(cx, |shelf, cx| {
-                    shelf.menu_open = false;
-                    cx.notify();
-                })
-            })
-            .child(menu),
-    )
-    .into_any_element()
+        })
+    });
+    let anchor = *shelf.account.read(cx);
+    dr_shell::account::menu("shelf-account", anchor, close, window, cx)
 }
 
 // The books.

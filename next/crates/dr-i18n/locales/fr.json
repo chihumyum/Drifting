@@ -72,6 +72,13 @@
       "title": "Drifting a rencontré un problème la dernière fois"
     }
   },
+  "findPanel": {
+    "bookPlaceholder": "Rechercher dans tout le livre…",
+    "closeTitle": "Fermer (Échap)",
+    "currentPlaceholder": "Rechercher dans l’éditeur actif…",
+    "nextTitle": "Suivant (Entrée)",
+    "previousTitle": "Précédent (Maj+Entrée)"
+  },
   "globalSearch": {
     "closeTitle": "Fermer (Échap)",
     "field": {

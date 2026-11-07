@@ -210,11 +210,9 @@ fn pill(tab: &Tab, ws: &Workspace, book: &Book, cx: &mut Context<Workspace>) -> 
     let key: SharedString = tab.key().into();
     let focused = tab.focused().clone();
     let (kind, color) = book.mark(&focused.target);
-    let slow = tab.leaves().any(|l| {
-        let key = l.target.key();
-        ws.pages.get(&key).is_some_and(|p| p.slow())
-            || ws.editors.get(&key).is_some_and(|p| p.slow())
-    });
+    let slow = tab
+        .leaves()
+        .any(|l| ws.editors.get(&l.target.key()).is_some_and(|p| p.slow()));
     let label = super::title_of(book, &focused.target, cx);
     let group: SharedString = format!("pill-{key}").into();
     let half = |leaf: &Leaf, side: Option<PageSide>| Half {

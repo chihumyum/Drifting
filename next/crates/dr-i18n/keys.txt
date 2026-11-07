@@ -299,3 +299,10 @@ dashboard.sections.writingPlan
 dashboard.sections.projectProfile
 dashboard.profilePlaceholder
 dashboard.plan.wordsPerDay
+
+# The find bar over the page (⌘F)
+findPanel.currentPlaceholder
+findPanel.bookPlaceholder
+findPanel.previousTitle
+findPanel.nextTitle
+findPanel.closeTitle

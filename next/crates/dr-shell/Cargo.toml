@@ -19,6 +19,7 @@ dr-editor.workspace = true
 dr-i18n.workspace = true
 dr-model.workspace = true
 dr-platform.workspace = true
+dr-text.workspace = true
 dr-ui.workspace = true
 # M06 search and M07 stats, each hooked in at one place.
 dr-view-search.workspace = true

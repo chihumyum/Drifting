@@ -72,6 +72,13 @@
       "title": "지난번 Drifting 실행 중 문제가 발생했습니다"
     }
   },
+  "findPanel": {
+    "bookPlaceholder": "작품 전체에서 찾기…",
+    "closeTitle": "닫기(Esc)",
+    "currentPlaceholder": "현재 편집기에서 찾기…",
+    "nextTitle": "다음(Enter)",
+    "previousTitle": "이전(Shift+Enter)"
+  },
   "globalSearch": {
     "closeTitle": "닫기(Esc)",
     "field": {

@@ -72,6 +72,13 @@
       "title": "Bei Drifting ist beim letzten Mal ein Problem aufgetreten"
     }
   },
+  "findPanel": {
+    "bookPlaceholder": "Im ganzen Buch suchen…",
+    "closeTitle": "Schließen (Esc)",
+    "currentPlaceholder": "Im aktuellen Editor suchen…",
+    "nextTitle": "Nächstes (Enter)",
+    "previousTitle": "Vorheriges (Umschalt+Enter)"
+  },
   "globalSearch": {
     "closeTitle": "Schließen (Esc)",
     "field": {

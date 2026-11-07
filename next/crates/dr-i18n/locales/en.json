@@ -72,6 +72,13 @@
       "title": "Drifting ran into a problem last time"
     }
   },
+  "findPanel": {
+    "bookPlaceholder": "Find in whole book…",
+    "closeTitle": "Close (Esc)",
+    "currentPlaceholder": "Find in current editor…",
+    "nextTitle": "Next (Enter)",
+    "previousTitle": "Previous (Shift+Enter)"
+  },
   "globalSearch": {
     "closeTitle": "Close (Esc)",
     "field": {

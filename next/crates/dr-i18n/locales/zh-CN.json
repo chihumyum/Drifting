@@ -72,6 +72,13 @@
       "title": "上次出了故障"
     }
   },
+  "findPanel": {
+    "bookPlaceholder": "在全书中查找…",
+    "closeTitle": "关闭 (Esc)",
+    "currentPlaceholder": "在当前编辑器中查找…",
+    "nextTitle": "下一个 (Enter)",
+    "previousTitle": "上一个 (Shift+Enter)"
+  },
   "globalSearch": {
     "closeTitle": "关闭 (Esc)",
     "field": {

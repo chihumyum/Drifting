@@ -14,7 +14,8 @@ use dr_editor::ChapterEditor;
 use dr_platform::DeepLinks;
 use dr_shell::nav::{Open, Page, Target};
 use dr_shell::settings::registry;
-use dr_shell::workspace::{Item, Layer, SuperView};
+use dr_shell::workspace::editors::PageView;
+use dr_shell::workspace::{Layer, SuperView};
 use dr_shell::{Services, Settings, SettingsFile, ShellInfo, Workspace};
 use dr_workspace::{Actor, Workspace as Library};
 use gpui::{Entity, Focusable as _, TestAppContext, VisualTestContext};
@@ -545,21 +546,181 @@ fn pages_open_in_their_editors_and_the_book_reads_every_chapter(cx: &mut TestApp
             .collect()
     });
     assert!(headings.contains(&2), "{headings:?}");
-    // The whole book reads every chapter, titles first.
+}
+
+/// Draws until `target`'s page view (one document or the whole book) is
+/// open and its editor has the keyboard.
+fn open_page(view: &Entity<Workspace>, cx: &mut VisualTestContext, target: &Target) -> PageView {
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        draw(cx);
+        cx.run_until_parked();
+        let page = view.read_with(cx, |ws, _| ws.page_view(target).cloned());
+        if let Some(page) = page {
+            draw(cx);
+            let focused = cx.update(|window, cx| {
+                let prose = page.prose(cx).focus_handle(cx);
+                window.focused(cx) == Some(prose)
+            });
+            assert!(focused, "the open page's editor takes the keyboard");
+            draw(cx);
+            return page;
+        }
+        assert!(Instant::now() < deadline, "the page did not open");
+        std::thread::sleep(Duration::from_millis(2));
+    }
+}
+
+/// M05 in the shell: the whole book's tab is one editor over every
+/// chapter. Its outline lists the three acts and the 24 chapters and jumps
+/// to a chapter; typing there writes that chapter and ⌘Z undoes it there;
+/// a location link to a chapter is shown in place; the reading position is
+/// stored with the layout and comes back.
+#[gpui::test]
+fn the_whole_book_is_one_editor(cx: &mut TestAppContext) {
+    use dr_shell::workspace::outline;
+    let (_dir, lib) = slow_clock();
+    let settings_dir = tempfile::tempdir().unwrap();
+    let (view, cx) = setup_with(
+        cx,
+        SettingsFile::open(settings_dir.path()),
+        None,
+        Some(lib.clone()),
+    );
+    wait_for(&view, cx, |ws| !ws.book.is_empty());
+    let (book, third, fifth_title) = view.read_with(cx, |ws, _| {
+        (
+            ws.book_id.clone(),
+            chapter_of(ws, 2),
+            ws.book.chapters[4].title.clone(),
+        )
+    });
+    let Target::Chapter(third_id) = &third else {
+        unreachable!()
+    };
+    let third_doc = format!("node:{third_id}");
     view.update(cx, |ws, cx| ws.open(Target::Book, Open::KEEP, cx));
-    cx.update(|window, cx| window.draw(cx).clear(cx));
-    wait_for(&view, cx, |ws| {
-        ws.pages.get("book").is_some_and(|p| p.ready)
+    let page = open_page(&view, cx, &Target::Book);
+    let PageView::Book(editor) = page.clone() else {
+        panic!("the whole book's page is a BookEditor")
+    };
+    assert_eq!(editor.read_with(cx, |e, _| e.chapter_docs().count()), 24);
+    // The outline: three acts, 24 chapters (no headings in 《慢钟》's chapters).
+    let (entries, ..) = cx.update(|_, cx| outline::read(&page, cx));
+    let tiers = |t: u8| entries.iter().filter(|e| e.level == t).count();
+    assert_eq!((tiers(1), tiers(2)), (3, 24));
+    // To the third chapter by the outline, then type there.
+    let at = entries
+        .iter()
+        .find(|e| e.level == 2 && e.chapter == 2)
+        .unwrap()
+        .chapter;
+    cx.update(|window, cx| outline::jump_to(&page, at, None, window, cx));
+    draw(cx);
+    let before = stored(&lib, &third_doc);
+    type_text(cx, "钟");
+    let after = stored(&lib, &third_doc);
+    assert_eq!(after[0], format!("钟{}", before[0]), "typed into chapter 3");
+    keys(cx, "cmd-z");
+    cx.run_until_parked();
+    assert_eq!(stored(&lib, &third_doc), before, "⌘Z undid it in chapter 3");
+    // A location link while reading the book: shown in place, no new tab.
+    let tabs = view.read_with(cx, |ws, _| ws.nav.tabs().len());
+    let href = format!(
+        "drifting:chapters/{}/prose.md#L3",
+        fifth_title.replace(' ', "%20")
+    );
+    assert!(view.update_in(cx, |ws, window, cx| ws.open_link(&href, window, cx)));
+    draw(cx);
+    assert_eq!(view.read_with(cx, |ws, _| ws.nav.tabs().len()), tabs);
+    let caret_chapter = editor.read_with(cx, |e, cx| e.editor().read(cx).selection().chapter);
+    assert_eq!(caret_chapter, 4, "the fifth chapter's second paragraph");
+    // The reading position goes into the book's layout.
+    view.update(cx, |ws, cx| ws.store_layout(cx));
+    let saved = cx.update(|_, cx| {
+        Settings::read(cx).layout(&book).cloned().unwrap()["book_position"].clone()
     });
-    let sections = view.read_with(cx, |ws, _| {
-        ws.pages["book"]
-            .items
+    assert_eq!(
+        saved["doc"].as_str(),
+        Some(
+            format!(
+                "node:{}",
+                view.read_with(cx, |ws, _| ws.book.chapters[4].id.clone())
+            )
+            .as_str()
+        )
+    );
+    // Closing the tab and opening it again comes back there.
+    view.update(cx, |ws, cx| {
+        let i = ws
+            .nav
+            .tabs()
             .iter()
-            .filter(|i| matches!(i, Item::Section(_)))
-            .count()
+            .position(|t| t.key() == "book")
+            .unwrap();
+        ws.nav.close(i);
+        cx.notify();
     });
-    assert_eq!(sections, 24);
-    cx.update(|window, cx| window.draw(cx).clear(cx));
+    draw(cx);
+    view.update(cx, |ws, cx| ws.open(Target::Book, Open::KEEP, cx));
+    let PageView::Book(again) = open_page(&view, cx, &Target::Book) else {
+        unreachable!()
+    };
+    let position = again.read_with(cx, |e, cx| e.reading_position(cx)).unwrap();
+    assert_eq!(position.doc, saved["doc"].as_str().unwrap());
+}
+
+/// ⌘F: the find bar over the page finds in the chapter, Enter steps to the
+/// next match, Esc closes it and the page gets the keyboard back. M07's
+/// live count follows typing.
+#[gpui::test]
+fn the_find_bar_steps_through_matches_and_live_words_follow(cx: &mut TestAppContext) {
+    let (_dir, lib) = slow_clock();
+    let (view, cx) = setup_with(cx, SettingsFile::in_memory(), None, Some(lib));
+    wait_for(&view, cx, |ws| !ws.book.is_empty());
+    let first = view.read_with(cx, |ws, _| chapter_of(ws, 0));
+    let Target::Chapter(id) = &first else {
+        unreachable!()
+    };
+    let doc = format!("node:{id}");
+    view.update(cx, |ws, cx| ws.open(first.clone(), Open::KEEP, cx));
+    let page = open_page(&view, cx, &first);
+    // The live count is the chapter's.
+    let live = cx.update(|_, cx| dr_view_stats::LiveWords::read(cx).docs.get(&doc).copied());
+    let words = live.expect("the open chapter's live count").words;
+    assert!(words > 100, "{words}");
+    type_text(cx, "钟");
+    let live = cx.update(|_, cx| dr_view_stats::LiveWords::read(cx).docs[&doc].words);
+    assert_eq!(live, words + 1, "the live count follows typing");
+
+    keys(cx, "cmd-f");
+    draw(cx);
+    assert!(view.read_with(cx, |ws, _| ws.find.is_some()));
+    type_text(cx, "钟");
+    draw(cx);
+    let bar = view.read_with(cx, |ws, _| ws.find.clone().unwrap());
+    let status = bar.read_with(cx, |b, _| b.status());
+    assert!(status.total > 3, "{status:?}");
+    let first_hit = status.current.unwrap();
+    keys(cx, "enter");
+    let next = bar.read_with(cx, |b, _| b.status()).current.unwrap();
+    assert_eq!(
+        next,
+        (first_hit + 1) % status.total,
+        "Enter goes to the next"
+    );
+    keys(cx, "shift-enter");
+    assert_eq!(
+        bar.read_with(cx, |b, _| b.status()).current,
+        Some(first_hit)
+    );
+    keys(cx, "escape");
+    draw(cx);
+    assert!(view.read_with(cx, |ws, _| ws.find.is_none()));
+    let back = cx.update(|window, cx| window.focused(cx) == Some(page.prose(cx).focus_handle(cx)));
+    assert!(back, "the page has the keyboard again");
+    let cleared = cx.update(|_, cx| page.prose(cx).read(cx).find_query().is_none());
+    assert!(cleared, "the query went with the bar");
 }
 
 /// The acceptance of F6's third milestone: a chapter written in the app is
@@ -810,12 +971,19 @@ fn chapters_move_by_act_and_the_outline_jumps_to_a_heading(cx: &mut TestAppConte
         ws.open(note.clone(), Open::KEEP, cx);
     });
     let editor = open_editor(&view, cx, &note);
-    let (entries, total, _, _) = cx.update(|_, cx| outline::read(&editor, cx));
+    let view = view
+        .read_with(cx, |ws, _| ws.page_view(&note).cloned())
+        .unwrap();
+    let (entries, total, _, _) = cx.update(|_, cx| outline::read(&view, cx));
     let names: Vec<(u8, &str)> = entries.iter().map(|e| (e.level, e.text.as_str())).collect();
-    assert_eq!(names, [(2, "四个部分"), (2, "常见毛病")]);
+    assert_eq!(
+        names,
+        [(4, "四个部分"), (4, "常见毛病")],
+        "H2 is the fourth tier"
+    );
     assert!(entries[0].top < entries[1].top && entries[1].top < total);
-    let line = entries[1].line;
-    cx.update(|window, cx| outline::jump_to(&editor, line, window, cx));
+    let line = entries[1].line.unwrap();
+    cx.update(|window, cx| outline::jump_to(&view, 0, Some(line), window, cx));
     let (caret, start) = editor.read_with(cx, |e, cx| {
         let prose = e.editor().read(cx);
         (

@@ -1,5 +1,8 @@
 //! The outline rail in the page's left margin (M04; the 0.1 client's
-//! `EditorOutlineRail`): the page's H1, H2 and H3 as words only, no marks.
+//! `EditorOutlineRail`): the page's H1, H2 and H3 as words only, no marks;
+//! on the whole book's page (M05) also its acts and chapters, five tiers
+//! as in the 0.1 client's 通览全书 (act 11 px and chapter 10.5 px in the
+//! structure face, then H1 9.5, H2 9, H3 8 px).
 //!
 //! - A heading's label stands at the share of the document above it (its
 //!   top over the document's height), not where it is on screen: the rail is
@@ -13,7 +16,8 @@
 //!   deepest ink, bold; those whose sections are on screen in the next
 //!   ink; the rest by level: H1 9.5 px, H2 9 px, H3 8 px in the index face.
 //! - A click puts that heading at the top of the view, the caret at its
-//!   start. The outline button in the paper's corner shows or hides it; it
+//!   start; an act or a chapter goes to the chapter's title
+//!   (`BookEditor::jump_to`). The outline button in the paper's corner shows or hides it; it
 //!   also hides itself when the margin left of the text is narrower than
 //!   196 px.
 //!
@@ -30,13 +34,13 @@ use dr_ui::{
     style::DrStyled,
 };
 use gpui::{
-    AnyElement, App, Entity, InteractiveElement, IntoElement, ListOffset, ParentElement,
+    AnyElement, App, InteractiveElement, IntoElement, ListOffset, ParentElement,
     StatefulInteractiveElement, Styled, Window, div, prelude::FluentBuilder as _, px,
 };
 use gpui_prose::text::BlockKind;
 
 use super::Workspace;
-use super::editors::{ChapterEditor, PAGE_GUTTER};
+use super::editors::{PAGE_GUTTER, PageView};
 use crate::nav::Target;
 use crate::strings::tf;
 
@@ -56,13 +60,25 @@ const READING_SLACK: f64 = 24.0;
 /// One heading of the page.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Entry {
-    /// 1–3.
+    /// The tier: 1 an act, 2 a chapter, 3–5 H1–H3.
     pub level: u8,
     pub text: String,
-    /// The paragraph it is.
-    pub line: usize,
+    /// The chapter it is in (0 on one document's page).
+    pub chapter: usize,
+    /// The paragraph it is; `None` for an act or a chapter (its title).
+    pub line: Option<usize>,
     /// Its top in the document, px.
     pub top: f64,
+}
+
+/// The tier of a paragraph's heading level.
+fn tier(kind: BlockKind) -> Option<u8> {
+    match kind {
+        BlockKind::Body => None,
+        BlockKind::H1 => Some(3),
+        BlockKind::H2 => Some(4),
+        BlockKind::H3 => Some(5),
+    }
 }
 
 /// What stands at one place on the rail.
@@ -219,33 +235,57 @@ pub fn spread(ys: &mut [f32], min: f32, max: f32) {
     }
 }
 
-/// The headings of the page in `editor`, with their tops, the document's
-/// height, the scroll and the view's height.
-pub fn read(editor: &Entity<ChapterEditor>, cx: &App) -> (Vec<Entry>, f64, f64, f64) {
-    let prose = editor.read(cx).editor().read(cx);
-    let doc = &prose.book().chapters[0].doc;
+/// The headings of the page in `view` (and, for the whole book, its acts
+/// and chapters), with their tops, the document's height, the scroll and
+/// the view's height.
+pub fn read(view: &PageView, cx: &App) -> (Vec<Entry>, f64, f64, f64) {
+    let whole_book = matches!(view, PageView::Book(_));
+    let prose = view.prose(cx);
+    let prose = prose.read(cx);
     let heights = prose.heights();
     let mut heights = heights.borrow_mut();
     let book = prose.book();
-    let entries: Vec<Entry> = doc.lines()[..doc.visible_lines()]
-        .iter()
-        .enumerate()
-        .filter_map(|(line, l)| {
-            let level = match l.kind {
-                BlockKind::Body => return None,
-                BlockKind::H1 => 1,
-                BlockKind::H2 => 2,
-                BlockKind::H3 => 3,
+    let mut entries = Vec::new();
+    for (chapter, c) in book.chapters.iter().enumerate() {
+        if whole_book {
+            let item = book.chapter_item(chapter);
+            if item < heights.len() {
+                let top = heights.top(item);
+                if let Some(act) = book.act_opening(chapter) {
+                    entries.push(Entry {
+                        level: 1,
+                        text: act.to_string(),
+                        chapter,
+                        line: None,
+                        top,
+                    });
+                }
+                entries.push(Entry {
+                    level: 2,
+                    text: c.title.to_string(),
+                    chapter,
+                    line: None,
+                    top,
+                });
+            }
+        }
+        let doc = &c.doc;
+        for (line, l) in doc.lines()[..doc.visible_lines()].iter().enumerate() {
+            let Some(level) = tier(l.kind) else {
+                continue;
             };
-            let item = book.line_item(0, line);
-            (item < heights.len()).then(|| Entry {
-                level,
-                text: l.text.trim_end_matches('\n').to_owned(),
-                line,
-                top: heights.top(item),
-            })
-        })
-        .collect();
+            let item = book.line_item(chapter, line);
+            if item < heights.len() {
+                entries.push(Entry {
+                    level,
+                    text: l.text.trim_end_matches('\n').to_owned(),
+                    chapter,
+                    line: Some(line),
+                    top: heights.top(item),
+                });
+            }
+        }
+    }
     let total = heights.total();
     drop(heights);
     let (scroll, _) = prose.scroll_y();
@@ -267,7 +307,7 @@ pub fn rail(
         return None;
     }
     let target = target?;
-    let editor = w.editor_of(target)?.clone();
+    let editor = w.page_view(target)?.clone();
     let page_w = w.editor_settings.page_width;
     let sheet = page_w.min(column_w);
     let gutter = (column_w - sheet) / 2.0 + PAGE_GUTTER;
@@ -312,8 +352,10 @@ pub fn rail(
             Slot::Entry(i) => {
                 let e = &entries[i];
                 let (size, ink, role) = match e.level {
-                    1 => (9.5, 3, Role::Ui),
-                    2 => (9.0, 4, Role::Ui),
+                    1 => (11.0, 2, Role::Structure),
+                    2 => (10.5, 3, Role::Structure),
+                    3 => (9.5, 3, Role::Ui),
+                    4 => (9.0, 4, Role::Ui),
                     _ => (8.0, 5, Role::Index),
                 };
                 let ink = if lineage[i] {
@@ -324,7 +366,7 @@ pub fn rail(
                     p.ink(ink)
                 };
                 let jump = editor.clone();
-                let line = e.line;
+                let (chapter, line) = (e.chapter, e.line);
                 div()
                     .id(gpui::ElementId::Name(
                         format!("outline-{}-{i}", target.key()).into(),
@@ -346,7 +388,7 @@ pub fn rail(
                     .text_color(ink.solid())
                     .role(gpui::Role::Link)
                     .child(e.text.clone())
-                    .on_click(move |_, window, cx| jump_to(&jump, line, window, cx))
+                    .on_click(move |_, window, cx| jump_to(&jump, chapter, line, window, cx))
                     .into_any_element()
             }
             Slot::More { count, before } => div()
@@ -386,20 +428,36 @@ pub fn rail(
     )
 }
 
-/// The heading at paragraph `line` to the top of the view, the caret at its
-/// start.
-pub fn jump_to(editor: &Entity<ChapterEditor>, line: usize, window: &mut Window, cx: &mut App) {
-    let prose = editor.read(cx).editor().clone();
-    prose.update(cx, |p, cx| {
-        let at = p.book().chapters[0].doc.line_start(line);
-        p.select(0, at..at, window, cx);
-        let item = p.book().line_item(0, line);
-        p.list_state().scroll_to(ListOffset {
-            item_ix: item,
-            offset_in_item: px(0.0),
-        });
-        cx.notify();
-    });
+/// The heading at paragraph `line` of `chapter` to the top of the view,
+/// the caret at its start; without a line, the chapter's title
+/// (`BookEditor::jump_to` on the whole book).
+pub fn jump_to(
+    view: &PageView,
+    chapter: usize,
+    line: Option<usize>,
+    window: &mut Window,
+    cx: &mut App,
+) {
+    let prose = view.prose(cx);
+    match (view, line) {
+        (PageView::Book(book), None) => {
+            let doc = book.read(cx).chapter_docs().nth(chapter).map(str::to_owned);
+            if let Some(doc) = doc {
+                book.update(cx, |b, cx| b.jump_to(&doc, window, cx));
+            }
+        }
+        (_, line) => prose.update(cx, |p, cx| {
+            let line = line.unwrap_or(0);
+            let at = p.book().chapters[chapter].doc.line_start(line);
+            p.select(chapter, at..at, window, cx);
+            let item = p.book().line_item(chapter, line);
+            p.list_state().scroll_to(ListOffset {
+                item_ix: item,
+                offset_in_item: px(0.0),
+            });
+            cx.notify();
+        }),
+    }
     let focus = gpui::Focusable::focus_handle(prose.read(cx), cx);
     window.focus(&focus, cx);
 }
@@ -412,7 +470,8 @@ mod tests {
         Entry {
             level,
             text: format!("H{level}"),
-            line: top as usize,
+            chapter: 0,
+            line: Some(top as usize),
             top,
         }
     }
